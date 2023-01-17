@@ -26,11 +26,12 @@ void FrequencyResponse::iterate(World &world) {
             std::max(FunctionDefaults<3>::get_thresh() * 100, r_params.dconv());//.01 .0001 .1e-5
     auto thresh = FunctionDefaults<3>::get_thresh();
     auto density_target = dconv * std::max(size_t(5), molecule.natom());
-    const double a_pow = 0.59636157;
-    const double b_pow = 0.16174869;
+    const double a_pow = 0.790;
+    const double b_pow = 0.678;
     const double bsh_abs_target = pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
     // m residuals for x and y
     Tensor<double> bsh_residualsX((int(m)));
+    Tensor<double> bsh_relative_residualsX((int(m)));
     Tensor<double> density_residuals((int(m)));
 
     bool static_res = (omega == 0.0);
@@ -119,7 +120,11 @@ void FrequencyResponse::iterate(World &world) {
             double d_residual = density_residuals.max();
             auto chi_norms = (compute_y) ? Chi.norm2s() : Chi.X.norm2();
             auto rho_norms = norm2s_T(world, rho_omega);
+            std::transform(bsh_residualsX.ptr(), bsh_residualsX.ptr() + bsh_residualsX.size(),
+                           chi_norms.ptr(), bsh_relative_residualsX.ptr(),
+                           [](auto bsh, auto norm_chi) { return bsh / norm_chi; });
             auto max_bsh = bsh_residualsX.absmax();
+            auto max_relative_bsh = bsh_relative_residualsX.absmax();
             max_rotation = 1.0 * max_bsh;
             Tensor<double> polar;
             if (compute_y) {
@@ -148,6 +153,7 @@ void FrequencyResponse::iterate(World &world) {
                     print("density target : ", density_target);
                     print("d_residual_max target : ", density_target);
                     print("bsh_residual_max : ", max_bsh);
+                    print("bsh_relative_residual_max : ", max_relative_bsh);
                     print("bsh abs target : ", bsh_abs_target);
                 }
             }
@@ -270,7 +276,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     X_space lambda_X = X_space(world, chi.num_states(), chi.num_orbitals());
     X_space theta_X = X_space(world, chi.num_states(), chi.num_orbitals());
     // We are going to build lambda and theta from individual components
-    // Just compute theta x and lambda x compoenents here
+    // Just compute theta x and lambda x components here
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     X_space V0X = compute_V0X(world, chi, xc, compute_y);
     if (r_params.print_level() >= 1) {
