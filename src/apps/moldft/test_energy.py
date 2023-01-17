@@ -16,7 +16,7 @@ if __name__ == "__main__":
     referencefile="@SRCDIR@/"+prefix+".calc_info.ref.json"
 
     # run test
-    global_arguments=' --input=input --geometry=he'
+    global_arguments=' --geometry=he'
     dft_arguments=' --dft="maxiter=1; econv=1.e-4; dconv=1.e-3; prefix='+prefix+'"'
     other_arguments=''
     cmd='rm '+outputfile+'; @BINARY@ '+global_arguments + dft_arguments  + other_arguments

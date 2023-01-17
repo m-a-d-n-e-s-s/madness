@@ -25,6 +25,7 @@ struct commandlineparser {
     commandlineparser(int argc, char **argv) {
         set_defaults();
         std::vector<std::string> allArgs_raw(argv, argv + argc);
+        allArgs_raw.erase(allArgs_raw.begin());     // first argument is the name of the binary
         for (auto &a : allArgs_raw) {
             // special treatment for the input file: no hyphens
             a=check_for_input_file(a);
@@ -34,6 +35,7 @@ struct commandlineparser {
             std::stringstream sa(a);
             sa >> key;
             val=a.substr(key.size());
+            if (key=="input") set_keyval("user_defined_input_file","1");
             set_keyval(key,val);
         }
     }
@@ -65,7 +67,7 @@ struct commandlineparser {
 
 public:
 
-    /// special option: the input file has no hyphens in front
+    /// special option: the input file has no hyphens in front and is just a value
     std::string check_for_input_file(std::string line) {
         if (line[0]=='-') return line;
         auto words=split(line,"=");

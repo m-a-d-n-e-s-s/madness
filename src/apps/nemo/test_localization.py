@@ -16,7 +16,7 @@ def localizer_run(localizer):
     referencefile="@SRCDIR@/"+prefix+".calc_info.ref.json"
 
 
-    cmd='rm '+outputfile+'; nemo --input=input --geometry=h2o --dft="maxiter=10; econv=3.e-5; k=8; localize='+localizer+'; dconv=1.e-3; prefix='+prefix+'"'
+    cmd='rm '+outputfile+'; nemo --geometry=h2o --dft="maxiter=10; econv=3.e-5; k=8; localize='+localizer+'; dconv=1.e-3; prefix='+prefix+'"'
     print("executing \n ",cmd)
     output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
     print("finished with run1")
