@@ -13,6 +13,7 @@
 #include<iomanip>
 #include <typeindex>
 #include <map>
+#include <fstream>
 #include <typeinfo>
 #include <madness/misc/misc.h>
 #include <madness/world/archive.h>
@@ -293,7 +294,14 @@ protected:
                                                     const commandlineparser& parser,
                                                     const std::string tag) {
         try {
-            read_input(world,parser.value("input"),tag);
+            // check that user-defined input files actually exist
+            bool file_ok=true;
+            if (parser.key_exists("user_defined_input_file")) file_ok=file_exists(world,parser.value("input"));
+            if (file_ok) read_input(world,parser.value("input"),tag);
+            else {
+                std::string msg="could not find user-defined input file: "+parser.value("input")+"\n";
+                throw std::invalid_argument(msg);
+            }
         } catch (std::invalid_argument& e) {
             throw;
         } catch (std::exception& e) {
@@ -310,6 +318,8 @@ private:
 	void read_input(World& world, const std::string filename, const std::string tag);
 
     void read_commandline_options(World& world, const commandlineparser& parser, const std::string tag);
+
+    bool file_exists(World& world, std::string filename) const;
 
 protected:
 
