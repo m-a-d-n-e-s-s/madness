@@ -140,7 +140,6 @@ tensorT Q2(const tensorT& s) {
     return Q;
 }
 
-}// namespace madness
 
 void
 SCF::output_scf_info_schema(const int &iter, const std::map<std::string, double> &vals, const tensorT &dipole_T) const {
