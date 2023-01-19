@@ -149,7 +149,7 @@ SCF::output_scf_info_schema(const int &iter, const std::map<std::string, double>
     // TODO (Adrian) possibly read in json from filesystem.
     // if it exists figure out the size.  pushback for each protocol
     j[0]["scf_iterations"] = iter;
-    const double thresh = FunctionDefaults<3>::get_thresh();
+    const double thresh = FunctionDefaults<4>::get_thresh();
     const int k = FunctionDefaults<3>::get_k();
     j[0]["scf_threshold"] = thresh;
     j[0]["scf_k"] = k;
@@ -173,7 +173,7 @@ SCF::output_scf_info_schema(const int &iter, const std::map<std::string, double>
         j = j_old;
     };
     std::ofstream ofs(save);
-    ofs << j;
+    ofs << std::setw(4) << j;
 }
 
 void scf_data::add_data(std::map<std::string, double> values) {
