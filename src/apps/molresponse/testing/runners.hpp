@@ -441,7 +441,14 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
         // double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
         ME.value(calc.molecule.get_all_coords().flat());// ugh!
         world.gop.fence();
-        if (world.rank() == 0) { ME.output_calc_info_schema(); }
+        const real_function_3d rho = 2.0 * calc.make_density(world, calc.aocc, calc.amo);
+        auto dipole_t = calc.dipole(world, rho);
+        std::map<std::string, double> results;
+        results["scf_energy"] = calc.current_energy;
+        if (world.rank() == 0) {
+            calc.output_scf_info_schema(0, results, dipole_t);
+            ME.output_calc_info_schema();
+        }
     } else {
         if (world.rank() == 0) {
             print("Skipping Calculation and printing CALC INFO");

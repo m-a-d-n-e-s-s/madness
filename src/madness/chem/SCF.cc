@@ -140,7 +140,6 @@ tensorT Q2(const tensorT& s) {
     return Q;
 }
 
-}// namespace madness
 
 void SCF::output_calc_info_schema() const {
     nlohmann::json j = {};
