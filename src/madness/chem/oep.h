@@ -200,6 +200,10 @@ public:
         return value(calc->molecule.get_all_coords());
     }
 
+    /// update the json file with calculation input and output
+    void output_calc_info_schema(const double& energy) const;
+
+
     virtual double value(const Tensor<double>& x) {
 	    reference->value();
         set_protocol(param.econv());
@@ -210,6 +214,7 @@ public:
         if (load_mos) load_restartdata(fock);
 
         if (not oep_param.no_compute())  energy=solve(reference->get_calc()->get_amo());
+        output_calc_info_schema(energy);
         return energy;
 	};
 
