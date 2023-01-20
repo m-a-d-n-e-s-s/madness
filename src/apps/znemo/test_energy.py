@@ -16,18 +16,18 @@ if __name__ == "__main__":
     args=parser.parse_args()
 
     # some user output
-    print("Testing @BINARY@/@TESTCASE")
+    print("Testing @BINARY@/@TESTCASE@")
     print(" reference files found in directory:",args.reference_directory)
 
     prefix='madtest1'
-    outputfile=prefix+'.oep_calc_info.json'
-    referencefile=args.reference_directory+"/"+prefix+".oep_calc_info.ref.json"
+    outputfile=prefix+'.calc_info.json'
+    referencefile=args.reference_directory+"/"+prefix+".calc_info.ref.json"
 
     # run test
-    global_arguments=' --geometry=be'
+    global_arguments=' --geometry=he'
     dft_arguments=' --dft="maxiter=1; econv=1.e-4; dconv=1.e-3; prefix='+prefix+'"'
-    other_arguments=' --oep="model=oaep"'
-    cmd='rm '+outputfile+'; @BINARY@ '+global_arguments + dft_arguments  + other_arguments
+    other_arguments=' --complex="physical_B=-1.0" --geometry="no_orient=true; source_name=he"'
+    cmd='rm '+outputfile+' reference.00000; @BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
     output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
     print("finished with run")
