@@ -163,8 +163,20 @@ double Znemo::value(const Tensor<double>& x) {
 	save_orbitals();
 
 	double energy=analyze();
+    output_calc_info_schema(energy);
 
 	return energy;
+}
+
+void Znemo::output_calc_info_schema(const double& energy) const {
+    nlohmann::json j;
+    j["scf_eigenvalues_a"]=tensor_to_json(aeps);
+    j["scf_eigenvalues_b"]=tensor_to_json(beps);
+    j["model"]="UHF";
+    j["B"]=this->B;
+    j["driver"]="energy";
+    j["return_energy"]=energy;
+    update_schema(cparam.prefix()+".calc_info", j);
 }
 
 Tensor<double> Znemo::gradient(const Tensor<double>& x) {

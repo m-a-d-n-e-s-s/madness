@@ -177,6 +177,8 @@ public:
 	/// compute the molecular energy
 	double value(const Tensor<double>& x) override;
 
+    void output_calc_info_schema(const double& energy) const;
+
     std::string name() const override {return "znemo";};
 
     bool selftest() override {
