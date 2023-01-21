@@ -55,6 +55,7 @@ CC2::solve() {
 
         //DEBUG MP2 coupled
         const double mp2_correlation_energy = solve_mp2_coupled(pairs);
+        output_calc_info_schema("mp2",mp2_correlation_energy);
 
         output.section(assign_name(ctype) + " Calculation Ended !");
         if (world.rank() == 0)
@@ -398,6 +399,16 @@ CC2::solve() {
     } else MADNESS_EXCEPTION(("Unknown Calculation Type: " + assign_name(ctype)).c_str(), 1);
 
 }
+
+void CC2::output_calc_info_schema(const std::string model, const double& energy) const {
+    nlohmann::json j;
+    j["model"]=model;
+    j["driver"]="energy";
+    j["return_energy"]=energy;
+    j["mp2_correlation_energy"]=energy;
+    update_schema(nemo->get_param().prefix()+".calc_info", j);
+}
+
 
 bool CC2::check_core_valence_separation() const {
 
