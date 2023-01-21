@@ -82,6 +82,9 @@ public:
         return 0.0;
     }
 
+    void output_calc_info_schema(const std::string model, const double& energy) const;
+
+
     std::string name() const {return "CC2";};
 
     static void help() {
