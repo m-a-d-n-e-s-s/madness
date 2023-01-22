@@ -11,7 +11,7 @@ add_mad_executable(testpg testpg.cc MADchem)
 
 add_mad_executable(testperiodicdft testperiodicdft.cc MADchem)
 
-add_scripted_tests(test_energy.py moldft "short;application")
+add_scripted_tests(test_energy.py moldft "short;applications")
 
 
 # removed mcpfit since it is likely only of historic interest

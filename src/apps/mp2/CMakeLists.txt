@@ -4,7 +4,7 @@ add_mad_executable(mp2 mp2.cc "MADchem")
 add_dependencies(applications-madness mp2)
 
 if (ENABLE_GENTENSOR)
-   add_scripted_tests(test_callable.py mp2 "short;application")
+   add_scripted_tests(test_callable.py mp2 "short;applications")
 endif()
 
 
