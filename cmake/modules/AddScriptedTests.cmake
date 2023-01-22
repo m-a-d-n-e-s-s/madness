@@ -33,7 +33,7 @@ macro(add_scripted_tests _testcase_in _binary _labels)
   endif()
   #  copy the test scripts and replaces the variable to the source directory containing the reference json outputs
   set(SRCDIR ${CMAKE_CURRENT_SOURCE_DIR})
-  set(BINARY ${CMAKE_CURRENT_BINARY_DIR}/${_binary})
+  set(BINARY ${_binary})
   set(TESTCASE ${_testcase})
   configure_file(${_testcase} ${_testcase} @ONLY)
 
