@@ -16,13 +16,14 @@ if __name__ == "__main__":
     referencefile="@SRCDIR@/"+prefix+".calc_info.ref.json"
 
     # run test
-    global_arguments='  --geometry=h2o'
+    global_arguments=' --geometry=h2o'
     dft_arguments=' --dft="k=8; localize=canon; prefix='+prefix+'"'
     other_arguments=' --response="freeze=1; thresh=1.e-3; econv=1.e-3; dconv=1.e-2"'
-    cmd='rm '+outputfile+'; cis '+global_arguments + dft_arguments  + other_arguments
+    cmd='rm '+outputfile+'; ./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
 #    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
     p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)
+
     print("finished with run")
     print(p.stdout)
 
@@ -38,11 +39,12 @@ if __name__ == "__main__":
 
     dft_arguments=' --dft="k=8; localize=canon; prefix='+prefix+'; no_compute=1"'
     other_arguments=' --response="irrep=a2; freeze=1; thresh=1.e-3; econv=1.e-3; dconv=1.e-2"'
-    cmd='cis '+global_arguments + dft_arguments  + other_arguments
+    cmd='./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
-    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
+#    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
+    p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)
     print("finished with run")
-    print(output)
+    print(p.stdout)
 
 
     # compare results
