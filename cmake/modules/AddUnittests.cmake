@@ -1,8 +1,10 @@
-macro(add_unittests _component _sources _libs)
+macro(add_unittests _component _sources _libs _labels)
 
   # Add targets and for world_unittests
-  add_custom_target_subproject(madness ${_component}_unittests)
-  add_dependencies(unittests-madness ${_component}_unittests-madness)
+  if (NOT TARGET ${_component}_unittests)
+    add_custom_target_subproject(madness ${_component}_unittests)
+    add_dependencies(unittests-madness ${_component}_unittests-madness)
+  endif()
 
   # Add a test that builds the unit tests
   add_test(madness/test/${_component}/build
@@ -21,7 +23,7 @@ macro(add_unittests _component _sources _libs)
     add_test(NAME madness/test/${_component}/${_test}/run COMMAND ${_test})
     add_dependencies(${_component}_unittests-madness ${_test})
     set_tests_properties(madness/test/${_component}/${_test}/run
-        PROPERTIES DEPENDS madness/test/${_component}/build)
+        PROPERTIES DEPENDS madness/test/${_component}/build LABELS "${_labels}")
  
   endforeach()
 

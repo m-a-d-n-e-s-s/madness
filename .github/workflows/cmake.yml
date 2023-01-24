@@ -102,4 +102,4 @@ jobs:
     - name: Test
       working-directory: ${{github.workspace}}/build
       shell: bash
-      run: cmake --build . --target check-madness
+      run: cmake --build . --target check-short-madness
