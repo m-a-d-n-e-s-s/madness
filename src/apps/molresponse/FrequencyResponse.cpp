@@ -55,8 +55,6 @@ void FrequencyResponse::iterate(World &world) {
     if (r_params.kain()) {
         for (auto &kain_space_b: kain_x_space) { kain_space_b.set_maxsub(r_params.maxsub()); }
     }
-
-
     // New approach solving single function at a time
     auto p = compute_y ? 2 : 1;
     response_function_solver rf_solver;
@@ -66,8 +64,6 @@ void FrequencyResponse::iterate(World &world) {
     if (r_params.kain()) {
         for (auto &solver_ij: rf_solver) { solver_ij.set_maxsub(r_params.maxsub()); }
     }
-
-
     // We compute with positive frequencies
     if (world.rank() == 0) {
         print("Warning input frequency is assumed to be positive");
@@ -181,7 +177,7 @@ void FrequencyResponse::iterate(World &world) {
         }
         auto [new_chi, new_res, new_polar] =
                 update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega,
-                       kain_x_space, iter, max_rotation, rf_solver);
+                       kain_x_space, iter, max_rotation);
         v_polar = copy(new_polar);
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         rho_omega_old = make_density(world, Chi);
@@ -264,8 +260,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
                                std::vector<poperatorT> &bsh_x_ops,
                                std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector,
                                double &x_shifts, double &omega_n, response_solver &kain_x_space,
-                               size_t iteration, const double &max_rotation,
-                               response_function_solver &solver)
+                               size_t iteration, const double &max_rotation)
         -> std::tuple<X_space, residuals, Tensor<double>> {
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -362,11 +357,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
     //&& iteration < 7
     if (iteration > 0) {// & (iteration % 3 == 0)) {
-        if (true) {
-            new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
-        } else {
-            new_chi = new_kain_x_space_update(world, chi, new_chi, solver);
-        }
+        new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
     if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
     if (r_params.print_level() >= 1) {
