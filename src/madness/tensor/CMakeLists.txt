@@ -90,7 +90,7 @@ if(BUILD_TESTING)
     list(APPEND LINALG_TEST_SOURCES test_gentensor.cc test_lowranktensor.cc)
   endif()
 
-  add_unittests(tensor "${TENSOR_TEST_SOURCES}" "MADtensor;MADgtest" "unittests")
-  add_unittests(linalg "${LINALG_TEST_SOURCES}" "MADlinalg;MADgtest" "unittests")
+  add_unittests(tensor "${TENSOR_TEST_SOURCES}" "MADtensor;MADgtest" "unittests;short")
+  add_unittests(linalg "${LINALG_TEST_SOURCES}" "MADlinalg;MADgtest" "unittests;short")
   
 endif()

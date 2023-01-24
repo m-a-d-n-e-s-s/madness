@@ -9,7 +9,9 @@ macro(add_unittests _component _sources _libs _labels)
   # Add a test that builds the unit tests
   add_test(madness/test/${_component}/build
       "${CMAKE_COMMAND}" --build ${CMAKE_BINARY_DIR} --target ${_component}_unittests-madness)
-  
+  # make sure that the build step has all labels
+  set_property(TEST madness/test/${_component}/build PROPERTY LABELS "${_labels}" APPEND)
+
   foreach(_source ${_sources})
     # Get the test name (the file name of the first source)
     string(REGEX MATCH "[A-Za-z_][A-Za-z0-9_]*\\.cc" _test_source "${_source}")
