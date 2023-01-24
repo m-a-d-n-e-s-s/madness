@@ -673,6 +673,7 @@ if(BUILD_TESTING)
   add_custom_target_subproject(madness unittests)
   add_custom_target_subproject(madness scripted_tests)
   add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} -V -R "madness/test/" USES_TERMINAL) # to be GNU compatible
+  add_custom_target_subproject(madness check-short COMMAND ${CMAKE_CTEST_COMMAND} -L \"short|medium\" -V -R "madness/test/" USES_TERMINAL) # to be GNU compatible
   add_dependencies(everything unittests)
 endif()
 add_subdirectory(src)

@@ -18,8 +18,10 @@ macro(add_scripted_tests _testcase_in _binary _labels)
 #   Add a test that builds the binary
   add_test(madness/test/${_binary}/build
           "${CMAKE_COMMAND}" --build ${CMAKE_BINARY_DIR} --target ${_binary})
-  set_tests_properties(madness/test/${_binary}/build
-          PROPERTIES DEPENDS ${_binary} LABELS "${_labels}")
+  set_tests_properties(madness/test/${_binary}/build PROPERTIES DEPENDS ${_binary})
+
+  # make sure that the build step has all labels
+  set_property(TEST madness/test/${_binary}/build PROPERTY LABELS "${_labels}" APPEND)
 
 #   Add a test that copies the test scripts and replaces the variable to the source directory
 #   containing the reference json outputs

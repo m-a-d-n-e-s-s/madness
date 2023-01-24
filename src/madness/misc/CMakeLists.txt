@@ -22,6 +22,6 @@ if(BUILD_TESTING)
   # The list of unit test source files
   set(MISC_TEST_SOURCES interp3.cc)
   
-  add_unittests(misc "${MISC_TEST_SOURCES}" "MADmisc;MADgtest")
+  add_unittests(misc "${MISC_TEST_SOURCES}" "MADmisc;MADgtest" "unittests")
 
 endif()
