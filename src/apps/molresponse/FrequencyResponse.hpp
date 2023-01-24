@@ -50,8 +50,7 @@ private:
     update(World &world, X_space &chi, XCOperator<double, 3> &xc,
            std::vector<poperatorT> &bsh_x_ops, std::vector<poperatorT> &bsh_y_ops,
            QProjector<double, 3> &projector, double &x_shifts, double &omega_n,
-           response_solver &kain_x_space, size_t iteration, const double &max_rotation,
-           response_function_solver &solver);
+           response_solver &kain_x_space, size_t iteration, const double &max_rotation);
     X_space new_kain_x_space_update(World &world, const X_space &x, const X_space &fx,
                                     response_function_solver &rf_solver);
 };
