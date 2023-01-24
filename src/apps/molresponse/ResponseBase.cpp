@@ -955,17 +955,11 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
                                bool compute_Y) const -> X_space {
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    //     // std::cout << "MPI BARRIER V0X " << std::endl;
-    //     // world.mpi.Barrier();
-    // Start a timer
     size_t m = X.num_states();
     size_t n = X.num_orbitals();
-
     X_space V0 = X_space(world, m, n);
     X_space K0 = X_space(world, m, n);
-
     real_function_3d v_nuc, v_j0, v_k0, v_xc;
-
     if (not r_params.store_potential()) {
         v_nuc = potential_manager->vnuclear();
         //v_nuc.truncate();
@@ -1420,7 +1414,7 @@ void ResponseBase::solve(World &world) {
     for (const auto &iter_thresh: protocol) {
         // We set the protocol and function defaults here for the given threshold of
         set_protocol(world, iter_thresh);
-        if (world.rank() == 0) { print("Succesfully set protocol"); }
+        if (world.rank() == 0) { print("Successfully set protocol"); }
         // protocol
         if (first_protocol) {
             if (r_params.restart()) {
@@ -1431,14 +1425,14 @@ void ResponseBase::solve(World &world) {
                 first_protocol = false;
             } else {
                 this->initialize(world);
-                if (world.rank() == 0) { print("Succesfully initialized "); }
+                if (world.rank() == 0) { print("Successfully initialized "); }
             }
             check_k(world, iter_thresh, FunctionDefaults<3>::get_k());
-            if (world.rank() == 0) { print("Succesfully check K first initialization "); }
+            if (world.rank() == 0) { print("Successfully check K first initialization "); }
             first_protocol = false;
         } else {
             check_k(world, iter_thresh, FunctionDefaults<3>::get_k());
-            if (world.rank() == 0) { print("Succesfully check K not first initialization "); }
+            if (world.rank() == 0) { print("Successfully check K not first initialization "); }
         }
         protocol_to_json(j_molresponse, iter_thresh);
         // Now actually ready to iterate...

@@ -121,8 +121,6 @@ protected:
     double vtol{};
 
     X_space Chi;
-
-
     /// Sets the Function protocol dependent on the truncation threshold.
     /// Sets the polynomial order of basis functions k
     /// Then creates shared coulomb operator, gradient operator, ground density
