@@ -321,21 +321,7 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
     world.gop.fence();
     const double lo = 1.e-10;
     if (compute_y) {
-        auto x = to_response_matrix(chi);
-        auto x_conjugate = to_conjugate_response_matrix(chi);
-        auto phi_phi = to_response_vector(phi0);
-        auto KK = response_matrix(num_states);
         for (int b = 0; b < num_states; b++) {
-            Exchange<double, 3> op_1{};
-            op_1.set_parameters(x[b], phi_phi, lo);
-            op_1.set_algorithm(algo);
-            Exchange<double, 3> op_2{};
-            op_2.set_parameters(phi_phi,x_conjugate[b], lo);
-            op_2.set_algorithm(algo);
-            auto k1 = op_1(phi_phi);
-            auto k2 = op_2(phi_phi);
-            KK[b] = gaxpy_oop(1.0, k1, 1.0, k2, false);
-            /*
             Exchange<double, 3> op_1x{};
             op_1x.set_parameters(chi.X[b], phi0, lo);
             op_1x.set_algorithm(algo);
@@ -354,10 +340,8 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
             auto k2y = op_2y(phi_1);
             K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, false);
             K.Y[b] = gaxpy_oop(1.0, k1y, 1.0, k2y, false);
-             */
             world.gop.fence();
         }
-        K = to_X_space(KK);
     } else {
         for (int b = 0; b < num_states; b++) {
             Exchange<double, 3> op_1x{};
