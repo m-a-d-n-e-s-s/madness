@@ -533,11 +533,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     molresponse::start_timer(world);
     X_space gamma(world, num_states, num_orbitals);
     auto c_xc = xcf.hf_exchange_coefficient();
-    gamma = 2 * J;
-    if (world.rank() == 0) { print("gamma: 2 * J"); }
-    gamma += -c_xc * K;
-    if (world.rank() == 0) { print("gamma: += -c_xc * K"); }
-
+    gamma = 2 * J - c_xc * K + (1.0 - c_xc) * W;
     if (xcf.hf_exchange_coefficient() != 1.0) {
         gamma += W;
         if (world.rank() == 0) { print("gamma: += W"); }
@@ -556,7 +552,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_project", "gamma_project", iter_timing);
     }
-
     if (r_params.print_level() >= 20) {
         molresponse::start_timer(world);
         print_inner(world, "xJx", chi_alpha, J);
@@ -578,7 +573,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (world.size() > 1) {
         FunctionDefaults<3>::set_pmap(old_pmap);// ! DON'T FORGET !
     }
-    //gamma.truncate();
+    gamma.truncate();
     return gamma;
     // Get sizes
 }
