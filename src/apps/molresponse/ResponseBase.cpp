@@ -465,7 +465,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     auto mul_tol = FunctionDefaults<3>::get_thresh();
     // note that x can refer to x or y
     auto compute_j = [&, &phi0 = phi0](const auto &dx) {
-        // compute density with response function dx and orbitals phi0
         auto rho_x_b = dot(world, dx, phi0);
         rho_x_b.truncate();
         rho_x_b = apply(*shared_coulomb_operator, rho_x_b);
@@ -474,24 +473,18 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     };
 
     std::transform(chi_alpha.X.begin(), chi_alpha.X.end(), j_x.begin(), compute_j);
-    // compute j_y = op(rho_y)*phi0
     if (world.rank() == 0) { print("compute jX"); }
-
     std::transform(chi_alpha.Y.begin(), chi_alpha.Y.end(), j_y.begin(), compute_j);
     if (world.rank() == 0) { print("compute jy"); }
 
     J.X = j_x + j_y;
     if (world.rank() == 0) { print("add jx+jy"); }
-    // TODO is copy better than adding? probably?
-    // J.Y=j_x+j_y;
     J.Y = J.X.copy();
     if (world.rank() == 0) { print("copy JX into JY"); }
     world.gop.fence();
-
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "J[omega]", "J[omega]", iter_timing);
     }
-
     // Create Coulomb potential on ground_orbitals
     if (xcf.hf_exchange_coefficient() != 1.0) {
         auto rho = transition_density(world, phi0, chi_alpha.X, chi_alpha.X);
