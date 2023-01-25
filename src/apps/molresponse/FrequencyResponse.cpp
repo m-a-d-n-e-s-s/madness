@@ -95,8 +95,8 @@ void FrequencyResponse::iterate(World &world) {
     functionT mask;
     mask = real_function_3d(real_factory_3d(world).f(mask3).initial_level(4).norefine());
     PQ = generator(world, *this);
-    PQ = PQ * mask;
-    PQ.truncate();
+    //PQ = PQ * mask;
+    //PQ.truncate();
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
         iter_timing.clear();
         Chi = mask * Chi;
