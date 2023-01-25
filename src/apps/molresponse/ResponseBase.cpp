@@ -461,7 +461,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     // Create Coulomb potential on ground_orbitals
     functionT rho_x_b;
     functionT rho_y_b;
-
     auto mul_tol = FunctionDefaults<3>::get_thresh();
     // note that x can refer to x or y
     auto compute_j = [&, &phi0 = phi0](const auto &dx) {
