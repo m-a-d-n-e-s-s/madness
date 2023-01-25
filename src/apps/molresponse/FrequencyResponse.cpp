@@ -175,10 +175,8 @@ void FrequencyResponse::iterate(World &world) {
                 break;
             }
         }
-        auto [new_chi, new_res, new_polar] =
-                update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega,
-                       kain_x_space, iter, max_rotation);
-        v_polar = copy(new_polar);
+        auto [new_chi, new_res] = update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts,
+                                         omega, kain_x_space, iter, max_rotation);
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         rho_omega_old = make_density(world, Chi);
         if (r_params.print_level() >= 1) {
@@ -216,18 +214,11 @@ void FrequencyResponse::iterate(World &world) {
         if (world.rank() == 0) { print("computing polarizability:"); }
 
         if (r_params.print_level() >= 20) {
-            auto [eval, evec] = syev(polar);
             if (world.rank() == 0) {
                 printf("\n--------Response Properties after %d-------------\n",
                        static_cast<int>(iter));
                 print("polarizability");
                 print(polar);
-                print("polarizability eigenvalues");
-                print(eval);
-                print("polarizability eigenvectors");
-                print(evec);
-                print("V polarizability");
-                print(v_polar);
             }
         }
 
@@ -261,90 +252,14 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
                                std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector,
                                double &x_shifts, double &omega_n, response_solver &kain_x_space,
                                size_t iteration, const double &max_rotation)
-        -> std::tuple<X_space, residuals, Tensor<double>> {
+        -> std::tuple<X_space, residuals> {
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     size_t m = chi.num_states();
     bool compute_y = omega_n != 0.0;
     auto x = chi.copy();// copy chi
-    X_space lambda_X = X_space(world, chi.num_states(), chi.num_orbitals());
-    X_space theta_X = X_space(world, chi.num_states(), chi.num_orbitals());
-    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    X_space V0X = compute_V0X(world, chi, xc, compute_y);
-    if (r_params.print_level() >= 1) {
-        molresponse::end_timer(world, "compute_V0X", "compute_V0X", iter_timing);
-        if (r_params.print_level() >= 20) { print_inner(world, "xV0x", chi, V0X); }
-    }
-    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    X_space TOX = compute_TX(world, chi, compute_y);
-    if (r_params.print_level() >= 1) {
-        molresponse::end_timer(world, "compute_TX", "TX", iter_timing);
-        if (r_params.print_level() >= 20) { print_inner(world, "xTx", chi, TOX); }
-    }
-    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    X_space full_E0X(world, chi.num_states(), chi.num_orbitals());
-    X_space offdiag_E0X(world, chi.num_states(), chi.num_orbitals());
-    if (r_params.localize() != "canon") {
-        if (compute_y) {
-            offdiag_E0X.X = x.X * ham_no_diag;
-            offdiag_E0X.Y = x.Y * ham_no_diag;
-            full_E0X.X = x.X * hamiltonian;
-            full_E0X.Y = x.Y * hamiltonian;
-        } else {
-            offdiag_E0X.X = x.X * ham_no_diag;
-            offdiag_E0X.Y = offdiag_E0X.X.copy();
-            full_E0X.X = x.X * hamiltonian;
-            full_E0X.Y = full_E0X.X.copy();
-        }
-        if (r_params.print_level() >= 20) {
-            print_inner(world, "E0", chi, offdiag_E0X);
-            print_inner(world, "ED", chi, full_E0X);
-        }
-    }
-    if (r_params.print_level() >= 1) {
-        molresponse::end_timer(world, "compute_E0X", "compute_E0X", iter_timing);
-    }
-    X_space gamma;
-    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    if (compute_y) gamma = compute_gamma_full(world, {chi, ground_orbitals}, xc);
-    else
-        gamma = compute_gamma_static(world, {chi, ground_orbitals}, xc);
-    if (r_params.print_level() >= 1) {
-        molresponse::end_timer(world, "gamma_compute", "gamma_compute", iter_timing);
-    }
-
-    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    if (compute_y) {
-        theta_X = (V0X - offdiag_E0X) + gamma;
-        theta_X.truncate();
-    } else {
-        theta_X.X = (V0X.X - offdiag_E0X.X + gamma.X);
-        theta_X.X.truncate_rf();
-        theta_X.Y = theta_X.X.copy();
-    }
-    if (r_params.print_level() >= 1) {
-        molresponse::end_timer(world, "compute_ThetaX_add", "compute_ThetaX_add", iter_timing);
-    }
-    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    X_space omega_X = X_space::zero_functions(world, chi.num_states(), chi.num_orbitals());
-    if (compute_y) {
-        omega_X.X = -omega * x.X;
-        omega_X.Y = omega * x.Y;
-        lambda_X = TOX + V0X - full_E0X + omega_X + gamma;
-        lambda_X.truncate();
-    } else {
-        lambda_X.X = TOX.X + V0X.X - full_E0X.X + gamma.X;
-        lambda_X.X.truncate_rf();
-    }
-
-    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "lambda_x"); }
-    Tensor<double> polar;
-    if (compute_y) {
-        polar = 2 * inner(x, lambda_X);
-    } else {
-        polar = 4 * response_space_inner(x.X, lambda_X.X);
-    }
+    X_space theta_X = compute_theta_X(world, chi, xc, r_params.calc_type());
     X_space new_chi =
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
@@ -357,7 +272,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
         molresponse::end_timer(world, "update response", "update", iter_timing);
     }
     //	if not compute y then copy x in to y
-    return {new_chi, {new_res, bsh}, polar};
+    return {new_chi, {new_res, bsh}};
 
     // print x norms
 }
@@ -482,7 +397,6 @@ void FrequencyResponse::frequency_to_json(json &j_mol_in, size_t iter,
     json j = {};
     j["iter"] = iter;
     j["polar"] = tensor_to_json(polar_ij);
-    j["v_polar"] = tensor_to_json(v_polar_ij);
     auto index = j_mol_in["protocol_data"].size() - 1;
     j_mol_in["protocol_data"][index]["property_data"].push_back(j);
 }
