@@ -330,7 +330,7 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
             op_1.set_parameters(x[b], phi_phi, lo);
             op_1.set_algorithm(algo);
             Exchange<double, 3> op_2{};
-            op_2.set_parameters(x_conjugate[b], phi_phi, lo);
+            op_2.set_parameters(phi_phi,x_conjugate[b], lo);
             op_2.set_algorithm(algo);
             auto k1 = op_1(phi_phi);
             auto k2 = op_2(phi_phi);
