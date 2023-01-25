@@ -34,6 +34,7 @@
 #define MADNESS_MRA_SIMPLECACHE_H__INCLUDED
 
 #include <madness/mra/key.h>
+#include <madness/world/worldhashmap.h>
 
 namespace madness {
     /// Simplified interface around hash_map to cache stuff for 1D

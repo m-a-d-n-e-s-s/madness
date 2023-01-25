@@ -75,10 +75,11 @@ namespace madness{
                     std::vector<int> dummy2;
                     Tensor<double> temp_energies;
 
-                    //read in what's in the archive. See SCF.cc for how these archives are stored
+                    //read in what's in the archive. See SCF::save_mos for how these archives are stored
                     archive::ParallelInputArchive input(world, filename.c_str());
                     unsigned int version;
                     std::string xc;
+                    std::string localize_method;
 
                     input & version;
                     input & Init_total_energy;              // double
@@ -87,7 +88,8 @@ namespace madness{
                     input & order;               // int               wavelet order
                     input & molecule;            // Molecule   
                     input & xc;
-                    
+                    input & localize_method;
+
                     input & num_occupied;        // int
                     input & temp_energies;       // Tensor<double>    orbital energies
                     input & occ;                 // Tensor<double>    orbital occupations

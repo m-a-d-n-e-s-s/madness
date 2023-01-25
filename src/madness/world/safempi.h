@@ -499,8 +499,8 @@ namespace SafeMPI {
             int numproc;
             bool owner;
 
-            volatile int utag;
-            volatile int urtag;
+            int utag; // Only used by main thread so no volatile or mutex needed
+            int urtag;// Ditto
 
             Impl(const MPI_Comm& c, int m, int n, bool o) :
                 comm(c), me(m), numproc(n), owner(o), utag(1024), urtag(1)
@@ -522,9 +522,11 @@ namespace SafeMPI {
             /// So that send and receiver agree on the tag all processes
             /// need to call this routine in the same sequence.
             int unique_tag() {
+                // RJH removed mutex since ordering requirement across processes means
+                // there can never be any thread contention.
                 // Cannot use MPI mutex for anything else!
                 // It will preprocess to nothing for MPI_THREAD_MULTIPLE!
-                madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(SafeMPI::charon);
+                //madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(SafeMPI::charon);
                 int result = utag++;
                 if (utag >= 4095) utag = 1024;
                 return result;
@@ -536,9 +538,10 @@ namespace SafeMPI {
             ///
             /// Tags in [1000,1023] are statically assigned.
             int unique_reserved_tag() {
+                // RJH removed mutex since ordering requirement across processes means
                 // Cannot use MPI mutex for anything else!
                 // It will preprocess to nothing for MPI_THREAD_MULTIPLE!
-                madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(SafeMPI::charon);
+                // madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(SafeMPI::charon);
                 int result = urtag++;
                 if (result >= 1000) MADNESS_EXCEPTION( "too many reserved tags in use" , result );
                 return result;

@@ -8,22 +8,19 @@
 #ifndef SRC_APPS_CHEM_ZNEMO_H_
 #define SRC_APPS_CHEM_ZNEMO_H_
 
-
+#include <madness/chem/CalculationParameters.h>
+#include <madness/chem/MolecularOrbitals.h>
+#include <madness/chem/QCCalculationParametersBase.h>
+#include <madness/chem/SCFOperators.h>
+#include <madness/chem/molecular_optimizer.h>
+#include <madness/chem/molecularbasis.h>
+#include <madness/chem/molecule.h>
+#include <madness/chem/nemo.h>
+#include <madness/misc/info.h>
 #include <madness/mra/mra.h>
-#include <madness/mra/vmra.h>
-#include<madness/chem/molecule.h>
-#include <madness/mra/operator.h>
 #include <madness/mra/nonlinsol.h>
-#include<madness/chem/SCFOperators.h>
-#include<madness/chem/QCCalculationParametersBase.h>
-#include<madness/chem/CalculationParameters.h>
-#include<madness/chem/molecularbasis.h>
-#include<madness/chem/molecular_optimizer.h>
 #include <madness/mra/operator.h>
-#include<madness/chem/nemo.h>
-#include<madness/chem/MolecularOrbitals.h>
-#include <madness/misc/gitinfo.h>
-
+#include <madness/mra/vmra.h>
 
 namespace madness {
 

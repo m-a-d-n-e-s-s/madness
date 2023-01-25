@@ -149,12 +149,12 @@ if(BUILD_TESTING)
     list(APPEND CHEM_TEST_SOURCES test_dft.cc test_SCFOperators.cc)
   endif(LIBXC_FOUND)
   
-  add_unittests(chem "${CHEM_TEST_SOURCES}" "MADchem;MADgtest;MADgit")
+  add_unittests(chem "${CHEM_TEST_SOURCES}" "MADchem;MADgtest")
   
   # Create other test executables not included in the unit tests
   set(CHEM_OTHER_TESTS testxc benchmark_exchange_operator)
   foreach(_test ${CHEM_OTHER_TESTS})  
-    add_mad_executable(${_test} "${_test}.cc" "MADchem;MADgit")
+    add_mad_executable(${_test} "${_test}.cc" "MADchem")
   endforeach()
   
 endif()

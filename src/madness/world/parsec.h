@@ -30,10 +30,12 @@ namespace madness{
         ~ParsecRuntime();
 
         static parsec_context_t* context();
+        static parsec_execution_stream_t *execution_stream();
         static void schedule(PoolTaskInterface* task);
         static int test();
         static void wait();
-        static parsec_task_t task(bool is_high_priority, void *ptr);
+        static parsec_task_t *task(bool is_high_priority, void *ptr);
+        static void delete_parsec_task(parsec_task_t *t);
     };
 }
 

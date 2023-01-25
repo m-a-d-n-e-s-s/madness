@@ -7,6 +7,7 @@ endif()
 if (NOT MADNESS_BUILD_MADWORLD_ONLY)
   add_subdirectory(muParser)
   add_subdirectory(tinyxml)
+  add_subdirectory(nlohmann_json)
 endif (NOT MADNESS_BUILD_MADWORLD_ONLY)
 
 # if want embedded elemental ...

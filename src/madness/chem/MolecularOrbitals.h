@@ -245,13 +245,13 @@ public:
         unsigned int version = 2;  // UPDATE THIS IF YOU CHANGE ANYTHING
         unsigned int archive_version;
 		double current_energy;
-        std::string xc;
+        std::string xc, localize_method;
 
 
 		archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, filename.c_str());
         ar & version;
 		ar & current_energy & spinrestricted;
-        ar & L& k1& molecule& xc;
+        ar & L& k1& molecule& xc & localize_method;
 
 		MolecularOrbitals<T,NDIM> amo, bmo;
 		amo.load_mos(ar, molecule, nmo_alpha);

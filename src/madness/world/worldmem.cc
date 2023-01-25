@@ -247,7 +247,7 @@ namespace madness {
       return stream;
     } else
       throw std::runtime_error(
-          "madness::print_meminfo_ostream called but print_meminfo_keep_ostream_open() return true; make sure print_meminfo_keep_ostream_open(true) has been called");
+          "madness::print_meminfo_ostream called but print_meminfo_keep_ostream_open() returned false; make sure print_meminfo_keep_ostream_open(true) has been called");
   }
 
   }  // namespace madness

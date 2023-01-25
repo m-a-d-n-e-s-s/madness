@@ -1,6 +1,6 @@
 # src/apps/moldft
 
-add_mad_executable(cc2 cc2.cc "MADchem;MADgit")
+add_mad_executable(cc2 cc2.cc "MADchem")
 add_dependencies(applications-madness cc2)
 
 

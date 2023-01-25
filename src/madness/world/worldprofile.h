@@ -130,7 +130,7 @@ namespace madness {
     /// Use the macros PROFILE_FUNC, PROFILE_BLOCK, PROFILE_MEMBER_FUNC
     class WorldProfile {
         //static ConcurrentHashMap<std::string,WorldProfileEntry> items;
-        volatile static std::vector<WorldProfileEntry> items;
+        static std::vector<WorldProfileEntry> items;
         static Spinlock mutex;
         static double cpu_start;
         static double wall_start;

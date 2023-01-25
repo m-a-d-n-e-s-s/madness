@@ -986,11 +986,15 @@ namespace madness {
                 // additional functors are only evaluated on-demand
             } else if (functor) { // Project function and optionally refine
                 insert_zero_down_to_initial_level(cdata.key0);
+                // set the union of the special points of functor and the ones explicitly given to FunctionFactory
+                std::vector<coordT> functor_special_points=functor->special_points();
+                if (!functor_special_points.empty()) special_points.insert(special_points.end(), functor_special_points.begin(), functor_special_points.end());
+
                 typename dcT::const_iterator end = coeffs.end();
                 for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
                     if (it->second.is_leaf())
                         woT::task(coeffs.owner(it->first), &implT::project_refine_op, it->first, do_refine,
-                                  functor->special_points());
+                                  special_points);
                 }
             }
             else { // Set as if a zero function

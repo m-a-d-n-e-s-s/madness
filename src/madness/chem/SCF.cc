@@ -1864,7 +1864,7 @@ void SCF::update_subspace(World& world, vecfuncT& Vpsia, vecfuncT& Vpsib,
         do_step_restriction(world, bmo, bmo_new, "beta");
         orthonormalize(world, bmo_new, param.nbeta());
         bmo = bmo_new;
-    } else {
+    } else if (param.nbeta()>0) {
         bmo = amo;
     }
 }

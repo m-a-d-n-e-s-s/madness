@@ -61,7 +61,7 @@
 #include<madness/chem/pcm.h>
 #include<madness/chem/QCPropertyInterface.h>
 
-#include "madness/tensor/tensor_json.hpp"
+#include <madness/tensor/tensor_json.hpp>
 #include <memory>
 
 namespace madness {
