@@ -270,8 +270,6 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     auto x = chi.copy();// copy chi
     X_space lambda_X = X_space(world, chi.num_states(), chi.num_orbitals());
     X_space theta_X = X_space(world, chi.num_states(), chi.num_orbitals());
-    // We are going to build lambda and theta from individual components
-    // Just compute theta x and lambda x components here
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     X_space V0X = compute_V0X(world, chi, xc, compute_y);
     if (r_params.print_level() >= 1) {
