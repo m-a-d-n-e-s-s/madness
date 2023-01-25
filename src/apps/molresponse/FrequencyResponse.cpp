@@ -247,7 +247,6 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    size_t m = chi.num_states();
     bool compute_y = omega_n != 0.0;
     auto x = chi.copy();// copy chi
     X_space theta_X = compute_theta_X(world, chi, xc, r_params.calc_type());
