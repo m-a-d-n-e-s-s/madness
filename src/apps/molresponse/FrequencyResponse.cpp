@@ -41,6 +41,7 @@ void FrequencyResponse::iterate(World &world) {
     r_vector_size = (compute_y) ? 2 * n : n;
 
     Tensor<double> v_polar(m, m);
+    Tensor<double> polar;
 
     vecfuncT rho_omega_old(m);
     // initialize DFT XC functional operator
@@ -122,12 +123,6 @@ void FrequencyResponse::iterate(World &world) {
             auto max_bsh = bsh_residualsX.absmax();
             auto max_relative_bsh = bsh_relative_residualsX.absmax();
             max_rotation = 1.0 * max_bsh;
-            Tensor<double> polar;
-            if (compute_y) {
-                polar = -2 * inner(Chi, PQ);
-            } else {
-                polar = -4 * response_space_inner(Chi.X, PQ.X);
-            }
             world.gop.fence();
             // Todo add chi norm and chi_x
             if (world.rank() == 0) {
@@ -157,13 +152,11 @@ void FrequencyResponse::iterate(World &world) {
                 ((max_bsh < bsh_abs_target) or r_params.get<bool>("conv_only_dens"))) {
                 converged = true;
             }
-
             if (converged || iter == r_params.maxiter()) {
                 // if converged print converged
                 if (world.rank() == 0 && converged and (r_params.print_level() > 1)) {
                     print("\nConverged!\n");
                 }
-
                 if (r_params.save()) {
                     molresponse::start_timer(world);
                     save(world, r_params.save_file());
@@ -204,15 +197,13 @@ void FrequencyResponse::iterate(World &world) {
         auto density_change = madness::sub(world, rho_omega, rho_omega_old, true);
         density_residuals = norm2s_T(world, density_change);
         if (world.rank() == 0) { print("computing residuals: density residuals"); }
-        Tensor<double> polar;
+
+        if (world.rank() == 0) { print("computing polarizability:"); }
         if (compute_y) {
             polar = -2 * inner(Chi, PQ);
         } else {
             polar = -4 * response_space_inner(Chi.X, PQ.X);
         }
-
-        if (world.rank() == 0) { print("computing polarizability:"); }
-
         if (r_params.print_level() >= 20) {
             if (world.rank() == 0) {
                 printf("\n--------Response Properties after %d-------------\n",
