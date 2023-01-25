@@ -282,7 +282,6 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
         molresponse::end_timer(world, "compute_TX", "TX", iter_timing);
         if (r_params.print_level() >= 20) { print_inner(world, "xTx", chi, TOX); }
     }
-
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     X_space full_E0X(world, chi.num_states(), chi.num_orbitals());
     X_space offdiag_E0X(world, chi.num_states(), chi.num_orbitals());
@@ -298,15 +297,11 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
             full_E0X.X = x.X * hamiltonian;
             full_E0X.Y = full_E0X.X.copy();
         }
-        full_E0X.truncate();
-        offdiag_E0X.truncate();
         if (r_params.print_level() >= 20) {
             print_inner(world, "E0", chi, offdiag_E0X);
             print_inner(world, "ED", chi, full_E0X);
         }
     }
-
-
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_E0X", "compute_E0X", iter_timing);
     }
