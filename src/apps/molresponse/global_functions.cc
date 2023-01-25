@@ -357,6 +357,7 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
              */
             world.gop.fence();
         }
+        K = to_X_space(KK);
     } else {
         for (int b = 0; b < num_states; b++) {
             Exchange<double, 3> op_1x{};
