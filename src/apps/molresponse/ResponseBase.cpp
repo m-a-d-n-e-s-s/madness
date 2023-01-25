@@ -463,21 +463,12 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     functionT rho_y_b;
     auto mul_tol = FunctionDefaults<3>::get_thresh();
     // note that x can refer to x or y
-    auto compute_j = [&, &phi0 = phi0](const auto &dx) {
-        auto rho_x_b = dot(world, dx, phi0);
-        rho_x_b.truncate();
-        rho_x_b = apply(*shared_coulomb_operator, rho_x_b);
-        world.gop.fence();
-        return mul_sparse(world, rho_x_b, phi0, mul_tol, true);
-    };
-
-    std::transform(chi_alpha.X.begin(), chi_alpha.X.end(), j_x.begin(), compute_j);
-    if (world.rank() == 0) { print("compute jX"); }
-    std::transform(chi_alpha.Y.begin(), chi_alpha.Y.end(), j_y.begin(), compute_j);
-    if (world.rank() == 0) { print("compute jy"); }
-
-    J.X = j_x + j_y;
-    if (world.rank() == 0) { print("add jx+jy"); }
+    auto rho_b = make_density(world, chi_alpha);
+    int b = 0;
+    for (const auto &rho_b_i: rho_b) {
+        auto temp_J = apply(*shared_coulomb_operator, rho_b_i);
+        J.X[b++] = mul(world, temp_J, phi0);
+    }
     J.Y = J.X.copy();
     if (world.rank() == 0) { print("copy JX into JY"); }
     world.gop.fence();
