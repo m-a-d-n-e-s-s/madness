@@ -99,7 +99,7 @@ void FrequencyResponse::iterate(World &world) {
     //PQ.truncate();
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
         iter_timing.clear();
-        Chi = mask * Chi;
+        //Chi = mask * Chi;
         // Basic output
         if (r_params.print_level() >= 1) {
             molresponse::start_timer(world);
