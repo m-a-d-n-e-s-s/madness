@@ -372,7 +372,6 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
             K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, true);
         }
     }
-    K.truncate();
     return K;
 }
 

@@ -501,7 +501,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     // TODO is copy better than adding? probably?
     // J.Y=j_x+j_y;
     J.Y = J.X.copy();
-    J.truncate();
     if (world.rank() == 0) { print("copy JX into JY"); }
     world.gop.fence();
 
