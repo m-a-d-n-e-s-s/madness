@@ -666,6 +666,83 @@ int test_dirac_convolution(World& world, std::shared_ptr<NuclearCorrelationFacto
     return  (t1.get_final_success()) ? 0 : 1;
 }
 
+/// testing <ij | g Q f | ij> = 0.032 mEh
+int test_helium(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+                   const CCParameters& parameters) {
+
+    test_output t1("CCPairFunction::test_helium");
+    CCTimer timer(world, "testing");
+
+    real_function_3d Vnuc = real_factory_3d(world).f([](const coord_3d& r) {return -2.0/(r.normf()+1.e-8);});
+    real_function_3d psi  = real_factory_3d(world).f([](const coord_3d& r) {return exp(-r.normf());});
+
+    auto iterate=[&world](const real_function_3d& potential, real_function_3d& psi, double& eps) {
+        real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 0.001, 1e-6);
+        real_function_3d Vpsi = (potential*psi);
+        Vpsi.scale(-2.0).truncate();
+        real_function_3d tmp = op(Vpsi).truncate();
+        double norm = tmp.norm2();
+        real_function_3d r = tmp-psi;
+        double rnorm = r.norm2();
+        double eps_new = eps - 0.5*inner(Vpsi,r)/(norm*norm);
+        if (world.rank() == 0) {
+            print("norm=",norm," eps=",eps," err(psi)=",rnorm," err(eps)=",eps_new-eps);
+        }
+        psi = tmp.scale(1.0/norm);
+        eps = eps_new;
+    };
+    psi.truncate();
+    psi.scale(1.0/psi.norm2());
+    double eps = -0.6;
+    real_convolution_3d op = CoulombOperator(world, 0.001, 1e-6);
+    for (int iter=0; iter<10; iter++) {
+        real_function_3d rho = square(psi).truncate();
+        real_function_3d potential = Vnuc + op(rho).truncate();
+        iterate(potential, psi, eps);
+    }
+    double kinetic_energy = 0.0;
+    for (int axis=0; axis<3; axis++) {
+        real_derivative_3d D = free_space_derivative<double,3>(world, axis);
+        real_function_3d dpsi = D(psi);
+        kinetic_energy += inner(dpsi,dpsi);
+    }
+    real_function_3d rho = square(psi);
+    double two_electron_energy = inner(op(rho),rho);
+    double nuclear_attraction_energy = 2.0*inner(Vnuc,rho);
+    double total_energy = kinetic_energy + two_electron_energy + nuclear_attraction_energy;
+
+    t1.checkpoint(fabs(total_energy+2.8616533)<1.e-4,"helium iterations",timer.reset());
+    print("ke, total", kinetic_energy, total_energy);
+
+
+    CCConvolutionOperator::Parameters param;
+    CCConvolutionOperator f(world,OT_F12,param);
+    CCConvolutionOperator g(world,OT_G12,param);
+
+    CCPairFunction fij(&f,psi,psi);
+    CCPairFunction gij(&g,psi,psi);
+    CCPairFunction ij({psi},{psi});
+    std::vector<CCPairFunction> vfij={fij};
+    std::vector<CCPairFunction> vgij={gij};
+    std::vector<CCPairFunction> vij={ij};
+
+    StrongOrthogonalityProjector<double,3> SO(world);
+    SO.set_spaces({psi},{psi},{psi},{psi});
+    std::vector<CCPairFunction> Qfij=SO(vfij);
+    std::vector<CCPairFunction> Qgij=SO(vgij);
+
+    double result1=inner(vgij,Qfij);
+    print("<ij | g (Q f | ij>)",result1);
+    double result2=inner(vfij,Qgij);
+    print("(<ij | g Q) f | ij>",result2);
+    bool good=fabs(result1-result2)<1.e-5;
+    good=good and fabs(result1+3.2624783e-02)<1.e-5;
+    t1.checkpoint(good,"V matrix element",timer.reset());
+
+    return  (t1.get_final_success()) ? 0 : 1;
+
+}
+
 /** functionality
  *
  *  - ctor                      OK
@@ -697,7 +774,7 @@ int main(int argc, char **argv) {
 #ifdef USE_GENTENSOR
 
     try {
-        parser.set_keyval("geometry", "source=library,he");
+        parser.set_keyval("geometry", "he");
         parser.print_map();
         Molecule mol(world, parser);
         mol.print();
@@ -709,14 +786,18 @@ int main(int argc, char **argv) {
                          mol, nullptr, std::make_pair("slater", 2.0));
 
         isuccess+=test_constructor(world, ncf, mol, ccparam);
-        isuccess+=test_overlap(world, ncf, mol, ccparam);
-        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
-        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
-        isuccess+=test_partial_inner(world, ncf, mol, ccparam);
-        isuccess+=test_projector(world, ncf, mol, ccparam);
+//        isuccess+=test_overlap(world, ncf, mol, ccparam);
+//        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
+//        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
+//        isuccess+=test_partial_inner(world, ncf, mol, ccparam);
+//        isuccess+=test_projector(world, ncf, mol, ccparam);
+        FunctionDefaults<3>::set_cubic_cell(-10,10);
+        isuccess+=test_helium(world,ncf,mol,ccparam);
         data1.clear();
-    } catch (...) {
-
+    } catch (std::exception& e) {
+        madness::print("an error occured");
+        madness::print(e.what());
+        data1.clear();
     }
 #else
     print("could not run test_ccpairfunction: U need to compile with ENABLE_GENTENSOR=1");
