@@ -97,7 +97,7 @@ if(BUILD_TESTING)
       test_worldref.cc test_stack.cc test_googletest.cc test_tree.cc
           )
 
-  add_unittests(world "${WORLD_TEST_SOURCES}" "MADworld;MADgtest")    
+  add_unittests(world "${WORLD_TEST_SOURCES}" "MADworld;MADgtest" "unittests;short")
 
   find_package(CUDA)
   if (TARGET PaRSEC::parsec AND CUDA_FOUND)

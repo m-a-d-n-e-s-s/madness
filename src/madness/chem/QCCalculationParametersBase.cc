@@ -47,6 +47,18 @@ std::string QCCalculationParametersBase::print_to_string(bool non_defaults_only)
 	return ss.str();
 }
 
+
+bool QCCalculationParametersBase::file_exists(World& world, std::string filename) const {
+    bool file_exists = false;
+    if (world.rank() == 0) {
+        std::ifstream ifs(filename);
+        if (not ifs.is_open()) file_exists=false;
+        ifs.close();
+    }
+    world.gop.broadcast_serializable(file_exists, 0);
+    return file_exists;
+}
+
 /// read the parameters from file and broadcast
 void QCCalculationParametersBase::read_input(World& world, const std::string filename, const std::string tag) {
 
