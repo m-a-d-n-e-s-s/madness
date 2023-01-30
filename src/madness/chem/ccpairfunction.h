@@ -131,7 +131,7 @@ public:
 
     std::string name(const bool transpose) const override {
         if (transpose) return "< u |";
-        return "|u>";
+        return "| u >";
     }
 
 
@@ -203,25 +203,41 @@ public:
 
     std::string name(const bool transpose) const override {
         if (transpose) {
-            if (has_operator()) return "<ab|"+get_operator_ptr()->name();
-            return "<ab|";
+            if (has_operator()) return "<ab |"+get_operator_ptr()->name();
+            return "<ab |";
         }
-        if (has_operator()) return get_operator_ptr()->name() + "|xy>";
-        return "|ab>";
+        if (has_operator()) return get_operator_ptr()->name() + "| ab>";
+        return "| ab>";
     };
 
     void serialize() {}
 
     template<typename Q, std::size_t MDIM>
-    TwoBodyFunctionPureComponent<T> apply(const SeparatedConvolution<Q,MDIM>* op, const int particle=0) {}
+    TwoBodyFunctionPureComponent<T> apply(const SeparatedConvolution<Q,MDIM>* op, const int particle=0) {
+        MADNESS_EXCEPTION("TwoBodyFunctionPureComponent<T> apply not yet implemented",1);
+    }
 
     /// return f(2,1)
     void swap_particles_inplace() override {
         std::swap(a,b);
     }
 
+    long rank() const {
+        MADNESS_CHECK(a.size()==b.size());
+        return a.size();
+    }
+
     std::vector<Function<T,3>> get_a() const {return a;}
     std::vector<Function<T,3>> get_b() const {return b;}
+    std::vector<Function<T,3>> get_vector(const int i) const {
+        MADNESS_CHECK(i==0 or i==1);
+        if (i==0) return a;
+        else if (i==1) return b;
+        else {
+            MADNESS_EXCEPTION("confused index in TwoBodyFunctionSeparatedComponent",1);
+        }
+    }
+
     const CCConvolutionOperator* get_operator_ptr() const {return op;};
 
 private:
@@ -258,6 +274,15 @@ private:
  *  - mul_partial
  */
 
+/// a 6D function, either in full or low rank form, possibly including an 2-particle function
+
+/**
+ * the function is stored as
+ *  - pure: full rank form, 6D
+ *  - decomposed: sum of two vectors of 3D functions \sum_i |a_i(1) b_i(2)>
+ *  - op_decomposed: as above, with an 2-particle function: f(1,2) \sum_i |a_i b_i>
+ *
+**/
 struct CCPairFunction {
 
 using T=double;
@@ -366,6 +391,11 @@ public:
         return decomposed().get_b();
     }
 
+    std::vector<Function<T,3>> get_vector(const int i) const {
+        MADNESS_CHECK(component->is_decomposed());
+        return decomposed().get_vector(i);
+    }
+
     const CCConvolutionOperator& get_operator() const {
         MADNESS_CHECK(is_op_decomposed());
         return *decomposed().get_operator_ptr();
@@ -392,7 +422,8 @@ public:
     /// @param[out] <f|u>_particle (projection from 6D to 3D)
     real_function_3d project_out(const CCFunction& f, const size_t particle) const;
 
-    // result is: <x|op12|f>_particle
+    /// result is: <x|op12|f>_particle
+
     /// @param[in] x: a 3D-CC_function
     /// @param[in] op: a CC_convoltion_operator which is currently either f12 or g12
     /// @param[in] particle: the particle on which the operation acts (can be 1 or 2)
@@ -439,22 +470,6 @@ public:
     /// the 3 types of 6D-function that occur in the CC potential which coupled doubles to singles
     std::shared_ptr<TwoBodyFunctionComponentBase> component;
 
-//         World& world;
-//         /// the type of the given 6D-function
-//         const PairFormat type;
-//         /// if type==decomposed this is the first particle
-//         vector_real_function_3d a;
-//         /// if type==decomposed this is the second particle
-//         vector_real_function_3d b;
-//         /// if type==op_decomposed_ this is the symmetric 6D-operator (g12 or f12) in u=op12|xy>
-//         const CCConvolutionOperator *op;
-//         /// if type==op_decomposed_ this is the first particle in u=op12|xy>
-//         CCFunction x;
-//         /// if type==op_decomposed_ this is the second particle in u=op12|xy>
-//         CCFunction y;
-//         /// if type=pure_ this is just the MRA 6D-function
-//         real_function_6d u;
-
     /// @param[in] f: a 3D-CC_function
     /// @param[in] particle: the particle on which the operation acts
     /// @param[out] <f|u>_particle (projection from 6D to 3D) for the case that u=|ab> so <f|u>_particle = <f|a>*|b> if particle==1
@@ -500,6 +515,10 @@ public:
                                    const std::array<int, 3>& v1,
                                    const std::array<int, 3>& v2) const;
 
+    CCPairFunction partial_inner(const CCPairFunction& other,
+                                   const std::array<int, 3>& v1,
+                                   const std::array<int, 3>& v2) const;
+
 };
 
 /// apply the projector on the argument function, potentially yielding a vector of CCPairfunctions as result
@@ -516,6 +535,8 @@ CCPairFunction apply(const ProjectorBase& P, const CCPairFunction& argument);
 real_function_3d inner(const CCPairFunction& c, const real_function_3d& f,
                        const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2={0,1,2});
 
+CCPairFunction inner(const CCPairFunction& c1, const CCPairFunction& c2,
+                       const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2);
 
 } // namespace madness
 

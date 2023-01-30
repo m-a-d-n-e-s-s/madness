@@ -90,6 +90,70 @@ real_function_3d inner(const CCPairFunction& c, const real_function_3d& f,
     return c.partial_inner(f,v11,v22);
 }
 
+CCPairFunction inner(const CCPairFunction& c1, const CCPairFunction& c2,
+                       const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2) {
+    auto v11=std::array<int,3>({std::get<0>(v1),std::get<1>(v1),std::get<2>(v1)});
+    auto v22=std::array<int,3>({std::get<0>(v2),std::get<1>(v2),std::get<2>(v2)});
+
+    return c1.partial_inner(c2,v11,v22);
+}
+
+CCPairFunction CCPairFunction::partial_inner(const CCPairFunction& other,
+                                               const std::array<int, 3>& v1,
+                                               const std::array<int, 3>& v2) const {
+    auto a012=std::array<int,3>{0,1,2};
+    auto a345=std::array<int,3>{3,4,5};
+    MADNESS_CHECK(v1==a012 or v1== a345);
+    MADNESS_CHECK(v2==a012 or v2== a345);
+
+    auto integration_index=[&a012,&a345](auto v) {return (v==a012) ? 0l : 1l;};
+    auto remaining_index=[&integration_index](auto v) {return (integration_index(v)+1)%2;};
+
+    CCPairFunction result;
+    if (this->is_pure()) {
+        if (other.is_pure()) {
+            real_function_6d tmp=madness::innerXX<6>(this->get_function(),other.get_function(),v1,v2);
+            return CCPairFunction(tmp);
+
+        } else if (other.is_decomposed_no_op()) {
+            // \int \sum_i f(1,2) a_i(1) b_i(3) d1  =  \sum_i b_i(3) \int a_i(1) f(1,2) d1
+            vector_real_function_3d tmp;
+            for (auto& a : other.get_vector(integration_index(v2))) {
+                tmp.push_back(innerXX<3>(this->get_function(),a,v1,a012));  // a012 is correct, referring to 3D function
+            }
+            return CCPairFunction(tmp,other.get_vector(remaining_index(v2)));
+
+        } else if (other.is_op_decomposed()) {
+
+        } else {
+            MADNESS_EXCEPTION("confused CCPairfunction",1);
+        }
+
+    } else if (this->is_decomposed_no_op()) {
+        if (other.is_pure()) {
+            return other.partial_inner(*this,v2,v1);
+        } else if (other.is_decomposed_no_op()) {
+            // \int \sum_i a_i(1) b_i(2) \sum_j c_j(1) d_j(3) d1
+            //    =  \sum_ij  <a_i|c_j>  b_i(2) d_j(3)
+            //    =  \sum_i  b~_i(2) d~_i(3)        // cholesky decomposition of S_ac
+            Tensor<T> ovlp=matrix_inner(world(),this->get_vector(integration_index(v1)),other.get_vector(integration_index(v2)));
+            cholesky(ovlp);
+            auto left=transform(world(),this->get_vector(remaining_index(v1)),transpose(ovlp));
+            auto right=transform(world(),other.get_vector(remaining_index(v2)),transpose(ovlp));
+            return CCPairFunction(left,right);
+
+        } else if (other.is_op_decomposed()) {
+
+        }
+
+    } else if (this->is_op_decomposed()) {
+
+    } else {
+        MADNESS_EXCEPTION("confused CCPairfunction",1);
+    }
+    return result;
+
+}
 
 real_function_3d CCPairFunction::partial_inner(const real_function_3d& f,
                                                const std::array<int, 3>& v1,

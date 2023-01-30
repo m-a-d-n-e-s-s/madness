@@ -17,13 +17,13 @@ using namespace madness;
 
 struct data {
     real_function_3d f1,f2,f3,f4,f5;
-    real_function_6d f;
+    real_function_6d f12,f23;
 
-    std::shared_ptr<CCConvolutionOperator> f12;
+    std::shared_ptr<CCConvolutionOperator> f12_op;
     data() {}
 
     data(World& world, CCParameters& parameters) {
-        f12.reset(new CCConvolutionOperator(world,OT_F12,parameters));
+        f12_op.reset(new CCConvolutionOperator(world,OT_F12,parameters));
         if (not f1.is_initialized()) initialize(world);
     }
 
@@ -44,29 +44,36 @@ struct data {
             double r2=r[3]*r[3] + r[4]*r[4] + r[5]*r[5];
             return exp(-1.0*r1 - 2.0*r2);
         };
-        f = real_factory_6d(world).f(g);
+        auto g23 = [](const coord_6d& r) {
+            double r1=r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
+            double r2=r[3]*r[3] + r[4]*r[4] + r[5]*r[5];
+            return exp(-1.0*r1 - 2.0*r2) + exp(-2.0*r1 - 3.0*r2);
+        };
+        f12 = real_factory_6d(world).f(g);
+        f23 = real_factory_6d(world).f(g23);
 
     }
     void clear() {
-        f12.reset();
+        f12_op.reset();
         f1.clear();
         f2.clear();
         f3.clear();
         f4.clear();
         f5.clear();
-        f.clear();
+        f12.clear();
+        f23.clear();
     }
 
     auto get_functions() const {
-        return std::make_tuple(f1,f2,f3,f4,f5,f);
+        return std::make_tuple(f1,f2,f3,f4,f5,f12);
     }
 
     auto get_ccpairfunctions() const {
-        CCPairFunction p1;
-        CCPairFunction p2(f);
-        CCPairFunction p3({f1,f2},{f1,f3});
-        CCPairFunction p4(f12.get(),{f1,f2},{f1,f3});
-        return std::make_tuple(p1,p2,p3);
+        CCPairFunction p1(f12);
+        CCPairFunction p2({f1,f2},{f2,f3});
+        CCPairFunction p3(f12_op.get(),{f1,f2},{f2,f3});
+        CCPairFunction p4(f23); // two-term, corresponds to p2
+        return std::make_tuple(p1,p2,p3,p4);
     }
 
 };
@@ -327,9 +334,70 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
 
 
 
-int test_partial_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+int test_partial_inner_6d(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+                       const CCParameters& parameter) {
+
+    CCTimer timer(world, "testing");
+    test_output t1("CCPairFunction::test_partial_inner_6d");
+    t1.set_cout_to_terminal();
+    auto [f1,f2,f3,f4,f5,f] = data1.get_functions();
+
+    std::vector<real_function_3d> a = {f1, f2};
+    std::vector<real_function_3d> b = {f2, f3};
+
+    CCConvolutionOperator f12(world, OT_F12, parameter);
+
+    auto [p1,p2,p3,p4]=data1.get_ccpairfunctions();
+    CCPairFunction p11({f1},{f1});
+    CCPairFunction p12({f1},{f2});
+
+    double g11=inner(f1,f1);
+    double g22=inner(f2,f2);
+    double g12=inner(f1,f2);
+    double g13=inner(f1,f3);
+    double g23=inner(f2,f3);
+    double g33=inner(f3,f3);
+    real_function_3d gf11=f12(f1*f1);
+    real_function_3d gf12=f12(f1*f2);
+    real_function_3d gf13=f12(f1*f3);
+
+    t1.checkpoint(true,"prep",timer.reset());
+
+    // p1 = p12 = e(-r1 -2r2)
+    // p2 = e(-r1) * e(-2r2) + e(-2r1) * e(-3e2)  separated
+    // p4 = e(-r1) * e(-2r2) + e(-2r1) * e(-3e2)  6d
+    for (auto test_p1 : {p2,p4}) {
+        for (auto test_p2 : {p2,p4}) {
+            CCPairFunction r1=inner(test_p1,test_p2,{0,1,2},{0,1,2});
+            CCPairFunction r2=inner(test_p1,test_p2,{0,1,2},{3,4,5});
+            CCPairFunction r3=inner(test_p1,test_p2,{3,4,5},{0,1,2});
+            CCPairFunction r4=inner(test_p1,test_p2,{3,4,5},{3,4,5});
+
+            double n1=inner(r1,p11);
+            double n2=inner(r2,p11);
+            double n3=inner(r3,p11);
+            double n4=inner(r4,p11);
+
+            double ref_n1=g11*g12*g12 + g12*g12*g13 + g12*g13*g12 + g22*g13*g13;
+            double ref_n2=g12*g12*g11 + g13*g12*g12 + g22*g13*g11 + g23*g13*g12;
+            double ref_n3=ref_n2;
+            double ref_n4=g22*g11*g11 + g23*g11*g12 + g23*g12*g11 + g33*g12*g12;
+
+            bool good=fabs(n1-ref_n1)<FunctionDefaults<3>::get_thresh();
+            t1.checkpoint(good,test_p1.name(true)+test_p2.name()+" -- 1");
+            good=fabs(n2-ref_n2)<FunctionDefaults<3>::get_thresh();
+            t1.checkpoint(good,test_p1.name(true)+test_p2.name()+" -- 2");
+            good=fabs(n3-ref_n3)<FunctionDefaults<3>::get_thresh();
+            t1.checkpoint(good,test_p1.name(true)+test_p2.name()+" -- 3");
+            good=fabs(n4-ref_n4)<FunctionDefaults<3>::get_thresh();
+            t1.checkpoint(good,test_p1.name(true)+test_p2.name()+" -- 4",timer.reset());
+
+        }
+    }
+    return  (t1.get_final_success()) ? 0 : 1;
+}
+int test_partial_inner_3d(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                const CCParameters& parameter) {
-    int success=0;
 
     CCTimer timer(world, "testing");
     test_output t1("CCPairFunction::test_partial_inner");
@@ -340,9 +408,11 @@ int test_partial_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> n
 
     CCConvolutionOperator f12(world, OT_F12, parameter);
 
-    CCPairFunction p1(f);
+    CCPairFunction p1(f);   // e(-r1 - 2r2)
     CCPairFunction p2(a,b);
     CCPairFunction p3(&f12,a,b);
+    CCPairFunction p11({f1},{f1});
+    CCPairFunction p12({f1},{f2});
 
     double g11=inner(f1,f1);
     double g22=inner(f2,f2);
@@ -357,22 +427,22 @@ int test_partial_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> n
     print("time in preparation",timer.reset());
     t1.checkpoint(true,"prep");
 
-    // test pure
+    // test pure/3d
     {
         real_function_3d r=inner(p1,f1,{0,1,2},{0,1,2});
         double norm=inner(r,f2);
         double ref_norm=g11 * g22;
         print("norm, ref_norm",norm,ref_norm);
-        bool good=fabs(norm-ref_norm<FunctionDefaults<3>::get_thresh());
+        bool good=fabs(norm-ref_norm)<FunctionDefaults<3>::get_thresh();
         t1.checkpoint(good,"pure -- 1");
     }
-    // test pure
+    // test pure/3d
     {
         real_function_3d r=inner(p1,f1,{3,4,5},{0,1,2});
         double norm=inner(r,f2);
         double ref_norm=g12 * g12;
         print("norm, ref_norm",norm,ref_norm);
-        bool good=fabs(norm-ref_norm<FunctionDefaults<3>::get_thresh());
+        bool good=fabs(norm-ref_norm)<FunctionDefaults<3>::get_thresh();
         t1.checkpoint(good,"pure -- 2");
     }
     // test decomposed
@@ -381,7 +451,7 @@ int test_partial_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> n
         double norm=inner(r,f2);
         double ref_norm=g11 * g22 + g12 * g23;
         print("norm, ref_norm",norm,ref_norm);
-        bool good=fabs(norm-ref_norm<FunctionDefaults<3>::get_thresh());
+        bool good=fabs(norm-ref_norm)<FunctionDefaults<3>::get_thresh();
         t1.checkpoint(good,"decomposed -- 1");
     }
     // test decomposed
@@ -390,7 +460,7 @@ int test_partial_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> n
         double norm=inner(r,f2);
         double ref_norm=g12 * g12 + g13 * g22;
         print("norm, ref_norm",norm,ref_norm);
-        bool good=fabs(norm-ref_norm<FunctionDefaults<3>::get_thresh());
+        bool good=fabs(norm-ref_norm)<FunctionDefaults<3>::get_thresh();
         t1.checkpoint(good,"decomposed -- 2");
     }
     // test op_decomposed
@@ -400,7 +470,7 @@ int test_partial_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> n
         double norm=inner(r,f2);
         double ref_norm=inner(gf11*f2,f2) + inner(gf12*f2,f3);
         print("norm, ref_norm",norm,ref_norm);
-        bool good=fabs(norm-ref_norm<FunctionDefaults<3>::get_thresh());
+        bool good=fabs(norm-ref_norm)<FunctionDefaults<3>::get_thresh();
         t1.checkpoint(good,"op_decomposed -- 1");
     }
     // test op_decomposed
@@ -410,7 +480,7 @@ int test_partial_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> n
         double norm=inner(r,f2);
         double ref_norm=inner(gf12*f1,f2) + inner(gf13*f2,f2);
         print("norm, ref_norm",norm,ref_norm);
-        bool good=fabs(norm-ref_norm<FunctionDefaults<3>::get_thresh());
+        bool good=fabs(norm-ref_norm)<FunctionDefaults<3>::get_thresh();
         t1.checkpoint(good,"op_decomposed -- 2");
     }
 
@@ -765,6 +835,7 @@ int main(int argc, char **argv) {
     startup(world, argc, argv);
     commandlineparser parser(argc, argv);
     FunctionDefaults<6>::set_tensor_type(TT_2D);
+    FunctionDefaults<6>::set_thresh(1.e-3);
     FunctionDefaults<3>::set_thresh(1.e-5);
     FunctionDefaults<3>::set_cubic_cell(-1.0,1.0);
     FunctionDefaults<6>::set_cubic_cell(-1.0,1.0);
@@ -789,10 +860,11 @@ int main(int argc, char **argv) {
 //        isuccess+=test_overlap(world, ncf, mol, ccparam);
 //        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
 //        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
-//        isuccess+=test_partial_inner(world, ncf, mol, ccparam);
+//        isuccess+=test_partial_inner_3d(world, ncf, mol, ccparam);
+        isuccess+=test_partial_inner_6d(world, ncf, mol, ccparam);
 //        isuccess+=test_projector(world, ncf, mol, ccparam);
-        FunctionDefaults<3>::set_cubic_cell(-10,10);
-        isuccess+=test_helium(world,ncf,mol,ccparam);
+//        FunctionDefaults<3>::set_cubic_cell(-10,10);
+//        isuccess+=test_helium(world,ncf,mol,ccparam);
         data1.clear();
     } catch (std::exception& e) {
         madness::print("an error occured");

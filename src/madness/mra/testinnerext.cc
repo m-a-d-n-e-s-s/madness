@@ -84,11 +84,11 @@ bool test_loose1(std::string msg, double a, double b, double tol=thresh) {
 
 
 int test_partial_inner(World& world) {
-    print("\ntesting partial inner\n");
     bool do_low_rank=false;
 #if HAVE_GENTENSOR
     do_low_rank=true;
 #endif
+    print("\ntesting partial inner; low rank: ",do_low_rank,"\n");
 
     real_function_1d one_1d=real_factory_1d(world).functor([](const coord_1d& r){return 1.0;});
     real_function_2d one_2d=real_factory_2d(world).functor([](const coord_2d& r){return 1.0;});
