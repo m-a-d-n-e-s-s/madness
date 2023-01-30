@@ -5861,9 +5861,9 @@ namespace madness {
                     int gparticle=  v1[0]==0 ? 0 : 1;       // which particle to integrate over
                     int hparticle=  v2[0]==0 ? 0 : 1;       // which particle to integrate over
                     // merge multiple contraction dimensions into one
-                    Tensor<Q> gtensor = gcoeff1.get_svdtensor().make_vector_with_weights(gparticle);
+                    Tensor<Q> gtensor = gcoeff1.get_svdtensor().flat_vector_with_weights(gparticle);
                     Tensor<Q> gtensor_other = gcoeff1.get_svdtensor().flat_vector((gparticle+1)%2);
-                    Tensor<R> htensor = hcoeff1.get_svdtensor().make_vector_with_weights(hparticle);
+                    Tensor<R> htensor = hcoeff1.get_svdtensor().flat_vector_with_weights(hparticle);
                     Tensor<R> htensor_other = hcoeff1.get_svdtensor().flat_vector((hparticle+1)%2);
                     Tensor<T> tmp1=inner(gtensor,htensor,1,1);      // tmp1(r,r') = sum_j b(r,j) a(r',j)
                     Tensor<T> tmp2=inner(tmp1,gtensor_other,0,0);   // tmp2(r',i) = sum_r tmp1(r,r') a(r,i)
@@ -5875,9 +5875,9 @@ namespace madness {
                     if (key.level() > 0) {
                         GenTensor<Q> gcoeff2 = copy(gcoeff1(g->get_cdata().s0));
                         GenTensor<R> hcoeff2 = copy(hcoeff1(h->get_cdata().s0));
-                        Tensor<Q> gtensor = gcoeff2.get_svdtensor().make_vector_with_weights(gparticle);
+                        Tensor<Q> gtensor = gcoeff2.get_svdtensor().flat_vector_with_weights(gparticle);
                         Tensor<Q> gtensor_other = gcoeff2.get_svdtensor().flat_vector((gparticle+1)%2);
-                        Tensor<R> htensor = hcoeff2.get_svdtensor().make_vector_with_weights(hparticle);
+                        Tensor<R> htensor = hcoeff2.get_svdtensor().flat_vector_with_weights(hparticle);
                         Tensor<R> htensor_other = hcoeff2.get_svdtensor().flat_vector((hparticle+1)%2);
                         Tensor<T> tmp1=inner(gtensor,htensor,1,1);      // tmp1(r,r') = sum_j b(r,j) a(r',j)
                         Tensor<T> tmp2=inner(tmp1,gtensor_other,0,0);   // tmp2(r',i) = sum_r tmp1(r,r') a(r,i)
