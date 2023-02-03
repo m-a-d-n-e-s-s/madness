@@ -2134,8 +2134,7 @@ namespace madness {
     	Function<resultT, NDIM> result;
 
 		MADNESS_ASSERT(not f.is_on_demand());
-		bool print_timings=(NDIM==6);
-//        bool print_timings=false;
+		bool print_timings=(NDIM==6) and op.print_timings;
 
     	if (VERIFY_TREE) ff.verify_tree();
     	ff.reconstruct();
@@ -2143,21 +2142,12 @@ namespace madness {
 
     	if (op.modified()) {
 
-    		MADNESS_ASSERT(not op.is_slaterf12);
     	    ff.get_impl()->make_redundant(true);
             result = apply_only(op, ff, fence);
             ff.get_impl()->undo_redundant(false);
             result.get_impl()->trickle_down(true);
 
     	} else {
-
-        	// the slaterf12 function is
-        	//  1/(2 mu) \int d1 (1 - exp(- mu r12)) f(1)
-        	//       = 1/(2 mu) (f.trace() - \int d1 exp(-mu r12) f(1) )
-        	// f.trace() is just a number
-    		R ftrace=0.0;
-    		if (op.is_slaterf12) ftrace=f.trace();
-//            print("ftrace",ftrace);
 
     		// saves the standard() step, which is very expensive in 6D
 //    		Function<R,NDIM> fff=copy(ff);
@@ -2190,8 +2180,6 @@ namespace madness {
             } else {
             	ff.standard();
             }
-        	if (op.is_slaterf12) result=(result-ftrace).scale(-0.5/op.mu());
-
     	}
         if (print_timings) result.print_size("result after reconstruction");
         return result;

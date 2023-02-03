@@ -95,9 +95,34 @@ public:
 	/// @parma[in]	prnt	print level
 	static GFit SlaterFit(double gamma, double lo, double hi, double eps, bool prnt=false) {
 		GFit fit;
-		slater_fit(gamma,lo,hi,eps,fit.coeffs_,fit.exponents_,prnt);
+		slater_fit(gamma,lo,hi,eps,fit.coeffs_,fit.exponents_,false);
+        if (prnt) {
+            print("Slater fit");
+            auto exact = [&gamma](const double r) -> double { return exp(-gamma * r); };
+            fit.print_accuracy(exact, lo, hi);
+        }
 		return fit;
 	}
+
+    /// return a fit for the F12 correlation factor
+
+    /// the Slater function is defined by
+    ///  f(r) = 1 - exp(-\gamma r)
+    /// @param[in]	gamma	the exponent of the Slater function
+    /// @param[in]	lo	the smallest length scale that needs to be precisely represented
+    /// @param[in]	hi	the largest length scale that needs to be precisely represented
+    /// @param[in]	eps	the precision threshold
+    /// @parma[in]	prnt	print level
+    static GFit F12Fit(double gamma, double lo, double hi, double eps, bool prnt=false) {
+        GFit fit;
+        f12_fit(gamma,lo*0.1,hi,eps*0.01,fit.coeffs_,fit.exponents_,false);
+        if (prnt) {
+            print("f12 fit");
+            auto exact=[&gamma](const double r) -> double {return 1.0-exp(-gamma*r);};
+            fit.print_accuracy(exact,lo,hi);
+        }
+        return fit;
+    }
 
 	/// return a fit for a general isotropic function
 
@@ -156,6 +181,35 @@ private:
 	GFit(const funcT& f) {
 
 	}
+
+    /// print coefficients and exponents, and values and errors
+
+    /// @param[in]  op  the exact function, e.g. 1/r, exp(-mu r), etc
+    /// @param[in]  lo  lower bound for the range r
+    /// @param[in]  hi  higher bound for the range r
+    template<typename opT>
+    void print_accuracy(opT op, const double lo, const double hi) const {
+
+        std::cout << "weights and roots" << std::endl;
+        for (int i=0; i<coeffs_.size(); ++i)
+            std::cout << i << " " << coeffs_[i] << " " << exponents_[i] << std::endl;
+
+        long npt = 300;
+        std::cout << "       x         value   abserr   relerr" << std::endl;
+        std::cout << "  ------------  ------- -------- -------- " << std::endl;
+        double step = exp(log(hi/lo)/(npt+1));
+        for (int i=0; i<=npt; ++i) {
+            double r = lo*(pow(step,i+0.5));
+//            double exact = exp(-mu*r)/r/4.0/constants::pi;
+            double exact = op(r);
+            double test = 0.0;
+            for (int j=0; j<coeffs_.dim(0); ++j)
+                test += coeffs_[j]*exp(-r*r*exponents_[j]);
+            double err = 0.0;
+            if (exact) err = (exact-test)/exact;
+            printf("  %.6e %8.1e %8.1e %8.1e\n",r, exact, exact-test, err);
+        }
+    }
 
 	/// the coefficients of the expansion f(x) = \sum_m coeffs[m] exp(-exponents[m] * x^2)
 	Tensor<T> coeffs_;
@@ -453,7 +507,26 @@ private:
 		pexpnt = expnt;
 	}
 
-	void static bsh_fit_ndim(int ndim, double mu, double lo, double hi, double eps,
+
+    /// fit a correlation factor (1- exp(-mu r))
+
+    /// use the Slater fit with an additional term: 1*exp(-0 r^2)
+    static void f12_fit(double gamma, double lo, double hi, double eps,
+                           Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt) {
+        Tensor<double> coeff,expnt;
+        slater_fit(gamma, lo, hi, eps, coeff, expnt, prnt);
+
+        pcoeff=Tensor<double>(coeff.size()+1);
+        pcoeff(Slice(1,-1,1))=-coeff(_);
+        pexpnt=Tensor<double>(expnt.size()+1);
+        pexpnt(Slice(1,-1,1))=expnt(_);
+
+        pcoeff(0l)=1.0;
+        pexpnt(0l)=1.e-10;
+    }
+
+
+        void static bsh_fit_ndim(int ndim, double mu, double lo, double hi, double eps,
 			Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt) {
 
 		if (mu > 0) {

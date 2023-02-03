@@ -118,9 +118,10 @@ namespace madness {
         bool doleaves;  ///< If should be applied to leaf coefficients ... false by default
         bool isperiodicsum;///< If true the operator 1D kernels have been summed over lattice translations
                            ///< and may be non-zero at both ends of the unit cell
-        bool modified_;     ///< use modified NS form
-        int particle_;
-        bool destructive_;	///< destroy the argument or restore it (expensive for 6d functions)
+        bool modified_=false;     ///< use modified NS form
+        int particle_=1;        ///< must only be 1 or 2
+        bool destructive_=false;	///< destroy the argument or restore it (expensive for 6d functions)
+        bool print_timings=false;
 
         typedef Key<NDIM> keyT;
         const static size_t opdim=NDIM;
@@ -130,8 +131,7 @@ namespace madness {
         Timer timer_stats_accumulate;
 
         // if this is a Slater-type convolution kernel: 1-exp(-mu r12)/(2 mu)
-        bool is_slaterf12;
-        double mu_;
+        double mu_=0.0;     ///< some introspection
 
     private:
 
@@ -881,7 +881,6 @@ namespace madness {
                 , modified_(false)
                 , particle_(1)
                 , destructive_(false)
-                , is_slaterf12(false)
                 , mu_(0.0)
                 , bc(bc)
                 , k(k)
@@ -916,7 +915,6 @@ namespace madness {
                 , modified_(false)
                 , particle_(1)
                 , destructive_(false)
-                , is_slaterf12(false)
                 , mu_(0.0)
                 , ops(argops)
                 , bc(bc)
@@ -947,7 +945,6 @@ namespace madness {
                 , modified_(false)
                 , particle_(1)
                 , destructive_(false)
-                , is_slaterf12(mu>0.0)
                 , mu_(mu)
                 , ops(coeff.dim(0))
                 , bc(bc)
@@ -992,7 +989,6 @@ namespace madness {
                 , modified_(false)
                 , particle_(1)
                 , destructive_(false)
-                , is_slaterf12(false)
                 , mu_(0.0)
                 , ops(coeff.dim(0))
                 , bc(bc)
@@ -1104,7 +1100,6 @@ namespace madness {
         template <typename T, size_t LDIM>
         Function<TENSOR_RESULT_TYPE(T,Q),LDIM+LDIM>
         operator()(const Function<T,LDIM>& f1, const Function<Q,LDIM>& f2) const {
-        	MADNESS_ASSERT(not is_slaterf12);
             return madness::apply(*this, std::vector<Function<Q,LDIM>>({f1}),
                                   std::vector<Function<Q,LDIM>>({f2}));
         }
@@ -1117,7 +1112,6 @@ namespace madness {
         template <typename T, size_t LDIM>
         Function<TENSOR_RESULT_TYPE(T,Q),LDIM+LDIM>
         operator()(const std::vector<Function<T,LDIM>>& f1, const std::vector<Function<Q,LDIM>>& f2) const {
-            MADNESS_ASSERT(not is_slaterf12);
             return madness::apply(*this, f1, f2);
         }
 
@@ -1770,28 +1764,29 @@ namespace madness {
 
     /// Factory function generating separated kernel for convolution with (1 - exp(-mu*r))/(2 mu) in 3D
 
-    /// note that the 1/2mu factor is not included here, nor is the term 1/(2mu)
+    /// includes the factor 1/(2 mu)
     static inline SeparatedConvolution<double,3> SlaterF12Operator(World& world,
-    		double mu, double lo, double eps,
-    		const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
-    		int k=FunctionDefaults<3>::get_k()) {
+                                                                   double mu, double lo, double eps,
+                                                                   const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                                                                   int k=FunctionDefaults<3>::get_k()) {
 
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
 
-        GFit<double,3> fit=GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
-		Tensor<double> coeff=fit.coeffs();
-		Tensor<double> expnt=fit.exponents();
+        GFit<double,3> fit=GFit<double,3>::F12Fit(mu,lo,hi,eps,false);
+        Tensor<double> coeff=0.5/mu*fit.coeffs();
+        Tensor<double> expnt=fit.exponents();
 
         if (bc(0,0) == BC_PERIODIC) {
             fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
         }
-        return SeparatedConvolution<double,3>(world, coeff, expnt, bc, k, false, mu);
+
+        auto sepop=SeparatedConvolution<double,3>(world, coeff, expnt, bc, k, false, mu);
+        return sepop;
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r) in 3D
-    /// Note that the 1/(2mu) factor is not included, this is just the exponential function
     static inline SeparatedConvolution<double,3> SlaterOperator(World& world,
     		double mu, double lo, double eps,
     		const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
@@ -1809,7 +1804,6 @@ namespace madness {
             fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
         }
         SeparatedConvolution<double,3> tmp(world, coeff, expnt, bc, k, false, mu);
-        tmp.is_slaterf12 = false;
         return tmp;
     }
 
@@ -1832,11 +1826,12 @@ namespace madness {
             fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
         }
         SeparatedConvolution<double,3>* tmp=new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k, false, mu);
-        tmp->is_slaterf12 = false;
         return tmp;
     }
 
     /// Factory function generating separated kernel for convolution with (1 - exp(-mu*r))/(2 mu) in 3D
+
+    /// includes the factor 1/(2 mu)
     static inline SeparatedConvolution<double,3>* SlaterF12OperatorPtr(World& world,
     		double mu, double lo, double eps,
     		const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
@@ -1846,13 +1841,14 @@ namespace madness {
         double hi = cell_width.normf(); // Diagonal width of cell
         if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
 
-        GFit<double,3> fit=GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
-		Tensor<double> coeff=fit.coeffs();
-		Tensor<double> expnt=fit.exponents();
+        GFit<double,3> fit=GFit<double,3>::F12Fit(mu,lo,hi,eps,false);
+        Tensor<double> coeff=0.5/mu*fit.coeffs();
+        Tensor<double> expnt=fit.exponents();
 
         if (bc(0,0) == BC_PERIODIC) {
             fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
         }
+
         return new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k, false, mu);
     }
 
