@@ -286,6 +286,8 @@ private:
 struct CCPairFunction {
 
 using T=double;
+using pureT=Function<T,6>;
+
 public:
 
     /// empty ctor
@@ -386,6 +388,7 @@ public:
         MADNESS_CHECK(component->is_decomposed());
         return decomposed().get_a();
     }
+
     vector_real_function_3d get_b() const {
         MADNESS_CHECK(component->is_decomposed());
         return decomposed().get_b();
@@ -400,6 +403,12 @@ public:
         MADNESS_CHECK(is_op_decomposed());
         return *decomposed().get_operator_ptr();
     }
+
+    /// can this be converted to a pure representation (depends on the operator, if present)
+    bool is_convertible_to_pure() const;
+
+    /// convert this into a pure hi-dim function
+    void convert_to_pure_inplace();
 
     CCPairFunction& operator*=(const double fac) {
         if (component->is_pure()) pure()*=fac;

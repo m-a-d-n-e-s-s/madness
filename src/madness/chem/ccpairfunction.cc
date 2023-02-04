@@ -17,6 +17,42 @@ CCPairFunction::invert_sign() {
     return *this;
 }
 
+bool CCPairFunction::is_convertible_to_pure() const {
+    if (is_pure()) return true;
+    bool operator_condition=true;
+    if (has_operator()) {
+        const auto type=get_operator().type();
+        if (type==OT_SLATER or type==OT_F12) operator_condition=true;
+        else operator_condition=false;
+    }
+    bool size_condition=is_decomposed() and (get_a().size()==1);
+    return operator_condition and size_condition;
+};
+
+
+void CCPairFunction::convert_to_pure_inplace() {
+    if (is_pure()) return;
+    pureT result=real_factory_6d(world());
+    MADNESS_CHECK(get_a().size()<3);
+    for (int i=0; i<get_a().size(); ++i) {
+        pureT tmp;
+        if (is_op_decomposed()) {
+            tmp= CompositeFactory<double, 6, 3>(world())
+                    .g12(get_operator().get_kernel())
+                    .particle1(get_a()[i])
+                    .particle2(get_b()[i]);
+        } else if (is_decomposed_no_op()) {
+            tmp= CompositeFactory<double, 6, 3>(world())
+                    .particle1(get_a()[i])
+                    .particle2(get_b()[i]);
+        }
+        tmp.fill_tree();
+        result+=tmp;
+    }
+    component.reset(new TwoBodyFunctionPureComponent<T>(result));
+};
+
+
 double
 CCPairFunction::make_xy_u(const CCFunction& xx, const CCFunction& yy) const {
     double result = 0.0;
@@ -125,6 +161,23 @@ CCPairFunction CCPairFunction::partial_inner(const CCPairFunction& other,
 
         } else if (other.is_op_decomposed()) {
 
+            // \int \sum_i h(1,2) f(1,3) c_i(1) d_i(3) d1
+            //  = \sum_i d_i(3) \int h_c_i(1,2) f(1,3) d1
+            //  = \sum_i d_i(3) H_i(3,2)
+            const auto& h=this->pure().get_function();
+            const auto& c=other.get_vector(integration_index(v2));
+            const auto& d=other.get_vector(remaining_index(v2));
+            auto& op=*(other.get_operator().get_op());
+            op.particle()=integration_index(v1)+1;
+
+            const vector_real_function_6d tmp=partial_mul(h,c,integration_index(v1)+1);
+            auto H=apply(world(),op,tmp);
+            real_function_6d result=real_factory_6d(world());
+//            const vector_real_function_6d result=partial_mul(H,d,integration_index(v1)+1);
+            for (int i=0; i<H.size(); ++i) {
+                result+=multiply(H[i],d[i],integration_index(v1)+1);
+            }
+            return CCPairFunction(result);
         } else {
             MADNESS_EXCEPTION("confused CCPairfunction",1);
         }
@@ -135,19 +188,57 @@ CCPairFunction CCPairFunction::partial_inner(const CCPairFunction& other,
         } else if (other.is_decomposed_no_op()) {
             // \int \sum_i a_i(1) b_i(2) \sum_j c_j(1) d_j(3) d1
             //    =  \sum_ij  <a_i|c_j>  b_i(2) d_j(3)
-            //    =  \sum_i  b~_i(2) d~_i(3)        // cholesky decomposition of S_ac
+            //    =  \sum_i  b~_i(2) d~_i(3)        // SVD decomposition of S_ac
             Tensor<T> ovlp=matrix_inner(world(),this->get_vector(integration_index(v1)),other.get_vector(integration_index(v2)));
-            cholesky(ovlp);
-            auto left=transform(world(),this->get_vector(remaining_index(v1)),transpose(ovlp));
-            auto right=transform(world(),other.get_vector(remaining_index(v2)),transpose(ovlp));
+            Tensor< typename Tensor<T>::scalar_type > s;
+            Tensor<T> U,VT;
+            svd(ovlp,U,s,VT);
+            for (int i=0; i<s.size(); ++i) U(_,i)*=s(i);
+            auto left=transform(world(),this->get_vector(remaining_index(v1)),U);
+            auto right=transform(world(),other.get_vector(remaining_index(v2)),transpose(VT));
             return CCPairFunction(left,right);
 
         } else if (other.is_op_decomposed()) {
-
+            // \int \sum_ij a_i(1) b_i(2) f(1,3) c_j(1) d_j(3) d1
+            //   = \sum_ij b_i(2) d_j(3) \int ac_ij(1) f(1,3) d1
+            //   = \sum_i b_i(2) \sum_j d_j(3) g_ij(3)
+            //   = \sum_i b_i(2) h_i(3)
+            const auto& a=this->get_vector(integration_index(v1));
+            const auto& b=this->get_vector(remaining_index(v1));
+            const auto& c=other.get_vector(integration_index(v2));
+            const auto& d=other.get_vector(remaining_index(v2));
+            const auto& op=*(other.get_operator().get_op());
+            std::decay_t<decltype(a)> h(a.size());        // /same type as a, without reference&
+            for (int i=0; i<a.size(); ++i) {
+                const auto ac=a[i]*c;
+                const auto g=madness::apply(world(),op,ac);
+                h[i]=dot(world(),d,g);
+            }
+            return CCPairFunction(b,h);
+        } else {
+            MADNESS_EXCEPTION("confused CCPairfunction",1);
         }
 
     } else if (this->is_op_decomposed()) {
-
+        if (other.is_pure()) {
+            return other.partial_inner(*this,v2,v1);
+        } else if (other.is_decomposed_no_op()) {
+            return other.partial_inner(*this,v2,v1);
+        } else if (other.is_op_decomposed()) {
+            if (this->is_convertible_to_pure()) {
+                CCPairFunction tmp=copy(*this);
+                tmp.convert_to_pure_inplace();
+                return tmp.partial_inner(other,v1,v2);
+            } else if (other.is_convertible_to_pure()) {
+                CCPairFunction tmp=copy(other);
+                tmp.convert_to_pure_inplace();
+                return this->partial_inner(tmp,v1,v2);
+            } else {
+                MADNESS_EXCEPTION("no partial_inner for this combination: <op_decomposed|op_decomposed>",1);
+            }
+        } else {
+            MADNESS_EXCEPTION("confused CCPairfunction",1);
+        }
     } else {
         MADNESS_EXCEPTION("confused CCPairfunction",1);
     }
@@ -234,7 +325,7 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
     const CCPairFunction& f1=*this;
     const CCPairFunction& f2=other;
 
-    double thresh=FunctionDefaults<6>::get_thresh();
+    double thresh=FunctionDefaults<6>::get_thresh()*0.1;
 
     double result = 0.0;
     if (f1.is_pure() and f2.is_pure()) {
