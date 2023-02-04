@@ -142,38 +142,34 @@ tensorT Q2(const tensorT& s) {
 
 }// namespace madness
 
-void
-SCF::output_scf_info_schema(const int &iter, const std::map<std::string, double> &vals, const tensorT &dipole_T) const {
+void SCF::output_calc_info_schema() const {
     nlohmann::json j = {};
-    j.push_back(nlohmann::json());
-    // TODO (Adrian) possibly read in json from filesystem.
-    // if it exists figure out the size.  pushback for each protocol
-    j[0]["scf_iterations"] = iter;
-    const double thresh = FunctionDefaults<3>::get_thresh();
-    const int k = FunctionDefaults<3>::get_k();
-    j[0]["scf_threshold"] = thresh;
-    j[0]["scf_k"] = k;
-    for (auto const &[key, val]: vals) {
-        j[0][key] = val;
+    vec_pair_ints int_vals;
+    vec_pair_T<double> double_vals;
+    vec_pair_tensor_T<double> double_tensor_vals;
+
+
+    int_vals.push_back({"calcinfo_nmo", param.nmo_alpha() + param.nmo_beta()});
+    int_vals.push_back({"calcinfo_nalpha", param.nalpha()});
+    int_vals.push_back({"calcinfo_nbeta", param.nbeta()});
+    int_vals.push_back({"calcinfo_natom", molecule.natom()});
+    int_vals.push_back({"k", FunctionDefaults<3>::get_k()});
+
+    to_json(j, int_vals);
+//    double_vals.push_back({"return_energy", value(molecule.get_all_coords().flat())});
+    double_vals.push_back({"return_energy", current_energy});
+    to_json(j, double_vals);
+    double_tensor_vals.push_back({"scf_eigenvalues_a", aeps});
+    if (param.nbeta() != 0 && !param.spin_restricted()) {
+        double_tensor_vals.push_back({"scf_eigenvalues_b", beps});
     }
-    j[0]["scf_dipole_moment"] = tensor_to_json(dipole_T);
-    int num = 0;
-    std::string save = param.prefix() + ".scf_info.json";
-#ifdef MADCHEM_HAS_STD_FILESYSTEM
-    if (std::filesystem::exists(save)) {
-        std::ifstream ifs(save);
-#else
-        std::ifstream ifs(save);
-        if (ifs) {
-#endif
-        nlohmann::json j_old;
-        ifs >> j_old;
-        print(j_old);
-        j_old.push_back(j);
-        j = j_old;
-    };
-    std::ofstream ofs(save);
-    ofs << j;
+
+    to_json(j, double_tensor_vals);
+    param.to_json(j);
+    e_data.to_json(j);
+
+//    output_schema(param.prefix()+".calc_info", j);
+    update_schema(param.prefix()+".calc_info", j);
 }
 
 void scf_data::add_data(std::map<std::string, double> values) {
@@ -199,7 +195,7 @@ scf_data::scf_data() : iter(0) {
 }
 
 
-void scf_data::to_json(json &j) {
+void scf_data::to_json(json &j) const {
     ::print("SCF DATA TO JSON");
 
     j["scf_e_data"] = json();

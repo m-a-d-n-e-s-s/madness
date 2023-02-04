@@ -178,7 +178,7 @@ public:
 
         scf_data();
 
-        void to_json(json &j);
+        void to_json(json &j) const;
 
         void print_data();
 
@@ -249,7 +249,7 @@ public:
     static void print_parameters() {
         CalculationParameters param;
         print("default parameters for the moldft program are");
-        param.print("dft","end");
+        param.print("dft", "end");
         print("\n\nthe molecular geometry must be specified in a separate block:");
         Molecule::print_parameters();
     }
@@ -503,10 +503,8 @@ public:
     // For given protocol, solve the DFT/HF/response equations
     void solve(World& world);
 
-    //
-    void output_scf_info_schema(const int& iter, const std::map<std::string, double>& vals, const tensorT& dipole_T) const;
+    void output_calc_info_schema() const;
 };
-
 
 // Computes molecular energy as a function of the geometry
 // This is cludgy ... need better factorization of functionality
@@ -676,36 +674,11 @@ public:
         gradient = calc.derivatives(world, rho);
     }
 
-    void output_calc_info_schema() {
-        nlohmann::json j = {};
-        vec_pair_ints int_vals;
-        vec_pair_T<double> double_vals;
-        vec_pair_tensor_T<double> double_tensor_vals;
-
-        CalculationParameters param = calc.param;
-
-
-
-        int_vals.push_back({"calcinfo_nmo", param.nmo_alpha() + param.nmo_beta()});
-        int_vals.push_back({"calcinfo_nalpha", param.nalpha()});
-        int_vals.push_back({"calcinfo_nbeta", param.nbeta()});
-        int_vals.push_back({"calcinfo_natom", calc.molecule.natom()});
-        int_vals.push_back({"k", FunctionDefaults<3>::get_k()});
-
-        to_json(j, int_vals);
-        double_vals.push_back({"return_energy", value(calc.molecule.get_all_coords().flat())});
-        to_json(j, double_vals);
-        double_tensor_vals.push_back({"scf_eigenvalues_a", calc.aeps});
-        if (param.nbeta() != 0 && !param.spin_restricted()) {
-            double_tensor_vals.push_back({"scf_eigenvalues_b", calc.beps});
-        }
-
-        to_json(j, double_tensor_vals);
-        param.to_json(j);
-        calc.e_data.to_json(j);
-
-        output_schema(param.prefix()+".calc_info", j);
+    void output_calc_info_schema() const {
+        calc.output_calc_info_schema();
     }
+
+
 };
 }
 

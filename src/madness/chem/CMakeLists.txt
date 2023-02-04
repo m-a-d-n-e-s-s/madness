@@ -142,15 +142,17 @@ if(BUILD_TESTING)
   
   SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
   # The list of unit test source files
-  set(CHEM_TEST_SOURCES test_pointgroupsymmetry.cc test_masks_and_boxes.cc test_localizer.cc 
-  test_QCCalculationParametersBase.cc test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc
-  test_ccpairfunction.cc)
+  set(CHEM_TEST_SOURCES_SHORT test_pointgroupsymmetry.cc test_masks_and_boxes.cc
+  test_QCCalculationParametersBase.cc test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc)
+  set(CHEM_TEST_SOURCES_LONG test_localizer.cc test_ccpairfunction.cc)
   if (LIBXC_FOUND)
-    list(APPEND CHEM_TEST_SOURCES test_dft.cc test_SCFOperators.cc)
+    list(APPEND CHEM_TEST_SOURCES_SHORT test_dft.cc )
+    list(APPEND CHEM_TEST_SOURCES_LONG test_SCFOperators.cc)
   endif(LIBXC_FOUND)
   
-  add_unittests(chem "${CHEM_TEST_SOURCES}" "MADchem;MADgtest")
-  
+  add_unittests(chem "${CHEM_TEST_SOURCES_SHORT}" "MADchem;MADgtest" "unittests;short")
+  add_unittests(chem "${CHEM_TEST_SOURCES_LONG}" "MADchem;MADgtest" "unittests;long")
+
   # Create other test executables not included in the unit tests
   set(CHEM_OTHER_TESTS testxc benchmark_exchange_operator)
   foreach(_test ${CHEM_OTHER_TESTS})  
