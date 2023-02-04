@@ -79,17 +79,40 @@ namespace madness {
     }
 
     template<typename... Vecs>
-    void output_schema(std::string schema_name, nlohmann::json& j) {
-        std::ofstream ofs(schema_name + ".json");
+    nlohmann::json add_time_tag(const nlohmann::json& j1) {
+
         auto print_time = std::chrono::system_clock::now();
         auto in_time_t = std::chrono::system_clock::to_time_t(print_time);
         std::stringstream ss;
         ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X");
 
+        auto j=j1;
         j["time"] = ss.str();
         j["wall_time"] = wall_time();
+        return j;
+    }
 
-        ofs << std::setw(4) << j;
+    template<typename... Vecs>
+    void output_schema(const std::string schema_name, const nlohmann::json& j) {
+        auto j1= add_time_tag(j);
+        std::ofstream ofs(schema_name + ".json");
+        ofs << std::setw(4) << j1;
+    }
+
+    template<typename... Vecs>
+    nlohmann::json input_schema(const std::string& schema_name) {
+        // read old schema
+        std::ifstream ifs(schema_name+".json");
+        nlohmann::json j;
+        if (ifs.is_open()) j=nlohmann::json::parse(ifs);
+        return j;
+    }
+
+    template<typename... Vecs>
+    void update_schema(const std::string schema_name, const nlohmann::json& jnew) {
+        auto j=input_schema(schema_name);
+        j.update(jnew);
+        output_schema(schema_name,j);
     }
 }// namespace madness
 

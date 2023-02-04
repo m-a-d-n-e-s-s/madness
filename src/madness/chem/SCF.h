@@ -178,7 +178,7 @@ public:
 
         scf_data();
 
-        void to_json(json &j);
+        void to_json(json &j) const;
 
         void print_data();
 
@@ -249,7 +249,7 @@ public:
     static void print_parameters() {
         CalculationParameters param;
         print("default parameters for the moldft program are");
-        param.print("dft","end");
+        param.print("dft", "end");
         print("\n\nthe molecular geometry must be specified in a separate block:");
         Molecule::print_parameters();
     }
@@ -503,10 +503,8 @@ public:
     // For given protocol, solve the DFT/HF/response equations
     void solve(World& world);
 
-    //
-    void output_scf_info_schema(const int& iter, const std::map<std::string, double>& vals, const tensorT& dipole_T) const;
+    void output_calc_info_schema() const;
 };
-
 
 // Computes molecular energy as a function of the geometry
 // This is cludgy ... need better factorization of functionality
@@ -716,6 +714,8 @@ public:
 
         output_schema(param.prefix()+".calc_info", j);
     }
+
+
 };
 }
 

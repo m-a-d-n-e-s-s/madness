@@ -216,10 +216,9 @@ double Nemo::value(const Tensor<double>& x) {
 
 	if(world.rank()==0) std::cout << "Nemo Orbital Energies: " << calc->aeps << "\n";
 
-    std::map<std::string,double> results;
-    results["scf_energy"]=calc->current_energy;
-    calc->output_scf_info_schema(0,results,dipole);
-	return calc->current_energy;
+    calc->output_calc_info_schema();
+
+    return calc->current_energy;
 }
 
 
