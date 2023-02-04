@@ -156,22 +156,7 @@ SCF::output_scf_info_schema(const int &iter, const std::map<std::string, double>
     }
     j[0]["scf_dipole_moment"] = tensor_to_json(dipole_T);
     int num = 0;
-    std::string save = param.prefix() + ".scf_info.json";
-#ifdef MADCHEM_HAS_STD_FILESYSTEM
-    if (std::filesystem::exists(save)) {
-        std::ifstream ifs(save);
-#else
-        std::ifstream ifs(save);
-        if (ifs) {
-#endif
-        nlohmann::json j_old;
-        ifs >> j_old;
-        print(j_old);
-        j_old.push_back(j);
-        j = j_old;
-    };
-    std::ofstream ofs(save);
-    ofs << std::setw(4) << j;
+    update_schema(param.prefix()+".scf_info.json", j);
 }
 
 void SCF::output_calc_info_schema() const {
