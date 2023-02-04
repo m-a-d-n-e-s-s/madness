@@ -504,6 +504,9 @@ public:
     void solve(World& world);
 
     void output_calc_info_schema() const;
+
+    void output_scf_info_schema(const int& iter, const std::map<std::string, double>& vals, const tensorT& dipole_T) const;
+
 };
 
 // Computes molecular energy as a function of the geometry
