@@ -63,10 +63,6 @@ enum PotentialType {
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const PairFormat& input);
-
-/// Assigns strings to enums for formated output
-std::string
 assign_name(const CCState& input);
 
 /// Assigns strings to enums for formated output

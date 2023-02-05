@@ -3412,13 +3412,11 @@ void CCPotentials::test_singles_potential() const {
 
 void CCPotentials::test() {
     output.section("Testing enums");
-    PairFormat test1 = PT_DECOMPOSED;
     CalcType test2 = CT_MP2;
     OpType test3 = OT_G12;
     FuncType test4 = HOLE;
     CCState test5 = GROUND_STATE;
     PotentialType test6 = POT_F3D_;
-    assign_name(test1);
     assign_name(test2);
     assign_name(test3);
     assign_name(test4);

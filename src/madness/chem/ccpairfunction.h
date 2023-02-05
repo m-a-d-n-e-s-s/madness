@@ -23,11 +23,6 @@ class ProjectorBase;
 /// Types of Functions used by CC_function class
 enum FuncType { UNDEFINED, HOLE, PARTICLE, MIXED, RESPONSE };
 
-/// FuncTypes used by the CC_function_6d structure
-enum PairFormat { PT_UNDEFINED, PT_FULL, PT_DECOMPOSED, PT_OP_DECOMPOSED };
-
-
-
 /// structure for a CC Function 3D which holds an index and a type
 // the type is defined by the enum FuncType (definition at the start of this file)
 struct CCFunction {

@@ -446,25 +446,6 @@ CCConvolutionOperator::init_op(const OpType& type, const Parameters& parameters)
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const PairFormat& input) {
-    switch (input) {
-        case PT_FULL:
-            return "full";
-        case PT_DECOMPOSED:
-            return "decomposed";
-        case PT_OP_DECOMPOSED:
-            return "operator-decomposed";
-        default: {
-            MADNESS_EXCEPTION("Unvalid enum assignement!", 1);
-            return "undefined";
-        }
-    }
-    MADNESS_EXCEPTION("assign_name:pairtype, should not end up here", 1);
-    return "unknown pairtype";
-}
-
-/// Assigns strings to enums for formated output
-std::string
 assign_name(const CCState& input) {
     switch (input) {
         case GROUND_STATE:
