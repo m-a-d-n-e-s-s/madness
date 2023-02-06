@@ -499,7 +499,7 @@ namespace madness {
             std::vector<Slice> s0(NDIM/2,s);
 
             const double tol=f->get_thresh();
-            const double thresh=f->truncate_tol(tol, key);
+            const double thresh=f->truncate_tol(tol, key)*0.3;      // custom factor to "ensure" accuracy
             // include the wavelets in the norm, makes it much more accurate
             const double fnorm=fcoeff.normf();
             const double gnorm=gcoeff.normf();

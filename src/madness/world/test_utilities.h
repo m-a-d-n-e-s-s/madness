@@ -16,6 +16,8 @@ struct test_output {
 	test_output(std::string line) {
         std::cout << ltrim_to_length(line,70);
 		logger << std::scientific << std::setprecision(8) ;
+        time_begin=cpu_time();
+        time_last_checkpoint=time_begin;
         set_cout_to_logger();
 	}
 
@@ -42,7 +44,9 @@ struct test_output {
         if (not have_checkpoints) print("");    // first checkpoint
         have_checkpoints=true;
         std::cout << "  " << ltrim_to_length(message,66);
-        print_success_fail(std::cout,success,time);
+        double time1=cpu_time()-time_last_checkpoint;
+        time_last_checkpoint=cpu_time();
+        print_success_fail(std::cout,success,time1);
         if (not success) {
             print_and_clear_log();
         }
@@ -65,7 +69,8 @@ struct test_output {
         set_cout_to_terminal();
         if (have_checkpoints) std::cout << ltrim_to_length("--> final result -->",70);
         success = success and final_success;
-        print_success_fail(std::cout,success);
+        double time_end=cpu_time();
+        print_success_fail(std::cout,success,time_end-time_begin);
         if (not success) print_and_clear_log();
 		return (success) ? 0 : 1;
 	}
@@ -94,6 +99,8 @@ private:
     bool cout_set_to_logger=false;          // do not change this directly!
     bool have_checkpoints=false;
     std::streambuf* stream_buffer_cout;
+    double time_begin=0.0;
+    double time_last_checkpoint=0.0;
 };
 
 
