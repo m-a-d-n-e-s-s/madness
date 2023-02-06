@@ -74,9 +74,8 @@ auto main(int argc, char *argv[]) -> int {
     } catch (const nlohmann::detail::exception &e) {
         print(e.what());
         error("Caught JSON exception");
-    }catch (const char *s) {
-        print(s);
-    } catch (const std::filesystem::filesystem_error &ex) {
+    }
+     catch (const std::filesystem::filesystem_error &ex) {
         std::cerr << ex.what() << "\n";
     } catch (const std::string &s) { print(s); } catch (const std::exception &e) {
         print(e.what());
