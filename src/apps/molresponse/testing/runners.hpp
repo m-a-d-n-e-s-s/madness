@@ -445,8 +445,9 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
         auto dipole_t = calc.dipole(world, rho);
         std::map<std::string, double> results;
         results["scf_energy"] = calc.current_energy;
+        world.gop.fence();
         if (world.rank() == 0) {
-            calc.output_scf_info_schema(0, results, dipole_t);
+            calc.output_scf_info_schema(results, dipole_t);
             ME.output_calc_info_schema();
         }
     } else {
@@ -522,7 +523,7 @@ void set_frequency_response_parameters(World &world, ResponseParameters &r_param
         r_params.set_user_defined_value("kain", true);
         r_params.set_user_defined_value("omega", frequency);
         r_params.set_user_defined_value("first_order", true);
-        r_params.set_user_defined_value("plot_all_orbitals", false);
+        r_params.set_user_defined_value("plot_all_orbitals", true);
         r_params.set_user_defined_value("plot", true);
         r_params.set_user_defined_value("print_level", 20);
         r_params.set_user_defined_value("save", true);
