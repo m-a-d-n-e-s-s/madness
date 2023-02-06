@@ -1266,7 +1266,8 @@ void ResponseBase::plotResponseOrbitals(World &world, size_t iteration,
 
     std::string plot_dir = "plots/";
 #ifdef MADCHEM_HAS_STD_FILESYSTEM
-    std::filesystem::create_directories(plot_dir);
+    //std::filesystem::create_directories(plot_dir);
+    plot_dir = "";
 #else
     plot_dir = "";
 #endif
