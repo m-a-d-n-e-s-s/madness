@@ -1294,29 +1294,29 @@ void ResponseBase::plotResponseOrbitals(World &world, size_t iteration,
         plotCoords plt(d, Lp);
         // plot ground density
         if (iteration == 1) {
-            auto d_i_path = density_dir + "/rho0_%c_0.plot";
+            auto d_i_path = density_dir + "rho0_%c_0.plot";
             snprintf(plot_name, buffSize, d_i_path.c_str(), dir[d]);
             plot_line(plot_name, 5001, plt.lo, plt.hi, rho0);
         }
         for (int i = 0; i < static_cast<int>(n); i++) {
             // print ground_state
             // plot gound_orbitals
-            auto orb_i_path = orbital_dir + "/phi0_%c_0_%d.plt";
+            auto orb_i_path = orbital_dir + "phi0_%c_0_%d.plt";
             snprintf(plot_name, buffSize, orb_i_path.c_str(), dir[d], static_cast<int>(i));
             plot_line(plot_name, 5001, plt.lo, plt.hi, ground_orbitals[i]);
         }
 
         for (int b = 0; b < static_cast<int>(m); b++) {
             // plot rho1 direction d state b
-            auto d_ib_path = density_dir + "/rho1_%c_%d.plt";
+            auto d_ib_path = density_dir + "rho1_%c_%d.plt";
             snprintf(plot_name, buffSize, d_ib_path.c_str(), dir[d],
                      static_cast<int>(b));
             plot_line(plot_name, 5001, plt.lo, plt.hi, rho1[b]);
 
             for (int i = 0; i < static_cast<int>(n); i++) {
                 // print ground_state
-                auto o_ibx_path = orbital_dir + "plots/orbitals/phix_%c_%d_%d.plt";
-                auto o_iby_path = orbital_dir + "plots/orbitals/phiy_%c_%d_%d.plt";
+                auto o_ibx_path = orbital_dir + "phix_%c_%d_%d.plt";
+                auto o_iby_path = orbital_dir + "phiy_%c_%d_%d.plt";
                 snprintf(plot_name, buffSize, o_ibx_path.c_str(), dir[d],
                          static_cast<int>(b), static_cast<int>(i));
                 plot_line(plot_name, 5001, plt.lo, plt.hi, x_response[b][i]);
