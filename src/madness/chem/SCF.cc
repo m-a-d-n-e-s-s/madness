@@ -141,22 +141,20 @@ tensorT Q2(const tensorT& s) {
 }
 
 }// namespace madness
-void
-SCF::output_scf_info_schema(const int &iter, const std::map<std::string, double> &vals, const tensorT &dipole_T) const {
+void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
+                                 const tensorT &dipole_T) const {
     nlohmann::json j = {};
-    j.push_back(nlohmann::json());
     // if it exists figure out the size.  pushback for each protocol
-    j[0]["scf_iterations"] = iter;
     const double thresh = FunctionDefaults<3>::get_thresh();
     const int k = FunctionDefaults<3>::get_k();
-    j[0]["scf_threshold"] = thresh;
-    j[0]["scf_k"] = k;
+    j["scf_threshold"] = thresh;
+    j["scf_k"] = k;
     for (auto const &[key, val]: vals) {
-        j[0][key] = val;
+        j[key] = val;
     }
-    j[0]["scf_dipole_moment"] = tensor_to_json(dipole_T);
+    j["scf_dipole_moment"] = tensor_to_json(dipole_T);
     int num = 0;
-    update_schema(param.prefix()+".scf_info.json", j);
+    update_schema(param.prefix()+".scf_info", j);
 }
 
 void SCF::output_calc_info_schema() const {
