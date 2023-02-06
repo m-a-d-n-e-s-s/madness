@@ -73,6 +73,9 @@ auto main(int argc, char *argv[]) -> int {
             error("caught a Tensor exception");
         } catch (const char *s) { print(s); } catch (const std::string &s) {
             print(s);
+        } catch (const nlohmann::detail::exception &e) {
+            std::cout<<e.what();
+            error("caught an JSON exception");
         } catch (const std::exception &e) {
             error("caught an STL exception");
             print(e.what());
