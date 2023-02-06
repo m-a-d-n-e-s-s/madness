@@ -1264,8 +1264,8 @@ void ResponseBase::plotResponseOrbitals(World &world, size_t iteration,
                                         GroundStateCalculation const &g_params) {
 
 
-    std::string density_dir = "plots/densities";
-    std::string orbital_dir = "plots/densities";
+    std::string density_dir = "plots/densities/";
+    std::string orbital_dir = "plots/densities/";
 #ifdef MADCHEM_HAS_STD_FILESYSTEM
     std::filesystem::create_directories(density_dir);
     std::filesystem::create_directory(orbital_dir);
