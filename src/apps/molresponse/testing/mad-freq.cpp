@@ -63,13 +63,13 @@ auto main(int argc, char *argv[]) -> int {
                 world.gop.fence();
             }
         } catch (const SafeMPI::Exception &e) {
-            print(e);
+            print(e.what());
             error("caught an MPI exception");
         } catch (const madness::MadnessException &e) {
             print(e);
             error("caught a MADNESS exception");
         } catch (const madness::TensorException &e) {
-            print(e);
+            print(e.what());
             error("caught a Tensor exception");
         } catch (const char *s) { print(s); } catch (const std::string &s) {
             print(s);
@@ -77,8 +77,8 @@ auto main(int argc, char *argv[]) -> int {
             std::cout<<e.what();
             error("caught an JSON exception");
         } catch (const std::exception &e) {
-            error("caught an STL exception");
             print(e.what());
+            error("caught an STL exception");
         } catch (...) { error("caught unhandled exception"); }
         // Nearly all memory will be freed at this point
         print_stats(world);
