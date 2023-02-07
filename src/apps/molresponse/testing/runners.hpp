@@ -503,40 +503,33 @@ void set_excited_parameters(ResponseParameters &r_params, const std::string &xc,
  * @param xc
  * @param frequency
  */
-void set_frequency_response_parameters(World &world, ResponseParameters &r_params,
-                                       const std::string &property, const std::string &xc,
-                                       const double &frequency, const std::string &precision) {
-    if (world.rank() == 0) {
-        if (precision == "high") {
-            r_params.set_user_defined_value<vector<double>>("protocol", {1e-6, 1e-7, 1e-8});
-            r_params.set_user_defined_value<double>("dconv", 1e-6);
-        } else if (precision == "low") {
-            r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-7});
-            r_params.set_user_defined_value<double>("dconv", 1e-4);
-        } else {
-            r_params.set_user_defined_value<vector<double>>("protocol", {1e-9});
-            r_params.set_user_defined_value<double>("dconv", 1e-7);
-        }
-        //r_params.set_user_defined_value("archive", std::string("../restartdata"));
-        r_params.set_user_defined_value("maxiter", size_t(15));
-        r_params.set_user_defined_value("maxsub", size_t(5));
-        r_params.set_user_defined_value("kain", true);
-        r_params.set_user_defined_value("omega", frequency);
-        r_params.set_user_defined_value("first_order", true);
-        r_params.set_user_defined_value("plot_all_orbitals", true);
-        r_params.set_user_defined_value("plot", true);
-        r_params.set_user_defined_value("print_level", 20);
-        r_params.set_user_defined_value("save", true);
-        // set xc, property, frequency,and restart
-        r_params.set_user_defined_value("xc", xc);
-        // Here
-        if (property == "dipole") {
-            r_params.set_user_defined_value("dipole", true);
-        } else if (property == "nuclear") {
-            r_params.set_user_defined_value("nuclear", true);
-        }
+void set_frequency_response_parameters(ResponseParameters &r_params, const std::string &property,
+                                       const std::string &xc, const double &frequency,
+                                       bool high_precision) {
+    if (high_precision) {
+        r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-8});
+        r_params.set_user_defined_value<double>("dconv", 1e-6);
+    } else {
+        r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-6});
+        r_params.set_user_defined_value<double>("dconv", 1e-4);
     }
-    world.gop.broadcast_serializable(r_params, 0);
+    //r_params.set_user_defined_value("archive", std::string("../restartdata"));
+    r_params.set_user_defined_value("maxiter", size_t(30));
+    r_params.set_user_defined_value("maxsub", size_t(5));
+    r_params.set_user_defined_value("kain", true);
+    r_params.set_user_defined_value("omega", frequency);
+    r_params.set_user_defined_value("first_order", true);
+    r_params.set_user_defined_value("plot_all_orbitals", false);
+    r_params.set_user_defined_value("print_level", 20);
+    r_params.set_user_defined_value("save", true);
+    // set xc, property, frequency,and restart
+    r_params.set_user_defined_value("xc", xc);
+    // Here
+    if (property == "dipole") {
+        r_params.set_user_defined_value("dipole", true);
+    } else if (property == "nuclear") {
+        r_params.set_user_defined_value("nuclear", true);
+    }
 }
 
 /***
