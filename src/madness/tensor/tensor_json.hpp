@@ -6,7 +6,7 @@
 #define MADNESS_TENSOR_JSON_H
 
 #include <algorithm>
-#include <ostream>
+#include <fstream>
 
 // #include "catch.hpp"
 #include <madness/external/nlohmann_json/json.hpp>

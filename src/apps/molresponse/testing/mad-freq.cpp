@@ -71,10 +71,14 @@ auto main(int argc, char *argv[]) -> int {
         std::cout << e << std::endl;
     } catch (const madness::TensorException &e) { print(e); } catch (const char *s) {
         print(s);
+    } catch (const nlohmann::detail::exception &e) {
+        print(e.what());
+        error("Caught JSON exception");
+    }
+     catch (const std::filesystem::filesystem_error &ex) {
+        std::cerr << ex.what() << "\n";
     } catch (const std::string &s) { print(s); } catch (const std::exception &e) {
         print(e.what());
-    } catch (const std::filesystem::filesystem_error &ex) {
-        std::cerr << ex.what() << "\n";
     } catch (...) { error("caught unhandled exception"); }
 
     if (world.rank() == 0) { print("Finished All Frequencies"); }
