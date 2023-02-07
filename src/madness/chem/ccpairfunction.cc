@@ -394,7 +394,8 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
         CCPairFunction bra(f1.get_a(),f1.get_b());
         for (const auto& op : ops) {
             CCPairFunction ket;
-            if (op.second.get_op()) ket = CCPairFunction(&op.second,f2.get_a(),f2.get_b());
+            auto op1=std::shared_ptr<CCConvolutionOperator>(new CCConvolutionOperator(op.second));
+            if (op1->get_op()) ket = CCPairFunction(op1,f2.get_a(),f2.get_b());
             else ket = CCPairFunction(f2.get_a(),f2.get_b());
 
             double tmp=op.first * inner(ket,bra,R2);

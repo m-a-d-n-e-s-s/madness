@@ -794,10 +794,10 @@ public:
 
     // update the intermediates
     void update_intermediates(const CC_vecfunction& t) {
-        g12.update_elements(mo_bra_, t);
-        g12.sanity();
-        f12.update_elements(mo_bra_, t);
-        f12.sanity();
+        g12->update_elements(mo_bra_, t);
+        g12->sanity();
+        f12->update_elements(mo_bra_, t);
+        f12->sanity();
     }
 
     /// clear stored potentials
@@ -829,9 +829,9 @@ private:
     std::vector<double> orbital_energies_;
     /// the coulomb operator with all intermediates
 public:
-    CCConvolutionOperator g12;
+    std::shared_ptr<CCConvolutionOperator> g12;
     /// the f12 operator with all intermediates
-    CCConvolutionOperator f12;
+    std::shared_ptr<CCConvolutionOperator> f12;
     /// the correlation factor, holds necessary regularized potentials
     CorrelationFactor corrfac;
     /// Manager for stored intermediate potentials which are s2c, s2b and the whole singles potentials without fock-residue for GS and EX state

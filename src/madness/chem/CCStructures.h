@@ -894,7 +894,15 @@ private:
                       << "!!!!!\n\n" << std::endl;
         MADNESS_EXCEPTION(msg.c_str(), 1);
     }
+public:
 };
+
+template<typename T=double>
+std::shared_ptr<CCConvolutionOperator> CCConvolutionOperatorPtr(World& world, const OpType type,
+                                                                       CCConvolutionOperator::Parameters param) {
+    return std::shared_ptr<CCConvolutionOperator>(new CCConvolutionOperator(world,type,param));
+}
+
 
 class CCPair : public archive::ParallelSerializableObject {
 public:

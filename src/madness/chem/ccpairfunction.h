@@ -85,7 +85,9 @@ public:
     virtual void swap_particles_inplace() = 0;
     virtual bool is_pure() const {return false;}
     virtual bool is_decomposed() const {return false;}
-    virtual bool has_operator() const {return false;}
+    virtual bool has_operator() const = 0;
+    virtual void set_operator(const std::shared_ptr<CCConvolutionOperator> op) = 0;
+    virtual const CCConvolutionOperator* get_operator_ptr() const = 0;
     virtual void print_size() const = 0;
     virtual std::string name(const bool transpose=false) const = 0;
     virtual World& world() const =0;
@@ -116,6 +118,8 @@ public:
 
     bool is_pure() const override {return true;}
 
+    bool has_operator() const override {return op!=nullptr;}
+
     World& world() const override {return u.world();};
 
     void serialize() {}
@@ -125,7 +129,11 @@ public:
     }
 
     std::string name(const bool transpose) const override {
-        if (transpose) return "< u |";
+        if (transpose) {
+            if (has_operator()) return "< u |"+get_operator_ptr()->name();
+            return "< u |";
+        }
+        if (has_operator()) return get_operator_ptr()->name() + "| u >";
         return "| u >";
     }
 
@@ -141,6 +149,10 @@ public:
         u=swap_particles(u);
     }
 
+    const CCConvolutionOperator* get_operator_ptr() const override {return op.get();};
+
+    void set_operator(const std::shared_ptr<CCConvolutionOperator> op1) override {op=op1;}
+
     real_function_6d& get_function() {
         return u;
     }
@@ -148,6 +160,7 @@ public:
 private:
     /// pure 6D function
     real_function_6d u;
+    std::shared_ptr<CCConvolutionOperator> op;
 
 };
 
@@ -164,7 +177,7 @@ public:
 
     TwoBodyFunctionSeparatedComponent(const std::vector<Function<T,3>>& a,
                                       const std::vector<Function<T,3>>& b,
-                                      const CCConvolutionOperator* op) : a(a), b(b), op(op) {};
+                                      const std::shared_ptr<CCConvolutionOperator> op) : a(a), b(b), op(op) {};
 
     TwoBodyFunctionSeparatedComponent(const TwoBodyFunctionSeparatedComponent& other) = default;
 
@@ -233,13 +246,15 @@ public:
         }
     }
 
-    const CCConvolutionOperator* get_operator_ptr() const {return op;};
+    const CCConvolutionOperator* get_operator_ptr() const override {return op.get();};
+
+    void set_operator(const std::shared_ptr<CCConvolutionOperator> op1) override {op=op1;}
 
 private:
 
     std::vector<Function<T,3>> a;
     std::vector<Function<T,3>> b;
-    const CCConvolutionOperator* op=nullptr;
+    std::shared_ptr<CCConvolutionOperator> op;
 
 };
 
@@ -305,12 +320,12 @@ public:
     }
 
     /// takes a deep copy of the argument functions
-    explicit CCPairFunction(const CCConvolutionOperator *op_, const CCFunction& f1, const CCFunction& f2) :
+    explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator> op_, const CCFunction& f1, const CCFunction& f2) :
             CCPairFunction(op_,std::vector<real_function_3d>({f1.function}),std::vector<real_function_3d>({f2.function})) {
     }
 
     /// takes a deep copy of the argument functions
-    explicit CCPairFunction(const CCConvolutionOperator *op_, const std::vector<real_function_3d>& f1,
+    explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator> op_, const std::vector<real_function_3d>& f1,
                             const std::vector<real_function_3d>& f2) {
         World& world=f1.front().world();
         component.reset(new TwoBodyFunctionSeparatedComponent<T>(copy(world,f1),copy(world,f2),op_));
@@ -395,8 +410,7 @@ public:
     }
 
     const CCConvolutionOperator& get_operator() const {
-        MADNESS_CHECK(is_op_decomposed());
-        return *decomposed().get_operator_ptr();
+        return *(component->get_operator_ptr());
     }
 
     /// can this be converted to a pure representation (depends on the operator, if present)

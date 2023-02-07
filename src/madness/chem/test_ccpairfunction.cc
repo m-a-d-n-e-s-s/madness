@@ -8,6 +8,7 @@
 #include<madness/chem/correlationfactor.h>
 #include<madness/chem/electronic_correlation_factor.h>
 #include<madness/chem/CCStructures.h>
+#include<madness/chem/CCPotentials.h>
 #include<madness/chem/projector.h>
 
 #include<madness/world/test_utilities.h>
@@ -72,7 +73,7 @@ struct data {
     auto get_ccpairfunctions() const {
         CCPairFunction p1(f12);
         CCPairFunction p2({f1,f2},{f2,f3});
-        CCPairFunction p3(f12_op.get(),{f1,f2},{f2,f3});
+        CCPairFunction p3(f12_op,{f1,f2},{f2,f3});
         CCPairFunction p4(f23); // two-term, corresponds to p2
         return std::make_tuple(p1,p2,p3,p4);
     }
@@ -91,13 +92,13 @@ int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
 
     vector_real_function_3d  a= zero_functions<double,3>(world,3);
     vector_real_function_3d  b= zero_functions<double,3>(world,3);
-    CCConvolutionOperator f12(world, OT_F12, parameter);
+    auto f12=CCConvolutionOperatorPtr(world, OT_F12, parameter);
     t1.checkpoint(true,"preparation");
 
     CCPairFunction p1;
     CCPairFunction p2(f);
     CCPairFunction p3({f1,f2},{f1,f3});
-    CCPairFunction p4(&f12,{f1,f2},{f2,f3});
+    CCPairFunction p4(f12,{f1,f2},{f2,f3});
     t1.checkpoint(true,"construction");
 
     {
@@ -151,8 +152,8 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
     CCTimer timer(world, "testing");
     auto R2 = ncf->square();
 
-    CCConvolutionOperator g12(world, OT_G12, parameters);
-    CCConvolutionOperator f12(world, OT_F12, parameters);
+    auto g12=CCConvolutionOperatorPtr(world, OT_G12, parameters);
+    auto f12=CCConvolutionOperatorPtr(world, OT_F12, parameters);
 
     CorrelationFactor corrfac(world, 1.0, 1.e-7, molecule);
 
@@ -223,7 +224,7 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
     double time_init = timer.reset();
     if (world.rank() == 0) print("time spent in initializing ", time_init);
     {
-        CCPairFunction fab(&f12, a, b);
+        CCPairFunction fab(f12, a, b);
         const double test1 = inner(fab, fab, R2);
         const double diff = test1 - ab_f2_ab;
         if (fabs(diff) > lo) passed_lo = false;
@@ -260,7 +261,7 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
 
     {
         CCPairFunction ab1(mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
-        CCPairFunction fab(&f12, a, b);
+        CCPairFunction fab(f12, a, b);
         timer.reset();
         const double test1 = inner(ab1, fab, R2);
         const double test2 = ab_f_ab;
@@ -301,7 +302,7 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
 //            if (fabs(diff) > hi) passed_hi = false;
 //        }
     {
-        CCPairFunction fab(&f12, a, b);
+        CCPairFunction fab(f12, a, b);
         CCPairFunction ab2(fab_6d);
         const double test1 = inner(fab, ab2, R2);
         const double test2 = ab_f2_ab;
@@ -315,7 +316,7 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
     t1.checkpoint(success, "op_dec/pure");
 
     {
-        CCPairFunction fab(&f12, a, b);
+        CCPairFunction fab(f12, a, b);
         CCPairFunction ab2(mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
         timer.reset();
         const double test1 = inner(fab, ab2, R2);
@@ -346,7 +347,7 @@ int test_partial_inner_6d(World& world, std::shared_ptr<NuclearCorrelationFactor
     std::vector<real_function_3d> a = {f1, f2};
     std::vector<real_function_3d> b = {f2, f3};
 
-    CCConvolutionOperator f12(world, OT_F12, parameter);
+    auto f12=CCConvolutionOperatorPtr(world, OT_F12, parameter);
 
     auto [p1,p2,p3,p4]=data1.get_ccpairfunctions();
     CCPairFunction p11({f1},{f1});
@@ -358,11 +359,11 @@ int test_partial_inner_6d(World& world, std::shared_ptr<NuclearCorrelationFactor
     double g13=inner(f1,f3);
     double g23=inner(f2,f3);
     double g33=inner(f3,f3);
-    real_function_3d gf11=f12(f1*f1);
-    real_function_3d gf12=f12(f1*f2);
-    real_function_3d gf22=f12(f2*f2);
-    real_function_3d gf13=f12(f1*f3);
-    real_function_3d gf23=f12(f2*f3);
+    real_function_3d gf11=(*f12)(f1*f1);
+    real_function_3d gf12=(*f12)(f1*f2);
+    real_function_3d gf22=(*f12)(f2*f2);
+    real_function_3d gf13=(*f12)(f1*f3);
+    real_function_3d gf23=(*f12)(f2*f3);
 
     t1.checkpoint(true,"prep",timer.reset());
 
@@ -401,7 +402,7 @@ int test_partial_inner_6d(World& world, std::shared_ptr<NuclearCorrelationFactor
     // test < sth | f(1,2) a(1)b(2) >
     // CCPairFunction p2({f1,f2},{f2,f3});
     // CCPairFunction p4(f23); // two-term, corresponds to p2
-    CCPairFunction p5(&f12,std::vector<real_function_3d>({f1}),std::vector<real_function_3d>({f2}));
+    CCPairFunction p5(f12,std::vector<real_function_3d>({f1}),std::vector<real_function_3d>({f2}));
     for (auto& test_p1 : {p2, p4}) {
         CCPairFunction r1=inner(test_p1,p5,{0,1,2},{0,1,2});
         CCPairFunction r2=inner(test_p1,p5,{0,1,2},{3,4,5});
@@ -470,11 +471,11 @@ int test_partial_inner_3d(World& world, std::shared_ptr<NuclearCorrelationFactor
     std::vector<real_function_3d> a = {f1, f2};
     std::vector<real_function_3d> b = {f2, f3};
 
-    CCConvolutionOperator f12(world, OT_F12, parameter);
+    auto f12=CCConvolutionOperatorPtr(world, OT_F12, parameter);
 
     CCPairFunction p1(f);   // e(-r1 - 2r2)
     CCPairFunction p2(a,b);
-    CCPairFunction p3(&f12,a,b);
+    CCPairFunction p3(f12,a,b);
     CCPairFunction p11({f1},{f1});
     CCPairFunction p12({f1},{f2});
 
@@ -483,9 +484,9 @@ int test_partial_inner_3d(World& world, std::shared_ptr<NuclearCorrelationFactor
     double g12=inner(f1,f2);
     double g13=inner(f1,f3);
     double g23=inner(f2,f3);
-    real_function_3d gf11=f12(f1*f1);
-    real_function_3d gf12=f12(f1*f2);
-    real_function_3d gf13=f12(f1*f3);
+    real_function_3d gf11=(*f12)(f1*f1);
+    real_function_3d gf12=(*f12)(f1*f2);
+    real_function_3d gf13=(*f12)(f1*f3);
     print("g11, g22",g11,g22);
 
     print("time in preparation",timer.reset());
@@ -695,7 +696,7 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
     std::vector<real_function_3d> b = {f3, f1, f2};
     std::vector<real_function_3d> o = orthonormalize_cd<double,3>({f1-f3, f5});  // projects on an orthonormal basis
     a = orthonormalize_cd<double,3>(a);  // projects on an orthonormal basis
-    CCConvolutionOperator f12(world, OT_F12, parameter);
+    auto f12=CCConvolutionOperatorPtr(world, OT_F12, parameter);
 
     {
         double n1=inner(f1,o[0]);
@@ -705,7 +706,7 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
     }
 
     CCPairFunction p1(a,b);
-    CCPairFunction p2(&f12,a,b);
+    CCPairFunction p2(f12,a,b);
     CCPairFunction p3(f); // outer (f1,f2)
 
     std::vector<CCPairFunction> vp1({p1});
@@ -850,11 +851,11 @@ int test_helium(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, con
 
 
     CCConvolutionOperator::Parameters param;
-    CCConvolutionOperator f(world,OT_F12,param);
-    CCConvolutionOperator g(world,OT_G12,param);
+    auto f=CCConvolutionOperatorPtr(world,OT_F12,param);
+    auto g=CCConvolutionOperatorPtr(world,OT_G12,param);
 
-    CCPairFunction fij(&f,psi,psi);
-    CCPairFunction gij(&g,psi,psi);
+    CCPairFunction fij(f,psi,psi);
+    CCPairFunction gij(g,psi,psi);
     CCPairFunction ij({psi},{psi});
     std::vector<CCPairFunction> vfij={fij};
     std::vector<CCPairFunction> vgij={gij};
