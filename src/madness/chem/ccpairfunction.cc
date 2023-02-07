@@ -398,7 +398,7 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
             else ket = CCPairFunction(f2.get_a(),f2.get_b());
 
             double tmp=op.first * inner(ket,bra,R2);
-            print("inner",bra.name(true),ket.name()," : ",tmp);
+//            print("inner",bra.name(true),ket.name()," : ",tmp);
             result+=tmp;
         }
     } else MADNESS_EXCEPTION(
@@ -458,6 +458,7 @@ std::vector<CCPairFunction> apply(const ProjectorBase& projector, const std::vec
             }
         } else if (pf.is_op_decomposed()) {
             if (auto SO=dynamic_cast<const StrongOrthogonalityProjector<double,3>*>(&projector)) {
+//                CCTimer t(world,"SO block");
                 // Q12 = 1 - O1 (1 - 1/2 O2) - O2 (1 - 1/2 O1)
                 QProjector<double,3> Q1(world,SO->bra1(),SO->ket1());
                 Q1.set_particle(0);
@@ -465,8 +466,11 @@ std::vector<CCPairFunction> apply(const ProjectorBase& projector, const std::vec
                 Q2.set_particle(1);
                 auto tmp=Q1(Q2(std::vector<CCPairFunction>({pf})));
                 for (auto& t: tmp) result.push_back(t);
+//                t.print();
 
             } else if (auto P=dynamic_cast<const Projector<double,3>*>(&projector)) {
+//                CCTimer t(world,"P block");
+                // Q12 = 1 - O1 (1 - 1/2 O2) - O2 (1 - 1/2 O1)
                 std::vector<real_function_3d> tmp= zero_functions_compressed<double,3>(world,P->get_ket_vector().size());
 
                 // per term a_i b_k:
@@ -485,8 +489,10 @@ std::vector<CCPairFunction> apply(const ProjectorBase& projector, const std::vec
                 truncate(world,tmp);
                 if (P->get_particle()==0) result.push_back(CCPairFunction(P->get_ket_vector(),tmp));
                 if (P->get_particle()==1) result.push_back(CCPairFunction(tmp,P->get_ket_vector()));
+//                t.print();
 
             } else if (auto Q=dynamic_cast<const QProjector<double,3>*>(&projector)) {
+//                CCTimer t(world,"Q block");
                 // Q1 f12 |a_i b_i> = f12 |a_i b_i> - \sum_k |k(1) a_i(2)*f_(kb_i)(2) >
                 result.push_back(pf);
                 // reuse the projector code above
@@ -495,6 +501,7 @@ std::vector<CCPairFunction> apply(const ProjectorBase& projector, const std::vec
                     t*=-1.0;
                     result.push_back(t);
                 }
+//                t.print();
 
             } else {
                 MADNESS_EXCEPTION("CCPairFunction: unknown projector type",1);

@@ -457,12 +457,15 @@ public:
     }
 
     friend double inner(const std::vector<CCPairFunction>& va, const std::vector<CCPairFunction>& vb) {
+        double wall0=cpu_time();
         real_function_3d R2;
         double result=0.0;
         for (auto& a : va) {
             for (auto& b : vb) {
                 double tmp=a.inner_internal(b,R2);
-                print("result from inner",a.name(true),b.name(),tmp);
+                double wall1=cpu_time();
+//                print("result from inner",a.name(true),b.name(),tmp,wall1-wall0,"s");
+                wall0=wall1;
                 result+=tmp;
             }
         }

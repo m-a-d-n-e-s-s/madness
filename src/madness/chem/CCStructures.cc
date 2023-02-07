@@ -406,33 +406,35 @@ size_t CCConvolutionOperator::info() const {
 
 SeparatedConvolution<double, 3> *
 CCConvolutionOperator::init_op(const OpType& type, const Parameters& parameters) const {
+    bool debug=false;
+    bool printme=(world.rank()==0) and debug;
     switch (type) {
         case OT_G12 : {
-            if (world.rank() == 0)
+            if (printme)
                 std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
                           << " and lo=" << parameters.lo << std::endl;
             return CoulombOperatorPtr(world, parameters.lo, parameters.thresh_op);
         }
         case OT_F12 : {
-            if (world.rank() == 0)
+            if (printme)
                 std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
                           << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
             return SlaterF12OperatorPtr(world, parameters.gamma, parameters.lo, parameters.thresh_op);
         }
         case OT_SLATER : {
-            if (world.rank() == 0)
+            if (printme)
                 std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
                           << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
             return SlaterOperatorPtr(world, parameters.gamma, parameters.lo, parameters.thresh_op);
         }
         case OT_BSH : {
-            if (world.rank() == 0)
+            if (printme)
                 std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
                           << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
             return BSHOperatorPtr3D(world, parameters.gamma, parameters.lo, parameters.thresh_op);
         }
         case OT_ONE : {
-            if (world.rank() == 0)
+            if (printme)
                 std::cout << "Creating " << assign_name(type) << " Operator " << std::endl;
             return nullptr;
         }
