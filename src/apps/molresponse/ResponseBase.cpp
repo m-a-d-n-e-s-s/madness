@@ -236,17 +236,12 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
     auto new_hamiltonian = T + phiVphi;
 
     for (int64_t i = 0; i < new_hamiltonian.dim(0); i++) {
-        for (int64_t j = i + 1; j < new_hamiltonian.dim(1); j++)
-        {
-            //      print(i, j);
-            //      print(xAx(i, j));
-            //     print(xAx(j, i));
+        for (int64_t j = i + 1; j < new_hamiltonian.dim(1); j++) {
             new_hamiltonian(j, i) = new_hamiltonian(i, j);
         }
     }
     double traceOfHamiltonian(0);
-    for (int64_t i = 0; i < new_hamiltonian.dim(0); i++)
-    {
+    for (int64_t i = 0; i < new_hamiltonian.dim(0); i++) {
         traceOfHamiltonian += new_hamiltonian(i, i);
     }
     if (world.rank() == 0) {
@@ -780,15 +775,13 @@ auto ResponseBase::compute_gamma_tda(World &world, const gamma_orbitals &density
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    for (size_t b = 0; b < num_states; b++)
-    {
+    for (size_t b = 0; b < num_states; b++) {
         vecfuncT x;
         x = d_alpha.X[b];
         k1_x[b] = newK(x, phi0, phi0);
     }
 
-    if (r_params.print_level() >= 1)
-    {
+    if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
     }
 
@@ -1249,6 +1242,7 @@ void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi
     }
 }
 
+
 void ResponseBase::plotResponseOrbitals(World &world, size_t iteration,
                                         const response_space &x_response,
                                         const response_space &y_response,
@@ -1256,12 +1250,16 @@ void ResponseBase::plotResponseOrbitals(World &world, size_t iteration,
                                         GroundStateCalculation const &g_params) {
 
 
-    std::string plot_dir = "plots/";
+    std::string density_dir = "plots/";
+    std::string orbital_dir = "plots/";
 #ifdef MADCHEM_HAS_STD_FILESYSTEM
-    std::filesystem::create_directories(plot_dir);
-    //plot_dir = "";
+    //density_dir = "";
+    //orbital_dir = "";
+    std::filesystem::create_directories(density_dir);
+    std::filesystem::create_directory(orbital_dir);
 #else
-    plot_dir = "";
+    density_dir = "";
+    orbital_dir = "";
 #endif
 
     // TESTING
@@ -1284,29 +1282,29 @@ void ResponseBase::plotResponseOrbitals(World &world, size_t iteration,
         plotCoords plt(d, Lp);
         // plot ground density
         if (iteration == 1) {
-            auto d_i_path = plot_dir + "rho0_%c_0.plot";
+            auto d_i_path = density_dir + "rho0_%c_0.plot";
             snprintf(plot_name, buffSize, d_i_path.c_str(), dir[d]);
             plot_line(plot_name, 5001, plt.lo, plt.hi, rho0);
         }
         for (int i = 0; i < static_cast<int>(n); i++) {
             // print ground_state
             // plot gound_orbitals
-            auto orb_i_path = plot_dir + "phi0_%c_0_%d.plt";
+            auto orb_i_path = orbital_dir + "phi0_%c_0_%d.plt";
             snprintf(plot_name, buffSize, orb_i_path.c_str(), dir[d], static_cast<int>(i));
             plot_line(plot_name, 5001, plt.lo, plt.hi, ground_orbitals[i]);
         }
 
         for (int b = 0; b < static_cast<int>(m); b++) {
             // plot rho1 direction d state b
-            auto d_ib_path = plot_dir + "rho1_%c_%d.plt";
+            auto d_ib_path = density_dir + "rho1_%c_%d.plt";
             snprintf(plot_name, buffSize, d_ib_path.c_str(), dir[d],
                      static_cast<int>(b));
             plot_line(plot_name, 5001, plt.lo, plt.hi, rho1[b]);
 
             for (int i = 0; i < static_cast<int>(n); i++) {
                 // print ground_state
-                auto o_ibx_path = plot_dir + "phix_%c_%d_%d.plt";
-                auto o_iby_path = plot_dir + "phiy_%c_%d_%d.plt";
+                auto o_ibx_path = orbital_dir + "phix_%c_%d_%d.plt";
+                auto o_iby_path = orbital_dir + "phiy_%c_%d_%d.plt";
                 snprintf(plot_name, buffSize, o_ibx_path.c_str(), dir[d],
                          static_cast<int>(b), static_cast<int>(i));
                 plot_line(plot_name, 5001, plt.lo, plt.hi, x_response[b][i]);
@@ -1322,6 +1320,7 @@ void ResponseBase::plotResponseOrbitals(World &world, size_t iteration,
 
     // END TESTING
 }
+
 
 void PlotGroundDensityVTK(World &world, const ResponseBase &calc) {
 
@@ -1429,8 +1428,7 @@ void ResponseBase::solve(World &world) {
 
 void check_k(World &world, X_space &Chi, double thresh = FunctionDefaults<3>::get_thresh(),
              int k = FunctionDefaults<3>::get_k()) {
-    if (0 != Chi.X.size())
-    {
+    if (0 != Chi.X.size()) {
         if (FunctionDefaults<3>::get_k() != Chi.X[0].at(0).k()) {
             // Project all x components into correct k
 
