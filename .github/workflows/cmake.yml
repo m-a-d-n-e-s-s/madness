@@ -52,7 +52,7 @@ jobs:
     - name: Install prerequisite MacOS packages
       if: ${{ matrix.os == 'macos-latest' }}
       run: |
-        brew install ninja gcc@10 boost eigen open-mpi bison tbb@2020 ccache
+        brew install ninja gcc@10 boost eigen open-mpi bison tbb@2022 ccache
         if [ "X${{ matrix.build_type }}" = "XDebug" ]; then
           brew install cereal
         fi
