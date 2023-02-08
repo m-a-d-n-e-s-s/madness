@@ -56,15 +56,6 @@ void FrequencyResponse::iterate(World &world) {
     if (r_params.kain()) {
         for (auto &kain_space_b: kain_x_space) { kain_space_b.set_maxsub(r_params.maxsub()); }
     }
-    // New approach solving single function at a time
-    auto p = compute_y ? 2 : 1;
-    response_function_solver rf_solver;
-    for (size_t b = 0; b < m * n * p; b++) {
-        rf_solver.emplace_back(response_function_allocator(world), false);
-    }
-    if (r_params.kain()) {
-        for (auto &solver_ij: rf_solver) { solver_ij.set_maxsub(r_params.maxsub()); }
-    }
     // We compute with positive frequencies
     if (world.rank() == 0) {
         print("Warning input frequency is assumed to be positive");
