@@ -455,6 +455,7 @@ std::vector<CCPairFunction> apply(const ProjectorBase& projector, const std::vec
     std::vector<CCPairFunction> result;
     for (const auto& pf : argument) {
         if (pf.is_pure()) {
+            MADNESS_CHECK(not pf.has_operator()); // not yet implemented
             if (auto SO=dynamic_cast<const StrongOrthogonalityProjector<double,3>*>(&projector)) {
                 auto tmp=(*SO)(pf.get_function());
                 auto tmp2=CCPairFunction(tmp);
