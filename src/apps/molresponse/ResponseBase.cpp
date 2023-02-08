@@ -995,7 +995,6 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     auto c_xc = xcf.hf_exchange_coefficient();
     real_function_3d v0 = v_j0 + v_nuc + (1 - c_xc) * v_xc;
-    v0.truncate();
     double safety = 0.1;
     double vtol = safety * FunctionDefaults<3>::get_thresh();
     if (compute_Y) {
@@ -1015,7 +1014,6 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "V0_add", "V0_add", iter_timing);
     }
-    V0.truncate();// we are removing noise here
     return V0;
 }
 

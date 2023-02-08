@@ -20,7 +20,7 @@ void FrequencyResponse::iterate(World &world) {
     size_t n = r_params.num_orbitals();// Number of ground state orbitals
     size_t m = r_params.num_states();  // Number of excited states
 
-    real_function_3d v_xc;// For TDDFT
+    real_function_3d v_xc;
     // the Final protocol should be equal to dconv at the minimum
     const double dconv =
             std::max(FunctionDefaults<3>::get_thresh() * 100, r_params.dconv());//.01 .0001 .1e-5
