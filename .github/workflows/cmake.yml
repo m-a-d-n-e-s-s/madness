@@ -52,11 +52,11 @@ jobs:
     - name: Install prerequisite MacOS packages
       if: ${{ matrix.os == 'macos-latest' }}
       run: |
-        brew install ninja gcc@10 boost eigen open-mpi bison tbb@2022 ccache
+        brew install ninja gcc@10 boost eigen open-mpi bison tbb ccache
         if [ "X${{ matrix.build_type }}" = "XDebug" ]; then
           brew install cereal
         fi
-        echo "TBBROOT=/usr/local/opt/tbb@2020" >> $GITHUB_ENV
+        echo "TBBROOT=/usr/local/opt/tbb" >> $GITHUB_ENV
         echo "/usr/local/opt/bison/bin" >> $GITHUB_PATH
 
     - name: Install prerequisites Ubuntu packages
