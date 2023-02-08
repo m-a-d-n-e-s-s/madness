@@ -87,7 +87,7 @@ public:
     virtual bool is_decomposed() const {return false;}
     virtual bool has_operator() const = 0;
     virtual void set_operator(const std::shared_ptr<CCConvolutionOperator> op) = 0;
-    virtual const CCConvolutionOperator* get_operator_ptr() const = 0;
+    virtual const std::shared_ptr<CCConvolutionOperator> get_operator_ptr() const = 0;
     virtual void print_size() const = 0;
     virtual std::string name(const bool transpose=false) const = 0;
     virtual World& world() const =0;
@@ -102,11 +102,12 @@ public:
     TwoBodyFunctionPureComponent() = default;
 
     explicit TwoBodyFunctionPureComponent(const Function<T,6>& f) : u(f) {}
+    explicit TwoBodyFunctionPureComponent(const std::shared_ptr<CCConvolutionOperator> op, const Function<T,6>& f)
+            : u(f), op(op) {}
 
     /// deep copy
     std::shared_ptr<TwoBodyFunctionComponentBase> clone() override {
-        TwoBodyFunctionPureComponent<T> result;
-        result.u=madness::copy(u);
+        TwoBodyFunctionPureComponent<T> result(op,madness::copy(u));
         return std::make_shared<TwoBodyFunctionPureComponent<T>>(result);
     }
 
@@ -149,7 +150,7 @@ public:
         u=swap_particles(u);
     }
 
-    const CCConvolutionOperator* get_operator_ptr() const override {return op.get();};
+    const std::shared_ptr<CCConvolutionOperator> get_operator_ptr() const override {return op;};
 
     void set_operator(const std::shared_ptr<CCConvolutionOperator> op1) override {op=op1;}
 
@@ -246,7 +247,7 @@ public:
         }
     }
 
-    const CCConvolutionOperator* get_operator_ptr() const override {return op.get();};
+    const std::shared_ptr<CCConvolutionOperator> get_operator_ptr() const override {return op;};
 
     void set_operator(const std::shared_ptr<CCConvolutionOperator> op1) override {op=op1;}
 
@@ -289,6 +290,7 @@ private:
 /**
  * the function is stored as
  *  - pure: full rank form, 6D
+ *  - op_pure: full rank form, 6D with an 2-particle function f(1,2) |u>
  *  - decomposed: sum of two vectors of 3D functions \sum_i |a_i(1) b_i(2)>
  *  - op_decomposed: as above, with an 2-particle function: f(1,2) \sum_i |a_i b_i>
  *
@@ -306,6 +308,11 @@ public:
     /// takes a deep copy of the argument function
     explicit CCPairFunction(const real_function_6d& ket) {
         component.reset(new TwoBodyFunctionPureComponent<T>(copy(ket)));
+    }
+
+    /// takes a deep copy of the argument function
+    explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator> op_, const real_function_6d& ket) {
+        component.reset(new TwoBodyFunctionPureComponent<T>(op_,copy(ket)));
     }
 
     /// takes a deep copy of the argument functions
@@ -378,11 +385,13 @@ public:
         return fac*f;
     }
 
-    bool is_pure() const {return component->is_pure();}
-    bool is_decomposed() const {return component->is_decomposed();}
-    bool is_decomposed_no_op() const {return component->is_decomposed() and (not component->has_operator());}
-    bool is_op_decomposed() const {return component->is_decomposed() and component->has_operator();}
     bool has_operator() const {return component->has_operator();}
+    bool is_pure() const {return component->is_pure();}
+    bool is_op_pure() const {return is_pure() and has_operator();}
+    bool is_pure_no_op() const {return is_pure() and (not has_operator());}
+    bool is_decomposed() const {return component->is_decomposed();}
+    bool is_op_decomposed() const {return component->is_decomposed() and component->has_operator();}
+    bool is_decomposed_no_op() const {return component->is_decomposed() and (not component->has_operator());}
 
     TwoBodyFunctionPureComponent<T>& pure() const {
         if (auto ptr=dynamic_cast<TwoBodyFunctionPureComponent<T>*>(component.get())) return *ptr;
@@ -410,14 +419,20 @@ public:
     }
 
     const CCConvolutionOperator& get_operator() const {
+        MADNESS_CHECK(component and component->has_operator());
         return *(component->get_operator_ptr());
     }
 
+    const std::shared_ptr<CCConvolutionOperator> get_operator_ptr() const {
+        MADNESS_CHECK(component);
+        return component->get_operator_ptr();
+    }
+
     /// can this be converted to a pure representation (depends on the operator, if present)
-    bool is_convertible_to_pure() const;
+    bool is_convertible_to_pure_no_op() const;
 
     /// convert this into a pure hi-dim function
-    void convert_to_pure_inplace();
+    void convert_to_pure_no_op_inplace();
 
     CCPairFunction& operator*=(const double fac) {
         if (component->is_pure()) pure()*=fac;
@@ -459,6 +474,7 @@ public:
     double
     make_xy_u(const CCFunction& xx, const CCFunction& yy) const;
 
+    /// compute the inner product of this and other
     double inner_internal(const CCPairFunction& other, const real_function_3d& R2) const;
 
     friend double inner(const CCPairFunction& a, const CCPairFunction& b, const real_function_3d& R2) {

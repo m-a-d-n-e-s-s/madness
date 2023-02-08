@@ -66,16 +66,33 @@ struct data {
         f23.clear();
     }
 
+    /// get some standard functions
+
+    /// f1: exp(-1.0 r^2)
+    /// f2: exp(-2.0 r^2)
+    /// f3: exp(-3.0 r^2)
+    /// f4: exp(-4.0 r^2)
+    /// f5: exp(-5.0 r^2)
+    /// f12: exp(-r_1^2 - 2 r_2^2)
+    /// f23: exp(-r_1^2 - 2 r_2^2) + exp(-2 r_1^2 - 3 r_2^2)
     auto get_functions() const {
         return std::make_tuple(f1,f2,f3,f4,f5,f12);
     }
 
+    /// get some standard ccpairfunctions
+
+    /// p1: pure, corresponds to f12
+    /// p2: dec, corresponds to f23
+    /// p3: op_dec, corresponds to f23
+    /// p4: pure, corresponds to f23
+    /// p5: op_pure, corresponds to f23
     auto get_ccpairfunctions() const {
         CCPairFunction p1(f12);
         CCPairFunction p2({f1,f2},{f2,f3});
         CCPairFunction p3(f12_op,{f1,f2},{f2,f3});
         CCPairFunction p4(f23); // two-term, corresponds to p2
-        return std::make_tuple(p1,p2,p3,p4);
+        CCPairFunction p5(f12_op,f23); // two-term, corresponds to p2
+        return std::make_tuple(p1,p2,p3,p4,p5);
     }
 
 };
@@ -142,8 +159,125 @@ int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
 
     }
     t1.checkpoint(true,"checks on assignment");
-    t1.end();
+    return t1.end();
 
+}
+
+int test_transformations(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+                     const CCParameters& parameter) {
+    test_output t1("CCPairFunction::test_transformations");
+
+    real_function_6d f=real_factory_6d(world);
+    auto [f1,f2,f3,f4,f5,ff]=data1.get_functions();
+    auto f12=CCConvolutionOperatorPtr(world, OT_F12, parameter);
+    auto g12=CCConvolutionOperatorPtr(world, OT_G12, parameter);
+
+
+    CCPairFunction p1(ff);
+    t1.checkpoint(p1.is_pure(),"is_pure");
+    t1.checkpoint(p1.is_pure_no_op(),"is_pure_no_op");
+
+    CCPairFunction p2(f12,ff);
+    t1.checkpoint(p2.is_pure(),"is_pure");
+    t1.checkpoint(p2.is_op_pure(),"is_op_pure");
+    t1.checkpoint(p2.is_convertible_to_pure_no_op(),"is_convertible_to_pure_no_op");
+    CCPairFunction p3=copy(p2);
+    p3.convert_to_pure_no_op_inplace();
+    t1.checkpoint(p2.is_op_pure(),"is_op_pure");
+    t1.checkpoint(p3.is_pure_no_op(),"is_pure_no_op");
+
+    CCPairFunction p4(g12,ff);
+    t1.checkpoint(p4.is_pure(),"is_pure");
+    t1.checkpoint(p4.is_op_pure(),"is_op_pure");
+    t1.checkpoint(not p4.is_convertible_to_pure_no_op(),"not is_convertible_to_pure_no_op");
+
+    CCPairFunction p5(f12,f1,f2);
+    t1.checkpoint(not p5.is_pure(),"is_pure");
+    t1.checkpoint(p5.is_op_decomposed(),"is_op_decomposed");
+    t1.checkpoint(p5.is_convertible_to_pure_no_op(),"is_convertible_to_pure_no_op");
+    CCPairFunction p6=copy(p5);
+    p6.convert_to_pure_no_op_inplace();
+    t1.checkpoint(p6.is_pure_no_op(),"is_pure_no_op");
+
+    return t1.end();
+}
+
+int test_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+                 const CCParameters& parameters) {
+    test_output t1("CCPairFunction::test_inner");
+    t1.set_cout_to_terminal();
+
+    /// f1: exp(-1.0 r^2)
+    /// f2: exp(-2.0 r^2)
+    /// f3: exp(-3.0 r^2)
+    /// f4: exp(-4.0 r^2)
+    /// f5: exp(-5.0 r^2)
+    /// f: exp(-r_1^2 - 2 r_2^2)
+    /// f23: exp(-r_1^2 - 2 r_2^2) + exp(-2 r_1^2 - 3 r_2^2)
+    auto [f1,f2,f3,f4,f5,f]=data1.get_functions();
+    /// p1: pure, corresponds to f12
+    /// p2: dec, corresponds to f23
+    /// p3: op_dec, corresponds to f23
+    /// p4: pure, corresponds to f23
+    /// p5: op_pure, corresponds to f23
+    auto [p1,p2,p3,p4,p5]=data1.get_ccpairfunctions();
+    auto f12 = *(data1.f12_op);
+
+    /// results
+    auto a=std::vector<real_function_3d>({f1,f2});
+    auto b=std::vector<real_function_3d>({f2,f3});
+    std::vector<real_function_3d> a_ij_functions, b_ij_functions;
+    for (int i=0; i<a.size(); ++i) {
+        for (int j=0; j<a.size(); ++j) {
+            a_ij_functions.push_back(a[i]*a[j]);
+        }
+    }
+    for (int i=0; i<b.size(); ++i) {
+        for (int j=0; j<b.size(); ++j) {
+            b_ij_functions.push_back(b[i]*b[j]);
+        }
+    }
+
+    auto aij=matrix_inner(world,a,a);
+    auto bij=matrix_inner(world,b,b);
+
+    // <a_ib_i | a_jb_j> = \sum_{ij} <a_i|a_j> <b_i|b_j>
+    double ab_ab=aij.trace(bij);
+
+    // <a_ib_i | f | a_jb_j> = \sum_{ij}  < <a_i|f|a_j>_1(2) | b_ib_j(2) >
+    double ab_f_ab=dot(world,f12(a_ij_functions),b_ij_functions).trace();
+
+    // <a_ib_i | f2 | a_jb_j> = \sum_{ij}  < <a_i|f^2|a_j>_2 | b_ib_j(2) >
+    // f^2 = 1/(4y^2)(1 - 2*f(y) + f2(2y)) , f2(2y) =f2(y)^2
+    // operator apply of SlaterF12Operator includes a factor of 1/(2 gamma) and the identity
+    // operator apply of SlaterOperator has no further terms
+    const double y = parameters.gamma();
+    SeparatedConvolution<double, 3> fop= SlaterOperator(world, y, parameters.lo(), parameters.thresh_bsh_3D());
+    SeparatedConvolution<double, 3> fsq = SlaterOperator(world, 2.0 * y, parameters.lo(), parameters.thresh_bsh_3D());
+
+    const double prefactor = 1.0 / (4 * y * y);
+    const double ab_f2_ab = prefactor*( ab_ab
+                            -2.0*dot(world,apply(world,fop,a_ij_functions),b_ij_functions).trace()
+                            +dot(world,apply(world,fsq,a_ij_functions),b_ij_functions).trace() );
+
+
+    for (auto& ket : {p2, p3, p4, p5}) {
+        for (auto& bra : {p2, p3, p4, p5}) {
+            double ref=0.0;
+            if (bra.has_operator() and ket.has_operator()) ref=ab_f2_ab;
+            if (bra.has_operator() and (not ket.has_operator())) ref=ab_f_ab;
+            if ((not bra.has_operator()) and ket.has_operator()) ref=ab_f_ab;
+            if ((not bra.has_operator()) and (not ket.has_operator())) ref=ab_ab;
+            double result=inner(bra,ket);
+
+            print(bra.name(true)+ket.name(),"ref, result, diff", ref, result, ref-result);
+            double thresh=FunctionDefaults<3>::get_thresh();
+            bool good=(fabs(result-ref)<thresh);
+            t1.checkpoint(good,bra.name(true)+ket.name());
+
+
+        }
+    }
     return  (t1.get_final_success()) ? 0 : 1;
 }
 
@@ -152,7 +286,6 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
     CCTimer timer(world, "testing");
     auto R2 = ncf->square();
 
-    auto g12=CCConvolutionOperatorPtr(world, OT_G12, parameters);
     auto f12=CCConvolutionOperatorPtr(world, OT_F12, parameters);
 
     CorrelationFactor corrfac(world, 1.0, 1.e-7, molecule);
@@ -169,7 +302,6 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
     bool passed_lo = true;
     bool passed_hi = true;
     bool success=true;
-    int isuccess=0;
     const double lo = parameters.thresh_6D();
     const double hi = parameters.thresh_3D();
     const double hi_loose = parameters.thresh_3D()*5.0;
@@ -187,8 +319,7 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
 
     real_function_3d a = mo_ket_(0).function;
     real_function_3d b = mo_ket_(0).function;
-    real_function_6d fab_6d = CompositeFactory<double, 6, 3>(world).g12(corrfac.f()).particle1(copy(a)).particle2(
-            copy(b));
+    real_function_6d fab_6d = CompositeFactory<double, 6, 3>(world).g12(corrfac.f()).particle1(copy(a)).particle2(copy(b));
     fab_6d.fill_tree().truncate().reduce_rank();
     fab_6d.print_size("fab_6d");
 
@@ -233,7 +364,6 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
         printer(" <a b |f f | a b> op_dec/op_dec  : ", test1, ab_f2_ab, timer.reset());
         success=(fabs(diff) < hi);
     }
-    if (not success) isuccess++;
     t1.checkpoint(success, "op_dec/op_dec");
     {
         CCPairFunction ab(mo_ket_.get_vecfunction(), mo_ket_.get_vecfunction());
@@ -245,7 +375,6 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
         if (fabs(diff) > hi) passed_hi = false;
         success=(fabs(diff) < hi);
     }
-    if (not success) isuccess++;
     t1.checkpoint(success, "dec/dec");
     {
         CCPairFunction fab(fab_6d);
@@ -256,7 +385,6 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
         if (fabs(diff) > hi) passed_hi = false;
         success=(fabs(diff) < hi_loose);
     }
-    if (not success) isuccess++;
     t1.checkpoint(success, "pure/pure");
 
     {
@@ -271,7 +399,6 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
         if (fabs(diff) > hi) passed_hi = false;
         success=(fabs(diff) < hi);
     }
-    if (not success) isuccess++;
     t1.checkpoint(success, "dec/op_dec");
 
     {
@@ -287,7 +414,6 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
 
         success=(fabs(diff) < hi_loose);
     }
-    if (not success) isuccess++;
     t1.checkpoint(success, "dec/pure");
 //        {
 //            CCPairFunction fab(fab_6d);
@@ -312,7 +438,6 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
         if (fabs(diff) > hi) passed_hi = false;
         success=(fabs(diff) < hi_loose);                      // be a bit loose here ..
     }
-    if (not success) isuccess++;
     t1.checkpoint(success, "op_dec/pure");
 
     {
@@ -328,7 +453,6 @@ int test_overlap(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, co
         if (fabs(diff) > hi) passed_hi = false;
         success=(fabs(diff) < hi);
     }
-    if (not success) isuccess++;
     t1.checkpoint(success, "op_dec/dec");
 
     return  (t1.get_final_success()) ? 0 : 1;
@@ -349,7 +473,7 @@ int test_partial_inner_6d(World& world, std::shared_ptr<NuclearCorrelationFactor
 
     auto f12=CCConvolutionOperatorPtr(world, OT_F12, parameter);
 
-    auto [p1,p2,p3,p4]=data1.get_ccpairfunctions();
+    auto [p1,p2,p3,p4,nil]=data1.get_ccpairfunctions();
     CCPairFunction p11({f1},{f1});
     CCPairFunction p12({f1},{f2});
 
@@ -441,8 +565,8 @@ int test_partial_inner_6d(World& world, std::shared_ptr<NuclearCorrelationFactor
         CCPairFunction r1=inner(p3,p5,{0,1,2},{0,1,2});
         print("time after r1 ", timer.reset());
         double n1=inner(r1,p11);
-        p3.convert_to_pure_inplace();
-        p5.convert_to_pure_inplace();
+        p3.convert_to_pure_no_op_inplace();
+        p5.convert_to_pure_no_op_inplace();
         print("n1",n1);
         print("time after r2a ", timer.reset());
         CCPairFunction r1a=inner(p3,p5,{0,1,2},{0,1,2});
@@ -922,7 +1046,8 @@ int main(int argc, char **argv) {
                          mol, nullptr, std::make_pair("slater", 2.0));
 
         isuccess+=test_constructor(world, ncf, mol, ccparam);
-        isuccess+=test_overlap(world, ncf, mol, ccparam);
+//        isuccess+=test_transformations(world, ncf, mol, ccparam);
+        isuccess+=test_inner(world, ncf, mol, ccparam);
         isuccess+=test_swap_particles(world, ncf, mol, ccparam);
         isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
         isuccess+=test_partial_inner_3d(world, ncf, mol, ccparam);

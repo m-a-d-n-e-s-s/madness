@@ -17,37 +17,43 @@ CCPairFunction::invert_sign() {
     return *this;
 }
 
-bool CCPairFunction::is_convertible_to_pure() const {
-    if (is_pure()) return true;
-    bool operator_condition=true;
+bool CCPairFunction::is_convertible_to_pure_no_op() const {
     if (has_operator()) {
         const auto type=get_operator().type();
-        if (type==OT_SLATER or type==OT_F12) operator_condition=true;
-        else operator_condition=false;
+        if (not (type==OT_SLATER or type==OT_F12)) return false;
     }
-    bool size_condition=is_decomposed() and (get_a().size()==1);
-    return operator_condition and size_condition;
+    if (is_decomposed() and (get_a().size()>1)) return false;
+    return true;
 };
 
 
-void CCPairFunction::convert_to_pure_inplace() {
-    if (is_pure()) return;
+void CCPairFunction::convert_to_pure_no_op_inplace() {
+    pureT tmp;
     pureT result=real_factory_6d(world());
-    MADNESS_CHECK(get_a().size()<3);
-    for (int i=0; i<get_a().size(); ++i) {
-        pureT tmp;
-        if (is_op_decomposed()) {
-            tmp= CompositeFactory<double, 6, 3>(world())
-                    .g12(get_operator().get_kernel())
-                    .particle1(get_a()[i])
-                    .particle2(get_b()[i]);
-        } else if (is_decomposed_no_op()) {
-            tmp= CompositeFactory<double, 6, 3>(world())
-                    .particle1(get_a()[i])
-                    .particle2(get_b()[i]);
-        }
+    if (is_pure_no_op()) {
+        return;
+    } else if (is_pure()) {
+        tmp= CompositeFactory<double, 6, 3>(world())
+                .g12(get_operator().get_kernel())
+                .ket(get_function());
         tmp.fill_tree();
-        result+=tmp;
+        result=tmp;
+    } else if (is_decomposed()) {
+        MADNESS_CHECK(get_a().size()<3);
+        for (int i=0; i<get_a().size(); ++i) {
+            if (is_op_decomposed()) {
+                tmp= CompositeFactory<double, 6, 3>(world())
+                        .g12(get_operator().get_kernel())
+                        .particle1(get_a()[i])
+                        .particle2(get_b()[i]);
+            } else if (is_decomposed_no_op()) {
+                tmp= CompositeFactory<double, 6, 3>(world())
+                        .particle1(get_a()[i])
+                        .particle2(get_b()[i]);
+            }
+            tmp.fill_tree();
+            result+=tmp;
+        }
     }
     component.reset(new TwoBodyFunctionPureComponent<T>(result));
 };
@@ -74,8 +80,11 @@ CCPairFunction::make_xy_u(const CCFunction& xx, const CCFunction& yy) const {
 real_function_3d CCPairFunction::project_out(const CCFunction& f, const size_t particle) const {
     MADNESS_ASSERT(particle == 1 or particle == 2);
     real_function_3d result;
-    if (is_pure()) {
-        result = pure().get_function().project_out(f.function, particle - 1); // this needs 0 or 1 for particle but we give 1 or 2
+    if (is_pure_no_op()) {
+        result = pure().get_function().project_out(f.function,
+                                                   particle - 1); // this needs 0 or 1 for particle but we give 1 or 2
+    } else if (is_op_pure()) {
+        MADNESS_EXCEPTION("implement CCPairFunction::project_out for op_pure",1);
     } else if (is_decomposed_no_op()) {
         result = project_out_decomposed(f.function, particle);
     } else if (is_op_decomposed()) {
@@ -141,6 +150,8 @@ CCPairFunction CCPairFunction::partial_inner(const CCPairFunction& other,
     auto a345=std::array<int,3>{3,4,5};
     MADNESS_CHECK(v1==a012 or v1== a345);
     MADNESS_CHECK(v2==a012 or v2== a345);
+    MADNESS_CHECK(not this->is_op_pure()); // not implemented yet
+    MADNESS_CHECK(not other.is_op_pure()); // not implemented yet
 
     auto integration_index=[&a012,&a345](auto v) {return (v==a012) ? 0l : 1l;};
     auto remaining_index=[&integration_index](auto v) {return (integration_index(v)+1)%2;};
@@ -225,13 +236,13 @@ CCPairFunction CCPairFunction::partial_inner(const CCPairFunction& other,
         } else if (other.is_decomposed_no_op()) {
             return other.partial_inner(*this,v2,v1);
         } else if (other.is_op_decomposed()) {
-            if (this->is_convertible_to_pure()) {
+            if (this->is_convertible_to_pure_no_op()) {
                 CCPairFunction tmp=copy(*this);
-                tmp.convert_to_pure_inplace();
+                tmp.convert_to_pure_no_op_inplace();
                 return tmp.partial_inner(other,v1,v2);
-            } else if (other.is_convertible_to_pure()) {
+            } else if (other.is_convertible_to_pure_no_op()) {
                 CCPairFunction tmp=copy(other);
-                tmp.convert_to_pure_inplace();
+                tmp.convert_to_pure_no_op_inplace();
                 return this->partial_inner(tmp,v1,v2);
             } else {
                 MADNESS_EXCEPTION("no partial_inner for this combination: <op_decomposed|op_decomposed>",1);
@@ -253,6 +264,7 @@ real_function_3d CCPairFunction::partial_inner(const real_function_3d& f,
     auto a345=std::array<int,3>{3,4,5};
     MADNESS_CHECK(v2==a012 ); // only 3 dimension in f
     MADNESS_CHECK(v1==a012 or v1== a345); // 6 dimension in f
+    MADNESS_CHECK(not this->is_op_pure()); // not implemented yet
     int particle=-1;
     if (v1== a012) particle=0;
     if (v1== a345) particle=1;
@@ -320,7 +332,9 @@ CCPairFunction::assign_particles(const size_t particle) const {
     }
 }
 
+/// compute the inner product of this and other
 
+/// there are 4 possible components: pure/decomposed with and without operator, gives us 16 pair combinations..
 double CCPairFunction::inner_internal(const CCPairFunction& other, const real_function_3d& R2) const {
     const CCPairFunction& f1=*this;
     const CCPairFunction& f2=other;
@@ -328,84 +342,102 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
     double thresh=FunctionDefaults<6>::get_thresh()*0.1;
 
     double result = 0.0;
-    if (f1.is_pure() and f2.is_pure()) {
-        CCTimer tmp(world(), "making R1R2|u>");
+    if (f1.is_pure() and f2.is_pure()) {        // these are 4 combinations pure/pure
+        pureT bra=f1.get_function();
+        pureT ket=f2.get_function();
         if (R2.is_initialized()) {
             real_function_6d R1u = multiply<double, 6, 3>(::copy(f1.pure().get_function()), ::copy(R2), 1);
             real_function_6d R1R2u = multiply<double, 6, 3>(R1u, ::copy(R2), 2);     // R1u function now broken
-//            tmp.info();
-            result = f2.pure().get_function().inner(R1R2u);
+            bra = R1R2u;
+        }
+        // include the operator(s), if any
+        if (f1.has_operator() or f2.has_operator()) {
+            auto ops=combine(f1.get_operator_ptr(),f2.get_operator_ptr());
+            for (const auto& single_op : ops) {
+                auto fac=single_op.first;
+                auto op=single_op.second;
+                print(op.name());
+                double bla=0.0;
+                if (op.get_op()) {
+                    real_function_6d tmp1 = CompositeFactory<double, 6, 3>(world()).g12(op.get_kernel()).ket(ket);
+                    bla=fac*inner(bra,tmp1);
+                } else {
+                    bla=fac*inner(bra,ket);
+                }
+                result+=bla;
+            }
         } else {
-            result = f2.pure().get_function().inner(f1.pure().get_function());
+            // no operators
+            result=inner(bra,ket);
         }
     } else if (f1.is_pure() and f2.is_decomposed()) {       // with or without operator
-        vector_real_function_3d a = R2.is_initialized() ? R2 * f2.get_a() : copy(world(), f2.get_a());
-        vector_real_function_3d b = R2.is_initialized() ? R2 * f2.get_b() : copy(world(), f2.get_b());
-        real_function_6d op;
-        if (f2.has_operator()) {
-            if (f2.decomposed().get_operator_ptr()->type() == OT_F12) {
-                op = TwoElectronFactory(world()).dcut(f2.get_operator().parameters.lo).gamma(
-                                f2.get_operator().parameters.gamma).f12().thresh(thresh);
-            } else if (f2.get_operator().type() == OT_G12) {
-                op = TwoElectronFactory(world()).dcut(f2.get_operator().parameters.lo).thresh(thresh);
-            } else {
-                MADNESS_EXCEPTION(("6D Overlap with operatortype " + assign_name(f2.get_operator().type()) + " not supported").c_str(), 1);
+        const vector_real_function_3d a = R2.is_initialized() ? R2 * f2.get_a() : copy(world(), f2.get_a());
+        const vector_real_function_3d b = R2.is_initialized() ? R2 * f2.get_b() : copy(world(), f2.get_b());
+        const pureT& bra=f1.get_function();
+
+        auto ops=combine(f1.get_operator_ptr(),f2.get_operator_ptr());
+        if (ops.size()>0) {
+            for (const auto& single_op : ops) {
+                auto fac = single_op.first;
+                auto op = single_op.second;
+                print(op.name());
+                double bla=0.0;
+                for (int i=0; i<a.size(); ++i) {
+                    if (op.get_op()) {
+                        real_function_6d tmp = CompositeFactory<double, 6, 3>(world()).g12(op.get_kernel()).particle1(a[i]).particle2(b[i]);
+                        bla += fac * inner(bra, tmp);
+                    } else {
+                        real_function_6d tmp = CompositeFactory<double, 6, 3>(world()).particle1(a[i]).particle2(b[i]);
+                        bla += fac * inner(bra,tmp);
+                    }
+                }
+                result+=bla;
             }
-        }
-        for (int i=0; i<a.size(); ++i) {
-            auto x=a[i];
-            auto y=b[i];
-            real_function_6d opxy;
-            if (f2.has_operator()) opxy= CompositeFactory<double, 6, 3>(world()).g12(op).particle1(x).particle2(y);
-            else opxy= CompositeFactory<double, 6, 3>(world()).particle1(x).particle2(y);
-            result+= f1.pure().get_function().inner(opxy);
+        } else { // no operators
+            for (int i=0; i<a.size(); ++i) {
+                real_function_6d tmp = CompositeFactory<double, 6, 3>(world()).particle1(a[i]).particle2(b[i]);
+                result+=inner(bra,tmp);
+            }
         }
     } else if (f1.is_decomposed() and f2.is_pure()) {     // with or without op
         result= f2.inner_internal(f1,R2);
-    } else if (f1.is_decomposed_no_op() and f2.is_decomposed_no_op()) {
+
+    } else if (f1.is_decomposed() and f2.is_decomposed()) {
         MADNESS_ASSERT(f1.get_a().size() == f1.get_b().size());
         MADNESS_ASSERT(f2.get_a().size() == f2.get_b().size());
-        vector_real_function_3d a = R2.is_initialized() ?  R2* f2.get_a() : f2.get_a();
-        vector_real_function_3d b = R2.is_initialized() ?  R2* f2.get_b() : f2.get_b();
-        // <p1 | p2> = \sum_ij <a_i b_i | a_j b_j> = \sum_ij <a_i|a_j> <b_i|b_j>
-        result = (matrix_inner(world(), a, f1.get_a()).emul(matrix_inner(world(), b, f1.get_b()))).sum();
 
-    } else if (f1.is_decomposed_no_op() and f2.is_op_decomposed()) {
-        MADNESS_ASSERT(f1.get_a().size() == f1.get_b().size());
-        // <a1 b1 | op | a2 b2>  =  <a1 * a2 | op(b1*b2) >
         const vector_real_function_3d& a1 = f1.get_a();
         const vector_real_function_3d& b1 = f1.get_b();
-        const vector_real_function_3d a2 = R2.is_initialized() ? R2 * f2.get_a() : copy(world(),f2.get_a());
-        const vector_real_function_3d b2 = R2.is_initialized() ? R2 * f2.get_b() : copy(world(),f2.get_b());
-        for (size_t i = 0; i < a1.size(); i++) {
-            vector_real_function_3d aa = truncate(a1[i] * a2);
-            vector_real_function_3d aopx = f2.get_operator()(aa);
-            vector_real_function_3d bb = truncate(b1[i] * b2);
-            result += inner(bb,aopx);
-        }
+        const vector_real_function_3d a2 = R2.is_initialized() ?  R2* f2.get_a() : f2.get_a();
+        const vector_real_function_3d b2 = R2.is_initialized() ?  R2* f2.get_b() : f2.get_b();
 
-    } else if (f1.is_op_decomposed() and f2.is_decomposed_no_op()) {
-        return f2.inner_internal(f1,R2);
 
-    } else if (f1.is_op_decomposed() and f2.is_op_decomposed()) {
-        MADNESS_CHECK(can_combine(f1.get_operator(),f2.get_operator()));
-        MADNESS_CHECK(f1.get_a().size()==1);
-        std::vector<std::pair<double,CCConvolutionOperator>> ops=combine(f1.get_operator(),f2.get_operator());
-        CCPairFunction bra(f1.get_a(),f1.get_b());
-        for (const auto& op : ops) {
-            CCPairFunction ket;
-            auto op1=std::shared_ptr<CCConvolutionOperator>(new CCConvolutionOperator(op.second));
-            if (op1->get_op()) ket = CCPairFunction(op1,f2.get_a(),f2.get_b());
-            else ket = CCPairFunction(f2.get_a(),f2.get_b());
+        auto ops=combine(f1.get_operator_ptr(),f2.get_operator_ptr());
+        if (ops.size()==0) {
+            // <p1 | p2> = \sum_ij <a_i b_i | a_j b_j> = \sum_ij <a_i|a_j> <b_i|b_j>
+            result = (matrix_inner(world(), a1, a2)).trace(matrix_inner(world(),b1,b2));
+        } else {
+            // <a_i b_i | op | a_j b_j>  =  <a_i * a_j | op(b_i*b_j) >
+            for (const auto& single_op : ops) {
+                auto fac = single_op.first;
+                auto op = single_op.second;
 
-            double tmp=op.first * inner(ket,bra,R2);
-//            print("inner",bra.name(true),ket.name()," : ",tmp);
-            result+=tmp;
+                double bla=0.0;
+                if (op.get_op()) {
+                    for (size_t i = 0; i < a1.size(); i++) {
+                        vector_real_function_3d aa = truncate(a1[i] * a2);
+                        vector_real_function_3d bb = truncate(b1[i] * b2);
+                        vector_real_function_3d aopx = op(aa);
+                        bla += fac * inner(bb, aopx);
+                    }
+                } else {
+                    bla += fac*(matrix_inner(world(), a1, a2)).trace(matrix_inner(world(),b1,b2));
+                }
+                result+=bla;
+            }
         }
     } else MADNESS_EXCEPTION(
-            ("CCPairFunction Overlap not supported for combination " + f1.name() + " and " + f2.name()).c_str(), 1)
-
-    ;
+            ("CCPairFunction Overlap not supported for combination " + f1.name() + " and " + f2.name()).c_str(), 1) ;
     return result;
 }
 

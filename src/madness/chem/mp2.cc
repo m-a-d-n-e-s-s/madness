@@ -50,6 +50,8 @@
 #include<madness/chem/correlationfactor.h>
 #include<madness/chem/nemo.h>
 #include<madness/chem/localizer.h>
+#include<madness/chem/ccpairfunction.h>
+#include<madness/chem/CCStructures.h>
 
 #include <iostream>
 
@@ -540,6 +542,7 @@ void MP2::test(const std::string filename) {
 /// @return 	the energy <ij | g Q f | kl>
 double MP2::compute_gQf(const int i, const int j, ElectronPair& pair) const {
 
+    CCTimer t1(world,"gQf old");
     // for clarity of notation
     const int k = pair.i;
     const int l = pair.j;
@@ -618,6 +621,33 @@ double MP2::compute_gQf(const int i, const int j, ElectronPair& pair) const {
     const double e = a - o1a - o2a + o12;
     if (world.rank() == 0)
         printf("<%d%d | g Q12 f          | %d%d>  %12.8f\n", i, j, k, l, e);
+
+    print("gQf old",t1.reset());
+
+    CCTimer timer(world,"gQf with ccpairfunction");
+    CCConvolutionOperator::Parameters param;
+    auto f=CCConvolutionOperatorPtr(world,OT_F12,param);
+    auto g=CCConvolutionOperatorPtr(world,OT_G12,param);
+//    print("operator constructor",timer.reset());
+
+    CCPairFunction fij(f,ket_i,ket_j);
+    CCPairFunction gij(g,bra_k,bra_l);
+//    CCPairFunction ij({psi},{psi});
+    std::vector<CCPairFunction> vfij={fij};
+    std::vector<CCPairFunction> vgij={gij};
+//    std::vector<CCPairFunction> vij={ij};
+//    print("g/f ij constructor",timer.reset());
+
+//    StrongOrthogonalityProjector<double,3> SO(world);
+//    SO.set_spaces({psi},{psi},{psi},{psi});
+    std::vector<CCPairFunction> Qfij=Q12(vfij);
+//    std::vector<CCPairFunction> Qgij=Q12(vgij);
+//    print("SO application",timer.reset());
+
+    double result1=inner(vgij,Qfij);
+    print("inner",timer.reset());
+
+    print("<ij | g (Q f | ij>)",result1);
 
     return e;
 }

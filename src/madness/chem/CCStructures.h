@@ -737,6 +737,22 @@ struct CCConvolutionOperator {
     /// combine 2 convolution operators to one
 
     /// @return a vector of pairs: factor and convolution operator
+    friend std::vector<std::pair<double,CCConvolutionOperator>> combine(const std::shared_ptr<CCConvolutionOperator> left,
+                                                                        const std::shared_ptr<CCConvolutionOperator> right) {
+        std::vector<std::pair<double,CCConvolutionOperator>> result;
+        if (left and right) return combine(*left,*right);
+        if (left) {
+            result.push_back(std::make_pair<double,CCConvolutionOperator>(1.0,CCConvolutionOperator(*left)));
+        } else if (right) {
+            result.push_back(std::make_pair<double,CCConvolutionOperator>(1.0,CCConvolutionOperator(*right)));
+        }
+        return result;
+    }
+
+protected:
+    /// combine 2 convolution operators to one
+
+    /// @return a vector of pairs: factor and convolution operator
     friend std::vector<std::pair<double,CCConvolutionOperator>> combine(const CCConvolutionOperator& left, const CCConvolutionOperator& right) {
         MADNESS_CHECK(can_combine(left,right));
         MADNESS_CHECK(left.world.id()==right.world.id());
@@ -770,6 +786,7 @@ struct CCConvolutionOperator {
         return result;
     }
 
+public:
     /// @param[in] f: a 3D function
     /// @param[out] the convolution op(f), no intermediates are used
     real_function_3d operator()(const real_function_3d& f) const {
@@ -800,8 +817,8 @@ struct CCConvolutionOperator {
     // @param[in] f: a vector of 3D functions
     // @param[out] the convolution of op with each function, no intermeditates are used
     vector_real_function_3d operator()(const vector_real_function_3d& f) const {
-        if (op) return apply<double, double, 3>(world, (*op), f);
-        return f;
+        MADNESS_CHECK(op);
+        return apply<double, double, 3>(world, (*op), f);
     }
 
     // @param[in] bra: a 3D CC_function, if nuclear-correlation factors are used they have to be applied before
@@ -860,6 +877,7 @@ struct CCConvolutionOperator {
         if (type() == OT_G12) return TwoElectronFactory(world).dcut(1.e-7);
         else if (type() == OT_F12) return TwoElectronFactory(world).dcut(1.e-7).f12().gamma(parameters.gamma);
         else if (type() == OT_FG12) return TwoElectronFactory(world).dcut(1.e-7).BSH().gamma(parameters.gamma);
+        else if (type() == OT_SLATER) return TwoElectronFactory(world).dcut(1.e-7).slater().gamma(parameters.gamma);
         else error("no kernel of type " + name() + " implemented");
         return TwoElectronFactory(world);
     }

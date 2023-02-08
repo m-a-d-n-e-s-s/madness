@@ -1245,6 +1245,7 @@ namespace madness {
 
             // if this and g are the same, use norm2()
             if (this->get_impl()==g.get_impl()) {
+                if (this->get_impl()->is_redundant()) this->get_impl()->undo_redundant(true);
                 double norm=this->norm2();
                 return norm*norm;
             }
@@ -1356,13 +1357,13 @@ namespace madness {
         TENSOR_RESULT_TYPE(T,R) inner_on_demand(const Function<R,NDIM>& g) const {
           MADNESS_ASSERT(g.is_on_demand() and (not this->is_on_demand()));
 
-          this->reconstruct();
 
           // save for later, will be removed by make_Vphi
           std::shared_ptr< FunctionFunctorInterface<T,NDIM> > func=g.get_impl()->get_functor();
           //leaf_op<T,NDIM> fnode_is_leaf(this->get_impl().get());
           Leaf_op_other<T,NDIM> fnode_is_leaf(this->get_impl().get());
           g.get_impl()->make_Vphi(fnode_is_leaf,true);  // fence here
+            this->reconstruct();
 
           if (VERIFY_TREE) verify_tree();
           TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*g.get_impl());
