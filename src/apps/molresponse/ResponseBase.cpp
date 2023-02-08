@@ -355,7 +355,6 @@ auto ResponseBase::make_bsh_operators_response(World &world, double &shift,
     size_t num_orbitals = ground_energies.size();// number of orbitals
     std::vector<poperatorT> ops(num_orbitals);
     // Run over occupied components
-
     int p = 0;
     std::for_each(ops.begin(), ops.end(), [&](auto &operator_p) {
         double mu = sqrt(-2.0 * (ground_energies(p++) + omega + shift));
@@ -558,7 +557,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (world.size() > 1) {
         FunctionDefaults<3>::set_pmap(old_pmap);// ! DON'T FORGET !
     }
-    gamma.truncate();
     return gamma;
     // Get sizes
 }
