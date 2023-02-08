@@ -324,7 +324,6 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
         molresponse::start_timer(world);
         if (world.rank() == 0) { print("--------------- BSH UPDATE RESPONSE------------------"); }
     }
-
     size_t m = theta_X.X.size();
     size_t n = theta_X.X.size_orbitals();
     bool compute_y = omega != 0.0;
@@ -337,9 +336,6 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     if (compute_y) {
         theta_X.Y += PQ.Y;
         theta_X.Y = theta_X.Y * -2;
-        theta_X.truncate();
-    } else {
-        theta_X.X.truncate_rf();
     }
     world.gop.fence();
     // apply bsh
