@@ -20,14 +20,16 @@ void FrequencyResponse::iterate(World &world) {
     size_t n = r_params.num_orbitals();// Number of ground state orbitals
     size_t m = r_params.num_states();  // Number of excited states
 
-    real_function_3d v_xc;// For TDDFT
+    real_function_3d v_xc;
     // the Final protocol should be equal to dconv at the minimum
     const double dconv =
             std::max(FunctionDefaults<3>::get_thresh() * 100, r_params.dconv());//.01 .0001 .1e-5
     auto thresh = FunctionDefaults<3>::get_thresh();
     auto density_target = dconv * std::max(size_t(5), molecule.natom());
-    const double a_pow = 0.792;
-    const double b_pow = 1.078;
+    const double a_pow {0.792};
+    const double b_pow {1.078};
+// Last attempt 1.035 2.121
+
     const double bsh_abs_target = pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
     // m residuals for x and y
     Tensor<double> bsh_residualsX((int(m)));
@@ -55,15 +57,6 @@ void FrequencyResponse::iterate(World &world) {
     }
     if (r_params.kain()) {
         for (auto &kain_space_b: kain_x_space) { kain_space_b.set_maxsub(r_params.maxsub()); }
-    }
-    // New approach solving single function at a time
-    auto p = compute_y ? 2 : 1;
-    response_function_solver rf_solver;
-    for (size_t b = 0; b < m * n * p; b++) {
-        rf_solver.emplace_back(response_function_allocator(world), false);
-    }
-    if (r_params.kain()) {
-        for (auto &solver_ij: rf_solver) { solver_ij.set_maxsub(r_params.maxsub()); }
     }
     // We compute with positive frequencies
     if (world.rank() == 0) {
@@ -333,7 +326,6 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
         molresponse::start_timer(world);
         if (world.rank() == 0) { print("--------------- BSH UPDATE RESPONSE------------------"); }
     }
-
     size_t m = theta_X.X.size();
     size_t n = theta_X.X.size_orbitals();
     bool compute_y = omega != 0.0;
@@ -346,9 +338,6 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     if (compute_y) {
         theta_X.Y += PQ.Y;
         theta_X.Y = theta_X.Y * -2;
-        theta_X.truncate();
-    } else {
-        theta_X.X.truncate_rf();
     }
     world.gop.fence();
     // apply bsh
