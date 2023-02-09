@@ -6,6 +6,12 @@
 
 namespace madness
 {
+    /**
+     * @phi -> [phi conjugate(phi)] 
+     * 
+     * @param vec 
+     * @return vector_real_function_3d 
+     */
     auto to_response_vector(const vector_real_function_3d &vec) -> vector_real_function_3d
     {
         auto &world = vec[0].world();
@@ -22,6 +28,14 @@ namespace madness
         world.gop.fence();
         return copy_vec;
     }
+
+    /**
+     * @brief Create a response matrix object
+     * 
+     * @param num_states 
+     * @param num_orbitals 
+     * @return response_matrix 
+     */
     auto create_response_matrix(const size_t &num_states, const size_t &num_orbitals)
         -> response_matrix
     {
@@ -32,8 +46,13 @@ namespace madness
                       { xi = vector_real_function_3d(num_orbitals); });
         return matrix;
     }
-    // to response matrix is intended to provide a shallow copy of the response matrix
-    // to simply reorder the functions
+
+/**
+ * @ Converts Xspace object to response_matrix object
+ * 
+ * @param x 
+ * @return response_matrix 
+ */
     auto to_response_matrix(const X_space &x) -> response_matrix
     {
         auto mX = response_matrix(x.num_states());
@@ -64,7 +83,7 @@ namespace madness
     }
 
     /**
-     * Flattens all response functions into a single vector of functions
+     * @brief Flattens all response functions into a single vector of functions
      * @param x
      * @return
      */
@@ -101,6 +120,12 @@ namespace madness
         return x_space;
     }
 
+/**
+ * @brief response_matrix [x,y] -> Xspace X.x=y X.y=conjugate(x)
+ * 
+ * @param x 
+ * @return X_space 
+ */
     auto to_conjugate_X_space(const response_matrix &x) -> X_space
     {
 
@@ -119,9 +144,6 @@ namespace madness
                            [&](const auto &xi) { return copy(xi, false); });
             b++; });
         world.gop.fence();
-
-        //  auto norms = x_space.norm2s();
-        // if (world.rank() == 0) { print("norms after copy ", norms); }
 
         return x_space;
     }
