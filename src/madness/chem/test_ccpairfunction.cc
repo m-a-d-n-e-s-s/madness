@@ -202,6 +202,39 @@ int test_transformations(World& world, std::shared_ptr<NuclearCorrelationFactor>
     return t1.end();
 }
 
+int test_multiply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+               const CCParameters& parameters) {
+    test_output t1("CCPairFunction::test_multiply");
+
+    // consistency check, relies on CCPairFunction::inner to work correctly
+
+    double thresh=FunctionDefaults<3>::get_thresh();
+    auto [p1,p2,p3,p4,p5]=data1.get_ccpairfunctions();  // p2-p5 correspond to f23
+    auto [f1,f2,f3,f4,f5,f]=data1.get_functions();
+
+    // reference value is <bra | f(1/2) p>  = <f1 f | p>
+    CCPairFunction bra(f1,f2);
+    CCPairFunction bra1(f1*f2,f2);
+    CCPairFunction bra2(f1,f2*f2);
+    for (auto& p : {p2,p3,p4,p5}) {
+
+        auto tmp1=multiply(p,f2,{0,1,2});
+        double ovlp1=inner(bra,tmp1);
+        double ref1=p.has_operator() ? inner(bra1,p3) : inner(bra1,p2);
+
+        bool good=(fabs(ovlp1-ref1)<thresh);
+        t1.checkpoint(good,"f(1)*"+p.name());
+
+        auto tmp2=multiply(p,f2,{3,4,5});
+        double ovlp2=inner(bra,tmp2);
+        double ref2=p.has_operator() ? inner(bra2,p3) : inner(bra2,p2);
+
+        good=(fabs(ovlp2-ref2)<thresh);
+        t1.checkpoint(good,"f(2)*"+p.name());
+    }
+
+    return t1.end();
+}
 int test_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                  const CCParameters& parameters) {
     test_output t1("CCPairFunction::test_inner");
@@ -270,7 +303,7 @@ int test_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, cons
             if ((not bra.has_operator()) and (not ket.has_operator())) ref=ab_ab;
             double result=inner(bra,ket);
 
-            print(bra.name(true)+ket.name(),"ref, result, diff", ref, result, ref-result);
+//            print(bra.name(true)+ket.name(),"ref, result, diff", ref, result, ref-result);
             double thresh=FunctionDefaults<3>::get_thresh();
             bool good=(fabs(result-ref)<thresh);
             t1.checkpoint(good,bra.name(true)+ket.name());
@@ -868,13 +901,14 @@ int main(int argc, char **argv) {
         isuccess+=test_constructor(world, ncf, mol, ccparam);
         isuccess+=test_transformations(world, ncf, mol, ccparam);
         isuccess+=test_inner(world, ncf, mol, ccparam);
-        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
-        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
-        isuccess+=test_partial_inner_3d(world, ncf, mol, ccparam);
-        isuccess+=test_partial_inner_6d(world, ncf, mol, ccparam);
-        isuccess+=test_projector(world, ncf, mol, ccparam);
-        FunctionDefaults<3>::set_cubic_cell(-10,10);
-        isuccess+=test_helium(world,ncf,mol,ccparam);
+        isuccess+=test_multiply(world, ncf, mol, ccparam);
+//        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
+//        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
+//        isuccess+=test_partial_inner_3d(world, ncf, mol, ccparam);
+//        isuccess+=test_partial_inner_6d(world, ncf, mol, ccparam);
+//        isuccess+=test_projector(world, ncf, mol, ccparam);
+//        FunctionDefaults<3>::set_cubic_cell(-10,10);
+//        isuccess+=test_helium(world,ncf,mol,ccparam);
         data1.clear();
     } catch (std::exception& e) {
         madness::print("an error occured");

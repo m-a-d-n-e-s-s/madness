@@ -58,6 +58,29 @@ void CCPairFunction::convert_to_pure_no_op_inplace() {
     component.reset(new TwoBodyFunctionPureComponent<T>(result));
 };
 
+CCPairFunction multiply(const CCPairFunction& other, const real_function_3d& f, const std::array<int, 3>& v1) {
+    auto a012=std::array<int,3>{0,1,2};
+    auto a345=std::array<int,3>{3,4,5};
+    int particle=-1;
+    if (v1== a012) particle=0;
+    if (v1== a345) particle=1;
+    MADNESS_CHECK(particle==0 or particle==1);
+    World& world=other.world();
+
+    if (other.is_decomposed()) {
+        if (particle == 0) {
+            return CCPairFunction(other.get_operator_ptr(), f * other.get_a(), copy(world, other.get_b()));
+        } else {
+            return CCPairFunction(other.get_operator_ptr(), copy(world, other.get_a()), f * other.get_b());
+        }
+    } else if (other.is_pure()) {
+        auto tmp=multiply(other.get_function(),f,particle+1);
+        return CCPairFunction(other.get_operator_ptr(),tmp);
+    } else  {
+        MADNESS_EXCEPTION("confused CCPairFunction in multiply",1);
+    }
+};
+
 
 double
 CCPairFunction::make_xy_u(const CCFunction& xx, const CCFunction& yy) const {
@@ -356,7 +379,6 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
             for (const auto& single_op : ops) {
                 auto fac=single_op.first;
                 auto op=single_op.second;
-                print(op.name());
                 double bla=0.0;
                 if (op.get_op()) {
                     real_function_6d tmp1 = CompositeFactory<double, 6, 3>(world()).g12(op.get_kernel()).ket(ket);
@@ -380,7 +402,6 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
             for (const auto& single_op : ops) {
                 auto fac = single_op.first;
                 auto op = single_op.second;
-                print(op.name());
                 double bla=0.0;
                 for (int i=0; i<a.size(); ++i) {
                     if (op.get_op()) {

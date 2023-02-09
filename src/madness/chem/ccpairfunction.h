@@ -322,6 +322,11 @@ public:
     }
 
     /// takes a deep copy of the argument functions
+    explicit CCPairFunction(const real_function_3d& f1, const real_function_3d& f2) :
+            CCPairFunction(std::vector<real_function_3d>({f1}),std::vector<real_function_3d>({f2})) {
+    }
+
+    /// takes a deep copy of the argument functions
     explicit CCPairFunction(const std::pair<vector_real_function_3d, vector_real_function_3d>& f) :
             CCPairFunction(f.first,f.second) {
     }
@@ -337,6 +342,12 @@ public:
         World& world=f1.front().world();
         component.reset(new TwoBodyFunctionSeparatedComponent<T>(copy(world,f1),copy(world,f2),op_));
     }
+
+    /// takes a deep copy of the argument functions
+    explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator> op_, const real_function_3d& f1,
+                            const real_function_3d& f2) : CCPairFunction(op_,std::vector<real_function_3d>({f1}),
+                                                                         std::vector<real_function_3d>({f2})) {
+    };
 
     /// shallow assignment operator
     CCPairFunction& operator()(const CCPairFunction& other) {
@@ -449,6 +460,9 @@ public:
         if (not component) return "empty";
         return component->name(transpose);
     }
+
+    /// multiply CCPairFunction with a 3D function of one of the two particles
+    friend CCPairFunction multiply(const CCPairFunction& other, const real_function_3d& f, const std::array<int, 3>& v1);
 
     /// @param[in] f: a 3D-CC_function
     /// @param[in] particle: the particle on which the operation acts
