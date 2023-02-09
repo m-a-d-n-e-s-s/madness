@@ -82,6 +82,20 @@ CCPairFunction multiply(const CCPairFunction& other, const real_function_3d& f, 
 };
 
 
+/// multiplication with a 2-particle function
+CCPairFunction& CCPairFunction::multiply_with_op_inplace(const std::shared_ptr<CCConvolutionOperator> op) {
+    if (has_operator()) {
+        auto ops=combine(get_operator_ptr(),op);
+        MADNESS_CHECK(ops.size()==1);
+        MADNESS_CHECK(ops.front().first==1.0);
+        auto newop=std::make_shared<CCConvolutionOperator>(ops.front().second);
+        set_operator(newop);
+    } else {
+        set_operator(op);
+    }
+    return *this;
+}
+
 double
 CCPairFunction::make_xy_u(const CCFunction& xx, const CCFunction& yy) const {
     double result = 0.0;

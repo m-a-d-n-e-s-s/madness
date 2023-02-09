@@ -386,15 +386,32 @@ public:
     /// deep copy necessary otherwise: shallow copy errors
     CCPairFunction invert_sign();
 
+    /// scalar multiplication: f*fac
     CCPairFunction operator*(const double fac) const {
         CCPairFunction result=copy(*this);
         result*=fac;
         return result;
     }
 
+    /// scalar multiplication: fac*f
     friend CCPairFunction operator*(const double fac, const CCPairFunction& f) {
         return fac*f;
     }
+
+    /// multiplication with a 2-particle function
+    friend CCPairFunction operator*(const std::shared_ptr<CCConvolutionOperator> op, const CCPairFunction& f) {
+        CCPairFunction result=copy(f);
+        return result.multiply_with_op_inplace(op);
+    }
+
+    /// multiplication with a 2-particle function
+    CCPairFunction operator*(const std::shared_ptr<CCConvolutionOperator> op) {
+        CCPairFunction result=copy(*this);
+        return result.multiply_with_op_inplace(op);
+    }
+
+    CCPairFunction& multiply_with_op_inplace(const std::shared_ptr<CCConvolutionOperator> op);
+
 
     bool has_operator() const {return component->has_operator();}
     bool is_pure() const {return component->is_pure();}
@@ -437,6 +454,12 @@ public:
     const std::shared_ptr<CCConvolutionOperator> get_operator_ptr() const {
         MADNESS_CHECK(component);
         return component->get_operator_ptr();
+    }
+
+    void set_operator(const std::shared_ptr<CCConvolutionOperator> op) {
+        MADNESS_CHECK(not has_operator());
+        MADNESS_CHECK(component);
+        component->set_operator(op);
     }
 
     /// can this be converted to a pure representation (depends on the operator, if present)

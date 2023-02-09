@@ -101,7 +101,6 @@ data data1;
 
 int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                const CCParameters& parameter) {
-    int success=0;
     test_output t1("CCPairFunction::constructor");
 
     real_function_6d f=real_factory_6d(world);
@@ -159,8 +158,8 @@ int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
 
     }
     t1.checkpoint(true,"checks on assignment");
-    return t1.end();
 
+    return t1.end();
 }
 
 int test_transformations(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
@@ -199,6 +198,48 @@ int test_transformations(World& world, std::shared_ptr<NuclearCorrelationFactor>
     p6.convert_to_pure_no_op_inplace();
     t1.checkpoint(p6.is_pure_no_op(),"is_pure_no_op");
 
+    return t1.end();
+}
+
+int test_multiply_with_f12(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+                  const CCParameters& parameters) {
+    test_output t1("CCPairFunction::test_multiply_with_f12");
+
+    // p1: pure, corresponds to f12
+    // p2: dec, corresponds to f23
+    // p3: op_dec, corresponds to f23
+    // p4: pure, corresponds to f23
+    // p5: op_pure, corresponds to f23
+    auto [p1,p2,p3,p4,p5]=data1.get_ccpairfunctions();  // p2-p5 correspond to f23
+    auto f12=data1.f12_op;
+
+    double thresh=FunctionDefaults<3>::get_thresh();
+
+    // decomposed
+    CCPairFunction tmp1=f12*p2;         // should now be identical to p3
+    CCPairFunction tmp2=p2*f12;         // should now be identical to p3
+    double ref=inner(p2,p3);
+
+    double r1=inner(p2,tmp1);
+    bool good=(fabs(ref-r1)<thresh);
+    t1.checkpoint(good,"f(1,2)*"+p2.name());
+
+    double r2=inner(p2,tmp2);
+    good=(fabs(ref-r2)<thresh);
+    t1.checkpoint(good,p2.name() + "f(1,2)");
+
+    // pure
+    tmp1=f12*p4;         // should now be identical to p5
+    tmp2=p4*f12;         // should now be identical to p5
+    ref=inner(p2,p5);
+
+    r1=inner(p2,tmp1);
+    good=(fabs(ref-r1)<thresh);
+    t1.checkpoint(good,"f(1,2)*"+p4.name());
+
+    r2=inner(p2,tmp2);
+    good=(fabs(ref-r2)<thresh);
+    t1.checkpoint(good,p4.name() + "f(1,2)");
     return t1.end();
 }
 
@@ -532,7 +573,6 @@ int test_partial_inner_3d(World& world, std::shared_ptr<NuclearCorrelationFactor
 
 int test_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                const CCParameters& parameter) {
-    int success=0;
     test_output t1("CCPairFunction::test_apply");
 
     return  (t1.get_final_success()) ? 0 : 1;
@@ -540,7 +580,6 @@ int test_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, cons
 
 int test_scalar_multiplication(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                const CCParameters& parameter) {
-    int success=0;
     CCTimer timer(world, "testing");
     test_output t1("CCPairFunction::test_scalar_multiplication");
 
@@ -576,7 +615,6 @@ int test_scalar_multiplication(World& world, std::shared_ptr<NuclearCorrelationF
     print("time in scaling and inner",timer.reset());
     bool bsuccess=fabs(4.0*norm1-norm2)<FunctionDefaults<3>::get_thresh();
     t1.checkpoint(bsuccess,"scaling");
-    if (bsuccess) success++;
 
     t1.end();
     return  (t1.get_final_success()) ? 0 : 1;
@@ -584,7 +622,6 @@ int test_scalar_multiplication(World& world, std::shared_ptr<NuclearCorrelationF
 
 int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                         const CCParameters& parameters) {
-    int success = 0;
     test_output t1("CCPairFunction::swap_particles");
     CCTimer timer(world, "testing swap_particles");
 
@@ -659,7 +696,6 @@ int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> 
 
 int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                            const CCParameters& parameter) {
-    int success=0;
     test_output t1("CCPairFunction::test_projector");
     CCTimer timer(world, "testing");
 
@@ -772,7 +808,6 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
 
 int test_dirac_convolution(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                            const CCParameters& parameter) {
-    int success=0;
     test_output t1("CCPairFunction::test_dirac_convolution");
 
     return  (t1.get_final_success()) ? 0 : 1;
@@ -902,13 +937,14 @@ int main(int argc, char **argv) {
         isuccess+=test_transformations(world, ncf, mol, ccparam);
         isuccess+=test_inner(world, ncf, mol, ccparam);
         isuccess+=test_multiply(world, ncf, mol, ccparam);
-//        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
-//        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
-//        isuccess+=test_partial_inner_3d(world, ncf, mol, ccparam);
-//        isuccess+=test_partial_inner_6d(world, ncf, mol, ccparam);
-//        isuccess+=test_projector(world, ncf, mol, ccparam);
-//        FunctionDefaults<3>::set_cubic_cell(-10,10);
-//        isuccess+=test_helium(world,ncf,mol,ccparam);
+        isuccess+=test_multiply_with_f12(world, ncf, mol, ccparam);
+        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
+        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
+        isuccess+=test_partial_inner_3d(world, ncf, mol, ccparam);
+        isuccess+=test_partial_inner_6d(world, ncf, mol, ccparam);
+        isuccess+=test_projector(world, ncf, mol, ccparam);
+        FunctionDefaults<3>::set_cubic_cell(-10,10);
+        isuccess+=test_helium(world,ncf,mol,ccparam);
         data1.clear();
     } catch (std::exception& e) {
         madness::print("an error occured");
