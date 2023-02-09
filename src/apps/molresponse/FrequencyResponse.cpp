@@ -26,8 +26,8 @@ void FrequencyResponse::iterate(World &world) {
             std::max(FunctionDefaults<3>::get_thresh() * 100, r_params.dconv());//.01 .0001 .1e-5
     auto thresh = FunctionDefaults<3>::get_thresh();
     auto density_target = dconv * std::max(size_t(5), molecule.natom());
-    const double a_pow = 1.035;
-    const double b_pow = 2.121;
+    const double a_pow {0.792};
+    const double b_pow {1.078};
 // Last attempt 1.035 2.121
 
     const double bsh_abs_target = pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
