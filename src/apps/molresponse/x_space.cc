@@ -166,6 +166,16 @@ namespace madness
         }
         return XT;
     }
+
+    /**
+     * @brief Computes the matrix elements between two response spaces
+     * 
+     * cij=inner(ai,bj)
+     * 
+     * @param A 
+     * @param B 
+     * @return Tensor<double> 
+     */
     auto inner(const X_space &A, const X_space &B) -> Tensor<double>
     {
         MADNESS_ASSERT(size_states(A) > 0);
