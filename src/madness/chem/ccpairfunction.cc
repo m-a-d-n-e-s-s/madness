@@ -89,9 +89,9 @@ CCPairFunction& CCPairFunction::multiply_with_op_inplace(const std::shared_ptr<C
         MADNESS_CHECK(ops.size()==1);
         MADNESS_CHECK(ops.front().first==1.0);
         auto newop=std::make_shared<CCConvolutionOperator>(ops.front().second);
-        set_operator(newop);
+        reset_operator(newop);
     } else {
-        set_operator(op);
+        reset_operator(op);
     }
     return *this;
 }

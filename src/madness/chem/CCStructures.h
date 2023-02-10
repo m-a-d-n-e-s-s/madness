@@ -25,11 +25,12 @@ enum OpType {
     OT_UNDEFINED,
     OT_ONE,         /// indicates the identity
     OT_G12,         /// 1/r
-    OT_SLATER,      /// exp(r)
-    OT_F12,         /// 1-exp(r)
-    OT_FG12,        /// (1-exp(r))/r
-    OT_F212,        /// (1-exp(r))^2
-    OT_BSH          /// exp(r)/r
+    OT_SLATER,      /// exp(-r)
+    OT_F12,         /// 1-exp(-r)
+    OT_FG12,        /// (1-exp(-r))/r
+    OT_F212,        /// (1-exp(-r))^2
+    OT_F2G12,       /// (1-exp(-r))^2/r = 1/r + exp(-2r)/r - 2 exp(-r)/r
+    OT_BSH          /// exp(-r)/r
 };
 
 /// Calculation Types used by CC2
@@ -724,6 +725,17 @@ struct CCConvolutionOperator {
             type=OT_FG12;
             param.gamma=right.parameters.gamma;
         }
+        if ((left.type()==OT_G12) and (right.type()==OT_F212)) {
+            type=OT_F2G12;
+            param.gamma=right.parameters.gamma;
+        }
+        if (((left.type()==OT_F212) and (right.type()==OT_G12)) or
+            ((left.type()==OT_F12) and (right.type()==OT_FG12)) or
+            ((left.type()==OT_FG12) and (right.type()==OT_F12))) {
+            type=OT_F2G12;
+            if (right.type()!=OT_G12) MADNESS_CHECK(right.parameters.gamma == left.parameters.gamma);
+            param.gamma=right.parameters.gamma;
+        }
         if ((left.type()==OT_F12) and (right.type()==OT_F12)) {
             type=OT_F212;
             // keep the original gamma
@@ -760,15 +772,11 @@ protected:
         std::vector<std::pair<double,CCConvolutionOperator>> result;
         if (type==OT_FG12) {
             // fg = (1 - exp(-gamma r12))  / r12 = 1/r12 - exp(-gamma r12)/r12 = coulomb - bsh
+            result.push_back(std::make_pair(1.0, CCConvolutionOperator(left.world, OT_FG12, param)));
 
-            // coulombfit return 1/r
-            // we need 1/(2 gamma) 1/r
-            result.push_back(std::make_pair(1.0/(2.0*param.gamma),CCConvolutionOperator(left.world, OT_G12, param)));
+        } else if (type==OT_F2G12) {
+            result.push_back(std::make_pair(1.0, CCConvolutionOperator(left.world, OT_F2G12, param)));
 
-            // bshfit returns 1/(4 pi) exp(-gamma r)/r
-            // we need 1/(2 gamma) exp(-gamma r)/r
-            const double factor = 4.0 * constants::pi /(2.0*param.gamma);
-            result.push_back(std::make_pair(-factor,CCConvolutionOperator(left.world, OT_BSH, param)));
         } else if (type==OT_F212) {
 //             we use the slater operator which is S = e^(-y*r12), y=gamma
 //             the f12 operator is: 1/2y*(1-e^(-y*r12)) = 1/2y*(1-S)

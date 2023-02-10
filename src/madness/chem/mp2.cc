@@ -262,6 +262,7 @@ double MP2::value(const Tensor<double>& x) {
     if (world.rank() == 0) {
         printf("current decoupled mp2 energy %12.8f\n", correlation_energy);
     }
+    if (param.no_compute()) return correlation_energy;
 
     correlation_energy = 0.0;
     if (hf->get_calc().param.do_localize()) {
@@ -280,6 +281,59 @@ double MP2::value(const Tensor<double>& x) {
         }
     }
     return correlation_energy;
+}
+
+double MP2::mp3() const {
+
+    Pairs<std::vector<CCPairFunction>> clusterfunctions;
+    double mp3_energy=0.0;
+    CCTimer t1(world,"make pairs");
+    // load converged MP1 wave functions
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        for (int j = i; j < hf->nocc(); ++j) {
+//            pairs(i, j) = make_pair(i, j);                // initialize
+            clusterfunctions(i,j).push_back(CCPairFunction(pairs(i,j).function));
+            CCPairFunction ij(hf->nemo(i),hf->nemo(j));
+
+            CCConvolutionOperator::Parameters cparam;
+            cparam.thresh_op*=0.1;
+            auto f12=CCConvolutionOperatorPtr(world,OT_F12,cparam);
+            auto vfij=Q12(std::vector<CCPairFunction>({f12*ij}));
+            for (auto& p : vfij) clusterfunctions(i,j).push_back(p);
+        }
+    }
+    t1.print();
+    CCTimer t2(world,"recompute MP2");
+    // recompute MP2 energy
+    CCConvolutionOperator::Parameters cparam;
+    auto g12=CCConvolutionOperatorPtr(world,OT_G12,cparam);
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        for (int j = i; j < hf->nocc(); ++j) {
+            auto bra=g12*CCPairFunction(hf->R2orbital(i),hf->R2orbital(j));
+            double energy1=inner(bra,clusterfunctions(i,j).front());
+            double energy=energy1+pairs(i,j).ij_gQf_ij;
+            print("MP2 energy: gQf, u",pairs(i,j).ij_gQf_ij,energy1,energy);
+            print("time compute <ij|u>",t2.reset());
+
+            double energy2=inner({bra},clusterfunctions(i,j));
+            printf("MP2 energy: cluster %12.8f\n",energy2);
+            print("time clusterfunction",t2.reset());
+        }
+    }
+
+    CCTimer t3(world,"MP3");
+    // compute the MP3 energy
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        for (int j = i; j < hf->nocc(); ++j) {
+            auto bra=g12*clusterfunctions(i,j);
+            double energy2=inner(bra,clusterfunctions(i,j));
+            print("MP3 energy: term1",energy2);
+        }
+    }
+    t3.print();
+
+
+    return mp3_energy;
 }
 
 /// solve the residual equation for electron pair (i,j)

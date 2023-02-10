@@ -1852,6 +1852,55 @@ namespace madness {
         return new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k, false, mu);
     }
 
+    /// Factory function generating separated kernel for convolution with 1/(2 mu)*(1 - exp(-mu*r))/r in 3D
+
+    /// fg = (1 - exp(-gamma r12))  / r12 = 1/r12 - exp(-gamma r12)/r12 = coulomb - bsh
+    /// includes the factor 1/(2 mu)
+    static inline SeparatedConvolution<double,3>* FGOperatorPtr(World& world,
+                                                                       double mu, double lo, double eps,
+                                                                       const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                                                                       int k=FunctionDefaults<3>::get_k()) {
+
+        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
+        double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+
+        GFit<double,3> fit=GFit<double,3>::FGFit(mu,lo,hi,eps,false);
+        Tensor<double> coeff=fit.coeffs();
+        Tensor<double> expnt=fit.exponents();
+
+        if (bc(0,0) == BC_PERIODIC) {
+            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+        }
+
+        return new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k, false, mu);
+    }
+
+    /// Factory function generating separated kernel for convolution with (1/(2 mu)*(1 - exp(-mu*r)))^2/r in 3D
+
+    /// f2g = (1/(2 gamma) (1 - exp(-gamma r12)))^2  / r12
+    ///     = 1/(4 gamma) * [ 1/r12 - 2 exp(-gamma r12)/r12 + exp(-2 gamma r12)/r12 ]
+    /// includes the factor 1/(2 mu)^2
+    static inline SeparatedConvolution<double,3>* F2GOperatorPtr(World& world,
+                                                                double mu, double lo, double eps,
+                                                                const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                                                                int k=FunctionDefaults<3>::get_k()) {
+
+        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
+        double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+
+        GFit<double,3> fit=GFit<double,3>::F2GFit(mu,lo,hi,eps,false);
+        Tensor<double> coeff=fit.coeffs();
+        Tensor<double> expnt=fit.exponents();
+
+        if (bc(0,0) == BC_PERIODIC) {
+            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+        }
+
+        return new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k, false, mu);
+    }
+
 
     /// Factory function generating separated kernel for convolution a normalized
     /// Gaussian (aka a widened delta function)

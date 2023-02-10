@@ -79,8 +79,14 @@ public:
 	/// @parma[in]	prnt	print level
 	static GFit BSHFit(double mu, double lo, double hi, double eps, bool prnt=false) {
 		GFit fit;
-		if (NDIM==3) bsh_fit(mu,lo,hi,eps,fit.coeffs_,fit.exponents_,prnt);
+		if (NDIM==3) bsh_fit(mu,lo,hi,eps,fit.coeffs_,fit.exponents_,prnt,true);
 		else bsh_fit_ndim(NDIM,mu,lo,hi,eps,fit.coeffs_,fit.exponents_,prnt);
+
+        if (prnt) {
+            print("bsh fit");
+            auto exact = [&mu](const double r) -> double { return 1.0/(4.0 * constants::pi) * exp(-mu * r)/r; };
+            fit.print_accuracy(exact, lo, hi);
+        }
 		return fit;
 	}
 
@@ -124,6 +130,84 @@ public:
         return fit;
     }
 
+    /// return a fit for the FG function
+
+    /// fg = 1/(2 mu) * (1 - exp(-gamma r12))  / r12
+    ///    = 1/(2 mu) *( 1/r12 - exp(-gamma r12)/r12)
+    ///    = 1/(2 mu) * (coulomb - bsh)
+    /// @param[in]	gamma	the exponent of the Slater function
+    /// @param[in]	lo	the smallest length scale that needs to be precisely represented
+    /// @param[in]	hi	the largest length scale that needs to be precisely represented
+    /// @param[in]	eps	the precision threshold
+    /// @parma[in]	prnt	print level
+    static GFit FGFit(double gamma, double lo, double hi, double eps, bool prnt=false) {
+        GFit bshfit,coulombfit;
+        eps*=0.1;
+        lo*=0.1;
+        bool restrict_interval=false;
+        bsh_fit(gamma,lo,hi,eps,bshfit.coeffs_,bshfit.exponents_,false,restrict_interval);
+        bsh_fit(0.0,lo,hi,eps,coulombfit.coeffs_,coulombfit.exponents_,false,restrict_interval);
+        // check the exponents are identical
+        auto diffexponents=(coulombfit.exponents() - bshfit.exponents());
+        MADNESS_CHECK(diffexponents.normf()/coulombfit.exponents().size()<1.e-12);
+        auto diffcoefficients=(coulombfit.coeffs() - bshfit.coeffs());
+        GFit fgfit;
+        fgfit.exponents_=bshfit.exponents_;
+        fgfit.coeffs_=4.0*constants::pi*0.5/gamma*diffcoefficients;
+        GFit<double,3>::prune_small_coefficients(eps,lo,hi,fgfit.coeffs_,fgfit.exponents_);
+
+        if (prnt) {
+            print("fg fit");
+            auto exact=[&gamma](const double r) -> double {return 0.5/gamma*(1.0-exp(-gamma*r))/r;};
+            fgfit.print_accuracy(exact,lo,hi);
+        }
+        return fgfit;
+    }
+
+    /// return a fit for the F2G function
+
+    /// f2g = (1/(2 mu) * (1 - exp(-gamma r12)))^2  / r12
+    ///    = 1/(4 mu^2) * [ 1/r12 - 2 exp(-gamma r12)/r12) + exp(-2 gamma r12)/r12 ]
+    /// @param[in]	gamma	the exponent of the Slater function
+    /// @param[in]	lo	the smallest length scale that needs to be precisely represented
+    /// @param[in]	hi	the largest length scale that needs to be precisely represented
+    /// @param[in]	eps	the precision threshold
+    /// @parma[in]	prnt	print level
+    static GFit F2GFit(double gamma, double lo, double hi, double eps, bool prnt=false) {
+        GFit bshfit,coulombfit,bsh2fit;
+        eps*=0.1;
+        lo*=0.1;
+        bool restrict_interval=false;
+        bsh_fit(gamma,lo,hi,eps,bshfit.coeffs_,bshfit.exponents_,false,restrict_interval);
+        bsh_fit(2.0*gamma,lo,hi,eps,bsh2fit.coeffs_,bsh2fit.exponents_,false,restrict_interval);
+        bsh_fit(0.0,lo,hi,eps,coulombfit.coeffs_,coulombfit.exponents_,false,restrict_interval);
+
+        // check the exponents are identical
+        auto diffexponents=(coulombfit.exponents() - bshfit.exponents());
+        MADNESS_CHECK(diffexponents.normf()/coulombfit.exponents().size()<1.e-12);
+        auto diffexponents1=(coulombfit.exponents() - bsh2fit.exponents());
+        MADNESS_CHECK(diffexponents1.normf()/coulombfit.exponents().size()<1.e-12);
+
+        auto coefficients=(coulombfit.coeffs() - 2.0* bshfit.coeffs() + bsh2fit.coeffs());
+        GFit f2gfit;
+        f2gfit.exponents_=bshfit.exponents_;
+        // additional factor 4 pi due to implementation of bsh_fit
+        double fourpi=4.0*constants::pi;
+        double fourmu2=4.0*gamma*gamma;
+        f2gfit.coeffs_=fourpi/fourmu2*coefficients;
+        GFit<double,3>::prune_small_coefficients(eps,lo,hi,f2gfit.coeffs_,f2gfit.exponents_);
+
+        if (prnt) {
+            print("fg fit");
+            auto exact=[&gamma](const double r) -> double {
+                return 0.25/(gamma*gamma)*(1.0-2.0*exp(-gamma*r)+exp(-2.0*gamma*r))/r;
+            };
+            f2gfit.print_accuracy(exact,lo,hi);
+        }
+        return f2gfit;
+    }
+
+
 	/// return a fit for a general isotropic function
 
 	/// note that the error is controlled over a uniform grid, the boundaries
@@ -139,7 +223,26 @@ public:
 	/// return the exponents of the fit
 	Tensor<T> exponents() const {return exponents_;}
 
-	void truncate_periodic_expansion(Tensor<double>& c, Tensor<double>& e,
+    void static prune_small_coefficients(const double eps, const double lo, const double hi,
+                                  Tensor<double>& coeff, Tensor<double>& expnt) {
+        double mid = lo + (hi-lo)*0.5;
+        long npt=coeff.size();
+        long i;
+        for (i=npt-1; i>0; --i) {
+            double cnew = coeff[i]*exp(-(expnt[i]-expnt[i-1])*mid*mid);
+            double errlo = coeff[i]*exp(-expnt[i]*lo*lo) -
+                           cnew*exp(-expnt[i-1]*lo*lo);
+            double errhi = coeff[i]*exp(-expnt[i]*hi*hi) -
+                           cnew*exp(-expnt[i-1]*hi*hi);
+            if (std::max(std::abs(errlo),std::abs(errhi)) > 0.03*eps) break;
+            npt--;
+            coeff[i-1] = coeff[i-1] + cnew;
+        }
+        coeff = coeff(Slice(0,npt-1));
+        expnt = expnt(Slice(0,npt-1));
+    }
+
+    void truncate_periodic_expansion(Tensor<double>& c, Tensor<double>& e,
 			double L, bool discardG0) const {
 		double tcut = 0.25/L/L;
 
@@ -227,11 +330,14 @@ private:
 	/// Multiresolution Quantum Chemistry in Multiwavelet Bases,
 	/// Lecture Notes in Computer Science, vol. 2660, p. 707, 2003.
 	static void bsh_fit(double mu, double lo, double hi, double eps,
-			Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt) {
+			Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt, bool use_mu_for_restricting_interval) {
 
-                if (mu < 0.0) throw "cannot handle negative mu in bsh_fit";
+        if (mu < 0.0) throw "cannot handle negative mu in bsh_fit";
+        bool restrict_interval=(mu>0) and use_mu_for_restricting_interval;
 
-		if (mu > 0) {
+
+//		if (mu > 0) {
+        if (restrict_interval) {
 			// Restrict hi according to the exponential decay
 			double r = -log(4*constants::pi*0.01*eps);
 			r = -log(r * 4*constants::pi*0.01*eps);
@@ -249,7 +355,8 @@ private:
 		else if (eps >= 1e-12) TT = 26;
 		else TT = 30;
 
-		if (mu > 0) {
+//        if (mu > 0) {
+		if (restrict_interval) {
 			slo = -0.5*log(4.0*TT/(mu*mu));
 		}
 		else {
@@ -307,21 +414,9 @@ private:
 		// end points ... if this error is less than the desired
 		// precision, can discard the diffuse gaussian.
 
-		if (mu == 0.0) {
-			double mid = lo + (hi-lo)*0.5;
-			long i;
-			for (i=npt-1; i>0; --i) {
-				double cnew = coeff[i]*exp(-(expnt[i]-expnt[i-1])*mid*mid);
-				double errlo = coeff[i]*exp(-expnt[i]*lo*lo) -
-						cnew*exp(-expnt[i-1]*lo*lo);
-				double errhi = coeff[i]*exp(-expnt[i]*hi*hi) -
-						cnew*exp(-expnt[i-1]*hi*hi);
-				if (std::max(std::abs(errlo),std::abs(errhi)) > 0.03*eps) break;
-				npt--;
-				coeff[i-1] = coeff[i-1] + cnew;
-			}
-			coeff = coeff(Slice(0,npt-1));
-			expnt = expnt(Slice(0,npt-1));
+//        if (mu == 0.0) {
+		if (restrict_interval) {
+            GFit<double,3>::prune_small_coefficients(eps,lo,hi,coeff,expnt);
 		}
 
 		// Modify the coeffs of the largest exponents to satisfy the moment conditions
@@ -382,27 +477,6 @@ private:
 			coeff(Slice(0,nmom-1)) = ncoeff;
 		}
 
-		if (prnt) {
-			for (int i=0; i<npt; ++i)
-				std::cout << i << " " << coeff[i] << " " << expnt[i] << std::endl;
-
-			long npt = 300;
-			//double hi = 1.0;
-			//if (mu) hi = min(1.0,30.0/mu);
-			std::cout << "       x         value   abserr   relerr" << std::endl;
-			std::cout << "  ------------  ------- -------- -------- " << std::endl;
-			double step = exp(log(hi/lo)/(npt+1));
-			for (int i=0; i<=npt; ++i) {
-				double r = lo*(pow(step,i+0.5));
-				double exact = exp(-mu*r)/r/4.0/constants::pi;
-				double test = 0.0;
-				for (int j=0; j<coeff.dim(0); ++j)
-					test += coeff[j]*exp(-r*r*expnt[j]);
-				double err = 0.0;
-				if (exact) err = (exact-test)/exact;
-				printf("  %.6e %8.1e %8.1e %8.1e\n",r, exact, exact-test, err);
-			}
-		}
 		pcoeff = coeff;
 		pexpnt = expnt;
 	}

@@ -332,6 +332,7 @@ class MP2 : public OptimizationTargetInterface, public QCPropertyInterface {
             initialize < int > ("freeze", 0);
             initialize < int > ("maxsub", 2);
             initialize < bool > ("restart", true);
+            initialize < bool > ("no_compute", false);
             initialize < int > ("maxiter", 5);
 
             read_and_set_derived_values(world,parser);
@@ -362,6 +363,7 @@ class MP2 : public OptimizationTargetInterface, public QCPropertyInterface {
         int i() const { return this->get<std::vector<int> >("pair")[0]; }    /// convenience function
         int j() const { return this->get<std::vector<int> >("pair")[1]; }    /// convenience function
         int restart() const { return this->get<bool>("restart"); }    /// convenience function
+        int no_compute() const { return this->get<bool>("no_compute"); }    /// convenience function
         int maxiter() const { return this->get<int>("maxiter"); }    /// convenience function
         int maxsub() const { return this->get<int>("maxsub"); }    /// convenience function
         bool do_oep() const { return do_oep1;}
@@ -441,6 +443,8 @@ public:
     double zeroth_order_energy(const int i, const int j) const {
         return hf->orbital_energy(i) + hf->orbital_energy(j);
     }
+
+    double mp3() const;
 
     /// solve the residual equation for electron pair (i,j)
 

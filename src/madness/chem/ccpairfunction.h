@@ -405,6 +405,17 @@ public:
     }
 
     /// multiplication with a 2-particle function
+    friend std::vector<CCPairFunction> operator*(const std::shared_ptr<CCConvolutionOperator> op,
+            const std::vector<CCPairFunction>& f) {
+        std::vector<CCPairFunction> result;
+        for (auto& ff : f) {
+            result.push_back(copy(ff));
+            result.back().multiply_with_op_inplace(op);
+        }
+        return result;
+    }
+
+    /// multiplication with a 2-particle function
     CCPairFunction operator*(const std::shared_ptr<CCConvolutionOperator> op) {
         CCPairFunction result=copy(*this);
         return result.multiply_with_op_inplace(op);
@@ -456,8 +467,7 @@ public:
         return component->get_operator_ptr();
     }
 
-    void set_operator(const std::shared_ptr<CCConvolutionOperator> op) {
-        MADNESS_CHECK(not has_operator());
+    void reset_operator(const std::shared_ptr<CCConvolutionOperator> op) {
         MADNESS_CHECK(component);
         component->set_operator(op);
     }

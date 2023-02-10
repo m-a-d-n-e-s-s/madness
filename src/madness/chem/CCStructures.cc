@@ -433,6 +433,18 @@ CCConvolutionOperator::init_op(const OpType& type, const Parameters& parameters)
                           << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
             return BSHOperatorPtr3D(world, parameters.gamma, parameters.lo, parameters.thresh_op);
         }
+        case OT_FG12: {
+            if (printme)
+                std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
+                          << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
+            return FGOperatorPtr(world, parameters.gamma, parameters.lo, parameters.thresh_op);
+        }
+        case OT_F2G12: {
+            if (printme)
+                std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
+                          << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
+            return F2GOperatorPtr(world, parameters.gamma, parameters.lo, parameters.thresh_op);
+        }
         case OT_ONE : {
             if (printme)
                 std::cout << "Creating " << assign_name(type) << " Operator " << std::endl;
