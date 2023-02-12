@@ -164,19 +164,19 @@ void SCF::output_calc_info_schema() const {
     vec_pair_tensor_T<double> double_tensor_vals;
 
 
-    int_vals.push_back({"calcinfo_nmo", param.nmo_alpha() + param.nmo_beta()});
-    int_vals.push_back({"calcinfo_nalpha", param.nalpha()});
-    int_vals.push_back({"calcinfo_nbeta", param.nbeta()});
-    int_vals.push_back({"calcinfo_natom", molecule.natom()});
-    int_vals.push_back({"k", FunctionDefaults<3>::get_k()});
+    int_vals.emplace_back("calcinfo_nmo", param.nmo_alpha() + param.nmo_beta());
+    int_vals.emplace_back("calcinfo_nalpha", param.nalpha());
+    int_vals.emplace_back("calcinfo_nbeta", param.nbeta());
+    int_vals.emplace_back("calcinfo_natom", molecule.natom());
+    int_vals.emplace_back("k", FunctionDefaults<3>::get_k());
 
     to_json(j, int_vals);
 //    double_vals.push_back({"return_energy", value(molecule.get_all_coords().flat())});
-    double_vals.push_back({"return_energy", current_energy});
+    double_vals.emplace_back("return_energy", current_energy);
     to_json(j, double_vals);
-    double_tensor_vals.push_back({"scf_eigenvalues_a", aeps});
+    double_tensor_vals.emplace_back("scf_eigenvalues_a", aeps);
     if (param.nbeta() != 0 && !param.spin_restricted()) {
-        double_tensor_vals.push_back({"scf_eigenvalues_b", beps});
+        double_tensor_vals.emplace_back("scf_eigenvalues_b", beps);
     }
 
     to_json(j, double_tensor_vals);
