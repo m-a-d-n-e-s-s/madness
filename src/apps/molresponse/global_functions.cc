@@ -315,45 +315,47 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
     auto num_states = chi.num_states();
     auto num_orbitals = chi.num_orbitals();
     auto K = X_space::zero_functions(world, num_states, num_orbitals);
-    auto phi_1 = copy(world, phi0, false);
-    Exchange<double, 3> op{};
-    const Exchange<double, 3>::Algorithm algo = op.small_memory;
-    world.gop.fence();
     const double lo = 1.e-10;
+
+    auto make_k=[&](const auto & ket,const auto & bra){
+      Exchange<double, 3> k{};
+      k.set_parameters(bra,ket,lo);
+      k.set_algorithm(k.multiworld_efficient);
+      return k;
+    };
+
+    vecfuncT k1x,k2x,k1y,k2y;
+
     if (compute_y) {
         for (int b = 0; b < num_states; b++) {
-            Exchange<double, 3> op_1x{};
-            op_1x.set_parameters(chi.X[b], phi0, lo);
-            op_1x.set_algorithm(algo);
-            Exchange<double, 3> op_1y{};
-            op_1y.set_parameters(chi.Y[b], phi0, lo);
-            op_1y.set_algorithm(algo);
-            Exchange<double, 3> op_2x{};
-            op_2x.set_parameters(phi0, chi.Y[b], lo);
-            op_2x.set_algorithm(algo);
-            Exchange<double, 3> op_2y{};
-            op_2y.set_parameters(phi0, chi.X[b], lo);
-            op_2y.set_algorithm(algo);
-            auto k1x = op_1x(phi_1);
-            auto k2x = op_2x(phi_1);
-            auto k1y = op_1y(phi_1);
-            auto k2y = op_2y(phi_1);
+            auto x=chi.X[b];
+            auto y=chi.Y[b];
+
+            auto K1x = make_k(x,phi0);
+            auto K2x = make_k(phi0,y);
+
+            auto K1y = make_k(y,phi0);
+            auto K2y = make_k(phi0,x);
+
+            k1x=K1x(phi0);
+            k2x=K2x(phi0);
+
+            k1y=K2x(phi0);
+            k2y=K2y(phi0);
+
             K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, false);
             K.Y[b] = gaxpy_oop(1.0, k1y, 1.0, k2y, false);
             world.gop.fence();
         }
     } else {
         for (int b = 0; b < num_states; b++) {
-            Exchange<double, 3> op_1x{};
-            op_1x.set_parameters(chi.X[b], phi0, lo);
-            op_1x.set_algorithm(algo);
+            auto x=chi.X[b];
+            auto y=chi.X[b];
+            auto K1x = make_k(x,phi0);
+            auto K2x = make_k(phi0,y);
 
-            Exchange<double, 3> op_2x{};
-            op_2x.set_parameters(phi0, chi.X[b], lo);
-            op_2x.set_algorithm(algo);
-
-            auto k1x = op_1x(phi_1);
-            auto k2x = op_2x(phi_1);
+            k1x=K1x(phi0);
+            k2x=K2x(phi0);
 
             K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, true);
         }
