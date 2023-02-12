@@ -315,38 +315,34 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
     auto num_states = chi.num_states();
     auto num_orbitals = chi.num_orbitals();
     auto K = X_space::zero_functions(world, num_states, num_orbitals);
-    auto phi_1 = copy(world, phi0, false);
-    Exchange<double, 3> op{};
-    const Exchange<double, 3>::Algorithm algo = op.multiworld_efficient;
     world.gop.fence();
     const double lo = 1.e-10;
-    vector_real_function_3d k1x,k1y,k2x,k2y;
-    
+    vector_real_function_3d k1x, k1y, k2x, k2y;
+
+    auto make_k = [=](const auto &ket, const auto &bra) {
+        Exchange<double, 3> k{};
+        k.set_parameters(bra, ket, lo);
+        k.set_algorithm(k.multiworld_efficient);
+        return k;
+    };
+
     if (compute_y) {
         for (int b = 0; b < num_states; b++) {
 
+            auto x = chi.X[b];
+            auto y = chi.Y[b];
 
-            Exchange<double, 3> kxx{};
-            kxx.set_parameters(chi.X[b], phi0, lo);
-            kxx.set_algorithm(algo);
+            auto K1X = make_k(x, phi0);
+            auto K1Y = make_k(phi0, y);
 
-            Exchange<double, 3> kxy{};
-            kxy.set_parameters(phi0, chi.Y[b], lo);
-            kxy.set_algorithm(algo);
+            auto K2X = make_k(y, phi0);
+            auto K2Y = make_k(phi0, x);
 
-            Exchange<double, 3> kyx{};
-            kyx.set_parameters(phi0, chi.X[b], lo);
-            kyx.set_algorithm(algo);
-
-            Exchange<double, 3> kyy{};
-            kyy.set_parameters(chi.Y[b], phi0, lo);
-            kyy.set_algorithm(algo);
-
-            k1x=kxx(phi0);
-            k1y=kxy(phi0);
-            
-            k2x=kyx(phi0);
-            k2y=kyy(phi0);
+            k1x = K1X(phi0);
+            k1y = K1Y(phi0);
+            k2x = K2X(phi0);
+            k2y = K2Y(phi0);
+            world.gop.fence();
 
             K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k1y, false);
             K.Y[b] = gaxpy_oop(1.0, k2x, 1.0, k2y, false);
@@ -355,18 +351,17 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
         }
     } else {
         for (int b = 0; b < num_states; b++) {
-            Exchange<double, 3> op_1x{};
-            op_1x.set_parameters(chi.X[b], phi0, lo);
-            op_1x.set_algorithm(algo);
 
-            Exchange<double, 3> op_2x{};
-            op_2x.set_parameters(phi0, chi.X[b], lo);
-            op_2x.set_algorithm(algo);
+            auto x = chi.X[b];
+            auto y = chi.X[b];
 
-            auto k1x = op_1x(phi_1);
-            auto k1y = op_2x(phi_1);
+            auto K1X = make_k(x, phi0);
+            auto K1Y = make_k(phi0, y);
 
-            K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, true);
+            k1x = K1X(phi0);
+            k1y = K1Y(phi0);
+
+            K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k1y, true);
         }
     }
     return K;
