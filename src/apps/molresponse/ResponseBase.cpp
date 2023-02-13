@@ -585,11 +585,6 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     X_space W = X_space::zero_functions(world, num_states, num_orbitals);
     X_space J(world, num_states, num_orbitals);
     X_space K = X_space::zero_functions(world, num_states, num_orbitals);
-    X_space KX = X_space::zero_functions(world, num_states, num_orbitals);
-    X_space KY = X_space::zero_functions(world, num_states, num_orbitals);
-
-    //     std::cout << "MPI BARRIER After create Zero functions gamma " << std::endl;
-    //     world.mpi.Barrier();
 
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_zero_functions", "gamma_zero_functions", iter_timing);

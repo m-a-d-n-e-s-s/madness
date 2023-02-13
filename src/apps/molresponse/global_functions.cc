@@ -297,7 +297,7 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
     molresponse::end_timer(world, "ground exchange reorganize");
     return K0;
 }
-auto make_k(const vecfuncT &ket, const vecfuncT &bra) {
+auto make_k(const vecfuncT &ket, const vecfuncT &bra)-> Exchange<double,3> {
     const double lo = 1.e-10;
     Exchange<double, 3> k{};
     k.set_parameters(bra,ket,lo);
@@ -382,11 +382,6 @@ auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const 
     auto num_orbitals = chi.num_orbitals();
 
     auto K0 = X_space::zero_functions(world, num_states, num_orbitals);
-    // the question is copying pointers mpi safe
-    Exchange<double, 3> op{};
-    const Exchange<double, 3>::Algorithm algo = op.small_memory;
-    world.gop.fence();
-    const double lo = 1.e-10;
     if (compute_y) {
         for (int b = 0; b < num_states; b++) {
             auto op_0x= make_k(phi0,phi0);
@@ -401,6 +396,5 @@ auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const 
         }
         K0.Y = K0.X.copy();
     }
-    K0.truncate();
     return K0;
 }
