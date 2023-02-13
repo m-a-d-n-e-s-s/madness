@@ -297,6 +297,13 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
     molresponse::end_timer(world, "ground exchange reorganize");
     return K0;
 }
+auto make_k(const vecfuncT &ket, const vecfuncT &bra) {
+    const double lo = 1.e-10;
+    Exchange<double, 3> k{};
+    k.set_parameters(bra,ket,lo);
+    k.set_algorithm(k.multiworld_efficient);
+    return k;
+};
 /**
  * Computes ground density exchange on response vectors
  *  This algorithm places all functions in a single vector,
@@ -315,15 +322,6 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
     auto num_states = chi.num_states();
     auto num_orbitals = chi.num_orbitals();
     auto K = X_space::zero_functions(world, num_states, num_orbitals);
-    const double lo = 1.e-10;
-
-    auto make_k=[&](const auto & ket,const auto & bra){
-      Exchange<double, 3> k{};
-      k.set_parameters(bra,ket,lo);
-      k.set_algorithm(k.multiworld_efficient);
-      return k;
-    };
-
     vecfuncT k1x,k2x,k1y,k2y;
 
     if (compute_y) {
@@ -391,20 +389,14 @@ auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const 
     const double lo = 1.e-10;
     if (compute_y) {
         for (int b = 0; b < num_states; b++) {
-            Exchange<double, 3> op_0x{};
-            op_0x.set_parameters(phi0, phi0, lo);
-            op_0x.set_algorithm(algo);
-            Exchange<double, 3> op_0y{};
-            op_0y.set_parameters(phi0, phi0, lo);
-            op_0y.set_algorithm(algo);
+            auto op_0x= make_k(phi0,phi0);
+            auto op_0y= make_k(phi0,phi0);
             K0.X[b] = op_0x(chi.X[b]);
             K0.Y[b] = op_0y(chi.Y[b]);
         }
     } else {
         for (int b = 0; b < num_states; b++) {
-            Exchange<double, 3> op_0x{};
-            op_0x.set_parameters(phi0, phi0, lo);
-            op_0x.set_algorithm(algo);
+            auto op_0x= make_k(phi0,phi0);
             K0.X[b] = op_0x(chi.X[b]);
         }
         K0.Y = K0.X.copy();
