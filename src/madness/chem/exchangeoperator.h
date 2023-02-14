@@ -301,6 +301,16 @@ private:
 
 };
 
+//extern template
+//class Exchange<double_complex, 3>::ExchangeImpl;
+//extern template
+//class Exchange<double_complex, 3>::ExchangeImpl::MacroTaskExchangeSimple::MacroTaskPartitionerExchange;
+//
+//extern template
+//class Exchange<double, 3>::ExchangeImpl;
+//extern template
+//class Exchange<double, 3>::ExchangeImpl::MacroTaskExchangeSimple::MacroTaskPartitionerExchange;
+
 } /* namespace madness */
 
 #endif /* SRC_APPS_CHEM_EXCHANGEOPERATOR_H_ */
