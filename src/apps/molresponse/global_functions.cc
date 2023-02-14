@@ -297,13 +297,6 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
     molresponse::end_timer(world, "ground exchange reorganize");
     return K0;
 }
-auto make_k(const vecfuncT &ket, const vecfuncT &bra)-> Exchange<double,3> {
-    const double lo = 1.e-10;
-    Exchange<double, 3> k{};
-    k.set_parameters(bra,ket,lo);
-    k.set_algorithm(k.multiworld_efficient);
-    return k;
-};
 /**
  * Computes ground density exchange on response vectors
  *  This algorithm places all functions in a single vector,
@@ -322,40 +315,53 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
     auto num_states = chi.num_states();
     auto num_orbitals = chi.num_orbitals();
     auto K = X_space::zero_functions(world, num_states, num_orbitals);
-    vecfuncT k1x,k2x,k1y,k2y;
+    world.gop.fence();
+    const double lo = 1.e-10;
+    vector_real_function_3d k1x, k1y, k2x, k2y;
+
+    auto make_k = [=](const auto &ket, const auto &bra) {
+        Exchange<double, 3> k{};
+        k.set_parameters(bra, ket, lo);
+        k.set_algorithm(k.multiworld_efficient);
+        return k;
+    };
 
     if (compute_y) {
         for (int b = 0; b < num_states; b++) {
-            auto x=chi.X[b];
-            auto y=chi.Y[b];
 
-            auto K1x = make_k(x,phi0);
-            auto K2x = make_k(phi0,y);
+            auto x = chi.X[b];
+            auto y = chi.Y[b];
 
-            auto K1y = make_k(y,phi0);
-            auto K2y = make_k(phi0,x);
+            auto K1X = make_k(x, phi0);
+            auto K1Y = make_k(phi0, y);
 
-            k1x=K1x(phi0);
-            k2x=K2x(phi0);
+            auto K2X = make_k(y, phi0);
+            auto K2Y = make_k(phi0, x);
 
-            k1y=K2x(phi0);
-            k2y=K2y(phi0);
+            k1x = K1X(phi0);
+            k1y = K1Y(phi0);
+            k2x = K2X(phi0);
+            k2y = K2Y(phi0);
+            world.gop.fence();
 
-            K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, false);
-            K.Y[b] = gaxpy_oop(1.0, k1y, 1.0, k2y, false);
+            K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k1y, false);
+            K.Y[b] = gaxpy_oop(1.0, k2x, 1.0, k2y, false);
+
             world.gop.fence();
         }
     } else {
         for (int b = 0; b < num_states; b++) {
-            auto x=chi.X[b];
-            auto y=chi.X[b];
-            auto K1x = make_k(x,phi0);
-            auto K2x = make_k(phi0,y);
 
-            k1x=K1x(phi0);
-            k2x=K2x(phi0);
+            auto x = chi.X[b];
+            auto y = chi.X[b];
 
-            K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k2x, true);
+            auto K1X = make_k(x, phi0);
+            auto K1Y = make_k(phi0, y);
+
+            k1x = K1X(phi0);
+            k1y = K1Y(phi0);
+
+            K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k1y, true);
         }
     }
     return K;
@@ -382,19 +388,31 @@ auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const 
     auto num_orbitals = chi.num_orbitals();
 
     auto K0 = X_space::zero_functions(world, num_states, num_orbitals);
+    // the question is copying pointers mpi safe
+    Exchange<double, 3> op{};
+    const Exchange<double, 3>::Algorithm algo = op.small_memory;
+    world.gop.fence();
+    const double lo = 1.e-10;
     if (compute_y) {
         for (int b = 0; b < num_states; b++) {
-            auto op_0x= make_k(phi0,phi0);
-            auto op_0y= make_k(phi0,phi0);
+            Exchange<double, 3> op_0x{};
+            op_0x.set_parameters(phi0, phi0, lo);
+            op_0x.set_algorithm(algo);
+            Exchange<double, 3> op_0y{};
+            op_0y.set_parameters(phi0, phi0, lo);
+            op_0y.set_algorithm(algo);
             K0.X[b] = op_0x(chi.X[b]);
             K0.Y[b] = op_0y(chi.Y[b]);
         }
     } else {
         for (int b = 0; b < num_states; b++) {
-            auto op_0x= make_k(phi0,phi0);
+            Exchange<double, 3> op_0x{};
+            op_0x.set_parameters(phi0, phi0, lo);
+            op_0x.set_algorithm(algo);
             K0.X[b] = op_0x(chi.X[b]);
         }
         K0.Y = K0.X.copy();
     }
+    K0.truncate();
     return K0;
 }

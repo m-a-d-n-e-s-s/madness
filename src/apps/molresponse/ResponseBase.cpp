@@ -21,6 +21,7 @@
 #endif
 #endif
 #endif
+
 // Initializes calculation object for both excited state and frequency dependent
 // Copies both the response and ground state
 /// Constructs the Base Response
@@ -354,7 +355,6 @@ auto ResponseBase::make_bsh_operators_response(World &world, double &shift,
     size_t num_orbitals = ground_energies.size();// number of orbitals
     std::vector<poperatorT> ops(num_orbitals);
     // Run over occupied components
-
     int p = 0;
     std::for_each(ops.begin(), ops.end(), [&](auto &operator_p) {
         double mu = sqrt(-2.0 * (ground_energies(p++) + omega + shift));
@@ -466,8 +466,8 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     X_space J(world, num_states, num_orbitals);
     response_space j_x(world, num_states, num_orbitals);
     response_space j_y(world, num_states, num_orbitals);
-    X_space W = X_space::zero_functions(world, num_states, num_orbitals);
 
+    X_space W = X_space::zero_functions(world, num_states, num_orbitals);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_zero_functions", "gamma_zero_functions", iter_timing);
     }
@@ -477,17 +477,18 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     // Create Coulomb potential on ground_orbitals
     functionT rho_x_b;
     functionT rho_y_b;
-    auto mul_tol = FunctionDefaults<3>::get_thresh()*.1;
-    // note that x can refer to x or y
+    auto mul_tol = FunctionDefaults<3>::get_thresh();
     auto rho_b = make_density(world, chi_alpha);
     int b = 0;
     for (const auto &rho_b_i: rho_b) {
         auto temp_J = apply(*shared_coulomb_operator, rho_b_i);
         J.X[b++] = mul(world, temp_J, phi0);
     }
+    world.gop.fence();
     J.Y = J.X.copy();
     if (world.rank() == 0) { print("copy JX into JY"); }
     world.gop.fence();
+
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "J[omega]", "J[omega]", iter_timing);
     }
@@ -506,16 +507,19 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
         }
     }
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+
     auto K = response_exchange_multiworld(phi0, chi_alpha, true);
+
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
     }
+    if (r_params.print_level() >= 20) { print_inner(world, "old xKx", chi_alpha, K); }
     molresponse::start_timer(world);
     X_space gamma(world, num_states, num_orbitals);
     auto c_xc = xcf.hf_exchange_coefficient();
-    gamma = 2 * J - c_xc * K;
+    gamma = 2 * J - c_xc * K + (1.0 - c_xc) * W;
     if (xcf.hf_exchange_coefficient() != 1.0) {
-        gamma = gamma+(1.0-c_xc)* W;
+        gamma += W;
         if (world.rank() == 0) { print("gamma: += W"); }
     }
     //gamma.truncate();
@@ -583,6 +587,11 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     X_space W = X_space::zero_functions(world, num_states, num_orbitals);
     X_space J(world, num_states, num_orbitals);
     X_space K = X_space::zero_functions(world, num_states, num_orbitals);
+    X_space KX = X_space::zero_functions(world, num_states, num_orbitals);
+    X_space KY = X_space::zero_functions(world, num_states, num_orbitals);
+
+    //     std::cout << "MPI BARRIER After create Zero functions gamma " << std::endl;
+    //     world.mpi.Barrier();
 
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_zero_functions", "gamma_zero_functions", iter_timing);
@@ -597,11 +606,22 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
 
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "compute density J[omega]"); }
 
+    // Create Coulomb potential on ground_orbitals
+
+    /*
+    auto compute_jx = [&, &phi0 = phi0](auto rho_alpha) {
+        auto temp_J = apply(*shared_coulomb_operator, rho_alpha);
+        return mul(world, temp_J, phi0);
+    };
+     */
+
     int b = 0;
     for (const auto &rho_b: rho) {
         auto temp_J = apply(*shared_coulomb_operator, rho_b);
         J.X[b++] = mul(world, temp_J, phi0);
     }
+    //std::transform(rho.begin(), rho.end(), J.X.begin(), compute_jx);
+    J.X.truncate_rf();
     J.Y = J.X.copy();
 
     if (r_params.print_level() >= 1) {
@@ -622,17 +642,55 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     }
 
 
+    /*
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+
+    std::transform(xy.X.begin(), xy.X.end(), KX.X.begin(),
+                   [&](const auto &xi) { return newK(xi, phi0, phi0); });
+
+    std::transform(xy.Y.begin(), xy.Y.end(), KY.X.begin(),
+                   [&](const auto &yi) { return newK(phi0, yi, phi0); });
+
+
+    K = KX + KY;
+    world.gop.fence();
+
+    if (r_params.print_level() >= 20) { print_inner(world, "old xK1x", xy, KX); }
+    if (r_params.print_level() >= 20) { print_inner(world, "old xK2x", xy, KY); }
+    if (r_params.print_level() >= 20) { print_inner(world, "old xKx", xy, K); }
+    if (r_params.print_level() >= 1) {
+        molresponse::end_timer(world, "old K[omega]", "K[omega]", iter_timing);
+    }
+     */
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K = response_exchange_multiworld(phi0, xy, false);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
     }
+    if (r_params.print_level() >= 20) { print_inner(world, "new static KX", xy, K); }
 
+    /*
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    K = response_exchange(phi0, xy, false);
+    if (r_params.print_level() >= 20) { print_inner(world, "new static KX", xy, K); }
+    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "new K[omega]"); }
+     */
+    // for each response state we compute the Gamma response functions
+    // trucate all response functions
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    /*
+    J.truncate();
+    KX.truncate();
+    KY.truncate();
+    W.truncate();
+     */
+
+    // update gamma functions
     gamma = 2 * J - K * xcf.hf_exchange_coefficient() + W;
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_truncate_add", "gamma_truncate_add", iter_timing);
     }
+    gamma.truncate();
 
     // project out ground state
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -649,9 +707,11 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     W.clear();
     xy.clear();
     phi0.clear();
+
     if (world.size() > 1) {
         FunctionDefaults<3>::set_pmap(old_pmap);// ! DON'T FORGET !
     }
+
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_clear_functions", "gamma_clear_functions",
                                iter_timing);
@@ -933,7 +993,6 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     auto c_xc = xcf.hf_exchange_coefficient();
     real_function_3d v0 = v_j0 + v_nuc + (1 - c_xc) * v_xc;
-    v0.truncate();
     double safety = 0.1;
     double vtol = safety * FunctionDefaults<3>::get_thresh();
     if (compute_Y) {
@@ -953,7 +1012,6 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "V0_add", "V0_add", iter_timing);
     }
-    V0.truncate();// we are removing noise here
     return V0;
 }
 
@@ -1069,11 +1127,9 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
     X_space res(world, m, n);
     if (compute_y) {
         res = g_chi - chi;
-        res.truncate();
         residual_norms = res.norm2s();
     } else {
         res.X = g_chi.X - chi.X;
-        res.X.truncate_rf();
         residual_norms = res.X.norm2();
     }
     if (r_params.print_level() >= 1) {
@@ -1190,15 +1246,12 @@ void ResponseBase::plotResponseOrbitals(World &world, size_t iteration,
                                         const response_space &y_response,
                                         ResponseParameters const &responseParameters,
                                         GroundStateCalculation const &g_params) {
+    std::filesystem::create_directories("plots/densities");
+    std::filesystem::create_directory("plots/orbitals");
 
-
-    std::string plot_dir = "plots/";
-#ifdef MADCHEM_HAS_STD_FILESYSTEM
-    std::filesystem::create_directory(plot_dir);
-#else
-    density_dir = "";
-    orbital_dir = "";
-#endif
+    // TESTING
+    // get transition density
+    // num orbitals
     size_t n = x_response[0].size();
     size_t m = x_response.size();
 
@@ -1216,35 +1269,32 @@ void ResponseBase::plotResponseOrbitals(World &world, size_t iteration,
         plotCoords plt(d, Lp);
         // plot ground density
         if (iteration == 1) {
-            auto d_i_path = plot_dir + "rho0_%c_0.plot";
-            snprintf(plot_name, buffSize, d_i_path.c_str(), dir[d]);
+            snprintf(plot_name, buffSize, "plots/densities/rho0_%c_0.plt", dir[d]);
             plot_line(plot_name, 5001, plt.lo, plt.hi, rho0);
         }
         for (int i = 0; i < static_cast<int>(n); i++) {
             // print ground_state
             // plot gound_orbitals
-            auto orb_i_path = plot_dir + "phi0_%c_0_%d.plt";
-            snprintf(plot_name, buffSize, orb_i_path.c_str(), dir[d], static_cast<int>(i));
+            snprintf(plot_name, buffSize, "plots/orbitals/phi0_%c_0_%d.plt", dir[d],
+                     static_cast<int>(i));
             plot_line(plot_name, 5001, plt.lo, plt.hi, ground_orbitals[i]);
         }
 
         for (int b = 0; b < static_cast<int>(m); b++) {
             // plot rho1 direction d state b
-            auto d_ib_path = plot_dir + "rho1_%c_%d.plt";
-            snprintf(plot_name, buffSize, d_ib_path.c_str(), dir[d],
+            snprintf(plot_name, buffSize, "plots/densities/rho1_%c_%d.plt", dir[d],
                      static_cast<int>(b));
             plot_line(plot_name, 5001, plt.lo, plt.hi, rho1[b]);
 
             for (int i = 0; i < static_cast<int>(n); i++) {
                 // print ground_state
-                auto o_ibx_path = plot_dir + "phix_%c_%d_%d.plt";
-                auto o_iby_path = plot_dir + "phiy_%c_%d_%d.plt";
-                snprintf(plot_name, buffSize, o_ibx_path.c_str(), dir[d],
+                // plot x function  x_dir_b_i__k_iter
+                snprintf(plot_name, buffSize, "plots/orbitals/phix_%c_%d_%d.plt", dir[d],
                          static_cast<int>(b), static_cast<int>(i));
                 plot_line(plot_name, 5001, plt.lo, plt.hi, x_response[b][i]);
 
-                // plot y function  y_dir_b_i__k_iter
-                snprintf(plot_name, buffSize, o_iby_path.c_str(), dir[d],
+                // plot y functione  y_dir_b_i__k_iter
+                snprintf(plot_name, buffSize, "plots/orbitals/phiy_%c_%d_%d.plt", dir[d],
                          static_cast<int>(b), static_cast<int>(i));
                 plot_line(plot_name, 5001, plt.lo, plt.hi, y_response[b][i]);
             }
