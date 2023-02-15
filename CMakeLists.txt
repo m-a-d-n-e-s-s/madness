@@ -1,11 +1,27 @@
 cmake_minimum_required (VERSION 3.11.0)
-project(MADNESS CXX C ASM)
+
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release)
+endif()
+
+# safety net for dev workflow: accidental install will not affect FindOrFetch*
+if (NOT DEFINED CACHE{CMAKE_FIND_NO_INSTALL_PREFIX})
+  set(CMAKE_FIND_NO_INSTALL_PREFIX ON CACHE BOOL "Whether find_* commands will search CMAKE_INSTALL_PREFIX and CMAKE_STAGING_PREFIX; see https://cmake.org/cmake/help/latest/variable/CMAKE_FIND_NO_INSTALL_PREFIX.html#variable:CMAKE_FIND_NO_INSTALL_PREFIX")
+endif()
 
 # Set MADNESS version
 set(MADNESS_MAJOR_VERSION 0)
 set(MADNESS_MINOR_VERSION 10)
 set(MADNESS_MICRO_VERSION 1)
 set(MADNESS_VERSION "${MADNESS_MAJOR_VERSION}.${MADNESS_MINOR_VERSION}.${MADNESS_MICRO_VERSION}")
+
+# Declare ourselves ============================================================
+
+project(MADNESS
+        VERSION ${MADNESS_VERSION}
+        DESCRIPTION "MADNESS: fast, adaptive multiresolution integrodifferential calculus in 1..6 dimensions"
+        LANGUAGES CXX C ASM
+        HOMEPAGE_URL "https://madness.readthedocs.io/")
 
 # Add source directory =========================================================
 
@@ -25,6 +41,7 @@ include(CMakeDependentOption)
 include(AddMADLibrary)
 include(AddMADExecutable)
 include(AddUnittests)
+include(AddScriptedTests)
 include(CMakePackageConfigHelpers)
 include(CopyTargetProperties)
 include(FeatureSummary)
@@ -79,7 +96,8 @@ include(external/versions.cmake)
 # failure to find the library is an error. 
 
 option(ENABLE_MPI "Enable Message Passing Interface (MPI) Library" ON)
-redefaultable_option(ENABLE_MKL "Search for Intel Math Kernel Library (MKL) for BLAS and LAPACK support" ON)
+#redefaultable_option(ENABLE_MKL "Search for Intel Math Kernel Library (MKL) for BLAS and LAPACK support" ON)
+option(ENABLE_MKL "Search for Intel Math Kernel Library (MKL) for BLAS and LAPACK support" ON)
 option(ENABLE_ACML "Search for AMD Core Math Library (ACML) for BLAS and LAPACK support" ON)
 option(ENABLE_TCMALLOC_MINIMAL "Enable use of tcmalloc_minimal library from Google Performance Tools (gperftools)" OFF)
 option(ENABLE_GPERFTOOLS "Enable use of full Google Performance Tools (gperftools)" OFF)
@@ -605,9 +623,10 @@ endif()
 # ccache for caching builds
 find_program(CCACHE ccache)
 if(CCACHE)
-    message (STATUS "Found ccache: ${CCACHE}")
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${CCACHE})
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ${CCACHE})
+  mark_as_advanced(CCACHE)
+  message (STATUS "Found ccache: ${CCACHE}")
+  set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE}" CACHE STRING "Compiler launcher to use for compiling C++")
+  set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE}" CACHE STRING "Compiler launcher to use for compiling C")
 endif(CCACHE)
 
 # Check for external dependencies ==============================================
@@ -652,25 +671,13 @@ include(CTest)
 if(BUILD_TESTING)
   set(MADNESS_HAS_GOOGLE_TEST 1)
   add_custom_target_subproject(madness unittests)
+  add_custom_target_subproject(madness scripted_tests)
   add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} -V -R "madness/test/" USES_TERMINAL) # to be GNU compatible
+  add_custom_target_subproject(madness check-short COMMAND ${CMAKE_CTEST_COMMAND} -L \"short|medium\" -V -R "madness/test/" USES_TERMINAL) # to be GNU compatible
   add_dependencies(everything unittests)
 endif()
 add_subdirectory(src)
 add_subdirectory(doc)
-
-# Get the git revision tag information =========================================
-
-if(EXISTS ${PROJECT_SOURCE_DIR}/.git)
-  find_package(Git REQUIRED)
-  execute_process(
-      COMMAND ${GIT_EXECUTABLE} rev-parse -q HEAD
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-      OUTPUT_VARIABLE MADNESS_REVISION )
-  string(REGEX MATCH "[0-9a-f]*"
-      MADNESS_REVISION "${MADNESS_REVISION}")
-else()
-  set(MADNESS_REVISION "unknown")
-endif()
 
 # Generate configure files =====================================================
 

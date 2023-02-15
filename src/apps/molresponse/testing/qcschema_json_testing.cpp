@@ -2,7 +2,8 @@
 // Created by adrianhurtado on 1/1/22.
 //
 
-#include "apps/external_headers/tensor_json.hpp"
+#include "madness/tensor/tensor_json.hpp"
+#include "madness/external/catch/catch.hpp"
 #include "response_functions.h"
 #include "timer.h"
 #include "string"
@@ -167,7 +168,7 @@ TEST_CASE("print_QCSchema Test ", "Json Tensor Indexing") {
 
   to_json(j,double_tensor_vals);
 
-  output_schema("test_schema",j);
+  output_schema( "test_schema", j);
 
 }
 TEST_CASE("Response Parameters Test ", "Testing parameters to_json") {

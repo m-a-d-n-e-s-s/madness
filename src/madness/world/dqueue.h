@@ -79,11 +79,15 @@ namespace madness {
     template <typename T>
     class DQueue : private CONDITION_VARIABLE_TYPE {
         char pad[64]; ///< To put the lock and the data in separate cache lines
-        volatile size_t n __attribute__((aligned(64)));        ///< Number of elements in the buffer
-        volatile size_t sz;              ///< Current capacity
-        volatile T* volatile buf;        ///< Actual buffer
-        volatile int _front;  ///< Index of element at front of buffer
-        volatile int _back;    ///< Index of element at back of buffer
+        
+        // n, sz, buf, _front, _back used to be volatile, but not actually needed since every access
+        // happens with the mutex and its implied barriers.
+        size_t n __attribute__((aligned(64)));        ///< Number of elements in the buffer
+        size_t sz;              ///< Current capacity
+        T* buf;        ///< Actual buffer
+        int _front;  ///< Index of element at front of buffer
+        int _back;    ///< Index of element at back of buffer
+        
         DQStats stats;
 
 #ifdef MADNESS_DQ_USE_PREBUF
@@ -106,7 +110,8 @@ namespace madness {
                 sz *= 2;
             else
                 sz += 1048576;
-            volatile T* volatile nbuf = new T[sz];
+            //volatile T* volatile nbuf = new T[sz];
+            T* nbuf = new T[sz];
             int lo = sz/2 - oldsz/2;
             for (int i=_front; i<int(oldsz); ++i,++lo) {
                 nbuf[lo] = buf[i];
@@ -256,7 +261,7 @@ namespace madness {
 
             if (nn==0 && wait) {
                 while (n == 0) // !!! Must be n (memory) not nn (local copy)
-                    CONDITION_VARIABLE_TYPE::wait();
+                    CONDITION_VARIABLE_TYPE::wait(); // might release then reacquire the lock, acts as barrier
 
                 nn = n;
             }

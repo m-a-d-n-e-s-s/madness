@@ -38,18 +38,18 @@ namespace madness {
 
         /// Function trait specialization for a callable (can be a function, a (generic) lambda, etc.)
         template <typename fnT, typename... argTs>
-        struct function_traits<fnT(argTs...), typename std::enable_if_t<is_type<std::result_of_t<fnT(argTs...)>>::value>> {
+        struct function_traits<fnT(argTs...), std::enable_if_t<is_type<std::invoke_result_t<fnT, argTs...>>::value>> {
             static const bool value = true;
             static const int arity = sizeof...(argTs);
-            using result_type = std::result_of_t<fnT(argTs...)>;
+            using result_type = std::invoke_result_t<fnT, argTs...>;
         };
 
         /// Function traits in the spirit of boost function traits
         template <typename fnT, typename... argTs>
-        struct callable_traits<fnT(argTs...), typename std::enable_if_t<is_type<std::result_of_t<fnT(argTs...)>>::value>> {
+        struct callable_traits<fnT(argTs...), std::enable_if_t<is_type<std::invoke_result_t<fnT, argTs...>>::value>> {
             static const bool value = true;
             static const int arity = sizeof...(argTs);
-            using result_type = std::result_of_t<fnT(argTs...)>;
+            using result_type = std::invoke_result_t<fnT, argTs...>;
         };
 
         /// Member function traits in the spirit of boost function traits

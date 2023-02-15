@@ -9,19 +9,19 @@
 #include "../chem/molecule.h"
 #include "Plot_VTK.h"
 #include "TDDFT.h"
-#include "apps/external_headers/tensor_json.hpp"
-#include "chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
+#include "madness/tensor/tensor_json.hpp"
+#include "madness/chem/projector.h"  // For easy calculation of (1 - \hat{\rho}^0)
 #include "madness/mra/funcdefaults.h"
 #include "molresponse/response_functions.h"
 #include "molresponse/timer.h"
 #include "molresponse/x_space.h"
 
-json iteration_to_json(int iter,
+nlohmann::json iteration_to_json(int iter,
                        const Tensor<double>& bsh_residualsX,
                        const Tensor<double>& bsh_residualsY,
                        const Tensor<double>& density_residuals,
                        const Tensor<double>& omega) {
-  json j_iter = {};
+  nlohmann::json j_iter = {};
   j_iter["iter"] = iter;
   j_iter["bsh_residualsX"] = tensor_to_json(bsh_residualsX);
   j_iter["bsh_residualsY"] = tensor_to_json(bsh_residualsY);

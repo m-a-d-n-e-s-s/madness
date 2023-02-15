@@ -352,7 +352,9 @@ namespace madness {
         nfinished = 0;
         instance_ptr = this;
         if (nthreads < 0) nthreads = default_nthread();
-        MADNESS_ASSERT(nthreads >= 0);
+        MADNESS_ASSERT(nthreads >=0);
+        if (nthreads>64)
+            MADNESS_EXCEPTION("\n\nno more than 64 threads in MADNESS:\nexport MAD_NUM_THREADS = 64\n",1);
 
         const int rc = pthread_setspecific(ThreadBase::thread_key,
                 static_cast<void*>(&main_thread));

@@ -35,12 +35,12 @@
 /// \file molresponse.cc
 /// \brief Molecular Response DFT code
 /// \defgroup molresponse The molecular density funcitonal response code
-#include <chem/SCF.h>
+#include <madness/chem/SCF.h>
 #include <madness/world/worldmem.h>
-#include "ResponseExceptions.hpp"
 
-#include "TDDFT.h"  // All response functions/objects enter through this
-#include "molresponse/density.h"
+#include "ExcitedResponse.hpp"
+#include "FrequencyResponse.hpp"
+#include "ResponseExceptions.hpp"
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 
@@ -48,116 +48,83 @@
 #include <unistd.h>
 
 static inline int file_exists(const char *inpname) {
-  struct stat buffer {};
-  size_t rc = stat(inpname, &buffer);
-  return (rc == 0);
+    struct stat buffer{};
+    size_t rc = stat(inpname, &buffer);
+    return (rc == 0);
 }
 
 #endif
 
 
-
 using namespace madness;
 
 int main(int argc, char **argv) {
-  initialize(argc, argv);
-  {  // limit lifetime of world so that finalize() can execute cleanly
-    World world(SafeMPI::COMM_WORLD);
+    World &world = madness::initialize(argc, argv);
+    startup(world, argc, argv, true);
+    sleep(10);
+    int result = 0;
+    std::cout.precision(6);
+    std::string filename = "response.in";
+
+
     molresponse::start_timer(world);
     // try catch would start here
     try {
-      startup(world, argc, argv, true);
-      print_meminfo(world.rank(), "startup");
-      FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
+        auto calc_params = initialize_calc_params(world, filename);
+        if (calc_params.response_parameters.excited_state()) {
 
-      std::cout.precision(6);
-      // This makes a default input file name of 'input'
-      const char *input_file = "response.in";
-      // Process 0 reads input information and broadcasts
-      for (int i = 1; i < argc; i++) {
-        if (argv[i][0] != '-') {
-          input_file = argv[i];
-          break;
+            ExcitedResponse calc(world, calc_params);
+            if (world.rank() == 0) {
+                print("\n\n");
+                print(" MADNESS Time-Dependent Density Functional Theory Excited-State "
+                      "Program");
+                print(" ----------------------------------------------------------\n");
+                print("\n");
+                calc_params.molecule.print();
+                print("\n");
+                calc_params.response_parameters.print("response");
+                // put the response parameters in a j_molrespone json object
+            }
+            calc_params.response_parameters.to_json(calc.j_molresponse);
+            // set protocol to the first
+            calc.solve(world);
+            calc.output_json();
+        } else if (calc_params.response_parameters.first_order()) {
+            RHS_Generator rhsGenerator;
+            if (calc_params.response_parameters.dipole()) {
+                rhsGenerator = dipole_generator;
+            } else if (calc_params.response_parameters.nuclear()) {
+                rhsGenerator = nuclear_generator;
+            }
+            auto omega = calc_params.response_parameters.omega();
+            FrequencyResponse calc(world, calc_params, omega, rhsGenerator);
+            // Warm and fuzzy for the user
+            if (world.rank() == 0) {
+                print("\n\n");
+                print(" MADNESS Time-Dependent Density Functional Theory Frequency Response "
+                      "Program");
+                print(" ----------------------------------------------------------\n");
+                print("\n");
+                calc_params.molecule.print();
+                print("\n");
+                calc_params.response_parameters.print("response");
+            }
+            calc_params.response_parameters.to_json(calc.j_molresponse);
+            // set protocol to the first
+            calc.solve(world);
+            calc.output_json();
+        } else {
+            if (world.rank() == 0) { print("Response not implemented"); }
         }
-      }
 
-      if (world.rank() == 0) print("input filename: ", input_file);
-      if (!file_exists(input_file)) throw Input_Error{};
+    } catch (const SafeMPI::Exception &e) { print(e); } catch (const madness::MadnessException &e) {
+        std::cout << e << std::endl;
+    } catch (const madness::TensorException &e) { print(e); } catch (const char *s) {
+        print(s);
+    } catch (const std::string &s) { print(s); } catch (const std::exception &e) {
+        print(e.what());
+    } catch (...) { error("caught unhandled exception"); }
 
-      auto [ground_calculation, molecule, response_parameters] =
-      initialize_calc_params(world, std::string(input_file));
-      vecfuncT ground_orbitals = ground_calculation.orbitals();
-
-      density_vector rho = set_density_type(world, response_parameters, ground_calculation);
-      // first step is to read the input for r_params and g_params
-      // Create the TDDFT object
-      TDDFT calc = TDDFT(world, rho);
-
-      // Warm and fuzzy for the user
-      if (world.rank() == 0) {
-        print("\n\n");
-        print(
-            " MADNESS Time-Dependent Density Functional Theory Response "
-            "Program");
-        print(" ----------------------------------------------------------\n");
-        print("\n");
-        calc.molecule.print();
-        print("\n");
-        calc.r_params.print("response");
-        // put the response parameters in a j_molrespone json object
-        calc.r_params.to_json(calc.j_molresponse);
-      }
-      molresponse::end_timer(world, "initialize");
-      // Come up with an initial OK data map
-      if (world.size() > 1) {
-        calc.set_protocol<3>(world, 1e-4);
-        calc.make_nuclear_potential(world);
-        calc.initial_load_bal(world);
-      }
-      // set protocol to the first
-      if (calc.r_params.excited_state()) {
-        calc.solve_excited_states(world);
-      } else if (calc.r_params.first_order()) {
-        calc.solve_response_states(world);
-      } else if (calc.r_params.second_order()) {
-      } else {
-        throw Response_Input_Error{};
-      }
-      calc.output_json();
-      if (calc.r_params.dipole()) {  //
-        print("Computing Alpha");
-        Tensor<double> alpha = calc.polarizability();
-        print("Second Order Analysis");
-        calc.PrintPolarizabilityAnalysis(world, alpha);
-      }
-    } catch (const Input_Error &e) {
-      print(e);
-      error("Input File Error");
-    } catch (const SafeMPI::Exception &e) {
-      print(e);
-      error("caught an MPI exception");
-    } catch (const madness::MadnessException &e) {
-      print(e);
-      error("caught a MADNESS exception");
-    } catch (const madness::TensorException &e) {
-      print(e);
-      error("caught a Tensor exception");
-    } catch (const char *s) {
-      print(s);
-      error("caught a string exception");
-    } catch (const std::string &s) {
-      print(s);
-      error("caught a string (class) exception");
-    } catch (const std::exception &e) {
-      print(e.what());
-      error("caught an STL exception");
-    } catch (...) {
-      error("caught unhandled exception");
-    }
-    world.gop.fence();
-    print_stats(world);
     finalize();
-  }
-
-  return 0;
+    return result;
 }

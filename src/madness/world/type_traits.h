@@ -222,7 +222,7 @@ namespace madness {
         std::is_arithmetic<T>::value || \
         std::is_function<T>::value  || \
         is_any_function_pointer_v<T> || \
-        (std::is_pod<T>::value && !std::is_pointer<T>::value);
+        (std::is_standard_layout<T>::value && std::is_trivial<T>::value && !std::is_pointer<T>::value);
 //        ((std::is_class<T>::value || std::is_array<T>::value) && std::is_trivially_copyable<T>::value);
     };
 

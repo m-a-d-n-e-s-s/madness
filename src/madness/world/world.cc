@@ -67,9 +67,9 @@ namespace madness {
     } // namespace
 
     // World static member variables
-    std::list<World*> World::worlds; ///< List of \c World pointers in the parallel runtime.
+    std::list<World*> World::worlds; ///< List of \c World pointers in the parallel runtime EXCEPT the default World
     World* World::default_world = nullptr; ///< The default \c World.
-    unsigned long World::idbase = 0; ///< \todo Verify: Base unique ID for objects in the runtime.
+    std::pair<std::uint64_t, std::uint64_t> World::world_id__next_last{};
 
     bool initialized() {
       return madness_initialized_;
@@ -78,7 +78,8 @@ namespace madness {
       return madness_quiet_;
     }
 
-    World::World(const SafeMPI::Intracomm& comm)
+    World::World(const SafeMPI::Intracomm& comm,
+                 bool fence)
             : obj_id(1)          ///< start from 1 so that 0 is an invalid id
             , user_state(0)
             , mpi(*(new WorldMpiInterface(comm)))
@@ -87,32 +88,20 @@ namespace madness {
             , gop(* (new WorldGopInterface(*this)))
             , myrand_next(0)
     {
-        worlds.push_back(this);
-        srand();  // Initialize random number generator
-        cpu_frequency();
-
-        // Assign a globally (within COMM_WORLD) unique ID to this
-        // world by assigning to each processor a unique range of indices
-        // and broadcasting from node 0 of the current communicator.
-        // Each process in COMM_WORLD is given unique ids for 10K new worlds
-        if(idbase == 0 && rank()) {
-            idbase = rank()*10000;
-        }
-        // The id of a new world is taken from the unique range of ids
-        // assigned to the process with rank=0 in the sub-communicator
         if(rank() == 0) {
-            _id = idbase++;
+            _id = next_world_id();
         }
+
         // Use MPI for broadcast as incoming messages may try to access an
         // uninitialized world.
         mpi.Bcast(_id, 0);
-//        gop.broadcast(_id);
-//        gop.barrier();
         am.worldid = _id;
 
-        //std::cout << "JUST MADE WORLD " << id() << " with "
-        //          << comm.Get_size() << " members (I am # "
-        //          << comm.Get_rank() << ")"<< std::endl;
+        if (_id != 0)
+          worlds.push_back(this);
+
+        if (fence)
+          mpi.Barrier();
     }
 
 
@@ -129,11 +118,22 @@ namespace madness {
 //        stray WorldObjects are allowed as long as they outlive madness::finalize() :(
 //        MADNESS_ASSERT_NOEXCEPT(map_ptr_to_id.size() == 0);
 //        MADNESS_ASSERT_NOEXCEPT(map_id_to_ptr.size() == 0);
-        worlds.remove(this);
+        if (this->_id != 0) worlds.remove(this);
         delete &taskq;
         delete &gop;
         delete &am;
         delete &mpi;
+    }
+
+    void World::initialize_world_id_range(int global_rank) {
+      constexpr std::uint64_t range_size = 1ul<<32;
+      constexpr std::uint64_t range_size_minus_1 = (1ul<<32) - 1;
+      world_id__next_last = std::make_pair(global_rank * range_size, global_rank * range_size + range_size_minus_1);
+    }
+
+    std::uint64_t World::next_world_id() {
+      MADNESS_ASSERT(world_id__next_last.first != world_id__next_last.second);
+      return world_id__next_last.first++;
     }
 
     void error(const char *msg) {
@@ -205,6 +205,11 @@ namespace madness {
         ThreadBase::set_hpm_thread_env(hpm_thread_id);
 #endif
         detail::WorldMpi::initialize(argc, argv, MADNESS_MPI_THREAD_LEVEL);
+
+        // Assign a range of globally (within COMM_WORLD) unique IDs to each
+        // rank, these will be used to assign globally unique ID to a new World
+        // requiring only communication within its (sub)communicator
+        World::initialize_world_id_range(comm.Get_rank());
 
         // Construct the default world before starting RMI so that incoming active messages can find this world
         World::default_world = new World(comm);

@@ -1,0 +1,60 @@
+name: publish-doxygen
+
+# Trigger this when a pull request is merged (which implies pushing to master).
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  doxygen:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Git Checkout
+        uses: actions/checkout@v2
+
+      - name: Create clean gh-pages branch
+        run:  git checkout -b gh-pages
+
+      - name: Install prerequisites Ubuntu packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install ninja-build g++-9 liblapack-dev openmpi-bin libopenmpi-dev libtbb-dev doxygen
+
+      - name: configure
+        shell: bash
+        working-directory: ${{github.workspace}}
+        run:  |
+          cmake -E make_directory ${{github.workspace}}/build
+          cd build && cmake $GITHUB_WORKSPACE 
+
+      - name: build
+        shell: bash
+        working-directory: ${{github.workspace}}/build
+        run:
+          cd ${{github.workspace}}/build && make docs
+
+      - name: Move generated autodocs to target directory
+        working-directory: ${{github.workspace}}/build
+        run:  mv doc/html ../api-doc
+
+      - name: Add generated autodocs to Git repo in the gh-pages branch
+        working-directory: ${{github.workspace}}
+        run:  |
+          git config --global user.email "florian.bischoff@hu-berlin.de"
+          git config --global user.name  "$GITHUB_WORKFLOW GitHub action"
+          git add api-doc
+          git commit -am "Generated API doc"
+
+      - name: Publish autodocs as GitHub pages
+        run:  git push -f origin gh-pages:gh-pages
+
+      - name: Result URLs
+        run:  |
+          REPO_OWNER=$(echo $GITHUB_REPOSITORY | cut -d '/' -f 1)
+          REPO_NAME=$(echo $GITHUB_REPOSITORY | cut -d '/' -f 2)
+          echo "Formatted API docs:  https://$REPO_OWNER.github.io/$REPO_NAME/api-doc"
+          echo ""
+          echo "GitHub pages branch: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/tree/gh-pages" 

@@ -8,8 +8,7 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
   # make library target(s)
   # if building shared library, build static as well using the same objects
   add_library(MAD${_name} $<TARGET_OBJECTS:MAD${_name}-obj>)
-  add_library(${_name} ALIAS MAD${_name})
-  add_dependencies(madness-libraries ${_name})
+  add_dependencies(madness-libraries MAD${_name})
   if(BUILD_SHARED_LIBS)
     if (NOT DEFINED CMAKE_POSITION_INDEPENDENT_CODE)
       set_target_properties(MAD${_name}-obj PROPERTIES POSITION_INDEPENDENT_CODE TRUE)  # this is the default anyway, but produce a warning just in case
@@ -88,6 +87,13 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
     endforeach(_dep ${_dep_mad_comp})
     set_target_properties(${targetname} PROPERTIES LINK_FLAGS "${LINK_FLAGS}")
     target_compile_features(${targetname} INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")
+    # if (CMAKE_CXX_STANDARD GREATER_EQUAL 20) # volatile issues now (mostly) fixed properly, so restore warnings
+    #   if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    #     target_compile_options(MAD${_name} PUBLIC "-Wno-deprecated-volatile")
+    #   elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    #     target_compile_options(MAD${_name} PUBLIC "-Wno-volatile")
+    #   endif()
+    # endif()
 
 endmacro()
 
@@ -100,7 +106,6 @@ macro(add_mad_hdr_library _name _header_files _dep_mad_comp _include_dir)
   add_library(MAD${_name} INTERFACE)
   
   # Add target dependencies
-  add_library(${_name} ALIAS MAD${_name})
   add_dependencies(libraries-madness MAD${_name})
   
   target_include_directories(MAD${_name} INTERFACE
@@ -140,6 +145,13 @@ macro(add_mad_hdr_library _name _header_files _dep_mad_comp _include_dir)
   endforeach()
   
   target_compile_features(MAD${_name} INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")
-  
+  if (CMAKE_CXX_STANDARD GREATER_EQUAL 20)
+    if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+      target_compile_options(MAD${_name} INTERFACE "-Wno-deprecated-volatile")
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+      target_compile_options(MAD${_name} INTERFACE "-Wno-volatile")
+    endif()
+  endif()
+
   set(${_name}_is_mad_hdr_lib TRUE)
 endmacro()

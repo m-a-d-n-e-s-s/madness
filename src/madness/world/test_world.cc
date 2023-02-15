@@ -250,7 +250,7 @@ void test5(World& world) {
 }
 
 class TestBarrier : public TaskInterface {
-    volatile int count;
+    int count; // does not need to be volatile since barrier includes necessary memory fences
 public:
 
     TestBarrier(const madness::TaskAttributes& attr)
@@ -285,12 +285,10 @@ public:
 };
 
 class TimeBarrier : public TaskInterface {
-//    volatile int count;
 public:
 
     TimeBarrier(const madness::TaskAttributes& attr)
         : TaskInterface(attr)
-//        , count(0)
     {
         print("Timing barrier with nthread", attr.get_nthread());
     }

@@ -148,9 +148,8 @@ namespace madness {
         typedef uint16_t counterT;
         typedef uint32_t attrT;
 
-        static thread_local bool is_server_thread; //< if true this thread is the server thread
-
-        
+        /// @return reference to the boolean variable indicating whether this thread is the server thread
+        static bool& is_server_thread_accessor();
 
     public:
 
@@ -165,8 +164,8 @@ namespace madness {
 
         static int testsome_backoff_us;
 
-        static void set_this_thread_is_server(bool flag = true) {is_server_thread = flag;}
-        static bool get_this_thread_is_server() {return is_server_thread;}
+        static void set_this_thread_is_server(bool flag = true) { is_server_thread_accessor() = flag;}
+        static bool get_this_thread_is_server() {return is_server_thread_accessor();}
 
         static std::list< std::unique_ptr<RMISendReq> > send_req; // List of outstanding world active messages sent by the server
 
@@ -205,9 +204,8 @@ namespace madness {
             SafeMPI::Intracomm comm;
             const int nproc;            // No. of processes in comm world
             const ProcessID rank;       // Rank of this process
-            std::atomic<bool> finished;     // True if finished
-
-            std::unique_ptr<volatile counterT[]> send_counters;
+            std::atomic<bool> finished;     // True if finished ... atomic seems preferable to volatile
+            std::unique_ptr<counterT[]> send_counters; // used to be volatile but no need
             std::unique_ptr<counterT[]> recv_counters;
             std::size_t max_msg_len_;
             std::size_t nrecv_;
@@ -290,7 +288,7 @@ namespace madness {
 
         static std::unique_ptr<RmiTask> task_ptr;    // Pointer to the singleton instance
         static RMIStats stats;
-        static volatile bool debugging;    // True if debugging
+        static bool debugging;    // True if debugging ... used to be volatile but no need
 
         static const size_t DEFAULT_MAX_MSG_LEN = 3*512*1024;  //!< the default size of recv buffers, in bytes; the actual size can be configured by the user via envvar MAD_BUFFER_SIZE
         static const int DEFAULT_NRECV = 128;  //!< the default # of recv buffers; the actual number can be configured by the user via envvar MAD_RECV_BUFFERS

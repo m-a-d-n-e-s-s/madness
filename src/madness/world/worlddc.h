@@ -442,6 +442,16 @@ namespace madness {
             return pmap;
         }
 
+        std::shared_ptr< WorldDCPmapInterface<keyT> >& get_pmap() {
+            return pmap;
+        }
+
+        void reset_pmap_to_local() {
+            pmap->deregister_callback(this);
+            pmap.reset(new WorldDCLocalPmap<keyT>(this->get_world()));
+            pmap->register_callback(this);
+        }
+
         /// replicates this WorldContainer on all ProcessIDs and generates a
         /// ProcessMap where all nodes are local
         void replicate(bool fence) {
@@ -844,6 +854,11 @@ namespace madness {
             return p->get_world();
         }
 
+        std::shared_ptr< WorldDCPmapInterface<keyT> >& get_impl() {
+            check_initialized();
+            return p;
+        }
+
         /// replicates this WorldContainer on all ProcessIDs
         void replicate(bool fence=true) {
         	p->replicate(fence);
@@ -1014,6 +1029,11 @@ namespace madness {
         inline const std::shared_ptr< WorldDCPmapInterface<keyT> >& get_pmap() const {
             check_initialized();
             return p->get_pmap();
+        }
+
+        /// Returns shared pointer to the process mapping
+        inline void reset_pmap_to_local() {
+            p->reset_pmap_to_local();
         }
 
         /// Returns a reference to the hashing functor

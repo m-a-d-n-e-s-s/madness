@@ -20,8 +20,8 @@
 #include <madness/tensor/elem.h>
 
 
-#include <chem/xcfunctional.h>
-#include <chem/SCFOperators.h>
+#include<madness/chem/xcfunctional.h>
+#include<madness/chem/SCFOperators.h>
 
 #include <madness/mra/legendre.h>
 

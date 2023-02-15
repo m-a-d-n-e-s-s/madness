@@ -880,6 +880,17 @@ namespace madness {
 
         }
     };
+
+    // instantiated in mra1.cc
+    template <>
+    ConcurrentHashMap< hashT, std::shared_ptr< GaussianConvolution1D<double> > >
+        GaussianConvolution1DCache<double>::map;
+
+    // instantiated in mra1.cc
+    template <>
+    ConcurrentHashMap< hashT, std::shared_ptr< GaussianConvolution1D<double_complex> > >
+        GaussianConvolution1DCache<double_complex>::map;
+
 }
 
 #endif // MADNESS_MRA_CONVOLUTION1D_H__INCLUDED

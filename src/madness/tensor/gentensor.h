@@ -177,16 +177,16 @@ namespace madness {
 
 	public:
 
-		GenTensor<T>() : Tensor<T>() {}
+		GenTensor() : Tensor<T>() {}
 
-		GenTensor<T>(const Tensor<T>& t1) : Tensor<T>(t1) {}
-		GenTensor<T>(const Tensor<T>& t1, const TensorArgs& targs) : Tensor<T>(t1) {}
-		GenTensor<T>(const Tensor<T>& t1, double eps, const TensorType tt) : Tensor<T>(t1) {}
-		GenTensor<T>(const TensorType tt): Tensor<T>() {}
-		GenTensor<T>(std::vector<long> v, const TensorType& tt) : Tensor<T>(v) {}
-		GenTensor<T>(std::vector<long> v, const TensorArgs& targs) : Tensor<T>(v) {}
-		GenTensor<T>(const SRConf<T>& sr1) : Tensor<T>() {MADNESS_EXCEPTION("no ctor with SRConf: use HAVE_GENTENSOR",1);}
-		GenTensor<T>(long nd, const long d[], const TensorType& tt) : Tensor<T>(nd,d){};
+		GenTensor(const Tensor<T>& t1) : Tensor<T>(t1) {}
+		GenTensor(const Tensor<T>& t1, const TensorArgs& targs) : Tensor<T>(t1) {}
+		GenTensor(const Tensor<T>& t1, double eps, const TensorType tt) : Tensor<T>(t1) {}
+		GenTensor(const TensorType tt): Tensor<T>() {}
+		GenTensor(std::vector<long> v, const TensorType& tt) : Tensor<T>(v) {}
+		GenTensor(std::vector<long> v, const TensorArgs& targs) : Tensor<T>(v) {}
+		GenTensor(const SRConf<T>& sr1) : Tensor<T>() {MADNESS_EXCEPTION("no ctor with SRConf: use HAVE_GENTENSOR",1);}
+		GenTensor(long nd, const long d[], const TensorType& tt) : Tensor<T>(nd,d){};
 
         /// Type conversion makes a deep copy
         template <class Q> operator GenTensor<Q>() const { // type conv => deep copy
@@ -196,15 +196,15 @@ namespace madness {
         }
 
         GenTensor convert(const TensorArgs& targs) const {return copy(*this);}
-        GenTensor<T> reconstruct_tensor() const {return *this;}
-        GenTensor<T> full_tensor() const {return *this;}
-        GenTensor<T>& full_tensor() {return *this;}
+        GenTensor reconstruct_tensor() const {return *this;}
+        GenTensor full_tensor() const {return *this;}
+        GenTensor& full_tensor() {return *this;}
 
-        GenTensor<T> get_tensor() const {return *this;}
-        GenTensor<T>& get_tensor() {return *this;}
+        GenTensor get_tensor() const {return *this;}
+        GenTensor& get_tensor() {return *this;}
 
-        GenTensor<T> full_tensor_copy() const {return copy(*this);}
-        GenTensor<T> full_tensor_copy() {return copy(*this);}
+        GenTensor full_tensor_copy() const {return copy(*this);}
+        GenTensor full_tensor_copy() {return copy(*this);}
 
         bool is_assigned() const {return this->size()>0;};
         bool has_data() const {return this->size()>0;};
@@ -219,9 +219,9 @@ namespace madness {
 
         std::string what_am_i() const {return "GenTensor, aliased to Tensor";};
 		TensorType tensor_type() const {return TT_FULL;}
-        bool is_svd_tensor() const {return false;}
-        bool is_tensortrain() const {return false;}
-        bool is_full_tensor() const {return true;}
+        constexpr bool is_svd_tensor() const {return false;}
+        constexpr bool is_tensortrain() const {return false;}
+        constexpr bool is_full_tensor() const {return true;}
         bool is_of_tensortype(const TensorType& tt) const {return (tt==TT_FULL);}
 
 

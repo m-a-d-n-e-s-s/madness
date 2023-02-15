@@ -65,9 +65,8 @@ namespace madness {
 
 namespace madness {
 
-    static const std::string mad_root_dir = MAD_ROOT_DIR;
 
-    /// Tri-diagonal operator traversing tree primarily for derivative operator
+/// Tri-diagonal operator traversing tree primarily for derivative operator
 
     /// \ingroup mra
     template <typename T, std::size_t NDIM>
@@ -615,35 +614,35 @@ namespace madness {
         void set_bspline1() {
            int k = FunctionDefaults<NDIM>::get_k();
            if(k > 18) throw "Bspline derivatives are only available up to k=18";
-           std::string filename = mad_root_dir + "/src/madness/mra/b-spline-deriv1.txt";
+           std::string filename = get_mra_data_dir() + "/b-spline-deriv1.txt";
            read_from_file(filename, 1);
         }
 
         void set_bspline2() {
            int k = FunctionDefaults<NDIM>::get_k();
            if(k > 18) throw "Bspline derivatives are only available up to k=18";
-           std::string filename = mad_root_dir + "/src/madness/mra/b-spline-deriv2.txt";
+           std::string filename = get_mra_data_dir() + "/b-spline-deriv2.txt";
            read_from_file(filename, 2);
         }
 
         void set_bspline3() {
            int k = FunctionDefaults<NDIM>::get_k();
            if(k > 18) throw "Bspline derivatives are only available up to k=18";
-           std::string filename = mad_root_dir + "/src/madness/mra/b-spline-deriv3.txt";
+           std::string filename = get_mra_data_dir() + "/b-spline-deriv3.txt";
            read_from_file(filename, 3);
         }
 
         void set_ble1() {
            int k = FunctionDefaults<NDIM>::get_k();
            if(k > 15) throw "BLE derivatives are only available up to k=15";
-           std::string filename = mad_root_dir + "/src/madness/mra/ble-first.txt";
+           std::string filename = get_mra_data_dir() + "/ble-first.txt";
            read_from_file(filename, 1);
         }
 
         void set_ble2() {
            int k = FunctionDefaults<NDIM>::get_k();
            if(k > 15) throw "BLE derivatives are only available up to k=15";
-           std::string filename = mad_root_dir + "/src/madness/mra/ble-second.txt";
+           std::string filename = get_mra_data_dir() + "/ble-second.txt";
            read_from_file(filename, 2);
         }
 
@@ -660,23 +659,23 @@ namespace madness {
                 if (m == this->k) {
                     for (int i=0; i<m; i++)
                         for (int j=0; j<m; j++)
-                            MADNESS_ASSERT(f >> rp_bsp(i,j));
+                            MADNESS_CHECK(f >> rp_bsp(i,j));
                     for (int i=0; i<m; i++)
                         for (int j=0; j<m; j++)
-                            MADNESS_ASSERT(f >> r0_bsp(i,j));
+                            MADNESS_CHECK(f >> r0_bsp(i,j));
                     for (int i=0; i<m; i++)
                         for (int j=0; j<m; j++)
-                            MADNESS_ASSERT(f >> rm_bsp(i,j));
+                            MADNESS_CHECK(f >> rm_bsp(i,j));
                     found = true;
                     break;
                 }
                 else {
                     double junk;
                     for (int i=0; i<3*m*m; i++)
-                        MADNESS_ASSERT(f >> junk);
+                        MADNESS_CHECK(f >> junk);
                 }
             }
-            MADNESS_ASSERT(found);
+            MADNESS_CHECK(found);
             Tensor<double> r0_bsp_t = transpose(r0_bsp);
             Tensor<double> rp_bsp_t = transpose(rp_bsp);
             Tensor<double> rm_bsp_t = transpose(rm_bsp);
@@ -735,8 +734,8 @@ namespace madness {
                       int k = FunctionDefaults<NDIM>::get_k()) {
         std::vector< std::shared_ptr< Derivative<T,NDIM> > > r(NDIM);
         for (std::size_t d=0; d<NDIM; ++d) {
-            MADNESS_ASSERT(bc(d,0)!=BC_DIRICHLET && bc(d,1)!=BC_DIRICHLET);
-            MADNESS_ASSERT(bc(d,0)!=BC_NEUMANN   && bc(d,1)!=BC_NEUMANN);
+            MADNESS_CHECK(bc(d,0)!=BC_DIRICHLET && bc(d,1)!=BC_DIRICHLET);
+            MADNESS_CHECK(bc(d,0)!=BC_NEUMANN   && bc(d,1)!=BC_NEUMANN);
             r[d].reset(new Derivative<T,NDIM>(world,d,bc,Function<T,NDIM>(),Function<T,NDIM>(),k));
         }
         return r;

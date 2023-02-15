@@ -22,7 +22,7 @@ add_mad_library(mra MADMRA_SOURCES MADMRA_HEADERS "linalg;tinyxml;muparser" "mad
 
 # Install the MADmra library
 # install(TARGETS mraplot DESTINATION "${MADNESS_INSTALL_BINDIR}")
-install(FILES autocorr coeffs gaussleg
+install(FILES autocorr coeffs gaussleg ble-first.txt ble-second.txt b-spline-deriv1.txt b-spline-deriv2.txt b-spline-deriv3.txt 
     DESTINATION "${MADNESS_INSTALL_DATADIR}"
     COMPONENT mra)
 
@@ -37,10 +37,10 @@ if(BUILD_TESTING)
       testpdiff.cc testdiff1Db.cc testgconv.cc testopdir.cc testinnerext.cc 
       testgaxpyext.cc testvmra.cc, test_vectormacrotask.cc test_cloud.cc
       test_macrotaskpartitioner.cc)
-  add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest")
+  add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest" "unittests;short")
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
       testper.cc)
-  add_unittests(mra_sepop "${MRA_SEPOP_TEST_SOURCES}" "libtest_sepop;MADgtest")
+  add_unittests(mra_sepop "${MRA_SEPOP_TEST_SOURCES}" "libtest_sepop;MADgtest" "unittests;short")
   
   # Test executables that are not run with unit tests
   set(MRA_OTHER_TESTS testperiodic testbc testqm test6

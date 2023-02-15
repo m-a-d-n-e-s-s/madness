@@ -365,12 +365,12 @@ namespace madness {
                 }
                 catch (...) {
 		  // Ideally use if constexpr here but want headers C++14 for cuda compatibility
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Warray-bounds"
+MADNESS_PRAGMA_GCC(diagnostic push)
+MADNESS_PRAGMA_GCC(diagnostic ignored "-Warray-bounds")
                     std::printf("new failed nd=%ld type=%ld size=%ld\n", nd, id(), _size);
                     std::printf("  %ld %ld %ld %ld %ld %ld\n",
                                 d[0], d[1], d[2], d[3], d[4], d[5]);
-#pragma GCC diagnostic pop
+MADNESS_PRAGMA_GCC(diagnostic pop)
                     TENSOR_EXCEPTION("new failed",_size,this);
                 }
                 //std::printf("allocated %p [%ld]  %ld\n", _p, size, p.use_count());
@@ -443,13 +443,13 @@ namespace madness {
                 _shptr = t._shptr;
                 _size = t._size;
                 _ndim = t._ndim;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"		
+MADNESS_PRAGMA_GCC(diagnostic push)
+MADNESS_PRAGMA_GCC(diagnostic ignored "-Wmaybe-uninitialized")
                 for (int i=0; i<TENSOR_MAXDIM; ++i) {
                     _dim[i] = t._dim[i];
                     _stride[i] = t._stride[i];
                 }
-#pragma GCC diagnostic pop
+MADNESS_PRAGMA_GCC(diagnostic pop)
             }
             return *this;
         }
@@ -2037,7 +2037,7 @@ namespace madness {
     /// operation and discarding.
     template <class T> class SliceTensor : public Tensor<T> {
     private:
-        SliceTensor<T>();
+        SliceTensor();
 
     public:
 
@@ -2202,14 +2202,24 @@ namespace madness {
     template <class T>
     Tensor<T> outer(const Tensor<T>& left, const Tensor<T>& right) {
         long nd = left.ndim() + right.ndim();
-        TENSOR_ASSERT(nd <= TENSOR_MAXDIM,"too many dimensions in result",
-                      nd,0);
+        TENSOR_ASSERT(nd <= TENSOR_MAXDIM, "too many dimensions in result",
+                      nd, 0);
         long d[TENSOR_MAXDIM];
-        for (long i=0; i<left.ndim(); ++i) d[i] = left.dim(i);
-        for (long i=0; i<right.ndim(); ++i) d[i+left.ndim()] = right.dim(i);
-        Tensor<T> result(nd,d,false);
-        T* ptr = result.ptr();
+        for (long i = 0; i < left.ndim(); ++i) d[i] = left.dim(i);
+        for (long i = 0; i < right.ndim(); ++i) d[i + left.ndim()] = right.dim(i);
+        Tensor<T> result(nd, d, false);
+        outer_result(left,right,result);
+        return result;
+    }
 
+    /// Outer product ... result(i,j,...,p,q,...) = left(i,k,...)*right(p,q,...)
+
+    /// accumulate into result, no allocation is performed
+    template<class T>
+    void outer_result(const Tensor<T>& left, const Tensor<T>& right, Tensor<T>& result) {
+        TENSOR_ASSERT(left.ndim() + right.ndim() == result.ndim(),"inconsisten dimension in outer_resultn",
+                      result.ndim(),0);
+        T *ptr = result.ptr();
         TensorIterator<T> iter=right.unary_iterator(1,false,true);
         for (TensorIterator<T> p=left.unary_iterator(); p!=left.end(); ++p) {
             T val1 = *p;
@@ -2223,8 +2233,6 @@ namespace madness {
                 }
             }
         }
-
-        return result;
     }
 
 

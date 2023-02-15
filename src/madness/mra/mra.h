@@ -59,6 +59,7 @@ static const bool VERIFY_TREE = false; //true
 
 namespace madness {
     void startup(World& world, int argc, char** argv, bool doprint=false, bool make_stdcout_nice_to_reals = true);
+    std::string get_mra_data_dir();
 }
 
 #include <madness/mra/key.h>
@@ -567,7 +568,7 @@ namespace madness {
         }
 
 
-        /// Sets the vaule of the truncation threshold.  Optional global fence.
+        /// Sets the value of the truncation threshold.  Optional global fence.
 
         /// A fence is required to ensure consistent global state.
         void set_thresh(double value, bool fence = true) {
@@ -735,7 +736,7 @@ namespace madness {
         /// for other purposes.
         ///
         /// Noop if already compressed or if not initialized.
-        void make_nonstandard(bool keepleaves, bool fence=true) {
+        void make_nonstandard(bool keepleaves, bool fence=true) const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             if (impl->is_nonstandard()) return;
@@ -746,7 +747,7 @@ namespace madness {
             TreeState newstate=TreeState::nonstandard;
             if (keepleaves) newstate=nonstandard_with_leaves;
 //            impl->compress(true, keepleaves, false, fence);
-            impl->compress(newstate, fence);
+            const_cast<Function<T,NDIM>*>(this)->impl->compress(newstate, fence);
 
         }
 
@@ -1660,6 +1661,15 @@ namespace madness {
             impl->reduce_rank(thresh1,fence);
             return *this;
         }
+
+        /// remove all nodes with level higher than n
+        Function<T,NDIM>& chop_at_level(const int n, const bool fence=true) {
+            verify();
+            impl->make_redundant(true);
+            impl->chop_at_level(n,true);
+            impl->undo_redundant(true);
+            return *this;
+        }
     };
 
 //    template <typename T, typename opT, std::size_t NDIM>
@@ -2017,30 +2027,39 @@ namespace madness {
     /// @return		a function of dimension NDIM=LDIM+LDIM
     template <typename opT, typename T, std::size_t LDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,T), LDIM+LDIM>
-    apply(const opT& op, const Function<T,LDIM>& f1, const Function<T,LDIM>& f2, bool fence=true) {
+    apply(const opT& op, const std::vector<Function<T,LDIM>>& f1, const std::vector<Function<T,LDIM>>& f2, bool fence=true) {
+
+        World& world=f1.front().world();
 
         typedef TENSOR_RESULT_TYPE(T,typename opT::opT) resultT;
+        typedef std::vector<Function<T,LDIM>> vecfuncL;
 
-    	Function<T,LDIM>& ff1 = const_cast< Function<T,LDIM>& >(f1);
-    	Function<T,LDIM>& ff2 = const_cast< Function<T,LDIM>& >(f2);
+    	vecfuncL& ff1 = const_cast< vecfuncL& >(f1);
+    	vecfuncL& ff2 = const_cast< vecfuncL& >(f2);
 
-    	bool same=(ff1.get_impl()==ff2.get_impl());
+    	bool same=(ff1[0].get_impl()==ff2[0].get_impl());
 
-    	// keep the leaves! They are assumed to be there later
-    	// even for modified op we need NS form for the hartree_leaf_op
-    	if (not same) ff1.make_nonstandard(true, false);
-        ff2.make_nonstandard(true, true);
+        reconstruct(world,f1,false);
+        reconstruct(world,f2,false);
+        world.gop.fence();
+        // keep the leaves! They are assumed to be there later
+        // even for modified op we need NS form for the hartree_leaf_op
+        for (auto& f : f1) f.make_nonstandard(true,false);
+        for (auto& f : f2) f.make_nonstandard(true,false);
+        world.gop.fence();
 
 
-        FunctionFactory<T,LDIM+LDIM> factory=FunctionFactory<resultT,LDIM+LDIM>(f1.world())
-                .k(f1.k()).thresh(FunctionDefaults<LDIM+LDIM>::get_thresh());
+        FunctionFactory<T,LDIM+LDIM> factory=FunctionFactory<resultT,LDIM+LDIM>(world)
+                .k(f1.front().k()).thresh(FunctionDefaults<LDIM+LDIM>::get_thresh());
     	Function<resultT,LDIM+LDIM> result=factory.empty().fence();
 
     	result.get_impl()->reset_timer();
     	op.reset_timer();
 
 		// will fence here
-        result.get_impl()->recursive_apply(op, f1.get_impl().get(),f2.get_impl().get(),true);
+        for (int i=0; i<f1.size(); ++i)
+            result.get_impl()->recursive_apply(op, f1[i].get_impl().get(),f2[i].get_impl().get(),false);
+        world.gop.fence();
 
         result.get_impl()->print_timer();
         op.print_timer();
@@ -2052,8 +2071,8 @@ namespace madness {
         } else {
     		result.reconstruct();
         }
-    	if (not same) ff1.standard(false);
-    	ff2.standard(false);
+    	standard(world,ff1,false);
+    	if (not same) standard(world,ff2,false);
 
 		return result;
     }
@@ -2071,7 +2090,7 @@ namespace madness {
             result.get_impl()->apply(op, *f.get_impl(), fence);
 
         } else {        // general version for higher dimension
-            bool print_timings=true;
+            bool print_timings=false;
             Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> r1;
 
             result.set_impl(f, false);
@@ -2116,6 +2135,7 @@ namespace madness {
 
 		MADNESS_ASSERT(not f.is_on_demand());
 		bool print_timings=(NDIM==6);
+//        bool print_timings=false;
 
     	if (VERIFY_TREE) ff.verify_tree();
     	ff.reconstruct();
@@ -2137,6 +2157,7 @@ namespace madness {
         	// f.trace() is just a number
     		R ftrace=0.0;
     		if (op.is_slaterf12) ftrace=f.trace();
+//            print("ftrace",ftrace);
 
     		// saves the standard() step, which is very expensive in 6D
 //    		Function<R,NDIM> fff=copy(ff);
@@ -2149,10 +2170,12 @@ namespace madness {
             }
             result = apply_only(op, fff, fence);
         	ff.world().gop.fence();
+            if (print_timings) result.print_size("result after apply_only");
 
         	// svd-tensors need some post-processing
         	if (result.get_impl()->get_tensor_type()==TT_2D) {
-            	result.get_impl()->finalize_apply();
+            	double elapsed=result.get_impl()->finalize_apply();
+                if (print_timings) printf("time in finalize_apply        %8.2f\n",elapsed);
 			}
 			if (print_timings) {
 				result.get_impl()->print_timer();
@@ -2361,6 +2384,131 @@ namespace madness {
         PROFILE_FUNC;
         return f.inner(g);
     }
+
+
+    /// Computes the partial scalar/inner product between two functions, returns a low-dim function
+
+    /// syntax similar to the inner product in tensor.h
+    /// e.g result=inner<3>(f,g),{0},{1}) : r(x,y) = int f(x1,x) g(y,x1) dx1
+    /// @param[in]  task    0: everything, 1; prepare only (fence), 2: work only (no fence), 3: finalize only (fence)
+    template<std::size_t NDIM, typename T, std::size_t LDIM, typename R, std::size_t KDIM,
+            std::size_t CDIM = (KDIM + LDIM - NDIM) / 2>
+    Function<TENSOR_RESULT_TYPE(T, R), NDIM>
+    innerXX(const Function<T, LDIM>& f, const Function<R, KDIM>& g, const std::array<int, CDIM> v1,
+           const std::array<int, CDIM> v2, int task=0) {
+        bool prepare = ((task==0) or (task==1));
+        bool work = ((task==0) or (task==2));
+        bool finish = ((task==0) or (task==3));
+
+        static_assert((KDIM + LDIM - NDIM) % 2 == 0, "faulty dimensions in inner (partial version)");
+        static_assert(KDIM + LDIM - 2 * CDIM == NDIM, "faulty dimensions in inner (partial version)");
+
+        // contraction indices must be contiguous and either in the beginning or at the end
+        for (int i=0; i<CDIM-1; ++i) MADNESS_CHECK((v1[i]+1)==v1[i+1]);
+        MADNESS_CHECK((v1[0]==0) or (v1[CDIM-1]==LDIM-1));
+
+        for (int i=0; i<CDIM-1; ++i) MADNESS_CHECK((v2[i]+1)==v2[i+1]);
+        MADNESS_CHECK((v2[0]==0) or (v2[CDIM-1]==KDIM-1));
+
+        MADNESS_CHECK(f.is_initialized());
+        MADNESS_CHECK(g.is_initialized());
+        MADNESS_CHECK(f.world().id() == g.world().id());
+        // this needs to be run in a single world, so that all coefficients are local.
+        // Use macrotasks if run on multiple processes.
+        World& world=f.world();
+        MADNESS_CHECK(world.size() == 1);
+
+        if (prepare) {
+            f.make_nonstandard(false, false);
+            g.make_nonstandard(false, false);
+            world.gop.fence();
+            f.get_impl()->compute_snorm_and_dnorm(false);
+            g.get_impl()->compute_snorm_and_dnorm(false);
+            world.gop.fence();
+        }
+
+        typedef TENSOR_RESULT_TYPE(T, R) resultT;
+        Function<resultT,NDIM> result;
+        if (work) {
+            world.gop.set_forbid_fence(true);
+            result=FunctionFactory<resultT,NDIM>(world)
+                            .k(f.k()).thresh(f.thresh()).empty().nofence();
+            result.get_impl()->partial_inner(*f.get_impl(),*g.get_impl(),v1,v2);
+            result.get_impl()->set_tree_state(nonstandard);
+            world.gop.set_forbid_fence(false);
+        }
+
+        if (finish) {
+
+            world.gop.fence();
+            result.reconstruct();
+            FunctionImpl<T,LDIM>& f_nc=const_cast<FunctionImpl<T,LDIM>&>(*f.get_impl());
+            FunctionImpl<R,KDIM>& g_nc=const_cast<FunctionImpl<R,KDIM>&>(*g.get_impl());
+
+            // restore initial state of g and h
+            auto erase_list = [] (const auto& funcimpl) {
+                typedef typename std::decay_t<decltype(funcimpl)>::keyT keyTT;
+                std::list<keyTT> to_be_erased;
+                for (auto it=funcimpl.get_coeffs().begin(); it!=funcimpl.get_coeffs().end(); ++it) {
+                    const auto& key=it->first;
+                    const auto& node=it->second;
+                    if (not node.has_children()) to_be_erased.push_back(key);
+                }
+                return to_be_erased;
+            };
+
+            for (auto& key : erase_list(f_nc)) f_nc.get_coeffs().erase(key);
+            for (auto& key : erase_list(g_nc)) g_nc.get_coeffs().erase(key);
+            g_nc.standard(false);
+            f_nc.standard(false);
+            world.gop.fence();
+            g_nc.reconstruct(false);
+            f_nc.reconstruct(false);
+            world.gop.fence();
+//            print("timings: get_lists, recur, contract",wall_get_lists,wall_recur,wall_contract);
+
+        }
+
+        return result;
+    }
+
+    /// Computes the partial scalar/inner product between two functions, returns a low-dim function
+
+    /// syntax similar to the inner product in tensor.h
+    /// e.g result=inner<3>(f,g),{0},{1}) : r(x,y) = int f(x1,x) g(y,x1) dx1
+    template <typename T, std::size_t LDIM, typename R, std::size_t KDIM>
+    Function<TENSOR_RESULT_TYPE(T,R),KDIM+LDIM-2>
+    inner(const Function<T,LDIM>& f, const Function<R,KDIM>& g, const std::tuple<int> v1, const std::tuple<int> v2) {
+        return innerXX<KDIM+LDIM-2>(f,g,
+                     std::array<int,1>({std::get<0>(v1)}),
+                     std::array<int,1>({std::get<0>(v2)}));
+    }
+
+    /// Computes the partial scalar/inner product between two functions, returns a low-dim function
+
+    /// syntax similar to the inner product in tensor.h
+    /// e.g result=inner<3>(f,g),{0,1},{1,2}) : r(y) = int f(x1,x2) g(y,x1,x2) dx1 dx2
+    template <typename T, std::size_t LDIM, typename R, std::size_t KDIM>
+    Function<TENSOR_RESULT_TYPE(T,R),KDIM+LDIM-4>
+    inner(const Function<T,LDIM>& f, const Function<R,KDIM>& g, const std::tuple<int,int> v1, const std::tuple<int,int> v2) {
+        return innerXX<KDIM+LDIM-4>(f,g,
+                                  std::array<int,2>({std::get<0>(v1),std::get<1>(v1)}),
+                                  std::array<int,2>({std::get<0>(v2),std::get<1>(v2)}));
+    }
+
+    /// Computes the partial scalar/inner product between two functions, returns a low-dim function
+
+    /// syntax similar to the inner product in tensor.h
+    /// e.g result=inner<3>(f,g),{1},{2}) : r(x,y,z) = int f(x,x1) g(y,z,x1) dx1
+    template <typename T, std::size_t LDIM, typename R, std::size_t KDIM>
+    Function<TENSOR_RESULT_TYPE(T,R),KDIM+LDIM-6>
+    inner(const Function<T,LDIM>& f, const Function<R,KDIM>& g, const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2) {
+        return innerXX<KDIM+LDIM-6>(f,g,
+                                  std::array<int,3>({std::get<0>(v1),std::get<1>(v1),std::get<2>(v1)}),
+                                  std::array<int,3>({std::get<0>(v2),std::get<1>(v2),std::get<2>(v2)}));
+    }
+
+
 
     /// Computes the scalar/inner product between an MRA function and an external functor
 

@@ -3,11 +3,11 @@
 #ifndef SRC_APPS_MOLRESPONSE_TDDFT_H_
 #define SRC_APPS_MOLRESPONSE_TDDFT_H_
 
-#include <chem/SCFOperators.h>
-#include <chem/molecularbasis.h>
-#include <chem/molecule.h>
-#include <chem/xcfunctional.h>
-#include <chem/SCF.h>
+#include <madness/chem/SCFOperators.h>
+#include <madness/chem/molecularbasis.h>
+#include <madness/chem/molecule.h>
+#include <madness/chem/xcfunctional.h>
+#include <madness/chem/SCF.h>
 #include <madness/constants.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/nonlinsol.h>  // The kain solver
@@ -27,7 +27,7 @@
 #include <cstdio>
 
 #include <algorithm>
-#include <apps/external_headers/tensor_json.hpp>
+#include "madness/tensor/tensor_json.hpp"
 #include <cmath>
 #include <complex>
 #include <iomanip>
@@ -169,7 +169,7 @@ class TDDFT {
   poperatorT coulop;
   std::vector<std::shared_ptr<real_derivative_3d>> gradop;
   double vtol;
-  json j_molresponse;
+  nlohmann::json j_molresponse;
 
   // Member variables
  public:
@@ -195,7 +195,7 @@ class TDDFT {
   // Normalizes in the response sense
   void normalize(World& world, response_space& f, response_space& g);
   // Normalize X_space xx-yy=1
-  void normalize(World& world, X_space& Chi);
+  void normalize(World& world, X_space& chi);
 
   // Prints norms of the given vector
   void print_norms(World& world, response_space function);
@@ -721,13 +721,13 @@ class TDDFT {
   void analyze_vectors(World& world, const vecfuncT& x, std::string response_state);
   void output_json() const;
   void initialize_excited_json();
-  static void excited_to_json(json& json,
+  static void excited_to_json(nlohmann::json& json,
                               size_t iter,
                               const Tensor<double>& tensor,
                               const Tensor<double>& tensor1,
                               const Tensor<double>& tensor2,
                               const Tensor<double>& tensor3);
-  static void frequency_to_json(json& json,
+  static void frequency_to_json(nlohmann::json& json,
                                 size_t iter,
                                 const Tensor<double>& tensor,
                                 const Tensor<double>& tensor1,

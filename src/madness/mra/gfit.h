@@ -60,16 +60,18 @@ public:
 	GFit() {}
 
 	/// return a fit for the Coulomb function
+
+    ///  f(r) = 1/r
 	static GFit CoulombFit(double lo, double hi, double eps, bool prnt=false) {
 		GFit fit=BSHFit(0.0,lo,hi,eps/(4.0*constants::pi),prnt);
-		fit.coeffs_.scale(4.0*constants::pi);
+		fit.coeffs_.scale(4.0*constants::pi);   // BSHFit scales by 1/(4 pi), undo here
 		return fit;
 	}
 
 	/// return a fit for the bound-state Helmholtz function
 
 	/// the BSH function is defined by
-	///  f(r) = exp(-\mu r)/r
+	///  f(r) = 1/ (4 pi) exp(-\mu r)/r
 	/// @param[in]	mu	the exponent of the BSH
 	/// @param[in]	lo	the smallest length scale that needs to be precisely represented
 	/// @param[in]	hi	the largest length scale that needs to be precisely represented

@@ -208,6 +208,7 @@ namespace madness {
     template <typename T>
     inline hashT hash_value(const std::basic_string<T>& t);
 
+
     /// Hash functor
 
     /// This hash functor calls hash_value for the given type, \c T . The
@@ -256,7 +257,18 @@ namespace madness {
         detail::combine_hash(seed, hasher(v));
     }
 
-    /// Combine the hash values of an iterator range
+    /// Hash a pair
+
+    ///
+    template <typename T, typename R>
+    inline hashT hash_value(const std::pair<T,R>& t) {
+        hashT result = hash_value(t.first);
+        hash_combine(result, hash_value(t.second));
+        return result;
+    }
+
+
+
 
     /// \tparam It the iterator type
     /// \param[in,out] seed The initial hash seed value

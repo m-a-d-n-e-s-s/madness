@@ -135,6 +135,7 @@ namespace madness {
         bool _has_children; ///< True if there are children
         coeffT buffer; ///< The coefficients, if any
         double dnorm=-1.0;	///< norm of the d coefficients
+        double snorm=-1.0;	///< norm of the s coefficients
 
     public:
         typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT; ///< Type of container holding the nodes
@@ -305,10 +306,45 @@ namespace madness {
         	return dnorm;
         }
 
+        /// set the precomputed norm of the (virtual) s coefficients
+        void set_snorm(const double sn) {
+            snorm=sn;
+        }
+
         /// set the precomputed norm of the (virtual) d coefficients
         void set_dnorm(const double dn) {
         	dnorm=dn;
         }
+
+        /// get the precomputed norm of the (virtual) s coefficients
+        double get_snorm() const {
+            return snorm;
+        }
+
+        void recompute_snorm_and_dnorm(const FunctionCommonData<T,NDIM>& cdata) {
+            snorm = 0.0;
+            dnorm = 0.0;
+            if (coeff().size() == 0) { ;
+            } else if (coeff().dim(0) == cdata.vk[0]) {
+                snorm = coeff().normf();
+
+            } else if (coeff().is_full_tensor()) {
+                Tensor<T> c = copy(coeff().get_tensor());
+                snorm = c(cdata.s0).normf();
+                c(cdata.s0) = 0.0;
+                dnorm = c.normf();
+
+            } else if (coeff().is_svd_tensor()) {
+                coeffT c= coeff()(cdata.s0);
+                snorm = c.normf();
+                double norm = coeff().normf();
+                dnorm = sqrt(norm * norm - snorm * snorm);
+
+            } else {
+                MADNESS_EXCEPTION("cannot use compute_dnorm", 1);
+            }
+        }
+
 
         /// General bi-linear operation --- this = this*alpha + other*beta
 
@@ -411,7 +447,7 @@ namespace madness {
 
         template <typename Archive>
         void serialize(Archive& ar) {
-            ar & coeff() & _has_children & _norm_tree & dnorm;
+            ar & coeff() & _has_children & _norm_tree & dnorm & snorm;
         }
 
     };
@@ -424,7 +460,7 @@ namespace madness {
             norm = 0.0;
         double nt = node.get_norm_tree();
         if (nt == 1e300) nt = 0.0;
-        s << norm << ", norm_tree, dnorm =" << nt << ", " << node.get_dnorm() << "), rank="<< node.coeff().rank()<<")";
+        s << norm << ", norm_tree, s/dnorm =" << nt << ", " << node.get_snorm() << " " << node.get_dnorm() << "), rank="<< node.coeff().rank()<<")";
         if (node.coeff().is_assigned()) s << " dim " << node.coeff().dim(0) << " ";
         return s;
     }
@@ -950,11 +986,15 @@ namespace madness {
                 // additional functors are only evaluated on-demand
             } else if (functor) { // Project function and optionally refine
                 insert_zero_down_to_initial_level(cdata.key0);
+                // set the union of the special points of functor and the ones explicitly given to FunctionFactory
+                std::vector<coordT> functor_special_points=functor->special_points();
+                if (!functor_special_points.empty()) special_points.insert(special_points.end(), functor_special_points.begin(), functor_special_points.end());
+
                 typename dcT::const_iterator end = coeffs.end();
                 for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
                     if (it->second.is_leaf())
                         woT::task(coeffs.owner(it->first), &implT::project_refine_op, it->first, do_refine,
-                                  functor->special_points());
+                                  special_points);
                 }
             }
             else { // Set as if a zero function
@@ -977,32 +1017,27 @@ namespace madness {
         FunctionImpl(const FunctionImpl<Q,NDIM>& other,
                      const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& pmap,
                      bool dozero)
-            : WorldObject<implT>(other.world)
-            , world(other.world)
-            , k(other.k)
-            , thresh(other.thresh)
-            , initial_level(other.initial_level)
-	    , special_level(other.special_level)
-	    , special_points(other.special_points)
-            , max_refine_level(other.max_refine_level)
-            , truncate_mode(other.truncate_mode)
-                         , autorefine(other.autorefine)
-                         , truncate_on_project(other.truncate_on_project)
-//				  , nonstandard(other.nonstandard)
-                         , targs(other.targs)
-                         , cdata(FunctionCommonData<T,NDIM>::get(k))
-                         , functor()
-//				  , on_demand(false)	// since functor() is an default ctor
-//				  , compressed(other.compressed)
-//				  , redundant(other.redundant)
-				  , tree_state(other.tree_state)
-                         , coeffs(world, pmap ? pmap : other.coeffs.get_pmap())
-                         //, bc(other.bc)
+                : WorldObject<implT>(other.world)
+                , world(other.world)
+                , k(other.k)
+                , thresh(other.thresh)
+                , initial_level(other.initial_level)
+                , special_level(other.special_level)
+                , special_points(other.special_points)
+                , max_refine_level(other.max_refine_level)
+                , truncate_mode(other.truncate_mode)
+                , autorefine(other.autorefine)
+                , truncate_on_project(other.truncate_on_project)
+                , targs(other.targs)
+                , cdata(FunctionCommonData<T,NDIM>::get(k))
+                , functor()
+                , tree_state(other.tree_state)
+                , coeffs(world, pmap ? pmap : other.coeffs.get_pmap())
         {
             if (dozero) {
                 initial_level = 1;
                 insert_zero_down_to_initial_level(cdata.key0);
-		//world.gop.fence(); <<<<<<<<<<<<<<<<<<<<<<   needs a fence argument
+                //world.gop.fence(); <<<<<<<<<<<<<<<<<<<<<<   needs a fence argument
             }
             coeffs.process_pending();
             this->process_pending();
@@ -2281,7 +2316,7 @@ namespace madness {
 
                 Vector<Translation,NDIM> l;
                 for (std::size_t i=0; i<NDIM; ++i) l[map[i]] = key.translation()[i];
-                tensorT c = node.coeff().full_tensor_copy();
+                tensorT c = node.coeff().reconstruct_tensor();
                 if (c.size()) c = copy(c.mapdim(map));
                 coeffT cc(c,f->get_tensor_args());
                 f->get_coeffs().replace(keyT(key.level(),l), nodeT(cc,node.has_children()));
@@ -2828,7 +2863,7 @@ namespace madness {
                 MADNESS_ASSERT(it != left->coeffs.end());
                 lnorm = it->second.get_norm_tree();
                 if (it->second.has_coeff())
-                    lc = it->second.coeff().full_tensor_copy();
+                    lc = it->second.coeff().reconstruct_tensor();
             }
 
             Tensor<R> rc = rcin;
@@ -2837,7 +2872,7 @@ namespace madness {
                 MADNESS_ASSERT(it != right->coeffs.end());
                 rnorm = it->second.get_norm_tree();
                 if (it->second.has_coeff())
-                    rc = it->second.coeff().full_tensor_copy();
+                    rc = it->second.coeff().reconstruct_tensor();
             }
 
             // both nodes are leaf nodes: multiply and return
@@ -2911,7 +2946,7 @@ namespace madness {
                 literT it = left->coeffs.find(key).get();
                 MADNESS_ASSERT(it != left->coeffs.end());
                 if (it->second.has_coeff())
-                    lc = it->second.coeff().full_tensor_copy();
+                    lc = it->second.coeff().reconstruct_tensor();
             }
 
             Tensor<R> rc = rcin;
@@ -2919,7 +2954,7 @@ namespace madness {
                 riterT it = right->coeffs.find(key).get();
                 MADNESS_ASSERT(it != right->coeffs.end());
                 if (it->second.has_coeff())
-                    rc = it->second.coeff().full_tensor_copy();
+                    rc = it->second.coeff().reconstruct_tensor();
             }
 
             if (rc.size() && lc.size()) { // Yipee!
@@ -2995,7 +3030,7 @@ namespace madness {
                       const FunctionImpl<Q,NDIM>* func, const opT& op) {
 
             //            const Tensor<Q>& fc = func->coeffs.find(key).get()->second.full_tensor_copy();
-            const Tensor<Q> fc = func->coeffs.find(key).get()->second.coeff().full_tensor_copy();
+            const Tensor<Q> fc = func->coeffs.find(key).get()->second.coeff().reconstruct_tensor();
 
             if (fc.size() == 0) {
                 // Recur down
@@ -3700,37 +3735,6 @@ namespace madness {
                                      const tensorT& veri) const;
 
 
-        /// compute the norm of the wavelet coefficients, zeroing out any sum coefficients
-        std::pair<double,double> compute_snorm_and_dnorm(const coeffT& coeff) const {
-        	double dnorm=0.0;
-        	double snorm=0.0;
-        	std::pair<double,double> result=std::make_pair<double,double>(0.0,0.0);
-
-        	if (coeff.size()==0) {
-        		return result;
-
-        	} else if (coeff.dim(0)==cdata.vk[0]) {
-        		result.first=coeff.normf();
-
-        	} else if (coeff.is_full_tensor()) {
-        		tensorT c=copy(coeff.get_tensor());
-        		c(cdata.s0)=0.0;
-        		result.second=c.normf();
-        		result.first=c(cdata.s0).normf();
-
-        	} else if (coeff.is_svd_tensor()) {
-        		coeffT c=coeff(cdata.s0);
-        		double snorm=c.normf();
-        		double norm=coeff.normf();
-        		result.second=sqrt(norm*norm - snorm*snorm);
-        		result.first=snorm;
-
-        	} else {
-        		MADNESS_EXCEPTION("cannot use compute_dnorm",1);
-        	}
-        	return result;
-        }
-
 
         template<std::size_t LDIM>
         struct pointwise_multiplier {
@@ -4251,6 +4255,29 @@ namespace madness {
 
         /// @param[in]  targs   target tensor arguments (threshold and full/low rank)
         void reduce_rank(const double thresh, bool fence);
+
+
+        /// remove all nodes with level higher than n
+        void chop_at_level(const int n, const bool fence=true);
+
+            /// compute norm of s and d coefficients for all nodes
+        void compute_snorm_and_dnorm(bool fence=true);
+
+        /// compute the norm of the wavelet coefficients
+        struct do_compute_snorm_and_dnorm {
+            typedef Range<typename dcT::iterator> rangeT;
+
+            const FunctionCommonData<T,NDIM>& cdata;
+            do_compute_snorm_and_dnorm(const FunctionCommonData<T,NDIM>& cdata) :
+                    cdata(cdata) {}
+
+            bool operator()(typename rangeT::iterator& it) const {
+                auto& node=it->second;
+                node.recompute_snorm_and_dnorm(cdata);
+                return true;
+            }
+        };
+
 
         T eval_cube(Level n, coordT& x, const tensorT& c) const;
 
@@ -5463,7 +5490,449 @@ namespace madness {
             return r;
         }
 
+        template <typename R>
+        void print_type_in_compilation_error(R&&)
+        {
+            static_assert(!std::is_same<R, int>::value &&
+                          std::is_same<R, int>::value,
+                          "Compilation failed because you wanted to know the type; see below:");
+        }
+
+        /// invoked by result
+
+        /// contract 2 functions f(x,z) = \int g(x,y) * h(y,z) dy
+        /// @tparam CDIM: the dimension of the contraction variable (y)
+        /// @tparam NDIM: the dimension of the result (x,z)
+        /// @tparam LDIM: the dimension of g(x,y)
+        /// @tparam KDIM: the dimension of h(y,z)
+        template<typename Q, std::size_t LDIM, typename R, std::size_t KDIM,
+                std::size_t CDIM = (KDIM + LDIM - NDIM) / 2>
+        void partial_inner(const FunctionImpl<Q, LDIM>& g, const FunctionImpl<R, KDIM>& h,
+                           const std::array<int, CDIM> v1, const std::array<int, CDIM> v2) {
+
+            typedef std::multimap<Key<NDIM>, std::list<Key<CDIM>>> contractionmapT;
+            double wall_get_lists=0.0;
+            double wall_recur=0.0;
+            double wall_contract=0.0;
+            std::size_t nmax=FunctionDefaults<CDIM>::get_max_refine_level();
+            const double thresh=FunctionDefaults<NDIM>::get_thresh();
+
+            auto print_map = [](const auto& map) {
+                for (const auto& kv : map) print(kv.first,"--",kv.second);
+            };
+            // logical constness, not bitwise constness
+            FunctionImpl<Q,LDIM>& g_nc=const_cast<FunctionImpl<Q,LDIM>&>(g);
+            FunctionImpl<R,KDIM>& h_nc=const_cast<FunctionImpl<R,KDIM>&>(h);
+
+            for (int n=0; n<nmax; ++n) {
+
+                double wall0=wall_time();
+                auto [g_ijlist, g_jlist] = g.get_contraction_node_lists(n,v1);
+                auto [h_ijlist, h_jlist] = h.get_contraction_node_lists(n,v2);
+                if ((g_ijlist.size()==0) and (h_ijlist.size()==0)) break;
+                double wall1=wall_time();
+                wall_get_lists+=(wall1-wall0);
+                wall0=wall1;
+//                print("g_jlist");
+//                for (const auto& kv : g_jlist) print(kv.first,kv.second);
+//                print("h_jlist");
+//                for (const auto& kv : h_jlist) print(kv.first,kv.second);
+
+                bool this_first=false;  // are the remaining indices of g before those of g: f(x,z) = g(x,y) h(y,z)
+                // CDIM, NDIM, KDIM
+                contractionmapT contraction_map=g_nc.recur_down_for_contraction_map(
+                        g_nc.key0(), g_nc.get_coeffs().find(g_nc.key0()).get()->second, v1, v2,
+                        h_ijlist, h_jlist, this_first, thresh);
+
+                this_first=true;
+                // CDIM, NDIM, LDIM
+                contractionmapT contraction_map1=h_nc.recur_down_for_contraction_map(
+                        h_nc.key0(), h_nc.get_coeffs().find(h_nc.key0()).get()->second, v2, v1,
+                        g_ijlist, g_jlist, this_first, thresh);
+
+                // will contain duplicate entries
+                contraction_map.merge(contraction_map1);
+                // turn multimap into a map of list
+                auto it=contraction_map.begin();
+                while (it!=contraction_map.end()) {
+                    auto it_end=contraction_map.upper_bound(it->first);
+                    auto it2=it;
+                    it2++;
+                    while (it2!=it_end) {
+                        it->second.splice(it->second.end(),it2->second);
+                        it2=contraction_map.erase(it2);
+                    }
+                    it=it_end;
+                }
+
+                // remove all double entries
+                for (auto& elem : contraction_map) {
+                    elem.second.sort();
+                    elem.second.unique();
+                }
+                wall1=wall_time();
+                wall_recur+=(wall1-wall0);
+//                if (n==2) {
+//                    print("contraction map for n=", n);
+//                    print_map(contraction_map);
+//                }
+
+                for (const auto& key_list : contraction_map) {
+                    const Key<NDIM>& key=key_list.first;
+                    const std::list<Key<CDIM>>& list=key_list.second;
+                    woT::task(coeffs.owner(key), &implT:: template partial_inner_contract<Q,LDIM,R,KDIM>,
+                              &g,&h,v1,v2,key,list);
+                }
+            }
+        }
+
+        /// for contraction two functions f(x,z) = \int g(x,y) h(y,z) dy
+
+        /// find all nodes with d coefficients and return a list of complete keys and of
+        /// keys holding only the y dimension, also the maximum norm of all d for the j dimension
+        /// @param[in]  n   the scale
+        /// @param[in]  v   array holding the indices of the integration variable
+        /// @return     ijlist: list of all nodes with d coeffs; jlist: j-part of ij list only
+        template<std::size_t CDIM>
+        std::tuple<std::set<Key<NDIM>>, std::map<Key<CDIM>,double>>
+        get_contraction_node_lists(const std::size_t n, const std::array<int, CDIM>& v) const {
+
+            const auto& cdata=get_cdata();
+            auto has_d_coeffs = [&cdata](const coeffT& coeff) {
+                if (coeff.has_no_data()) return false;
+                return (coeff.dim(0)==2*cdata.k);
+            };
+
+            // keys to be contracted in g
+            std::set<Key<NDIM>> ij_list;           // full key
+            std::map<Key<CDIM>,double> j_list;      // only that dimension that will be contracted
+
+            for (auto it=get_coeffs().begin(); it!=get_coeffs().end(); ++it) {
+                const Key<NDIM>& key=it->first;
+                const FunctionNode<T,NDIM>& node=it->second;
+                if ((key.level()==n) and (has_d_coeffs(node.coeff()))) {
+                    ij_list.insert(key);
+                    Vector<Translation,CDIM> j_trans;
+                    for (int i=0; i<CDIM; ++i) j_trans[i]=key.translation()[v[i]];
+                    Key<CDIM> jkey(n,j_trans);
+                    const double max_d_norm=j_list[jkey];
+                    j_list.insert_or_assign(jkey,std::max(max_d_norm,node.get_dnorm()));
+                    Key<CDIM> parent_jkey=jkey.parent();
+                    while (j_list.count(parent_jkey)==0) {
+                        j_list.insert({parent_jkey,1.0});
+                        parent_jkey=parent_jkey.parent();
+                    }
+                }
+            }
+            return std::make_tuple(ij_list,j_list);
+        }
+
+        /// make a map of all nodes that will contribute to a partial inner product
+
+        /// given the list of d coefficient-holding nodes of the other function:
+        /// recur down h if snorm * dnorm > tol and key n−jx ∈ other−ij-list. Make s
+        /// coefficients if necessary. Make list of nodes n − ijk as map(n-ik, list(j)).
+        ///
+        /// !! WILL ADD NEW S NODES TO THIS TREE THAT MUST BE REMOVED TO AVOID INCONSISTENT TREE STRUCTURE !!
+        ///
+        /// @param[in]  key     for recursion
+        /// @param[in]  node    corresponds to key
+        /// @param[in]  v_this  this' dimension that are contracted
+        /// @param[in]  v_other other's dimension that are contracted
+        /// @param[in]  ij_other_list  list of nodes of the other function that will be contracted (and their parents)
+        /// @param[in]  j_other_list  list of column nodes of the other function that will be contracted (and their parents)
+        /// @param[in]  max_d_norm  max d coeff norm of the nodes in j_list
+        /// @param[in]  this_first  are the remaining coeffs of this functions first or last in the result function
+        /// @param[in]  thresh  threshold for including nodes in the contraction: snorm*dnorm > thresh
+        /// @tparam     CDIM    dimension to be contracted
+        /// @tparam     ODIM    dimensions of the other function
+        /// @tparam     FDIM    dimensions of the final function
+        template<std::size_t CDIM, std::size_t ODIM, std::size_t FDIM=NDIM+ODIM-2*CDIM>
+        std::multimap<Key<FDIM>, std::list<Key<CDIM>>> recur_down_for_contraction_map(
+                const keyT& key, const nodeT& node,
+                const std::array<int,CDIM>& v_this,
+                const std::array<int,CDIM>& v_other,
+                const std::set<Key<ODIM>>& ij_other_list,
+                const std::map<Key<CDIM>,double>& j_other_list,
+                bool this_first, const double thresh) {
+
+            std::multimap<Key<FDIM>, std::list<Key<CDIM>>> contraction_map;
+            std::size_t level=key.level();
+
+            // continue recursion if this node may be contracted with the j column
+            // extract relevant node translations from this node
+            const auto j_this_key=key.extract_key(v_this);
+
+//            print("\nkey, j_this_key", key, j_this_key);
+            const double max_d_norm=j_other_list.find(j_this_key)->second;
+            const bool sd_norm_product_large = node.get_snorm() * max_d_norm > thresh;
+//            print("sd_product_norm",node.get_snorm() * max_d_norm, thresh);
+
+            // stop if we have reached the final scale n
+            // with which nodes from other will this node be contracted?
+            bool final_scale=key.level()==ij_other_list.begin()->level();
+            if (final_scale and sd_norm_product_large) {
+                for (auto& other_key : ij_other_list) {
+                    const auto j_other_key=other_key.extract_key(v_other);
+                    if (j_this_key != j_other_key) continue;
+                    auto i_key=key.extract_complement_key(v_this);
+                    auto k_key=other_key.extract_complement_key(v_other);
+//                    print("key, ij_other_key",key,other_key);
+//                    print("i, k, j key",i_key, k_key, j_this_key);
+                    Key<FDIM> ik_key=(this_first) ? i_key.merge_with(k_key) : k_key.merge_with(i_key);
+//                    print("ik_key",ik_key);
+//                    MADNESS_CHECK(contraction_map.count(ik_key)==0);
+                    contraction_map.insert(std::make_pair(ik_key,std::list<Key<CDIM>>{j_this_key}));
+                }
+                return contraction_map;
+            }
+
+            bool continue_recursion = (j_other_list.count(j_this_key)==1);
+            if (not continue_recursion) return contraction_map;
+
+
+            // continue recusion if norms are large
+            continue_recursion = (node.has_children() or sd_norm_product_large);
+
+            if (continue_recursion) {
+                // in case we need to compute children's coefficients: unfilter only once
+                bool compute_child_s_coeffs=true;
+                coeffT d = node.coeff();
+//                print("continuing recursion from key",key);
+
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    keyT child=kit.key();
+                    typename dcT::accessor acc;
+
+                    // make child's s coeffs if it doesn't exist or if is has no s coeffs
+                    bool childnode_exists=get_coeffs().find(acc,child);
+                    bool need_s_coeffs= childnode_exists ? (acc->second.get_snorm()<=0.0) : true;
+
+                    coeffT child_s_coeffs;
+                    if (need_s_coeffs and compute_child_s_coeffs) {
+                        if (d.dim(0)==cdata.vk[0]) {        // s coeffs only in this node
+                            coeffT d1(cdata.v2k,get_tensor_args());
+                            d1(cdata.s0)+=d;
+                            d=d1;
+                        }
+                        d = unfilter(d);
+                        child_s_coeffs=copy(d(child_patch(child)));
+                        child_s_coeffs.reduce_rank(thresh);
+                        compute_child_s_coeffs=false;
+                    }
+
+                    if (not childnode_exists) {
+                        get_coeffs().replace(child,nodeT(child_s_coeffs,false));
+                        get_coeffs().find(acc,child);
+                    } else if (childnode_exists and need_s_coeffs) {
+                        acc->second.coeff()=child_s_coeffs;
+                    }
+                    bool exists= get_coeffs().find(acc,child);
+                    MADNESS_CHECK(exists);
+                    nodeT& childnode = acc->second;
+                    if (need_s_coeffs) childnode.recompute_snorm_and_dnorm(get_cdata());
+//                    print("recurring down to",child);
+                    contraction_map.merge(recur_down_for_contraction_map(child,childnode, v_this, v_other,
+                                                                         ij_other_list, j_other_list, this_first, thresh));
+//                    print("contraction_map.size()",contraction_map.size());
+                }
+
+            }
+
+            return contraction_map;
+        }
+
+
+        /// tensor contraction part of partial_inner
+
+        /// @param[in]  g   rhs of the inner product
+        /// @param[in]  h   lhs of the inner product
+        /// @param[in]  v1  dimensions of g to be contracted
+        /// @param[in]  v2  dimensions of h to be contracted
+        /// @param[in]  key key of result's (this) FunctionNode
+        /// @param[in]  j_key_list list of contraction index-j keys contributing to this' node
+        template<typename Q, std::size_t LDIM, typename R, std::size_t KDIM,
+                std::size_t CDIM = (KDIM + LDIM - NDIM) / 2>
+        void partial_inner_contract(const FunctionImpl<Q, LDIM>* g, const FunctionImpl<R, KDIM>* h,
+                               const std::array<int, CDIM> v1, const std::array<int, CDIM> v2,
+                               const Key<NDIM>& key, const std::list<Key<CDIM>>& j_key_list) {
+
+            Key<LDIM - CDIM> i_key;
+            Key<KDIM - CDIM> k_key;
+            key.break_apart(i_key, k_key);
+
+            coeffT result_coeff(get_cdata().v2k, get_tensor_type());
+            for (const auto& j_key: j_key_list) {
+
+                auto v_complement = [](const auto& v, const auto& vc) {
+                    constexpr std::size_t VDIM = std::tuple_size<std::decay_t<decltype(v)>>::value;
+                    constexpr std::size_t VCDIM = std::tuple_size<std::decay_t<decltype(vc)>>::value;
+                    std::array<int, VCDIM> result;
+                    for (std::size_t i = 0; i < VCDIM; i++) result[i] = (v.back() + i + 1) % (VDIM + VCDIM);
+                    return result;
+                };
+                auto make_ij_key = [&v_complement](const auto i_key, const auto j_key, const auto& v) {
+                    constexpr std::size_t IDIM = std::decay_t<decltype(i_key)>::static_size;
+                    constexpr std::size_t JDIM = std::decay_t<decltype(j_key)>::static_size;
+                    static_assert(JDIM == std::tuple_size<std::decay_t<decltype(v)>>::value);
+
+                    Vector<Translation, IDIM + JDIM> l;
+                    for (int i = 0; i < v.size(); ++i) l[v[i]] = j_key.translation()[i];
+                    std::array<int, IDIM> vc1;
+                    auto vc = v_complement(v, vc1);
+                    for (int i = 0; i < vc.size(); ++i) l[vc[i]] = i_key.translation()[i];
+
+                    return Key<IDIM + JDIM>(i_key.level(), l);
+                };
+
+                Key<LDIM> ij_key = make_ij_key(i_key, j_key, v1);
+                Key<KDIM> jk_key = make_ij_key(k_key, j_key, v2);
+
+                MADNESS_CHECK(g->get_coeffs().probe(ij_key));
+                MADNESS_CHECK(h->get_coeffs().probe(jk_key));
+                const coeffT& gcoeff = g->get_coeffs().find(ij_key).get()->second.coeff();
+                const coeffT& hcoeff = h->get_coeffs().find(jk_key).get()->second.coeff();
+                coeffT gcoeff1, hcoeff1;
+                if (gcoeff.dim(0) == g->get_cdata().k) {
+                    gcoeff1 = coeffT(g->get_cdata().v2k, g->get_tensor_args());
+                    gcoeff1(g->get_cdata().s0) += gcoeff;
+                } else {
+                    gcoeff1 = gcoeff;
+                }
+                if (hcoeff.dim(0) == g->get_cdata().k) {
+                    hcoeff1 = coeffT(h->get_cdata().v2k, h->get_tensor_args());
+                    hcoeff1(h->get_cdata().s0) += hcoeff;
+                } else {
+                    hcoeff1 = hcoeff;
+                }
+
+                // offset: 0 for full tensor, 1 for svd representation with rand being the first dimension (r,d1,d2,d3) -> (r,d1*d2*d3)
+                auto fuse = [](Tensor<T> tensor, const std::array<int, CDIM>& v, int offset) {
+                    for (int i = 0; i < CDIM - 1; ++i) {
+                        MADNESS_CHECK((v[i] + 1) == v[i + 1]); // make sure v is contiguous and ascending
+                        tensor = tensor.fusedim(v[0]+offset);
+                    }
+                    return tensor;
+                };
+
+                // use case: partial_projection of 2-electron functions in svd representation  f(1) = \int g(2) h(1,2) d2
+                // c_i = \sum_j a_j b_ij = \sum_jr a_j b_rj b'_rj
+                //                       = \sum_jr ( a_j b_rj) b'_rj )
+                auto contract2 = [](const auto& svdcoeff, const auto& tensor, const int particle) {
+#if HAVE_GENTENSOR
+                    const int spectator_particle=(particle+1)%2;
+                    Tensor<Q> gtensor = svdcoeff.get_svdtensor().make_vector_with_weights(particle);
+                    gtensor=gtensor.reshape(svdcoeff.rank(),gtensor.size()/svdcoeff.rank());
+                    MADNESS_CHECK(gtensor.ndim()==2);
+                    Tensor<Q> gtensor_other = svdcoeff.get_svdtensor().ref_vector(spectator_particle);
+                    Tensor<T> tmp1=inner(gtensor,tensor.flat(),1,0);          // tmp1(r) = sum_j a'_(r,j) b(j)
+                    MADNESS_CHECK(tmp1.ndim()==1);
+                    Tensor<T> tmp2=inner(gtensor_other,tmp1,0,0);          // tmp2(i) = sum_r a_(r,i) tmp1(r)
+                    return tmp2;
+#else
+                    MADNESS_EXCEPTION("no partial_inner using svd without GenTensor",1);
+                    return Tensor<T>();
+#endif
+                };
+
+                if (gcoeff.is_full_tensor() and hcoeff.is_full_tensor() and result_coeff.is_full_tensor()) {
+                    // merge multiple contraction dimensions into one
+                    int offset = 0;
+                    Tensor<Q> gtensor = fuse(gcoeff1.full_tensor(), v1, offset);
+                    Tensor<R> htensor = fuse(hcoeff1.full_tensor(), v2, offset);
+                    result_coeff.full_tensor() += inner(gtensor, htensor, v1[0], v2[0]);
+                    if (key.level() > 0) {
+                        gtensor = copy(gcoeff1.full_tensor()(g->get_cdata().s0));
+                        htensor = copy(hcoeff1.full_tensor()(h->get_cdata().s0));
+                        gtensor = fuse(gtensor, v1, offset);
+                        htensor = fuse(htensor, v2, offset);
+                        result_coeff.full_tensor()(get_cdata().s0) -= inner(gtensor, htensor, v1[0], v2[0]);
+                    }
+                }
+
+
+                // use case: 2-electron functions in svd representation  f(1,3) = \int g(1,2) h(2,3) d2
+                // c_ik = \sum_j a_ij b_jk = \sum_jrr' a_ri a'_rj b_r'j b_r'k
+                //                         = \sum_jrr' ( a_ri (a'_rj b_r'j) )  b_r'k
+                //                         = \sum_jrr' c_r'i  b_r'k
+                else if (gcoeff.is_svd_tensor() and hcoeff.is_svd_tensor() and result_coeff.is_svd_tensor()) {
+                    MADNESS_CHECK(v1[0]==0 or v1[CDIM-1]==LDIM-1);
+                    MADNESS_CHECK(v2[0]==0 or v2[CDIM-1]==KDIM-1);
+                    int gparticle=  v1[0]==0 ? 0 : 1;       // which particle to integrate over
+                    int hparticle=  v2[0]==0 ? 0 : 1;       // which particle to integrate over
+                    // merge multiple contraction dimensions into one
+                    Tensor<Q> gtensor = gcoeff1.get_svdtensor().make_vector_with_weights(gparticle);
+                    Tensor<Q> gtensor_other = gcoeff1.get_svdtensor().flat_vector((gparticle+1)%2);
+                    Tensor<R> htensor = hcoeff1.get_svdtensor().make_vector_with_weights(hparticle);
+                    Tensor<R> htensor_other = hcoeff1.get_svdtensor().flat_vector((hparticle+1)%2);
+                    Tensor<T> tmp1=inner(gtensor,htensor,1,1);      // tmp1(r,r') = sum_j b(r,j) a(r',j)
+                    Tensor<T> tmp2=inner(tmp1,gtensor_other,0,0);   // tmp2(r',i) = sum_r tmp1(r,r') a(r,i)
+                    Tensor< typename Tensor<T>::scalar_type > w(tmp2.dim(0));
+                    MADNESS_CHECK(tmp2.dim(0)==htensor_other.dim(0));
+                    w=1.0;
+                    coeffT result_tmp(get_cdata().v2k, get_tensor_type());
+                    result_tmp.get_svdtensor().set_vectors_and_weights(w,tmp2,htensor_other);
+                    if (key.level() > 0) {
+                        GenTensor<Q> gcoeff2 = copy(gcoeff1(g->get_cdata().s0));
+                        GenTensor<R> hcoeff2 = copy(hcoeff1(h->get_cdata().s0));
+                        Tensor<Q> gtensor = gcoeff2.get_svdtensor().make_vector_with_weights(gparticle);
+                        Tensor<Q> gtensor_other = gcoeff2.get_svdtensor().flat_vector((gparticle+1)%2);
+                        Tensor<R> htensor = hcoeff2.get_svdtensor().make_vector_with_weights(hparticle);
+                        Tensor<R> htensor_other = hcoeff2.get_svdtensor().flat_vector((hparticle+1)%2);
+                        Tensor<T> tmp1=inner(gtensor,htensor,1,1);      // tmp1(r,r') = sum_j b(r,j) a(r',j)
+                        Tensor<T> tmp2=inner(tmp1,gtensor_other,0,0);   // tmp2(r',i) = sum_r tmp1(r,r') a(r,i)
+                        Tensor< typename Tensor<T>::scalar_type > w(tmp2.dim(0));
+                        MADNESS_CHECK(tmp2.dim(0)==htensor_other.dim(0));
+                        w=1.0;
+                        coeffT result_coeff1(get_cdata().vk, get_tensor_type());
+                        result_coeff1.get_svdtensor().set_vectors_and_weights(w,tmp2,htensor_other);
+                        result_tmp(get_cdata().s0)-=result_coeff1;
+                    }
+                    result_coeff+=result_tmp;
+                }
+
+                // use case: partial_projection of 2-electron functions in svd representation  f(1) = \int g(2) h(1,2) d2
+                // c_i = \sum_j a_j b_ij = \sum_jr a_j b_rj b'_rj
+                //                       = \sum_jr ( a_j b_rj) b'_rj )
+                else if (gcoeff.is_full_tensor() and hcoeff.is_svd_tensor() and result_coeff.is_full_tensor()) {
+                    MADNESS_CHECK(v1[0]==0 and v1[CDIM-1]==LDIM-1);
+                    MADNESS_CHECK(v2[0]==0 or v2[CDIM-1]==KDIM-1);
+                    MADNESS_CHECK(LDIM==CDIM);
+                    int hparticle=  v2[0]==0 ? 0 : 1;       // which particle to integrate over
+
+                    Tensor<T> r=contract2(hcoeff1,gcoeff1.full_tensor(),hparticle);
+                    if (key.level()>0) r(get_cdata().s0)-=contract2(copy(hcoeff1(h->get_cdata().s0)),copy(gcoeff.full_tensor()(g->get_cdata().s0)),hparticle);
+                    result_coeff.full_tensor()+=r;
+                }
+                // use case: partial_projection of 2-electron functions in svd representation  f(1) = \int g(1,2) h(2) d2
+                // c_i = \sum_j a_ij b_j = \sum_jr a_ri a'_rj b_j
+                //                       = \sum_jr ( a_ri (a'_rj b_j) )
+                else if (gcoeff.is_svd_tensor() and hcoeff.is_full_tensor() and result_coeff.is_full_tensor()) {
+                    MADNESS_CHECK(v1[0]==0 or v1[CDIM-1]==LDIM-1);
+                    MADNESS_CHECK(v2[0]==0 and v2[CDIM-1]==KDIM-1);
+                    MADNESS_CHECK(KDIM==CDIM);
+                    int gparticle=  v1[0]==0 ? 0 : 1;       // which particle to integrate over
+
+                    Tensor<T> r=contract2(gcoeff1,hcoeff1.full_tensor(),gparticle);
+                    if (key.level()>0) r(get_cdata().s0)-=contract2(copy(gcoeff1(g->get_cdata().s0)),copy(hcoeff.full_tensor()(h->get_cdata().s0)),gparticle);
+                    result_coeff.full_tensor()+=r;
+
+                } else {
+                    MADNESS_EXCEPTION("unknown case in partial_inner_contract",1);
+                }
+            }
+
+            MADNESS_CHECK(result_coeff.is_assigned());
+            result_coeff.reduce_rank(get_thresh());
+
+            if (coeffs.is_local(key))
+                coeffs.send(key, &nodeT::accumulate, result_coeff, coeffs, key, get_tensor_args());
+            else
+                coeffs.task(key, &nodeT::accumulate, result_coeff, coeffs, key, get_tensor_args(), TaskAttributes::hipri());
+        }
+
         /// Return the inner product with an external function on a specified function node.
+
         /// @param[in] key Key of the function node to compute the inner product on. (the domain of integration)
         /// @param[in] c Tensor of coefficients for the function at the function node given by key
         /// @param[in] f Reference to FunctionFunctorInterface. This is the externally provided function
@@ -5722,7 +6191,7 @@ namespace madness {
                 literT it = left->coeffs.find(key).get();
                 MADNESS_ASSERT(it != left->coeffs.end());
                 if (it->second.has_coeff())
-                    lc = it->second.coeff().full_tensor_copy();
+                    lc = it->second.coeff().reconstruct_tensor();
             }
 
             // Compute this node's coefficients if not provided in function call

@@ -98,10 +98,12 @@ namespace madness {
         typedef Key<NDIM> keyT;
         typedef LBNodeDeux<NDIM> nodeT;
         typedef WorldContainer<keyT,nodeT> treeT;
-        volatile double child_cost[nchild];
-        volatile double my_cost;
-        volatile double total_cost;
-        volatile bool gotkids;
+        
+        double child_cost[nchild]; // Removed volatile since all parallel updates will be under mutex from active message and no unprotected reads
+        double my_cost;
+        double total_cost;
+        bool gotkids;
+        
         AtomicInt nsummed;
 
         /// Computes index of child key in this node using last bit of translations

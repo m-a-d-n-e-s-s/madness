@@ -6,6 +6,10 @@
 
 */
 
+/**
+ * TODO:  - delete container record upon caching if container is replicated
+ *        - set read-only option upon replicating
+ */
 
 #ifndef SRC_MADNESS_WORLD_CLOUD_H_
 #define SRC_MADNESS_WORLD_CLOUD_H_
@@ -115,11 +119,12 @@ public:
 
     typedef std::any cached_objT;
     using keyT = madness::archive::ContainerRecordOutputArchive::keyT;
+    using valueT = std::vector<unsigned char>;
     typedef std::map<keyT, cached_objT> cacheT;
     typedef Recordlist<keyT> recordlistT;
 
 private:
-    madness::WorldContainer<keyT, std::vector<unsigned char> > container;
+    madness::WorldContainer<keyT, valueT> container;
     cacheT cached_objects;
     recordlistT local_list_of_container_keys;   // a world-local list of keys occupied in container
 
@@ -145,8 +150,10 @@ public:
     void print_timings(World &universe) const {
         double rtime = double(reading_time);
         double wtime = double(writing_time);
+        double ptime = double(replication_time);
         universe.gop.sum(rtime);
         universe.gop.sum(wtime);
+        universe.gop.sum(ptime);
         long creads = long(cache_reads);
         long cstores = long(cache_stores);
         universe.gop.sum(creads);
@@ -155,6 +162,7 @@ public:
             auto precision = std::cout.precision();
             std::cout << std::fixed << std::setprecision(1);
             print("cloud storing cpu time", wtime * 0.001);
+            print("cloud replication cpu time", ptime * 0.001);
             print("cloud reading cpu time", rtime * 0.001, std::defaultfloat);
             std::cout << std::setprecision(precision) << std::scientific;
             print("cloud cache stores    ", long(cstores));
@@ -170,6 +178,7 @@ public:
     void clear_timings() {
         reading_time=0l;
         writing_time=0l;
+        replication_time=0l;
         cache_stores=0l;
         cache_reads=0l;
     }
@@ -198,19 +207,75 @@ public:
         return recordlist;
     }
 
+    void replicate(const std::size_t chunk_size=INT_MAX) {
+
+        World& world=container.get_world();
+        cloudtimer t(world,replication_time);
+        container.reset_pmap_to_local();
+
+        std::list<keyT> keylist;
+        for (auto it=container.begin(); it!=container.end(); ++it) {
+            keylist.push_back(it->first);
+        }
+
+        for (ProcessID rank=0; rank<world.size(); rank++) {
+            if (rank == world.rank()) {
+                std::size_t keylistsize = keylist.size();
+                world.mpi.Bcast(&keylistsize,sizeof(keylistsize),MPI_BYTE,rank);
+
+                for (auto key : keylist) {
+                    madness::WorldContainer<keyT, std::vector<unsigned char> >::const_accessor acc;
+                    bool found=container.find(acc,key);
+                    MADNESS_CHECK(found);
+                    auto data = acc->second;
+                    std::size_t sz=data.size();
+
+                    world.mpi.Bcast(&key,sizeof(key),MPI_BYTE,rank);
+                    world.mpi.Bcast(&sz,sizeof(sz),MPI_BYTE,rank);
+
+                    // if data is too large for MPI_INT break it into pieces to avoid integer overflow
+                    for (std::size_t start=0; start<sz; start+=chunk_size) {
+                        std::size_t remainder = std::min(sz - start, chunk_size);
+                        world.mpi.Bcast(&data[start], remainder, MPI_BYTE, rank);
+                    }
+
+                }
+            }
+            else {
+                std::size_t keylistsize;
+                world.mpi.Bcast(&keylistsize,sizeof(keylistsize),MPI_BYTE,rank);
+                for (size_t i=0; i<keylistsize; i++) {
+                    keyT key;
+                    world.mpi.Bcast(&key,sizeof(key),MPI_BYTE,rank);
+                    std::size_t sz;
+                    world.mpi.Bcast(&sz,sizeof(sz),MPI_BYTE,rank);
+                    valueT data(sz);
+//                    world.mpi.Bcast(&data[0],sz,MPI_BYTE,rank);
+                    for (std::size_t start=0; start<sz; start+=chunk_size) {
+                        std::size_t remainder=std::min(sz-start,chunk_size);
+                        world.mpi.Bcast(&data[start],remainder,MPI_BYTE,rank);
+                    }
+
+                    container.replace(key,data);
+                }
+            }
+        }
+        world.gop.fence();
+    }
+
 private:
 
     mutable std::atomic<long> reading_time=0l;    // in ms
     mutable std::atomic<long> writing_time=0l;    // in ms
+    mutable std::atomic<long> replication_time=0l;    // in ms
     mutable std::atomic<long> cache_reads=0l;
     mutable std::atomic<long> cache_stores=0l;
 
-    template<typename>
-    struct is_tuple : std::false_type {
-    };
-    template<typename ...T>
-    struct is_tuple<std::tuple<T...>> : std::true_type {
-    };
+    template<typename> struct is_tuple : std::false_type { };
+    template<typename ...T> struct is_tuple<std::tuple<T...>> : std::true_type { };
+
+    template<typename Q> struct is_vector : std::false_type { };
+    template<typename Q> struct is_vector<std::vector<Q>> : std::true_type { };
 
     template<typename>
     struct is_madness_function_vector : std::false_type {
@@ -218,6 +283,8 @@ private:
     template<typename T, std::size_t NDIM>
     struct is_madness_function_vector<std::vector<Function<T, NDIM>>> : std::true_type {
     };
+
+    template<typename T> using is_parallel_serializable_object = std::is_base_of<archive::ParallelSerializableObject,T>;
 
     template<typename T> using is_world_constructible = std::is_constructible<T, World &>;
 
@@ -252,8 +319,12 @@ private:
     template<typename T>
     T load_internal(madness::World &world, recordlistT &recordlist) const {
         T result;
-        if constexpr (is_madness_function_vector<T>::value) {
-            result = load_madness_function_vector<T>(world, recordlist);
+        if constexpr (is_vector<T>::value) {
+            if constexpr( is_parallel_serializable_object<typename T::value_type>::value) {
+                result = load_vector_of_parallel_serializable_objects<T>(world, recordlist);
+            } else {
+                result = load_other<T>(world, recordlist);
+            }
         } else {
             result = load_other<T>(world, recordlist);
         }
@@ -318,8 +389,9 @@ private:
     }
 
     // overloaded
-    template<typename T, std::size_t NDIM>
-    recordlistT store_other(madness::World &world, const std::vector<Function<T, NDIM>> &source) {
+    template<typename T>
+    std::enable_if_t<is_parallel_serializable_object<T>::value, recordlistT>
+    store_other(madness::World& world, const std::vector<T>& source) {
         if (debug)
             std::cout << "storing " << typeid(source).name() << " of size " << source.size() << std::endl;
         recordlistT l = store_other(world, source.size());
@@ -329,8 +401,20 @@ private:
         return l;
     }
 
+//    // overloaded
+//    template<typename T, std::size_t NDIM>
+//    recordlistT store_other(madness::World &world, const std::vector<Function<T, NDIM>> &source) {
+//        if (debug)
+//            std::cout << "storing " << typeid(source).name() << " of size " << source.size() << std::endl;
+//        recordlistT l = store_other(world, source.size());
+//        for (auto s : source) l += store_other(world, s);
+//        if (dofence) world.gop.fence();
+//        if (debug) std::cout << "done with vector storing; container size " << container.size() << std::endl;
+//        return l;
+//    }
+
     template<typename T>
-    T load_madness_function_vector(World &world, recordlistT &recordlist) const {
+    T load_vector_of_parallel_serializable_objects(World &world, recordlistT &recordlist) const {
         std::size_t sz = load_other<std::size_t>(world, recordlist);
         T target(sz);
         for (std::size_t i = 0; i < sz; ++i) {

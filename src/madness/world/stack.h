@@ -151,7 +151,7 @@ namespace madness {
     /// \tparam T The type of data stored in the stack.
     /// \tparam N The fixed size of the stack.
     template <typename T, unsigned int N>
-    class Stack : public detail::StackBase<T, std::is_pod<T>::value> {
+    class Stack : public detail::StackBase<T, std::is_standard_layout<T>::value && std::is_trivial<T>::value> {
     public:
         typedef T value_type; ///< Type of the stack elements.
         typedef T& reference; ///< Element reference type.
@@ -164,7 +164,7 @@ namespace madness {
         size_type capacity_; ///< The maximum size, in elements, of the \c data_ buffer.
         char buffer_[sizeof(T) * N]; ///< Static buffer for storing a small number of elements.
 
-        typedef detail::StackBase<T, std::is_pod<T>::value> StackBase_;
+        typedef detail::StackBase<T, std::is_standard_layout<T>::value && std::is_trivial<T>::value> StackBase_;
 
         using StackBase_::destroy;
         using StackBase_::uninitialized_move;

@@ -474,8 +474,11 @@ public:
                     Tensor<T> a1=flat_vector(i);
                     Tensor<T> b1=other.flat_vector(i);
                 	Tensor<T> r1=result.vector_[i].reshape(finalrank,kVec(i));
+                    Tensor<T> tmp(finalrank,1);
                     for (int k=0; k<a1.dim(1); ++k) {
-                    	r1(_,Slice(k,k))=outer(a1(_,k),b1(_,k)).reshape(finalrank,1);
+//                    	r1(_,Slice(k,k))=outer(a1(_,k),b1(_,k)).reshape(finalrank,1);
+                        outer_result(a1(_,k),b1(_,k),tmp);
+                        r1(_,Slice(k,k))=tmp;
                     }
                 }
             }
@@ -683,11 +686,15 @@ protected:
 	protected:
 
         Tensor<T> make_left_vector_with_weights() const {
-        	Tensor<T> v=copy(vector_[0].reshape(rank(),vector_[0].size()/rank()));
-        	for (unsigned int r=0; r<rank(); r++) {
-            	v(r,_)*=weights(r);
-            }
-        	return v;
+            return make_vector_with_weights(0);
+        }
+
+    public:
+        Tensor<T> make_vector_with_weights(const int dim) const {
+            Tensor<T> v=copy(vector_[dim].reshape(rank(),vector_[dim].size()/rank()));
+            for (unsigned int r=0; r<rank(); r++) v(r,_)*=weights(r);
+            v=v.reshape(ndim(),vector_[dim].dims());
+            return v;
         }
 
 	protected:

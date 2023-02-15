@@ -86,7 +86,7 @@ namespace madness {
 
         unsigned char header[RMI::HEADER_LEN]; // !!!!!!!!!  MUST BE FIRST !!!!!!!!!!
         std::size_t nbyte;      // Size of user payload
-        unsigned long worldid;  // Id of associated world
+        std::uint64_t worldid;  // Id of associated world
         std::ptrdiff_t func;    // User function to call, as a relative fn ptr (see archive::to_rel_fn_ptr)
         ProcessID src;          // Rank of process sending the message
         unsigned int flags;     // Misc. bit flags
@@ -154,7 +154,7 @@ namespace madness {
         World* get_world() const { return World::world_from_id(worldid); }
 
         /// Return the world id
-        unsigned long get_worldid() const { return worldid; }
+        std::uint64_t get_worldid() const { return worldid; }
     };
 
 
@@ -244,9 +244,10 @@ namespace madness {
         unsigned long worldid;              ///< The world which contains this instance of WorldAmInterface
         const ProcessID rank;
         const int nproc;
-        volatile int cur_msg;               ///< Index of next buffer to attempt to use
-        volatile unsigned long nsent;       ///< Counts no. of AM sent for purpose of termination detection
-        volatile unsigned long nrecv;       ///< Counts no. of AM received for purpose of termination detection
+        // Next 3 were volatile but no need since protected by spinlock with implied barriers/fence
+        int cur_msg;               ///< Index of next buffer to attempt to use
+        unsigned long nsent;       ///< Counts no. of AM sent for purpose of termination detection
+        unsigned long nrecv;       ///< Counts no. of AM received for purpose of termination detection
 
         std::vector<int> map_to_comm_world; ///< Maps rank in current MPI communicator to SafeMPI::COMM_WORLD
 

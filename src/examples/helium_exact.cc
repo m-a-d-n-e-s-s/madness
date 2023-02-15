@@ -40,7 +40,7 @@
  */
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <madness/world/info.h>
+#include <madness/misc/info.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/funcplot.h>
@@ -48,11 +48,11 @@
 
 #include <iostream>
 
-#include <chem/SCF.h>
-#include <chem/nemo.h>
-#include <chem/correlationfactor.h>
-#include <chem/electronic_correlation_factor.h>
-#include <chem/commandlineparser.h>
+#include<madness/chem/SCF.h>
+#include<madness/chem/nemo.h>
+#include<madness/chem/correlationfactor.h>
+#include<madness/chem/electronic_correlation_factor.h>
+#include<madness/chem/commandlineparser.h>
 
 
 // switch the electronic interaction on or off
@@ -441,7 +441,7 @@ int main(int argc, char** argv) {
 	std::cout.precision(6);
 
 	if (world.rank()==0) {
-		print("           git revision ...", info::git_commit());
+          print("           git source description ...", info::git_source_description());
 	}
 
 	if (world.rank() == 0) {

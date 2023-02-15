@@ -73,10 +73,10 @@ namespace madness {
         }
 
         std::string errmsg = std::string("position_stream: failed to locate ") + tag;
-        printf("%s\n",errmsg.c_str());
         if (silent) {
             throw MadnessException(errmsg.c_str(),0,0,__LINE__,__FUNCTION__,__FILE__); \
         } else {
+            printf("%s\n",errmsg.c_str());
             MADNESS_EXCEPTION(errmsg.c_str(),0);
         }
         return f;

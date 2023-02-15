@@ -18,6 +18,7 @@ namespace madness {
     parsec_hook_return_t release_madness_task (parsec_execution_stream_t *es, 
                                                parsec_task_t *task) {
         PoolTaskInterface *c = ((PoolTaskInterface **)task->locals)[0];
+        assert(c);
         (void)es;
         delete(c);
         return PARSEC_HOOK_RETURN_DONE;
@@ -26,6 +27,7 @@ namespace madness {
     parsec_hook_return_t run_madness_task(parsec_execution_stream_t *eu,
                                           parsec_task_t *task) {
         PoolTaskInterface *c = ((PoolTaskInterface **)task->locals)[0];
+        assert(c);
         c->run(TaskThreadEnv(1, 0, 0));
         return PARSEC_HOOK_RETURN_DONE;
     }
@@ -91,7 +93,7 @@ namespace madness {
     };
 
     const parsec_task_class_t* madness_parsec_tc_array[]= {&(madness::madness_parsec_tc), NULL};
-    parsec_taskpool_t ParsecRuntime::taskpool = {
+    parsec_taskpool_t ParsecRuntime::tp = {
             .super = { 0x0, },
             .taskpool_id = 0,
             .taskpool_name = (char*)"MADNESS taskpool",
@@ -117,69 +119,87 @@ namespace madness {
             .dependencies_array = NULL,
             .repo_array = NULL
     };
-    parsec_context_t *ParsecRuntime::context = nullptr;
+    parsec_context_t *ParsecRuntime::ctx = nullptr;
 #ifdef PARSEC_PROF_TRACE
     int ParsecRuntime::taskpool_profiling_array[2];
 #endif
     ParsecRuntime::ParsecRuntime(int nb_threads) {
-        assert(context == nullptr);
+        assert(ctx == nullptr);
         /* Scheduler init*/
         int argc = 1;
         char *argv[2] = { (char *)"madness-app", nullptr };
         char **pargv = (char **)argv;
-        context = parsec_init(nb_threads, &argc, &pargv);
+        ctx = parsec_init(nb_threads, &argc, &pargv);
         MPI_Comm parsec_comm  = MPI_COMM_SELF;
-        parsec_remote_dep_set_ctx(context, (intptr_t)parsec_comm);
+        parsec_remote_dep_set_ctx(ctx, (intptr_t)parsec_comm);
 #ifdef PARSEC_PROF_TRACE
-        taskpool.profiling_array = ParsecRuntime::taskpool_profiling_array;
+        ParsecRuntime::tp.profiling_array = ParsecRuntime::taskpool_profiling_array;
         parsec_profiling_add_dictionary_keyword("MADNESS TASK", "fill:CC2828", 0, "",
-                                                (int *)&taskpool.profiling_array[0],
-                                                (int *)&taskpool.profiling_array[1]);
+                                                (int *)&ParsecRuntime::tp.profiling_array[0],
+                                                (int *)&ParsecRuntime::tp.profiling_array[1]);
 #endif
-        if( 0 != parsec_context_add_taskpool(context, &taskpool) ) {
+        if( 0 != parsec_context_add_taskpool(ctx, &tp) ) {
             std::cerr << "ERROR: parsec_context_add_taskpool failed!!" << std::endl;
         }
-        parsec_taskpool_update_runtime_nbtask(&taskpool, 1);
-        if( 0 != parsec_context_start(context) ) {
+        parsec_taskpool_update_runtime_nbtask(&tp, 1);
+        if( 0 != parsec_context_start(ctx) ) {
             std::cerr << "ERROR: context_context_start failed!!" << std::endl;
         }
     }
 
     ParsecRuntime::~ParsecRuntime() {
-        parsec_fini(&context);
-        context = nullptr;
+        parsec_fini(&ctx);
+        ctx = nullptr;
     }
 
-    parsec_task_t ParsecRuntime::task(bool is_high_priority, void *ptr) {
-        parsec_task_t parsec_task{};
-        parsec_task.taskpool   = &taskpool;
-        parsec_task.task_class = &madness_parsec_tc;
-        parsec_task.chore_id   = 0;
-        parsec_task.status     = PARSEC_TASK_STATUS_NONE;
-        parsec_task.priority   = is_high_priority ? 1000 : 0; // 1 & 0 would work as good
-        ((void **)parsec_task.locals)[0] = ptr;
+    parsec_context_t *ParsecRuntime::context() { return ctx; }
+
+    parsec_execution_stream_t *ParsecRuntime::execution_stream() {
+        parsec_execution_stream_t *my_es;
+        my_es = parsec_my_execution_stream();
+        if(nullptr == my_es) {
+            my_es = context()->virtual_processes[0]->execution_streams[0];
+        }
+        assert(nullptr != my_es);
+        return my_es;
+    }
+
+    parsec_task_t *ParsecRuntime::task(bool is_high_priority, void *ptr) {
+        parsec_execution_stream_t *my_es = execution_stream();
+        parsec_task_t* parsec_task = static_cast<parsec_task_t*>( parsec_thread_mempool_allocate( my_es->context_mempool ) );
+        PARSEC_LIST_ITEM_SINGLETON(parsec_task);
+        parsec_task->taskpool   = &tp;
+        parsec_task->task_class = &madness_parsec_tc;
+        parsec_task->chore_id   = 0;
+        parsec_task->status     = PARSEC_TASK_STATUS_NONE;
+        parsec_task->priority   = is_high_priority ? 1000 : 0; // 1 & 0 would work as good
+        ((void **)parsec_task->locals)[0] = ptr;
         return parsec_task;
     }
 
+    void ParsecRuntime::delete_parsec_task(parsec_task_t *task) {
+        parsec_thread_mempool_free( task->mempool_owner, task );
+    }
+
     void ParsecRuntime::schedule(PoolTaskInterface *task) {
-        parsec_task_t *parsec_task = &(task->parsec_task);
+        parsec_task_t* parsec_task = task->parsec_task;
         PARSEC_LIST_ITEM_SINGLETON(parsec_task);
-        taskpool.tdm.module->taskpool_addto_nb_tasks(&taskpool, 1);
-        __parsec_schedule(context->virtual_processes[0]->execution_streams[0], parsec_task, 0);
+        tp.tdm.module->taskpool_addto_nb_tasks(&tp, 1);
+        __parsec_schedule(execution_stream(), parsec_task, 0);
     }
 
     void ParsecRuntime::wait() {
-        parsec_taskpool_update_runtime_nbtask(&taskpool, -1);
-        parsec_context_wait(context);
+        parsec_taskpool_update_runtime_nbtask(&tp, -1);
+        parsec_context_wait(ctx);
     }
 
     int ParsecRuntime::test() {
-        int rc = parsec_taskpool_test(&taskpool);
+        int rc = parsec_taskpool_test(&tp);
         assert(rc >= 0);
         return rc;
     }
 
-  extern "C"{
+    extern "C"{
 
 #include <stdio.h>
 

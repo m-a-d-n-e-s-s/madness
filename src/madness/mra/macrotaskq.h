@@ -158,6 +158,7 @@ public:
 		for (int i=0; i<vtask.size(); ++i) add_replicated_task(vtask[i]);
 		if (printdebug()) print_taskq();
 
+		cloud.replicate();
         universe.gop.fence();
         universe.gop.set_forbid_fence(true); // make sure there are no hidden universe fences
         pmap1=FunctionDefaults<1>::get_pmap();
@@ -288,17 +289,18 @@ private:
 };
 
 
-template<typename Q>
-struct is_vector : std::false_type {
-};
-template<typename Q>
-struct is_vector<std::vector<Q>> : std::true_type {
-};
 
 
 template<typename taskT>
 class MacroTask {
     using partitionT = MacroTaskPartitioner::partitionT;
+
+    template<typename Q>
+    struct is_vector : std::false_type {
+    };
+    template<typename Q>
+    struct is_vector<std::vector<Q>> : std::true_type {
+    };
 
     typedef typename taskT::resultT resultT;
     typedef typename taskT::argtupleT argtupleT;

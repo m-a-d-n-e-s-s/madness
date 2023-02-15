@@ -44,6 +44,7 @@
 #include <list>
 #include <vector>
 #include <madness/world/worldmutex.h>
+#include <madness/world/array_addons.h>
 
 #ifdef BRAINDEAD
 // Cray XT nonsense
@@ -87,6 +88,20 @@ std::ostream &operator<<(std::ostream &s, const std::pair<T, U> &p) {
   s << "(" << p.first << "," << p.second << ")";
   return s;
 }
+
+///// Easy printing of std::arrays.
+//
+///// \tparam U Type 2 of the pair.
+///// \param[in,out] s The output stream.
+///// \param[in] p The pair.
+///// \return The output stream (for chaining).
+//template <typename T, std::size_t NDIM>
+//std::ostream &operator<<(std::ostream &s, const std::array<T, NDIM> &p) {
+//    s << "[";
+//    for (int i=0; i<p.size(); ++i) s << p[i];
+//    s << "]";
+//    return s;
+//}
 
 /// Easy printing of lists.
 

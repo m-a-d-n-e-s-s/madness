@@ -1,5 +1,5 @@
 #include "molresponse/property.h"
-#include <chem/SCF.h>
+#include <madness/chem/SCF.h>
 
 #include <molresponse/TDDFT.h>
 #include <molresponse/response_functions.h>
@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <vector>
 
-
+using namespace madchem;
 
 
 PropertyBase::PropertyBase() : num_operators(0), operator_vector() {}
