@@ -185,7 +185,7 @@ namespace madness {
 
         class RmiTask
 #if HAVE_INTEL_TBB
-                : public tbb::task, private madness::Mutex
+                : private madness::Mutex
 #else
                 : public madness::ThreadBase, private madness::Mutex
 #endif // HAVE_INTEL_TBB
@@ -204,8 +204,7 @@ namespace madness {
             SafeMPI::Intracomm comm;
             const int nproc;            // No. of processes in comm world
             const ProcessID rank;       // Rank of this process
-            bool volatile finished;     // True if finished ... still needs to be volatile since read without critical section or external call
-
+            std::atomic<bool> finished;     // True if finished ... atomic seems preferable to volatile
             std::unique_ptr<counterT[]> send_counters; // used to be volatile but no need
             std::unique_ptr<counterT[]> recv_counters;
             std::size_t max_msg_len_;
@@ -230,17 +229,17 @@ namespace madness {
             static void set_rmi_task_is_running(bool flag = true);
 
 #if HAVE_INTEL_TBB
-            tbb::task* execute() {
+            void run() {
                 set_rmi_task_is_running(true);
                 RMI::set_this_thread_is_server(true);
 
                 while (! finished) process_some();
-                finished = false;  // to ensure that RmiTask::exit() that
-                                   // triggered the exit proceeds to completion
 
                 RMI::set_this_thread_is_server(false);
                 set_rmi_task_is_running(false);
-                return nullptr;
+
+                finished = false;  // to ensure that RmiTask::exit() that
+                                   // triggered the exit proceeds to completion
             }
 #else
             void run() {
@@ -286,11 +285,8 @@ namespace madness {
 
         }; // class RmiTask
 
-#if HAVE_INTEL_TBB
-        static tbb::task* tbb_rmi_parent_task;
-#endif // HAVE_INTEL_TBB
 
-        static RmiTask* task_ptr;    // Pointer to the singleton instance
+        static std::unique_ptr<RmiTask> task_ptr;    // Pointer to the singleton instance
         static RMIStats stats;
         static bool debugging;    // True if debugging ... used to be volatile but no need
 
@@ -356,12 +352,7 @@ namespace madness {
         static void end() {
             if(task_ptr) {
                 task_ptr->exit();
-#if HAVE_INTEL_TBB
-                tbb_rmi_parent_task->wait_for_all();
-                tbb::task::destroy(*tbb_rmi_parent_task);
-#else
-                delete task_ptr;
-#endif // HAVE_INTEL_TBB
+                //exit insures that RMI task is completed, therefore it is OK to delete it
                 task_ptr = nullptr;
             }
         }
