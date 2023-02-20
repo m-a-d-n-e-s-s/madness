@@ -14,7 +14,7 @@ jobs:
       matrix:
         build_type : [ Release, Debug ]
         os : [ macos-latest, ubuntu-20.04 ]
-        task_backend : [Threads, OneTBB, LegacyTBB, PaRSEC]  # OneTBB and LegacyTBB control which version of TBB to install
+        task_backend : [Threads, OneTBB, PaRSEC]  # OneTBB and LegacyTBB control which version of TBB to install
         include:
           - os: ubuntu-20.04
             cxx: /usr/bin/g++-9
