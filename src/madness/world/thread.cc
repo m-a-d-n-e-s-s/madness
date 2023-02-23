@@ -76,7 +76,8 @@ namespace madness {
     ThreadPool* ThreadPool::instance_ptr = 0;
     double ThreadPool::await_timeout = 900.0;
 #if HAVE_INTEL_TBB
-    std::unique_ptr<tbb::global_control> ThreadPool::tbb_control = nullptr;
+    std::unique_ptr<tbb::global_control> ThreadPool::tbb_control    = nullptr;
+    std::unique_ptr<tbb::task_arena> ThreadPool::tbb_arena          = nullptr;
 #endif
 #ifdef MADNESS_TASK_PROFILING
     Mutex profiling::TaskProfiler::output_mutex_;
@@ -374,6 +375,7 @@ namespace madness {
         //              is counted as part of tbb.
         const int num_tbb_threads = (SafeMPI::COMM_WORLD.Get_size() > 1) ? nthreads + 2 : nthreads + 1;
         tbb_control = std::make_unique<tbb::global_control>(tbb::global_control::max_allowed_parallelism, num_tbb_threads);
+        tbb_arena   = std::make_unique<tbb::task_arena>(num_tbb_threads);
 #else
 
         try {
