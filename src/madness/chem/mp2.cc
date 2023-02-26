@@ -322,12 +322,73 @@ double MP2::mp3() const {
     }
 
     CCTimer t3(world,"MP3");
-    // compute the MP3 energy
+
+    // compute the term <i(1) |g(1,2) | j(2)>
+    madness::Pairs<real_function_3d> gij;
+
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = i; j < hf->nocc(); ++j) {
-            auto bra=g12*clusterfunctions(i,j);
-            double energy2=inner(bra,clusterfunctions(i,j));
-            print("MP3 energy: term1",energy2);
+            gij.insert(i,j,(*g12)(hf->nemo(i)*hf->R2orbital(j)));
+        }
+    }
+    // compute the MP3 energy
+    double term1=0.0;
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        for (int j = i; j < hf->nocc(); ++j) {
+            auto bra=clusterfunctions(i,j);
+            bra=multiply(bra,hf->nemo_ptr->ncf->square(),{0,1,2});
+            bra=multiply(bra,hf->nemo_ptr->ncf->square(),{3,4,5});
+            double tmp1=inner(bra,g12*clusterfunctions(i,j));
+            double tmp2=inner(bra,g12*clusterfunctions(j,i));
+            double fac= (i==j) ? 0.5 : 1.0;
+            double tmp=fac * (4.0*tmp1 - 2.0*tmp2);
+            print("MP3 energy: term1",i,j,tmp);
+            term1+=tmp;
+        }
+    }
+    double term2=0.0;
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        for (int j = param.freeze(); j < hf->nocc(); ++j) {
+            auto bra_ij=multiply(clusterfunctions(i,j),hf->nemo_ptr->ncf->square(),{0,1,2});
+            bra_ij=multiply(bra_ij,hf->nemo_ptr->ncf->square(),{3,4,5});
+            double tmp=0.0;
+            for (int k=param.freeze(); k<hf->nocc(); ++k) {
+                auto tau_ij_gik = multiply(bra_ij,gij(i,k),{3,4,5});
+                auto tau_ij_gjk = multiply(bra_ij,gij(j,k),{3,4,5});
+
+                double tmp1=2.0*inner(tau_ij_gik,clusterfunctions(k,j))
+                             - inner(tau_ij_gik,clusterfunctions(j,k))
+                             +2.0* inner(tau_ij_gjk,clusterfunctions(i,k))
+                              - inner(tau_ij_gjk,clusterfunctions(k,i));
+                tmp-=2.0*tmp1;
+            }
+            print("mp3 energy: term2",i,j,tmp);
+            term2+=tmp;
+        }
+    }
+    double term3=0.0;
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        for (int j = param.freeze(); j < hf->nocc(); ++j) {
+            double tmp=0.0;
+            for (int k=param.freeze(); k<hf->nocc(); ++k) {
+                for (int l=param.freeze(); l<hf->nocc(); ++l) {
+                    auto bra = clusterfunctions(i,k);
+                    bra=multiply(bra,hf->nemo_ptr->ncf->square(),{0,1,2});
+                    bra=multiply(bra,hf->nemo_ptr->ncf->square(),{3,4,5});
+                    double ovlp1=inner(bra,clusterfunctions(j,l));
+                    double ovlp2=inner(bra,clusterfunctions(l,j));
+                    auto ket_i=hf->nemo(i);
+                    auto ket_k=hf->nemo(k);
+                    auto bra_j=hf->R2orbital(j);
+                    auto bra_l=hf->R2orbital(l);
+
+                    double g_jlik=inner(bra_j*ket_i, (*g12)(bra_l*ket_k));
+                    double g_jlki=inner(bra_j*ket_k, (*g12)(bra_l*ket_i));
+                    tmp+=(2.0*ovlp1 - ovlp2)*g_jlik;
+                }
+            }
+            print("mp3 energy: term3",i,j,tmp);
+            term3+=tmp;
         }
     }
     t3.print();

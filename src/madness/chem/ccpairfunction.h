@@ -415,6 +415,13 @@ public:
         return result;
     }
 
+    friend std::vector<CCPairFunction> multiply(const std::vector<CCPairFunction>& other, const real_function_3d f,
+                                                const std::array<int, 3>& v1) {
+        std::vector<CCPairFunction> result;
+        for (auto& o : other) result.push_back(multiply(o,f,v1));
+        return result;
+    }
+
     /// multiplication with a 2-particle function
     CCPairFunction operator*(const std::shared_ptr<CCConvolutionOperator> op) {
         CCPairFunction result=copy(*this);
@@ -541,7 +548,7 @@ public:
             for (auto& b : vb) {
                 double tmp=a.inner_internal(b,R2);
                 double wall1=cpu_time();
-//                print("result from inner",a.name(true),b.name(),tmp,wall1-wall0,"s");
+                print("result from inner",a.name(true),b.name(),tmp,wall1-wall0,"s");
                 wall0=wall1;
                 result+=tmp;
             }
