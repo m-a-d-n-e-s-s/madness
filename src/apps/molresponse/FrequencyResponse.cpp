@@ -196,7 +196,7 @@ void FrequencyResponse::iterate(World &world) {
             res_polar = -2 * inner(new_res.residual, PQ);
         } else {
             polar = -4 * response_space_inner(Chi.X, PQ.X);
-            res_polar = -2 * inner(new_res.residual.X, PQ.X);
+            res_polar = -2 * response_space_inner(new_res.residual.X, PQ.X);
         }
         if (r_params.print_level() >= 20) {
             if (world.rank() == 0) {
