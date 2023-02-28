@@ -25,9 +25,9 @@ void FrequencyResponse::iterate(World &world) {
     const double dconv =
             std::max(FunctionDefaults<3>::get_thresh() * 100, r_params.dconv());//.01 .0001 .1e-5
     auto thresh = FunctionDefaults<3>::get_thresh();
-    auto density_target = dconv * std::max(size_t(5), molecule.natom());
-    const double a_pow {0.649};
-    const double b_pow {0.533};
+    auto density_target = dconv * std::max(size_t(5.0), molecule.natom());
+    const double a_pow {0.655};
+    const double b_pow {0.519};
 // Last attempt 1.035 2.121
 
     const double bsh_abs_target = pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
@@ -44,6 +44,7 @@ void FrequencyResponse::iterate(World &world) {
 
     Tensor<double> v_polar(m, m);
     Tensor<double> polar;
+    Tensor<double> res_polar;
 
     vecfuncT rho_omega_old(m);
     // initialize DFT XC functional operator
@@ -192,8 +193,10 @@ void FrequencyResponse::iterate(World &world) {
         if (world.rank() == 0) { print("computing polarizability:"); }
         if (compute_y) {
             polar = -2 * inner(Chi, PQ);
+            res_polar = -2 * inner(new_res.residual, PQ);
         } else {
             polar = -4 * response_space_inner(Chi.X, PQ.X);
+            res_polar = -2 * inner(new_res.residual.X, PQ.X);
         }
         if (r_params.print_level() >= 20) {
             if (world.rank() == 0) {
@@ -201,6 +204,8 @@ void FrequencyResponse::iterate(World &world) {
                        static_cast<int>(iter));
                 print("polarizability");
                 print(polar);
+                print("res polarizability");
+                print(res_polar);
             }
         }
 

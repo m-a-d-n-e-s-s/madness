@@ -341,10 +341,12 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
             k1y = K1Y(phi0);
             k2x = K2X(phi0);
             k2y = K2Y(phi0);
+
             world.gop.fence();
 
             K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k1y, false);
             K.Y[b] = gaxpy_oop(1.0, k2x, 1.0, k2y, false);
+            K.Y[b][0].print_info();
 
             world.gop.fence();
         }
