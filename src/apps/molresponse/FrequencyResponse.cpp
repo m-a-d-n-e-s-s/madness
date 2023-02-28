@@ -120,7 +120,7 @@ void FrequencyResponse::iterate(World &world) {
             if (world.rank() == 0) {
                 function_data_to_json(j_molresponse, iter, chi_norms, bsh_residualsX, rho_norms,
                                       density_residuals);
-                frequency_to_json(j_molresponse, iter, polar, v_polar);
+                frequency_to_json(j_molresponse, iter, polar, res_polar);
             }
             if (r_params.print_level() >= 1) {
                 if (world.rank() == 0) {
