@@ -2174,11 +2174,21 @@ void response_data::to_json(json &j) {
 
 
     j["response_data"]["data"] = json();
-    for (const auto &e: function_data) {
-        j["response_data"]["data"][e.first] = {};
-        for (const auto &fi: e.second) {
-            j["response_data"]["data"][e.first].push_back(tensor_to_json(fi));
+
+    auto merge_tensors = [](std::vector<Tensor<double>> f) {
+        long m = f.size();
+        long n = f[0].size();
+
+        Tensor<double> new_tensor(m, n);
+        long i = 0;
+        for (const auto &ti: f) {
+            new_tensor(i, _) = ti;// Copy all data from b to a
         }
+        return new_tensor;
+    };
+    for (const auto &e: function_data) {
+        auto m_t = merge_tensors(e.second);
+        j["response_data"]["data"][e.first].push_back(tensor_to_json(m_t));
     }
 }
 
