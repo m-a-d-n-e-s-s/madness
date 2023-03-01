@@ -1008,7 +1008,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     }
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K0 = ground_exchange_multiworld(ground_orbitals, X, compute_Y);
-    inner_to_json(world, "k0", X, V0, iter_function_data);
+    inner_to_json(world, "k0", X, K0, iter_function_data);
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[0]", "K[0]", iter_timing); }
 
 
