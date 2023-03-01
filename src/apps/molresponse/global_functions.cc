@@ -297,10 +297,11 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
     molresponse::end_timer(world, "ground exchange reorganize");
     return K0;
 }
-auto make_k(const vecfuncT &ket, const vecfuncT &bra) {const double lo = 1.e-10;
+auto make_k(const vecfuncT &ket, const vecfuncT &bra) {
+    const double lo = 1.e-10;
     Exchange<double, 3> k{};
     k.set_parameters(bra, ket, lo);
-    k.set_algorithm(k.multiworld_efficient);
+    k.set_algorithm(k.large_memory);
     return k;
 };
 /**
@@ -391,16 +392,14 @@ auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const 
     auto K0 = X_space::zero_functions(world, num_states, num_orbitals);
     // the question is copying pointers mpi safe
     world.gop.fence();
-    auto           k0=make_k(phi0,phi0);
+    auto k0 = make_k(phi0, phi0);
     if (compute_y) {
         for (int b = 0; b < num_states; b++) {
             K0.X[b] = k0(chi.X[b]);
             K0.Y[b] = k0(chi.Y[b]);
         }
     } else {
-        for (int b = 0; b < num_states; b++) {
-            K0.X[b] = k0(chi.X[b]);
-        }
+        for (int b = 0; b < num_states; b++) { K0.X[b] = k0(chi.X[b]); }
         K0.Y = K0.X.copy();
     }
     K0.truncate();
