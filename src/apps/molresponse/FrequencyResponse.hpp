@@ -41,7 +41,7 @@ private:
                                 vector<poperatorT>& bsh_y_ops, QProjector<double, 3>& projector,
                                 double& x_shifts);
     static void frequency_to_json(json &j_mol_in, size_t iter, const Tensor<double> &polar_ij,
-                                  const Tensor<double> &v_polar_ij);
+                                  const Tensor<double> &res_polar_ij);
     static void compute_and_print_polarizability(World& world, X_space& Chi, X_space& pq,
                                           std::string message);
     void save(World& world, const std::string& name) override;

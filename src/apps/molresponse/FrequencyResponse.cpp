@@ -385,10 +385,11 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
 
 void FrequencyResponse::frequency_to_json(json &j_mol_in, size_t iter,
                                           const Tensor<double> &polar_ij,
-                                          const Tensor<double> &v_polar_ij) {
+                                          const Tensor<double> &res_polar_ij) {
     json j = {};
     j["iter"] = iter;
     j["polar"] = tensor_to_json(polar_ij);
+    j["res_polar"] = tensor_to_json(res_polar_ij);
     auto index = j_mol_in["protocol_data"].size() - 1;
     j_mol_in["protocol_data"][index]["property_data"].push_back(j);
 }
