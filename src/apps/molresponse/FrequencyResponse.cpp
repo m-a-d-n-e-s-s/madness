@@ -26,9 +26,9 @@ void FrequencyResponse::iterate(World &world) {
             std::max(FunctionDefaults<3>::get_thresh() * 100, r_params.dconv());//.01 .0001 .1e-5
     auto thresh = FunctionDefaults<3>::get_thresh();
     auto density_target = dconv * std::max(size_t(5.0), molecule.natom());
-    const double a_pow {0.655};
-    const double b_pow {0.519};
-// Last attempt 1.035 2.121
+    const double a_pow{0.655};
+    const double b_pow{0.519};
+    // Last attempt 1.035 2.121
 
     const double bsh_abs_target = pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
     // m residuals for x and y
@@ -335,6 +335,7 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     size_t n = theta_X.X.size_orbitals();
     bool compute_y = omega != 0.0;
     // construct lhs for 2nd order property
+    PQ.truncate();
 
     theta_X.X += theta_X.X * x_shifts;
     theta_X.X += PQ.X;
@@ -343,6 +344,9 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     if (compute_y) {
         theta_X.Y += PQ.Y;
         theta_X.Y = theta_X.Y * -2;
+        theta_X.truncate();
+    } else {
+        theta_X.X.truncate_rf();
     }
     world.gop.fence();
     // apply bsh
@@ -354,6 +358,12 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     bsh_X.X = apply(world, bsh_x_ops, theta_X.X);
     if (world.rank() == 0) { print("--------------- Apply BSH X ------------------"); }
     if (compute_y) { bsh_X.Y = apply(world, bsh_y_ops, theta_X.Y); }
+
+    if (compute_y) {
+        bsh_X.truncate();
+    } else {
+        bsh_X.X.truncate_rf();
+    }
 
     if (world.rank() == 0) { print("--------------- Apply BSH------------------"); }
     // Project out ground state

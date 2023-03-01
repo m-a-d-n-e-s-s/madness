@@ -404,7 +404,12 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     if (r_params.localize() != "canon") {
         E0X = chi.copy();
         E0X.X = E0X.X * ham_no_diag;
-        if (compute_Y) { E0X.Y = E0X.Y * ham_no_diag; }
+        if (compute_Y) {
+            E0X.Y = E0X.Y * ham_no_diag;
+            E0X.truncate();
+        } else {
+            E0X.X.truncate_rf();
+        }
         if (r_params.print_level() >= 20) { print_inner(world, "xE0x", chi, E0X); }
     }
     if (r_params.print_level() >= 1) {
@@ -430,7 +435,6 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
 
     Theta_X = (V0X - E0X) + gamma;
     world.gop.fence();
-    Theta_X.truncate();
     //    Theta_X.truncate();
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_ThetaX_add", "compute_ThetaX_add", iter_timing);
@@ -484,6 +488,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
         auto temp_J = apply(*shared_coulomb_operator, rho_b_i);
         J.X[b++] = mul(world, temp_J, phi0);
     }
+    J.X.truncate_rf();
     world.gop.fence();
     J.Y = J.X.copy();
     if (world.rank() == 0) { print("copy JX into JY"); }
@@ -517,11 +522,13 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     molresponse::start_timer(world);
     X_space gamma(world, num_states, num_orbitals);
     auto c_xc = xcf.hf_exchange_coefficient();
-    gamma = 2 * J - c_xc * K + (1.0 - c_xc) * W;
+    gamma = 2 * J - c_xc * K;
+
     if (xcf.hf_exchange_coefficient() != 1.0) {
-        gamma += W;
+        gamma += (1.0 - c_xc) * W;
         if (world.rank() == 0) { print("gamma: += W"); }
     }
+    gamma.truncate();
     //gamma.truncate();
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma add", "gamma_truncate_add", iter_timing);
@@ -533,6 +540,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
         gamma.X[i] = projector(gamma.X[i]);
         gamma.Y[i] = projector(gamma.Y[i]);
     }
+    gamma.truncate();
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_project", "gamma_project", iter_timing);
     }
@@ -957,6 +965,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     real_function_3d v_nuc, v_j0, v_k0, v_xc;
     if (not r_params.store_potential()) {
         v_nuc = potential_manager->vnuclear();
+        v_nuc.truncate(FunctionDefaults<3>::get_thresh(), true);
         //v_nuc.truncate();
     } else {// Already pre-computed
         v_nuc = stored_v_nuc;
@@ -971,6 +980,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
         // J^0 x^alpha
         v_j0 = apply(*shared_coulomb_operator, ground_density, true);
         v_j0.scale(2.0, true);
+        v_j0.truncate(FunctionDefaults<3>::get_thresh(), true);
     } else {// Already pre-computed
         v_j0 = stored_v_coul;
     }
@@ -1001,12 +1011,16 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
         for (int b = 0; b < m; b++) { vx[b] = mul(world, v0, x[b], false); }
         world.gop.fence();
         V0 = to_X_space(vx);
+        V0.truncate();
         V0 += -c_xc * K0;
+        V0.truncate();
     } else {
         for (int b = 0; b < m; b++) { V0.X[b] = mul(world, v0, X.X[b], false); }
+        V0.X.truncate_rf();
         world.gop.fence();
         V0.X += -c_xc * K0.X;
         V0.Y = V0.X.copy();
+        V0.X.truncate_rf();
     }
     if (r_params.print_level() >= 20) { print_inner(world, "xV0x", X, V0); }
     if (r_params.print_level() >= 1) {
@@ -1201,7 +1215,7 @@ void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi
                 if (world.rank() == 0) { print("deltaX[b]: ", step_size); }
                 if (world.rank() == 0) { print("max_step = max_rotation*norm_X: ", max_step); }
             }
-            if (step_size > max_step && step_size < 10000 * FunctionDefaults<3>::get_thresh()) {
+            if (step_size > max_step && step_size < 25) {
                 // and if the step size is less thant 10% the vector norm
                 double s = .80 * max_step / step_size;
                 if (world.rank() == 0) {
