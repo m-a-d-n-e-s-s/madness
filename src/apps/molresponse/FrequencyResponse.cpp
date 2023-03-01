@@ -94,6 +94,7 @@ void FrequencyResponse::iterate(World &world) {
     //PQ.truncate();
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
         iter_timing.clear();
+        iter_function_data.clear();
         if (r_params.print_level() >= 1) {
             molresponse::start_timer(world);
             if (world.rank() == 0)
@@ -188,15 +189,20 @@ void FrequencyResponse::iterate(World &world) {
 
         auto density_change = madness::sub(world, rho_omega, rho_omega_old, true);
         density_residuals = norm2s_T(world, density_change);
+        iter_function_data["d"] = density_residuals;
         if (world.rank() == 0) { print("computing residuals: density residuals"); }
 
         if (world.rank() == 0) { print("computing polarizability:"); }
         if (compute_y) {
             polar = -2 * inner(Chi, PQ);
             res_polar = -2 * inner(new_res.residual, PQ);
+            inner_to_json(world, "alpha", Chi, PQ, iter_function_data);
+            inner_to_json(world, "ralpha", new_res.residual, PQ, iter_function_data);
         } else {
             polar = -4 * response_space_inner(Chi.X, PQ.X);
             res_polar = -2 * response_space_inner(new_res.residual.X, PQ.X);
+            inner_to_json(world, "alpha", Chi, PQ, iter_function_data);
+            inner_to_json(world, "ralpha", new_res.residual, PQ, iter_function_data);
         }
         if (r_params.print_level() >= 20) {
             if (world.rank() == 0) {
@@ -213,6 +219,7 @@ void FrequencyResponse::iterate(World &world) {
             molresponse::end_timer(world, "Iteration Timing", "iter_total", iter_timing);
         }
         time_data.add_data(iter_timing);
+        function_data.add_data(iter_function_data);
     }
 
     if (world.rank() == 0) print("\n");
@@ -248,10 +255,14 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     X_space theta_X = compute_theta_X(world, chi, xc, r_params.calc_type());
     X_space new_chi =
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
+
+    inner_to_json(world, "x_new", new_chi, new_chi, iter_function_data);
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
+    inner_to_json(world, "rx", new_res, new_res, iter_function_data);
     //&& iteration < 7
     if (iteration > 0) {// & (iteration % 3 == 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
+        inner_to_json(world, "x_update", new_chi, new_chi, iter_function_data);
     }
     if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
     if (r_params.print_level() >= 1) {

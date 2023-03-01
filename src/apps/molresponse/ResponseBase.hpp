@@ -44,6 +44,17 @@ public:
 
     void add_data(std::map<std::string, std::pair<double, double>> values);
 };
+class response_data {
+    std::map<std::string, std::vector<Tensor<double>>> function_data;
+    int iter;
+
+public:
+    response_data();
+
+    void to_json(json &j);
+
+    void add_data(std::map<std::string, Tensor<double>> values);
+};
 
 class ResponseTester;
 
@@ -76,7 +87,9 @@ public:
 
     json j_molresponse{};
     response_timing time_data;
+    response_data function_data;
     mutable std::map<std::string, std::pair<double, double>> iter_timing;
+    mutable std::map<std::string, Tensor<double>> iter_function_data;
 
 protected:
     // Given molecule returns the nuclear potential of the molecule
@@ -374,7 +387,8 @@ auto transform(World &world, const X_space &x, const Tensor<double> &U) -> X_spa
 // result(i,j) = inner(a[i],b[j]).sum()
 auto expectation(World &world, const response_space &A, const response_space &B) -> Tensor<double>;
 
-
+void inner_to_json(World &world, const std::string &name, const X_space &left,
+                   const X_space &right, std::map<std::string,Tensor<double>> &data);
 class ResponseTester {
 
 public:
