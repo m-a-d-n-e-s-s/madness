@@ -138,11 +138,11 @@ void FrequencyResponse::iterate(World &world) {
                     print("d_residual_max target : ", density_target);
                     print("bsh_residual_max : ", max_bsh);
                     print("bsh_relative_residual_max : ", max_relative_bsh);
-                    print("bsh abs target : ", bsh_abs_target);
+                    print("bsh relative residual target : ", bsh_abs_target);
                 }
             }
             if ((d_residual < density_target) and
-                ((max_bsh < bsh_abs_target) or r_params.get<bool>("conv_only_dens"))) {
+                ((max_relative_bsh < bsh_abs_target) or r_params.get<bool>("conv_only_dens"))) {
                 converged = true;
             }
             if (converged || iter == r_params.maxiter()) {
