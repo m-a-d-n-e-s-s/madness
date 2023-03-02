@@ -16,7 +16,7 @@ void FrequencyResponse::initialize(World &world) {
 void FrequencyResponse::iterate(World &world) {
     size_t iter;
     // Variables needed to iterate
-    QProjector<double, 3> projector(world, ground_orbitals);
+    madness::QProjector<double, 3> projector(world, ground_orbitals);
     size_t n = r_params.num_orbitals();// Number of ground state orbitals
     size_t m = r_params.num_states();  // Number of excited states
 
@@ -39,6 +39,7 @@ void FrequencyResponse::iterate(World &world) {
     bool static_res = (omega == 0.0);
     bool compute_y = not static_res;
     int r_vector_size;
+
 
     r_vector_size = (compute_y) ? 2 * n : n;
 
@@ -109,7 +110,7 @@ void FrequencyResponse::iterate(World &world) {
             }
             double d_residual = density_residuals.max();
             auto chi_norms = (compute_y) ? Chi.norm2s() : Chi.X.norm2();
-            auto rho_norms = norm2s_T(world, rho_omega);
+            auto rho_norms = madness::norm2s_T(world, rho_omega);
             std::transform(bsh_residualsX.ptr(), bsh_residualsX.ptr() + bsh_residualsX.size(),
                            chi_norms.ptr(), bsh_relative_residualsX.ptr(),
                            [](auto bsh, auto norm_chi) { return bsh / norm_chi; });
@@ -193,17 +194,11 @@ void FrequencyResponse::iterate(World &world) {
         if (world.rank() == 0) { print("computing residuals: density residuals"); }
 
         if (world.rank() == 0) { print("computing polarizability:"); }
-        if (compute_y) {
-            polar = -2 * inner(Chi, PQ);
-            res_polar = -2 * inner(new_res.residual, PQ);
-            inner_to_json(world, "alpha", Chi, PQ, iter_function_data);
-            inner_to_json(world, "ralpha", new_res.residual, PQ, iter_function_data);
-        } else {
-            polar = -4 * response_space_inner(Chi.X, PQ.X);
-            res_polar = -2 * response_space_inner(new_res.residual.X, PQ.X);
-            inner_to_json(world, "alpha", Chi, PQ, iter_function_data);
-            inner_to_json(world, "ralpha", new_res.residual, PQ, iter_function_data);
-        }
+        polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
+        res_polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
+
+        inner_to_json(world, "alpha", polar, iter_function_data);
+        inner_to_json(world, "ralpha", res_polar, iter_function_data);
         if (r_params.print_level() >= 20) {
             if (world.rank() == 0) {
                 printf("\n--------Response Properties after %d-------------\n",
@@ -256,13 +251,14 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     X_space new_chi =
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
-    inner_to_json(world, "x_new", new_chi, new_chi, iter_function_data);
+    inner_to_json(world, "x_new", response_context.inner(new_chi, new_chi), iter_function_data);
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
-    inner_to_json(world, "rx", new_res, new_res, iter_function_data);
+    inner_to_json(world, "rx", response_context.inner(new_res, new_res), iter_function_data);
     //&& iteration < 7
     if (iteration > 0) {// & (iteration % 3 == 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
-        inner_to_json(world, "x_update", new_chi, new_chi, iter_function_data);
+        inner_to_json(world, "x_update", response_context.inner(new_res, new_res),
+                      iter_function_data);
     }
     if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
     if (r_params.print_level() >= 1) {

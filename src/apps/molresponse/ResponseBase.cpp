@@ -410,7 +410,7 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
         } else {
             E0X.X.truncate_rf();
         }
-        inner_to_json(world, "E0", chi, E0X, iter_function_data);
+        inner_to_json(world, "E0", response_context.inner(chi, E0X), iter_function_data);
         if (r_params.print_level() >= 20) { print_inner(world, "xE0x", chi, E0X); }
     }
     if (r_params.print_level() >= 1) {
@@ -429,7 +429,7 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_compute", "gamma_compute", iter_timing);
     }
-    inner_to_json(world, "gamma_x", chi, gamma, iter_function_data);
+    inner_to_json(world, "gamma_x", response_context.inner(chi,gamma), iter_function_data);
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     // Right here I can compute the polarizability before I try a KAIN UPDATE or step restriction
@@ -437,7 +437,7 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
 
     Theta_X = (V0X - E0X) + gamma;
 
-    inner_to_json(world, "theta_x", chi, Theta_X, iter_function_data);
+    inner_to_json(world, "theta_x", response_context.inner(chi,Theta_X), iter_function_data);
     world.gop.fence();
     //    Theta_X.truncate();
     if (r_params.print_level() >= 1) {
@@ -498,7 +498,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (world.rank() == 0) { print("copy JX into JY"); }
     world.gop.fence();
 
-    inner_to_json(world, "j1", chi_alpha, J, iter_function_data);
+    inner_to_json(world, "j1", response_context.inner(chi_alpha,J), iter_function_data);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "J[omega]", "J[omega]", iter_timing);
     }
@@ -516,12 +516,12 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
             molresponse::end_timer(world, "XC[omega]", "XC[omega]", iter_timing);
         }
     }
-    inner_to_json(world, "w1", chi_alpha, W, iter_function_data);
+    inner_to_json(world, "w1", response_context.inner(chi_alpha,W), iter_function_data);
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     auto K = response_exchange_multiworld(phi0, chi_alpha, true);
 
-    inner_to_json(world, "k1", chi_alpha, K, iter_function_data);
+    inner_to_json(world, "k1", response_context.inner(chi_alpha,K), iter_function_data);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
     }
@@ -642,7 +642,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "J[omega]", "J[omega]", iter_timing);
     }
-    inner_to_json(world, "j1", xy, J, iter_function_data);
+    inner_to_json(world, "j1", response_context.inner(xy,J), iter_function_data);
 
     if (xcf.hf_exchange_coefficient() != 1.0) {
         auto compute_wx = [&, &phi0 = phi0](auto rho_alpha) {
@@ -656,7 +656,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
             molresponse::end_timer(world, "XC[omega]", "XC[omega]", iter_timing);
         }
     }
-    inner_to_json(world, "w1", xy, W, iter_function_data);
+    inner_to_json(world, "w1", response_context.inner(xy,W), iter_function_data);
 
 
     /*
@@ -681,7 +681,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
      */
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K = response_exchange_multiworld(phi0, xy, false);
-    inner_to_json(world, "k1", xy, K, iter_function_data);
+    inner_to_json(world, "k1", response_context.inner(xy,K), iter_function_data);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
     }
@@ -1008,7 +1008,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     }
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K0 = ground_exchange_multiworld(ground_orbitals, X, compute_Y);
-    inner_to_json(world, "k0", X, K0, iter_function_data);
+    inner_to_json(world, "k0", response_context.inner(X, K0), iter_function_data);
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[0]", "K[0]", iter_timing); }
 
 
@@ -1024,21 +1024,21 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
         world.gop.fence();
         V0 = to_X_space(vx);
         V0.truncate();
-        inner_to_json(world, "v0_local", X, V0, iter_function_data);
+        inner_to_json(world, "v0_local", response_context.inner(X, V0), iter_function_data);
         V0 += -c_xc * K0;
         V0.truncate();
-        inner_to_json(world, "v0", X, V0, iter_function_data);
+        inner_to_json(world, "v0", response_context.inner(X, V0), iter_function_data);
     } else {
         for (int b = 0; b < m; b++) { V0.X[b] = mul(world, v0, X.X[b], false); }
         V0.X.truncate_rf();
-        inner_to_json(world, "v0_local", X, V0, iter_function_data);
+        inner_to_json(world, "v0_local", response_context.inner(X, V0), iter_function_data);
 
         world.gop.fence();
 
         V0.X += -c_xc * K0.X;
         V0.Y = V0.X.copy();
         V0.X.truncate_rf();
-        inner_to_json(world, "v0", X, V0, iter_function_data);
+        inner_to_json(world, "v0", response_context.inner(X, V0), iter_function_data);
     }
     if (r_params.print_level() >= 20) { print_inner(world, "xV0x", X, V0); }
     if (r_params.print_level() >= 1) {
@@ -2179,7 +2179,7 @@ void response_data::to_json(json &j) {
         long m = f.size();
         long n = f[0].size();
 
-        Tensor<double> new_tensor(m , n);
+        Tensor<double> new_tensor(m, n);
         long i = 0;
         for (const auto &ti: f) {
             std::copy(ti.ptr(), ti.ptr() + n, new_tensor.ptr() + (i * n));
@@ -2219,10 +2219,9 @@ response_data::response_data() : iter(0) {
     function_data.insert({"d", std::vector<Tensor<double>>(0)});
 }
 
-void inner_to_json(World &world, const std::string &name, const X_space &left, const X_space &right,
+
+void inner_to_json(World &world, const std::string &name, const Tensor<double> &m_val,
                    std::map<std::string, Tensor<double>> &data) {
-    auto m_val = inner(left, right);
-    world.gop.fence();
 
     data[name] = m_val;
 }

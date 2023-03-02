@@ -23,8 +23,61 @@
 
 using namespace madness;
 
-using json=nlohmann::json;
+using json = nlohmann::json;
 
+class inner_strategy {
+
+public:
+    virtual ~inner_strategy() = default;
+    [[nodiscard]] virtual Tensor<double> compute_inner(const X_space &x,
+                                                       const X_space &y) const = 0;
+};
+
+class Context {
+
+private:
+    std::unique_ptr<inner_strategy> strategy_;
+
+public:
+    explicit Context(std::unique_ptr<inner_strategy> &&strategy = {})
+            : strategy_(std::move(strategy)) {}
+    void set_strategy(std::unique_ptr<inner_strategy> &&strategy) {
+        strategy_ = std::move(strategy);
+    }
+    void print_inner(const X_space &x, const X_space &y) const {
+        if (strategy_) {
+            std::cout << "Context: Computing inner using the strategy (not sure how it'll do it)\n";
+            auto result = strategy_->compute_inner(x, y);
+            std::cout << result << "\n";
+        } else {
+            std::cout << "Context: Strategy isn't set\n";
+        }
+    }
+
+    [[nodiscard]] Tensor<double> inner(const X_space &x, const X_space &y) const {
+        if (strategy_) {
+            return strategy_->compute_inner(x, y);
+        } else {
+            throw madness::MadnessException("Inner product Stratgey isn't set",
+                                            "Need to set a strategy", 2, 455, "inner",
+                                            "ResponseBase.hpp");
+        }
+    }
+};
+
+class full_inner_product : public inner_strategy {
+public:
+    Tensor<double> compute_inner(const X_space &x, const X_space &y) const override {
+        return inner(x, y);
+    }
+};
+
+class static_inner_product : public inner_strategy {
+public:
+    Tensor<double> compute_inner(const X_space &x, const X_space &y) const override {
+        return response_space_inner(x.X, y.X);
+    }
+};
 typedef std::vector<XNonlinearSolver<vector_real_function_3d, double, response_matrix_allocator>>
         response_solver;
 typedef std::vector<XNonlinearSolver<real_function_3d, double, response_function_allocator>>
@@ -101,6 +154,7 @@ protected:
 
     XCfunctional xcf;
     real_function_3d mask;
+    Context response_context;
 
     std::shared_ptr<PotentialManager> potential_manager;
     // shared pointers to Operators
@@ -209,7 +263,7 @@ protected:
     void load_balance_chi(World &world);
 
     auto make_bsh_operators_response(World &world, double &shift, const double omega) const
-    -> vector<poperatorT>;
+            -> vector<poperatorT>;
 
 
     auto kain_x_space_update(World &world, const X_space &chi, const X_space &residual_chi,
@@ -224,7 +278,7 @@ protected:
                               const GroundStateCalculation &g_params);
 
     static auto orbital_load_balance(World &world, const gamma_orbitals &, double load_balance)
-    -> gamma_orbitals;
+            -> gamma_orbitals;
 
     auto compute_gamma_tda(World &world, const gamma_orbitals &density,
                            const XCOperator<double, 3> &xc) const -> X_space;
@@ -262,10 +316,11 @@ protected:
 
     auto compute_response_potentials(World &world, const X_space &chi, XCOperator<double, 3> &xc,
                                      const std::string &calc_type) const
-    -> std::tuple<X_space, X_space, X_space>;
+            -> std::tuple<X_space, X_space, X_space>;
 
     // compute exchange |i><i|J|p>
-    auto exchangeHF(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf) const -> vecfuncT {
+    auto exchangeHF(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf) const
+            -> vecfuncT {
         World &world = ket[0].world();
         auto n = bra.size();
         auto nf = ket.size();
@@ -304,8 +359,7 @@ protected:
                             const X_space &right);
 
     void function_data_to_json(json &j_mol_in, size_t iter, const Tensor<double> &x_norms,
-                               const Tensor<double> &x_abs_norms,
-                                const Tensor<double> &rho_norms,
+                               const Tensor<double> &x_abs_norms, const Tensor<double> &rho_norms,
                                const Tensor<double> &rho_res_norms);
     X_space compute_TX(World &world, const X_space &X, bool compute_Y) const;
 };
@@ -375,7 +429,7 @@ auto gram_schmidt(World &world, const response_space &f) -> response_space;
 /// \return
 auto transition_density(World &world, const vector_real_function_3d &orbitals,
                         const response_space &x, const response_space &y)
--> vector_real_function_3d;
+        -> vector_real_function_3d;
 
 auto transition_densityTDA(World &world, const vector_real_function_3d &orbitals,
                            const response_space &x) -> vector_real_function_3d;
@@ -387,8 +441,8 @@ auto transform(World &world, const X_space &x, const Tensor<double> &U) -> X_spa
 // result(i,j) = inner(a[i],b[j]).sum()
 auto expectation(World &world, const response_space &A, const response_space &B) -> Tensor<double>;
 
-void inner_to_json(World &world, const std::string &name, const X_space &left,
-                   const X_space &right, std::map<std::string,Tensor<double>> &data);
+void inner_to_json(World &world, const std::string &name, const Tensor<double> &m_val,
+                   std::map<std::string, Tensor<double>> &data);
 class ResponseTester {
 
 public:
@@ -400,8 +454,7 @@ public:
 
     static X_space compute_gamma_full(World &world, ResponseBase *p, double thresh) {
         XCOperator<double, 3> xc = p->make_xc_operator(world);
-        X_space gamma =
-                p->compute_gamma_full(world, {p->Chi, p->ground_orbitals}, xc);
+        X_space gamma = p->compute_gamma_full(world, {p->Chi, p->ground_orbitals}, xc);
         return gamma;
     }
 
@@ -418,5 +471,7 @@ public:
         return {V, F};
     }
 };
+
+
 
 #endif// MADNESS_RESPONSEBASE_HPP
