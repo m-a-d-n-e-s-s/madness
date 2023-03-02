@@ -25,9 +25,9 @@ public:
         : ResponseBase(world, params), omega{frequency}, generator{std::move(rhs)},
           PQ{generator(world, *this)} {
         if (omega == 0.0) {
-            response_context.set_strategy(std::unique_ptr<static_inner_product>());
+            response_context.set_strategy(std::make_unique<static_inner_product>());
         } else {
-            response_context.set_strategy(std::unique_ptr<full_inner_product>());
+            response_context.set_strategy(std::make_unique<full_inner_product>());
         }
     }
     void initialize(World &world) override;
