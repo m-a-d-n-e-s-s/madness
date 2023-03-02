@@ -301,7 +301,7 @@ auto make_k(const vecfuncT &ket, const vecfuncT &bra) {
     const double lo = 1.e-10;
     Exchange<double, 3> k{};
     k.set_parameters(bra, ket, lo);
-    k.set_algorithm(k.large_memory);
+    k.set_algorithm(k.small_memory);
     return k;
 };
 /**

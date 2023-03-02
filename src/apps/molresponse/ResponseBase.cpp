@@ -429,7 +429,7 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_compute", "gamma_compute", iter_timing);
     }
-    inner_to_json(world, "gamma_x", response_context.inner(chi,gamma), iter_function_data);
+    inner_to_json(world, "gamma_x", response_context.inner(chi, gamma), iter_function_data);
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     // Right here I can compute the polarizability before I try a KAIN UPDATE or step restriction
@@ -437,7 +437,7 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
 
     Theta_X = (V0X - E0X) + gamma;
 
-    inner_to_json(world, "theta_x", response_context.inner(chi,Theta_X), iter_function_data);
+    inner_to_json(world, "theta_x", response_context.inner(chi, Theta_X), iter_function_data);
     world.gop.fence();
     //    Theta_X.truncate();
     if (r_params.print_level() >= 1) {
@@ -498,7 +498,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (world.rank() == 0) { print("copy JX into JY"); }
     world.gop.fence();
 
-    inner_to_json(world, "j1", response_context.inner(chi_alpha,J), iter_function_data);
+    inner_to_json(world, "j1", response_context.inner(chi_alpha, J), iter_function_data);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "J[omega]", "J[omega]", iter_timing);
     }
@@ -516,12 +516,14 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
             molresponse::end_timer(world, "XC[omega]", "XC[omega]", iter_timing);
         }
     }
-    inner_to_json(world, "w1", response_context.inner(chi_alpha,W), iter_function_data);
+    inner_to_json(world, "w1", response_context.inner(chi_alpha, W), iter_function_data);
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    auto K = response_exchange_multiworld(phi0, chi_alpha, true);
+    //auto K = response_exchange_multiworld(phi0, chi_alpha, true);
+    auto K = response_exchange(phi0, chi_alpha, true);
 
-    inner_to_json(world, "k1", response_context.inner(chi_alpha,K), iter_function_data);
+
+    inner_to_json(world, "k1", response_context.inner(chi_alpha, K), iter_function_data);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
     }
@@ -642,7 +644,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "J[omega]", "J[omega]", iter_timing);
     }
-    inner_to_json(world, "j1", response_context.inner(xy,J), iter_function_data);
+    inner_to_json(world, "j1", response_context.inner(xy, J), iter_function_data);
 
     if (xcf.hf_exchange_coefficient() != 1.0) {
         auto compute_wx = [&, &phi0 = phi0](auto rho_alpha) {
@@ -656,7 +658,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
             molresponse::end_timer(world, "XC[omega]", "XC[omega]", iter_timing);
         }
     }
-    inner_to_json(world, "w1", response_context.inner(xy,W), iter_function_data);
+    inner_to_json(world, "w1", response_context.inner(xy, W), iter_function_data);
 
 
     /*
@@ -681,7 +683,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
      */
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K = response_exchange_multiworld(phi0, xy, false);
-    inner_to_json(world, "k1", response_context.inner(xy,K), iter_function_data);
+    inner_to_json(world, "k1", response_context.inner(xy, K), iter_function_data);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
     }
