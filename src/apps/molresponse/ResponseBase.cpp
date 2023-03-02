@@ -300,8 +300,10 @@ auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfu
         auto r_phi0 = to_response_vector(ground_orbitals);
         if (world.rank() == 0) { print("make density: to response vector"); }
         int b = 0;
+        auto x = to_response_matrix(chi);
+        auto phiphi = to_response_vector(ground_orbitals);
         for (auto &rho_b: density) {
-            rho_b = dot(world, r_matrix[b], r_phi0);
+            rho_b = dot(world, x[b], phiphi);
             b++;
         }
 
@@ -640,7 +642,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
         J.X[b++] = mul(world, temp_J, phi0);
     }
     //std::transform(rho.begin(), rho.end(), J.X.begin(), compute_jx);
-    J.X.truncate_rf();
+    //J.X.truncate_rf();
     J.Y = J.X.copy();
 
     if (r_params.print_level() >= 1) {
@@ -712,7 +714,6 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_truncate_add", "gamma_truncate_add", iter_timing);
     }
-    gamma.truncate();
 
     // project out ground state
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -742,7 +743,6 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
                                iter_timing);
     }
     // Done
-    gamma.truncate();
     // gamma.truncate();
     return gamma;
     // Get sizes
