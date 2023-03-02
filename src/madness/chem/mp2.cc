@@ -285,7 +285,8 @@ double MP2::value(const Tensor<double>& x) {
 
 double MP2::mp3() const {
 
-    Pairs<std::vector<CCPairFunction>> clusterfunctions;
+    typedef std::vector<CCPairFunction> ClusterFunction;
+    Pairs<ClusterFunction> clusterfunctions;
     double mp3_energy=0.0;
     CCTimer t1(world,"make pairs");
     // load converged MP1 wave functions
@@ -342,15 +343,37 @@ double MP2::mp3() const {
             double tmp2=inner(bra,g12*clusterfunctions(j,i));
             double fac= (i==j) ? 0.5 : 1.0;
             double tmp=fac * (4.0*tmp1 - 2.0*tmp2);
-            print("MP3 energy: term1",i,j,tmp);
+            print("mp3 energy: term1",i,j,tmp);
             term1+=tmp;
         }
     }
+
+    // compute intermediates for terms G, I, H, and J
+    const auto R2=hf->nemo_ptr->ncf->square();
+    // \sum_j tau_ij(1,2) * phi_j(2)
+    std::vector<ClusterFunction> tau_i_jj(hf->nocc()-param.freeze());
+    // \sum_j tau_ij(1,2) * phi_j(1)
+    std::vector<ClusterFunction> tau_ij_j;
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        for (int j = param.freeze(); j < hf->nocc(); ++j) {
+            auto tmp1=multiply(clusterfunctions(i,j),R2,{0,1,2});
+            auto tmp2=multiply(tmp1,hf->R2orbital(j),{3,4,5});
+            for (auto& t : tmp2) tau_i_jj[i].push_back(t);
+
+            auto tmp3=multiply(clusterfunctions(i,j),R2,{3,4,5});
+            auto tmp4=multiply(tmp3,hf->R2orbital(j),{0,1,2});
+            for (auto& t : tmp4) tau_i_jj[i].push_back(t);
+        }
+    }
+
     double term2=0.0;
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = param.freeze(); j < hf->nocc(); ++j) {
             auto bra_ij=multiply(clusterfunctions(i,j),hf->nemo_ptr->ncf->square(),{0,1,2});
             bra_ij=multiply(bra_ij,hf->nemo_ptr->ncf->square(),{3,4,5});
+
+
+
             double tmp=0.0;
             for (int k=param.freeze(); k<hf->nocc(); ++k) {
                 auto tau_ij_gik = multiply(bra_ij,gij(i,k),{3,4,5});
@@ -366,6 +389,7 @@ double MP2::mp3() const {
             term2+=tmp;
         }
     }
+
     double term3=0.0;
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = param.freeze(); j < hf->nocc(); ++j) {
@@ -392,6 +416,7 @@ double MP2::mp3() const {
         }
     }
     t3.print();
+    mp3_energy=term1+term2+term3;
 
 
     return mp3_energy;
