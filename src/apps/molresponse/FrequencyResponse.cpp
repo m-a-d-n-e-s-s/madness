@@ -130,15 +130,15 @@ void FrequencyResponse::iterate(World &world) {
                     print("thresh: ", FunctionDefaults<3>::get_thresh());
                     print("k: ", FunctionDefaults<3>::get_k());
                     print("Chi Norms at start of iteration: ", iter);
-                    print("Chi_X: ", chi_norms);
+                    print("||X||: ", chi_norms);
                     print("max rotation: ", max_rotation);
-                    print("d_residuals : ", density_residuals);
-                    print("bsh_residuals : ", bsh_residualsX);
-                    print("d_residual_max : ", d_residual);
+                    print("density changes : ", density_residuals);
+                    print("max density change : ", d_residual);
                     print("density target : ", density_target);
-                    print("d_residual_max target : ", density_target);
-                    print("bsh_residual_max : ", max_bsh);
-                    print("bsh_relative_residual_max : ", max_relative_bsh);
+                    print("bsh residuals : ", bsh_residualsX);
+                    print("relative bsh residuals : ", bsh_relative_residualsX);
+                    print("max bsh residual : ", max_bsh);
+                    print("max relative bsh residual : ", max_relative_bsh);
                     print("bsh relative residual target : ", bsh_abs_target);
                 }
             }
@@ -162,6 +162,7 @@ void FrequencyResponse::iterate(World &world) {
                 break;
             }
         }
+        inner_to_json(world, "x", response_context.inner(Chi, Chi), iter_function_data);
         auto [new_chi, new_res] = update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts,
                                          omega, kain_x_space, iter, max_rotation);
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -198,7 +199,7 @@ void FrequencyResponse::iterate(World &world) {
         res_polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
 
         inner_to_json(world, "alpha", polar, iter_function_data);
-        inner_to_json(world, "ralpha", res_polar, iter_function_data);
+        inner_to_json(world, "r_alpha", res_polar, iter_function_data);
         if (r_params.print_level() >= 20) {
             if (world.rank() == 0) {
                 printf("\n--------Response Properties after %d-------------\n",
@@ -257,9 +258,8 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     //&& iteration < 7
     if (iteration > 0) {// & (iteration % 3 == 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
-        inner_to_json(world, "x_update", response_context.inner(new_res, new_res),
-                      iter_function_data);
     }
+    inner_to_json(world, "x_update", response_context.inner(new_chi, new_chi), iter_function_data);
     if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "update response", "update", iter_timing);
