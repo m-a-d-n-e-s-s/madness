@@ -519,8 +519,8 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     inner_to_json(world, "w1", response_context.inner(chi_alpha, W), iter_function_data);
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    //auto K = response_exchange_multiworld(phi0, chi_alpha, true);
-    auto K = response_exchange(phi0, chi_alpha, true);
+    auto K = response_exchange_multiworld(phi0, chi_alpha, true);
+    //auto K = response_exchange(phi0, chi_alpha, true);
 
 
     inner_to_json(world, "k1", response_context.inner(chi_alpha, K), iter_function_data);
