@@ -2179,10 +2179,11 @@ void response_data::to_json(json &j) {
         long m = f.size();
         long n = f[0].size();
 
-        Tensor<double> new_tensor(m, n);
+        Tensor<double> new_tensor(m , n);
         long i = 0;
         for (const auto &ti: f) {
-            new_tensor(i, _) = ti;// Copy all data from b to a
+            std::copy(ti.ptr(), ti.ptr() + n, new_tensor.ptr() + (i * n));
+            i++;
         }
         return new_tensor;
     };
