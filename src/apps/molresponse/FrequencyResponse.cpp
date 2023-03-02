@@ -234,7 +234,7 @@ void FrequencyResponse::iterate(World &world) {
         print(" Final density residuals:");
         print(density_residuals);
     }
-    compute_and_print_polarizability(world, Chi, PQ, "Converged");
+//compute_and_print_polarizability(world, Chi, PQ, "Converged");
 }
 
 auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3> &xc,
