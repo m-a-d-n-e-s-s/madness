@@ -312,7 +312,6 @@ auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfu
             b++;
         }
 
-
     } else {
         density = transition_densityTDA(world, ground_orbitals, chi.X);
     }
@@ -429,6 +428,7 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_compute", "gamma_compute", iter_timing);
     }
+
     inner_to_json(world, "gamma_x", response_context.inner(chi, gamma), iter_function_data);
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -544,12 +544,14 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     }
     // project out ground state
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    /*
     QProjector<double, 3> projector(world, phi0);
     for (size_t i = 0; i < num_states; i++) {
         gamma.X[i] = projector(gamma.X[i]);
         gamma.Y[i] = projector(gamma.Y[i]);
     }
     gamma.truncate();
+     */
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_project", "gamma_project", iter_timing);
     }
