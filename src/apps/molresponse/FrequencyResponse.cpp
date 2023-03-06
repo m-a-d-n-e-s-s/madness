@@ -88,8 +88,8 @@ void FrequencyResponse::iterate(World &world) {
     } else if (thresh >= 1e-7) {
         max_rotation = .01;
     }
-   // functionT mask;
-   // mask = real_function_3d(real_factory_3d(world).f(mask3).initial_level(4).norefine());
+    // functionT mask;
+    // mask = real_function_3d(real_factory_3d(world).f(mask3).initial_level(4).norefine());
     //PQ = PQ * mask;
     PQ = generator(world, *this);
     PQ.truncate();
@@ -192,11 +192,13 @@ void FrequencyResponse::iterate(World &world) {
         auto density_change = madness::sub(world, rho_omega, rho_omega_old, true);
         density_residuals = norm2s_T(world, density_change);
         iter_function_data["d"] = density_residuals;
+        auto dnorm = norm2s_T(world, rho_omega);
+        iter_function_data["r_d"] = dnorm;
         if (world.rank() == 0) { print("computing residuals: density residuals"); }
 
         if (world.rank() == 0) { print("computing polarizability:"); }
         polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
-        res_polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
+        res_polar = ((compute_y) ? -2 : -4) * response_context.inner(new_res.residual, PQ);
 
         inner_to_json(world, "alpha", polar, iter_function_data);
         inner_to_json(world, "r_alpha", res_polar, iter_function_data);
@@ -234,7 +236,7 @@ void FrequencyResponse::iterate(World &world) {
         print(" Final density residuals:");
         print(density_residuals);
     }
-//compute_and_print_polarizability(world, Chi, PQ, "Converged");
+    //compute_and_print_polarizability(world, Chi, PQ, "Converged");
 }
 
 auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3> &xc,
@@ -254,7 +256,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
 
     inner_to_json(world, "x_new", response_context.inner(new_chi, new_chi), iter_function_data);
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
-    inner_to_json(world, "rx", response_context.inner(new_res, new_res), iter_function_data);
+    inner_to_json(world, "r_x", response_context.inner(new_res, new_res), iter_function_data);
     //&& iteration < 7
     if (iteration > 0) {// & (iteration % 3 == 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);

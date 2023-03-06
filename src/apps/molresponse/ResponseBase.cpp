@@ -518,7 +518,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
             molresponse::end_timer(world, "XC[omega]", "XC[omega]", iter_timing);
         }
     }
-    inner_to_json(world, "w1", response_context.inner(chi_alpha, W), iter_function_data);
+    inner_to_json(world, "v1_xc", response_context.inner(chi_alpha, W), iter_function_data);
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     auto K = response_exchange_multiworld(phi0, chi_alpha, true);
@@ -640,7 +640,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
         J.X[b++] = mul(world, temp_J, phi0);
     }
     //std::transform(rho.begin(), rho.end(), J.X.begin(), compute_jx);
-    //J.X.truncate_rf();
+    J.X.truncate_rf();
     J.Y = J.X.copy();
 
     if (r_params.print_level() >= 1) {
@@ -660,7 +660,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
             molresponse::end_timer(world, "XC[omega]", "XC[omega]", iter_timing);
         }
     }
-    inner_to_json(world, "w1", response_context.inner(xy, W), iter_function_data);
+    inner_to_json(world, "v1_xc", response_context.inner(xy, W), iter_function_data);
 
 
     /*
@@ -709,6 +709,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
 
     // update gamma functions
     gamma = 2 * J - K * xcf.hf_exchange_coefficient() + W;
+    inner_to_json(world, "gamma_x_beforeQ", response_context.inner(xy, gamma), iter_function_data);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_truncate_add", "gamma_truncate_add", iter_timing);
     }
@@ -739,7 +740,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
                                iter_timing);
     }
     // Done
-    // gamma.truncate();
+    gamma.truncate();
     return gamma;
     // Get sizes
 }
@@ -1011,7 +1012,13 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     }
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K0 = ground_exchange_multiworld(ground_orbitals, X, compute_Y);
-    inner_to_json(world, "k0", response_context.inner(X, K0), iter_function_data);
+    if (r_params.print_level() >= 15) {
+
+        inner_to_json(world, "v0_nuc", response_context.inner(X, v_nuc * X), iter_function_data);
+        inner_to_json(world, "j0", response_context.inner(X, v_j0 * X), iter_function_data);
+        inner_to_json(world, "k0", response_context.inner(X, K0), iter_function_data);
+        inner_to_json(world, "v0_xc", response_context.inner(X, v_xc * X), iter_function_data);
+    }
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[0]", "K[0]", iter_timing); }
 
 
@@ -1019,29 +1026,25 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     auto c_xc = xcf.hf_exchange_coefficient();
     real_function_3d v0 = v_j0 + v_nuc + (1 - c_xc) * v_xc;
     double safety = 0.1;
-    double vtol = safety * FunctionDefaults<3>::get_thresh();
+    double v_tol = safety * FunctionDefaults<3>::get_thresh();
     if (compute_Y) {
         auto x = to_response_matrix(X);
         auto vx = create_response_matrix(X.num_states(), X.num_orbitals());
-        for (int b = 0; b < m; b++) { vx[b] = mul(world, v0, x[b], false); }
+        for (int b = 0; b < m; b++) { vx[b] = mul_sparse(world, v0, x[b], v_tol, false); }
         world.gop.fence();
         V0 = to_X_space(vx);
         V0.truncate();
-        inner_to_json(world, "v0_local", response_context.inner(X, V0), iter_function_data);
         V0 += -c_xc * K0;
         V0.truncate();
-        inner_to_json(world, "v0", response_context.inner(X, V0), iter_function_data);
+        inner_to_json(world, "V0", response_context.inner(X, V0), iter_function_data);
     } else {
-        for (int b = 0; b < m; b++) { V0.X[b] = mul(world, v0, X.X[b], false); }
+        for (int b = 0; b < m; b++) { V0.X[b] = mul_sparse(world, v0, X.X[b], v_tol, false); }
         V0.X.truncate_rf();
-        inner_to_json(world, "v0_local", response_context.inner(X, V0), iter_function_data);
-
         world.gop.fence();
-
         V0.X += -c_xc * K0.X;
         V0.Y = V0.X.copy();
         V0.X.truncate_rf();
-        inner_to_json(world, "v0", response_context.inner(X, V0), iter_function_data);
+        inner_to_json(world, "V0", response_context.inner(X, V0), iter_function_data);
     }
     if (r_params.print_level() >= 20) { print_inner(world, "xV0x", X, V0); }
     if (r_params.print_level() >= 1) {
@@ -2198,28 +2201,33 @@ void response_data::to_json(json &j) {
 
 response_data::response_data() : iter(0) {
 
-    function_data.insert({"v0_local", std::vector<Tensor<double>>(0)});
-    function_data.insert({"k0", std::vector<Tensor<double>>(0)});
     function_data.insert({"v0", std::vector<Tensor<double>>(0)});
+    function_data.insert({"v0_nuc", std::vector<Tensor<double>>(0)});
     function_data.insert({"E0", std::vector<Tensor<double>>(0)});
 
+    function_data.insert({"j0", std::vector<Tensor<double>>(0)});
+    function_data.insert({"k0", std::vector<Tensor<double>>(0)});
+    function_data.insert({"v0_xc", std::vector<Tensor<double>>(0)});
 
     function_data.insert({"j1", std::vector<Tensor<double>>(0)});
     function_data.insert({"k1", std::vector<Tensor<double>>(0)});
-    function_data.insert({"w1", std::vector<Tensor<double>>(0)});
+    function_data.insert({"v1_xc", std::vector<Tensor<double>>(0)});
+
     function_data.insert({"gamma_x", std::vector<Tensor<double>>(0)});
+    function_data.insert({"gamma_x_beforeQ", std::vector<Tensor<double>>(0)});
     function_data.insert({"theta_x", std::vector<Tensor<double>>(0)});
 
     function_data.insert({"x_new", std::vector<Tensor<double>>(0)});
     function_data.insert({"x_update", std::vector<Tensor<double>>(0)});
 
     function_data.insert({"x", std::vector<Tensor<double>>(0)});
-    function_data.insert({"rx", std::vector<Tensor<double>>(0)});
+    function_data.insert({"r_x", std::vector<Tensor<double>>(0)});
 
     function_data.insert({"alpha", std::vector<Tensor<double>>(0)});
     function_data.insert({"r_alpha", std::vector<Tensor<double>>(0)});
 
     function_data.insert({"d", std::vector<Tensor<double>>(0)});
+    function_data.insert({"r_d", std::vector<Tensor<double>>(0)});
 }
 
 
