@@ -621,6 +621,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     auto rho = make_density(world, xy);
+
     //auto rho = transition_density(world, phi0, xy.X, xy.X);
 
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "compute density J[omega]"); }
@@ -1432,6 +1433,7 @@ void ResponseBase::solve(World &world) {
         protocol_to_json(j_molresponse, iter_thresh);
         // Now actually ready to iterate...
         this->iterate(world);
+
     }
     // At this point we should know if calc converged maybe add a flag to response.json which states if it has
     converged_to_json(j_molresponse);
