@@ -546,14 +546,12 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     }
     // project out ground state
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    /*
     QProjector<double, 3> projector(world, phi0);
     for (size_t i = 0; i < num_states; i++) {
         gamma.X[i] = projector(gamma.X[i]);
         gamma.Y[i] = projector(gamma.Y[i]);
     }
     gamma.truncate();
-     */
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_project", "gamma_project", iter_timing);
     }
@@ -717,10 +715,8 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
 
     // project out ground state
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    /*
     QProjector<double, 3> projector(world, phi0);
     for (size_t i = 0; i < num_states; i++) { gamma.X[i] = projector(gamma.X[i]); }
-     */
     gamma.Y = gamma.X.copy();
 
     if (r_params.print_level() >= 1) {
