@@ -191,9 +191,9 @@ void FrequencyResponse::iterate(World &world) {
 
         auto density_change = madness::sub(world, rho_omega, rho_omega_old, true);
         density_residuals = norm2s_T(world, density_change);
-        iter_function_data["d"] = density_residuals;
+        iter_function_data["r_d"] = density_residuals;
         auto dnorm = norm2s_T(world, rho_omega);
-        iter_function_data["r_d"] = dnorm;
+        iter_function_data["d"] = dnorm;
         if (world.rank() == 0) { print("computing residuals: density residuals"); }
 
         if (world.rank() == 0) { print("computing polarizability:"); }
