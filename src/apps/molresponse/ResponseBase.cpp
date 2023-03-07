@@ -517,7 +517,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
         };
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         std::transform(rho.begin(), rho.end(), W.X.begin(), compute_wx);
-        std::transform(W.X.begin(), W.X.end(), W.X.begin(),[&](auto &wxi) { return projector(jxi); });
+        std::transform(W.X.begin(), W.X.end(), W.X.begin(),[&](auto &wxi) { return projector(wxi); });
         W.Y = W.X.copy();
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "XC[omega]", "XC[omega]", iter_timing);
