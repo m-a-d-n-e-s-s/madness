@@ -81,6 +81,7 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
         // Now that ground orbitals have correct k lets make the ground density
         // again
         ground_density = make_ground_density(world);
+        ground_density.truncate(FunctionDefaults<3>::get_thresh());
         if (world.rank() == 0) { print("check k: make ground density"); }
         // Ground state orbitals changed, clear old hamiltonian
         redo = true;

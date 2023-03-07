@@ -235,7 +235,9 @@ protected:
         // GaussianConvolution1DCache<double>::map.clear();//(TODO:molresponse-What
         // Create the masking function
         mask = real_function_3d(real_factory_3d(world).f(mask3).initial_level(4).norefine());
+
         ground_density = make_ground_density(world);
+        ground_density.truncate(FunctionDefaults<3>::get_thresh());
         // Basic print
         if (world.rank() == 0) {
             print("\nSolving NDIM=", 3, " with thresh", thresh, "    k",
