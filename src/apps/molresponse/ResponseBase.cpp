@@ -550,7 +550,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
         gamma += (1.0 - c_xc) * W;
         if (world.rank() == 0) { print("gamma: += W"); }
     }
-    gamma.truncate();
     //gamma.truncate();
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma add", "gamma_truncate_add", iter_timing);
@@ -595,8 +594,8 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     // given order
 
     auto old_pmap = FunctionDefaults<3>::get_pmap();
-
     auto [xy, phi0] = orbital_load_balance(world, gammaOrbitals, r_params.loadbalparts());
+    QProjector<double, 3> projector(world, phi0);
 
 
     size_t num_states = xy.num_states();
@@ -649,7 +648,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
         J.X[b++] = mul(world, temp_J, phi0);
     }
     //std::transform(rho.begin(), rho.end(), J.X.begin(), compute_jx);
-    J.X.truncate_rf();
+    std::transform(J.X.begin(), J.X.end(), J.X.begin(),[&](auto &jxi) { return projector(jxi); });
     J.Y = J.X.copy();
 
     if (r_params.print_level() >= 1) {
@@ -664,6 +663,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
         };
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         std::transform(rho.begin(), rho.end(), W.X.begin(), compute_wx);
+        std::transform(W.X.begin(), W.X.end(), W.X.begin(),[&](auto &wxi) { return projector(wxi); });
         W.Y = W.X.copy();
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "XC[omega]", "XC[omega]", iter_timing);
@@ -694,6 +694,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
      */
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K = response_exchange_multiworld(phi0, xy, false);
+    std::transform(K.X.begin(), K.X.end(), K.X.begin(),[&](auto &kxi) { return projector(kxi); });
     inner_to_json(world, "k1", response_context.inner(xy, K), iter_function_data);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
@@ -725,8 +726,8 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
 
     // project out ground state
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    QProjector<double, 3> projector(world, phi0);
-    for (size_t i = 0; i < num_states; i++) { gamma.X[i] = projector(gamma.X[i]); }
+    //for (size_t i = 0; i < num_states; i++) { gamma.X[i] = projector(gamma.X[i]); }
+    std::transform(gamma.X.begin(), gamma.X.end(), gamma.X.begin(),[&](auto &gxi) { return projector(gxi); });
     gamma.Y = gamma.X.copy();
 
     if (r_params.print_level() >= 1) {
