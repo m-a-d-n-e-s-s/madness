@@ -295,6 +295,7 @@ auto ResponseBase::make_xc_operator(World &world) const -> XCOperator<double, 3>
 auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfuncT {
     auto density = vector_real_function_3d(chi.num_states());
     auto calc_type = r_params.calc_type();
+    auto thresh=FunctionDefaults<3>::get_thresh();
     if (calc_type == "full") {
         auto r_matrix = to_response_matrix(chi);
         if (world.rank() == 0) { print("make density: to response matrix"); }
@@ -304,7 +305,9 @@ auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfu
         auto x = to_response_matrix(chi);
         auto phiphi = to_response_vector(ground_orbitals);
         for (auto &rho_b: density) {
-            rho_b = dot(world, x[b], phiphi);
+            auto x_phi= mul(world,x[b],phiphi,false);
+            world.gop.fence();
+            rho_b =sum(world,x_phi);
             b++;
         }
 
@@ -319,7 +322,7 @@ auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfu
         density = transition_densityTDA(world, ground_orbitals, chi.X);
     }
     if (world.rank() == 0) { print("make density: made density"); }
-    truncate(world, density);
+    truncate(world, density,thresh);
     if (world.rank() == 0) { print("make density: truncate"); }
     return density;
 }
