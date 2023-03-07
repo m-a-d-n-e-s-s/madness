@@ -460,6 +460,8 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
     auto [chi_alpha, phi0] = orbital_load_balance(world, density, r_params.loadbalparts());
 
+    QProjector<double, 3> projector(world, phi0);
+
     size_t num_states = chi_alpha.num_states();
     size_t num_orbitals = chi_alpha.num_orbitals();
 
@@ -494,9 +496,11 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
         auto temp_J = apply(*shared_coulomb_operator, rho_b_i);
         J.X[b++] = mul(world, temp_J, phi0);
     }
-    J.X.truncate_rf();
+    std::transform(J.X.begin(), J.X.end(), J.X.begin(),[&](auto &jxi) { return projector(jxi); });
     world.gop.fence();
     J.Y = J.X.copy();
+
+
     if (world.rank() == 0) { print("copy JX into JY"); }
     world.gop.fence();
 
@@ -513,6 +517,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
         };
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         std::transform(rho.begin(), rho.end(), W.X.begin(), compute_wx);
+        std::transform(W.X.begin(), W.X.end(), W.X.begin(),[&](auto &wxi) { return projector(jxi); });
         W.Y = W.X.copy();
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "XC[omega]", "XC[omega]", iter_timing);
@@ -522,6 +527,8 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     auto K = response_exchange_multiworld(phi0, chi_alpha, true);
+    std::transform(K.X.begin(), K.X.end(), K.X.begin(),[&](auto &kxi) { return projector(kxi); });
+    std::transform(K.Y.begin(), K.Y.end(), K.Y.begin(),[&](auto &kyi) { return projector(kyi); });
     //auto K = response_exchange(phi0, chi_alpha, true);
 
 
@@ -546,12 +553,10 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     }
     // project out ground state
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    QProjector<double, 3> projector(world, phi0);
-    for (size_t i = 0; i < num_states; i++) {
-        gamma.X[i] = projector(gamma.X[i]);
-        gamma.Y[i] = projector(gamma.Y[i]);
-    }
-    gamma.truncate();
+
+    std::transform(gamma.X.begin(), gamma.X.end(), gamma.X.begin(),[&](auto &gxi) { return projector(gxi); });
+    std::transform(gamma.Y.begin(), gamma.Y.end(), gamma.Y.begin(),[&](auto &gyi) { return projector(gyi); });
+
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_project", "gamma_project", iter_timing);
     }
@@ -582,7 +587,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
 auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gammaOrbitals,
                                         const XCOperator<double, 3> &xc) const -> X_space {
-
     // X contains the response vector that makes up the response gammaOrbitals at a
     // given order
 
@@ -748,7 +752,6 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
 
 auto ResponseBase::compute_gamma_tda(World &world, const gamma_orbitals &density,
                                      const XCOperator<double, 3> &xc) const -> X_space {
-
     auto [d_alpha, phi0] = orbital_load_balance(world, density, r_params.loadbalparts());
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap = FunctionDefaults<3>::get_pmap();
     size_t num_states = d_alpha.num_states();
@@ -1346,7 +1349,6 @@ void ResponseBase::plotResponseOrbitals(World &world, size_t iteration,
 
 
 void PlotGroundDensityVTK(World &world, const ResponseBase &calc) {
-
     auto [ground_calc, molecule, r_params] = calc.get_parameter();
     auto ground_orbitals = calc.get_orbitals();
 
@@ -1433,7 +1435,6 @@ void ResponseBase::solve(World &world) {
         protocol_to_json(j_molresponse, iter_thresh);
         // Now actually ready to iterate...
         this->iterate(world);
-
     }
     // At this point we should know if calc converged maybe add a flag to response.json which states if it has
     converged_to_json(j_molresponse);
@@ -1664,7 +1665,6 @@ vector_real_function_3d transition_density(World &world, const vector_real_funct
  */
 auto ResponseBase::orbital_load_balance(World &world, const gamma_orbitals &gammaOrbitals,
                                         const double load_balance) -> gamma_orbitals {
-
     auto X = std::get<0>(gammaOrbitals);
     auto psi0 = std::get<1>(gammaOrbitals);
 
@@ -1805,7 +1805,6 @@ void ResponseBase::print_inner(World &world, const std::string &name, const X_sp
 
 auto transition_densityTDA(World &world, const vector_real_function_3d &orbitals,
                            const response_space &x) -> vector_real_function_3d {
-
     // Get sizes
     size_t m = x.size();
 
@@ -1894,7 +1893,6 @@ auto expectation(World &world, const response_space &A, const response_space &B)
 }
 
 void print_norms(World &world, const response_space &f) {
-
     print(f[0].size());
     Tensor<double> norms(f.size() * f[0].size());
     // Calc the norms
@@ -2051,7 +2049,6 @@ auto make_xyz_functions(World &world) -> vector_real_function_3d {
 // Here i should print some information about the calculation we are
 // about to do
 response_timing::response_timing() : iter(0) {
-
     wall_time_data.insert({"iter_total", std::vector<double>(0)});
     wall_time_data.insert({"update", std::vector<double>(0)});
     wall_time_data.insert({"compute_V0X", std::vector<double>(0)});
@@ -2118,7 +2115,6 @@ response_timing::response_timing() : iter(0) {
 }
 
 void response_timing::print_data() {
-
     for (const auto &[key, value]: wall_time_data) { print(key, " : ", value); }
     for (const auto &[key, value]: cpu_time_data) { print(key, " : ", value); }
 }
@@ -2145,7 +2141,6 @@ void response_timing::add_data(std::map<std::string, std::pair<double, double>> 
 }
 
 void response_timing::to_json(json &j) {
-
     //::print("FREQUENCY TIME DATA TO JSON");
 
     j["time_data"] = json();
@@ -2174,7 +2169,6 @@ void response_data::add_data(std::map<std::string, Tensor<double>> values) {
 }
 
 void response_data::to_json(json &j) {
-
     //::print("FREQUENCY TIME DATA TO JSON");
 
     j["response_data"] = json();
@@ -2202,7 +2196,6 @@ void response_data::to_json(json &j) {
 }
 
 response_data::response_data() : iter(0) {
-
     function_data.insert({"v0", std::vector<Tensor<double>>(0)});
     function_data.insert({"v0_nuc", std::vector<Tensor<double>>(0)});
     function_data.insert({"E0", std::vector<Tensor<double>>(0)});
@@ -2235,6 +2228,5 @@ response_data::response_data() : iter(0) {
 
 void inner_to_json(World &world, const std::string &name, const Tensor<double> &m_val,
                    std::map<std::string, Tensor<double>> &data) {
-
     data[name] = m_val;
 }
