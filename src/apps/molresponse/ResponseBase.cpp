@@ -314,7 +314,10 @@ auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfu
     } else if (calc_type == "static") {
         int b = 0;
         for (auto &rho_b: density) {
-            rho_b = 2 * dot(world, chi.X[b], ground_orbitals);
+            auto xb=chi.X[b];
+            auto x_phi= mul(world,xb,ground_orbitals,false);
+            world.gop.fence();
+            rho_b =2*sum(world,x_phi);
             b++;
         }
 
@@ -590,8 +593,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
 auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gammaOrbitals,
                                         const XCOperator<double, 3> &xc) const -> X_space {
-    // X contains the response vector that makes up the response gammaOrbitals at a
-    // given order
 
     auto old_pmap = FunctionDefaults<3>::get_pmap();
     auto [xy, phi0] = orbital_load_balance(world, gammaOrbitals, r_params.loadbalparts());
@@ -750,7 +751,6 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
                                iter_timing);
     }
     // Done
-    gamma.truncate();
     return gamma;
     // Get sizes
 }
