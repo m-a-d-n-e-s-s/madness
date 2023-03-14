@@ -1353,29 +1353,23 @@ namespace madness {
         /// g is constructed with an implicit multiplication, e.g.
         ///  result = <this|g>,   with g = 1/r12 | gg>
         /// @param[in]  g	on-demand function
-        template <typename R>
-        TENSOR_RESULT_TYPE(T,R) inner_on_demand(const Function<R,NDIM>& g) const {
-          MADNESS_ASSERT(g.is_on_demand() and (not this->is_on_demand()));
+        template<typename R>
+        TENSOR_RESULT_TYPE(T, R) inner_on_demand(const Function<R, NDIM>& g) const {
+            MADNESS_ASSERT(g.is_on_demand() and (not this->is_on_demand()));
 
+            constexpr std::size_t LDIM=NDIM/2;
+            auto func=dynamic_cast<CompositeFunctorInterface<T,NDIM,LDIM>* >(g.get_impl()->get_functor().get());
+            MADNESS_ASSERT(func);
+            func->make_redundant(true);
+            this->reconstruct();        // if this == &g we don't need g to be redundant
 
-          // save for later, will be removed by make_Vphi
-          std::shared_ptr< FunctionFunctorInterface<T,NDIM> > func=g.get_impl()->get_functor();
-          //leaf_op<T,NDIM> fnode_is_leaf(this->get_impl().get());
-          Leaf_op_other<T,NDIM> fnode_is_leaf(this->get_impl().get());
-          g.get_impl()->make_Vphi(fnode_is_leaf,true);  // fence here
-            this->reconstruct();
+            if (VERIFY_TREE) verify_tree();
 
-          if (VERIFY_TREE) verify_tree();
-          TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*g.get_impl());
-          impl->world.gop.sum(local);
-          impl->world.gop.fence();
+            TENSOR_RESULT_TYPE(T, R) local = impl->inner_local_on_demand(*g.get_impl());
+            impl->world.gop.sum(local);
+            impl->world.gop.fence();
 
-          // restore original state
-          g.get_impl()->set_functor(func);
-          g.get_impl()->get_coeffs().clear();
-        	g.get_impl()->set_tree_state(on_demand);
-
-          return local;
+            return local;
         }
 
         /// project this on the low-dim function g: h(x) = <f(x,y) | g(y)>

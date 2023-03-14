@@ -893,6 +893,7 @@ namespace madness {
     private:
         typedef WorldObject< FunctionImpl<T,NDIM> > woT; ///< Base class world object type
     public:
+        typedef T typeT;
         typedef FunctionImpl<T,NDIM> implT; ///< Type of this class (implementation)
         typedef std::shared_ptr< FunctionImpl<T,NDIM> > pimplT; ///< pointer to this class
         typedef Tensor<T> tensorT; ///< Type of tensor for anything but to hold coeffs
@@ -3235,11 +3236,11 @@ namespace madness {
         ///
         /// k=number of wavelets, so k=5 means max order is 4, so max exactly
         /// representable squarable polynomial is of order 2.
-        void tnorm(const tensorT& t, double* lo, double* hi) const;
+        void static tnorm(const tensorT& t, double* lo, double* hi);
 
-        void tnorm(const GenTensor<T>& t, double* lo, double* hi) const;
+        void static tnorm(const GenTensor<T>& t, double* lo, double* hi);
 
-        void tnorm(const SVDTensor<T>& t, double* lo, double* hi, const int particle) const;
+        void static tnorm(const SVDTensor<T>& t, double* lo, double* hi, const int particle);
 
         // This invoked if node has not been autorefined
         void do_square_inplace(const keyT& key);
@@ -3736,69 +3737,63 @@ namespace madness {
 
 
 
+        /// pointwise multiplication of two tensors, returns result and estimates error
+
+        /// provide one of the two factors upon construction, the other factor upon operator() call.
+        ///
+        /// error is estimated by oversampling: pointwise multiplication will result in a coefficient
+        /// tensor of order 2k, estimate the error through the norm of the k+1 contribution
+        ///
+        /// error does not account for inaccurate representation of the input tensors!
+        /// U need to compute that somewhere else!
         template<std::size_t LDIM>
         struct pointwise_multiplier {
-        	const implT* impl;
-        	const FunctionImpl<T,LDIM>* gimpl;
         	coeffT val_lhs, coeff_lhs;
+            long oversampling=1;
         	double error=0.0;
         	double lo=0.0, hi=0.0, lo1=0.0, hi1=0.0, lo2=0.0, hi2=0.0;
 
-        	pointwise_multiplier() :gimpl(0), impl(0) {}
-        	pointwise_multiplier(const Key<NDIM> key, const coeffT& clhs, implT* i, const FunctionImpl<T,LDIM>* gimpl)
-        		: impl(i), gimpl(gimpl), coeff_lhs(clhs) {
-        		val_lhs=impl->coeffs2values(key,coeff_lhs);
+            pointwise_multiplier() {}
+        	pointwise_multiplier(const Key<NDIM> key, const coeffT& clhs) : coeff_lhs(clhs) {
+                auto fcf=FunctionCommonFunctionality<T,NDIM>(coeff_lhs.dim(0));
+        		val_lhs=fcf.coeffs2values(key,coeff_lhs);
         		error=0.0;
-        		impl->tnorm(coeff_lhs,&lo,&hi);
-        		gimpl->tnorm(coeff_lhs.get_svdtensor(),&lo1,&hi1,1);
-        		gimpl->tnorm(coeff_lhs.get_svdtensor(),&lo2,&hi2,2);
-        	}
-
-        	pointwise_multiplier(const Key<NDIM> key, const coeffT& clhs, implT* i)
-        		: impl(i), gimpl(0), coeff_lhs(clhs) {
-        		val_lhs=impl->coeffs2values(key,coeff_lhs);
-        		error=0.0;
-        		impl->tnorm(coeff_lhs,&lo,&hi);
-        	}
-
-        	/// multiply values of rhs and lhs, result on rhs, rhs and lhs are of the same dimensions
-        	coeffT operator()(const Key<NDIM> key, const coeffT& coeff_rhs) {
-        		double rlo, rhi;
-        		impl->tnorm(coeff_rhs,&rlo,&rhi);
-        		error = hi*rlo + rhi*lo + rhi*hi;
-        		coeffT val_rhs=impl->coeffs2values(key, coeff_rhs);
-        		val_rhs.emul(val_lhs);
-        		return impl->values2coeffs(key,val_rhs);
-
+        		implT::tnorm(coeff_lhs,&lo,&hi);
+                if (coeff_lhs.is_svd_tensor()) {
+                    FunctionImpl<T,LDIM>::tnorm(coeff_lhs.get_svdtensor(),&lo1,&hi1,1);
+                    FunctionImpl<T,LDIM>::tnorm(coeff_lhs.get_svdtensor(),&lo2,&hi2,2);
+                }
         	}
 
         	/// multiply values of rhs and lhs, result on rhs, rhs and lhs are of the same dimensions
         	tensorT operator()(const Key<NDIM> key, const tensorT& coeff_rhs) {
 
 				MADNESS_ASSERT(coeff_rhs.dim(0)==coeff_lhs.dim(0));
+                auto fcf=FunctionCommonFunctionality<T,NDIM>(coeff_lhs.dim(0));
 
 				// the tnorm estimate is not tight enough to be efficient, better use oversampling
 				bool use_tnorm=false;
         		if (use_tnorm) {
 					double rlo, rhi;
-					impl->tnorm(coeff_rhs,&rlo,&rhi);
+					implT::tnorm(coeff_rhs,&rlo,&rhi);
 					error = hi*rlo + rhi*lo + rhi*hi;
-					tensorT val_rhs=impl->coeffs2values(key, coeff_rhs);
+					tensorT val_rhs=fcf.coeffs2values(key, coeff_rhs);
 					val_rhs.emul(val_lhs.full_tensor_copy());
-					return impl->values2coeffs(key,val_rhs);
+					return fcf.values2coeffs(key,val_rhs);
         		} else {	// use quadrature of order k+1
 
-    	            auto cdata=FunctionCommonData<T,NDIM>::get(impl->get_k()+1);		// npt=k+1
-                	FunctionCommonFunctionality<T,NDIM> fcf_hi_npt(cdata);
+    	            auto& cdata=FunctionCommonData<T,NDIM>::get(coeff_rhs.dim(0));		// npt=k+1
+                    auto& cdata_npt=FunctionCommonData<T,NDIM>::get(coeff_rhs.dim(0)+oversampling);		// npt=k+1
+                	FunctionCommonFunctionality<T,NDIM> fcf_hi_npt(cdata_npt);
 
     	            // coeffs2values for rhs: k -> npt=k+1
-		            tensorT coeff1(cdata.vk);
-		            coeff1(impl->cdata.s0)=coeff_rhs;		// s0 is smaller than vk!
+		            tensorT coeff1(cdata_npt.vk);
+		            coeff1(cdata.s0)=coeff_rhs;		// s0 is smaller than vk!
 		            tensorT val_rhs_k1=fcf_hi_npt.coeffs2values(key,coeff1);
 
 		            // coeffs2values for lhs: k -> npt=k+1
-		            tensorT coeff_lhs_k1(cdata.vk);
-		            coeff_lhs_k1(impl->cdata.s0)=coeff_lhs.full_tensor_copy();
+		            tensorT coeff_lhs_k1(cdata_npt.vk);
+		            coeff_lhs_k1(cdata.s0)=coeff_lhs.full_tensor_copy();
 		            tensorT val_lhs_k1=fcf_hi_npt.coeffs2values(key,coeff_lhs_k1);
 
 		            // multiply
@@ -3808,24 +3803,25 @@ namespace madness {
 		            tensorT result1=fcf_hi_npt.values2coeffs(key,val_lhs_k1);
 
                     // extract coeffs up to k
-                    tensorT result=copy(result1(impl->cdata.s0));
-                    result1(impl->cdata.s0)=0.0;
+                    tensorT result=copy(result1(cdata.s0));
+                    result1(cdata.s0)=0.0;
                     error=result1.normf();
                     return result;
-
         		}
-
         	}
 
         	/// multiply values of rhs and lhs, result on rhs, rhs and lhs are of differnet dimensions
         	coeffT operator()(const Key<NDIM> key, const tensorT& coeff_rhs, const int particle) {
                 Key<LDIM> key1, key2;
                 key.break_apart(key1,key2);
-                MADNESS_ASSERT(gimpl);
-            	FunctionCommonFunctionality<T,LDIM> fcf_lo(gimpl->cdata);
-            	FunctionCommonFunctionality<T,NDIM> fcf_hi(impl->cdata);
-            	FunctionCommonFunctionality<T,LDIM> fcf_lo_npt(gimpl->get_k()+1);
-            	FunctionCommonFunctionality<T,NDIM> fcf_hi_npt(impl->get_k()+1);
+                const long k=coeff_rhs.dim(0);
+                auto& cdata=FunctionCommonData<T,NDIM>::get(k);
+                auto& cdata_lowdim=FunctionCommonData<T,LDIM>::get(k);
+            	FunctionCommonFunctionality<T,LDIM> fcf_lo(cdata_lowdim);
+            	FunctionCommonFunctionality<T,NDIM> fcf_hi(cdata);
+            	FunctionCommonFunctionality<T,LDIM> fcf_lo_npt(k+oversampling);
+            	FunctionCommonFunctionality<T,NDIM> fcf_hi_npt(k+oversampling);
+
 
             	// make hi-dim values from lo-dim coeff_rhs on npt grid points
                 tensorT ones=tensorT(fcf_lo_npt.cdata.vk);
@@ -3852,16 +3848,14 @@ namespace madness {
 	            coeffT result1=fcf_hi_npt.values2coeffs(key,val_lhs_npt);
 
                 // extract coeffs up to k
-	            coeffT result=copy(result1(impl->cdata.s0));
-                result1(impl->cdata.s0)=0.0;
+	            coeffT result=copy(result1(cdata.s0));
+                result1(cdata.s0)=0.0;
                 error=result1.normf();
-                result.reduce_rank(impl->get_tensor_args().thresh);
                 return result;
-
         	}
 
             template <typename Archive> void serialize(const Archive& ar) {
-                ar & error & lo & lo1 & lo2 & hi & hi1& hi2 & gimpl & impl & val_lhs & coeff_lhs;
+                ar & error & lo & lo1 & lo2 & hi & hi1& hi2 & val_lhs & coeff_lhs;
             }
 
 
@@ -4081,20 +4075,14 @@ namespace madness {
         		double error=refine_error;
 
         		// prepare the multiplication
-        		pointwise_multiplier<LDIM> pm;
-        		if (have_v1()) pm=pointwise_multiplier<LDIM>(key,coeff_ket,result,iav1.get_impl());
-        		else if (have_v2()) {
-        			pm=pointwise_multiplier<LDIM>(key,coeff_ket,result,iav2.get_impl());
-        		} else {
-        			pm=pointwise_multiplier<LDIM>(key,coeff_ket,result);
-        		}
+        		pointwise_multiplier<LDIM> pm(key,coeff_ket);
 
         		// perform the multiplication, compute tnorm part of the total error
         		coeffT cresult(result->cdata.vk,result->get_tensor_args());
         		if (have_v1()) {
         			cresult+=pm(key,cpot1.get_tensor(),1);
         			error+=pm.error;
-        	}
+            	}
         		if (have_v2()) {
         			cresult+=pm(key,cpot2.get_tensor(),2);
         			error+=pm.error;
@@ -5312,6 +5300,122 @@ namespace madness {
             bool leaves_only=(this->is_redundant());
             return world.taskq.reduce<resultT,rangeT,do_inner_local<R> >
                 (rangeT(coeffs.begin(),coeffs.end()),do_inner_local<R>(&g, leaves_only));
+        }
+
+        /// compute <bra | eri + v(1) + v(2) | ket>
+
+        /// with |ket> either explicitly given or to be constructed by outer product |ket> = |p1 p2>
+        /// invoked by ket <T,NDIM>
+        template<typename R, std::size_t LDIM=NDIM/2>
+        TENSOR_RESULT_TYPE(T,R) compute_inner_with_coeffs(const Key<NDIM>& key, coeffT coeff_bra,
+                                                   coeffT coeff_ket, coeffT coeff_eri, coeffT coeff_v1, coeffT coeff_v2,
+                                                   coeffT coeff_p1, coeffT coeff_p2) {
+
+            typedef TENSOR_RESULT_TYPE(T,R) resultT;
+            //
+            coeffT ket = (coeff_ket.has_data()) ? coeff_ket : outer(coeff_p1,coeff_p2);
+            coeffT v1v2ket;
+            double error=0.0;
+
+            if (coeff_v1.has_data()) {
+                pointwise_multiplier<LDIM> pm(key,coeff_ket);
+                v1v2ket = pm(key,coeff_v1.full_tensor(), 1);
+                error+=pm.error;
+                v1v2ket+= pm(key,coeff_v2.full_tensor(), 2);
+                error+=pm.error;
+            } else {
+                v1v2ket = ket;
+            }
+
+            resultT result;
+            if (coeff_eri.has_data()) {         // project bra*ket onto eri, avoid multiplication with eri
+                pointwise_multiplier<LDIM> pm(key,v1v2ket);
+                tensorT braket=pm(key,coeff_bra.full_tensor_copy().conj());
+                result=coeff_eri.full_tensor().trace(braket);
+
+            } else {                            // no eri, project ket onto bra
+                result=coeff_bra.full_tensor_copy().trace_conj(v1v2ket.full_tensor_copy());
+            }
+            return result;
+
+        }
+
+        /// called by ket <T,NDIM>
+        template<typename R, std::size_t LDIM=NDIM/2>
+        TENSOR_RESULT_TYPE(T,R) compute_inner_for_key(const Key<NDIM>& key, const FunctionImpl<R,NDIM>* gimpl,
+                                                      const GenTensor<R>& coeff_bra) const {
+            typedef TENSOR_RESULT_TYPE(T,R) resultT;
+            typedef FunctionImpl<R,NDIM> implR;
+
+            // get the composite functor and everything that makes up gimpl
+            auto func=dynamic_cast<CompositeFunctorInterface<T,NDIM,LDIM>* >(gimpl->functor.get());
+            MADNESS_ASSERT(func);
+
+            // returns coefficients, empty if no functor present
+            auto get_coeff = [](const auto& key, const auto& impl) {
+                bool have_impl=impl.get();
+                if (have_impl) return impl->get_coeffs().find(key).get()->second.coeff();    // waits -> ask Robert
+                return GenTensor<typename std::decay_t<decltype(*impl)>::typeT>();
+            };
+
+            Key<LDIM> key1,key2;
+            key.break_apart(key1,key2);
+
+            // get all coefficients (apart from the eri coefficients)
+            auto coeff_ket=get_coeff(key,func->impl_ket);
+            auto coeff_v1=get_coeff(key1,func->impl_m1);
+            auto coeff_v2=get_coeff(key2,func->impl_m2);
+            auto coeff_p1=get_coeff(key1,func->impl_p1);
+            auto coeff_p2=get_coeff(key2,func->impl_p2);
+
+            // make eri coefficients
+            coeffT coeff_eri;
+            if (func->impl_eri) {
+                MADNESS_CHECK(func->impl_eri->get_functor()->provides_coeff());
+                coeff_eri=func->impl_eri->get_functor()->coeff(key).full_tensor();
+            }
+
+            Future<resultT> result=woT::task(gimpl->get_coeffs().owner(key), &implT:: template compute_inner_with_coeffs<R>, key,
+                                             coeff_bra, coeff_ket, coeff_eri, coeff_v1, coeff_v2, coeff_p1, coeff_p2);
+            return result;
+        }
+
+
+        /// Returns the inner product of this with function g constructed on-the-fly
+
+        /// handles compressed and redundant form
+        template <typename R>
+        TENSOR_RESULT_TYPE(T,R) inner_local_on_demand(const FunctionImpl<R,NDIM>& gimpl) const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            typedef TENSOR_RESULT_TYPE(T,R) resultT;
+            typedef FunctionImpl<R,NDIM> implR;
+
+            MADNESS_ASSERT(this->is_reconstructed());
+
+
+            long nsum=0;
+            for (const auto& c : coeffs) if (c.second.has_coeff()) nsum++;
+            std::vector< Future<resultT> > sum = future_vector_factory<resultT>(nsum);
+
+            long isum=0;
+            for (const auto& c : coeffs) {
+                const keyT& key=c.first;
+                const nodeT& fnode = c.second;
+                if (fnode.has_coeff()) {
+                    auto bra_coeff = fnode.coeff();
+                    sum[isum] = woT::task(gimpl.get_coeffs().owner(key), &implR:: template compute_inner_for_key<T>, key, &gimpl, bra_coeff);
+                    isum++;
+                }
+            }
+            auto accumulate = [&sum]() {
+                resultT result=0.0;
+                for (auto& s : sum)  result+=s.get();
+                return result;
+            };
+            auto result=accumulate();
+//            Future<resultT> result=gimpl.get_coeffs().task(key0(),&accumulate);
+            return result;
+
         }
 
         /// Type of the entry in the map returned by make_key_vec_map

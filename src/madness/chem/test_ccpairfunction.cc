@@ -350,7 +350,7 @@ int test_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, cons
             t1.checkpoint(good,bra.name(true)+ket.name());
         }
     }
-    return  (t1.get_final_success()) ? 0 : 1;
+    return t1.end();
 }
 
 

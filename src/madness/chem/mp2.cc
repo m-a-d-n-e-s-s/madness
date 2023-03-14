@@ -293,14 +293,20 @@ double MP2::mp3() const {
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = i; j < hf->nocc(); ++j) {
 //            pairs(i, j) = make_pair(i, j);                // initialize
-            clusterfunctions(i,j).push_back(CCPairFunction(pairs(i,j).function));
+            ClusterFunction tmp;
+            tmp.push_back(CCPairFunction(pairs(i,j).function));
             CCPairFunction ij(hf->nemo(i),hf->nemo(j));
 
             CCConvolutionOperator::Parameters cparam;
             cparam.thresh_op*=0.1;
             auto f12=CCConvolutionOperatorPtr(world,OT_F12,cparam);
             auto vfij=Q12(std::vector<CCPairFunction>({f12*ij}));
-            for (auto& p : vfij) clusterfunctions(i,j).push_back(p);
+            for (auto& p : vfij) tmp.push_back(p);
+
+            tmp=multiply(tmp,hf->nemo_ptr->ncf->function(),{0,1,2});
+            tmp=multiply(tmp,hf->nemo_ptr->ncf->function(),{3,4,5});
+            clusterfunctions(i,j)=tmp;
+
         }
     }
     t1.print();
@@ -310,7 +316,7 @@ double MP2::mp3() const {
     auto g12=CCConvolutionOperatorPtr(world,OT_G12,cparam);
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = i; j < hf->nocc(); ++j) {
-            auto bra=g12*CCPairFunction(hf->R2orbital(i),hf->R2orbital(j));
+            auto bra=g12*CCPairFunction(hf->orbital(i),hf->orbital(j));
             double energy1=inner(bra,clusterfunctions(i,j).front());
             double energy=energy1+pairs(i,j).ij_gQf_ij;
             print("MP2 energy: gQf, u",pairs(i,j).ij_gQf_ij,energy1,energy);
@@ -337,8 +343,6 @@ double MP2::mp3() const {
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = i; j < hf->nocc(); ++j) {
             auto bra=clusterfunctions(i,j);
-            bra=multiply(bra,hf->nemo_ptr->ncf->square(),{0,1,2});
-            bra=multiply(bra,hf->nemo_ptr->ncf->square(),{3,4,5});
             double tmp1=inner(bra,g12*clusterfunctions(i,j));
             double tmp2=inner(bra,g12*clusterfunctions(j,i));
             double fac= (i==j) ? 0.5 : 1.0;
@@ -349,30 +353,37 @@ double MP2::mp3() const {
     }
 
     // compute intermediates for terms G, I, H, and J
-    const auto R2=hf->nemo_ptr->ncf->square();
+
     // \sum_j tau_ij(1,2) * phi_j(2)
     std::vector<ClusterFunction> tau_i_jj(hf->nocc()-param.freeze());
     // \sum_j tau_ij(1,2) * phi_j(1)
     std::vector<ClusterFunction> tau_ij_j;
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = param.freeze(); j < hf->nocc(); ++j) {
-            auto tmp1=multiply(clusterfunctions(i,j),R2,{0,1,2});
-            auto tmp2=multiply(tmp1,hf->R2orbital(j),{3,4,5});
+            auto tmp2=multiply(clusterfunctions(i,j),hf->orbital(j),{3,4,5});
             for (auto& t : tmp2) tau_i_jj[i].push_back(t);
 
-            auto tmp3=multiply(clusterfunctions(i,j),R2,{3,4,5});
-            auto tmp4=multiply(tmp3,hf->R2orbital(j),{0,1,2});
+            auto tmp4=multiply(clusterfunctions(i,j),hf->orbital(j),{0,1,2});
             for (auto& t : tmp4) tau_i_jj[i].push_back(t);
         }
+    }
+
+    // terms G, I, H, J of Bartlett/Silver 1975
+    double term2a=0.0;
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        double G=inner(tau_i_jj[i],g12*tau_i_jj[i]);
+        double I=inner(tau_i_jj[i],g12*tau_ij_j[i]);
+        double H=inner(tau_ij_j[i],g12*tau_i_jj[i]);
+        double J=inner(tau_ij_j[i],g12*tau_ij_j[i]);
+        double tmp = (8.0 *G - 4.0*I + 2.0* H  - 4.0*J);
+        print("mp3 energy: term2",i,tmp);
+        term2a+=tmp;
     }
 
     double term2=0.0;
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = param.freeze(); j < hf->nocc(); ++j) {
-            auto bra_ij=multiply(clusterfunctions(i,j),hf->nemo_ptr->ncf->square(),{0,1,2});
-            bra_ij=multiply(bra_ij,hf->nemo_ptr->ncf->square(),{3,4,5});
-
-
+            auto bra_ij=clusterfunctions(i,j);
 
             double tmp=0.0;
             for (int k=param.freeze(); k<hf->nocc(); ++k) {
@@ -397,8 +408,6 @@ double MP2::mp3() const {
             for (int k=param.freeze(); k<hf->nocc(); ++k) {
                 for (int l=param.freeze(); l<hf->nocc(); ++l) {
                     auto bra = clusterfunctions(i,k);
-                    bra=multiply(bra,hf->nemo_ptr->ncf->square(),{0,1,2});
-                    bra=multiply(bra,hf->nemo_ptr->ncf->square(),{3,4,5});
                     double ovlp1=inner(bra,clusterfunctions(j,l));
                     double ovlp2=inner(bra,clusterfunctions(l,j));
                     auto ket_i=hf->nemo(i);
