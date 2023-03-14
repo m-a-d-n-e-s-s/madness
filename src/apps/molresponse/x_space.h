@@ -31,6 +31,7 @@ namespace madness {
 
     public:
         response_space X, Y;
+        std::list<size_t> active;
 
     public:
         size_t num_states() const { return n_states; }

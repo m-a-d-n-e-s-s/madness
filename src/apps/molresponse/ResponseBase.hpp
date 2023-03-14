@@ -136,6 +136,8 @@ public:
 
     auto get_orbitals() const -> vector_real_function_3d { return ground_orbitals; }
 
+    auto get_chi() const->X_space{return Chi;} ;
+
     void output_json();
 
     json j_molresponse{};
@@ -473,7 +475,6 @@ public:
         return {V, F};
     }
 };
-
 
 
 #endif// MADNESS_RESPONSEBASE_HPP
