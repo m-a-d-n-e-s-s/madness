@@ -1357,7 +1357,7 @@ namespace madness {
         TENSOR_RESULT_TYPE(T, R) inner_on_demand(const Function<R, NDIM>& g) const {
             MADNESS_ASSERT(g.is_on_demand() and (not this->is_on_demand()));
 
-            constexpr std::size_t LDIM=NDIM/2;
+            constexpr std::size_t LDIM=std::max(NDIM/2,std::size_t(1));
             auto func=dynamic_cast<CompositeFunctorInterface<T,NDIM,LDIM>* >(g.get_impl()->get_functor().get());
             MADNESS_ASSERT(func);
             func->make_redundant(true);

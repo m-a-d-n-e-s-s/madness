@@ -79,7 +79,8 @@ public:
 	/// @parma[in]	prnt	print level
 	static GFit BSHFit(double mu, double lo, double hi, double eps, bool prnt=false) {
 		GFit fit;
-		if (NDIM==3) bsh_fit(mu,lo,hi,eps,fit.coeffs_,fit.exponents_,prnt,true);
+        bool fix_interval=false;
+		if (NDIM==3) bsh_fit(mu,lo,hi,eps,fit.coeffs_,fit.exponents_,prnt,fix_interval);
 		else bsh_fit_ndim(NDIM,mu,lo,hi,eps,fit.coeffs_,fit.exponents_,prnt);
 
         if (prnt) {
@@ -144,9 +145,10 @@ public:
         GFit bshfit,coulombfit;
         eps*=0.1;
         lo*=0.1;
-        bool restrict_interval=false;
-        bsh_fit(gamma,lo,hi,eps,bshfit.coeffs_,bshfit.exponents_,false,restrict_interval);
-        bsh_fit(0.0,lo,hi,eps,coulombfit.coeffs_,coulombfit.exponents_,false,restrict_interval);
+//        bool restrict_interval=false;
+        bool fix_interval=true;
+        bsh_fit(gamma,lo,hi,eps,bshfit.coeffs_,bshfit.exponents_,false,fix_interval);
+        bsh_fit(0.0,lo,hi,eps,coulombfit.coeffs_,coulombfit.exponents_,false,fix_interval);
         // check the exponents are identical
         auto diffexponents=(coulombfit.exponents() - bshfit.exponents());
         MADNESS_CHECK(diffexponents.normf()/coulombfit.exponents().size()<1.e-12);
@@ -177,10 +179,11 @@ public:
         GFit bshfit,coulombfit,bsh2fit;
         eps*=0.1;
         lo*=0.1;
-        bool restrict_interval=false;
-        bsh_fit(gamma,lo,hi,eps,bshfit.coeffs_,bshfit.exponents_,false,restrict_interval);
-        bsh_fit(2.0*gamma,lo,hi,eps,bsh2fit.coeffs_,bsh2fit.exponents_,false,restrict_interval);
-        bsh_fit(0.0,lo,hi,eps,coulombfit.coeffs_,coulombfit.exponents_,false,restrict_interval);
+//        bool restrict_interval=false;
+        bool fix_interval=true;
+        bsh_fit(gamma,lo,hi,eps,bshfit.coeffs_,bshfit.exponents_,false,fix_interval);
+        bsh_fit(2.0*gamma,lo,hi,eps,bsh2fit.coeffs_,bsh2fit.exponents_,false,fix_interval);
+        bsh_fit(0.0,lo,hi,eps,coulombfit.coeffs_,coulombfit.exponents_,false,fix_interval);
 
         // check the exponents are identical
         auto diffexponents=(coulombfit.exponents() - bshfit.exponents());
@@ -330,14 +333,14 @@ private:
 	/// Multiresolution Quantum Chemistry in Multiwavelet Bases,
 	/// Lecture Notes in Computer Science, vol. 2660, p. 707, 2003.
 	static void bsh_fit(double mu, double lo, double hi, double eps,
-			Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt, bool use_mu_for_restricting_interval) {
+			Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt, bool fix_interval) {
 
         if (mu < 0.0) throw "cannot handle negative mu in bsh_fit";
-        bool restrict_interval=(mu>0) and use_mu_for_restricting_interval;
+//        bool restrict_interval=(mu>0) and use_mu_for_restricting_interval;
 
 
-//		if (mu > 0) {
-        if (restrict_interval) {
+		if ((mu > 0) and (not fix_interval)) {
+//        if (restrict_interval) {
 			// Restrict hi according to the exponential decay
 			double r = -log(4*constants::pi*0.01*eps);
 			r = -log(r * 4*constants::pi*0.01*eps);
@@ -355,8 +358,8 @@ private:
 		else if (eps >= 1e-12) TT = 26;
 		else TT = 30;
 
-//        if (mu > 0) {
-		if (restrict_interval) {
+        if ((mu > 0) and (not fix_interval)) {
+//		if (restrict_interval) {
 			slo = -0.5*log(4.0*TT/(mu*mu));
 		}
 		else {
@@ -414,8 +417,8 @@ private:
 		// end points ... if this error is less than the desired
 		// precision, can discard the diffuse gaussian.
 
-//        if (mu == 0.0) {
-		if (restrict_interval) {
+        if ((mu == 0.0) and (not fix_interval)) {
+//		if (restrict_interval) {
             GFit<double,3>::prune_small_coefficients(eps,lo,hi,coeff,expnt);
 		}
 

@@ -5351,11 +5351,24 @@ namespace madness {
             auto func=dynamic_cast<CompositeFunctorInterface<T,NDIM,LDIM>* >(gimpl->functor.get());
             MADNESS_ASSERT(func);
 
+
+            auto find_valid_parent = [](auto& key, auto& impl, auto&& find_valid_parent) {
+                if (impl->get_coeffs().probe(key)) return key;
+                auto parentkey=key.parent();
+                return find_valid_parent(parentkey, impl, find_valid_parent);
+            };
+
             // returns coefficients, empty if no functor present
-            auto get_coeff = [](const auto& key, const auto& impl) {
+            auto get_coeff = [&find_valid_parent](const auto& key, const auto& impl) {
                 bool have_impl=impl.get();
-                if (have_impl) return impl->get_coeffs().find(key).get()->second.coeff();    // waits -> ask Robert
-                return GenTensor<typename std::decay_t<decltype(*impl)>::typeT>();
+                if (have_impl) {
+                    auto parentkey = find_valid_parent(key, impl, find_valid_parent);
+                    auto parentcoeff=impl->get_coeffs().find(parentkey).get()->second.coeff();
+                    auto coeff=impl->parent_to_child(parentcoeff, parentkey, key);
+                    return coeff;
+                } else {
+                    return GenTensor<typename std::decay_t<decltype(*impl)>::typeT>();
+                }
             };
 
             Key<LDIM> key1,key2;
