@@ -58,11 +58,8 @@ namespace madness {
                          response_space &f) {
         MADNESS_ASSERT(f.size() > 0);
         MADNESS_ASSERT(f[0].size() == op.size());
-
-        response_space result(f[0][0].world(), f.size(), f[0].size());
-        int i = 0;
-        for (auto &fi: f.x) { result.x[i++] = apply(world, op, fi); }
-
+        response_space result = f.copy();
+        for (const auto &i: f.active) { result.x[i] = apply(world, op, f[i]); }
         world.gop.fence();
         /*
         for (unsigned int i = 0; i < f.size(); i++) {
