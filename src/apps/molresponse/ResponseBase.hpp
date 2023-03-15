@@ -23,14 +23,12 @@
 
 using namespace madness;
 
-using json = nlohmann::json;
 
 class inner_strategy {
 
 public:
     virtual ~inner_strategy() = default;
-    [[nodiscard]] virtual Tensor<double> compute_inner(const X_space &x,
-                                                       const X_space &y) const = 0;
+    virtual Tensor<double> compute_inner(const X_space &x, const X_space &y) const = 0;
 };
 
 class Context {
@@ -40,7 +38,7 @@ private:
 
 public:
     explicit Context(std::unique_ptr<inner_strategy> &&strategy = {})
-            : strategy_(std::move(strategy)) {}
+        : strategy_(std::move(strategy)) {}
     void set_strategy(std::unique_ptr<inner_strategy> &&strategy) {
         strategy_ = std::move(strategy);
     }
@@ -54,7 +52,7 @@ public:
         }
     }
 
-    [[nodiscard]] Tensor<double> inner(const X_space &x, const X_space &y) const {
+    Tensor<double> inner(const X_space &x, const X_space &y) const {
         if (strategy_) {
             return strategy_->compute_inner(x, y);
         } else {
@@ -136,7 +134,7 @@ public:
 
     auto get_orbitals() const -> vector_real_function_3d { return ground_orbitals; }
 
-    auto get_chi() const->X_space{return Chi.copy();} ;
+    auto get_chi() const -> X_space { return Chi.copy(); };
 
     void output_json();
 
