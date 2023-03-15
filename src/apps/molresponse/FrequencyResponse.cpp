@@ -93,6 +93,8 @@ void FrequencyResponse::iterate(World &world) {
     //PQ = PQ * mask;
     PQ = generator(world, *this);
     PQ.truncate();
+   // vector<bool> converged(Chi.num_states(),false);
+
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
         iter_timing.clear();
         iter_function_data.clear();
@@ -109,7 +111,7 @@ void FrequencyResponse::iterate(World &world) {
                 break;
             }
             double d_residual = density_residuals.max();
-            auto chi_norms = (compute_y) ? Chi.norm2s() : Chi.X.norm2();
+            auto chi_norms = (compute_y) ? Chi.norm2s() : Chi.x.norm2();
             auto rho_norms = madness::norm2s_T(world, rho_omega);
             std::transform(bsh_residualsX.ptr(), bsh_residualsX.ptr() + bsh_residualsX.size(),
                            chi_norms.ptr(), bsh_relative_residualsX.ptr(),
@@ -157,7 +159,7 @@ void FrequencyResponse::iterate(World &world) {
                     if (r_params.print_level() >= 1) molresponse::end_timer(world, "Save:");
                 }
                 if (r_params.plot_all_orbitals()) {
-                    plotResponseOrbitals(world, iter, Chi.X, Chi.Y, r_params, ground_calc);
+                    plotResponseOrbitals(world, iter, Chi.x, Chi.y, r_params, ground_calc);
                 }
                 break;
             }
@@ -181,7 +183,7 @@ void FrequencyResponse::iterate(World &world) {
         if (compute_y) {
             Chi = new_chi.copy();
         } else {
-            Chi.X = new_chi.X.copy();
+            Chi.x = new_chi.x.copy();
         }
         if (world.rank() == 0) { print("copy chi:"); }
         if (r_params.print_level() >= 1) {
@@ -297,14 +299,14 @@ auto FrequencyResponse::new_kain_x_space_update(World &world, const X_space &x, 
     for (int i = 0; i < m; i++) {
         orb_x = i * p * n;
         for (int j = 0; j < n; j++) {
-            vect_x[orb_x + j] = x.X[i][j];
-            vect_fx[orb_x + j] = fx.X[i][j];
+            vect_x[orb_x + j] = x.x[i][j];
+            vect_fx[orb_x + j] = fx.x[i][j];
         }
         if (compute_y) {
             orb_y = orb_x + n;
             for (int j = 0; j < n; j++) {
-                vect_x[orb_y + j] = x.Y[i][j];
-                vect_fx[orb_y + j] = fx.Y[i][j];
+                vect_x[orb_y + j] = x.y[i][j];
+                vect_fx[orb_y + j] = fx.y[i][j];
             }
         }
     }
@@ -314,13 +316,13 @@ auto FrequencyResponse::new_kain_x_space_update(World &world, const X_space &x, 
     for (int i = 0; i < m; i++) {
         orb_x = i * p * n;
         for (int j = 0; j < n; j++) {
-            kain_update.X[i][j] =
+            kain_update.x[i][j] =
                     rf_solver[orb_x + j].update(vect_x[orb_x + j], vect_rx[orb_x + j]);
         }
         if (compute_y) {
             orb_y = orb_x + n;
             for (int j = 0; j < n; j++) {
-                kain_update.Y[i][j] =
+                kain_update.y[i][j] =
                         rf_solver[orb_y + j].update(vect_x[orb_y + j], vect_rx[orb_y + j]);
             }
         }
@@ -340,22 +342,22 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
         molresponse::start_timer(world);
         if (world.rank() == 0) { print("--------------- BSH UPDATE RESPONSE------------------"); }
     }
-    size_t m = theta_X.X.size();
-    size_t n = theta_X.X.size_orbitals();
+    size_t m = theta_X.x.size();
+    size_t n = theta_X.x.size_orbitals();
     bool compute_y = omega != 0.0;
     // construct lhs for 2nd order property
     PQ.truncate();
 
-    theta_X.X += theta_X.X * x_shifts;
-    theta_X.X += PQ.X;
-    theta_X.X = theta_X.X * -2;
+    theta_X.x += theta_X.x * x_shifts;
+    theta_X.x += PQ.x;
+    theta_X.x = theta_X.x * -2;
     world.gop.fence();
     if (compute_y) {
-        theta_X.Y += PQ.Y;
-        theta_X.Y = theta_X.Y * -2;
+        theta_X.y += PQ.y;
+        theta_X.y = theta_X.y * -2;
         theta_X.truncate();
     } else {
-        theta_X.X.truncate_rf();
+        theta_X.x.truncate_rf();
     }
     world.gop.fence();
     // apply bsh
@@ -364,21 +366,21 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     bsh_x_ops.insert(bsh_x_ops.end(), std::make_move_iterator(bsh_y_ops.begin()),
                      std::make_move_iterator(bsh_y_ops.end()));
                      */
-    bsh_X.X = apply(world, bsh_x_ops, theta_X.X);
+    bsh_X.x = apply(world, bsh_x_ops, theta_X.x);
     if (world.rank() == 0) { print("--------------- Apply BSH X ------------------"); }
-    if (compute_y) { bsh_X.Y = apply(world, bsh_y_ops, theta_X.Y); }
+    if (compute_y) { bsh_X.y = apply(world, bsh_y_ops, theta_X.y); }
 
     if (compute_y) {
         bsh_X.truncate();
     } else {
-        bsh_X.X.truncate_rf();
+        bsh_X.x.truncate_rf();
     }
 
     if (world.rank() == 0) { print("--------------- Apply BSH------------------"); }
     // Project out ground state
-    for (size_t i = 0; i < m; i++) bsh_X.X[i] = projector(bsh_X.X[i]);
+    for (size_t i = 0; i < m; i++) bsh_X.x[i] = projector(bsh_X.x[i]);
     if (compute_y) {
-        for (size_t i = 0; i < m; i++) { bsh_X.Y[i] = projector(bsh_X.Y[i]); }
+        for (size_t i = 0; i < m; i++) { bsh_X.y[i] = projector(bsh_X.y[i]); }
     }
     if (world.rank() == 0) { print("--------------- Project BSH------------------"); }
     if (r_params.print_level() >= 1) {
@@ -387,7 +389,7 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     if (compute_y) {
         bsh_X.truncate();
     } else {
-        bsh_X.X.truncate_rf();
+        bsh_X.x.truncate_rf();
     }
     return bsh_X;
 }
@@ -422,10 +424,10 @@ void FrequencyResponse::save(World &world, const std::string &name) {
     ar &r_params.num_states();
 
     for (size_t i = 0; i < r_params.num_states(); i++)
-        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.X[i][j];
+        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.x[i][j];
     if (not r_params.tda()) {
         for (size_t i = 0; i < r_params.num_states(); i++)
-            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.Y[i][j];
+            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.y[i][j];
     }
 }
 
@@ -440,11 +442,11 @@ void FrequencyResponse::load(World &world, const std::string &name) {
     ar &r_params.num_states();
     Chi = X_space(world, r_params.num_states(), r_params.num_orbitals());
     for (size_t i = 0; i < r_params.num_states(); i++)
-        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.X[i][j];
+        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.x[i][j];
     world.gop.fence();
     if (not r_params.tda()) {
         for (size_t i = 0; i < r_params.num_states(); i++)
-            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.Y[i][j];
+            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.y[i][j];
         world.gop.fence();
     }
 }
@@ -462,8 +464,8 @@ auto nuclear_generator(World &world, FrequencyResponse &calc) -> X_space {
                     factoryT(world).functor(func).nofence().truncate_on_project().truncate_mode(0));
         }
     }
-    PQ.X = vector_to_PQ(world, nuclear_vector, calc.get_orbitals());
-    PQ.Y = PQ.X;
+    PQ.x = vector_to_PQ(world, nuclear_vector, calc.get_orbitals());
+    PQ.y = PQ.x;
     return PQ;
 }
 
@@ -479,8 +481,8 @@ auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
     }
     //truncate(world, dipole_vectors, true);
     world.gop.fence();
-    PQ.X = vector_to_PQ(world, dipole_vectors, calc.get_orbitals());
-    PQ.Y = PQ.X.copy();
+    PQ.x = vector_to_PQ(world, dipole_vectors, calc.get_orbitals());
+    PQ.y = PQ.x.copy();
     if (world.rank() == 0) { print("Made new PQ"); }
     return PQ;
 }

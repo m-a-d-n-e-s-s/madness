@@ -73,7 +73,7 @@ auto ground_exchange(const vecfuncT &phi0, const X_space &x, const bool compute_
         // place all x
     } else {
         n = 1;
-        xx = x.X.x;
+        xx = x.x.x;
         // if not compute y we are only working with the x functions
     }
     auto n_exchange = n * num_states * num_orbitals * num_orbitals;
@@ -166,10 +166,10 @@ auto response_exchange(const vecfuncT &phi0, const X_space &x, const bool comput
         b_index = b * num_orbitals * num_orbitals * n;
         for (long j = 0; j < num_orbitals; j++) {
             p_index = j * num_orbitals;
-            std::transform(x.X[b].begin(), x.X[b].end(), x_vector.begin() + b_index + p_index,
+            std::transform(x.x[b].begin(), x.x[b].end(), x_vector.begin() + b_index + p_index,
                            [&](const auto &xbi) { return copy(xbi, false); });
 
-            std::transform(x.Y[b].begin(), x.Y[b].end(),
+            std::transform(x.y[b].begin(), x.y[b].end(),
                            x_vector_conjugate.begin() + b_index + p_index,
                            [&](const auto &xbi) { return copy(xbi, false); });
         }
@@ -177,10 +177,10 @@ auto response_exchange(const vecfuncT &phi0, const X_space &x, const bool comput
             long y_shift = num_orbitals * num_orbitals;
             for (long j = 0; j < num_orbitals; j++) {
                 p_index = j * num_orbitals;
-                std::transform(x.Y[b].begin(), x.Y[b].end(),
+                std::transform(x.y[b].begin(), x.y[b].end(),
                                x_vector.begin() + b_index + p_index + y_shift,
                                [&](const auto &ybi) { return copy(ybi, false); });
-                std::transform(x.X[b].begin(), x.X[b].end(),
+                std::transform(x.x[b].begin(), x.x[b].end(),
                                x_vector_conjugate.begin() + b_index + p_index + y_shift,
                                [&](const auto &ybi) { return copy(ybi, false); });
             }
@@ -291,7 +291,7 @@ auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &br
     if (n == 2) {
         K0 = to_X_space(exchange_matrix);
     } else {
-        K0.X = exchange_matrix;
+        K0.x = exchange_matrix;
     }
     world.gop.fence();
     molresponse::end_timer(world, "ground exchange reorganize");
@@ -329,8 +329,8 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
     if (compute_y) {
         for (int b = 0; b < num_states; b++) {
 
-            auto x = chi.X[b];
-            auto y = chi.Y[b];
+            auto x = chi.x[b];
+            auto y = chi.y[b];
 
             auto K1X = make_k(x, phi0);
             auto K1Y = make_k(phi0, y);
@@ -345,17 +345,17 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
 
             world.gop.fence();
 
-            K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k1y, false);
-            K.Y[b] = gaxpy_oop(1.0, k2x, 1.0, k2y, false);
-            K.Y[b][0].print_info();
+            K.x[b] = gaxpy_oop(1.0, k1x, 1.0, k1y, false);
+            K.y[b] = gaxpy_oop(1.0, k2x, 1.0, k2y, false);
+            K.y[b][0].print_info();
 
             world.gop.fence();
         }
     } else {
         for (int b = 0; b < num_states; b++) {
 
-            auto x = chi.X[b];
-            auto y = chi.X[b];
+            auto x = chi.x[b];
+            auto y = chi.x[b];
 
             auto K1X = make_k(x, phi0);
             auto K1Y = make_k(phi0, y);
@@ -363,7 +363,7 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
             k1x = K1X(phi0);
             k1y = K1Y(phi0);
 
-            K.X[b] = gaxpy_oop(1.0, k1x, 1.0, k1y, true);
+            K.x[b] = gaxpy_oop(1.0, k1x, 1.0, k1y, true);
         }
     }
     return K;
@@ -395,12 +395,12 @@ auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const 
     auto k0 = make_k(phi0, phi0);
     if (compute_y) {
         for (int b = 0; b < num_states; b++) {
-            K0.X[b] = k0(chi.X[b]);
-            K0.Y[b] = k0(chi.Y[b]);
+            K0.x[b] = k0(chi.x[b]);
+            K0.y[b] = k0(chi.y[b]);
         }
     } else {
-        for (int b = 0; b < num_states; b++) { K0.X[b] = k0(chi.X[b]); }
-        K0.Y = K0.X.copy();
+        for (int b = 0; b < num_states; b++) { K0.x[b] = k0(chi.x[b]); }
+        K0.y = K0.x.copy();
     }
     K0.truncate();
     return K0;

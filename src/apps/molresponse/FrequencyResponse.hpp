@@ -22,27 +22,30 @@ class FrequencyResponse : public ResponseBase {
 
 public:
     FrequencyResponse(World &world, const CalcParams &params, double frequency, RHS_Generator rhs)
-        : ResponseBase(world, params), omega{frequency}, generator{std::move(rhs)},
-          PQ{generator(world, *this)} {
+        : ResponseBase(world, params), omega{frequency}, generator{std::move(rhs)}, PQ{} {
         if (omega == 0.0) {
             response_context.set_strategy(std::make_unique<static_inner_product>());
         } else {
             response_context.set_strategy(std::make_unique<full_inner_product>());
         }
+        PQ = generator(world, *this);
     }
     void initialize(World &world) override;
 
     void load(World &world, const std::string &name) override;
 
-private:
-    double omega;
-    RHS_Generator generator;
-    X_space PQ;
-    void iterate(World &world) override;
     void check_k(World &world, double thresh, int k) override {
         ResponseBase::check_k(world, thresh, k);
         ::check_k(world, PQ, thresh, k);
     }
+
+    X_space PQ;
+
+    RHS_Generator generator;
+
+private:
+    double omega;
+    void iterate(World &world) override;
     X_space bsh_update_response(World &world, X_space &theta_X, vector<poperatorT> &bsh_x_ops,
                                 vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector,
                                 double &x_shifts);

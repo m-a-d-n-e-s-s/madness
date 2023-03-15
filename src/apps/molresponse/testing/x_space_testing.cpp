@@ -37,11 +37,11 @@ TEST_CASE("Testing New X SPACE") {
 
     std::cout.precision(6);
     std::string filename = "response.in";
-    std::string load_x = "restart_dipole_hf_0-000000.000000";
     double frequency = 0.0;
     std::string property = "dipole";
 
     auto calc_params = initialize_calc_params(world, std::string(filename));
+    print(calc_params.response_parameters.restart_file());
 
     RHS_Generator rhs_generator;
     if (property == "dipole") {
@@ -50,16 +50,71 @@ TEST_CASE("Testing New X SPACE") {
         rhs_generator = nuclear_generator;
     }
     FrequencyResponse calc(world, calc_params, frequency, rhs_generator);
-    calc.load(world, load_x);
+    calc.load(world, calc_params.response_parameters.save_file());
     auto x = calc.get_chi();
+    print(x.num_states());
+    print(x.num_orbitals());
+    //calc.check_k(world,1e-4,7);
 
-    auto m = x.num_states();
-    x.active.resize(m);
+    auto PQ = calc.generator(world, calc);
+    PQ.truncate();
+
+
     int i = 0;
     for (auto &ai: x.active) { ai = i++; }
     print(x.active);
 
+    auto pn = PQ.norm2s();
+    auto xn = x.norm2s();
 
-    // A calculation is defined by a molecule, functional, and operator
-    // xc inclu
+    auto add = x + PQ;
+    print("x: ", xn);
+    print("p: ", pn);
+    print("x+p", add.norm2s());
+
+    vector<bool> converged{1, 0, 0};
+    int b = 0;
+    x.active.remove_if([&](auto x) { return converged[b++]; });
+    b = 0;
+
+    print("x active", x.active);
+    auto add_1 = x + PQ;
+    print("x+p after remove", add_1.norm2s());
+    x.reset_active();
+    auto add_2 = x + PQ;
+    auto norm2 = add_2.norm2s();
+    print("x+p after reset", add_2.norm2s());
+    CHECK(add_2.norm2s()[0] != add_1.norm2s()[0]);
+
+    b = 0;
+    x.active.remove_if([&](auto x) { return converged[b++]; });
+    x += PQ + x;
+    print("x+=pQ ", x.norm2s());
+    x = x - PQ;
+    print("x=x-PQ ", x.norm2s());
+
+    auto base = {1e-3, 1e-5, 1e-4};
+    vector<std::pair<double, double>> ri(base.size());
+
+    std::transform(base.begin(), base.end(), ri.begin(), [](auto vi) {
+        return std::pair<double, double>{vi, vi * 5};
+    });
+
+    std::pair<double, double> threshold{1e-3, 5e-4};
+
+    std::transform(ri.begin(), ri.end(), converged.begin(), [&](auto &resi) {
+        if (resi.first < threshold.first && resi.second < threshold.second) {
+            return true;
+        } else {
+            return false;
+        }
+    });
+    x.reset_active();
+    print(converged);
+    b = 0;
+    x.active.remove_if([&](auto x) { return converged[b++]; });
+    print(x.norm2s());
+    print((x + PQ).norm2s());
 }
+
+

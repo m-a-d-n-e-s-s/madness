@@ -13,7 +13,11 @@
 
 #include "molresponse/response_functions.h"
 
+
 namespace madness {
+
+    typedef std::vector<vector_real_function_3d> response_matrix;
+
     struct X_space;
 
     auto to_response_vector(const vector_real_function_3d &vec) -> vector_real_function_3d;
@@ -30,24 +34,38 @@ namespace madness {
         size_t n_orbitals;// Num. of ground states
 
     public:
-        response_space X, Y;
+        response_space x, y;
         std::list<size_t> active;
 
     public:
-        size_t num_states() const { return n_states; }
-        size_t num_orbitals() const { return n_orbitals; }
+        [[nodiscard]] size_t num_states() const { return n_states; }
+        [[nodiscard]] size_t num_orbitals() const { return n_orbitals; }
         // default constructor
-        X_space() : n_states(0), n_orbitals(0), X(), Y() {}
+        X_space() : n_states(0), n_orbitals(0), x(), y(), active(0) {}
         // Copy constructor
+        void reset_active() {
+            active.resize(n_states);
+            size_t i{0};
+            for (auto &ai: active) { ai = i++; }
+        }
         X_space(const X_space &A)
-            : n_states(size_states(A)), n_orbitals(size_orbitals(A)), X(A.X), Y(A.Y) {}
+            : n_states(size_states(A)), n_orbitals(size_orbitals(A)), x(A.x), y(A.y),
+              active(A.active) {}
         [[nodiscard]] X_space copy() const {
-            auto &world = X[0][0].world();
-            auto m = to_response_matrix(*this);
-            auto copy_m = create_response_matrix(num_states(), num_orbitals());
-            std::transform(m.begin(), m.end(), copy_m.begin(),
-                           [&](const auto &mi) { return madness::copy(world, mi, true); });
-            return to_X_space(copy_m);
+            auto &world = x[0][0].world();
+
+            auto new_x = X_space(*this);// copy
+            response_matrix copy_x(n_states);
+            response_matrix copy_y(n_states);
+
+            std::transform(x.begin(), x.end(), copy_x.begin(),
+                           [&](const auto &xi) { return madness::copy(world, xi, true); });
+            std::transform(y.begin(), y.end(), copy_y.begin(),
+                           [&](const auto &xi) { return madness::copy(world, xi, true); });
+            new_x.x = copy_x;
+            new_x.x = copy_y;
+
+            return new_x;
         }
         /// Create a new copy of the function with different distribution and optional
         /// fence
@@ -55,14 +73,20 @@ namespace madness {
         /// Works in either basis.  Different distributions imply
         /// asynchronous communication and the optional fence is
         /// collective.
-        [[nodiscard]] auto copy(const std::shared_ptr<WorldDCPmapInterface<Key<3>>> &pmap,
+        [[nodiscard]] auto copy(const std::shared_ptr<WorldDCPmapInterface<Key<3>>> &p_map,
                                 bool fence = false) const -> X_space {
-            auto &world = X[0][0].world();
-            auto m = to_response_matrix(*this);
-            auto copy_m = create_response_matrix(num_states(), num_orbitals());
-            std::transform(m.begin(), m.end(), copy_m.begin(),
-                           [&](const auto &mi) { return madness::copy(world, mi, pmap, true); });
-            return to_X_space(copy_m);
+            auto &world = x[0][0].world();
+            auto new_x = X_space(*this);// copy
+            response_matrix copy_x(n_states);
+            response_matrix copy_y(n_states);
+
+            std::transform(x.begin(), x.end(), copy_x.begin(),
+                           [&](const auto &xi) { return madness::copy(world, xi, p_map, true); });
+            std::transform(y.begin(), y.end(), copy_y.begin(),
+                           [&](const auto &xi) { return madness::copy(world, xi, p_map, true); });
+            new_x.x = copy_x;
+            new_x.x = copy_y;
+            return new_x;
         }
         // assignment
         auto operator=(const X_space &B) -> X_space & {
@@ -70,55 +94,57 @@ namespace madness {
 
                 this->n_states = B.num_states();
                 this->n_orbitals = B.num_orbitals();
-                this->X = B.X;
-                this->Y = B.Y;
+                this->x = B.x;
+                this->y = B.y;
+                this->active = B.active;
             }
             return *this;// NO SHALLOW COPIES
         }
         // Zero Constructor
         X_space(World &world, size_t n_states, size_t n_orbitals)
-            : n_states(n_states), n_orbitals(n_orbitals), X(world, n_states, n_orbitals),
-              Y(world, n_states, n_orbitals) {}
-        // explicit constructor from 2 resonse_space
-        explicit X_space(response_space &X, response_space &Y) {
-            MADNESS_ASSERT(X.size() == Y.size());
-            MADNESS_ASSERT(X[0].size() == Y[0].size());
-            this->n_states = X.size();
-            this->n_orbitals = X[0].size();
-            this->X = X.copy();
-            this->Y = Y.copy();
+            : n_states(n_states), n_orbitals(n_orbitals), x(world, n_states, n_orbitals),
+              y(world, n_states, n_orbitals), active(n_states) {
+            reset_active();
         }
         void clear() {
-            X.clear();
-            Y.clear();
+            x.clear();
+            y.clear();
         }
         auto operator+(const X_space &B) -> X_space {
             MADNESS_ASSERT(same_size(*this, B));
-            World &world = this->X[0][0].world();
-            auto ax = to_response_matrix(*this);
-            auto bx = to_response_matrix(B);
-            response_matrix add_x(num_states());
-            std::transform(ax.begin(), ax.end(), bx.begin(), add_x.begin(),
-                           [&](const vector_real_function_3d &a, const vector_real_function_3d &b) {
-                               return gaxpy_oop(1.0, a, 1.0, b, false);
-                           });
+            World &world = this->x[0][0].world();
+            X_space add_x = this->copy();
+
+            for (const auto &i: active) {
+                auto ax = add_x.x[i];
+                auto bx = B.x[i];
+                auto ay = add_x.y[i];
+                auto by = B.y[i];
+                add_x.x[i] = gaxpy_oop(1.0, ax, 1.0, bx, false);
+                add_x.y[i] = gaxpy_oop(1.0, ay, 1.0, by, false);
+            }
             world.gop.fence();
-            return to_X_space(add_x);
+
+            return add_x;
         }
 
         auto operator+=(const X_space &B) -> X_space & {
             MADNESS_ASSERT(same_size(*this, B));
-            auto ax = to_response_matrix(*this);
-            auto bx = to_response_matrix(B);
-            auto &world = ax[0][0].world();
+            auto &world = this->x[0][0].world();
             int b = 0;
-            std::for_each(ax.begin(), ax.end(),
-                          [&](auto &a) { gaxpy(world, 1.0, a, 1.0, bx[b++], false); });
+            for (const auto &i: active) {
+                auto ax = this->x[i];
+                auto bx = B.x[i];
+                auto ay = this->y[i];
+                auto by = B.y[i];
+                gaxpy(world, 1.0, ax, 1.0, bx, false);
+                gaxpy(world, 1.0, ay, 1.0, by, false);
+            }
             world.gop.fence();
             return *this;
         }
 
-        void push_back(const vector_real_function_3d &x, const vector_real_function_3d &y) {
+        void push_back(const vector_real_function_3d &vx, const vector_real_function_3d &vy) {
             if (n_orbitals > 0) {
                 MADNESS_ASSERT(n_orbitals == x.size());
                 MADNESS_ASSERT(n_orbitals == y.size());
@@ -128,128 +154,128 @@ namespace madness {
             }
             MADNESS_ASSERT(x.size() == num_orbitals());
             MADNESS_ASSERT(y.size() == num_orbitals());
-
+            active.push_back(active.back() + 1);
             n_states++;
-            X.push_back(x);
-            Y.push_back(y);
+            x.push_back(vx);
+            y.push_back(vy);
             // Be smart with g_states
         }
         void pop_back() {
-            X.pop_back();
-            Y.pop_back();
+            x.pop_back();
+            y.pop_back();
+            active.pop_back();
             n_states--;
             if (n_states == 0) { n_orbitals = 0; }
         }
 
         static X_space zero_functions(World &world, size_t n_states, size_t n_orbitals) {
             auto zeros = X_space(world, n_states, n_orbitals);
-            for (auto &xi: zeros.X) {
+            for (auto &xi: zeros.x) {
                 xi = ::madness::zero_functions<double, 3>(world, n_orbitals, false);
             }
-            for (auto &yi: zeros.Y) {
+            for (auto &yi: zeros.y) {
                 yi = ::madness::zero_functions<double, 3>(world, n_orbitals, false);
             }
             world.gop.fence();
             return zeros;
         }
+        friend auto inplace_apply(X_space &A,
+                                  const std::function<void(vector_real_function_3d &)> &func) {
+            for (auto &i: A.active) {
+                func(A.x[i]);
+                func(A.y[i]);
+            }
+        }
+
+        friend auto
+        oop_apply(const X_space &A,
+                  const std::function<vector_real_function_3d(const vector_real_function_3d &)>
+                          &func) {
+            auto result = A.copy();
+            for (auto &i: result.active) {
+                result.x[i] = func(A.x[i]);
+                result.y[i] = func(A.y[i]);
+            }
+            return result;
+        }
+
+        friend auto
+        binary_apply(const X_space &A, X_space const &B,
+                     const std::function<vector_real_function_3d(vector_real_function_3d,
+                                                                 vector_real_function_3d)> &func)
+                -> X_space {
+            MADNESS_ASSERT(same_size(A, B));
+
+            X_space result = A.copy();// create zero_functions
+            auto &world = result.x[0][0].world();
+
+            for (const auto &i: result.active) {
+                auto ax = result.x[i];
+                auto bx = B.x[i];
+                auto ay = result.y[i];
+                auto by = B.y[i];
+                result.x[i] = func(ax, bx);
+                result.y[i] = func(ay, by);
+            }
+            world.gop.fence();
+            return result;
+        }
 
         friend auto operator+(const X_space &A, const X_space &B) -> X_space {
             MADNESS_ASSERT(same_size(A, B));
-            World &world = A.X[0][0].world();
-            X_space result(world, A.n_states, A.n_orbitals);// create zero_functions
-            auto ax = to_response_matrix(A);
-            auto bx = to_response_matrix(B);
-            response_matrix add_x(A.num_states());
-            std::transform(ax.begin(), ax.end(), bx.begin(), add_x.begin(),
-                           [&](const vector_real_function_3d &a, const vector_real_function_3d &b) {
-                               return gaxpy_oop(1.0, a, 1.0, b, false);
-                           });
-            world.gop.fence();
-            return to_X_space(add_x);
+            MADNESS_ASSERT(same_size(A, B));
+            return binary_apply(A, B, [](const auto &a, const auto &b) {
+                return gaxpy_oop(1.0, a, 1.0, b, false);
+            });
         }
 
-        /*
-        // C=this-B
-        X_space operator-(const X_space &B) const {
-            MADNESS_ASSERT(same_size(*this, B));
-
-            auto ax = to_response_matrix(*this);
-            auto bx = to_response_matrix(B);
-
-            response_matrix result(B.num_states());
-            std::transform(ax.begin(), ax.end(), bx.begin(), result.begin(),
-                           [&](const auto &a, const auto &b) { return a - b; });
-            return to_X_space(result);
-        }
-        */
 
         friend X_space operator-(const X_space &A, const X_space &B) {
             MADNESS_ASSERT(same_size(A, B));
-            auto ax = to_response_matrix(A);
-            auto bx = to_response_matrix(B);
-            response_matrix result(B.num_states());
-            std::transform(ax.begin(), ax.end(), bx.begin(), result.begin(),
-                           [&](const vector_real_function_3d &a, const vector_real_function_3d &b) {
-                               return gaxpy_oop(1.0, a, -1.0, b, false);
-                           });
-            ax[0][0].world().gop.fence();
-            return to_X_space(result);
+            return binary_apply(A, B, [](const auto &a, const auto &b) {
+                return gaxpy_oop(1.0, a, -1.0, b, false);
+            });
         }
 
         friend X_space operator*(const X_space &A, const double &b) {
-            World &world = A.X[0][0].world();
-            auto rX = response_matrix(A.n_states);// create zero_functions
-            auto ax = to_response_matrix(A);      // create zero_functions
-            int i = 0;
-            for (const vector_real_function_3d &ai: ax) {
-                rX[i] = madness::copy(world, ai, true);
-                scale(world, rX[i], b, false);
-                i++;
-            }
-            return to_X_space(rX);
+            World &world = A.x[0][0].world();
+            auto result = A.copy();
+            auto scale_a = [&](vector_real_function_3d &vec_ai) { scale(world, vec_ai, b, false); };
+            inplace_apply(result, scale_a);
+            return result;
         }
         friend X_space operator*(const double &b, const X_space &A) {
-            World &world = A.X[0][0].world();
-            auto rX = response_matrix(A.n_states);// create zero_functions
-            auto ax = to_response_matrix(A);      // create zero_functions
-            int i = 0;
-            for (const vector_real_function_3d &ai: ax) {
-                rX[i] = madness::copy(world, ai, true);
-                scale(world, rX[i], b, false);
-                i++;
-            }
-            // b* ai is bugged. scale does not fence
-            world.gop.fence();
-            return to_X_space(rX);
+            World &world = A.x[0][0].world();
+            auto result = A.copy();
+            auto scale_a = [&](vector_real_function_3d &vec_ai) { scale(world, vec_ai, b, false); };
+            inplace_apply(result, scale_a);
+            return result;
         }
 
         friend X_space operator*(const X_space &A, const Function<double, 3> &f) {
-            World &world = A.X[0][0].world();
-            auto rX = create_response_matrix(A.n_states, A.n_orbitals);// create zero_functions
-            auto ax = to_response_matrix(A);
-            int i = 0;
-            for (const auto &ai: ax) { rX[i++] = mul(world, f, ai, false); }
-            world.gop.fence();
-            return to_X_space(rX);
+            World &world = A.x[0][0].world();
+            auto mul_f = [&](const vector_real_function_3d &vec_ai) {
+                return mul(world, f, vec_ai, false);
+            };
+            auto result = oop_apply(A, mul_f);
+            return result;
         }
         friend auto operator*(const Function<double, 3> &f, const X_space &A) -> X_space {
-            World &world = A.X[0][0].world();
-            auto rX = create_response_matrix(A.n_states, A.n_orbitals);// create zero_functions
-            auto ax = to_response_matrix(A);
-            int i = 0;
-            for (const auto &ai: ax) { rX[i++] = mul(world, f, ai, false); }
-            world.gop.fence();
-            return to_X_space(rX);
+            World &world = A.x[0][0].world();
+            auto mul_f = [&](const vector_real_function_3d &vec_ai) {
+                return mul(world, f, vec_ai, false);
+            };
+            auto result = oop_apply(A, mul_f);
+            return result;
         }
 
         friend auto operator*(const X_space &A, const Tensor<double> &b) -> X_space {
             MADNESS_ASSERT(size_states(A) > 0);
             MADNESS_ASSERT(size_orbitals(A) > 0);
 
-            World &world = A.X[0][0].world();
-            X_space result(world, A.n_states, A.n_orbitals);
-            result.X = A.X * b;
-            result.Y = A.Y * b;
+            World &world = A.x[0][0].world();
+            auto transform_ai = [&](auto &ai) { return transform(world, ai, b, false); };
+            auto result = oop_apply(A, transform_ai);
 
             return result;
         }
@@ -264,15 +290,16 @@ namespace madness {
         void truncate() {
             auto rx = to_response_matrix(*this);
             auto &world = rx[0][0].world();
-            std::for_each(rx.begin(), rx.end(), [&](auto &xi) {
-                madness::truncate(world, xi, FunctionDefaults<3>::get_thresh(), false);
-            });
-            world.gop.fence();
+            auto truncate_i = [&](auto &fi) {
+                madness::truncate(world, fi, FunctionDefaults<3>::get_thresh(), false);
+            };
+            inplace_apply(*this, truncate_i);
         }
 
         auto norm2s() -> Tensor<double> {
-            World &world = X[0][0].world();
+            World &world = x[0][0].world();
             Tensor<double> norms(num_states());
+
             auto x = to_response_matrix(*this);
             int b = 0;
             for (const auto &xb: x) { norms[b++] = norm2(world, xb); }
@@ -281,7 +308,7 @@ namespace madness {
         }
 
         [[nodiscard]] auto component_norm2s() const -> Tensor<double> {
-            World &world = X[0][0].world();
+            World &world = x[0][0].world();
             auto rx = to_flattened_vector(*this);
             auto norms = norm2s_T(world, rx);
             return norms.reshape(n_states, 2 * n_orbitals);
@@ -302,39 +329,36 @@ namespace madness {
             this->X_space::zero_functions(world, size_t(1), n_orbtials);
         }
 
-        X_vector(X_space A, size_t b) : X_space(A.X[0][0].world(), size_t(1), A.num_orbitals()) {
-            X[0] = A.X[b];
-            Y[0] = A.Y[b];
+        X_vector(X_space A, size_t b) : X_space(A.x[0][0].world(), size_t(1), A.num_orbitals()) {
+            x[0] = A.x[b];
+            y[0] = A.y[b];
         }
         friend X_vector operator-(const X_vector &A, const X_vector &B) {
             MADNESS_ASSERT(same_size(A, B));
 
-            World &world = A.X[0][0].world();
+            World &world = A.x[0][0].world();
             X_vector result(world, size_orbitals(A));// create zero_functions
-            result.X = A.X - B.X;
-            result.Y = A.Y - B.Y;
+            result.x = A.x - B.x;
+            result.y = A.y - B.y;
             return result;
         }
         friend X_vector operator*(const X_vector &A, const double &c) {
-            World &world = A.X[0][0].world();
+            World &world = A.x[0][0].world();
             X_vector result(world, size_orbitals(A));// create zero_functions
-            result.X = A.X * c;
-            result.Y = A.Y * c;
+            result.x = A.x * c;
+            result.y = A.y * c;
             return result;
         }
         X_vector copy() const {
-            X_vector copyX(X[0][0].world(), X.num_orbitals);
-            copyX.X = X.copy();
-            copyX.Y = Y.copy();
+            X_vector copyX(x[0][0].world(), x.num_orbitals);
+            copyX.x = x.copy();
+            copyX.y = y.copy();
             return copyX;
         }
         auto operator+=(const X_vector &B) -> X_vector & {
             MADNESS_ASSERT(same_size(*this, B));
-
-
-            this->X += B.X;
-            this->Y += B.Y;
-
+            this->x += B.x;
+            this->y += B.y;
             return *this;
         }
         inline friend auto inner(X_vector &A, X_vector &B) -> double {
@@ -346,13 +370,13 @@ namespace madness {
             Tensor<double> G1(1, 1);
             Tensor<double> G2(1, 1);
 
-            World &world = A.X[0][0].world();
+            World &world = A.x[0][0].world();
 
-            auto ax = madness::copy(world, A.X[0]);
-            auto ay = madness::copy(world, A.Y[0]);
+            auto ax = madness::copy(world, A.x[0]);
+            auto ay = madness::copy(world, A.y[0]);
 
-            auto bx = madness::copy(world, B.X[0]);
-            auto by = madness::copy(world, B.Y[0]);
+            auto bx = madness::copy(world, B.x[0]);
+            auto by = madness::copy(world, B.y[0]);
 
             for (auto &ayi: ay) { ax.push_back(madness::copy(ayi)); }
             for (auto &byi: by) { bx.push_back(madness::copy(byi)); };

@@ -347,7 +347,7 @@ namespace madness {
                 filename = fname.c_str();
                 // VTK plotting stuff
                 plotvtk_begin<3>(world, filename, box_lo, box_hi, points, true);
-                plotvtk_data<double, 3>(Chi.X[i][j],
+                plotvtk_data<double, 3>(Chi.x[i][j],
                                         "x_orbitals",
                                         world,
                                         filename,
@@ -367,7 +367,7 @@ namespace madness {
                 filename = fname.c_str();
                 // VTK plotting stuff
                 plotvtk_begin<3>(world, filename, box_lo, box_hi, points, true);
-                plotvtk_data<double, 3>(Chi.Y[i][j],
+                plotvtk_data<double, 3>(Chi.y[i][j],
                                         "y_orbitals",
                                         world,
                                         filename,

@@ -75,7 +75,7 @@ public:
 class static_inner_product : public inner_strategy {
 public:
     Tensor<double> compute_inner(const X_space &x, const X_space &y) const override {
-        return response_space_inner(x.X, y.X);
+        return response_space_inner(x.x, y.x);
     }
 };
 typedef std::vector<XNonlinearSolver<vector_real_function_3d, double, response_matrix_allocator>>
@@ -136,7 +136,7 @@ public:
 
     auto get_orbitals() const -> vector_real_function_3d { return ground_orbitals; }
 
-    auto get_chi() const->X_space{return Chi;} ;
+    auto get_chi() const->X_space{return Chi.copy();} ;
 
     void output_json();
 
@@ -351,7 +351,7 @@ protected:
             truncate(world, psi_f, tol, true);
             // multiply by ket i  <i|phi>|i>: <i|1>|i> <i|2>|i> <i|2>|i>
             psi_f = mul_sparse(world, ket[i], psi_f, mul_tol, true);/// was vtol
-            /// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] +
+            /// Generalized A*X+y for vectors of functions ---- a[i] = alpha*a[i] +
             // 1*Kf+occ[i]*psi_f
             gaxpy(world, double(1.0), Kf, double(1.0), psi_f);
         }
