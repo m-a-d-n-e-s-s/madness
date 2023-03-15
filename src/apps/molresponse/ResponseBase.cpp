@@ -414,6 +414,7 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
             E0X = chi * ham_no_diag;
         } else {
             E0X.x = chi.x * ham_no_diag;
+            E0X.y = E0X.x.copy();
             E0X.x.truncate_rf();
         }
         inner_to_json(world, "E0", response_context.inner(chi, E0X), iter_function_data);
