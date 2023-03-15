@@ -147,10 +147,11 @@ void FrequencyResponse::iterate(World &world) {
                 }
             }
             auto check_convergence = [&](auto &ri, auto &di) {
-                return ri < max_relative_bsh && di < density_target;
+                return ri < bsh_abs_target && di < density_target;
             };
-            std::transform(bsh_relative_residualsX.ptr(), bsh_residualsX.ptr() + m,
-                           density_residuals.ptr(), converged.begin(), check_convergence);
+            std::transform(bsh_relative_residualsX.ptr(),
+                           bsh_residualsX.ptr() + bsh_residualsX.size(), density_residuals.ptr(),
+                           converged.begin(), check_convergence);
 
             int b = 0;
             Chi.active.remove_if([&](auto x) { return converged[b++]; });
