@@ -410,12 +410,10 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     X_space E0X(world, chi.num_states(), chi.num_orbitals());
     if (r_params.localize() != "canon") {
-        E0X = chi.copy();
-        E0X.x = E0X.x * ham_no_diag;
         if (compute_Y) {
-            E0X.y = E0X.y * ham_no_diag;
-            E0X.truncate();
+            E0X = chi * ham_no_diag;
         } else {
+            E0X.x = chi.x * ham_no_diag;
             E0X.x.truncate_rf();
         }
         inner_to_json(world, "E0", response_context.inner(chi, E0X), iter_function_data);
