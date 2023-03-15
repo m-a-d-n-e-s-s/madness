@@ -121,7 +121,7 @@ namespace madness {
         // Returns a deep copy
         [[nodiscard]] response_space copy() const {
             World &world = x[0][0].world();
-            response_space result(world, num_states, num_orbitals);
+            response_space result(*this);
             std::transform(x.begin(), x.end(), result.x.begin(),
                            [&world](auto &xi) { return madness::copy(world, xi, false); });
             world.gop.fence();
@@ -130,10 +130,10 @@ namespace madness {
         [[nodiscard]] response_space copy(const std::shared_ptr<WorldDCPmapInterface<Key<3>>> &pmap,
                                           bool fence = false) const {
             auto &world = x[0][0].world();
-            response_space result(world, num_states, num_orbitals);
-            world.gop.fence();
+            response_space result(*this);
             std::transform(x.begin(), x.end(), result.x.begin(),
                            [&](const auto &xi) { return madness::copy(world, xi, pmap, fence); });
+            world.gop.fence();
             return result;
         }
 
