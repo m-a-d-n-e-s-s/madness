@@ -201,13 +201,6 @@ namespace madness {
             world.gop.fence();
             return zeros;
         }
-        auto operator+(const X_space &B) const -> X_space {
-            MADNESS_ASSERT(same_size(*this, B));
-            auto add_ab = [&](const auto &a, const auto &b) {
-                return gaxpy_oop(1.0, a, 1.0, b, false);
-            };
-            return binary_apply(*this, B, add_ab);
-        }
 
         auto operator+=(const X_space &B) -> X_space & {
             MADNESS_ASSERT(same_size(*this, B));
