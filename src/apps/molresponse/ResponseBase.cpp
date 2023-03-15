@@ -465,15 +465,10 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> old_pmap = FunctionDefaults<3>::get_pmap();
 
     auto [chi_alpha, phi0] = orbital_load_balance(world, density, r_params.loadbalparts());
-
     QProjector<double, 3> projector(world, phi0);
-
     size_t num_states = chi_alpha.num_states();
     size_t num_orbitals = chi_alpha.num_orbitals();
-
-
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-
     // x functions
     // here I create the orbital products for elctron interaction terms
     vecfuncT phi_phi;
@@ -489,27 +484,29 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_zero_functions", "gamma_zero_functions", iter_timing);
     }
-
+    auto apply_projector = [&](auto &xi) { return projector(xi); };
     // apply the exchange kernel to rho if necessary
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     // Create Coulomb potential on ground_orbitals
     functionT rho_x_b;
     functionT rho_y_b;
     auto mul_tol = FunctionDefaults<3>::get_thresh();
+
     auto rho_b = make_density(world, chi_alpha);
+
+    std::vector<SeparatedConvolution<double, 3> *> pis;
     int b = 0;
-    for (const auto &rho_b_i: rho_b) {
-        auto temp_J = apply(*shared_coulomb_operator, rho_b_i);
-        J.x[b++] = mul(world, temp_J, phi0);
+    for (const auto &i: chi_alpha.active) {
+        auto temp_J = apply(*coul_ops[i], rho_b[i]);
+        J.x[i] = mul(world, temp_J, phi0, false);
     }
-    std::transform(J.x.begin(), J.x.end(), J.x.begin(), [&](auto &jxi) { return projector(jxi); });
     world.gop.fence();
+    J.x.truncate_rf();
+    J.x = oop_unary_apply(J.x, apply_projector);
     J.y = J.x.copy();
-
-
+    //   std::transform(J.x.begin(), J.x.end(), J.x.begin(), [&](auto &jxi) { return projector(jxi); });
     if (world.rank() == 0) { print("copy JX into JY"); }
     world.gop.fence();
-
     inner_to_json(world, "j1", response_context.inner(chi_alpha, J), iter_function_data);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "J[omega]", "J[omega]", iter_timing);
@@ -534,8 +531,10 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     auto K = response_exchange_multiworld(phi0, chi_alpha, true);
-    std::transform(K.x.begin(), K.x.end(), K.x.begin(), [&](auto &kxi) { return projector(kxi); });
-    std::transform(K.y.begin(), K.y.end(), K.y.begin(), [&](auto &kyi) { return projector(kyi); });
+
+    K = oop_apply(K, apply_projector);
+    // std::transform(K.x.begin(), K.x.end(), K.x.begin(), [&](auto &kxi) { return projector(kxi); });
+    // std::transform(K.y.begin(), K.y.end(), K.y.begin(), [&](auto &kyi) { return projector(kyi); });
     //auto K = response_exchange(phi0, chi_alpha, true);
 
 

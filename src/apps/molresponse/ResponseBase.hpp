@@ -160,8 +160,8 @@ protected:
     std::shared_ptr<PotentialManager> potential_manager;
     // shared pointers to Operators
     poperatorT shared_coulomb_operator;// shared pointer to seperated convolution operator
+    std::vector<poperatorT> coul_ops;
     std::vector<std::shared_ptr<real_derivative_3d>> gradop;
-
     // Stored functions
     mutable real_function_3d stored_v_nuc; // Stored nuclear potential from ground state
     mutable real_function_3d stored_v_coul;// Stored coulomb potential from ground state
@@ -230,6 +230,11 @@ protected:
         double safety = 0.1;
         vtol = FunctionDefaults<3>::get_thresh() * safety;
         shared_coulomb_operator = poperatorT(CoulombOperatorPtr(world, r_params.lo(), thresh));
+        coul_ops.clear();
+        for (int i = 0; i < r_params.num_states(); i++) {
+            coul_ops.push_back(poperatorT(
+                    CoulombOperatorPtr(world, r_params.lo(), FunctionDefaults<3>::get_thresh())));
+        }
         gradop = gradient_operator<double, 3>(world);
         potential_manager = std::make_shared<PotentialManager>(molecule, "a");
         potential_manager->make_nuclear_potential(world);
