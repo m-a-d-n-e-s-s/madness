@@ -1173,6 +1173,7 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
     //	compute residual
     Tensor<double> residual_norms;
     X_space res(world, m, n);
+    res.active = chi.active;
     if (compute_y) {
         res = g_chi - chi;
         residual_norms = res.norm2s();
