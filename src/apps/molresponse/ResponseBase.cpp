@@ -474,7 +474,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     vecfuncT phi_phi;
     vecfuncT x_phi;
     vecfuncT y_phi;
-    functionT temp_J;
 
     X_space J(world, num_states, num_orbitals);
     response_space j_x(world, num_states, num_orbitals);
@@ -496,8 +495,10 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
     std::vector<SeparatedConvolution<double, 3> *> pis;
     int b = 0;
+    functionT temp_J;
     for (const auto &i: chi_alpha.active) {
-        auto temp_J = apply(*coul_ops[i], rho_b[i]);
+        temp_J = apply(*coul_ops[i], rho_b[i]);
+        temp_J.truncate(FunctionDefaults<3>::get_thresh());
         J.x[i] = mul(world, temp_J, phi0, false);
     }
     world.gop.fence();
@@ -559,10 +560,13 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     // project out ground state
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
+    gamma = oop_apply(gamma, apply_projector);
+    /*
     std::transform(gamma.x.begin(), gamma.x.end(), gamma.x.begin(),
                    [&](auto &gxi) { return projector(gxi); });
     std::transform(gamma.y.begin(), gamma.y.end(), gamma.y.begin(),
                    [&](auto &gyi) { return projector(gyi); });
+                   */
 
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_project", "gamma_project", iter_timing);
