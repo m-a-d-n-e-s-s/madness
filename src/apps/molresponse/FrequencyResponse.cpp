@@ -198,8 +198,10 @@ void FrequencyResponse::iterate(World &world) {
         if (world.rank() == 0) { print("copy tensors: bshX"); }
         if (compute_y) {
             Chi = new_chi.copy();
+            print("after y copy", response_context.inner(Chi, Chi));
         } else {
             Chi.x = new_chi.x.copy();
+            print("after static copy \n", response_context.inner(Chi, Chi));
         }
         if (world.rank() == 0) { print("copy chi:"); }
         if (r_params.print_level() >= 1) {
@@ -269,8 +271,10 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     bool compute_y = omega_n != 0.0;
     auto x = chi.copy();// copy chi
     X_space theta_X = compute_theta_X(world, chi, xc, r_params.calc_type());
+    print(response_context.inner(theta_X, theta_X));
     X_space new_chi =
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
+    print(response_context.inner(new_chi, new_chi));
 
     inner_to_json(world, "x_new", response_context.inner(new_chi, new_chi), iter_function_data);
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
@@ -278,12 +282,14 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     //&& iteration < 7
     if (iteration > 0) {// & (iteration % 3 == 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
+        print(response_context.inner(new_chi, new_chi));
     }
     inner_to_json(world, "x_update", response_context.inner(new_chi, new_chi), iter_function_data);
     if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "update response", "update", iter_timing);
     }
+
     //	if not compute y then copy x in to y
     return {new_chi, {new_res, bsh}};
 

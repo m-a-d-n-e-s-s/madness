@@ -53,13 +53,12 @@ namespace madness {
               active(A.active) {}
         [[nodiscard]] X_space copy() const {
             auto &world = x[0][0].world();
-
             auto new_x = X_space(*this);// copy
-
-            std::transform(x.begin(), x.end(), new_x.x.begin(),
-                           [&](const auto &xi) { return madness::copy(world, xi, true); });
-            std::transform(y.begin(), y.end(), new_x.y.begin(),
-                           [&](const auto &xi) { return madness::copy(world, xi, true); });
+            for (int i = 0; i < new_x.num_states(); i++) {
+                new_x.x[i] = madness::copy(world, x[i], false);
+                new_x.y[i] = madness::copy(world, x[i], false);
+            }
+            world.gop.fence();
 
             return new_x;
         }
@@ -73,11 +72,11 @@ namespace madness {
                                 bool fence = false) const -> X_space {
             auto &world = x[0][0].world();
             auto new_x = X_space(*this);// copy
-
-            std::transform(x.begin(), x.end(), new_x.x.begin(),
-                           [&](const auto &xi) { return madness::copy(world, xi, p_map, true); });
-            std::transform(y.begin(), y.end(), new_x.y.begin(),
-                           [&](const auto &xi) { return madness::copy(world, xi, p_map, true); });
+            for (int i = 0; i < new_x.num_states(); i++) {
+                new_x.x[i] = madness::copy(world, x[i], p_map, false);
+                new_x.y[i] = madness::copy(world, x[i], p_map, false);
+            }
+            world.gop.fence();
             return new_x;
         }
         // assignment
