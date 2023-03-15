@@ -74,7 +74,7 @@ public:
 
 class static_inner_product : public inner_strategy {
 public:
-    Tensor<double> compute_inner(const X_space &x, const X_space &y) const override {
+    [[nodiscard]] Tensor<double> compute_inner(const X_space &x, const X_space &y) const override {
         return response_space_inner(x.x, y.x);
     }
 };
@@ -146,6 +146,8 @@ public:
     mutable std::map<std::string, std::pair<double, double>> iter_timing;
     mutable std::map<std::string, Tensor<double>> iter_function_data;
 
+    Context response_context;
+
 protected:
     // Given molecule returns the nuclear potential of the molecule
     ResponseParameters r_params;
@@ -156,7 +158,6 @@ protected:
 
     XCfunctional xcf;
     real_function_3d mask;
-    Context response_context;
 
     std::shared_ptr<PotentialManager> potential_manager;
     // shared pointers to Operators

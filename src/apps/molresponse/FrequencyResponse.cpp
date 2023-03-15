@@ -93,7 +93,9 @@ void FrequencyResponse::iterate(World &world) {
     //PQ = PQ * mask;
     PQ = generator(world, *this);
     PQ.truncate();
-   // vector<bool> converged(Chi.num_states(),false);
+    vector<bool> converged(Chi.num_states(), false);
+    bool all_done = false;
+    Chi.reset_active();
 
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
         iter_timing.clear();
@@ -144,13 +146,26 @@ void FrequencyResponse::iterate(World &world) {
                     print("bsh residual target : ", bsh_abs_target);
                 }
             }
-            if ((d_residual < density_target) and
-                ((max_bsh < bsh_abs_target) or r_params.get<bool>("conv_only_dens"))) {
-                converged = true;
+            auto check_convergence = [&](auto &ri, auto &di) {
+                return ri < max_relative_bsh && di < density_target;
+            };
+            std::transform(bsh_relative_residualsX.ptr(), bsh_residualsX.ptr() + m,
+                           density_residuals.ptr(), converged.begin(), check_convergence);
+
+            int b = 0;
+            Chi.active.remove_if([&](auto x) { return converged[b++]; });
+            world.gop.fence();
+
+            if (world.rank() == 0) {
+                print("converged", converged);
+                print("active", Chi.active);
             }
-            if (converged || iter == r_params.maxiter()) {
+
+            all_done = std::all_of(converged.begin(), converged.end(), [](auto ci) { return ci; });
+
+            if (all_done || iter == r_params.maxiter()) {
                 // if converged print converged
-                if (world.rank() == 0 && converged and (r_params.print_level() > 1)) {
+                if (world.rank() == 0 && all_done and (r_params.print_level() > 1)) {
                     print("\nConverged!\n");
                 }
                 if (r_params.save()) {
@@ -228,7 +243,7 @@ void FrequencyResponse::iterate(World &world) {
     if (world.rank() == 0) print("\n");
 
     // Did we converge?
-    if (iter == r_params.maxiter() && not converged) {
+    if (iter == r_params.maxiter() && not all_done) {
         if (world.rank() == 0) print("   Failed to converge. Reason:");
         if (world.rank() == 0) print("\n  ***  Ran out of iterations  ***\n");
     }
