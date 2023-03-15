@@ -1042,22 +1042,16 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     double safety = 0.1;
     double v_tol = safety * FunctionDefaults<3>::get_thresh();
     if (compute_Y) {
-        auto x = to_response_matrix(X);
-        auto vx = create_response_matrix(X.num_states(), X.num_orbitals());
-        for (int b = 0; b < m; b++) { vx[b] = mul_sparse(world, v0, x[b], v_tol, false); }
-        world.gop.fence();
-        V0 = to_X_space(vx);
-        V0.truncate();
+        V0 = X * v0;
         V0 += -c_xc * K0;
         V0.truncate();
         inner_to_json(world, "V0", response_context.inner(X, V0), iter_function_data);
     } else {
-        for (int b = 0; b < m; b++) { V0.x[b] = mul_sparse(world, v0, X.x[b], v_tol, false); }
-        V0.x.truncate_rf();
-        world.gop.fence();
+        V0 = X.copy();
+        V0.x = v0 * V0.x;
         V0.x += -c_xc * K0.x;
-        V0.y = V0.x.copy();
         V0.x.truncate_rf();
+        V0.y = V0.x.copy();
         inner_to_json(world, "V0", response_context.inner(X, V0), iter_function_data);
     }
     if (r_params.print_level() >= 20) { print_inner(world, "xV0x", X, V0); }
