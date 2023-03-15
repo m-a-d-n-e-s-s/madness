@@ -394,12 +394,12 @@ auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const 
     world.gop.fence();
     auto k0 = make_k(phi0, phi0);
     if (compute_y) {
-        for (int b = 0; b < num_states; b++) {
-            K0.x[b] = k0(chi.x[b]);
-            K0.y[b] = k0(chi.y[b]);
+        for (const auto &i: chi.active) {
+            K0.x[i] = k0(chi.x[i]);
+            K0.y[i] = k0(chi.y[i]);
         }
     } else {
-        for (int b = 0; b < num_states; b++) { K0.x[b] = k0(chi.x[b]); }
+        for (const auto &i: chi.active) { K0.x[i] = k0(chi.x[i]); }
         K0.y = K0.x.copy();
     }
     K0.truncate();

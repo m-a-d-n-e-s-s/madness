@@ -1876,7 +1876,7 @@ void ExcitedResponse::iterate(World &world) {
     vector_real_function_3d rho_omega = make_density(world, Chi);
 
     // Create the X space
-    converged = false;// Converged flag
+    all_done = false;// Converged flag
     // Now to iterate
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
 
@@ -1944,13 +1944,13 @@ void ExcitedResponse::iterate(World &world) {
             }
             if ((d_residual < conv_den) and ((relative_max_bsh < relative_max_target) or
                                              r_params.get<bool>("conv_only_dens"))) {
-                converged = true;
+                all_done = true;
             }
 
 
-            if (converged || iter == r_params.maxiter() - 1) {
+            if (all_done || iter == r_params.maxiter() - 1) {
                 // if converged print converged
-                if (world.rank() == 0 && converged and (r_params.print_level() > 1)) {
+                if (world.rank() == 0 && all_done and (r_params.print_level() > 1)) {
                     print("\nConverged!\n");
                 }
 
@@ -2042,7 +2042,7 @@ void ExcitedResponse::iterate(World &world) {
     if (world.rank() == 0) print("\n");
 
     // Did we converge?
-    if (iter == r_params.maxiter() && not converged) {
+    if (iter == r_params.maxiter() && not all_done) {
         if (world.rank() == 0) print("   Failed to converge. Reason:");
         if (world.rank() == 0) print("\n  ***  Ran out of iterations  ***\n");
         if (world.rank() == 0) print("    Running analysis on current values.\n");

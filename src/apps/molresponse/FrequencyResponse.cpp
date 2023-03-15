@@ -30,15 +30,16 @@ void FrequencyResponse::iterate(World &world) {
     const double b_pow{0.314};
     // Last attempt 1.035 2.121
 
-    const double bsh_abs_target = pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
+    const double x_relative_target = pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
     // m residuals for x and y
-    Tensor<double> bsh_residualsX((int(m)));
-    Tensor<double> bsh_relative_residualsX((int(m)));
+    Tensor<double> x_residuals((int(m)));
+    Tensor<double> x_relative_residuals((int(m)));
     Tensor<double> density_residuals((int(m)));
 
     bool static_res = (omega == 0.0);
     bool compute_y = not static_res;
     int r_vector_size;
+    all_done = false;
 
 
     r_vector_size = (compute_y) ? 2 * n : n;
@@ -77,14 +78,13 @@ void FrequencyResponse::iterate(World &world) {
     std::vector<poperatorT> bsh_y_ops;
     bsh_y_ops = (compute_y) ? make_bsh_operators_response(world, y_shifts, -omega) : bsh_x_ops;
     vector_real_function_3d rho_omega = make_density(world, Chi);
-    converged = false;// Converged flag
     auto max_rotation = .5;
     if (thresh >= 1e-2) {
         max_rotation = 2;
     } else if (thresh >= 1e-4) {
-        max_rotation = 2 * bsh_abs_target;
+        max_rotation = 2 * x_relative_target;
     } else if (thresh >= 1e-6) {
-        max_rotation = 2 * bsh_abs_target;
+        max_rotation = 2 * x_relative_target;
     } else if (thresh >= 1e-7) {
         max_rotation = .01;
     }
@@ -93,8 +93,8 @@ void FrequencyResponse::iterate(World &world) {
     //PQ = PQ * mask;
     PQ = generator(world, *this);
     PQ.truncate();
+
     vector<bool> converged(Chi.num_states(), false);
-    bool all_done = false;
     Chi.reset_active();
 
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
@@ -112,19 +112,14 @@ void FrequencyResponse::iterate(World &world) {
                 if (world.rank() == 0) { print("d-residual > 20...break"); }
                 break;
             }
-            double d_residual = density_residuals.max();
             auto chi_norms = (compute_y) ? Chi.norm2s() : Chi.x.norm2();
             auto rho_norms = madness::norm2s_T(world, rho_omega);
-            std::transform(bsh_residualsX.ptr(), bsh_residualsX.ptr() + bsh_residualsX.size(),
-                           chi_norms.ptr(), bsh_relative_residualsX.ptr(),
+            std::transform(x_residuals.ptr(), x_residuals.ptr() + x_residuals.size(),
+                           chi_norms.ptr(), x_relative_residuals.ptr(),
                            [](auto bsh, auto norm_chi) { return bsh / norm_chi; });
-            auto max_bsh = bsh_residualsX.absmax();
-            auto max_relative_bsh = bsh_relative_residualsX.absmax();
-            max_rotation = 1.0 * max_bsh;
-            world.gop.fence();
             // Todo add chi norm and chi_x
             if (world.rank() == 0) {
-                function_data_to_json(j_molresponse, iter, chi_norms, bsh_residualsX, rho_norms,
+                function_data_to_json(j_molresponse, iter, chi_norms, x_residuals, rho_norms,
                                       density_residuals);
                 frequency_to_json(j_molresponse, iter, polar, res_polar);
             }
@@ -137,32 +132,26 @@ void FrequencyResponse::iterate(World &world) {
                     print("||X||: ", chi_norms);
                     print("max rotation: ", max_rotation);
                     print("density changes : ", density_residuals);
-                    print("max density change : ", d_residual);
                     print("density target : ", density_target);
-                    print("bsh residuals : ", bsh_residualsX);
-                    print("relative bsh residuals : ", bsh_relative_residualsX);
-                    print("max relative bsh residual : ", max_relative_bsh);
-                    print("max bsh residual : ", max_bsh);
-                    print("bsh residual target : ", bsh_abs_target);
+                    print("bsh residuals : ", x_residuals);
+                    print("relative bsh residuals : ", x_relative_residuals);
+                    print("bsh residual target : ", x_relative_target);
                 }
             }
             auto check_convergence = [&](auto &ri, auto &di) {
-                return ri < bsh_abs_target && di < density_target;
+                print(ri, di);
+                return ((ri < x_relative_target) && (di < density_target));
             };
-            std::transform(bsh_relative_residualsX.ptr(),
-                           bsh_residualsX.ptr() + bsh_residualsX.size(), density_residuals.ptr(),
-                           converged.begin(), check_convergence);
-
+            std::transform(x_relative_residuals.ptr(), x_relative_residuals.ptr() + m,
+                           density_residuals.ptr(), converged.begin(), check_convergence);
             int b = 0;
             Chi.active.remove_if([&](auto x) { return converged[b++]; });
-            world.gop.fence();
-
             if (world.rank() == 0) {
                 print("converged", converged);
                 print("active", Chi.active);
             }
-
-            all_done = std::all_of(converged.begin(), converged.end(), [](auto ci) { return ci; });
+            all_done = std::all_of(converged.begin(), converged.end(),
+                                   [](const auto &ci) { return ci; });
 
             if (all_done || iter == r_params.maxiter()) {
                 // if converged print converged
@@ -194,14 +183,12 @@ void FrequencyResponse::iterate(World &world) {
             molresponse::end_timer(world, "make_density_new", "make_density_new", iter_timing);
         }
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-        bsh_residualsX = copy(new_res.residual_norms);
+        x_residuals = copy(new_res.residual_norms);
         if (world.rank() == 0) { print("copy tensors: bshX"); }
         if (compute_y) {
             Chi = new_chi.copy();
-            print("after y copy", response_context.inner(Chi, Chi));
         } else {
             Chi.x = new_chi.x.copy();
-            print("after static copy \n", response_context.inner(Chi, Chi));
         }
         if (world.rank() == 0) { print("copy chi:"); }
         if (r_params.print_level() >= 1) {
@@ -252,7 +239,7 @@ void FrequencyResponse::iterate(World &world) {
     }
     if (world.rank() == 0) {
         print(" Final energy residuals X:");
-        print(bsh_residualsX);
+        print(x_residuals);
         print(" Final density residuals:");
         print(density_residuals);
     }
@@ -271,10 +258,8 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     bool compute_y = omega_n != 0.0;
     auto x = chi.copy();// copy chi
     X_space theta_X = compute_theta_X(world, chi, xc, r_params.calc_type());
-    print(response_context.inner(theta_X, theta_X));
     X_space new_chi =
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
-    print(response_context.inner(new_chi, new_chi));
 
     inner_to_json(world, "x_new", response_context.inner(new_chi, new_chi), iter_function_data);
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
@@ -282,7 +267,6 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     //&& iteration < 7
     if (iteration > 0) {// & (iteration % 3 == 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
-        print(response_context.inner(new_chi, new_chi));
     }
     inner_to_json(world, "x_update", response_context.inner(new_chi, new_chi), iter_function_data);
     if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }

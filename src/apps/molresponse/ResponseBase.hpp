@@ -151,7 +151,7 @@ protected:
     ResponseParameters r_params;
     Molecule molecule;
     GroundStateCalculation ground_calc;
-    bool converged = false;
+    bool all_done = false;
 
 
     XCfunctional xcf;

@@ -152,11 +152,8 @@ namespace madness {
             return result;
         }
 
-        friend auto
-        binary_apply(const X_space &A, const X_space &B,
-                     const std::function<vector_real_function_3d(vector_real_function_3d,
-                                                                 vector_real_function_3d)> &func)
-                -> X_space {
+        template<typename T>
+        friend auto binary_apply(const X_space &A, const X_space &B, T &func) -> X_space {
             MADNESS_ASSERT(same_size(A, B));
 
             X_space result = A.copy();// create zero_functions
@@ -165,13 +162,34 @@ namespace madness {
             for (const auto &i: result.active) {
                 auto ax = result.x[i];
                 auto bx = B.x[i];
+
                 auto ay = result.y[i];
                 auto by = B.y[i];
+
                 result.x[i] = func(ax, bx);
                 result.y[i] = func(ay, by);
             }
             world.gop.fence();
             return result;
+        }
+
+        template<class T>
+        friend auto binary_inplace(X_space &A, const X_space &B, const T &func) {
+            MADNESS_ASSERT(same_size(A, B));
+            auto &world = A.x[0][0].world();
+            for (const auto &i: A.active) {
+                auto ax = A.x[i];
+                auto ay = A.y[i];
+
+                auto bx = B.x[i];
+                auto by = B.y[i];
+
+                func(ax, bx);
+                func(ay, by);
+            }
+            world.gop.fence();
+
+            return A;
         }
 
         static X_space zero_functions(World &world, size_t n_states, size_t n_orbitals) {
@@ -183,54 +201,38 @@ namespace madness {
             world.gop.fence();
             return zeros;
         }
-        auto operator+(const X_space &B) -> X_space {
+        auto operator+(const X_space &B) const -> X_space {
             MADNESS_ASSERT(same_size(*this, B));
-            World &world = this->x[0][0].world();
-            X_space add_x = this->copy();
-
-            for (const auto &i: active) {
-                auto ax = add_x.x[i];
-                auto bx = B.x[i];
-                auto ay = add_x.y[i];
-                auto by = B.y[i];
-                add_x.x[i] = gaxpy_oop(1.0, ax, 1.0, bx, false);
-                add_x.y[i] = gaxpy_oop(1.0, ay, 1.0, by, false);
-            }
-            world.gop.fence();
-
-            return add_x;
+            auto add_ab = [&](const auto &a, const auto &b) {
+                return gaxpy_oop(1.0, a, 1.0, b, false);
+            };
+            return binary_apply(*this, B, add_ab);
         }
 
         auto operator+=(const X_space &B) -> X_space & {
             MADNESS_ASSERT(same_size(*this, B));
             auto &world = this->x[0][0].world();
-            for (const auto &i: active) {
-                auto ax = this->x[i];
-                auto bx = B.x[i];
-                auto ay = this->y[i];
-                auto by = B.y[i];
-                gaxpy(world, 1.0, ax, 1.0, bx, false);
-                gaxpy(world, 1.0, ay, 1.0, by, false);
-            }
-            world.gop.fence();
+            auto add_inplace = [&](auto &a, const auto &b) { gaxpy(world, 1.0, a, 1.0, b, false); };
+            binary_inplace(*this, B, add_inplace);
             return *this;
         }
 
 
         friend auto operator+(const X_space &A, const X_space &B) -> X_space {
             MADNESS_ASSERT(same_size(A, B));
-            MADNESS_ASSERT(same_size(A, B));
-            return binary_apply(A, B, [](const auto &a, const auto &b) {
+            auto add_ab = [&](const auto &a, const auto &b) {
                 return gaxpy_oop(1.0, a, 1.0, b, false);
-            });
+            };
+            return binary_apply(A, B, add_ab);
         }
 
 
         friend X_space operator-(const X_space &A, const X_space &B) {
             MADNESS_ASSERT(same_size(A, B));
-            return binary_apply(A, B, [](const auto &a, const auto &b) {
+            auto sub_ab = [&](const auto &a, const auto &b) {
                 return gaxpy_oop(1.0, a, -1.0, b, false);
-            });
+            };
+            return binary_apply(A, B, sub_ab);
         }
 
         friend X_space operator*(const X_space &A, const double &b) {
@@ -253,16 +255,14 @@ namespace madness {
             auto mul_f = [&](const vector_real_function_3d &vec_ai) {
                 return mul(world, f, vec_ai, false);
             };
-            auto result = oop_apply(A, mul_f);
-            return result;
+            return oop_apply(A, mul_f);
         }
         friend auto operator*(const Function<double, 3> &f, const X_space &A) -> X_space {
             World &world = A.x[0][0].world();
             auto mul_f = [&](const vector_real_function_3d &vec_ai) {
                 return mul(world, f, vec_ai, false);
             };
-            auto result = oop_apply(A, mul_f);
-            return result;
+            return oop_apply(A, mul_f);
         }
 
         friend auto operator*(const X_space &A, const Tensor<double> &b) -> X_space {
@@ -271,9 +271,7 @@ namespace madness {
 
             World &world = A.x[0][0].world();
             auto transform_ai = [&](auto &ai) { return transform(world, ai, b, false); };
-            auto result = oop_apply(A, transform_ai);
-
-            return result;
+            return oop_apply(A, transform_ai);
         }
         /***
          *
