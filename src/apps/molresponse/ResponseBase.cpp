@@ -393,20 +393,13 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     //     world.mpi.Barrier();
     bool compute_Y = calc_type == "full";
     X_space Theta_X = X_space(world, chi.num_states(), chi.num_orbitals());
-    world.gop.fence();
-
-    //     std::cout << "MPI BARRIER 4 " << std::endl;
-    //     world.mpi.Barrier();
-    // compute
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     X_space V0X = compute_V0X(world, chi, xc, compute_Y);
     //V0X.truncate();
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_V0X", "compute_V0X", iter_timing);
     }
-
     if (r_params.print_level() >= 20) { print_inner(world, "xV0x", chi, V0X); }
-
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     X_space E0X(world, chi.num_states(), chi.num_orbitals());
     if (r_params.localize() != "canon") {
@@ -440,9 +433,6 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     inner_to_json(world, "gamma_x", response_context.inner(chi, gamma), iter_function_data);
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    // Right here I can compute the polarizability before I try a KAIN UPDATE or step restriction
-
-
     Theta_X = (V0X - E0X) + gamma;
 
     inner_to_json(world, "theta_x", response_context.inner(chi, Theta_X), iter_function_data);
@@ -602,66 +592,39 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     auto old_pmap = FunctionDefaults<3>::get_pmap();
     auto [xy, phi0] = orbital_load_balance(world, gammaOrbitals, r_params.loadbalparts());
     QProjector<double, 3> projector(world, phi0);
-
-
     size_t num_states = xy.num_states();
     size_t num_orbitals = xy.num_orbitals();
-    // shallow copy
-
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-
     X_space gamma(world, num_states, num_orbitals);
     // here I create the orbital products for elctron interaction terms
     vecfuncT phi_phi;
     vecfuncT x_phi;
     functionT temp_J;
-
     X_space W = X_space::zero_functions(world, num_states, num_orbitals);
     X_space J(world, num_states, num_orbitals);
     X_space K = X_space::zero_functions(world, num_states, num_orbitals);
     X_space KX = X_space::zero_functions(world, num_states, num_orbitals);
     X_space KY = X_space::zero_functions(world, num_states, num_orbitals);
-
-    //     std::cout << "MPI BARRIER After create Zero functions gamma " << std::endl;
-    //     world.mpi.Barrier();
-
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_zero_functions", "gamma_zero_functions", iter_timing);
     }
-
     // apply the exchange kernel to rho if necessary
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     auto rho = make_density(world, xy);
-
-    //auto rho = transition_density(world, phi0, xy.X, xy.X);
-
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "compute density J[omega]"); }
-
-    // Create Coulomb potential on ground_orbitals
-
-    /*
-    auto compute_jx = [&, &phi0 = phi0](auto rho_alpha) {
-        auto temp_J = apply(*shared_coulomb_operator, rho_alpha);
-        return mul(world, temp_J, phi0);
-    };
-     */
-
     int b = 0;
     for (const auto &rho_b: rho) {
         auto temp_J = apply(*shared_coulomb_operator, rho_b);
         J.x[b++] = mul(world, temp_J, phi0);
     }
-    //std::transform(rho.begin(), rho.end(), J.X.begin(), compute_jx);
     std::transform(J.x.begin(), J.x.end(), J.x.begin(), [&](auto &jxi) { return projector(jxi); });
     J.y = J.x.copy();
-
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "J[omega]", "J[omega]", iter_timing);
     }
     inner_to_json(world, "j1", response_context.inner(xy, J), iter_function_data);
-
     if (xcf.hf_exchange_coefficient() != 1.0) {
         auto compute_wx = [&, &phi0 = phi0](auto rho_alpha) {
             auto xc_rho = xc.apply_xc_kernel(rho_alpha);
@@ -677,28 +640,6 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
         }
     }
     inner_to_json(world, "v1_xc", response_context.inner(xy, W), iter_function_data);
-
-
-    /*
-    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-
-    std::transform(xy.X.begin(), xy.X.end(), KX.X.begin(),
-                   [&](const auto &xi) { return newK(xi, phi0, phi0); });
-
-    std::transform(xy.y.begin(), xy.y.end(), KY.X.begin(),
-                   [&](const auto &yi) { return newK(phi0, yi, phi0); });
-
-
-    K = KX + KY;
-    world.gop.fence();
-
-    if (r_params.print_level() >= 20) { print_inner(world, "old xK1x", xy, KX); }
-    if (r_params.print_level() >= 20) { print_inner(world, "old xK2x", xy, KY); }
-    if (r_params.print_level() >= 20) { print_inner(world, "old xKx", xy, K); }
-    if (r_params.print_level() >= 1) {
-        molresponse::end_timer(world, "old K[omega]", "K[omega]", iter_timing);
-    }
-     */
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K = response_exchange_multiworld(phi0, xy, false);
     std::transform(K.x.begin(), K.x.end(), K.x.begin(), [&](auto &kxi) { return projector(kxi); });
@@ -707,30 +648,12 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
     }
     if (r_params.print_level() >= 20) { print_inner(world, "new static KX", xy, K); }
-
-    /*
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    K = response_exchange(phi0, xy, false);
-    if (r_params.print_level() >= 20) { print_inner(world, "new static KX", xy, K); }
-    if (r_params.print_level() >= 1) { molresponse::end_timer(world, "new K[omega]"); }
-     */
-    // for each response state we compute the Gamma response functions
-    // trucate all response functions
-    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    /*
-    J.truncate();
-    KX.truncate();
-    KY.truncate();
-    W.truncate();
-     */
-
-    // update gamma functions
     gamma = 2 * J - K * xcf.hf_exchange_coefficient() + W;
     inner_to_json(world, "gamma_x_beforeQ", response_context.inner(xy, gamma), iter_function_data);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_truncate_add", "gamma_truncate_add", iter_timing);
     }
-
     // project out ground state
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     //for (size_t i = 0; i < num_states; i++) { gamma.X[i] = projector(gamma.X[i]); }
@@ -990,8 +913,10 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
 
     size_t m = X.num_states();
     size_t n = X.num_orbitals();
-    X_space V0 = X_space(world, m, n);
-    X_space K0 = X_space(world, m, n);
+    X_space V0 = X_space::zero_functions(world, m, n);
+    V0.set_active(X.active);
+    X_space K0 = X_space::zero_functions(world, m, n);
+    K0.set_active(X.active);
     real_function_3d v_nuc, v_j0, v_k0, v_xc;
     if (not r_params.store_potential()) {
         v_nuc = potential_manager->vnuclear();

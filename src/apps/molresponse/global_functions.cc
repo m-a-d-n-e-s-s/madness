@@ -377,6 +377,7 @@ auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const 
     auto num_orbitals = chi.num_orbitals();
 
     auto K0 = X_space::zero_functions(world, num_states, num_orbitals);
+    K0.set_active(chi.active);
     // the question is copying pointers mpi safe
     world.gop.fence();
     auto k0 = make_k(phi0, phi0);

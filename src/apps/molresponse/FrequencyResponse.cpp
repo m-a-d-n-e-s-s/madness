@@ -255,7 +255,6 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    bool compute_y = omega_n != 0.0;
     auto x = chi.copy();// copy chi
     X_space theta_X = compute_theta_X(world, chi, xc, r_params.calc_type());
     X_space new_chi =
@@ -269,7 +268,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
     inner_to_json(world, "x_update", response_context.inner(new_chi, new_chi), iter_function_data);
-    if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
+    // if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "update response", "update", iter_timing);
     }

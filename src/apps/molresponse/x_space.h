@@ -48,6 +48,11 @@ namespace madness {
             size_t i{0};
             for (auto &ai: active) { ai = i++; }
         }
+        void set_active(const std::list<size_t>& new_active) {
+            active = new_active;
+            x.active = new_active;
+            y.active = new_active;
+        }
         X_space(const X_space &A)
             : n_states(size_states(A)), n_orbitals(size_orbitals(A)), x(A.x), y(A.y),
               active(A.active) {}
