@@ -441,9 +441,9 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     X_space gamma;
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     if (calc_type == "full") {
-        if (world.rank() == 0) { print("entering gamma"); }
-        auto checkx = chi.norm2s();
-        if (world.rank() == 0) { print("checking x", checkx); }
+    //    if (world.rank() == 0) { print("entering gamma"); }
+   //     auto checkx = chi.norm2s();
+     //   if (world.rank() == 0) { print("checking x", checkx); }
 
         gamma = compute_gamma_full(world, {chi, ground_orbitals}, xc);
     } else if (calc_type == "static") {
@@ -1130,7 +1130,7 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
     } else {
         res.x = g_chi.x - chi.x;
         residual_norms = res.x.norm2();
-        if (world.rank() == 0) { print("printing residual norms", residual_norms); }
+       // if (world.rank() == 0) { print("printing residual norms", residual_norms); }
     }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_bsh_residual", "compute_bsh_residual", iter_timing);

@@ -134,12 +134,6 @@ void FrequencyResponse::iterate(World &world) {
                     print("k: ", FunctionDefaults<3>::get_k());
                     print("Chi Norms at start of iteration: ", iter);
                     print("||X||: ", chi_norms);
-                    print("max rotation: ", max_rotation);
-                    print("density changes : ", density_residuals);
-                    print("density target : ", density_target);
-                    print("bsh residuals : ", x_residuals);
-                    print("relative bsh residuals : ", x_relative_residuals);
-                    print("bsh residual target : ", x_relative_target);
                     print("targets : x", x_relative_target, " d", density_target);
                 }
             }
@@ -275,11 +269,11 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     auto x = chi.copy();// copy chi
-    auto checkx = x.norm2s();
-    if (world.rank() == 0) { print("Right after chi.copy() ", checkx); }
+//    auto checkx = x.norm2s();
+  //  if (world.rank() == 0) { print("Right after chi.copy() ", checkx); }
     X_space theta_X = compute_theta_X(world, x, xc, r_params.calc_type());
-    checkx = x.norm2s();
-    if (world.rank() == 0) { print("Right after compute_theta ", checkx); }
+ //   checkx = x.norm2s();
+  //  if (world.rank() == 0) { print("Right after compute_theta ", checkx); }
     X_space new_chi =
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 

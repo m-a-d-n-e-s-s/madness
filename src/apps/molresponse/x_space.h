@@ -149,9 +149,9 @@ namespace madness {
                 -> X_space {
             auto &world = A.x[0][0].world();
             auto result = A.copy();
-            if (world.rank() == 0) { print("oop_apply"); }
+        //    if (world.rank() == 0) { print("oop_apply"); }
             for (auto &i: result.active) {
-                if (world.rank() == 0) { print("oop_apply", i); }
+         //       if (world.rank() == 0) { print("oop_apply", i); }
                 result.x[i] = func(A.x[i]);
                 result.y[i] = func(A.y[i]);
             }
