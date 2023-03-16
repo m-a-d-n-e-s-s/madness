@@ -326,6 +326,7 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
 
     if (compute_y) {
 
+        /*
         auto K1 = oop_apply(chi, [&](const vector_real_function_3d &xi) {
             auto K1X = make_k(xi, phi0);
             return K1X(phi0);
@@ -335,8 +336,8 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
             return K1X(phi0);
         });
         K = K1 + K2;
+         */
 
-        /*
         for (const auto &b: chi.active) {
             auto x = chi.x[b];
             auto y = chi.y[b];
@@ -355,7 +356,6 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
             world.gop.fence();
 
         }
-         */
     } else {
         for (const auto &b: chi.active) {
             auto x = chi.x[b];
