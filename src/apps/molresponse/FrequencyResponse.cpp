@@ -98,6 +98,8 @@ void FrequencyResponse::iterate(World &world) {
     Chi.reset_active();
 
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
+        auto checkx = Chi.norm2s();
+        if (world.rank() == 0) { print("At the start of iterate x", checkx); }
         iter_timing.clear();
         iter_function_data.clear();
         if (r_params.print_level() >= 1) {
@@ -136,10 +138,11 @@ void FrequencyResponse::iterate(World &world) {
                     print("bsh residuals : ", x_residuals);
                     print("relative bsh residuals : ", x_relative_residuals);
                     print("bsh residual target : ", x_relative_target);
+                    print("targets : x", x_relative_target, " d", density_target);
                 }
             }
             auto check_convergence = [&](auto &ri, auto &di) {
-                print(ri, di);
+                if (world.rank() == 0) { print(ri, di); }
                 return ((ri < x_relative_target) && (di < density_target));
             };
             std::transform(x_relative_residuals.ptr(), x_relative_residuals.ptr() + m,
@@ -170,6 +173,8 @@ void FrequencyResponse::iterate(World &world) {
             }
         }
         inner_to_json(world, "x", response_context.inner(Chi, Chi), iter_function_data);
+        checkx = Chi.norm2s();
+        if (world.rank() == 0) { print("Right before update x", checkx); }
         auto [new_chi, new_res] = update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts,
                                          omega, kain_x_space, iter, max_rotation);
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -256,11 +261,16 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     auto x = chi.copy();// copy chi
-    X_space theta_X = compute_theta_X(world, chi, xc, r_params.calc_type());
+    auto checkx = x.norm2s();
+    if (world.rank() == 0) { print("Right after chi.copy() ", checkx); }
+    X_space theta_X = compute_theta_X(world, x, xc, r_params.calc_type());
+    checkx = x.norm2s();
+    if (world.rank() == 0) { print("Right after compute_theta ", checkx); }
     X_space new_chi =
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
     inner_to_json(world, "x_new", response_context.inner(new_chi, new_chi), iter_function_data);
+
     auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
     inner_to_json(world, "r_x", response_context.inner(new_res, new_res), iter_function_data);
     //&& iteration < 7

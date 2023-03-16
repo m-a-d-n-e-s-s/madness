@@ -322,9 +322,21 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
     auto num_states = chi.num_states();
     auto num_orbitals = chi.num_orbitals();
     auto K = X_space::zero_functions(world, num_states, num_orbitals);
-    world.gop.fence();
     vector_real_function_3d k1x, k1y, k2x, k2y;
+
     if (compute_y) {
+
+        auto K1 = oop_apply(chi, [&](const vector_real_function_3d &xi) {
+            auto K1X = make_k(xi, phi0);
+            return K1X(phi0);
+        });
+        auto K2 = oop_apply(chi, [&](const vector_real_function_3d &xi) {
+            auto K1X = make_k(phi0, xi);
+            return K1X(phi0);
+        });
+        K = K1 + K2;
+
+        /*
         for (const auto &b: chi.active) {
             auto x = chi.x[b];
             auto y = chi.y[b];
@@ -341,7 +353,9 @@ auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, cons
             K.y[b] = gaxpy_oop(1.0, k2x, 1.0, k2y, false);
             K.y[b][0].print_info();
             world.gop.fence();
+
         }
+         */
     } else {
         for (const auto &b: chi.active) {
             auto x = chi.x[b];

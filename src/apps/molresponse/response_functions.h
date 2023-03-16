@@ -123,7 +123,7 @@ namespace madness {
             World &world = x[0][0].world();
             response_space result(*this);
             std::transform(x.begin(), x.end(), result.x.begin(),
-                           [&world](auto &xi) { return madness::copy(world, xi, false); });
+                           [&world](const vector_real_function_3d &xi) { return madness::copy(world, xi, false); });
             world.gop.fence();
             return result;
         }

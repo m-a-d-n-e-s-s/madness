@@ -420,6 +420,10 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     X_space gamma;
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     if (calc_type == "full") {
+        if (world.rank() == 0) { print("entering gamma"); }
+        auto checkx = chi.norm2s();
+        if (world.rank() == 0) { print("checking x", checkx); }
+
         gamma = compute_gamma_full(world, {chi, ground_orbitals}, xc);
     } else if (calc_type == "static") {
         gamma = compute_gamma_static(world, {chi, ground_orbitals}, xc);
@@ -522,11 +526,11 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     auto K = response_exchange_multiworld(phi0, chi_alpha, true);
+    // auto K = response_exchange(phi0, chi_alpha, true);
 
     K = oop_apply(K, apply_projector);
     // std::transform(K.x.begin(), K.x.end(), K.x.begin(), [&](auto &kxi) { return projector(kxi); });
     // std::transform(K.y.begin(), K.y.end(), K.y.begin(), [&](auto &kyi) { return projector(kyi); });
-    //auto K = response_exchange(phi0, chi_alpha, true);
 
 
     inner_to_json(world, "k1", response_context.inner(chi_alpha, K), iter_function_data);
@@ -972,14 +976,14 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
         V0 = X * v0;
         V0 += -c_xc * K0;
         V0.truncate();
-        inner_to_json(world, "V0", response_context.inner(X, V0), iter_function_data);
+        inner_to_json(world, "v0", response_context.inner(X, V0), iter_function_data);
     } else {
         V0 = X.copy();
         V0.x = v0 * V0.x;
         V0.x += -c_xc * K0.x;
         V0.x.truncate_rf();
         V0.y = V0.x.copy();
-        inner_to_json(world, "V0", response_context.inner(X, V0), iter_function_data);
+        inner_to_json(world, "v0", response_context.inner(X, V0), iter_function_data);
     }
     if (r_params.print_level() >= 20) { print_inner(world, "xV0x", X, V0); }
     if (r_params.print_level() >= 1) {
@@ -1098,7 +1102,7 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
     //	compute residual
     Tensor<double> residual_norms;
     X_space res(world, m, n);
-    res.active = chi.active;
+    res.set_active(chi.active);
     if (compute_y) {
         res = g_chi - chi;
         residual_norms = res.norm2s();

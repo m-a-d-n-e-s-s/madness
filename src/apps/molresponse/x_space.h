@@ -48,7 +48,7 @@ namespace madness {
             size_t i{0};
             for (auto &ai: active) { ai = i++; }
         }
-        void set_active(const std::list<size_t>& new_active) {
+        void set_active(const std::list<size_t> &new_active) {
             active = new_active;
             x.active = new_active;
             y.active = new_active;
@@ -61,7 +61,7 @@ namespace madness {
             auto new_x = X_space(*this);// copy
             for (int i = 0; i < new_x.num_states(); i++) {
                 new_x.x[i] = madness::copy(world, x[i], false);
-                new_x.y[i] = madness::copy(world, x[i], false);
+                new_x.y[i] = madness::copy(world, y[i], false);
             }
             world.gop.fence();
 
@@ -149,7 +149,9 @@ namespace madness {
                 -> X_space {
             auto &world = A.x[0][0].world();
             auto result = A.copy();
+            if (world.rank() == 0) { print("oop_apply"); }
             for (auto &i: result.active) {
+                if (world.rank() == 0) { print("oop_apply", i); }
                 result.x[i] = func(A.x[i]);
                 result.y[i] = func(A.y[i]);
             }
@@ -288,7 +290,7 @@ namespace madness {
             inplace_apply(*this, truncate_i);
         }
 
-        auto norm2s() -> Tensor<double> {
+        auto norm2s() const -> Tensor<double>  {
             World &world = x[0][0].world();
             Tensor<double> norms(num_states());
 
