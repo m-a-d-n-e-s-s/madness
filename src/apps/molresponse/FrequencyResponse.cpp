@@ -35,6 +35,7 @@ void FrequencyResponse::iterate(World &world) {
     Tensor<double> x_residuals((int(m)));
     Tensor<double> x_relative_residuals((int(m)));
     Tensor<double> density_residuals((int(m)));
+    Tensor<double> density_residuals_old((int(m)));
 
     bool static_res = (omega == 0.0);
     bool compute_y = not static_res;
@@ -96,6 +97,7 @@ void FrequencyResponse::iterate(World &world) {
 
     vector<bool> converged(Chi.num_states(), false);
     Chi.reset_active();
+    rho_omega= make_density(world,Chi);
 
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
         auto checkx = Chi.norm2s();
@@ -145,10 +147,17 @@ void FrequencyResponse::iterate(World &world) {
                 if (world.rank() == 0) { print(ri, di); }
                 return ((ri < x_relative_target) && (di < density_target));
             };
-            std::transform(x_relative_residuals.ptr(), x_relative_residuals.ptr() + m,
-                           density_residuals.ptr(), converged.begin(), check_convergence);
+
+            for (const auto &b: Chi.active) {
+                converged[b] = check_convergence(x_relative_residuals[b], density_residuals[b]);
+            }
             int b = 0;
-            Chi.active.remove_if([&](auto x) { return converged[b++]; });
+            auto remove_converged = [&]() {
+                Chi.reset_active();
+                Chi.active.remove_if([&](auto x) { return converged[b++]; });
+            };
+            remove_converged();
+
             if (world.rank() == 0) {
                 print("converged", converged);
                 print("active", Chi.active);
@@ -178,12 +187,12 @@ void FrequencyResponse::iterate(World &world) {
         auto [new_chi, new_res] = update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts,
                                          omega, kain_x_space, iter, max_rotation);
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-        rho_omega_old = make_density(world, Chi);
+        rho_omega_old = rho_omega;
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "make_density_old", "make_density_old", iter_timing);
         }
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-        rho_omega = make_density(world, new_chi);
+        rho_omega = update_density(world, new_chi, rho_omega_old);
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "make_density_new", "make_density_new", iter_timing);
         }
@@ -200,9 +209,12 @@ void FrequencyResponse::iterate(World &world) {
             molresponse::end_timer(world, "copy_response_data", "copy_response_data", iter_timing);
         }
         if (world.rank() == 0) { print("computing chi norms: xij residuals"); }
+        density_residuals = density_residuals_old;
+        for (const auto &b: Chi.active) {
+            density_residuals[b] = (rho_omega[b] - rho_omega_old[b]).norm2();
+        }
+        density_residuals_old = copy(density_residuals);
 
-        auto density_change = madness::sub(world, rho_omega, rho_omega_old, true);
-        density_residuals = norm2s_T(world, density_change);
         iter_function_data["r_d"] = density_residuals;
         auto dnorm = norm2s_T(world, rho_omega);
         iter_function_data["d"] = dnorm;
@@ -231,6 +243,8 @@ void FrequencyResponse::iterate(World &world) {
         time_data.add_data(iter_timing);
         function_data.add_data(iter_function_data);
     }
+
+    Chi.reset_active();
 
     if (world.rank() == 0) print("\n");
     if (world.rank() == 0) print("   Finished Response Calculation ");

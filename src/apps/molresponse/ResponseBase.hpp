@@ -370,6 +370,7 @@ protected:
                                const Tensor<double> &x_abs_norms, const Tensor<double> &rho_norms,
                                const Tensor<double> &rho_res_norms);
     X_space compute_TX(World &world, const X_space &X, bool compute_Y) const;
+    vecfuncT update_density(World &world, const X_space &chi, const vecfuncT &old_density) const;
 };
 
 

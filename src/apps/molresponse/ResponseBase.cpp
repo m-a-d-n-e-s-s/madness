@@ -291,24 +291,45 @@ auto ResponseBase::make_xc_operator(World &world) const -> XCOperator<double, 3>
     return {world, r_params.xc(), false, ground_density, ground_density};
 }
 
+auto ResponseBase::update_density(World &world, const X_space &chi,
+                                  const vecfuncT &old_density) const -> vecfuncT {
+    auto density = copy(world, old_density);
+    auto calc_type = r_params.calc_type();
+    auto thresh = FunctionDefaults<3>::get_thresh();
+    if (calc_type == "full") {
+        for (const auto &b: chi.active) {
+            auto x_phi = mul(world, chi.x[b], ground_orbitals, false);
+            auto y_phi = mul(world, chi.y[b], ground_orbitals, false);
+            world.gop.fence();
+            density[b] = sum(world, x_phi) + sum(world, y_phi);
+        }
+
+    } else if (calc_type == "static") {
+        for (const auto &b: chi.active) {
+            auto x_phi = mul(world, chi.x[b], ground_orbitals, false);
+            world.gop.fence();
+            density[b] = 2 * sum(world, x_phi);
+        }
+    } else {
+        density = transition_densityTDA(world, ground_orbitals, chi.x);
+    }
+    if (world.rank() == 0) { print("make density: made density"); }
+    truncate(world, density, thresh);
+    if (world.rank() == 0) { print("make density: truncate"); }
+    return density;
+}
 
 auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfuncT {
     auto density = vector_real_function_3d(chi.num_states());
     auto calc_type = r_params.calc_type();
     auto thresh = FunctionDefaults<3>::get_thresh();
     if (calc_type == "full") {
-        auto r_matrix = to_response_matrix(chi);
-        if (world.rank() == 0) { print("make density: to response matrix"); }
-        auto r_phi0 = to_response_vector(ground_orbitals);
-        if (world.rank() == 0) { print("make density: to response vector"); }
-        int b = 0;
-        auto x = to_response_matrix(chi);
-        auto phiphi = to_response_vector(ground_orbitals);
-        for (auto &rho_b: density) {
-            auto x_phi = mul(world, x[b], phiphi, false);
+
+        for (const auto &b: chi.active) {
+            auto x_phi = mul(world, chi.x[b], ground_orbitals, false);
+            auto y_phi = mul(world, chi.y[b], ground_orbitals, false);
             world.gop.fence();
-            rho_b = sum(world, x_phi);
-            b++;
+            density[b] = sum(world, x_phi) + sum(world, y_phi);
         }
 
     } else if (calc_type == "static") {
@@ -469,7 +490,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     vecfuncT x_phi;
     vecfuncT y_phi;
 
-    X_space J(world, num_states, num_orbitals);
+    X_space J = X_space::zero_functions(world, num_states, num_orbitals);
     response_space j_x(world, num_states, num_orbitals);
     response_space j_y(world, num_states, num_orbitals);
 
@@ -1101,7 +1122,7 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
     bool compute_y = r_params.omega() != 0.0;
     //	compute residual
     Tensor<double> residual_norms;
-    X_space res(world, m, n);
+    X_space res = X_space::zero_functions(world, m, n);
     res.set_active(chi.active);
     if (compute_y) {
         res = g_chi - chi;
@@ -1109,6 +1130,7 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
     } else {
         res.x = g_chi.x - chi.x;
         residual_norms = res.x.norm2();
+        if (world.rank() == 0) { print("printing residual norms", residual_norms); }
     }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_bsh_residual", "compute_bsh_residual", iter_timing);
@@ -1133,9 +1155,10 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
         auto x_residuals = to_response_matrix(residual_chi);
         int b = 0;
         for (const auto &i: Chi.active) {
-            update[i] = kain_x_space[i].update(x_vectors[i], x_residuals[i]);
-        }
-        kain_update = to_X_space(update);
+            auto temp = kain_x_space[i].update(x_vectors[i], x_residuals[i]);
+            std::copy(temp.begin(), temp.begin() + n, kain_update.x[i].begin());
+            std::copy(temp.begin() + n, temp.end(), kain_update.y[i].begin());
+        };
     } else {
         int b = 0;
         for (const auto &i: Chi.active) {
