@@ -97,11 +97,11 @@ void FrequencyResponse::iterate(World &world) {
 
     vector<bool> converged(Chi.num_states(), false);
     Chi.reset_active();
-    rho_omega= make_density(world,Chi);
+    rho_omega = make_density(world, Chi);
 
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
         auto checkx = Chi.norm2s();
-        if (world.rank() == 0) { print("At the start of iterate x", checkx); }
+        //if (world.rank() == 0) { print("At the start of iterate x", checkx); }
         iter_timing.clear();
         iter_function_data.clear();
         if (r_params.print_level() >= 1) {
@@ -177,7 +177,7 @@ void FrequencyResponse::iterate(World &world) {
         }
         inner_to_json(world, "x", response_context.inner(Chi, Chi), iter_function_data);
         checkx = Chi.norm2s();
-        if (world.rank() == 0) { print("Right before update x", checkx); }
+        //if (world.rank() == 0) { print("Right before update x", checkx); }
         auto [new_chi, new_res] = update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts,
                                          omega, kain_x_space, iter, max_rotation);
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -269,11 +269,11 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     auto x = chi.copy();// copy chi
-//    auto checkx = x.norm2s();
-  //  if (world.rank() == 0) { print("Right after chi.copy() ", checkx); }
+                        //    auto checkx = x.norm2s();
+                        //  if (world.rank() == 0) { print("Right after chi.copy() ", checkx); }
     X_space theta_X = compute_theta_X(world, x, xc, r_params.calc_type());
- //   checkx = x.norm2s();
-  //  if (world.rank() == 0) { print("Right after compute_theta ", checkx); }
+    //   checkx = x.norm2s();
+    //  if (world.rank() == 0) { print("Right after compute_theta ", checkx); }
     X_space new_chi =
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
