@@ -362,7 +362,7 @@ namespace madness {
             MADNESS_EXCEPTION("pthread_setspecific failed", rc);
 #if HAVE_PARSEC
         assert(nullptr == parsec_runtime);
-        parsec_runtime = new ParsecRuntime(nthread);
+        parsec_runtime = new ParsecRuntime(nthreads);
 #elif HAVE_INTEL_TBB
 // #if HAVE_INTEL_TBB
 
