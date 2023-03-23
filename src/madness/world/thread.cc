@@ -353,8 +353,6 @@ namespace madness {
         instance_ptr = this;
         if (nthreads < 0) nthreads = default_nthread();
         MADNESS_ASSERT(nthreads >=0);
-        if (nthreads>64)
-            MADNESS_EXCEPTION("\n\nno more than 64 threads in MADNESS:\nexport MAD_NUM_THREADS = 64\n",1);
 
         const int rc = pthread_setspecific(ThreadBase::thread_key,
                 static_cast<void*>(&main_thread));
@@ -377,6 +375,9 @@ namespace madness {
         tbb_control = std::make_unique<tbb::global_control>(tbb::global_control::max_allowed_parallelism, num_tbb_threads);
         tbb_arena   = std::make_unique<tbb::task_arena>(num_tbb_threads);
 #else
+
+        if (nthreads>64)
+            MADNESS_EXCEPTION("When configured with MADNESS_TASK_BACKEND=Pthreads MAD_NUM_THREADS cannot exceed 64",1);
 
         try {
             if (nthreads > 0)
