@@ -519,13 +519,14 @@ void set_frequency_response_parameters(World &world, ResponseParameters &r_param
         }
         //r_params.set_user_defined_value("archive", std::string("../restartdata"));
         r_params.set_user_defined_value("maxiter", size_t(20));
-        r_params.set_user_defined_value("maxsub", size_t(10));
+        r_params.set_user_defined_value("maxsub", size_t(5));
         r_params.set_user_defined_value("kain", true);
         r_params.set_user_defined_value("omega", frequency);
         r_params.set_user_defined_value("first_order", true);
         r_params.set_user_defined_value("plot_all_orbitals", true);
         r_params.set_user_defined_value("plot", true);
         r_params.set_user_defined_value("print_level", 5);
+        r_params.set_user_defined_value("guess_xyz", false);
         r_params.set_user_defined_value("save", true);
         // set xc, property, frequency,and restart
         r_params.set_user_defined_value("xc", xc);

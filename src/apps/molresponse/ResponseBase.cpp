@@ -389,12 +389,6 @@ auto ResponseBase::make_bsh_operators_response(World &world, double &shift,
         double mu = sqrt(-2.0 * (ground_energies(p++) + omega + shift));
         operator_p = poperatorT(BSHOperatorPtr3D(world, mu, r_params.lo(), tol));
     });
-    /*
-    for (size_t p = 0; p < num_orbitals; p++) {
-        double mu = sqrt(-2.0 * (ground_energies(p) + omega + shift));
-        ops[p] = poperatorT(BSHOperatorPtr3D(world, mu, r_params.lo(), tol));
-    }
-     */
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "make bsh operators response");
     }
