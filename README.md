@@ -1,7 +1,7 @@
 MADNESS
 =======
 
-$$H \PSI = E \PSI $$
+$$H \Psi = E \Psi $$
 
 Multiresolution Adaptive Numerical Environment for Scientific Simulation
 
