@@ -297,10 +297,16 @@ auto ResponseBase::update_density(World &world, const X_space &chi,
     auto calc_type = r_params.calc_type();
     auto thresh = FunctionDefaults<3>::get_thresh();
     if (calc_type == "full") {
+        functionT rhox = factoryT(world);
+        functionT rhoy = factoryT(world);
         for (const auto &b: chi.active) {
+
+
             auto x_phi = mul(world, chi.x[b], ground_orbitals, false);
             auto y_phi = mul(world, chi.y[b], ground_orbitals, false);
             world.gop.fence();
+            truncate(world, x_phi, thresh);
+            truncate(world, x_phi, thresh);
             density[b] = sum(world, x_phi) + sum(world, y_phi);
         }
 
@@ -308,6 +314,7 @@ auto ResponseBase::update_density(World &world, const X_space &chi,
         for (const auto &b: chi.active) {
             auto x_phi = mul(world, chi.x[b], ground_orbitals, false);
             world.gop.fence();
+            truncate(world, x_phi, thresh);
             density[b] = 2 * sum(world, x_phi);
         }
     } else {
