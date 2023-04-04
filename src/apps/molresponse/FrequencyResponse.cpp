@@ -118,6 +118,7 @@ void FrequencyResponse::iterate(World &world) {
             }
             auto chi_norms = (compute_y) ? Chi.norm2s() : Chi.x.norm2();
             auto rho_norms = madness::norm2s_T(world, rho_omega);
+
             std::transform(x_residuals.ptr(), x_residuals.ptr() + x_residuals.size(),
                            chi_norms.ptr(), x_relative_residuals.ptr(),
                            [](auto bsh, auto norm_chi) { return bsh / norm_chi; });
@@ -158,7 +159,6 @@ void FrequencyResponse::iterate(World &world) {
             }
             all_done = std::all_of(converged.begin(), converged.end(),
                                    [](const auto &ci) { return ci; });
-
             if (all_done || iter == r_params.maxiter()) {
                 // if converged print converged
                 if (world.rank() == 0 && all_done and (r_params.print_level() > 1)) {
@@ -177,9 +177,15 @@ void FrequencyResponse::iterate(World &world) {
         }
         inner_to_json(world, "x", response_context.inner(Chi, Chi), iter_function_data);
         checkx = Chi.norm2s();
-        //if (world.rank() == 0) { print("Right before update x", checkx); }
-        auto [new_chi, new_res] = update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts,
-                                         omega, kain_x_space, iter, max_rotation);
+        auto [new_chi, new_res, new_rho] =
+                update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega,
+                       kain_x_space, iter, max_rotation, rho_omega);
+        // Here we have computed the new response orbitals and the residuals
+        // Now we need to compute the new density and the new density residuals
+        // Instead, update should also update the density
+        // compute rho after bsh update to compute residual, update density after kain to keep
+        // consistent with kain orbitals
+
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         rho_omega_old = rho_omega;
         if (r_params.print_level() >= 1) {
@@ -204,8 +210,9 @@ void FrequencyResponse::iterate(World &world) {
         }
         if (world.rank() == 0) { print("computing chi norms: xij residuals"); }
         density_residuals = density_residuals_old;
+        // compute density residuals
         for (const auto &b: Chi.active) {
-            density_residuals[b] = (rho_omega[b] - rho_omega_old[b]).norm2();
+            density_residuals[b] = (rho_omega_old[b] - new_rho[b]).norm2();
         }
         density_residuals_old = copy(density_residuals);
 
@@ -263,8 +270,9 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
                                std::vector<poperatorT> &bsh_x_ops,
                                std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector,
                                double &x_shifts, double &omega_n, response_solver &kain_x_space,
-                               size_t iteration, const double &max_rotation)
-        -> std::tuple<X_space, residuals> {
+                               size_t iteration, const double &max_rotation,
+                               const vector_real_function_3d &rho_old)
+        -> std::tuple<X_space, residuals, vector_real_function_3d> {
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
@@ -276,6 +284,8 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     //  if (world.rank() == 0) { print("Right after compute_theta ", checkx); }
     X_space new_chi =
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
+
+    auto new_rho = update_density(world, new_chi, rho_old);
 
     inner_to_json(world, "x_new", response_context.inner(new_chi, new_chi), iter_function_data);
 
@@ -292,7 +302,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     }
 
     //	if not compute y then copy x in to y
-    return {new_chi, {new_res, bsh}};
+    return {new_chi, {new_res, bsh}, new_rho};
 
     // print x norms
 }
@@ -442,16 +452,16 @@ void FrequencyResponse::save(World &world, const std::string &name) {
     // Archive to write everything to
     archive::ParallelOutputArchive ar(world, name.c_str(), 1);
 
-    ar &r_params.archive();
-    ar &r_params.tda();
-    ar &r_params.num_orbitals();
-    ar &r_params.num_states();
+    ar & r_params.archive();
+    ar & r_params.tda();
+    ar & r_params.num_orbitals();
+    ar & r_params.num_states();
 
     for (size_t i = 0; i < r_params.num_states(); i++)
-        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.x[i][j];
+        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.x[i][j];
     if (not r_params.tda()) {
         for (size_t i = 0; i < r_params.num_states(); i++)
-            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.y[i][j];
+            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.y[i][j];
     }
 }
 
@@ -460,17 +470,17 @@ void FrequencyResponse::load(World &world, const std::string &name) {
     if (world.rank() == 0) { print("FrequencyResponse::load() -state"); }
     // The archive to read from
     archive::ParallelInputArchive ar(world, name.c_str());
-    ar &r_params.archive();
-    ar &r_params.tda();
-    ar &r_params.num_orbitals();
-    ar &r_params.num_states();
+    ar & r_params.archive();
+    ar & r_params.tda();
+    ar & r_params.num_orbitals();
+    ar & r_params.num_states();
     Chi = X_space(world, r_params.num_states(), r_params.num_orbitals());
     for (size_t i = 0; i < r_params.num_states(); i++)
-        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.x[i][j];
+        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.x[i][j];
     world.gop.fence();
     if (not r_params.tda()) {
         for (size_t i = 0; i < r_params.num_states(); i++)
-            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.y[i][j];
+            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.y[i][j];
         world.gop.fence();
     }
 }
