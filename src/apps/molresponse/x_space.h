@@ -290,6 +290,15 @@ namespace madness {
             inplace_apply(*this, truncate_i);
         }
 
+        void truncate(double thresh) {
+            auto rx = to_response_matrix(*this);
+            auto &world = rx[0][0].world();
+            auto truncate_i = [&](auto &fi) {
+              madness::truncate(world, fi, thresh, false);
+            };
+            inplace_apply(*this, truncate_i);
+        }
+
         auto norm2s() const -> Tensor<double>  {
             World &world = x[0][0].world();
             Tensor<double> norms(num_states());

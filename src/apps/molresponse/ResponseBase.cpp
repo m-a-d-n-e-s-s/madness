@@ -296,14 +296,16 @@ auto ResponseBase::update_density(World &world, const X_space &chi,
     auto density = copy(world, old_density);
     auto calc_type = r_params.calc_type();
     auto thresh = FunctionDefaults<3>::get_thresh();
+    auto chi_copy = chi.copy();
+    chi_copy.truncate(thresh);
     if (calc_type == "full") {
         functionT rhox = factoryT(world);
         functionT rhoy = factoryT(world);
-        for (const auto &b: chi.active) {
+        for (const auto &b: chi_copy.active) {
 
 
-            auto x_phi = mul(world, chi.x[b], ground_orbitals, false);
-            auto y_phi = mul(world, chi.y[b], ground_orbitals, false);
+            auto x_phi = mul(world, chi_copy.x[b], ground_orbitals, false);
+            auto y_phi = mul(world, chi_copy.y[b], ground_orbitals, false);
             world.gop.fence();
             truncate(world, x_phi, thresh);
             truncate(world, x_phi, thresh);
@@ -311,8 +313,8 @@ auto ResponseBase::update_density(World &world, const X_space &chi,
         }
 
     } else if (calc_type == "static") {
-        for (const auto &b: chi.active) {
-            auto x_phi = mul(world, chi.x[b], ground_orbitals, false);
+        for (const auto &b: chi_copy.active) {
+            auto x_phi = mul(world, chi_copy.x[b], ground_orbitals, false);
             world.gop.fence();
             truncate(world, x_phi, thresh);
             density[b] = 2 * sum(world, x_phi);
@@ -442,9 +444,9 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     X_space gamma;
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     if (calc_type == "full") {
-    //    if (world.rank() == 0) { print("entering gamma"); }
-   //     auto checkx = chi.norm2s();
-     //   if (world.rank() == 0) { print("checking x", checkx); }
+        //    if (world.rank() == 0) { print("entering gamma"); }
+        //     auto checkx = chi.norm2s();
+        //   if (world.rank() == 0) { print("checking x", checkx); }
 
         gamma = compute_gamma_full(world, {chi, ground_orbitals}, xc);
     } else if (calc_type == "static") {
@@ -1131,7 +1133,7 @@ auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_sp
     } else {
         res.x = g_chi.x - chi.x;
         residual_norms = res.x.norm2();
-       // if (world.rank() == 0) { print("printing residual norms", residual_norms); }
+        // if (world.rank() == 0) { print("printing residual norms", residual_norms); }
     }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_bsh_residual", "compute_bsh_residual", iter_timing);
