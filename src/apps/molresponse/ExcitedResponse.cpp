@@ -109,7 +109,8 @@ public:
     /// @param[in]  origin  the origin of the Gauss function
     /// @param[in]  alpha   the exponent exp(-alpha r^2)
     /// @param[in]  ijk     the monomial x^i y^j z^k exp(-alpha r^2) (for NDIM)
-    GaussianGuess(const coordT &origin, const double alpha, const std::vector<int> ijk = std::vector<int>(NDIM))
+    GaussianGuess(const coordT &origin, const double alpha,
+                  const std::vector<int> ijk = std::vector<int>(NDIM))
         : origin(origin), exponent(alpha), ijk(ijk) {}
 
     coordT origin;
@@ -432,9 +433,9 @@ void ExcitedResponse::iterate_trial(World &world, X_space &guesses) {
     Tensor<double> x_shifts;                         // Holds the shifted energy values
     response_space bsh_resp(world, m, n);            // Holds wave function corrections
     response_space V;                                // Holds V^0 applied to response functions
-    response_space shifted_V;                        // Holds the shifted V^0 applied to response functions
-    Tensor<double> S;                                // Overlap matrix of response components for x states
-    real_function_3d v_xc;                           // For TDDFT
+    response_space shifted_V;// Holds the shifted V^0 applied to response functions
+    Tensor<double> S;        // Overlap matrix of response components for x states
+    real_function_3d v_xc;   // For TDDFT
 
     // Useful to have
     response_space zeros(world, m, n);
@@ -526,9 +527,7 @@ void ExcitedResponse::iterate_trial(World &world, X_space &guesses) {
             x_shifts = create_shift(world, ground_energies, omega, "x");
 
 
-            if (r_params.print_level() >= 1) {
-                molresponse::start_timer(world);
-            }
+            if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
             X_space E0X(world, rotated_chi.num_states(), rotated_chi.num_orbitals());
             if (r_params.localize() != "canon") {
                 E0X = rotated_chi.copy();
@@ -565,9 +564,7 @@ void ExcitedResponse::iterate_trial(World &world, X_space &guesses) {
             // Project out ground state
             //for (size_t i = 0; i < Ni; i++) bsh_resp[i] = projector(bsh_resp[i]);
 
-            for (auto &bsh_i: bsh_resp.x) {
-                bsh_i = projector(bsh_i);
-            }
+            for (auto &bsh_i: bsh_resp.x) { bsh_i = projector(bsh_i); }
             // Save new components
             guesses.x = bsh_resp;
             // Apply mask
@@ -769,8 +766,9 @@ ExcitedResponse::rotate_excited_space(World &world, X_space &chi, X_space &lchi,
     return {new_omega, rotated_chi, rotated_l_chi, rotated_v_chi, rotated_gamma_chi};
 }
 
-std::tuple<Tensor<double>, Tensor<double>, Tensor<double>> ExcitedResponse::reduce_subspace(
-        World &world, Tensor<double> &S, Tensor<double> &A, const double thresh_degenerate) {
+std::tuple<Tensor<double>, Tensor<double>, Tensor<double>>
+ExcitedResponse::reduce_subspace(World &world, Tensor<double> &S, Tensor<double> &A,
+                                 const double thresh_degenerate) {
 
 
     // Get size
@@ -855,8 +853,9 @@ std::tuple<Tensor<double>, Tensor<double>, Tensor<double>> ExcitedResponse::redu
     return {l_vecs, S, copyA};
 }
 
-std::pair<Tensor<double>, Tensor<double>> ExcitedResponse::excited_eig(
-        World &world, Tensor<double> &S, Tensor<double> &A, const double thresh_degenerate) {
+std::pair<Tensor<double>, Tensor<double>>
+ExcitedResponse::excited_eig(World &world, Tensor<double> &S, Tensor<double> &A,
+                             const double thresh_degenerate) {
     // Start timer
     if (r_params.print_level() >= 1) molresponse::start_timer(world);
     auto size_l = S.dim(0);
@@ -1175,9 +1174,10 @@ void ExcitedResponse::unaugment_full(World &world, X_space &Chi, X_space &old_Ch
 // components Why diagonalization and then transform the x_fe vectors
 
 
-std::tuple<X_space, X_space, X_space, X_space> ExcitedResponse::rotate_excited_vectors(
-        World &world, const Tensor<double> &U, const X_space &chi, const X_space &l_chi,
-        const X_space &v0_chi, const X_space &gamma_chi) {
+std::tuple<X_space, X_space, X_space, X_space>
+ExcitedResponse::rotate_excited_vectors(World &world, const Tensor<double> &U, const X_space &chi,
+                                        const X_space &l_chi, const X_space &v0_chi,
+                                        const X_space &gamma_chi) {
     // compute the unitary transformation matrix U that diagonalizes
     // the response matrix
 
@@ -1844,8 +1844,9 @@ void ExcitedResponse::iterate(World &world) {
     response_solver kain_x_space;
     size_t nkain = m;// (r_params.omega() != 0.0) ? 2 * m : m;
     for (size_t b = 0; b < m; b++) {
-        kain_x_space.push_back(XNonlinearSolver<vector_real_function_3d, double, response_matrix_allocator>(
-                response_matrix_allocator(world, n), true));
+        kain_x_space.push_back(
+                XNonlinearSolver<vector_real_function_3d, double, response_matrix_allocator>(
+                        response_matrix_allocator(world, n), true));
     }
     if (r_params.kain()) {
         for (auto &kain_space_b: kain_x_space) { kain_space_b.set_maxsub(r_params.maxsub()); }
@@ -1982,9 +1983,10 @@ void ExcitedResponse::iterate(World &world) {
         // Followed by step restriction
         // residual is computed as new_chi-old_chi where both have been previously rotated.
         auto [new_omega, old_chi, new_chi, new_res] =
-                update(world, Chi, xc, projector, kain_x_space, x_vectors, x_residuals, iter,
-                       max_rotation, Tensor<double>());
+                update_response(world, Chi, xc, projector, kain_x_space, x_vectors, x_residuals,
+                                iter, max_rotation, Tensor<double>(), residuals);
 
+        residuals = new_res.residual.copy();
 
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         rho_omega_old = make_density(world, old_chi);
@@ -2087,10 +2089,12 @@ void ExcitedResponse::iterate(World &world) {
      */
 }
 
-auto ExcitedResponse::update(World &world, X_space &Chi, XCOperator<double, 3> &xc,
-                             QProjector<double, 3> &projector, response_solver &kain_x_space,
-                             response_matrix &Xvector, response_matrix &Xresidual, size_t iter,
-                             const double &maxrotn, const Tensor<double> old_residuals)
+auto ExcitedResponse::update_response(World &world, X_space &Chi, XCOperator<double, 3> &xc,
+                                      QProjector<double, 3> &projector,
+                                      response_solver &kain_x_space, response_matrix &Xvector,
+                                      response_matrix &Xresidual, size_t iter,
+                                      const double &maxrotn, const Tensor<double> old_residuals,
+                                      const X_space &xres_old)
         -> std::tuple<Tensor<double>, X_space, X_space, residuals> {
     size_t m = Chi.num_states();
     bool compute_y = not r_params.tda();
@@ -2152,8 +2156,8 @@ auto ExcitedResponse::update(World &world, X_space &Chi, XCOperator<double, 3> &
     print("BSH update iter = ", iter);
     X_space new_chi = bsh_update_excited(world, new_omega, theta_X, projector);
     //res = Chi - new_chi;
-    auto [new_res, bsh] =
-            update_residual(world, rotated_chi, new_chi, r_params.calc_type(), old_residuals);
+    auto [new_res, bsh] = update_residual(world, rotated_chi, new_chi, r_params.calc_type(),
+                                          old_residuals, xres_old);
     // kain if iteration >0 or first run where there should not be a problem
     // computed new_chi and res
     if (r_params.kain() && (iter > 0) && true) {
@@ -2174,7 +2178,8 @@ auto ExcitedResponse::update(World &world, X_space &Chi, XCOperator<double, 3> &
 }
 
 auto ExcitedResponse::bsh_update_excited(World &world, const Tensor<double> &omega,
-                                         X_space &theta_X, QProjector<double, 3> &projector) -> X_space {
+                                         X_space &theta_X, QProjector<double, 3> &projector)
+        -> X_space {
     size_t m = theta_X.num_states();
     size_t n = theta_X.num_orbitals();
     bool compute_y = !r_params.tda();
@@ -2424,17 +2429,17 @@ void ExcitedResponse::save(World &world, const std::string &name) {
     //  (for i from 0 to m-1                       )
     //  (   for j from 0 to n-1                    )
     //  (      Function<double,3> y_response[i][j] )
-    ar &r_params.archive();
-    ar &r_params.tda();
-    ar &r_params.num_orbitals();
-    ar &r_params.num_states();
-    ar &omega;
+    ar & r_params.archive();
+    ar & r_params.tda();
+    ar & r_params.num_orbitals();
+    ar & r_params.num_states();
+    ar & omega;
 
     for (size_t i = 0; i < r_params.num_states(); i++)
-        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.x[i][j];
+        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.x[i][j];
     if (not r_params.tda()) {
         for (size_t i = 0; i < r_params.num_states(); i++)
-            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.y[i][j];
+            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.y[i][j];
     }
 }
 
@@ -2458,21 +2463,21 @@ void ExcitedResponse::load(World &world, const std::string &name) {
     //  (   for j from 0 to n-1                    )
     //  (      Function<double,3> y_response[i][j] )
 
-    ar &r_params.archive();
-    ar &r_params.tda();
-    ar &r_params.num_orbitals();
-    ar &r_params.num_states();
-    ar &omega;
+    ar & r_params.archive();
+    ar & r_params.tda();
+    ar & r_params.num_orbitals();
+    ar & r_params.num_states();
+    ar & omega;
 
     Chi = X_space(world, r_params.num_states(), r_params.num_orbitals());
 
     for (size_t i = 0; i < r_params.num_states(); i++)
-        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.x[i][j];
+        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.x[i][j];
     world.gop.fence();
 
     if (not r_params.tda()) {
         for (size_t i = 0; i < r_params.num_states(); i++)
-            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar &Chi.y[i][j];
+            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.y[i][j];
         world.gop.fence();
     }
 }
@@ -2486,9 +2491,7 @@ X_space ExcitedResponse::create_virtual_ao_guess(World &world) const {
 
     auto phi_0 = copy(world, ground_orbitals);
     auto ao_basis_set = AtomicBasisSet{"aug-cc-pvdz"};
-    if (world.rank() == 0) {
-        ao_basis_set.print(molecule);
-    }
+    if (world.rank() == 0) { ao_basis_set.print(molecule); }
 
     vecfuncT ao_vec = vecfuncT(ao_basis_set.nbf(molecule));
 

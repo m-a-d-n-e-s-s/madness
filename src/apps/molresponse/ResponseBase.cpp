@@ -296,6 +296,7 @@ auto ResponseBase::update_density(World &world, const X_space &chi,
     auto density = copy(world, old_density);
     auto calc_type = r_params.calc_type();
     auto thresh = FunctionDefaults<3>::get_thresh();
+
     if (calc_type == "full") {
         auto chi_copy = chi.copy();
         chi_copy.truncate(thresh);
@@ -1122,14 +1123,15 @@ auto ResponseBase::compute_F0X(World &world, const X_space &X, const XCOperator<
 
 auto ResponseBase::update_residual(World &world, const X_space &chi, const X_space &g_chi,
                                    const std::string &calc_type,
-                                   const Tensor<double> &old_residuals) -> residuals {
+                                   const Tensor<double> &old_residuals, const X_space &xres_old)
+        -> residuals {
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     size_t m = chi.x.size();
     size_t n = chi.x.size_orbitals();
     bool compute_y = r_params.omega() != 0.0;
     //	compute residual
     Tensor<double> residual_norms = copy(old_residuals);
-    X_space res = X_space::zero_functions(world, m, n);
+    X_space res = xres_old.copy();
     res.set_active(chi.active);
     if (compute_y) {
         res = g_chi - chi;

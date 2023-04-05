@@ -320,8 +320,8 @@ protected:
     void converged_to_json(json &j);
 
     auto update_residual(World &world, const X_space &chi, const X_space &g_chi,
-                         const std::string &calc_type, const Tensor<double> &old_residuals)
-            -> residuals;
+                         const std::string &calc_type, const Tensor<double> &old_residuals,
+                         const X_space &xres_old) -> residuals;
 
     auto compute_response_potentials(World &world, const X_space &chi, XCOperator<double, 3> &xc,
                                      const std::string &calc_type) const

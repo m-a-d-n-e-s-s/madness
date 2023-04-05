@@ -23,7 +23,7 @@ void FrequencyResponse::iterate(World &world) {
     real_function_3d v_xc;
     // the Final protocol should be equal to dconv at the minimum
     const double dconv =
-            std::max(FunctionDefaults<3>::get_thresh() * 100, r_params.dconv());//.01 .0001 .1e-5
+            std::max(FunctionDefaults<3>::get_thresh() * 10, r_params.dconv());//.01 .0001 .1e-5
     auto thresh = FunctionDefaults<3>::get_thresh();
     auto density_target = dconv * std::max(size_t(5.0), molecule.natom());
     const double a_pow{0.5};
@@ -131,11 +131,12 @@ void FrequencyResponse::iterate(World &world) {
                     print("k: ", FunctionDefaults<3>::get_k());
                     print("Chi Norms at start of iteration: ", iter);
                     print("||X||: ", chi_norms);
-                    print("targets : ||x||", x_relative_target, "    ||delta_rho||", density_target);
+                    print("targets : ||x||", x_relative_target, "    ||delta_rho||",
+                          density_target);
                 }
             }
             auto check_convergence = [&](auto &ri, auto &di) {
-                if (world.rank() == 0) { print("          ",ri, di); }
+                if (world.rank() == 0) { print("              ", ri, "    ", di); }
                 return ((ri < x_relative_target) && (di < density_target));
             };
 
@@ -173,9 +174,9 @@ void FrequencyResponse::iterate(World &world) {
         }
         inner_to_json(world, "x", response_context.inner(Chi, Chi), iter_function_data);
         checkx = Chi.norm2s();
-        auto [new_chi, new_res, new_rho] =
-                update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega,
-                       kain_x_space, iter, max_rotation, rho_omega, x_residuals);
+        auto [new_chi, new_res, new_rho] = update_response(
+                world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega, kain_x_space,
+                iter, max_rotation, rho_omega, x_residuals, residuals);
         // Here we have computed the new response orbitals and the residuals
         // Now we need to compute the new density and the new density residuals
         // Instead, update should also update the density
@@ -194,30 +195,24 @@ void FrequencyResponse::iterate(World &world) {
         }
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         x_residuals = copy(new_res.residual_norms);
-        if (world.rank() == 0) { print("copy tensors: bshX"); }
+        residuals = new_res.residual.copy();
         if (compute_y) {
             Chi = new_chi.copy();
         } else {
             Chi.x = new_chi.x.copy();
         }
-        if (world.rank() == 0) { print("copy chi:"); }
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "copy_response_data", "copy_response_data", iter_timing);
         }
-        if (world.rank() == 0) { print("computing chi norms: xij residuals"); }
         density_residuals = density_residuals_old;
         // compute density residuals
         for (const auto &b: Chi.active) {
             density_residuals[b] = (rho_omega_old[b] - new_rho[b]).norm2();
         }
         density_residuals_old = copy(density_residuals);
-
         iter_function_data["r_d"] = density_residuals;
         auto dnorm = norm2s_T(world, rho_omega);
         iter_function_data["d"] = dnorm;
-        if (world.rank() == 0) { print("computing residuals: density residuals"); }
-
-        if (world.rank() == 0) { print("computing polarizability:"); }
         polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
         res_polar = ((compute_y) ? -2 : -4) * response_context.inner(new_res.residual, PQ);
 
@@ -262,13 +257,12 @@ void FrequencyResponse::iterate(World &world) {
     //compute_and_print_polarizability(world, Chi, PQ, "Converged");
 }
 
-auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3> &xc,
-                               std::vector<poperatorT> &bsh_x_ops,
-                               std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector,
-                               double &x_shifts, double &omega_n, response_solver &kain_x_space,
-                               size_t iteration, const double &max_rotation,
-                               const vector_real_function_3d &rho_old,
-                               const Tensor<double> &old_residuals)
+auto FrequencyResponse::update_response(
+        World &world, X_space &chi, XCOperator<double, 3> &xc, std::vector<poperatorT> &bsh_x_ops,
+        std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector, double &x_shifts,
+        double &omega_n, response_solver &kain_x_space, size_t iteration,
+        const double &max_rotation, const vector_real_function_3d &rho_old,
+        const Tensor<double> &old_residuals, const X_space &xres_old)
         -> std::tuple<X_space, residuals, vector_real_function_3d> {
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -277,7 +271,6 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
                         //    auto checkx = x.norm2s();
                         //  if (world.rank() == 0) { print("Right after chi.copy() ", checkx); }
     X_space theta_X = compute_theta_X(world, x, xc, r_params.calc_type());
-    //  if (world.rank() == 0) { print("Right after compute_theta ", checkx); }
     X_space new_chi =
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
@@ -286,9 +279,8 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     inner_to_json(world, "x_new", response_context.inner(new_chi, new_chi), iter_function_data);
 
     auto [new_res, bsh] =
-            update_residual(world, chi, new_chi, r_params.calc_type(), old_residuals);
+            update_residual(world, chi, new_chi, r_params.calc_type(), old_residuals, xres_old);
     inner_to_json(world, "r_x", response_context.inner(new_res, new_res), iter_function_data);
-    //&& iteration < 7
     if (iteration > 0) {// & (iteration % 3 == 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
@@ -297,11 +289,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "update response", "update", iter_timing);
     }
-
-    //	if not compute y then copy x in to y
     return {new_chi, {new_res, bsh}, new_rho};
-
-    // print x norms
 }
 
 auto FrequencyResponse::new_kain_x_space_update(World &world, const X_space &x, const X_space &fx,
@@ -370,7 +358,6 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
         -> X_space {
     if (r_params.print_level() >= 1) {
         molresponse::start_timer(world);
-        if (world.rank() == 0) { print("--------------- BSH UPDATE RESPONSE------------------"); }
     }
     size_t m = theta_X.x.size();
     size_t n = theta_X.x.size_orbitals();
@@ -396,7 +383,6 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
                      */
 
     bsh_X.x = apply(world, bsh_x_ops, theta_X.x);
-    if (world.rank() == 0) { print("--------------- Apply BSH X ------------------"); }
     if (compute_y) { bsh_X.y = apply(world, bsh_y_ops, theta_X.y); }
 
     if (compute_y) {
@@ -405,7 +391,6 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
         bsh_X.x.truncate_rf();
     }
 
-    if (world.rank() == 0) { print("--------------- Apply BSH------------------"); }
 
     auto apply_projector = [&](auto &xi) { return projector(xi); };
     if (compute_y) {
@@ -413,7 +398,6 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     } else {
         for (const auto &i: bsh_X.active) bsh_X.x[i] = projector(bsh_X.x[i]);
     }
-    if (world.rank() == 0) { print("--------------- Project BSH------------------"); }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "bsh_update", "bsh_update", iter_timing);
     }
