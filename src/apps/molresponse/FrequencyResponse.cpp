@@ -176,7 +176,7 @@ void FrequencyResponse::iterate(World &world) {
         checkx = Chi.norm2s();
         auto [new_chi, new_res, new_rho] =
                 update(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega,
-                       kain_x_space, iter, max_rotation, rho_omega);
+                       kain_x_space, iter, max_rotation, rho_omega, x_residuals);
         // Here we have computed the new response orbitals and the residuals
         // Now we need to compute the new density and the new density residuals
         // Instead, update should also update the density
@@ -268,7 +268,8 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
                                std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector,
                                double &x_shifts, double &omega_n, response_solver &kain_x_space,
                                size_t iteration, const double &max_rotation,
-                               const vector_real_function_3d &rho_old)
+                               const vector_real_function_3d &rho_old,
+                               const Tensor<double> &old_residuals)
         -> std::tuple<X_space, residuals, vector_real_function_3d> {
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -287,7 +288,7 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
     inner_to_json(world, "x_new", response_context.inner(new_chi, new_chi), iter_function_data);
 
     auto [new_res, bsh] =
-            update_residual(world, chi, new_chi, r_params.calc_type(), <#initializer #>);
+            update_residual(world, chi, new_chi, r_params.calc_type(), old_residuals);
     inner_to_json(world, "r_x", response_context.inner(new_res, new_res), iter_function_data);
     //&& iteration < 7
     if (iteration > 0) {// & (iteration % 3 == 0)) {
