@@ -286,7 +286,8 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
 
     inner_to_json(world, "x_new", response_context.inner(new_chi, new_chi), iter_function_data);
 
-    auto [new_res, bsh] = compute_residual(world, chi, new_chi, r_params.calc_type());
+    auto [new_res, bsh] =
+            update_residual(world, chi, new_chi, r_params.calc_type(), <#initializer #>);
     inner_to_json(world, "r_x", response_context.inner(new_res, new_res), iter_function_data);
     //&& iteration < 7
     if (iteration > 0) {// & (iteration % 3 == 0)) {

@@ -2151,7 +2151,8 @@ auto ExcitedResponse::update(World &world, X_space &Chi, XCOperator<double, 3> &
     print("BSH update iter = ", iter);
     X_space new_chi = bsh_update_excited(world, new_omega, theta_X, projector);
     //res = Chi - new_chi;
-    auto [new_res, bsh] = compute_residual(world, rotated_chi, new_chi, r_params.calc_type());
+    auto [new_res, bsh] =
+            update_residual(world, rotated_chi, new_chi, r_params.calc_type(), <#initializer #>);
     // kain if iteration >0 or first run where there should not be a problem
     // computed new_chi and res
     if (r_params.kain() && (iter > 0) && true) {

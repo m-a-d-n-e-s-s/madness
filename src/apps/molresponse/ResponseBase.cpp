@@ -1120,22 +1120,24 @@ auto ResponseBase::compute_F0X(World &world, const X_space &X, const XCOperator<
     return F0X;
 }
 
-auto ResponseBase::compute_residual(World &world, const X_space &chi, const X_space &g_chi,
-                                    const std::string &calc_type) -> residuals {
+auto ResponseBase::update_residual(World &world, const X_space &chi, const X_space &g_chi,
+                                   const std::string &calc_type,
+                                   const Tensor<double> &old_residuals) -> residuals {
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     size_t m = chi.x.size();
     size_t n = chi.x.size_orbitals();
     bool compute_y = r_params.omega() != 0.0;
     //	compute residual
-    Tensor<double> residual_norms;
+    Tensor<double> residual_norms = copy(old_residuals);
     X_space res = X_space::zero_functions(world, m, n);
     res.set_active(chi.active);
     if (compute_y) {
         res = g_chi - chi;
-        residual_norms = res.norm2s();
+        auto rx = to_response_matrix(res);
+        for (const auto &b: chi.active) { residual_norms(b) = norm2(world, rx[b]); }
     } else {
         res.x = g_chi.x - chi.x;
-        residual_norms = res.x.norm2();
+        for (const auto &b: chi.active) { residual_norms(b) = norm2(world, res.x[b]); }
         // if (world.rank() == 0) { print("printing residual norms", residual_norms); }
     }
     if (r_params.print_level() >= 1) {
