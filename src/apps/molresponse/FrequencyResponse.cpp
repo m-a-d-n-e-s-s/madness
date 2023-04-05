@@ -89,9 +89,6 @@ void FrequencyResponse::iterate(World &world) {
     } else if (thresh >= 1e-7) {
         max_rotation = .01;
     }
-    // functionT mask;
-    // mask = real_function_3d(real_factory_3d(world).f(mask3).initial_level(4).norefine());
-    //PQ = PQ * mask;
     PQ = generator(world, *this);
     PQ.truncate();
 

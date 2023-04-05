@@ -308,7 +308,7 @@ auto ResponseBase::update_density(World &world, const X_space &chi,
             auto y_phi = mul(world, chi_copy.y[b], ground_orbitals, false);
             world.gop.fence();
             truncate(world, x_phi, thresh);
-            truncate(world, x_phi, thresh);
+            truncate(world, y_phi, thresh);
             density[b] = sum(world, x_phi) + sum(world, y_phi);
         }
 
@@ -338,6 +338,8 @@ auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfu
             auto x_phi = mul(world, chi.x[b], ground_orbitals, false);
             auto y_phi = mul(world, chi.y[b], ground_orbitals, false);
             world.gop.fence();
+            truncate(world, x_phi, thresh);
+            truncate(world, y_phi, thresh);
             density[b] = sum(world, x_phi) + sum(world, y_phi);
         }
 
@@ -347,6 +349,7 @@ auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfu
             auto xb = chi.x[b];
             auto x_phi = mul(world, xb, ground_orbitals, false);
             world.gop.fence();
+            truncate(world, x_phi, thresh);
             rho_b = 2 * sum(world, x_phi);
             b++;
         }
