@@ -1981,8 +1981,9 @@ void ExcitedResponse::iterate(World &world) {
         // The residual is then used to update KAIN
         // Followed by step restriction
         // residual is computed as new_chi-old_chi where both have been previously rotated.
-        auto [new_omega, old_chi, new_chi, new_res] = update(
-                world, Chi, xc, projector, kain_x_space, x_vectors, x_residuals, iter, max_rotation);
+        auto [new_omega, old_chi, new_chi, new_res] =
+                update(world, Chi, xc, projector, kain_x_space, x_vectors, x_residuals, iter,
+                       max_rotation, Tensor<double>());
 
 
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
@@ -2089,7 +2090,7 @@ void ExcitedResponse::iterate(World &world) {
 auto ExcitedResponse::update(World &world, X_space &Chi, XCOperator<double, 3> &xc,
                              QProjector<double, 3> &projector, response_solver &kain_x_space,
                              response_matrix &Xvector, response_matrix &Xresidual, size_t iter,
-                             const double &maxrotn)
+                             const double &maxrotn, const Tensor<double> old_residuals)
         -> std::tuple<Tensor<double>, X_space, X_space, residuals> {
     size_t m = Chi.num_states();
     bool compute_y = not r_params.tda();
@@ -2152,7 +2153,7 @@ auto ExcitedResponse::update(World &world, X_space &Chi, XCOperator<double, 3> &
     X_space new_chi = bsh_update_excited(world, new_omega, theta_X, projector);
     //res = Chi - new_chi;
     auto [new_res, bsh] =
-            update_residual(world, rotated_chi, new_chi, r_params.calc_type(), <#initializer #>);
+            update_residual(world, rotated_chi, new_chi, r_params.calc_type(), old_residuals);
     // kain if iteration >0 or first run where there should not be a problem
     // computed new_chi and res
     if (r_params.kain() && (iter > 0) && true) {

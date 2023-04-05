@@ -296,9 +296,9 @@ auto ResponseBase::update_density(World &world, const X_space &chi,
     auto density = copy(world, old_density);
     auto calc_type = r_params.calc_type();
     auto thresh = FunctionDefaults<3>::get_thresh();
-    auto chi_copy = chi.copy();
-    chi_copy.truncate(thresh);
     if (calc_type == "full") {
+        auto chi_copy = chi.copy();
+        chi_copy.truncate(thresh);
         functionT rhox = factoryT(world);
         functionT rhoy = factoryT(world);
         for (const auto &b: chi_copy.active) {
@@ -313,8 +313,11 @@ auto ResponseBase::update_density(World &world, const X_space &chi,
         }
 
     } else if (calc_type == "static") {
-        for (const auto &b: chi_copy.active) {
-            auto x_phi = mul(world, chi_copy.x[b], ground_orbitals, false);
+
+        auto chi_x_copy = chi.x.copy();
+        chi_x_copy.truncate_rf(thresh);
+        for (const auto &b: chi.active) {
+            auto x_phi = mul(world, chi_x_copy.x[b], ground_orbitals, false);
             world.gop.fence();
             truncate(world, x_phi, thresh);
             density[b] = 2 * sum(world, x_phi);
@@ -322,9 +325,7 @@ auto ResponseBase::update_density(World &world, const X_space &chi,
     } else {
         density = transition_densityTDA(world, ground_orbitals, chi.x);
     }
-    if (world.rank() == 0) { print("make density: made density"); }
     truncate(world, density, thresh);
-    if (world.rank() == 0) { print("make density: truncate"); }
     return density;
 }
 
@@ -527,7 +528,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     J.x = oop_unary_apply(J.x, apply_projector);
     J.y = J.x.copy();
     //   std::transform(J.x.begin(), J.x.end(), J.x.begin(), [&](auto &jxi) { return projector(jxi); });
-    if (world.rank() == 0) { print("copy JX into JY"); }
     world.gop.fence();
     inner_to_json(world, "j1", response_context.inner(chi_alpha, J), iter_function_data);
     if (r_params.print_level() >= 1) {

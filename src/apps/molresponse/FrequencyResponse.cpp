@@ -26,9 +26,8 @@ void FrequencyResponse::iterate(World &world) {
             std::max(FunctionDefaults<3>::get_thresh() * 100, r_params.dconv());//.01 .0001 .1e-5
     auto thresh = FunctionDefaults<3>::get_thresh();
     auto density_target = dconv * std::max(size_t(5.0), molecule.natom());
-    const double a_pow{0.602};
-    const double b_pow{0.314};
-    // Last attempt 1.035 2.121
+    const double a_pow{0.5};
+    const double b_pow{-0.30103};
 
     const double x_relative_target = pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
     // m residuals for x and y
@@ -132,11 +131,11 @@ void FrequencyResponse::iterate(World &world) {
                     print("k: ", FunctionDefaults<3>::get_k());
                     print("Chi Norms at start of iteration: ", iter);
                     print("||X||: ", chi_norms);
-                    print("targets : x", x_relative_target, " d", density_target);
+                    print("targets : ||x||", x_relative_target, "    ||delta_rho||", density_target);
                 }
             }
             auto check_convergence = [&](auto &ri, auto &di) {
-                if (world.rank() == 0) { print(ri, di); }
+                if (world.rank() == 0) { print("          ",ri, di); }
                 return ((ri < x_relative_target) && (di < density_target));
             };
 
@@ -278,7 +277,6 @@ auto FrequencyResponse::update(World &world, X_space &chi, XCOperator<double, 3>
                         //    auto checkx = x.norm2s();
                         //  if (world.rank() == 0) { print("Right after chi.copy() ", checkx); }
     X_space theta_X = compute_theta_X(world, x, xc, r_params.calc_type());
-    //   checkx = x.norm2s();
     //  if (world.rank() == 0) { print("Right after compute_theta ", checkx); }
     X_space new_chi =
             bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
