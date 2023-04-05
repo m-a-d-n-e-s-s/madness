@@ -509,7 +509,7 @@ void set_frequency_response_parameters(World &world, ResponseParameters &r_param
     if (world.rank() == 0) {
         if (precision == "high") {
             r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-8});
-            r_params.set_user_defined_value<double>("dconv", 5e-6);
+            r_params.set_user_defined_value<double>("dconv", 1e-6);
         } else if (precision == "low") {
             r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
             r_params.set_user_defined_value<double>("dconv", 1e-4);

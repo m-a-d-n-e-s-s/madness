@@ -26,8 +26,8 @@ void FrequencyResponse::iterate(World &world) {
             std::max(FunctionDefaults<3>::get_thresh() * 10, r_params.dconv());//.01 .0001 .1e-5
     auto thresh = FunctionDefaults<3>::get_thresh();
     auto density_target = dconv * std::max(size_t(5.0), molecule.natom());
-    const double a_pow{0.5};
-    const double b_pow{-0.30103};
+    const double a_pow{0.50209};
+    const double b_pow{-0.99162};
 
     const double x_relative_target = pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
     // m residuals for x and y
@@ -204,7 +204,7 @@ void FrequencyResponse::iterate(World &world) {
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "copy_response_data", "copy_response_data", iter_timing);
         }
-        density_residuals = density_residuals_old;
+        density_residuals = copy(density_residuals_old);
         // compute density residuals
         for (const auto &b: Chi.active) {
             density_residuals[b] = (rho_omega_old[b] - new_rho[b]).norm2();
@@ -306,7 +306,6 @@ auto FrequencyResponse::new_kain_x_space_update(World &world, const X_space &x, 
     X_space kain_update(world, m, n);
     // step 1 is to place all functions into a single vector
 
-    if (world.rank() == 0) { print("----------------Start Kain Update -----------------"); }
 
     vector_real_function_3d vect_x(m * n * p);
     vector_real_function_3d vect_fx(m * n * p);

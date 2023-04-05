@@ -359,9 +359,7 @@ auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfu
     } else {
         density = transition_densityTDA(world, ground_orbitals, chi.x);
     }
-    if (world.rank() == 0) { print("make density: made density"); }
     truncate(world, density, thresh);
-    if (world.rank() == 0) { print("make density: truncate"); }
     return density;
 }
 
@@ -416,7 +414,6 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
 
     if (r_params.print_level() >= 1) {
         molresponse::start_timer(world);
-        if (world.rank() == 0) { print("------------compute theta x_________"); }
     }
     //     std::cout << "MPI BARRIER 3 " << std::endl;
     //     world.mpi.Barrier();
@@ -1159,7 +1156,6 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
     response_matrix update(m);
 
     bool compute_y = r_params.omega() != 0.0;
-    if (world.rank() == 0) { print("----------------Start Kain Update -----------------"); }
     if (compute_y) {
         auto x_vectors = to_response_matrix(chi);
         auto x_residuals = to_response_matrix(residual_chi);
@@ -1175,7 +1171,6 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
             kain_update.x[i] = kain_x_space[i].update(chi.x[i], residual_chi.x[i]);
         }
     }
-    if (world.rank() == 0) { print("----------------End Kain Update -----------------"); }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "kain_x_update", "kain_x_update", iter_timing);
     }
@@ -1192,7 +1187,6 @@ void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     print(max_bsh_rotation);
-    if (world.rank() == 0) { print("----------------Start Step Restriction -----------------"); }
     if (compute_y) {
         auto diff = temp - old_Chi;
         auto m_old = to_response_matrix(old_Chi);
