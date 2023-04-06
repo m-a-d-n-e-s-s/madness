@@ -29,8 +29,6 @@ void FrequencyResponse::iterate(World &world) {
     const double b_pow{-0.99162};
 
     const double x_relative_target = pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
-    // m residuals for x and y
-    Tensor<double> x_residuals((int(m)));
     Tensor<double> x_relative_residuals((int(m)));
     Tensor<double> density_residuals((int(m)));
     Tensor<double> density_residuals_old((int(m)));
@@ -113,12 +111,9 @@ void FrequencyResponse::iterate(World &world) {
             auto chi_norms = (compute_y) ? Chi.norm2s() : Chi.x.norm2();
             auto rho_norms = madness::norm2s_T(world, rho_omega);
 
-            std::transform(x_residuals.ptr(), x_residuals.ptr() + x_residuals.size(),
-                           chi_norms.ptr(), x_relative_residuals.ptr(),
-                           [](auto bsh, auto norm_chi) { return bsh / norm_chi; });
             // Todo add chi norm and chi_x
             if (world.rank() == 0) {
-                function_data_to_json(j_molresponse, iter, chi_norms, x_residuals, rho_norms,
+                function_data_to_json(j_molresponse, iter, chi_norms, x_relative_residuals, rho_norms,
                                       density_residuals);
                 frequency_to_json(j_molresponse, iter, polar, res_polar);
             }
@@ -174,7 +169,7 @@ void FrequencyResponse::iterate(World &world) {
         checkx = Chi.norm2s();
         auto [new_chi, new_res, new_rho] = update_response(
                 world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega, kain_x_space,
-                iter, max_rotation, rho_omega, x_residuals, residuals);
+                iter, max_rotation, rho_omega, x_relative_residuals, residuals);
         // Here we have computed the new response orbitals and the residuals
         // Now we need to compute the new density and the new density residuals
         // Instead, update should also update the density
@@ -192,7 +187,7 @@ void FrequencyResponse::iterate(World &world) {
             molresponse::end_timer(world, "make_density_new", "make_density_new", iter_timing);
         }
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-        x_residuals = copy(new_res.residual_norms);
+        x_relative_residuals = copy(new_res.residual_norms);
         residuals = new_res.residual.copy();
         if (compute_y) {
             Chi = new_chi.copy();
@@ -208,6 +203,7 @@ void FrequencyResponse::iterate(World &world) {
         }
         density_residuals_old = copy(density_residuals);
         iter_function_data["r_d"] = density_residuals;
+        iter_function_data["x_relative_residuals"] = x_relative_residuals;
         auto dnorm = norm2s_T(world, rho_omega);
         iter_function_data["d"] = dnorm;
         polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
@@ -245,7 +241,7 @@ void FrequencyResponse::iterate(World &world) {
     }
     if (world.rank() == 0) {
         print(" Final energy residuals X:");
-        print(x_residuals);
+        print(x_relative_residuals);
         print(" Final density residuals:");
         print(density_residuals);
     }
@@ -276,7 +272,7 @@ auto FrequencyResponse::update_response(
     auto [new_res, bsh] =
             update_residual(world, chi, new_chi, r_params.calc_type(), old_residuals, xres_old);
     inner_to_json(world, "r_x", response_context.inner(new_res, new_res), iter_function_data);
-    if (iteration > 0) {// & (iteration % 3 == 0)) {
+    if (iteration >= 0) {// & (iteration % 3 == 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
     inner_to_json(world, "x_update", response_context.inner(new_chi, new_chi), iter_function_data);
