@@ -412,9 +412,7 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
                                    const XCOperator<double, 3> &xc,
                                    const std::string &calc_type) const -> X_space {
 
-    if (r_params.print_level() >= 1) {
-        molresponse::start_timer(world);
-    }
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     //     std::cout << "MPI BARRIER 3 " << std::endl;
     //     world.mpi.Barrier();
     bool compute_Y = calc_type == "full";
@@ -1274,36 +1272,23 @@ void ResponseBase::plotResponseOrbitals(World &world, size_t iteration,
             snprintf(plot_name, buffSize, "plots/densities/rho0_%c_0.plt", dir[d]);
             plot_line(plot_name, 5001, plt.lo, plt.hi, rho0);
         }
-        for (int i = 0; i < static_cast<int>(n); i++) {
-            // print ground_state
-            // plot gound_orbitals
-            snprintf(plot_name, buffSize, "plots/orbitals/phi0_%c_0_%d.plt", dir[d],
-                     static_cast<int>(i));
-            plot_line(plot_name, 5001, plt.lo, plt.hi, ground_orbitals[i]);
-        }
+        // plot ground orbitals and transition densities in xyz directions
+        snprintf(plot_name, buffSize, "plots/orbitals/phi0_%c_0.plt", dir[d]);
+        plot_line(plot_name, 5001, plt.lo, plt.hi, ground_orbitals);
+        snprintf(plot_name, buffSize, "plots/densities/rho1_%d.plt", dir[d]);
+        plot_line(plot_name, 5001, plt.lo, plt.hi, rho1);
 
         for (int b = 0; b < static_cast<int>(m); b++) {
-            // plot rho1 direction d state b
-            snprintf(plot_name, buffSize, "plots/densities/rho1_%c_%d.plt", dir[d],
+            // plot x and y transition orbitals
+            snprintf(plot_name, buffSize, "plots/orbitals/phix_%c_%d.plt", dir[d],
                      static_cast<int>(b));
-            plot_line(plot_name, 5001, plt.lo, plt.hi, rho1[b]);
-
-            for (int i = 0; i < static_cast<int>(n); i++) {
-                // print ground_state
-                // plot x function  x_dir_b_i__k_iter
-                snprintf(plot_name, buffSize, "plots/orbitals/phix_%c_%d_%d.plt", dir[d],
-                         static_cast<int>(b), static_cast<int>(i));
-                plot_line(plot_name, 5001, plt.lo, plt.hi, x_response[b][i]);
-
-                // plot y functione  y_dir_b_i__k_iter
-                snprintf(plot_name, buffSize, "plots/orbitals/phiy_%c_%d_%d.plt", dir[d],
-                         static_cast<int>(b), static_cast<int>(i));
-                plot_line(plot_name, 5001, plt.lo, plt.hi, y_response[b][i]);
-            }
+            plot_line(plot_name, 5001, plt.lo, plt.hi, x_response[b]);
+            snprintf(plot_name, buffSize, "plots/orbitals/phiy_%c_%d.plt", dir[d],
+                     static_cast<int>(b));
+            plot_line(plot_name, 5001, plt.lo, plt.hi, y_response[b]);
         }
     }
     world.gop.fence();
-
     // END TESTING
 }
 
