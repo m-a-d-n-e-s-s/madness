@@ -98,6 +98,9 @@ public:
 class response_data {
     std::map<std::string, std::vector<Tensor<double>>> function_data;
     int iter;
+    std::vector<double> thresh;
+    std::vector<double> density_target;
+    std::vector<double> bsh_target;
 
 public:
     response_data();
@@ -105,6 +108,7 @@ public:
     void to_json(json &j);
 
     void add_data(std::map<std::string, Tensor<double>> values);
+    void add_convergence_targets(double p_thresh, double p_density_target, double p_bsh_target);
 };
 
 class ResponseTester;

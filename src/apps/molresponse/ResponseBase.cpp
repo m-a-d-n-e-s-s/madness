@@ -548,8 +548,8 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     inner_to_json(world, "v1_xc", response_context.inner(chi_alpha, W), iter_function_data);
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    //auto K = response_exchange_multiworld(phi0, chi_alpha, true);
-     auto K = response_exchange(phi0, chi_alpha, true);
+    auto K = response_exchange_multiworld(phi0, chi_alpha, true);
+     //auto K = response_exchange(phi0, chi_alpha, true);
 
     K = oop_apply(K, apply_projector);
     // std::transform(K.x.begin(), K.x.end(), K.x.begin(), [&](auto &kxi) { return projector(kxi); });
@@ -2090,11 +2090,8 @@ void response_timing::to_json(json &j) {
 
     j["time_data"] = json();
     j["time_data"]["iterations"] = iter;
-
-
     j["time_data"]["wall_time"] = json();
     for (const auto &e: wall_time_data) { j["time_data"]["wall_time"][e.first] = e.second; }
-
     j["time_data"]["cpu_time"] = json();
     for (const auto &e: cpu_time_data) { j["time_data"]["cpu_time"][e.first] = e.second; }
 }
@@ -2112,12 +2109,20 @@ void response_data::add_data(std::map<std::string, Tensor<double>> values) {
         v.second.push_back(values[v.first]);// .first to get first value of pair wall_time
     });
 }
+void response_data::add_convergence_targets(double p_thresh, double p_density_target, double p_bsh_target) {
+    this->thresh.push_back(p_thresh);
+    this->density_target.push_back(p_density_target);
+    this->bsh_target.push_back(p_bsh_target);
+}
 
 void response_data::to_json(json &j) {
     //::print("FREQUENCY TIME DATA TO JSON");
 
     j["response_data"] = json();
     j["response_data"]["iterations"] = iter;
+    j["response_data"]["thresh"] = thresh;
+    j["response_data"]["density_target"] = density_target;
+    j["response_data"]["bsh_target"] = bsh_target;
 
 
     j["response_data"]["data"] = json();

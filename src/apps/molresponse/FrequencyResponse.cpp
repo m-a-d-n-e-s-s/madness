@@ -21,7 +21,6 @@ void FrequencyResponse::iterate(World &world) {
     size_t m = r_params.num_states();  // Number of excited states
 
     real_function_3d v_xc;
-    // the Final protocol should be equal to dconv at the minimum
     const double dconv =
             std::max(FunctionDefaults<3>::get_thresh() * 10, r_params.dconv());//.01 .0001 .1e-5
     auto thresh = FunctionDefaults<3>::get_thresh();
@@ -40,10 +39,7 @@ void FrequencyResponse::iterate(World &world) {
     bool compute_y = not static_res;
     int r_vector_size;
     all_done = false;
-
-
     r_vector_size = (compute_y) ? 2 * n : n;
-
     Tensor<double> v_polar(m, m);
     Tensor<double> polar;
     Tensor<double> res_polar;
@@ -91,7 +87,6 @@ void FrequencyResponse::iterate(World &world) {
     PQ = generator(world, *this);
     PQ.truncate();
     PQ = PQ * mask;
-
 
     vector<bool> converged(Chi.num_states(), false);
     Chi.reset_active();
@@ -208,7 +203,6 @@ void FrequencyResponse::iterate(World &world) {
             molresponse::end_timer(world, "copy_response_data", "copy_response_data", iter_timing);
         }
         density_residuals = copy(density_residuals_old);
-        // compute density residuals
         for (const auto &b: Chi.active) {
             density_residuals[b] = (rho_omega_old[b] - new_rho[b]).norm2();
         }
@@ -218,7 +212,6 @@ void FrequencyResponse::iterate(World &world) {
         iter_function_data["d"] = dnorm;
         polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
         res_polar = ((compute_y) ? -2 : -4) * response_context.inner(new_res.residual, PQ);
-
         inner_to_json(world, "alpha", polar, iter_function_data);
         inner_to_json(world, "r_alpha", res_polar, iter_function_data);
         if (r_params.print_level() >= 20) {
@@ -231,16 +224,15 @@ void FrequencyResponse::iterate(World &world) {
                 print(res_polar);
             }
         }
-
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "Iteration Timing", "iter_total", iter_timing);
         }
         time_data.add_data(iter_timing);
         function_data.add_data(iter_function_data);
     }
-
+    function_data.add_convergence_targets(FunctionDefaults<3>::get_thresh(), density_target,
+                                          x_relative_target);
     Chi.reset_active();
-
     if (world.rank() == 0) print("\n");
     if (world.rank() == 0) print("   Finished Response Calculation ");
     if (world.rank() == 0) print("   ------------------------");
