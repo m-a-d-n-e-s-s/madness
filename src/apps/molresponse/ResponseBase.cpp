@@ -113,7 +113,7 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
         if (FunctionDefaults<3>::get_k() != stored_v_nuc.k())
             stored_v_nuc = project(stored_v_nuc, FunctionDefaults<3>::get_k(), thresh, false);
     }
-    // Don't forget the mask function as well
+    // project the mask
     if (FunctionDefaults<3>::get_k() != mask.k()) {
         mask = project(mask, FunctionDefaults<3>::get_k(), thresh, false);
         if (world.rank() == 0) { print("check k: project mask"); }

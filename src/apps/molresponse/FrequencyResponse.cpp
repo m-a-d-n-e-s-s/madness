@@ -90,12 +90,15 @@ void FrequencyResponse::iterate(World &world) {
     }
     PQ = generator(world, *this);
     PQ.truncate();
+    PQ = PQ * mask;
+
 
     vector<bool> converged(Chi.num_states(), false);
     Chi.reset_active();
     rho_omega = make_density(world, Chi);
 
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
+        Chi = Chi * mask;
         auto checkx = Chi.norm2s();
         //if (world.rank() == 0) { print("At the start of iterate x", checkx); }
         iter_timing.clear();
@@ -355,9 +358,7 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
                                             std::vector<poperatorT> &bsh_y_ops,
                                             QProjector<double, 3> &projector, double &x_shifts)
         -> X_space {
-    if (r_params.print_level() >= 1) {
-        molresponse::start_timer(world);
-    }
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     size_t m = theta_X.x.size();
     size_t n = theta_X.x.size_orbitals();
     bool compute_y = omega != 0.0;
