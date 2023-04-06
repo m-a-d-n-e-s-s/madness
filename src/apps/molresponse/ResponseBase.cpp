@@ -548,8 +548,8 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     inner_to_json(world, "v1_xc", response_context.inner(chi_alpha, W), iter_function_data);
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    auto K = response_exchange_multiworld(phi0, chi_alpha, true);
-    // auto K = response_exchange(phi0, chi_alpha, true);
+    //auto K = response_exchange_multiworld(phi0, chi_alpha, true);
+     auto K = response_exchange(phi0, chi_alpha, true);
 
     K = oop_apply(K, apply_projector);
     // std::transform(K.x.begin(), K.x.end(), K.x.begin(), [&](auto &kxi) { return projector(kxi); });
@@ -1275,7 +1275,7 @@ void ResponseBase::plotResponseOrbitals(World &world, size_t iteration,
         // plot ground orbitals and transition densities in xyz directions
         snprintf(plot_name, buffSize, "plots/orbitals/phi0_%c_0.plt", dir[d]);
         plot_line(plot_name, 5001, plt.lo, plt.hi, ground_orbitals);
-        snprintf(plot_name, buffSize, "plots/densities/rho1_%d.plt", dir[d]);
+        snprintf(plot_name, buffSize, "plots/densities/rho1_%c.plt", dir[d]);
         plot_line(plot_name, 5001, plt.lo, plt.hi, rho1);
 
         for (int b = 0; b < static_cast<int>(m); b++) {
