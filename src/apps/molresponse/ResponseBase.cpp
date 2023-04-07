@@ -298,29 +298,21 @@ auto ResponseBase::update_density(World &world, const X_space &chi,
     auto thresh = FunctionDefaults<3>::get_thresh();
 
     if (calc_type == "full") {
-        auto chi_copy = chi.copy();
-        chi_copy.truncate(thresh);
         functionT rhox = factoryT(world);
         functionT rhoy = factoryT(world);
-        for (const auto &b: chi_copy.active) {
+        for (const auto &b: chi.active) {
 
 
-            auto x_phi = mul(world, chi_copy.x[b], ground_orbitals, false);
-            auto y_phi = mul(world, chi_copy.y[b], ground_orbitals, false);
+            auto x_phi = mul(world, chi.x[b], ground_orbitals, false);
+            auto y_phi = mul(world, chi.y[b], ground_orbitals, false);
             world.gop.fence();
-            truncate(world, x_phi, thresh);
-            truncate(world, y_phi, thresh);
             density[b] = sum(world, x_phi) + sum(world, y_phi);
         }
 
     } else if (calc_type == "static") {
-
-        auto chi_x_copy = chi.x.copy();
-        chi_x_copy.truncate_rf(thresh);
         for (const auto &b: chi.active) {
-            auto x_phi = mul(world, chi_x_copy.x[b], ground_orbitals, false);
+            auto x_phi = mul(world, chi.x[b], ground_orbitals, false);
             world.gop.fence();
-            truncate(world, x_phi, thresh);
             density[b] = 2 * sum(world, x_phi);
         }
     } else {
@@ -340,8 +332,6 @@ auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfu
             auto x_phi = mul(world, chi.x[b], ground_orbitals, false);
             auto y_phi = mul(world, chi.y[b], ground_orbitals, false);
             world.gop.fence();
-            truncate(world, x_phi, thresh);
-            truncate(world, y_phi, thresh);
             density[b] = sum(world, x_phi) + sum(world, y_phi);
         }
 
@@ -351,7 +341,6 @@ auto ResponseBase::make_density(World &world, const X_space &chi) const -> vecfu
             auto xb = chi.x[b];
             auto x_phi = mul(world, xb, ground_orbitals, false);
             world.gop.fence();
-            truncate(world, x_phi, thresh);
             rho_b = 2 * sum(world, x_phi);
             b++;
         }
