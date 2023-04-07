@@ -1118,7 +1118,6 @@ auto ResponseBase::update_residual(World &world, const X_space &chi, const X_spa
         for (const auto &b: chi.active) {
             residual_norms(b) = norm2(world, res.x[b]) / norm2(world, g_chi.x[b]);
         }
-        // if (world.rank() == 0) { print("printing residual norms", residual_norms); }
     }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_bsh_residual", "compute_bsh_residual", iter_timing);
@@ -1140,14 +1139,12 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi,
     if (compute_y) {
         auto x_vectors = to_response_matrix(chi);
         auto x_residuals = to_response_matrix(residual_chi);
-        int b = 0;
         for (const auto &i: Chi.active) {
             auto temp = kain_x_space[i].update(x_vectors[i], x_residuals[i]);
             std::copy(temp.begin(), temp.begin() + n, kain_update.x[i].begin());
             std::copy(temp.begin() + n, temp.end(), kain_update.y[i].begin());
         };
     } else {
-        int b = 0;
         for (const auto &i: Chi.active) {
             kain_update.x[i] = kain_x_space[i].update(chi.x[i], residual_chi.x[i]);
         }

@@ -110,8 +110,8 @@ void FrequencyResponse::iterate(World &world) {
 
             // Todo add chi norm and chi_x
             if (world.rank() == 0) {
-                function_data_to_json(j_molresponse, iter, chi_norms, x_relative_residuals, rho_norms,
-                                      density_residuals);
+                function_data_to_json(j_molresponse, iter, chi_norms, x_relative_residuals,
+                                      rho_norms, density_residuals);
                 frequency_to_json(j_molresponse, iter, polar, res_polar);
             }
             if (r_params.print_level() >= 1) {
@@ -121,7 +121,7 @@ void FrequencyResponse::iterate(World &world) {
                     print("k: ", FunctionDefaults<3>::get_k());
                     print("Chi Norms at start of iteration: ", iter);
                     print("||X||: ", chi_norms);
-                    print("polarizability: ", polar);
+                    print("polarizability: \n", polar);
                     print("targets : ||x||", x_relative_target, "    ||delta_rho||",
                           density_target);
                 }
@@ -362,11 +362,6 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     // apply bsh
     X_space bsh_X(world, m, n);
     bsh_X.active = theta_X.active;
-    /*
-    bsh_x_ops.insert(bsh_x_ops.end(), std::make_move_iterator(bsh_y_ops.begin()),
-                     std::make_move_iterator(bsh_y_ops.end()));
-                     */
-
     bsh_X.x = apply(world, bsh_x_ops, theta_X.x);
     if (compute_y) { bsh_X.y = apply(world, bsh_y_ops, theta_X.y); }
 
@@ -375,7 +370,6 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     } else {
         bsh_X.x.truncate_rf();
     }
-
 
     auto apply_projector = [&](auto &xi) { return projector(xi); };
     if (compute_y) {
