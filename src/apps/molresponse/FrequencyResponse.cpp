@@ -90,8 +90,6 @@ void FrequencyResponse::iterate(World &world) {
     rho_omega = make_density(world, Chi);
 
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
-        Chi = Chi * mask;
-        auto checkx = Chi.norm2s();
         //if (world.rank() == 0) { print("At the start of iterate x", checkx); }
         iter_timing.clear();
         iter_function_data.clear();
@@ -165,7 +163,6 @@ void FrequencyResponse::iterate(World &world) {
             }
         }
         inner_to_json(world, "x", response_context.inner(Chi, Chi), iter_function_data);
-        checkx = Chi.norm2s();
         auto [new_chi, new_res, new_rho] = update_response(
                 world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega, kain_x_space,
                 iter, max_rotation, rho_omega, x_relative_residuals, residuals);
