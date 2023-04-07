@@ -84,7 +84,6 @@ void FrequencyResponse::iterate(World &world) {
     }
     PQ = generator(world, *this);
     PQ.truncate();
-    PQ = PQ * mask;
 
     vector<bool> converged(Chi.num_states(), false);
     Chi.reset_active();
