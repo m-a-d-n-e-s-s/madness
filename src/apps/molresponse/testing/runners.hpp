@@ -364,7 +364,7 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
         param1.set_user_defined_value("maxiter", 20);
         //param1.set_user_defined_value("Kain", true);
         param1.set_user_defined_value<std::string>("xc", moldftSchema.xc);
-        param1.set_user_defined_value<double>("l", 50);
+        param1.set_user_defined_value<double>("l", 100);
 
         if (precision == "low") {
             param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
