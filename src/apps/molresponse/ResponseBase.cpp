@@ -514,6 +514,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     std::vector<SeparatedConvolution<double, 3> *> pis;
     int b = 0;
     functionT temp_J;
+    // apply coulomb operator to each active response state and multiply by phi0
     for (const auto &i: chi_alpha.active) {
         temp_J = apply(*coul_ops[i], rho_b[i]);
         temp_J.truncate(FunctionDefaults<3>::get_thresh());
@@ -521,9 +522,8 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     }
     world.gop.fence();
     J.x.truncate_rf();
-    J.x = oop_unary_apply(J.x, apply_projector);
+    //J.x = oop_unary_apply(J.x, apply_projector);
     J.y = J.x.copy();
-    //   std::transform(J.x.begin(), J.x.end(), J.x.begin(), [&](auto &jxi) { return projector(jxi); });
     world.gop.fence();
     inner_to_json(world, "j1", response_context.inner(chi_alpha, J), iter_function_data);
     if (r_params.print_level() >= 1) {
@@ -549,12 +549,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     auto K = response_exchange_multiworld(phi0, chi_alpha, true);
-    //auto K = response_exchange(phi0, chi_alpha, true);
-
-    K = oop_apply(K, apply_projector);
-    // std::transform(K.x.begin(), K.x.end(), K.x.begin(), [&](auto &kxi) { return projector(kxi); });
-    // std::transform(K.y.begin(), K.y.end(), K.y.begin(), [&](auto &kyi) { return projector(kyi); });
-
+    //K = oop_apply(K, apply_projector);
 
     inner_to_json(world, "k1", response_context.inner(chi_alpha, K), iter_function_data);
     if (r_params.print_level() >= 1) {
@@ -578,12 +573,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     gamma = oop_apply(gamma, apply_projector);
-    /*
-    std::transform(gamma.x.begin(), gamma.x.end(), gamma.x.begin(),
-                   [&](auto &gxi) { return projector(gxi); });
-    std::transform(gamma.y.begin(), gamma.y.end(), gamma.y.begin(),
-                   [&](auto &gyi) { return projector(gyi); });
-                   */
 
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_project", "gamma_project", iter_timing);
