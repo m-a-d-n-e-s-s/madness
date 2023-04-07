@@ -444,6 +444,18 @@ class longfloat:
 
         return (self,value)
 
+    # def __shift(value, shift):
+    #     vabs = abs(value)
+    #     vsgn = 1
+    #     if value < 0: vsgn = -1
+
+    #     if shift < 0:
+    #         value = value >> abs(shift)
+    #     else:
+    #         value = value << shift
+
+    #     return value
+
     def __float__(self):
         # If the mantissa is too long then the standard conversion
         # of long to float does not work.  Ugh.
@@ -509,29 +521,37 @@ class longfloat:
         tmp = longfloat(x)
         tmp.exponent = 0
         tmp = tmp*tenr10
+        #print "tmp", repr(tmp)
 
         # Shift the mantissa to zero the remaining exponent
         etmp = tmp.exponent
         mtmp = tmp.mantissa
         m10 = tmp.mantissa
 
+        #print "m10.a", m10
         if etmp > 0:
             m10 = m10 << etmp
         elif etmp < 0:
             # Cannot just shift ... must round correctly.
             # Examine the last bit discarded
             etmp = abs(etmp)
-            m10 = m10 >> (etmp-1)
-            if (m10 & 1):
-                m10 = m10 + 2
-            m10 = m10 >> 1
+            mabs = abs(m10)
+            msgn = 1
+            if m10<0: msgn = -1
+            
+            mabs = mabs >> (etmp-1)
+            if (mabs & 1):
+                mabs = mabs + 2
+            mabs = mabs >> 1
+            m10 = msgn * mabs
+        #print "m10.b", m10
             
         # Now we have e10 and m10
         # Count the no. of decimal figures in m10 so that we can
         # have one significant figure before the decimal point
         strm = str(abs(m10))
         n10 = len(strm) - 2
-        e10 = e10 + n10
+        e10 = e10 + n10 + 1 ############ RJH 2/10/23
 
         # Finally can generate the result
         signm = '+'
@@ -1284,50 +1304,62 @@ class longfloat:
         Truncates self to the required number of significant binary digits.
         '''
         nchopped = self.__nbits_in_mantissa() - longfloat.nbits
-        if nchopped > 0:
-            round = (self.mantissa > 0) and ((self.mantissa >> (nchopped-1)) & 1L)
-            self.mantissa = self.mantissa >> nchopped
-            if round: self.mantissa = self.mantissa + 1
+        if self.mantissa == 0:
+            self.exponent = 0
+
+        if self.mantissa != 0 and nchopped > 0:
+            signm = 1
+            if self.mantissa<0: signm = -1
+            absm = abs(self.mantissa)
+            round = (absm >> (nchopped-1)) & 1L
+            
+            absm = absm >> nchopped
+            if round:
+                absm = absm + 1
+                    
+            self.mantissa = signm * absm
             self.exponent = self.exponent + nchopped
-            if not self.mantissa: self.exponent = 0
  
-    def other_truncate(self, nbits=None):
-        '''
-        Truncates self to the required number of significant binary digits.
-        '''
-        if nbits == None:
-            nbits = self.nbits
+    # def other_truncate(self, nbits=None):
+    #     '''
+    #     Truncates self to the required number of significant binary digits.
+    #     '''
+    #     if nbits == None:
+    #         nbits = self.nbits
         
-        eold = e = self.exponent
-        m = self.mantissa
+    #     eold = e = self.exponent
+    #     m = self.mantissa
 
-        k = nbits  # Multiplications typically double the no. of bits
-        test  = (1L << nbits)-1  # The biggest permisible mantissa
+    #     k = nbits  # Multiplications typically double the no. of bits
+    #     test  = (1L << nbits)-1  # The biggest permisible mantissa
 
-        flag = (abs(m) > test)
-        while flag:
-            mk = m >> k
-            flag2 = (abs(mk) > test)
-            if (k == 1) or flag2:
-                m = mk
-                flag = flag2
-                e = e + k
-                if k > 1:
-                    k = k >> 1
-            else:
-                k = k >> 1
+    #     flag = (abs(m) > test)
+    #     while flag:
+    #         mk = m >> k
+    #         flag2 = (abs(mk) > test)
+    #         if (k == 1) or flag2:
+    #             m = mk
+    #             flag = flag2
+    #             e = e + k
+    #             if k > 1:
+    #                 k = k >> 1
+    #         else:
+    #             k = k >> 1
 
-        if self.debug:
-            print 'longfloat: truncate: nbits lost =', e - eold
-        if m == 0L: e = 0
+    #     if self.debug:
+    #         print 'longfloat: truncate: nbits lost =', e - eold
+    #     if m == 0L: e = 0
 
-        # Comment out the next three lines to stop rounding
-        if (e-eold):
-            if (self.mantissa >> (e-eold-1)) & 1:
-                m = m + 1
+    #     # Comment out the next five lines to stop rounding
+    #     if (e-eold):
+    #         if (self.mantissa >> (e-eold-1)) & 1:
+    #             if m > 0:
+    #                 m = m + 1
+    #             else:
+    #                 m = m - 1
 
-        self.exponent = e
-        self.mantissa = m
+    #     self.exponent = e
+    #     self.mantissa = m
 
     def __div__(self, other):
         return self*other.reciprocal()
@@ -1337,11 +1369,12 @@ class longfloat:
         
 
 def __mp_do_test(test_nbits,ntest=10,ntime=10):
-    from whrandom import random, seed
+    from random import random, seed
     from sys import exit
     from time import clock
 
-    seed((3*test_nbits-1)%256,(5*test_nbits-2)%256,(7*test_nbits-3)%256)
+    #seed((3*test_nbits-1)%256,(5*test_nbits-2)%256,(7*test_nbits-3)%256)
+    seed(777*test_nbits)
 
     savenbits = longfloat.nbits
     longfloat.nbits = test_nbits
@@ -1596,60 +1629,61 @@ def __mp_do_test(test_nbits,ntest=10,ntime=10):
     print ' restored longfloat.nbits ', savenbits
 
 if __name__ == "__main__":
+    print ' HI'
+    __mp_do_test(104,ntest=3,ntime=3)
+    __mp_do_test(208,ntest=3,ntime=3)
+    __mp_do_test(500)
+    #__mp_do_test(1000)
+    
     from time import clock
     I = interpolators()
-##     print ' EXP '
-##     vv = I.exp(longfloat(0.25))
-##     start = clock()
-##     for i in range(10):
-##         vv = I.exp(longfloat(0.25))
-##     used = (clock() - start)/10
-##     print ' NEW ', used
-##     start = clock()
-##     for i in range(10):
-##         vv = longfloat(0.25).exp()
-##     used = (clock() - start)/10
-##     print ' OLD ', used
-    ## print ' SIN '
-##     print I.sin(0.25,1e-16)
-##     print sin(0.25)
-##     print ' COS '
-##     print I.cos(0.25,1e-16)
-##     print cos(0.25)
+    print ' EXP '
+    vv = I.exp(longfloat(0.25))
+    start = clock()
+    for i in range(10):
+        vv = I.exp(longfloat(0.25))
+    used = (clock() - start)/10
+    print ' NEW ', used
+    start = clock()
+    for i in range(10):
+        vv = longfloat(0.25).exp()
+    used = (clock() - start)/10
+    print ' OLD ', used
+    print ' SIN '
+    print I.sin(0.25,1e-16)
+    print sin(0.25)
+    print ' COS '
+    print I.cos(0.25,1e-16)
+    print cos(0.25)
     print ' LOG '
     print I.log(longfloat(0.9))
     print longfloat(0.9).log()
     q = longfloat(0.72)
     I.log(q)
-##     start = clock()
-##     for i in range(10):
-##         vv = I.log(q)
-##     used = (clock() - start)/10
-##     print ' NEW ', used
-##     start = clock()
-##     for i in range(10):
-##         vv = q.log()
-##     used = (clock() - start)/10
-##     print ' OLD ', used
+    start = clock()
+    for i in range(10):
+        vv = I.log(q)
+    used = (clock() - start)/10
+    print ' NEW ', used
+    start = clock()
+    for i in range(10):
+        vv = q.log()
+    used = (clock() - start)/10
+    print ' OLD ', used
     import profile
     profile.run('for i in range(100): q.reciprocal()')
-##     print ' ASIN by inversion'
-##     print I.invert(0.25,I.sindsin,0.3,1e-16)
-##     print asin(0.25)
-##     print ' ACOS by inversion'
-##     print I.invert(0.25,I.cosdcos,1.1,1e-16)
-##     print acos(0.25)
-##     print ' EXP=ALOG by inversion'
-##     print I.invert(0.25,I.logdlog,1.0,1e-16)
-##     print exp(0.25)
-##     print ' LOG=AEXP by inversion'
-##     print I.invert(1.35,I.expdexp,0.2,1e-16)
-##     print log(1.35)
-    #print ' HI'
-    #__mp_do_test(104,ntest=3,ntime=3)
-    #__mp_do_test(208,ntest=3,ntime=3)
-    #__mp_do_test(500)
-    #__mp_do_test(1000)
+    print ' ASIN by inversion'
+    print I.invert(0.25,I.sindsin,0.3,1e-16)
+    print asin(0.25)
+    print ' ACOS by inversion'
+    print I.invert(0.25,I.cosdcos,1.1,1e-16)
+    print acos(0.25)
+    print ' EXP=ALOG by inversion'
+    print I.invert(0.25,I.logdlog,1.0,1e-16)
+    print exp(0.25)
+    print ' LOG=AEXP by inversion'
+    print I.invert(1.35,I.expdexp,0.2,1e-16)
+    print log(1.35)
 else:
     #print ' reimported mp'
     pass

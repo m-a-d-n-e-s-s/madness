@@ -7,6 +7,7 @@ class Quadrature:
         self.uselongfloat = uselongfloat
 
         if uselongfloat:
+            longfloat.nbits += 30
             region = [longfloat(region[0]),longfloat(region[1])]
             
         self.order = order
@@ -31,6 +32,11 @@ class Quadrature:
 
         self.x = x   
         self.w = w
+        if uselongfloat:
+            longfloat.nbits -= 30
+	    for i in range(self.order):
+                self.x[i].truncate()
+                self.w[i].truncate()
 
     def __pn(self, n,x):
         '''
@@ -132,6 +138,16 @@ class Quadrature:
 
             roots[k] = x
             weights[k] = w
+
+        nhalf = (n-1)/2+1
+        if (n%2) == 1 and n>1:
+            roots[nhalf-1] = 0
+        for i in range(nhalf):
+            j = n - i - 1
+            roots[j] = 0.5 * (roots[j] - roots[i])
+            roots[i] = -roots[j]
+            weights[i] = weights[j] = 0.5 * (weights[j] + weights[i])
+            #print i,j,str(roots[i]+roots[j]),str(weights[i]-weights[j])
 
         return (roots,weights)
 
@@ -335,7 +351,7 @@ class Quadrature:
 def QuadratureTest(uselongfloat=0):
     ''' Test the Gauss-Legendre quadrature on [0.5,1] '''
     maxmaxerr = 0.0
-    for order in range(1,20):
+    for order in range(1,121):
         q = Quadrature(order,[0.5,1.0],uselongfloat=uselongfloat)
         maxerr = 0.0
         for power in range(2*order):
@@ -362,7 +378,7 @@ def QuadratureTest2(uselongfloat=0):
         two = longfloat(2)
         rootpi = two.pi().sqrt()
 
-    for order in range(2,24):
+    for order in range(2,121):
         q = Quadrature(order,rule="GaussHermite",
                        uselongfloat=uselongfloat)
         maxerr = 0.0
@@ -382,18 +398,37 @@ def QuadratureTest2(uselongfloat=0):
 
 
 if __name__ == '__main__':
+    longfloat.nbits = 220 # sufficient for quad-double representation
+    #print(longfloat.nbits)
+    #npt = 7
+    #q = Quadrature(7,(-1.0,1.0),rule='GaussLegendre',uselongfloat=1)
+    #pts = q.points()
+    #wts = q.weights()
+    #for i in range(npt):
+    #    print i, str(pts[i]), str(wts[i])
+    ##print q.points()
+    ##print q.weights()
+    ##stop
 
-    q = Quadrature(7,(0.0,1.0),rule='GaussLegendre')
-    print q.points()
-    print q.weights()
-    stop
+    #print ' \n\n Testing quadrature with default floats \n'
+    #QuadratureTest()
 
-    print ' \n\n Testing quadrature with default floats \n'
-    QuadratureTest()
-
-    print ' \n\n Testing quadrature with long floats \n'
-    QuadratureTest(uselongfloat=1)
+    #print ' \n\n Testing quadrature with long floats \n'
+    #QuadratureTest(uselongfloat=1)
+    #stop
     
     #QuadratureTest2()
 
-    #QuadratureTest2(1)
+    #QuadratureTest2(uselongfloat=1)
+
+    for npt in range(121):
+        print "%3d"%npt
+        q = Quadrature(npt,(-1,1),rule='GaussLegendre',uselongfloat=1)
+        pts = q.points()
+        wts = q.weights()
+        sumw = 0
+        for i in range(npt):
+            sumw += wts[i]
+            #print(repr(pts[i]))
+            print "%4d %72s %72s" % (i, str(pts[i]), str(wts[i]))
+        #print "sumw", str(sumw)
