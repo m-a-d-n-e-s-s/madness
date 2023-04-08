@@ -958,6 +958,15 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     }
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     K0 = ground_exchange_multiworld(ground_orbitals, X, compute_Y);
+
+    if (r_params.print_level() >= 20) {
+        auto xk0x = response_context.inner(X, K0);
+        if (world.rank() == 0) {
+            print("inner <X|K0|X>");
+            print(xk0x);
+        }
+    }
+
     if (r_params.print_level() >= 15) {
 
         inner_to_json(world, "v0_nuc", response_context.inner(X, v_nuc * X), iter_function_data);
