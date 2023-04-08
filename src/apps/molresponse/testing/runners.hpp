@@ -525,7 +525,7 @@ void set_frequency_response_parameters(World &world, ResponseParameters &r_param
         r_params.set_user_defined_value("first_order", true);
         r_params.set_user_defined_value("plot_all_orbitals",true);
         r_params.set_user_defined_value("plot", false);
-        r_params.set_user_defined_value("print_level", 5);
+        r_params.set_user_defined_value("print_level", 20);
         r_params.set_user_defined_value("guess_xyz", false);
         r_params.set_user_defined_value("save", true);
         // set xc, property, frequency,and restart
