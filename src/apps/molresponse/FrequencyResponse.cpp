@@ -211,7 +211,7 @@ void FrequencyResponse::iterate(World &world) {
             if (world.rank() == 0) {
                 printf("\n--------Response Properties after %d-------------\n",
                        static_cast<int>(iter));
-                print("polarizability");
+                print("polarizability at omega =", omega);
                 print(polar);
                 print("res polarizability");
                 print(res_polar);
