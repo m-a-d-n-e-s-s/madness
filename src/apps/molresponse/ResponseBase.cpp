@@ -483,9 +483,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     vecfuncT x_phi;
     vecfuncT y_phi;
 
-    X_space J = X_space::zero_functions(world, num_states, num_orbitals);
-    response_space j_x(world, num_states, num_orbitals);
-    response_space j_y(world, num_states, num_orbitals);
 
     X_space W = X_space::zero_functions(world, num_states, num_orbitals);
     if (r_params.print_level() >= 1) {
@@ -494,28 +491,12 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     auto apply_projector = [&](auto &xi) { return projector(xi); };
     // apply the exchange kernel to rho if necessary
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    // Create Coulomb potential on ground_orbitals
-    functionT rho_x_b;
-    functionT rho_y_b;
-    auto mul_tol = FunctionDefaults<3>::get_thresh();
 
     auto rho_b = make_density(world, chi_alpha);
+    auto J = response_context.compute_j1(world, chi_alpha, rho_b, phi0, shared_coulomb_operator);
 
+    world.gop.fence();
 
-    std::vector<SeparatedConvolution<double, 3> *> pis;
-    int b = 0;
-    vecfuncT temp_J(num_states);
-    // apply coulomb operator to each active response state and multiply by phi0
-    for (const auto &i: chi_alpha.active) {
-        temp_J[i] = apply(*coul_ops[i], rho_b[i]);
-        temp_J[i].truncate(FunctionDefaults<3>::get_thresh());
-        J.x[i] = mul(world, temp_J[i], phi0, false);
-    }
-    world.gop.fence();
-    J.x.truncate_rf();
-    //J.x = oop_unary_apply(J.x, apply_projector);
-    J.y = J.x.copy();
-    world.gop.fence();
     inner_to_json(world, "j1", response_context.inner(chi_alpha, J), iter_function_data);
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "J[omega]", "J[omega]", iter_timing);
@@ -539,7 +520,8 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     inner_to_json(world, "v1_xc", response_context.inner(chi_alpha, W), iter_function_data);
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    auto K = response_exchange_multiworld(phi0, chi_alpha, true);
+    // auto K = response_exchange_multiworld(phi0, chi_alpha, true);
+    auto K = response_context.compute_k1(world, chi_alpha, phi0);
     //K = oop_apply(K, apply_projector);
 
     inner_to_json(world, "k1", response_context.inner(chi_alpha, K), iter_function_data);
@@ -579,8 +561,6 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
     molresponse::start_timer(world);
     J.clear();
-    j_x.clear();
-    j_y.clear();
     K.clear();
     W.clear();
     chi_alpha.clear();

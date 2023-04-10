@@ -72,18 +72,67 @@ public:
 class K1Strategy {
 public:
     virtual ~K1Strategy() = default;
-    virtual X_space compute_K1(World &world, const X_space &x, const vector_real_function_3d &rho1,
+    virtual X_space compute_K1(World &world, const X_space &x,
                                const vector_real_function_3d &phi0) const = 0;
+
+    static auto make_k(const vecfuncT &ket, const vecfuncT &bra) {
+        const double lo = 1.e-10;
+        Exchange<double, 3> k{};
+        k.set_parameters(bra, ket, lo);
+        k.set_algorithm(k.multiworld_efficient);
+        return k;
+    };
 };
 
 class K1StrategyFull : public K1Strategy {
 public:
-    X_space compute_K1(World &world, const X_space &x, const vector_real_function_3d &rho1,
+    X_space compute_K1(World &world, const X_space &x,
                        const vector_real_function_3d &phi0) const override {
 
         X_space K = X_space::zero_functions(world, x.num_states(), x.num_orbitals());
+        vector_real_function_3d k1x, k1y, k2x, k2y;
+
+        for (const auto &b: x.active) {
+            auto xb = x.x[b];
+            auto yb = x.y[b];
+            auto K1X = make_k(xb, phi0);
+            auto K2X = make_k(yb, phi0);
+            auto K1Y = make_k(phi0, yb);
+            auto K2Y = make_k(phi0, xb);
+            k1x = K1X(phi0);
+            k1y = K1Y(phi0);
+            k2x = K2X(phi0);
+            k2y = K2Y(phi0);
+            world.gop.fence();
+            K.x[b] = gaxpy_oop(1.0, k1x, 1.0, k1y, false);
+            K.y[b] = gaxpy_oop(1.0, k2x, 1.0, k2y, false);
+            world.gop.fence();
+        }
+        return K;
+    }
+};
 
 
+class K1StrategyStatic : public K1Strategy {
+public:
+    X_space compute_K1(World &world, const X_space &x,
+                       const vector_real_function_3d &phi0) const override {
+        X_space K = X_space::zero_functions(world, x.num_states(), x.num_orbitals());
+        vector_real_function_3d k1x, k1y, k2x, k2y;
+        vector_real_function_3d xb;
+        vector_real_function_3d yb;
+        Exchange<double, 3> K1X{};
+        Exchange<double, 3> K1Y{};
+
+        for (const auto &b: x.active) {
+            xb = x.x[b];
+            yb = x.x[b];
+            K1X = make_k(xb, phi0);
+            K1Y = make_k(phi0, yb);
+            k1x = K1X(phi0);
+            k1y = K1Y(phi0);
+            K.x[b] = gaxpy_oop(1.0, k1x, 1.0, k1y, true);
+        }
         return K;
     }
 };
@@ -100,31 +149,27 @@ class Context {
 private:
     std::unique_ptr<inner_strategy> inner_strategy_;
     std::unique_ptr<J1Strategy> j1_strategy_;
+    std::unique_ptr<K1Strategy> k1_strategy_;
 
 public:
     explicit Context(std::unique_ptr<inner_strategy> &&innerStrategy = {},
-                     std::unique_ptr<J1Strategy> &&j1Strategy = {})
-        : inner_strategy_(std::move(innerStrategy)), j1_strategy_(std::move(j1Strategy)) {}
+                     std::unique_ptr<J1Strategy> &&j1Strategy = {},
+                     std::unique_ptr<K1Strategy> &&k1Strategy = {})
+        : inner_strategy_(std::move(innerStrategy)), j1_strategy_(std::move(j1Strategy)),
+          k1_strategy_(std::move(k1Strategy)) {}
     void set_strategy(std::unique_ptr<inner_strategy> &&strategy,
-                      std::unique_ptr<J1Strategy> &&j1Strategy) {
+                      std::unique_ptr<J1Strategy> &&j1Strategy,
+                      std::unique_ptr<K1Strategy> &&K1Strategy) {
         inner_strategy_ = std::move(strategy);
         j1_strategy_ = std::move(j1Strategy);
-    }
-    void print_inner(const X_space &x, const X_space &y) const {
-        if (inner_strategy_) {
-            std::cout << "Context: Computing inner using the strategy (not sure how it'll do it)\n";
-            auto result = inner_strategy_->compute_inner(x, y);
-            std::cout << result << "\n";
-        } else {
-            std::cout << "Context: Strategy isn't set\n";
-        }
+        k1_strategy_ = std::move(K1Strategy);
     }
 
     Tensor<double> inner(const X_space &x, const X_space &y) const {
         if (inner_strategy_) {
             return inner_strategy_->compute_inner(x, y);
         } else {
-            throw madness::MadnessException("Inner product Stratgey isn't set",
+            throw madness::MadnessException("Inner product Strategy isn't set",
                                             "Need to set a strategy", 2, 455, "inner",
                                             "ResponseBase.hpp");
         }
@@ -135,7 +180,17 @@ public:
         if (j1_strategy_) {
             return j1_strategy_->compute_J1(world, x, rho1, phi0, coulomb_ops);
         } else {
-            throw madness::MadnessException("Compute J1 Stratgey isn't set",
+            throw madness::MadnessException("Compute J1 Strategy isn't set",
+                                            "Need to set a strategy", 2, 455, "inner",
+                                            "ResponseBase.hpp");
+        }
+    }
+
+    X_space compute_k1(World &world, const X_space &x, const vector_real_function_3d &phi0) const {
+        if (k1_strategy_) {
+            return k1_strategy_->compute_K1(world, x, phi0);
+        } else {
+            throw madness::MadnessException("Compute K1 Strategy isn't set",
                                             "Need to set a strategy", 2, 455, "inner",
                                             "ResponseBase.hpp");
         }

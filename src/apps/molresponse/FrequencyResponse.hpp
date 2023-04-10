@@ -24,9 +24,13 @@ public:
     FrequencyResponse(World &world, const CalcParams &params, double frequency, RHS_Generator rhs)
         : ResponseBase(world, params), omega{frequency}, generator{std::move(rhs)}, PQ{} {
         if (omega == 0.0) {
-            response_context.set_strategy(std::make_unique<static_inner_product>(),std::make_unique<J1StrategyStable>());
+            response_context.set_strategy(std::make_unique<static_inner_product>(),
+                                          std::make_unique<J1StrategyStable>(),
+                                          std::make_unique<K1StrategyStatic>());
         } else {
-            response_context.set_strategy(std::make_unique<full_inner_product>(),std::make_unique<J1StrategyStable>());
+            response_context.set_strategy(std::make_unique<full_inner_product>(),
+                                          std::make_unique<J1StrategyStable>(),
+                                          std::make_unique<K1StrategyFull>());
         }
         PQ = generator(world, *this);
     }
