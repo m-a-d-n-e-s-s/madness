@@ -359,12 +359,12 @@ void ResponseBase::load_balance_chi(World &world) {
     LoadBalanceDeux<3> lb(world);
     real_function_3d v_nuclear;
     v_nuclear = potential_manager->vnuclear();
-    for (auto &xi: Chi.x) {
-        for (auto &xij: xi) { lb.add_tree(xij, lbcost<double, 3>(1.0, 8.0), false); }
+    for (auto &b: Chi.active) {
+        for (auto &xij: Chi.x[b]) { lb.add_tree(xij, lbcost<double, 3>(1.0, 8.0), false); }
     }
     if (r_params.omega() != 0) {
-        for (auto &yi: Chi.y) {
-            for (auto &yij: yi) { lb.add_tree(yij, lbcost<double, 3>(1.0, 8.0), false); }
+        for (auto &b: Chi.active) {
+            for (auto &yij: Chi.y[b]) { lb.add_tree(yij, lbcost<double, 3>(1.0, 8.0), false); }
         }
     }
     world.gop.fence();

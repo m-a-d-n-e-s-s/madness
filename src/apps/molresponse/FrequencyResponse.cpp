@@ -99,7 +99,7 @@ void FrequencyResponse::iterate(World &world) {
                 printf("\n   Iteration %d at time %.1fs\n", static_cast<int>(iter), wall_time());
             if (world.rank() == 0) print("-------------------------------------------");
         }
-        if (iter < 2 || (iter % 10) == 0) { load_balance_chi(world); }
+        if (iter < 2 || (iter % 5) == 0) { load_balance_chi(world); }
         if (iter > 0) {
             if (density_residuals.max() > 20 && iter > 5) {
                 if (world.rank() == 0) { print("d-residual > 20...break"); }
