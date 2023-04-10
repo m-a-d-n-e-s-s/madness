@@ -163,7 +163,8 @@ void FrequencyResponse::iterate(World &world) {
                 break;
             }
         }
-        inner_to_json(world, "x", response_context.inner(Chi, Chi), iter_function_data);
+        auto x_inner = ((compute_y) ? 2 : 1) * response_context.inner(Chi, Chi);
+        inner_to_json(world, "x", x_inner, iter_function_data);
         auto [new_chi, new_res, new_rho] = update_response(
                 world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega, kain_x_space,
                 iter, max_rotation, rho_omega, x_relative_residuals, residuals);
@@ -419,10 +420,8 @@ void FrequencyResponse::save(World &world, const std::string &name) {
 
     for (size_t i = 0; i < r_params.num_states(); i++)
         for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.x[i][j];
-    if (not r_params.tda()) {
-        for (size_t i = 0; i < r_params.num_states(); i++)
-            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.y[i][j];
-    }
+    for (size_t i = 0; i < r_params.num_states(); i++)
+        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.y[i][j];
 }
 
 // Load a response calculation
@@ -438,11 +437,9 @@ void FrequencyResponse::load(World &world, const std::string &name) {
     for (size_t i = 0; i < r_params.num_states(); i++)
         for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.x[i][j];
     world.gop.fence();
-    if (not r_params.tda()) {
-        for (size_t i = 0; i < r_params.num_states(); i++)
-            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.y[i][j];
-        world.gop.fence();
-    }
+    for (size_t i = 0; i < r_params.num_states(); i++)
+        for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & Chi.y[i][j];
+    world.gop.fence();
 }
 
 auto nuclear_generator(World &world, FrequencyResponse &calc) -> X_space {

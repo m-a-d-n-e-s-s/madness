@@ -164,11 +164,13 @@ namespace madness {
 
         auto a = to_response_matrix(A);
         auto b = to_response_matrix(B);
-
         World &world = a[0][0].world();
+        world.gop.fence();
+
 
         auto a_transpose = transposeResponseMatrix(a);
         auto b_transpose = transposeResponseMatrix(b);
+        world.gop.fence();
         Tensor<double> result(a.size(), a.size());
         int p = 0;
         std::for_each(a_transpose.begin(), a_transpose.end(), [&](const auto &ati) {
