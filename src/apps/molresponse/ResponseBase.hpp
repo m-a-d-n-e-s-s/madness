@@ -10,11 +10,11 @@
 #include <utility>
 #include <vector>
 
-#include <madness/mra/nonlinsol.h>
-#include <global_functions.h>
+#include "global_functions.h"
+#include "madness/chem/SCF.h"
 #include "madness/mra/functypedefs.h"
 #include "madness/mra/mra.h"
-#include<madness/chem/SCF.h>
+#include "madness/mra/nonlinsol.h"
 #include "madness/tensor/tensor.h"
 #include "madness/tensor/tensor_json.hpp"
 #include "timer.h"
@@ -72,9 +72,20 @@ public:
 class K1Strategy {
 public:
     virtual ~K1Strategy() = default;
-    virtual X_space compute_J1(World &world, const X_space &x, const vector_real_function_3d &rho1,
-                               const vector_real_function_3d &phi0,
-                               const poperatorT &coulomb_ops) const = 0;
+    virtual X_space compute_K1(World &world, const X_space &x, const vector_real_function_3d &rho1,
+                               const vector_real_function_3d &phi0) const = 0;
+};
+
+class K1StrategyFull : public K1Strategy {
+public:
+    X_space compute_K1(World &world, const X_space &x, const vector_real_function_3d &rho1,
+                       const vector_real_function_3d &phi0) const override {
+
+        X_space K = X_space::zero_functions(world, x.num_states(), x.num_orbitals());
+
+
+        return K;
+    }
 };
 
 class inner_strategy {
