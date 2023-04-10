@@ -5302,133 +5302,127 @@ namespace madness {
                 (rangeT(coeffs.begin(),coeffs.end()),do_inner_local<R>(&g, leaves_only));
         }
 
-        /// compute <bra | eri + v(1) + v(2) | ket>
 
-        /// with |ket> either explicitly given or to be constructed by outer product |ket> = |p1 p2>
-        /// invoked by ket <T,NDIM>
-        template<typename R, std::size_t LDIM=NDIM/2>
-        TENSOR_RESULT_TYPE(T,R) compute_inner_with_coeffs(const Key<NDIM>& key, coeffT coeff_bra,
-                                                   coeffT coeff_ket, coeffT coeff_eri, coeffT coeff_v1, coeffT coeff_v2,
-                                                   coeffT coeff_p1, coeffT coeff_p2) {
-
+        /// compute the inner product of this range with other
+        template<typename R>
+        struct do_inner_local_on_demand {
+            const FunctionImpl<R,NDIM>* ket;
+            const FunctionImpl<T,NDIM>* bra;
+            bool leaves_only=true;
             typedef TENSOR_RESULT_TYPE(T,R) resultT;
-            //
-            coeffT ket = (coeff_ket.has_data()) ? coeff_ket : outer(coeff_p1,coeff_p2);
-            coeffT v1v2ket;
-            double error=0.0;
 
-            if (coeff_v1.has_data()) {
-                pointwise_multiplier<LDIM> pm(key,coeff_ket);
-                v1v2ket = pm(key,coeff_v1.full_tensor(), 1);
-                error+=pm.error;
-                v1v2ket+= pm(key,coeff_v2.full_tensor(), 2);
-                error+=pm.error;
-            } else {
-                v1v2ket = ket;
-            }
+            do_inner_local_on_demand(const FunctionImpl<T,NDIM>* bra, const FunctionImpl<R,NDIM>* ket,
+                                     const bool leaves_only=true)
+                    : bra(bra), ket(ket), leaves_only(leaves_only) {}
+            resultT operator()(typename dcT::const_iterator& it) const {
 
-            resultT result;
-            if (coeff_eri.has_data()) {         // project bra*ket onto eri, avoid multiplication with eri
-                pointwise_multiplier<LDIM> pm(key,v1v2ket);
-                tensorT braket=pm(key,coeff_bra.full_tensor_copy().conj());
-                result=coeff_eri.full_tensor().trace(braket);
+                constexpr std::size_t LDIM=std::max(NDIM/2,std::size_t(1));
 
-            } else {                            // no eri, project ket onto bra
-                result=coeff_bra.full_tensor_copy().trace_conj(v1v2ket.full_tensor_copy());
-            }
-            return result;
+                const keyT& key=it->first;
+                const nodeT& fnode = it->second;
+                if (not fnode.has_coeff()) return resultT(0.0); // probably internal nodes
 
-        }
+                // assuming all boxes (esp the low-dim ones) are local, i.e. the functions are replicated
+                auto find_valid_parent = [](auto& key, auto& impl, auto&& find_valid_parent) {
+                    MADNESS_CHECK(impl->get_coeffs().owner(key)==impl->world.rank()); // make sure everything is local!
+                    if (impl->get_coeffs().probe(key)) return key;
+                    auto parentkey=key.parent();
+                    return find_valid_parent(parentkey, impl, find_valid_parent);
+                };
 
-        /// called by ket <T,NDIM>
-        template<typename R, std::size_t LDIM=NDIM/2>
-        TENSOR_RESULT_TYPE(T,R) compute_inner_for_key(const Key<NDIM>& key, const FunctionImpl<R,NDIM>* gimpl,
-                                                      const GenTensor<R>& coeff_bra) const {
-            typedef TENSOR_RESULT_TYPE(T,R) resultT;
-            typedef FunctionImpl<R,NDIM> implR;
+                // returns coefficients, empty if no functor present
+                auto get_coeff = [&find_valid_parent](const auto& key, const auto& impl) {
+                    bool have_impl=impl.get();
+                    if (have_impl) {
+                        auto parentkey = find_valid_parent(key, impl, find_valid_parent);
+                        MADNESS_CHECK(impl->get_coeffs().probe(parentkey));
+                        typename decltype(impl->coeffs)::accessor acc;
+                        impl->get_coeffs().find(acc,parentkey);
+                        auto parentcoeff=acc->second.coeff();
+                        auto coeff=impl->parent_to_child(parentcoeff, parentkey, key);
+                        return coeff;
+                    } else {
+                        return GenTensor<typename std::decay_t<decltype(*impl)>::typeT>();
+                    }
+                };
 
-            // get the composite functor and everything that makes up gimpl
-            auto func=dynamic_cast<CompositeFunctorInterface<T,NDIM,LDIM>* >(gimpl->functor.get());
-            MADNESS_ASSERT(func);
+                Key<LDIM> key1,key2;
+                key.break_apart(key1,key2);
 
+                auto func=dynamic_cast<CompositeFunctorInterface<R,NDIM,LDIM>* >(ket->functor.get());
+                MADNESS_ASSERT(func);
 
-            auto find_valid_parent = [](auto& key, auto& impl, auto&& find_valid_parent) {
-                if (impl->get_coeffs().probe(key)) return key;
-                auto parentkey=key.parent();
-                return find_valid_parent(parentkey, impl, find_valid_parent);
-            };
+                auto coeff_bra=fnode.coeff();
+                auto coeff_ket=get_coeff(key,func->impl_ket);
+                auto coeff_v1=get_coeff(key1,func->impl_m1);
+                auto coeff_v2=get_coeff(key2,func->impl_m2);
+                auto coeff_p1=get_coeff(key1,func->impl_p1);
+                auto coeff_p2=get_coeff(key2,func->impl_p2);
 
-            // returns coefficients, empty if no functor present
-            auto get_coeff = [&find_valid_parent](const auto& key, const auto& impl) {
-                bool have_impl=impl.get();
-                if (have_impl) {
-                    auto parentkey = find_valid_parent(key, impl, find_valid_parent);
-                    auto parentcoeff=impl->get_coeffs().find(parentkey).get()->second.coeff();
-                    auto coeff=impl->parent_to_child(parentcoeff, parentkey, key);
-                    return coeff;
-                } else {
-                    return GenTensor<typename std::decay_t<decltype(*impl)>::typeT>();
+                // construct |ket(1,2)> or |p(1)p(2)> or |p(1)p(2) ket(1,2)>
+                double error=0.0;
+                if (coeff_ket.has_data() and coeff_p1.has_data()) {
+                    pointwise_multiplier<LDIM> pm(key,coeff_ket);
+                    coeff_ket=pm(key,outer(coeff_p1,coeff_p2,TensorArgs(TT_FULL,-1.0)).full_tensor());
+                    error+=pm.error;
+                } else if (coeff_ket.has_data() or coeff_p1.has_data()) {
+                    coeff_ket = (coeff_ket.has_data()) ? coeff_ket : outer(coeff_p1,coeff_p2);
+                } else { // not ket and no p1p2
+                    MADNESS_EXCEPTION("confused ket/p1p2 in do_inner_local_on_demand",1);
                 }
-            };
 
-            Key<LDIM> key1,key2;
-            key.break_apart(key1,key2);
+                // construct (v(1) + v(2)) |ket(1,2)>
+                coeffT v1v2ket;
+                if (coeff_v1.has_data()) {
+                    pointwise_multiplier<LDIM> pm(key,coeff_ket);
+                    v1v2ket = pm(key,coeff_v1.full_tensor(), 1);
+                    error+=pm.error;
+                    v1v2ket+= pm(key,coeff_v2.full_tensor(), 2);
+                    error+=pm.error;
+                } else {
+                    v1v2ket = coeff_ket;
+                }
 
-            // get all coefficients (apart from the eri coefficients)
-            auto coeff_ket=get_coeff(key,func->impl_ket);
-            auto coeff_v1=get_coeff(key1,func->impl_m1);
-            auto coeff_v2=get_coeff(key2,func->impl_m2);
-            auto coeff_p1=get_coeff(key1,func->impl_p1);
-            auto coeff_p2=get_coeff(key2,func->impl_p2);
+                resultT result;
+                if (func->impl_eri) {         // project bra*ket onto eri, avoid multiplication with eri
+                    MADNESS_CHECK(func->impl_eri->get_functor()->provides_coeff());
+                    coeffT coeff_eri=func->impl_eri->get_functor()->coeff(key).full_tensor();
+                    pointwise_multiplier<LDIM> pm(key,v1v2ket);
+                    tensorT braket=pm(key,coeff_bra.full_tensor_copy().conj());
+                    error+=pm.error;
+                    if (error>1.e-3) print("error in key",key,error);
+                    result=coeff_eri.full_tensor().trace(braket);
 
-            // make eri coefficients
-            coeffT coeff_eri;
-            if (func->impl_eri) {
-                MADNESS_CHECK(func->impl_eri->get_functor()->provides_coeff());
-                coeff_eri=func->impl_eri->get_functor()->coeff(key).full_tensor();
+                } else {                            // no eri, project ket onto bra
+                    result=coeff_bra.full_tensor_copy().trace_conj(v1v2ket.full_tensor_copy());
+                }
+                return result;
             }
 
-            Future<resultT> result=woT::task(gimpl->get_coeffs().owner(key), &implT:: template compute_inner_with_coeffs<R>, key,
-                                             coeff_bra, coeff_ket, coeff_eri, coeff_v1, coeff_v2, coeff_p1, coeff_p2);
-            return result;
-        }
+            resultT operator()(resultT a, resultT b) const {
+                return (a+b);
+            }
 
+            template <typename Archive> void serialize(const Archive& ar) {
+                throw "NOT IMPLEMENTED";
+            }
+        };
 
         /// Returns the inner product of this with function g constructed on-the-fly
 
-        /// handles compressed and redundant form
+        /// the leaf boxes of this' MRA tree defines the inner product
         template <typename R>
         TENSOR_RESULT_TYPE(T,R) inner_local_on_demand(const FunctionImpl<R,NDIM>& gimpl) const {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             typedef TENSOR_RESULT_TYPE(T,R) resultT;
             typedef FunctionImpl<R,NDIM> implR;
 
-            MADNESS_ASSERT(this->is_reconstructed());
+            MADNESS_CHECK(this->is_reconstructed());
 
-
-            long nsum=0;
-            for (const auto& c : coeffs) if (c.second.has_coeff()) nsum++;
-            std::vector< Future<resultT> > sum = future_vector_factory<resultT>(nsum);
-
-            long isum=0;
-            for (const auto& c : coeffs) {
-                const keyT& key=c.first;
-                const nodeT& fnode = c.second;
-                if (fnode.has_coeff()) {
-                    auto bra_coeff = fnode.coeff();
-                    sum[isum] = woT::task(gimpl.get_coeffs().owner(key), &implR:: template compute_inner_for_key<T>, key, &gimpl, bra_coeff);
-                    isum++;
-                }
-            }
-            auto accumulate = [&sum]() {
-                resultT result=0.0;
-                for (auto& s : sum)  result+=s.get();
-                return result;
-            };
-            auto result=accumulate();
-//            Future<resultT> result=gimpl.get_coeffs().task(key0(),&accumulate);
-            return result;
-
+            typedef Range<typename dcT::const_iterator> rangeT;
+            rangeT range(coeffs.begin(), coeffs.end());
+            return world.taskq.reduce<T, rangeT, do_inner_local_on_demand<T>>(range,
+                               do_inner_local_on_demand<R>(this, &gimpl));
         }
 
         /// Type of the entry in the map returned by make_key_vec_map

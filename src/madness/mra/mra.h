@@ -1361,6 +1361,7 @@ namespace madness {
             auto func=dynamic_cast<CompositeFunctorInterface<T,NDIM,LDIM>* >(g.get_impl()->get_functor().get());
             MADNESS_ASSERT(func);
             func->make_redundant(true);
+            func->replicate_low_dim_functions(true);
             this->reconstruct();        // if this == &g we don't need g to be redundant
 
             if (VERIFY_TREE) verify_tree();

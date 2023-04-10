@@ -501,11 +501,11 @@ void SCF::do_plots(World& world) {
     for (int i = param.get<int>("plotlo"); i <= param.get<int>("plothi"); ++i) {
         char fname[256];
         if (i < param.nalpha()) {
-            sprintf(fname, "amo-%5.5d.dx", i);
+            snprintf(fname,256, "amo-%5.5d.dx", i);
             plotdx(amo[i], fname, param.plot_cell(), npt, true);
         }
         if (!param.spin_restricted() && i < param.nbeta()) {
-            sprintf(fname, "bmo-%5.5d.dx", i);
+            snprintf(fname,256, "bmo-%5.5d.dx", i);
             plotdx(bmo[i], fname, param.plot_cell(), npt, true);
         }
     }

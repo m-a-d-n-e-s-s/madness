@@ -889,7 +889,7 @@ namespace madness {
     		const std::string namei=name+"_"+std::to_string(i);
     		vf[i].print_size("plot:"+namei);
     		plot_plane<NDIM>(world,vf[i],namei);
-    		plot_cubefile<NDIM>(world,vf[i],namei+".cube",header);
+//    		plot_cubefile<NDIM>(world,vf[i],namei+".cube",header);
     	}
     }
 

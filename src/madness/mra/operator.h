@@ -52,6 +52,16 @@
 
 namespace madness {
 
+    template<typename T, std::size_t NDIM>
+    class SeparatedConvolution;
+
+    class CCPairFunction;
+    template<typename T, std::size_t NDIM>
+    std::vector<CCPairFunction> apply(const SeparatedConvolution<T,NDIM>& op, const std::vector<CCPairFunction>& argument);
+
+    template<typename T, std::size_t NDIM>
+    CCPairFunction apply(const SeparatedConvolution<T,NDIM>& op, const CCPairFunction& argument);
+
     /// SeparatedConvolutionInternal keeps data for 1 term and all dimensions and 1 displacement
     /// Why is this here?? Why don't you just use ConvolutionND in SeparatedConvolutionData??
     template <typename Q, std::size_t NDIM>
@@ -1113,6 +1123,14 @@ namespace madness {
         Function<TENSOR_RESULT_TYPE(T,Q),LDIM+LDIM>
         operator()(const std::vector<Function<T,LDIM>>& f1, const std::vector<Function<Q,LDIM>>& f2) const {
             return madness::apply(*this, f1, f2);
+        }
+
+        /// apply this onto another suitable argument, returning the same type
+
+        /// argT must implement argT::apply(const SeparatedConvolution& op, const argT& arg)
+        template<typename argT>
+        argT operator()(const argT& argument) const {
+            return madness::apply(*this,argument);
         }
 
 

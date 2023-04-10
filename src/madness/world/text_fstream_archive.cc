@@ -71,12 +71,12 @@ namespace madness {
             os.precision(17);
             char tag[256];
             os << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>" << std::endl;
-            sprintf(tag,"<archive major_version=\"%d\" minor_version=\"%d\">",
+            snprintf(tag,256,"<archive major_version=\"%d\" minor_version=\"%d\">",
                     ARCHIVE_MAJOR_VERSION, ARCHIVE_MINOR_VERSION);
             os << tag << std::endl;
             os << "<typemap>" << std::endl;
             for (int i=0; i<256; ++i) {
-                sprintf(tag,"%d \"%s\"",i,archive_type_names[i]);
+                snprintf(tag,256,"%d \"%s\"",i,archive_type_names[i]);
                 store(tag,strlen(tag)); // Must use store to escape characters
             }
             os << "</typemap>" << std::endl;
@@ -144,7 +144,7 @@ namespace madness {
             is.getline(buf,256);
 
             char tag[256];
-            sprintf(tag,"<archive major_version=\"%d\" minor_version=\"%d\">",
+            snprintf(tag,256,"<archive major_version=\"%d\" minor_version=\"%d\">",
                     ARCHIVE_MAJOR_VERSION, ARCHIVE_MINOR_VERSION);
             if (strcmp(buf,tag)) {
                 std::cout << "TextFstreamInputArchive: not an archive/bad version?" << std::endl;

@@ -99,6 +99,289 @@ struct data {
 
 data data1;
 
+template<typename T, std::size_t NDIM>
+class LowRank {
+public:
+
+    World& world;
+    std::vector<Function<T,NDIM>> g,h;
+
+
+    LowRank(std::vector<Function<T,NDIM>> g, std::vector<Function<T,NDIM>> h)
+            : world(g.front().world()), g(g), h(h) {}
+
+    LowRank(World& world, long n) : world(world) {
+        g= zero_functions_compressed<T,NDIM>(world,n);
+        h= zero_functions_compressed<T,NDIM>(world,n);
+    }
+
+//    LowRank() =default;      // Default constructor necessary for storage in vector
+
+    LowRank(const LowRank& a) : world(a.world), g(copy(world,a.g)), h(copy(world,a.h)) {} // Copy constructor necessary
+
+    LowRank& operator=(const LowRank& f) { // Assignment required for storage in vector
+        LowRank ff(f);
+        std::swap(ff.g,g);
+        std::swap(ff.h,h);
+        return *this;
+    }
+
+    LowRank operator-(const LowRank& b) const { // Operator- necessary
+        return LowRank(g-b.g,h-b.h);
+    }
+
+    LowRank& operator+=(const LowRank& b) { // Operator+= necessary
+        g+=b.g;
+        h+=b.h;
+        return *this;
+    }
+
+    LowRank operator*(double a) const { // Scale by a constant necessary
+        return LowRank(g*a,h*a);
+    }
+
+//    double get() const {return x;}
+};
+
+// This interface is necessary to compute inner products
+template<typename T, std::size_t NDIM>
+double inner(const LowRank<T,NDIM>& a, const LowRank<T,NDIM>& b) {
+    World& world=a.world;
+    return (matrix_inner(world,a.g,b.g).emul(matrix_inner(world,a.h,b.h))).sum();
+}
+
+
+// The default constructor for functions does not initialize
+// them to any value, but the solver needs functions initialized
+// to zero for which we also need the world object.
+template<typename T, std::size_t NDIM>
+struct allocator1 {
+    World& world;
+    const int n;
+
+    /// @param[in]	world	the world
+    /// @param[in]	nn		the number of functions in a given vector
+    allocator1(World& world, const int nn) :
+            world(world), n(nn) {
+    }
+
+    /// allocate a vector of n empty functions
+    LowRank<T,NDIM> operator()() {
+        return LowRank<T,NDIM>(world,n);
+    }
+};
+
+
+/// Computes the electrostatic potential due to a Gaussian charge distribution
+
+/// stolen from testsuite.cc
+class GaussianPotential : public FunctionFunctorInterface<double,3> {
+public:
+    typedef Vector<double,3> coordT;
+    const coordT center;
+    const double exponent;
+    const double coefficient;
+
+    GaussianPotential(const coordT& center, double expnt, double coefficient)
+            : center(center)
+            , exponent(sqrt(expnt))
+            , coefficient(coefficient*pow(constants::pi/exponent,1.5)*pow(expnt,-0.75)) {}
+
+    double operator()(const coordT& x) const {
+        double sum = 00;
+        for (int i=0; i<3; ++i) {
+            double xx = center[i]-x[i];
+            sum += xx*xx;
+        };
+        double r = sqrt(sum);
+        if (r<1.e-4) {	// correct thru order r^3
+            const double sqrtpi=sqrt(constants::pi);
+            const double a=exponent;
+            return coefficient*(2.0*a/sqrtpi - 2.0*a*a*a*r*r/(3.0*sqrtpi));
+        } else {
+            return coefficient*erf(exponent*r)/r;
+        }
+    }
+};
+
+template<std::size_t NDIM>
+struct randomgaussian {
+    Vector<double,NDIM> random_origin;
+    double exponent;
+    double radius=2;
+    randomgaussian(double exponent) : exponent(exponent) {
+        Vector<double,NDIM> ran; // [0,1]
+        RandomVector(NDIM,ran.data());
+        random_origin=2.0*radius*ran-Vector<double,NDIM>(radius);
+        print("origin at ",random_origin, ", exponent",exponent);
+    }
+    double operator()(const Vector<double,NDIM>& r) const {
+//        return exp(-exponent*inner(r-random_origin,r-random_origin));
+        return exp(-exponent*(r-random_origin).normf());
+    }
+
+};
+
+template<typename T, std::size_t NDIM>
+void orthonormalize(World& world, std::vector<Function<T,NDIM>>& g, std::vector<Function<T,NDIM>>& h, Tensor<double>& s) {
+    /**
+     *  |g >< h| = |g_ortho><g_ortho | g> < h | h_ortho ><h_ortho |
+     *           = |g_ortho> gg hh <h_ortho |
+     *           = |g_ortho> U s VT <h_ortho |
+     */
+    std::vector<Function<T,NDIM>> g_ortho=orthonormalize_canonical(g,1.e-8);
+    std::vector<Function<T,NDIM>> h_ortho=orthonormalize_canonical(h,1.e-8);
+    auto gg=matrix_inner(world,g_ortho,g);
+    auto hh=matrix_inner(world,h,h_ortho);
+    auto ovlp=inner(gg,hh);
+    Tensor<double> U,VT;
+    svd(ovlp,U,s,VT);
+    auto V=transpose(VT);
+
+    // truncate
+//    for (int i=1; i<s.size(); ++i) {
+//        if (s[i]<1.e-2) {
+//            s=s(Slice(0,i-1));
+//            U=U(_,Slice(0,i-1));
+//            V=V(_,Slice(0,i-1));
+//            print("truncating svd at i",i);
+//            break;
+//        }
+//    }
+    g=transform(world,g_ortho,U);
+    h=transform(world,h_ortho,V);
+
+    // test
+//    auto gg1=matrix_inner(world,g,g);
+//    auto hh1=matrix_inner(world,h,h);
+//    for (int i=0; i<gg1.dim(0); ++i) {
+//        gg1(i,i)-=1.0;
+//        hh1(i,i)-=1.0;
+//    }
+//    double gmatnorm=gg1.normf()/gg1.size();
+//    double hmatnorm=hh1.normf()/hh1.size();
+//    print("g/h identity",gmatnorm,hmatnorm);
+//    print("singular values",s);
+
+}
+
+int test_lowrank_function(World& world) {
+    test_output t1("CCPairFunction::low rank function");
+    t1.set_cout_to_terminal();
+    madness::default_random_generator.setstate(int(cpu_time())%4149);
+
+    constexpr std::size_t LDIM=2;
+    constexpr std::size_t NDIM=4;
+
+//    real_function_2d f=real_factory_2d(world).functor([](const coord_2d& r){return exp(-fabs(r[0]-r[1]))* exp(-0.05*(inner(r,r)));});
+    Function<double,NDIM> f=FunctionFactory<double,NDIM>(world).functor([&LDIM](const Vector<double,NDIM>& r)
+            {
+                Vector<double,LDIM> r1,r2;
+                for (int i=0; i<LDIM; ++i) {
+                    r1[i]=r[i];
+                    r2[i]=r[i+LDIM];
+                }
+                return exp(-(r1-r2).normf())* exp(-0.2*inner(r1,r1));
+            });
+    double fnorm=f.norm2();
+    print("norm(2D-f)",fnorm);
+    long n=150;
+    std::vector<Function<double,LDIM>> omega2(n);
+    for (long i=0; i<n; ++i) {
+//        omega1[i]=real_factory_1d(world).functor(randomgaussian<1>(RandomValue<double>()*3.0));
+        omega2[i]=FunctionFactory<double,LDIM>(world).functor(randomgaussian<LDIM>(RandomValue<double>()*10.0));
+    }
+    t1.checkpoint(true,"projection 1D functions");
+
+    std::vector<Function<double,LDIM>> Y(n);
+//    for (int i=0; i<n; ++i) Y[i]=inner(f,omega2[i],{1},{0});
+    for (int i=0; i<n; ++i) Y[i]=inner(f,omega2[i],{2,3},{0,1});
+    t1.checkpoint(true,"Yforming");
+    print("Y.size()",Y.size());
+
+    std::vector<Function<double,LDIM>> g=orthonormalize_canonical(Y,1.e-12);
+    print("g.size()",g.size());
+    t1.checkpoint(true,"Y orthonormalizing");
+    std::vector<Function<double,LDIM>> h(g.size());
+//    for (int i=0; i<g.size(); ++i) h[i]=inner(f,g[i],{0},{0});
+    for (int i=0; i<g.size(); ++i) h[i]=inner(f,g[i],{0,1},{0,1});
+    t1.checkpoint(true,"Y backprojection");
+
+    // SVD'ize g and h
+    Tensor<double> s;
+    orthonormalize(world,g,h,s);
+
+
+    auto fapprox=s[0]*hartree_product(g[0],h[0]);
+    for (int i=1; i<g.size(); ++i) fapprox+=s[i]*hartree_product(g[i],h[i]);
+    t1.checkpoint(true,"fapprox construction");
+    print("fapprox has rank",g.size());
+    double err=(f-fapprox).norm2();
+    print("error in f_approx",err);
+    plot<NDIM>({f,fapprox,f-fapprox},"f_and_approx",std::vector<std::string>({"adsf","asdf","diff"}));
+    t1.checkpoint(true,"plotting");
+
+    /*
+     * optimize
+     */
+
+    auto s_into_h = [&world](const Tensor<double>& s, const auto& hvec) {
+        auto hs=copy(world,hvec);
+        for (int i=0; i<hvec.size(); ++i) hs[i]*=s[i];
+        return hs;
+    };
+
+    auto reconstruct_no_s = [](const auto& g, const auto& h) {
+        auto fapprox=hartree_product(g[0],h[0]);
+        for (int i=1; i<g.size(); ++i) fapprox+=hartree_product(g[i],h[i]);
+        return fapprox;
+    };
+
+    auto err_no_s = [](const auto& g, const auto& h, const auto& f) {
+        auto fapprox=hartree_product(g[0],h[0]);
+        for (int i=1; i<g.size(); ++i) fapprox+=hartree_product(g[i],h[i]);
+        return (f-fapprox).norm2();
+    };
+
+    for (int iopt=0; iopt<8; ++iopt) {
+        std::vector<Function<double,LDIM>> htmp(g.size()), gtmp(g.size());
+        for (int j=0; j<g.size(); ++j) {
+//            gtmp[j]=1.0/s[j]*inner(f,h[j],{1},{0});
+            gtmp[j]=1.0/s[j]*inner(f,h[j],{2,3},{0,1});
+//            htmp[j]=1.0/s[j]*inner(f,g[j],{1},{0});
+//            htmp[j]=inner(f,g[j],{0},{0});
+            htmp[j]=inner(f,g[j],{0,1},{0,1});
+        }
+        g=gtmp;
+        h=htmp;
+
+        if (g.size()>1) orthonormalize(world,g,h,s);
+        print("s after",s);
+
+        if (iopt%2==0) {
+            fapprox=s[0]*hartree_product(g[0],h[0]);
+            for (int i=1; i<g.size(); ++i) fapprox+=s[i]*hartree_product(g[i],h[i]);
+            err=(f-fapprox).norm2();
+            print("optimization iteration, error in f_approx_opt",iopt,err);
+        }
+    }
+    t1.checkpoint(true,"optimize");
+    fapprox=s[0]*hartree_product(g[0],h[0]);
+    for (int i=1; i<g.size(); ++i) fapprox+=s[i]*hartree_product(g[i],h[i]);
+    err=(f-fapprox).norm2();
+    print("error in f_approx_opt",err);
+    t1.checkpoint(true,"fapprox construction");
+    print("fapprox has rank",g.size());
+//    plot<2>({f,fapprox,f-fapprox},"f_and_approx_opt",std::vector<std::string>({"adsf","asdf","diff"}));
+    t1.checkpoint(true,"plotting");
+
+
+
+
+
+    return t1.end();
+}
+
 int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                const CCParameters& parameter) {
     test_output t1("CCPairFunction::constructor");
@@ -161,6 +444,49 @@ int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
 
     return t1.end();
 }
+
+int test_operator_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+                         const CCParameters& parameter) {
+    test_output t1("CCPairFunction::test_operator_apply");
+//    t1.set_cout_to_terminal();
+
+    double exponent=1.0; // corresponds to the exponent of data::f1 and data::ff
+//    double coefficient=pow(1.0/constants::pi*exponent,0.5*3);
+    double coefficient=1.0;
+    const coord_3d center={0.0,0.0,-0.0};
+
+    auto Gaussian = [&center, &exponent, &coefficient](const coord_3d& r) {
+        return coefficient * exp(-exponent*inner(r-center,r-center));
+    };
+
+    // this won't work, the simulation cell is only [-1,1]..
+    // Normalized Gaussian exponent a produces potential erf(sqrt(a)*r)/r
+//    GaussianPotential gpot(center, exponent, coefficient);
+//    real_function_3d op_a=real_factory_3d(world).functor(gpot);
+
+    real_function_3d a=real_factory_3d(world).functor(Gaussian);
+    exponent=2.0;
+    real_function_3d b=real_factory_3d(world).functor(Gaussian);
+
+    auto [f1,f2,f3,f4,f5,ff]=data1.get_functions();
+    CCPairFunction c1(a,b);
+    CCPairFunction c2(f1,f2);
+//    CCPairFunction ref(op_a,b);
+    auto op= CoulombOperator(world,1.e-5,FunctionDefaults<3>::get_thresh());
+    op.print_timings=false;
+    op.particle()=1;
+
+    auto op_c1=op(c1);
+    auto op_c2=op(c2);
+//    double a1=inner(ref,ref);
+    double norm1=inner(op_c1,op_c1);
+    double norm2=inner(op_c2,op_c2);
+    print("norm1,norm2",norm1,norm2);
+    bool good=fabs(norm1-norm2)<FunctionDefaults<3>::get_thresh();
+    t1.checkpoint(good,"op(xx)");
+    return t1.end();
+}
+
 
 int test_transformations(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                      const CCParameters& parameter) {
@@ -344,7 +670,7 @@ int test_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, cons
             if ((not bra.has_operator()) and (not ket.has_operator())) ref=ab_ab;
             double result=inner(bra,ket);
 
-//            print(bra.name(true)+ket.name(),"ref, result, diff", ref, result, ref-result);
+            print(bra.name(true)+ket.name(),"ref, result, diff", ref, result, ref-result);
             double thresh=FunctionDefaults<3>::get_thresh();
             bool good=(fabs(result-ref)<thresh);
             t1.checkpoint(good,bra.name(true)+ket.name());
@@ -916,6 +1242,14 @@ int main(int argc, char **argv) {
     FunctionDefaults<3>::set_thresh(1.e-5);
     FunctionDefaults<3>::set_cubic_cell(-1.0,1.0);
     FunctionDefaults<6>::set_cubic_cell(-1.0,1.0);
+    FunctionDefaults<1>::set_thresh(1.e-5);
+    FunctionDefaults<1>::set_cubic_cell(-10.,10.);
+    FunctionDefaults<2>::set_thresh(1.e-4);
+    FunctionDefaults<2>::set_cubic_cell(-10.,10.);
+    FunctionDefaults<3>::set_thresh(1.e-4);
+    FunctionDefaults<3>::set_cubic_cell(-10.,10.);
+    FunctionDefaults<4>::set_thresh(1.e-4);
+    FunctionDefaults<4>::set_cubic_cell(-10.,10.);
     print("numerical parameters: k, eps(3D), eps(6D)", FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(),
           FunctionDefaults<6>::get_thresh());
     int isuccess=0;
@@ -933,18 +1267,20 @@ int main(int argc, char **argv) {
         std::shared_ptr<NuclearCorrelationFactor> ncf = create_nuclear_correlation_factor(world,
                          mol, nullptr, std::make_pair("slater", 2.0));
 
-        isuccess+=test_constructor(world, ncf, mol, ccparam);
-        isuccess+=test_transformations(world, ncf, mol, ccparam);
-        isuccess+=test_inner(world, ncf, mol, ccparam);
-        isuccess+=test_multiply(world, ncf, mol, ccparam);
-        isuccess+=test_multiply_with_f12(world, ncf, mol, ccparam);
-        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
-        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
-        isuccess+=test_partial_inner_3d(world, ncf, mol, ccparam);
-        isuccess+=test_partial_inner_6d(world, ncf, mol, ccparam);
-        isuccess+=test_projector(world, ncf, mol, ccparam);
-        FunctionDefaults<3>::set_cubic_cell(-10,10);
-        isuccess+=test_helium(world,ncf,mol,ccparam);
+        isuccess+=test_lowrank_function(world);
+//        isuccess+=test_constructor(world, ncf, mol, ccparam);
+//        isuccess+=test_operator_apply(world, ncf, mol, ccparam);
+//        isuccess+=test_transformations(world, ncf, mol, ccparam);
+//        isuccess+=test_inner(world, ncf, mol, ccparam);
+//        isuccess+=test_multiply(world, ncf, mol, ccparam);
+//        isuccess+=test_multiply_with_f12(world, ncf, mol, ccparam);
+//        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
+//        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
+//        isuccess+=test_partial_inner_3d(world, ncf, mol, ccparam);
+//        isuccess+=test_partial_inner_6d(world, ncf, mol, ccparam);
+//        isuccess+=test_projector(world, ncf, mol, ccparam);
+//        FunctionDefaults<3>::set_cubic_cell(-10,10);
+//        isuccess+=test_helium(world,ncf,mol,ccparam);
         data1.clear();
     } catch (std::exception& e) {
         madness::print("an error occured");

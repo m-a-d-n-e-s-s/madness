@@ -171,7 +171,7 @@ namespace madness {
                 strcpy(fname,filename); // Save the filename for later
                 char buf[256];
                 MADNESS_ASSERT(strlen(filename)+7 <= sizeof(buf));
-                sprintf(buf, "%s.%5.5d", filename, world.rank());
+                snprintf(buf, 256, "%s.%5.5d", filename, world.rank());
 
                 if (world.rank() == 0) {
                     ar.open(buf);
@@ -217,7 +217,7 @@ namespace madness {
             exists(World& world, const char* filename) {
                 char buf[256];
                 MADNESS_ASSERT(strlen(filename)+7 <= sizeof(buf));
-                sprintf(buf, "%s.%5.5d", filename, world.rank());
+                snprintf(buf, 256, "%s.%5.5d", filename, world.rank());
                 bool status;
                 if (world.rank() == 0)
                     status = (access(buf, F_OK|R_OK) == 0);
@@ -268,7 +268,7 @@ namespace madness {
                     char buf[268];
                     MADNESS_ASSERT(strlen(filename)+7 <= sizeof(buf));
                     for (ProcessID p=0; p<world.size(); ++p) {
-                        sprintf(buf, "%s.%5.5d", filename, p);
+                        snprintf(buf,268, "%s.%5.5d", filename, p);
                         if (::remove(buf)) break;
                     }
                 }

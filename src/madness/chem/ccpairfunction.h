@@ -365,6 +365,10 @@ public:
         return result;
     }
 
+    /// add all like functions up, return *this for chaining
+    friend std::vector<CCPairFunction> consolidate(const std::vector<CCPairFunction>& other);
+
+
     void info() const { print_size(); }
 
     World& world() const {
@@ -482,6 +486,14 @@ public:
     /// can this be converted to a pure representation (depends on the operator, if present)
     bool is_convertible_to_pure_no_op() const;
 
+    /// out-of-place conversion to pure function
+    CCPairFunction to_pure() const {
+        auto tmp=copy(*this);
+        MADNESS_CHECK(tmp.is_convertible_to_pure_no_op());
+        tmp.convert_to_pure_no_op_inplace();
+        return tmp;
+    }
+
     /// convert this into a pure hi-dim function
     void convert_to_pure_no_op_inplace();
 
@@ -540,9 +552,10 @@ public:
         return a.inner_internal(b,R2);
     }
 
-    friend double inner(const std::vector<CCPairFunction>& va, const std::vector<CCPairFunction>& vb) {
+    friend double inner(const std::vector<CCPairFunction>& va, const std::vector<CCPairFunction>& vb,
+                        const real_function_3d R2=real_function_3d()) {
         double wall0=cpu_time();
-        real_function_3d R2;
+//        real_function_3d R2;
         double result=0.0;
         for (auto& a : va) {
             for (auto& b : vb) {
@@ -622,6 +635,14 @@ std::vector<CCPairFunction> apply(const ProjectorBase& P, const std::vector<CCPa
 
 /// convenience function
 CCPairFunction apply(const ProjectorBase& P, const CCPairFunction& argument);
+
+/// apply the convolution operator on the argument function, potentially yielding a vector of CCPairfunctions as result
+template<typename T, std::size_t NDIM>
+std::vector<CCPairFunction> apply(const SeparatedConvolution<T,NDIM>& op, const std::vector<CCPairFunction>& argument);
+
+/// convenience function
+template<typename T, std::size_t NDIM>
+CCPairFunction apply(const SeparatedConvolution<T,NDIM>& op, const CCPairFunction& argument);
 
 real_function_3d inner(const CCPairFunction& c, const real_function_3d& f,
                        const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2={0,1,2});

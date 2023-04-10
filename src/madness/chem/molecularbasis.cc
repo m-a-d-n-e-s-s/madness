@@ -43,12 +43,12 @@ std::ostream& operator<<(std::ostream& s, const ContractedGaussianShell& c) {
     const std::vector<double>& coeff = c.get_coeff();
     const std::vector<double>& expnt = c.get_expnt();
 
-    p += sprintf(p,"%s [",tag[c.angular_momentum()]);
+    p += snprintf(p,32768,"%s [",tag[c.angular_momentum()]);
     for (int i=0; i<c.nprim(); ++i) {
-        p += sprintf(p, "%.6f(%.6f)",coeff[i],expnt[i]);
-        if (i != (c.nprim()-1)) p += sprintf(p, ", ");
+        p += snprintf(p,32768, "%.6f(%.6f)",coeff[i],expnt[i]);
+        if (i != (c.nprim()-1)) p += snprintf(p,32768, ", ");
     }
-    p += sprintf(p, "]");
+    p += snprintf(p, 32768, "]");
     s << buf;
     return s;
 }

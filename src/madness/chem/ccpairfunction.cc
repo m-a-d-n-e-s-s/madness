@@ -5,6 +5,7 @@
 #include<madness/chem/ccpairfunction.h>
 #include<madness/chem/CCStructures.h>
 #include<madness/chem/projector.h>
+#include<madness/mra/operator.h>
 
 using namespace madness;
 
@@ -57,6 +58,23 @@ void CCPairFunction::convert_to_pure_no_op_inplace() {
     }
     component.reset(new TwoBodyFunctionPureComponent<T>(result));
 };
+
+std::vector<CCPairFunction> consolidate(const std::vector<CCPairFunction>& other) {
+
+    std::vector<CCPairFunction> result;
+    std::vector<real_function_6d> all_pure;
+    for (auto& c : other) {
+        if (c.is_pure_no_op()) all_pure.push_back(c.get_function());
+        else result.push_back(c);
+    }
+    if (not all_pure.empty()) {
+        for (std::size_t i=1; i<all_pure.size(); ++i) all_pure.front()+=all_pure[i];
+        all_pure.front().truncate();
+        result.push_back(CCPairFunction(all_pure.front()));
+    }
+
+    return result;
+}
 
 CCPairFunction multiply(const CCPairFunction& other, const real_function_3d& f, const std::array<int, 3>& v1) {
     auto a012=std::array<int,3>{0,1,2};
@@ -382,11 +400,11 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
     if (f1.is_pure() and f2.is_pure()) {        // these are 4 combinations pure/pure
         pureT bra=f1.get_function();
         pureT ket=f2.get_function();
-        if (R2.is_initialized()) {
-            real_function_6d R1u = multiply<double, 6, 3>(::copy(f1.pure().get_function()), ::copy(R2), 1);
-            real_function_6d R1R2u = multiply<double, 6, 3>(R1u, ::copy(R2), 2);     // R1u function now broken
-            bra = R1R2u;
-        }
+//        if (R2.is_initialized()) {
+//            real_function_6d R1u = multiply<double, 6, 3>(::copy(f1.pure().get_function()), ::copy(R2), 1);
+//            real_function_6d R1R2u = multiply<double, 6, 3>(R1u, ::copy(R2), 2);     // R1u function now broken
+//            bra = R1R2u;
+//        }
         // include the operator(s), if any
         if (f1.has_operator() or f2.has_operator()) {
             auto ops=combine(f1.get_operator_ptr(),f2.get_operator_ptr());
@@ -395,7 +413,12 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
                 auto op=single_op.second;
                 double bla=0.0;
                 if (op.get_op()) {
-                    real_function_6d tmp1 = CompositeFactory<double, 6, 3>(world()).g12(op.get_kernel()).ket(ket);
+                    real_function_6d tmp1;
+                    if (R2.is_initialized()) {
+                        tmp1= CompositeFactory<double, 6, 3>(world()).g12(op.get_kernel()).ket(ket).particle1(R2).particle2(R2);
+                    } else {
+                        tmp1= CompositeFactory<double, 6, 3>(world()).g12(op.get_kernel()).ket(ket);
+                    }
                     bla=fac*inner(bra,tmp1);
                 } else {
                     bla=fac*inner(bra,ket);
@@ -585,5 +608,36 @@ std::vector<CCPairFunction> apply(const ProjectorBase& projector, const std::vec
     return result;
 };
 
+template<typename T, std::size_t NDIM>
+std::vector<CCPairFunction> apply(const SeparatedConvolution<T,NDIM>& op, const std::vector<CCPairFunction>& argument) {
+    if (argument.size()==0) return argument;
+    World& world=argument.front().world();
+    std::vector<CCPairFunction> result;
+    for (const auto& arg : argument) {
+        if (arg.is_pure()) {
+            result.push_back(CCPairFunction(op(arg.get_function())));
+        } else if (arg.is_op_pure()) {
+            auto tmp=arg.to_pure();
+            result.push_back(apply(op,tmp));
+        } else if (arg.is_decomposed_no_op()) {
+            MADNESS_CHECK(op.particle()==1 or op.particle()==2);
+            if (op.particle()==1) {
+                auto tmp= madness::apply(world,op,arg.get_a());
+                result.push_back(CCPairFunction(tmp,arg.get_b()));
+            } else if (op.particle()==2) {
+                auto tmp= madness::apply(world,op,arg.get_b());
+                result.push_back(CCPairFunction(arg.get_a(),tmp));
+            }
+        } else if (arg.is_op_decomposed()) { // sucks..
+            auto tmp=arg.to_pure();
+            result.push_back(apply(op,tmp));
+        }
+    }
+
+    return result;
+}
+
+
+template std::vector<CCPairFunction> apply(const SeparatedConvolution<double,3>& op, const std::vector<CCPairFunction>& argument);
 
 } // namespace madness

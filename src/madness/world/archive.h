@@ -515,7 +515,7 @@ namespace madness {
                 ar.load(&cookie, 1); // cannot use >>
                 if (cookie != ck) {
                     char msg[255];
-                    std::sprintf(msg,"InputArchive type mismatch: expected cookie "
+                    std::snprintf(msg,255,"InputArchive type mismatch: expected cookie "
                                  "%u (%s) but got %u (%s) instead",
                                  ck, archive_type_names[ck],
                                  cookie,archive_type_names[cookie]);
