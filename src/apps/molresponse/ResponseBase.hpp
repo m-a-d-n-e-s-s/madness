@@ -515,6 +515,8 @@ protected:
 
     auto compute_gamma_full(World &world, const gamma_orbitals &,
                             const XCOperator<double, 3> &xc) const -> X_space;
+    auto compute_gamma(World &world, const gamma_orbitals &,
+                       const XCOperator<double, 3> &xc) const -> X_space;
 
     auto compute_V0X(World &world, const X_space &X,
                      const XCOperator<double, 3> &xc, bool compute_Y) const

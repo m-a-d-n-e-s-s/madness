@@ -36,7 +36,7 @@ public:
             response_context.set_strategy(
                     std::make_unique<full_inner_product>(),
                     std::make_unique<J1StrategyStable>(),
-                    std::make_unique<K1StrategyFull>()),
+                    std::make_unique<K1StrategyFull>(),
                     std::make_unique<VXC1StrategyStandard>());
         }
         PQ = generator(world, *this);
