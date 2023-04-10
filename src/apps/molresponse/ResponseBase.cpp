@@ -920,8 +920,12 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     size_t n = X.num_orbitals();
     X_space V0 = X_space::zero_functions(world, m, n);
     V0.set_active(X.active);
+
+
     X_space K0 = X_space::zero_functions(world, m, n);
     K0.set_active(X.active);
+
+
     real_function_3d v_nuc, v_j0, v_k0, v_xc;
     if (not r_params.store_potential()) {
         v_nuc = potential_manager->vnuclear();

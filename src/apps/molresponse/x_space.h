@@ -143,12 +143,18 @@ namespace madness {
             world.gop.fence();
         }
 
+        /**
+         * @brief Apply a function to the X_space
+         * @param A
+         * @param func
+         * @return
+         */
         friend auto oop_apply(
                 const X_space &A,
                 const std::function<vector_real_function_3d(const vector_real_function_3d &)> &func)
                 -> X_space {
             auto &world = A.x[0][0].world();
-            auto result = A.copy();
+            auto result = X_space::zero_functions(world, A.num_states(), A.num_orbitals());
         //    if (world.rank() == 0) { print("oop_apply"); }
             for (auto &i: result.active) {
          //       if (world.rank() == 0) { print("oop_apply", i); }
