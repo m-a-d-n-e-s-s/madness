@@ -51,16 +51,31 @@ public:
 };
 
 
-class J1StrategyStatic : public J1Strategy {
+class J1StrategyStable : public J1Strategy {
 public:
     X_space compute_J1(World &world, const X_space &x, const vector_real_function_3d &rho1,
                        const vector_real_function_3d &phi0,
                        const poperatorT &coulomb_ops) const override {
 
-        return X_space::zero_functions(world, x.num_states(), x.num_orbitals());
+        X_space J = X_space::zero_functions(world, x.num_states(), x.num_orbitals());
+        functionT temp_J;
+        for (const auto &b: x.active) {
+            temp_J = apply(*coulomb_ops, rho1[b]);
+            J.x[b] = mul(world, temp_J, phi0, false);
+        }
+        world.gop.fence();
+        J.y = J.x.copy();
+        return J;
     }
 };
 
+class K1Strategy {
+public:
+    virtual ~K1Strategy() = default;
+    virtual X_space compute_J1(World &world, const X_space &x, const vector_real_function_3d &rho1,
+                               const vector_real_function_3d &phi0,
+                               const poperatorT &coulomb_ops) const = 0;
+};
 
 class inner_strategy {
 
@@ -79,10 +94,10 @@ public:
     explicit Context(std::unique_ptr<inner_strategy> &&innerStrategy = {},
                      std::unique_ptr<J1Strategy> &&j1Strategy = {})
         : inner_strategy_(std::move(innerStrategy)), j1_strategy_(std::move(j1Strategy)) {}
-    explicit Context(std::unique_ptr<inner_strategy> &&strategy = {})
-        : inner_strategy_(std::move(strategy)) {}
-    void set_strategy(std::unique_ptr<inner_strategy> &&strategy) {
+    void set_strategy(std::unique_ptr<inner_strategy> &&strategy,
+                      std::unique_ptr<J1Strategy> &&j1Strategy) {
         inner_strategy_ = std::move(strategy);
+        j1_strategy_ = std::move(j1Strategy);
     }
     void print_inner(const X_space &x, const X_space &y) const {
         if (inner_strategy_) {
@@ -114,7 +129,6 @@ public:
                                             "ResponseBase.hpp");
         }
     }
-
 };
 
 class full_inner_product : public inner_strategy {
