@@ -127,14 +127,17 @@ public:
         X_space K = X_space::zero_functions(world, x.num_states(),
                                             x.num_orbitals());
         vector_real_function_3d k1x, k1y, k2x, k2y;
+        vector_real_function_3d xb;
+        vector_real_function_3d yb;
+        Exchange<double, 3> K1X, K2X, K1Y, K2Y;
 
         for (const auto &b: x.active) {
-            auto xb = x.x[b];
-            auto yb = x.y[b];
-            auto K1X = make_k(xb, phi0);
-            auto K2X = make_k(yb, phi0);
-            auto K1Y = make_k(phi0, yb);
-            auto K2Y = make_k(phi0, xb);
+            xb = x.x[b];
+            yb = x.y[b];
+            K1X = make_k(xb, phi0);
+            K2X = make_k(yb, phi0);
+            K1Y = make_k(phi0, yb);
+            K2Y = make_k(phi0, xb);
             k1x = K1X(phi0);
             k1y = K1Y(phi0);
             k2x = K2X(phi0);
