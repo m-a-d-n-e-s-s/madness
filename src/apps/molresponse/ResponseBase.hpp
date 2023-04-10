@@ -24,6 +24,44 @@
 using namespace madness;
 
 
+class J1Strategy {
+public:
+    virtual ~J1Strategy() = default;
+    virtual X_space compute_J1(World &world, const X_space &x, const vector_real_function_3d &rho1,
+                               const vector_real_function_3d &phi0,
+                               const poperatorT &coulomb_ops) const = 0;
+};
+
+class J1StrategyFull : public J1Strategy {
+public:
+    X_space compute_J1(World &world, const X_space &x, const vector_real_function_3d &rho1,
+                       const vector_real_function_3d &phi0,
+                       const poperatorT &coulomb_ops) const override {
+
+        X_space J = X_space::zero_functions(world, x.num_states(), x.num_orbitals());
+        functionT temp_J;
+        for (const auto &b: x.active) {
+            temp_J = apply(*coulomb_ops, rho1[b]);
+            J.x[b] = mul(world, temp_J, phi0, false);
+        }
+        world.gop.fence();
+        J.y = J.x.copy();
+        return J;
+    }
+};
+
+
+class J1StrategyStatic : public J1Strategy {
+public:
+    X_space compute_J1(World &world, const X_space &x, const vector_real_function_3d &rho1,
+                       const vector_real_function_3d &phi0,
+                       const poperatorT &coulomb_ops) const override {
+
+        return X_space::zero_functions(world, x.num_states(), x.num_orbitals());
+    }
+};
+
+
 class inner_strategy {
 
 public:
@@ -34,18 +72,22 @@ public:
 class Context {
 
 private:
-    std::unique_ptr<inner_strategy> strategy_;
+    std::unique_ptr<inner_strategy> inner_strategy_;
+    std::unique_ptr<J1Strategy> j1_strategy_;
 
 public:
+    explicit Context(std::unique_ptr<inner_strategy> &&innerStrategy = {},
+                     std::unique_ptr<J1Strategy> &&j1Strategy = {})
+        : inner_strategy_(std::move(innerStrategy)), j1_strategy_(std::move(j1Strategy)) {}
     explicit Context(std::unique_ptr<inner_strategy> &&strategy = {})
-        : strategy_(std::move(strategy)) {}
+        : inner_strategy_(std::move(strategy)) {}
     void set_strategy(std::unique_ptr<inner_strategy> &&strategy) {
-        strategy_ = std::move(strategy);
+        inner_strategy_ = std::move(strategy);
     }
     void print_inner(const X_space &x, const X_space &y) const {
-        if (strategy_) {
+        if (inner_strategy_) {
             std::cout << "Context: Computing inner using the strategy (not sure how it'll do it)\n";
-            auto result = strategy_->compute_inner(x, y);
+            auto result = inner_strategy_->compute_inner(x, y);
             std::cout << result << "\n";
         } else {
             std::cout << "Context: Strategy isn't set\n";
@@ -53,14 +95,26 @@ public:
     }
 
     Tensor<double> inner(const X_space &x, const X_space &y) const {
-        if (strategy_) {
-            return strategy_->compute_inner(x, y);
+        if (inner_strategy_) {
+            return inner_strategy_->compute_inner(x, y);
         } else {
             throw madness::MadnessException("Inner product Stratgey isn't set",
                                             "Need to set a strategy", 2, 455, "inner",
                                             "ResponseBase.hpp");
         }
     }
+
+    X_space compute_j1(World &world, const X_space &x, const vector_real_function_3d &rho1,
+                       const vector_real_function_3d &phi0, const poperatorT &coulomb_ops) const {
+        if (j1_strategy_) {
+            return j1_strategy_->compute_J1(world, x, rho1, phi0, coulomb_ops);
+        } else {
+            throw madness::MadnessException("Compute J1 Stratgey isn't set",
+                                            "Need to set a strategy", 2, 455, "inner",
+                                            "ResponseBase.hpp");
+        }
+    }
+
 };
 
 class full_inner_product : public inner_strategy {

@@ -472,6 +472,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> old_pmap = FunctionDefaults<3>::get_pmap();
 
     auto [chi_alpha, phi0] = orbital_load_balance(world, density, r_params.loadbalparts());
+
     QProjector<double, 3> projector(world, phi0);
     size_t num_states = chi_alpha.num_states();
     size_t num_orbitals = chi_alpha.num_orbitals();
@@ -500,14 +501,15 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
 
     auto rho_b = make_density(world, chi_alpha);
 
+
     std::vector<SeparatedConvolution<double, 3> *> pis;
     int b = 0;
-    functionT temp_J;
+    vecfuncT temp_J(num_states);
     // apply coulomb operator to each active response state and multiply by phi0
     for (const auto &i: chi_alpha.active) {
-        temp_J = apply(*coul_ops[i], rho_b[i]);
-        temp_J.truncate(FunctionDefaults<3>::get_thresh());
-        J.x[i] = mul(world, temp_J, phi0, false);
+        temp_J[i] = apply(*coul_ops[i], rho_b[i]);
+        temp_J[i].truncate(FunctionDefaults<3>::get_thresh());
+        J.x[i] = mul(world, temp_J[i], phi0, false);
     }
     world.gop.fence();
     J.x.truncate_rf();
@@ -590,6 +592,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     return gamma;
     // Get sizes
 }
+
 
 auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gammaOrbitals,
                                         const XCOperator<double, 3> &xc) const -> X_space {
