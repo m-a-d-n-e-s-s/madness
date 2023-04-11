@@ -6,6 +6,7 @@ This tutorial covers
 * developing new applications using the numerical and chemistry APIS; [All of us]
 * running MADNESS applications in parallel using threads + MPI; and [Hannes]
 * using the MADNESS chemistry applications. [Florian, Hannes, Adrian]
+* test Hannes
 
 ## Downloading
 
