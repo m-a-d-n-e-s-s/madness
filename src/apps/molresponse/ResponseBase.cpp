@@ -441,7 +441,7 @@ auto ResponseBase::compute_gamma(World &world, const gamma_orbitals &density,
     // auto rho_b = make_density(world, chi_alpha);
 
     auto rho_b = response_context.compute_density(
-            world, Chi, ground_orbitals, vector_real_function_3d(), false);
+            world, chi_alpha, ground_orbitals, vector_real_function_3d(), false);
 
 
     if (r_params.print_level() >= 1) {
@@ -451,8 +451,6 @@ auto ResponseBase::compute_gamma(World &world, const gamma_orbitals &density,
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     auto J = response_context.compute_j1(world, chi_alpha, rho_b, phi0,
                                          shared_coulomb_operator);
-
-    world.gop.fence();
     inner_to_json(world, "j1", response_context.inner(chi_alpha, J),
                   iter_function_data);
     if (r_params.print_level() >= 1) {
@@ -530,13 +528,10 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
         -> X_space {
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    //     std::cout << "MPI BARRIER 3 " << std::endl;
-    //     world.mpi.Barrier();
     bool compute_Y = calc_type == "full";
     X_space Theta_X = X_space(world, chi.num_states(), chi.num_orbitals());
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     X_space V0X = compute_V0X(world, chi, xc, compute_Y);
-    //V0X.truncate();
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_V0X", "compute_V0X",
                                iter_timing);
@@ -562,7 +557,6 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
         molresponse::end_timer(world, "compute_E0X", "compute_E0X",
                                iter_timing);
     }
-
     X_space gamma;
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     if (calc_type != "tda") {

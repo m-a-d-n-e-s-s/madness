@@ -79,8 +79,8 @@ public:
             y_phi = mul(world, x.y[b], phi0, true);
 
             world.gop.fence();
-            rho_new[b] = sum(world, x_phi,true);
-            rho_new[b] += sum(world, y_phi,true);
+            rho_new[b] = sum(world, x_phi, true);
+            rho_new[b] += sum(world, y_phi, true);
             world.gop.fence();
         }
         truncate(world, rho_new);
@@ -137,12 +137,11 @@ public:
 
         X_space J = X_space::zero_functions(world, x.num_states(),
                                             x.num_orbitals());
-        functionT temp_J;
+        vector_real_function_3d temp_J(3);
         for (const auto &b: x.active) {
-            temp_J = apply(*coulomb_ops, rho1[b]);
-            J.x[b] = mul(world, temp_J, phi0, false);
+            temp_J[b] = apply(*coulomb_ops, rho1[b]);
+            J.x[b] = mul(world, temp_J[b], phi0, true);
         }
-        world.gop.fence();
         J.y = J.x.copy();
         return J;
     }
@@ -158,12 +157,11 @@ public:
 
         X_space J = X_space::zero_functions(world, x.num_states(),
                                             x.num_orbitals());
-        functionT temp_J;
+        vector_real_function_3d temp_J(3);
         for (const auto &b: x.active) {
-            temp_J = apply(*coulomb_ops, rho1[b]);
-            J.x[b] = mul(world, temp_J, phi0, true);
+            temp_J[b] = apply(*coulomb_ops, rho1[b]);
+            J.x[b] = mul(world, temp_J[b], phi0, true);
         }
-        world.gop.fence();
         J.y = J.x.copy();
         return J;
     }
@@ -202,16 +200,18 @@ public:
 
             K1X = make_k(xb, phi0);
             K1Y = make_k(phi0, yb);
-
             K2X = make_k(yb, phi0);
             K2Y = make_k(phi0, xb);
+
+            world.gop.fence();
+
             k1x = K1X(phi0);
             k1y = K1Y(phi0);
             k2x = K2X(phi0);
             k2y = K2Y(phi0);
             world.gop.fence();
-            K.x[b] = gaxpy_oop(1.0, k1x, 1.0, k1y, false);
-            K.y[b] = gaxpy_oop(1.0, k2x, 1.0, k2y, false);
+            K.x[b] = gaxpy_oop(1.0, k1x, 1.0, k1y, true);
+            K.y[b] = gaxpy_oop(1.0, k2x, 1.0, k2y, true);
             world.gop.fence();
         }
         return K;

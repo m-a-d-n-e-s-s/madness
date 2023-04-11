@@ -287,14 +287,10 @@ auto FrequencyResponse::update_response(
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
-    auto x = chi.copy();// copy chi
-                        //    auto checkx = x.norm2s();
-    //  if (world.rank() == 0) { print("Right after chi.copy() ", checkx); }
+    auto x = chi.copy();
     X_space theta_X = compute_theta_X(world, x, xc, r_params.calc_type());
     X_space new_chi = bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops,
                                           projector, x_shifts);
-
-    //auto new_rho = update_density(world, new_chi, rho_old);
 
     auto new_rho = response_context.compute_density(
             world, new_chi, ground_orbitals, rho_old, true);
