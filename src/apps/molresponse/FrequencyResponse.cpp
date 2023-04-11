@@ -189,47 +189,44 @@ void FrequencyResponse::iterate(World &world) {
                 world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts,
                 omega, kain_x_space, iter, max_rotation, rho_omega,
                 x_relative_residuals, residuals);
-        // Here we have computed the new response orbitals and the residuals
-        // Now we need to compute the new density and the new density residuals
-        // Instead, update should also update the density
-        // compute rho after bsh update to compute residual, update density after kain to keep
-        // consistent with kain orbitals
 
-        if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-        rho_omega_old = copy(world, rho_omega);
-        if (r_params.print_level() >= 1) {
-            molresponse::end_timer(world, "make_density_old",
-                                   "make_density_old", iter_timing);
+        // first thing we should do is update the density residuals
+        // drho = rho(x)-rho(g(x))
+        // new_rho= rho(g(x))
+        for (const auto &b: Chi.active) {
+            density_residuals[b] = (rho_omega[b] - new_rho[b]).norm2();
         }
-        if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+        // Now we should update the orbitals and density
+        // x= x+deltax
+        // rho = rho(x+delta x)
 
-        rho_omega = response_context.compute_density(
-                world, Chi, ground_orbitals, rho_omega_old, true);
-
-        //rho_omega = update_density(world, new_chi, rho_omega_old);
-        if (r_params.print_level() >= 1) {
-            molresponse::end_timer(world, "make_density_new",
-                                   "make_density_new", iter_timing);
-        }
-        if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-        x_relative_residuals = copy(new_res.residual_norms);
-        residuals = new_res.residual.copy();
         if (compute_y) {
             Chi = new_chi.copy();
         } else {
             Chi.x = new_chi.x.copy();
         }
+
+        if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+        rho_omega = response_context.compute_density(
+                world, Chi, ground_orbitals, rho_omega, true);
+
+        if (r_params.print_level() >= 1) {
+            molresponse::end_timer(world, "make_density_old",
+                                   "make_density_old", iter_timing);
+        }
+        if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+        x_relative_residuals = copy(new_res.residual_norms);
+        residuals = new_res.residual.copy();
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "copy_response_data",
                                    "copy_response_data", iter_timing);
         }
-        density_residuals = copy(density_residuals_old);
         for (const auto &b: Chi.active) {
             density_residuals[b] = (rho_omega_old[b] - new_rho[b]).norm2();
         }
-        density_residuals_old = copy(density_residuals);
         iter_function_data["r_d"] = density_residuals;
         iter_function_data["x_relative_residuals"] = x_relative_residuals;
+
         auto dnorm = norm2s_T(world, rho_omega);
         iter_function_data["d"] = dnorm;
         polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
