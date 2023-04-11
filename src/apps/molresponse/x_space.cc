@@ -11,7 +11,8 @@ namespace madness {
      * @param vec 
      * @return vector_real_function_3d 
      */
-    auto to_response_vector(const vector_real_function_3d &vec) -> vector_real_function_3d {
+    auto to_response_vector(const vector_real_function_3d &vec)
+            -> vector_real_function_3d {
         auto &world = vec[0].world();
         // copy the vector
         auto response_vector = vector_real_function_3d(2 * vec.size());
@@ -31,12 +32,13 @@ namespace madness {
      * @param num_orbitals 
      * @return response_matrix 
      */
-    auto create_response_matrix(const size_t &num_states, const size_t &num_orbitals)
-            -> response_matrix {
+    auto create_response_matrix(const size_t &num_states,
+                                const size_t &num_orbitals) -> response_matrix {
 
         auto matrix = response_matrix(num_states);
-        std::for_each(matrix.begin(), matrix.end(),
-                      [&](auto &xi) { xi = vector_real_function_3d(num_orbitals); });
+        std::for_each(matrix.begin(), matrix.end(), [&](auto &xi) {
+            xi = vector_real_function_3d(num_orbitals);
+        });
         return matrix;
     }
 
@@ -52,8 +54,9 @@ namespace madness {
         int b = 0;
         std::for_each(mX.begin(), mX.end(), [&](vector_real_function_3d &mi) {
             mi = vector_real_function_3d(2 * num_orbitals);
-            std::copy(x.x[b].begin(), x.x[b].end(), mi.begin());               // shallow copy
-            std::copy(x.y[b].begin(), x.y[b].end(), mi.begin() + num_orbitals);// shallow copy
+            std::copy(x.x[b].begin(), x.x[b].end(), mi.begin());// shallow copy
+            std::copy(x.y[b].begin(), x.y[b].end(),
+                      mi.begin() + num_orbitals);// shallow copy
             b++;
         });
         return mX;
@@ -66,8 +69,9 @@ namespace madness {
         auto num_orbitals = x.num_orbitals();
         std::for_each(mX.begin(), mX.end(), [&](auto &mi) {
             mi = vector_real_function_3d(2 * num_orbitals);
-            std::copy(x.y[b].begin(), x.y[b].end(), mi.begin());               // shallow copy
-            std::copy(x.x[b].begin(), x.x[b].end(), mi.begin() + num_orbitals);// shallow copy
+            std::copy(x.y[b].begin(), x.y[b].end(), mi.begin());// shallow copy
+            std::copy(x.x[b].begin(), x.x[b].end(),
+                      mi.begin() + num_orbitals);// shallow copy
             b++;
         });
         return mX;
@@ -100,8 +104,10 @@ namespace madness {
         auto x_space = X_space(world, num_states, num_orbitals);
         int b = 0;
         for (const auto &x_vec: x) {
-            std::copy(x_vec.begin(), x_vec.begin() + num_orbitals, x_space.x[b].begin());
-            std::copy(x_vec.begin() + num_orbitals, x_vec.end(), x_space.y[b].begin());
+            std::copy(x_vec.begin(), x_vec.begin() + num_orbitals,
+                      x_space.x[b].begin());
+            std::copy(x_vec.begin() + num_orbitals, x_vec.end(),
+                      x_space.y[b].begin());
             b++;
         };
         return x_space;
@@ -123,9 +129,11 @@ namespace madness {
 
         int b = 0;
         std::for_each(x.begin(), x.end(), [&](auto x_vec) {
-            std::transform(x_vec.begin(), x_vec.begin() + num_orbitals, x_space.y[b].begin(),
+            std::transform(x_vec.begin(), x_vec.begin() + num_orbitals,
+                           x_space.y[b].begin(),
                            [&](const auto &xi) { return copy(xi, false); });
-            std::transform(x_vec.begin() + num_orbitals, x_vec.end(), x_space.x[b].begin(),
+            std::transform(x_vec.begin() + num_orbitals, x_vec.end(),
+                           x_space.x[b].begin(),
                            [&](const auto &xi) { return copy(xi, false); });
             b++;
         });
@@ -162,6 +170,8 @@ namespace madness {
         MADNESS_ASSERT(size_orbitals(A) > 0);
         MADNESS_ASSERT(same_size(A, B));
 
+        return response_space_inner(A.x, B.x) + response_space_inner(A.y, B.y);
+
         auto a = to_response_matrix(A);
         auto b = to_response_matrix(B);
         World &world = a[0][0].world();
@@ -173,10 +183,11 @@ namespace madness {
         world.gop.fence();
         Tensor<double> result(a.size(), a.size());
         int p = 0;
-        std::for_each(a_transpose.begin(), a_transpose.end(), [&](const auto &ati) {
-            result += matrix_inner(world, ati, b_transpose[p++]);
-            world.gop.fence();
-        });
+        std::for_each(a_transpose.begin(), a_transpose.end(),
+                      [&](const auto &ati) {
+                          result += matrix_inner(world, ati, b_transpose[p++]);
+                          world.gop.fence();
+                      });
         return result;
     }
 }// namespace madness
