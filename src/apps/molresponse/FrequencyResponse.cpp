@@ -288,7 +288,8 @@ auto FrequencyResponse::update_response(
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     auto x = chi.copy();
-    X_space theta_X = compute_theta_X(world, x, xc, r_params.calc_type());
+    X_space theta_X =
+            compute_theta_X(world, x, rho_old, xc, r_params.calc_type());
     X_space new_chi = bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops,
                                           projector, x_shifts);
 

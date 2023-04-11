@@ -428,7 +428,7 @@ auto ResponseBase::compute_gamma(World &world, const gamma_orbitals &density,
             FunctionDefaults<3>::get_pmap();
     auto c_xc = xcf.hf_exchange_coefficient();
 
-    auto [chi_alpha, phi0] =
+    auto [chi_alpha, phi0, rho1] =
             orbital_load_balance(world, density, r_params.loadbalparts());
     QProjector<double, 3> projector(world, phi0);
 
@@ -438,10 +438,6 @@ auto ResponseBase::compute_gamma(World &world, const gamma_orbitals &density,
     auto apply_projector = [&](auto &xi) { return projector(xi); };
     // apply the exchange kernel to rho if necessary
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    // auto rho_b = make_density(world, chi_alpha);
-
-    auto rho_b = response_context.compute_density(
-            world, chi_alpha, ground_orbitals, vector_real_function_3d(), false);
 
 
     if (r_params.print_level() >= 1) {
@@ -449,7 +445,7 @@ auto ResponseBase::compute_gamma(World &world, const gamma_orbitals &density,
     }
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    auto J = response_context.compute_j1(world, chi_alpha, rho_b, phi0,
+    auto J = response_context.compute_j1(world, chi_alpha, rho1, phi0,
                                          shared_coulomb_operator);
     inner_to_json(world, "j1", response_context.inner(chi_alpha, J),
                   iter_function_data);
@@ -474,7 +470,7 @@ auto ResponseBase::compute_gamma(World &world, const gamma_orbitals &density,
 
     if (c_xc != 1.0) {
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-        W = response_context.compute_VXC1(world, chi_alpha, rho_b, phi0, xc);
+        W = response_context.compute_VXC1(world, chi_alpha, rho1, phi0, xc);
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "XC[omega]", "XC[omega]",
                                    iter_timing);
@@ -523,6 +519,7 @@ auto ResponseBase::compute_gamma(World &world, const gamma_orbitals &density,
 
 
 auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
+                                   const vector_real_function_3d &rho1,
                                    const XCOperator<double, 3> &xc,
                                    const std::string &calc_type) const
         -> X_space {
@@ -560,9 +557,9 @@ auto ResponseBase::compute_theta_X(World &world, const X_space &chi,
     X_space gamma;
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     if (calc_type != "tda") {
-        gamma = compute_gamma(world, {chi, ground_orbitals}, xc);
+        gamma = compute_gamma(world, {chi, ground_orbitals, rho1}, xc);
     } else {
-        gamma = compute_gamma_tda(world, {chi, ground_orbitals}, xc);
+        gamma = compute_gamma_tda(world, {chi, ground_orbitals, rho1}, xc);
     }
 
 
@@ -604,7 +601,7 @@ auto ResponseBase::compute_gamma_full(World &world,
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> old_pmap =
             FunctionDefaults<3>::get_pmap();
 
-    auto [chi_alpha, phi0] =
+    auto [chi_alpha, phi0, rho1] =
             orbital_load_balance(world, density, r_params.loadbalparts());
 
     QProjector<double, 3> projector(world, phi0);
@@ -713,7 +710,7 @@ auto ResponseBase::compute_gamma_static(World &world,
         -> X_space {
 
     auto old_pmap = FunctionDefaults<3>::get_pmap();
-    auto [xy, phi0] =
+    auto [xy, phi0, rho1] =
             orbital_load_balance(world, gammaOrbitals, r_params.loadbalparts());
     QProjector<double, 3> projector(world, phi0);
     size_t num_states = xy.num_states();
@@ -827,7 +824,7 @@ auto ResponseBase::compute_gamma_tda(World &world,
                                      const gamma_orbitals &density,
                                      const XCOperator<double, 3> &xc) const
         -> X_space {
-    auto [d_alpha, phi0] =
+    auto [d_alpha, phi0, rho1] =
             orbital_load_balance(world, density, r_params.loadbalparts());
     std::shared_ptr<WorldDCPmapInterface<Key<3>>> oldpmap =
             FunctionDefaults<3>::get_pmap();
@@ -972,11 +969,14 @@ auto ResponseBase::compute_lambda_X(World &world, const X_space &chi,
     X_space gamma;
     // compute
     if (calc_type == "full") {
-        gamma = compute_gamma_full(world, {chi, ground_orbitals}, xc);
+        gamma = compute_gamma_full(
+                world, {chi, ground_orbitals, vector_real_function_3d{}}, xc);
     } else if (calc_type == "static") {
-        gamma = compute_gamma_static(world, {chi, ground_orbitals}, xc);
+        gamma = compute_gamma_static(
+                world, {chi, ground_orbitals, vector_real_function_3d{}}, xc);
     } else {
-        gamma = compute_gamma_tda(world, {chi, ground_orbitals}, xc);
+        gamma = compute_gamma_tda(
+                world, {chi, ground_orbitals, vector_real_function_3d{}}, xc);
     }
     if (r_params.print_level() >= 20) {
         auto gamma_mx = inner(Chi_truncated, gamma);
@@ -1036,11 +1036,14 @@ auto ResponseBase::compute_response_potentials(
     X_space gamma;
     // compute
     if (calc_type == "full") {
-        gamma = compute_gamma_full(world, {chi, ground_orbitals}, xc);
+        gamma = compute_gamma_full(
+                world, {chi, ground_orbitals, vector_real_function_3d{}}, xc);
     } else if (calc_type == "static") {
-        gamma = compute_gamma_static(world, {chi, ground_orbitals}, xc);
+        gamma = compute_gamma_static(
+                world, {chi, ground_orbitals, vector_real_function_3d{}}, xc);
     } else {
-        gamma = compute_gamma_tda(world, {chi, ground_orbitals}, xc);
+        gamma = compute_gamma_tda(
+                world, {chi, ground_orbitals, vector_real_function_3d{}}, xc);
     }
 
     X_space Lambda_X(
@@ -1804,6 +1807,7 @@ auto ResponseBase::orbital_load_balance(World &world,
         -> gamma_orbitals {
     auto X = std::get<0>(gammaOrbitals);
     auto psi0 = std::get<1>(gammaOrbitals);
+    auto rho1 = std::get<2>(gammaOrbitals);
 
     size_t m = X.num_states();
     size_t n = X.num_orbitals();
@@ -1814,6 +1818,10 @@ auto ResponseBase::orbital_load_balance(World &world,
 
         for (const auto &phi0_i: psi0) {
             lb.add_tree(phi0_i, lbcost<double, 3>(1.0, 8.0), false);
+        }
+
+        for (const auto &rho1_i: rho1) {
+            lb.add_tree(rho1_i, lbcost<double, 3>(1.0, 8.0), false);
         }
         for (const auto &xi: X.x) {
             for (const auto &xij: xi) {
@@ -1836,12 +1844,13 @@ auto ResponseBase::orbital_load_balance(World &world,
         // copy orbitals using new pmap
         auto X_copy = X.copy(new_process_map, true);
         auto psi0_copy = copy(world, psi0, new_process_map, true);
+        auto rho1_copy = copy(world, rho1, new_process_map, true);
 
         molresponse::end_timer(world, "Gamma Orbital Load Balance");
-        return {X_copy, psi0_copy};
+        return {X_copy, psi0_copy, rho1_copy};
     } else {
         // return a copy with the same process map since we only have one world
-        return {X.copy(), copy(world, psi0)};
+        return {X.copy(), copy(world, psi0), copy(world, rho1)};
     }
 }
 
