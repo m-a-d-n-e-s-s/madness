@@ -312,68 +312,6 @@ auto FrequencyResponse::update_response(
     return {new_chi, {new_res, bsh}, new_rho};
 }
 
-auto FrequencyResponse::new_kain_x_space_update(
-        World &world, const X_space &x, const X_space &fx,
-        response_function_solver &rf_solver) -> X_space {
-    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-
-    bool compute_y = omega != 0.0;
-
-    size_t m = x.num_states();
-    size_t n = x.num_orbitals();
-    size_t p = compute_y ? 2 : 1;
-
-
-    X_space kain_update(world, m, n);
-    // step 1 is to place all functions into a single vector
-
-
-    vector_real_function_3d vect_x(m * n * p);
-    vector_real_function_3d vect_fx(m * n * p);
-    vector_real_function_3d vect_rx(m * n * p);
-
-    int orb_x;
-    int orb_y;
-    for (int i = 0; i < m; i++) {
-        orb_x = i * p * n;
-        for (int j = 0; j < n; j++) {
-            vect_x[orb_x + j] = x.x[i][j];
-            vect_fx[orb_x + j] = fx.x[i][j];
-        }
-        if (compute_y) {
-            orb_y = orb_x + n;
-            for (int j = 0; j < n; j++) {
-                vect_x[orb_y + j] = x.y[i][j];
-                vect_fx[orb_y + j] = fx.y[i][j];
-            }
-        }
-    }
-    vect_rx = sub(world, vect_fx, vect_x);
-    truncate(world, vect_rx);
-
-    for (int i = 0; i < m; i++) {
-        orb_x = i * p * n;
-        for (int j = 0; j < n; j++) {
-            kain_update.x[i][j] = rf_solver[orb_x + j].update(
-                    vect_x[orb_x + j], vect_rx[orb_x + j]);
-        }
-        if (compute_y) {
-            orb_y = orb_x + n;
-            for (int j = 0; j < n; j++) {
-                kain_update.y[i][j] = rf_solver[orb_y + j].update(
-                        vect_x[orb_y + j], vect_rx[orb_y + j]);
-            }
-        }
-    }
-    if (world.rank() == 0) {
-        print("----------------End Kain Update -----------------");
-    }
-    if (r_params.print_level() >= 1) {
-        molresponse::end_timer(world, "kain_x_update", "kain_x_update",
-                               iter_timing);
-    }
-    return kain_update;
-}
 auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
                                             std::vector<poperatorT> &bsh_x_ops,
                                             std::vector<poperatorT> &bsh_y_ops,

@@ -411,7 +411,8 @@ struct residuals {
 };
 
 
-using gamma_orbitals = std::tuple<X_space, vector_real_function_3d,vector_real_function_3d>;
+using gamma_orbitals =
+        std::tuple<X_space, vector_real_function_3d, vector_real_function_3d>;
 
 class ResponseBase {
 public:
@@ -461,7 +462,6 @@ protected:
     // shared pointers to Operators
     poperatorT
             shared_coulomb_operator;// shared pointer to seperated convolution operator
-    std::vector<poperatorT> coul_ops;
     std::vector<std::shared_ptr<real_derivative_3d>> gradop;
     // Stored functions
     mutable real_function_3d
@@ -535,11 +535,6 @@ protected:
         vtol = FunctionDefaults<3>::get_thresh() * safety;
         shared_coulomb_operator =
                 poperatorT(CoulombOperatorPtr(world, r_params.lo(), thresh));
-        coul_ops.clear();
-        for (int i = 0; i < r_params.num_states(); i++) {
-            coul_ops.push_back(poperatorT(CoulombOperatorPtr(
-                    world, r_params.lo(), FunctionDefaults<3>::get_thresh())));
-        }
         gradop = gradient_operator<double, 3>(world);
         potential_manager = std::make_shared<PotentialManager>(molecule, "a");
         potential_manager->make_nuclear_potential(world);
