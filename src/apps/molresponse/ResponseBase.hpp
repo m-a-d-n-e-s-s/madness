@@ -75,8 +75,8 @@ public:
 
         for (const auto &b: x.active) {
 
-            x_phi = mul(world, x.x[b], phi0, false);
-            y_phi = mul(world, x.y[b], phi0, false);
+            x_phi = mul(world, x.x[b], phi0, true);
+            y_phi = mul(world, x.y[b], phi0, true);
 
             world.gop.fence();
             rho_new[b] = sum(world, x_phi,true);
