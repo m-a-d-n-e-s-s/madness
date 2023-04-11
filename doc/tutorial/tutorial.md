@@ -18,6 +18,7 @@ Reference materials
 * [Cmake](https://cmake.org/)
 
 
+$$H \Psi = E \psi$$
 
 
 
