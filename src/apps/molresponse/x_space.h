@@ -81,7 +81,7 @@ namespace madness {
             auto new_x = X_space(*this);// copy
             for (int i = 0; i < new_x.num_states(); i++) {
                 new_x.x[i] = madness::copy(world, x[i], p_map, false);
-                new_x.y[i] = madness::copy(world, x[i], p_map, false);
+                new_x.y[i] = madness::copy(world, y[i], p_map, false);
             }
             world.gop.fence();
             return new_x;
@@ -165,7 +165,6 @@ namespace madness {
             for (auto &i: result.active) {
                 //       if (world.rank() == 0) { print("oop_apply", i); }
                 result.x[i] = func(A.x[i]);
-                world.gop.fence();
                 result.y[i] = func(A.y[i]);
             }
             world.gop.fence();
@@ -177,14 +176,15 @@ namespace madness {
                 -> X_space {
             MADNESS_ASSERT(same_size(A, B));
 
-            X_space result = A.copy();// create zero_functions
-            auto &world = result.x[0][0].world();
+            auto &world = A.x[0][0].world();
+            X_space result = X_space::zero_functions(world, A.num_states(),
+                                                     A.num_orbitals());
 
             for (const auto &i: result.active) {
-                auto ax = result.x[i];
+                auto ax = A.x[i];
                 auto bx = B.x[i];
 
-                auto ay = result.y[i];
+                auto ay = A.y[i];
                 auto by = B.y[i];
 
                 result.x[i] = func(ax, bx);

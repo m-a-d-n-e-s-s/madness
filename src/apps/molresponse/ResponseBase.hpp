@@ -157,6 +157,7 @@ public:
 
         X_space J = X_space::zero_functions(world, x.num_states(),
                                             x.num_orbitals());
+        if (world.rank() == 0) { print("J1StrategyStable"); }
         for (const auto &b: x.active) {
             auto temp_J = apply(*coulomb_ops, rho1[b]);
             J.x[b] = mul(world, temp_J, phi0, true);
@@ -192,6 +193,7 @@ public:
         vector_real_function_3d xb;
         vector_real_function_3d yb;
         Exchange<double, 3> K1X, K2X, K1Y, K2Y;
+        if (world.rank() == 0) { print("K1StrategyFull"); }
 
         for (const auto &b: x.active) {
             xb = x.x[b];
@@ -229,6 +231,8 @@ public:
         vector_real_function_3d yb;
         Exchange<double, 3> K1X{};
         Exchange<double, 3> K1Y{};
+
+        if (world.rank() == 0) { print("K1StrategyStatic"); }
 
         for (const auto &b: x.active) {
             xb = x.x[b];
