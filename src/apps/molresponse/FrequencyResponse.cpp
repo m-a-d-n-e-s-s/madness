@@ -182,8 +182,9 @@ void FrequencyResponse::iterate(World &world) {
         auto x_inner = ((compute_y) ? 2 : 1) * response_context.inner(Chi, Chi);
         inner_to_json(world, "x", x_inner, iter_function_data);
 
-        auto rho_omega_norm = ((compute_y) ? 2 : 1) * norm2s_T(world, rho_omega);
-        inner_to_json(world, "density_norms", rho_omega_norm, iter_function_data);
+        auto rho_omega_norm = norm2s_T(world, rho_omega);
+        inner_to_json(world, "density_norms", rho_omega_norm,
+                      iter_function_data);
         auto [new_chi, new_res, new_rho] = update_response(
                 world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts,
                 omega, kain_x_space, iter, max_rotation, rho_omega,
