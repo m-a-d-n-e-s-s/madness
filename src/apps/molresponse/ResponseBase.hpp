@@ -79,8 +79,8 @@ public:
             y_phi = mul(world, x.y[b], phi0, false);
 
             world.gop.fence();
-            rho_new[b] = sum(world, x_phi);
-            rho_new[b] += sum(world, y_phi);
+            rho_new[b] = sum(world, x_phi,true);
+            rho_new[b] += sum(world, y_phi,true);
             world.gop.fence();
         }
         truncate(world, rho_new);
