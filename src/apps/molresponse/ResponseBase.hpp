@@ -161,7 +161,7 @@ public:
         functionT temp_J;
         for (const auto &b: x.active) {
             temp_J = apply(*coulomb_ops, rho1[b]);
-            J.x[b] = mul(world, temp_J, phi0, false);
+            J.x[b] = mul(world, temp_J, phi0, true);
         }
         world.gop.fence();
         J.y = J.x.copy();
@@ -199,9 +199,11 @@ public:
         for (const auto &b: x.active) {
             xb = x.x[b];
             yb = x.y[b];
+
             K1X = make_k(xb, phi0);
-            K2X = make_k(yb, phi0);
             K1Y = make_k(phi0, yb);
+
+            K2X = make_k(yb, phi0);
             K2Y = make_k(phi0, xb);
             k1x = K1X(phi0);
             k1y = K1Y(phi0);

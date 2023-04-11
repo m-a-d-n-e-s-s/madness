@@ -2412,6 +2412,7 @@ response_data::response_data() : iter(0) {
     function_data.insert({"r_alpha", std::vector<Tensor<double>>(0)});
 
     function_data.insert({"d", std::vector<Tensor<double>>(0)});
+    function_data.insert({"density_norms", std::vector<Tensor<double>>(0)});
     function_data.insert({"r_d", std::vector<Tensor<double>>(0)});
     function_data.insert({"r_d", std::vector<Tensor<double>>(0)});
     function_data.insert(
