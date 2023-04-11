@@ -170,7 +170,7 @@ namespace madness {
         MADNESS_ASSERT(size_orbitals(A) > 0);
         MADNESS_ASSERT(same_size(A, B));
 
-        return response_space_inner(A.x, B.x) + response_space_inner(A.y, B.y);
+        // return response_space_inner(A.x, B.x) + response_space_inner(A.y, B.y);
 
         auto a = to_response_matrix(A);
         auto b = to_response_matrix(B);
