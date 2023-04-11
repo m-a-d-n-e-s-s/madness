@@ -23,6 +23,71 @@
 
 using namespace madness;
 
+class ComputeDensityStrategy {
+public:
+    virtual ~ComputeDensityStrategy() = default;
+    virtual vector_real_function_3d
+    compute_density(World &world, const X_space &x,
+                    const vector_real_function_3d &phi0,
+                    const vector_real_function_3d &rho1, bool update) const = 0;
+};
+
+class StaticDensityStrategy : public ComputeDensityStrategy {
+public:
+    vector_real_function_3d compute_density(World &world, const X_space &x,
+                                            const vector_real_function_3d &phi0,
+                                            const vector_real_function_3d &rho1,
+                                            bool update) const override {
+
+        vector_real_function_3d rho_new;
+        if (update) {
+            rho_new = copy(world, rho1);
+        } else {
+            rho_new = zero_functions<double, 3>(world, x.num_states());
+        }
+        vector_real_function_3d x_phi, y_phi;
+
+        for (const auto &b: x.active) {
+
+            x_phi = mul(world, x.x[b], phi0, false);
+
+            world.gop.fence();
+            rho_new[b] = 2 * sum(world, x_phi);
+            world.gop.fence();
+        }
+        truncate(world, rho_new);
+        return rho_new;
+    }
+};
+class FullDensityStrategy : public ComputeDensityStrategy {
+public:
+    vector_real_function_3d compute_density(World &world, const X_space &x,
+                                            const vector_real_function_3d &phi0,
+                                            const vector_real_function_3d &rho1,
+                                            bool update) const override {
+        vector_real_function_3d rho_new;
+        if (update) {
+            rho_new = copy(world, rho1);
+        } else {
+            rho_new = zero_functions<double, 3>(world, x.num_states());
+        }
+        vector_real_function_3d x_phi, y_phi;
+
+        for (const auto &b: x.active) {
+
+            x_phi = mul(world, x.x[b], phi0, false);
+            y_phi = mul(world, x.y[b], phi0, false);
+
+            world.gop.fence();
+            rho_new[b] = sum(world, x_phi);
+            rho_new[b] += sum(world, y_phi);
+            world.gop.fence();
+        }
+        truncate(world, rho_new);
+        return rho_new;
+    }
+};
+
 class VXC1Strategy {
 public:
     virtual ~VXC1Strategy() = default;
@@ -181,8 +246,8 @@ class inner_strategy {
 
 public:
     virtual ~inner_strategy() = default;
-    virtual Tensor<double> compute_inner(const X_space &x,
-                                         const X_space &y) const = 0;
+    [[nodiscard]] virtual Tensor<double>
+    compute_inner(const X_space &x, const X_space &y) const = 0;
 };
 
 class Context {
@@ -192,24 +257,31 @@ private:
     std::unique_ptr<J1Strategy> j1_strategy_;
     std::unique_ptr<K1Strategy> k1_strategy_;
     std::unique_ptr<VXC1Strategy> vxc1_strategy_;
+    std::unique_ptr<ComputeDensityStrategy> density_strategy_;
 
 public:
-    explicit Context(std::unique_ptr<inner_strategy> &&innerStrategy = {},
-                     std::unique_ptr<J1Strategy> &&j1Strategy = {},
-                     std::unique_ptr<K1Strategy> &&k1Strategy = {},
-                     std::unique_ptr<VXC1Strategy> &&vxc1trategy = {})
+    explicit Context(
+            std::unique_ptr<inner_strategy> &&innerStrategy = {},
+            std::unique_ptr<J1Strategy> &&j1Strategy = {},
+            std::unique_ptr<K1Strategy> &&k1Strategy = {},
+            std::unique_ptr<VXC1Strategy> &&vxc1trategy = {},
+            std::unique_ptr<ComputeDensityStrategy> &&densityStrategy = {})
         : inner_strategy_(std::move(innerStrategy)),
           j1_strategy_(std::move(j1Strategy)),
           k1_strategy_(std::move(k1Strategy)),
-          vxc1_strategy_(std::move(vxc1trategy)) {}
-    void set_strategy(std::unique_ptr<inner_strategy> &&strategy,
-                      std::unique_ptr<J1Strategy> &&j1Strategy,
-                      std::unique_ptr<K1Strategy> &&K1Strategy,
-                      std::unique_ptr<VXC1Strategy> &&vxc1Strategy) {
+          vxc1_strategy_(std::move(vxc1trategy)),
+          density_strategy_(std::move(densityStrategy)) {}
+    void
+    set_strategy(std::unique_ptr<inner_strategy> &&strategy,
+                 std::unique_ptr<J1Strategy> &&j1Strategy,
+                 std::unique_ptr<K1Strategy> &&K1Strategy,
+                 std::unique_ptr<VXC1Strategy> &&vxc1Strategy,
+                 std::unique_ptr<ComputeDensityStrategy> &&densityStrategy) {
         inner_strategy_ = std::move(strategy);
         j1_strategy_ = std::move(j1Strategy);
         k1_strategy_ = std::move(K1Strategy);
         vxc1_strategy_ = std::move(vxc1Strategy);
+        density_strategy_ = std::move(densityStrategy);
     }
 
     [[nodiscard]] Tensor<double> inner(const X_space &x,
@@ -258,13 +330,28 @@ public:
                                             "inner", "ResponseBase.hpp");
         }
     }
+
+    vector_real_function_3d compute_density(World &world, const X_space &x,
+                                            const vector_real_function_3d &phi0,
+                                            const vector_real_function_3d &rho1,
+                                            bool update) const {
+        if (density_strategy_) {
+            return density_strategy_->compute_density(world, x, phi0, rho1,
+                                                      update);
+        } else {
+            throw madness::MadnessException(
+                    "Compute Density Strategy isn't set",
+                    "Need to set a strategy", 2, 455, "inner",
+                    "ResponseBase.hpp");
+        }
+    }
 };
 
 
 class full_inner_product : public inner_strategy {
 public:
-    Tensor<double> compute_inner(const X_space &x,
-                                 const X_space &y) const override {
+    [[nodiscard]] Tensor<double>
+    compute_inner(const X_space &x, const X_space &y) const override {
         return inner(x, y);
     }
 };

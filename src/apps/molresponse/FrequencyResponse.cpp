@@ -21,14 +21,15 @@ void FrequencyResponse::iterate(World &world) {
     size_t m = r_params.num_states();  // Number of excited states
 
     real_function_3d v_xc;
-    const double dconv =
-            std::max(FunctionDefaults<3>::get_thresh() * 10, r_params.dconv());//.01 .0001 .1e-5
+    const double dconv = std::max(FunctionDefaults<3>::get_thresh() * 10,
+                                  r_params.dconv());//.01 .0001 .1e-5
     auto thresh = FunctionDefaults<3>::get_thresh();
     auto density_target = dconv * std::max(size_t(5.0), molecule.natom());
     const double a_pow{0.50209};
     const double b_pow{-0.99162};
 
-    const double x_relative_target = pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
+    const double x_relative_target =
+            pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
     Tensor<double> x_relative_residuals((int(m)));
     Tensor<double> density_residuals((int(m)));
     Tensor<double> density_residuals_old((int(m)));
@@ -50,10 +51,13 @@ void FrequencyResponse::iterate(World &world) {
     // create a std vector of XNONLinearsolvers
     response_solver kain_x_space;
     for (size_t b = 0; b < m; b++) {
-        kain_x_space.emplace_back(response_matrix_allocator(world, r_vector_size), false);
+        kain_x_space.emplace_back(
+                response_matrix_allocator(world, r_vector_size), false);
     }
     if (r_params.kain()) {
-        for (auto &kain_space_b: kain_x_space) { kain_space_b.set_maxsub(r_params.maxsub()); }
+        for (auto &kain_space_b: kain_x_space) {
+            kain_space_b.set_maxsub(r_params.maxsub());
+        }
     }
     // We compute with positive frequencies
     if (world.rank() == 0) {
@@ -70,8 +74,9 @@ void FrequencyResponse::iterate(World &world) {
     }
     auto bsh_x_ops = make_bsh_operators_response(world, x_shifts, omega);
     std::vector<poperatorT> bsh_y_ops;
-    bsh_y_ops = (compute_y) ? make_bsh_operators_response(world, y_shifts, -omega) : bsh_x_ops;
-    vector_real_function_3d rho_omega = make_density(world, Chi);
+    bsh_y_ops = (compute_y)
+                        ? make_bsh_operators_response(world, y_shifts, -omega)
+                        : bsh_x_ops;
     auto max_rotation = .5;
     if (thresh >= 1e-2) {
         max_rotation = 2;
@@ -83,11 +88,13 @@ void FrequencyResponse::iterate(World &world) {
         max_rotation = .01;
     }
     PQ = generator(world, *this);
-    PQ.truncate();
 
     vector<bool> converged(Chi.num_states(), false);
     Chi.reset_active();
-    rho_omega = make_density(world, Chi);
+    // make density for the first time
+    auto rho_omega = response_context.compute_density(
+            world, Chi, ground_orbitals,
+            vector_real_function_3d(Chi.num_states()), false);
 
     for (iter = 0; iter < r_params.maxiter(); ++iter) {
         //if (world.rank() == 0) { print("At the start of iterate x", checkx); }
@@ -96,8 +103,10 @@ void FrequencyResponse::iterate(World &world) {
         if (r_params.print_level() >= 1) {
             molresponse::start_timer(world);
             if (world.rank() == 0)
-                printf("\n   Iteration %d at time %.1fs\n", static_cast<int>(iter), wall_time());
-            if (world.rank() == 0) print("-------------------------------------------");
+                printf("\n   Iteration %d at time %.1fs\n",
+                       static_cast<int>(iter), wall_time());
+            if (world.rank() == 0)
+                print("-------------------------------------------");
         }
         if (iter < 2 || (iter % 5) == 0) { load_balance_chi(world); }
         if (iter > 0) {
@@ -110,8 +119,9 @@ void FrequencyResponse::iterate(World &world) {
 
             // Todo add chi norm and chi_x
             if (world.rank() == 0) {
-                function_data_to_json(j_molresponse, iter, chi_norms, x_relative_residuals,
-                                      rho_norms, density_residuals);
+                function_data_to_json(j_molresponse, iter, chi_norms,
+                                      x_relative_residuals, rho_norms,
+                                      density_residuals);
                 frequency_to_json(j_molresponse, iter, polar, res_polar);
             }
             if (r_params.print_level() >= 1) {
@@ -122,17 +132,20 @@ void FrequencyResponse::iterate(World &world) {
                     print("Chi Norms at start of iteration: ", iter);
                     print("||X||: ", chi_norms);
                     print("polarizability: \n", polar);
-                    print("targets : ||x||", x_relative_target, "    ||delta_rho||",
-                          density_target);
+                    print("targets : ||x||", x_relative_target,
+                          "    ||delta_rho||", density_target);
                 }
             }
             auto check_convergence = [&](auto &ri, auto &di) {
-                if (world.rank() == 0) { print("              ", ri, "    ", di); }
+                if (world.rank() == 0) {
+                    print("              ", ri, "    ", di);
+                }
                 return ((ri < x_relative_target) && (di < density_target));
             };
 
             for (const auto &b: Chi.active) {
-                converged[b] = check_convergence(x_relative_residuals[b], density_residuals[b]);
+                converged[b] = check_convergence(x_relative_residuals[b],
+                                                 density_residuals[b]);
             }
             int b = 0;
             auto remove_converged = [&]() {
@@ -149,16 +162,19 @@ void FrequencyResponse::iterate(World &world) {
                                    [](const auto &ci) { return ci; });
             if (all_done || iter == r_params.maxiter()) {
                 // if converged print converged
-                if (world.rank() == 0 && all_done and (r_params.print_level() > 1)) {
+                if (world.rank() == 0 && all_done and
+                    (r_params.print_level() > 1)) {
                     print("\nConverged!\n");
                 }
                 if (r_params.save()) {
                     molresponse::start_timer(world);
                     save(world, r_params.save_file());
-                    if (r_params.print_level() >= 1) molresponse::end_timer(world, "Save:");
+                    if (r_params.print_level() >= 1)
+                        molresponse::end_timer(world, "Save:");
                 }
                 if (r_params.plot_all_orbitals()) {
-                    plotResponseOrbitals(world, iter, Chi.x, Chi.y, r_params, ground_calc);
+                    plotResponseOrbitals(world, iter, Chi.x, Chi.y, r_params,
+                                         ground_calc);
                 }
                 break;
             }
@@ -166,8 +182,9 @@ void FrequencyResponse::iterate(World &world) {
         auto x_inner = ((compute_y) ? 2 : 1) * response_context.inner(Chi, Chi);
         inner_to_json(world, "x", x_inner, iter_function_data);
         auto [new_chi, new_res, new_rho] = update_response(
-                world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega, kain_x_space,
-                iter, max_rotation, rho_omega, x_relative_residuals, residuals);
+                world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts,
+                omega, kain_x_space, iter, max_rotation, rho_omega,
+                x_relative_residuals, residuals);
         // Here we have computed the new response orbitals and the residuals
         // Now we need to compute the new density and the new density residuals
         // Instead, update should also update the density
@@ -175,14 +192,20 @@ void FrequencyResponse::iterate(World &world) {
         // consistent with kain orbitals
 
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-        rho_omega_old = rho_omega;
+        rho_omega_old = copy(world, rho_omega);
         if (r_params.print_level() >= 1) {
-            molresponse::end_timer(world, "make_density_old", "make_density_old", iter_timing);
+            molresponse::end_timer(world, "make_density_old",
+                                   "make_density_old", iter_timing);
         }
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-        rho_omega = update_density(world, new_chi, rho_omega_old);
+
+        rho_omega = response_context.compute_density(
+                world, Chi, ground_orbitals, rho_omega_old, true);
+
+        //rho_omega = update_density(world, new_chi, rho_omega_old);
         if (r_params.print_level() >= 1) {
-            molresponse::end_timer(world, "make_density_new", "make_density_new", iter_timing);
+            molresponse::end_timer(world, "make_density_new",
+                                   "make_density_new", iter_timing);
         }
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         x_relative_residuals = copy(new_res.residual_norms);
@@ -193,7 +216,8 @@ void FrequencyResponse::iterate(World &world) {
             Chi.x = new_chi.x.copy();
         }
         if (r_params.print_level() >= 1) {
-            molresponse::end_timer(world, "copy_response_data", "copy_response_data", iter_timing);
+            molresponse::end_timer(world, "copy_response_data",
+                                   "copy_response_data", iter_timing);
         }
         density_residuals = copy(density_residuals_old);
         for (const auto &b: Chi.active) {
@@ -205,7 +229,8 @@ void FrequencyResponse::iterate(World &world) {
         auto dnorm = norm2s_T(world, rho_omega);
         iter_function_data["d"] = dnorm;
         polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
-        res_polar = ((compute_y) ? -2 : -4) * response_context.inner(new_res.residual, PQ);
+        res_polar = ((compute_y) ? -2 : -4) *
+                    response_context.inner(new_res.residual, PQ);
         inner_to_json(world, "alpha", polar, iter_function_data);
         inner_to_json(world, "r_alpha", res_polar, iter_function_data);
         if (r_params.print_level() >= 20) {
@@ -219,13 +244,14 @@ void FrequencyResponse::iterate(World &world) {
             }
         }
         if (r_params.print_level() >= 1) {
-            molresponse::end_timer(world, "Iteration Timing", "iter_total", iter_timing);
+            molresponse::end_timer(world, "Iteration Timing", "iter_total",
+                                   iter_timing);
         }
         time_data.add_data(iter_timing);
         function_data.add_data(iter_function_data);
     }
-    function_data.add_convergence_targets(FunctionDefaults<3>::get_thresh(), density_target,
-                                          x_relative_target);
+    function_data.add_convergence_targets(FunctionDefaults<3>::get_thresh(),
+                                          density_target, x_relative_target);
     Chi.reset_active();
     if (world.rank() == 0) print("\n");
     if (world.rank() == 0) print("   Finished Response Calculation ");
@@ -247,9 +273,10 @@ void FrequencyResponse::iterate(World &world) {
 }
 
 auto FrequencyResponse::update_response(
-        World &world, X_space &chi, XCOperator<double, 3> &xc, std::vector<poperatorT> &bsh_x_ops,
-        std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector, double &x_shifts,
-        double &omega_n, response_solver &kain_x_space, size_t iteration,
+        World &world, X_space &chi, XCOperator<double, 3> &xc,
+        std::vector<poperatorT> &bsh_x_ops, std::vector<poperatorT> &bsh_y_ops,
+        QProjector<double, 3> &projector, double &x_shifts, double &omega_n,
+        response_solver &kain_x_space, size_t iteration,
         const double &max_rotation, const vector_real_function_3d &rho_old,
         const Tensor<double> &old_residuals, const X_space &xres_old)
         -> std::tuple<X_space, residuals, vector_real_function_3d> {
@@ -258,22 +285,28 @@ auto FrequencyResponse::update_response(
 
     auto x = chi.copy();// copy chi
                         //    auto checkx = x.norm2s();
-                        //  if (world.rank() == 0) { print("Right after chi.copy() ", checkx); }
+    //  if (world.rank() == 0) { print("Right after chi.copy() ", checkx); }
     X_space theta_X = compute_theta_X(world, x, xc, r_params.calc_type());
-    X_space new_chi =
-            bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
+    X_space new_chi = bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops,
+                                          projector, x_shifts);
 
-    auto new_rho = update_density(world, new_chi, rho_old);
+    //auto new_rho = update_density(world, new_chi, rho_old);
 
-    inner_to_json(world, "x_new", response_context.inner(new_chi, new_chi), iter_function_data);
+    auto new_rho = response_context.compute_density(
+            world, new_chi, ground_orbitals, rho_old, true);
 
-    auto [new_res, bsh] =
-            update_residual(world, chi, new_chi, r_params.calc_type(), old_residuals, xres_old);
-    inner_to_json(world, "r_x", response_context.inner(new_res, new_res), iter_function_data);
+    inner_to_json(world, "x_new", response_context.inner(new_chi, new_chi),
+                  iter_function_data);
+
+    auto [new_res, bsh] = update_residual(
+            world, chi, new_chi, r_params.calc_type(), old_residuals, xres_old);
+    inner_to_json(world, "r_x", response_context.inner(new_res, new_res),
+                  iter_function_data);
     if (iteration >= 0) {// & (iteration % 3 == 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
-    inner_to_json(world, "x_update", response_context.inner(new_chi, new_chi), iter_function_data);
+    inner_to_json(world, "x_update", response_context.inner(new_chi, new_chi),
+                  iter_function_data);
     // if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "update response", "update", iter_timing);
@@ -281,8 +314,9 @@ auto FrequencyResponse::update_response(
     return {new_chi, {new_res, bsh}, new_rho};
 }
 
-auto FrequencyResponse::new_kain_x_space_update(World &world, const X_space &x, const X_space &fx,
-                                                response_function_solver &rf_solver) -> X_space {
+auto FrequencyResponse::new_kain_x_space_update(
+        World &world, const X_space &x, const X_space &fx,
+        response_function_solver &rf_solver) -> X_space {
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     bool compute_y = omega != 0.0;
@@ -322,28 +356,31 @@ auto FrequencyResponse::new_kain_x_space_update(World &world, const X_space &x, 
     for (int i = 0; i < m; i++) {
         orb_x = i * p * n;
         for (int j = 0; j < n; j++) {
-            kain_update.x[i][j] =
-                    rf_solver[orb_x + j].update(vect_x[orb_x + j], vect_rx[orb_x + j]);
+            kain_update.x[i][j] = rf_solver[orb_x + j].update(
+                    vect_x[orb_x + j], vect_rx[orb_x + j]);
         }
         if (compute_y) {
             orb_y = orb_x + n;
             for (int j = 0; j < n; j++) {
-                kain_update.y[i][j] =
-                        rf_solver[orb_y + j].update(vect_x[orb_y + j], vect_rx[orb_y + j]);
+                kain_update.y[i][j] = rf_solver[orb_y + j].update(
+                        vect_x[orb_y + j], vect_rx[orb_y + j]);
             }
         }
     }
-    if (world.rank() == 0) { print("----------------End Kain Update -----------------"); }
+    if (world.rank() == 0) {
+        print("----------------End Kain Update -----------------");
+    }
     if (r_params.print_level() >= 1) {
-        molresponse::end_timer(world, "kain_x_update", "kain_x_update", iter_timing);
+        molresponse::end_timer(world, "kain_x_update", "kain_x_update",
+                               iter_timing);
     }
     return kain_update;
 }
 auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
                                             std::vector<poperatorT> &bsh_x_ops,
                                             std::vector<poperatorT> &bsh_y_ops,
-                                            QProjector<double, 3> &projector, double &x_shifts)
-        -> X_space {
+                                            QProjector<double, 3> &projector,
+                                            double &x_shifts) -> X_space {
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     size_t m = theta_X.x.size();
     size_t n = theta_X.x.size_orbitals();
@@ -400,7 +437,9 @@ void FrequencyResponse::frequency_to_json(json &j_mol_in, size_t iter,
     j_mol_in["protocol_data"][index]["property_data"].push_back(j);
 }
 
-void FrequencyResponse::compute_and_print_polarizability(World &world, X_space &Chi, X_space &pq,
+void FrequencyResponse::compute_and_print_polarizability(World &world,
+                                                         X_space &Chi,
+                                                         X_space &pq,
                                                          std::string message) {
     Tensor<double> G = -2 * inner(Chi, pq);
     if (world.rank() == 0) {
@@ -450,9 +489,14 @@ auto nuclear_generator(World &world, FrequencyResponse &calc) -> X_space {
 
     for (long atom = 0; atom < molecule.natom(); ++atom) {
         for (long axis = 0; axis < 3; ++axis) {
-            functorT func(new madchem::MolecularDerivativeFunctor(molecule, atom, axis));
-            nuclear_vector.at(atom * 3 + axis) = functionT(
-                    factoryT(world).functor(func).nofence().truncate_on_project().truncate_mode(0));
+            functorT func(new madchem::MolecularDerivativeFunctor(molecule,
+                                                                  atom, axis));
+            nuclear_vector.at(atom * 3 + axis) =
+                    functionT(factoryT(world)
+                                      .functor(func)
+                                      .nofence()
+                                      .truncate_on_project()
+                                      .truncate_mode(0));
         }
     }
     PQ.x = vector_to_PQ(world, nuclear_vector, calc.get_orbitals());
@@ -468,7 +512,8 @@ auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
     for (auto &d: dipole_vectors) {
         std::vector<int> f(3, 0);
         f[i++] = 1;
-        d = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
+        d = real_factory_3d(world).functor(
+                real_functor_3d(new MomentFunctor(f)));
     }
     //truncate(world, dipole_vectors, true);
     world.gop.fence();
@@ -479,7 +524,8 @@ auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
 }
 
 auto vector_to_PQ(World &world, const vector_real_function_3d &rhs_operators,
-                  const vector_real_function_3d &ground_orbitals) -> response_space {
+                  const vector_real_function_3d &ground_orbitals)
+        -> response_space {
     response_space rhs(world, rhs_operators.size(), ground_orbitals.size());
     auto orbitals = copy(world, ground_orbitals);
     reconstruct(world, orbitals);

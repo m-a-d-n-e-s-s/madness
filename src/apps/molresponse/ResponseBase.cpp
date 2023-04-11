@@ -461,8 +461,6 @@ auto ResponseBase::compute_gamma(World &world, const gamma_orbitals &density,
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing);
     }
-    // auto K = response_exchange_multiworld(phi0, chi_alpha, true);
-    //K = oop_apply(K, apply_projector);
     if (r_params.print_level() >= 20) {
         print_inner(world, "old xKx", chi_alpha, K);
     }

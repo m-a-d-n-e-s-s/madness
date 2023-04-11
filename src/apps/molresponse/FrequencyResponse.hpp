@@ -31,13 +31,15 @@ public:
                     std::make_unique<static_inner_product>(),
                     std::make_unique<J1StrategyStable>(),
                     std::make_unique<K1StrategyStatic>(),
-                    std::make_unique<VXC1StrategyStandard>());
+                    std::make_unique<VXC1StrategyStandard>(),
+                    std::make_unique<StaticDensityStrategy>());
         } else {
             response_context.set_strategy(
                     std::make_unique<full_inner_product>(),
                     std::make_unique<J1StrategyStable>(),
                     std::make_unique<K1StrategyFull>(),
-                    std::make_unique<VXC1StrategyStandard>());
+                    std::make_unique<VXC1StrategyStandard>(),
+                    std::make_unique<FullDensityStrategy>());
         }
         PQ = generator(world, *this);
     }
