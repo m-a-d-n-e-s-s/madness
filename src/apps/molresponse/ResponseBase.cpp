@@ -438,7 +438,12 @@ auto ResponseBase::compute_gamma(World &world, const gamma_orbitals &density,
     auto apply_projector = [&](auto &xi) { return projector(xi); };
     // apply the exchange kernel to rho if necessary
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    auto rho_b = make_density(world, chi_alpha);
+    // auto rho_b = make_density(world, chi_alpha);
+
+    auto rho_b = response_context.compute_density(
+            world, Chi, ground_orbitals, vector_real_function_3d(), false);
+
+
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "gamma_make_density");
     }
