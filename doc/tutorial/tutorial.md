@@ -1,11 +1,11 @@
 # MADNESS tutorial
 
 This tutorial covers
-* downloading, building and installing MADNESS;
-* an overview of the MADNESS parallel runtime sufficient to develop and run numerical applications;
-* developing new applications using the numerical and chemistry APIS;
-* running MADNESS applications in parallel; and
-* using the MADNESS chemistry applications.
+* downloading, building and installing MADNESS; [RJH]
+* an overview of the MADNESS parallel runtime sufficient to develop and run numerical applications; [RJH]
+* developing new applications using the numerical and chemistry APIS; [All of us]
+* running MADNESS applications in parallel using threads + MPI; and [Hannes]
+* using the MADNESS chemistry applications. [Florian, Hannes, Adrian]
 
 ## Downloading
 
