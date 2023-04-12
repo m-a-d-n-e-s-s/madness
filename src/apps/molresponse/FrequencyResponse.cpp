@@ -203,6 +203,7 @@ void FrequencyResponse::iterate(World &world) {
             world.gop.fence();
             density_residuals[b] = drho_b_norm;
         }
+        world.gop.fence();
         iter_function_data["r_d"] = density_residuals;
 
         // Now we should update the orbitals and density
