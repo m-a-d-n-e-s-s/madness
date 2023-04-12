@@ -115,6 +115,9 @@ void FrequencyResponse::iterate(World &world) {
                 if (world.rank() == 0) { print("d-residual > 20...break"); }
                 break;
             }
+
+            inner_to_json(world, "density_residuals", density_residuals,
+                          iter_function_data);
             auto chi_norms = (compute_y) ? Chi.norm2s() : Chi.x.norm2();
             auto rho_norms = madness::norm2s_T(world, rho_omega);
 
@@ -205,8 +208,6 @@ void FrequencyResponse::iterate(World &world) {
             density_residuals[b] = drho_b_norm;
         }
         world.gop.fence();
-        inner_to_json(world, "density_residuals", density_residuals,
-                      iter_function_data);
 
         iter_function_data["r_d"] = density_residuals;
 
