@@ -215,23 +215,18 @@ public:
         std::vector<Exchange<double, 3>> K2Xs(x.num_states());
         std::vector<Exchange<double, 3>> K2Ys(x.num_states());
 
-
         for (const auto &b: x.active) {
             K1Xs[b] = make_k(x.x[b], phi0);
             K1Ys[b] = make_k(phi0, x.y[b]);
             K2Xs[b] = make_k(x.y[b], phi0);
             K2Ys[b] = make_k(phi0, x.x[b]);
-        }
-        world.gop.fence();
+            world.gop.fence();
 
-        for (const auto &b: x.active) {
             k1x_temp[b] = K1Xs[b](phi0);
             k1y_temp[b] = K1Ys[b](phi0);
             k2x_temp[b] = K2Xs[b](phi0);
             k2y_temp[b] = K2Ys[b](phi0);
-        }
-        world.gop.fence();
-        for (const auto &b: x.active) {
+            world.gop.fence();
             K.x[b] = gaxpy_oop(1.0, k1x_temp[b], 1.0, k1y_temp[b], false);
             K.y[b] = gaxpy_oop(1.0, k2x_temp[b], 1.0, k2y_temp[b], false);
         }
@@ -260,14 +255,8 @@ public:
         for (const auto &b: x.active) {
             K1Xs[b] = make_k(x.x[b], phi0);
             K1Ys[b] = make_k(phi0, x.x[b]);
-        }
-        world.gop.fence();
-        for (const auto &b: x.active) {
             k1_temp[b] = K1Xs[b](phi0);
             k2_temp[b] = K1Ys[b](phi0);
-        }
-        world.gop.fence();
-        for (const auto &b: x.active) {
             K.x[b] = gaxpy_oop(1.0, k1_temp[b], 1.0, k2_temp[b], false);
         }
         world.gop.fence();
