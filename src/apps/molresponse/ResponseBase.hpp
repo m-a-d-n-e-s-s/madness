@@ -75,8 +75,8 @@ public:
 
         for (const auto &b: x.active) {
 
-            x_phi = mul(world, x.x[b], phi0, true);
-            y_phi = mul(world, x.y[b], phi0, true);
+            x_phi = mul(world, x.x[b], phi0, false);
+            y_phi = mul(world, x.y[b], phi0, false);
 
             world.gop.fence();
             rho_new[b] = sum(world, x_phi, true);
@@ -140,7 +140,7 @@ public:
         vector_real_function_3d temp_J(3);
         for (const auto &b: x.active) {
             temp_J[b] = apply(*coulomb_ops, rho1[b]);
-            J.x[b] = mul(world, temp_J[b], phi0, true);
+            J.x[b] = mul(world, temp_J[b], phi0, false);
         }
         J.y = J.x.copy();
         return J;
@@ -160,7 +160,11 @@ public:
         if (world.rank() == 0) { print("J1StrategyStable"); }
         for (const auto &b: x.active) {
             auto temp_J = apply(*coulomb_ops, rho1[b]);
-            J.x[b] = mul(world, temp_J, phi0, true);
+            if (true) {
+                auto norm = temp_J.norm2();
+                if (world.rank() == 0) print("norm of temp_J:", norm);
+            }
+            J.x[b] = mul(world, temp_J, phi0, false);
         }
         J.y = J.x.copy();
         return J;
@@ -210,7 +214,6 @@ public:
             k1y = K1Y(phi0);
             k2x = K2X(phi0);
             k2y = K2Y(phi0);
-            world.gop.fence();
             K.x[b] = gaxpy_oop(1.0, k1x, 1.0, k1y, true);
             K.y[b] = gaxpy_oop(1.0, k2x, 1.0, k2y, true);
             world.gop.fence();

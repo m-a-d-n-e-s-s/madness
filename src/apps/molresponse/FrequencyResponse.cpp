@@ -221,9 +221,6 @@ void FrequencyResponse::iterate(World &world) {
             molresponse::end_timer(world, "copy_response_data",
                                    "copy_response_data", iter_timing);
         }
-        for (const auto &b: Chi.active) {
-            density_residuals[b] = (rho_omega[b] - new_rho[b]).norm2();
-        }
         iter_function_data["r_d"] = density_residuals;
         iter_function_data["x_relative_residuals"] = x_relative_residuals;
 
