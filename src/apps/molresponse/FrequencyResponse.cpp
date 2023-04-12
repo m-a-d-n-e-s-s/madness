@@ -287,8 +287,6 @@ auto FrequencyResponse::update_response(
     X_space new_chi = bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops,
                                           projector, x_shifts);
 
-    auto new_rho = response_context.compute_density(
-            world, new_chi, ground_orbitals, rho_old, true);
 
     inner_to_json(world, "x_new", response_context.inner(new_chi, new_chi),
                   iter_function_data);
@@ -306,6 +304,10 @@ auto FrequencyResponse::update_response(
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "update response", "update", iter_timing);
     }
+
+    auto new_rho = response_context.compute_density(
+            world, new_chi, ground_orbitals, rho_old, true);
+
     return {new_chi, {new_res, bsh}, new_rho};
 }
 
