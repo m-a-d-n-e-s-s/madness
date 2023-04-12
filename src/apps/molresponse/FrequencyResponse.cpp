@@ -206,14 +206,15 @@ void FrequencyResponse::iterate(World &world) {
             Chi.x = new_chi.x.copy();
         }
 
-        if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-        rho_omega = response_context.compute_density(
-                world, Chi, ground_orbitals, rho_omega, true);
+        //     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+        //        rho_omega = response_context.compute_density(
+        //               world, Chi, ground_orbitals, rho_omega, true);
 
-        if (r_params.print_level() >= 1) {
-            molresponse::end_timer(world, "make_density_old",
-                                   "make_density_old", iter_timing);
-        }
+        //    if (r_params.print_level() >= 1) {
+        //       molresponse::end_timer(world, "make_density_old",
+        //                             "make_density_old", iter_timing);
+        // }
+
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         x_relative_residuals = copy(new_res.residual_norms);
         residuals = new_res.residual.copy();
