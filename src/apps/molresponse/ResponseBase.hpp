@@ -49,12 +49,10 @@ public:
 
         for (const auto &b: x.active) {
 
-            x_phi = mul(world, x.x[b], phi0, false);
-
-            world.gop.fence();
+            x_phi = mul(world, x.x[b], phi0, true);
             rho_new[b] = 2 * sum(world, x_phi);
-            world.gop.fence();
         }
+        world.gop.fence();
         truncate(world, rho_new);
         return rho_new;
     }

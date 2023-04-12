@@ -158,6 +158,7 @@ void FrequencyResponse::iterate(World &world) {
                 print("converged", converged);
                 print("active", Chi.active);
             }
+            b = 0;
             all_done = std::all_of(converged.begin(), converged.end(),
                                    [](const auto &ci) { return ci; });
             if (all_done || iter == r_params.maxiter()) {
@@ -190,14 +191,20 @@ void FrequencyResponse::iterate(World &world) {
                 omega, kain_x_space, iter, max_rotation, rho_omega,
                 x_relative_residuals, residuals);
 
+        auto old_rho = copy(world, rho_omega);
+        rho_omega = copy(world, new_rho);
         // first thing we should do is update the density residuals
         // drho = rho(x)-rho(g(x))
         // new_rho= rho(g(x))
-        for (const auto &b: Chi.active) {
-            density_residuals[b] = (rho_omega[b] - new_rho[b]).norm2();
-        }
 
-        rho_omega = copy(world, new_rho);
+        for (const auto &b: Chi.active) {
+            auto drho_b = rho_omega[b] - old_rho[b];
+            auto drho_b_norm = drho_b.norm2();
+            world.gop.fence();
+            density_residuals[b] = drho_b_norm;
+        }
+        iter_function_data["r_d"] = density_residuals;
+
         // Now we should update the orbitals and density
         // x= x+deltax
         // rho = rho(x+delta x)
@@ -215,7 +222,6 @@ void FrequencyResponse::iterate(World &world) {
             molresponse::end_timer(world, "copy_response_data",
                                    "copy_response_data", iter_timing);
         }
-        iter_function_data["r_d"] = density_residuals;
         iter_function_data["x_relative_residuals"] = x_relative_residuals;
 
         auto dnorm = norm2s_T(world, rho_omega);
