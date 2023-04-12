@@ -69,14 +69,15 @@ namespace madness {
             os.open(filename, mode);
             os.setf(std::ios::scientific);
             os.precision(17);
-            char tag[256];
+            std::size_t bufsize=256;
+            char tag[bufsize];
             os << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>" << std::endl;
-            sprintf(tag,"<archive major_version=\"%d\" minor_version=\"%d\">",
+            snprintf(tag,bufsize,"<archive major_version=\"%d\" minor_version=\"%d\">",
                     ARCHIVE_MAJOR_VERSION, ARCHIVE_MINOR_VERSION);
             os << tag << std::endl;
             os << "<typemap>" << std::endl;
             for (int i=0; i<256; ++i) {
-                sprintf(tag,"%d \"%s\"",i,archive_type_names[i]);
+                snprintf(tag,bufsize,"%d \"%s\"",i,archive_type_names[i]);
                 store(tag,strlen(tag)); // Must use store to escape characters
             }
             os << "</typemap>" << std::endl;
@@ -139,12 +140,13 @@ namespace madness {
 
         void TextFstreamInputArchive::open(const char* filename, std::ios_base::openmode mode) {
             is.open(filename, mode);
-            char buf[256];
-            is.getline(buf,256);        // skip xml header
-            is.getline(buf,256);
+            std::size_t bufsize=256;
+            char buf[bufsize];
+            is.getline(buf,bufsize);        // skip xml header
+            is.getline(buf,bufsize);
 
-            char tag[256];
-            sprintf(tag,"<archive major_version=\"%d\" minor_version=\"%d\">",
+            char tag[bufsize];
+            snprintf(tag,bufsize,"<archive major_version=\"%d\" minor_version=\"%d\">",
                     ARCHIVE_MAJOR_VERSION, ARCHIVE_MINOR_VERSION);
             if (strcmp(buf,tag)) {
                 std::cout << "TextFstreamInputArchive: not an archive/bad version?" << std::endl;
@@ -154,7 +156,7 @@ namespace madness {
             }
 
             // For now just skip over typemap
-            for (int i=0; i<258; ++i) is.getline(buf,256);
+            for (int i=0; i<258; ++i) is.getline(buf,bufsize);
         }
 
     }
