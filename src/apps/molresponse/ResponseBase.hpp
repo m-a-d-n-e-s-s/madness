@@ -193,32 +193,47 @@ public:
     X_space compute_K1(World &world, const X_space &x,
                        const vector_real_function_3d &phi0) const override {
 
-        X_space K = X_space::zero_functions(world, x.num_states(),
-                                            x.num_orbitals());
+        auto K = X_space::zero_functions(world, x.num_states(),
+                                         x.num_orbitals());
         vector_real_function_3d k1x, k1y, k2x, k2y;
         vector_real_function_3d xb;
         vector_real_function_3d yb;
         Exchange<double, 3> K1X, K2X, K1Y, K2Y;
         if (world.rank() == 0) { print("K1StrategyFull"); }
 
+        auto k1x_temp =
+                create_response_matrix(x.num_states(), x.num_orbitals());
+        auto k1y_temp =
+                create_response_matrix(x.num_states(), x.num_orbitals());
+        auto k2x_temp =
+                create_response_matrix(x.num_states(), x.num_orbitals());
+        auto k2y_temp =
+                create_response_matrix(x.num_states(), x.num_orbitals());
+
+        std::vector<Exchange<double, 3>> K1Xs(x.num_states());
+        std::vector<Exchange<double, 3>> K1Ys(x.num_states());
+        std::vector<Exchange<double, 3>> K2Xs(x.num_states());
+        std::vector<Exchange<double, 3>> K2Ys(x.num_states());
+
+
         for (const auto &b: x.active) {
-            xb = x.x[b];
-            yb = x.y[b];
+            K1Xs[b] = make_k(x.x[b], phi0);
+            K1Ys[b] = make_k(phi0, x.y[b]);
+            K2Xs[b] = make_k(x.y[b], phi0);
+            K2Ys[b] = make_k(phi0, x.x[b]);
+        }
+        world.gop.fence();
 
-            K1X = make_k(xb, phi0);
-            K1Y = make_k(phi0, yb);
-            K2X = make_k(yb, phi0);
-            K2Y = make_k(phi0, xb);
-
-            world.gop.fence();
-
-            k1x = K1X(phi0);
-            k1y = K1Y(phi0);
-            k2x = K2X(phi0);
-            k2y = K2Y(phi0);
-            world.gop.fence();
-            K.x[b] = gaxpy_oop(1.0, k1x, 1.0, k1y, false);
-            K.y[b] = gaxpy_oop(1.0, k2x, 1.0, k2y, false);
+        for (const auto &b: x.active) {
+            k1x_temp[b] = K1Xs[b](phi0);
+            k1y_temp[b] = K1Ys[b](phi0);
+            k2x_temp[b] = K2Xs[b](phi0);
+            k2y_temp[b] = K2Ys[b](phi0);
+        }
+        world.gop.fence();
+        for (const auto &b: x.active) {
+            K.x[b] = gaxpy_oop(1.0, k1x_temp[b], 1.0, k1y_temp[b], false);
+            K.y[b] = gaxpy_oop(1.0, k2x_temp[b], 1.0, k2y_temp[b], false);
         }
         world.gop.fence();
         return K;
@@ -233,22 +248,29 @@ public:
         X_space K = X_space::zero_functions(world, x.num_states(),
                                             x.num_orbitals());
         vector_real_function_3d k1x, k1y, k2x, k2y;
-        vector_real_function_3d xb;
-        vector_real_function_3d yb;
         Exchange<double, 3> K1X{};
         Exchange<double, 3> K1Y{};
 
         if (world.rank() == 0) { print("K1StrategyStatic"); }
+        auto k1_temp = create_response_matrix(x.num_states(), x.num_orbitals());
+        auto k2_temp = create_response_matrix(x.num_states(), x.num_orbitals());
+        std::vector<Exchange<double, 3>> K1Xs(x.num_states());
+        std::vector<Exchange<double, 3>> K1Ys(x.num_states());
 
         for (const auto &b: x.active) {
-            xb = x.x[b];
-            yb = x.x[b];
-            K1X = make_k(xb, phi0);
-            K1Y = make_k(phi0, yb);
-            k1x = K1X(phi0);
-            k1y = K1Y(phi0);
-            K.x[b] = gaxpy_oop(1.0, k1x, 1.0, k1y, true);
+            K1Xs[b] = make_k(x.x[b], phi0);
+            K1Ys[b] = make_k(phi0, x.x[b]);
         }
+        world.gop.fence();
+        for (const auto &b: x.active) {
+            k1_temp[b] = K1Xs[b](phi0);
+            k2_temp[b] = K1Ys[b](phi0);
+        }
+        world.gop.fence();
+        for (const auto &b: x.active) {
+            K.x[b] = gaxpy_oop(1.0, k1_temp[b], 1.0, k2_temp[b], false);
+        }
+        world.gop.fence();
         return K;
     }
 };
