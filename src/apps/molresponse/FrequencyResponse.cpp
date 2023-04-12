@@ -196,6 +196,8 @@ void FrequencyResponse::iterate(World &world) {
         for (const auto &b: Chi.active) {
             density_residuals[b] = (rho_omega[b] - new_rho[b]).norm2();
         }
+
+        rho_omega = copy(world, new_rho);
         // Now we should update the orbitals and density
         // x= x+deltax
         // rho = rho(x+delta x)
