@@ -100,6 +100,7 @@ void FrequencyResponse::iterate(World &world) {
         //if (world.rank() == 0) { print("At the start of iterate x", checkx); }
         iter_timing.clear();
         iter_function_data.clear();
+
         if (r_params.print_level() >= 1) {
             molresponse::start_timer(world);
             if (world.rank() == 0)
@@ -204,6 +205,9 @@ void FrequencyResponse::iterate(World &world) {
             density_residuals[b] = drho_b_norm;
         }
         world.gop.fence();
+        inner_to_json(world, "density_residuals", density_residuals,
+                      iter_function_data);
+
         iter_function_data["r_d"] = density_residuals;
 
         // Now we should update the orbitals and density
@@ -223,7 +227,8 @@ void FrequencyResponse::iterate(World &world) {
             molresponse::end_timer(world, "copy_response_data",
                                    "copy_response_data", iter_timing);
         }
-        iter_function_data["x_relative_residuals"] = x_relative_residuals;
+        inner_to_json(world, "x_relative_residuals", x_relative_residuals,
+                      iter_function_data);
 
         auto dnorm = norm2s_T(world, rho_omega);
         iter_function_data["d"] = dnorm;
