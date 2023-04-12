@@ -32,7 +32,6 @@ void FrequencyResponse::iterate(World &world) {
             pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
     Tensor<double> x_relative_residuals((int(m)));
     Tensor<double> density_residuals((int(m)));
-    Tensor<double> density_residuals_old((int(m)));
 
     bool static_res = (omega == 0.0);
     bool compute_y = not static_res;
@@ -116,8 +115,6 @@ void FrequencyResponse::iterate(World &world) {
                 break;
             }
 
-            inner_to_json(world, "density_residuals", density_residuals,
-                          iter_function_data);
             auto chi_norms = (compute_y) ? Chi.norm2s() : Chi.x.norm2();
             auto rho_norms = madness::norm2s_T(world, rho_omega);
 
@@ -209,7 +206,8 @@ void FrequencyResponse::iterate(World &world) {
         }
         world.gop.fence();
 
-        iter_function_data["r_d"] = density_residuals;
+        auto old_density_residual = copy(density_residuals);
+        iter_function_data["r_d"] = old_density_residual;
 
         // Now we should update the orbitals and density
         // x= x+deltax
@@ -229,6 +227,9 @@ void FrequencyResponse::iterate(World &world) {
                                    "copy_response_data", iter_timing);
         }
         inner_to_json(world, "x_relative_residuals", x_relative_residuals,
+                      iter_function_data);
+
+        inner_to_json(world, "density_residuals", old_density_residual,
                       iter_function_data);
 
         auto dnorm = norm2s_T(world, rho_omega);
