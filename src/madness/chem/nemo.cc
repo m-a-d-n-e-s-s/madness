@@ -146,6 +146,7 @@ Nemo::Nemo(World& world, const commandlineparser &parser) :
     symmetry_projector=projector_irrep(param.pointgroup())
             .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
     if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
+    calc->param=param;
 };
 
 
