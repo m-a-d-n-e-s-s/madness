@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
     // xc include (hf/lda)
     // operators include (excited-state)
     auto schema = runSchema(world, xc);
-    auto mol_path = addPath(schema.molecule_path, molecule_name);
+    auto mol_path = addPath(schema.molecules, molecule_name);
     auto m_schema = moldftSchema(world, molecule_name, xc, schema);
     auto excited_schema = excitedSchema(schema, m_schema);
     excited_schema.print();

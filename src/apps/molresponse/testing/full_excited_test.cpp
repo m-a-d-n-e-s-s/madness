@@ -50,10 +50,10 @@ int main(int argc, char *argv[]) {
     auto schema = runSchema(world, xc);
 
     try {
-        if (std::filesystem::is_directory(schema.molecule_path)) {
+        if (std::filesystem::is_directory(schema.molecules)) {
             // for every molecule within the molecule path
             for (const std::filesystem::directory_entry &mol_path:
-                    std::filesystem::directory_iterator(schema.molecule_path)) {
+                    std::filesystem::directory_iterator(schema.molecules)) {
 
                 std::filesystem::current_path(schema.xc_path);
 

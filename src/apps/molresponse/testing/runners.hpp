@@ -39,7 +39,8 @@ auto addPath(const path &root, const std::string &branch) -> path {
 
 struct runSchema {
     path root;               // root directory
-    path molecule_path;      // molecule directory
+    path json_database;      // json database
+    path molecules;      // molecule directory
     path xc_path;            // create xc path
     path freq_json;          // path to freq_json
     path dalton_dipole_json; // path to dalton to dipole json
@@ -48,8 +49,8 @@ struct runSchema {
 
     explicit runSchema(World &world, const std::string &xc) {
         root = std::filesystem::current_path();//="/"+molecule_name;
-        molecule_path = root;
-        molecule_path += "/molecules";
+        molecules = root;
+        molecules += "/molecules";
         xc_path = addPath(root, "/" + xc);
         world.gop.fence();
         if (std::filesystem::exists(xc_path)) {
@@ -61,9 +62,9 @@ struct runSchema {
             }
         }
         // Get the database where the calculation will be run from
-        freq_json = addPath(molecule_path, "/frequency.json");
-        dalton_excited_json = addPath(molecule_path, "/dalton-excited.json");
-        dalton_dipole_json = addPath(molecule_path, "/dalton-dipole.json");
+        freq_json = addPath(molecules, "/frequency.json");
+        dalton_excited_json = addPath(molecules, "/dalton-excited.json");
+        dalton_dipole_json = addPath(molecules, "/dalton-dipole.json");
         rdb = ResponseDataBase();
         if (std::filesystem::exists(freq_json)) {
             std::ifstream ifs(freq_json);
@@ -77,7 +78,7 @@ struct runSchema {
     void print() const {
         ::print("------------Database Runner---------------");
         ::print("Root: ", root);
-        ::print("Molecule Directory: ", molecule_path);
+        ::print("Molecule Directory: ", molecules);
         ::print("XC Path: ", xc_path);
         ::print("Freq Json Path: ", freq_json);
         ::print("Dalton Dipole Json Path: ", dalton_dipole_json);
@@ -103,8 +104,8 @@ struct moldftSchema {
         moldft_path = addPath(schema.xc_path, '/' + mol_name);
         moldft_restart = addPath(moldft_path, "/moldft.restartdata.00000");
         calc_info_json_path = addPath(moldft_path, "/moldft.calc_info.json");
-        mol_path = addPath(schema.molecule_path, "/" + mol_name + ".mol");
-        moldft_json_path = addPath(schema.molecule_path, "/moldft.json");
+        mol_path = addPath(schema.molecules, "/" + mol_name + ".mol");
+        moldft_json_path = addPath(schema.molecules, "/moldft.json");
         if (std::filesystem::exists(moldft_json_path)) {
             std::ifstream ifs(moldft_json_path);
             ifs >> moldft_json;
