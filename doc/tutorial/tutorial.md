@@ -20,7 +20,6 @@ This tutorial covers
   - moldft
   - molresponse
   - all the other codes
-* test Hannes
 
 ## Downloading
 
