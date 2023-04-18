@@ -40,7 +40,7 @@ set(targetname MADworld)
 
 # N.B. If cereal is fetched it will be part of cereal export set
 if(MADNESS_ENABLE_CEREAL)
-  include(FindOrFetchCereal)
+  include(${PROJECT_SOURCE_DIR}/cmake/modules/FindOrFetchCereal.cmake)
   target_link_libraries(${targetname} PUBLIC cereal)
   target_compile_definitions(${targetname} PUBLIC MADNESS_HAS_CEREAL)
 endif()

@@ -1,5 +1,5 @@
 if(ENABLE_PARSEC)
-  include(FindOrFetchPARSEC)
+  include(${PROJECT_SOURCE_DIR}/cmake/modules/FindOrFetchPARSEC.cmake)
 
   if(TARGET PaRSEC::parsec)
     set(HAVE_PARSEC 1)
