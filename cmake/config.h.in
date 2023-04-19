@@ -113,6 +113,7 @@
 /* Define to enable MADNESS features */
 #cmakedefine MADNESS_TASK_PROFILING 1
 #cmakedefine MADNESS_USE_BSEND_ACKS 1
+#cmakedefine ENABLE_GENTENSOR 1
 #cmakedefine NEVER_SPIN 1
 #cmakedefine TENSOR_BOUNDS_CHECKING 1
 #cmakedefine TENSOR_INSTANCE_COUNT 1
