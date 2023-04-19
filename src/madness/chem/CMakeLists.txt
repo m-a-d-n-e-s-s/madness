@@ -54,7 +54,6 @@ set(MADCHEM_HEADERS
     SCFOperators.h
     SCFProtocol.h
     TDHF.h
-    test_correlation_factor.h
     vibanal.h
     write_test_input.h
     xcfunctional.h

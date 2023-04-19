@@ -40,7 +40,7 @@
 #include <madness/world/worldmem.h>
 #include<madness.h>
 #include<madness/chem/SCF.h>
-#include<chem.h>
+#include<madchem.h>
 
 #if defined(__has_include)
 #  if __has_include(<filesystem>)
