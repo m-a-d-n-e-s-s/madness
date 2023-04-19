@@ -19,6 +19,7 @@ public:
 
     json retrieve_data(const std::string &molecule, const std::string &xc,
                        const std::string &property) const {
+        ::print(j);
         return j.at(molecule).at(xc).at(property);
     }
 
@@ -48,7 +49,8 @@ public:
         return retrieve_data(molecule, xc, property).get<size_t>();
     }
 
-    std::vector<double> get_frequencies(const std::string &molecule, const std::string &xc,
+    std::vector<double> get_frequencies(const std::string &molecule,
+                                        const std::string &xc,
                                         const std::string &property) const {
         return retrieve_data(molecule, xc, property).get<std::vector<double>>();
     }
@@ -68,12 +70,14 @@ public:
                     ifs >> dalton_excited;
                     ::print("Read Dalton Excited");
                     ::print(dalton_excited);
-                    std::vector<double> freq = dalton_excited[molecule_name][xc]["excited-state"]
-                                                             ["aug-cc-pVTZ"]["response"]["freq"];
+                    std::vector<double> freq =
+                            dalton_excited[molecule_name][xc]["excited-state"]
+                                          ["aug-cc-pVTZ"]["response"]["freq"];
                     auto omega_max = freq.at(0);
                     omega_max = omega_max / 2.0;
                     ::print(omega_max);
-                    std::vector<double> omegas = {0, omega_max / 8.0, omega_max / 4.0,
+                    std::vector<double> omegas = {0, omega_max / 8.0,
+                                                  omega_max / 4.0,
                                                   omega_max / 2.0, omega_max};
                     j_add[molecule_name][xc][op] = omegas;
                 } catch (const json::out_of_range &e) {
@@ -94,7 +98,8 @@ public:
     }
 };
 
-auto generate_dipole_frequencies(const std::string &molecule_name, std::string xc) -> vector<double> {
+auto generate_dipole_frequencies(const std::string &molecule_name,
+                                 std::string xc) -> vector<double> {
 
     if (std::filesystem::exists("molecules/dalton-excited.json")) {
         std::ifstream ifs("molecules/dalton-excited.json");
@@ -103,25 +108,29 @@ auto generate_dipole_frequencies(const std::string &molecule_name, std::string x
             json dalton_excited;
             ifs >> dalton_excited;
             ::print("Read Dalton Excited for ", molecule_name);
-            ::print(dalton_excited[molecule_name][xc]["excited-state"]["aug-cc-pVTZ"]["response"]["freq"]);
-            std::vector<double> freq = dalton_excited[molecule_name][xc]["excited-state"]
-                                                     ["aug-cc-pVTZ"]["response"]["freq"];
+            ::print(dalton_excited[molecule_name][xc]["excited-state"]
+                                  ["aug-cc-pVTZ"]["response"]["freq"]);
+            std::vector<double> freq =
+                    dalton_excited[molecule_name][xc]["excited-state"]
+                                  ["aug-cc-pVTZ"]["response"]["freq"];
             auto omega_max = freq.at(0);
             omega_max = omega_max / 2.0;
             ::print("max frequency at cc-pVTZ", omega_max);
 
             std::vector<double> omegas = {};
             int Nsteps = 9;
-            for (int i = 0; i < Nsteps; i++) { omegas.push_back(omega_max * (double) i / 8.0); }
+            for (int i = 0; i < Nsteps; i++) {
+                omegas.push_back(omega_max * (double) i / 8.0);
+            }
             return omegas;
 
         } catch (const json::out_of_range &e) {
             std::cout << e.what() << std::endl;
-            return std::vector<double>(1,0);
+            return std::vector<double>(1, 0);
             // The molecule file exists in the database therefore it is okay to add to frequency.json
         } catch (const json::type_error &e) {
             std::cout << e.what() << std::endl;
-            return std::vector<double>(1,0);
+            return std::vector<double>(1, 0);
         }
 
     } else {
@@ -129,8 +138,9 @@ auto generate_dipole_frequencies(const std::string &molecule_name, std::string x
         return {0};
     }
 }
-json generate_response_data(const std::filesystem::path &molecule_path, const std::string &xc,
-                            const std::string &property, const vector<double> &freq) {
+json generate_response_data(const std::filesystem::path &molecule_path,
+                            const std::string &xc, const std::string &property,
+                            const vector<double> &freq) {
     json data;
     for (const std::filesystem::directory_entry &mol_path:
          std::filesystem::directory_iterator(molecule_path)) {
@@ -144,8 +154,8 @@ json generate_response_data(const std::filesystem::path &molecule_path, const st
     return data;
 }
 
-json generate_excited_data(const std::filesystem::path &molecule_path, const std::string &xc,
-                           int num_states) {
+json generate_excited_data(const std::filesystem::path &molecule_path,
+                           const std::string &xc, int num_states) {
     json data;
     for (const std::filesystem::directory_entry &mol_path:
          std::filesystem::directory_iterator(molecule_path)) {

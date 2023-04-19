@@ -49,13 +49,13 @@ struct runSchema {
 
     explicit runSchema(World &world, const std::string &xc) {
         root = std::filesystem::current_path();//="/"+molecule_name;
-        molecules = root.append("molecules");
-        xc_path = root.append(xc);
-        json_database=root.append("json_data");
+        molecules = root / "molecules";
+        xc_path = root / xc;
+        json_database = root / "json_data";
 
-        freq_json =json_database.append("frequency.json");
-        dalton_dipole_json = json_database.append("dalton-dipole.json");
-        dalton_excited_json = json_database.append("dalton-excited.json");
+        freq_json = json_database / "frequency.json";
+        dalton_dipole_json = json_database / "dalton-dipole.json";
+        dalton_excited_json = json_database / "dalton-excited.json";
 
         world.gop.fence();
         if (std::filesystem::exists(xc_path)) {
@@ -258,7 +258,8 @@ struct excitedSchema {
 
     excitedSchema(const runSchema &run_schema, const moldftSchema &m_schema)
         : xc(m_schema.xc) {
-        num_states = set_excited_states(run_schema.freq_json_data, m_schema.mol_name, xc);
+        num_states = set_excited_states(run_schema.freq_json_data,
+                                        m_schema.mol_name, xc);
         excited_state_run_path =
                 generate_excited_run_path(m_schema.moldft_path, num_states);
         auto [sp, s] = generate_excited_save_path(excited_state_run_path);
