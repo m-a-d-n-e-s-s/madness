@@ -1,4 +1,4 @@
-# src/apps/moldft
+# src/apps/cis
 
 add_mad_executable(cis cis.cpp "MADchem")
 add_dependencies(applications-madness cis)

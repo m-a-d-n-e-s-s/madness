@@ -1,9 +1,9 @@
-# src/apps/moldft
+# src/apps/cc2
 
 add_mad_executable(cc2 cc2.cc "MADchem")
 add_dependencies(applications-madness cc2)
 
-if (ENABLE_GENTENSOR)
+if (ENABLE_GENTENSOR AND BUILD_TESTING)
   add_scripted_tests(test_callable.py cc2 "short;applications") # runs he with one frozen orbital..
 endif()
 
