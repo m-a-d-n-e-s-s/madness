@@ -146,6 +146,7 @@ public:
 
     Tensor<double> s;
     std::vector<Function<T,LDIM>> g,h;
+    std::string orthonormalize_method="cd";
 
     LowRank(Tensor<double>& s, std::vector<Function<T,LDIM>> g, std::vector<Function<T,LDIM>> h)
             : s(s), g(g), h(h) {}
@@ -201,12 +202,88 @@ public:
         t1.tag("Y backprojection");
     }
 
+    void orthonormalize() {
+        if (orthonormalize_method=="svd") {
+            orthonormalize_svd();
+        } else if (orthonormalize_method=="cd") {
+            /**
+             *  |g >s< h| = |g_ortho><g_ortho | g> s < h |
+             *           = |g_ortho> gg s < h |
+             *           = |g_ortho> <h_non_ortho |
+             */
+            double ssum=s.sum()/s.dim(0);
+            print("ssum in orthonormalize_cd",ssum);
+            World& world=g.front().world();
+//            auto g_ortho= orthonormalize_cd(g);
+//            auto g_ortho= orthonormalize_canonical(g,1.e-8);
+            auto g_ortho= orthonormalize_symmetric(g);
+            Tensor<double> gg=matrix_inner(world,g_ortho,g);
+            for (int i=0; i<gg.dim(0); ++i) gg(i,_)*=s(i);
+            /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
+            h=transform(world,h,gg);
+            g=g_ortho;
+            s.fill(1.0);
+
+            /*
+            Tensor<T> ovlp = matrix_inner(world, g, g);
+            cholesky(ovlp); // destroys ovlp and gives back Upper ∆ Matrix from CD
+            Tensor<T> L = transpose(ovlp);
+            Tensor<T> Linv = inverse(L);
+            Tensor<T> U = transpose(Linv);
+            g=transform(world, g, U);
+            h=transform(world, h, inverse(U));
+            Tensor<T> ovlp1 = matrix_inner(world, g, g);
+            Tensor<T> ovlp2 = matrix_inner(world, h, h);
+            for (int i=0; i<g.size(); ++i) {
+                ovlp1(i,i)-=1.0;
+                ovlp2(i,i)-=1.0;
+            }
+            print("norm(ovlp-1)",ovlp1.normf()/ovlp1.size(), ovlp2.normf()/ovlp2.size());
+             */
+
+        } else {
+            MADNESS_EXCEPTION("confused orthonormalize_method in low_rank_function",1);
+        }
+
+    }
+
     void orthonormalize_svd() {
         ::orthonormalize_svd(g.front().world(),g,h,s);
     }
 
     template<typename hidimT>
     void optimize(const hidimT& f, const std::vector<Function<T,LDIM>>& regular_grid_Y) {
+        if (orthonormalize_method=="svd") optimize_svd(f,regular_grid_Y);
+        else if (orthonormalize_method=="cd") optimize_cd(f,regular_grid_Y);
+        else {
+            MADNESS_EXCEPTION("confused orthonormalize_method in low_rank_function",1);
+        }
+    }
+
+    /// following Halko, Algorithm 4.4
+    template<typename hidimT>
+    void optimize_cd(const hidimT& f, const std::vector<Function<T,LDIM>>& regular_grid_Y) {
+        World& world=g.front().world();
+        double ssum=s.sum()/s.dim(0);
+        print("ssum in optimize_cd",ssum);
+        for (int iopt=0; iopt<8; ++iopt) {
+            timer t(world);
+
+            auto Ytilde=orthonormalize_symmetric(form_inner(f,g));
+            auto Y=orthonormalize_symmetric(form_inner(f,Ytilde));       // only correct if f is symmetric!!!
+
+            g=Y;
+            h=form_inner(f,g);
+            orthonormalize();
+
+            plot_plane<2*LDIM>(world,*this,"lrf_iter"+std::to_string(iopt));
+            if (iopt%2==0) compute_error(f,regular_grid_Y);
+            t.end("finished optimization iteration "+std::to_string(iopt));
+        }
+    }
+
+    template<typename hidimT>
+    void optimize_svd(const hidimT& f, const std::vector<Function<T,LDIM>>& regular_grid_Y) {
         World& world=g.front().world();
         for (int iopt=0; iopt<8; ++iopt) {
             timer t(world);
@@ -220,7 +297,7 @@ public:
             g=gtmp;
             h=htmp;
 
-            if (g.size()>1) orthonormalize_svd();
+            if (g.size()>1) orthonormalize();
             plot_plane<2*LDIM>(world,*this,"lrf_iter"+std::to_string(iopt));
 
             if (iopt%2==0) compute_error(f,regular_grid_Y);
@@ -510,7 +587,7 @@ int test_lowrank_function(World& world) {
     lrf.project(world,f,regular_grid_Y,ntrial);
 
     lrf.compute_error(f,regular_grid_Y);
-    lrf.orthonormalize_svd();
+    lrf.orthonormalize();
     lrf.compute_error(f,regular_grid_Y);
 
     plot_plane<2*LDIM>(world,lrf,"lrf0");
