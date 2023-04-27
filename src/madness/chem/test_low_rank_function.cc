@@ -24,6 +24,35 @@ struct gauss {
     }
 };
 
+struct hidim_orbitals {
+    std::shared_ptr<real_convolution_3d> f12;
+    real_function_3d phi1, phi2;
+    hidim_orbitals(std::shared_ptr<real_convolution_3d>& f, const real_function_3d& phi1, const real_function_3d& phi2)
+            : f12(f), phi1(phi1), phi2(phi2) {
+    }
+
+    double operator()(const Vector<double,6>& coord) const {
+
+        Vector<double,3> left,right;
+        for (int i=0; i<3; ++i) {
+            left[i]=coord[i];
+            right[i]=coord[i+3];
+        }
+
+        auto f12_functor=[](const Vector<double,6>& r) {
+            Vector<double,3> r1,r2;
+            for (int i=0; i<3; ++i) {
+                r1[i]=r[i];
+                r2[i]=r[i+3];
+            }
+            return exp(-(r1-r2).normf());
+        };
+
+        return phi1(left)*phi2(right)*f12_functor(coord);
+    }
+
+};
+
 template<typename T, std::size_t LDIM>
 void orthonormalize_svd(World& world, std::vector<Function<T,LDIM>>& g, std::vector<Function<T,LDIM>>& h, Tensor<double>& s) {
     /**
@@ -72,6 +101,18 @@ void orthonormalize_svd(World& world, std::vector<Function<T,LDIM>>& g, std::vec
 
 }
 
+
+template<typename T, std::size_t LDIM>
+std::vector<Function<T,LDIM>> form_inner(const hidim_orbitals& f, const std::vector<Function<T,LDIM>>& vec) {
+    double cpu0=cpu_time();
+    World& world=vec.front().world();
+    auto tmp1=vec*f.phi1;
+    std::vector<Function<T,LDIM>> result=apply(world,(*f.f12),tmp1);
+    result=result*f.phi2;
+    double cpu1=cpu_time();
+    std::printf("form inner finished after %4.2fs \n",cpu1-cpu0);
+    return result;
+}
 
 // note that we assume f is symmetric!!!!!
 template<typename T, std::size_t LDIM>
@@ -127,10 +168,10 @@ public:
     }
 
     template<typename hidimT>
-    void project(World& world, const hidimT& f, const std::vector<Function<T,LDIM>>& regular_grid, const long ntrial) {
+    void project(World& world, const hidimT& f, const std::vector<Function<T,LDIM>>& regular_grid_Y, const long ntrial) {
 
         timer t1(world);
-        auto Y=random_vectors(world, regular_grid, ntrial);
+        auto Y=random_vectors(world, regular_grid_Y, ntrial);
         t1.tag("Yforming");
         print("Y.size()",Y.size());
 
@@ -165,7 +206,7 @@ public:
     }
 
     template<typename hidimT>
-    void optimize(const hidimT& f, const std::vector<Function<T,LDIM>>& regular_grid) {
+    void optimize(const hidimT& f, const std::vector<Function<T,LDIM>>& regular_grid_Y) {
         World& world=g.front().world();
         for (int iopt=0; iopt<8; ++iopt) {
             timer t(world);
@@ -180,8 +221,9 @@ public:
             h=htmp;
 
             if (g.size()>1) orthonormalize_svd();
+            plot_plane<2*LDIM>(world,*this,"lrf_iter"+std::to_string(iopt));
 
-            if (iopt%2==0) compute_error(f,regular_grid);
+            if (iopt%2==0) compute_error(f,regular_grid_Y);
             t.end("finished optimization iteration "+std::to_string(iopt));
         }
     }
@@ -202,11 +244,11 @@ public:
     // check accuracy by applying hi/lo-dim function on a set of trial functions
     // cf Halko, sec 4.3
     template<typename hidimT>
-    double compute_error(const hidimT& f, const std::vector<Function<T,LDIM>>& regular_grid) const {
+    double compute_error(const hidimT& f, const std::vector<Function<T,LDIM>>& regular_grid_Y) const {
         const long ntrial=10;
         World& world=g.front().world();
         timer t(world);
-        auto trial= random_vectors(world,regular_grid,ntrial);
+        auto trial= random_vectors(world,regular_grid_Y,ntrial);
 
         // result[j,1] = \sum_2 f(1,2) t(2,j) - \sum_2r g(1,r)s(r)h(r,2) t(2,j)
         // ref[j,1] = \sum_2 f(1,2) t(2,j)
@@ -253,25 +295,6 @@ double inner(const LowRank<T,LDIM>& a, const LowRank<T,LDIM>& b) {
 }
 
 
-// // The default constructor for functions does not initialize
-// // them to any value, but the solver needs functions initialized
-// // to zero for which we also need the world object.
-// template<typename T, std::size_t LDIM>
-// struct allocator1 {
-//     World& world;
-//     const int n;
-//
-//     /// @param[in]	world	the world
-//     /// @param[in]	nn		the number of functions in a given vector
-//     allocator1(World& world, const int nn) :
-//             world(world), n(nn) {
-//     }
-//
-//     /// allocate a vector of n empty functions
-//     LowRank<T,LDIM> operator()() {
-//         return LowRank<T,LDIM>(world,n);
-//     }
-// };
 
 Tensor<double> gaussian_random_distribution(double mean, double variance, long n) {
     std::random_device rd{};
@@ -281,9 +304,6 @@ Tensor<double> gaussian_random_distribution(double mean, double variance, long n
     for (int i = 0; i < n; ++i) result(i)=d(gen);
     return result;
 }
-
-
-
 
 template<typename T, std::size_t LDIM>
 typename std::enable_if<(LDIM==3), real_convolution_3d>::type hidim(World& world) {
@@ -320,13 +340,13 @@ typename std::enable_if<(LDIM<3), Function<T,2*LDIM>>::type hidim(World& world) 
 // nran random vectors on a regular grid
 template<typename T, std::size_t LDIM>
 std::vector<Function<T,LDIM>> random_vectors(World &world,
-                                             const std::vector<Function<T,LDIM>>& regular_grid,
+                                             const std::vector<Function<T,LDIM>>& regular_grid_Y,
                                              const long nran) {
-    const long n = regular_grid.size();
+    const long n = regular_grid_Y.size();
     Tensor<double> factors(n,nran);
     for (long i=0; i<nran; ++i) factors(_,i) = gaussian_random_distribution(0.0, 1.0, n);
     /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
-    return truncate(transform(world,regular_grid,factors));
+    return truncate(transform(world,regular_grid_Y,factors));
 };
 
 // check accuracy by applying hi/lo-dim function on a set of trial functions
@@ -336,10 +356,10 @@ double compute_error_implicitly(const Tensor<T>& s,
                                 const std::vector<Function<T,LDIM>>& g,
                                 const std::vector<Function<T,LDIM>>& h,
                                 const hidimT& f,
-                                const std::vector<Function<T,LDIM>>& regular_grid) {
+                                const std::vector<Function<T,LDIM>>& regular_grid_Y) {
     const long ntrial=10;
     World& world=g.front().world();
-    auto trial= random_vectors(world,regular_grid,ntrial);
+    auto trial= random_vectors(world,regular_grid_Y,ntrial);
 
     // result[j,1] = \sum_2 f(1,2) t(2,j) - \sum_2r g(1,r)s(r)h(r,2) t(2,j)
     // ref[j,1] = \sum_2 f(1,2) t(2,j)
@@ -362,12 +382,12 @@ typename std::enable_if<LDIM<=2,double>::type compute_error (const Tensor<T>& s,
                                                              const std::vector<Function<T,LDIM>>& g,
                                                              const std::vector<Function<T,LDIM>>& h,
                                                              const Function<double,2*LDIM>& f,
-                                                             const std::vector<Function<T,LDIM>>& regular_grid,
+                                                             const std::vector<Function<T,LDIM>>& regular_grid_Y,
                                                              std::string name="") {
     auto fapprox=s[0]*hartree_product(g[0],h[0]);
     for (int i=1; i<g.size(); ++i) fapprox+=s[i]*hartree_product(g[i],h[i]);
     double err=(f-fapprox).norm2();
-    double err_implicit= compute_error_implicitly(s,g,h,f,regular_grid);
+    double err_implicit= compute_error_implicitly(s,g,h,f,regular_grid_Y);
     print("rank and error in f_approx_opt", g.size(), err,err_implicit);
     if (not name.empty())
         plot<2*LDIM>({f,fapprox,f-fapprox},name,std::vector<std::string>({"adsf","asdf","diff"}));
@@ -380,43 +400,67 @@ typename std::enable_if<LDIM==3,double>::type compute_error (const Tensor<T>& s,
                                                              const std::vector<Function<T,LDIM>>& g,
                                                              const std::vector<Function<T,LDIM>>& h,
                                                              const SeparatedConvolution<T,LDIM>& f,
-                                                             const std::vector<Function<T,LDIM>>& regular_grid,
+                                                             const std::vector<Function<T,LDIM>>& regular_grid_Y,
                                                              std::string name="") {
     double cpu0=cpu_time();
-    double err_implicit= compute_error_implicitly(s,g,h,f,regular_grid);
+    double err_implicit= compute_error_implicitly(s,g,h,f,regular_grid_Y);
     double err=-1.0;
     double cpu1=cpu_time();
     print("rank and error in f_approx_opt", g.size(), err,err_implicit, "after ",cpu1-cpu0);
     return err;
 };
 
+template<std::size_t NDIM>
+struct cartesian_grid {
+    Vector<double,NDIM> lovec,hivec;
+    std::vector<long> stride;
+    long index=0;
+    long n_per_dim;
+    long total_n;
+    Vector<double,NDIM> increment;
+
+    cartesian_grid(const long n_per_dim, const double lo, const double hi)
+            : n_per_dim(n_per_dim) {
+        lovec.fill(lo);
+        hivec.fill(hi);
+        increment=(hivec-lovec)*(1.0/double(n_per_dim-1));
+        stride=std::vector<long>(NDIM,1l);
+        total_n=std::pow(n_per_dim,NDIM);
+        for (long i=NDIM-2; i>=0; --i) stride[i]=n_per_dim*stride[i+1];
+    }
+
+    void operator++() {
+        index++;
+    }
+
+    bool operator()() const {
+        return index < total_n;
+    }
+
+    Vector<double,NDIM> get_coordinates() const {
+        Vector<double,NDIM> tmp(NDIM);
+        for (int idim=0; idim<NDIM; ++idim) {
+            tmp[idim]=(index/stride[idim])%n_per_dim;
+        }
+        return lovec+tmp*increment;
+    }
+
+};
+
 template<typename T, std::size_t NDIM>
 std::vector<Function<T,NDIM>> uniformly_distributed_slater(World& world,
                      const double lo, const double hi, const long n_per_dim) {
-    const long total_n=std::pow(n_per_dim,NDIM);
     Vector<double,NDIM> R;
     auto sl=[&R](const Vector<double,NDIM>& r) {
         return exp(-sqrt(inner(r-R,r-R)+1.e-3));
     };
 
-    Vector<double,NDIM> lovec,hivec;
-    lovec.fill(lo);
-    hivec.fill(hi);
-    Vector<double,NDIM> increment=(hivec-lovec)*(1.0/double(n_per_dim-1));
-    std::vector<Function<T,NDIM>> result(total_n);
-    std::vector<long> stride(NDIM,1l);
-    // dim=5,5,5
-    // stride=25,5,1
-    for (long i=NDIM-2; i>=0; --i) stride[i]=n_per_dim*stride[i+1];
-    for (long i=0; i<total_n; ++i) {
-        Vector<double,NDIM> tmp(NDIM);
-        for (int idim=0; idim<NDIM; ++idim) {
-            tmp[idim]=(i/stride[idim])%n_per_dim;
-        }
-        R=lovec+tmp*increment;
-        result[i]=FunctionFactory<T,NDIM>(world).functor(sl);
+    std::vector<Function<T,NDIM>> result;
+    cartesian_grid<NDIM> cg(n_per_dim,lo,hi);
+    for (auto c=cg; c(); ++c) {
+        R=c.get_coordinates();
+        result.push_back(FunctionFactory<T,NDIM>(world).functor(sl));
     }
-
     return result;
 
 }
@@ -429,29 +473,53 @@ int test_lowrank_function(World& world) {
     long n_per_dim=10;
     long ntrial=50;
 
+
+
     print("LDIM, n_per_dim, ntrial",LDIM,n_per_dim,ntrial);
     constexpr std::size_t NDIM=2*LDIM;
 
-    auto f=hidim<double,LDIM>(world);
+    Function<double,LDIM> phi=FunctionFactory<double,LDIM>(world)
+            .functor([](const Vector<double,LDIM>& r) {return exp(-2.0*inner(r,r));});
+
+//    auto f=hidim<double,LDIM>(world);
+    std::shared_ptr<real_convolution_3d> f12(SlaterOperatorPtr(world,1.0,1.e-4,FunctionDefaults<NDIM>::get_thresh()));
+    auto f=hidim_orbitals(f12,phi,phi);
+
+    plot_plane<2*LDIM>(world,f,"hidim_orbitals");
+
 
     double radius=2.0;
-    auto regular_grid=uniformly_distributed_slater<double,LDIM>(world,-radius,radius,n_per_dim);
-    print("regular_grid.size()",regular_grid.size());
+    double lo=-radius;
+    double hi=radius;
+
+
+    auto regular_grid_Y=uniformly_distributed_slater<double,LDIM>(world,lo,hi,n_per_dim);
+
+    std::vector<double> phi1_values(regular_grid_Y.size());
+    cartesian_grid<LDIM> cg(n_per_dim,lo,hi);
+    for (auto c=cg; c(); ++c) {
+        auto R=c.get_coordinates();
+        phi1_values[c.index]=phi(R);
+    }
+    scale(world,regular_grid_Y,phi1_values);
+    regular_grid_Y=regular_grid_Y*phi;
+
+    print("regular_grid_Y.size()",regular_grid_Y.size());
 
     LowRank<double,LDIM> lrf;
-    lrf.project(world,f,regular_grid,ntrial);
+    lrf.project(world,f,regular_grid_Y,ntrial);
 
-    lrf.compute_error(f,regular_grid);
+    lrf.compute_error(f,regular_grid_Y);
     lrf.orthonormalize_svd();
-    lrf.compute_error(f,regular_grid);
+    lrf.compute_error(f,regular_grid_Y);
 
     plot_plane<2*LDIM>(world,lrf,"lrf0");
 
     print("\nstarting optimization\n");
 
-    lrf.optimize(f,regular_grid);
+    lrf.optimize(f,regular_grid_Y);
 
-    lrf.compute_error(f,regular_grid);
+    lrf.compute_error(f,regular_grid_Y);
     plot_plane<2*LDIM>(world,lrf,"lrf1");
 
 
@@ -526,7 +594,7 @@ int main(int argc, char **argv) {
         CCParameters ccparam(world, parser);
 
 
-        isuccess+= test_6d_convolution(world);
+//        isuccess+= test_6d_convolution(world);
 
 //        std::shared_ptr<NuclearCorrelationFactor> ncf = create_nuclear_correlation_factor(world,
 //                mol, nullptr, std::make_pair("slater", 2.0));
