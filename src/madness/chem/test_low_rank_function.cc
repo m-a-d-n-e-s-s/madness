@@ -207,9 +207,9 @@ std::vector<Function<T,LDIM>> form_inner(const hidim_orbitals& f, const std::vec
     World& world=vec.front().world();
     std::vector<Function<T,LDIM>> result;
     if (transpose) {
-        result=f.phi1*apply(world,(*f.f12),vec*f.phi2);
-    } else {
         result=f.phi2*apply(world,(*f.f12),vec*f.phi1);
+    } else {
+        result=f.phi1*apply(world,(*f.f12),vec*f.phi2);
     }
     double cpu1=cpu_time();
     std::printf("form inner finished after %4.2fs \n",cpu1-cpu0);
@@ -346,9 +346,9 @@ public:
         s=Tensor<double>(g.size());
         s=1.0;
 //        orthonormalize();
-        plot_plane<2*LDIM>(world,*this,"lrf00");
-        auto rec=reconstruct();
-        plot_plane<2*LDIM>(world,rec,"lrf00-rec");
+//        plot_plane<2*LDIM>(world,*this,"lrf00");
+//        auto rec=reconstruct();
+//        plot_plane<2*LDIM>(world,rec,"lrf00-rec");
         t1.tag("Y backprojection");
     }
 
@@ -415,7 +415,7 @@ public:
             h=form_inner_transpose(f,g);
             orthonormalize();
 
-            plot_plane<2*LDIM>(world,*this,"lrf_iter"+std::to_string(iopt));
+//            plot_plane<2*LDIM>(world,*this,"lrf_iter"+std::to_string(iopt));
             if (iopt%2==0) compute_error(f,regular_grid_Y);
             t.end("finished optimization iteration "+std::to_string(iopt));
         }
@@ -437,7 +437,7 @@ public:
             h=htmp;
 
             if (g.size()>1) orthonormalize();
-            plot_plane<2*LDIM>(world,*this,"lrf_iter"+std::to_string(iopt));
+//            plot_plane<2*LDIM>(world,*this,"lrf_iter"+std::to_string(iopt));
 
             if (iopt%2==0) compute_error(f,regular_grid_Y);
             t.end("finished optimization iteration "+std::to_string(iopt));
@@ -539,7 +539,7 @@ public:
         ss << "rank and error in f_approx " <<  g.size() << " " << std::scientific << err_gh << "; QQTA: " << err_QQT;
         t.tag(ss.str());
 
-        if (LDIM<2) compute_error_with_reconstruction(s,h,g,f,"name");
+        if constexpr (LDIM<2) compute_error_with_reconstruction(s,h,g,f,"name");
 
         return err_gh;
     }
@@ -620,10 +620,10 @@ int test_lowrank_function(World& world) {
     madness::default_random_generator.setstate(int(cpu_time())%4149);
 
     print("");
-    constexpr std::size_t LDIM=1;
-    long n_per_dim=80;
-    double radius=3.0;
-    long ntrial=40;
+    constexpr std::size_t LDIM=3;
+    long n_per_dim=10;
+    double radius=2.0;
+    long ntrial=80;
 
 
 
@@ -631,19 +631,28 @@ int test_lowrank_function(World& world) {
     constexpr std::size_t NDIM=2*LDIM;
     timer t1(world);
 
-    Function<double,LDIM> phi1=FunctionFactory<double,LDIM>(world)
-            .functor([](const Vector<double,LDIM>& r) {return exp(-2.0*inner(r,r));});
-//    Function<double,LDIM> phi2=FunctionFactory<double,LDIM>(world)
-//            .functor([](const Vector<double,LDIM>& r) {
-//                Vector<double,LDIM> R;
-//                R.fill(1.0);
-//                return exp(-1.0*inner(r-R,r-R));
-//            });
-    Function<double,LDIM> phi2=copy(phi1);
+    Function<double,LDIM> phi_slater=FunctionFactory<double,LDIM>(world)
+            .functor([](const Vector<double,LDIM>& r) {return exp(-2.0*r.normf());});
 
-    auto f=hidim<double,LDIM>(world);
+    Function<double,LDIM> phi_gauss=FunctionFactory<double,LDIM>(world)
+            .functor([](const Vector<double,LDIM>& r) {return exp(-2.0*inner(r,r));});
+
+    Function<double,LDIM> one=FunctionFactory<double,LDIM>(world)
+            .functor([](const Vector<double,LDIM>& r) {return 1.0;});
+
+    Function<double,LDIM> phi_gauss_displaced=FunctionFactory<double,LDIM>(world)
+            .functor([](const Vector<double,LDIM>& r) {
+                Vector<double,LDIM> R;
+                R.fill(0.5);
+                return exp(-1.0*inner(r-R,r-R));
+            });
+
+    Function<double,LDIM> phi1=copy(phi_slater);
+    Function<double,LDIM> phi2=copy(one);
+
+//    auto f=hidim<double,LDIM>(world);
     std::shared_ptr<real_convolution_3d> f12(SlaterOperatorPtr(world,1.0,1.e-6,FunctionDefaults<NDIM>::get_thresh()));
-//    auto f=hidim_orbitals(f12,phi1,phi2);
+    auto f=hidim_orbitals(f12,phi1,phi2);
 
     plot_plane<2*LDIM>(world,f,"hidim_orbitals");
 
@@ -675,15 +684,16 @@ int test_lowrank_function(World& world) {
 
     t1.tag("project");
     lrf.compute_error(f,regular_grid_Y);
-    lrf.orthonormalize();
-    lrf.compute_error(f,regular_grid_Y);
-    t1.tag("orthonormalize");
+//    lrf.orthonormalize();
+//    lrf.compute_error(f,regular_grid_Y);
+    t1.tag("compute error");
 
     plot_plane<2*LDIM>(world,lrf,"lrf0");
+    t1.tag("plot lrf0");
 
     print("\nstarting optimization\n");
 
-    lrf.optimize(f,regular_grid_Y,8);
+    lrf.optimize(f,regular_grid_Y,2);
     t1.tag("optimize");
 
     lrf.compute_error(f,regular_grid_Y);
@@ -739,7 +749,7 @@ int main(int argc, char **argv) {
     commandlineparser parser(argc, argv);
     FunctionDefaults<6>::set_tensor_type(TT_2D);
 
-    double thresh=1.e-5;
+    double thresh=1.e-4;
     int k=6;
     FunctionDefaults<1>::set_thresh(thresh);
     FunctionDefaults<1>::set_cubic_cell(-10.,10.);
