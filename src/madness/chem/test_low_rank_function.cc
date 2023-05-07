@@ -291,7 +291,8 @@ public:
 
     LowRank() =default;      // Default constructor necessary for storage in vector
 
-    LowRank(const LowRank& a) : s(a.s), g(copy(a.g.front().world(),a.g)), h(copy(a.h.front().world(),a.h)) {} // Copy constructor necessary
+    LowRank(const LowRank& a) : s(copy(a.s)), g(copy(a.g.front().world(),a.g)),
+                h(copy(a.h.front().world(),a.h)), cg(a.cg) {} // Copy constructor necessary
 
     LowRank& operator=(const LowRank& f) { // Assignment required for storage in vector
         LowRank ff(f);
@@ -616,6 +617,47 @@ std::vector<Function<T,NDIM>> uniformly_distributed_slater(World& world,
 
 }
 
+real_function_6d K(World& world, const real_function_6d& f, const real_function_3d& phi) {
+
+    print("entering K(real_function_6d)");
+    timer t1(world);
+    const int particle=1;
+    real_convolution_3d op = CoulombOperator(world, 0.0001, FunctionDefaults<3>::get_thresh());
+    op.destructive() = true;
+    op.particle() = particle;
+
+    real_function_6d x = multiply(copy(f), copy(phi), particle).truncate();
+    t1.tag("multiply before");
+    x = op(x).truncate();
+    t1.tag("apply G");
+    real_function_6d result = multiply(x, copy(phi), particle).truncate();
+    t1.tag("multiply after");
+
+    return result;
+}
+
+template<typename T, std::size_t LDIM>
+LowRank<T,LDIM> K(World& world, const LowRank<T,LDIM>& f, const Function<T,LDIM>& phi) {
+
+    print("entering K(LowRank)");
+    timer t1(world);
+    const int particle=1;
+    real_convolution_3d op = CoulombOperator(world, 0.0001, FunctionDefaults<3>::get_thresh());
+    op.destructive() = true;
+    op.particle() = particle;
+
+    auto tmp=truncate(mul(world,phi,f.g));
+    t1.tag("multiply before");
+    auto x = apply(world,op,tmp);
+    t1.tag("apply G");
+    auto g_final=mul(world,phi,x);
+    t1.tag("multiply after");
+    LowRank<T,LDIM> result=f;
+    result.g=g_final;
+
+    return result;
+}
+
 int test_lowrank_function(World& world) {
     madness::default_random_generator.setstate(int(cpu_time())%4149);
 
@@ -623,7 +665,7 @@ int test_lowrank_function(World& world) {
     constexpr std::size_t LDIM=3;
     long n_per_dim=10;
     double radius=2.0;
-    long ntrial=80;
+    long ntrial=120;
 
 
 
@@ -700,6 +742,27 @@ int test_lowrank_function(World& world) {
     plot_plane<2*LDIM>(world,lrf,"lrf1");
 
     t1.end("total time ");
+
+    real_function_6d f12f=TwoElectronFactory(world).slater();
+    real_function_6d full_f=CompositeFactory<double,NDIM,LDIM>(world).g12(f12f)
+                 .particle1(copy(phi1)).particle2(copy(-1.0*phi2));
+    full_f.fill_cuspy_tree();
+    plot_plane<2*LDIM>(world,full_f,"full_f");
+
+    auto lrf_reconstruct=lrf.reconstruct();
+    auto diff=(lrf_reconstruct-full_f).norm2();
+    print("diff(lrf-full_f) ",diff);
+
+    // apply K
+    auto klrf=K(world,lrf,phi1);
+    plot_plane<2*LDIM>(world,klrf,"Klrf");
+    auto kfull_f=K(world,full_f,phi1);
+    plot_plane<2*LDIM>(world,kfull_f,"Kfull_f");
+
+    auto klrf_reconstruct=klrf.reconstruct();
+    auto kdiff=(klrf_reconstruct-kfull_f).norm2();
+    print("diff(K(lrf)-K(full_f)) ",kdiff);
+
 
 
     return 0;
