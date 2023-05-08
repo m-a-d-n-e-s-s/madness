@@ -1,4 +1,3 @@
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <iomanip>
 #include<madness/chem/SCF.h>
 #include<madness/chem/nemo.h>

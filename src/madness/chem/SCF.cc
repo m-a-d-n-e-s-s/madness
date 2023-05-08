@@ -34,8 +34,6 @@
 /// \defgroup moldft The molecular density functional and Hartree-Fock code
 
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
 
 #include <madness/world/worldmem.h>
 #include<madness.h>

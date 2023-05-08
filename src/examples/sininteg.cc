@@ -29,8 +29,6 @@
   fax:   865-572-0680
 */
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
 /*!
   \file examples/sininteg.cc
   \brief Compute the integral sin(x) x=0..10

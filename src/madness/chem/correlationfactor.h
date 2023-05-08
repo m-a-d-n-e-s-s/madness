@@ -29,8 +29,6 @@
   fax:   865-572-0680
 */
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
 /*!
   \file apps/chem/correlationfactor.h
   \brief class for regularizing singular potentials in the molecular

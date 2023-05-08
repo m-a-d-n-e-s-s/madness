@@ -39,7 +39,6 @@
 
  */
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/misc/info.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>

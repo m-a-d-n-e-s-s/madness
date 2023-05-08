@@ -1,4 +1,3 @@
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include<madness/chem/exchangeoperator.h>
 
 #include<madness/chem/SCF.h>

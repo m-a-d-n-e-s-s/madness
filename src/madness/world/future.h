@@ -1012,8 +1012,6 @@ namespace madness {
     std::ostream& operator<<(std::ostream& out, const Future<void>& f);
 
 
-#ifdef WORLD_INSTANTIATE_STATIC_TEMPLATES
-
     /// \todo Brief description needed.
 
     /// \todo Descriptions needed.
@@ -1022,15 +1020,13 @@ namespace madness {
     /// \param[in] f The future to be output.
     /// \return The output stream.
     template <typename T>
-    std::ostream& operator<<(std::ostream& out, const Future<T>& f) {
+    inline std::ostream& operator<<(std::ostream& out, const Future<T>& f) {
         if (f.probe()) out << f.get();
         else if (f.is_remote()) out << f.f->remote_ref;
         else if (f.f) out << "<unassigned refcnt=" << f.f.use_count() << ">";
         else out << "<unassigned>";
         return out;
     }
-
-#endif
 
 } // namespace madness
 
