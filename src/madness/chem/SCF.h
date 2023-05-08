@@ -40,8 +40,6 @@
 #ifndef MADNESS_CHEM_SCF_H__INCLUDED
 #define MADNESS_CHEM_SCF_H__INCLUDED
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
 #include <memory>
 
 #include<madness/chem/molecular_functors.h>

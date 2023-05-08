@@ -29,7 +29,6 @@
   fax:   865-572-0680
 */
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/world/MADworld.h>
 #include <madness/world/world_object.h>
 #include <iomanip>

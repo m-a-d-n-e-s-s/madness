@@ -34,7 +34,6 @@
 #ifdef MADNESS_HAS_GOOGLE_TEST
 
 #define MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE 0
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/world/worldptr.h>
 #include <madness/world/MADworld.h>
 #include <madness/world/world_object.h>

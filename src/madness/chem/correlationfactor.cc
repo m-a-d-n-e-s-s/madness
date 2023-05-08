@@ -31,9 +31,6 @@
   $Id$
 */
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
-
 #include<madness/chem/correlationfactor.h>
 
 namespace madness{

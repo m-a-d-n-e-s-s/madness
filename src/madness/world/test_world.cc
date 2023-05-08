@@ -33,7 +33,6 @@
 #include <numeric>
 #include <algorithm>
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/world/MADworld.h>
 #include <madness/world/world_object.h>
 #include <madness/world/worlddc.h>

@@ -31,9 +31,6 @@
   $Id$
 */
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
-
 /*!
   \file examples/znemo.cc
   \brief solve the HF equations using numerical exponential MOs

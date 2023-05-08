@@ -38,7 +38,6 @@
 */
 
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include "madness/chem/mp2.h"
 #include "madness/misc/info.h"
 
