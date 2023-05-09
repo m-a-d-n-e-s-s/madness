@@ -21,6 +21,7 @@ namespace madness{
     private:
         static parsec_context_t *ctx;
         static parsec_taskpool_t *tp;
+        static parsec_execution_stream_t *madness_comm_thread_es;
 #ifdef PARSEC_PROF_TRACE
         static int               taskpool_profiling_array[2];
 #endif /* PARSEC_PROF_TRACE */

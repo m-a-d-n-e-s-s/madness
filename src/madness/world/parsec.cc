@@ -8,7 +8,9 @@
 
 // Here we initialize with the right child class
 namespace madness {
+#ifndef MADNESS_ASSERTIONS_DISABLE
     static thread_local bool within_madness_task = false;
+#endif
 
     parsec_hook_return_t complete_madness_task_execution (parsec_execution_stream_t *es,
                                                           parsec_task_t *task) {
@@ -30,9 +32,13 @@ namespace madness {
                                           parsec_task_t *task) {
         PoolTaskInterface *c = ((PoolTaskInterface **)task->locals)[0];
         assert(c);
+#ifndef MADNESS_ASSERTIONS_DISABLE
         within_madness_task = true;
+#endif
         c->run(TaskThreadEnv(1, 0, 0));
+#ifndef MADNESS_ASSERTIONS_DISABLE
         within_madness_task = false;
+#endif
         return PARSEC_HOOK_RETURN_DONE;
     }
 
@@ -146,6 +152,7 @@ namespace madness {
     const parsec_task_class_t* madness_parsec_tc_array[]= {&(madness::madness_parsec_tc), NULL};
     parsec_taskpool_t *ParsecRuntime::tp = nullptr;
     parsec_context_t *ParsecRuntime::ctx = nullptr;
+    parsec_execution_stream_t *ParsecRuntime::madness_comm_thread_es = nullptr;
 #ifdef PARSEC_PROF_TRACE
     int ParsecRuntime::taskpool_profiling_array[2];
 #endif
@@ -178,10 +185,12 @@ namespace madness {
                                                 (int *)&tp->profiling_array[1]);
 #endif
         if( 0 != parsec_context_add_taskpool(ctx, tp) ) {
-            std::cerr << "ERROR: parsec_context_add_taskpool failed!!" << std::endl;
+            std::cerr << "ERROR!!! parsec_context_add_taskpool failed!!" << std::endl;
+            MADNESS_EXCEPTION("ParsecRuntime::ParsecRuntime(): MADNESS taskpool could not be added to the PaRSEC context", 0);
         }
         if( 0 != parsec_context_start(ctx) ) {
-            std::cerr << "ERROR: context_context_start failed!!" << std::endl;
+            std::cerr << "ERROR!!! context_context_start failed!!" << std::endl;
+            MADNESS_EXCEPTION("ParsecRuntime::ParsecRuntime(): PaRSEC context could not be started", 0);
         }
     }
 
@@ -189,6 +198,12 @@ namespace madness {
         parsec_context_wait(ctx);
         parsec_taskpool_free(tp);
         parsec_fini(&ctx);
+        if(nullptr != madness_comm_thread_es) {
+            /* madness_comm_thread_es is just a copy of ES[0]. Resources (including es->profiling_es) are 
+             * actually freed during parsec_fini. Just need to free memory allocated to store it. */
+            free(madness_comm_thread_es);
+            madness_comm_thread_es = nullptr;
+        }
         ctx = nullptr;
     }
 
@@ -229,41 +244,48 @@ namespace madness {
 
         parsec_execution_stream_t *es = parsec_my_execution_stream();
         if(nullptr == es) {
+#ifndef MADNESS_ASSERTIONS_DISABLE
+            if(nullptr != madness_comm_thread_es) {
+                std::cerr << "!!! ERROR: the PaRSEC task backend expected at most one MADNESS communication thread.\n";
+                MADNESS_EXCEPTION("ParsecRuntime::schedule(): more than one MADNESS communication thread", 0);
+            }
+#endif
             /* We are the MADNESS comm thread, which doesn't have a parsec execution stream.
              * Let's assign one... It's mostly a copy of 0, except for the profiling if this is enabled */
-            es = (parsec_execution_stream_t *)calloc(1, sizeof(parsec_execution_stream_t));
-            memcpy(es, context()->virtual_processes[0]->execution_streams[0], sizeof(parsec_execution_stream_t));
+            madness_comm_thread_es = (parsec_execution_stream_t *)calloc(1, sizeof(parsec_execution_stream_t));
+            memcpy(madness_comm_thread_es, context()->virtual_processes[0]->execution_streams[0], sizeof(parsec_execution_stream_t));
             /* This thread doesn't get a scheduler object: schedule happens on computation threads */
-            es->scheduler_object = nullptr;
+            madness_comm_thread_es->scheduler_object = nullptr;
 #if defined(PARSEC_PROF_TRACE)
-            es->es_profile = parsec_profiling_stream_init(2*1024*1024, "MADNESS Comm thread");
-            parsec_profiling_set_default_thread(es->es_profile);
+            madness_comm_thread_es->es_profile = parsec_profiling_stream_init(2*1024*1024, "MADNESS Comm thread");
+            parsec_profiling_set_default_thread(madness_comm_thread_es->es_profile);
 #endif /* PARSEC_PROF_TRACE */
-            parsec_set_my_execution_stream(es);
+            parsec_set_my_execution_stream(madness_comm_thread_es);
+            es = madness_comm_thread_es;
         }
 
         __parsec_schedule_vp(es, vp_parsec_task, 0);
     }
 
     void ParsecRuntime::wait() {
-        if(within_madness_task) {
 #ifndef MADNESS_ASSERTIONS_DISABLE
-            std::cerr << "!!! ERROR: the PaRSEC task backend does not support recursive calls to wait.\n";
+        if(within_madness_task) {
+            std::cerr << "!!! ERROR: the PaRSEC task backend does not support recursive calls to wait.\n"
+                      << "!!! ERROR: this is usually a symptom that a task is forcing a future that is not ready.\n";
             MADNESS_EXCEPTION("ParsecRuntime::wait(): recursive call to wait/test detected", 0);
-#endif
-            return;
         }
+#endif
         parsec_taskpool_wait(tp);
     }
 
     int ParsecRuntime::test() {
-        if(within_madness_task) {
 #ifndef MADNESS_ASSERTIONS_DISABLE
-            std::cerr << "!!! ERROR: the PaRSEC task backend does not support recursive calls to wait.\n";
+        if(within_madness_task) {
+            std::cerr << "!!! ERROR: the PaRSEC task backend does not support recursive calls to wait.\n"
+                      << "!!! ERROR: this is usually a symptom that a task is forcing a future that is not ready.\n";
             MADNESS_EXCEPTION("ParsecRuntime::wait(): recursive call to wait/test detected", 0);
-#endif
-            return 0;
         }
+#endif
         int rc = parsec_taskpool_test(tp);
         assert(rc >= 0);
         return rc;
