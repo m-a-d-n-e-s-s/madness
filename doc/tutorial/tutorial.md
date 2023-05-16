@@ -2,12 +2,12 @@
 
 This tutorial covers
 * downloading, building and installing MADNESS; [RJH]
-* an overview of the MADNESS parallel runtime sufficient to develop and run numerical applications; [RJH]
-* developing new applications using the numerical and chemistry APIS; [All of us]
-  - overview of basic concepts and the numerical API [RJH]
-  - hello world in the numerical API [RJH]
-  - overview of the chemistry API [Florian]
-  - a simple Hartree-Fock program
+* using the MADNESS chemistry applications. [Florian, Hannes, Adrian]
+  - structure of the input file
+  - moldft, gradient
+  - molresponse
+  - all the other codes incl. 6D
+  - excited states, hessian
 * running MADNESS applications in parallel using threads + MPI [Hannes]; and
   - basic concepts
   - environment variables
@@ -16,11 +16,13 @@ This tutorial covers
   - Tips, tricks, and pitfalls
     - binding process+threads to sockets
     - avoid fast malloc libraries if using MPI
-* using the MADNESS chemistry applications. [Florian, Hannes, Adrian]
-  - moldft
-  - molresponse
-  - all the other codes
-
+* an overview of the MADNESS parallel runtime sufficient to develop numerical applications; [RJH]
+* developing new applications using the numerical and chemistry APIS; [All of us]
+  - overview of basic concepts and the numerical API [RJH]
+  - hello world in the numerical API [RJH]
+  - overview of the chemistry API [Florian]
+  - a simple Hartree-Fock program
+ 
 ## Downloading
 
 From github --- how
