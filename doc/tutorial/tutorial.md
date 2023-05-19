@@ -58,6 +58,12 @@ Issues that need fixing
 * relevant targets
 * cmake required
 * ACML is now AOCL
+* Configuring a vanilla Ubuntu (or other Linux) system
+  - what packages to install and how
+* Configuring a vanilla Intel Mac
+* Configuring a vanilla ARM Mac
+
+
 
 
 
