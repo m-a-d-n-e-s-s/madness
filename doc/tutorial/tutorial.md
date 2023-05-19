@@ -1,5 +1,12 @@
 # MADNESS tutorial
 
+## Table of contents
+
+1. [Downloading](#downloading)
+2. [Building and installing](#building-and-installing)
+3. Insanity
+
+
 This tutorial covers
 * downloading, building and installing MADNESS; [RJH]
 * using the MADNESS chemistry applications. [Florian, Hannes, Adrian]
