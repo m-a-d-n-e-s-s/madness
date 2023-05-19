@@ -26,18 +26,18 @@ This tutorial covers
  
 ## Downloading
 
-From the command line, clone the [MADNESS GitHub repository](https://github.com/m-a-d-n-e-s-s/madness) using
+From the command line, clone the [MADNESS GitHub repository](https://github.com/m-a-d-n-e-s-s/madness) using one of the below
 * HTTPS
 ```
     git clone https://github.com/m-a-d-n-e-s-s/madness.git
 ```
-* SSH
+* SSH (for which you will need to have a GitHub account with SSH key)
 ```
     git clone git@github.com:m-a-d-n-e-s-s/madness.git
 ```
 This will make a new directory `madness` --- if you wish use a different name, append it to the command.
 
-The head of the master branch usually builds and runs correctly due to the continuous integration.  If you are looking for the tested version for the Tromso June 2023 workshop, after cloning 
+The head of the master branch usually builds and runs correctly due to the continuous integration.  If you are looking for the version tested for the Tromso June 2023 workshop, after cloning 
 ```
 cd madness
 checkout XXXXXXXXXXXXXXXXXXX
