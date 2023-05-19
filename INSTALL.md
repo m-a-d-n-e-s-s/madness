@@ -34,6 +34,24 @@ An MPI library is required by default, and should be autodected primarily by loo
 
 MADNESS will autodetect the [Intel TBB library](https://www.intel.com/content/www/us/en/developer/tools/oneapi/onetbb.html#gs.8byhgg), which is available for free from Intel or via standard Linux package managers (even on ARM).  TBB provides a fast task pool.  If this is not detected, MADNESS will employ its own task pool.  [PaRSEC](https://icl.utk.edu/parsec/) can also be used (see variables below) but is not recommended unless you are using MADNESS with the [Template Task Graph](https://github.com/TESSEorg/ttg).
 
+### Minimal Ubuntu packages 
+
+If you are using a different distribution, just change the name of the command to install packages.
+
+From a vanilla desktop install of Ubuntu (tested with 23.0.4) 
+```
+   sudo apt install build-essential cmake gcc g++ git intel-mkl mpich 
+```
+If you want to build the documentation then also
+```
+   sudo apt install doxygen graphviz texlive
+```
+
+### Minimal MacOS packages
+
+????????????????????
+
+
 The below summarizes some of the most useful CMake variables.
 
 ## Compiler variables
