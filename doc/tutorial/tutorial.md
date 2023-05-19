@@ -19,22 +19,39 @@ This tutorial covers
 * an overview of the MADNESS parallel runtime sufficient to develop numerical applications; [RJH]
 * developing new applications using the numerical and chemistry APIS; [All of us]
   - overview of basic concepts and the numerical API [RJH]
+  - cmake file and makefile to use madness as a library [???]
   - hello world in the numerical API [RJH]
   - overview of the chemistry API [Florian]
   - a simple Hartree-Fock program
  
 ## Downloading
 
-From github --- how
+From the command line, clone the [MADNESS GitHub repository](https://github.com/m-a-d-n-e-s-s/madness) using
+* HTTPS
+```
+    git clone https://github.com/m-a-d-n-e-s-s/madness.git
+```
+* SSH
+```
+    git clone git@github.com:m-a-d-n-e-s-s/madness.git
+```
+This will make a new directory `madness` --- if you wish use a different name, append it to the command.
+
+The head of the master branch usually builds and runs correctly due to the continuous integration.  If you are looking for the tested version for the Tromso June 2023 workshop, after cloning 
+```
+cd madness
+checkout XXXXXXXXXXXXXXXXXXX
+```
 
 ## Building and installing
 
-Reference materials 
-* [MADNESS ReadTheDocs](https://madness.readthedocs.io/en/latest/INSTALL.html)
-* [Cmake](https://cmake.org/)
+Please refer to the [installation instructions](https://madness.readthedocs.io/en/latest/INSTALL.html).
 
+Issues that need fixing
+* relevant targets
+* cmake required
+* ACML is now AOCL
 
-$$H \Psi = E \psi$$
 
 
 
