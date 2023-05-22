@@ -48,6 +48,30 @@ public:
 
     std::string name() const {return "PNO";};
 
+    static void help() {
+        print_header2("help page for PNO");
+        print("The PNO code computes MP2 energies using pair natural orbitals");
+        print("You can print all available calculation parameters by running\n");
+        print("pno --print_parameters\n");
+        print("You can perform a simple calculation by running\n");
+        print("pno --geometry=h2o.xyz\n");
+        print("provided you have an xyz file in your directory.");
+
+    }
+
+    static void print_parameters() {
+        PNOParameters param;
+        print("default parameters for the pno program are\n");
+        param.print("pno", "end");
+
+        F12Parameters f12param(param);
+        print("\n\nadditional parameters for the correlation factor are\n");
+        f12param.print("f12", "end");
+
+        print("\n\nthe molecular geometry must be specified in a separate block:");
+        Molecule::print_parameters();
+    }
+
     virtual bool selftest() {
         return true;
     };

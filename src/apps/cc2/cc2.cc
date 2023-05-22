@@ -49,14 +49,14 @@ int main(int argc, char **argv) {
     World& world=initialize(argc, argv);
 
     if (world.rank() == 0) {
-        print("\n  CC2: Coupled Cluster approximate Doubles  \n");
+        print_header1("CC2: Coupled Cluster approximate Doubles");
         printf("starting at time %.1f\n", wall_time());
-        print(info::print_revision_information());
     }
 
     startup(world, argc, argv,true);
     std::cout.precision(6);
     FunctionDefaults<3>::set_truncate_mode(1);
+    if (world.rank()==0) print(info::print_revision_information());
 
     // set the tensor type
     TensorType tt = TT_2D;
@@ -85,7 +85,7 @@ int main(int argc, char **argv) {
         }
         double hf_energy = nemo->value();
         if (world.rank() == 0)
-            std::cout << "\n\n\n\n\n\n Reference Calclation Ended\n SCF Energy is: " << hf_energy
+            std::cout << "\n\n\n\n\n\n Reference Calculation Ended\n SCF Energy is: " << hf_energy
                       << "\n current wall-time: " << wall_time()
                       << "\n current cpu-time: " << cpu_time() << "\n\n\n";
 

@@ -22,7 +22,11 @@ class Complex_CIS_Parameters : public QCCalculationParametersBase {
 public:
 
 	/// ctor reading out the input file
-	Complex_CIS_Parameters(World& world, const commandlineparser& parser) {
+    Complex_CIS_Parameters(World& world, const commandlineparser& parser) : Complex_CIS_Parameters() {
+        read_input_and_commandline_options(world,parser,"response");
+    }
+
+	Complex_CIS_Parameters() {
 
 		/// the parameters with the enum key, the constructor taking the input file key and a default value
 		initialize<std::string>("guess_excitation_operators","dipole+");
@@ -37,14 +41,6 @@ public:
 		initialize<double>("dconv",1.e-3);
 		initialize<int>("printlevel",1);
 
-		// read input file
-        read_input_and_commandline_options(world,parser,"response");
-
-		// set derived values
-//		params[param2_].set_derived_value(this->get<int>(param1_)*10.0);
-
-		// print final parameters
-//		if (world.rank()==0) print(params,"Our parameters");
 	}
 
 	std::string guess_excitation_operators() const {return get<std::string>("guess_excitation_operators");};
@@ -140,6 +136,26 @@ public:
 	virtual ~Zcis() {};
 
 	double value();
+
+    static void help() {
+        print_header2("help page for ZCIS");
+        print("The zcis code computes excited states for a znemo calculation in the CIS approximation");
+        print("\nYou can print all available calculation parameters by running\n");
+        print("zcis --print_parameters\n");
+        print("You can perform a simple calculation by running\n");
+        print("zcis --geometry=h2o.xyz\n");
+        print("provided you have an xyz file in your directory.");
+
+    }
+
+    static void print_parameters() {
+        Complex_CIS_Parameters param;
+        print("The zcis program requires converged znemo orbitals");
+        print("\ndefault parameters for the response part of the zcis program are");
+        param.print("response","end");
+        print("\n\nthe molecular geometry must be specified in a separate block:");
+        Molecule::print_parameters();
+    }
 
 
     std::string name() const {return "zcis";};
