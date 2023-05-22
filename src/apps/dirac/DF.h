@@ -70,7 +70,19 @@ class DF {
           DF(World & world,                        // MADNESS world object
               std::shared_ptr<std::istream> input); // Pointer to input stream
 
-          //Calculates the kinetic+rest energy expectation value of psi
+          static void help() {
+              print_header2("help page for DIRAC ");
+              print("The DIRAC code computes Dirac-Fock energies");
+          }
+
+          static void print_parameters() {
+              print("no parameter help is available for the dirac code");
+              print("\nYou need a dft-block and a DiracFock-block in an input file named 'input'");
+          }
+
+
+
+        //Calculates the kinetic+rest energy expectation value of psi
           double rele(World& world, Fcwf& psi);
 
           //Applies the exchange operator to all of occupieds

@@ -388,10 +388,12 @@ public:
     bool selftest() {return false;}
 
     static void help() {
-        print("\nNEMO \n");
+        print_header2("help page for NEMO");
         print("The nemo code computes Hartree-Fock and DFT energies, gradients and hessians using a nuclear correlation factor");
         print("that regularizes the singular nuclear potential. SCF orbitals for the basis for post-SCF calculations like");
-        print("excitation energies (cis), correlation energies (cc2), local potentials (oep), etc\n\n");
+        print("excitation energies (cis), correlation energies (cc2), local potentials (oep), etc\n");
+        print("A nemo calculation input is mostly identical to a moldft calculation input, but it uses the additional input");
+        print("parameter ncf (nuclear correlation factor)\n");
         print("You can print all available calculation parameters by running\n");
         print("nemo --print_parameters\n");
         print("You can perform a simple calculation by running\n");

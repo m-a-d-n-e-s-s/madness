@@ -88,7 +88,7 @@ public:
     std::string name() const {return "CC2";};
 
     static void help() {
-        print("\nCC2 -- help \n");
+        print_header2("help page for CC2");
         print("The CC2 code computes correlated ground and excited state energies:\n");
         print(" - MP2 ground state");
         print(" - CC2 ground and excited states");

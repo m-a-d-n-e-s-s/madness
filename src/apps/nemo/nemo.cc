@@ -53,82 +53,91 @@ using namespace madness;
 
 int main(int argc, char** argv) {
 
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
+    World& world=initialize(argc, argv,false);
     if (world.rank() == 0) {
-    	print("\n  NEMO -- Hartree-Fock using numerical exponential molecular orbitals \n");
+        print_header1("NEMO -- Hartree-Fock using numerical exponential molecular orbitals");
     	printf("starting at time %.1f\n", wall_time());
-
     }
+
     startup(world,argc,argv,true);
     std::cout.precision(6);
-
     if (world.rank()==0) print(info::print_revision_information());
 
-    try {
 
-        commandlineparser parser(argc,argv);
-        std::shared_ptr<Nemo> nemo(new Nemo(world,parser));
+    commandlineparser parser(argc,argv);
+    if (parser.key_exists("help")) {
+        Nemo::help();
 
-        if (world.rank()==0) nemo->get_param().print("dft","end");
+    } else if (parser.key_exists("print_parameters")) {
+        Nemo::print_parameters();
+
+    } else {
+
+        try {
+
+            std::shared_ptr<Nemo> nemo(new Nemo(world, parser));
+
+            print_header2("input section");
+            if (world.rank() == 0) nemo->get_param().print("dft", "end");
 //        if (world.rank()==0) nemo->get_calc()->param.print("dft","end");
 
-        // optimize the geometry if requested
-        if (nemo->get_param().gopt()) {
-            print("\n\n Geometry Optimization                      ");
-            print(" ----------------------------------------------------------\n");
+            // optimize the geometry if requested
+            if (nemo->get_param().gopt()) {
+                print("\n\n Geometry Optimization                      ");
+                print(" ----------------------------------------------------------\n");
 //            calc->param.gprint(world);
 
-                Tensor<double> geomcoord =nemo->get_calc()->molecule.get_all_coords().flat();
-                MolecularOptimizer geom(world,parser,nemo);
-                geom.parameters.print("geoopt","end");
+                Tensor<double> geomcoord = nemo->get_calc()->molecule.get_all_coords().flat();
+                MolecularOptimizer geom(world, parser, nemo);
+                geom.parameters.print("geoopt", "end");
 
-            geom.parameters.print("geoopt","end");
+                geom.parameters.print("geoopt", "end");
 
 
-            // compute initial hessian
-            if (nemo->get_param().ginitial_hessian()) {
-                nemo->value();
-                Tensor<double> hess=nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
-                geom.set_hessian(hess);
-            }
-            geom.optimize(geomcoord);
-        } else {
+                // compute initial hessian
+                if (nemo->get_param().ginitial_hessian()) {
+                    nemo->value();
+                    Tensor<double> hess = nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
+                    geom.set_hessian(hess);
+                }
+                geom.optimize(geomcoord);
+            } else {
 
-            // compute the energy to get converged orbitals
+                // compute the energy to get converged orbitals
 //            Nemo nemo(world,calc);
-            const double energy=nemo->value();
-            if (world.rank()==0) {
-                printf("final energy   %12.8f\n", energy);
-                printf("finished at time %.1f\n", wall_time());
+                const double energy = nemo->value();
+                if (world.rank() == 0) {
+                    printf("final energy   %12.8f\n", energy);
+                    printf("finished at time %.1f\n", wall_time());
+                }
+
             }
 
+            // compute the hessian
+            if (nemo->param.hessian()) nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
+
+
+        } catch (const SafeMPI::Exception& e) {
+            print(e);
+            error("caught an MPI exception");
+        } catch (const madness::MadnessException& e) {
+            print(e);
+            error("caught a MADNESS exception");
+        } catch (const madness::TensorException& e) {
+            print(e);
+            error("caught a Tensor exception");
+        } catch (const char *s) {
+            print(s);
+            error("caught a string exception");
+        } catch (const std::string& s) {
+            print(s);
+            error("caught a string (class) exception");
+        } catch (const std::exception& e) {
+            print(e.what());
+            error("caught an STL exception");
+        } catch (...) {
+            error("caught unhandled exception");
         }
-
-        // compute the hessian
-        if (nemo->param.hessian()) nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
-
-
-    } catch (const SafeMPI::Exception& e) {
-        print(e);
-        error("caught an MPI exception");
-    } catch (const madness::MadnessException& e) {
-        print(e);
-        error("caught a MADNESS exception");
-    } catch (const madness::TensorException& e) {
-        print(e);
-        error("caught a Tensor exception");
-    } catch (const char* s) {
-        print(s);
-        error("caught a string exception");
-    } catch (const std::string& s) {
-        print(s);
-        error("caught a string (class) exception");
-    } catch (const std::exception& e) {
-        print(e.what());
-        error("caught an STL exception");
-    } catch (...) {
-        error("caught unhandled exception");
     }
 
     finalize();

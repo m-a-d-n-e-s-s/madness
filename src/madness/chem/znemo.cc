@@ -33,11 +33,13 @@ Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), m
 
 	param.set_derived_values();
 
+	mol.parameters.set_derived_value("no_orient",true);
+
 	print_info=printleveler(param.printlevel());
 
 	if (world.rank()==0 and print_info.print_setup()) {
 		param.print("complex","end");
-		cparam.print("dft");
+		cparam.print("dft","end");
 		mol.print();
 	}
 
