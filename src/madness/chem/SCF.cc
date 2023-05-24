@@ -280,6 +280,9 @@ SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParam
 
 }
 
+void SCF::set_print_timings(const bool value) {
+    print_timings=value;
+}
 
 void SCF::copy_data(World& world, const SCF& other) {
     aeps = copy(other.aeps);
@@ -1430,7 +1433,7 @@ tensorT SCF::dipole(World& world, const functionT& rho) const {
         mu[axis] += molecule.nuclear_dipole(axis);
     }
 
-    if (world.rank() == 0 and (param.print_level() > 1)) {
+    if (world.rank() == 0 and (param.print_level() > 2)) {
         print("\n Dipole Moment (a.u.)\n -----------\n");
         print("     x: ", mu[0]);
         print("     y: ", mu[1]);
@@ -1882,7 +1885,7 @@ double SCF::do_step_restriction(World& world, const vecfuncT& mo, vecfuncT& mo_n
             double s = param.maxrotn() / anorm[i];
             ++nres;
             if (world.rank() == 0) {
-                if (nres == 1 and (param.print_level() > 1))
+                if (nres == 1 and (param.print_level() > 2))
                     printf("  restricting step for %s orbitals:", spin.c_str());
                 printf(" %d", i);
             }
@@ -1895,7 +1898,7 @@ double SCF::do_step_restriction(World& world, const vecfuncT& mo, vecfuncT& mo_n
     world.gop.fence();
     double rms, maxval;
     vector_stats(anorm, rms, maxval);
-    if (world.rank() == 0 and (param.print_level() > 1))
+    if (world.rank() == 0 and (param.print_level() > 2))
         print("Norm of vector changes", spin, ": rms", rms, "   max", maxval);
     return maxval;
 }

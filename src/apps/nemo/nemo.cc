@@ -78,39 +78,42 @@ int main(int argc, char** argv) {
             std::shared_ptr<Nemo> nemo(new Nemo(world, parser));
 
             print_header2("input section");
-            if (world.rank() == 0) nemo->get_param().print("dft", "end");
-//        if (world.rank()==0) nemo->get_calc()->param.print("dft","end");
+            if (world.rank() == 0) {
+                nemo->get_param().print("dft", "end");
+                nemo->molecule().print();
+            }
 
             // optimize the geometry if requested
             if (nemo->get_param().gopt()) {
-                print("\n\n Geometry Optimization                      ");
-                print(" ----------------------------------------------------------\n");
-//            calc->param.gprint(world);
-
-                Tensor<double> geomcoord = nemo->get_calc()->molecule.get_all_coords().flat();
+                print_header2("Geometry Optimization");
                 MolecularOptimizer geom(world, parser, nemo);
                 geom.parameters.print("geoopt", "end");
 
-                geom.parameters.print("geoopt", "end");
+                // compute the energy to get converged orbitals
+                print_header2("computing initial wave function");
+                nemo->value();
 
+                // reduce print level
+                nemo->param.set_derived_value("print_level",2);
+                nemo->get_calc()->param.set_derived_value("print_level",2);
+                nemo->get_calc()->set_print_timings(false);
 
                 // compute initial hessian
                 if (nemo->get_param().ginitial_hessian()) {
-                    nemo->value();
                     Tensor<double> hess = nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
                     geom.set_hessian(hess);
                 }
+
+                print_header2("Starting geometry optimization");
+                Tensor<double> geomcoord = nemo->get_calc()->molecule.get_all_coords().flat();
                 geom.optimize(geomcoord);
-            } else {
+            }
 
-                // compute the energy to get converged orbitals
-//            Nemo nemo(world,calc);
-                const double energy = nemo->value();
-                if (world.rank() == 0) {
-                    printf("final energy   %12.8f\n", energy);
-                    printf("finished at time %.1f\n", wall_time());
-                }
 
+            double energy=nemo->value();
+            if (world.rank() == 0) {
+                printf("final energy   %12.8f\n", energy);
+                printf("finished at time %.1f\n", wall_time());
             }
 
             // compute the hessian

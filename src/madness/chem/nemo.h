@@ -314,7 +314,7 @@ public:
 		bool each_energy_conv=param.converge_each_energy() ? maxenergychange<econv*3.0 : true;
 		bool density_conv=param.converge_density() ? delta_density<dconv : true;
 
-		if (world.rank()==0 and param.print_level()>=2) {
+		if (world.rank()==0 and param.print_level()>2) {
 			std::stringstream line;
 			line << "convergence: bshresidual, energy change, max energy change, density change "
 					<< std::scientific << std::setprecision(1)
@@ -350,6 +350,10 @@ class Nemo: public NemoBase, public QCPropertyInterface {
 public:
 	/// class holding parameters for a nemo calculation beyond the standard dft parameters from moldft
 	struct NemoCalculationParameters : public CalculationParameters {
+
+        NemoCalculationParameters(World& world, const commandlineparser& parser) : CalculationParameters(world,parser) {
+            initialize_nemo_parameters();
+        }
 
 		NemoCalculationParameters(const CalculationParameters& param) : CalculationParameters(param) {
             initialize_nemo_parameters();
@@ -496,7 +500,7 @@ public:
 
 	std::shared_ptr<SCF> get_calc() const {return calc;}
 
-    NemoCalculationParameters get_param() const {return param;}
+    const NemoCalculationParameters& get_param() const {return param;}
 
 	PCM get_pcm()const{return pcm;}
 
@@ -634,7 +638,7 @@ protected:
         calc->set_protocol<3>(world,thresh);
 
         if (need_recompute_factors_and_potentials(thresh)) {
-            timer timer1(world);
+            timer timer1(world,param.print_level()>2);
             get_calc()->make_nuclear_potential(world);
             construct_nuclear_correlation_factor(calc->molecule, calc->potentialmanager, param.ncf());
             timer1.end("reproject ncf");

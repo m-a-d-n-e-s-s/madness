@@ -76,13 +76,11 @@ int main(int argc, char** argv) {
 
             // optimize the geometry if requested
             if (znemo->get_cparam().gopt()) {
-                print("\n\n Geometry Optimization                      ");
-                print(" ----------------------------------------------------------\n");
+                print_header2("Geometry Optimization");
 
                 Tensor<double> geomcoord = znemo->molecule().get_all_coords().flat();
                 MolecularOptimizer geom(world,parser,znemo);
-                geom.parameters.set_derived_value<std::vector<std::string> >("remove_dof",
-                                                                             {"Tx","Ty","Tz","Rx","Ry"});
+                geom.parameters.set_derived_value<std::vector<std::string> >("remove_dof",{});
                 geom.parameters.print("geometry optimization parameters","end");
                 geom.optimize(geomcoord);
             } else {

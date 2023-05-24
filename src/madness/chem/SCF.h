@@ -252,6 +252,8 @@ public:
         Molecule::print_parameters();
     }
 
+    void set_print_timings(const bool value);
+
     template<std::size_t NDIM>
     void set_protocol(World& world, double thresh) {
         int k;

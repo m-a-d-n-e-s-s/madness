@@ -453,7 +453,7 @@ void Molecule::print() const {
     std::string p =parameters.print_to_string();
     std::cout.flush();
     std::stringstream sstream;
-    sstream << " geometry" << std::endl;
+    sstream << "geometry" << std::endl;
     sstream << p << std::endl;
 //    sstream << "   eprec  " << std::scientific << std::setw(1) << get_eprec()  << std::endl << std::fixed;
 //    sstream << "   units atomic" << std::endl;
@@ -465,7 +465,7 @@ void Molecule::print() const {
         if (atoms[i].atomic_number == 0) sstream << "     " << atoms[i].q;
         sstream << std::endl;
     }
-    sstream << " end" << std::endl;
+    sstream << "end" << std::endl;
     std::cout << sstream.str();
 }
 
