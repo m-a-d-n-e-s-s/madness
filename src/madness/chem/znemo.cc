@@ -16,8 +16,9 @@
 
 namespace madness {
 
-Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), mol(world,parser), param(world,parser), cparam() {
-	cparam.read_input_and_commandline_options(world,parser,"dft");
+Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), mol(world,parser), param(world,parser),
+                    cparam(world,parser) {
+//	cparam.read_input_and_commandline_options(world,parser,"dft");
 
     FunctionDefaults<3>::set_k(cparam.k());
     FunctionDefaults<3>::set_thresh(cparam.econv());
