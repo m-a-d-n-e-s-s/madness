@@ -29,8 +29,6 @@
  fax:   865-572-0680
  */
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
 /*!
  \file examples/nemo.h
  \brief solve the HF equations using numerical exponential MOs
@@ -316,7 +314,7 @@ public:
 		bool each_energy_conv=param.converge_each_energy() ? maxenergychange<econv*3.0 : true;
 		bool density_conv=param.converge_density() ? delta_density<dconv : true;
 
-		if (world.rank()==0 and param.print_level()>=2) {
+		if (world.rank()==0 and param.print_level()>2) {
 			std::stringstream line;
 			line << "convergence: bshresidual, energy change, max energy change, density change "
 					<< std::scientific << std::setprecision(1)
@@ -352,6 +350,10 @@ class Nemo: public NemoBase, public QCPropertyInterface {
 public:
 	/// class holding parameters for a nemo calculation beyond the standard dft parameters from moldft
 	struct NemoCalculationParameters : public CalculationParameters {
+
+        NemoCalculationParameters(World& world, const commandlineparser& parser) : CalculationParameters(world,parser) {
+            initialize_nemo_parameters();
+        }
 
 		NemoCalculationParameters(const CalculationParameters& param) : CalculationParameters(param) {
             initialize_nemo_parameters();
@@ -390,10 +392,12 @@ public:
     bool selftest() {return false;}
 
     static void help() {
-        print("\nNEMO \n");
+        print_header2("help page for NEMO");
         print("The nemo code computes Hartree-Fock and DFT energies, gradients and hessians using a nuclear correlation factor");
         print("that regularizes the singular nuclear potential. SCF orbitals for the basis for post-SCF calculations like");
-        print("excitation energies (cis), correlation energies (cc2), local potentials (oep), etc\n\n");
+        print("excitation energies (cis), correlation energies (cc2), local potentials (oep), etc\n");
+        print("A nemo calculation input is mostly identical to a moldft calculation input, but it uses the additional input");
+        print("parameter ncf (nuclear correlation factor)\n");
         print("You can print all available calculation parameters by running\n");
         print("nemo --print_parameters\n");
         print("You can perform a simple calculation by running\n");
@@ -496,7 +500,7 @@ public:
 
 	std::shared_ptr<SCF> get_calc() const {return calc;}
 
-    NemoCalculationParameters get_param() const {return param;}
+    const NemoCalculationParameters& get_param() const {return param;}
 
 	PCM get_pcm()const{return pcm;}
 
@@ -634,7 +638,7 @@ protected:
         calc->set_protocol<3>(world,thresh);
 
         if (need_recompute_factors_and_potentials(thresh)) {
-            timer timer1(world);
+            timer timer1(world,param.print_level()>2);
             get_calc()->make_nuclear_potential(world);
             construct_nuclear_correlation_factor(calc->molecule, calc->potentialmanager, param.ncf());
             timer1.end("reproject ncf");

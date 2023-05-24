@@ -76,7 +76,8 @@ namespace madness {
     ThreadPool* ThreadPool::instance_ptr = 0;
     double ThreadPool::await_timeout = 900.0;
 #if HAVE_INTEL_TBB
-    std::unique_ptr<tbb::global_control> ThreadPool::tbb_control = nullptr;
+    std::unique_ptr<tbb::global_control> ThreadPool::tbb_control    = nullptr;
+    std::unique_ptr<tbb::task_arena> ThreadPool::tbb_arena          = nullptr;
 #endif
 #ifdef MADNESS_TASK_PROFILING
     Mutex profiling::TaskProfiler::output_mutex_;
@@ -352,16 +353,15 @@ namespace madness {
         instance_ptr = this;
         if (nthreads < 0) nthreads = default_nthread();
         MADNESS_ASSERT(nthreads >=0);
-        if (nthreads>64)
-            MADNESS_EXCEPTION("\n\nno more than 64 threads in MADNESS:\nexport MAD_NUM_THREADS = 64\n",1);
 
         const int rc = pthread_setspecific(ThreadBase::thread_key,
                 static_cast<void*>(&main_thread));
         if(rc != 0)
             MADNESS_EXCEPTION("pthread_setspecific failed", rc);
 #if HAVE_PARSEC
-        assert(nullptr == parsec_runtime);
-        parsec_runtime = new ParsecRuntime(nthread);
+        MADNESS_ASSERT(nullptr == parsec_runtime);
+        const int num_parsec_threads = nthreads + 1;
+        parsec_runtime = new ParsecRuntime(num_parsec_threads);
 #elif HAVE_INTEL_TBB
 // #if HAVE_INTEL_TBB
 
@@ -374,7 +374,11 @@ namespace madness {
         //              is counted as part of tbb.
         const int num_tbb_threads = (SafeMPI::COMM_WORLD.Get_size() > 1) ? nthreads + 2 : nthreads + 1;
         tbb_control = std::make_unique<tbb::global_control>(tbb::global_control::max_allowed_parallelism, num_tbb_threads);
+        tbb_arena   = std::make_unique<tbb::task_arena>(num_tbb_threads);
 #else
+
+        if (nthreads>64)
+            MADNESS_EXCEPTION("When configured with MADNESS_TASK_BACKEND=Pthreads MAD_NUM_THREADS cannot exceed 64",1);
 
         try {
             if (nthreads > 0)
@@ -539,12 +543,5 @@ namespace madness {
     const DQStats& ThreadPool::get_stats() {
         return instance()->queue.get_stats();
     }
-
-#if defined(MADNESS_DQ_USE_PREBUF) && defined(MADNESS_CXX_COMPILER_IS_ICC)
-    thread_local PoolTaskInterface* DQueue<PoolTaskInterface*>::prebuf[DQueue<PoolTaskInterface*>::NPREBUF] = {};
-    thread_local PoolTaskInterface* DQueue<PoolTaskInterface*>::prebufhi[DQueue<PoolTaskInterface*>::NPREBUF] = {};
-    thread_local size_t DQueue<PoolTaskInterface*>::ninprebuf = 0;
-    thread_local size_t DQueue<PoolTaskInterface*>::ninprebufhi = 0;
-#endif
 
 } // namespace madness

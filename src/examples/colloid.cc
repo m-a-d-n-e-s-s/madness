@@ -28,7 +28,6 @@ This proram simulates the effect of surface solute interaction between a colloid
 */
 
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 //#include <madness/mra/operator.h>
 #include "molecularmask.h"
 #include <madness/mra/nonlinsol.h>

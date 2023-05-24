@@ -208,6 +208,30 @@ public:
 
     std::string name() const {return "TDHF";};
 
+    static void help() {
+        print_header2("help page for CIS ");
+        print("The CIS code computes Hartree-Fock and DFT excitations.");
+        print("A moldft or nemo calculation will be performed automatically unless there is already a ");
+        print("wave function on file ('restartdata.00000'). Both local and canonical orbitals can be ");
+        print("used, for the latter individual irreps may be chosen for computation");
+        print("Relevant parameters are derived from the reference calculation (moldft or nemo),");
+        print("such as k, nuclear_correlation_factor, charge, etc");
+        print("You can print all available calculation parameters by running\n");
+        print("cis --print_parameters\n");
+        print("You can perform a simple calculation by running\n");
+        print("cis --geometry=h2o.xyz\n");
+        print("provided you have an xyz file in your directory.");
+
+    }
+
+    static void print_parameters() {
+        TDHFParameters param;
+        print("default parameters for the CIS program are\n");
+        param.print("response", "end");
+        print("\n\nthe molecular geometry must be specified in a separate block:");
+        Molecule::print_parameters();
+    }
+
     virtual bool selftest() {
         return true;
     };

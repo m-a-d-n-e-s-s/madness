@@ -39,8 +39,7 @@
 
  */
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <madness/world/info.h>
+#include <madness/misc/info.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/funcplot.h>
@@ -441,7 +440,7 @@ int main(int argc, char** argv) {
 	std::cout.precision(6);
 
 	if (world.rank()==0) {
-		print("           git revision ...", info::git_commit());
+          print("           git source description ...", info::git_source_description());
 	}
 
 	if (world.rank() == 0) {
@@ -451,6 +450,7 @@ int main(int argc, char** argv) {
 
 	// read out input and stuff
 	commandlineparser parser(argc,argv);
+    parser.set_keyval("geometry","he"); // it's always going to be helium
 	Nemo nemo(world, parser);
 	auto calc=nemo.get_calc();
 

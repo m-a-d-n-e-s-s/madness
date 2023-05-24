@@ -35,7 +35,6 @@ target_link_libraries(yourbinary madness)
 
 In file `main.cpp`:
 ````c
-#define USE_GENTENSOR 1 // only needed if madness was configured with `-D ENABLE_GENTENSOR=1
 #include <madness.h>
 using namespace madness;
 int main(int argc, char* argv[]) {
@@ -58,13 +57,6 @@ int main(int argc, char* argv[]) {
 ````
 
 Going through the code line by line:
-````c
-#define USE_GENTENSOR 1` // only needed if madness was configured with `-D ENABLE_GENTENSOR=1
-````
- 
-If MADNESS is to be used for high-dimensional problems (d>3) you will probably use low-rank tensor 
-approximations, which must be set at MADNESS configure time with the `-D ENABLE_GENTENSOR=1` flag, 
-and then again in your code. GenTensor and complex Functions are currently mutually exlusive.
 
 ````c
 #include <madness.h>

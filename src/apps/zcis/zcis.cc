@@ -31,9 +31,6 @@
   $Id$
 */
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
-
 /*!
   \file examples/znemo.cc
   \brief solve the HF equations using numerical exponential MOs
@@ -50,46 +47,52 @@ using namespace madness;
 
 
 int main(int argc, char** argv) {
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
-    if (world.rank() == 0) {
-    	print("\n  ZCIS -- excited states in the CIS approximation using complex orbitals \n");
-    	printf("starting at time %.1f\n", wall_time());
 
+    World& world=initialize(argc, argv,false);
+    if (world.rank() == 0) {
+        print_header1(" ZCIS -- excited states in the CIS approximation using complex orbitals");
     }
+
     startup(world,argc,argv,true);
     std::cout.precision(6);
+    if (world.rank()==0) print(info::print_revision_information());
+
+
     commandlineparser parser(argc,argv);
+    if (parser.key_exists("help")) {
+        Zcis::help();
 
+    } else if (parser.key_exists("print_parameters")) {
+        Zcis::print_parameters();
 
-    try {
+    } else {
 
-        std::shared_ptr<Znemo> znemo(new Znemo(world, parser));
-        znemo->value();
-        Zcis zcis(world,parser,znemo);
-        zcis.value();
-
-
-    } catch (const SafeMPI::Exception& e) {
-        print(e);
-        error("caught an MPI exception");
-    } catch (const madness::MadnessException& e) {
-        print(e);
-        error("caught a MADNESS exception");
-    } catch (const madness::TensorException& e) {
-        print(e);
-        error("caught a Tensor exception");
-    } catch (const char* s) {
-        print(s);
-        error("caught a string exception");
-    } catch (const std::string& s) {
-        print(s);
-        error("caught a string (class) exception");
-    } catch (const std::exception& e) {
-        print(e.what());
-        error("caught an STL exception");
-    } catch (...) {
-        error("caught unhandled exception");
+        try {
+            std::shared_ptr<Znemo> znemo(new Znemo(world, parser));
+            znemo->value();
+            Zcis zcis(world, parser, znemo);
+            zcis.value();
+        } catch (const SafeMPI::Exception& e) {
+            print(e);
+            error("caught an MPI exception");
+        } catch (const madness::MadnessException& e) {
+            print(e);
+            error("caught a MADNESS exception");
+        } catch (const madness::TensorException& e) {
+            print(e);
+            error("caught a Tensor exception");
+        } catch (const char *s) {
+            print(s);
+            error("caught a string exception");
+        } catch (const std::string& s) {
+            print(s);
+            error("caught a string (class) exception");
+        } catch (const std::exception& e) {
+            print(e.what());
+            error("caught an STL exception");
+        } catch (...) {
+            error("caught unhandled exception");
+        }
     }
 
 

@@ -179,8 +179,9 @@ public:
 	    print("orbital #   irrep   energy    occupation  localize_set");
         for (int i=mo.size()-1; i>=0; --i) {
 //            double n=get_mos()[i].norm2();
-            char buf[1024];
-            sprintf(buf,"%5d %10s %12.8f  %6.2f  %8d", i, irreps[i].c_str(),get_eps()[i],
+            std::size_t bufsize=1024;
+            char buf[bufsize];
+            snprintf(buf,bufsize,"%5d %10s %12.8f  %6.2f  %8d", i, irreps[i].c_str(),get_eps()[i],
                    get_occ()[i],get_localize_sets()[i]);
             cout << std::string(buf) <<endl;
 	    }
@@ -245,13 +246,13 @@ public:
         unsigned int version = 2;  // UPDATE THIS IF YOU CHANGE ANYTHING
         unsigned int archive_version;
 		double current_energy;
-        std::string xc;
+        std::string xc, localize_method;
 
 
 		archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, filename.c_str());
         ar & version;
 		ar & current_energy & spinrestricted;
-        ar & L& k1& molecule& xc;
+        ar & L& k1& molecule& xc & localize_method;
 
 		MolecularOrbitals<T,NDIM> amo, bmo;
 		amo.load_mos(ar, molecule, nmo_alpha);

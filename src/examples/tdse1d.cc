@@ -98,7 +98,6 @@
 */
 
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #define NO_GENTENSOR
 #include <madness/mra/mra.h>
 #include <madness/mra/qmprop.h>

@@ -13,6 +13,7 @@
 #include<iomanip>
 #include <typeindex>
 #include <map>
+#include <fstream>
 #include <typeinfo>
 #include <madness/misc/misc.h>
 #include <madness/world/archive.h>
@@ -175,16 +176,48 @@ public:
 			return word+std::string(nspaces, ' ');
 		};
 
-		std::string result=fill_left(20,key)+"  "+fill_right(10,get_value()) + " # "
-				+fill_right(10,print_precedence())
-				//				+fill_right(5,get_type())
-				+ fill_right(45,get_comment());
-		if (allowed_values.size()>0) {
-                        using madness::operators::operator<<;
-			std::stringstream ss;
-			ss << allowed_values;
-			result+=ss.str();
-		}
+        // key-value block
+        std::string keyval=fill_left(20,key)+"  "+fill_right(10,get_value()) + " # " +fill_right(10,print_precedence());
+        std::string empty_keyval(keyval.size(),' ');
+        empty_keyval[33]='#';
+
+        std::string allowed_val;
+        if (allowed_values.size()>0) {
+            using madness::operators::operator<<;
+            std::stringstream ss;
+            ss << allowed_values;
+            allowed_val+=ss.str();
+        }
+
+        // split comment into several lines: split onto words and add linebreak
+        bool leave_space_for_allowed_values=(allowed_val.size()>0);
+
+        // first line breaks after 80 characters, all other lines after 120 (leave space f
+        long keyvalsize=keyval.size();     // length of key, value, precedence
+        std::string comment1=get_comment();
+        auto commentwords=commandlineparser::split(comment1," ");
+        std::vector<std::string> commentlines(1);
+        long nchar=0;
+        for (auto word : commentwords) {
+
+            bool is_first_line=commentlines.size()==1;
+            long thislinebreak=120;
+            if (is_first_line and leave_space_for_allowed_values) thislinebreak=80;
+            long commentsize=thislinebreak-keyvalsize;
+
+            nchar+=word.size()+1;
+            if (nchar>commentsize) { // start newline
+                commentlines.push_back("");
+                nchar=word.size()+1;
+            }
+            commentlines.back()+=word+" ";
+        }
+
+        std::string result;
+        for (int i=0; i<commentlines.size(); ++i) {
+            if (i==0) result=keyval+fill_right(40,commentlines[i])+allowed_val;
+            else result+="\n"+empty_keyval+commentlines[i];
+        }
 
 		// trim result
 		std::size_t last = result.find_last_not_of(' ');
@@ -293,11 +326,18 @@ protected:
                                                     const commandlineparser& parser,
                                                     const std::string tag) {
         try {
-            read_input(world,parser.value("input"),tag);
+            // check that user-defined input files actually exist
+            bool file_ok=true;
+            if (parser.key_exists("user_defined_input_file")) file_ok=file_exists(world,parser.value("input"));
+            if (file_ok) read_input(world,parser.value("input"),tag);
+            else {
+                std::string msg="could not find user-defined input file: "+parser.value("input")+"\n";
+                throw std::invalid_argument(msg);
+            }
         } catch (std::invalid_argument& e) {
             throw;
         } catch (std::exception& e) {
-            print(e.what());
+            madness::print(e.what());
         }
         read_commandline_options(world,parser,tag);
     }
@@ -310,6 +350,8 @@ private:
 	void read_input(World& world, const std::string filename, const std::string tag);
 
     void read_commandline_options(World& world, const commandlineparser& parser, const std::string tag);
+
+    bool file_exists(World& world, std::string filename) const;
 
 protected:
 

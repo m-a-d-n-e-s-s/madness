@@ -1,4 +1,3 @@
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/nonlinsol.h>

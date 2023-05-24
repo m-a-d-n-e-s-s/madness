@@ -1,6 +1,8 @@
 MADNESS
 =======
 
+$$H \Psi = E \Psi $$
+
 Multiresolution Adaptive Numerical Environment for Scientific Simulation
 
 # Summary

@@ -566,8 +566,10 @@ void Localizer::undo_reordering(Tensor<T>& U, const Tensor<double>& occ, Tensor<
         for (int i = 0; i < nmo; i++) {
             for (int j = i + 1; j < nmo; j++) {
                 if (occ(i) == occ(j)) {
-                    double sold = U(i, i) * U(i, i) + U(j, j) * U(j, j);
-                    double snew = U(i, j) * U(i, j) + U(j, i) * U(j, i);
+//                    double sold = std::abs(U(i, i) * U(i, i) + U(j, j) * U(j, j));
+//                    double snew = std::abs(U(i, j) * U(i, j) + U(j, i) * U(j, i));
+                    double sold = std::real(U(i,i)*std::conj(U(i,i))) + std::real(U(j,j)*std::conj(U(j,j)));
+                    double snew = std::real(U(i,j)*std::conj(U(i,j))) + std::real(U(j,i)*std::conj(U(j,i)));
                     if (snew > sold) {
                         Tensor<T> tmp = copy(U(_, i));
                         U(_, i) = U(_, j);
@@ -581,9 +583,12 @@ void Localizer::undo_reordering(Tensor<T>& U, const Tensor<double>& occ, Tensor<
     }
 
     // Fix phases.
-    for (long i = 0; i < nmo; ++i)
-        if (U(i, i) < 0.0)
-            U(_, i).scale(-1.0);
+//    for (long i = 0; i < nmo; ++i)
+//        if (std::real(U(i, i)) < 0.0)
+//            U(_, i).scale(-1.0);
+
+    for (long i = 0; i < nmo; ++i) U(_, i).scale(conditional_conj(U(i,i))/std::abs(U(i,i)));
+
 }
 
 
@@ -739,5 +744,13 @@ Localizer::undo_degenerate_rotations(Tensor<double>& U, const Tensor<double>& ev
 
 template
 void
+Localizer::undo_degenerate_rotations(Tensor<double_complex>& U, const Tensor<double>& evals, const double thresh_degenerate);
+
+template
+void
 Localizer::undo_reordering(Tensor<double>& U, const Tensor<double>& occ, Tensor<double>& eval);
+
+template
+void
+Localizer::undo_reordering(Tensor<double_complex>& U, const Tensor<double>& occ, Tensor<double>& eval);
 }

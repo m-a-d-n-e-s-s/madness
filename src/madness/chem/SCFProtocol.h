@@ -105,13 +105,7 @@ public:
         }
     }
 
-    bool finished() const {
-        std::stringstream ss;
-        ss <<"\nending protocol at time" << std::setw(8) << std::setprecision(2)
-           << wall_time() << "s";
-        if(world.rank()==0) print(ss.str());
-    	return converged;
-    }
+    bool finished() const {return converged;}
 
     /// go to the next level
     SCFProtocol& operator++() {
@@ -119,7 +113,7 @@ public:
             current_prec*=0.1;
             if (current_prec<end_prec) current_prec=end_prec;
             infer_thresholds(current_prec);
-            if(world.rank()==0) print("protocol: thresh",thresh,"econv ",econv,"dconv",dconv);
+//            if(world.rank()==0) print("protocol: thresh",thresh,"econv ",econv,"dconv",dconv);
         } else {
             converged=true;
         }

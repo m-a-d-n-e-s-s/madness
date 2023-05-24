@@ -5,8 +5,6 @@
 #ifndef MADNESS_CHEM_GTH_PSEUDOPOTENTIAL_H__INCLUDED
 #define MADNESS_CHEM_GTH_PSEUDOPOTENTIAL_H__INCLUDED
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
 #include <madness/mra/mra.h>
 #include <madness/external/tinyxml/tinyxml.h>
 

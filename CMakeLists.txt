@@ -41,6 +41,7 @@ include(CMakeDependentOption)
 include(AddMADLibrary)
 include(AddMADExecutable)
 include(AddUnittests)
+include(AddScriptedTests)
 include(CMakePackageConfigHelpers)
 include(CopyTargetProperties)
 include(FeatureSummary)
@@ -163,6 +164,8 @@ option(ENABLE_BOOST "Enable C++ Boost Libraries" OFF)
 
 option(ENABLE_GENTENSOR "Enable generic tensor support" OFF)
 add_feature_info(GENTENSOR ENABLE_GENTENSOR "enables use of MRA Function compression that allows computing in 6 dimensions")
+set(MADNESS_USE_GENTENSOR ${ENABLE_GENTENSOR} CACHE BOOL
+    "enables use of MRA Function compression that allows computing in 6 dimensions")
 
 if(ENABLE_GENTENSOR)
   add_definitions(-DUSE_GENTENSOR)
@@ -622,9 +625,10 @@ endif()
 # ccache for caching builds
 find_program(CCACHE ccache)
 if(CCACHE)
-    message (STATUS "Found ccache: ${CCACHE}")
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ${CCACHE})
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ${CCACHE})
+  mark_as_advanced(CCACHE)
+  message (STATUS "Found ccache: ${CCACHE}")
+  set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE}" CACHE STRING "Compiler launcher to use for compiling C++")
+  set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE}" CACHE STRING "Compiler launcher to use for compiling C")
 endif(CCACHE)
 
 # Check for external dependencies ==============================================
@@ -669,25 +673,13 @@ include(CTest)
 if(BUILD_TESTING)
   set(MADNESS_HAS_GOOGLE_TEST 1)
   add_custom_target_subproject(madness unittests)
+  add_custom_target_subproject(madness scripted_tests)
   add_custom_target_subproject(madness check COMMAND ${CMAKE_CTEST_COMMAND} -V -R "madness/test/" USES_TERMINAL) # to be GNU compatible
+  add_custom_target_subproject(madness check-short COMMAND ${CMAKE_CTEST_COMMAND} -L \"short|medium\" -V -R "madness/test/" USES_TERMINAL) # to be GNU compatible
   add_dependencies(everything unittests)
 endif()
 add_subdirectory(src)
 add_subdirectory(doc)
-
-# Get the git revision tag information =========================================
-
-if(EXISTS ${PROJECT_SOURCE_DIR}/.git)
-  find_package(Git REQUIRED)
-  execute_process(
-      COMMAND ${GIT_EXECUTABLE} rev-parse -q HEAD
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-      OUTPUT_VARIABLE MADNESS_REVISION )
-  string(REGEX MATCH "[0-9a-f]*"
-      MADNESS_REVISION "${MADNESS_REVISION}")
-else()
-  set(MADNESS_REVISION "unknown")
-endif()
 
 # Generate configure files =====================================================
 

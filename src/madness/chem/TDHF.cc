@@ -254,6 +254,8 @@ std::vector<CC_vecfunction> TDHF::solve_cis() const {
         if (converged_roots.size() >= size_t(parameters.excitations())) break;
     }
 
+
+
     return converged_roots;
 }
 
@@ -1485,6 +1487,7 @@ double TDHF::oscillator_strength_velocity(const CC_vecfunction &x) const {
 void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
 
     const size_t noct = get_active_mo_ket().size();
+    nlohmann::json j;
 
     for (const CC_vecfunction &root : x) {
 
@@ -1518,7 +1521,15 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
             }
         }
         if (world.rank() == 0) print(" ");
+        j.push_back(root);
+        j.back()["oscillator_strength_length"]=osl;
+        j.back()["oscillator_strength_velocity"]=osv;
     }
+
+    nlohmann::json j1;
+    j1["cis_excitations"]=j;
+    update_schema(get_calc()->param.prefix()+".calc_info", j1);
+
 
     // compute the transition densities
     const vector_real_function_3d bra_oct = get_active_mo_bra();

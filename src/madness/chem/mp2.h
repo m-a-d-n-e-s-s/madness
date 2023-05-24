@@ -39,7 +39,6 @@
 #ifndef MP2_H_
 #define MP2_H_
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
 #include<madness/chem/QCCalculationParametersBase.h>
@@ -321,9 +320,7 @@ class MP2 : public OptimizationTargetInterface, public QCPropertyInterface {
         /// use OEP orbitals
         bool do_oep1 = false;
 
-        /// ctor reading out the input file
-        Parameters(World& world, const commandlineparser& parser) {
-
+        Parameters() {
             /// the map with initial values
             initialize < double > ("thresh", 1.e-3, "recommended values: 1.e-4 < econv < 1.e-8");
             initialize < double > ("econv", 1.e-3, "recommended values: 1.e-4 < econv < 1.e-8");
@@ -333,7 +330,10 @@ class MP2 : public OptimizationTargetInterface, public QCPropertyInterface {
             initialize < int > ("maxsub", 2);
             initialize < bool > ("restart", true);
             initialize < int > ("maxiter", 5);
+        }
 
+        /// ctor reading out the input file
+        Parameters(World& world, const commandlineparser& parser) : Parameters() {
             read_and_set_derived_values(world,parser);
 
             // print final parameters
@@ -415,6 +415,24 @@ public:
     MP2(World& world, const commandlineparser& parser);
     std::string name() const {return "MP2";};
 
+    static void help() {
+        print_header2("help page for MP2 ");
+        print("The mp2 code computes second order correlation energies based on a moldft or nemo calculation");
+        print("You can print all available calculation parameters by running\n");
+        print("mp2 --print_parameters\n");
+        print("You can perform a simple calculation by running\n");
+        print("mp2 --geometry=h2o.xyz\n");
+        print("provided you have an xyz file in your directory.");
+
+    }
+
+    static void print_parameters() {
+        Parameters param;
+        print("default parameters for the mp2 program are");
+        param.print("mp2", "end");
+        print("\n\nthe molecular geometry must be specified in a separate block:");
+        Molecule::print_parameters();
+    }
     virtual bool selftest() {
         return true;
     };

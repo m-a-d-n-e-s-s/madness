@@ -29,8 +29,6 @@
  fax:   865-572-0680
 */
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
 /*!
  \file examples/nemo.cc
  \brief solve the HF equations using numerical exponential MOs
@@ -146,6 +144,7 @@ Nemo::Nemo(World& world, const commandlineparser &parser) :
     symmetry_projector=projector_irrep(param.pointgroup())
             .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
     if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
+    calc->param=param;
 };
 
 
@@ -161,10 +160,10 @@ double Nemo::value(const Tensor<double>& x) {
     calc->molecule.set_all_coords(x.reshape(calc->molecule.natom(), 3));
 	coords_sum = xsq;
 
-	if (world.rank()==0 and param.print_level()>0) {
-	    print("\n");
-	    calc->molecule.print();
-	}
+//	if (world.rank()==0 and param.print_level()>0) {
+//	    print("\n");
+//	    calc->molecule.print();
+//	}
 
 	SCFProtocol p(world,param,"nemo_iterations",param.restart());
 
@@ -216,10 +215,9 @@ double Nemo::value(const Tensor<double>& x) {
 
 	if(world.rank()==0) std::cout << "Nemo Orbital Energies: " << calc->aeps << "\n";
 
-    std::map<std::string,double> results;
-    results["scf_energy"]=calc->current_energy;
-    calc->output_scf_info_schema(0,results,dipole);
-	return calc->current_energy;
+    calc->output_calc_info_schema();
+
+    return calc->current_energy;
 }
 
 
@@ -476,7 +474,7 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
 
     double energy = ke + J - K + exc + pe + nucrep + pcm_energy;
 
-    if (world.rank() == 0) {
+    if (world.rank() == 0 and param.print_level()>2) {
         printf("\n  nuclear and kinetic %16.8f\n", ke + pe);
         printf("         kinetic only %16.8f\n",  ke0);
 //        printf("\n  kinetic only  %16.8f\n",  ke2);
@@ -1475,7 +1473,7 @@ Tensor<double> Nemo::compute_IR_intensities(const Tensor<double>& normalmodes,
 
     // compute the matrix of the normal modes: x -> q
     Tensor<double> M=molecule().massweights();
-    Tensor<double> D=MolecularOptimizer::projector_external_dof(molecule(),{"Tx","Ty","Tz","Rx","Ry","Rz"});
+    Tensor<double> D=MolecularOptimizer::projector_external_dof(molecule(),{"tx","ty","tz","rx","ry","rz"});
     Tensor<double> DL=inner(D,normalmodes);
     Tensor<double> nm=inner(M,DL);
 

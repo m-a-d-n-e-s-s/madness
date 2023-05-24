@@ -110,7 +110,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		initialize<int> ("nbeta",-1,"number of beta  spin electrons");
 		initialize<int> ("nmo_alpha",-1,"number of alpha spin molecular orbitals");
 		initialize<int> ("nmo_beta",-1,"number of beta spin molecular orbitals");
-		initialize<double> ("lo",1.e10,"smallest length scale we need to resolve");
+		initialize<double> ("lo",1.e-10,"smallest length scale we need to resolve");
 		initialize<std::vector<double> > ("protocol",{1.e-4,1.e-6},"calculation protocol");
 
 		// geometry optimization parameters

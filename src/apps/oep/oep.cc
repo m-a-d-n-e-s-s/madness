@@ -29,8 +29,6 @@
   fax:   865-572-0680
 */
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
 /*!
   \file examples/oep.cc
   \brief optimized effective potentials for DFT
@@ -38,7 +36,7 @@
 
 
 #include <madness/chem/oep.h>
-#include <madness/misc/gitinfo.h>
+#include <madness/misc/info.h>
 
 using namespace madness;
 
@@ -85,37 +83,43 @@ void write_test_input() {
 
 int main(int argc, char** argv) {
 
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
-    if (world.rank() == 0) {
-    	print("\n  OEP -- optimized effective potentials for DFT  \n");
-    	printf("starting at time %.1f\n", wall_time());
-    }
-    startup(world, argc, argv,true);
-    std::cout.precision(6);
 
+    World& world=initialize(argc, argv,false);
+    if (world.rank() == 0) {
+        print_header1("OEP -- optimized effective potentials for DFT");
+    }
+
+    startup(world,argc,argv,true);
+    std::cout.precision(6);
     if (world.rank()==0) print(info::print_revision_information());
 
+
     commandlineparser parser(argc,argv);
+    if (parser.key_exists("help")) {
+        OEP::help();
 
-    // to allow to test the program
-    bool test = parser.key_exists("test");
-    bool analyze = parser.key_exists("analyze");
+    } else if (parser.key_exists("print_parameters")) {
+        OEP::print_parameters();
 
-    // create test input file if program is tested
-    if (test) {
-    	write_test_input();
-    	parser.set_keyval("input","test_input");
+    } else {
+        // to allow to test the program
+        bool test = parser.key_exists("test");
+        bool analyze = parser.key_exists("analyze");
+
+        // create test input file if program is tested
+        if (test) {
+            write_test_input();
+            parser.set_keyval("input", "test_input");
+        }
+
+        // do approximate OEP calculation or test the program
+        std::shared_ptr<OEP> oep(new OEP(world, parser));
+        oep->print_parameters({"reference", "oep", "oep_calc"});
+        if (test) oep->selftest();
+        else if (analyze) oep->analyze();
+        else oep->value();
     }
 
-    // do approximate OEP calculation or test the program
-    std::shared_ptr<OEP> oep(new OEP(world, parser));
-    oep->print_parameters({"reference","oep","oep_calc"});
-    int ierr=0;
-    if (test) ierr=oep->selftest();
-    else if (analyze)  oep->analyze();
-    else oep->value();
-
     finalize();
-    return ierr;
+    return 0;
 }

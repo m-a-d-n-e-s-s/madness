@@ -304,8 +304,8 @@ namespace madness {
 #ifdef OLDXXX
     // This version uses a spin lock
     class MutexReaderWriter : private Spinlock, private NO_DEFAULTS {
-        volatile mutable int nreader;
-        volatile mutable bool writeflag;
+        mutable int nreader; // used to be volatile but is protected by mutex and associated barriers
+        mutable bool writeflag; // ditto
     public:
         static const int NOLOCK=0;
         static const int READLOCK=1;
@@ -497,9 +497,9 @@ namespace madness {
     class ConditionVariable : public Spinlock {
     public:
         static const int MAX_NTHREAD = 64;
-        mutable volatile int back;
-        mutable volatile int front;
-        mutable volatile bool* volatile fifo[MAX_NTHREAD]; // Circular buffer of flags
+        mutable int back; // used to be volatile, but is protected by mutex and associated barriers
+        mutable int front; // ditto
+        mutable volatile bool* fifo[MAX_NTHREAD]; // volatile needed here; Circular buffer of flags
 
         void set_wait_policy(WaitPolicy p, int us = 0) {
           wait_policy_ = p;
@@ -562,10 +562,10 @@ namespace madness {
     class MutexFair : private Spinlock {
     private:
         static const int MAX_NTHREAD = 64;
-        mutable volatile bool* volatile q[MAX_NTHREAD];
-        mutable volatile int n;
-        mutable volatile int front;
-        mutable volatile int back;
+        mutable volatile bool* q[MAX_NTHREAD]; // volatile needed
+        mutable int n; // volatile not needed due to use of spinlock and associated barriers
+        mutable int front;
+        mutable int back;
 
     public:
         MutexFair() : n(0), front(0), back(0) {};
@@ -696,6 +696,7 @@ namespace madness {
     typedef Mutex SCALABLE_MUTEX_TYPE;
 #endif
 
+    // I THINK THIS IS NO LONGER USED???????????????????????????????????
     class Barrier {
         const int nthread;
         volatile bool sense;

@@ -83,7 +83,7 @@ Molecule::Molecule(std::vector<Atom> atoms, double eprec, CorePotentialManager c
   atomic_radii.reserve(this->atoms.size());
   for(auto&& atom: this->atoms) {
     double radius =
-        get_atomic_data(atom.z).covalent_radius;
+        get_atomic_data(atom.get_atomic_number()).covalent_radius;
     atomic_radii.emplace_back(
         radius * 1e-10 /
         madness::constants::atomic_unit_of_length);
@@ -109,12 +109,21 @@ Molecule::Molecule(World& world, const commandlineparser& parser) :parameters(wo
 
 void Molecule::print_parameters() {
     GeometryParameters param;
-    madness::print("default parameters for the geometry input");
-    madness::print("You need to add the molecular geometry in the format");
-    madness::print(" symbol x y z");
-    madness::print(" symbol x y z");
-    madness::print(" symbol x y z");
+    madness::print("default parameters for the geometry input:\n");
     param.print("geometry","end");
+    madness::print("");
+    madness::print("");
+
+
+    madness::print("If the molecular geometry is provided in the input file you need to specify");
+    madness::print("the coordinates inside the geometry block\n");
+    madness::print("Example:\n");
+    madness::print("geometry");
+    madness::print("  units  atomic ");
+    madness::print("  O                     0                   0          0.21300717 ");
+    madness::print("  H                     0           1.4265081         -0.85202867 ");
+    madness::print("  H                     0          -1.4265081         -0.85202867 ");
+    madness::print("end\n");
 }
 
 void Molecule::get_structure() {
@@ -444,7 +453,7 @@ void Molecule::print() const {
     std::string p =parameters.print_to_string();
     std::cout.flush();
     std::stringstream sstream;
-    sstream << " geometry" << std::endl;
+    sstream << "geometry" << std::endl;
     sstream << p << std::endl;
 //    sstream << "   eprec  " << std::scientific << std::setw(1) << get_eprec()  << std::endl << std::fixed;
 //    sstream << "   units atomic" << std::endl;
@@ -456,7 +465,7 @@ void Molecule::print() const {
         if (atoms[i].atomic_number == 0) sstream << "     " << atoms[i].q;
         sstream << std::endl;
     }
-    sstream << " end" << std::endl;
+    sstream << "end" << std::endl;
     std::cout << sstream.str();
 }
 

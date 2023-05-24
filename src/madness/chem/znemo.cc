@@ -16,8 +16,9 @@
 
 namespace madness {
 
-Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), mol(world,parser), param(world,parser), cparam() {
-	cparam.read_input_and_commandline_options(world,parser,"dft");
+Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), mol(world,parser), param(world,parser),
+                    cparam(world,parser) {
+//	cparam.read_input_and_commandline_options(world,parser,"dft");
 
     FunctionDefaults<3>::set_k(cparam.k());
     FunctionDefaults<3>::set_thresh(cparam.econv());
@@ -33,11 +34,13 @@ Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), m
 
 	param.set_derived_values();
 
+	mol.parameters.set_derived_value("no_orient",true);
+
 	print_info=printleveler(param.printlevel());
 
 	if (world.rank()==0 and print_info.print_setup()) {
 		param.print("complex","end");
-		cparam.print("dft");
+		cparam.print("dft","end");
 		mol.print();
 	}
 
@@ -163,8 +166,20 @@ double Znemo::value(const Tensor<double>& x) {
 	save_orbitals();
 
 	double energy=analyze();
+    output_calc_info_schema(energy);
 
 	return energy;
+}
+
+void Znemo::output_calc_info_schema(const double& energy) const {
+    nlohmann::json j;
+    j["scf_eigenvalues_a"]=tensor_to_json(aeps);
+    j["scf_eigenvalues_b"]=tensor_to_json(beps);
+    j["model"]="UHF";
+    j["B"]=this->B;
+    j["driver"]="energy";
+    j["return_energy"]=energy;
+    update_schema(cparam.prefix()+".calc_info", j);
 }
 
 Tensor<double> Znemo::gradient(const Tensor<double>& x) {

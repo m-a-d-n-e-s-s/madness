@@ -79,18 +79,22 @@ namespace madness {
     template <typename T>
     class DQueue : private CONDITION_VARIABLE_TYPE {
         char pad[64]; ///< To put the lock and the data in separate cache lines
-        volatile size_t n __attribute__((aligned(64)));        ///< Number of elements in the buffer
-        volatile size_t sz;              ///< Current capacity
-        volatile T* volatile buf;        ///< Actual buffer
-        volatile int _front;  ///< Index of element at front of buffer
-        volatile int _back;    ///< Index of element at back of buffer
+        
+        // n, sz, buf, _front, _back used to be volatile, but not actually needed since every access
+        // happens with the mutex and its implied barriers.
+        size_t n __attribute__((aligned(64)));        ///< Number of elements in the buffer
+        size_t sz;              ///< Current capacity
+        T* buf;        ///< Actual buffer
+        int _front;  ///< Index of element at front of buffer
+        int _back;    ///< Index of element at back of buffer
+        
         DQStats stats;
 
 #ifdef MADNESS_DQ_USE_PREBUF
 	static const size_t NPREBUF=MADNESS_DQ_PREBUF_SIZE;
-	static thread_local T prebuf[NPREBUF]; // relies on this being a singleton class!!!!!!!!!!!!!!!!!!
-	static thread_local T prebufhi[NPREBUF]; // relies on this being a singleton class!!!!!!!!!!!!!!!!!!
-	static thread_local size_t ninprebuf, ninprebufhi;
+	inline static thread_local T prebuf[NPREBUF] = {T{}}; // relies on this being a singleton class!!!!!!!!!!!!!!!!!!
+	inline static thread_local T prebufhi[NPREBUF] = {T{}}; // relies on this being a singleton class!!!!!!!!!!!!!!!!!!
+	inline static thread_local size_t ninprebuf = 0, ninprebufhi = 0;
 #endif
 
         void grow() {
@@ -106,7 +110,8 @@ namespace madness {
                 sz *= 2;
             else
                 sz += 1048576;
-            volatile T* volatile nbuf = new T[sz];
+            //volatile T* volatile nbuf = new T[sz];
+            T* nbuf = new T[sz];
             int lo = sz/2 - oldsz/2;
             for (int i=_front; i<int(oldsz); ++i,++lo) {
                 nbuf[lo] = buf[i];
@@ -256,7 +261,7 @@ namespace madness {
 
             if (nn==0 && wait) {
                 while (n == 0) // !!! Must be n (memory) not nn (local copy)
-                    CONDITION_VARIABLE_TYPE::wait();
+                    CONDITION_VARIABLE_TYPE::wait(); // might release then reacquire the lock, acts as barrier
 
                 nn = n;
             }
@@ -328,13 +333,6 @@ namespace madness {
             return stats;
         }
     };
-
-#if defined(MADNESS_DQ_USE_PREBUF) && !defined(MADNESS_CXX_COMPILER_IS_ICC)
-    template <typename T> thread_local T DQueue<T>::prebuf[DQueue<T>::NPREBUF] = {T{}};
-    template <typename T> thread_local T DQueue<T>::prebufhi[DQueue<T>::NPREBUF] = {T{}};
-    template <typename T> thread_local size_t DQueue<T>::ninprebuf = 0;
-    template <typename T> thread_local size_t DQueue<T>::ninprebufhi = 0;
-#endif
 
     template <typename T>
     void DQueue<T>::lock_and_flush_prebuf() {

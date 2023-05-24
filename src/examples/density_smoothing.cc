@@ -31,9 +31,6 @@
   $Id$
  */
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
-
 /*!
   \file examples/nemo.cc
   \brief solve the HF equations using numerical exponential MOs
@@ -45,6 +42,7 @@
  */
 #include "smooth.h"
 #include<madness/chem/commandlineparser.h>
+#include<madness/misc/info.h>
 
 
 using namespace madness;
@@ -62,13 +60,9 @@ int main(int argc, char** argv) {
 	startup(world,argc,argv);
 	std::cout.precision(6);
 
-#ifdef MADNESS_GITREVISION
-	const  char* gitrev =  MADNESS_GITREVISION;
-	const std::string gitrevision(gitrev);
 	if (world.rank()==0) {
-		print("           git revision ...",gitrevision);
+		print("           git source description ...", info::git_source_description());
 	}
-#endif
 
 	try {
 

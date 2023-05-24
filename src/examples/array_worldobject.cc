@@ -1,4 +1,3 @@
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/world/world.h>
 #include <madness/world/worldgop.h>
 #include <madness/world/world_object.h>

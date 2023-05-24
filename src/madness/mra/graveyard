@@ -101,7 +101,6 @@
 //         inline void unfilter_inplace(tensorT& s) {
 //             transform_inplace(s, cdata.hg, cdata.work2);
 //         };
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/loadbal.h>
 
 using namespace std;
@@ -982,7 +981,6 @@ template class LBTree<5,MyProcmap<5> >;
 template class LBTree<6,MyProcmap<6> >;
 >>>>>>> .r223
 }
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #ifndef LOADBAL_H
 #define LOADBAL_H
 
@@ -2417,7 +2415,6 @@ runvalg2:
 */
 
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/world/worldhashmap.h>
 

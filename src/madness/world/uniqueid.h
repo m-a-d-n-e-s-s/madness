@@ -100,10 +100,13 @@ namespace madness {
 
         /// Stream insertion function for a \c uniqueidT.
 
+        /// \tparam CharT a character type
+        /// \tparam Traits a traits type describing \p CharT
         /// \param[in,out] s The output stream.
         /// \param[in] id The \c uniqueidT to be output.
         /// \return The output stream (for chaining).
-        friend std::ostream& operator<<(std::ostream& s, const uniqueidT& id) {
+        template <typename CharT, typename Traits>
+        friend std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& s, const uniqueidT& id) {
             s << "{" << id.get_world_id() << "," << id.get_obj_id() << "}";
             return s;
         }

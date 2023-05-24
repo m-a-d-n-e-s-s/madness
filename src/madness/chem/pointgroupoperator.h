@@ -31,8 +31,6 @@
   $Id$
 */
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
 
 /*!
   \file chem/pointgroupoperator.h

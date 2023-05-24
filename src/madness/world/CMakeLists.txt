@@ -1,7 +1,7 @@
 # src/madness/world
 
 set(MADWORLD_HEADERS 
-    info.h archive.h print.h worldam.h future.h worldmpi.h
+    archive.h print.h worldam.h future.h worldmpi.h
     world_task_queue.h array_addons.h stack.h vector.h worldgop.h 
     world_object.h buffer_archive.h nodefaults.h dependency_interface.h 
     worldhash.h worldref.h worldtypes.h dqueue.h parallel_archive.h parallel_dc_archive.h
@@ -15,7 +15,7 @@ set(MADWORLD_HEADERS
     cloud.h test_utilities.h timing_utilities.h)
 set(MADWORLD_SOURCES
     madness_exception.cc world.cc timers.cc future.cc redirectio.cc
-    archive_type_names.cc info.cc debug.cc print.cc worldmem.cc worldrmi.cc
+    archive_type_names.cc debug.cc print.cc worldmem.cc worldrmi.cc
     safempi.cc worldpapi.cc worldref.cc worldam.cc worldprofile.cc thread.cc 
     world_task_queue.cc worldgop.cc deferred_cleanup.cc worldmutex.cc
     binary_fstream_archive.cc text_fstream_archive.cc lookup3.c worldmpi.cc 
@@ -40,13 +40,12 @@ set(targetname MADworld)
 
 # N.B. If cereal is fetched it will be part of cereal export set
 if(MADNESS_ENABLE_CEREAL)
-  include(FindOrFetchCereal)
+  include(${PROJECT_SOURCE_DIR}/cmake/modules/FindOrFetchCereal.cmake)
   target_link_libraries(${targetname} PUBLIC cereal)
   target_compile_definitions(${targetname} PUBLIC MADNESS_HAS_CEREAL)
 endif()
 
 # Set the dependencies for the MADworld library
-#target_compile_definitions(${targetname} PUBLIC "-DMADNESS_GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\"")
 target_include_directories(${targetname} PUBLIC
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/>
     $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/src/>)
@@ -98,7 +97,7 @@ if(BUILD_TESTING)
       test_worldref.cc test_stack.cc test_googletest.cc test_tree.cc
           )
 
-  add_unittests(world "${WORLD_TEST_SOURCES}" "MADworld;MADgtest")    
+  add_unittests(world "${WORLD_TEST_SOURCES}" "MADworld;MADgtest" "unittests;short")
 
   find_package(CUDA)
   if (TARGET PaRSEC::parsec AND CUDA_FOUND)

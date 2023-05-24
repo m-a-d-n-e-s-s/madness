@@ -40,6 +40,8 @@
 #include<madness/chem/commandlineparser.h>
 #include<madness/chem/molopt.h>
 #include <madness/world/worldmem.h>
+#include <madness/misc/info.h>
+
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 
@@ -74,14 +76,18 @@ static void END_TIMER(World& world, const char *msg) {
 
 int main(int argc, char **argv) {
 
-    initialize(argc, argv);
+    World& world=initialize(argc, argv);
+    if (world.rank() == 0) {
+        print_header1("MOLDFT -- molecular DFT and Hartree-Fock code");
+    }
 
     { // limit lifetime of world so that finalize() can execute cleanly
-        World world(SafeMPI::COMM_WORLD);
         START_TIMER(world);
         try {
             // Load info for MADNESS numerical routines
             startup(world, argc, argv, true);
+            if (world.rank()==0) print(info::print_revision_information());
+
             commandlineparser parser(argc, argv);
 
             if (parser.key_exists("help")) {

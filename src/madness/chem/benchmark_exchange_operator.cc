@@ -1,12 +1,11 @@
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness.h>
-#include<madness/chem/SCFOperators.h>
-#include<madness/chem/SCF.h>
-#include<madness/chem/nemo.h>
+#include <madness/chem/SCF.h>
+#include <madness/chem/SCFOperators.h>
+#include <madness/chem/nemo.h>
+#include <madness/chem/write_test_input.h>
+#include <madness/misc/info.h>
 #include <madness/world/test_utilities.h>
-#include<madness/chem/write_test_input.h>
-#include <madness/misc/gitinfo.h>
 
 using namespace madness;
 
