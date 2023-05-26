@@ -66,27 +66,6 @@ class PNO;
 class OEP;
 
 
-// The default constructor for functions does not initialize
-// them to any value, but the solver needs functions initialized
-// to zero for which we also need the world object.
-template<typename T, std::size_t NDIM>
-struct allocator {
-	World& world;
-	const int n;
-
-	/// @param[in]	world	the world
-	/// @param[in]	nn		the number of functions in a given vector
-	allocator(World& world, const int nn) :
-			world(world), n(nn) {
-	}
-
-	/// allocate a vector of n empty functions
-	std::vector<Function<T, NDIM> > operator()() {
-		return zero_functions<T, NDIM>(world, n);
-	}
-};
-
-
 class NemoBase : public MolecularOptimizationTargetInterface {
 
 public:

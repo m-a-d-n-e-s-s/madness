@@ -206,7 +206,7 @@ public:
             old_singles(tmp.first).function = copy(tmp.second.function);
 
         // KAIN solver
-        typedef allocator<double, 3> allocT;
+        typedef vector_function_allocator<double, 3> allocT;
         typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
         allocT alloc(world, singles.size());
         solverT solver(allocT(world, singles.size()));

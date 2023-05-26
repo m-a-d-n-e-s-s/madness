@@ -321,10 +321,11 @@ double Nemo::solve(const SCFProtocol& proto) {
 	bool localized=param.do_localize();
 	real_function_3d density=real_factory_3d(world); 	// for testing convergence
 
-	typedef allocator<double, 3> allocT;
-	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
-	allocT alloc(world, nemo.size());
-	solverT solver(allocT(world, nemo.size()));
+//	typedef vector_function_allocator<double, 3> allocT;
+//	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
+//	allocT alloc(world, nemo.size());
+//	solverT solver(allocT(world, nemo.size()));
+    auto solver= nonlinear_vector_solver<double,3>(world,nemo.size());
 
 
 	// iterate the residual equations
@@ -1109,7 +1110,7 @@ vecfuncT Nemo::make_cphf_constant_term(const size_t iatom, const int iaxis,
         Exchange<double,3> Kconst(world,param.lo());
         vecfuncT kbra=2.0*RXR*nemo;
         truncate(world,kbra);
-        Kconst.set_bra_and_ket(kbra, nemo, param.lo());
+        Kconst.set_bra_and_ket(kbra, nemo);
         Kconstnemo=Kconst(nemo);
         truncate(world,Kconstnemo);
     }
@@ -1164,7 +1165,7 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
     // derivative of the (regularized) nuclear potential
 
     // construct the KAIN solver
-    typedef allocator<double, 3> allocT;
+    typedef vector_function_allocator<double, 3> allocT;
     typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
     allocT alloc(world, nemo.size());
     solverT solver(allocT(world, nemo.size()));
@@ -1206,11 +1207,11 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
             Kp=truncate(gamma*nemo);
         } else {
             Exchange<double,3> Kp1(world,param.lo());
-            Kp1.set_bra_and_ket(R2nemo, xi_complete, param.lo()).set_symmetric(true);
+            Kp1.set_bra_and_ket(R2nemo, xi_complete).set_symmetric(true);
             vecfuncT R2xi=mul(world,R_square,xi_complete);
             truncate(world,R2xi);
             Exchange<double,3> Kp2(world,param.lo());
-            Kp2.set_bra_and_ket(R2xi, nemo, param.lo());
+            Kp2.set_bra_and_ket(R2xi, nemo);
             Kp=truncate(Kp1(nemo) + Kp2(nemo));
         }
         vecfuncT Vpsi2=truncate(Jp(nemo)-Kp+rhsconst);

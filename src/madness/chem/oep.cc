@@ -159,7 +159,7 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 	compute_exchange_potential(KS_nemo, Knemo);
 
 	Exchange<double,3> K(world,param.lo());
-    K.set_bra_and_ket(R_square * HF_nemo, HF_nemo, param.lo());
+    K.set_bra_and_ket(R_square * HF_nemo, HF_nemo);
 	double Ex_HF=-inner(R_square*HF_nemo,K(HF_nemo));
 
 	// compute final exchange energy using different methods and final kinetic energy
@@ -227,10 +227,11 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	}
 
 
-	typedef allocator<double, 3> allocT;
-	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
-	allocT alloc(world, KS_nemo.size());
-	solverT solver(allocT(world, KS_nemo.size()),param.print_level()>4);
+//	typedef allocator<double, 3> allocT;
+//	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
+//	allocT alloc(world, KS_nemo.size());
+//	solverT solver(allocT(world, KS_nemo.size()),param.print_level()>4);
+    auto solver= nonlinear_vector_solver<double,3>(world,KS_nemo.size());
 	solver.set_maxsub(param.maxsub());
 
 	double energy=0.0;

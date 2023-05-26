@@ -211,8 +211,10 @@ void Znemo::iterate() {
 
 	// the diamagnetic box
 
-	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> > solvera(allocator<double_complex,3> (world,amo.size()));
-	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> > solverb(allocator<double_complex,3> (world,bmo.size()));
+//	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> > solvera(allocator<double_complex,3> (world,amo.size()));
+//	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> > solverb(allocator<double_complex,3> (world,bmo.size()));
+    auto solvera= nonlinear_vector_solver<double_complex,3>(world,amo.size());
+    auto solverb= nonlinear_vector_solver<double_complex,3>(world,bmo.size());
 	solvera.set_maxsub(cparam.maxsub()); // @suppress("Method cannot be resolved")
 	solvera.do_print=(param.printlevel()>2);
 	solverb.set_maxsub(cparam.maxsub());
@@ -1037,7 +1039,7 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 	Exchange<double_complex,3> K(world,cparam.lo());
 	Tensor<double> occ(mo.size());
 	occ=1.0;
-    K.set_bra_and_ket(conj(world, dia2mo), mo, cparam.lo());
+    K.set_bra_and_ket(conj(world, dia2mo), mo);
 
 	Nuclear<double_complex,3> nuc(world,ncf);
 
@@ -1137,7 +1139,7 @@ void
 Znemo::canonicalize(std::vector<complex_function_3d>& amo,
 		std::vector<complex_function_3d>& vnemo,
 		potentials& pot,
-		XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> >& solver,
+		XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, vector_function_allocator<double_complex,3> >& solver,
 		Tensor<double_complex> fock, Tensor<double_complex> ovlp) const {
 
     Tensor<double_complex> U;
