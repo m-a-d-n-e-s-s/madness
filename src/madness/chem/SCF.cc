@@ -34,13 +34,11 @@
 /// \defgroup moldft The molecular density functional and Hartree-Fock code
 
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
 
 #include <madness/world/worldmem.h>
 #include<madness.h>
 #include<madness/chem/SCF.h>
-#include<chem.h>
+#include<madchem.h>
 
 #if defined(__has_include)
 #  if __has_include(<filesystem>)
@@ -282,6 +280,9 @@ SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParam
 
 }
 
+void SCF::set_print_timings(const bool value) {
+    print_timings=value;
+}
 
 void SCF::copy_data(World& world, const SCF& other) {
     aeps = copy(other.aeps);
@@ -499,13 +500,14 @@ void SCF::do_plots(World& world) {
     }
 
     for (int i = param.get<int>("plotlo"); i <= param.get<int>("plothi"); ++i) {
-        char fname[256];
+        std::size_t bufsize=256;
+        char fname[bufsize];
         if (i < param.nalpha()) {
-            sprintf(fname, "amo-%5.5d.dx", i);
+            snprintf(fname,bufsize, "amo-%5.5d.dx", i);
             plotdx(amo[i], fname, param.plot_cell(), npt, true);
         }
         if (!param.spin_restricted() && i < param.nbeta()) {
-            sprintf(fname, "bmo-%5.5d.dx", i);
+            snprintf(fname,bufsize, "bmo-%5.5d.dx", i);
             plotdx(bmo[i], fname, param.plot_cell(), npt, true);
         }
     }
@@ -1431,7 +1433,7 @@ tensorT SCF::dipole(World& world, const functionT& rho) const {
         mu[axis] += molecule.nuclear_dipole(axis);
     }
 
-    if (world.rank() == 0 and (param.print_level() > 1)) {
+    if (world.rank() == 0 and (param.print_level() > 2)) {
         print("\n Dipole Moment (a.u.)\n -----------\n");
         print("     x: ", mu[0]);
         print("     y: ", mu[1]);
@@ -1883,7 +1885,7 @@ double SCF::do_step_restriction(World& world, const vecfuncT& mo, vecfuncT& mo_n
             double s = param.maxrotn() / anorm[i];
             ++nres;
             if (world.rank() == 0) {
-                if (nres == 1 and (param.print_level() > 1))
+                if (nres == 1 and (param.print_level() > 2))
                     printf("  restricting step for %s orbitals:", spin.c_str());
                 printf(" %d", i);
             }
@@ -1896,7 +1898,7 @@ double SCF::do_step_restriction(World& world, const vecfuncT& mo, vecfuncT& mo_n
     world.gop.fence();
     double rms, maxval;
     vector_stats(anorm, rms, maxval);
-    if (world.rank() == 0 and (param.print_level() > 1))
+    if (world.rank() == 0 and (param.print_level() > 2))
         print("Norm of vector changes", spin, ": rms", rms, "   max", maxval);
     return maxval;
 }

@@ -92,9 +92,9 @@ namespace madness {
 
 #ifdef MADNESS_DQ_USE_PREBUF
 	static const size_t NPREBUF=MADNESS_DQ_PREBUF_SIZE;
-	static thread_local T prebuf[NPREBUF]; // relies on this being a singleton class!!!!!!!!!!!!!!!!!!
-	static thread_local T prebufhi[NPREBUF]; // relies on this being a singleton class!!!!!!!!!!!!!!!!!!
-	static thread_local size_t ninprebuf, ninprebufhi;
+	inline static thread_local T prebuf[NPREBUF] = {T{}}; // relies on this being a singleton class!!!!!!!!!!!!!!!!!!
+	inline static thread_local T prebufhi[NPREBUF] = {T{}}; // relies on this being a singleton class!!!!!!!!!!!!!!!!!!
+	inline static thread_local size_t ninprebuf = 0, ninprebufhi = 0;
 #endif
 
         void grow() {
@@ -333,13 +333,6 @@ namespace madness {
             return stats;
         }
     };
-
-#if defined(MADNESS_DQ_USE_PREBUF) && !defined(MADNESS_CXX_COMPILER_IS_ICC)
-    template <typename T> thread_local T DQueue<T>::prebuf[DQueue<T>::NPREBUF] = {T{}};
-    template <typename T> thread_local T DQueue<T>::prebufhi[DQueue<T>::NPREBUF] = {T{}};
-    template <typename T> thread_local size_t DQueue<T>::ninprebuf = 0;
-    template <typename T> thread_local size_t DQueue<T>::ninprebufhi = 0;
-#endif
 
     template <typename T>
     void DQueue<T>::lock_and_flush_prebuf() {

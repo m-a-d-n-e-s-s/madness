@@ -205,19 +205,4 @@ and other resources necessary to build new distributed capabilities.
 The distributed container class (madness::WorldContainer) actually inherits
 most of its functionality from madness::WorldObject.
 
-\par Static data, etc., for templated classes
-
-Several of the templated classes (currently just the
-madness::DistributedContainer, madness::Future and madness::RemoteReference classes) have static
-data or helper functions associated with them.  These must be defined
-in one and only one file.  To facilitate this definition, the
-necessary templates have been wrapped in C-preprocessor conditional
-block so that they are only enabled if \c
-WORLD_INSTANTIATE_STATIC_TEMPLATES is defined.  In just one of your source
-(not a header) files,
-define this macro \em before including \c parallel_runtime.h, and then
-instantiate the templates that you are using.  
-
-\note Applications using the multiresolution numerical tools probably
-do not need to define this macro.
  */

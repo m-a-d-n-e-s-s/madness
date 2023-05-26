@@ -73,6 +73,35 @@ public:
     response_timing time_data;
     mutable std::map<std::string, std::pair<double, double>> iter_timing;
 
+
+    static void help() {
+        print_header2("help page for MOLRESPONSE ");
+        print("The molresponse code computes linear response properties and excited states");
+        print("\nYou can print all available calculation parameters by running\n");
+        print("molresponse --print_parameters\n");
+        print("You can perform a simple calculation by running\n");
+        print("moldft --geometry=h2o.xyz");
+        print("molresponse");
+        print("\nprovided you have an xyz file in your directory as well as a file named 'response.in'.");
+        print("with minimal input\n");
+        print("response ");
+        print("  archive mad.restartdata ");
+        print("  excited_state 1 ");
+        print("end ");
+
+    }
+
+    static void print_parameters() {
+        ResponseParameters rparam;
+        print("A molresponse calculation requires a converged moldft calculations with the ");
+        print("corresponding parameters.");
+        print("\nDefault parameters for the response part of the molresponse program are");
+        rparam.print("response", "end");
+        print("\n\nthe molecular geometry must be specified in a separate block:");
+        Molecule::print_parameters();
+    }
+
+
 protected:
     // Given molecule returns the nuclear potential of the molecule
     ResponseParameters r_params;

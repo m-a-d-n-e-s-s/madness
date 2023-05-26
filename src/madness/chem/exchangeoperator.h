@@ -48,7 +48,7 @@ public:
     Algorithm algorithm_ = multiworld_efficient;
 
     /// default ctor
-    ExchangeImpl(World& world) : world(world) {}
+    ExchangeImpl(World& world, const double lo, const double thresh) : world(world), lo(lo), thresh(thresh) {}
 
     /// ctor with a conventional calculation
     ExchangeImpl(World& world, const SCF *calc, const int ispin) ;
@@ -60,10 +60,9 @@ public:
 
     /// @param[in]	bra		bra space, must be provided as complex conjugate
     /// @param[in]	ket		ket space
-    void set_parameters(const vecfuncT& bra, const vecfuncT& ket, const double lo1) {
+    void set_bra_and_ket(const vecfuncT& bra, const vecfuncT& ket) {
         mo_bra = copy(world, bra);
         mo_ket = copy(world, ket);
-        lo = lo1;
     }
 
     std::string info() const {return "K";}
@@ -126,6 +125,7 @@ private:
     bool symmetric_ = false;      /// is the exchange matrix symmetric? K phi_i = \sum_k \phi_k \int \phi_k \phi_i
     vecfuncT mo_bra, mo_ket;    ///< MOs for bra and ket
     double lo = 1.e-4;
+    double thresh = FunctionDefaults<NDIM>::get_thresh();
     long printlevel = 0;
     double mul_tol = 0.0;
 

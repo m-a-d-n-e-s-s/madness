@@ -46,8 +46,8 @@ void Zcis::iterate(std::vector<root>& roots) const {
 	//const double shift=nemo->param.shift();
 	const bool use_kain=true;
 
-	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> >
-			allsolver(allocator<double_complex,3> (world,(active_mo(nemo->amo).size()+active_mo(nemo->bmo).size())*roots.size()));
+	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, vector_function_allocator<double_complex,3> >
+			allsolver(vector_function_allocator<double_complex,3> (world,(active_mo(nemo->amo).size()+active_mo(nemo->bmo).size())*roots.size()));
 
 	for (int iter=0; iter<cis_param.maxiter(); ++iter) {
 		wall1=wall_time();
@@ -205,8 +205,8 @@ void Zcis::compute_potentials(std::vector<root>& roots, const real_function_3d& 
 			Coulomb<double_complex,3> Jp(world);
 			complex_function_3d Jp_pot = Jp.compute_potential(denspt);
 
-			Exchange<double_complex,3> Kp;
-			Kp.set_parameters(conj(world,act_mo),x,nemo->cparam.lo());
+			Exchange<double_complex,3> Kp(world,nemo->cparam.lo());
+            Kp.set_bra_and_ket(conj(world, act_mo), x);
 			pot+=Q(Jp_pot*act_mo - Kp(act_mo));
 			truncate(world,pot);
 		}

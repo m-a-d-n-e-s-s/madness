@@ -5,8 +5,8 @@
  *      Author: fbischoff
  */
 
-#ifndef USE_GENTENSOR
-#define USE_GENTENSOR
+#ifndef ENABLE_GENTENSOR
+#define ENABLE_GENTENSOR
 #endif
 
 #include <madness/tensor/gentensor.h>

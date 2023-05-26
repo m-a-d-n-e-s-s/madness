@@ -113,7 +113,6 @@
   let us know.]
 */
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/mra/funcplot.h>
 #include <madness/mra/nonlinsol.h>

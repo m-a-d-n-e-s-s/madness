@@ -57,20 +57,21 @@ class Nemo_complex_Parameters : public QCCalculationParametersBase {
 public:
 
 	/// ctor reading out the input file
-	Nemo_complex_Parameters(World& world, const commandlineparser& parser) {
-		initialize<double>("physical_B",0.0);
-		initialize<double>("explicit_B",0.0);
-		initialize<std::vector<double> >("box",{1.0, 0.01, 0.0, 0.0, 0.0});
-		initialize<double>("shift",0.0);
-		initialize<int>("printlevel",2);		// 0: energies, 1: fock matrix, 2: function sizes
-		initialize<bool>("use_v_vector",false);
-		initialize<double>("potential_radius",-1.0);
-		initialize<std::vector<std::string> >("guess",std::vector<std::string>(),"list of l,m,exponent");	// atomic guess functions l, ml, exponent
-		initialize<std::vector<std::string> >("guess_functions",std::vector<std::string>(),"list function names");	// atomic guess functions l, ml, exponent
+    Nemo_complex_Parameters() {
+        initialize<double>("physical_B",0.0);
+        initialize<double>("explicit_B",0.0);
+        initialize<std::vector<double> >("box",{1.0, 0.01, 0.0, 0.0, 0.0});
+        initialize<double>("shift",0.0);
+        initialize<int>("printlevel",2);		// 0: energies, 1: fock matrix, 2: function sizes
+        initialize<bool>("use_v_vector",false);
+        initialize<double>("potential_radius",-1.0);
+        initialize<std::vector<std::string> >("guess",std::vector<std::string>(),"list of l,m,exponent");	// atomic guess functions l, ml, exponent
+        initialize<std::vector<std::string> >("guess_functions",std::vector<std::string>(),"list function names");	// atomic guess functions l, ml, exponent
+    }
 
+	Nemo_complex_Parameters(World& world, const commandlineparser& parser) : Nemo_complex_Parameters() {
 		// read input file
         read_input_and_commandline_options(world,parser,"complex");
-
 	}
 
 	void set_derived_values() {
@@ -180,6 +181,29 @@ public:
     void output_calc_info_schema(const double& energy) const;
 
     std::string name() const override {return "znemo";};
+
+    static void help() {
+        print_header2("help page for ZNEMO ");
+        print("The znemo code computes Hartree-Fock energies and gradients in the presence of a strong");
+        print("magnetic field");
+        print("");
+        print("You can print all available calculation parameters by running\n");
+        print("znemo --print_parameters\n");
+        print("You can perform a simple calculation by running\n");
+        print("znemo --geometry=h2o.xyz\n");
+        print("provided you have an xyz file in your directory.");
+
+    }
+
+    static void print_parameters() {
+        Nemo_complex_Parameters zparam;
+        Nemo::NemoCalculationParameters param;
+        print("default calculations parameters for the znemo program are the same as for the nemo program");
+        print("default parameters for the magnetic field of the znemo program are");
+        zparam.print("complex","end");
+        print("\n\nthe molecular geometry must be specified in a separate block:");
+        Molecule::print_parameters();
+    }
 
     bool selftest() override {
         return true;
@@ -373,7 +397,7 @@ public:
 	void canonicalize(std::vector<complex_function_3d>& amo,
 			std::vector<complex_function_3d>& vnemo,
 			potentials& pot,
-			XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> >& solver,
+			XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, vector_function_allocator<double_complex,3> >& solver,
 			Tensor<double_complex> fock, Tensor<double_complex> ovlp) const;
 
 	std::vector<complex_function_3d> orthonormalize(const std::vector<complex_function_3d>& mo) const;

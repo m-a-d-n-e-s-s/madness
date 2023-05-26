@@ -29,8 +29,6 @@
  fax:   865-572-0680
 */
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
 /*!
  \file examples/nemo.cc
  \brief solve the HF equations using numerical exponential MOs
@@ -146,6 +144,7 @@ Nemo::Nemo(World& world, const commandlineparser &parser) :
     symmetry_projector=projector_irrep(param.pointgroup())
             .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
     if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
+    calc->param=param;
 };
 
 
@@ -161,10 +160,10 @@ double Nemo::value(const Tensor<double>& x) {
     calc->molecule.set_all_coords(x.reshape(calc->molecule.natom(), 3));
 	coords_sum = xsq;
 
-	if (world.rank()==0 and param.print_level()>0) {
-	    print("\n");
-	    calc->molecule.print();
-	}
+//	if (world.rank()==0 and param.print_level()>0) {
+//	    print("\n");
+//	    calc->molecule.print();
+//	}
 
 	SCFProtocol p(world,param,"nemo_iterations",param.restart());
 
@@ -322,10 +321,11 @@ double Nemo::solve(const SCFProtocol& proto) {
 	bool localized=param.do_localize();
 	real_function_3d density=real_factory_3d(world); 	// for testing convergence
 
-	typedef allocator<double, 3> allocT;
-	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
-	allocT alloc(world, nemo.size());
-	solverT solver(allocT(world, nemo.size()));
+//	typedef vector_function_allocator<double, 3> allocT;
+//	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
+//	allocT alloc(world, nemo.size());
+//	solverT solver(allocT(world, nemo.size()));
+    auto solver= nonlinear_vector_solver<double,3>(world,nemo.size());
 
 
 	// iterate the residual equations
@@ -388,7 +388,6 @@ double Nemo::solve(const SCFProtocol& proto) {
 		BSHApply<double,3> bsh_apply(world);
 		bsh_apply.metric=R_square;
 		bsh_apply.lo=get_calc()->param.lo();
-		bsh_apply.do_coupling=localized;
 		bsh_apply.levelshift=param.orbitalshift();
 		auto [residual,eps_update] =bsh_apply(nemo,fock,Vnemo);
 		t_bsh.tag("BSH apply");
@@ -475,7 +474,7 @@ std::vector<double> Nemo::compute_energy_regularized(const vecfuncT& nemo, const
 
     double energy = ke + J - K + exc + pe + nucrep + pcm_energy;
 
-    if (world.rank() == 0) {
+    if (world.rank() == 0 and param.print_level()>2) {
         printf("\n  nuclear and kinetic %16.8f\n", ke + pe);
         printf("         kinetic only %16.8f\n",  ke0);
 //        printf("\n  kinetic only  %16.8f\n",  ke2);
@@ -1108,10 +1107,10 @@ vecfuncT Nemo::make_cphf_constant_term(const size_t iatom, const int iaxis,
     // linear in the density
     vecfuncT Kconstnemo=zero_functions_compressed<double,3>(world,nmo);
     if (not is_dft()) {
-        Exchange<double,3> Kconst;
+        Exchange<double,3> Kconst(world,param.lo());
         vecfuncT kbra=2.0*RXR*nemo;
         truncate(world,kbra);
-        Kconst.set_parameters(kbra,nemo,param.lo());
+        Kconst.set_bra_and_ket(kbra, nemo);
         Kconstnemo=Kconst(nemo);
         truncate(world,Kconstnemo);
     }
@@ -1166,7 +1165,7 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
     // derivative of the (regularized) nuclear potential
 
     // construct the KAIN solver
-    typedef allocator<double, 3> allocT;
+    typedef vector_function_allocator<double, 3> allocT;
     typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
     allocT alloc(world, nemo.size());
     solverT solver(allocT(world, nemo.size()));
@@ -1207,12 +1206,12 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
             real_function_3d gamma=-1.0*xc.apply_xc_kernel(full_dens_pt);
             Kp=truncate(gamma*nemo);
         } else {
-            Exchange<double,3> Kp1;
-            Kp1.set_parameters(R2nemo,xi_complete,param.lo()).set_symmetric(true);
+            Exchange<double,3> Kp1(world,param.lo());
+            Kp1.set_bra_and_ket(R2nemo, xi_complete).set_symmetric(true);
             vecfuncT R2xi=mul(world,R_square,xi_complete);
             truncate(world,R2xi);
-            Exchange<double,3> Kp2;
-            Kp2.set_parameters(R2xi,nemo,param.lo());
+            Exchange<double,3> Kp2(world,param.lo());
+            Kp2.set_bra_and_ket(R2xi, nemo);
             Kp=truncate(Kp1(nemo) + Kp2(nemo));
         }
         vecfuncT Vpsi2=truncate(Jp(nemo)-Kp+rhsconst);
@@ -1474,7 +1473,7 @@ Tensor<double> Nemo::compute_IR_intensities(const Tensor<double>& normalmodes,
 
     // compute the matrix of the normal modes: x -> q
     Tensor<double> M=molecule().massweights();
-    Tensor<double> D=MolecularOptimizer::projector_external_dof(molecule(),{"Tx","Ty","Tz","Rx","Ry","Rz"});
+    Tensor<double> D=MolecularOptimizer::projector_external_dof(molecule(),{"tx","ty","tz","rx","ry","rz"});
     Tensor<double> DL=inner(D,normalmodes);
     Tensor<double> nm=inner(M,DL);
 

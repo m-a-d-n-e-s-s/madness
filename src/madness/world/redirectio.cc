@@ -40,10 +40,11 @@ using std::endl;
 static std::ofstream fout;
 namespace madness {
     void redirectio(const World& world, bool split) {
-        char filename[256];
-        std::sprintf(filename,"log.%5.5d",world.mpi.rank());
-        char errfilename[256];
-        std::sprintf(errfilename,"%s.%5.5d", (split ? "err" : "log"), world.mpi.rank());
+        std::size_t bufsize=256;
+        char filename[bufsize];
+        std::snprintf(filename,bufsize,"log.%5.5d",world.mpi.rank());
+        char errfilename[bufsize];
+        std::snprintf(errfilename,bufsize,"%s.%5.5d", (split ? "err" : "log"), world.mpi.rank());
         if (!freopen(   filename, "w", stdout)) MADNESS_EXCEPTION("reopening stdout failed", 0);
         if (!freopen(errfilename, "w", stderr)) MADNESS_EXCEPTION("reopening stderr failed", 0);
 	      std::cout.sync_with_stdio(true);

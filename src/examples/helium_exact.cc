@@ -39,7 +39,6 @@
 
  */
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/misc/info.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
@@ -451,6 +450,7 @@ int main(int argc, char** argv) {
 
 	// read out input and stuff
 	commandlineparser parser(argc,argv);
+    parser.set_keyval("geometry","he"); // it's always going to be helium
 	Nemo nemo(world, parser);
 	auto calc=nemo.get_calc();
 

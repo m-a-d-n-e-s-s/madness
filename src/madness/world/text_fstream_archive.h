@@ -73,9 +73,10 @@ namespace madness {
             /// \tparam T The type of data to be stored between the tags.
             template <class T>
             void store_start_tag() const {
-                char tag[256];
+                std::size_t bufsize=256;
+                char tag[bufsize];
                 unsigned char cookie = archive_typeinfo<T>::cookie;
-                sprintf(tag,"<t%d>", cookie);
+                snprintf(tag,bufsize,"<t%d>", cookie);
                 os << tag << std::endl;
                 MAD_ARCHIVE_DEBUG(std::cout << "textarchive: tag = " << tag << std::endl);
             }
@@ -85,9 +86,10 @@ namespace madness {
             /// \tparam T The type of data to be stored between the tags.
             template <class T>
             void store_end_tag() const {
-                char tag[256];
+                std::size_t bufsize=256;
+                char tag[bufsize];
                 unsigned char cookie = archive_typeinfo<T>::cookie;
-                sprintf(tag,"</t%d>",cookie);
+                snprintf(tag,bufsize,"</t%d>",cookie);
                 os << tag << std::endl;
             }
 
@@ -171,13 +173,14 @@ namespace madness {
             ///     expected type.
             template <class T>
             void check_start_tag(bool end=false) const {
-                char tag[256], ftag[256];
-                is.getline(ftag,256);
+                std::size_t bufsize=256;
+                char tag[bufsize], ftag[bufsize];
+                is.getline(ftag,bufsize);
                 unsigned char cookie = archive_typeinfo<T>::cookie;
                 if (end)
-                    sprintf(tag,"</t%d>",cookie);
+                    snprintf(tag,bufsize,"</t%d>",cookie);
                 else
-                    sprintf(tag,"<t%d>",cookie);
+                    snprintf(tag,bufsize,"<t%d>",cookie);
 
                 if (strcmp(tag,ftag) != 0) {
                     std::cout << "TextFstreamInputArchive: type mismatch: expected=" << tag
