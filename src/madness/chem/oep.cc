@@ -158,8 +158,8 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 	compute_coulomb_potential(KS_nemo, Jnemo);
 	compute_exchange_potential(KS_nemo, Knemo);
 
-	Exchange<double,3> K;
-	K.set_parameters(R_square*HF_nemo,HF_nemo,param.lo());
+	Exchange<double,3> K(world,param.lo());
+    K.set_bra_and_ket(R_square * HF_nemo, HF_nemo, param.lo());
 	double Ex_HF=-inner(R_square*HF_nemo,K(HF_nemo));
 
 	// compute final exchange energy using different methods and final kinetic energy
@@ -352,7 +352,6 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		bsh_apply.metric=R_square;
 		bsh_apply.levelshift=oep_param.levelshift();
 		bsh_apply.lo=get_calc()->param.lo();
-		bsh_apply.do_coupling=param.do_localize();
 		auto [residual,eps_update] =bsh_apply(KS_nemo,KS_Fock,Fnemo);
 		timer1.tag("apply BSH");
 

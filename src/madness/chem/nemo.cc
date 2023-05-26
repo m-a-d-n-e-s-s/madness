@@ -387,7 +387,6 @@ double Nemo::solve(const SCFProtocol& proto) {
 		BSHApply<double,3> bsh_apply(world);
 		bsh_apply.metric=R_square;
 		bsh_apply.lo=get_calc()->param.lo();
-		bsh_apply.do_coupling=localized;
 		bsh_apply.levelshift=param.orbitalshift();
 		auto [residual,eps_update] =bsh_apply(nemo,fock,Vnemo);
 		t_bsh.tag("BSH apply");
@@ -1107,10 +1106,10 @@ vecfuncT Nemo::make_cphf_constant_term(const size_t iatom, const int iaxis,
     // linear in the density
     vecfuncT Kconstnemo=zero_functions_compressed<double,3>(world,nmo);
     if (not is_dft()) {
-        Exchange<double,3> Kconst;
+        Exchange<double,3> Kconst(world,param.lo());
         vecfuncT kbra=2.0*RXR*nemo;
         truncate(world,kbra);
-        Kconst.set_parameters(kbra,nemo,param.lo());
+        Kconst.set_bra_and_ket(kbra, nemo, param.lo());
         Kconstnemo=Kconst(nemo);
         truncate(world,Kconstnemo);
     }
@@ -1206,12 +1205,12 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
             real_function_3d gamma=-1.0*xc.apply_xc_kernel(full_dens_pt);
             Kp=truncate(gamma*nemo);
         } else {
-            Exchange<double,3> Kp1;
-            Kp1.set_parameters(R2nemo,xi_complete,param.lo()).set_symmetric(true);
+            Exchange<double,3> Kp1(world,param.lo());
+            Kp1.set_bra_and_ket(R2nemo, xi_complete, param.lo()).set_symmetric(true);
             vecfuncT R2xi=mul(world,R_square,xi_complete);
             truncate(world,R2xi);
-            Exchange<double,3> Kp2;
-            Kp2.set_parameters(R2xi,nemo,param.lo());
+            Exchange<double,3> Kp2(world,param.lo());
+            Kp2.set_bra_and_ket(R2xi, nemo, param.lo());
             Kp=truncate(Kp1(nemo) + Kp2(nemo));
         }
         vecfuncT Vpsi2=truncate(Jp(nemo)-Kp+rhsconst);

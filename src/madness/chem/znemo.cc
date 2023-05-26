@@ -1034,10 +1034,10 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 	std::vector<complex_function_3d> dia2mo=make_bra(mo);
 
 	// prepare exchange operator
-	Exchange<double_complex,3> K;
+	Exchange<double_complex,3> K(world,cparam.lo());
 	Tensor<double> occ(mo.size());
 	occ=1.0;
-	K.set_parameters(conj(world,dia2mo),mo,cparam.lo());
+    K.set_bra_and_ket(conj(world, dia2mo), mo, cparam.lo());
 
 	Nuclear<double_complex,3> nuc(world,ncf);
 

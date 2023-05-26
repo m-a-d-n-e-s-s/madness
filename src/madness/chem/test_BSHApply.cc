@@ -162,7 +162,6 @@ int test_converged_function(World& world, double shift, bool coupling) {
 
 	// apply the BSH operator
 	BSHApply<T,NDIM> bsh_apply(world);
-	bsh_apply.do_coupling=coupling;
 	bsh_apply.levelshift=shift;
 	auto [residual,eps_update]=bsh_apply(vf,fock,potential*vf);
 
@@ -210,7 +209,6 @@ int test_convergence(World& world, double shift, bool coupling) {
 	for (int i=0; i<100; ++i) {
 
 		BSHApply<T,NDIM> bsh_apply(world);
-		bsh_apply.do_coupling=coupling;
 		bsh_apply.levelshift=shift;
 		auto [residual,eps_update]=bsh_apply(vf,fock,potential*vf);
 		vf-=residual;
