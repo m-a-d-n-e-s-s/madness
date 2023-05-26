@@ -30,12 +30,6 @@ This tutorial covers
   - overview of the chemistry API [Florian]
   - a simple Hartree-Fock program
   
-  
-Build issues
-- Ubuntu 23.04 VM build failed with missing Exchange operator symbol --- but it builds on 22.04
-- `make install` fails due to missing moldft (and presumably other) executable ... if you build applications first it works and does install all chemistry applications 
-- `make applications` followed by `make install-madness` starts building mad-response
-- `make install-chem` just installs heders and libraries, but no chemistry applications?  Should the target be renamed?
 ## Downloading
 
 From the command line, clone the [MADNESS GitHub repository](https://github.com/m-a-d-n-e-s-s/madness) using one of the below
@@ -59,12 +53,17 @@ checkout XXXXXXXXXXXXXXXXXXX
 
 Please refer to the [installation instructions](https://madness.readthedocs.io/en/latest/INSTALL.html).
 
+Minimal recipe without MPI
+```
+cmake -DENABLE_MPI=OFF -DCMAKE_INSTALL_PREFIX=/home/me/madinstall /path/to/madness/source
+make applications
+make install
+```
+
 Issues that need fixing
-* relevant targets
-* cmake required
 * ACML is now AOCL
-* Configuring a vanilla Ubuntu (or other Linux) system --- DONE
-  - what packages to install and how
 * Configuring a vanilla Intel Mac
+  - what packages to install and how
 * Configuring a vanilla ARM Mac
+  - what packages to install and how
 
