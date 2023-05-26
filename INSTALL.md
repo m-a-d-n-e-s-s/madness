@@ -7,24 +7,20 @@ MADNESS uses CMake to configure the build. Assuming that necessary prerequisites
 mkdir build
 cd build
 cmake /path/to/madness/source
-make 
+make applications
 ```
-The default make target builds only the numerical library and underlying runtime.  To build applications (e.g., `moldft`, `nemo`) specify this on the make command.  The target `everything` does what you expect. You can run executables and use libraries from the build directory, but to install into the default location (`/usr`) use `make install`.
+The default make target builds only the numerical library and underlying runtime.  To build applications (e.g., `moldft`, `nemo`) specify either `applications` (for all of them) or the name of the desired application on the make command.  The target `everything` does what you expect. You can run executables and use libraries from the build directory, but to install into the default location (`/usr`) use `make install` (after first building the applications).
 
 If required libraries are not in default locations or if you wish to override defaults, you may have to set CMake cache variables as described below.  For instance, to build a debug version, without MPI, and with installation in `/home/me/madinstall`
 ```
 cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_MPI=OFF -DCMAKE_INSTALL_PREFIX=/home/me/madinstall /path/to/madness/source
+make applications
 make install
 ```
 
+
 Boolean values for cache variables (specified to CMake using the `-DVARIABLE_NAME` notation in the example above) are 
 considered true if the constant is 1, ON, YES, TRUE, Y, or a non-zero number; or false if the constant is 0, OFF, NO, FALSE, N, or IGNORE.
-
-## Warning about fast memory allocators
-
-Summary: Only use fast memory allocators if you are using just 1 MPI process or have configured without MPI.
-
-Depending on the calculation and the number of threads being used, MADNESS can receive about a 10% or even more speedup from fast memory allocators such as tcmalloc, jemalloc, tbbmalloc, etc.  However, these **do not work with MPI over InfiniBand** and probably most other transport layers.  It can appear to work, and then fail with either wrong numbers or MPI errors. The reason is that IB requires that memory be pinned and hence MPI introduces its own memory allocator(s) to manage this.  By overriding the allocator, you will break the guarantee that memory is pinned.  
 
 ## Prerequisites
 
@@ -109,6 +105,138 @@ The following CMake cache variables turn features on and off.
 * MADNESS_BUILD_MADWORLD_ONLY --- whether to build the MADNESS runtime only; if `ON`, discovery of BLAS/LAPACK
       and building of numerical components and applications will be disabled [default=`OFF`]
 
+## External libraries
+
+The following CMake cache variables enable the use of external libraries with
+MADNESS. If the WITH_* variable is set to "ON" by default, failure to find the
+external library is not an error. If you explicitly set a WITH_* variable to 
+"ON" when the default is set to "OFF," an error will occur if the library is
+not found.
+
+* CMAKE_PREFIX_PATH - A semicolon seperated list of paths that are used when 
+      searching for external libraries and dependencies. You may use this CMake
+      cache variable to specify the prefix for any of the dependencies, or you
+      may specify path for individual components below.
+
+* ENABLE_MPI --- Enable use of MPI, should specify MPI_CXX_COMPILER or MPI_C_COMPILER
+                 explicitly or have them in PATH; if not found will use StubMPI and
+                 be limited to 1 process [default=ON]
+
+In the following section, each optional library privides four variables that
+the user can use to enable cmake to find the correct dependencies: 
+  * ENABLE_<LIB> --- Enable the library feathres (ON|OFF)
+  * <LIB>_ROOT_DIR --- Prefix path used to search for the external library.
+  * <LIB>_INCLUDE_DIR --- The external library include path. By default the
+        include path is ${<LIB>_ROOT_DIR}/include, if <LIB>_ROOT_DIR is
+        specified in the configure command.
+  * <LIB>_LIBRARY --- The external library path. By default the
+        include path is ${<LIB>_ROOT_DIR}/(lib64|lib), if <LIB>_ROOT_DIR is
+        specified in the configure command.
+If the <LIB>_ROOT_DIR, <LIB>_INCLUDE_DIR, and <LIB>_LIBRARY will be used to
+search for specific dependencies. If the external library is not found in these
+given paths, or if the paths are not given, CMake will search the paths in 
+CMAKE_PREFIX_PATH as well as other system paths.
+
+### Library of Exchange-Correlation DFT functionals (LIBXC):
+
+* ENABLE_LIBXC --- Enables use of the libxc library of density functionals.
+      [default=ON]
+* LIBXC_ROOT_DIR --- The install prefix for LIBXC.
+* LIBXC_INCLUDE_DIR --- The path to the LIBXC include directory.
+* LIBXC_LIBRARY --- The path to the LIBXC library directory.
+
+### Intel Threading Building Blocks (TBB):
+
+* ENABLE_TBB --- Enables use of Intel TBB as the task scheduler [default=OFF]
+* TBB_ROOT_DIR --- The install prefix for TBB
+* TBB_INCLUDE_DIR --- The path to the TBB include directory
+* TBB_LIBRARY --- The path to the TBB library directory. By default, the library
+      search path is ${TBB_ROOT_DIR}/(lib/intel64/gcc4.4|lib) on Linux and
+      ${TBB_ROOT_DIR}/(lib/libc++|lib) on OS X, if TBB_ROOT_DIR is specified in
+      the configure command.
+* MADNESS_EXPLOIT_TBB_PRIORITY --- If ON, MADNESS will try to use Intel TBB task priorities [default=OFF]
+
+If TBB_ROOT_DIR is not given, it will be set to the value of the TBBROOT environment variable if it is set.
+
+### Intel Math Kernel Library (MKL):
+
+* ENABLE_MKL --- Search for Intel MKL for BLAS and LAPACK support [default=ON]
+* MKL_ROOT_DIR --- The install prefix for MKL.
+* MKL_LIBRARY --- The path to the MKL library directory.
+
+If MKL_ROOT_DIR is not given, it will be set to the value of the MKLROOT environment variable if it is set.
+
+### AMD Core Math Library (ACML):
+
+* ENABLE_ACML --- Search for AMD math library for BLAS and LAPACK support
+      [default=ON]
+* ACML_ROOT_DIR --- The install prefix for ACML.
+* ACML_LIBRARY --- The path to the ACML library directory.
+
+### Google Performance Tools (Gperftools):
+
+* ENABLE_GPERFTOOLS --- Enable use of gperftools, including tcmalloc.
+      [default=OFF]
+* ENABLE_TCMALLOC_MINIMAL --- Enable use of the minimal tcmalloc library only.
+      [default=OFF]
+* GPERFTOOLS_ROOT_DIR --- The install prefix for gperftools.
+* GPERFTOOLS_INCLUDE_DIR --- The path to the gperftools include directory.
+* GPERFTOOLS_LIBRARY --- The path to the gperftools library directory.
+
+If GPERFTOOLS_ROOT_DIR is not given, it will be set to the value of the GPERFTOOLS_DIR environment variable if it is set.
+
+### Libunwind:
+
+* ENABLE_LIBUNWIND --- Force detection of gperftools [default=OFF, i.e. Libunwind will be searched for when needed]
+* LIBUNWIND_DIR --- The install prefix for Libunwind.
+
+If LIBUNWIND_DIR is not given, it will be set to the value of the LIBUNWIND_DIR environment variable if it is set.
+
+### Polarizable Conitinuum Solver (PCM):
+
+* ENABLE_PCM --- Enables use of PCM
+* PCM_ROOT_DIR --- The install prefix for PCM 
+* PCM_INCLUDE_DIR --- The path to the PCM include directory (should be added automatically when the correct PCM_ROOT_DIR is given)
+* PCM_LIBRARY --- The path to the PCM library (should be added automatically when the correct PCM_ROOT_DIR is given)
+set either PCM_ROOT_DIR or manually set PCM_INCLUDE_DIR and PCM_LIBRARY
+See also
+madness/CMakeLists.txt
+madness/external/pcm.cmake
+madness/modules/FindPCM.cmake
+madness/src/apps/chem/CMakeLists.txt
+
+3## Performance Application Programming Interface (PAPI):
+
+* ENABLE_PAPI --- Enables use of PAPI [default=OFF]
+* PAPI_ROOT_DIR --- The install prefix for PAPI.
+* PAPI_INCLUDE_DIR --- The path to the PAPI include directory.
+* PAPI_LIBRARY --- The path to the PAPI library directory.
+
+### Elemental parallel linear algebra library:
+
+**This has not been tested in some time.**
+      
+Elemental provides optional distributed-memory linear algebra for some MADNESS application codes.
+MADNESS source includes (modified) Elemental v0.84, which has been validated to work with
+the few MADNESS apps that can use Elemental. You can instruct MADNESS to download and compile
+a more recent version of Elemental, if desired, but the apps will not use Elemental then.
+Such bundling is currently necessary if your code uses the MADworld runtime AND Elemental because
+madness::initialize will call El::initialize() .
+
+* ENABLE_ELEMENTAL --- Enable Elemental [default=OFF].
+* ELEMENTAL_TAG --- specifies the version of Elemental to be downloaded, compiled, and installed alongside
+                    MADNESS (numerical codes of MADNESS will not use Elemental).
+                    If not set, will use the included Elemental source.
+
+### Parallel Runtime Scheduling and Execution Controller (PaRSEC):
+
+Recommended only for TTG development.
+
+* ENABLE_PARSEC --- Enables use of PaRSEC as the task scheduler [default=OFF]. The use of Intel TBB should be disabled
+                    to use PaRSEC.
+
+If ENABLE_PARSEC is set but PaRSEC is not found, it will be built from source.
+    
 ## MADNESS Runtime and the Address Space Layout Randomization (ASLR)
 
 ASLR (Linux relevant documentation [here](https://linux-audit.com/linux-aslr-and-kernelrandomize_va_space-setting/))
@@ -142,136 +270,12 @@ To make things more concrete, consider the following 2 scenarios:
       E.g. to link MADNESS into a Python module compile MADNESS and all libraries using MADNESS as shared libraries
       (with CMAKE_POSITION_INDEPENDENT_CODE=ON) and link them all together into a single module.
 
-## External libraries
+## Warning about fast memory allocators
 
-The following CMake cache variables enable the use of external libraries with
-MADNESS. If the WITH_* variable is set to "ON" by default, failure to find the
-external library is not an error. If you explicitly set a WITH_* variable to 
-"ON" when the default is set to "OFF," an error will occur if the library is
-not found.
+Summary: Only use fast memory allocators if you are using just 1 MPI process or have configured without MPI.
 
-* CMAKE_PREFIX_PATH - A semicolon seperated list of paths that are used when 
-      searching for external libraries and dependencies. You may use this CMake
-      cache variable to specify the prefix for any of the dependencies, or you
-      may specify path for individual components below.
+Depending on the calculation and the number of threads being used, MADNESS can receive about a 10% or even more speedup from fast memory allocators such as tcmalloc, jemalloc, tbbmalloc, etc.  However, these **do not work with MPI over InfiniBand** and probably most other transport layers.  It can appear to work, and then fail with either wrong numbers or MPI errors. The reason is that IB requires that memory be pinned and hence MPI introduces its own memory allocator(s) to manage this.  By overriding the allocator, you will break the guarantee that memory is pinned.  
 
-* ENABLE_MPI --- Enable use of MPI, should specify MPI_CXX_COMPILER or MPI_C_COMPILER
-                 explicitly or have them in PATH; if not found will use StubMPI and
-                 be limited to 1 process [default=ON]
-
-In the following section, each optional library privides four variables that
-the user can use to enable cmake to find the correct dependencies: 
-  * ENABLE_<LIB> --- Enable the library feathres (ON|OFF)
-  * <LIB>_ROOT_DIR --- Prefix path used to search for the external library.
-  * <LIB>_INCLUDE_DIR --- The external library include path. By default the
-        include path is ${<LIB>_ROOT_DIR}/include, if <LIB>_ROOT_DIR is
-        specified in the configure command.
-  * <LIB>_LIBRARY --- The external library path. By default the
-        include path is ${<LIB>_ROOT_DIR}/(lib64|lib), if <LIB>_ROOT_DIR is
-        specified in the configure command.
-If the <LIB>_ROOT_DIR, <LIB>_INCLUDE_DIR, and <LIB>_LIBRARY will be used to
-search for specific dependencies. If the external library is not found in these
-given paths, or if the paths are not given, CMake will search the paths in 
-CMAKE_PREFIX_PATH as well as other system paths.
-
-## Intel Threading Building Blocks (TBB):
-
-* ENABLE_TBB --- Enables use of Intel TBB as the task scheduler [default=OFF]
-* TBB_ROOT_DIR --- The install prefix for TBB
-* TBB_INCLUDE_DIR --- The path to the TBB include directory
-* TBB_LIBRARY --- The path to the TBB library directory. By default, the library
-      search path is ${TBB_ROOT_DIR}/(lib/intel64/gcc4.4|lib) on Linux and
-      ${TBB_ROOT_DIR}/(lib/libc++|lib) on OS X, if TBB_ROOT_DIR is specified in
-      the configure command.
-* MADNESS_EXPLOIT_TBB_PRIORITY --- If ON, MADNESS will try to use Intel TBB task priorities [default=OFF]
-
-If TBB_ROOT_DIR is not given, it will be set to the value of the TBBROOT environment variable if it is set.
-
-## Intel Math Kernel Library (MKL):
-
-* ENABLE_MKL --- Search for Intel MKL for BLAS and LAPACK support [default=ON]
-* MKL_ROOT_DIR --- The install prefix for MKL.
-* MKL_LIBRARY --- The path to the MKL library directory.
-
-If MKL_ROOT_DIR is not given, it will be set to the value of the MKLROOT environment variable if it is set.
-
-## AMD Core Math Library (ACML):
-
-* ENABLE_ACML --- Search for AMD math library for BLAS and LAPACK support
-      [default=ON]
-* ACML_ROOT_DIR --- The install prefix for ACML.
-* ACML_LIBRARY --- The path to the ACML library directory.
-
-## Google Performance Tools (Gperftools):
-
-* ENABLE_GPERFTOOLS --- Enable use of gperftools, including tcmalloc.
-      [default=OFF]
-* ENABLE_TCMALLOC_MINIMAL --- Enable use of the minimal tcmalloc library only.
-      [default=OFF]
-* GPERFTOOLS_ROOT_DIR --- The install prefix for gperftools.
-* GPERFTOOLS_INCLUDE_DIR --- The path to the gperftools include directory.
-* GPERFTOOLS_LIBRARY --- The path to the gperftools library directory.
-
-If GPERFTOOLS_ROOT_DIR is not given, it will be set to the value of the GPERFTOOLS_DIR environment variable if it is set.
-
-## Libunwind:
-
-* ENABLE_LIBUNWIND --- Force detection of gperftools [default=OFF, i.e. Libunwind will be searched for when needed]
-* LIBUNWIND_DIR --- The install prefix for Libunwind.
-
-If LIBUNWIND_DIR is not given, it will be set to the value of the LIBUNWIND_DIR environment variable if it is set.
-
-## Library of Exchange-Correlation DFT functionals (LIBXC):
-
-* ENABLE_LIBXC --- Enables use of the libxc library of density functionals.
-      [default=ON]
-* LIBXC_ROOT_DIR --- The install prefix for LIBXC.
-* LIBXC_INCLUDE_DIR --- The path to the LIBXC include directory.
-* LIBXC_LIBRARY --- The path to the LIBXC library directory.
-
-## Polarizable Conitinuum Solver (PCM):
-
-* ENABLE_PCM --- Enables use of PCM
-* PCM_ROOT_DIR --- The install prefix for PCM 
-* PCM_INCLUDE_DIR --- The path to the PCM include directory (should be added automatically when the correct PCM_ROOT_DIR is given)
-* PCM_LIBRARY --- The path to the PCM library (should be added automatically when the correct PCM_ROOT_DIR is given)
-set either PCM_ROOT_DIR or manually set PCM_INCLUDE_DIR and PCM_LIBRARY
-See also
-madness/CMakeLists.txt
-madness/external/pcm.cmake
-madness/modules/FindPCM.cmake
-madness/src/apps/chem/CMakeLists.txt
-
-## Performance Application Programming Interface (PAPI):
-
-* ENABLE_PAPI --- Enables use of PAPI [default=OFF]
-* PAPI_ROOT_DIR --- The install prefix for PAPI.
-* PAPI_INCLUDE_DIR --- The path to the PAPI include directory.
-* PAPI_LIBRARY --- The path to the PAPI library directory.
-
-## Elemental parallel linear algebra library:
-
-**This has not been tested in some time.**
-      
-Elemental provides optional distributed-memory linear algebra for some MADNESS application codes.
-MADNESS source includes (modified) Elemental v0.84, which has been validated to work with
-the few MADNESS apps that can use Elemental. You can instruct MADNESS to download and compile
-a more recent version of Elemental, if desired, but the apps will not use Elemental then.
-Such bundling is currently necessary if your code uses the MADworld runtime AND Elemental because
-madness::initialize will call El::initialize() .
-
-* ENABLE_ELEMENTAL --- Enable Elemental [default=OFF].
-* ELEMENTAL_TAG --- specifies the version of Elemental to be downloaded, compiled, and installed alongside
-                    MADNESS (numerical codes of MADNESS will not use Elemental).
-                    If not set, will use the included Elemental source.
-
-## Parallel Runtime Scheduling and Execution Controller (PaRSEC):
-
-* ENABLE_PARSEC --- Enables use of PaRSEC as the task scheduler [default=OFF]. The use of Intel TBB should be disabled
-                    to use PaRSEC.
-
-If ENABLE_PARSEC is set but PaRSEC is not found, it will be built from source.
-    
 ## Toolchain files
 
 **Use of these files is now deprecated --- configuration should usually work without this.**  However, they can be useful if all else fails or on "bleeding-edge" supercomputers with non-standard software environments.
