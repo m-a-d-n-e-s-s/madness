@@ -360,6 +360,7 @@ namespace madness {
 
         } while (maxq>0.01);
         normalize(world,vf);
+        return vf;
     }
 
 
