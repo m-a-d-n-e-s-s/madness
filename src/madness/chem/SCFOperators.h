@@ -143,7 +143,7 @@ public:
         return *this;
     }
 
-    Exchange& set_bra_and_ket(const vecfuncT& bra, const vecfuncT& ket, const double lo1);
+    Exchange& set_bra_and_ket(const vecfuncT& bra, const vecfuncT& ket);
 
     Function<T, NDIM> operator()(const Function<T, NDIM>& ket) const {
         vecfuncT vket(1, ket);

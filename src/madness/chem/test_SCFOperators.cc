@@ -501,7 +501,7 @@ int test_exchange(World& world) {
     Tensor<double> aocc(nmo);
     aocc.fill(1.0);
 
-    K.set_bra_and_ket(conj(world, amo), amo, lo);
+    K.set_bra_and_ket(conj(world, amo), amo);
     K.set_algorithm(Exchange<T,3>::multiworld_efficient);
 
     // compare the exchange operator to precomputed reference values

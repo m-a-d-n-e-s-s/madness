@@ -570,9 +570,10 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
    for (auto& tmp_pair : pair_vec) {
        updated_pairs.insert(tmp_pair.i, tmp_pair.j, tmp_pair);
    }
-   typedef allocator<double, 6> allocT;
-   allocT alloc(world, pair_vec.size());
-    XNonlinearSolver<std::vector<real_function_6d>, double, allocT> solver(alloc);
+//   typedef allocator<double, 6> allocT;
+//   allocT alloc(world, pair_vec.size());
+//    XNonlinearSolver<std::vector<real_function_6d>, double, allocT> solver(alloc);
+    auto solver= nonlinear_vector_solver<double,6>(world,pair_vec.size());
     solver.set_maxsub(parameters.kain_subspace());
     solver.do_print = (world.rank() == 0);
 

@@ -696,12 +696,12 @@ std::vector<Function<T,NDIM>> Exchange<T,NDIM>::operator()(const std::vector<Fun
 };
 
 template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_bra_and_ket(const vecfuncT& bra, const vecfuncT& ket, const double lo1) {
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_bra_and_ket(const vecfuncT& bra, const vecfuncT& ket) {
     MADNESS_CHECK(impl);
-    if (not impl) {
-        World& world=bra.front().world();
-        impl.reset(new Exchange<T,NDIM>::ExchangeImpl(world,lo1,FunctionDefaults<NDIM>::get_thresh()));
-    }
+//    if (not impl) {
+//        World& world=bra.front().world();
+//        impl.reset(new Exchange<T,NDIM>::ExchangeImpl(world,lo1,FunctionDefaults<NDIM>::get_thresh()));
+//    }
     impl->set_bra_and_ket(bra, ket);
     return *this;
 }
