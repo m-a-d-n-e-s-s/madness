@@ -335,11 +335,11 @@ namespace madness {
     /// orthonormalize the vectors
     template<typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM>> orthonormalize(const std::vector<Function<T,NDIM> >& vf_in) {
-        if (vf_in.size()==0) return;
+        if (vf_in.size()==0) return std::vector<Function<T,NDIM>>();
         World& world=vf_in.front().world();
         auto vf=copy(world,vf_in);
         normalize(world,vf);
-        if (vf.size()==1) return;
+        if (vf.size()==1) return copy(world,vf_in);
         double maxq;
         double trantol=0.0;
         auto Q2=[](const Tensor<T>& s) {
