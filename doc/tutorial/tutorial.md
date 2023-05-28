@@ -5,6 +5,8 @@
 1. [Downloading](#downloading)
 2. [Building and installing](#building-and-installing)
 3. Insanity
+4. [MADNESS parallel runtime --- basic concepts and architecture](#MADNESS-parallel-runtime)
+5. 
 
 
 This tutorial covers
@@ -66,4 +68,10 @@ Issues that need fixing
   - what packages to install and how
 * Configuring a vanilla ARM Mac
   - what packages to install and how
+
+## MADNESS parallel runtime
+
+Please refer to slides 166-189 in [MADNESSeverything4.pdf](https://github.com/m-a-d-n-e-s-s/madness/blob/tutorial/doc/MADNESSeverything4.pdf).
+
+
 
