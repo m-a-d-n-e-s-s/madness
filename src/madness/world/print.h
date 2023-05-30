@@ -166,6 +166,15 @@ operator<<(std::ostream &s, const T (&v)[N]) {
 
 }  // namespace operators
 
+    /// big section heading
+    void print_header1(const std::string& s);
+
+    /// medium section heading
+    void print_header2(const std::string& s);
+
+    /// small section heading
+    void print_header3(const std::string& s);
+
     /// Print a string justified on the left to start at the given column with optional underlining.
     void print_justified(const char* s, int column=0, bool underline=true);
 

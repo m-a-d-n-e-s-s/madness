@@ -40,6 +40,33 @@
 
 namespace madness {
 
+    /// big section heading
+    void print_header1(const std::string& s) {
+        auto line=std::string(80,'=');
+        print("");
+        print(line);
+        print("  ",s);
+        print(line,"\n");
+    };
+
+
+    /// medium section heading
+    void print_header2(const std::string& s) {
+        auto line=std::string(80,'-');
+        print("");
+        print(line);
+        print("  ",s);
+        print(line,"\n");
+    };
+
+    /// small section heading
+    void print_header3(const std::string& s) {
+        auto line=std::string(80,'-');
+        print("");
+        print("  ",s);
+        print(line,"\n");
+    };
+
     void print_justified(const char* s, int column, bool underline) {
         for (int i=0; i<column; ++i) std::cout << " ";
         std::cout << s << ENDL;

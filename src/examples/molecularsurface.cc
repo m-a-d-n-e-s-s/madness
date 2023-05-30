@@ -1,4 +1,3 @@
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/mra/sdf_shape_3D.h>
 #include <madness/mra/funcplot.h>

@@ -164,6 +164,8 @@ option(ENABLE_BOOST "Enable C++ Boost Libraries" OFF)
 
 option(ENABLE_GENTENSOR "Enable generic tensor support" OFF)
 add_feature_info(GENTENSOR ENABLE_GENTENSOR "enables use of MRA Function compression that allows computing in 6 dimensions")
+set(MADNESS_USE_GENTENSOR ${ENABLE_GENTENSOR} CACHE BOOL
+    "enables use of MRA Function compression that allows computing in 6 dimensions")
 
 if(ENABLE_GENTENSOR)
   add_definitions(-DUSE_GENTENSOR)

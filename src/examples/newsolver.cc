@@ -1,16 +1,13 @@
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/nonlinsol.h>
 
 using namespace madness;
 
-static const double R = 1.401042956;    // bond length
-static const double L = 400.00; // box size
+static const double R = 1.4;    // bond length
+static const double L = 64.0*R; // box size
 static const long k = 8;        // wavelet order
-static const double thresh = 1e-6; // precision
-static const double conv_ground_state = 1e-6; // precision
-static const double conv_response = 1e-1; // precision
+static const double thresh = 1e-5; // precision
 
 static double guess(const coord_3d& r) {
     const double x=r[0], y=r[1], z=r[2];
@@ -20,18 +17,18 @@ static double guess(const coord_3d& r) {
 
 static double V(const coord_3d& r) {
     const double x=r[0], y=r[1], z=r[2];
-    return -1.0/sqrt(x*x+y*y+(z-R/2)*(z-R/2)+1e-12)+
-           -1.0/sqrt(x*x+y*y+(z+R/2)*(z+R/2)+1e-12);
+    return -1.0/sqrt(x*x+y*y+(z-R/2)*(z-R/2)+1e-8)+
+           -1.0/sqrt(x*x+y*y+(z+R/2)*(z+R/2)+1e-8);
 }
 
 double rifunction(const coord_3d& r) {
     return r[2]; //z
 }
 
-double iterate_ground(World& world, NonlinearSolver& solver,
-                      real_function_3d& V, real_function_3d& psi,
+double iterate_ground(World& world, NonlinearSolver& solver, 
+                      real_function_3d& V, real_function_3d& psi, 
                       double& eps) {
-    real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 0.00001, thresh);
+    real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 0.001, 1e-6);
     real_function_3d Vpsi = (V*psi);
     Vpsi.scale(-2.0).truncate();
     real_function_3d tmp = op(Vpsi).truncate();
@@ -48,14 +45,14 @@ double iterate_ground(World& world, NonlinearSolver& solver,
     return rnorm;
 }
 
-double iterate_excite(World& world, NonlinearSolver& solver,
-                      real_function_3d& V, real_function_3d& psi,
-                      real_function_3d& dpsi, double& eps,
+double iterate_excite(World& world, NonlinearSolver& solver, 
+                      real_function_3d& V, real_function_3d& psi, 
+                      real_function_3d& dpsi, double& eps, 
                       real_function_3d& ri) {
-    real_convolution_3d du = CoulombOperator(world, 0.00001, thresh);
+    real_convolution_3d du = CoulombOperator(world, 0.001, 1e-6); 
     real_function_3d Vdpsi = (V*dpsi);
     real_function_3d rhs = Vdpsi + (psi*2*du(psi*dpsi)) + (ri*psi);
-    real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 0.00001, thresh);
+    real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 0.001, 1e-6);
 
     rhs.scale(-2.0).truncate();
     real_function_3d r = op(rhs) - dpsi;
@@ -73,7 +70,7 @@ double iterate_excite(World& world, NonlinearSolver& solver,
 struct F {
     real_function_3d x, y;
 
-    F(const real_function_3d& x, const real_function_3d& y)
+    F(const real_function_3d& x, const real_function_3d& y) 
         : x(x), y(y)
     {}
 
@@ -126,27 +123,27 @@ double iterate_xy(World& world, solverT& solver, const real_function_3d& V,
                   const real_function_3d& psi,
                   double& eps, const real_function_3d& ri, real_function_3d& x,
                   real_function_3d& y, const double omega) {
-    real_convolution_3d gOpx = BSHOperator3D(world, sqrt(-2*(eps+omega)), 0.00001, thresh);
-    real_convolution_3d gOpy = BSHOperator3D(world, sqrt(-2*(eps-omega)), 0.00001, thresh);
-    real_convolution_3d uop = CoulombOperator(world, 0.00001, thresh);
+    real_convolution_3d gOpx = BSHOperator3D(world, sqrt(-2*(eps+omega)), 0.001, 1e-6);
+    real_convolution_3d gOpy = BSHOperator3D(world, sqrt(-2*(eps-omega)), 0.001, 1e-6);
+    real_convolution_3d uop = CoulombOperator(world, 0.001, 1e-6);
     real_function_3d gp2 = uop(y*psi);
     real_function_3d gp3 = uop(x*psi);
     real_function_3d pp = (gp3 + gp2 + ri) * psi;
-
+    
     real_function_3d xrhs = V*x + pp;
     xrhs.scale(-2.0).truncate();
     real_function_3d new_x = gOpx(xrhs).truncate();
     new_x = new_x - inner(psi,new_x)*psi;
     double xerr = (x - new_x).norm2();
-
+    
     real_function_3d yrhs = V*y + pp;
     yrhs.scale(-2.0).truncate();
     real_function_3d new_y = gOpy(yrhs).truncate();
     new_y = new_y - inner(psi,new_y)*psi;
     double yerr = (y - new_y).norm2();
-
+    
     F xy = solver.update(F(x,y), F(new_x-x, new_y-y));
-
+    
     x = xy.x.truncate();
     y = xy.y.truncate();
     print("dynamic", xerr, yerr);
@@ -157,7 +154,7 @@ double iterate_xy(World& world, solverT& solver, const real_function_3d& V,
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
-
+    
     startup(world,argc,argv);
     std::cout.precision(6);
 
@@ -165,24 +162,24 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_initial_level(5);
-    FunctionDefaults<3>::set_truncate_mode(1);
+    FunctionDefaults<3>::set_truncate_mode(1);  
     FunctionDefaults<3>::set_cubic_cell(-L/2, L/2);
-
+    
     if (world.rank() == 0) print("\n  Solving for the HF wave function\n");
     real_function_3d Vnuc = real_factory_3d(world).f(V);
     real_function_3d psi  = real_factory_3d(world).f(guess);
     psi.truncate();
     psi.scale(1.0/psi.norm2());
 
-    real_convolution_3d op = CoulombOperator(world, 0.00001, thresh);
+    real_convolution_3d op = CoulombOperator(world, 0.001, 1e-6);
     double eps = -0.6;
     {
       NonlinearSolver solver;
-      for (int iter=0; iter<20; iter++) {
+      for (int iter=0; iter<10; iter++) {
         real_function_3d rho = square(psi).truncate();
         real_function_3d potential = Vnuc + op(rho).truncate();
         double err  = iterate_ground(world, solver, potential, psi, eps);
-	if (err < conv_ground_state) break;
+	if (err < thresh) break;
       }
     }
     double kinetic_energy = 0.0;
@@ -196,7 +193,7 @@ int main(int argc, char** argv) {
     double two_electron_energy = inner(op(rho),rho); // <u|rho> = <phi phi | 1/r12 | phi phi>
     double nuclear_attraction_energy = 2.0*inner(Vnuc,rho); // <V|rho> = <phi|V|phi>
     double nuclear_repulsion_energy = 1.0/R;
-    double total_energy = kinetic_energy + two_electron_energy +
+    double total_energy = kinetic_energy + two_electron_energy + 
         nuclear_attraction_energy + nuclear_repulsion_energy;
     double virial = (nuclear_attraction_energy + two_electron_energy + nuclear_repulsion_energy) / kinetic_energy;
 
@@ -224,7 +221,7 @@ int main(int argc, char** argv) {
         NonlinearSolver solver;
         for(int iter=1; iter<=20; iter++) {
             double err = iterate_excite(world, solver, potential, psi, dpsi, eps, ri);
-            if (err < conv_response) break;
+            if (err < 10*thresh) break;
         }
     }
 
@@ -259,10 +256,10 @@ int main(int argc, char** argv) {
         print("< dpsi | r | psi > ",ans5);
         print("");
         print(" < 1 |  V - E1 | 0 > =", d2Ea);
-        print("-< 1 | H0 - E0 | 1 > =", d2Eb);
+        print("-< 0 | H0 - E0 | 0 > =", d2Eb);
         print("variational estimate =", 2*d2Ea - d2Eb);
     }
-
+    
     // For first frequency use zero as the initial guess but at subsequent
     // frequencies use the previous solution as the guess.
     real_function_3d x = real_factory_3d(world); //zero
@@ -272,15 +269,15 @@ int main(int argc, char** argv) {
         if (world.rank() == 0) print("\nSolving for the dynamic response function with omega =", omega,"\n");
 
         XNonlinearSolver<F,double,allocator> solver = XNonlinearSolver<F,double,allocator>(allocator(world));
-
+        
         for(int iter=1; iter<=20; iter++) {
             double err = iterate_xy(world, solver, potential, psi, eps, ri, x, y, omega);
-            if (err < conv_response) break;
+            if (err < 10*thresh) break;
         }
 
         real_function_3d drho = (x*psi)+(psi*y);
-        double alpha_dynamic = -2*inner(ri,drho);
-        if (world.rank() == 0)
+        double alpha_dynamic = -2*inner(ri,drho);    
+        if (world.rank() == 0) 
             print("\nalpha_dynamic omega = ",omega," alpha = ",alpha_dynamic);
 
         char fname[32];
@@ -291,7 +288,7 @@ int main(int argc, char** argv) {
         sprintf(fname,"drho_%6.4f.dat", omega);
         plot_line(fname, 1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, drho);
     }
-
+    
     finalize();
     return 0;
 }

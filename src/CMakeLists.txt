@@ -9,6 +9,6 @@ install(FILES madness.h
     	DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}"
     	COMPONENT madness)
 
-install(FILES chem.h
-		DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}/madness"
+install(FILES madchem.h
+		DESTINATION "${MADNESS_INSTALL_INCLUDEDIR}"
 		COMPONENT chem)

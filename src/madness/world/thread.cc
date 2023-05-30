@@ -544,11 +544,4 @@ namespace madness {
         return instance()->queue.get_stats();
     }
 
-#if defined(MADNESS_DQ_USE_PREBUF) && defined(MADNESS_CXX_COMPILER_IS_ICC)
-    thread_local PoolTaskInterface* DQueue<PoolTaskInterface*>::prebuf[DQueue<PoolTaskInterface*>::NPREBUF] = {};
-    thread_local PoolTaskInterface* DQueue<PoolTaskInterface*>::prebufhi[DQueue<PoolTaskInterface*>::NPREBUF] = {};
-    thread_local size_t DQueue<PoolTaskInterface*>::ninprebuf = 0;
-    thread_local size_t DQueue<PoolTaskInterface*>::ninprebufhi = 0;
-#endif
-
 } // namespace madness

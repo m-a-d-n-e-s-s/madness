@@ -88,7 +88,7 @@ public:
     std::string name() const {return "CC2";};
 
     static void help() {
-        print("\nCC2 -- help \n");
+        print_header2("help page for CC2");
         print("The CC2 code computes correlated ground and excited state energies:\n");
         print(" - MP2 ground state");
         print(" - CC2 ground and excited states");
@@ -206,7 +206,7 @@ public:
             old_singles(tmp.first).function = copy(tmp.second.function);
 
         // KAIN solver
-        typedef allocator<double, 3> allocT;
+        typedef vector_function_allocator<double, 3> allocT;
         typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
         allocT alloc(world, singles.size());
         solverT solver(allocT(world, singles.size()));

@@ -40,8 +40,6 @@
 #ifndef MADNESS_CHEM_SCF_H__INCLUDED
 #define MADNESS_CHEM_SCF_H__INCLUDED
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
 #include <memory>
 
 #include<madness/chem/molecular_functors.h>
@@ -233,15 +231,15 @@ public:
     void copy_data(World& world, const SCF& other);
 
     static void help() {
-        print("\nmoldft \n");
+        print_header2("help page for MOLDFT ");
         print("The moldft code computes Hartree-Fock and DFT energies and gradients, It is the fastest code in MADNESS");
         print("and considered the reference implementation. No nuclear correlation factor can be used");
         print("SCF orbitals are the basis for post-SCF calculations like");
         print("excitation energies (cis), correlation energies (cc2), local potentials (oep), etc\n\n");
         print("You can print all available calculation parameters by running\n");
-        print("nemo --print_parameters\n");
+        print("moldft --print_parameters\n");
         print("You can perform a simple calculation by running\n");
-        print("nemo --geometry=h2o.xyz\n");
+        print("moldft --geometry=h2o.xyz\n");
         print("provided you have an xyz file in your directory.");
 
     }
@@ -253,6 +251,8 @@ public:
         print("\n\nthe molecular geometry must be specified in a separate block:");
         Molecule::print_parameters();
     }
+
+    void set_print_timings(const bool value);
 
     template<std::size_t NDIM>
     void set_protocol(World& world, double thresh) {

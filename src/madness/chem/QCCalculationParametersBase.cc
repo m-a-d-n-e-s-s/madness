@@ -49,7 +49,7 @@ std::string QCCalculationParametersBase::print_to_string(bool non_defaults_only)
 
 
 bool QCCalculationParametersBase::file_exists(World& world, std::string filename) const {
-    bool file_exists = false;
+    bool file_exists = true;
     if (world.rank() == 0) {
         std::ifstream ifs(filename);
         if (not ifs.is_open()) file_exists=false;
