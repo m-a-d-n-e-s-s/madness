@@ -27,6 +27,7 @@ int main(int argc, char *argv[]) {
     const std::string molecule_name = "Be";
     const std::string xc = "hf";
     const std::string op = "excited-state";
+    const std::string precision = "low";
     // A calculation is defined by a molecule, functional, and operator
     // xc include (hf/lda)
     // operators include (excited-state)
@@ -36,7 +37,8 @@ int main(int argc, char *argv[]) {
     auto excited_schema = excitedSchema(schema, m_schema);
     excited_schema.print();
     ResponseParameters r_params{};
-    set_excited_parameters(r_params, excited_schema.xc, excited_schema.num_states, false);
+    set_excited_parameters(world, r_params, excited_schema.xc,
+                           excited_schema.num_states, precision);
     create_excited_paths(excited_schema);
     std::filesystem::current_path(excited_schema.excited_state_run_path);
     set_and_write_restart_excited_parameters(r_params, excited_schema, false);

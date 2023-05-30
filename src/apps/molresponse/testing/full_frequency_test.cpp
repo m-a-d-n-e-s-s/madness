@@ -29,13 +29,12 @@ int main(int argc, char *argv[]) {
     // set last keyword to high to set high prec
     const std::string xc{argv[1]};
     const std::string op{argv[2]};
-    const std::string is_high_prec{argv[3]};
-    bool high_prec;
-
-    if (is_high_prec == "high") {
-        high_prec = true;
-    } else {
-        high_prec = false;
+    const std::string precision{argv[3]};
+    if (precision != "high" && precision != "low" && precision != "super") {
+        if (world.rank() == 0) {
+            std::cout << "Set precision to low high super" << std::endl;
+        }
+        return 1;
     }
 
     auto schema = runSchema(world, xc);
@@ -52,9 +51,9 @@ int main(int argc, char *argv[]) {
                     try {
 
                         auto m_schema = moldftSchema(world, molecule_name, xc, schema);
-                        moldft(world, m_schema, true, false, high_prec);
+                        moldft(world, m_schema, true, false, precision);
                         auto f_schema = frequencySchema(world, schema, m_schema, op);
-                        runFrequencyTests(world, f_schema, high_prec);
+                        runFrequencyTests(world, f_schema, precision);
 
                     } catch (const SafeMPI::Exception &e) {
                         print(e);

@@ -489,32 +489,38 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run,
  * @param xc
  * @param frequency
  */
-void set_excited_parameters(ResponseParameters &r_params, const std::string &xc,
-                            const size_t &num_states, bool high_prec) {
+void set_excited_parameters(World &world, ResponseParameters &r_params,
+                            const std::string &xc, const size_t &num_states,
+                            const std::string &precision) {
 
 
-    if (high_prec) {
-        r_params.set_user_defined_value<vector<double>>("protocol",
-                                                        {1e-4, 1e-6, 1e-7});
-        r_params.set_user_defined_value<double>("dconv", 1e-6);
-    } else {
-        r_params.set_user_defined_value<vector<double>>("protocol",
-                                                        {1e-4, 1e-6});
-        r_params.set_user_defined_value<double>("dconv", 1e-4);
+    if (world.rank() == 0) {
+        if (precision == "high") {
+            r_params.set_user_defined_value<vector<double>>("protocol",
+                                                            {1e-4, 1e-6, 1e-7});
+            r_params.set_user_defined_value<double>("dconv", 1e-6);
+        } else if (precision == "low") {
+            r_params.set_user_defined_value<vector<double>>("protocol",
+                                                            {1e-4, 1e-6});
+            r_params.set_user_defined_value<double>("dconv", 1e-4);
+        } else {
+            r_params.set_user_defined_value<vector<double>>("protocol", {1e-9});
+            r_params.set_user_defined_value<double>("dconv", 1e-6);
+        }
+        //r_params.set_user_defined_value("archive", std::string("../restartdata"));
+        r_params.set_user_defined_value("maxiter", size_t(15));
+        r_params.set_user_defined_value("maxsub", size_t(10));
+        // if it's too large then bad guess is very strong
+        r_params.set_user_defined_value("kain", true);
+        r_params.set_user_defined_value("plot_all_orbitals", false);
+        r_params.set_user_defined_value("save", true);
+        r_params.set_user_defined_value("guess_xyz", false);
+        r_params.set_user_defined_value("print_level", 20);
+        // set xc, property, num_states,and restart
+        r_params.set_user_defined_value("xc", xc);
+        r_params.set_user_defined_value("excited_state", true);
+        r_params.set_user_defined_value("states", num_states);
     }
-    //r_params.set_user_defined_value("archive", std::string("../restartdata"));
-    r_params.set_user_defined_value("maxiter", size_t(15));
-    r_params.set_user_defined_value("maxsub", size_t(10));
-    // if it's too large then bad guess is very strong
-    r_params.set_user_defined_value("kain", true);
-    r_params.set_user_defined_value("plot_all_orbitals", false);
-    r_params.set_user_defined_value("save", true);
-    r_params.set_user_defined_value("guess_xyz", false);
-    r_params.set_user_defined_value("print_level", 20);
-    // set xc, property, num_states,and restart
-    r_params.set_user_defined_value("xc", xc);
-    r_params.set_user_defined_value("excited_state", true);
-    r_params.set_user_defined_value("states", num_states);
     // Here
 }
 
@@ -767,13 +773,15 @@ static void create_excited_paths(excitedSchema &schema) {
  * @return
  */
 auto runExcited(World &world, excitedSchema schema, bool restart,
-                bool high_prec) -> bool {
+                const std::string& precision) -> bool {
 
 
     // Set the response parameters
     ResponseParameters r_params{};
 
-    set_excited_parameters(r_params, schema.xc, schema.num_states, high_prec);
+    set_excited_parameters(world, r_params, schema.xc,
+                           schema.num_states,
+                           precision);
     create_excited_paths(schema);
     std::filesystem::current_path(schema.excited_state_run_path);
     set_and_write_restart_excited_parameters(r_params, schema, restart);

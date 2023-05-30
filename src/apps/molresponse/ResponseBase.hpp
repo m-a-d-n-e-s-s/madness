@@ -178,9 +178,10 @@ public:
                                const vector_real_function_3d &phi0) const = 0;
 
     static auto make_k(const vecfuncT &ket, const vecfuncT &bra) {
+        auto &world = ket[0].world();
         const double lo = 1.e-10;
-        Exchange<double, 3> k{};
-        k.set_parameters(bra, ket, lo);
+        Exchange<double, 3> k{world, lo};
+        k.set_bra_and_ket(bra, ket);
         k.set_algorithm(k.multiworld_efficient);
         return k;
     };
@@ -193,10 +194,11 @@ public:
 
         auto K = X_space::zero_functions(world, x.num_states(),
                                          x.num_orbitals());
+
+
         vector_real_function_3d k1x, k1y, k2x, k2y;
         vector_real_function_3d xb;
         vector_real_function_3d yb;
-        Exchange<double, 3> K1X, K2X, K1Y, K2Y;
         if (world.rank() == 0) { print("K1StrategyFull"); }
 
         auto k1x_temp =
@@ -208,22 +210,18 @@ public:
         auto k2y_temp =
                 create_response_matrix(x.num_states(), x.num_orbitals());
 
-        std::vector<Exchange<double, 3>> K1Xs(x.num_states());
-        std::vector<Exchange<double, 3>> K1Ys(x.num_states());
-        std::vector<Exchange<double, 3>> K2Xs(x.num_states());
-        std::vector<Exchange<double, 3>> K2Ys(x.num_states());
 
         for (const auto &b: x.active) {
-            K1Xs[b] = make_k(x.x[b], phi0);
-            K1Ys[b] = make_k(phi0, x.y[b]);
-            K2Xs[b] = make_k(x.y[b], phi0);
-            K2Ys[b] = make_k(phi0, x.x[b]);
+            auto K1X = make_k(x.x[b], phi0);
+            auto K1Y = make_k(phi0, x.y[b]);
+            auto K2X = make_k(x.y[b], phi0);
+            auto K2Y = make_k(phi0, x.x[b]);
             world.gop.fence();
 
-            k1x_temp[b] = K1Xs[b](phi0);
-            k1y_temp[b] = K1Ys[b](phi0);
-            k2x_temp[b] = K2Xs[b](phi0);
-            k2y_temp[b] = K2Ys[b](phi0);
+            k1x_temp[b] = K1X(phi0);
+            k1y_temp[b] = K1Y(phi0);
+            k2x_temp[b] = K2X(phi0);
+            k2y_temp[b] = K2Y(phi0);
             world.gop.fence();
             K.x[b] = gaxpy_oop(1.0, k1x_temp[b], 1.0, k1y_temp[b], false);
             K.y[b] = gaxpy_oop(1.0, k2x_temp[b], 1.0, k2y_temp[b], false);
@@ -241,20 +239,17 @@ public:
         X_space K = X_space::zero_functions(world, x.num_states(),
                                             x.num_orbitals());
         vector_real_function_3d k1x, k1y, k2x, k2y;
-        Exchange<double, 3> K1X{};
-        Exchange<double, 3> K1Y{};
+        const double lo = 1e-10;
 
         if (world.rank() == 0) { print("K1StrategyStatic"); }
         auto k1_temp = create_response_matrix(x.num_states(), x.num_orbitals());
         auto k2_temp = create_response_matrix(x.num_states(), x.num_orbitals());
-        std::vector<Exchange<double, 3>> K1Xs(x.num_states());
-        std::vector<Exchange<double, 3>> K1Ys(x.num_states());
 
         for (const auto &b: x.active) {
-            K1Xs[b] = make_k(x.x[b], phi0);
-            K1Ys[b] = make_k(phi0, x.x[b]);
-            k1_temp[b] = K1Xs[b](phi0);
-            k2_temp[b] = K1Ys[b](phi0);
+            auto K1Xs = make_k(x.x[b], phi0);
+            auto K1Ys = make_k(phi0, x.x[b]);
+            k1_temp[b] = K1Xs(phi0);
+            k2_temp[b] = K1Ys(phi0);
             K.x[b] = gaxpy_oop(1.0, k1_temp[b], 1.0, k2_temp[b], false);
         }
         world.gop.fence();
@@ -468,28 +463,33 @@ public:
 
     static void help() {
         print_header2("help page for MOLRESPONSE ");
-        print("The molresponse code computes linear response properties and excited states");
-        print("\nYou can print all available calculation parameters by running\n");
+        print("The molresponse code computes linear response properties and "
+              "excited states");
+        print("\nYou can print all available calculation parameters by "
+              "running\n");
         print("molresponse --print_parameters\n");
         print("You can perform a simple calculation by running\n");
         print("moldft --geometry=h2o.xyz");
         print("molresponse");
-        print("\nprovided you have an xyz file in your directory as well as a file named 'response.in'.");
+        print("\nprovided you have an xyz file in your directory as well as a "
+              "file named 'response.in'.");
         print("with minimal input\n");
         print("response ");
         print("  archive mad.restartdata ");
         print("  excited_state 1 ");
         print("end ");
-
     }
 
     static void print_parameters() {
         ResponseParameters rparam;
-        print("A molresponse calculation requires a converged moldft calculations with the ");
+        print("A molresponse calculation requires a converged moldft "
+              "calculations with the ");
         print("corresponding parameters.");
-        print("\nDefault parameters for the response part of the molresponse program are");
+        print("\nDefault parameters for the response part of the molresponse "
+              "program are");
         rparam.print("response", "end");
-        print("\n\nthe molecular geometry must be specified in a separate block:");
+        print("\n\nthe molecular geometry must be specified in a separate "
+              "block:");
         Molecule::print_parameters();
     }
 
