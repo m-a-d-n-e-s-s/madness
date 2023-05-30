@@ -40,16 +40,18 @@ Tensor<double> tmat=T(orbitals,orbitals);
 
 
 ### BSHApply
-Solving the Schroedinger equation in MRA always looks like $$ASDF$$
+Solving the Schroedinger equation in MRA always looks like
 ```math
-(T + V)\psi  = E \psi
+\displaylines{
+(T + V)\psi  = E \psi \\
 \psi = (T - E)^{-1}V\psi
+}
 ```
 If there are more than one wave functions (e.g. several orbitals) there might appear
 a coupling term 
-```latex
-F\psi_i  = f_{ij} \psi_j
-\psi_i = (T - f_{ii})^{-1}V\psi_i + \sum_{j\neq i}\psi_j
+```math
+\displaylines{F\psi_i  = f_{ij} \psi_j \\
+\psi_i = (T - f_{ii})^{-1}V\psi_i + \sum_{j\neq i}\psi_j}
 ```
 Since this operator occurs very often, and might include further techniques, 
 such as a level shift if the energy is positive, a class named ```BSHApply``` 
