@@ -25,7 +25,8 @@ are:
  - ```Lz``` (angular momentum)
  - ```Local``` (any local potential)
  
-All of the above can be put into a ```Fock``` operator, to simplify notation. Construction follows the scheme
+All of the above can be put into a ```Fock``` operator, which is simply a linear combinaton 
+of ```SCFOperator```, to simplify notation. Construction follows the scheme
 ```c++
 auto T=Kinetic<double,3>(world);
 auto Vnuc=Nuclear<double,3>(world,molecule);
@@ -39,8 +40,8 @@ Tensor<double> tmat=T(orbitals,orbitals);
 
 
 ### BSHApply
-Solving the Schroedinger equation in MRA always looks like
-```latex
+Solving the Schroedinger equation in MRA always looks like $$ASDF$$
+```math
 (T + V)\psi  = E \psi
 \psi = (T - E)^{-1}V\psi
 ```
