@@ -57,9 +57,11 @@ Please refer to the [installation instructions](https://madness.readthedocs.io/e
 
 Minimal recipe without MPI
 ```
+mkdir build # CANNOT be in the madness source tree
+cd build
 cmake -DENABLE_MPI=OFF -DCMAKE_INSTALL_PREFIX=/home/me/madinstall /path/to/madness/source
 make applications
-make install
+make install  # optional
 ```
 
 Issues that need fixing
