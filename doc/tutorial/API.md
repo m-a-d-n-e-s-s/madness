@@ -40,21 +40,24 @@ Tensor<double> tmat=T(orbitals,orbitals);
 
 ### BSHApply
 Solving the Schroedinger equation in MRA always looks like
-```latex
-(T + V)\psi  = E \psi
+```math
+\displaylines{
+(T + V)\psi  = E \psi \\
 \psi = (T - E)^{-1}V\psi
+}
 ```
 If there are more than one wave functions (e.g. several orbitals) there might appear
 a coupling term 
-```latex
-F\psi_i  = f_{ij} \psi_j
-\psi_i = (T - f_{ii})^{-1}V\psi_i + \sum_{j\neq i}\psi_j
+```math
+\displaylines{F\psi_i  = f_{ij} \psi_j \\
+\psi_i = (T - f_{ii})^{-1}V\psi_i + \sum_{j\neq i}\psi_j}
 ```
 Since this operator occurs very often, and might include further techniques, 
 such as a level shift if the energy is positive, a class named ```BSHApply``` 
 has been introduced that applies the BSHOperator, includes couping and performs 
 a level shift, if necessary
 ```c++
+BSHApply<double,3> bsh_apply(world);
 auto [residual, eps_update] = bsh_apply(orbitals, fock, Vorbitals);
 ```
 New orbitals are the taken directly from the residual, or by using a convergence accelerator
