@@ -74,7 +74,7 @@ Issues that need fixing
 Please refer to slides 166-189 in [MADNESSeverything4.pdf](https://github.com/m-a-d-n-e-s-s/madness/blob/tutorial/doc/MADNESSeverything4.pdf).
 * Since the file is large, it is probably easier to look at your local version using your system PDF viewer
 
-Hello world in MADNESS (runtime only)
+Hello world in MADNESS (runtime only --- numerical library is discussed below)
 ```
     #include <madness/world/MADworld.h>
     using namespace madness;
