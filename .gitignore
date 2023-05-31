@@ -1,5 +1,6 @@
 build*
 cmake-build-debug*
+.history*
 
 # Compiled Object files
 *.slo
@@ -62,3 +63,5 @@ compile_commands.json
 .clang-format
 /cmake-build-debug/.ninja_deps
 compile_commands
+.history/src/apps/molresponse/global_functions_20230530165227.cc
+.history/src/apps/molresponse/global_functions_20230530165428.cc
