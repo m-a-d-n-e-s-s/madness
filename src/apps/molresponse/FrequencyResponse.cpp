@@ -132,7 +132,7 @@ void FrequencyResponse::iterate(World &world) {
                     print("k: ", FunctionDefaults<3>::get_k());
                     print("Chi Norms at start of iteration: ", iter);
                     print("||X||: ", chi_norms);
-                    print("polarizability: \n", polar);
+                    print("<<X|P>>: \n", polar);
                     print("targets : ||x||", x_relative_target,
                           "    ||delta_rho||", density_target);
                 }
@@ -243,9 +243,9 @@ void FrequencyResponse::iterate(World &world) {
             if (world.rank() == 0) {
                 printf("\n--------Response Properties after %d-------------\n",
                        static_cast<int>(iter));
-                print("polarizability at omega =", omega);
+                print("<<X,P>> at omega =", omega);
                 print(polar);
-                print("res polarizability");
+                print("res r<<X,P>> at omega =", omega);
                 print(res_polar);
             }
         }
