@@ -98,3 +98,36 @@ for regularizing  the nuclear potential.
 and MP2/CC2 correlation energies, respectively.
 
 ### molresponse
+
+
+1. **Prepare Your Environment:** Before you can run a `molresponse` calculation,
+   ensure that you've successfully installed the `molresponse` software and its
+   dependencies. Refer to the official documentation for the installation guide.
+
+2. **Generate Ground State Orbitals:** Before you compute molecular response
+   properties, you need to generate the ground state orbitals. This is typically
+   done with the `moldft` code and results in a `.restartdata` file.
+
+3. **Configure Your Input File:** Create an input file (usually named
+   `response.in`) specifying the parameters of your calculation. Here are the
+   bare minimum parameters you'll need to define:
+
+   - **Perturbation Operator:** Set by the `dipole` parameter. When set to
+     `True`, the dipole operator is used.
+   - **Perturbation Frequency:** Defined by the `omega` parameter.
+   - **Ground-State Restart File:** By default, `molresponse` looks for
+     `../moldft.restartdata`. You can specify a different path using the
+     `archive` parameter.
+
+   For a static response calculation, your `omega` value would be zero. For a
+   frequency-dependent response, you would set `omega` to your desired
+   frequency.
+
+4. **Run Your Calculation:** Execute the `molresponse` program with your input
+   file. The command is usually something like `molresponse response.in`.
+
+5. **Interpret Your Results:** The output is saved in a `response_base.json`
+   file, which you can analyze to interpret your results.
+
+This is a very brief overview. I highly recommend reading the full tutorial [here](../../src/apps/molresponse/molresponse_tutorial.md) to fully understand how to use `molresponse`
+effectively and accurately.
