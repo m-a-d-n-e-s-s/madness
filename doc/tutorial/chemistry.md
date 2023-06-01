@@ -99,6 +99,8 @@ and MP2/CC2 correlation energies, respectively.
 
 ### molresponse
 
+`molresponse` computes frquency-dependent molecular response properties and excited-states.  We will focus on the frquency-dependent response here.
+
 
 1. **Prepare Your Environment:** Before you can run a `molresponse` calculation,
    ensure that you've successfully installed the `molresponse` software and its
@@ -124,10 +126,14 @@ and MP2/CC2 correlation energies, respectively.
    frequency.
 
 4. **Run Your Calculation:** Execute the `molresponse` program with your input
-   file. The command is usually something like `molresponse response.in`.
+   file. The command is usually something like 
+   
+   ```cpp
+   molresponse response.in
+   ```
 
 5. **Interpret Your Results:** The output is saved in a `response_base.json`
-   file, which you can analyze to interpret your results.
+   file, which you can analyze to interpret your results.  
 
 This is a very brief overview. I highly recommend reading the full tutorial [here](../../src/apps/molresponse/molresponse_tutorial.md) to fully understand how to use `molresponse`
 effectively and accurately.
