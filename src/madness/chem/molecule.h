@@ -519,6 +519,7 @@ public:
     void serialize(Archive& ar) {
         ar & atoms & rcut & core_pot & parameters & pointgroup_ & field;
     }
+    [[nodiscard]] json to_json() const;
 };
 
 }

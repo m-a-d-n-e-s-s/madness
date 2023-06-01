@@ -1,7 +1,6 @@
 #include "molresponse/property.h"
 #include <madness/chem/SCF.h>
 
-#include <molresponse/TDDFT.h>
 #include <molresponse/response_functions.h>
 
 #include <algorithm>
@@ -18,7 +17,7 @@ DipoleVector::DipoleVector(World &world) : PropertyBase() {
   for (size_t i = 0; i < 3; i++) {
     std::vector<int> f(3, 0);
     f[i] = 1;
-    operator_vector.at(i) = real_factory_3d(world).functor(real_functor_3d(new BS_MomentFunctor(f)));
+    operator_vector.at(i) = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
     // prsize_t k L truncation
     print("norm of dipole function ", operator_vector[i].norm2());
   }
@@ -41,10 +40,10 @@ NuclearVector::NuclearVector(World &world, Molecule &molecule) : PropertyBase() 
     for (size_t axis = 0; axis < 3; ++axis) {
       // question here....MolecularDerivativeFunctor takes derivative with
       // respect to axis atom and axis
-      FunctorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
+      functorT func(new MolecularDerivativeFunctor(molecule, atom, axis));
       // here we save
       operator_vector.at(atom * 3 + axis) =
-          FunctionT(FactoryT(world).functor(func).nofence().truncate_on_project().truncate_mode(0));
+          functionT (factoryT (world).functor(func).nofence().truncate_on_project().truncate_mode(0));
       // prsize_t k L truncation
       print("norm of derivative function ", operator_vector[atom * 3 + axis].norm2());
     }
