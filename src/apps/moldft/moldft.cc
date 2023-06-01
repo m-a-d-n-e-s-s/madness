@@ -166,6 +166,7 @@ int main(int argc, char **argv) {
                         E.output_calc_info_schema();
                     }
 
+
                     functionT rho = calc.make_density(world, calc.aocc, calc.amo);
                     functionT brho = rho;
                     if (calc.param.nbeta() != 0 && !calc.param.spin_restricted())
