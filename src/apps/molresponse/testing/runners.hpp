@@ -504,7 +504,7 @@ void set_excited_parameters(World &world, ResponseParameters &r_params,
         r_params.set_user_defined_value("plot_all_orbitals", false);
         r_params.set_user_defined_value("save", true);
         r_params.set_user_defined_value("guess_xyz", false);
-        r_params.set_user_defined_value("print_level", 20);
+        r_params.set_user_defined_value("print_level", 1);
         // set xc, property, num_states,and restart
         r_params.set_user_defined_value("xc", xc);
         r_params.set_user_defined_value("excited_state", true);
@@ -548,7 +548,7 @@ void set_frequency_response_parameters(World &world,
         r_params.set_user_defined_value("omega", frequency);
         r_params.set_user_defined_value("first_order", true);
         r_params.set_user_defined_value("plot_all_orbitals", true);
-        r_params.set_user_defined_value("print_level", 20);
+        r_params.set_user_defined_value("print_level", 1);
         r_params.set_user_defined_value("save", true);
         // set xc, property, frequency,and restart
         r_params.set_user_defined_value("xc", xc);
