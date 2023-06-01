@@ -131,10 +131,12 @@ private:
             const X_space& v0_chi, const X_space& gamma_chi);
     std::tuple<Tensor<double>, X_space, X_space, X_space, X_space> rotate_excited_space(
             World& world, X_space& chi, X_space& lchi, X_space& v_chi, X_space& gamma_chi);
-    std::tuple<Tensor<double>, X_space, X_space, residuals> update(
-            World& world, X_space& Chi, XCOperator<double, 3>& xc, QProjector<double, 3>& projector,
-            NonLinearXsolver& kain_x_space, vector<X_vector>& Xvector, vector<X_vector>& Xresidual,
-            size_t iter, const double& maxrotn);
+    std::tuple<Tensor<double>, X_space, X_space, residuals>
+    update_response(World &world, X_space &Chi, XCOperator<double, 3> &xc,
+                    QProjector<double, 3> &projector, response_solver &kain_x_space,
+                    response_matrix &Xvector, response_matrix &Xresidual, size_t iter,
+                    const double &maxrotn, const Tensor<double> old_residuals,
+                    const X_space &xres_old);
     X_space create_response_guess(World& world) const;
     std::tuple<Tensor<double>, Tensor<double>, Tensor<double>> reduce_subspace(
             World& world, Tensor<double>& S, Tensor<double>& A, const double thresh_degenerate);

@@ -37,23 +37,21 @@ int main(int argc, char *argv[]) {
     std::cout.precision(6);
 
     const std::string xc{argv[1]};
-    const std::string is_high_prec{argv[2]};
-
-    bool high_prec;
-
-    if (is_high_prec == "high") {
-        high_prec = true;
-    } else {
-        high_prec = false;
+    const std::string precision{argv[2]};
+    if (precision != "high" && precision != "low" && precision != "super") {
+        if (world.rank() == 0) {
+            std::cout << "Set precision to low high super" << std::endl;
+        }
+        return 1;
     }
 
-    auto schema = runSchema(xc);
+    auto schema = runSchema(world, xc);
 
     try {
-        if (std::filesystem::is_directory(schema.molecule_path)) {
+        if (std::filesystem::is_directory(schema.molecules)) {
             // for every molecule within the molecule path
             for (const std::filesystem::directory_entry &mol_path:
-                    std::filesystem::directory_iterator(schema.molecule_path)) {
+                    std::filesystem::directory_iterator(schema.molecules)) {
 
                 std::filesystem::current_path(schema.xc_path);
 
@@ -64,13 +62,13 @@ int main(int argc, char *argv[]) {
                     try {
 
 
-                        auto m_schema = moldftSchema(molecule_name, xc, schema);
-                        moldft(world, m_schema, true, false, high_prec);
+                        auto m_schema = moldftSchema(world, molecule_name, xc, schema);
+                        moldft(world, m_schema, true, false, precision);
 
                         auto excited_schema = excitedSchema(schema, m_schema);
                         excited_schema.print();
 
-                        bool success = runExcited(world, excited_schema, false, high_prec);
+                        bool success = runExcited(world, excited_schema, false, precision);
                     } catch (const SafeMPI::Exception &e) {
                         print(e);
                     } catch (const madness::MadnessException &e) {
