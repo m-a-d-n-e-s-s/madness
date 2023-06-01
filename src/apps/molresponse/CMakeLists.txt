@@ -29,9 +29,13 @@ set(MOLRESPONSE_HEADERS
         )
 # Create the MADchem library
 add_mad_library(response MOLRESPONSE_SOURCES MOLRESPONSE_HEADERS "chem" "madness/chem/molresponse/")
-
 set(targetname MADresponse)
+add_dependencies(applications-madness molresponse)
+
 add_mad_executable(molresponse "molresponse.cc" "MADresponse;MADchem")
+
+# removed mcpfit since it is likely only of historic interest
+install(TARGETS molresponse DESTINATION "${MADNESS_INSTALL_BINDIR}")
 
 
 set(R_BASE_SOURCES
