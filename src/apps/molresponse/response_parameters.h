@@ -37,7 +37,6 @@ namespace madness {
             initialize<std::vector<int>>("plot_data", std::vector<int>{0}, "Orbitals to plot");
             initialize<std::vector<double>>("plot_cell", std::vector<double>(),
                                             "lo-hi plot cell (default is all space)");
-            //initialize<std::string>("core_type", "none", "core potential type", {"none", "mcp"});
             initialize<double>("plot_l", -1.0, "Controls the plotting box size");
             initialize<size_t>("plot_pts", 51, "Controls number of points in plots");
             initialize<bool>("plot_all_orbitals", false, "Turn on 2D plotting of response orbitals ");
@@ -46,7 +45,7 @@ namespace madness {
             initialize<bool>("conv_only_dens", false,
                              "if true remove bsh_residual from convergence criteria (deprecated)");
             initialize<bool>("dconv_set", false, "Convergence flage for the orbtial density");
-            initialize<bool>("guess_xyz", false, "TODO : check what this is for");
+            initialize<bool>("guess_xyz", false, "ExcitedState intial guess functions ground MO * <x,y,z>");
             initialize<double>("lo", 1.e-10, "smallest length scale we need to resolve");
             initialize<std::vector<double>>("protocol", {1.e-4, 1.e-6}, "calculation protocol");
             initialize<size_t>("larger_subspace", 0,
@@ -75,20 +74,13 @@ namespace madness {
             initialize<bool>("load_density", false, "Flag to load density for restart");
             initialize<std::string>("load_density_file", "none", "File name to load density for restart");
             initialize<size_t>("guess_max_iter", 5, "maximum number of guess iterations");
-            // properties
             initialize<std::string>("calc_type", "full", "full,static,tda");
             initialize<bool>("excited_state", false, "Flag to turn on excited state calc");
             initialize<bool>("first_order", false, "Flag to turn on first order response calc");
-            //initialize<bool>("second_order", false, "Flag to turn on second order response calc ");
-            // initialize<bool>("third_order", false, "Flag to turn on second order response calc ");
             initialize<bool>("dipole", false, "Sets RHS to dipole operator 3 x num_orbitals");
             initialize<bool>("nuclear", false, "Sets RHS to nuclear derivative 3 x num_atoms x num_orbitals");
-            //initialize<bool>("order2", false, "Flag to turn on frequency dependent property calc");
-            //initialize<bool>("order3", false, "Flag to turn on frequency dependent property calc");
-            //initialize<std::string>("d2_types", "none", "possible values are: dd nd dn nn");
             initialize<double>("omega", 0.0, "Incident energy for dynamic response");
             initialize<double>("l", 20, "user coordinates box size");
-            // ground-state stuff
             initialize<size_t>("num_orbitals", 0, "number of ground state orbtials");
             initialize<bool>("spinrestricted", true, "is spinrestricted calculation");
             initialize<std::string>("localize", "canon", "localization method", {"pm", "boys", "new", "canon"});
