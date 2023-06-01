@@ -139,6 +139,21 @@ tensorT Q2(const tensorT& s) {
 }
 
 }// namespace madness
+void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
+                                 const tensorT &dipole_T) const {
+    nlohmann::json j = {};
+    // if it exists figure out the size.  pushback for each protocol
+    const double thresh = FunctionDefaults<3>::get_thresh();
+    const int k = FunctionDefaults<3>::get_k();
+    j["scf_threshold"] = thresh;
+    j["scf_k"] = k;
+    for (auto const &[key, val]: vals) {
+        j[key] = val;
+    }
+    j["scf_dipole_moment"] = tensor_to_json(dipole_T);
+    int num = 0;
+    update_schema(param.prefix()+".scf_info", j);
+}
 
 void SCF::output_calc_info_schema() const {
     nlohmann::json j = {};
@@ -147,19 +162,19 @@ void SCF::output_calc_info_schema() const {
     vec_pair_tensor_T<double> double_tensor_vals;
 
 
-    int_vals.push_back({"calcinfo_nmo", param.nmo_alpha() + param.nmo_beta()});
-    int_vals.push_back({"calcinfo_nalpha", param.nalpha()});
-    int_vals.push_back({"calcinfo_nbeta", param.nbeta()});
-    int_vals.push_back({"calcinfo_natom", molecule.natom()});
-    int_vals.push_back({"k", FunctionDefaults<3>::get_k()});
+    int_vals.emplace_back("calcinfo_nmo", param.nmo_alpha() + param.nmo_beta());
+    int_vals.emplace_back("calcinfo_nalpha", param.nalpha());
+    int_vals.emplace_back("calcinfo_nbeta", param.nbeta());
+    int_vals.emplace_back("calcinfo_natom", molecule.natom());
+    int_vals.emplace_back("k", FunctionDefaults<3>::get_k());
 
     to_json(j, int_vals);
 //    double_vals.push_back({"return_energy", value(molecule.get_all_coords().flat())});
-    double_vals.push_back({"return_energy", current_energy});
+    double_vals.emplace_back("return_energy", current_energy);
     to_json(j, double_vals);
-    double_tensor_vals.push_back({"scf_eigenvalues_a", aeps});
+    double_tensor_vals.emplace_back("scf_eigenvalues_a", aeps);
     if (param.nbeta() != 0 && !param.spin_restricted()) {
-        double_tensor_vals.push_back({"scf_eigenvalues_b", beps});
+        double_tensor_vals.emplace_back("scf_eigenvalues_b", beps);
     }
 
     to_json(j, double_tensor_vals);

@@ -13,7 +13,6 @@
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 
 #include <sys/stat.h>
-#include <unistd.h>
 
 static inline int file_exists(const char *input_name) {
     struct stat buffer {};
@@ -54,6 +53,8 @@ int main(int argc, char *argv[]) {
             ifs >> j_read;
             std::cout << "READ IT" << std::endl;
             json data = generate_response_data(molecule_path, xc, op, {0});
+
+            print(data);
             j_read.merge_patch(data);
             // make the keyword and add the data
             std::ofstream ofs("molecules/frequency.json");

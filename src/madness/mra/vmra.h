@@ -809,7 +809,7 @@ namespace madness {
     Tensor< TENSOR_RESULT_TYPE(T,R) > matrix_inner(World& world,
                                                    const std::vector< Function<T,NDIM> >& f,
                                                    const std::vector< Function<R,NDIM> >& g,
-                                                   bool sym=false) 
+                                                   bool sym=false)
     {
         world.gop.fence();
         compress(world, f);
@@ -855,7 +855,7 @@ namespace madness {
                 if (sym) r(j,i) = conj(r(i,j));
             }
          }
-        
+
 //        for (long i=n-1; i>=0; --i) {
 //            long jtop = m;
 //            if (sym) jtop = i+1;
@@ -1635,7 +1635,7 @@ namespace madness {
         return result;
     }
 
-    // BLM first derivative 
+    // BLM first derivative
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > grad_ble_one(const Function<T,NDIM>& f,
             bool refine=false, bool fence=true) {
@@ -1677,7 +1677,7 @@ namespace madness {
         return result;
     }
 
-    // Bspline first derivative 
+    // Bspline first derivative
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > grad_bspline_one(const Function<T,NDIM>& f,
             bool refine=false, bool fence=true) {

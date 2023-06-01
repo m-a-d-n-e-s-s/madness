@@ -540,6 +540,32 @@ namespace madness {
         }
         world.gop.fence();
     }
+    /// The ordinate is distance from lo
+    template <typename T, std::size_t NDIM>
+    void plot_line(const char* filename, int npt, const Vector<double,NDIM>& lo, const Vector<double,NDIM>& hi,
+                   const std::vector<Function<T,NDIM>>& vf) {
+        typedef Vector<double,NDIM> coordT;
+        coordT h = (hi - lo)*(1.0/(npt-1));
+        double sum = 0.0;
+        for (std::size_t i=0; i<NDIM; ++i) sum += h[i]*h[i];
+        sum = sqrt(sum);
+        World& world = vf[0].world();// get world from first function
+        // reconstruct each function in vf
+        std::for_each(vf.begin(), vf.end(), [](const Function<T,NDIM>& f){f.reconstruct();});
+        if (world.rank() == 0) {
+            FILE* file = fopen(filename,"w");
+            if(!file)
+            MADNESS_EXCEPTION("plot_line: failed to open the plot file", 0);
+            for (int i=0; i<npt; ++i) {
+                coordT r = lo + h*double(i);
+                fprintf(file, "%.14e ", i*sum);
+                std::for_each(vf.begin(), vf.end(), [&](const Function<T,NDIM>& f){ plot_line_print_value(file, f.eval(r));});
+                fprintf(file,"\n");
+            }
+            fclose(file);
+        }
+        world.gop.fence();
+    }
 
     template<size_t NDIM>
     void plot_plane(World& world, const Function<double,NDIM>& function,
