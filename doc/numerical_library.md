@@ -13,6 +13,8 @@ practiced by example.
  * `h2.cc`: solve the Hartree-Fock equations for the H2 molecule
  * `nonlinschro.cc`: use the KAIN solver for accelerating the solution of a system of non-linear equations
  * `hedft.cc`: use density functional theory 
+ 
+Some (dated) documentation for the examples and the API is [here](https://m-a-d-n-e-s-s.github.io/madness/api-doc/modules.html).
 
 
 ## Example for MADNESS as an external library
@@ -20,7 +22,6 @@ To use MADNESS as an external library in a code we recommend cmake. Build and in
 an install directory. Set
 
 `export MADNESS_DIR=/path/to/madness/install/directory/`
-
 
 In file `CMakeLists.txt`:
 
@@ -141,10 +142,12 @@ by one rank will cause the program to hang. This is a common error.
  
 Finalizes the communicator.
 It is important that all MRA objects (e.g. `Function<double,1>`) are destructed before
-`finalize()` is called, otherwise segmentation faults will occur,
-so best enclose all MRA code after `startup` inside a `try/catch` block.
+`finalize()` is called, otherwise segmentation faults might occur since the destructor for these objects will erroneously be called at the very end of the program *after* the runtime has been dismantled.
+Thus, for simple programs enclose all MRA code after `initialize` in a sub-scope (e.g., using braces or inside a `try/catch` block), or after obtaining `World` pass it (by reference) into another procedure
+that contains your MRA code.
 
 ````c
     return 0;
 }
 ````
+
