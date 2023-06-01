@@ -1,19 +1,3 @@
----
-theme: gaia
-_class: lead
-paginate: true
-backgroundColor: #fff
-backgroundImage: url('https://marp.app/assets/hero-background.svg')
-style: |
-  .columns {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
-  }
-marp: false
-math: mathjax
----
-
 # Understanding and Using the `molresponse` code 
 
 Sure! I'd be glad to help. Let's start with the introduction.
