@@ -161,9 +161,11 @@ int main(int argc, char **argv) {
                 } else {
                     MolecularEnergy E(world, calc);
                     double energy = E.value(calc.molecule.get_all_coords().flat()); // ugh!
-                    if ((world.rank() == 0) and (calc.param.print_level() > 0))
+                    if ((world.rank() == 0) and (calc.param.print_level() > 0)){
                         printf("final energy=%16.8f \n", energy);
-                    E.output_calc_info_schema();
+                        E.output_calc_info_schema();
+                    }
+
 
                     functionT rho = calc.make_density(world, calc.aocc, calc.amo);
                     functionT brho = rho;
