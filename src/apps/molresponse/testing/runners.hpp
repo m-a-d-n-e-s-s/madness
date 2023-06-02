@@ -92,8 +92,6 @@ struct runSchema {
 struct moldftSchema {
 
     path moldft_path;
-    path moldft_json_path;
-    json moldft_json;
 
     path moldft_restart;
     path calc_info_json_path;
@@ -109,11 +107,6 @@ struct moldftSchema {
         moldft_restart = addPath(moldft_path, "/moldft.restartdata.00000");
         calc_info_json_path = addPath(moldft_path, "/moldft.calc_info.json");
         mol_path = addPath(schema.molecules, "/" + mol_name + ".mol");
-        moldft_json_path = addPath(schema.molecules, "/moldft.json");
-        if (std::filesystem::exists(moldft_json_path)) {
-            std::ifstream ifs(moldft_json_path);
-            ifs >> moldft_json;
-        }
         if (std::filesystem::exists(moldft_restart) &&
             std::filesystem::exists(calc_info_json_path)) {
             // if both exist, read the calc_info json
@@ -124,8 +117,6 @@ struct moldftSchema {
                 std::cout << "time: " << calc_info_json["time"] << std::endl;
                 std::cout << "MOLDFT return energy: "
                           << calc_info_json["return_energy"] << std::endl;
-                std::cout << "MOLDFT return energy answer: "
-                          << moldft_json["return_energy"] << std::endl;
             }
         }
         if (world.rank() == 0) { print(); }
@@ -134,11 +125,9 @@ struct moldftSchema {
     void print() const {
         ::print("----------------- Moldft Paths --------------------");
         ::print("moldft path :", moldft_path);
-        ::print("moldft json path :", moldft_json_path);
         ::print("moldft restart path :", moldft_restart);
         ::print("molecule path  path :", mol_path);
         ::print("calc_info json path :", calc_info_json_path);
-        ::print("moldft json path :", moldft_json_path);
     }
 };
 
@@ -169,8 +158,8 @@ frequencySchema::frequencySchema(World &world, const runSchema &run_schema,
     : mol_name(m_schema.mol_name), xc(m_schema.xc), op(std::move(r_operator)),
       moldft_path(m_schema.moldft_path) {
     if (world.rank() == 0) {
-        freq = run_schema.freq_json_data.get_frequencies(mol_name, xc, op);
         print_schema();
+        freq = run_schema.freq_json_data.get_frequencies(mol_name, xc, op);
     }
     world.gop.broadcast_serializable(freq, 0);
 }
@@ -515,7 +504,7 @@ void set_excited_parameters(World &world, ResponseParameters &r_params,
         r_params.set_user_defined_value("plot_all_orbitals", false);
         r_params.set_user_defined_value("save", true);
         r_params.set_user_defined_value("guess_xyz", false);
-        r_params.set_user_defined_value("print_level", 20);
+        r_params.set_user_defined_value("print_level", 1);
         // set xc, property, num_states,and restart
         r_params.set_user_defined_value("xc", xc);
         r_params.set_user_defined_value("excited_state", true);
@@ -559,9 +548,7 @@ void set_frequency_response_parameters(World &world,
         r_params.set_user_defined_value("omega", frequency);
         r_params.set_user_defined_value("first_order", true);
         r_params.set_user_defined_value("plot_all_orbitals", true);
-        r_params.set_user_defined_value("plot", false);
-        r_params.set_user_defined_value("print_level", 20);
-        r_params.set_user_defined_value("guess_xyz", false);
+        r_params.set_user_defined_value("print_level", 1);
         r_params.set_user_defined_value("save", true);
         // set xc, property, frequency,and restart
         r_params.set_user_defined_value("xc", xc);

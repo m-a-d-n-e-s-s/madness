@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
     auto root = std::filesystem::current_path();//="/"+molecule_name;
     // first step is to read the molecule directory for molecules... check if it exists else throw error
 
-    std::string op = "dipole";
+    std::string op = "nuclear";
     auto molecule_path = root;
     molecule_path += "/molecules";
     std::string xc = "hf";
@@ -45,9 +45,10 @@ int main(int argc, char *argv[]) {
         std::filesystem::create_directory(xc_path);
         cout << "Creating XC directory for " << xc << ":\n";
     }
+    auto freq_json_path = "json_data/frequency.json";
     try {
-        if (std::filesystem::exists("molecules/frequency.json")) {
-            std::ifstream ifs("molecules/frequency.json");
+        if (std::filesystem::exists(freq_json_path)) {
+            std::ifstream ifs(freq_json_path);
             std::cout << "Trying to read frequency.json" << std::endl;
             json j_read;
             ifs >> j_read;
@@ -57,13 +58,13 @@ int main(int argc, char *argv[]) {
             print(data);
             j_read.merge_patch(data);
             // make the keyword and add the data
-            std::ofstream ofs("molecules/frequency.json");
+            std::ofstream ofs(freq_json_path);
             ofs << std::setw(4) << j_read << std::endl;
 
         } else {
             json data;
             json new_data = generate_response_data(molecule_path, xc, op, {0});
-            std::ofstream ofs("molecules/frequency.json");
+            std::ofstream ofs(freq_json_path);
             ofs << std::setw(4) << data << std::endl;
         }
 
