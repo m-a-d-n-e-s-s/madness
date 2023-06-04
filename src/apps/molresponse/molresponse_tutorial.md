@@ -1,45 +1,37 @@
-# Understanding and Using the `molresponse` code 
+# Tutorial: Understanding and using the `molresponse` code
 
-Sure! I'd be glad to help. Let's start with the introduction.
+ In this tutorial, we will explore the computation of frequency-dependent response properties using the `FrequencyResponse` class within `molresponse`.
 
----
+## Overview of `molresponse`
 
-## Understanding and Using the `molresponse` code 
-
-Welcome to this tutorial on `molresponse`, a powerful tool for calculating molecular response properties! 
-
-Over the next few slides, we will:
-
-1. Introduce the theoretical background and structure of the `molresponse` code.
-2. Explain the different components of the code and their functionality.
-3. Demonstrate the configuration and use of `molresponse` through two practical examples: calculating static and frequency-dependent responses.
-
-Our aim is to equip you with the knowledge and skills to effectively use `molresponse` in your own scientific research.
-
----
-
-
+`molresponse` is a multiresolution solver designed to compute response properties and excited states of molecular systems.  Solver computes response states starting with a `moldft` calculation, which provides the ground state of the system
 
 ## Computing Frequency-Dependent Response with `FrequencyResponse` class
 
-In `molresponse`, frequency-dependent response properties are calculated with the
-`FrequencyResponse` class.  It primarily solves the frequency-dependent coupled response equations.
-in the form,
+In `molresponse`, the computation of frequency-dependent response properties is achieved by solving the coupled response equations in integral form:
 
 $$\boldsymbol{X}=\boldsymbol{G(\omega_a)}\star[\boldsymbol{VX}+\boldsymbol{P}]$$
 
-Let's break down this equation:
+Here's a breakdown of the variables involved:
 
-- $\boldsymbol{X}$ is the response vector containing the  
-- $\boldsymbol{G(\omega_a)}$ is the Green's function.
-- $\boldsymbol{V}$ is the potential.
-- $\boldsymbol{P}$ is the perturbation operator (dipole/nuclear/2nd_order...).
+- $\boldsymbol{X}$: The response vector containing the transition functions.
+- $\boldsymbol{G(\omega_a)}$: The Green's function.
+- $\boldsymbol{V}$: The potential.
+- $\boldsymbol{P}$: The perturbation operator (e.g., dipole, nuclear, second-order).
+- $\omega_a$: The frequency of the perturbation.
 
----
+Therefore, response calculation is parameterized by:
 
-## Understanding the `X_space` class
+1. The ground state calculation with molecular geometry, ground state orbitals, and orbital energies.
+2. The perturbation operator.
+3. The frequency of the perturbation.
 
-The X_Space class is a fundamental component in molresponse as it encapsulates the response vector, $\boldsymbol{X}$, for the system. This is crucial because we often need to solve for multiple perturbations at the same time.
+The solver iteratively computes the response vector, starting from an initial $\boldsymbol{X}$, until convergence is reached. Convergence is determined by the bsh residuals of the response vectors and the change in the response density, both falling below defined thresholds.
+With convergence, the response vectors are used to computed the frequency-dependent response properties.
+
+### Understanding the `X_space` class
+
+The `X_Space` class is a fundamental component in molresponse as it encapsulates all response vectors computed in a response calculation. The solver is capable of solvin multiple perturbations at the same time.
 
 ```cpp
     struct X_space {
@@ -94,8 +86,6 @@ X_space nuclear_generator(World &world, FrequencyResponse &calc);
 
 - The `nuclear_generator` generates the RHS vector for the nuclear derivative operators.
 - It is still under development and hasn't been thoroughly tested, so use with caution.
-
----
 
 ## Prerequisites: Preparing for the `molresponse` Calculation
 
@@ -207,21 +197,11 @@ end
 This configuration computes the frequency-dependent response at 0.011116 a.u. frequency, starting from the static solution saved in the `../dipole_hf_0-000000/restart_dipole_hf_0-000000` file.
 
 ---
+
 ## Conclusion and Next Steps
-
-
 
 We've explored the inner workings of `molresponse` and seen it in action through practical examples. By now, you should have a clear understanding of:
 
 1. The theoretical framework that underpins `molresponse`.
 2. The core components of the code and their roles.
 3. How to set up and perform static and dynamic response calculations.
-
-Next steps:
-
-- Deepen your understanding: Explore the `molresponse` documentation for more detailed explanations and additional examples.
-- Get hands-on: Apply what you've learned today to your own research questions.
-
-Thank you for your attention, and we look forward to seeing what you'll achieve with `molresponse`!
-
----
