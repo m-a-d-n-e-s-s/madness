@@ -137,3 +137,32 @@ and MP2/CC2 correlation energies, respectively.
 
 This is a very brief overview. I highly recommend reading the full tutorial [here](../../src/apps/molresponse/molresponse_tutorial.md) to fully understand how to use `molresponse`
 effectively and accurately.
+
+### MADNESS + MPI
+To run a MADNESS application in parallel with MPI, you can simply run 
+
+- `mpirun -n #procs qccode`
+
+which will execute the given application with the specified amount of MPI processes. In addition, you will need to set the number of MADNESS threads by exporting the following variable
+
+- `export MAD_NUM_THREADS=#threads`
+
+By default, this is set to the number of CPUs available. When using MPI, each process will spawn the specified number of threads plus one additional communication thread **per process**. Don't use too many threads or the performance will be poor, it is a good idea to set the number to be lower than the total number of CPUs available and leave some capacity to the OS.
+
+#### example
+
+Consider a compute node with two CPUs with 14 cores each. Then
+
+- `export MAD_NUM_THREADS=12`
+-  `mpirun -n 2 moldft`
+
+will result in 26 threads in total, leaving two cores to the OS. In general, if $n$ is the number of MPI processes and $m$ is the number of threads, the total number of threads will be $(m+1) \cdot n$. 
+
+#### multiple nodes
+If the calculation is distributed over multiple compute nodes, the number of MPI processes *per node* need to be specified via the `-ppn #procs` option, as well as the *total* number of processes. Using the same example as earlier but with ten compute nodes instead of one, we would get
+
+- `mpirun -n 20 -ppn 2 moldft`
+
+to run moldft on ten compute nodes with two MPI processes each and should result in a faster calculation. Performance can be further enhanced by pinning the processes to the socket, in order to avoid data being used by the process being stored on another node.
+
+- `export I_MPI_PIN_DOMAIN=socket`
