@@ -1,4 +1,4 @@
-# Chemistry in Madness
+# Chemistry in MADNESS
 
 ## Running a calculation -- quick and dirty
 
@@ -146,22 +146,20 @@ mpirun -n #procs qccode
 ```
 
 which will execute the given application with the specified amount of MPI processes. In addition, you will need to set the number of MADNESS threads by exporting the following variable
-
 ```shell
 export MAD_NUM_THREADS=#threads
 ```
+or you can specify the environment variable on the same line as the command.
 
-By default, this is set to the number of CPUs available. When using MPI, each process will spawn the specified number of threads plus one additional communication thread **per process**. Don't use too many threads or the performance will be poor, it is a good idea to set the number to be lower than the total number of CPUs available and leave some capacity to the OS.
+By default, this is set to the number of cores available. When using MPI, each process will spawn the specified number of threads plus one additional communication thread **per process**.  Don't use too many threads or the performance will be poor --- it is a good idea to set the number to be lower than the total number of CPUs available and leave some capacity to the OS.
 
 #### example
 
 Consider a compute node with two CPUs with 14 cores each. Then
-
 ```shell
 export MAD_NUM_THREADS=12
 mpirun -n 2 moldft
 ```
-
 will result in 26 threads in total, leaving two cores to the OS. In general, if $n$ is the number of MPI processes and $m$ is the number of threads, the total number of threads will be $(m+1) \cdot n$. 
 
 #### multiple nodes
@@ -171,8 +169,19 @@ If the calculation is distributed over multiple compute nodes, the number of MPI
 mpirun -n 20 -ppn 2 moldft
 ```
 
-to run moldft on ten compute nodes with two MPI processes each and should result in a faster calculation. Performance can be further enhanced by pinning the processes to the socket, in order to avoid data being used by the process being stored on another node.
+Most modern servers have multiple sockets (processor chips) to which memory is directly connected.  Performance can be further enhanced by using one MPI process per socket and pinning the threads associated with each process to separate sockets:
+* This localizes memory references and provides best memory bandwidth.
+* The overheads of inter-socket memory coherency are avoided.
+* Each process will have fewer threads, making the memory allocator and task queue more efficient.
 
+E.g., to run moldft on ten dual-socket compute nodes with two MPI processes on each node and with processes bound to separate sockets assuming each socket has 12 physical cores (so we use 10+1 threads for MADNESS and leave 1 core per socket free for the OS):
+
+* For Intel MPI assuming 12 physical cores per socket
 ```shell
-export I_MPI_PIN_DOMAIN=socket
+    MAD_NUM_THREADS=10 I_MPI_PIN_DOMAIN=socket mpirun -np 20 -ppn 2 moldft
+```
+
+For OpenMPI assuming 12 physical cores per socket
+```shell
+    MAD_NUM_THREADS=10 mpirun --map-by=socket -n 20 -ppn 2 moldft
 ```

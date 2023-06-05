@@ -4,7 +4,7 @@
 
 1. [Downloading](#downloading)
 1. [Building and installing](#building-and-installing)
-1. Insanity
+1. [Chemistry](#chemistry)
 1. [MADNESS parallel runtime --- basic concepts and architecture](#MADNESS-parallel-runtime)
 1. [MADNESS numerical API and example application](#MADNESS-numerical-API)
 1. [MADNESS chemical API and example Hartree-Fock program](#MADNESS-chemical-API)
@@ -70,6 +70,10 @@ Issues that need fixing
   - what packages to install and how
 * Configuring a vanilla ARM Mac
   - what packages to install and how
+  
+## Chemistry
+
+* [Please look here](chemistry.md)
 
 ## MADNESS parallel runtime
 
