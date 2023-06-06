@@ -176,7 +176,7 @@ public:
 	real_function_3d compute_U2() const;
 	real_function_3d compute_R_times_T_commutator_scalar_term_numerically() const;
 
-	/// returns R^{-1} \vec\nabla\R
+	/// returns \f$R^{-1} \vec\nabla R\f$
 	std::vector<real_function_3d> compute_nabla_R_div_R() const;
 
 	/// run the tests

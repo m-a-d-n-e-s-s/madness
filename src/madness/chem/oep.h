@@ -299,7 +299,7 @@ public:
     	return density;
     }
 
-        /// compute \Delta rho as an indicator for the result's quality
+    /// compute Delta rho as an indicator for the result's quality
     double compute_delta_rho(const real_function_3d rho_HF, const real_function_3d rho_KS) const {
     	// from Ospadov_2017, equation (26)
     	real_function_3d rho_diff = abs(rho_KS - rho_HF);
@@ -406,10 +406,11 @@ public:
 
     /// shift of the diagonal elements of the fock matrix results in a global shift
     /// of the potential
-    /// \[
+    /// \f[
     /// \frac{\bar \epsilon}{\rho} = \frac{1}{\rho}\sum_{ij}\phi_i(F_ij+\delta_ij s)\phi_j
     ///        = \frac{1}{\rho} ( \sum_{ij}\phi_i F_ij \phi_j + s\sum_i\phi_i\phi_i )
     ///        = s + \frac{1}{\rho} \sum_{ij}\phi_i F_ij \phi_j
+    /// \f]
     real_function_3d compute_ocep_correction(const real_function_3d& ocep_numerator_HF,
     		const vecfuncT& nemoHF, const vecfuncT& nemoKS,
 			const tensorT& fockHF, const tensorT& fockKS) const {

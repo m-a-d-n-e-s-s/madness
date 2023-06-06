@@ -309,9 +309,9 @@ public:
 	/// This breaks apart into the convolution with:
 	/// \f$ f*U = 1/(2\gamma)*(U - e^{-\gamma*r_{12}} \f$
 	/// local part: (could be further simplified by combining the BSH Operators of Ulocal the expression below)
-	/// \f$ f*U^{\text{loc}} =  1/(2\gamma)*(U^{\text{loc}} - 4\pi*G(\gamma) + 4\piG(2\gamma) - \gamma/2 (e^{-2\gamma*r_{12}} )
+	/// \f$ f*U^{\mbox{loc}} =  1/(2\gamma)*(U^{\mbox{loc}} - 4\pi*G(\gamma) + 4\pi*G(2\gamma) - \gamma/2 (e^{-2\gamma*r_{12}} )
 	/// nonlocal part:
-	/// \f$ f*U^{\text{nloc}} = 1/(2\gamma)*(U^{\text{nloc}}(\gamma) - U^{\text{nloc}}(2\gamma))
+	/// \f$ f*U^{\mbox{nloc}} = 1/(2\gamma)*(U^{\mbox{nloc}}(\gamma) - U^{\mbox{nloc}}(2\gamma))
 	vector_real_function_3d convolve_with_fU(const vector_real_function_3d& bra, const real_function_3d& ket1,
 			const real_function_3d& ket2, const bool symmetric = false) const;
 	real_function_3d convolve_with_fU(const real_function_3d& bra,const real_function_3d& ket1,

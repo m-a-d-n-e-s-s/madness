@@ -92,7 +92,6 @@
                     \frac{1}{\epsilon_1 |r|} + \left( \frac{1}{\epsilon_2} - \frac{1}{\epsilon_1} \right) \frac{1}{R}  & |r| < R
                \end{array}
             \right .
-
   \f]
   The surface charge density integrated over the suface has the value
   \f[

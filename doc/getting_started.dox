@@ -52,9 +52,6 @@ MADNESS stands for multiresolution adaptive numerical environment for scientific
 In MADNESS, your code is written in terms of functions and operators, using the C++ language, and for this reason it can be thought of as a basis-free method. There is, of course, an underlying representation and approximation using bases and grids, and they adapt and refine automatically to satisfy the requested precision -- but you do not have to think about this until efficiency or memory use become concerns, if ever.
 
 The numerical operations can be regarded as a finite precision equivalent of the mathematical calculus used to express your equations. For example, the code corresponding to
-\f[
-\int \left( \frac{1}{2} \left( \frac{d\psi}{dx} \right)^{2} + V(x)\psi (x)^{2} \right) \mathit{dx}
-\f]
 in three dimensions is just
 \code
   real_function_3d dpsidx = Dx(psi);
