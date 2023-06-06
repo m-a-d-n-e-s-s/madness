@@ -1,17 +1,8 @@
-# Numerical and chemistry API
+# Chemistry API
 
-## Cmake 
-When using Madness as external library, we recommend cmake 
+There are several interfaces and methods for writing quantum chemistry codes and we will write a simple HF code as an example.
 
-## Numerical API
-
-
-## Chemistry API
-There is a number of methods for writing quantum chemistry codes, 
-we will write a simple HF code as an example 
-
-
-### SCFOperators
+## SCFOperators
 Operators occuring in SCF methods are implemented in SCFOperators.h. Currently there 
 are: 
  - ```Kinetic```
@@ -38,8 +29,7 @@ std::vector<Function<double,3>> Vphi=Vnuc(orbitals);
 Tensor<double> tmat=T(orbitals,orbitals);
 ```
 
-
-### BSHApply
+## BSHApply
 Solving the Schroedinger equation in MRA always looks like
 ```math
 \displaylines{
@@ -65,7 +55,7 @@ New orbitals are the taken directly from the residual, or by using a convergence
 orbitals-=residual;
 ```
 
-### KAIN Solver
+## KAIN Solver
 Similar to DIIS, the KAIN solver stabilizes and accelerates the solution of the nonlinear equations.
 
 ```c++
@@ -76,3 +66,10 @@ The new solution is a linear combination of the old solutions and the new update
 ```c++
 orbitals=solver.update(orbitals,residual);
 ```
+
+## Hartree-Fock example codes
+
+* [Simple HF code for helium in C++](https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/hehf.cc) and associated [documentation](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__examplehehf.html)
+* [Simple molecular HF code using the chemistry API](https://github.com/m-a-d-n-e-s-s/madness/blob/master/doc/tutorial/simple_hf.cpp)
+
+
