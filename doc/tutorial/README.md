@@ -8,29 +8,6 @@
 1. [MADNESS parallel runtime --- basic concepts and architecture](#MADNESS-parallel-runtime)
 1. [MADNESS numerical API and example application](#MADNESS-numerical-API)
 1. [MADNESS chemical API and example Hartree-Fock program](#MADNESS-chemical-API)
-
-This tutorial covers
-* using the MADNESS chemistry applications. [Florian, Hannes, Adrian]
-  - structure of the input file
-  - moldft, gradient
-  - molresponse
-  - all the other codes incl. 6D
-  - excited states, hessian
-* running MADNESS applications in parallel using threads + MPI [Hannes]; and
-  - basic concepts
-  - environment variables
-  - single process
-  - MPI
-  - Tips, tricks, and pitfalls
-    - binding process+threads to sockets
-    - avoid fast malloc libraries if using MPI
-* an overview of the MADNESS parallel runtime sufficient to develop numerical applications; [RJH]
-* developing new applications using the numerical and chemistry APIS; [All of us]
-  - overview of basic concepts and the numerical API [RJH]
-  - cmake file and makefile to use madness as a library [???]
-  - hello world in the numerical API [RJH]
-  - overview of the chemistry API [Florian]
-  - a simple Hartree-Fock program
   
 ## Downloading
 
@@ -63,13 +40,6 @@ cmake -DENABLE_MPI=OFF -DCMAKE_INSTALL_PREFIX=/home/me/madinstall /path/to/madne
 make applications
 make install  # optional
 ```
-
-Issues that need fixing
-* ACML is now AOCL
-* Configuring a vanilla Intel Mac
-  - what packages to install and how
-* Configuring a vanilla ARM Mac
-  - what packages to install and how
   
 ## Chemistry
 
@@ -134,8 +104,9 @@ If you are going program more extensively in MADNESS, then also worth looking at
 * [Serialization](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__serialization.html) and [here]()
 
 
-## MADNESS chemical API
+## Exercises
 
-And we're off to the races
+* ???
+* ???
 
 
