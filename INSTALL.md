@@ -45,7 +45,7 @@ If you want to build the documentation then also
 
 ### Minimal MacOS packages
 
-????????????????????
+To be written
 
 
 The below summarizes some of the most useful CMake variables.
@@ -143,20 +143,24 @@ CMAKE_PREFIX_PATH as well as other system paths.
       [default=ON]
 * LIBXC_ROOT_DIR --- The install prefix for LIBXC.
 * LIBXC_INCLUDE_DIR --- The path to the LIBXC include directory.
-* LIBXC_LIBRARY --- The path to the LIBXC library directory.
+* LIBXC_LIBRARY --- The path to the LIBXC library.
+
+E.g.,
+```
+cmake -DENABLE_LIBXC=ON -DLIBXC_LIBRARIES=/home/rjh/install/lib/libxc.a -DLIBXC_INCLUDE_DIRS=/home/rjh/install/include ../madness
+```
 
 ### Intel Threading Building Blocks (TBB):
 
-* ENABLE_TBB --- Enables use of Intel TBB as the task scheduler [default=OFF]
-* TBB_ROOT_DIR --- The install prefix for TBB
-* TBB_INCLUDE_DIR --- The path to the TBB include directory
-* TBB_LIBRARY --- The path to the TBB library directory. By default, the library
+* Define MADNESS_TASK_BACKEND=TBB --- this should auto detect TBB if it is installed in a standard location.  If it is not, you'll have to also define
+  * TBB_ROOT_DIR --- The install prefix for TBB.  If TBB_ROOT_DIR is not given, it will be set to the value of the TBBROOT environment variable if it is set.  And if `cmake` still does not detect things you can set
+  * TBB_INCLUDE_DIR --- The path to the TBB include directory
+  * TBB_LIBRARY --- The path to the TBB library directory. By default, the library
       search path is ${TBB_ROOT_DIR}/(lib/intel64/gcc4.4|lib) on Linux and
       ${TBB_ROOT_DIR}/(lib/libc++|lib) on OS X, if TBB_ROOT_DIR is specified in
       the configure command.
-* MADNESS_EXPLOIT_TBB_PRIORITY --- If ON, MADNESS will try to use Intel TBB task priorities [default=OFF]
+  * Optionally, MADNESS_EXPLOIT_TBB_PRIORITY --- If ON, MADNESS will try to use Intel TBB task priorities [default=OFF]
 
-If TBB_ROOT_DIR is not given, it will be set to the value of the TBBROOT environment variable if it is set.
 
 ### Intel Math Kernel Library (MKL):
 
@@ -167,6 +171,8 @@ If TBB_ROOT_DIR is not given, it will be set to the value of the TBBROOT environ
 If MKL_ROOT_DIR is not given, it will be set to the value of the MKLROOT environment variable if it is set.
 
 ### AMD Core Math Library (ACML):
+
+*This is out of date since ACML is now AOCL.*
 
 * ENABLE_ACML --- Search for AMD math library for BLAS and LAPACK support
       [default=ON]
@@ -214,7 +220,7 @@ madness/src/apps/chem/CMakeLists.txt
 
 ### Elemental parallel linear algebra library:
 
-**This has not been tested in some time.**
+*This has not been tested in some time.*
       
 Elemental provides optional distributed-memory linear algebra for some MADNESS application codes.
 MADNESS source includes (modified) Elemental v0.84, which has been validated to work with
@@ -238,6 +244,8 @@ Recommended only for TTG development.
 If ENABLE_PARSEC is set but PaRSEC is not found, it will be built from source.
     
 ## MADNESS Runtime and the Address Space Layout Randomization (ASLR)
+
+If you can run with one process and are getting almost immediate segmentation violations with more processes, this might be the issue.
 
 ASLR (Linux relevant documentation [here](https://linux-audit.com/linux-aslr-and-kernelrandomize_va_space-setting/))
 is a standard technique for increasing platform security implemented by the OS kernel and/or

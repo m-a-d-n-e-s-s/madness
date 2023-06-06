@@ -1,24 +1,35 @@
 # Chemistry in MADNESS
 
+* More detailed documention is [here](https://madness.readthedocs.io/en/latest/quantum.html)
+
 ## Running a calculation -- quick and dirty
 
 Running a quantum chemical calculations requires a molecule -- and not much more:
 
 ```shell
-moldft --geometry=h2o.xyz 
+  export MAD_NUM_THREADS-10
+  moldft --geometry=h2o.xyz 
 ```
-
-This will run a HF calculation on the molecule specified in the `h2o.xyz`-file.
+This will run an HF calculation on the molecule specified in the `h2o.xyz`-file.
 A geometry optimization is performed by
-
 ```shell
 moldft --geometry=h2o.xyz  --optimize
 ```
 
+If you want to run a standard geometry you can load one from the [structure library](https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/madness/chem/structure_library).  E.g., water with default parameters
+```shell
+moldft --geometry="water"
+```
+
+DFT and other parameters can also be overriden on the command line, using semicolons to represent end of line.  E.g., 
+```shell
+moldft --geometry="water" --dft="xc lda; maxiter 5"
+```
+
+
 ## Getting help
 
 All quantum chemical codes (e.g. `nemo`, `moldft`, etc) have two options
-
 ```shell
 nemo --help
 nemo --print_parameters
@@ -144,16 +155,15 @@ To run a MADNESS application in parallel with MPI, you can simply run
 ```shell
 mpirun -n #procs qccode
 ```
-
 which will execute the given application with the specified amount of MPI processes. In addition, you will need to set the number of MADNESS threads by exporting the following variable
 ```shell
 export MAD_NUM_THREADS=#threads
 ```
 or you can specify the environment variable on the same line as the command.
 
-By default, this is set to the number of cores available. When using MPI, each process will spawn the specified number of threads plus one additional communication thread **per process**.  Don't use too many threads or the performance will be poor --- it is a good idea to set the number to be lower than the total number of CPUs available and leave some capacity to the OS.
+By default, this is set to the number of cores available. When using MPI, each process will spawn the specified number of threads plus one additional communication thread **per process**.  Don't use too many threads or the performance will be poor --- it is a good idea to set the number to be lower than the total number of physical cores (*not* hyperthreads) available and leave some capacity to the OS.
 
-#### example
+#### Example
 
 Consider a compute node with two CPUs with 14 cores each. Then
 ```shell
@@ -162,8 +172,8 @@ mpirun -n 2 moldft
 ```
 will result in 26 threads in total, leaving two cores to the OS. In general, if $n$ is the number of MPI processes and $m$ is the number of threads, the total number of threads will be $(m+1) \cdot n$. 
 
-#### multiple nodes
-If the calculation is distributed over multiple compute nodes, the number of MPI processes *per node* need to be specified via the `-ppn #procs` option, as well as the *total* number of processes. Using the same example as earlier but with ten compute nodes instead of one, we would get
+#### Multiple nodes
+If the calculation is distributed over multiple compute nodes, the number of MPI processes *per node* need to be specified via the `-ppn #procs` option, as well as the *total* number of processes. Using the same example as earlier but with ten compute nodes instead of one, we would get (depending on which MPI you are using)
 
 ```shell
 mpirun -n 20 -ppn 2 moldft
@@ -174,14 +184,18 @@ Most modern servers have multiple sockets (processor chips) to which memory is d
 * The overheads of inter-socket memory coherency are avoided.
 * Each process will have fewer threads, making the memory allocator and task queue more efficient.
 
-E.g., to run moldft on ten dual-socket compute nodes with two MPI processes on each node and with processes bound to separate sockets assuming each socket has 12 physical cores (so we use 10+1 threads for MADNESS and leave 1 core per socket free for the OS):
+E.g., to run moldft on ten dual-socket compute nodes with 
+* two MPI processes on each node,
+* with processes bound to separate sockets, and 
+* assuming each socket has 12 physical cores
+we use 10+1 threads for MADNESS and leave 1 core per socket free for the OS):
 
-* For Intel MPI assuming 12 physical cores per socket
+* For Intel MPI
 ```shell
     MAD_NUM_THREADS=10 I_MPI_PIN_DOMAIN=socket mpirun -np 20 -ppn 2 moldft
 ```
 
-For OpenMPI assuming 12 physical cores per socket
+For OpenMPI
 ```shell
     MAD_NUM_THREADS=10 mpirun --map-by=socket -n 20 -ppn 2 moldft
 ```

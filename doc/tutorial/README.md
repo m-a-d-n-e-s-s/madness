@@ -8,6 +8,7 @@
 1. [Parallel runtime --- basic concepts and architecture](#Parallel-runtime)
 1. [Numerical API and example application](#Numerical-API)
 1. [Chemical API and example Hartree-Fock program](#Chemical-API)
+1. [Exercises](#Exercises)
   
 ## Downloading
 
@@ -32,7 +33,7 @@ checkout XXXXXXXXXXXXXXXXXXX
 
 Please refer to the [installation instructions](https://madness.readthedocs.io/en/latest/INSTALL.html).
 
-Minimal recipe without MPI
+Minimal recipe without MPI and assuming Intel MKL is installed in a standard location
 ```
 mkdir build # CANNOT be in the madness source tree
 cd build
@@ -40,6 +41,21 @@ cmake -DENABLE_MPI=OFF -DCMAKE_INSTALL_PREFIX=/home/me/madinstall /path/to/madne
 make applications
 make install  # optional
 ```
+
+### Modules to load to build on FRAM for the Trømso tutorial
+
+```
+    module purge
+    module load Emacs/27.2-GCCcore-11.2.0
+    module load OpenMPI/4.1.4-GCC-11.3.0
+    module load imkl/2022.2.1
+    module load tbb/2021.5.0-GCCcore-11.3.0
+    module load CMake/3.23.1-GCCcore-11.3.0
+    module load git/2.36.0-GCCcore-11.3.0-nodocs
+    module load Python/3.10.4-GCCcore-11.3.0
+```
+Ignore any warnings or informational messages.
+
   
 ## Chemistry
 
@@ -109,7 +125,57 @@ If you are going to program more extensively in MADNESS, then also worth looking
 
 ## Exercises
 
-* ???
-* ???
+### Chemistry examples
+* Run some calculations on small molecules of either your choosing or from the [structure library](https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/madness/chem/structure_library).  E.g.,
+```shell
+    MAD_NUM_THREADS=10 moldft --geometry="water" --dft="xc lda; maxiter 5"
+```
+  * Without linking with LIBXC, with `moldft` you can run either LDA or HF calculations.
+  * Play with some of the `moldft` DFT parameters
+    * E.g., the sequence of tolerances used for DFT solution `protocol [1e-4,1e-6,1e-8]` and the error in the energy.
+    * E.g., the interaction between convergence requested for the density (e.g., `dconv 1e-6`), the error in the energy, and the required tolerances (you'll find tighter convergence will need tighter tolerance to get convergence).
+    * E.g., the smoothing of the nuclear potential (e.g., `eprec 1e-4` in the `geometry` block) and its impact on the cost of the calculation, the error in the energy, or the error in an optimized geometry.
+  * Compare results with your favorite other code using a different basis (e.g., Gaussian functions).
+
+### Explore the example codes
+* The source code is [here](https://github.com/m-a-d-n-e-s-s/madness/tree/master/src/examples)
+* The `doxygen` generated documentation
+
+ [Solves the 3D harmonic oscillator](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__example3dharm.html)
+ [Illustrates general composition of two functions](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__examplebinop.html)
+ [Data and load balancing](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__loadbaleg.html)
+ [Poisson's equation in a dielectric medium](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__exampledielectric.html)
+ [Laplace's equations for dielectric sphere in an external field](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__exampledielectricfield.html)
+ [Example of function I/O from getting started guide](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__functionioeg.html)
+ [Compute the dielectric cavity and the electrostatic potential of hydrogen atom in water](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__examplegygi.html)
+ [Hartree-Fock equations for the hydrogen molecule](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__examplesh2hf.html)
+ [Energy of the hydrogen atom ground state](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__hatom__energy.html)
+ [Solves heat equation using the Green's function](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__exampleheat.html)
+ [Evolve in time 3D heat equation with a linear term](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__heatex2.html)
+ [Hartree-Fock equations for the helium atom](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__examplehehf.html)
+ [Solves the two-particle system exactly](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__helium__exact.html)
+ [Hello world MADNESS style](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__hellowworldmad.html)
+ [Solves a Navier-Stokes equation](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__examplense.html)
+ [Solves a 1D nonlinear Schrödinger equation](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__examplenonlinsc.html)
+ [Demonstrates/tests use of 3D shape functions](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__shape__tester.html)
+ [First example from getting started guide](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__sininteg.html)
+ [Spectral propagator in time using semigroup approach](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__spectralprop.html)
+ [Solves a 1D time-dependent Schrödinger equation using splitting and semi-group approaches with the free-particle propagator](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__exampletdse1d.html)
+ 
+### Write your own simple test
+ 
+Starting from the simple `cmake` and C++ file from the [Numerical API](#Numerical-API) section, make a code to solve a simple problem you are interested in
+* E.g., project and do arithmetic on a function of your selection.
+* E.g., plot a function (look at some of the examples and also the [intrductory documentation](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__gstart__io.html)
+
+### MADNESS detailed presentation
+
+Have a skim through [MADNESSeverything4.pdf](https://github.com/m-a-d-n-e-s-s/madness/blob/tutorial/doc/MADNESSeverything4.pdf).
+* Since the file is large, it is probably easier to look at your local version using your system PDF viewer.
+* It goes through all the key concepts and is hopefully useful for self study.
 
 
+
+
+ 
+ 

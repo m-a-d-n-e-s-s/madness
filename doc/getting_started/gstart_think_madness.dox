@@ -106,7 +106,6 @@ S(s) & = & \left\{ \begin{array}{ll} s_{0}, & s\le 0 \\ q(s, s_{0}, s_{1}), & 0 
 q(s, s_{0}, s_{1}) & = & s_{0} - (-2s_{1} + 3s_{0}) \left( \frac{s}{s_{1}} \right)^{2} + (2s_{0} - s_{1}) \left(\frac{s}{s_{1}}\right)^{3}.
 \f}
 The function \f$S(s)\f$ coincides with its argument for \f$s>s_{1}\f$ and, for smaller values, smoothly switches to a minimum value of \f$s_{0}\f$ with a continuous value and derivative at both end points.
-\todo Interesting... The last sentence should start "The function S(s)..." but for some reason, I'm getting the image for g(s).
 
 Some computations are intrinsically expensive. For instance, the function \f$ \exp(i\omega r)\f$ is oscillatory everywhere and the number of required coefficients will increase linearly with the solution volume. In a 3-D box of width \f$L\f$, the number of coefficients will be \f$\mathcal{O}\left(\left(Lk\omega \right)^{3}\right)\f$ (where \f$k\f$ is the multiwavelet or polynomial order). For \f$L=1000\f$, \f$k=12\f$ and \f$\omega=3\f$, a few hundred TB of data (i.e., too much!) will be generated. Thus, it is worth making a back of the envelope estimate about the expected cost of computation before
 getting started.
