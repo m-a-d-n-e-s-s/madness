@@ -33,7 +33,6 @@
   \file gstart_load_balance.dox
   \brief Getting started with MADNESS load and memory balancing.
   \addtogroup gstart_load_balance
-  \todo Verify that the code snippets here aren't stale. They're imported from a 2010 document.
 
 Load and memory balancing is a critical issue on the current generation of shared and distributed memory computers. Many terascale and petascale computers have no virtual memory capabilities on the compute nodes, so memory management is very important.
 
@@ -44,7 +43,7 @@ Many operations in MADNESS are entirely data driven (i.e., computation occurs in
 There are presently three load balancing mechanisms within MADNESS:
 - static and driven by the distribution of data, 
 - dynamic via random assignment of work, and 
-- dynamic via work stealing (currently only in prototype). 
+- dynamic via work stealing (now abandoned). 
 .
 Until the work stealing becomes production quality we must exploit the first two forms. The random work assignment is controlled by options in the \c FunctionDefaults class:
 - `FunctionDefaults::set_apply_randomize(bool)` controls the use of randomization in applying integral (convolution) operators. It is typically beneficial when computing to medium/high precision. 
@@ -52,11 +51,10 @@ Until the work stealing becomes production quality we must exploit the first two
 .
 The process map (an instance of \c WorldDCPmapInterface) controls mapping of data to processors and it is actually quite easy to write your own (e.g., see \c WorldDCDefaultPmap or \c LevelPmap) that ensure uniform data distribution. However, you also seek to incorporate estimates of the computational cost into the distribution. The class \c LBDeuxPmap (deux since it is the second such class) in `trunk/src/madness/mra/lbdeux.h` does this by examining the functions you request and using provided weights to estimate the computational cost.
 
-\todo I'm sure I'll raise a point about this later, but can we get rid of the "deux" in the load balancing classes? As I recall, "une" was deleted some time ago.
-
 Communication costs are proportional to the number of broken links in the tree. Since some operations work in the scaling function basis, some in the multiwavelet basis, and some in non-standard form, there is an element of empiricism in getting best performance from most algorithms. 
 
-The example code in `trunk/src/examples/dataloadbal.cc` illustrates how the discussions in this section can be applied.
+The example code in <a href="https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/dataloadbal.cc">`src/examples/dataloadbal.cc`</a> illustrates how the discussions in this section can be applied.
+
 
 Previous: \ref gstart_io; Next: \ref gstart_think_madness
 */
