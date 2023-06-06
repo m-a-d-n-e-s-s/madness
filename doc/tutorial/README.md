@@ -5,7 +5,7 @@
 1. [Downloading](#downloading)
 1. [Building and installing](#building-and-installing)
 1. [Chemistry applications](#chemistry)
-1. [Parallel runtime --- basic concepts and architecture](#MADNESS-parallel-runtime)
+1. [Parallel runtime --- basic concepts and architecture](#Parallel-runtime)
 1. [Numerical API and example application](#Numerical-API)
 1. [Chemical API and example Hartree-Fock program](#Chemical-API)
   
