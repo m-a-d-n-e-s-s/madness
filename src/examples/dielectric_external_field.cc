@@ -32,12 +32,12 @@
 */
 
 /*!
-  \file examples/dielectric.cc
+  \file dielectric_external_field.cc
   \brief Example solution of Laplace's equations for dielectric sphere in an external field
   \defgroup exampledielectricfield Laplace's equations for dielectric sphere in an external field
   \ingroup examples
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/dielectric_field.cc>here</a>.
+  The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/dielectric_external_field.cc>here</a>.
 
   \par Points of interest
   - use of iterative equation solver

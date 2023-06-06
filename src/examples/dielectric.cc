@@ -37,7 +37,7 @@
   \defgroup exampledielectric Poisson's equation in a dielectric medium
   \ingroup examples
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/dielectric.cc>here</a>.
+  The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/dielectric.cc>here</a>.
 
   \par Points of interest
   - use of iterative equation solver

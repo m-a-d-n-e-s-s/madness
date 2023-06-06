@@ -37,7 +37,7 @@ $Id$
   \defgroup examplegygi compute the dielectric cavity and the electrostatic potential of hydrogen atom in water
   \ingroup examples
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/gygi_slution.cc>here</a>.
+  The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/gygi_slution.cc>here</a>.
 
   \par Points of interest
   - compute the dielectric functional (of density)

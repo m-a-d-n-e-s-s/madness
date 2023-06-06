@@ -38,7 +38,7 @@
   \defgroup examplense Solves a Navier-Stokes equation
   \ingroup examples
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/navstokes_cosines.cc >here</a>.
+  The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/navstokes_cosines.cc >here</a>.
 
   \par Points of interest
   - convolution with periodic Green's function (Possion/Coulomb kernel and Modified Helmholtz/Bound State Helmholtz/Yukawa kernel)

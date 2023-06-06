@@ -37,7 +37,7 @@
   \defgroup exampleheat Solves heat equation using the Green's function
   \ingroup examples
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/heat.cc>here</a>.
+  The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/heat.cc>here</a>.
 
   \par Points of interest
   - use of a functor to compute the solution at an arbitrary future time
