@@ -4,10 +4,10 @@
 
 1. [Downloading](#downloading)
 1. [Building and installing](#building-and-installing)
-1. [Chemistry](#chemistry)
-1. [MADNESS parallel runtime --- basic concepts and architecture](#MADNESS-parallel-runtime)
-1. [MADNESS numerical API and example application](#MADNESS-numerical-API)
-1. [MADNESS chemical API and example Hartree-Fock program](#MADNESS-chemical-API)
+1. [Chemistry applications](#chemistry)
+1. [Parallel runtime --- basic concepts and architecture](#MADNESS-parallel-runtime)
+1. [Numerical API and example application](#Numerical-API)
+1. [Chemical API and example Hartree-Fock program](#Chemical-API)
   
 ## Downloading
 
@@ -45,7 +45,7 @@ make install  # optional
 
 * [Please look here](chemistry.md)
 
-## MADNESS parallel runtime
+## Parallel runtime
 
 Please refer to slides 166-189 in [MADNESSeverything4.pdf](https://github.com/m-a-d-n-e-s-s/madness/blob/tutorial/doc/MADNESSeverything4.pdf).
 * Since the file is large, it is probably easier to look at your local version using your system PDF viewer
@@ -70,7 +70,7 @@ More detailed (but dated) documentation
 * https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__parallel__runtime.html
 
 
-## MADNESS numerical API
+## Numerical API
 
 Please refer to the [Numerical Library User Documentation](https://madness.readthedocs.io/en/latest/numerical_library.html) for a worked example.
 
@@ -103,6 +103,9 @@ If you are going program more extensively in MADNESS, then also worth looking at
   * [Operations on vectors of functions](https://m-a-d-n-e-s-s.github.io/madness/api-doc/vmra_8h.html)
 * [Serialization](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__serialization.html) and [here]()
 
+## Chemical API
+
+* [Please look here](API.md)
 
 ## Exercises
 
