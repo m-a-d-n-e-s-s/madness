@@ -69,7 +69,7 @@ orbitals=solver.update(orbitals,residual);
 
 ## Hartree-Fock example codes
 
-* [Simple HF code for helium in C++](https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/hehf.cc] and associated [documentation](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__examplehehf.html)
+* [Simple HF code for helium in C++](https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/hehf.cc) and associated [documentation](https://m-a-d-n-e-s-s.github.io/madness/api-doc/group__examplehehf.html)
 * [Simple molecular HF code using the chemistry API](https://github.com/m-a-d-n-e-s-s/madness/blob/master/doc/tutorial/simple_hf.cpp)
 
 
