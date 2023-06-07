@@ -632,11 +632,11 @@ protected:
                                   X_space &temp, bool restrict_y,
                                   const double &max_bsh_rotation);
 
-    void plotResponseOrbitals(World &world, size_t iteration,
-                              const response_space &x_response,
-                              const response_space &y_response,
-                              const ResponseParameters &responseParameters,
-                              const GroundStateCalculation &g_params);
+//    void plotResponseOrbitals(World &world, size_t iteration,
+//                              const response_space &x_response,
+//                              const response_space &y_response,
+//                              const ResponseParameters &responseParameters,
+//                              const GroundStateCalculation &g_params);
 
     static auto orbital_load_balance(World &world, const gamma_orbitals &,
                                      double load_balance) -> gamma_orbitals;
