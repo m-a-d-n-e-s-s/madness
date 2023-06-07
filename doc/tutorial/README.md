@@ -3,7 +3,7 @@
 ## Table of contents
 
 1. Building MADNESS
-   1. [Building from source](#building from source)
+   1. [Building from source](#building-from-source)
        1. [Downloading](#downloading)
        1. [Building and installing](#building-and-installing)
    1. [Obtain as a Docker image](#docker)
