@@ -1,13 +1,13 @@
 # src/apps/molresponse
 
-if(CMAKE_CXX_STANDARD GREATER_EQUAL 17)
-    # C++ standard is 17 or higher
-    add_subdirectory(testing)
-    # Add your code or configurations here
-else()
-    # C++ standard is below 17
-    # Handle the case where the required standard is not met
-endif()
+#if(CMAKE_CXX_STANDARD GREATER_EQUAL 17)
+#    # C++ standard is 17 or higher
+#    add_subdirectory(testing)
+#    # Add your code or configurations here
+#else()
+#    # C++ standard is below 17
+#    # Handle the case where the required standard is not met
+#endif()
 # Set the CHEM sources and header files
 set(MOLRESPONSE_SOURCES
         ResponseBase.cpp
