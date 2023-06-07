@@ -45,14 +45,14 @@ namespace madness {
             initialize<bool>("conv_only_dens", false,
                              "if true remove bsh_residual from convergence criteria (deprecated)");
             initialize<bool>("dconv_set", false, "Convergence flage for the orbtial density");
-            initialize<bool>("guess_xyz", false, "ExcitedState intial guess functions ground MO * <x,y,z>");
+            initialize<bool>("guess_xyz", true, "ExcitedState intial guess functions ground MO * <x,y,z>");
             initialize<double>("lo", 1.e-10, "smallest length scale we need to resolve");
             initialize<std::vector<double>>("protocol", {1.e-4, 1.e-6}, "Defines convergence and truncation protocol");
             initialize<size_t>("larger_subspace", 0,
                                "Number of iterations to diagonalize in a subspace "
                                "consisting of old and new vectors");
             initialize<int>("k", -1, "polynomial order");
-            initialize<bool>("random", false, "Use random guess for initial response functions");
+            initialize<bool>("random", true, "Use random guess for initial response functions");
             initialize<bool>("store_potential", true, "Store the potential instead of computing each iteration");
             initialize<bool>("e_range", false, "Use an energy range to excite from");
             initialize<double>("e_range_lo", 0, "Energy range (lower end) for orbitals to excite from");
