@@ -7,7 +7,7 @@
 Running a quantum chemical calculations requires a molecule -- and not much more:
 
 ```shell
-  export MAD_NUM_THREADS-10
+  export MAD_NUM_THREADS=10
   moldft --geometry=h2o.xyz 
 ```
 This will run an HF calculation on the molecule specified in the `h2o.xyz`-file.
