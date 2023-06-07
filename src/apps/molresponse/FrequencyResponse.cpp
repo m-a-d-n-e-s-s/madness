@@ -175,8 +175,8 @@ void FrequencyResponse::iterate(World &world) {
                         molresponse::end_timer(world, "Save:");
                 }
                 if (r_params.plot_all_orbitals()) {
-                    plotResponseOrbitals(world, iter, Chi.x, Chi.y, r_params,
-                                         ground_calc);
+                    //plotResponseOrbitals(world, iter, Chi.x, Chi.y, r_params,
+                     //                    ground_calc);
                 }
                 break;
             }
