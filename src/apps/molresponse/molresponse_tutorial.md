@@ -117,4 +117,7 @@ This configuration computes the frequency-dependent response at 0.011116 a.u. fr
 
 To run a nuclear response calculation instead of adding a `dipole` parameter, add a `nuclear` parameter.  This will compute the response of the system to a nuclear perturbation.
 
+### Next steps
+
+For more details checkout the [molresponse documentation](/src/apps/molresponse/details.md).
 
