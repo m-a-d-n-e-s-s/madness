@@ -161,6 +161,12 @@ namespace madness {
                 } else if (nuclear()) {
                     set_derived_value<size_t>("states", 3 * molecule.natom());
                 }
+            } else if (excited_state()) {
+                if (tda()) {
+                    set_derived_value<std::string>("calc_type", "tda");
+                } else {
+                    set_derived_value<std::string>("calc_type", "full");
+                }
             } else if (second_order()) {
                 if (omega() == 0) {
                     set_derived_value<std::string>("calc_type", "static");
@@ -180,31 +186,6 @@ namespace madness {
                 size_t states;
                 states = std::accumulate(nstates.begin(), nstates.end(), 1, std::multiplies<>());
                 set_derived_value<size_t>("states", states);
-            } else if (third_order()) {
-                if (omega() == 0) {
-                    set_derived_value<std::string>("calc_type", "static");
-                } else {
-                    set_derived_value<std::string>("calc_type", "full");
-                }
-                vector<int> nstates;// states 1
-                for (size_t i = 0; i < 3; i++) {
-                    if (d2_types()[i] == 'd') {
-                        nstates.push_back(3);
-                    } else if (d2_types()[i] == 'n') {
-                        nstates.push_back(3 * molecule.natom());
-                    } else {
-                        MADNESS_EXCEPTION("not a valid response state ", 0);
-                    }
-                }
-                size_t states;
-                states = std::accumulate(nstates.begin(), nstates.end(), 1, std::multiplies<>());
-                set_derived_value<size_t>("states", states);
-            } else if (excited_state()) {
-                if (tda()) {
-                    set_derived_value<std::string>("calc_type", "tda");
-                } else {
-                    set_derived_value<std::string>("calc_type", "full");
-                }
             }
         }
 
