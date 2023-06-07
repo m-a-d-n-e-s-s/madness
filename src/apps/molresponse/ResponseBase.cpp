@@ -1471,22 +1471,22 @@ void ResponseBase::plotResponseOrbitals(
 }
 
 
-void PlotGroundDensityVTK(World &world, const ResponseBase &calc) {
-    auto [ground_calc, molecule, r_params] = calc.get_parameter();
-    auto ground_orbitals = calc.get_orbitals();
+//void PlotGroundDensityVTK(World &world, const ResponseBase &calc) {
+//    auto [ground_calc, molecule, r_params] = calc.get_parameter();
+//    auto ground_orbitals = calc.get_orbitals();
 
-    if (r_params.plot_initial()) {
-        if (world.rank() == 0) print("\n   Plotting ground state densities.\n");
-        if (r_params.plot_l() > 0.0)
-            do_vtk_plots(world, int(r_params.plot_pts()), r_params.plot_l(), 0,
-                         int(r_params.num_orbitals()), molecule,
-                         square(world, ground_orbitals), "ground");
-        else
-            do_vtk_plots(world, int(r_params.plot_pts()), r_params.L() / 2.0, 0,
-                         int(r_params.num_orbitals()), molecule,
-                         square(world, ground_orbitals), "ground");
-    }
-}
+//    if (r_params.plot_initial()) {
+//        if (world.rank() == 0) print("\n   Plotting ground state densities.\n");
+//        if (r_params.plot_l() > 0.0)
+//            do_vtk_plots(world, int(r_params.plot_pts()), r_params.plot_l(), 0,
+//                         int(r_params.num_orbitals()), molecule,
+//                         square(world, ground_orbitals), "ground");
+//        else
+//            do_vtk_plots(world, int(r_params.plot_pts()), r_params.L() / 2.0, 0,
+//                         int(r_params.num_orbitals()), molecule,
+//                         square(world, ground_orbitals), "ground");
+//    }
+//}
 
 /// Push back empty json onto "protocol_data" field
 /// Writes protocol to that new field
@@ -1526,7 +1526,7 @@ void ResponseBase::solve(World &world) {
     molresponse::start_timer(world);
 
     // Plotting input orbitals
-    if (r_params.plot_initial()) { PlotGroundDensityVTK(world, *this); }
+    //if (r_params.plot_initial()) { PlotGroundDensityVTK(world, *this); }
     const auto protocol = r_params.protocol();
     if (world.rank() == 0) {
         print("Response State Calculation for the following protocols");
@@ -1568,12 +1568,12 @@ void ResponseBase::solve(World &world) {
     converged_to_json(j_molresponse);
     if (r_params.plot()) {
         auto r_matrix = to_response_matrix(Chi);
-        do_response_orbital_vtk_plots(world, r_params.plot_pts(), r_params.L(),
-                                      molecule, ground_orbitals, r_matrix);
+//        do_response_orbital_vtk_plots(world, r_params.plot_pts(), r_params.L(),
+//                                      molecule, ground_orbitals, r_matrix);
         auto response_densities = make_density(world, Chi);
-        do_response_density_vtk_plots(world, r_params.plot_pts(), r_params.L(),
-                                      molecule, ground_density,
-                                      response_densities);
+//        do_response_density_vtk_plots(world, r_params.plot_pts(), r_params.L(),
+//                                      molecule, ground_density,
+//                                      response_densities);
     }
 
 

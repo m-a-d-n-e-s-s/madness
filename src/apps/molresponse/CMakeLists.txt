@@ -17,7 +17,6 @@ set(MOLRESPONSE_SOURCES
         global_functions.cc
         timer.cc
         basic_operators.cc
-        Plot_VTK.cc
         response_parameters.cpp
         x_space.cc
         )
@@ -30,7 +29,6 @@ set(MOLRESPONSE_HEADERS
         global_functions.h
         timer.h
         basic_operators.h
-        Plot_VTK.h
         response_parameters.h
         )
 # Create the MADchem library
@@ -82,7 +80,6 @@ set(RALL_SOURCES
         global_functions.cc
         timer.cc
         basic_operators.cc
-        Plot_VTK.cc
         response_parameters.cpp
         x_space.cc
         )
@@ -95,7 +92,6 @@ set(RALL_HEADERS
         global_functions.h
         timer.h
         basic_operators.h
-        Plot_VTK.h
         response_parameters.h
         x_space.h
         )

@@ -1967,10 +1967,10 @@ void ExcitedResponse::iterate(World &world) {
                     plotResponseOrbitals(world, iter, Chi.x, Chi.y, r_params, ground_calc);
                 }
                 auto rho0 = make_ground_density(world);
-                if (r_params.plot()) {
-                    do_vtk_plots(world, 200, r_params.L(), molecule, rho0, rho_omega,
-                                 ground_orbitals, Chi);
-                }
+//                if (r_params.plot()) {
+//                    do_vtk_plots(world, 200, r_params.L(), molecule, rho0, rho_omega,
+//                                 ground_orbitals, Chi);
+//                }
                 break;
             }
         }
