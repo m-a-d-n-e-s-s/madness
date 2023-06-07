@@ -56,6 +56,26 @@ make install  # optional
 ```
 Ignore any warnings or informational messages.
 
+### Docker image
+
+There is a pre-built x86 Docker image that can be pulled from Docker Hub with
+```
+    docker pull rjharrison/ubuntu:22.04
+```
+An interactive temporary shell in this container can be launched using
+```
+    docker run --rm -it --entrypoint bash rjharrison/ubuntu:22.04
+```
+The shell launches in the directory containing the following directories
+```
+    root@a591103d6691:/home/m-a-d-n-e-s-s# ls
+    build  install  Makefile  source
+```
+and to run a `moldft` calculation use the installed binary
+```
+    MAD_NUM_THREADS=2 ./install/bin/moldft --geometry=he
+```
+
   
 ## Chemistry
 
