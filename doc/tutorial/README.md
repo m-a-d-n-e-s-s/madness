@@ -2,15 +2,26 @@
 
 ## Table of contents
 
-1. [Downloading](#downloading)
-1. [Building and installing](#building-and-installing)
+1. Building MADNESS
+   1. [Building from source](#building-from-source)
+       1. [Downloading](#downloading)
+       1. [Building and installing](#building-and-installing)
+   1. [Use from a Docker container](#use-from-a-docker-container)
 1. [Chemistry applications](#chemistry)
 1. [Parallel runtime --- basic concepts and architecture](#Parallel-runtime)
 1. [Numerical API and example application](#Numerical-API)
 1. [Chemical API and example Hartree-Fock program](#Chemical-API)
 1. [Exercises](#Exercises)
   
-## Downloading
+## Building MADNESS
+
+There are two ways to obtain/build MADNESS:
+- download the MADNESS source code from the Github repo and build, or
+- use a Docker image containing pre-built MADNESS.
+
+### Building from source
+
+#### Downloading
 
 From the command line, clone the [MADNESS GitHub repository](https://github.com/m-a-d-n-e-s-s/madness) using one of the below
 * HTTPS
@@ -29,7 +40,7 @@ cd madness
 checkout XXXXXXXXXXXXXXXXXXX
 ```
 
-## Building and installing
+#### Building and installing
 
 Please refer to the [installation instructions](https://madness.readthedocs.io/en/latest/INSTALL.html).
 
@@ -42,7 +53,7 @@ make applications
 make install  # optional
 ```
 
-### Modules to load to build on FRAM for the Trømso tutorial
+#### Modules to load to build on FRAM for the Trømso tutorial
 
 ```
     module purge
@@ -56,7 +67,37 @@ make install  # optional
 ```
 Ignore any warnings or informational messages.
 
-  
+### Use from a Docker container
+
+It is also possible to use a Docker image with pre-built MADNESS. Although this method is not recommended
+for optimal use of MADNESS on distributed-memory machines, it is sufficient to run MADNESS applications on
+a single multicore machine.
+
+To get started, make sure your machine has [a Docker engine](https://docs.docker.com/engine/install/). Once the engine is installed (and, on MacOS, running)
+you can start a container containing the pre-built MADNESS:
+```shell
+docker run -it --rm rjharrison/ubuntu:22.04 bash
+```
+This will start a shell within the container and put you in the directory containing the MADNESS source (`source`),
+the build directory with MADNESS libraries and applications  already configured and built (`build`), and
+the directory with MADNESS libraries and applications installed (`install`).
+E.g., to run a `moldft` calculation use the installed binary:
+```shell
+MAD_NUM_THREADS=2 ./install/bin/moldft --geometry=he
+```
+
+You can also run other commands directly, e.g. to run tests execute:
+```shell
+docker run -it --rm rjharrison/ubuntu:22.04 cmake --build build --target check-madness
+```
+It is convenient to execute MADNESS applications this way using input files located on the host file system;
+to run `moldft` with input file `my.input` located in the current working directory
+do
+```shell
+docker run -it --rm -v `pwd`:/pwd rjharrison/ubuntu:22.04 install/bin/moldft /pwd/my.input
+```
+P.S. Note that unfortunately it is not possible to stop this process using Ctrl+C, see some workarounds [here](https://forums.docker.com/t/docker-run-cannot-be-killed-with-ctrl-c/13108/10).
+
 ## Chemistry
 
 * [Please look here](chemistry.md)
