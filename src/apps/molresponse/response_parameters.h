@@ -47,7 +47,7 @@ namespace madness {
             initialize<bool>("dconv_set", false, "Convergence flage for the orbtial density");
             initialize<bool>("guess_xyz", false, "ExcitedState intial guess functions ground MO * <x,y,z>");
             initialize<double>("lo", 1.e-10, "smallest length scale we need to resolve");
-            initialize<std::vector<double>>("protocol", {1.e-4, 1.e-6}, "calculation protocol");
+            initialize<std::vector<double>>("protocol", {1.e-4, 1.e-6}, "Defines convergence and truncation protocol");
             initialize<size_t>("larger_subspace", 0,
                                "Number of iterations to diagonalize in a subspace "
                                "consisting of old and new vectors");
