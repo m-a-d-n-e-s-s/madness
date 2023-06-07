@@ -1,95 +1,12 @@
-# Tutorial: Understanding and using the `molresponse` code
 
- In this tutorial, we will explore the computation of frequency-dependent response properties using the `FrequencyResponse` class within `molresponse`.
+# `molresponse` Tutorial
 
-## Overview of `molresponse`
-
-`molresponse` is a multiresolution solver designed to compute response properties and excited states of molecular systems.  Solver computes response states starting with a `moldft` calculation, which provides the ground state of the system
-
-## Computing Frequency-Dependent Response with `FrequencyResponse` class
-
-In `molresponse`, the computation of frequency-dependent response properties is achieved by solving the coupled response equations in integral form:
-
-$$\boldsymbol{X}=\boldsymbol{G(\omega_a)}\star[\boldsymbol{VX}+\boldsymbol{P}]$$
-
-Here's a breakdown of the variables involved:
-
-- $\boldsymbol{X}$: The response vector containing the transition functions.
-- $\boldsymbol{G(\omega_a)}$: The Green's function.
-- $\boldsymbol{V}$: The potential.
-- $\boldsymbol{P}$: The perturbation operator (e.g., dipole, nuclear, second-order).
-- $\omega_a$: The frequency of the perturbation.
-
-Therefore, response calculation is parameterized by:
-
-1. The ground state calculation with molecular geometry, ground state orbitals, and orbital energies.
-2. The perturbation operator.
-3. The frequency of the perturbation.
-
-The solver iteratively computes the response vector, starting from an initial $\boldsymbol{X}$, until convergence is reached. Convergence is determined by the bsh residuals of the response vectors and the change in the response density, both falling below defined thresholds.
-With convergence, the response vectors are used to computed the frequency-dependent response properties.
-
-### Understanding the `X_space` class
-
-The `X_Space` class is a fundamental component in molresponse as it encapsulates all response vectors computed in a response calculation. The solver is capable of solvin multiple perturbations at the same time.
-
-```cpp
-    struct X_space {
-        size_t n_states;  // Num. of resp. states
-        size_t n_orbitals;// Num. of ground states
-        response_space x, y;// x and y transition functions    };
-```
-
-- `n_states`: This represents the number of response states. The actual number is defined by the type of perturbation used.
-
-- `n_orbitals`: This refers to the number of ground state orbitals present in the system.
-
-- `response_space x, y`: These are structures that hold the x and y transition functions, respectively. These functions are central to how the system responds to external perturbations.
-
-___
-
-## Solving for **X**
-
-To find X, we iterate the X_Space object through the FrequencyResponse class.
-
-Below is the constructor for the FrequencyResponse class. It takes the frequency and the RHS_Generator (representing the perturbation operator) as inputs:
-
-```cpp
- FrequencyResponse calc(World &world, const CalcParams &params, double frequency,RHS_Generator rhs);
-```
-
-Key parameters:
-
-- 'const CalcParams &params': Encapsulates the parameters for the calculation. This include molecular geometry and ground state orbitals.
-- 'double frequency': The frequency of the perturbation.
-- 'RHS_Generator rhs': The perturbation operator.
-
----
-
-## Choosing the Perturbation  `RHS_Generator`
-
-Currently, `molresponse` supports two options for the Right Hand Side (RHS) vector generation:
-
-```cpp
-X_space dipole_generator(World &world, FrequencyResponse &calc);
-X_space nuclear_generator(World &world, FrequencyResponse &calc);
-```
-
-**Option 1: Dipole Generator**
-
-- The `dipole_generator` creates the RHS vector for the dipole operator.
-- It generates the x, y, and z components of the dipole operator.
-- Consequently, the dimension of `X_space` becomes `3 x num_orbitals`.
-- To use it, set the `dipole` flag to `True` in the input file
-
-**Option 2: Nuclear Generator**
-
-- The `nuclear_generator` generates the RHS vector for the nuclear derivative operators.
-- It is still under development and hasn't been thoroughly tested, so use with caution.
+In the following example we show the basic usage of the `molresponse` application.
+We will compute the frequency-dependent response of a Be atom.  To compute response 
+properties with `molresponse` we first need to compute the ground-state solution with `moldft`.
+We will assume that you have already computed the ground-state solution and have the restart files
 
 ## Prerequisites: Preparing for the `molresponse` Calculation
-
-Before we dive into the `FrequencyResponse` calculation, let's make sure we have everything set up correctly.
 
 1. **MADNESS Environment**: Make sure that MADNESS is properly installed and set up in your environment.
 
@@ -97,7 +14,8 @@ Before we dive into the `FrequencyResponse` calculation, let's make sure we have
 
     If you don't have these files yet, you can generate them by running a `moldft` calculation with the appropriate input parameters for your system.
 
-3. **Directory Structure**: It is helpful if your working directory is set up as shown.  Here `dipole_hf_0-000000` is the directory for the response calculation.  The `moldft` restart files are in the parent directory.
+3. **Directory Structure**:  Below is an example of running a series of response calculations for Be atom.
+in a range of frequencies.  The directory structure is as follows:
 
     ```makrkdown
     Be/
@@ -118,51 +36,47 @@ Before we dive into the `FrequencyResponse` calculation, let's make sure we have
     └── moldft.restartdata.00000
     ```
 
-Now that we have everything set up, let's dive into the `FrequencyResponse` calculation!
+### molrespones input and output
 
----
+In the base directory you have input and output files associated to the `moldft` calculation.
+In this example, `dipole_hf_0*` directories contain the input and output files for the `molresponse` calculations.
+For the ground-state, `molresponse` reads in the `moldft` restart files.
+To define the response specific calculation parameters, we use the `response.in` file.
 
-## Essential Parameters in the Response Input File
-
-In `molresponse`, the input file for the `FrequencyResponse` calculation is based on the `moldft` input file with an additional `response` section.
-
-Key parameters you need to define:
-
-- **Perturbation Operator**: Set by `dipole`. When `True`, the dipole operator is used.
-- **Perturbation Frequency**: Defined by the `omega` parameter.
-- **Ground-State Restart File**: By default, `molresponse` looks for `../moldft.restartdata`. You can specify a different path using the `archive` parameter.
-
-Below, we have an example response input file named `response.in`, which calculates the static response for the dipole operator.
+Below is an example input file running a dipole response calculation
+at zero frequency.
 
 ```input
 response
-         print_level  1         
-             maxiter  25        
-               dconv  1.0000e-04 
-            protocol  [1.0000e-04, 1.0000e-06] 
-             restart  false      
-                kain  true       
-              maxsub  5          
-                  xc  hf         
-                save  true       
-           save_file  restart_dipole_hf_0-000000 
-         first_order  true       
-              dipole  true       
-               omega  0.0000e+00 
+         print_level  20         # defined   0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug
+                plot  false      # defined   turn on plotting of final orbitals. Output format is .vts
+   plot_all_orbitals  true       # defined   Turn on 2D plotting of response orbitals
+             maxiter  25         # defined   maximum number of iterations
+               dconv  1.0000e-04 # defined   recommended values: 1.e-4 < dconv < 1.e-8
+            protocol  [1.0000e-04, 1.0000e-06] # defined   calculation protocol
+             restart  false      # defined   Flag to restart scf loop from file
+                kain  true       # defined   Turn on Krylov Accelarated Inexact Newton Solver
+              maxsub  5          # defined   size of iterative subspace ... set to 0 or 1 to disable
+                  xc  hf         # defined   XC input line
+                save  true       # defined   if true save orbitals to disk
+           save_file  restart_dipole_hf_0-000000 # defined   File name to save orbitals for restart
+         first_order  true       # defined   Flag to turn on first order response calc
+              dipole  true       # defined   Flag to turn on frequency dependent property calc
+               omega  0.0000e+00 # defined   Incident energy for dynamic response
 end
 ```
+Above you can read all the basic parameters for the `molresponse` calculation.
+The key response specific parameters are:
 
-In this example we have specfied a restart_file in the `save_file` parameter.  This will save the restart file in the `dipole_hf_0-000000` directory.  This is useful if you want to restart the response calculation from the static solution.  We will do this in the next example.
+- dipole: Flag to turn on frequency dependent property calculation
+- omega: Incident energy for dynamic response
+- xc: XC input line
 
-Notes:
+In this example we have specified a restart_file in the `save_file` parameter.  This will save the restart file in the `dipole_hf_0-000000` directory.  This is useful if you want to restart the response calculation from the static solution.  We will do this in the next example.
 
-- The default input file name for the `FrequencyResponse` calculation is `response.in`.
-- For further details on the parameters, refer to the `molresponse` documentation.
-- The output data will be saved in the `response_base.json` file.
 
----
 
-## Computing Dynamic Response: Restarting from Static Solution
+### Computing Dynamic Response: Restarting from Static Solution
 
 In this example, we compute the frequency-dependent response, starting from a precomputed static solution. This approach can often be more efficient than starting from scratch.
 
@@ -196,12 +110,14 @@ end
 
 This configuration computes the frequency-dependent response at 0.011116 a.u. frequency, starting from the static solution saved in the `../dipole_hf_0-000000/restart_dipole_hf_0-000000` file.
 
+
 ---
 
-## Conclusion and Next Steps
+### Nuclear Response
 
-We've explored the inner workings of `molresponse` and seen it in action through practical examples. By now, you should have a clear understanding of:
+To run a nuclear response calculation instead of adding a `dipole` parameter, add a `nuclear` parameter.  This will compute the response of the system to a nuclear perturbation.
 
-1. The theoretical framework that underpins `molresponse`.
-2. The core components of the code and their roles.
-3. How to set up and perform static and dynamic response calculations.
+### Next steps
+
+For more details checkout the [molresponse documentation](/src/apps/molresponse/details.md).
+

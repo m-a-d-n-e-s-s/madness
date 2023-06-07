@@ -45,14 +45,14 @@ namespace madness {
             initialize<bool>("conv_only_dens", false,
                              "if true remove bsh_residual from convergence criteria (deprecated)");
             initialize<bool>("dconv_set", false, "Convergence flage for the orbtial density");
-            initialize<bool>("guess_xyz", false, "ExcitedState intial guess functions ground MO * <x,y,z>");
+            initialize<bool>("guess_xyz", true, "ExcitedState intial guess functions ground MO * <x,y,z>");
             initialize<double>("lo", 1.e-10, "smallest length scale we need to resolve");
-            initialize<std::vector<double>>("protocol", {1.e-4, 1.e-6}, "calculation protocol");
+            initialize<std::vector<double>>("protocol", {1.e-4, 1.e-6}, "Defines convergence and truncation protocol");
             initialize<size_t>("larger_subspace", 0,
                                "Number of iterations to diagonalize in a subspace "
                                "consisting of old and new vectors");
             initialize<int>("k", -1, "polynomial order");
-            initialize<bool>("random", false, "Use random guess for initial response functions");
+            initialize<bool>("random", true, "Use random guess for initial response functions");
             initialize<bool>("store_potential", true, "Store the potential instead of computing each iteration");
             initialize<bool>("e_range", false, "Use an energy range to excite from");
             initialize<double>("e_range_lo", 0, "Energy range (lower end) for orbitals to excite from");
@@ -161,6 +161,12 @@ namespace madness {
                 } else if (nuclear()) {
                     set_derived_value<size_t>("states", 3 * molecule.natom());
                 }
+            } else if (excited_state()) {
+                if (tda()) {
+                    set_derived_value<std::string>("calc_type", "tda");
+                } else {
+                    set_derived_value<std::string>("calc_type", "full");
+                }
             } else if (second_order()) {
                 if (omega() == 0) {
                     set_derived_value<std::string>("calc_type", "static");
@@ -180,31 +186,6 @@ namespace madness {
                 size_t states;
                 states = std::accumulate(nstates.begin(), nstates.end(), 1, std::multiplies<>());
                 set_derived_value<size_t>("states", states);
-            } else if (third_order()) {
-                if (omega() == 0) {
-                    set_derived_value<std::string>("calc_type", "static");
-                } else {
-                    set_derived_value<std::string>("calc_type", "full");
-                }
-                vector<int> nstates;// states 1
-                for (size_t i = 0; i < 3; i++) {
-                    if (d2_types()[i] == 'd') {
-                        nstates.push_back(3);
-                    } else if (d2_types()[i] == 'n') {
-                        nstates.push_back(3 * molecule.natom());
-                    } else {
-                        MADNESS_EXCEPTION("not a valid response state ", 0);
-                    }
-                }
-                size_t states;
-                states = std::accumulate(nstates.begin(), nstates.end(), 1, std::multiplies<>());
-                set_derived_value<size_t>("states", states);
-            } else if (excited_state()) {
-                if (tda()) {
-                    set_derived_value<std::string>("calc_type", "tda");
-                } else {
-                    set_derived_value<std::string>("calc_type", "full");
-                }
             }
         }
 

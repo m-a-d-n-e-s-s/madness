@@ -503,7 +503,7 @@ void set_excited_parameters(World &world, ResponseParameters &r_params,
         r_params.set_user_defined_value("kain", true);
         r_params.set_user_defined_value("plot_all_orbitals", false);
         r_params.set_user_defined_value("save", true);
-        r_params.set_user_defined_value("guess_xyz", false);
+        r_params.set_user_defined_value("guess_xyz", true);
         r_params.set_user_defined_value("print_level", 1);
         // set xc, property, num_states,and restart
         r_params.set_user_defined_value("xc", xc);
