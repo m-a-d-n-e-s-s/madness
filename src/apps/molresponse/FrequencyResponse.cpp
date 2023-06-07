@@ -166,7 +166,8 @@ void FrequencyResponse::iterate(World &world) {
 #endif
 #if defined(MADCHEM_HAS_STD_FILESYSTEM)
                 if (r_params.plot_all_orbitals()) {
-                    plotResponseOrbitals(world, iter, Chi.x, Chi.y, r_params, ground_calc);
+                    //plotResponseOrbitals(world, iter, Chi.x, Chi.y, r_params,
+                     //                    ground_calc);
                 }
 #endif
 #endif
