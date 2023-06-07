@@ -82,15 +82,21 @@ This will start a shell within the container and put you in the directory contai
 the build directory with MADNESS libraries and applications  already configured and built (`build`), and
 the directory with MADNESS libraries and applications installed (`install`).
 E.g., to run a `moldft` calculation use the installed binary:
+```shell
+MAD_NUM_THREADS=2 ./install/bin/moldft --geometry=he
 ```
-    MAD_NUM_THREADS=2 ./install/bin/moldft --geometry=he
-```
-
 
 You can also run other commands directly, e.g. to run tests execute:
 ```shell
 docker run -it --rm rjharrison/ubuntu:22.04 cmake --build build --target check-madness
 ```
+It is convenient to execute MADNESS applications this way using input files located on the host file system;
+to run `moldft` with input file `my.input` located in the current working directory
+do
+```shell
+docker run -it --rm -v `pwd`:/pwd rjharrison/ubuntu:22.04 install/bin/moldft /pwd/my.input
+```
+P.S. Note that unfortunately it is not possible to stop this process using Ctrl+C, see some workarounds [here](https://forums.docker.com/t/docker-run-cannot-be-killed-with-ctrl-c/13108/10).
 
 ## Chemistry
 
