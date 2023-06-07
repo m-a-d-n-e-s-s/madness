@@ -6,7 +6,7 @@
    1. [Building from source](#building-from-source)
        1. [Downloading](#downloading)
        1. [Building and installing](#building-and-installing)
-   1. [Use from a Docker container](#use-from)
+   1. [Use from a Docker container](#use-from-a-docker-container)
 1. [Chemistry applications](#chemistry)
 1. [Parallel runtime --- basic concepts and architecture](#Parallel-runtime)
 1. [Numerical API and example application](#Numerical-API)
