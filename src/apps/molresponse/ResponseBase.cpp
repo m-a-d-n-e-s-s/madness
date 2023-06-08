@@ -16,8 +16,8 @@
 #endif
 #if defined(MADCHEM_HAS_STD_FILESYSTEM)
 
-#include <filesystem>
 #include <Plot_VTK.h>
+#include <filesystem>
 
 void ResponseBase::plotResponseOrbitals(World &world, size_t iteration, const response_space &x_response,
                                         const response_space &y_response, ResponseParameters const &responseParameters,
@@ -1333,15 +1333,27 @@ void ResponseBase::solve(World &world) {
     }
     // At this point we should know if calc converged maybe add a flag to response.json which states if it has
     converged_to_json(j_molresponse);
+
+#if defined(__has_include)
+#if __has_include(<filesystem>)
+#define MADCHEM_HAS_STD_FILESYSTEM
+// <filesystem> is not reliably usable on Linux with gcc < 9
+#if defined(__GNUC__)
+#if __GNUC__ >= 7 && __GNUC__ < 9
+#undef MADCHEM_HAS_STD_FILESYSTEM
+#endif
+#endif
+#if defined(MADCHEM_HAS_STD_FILESYSTEM)
     if (r_params.plot()) {
         auto r_matrix = to_response_matrix(Chi);
-        //        do_response_orbital_vtk_plots(world, r_params.plot_pts(), r_params.L(),
-        //                                      molecule, ground_orbitals, r_matrix);
         auto response_densities = make_density(world, Chi);
-        //        do_response_density_vtk_plots(world, r_params.plot_pts(), r_params.L(),
-        //                                      molecule, ground_density,
-        //                                      response_densities);
+        do_response_orbital_vtk_plots(world, r_params.plot_pts(), r_params.L(), molecule, ground_orbitals, r_matrix);
+        do_response_density_vtk_plots(world, r_params.plot_pts(), r_params.L(), molecule, ground_density,
+                                      response_densities);
     }
+#endif
+#endif
+#endif
 
 
     // Plot the response function if desired
