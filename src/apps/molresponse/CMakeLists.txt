@@ -16,6 +16,7 @@ set(MOLRESPONSE_SOURCES
         property.cc
         global_functions.cc
         timer.cc
+        Plot_VTK.cc
         basic_operators.cc
         response_parameters.cpp
         x_space.cc
@@ -28,6 +29,7 @@ set(MOLRESPONSE_HEADERS
         x_space.h
         global_functions.h
         timer.h
+        Plot_VTK.h
         basic_operators.h
         response_parameters.h
         )
@@ -79,6 +81,7 @@ set(RALL_SOURCES
         property.cc
         global_functions.cc
         timer.cc
+        Plot_VTK.cc
         basic_operators.cc
         response_parameters.cpp
         x_space.cc
@@ -92,6 +95,7 @@ set(RALL_HEADERS
         global_functions.h
         timer.h
         basic_operators.h
+        Plot_VTK.h
         response_parameters.h
         x_space.h
         )
