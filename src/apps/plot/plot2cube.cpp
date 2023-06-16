@@ -134,7 +134,7 @@ int main(int argc, char** argv) {
     	dummy = CalculationParameters(world, parser);
     	AtomicBasisSet aobasis("sto-3g");
     	dummy.set_derived_values(molecule, aobasis, parser);
-    	L = molecule.bounding_cube();
+    	L = dummy.L();
     }
     FunctionDefaults<3>::set_cubic_cell(-L,L);
 
