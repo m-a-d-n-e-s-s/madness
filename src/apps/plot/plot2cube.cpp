@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
     std::string outfile="";
     double L=-1.0;
     int npoints=200;
-    double zoom=2.0;
+    double zoom=1.0;
     auto no_orient=false;
     if (parser.key_exists("input")){
     	inputfile = parser.value("input");
@@ -119,8 +119,7 @@ int main(int argc, char** argv) {
 
     // read in molecule
     if(world.rank()==0) std::cout << "initializing molecule from input=" << inputfile << "\n";
-    Molecule molecule;
-    molecule.read_file(inputfile);
+    Molecule molecule(world, parser);
 
     if(no_orient==false){
     	if(world.rank()) std::cout << "re-orienting\n";
