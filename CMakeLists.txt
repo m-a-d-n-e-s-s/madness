@@ -699,6 +699,25 @@ CONFIGURE_FILE(
   ${PROJECT_BINARY_DIR}/config/MADNESS.pc
 )
 
+CONFIGURE_FILE( 
+  ${PROJECT_SOURCE_DIR}/admin/conda/Makefile.in
+  ${PROJECT_BINARY_DIR}/admin/conda/Makefile
+  @ONLY
+)
+
+CONFIGURE_FILE( 
+  ${PROJECT_SOURCE_DIR}/admin/conda/recipe/build.sh.in
+  ${PROJECT_BINARY_DIR}/admin/conda/recipe/build.sh
+  @ONLY
+)
+
+CONFIGURE_FILE( 
+  ${PROJECT_SOURCE_DIR}/admin/conda/recipe/meta.yaml.in
+  ${PROJECT_BINARY_DIR}/admin/conda/recipe/meta.yaml
+  @ONLY
+)
+
+
 # install config files
 install(FILES ${PROJECT_BINARY_DIR}/config/MADNESS.pc
     DESTINATION lib/pkgconfig)

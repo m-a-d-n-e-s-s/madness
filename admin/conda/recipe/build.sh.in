@@ -1,0 +1,26 @@
+MAD_VERSION=$PKG_VERSION
+
+# install binaries
+mkdir -p $PREFIX/bin
+for i in BINARIES ; do
+  echo $i
+  cp $SRC_DIR/bin/$i $PREFIX/bin/$i
+done
+
+
+# install data
+DATADIR=share/madness/$MAD_VERSION/data 
+mkdir -p $PREFIX/$DATADIR
+cp $SRC_DIR/$DATADIR/* $PREFIX/$DATADIR
+
+
+mkdir -p $PREFIX/etc/conda/activate.d/
+mkdir -p $PREFIX/etc/conda/deactivate.d/
+touch $PREFIX/etc/conda/activate.d/activate_madness.sh
+touch $PREFIX/etc/conda/deactivate.d/deactivate_madness.sh
+
+echo "export MRA_DATA_DIR=$PREFIX/share/madness/$MAD_VERSION/data/" >> $PREFIX/etc/conda/activate.d/activate_madness.sh
+echo "export MRA_CHEMDATA_DIR=$PREFIX/share/madness/$MAD_VERSION/data/" >> $PREFIX/etc/conda/activate.d/activate_madness.sh
+echo "unset MRA_DATA_DIR" >> $PREFIX/etc/conda/deactivate.d/deactivate_madness.sh
+echo "unset MRA_CHEMDATA_DIR" >> $PREFIX/etc/conda/deactivate.d/deactivate_madness.sh
+
