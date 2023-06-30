@@ -112,6 +112,7 @@ public:
 
     /// group orbitals into sets of similar orbital energies for localization
 	MolecularOrbitals& recompute_localize_sets(const double bandwidth=1.5) {
+        set_all_orbitals_occupied();
         std::size_t nmo = mo.size();
         std::vector<int> set = std::vector<int>(static_cast<size_t>(nmo), 0);
         for (int i = 1; i < nmo; ++i) {
@@ -172,8 +173,9 @@ public:
 		localize_sets.clear();
 	}
 
-	void pretty_print(std::string message) const {
+	void pretty_print(std::string message, std::vector<std::string> flags=std::vector<std::string>()) const {
 	    print(message);
+        if (flags.size()==0) flags.resize(mo.size());
         std::vector<std::string> irreps=get_irreps();
         if (irreps.size()==0) irreps=std::vector<std::string>(mo.size(),"unknown");
 	    print("orbital #   irrep   energy    occupation  localize_set");
@@ -181,8 +183,8 @@ public:
 //            double n=get_mos()[i].norm2();
             std::size_t bufsize=1024;
             char buf[bufsize];
-            snprintf(buf,bufsize,"%5d %10s %12.8f  %6.2f  %8d", i, irreps[i].c_str(),get_eps()[i],
-                   get_occ()[i],get_localize_sets()[i]);
+            snprintf(buf,bufsize,"%5d %10s %12.8f  %6.2f  %8d  %15s", i, irreps[i].c_str(),get_eps()[i],
+                   get_occ()[i],get_localize_sets()[i], flags[i].c_str());
             cout << std::string(buf) <<endl;
 	    }
 	}

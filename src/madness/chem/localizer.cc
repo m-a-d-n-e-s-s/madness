@@ -102,7 +102,7 @@ MolecularOrbitals<T, NDIM> Localizer::separate_core_valence(const MolecularOrbit
     std::vector<Function<T, NDIM>> result = transform(world, mo_in.get_mos(), UT);
     Tensor<T> fnew = inner(UT, inner(Fock, UT, 1, 0), 0, 0);
     Tensor<double> eps(mo_in.get_mos().size());
-    for (int i = 0; i < eps.size(); ++i) eps(i) = double(fnew(i, i));
+    for (int i = 0; i < eps.size(); ++i) eps(i) = std::real(fnew(i, i));
     MolecularOrbitals<T, NDIM> mo_out(result, eps, {}, Tensor<double>(), mo_in.get_localize_sets());
     mo_out.set_all_orbitals_occupied();
     return mo_out;
@@ -737,6 +737,14 @@ MolecularOrbitals<double, 3> Localizer::localize(const MolecularOrbitals<double,
 template
 MolecularOrbitals<double, 3> Localizer::localize(const MolecularOrbitals<double, 3>& mo_in, const Tensor<double>& Fock,
                                                  bool randomize) const;
+
+template
+MolecularOrbitals<double, 3> Localizer::separate_core_valence(const MolecularOrbitals<double, 3>& mo_in,
+                                                            const Tensor<double>& Fock) const;
+
+//template
+//MolecularOrbitals<double_complex, 3> Localizer::separate_core_valence(const MolecularOrbitals<double_complex, 3>& mo_in,
+//                                                              const Tensor<double_complex>& Fock) const;
 
 template
 void
