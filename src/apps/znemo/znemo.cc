@@ -88,7 +88,7 @@ int main(int argc, char** argv) {
 
                 // compute the energy to get converged orbitals
                 double energy=0.0;
-//                if (not analyze_only) energy=znemo->value();
+                if (not analyze_only) energy=znemo->value();
                 auto zmos=znemo->read_reference();
                 for (int i=0; i<znemo->get_cparam().nalpha(); ++i) znemo->amo.push_back(zmos.first.get_mos()[i]);
                 for (int i=0; i<znemo->get_cparam().nbeta(); ++i) znemo->bmo.push_back(zmos.second.get_mos()[i]);
