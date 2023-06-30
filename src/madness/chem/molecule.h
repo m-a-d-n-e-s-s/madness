@@ -162,6 +162,8 @@ public:
             set_derived_value("source_name",parser.value("input")); // will not override user input
             std::string src_type= derive_source_type_from_name(source_name(), parser);
             set_derived_value("source_type",src_type);
+            if (parser.key_exists("no_orient") and parser.value("no_orient")=="true")
+                set_derived_value("no_orient",true);
 
             // check for ambiguities in the derived source type
             if (not is_user_defined("source_type")) {
