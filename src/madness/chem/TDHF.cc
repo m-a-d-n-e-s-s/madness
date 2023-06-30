@@ -1554,7 +1554,6 @@ double TDHF::oscillator_strength_length(const CC_vecfunction &x) const {
     Tensor<double> mu_if(3);
     for (int idim = 0; idim < 3; idim++) {
         real_function_3d ri = real_factory_3d(world).functor(guessfactory::PolynomialFunctor(idim));
-        plot_plane(world, ri, "asd");
         vector_real_function_3d amo_times_x = ri * get_active_mo_bra();
         Tensor<double> a = inner(world, amo_times_x, x.get_vecfunction());
         mu_if(idim) = a.sum();
@@ -1609,7 +1608,8 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
         msg << "excitation energy for root "
             << std::fixed << std::setprecision(1) << root.excitation << ": "
             << std::fixed << std::setprecision(10) << root.omega << " Eh         "
-            << root.omega * constants::hartree_electron_volt_relationship << " eV\n";
+            << root.omega * constants::hartree_electron_volt_relationship << " eV   "
+            << "irrep: " << root.irrep << "\n";
         msg << std::scientific;
         if (world.rank() == 0)print("  oscillator strength (length)    ", osl);
         if (world.rank() == 0)print("  oscillator strength (velocity)  ", osv);
