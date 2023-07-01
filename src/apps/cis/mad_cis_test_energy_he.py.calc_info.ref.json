@@ -5,20 +5,20 @@
     "calcinfo_nmo": 2,
     "cis_excitations": [
         {
-            "current_error": 0.4277033317110058,
+            "current_error": 0.42522496542786087,
             "excitation": 0,
             "irrep": "a",
-            "omega": 0.8537458922086586,
-            "oscillator_strength_length": 0.18677526511437126,
-            "oscillator_strength_velocity": 0.1441736364958969
+            "omega": 0.8518027046284709,
+            "oscillator_strength_length": 0.18565920723813686,
+            "oscillator_strength_velocity": 0.14378251361198305
         },
         {
-            "current_error": 0.7899482467898186,
+            "current_error": 0.779249250264809,
             "excitation": 1,
             "irrep": "a",
-            "omega": 0.8622170404401319,
-            "oscillator_strength_length": 1.1709235041324566e-16,
-            "oscillator_strength_velocity": 8.784601523376218e-17
+            "omega": 0.8598424923875891,
+            "oscillator_strength_length": 1.1050414978687859e-16,
+            "oscillator_strength_velocity": 8.325605367685058e-17
         }
     ],
     "k": 6,
@@ -91,9 +91,9 @@
         ],
         "size": 1,
         "vals": [
-            -0.9223614119238535
+            -0.9223614119238532
         ]
     },
-    "time": "2023-06-30 23:20:31",
-    "wall_time": 6.8159849643707275
+    "time": "2023-07-01 23:16:05",
+    "wall_time": 7.740873098373413
 }
