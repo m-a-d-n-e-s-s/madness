@@ -6,6 +6,7 @@
  */
 
 #include<madness/chem/TDHF.h>
+#include<madness/chem/localizer.h>
 #include<madness/chem/oep.h>
 #include<madness/world/test_utilities.h>
 #include<madness/chem/write_test_input.h>
@@ -89,11 +90,115 @@ void TDHF::initialize() {
 
 }
 
+void TDHF::determine_frozen_orbitals(const Tensor<double>& fmat) {
+
+    // freezing based on canonical orbital energies
+    auto [eval, evec] = syev(fmat);
+
+    MolecularOrbitals<double, 3> dummy_mo(get_calc()->amo, eval);
+    dummy_mo.recompute_localize_sets();
+    auto s = MolecularOrbitals<double, 3>::convert_set_to_slice(dummy_mo.get_localize_sets());
+
+    if (parameters.freeze() < 0) {
+        long nactive = s.back().end - s.back().start + 1;
+        long nfrozen = dummy_mo.get_mos().size() - nactive;
+        parameters.set_derived_value("freeze", nfrozen);
+    }
+
+    // check that freeze is consistent with the core/valence block-diagonal structure of the fock matrix
+    bool fine = false;
+    int ntotal = 0;
+    std::vector<Slice> slices = MolecularOrbitals<double, 3>::convert_set_to_slice(dummy_mo.get_localize_sets());
+    for (std::size_t i = 0; i < slices.size(); ++i) {
+        const Slice& s = slices[i];
+        int n_in_set = s.end - s.start + 1;
+        ntotal += n_in_set;
+        if (parameters.freeze() == ntotal) {
+            fine = true;
+            break;
+        }
+    }
+    if (parameters.freeze() == 0) fine = true;
+
+    MolecularOrbitals<double, 3> dummy_mo1(get_calc()->amo, get_calc()->aeps);
+    dummy_mo1.recompute_localize_sets();
+    if (world.rank() == 0 and parameters.print_level() > 2) {
+        auto flags=std::vector<std::string>(dummy_mo.get_mos().size(),"active");
+        for (int i=0; i<parameters.freeze(); ++i) flags[i]="frozen";
+        dummy_mo1.pretty_print("diagonal Fock matrix elements with core/valence separation for freezing",flags);
+        print("\nfreezing orbitals: ", parameters.freeze(),"\n");
+    }
+
+    if (not fine) {
+        print("the number of frozen orbitals doesn't match with the core-valence structure");
+        print("of the Fock matrix\n");
+
+        MADNESS_EXCEPTION("freeze inconsistency ", 1);
+    }
+
+}
+
+MolecularOrbitals<double,3> TDHF::enforce_core_valence_separation(const Tensor<double>& fmat) const {
+
+
+    if (get_calcparam().localize_method()=="canonical") {
+        return MolecularOrbitals<double,3>(get_calc()->amo, get_calc()->aeps);
+    }
+
+
+    // check block structure of the fock matrix
+    print("initial fock matrix");
+    print(fmat);
+
+    auto nemo=get_reference();
+    auto calc=get_calc();
+    Localizer localizer(world,calc->aobasis,calc->molecule,calc->ao);
+    localizer.set_enforce_core_valence_separation(true).set_method(get_calcparam().localize_method());
+    localizer.set_metric(nemo->R);
+
+    MolecularOrbitals<double, 3> mos(get_calc()->amo, get_calc()->aeps);
+    mos.recompute_localize_sets();
+    auto mo_new= localizer.separate_core_valence(mos, fmat);
+
+    return mo_new;
+
+    mos=mo_new;
+    Fock<double,3> fock(world,get_reference().get());
+    auto fmat1=fock(make_bra(mos.get_mos()),mos.get_mos());
+    bool good=Localizer::check_core_valence_separation(fmat1,mos.get_localize_sets(),true);
+    print("block-diagonalized fock matrix");
+    print(fmat1);
+    if (not good) {
+        print("fock matrix not block-diagonal");
+        print(fmat1);
+        MADNESS_CHECK(0);
+    }
+    return mo_new;
+
+}
+
 /// compute non-trivial prerequisites for the calculation
 void TDHF::prepare_calculation() {
     get_nemo()->value();
-    mo_ket_ = make_mo_ket();
-    mo_bra_ = make_mo_bra();
+
+    // enforce core-valence separation if localized
+    Tensor<double> fmat;
+    if (get_calcparam().do_localize()) {
+        auto fock_operator=*(get_reference()->make_fock_operator());
+        fmat=fock_operator(make_bra(get_calc()->amo),get_calc()->amo);
+        auto mos=enforce_core_valence_separation(fmat);
+        get_nemo()->get_calc()->amo=mos.get_mos();
+        get_nemo()->get_calc()->aeps=mos.get_eps();
+    } else {
+        std::size_t nmo=get_calc()->aeps.size();
+        fmat=Tensor<double>(nmo,nmo);
+        for (int i=0; i<nmo; ++i) fmat(i,i)= get_calc()->aeps(i);
+    }
+
+    determine_frozen_orbitals(fmat);    // fmat can be reused here..
+
+    mo_ket_ = make_mo_ket(get_calc()->amo);
+    mo_bra_ = make_mo_bra(get_calc()->amo);
     Q = QProjector(world, mo_bra_.get_vecfunction(), mo_ket_.get_vecfunction());
 
     if (not parameters.no_compute()) {
@@ -1449,7 +1554,6 @@ double TDHF::oscillator_strength_length(const CC_vecfunction &x) const {
     Tensor<double> mu_if(3);
     for (int idim = 0; idim < 3; idim++) {
         real_function_3d ri = real_factory_3d(world).functor(guessfactory::PolynomialFunctor(idim));
-        plot_plane(world, ri, "asd");
         vector_real_function_3d amo_times_x = ri * get_active_mo_bra();
         Tensor<double> a = inner(world, amo_times_x, x.get_vecfunction());
         mu_if(idim) = a.sum();
@@ -1504,7 +1608,8 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
         msg << "excitation energy for root "
             << std::fixed << std::setprecision(1) << root.excitation << ": "
             << std::fixed << std::setprecision(10) << root.omega << " Eh         "
-            << root.omega * constants::hartree_electron_volt_relationship << " eV\n";
+            << root.omega * constants::hartree_electron_volt_relationship << " eV   "
+            << "irrep: " << root.irrep << "\n";
         msg << std::scientific;
         if (world.rank() == 0)print("  oscillator strength (length)    ", osl);
         if (world.rank() == 0)print("  oscillator strength (velocity)  ", osv);
