@@ -37,7 +37,7 @@
   \defgroup example3dharm Solves the 3D harmonic oscillator
   \ingroup examples
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/3dharmonic.cc>here</a>.
+  The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/3dharmonic.cc>here</a>.
 
   \par Points of interest
   - convolution with the Green's function
@@ -90,8 +90,8 @@
   if the potential is negative everywhere the wave function is
   significant.  The exact solution is
   \f$\psi(r)=\pi^{-1/4}\exp(-r^2 / 2)\f$ (with $E=$1.5) that
-  becomes 1e-6 (but how small is small enough?) at \f$r=\f$5.3 where
-  \f$V\f$ is 14.0. So let's take this as the value of \f$Delta\f$ and
+  becomes 1e-6 (but how small is small enough?) at \f$r=5.3\f$ where
+  \f$V\f$ is 14.0. So let's take this as the value of \f$\Delta\f$ and
   try the fixed point iteration.  Bad news.  It starts converging
   (slowly) to the right answer but then diverges and even damping
   (step restriction) does not solve the problem.  We have to make the
@@ -113,7 +113,6 @@
   let us know.]
 */
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/mra/funcplot.h>
 #include <madness/mra/nonlinsol.h>

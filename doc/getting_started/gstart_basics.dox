@@ -33,16 +33,17 @@
   \file gstart_basics.dox
   \brief MADNESS basics.
   \addtogroup gstart_basics
-  \todo Verify that the code snippets here aren't stale. They're imported from a 2010 document.
 
-Documentation and instructions exist in several places:
-- the <a href="http://www.doxygen.org/">`doxygen`</a> generated documentation (see also the `doc` directory), and
-- the <a href="\website">project wiki</a>.
-.
+
+Additional documentation and instructions exist in several places:
+- <a href="https://madness.readthedocs.io/en/latest">MADNESS readthedocs</a>
+- <a href="https://github.com/m-a-d-n-e-s-s/madness">MADNESS GitHub repository</a>
+
 For basic computing with MADNESS functions, the only header file that you should need to include is `<mra/mra.h>`. Advanced programs may need a few others. You should include the directory in the include path to avoid possible conflicts with similarly named files from other packages. In the following documentation `trunk` will denote the top-level directory of the MADNESS distribution.
-\todo Is it `mra.h` or should we be using `madness.h`?
 
 \par From math to C++ to numerical computation
+
+A perhaps more up to date version of this example is <a href="https://madness.readthedocs.io/en/latest/numerical_library.html">here</a>.
 
 This section shows you how to use MADNESS and evaluate a simple mathematical expression, notably this one dimensional integral.
 \f[

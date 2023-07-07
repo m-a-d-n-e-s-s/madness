@@ -38,7 +38,7 @@
   \defgroup loadbaleg Data and load balancing
   \ingroup examples
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/dataloadbal.cc>here</a>.
+  The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/dataloadbal.cc>here</a>.
 
   This is one of the more computationally demanding examples - either run it on
   50 or more nodes of jaguar or reduce the number of functions employed
@@ -128,7 +128,6 @@
 */
 
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/vmra.h>

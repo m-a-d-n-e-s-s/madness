@@ -327,13 +327,45 @@ namespace madness {
         std::vector< Function<T,NDIM> > r(n);
         for (int i=0; i<n; ++i)
   	    r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false).compressed(true).initial_level(1));
-
-	if (n && fence) world.gop.fence();
-
+    	if (n && fence) world.gop.fence();
         return r;
     }
 
+
+    /// orthonormalize the vectors
+    template<typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM>> orthonormalize(const std::vector<Function<T,NDIM> >& vf_in) {
+        if (vf_in.size()==0) return std::vector<Function<T,NDIM>>();
+        World& world=vf_in.front().world();
+        auto vf=copy(world,vf_in);
+        normalize(world,vf);
+        if (vf.size()==1) return copy(world,vf_in);
+        double maxq;
+        double trantol=0.0;
+        auto Q2=[](const Tensor<T>& s) {
+            Tensor<T> Q = -0.5*s;
+            for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.5;
+            return Q;
+        };
+
+        do {
+            Tensor<T> Q = Q2(matrix_inner(world, vf, vf));
+            maxq=0.0;
+            for (int i=0; i<Q.dim(0); ++i)
+                for (int j=0; j<i; ++j)
+                    maxq = std::max(maxq,std::abs(Q(i,j)));
+
+            vf = transform(world, vf, Q, trantol, true);
+            truncate(world, vf);
+
+        } while (maxq>0.01);
+        normalize(world,vf);
+        return vf;
+    }
+
+
     /// symmetric orthonormalization (see e.g. Szabo/Ostlund)
+
     /// @param[in] the vector to orthonormalize
     /// @param[in] overlap matrix
     template <typename T, std::size_t NDIM>
@@ -777,7 +809,7 @@ namespace madness {
     Tensor< TENSOR_RESULT_TYPE(T,R) > matrix_inner(World& world,
                                                    const std::vector< Function<T,NDIM> >& f,
                                                    const std::vector< Function<R,NDIM> >& g,
-                                                   bool sym=false) 
+                                                   bool sym=false)
     {
         world.gop.fence();
         compress(world, f);
@@ -823,7 +855,7 @@ namespace madness {
                 if (sym) r(j,i) = conj(r(i,j));
             }
          }
-        
+
 //        for (long i=n-1; i>=0; --i) {
 //            long jtop = m;
 //            if (sym) jtop = i+1;
@@ -1631,7 +1663,7 @@ namespace madness {
         return result;
     }
 
-    // BLM first derivative 
+    // BLM first derivative
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > grad_ble_one(const Function<T,NDIM>& f,
             bool refine=false, bool fence=true) {
@@ -1673,7 +1705,7 @@ namespace madness {
         return result;
     }
 
-    // Bspline first derivative 
+    // Bspline first derivative
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > grad_bspline_one(const Function<T,NDIM>& f,
             bool refine=false, bool fence=true) {

@@ -33,7 +33,6 @@
   \file gstart_io.dox
   \brief Getting started with MADNESS I/O.
   \addtogroup gstart_io
-  \todo Verify that the code snippets here aren't stale. They're imported from a 2010 document.
 
 \par Moving functions to/from disk
 It takes at most a couple of lines of code to move a function to/from disk. The example program `trunk/src/examples/functionio.cc` shows how to do this, and the critical lines are

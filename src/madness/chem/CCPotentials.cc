@@ -810,7 +810,7 @@ CCPotentials::update_pair_mp2_macrotask(World& world, const CCPair& pair, const 
     if (parameters.debug())unew.print_size("truncated-unew");
     timer_mp2.info();
 
-    const real_function_6d residue = pair.function() - unew;
+    const real_function_6d residue = (pair.function() - unew).truncate();
 
     return residue;
 }

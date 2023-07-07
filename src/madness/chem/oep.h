@@ -78,34 +78,37 @@ struct divide_add_interpolate {
 ///  - think about the long-range part of the Slater potential (or medium-range)
 class OEP_Parameters : public QCCalculationParametersBase {
 public:
-	OEP_Parameters(World& world, const commandlineparser& parser) {
-
-		initialize<std::vector<std::string> >("model",{"dcep"},"comment on this: oaep ocep dcep mrks");
-		initialize<unsigned int>("maxiter",150,"maximum number of iterations in OEP algorithm");
-		initialize<bool>("restart",false,"restart from previous OEP calculation");
+    OEP_Parameters() {
+        initialize<std::vector<std::string> >("model",{"dcep"},"comment on this: oaep ocep dcep mrks");
+        initialize<unsigned int>("maxiter",150,"maximum number of iterations in OEP algorithm");
+        initialize<bool>("restart",false,"restart from previous OEP calculation");
         initialize<bool>("no_compute",false,"read from previous OEP calculation, no computation");
-		initialize<double>("levelshift",0.0,"shift occupied orbital energies in the BSH operator");
+        initialize<double>("levelshift",0.0,"shift occupied orbital energies in the BSH operator");
 //		initialize<double>("conv_threshold",1.e-5,"comment on this");
-		initialize<double>("density_threshold_high",1.e-6,"comment on this");
-		initialize<double>("density_threshold_low",1.e-8,"comment on this");
-		initialize<double>("density_threshold_inv",1.e-9,"comment on this");
-		initialize<std::vector<double> >("kain_param",{1.0e-8, 3.0},"comment on this");
+        initialize<double>("density_threshold_high",1.e-6,"comment on this");
+        initialize<double>("density_threshold_low",1.e-8,"comment on this");
+        initialize<double>("density_threshold_inv",1.e-9,"comment on this");
+        initialize<std::vector<double> >("kain_param",{1.0e-8, 3.0},"comment on this");
 
 //		std::vector<bool> oep_model = {false, false, false, false};
-		initialize<unsigned int>("saving_amount",0,"choose level 0, 1, 2 or 3 for saving functions");
-		initialize<unsigned int>("save_iter_orbs",0,"if > 0 save all orbitals every ... iterations (needs a lot of storage!");
-		initialize<unsigned int>("save_iter_density",0,"if > 0 save KS density every ... iterations");
-		initialize<unsigned int>("save_iter_IKS",0,"if > 0 save IKS every ... iterations");
-		initialize<unsigned int>("save_iter_kin_tot_KS",0,"if > 0 save kin_tot_KS every ... iterations");
-		initialize<unsigned int>("save_iter_kin_P_KS",0,"if > 0 save kin_P_KS every ... iterations");
-		initialize<unsigned int>("save_iter_corrections",0,"if > 0 save OEP correction(s) every ... iterations");
-		initialize<unsigned int>("save_iter_effective_potential",0,"if > 0 save effective potential every ... iterations");
+        initialize<unsigned int>("saving_amount",0,"choose level 0, 1, 2 or 3 for saving functions");
+        initialize<unsigned int>("save_iter_orbs",0,"if > 0 save all orbitals every ... iterations (needs a lot of storage!");
+        initialize<unsigned int>("save_iter_density",0,"if > 0 save KS density every ... iterations");
+        initialize<unsigned int>("save_iter_IKS",0,"if > 0 save IKS every ... iterations");
+        initialize<unsigned int>("save_iter_kin_tot_KS",0,"if > 0 save kin_tot_KS every ... iterations");
+        initialize<unsigned int>("save_iter_kin_P_KS",0,"if > 0 save kin_P_KS every ... iterations");
+        initialize<unsigned int>("save_iter_corrections",0,"if > 0 save OEP correction(s) every ... iterations");
+        initialize<unsigned int>("save_iter_effective_potential",0,"if > 0 save effective potential every ... iterations");
+    }
 
+	OEP_Parameters(World& world, const commandlineparser& parser) : OEP_Parameters() {
         read_input_and_commandline_options(world, parser, "oep");
-
 	}
 
-	void set_derived_values(const Nemo::NemoCalculationParameters& nparam) {
+    OEP_Parameters(const OEP_Parameters& other) = default;
+
+
+    void set_derived_values(const Nemo::NemoCalculationParameters& nparam) {
     	set_derived_value("density_threshold_high",10.0*nparam.econv());
     	set_derived_value("density_threshold_low",0.01*get<double>("density_threshold_high"));
 		if (dens_thresh_hi()<dens_thresh_lo()) {
@@ -175,7 +178,25 @@ public:
 
     std::string name() const {return "oep";}
 
-	void set_reference(const std::shared_ptr<Nemo> reference1) {
+    static void help() {
+        print_header2("help page for oep");
+        print("The oep code computes local exchange potentials based on a Hartree-Fock calculation from nemo");
+        print("oep --print_parameters\n");
+        print("You can perform a simple calculation by running\n");
+        print("oep --geometry=h2o.xyz\n");
+        print("provided you have an xyz file in your directory.");
+
+    }
+
+    static void print_parameters() {
+        OEP_Parameters param;
+        print("default parameters for the oep program are");
+        param.print("oep", "end");
+        print("\n\nthe molecular geometry must be specified in a separate block:");
+        Molecule::print_parameters();
+    }
+
+    void set_reference(const std::shared_ptr<Nemo> reference1) {
 	    reference=reference1;
 	}
 
@@ -278,7 +299,7 @@ public:
     	return density;
     }
 
-        /// compute \Delta rho as an indicator for the result's quality
+    /// compute Delta rho as an indicator for the result's quality
     double compute_delta_rho(const real_function_3d rho_HF, const real_function_3d rho_KS) const {
     	// from Ospadov_2017, equation (26)
     	real_function_3d rho_diff = abs(rho_KS - rho_HF);
@@ -289,8 +310,8 @@ public:
      /// compute Slater potential (Kohut, 2014, equation (15))
     real_function_3d compute_slater_potential(const vecfuncT& nemo) const {
 
-        Exchange<double,3> K;
-        K.set_parameters(R_square*nemo,nemo,reference->get_calc()->param.lo());
+        Exchange<double,3> K(world,reference->get_calc()->param.lo());
+         K.set_bra_and_ket(R_square * nemo, nemo);
         const vecfuncT Knemo = K(nemo);
         // 2.0*R_square in numerator and density (rho) cancel out upon division
         real_function_3d numerator = -1.0*dot(world, nemo, Knemo);
@@ -385,10 +406,11 @@ public:
 
     /// shift of the diagonal elements of the fock matrix results in a global shift
     /// of the potential
-    /// \[
+    /// \f[
     /// \frac{\bar \epsilon}{\rho} = \frac{1}{\rho}\sum_{ij}\phi_i(F_ij+\delta_ij s)\phi_j
     ///        = \frac{1}{\rho} ( \sum_{ij}\phi_i F_ij \phi_j + s\sum_i\phi_i\phi_i )
     ///        = s + \frac{1}{\rho} \sum_{ij}\phi_i F_ij \phi_j
+    /// \f]
     real_function_3d compute_ocep_correction(const real_function_3d& ocep_numerator_HF,
     		const vecfuncT& nemoHF, const vecfuncT& nemoKS,
 			const tensorT& fockHF, const tensorT& fockKS) const {
@@ -522,8 +544,8 @@ public:
     /// compute exchange potential (needed for Econv)
     void compute_exchange_potential(const vecfuncT& nemo, vecfuncT& Knemo) const {
 
-    	Exchange<double,3> K;
-    	K.set_parameters(R_square*nemo,nemo,this->get_calc()->param.lo());
+    	Exchange<double,3> K(world,this->get_calc()->param.lo());
+        K.set_bra_and_ket(R_square * nemo, nemo);
     	Knemo = K(nemo);
     	truncate(world, Knemo);
 

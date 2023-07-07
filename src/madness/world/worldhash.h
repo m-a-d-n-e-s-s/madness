@@ -193,14 +193,13 @@ namespace madness {
     /// \tparam T The class type
     /// \param t The object to hash
     /// \return \c t.hash()
-    template <typename T>
-    inline typename std::enable_if<!(std::is_fundamental<T>::value ||
-        std::is_pointer<T>::value || std::is_array<T>::value), hashT>::type
+    template <typename T, typename = std::enable_if_t<std::is_same_v<decltype(std::declval<const T&>().hash()),hashT>>>
+    inline auto
     hash_value(const T& t) {
         return t.hash();
     }
 
-    /// Hash a string
+    /// Hash a std::basic_string
 
     /// \tparam T The character type
     /// \param t The string to hash
@@ -208,6 +207,12 @@ namespace madness {
     template <typename T>
     inline hashT hash_value(const std::basic_string<T>& t);
 
+    /// Hash a std::pair
+
+    /// \param t a pair to hash
+    /// \return The hashed value of \p t
+    template <typename T, typename R>
+    inline hashT hash_value(const std::pair<T,R>& t);
 
     /// Hash functor
 
@@ -257,9 +262,6 @@ namespace madness {
         detail::combine_hash(seed, hasher(v));
     }
 
-    /// Hash a pair
-
-    ///
     template <typename T, typename R>
     inline hashT hash_value(const std::pair<T,R>& t) {
         hashT result = hash_value(t.first);

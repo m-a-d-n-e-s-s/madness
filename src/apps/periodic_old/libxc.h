@@ -39,7 +39,6 @@
 #ifndef LIBXC_H_
 #define LIBXC_H_
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/world/MADworld.h>
 //#include "xc.h"

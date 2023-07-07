@@ -38,17 +38,23 @@ namespace madness {
 
 std::ostream& operator<<(std::ostream& s, const ContractedGaussianShell& c) {
     static const char* tag[] = {"s","p","d","f","g"};
-    char buf[32768];
+    std::size_t bufsize=32768;
+    char buf[bufsize];
     char* p = buf;
     const std::vector<double>& coeff = c.get_coeff();
     const std::vector<double>& expnt = c.get_expnt();
 
-    p += snprintf(p,32768,"%s [",tag[c.angular_momentum()]);
+    p += snprintf(p,bufsize,"%s [",tag[c.angular_momentum()]);
+    bufsize-=5;
     for (int i=0; i<c.nprim(); ++i) {
-        p += snprintf(p,32768, "%.6f(%.6f)",coeff[i],expnt[i]);
-        if (i != (c.nprim()-1)) p += snprintf(p,32768, ", ");
+        p += snprintf(p,bufsize, "%.6f(%.6f)",coeff[i],expnt[i]);
+        bufsize-=14;
+        if (i != (c.nprim()-1)) {
+            p += snprintf(p,bufsize, ", ");
+            bufsize-=2;
+        }
     }
-    p += snprintf(p, 32768, "]");
+    p += snprintf(p,bufsize, "]");
     s << buf;
     return s;
 }

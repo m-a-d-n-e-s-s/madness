@@ -103,11 +103,11 @@ For LDA functionals the density is processed as-is, only very small and negative
 
 For GGA functionals the reduced density gradients \f$ \sigma\f$ are necessary, which decay very fast and cause numerical instabilites. 
 To avoid these instabilities we express the density gradients as
-\f{align}{
-\rho &= exp(\zeta) \\
-\nabla \rho &= \rho \nabla \zeta \\
-\sigma &= |\nabla\rho|^2 = |\nabla \zeta|^2 \rho^2 = \chi \rho^2
-\f}
+\f[
+\rho = exp(\zeta) \\
+\nabla \rho = \rho \nabla \zeta \\
+\sigma = |\nabla\rho|^2 = |\nabla \zeta|^2 \rho^2 = \chi \rho^2
+\f]
 which defines the quantities \f$ \zeta\f$ and \f$ \chi \f$.
 The functional form of \f$\zeta\f$ is a superposition of cones located at the nuclei with asymptotic slope of the HOMO orbital energy, its derivative is numerically more stable than that of the density itself.
 In this way the density gradients and the density may be munged in a consistent manner.
@@ -121,9 +121,9 @@ However the intermediate potentials have to be multiplied with the gradients of 
 Numerical noise is amplified and convergence during the SCF or CPHF iterations might not be achieved.
 Furthermore, the perturbed density is not strictly positive, so its logarithm is not defined.
 We can pull an unperturbed density out of the perturbed density gradient to regain some stability
-\f{align}{
-\sigma_\mathrm{pt}	&=\nabla\rho\cdot\nabla\rho_\mathrm{pt} = \rho\left(\nabla\zeta\cdot\nabla\rho_\mathrm{pt}\right)
-\f}
+\f[
+\sigma_\mathrm{pt}=\nabla\rho\cdot\nabla\rho_\mathrm{pt} = \rho\left(\nabla\zeta\cdot\nabla\rho_\mathrm{pt}\right)
+\f]
 
 
 The code in XCOperator works as follows

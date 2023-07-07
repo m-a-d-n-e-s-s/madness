@@ -57,18 +57,23 @@ class MolecularOptimizationParameters : public QCCalculationParametersBase {
 public:
 
 	/// ctor reading out the input file
-	MolecularOptimizationParameters(World& world, const commandlineparser& parser) {
-        initialize<std::string>("update","bfgs");
-        initialize<int>("maxiter",20);
-        initialize<double>("tol",1.e-6);
-        initialize<double>("value_precision",1.e-12);
-        initialize<double>("gradient_precision",1.e-12);
-        initialize<bool>("printtest",false);
-        initialize<std::string>("cg_method","polak_ribiere");
-        initialize<std::vector<std::string> >("remove_dof",{"Tx","Ty","Tz","Rx","Ry","Rz"},"which degree of freedom to project out");
+    MolecularOptimizationParameters() {
+        initialize < std::string > ("update", "bfgs", "Quasi-Newton update method",{"bfgs","sr1"});
+        initialize < int > ("maxiter", 20);
+        initialize < double > ("tol", 1.e-4,"geometry convergence threshold for the gradient norm");
+        initialize < double > ("value_precision", 1.e-12);
+        initialize < double > ("gradient_precision", 1.e-12);
+        initialize < bool > ("printtest", false);
+        initialize < std::string > ("cg_method", "polak_ribiere","conjugate gradients update",{"polak_ribiere","fletcher-reeves"});
+        initialize < std::vector<std::string> >
+        ("remove_dof", {"tx", "ty", "tz", "rx", "ry", "rz"}, "degree of freedom projected out: translation/rotation");
+    }
 
+    MolecularOptimizationParameters(World& world, const commandlineparser& parser)
+            : MolecularOptimizationParameters() {
 		// read input file
         read_input_and_commandline_options(world,parser,"geoopt");
+        set_derived_values();
 	}
 
 	void set_derived_values() {
@@ -119,7 +124,13 @@ public:
         return converge;
     }
 
-    bool converged() const {return gradient_norm()<parameters.tol();}
+    bool converged() const {
+        return gradient_norm();
+    }
+
+    bool converged(const Tensor<double>& displacement) const {
+        return (gradient_norm()<parameters.tol() and (displacement.normf()/displacement.size())<parameters.tol());
+    }
 
     double value() const {return 0.0;}
 
@@ -153,11 +164,11 @@ private:
         } else {
             Tensor<double> normalmodes;
             Tensor<double> freq=MolecularOptimizer::compute_frequencies(
-                    target->molecule(),h,normalmodes);
+                    target->molecule(),h,normalmodes,parameters.remove_dof());
             madness::print("\ngopt: projected vibrational frequencies (cm-1)\n");
             printf("frequency in cm-1   ");
             for (int i=0; i<freq.size(); ++i) {
-                printf("%10.3f",constants::au2invcm*freq(i));
+                printf("%10.1f",constants::au2invcm*freq(i));
             }
 
         }
@@ -173,20 +184,17 @@ private:
             Tensor<double> gradient;
 
             target->value_and_gradient(x, f, gradient);
-            print("gopt: new energy",f);
+//            print("gopt: new energy",f);
             const double rawgnorm = gradient.normf()/sqrt(gradient.size());
-            print("gopt: raw gradient norm ",rawgnorm);
+//            print("gopt: raw gradient norm ",rawgnorm);
 
             // remove external degrees of freedom (translation and rotation)
             Tensor<double> project_ext=projector_external_dof(target->molecule(),parameters.remove_dof());
             gradient=inner(gradient,project_ext);
             gnorm = gradient.normf()/sqrt(gradient.size());
-            print("gopt: projected gradient norm ",gnorm);
-            const double gradratio=rawgnorm/gnorm;
+//            print("gopt: projected gradient norm ",gnorm);
+//            const double gradratio=rawgnorm/gnorm;
 
-            printf(" QuasiNewton iteration %2d value %.12e gradient %.2e  %.2e\n",
-                    iter,f,gnorm,gradratio);
-            if (converged()) break;
 
 //            if (iter == 1 && h_is_identity) {
 //                // Default initial Hessian is scaled identity but
@@ -195,7 +203,7 @@ private:
 //            }
 
             if (iter > 0) {
-                if (parameters.update() == "BFGS") QuasiNewton::hessian_update_bfgs(dx, gradient-gp,h);
+                if (parameters.update() == "bfgs") QuasiNewton::hessian_update_bfgs(dx, gradient-gp,h);
                 else QuasiNewton::hessian_update_sr1(dx, gradient-gp,h);
             }
 
@@ -205,7 +213,7 @@ private:
             syev(h, v, e);
             Tensor<double> normalmodes;
             Tensor<double> freq=MolecularOptimizer::compute_frequencies(
-                    target->molecule(),h,normalmodes);
+                    target->molecule(),h,normalmodes,parameters.remove_dof());
             madness::print("\ngopt: projected vibrational frequencies (cm-1)\n");
             printf("frequency in cm-1   ");
             for (int i=0; i<freq.size(); ++i) {
@@ -226,13 +234,17 @@ private:
             dx.scale(step);
             x += dx;
             gp = gradient;
+
+            double disp2=dx.normf()/dx.size();
+            printf(" QuasiNewton iteration %2d energy: %16.8f gradient %.2e displacement %.2e \n", iter,f,gnorm, disp2);
+            if (converged(dx)) break;
         }
 
         if (parameters.printtest()) {
             print("final hessian");
             print(h);
         }
-        return converged();
+        return converged(dx);
     }
 
     bool optimize_conjugate_gradients(Tensor<double>& x) {
@@ -257,15 +269,15 @@ private:
 
             // compute energy and gradient
             target->value_and_gradient(x, energy, gradient);
-            print("gopt: new energy",energy);
+//            print("gopt: new energy",energy);
             gnorm = gradient.normf()/sqrt(gradient.size());
-            print("gopt: raw gradient norm ",gnorm);
+//            print("gopt: raw gradient norm ",gnorm);
 
             // remove external degrees of freedom (translation and rotation)
             Tensor<double> project_ext=projector_external_dof(target->molecule(),parameters.remove_dof());
             gradient=inner(gradient,project_ext);
             gnorm = gradient.normf()/sqrt(gradient.size());
-            print("gopt: projected gradient norm ",gnorm);
+//            print("gopt: projected gradient norm ",gnorm);
 
             // compute new displacement
             if (iter==1) {
@@ -282,10 +294,10 @@ private:
             // save displacement for the next step
             old_displacement=displacement;
 
-            if (converged() and (displacement.normf()/displacement.size()<parameters.tol())) break;
+            if (converged(displacement)) break;
         }
 
-        return converged();
+        return converged(displacement);
     }
 
     /// effectively invert the hessian and multiply with the gradient
@@ -420,12 +432,14 @@ public:
         }
 
         // move the translational and rotational vectors to a common tensor
-        bool remove_Tx=std::find(remove_dof.begin(), remove_dof.end(), "Tx")!=remove_dof.end();
-        bool remove_Ty=std::find(remove_dof.begin(), remove_dof.end(), "Ty")!=remove_dof.end();
-        bool remove_Tz=std::find(remove_dof.begin(), remove_dof.end(), "Tz")!=remove_dof.end();
-        bool remove_Rx=std::find(remove_dof.begin(), remove_dof.end(), "Rx")!=remove_dof.end();
-        bool remove_Ry=std::find(remove_dof.begin(), remove_dof.end(), "Ry")!=remove_dof.end();
-        bool remove_Rz=std::find(remove_dof.begin(), remove_dof.end(), "Rz")!=remove_dof.end();
+        auto tmp=remove_dof;
+        for (auto& t : tmp) t=commandlineparser::tolower(t);
+        bool remove_Tx=std::find(tmp.begin(), tmp.end(), "tx")!=tmp.end();
+        bool remove_Ty=std::find(tmp.begin(), tmp.end(), "ty")!=tmp.end();
+        bool remove_Tz=std::find(tmp.begin(), tmp.end(), "tz")!=tmp.end();
+        bool remove_Rx=std::find(tmp.begin(), tmp.end(), "rx")!=tmp.end();
+        bool remove_Ry=std::find(tmp.begin(), tmp.end(), "ry")!=tmp.end();
+        bool remove_Rz=std::find(tmp.begin(), tmp.end(), "rz")!=tmp.end();
         Tensor<double> ext_dof(6,3*mol.natom());
         if (remove_Tx) ext_dof(0l,_)=transx;
         if (remove_Ty) ext_dof(1l,_)=transy;
@@ -492,7 +506,7 @@ public:
     /// @return the frequencies in atomic units
     static Tensor<double> compute_frequencies(const Molecule& molecule,
             const Tensor<double>& hessian, Tensor<double>& normalmodes,
-            const bool project_tr=true, const bool print_hessian=false) {
+            const std::vector<std::string>& remove_dof={}, const bool print_hessian=false) {
 
         // compute mass-weighing matrices
         Tensor<double> M=molecule.massweights();
@@ -503,11 +517,10 @@ public:
         Tensor<double> mwhessian=inner(M,inner(hessian,M));
 
         // remove translation and rotation
-        if (project_tr) MolecularOptimizer::remove_external_dof(mwhessian,molecule,
-        		{"Tx","Ty","Tz","Rx","Ry","Rz"});
+        if (remove_dof.size()>0) MolecularOptimizer::remove_external_dof(mwhessian,molecule,remove_dof);
 
         if (print_hessian) {
-            if (project_tr) {
+            if (remove_dof.size()>0) {
                 print("mass-weighted hessian with translation and rotation projected out");
             } else {
                 print("mass-weighted unprojected hessian");

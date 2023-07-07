@@ -164,6 +164,8 @@ option(ENABLE_BOOST "Enable C++ Boost Libraries" OFF)
 
 option(ENABLE_GENTENSOR "Enable generic tensor support" OFF)
 add_feature_info(GENTENSOR ENABLE_GENTENSOR "enables use of MRA Function compression that allows computing in 6 dimensions")
+set(MADNESS_USE_GENTENSOR ${ENABLE_GENTENSOR} CACHE BOOL
+    "enables use of MRA Function compression that allows computing in 6 dimensions")
 
 if(ENABLE_GENTENSOR)
   add_definitions(-DUSE_GENTENSOR)
@@ -696,6 +698,25 @@ CONFIGURE_FILE(
   ${PROJECT_SOURCE_DIR}/config/MADNESS.pc.in
   ${PROJECT_BINARY_DIR}/config/MADNESS.pc
 )
+
+CONFIGURE_FILE( 
+  ${PROJECT_SOURCE_DIR}/admin/conda/Makefile.in
+  ${PROJECT_BINARY_DIR}/admin/conda/Makefile
+  @ONLY
+)
+
+CONFIGURE_FILE( 
+  ${PROJECT_SOURCE_DIR}/admin/conda/recipe/build.sh.in
+  ${PROJECT_BINARY_DIR}/admin/conda/recipe/build.sh
+  @ONLY
+)
+
+CONFIGURE_FILE( 
+  ${PROJECT_SOURCE_DIR}/admin/conda/recipe/meta.yaml.in
+  ${PROJECT_BINARY_DIR}/admin/conda/recipe/meta.yaml
+  @ONLY
+)
+
 
 # install config files
 install(FILES ${PROJECT_BINARY_DIR}/config/MADNESS.pc

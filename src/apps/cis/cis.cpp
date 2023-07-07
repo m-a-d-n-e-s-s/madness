@@ -15,17 +15,19 @@ using namespace madness;
 
 int main(int argc, char **argv) {
     int error = 0;
-    {
-        World& world = initialize(argc, argv);
+    World& world = initialize(argc, argv);
+    try {
         if (world.rank() == 0) {
-            printf("starting at time %.1f\n", wall_time());
-            print("\nmain() compiled at ", __TIME__, " on ", __DATE__);
-            print(info::print_revision_information());
+            print_header1("CIS -- compute DFT and Hartree-Fock excited states in CIS/TDA approximation");
         }
+
         //const double time_start = wall_time();
         std::cout.precision(6);
 
         startup(world, argc, argv, true);
+        if (world.rank()==0) print(info::print_revision_information());
+
+        printf("starting at time %.1f\n", wall_time());
         print_meminfo(world.rank(), "startup");
 
         if (world.rank() == 0) {
@@ -44,15 +46,27 @@ int main(int argc, char **argv) {
         commandlineparser parser(argc, argv);
         parser.print_map();
 
-        if (parser.key_exists("test")) {
+        if (parser.key_exists("help")) {
+            TDHF::help();
+
+        } else if (parser.key_exists("print_parameters")) {
+            TDHF::print_parameters();
+
+        } else if (parser.key_exists("test")) {
             print("entering test mode");
             error = TDHF::test(world, parser);
+
         } else {
 
             TDHF tdhf(world, parser);
 
-            tdhf.get_calcparam().print("dft");
-            tdhf.parameters.print("response");
+            print_header2("input section");
+            if (world.rank() == 0) {
+                tdhf.get_calcparam().print("dft","end");
+                print("");
+                tdhf.parameters.print("response","end");
+                tdhf.get_calc()->molecule.print();
+            }
 
             // solve the CIS equations
             const double time_scf_start = wall_time();
@@ -80,6 +94,11 @@ int main(int argc, char **argv) {
         world.gop.fence();
         if (world.rank() == 0) printf("finished at time %.1f\n", wall_time());
         print_stats(world);
+    } catch (std::exception& e) {
+        print("an exception occurred");
+        print(e.what());
+    } catch (...) {
+        print("an unknown exception occurred");
     }
     finalize();
     return error;

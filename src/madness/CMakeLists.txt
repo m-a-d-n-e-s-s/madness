@@ -109,6 +109,19 @@ target_link_libraries(madness PUBLIC Threads::Threads)
 if (WORLD_GET_DEFAULT_DISABLED)
   target_compile_definitions(madness PUBLIC -DMADNESS_DISABLE_WORLD_GET_DEFAULT=1)
 endif (WORLD_GET_DEFAULT_DISABLED)
+# MADchem dependencies
+if (LIBXC_FOUND)
+	target_include_directories(madness PUBLIC ${LIBXC_INCLUDE_DIRS})
+	target_link_libraries(madness PUBLIC ${LIBXC_LIBRARIES})
+endif ()
+if (PCM_FOUND)
+	target_include_directories(madness PUBLIC ${PCM_INCLUDE_DIRS})
+	target_link_libraries(madness PUBLIC ${PCM_LIBRARIES})
+endif ()
+if (BOOST_FOUND)
+	target_include_directories(madness PUBLIC ${BOOST_INCLUDE_DIRS})
+	target_link_libraries(madness PUBLIC ${BOOST_LIBRARIES})
+endif ()
 
 # Add common header files and madness library to the install list
 install(FILES constants.h fortran_ctypes.h madness_config.h ${CMAKE_CURRENT_BINARY_DIR}/config.h

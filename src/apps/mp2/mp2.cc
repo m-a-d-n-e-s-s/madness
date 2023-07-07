@@ -38,7 +38,6 @@
 */
 
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include "madness/chem/mp2.h"
 #include "madness/misc/info.h"
 
@@ -47,34 +46,39 @@ using namespace madness;
 #ifdef USE_GENTENSOR
 
 int main(int argc, char** argv) {
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
-    startup(world,argc,argv);
-    std::cout.precision(6);
+    World& world=initialize(argc, argv,false);
+    if (world.rank() == 0) {
+        print_header1("MP2 -- second order correlation energies");
+        printf("starting at time %.1f\n", wall_time());
+    }
 
+    startup(world,argc,argv,true);
+    std::cout.precision(6);
     if (world.rank()==0) print(info::print_revision_information());
 
+
     commandlineparser parser(argc,argv);
+    if (parser.key_exists("help")) {
+        MP2::help();
 
-    TensorType tt=TT_2D;
-    if (parser.key_exists("TT")) {
-        if (parser.value("TT")=="TT_2D") tt=TT_2D;
-        if (parser.value("TT")=="TT_TENSORTRAIN") tt=TT_TENSORTRAIN;
-    }
-    bool do_test=false;
-    std::string testfilename;
-    if (parser.key_exists("test")) {
-        do_test = true;
-        testfilename=parser.value("test");
-    }
+    } else if (parser.key_exists("print_parameters")) {
+        MP2::print_parameters();
 
-    FunctionDefaults<6>::set_tensor_type(tt);
-    FunctionDefaults<6>::set_apply_randomize(true);
+    } else {
 
-    try {
-    	MP2 mp2(world,parser);
+        TensorType tt = TT_2D;
+        if (parser.key_exists("TT")) {
+            if (parser.value("TT") == "TT_2D") tt = TT_2D;
+            if (parser.value("TT") == "TT_TENSORTRAIN") tt = TT_TENSORTRAIN;
+        }
 
-    	if(world.rank() == 0) printf("\nstarting at time %.1fs\n", wall_time());
+        FunctionDefaults<6>::set_tensor_type(tt);
+        FunctionDefaults<6>::set_apply_randomize(true);
+
+        try {
+            MP2 mp2(world, parser);
+
+            if (world.rank() == 0) printf("\nstarting at time %.1fs\n", wall_time());
 
 		if (do_test) mp2.test(testfilename);
 		else {
@@ -95,9 +99,10 @@ int main(int argc, char** argv) {
 		}
     } catch (std::exception& e) {
 
-    	if (world.rank()==0) {
-    		print("\ncaught an exception: \n",e.what());
-    	}
+            if (world.rank() == 0) {
+                print("\ncaught an exception: \n", e.what());
+            }
+        }
     }
 
     if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());

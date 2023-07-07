@@ -1417,8 +1417,9 @@ namespace madness {
                     if(((current_time - start) > timeout) && (timeout > 1.0)) { // Check for timeout
                       std::cerr << "!!MADNESS: Hung queue?" << std::endl;
                       if (counter++ > 3) {
-                        char errstr[256];
-                        snprintf(errstr,256, "ThreadPool::await() timed out after %.1lf seconds", timeout);
+                        const long bufsize=256;
+                        char errstr[bufsize];
+                        snprintf(errstr,bufsize, "ThreadPool::await() timed out after %.1lf seconds", timeout);
                         throw madness::MadnessException(errstr, 0, 1,
                                                         __LINE__, __FUNCTION__,
                                                         __FILE__);

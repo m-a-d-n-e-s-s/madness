@@ -23,25 +23,30 @@
 #include "../chem/molecule.h"
 #include "x_space.h"
 namespace madness {
-void do_vtk_plots(World &world,
-                  int npt_plot,
-                  double L,
-                  int plotlo,
-                  int plothi,
-                  Molecule molecule,
-                  std::vector<real_function_3d> densities,
-                  std::string name);
 
-void do_vtk_plots(World &world,
-                  int npt_plot,
-                  double L,
-                  Molecule molecule,
-                  real_function_3d &rho_0,
-                  std::vector<real_function_3d> &rho_omega,
-                  std::vector<real_function_3d> &ground_orbitals,
-                  X_space &Chi);
+    void write_molecules_to_file(const Molecule &molecule, const std::string &geo_file);
+    void do_response_orbital_vtk_plots(World &world, int npt_plot, double L, const Molecule &molecule, const vector_real_function_3d &ground_orbs, const response_matrix &responseMatrix);
+    void do_response_density_vtk_plots(World &world, int npt_plot, double L, const Molecule &molecule, const real_function_3d &ground_density, const vector_real_function_3d &response_density);
 
-}  // namespace madness
-#endif  // SRC_APPS_molresponse_PLOT_VTK_H_
+    void do_vtk_plots(World &world,
+                      int npt_plot,
+                      double L,
+                      int lowest_orbital,
+                      int highest_orbital,
+                      const Molecule &molecule,
+                      std::vector<real_function_3d> densities,
+                      const std::string &name);
+
+    void do_vtk_plots(World &world,
+                      int npt_plot,
+                      double L,
+                      Molecule molecule,
+                      real_function_3d &rho_0,
+                      std::vector<real_function_3d> &rho_omega,
+                      std::vector<real_function_3d> &ground_orbitals,
+                      X_space &Chi);
+
+}// namespace madness
+#endif// SRC_APPS_molresponse_PLOT_VTK_H_
 
 // Dueces

@@ -594,7 +594,7 @@ namespace madness {
         /// If the function is not initialized, it just returns.
         ///
         /// Returns this for chaining.
-		/// @param[in] tol Tolerance for truncating the coefficients. Default 0.0 means use the implimentation's member value \c thresh instead.
+		/// @param[in] tol Tolerance for truncating the coefficients. Default 0.0 means use the implementation's member value \c thresh instead.
 		/// @param[in] fence Do fence
         Function<T,NDIM>& truncate(double tol = 0.0, bool fence = true) {
             PROFILE_MEMBER_FUNC(Function);

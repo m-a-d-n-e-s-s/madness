@@ -109,12 +109,21 @@ Molecule::Molecule(World& world, const commandlineparser& parser) :parameters(wo
 
 void Molecule::print_parameters() {
     GeometryParameters param;
-    madness::print("default parameters for the geometry input");
-    madness::print("You need to add the molecular geometry in the format");
-    madness::print(" symbol x y z");
-    madness::print(" symbol x y z");
-    madness::print(" symbol x y z");
+    madness::print("default parameters for the geometry input:\n");
     param.print("geometry","end");
+    madness::print("");
+    madness::print("");
+
+
+    madness::print("If the molecular geometry is provided in the input file you need to specify");
+    madness::print("the coordinates inside the geometry block\n");
+    madness::print("Example:\n");
+    madness::print("geometry");
+    madness::print("  units  atomic ");
+    madness::print("  O                     0                   0          0.21300717 ");
+    madness::print("  H                     0           1.4265081         -0.85202867 ");
+    madness::print("  H                     0          -1.4265081         -0.85202867 ");
+    madness::print("end\n");
 }
 
 void Molecule::get_structure() {
@@ -440,11 +449,31 @@ const Atom& Molecule::get_atom(unsigned int i) const {
     return atoms[i];
 }
 
+// Returns molecule in qc-schema format
+// symbols (nat,) atom symbols in title case. array[string]
+// geometry (3*nat,) vector of xyz coordinates [a0] of the atoms.  array[number]
+// There are optional parameters yet to be implemented
+// https://molssi-qc-schema.readthedocs.io/en/latest/auto_topology.html
+nlohmann::json Molecule::to_json() const {
+    nlohmann::json mol_schema;
+    mol_schema["symbols"] = {};
+    mol_schema["geometry"] = {};
+
+    get_atomic_data(atoms[0].atomic_number).symbol;
+    for (size_t i = 0; i < natom(); ++i) {
+        mol_schema["symbols"].push_back(get_atomic_data(atoms[i].atomic_number).symbol);
+        mol_schema["geometry"].push_back({atoms[i].x, atoms[i].y, atoms[i].z});
+    }
+    return mol_schema;
+}
+
+
+
 void Molecule::print() const {
     std::string p =parameters.print_to_string();
     std::cout.flush();
     std::stringstream sstream;
-    sstream << " geometry" << std::endl;
+    sstream << "geometry" << std::endl;
     sstream << p << std::endl;
 //    sstream << "   eprec  " << std::scientific << std::setw(1) << get_eprec()  << std::endl << std::fixed;
 //    sstream << "   units atomic" << std::endl;
@@ -456,7 +485,7 @@ void Molecule::print() const {
         if (atoms[i].atomic_number == 0) sstream << "     " << atoms[i].q;
         sstream << std::endl;
     }
-    sstream << " end" << std::endl;
+    sstream << "end" << std::endl;
     std::cout << sstream.str();
 }
 

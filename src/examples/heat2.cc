@@ -30,7 +30,6 @@
 
   $Id$
 */
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 #include <madness/constants.h>
@@ -41,7 +40,7 @@
 \defgroup heatex2 Evolve in time 3D heat equation with a linear term
 \ingroup examples
 
-The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/heat2.cc>here</a>.
+The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/heat2.cc>here</a>.
 
 \par Points of interest
   - application of a function of a function to exponentiate the potential

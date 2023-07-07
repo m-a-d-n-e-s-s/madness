@@ -37,7 +37,7 @@
   \defgroup exampledielectric Poisson's equation in a dielectric medium
   \ingroup examples
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/dielectric.cc>here</a>.
+  The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/dielectric.cc>here</a>.
 
   \par Points of interest
   - use of iterative equation solver
@@ -92,7 +92,6 @@
                     \frac{1}{\epsilon_1 |r|} + \left( \frac{1}{\epsilon_2} - \frac{1}{\epsilon_1} \right) \frac{1}{R}  & |r| < R
                \end{array}
             \right .
-
   \f]
   The surface charge density integrated over the suface has the value
   \f[
@@ -168,7 +167,6 @@
 */
 
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/funcplot.h>

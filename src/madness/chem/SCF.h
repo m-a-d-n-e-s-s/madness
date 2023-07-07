@@ -40,8 +40,6 @@
 #ifndef MADNESS_CHEM_SCF_H__INCLUDED
 #define MADNESS_CHEM_SCF_H__INCLUDED
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
 #include <memory>
 
 #include<madness/chem/molecular_functors.h>
@@ -233,15 +231,15 @@ public:
     void copy_data(World& world, const SCF& other);
 
     static void help() {
-        print("\nmoldft \n");
+        print_header2("help page for MOLDFT ");
         print("The moldft code computes Hartree-Fock and DFT energies and gradients, It is the fastest code in MADNESS");
         print("and considered the reference implementation. No nuclear correlation factor can be used");
         print("SCF orbitals are the basis for post-SCF calculations like");
         print("excitation energies (cis), correlation energies (cc2), local potentials (oep), etc\n\n");
         print("You can print all available calculation parameters by running\n");
-        print("nemo --print_parameters\n");
+        print("moldft --print_parameters\n");
         print("You can perform a simple calculation by running\n");
-        print("nemo --geometry=h2o.xyz\n");
+        print("moldft --geometry=h2o.xyz\n");
         print("provided you have an xyz file in your directory.");
 
     }
@@ -253,6 +251,8 @@ public:
         print("\n\nthe molecular geometry must be specified in a separate block:");
         Molecule::print_parameters();
     }
+
+    void set_print_timings(const bool value);
 
     template<std::size_t NDIM>
     void set_protocol(World& world, double thresh) {
@@ -504,6 +504,10 @@ public:
     void solve(World& world);
 
     void output_calc_info_schema() const;
+
+    void output_scf_info_schema(const std::map<std::string, double> &vals,
+                                const tensorT &dipole_T) const;
+
 };
 
 // Computes molecular energy as a function of the geometry
@@ -674,8 +678,45 @@ public:
         gradient = calc.derivatives(world, rho);
     }
 
-    void output_calc_info_schema() const {
-        calc.output_calc_info_schema();
+    void output_calc_info_schema() {
+        nlohmann::json j = {};
+        vec_pair_ints int_vals;
+        vec_pair_T<double> double_vals;
+        vec_pair_tensor_T<double> double_tensor_vals;
+
+        CalculationParameters param = calc.param;
+
+        nlohmann::json calc_precision={ };
+        calc_precision["eprec"]=calc.molecule.parameters.eprec();
+        calc_precision["dconv"]=calc.param.dconv();
+        calc_precision["econv"]=calc.param.econv();
+        calc_precision["thresh"]=FunctionDefaults<3>::get_thresh();
+        calc_precision["k"]=FunctionDefaults<3>::get_k();
+
+        auto mol_json=this->calc.molecule.to_json();
+
+        int_vals.push_back({"calcinfo_nmo", param.nmo_alpha() + param.nmo_beta()});
+        int_vals.push_back({"calcinfo_nalpha", param.nalpha()});
+        int_vals.push_back({"calcinfo_nbeta", param.nbeta()});
+        int_vals.push_back({"calcinfo_natom", calc.molecule.natom()});
+
+
+        to_json(j, int_vals);
+        double_vals.push_back({"return_energy", value(calc.molecule.get_all_coords().flat())});
+        to_json(j, double_vals);
+        double_tensor_vals.push_back({"scf_eigenvalues_a", calc.aeps});
+        if (param.nbeta() != 0 && !param.spin_restricted()) {
+            double_tensor_vals.push_back({"scf_eigenvalues_b", calc.beps});
+        }
+
+        to_json(j, double_tensor_vals);
+        param.to_json(j);
+        calc.e_data.to_json(j);
+
+        j["precision"]=calc_precision;
+        j["molecule"]=mol_json;
+
+        output_schema(param.prefix()+".calc_info", j);
     }
 
 

@@ -10,6 +10,7 @@
 
 #include<madness/chem/CCStructures.h>
 #include<madness/chem/nemo.h>
+#include<madness/chem/MolecularOrbitals.h>
 #include<madness/chem/projector.h>
 #include<madness/chem/SCFOperators.h>
 #include <math.h>
@@ -53,7 +54,7 @@ public:
             initialize < bool > ("triplet", false, "calculate triplet excitation energies (only works for CIS)");
             initialize < bool > ("do_oep", false, "use OEP potentials for the ground state exchange");
             initialize < std::size_t > ("excitations", 1);
-            initialize < std::size_t > ("freeze", 0, "the number of frozen occupied orbitals");
+            initialize < long > ("freeze", -1, "the number of frozen occupied orbitals (-1: automatic)");
             initialize < std::string > ("irrep", "all", "compute only irreps of the respective point group");
 
             // solver
@@ -73,9 +74,10 @@ public:
             initialize < bool > ("debug", false);
             initialize < bool > ("plot", false);
             initialize < bool > ("no_compute", false);
+            initialize<int>  ("print_level",3,"0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
 
-            initialize < std::vector<size_t> >
-            ("restart", std::vector<size_t>(), "excitations which will be read from disk");
+            initialize <std::vector<size_t>> ("restart", std::vector<size_t>(), "excitations which will be read from disk");
+
 
             initialize < std::string >
             ("guess_excitation_operators", "quadrupole", "guess type", {"dipole+", "quadrupole",
@@ -131,7 +133,7 @@ public:
         // physical part
         std::size_t excitations() const { return get<std::size_t>("excitations"); }
 
-        std::size_t freeze() const { return get<std::size_t>("freeze"); }
+        long freeze() const { return get<long>("freeze"); }
 
         std::string irrep() const { return get<std::string>("irrep"); }
 
@@ -152,6 +154,8 @@ public:
         bool debug() const { return get<bool>("debug"); }
 
         bool no_compute() const { return get<bool>("no_compute"); }
+
+        int print_level() const {return get<int>("print_level");}
 
         std::vector<size_t> restart() const { return get<std::vector<size_t> >("restart"); }
 
@@ -207,6 +211,37 @@ public:
     void initialize();
 
     std::string name() const {return "TDHF";};
+
+    static void help() {
+        print_header2("help page for CIS ");
+        print("The CIS code computes Hartree-Fock and DFT excitations.");
+        print("A moldft or nemo calculation will be performed automatically unless there is already a ");
+        print("wave function on file ('restartdata.00000'). Both local and canonical orbitals can be ");
+        print("used, for the latter individual irreps may be chosen for computation");
+        print("Relevant parameters are derived from the reference calculation (moldft or nemo),");
+        print("such as k, nuclear_correlation_factor, charge, etc");
+        print("You can print all available calculation parameters by running\n");
+        print("cis --print_parameters\n");
+        print("You can perform a simple calculation by running\n");
+        print("cis --geometry=h2o.xyz\n");
+        print("provided you have an xyz file in your directory.");
+
+    }
+
+    /// unless set by user, determine # frozen orbitals based on canonical orbitals energies
+
+    /// will check frozen and active orbitals against the block structure of the fock matrix, and
+    /// will enforce core/valence separation if necessary.
+    void determine_frozen_orbitals(const Tensor<double>& fmat);
+    MolecularOrbitals<double,3> enforce_core_valence_separation(const Tensor<double>& fmat) const;
+
+    static void print_parameters() {
+        TDHFParameters param;
+        print("default parameters for the CIS program are\n");
+        param.print("response", "end");
+        print("\n\nthe molecular geometry must be specified in a separate block:");
+        Molecule::print_parameters();
+    }
 
     virtual bool selftest() {
         return true;
@@ -385,8 +420,8 @@ public:
 
 
     /// Helper function to initialize the const mo_bra and ket elements
-    CC_vecfunction make_mo_bra() const {
-        vector_real_function_3d tmp = get_reference()->get_ncf_ptr()->square()* get_calc()->amo;
+    CC_vecfunction make_mo_bra(const std::vector<Function<double,3>>& amo) const {
+        vector_real_function_3d tmp = get_reference()->get_ncf_ptr()->square()* amo;
         set_thresh(world, tmp, parameters.thresh());
         truncate(world, tmp);
         reconstruct(world, tmp);
@@ -394,8 +429,8 @@ public:
         return mo_bra;
     }
 
-    CC_vecfunction make_mo_ket() const {
-        vector_real_function_3d tmp = copy(world,get_calc()->amo);
+    CC_vecfunction make_mo_ket(const std::vector<Function<double,3>>& amo) const {
+        vector_real_function_3d tmp = copy(world,amo);
         set_thresh(world, tmp, parameters.thresh());
         truncate(world, tmp);
         reconstruct(world, tmp);

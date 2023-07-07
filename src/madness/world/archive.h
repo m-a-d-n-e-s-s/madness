@@ -51,6 +51,7 @@
 #include <map>
 #include <set>
 #include <list>
+#include <optional>
 #include <tuple>
 #include <madness/config.h>
 //#include <madness/world/worldprofile.h>
@@ -514,8 +515,9 @@ namespace madness {
                 unsigned char cookie;
                 ar.load(&cookie, 1); // cannot use >>
                 if (cookie != ck) {
-                    char msg[255];
-                    std::snprintf(msg,255,"InputArchive type mismatch: expected cookie "
+                    const std::size_t bufsize=255;
+                    char msg[bufsize];
+                    std::snprintf(msg,bufsize,"InputArchive type mismatch: expected cookie "
                                  "%u (%s) but got %u (%s) instead",
                                  ck, archive_type_names[ck],
                                  cookie,archive_type_names[cookie]);
@@ -1317,6 +1319,34 @@ namespace madness {
             static inline void serialize(const Archive& ar, std::pair<T,Q>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize std::pair" << std::endl);
                 ar & t.first & t.second;
+            }
+        };
+
+        /// Serialize (deserialize) an std::optional.
+
+        /// \tparam Archive The archive type.
+        /// \tparam T The data type stored in the optional object
+        template <class Archive, typename T>
+        struct ArchiveSerializeImpl< Archive, std::optional<T>, std::enable_if_t<is_serializable_v<Archive, T>> > {
+            /// Serialize the \c std::optional.
+
+            /// \param[in] ar The archive.
+            /// \param[in,out] t The \c optional.
+            static inline void serialize(const Archive& ar, std::optional<T>& t) {
+                MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize std::optional" << std::endl);
+                if constexpr (is_output_archive_v<Archive>) {  // serialize
+                    ar & t.has_value();
+                    if (t.has_value())
+                      ar & t.value();
+                } else {
+                    bool has_value;
+                    ar & has_value;
+                    if (has_value) {
+                      T value;
+                      ar & value;
+                      t = std::move(value);
+                    }
+                }
             }
         };
 

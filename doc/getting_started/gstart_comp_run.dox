@@ -35,52 +35,7 @@
   \addtogroup gstart_comp_run
   \todo Verify that the code snippets here aren't stale. They're imported from a 2010 document.
 
-\par Compiling your program
-
-Assuming your code is in saved in `fred.cc`, to make the program type
-\code
-make -f trunk/doc/devsamp/Makefile.sample fred
-\endcode
-The example makefile `Makefile.sample` must be copied and modified for projects with more than one source file (see the end of that file for an example).
-
-\par Running your program
-
-<em>On a single workstation or laptop</em>
-
-Just type the name of the executable in the directory where the binary is located,
-\code
-./fred
-\endcode
-
-Hopefully it will print
-\verbatim
-The result is 1.839072e+00
-\endverbatim
-
-<em>You are already running in parallel.</em>
-
-Behind the scenes, MADNESS inquired how many processors or cores were installed in your computer and launched that many threads to perform the work. If you wish to use fewer processors, set the environment variable `MAD_NUM_THREADS` to be the total number of processors or cores you wish to use (note that if using MPI, an additional server thread is also employed for massage passing). For example, to use just 3 processors, in
-the bash shell type
-\code
-export MAD_NUM_THREADS=3
-\endcode
-and in the C shell type
-\code
-setenv MAD_NUM_THREADS 3
-\endcode
-
-\attention Using more threads than processors can result in catastrophic slowdown since MADNESS uses spinlocks. If you need to oversubscribe the physical processors (or run inside a virtual machine), configure with the option `--enable-never-spin`.
-
-<em> On a parallel computer using MPI (distributed or shared memory)</em>
-
-This is going to vary from system to system. Generically, to run on `N` nodes with `T` applications threads per node (an extra server thread for message passing is also created if `N`\f$>1\f$), you will type (in the bash shell) something like
-\code
-MAD_NUM_THREADS=T mpirun -np N ./fred
-\endcode
-
-We want `mpirun` to start one process per node, and MADNESS will look after starting one thread per processor/core. But this is easier said than done and sadly changes with each revision of the vendors system software. Please refer to the MADNESS wiki for current examples for how to run on the Cray-XT5 and IBM BG/P.
-
-\todo We might want to update this last paragraph.
+Please refer to the material in the <a href="https://github.com/m-a-d-n-e-s-s/madness/tree/master/doc/tutorial">MADNESS tutorial</a> and <a href="https://madness.readthedocs.io/en/latest/INSTALL.html">MADNESS readthedocs</a>.
 
 Previous: \ref gstart_basics; Next: \ref gstart_functions
 */

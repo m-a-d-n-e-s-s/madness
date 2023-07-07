@@ -378,8 +378,8 @@ namespace madness {
         uniqueidT objid; ///< Sense of self.
 
 
-        static Spinlock pending_mutex; ///< \todo Description needed.
-        static volatile pendingT pending; ///< Buffer for pending messages.
+        inline static Spinlock pending_mutex; ///< \todo Description needed.
+        inline static volatile pendingT pending; ///< Buffer for pending messages.
 
 
         /// \todo Complete: Determine if [unknown] is ready (for ...).
@@ -1439,15 +1439,6 @@ namespace madness {
         };
     }
 }
-
-#ifdef WORLD_INSTANTIATE_STATIC_TEMPLATES
-template <typename Derived>
-volatile std::list<madness::detail::PendingMsg> madness::WorldObject<Derived>::pending;
-
-template <typename Derived>
-madness::Spinlock madness::WorldObject<Derived>::pending_mutex;
-
-#endif
 
 #endif // MADNESS_WORLD_WORLD_OBJECT_H__INCLUDED
 

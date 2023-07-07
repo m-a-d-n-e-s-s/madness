@@ -36,7 +36,6 @@
 #error "mraimpl.h should ONLY be included in one of the mraX.cc files (x=1..6)"
 #endif
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <memory>
 #include <math.h>
 #include <cmath>

@@ -34,13 +34,11 @@
 /// \defgroup moldft The molecular density functional and Hartree-Fock code
 
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
 
 #include <madness/world/worldmem.h>
 #include<madness.h>
 #include<madness/chem/SCF.h>
-#include<chem.h>
+#include<madchem.h>
 
 #if defined(__has_include)
 #  if __has_include(<filesystem>)
@@ -141,6 +139,21 @@ tensorT Q2(const tensorT& s) {
 }
 
 }// namespace madness
+void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
+                                 const tensorT &dipole_T) const {
+    nlohmann::json j = {};
+    // if it exists figure out the size.  pushback for each protocol
+    const double thresh = FunctionDefaults<3>::get_thresh();
+    const int k = FunctionDefaults<3>::get_k();
+    j["scf_threshold"] = thresh;
+    j["scf_k"] = k;
+    for (auto const &[key, val]: vals) {
+        j[key] = val;
+    }
+    j["scf_dipole_moment"] = tensor_to_json(dipole_T);
+    int num = 0;
+    update_schema(param.prefix()+".scf_info", j);
+}
 
 void SCF::output_calc_info_schema() const {
     nlohmann::json j = {};
@@ -149,19 +162,19 @@ void SCF::output_calc_info_schema() const {
     vec_pair_tensor_T<double> double_tensor_vals;
 
 
-    int_vals.push_back({"calcinfo_nmo", param.nmo_alpha() + param.nmo_beta()});
-    int_vals.push_back({"calcinfo_nalpha", param.nalpha()});
-    int_vals.push_back({"calcinfo_nbeta", param.nbeta()});
-    int_vals.push_back({"calcinfo_natom", molecule.natom()});
-    int_vals.push_back({"k", FunctionDefaults<3>::get_k()});
+    int_vals.emplace_back("calcinfo_nmo", param.nmo_alpha() + param.nmo_beta());
+    int_vals.emplace_back("calcinfo_nalpha", param.nalpha());
+    int_vals.emplace_back("calcinfo_nbeta", param.nbeta());
+    int_vals.emplace_back("calcinfo_natom", molecule.natom());
+    int_vals.emplace_back("k", FunctionDefaults<3>::get_k());
 
     to_json(j, int_vals);
 //    double_vals.push_back({"return_energy", value(molecule.get_all_coords().flat())});
-    double_vals.push_back({"return_energy", current_energy});
+    double_vals.emplace_back("return_energy", current_energy);
     to_json(j, double_vals);
-    double_tensor_vals.push_back({"scf_eigenvalues_a", aeps});
+    double_tensor_vals.emplace_back("scf_eigenvalues_a", aeps);
     if (param.nbeta() != 0 && !param.spin_restricted()) {
-        double_tensor_vals.push_back({"scf_eigenvalues_b", beps});
+        double_tensor_vals.emplace_back("scf_eigenvalues_b", beps);
     }
 
     to_json(j, double_tensor_vals);
@@ -282,6 +295,9 @@ SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParam
 
 }
 
+void SCF::set_print_timings(const bool value) {
+    print_timings=value;
+}
 
 void SCF::copy_data(World& world, const SCF& other) {
     aeps = copy(other.aeps);
@@ -499,13 +515,14 @@ void SCF::do_plots(World& world) {
     }
 
     for (int i = param.get<int>("plotlo"); i <= param.get<int>("plothi"); ++i) {
-        char fname[256];
+        std::size_t bufsize=256;
+        char fname[bufsize];
         if (i < param.nalpha()) {
-            snprintf(fname,256, "amo-%5.5d.dx", i);
+            snprintf(fname,bufsize, "amo-%5.5d.dx", i);
             plotdx(amo[i], fname, param.plot_cell(), npt, true);
         }
         if (!param.spin_restricted() && i < param.nbeta()) {
-            snprintf(fname,256, "bmo-%5.5d.dx", i);
+            snprintf(fname,bufsize, "bmo-%5.5d.dx", i);
             plotdx(bmo[i], fname, param.plot_cell(), npt, true);
         }
     }
@@ -1431,7 +1448,7 @@ tensorT SCF::dipole(World& world, const functionT& rho) const {
         mu[axis] += molecule.nuclear_dipole(axis);
     }
 
-    if (world.rank() == 0 and (param.print_level() > 1)) {
+    if (world.rank() == 0 and (param.print_level() > 2)) {
         print("\n Dipole Moment (a.u.)\n -----------\n");
         print("     x: ", mu[0]);
         print("     y: ", mu[1]);
@@ -1883,7 +1900,7 @@ double SCF::do_step_restriction(World& world, const vecfuncT& mo, vecfuncT& mo_n
             double s = param.maxrotn() / anorm[i];
             ++nres;
             if (world.rank() == 0) {
-                if (nres == 1 and (param.print_level() > 1))
+                if (nres == 1 and (param.print_level() > 2))
                     printf("  restricting step for %s orbitals:", spin.c_str());
                 printf(" %d", i);
             }
@@ -1896,7 +1913,7 @@ double SCF::do_step_restriction(World& world, const vecfuncT& mo, vecfuncT& mo_n
     world.gop.fence();
     double rms, maxval;
     vector_stats(anorm, rms, maxval);
-    if (world.rank() == 0 and (param.print_level() > 1))
+    if (world.rank() == 0 and (param.print_level() > 2))
         print("Norm of vector changes", spin, ": rms", rms, "   max", maxval);
     return maxval;
 }

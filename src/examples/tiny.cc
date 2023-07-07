@@ -31,19 +31,18 @@
   $Id$
 */
 /*!
-  \file helium_mp2.cc
+  \file tiny.cc
   \brief Solves the Hartree-Fock and MP2 equations for the helium atom
   \defgroup examplehehf Hartree-Fock and MP2 for the helium atom
   \ingroup examples
 
   The source is
-  <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/helium_mp2.cc>here</a>.
+  <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/helium_mp2.cc>here</a>.
 
 
 */
 
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/mra/mra.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/funcplot.h>

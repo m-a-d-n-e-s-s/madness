@@ -31,9 +31,6 @@
   $Id$
 */
 
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-
-
 /*!
   \file examples/znemo.cc
   \brief solve the HF equations using numerical exponential MOs
@@ -46,109 +43,85 @@
 
 #if !defined USE_GENTENSOR
 
-#include "madness/chem/znemo.h"
-
+#include <madness/chem/znemo.h>
 using namespace madness;
 
-
 int main(int argc, char** argv) {
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
-    startup(world,argc,argv);
-    std::cout.precision(6);
 
+    World& world=initialize(argc, argv,false);
     if (world.rank() == 0) {
-    	print("\n  ZNEMO -- complex Hartree-Fock using numerical exponential molecular orbitals \n");
-    	printf("starting at time %.1f\n", wall_time());
-
+        print_header1(" ZNEMO -- complex Hartree-Fock using numerical exponential molecular orbitals");
+        printf("starting at time %.1f\n", wall_time());
     }
 
+    startup(world,argc,argv,true);
+    std::cout.precision(6);
     if (world.rank()==0) print(info::print_revision_information());
 
+
     commandlineparser parser(argc,argv);
-    bool value=true;
-    bool analyze=false;
-    bool write_input=false;
-    bool help=false;
+    parser.set_keyval("no_orient","true");  // needs to be passed to molecule *before* construction
+    if (parser.key_exists("help")) {
+        Znemo::help();
 
-    // parse command line arguments
-    std::vector<std::string> allArgs(argv, argv + argc);
-    for (auto& a : allArgs) {
-		std::replace_copy(a.begin(), a.end(), a.begin(), '=',' ');
-		std::replace_copy(a.begin(), a.end(), a.begin(), '-',' ');
-    	std::string key, val;
-    	std::stringstream sa(a);
-    	sa >> key >> val;
-    	if (key=="help") help=true;
-    	if (key=="analyze") {
-    		value=false;
-    		analyze=true;
-    	}
-    	if (key=="write_input") write_input=true;
+    } else if (parser.key_exists("print_parameters")) {
+        Znemo::print_parameters();
+
+    } else {
+
+        try {
+
+            bool analyze_only=parser.key_exists("analyze");
+
+            std::shared_ptr<Znemo> znemo(new Znemo(world,parser));
+
+            // optimize the geometry if requested
+            if (znemo->get_cparam().gopt()) {
+                print_header2("Geometry Optimization");
+
+                Tensor<double> geomcoord = znemo->molecule().get_all_coords().flat();
+                MolecularOptimizer geom(world,parser,znemo);
+                geom.parameters.set_derived_value<std::vector<std::string> >("remove_dof",{});
+                geom.parameters.print("geometry optimization parameters","end");
+                geom.optimize(geomcoord);
+            } else {
+
+                // compute the energy to get converged orbitals
+                double energy=0.0;
+                if (not analyze_only) energy=znemo->value();
+                auto zmos=znemo->read_reference();
+                for (int i=0; i<znemo->get_cparam().nalpha(); ++i) znemo->amo.push_back(zmos.first.get_mos()[i]);
+                for (int i=0; i<znemo->get_cparam().nbeta(); ++i) znemo->bmo.push_back(zmos.second.get_mos()[i]);
+                energy=znemo->analyze();
+
+                if (world.rank()==0) {
+                    printf("final energy   %12.8f\n", energy);
+                    printf("finished at time %.1f\n", wall_time());
+                }
+            }
+
+        } catch (const SafeMPI::Exception& e) {
+            print(e);
+            error("caught an MPI exception");
+        } catch (const madness::MadnessException& e) {
+            print(e);
+            error("caught a MADNESS exception");
+        } catch (const madness::TensorException& e) {
+            print(e);
+            error("caught a Tensor exception");
+        } catch (const char* s) {
+            print(s);
+            error("caught a string exception");
+        } catch (const std::string& s) {
+            print(s);
+            error("caught a string (class) exception");
+        } catch (const std::exception& e) {
+            print(e.what());
+            error("caught an STL exception");
+        } catch (...) {
+            error("caught unhandled exception");
+        }
     }
-
-    print("help",help);
-    print("value",value);
-    print("analyze",analyze);
-    print("write_input",write_input);
-
-    try {
-
-        std::shared_ptr<Znemo> znemo(new Znemo(world,parser));
-
-    	// optimize the geometry if requested
-    	if (znemo->get_cparam().gopt()) {
-    		print("\n\n Geometry Optimization                      ");
-    		print(" ----------------------------------------------------------\n");
-//    		znemo->get_cparam().gprint(world);
-
-    		Tensor<double> geomcoord = znemo->molecule().get_all_coords().flat();
-    		MolecularOptimizer geom(world,parser,znemo);
-    		geom.parameters.set_derived_value<std::vector<std::string> >("remove_dof",
-    				{"Tx","Ty","Tz","Rx","Ry"});
-    		geom.parameters.print("geometry optimization parameters","end");
-    		geom.optimize(geomcoord);
-    	} else {
-
-    		// compute the energy to get converged orbitals
-    		double energy=0.0;
-    		if (value) {
-    			energy=znemo->value();
-    		} else if (analyze) {
-    			auto zmos=znemo->read_reference();
-    			for (int i=0; i<znemo->get_cparam().nalpha(); ++i) znemo->amo.push_back(zmos.first.get_mos()[i]);
-    			for (int i=0; i<znemo->get_cparam().nbeta(); ++i) znemo->bmo.push_back(zmos.second.get_mos()[i]);
-    			energy=znemo->analyze();
-    		}
-    		if (world.rank()==0) {
-    			printf("final energy   %12.8f\n", energy);
-    			printf("finished at time %.1f\n", wall_time());
-			}
-
-    	}
-
-    } catch (const SafeMPI::Exception& e) {
-        print(e);
-        error("caught an MPI exception");
-    } catch (const madness::MadnessException& e) {
-        print(e);
-        error("caught a MADNESS exception");
-    } catch (const madness::TensorException& e) {
-        print(e);
-        error("caught a Tensor exception");
-    } catch (const char* s) {
-        print(s);
-        error("caught a string exception");
-    } catch (const std::string& s) {
-        print(s);
-        error("caught a string (class) exception");
-    } catch (const std::exception& e) {
-        print(e.what());
-        error("caught an STL exception");
-    } catch (...) {
-        error("caught unhandled exception");
-    }
-
 
     finalize();
     return 0;

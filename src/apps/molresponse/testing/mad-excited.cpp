@@ -42,44 +42,39 @@ auto main(int argc, char *argv[]) -> int {
     const std::string molecule_name{argv[1]};
     const std::string xc{argv[2]};
     const std::string op{argv[3]};
-    const std::string is_high_prec{argv[4]};
+    const std::string precision{argv[4]};
 
-
-    bool high_prec;
-
-    if (is_high_prec == "high") {
-        high_prec = true;
-    } else {
-        high_prec = false;
+    if (precision != "high" && precision != "low" && precision != "super") {
+        if (world.rank() == 0) { std::cout << "Set precision to low high super" << std::endl; }
+        return 1;
     }
 
-    auto schema = runSchema(xc);
-    auto mol_path = addPath(schema.molecule_path, molecule_name);
+
+    auto schema = runSchema(world, xc);
+    auto mol_path = addPath(schema.molecules, molecule_name);
 
     try {
 
-        auto m_schema = moldftSchema(molecule_name, xc, schema);
-        moldft(world, m_schema, false, true, high_prec);
+        auto m_schema = moldftSchema(world, molecule_name, xc, schema);
+        moldft(world, m_schema, false, true, precision);
         auto excited_schema = excitedSchema(schema, m_schema);
         excited_schema.print();
 
         try {
 
-            moldft(world, m_schema, false, false, high_prec);
-            runExcited(world, excited_schema, true, high_prec);
+            moldft(world, m_schema, false, false, precision);
+            runExcited(world, excited_schema, true, precision);
         } catch (MadnessException &madnessException) {
             print(madnessException);
-            moldft(world, m_schema, true, false, high_prec);
-            runExcited(world, excited_schema, true, high_prec);
+            moldft(world, m_schema, true, false, precision);
+            runExcited(world, excited_schema, true, precision);
         }
 
     } catch (const SafeMPI::Exception &e) { print(e); } catch (const madness::MadnessException &e) {
         std::cout << e << std::endl;
     } catch (const madness::TensorException &e) { print(e); } catch (const char *s) {
         print(s);
-    } catch (const std::string &s) { print(s); } catch (const std::exception &e) {
-        print(e.what());
-    } catch (const std::filesystem::filesystem_error &ex) {
+    } catch (const std::string &s) { print(s); } catch (const std::filesystem::filesystem_error &ex) {
         std::cerr << ex.what() << "\n";
     } catch (...) { error("caught unhandled exception"); }
 
