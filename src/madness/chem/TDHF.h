@@ -369,9 +369,12 @@ public:
     /// @param[in]	veps		the orbital energies of the virtuals
     Tensor<double> make_cis_matrix(const vector_real_function_3d& virtuals, const Tensor<double> &veps) const;
 
+    std::string filename_for_roots(const int ex) const {
+        return get_calcparam().prefix()+"_root_"+std::to_string(ex);
+    }
+
     /// initialize the excitation functions
-    bool
-    initialize_singles(CC_vecfunction &singles, const FuncType type, const int ex) const;
+    CC_vecfunction initialize_singles(const int ex) const;
 
 
     /// Make the potentials to a given vector of vecfunctions (excitations)
@@ -462,18 +465,6 @@ public:
         vector_real_function_3d result = mul(world, nucf, ket);
         time.info(parameters.debug());
         return result;
-    }
-
-    template<typename T, size_t NDIM>
-    bool load_function(Function<T, NDIM> &f, const std::string name) const {
-        bool exists = archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>::exists(world, name.c_str());
-        if (exists) {
-            if (world.rank() == 0) print("loading function", name);
-            archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str());
-            ar & f;
-            f.print_size(name);
-            return true;
-        } else return false;
     }
 
     const vector_real_function_3d get_active_mo_ket() const {

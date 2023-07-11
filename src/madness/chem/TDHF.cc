@@ -348,9 +348,14 @@ std::vector<CC_vecfunction> TDHF::solve_cis() const {
     std::vector<CC_vecfunction> ccs;
     // look for restart options
     for (size_t k = 0; k < parameters.restart().size(); k++) {
-        CC_vecfunction tmp;
-        const bool found = initialize_singles(tmp, RESPONSE, parameters.restart()[k]);
-        if (found) ccs.push_back(tmp);
+        std::size_t ex=parameters.restart()[k];
+        try {
+            CC_vecfunction tmp = initialize_singles(ex);
+            print("found excitation #",ex,"on disk");
+            ccs.push_back(tmp);
+        } catch (...) {
+            print("could not find excitation #", ex);
+        }
     }
 
     for (size_t macrocycle = 0; macrocycle < 1; ++macrocycle) {
@@ -358,8 +363,6 @@ std::vector<CC_vecfunction> TDHF::solve_cis() const {
         ccs = solve_cis(ccs);
         if (converged_roots.size() >= size_t(parameters.excitations())) break;
     }
-
-
 
     return converged_roots;
 }
@@ -436,7 +439,8 @@ std::vector<CC_vecfunction> TDHF::solve_cis(std::vector<CC_vecfunction> &start) 
         if (result.size() == size_t(parameters.excitations())) break;
     }
     result = sort_xfunctions(result);
-    msg << "writing final functions to disc...\n";
+    msg << "writing final functions to disk...\n";
+
     for (size_t i = 0; i < result.size(); i++) result[i].save_functions(std::to_string(i));
 
     // print out all warnings
@@ -537,8 +541,7 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x, const std::vector<CC_
                 this_is_a_guess_iteration) {
                 vector_real_function_3d new_x0;
                 if (kain) {
-                    new_x0 = solvers[i]->update(x[i].get_vecfunction(), residuals[i], 10.0 * parameters.thresh(),
-                                                5.0);
+                    new_x0 = solvers[i]->update(x[i].get_vecfunction(), residuals[i], 10.0 * parameters.thresh(), 5.0);
                 } else {
                     new_x0 = sub(world, x[i].get_vecfunction(), residuals[i]);
                 }
@@ -599,7 +602,9 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x, const std::vector<CC_
         else if (not y.empty()) V = make_tdhf_potentials(x, y);
         // orthonormalize
         orthonormalize(x, V);
+
         // save functions (every 5 iterations)
+        for (size_t i = 0; i < x.size(); i++) x[i].save_restartdata(world, filename_for_roots(i));
         if (iter % 5 == 0) {
             if (not iterate_y)for (size_t i = 0; i < x.size(); i++) x[i].save_functions(std::to_string(i));
             else for (size_t i = 0; i < y.size(); i++) y[i].save_functions(std::to_string(i));
@@ -697,7 +702,7 @@ TDHF::apply_G(std::vector<CC_vecfunction> &x, std::vector<vector_real_function_3
 
             // Factor 0.5 removes the factor 2 from the scaling before
             const double sou = (0.5 * tmp / tmp2);
-            msg << "FYI: second order update would be: " << sou << " norm after QG is " << tmp2 << "\n";
+//            msg << "FYI: second order update would be: " << sou << " norm after QG is " << tmp2 << "\n";
         }
         // clear potential
         Vi.clear();
@@ -739,7 +744,7 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
         Fock<double,3> fock(world,get_reference().get());
         fock.remove_operator("T");
         fock.remove_operator("V");      // Vnuc is computed elsewhere (why?)
-        print("ground state potential fock operator",fock.info());
+//        print("ground state potential fock operator",fock.info());
         Vpsi1=fock(x.get_vecfunction());
     }
 
@@ -1511,35 +1516,16 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d& virtuals,
     return MCIS;
 }
 
-bool TDHF::initialize_singles(CC_vecfunction &singles, const FuncType type, const int ex) const {
-    MADNESS_ASSERT(singles.size() == 0);
-    bool restarted = false;
+/// load the root vector for a single excitation
 
-    std::vector<CCFunction> vs;
-    for (size_t i = parameters.freeze(); i < mo_ket_.size(); i++) {
-        CCFunction single_i;
-        single_i.type = type;
-        single_i.i = i;
-        std::string name;
-        if (ex < 0) name = single_i.name();
-        else name = std::to_string(ex) + "_" + single_i.name();
-        real_function_3d tmpi = real_factory_3d(world);
-        print("trying to load function ", name);
-        const bool found = load_function<double, 3>(tmpi, name);
-        if (found) restarted = true;
-        else msg.output("Initialized " + single_i.name() + " of type " + assign_name(type) + " as zero-function");
-        single_i.function = copy(tmpi);
-        vs.push_back(single_i);
-    }
-
-    singles = CC_vecfunction(vs, type);
-    if (type == RESPONSE) singles.excitation = ex;
-
-    return restarted;
+/// throws if no root is found on disk
+/// @param[in]  ex      the number of the excitation (ex_x#mo.00000)
+/// @return     root #ex
+CC_vecfunction TDHF::initialize_singles(const int ex) const {
+    std::string filename= filename_for_roots(ex);
+    auto root=CC_vecfunction::load_restartdata(world,filename);
+    return root;
 }
-
-
-
 
 
 /// compute the oscillator strength in the length representation

@@ -505,7 +505,7 @@ size_of(const intermediateT& im);
 
 // structure for CC Vectorfunction
 /// A helper structure which holds a map of functions
-struct CC_vecfunction {
+struct CC_vecfunction : public archive::ParallelSerializableObject {
 
     CC_vecfunction() : type(UNDEFINED), omega(0.0), excitation(-1), current_error(99.9), delta(0.0) {}
 
@@ -571,13 +571,51 @@ struct CC_vecfunction {
         return *this;
     }
 
-    typedef std::map<std::size_t, CCFunction> CC_functionmap;
-    CC_functionmap functions;
 
     /// returns a deep copy (void shallow copy errors)
     CC_vecfunction
     copy() const;
 
+    static CC_vecfunction load_restartdata(World& world, std::string filename) {
+        archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, filename.c_str());
+        CC_vecfunction tmp;
+        ar & tmp;
+        return tmp;
+    }
+
+    void save_restartdata(World& world, std::string filename) const {
+        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, filename.c_str());
+        ar & *this;
+    }
+
+    template<typename Archive>
+    void serialize(const Archive& ar) {
+        typedef std::vector<std::pair<std::size_t, CCFunction>> CC_functionvec;
+
+        auto map2vector = [] (const CC_functionmap& map) {
+            return CC_functionvec(map.begin(), map.end());
+        };
+        auto vector2map = [] (const CC_functionvec& vec) {
+            return CC_functionmap(vec.begin(), vec.end());
+        };
+
+        ar & type & omega & excitation & current_error & delta & irrep ;
+        if (ar.is_input_archive) {
+            std::size_t size;
+            ar & size;
+            CC_functionvec tmp(size);
+
+            for (auto& t : tmp) ar & t.first & t.second;
+            functions=vector2map(tmp);
+        } else if (ar.is_output_archive) {
+            auto tmp=map2vector(functions);
+            ar & tmp.size();
+            for (auto& t : tmp) ar & t.first & t.second;
+        }
+    }
+
+    typedef std::map<std::size_t, CCFunction> CC_functionmap;
+    CC_functionmap functions;
 
     FuncType type;
     double omega; /// excitation energy
