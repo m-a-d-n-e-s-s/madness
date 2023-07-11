@@ -248,19 +248,17 @@ void TDHF::plot(const vector_real_function_3d &vf, const std::string &name) cons
 /// sort the xfunctions according to their excitation energy and name the excitation energies accordingly
 std::vector<CC_vecfunction> TDHF::sort_xfunctions(std::vector<CC_vecfunction> x) const {
     std::sort(x.begin(), x.end());
-    for (size_t i = 0; i < x.size(); ++i) {
-        x[i].excitation = i;
-    }
     return x;
 }
 
 /// print information
 void TDHF::print_xfunctions(const std::vector<CC_vecfunction> &f, const bool &fullinfo) const {
+    int counter=0;
     for (const auto &x:f) {
         const double mem = get_size(world, x.get_vecfunction());
 
         msg << "ex. vector "
-            << x.excitation << " | "
+            << counter++ << " | "
             << std::setw(4) << x.irrep << " | "
             << x.omega << " (ex. energy) | "
             << std::setprecision(3)
@@ -270,9 +268,9 @@ void TDHF::print_xfunctions(const std::vector<CC_vecfunction> &f, const bool &fu
             << std::setprecision(msg.output_prec)
             << "\n";
 
-        if (fullinfo) {
-            print_size(world, x.get_vecfunction(), "ex. vector " + std::to_string(x.excitation));
-        }
+//        if (fullinfo) {
+//            print_size(world, x.get_vecfunction(), "ex. vector " + std::to_string(x.excitation));
+//        }
     }
 }
 
@@ -349,13 +347,21 @@ std::vector<CC_vecfunction> TDHF::solve_cis() const {
     // look for restart options
     for (size_t k = 0; k < parameters.restart().size(); k++) {
         std::size_t ex=parameters.restart()[k];
+        std::string filename= filename_for_roots(ex);
         try {
-            CC_vecfunction tmp = initialize_singles(ex);
-            print("found excitation #",ex,"on disk");
-            ccs.push_back(tmp);
+            auto root=CC_vecfunction::load_restartdata(world,filename);
+            print("found excitation #",ex,"on disk: ",filename);
+            ccs.push_back(root);
         } catch (...) {
-            print("could not find excitation #", ex);
+            print("could not find excitation #", ex, ", ", filename);
         }
+    }
+
+    if (ccs.size()>0) {
+        if (world.rank()==0) print_header3("initial roots from disk");
+        print_xfunctions(ccs);
+        if (world.rank()==0) print("sorting roots according to energy");
+        ccs=sort_xfunctions(ccs);
     }
 
     for (size_t macrocycle = 0; macrocycle < 1; ++macrocycle) {
@@ -395,7 +401,7 @@ std::vector<CC_vecfunction> TDHF::solve_cis(std::vector<CC_vecfunction> &start) 
         // sort according to excitation energies
         std::sort(guess_vectors.begin(), guess_vectors.end());
         // save
-        for (size_t i = 0; i < guess_vectors.size(); i++) guess_vectors[i].save_functions(std::to_string(i));
+        for (size_t i = 0; i < guess_vectors.size(); i++) guess_vectors[i].save_restartdata(world, filename_for_roots(i));
         // prepare final iterations
         for (size_t i = 0; i < guess_vectors.size(); i++) {
             if (i < size_t(parameters.iterating_excitations())) final_vectors.push_back(guess_vectors[i]);
@@ -416,21 +422,17 @@ std::vector<CC_vecfunction> TDHF::solve_cis(std::vector<CC_vecfunction> &start) 
     iterate_cis_final_vectors(final_vectors);
     msg.section("CIS CALCULATIONS ENDED");
     std::sort(converged_roots.begin(), converged_roots.end());
-    for (size_t i = 0; i < converged_roots.size(); ++i) converged_roots[i].excitation = i;
     std::sort(final_vectors.begin(), final_vectors.end());
-    for (size_t i = 0; i < final_vectors.size(); ++i) final_vectors[i].excitation = converged_roots.size() + i;
+
     // information
     msg.output("\n\nCONVERGED ROOTS\n");
     print_xfunctions(converged_roots);
     msg.output("\n\nRest\n");
     print_xfunctions(final_vectors);
     time.info();
+
     // plot final vectors
     for (size_t i = 0; i < final_vectors.size(); i++) final_vectors[i].plot(std::to_string(i) + "_converged_cis");
-    // save final vectors
-    for (size_t i = 0; i < final_vectors.size(); i++) final_vectors[i].save_functions(std::to_string(i));
-    // assign solution vectors
-    //start = final_vectors;\
 
     //give back as much as demanded
     std::vector<CC_vecfunction> result = converged_roots;
@@ -438,10 +440,10 @@ std::vector<CC_vecfunction> TDHF::solve_cis(std::vector<CC_vecfunction> &start) 
         result.push_back(x);
         if (result.size() == size_t(parameters.excitations())) break;
     }
-    result = sort_xfunctions(result);
     msg << "writing final functions to disk...\n";
+    result = sort_xfunctions(result);
+    for (size_t i = 0; i < result.size(); i++) result[i].save_restartdata(world,filename_for_roots(i));
 
-    for (size_t i = 0; i < result.size(); i++) result[i].save_functions(std::to_string(i));
 
     // print out all warnings
     msg.print_warnings();
@@ -605,10 +607,7 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x, const std::vector<CC_
 
         // save functions (every 5 iterations)
         for (size_t i = 0; i < x.size(); i++) x[i].save_restartdata(world, filename_for_roots(i));
-        if (iter % 5 == 0) {
-            if (not iterate_y)for (size_t i = 0; i < x.size(); i++) x[i].save_functions(std::to_string(i));
-            else for (size_t i = 0; i < y.size(); i++) y[i].save_functions(std::to_string(i));
-        }
+
         // make plots if demanded
         if (parameters.plot()) {
             if (iterate_y)
@@ -1289,7 +1288,6 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
             }
 
             xfunctions[iexcitation].omega = evals(I);
-            xfunctions[iexcitation].excitation = iexcitation;
 
             for (int J = 0; J < MCIS.dim(1); ++J) {
 
@@ -1578,6 +1576,7 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
 
     const size_t noct = get_active_mo_ket().size();
     nlohmann::json j;
+    int counter=0;
 
     for (const CC_vecfunction &root : x) {
 
@@ -1592,7 +1591,7 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
         msg << std::scientific << std::setprecision(10) << std::setw(20);
 
         msg << "excitation energy for root "
-            << std::fixed << std::setprecision(1) << root.excitation << ": "
+            << std::fixed << std::setprecision(1) << counter++ << ": "
             << std::fixed << std::setprecision(10) << root.omega << " Eh         "
             << root.omega * constants::hartree_electron_volt_relationship << " eV   "
             << "irrep: " << root.irrep << "\n";

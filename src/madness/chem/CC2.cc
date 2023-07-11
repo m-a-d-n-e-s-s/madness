@@ -346,7 +346,6 @@ CC2::solve() {
             // needed to assign an omega
             const vector_real_function_3d backup = copy(world, lrcc2_s.get_vecfunction());
             CC_vecfunction test(backup, RESPONSE, parameters.freeze());
-            test.excitation = lrcc2_s.excitation;
             iterate_ccs_singles(test);
             lrcc2_s.omega = test.omega;
             output("CCS Iteration: Changes are not applied (just omega)!");
@@ -515,7 +514,6 @@ std::vector<CC_vecfunction> CC2::solve_ccs() {
     for (const auto& x:parameters.excitations()) {
         if (excitations.size() - 1 < x) MADNESS_EXCEPTION("Not Enough CIS Vectors to solve for the demanded CC2 vector",
                                                           1);
-        excitations[x].excitation = x;
         result.push_back(excitations[x]);
     }
     return result;
@@ -1120,7 +1118,7 @@ CC2::initialize_singles(CC_vecfunction& singles, const FuncType type, const int 
     }
 
     singles = CC_vecfunction(vs, type);
-    if (type == RESPONSE) singles.excitation = ex;
+//    if (type == RESPONSE) singles.excitation = ex;
 
     return restarted;
 }
@@ -1160,7 +1158,7 @@ CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType 
                 real_function_6d const_part;
                 CCOPS.load_function(const_part, name + "_const");
                 CCPair tmp = CCOPS.make_pair_ex(utmp, tau, x, i, j, ctype);
-                tmp.excitation = excitation;
+//                tmp.excitation = excitation;
                 tmp.constant_part = const_part;
                 pairs.insert(i, j, tmp);
             } else error("Unknown pairtype");

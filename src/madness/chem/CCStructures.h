@@ -507,26 +507,24 @@ size_of(const intermediateT& im);
 /// A helper structure which holds a map of functions
 struct CC_vecfunction : public archive::ParallelSerializableObject {
 
-    CC_vecfunction() : type(UNDEFINED), omega(0.0), excitation(-1), current_error(99.9), delta(0.0) {}
+    CC_vecfunction() : type(UNDEFINED), omega(0.0), current_error(99.9), delta(0.0) {}
 
-    CC_vecfunction(const FuncType type_) : type(type_), omega(0.0), excitation(-1), current_error(99.9), delta(0.0) {}
+    CC_vecfunction(const FuncType type_) : type(type_), omega(0.0), current_error(99.9), delta(0.0) {}
 
-    CC_vecfunction(const vector_real_function_3d& v) : type(UNDEFINED), omega(0.0), excitation(-1), current_error(99.9),
-                                                       delta(0.0) {
+    CC_vecfunction(const vector_real_function_3d& v) : type(UNDEFINED), omega(0.0), current_error(99.9), delta(0.0) {
         for (size_t i = 0; i < v.size(); i++) {
             CCFunction tmp(v[i], i, type);
             functions.insert(std::make_pair(i, tmp));
         }
     }
 
-    CC_vecfunction(const std::vector<CCFunction>& v) : type(UNDEFINED), omega(0.0), excitation(-1), current_error(99.9),
-                                                       delta(0.0) {
+    CC_vecfunction(const std::vector<CCFunction>& v) : type(UNDEFINED), omega(0.0), current_error(99.9), delta(0.0) {
         for (size_t i = 0; i < v.size(); i++) {
             functions.insert(std::make_pair(v[i].i, v[i]));
         }
     }
 
-    CC_vecfunction(const vector_real_function_3d& v, const FuncType& type) : type(type), omega(0.0), excitation(-1),
+    CC_vecfunction(const vector_real_function_3d& v, const FuncType& type) : type(type), omega(0.0),
                                                                              current_error(99.9), delta(0.0) {
         for (size_t i = 0; i < v.size(); i++) {
             CCFunction tmp(v[i], i, type);
@@ -536,7 +534,6 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
 
     CC_vecfunction(const vector_real_function_3d& v, const FuncType& type, const size_t& freeze) : type(type),
                                                                                                    omega(0.0),
-                                                                                                   excitation(-1),
                                                                                                    current_error(99.9),
                                                                                                    delta(0.0) {
         for (size_t i = 0; i < v.size(); i++) {
@@ -546,14 +543,14 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
     }
 
     CC_vecfunction(const std::vector<CCFunction>& v, const FuncType type_)
-            : type(type_), omega(0.0), excitation(-1), current_error(99.9), delta(0.0) {
+            : type(type_), omega(0.0), current_error(99.9), delta(0.0) {
         for (auto x:v) functions.insert(std::make_pair(x.i, x));
     }
 
     /// copy ctor (shallow)
     CC_vecfunction(const CC_vecfunction& other)
             : functions(other.functions), type(other.type), omega(other.omega),
-              excitation(other.excitation), current_error(other.current_error),
+              current_error(other.current_error),
               delta(other.delta), irrep(other.irrep) {
     }
 
@@ -564,7 +561,6 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
         functions = other.functions;
         type = other.type;
         omega = other.omega;
-        excitation = other.excitation;
         current_error = other.current_error;
         delta = other.delta;
         irrep = other.irrep;
@@ -599,7 +595,7 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
             return CC_functionmap(vec.begin(), vec.end());
         };
 
-        ar & type & omega & excitation & current_error & delta & irrep ;
+        ar & type & omega & current_error & delta & irrep ;
         if (ar.is_input_archive) {
             std::size_t size;
             ar & size;
@@ -619,13 +615,12 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
 
     FuncType type;
     double omega; /// excitation energy
-    int excitation; /// the excitation number
     double current_error;
     double delta; // Last difference in Energy
     std::string irrep = "null";    /// excitation irrep (direct product of x function and corresponding orbital)
 
     std::string
-    name() const;
+    name(const int ex) const;
 
     /// getter
     const CCFunction& operator()(const CCFunction& i) const {
@@ -692,17 +687,7 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
     }
 
     /// operator needed for sort operation (sorted by omega values)
-    bool operator<=(const CC_vecfunction& b) const { return omega <= b.omega; }
-
-    /// operator needed for sort operation (sorted by omega values)
     bool operator<(const CC_vecfunction& b) const { return omega < b.omega; }
-
-    /// store functions on disc
-    void save_functions(const std::string msg = "") const {
-        std::string pre_name = "";
-        if (msg != "") pre_name = msg + "_";
-        for (const auto& tmp:functions) save<double, 3>(tmp.second.function, pre_name + tmp.second.name());
-    }
 
     // plotting
     void plot(const std::string& msg = "") const {
@@ -711,7 +696,7 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
         }
     }
 public:
-    NLOHMANN_DEFINE_TYPE_INTRUSIVE(CC_vecfunction, excitation, omega, irrep, current_error)
+    NLOHMANN_DEFINE_TYPE_INTRUSIVE(CC_vecfunction, omega, irrep, current_error)
 
 };
 
@@ -956,7 +941,6 @@ public:
     CalcType ctype;
     size_t i;
     size_t j;
-    int excitation = -1;
 
     /// gives back the pure 6D part of the pair function
     real_function_6d function() const {
@@ -978,7 +962,7 @@ public:
         size_t f_size = functions.size();
         bool fexist = (f_size > 0) && (functions[0].get_function().is_initialized());
         bool cexist = constant_part.is_initialized();
-        ar & type & ctype & i & j & excitation & bsh_eps & fexist & cexist & f_size;
+        ar & type & ctype & i & j & bsh_eps & fexist & cexist & f_size;
         if constexpr (Archive::is_input_archive) {
             if (fexist) {
                 real_function_6d func;

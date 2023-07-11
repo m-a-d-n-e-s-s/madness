@@ -310,9 +310,9 @@ public:
             // print information
             if (world.rank() == 0) std::cout << "\n\n-----Results of current interation:-----\n";
             if (world.rank() == 0)
-                std::cout << "\nName: ||" << singles.name() << "||, ||GV" << singles.name() << ", ||residual||" << "\n";
+                std::cout << "\nName: ||" << singles.name(0) << "||, ||GV" << singles.name(0) << ", ||residual||" << "\n";
             if (world.rank() == 0)
-                std::cout << singles.name() << ": " << std::scientific << std::setprecision(parameters.output_prec())
+                std::cout << singles.name(0) << ": " << std::scientific << std::setprecision(parameters.output_prec())
                           << sqrt(R2xinnerx.sum()) << ", " << sqrt(R2GVinnerGV.sum()) << ", " << sqrt(R2rinnerr.sum())
                           << "\n----------------------------------------\n";
             for (size_t i = 0; i < GV.size(); i++) {
@@ -386,7 +386,6 @@ public:
         else if (ctype == CT_LRCC2) update_reg_residues_ex(singles2, singles, ex_doubles);
 
         //CCOPS.plot(singles);
-        singles.save_functions();
         if (no_change) output("Change of Singles was below  = " + std::to_string(parameters.dconv_3D()) + "!");
         return no_change;
     }
