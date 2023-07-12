@@ -53,7 +53,7 @@ public:
             ("response_kernel", "default", "default: corresponds to the ground state, libxc-notation otherwise");
             initialize < bool > ("triplet", false, "calculate triplet excitation energies (only works for CIS)");
             initialize < bool > ("do_oep", false, "use OEP potentials for the ground state exchange");
-            initialize < std::size_t > ("excitations", 1);
+            initialize < std::size_t > ("nexcitations", 1,"number of excitation to be computed");
             initialize < long > ("freeze", -1, "the number of frozen occupied orbitals (-1: automatic)");
             initialize < std::string > ("irrep", "all", "compute only irreps of the respective point group");
 
@@ -73,15 +73,16 @@ public:
 
             initialize < bool > ("debug", false);
             initialize < bool > ("plot", false);
-            initialize < bool > ("no_compute", false);
+//            initialize < bool > ("no_compute", false);
             initialize<int>  ("print_level",3,"0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
 
-            initialize <std::vector<size_t>> ("restart", std::vector<size_t>(), "excitations which will be read from disk");
+//            initialize <std::vector<size_t>> ("restart", std::vector<size_t>(), "excitations which will be read from disk");
+            initialize <std::string> ("restart", "iterate", "restart excitations from disk", {"no_restart","iterate","no_compute"});
+            initialize <std::vector<size_t>> ("excitations", std::vector<size_t>(), "ordering of the excitations read from disk");
 
 
             initialize < std::string >
-            ("guess_excitation_operators", "quadrupole", "guess type", {"dipole+", "quadrupole",
-                                                                    "octopole", "custom"});
+            ("guess_excitation_operators", "quadrupole", "guess type", {"dipole+", "quadrupole", "octopole", "custom"});
 
             /// add center of mass functions determined by the homo-energy
             /// will add s,px,py,pz functions in the center of mass with exponent: -(e_homo/c) and c=guess_cm is the value of this parameter
@@ -131,7 +132,7 @@ public:
         void set_derived_values(const std::shared_ptr<SCF> &scf);
 
         // physical part
-        std::size_t excitations() const { return get<std::size_t>("excitations"); }
+        std::size_t nexcitations() const { return get<std::size_t>("nexcitations"); }
 
         long freeze() const { return get<long>("freeze"); }
 
@@ -153,11 +154,12 @@ public:
         // restart and plotting
         bool debug() const { return get<bool>("debug"); }
 
-        bool no_compute() const { return get<bool>("no_compute"); }
+        std::string restart() const { return get<std::string>("restart"); }
+        bool no_compute() const { return (restart()=="no_compute"); }
 
         int print_level() const {return get<int>("print_level");}
 
-        std::vector<size_t> restart() const { return get<std::vector<size_t> >("restart"); }
+        std::vector<size_t> excitations() const { return get<std::vector<size_t> >("excitations"); }
 
         bool plot() const { return get<bool>("plot"); }
 
@@ -372,10 +374,6 @@ public:
     std::string filename_for_roots(const int ex) const {
         return get_calcparam().prefix()+"_root_"+std::to_string(ex);
     }
-
-    /// initialize the excitation functions
-    CC_vecfunction initialize_singles(const int ex) const;
-
 
     /// Make the potentials to a given vector of vecfunctions (excitations)
     /// @param[in] The vector of excitations

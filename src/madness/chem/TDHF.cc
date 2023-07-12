@@ -345,29 +345,38 @@ void TDHF::symmetrize(std::vector<CC_vecfunction> &v) const {
 std::vector<CC_vecfunction> TDHF::solve_cis() const {
     std::vector<CC_vecfunction> ccs;
     // look for restart options
-    for (size_t k = 0; k < parameters.restart().size(); k++) {
-        std::size_t ex=parameters.restart()[k];
-        std::string filename= filename_for_roots(ex);
-        try {
-            auto root=CC_vecfunction::load_restartdata(world,filename);
-            print("found excitation #",ex,"on disk: ",filename);
-            ccs.push_back(root);
-        } catch (...) {
-            print("could not find excitation #", ex, ", ", filename);
+    if (parameters.restart()=="iterate" or parameters.restart()=="no_compute") {
+        auto excitations_list=parameters.excitations();
+        if (excitations_list.empty()) {
+            for (int i=0; i<parameters.nexcitations(); ++i) excitations_list.push_back(i);
+        }
+        for (auto ex : excitations_list) {
+            std::string filename= filename_for_roots(ex);
+            try {
+                auto root=CC_vecfunction::load_restartdata(world,filename);
+                print("found excitation #",ex,"on disk: ",filename);
+                ccs.push_back(root);
+            } catch (...) {
+                print("could not find excitation #", ex, ", ", filename);
+            }
+        }
+        if (ccs.size()>0) {
+            if (world.rank()==0) print_header3("initial roots from disk");
+            print_xfunctions(ccs);
+            if (world.rank()==0) print("sorting roots according to energy");
+            ccs=sort_xfunctions(ccs);
         }
     }
 
-    if (ccs.size()>0) {
-        if (world.rank()==0) print_header3("initial roots from disk");
-        print_xfunctions(ccs);
-        if (world.rank()==0) print("sorting roots according to energy");
-        ccs=sort_xfunctions(ccs);
-    }
 
-    for (size_t macrocycle = 0; macrocycle < 1; ++macrocycle) {
-        //msg.section("CIS Macroiteration " + std::to_string(macrocycle));
-        ccs = solve_cis(ccs);
-        if (converged_roots.size() >= size_t(parameters.excitations())) break;
+    if (parameters.restart()=="no_compute") {
+        converged_roots=ccs;
+    } else {
+        for (size_t macrocycle = 0; macrocycle < 1; ++macrocycle) {
+            //msg.section("CIS Macroiteration " + std::to_string(macrocycle));
+            ccs = solve_cis(ccs);
+            if (converged_roots.size() >= size_t(parameters.nexcitations())) break;
+        }
     }
 
     return converged_roots;
@@ -438,7 +447,7 @@ std::vector<CC_vecfunction> TDHF::solve_cis(std::vector<CC_vecfunction> &start) 
     std::vector<CC_vecfunction> result = converged_roots;
     for (const auto &x:final_vectors) {
         result.push_back(x);
-        if (result.size() == size_t(parameters.excitations())) break;
+        if (result.size() == size_t(parameters.nexcitations())) break;
     }
     msg << "writing final functions to disk...\n";
     result = sort_xfunctions(result);
@@ -630,7 +639,7 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x, const std::vector<CC_
 
         timer.stop().print();
         if (converged) break;
-        if (converged_roots.size() == size_t(parameters.excitations())) break;
+        if (converged_roots.size() == size_t(parameters.nexcitations())) break;
         if (x.empty()) break;
     }
     return converged;
@@ -1172,10 +1181,10 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
     // create virtuals
     vector_real_function_3d virtuals = make_virtuals();
     // remove linear dependencies
-    CCTimer time_ortho(world, "canonical orthonormalization");
+    CCTimer time_ortho(world, "rr-cholesky orthonormalization");
     const size_t spre = virtuals.size();
     Tensor<double> S = matrix_inner(world, make_bra(virtuals), virtuals);
-    virtuals = orthonormalize_canonical(virtuals,S, 1.e-6);
+    virtuals = orthonormalize_rrcd(virtuals,S, 1.e-6);
     if (virtuals.size() != spre)
         msg << "removed " << spre - virtuals.size() << " virtuals due to linear dependencies \n";
     time_ortho.print();
@@ -1262,6 +1271,8 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
         Tensor<double> U, evals;
         CCTimer time_diag(world, "cis-matrix diagonalization");
         syev(MCIS, U, evals);
+        Localizer::undo_degenerate_rotations(U,evals,FunctionDefaults<3>::get_thresh());
+
         time_diag.print();
 
         if (parameters.debug()) {
@@ -1296,6 +1307,9 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
                 const double xjb = U(J, I);
                 xfunctions[iexcitation].get_vecfunction()[j] += xjb * virtuals[b];
             }
+            std::vector<std::string> x_irreps;
+            vector_real_function_3d tmp = proj(xfunctions[iexcitation].get_vecfunction(), get_reference()->R_square, x_irreps);
+
             iexcitation++;
         }
         time_assemble.print();
@@ -1312,14 +1326,25 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
         for (auto &x : xfunctions) {
             std::vector<std::string> x_irreps;
             vector_real_function_3d tmp = proj(x.get_vecfunction(), get_reference()->R_square, x_irreps);
-            x.set_functions(tmp, RESPONSE, parameters.freeze());
-            for (size_t i = 0; i < x_irreps.size(); ++i) {
-                std::string reduced = symmetry_projector.reduce(x_irreps[i], orbital_irreps[i])[0];
-                if (not((reduced == x.irrep) or (reduced == "null") or (x.irrep == "null"))) {
-                    print("reduced, irrep", reduced, x.irrep);
-                    MADNESS_EXCEPTION("inconsistent symmetry in x vector\n\n", 0);
+            try {
+                x.set_functions(tmp, RESPONSE, parameters.freeze());
+                for (size_t i = 0; i < x_irreps.size(); ++i) {
+                    std::string reduced = symmetry_projector.reduce(x_irreps[i], orbital_irreps[i])[0];
+                    if (not((reduced == x.irrep) or (reduced == "null") or (x.irrep == "null"))) {
+                        print("reduced, irrep", reduced, x.irrep);
+                        MADNESS_EXCEPTION("inconsistent symmetry in x vector\n\n", 0);
+                    }
+                    if (reduced != "null") x.irrep = reduced;
                 }
-                if (reduced != "null") x.irrep = reduced;
+            } catch (...) {
+                print_header1("error");
+                print("if you are here, there is likely a problem with the CIS guess, where degenerate states");
+                print("of different irreps may mix and mess up the symmetry determination");
+                print("This needs to be fixed, for now just run the same calculation again with fingers crossed");
+                print("\nx_irreps");
+                print(x_irreps);
+                print("\n");
+                MADNESS_EXCEPTION("inconsistent symmetry in x vector\n\n", 0);
             }
         }
         time_symmetrize.print();
@@ -1514,17 +1539,6 @@ Tensor<double> TDHF::make_cis_matrix(const vector_real_function_3d& virtuals,
     return MCIS;
 }
 
-/// load the root vector for a single excitation
-
-/// throws if no root is found on disk
-/// @param[in]  ex      the number of the excitation (ex_x#mo.00000)
-/// @return     root #ex
-CC_vecfunction TDHF::initialize_singles(const int ex) const {
-    std::string filename= filename_for_roots(ex);
-    auto root=CC_vecfunction::load_restartdata(world,filename);
-    return root;
-}
-
 
 /// compute the oscillator strength in the length representation
 
@@ -1642,8 +1656,8 @@ void TDHF::TDHFParameters::set_derived_values(const std::shared_ptr<SCF> &scf) {
     set_derived_value("guess_econv", econv() * 10.0);
     set_derived_value("guess_dconv", dconv() * 10.0);
 
-    set_derived_value("iterating_excitations", std::min(excitations(), std::size_t(4)));
-    set_derived_value("guess_excitations", std::min(excitations() + iterating_excitations(), 2 * excitations()));
+    set_derived_value("iterating_excitations", std::min(nexcitations(), std::size_t(4)));
+    set_derived_value("guess_excitations", std::min(nexcitations() + iterating_excitations(), 2 * nexcitations()));
 
     set_derived_value("response_kernel", scf->param.xc());
     if (do_oep()) set_derived_value("response_kernel",std::string("lda_x"));
