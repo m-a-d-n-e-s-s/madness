@@ -16,28 +16,29 @@ namespace madness {
 /// solve the CC2 ground state equations, returns the correlation energy
 void
 CC2::solve() {
-    if (parameters.test()) {
-        CCOPS.test();
-    }
+    if (parameters.test()) CCOPS.test();
+
     const CalcType ctype = parameters.calc_type();
 
-    if (not check_core_valence_separation()) enforce_core_valence_separation();
+    Tensor<double> fmat=nemo->compute_fock_matrix(nemo->get_calc()->amo,nemo->get_calc()->aocc);
+    long nfrozen=Localizer::determine_frozen_orbitals(fmat);
+    parameters.set_derived_value<long>("freeze",nfrozen);
+    if (not check_core_valence_separation(fmat)) enforce_core_valence_separation(fmat);
+
+    MolecularOrbitals<double, 3> dummy_mo(nemo->get_calc()->amo, nemo->get_calc()->aeps);
+    dummy_mo.print_frozen_orbitals(parameters.freeze());
+
     CCOPS.reset_nemo(nemo);
     CCOPS.update_intermediates(CCOPS.mo_ket());
 
-    if (ctype == CT_TDHF or ctype==CT_LRCCS) {
-        std::vector<CC_vecfunction> ccs;
-        for (size_t k = 0; k < parameters.excitations().size(); k++) {
-            CC_vecfunction tmp;
-            const bool found = initialize_singles(tmp, RESPONSE, parameters.excitations()[k]);
-            if (found) ccs.push_back(tmp);
-        }
+    bool need_tdhf=(ctype == CT_TDHF or ctype==CT_LRCC2 or ctype==CT_CISPD or ctype==CT_ADC2 or ctype==CT_LRCCS);
+    if (need_tdhf) {
         tdhf->prepare_calculation();
-        if (ctype == CT_TDHF) tdhf->solve_tdhf(ccs);
-        else if (ctype == CT_LRCCS) tdhf->solve_cis(ccs);
-        else
-            MADNESS_EXCEPTION("unknown calculation type",1);
-    } else if (ctype == CT_MP2) {
+        MADNESS_CHECK(tdhf->parameters.freeze()==parameters.freeze());
+        tdhf->solve_cis();
+    }
+
+    else if (ctype == CT_MP2) {
 
 //        CCPairFunction bra(&(CCOPS.g12),CCOPS.mo_bra().get_vecfunction(),CCOPS.mo_bra().get_vecfunction());
 //        CCPairFunction ket(&(CCOPS.f12),CCOPS.mo_ket().get_vecfunction(),CCOPS.mo_ket().get_vecfunction());
@@ -409,68 +410,31 @@ void CC2::output_calc_info_schema(const std::string model, const double& energy)
 }
 
 
-bool CC2::check_core_valence_separation() const {
+bool CC2::check_core_valence_separation(const Tensor<double>& fmat) const {
 
     MolecularOrbitals<double, 3> mos(nemo->get_calc()->amo, nemo->get_calc()->aeps, {}, nemo->get_calc()->aocc, {});
     mos.recompute_localize_sets();
-
-    // check that freeze is consistent with the core/valence block-diagonal structure of the fock matrix
-    bool fine = false;
-    int ntotal = 0;
-    std::vector<Slice> slices = MolecularOrbitals<double, 3>::convert_set_to_slice(mos.get_localize_sets());
-    for (std::size_t i = 0; i < slices.size(); ++i) {
-        const Slice& s = slices[i];
-        int n_in_set = s.end - s.start + 1;
-        ntotal += n_in_set;
-        if (parameters.freeze() == ntotal) {
-            fine = true;
-            break;
-        }
-    }
-    if (parameters.freeze() == 0) fine = true;
-    if (not fine) {
-        if (world.rank()==0) print("inconsistent core-valence separation and number of frozen orbitals");
-        if (world.rank()==0) print("# frozen orbitals", parameters.freeze());
-        if (world.rank()==0) mos.pretty_print("initial orbitals");
-        MADNESS_EXCEPTION("inconsistency ", 1);
-    }
-
-    // fast return if possible
-    Tensor<double> fock1;
-    //if (fock.has_data()) {
-    //    fock1 = copy(fock);
-    //} else {
-    const tensorT occ = nemo->get_calc()->aocc;
-    Tensor<double> fock_tmp = nemo->compute_fock_matrix(nemo->get_calc()->amo, occ);
-    fock1 = copy(fock_tmp);
-    if (world.rank() == 0 and nemo->get_param().nalpha() < 10) {
-        if (world.rank()==0) print("The Fock matrix");
-        if (world.rank()==0) print(fock1);
-    }
-    //}
-    return Localizer::check_core_valence_separation(fock1, mos.get_localize_sets(),true);
+    return Localizer::check_core_valence_separation(fmat, mos.get_localize_sets(),true);
 }
 
 
-void CC2::enforce_core_valence_separation() {
+Tensor<double> CC2::enforce_core_valence_separation(const Tensor<double>& fmat) {
+
+    if (nemo->get_param().localize_method()=="canonical") {
+        auto nmo=nemo->get_calc()->amo.size();
+        Tensor<double> fmat1(nmo,nmo);
+        for (int i=0; i<nmo; ++i) fmat1(i,i)=nemo->get_calc()->aeps(i);
+        return fmat1;
+    }
 
     MolecularOrbitals<double, 3> mos(nemo->get_calc()->amo, nemo->get_calc()->aeps, {}, nemo->get_calc()->aocc, {});
     mos.recompute_localize_sets();
-
-    Tensor<double> fock1;
-    const tensorT occ = nemo->get_calc()->aocc;
-    Tensor<double> fock_tmp = nemo->compute_fock_matrix(nemo->get_calc()->amo, occ);
-    fock1 = copy(fock_tmp);
-    if (world.rank() == 0 and nemo->get_param().nalpha() < 10) {
-        if (world.rank()==0) print("The Fock matrix");
-        if (world.rank()==0) print(fock1);
-    }
 
     Localizer localizer(world,nemo->get_calc()->aobasis,nemo->get_calc()->molecule,nemo->get_calc()->ao);
     localizer.set_enforce_core_valence_separation(true).set_method(nemo->param.localize_method());
     localizer.set_metric(nemo->R);
 
-    const auto lmo=localizer.localize(mos,fock1,true);
+    const auto lmo=localizer.localize(mos,fmat,true);
 
     //hf->reset_orbitals(lmo);
     nemo->get_calc()->amo=lmo.get_mos();
@@ -494,20 +458,22 @@ void CC2::enforce_core_valence_separation() {
 
     MADNESS_CHECK(Localizer::check_core_valence_separation(fock2,lmo.get_localize_sets()));
     if (world.rank()==0) lmo.pretty_print("localized MOs");
+    return fock2;
 
 };
 
 // Solve the CCS equations for the ground state (debug potential and check HF convergence)
 std::vector<CC_vecfunction> CC2::solve_ccs() {
-    output.section("SOLVE CCS");
-    std::vector<CC_vecfunction> excitations;
-    for (size_t k = 0; k < parameters.excitations().size(); k++) {
-        CC_vecfunction tmp;
-        const bool found = initialize_singles(tmp, RESPONSE, parameters.excitations()[k]);
-        if (found) excitations.push_back(tmp);
-    }
-    tdhf->prepare_calculation();
-    excitations = tdhf->solve_cis(excitations);
+//    output.section("SOLVE CCS");
+//    std::vector<CC_vecfunction> excitations;
+//    for (size_t k = 0; k < parameters.excitations().size(); k++) {
+//        CC_vecfunction tmp;
+//        const bool found = initialize_singles(tmp, RESPONSE, parameters.excitations()[k]);
+//        if (found) excitations.push_back(tmp);
+//    }
+//    tdhf->prepare_calculation();
+//    excitations = tdhf->solve_cis(excitations);
+    std::vector<CC_vecfunction> excitations=tdhf->converged_roots;
 
     // return only those functions which are demanded
     std::vector<CC_vecfunction> result;

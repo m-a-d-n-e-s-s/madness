@@ -49,7 +49,7 @@ TDHF::TDHF(World &world, const commandlineparser &parser) : TDHF(world,parser,st
 /// \param parser   the parser
 TDHF::TDHF(World &world, const commandlineparser &parser, std::shared_ptr<Nemo> nemo)
         : world(world),
-          reference_(std::make_shared<Nemo>(world, parser)),
+          reference_(nemo),
           parameters(world, parser),
           g12(),
           mo_ket_(),
@@ -90,52 +90,10 @@ void TDHF::initialize() {
 
 }
 
-void TDHF::determine_frozen_orbitals(const Tensor<double>& fmat) {
+void TDHF::print_frozen_orbitals() const {
 
-    // freezing based on canonical orbital energies
-    auto [eval, evec] = syev(fmat);
-
-    MolecularOrbitals<double, 3> dummy_mo(get_calc()->amo, eval);
-    dummy_mo.recompute_localize_sets();
-    auto s = MolecularOrbitals<double, 3>::convert_set_to_slice(dummy_mo.get_localize_sets());
-
-    if (parameters.freeze() < 0) {
-        long nactive = s.back().end - s.back().start + 1;
-        long nfrozen = dummy_mo.get_mos().size() - nactive;
-        parameters.set_derived_value("freeze", nfrozen);
-    }
-
-    // check that freeze is consistent with the core/valence block-diagonal structure of the fock matrix
-    bool fine = false;
-    int ntotal = 0;
-    std::vector<Slice> slices = MolecularOrbitals<double, 3>::convert_set_to_slice(dummy_mo.get_localize_sets());
-    for (std::size_t i = 0; i < slices.size(); ++i) {
-        const Slice& s = slices[i];
-        int n_in_set = s.end - s.start + 1;
-        ntotal += n_in_set;
-        if (parameters.freeze() == ntotal) {
-            fine = true;
-            break;
-        }
-    }
-    if (parameters.freeze() == 0) fine = true;
-
-    MolecularOrbitals<double, 3> dummy_mo1(get_calc()->amo, get_calc()->aeps);
-    dummy_mo1.recompute_localize_sets();
-    if (world.rank() == 0 and parameters.print_level() > 2) {
-        auto flags=std::vector<std::string>(dummy_mo.get_mos().size(),"active");
-        for (int i=0; i<parameters.freeze(); ++i) flags[i]="frozen";
-        dummy_mo1.pretty_print("diagonal Fock matrix elements with core/valence separation for freezing",flags);
-        print("\nfreezing orbitals: ", parameters.freeze(),"\n");
-    }
-
-    if (not fine) {
-        print("the number of frozen orbitals doesn't match with the core-valence structure");
-        print("of the Fock matrix\n");
-
-        MADNESS_EXCEPTION("freeze inconsistency ", 1);
-    }
-
+    MolecularOrbitals<double, 3> dummy_mo(get_calc()->amo, get_calc()->aeps);
+    if (parameters.print_level() > 2) dummy_mo.print_frozen_orbitals(parameters.freeze());
 }
 
 MolecularOrbitals<double,3> TDHF::enforce_core_valence_separation(const Tensor<double>& fmat) const {
@@ -195,7 +153,10 @@ void TDHF::prepare_calculation() {
         for (int i=0; i<nmo; ++i) fmat(i,i)= get_calc()->aeps(i);
     }
 
-    determine_frozen_orbitals(fmat);    // fmat can be reused here..
+    std::size_t nfrozen=Localizer::determine_frozen_orbitals(fmat);
+    // this won't override user's will
+    parameters.set_derived_value<long>("freeze", long(nfrozen));
+    print_frozen_orbitals();
 
     mo_ket_ = make_mo_ket(get_calc()->amo);
     mo_bra_ = make_mo_bra(get_calc()->amo);

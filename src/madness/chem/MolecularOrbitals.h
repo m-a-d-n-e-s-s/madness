@@ -24,7 +24,9 @@ template<typename T, std::size_t NDIM>
 class MolecularOrbitals : public archive::ParallelSerializableObject {
 public:
 
-	MolecularOrbitals() {}
+    MolecularOrbitals(const MolecularOrbitals<T,NDIM>& other) = default;
+
+	MolecularOrbitals() = default;
 
     MolecularOrbitals(const std::vector<Function<T,NDIM> >& mo)
             : mo(mo), eps(), irreps(), occ(), localize_sets() {
@@ -53,6 +55,10 @@ public:
         if (localize_sets.size()>0) result.localize_sets.assign(localize_sets.begin()+s.start,localize_sets.begin()+s.end+1);
 
         return result;
+    }
+
+    std::size_t size() const {
+        return mo.size();
     }
 
 	std::vector<Function<T,NDIM> > get_mos() const {
@@ -188,6 +194,22 @@ public:
             cout << std::string(buf) <<endl;
 	    }
 	}
+
+
+    void print_frozen_orbitals(const long freeze) const {
+
+        World& world=mo.front().world();
+        MolecularOrbitals<T, 3> dummy_mo(*this);
+        dummy_mo.recompute_localize_sets();
+        if (world.rank() == 0) {
+            auto flags=std::vector<std::string>(dummy_mo.get_mos().size(),"active");
+            for (int i=0; i<freeze; ++i) flags[i]="frozen";
+            dummy_mo.pretty_print("diagonal Fock matrix elements with core/valence separation for freezing",flags);
+            print("\nfreezing orbitals: ", freeze,"\n");
+        }
+
+    }
+
 
     /// @param[in] cubefile_header  header of the cube file, from molecule::cubefile_header()
     void print_cubefiles(const std::string name, const std::vector<std::string> cubefile_header) const;

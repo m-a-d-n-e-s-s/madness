@@ -165,12 +165,18 @@ double Nemo::value(const Tensor<double>& x) {
 //	    calc->molecule.print();
 //	}
 
-	SCFProtocol p(world,param,"nemo_iterations",param.restart());
+	SCFProtocol p(world,param);
 
 	// read (pre-) converged wave function from disk if there is one
 	if (param.no_compute() or param.restart()) {
 	    set_protocol(param.econv());	// set thresh to current value
+        if (world.rank()==0 and param.print_level()>2) print("reading orbitals from disk");
 	    calc->load_mos(world);
+        if (world.rank()==0 and param.print_level()>2) {
+            print("orbitals are converged to ",calc->converged_for_thresh);
+        }
+        p.start_prec=calc->converged_for_thresh;
+
 	    calc->ao=calc->project_ao_basis(world,calc->aobasis);
 
 	} else {		// we need a guess
@@ -187,10 +193,15 @@ double Nemo::value(const Tensor<double>& x) {
 
 	}
 
-	if (not param.no_compute()) {
+    bool skip_solve=(param.no_compute()) or (calc->converged_for_thresh*0.9999<p.end_prec);
+    if (skip_solve) {
+        if (world.rank()==0) {
+            print("skipping the solution of the SCF equations:");
+            if (param.no_compute()) print(" -> the option no_compute =1");
+            if (calc->converged_for_thresh*0.9999<p.end_prec) print(" -> orbitals are converged to the required threshold of",p.end_prec);
+        }
 
-		p.start_prec=calc->amo[0].thresh();
-		p.current_prec=calc->amo[0].thresh();
+    } else {
 
 		for (p.initialize() ; not p.finished(); ++p) {
 
@@ -421,7 +432,9 @@ double Nemo::solve(const SCFProtocol& proto) {
 
 	if (converged) {
 		if (world.rank()==0) print("\nIterations converged\n");
-	} else {
+        calc->converged_for_thresh=param.econv();
+        if (param.save()) calc->save_mos(world);
+    } else {
 		if (world.rank()==0) print("\nIterations failed\n");
 		energy = 0.0;
 	}
@@ -1355,8 +1368,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
         print("\ngenerating CPHF guess using the LDA functional\n");
     }
 
-    SCFProtocol preiterations(world,param,"cphf_preiterations",
-            param.restart_cphf());
+    SCFProtocol preiterations(world,param);
     preiterations.end_prec*=10.0;
     preiterations.initialize();
     for (; not preiterations.finished(); ++preiterations) {
@@ -1390,7 +1402,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
     }
 
     // solve the response equations
-    SCFProtocol p(world,param,"cphf_final_iterations",param.restart_cphf());
+    SCFProtocol p(world,param);
     p.start_prec=p.end_prec;
     p.initialize();
 

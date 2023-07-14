@@ -51,7 +51,7 @@ public:
 
         FunctionDefaults<3>::set_thresh(parameters.thresh_3D());
         FunctionDefaults<6>::set_thresh(parameters.thresh_6D());
-        // Make shure that k is the same in 3d and 6d functions
+        // Make sure that k is the same in 3d and 6d functions
         FunctionDefaults<6>::set_k(FunctionDefaults<3>::get_k());
         // by default SCF sets the truncate_mode to 1
         FunctionDefaults<3>::set_truncate_mode(3);
@@ -126,7 +126,7 @@ public:
     /// The World
     World& world;
     /// Structure holds all the parameters used in the CC2 calculation
-    const CCParameters parameters;
+    CCParameters parameters;
     /// The SCF Calculation
     std::shared_ptr<Nemo> nemo;
     /// The excited state cis calculation
@@ -513,9 +513,10 @@ public:
 
     double solve_mp2_coupled(Pairs<CCPair> &doubles);
 
-    bool check_core_valence_separation() const;
+    bool check_core_valence_separation(const Tensor<double>& fmat) const;
 
-    void enforce_core_valence_separation();
+    /// @return     the new fock matrix
+    Tensor<double> enforce_core_valence_separation(const Tensor<double>& fmat);
 };
 
 

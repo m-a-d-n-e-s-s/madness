@@ -230,11 +230,8 @@ public:
 
     }
 
-    /// unless set by user, determine # frozen orbitals based on canonical orbitals energies
+    void print_frozen_orbitals() const;
 
-    /// will check frozen and active orbitals against the block structure of the fock matrix, and
-    /// will enforce core/valence separation if necessary.
-    void determine_frozen_orbitals(const Tensor<double>& fmat);
     MolecularOrbitals<double,3> enforce_core_valence_separation(const Tensor<double>& fmat) const;
 
     static void print_parameters() {

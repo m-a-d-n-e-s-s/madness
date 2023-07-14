@@ -218,6 +218,7 @@ public:
     std::vector<std::shared_ptr<real_derivative_3d> > gradop;
     double vtol;
     double current_energy;
+    double converged_for_thresh=1.e10;    ///< mos are converged for this threshold
     //double esol;//etot;
     //double vacuo_energy;
 

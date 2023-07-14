@@ -266,7 +266,7 @@ struct CCParameters : public QCCalculationParametersBase {
         initialize < bool > ("plot", false, "");
         initialize < bool > ("kain", true, "");
         initialize < std::size_t > ("kain_subspace", 3, "");
-        initialize < std::size_t > ("freeze", 0, "");
+        initialize < long > ("freeze", -1, "number of frozen orbitals: -1: automatic");
         initialize < bool > ("test", false, "");
         // choose if Q for the constant part of MP2 and related calculations should be decomposed: GQV or GV - GO12V
         initialize < bool > ("decompose_Q", true, "");
@@ -365,7 +365,7 @@ struct CCParameters : public QCCalculationParametersBase {
 
     std::size_t kain_subspace() const { return get<std::size_t>("kain_subspace"); }
 
-    std::size_t freeze() const { return get<std::size_t>("freeze"); }
+    long freeze() const { return get<long>("freeze"); }
 
     std::vector<std::size_t> excitations() const { return get<std::vector<std::size_t>>("excitations"); }
 

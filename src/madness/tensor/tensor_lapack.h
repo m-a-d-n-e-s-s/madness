@@ -86,7 +86,7 @@ namespace madness {
     /// call as
     /// auto [eval, evec] = syev(A);
     template <typename T>
-    std::tuple<Tensor<T>, Tensor< typename Tensor<T>::scalar_type > >
+    std::tuple<Tensor< typename Tensor<T>::scalar_type >, Tensor<T>>
     syev(const Tensor<T>& A) {
     	Tensor<T> V;
     	Tensor< typename Tensor<T>::scalar_type > e;
