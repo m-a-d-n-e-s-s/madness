@@ -622,6 +622,10 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
     std::string
     name(const int ex) const;
 
+    bool is_converged(const double econv, const double dconv) const {
+        return (current_error<dconv) and (std::fabs(delta)<econv);
+    }
+
     /// getter
     const CCFunction& operator()(const CCFunction& i) const {
         return functions.find(i.i)->second;

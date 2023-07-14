@@ -326,12 +326,35 @@ std::vector<CC_vecfunction> TDHF::solve_cis() const {
             print_xfunctions(ccs);
             if (world.rank()==0) print("sorting roots according to energy");
             ccs=sort_xfunctions(ccs);
+
+            if (parameters.restart()=="no_compute") {
+                converged_roots=ccs;
+            } else {
+                // sort ccs in converged and non-converged sets
+                std::vector<CC_vecfunction> other_roots;
+                double dconv = parameters.dconv();
+                double econv = parameters.econv();
+                std::partition_copy(std::begin(ccs), std::end(ccs),
+                                    std::back_inserter(converged_roots), std::back_inserter(other_roots),
+                                    [&econv, &dconv](const CC_vecfunction &root) {
+                                        return root.is_converged(econv, dconv);
+                                    });
+                std::swap(other_roots, ccs);
+                print("converged roots");
+                print_xfunctions(converged_roots);
+                print("non-converged roots");
+                print_xfunctions(ccs);
+            }
         }
     }
 
+    bool skip_solve=(parameters.restart()=="no_compute") or (converged_roots.size()>=parameters.nexcitations());
 
-    if (parameters.restart()=="no_compute") {
-        converged_roots=ccs;
+    if (skip_solve) {
+        print("skipping the solution of the CIS equations");
+        if (parameters.restart()=="no_compute") print(" -> no_compute is set");
+        if (converged_roots.size()>=parameters.nexcitations())
+            print(" -> number of converged excitations from disk is sufficient:", converged_roots.size());
     } else {
         for (size_t macrocycle = 0; macrocycle < 1; ++macrocycle) {
             //msg.section("CIS Macroiteration " + std::to_string(macrocycle));
@@ -544,7 +567,7 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x, const std::vector<CC_
             std::vector<CC_vecfunction> unconverged_roots;
             std::vector<std::shared_ptr<XNonlinearSolver<vector_real_function_3d, double, TDHF_allocator> > > corresponding_solvers;
             for (size_t i = 0; i < x.size(); ++i) {
-                if (x[i].current_error < dconv and std::fabs(x[i].delta) < econv) {
+                if (x[i].is_converged(econv,dconv)) {
                     // put converged roots into converged roots and replace it by one of the remaining guess functions
                     converged_roots.push_back(x[i]);
                     if (guess_roots.empty()) msg.output("Ran out of guess functions"); // no replacement
@@ -600,7 +623,7 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x, const std::vector<CC_
 
         timer.stop().print();
         if (converged) break;
-        if (converged_roots.size() == size_t(parameters.nexcitations())) break;
+        if (converged_roots.size() >= size_t(parameters.nexcitations())) break;
         if (x.empty()) break;
     }
     return converged;
