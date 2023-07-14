@@ -38,7 +38,7 @@ CC2::solve() {
         tdhf->solve_cis();
     }
 
-    else if (ctype == CT_MP2) {
+    if (ctype == CT_MP2) {
 
 //        CCPairFunction bra(&(CCOPS.g12),CCOPS.mo_bra().get_vecfunction(),CCOPS.mo_bra().get_vecfunction());
 //        CCPairFunction ket(&(CCOPS.f12),CCOPS.mo_ket().get_vecfunction(),CCOPS.mo_ket().get_vecfunction());

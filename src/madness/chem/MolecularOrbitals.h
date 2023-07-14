@@ -267,16 +267,16 @@ public:
 		bool spinrestricted = false;
         double L;
         int k1;                    // Ignored for restarting, used in response only
-        unsigned int version = 2;  // UPDATE THIS IF YOU CHANGE ANYTHING
+        unsigned int version = 4;  // UPDATE THIS IF YOU CHANGE ANYTHING
         unsigned int archive_version;
-		double current_energy;
+		double current_energy, converged_to_thresh;
         std::string xc, localize_method;
 
 
 		archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, filename.c_str());
         ar & version;
 		ar & current_energy & spinrestricted;
-        ar & L& k1& molecule& xc & localize_method;
+        ar & L& k1& molecule& xc & localize_method & converged_to_thresh;
 
 		MolecularOrbitals<T,NDIM> amo, bmo;
 		amo.load_mos(ar, molecule, nmo_alpha);
@@ -294,16 +294,22 @@ public:
 			const MolecularOrbitals<T,NDIM>& amo, const MolecularOrbitals<T,NDIM>& bmo) {
         // TODO there is a good chance that this needs to be modified if it is intended to be read by SCF save/load
 		bool spinrestricted = false;
-		double current_energy=0.0;
+        unsigned int version=4;
+		double current_energy=0.0, converged_to_thresh=1.e10;
+        double L;
+        std::string xc, localize_method;
+        int k1;                    // Ignored for restarting, used in response only
 		archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, filename.c_str());
-		ar & current_energy & spinrestricted;
+        ar & version;
+        ar & current_energy & spinrestricted;
+        ar & L& k1& molecule& xc & localize_method & converged_to_thresh;
 
 		amo.save_mos(ar,molecule);
 		bmo.save_mos(ar,molecule);
 	}
 
 	/// legacy code
-        void load_mos(archive::ParallelInputArchive<>& ar, const Molecule& molecule, const std::size_t nmo_from_input) {
+    void load_mos(archive::ParallelInputArchive<>& ar, const Molecule& molecule, const std::size_t nmo_from_input) {
 
 		unsigned int nmo = 0;
 
