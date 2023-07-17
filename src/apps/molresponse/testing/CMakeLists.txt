@@ -13,6 +13,7 @@ set(MY_EXECUTABLES
         generate_frequency_data
         test_development
         x_space_testing
+        mad-quadratic
         )
 
 add_mad_executable(test_schema_json "madness_catch_main.cc;qcschema_json_testing.cpp" "MADresponse;MADchem")
