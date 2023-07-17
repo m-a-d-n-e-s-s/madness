@@ -25,15 +25,6 @@ namespace madness {
 class CC2 : public OptimizationTargetInterface, public QCPropertyInterface {
 public:
 
-//    CC2(World& world_, const CCParameters& param, const std::shared_ptr<Nemo> nemo_)
-//            : world(world_),
-//              parameters(param),
-//              nemo(nemo_),
-//              CCOPS(world, nemo, parameters),
-//              output(CCOPS.output) {
-//        parameters.sanity_check(world);
-//    }
-
     CC2(World& world_, const commandlineparser& parser, const std::shared_ptr<Nemo> nemo_)
             : world(world_),
               parameters(world_,parser),
@@ -68,7 +59,7 @@ public:
         parameters.sanity_check(world);
 
         tdhf.reset(new TDHF(world,parser,nemo));
-        tdhf->parameters.print("response","end");
+        tdhf->get_parameters().print("response","end");
 
     }
 

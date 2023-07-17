@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
             if (world.rank() == 0) {
                 tdhf.get_calcparam().print("dft","end");
                 print("");
-                tdhf.parameters.print("response","end");
+                tdhf.get_parameters().print("response","end");
                 tdhf.get_calc()->molecule.print();
             }
 

@@ -304,6 +304,7 @@ void TDHF::symmetrize(std::vector<CC_vecfunction> &v) const {
 /// on input the guess functions (if empty or not enough the a guess will be generated)
 /// on output the solution
 std::vector<CC_vecfunction> TDHF::solve_cis() const {
+    print_header2("computing CIS excitations");
     std::vector<CC_vecfunction> ccs;
     // look for restart options
     if (parameters.restart()=="iterate" or parameters.restart()=="no_compute") {
@@ -322,9 +323,11 @@ std::vector<CC_vecfunction> TDHF::solve_cis() const {
             }
         }
         if (ccs.size()>0) {
-            if (world.rank()==0) print_header3("initial roots from disk");
-            print_xfunctions(ccs);
-            if (world.rank()==0) print("sorting roots according to energy");
+            if (world.rank()==0) {
+                print("\ninitial roots from disk");
+                print_xfunctions(ccs);
+                print("\nsorting roots according to energy");
+            }
             ccs=sort_xfunctions(ccs);
 
             if (parameters.restart()=="no_compute") {
@@ -340,10 +343,12 @@ std::vector<CC_vecfunction> TDHF::solve_cis() const {
                                         return root.is_converged(econv, dconv);
                                     });
                 std::swap(other_roots, ccs);
-                print("converged roots");
-                print_xfunctions(converged_roots);
-                print("non-converged roots");
-                print_xfunctions(ccs);
+                if (world.rank()==0 and parameters.print_level()>0) {
+                    print("\nconverged roots");
+                    print_xfunctions(converged_roots);
+                    print("\nnon-converged roots");
+                    print_xfunctions(ccs);
+                }
             }
         }
     }
@@ -363,6 +368,7 @@ std::vector<CC_vecfunction> TDHF::solve_cis() const {
         }
     }
 
+    print_header2("end computing CIS excitations");
     return converged_roots;
 }
 

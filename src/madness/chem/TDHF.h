@@ -307,6 +307,14 @@ public:
     /// on output the solution
     std::vector<CC_vecfunction> solve_cis() const;
 
+    /// analyze the root: oscillator strength and contributions from occupied orbitals
+    void analyze(const std::vector<CC_vecfunction> &x) const;
+
+    TDHFParameters get_parameters() const {return parameters;};
+
+    std::vector<CC_vecfunction> get_converged_roots() const {return converged_roots;}
+
+private:
     std::vector<CC_vecfunction> solve_cis(std::vector<CC_vecfunction> &start) const;
 
     /// Solve TDHF equations (not ready)
@@ -493,9 +501,6 @@ public:
     /// where \f$ x \f$ is the excited state, and \f$ i \f$ is the ground state
     /// @param[in]  root    a converged root
     double oscillator_strength_velocity(const CC_vecfunction &x) const;
-
-    /// analyze the root: oscillator strength and contributions from occupied orbitals
-    void analyze(const std::vector<CC_vecfunction> &x) const;
 
     /// Fock matrix for occupied orbitals
     Tensor<double> F_occ;

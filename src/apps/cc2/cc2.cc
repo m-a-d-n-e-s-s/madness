@@ -74,6 +74,8 @@ int main(int argc, char **argv) {
 
         std::shared_ptr<Nemo> nemo(new Nemo(world, parser));
         nemo->param.set_derived_value("print_level", 2);
+        nemo->param.set_derived_value("k", 5);
+        nemo->get_calc()->param.set_derived_value("k", 5);
         CC2 cc2(world, parser, nemo);
 
         std::shared_ptr<SCF> calc = nemo->get_calc();

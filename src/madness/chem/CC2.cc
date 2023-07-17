@@ -34,11 +34,14 @@ CC2::solve() {
     bool need_tdhf=(ctype == CT_TDHF or ctype==CT_LRCC2 or ctype==CT_CISPD or ctype==CT_ADC2 or ctype==CT_LRCCS);
     if (need_tdhf) {
         tdhf->prepare_calculation();
-        MADNESS_CHECK(tdhf->parameters.freeze()==parameters.freeze());
-        tdhf->solve_cis();
+        MADNESS_CHECK(tdhf->get_parameters().freeze()==parameters.freeze());
+        auto roots=tdhf->solve_cis();
+        tdhf->analyze(roots);
     }
 
-    if (ctype == CT_MP2) {
+    if (ctype == CT_LRCCS) {
+        ;   // we're good
+    } else if (ctype == CT_MP2) {
 
 //        CCPairFunction bra(&(CCOPS.g12),CCOPS.mo_bra().get_vecfunction(),CCOPS.mo_bra().get_vecfunction());
 //        CCPairFunction ket(&(CCOPS.f12),CCOPS.mo_ket().get_vecfunction(),CCOPS.mo_ket().get_vecfunction());
@@ -473,7 +476,7 @@ std::vector<CC_vecfunction> CC2::solve_ccs() {
 //    }
 //    tdhf->prepare_calculation();
 //    excitations = tdhf->solve_cis(excitations);
-    std::vector<CC_vecfunction> excitations=tdhf->converged_roots;
+    std::vector<CC_vecfunction> excitations=tdhf->get_converged_roots();
 
     // return only those functions which are demanded
     std::vector<CC_vecfunction> result;
