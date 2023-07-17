@@ -77,7 +77,10 @@ namespace madness {
             initialize<std::string>("calc_type", "full", "full,static,tda");
             initialize<bool>("excited_state", false, "Flag to turn on excited state calc");
             initialize<bool>("first_order", false, "Flag to turn on first order response calc");
+            initialize<bool>("second_order", false, "Flag to turn on first order response calc");
             initialize<bool>("dipole", false, "Sets RHS to dipole operator 3 x num_orbitals");
+            initialize<bool>("quadratic", false, "Compute quadratic response");
+            initialize<std::vector<double>>("freq_range", {0.0}, "Frequency range for quadratic response");
             initialize<bool>("nuclear", false, "Sets RHS to nuclear derivative 3 x num_atoms x num_orbitals");
             initialize<double>("omega", 0.0, "Incident energy for dynamic response");
             initialize<double>("l", 20, "user coordinates box size");
@@ -112,8 +115,8 @@ namespace madness {
         int k() const { return get<int>("k"); }
         bool random() const { return get<bool>("random"); }
         bool store_potential() const { return get<bool>("store_potential"); }
-
-
+        vector<double> freq_range() const { return get<vector<double>>("freq_range"); }
+        bool quadratic() const { return get<bool>("quadratic"); }
         bool plot_initial() const { return get<bool>("plot_initial"); }
         bool restart() const { return get<bool>("restart"); }
         std::string restart_file() const { return get<std::string>("restart_file"); }
