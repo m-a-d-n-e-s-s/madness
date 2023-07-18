@@ -53,6 +53,8 @@ int main(int argc, char **argv) {
         printf("starting at time %.1f\n", wall_time());
     }
 
+    printf_msg_energy_time("message %8.4f %3.2fs",0.0,wall_time());
+
     startup(world, argc, argv,true);
     std::cout.precision(6);
     FunctionDefaults<3>::set_truncate_mode(1);
