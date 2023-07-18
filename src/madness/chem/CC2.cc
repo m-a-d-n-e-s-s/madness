@@ -61,7 +61,8 @@ CC2::solve() {
         output_calc_info_schema("mp2",mp2_energy);
         output.section(assign_name(CT_MP2) + " Calculation Ended !");
         if (world.rank() == 0)
-            std::cout << std::fixed << std::setprecision(10) << " MP2 Correlation Energy =" << mp2_energy << "\n";
+            printf_msg_energy_time("MP2 correlation energy",mp2_energy,wall_time());
+//            std::cout << std::fixed << std::setprecision(10) << " MP2 Correlation Energy =" << mp2_energy << "\n";
     }
 
     if (need_cc2) {
@@ -83,6 +84,8 @@ CC2::solve() {
 
         output.section(assign_name(CT_CC2) + " Calculation Ended !");
         if (world.rank() == 0)
+            printf_msg_energy_time("CC2 correlation energy",cc2_energy,wall_time());
+//            std::cout << std::fixed << std::setprecision(10) << " MP2 Correlation Energy =" << mp2_energy << "\n";
             std::cout << std::fixed << std::setprecision(10) << " CC2 Correlation Energy =" << cc2_energy << "\n";
 
     }
@@ -434,17 +437,14 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
 
     for (size_t iter = 0; iter < parameters.iter_max_6D(); iter++) {
 
-        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting coupling at time " << wall_time() << std::endl;
+//        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting coupling at time " << wall_time() << std::endl;
         // compute the coupling between the pair functions
+        CCProgress coupling_progess("add coupling");
         Pairs<real_function_6d> coupling=compute_local_coupling(updated_pairs);
-        //print coupling
-        if (world.rank()==0) std::cout << "aaaaa coupling Pairs";
-        for (auto& tmp_coupling : coupling.allpairs) {
-            tmp_coupling.second.print_size("coupling Pairs");
-        }
-
-        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nFinished coupling at time " << wall_time() << std::endl;
         auto coupling_vec=Pairs<real_function_6d>::pairs2vector(coupling,triangular_map);
+        coupling_progess.end();
+
+//        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nFinished coupling at time " << wall_time() << std::endl;
 
 
 //       // make coupling vector that can be stored in cloud
@@ -629,10 +629,8 @@ CC2::solve_mp2(Pairs<CCPair>& doubles) {
 
 /// @return \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
 Pairs<real_function_6d> CC2::compute_local_coupling(const Pairs<real_function_6d>& pairs) const {
-    if (world.rank() == 0) print("compute local coupling");
 
     const int nmo = nemo->get_calc()->amo.size();
-    if (world.rank() == 0) print("nmo = ", nmo);
 
     // temporarily make all N^2 pair functions
     typedef std::map<std::pair<int, int>, real_function_6d> pairsT;
@@ -646,19 +644,12 @@ Pairs<real_function_6d> CC2::compute_local_coupling(const Pairs<real_function_6d
             }
         }
     }
-    //print quadratic
-    if (world.rank() == 0) std::cout << "aaaaa quadratic" << std::endl;
-    for (pairsT::iterator it = quadratic.begin(); it != quadratic.end(); ++it) {
-        it->second.print_size("quadratic");
-    }
 
     for (auto& q: quadratic) q.second.compress(false);
     world.gop.fence();
 
     // the coupling matrix is the Fock matrix, skipping diagonal elements
     Tensor<double> fock1 = nemo->compute_fock_matrix(nemo->get_calc()->amo, nemo->get_calc()->aocc);
-    if (world.rank() == 0) std::cout << "aaaaa fock1 in compute_local_coupling" << std::endl;
-    if (world.rank() == 0) print(fock1);
     for (int k = 0; k < nmo; ++k) {
         if (fock1(k, k) > 0.0) MADNESS_EXCEPTION("positive orbital energies", 1);
         fock1(k, k) = 0.0;
@@ -690,11 +681,6 @@ Pairs<real_function_6d> CC2::compute_local_coupling(const Pairs<real_function_6d
         }
     }
     world.gop.fence();
-    //print coupling when finished
-    if (world.rank() == 0) std::cout << "aaaaa coupling Pairs after compute_local_coupling";
-    for (auto& tmp_coupling: coupling.allpairs) {
-        tmp_coupling.second.print_size("coupling Pairs after compute_local_coupling");
-    }
     return coupling;
 }
 

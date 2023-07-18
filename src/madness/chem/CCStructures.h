@@ -16,6 +16,7 @@
 #include<madness/chem/QCCalculationParametersBase.h>
 #include <algorithm>
 #include <iomanip>
+#include <iostream>
 #include <madness/mra/macrotaskq.h>
 
 namespace madness {
@@ -132,6 +133,24 @@ struct CCMessenger {
     mutable std::vector<std::string> warnings;
     /// output stream
     std::ostream& os;
+};
+
+
+/// print the progress of an operation
+struct CCProgress {
+    double start=0.0;
+    CCProgress(const std::string msg) : start(wall_time()) {
+        std::string blanks(" ",45-msg.size());
+        std::string tmp="  "+msg+blanks+"...";
+        printf("%s",tmp.c_str());
+        std::cout << std::flush;
+    }
+
+    void end() {
+        printf("  done after %8.4fs\n",wall_time()-start);
+        std::cout << std::flush;
+    }
+
 };
 
 /// Timer Structure
