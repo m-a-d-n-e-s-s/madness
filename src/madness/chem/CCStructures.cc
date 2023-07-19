@@ -200,6 +200,8 @@ CCIntermediatePotentials::insert(const vector_real_function_3d& potential, const
 void CCParameters::set_derived_values() {
     if (not kain()) set_derived_value("kain_subspace",std::size_t(0));
 
+    if (response()==true) set_derived_value("excitations",std::vector<std::size_t>({0}));
+
     // set all parameters that were not explicitly given
     set_derived_value("tight_thresh_6d",thresh_6D()*0.1);
     set_derived_value("thresh_3d",thresh_6D()*0.01);

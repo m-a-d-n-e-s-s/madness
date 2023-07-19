@@ -38,7 +38,7 @@ CC2::solve() {
 
     double mp2_energy, cc2_energy;
 
-    bool need_tdhf=(ctype==CT_TDHF or ctype==CT_LRCC2 or ctype==CT_CISPD or ctype==CT_ADC2 or ctype==CT_LRCCS);
+    bool need_tdhf=parameters.response();
     bool need_mp2=(ctype==CT_MP2 or ctype==CT_CISPD or ctype==CT_ADC2);
     bool need_cc2=(ctype==CT_LRCC2 or ctype==CT_CC2);
 

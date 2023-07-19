@@ -372,7 +372,7 @@ double Nemo::solve(const SCFProtocol& proto) {
             tensorT fock_offdiag=copy(fock);
             for (int i=0; i<fock.dim(0); ++i) fock_offdiag(i,i)=0.0;
             double max_fock_offidag=fock_offdiag.absmax();
-            if (world.rank()==0) print("F max off-diagonal  ",max_fock_offidag);
+            if (world.rank()==0 and param.print_level()>3) print("F max off-diagonal  ",max_fock_offidag);
 
             // canonicalize the orbitals, rotate subspace and potentials
             tensorT overlap = matrix_inner(world, R2nemo, nemo, true);

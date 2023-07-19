@@ -312,6 +312,7 @@ struct CCParameters : public QCCalculationParametersBase {
         MADNESS_EXCEPTION("faulty CalcType", 1);
     }
 
+    bool response() const {return calc_type()==CT_ADC2 or calc_type()==CT_CISPD or calc_type()==CT_LRCC2 or calc_type()==CT_LRCCS;}
     double lo() const { return get<double>("lo"); }
 
     double dmin() const { return get<double>("dmin"); }

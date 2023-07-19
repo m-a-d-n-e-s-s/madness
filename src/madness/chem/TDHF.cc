@@ -77,15 +77,9 @@ void TDHF::initialize() {
                     + std::to_string(parameters.thresh()) + " and Reference thresh=" + std::to_string(old_thresh)
                     + ". Be careful, reference should be tight");
     }
-    FunctionDefaults<3>::set_thresh(parameters.thresh());
-    msg << "MRA Threshold is set to: " << FunctionDefaults<3>::get_thresh()
-        << " with k=" << FunctionDefaults<3>::get_k() << "\n";
-
-
     symmetry_projector = get_nemo()->get_symmetry_projector();
     // do not normalize the x vectors individually!
     symmetry_projector.set_lindep(1.e-2).set_orthonormalize_irreps(false).set_verbosity(0);
-    symmetry_projector.print_info(world);
     check_consistency();
 
 }

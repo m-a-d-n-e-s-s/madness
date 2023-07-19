@@ -59,7 +59,6 @@ public:
         parameters.sanity_check(world);
 
         tdhf.reset(new TDHF(world,parser,nemo));
-        tdhf->get_parameters().print("response","end");
 
     }
 
