@@ -439,10 +439,8 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
 
 //        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting coupling at time " << wall_time() << std::endl;
         // compute the coupling between the pair functions
-        CCProgress coupling_progess("add coupling");
         Pairs<real_function_6d> coupling=compute_local_coupling(updated_pairs);
         auto coupling_vec=Pairs<real_function_6d>::pairs2vector(coupling,triangular_map);
-        coupling_progess.end();
 
 //        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nFinished coupling at time " << wall_time() << std::endl;
 
