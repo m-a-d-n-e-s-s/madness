@@ -207,8 +207,9 @@ std::vector<CC_vecfunction> TDHF::sort_xfunctions(std::vector<CC_vecfunction> x)
 }
 
 /// print information
-void TDHF::print_xfunctions(const std::vector<CC_vecfunction> &f, const bool &fullinfo) const {
+void TDHF::print_xfunctions(const std::vector<CC_vecfunction>& f, const std::string message) const {
     int counter=0;
+    if (world.rank()==0 and (not message.empty())) print(message);
     for (const auto &x:f) {
         const double mem = get_size(world, x.get_vecfunction());
 
@@ -223,9 +224,6 @@ void TDHF::print_xfunctions(const std::vector<CC_vecfunction> &f, const bool &fu
             << std::setprecision(msg.output_prec)
             << "\n";
 
-//        if (fullinfo) {
-//            print_size(world, x.get_vecfunction(), "ex. vector " + std::to_string(x.excitation));
-//        }
     }
 }
 
@@ -298,7 +296,8 @@ void TDHF::symmetrize(std::vector<CC_vecfunction> &v) const {
 /// on input the guess functions (if empty or not enough the a guess will be generated)
 /// on output the solution
 std::vector<CC_vecfunction> TDHF::solve_cis() const {
-    print_header2("computing CIS excitations");
+    if (world.rank()==0) print_header2("computing CIS excitations");
+    int i=0;
     std::vector<CC_vecfunction> ccs;
     // look for restart options
     if (parameters.restart()=="iterate" or parameters.restart()=="no_compute") {
@@ -310,18 +309,15 @@ std::vector<CC_vecfunction> TDHF::solve_cis() const {
             std::string filename= filename_for_roots(ex);
             try {
                 auto root=CC_vecfunction::load_restartdata(world,filename);
-                print("found excitation #",ex,"on disk: ",filename);
+                if (world.rank()==0) print("found excitation #",ex,"on disk: ",filename);
                 ccs.push_back(root);
             } catch (...) {
-                print("could not find excitation #", ex, ", ", filename);
+                if (world.rank()==0) print("could not find excitation #", ex, ", ", filename);
             }
         }
         if (ccs.size()>0) {
-            if (world.rank()==0) {
-                print("\ninitial roots from disk");
-                print_xfunctions(ccs);
-                print("\nsorting roots according to energy");
-            }
+            print_xfunctions(ccs, "initial roots from disk");
+            if (world.rank()==0) print("\nsorting roots according to energy");
             ccs=sort_xfunctions(ccs);
 
             if (parameters.restart()=="no_compute") {
@@ -337,11 +333,9 @@ std::vector<CC_vecfunction> TDHF::solve_cis() const {
                                         return root.is_converged(econv, dconv);
                                     });
                 std::swap(other_roots, ccs);
-                if (world.rank()==0 and parameters.print_level()>0) {
-                    print("\nconverged roots");
-                    print_xfunctions(converged_roots);
-                    print("\nnon-converged roots");
-                    print_xfunctions(ccs);
+                if (parameters.print_level()>0) {
+                    print_xfunctions(converged_roots, "\nconverged roots");
+                    print_xfunctions(ccs, "\nnon-converged roots");
                 }
             }
         }
@@ -362,7 +356,7 @@ std::vector<CC_vecfunction> TDHF::solve_cis() const {
         }
     }
 
-    print_header2("end computing CIS excitations");
+    if (world.rank()==0) print_header2("end computing CIS excitations");
     return converged_roots;
 }
 
@@ -384,7 +378,7 @@ std::vector<CC_vecfunction> TDHF::solve_cis(std::vector<CC_vecfunction> &start) 
     symmetrize(guess_vectors);
 
     msg.output("====Guess-Vectors=====");
-    print_xfunctions(guess_vectors);
+    print_xfunctions(guess_vectors, "");
 
     std::vector<CC_vecfunction> final_vectors;
     msg.subsection("Iterate Guess Vectors");
@@ -407,10 +401,8 @@ std::vector<CC_vecfunction> TDHF::solve_cis(std::vector<CC_vecfunction> &start) 
 
     msg.subsection("Iterate Final Vectors");
 
-    msg.output("Vectors in Iteration Cycle");
-    print_xfunctions(final_vectors);
-    msg.output("Remaining Guess Vectors");
-    print_xfunctions(guess_roots);
+    print_xfunctions(final_vectors, "Vectors in Iteration Cycle");
+    print_xfunctions(guess_roots, "Remaining Guess Vectors");
 
     iterate_cis_final_vectors(final_vectors);
     msg.section("CIS CALCULATIONS ENDED");
@@ -418,10 +410,8 @@ std::vector<CC_vecfunction> TDHF::solve_cis(std::vector<CC_vecfunction> &start) 
     std::sort(final_vectors.begin(), final_vectors.end());
 
     // information
-    msg.output("\n\nCONVERGED ROOTS\n");
-    print_xfunctions(converged_roots);
-    msg.output("\n\nRest\n");
-    print_xfunctions(final_vectors);
+    print_xfunctions(converged_roots, "\n\nCONVERGED ROOTS\n");
+    print_xfunctions(final_vectors, "\n\nRest\n");
     time.info();
 
     // plot final vectors
@@ -614,10 +604,8 @@ bool TDHF::iterate_vectors(std::vector<CC_vecfunction> &x, const std::vector<CC_
         msg << std::setfill('-') << std::setw(60) << "\n" << std::setfill(' ');
         msg << "Iteration " << iter << ": omega, largest error, delta, size " << "\n";
 
-        msg.output("===========CONVERGED=ROOTS=====================");
-        print_xfunctions(converged_roots);
-        msg.output("=========NON-CONVERGED=ROOTS====================");
-        print_xfunctions(x);
+        print_xfunctions(converged_roots, "===========CONVERGED=ROOTS=====================");
+        print_xfunctions(x, "=========NON-CONVERGED=ROOTS====================");
 
         msg << std::setfill('-') << std::setw(60) << "\n" << std::setfill(' ');
 
@@ -1321,13 +1309,15 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
                     if (reduced != "null") x.irrep = reduced;
                 }
             } catch (...) {
-                print_header1("error");
-                print("if you are here, there is likely a problem with the CIS guess, where degenerate states");
-                print("of different irreps may mix and mess up the symmetry determination");
-                print("This needs to be fixed, for now just run the same calculation again with fingers crossed");
-                print("\nx_irreps");
-                print(x_irreps);
-                print("\n");
+                if (world.rank()==0) {
+                    print_header1("error");
+                    print("if you are here, there is likely a problem with the CIS guess, where degenerate states");
+                    print("of different irreps may mix and mess up the symmetry determination");
+                    print("This needs to be fixed, for now just run the same calculation again with fingers crossed");
+                    print("\nx_irreps");
+                    print(x_irreps);
+                    print("\n");
+                }
                 MADNESS_EXCEPTION("inconsistent symmetry in x vector\n\n", 0);
             }
         }
@@ -1339,7 +1329,7 @@ vector<CC_vecfunction> TDHF::make_guess_from_initial_diagonalization() const {
 
         msg << "Overlap matrix of guess:\n" << S << "\n";
     }
-    print_xfunctions(xfunctions, true);
+    print_xfunctions(xfunctions, "");
     msg << "created " << xfunctions.size() << " guess vectors\n";
 
     time.print();
@@ -1616,7 +1606,7 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
 
     nlohmann::json j1;
     j1["cis_excitations"]=j;
-    update_schema(get_calc()->param.prefix()+".calc_info", j1);
+    if (world.rank()==0) update_schema(get_calc()->param.prefix()+".calc_info", j1);
 
 
     // compute the transition densities

@@ -291,7 +291,7 @@ public:
     std::vector<CC_vecfunction> sort_xfunctions(std::vector<CC_vecfunction> x) const;
 
     /// print information
-    void print_xfunctions(const std::vector<CC_vecfunction> &f, const bool &fullinfo = false) const;
+    void print_xfunctions(const std::vector<CC_vecfunction>& f, const std::string message) const;
 
     /// Initialize the CIS functions
 

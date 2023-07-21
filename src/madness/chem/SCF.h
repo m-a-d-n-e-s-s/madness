@@ -506,8 +506,8 @@ public:
 
     void output_calc_info_schema() const;
 
-    void output_scf_info_schema(const std::map<std::string, double> &vals,
-                                const tensorT &dipole_T) const;
+//    void output_scf_info_schema(const std::map<std::string, double> &vals,
+//                                const tensorT &dipole_T) const;
 
 };
 

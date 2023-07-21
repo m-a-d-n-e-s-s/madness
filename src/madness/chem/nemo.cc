@@ -154,7 +154,7 @@ double Nemo::value(const Tensor<double>& x) {
 	double xsq = x.sumsq();
 	if (xsq == coords_sum) return calc->current_energy;
 
-    print_header2("computing the nemo wave function");
+    if (world.rank()==0) print_header2("computing the nemo wave function");
 
     if ((xsq-calc->molecule.get_all_coords()).normf()>1.e-12) invalidate_factors_and_potentials();
 
@@ -224,7 +224,7 @@ double Nemo::value(const Tensor<double>& x) {
 
     calc->output_calc_info_schema();
 
-    print_header2("end computing the nemo wave function");
+    if (world.rank()==0) print_header2("end computing the nemo wave function");
     return calc->current_energy;
 }
 
