@@ -313,7 +313,7 @@ bool CC2::check_core_valence_separation(const Tensor<double>& fmat) const {
 
 Tensor<double> CC2::enforce_core_valence_separation(const Tensor<double>& fmat) {
 
-    if (nemo->get_param().localize_method()=="canonical") {
+    if (nemo->get_param().localize_method()=="canon") {
         auto nmo=nemo->get_calc()->amo.size();
         Tensor<double> fmat1(nmo,nmo);
         for (int i=0; i<nmo; ++i) fmat1(i,i)=nemo->get_calc()->aeps(i);
