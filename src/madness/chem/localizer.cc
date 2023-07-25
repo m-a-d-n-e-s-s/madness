@@ -550,6 +550,56 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
     return dUT;
 }
 
+template<typename T>
+std::size_t Localizer::determine_frozen_orbitals(const Tensor<T> fmat) {
+
+    // freezing based on canonical orbital energies
+    Tensor<double> eps;
+    if (fmat.ndim()==2) {
+        auto [eval, evec] = syev(fmat);
+        eps=real(eval);
+    } else {
+        MADNESS_CHECK(fmat.ndim()==1);
+        eps=real(fmat);
+    }
+
+    std::vector<Function<T,3>> vec(eps.size());
+    MolecularOrbitals<T, 3> dummy_mo(vec, eps);
+    dummy_mo.recompute_localize_sets();
+    auto s = MolecularOrbitals<double, 3>::convert_set_to_slice(dummy_mo.get_localize_sets());
+
+    long nactive = s.back().end - s.back().start + 1;
+    long nfrozen = dummy_mo.get_mos().size() - nactive;
+
+    if (not Localizer::check_frozen_consistency(nfrozen,dummy_mo.get_localize_sets())) {
+        dummy_mo.pretty_print("mos");
+        print("nfrozen", nfrozen);
+        MADNESS_EXCEPTION("inconsistent number of frozen orbitals",1);
+    };
+
+    return nfrozen;
+}
+
+bool Localizer::check_frozen_consistency(const long nfrozen, const std::vector<int>& localize_sets) {
+
+    // fast return
+    if (nfrozen==0) return true;
+
+    // check that freeze is consistent with the core/valence block-diagonal structure of the fock matrix
+    bool fine = false;
+    int ntotal = 0;
+    std::vector<Slice> slices = MolecularOrbitals<double, 3>::convert_set_to_slice(localize_sets);
+    for (std::size_t i = 0; i < slices.size(); ++i) {
+        const Slice& s = slices[i];
+        int n_in_set = s.end - s.start + 1;
+        ntotal += n_in_set;
+        if (nfrozen == ntotal) {
+            fine = true;
+            break;
+        }
+    }
+    return fine;
+}
 
 /// given a unitary transformation matrix undo mere reordering
 template<typename T>
@@ -737,6 +787,12 @@ MolecularOrbitals<double, 3> Localizer::localize(const MolecularOrbitals<double,
 template
 MolecularOrbitals<double, 3> Localizer::localize(const MolecularOrbitals<double, 3>& mo_in, const Tensor<double>& Fock,
                                                  bool randomize) const;
+
+template
+std::size_t Localizer::determine_frozen_orbitals(const Tensor<double> fmat);
+
+template
+std::size_t Localizer::determine_frozen_orbitals(const Tensor<double_complex> fmat);
 
 template
 MolecularOrbitals<double, 3> Localizer::separate_core_valence(const MolecularOrbitals<double, 3>& mo_in,

@@ -24,7 +24,9 @@ template<typename T, std::size_t NDIM>
 class MolecularOrbitals : public archive::ParallelSerializableObject {
 public:
 
-	MolecularOrbitals() {}
+    MolecularOrbitals(const MolecularOrbitals<T,NDIM>& other) = default;
+
+	MolecularOrbitals() = default;
 
     MolecularOrbitals(const std::vector<Function<T,NDIM> >& mo)
             : mo(mo), eps(), irreps(), occ(), localize_sets() {
@@ -53,6 +55,10 @@ public:
         if (localize_sets.size()>0) result.localize_sets.assign(localize_sets.begin()+s.start,localize_sets.begin()+s.end+1);
 
         return result;
+    }
+
+    std::size_t size() const {
+        return mo.size();
     }
 
 	std::vector<Function<T,NDIM> > get_mos() const {
@@ -189,6 +195,22 @@ public:
 	    }
 	}
 
+
+    void print_frozen_orbitals(const long freeze) const {
+
+        World& world=mo.front().world();
+        MolecularOrbitals<T, 3> dummy_mo(*this);
+        dummy_mo.recompute_localize_sets();
+        if (world.rank() == 0) {
+            auto flags=std::vector<std::string>(dummy_mo.get_mos().size(),"active");
+            for (int i=0; i<freeze; ++i) flags[i]="frozen";
+            dummy_mo.pretty_print("diagonal Fock matrix elements with core/valence separation for freezing",flags);
+            print("\nfreezing orbitals: ", freeze,"\n");
+        }
+
+    }
+
+
     /// @param[in] cubefile_header  header of the cube file, from molecule::cubefile_header()
     void print_cubefiles(const std::string name, const std::vector<std::string> cubefile_header) const;
 
@@ -245,16 +267,16 @@ public:
 		bool spinrestricted = false;
         double L;
         int k1;                    // Ignored for restarting, used in response only
-        unsigned int version = 2;  // UPDATE THIS IF YOU CHANGE ANYTHING
+        unsigned int version = 4;  // UPDATE THIS IF YOU CHANGE ANYTHING
         unsigned int archive_version;
-		double current_energy;
+		double current_energy, converged_to_thresh;
         std::string xc, localize_method;
 
 
 		archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, filename.c_str());
         ar & version;
 		ar & current_energy & spinrestricted;
-        ar & L& k1& molecule& xc & localize_method;
+        ar & L& k1& molecule& xc & localize_method & converged_to_thresh;
 
 		MolecularOrbitals<T,NDIM> amo, bmo;
 		amo.load_mos(ar, molecule, nmo_alpha);
@@ -272,16 +294,22 @@ public:
 			const MolecularOrbitals<T,NDIM>& amo, const MolecularOrbitals<T,NDIM>& bmo) {
         // TODO there is a good chance that this needs to be modified if it is intended to be read by SCF save/load
 		bool spinrestricted = false;
-		double current_energy=0.0;
+        unsigned int version=4;
+		double current_energy=0.0, converged_to_thresh=1.e10;
+        double L;
+        std::string xc, localize_method;
+        int k1;                    // Ignored for restarting, used in response only
 		archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, filename.c_str());
-		ar & current_energy & spinrestricted;
+        ar & version;
+        ar & current_energy & spinrestricted;
+        ar & L& k1& molecule& xc & localize_method & converged_to_thresh;
 
 		amo.save_mos(ar,molecule);
 		bmo.save_mos(ar,molecule);
 	}
 
 	/// legacy code
-        void load_mos(archive::ParallelInputArchive<>& ar, const Molecule& molecule, const std::size_t nmo_from_input) {
+    void load_mos(archive::ParallelInputArchive<>& ar, const Molecule& molecule, const std::size_t nmo_from_input) {
 
 		unsigned int nmo = 0;
 

@@ -2134,8 +2134,7 @@ namespace madness {
     	Function<resultT, NDIM> result;
 
 		MADNESS_ASSERT(not f.is_on_demand());
-		bool print_timings=(NDIM==6);
-//        bool print_timings=false;
+		bool print_timings=op.print_timings;
 
     	if (VERIFY_TREE) ff.verify_tree();
     	ff.reconstruct();

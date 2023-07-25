@@ -16,6 +16,7 @@
 #include<madness/chem/QCCalculationParametersBase.h>
 #include <algorithm>
 #include <iomanip>
+#include <iostream>
 #include <madness/mra/macrotaskq.h>
 
 namespace madness {
@@ -133,6 +134,7 @@ struct CCMessenger {
     /// output stream
     std::ostream& os;
 };
+
 
 /// Timer Structure
 struct CCTimer {
@@ -266,7 +268,7 @@ struct CCParameters : public QCCalculationParametersBase {
         initialize < bool > ("plot", false, "");
         initialize < bool > ("kain", true, "");
         initialize < std::size_t > ("kain_subspace", 3, "");
-        initialize < std::size_t > ("freeze", 0, "");
+        initialize < long > ("freeze", -1, "number of frozen orbitals: -1: automatic");
         initialize < bool > ("test", false, "");
         // choose if Q for the constant part of MP2 and related calculations should be decomposed: GQV or GV - GO12V
         initialize < bool > ("decompose_Q", true, "");
@@ -293,6 +295,7 @@ struct CCParameters : public QCCalculationParametersBase {
         MADNESS_EXCEPTION("faulty CalcType", 1);
     }
 
+    bool response() const {return calc_type()==CT_ADC2 or calc_type()==CT_CISPD or calc_type()==CT_LRCC2 or calc_type()==CT_LRCCS;}
     double lo() const { return get<double>("lo"); }
 
     double dmin() const { return get<double>("dmin"); }
@@ -365,7 +368,7 @@ struct CCParameters : public QCCalculationParametersBase {
 
     std::size_t kain_subspace() const { return get<std::size_t>("kain_subspace"); }
 
-    std::size_t freeze() const { return get<std::size_t>("freeze"); }
+    long freeze() const { return get<long>("freeze"); }
 
     std::vector<std::size_t> excitations() const { return get<std::vector<std::size_t>>("excitations"); }
 
@@ -505,28 +508,26 @@ size_of(const intermediateT& im);
 
 // structure for CC Vectorfunction
 /// A helper structure which holds a map of functions
-struct CC_vecfunction {
+struct CC_vecfunction : public archive::ParallelSerializableObject {
 
-    CC_vecfunction() : type(UNDEFINED), omega(0.0), excitation(-1), current_error(99.9), delta(0.0) {}
+    CC_vecfunction() : type(UNDEFINED), omega(0.0), current_error(99.9), delta(0.0) {}
 
-    CC_vecfunction(const FuncType type_) : type(type_), omega(0.0), excitation(-1), current_error(99.9), delta(0.0) {}
+    CC_vecfunction(const FuncType type_) : type(type_), omega(0.0), current_error(99.9), delta(0.0) {}
 
-    CC_vecfunction(const vector_real_function_3d& v) : type(UNDEFINED), omega(0.0), excitation(-1), current_error(99.9),
-                                                       delta(0.0) {
+    CC_vecfunction(const vector_real_function_3d& v) : type(UNDEFINED), omega(0.0), current_error(99.9), delta(0.0) {
         for (size_t i = 0; i < v.size(); i++) {
             CCFunction tmp(v[i], i, type);
             functions.insert(std::make_pair(i, tmp));
         }
     }
 
-    CC_vecfunction(const std::vector<CCFunction>& v) : type(UNDEFINED), omega(0.0), excitation(-1), current_error(99.9),
-                                                       delta(0.0) {
+    CC_vecfunction(const std::vector<CCFunction>& v) : type(UNDEFINED), omega(0.0), current_error(99.9), delta(0.0) {
         for (size_t i = 0; i < v.size(); i++) {
             functions.insert(std::make_pair(v[i].i, v[i]));
         }
     }
 
-    CC_vecfunction(const vector_real_function_3d& v, const FuncType& type) : type(type), omega(0.0), excitation(-1),
+    CC_vecfunction(const vector_real_function_3d& v, const FuncType& type) : type(type), omega(0.0),
                                                                              current_error(99.9), delta(0.0) {
         for (size_t i = 0; i < v.size(); i++) {
             CCFunction tmp(v[i], i, type);
@@ -536,7 +537,6 @@ struct CC_vecfunction {
 
     CC_vecfunction(const vector_real_function_3d& v, const FuncType& type, const size_t& freeze) : type(type),
                                                                                                    omega(0.0),
-                                                                                                   excitation(-1),
                                                                                                    current_error(99.9),
                                                                                                    delta(0.0) {
         for (size_t i = 0; i < v.size(); i++) {
@@ -546,14 +546,14 @@ struct CC_vecfunction {
     }
 
     CC_vecfunction(const std::vector<CCFunction>& v, const FuncType type_)
-            : type(type_), omega(0.0), excitation(-1), current_error(99.9), delta(0.0) {
+            : type(type_), omega(0.0), current_error(99.9), delta(0.0) {
         for (auto x:v) functions.insert(std::make_pair(x.i, x));
     }
 
     /// copy ctor (shallow)
     CC_vecfunction(const CC_vecfunction& other)
             : functions(other.functions), type(other.type), omega(other.omega),
-              excitation(other.excitation), current_error(other.current_error),
+              current_error(other.current_error),
               delta(other.delta), irrep(other.irrep) {
     }
 
@@ -564,30 +564,70 @@ struct CC_vecfunction {
         functions = other.functions;
         type = other.type;
         omega = other.omega;
-        excitation = other.excitation;
         current_error = other.current_error;
         delta = other.delta;
         irrep = other.irrep;
         return *this;
     }
 
-    typedef std::map<std::size_t, CCFunction> CC_functionmap;
-    CC_functionmap functions;
 
     /// returns a deep copy (void shallow copy errors)
     CC_vecfunction
     copy() const;
 
+    static CC_vecfunction load_restartdata(World& world, std::string filename) {
+        archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, filename.c_str());
+        CC_vecfunction tmp;
+        ar & tmp;
+        return tmp;
+    }
+
+    void save_restartdata(World& world, std::string filename) const {
+        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, filename.c_str());
+        ar & *this;
+    }
+
+    template<typename Archive>
+    void serialize(const Archive& ar) {
+        typedef std::vector<std::pair<std::size_t, CCFunction>> CC_functionvec;
+
+        auto map2vector = [] (const CC_functionmap& map) {
+            return CC_functionvec(map.begin(), map.end());
+        };
+        auto vector2map = [] (const CC_functionvec& vec) {
+            return CC_functionmap(vec.begin(), vec.end());
+        };
+
+        ar & type & omega & current_error & delta & irrep ;
+        if (ar.is_input_archive) {
+            std::size_t size;
+            ar & size;
+            CC_functionvec tmp(size);
+
+            for (auto& t : tmp) ar & t.first & t.second;
+            functions=vector2map(tmp);
+        } else if (ar.is_output_archive) {
+            auto tmp=map2vector(functions);
+            ar & tmp.size();
+            for (auto& t : tmp) ar & t.first & t.second;
+        }
+    }
+
+    typedef std::map<std::size_t, CCFunction> CC_functionmap;
+    CC_functionmap functions;
 
     FuncType type;
     double omega; /// excitation energy
-    int excitation; /// the excitation number
     double current_error;
     double delta; // Last difference in Energy
     std::string irrep = "null";    /// excitation irrep (direct product of x function and corresponding orbital)
 
     std::string
-    name() const;
+    name(const int ex) const;
+
+    bool is_converged(const double econv, const double dconv) const {
+        return (current_error<dconv) and (std::fabs(delta)<econv);
+    }
 
     /// getter
     const CCFunction& operator()(const CCFunction& i) const {
@@ -654,17 +694,7 @@ struct CC_vecfunction {
     }
 
     /// operator needed for sort operation (sorted by omega values)
-    bool operator<=(const CC_vecfunction& b) const { return omega <= b.omega; }
-
-    /// operator needed for sort operation (sorted by omega values)
     bool operator<(const CC_vecfunction& b) const { return omega < b.omega; }
-
-    /// store functions on disc
-    void save_functions(const std::string msg = "") const {
-        std::string pre_name = "";
-        if (msg != "") pre_name = msg + "_";
-        for (const auto& tmp:functions) save<double, 3>(tmp.second.function, pre_name + tmp.second.name());
-    }
 
     // plotting
     void plot(const std::string& msg = "") const {
@@ -673,7 +703,7 @@ struct CC_vecfunction {
         }
     }
 public:
-    NLOHMANN_DEFINE_TYPE_INTRUSIVE(CC_vecfunction, excitation, omega, irrep, current_error)
+    NLOHMANN_DEFINE_TYPE_INTRUSIVE(CC_vecfunction, omega, irrep, current_error)
 
 };
 
@@ -918,7 +948,6 @@ public:
     CalcType ctype;
     size_t i;
     size_t j;
-    int excitation = -1;
 
     /// gives back the pure 6D part of the pair function
     real_function_6d function() const {
@@ -940,7 +969,7 @@ public:
         size_t f_size = functions.size();
         bool fexist = (f_size > 0) && (functions[0].get_function().is_initialized());
         bool cexist = constant_part.is_initialized();
-        ar & type & ctype & i & j & excitation & bsh_eps & fexist & cexist & f_size;
+        ar & type & ctype & i & j & bsh_eps & fexist & cexist & f_size;
         if constexpr (Archive::is_input_archive) {
             if (fexist) {
                 real_function_6d func;

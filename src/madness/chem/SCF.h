@@ -218,6 +218,7 @@ public:
     std::vector<std::shared_ptr<real_derivative_3d> > gradop;
     double vtol;
     double current_energy;
+    double converged_for_thresh=1.e10;    ///< mos are converged for this threshold
     //double esol;//etot;
     //double vacuo_energy;
 
@@ -505,8 +506,8 @@ public:
 
     void output_calc_info_schema() const;
 
-    void output_scf_info_schema(const std::map<std::string, double> &vals,
-                                const tensorT &dipole_T) const;
+//    void output_scf_info_schema(const std::map<std::string, double> &vals,
+//                                const tensorT &dipole_T) const;
 
 };
 
