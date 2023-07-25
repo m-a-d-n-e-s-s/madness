@@ -8,9 +8,6 @@
 
 // Here we initialize with the right child class
 namespace madness {
-#ifndef MADNESS_ASSERTIONS_DISABLE
-    static thread_local bool within_madness_task = false;
-#endif
 
     parsec_hook_return_t complete_madness_task_execution (parsec_execution_stream_t *es,
                                                           parsec_task_t *task) {
@@ -32,13 +29,9 @@ namespace madness {
                                           parsec_task_t *task) {
         PoolTaskInterface *c = ((PoolTaskInterface **)task->locals)[0];
         assert(c);
-#ifndef MADNESS_ASSERTIONS_DISABLE
         within_madness_task = true;
-#endif
         c->run(TaskThreadEnv(1, 0, 0));
-#ifndef MADNESS_ASSERTIONS_DISABLE
         within_madness_task = false;
-#endif
         return PARSEC_HOOK_RETURN_DONE;
     }
 

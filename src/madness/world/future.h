@@ -274,24 +274,46 @@ namespace madness {
 
         /// Gets/forces the value, waiting if necessary.
 
-        /// \attention Throws an error if not local.
-        /// \todo Description needed.
-        /// \return Description needed.
+        /// If not ready, and using legacy (pthread) or Intel TBB backends,
+        /// this thread will execute other tasks while waiting; with PaRSEC
+        /// backend will simply wait (spin)
+        /// \return reference to the contained value
+        /// \pre `this->is_local()`
         T& get() {
             MADNESS_ASSERT(! remote_ref);  // Only for local futures
-            World::await([this] () -> bool { return this->probe(); });
+            // the default behavior was to use the thread waiting on a Future for useful work
+            // the PaRSEC backend does not let tasks execute other tasks, hence just spin here
+#ifndef HAVE_PARSEC
+            const bool dowork = true;
+#else
+            /// TODO use C++20's std::atomic<>::wait() if available
+            // described in paper https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2019/p1135r6.html
+            // libstdc++: requires 11.1 , see https://gcc.gnu.org/onlinedocs/libstdc++/manual/status.html#status.iso.2020
+            // libc++: requires 11.0, see https://libcxx.llvm.org/Status/Cxx20.html
+            // unfortunately gcc 10 is still very common, so just wait
+            const bool dowork = within_madness_task ? false : true;
+#endif
+            World::await([this] () -> bool { return this->probe(); }, dowork);
             return *const_cast<T*>(&t);
         }
 
 
         /// Gets/forces the value, waiting if necessary.
 
-        /// \attention Throws an error if not local.
-        /// \todo Description needed.
-        /// \return Description needed.
+        /// If not ready, and using legacy (pthread) or Intel TBB backends,
+        /// this thread will execute other tasks while waiting; with PaRSEC
+        /// backend will simply wait (spin)
+        /// \return reference to the contained value
+        /// \pre `this->is_local()`
         const T& get() const {
             MADNESS_ASSERT(! remote_ref);  // Only for local futures
-            World::await([this] () -> bool { return this->probe(); });
+            // see above get()
+#ifndef HAVE_PARSEC
+            constexpr bool dowork = true;
+#else
+            const bool dowork = within_madness_task ? false : true;
+#endif
+            World::await([this] () -> bool { return this->probe(); }, dowork);
             return *const_cast<const T*>(&t);
         }
 
