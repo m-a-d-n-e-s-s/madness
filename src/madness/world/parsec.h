@@ -16,7 +16,6 @@
 #include <optional>
 
 namespace madness{
-    inline thread_local bool within_madness_task = false;
 
     class PoolTaskInterface;
 
