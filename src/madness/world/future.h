@@ -274,24 +274,32 @@ namespace madness {
 
         /// Gets/forces the value, waiting if necessary.
 
-        /// \attention Throws an error if not local.
-        /// \todo Description needed.
-        /// \return Description needed.
-        T& get() {
+        /// \param dowork If true (default) and the future is not ready
+        /// this thread will execute other tasks while waiting
+        /// \warning PaRSEC backend does not support `dowork=true`
+        /// from a callstack containing a running MADNESS task already,
+        /// hence must use `dowork=false` when need to call from within a task
+        /// \return reference to the contained value
+        /// \pre `this->is_local()`
+        T& get(bool dowork = true) {
             MADNESS_ASSERT(! remote_ref);  // Only for local futures
-            World::await([this] () -> bool { return this->probe(); });
+            World::await([this] () -> bool { return this->probe(); }, dowork);
             return *const_cast<T*>(&t);
         }
 
 
         /// Gets/forces the value, waiting if necessary.
 
-        /// \attention Throws an error if not local.
-        /// \todo Description needed.
-        /// \return Description needed.
-        const T& get() const {
+        /// \param dowork If true (default) and the future is not ready
+        /// this thread will execute other tasks while waiting
+        /// \warning PaRSEC backend does not support `dowork=true`
+        /// from a callstack containing a running MADNESS task already,
+        /// hence must use `dowork=false` when need to call from within a task
+        /// \return reference to the contained value
+        /// \pre `this->is_local()`
+        const T& get(bool dowork = true) const {
             MADNESS_ASSERT(! remote_ref);  // Only for local futures
-            World::await([this] () -> bool { return this->probe(); });
+            World::await([this] () -> bool { return this->probe(); }, dowork);
             return *const_cast<const T*>(&t);
         }
 
@@ -548,39 +556,54 @@ namespace madness {
 
         /// Gets the value, waiting if necessary.
 
-        /// \attention Throws an error if this is not a local future. 
-        /// \return The value.
-        inline T& get() & {
-            MADNESS_CHECK(f || value); // Check that future is not default initialized
-            return (f ? f->get() : *value);
+        /// \param dowork If true (default) and the future is not ready
+        /// this thread will execute other tasks while waiting
+        /// \warning PaRSEC backend does not support `dowork=true`
+        /// from a callstack containing a running MADNESS task already,
+        /// hence must use `dowork=false` when need to call from within a task
+        /// \return reference to the contained value
+        /// \pre `this->is_local()`
+        inline T& get(bool dowork = true) & {
+            MADNESS_CHECK(this->is_local());
+            return (f ? f->get(dowork) : *value);
         }
 
         /// Gets the value, waiting if necessary.
 
-        /// \attention Throws an error if this is not a local future.
-        /// \return The value.
-        inline const T& get() const & {
-            MADNESS_CHECK(f || value); // Check that future is not default initialized
-            return (f ? f->get() : *value);
+        /// \param dowork If true (default) and the future is not ready
+        /// this thread will execute other tasks while waiting
+        /// \warning PaRSEC backend does not support `dowork=true`
+        /// from a callstack containing a running MADNESS task already,
+        /// hence must use `dowork=false` when need to call from within a task
+        /// \return reference to the contained value
+        /// \pre `this->is_local()`
+        inline const T& get(bool dowork = true) const & {
+            MADNESS_CHECK(this->is_local());
+            return (f ? f->get(dowork) : *value);
         }
 
         /// Gets the value, waiting if necessary.
 
-        /// \attention Throws an error if this is not a local future.
-        /// \return The value.
-        inline T get() && {
+        /// \param dowork If true (default) and the future is not ready
+        /// this thread will execute other tasks while waiting
+        /// \warning PaRSEC backend does not support `dowork=true`
+        /// from a callstack containing a running MADNESS task already,
+        /// hence must use `dowork=false` when need to call from within a task
+        /// \return the contained value
+        /// \pre `this->is_local()`
+        inline T get(bool dowork = true) && {
             // According to explanation here
             // https://stackoverflow.com/questions/4986673/c11-rvalues-and-move-semantics-confusion-return-statement
             // should not return && since that will still be a ref to
             // local value.  Also, does not seem as if reference
             // lifetime extension applies (see https://abseil.io/tips/107)
-            MADNESS_CHECK(f || value); // Check that future is not default initialized
+            MADNESS_CHECK(this->is_local());
             if (f) {
                 // N.B. it is only safe to move the data out if f is the owner (i.e. it is the sole ref)
                 // it's not clear how to safely detect ownership beyond the obvious cases (see https://stackoverflow.com/questions/41142315/why-is-stdshared-ptrunique-deprecated)
                 // e.g. in the common case f is set by a task, hence its refcount is 2 until the task has completed *and* been destroyed
                 // so will tread lightly here ... don't move unless safe
-                auto &value_ref = f->get();
+                auto &value_ref = f->get(dowork);
                 // if the task setting f is gone *and* this is the only ref, move out
                 // to prevent a race with another thread that will make a copy of this Future while we are moving the data
                 // atomically swap f with nullptr, then check use count of f's copy

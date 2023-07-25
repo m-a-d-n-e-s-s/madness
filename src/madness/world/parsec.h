@@ -16,6 +16,7 @@
 #include <optional>
 
 namespace madness{
+
     class PoolTaskInterface;
 
     class ParsecRuntime {
