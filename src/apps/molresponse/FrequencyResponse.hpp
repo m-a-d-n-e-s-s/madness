@@ -19,6 +19,22 @@ X_space nuclear_generator(World &world, FrequencyResponse &calc);
 X_space dipole_generator(World &world, FrequencyResponse &calc);
 //using RHS_Generator = std::function<X_space(World&, FrequencyResponse&)>;
 
+//Create a quadratic response class
+
+class QuadraticResponse : public ResponseBase {
+
+    // A quadratic response class needs X_space vectors and one ground state.
+    // It will compute the 3rd order response property at the 3 given frequencies
+    // Beta(omegaA;omegaB,OmegaC)=tr(xA,vBC)+tr(muA,pBC)+tr(muA,qBC)
+    // Where xA, xB, xC are the response functions at the frequencies omegaA, omegaB, omegaC
+    // And 2nd order right hand side perturbation vector vBC(xB,xC) and
+    // pBC and qBC are the homogeneous components of the 2nd order density matrix response
+    // made entirely from first order vectors xB, xC
+
+
+    // vBC(xB,xC) = Q*(
+};
+
 class FrequencyResponse : public ResponseBase {
 
 public:
