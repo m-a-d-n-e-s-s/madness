@@ -139,21 +139,21 @@ tensorT Q2(const tensorT& s) {
 }
 
 }// namespace madness
-void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
-                                 const tensorT &dipole_T) const {
-    nlohmann::json j = {};
-    // if it exists figure out the size.  pushback for each protocol
-    const double thresh = FunctionDefaults<3>::get_thresh();
-    const int k = FunctionDefaults<3>::get_k();
-    j["scf_threshold"] = thresh;
-    j["scf_k"] = k;
-    for (auto const &[key, val]: vals) {
-        j[key] = val;
-    }
-    j["scf_dipole_moment"] = tensor_to_json(dipole_T);
-    int num = 0;
-    update_schema(param.prefix()+".scf_info", j);
-}
+// void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
+//                                  const tensorT &dipole_T) const {
+//     nlohmann::json j = {};
+//     // if it exists figure out the size.  pushback for each protocol
+//     const double thresh = FunctionDefaults<3>::get_thresh();
+//     const int k = FunctionDefaults<3>::get_k();
+//     j["scf_threshold"] = thresh;
+//     j["scf_k"] = k;
+//     for (auto const &[key, val]: vals) {
+//         j[key] = val;
+//     }
+//     j["scf_dipole_moment"] = tensor_to_json(dipole_T);
+//     int num = 0;
+//     update_schema(param.prefix()+".scf_info", j);
+// }
 
 void SCF::output_calc_info_schema() const {
     nlohmann::json j = {};
@@ -182,7 +182,8 @@ void SCF::output_calc_info_schema() const {
     e_data.to_json(j);
 
 //    output_schema(param.prefix()+".calc_info", j);
-    update_schema(param.prefix()+".calc_info", j);
+    World& world=amo.front().world();
+    if (world.rank()==0) update_schema(param.prefix()+".calc_info", j);
 }
 
 void scf_data::add_data(std::map<std::string, double> values) {
@@ -325,10 +326,10 @@ void SCF::save_mos(World& world) {
       Molecule molecule;
       std::string xc;
       */
-    unsigned int version = 3;
+    unsigned int version = 4;
     ar & version;
     ar & current_energy & param.spin_restricted();
-    ar & param.L() & FunctionDefaults<3>::get_k() & molecule & param.xc() & param.localize_method();
+    ar & param.L() & FunctionDefaults<3>::get_k() & molecule & param.xc() & param.localize_method() & converged_for_thresh;
     // Re order so it doesn't effect orbital data
 
     ar & (unsigned int) (amo.size());
@@ -387,7 +388,7 @@ void SCF::load_mos(World& world) {
     // Local copies for a basic check
     double L;
     int k1;                    // Ignored for restarting, used in response only
-    unsigned int version = 3;// UPDATE THIS IF YOU CHANGE ANYTHING
+    unsigned int version = 4;// UPDATE THIS IF YOU CHANGE ANYTHING
     unsigned int archive_version;
 
     ar & archive_version;
@@ -404,7 +405,7 @@ void SCF::load_mos(World& world) {
     // EPS, SWAP, ... sigh
     ar & current_energy & spinrest;
     // Reorder
-    ar & L & k1 & molecule & param.xc() & param.localize_method();
+    ar & L & k1 & molecule & param.xc() & param.localize_method() & converged_for_thresh;
 
     ar & nmo;
     MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha()));
@@ -2214,6 +2215,7 @@ void SCF::solve(World& world) {
             if (converged || iter == param.maxiter() - 1) {
                 if (world.rank() == 0 && converged and (param.print_level() > 1)) {
                     print("\nConverged!\n");
+                    converged_for_thresh=param.econv();
                 }
 
                 // Diagonalize to get the eigenvalues and if desired the final eigenvectors

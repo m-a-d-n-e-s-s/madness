@@ -181,6 +181,8 @@ operator<<(std::ostream &s, const T (&v)[N]) {
     /// Print a string centered at the given column with optional underlining.
     void print_centered(const char* s, int column=40, bool underline=true);
 
+    ///
+    void printf_msg_energy_time(const std::string msg, const double energy, const double time);
 
     // the "print" function and functions to help handle the variadic templates
 

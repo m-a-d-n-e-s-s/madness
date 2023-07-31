@@ -1398,7 +1398,8 @@ namespace madness {
         /// \param[in] dowork Do work while waiting - default is true
         /// \param[in] sleep Sleep instead of spin while waiting (e.g., to avoid pounding on MPI) - default is false
         template <typename Probe>
-	  static void await(const Probe& probe, bool dowork = true, bool sleep = false) {
+	    static void await(const Probe& probe, bool dowork = true, bool sleep = false) {
+          if (!probe()) {
             double start = cpu_time();
             const double timeout = await_timeout;
             int counter = 0;
@@ -1448,6 +1449,7 @@ namespace madness {
 		    }
                 }
             }
+          }  // if !probe()
         }
 
         /// Destructor.

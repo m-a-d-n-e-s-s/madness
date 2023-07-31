@@ -101,14 +101,12 @@ CC_vecfunction::copy() const {
 }
 
 std::string
-CC_vecfunction::name() const {
+CC_vecfunction::name(const int ex) const {
     if (type == PARTICLE) return "tau";
     else if (type == HOLE) return "phi";
     else if (type == MIXED) return "t";
-    else if (type == RESPONSE) {
-        if (excitation < 0) MADNESS_EXCEPTION("EXCITATION VECTOR HAS NO NUMBER ASSIGNED!", 1);
-        return std::to_string(excitation) + "_" + "x";
-    } else return "UNKNOWN";
+    else if (type == RESPONSE) return std::to_string(ex) + "_" + "x";
+    else return "UNKNOWN";
 }
 
 void
@@ -141,7 +139,7 @@ CCPair::info() const {
 
 madness::vector_real_function_3d
 CCIntermediatePotentials::operator()(const CC_vecfunction& f, const PotentialType& type) const {
-    output("Getting " + assign_name(type) + " for " + f.name());
+    output("Getting " + assign_name(type) + " for " + f.name(0));
     vector_real_function_3d result;
     if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED)) return current_singles_potential_gs_;
     else if (type == POT_singles_ and f.type == RESPONSE) return current_singles_potential_ex_;
@@ -186,7 +184,7 @@ CCIntermediatePotentials::operator()(const CCFunction& f, const PotentialType& t
 void
 CCIntermediatePotentials::insert(const vector_real_function_3d& potential, const CC_vecfunction& f,
                                  const PotentialType& type) {
-    output("Storing potential: " + assign_name(type) + " for " + f.name());
+    output("Storing potential: " + assign_name(type) + " for " + f.name(0));
     MADNESS_ASSERT(!potential.empty());
     if (type == POT_singles_ && (f.type == PARTICLE || f.type == MIXED)) current_singles_potential_gs_ = potential;
     else if (type == POT_singles_ && f.type == RESPONSE) current_singles_potential_ex_ = potential;
@@ -201,6 +199,8 @@ CCIntermediatePotentials::insert(const vector_real_function_3d& potential, const
 
 void CCParameters::set_derived_values() {
     if (not kain()) set_derived_value("kain_subspace",std::size_t(0));
+
+    if (response()==true) set_derived_value("excitations",std::vector<std::size_t>({0}));
 
     // set all parameters that were not explicitly given
     set_derived_value("tight_thresh_6d",thresh_6D()*0.1);
