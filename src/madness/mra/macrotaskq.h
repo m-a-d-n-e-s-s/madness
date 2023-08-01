@@ -226,6 +226,7 @@ public:
         universe.gop.fence();
         if (universe.rank()==0) {
             print("\ntaskq on universe rank",universe.rank());
+            print("total number of tasks: ",taskq.size());
             print(" task                                   batch                 priority  status");
             for (const auto& t : taskq) t->print_me_as_table();
         }
