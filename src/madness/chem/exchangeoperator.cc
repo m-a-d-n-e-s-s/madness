@@ -79,11 +79,13 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
         MADNESS_EXCEPTION("unknown algorithm in exchangeoperator", 1);
     }
     if (printdebug()) {
+        auto size = get_size(world, Kf);
+        if (world.rank() == 0) print("total size of Kf before truncation", size);
+    }
+    truncate(world, Kf);
+    if (printdebug()) {
         auto size=get_size(world,Kf);
-        print("total size of Kf before truncation",size);
-        truncate(world, Kf);
-        size=get_size(world,Kf);
-        print("total size of Kf after truncation",size);
+        if (world.rank()==0) print("total size of Kf after truncation",size);
     }
     if (printlevel >= 3) print_timer(world);
     return Kf;
@@ -104,7 +106,7 @@ template<typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM> >
 Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const double mul_tol) const {
 
-    if (printdebug()) print("\nentering macrotask_efficient version:");
+    if (world.rank()==0 and printdebug()) print("\nentering macrotask_efficient version:");
 
     // the result is a vector of functions living in the universe
     const long nresult = vf.size();
@@ -121,7 +123,6 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
         taskq_ptr->set_printlevel(printlevel);
         MacroTask mtask(world, xtask, taskq_ptr);
         Kf = mtask(vf, mo_bra, mo_ket);
-        if (printdebug()) taskq_ptr->print_taskq();
         taskq_ptr->run_all();
         if (printdebug()) taskq_ptr->cloud.print_timings(world);
         taskq_ptr->cloud.clear_timings();
