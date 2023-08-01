@@ -12,12 +12,23 @@ namespace madness {
 template<typename T, std::size_t NDIM>
 Exchange<T, NDIM>::ExchangeImpl::ExchangeImpl(World& world, const SCF *calc, const int ispin)
         : world(world), symmetric_(false), lo(calc->param.lo()) {
-    if (ispin == 0) { // alpha spin
-        mo_ket = convert<double, T, NDIM>(world, calc->amo);        // deep copy necessary if T==double_complex
-    } else if (ispin == 1) {  // beta spin
-        mo_ket = convert<double, T, NDIM>(world, calc->bmo);
+
+    if constexpr (std::is_same_v<T,double_complex>) {
+        if (ispin == 0) { // alpha spin
+            mo_ket = convert<double, T, NDIM>(world, calc->amo);        // deep copy necessary if T==double_complex
+        } else if (ispin == 1) {  // beta spin
+            mo_ket = convert<double, T, NDIM>(world, calc->bmo);
+        }
+        mo_bra = conj(world, mo_ket);
+    } else {
+        if (ispin == 0) { // alpha spin
+            mo_ket = calc->amo;        // deep copy necessary if T==double_complex
+        } else if (ispin == 1) {  // beta spin
+            mo_ket = calc->bmo;
+        }
+        mo_bra = mo_ket;
     }
-    mo_bra = conj(world, mo_ket);
+
 }
 
 template<typename T, std::size_t NDIM>
@@ -50,8 +61,6 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
 
     reconstruct(world, vket);
     norm_tree(world, vket);
-    if (world.rank()==0) print("total size of ket",get_size(world,vket));
-    print_size(world,mo_ket,"ket");
 
     // pick your algorithm.
     // Note that the macrotask algorithm partitions the exchange matrix into tiles. The final truncation
