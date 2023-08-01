@@ -50,6 +50,8 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
 
     reconstruct(world, vket);
     norm_tree(world, vket);
+    if (world.rank()==0) print("total size of ket",get_size(world,vket));
+    print_size(world,mo_ket,"ket");
 
     // pick your algorithm.
     // Note that the macrotask algorithm partitions the exchange matrix into tiles. The final truncation
@@ -67,7 +69,11 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     } else {
         MADNESS_EXCEPTION("unknown algorithm in exchangeoperator", 1);
     }
+    auto size=get_size(world,Kf);
+    print("total size of Kf before truncation",size);
     truncate(world, Kf);
+    size=get_size(world,Kf);
+    print("total size of Kf after truncation",size);
     if (printlevel >= 3) print_timer(world);
     return Kf;
 }

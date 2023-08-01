@@ -1335,7 +1335,8 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
     if (xc.hf_exchange_coefficient()) {
         START_TIMER(world);
         //            vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
-        Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin).set_symmetric(true);
+        Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin);
+        K.set_symmetric(true).set_printlevel(param.print_level());
         vecfuncT Kamo = K(amo);
         tensorT excv = inner(world, Kamo, amo);
         double exchf = 0.0;
