@@ -160,6 +160,7 @@ public:
 
 		cloud.replicate();
         universe.gop.fence();
+        if (printdebug()) cloud.print_size(universe);
         universe.gop.set_forbid_fence(true); // make sure there are no hidden universe fences
         pmap1=FunctionDefaults<1>::get_pmap();
         pmap2=FunctionDefaults<2>::get_pmap();
@@ -225,6 +226,7 @@ public:
         universe.gop.fence();
         if (universe.rank()==0) {
             print("\ntaskq on universe rank",universe.rank());
+            print("total number of tasks: ",taskq.size());
             print(" task                                   batch                 priority  status");
             for (const auto& t : taskq) t->print_me_as_table();
         }
