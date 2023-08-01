@@ -1322,15 +1322,7 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 
     vloc.truncate();
 
-    START_TIMER(world);
     vecfuncT Vpsi;
-    if (!molecule.parameters.pure_ae()) {
-        Vpsi = gthpseudopotential->apply_potential(world, vloc, amo, occ, enl);
-    } else {
-        Vpsi = mul_sparse(world, vloc, amo, vtol);
-    }
-
-    END_TIMER(world, "V*psi");
     print_meminfo(world.rank(), "V*psi");
     if (xc.hf_exchange_coefficient()) {
         START_TIMER(world);
@@ -1343,9 +1335,8 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         for (unsigned long i = 0; i < amo.size(); ++i) {
             exchf -= 0.5 * excv[i] * occ[i];
         }
-        if (!xc.is_spin_polarized())
-            exchf *= 2.0;
-        gaxpy(world, 1.0, Vpsi, -xc.hf_exchange_coefficient(), Kamo);
+        if (!xc.is_spin_polarized()) exchf *= 2.0;
+        Vpsi=-xc.hf_exchange_coefficient()* Kamo;
         Kamo.clear();
         END_TIMER(world, "HF exchange");
         exc = exchf * xc.hf_exchange_coefficient() + exc;
@@ -1354,6 +1345,15 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
     if (molecule.parameters.pure_ae()) {
         potentialmanager->apply_nonlocal_potential(world, amo, Vpsi);
     }
+
+    START_TIMER(world);
+    if (!molecule.parameters.pure_ae()) {
+        Vpsi += gthpseudopotential->apply_potential(world, vloc, amo, occ, enl);
+    } else {
+        Vpsi += mul_sparse(world, vloc, amo, vtol);
+    }
+
+    END_TIMER(world, "V*psi");
 
     START_TIMER(world);
     truncate(world, Vpsi);

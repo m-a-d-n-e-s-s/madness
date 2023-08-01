@@ -78,11 +78,13 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     } else {
         MADNESS_EXCEPTION("unknown algorithm in exchangeoperator", 1);
     }
-    auto size=get_size(world,Kf);
-    print("total size of Kf before truncation",size);
-    truncate(world, Kf);
-    size=get_size(world,Kf);
-    print("total size of Kf after truncation",size);
+    if (printdebug()) {
+        auto size=get_size(world,Kf);
+        print("total size of Kf before truncation",size);
+        truncate(world, Kf);
+        size=get_size(world,Kf);
+        print("total size of Kf after truncation",size);
+    }
     if (printlevel >= 3) print_timer(world);
     return Kf;
 }
@@ -111,10 +113,12 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
 
     // deferred execution if a taskq is provided by the user
     if (taskq) {
+        taskq->set_printlevel(printlevel);
         MacroTask mtask(world, xtask, taskq);
         Kf = mtask(vf, mo_bra, mo_ket);
     } else {
         auto taskq_ptr = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
+        taskq_ptr->set_printlevel(printlevel);
         MacroTask mtask(world, xtask, taskq_ptr);
         Kf = mtask(vf, mo_bra, mo_ket);
         if (printdebug()) taskq_ptr->print_taskq();

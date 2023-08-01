@@ -160,7 +160,7 @@ public:
 
 		cloud.replicate();
         universe.gop.fence();
-        cloud.print_size(universe);
+        if (printdebug()) cloud.print_size(universe);
         universe.gop.set_forbid_fence(true); // make sure there are no hidden universe fences
         pmap1=FunctionDefaults<1>::get_pmap();
         pmap2=FunctionDefaults<2>::get_pmap();
