@@ -708,13 +708,6 @@ double MP2::asymmetry(const real_function_6d& f, const std::string s) const {
     return diff;
 }
 
-void MP2::test(const std::string filename) {
-    if (world.rank() == 0)
-        printf("starting coupling at time %8.1fs\n", wall_time());
-    if (world.rank() == 0)
-        printf("ending coupling at time %8.1fs\n", wall_time());
-}
-
 /// compute the matrix element <ij | g12 Q12 f12 | phi^0>
 
 /// scales quartically. I think I can get this down to cubically by

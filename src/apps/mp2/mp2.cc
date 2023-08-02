@@ -80,8 +80,6 @@ int main(int argc, char** argv) {
 
             if (world.rank() == 0) printf("\nstarting at time %.1fs\n", wall_time());
 
-		if (do_test) mp2.test(testfilename);
-		else {
 			const double hf_energy=mp2.get_hf().value();
 			const double mp2_energy=mp2.value();
 //            const double mp2_energy=0.0;
@@ -96,8 +94,7 @@ int main(int argc, char** argv) {
                 printf("final hf/mp3/total energy %12.8f %12.8f %12.8f\n",
                        hf_energy,mp3_energy,hf_energy+mp3_energy);
             }
-		}
-    } catch (std::exception& e) {
+        } catch (std::exception& e) {
 
             if (world.rank() == 0) {
                 print("\ncaught an exception: \n", e.what());

@@ -507,8 +507,6 @@ public:
 
     double asymmetry(const real_function_6d& f, const std::string s) const;
 
-    void test(const std::string filename);
-
     /// compute the matrix element <ij | g12 Q12 f12 | phi^0>
 
     /// scales quartically. I think I can get this down to cubically by
