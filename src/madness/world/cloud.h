@@ -112,6 +112,7 @@ struct Recordlist {
 class Cloud {
 
     bool debug = false;       ///< prints debug output
+    bool is_replicated=false;   ///< if contents of the container are replicated
     bool dofence = true;      ///< fences after load/store
     bool force_load_from_cache = false;       ///< forces load from cache (mainly for debugging)
 
@@ -145,6 +146,36 @@ public:
 
     void set_force_load_from_cache(bool value) {
         force_load_from_cache = value;
+    }
+
+    void print_size(World& universe) {
+
+        std::size_t memsize=0;
+        for (auto& item : container) memsize+=item.second.size();
+        std::size_t global_memsize=memsize;
+        std::size_t max_memsize=memsize;
+        std::size_t min_memsize=memsize;
+        universe.gop.sum(global_memsize);
+        universe.gop.max(max_memsize);
+        universe.gop.min(min_memsize);
+
+        auto local_size=container.size();
+        auto global_size=local_size;
+        universe.gop.sum(global_size);
+        double byte2gbyte=1.0/(1024*1024*1024);
+
+        if (universe.rank()==0) {
+            print("Cloud memory:");
+            print("  replicated:",is_replicated);
+            print("size of cloud (total)");
+            print("  number of records:",global_size);
+            print("  memory in GBytes: ",global_memsize*byte2gbyte);
+            print("size of cloud (average per node)");
+            print("  number of records:",double(global_size)/universe.size());
+            print("  memory in GBytes: ",global_memsize*byte2gbyte/universe.size());
+            print("min/max of node");
+            print("  memory in GBytes: ",min_memsize*byte2gbyte,max_memsize*byte2gbyte);
+        }
     }
 
     void print_timings(World &universe) const {
@@ -196,6 +227,10 @@ public:
 
     template<typename T>
     recordlistT store(madness::World &world, const T &source) {
+        if (is_replicated) {
+            print("Cloud contents are replicated and read-only!");
+            MADNESS_EXCEPTION("cloud error",1);
+        }
         cloudtimer t(world,writing_time);
         recordlistT recordlist;
         if constexpr (is_tuple<T>::value) {
@@ -212,6 +247,7 @@ public:
         World& world=container.get_world();
         cloudtimer t(world,replication_time);
         container.reset_pmap_to_local();
+        is_replicated=true;
 
         std::list<keyT> keylist;
         for (auto it=container.begin(); it!=container.end(); ++it) {
