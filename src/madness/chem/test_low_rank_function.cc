@@ -284,11 +284,6 @@ public:
 
     LowRank(const cartesian_grid<LDIM>& cg) : cg(cg) {}
 
-//    LowRank(World& world, long n) : world(world) {
-//        g= zero_functions_compressed<T,LDIM>(world,n);
-//        h= zero_functions_compressed<T,LDIM>(world,n);
-//    }
-
     LowRank() =default;      // Default constructor necessary for storage in vector
 
     LowRank(const LowRank& a) : s(copy(a.s)), g(copy(a.g.front().world(),a.g)),
@@ -662,7 +657,7 @@ int test_lowrank_function(World& world) {
     madness::default_random_generator.setstate(int(cpu_time())%4149);
 
     print("");
-    constexpr std::size_t LDIM=3;
+    constexpr std::size_t LDIM=1;
     long n_per_dim=10;
     double radius=2.0;
     long ntrial=120;
