@@ -392,7 +392,7 @@ void FrequencyResponse::load(World &world, const std::string &name) {
     world.gop.fence();
 }
 
-auto nuclear_generator(World &world, FrequencyResponse &calc) -> X_space {
+auto nuclear_generator(World &world, ResponseBase &calc) -> X_space {
     auto [gc, molecule, r_params] = calc.get_parameter();
     X_space PQ(world, r_params.num_states(), r_params.num_orbitals());
     auto num_operators = size_t(molecule.natom() * 3);
@@ -410,7 +410,7 @@ auto nuclear_generator(World &world, FrequencyResponse &calc) -> X_space {
     return PQ;
 }
 
-auto dipole_generator(World &world, FrequencyResponse &calc) -> X_space {
+auto dipole_generator(World &world, ResponseBase &calc) -> X_space {
     auto [gc, molecule, r_params] = calc.get_parameter();
     X_space PQ(world, r_params.num_states(), r_params.num_orbitals());
     vector_real_function_3d dipole_vectors(3);
@@ -443,4 +443,150 @@ auto vector_to_PQ(World &world, const vector_real_function_3d &rhs_operators,
     }
     return rhs;
 }
+
+void QuadraticResponse::load(World &world, const std::string &name) {}
+void QuadraticResponse::save(World &world, const std::string &name) {}
+
+void QuadraticResponse::iterate(World &world) {}
+void QuadraticResponse::initialize(World &world) {}
+
+auto QuadraticResponse::setup_rhs_BC(World &world, const X_space &PQ) -> std::pair<X_space, X_space> {
+
+    auto pq = to_response_matrix(x_data[1].first.copy());
+
+    auto PQB = create_response_matrix(6, r_params.num_orbitals());
+    auto PQC = create_response_matrix(6, r_params.num_orbitals());
+
+
+    vector<double> times_push_back{3, 2, 1};
+
+    auto new_index = 0;
+    auto xb_index = 0;
+    for (const auto &xbi: pq) {
+        auto copy_val = times_push_back[xb_index];
+        for (auto j = 0; j < copy_val; j++) {
+            // copy xbi into XB[xbi]
+            PQB[new_index] = copy(world, xbi, false);
+            new_index++;
+        };
+        xb_index++;
+    }
+
+
+    world.gop.fence();
+
+
+    auto xc_index = 0;
+    for (int j = 0; j < 3; j++) {
+        for (int k = j; k < 3; k++) {
+            PQC[xc_index] = copy(world, pq[k], false);
+            xc_index++;
+        }
+    }
+
+
+    world.gop.fence();
+    auto r_PB = to_X_space(PQB);
+    auto r_PC = to_X_space(PQC);
+    world.gop.fence();
+    return {r_PB, r_PC};
+}
+
+auto QuadraticResponse::setup_XBC(World &world) -> std::pair<X_space, X_space> {
+
+    auto xb = to_response_matrix(x_data[1].first.copy());
+    auto xc = to_response_matrix(x_data[2].first.copy());
+
+    auto XB = create_response_matrix(6, r_params.num_orbitals());
+    auto XC = create_response_matrix(6, r_params.num_orbitals());
+
+
+    vector<double> times_push_back{3, 2, 1};
+
+    auto new_index = 0;
+    auto xb_index = 0;
+    for (const auto &xbi: xb) {
+        auto copy_val = times_push_back[xb_index];
+        for (auto j = 0; j < copy_val; j++) {
+            // copy xbi into XB[xbi]
+            XB[new_index] = copy(world, xbi, false);
+            new_index++;
+        };
+        xb_index++;
+    }
+
+
+    world.gop.fence();
+
+
+    auto xc_index = 0;
+    for (int j = 0; j < 3; j++) {
+        for (int k = j; k < 3; k++) {
+            XC[xc_index] = copy(world, xc[k], false);
+            xc_index++;
+        }
+    }
+
+
+    world.gop.fence();
+    auto r_XB = to_X_space(XB);
+    auto r_XC = to_X_space(XC);
+    world.gop.fence();
+    return {r_XB, r_XC};
+}
+
+X_space QuadraticResponse::compute_UPSILON(World &world, const X_space &XB, const X_space &XC) {
+
+    auto conj_XB = to_conjugate_X_space(to_response_matrix(XB));
+
+    auto conj_XC = to_conjugate_X_space(to_response_matrix(XC));
+
+    auto UPSILON_BC = XB * conj_XC + XC * conj_XB;
+    return UPSILON_BC;
+}
+
+X_space QuadraticResponse::compute_VBC(World &world, const X_space &XB, const X_space &XC) {
+
+    auto conj_XB = to_conjugate_X_space(to_response_matrix(XB));
+
+    auto conj_XC = to_conjugate_X_space(to_response_matrix(XC));
+
+    auto UPSILON_BC = XB * conj_XC + XC * conj_XB;
+    return UPSILON_BC;
+}
+
+
+Tensor<double> QuadraticResponse::compute_beta(World &world) {
+
+    Tensor<double> beta(3, 6);
+    beta.fill(0.0);
+
+    auto XBC = setup_XBC(world);
+
+    auto XB = XBC.first.copy();
+    auto XC = XBC.second.copy();
+
+    auto MUA = generator(world, *this);
+
+    auto XA = x_data[0].first.copy();
+
+
+    // now compute UPSILON BC
+    auto PQ_BC = setup_rhs_BC(world, MUA);
+
+    auto UPSILON_BC = compute_UPSILON(world, XB, XC);
+    // create PQ vector for A
+
+    auto beta_one = inner(MUA, XA);
+
+
+    // now compute
+    // first call a function to create the B and C x_spaces
+    // B takes x[1] and x[2] and C takes x[0] and x[1]
+
+
+    return beta;
+}
+
+
 //

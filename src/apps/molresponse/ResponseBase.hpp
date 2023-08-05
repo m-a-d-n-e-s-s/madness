@@ -23,6 +23,93 @@
 
 using namespace madness;
 
+
+// I need to creat a load X_space function strategy which will be used by the FrequencyResponse class
+// and the ExcitedResponse class. This will allow me to load the X_space in the FrequencyResponse class
+// and the Quadratic response class.  This way I can use the same X_space for both classes.
+// and load depending on the type of response I am doing.
+
+typedef std::pair<X_space, Tensor<double>> XData;
+
+class LoadXSpaceStrategy {
+public:
+    virtual ~LoadXSpaceStrategy() = default;
+    virtual XData load_x_space(World &world, const std::string &filename, const ResponseParameters &r_params) const = 0;
+};
+class LoadFrequencyXSpace : public LoadXSpaceStrategy {
+public:
+    XData load_x_space(World &world, const std::string &filename, const ResponseParameters &r_params) const override {
+        if (world.rank() == 0) {
+            print("FrequencyResponse::load() -state");
+            print("Loading X_space from file: ", filename);
+            print("Number of states: ", r_params.num_states());
+            print("Number of orbitals: ", r_params.num_orbitals());
+        }
+
+        X_space chi_new(world, r_params.num_states(), r_params.num_orbitals());
+
+
+        // The archive to read from
+        archive::ParallelInputArchive ar(world, filename.c_str());
+        ar & r_params.archive();
+        ar & r_params.tda();
+        ar & r_params.num_orbitals();
+        ar & r_params.num_states();
+        for (size_t i = 0; i < r_params.num_states(); i++)
+            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & chi_new.x[i][j];
+        world.gop.fence();
+        for (size_t i = 0; i < r_params.num_states(); i++)
+            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & chi_new.y[i][j];
+        world.gop.fence();
+
+        return {chi_new, Tensor<double>()};
+    }
+};
+class LoadExcitedXSpace : public LoadXSpaceStrategy {
+public:
+    XData load_x_space(World &world, const std::string &filename, const ResponseParameters &r_params) const override {
+
+        Tensor<double> omega;
+        auto new_chi = X_space(world, r_params.num_states(), r_params.num_orbitals());
+        // The archive to read from
+        archive::ParallelInputArchive ar(world, filename.c_str());
+
+        // Reading in, in this order;
+        //  string           ground-state archive name (garch_name)
+        //  bool             TDA flag
+        // size_t                number of ground state orbitals (n)
+        // size_t                number of excited state orbitals (m)
+        //  Tensor<double>   energies of m x-components
+        //  for i from 0 to m-1
+        //     for j from 0 to n-1
+        //        Function<double,3> x_response[i][j]
+        //  (If TDA flag == True)
+        //  (Tensor<double>  energies of m y-components    )
+        //  (for i from 0 to m-1                       )
+        //  (   for j from 0 to n-1                    )
+        //  (      Function<double,3> y_response[i][j] )
+
+        ar & r_params.archive();
+        ar & r_params.tda();
+        ar & r_params.num_orbitals();
+        ar & r_params.num_states();
+        ar & omega;
+
+
+        for (size_t i = 0; i < r_params.num_states(); i++)
+            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & new_chi.x[i][j];
+        world.gop.fence();
+
+        if (not r_params.tda()) {
+            for (size_t i = 0; i < r_params.num_states(); i++)
+                for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & new_chi.y[i][j];
+            world.gop.fence();
+        }
+        return {new_chi, omega};
+    }
+};
+
+
 class ComputeDensityStrategy {
 public:
     virtual ~ComputeDensityStrategy() = default;
@@ -244,23 +331,27 @@ private:
     std::unique_ptr<K1Strategy> k1_strategy_;
     std::unique_ptr<VXC1Strategy> vxc1_strategy_;
     std::unique_ptr<ComputeDensityStrategy> density_strategy_;
+    std::unique_ptr<LoadXSpaceStrategy> load_x_space_strategy_;
 
 public:
     explicit Context(std::unique_ptr<inner_strategy> &&innerStrategy = {},
                      std::unique_ptr<J1Strategy> &&j1Strategy = {}, std::unique_ptr<K1Strategy> &&k1Strategy = {},
                      std::unique_ptr<VXC1Strategy> &&vxc1trategy = {},
-                     std::unique_ptr<ComputeDensityStrategy> &&densityStrategy = {})
+                     std::unique_ptr<ComputeDensityStrategy> &&densityStrategy = {},
+                     std::unique_ptr<LoadXSpaceStrategy> &&loadXSpaceStrategy = {})
         : inner_strategy_(std::move(innerStrategy)), j1_strategy_(std::move(j1Strategy)),
           k1_strategy_(std::move(k1Strategy)), vxc1_strategy_(std::move(vxc1trategy)),
-          density_strategy_(std::move(densityStrategy)) {}
+          density_strategy_(std::move(densityStrategy)), load_x_space_strategy_(std::move(loadXSpaceStrategy)) {}
     void set_strategy(std::unique_ptr<inner_strategy> &&strategy, std::unique_ptr<J1Strategy> &&j1Strategy,
                       std::unique_ptr<K1Strategy> &&K1Strategy, std::unique_ptr<VXC1Strategy> &&vxc1Strategy,
-                      std::unique_ptr<ComputeDensityStrategy> &&densityStrategy) {
+                      std::unique_ptr<ComputeDensityStrategy> &&densityStrategy,
+                      std::unique_ptr<LoadXSpaceStrategy> &&loadXSpaceStrategy) {
         inner_strategy_ = std::move(strategy);
         j1_strategy_ = std::move(j1Strategy);
         k1_strategy_ = std::move(K1Strategy);
         vxc1_strategy_ = std::move(vxc1Strategy);
         density_strategy_ = std::move(densityStrategy);
+        load_x_space_strategy_ = std::move(loadXSpaceStrategy);
     }
 
     [[nodiscard]] Tensor<double> inner(const X_space &x, const X_space &y) const {
@@ -306,6 +397,14 @@ public:
             return density_strategy_->compute_density(world, x, phi0, rho1, update);
         } else {
             throw madness::MadnessException("Compute Density Strategy isn't set", "Need to set a strategy", 2, 455,
+                                            "inner", "ResponseBase.hpp");
+        }
+    }
+    XData load_x_space(World &world, const std::string &filename, const ResponseParameters &r_params) const {
+        if (load_x_space_strategy_) {
+            return load_x_space_strategy_->load_x_space(world, filename, r_params);
+        } else {
+            throw madness::MadnessException("Load X Space Strategy isn't set", "Need to set a strategy", 2, 455,
                                             "inner", "ResponseBase.hpp");
         }
     }
@@ -508,6 +607,7 @@ protected:
 
         FunctionDefaults<3>::set_autorefine(false);
         FunctionDefaults<3>::set_apply_randomize(false);
+
         FunctionDefaults<3>::set_project_randomize(false);
         GaussianConvolution1DCache<double>::map.clear();
 

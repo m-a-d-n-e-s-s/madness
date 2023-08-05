@@ -160,6 +160,7 @@ namespace madness {
                 }
 
                 if (dipole()) {
+                    print("dipole calculation\n");
                     set_derived_value<size_t>("states", 3);
                 } else if (nuclear()) {
                     set_derived_value<size_t>("states", 3 * molecule.natom());
