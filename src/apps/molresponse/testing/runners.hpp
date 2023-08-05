@@ -21,6 +21,8 @@
 #include "write_test_input.h"
 #include "x_space.h"
 
+using path = std::filesystem::path;
+
 auto split(const std::string &s, char delim) -> vector<std::string> {
     vector<std::string> result;
     std::stringstream ss(s);
@@ -496,14 +498,20 @@ void set_excited_parameters(World &world, ResponseParameters &r_params, const st
  * @param xc
  * @param frequency
  */
-void set_hyperpolarizability_parameters(World &world, ResponseParameters &r_params, const std::string &property,
-                                        const std::string &xc, const std::vector<double> &frequency,
-                                        const std::string precision) {
+void setHyperpolarizabilityParameters(World &world, ResponseParameters &r_params, const std::string &property,
+                                      const std::string &xc, const std::vector<double> &frequency,
+                                      const std::string &precision) {
     if (world.rank() == 0) {
 
         r_params.set_user_defined_value("quadratic", true);
         r_params.set_user_defined_value("freq_range", frequency);
         r_params.set_user_defined_value("xc", xc);
+
+        if (property == "dipole") {
+            r_params.set_user_defined_value("dipole", true);
+            r_params.set_derived_value<size_t>("states", 3);
+        }
+
         // r_params.set_user_defined_value("property", property);
 
         if (precision == "high") {
@@ -513,8 +521,8 @@ void set_hyperpolarizability_parameters(World &world, ResponseParameters &r_para
             r_params.set_user_defined_value<vector<double>>("protocol", {1e-6});
             r_params.set_user_defined_value<double>("dconv", 1e-4);
         }
+        world.gop.broadcast_serializable(r_params, 0);
     }
-    world.gop.broadcast_serializable(r_params, 0);
 }
 /**
  * Sets the response parameters for a frequency response calculation and writes
@@ -878,7 +886,7 @@ void runQuadraticResponse(World &world, const frequencySchema &schema, const std
         }
         ResponseParameters quad_parameters{};
 
-        set_hyperpolarizability_parameters(world, quad_parameters, schema.op, schema.xc, schema.freq, std::string());
+        setHyperpolarizabilityParameters(world, quad_parameters, schema.op, schema.xc, schema.freq, std::string());
         if (world.rank() == 0) { molresponse::write_response_input(quad_parameters, "quad.in"); }
 
         //auto calc_params = initialize_calc_params(world, std::string("quad.in"));
@@ -888,19 +896,28 @@ void runQuadraticResponse(World &world, const frequencySchema &schema, const std
         if (world.rank() == 0) { ground_calculation.print_params(); }
         Molecule molecule = ground_calculation.molecule();
         quad_parameters.set_ground_state_calculation_data(ground_calculation);
-        quad_parameters.set_derived_values(world, molecule);
         if (world.rank() == 0) { quad_parameters.print(); }
 
         world.gop.fence();
         FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
+
+        nlohmann::ordered_json beta_json;
+
+        QuadraticResponse quad_calculation{
+                world,
+                {ground_calculation, molecule, quad_parameters},
+                rhs_generator,
+        };
+
         for (const auto &omega_b: schema.freq) {
             for (const auto &omega_c: schema.freq) {
+
 
                 auto generate_omega_restart_path = [&](double frequency) {
                     auto linear_response_calc_path =
                             generate_response_frequency_run_path(schema.moldft_path, schema.op, frequency, schema.xc);
                     auto restart_file_and_path = generate_frequency_save_path(linear_response_calc_path);
-                    return restart_file_and_path.first;
+                    return restart_file_and_path;
                 };
 
 
@@ -915,19 +932,35 @@ void runQuadraticResponse(World &world, const frequencySchema &schema, const std
                     auto restartB = generate_omega_restart_path(omega_b);
                     auto restartC = generate_omega_restart_path(omega_c);
                     if (world.rank() == 0) {
-                        print("Restart file for A", restartA);
-                        print("Restart file for B", restartB);
-                        print("Restart file for C", restartC);
+                        print("Restart file for A", restartA.first);
+                        print("Restart file for B", restartB.first);
+                        print("Restart file for C", restartC.first);
                     }
 
                     // check if restartA exists
-                    if (!std::filesystem::exists(restartA)) {
+                    if (!std::filesystem::exists(restartA.first)) {
                         if (world.rank() == 0) { print("Restart file for omega_a = ", omega_a, " doesn't exist"); }
                         throw Response_Convergence_Error{};
                     } else {
                         if (world.rank() == 0) { print("Restart file for omega_a = ", omega_a, " exists"); }
 
+                        std::array<double, 3> omegas{omega_a, omega_b, omega_c};
 
+                        // remove .00000 from restartA.first
+
+                        std::array<path, 3> restarts{restartA.first.replace_extension(""),
+                                                     restartB.first.replace_extension(""),
+                                                     restartC.first.replace_extension("")};
+                        quad_calculation.set_x_data(world, omegas, restarts);
+                        auto beta_abc = quad_calculation.compute_beta(world);
+                        nlohmann::ordered_json beta_entry;
+                        beta_entry["omega_a"] = omega_a;
+                        beta_entry["omega_b"] = omega_b;
+                        beta_entry["omega_c"] = omega_c;
+                        vector<double> beta_vector(3 * 6);
+                        std::copy(beta_abc.ptr(), beta_abc.ptr() + 3 * 6, beta_vector.begin());
+                        beta_entry["beta"] = beta_vector;
+                        beta_json.push_back(beta_entry);
                     }
 
 
@@ -939,6 +972,11 @@ void runQuadraticResponse(World &world, const frequencySchema &schema, const std
                 }
             }
         }
+
+        // write the beta json to file
+        std::ofstream ofs("beta.json");
+        ofs << std::setw(4) << beta_json << std::endl;
+        ofs.close();
 
 
     } catch (Response_Convergence_Error &e) {
