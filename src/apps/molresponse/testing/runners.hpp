@@ -1020,7 +1020,7 @@ void runQuadraticResponse(World &world, const frequencySchema &schema, const std
                         //beta_entry["omega_c"] = omega_c;
 
 
-                        std::array<double, 18> beta_vector;
+                        std::array<double, 18> beta_vector{};
                         std::copy(beta_abc.ptr(), beta_abc.ptr() + 3 * 6, beta_vector.begin());
                         append_to_beta_json({omega_a, omega_b, omega_c}, beta_vector, beta_json);
 
