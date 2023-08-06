@@ -199,6 +199,11 @@ private:
     RHS_Generator generator;
     X_space compute_VBC(World &world, const X_space &XB, const X_space &XC);
     std::pair<X_space, X_space> setup_rhs_BC(World &world, const X_space &PQ);
+    X_space compute_gamma_quadratic(World &world, const X_space &XB, const X_space &XC,
+                                    const vector_real_function_3d &phi0) const;
+    X_space compute_JBC(World &world, const X_space &B, const X_space &C, const poperatorT &coulomb_ops,
+                        const vector_real_function_3d &phi0) const;
+    X_space compute_KBC(World &world, const X_space &B, const X_space &C, const vector_real_function_3d &phi0) const;
 };
 
 class FrequencyResponse : public ResponseBase {

@@ -545,15 +545,7 @@ X_space QuadraticResponse::compute_UPSILON(World &world, const X_space &XB, cons
     return UPSILON_BC;
 }
 
-X_space QuadraticResponse::compute_VBC(World &world, const X_space &XB, const X_space &XC) {
-
-    auto conj_XB = to_conjugate_X_space(to_response_matrix(XB));
-
-    auto conj_XC = to_conjugate_X_space(to_response_matrix(XC));
-
-    auto UPSILON_BC = XB * conj_XC + XC * conj_XB;
-    return UPSILON_BC;
-}
+X_space QuadraticResponse::compute_VBC(World &world, const X_space &VB, const X_space &XC) { return VB * XC; }
 
 
 Tensor<double> QuadraticResponse::compute_beta(World &world) {
@@ -574,10 +566,19 @@ Tensor<double> QuadraticResponse::compute_beta(World &world) {
     // now compute UPSILON BC
     auto PQ_BC = setup_rhs_BC(world, MUA);
 
+
+    auto PBC = PQ_BC.first * XC + XB * PQ_BC.second;
+
+
+    auto gamma_BC = compute_gamma_quadratic(world, XB, XC, ground_orbitals);
+    auto V_BC = gamma_BC + PBC;
+
     auto UPSILON_BC = compute_UPSILON(world, XB, XC);
+
     // create PQ vector for A
 
-    auto beta_one = inner(MUA, XA);
+    auto beta_one = inner(MUA, UPSILON_BC);
+    auto beta_two = inner(XA, V_BC);
 
 
     // now compute
@@ -585,8 +586,102 @@ Tensor<double> QuadraticResponse::compute_beta(World &world) {
     // B takes x[1] and x[2] and C takes x[0] and x[1]
 
 
-    return beta;
+    return beta_one + beta_two;
+}
+X_space QuadraticResponse::compute_JBC(World &world, const X_space &B, const X_space &C, const poperatorT &coulomb_ops,
+                                       const vector_real_function_3d &phi0) const {
+
+    X_space J = X_space::zero_functions(world, B.num_states(), B.num_orbitals());
+    auto c_xc = xcf.hf_exchange_coefficient();
+    QProjector<double, 3> projector(world, phi0);
+    vector_real_function_3d rhoX(B.num_states());
+    vector_real_function_3d temp_J(B.num_states());
+
+    vector_real_function_3d x_phi, y_phi;
+
+    for (const auto &b: B.active) {
+
+        x_phi = mul(world, B.x[b], phi0, false);
+        y_phi = mul(world, B.y[b], phi0, false);
+
+        world.gop.fence();
+        rhoX[b] = sum(world, x_phi, true);
+        rhoX[b] += sum(world, y_phi, true);
+        world.gop.fence();
+    }
+    truncate(world, rhoX);
+    for (int k = 0; k < B.num_states(); k++) {
+        temp_J[k] = apply(*coulomb_ops, rhoX[k]);
+        J.x[k] = mul(world, temp_J[k], C.x[k], false);
+        J.y[k] = mul(world, temp_J[k], C.y[k], false);
+    }
+    world.gop.fence();
+
+    return J;
 }
 
+auto Koperator(const vecfuncT &ket, const vecfuncT &bra) {
+    const double lo = 1.e-10;
+    auto &world = ket[0].world();
+    Exchange<double, 3> k{world, lo};
+    k.set_bra_and_ket(bra, ket);
+    k.set_algorithm(k.multiworld_efficient);
+    return k;
+};
 
+X_space QuadraticResponse::compute_KBC(World &world, const X_space &B, const X_space &C,
+                                       const vector_real_function_3d &phi0) const {
+
+    // if the frequecy of B is 0 we run the static case
+    // else we run the dynamic case
+    auto K = X_space::zero_functions(world, B.num_states(), B.num_orbitals());
+
+    vector_real_function_3d k1x, k1y, k2x, k2y;
+    vector_real_function_3d xb;
+    vector_real_function_3d yb;
+    if (world.rank() == 0) { print("K1StrategyFull"); }
+
+    auto k1x_temp = create_response_matrix(B.num_states(), B.num_orbitals());
+    auto k1y_temp = create_response_matrix(B.num_states(), B.num_orbitals());
+    auto k2x_temp = create_response_matrix(B.num_states(), B.num_orbitals());
+    auto k2y_temp = create_response_matrix(B.num_states(), B.num_orbitals());
+
+
+    for (int k = 0; k < B.num_states(); k++) {
+
+        auto K1X = Koperator(B.x[k], phi0);
+        auto K1Y = Koperator(phi0, B.y[k]);
+
+        auto K2X = Koperator(B.y[k], phi0);
+        auto K2Y = Koperator(phi0, B.x[k]);
+        world.gop.fence();
+
+        k1x_temp[k] = K1X(C.x[k]);
+        k1y_temp[k] = K1Y(C.x[k]);
+        k2x_temp[k] = K2X(C.y[k]);
+        k2y_temp[k] = K2Y(C.y[k]);
+        world.gop.fence();
+        K.x[k] = gaxpy_oop(1.0, k1x_temp[k], 1.0, k1y_temp[k], false);
+        K.y[k] = gaxpy_oop(1.0, k2x_temp[k], 1.0, k2y_temp[k], false);
+    }
+
+    return K;
+}
+
+auto QuadraticResponse::compute_gamma_quadratic(World &world, const X_space &XB, const X_space &XC,
+                                                const vector_real_function_3d &phi0) const -> X_space {
+
+    auto JBC = compute_JBC(world, XB, XC, shared_coulomb_operator, phi0);
+    auto JCB = compute_JBC(world, XC, XB, shared_coulomb_operator, phi0);
+
+    auto KBC = compute_KBC(world, XB, XC, phi0);
+    auto KCB = compute_KBC(world, XC, XB, phi0);
+
+    auto gamma = X_space::zero_functions(world, XB.num_states(), XB.num_orbitals());
+    gamma = JBC + JCB + KBC + KCB;
+
+
+    return gamma;
+    // Get sizes
+}
 //
