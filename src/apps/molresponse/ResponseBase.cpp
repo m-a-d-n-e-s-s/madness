@@ -464,12 +464,12 @@ auto ResponseBase::compute_gamma(World &world, const gamma_orbitals &density, co
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "gamma_make_density"); }
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    auto J = response_context.compute_j1(world, chi_alpha, rho1, phi0, shared_coulomb_operator);
+    auto J = response_context.compute_j1(world, chi_alpha, rho1, {phi0, phi0}, shared_coulomb_operator);
     inner_to_json(world, "j1", response_context.inner(chi_alpha, J), iter_function_data);
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "J[omega]", "J[omega]", iter_timing); }
     // Create Coulomb potential on ground_orbitals
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    auto K = response_context.compute_k1(world, chi_alpha, phi0);
+    auto K = response_context.compute_k1(world, chi_alpha, {phi0, phi0}, {phi0, phi0});
     inner_to_json(world, "k1", response_context.inner(chi_alpha, K), iter_function_data);
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing); }
     if (r_params.print_level() >= 20) { print_inner(world, "old xKx", chi_alpha, K); }
@@ -479,7 +479,7 @@ auto ResponseBase::compute_gamma(World &world, const gamma_orbitals &density, co
 
     if (c_xc != 1.0) {
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-        W = response_context.compute_VXC1(world, chi_alpha, rho1, phi0, xc);
+        W = response_context.compute_VXC1(world, chi_alpha, rho1, {phi0, phi0}, xc);
         if (r_params.print_level() >= 1) { molresponse::end_timer(world, "XC[omega]", "XC[omega]", iter_timing); }
         inner_to_json(world, "v1_xc", response_context.inner(chi_alpha, W), iter_function_data);
 
@@ -596,7 +596,7 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     auto rho_b = make_density(world, chi_alpha);
-    auto J = response_context.compute_j1(world, chi_alpha, rho_b, phi0, shared_coulomb_operator);
+    auto J = response_context.compute_j1(world, chi_alpha, rho_b, {phi0, phi0}, shared_coulomb_operator);
 
     world.gop.fence();
 
@@ -605,13 +605,13 @@ auto ResponseBase::compute_gamma_full(World &world, const gamma_orbitals &densit
     // Create Coulomb potential on ground_orbitals
     if (xcf.hf_exchange_coefficient() != 1.0) {
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-        W = response_context.compute_VXC1(world, chi_alpha, rho_b, phi0, xc);
+        W = response_context.compute_VXC1(world, chi_alpha, rho_b, {phi0, phi0}, xc);
         if (r_params.print_level() >= 1) { molresponse::end_timer(world, "XC[omega]", "XC[omega]", iter_timing); }
     }
     inner_to_json(world, "v1_xc", response_context.inner(chi_alpha, W), iter_function_data);
 
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    auto K = response_context.compute_k1(world, chi_alpha, phi0);
+    auto K = response_context.compute_k1(world, chi_alpha, {phi0, phi0}, {phi0, phi0});
     inner_to_json(world, "k1", response_context.inner(chi_alpha, K), iter_function_data);
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing); }
     if (r_params.print_level() >= 20) { print_inner(world, "old xKx", chi_alpha, K); }
