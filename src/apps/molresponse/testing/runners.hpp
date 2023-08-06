@@ -824,6 +824,10 @@ void runFrequencyTests(World &world, const frequencySchema &schema, const std::s
 // a vector of values.
 
 nlohmann::ordered_json create_beta_json() {
+    // i need A B C to hold char values and A-freq, B-freq, C-freq to hold double values
+
+
+
     nlohmann::ordered_json beta_json = {{"A-freq", json::array()}, {"B-freq", json::array()}, {"C-freq", json::array()},
                                         {"A", json::array()},      {"B", json ::array()},     {"C", json::array()},
                                         {"Beta", json::array()}};
@@ -857,9 +861,9 @@ void append_to_beta_json(const std::array<double, 3> &freq, const std::array<dou
         beta_json["A-freq"].push_back(freq_column_A[i]);
         beta_json["B-freq"].push_back(freq_column_B[i]);
         beta_json["C-freq"].push_back(freq_column_C[i]);
-        beta_json["A"].push_back(direction_A[i]);
-        beta_json["B"].push_back(direction_B[i]);
-        beta_json["C"].push_back(direction_C[i]);
+        beta_json["A"].push_back(std::string(1,direction_A[i]));
+        beta_json["B"].push_back(std::string(1,direction_B[i]));
+        beta_json["C"].push_back(std::string(1,direction_C[i]));
         beta_json["Beta"].push_back(beta[i]);
     }
 }
@@ -962,6 +966,8 @@ void runQuadraticResponse(World &world, const frequencySchema &schema, const std
                 {ground_calculation, molecule, quad_parameters},
                 rhs_generator,
         };
+        //if beta.json exists remove it
+        if (std::filesystem::exists("beta.json")) { std::filesystem::remove("beta.json"); }
 
         for (const auto &omega_b: schema.freq) {
             for (const auto &omega_c: schema.freq) {
@@ -1014,9 +1020,18 @@ void runQuadraticResponse(World &world, const frequencySchema &schema, const std
                         //beta_entry["omega_c"] = omega_c;
 
 
-                        std::array<double, 18> beta_vector{18, 0.0};
+                        std::array<double, 18> beta_vector;
                         std::copy(beta_abc.ptr(), beta_abc.ptr() + 3 * 6, beta_vector.begin());
                         append_to_beta_json({omega_a, omega_b, omega_c}, beta_vector, beta_json);
+
+                        std::ofstream outfile("beta.json");
+                        if (outfile.is_open()) {
+                            outfile << beta_json.dump(4);
+                            outfile.close();
+                        } else {
+                            std::cerr << "Failed to open file for writing: "
+                                      << "beta.json" << std::endl;
+                        }
                     }
 
 
