@@ -52,7 +52,7 @@ auto main(int argc, char *argv[]) -> int {
             }
             auto schema = runSchema(world, xc);
             auto m_schema = moldftSchema(world, molecule_name, xc, schema);
-            auto f_schema = frequencySchema(world, schema, m_schema, op);
+            auto f_schema = frequencySchema(world, schema, m_schema, op, false);
             if (std::filesystem::exists(m_schema.calc_info_json_path) &&
                 std::filesystem::exists(m_schema.moldft_restart)) {
                 runFrequencyTests(world, f_schema, precision);

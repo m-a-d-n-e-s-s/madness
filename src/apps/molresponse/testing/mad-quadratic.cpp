@@ -36,7 +36,7 @@ auto main(int argc, char *argv[]) -> int {
         try {
             sleep(5);
             std::cout.precision(6);
-            if (argc != 5) {
+            if (argc != 6) {
                 std::cout << "Wrong number of inputs" << std::endl;
                 return 1;
             }
@@ -44,11 +44,14 @@ auto main(int argc, char *argv[]) -> int {
             const std::string xc{argv[2]};
             const std::string op{argv[3]};
             const std::string precision{argv[4]};
+            const std::string static_calc{argv[5]};
 
 
             auto schema = runSchema(world, xc);
             auto m_schema = moldftSchema(world, molecule_name, xc, schema);
-            auto f_schema = frequencySchema(world, schema, m_schema, op);
+
+
+            auto f_schema = frequencySchema(world, schema, m_schema, op, static_calc == "true");
 
 
             runQuadraticResponse(world, f_schema, precision);

@@ -139,7 +139,8 @@ struct frequencySchema {
     const path moldft_path;
     vector<double> freq;
 
-    frequencySchema(World &world, const runSchema &run_schema, const moldftSchema &m_schema, std::string r_operator);
+    frequencySchema(World &world, const runSchema &run_schema, const moldftSchema &m_schema, std::string r_operator,
+                    bool static_calc);
 
     void print_schema() {
         print("Frequency Calculation");
@@ -151,13 +152,19 @@ struct frequencySchema {
     }
 };
 frequencySchema::frequencySchema(World &world, const runSchema &run_schema, const moldftSchema &m_schema,
-                                 std::string r_operator)
+                                 std::string r_operator, bool static_calc)
     : mol_name(m_schema.mol_name), xc(m_schema.xc), op(std::move(r_operator)), moldft_path(m_schema.moldft_path) {
-    if (world.rank() == 0) {
-        print_schema();
-        freq = run_schema.freq_json_data.get_frequencies(mol_name, xc, op);
+    if (!static_calc) {
+        if (world.rank() == 0) {
+            print_schema();
+            freq = run_schema.freq_json_data.get_frequencies(mol_name, xc, op);
+        }
+    } else {
+        if (world.rank() == 0) { freq = {0.0}; }
     }
+
     world.gop.broadcast_serializable(freq, 0);
+    return;
 }
 
 /**
@@ -304,6 +311,7 @@ auto generate_frequency_save_path(const std::filesystem::path &frequency_run_pat
     save_path += save_string;
 
     save_path += ".00000";
+
     return {save_path, save_string};
 }
 
@@ -502,7 +510,6 @@ void setHyperpolarizabilityParameters(World &world, ResponseParameters &r_params
                                       const std::string &xc, const std::vector<double> &frequency,
                                       const std::string &precision) {
     if (world.rank() == 0) {
-
         r_params.set_user_defined_value("quadratic", true);
         r_params.set_user_defined_value("freq_range", frequency);
         r_params.set_user_defined_value("xc", xc);
@@ -521,8 +528,8 @@ void setHyperpolarizabilityParameters(World &world, ResponseParameters &r_params
             r_params.set_user_defined_value<vector<double>>("protocol", {1e-6});
             r_params.set_user_defined_value<double>("dconv", 1e-4);
         }
-        world.gop.broadcast_serializable(r_params, 0);
     }
+    world.gop.broadcast_serializable(r_params, 0);
 }
 /**
  * Sets the response parameters for a frequency response calculation and writes
@@ -597,6 +604,10 @@ static auto set_frequency_path_and_restart(World &world, ResponseParameters &par
     std::filesystem::current_path(frequency_run_path);
     // frequency save path
     auto [save_path, save_string] = generate_frequency_save_path(frequency_run_path);
+    if (world.rank() == 0) { print("save path", save_path); }
+    if (world.rank() == 0) { print("save string", save_string); }
+
+
     if (world.rank() == 0) {
         parameters.set_user_defined_value("save", true);
         parameters.set_user_defined_value("save_file", save_string);
@@ -855,14 +866,14 @@ void runQuadraticResponse(World &world, const frequencySchema &schema, const std
             ResponseParameters r_params{};
             auto save_path = set_frequency_path_and_restart(world, r_params, schema.op, freq, schema.xc,
                                                             schema.moldft_path, restart_path, true);
-            print(save_path);
+
 
             if (std::filesystem::exists("response_base.json")) {
                 std::ifstream ifs("response_base.json");
                 json response_base;
                 ifs >> response_base;
                 if (response_base["converged"] && response_base["precision"]["dconv"] == r_params.dconv()) {
-                    if (world.rank() == 0) { print("Response calculation already converged"); }
+                    { print("Response calculation already converged"); }
                     continue;
                 } else {
                     if (world.rank() == 0) { print("Response calculation not converged"); }
@@ -872,9 +883,7 @@ void runQuadraticResponse(World &world, const frequencySchema &schema, const std
             }
             if (!std::filesystem::exists(save_path)) { throw Response_Convergence_Error{}; }
         }
-        // if we get here then all the first order response calculations have been run
-        // so we can run the quadratic response calculations
-
+        world.gop.fence();
 
         if (world.rank() == 0) { print("Running quadratic response calculations"); }
         std::filesystem::current_path(schema.moldft_path);
@@ -885,6 +894,7 @@ void runQuadraticResponse(World &world, const frequencySchema &schema, const std
             rhs_generator = nuclear_generator;
         }
         ResponseParameters quad_parameters{};
+        if (world.rank() == 0) { print("Set up rhs generator"); }
 
         setHyperpolarizabilityParameters(world, quad_parameters, schema.op, schema.xc, schema.freq, std::string());
         if (world.rank() == 0) { molresponse::write_response_input(quad_parameters, "quad.in"); }
