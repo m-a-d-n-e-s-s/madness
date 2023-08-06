@@ -827,7 +827,6 @@ nlohmann::ordered_json create_beta_json() {
     // i need A B C to hold char values and A-freq, B-freq, C-freq to hold double values
 
 
-
     nlohmann::ordered_json beta_json = {{"A-freq", json::array()}, {"B-freq", json::array()}, {"C-freq", json::array()},
                                         {"A", json::array()},      {"B", json ::array()},     {"C", json::array()},
                                         {"Beta", json::array()}};
@@ -839,31 +838,32 @@ nlohmann::ordered_json create_beta_json() {
 void append_to_beta_json(const std::array<double, 3> &freq, const std::array<double, 18> &beta,
                          nlohmann::ordered_json &beta_json) {
 
-    // make 3 vector for each frequency where I simply copy the values 18 times
-    // to form 3 columns of 18 rows
-
-    std::array<double, 18> freq_column_A{18, freq[0]};
-    std::array<double, 18> freq_column_B{18, freq[1]};
-    std::array<double, 18> freq_column_C{18, freq[2]};
 
     // create 3 columns of directions for each A,B,C
-    std::array<char, 18> direction_A{'x', 'x', 'x', 'x', 'x', 'x', 'y', 'y', 'y',
-                                     'y', 'y', 'y', 'z', 'z', 'z', 'z', 'z', 'z'};
-    std::array<char, 18> direction_B{'x', 'x', 'x', 'y', 'y', 'z', 'x', 'x', 'x',
-                                     'y', 'y', 'z', 'x', 'x', 'x', 'y', 'y', 'z'};
-    std::array<char, 18> direction_C{'x', 'y', 'z', 'y', 'z', 'z', 'x', 'y', 'z',
-                                     'y', 'z', 'z', 'x', 'y', 'z', 'y', 'z', 'z'};
+    std::array<char, 18> direction_A{'X', 'X', 'X', 'X', 'X', 'X', 'Y', 'Y', 'Y',
+                                     'Y', 'Y', 'Y', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z'};
+    std::array<char, 18> direction_B{'X', 'X', 'X', 'Y', 'Y', 'Z', 'X', 'X', 'X',
+                                     'Y', 'Y', 'Z', 'X', 'X', 'X', 'Y', 'Y', 'Z'};
+    std::array<char, 18> direction_C{'X', 'Y', 'Z', 'Y', 'Z', 'Z', 'X', 'Y', 'Z',
+                                     'Y', 'Z', 'Z', 'X', 'Y', 'Z', 'Y', 'Z', 'Z'};
 
     // append each value of the columns to the beta json
     // for each value of beta
+    // capitalize the direction
+
+
+
+
 
     for (int i = 0; i < 18; i++) {
-        beta_json["A-freq"].push_back(freq_column_A[i]);
-        beta_json["B-freq"].push_back(freq_column_B[i]);
-        beta_json["C-freq"].push_back(freq_column_C[i]);
-        beta_json["A"].push_back(std::string(1,direction_A[i]));
-        beta_json["B"].push_back(std::string(1,direction_B[i]));
-        beta_json["C"].push_back(std::string(1,direction_C[i]));
+        beta_json["A-freq"].push_back(freq[0]);
+        beta_json["B-freq"].push_back(freq[1]);
+        beta_json["C-freq"].push_back(freq[2]);
+
+
+        beta_json["A"].push_back(std::string(1, direction_A[i]));
+        beta_json["B"].push_back(std::string(1, direction_B[i]));
+        beta_json["C"].push_back(std::string(1, direction_C[i]));
         beta_json["Beta"].push_back(beta[i]);
     }
 }
