@@ -819,6 +819,50 @@ void runFrequencyTests(World &world, const frequencySchema &schema, const std::s
     }
 }
 
+
+// set up a function that creates a beta_json with the fields defined  below.  in each field there will
+// a vector of values.
+
+nlohmann::ordered_json create_beta_json() {
+    nlohmann::ordered_json beta_json = {{"A-freq", json::array()}, {"B-freq", json::array()}, {"C-freq", json::array()},
+                                        {"A", json::array()},      {"B", json ::array()},     {"C", json::array()},
+                                        {"Beta", json::array()}};
+    return beta_json;
+}
+
+
+// for a set of frequencies create a table from the beta values
+void append_to_beta_json(const std::array<double, 3> &freq, const std::array<double, 18> &beta,
+                         nlohmann::ordered_json &beta_json) {
+
+    // make 3 vector for each frequency where I simply copy the values 18 times
+    // to form 3 columns of 18 rows
+
+    std::array<double, 18> freq_column_A{18, freq[0]};
+    std::array<double, 18> freq_column_B{18, freq[1]};
+    std::array<double, 18> freq_column_C{18, freq[2]};
+
+    // create 3 columns of directions for each A,B,C
+    std::array<char, 18> direction_A{'x', 'x', 'x', 'x', 'x', 'x', 'y', 'y', 'y',
+                                     'y', 'y', 'y', 'z', 'z', 'z', 'z', 'z', 'z'};
+    std::array<char, 18> direction_B{'x', 'x', 'x', 'y', 'y', 'z', 'x', 'x', 'x',
+                                     'y', 'y', 'z', 'x', 'x', 'x', 'y', 'y', 'z'};
+    std::array<char, 18> direction_C{'x', 'y', 'z', 'y', 'z', 'z', 'x', 'y', 'z',
+                                     'y', 'z', 'z', 'x', 'y', 'z', 'y', 'z', 'z'};
+
+    // append each value of the columns to the beta json
+    // for each value of beta
+
+    for (int i = 0; i < 18; i++) {
+        beta_json["A-freq"].push_back(freq_column_A[i]);
+        beta_json["B-freq"].push_back(freq_column_B[i]);
+        beta_json["C-freq"].push_back(freq_column_C[i]);
+        beta_json["A"].push_back(direction_A[i]);
+        beta_json["B"].push_back(direction_B[i]);
+        beta_json["C"].push_back(direction_C[i]);
+        beta_json["Beta"].push_back(beta[i]);
+    }
+}
 /**
  * Takes in a series of frequencies and runs a quadratic response calculations
  * for given property at given frequencies.
@@ -911,7 +955,7 @@ void runQuadraticResponse(World &world, const frequencySchema &schema, const std
         world.gop.fence();
         FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
 
-        nlohmann::ordered_json beta_json;
+        nlohmann::ordered_json beta_json = create_beta_json();
 
         QuadraticResponse quad_calculation{
                 world,
@@ -961,16 +1005,18 @@ void runQuadraticResponse(World &world, const frequencySchema &schema, const std
                         std::array<path, 3> restarts{restartA.first.replace_extension(""),
                                                      restartB.first.replace_extension(""),
                                                      restartC.first.replace_extension("")};
+
                         quad_calculation.set_x_data(world, omegas, restarts);
                         auto beta_abc = quad_calculation.compute_beta(world);
                         nlohmann::ordered_json beta_entry;
-                        beta_entry["omega_a"] = omega_a;
-                        beta_entry["omega_b"] = omega_b;
-                        beta_entry["omega_c"] = omega_c;
-                        vector<double> beta_vector(3 * 6);
+                        //beta_entry["omega_a"] = omega_a;
+                        //beta_entry["omega_b"] = omega_b;
+                        //beta_entry["omega_c"] = omega_c;
+
+
+                        std::array<double, 18> beta_vector{18, 0.0};
                         std::copy(beta_abc.ptr(), beta_abc.ptr() + 3 * 6, beta_vector.begin());
-                        beta_entry["beta"] = beta_vector;
-                        beta_json.push_back(beta_entry);
+                        append_to_beta_json({omega_a, omega_b, omega_c}, beta_vector, beta_json);
                     }
 
 
@@ -982,6 +1028,9 @@ void runQuadraticResponse(World &world, const frequencySchema &schema, const std
                 }
             }
         }
+
+        // print the beta table
+        if (world.rank() == 0) { print(beta_json.dump(4)); }
 
         // write the beta json to file
         std::ofstream ofs("beta.json");
