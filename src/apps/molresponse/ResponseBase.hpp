@@ -30,6 +30,7 @@ using namespace madness;
 // and load depending on the type of response I am doing.
 
 typedef std::pair<X_space, Tensor<double>> XData;
+typedef std::pair<vector_real_function_3d, vector_real_function_3d> double_response_vector;
 
 class LoadXSpaceStrategy {
 public:
@@ -171,23 +172,29 @@ class VXC1Strategy {
 public:
     virtual ~VXC1Strategy() = default;
     virtual X_space compute_VXC1(World &world, const X_space &x, const vector_real_function_3d &rho1,
-                                 const vector_real_function_3d &phi0, const XCOperator<double, 3> &xc) const = 0;
+                                 const std::pair<vector_real_function_3d, vector_real_function_3d> &phi0,
+                                 const XCOperator<double, 3> &xc) const = 0;
 };
 
 class VXC1StrategyStandard : public VXC1Strategy {
 
 public:
     X_space compute_VXC1(World &world, const X_space &x, const vector_real_function_3d &rho1,
-                         const vector_real_function_3d &phi0, const XCOperator<double, 3> &xc) const override {
+                         const std::pair<vector_real_function_3d, vector_real_function_3d> &phi0,
+                         const XCOperator<double, 3> &xc) const override {
 
         X_space W = X_space::zero_functions(world, x.num_states(), x.num_orbitals());
 
-        auto compute_wx = [&, &phi0 = phi0](auto rho_alpha) {
+        auto compute_wx_x = [&, &phi0 = phi0](auto rho_alpha) {
             auto xc_rho = xc.apply_xc_kernel(rho_alpha);
-            return mul(world, xc_rho, phi0);
+            return mul(world, xc_rho, phi0.first);
         };
-        std::transform(rho1.begin(), rho1.end(), W.x.begin(), compute_wx);
-        W.y = W.x.copy();
+        auto compute_wx_y = [&, &phi0 = phi0](auto rho_alpha) {
+            auto xc_rho = xc.apply_xc_kernel(rho_alpha);
+            return mul(world, xc_rho, phi0.second);
+        };
+        std::transform(rho1.begin(), rho1.end(), W.x.begin(), compute_wx_x);
+        std::transform(rho1.begin(), rho1.end(), W.y.begin(), compute_wx_y);
         return W;
     }
 };
@@ -197,19 +204,21 @@ class J1Strategy {
 public:
     virtual ~J1Strategy() = default;
     virtual X_space compute_J1(World &world, const X_space &x, const vector_real_function_3d &rho1,
-                               const vector_real_function_3d &phi0, const poperatorT &coulomb_ops) const = 0;
+                               const std::pair<vector_real_function_3d, vector_real_function_3d> &phi0,
+                               const poperatorT &coulomb_ops) const = 0;
 };
 
 class J1StrategyFull : public J1Strategy {
 public:
     X_space compute_J1(World &world, const X_space &x, const vector_real_function_3d &rho1,
-                       const vector_real_function_3d &phi0, const poperatorT &coulomb_ops) const override {
+                       const std::pair<vector_real_function_3d, vector_real_function_3d> &phi0,
+                       const poperatorT &coulomb_ops) const override {
 
         X_space J = X_space::zero_functions(world, x.num_states(), x.num_orbitals());
         vector_real_function_3d temp_J(3);
         for (const auto &b: x.active) {
             temp_J[b] = apply(*coulomb_ops, rho1[b]);
-            J.x[b] = mul(world, temp_J[b], phi0, false);
+            J.x[b] = mul(world, temp_J[b], phi0.first, false);
         }
         J.y = J.x.copy();
         return J;
@@ -220,7 +229,8 @@ public:
 class J1StrategyStable : public J1Strategy {
 public:
     X_space compute_J1(World &world, const X_space &x, const vector_real_function_3d &rho1,
-                       const vector_real_function_3d &phi0, const poperatorT &coulomb_ops) const override {
+                       const std::pair<vector_real_function_3d, vector_real_function_3d> &phi0,
+                       const poperatorT &coulomb_ops) const override {
 
         X_space J = X_space::zero_functions(world, x.num_states(), x.num_orbitals());
         if (world.rank() == 0) { print("J1StrategyStable"); }
@@ -231,10 +241,10 @@ public:
                 auto norm = temp_J[b].norm2();
                 if (world.rank() == 0) print("norm of temp_J:", norm);
             }
-            J.x[b] = mul(world, temp_J[b], phi0, false);
+            J.x[b] = mul(world, temp_J[b], phi0.first, false);
+            J.y[b] = mul(world, temp_J[b], phi0.second, false);
         }
         world.gop.fence();
-        J.y = J.x.copy();
         return J;
     }
 };
@@ -242,7 +252,9 @@ public:
 class K1Strategy {
 public:
     virtual ~K1Strategy() = default;
-    virtual X_space compute_K1(World &world, const X_space &x, const vector_real_function_3d &phi0) const = 0;
+    virtual X_space compute_K1(World &world, const X_space &x,
+                               const std::pair<vector_real_function_3d, vector_real_function_3d> &phi_0X,
+                               const std::pair<vector_real_function_3d, vector_real_function_3d> &rhs_vec) const = 0;
 
     static auto make_k(const vecfuncT &ket, const vecfuncT &bra) {
         auto &world = ket[0].world();
@@ -256,7 +268,9 @@ public:
 
 class K1StrategyFull : public K1Strategy {
 public:
-    X_space compute_K1(World &world, const X_space &x, const vector_real_function_3d &phi0) const override {
+    X_space compute_K1(World &world, const X_space &x,
+                       const std::pair<vector_real_function_3d, vector_real_function_3d> &phi_0X,
+                       const std::pair<vector_real_function_3d, vector_real_function_3d> &rhs_vec) const override {
 
         auto K = X_space::zero_functions(world, x.num_states(), x.num_orbitals());
 
@@ -273,16 +287,17 @@ public:
 
 
         for (const auto &b: x.active) {
-            auto K1X = make_k(x.x[b], phi0);
-            auto K1Y = make_k(phi0, x.y[b]);
-            auto K2X = make_k(x.y[b], phi0);
-            auto K2Y = make_k(phi0, x.x[b]);
+            auto K1X = make_k(x.x[b], phi_0X.first);
+            auto K1Y = make_k(phi_0X.first, x.y[b]);
+
+            auto K2X = make_k(x.y[b], phi_0X.first);
+            auto K2Y = make_k(phi_0X.second, x.x[b]);
             world.gop.fence();
 
-            k1x_temp[b] = K1X(phi0);
-            k1y_temp[b] = K1Y(phi0);
-            k2x_temp[b] = K2X(phi0);
-            k2y_temp[b] = K2Y(phi0);
+            k1x_temp[b] = K1X(rhs_vec.first);
+            k1y_temp[b] = K1Y(rhs_vec.first);
+            k2x_temp[b] = K2X(rhs_vec.second);
+            k2y_temp[b] = K2Y(rhs_vec.second);
             world.gop.fence();
             K.x[b] = gaxpy_oop(1.0, k1x_temp[b], 1.0, k1y_temp[b], false);
             K.y[b] = gaxpy_oop(1.0, k2x_temp[b], 1.0, k2y_temp[b], false);
@@ -295,7 +310,9 @@ public:
 
 class K1StrategyStatic : public K1Strategy {
 public:
-    X_space compute_K1(World &world, const X_space &x, const vector_real_function_3d &phi0) const override {
+    X_space compute_K1(World &world, const X_space &x,
+                       const std::pair<vector_real_function_3d, vector_real_function_3d> &phi_0X,
+                       const std::pair<vector_real_function_3d, vector_real_function_3d> &rhs_vec) const override {
         X_space K = X_space::zero_functions(world, x.num_states(), x.num_orbitals());
         vector_real_function_3d k1x, k1y, k2x, k2y;
         const double lo = 1e-10;
@@ -305,10 +322,10 @@ public:
         auto k2_temp = create_response_matrix(x.num_states(), x.num_orbitals());
 
         for (const auto &b: x.active) {
-            auto K1Xs = make_k(x.x[b], phi0);
-            auto K1Ys = make_k(phi0, x.x[b]);
-            k1_temp[b] = K1Xs(phi0);
-            k2_temp[b] = K1Ys(phi0);
+            auto K1Xs = make_k(x.x[b], phi_0X.first);
+            auto K1Ys = make_k(phi_0X.first, x.x[b]);
+            k1_temp[b] = K1Xs(rhs_vec.first);
+            k2_temp[b] = K1Ys(rhs_vec.first);
             K.x[b] = gaxpy_oop(1.0, k1_temp[b], 1.0, k2_temp[b], false);
         }
         world.gop.fence();
@@ -364,7 +381,7 @@ public:
     }
 
     X_space compute_j1(World &world, const X_space &x, const vector_real_function_3d &rho1,
-                       const vector_real_function_3d &phi0, const poperatorT &coulomb_ops) const {
+                       const double_response_vector &phi0, const poperatorT &coulomb_ops) const {
         if (j1_strategy_) {
             return j1_strategy_->compute_J1(world, x, rho1, phi0, coulomb_ops);
         } else {
@@ -373,16 +390,17 @@ public:
         }
     }
 
-    X_space compute_k1(World &world, const X_space &x, const vector_real_function_3d &phi0) const {
+    X_space compute_k1(World &world, const X_space &x, const double_response_vector &phi0X,
+                       const double_response_vector &phi0) const {
         if (k1_strategy_) {
-            return k1_strategy_->compute_K1(world, x, phi0);
+            return k1_strategy_->compute_K1(world, x, phi0X, phi0);
         } else {
             throw madness::MadnessException("Compute K1 Strategy isn't set", "Need to set a strategy", 2, 455, "inner",
                                             "ResponseBase.hpp");
         }
     }
     X_space compute_VXC1(World &world, const X_space &x, const vector_real_function_3d &rho1,
-                         const vector_real_function_3d &phi0, const XCOperator<double, 3> &xc) const {
+                         const double_response_vector &phi0, const XCOperator<double, 3> &xc) const {
         if (vxc1_strategy_) {
             return vxc1_strategy_->compute_VXC1(world, x, rho1, phi0, xc);
         } else {
