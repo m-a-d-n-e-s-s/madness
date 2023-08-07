@@ -201,9 +201,11 @@ private:
     std::pair<X_space, X_space> setup_rhs_BC(World &world, const X_space &PQ);
     X_space compute_gamma_quadratic(World &world, const X_space &XB, const X_space &XC,
                                     const vector_real_function_3d &phi0) const;
-    X_space compute_JBC(World &world, const X_space &B, const X_space &C, const poperatorT &coulomb_ops,
-                        const vector_real_function_3d &phi0) const;
-    X_space compute_KBC(World &world, const X_space &B, const X_space &C, const vector_real_function_3d &phi0) const;
+    X_space compute_coulomb_term(World &world, const X_space &B, const X_space &C) const;
+    X_space compute_exchange_term(World &world, const X_space &B, const X_space &C) const;
+    std::pair<X_space, X_space> dipole_perturbation(World &world, const X_space &XB, const X_space &XC);
+    Tensor<double> compute_beta_1(const X_space &upsilon);
+    Tensor<double> compute_beta_1(World &world, const X_space &upsilon);
 };
 
 class FrequencyResponse : public ResponseBase {

@@ -155,6 +155,7 @@ void FrequencyResponse::iterate(World &world) {
                     if (r_params.print_level() >= 1) molresponse::end_timer(world, "Save:");
                 }
 
+
 #if defined(__has_include)
 #if __has_include(<filesystem>)
 #define MADCHEM_HAS_STD_FILESYSTEM
@@ -542,43 +543,140 @@ X_space QuadraticResponse::compute_UPSILON(World &world, const X_space &XB, cons
     auto conj_XC = to_conjugate_X_space(to_response_matrix(XC));
 
     auto UPSILON_BC = XB * conj_XC + XC * conj_XB;
+
     return UPSILON_BC;
 }
 
 X_space QuadraticResponse::compute_VBC(World &world, const X_space &VB, const X_space &XC) { return VB * XC; }
 
+auto QuadraticResponse::dipole_perturbation(World &world, const X_space &XB, const X_space &XC)
+        -> std::pair<X_space, X_space> {
+    QProjector<double, 3> projector(world, ground_orbitals);
+    vector_real_function_3d dipole_vectors(3);
+    size_t i = 0;
+    // creates a vector of x y z dipole functions
+    for (auto &d: dipole_vectors) {
+        std::vector<int> f(3, 0);
+        f[i++] = 1;
+        d = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
+    }
+
+    std::array<int, 6> case_1_indices = {0, 0, 0, 1, 1, 2};
+    std::array<int, 6> case_2_indices = {0, 1, 2, 1, 2, 2};
+
+    auto VBC = X_space(world, XB.num_states(), XC.num_orbitals());
+
+    for (int i = 0; i < 6; i++) {
+        VBC.x[i] = dipole_vectors[case_1_indices[i]] * XC.x[i];
+        VBC.y[i] = dipole_vectors[case_1_indices[i]] * XC.y[i];
+        VBC.x[i] = projector(VBC.x[i]);
+        VBC.y[i] = projector(VBC.y[i]);
+    }
+
+    auto VCB = X_space(world, XB.num_states(), XC.num_orbitals());
+
+    for (int i = 0; i < 6; i++) {
+        VCB.x[i] = dipole_vectors[case_2_indices[i]] * XB.x[i];
+        VCB.y[i] = dipole_vectors[case_2_indices[i]] * XB.y[i];
+        VCB.x[i] = projector(VCB.x[i]);
+        VCB.y[i] = projector(VCB.y[i]);
+    }
+
+    return {VBC, VCB};
+    // in the first case i need to mulitply x x x y y z to vectors in XC
+    // in the second case i need to multiply x y z y z a to vectors in XB
+}
+
+Tensor<double> QuadraticResponse::compute_beta_1(World &world, const X_space &upsilon) {
+
+    vector_real_function_3d dipole_vectors(3);
+    size_t i = 0;
+    for (auto &d: dipole_vectors) {
+        std::vector<int> f(3, 0);
+        f[i++] = 1;
+        d = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
+    }
+    truncate(world, dipole_vectors, true);
+    world.gop.fence();
+
+    Tensor<double> beta(3, 6);
+    beta.fill(0.0);
+
+    // for each vector in dipole vectors
+    for (int i = 0; i < 3; i++) {
+        // for each vector in upsilon
+        for (int j = 0; j < 6; j++) {
+            // multiply the vector in dipole vectors by the vector in upsilon
+            auto upsilon_xy = sum(world, upsilon.x[j]) + sum(world, upsilon.y[j]);
+
+            // and store in beta
+            beta(i, j) = (upsilon_xy * dipole_vectors[i]).trace();
+        }
+    }
+    return beta;
+}
 
 Tensor<double> QuadraticResponse::compute_beta(World &world) {
 
     Tensor<double> beta(3, 6);
     beta.fill(0.0);
 
-    auto XBC = setup_XBC(world);
+    auto [XB, XC] = setup_XBC(world);
 
-    auto XB = XBC.first.copy();
-    auto XC = XBC.second.copy();
 
     auto MUA = generator(world, *this);
+
+    print_inner(world, "MUA", MUA, MUA);
 
     auto XA = x_data[0].first.copy();
 
 
-    // now compute UPSILON BC
-    auto PQ_BC = setup_rhs_BC(world, MUA);
+    auto [VCXB, VBXC] = dipole_perturbation(world, XB, XC);
 
-
-    auto PBC = PQ_BC.first * XC + XB * PQ_BC.second;
+    print_inner(world, "VCXB", VCXB, VCXB);
+    print_inner(world, "VBXC", VBXC, VBXC);
 
 
     auto gamma_BC = compute_gamma_quadratic(world, XB, XC, ground_orbitals);
-    auto V_BC = gamma_BC + PBC;
+    print_inner(world, "gamma_BC", gamma_BC, gamma_BC);
+
+
+    auto V_BC = gamma_BC + VCXB + VBXC;
+    print_inner(world, "V_BC", V_BC, V_BC);
+
 
     auto UPSILON_BC = compute_UPSILON(world, XB, XC);
+    print_inner(world, "UPSILON_BC", UPSILON_BC, UPSILON_BC);
 
     // create PQ vector for A
 
+    auto beta_one_alternative = compute_beta_1(world, UPSILON_BC);
+    if (world.rank() == 0) {
+        cout << "beta_one_alternative" << endl;
+        cout << 2 * beta_one_alternative << endl;
+    }
+
     auto beta_one = inner(MUA, UPSILON_BC);
+    if (world.rank() == 0) {
+        cout << "beta_one" << endl;
+        cout << 2 * beta_one << endl;
+    }
     auto beta_two = inner(XA, V_BC);
+    if (world.rank() == 0) {
+        cout << "beta_two" << endl;
+        cout << 2 * beta_two << endl;
+    }
+
+    auto beta_final = 2 * (beta_one + beta_two);
+    if (world.rank() == 0) {
+        cout << "beta_final" << endl;
+        cout << beta_final << endl;
+    }
+    auto beta_final_alternative = 2 * (beta_one_alternative + beta_two);
+    if (world.rank() == 0) {
+        cout << "beta_final_alternative" << endl;
+        cout << beta_final_alternative << endl;
+    }
 
 
     // now compute
@@ -586,34 +684,36 @@ Tensor<double> QuadraticResponse::compute_beta(World &world) {
     // B takes x[1] and x[2] and C takes x[0] and x[1]
 
 
-    return beta_one + beta_two;
+    return beta_final_alternative;
 }
-X_space QuadraticResponse::compute_JBC(World &world, const X_space &B, const X_space &C, const poperatorT &coulomb_ops,
-                                       const vector_real_function_3d &phi0) const {
+X_space QuadraticResponse::compute_coulomb_term(World &world, const X_space &B, const X_space &C) const {
 
     X_space J = X_space::zero_functions(world, B.num_states(), B.num_orbitals());
     auto c_xc = xcf.hf_exchange_coefficient();
-    QProjector<double, 3> projector(world, phi0);
+    QProjector<double, 3> projector(world, ground_orbitals);
     vector_real_function_3d rhoX(B.num_states());
     vector_real_function_3d temp_J(B.num_states());
 
     vector_real_function_3d x_phi, y_phi;
 
+    // create the density for each state in B
     for (const auto &b: B.active) {
 
-        x_phi = mul(world, B.x[b], phi0, false);
-        y_phi = mul(world, B.y[b], phi0, false);
-
+        x_phi = mul(world, B.x[b], ground_orbitals, false);
+        y_phi = mul(world, B.y[b], ground_orbitals, false);
         world.gop.fence();
         rhoX[b] = sum(world, x_phi, true);
         rhoX[b] += sum(world, y_phi, true);
-        world.gop.fence();
     }
+
     truncate(world, rhoX);
+
     for (int k = 0; k < B.num_states(); k++) {
-        temp_J[k] = apply(*coulomb_ops, rhoX[k]);
+        temp_J[k] = apply(*shared_coulomb_operator, rhoX[k]);
         J.x[k] = mul(world, temp_J[k], C.x[k], false);
         J.y[k] = mul(world, temp_J[k], C.y[k], false);
+        J.x[k] = projector(J.x[k]);
+        J.y[k] = projector(J.y[k]);
     }
     world.gop.fence();
 
@@ -629,8 +729,9 @@ auto Koperator(const vecfuncT &ket, const vecfuncT &bra) {
     return k;
 };
 
-X_space QuadraticResponse::compute_KBC(World &world, const X_space &B, const X_space &C,
-                                       const vector_real_function_3d &phi0) const {
+X_space QuadraticResponse::compute_exchange_term(World &world, const X_space &B, const X_space &C) const {
+
+    madness::QProjector<double, 3> projector(world, ground_orbitals);
 
     // if the frequecy of B is 0 we run the static case
     // else we run the dynamic case
@@ -649,11 +750,11 @@ X_space QuadraticResponse::compute_KBC(World &world, const X_space &B, const X_s
 
     for (int k = 0; k < B.num_states(); k++) {
 
-        auto K1X = Koperator(B.x[k], phi0);
-        auto K1Y = Koperator(phi0, B.y[k]);
+        auto K1X = Koperator(B.x[k], ground_orbitals);
+        auto K1Y = Koperator(ground_orbitals, B.y[k]);
 
-        auto K2X = Koperator(B.y[k], phi0);
-        auto K2Y = Koperator(phi0, B.x[k]);
+        auto K2X = Koperator(B.y[k], ground_orbitals);
+        auto K2Y = Koperator(ground_orbitals, B.x[k]);
         world.gop.fence();
 
         k1x_temp[k] = K1X(C.x[k]);
@@ -663,6 +764,8 @@ X_space QuadraticResponse::compute_KBC(World &world, const X_space &B, const X_s
         world.gop.fence();
         K.x[k] = gaxpy_oop(1.0, k1x_temp[k], 1.0, k1y_temp[k], false);
         K.y[k] = gaxpy_oop(1.0, k2x_temp[k], 1.0, k2y_temp[k], false);
+        K.x[k] = projector(K.x[k]);
+        K.y[k] = projector(K.y[k]);
     }
 
     return K;
@@ -671,11 +774,11 @@ X_space QuadraticResponse::compute_KBC(World &world, const X_space &B, const X_s
 auto QuadraticResponse::compute_gamma_quadratic(World &world, const X_space &XB, const X_space &XC,
                                                 const vector_real_function_3d &phi0) const -> X_space {
 
-    auto JBC = compute_JBC(world, XB, XC, shared_coulomb_operator, phi0);
-    auto JCB = compute_JBC(world, XC, XB, shared_coulomb_operator, phi0);
+    auto JBC = compute_coulomb_term(world, XB, XC);
+    auto JCB = compute_coulomb_term(world, XC, XB);
 
-    auto KBC = compute_KBC(world, XB, XC, phi0);
-    auto KCB = compute_KBC(world, XC, XB, phi0);
+    auto KBC = compute_exchange_term(world, XB, XC);
+    auto KCB = compute_exchange_term(world, XC, XB);
 
     auto gamma = X_space::zero_functions(world, XB.num_states(), XB.num_orbitals());
     gamma = JBC + JCB + KBC + KCB;
