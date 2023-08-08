@@ -342,6 +342,8 @@ protected:
         read_commandline_options(world,parser,tag);
     }
 
+public:
+    bool file_exists(World& world, std::string filename) const;
 private:
 	/// read the parameters from file
 
@@ -351,10 +353,7 @@ private:
 
     void read_commandline_options(World& world, const commandlineparser& parser, const std::string tag);
 
-    bool file_exists(World& world, std::string filename) const;
-
 protected:
-
 	bool print_debug=false;
     bool ignore_unknown_keys=true;
     bool ignore_unknown_keys_silently=false;
