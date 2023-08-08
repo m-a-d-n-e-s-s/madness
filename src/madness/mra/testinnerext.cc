@@ -146,6 +146,15 @@ int test_partial_inner(World& world) {
     double g34=inner(g3,g4);
     double g44=inner(g4,g4);
 
+    {   // test unevenly refined functions
+        real_function_2d f12=real_factory_2d(world)
+                .functor([](const coord_2d& r) {
+                    return exp(-abs(r[0]-r[1]));
+                });
+
+        print("done with projection");
+        real_function_2d r = inner(f2, f12, {0}, {0});
+    }
     {
         real_function_2d r = inner(f2, f2, {0}, {1});
         double n=inner(f2,r);

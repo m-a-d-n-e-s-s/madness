@@ -5635,59 +5635,71 @@ namespace madness {
             FunctionImpl<Q,LDIM>& g_nc=const_cast<FunctionImpl<Q,LDIM>&>(g);
             FunctionImpl<R,KDIM>& h_nc=const_cast<FunctionImpl<R,KDIM>&>(h);
 
+            std::list<contractionmapT> all_contraction_maps;
             for (int n=0; n<nmax; ++n) {
 
-                double wall0=wall_time();
-                auto [g_ijlist, g_jlist] = g.get_contraction_node_lists(n,v1);
-                auto [h_ijlist, h_jlist] = h.get_contraction_node_lists(n,v2);
-                if ((g_ijlist.size()==0) and (h_ijlist.size()==0)) break;
-                double wall1=wall_time();
-                wall_get_lists+=(wall1-wall0);
-                wall0=wall1;
+                // list of nodes with d coefficients (and their parents)
+                double wall0 = wall_time();
+                auto [g_ijlist, g_jlist] = g.get_contraction_node_lists(n, v1);
+                auto [h_ijlist, h_jlist] = h.get_contraction_node_lists(n, v2);
+                if ((g_ijlist.size() == 0) and (h_ijlist.size() == 0)) break;
+                double wall1 = wall_time();
+                wall_get_lists += (wall1 - wall0);
+                wall0 = wall1;
 //                print("g_jlist");
 //                for (const auto& kv : g_jlist) print(kv.first,kv.second);
 //                print("h_jlist");
 //                for (const auto& kv : h_jlist) print(kv.first,kv.second);
 
-                bool this_first=false;  // are the remaining indices of g before those of g: f(x,z) = g(x,y) h(y,z)
+                // next lines will insert s nodes into g and h -> possible race condition!
+                bool this_first = true;  // are the remaining indices of g before those of g: f(x,z) = g(x,y) h(y,z)
                 // CDIM, NDIM, KDIM
-                contractionmapT contraction_map=g_nc.recur_down_for_contraction_map(
+                contractionmapT contraction_map = g_nc.recur_down_for_contraction_map(
                         g_nc.key0(), g_nc.get_coeffs().find(g_nc.key0()).get()->second, v1, v2,
                         h_ijlist, h_jlist, this_first, thresh);
 
-                this_first=true;
+                this_first = false;
                 // CDIM, NDIM, LDIM
-                contractionmapT contraction_map1=h_nc.recur_down_for_contraction_map(
-                        h_nc.key0(), h_nc.get_coeffs().find(h_nc.key0()).get()->second, v2, v1,
+                auto hnode0=h_nc.get_coeffs().find(h_nc.key0()).get()->second;
+                contractionmapT contraction_map1 = h_nc.recur_down_for_contraction_map(
+                        h_nc.key0(), hnode0, v2, v1,
                         g_ijlist, g_jlist, this_first, thresh);
 
                 // will contain duplicate entries
                 contraction_map.merge(contraction_map1);
                 // turn multimap into a map of list
-                auto it=contraction_map.begin();
-                while (it!=contraction_map.end()) {
-                    auto it_end=contraction_map.upper_bound(it->first);
-                    auto it2=it;
+                auto it = contraction_map.begin();
+                while (it != contraction_map.end()) {
+                    auto it_end = contraction_map.upper_bound(it->first);
+                    auto it2 = it;
                     it2++;
-                    while (it2!=it_end) {
-                        it->second.splice(it->second.end(),it2->second);
-                        it2=contraction_map.erase(it2);
+                    while (it2 != it_end) {
+                        it->second.splice(it->second.end(), it2->second);
+                        it2 = contraction_map.erase(it2);
                     }
-                    it=it_end;
+                    it = it_end;
                 }
 
                 // remove all double entries
-                for (auto& elem : contraction_map) {
+                for (auto& elem: contraction_map) {
                     elem.second.sort();
                     elem.second.unique();
                 }
-                wall1=wall_time();
-                wall_recur+=(wall1-wall0);
+                wall1 = wall_time();
+                wall_recur += (wall1 - wall0);
 //                if (n==2) {
 //                    print("contraction map for n=", n);
 //                    print_map(contraction_map);
 //                }
+                all_contraction_maps.push_back(contraction_map);
 
+                long mapsize=contraction_map.size();
+                if (mapsize==0) break;
+            }
+
+
+            // finally do the contraction
+            for (const auto& contraction_map : all_contraction_maps) {
                 for (const auto& key_list : contraction_map) {
                     const Key<NDIM>& key=key_list.first;
                     const std::list<Key<CDIM>>& list=key_list.second;
@@ -5770,6 +5782,9 @@ namespace madness {
             std::multimap<Key<FDIM>, std::list<Key<CDIM>>> contraction_map;
             std::size_t level=key.level();
 
+            // fast return if the other function has no d coeffs
+            if (j_other_list.empty()) return contraction_map;
+
             // continue recursion if this node may be contracted with the j column
             // extract relevant node translations from this node
             const auto j_this_key=key.extract_key(v_this);
@@ -5779,7 +5794,7 @@ namespace madness {
             const bool sd_norm_product_large = node.get_snorm() * max_d_norm > thresh;
 //            print("sd_product_norm",node.get_snorm() * max_d_norm, thresh);
 
-            // stop if we have reached the final scale n
+            // end recursion if we have reached the final scale n
             // with which nodes from other will this node be contracted?
             bool final_scale=key.level()==ij_other_list.begin()->level();
             if (final_scale and sd_norm_product_large) {
@@ -5802,7 +5817,7 @@ namespace madness {
             if (not continue_recursion) return contraction_map;
 
 
-            // continue recusion if norms are large
+            // continue recursion if norms are large
             continue_recursion = (node.has_children() or sd_norm_product_large);
 
             if (continue_recursion) {

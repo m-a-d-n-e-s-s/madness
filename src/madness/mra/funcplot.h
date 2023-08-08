@@ -614,7 +614,7 @@ namespace madness {
     /// @param[in]	name		the output name
     template<size_t NDIM>
     void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfunction,
-    		const std::string name) {
+    		const std::string name, const std::string inputfile="input") {
 
 		if (world.size()>1) return;
         // determine the ploting plane
@@ -634,7 +634,7 @@ namespace madness {
         Vector<double,NDIM> origin(0.0);
 
         try {
-            std::ifstream f("input");
+            std::ifstream f(inputfile);
             position_stream_to_word(f, "plot",'#',true,true);
             std::string s;
             while (f >> s) {
@@ -653,7 +653,7 @@ namespace madness {
                 }
             }
         } catch (...) {
-            print("can't locate plot in file input -- using default values");
+            print("can't locate plot in file="+inputfile+" -- using default values");
         }
     	double scale=1.0/zoom;
     	coord=origin;
@@ -818,45 +818,16 @@ namespace madness {
     template<size_t NDIM>
     typename std::enable_if<NDIM==3,void>::type
     plot_cubefile(World& world, const Function<double,NDIM>& f, std::string filename,
-            std::vector<std::string> molecular_info=std::vector<std::string>()) {
+            std::vector<std::string> molecular_info=std::vector<std::string>(), int npoints=100, double zoom=1.0) {
 
         if (world.size()>1) return;
-        // determine the ploting plane
-        std::string c1="x1", c2="x2";
 
         // dummy atom in the center
         if (molecular_info.size()==0)
         	molecular_info=std::vector<std::string>(1,"0 0 0.0 0.0 0.0\n");
 
-        // zoom factor
-        double zoom=8.0;
-
-        // number of points in each direction
-        int npoints=100;
-
         // the coordinates to be plotted
         Vector<double,NDIM> origin(0.0);
-
-        try {
-            std::ifstream f("input");
-            position_stream_to_word(f, "plot",'#',true,true);
-            std::string s;
-            while (f >> s) {
-                if (s == "end") {
-                    break;
-                } else if (s == "plane") {
-                    f >> c1 >> c2;
-                } else if (s == "zoom") {
-                    f >> zoom;
-                } else if (s == "points") {
-                    f >> npoints;
-                } else if (s == "origin") {
-                    for (std::size_t i=0; i<NDIM; ++i) f >> origin[i];
-                }
-            }
-        } catch (...) {
-            print("can't locate plot in file input -- using default values");
-        }
 
         // number of points in each direction
         std::vector<int> npt(3,npoints);
