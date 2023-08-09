@@ -117,36 +117,38 @@ struct data {
 
 data data1;
 
-template<typename T, std::size_t NDIM>
+template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
 class LowRank {
 public:
 
     struct LRFunctor {
         LRFunctor() = default;
 
-        Function<T, 2 * NDIM> f;
-        std::shared_ptr<SeparatedConvolution<T,NDIM>> f12;
-        Function<T,NDIM> a,b;
+        Function<T, NDIM> f;
+        std::shared_ptr<SeparatedConvolution<T,LDIM>> f12;
+        Function<T,LDIM> a,b;
     };
 
     World& world;
-    std::vector<Function<T,NDIM>> g,h;
+    std::vector<Function<T,LDIM>> g,h;
     LRFunctor lrfunctor;
 
+    LowRank(World& world) : world(world) {};
+
     /// construct from the hi-dim function f
-    LowRank(const Function<T,2*NDIM>& f) : world(f.world()) {
+    LowRank(const Function<T,NDIM>& f) : world(f.world()) {
         lrfunctor.f=f;
     }
 
     /// construct from the hi-dim function  f12*a(1)(b(2)
-    LowRank(const std::shared_ptr<SeparatedConvolution<T,NDIM>> f12, const Function<T,NDIM>& a,
-            const Function<T,NDIM>& b) : world(a.world) {
+    LowRank(const std::shared_ptr<SeparatedConvolution<T,LDIM>> f12, const Function<T,LDIM>& a,
+            const Function<T,LDIM>& b) : world(a.world) {
         lrfunctor.a=a;
         lrfunctor.b=b;
         lrfunctor.f12=f12;
     }
 
-    LowRank(std::vector<Function<T,NDIM>> g, std::vector<Function<T,NDIM>> h)
+    LowRank(std::vector<Function<T,LDIM>> g, std::vector<Function<T,LDIM>> h)
             : world(g.front().world()), g(g), h(h) {}
 
     LowRank(const LowRank& a) : world(a.world), g(copy(world,a.g)), h(copy(world,a.h)) {} // Copy constructor necessary
@@ -172,7 +174,7 @@ public:
         return LowRank(g*a,h);
     }
 
-    LowRank multiply(const std::vector<Function<T,NDIM>>& vec, const long particle) {
+    LowRank multiply(const std::vector<Function<T,LDIM>>& vec, const long particle) {
         auto result=*this;  // deep copy
         if (particle==0) result.g=g*vec;
         if (particle==1) result.h=h*vec;
@@ -187,17 +189,17 @@ public:
     /// Y_i(1) = \int f(1,2) Omega_i(2) d2 && g_i(1) = QR(Y_i(1)) && h_i(2) = \int g_i^*(1) f(1,2) d1
     void project(const long rank, const double radius=3.0) {
         timer t1(world);
-        std::vector<Function<double,NDIM>> omega2(rank);
+        std::vector<Function<double,LDIM>> omega2(rank);
         for (long i=0; i<rank; ++i) {
-            omega2[i]=FunctionFactory<double,NDIM>(world).functor(randomgaussian<NDIM>(RandomValue<double>()+3,radius));
+            omega2[i]=FunctionFactory<double,LDIM>(world).functor(randomgaussian<LDIM>(RandomValue<double>()+3,radius));
         }
         t1.tag("projection 1D functions");
 
-        std::vector<Function<double,NDIM>> Y(rank);
+        std::vector<Function<double,LDIM>> Y(rank);
 
-        if constexpr (NDIM==1) for (int i=0; i<rank; ++i) Y[i]=inner(lrfunctor.f,omega2[i],{1},{0});
-        if constexpr (NDIM==2) for (int i=0; i<rank; ++i) Y[i]=inner(lrfunctor.f,omega2[i],{2,3},{0,1});
-        if constexpr (NDIM==3) for (int i=0; i<rank; ++i) Y[i]=inner(lrfunctor.f,omega2[i],{3,4,5},{0,1,2});
+        if constexpr (LDIM==1) for (int i=0; i<rank; ++i) Y[i]=inner(lrfunctor.f,omega2[i],{1},{0});
+        if constexpr (LDIM==2) for (int i=0; i<rank; ++i) Y[i]=inner(lrfunctor.f,omega2[i],{2,3},{0,1});
+        if constexpr (LDIM==3) for (int i=0; i<rank; ++i) Y[i]=inner(lrfunctor.f,omega2[i],{3,4,5},{0,1,2});
         t1.tag("Yforming");
         print("Y.size()",Y.size());
 
@@ -205,16 +207,16 @@ public:
         print("g.size()",g.size());
         t1.tag("Y orthonormalizing");
         h.resize(g.size());
-        if constexpr (NDIM==1) for (int i=0; i<g.size(); ++i) h[i]=inner(lrfunctor.f,g[i],{0},{0});
-        if constexpr (NDIM==2) for (int i=0; i<g.size(); ++i) h[i]=inner(lrfunctor.f,g[i],{0,1},{0,1});
-        if constexpr (NDIM==3) for (int i=0; i<g.size(); ++i) h[i]=inner(lrfunctor.f,g[i],{0,1,2},{0,1,2});
+        if constexpr (LDIM==1) for (int i=0; i<g.size(); ++i) h[i]=inner(lrfunctor.f,g[i],{0},{0});
+        if constexpr (LDIM==2) for (int i=0; i<g.size(); ++i) h[i]=inner(lrfunctor.f,g[i],{0,1},{0,1});
+        if constexpr (LDIM==3) for (int i=0; i<g.size(); ++i) h[i]=inner(lrfunctor.f,g[i],{0,1,2},{0,1,2});
         t1.tag("Y backprojection");
 
     }
 
     long rank() const {return g.size();}
 
-    Function<T,2*NDIM> reconstruct() const {
+    Function<T,NDIM> reconstruct() const {
         auto fapprox=hartree_product(g[0],h[0]);
         for (int i=1; i<g.size(); ++i) fapprox+=hartree_product(g[i],h[i]);
         return fapprox;
@@ -228,8 +230,8 @@ public:
          *           = |g_ortho> gg hh <h_ortho |
          *           = |g_ortho> U s VT <h_ortho |
          */
-        std::vector<Function<T,NDIM>> g_ortho=orthonormalize_canonical(g,1.e-8);
-        std::vector<Function<T,NDIM>> h_ortho=orthonormalize_canonical(h,1.e-8);
+        std::vector<Function<T,LDIM>> g_ortho=orthonormalize_canonical(g,1.e-8);
+        std::vector<Function<T,LDIM>> h_ortho=orthonormalize_canonical(h,1.e-8);
         auto gg=matrix_inner(world,g_ortho,g);
         auto hh=matrix_inner(world,h,h_ortho);
         auto ovlp=inner(gg,hh);
@@ -264,17 +266,18 @@ public:
         timer t(world);
         auto s=orthonormalize(true);
         for (int iopt=0; iopt<nopt; ++iopt) {
-            std::vector<Function<double,NDIM>> htmp(g.size()), gtmp(g.size());
+            std::vector<Function<double,LDIM>> gtmp(g.size());
             for (int j=0; j<g.size(); ++j) {
-                if constexpr (NDIM == 1) gtmp[j] = 1.0 / s[j] * inner(lrfunctor.f, h[j], {1}, {0});
-                if constexpr (NDIM == 2) gtmp[j] = 1.0 / s[j] * inner(lrfunctor.f, h[j], {2, 3}, {0, 1});
-                if constexpr (NDIM == 3) gtmp[j] = 1.0 / s[j] * inner(lrfunctor.f, h[j], {3, 4, 5}, {0, 1, 2});
+                if constexpr (LDIM == 1) gtmp[j] = 1.0 / s[j] * inner(lrfunctor.f, h[j], {1}, {0});
+                if constexpr (LDIM == 2) gtmp[j] = 1.0 / s[j] * inner(lrfunctor.f, h[j], {2, 3}, {0, 1});
+                if constexpr (LDIM == 3) gtmp[j] = 1.0 / s[j] * inner(lrfunctor.f, h[j], {3, 4, 5}, {0, 1, 2});
             }
             g=orthonormalize_canonical(gtmp,1.e-12);
+            std::vector<Function<double,LDIM>> htmp(g.size());
             for (int j=0; j<g.size(); ++j) {
-                if constexpr (NDIM==1) htmp[j]=inner(lrfunctor.f,g[j],{0},{0});
-                if constexpr (NDIM==2) htmp[j]=inner(lrfunctor.f,g[j],{0,1},{0,1});
-                if constexpr (NDIM==3) htmp[j]=inner(lrfunctor.f,g[j],{0,1,2},{0,1,2});
+                if constexpr (LDIM==1) htmp[j]=inner(lrfunctor.f,g[j],{0},{0});
+                if constexpr (LDIM==2) htmp[j]=inner(lrfunctor.f,g[j],{0,1},{0,1});
+                if constexpr (LDIM==3) htmp[j]=inner(lrfunctor.f,g[j],{0,1,2},{0,1,2});
             }
             h=htmp;
 
@@ -298,7 +301,7 @@ public:
     }
 
     double error() const {
-        if (NDIM<3) return explicit_error();
+        if (LDIM<3) return explicit_error();
         else return randomized_error();
     }
 
@@ -310,6 +313,38 @@ template<typename T, std::size_t NDIM>
 double inner(const LowRank<T,NDIM>& a, const LowRank<T,NDIM>& b) {
     World& world=a.world;
     return (matrix_inner(world,a.g,b.g).emul(matrix_inner(world,a.h,b.h))).sum();
+}
+
+
+
+template<typename T, std::size_t NDIM>
+LowRank<T,NDIM> inner(const Function<T,NDIM>& lhs, const LowRank<T,NDIM>& rhs, const std::tuple<int> v1, const std::tuple<int> v2) {
+    World& world=rhs.world;
+    // int lhs(1,2) rhs(2,3) d2 = \sum \int lhs(1,2) g_i(2) h_i(3) d2
+    //                      = \sum \int lhs(1,2) g_i(2) d2 h_i(3)
+    LowRank<T,NDIM+NDIM-2> result(world);
+    result.h=rhs.h;
+    decltype(rhs.g) g;
+    for (int i=0; i<rhs.rank(); ++i) {
+        g.push_back(inner(lhs,rhs.g[i],{v1},{0}));
+    }
+    result.g=g;
+    return result;
+}
+
+template<typename T, std::size_t NDIM>
+LowRank<T,NDIM> inner(const LowRank<T,NDIM>& f, const Function<T,NDIM>& g, const std::tuple<int> v1, const std::tuple<int> v2) {
+    World& world=f.world;
+    // int f(1,2) k(2,3) d2 = \sum \int g_i(1) h_i(2) k(2,3) d2
+    //                      = \sum g_i(1) \int h_i(2) k(2,3) d2
+    LowRank<T,NDIM+NDIM-2> result(world);
+    result.g=f.g;
+    decltype(f.h) h;
+    for (int i=0; i<f.rank(); ++i) {
+        h.push_back(inner(f.h[i],g,{0},{v2}));
+    }
+    result.h=h;
+    return result;
 }
 
 
@@ -353,6 +388,7 @@ int test_lowrank_function(World& world) {
 
     constexpr std::size_t LDIM=1;
     constexpr std::size_t NDIM=2*LDIM;
+    print("eps, k, NDIM",FunctionDefaults<NDIM>::get_thresh(),FunctionDefaults<NDIM>::get_k(),NDIM);
 
     Function<double,NDIM> f12=FunctionFactory<double,NDIM>(world).functor([&LDIM](const Vector<double,NDIM>& r)
         {
@@ -381,18 +417,45 @@ int test_lowrank_function(World& world) {
             }
             return exp(-(r2).normf());//* exp(-0.2*inner(r1,r1));
         });
+    Function<double,NDIM> one=FunctionFactory<double,NDIM>(world)
+            .functor([&LDIM](const Vector<double,NDIM>& r){ return 1.0; });
 
     // f(1,2) = f12 * phi(1) * phi(2)
-//    Function<double,NDIM> f = phi0*phi1;
-//    f= f *f12;
+    Function<double,NDIM> f = phi0*phi1 *f12;
+    print("lhs = phi0 * phi1; rhs=phi0*f12");
+    auto lhs=phi0*phi1;
+    auto rhs=phi0*f12;
+    auto rhsnorm=rhs.norm2();
 
-    double norm=f12.norm2();
-    print("norm",norm);
+
     phi0.reconstruct();
     f12.reconstruct();
-    Function<double,NDIM> reference=inner(phi0,f12,{0},{0});
-    return 0;
+    Function<double,NDIM> reference=inner(lhs,rhs,{0},{0});
+    LowRank<double,NDIM> lrf(rhs);
+    lrf.project(50,3.0);
+    lrf.optimize();
 
+    double ferror=lrf.error();
+    print("fnorm, error, rel. error",rhsnorm,ferror,ferror/rhsnorm);
+
+
+    auto result=inner(lhs,lrf,{0},{0});
+    double refnorm=reference.norm2();
+
+    auto reconstruct=result.reconstruct();
+    auto diff=reference-reconstruct;
+
+    double resultnorm=reconstruct.norm2();
+    double diffnorm=diff.norm2();
+    print("refnorm, resultnorm ",refnorm, resultnorm);
+    print("resultnorm, error, rel. error",resultnorm,diffnorm,diffnorm/resultnorm);
+    print("final - one: k,thresh ",FunctionDefaults<2>::get_k(),FunctionDefaults<2>::get_thresh(),
+          ferror/rhsnorm, diffnorm/resultnorm);
+    print("\n");
+
+    plot<NDIM>({reference, reconstruct, diff}, "f_and_approx", std::vector<std::string>({"adsf", "asdf", "diff"}));
+
+//    return 0;
     if (0) {
         Function<double,NDIM> f;
         double fnorm = f.norm2();
@@ -402,7 +465,7 @@ int test_lowrank_function(World& world) {
         long rank = 50;
         double radius = 5.0;
 
-        LowRank<double, LDIM> lr(copy(f));
+        LowRank<double, NDIM> lr(copy(f));
         lr.project(rank, radius);
         double err = lr.error();
         print("error in f_approx", err);
@@ -435,6 +498,7 @@ int test_lowrank_function(World& world) {
                        std::vector<std::string>({"adsf", "asdf", "diff"}));
             t1.checkpoint(true, "plotting");
         }
+
 
         /// int f(1,2) f12(2,3) d2
         f12.print_tree();
@@ -1313,20 +1377,31 @@ int main(int argc, char **argv) {
     madness::World& world = madness::initialize(argc, argv);
     startup(world, argc, argv);
     commandlineparser parser(argc, argv);
+    int k = parser.key_exists("k") ? std::atoi(parser.value("k").c_str()) : 6;
+    double thresh  = parser.key_exists("thresh") ? std::stod(parser.value("thresh")) : 1.e-4;
     FunctionDefaults<6>::set_tensor_type(TT_2D);
+
+    FunctionDefaults<1>::set_thresh(thresh);
+    FunctionDefaults<2>::set_thresh(thresh);
+    FunctionDefaults<3>::set_thresh(thresh);
+    FunctionDefaults<4>::set_thresh(thresh);
+    FunctionDefaults<5>::set_thresh(thresh);
     FunctionDefaults<6>::set_thresh(1.e-3);
-    FunctionDefaults<3>::set_thresh(1.e-5);
-    FunctionDefaults<3>::set_cubic_cell(-1.0,1.0);
-    FunctionDefaults<6>::set_cubic_cell(-1.0,1.0);
-    FunctionDefaults<1>::set_thresh(1.e-5);
+
+    FunctionDefaults<1>::set_k(k);
+    FunctionDefaults<2>::set_k(k);
+    FunctionDefaults<3>::set_k(k);
+    FunctionDefaults<4>::set_k(k);
+    FunctionDefaults<5>::set_k(k);
+    FunctionDefaults<6>::set_k(k);
+
     FunctionDefaults<1>::set_cubic_cell(-10.,10.);
-    FunctionDefaults<2>::set_thresh(1.e-4);
     FunctionDefaults<2>::set_cubic_cell(-10.,10.);
-    FunctionDefaults<2>::set_tensor_type(TT_FULL);
-    FunctionDefaults<3>::set_thresh(1.e-4);
     FunctionDefaults<3>::set_cubic_cell(-10.,10.);
-    FunctionDefaults<4>::set_thresh(1.e-4);
     FunctionDefaults<4>::set_cubic_cell(-10.,10.);
+    FunctionDefaults<6>::set_cubic_cell(-1.0,1.0);
+
+    FunctionDefaults<2>::set_tensor_type(TT_FULL);
     print("numerical parameters: k, eps(3D), eps(6D)", FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(),
           FunctionDefaults<6>::get_thresh());
     int isuccess=0;
@@ -1339,7 +1414,7 @@ int main(int argc, char **argv) {
         mol.print();
         CCParameters ccparam(world, parser);
 
-        data1=data(world,ccparam);
+//        data1=data(world,ccparam);
 
         std::shared_ptr<NuclearCorrelationFactor> ncf = create_nuclear_correlation_factor(world,
                          mol, nullptr, std::make_pair("slater", 2.0));
