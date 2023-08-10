@@ -49,9 +49,28 @@ namespace madness {
                 return (f12.get());
             }
         };
+
         template<std::size_t PDIM>
         struct particle {
             std::array<int,PDIM> dims;
+
+            /// default constructor
+            particle() = default;
+
+            /// convenience for particle 1 (the left/first particle)
+            static particle particle1() {
+                particle p;
+                for (int i=0; i<PDIM; ++i) p.dims[i]=i;
+                return p;
+            }
+            /// convenience for particle 2 (the right/second particle)
+            static particle particle2() {
+                particle p;
+                for (int i=0; i<PDIM; ++i) p.dims[i]=i+PDIM;
+                return p;
+            }
+
+
             particle(const int p) : particle(std::vector<int>(1,p)) {}
             particle(const int p1, const int p2) : particle(std::vector<int>({p1,p2})) {}
             particle(const int p1, const int p2,const int p3) : particle(std::vector<int>({p1,p2,p3})) {}
@@ -76,6 +95,7 @@ namespace madness {
             typename std::enable_if_t<DUMMYDIM==3, std::tuple<int,int,int>>
             get_tuple() const {return std::tuple<int,int,int>(dims[0],dims[1],dims[2]);}
         };
+
 
         /// inner product: result(1) = \int f(1,2) rhs(2) d2
 
@@ -115,17 +135,19 @@ namespace madness {
         World& world;
         std::vector<Function<T,LDIM>> g,h;
         LRFunctor lrfunctor;
+        particle<LDIM> p1=particle<LDIM>::particle1();
+        particle<LDIM> p2=particle<LDIM>::particle2();
 
-        LowRank(World& world) : world(world) {};
+        LowRank(World& world) : world(world) {}
 
         /// construct from the hi-dim function f
-        LowRank(const Function<T,NDIM>& f) : world(f.world()) {
+        LowRank(const Function<T,NDIM>& f) : LowRank(f.world()) {
             lrfunctor.f=f;
         }
 
         /// construct from the hi-dim function  f12*a(1)(b(2)
         LowRank(const std::shared_ptr<SeparatedConvolution<T,LDIM>> f12, const Function<T,LDIM>& a,
-                const Function<T,LDIM>& b) : world(a.world()) {
+                const Function<T,LDIM>& b) : LowRank(a.world()) {
             lrfunctor.a=a;
             lrfunctor.b=b;
             lrfunctor.f12=f12;
@@ -174,27 +196,20 @@ namespace madness {
             timer t1(world);
             std::vector<Function<double,LDIM>> omega2(rank);
             for (long i=0; i<rank; ++i) {
-                omega2[i]=FunctionFactory<double,LDIM>(world).functor(randomgaussian<LDIM>(RandomValue<double>()+3,radius));
+                omega2[i]=FunctionFactory<double,LDIM>(world).functor(randomgaussian<LDIM>(RandomValue<double>()+5,radius));
             }
-            t1.tag("projection 1D functions");
+            t1.tag("projection lowdim functions");
 
-            std::vector<Function<double,LDIM>> Y(rank);
-
-            if constexpr (LDIM==1)  Y=inner(lrfunctor,omega2,{1},{0});
-            if constexpr (LDIM==2)  Y=inner(lrfunctor,omega2,{2,3},{0,1});
-            if constexpr (LDIM==3)  Y=inner(lrfunctor,omega2,{3,4,5},{0,1,2});
+            auto Y=inner(lrfunctor,omega2,p2,p1);
             t1.tag("Yforming");
-            print("Y.size()",Y.size());
 
-//            g=orthonormalize_canonical(Y,1.e-12);
             g=orthonormalize_rrcd(Y,1.e-12);
-            print("g.size()",g.size());
             t1.tag("Y orthonormalizing");
-            h.resize(g.size());
-            if constexpr (LDIM==1) h=inner(lrfunctor,g,{0},{0});
-            if constexpr (LDIM==2) h=inner(lrfunctor,g,{0,1},{0,1});
-            if constexpr (LDIM==3) h=inner(lrfunctor,g,{0,1,2},{0,1,2});
 
+            print("Y.size()",Y.size());
+            print("g.size()",g.size());
+
+            h=inner(lrfunctor,g,p1,p1);
             t1.tag("Y backprojection");
 
         }
@@ -220,9 +235,9 @@ namespace madness {
              *           = |g_ortho> gg hh <h_ortho |
              *           = |g_ortho> U s VT <h_ortho |
              */
-            std::vector<Function<T,LDIM>> g_ortho=orthonormalize_canonical(g,1.e-8);
+            std::vector<Function<T,LDIM>> g_ortho=orthonormalize_rrcd(g,1.e-8);
             t.tag("ortho1");
-            std::vector<Function<T,LDIM>> h_ortho=orthonormalize_canonical(h,1.e-8);
+            std::vector<Function<T,LDIM>> h_ortho=orthonormalize_rrcd(h,1.e-8);
             t.tag("ortho2");
             auto gg=matrix_inner(world,g_ortho,g);
             auto hh=matrix_inner(world,h,h_ortho);
@@ -231,6 +246,7 @@ namespace madness {
             Tensor<double> s;
             svd(ovlp,U,s,VT);
             auto V=transpose(VT);
+
 
             t.tag("svd");
             g=transform(world,g_ortho,U);
@@ -253,23 +269,49 @@ namespace madness {
              */
             World& world=g.front().world();
 
-            auto g_ortho= orthonormalize_cd(g);
+            auto g_ortho= orthonormalize_rrcd(g,1.e-10);
 //        auto g_ortho= orthonormalize_canonical(g,1.e-8);      // similar to SVD
 //        auto g_ortho= orthonormalize_symmetric(g);
 
             auto ovlp=matrix_inner(world,g_ortho,g_ortho);
             for (int i=0; i<ovlp.dim(0); ++i) ovlp(i,i)-=1.0;
-            MADNESS_CHECK(fabs(ovlp.normf()/ovlp.size()<1.e-12));
+            MADNESS_CHECK(fabs(ovlp.normf()/ovlp.size()<1.e-10));
 
             Tensor<double> gg=matrix_inner(world,g_ortho,g);
             /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
-            h=transform(world,h,transpose(gg));
-            g=g_ortho;
+            h=truncate(transform(world,h,transpose(gg)));
+            g=truncate(g_ortho);
+
         }
 
-
-            /// assumes g and h to be orthonormal -> simple projection
         void optimize(const long nopt=2) {
+            optimize_cd(nopt);
+        }
+
+        /// optimize using Cholesky decomposition
+        void optimize_cd(const long nopt) {
+
+            timer t(world);
+            for (int iopt=0; iopt<nopt; ++iopt) {
+//                this->orthonormalize_cd();      // g orthonormal, h not
+                t.tag("ortho1");
+                auto gtmp=inner(lrfunctor,h,p2,p1);
+                t.tag("inner1");
+                g=orthonormalize_rrcd(gtmp,1.e-12);
+                t.tag("ortho2");
+                h=inner(lrfunctor,g,p1,p1);
+                t.tag("inner2");
+
+                if (iopt%2==1) {
+                    double err=error();
+                    print("optimization iteration",iopt,", error in f_approx_opt",err);
+                }
+            }
+            t.tag("optimize");
+        }
+
+        /// assumes g and h to be orthonormal -> simple projection
+        void optimize_svd(const long nopt=2) {
 
             timer t(world);
             for (int iopt=0; iopt<nopt; ++iopt) {

@@ -142,19 +142,22 @@ int test_lowrank_function3(World& world) {
     constexpr std::size_t NDIM=2*LDIM;
     print("eps, k, NDIM",FunctionDefaults<NDIM>::get_thresh(),FunctionDefaults<NDIM>::get_k(),NDIM);
 
-    Function<double,LDIM> phi=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r)
+    Function<double,LDIM> phi1=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r)
             { return exp(-r.normf());});
+    Function<double,LDIM> phi2=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r)
+                                                                           { return exp(-2.0*r.normf());});
+
     std::shared_ptr<real_convolution_3d> f12(SlaterOperatorPtr(world,1.0,1.e-6,FunctionDefaults<LDIM>::get_thresh()));
 
-    LowRank<double,6> lrf(f12,copy(phi),copy(phi));
-    lrf.project(300,2.0);
-    lrf.optimize(1);
+    LowRank<double,6> lrf(f12,copy(phi1),copy(phi2));
+    lrf.project(500,3.0);
+    lrf.optimize(2);
 
     // compare
     // \phi(1) \bar \phi(1) = \int phi(1) \phi(2) f(1,2) d2
     //       = \int \sum_r\phi(1) g_r(1) h_r(2) \phi(2) d2
     //       = \phi(1) \sum_r g_r(1) <\phi|h_r>
-    auto reference = phi* (*f12)(phi);
+    auto reference = phi1* (*f12)(phi2);
     real_function_3d result=real_factory_3d(world);
     for (int r=0; r<lrf.rank(); ++r) result+=lrf.g[r]*lrf.h[r].trace();
     auto diff=reference-result;
@@ -163,6 +166,8 @@ int test_lowrank_function3(World& world) {
     double resultnorm=result.norm2();
     double error=diff.norm2();
     print("refnorm, resultnorm, abs. error, rel. error",refnorm, resultnorm, error, error/refnorm);
+
+    plot<LDIM>({reference, result, diff}, "f_and_approx", std::vector<std::string>({"adsf", "asdf", "diff"}));
 
 
 
