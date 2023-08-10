@@ -25,6 +25,7 @@ set(MADCHEM_HEADERS
     gth_pseudopotential.h
     GuessFactory.h
     localizer.h
+    lowrankfunction.h
     masks_and_boxes.h
     molecularbasis.h
     molecular_functors.h

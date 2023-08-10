@@ -11,6 +11,7 @@
 #include<madness/chem/CCPotentials.h>
 #include<madness/chem/projector.h>
 #include<madness/chem/localizer.h>
+#include<madness/chem/lowrankfunction.h>
 
 #include<madness/world/test_utilities.h>
 #include <random>
@@ -657,7 +658,7 @@ int test_lowrank_function(World& world) {
     madness::default_random_generator.setstate(int(cpu_time())%4149);
 
     print("");
-    constexpr std::size_t LDIM=1;
+    constexpr std::size_t LDIM=3;
     long n_per_dim=10;
     double radius=2.0;
     long ntrial=120;
@@ -687,11 +688,11 @@ int test_lowrank_function(World& world) {
     Function<double,LDIM> phi1=copy(phi_slater);
     Function<double,LDIM> phi2=copy(one);
 
-//    auto f=hidim<double,LDIM>(world);
-    std::shared_ptr<real_convolution_3d> f12(SlaterOperatorPtr(world,1.0,1.e-6,FunctionDefaults<NDIM>::get_thresh()));
-    auto f=hidim_orbitals(f12,phi1,phi2);
+    auto f=hidim<double,LDIM>(world);
+//    std::shared_ptr<real_convolution_3d> f12(SlaterOperatorPtr(world,1.0,1.e-6,FunctionDefaults<NDIM>::get_thresh()));
+//    auto f=hidim_orbitals(f12,phi1,phi2);
 
-    plot_plane<2*LDIM>(world,f,"hidim_orbitals");
+//    plot_plane<2*LDIM>(world,f,"hidim_orbitals");
 
 
     double lo=-radius;
