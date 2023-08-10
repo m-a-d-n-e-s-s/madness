@@ -53,9 +53,16 @@ namespace madness {
         struct particle {
             std::array<int,PDIM> dims;
             particle(const int p) : particle(std::vector<int>(1,p)) {}
+            particle(const int p1, const int p2) : particle(std::vector<int>({p1,p2})) {}
+            particle(const int p1, const int p2,const int p3) : particle(std::vector<int>({p1,p2,p3})) {}
             particle(const std::vector<int> p) {
                 for (int i=0; i<PDIM; ++i) dims[i]=p[i];
             }
+
+            /// assuming two particles only
+            bool is_first() const {return dims[0]==0;}
+            /// assuming two particles only
+            bool is_last() const {return dims[0]==(PDIM);}
 
             template<std::size_t DUMMYDIM=PDIM>
             typename std::enable_if_t<DUMMYDIM==1, std::tuple<int>>
@@ -70,13 +77,38 @@ namespace madness {
             get_tuple() const {return std::tuple<int,int,int>(dims[0],dims[1],dims[2]);}
         };
 
+        /// inner product: result(1) = \int f(1,2) rhs(2) d2
+
+        /// @param[in]  functor the hidim function
+        /// @param[in]  rhs     the rhs
+        /// @param[in]  p1      the variable in f(1,2) to be integrated over
+        /// @param[in]  p2      the variable in rhs to be integrated over (usually all of them)
         static std::vector<Function<T,LDIM>> inner(LRFunctor& functor, const std::vector<Function<T,LDIM>>& rhs,
                                                    const particle<LDIM> p1, const particle<LDIM> p2) {
             std::vector<Function<T,LDIM>> result;
+            MADNESS_CHECK(functor.has_f() xor functor.has_f12());
+            MADNESS_CHECK(p1.is_first() xor p1.is_last());
+            MADNESS_CHECK(p2.is_first());
+
             if (functor.has_f()) {
                 for (const auto& r : rhs) result.push_back(madness::inner(functor.f,r,p1.get_tuple(),p2.get_tuple()));
-                return result;
+
+            } else if (functor.has_f12()) {
+                // functor is now a(1) b(2) f12
+                // result(1) = \int a(1) f(1,2) b(2) rhs(2) d2
+                World& world=rhs.front().world();
+                auto premultiply= p1.is_first() ? functor.a : functor.b;
+                auto postmultiply= p1.is_first() ? functor.b : functor.a;
+                auto tmp=copy(world,rhs);
+
+                if (premultiply.is_initialized()) tmp=tmp*premultiply;
+                result=apply(world,*(functor.f12),tmp);
+                if (postmultiply.is_initialized()) result=result*postmultiply;
+
+            } else {
+                MADNESS_EXCEPTION("confused functor in LowRankFunction",1);
             }
+            return result;
 
         }
 
@@ -93,7 +125,7 @@ namespace madness {
 
         /// construct from the hi-dim function  f12*a(1)(b(2)
         LowRank(const std::shared_ptr<SeparatedConvolution<T,LDIM>> f12, const Function<T,LDIM>& a,
-                const Function<T,LDIM>& b) : world(a.world) {
+                const Function<T,LDIM>& b) : world(a.world()) {
             lrfunctor.a=a;
             lrfunctor.b=b;
             lrfunctor.f12=f12;
@@ -154,7 +186,8 @@ namespace madness {
             t1.tag("Yforming");
             print("Y.size()",Y.size());
 
-            g=orthonormalize_canonical(Y,1.e-12);
+//            g=orthonormalize_canonical(Y,1.e-12);
+            g=orthonormalize_rrcd(Y,1.e-12);
             print("g.size()",g.size());
             t1.tag("Y orthonormalizing");
             h.resize(g.size());
@@ -174,8 +207,13 @@ namespace madness {
             return fapprox;
         }
 
-        /// @return     the singular values s
         Tensor<double> orthonormalize(const bool s_in_h) {
+            return orthonormalize_svd(s_in_h);
+        }
+
+
+        /// @return     the singular values s
+        Tensor<double> orthonormalize_svd(const bool s_in_h) {
             timer t(world);
             /**
              *  |g >< h| = |g_ortho><g_ortho | g> < h | h_ortho ><h_ortho |
@@ -183,7 +221,9 @@ namespace madness {
              *           = |g_ortho> U s VT <h_ortho |
              */
             std::vector<Function<T,LDIM>> g_ortho=orthonormalize_canonical(g,1.e-8);
+            t.tag("ortho1");
             std::vector<Function<T,LDIM>> h_ortho=orthonormalize_canonical(h,1.e-8);
+            t.tag("ortho2");
             auto gg=matrix_inner(world,g_ortho,g);
             auto hh=matrix_inner(world,h,h_ortho);
             auto ovlp=madness::inner(gg,hh);
@@ -192,23 +232,48 @@ namespace madness {
             svd(ovlp,U,s,VT);
             auto V=transpose(VT);
 
+            t.tag("svd");
             g=transform(world,g_ortho,U);
+            t.tag("transform1");
             h=transform(world,h_ortho,V);
+            t.tag("transform2");
 
 
             // include singular values into h
             if (s_in_h) for (int i=0; i<h.size(); ++i) h[i]*=s[i];
-            t.tag("orthonormalization");
+            t.end("orthonormalization");
             return s;
 
         }
+        void orthonormalize_cd() {
+            /**
+             *  |g >s< h| = |g_ortho><g_ortho | g> s < h |
+             *           = |g_ortho> gg s < h |
+             *           = |g_ortho> <h_non_ortho |
+             */
+            World& world=g.front().world();
 
-        /// assumes g and h to be orthonormal -> simple projection
+            auto g_ortho= orthonormalize_cd(g);
+//        auto g_ortho= orthonormalize_canonical(g,1.e-8);      // similar to SVD
+//        auto g_ortho= orthonormalize_symmetric(g);
+
+            auto ovlp=matrix_inner(world,g_ortho,g_ortho);
+            for (int i=0; i<ovlp.dim(0); ++i) ovlp(i,i)-=1.0;
+            MADNESS_CHECK(fabs(ovlp.normf()/ovlp.size()<1.e-12));
+
+            Tensor<double> gg=matrix_inner(world,g_ortho,g);
+            /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
+            h=transform(world,h,transpose(gg));
+            g=g_ortho;
+        }
+
+
+            /// assumes g and h to be orthonormal -> simple projection
         void optimize(const long nopt=2) {
 
             timer t(world);
-            auto s=orthonormalize(true);    // includes singular values in h -> not normalized any more
             for (int iopt=0; iopt<nopt; ++iopt) {
+                auto s=orthonormalize(true);    // includes singular values in h -> not normalized any more
                 std::vector<Function<double,LDIM>> gtmp(g.size());
                 /// remove singular values from h again -> normalized
                 if constexpr (LDIM == 1) gtmp= inner(lrfunctor, h, {1}, {0});
@@ -217,14 +282,15 @@ namespace madness {
                 std::vector<double> sinv(s.size());
                 for (int i=0; i<s.size(); ++i) sinv[i]=1.0/s[i];
                 scale(world,gtmp,sinv);
-                g=orthonormalize_canonical(gtmp,1.e-12);
+//                g=orthonormalize_canonical(gtmp,1.e-12);
+                g=orthonormalize_rrcd(gtmp,1.e-12);
                 std::vector<Function<double,LDIM>> htmp(g.size());
                 if constexpr (LDIM==1) htmp=inner(lrfunctor,g,{0},{0});
                 if constexpr (LDIM==2) htmp=inner(lrfunctor,g,{0,1},{0,1});
                 if constexpr (LDIM==3) htmp=inner(lrfunctor,g,{0,1,2},{0,1,2});
                 h=htmp;
 
-                if (g.size()>1) s=orthonormalize(true);
+//                if (g.size()>1) s=orthonormalize(true);
 
                 if (iopt%2==1) {
                     double err=error();

@@ -133,6 +133,43 @@ public:
     }
 };
 
+int test_lowrank_function3(World& world) {
+    test_output t1("CCPairFunction::low rank function");
+    t1.set_cout_to_terminal();
+    madness::default_random_generator.setstate(int(cpu_time())%4149);
+
+    constexpr std::size_t LDIM=3;
+    constexpr std::size_t NDIM=2*LDIM;
+    print("eps, k, NDIM",FunctionDefaults<NDIM>::get_thresh(),FunctionDefaults<NDIM>::get_k(),NDIM);
+
+    Function<double,LDIM> phi=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r)
+            { return exp(-r.normf());});
+    std::shared_ptr<real_convolution_3d> f12(SlaterOperatorPtr(world,1.0,1.e-6,FunctionDefaults<LDIM>::get_thresh()));
+
+    LowRank<double,6> lrf(f12,copy(phi),copy(phi));
+    lrf.project(300,2.0);
+    lrf.optimize(1);
+
+    // compare
+    // \phi(1) \bar \phi(1) = \int phi(1) \phi(2) f(1,2) d2
+    //       = \int \sum_r\phi(1) g_r(1) h_r(2) \phi(2) d2
+    //       = \phi(1) \sum_r g_r(1) <\phi|h_r>
+    auto reference = phi* (*f12)(phi);
+    real_function_3d result=real_factory_3d(world);
+    for (int r=0; r<lrf.rank(); ++r) result+=lrf.g[r]*lrf.h[r].trace();
+    auto diff=reference-result;
+
+    double refnorm=reference.norm2();
+    double resultnorm=result.norm2();
+    double error=diff.norm2();
+    print("refnorm, resultnorm, abs. error, rel. error",refnorm, resultnorm, error, error/refnorm);
+
+
+
+    return t1.end();
+
+}
+
 int test_lowrank_function(World& world) {
     test_output t1("CCPairFunction::low rank function");
     t1.set_cout_to_terminal();
@@ -1171,7 +1208,7 @@ int main(int argc, char **argv) {
         std::shared_ptr<NuclearCorrelationFactor> ncf = create_nuclear_correlation_factor(world,
                          mol, nullptr, std::make_pair("slater", 2.0));
 
-        isuccess+=test_lowrank_function(world);
+        isuccess+=test_lowrank_function3(world);
 //        isuccess+=test_constructor(world, ncf, mol, ccparam);
 //        isuccess+=test_operator_apply(world, ncf, mol, ccparam);
 //        isuccess+=test_transformations(world, ncf, mol, ccparam);

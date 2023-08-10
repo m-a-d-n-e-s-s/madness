@@ -556,7 +556,7 @@ namespace madness {
     	}
     	// compute overlap
     	World& world=v.front().world();
-    	Tensor<T> ovlp = matrix_inner(world, v, v);
+    	Tensor<T> ovlp = matrix_inner(world, v, v,true);
     	return orthonormalize_rrcd(v,ovlp,tol);
     }
 
