@@ -30,7 +30,7 @@ enum PairFormat { PT_UNDEFINED, PT_FULL, PT_DECOMPOSED, PT_OP_DECOMPOSED };
 
 /// structure for a CC Function 3D which holds an index and a type
 // the type is defined by the enum FuncType (definition at the start of this file)
-struct CCFunction {
+struct CCFunction : public archive::ParallelSerializableObject {
     CCFunction() : current_error(99), i(99), type(UNDEFINED) {};
 
     CCFunction(const real_function_3d& f) : current_error(99), function(f), i(99), type(UNDEFINED) {};
@@ -81,6 +81,11 @@ struct CCFunction {
     /// plotting
     void plot(const std::string& msg = "") const {
         plot_plane(function.world(), function, msg + name());
+    }
+
+    template<typename Archive>
+    void serialize(const Archive& ar) {
+        ar & type & i & current_error & function;
     }
 };
 

@@ -46,9 +46,8 @@ namespace madness {
 /// struct for running a protocol of subsequently tightening precision
 class SCFProtocol {
 public:
-    SCFProtocol(World& w, const CalculationParameters& param,
-            const std::string name, const bool restart)
-            : world(w), filename(name), restart(restart), converged(false),
+    SCFProtocol(World& w, const CalculationParameters& param)
+            : world(w), converged(false),
               start_prec(1.e-4), current_prec(start_prec), end_prec(param.econv()),
               thresh(1.e-4), econv(1.e-4), dconv(1.e-3), user_dconv(1.e-20) {
         user_dconv=param.dconv();
@@ -56,8 +55,6 @@ public:
 
     World& world;
 
-    std::string filename;   ///< name for the restart data file
-    bool restart;           ///< do a restart from file (if possible)
     bool converged;         ///< flag if protocol has converged
 
     double start_prec;      ///< starting precision, typically 1.e-4
@@ -74,27 +71,9 @@ public:
         // don't do anything if this protocol is already converged
         if (converged) return;
 
-        // try to read restart data file
-        if (restart) {
-            std::ifstream f(filename.c_str());
-            if(not f.fail()) {
-                std::string s, tag;
-                while (std::getline(f,s)) {
-                    std::istringstream ss(s);
-                    ss >> tag;
-                    if (tag=="start_prec") ss >> start_prec;
-                    if (tag=="end_prec") ss >> end_prec;
-                    if (tag=="current_prec") ss >> current_prec;
-                    if (tag=="econv") ss >> econv;
-                    if (tag=="dconv") ss >> dconv;
-                    if (tag=="thresh") ss >> thresh;
-                    if (tag=="user_dconv") ss >> user_dconv;
-                }
-            }
-        } else {
-            current_prec=start_prec;
-            infer_thresholds(current_prec);
-        }
+        current_prec=start_prec;
+        infer_thresholds(current_prec);
+
         if (world.rank()==0) {
             std::stringstream ss;
             ss <<"\nstarting protocol at time" << std::setw(8) << std::setprecision(2)
@@ -113,20 +92,9 @@ public:
             current_prec*=0.1;
             if (current_prec<end_prec) current_prec=end_prec;
             infer_thresholds(current_prec);
-//            if(world.rank()==0) print("protocol: thresh",thresh,"econv ",econv,"dconv",dconv);
         } else {
             converged=true;
         }
-
-        // update restart data on file
-        std::ofstream f(filename.c_str());
-        f << "start_prec " << start_prec << std::endl;;
-        f << "end_prec " << end_prec << std::endl;;
-        f << "current_prec " << current_prec << std::endl;;
-        f << "econv " << econv << std::endl;;
-        f << "dconv " << dconv << std::endl;;
-        f << "thresh " << thresh << std::endl;;
-        f << "user_dconv " << user_dconv << std::endl;;
 
         return *this;
     }

@@ -131,6 +131,7 @@ namespace madness {
 
         // if this is a Slater-type convolution kernel: 1-exp(-mu r12)/(2 mu)
         bool is_slaterf12;
+        bool print_timings=false;
         double mu_;
 
     private:

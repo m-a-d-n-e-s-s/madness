@@ -795,9 +795,9 @@ public:
     // update the intermediates
     void update_intermediates(const CC_vecfunction& t) {
         g12.update_elements(mo_bra_, t);
-        g12.sanity();
+//        g12.sanity();
         f12.update_elements(mo_bra_, t);
-        f12.sanity();
+//        f12.sanity();
     }
 
     /// clear stored potentials

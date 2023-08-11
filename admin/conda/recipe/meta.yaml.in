@@ -1,0 +1,11 @@
+{% set name = "madness" %}
+{% set version = "0.10.1" %}
+
+package:
+  name: "{{ name|lower }}"
+  version: "{{ version }}"
+
+
+source:
+  url: "@CMAKE_BINARY_DIR@/admin/conda/madness-conda.tar"
+

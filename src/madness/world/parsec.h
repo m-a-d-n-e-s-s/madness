@@ -13,13 +13,16 @@
 #include <parsec/scheduling.h>
 
 #include <iostream>
+#include <optional>
 
 namespace madness{
+
     class PoolTaskInterface;
 
     class ParsecRuntime {
     private:
         static parsec_context_t *ctx;
+        static std::optional<bool> made_new_ctx;
         static parsec_taskpool_t *tp;
         static parsec_execution_stream_t *madness_comm_thread_es;
 #ifdef PARSEC_PROF_TRACE
@@ -31,6 +34,7 @@ namespace madness{
         ~ParsecRuntime();
 
         static parsec_context_t* context();
+        static void initialize_with_existing_context(parsec_context_t* ctx);
         static parsec_execution_stream_t *execution_stream();
         static void schedule(PoolTaskInterface* task);
         static int test();
