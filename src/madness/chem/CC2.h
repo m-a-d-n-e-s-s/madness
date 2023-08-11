@@ -25,15 +25,6 @@ namespace madness {
 class CC2 : public OptimizationTargetInterface, public QCPropertyInterface {
 public:
 
-//    CC2(World& world_, const CCParameters& param, const std::shared_ptr<Nemo> nemo_)
-//            : world(world_),
-//              parameters(param),
-//              nemo(nemo_),
-//              CCOPS(world, nemo, parameters),
-//              output(CCOPS.output) {
-//        parameters.sanity_check(world);
-//    }
-
     CC2(World& world_, const commandlineparser& parser, const std::shared_ptr<Nemo> nemo_)
             : world(world_),
               parameters(world_,parser),
@@ -51,7 +42,7 @@ public:
 
         FunctionDefaults<3>::set_thresh(parameters.thresh_3D());
         FunctionDefaults<6>::set_thresh(parameters.thresh_6D());
-        // Make shure that k is the same in 3d and 6d functions
+        // Make sure that k is the same in 3d and 6d functions
         FunctionDefaults<6>::set_k(FunctionDefaults<3>::get_k());
         // by default SCF sets the truncate_mode to 1
         FunctionDefaults<3>::set_truncate_mode(3);
@@ -68,7 +59,6 @@ public:
         parameters.sanity_check(world);
 
         tdhf.reset(new TDHF(world,parser,nemo));
-        tdhf->parameters.print("response","end");
 
     }
 
@@ -126,7 +116,7 @@ public:
     /// The World
     World& world;
     /// Structure holds all the parameters used in the CC2 calculation
-    const CCParameters parameters;
+    CCParameters parameters;
     /// The SCF Calculation
     std::shared_ptr<Nemo> nemo;
     /// The excited state cis calculation
@@ -310,9 +300,9 @@ public:
             // print information
             if (world.rank() == 0) std::cout << "\n\n-----Results of current interation:-----\n";
             if (world.rank() == 0)
-                std::cout << "\nName: ||" << singles.name() << "||, ||GV" << singles.name() << ", ||residual||" << "\n";
+                std::cout << "\nName: ||" << singles.name(0) << "||, ||GV" << singles.name(0) << ", ||residual||" << "\n";
             if (world.rank() == 0)
-                std::cout << singles.name() << ": " << std::scientific << std::setprecision(parameters.output_prec())
+                std::cout << singles.name(0) << ": " << std::scientific << std::setprecision(parameters.output_prec())
                           << sqrt(R2xinnerx.sum()) << ", " << sqrt(R2GVinnerGV.sum()) << ", " << sqrt(R2rinnerr.sum())
                           << "\n----------------------------------------\n";
             for (size_t i = 0; i < GV.size(); i++) {
@@ -386,7 +376,6 @@ public:
         else if (ctype == CT_LRCC2) update_reg_residues_ex(singles2, singles, ex_doubles);
 
         //CCOPS.plot(singles);
-        singles.save_functions();
         if (no_change) output("Change of Singles was below  = " + std::to_string(parameters.dconv_3D()) + "!");
         return no_change;
     }
@@ -514,9 +503,10 @@ public:
 
     double solve_mp2_coupled(Pairs<CCPair> &doubles);
 
-    bool check_core_valence_separation() const;
+    bool check_core_valence_separation(const Tensor<double>& fmat) const;
 
-    void enforce_core_valence_separation();
+    /// @return     the new fock matrix
+    Tensor<double> enforce_core_valence_separation(const Tensor<double>& fmat);
 };
 
 

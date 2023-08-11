@@ -152,19 +152,25 @@ namespace madness {
     const parsec_task_class_t* madness_parsec_tc_array[]= {&(madness::madness_parsec_tc), NULL};
     parsec_taskpool_t *ParsecRuntime::tp = nullptr;
     parsec_context_t *ParsecRuntime::ctx = nullptr;
+    std::optional<bool> ParsecRuntime::made_new_ctx{};
     parsec_execution_stream_t *ParsecRuntime::madness_comm_thread_es = nullptr;
 #ifdef PARSEC_PROF_TRACE
     int ParsecRuntime::taskpool_profiling_array[2];
 #endif
     ParsecRuntime::ParsecRuntime(int nb_threads) {
-        assert(ctx == nullptr);
-        /* Scheduler init*/
-        int argc = 1;
-        char *argv[2] = { (char *)"madness-app", nullptr };
-        char **pargv = (char **)argv;
-        ctx = parsec_init(nb_threads, &argc, &pargv);
-        MPI_Comm parsec_comm  = MPI_COMM_SELF;
-        parsec_remote_dep_set_ctx(ctx, (intptr_t)parsec_comm);
+        if (ctx == nullptr) {
+          /* Scheduler init*/
+          int argc = 1;
+          char *argv[2] = {(char *)"madness-app", nullptr};
+          char **pargv = (char **)argv;
+          ctx = parsec_init(nb_threads, &argc, &pargv);
+          MPI_Comm parsec_comm = MPI_COMM_SELF;
+          parsec_remote_dep_set_ctx(ctx, (intptr_t)parsec_comm);
+          made_new_ctx = true;
+        }
+        else {
+          made_new_ctx = false;
+        }
         tp = PARSEC_OBJ_NEW(parsec_taskpool_t);
         tp->taskpool_name = strdup("MADNESS taskpool");
         tp->devices_index_mask = PARSEC_DEVICES_ALL;
@@ -194,17 +200,25 @@ namespace madness {
         }
     }
 
+    void ParsecRuntime::initialize_with_existing_context(parsec_context_t* ctx) {
+        ParsecRuntime::ctx = ctx;
+    }
+
+
     ParsecRuntime::~ParsecRuntime() {
         parsec_context_wait(ctx);
         parsec_taskpool_free(tp);
-        parsec_fini(&ctx);
-        if(nullptr != madness_comm_thread_es) {
-            /* madness_comm_thread_es is just a copy of ES[0]. Resources (including es->profiling_es) are 
+        assert(made_new_ctx.has_value());
+        if (*made_new_ctx) {
+            parsec_fini(&ctx);
+            if (nullptr != madness_comm_thread_es) {
+              /* madness_comm_thread_es is just a copy of ES[0]. Resources (including es->profiling_es) are
              * actually freed during parsec_fini. Just need to free memory allocated to store it. */
-            free(madness_comm_thread_es);
-            madness_comm_thread_es = nullptr;
+              free(madness_comm_thread_es);
+              madness_comm_thread_es = nullptr;
+            }
+            ctx = nullptr;
         }
-        ctx = nullptr;
     }
 
     parsec_context_t *ParsecRuntime::context() { return ctx; }

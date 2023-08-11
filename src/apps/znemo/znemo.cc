@@ -60,6 +60,7 @@ int main(int argc, char** argv) {
 
 
     commandlineparser parser(argc,argv);
+    parser.set_keyval("no_orient","true");  // needs to be passed to molecule *before* construction
     if (parser.key_exists("help")) {
         Znemo::help();
 

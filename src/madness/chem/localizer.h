@@ -89,7 +89,12 @@ public:
     static bool check_core_valence_separation(const Tensor<T>& Fock, const std::vector<int>& localized_set,
                                               const bool silent=false);
 
-    /// given a unitary transformation matrix undo mere reordering
+    template<typename T>
+    static std::size_t determine_frozen_orbitals(const Tensor<T> fmat);
+
+    static bool check_frozen_consistency(const long nfrozen, const std::vector<int>& localize_sets);
+
+        /// given a unitary transformation matrix undo mere reordering
     template<typename T>
     static void undo_reordering(Tensor<T>& U, const Tensor<double>& occ) {
         Tensor<double> eval(U.dim(0)); // dummy tensor

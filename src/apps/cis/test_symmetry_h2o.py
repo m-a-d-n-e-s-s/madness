@@ -38,7 +38,7 @@ if __name__ == "__main__":
 
 
     dft_arguments=' --dft="k=8; localize=canon; prefix='+prefix+'; no_compute=1"'
-    other_arguments=' --response="irrep=a2; freeze=1; thresh=1.e-3; econv=1.e-3; dconv=1.e-2"'
+    other_arguments=' --response="irrep=a2; freeze=1; thresh=1.e-3; econv=1.e-3; dconv=1.e-2; restart=no_restart"'
     cmd='./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
 #    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout

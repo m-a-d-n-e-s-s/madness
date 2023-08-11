@@ -174,6 +174,12 @@ namespace madness {
                 MADNESS_ASSERT(strlen(filename)+7 <= sizeof(buf));
                 snprintf(buf, bufsize, "%s.%5.5d", filename, world.rank());
 
+                // if file doesn't exist we have a race condition if this code is handled by a try/catch block
+                // check if file exists outside the (world.rank()==0) block
+                if (ar.is_input_archive and (not exists(world,filename))) {
+                    std::string msg = "could not find file: " + std::string(filename);
+                    throw std::runtime_error(msg);
+                }
                 if (world.rank() == 0) {
                     ar.open(buf);
                     ar & nio; // read/write nio from/to the archive
