@@ -16,6 +16,24 @@
 
 using namespace madness;
 
+struct XParameters : QCCalculationParametersBase {
+
+    XParameters() : QCCalculationParametersBase() {
+
+        // initialize with: key, value, comment (optional), allowed values (optional)
+        initialize<double>("radius",5.0,"the radius");
+        initialize<int>("rank",500,"the number of grid points in random grids");
+        initialize<std::string>("gridtype","random","the grid type",{"random","cartesian"});
+    }
+
+    void read_and_set_derived_values(World& world, const commandlineparser& parser, std::string tag) {
+        read_input_and_commandline_options(world,parser,tag);
+    }
+
+    double radius() const {return get<double>("radius");}
+    int rank() const {return get<int>("rank");}
+    std::string gridtype() const {return get<std::string>("gridtype");}
+};
 
 
 bool longtest=false;
@@ -133,7 +151,7 @@ public:
     }
 };
 
-int test_lowrank_function3(World& world) {
+int test_lowrank_function3(World& world, XParameters& parameters) {
     test_output t1("CCPairFunction::low rank function");
     t1.set_cout_to_terminal();
     madness::default_random_generator.setstate(int(cpu_time())%4149);
@@ -142,16 +160,30 @@ int test_lowrank_function3(World& world) {
     constexpr std::size_t NDIM=2*LDIM;
     print("eps, k, NDIM",FunctionDefaults<NDIM>::get_thresh(),FunctionDefaults<NDIM>::get_k(),NDIM);
 
+    Vector<double,LDIM> offset;
+    offset.fill(0.0);
+//    Function<double,LDIM> phi1=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r)
+//            { return exp(-r.normf());});
     Function<double,LDIM> phi1=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r)
-            { return exp(-r.normf());});
-    Function<double,LDIM> phi2=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r)
-                                                                           { return exp(-2.0*r.normf());});
+                                                                           { return 1.0;});
+    Function<double,LDIM> phi2=FunctionFactory<double,LDIM>(world).functor([&offset](const Vector<double,LDIM>& r)
+                                                                           { return exp(-1.0*(r-offset).normf());});
 
     std::shared_ptr<real_convolution_3d> f12(SlaterOperatorPtr(world,1.0,1.e-6,FunctionDefaults<LDIM>::get_thresh()));
 
+    auto f = [](const coord_6d& r) {
+        coord_3d r1={r[0],r[1],r[2]};
+        coord_3d r2={r[3],r[4],r[5]};
+        return exp(-(r1-r2).normf() -r2.normf());
+    };
+
     LowRank<double,6> lrf(f12,copy(phi1),copy(phi2));
-    lrf.project(500,3.0);
-    lrf.optimize(2);
+    lrf.project(parameters.rank(),parameters.radius(),parameters.gridtype());
+//    lrf.optimize(1);
+    print("lrf.rank()",lrf.rank());
+
+    plot_plane<6>(world,lrf.lrfunctor,"plot_f12_r2");
+    plot_plane<6>(world,lrf,"lrf_6d");
 
     // compare
     // \phi(1) \bar \phi(1) = \int phi(1) \phi(2) f(1,2) d2
@@ -226,7 +258,7 @@ int test_lowrank_function(World& world) {
     f12.reconstruct();
     Function<double,NDIM> reference=inner(lhs,rhs,{0},{0});
     LowRank<double,NDIM> lrf(rhs);
-    lrf.project(50,3.0);
+    lrf.project(50,3.0,"random");
     lrf.optimize();
 
     double ferror=lrf.error();
@@ -260,7 +292,7 @@ int test_lowrank_function(World& world) {
         double radius = 5.0;
 
         LowRank<double, NDIM> lr(copy(f));
-        lr.project(rank, radius);
+        lr.project(rank, radius,"random");
         double err = lr.error();
         print("error in f_approx", err);
         lr.orthonormalize(true);
@@ -1180,7 +1212,7 @@ int main(int argc, char **argv) {
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<4>::set_thresh(thresh);
     FunctionDefaults<5>::set_thresh(thresh);
-    FunctionDefaults<6>::set_thresh(1.e-3);
+    FunctionDefaults<6>::set_thresh(1.e-4);
 
     FunctionDefaults<1>::set_k(k);
     FunctionDefaults<2>::set_k(k);
@@ -1193,11 +1225,14 @@ int main(int argc, char **argv) {
     FunctionDefaults<2>::set_cubic_cell(-10.,10.);
     FunctionDefaults<3>::set_cubic_cell(-10.,10.);
     FunctionDefaults<4>::set_cubic_cell(-10.,10.);
-    FunctionDefaults<6>::set_cubic_cell(-1.0,1.0);
+    FunctionDefaults<6>::set_cubic_cell(-10.,10.);
 
     FunctionDefaults<2>::set_tensor_type(TT_FULL);
     print("numerical parameters: k, eps(3D), eps(6D)", FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(),
           FunctionDefaults<6>::get_thresh());
+    XParameters parameters;
+    parameters.read_and_set_derived_values(world,parser,"grid");
+    parameters.print("grid parameters");
     int isuccess=0;
 #ifdef USE_GENTENSOR
 
@@ -1213,7 +1248,7 @@ int main(int argc, char **argv) {
         std::shared_ptr<NuclearCorrelationFactor> ncf = create_nuclear_correlation_factor(world,
                          mol, nullptr, std::make_pair("slater", 2.0));
 
-        isuccess+=test_lowrank_function3(world);
+        isuccess+=test_lowrank_function3(world,parameters);
 //        isuccess+=test_constructor(world, ncf, mol, ccparam);
 //        isuccess+=test_operator_apply(world, ncf, mol, ccparam);
 //        isuccess+=test_transformations(world, ncf, mol, ccparam);

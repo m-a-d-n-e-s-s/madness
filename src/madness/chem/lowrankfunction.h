@@ -12,6 +12,60 @@
 namespace madness {
 
 
+    template<std::size_t NDIM>
+    struct cartesian_grid {
+        Vector<double,NDIM> lovec,hivec;
+        std::vector<long> stride;
+        long index=0;
+        long n_per_dim;
+        long total_n;
+        Vector<double,NDIM> increment;
+
+        cartesian_grid(const long n_per_dim, const double lo, const double hi)
+                : n_per_dim(n_per_dim) {
+            lovec.fill(lo);
+            hivec.fill(hi);
+            increment=(hivec-lovec)*(1.0/double(n_per_dim-1));
+            stride=std::vector<long>(NDIM,1l);
+            total_n=std::pow(n_per_dim,NDIM);
+            for (long i=NDIM-2; i>=0; --i) stride[i]=n_per_dim*stride[i+1];
+        }
+
+        cartesian_grid(const cartesian_grid<NDIM>& other) : lovec(other.lovec),
+                                                            hivec(other.hivec), stride(other.stride), index(0), n_per_dim(other.n_per_dim),
+                                                            total_n(other.total_n), increment(other.increment) {
+        }
+
+        cartesian_grid& operator=(const cartesian_grid<NDIM>& other) {
+            cartesian_grid<NDIM> tmp(other);
+            std::swap(*this,other);
+            return *this;
+        }
+
+        double volume_per_gridpoint() const{
+            double volume=1.0;
+            for (int i=0; i<NDIM; ++i) volume*=(hivec[i]-lovec[i]);
+            return volume/total_n;
+        }
+
+        void operator++() {
+            index++;
+        }
+
+        bool operator()() const {
+            return index < total_n;
+        }
+
+        Vector<double,NDIM> get_coordinates() const {
+            Vector<double,NDIM> tmp(NDIM);
+            for (int idim=0; idim<NDIM; ++idim) {
+                tmp[idim]=(index/stride[idim])%n_per_dim;
+            }
+            return lovec+tmp*increment;
+        }
+
+    };
+
 
     template<std::size_t NDIM>
     struct randomgaussian {
@@ -26,7 +80,8 @@ namespace madness {
         }
         double operator()(const Vector<double,NDIM>& r) const {
     //        return exp(-exponent*inner(r-random_origin,r-random_origin));
-            return exp(-exponent*(r-random_origin).normf());
+            double r2=inner(r-random_origin,r-random_origin);
+            return exp(-exponent*r2);
         }
     };
 
@@ -47,6 +102,16 @@ namespace madness {
             }
             bool has_f12() const {
                 return (f12.get());
+            }
+            T operator()(const Vector<double,NDIM>& r) const {
+                Vector<double,LDIM> first, second;
+                for (int i=0; i<LDIM; ++i) {
+                    first[i]=r[i];
+                    second[i]=r[i+LDIM];
+                }
+                MADNESS_CHECK(has_f12());
+                double result=a(first)*b(second)*exp(-(first-second).normf());
+                return result;
             }
         };
 
@@ -165,6 +230,17 @@ namespace madness {
             return *this;
         }
 
+        T operator()(const Vector<double,NDIM>& r) const {
+            Vector<double,LDIM> first, second;
+            for (int i=0; i<LDIM; ++i) {
+                first[i]=r[i];
+                second[i]=r[i+LDIM];
+            }
+            double result=0.0;
+            for (int i=0; i<rank(); ++i) result+=g[i](first)*h[i](second);
+            return result;
+        }
+
         LowRank operator-(const LowRank& b) const { // Operator- necessary
             return LowRank(g-b.g,h-b.h);
         }
@@ -192,18 +268,42 @@ namespace madness {
         /// Y = A Omega && Q = QR(Y)
         /// || f(1,2) - \sum_i g_i(1) h_i(2) || < epsilon
         /// Y_i(1) = \int f(1,2) Omega_i(2) d2 && g_i(1) = QR(Y_i(1)) && h_i(2) = \int g_i^*(1) f(1,2) d1
-        void project(const long rank, const double radius=3.0) {
+        void project(const long rank, const double radius, const std::string gridtype) {
             timer t1(world);
-            std::vector<Function<double,LDIM>> omega2(rank);
-            for (long i=0; i<rank; ++i) {
-                omega2[i]=FunctionFactory<double,LDIM>(world).functor(randomgaussian<LDIM>(RandomValue<double>()+5,radius));
+            std::vector<Function<double,LDIM>> omega2;
+            if (gridtype=="random") {
+                for (long i=0; i<rank; ++i) {
+//                    omega2.push_back(FunctionFactory<double,LDIM>(world).functor(randomgaussian<LDIM>(RandomValue<double>()+10.0,radius)));
+                    omega2.push_back(FunctionFactory<double,LDIM>(world).functor(randomgaussian<LDIM>(7.0,radius)));
+                }
+                print("using random gaussian distribution");
+            } else if (gridtype=="cartesian") {
+
+                cartesian_grid<LDIM> cg(9,-radius,radius);
+                auto c=cg;
+                c.index=0;
+                for (; c(); ++c) {
+                    omega2.push_back(FunctionFactory<double,LDIM>(world)
+                            .functor([&c](const Vector<double,LDIM>& r)
+                             {
+                                 auto r_rel=r-c.get_coordinates();
+                                 return exp(-10*madness::inner(r_rel,r_rel));
+                             }));
+                }
+                print("volume element in cartesian grid",cg.volume_per_gridpoint());
+            } else {
+                MADNESS_EXCEPTION("confused gridtype",1);
             }
+
+
             t1.tag("projection lowdim functions");
+            print("radius",radius);
+            print("initial rank",omega2.size());
 
             auto Y=inner(lrfunctor,omega2,p2,p1);
             t1.tag("Yforming");
 
-            g=orthonormalize_rrcd(Y,1.e-12);
+            g=orthonormalize_rrcd(Y,1.e-9);
             t1.tag("Y orthonormalizing");
 
             print("Y.size()",Y.size());
@@ -279,13 +379,15 @@ namespace madness {
 
             Tensor<double> gg=matrix_inner(world,g_ortho,g);
             /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
-            h=truncate(transform(world,h,transpose(gg)));
-            g=truncate(g_ortho);
+//            h=truncate(transform(world,h,transpose(gg)));
+//            g=truncate(g_ortho);
+            h=(transform(world,h,transpose(gg)));
+            g=(g_ortho);
 
         }
 
         void optimize(const long nopt=2) {
-            optimize_cd(nopt);
+            optimize_svd(nopt);
         }
 
         /// optimize using Cholesky decomposition
