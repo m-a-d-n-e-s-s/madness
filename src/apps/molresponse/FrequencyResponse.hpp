@@ -203,19 +203,25 @@ private:
                                     const vector_real_function_3d &phi0) const;
     X_space compute_coulomb_term(World &world, const X_space &B, const X_space &C) const;
     X_space compute_exchange_term(World &world, const X_space &B, const X_space &C) const;
-    std::pair<X_space, X_space> dipole_perturbation(World &world, const X_space &XB, const X_space &XC);
+    std::pair<X_space, X_space> dipole_perturbation(World &world, const X_space &left, const X_space &right) const;
     Tensor<double> compute_beta_1(const X_space &upsilon);
     Tensor<double> compute_beta_1(World &world, const X_space &upsilon);
     X_space compute_gamma_bc_virt(World &world, const X_space &VB, const X_space &XC);
     X_space compute_gamma_occ(World &world, const X_space &XB, const X_space &XC);
-    X_space compute_g1_term(World &world, const X_space &B, const X_space &C, const X_space &D);
+    X_space compute_g1_term(World &world, const X_space &left, const X_space &right, const X_space &apply) const;
     X_space compute_coulomb_term(World &world, const X_space &B, const X_space &C, const X_space &D) const;
     X_space compute_exchange_term(World &world, const X_space &x_left, const X_space &x_right, const X_space &x_apply) const;
     X_space compute_beta(World &world, const X_space &XB, const X_space &XC);
     std::tuple<X_space, X_space, X_space, X_space> compute_gamma_virt_and_occ(World &world, const X_space &A,
                                                                               const X_space &B);
-    std::pair<X_space, X_space> compute_first_order_fock_matrix_terms(World &world, X_space &A, X_space &phi0,
-                                                                      X_space &B);
+    std::pair<X_space, X_space> compute_first_order_fock_matrix_terms(World &world, const X_space &A,
+                                                                      const X_space &phi0, const X_space &B) const;
+    Tensor<double> compute_beta_unrelaxed(World &world, const X_space &AB_left, const X_space &AB_right,
+                                          X_space &BA_left, X_space &BA_right);
+    X_space compute_second_order_perturbation_terms(World &world, const X_space &B, const X_space &C,
+                                                    const X_space &BC_left, const X_space &BC_right,
+                                                    const X_space &CB_left, const X_space &CB_right,
+                                                    const X_space &phi0);
 };
 
 class FrequencyResponse : public ResponseBase {
