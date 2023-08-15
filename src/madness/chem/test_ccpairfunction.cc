@@ -155,6 +155,7 @@ int test_lowrank_function3(World& world, XParameters& parameters) {
     test_output t1("CCPairFunction::low rank function");
     t1.set_cout_to_terminal();
     madness::default_random_generator.setstate(int(cpu_time())%4149);
+    madness::default_random_generator.setstate(int(cpu_time())%4149);
 
     constexpr std::size_t LDIM=3;
     constexpr std::size_t NDIM=2*LDIM;
@@ -168,38 +169,42 @@ int test_lowrank_function3(World& world, XParameters& parameters) {
                                                                            { return 1.0;});
     Function<double,LDIM> phi2=FunctionFactory<double,LDIM>(world).functor([&offset](const Vector<double,LDIM>& r)
                                                                            { return exp(-1.0*(r-offset).normf());});
+    Function<double,LDIM> one=FunctionFactory<double,LDIM>(world)
+            .functor([](const Vector<double,LDIM>& r) { return 1.0;});
 
     std::shared_ptr<real_convolution_3d> f12(SlaterOperatorPtr(world,1.0,1.e-6,FunctionDefaults<LDIM>::get_thresh()));
 
-    auto f = [](const coord_6d& r) {
-        coord_3d r1={r[0],r[1],r[2]};
-        coord_3d r2={r[3],r[4],r[5]};
-        return exp(-(r1-r2).normf() -r2.normf());
-    };
+//    auto f = [](const coord_6d& r) {
+//        coord_3d r1={r[0],r[1],r[2]};
+//        coord_3d r2={r[3],r[4],r[5]};
+//        return exp(-(r1-r2).normf() -r2.normf());
+//    };
 
     LowRank<double,6> lrf(f12,copy(phi1),copy(phi2));
     lrf.project(parameters.rank(),parameters.radius(),parameters.gridtype());
-//    lrf.optimize(1);
+    lrf.optimize(1);
     print("lrf.rank()",lrf.rank());
-
-    plot_plane<6>(world,lrf.lrfunctor,"plot_f12_r2");
-    plot_plane<6>(world,lrf,"lrf_6d");
 
     // compare
     // \phi(1) \bar \phi(1) = \int phi(1) \phi(2) f(1,2) d2
-    //       = \int \sum_r\phi(1) g_r(1) h_r(2) \phi(2) d2
-    //       = \phi(1) \sum_r g_r(1) <\phi|h_r>
+    //       = \int \sum_r g_r(1) h_r(2)  d2
+    //       = \sum_r g_r(1) <\phi|h_r>
     auto reference = phi1* (*f12)(phi2);
     real_function_3d result=real_factory_3d(world);
-    for (int r=0; r<lrf.rank(); ++r) result+=lrf.g[r]*lrf.h[r].trace();
+    for (int r=0; r<lrf.rank(); ++r) result+=lrf.g[r]*inner(one,lrf.h[r]);
     auto diff=reference-result;
 
     double refnorm=reference.norm2();
     double resultnorm=result.norm2();
     double error=diff.norm2();
     print("refnorm, resultnorm, abs. error, rel. error",refnorm, resultnorm, error, error/refnorm);
+    print("radius, initial/final rank, rel. error",parameters.radius(),parameters.rank(),lrf.rank(), error/refnorm);
 
     plot<LDIM>({reference, result, diff}, "f_and_approx", std::vector<std::string>({"adsf", "asdf", "diff"}));
+
+    plot_plane<6>(world,lrf.lrfunctor,"plot_f12_r2");
+    plot_plane<6>(world,lrf,"lrf_6d");
+
 
 
 

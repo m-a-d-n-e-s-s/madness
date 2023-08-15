@@ -8,6 +8,8 @@
 
 #include<madness/mra/mra.h>
 #include<madness/chem/electronic_correlation_factor.h>
+#include <random>
+
 
 namespace madness {
 
@@ -73,15 +75,25 @@ namespace madness {
         double exponent;
         double radius=2;
         randomgaussian(double exponent, double radius) : exponent(exponent), radius(radius) {
-            Vector<double,NDIM> ran; // [0,1]
-            RandomVector(NDIM,ran.data());
+//            Vector<double,NDIM> ran; // [0,1]
+//            RandomVector(NDIM,ran.data());
+            Vector<double,NDIM> ran= this->gaussian_random_distribution(0,radius);
             random_origin=2.0*radius*ran-Vector<double,NDIM>(radius);
-    //        print("origin at ",random_origin, ", exponent",exponent);
+//            print("origin at ",random_origin, ", exponent",exponent);
         }
         double operator()(const Vector<double,NDIM>& r) const {
     //        return exp(-exponent*inner(r-random_origin,r-random_origin));
             double r2=inner(r-random_origin,r-random_origin);
             return exp(-exponent*r2);
+        }
+
+        Vector<double,NDIM> gaussian_random_distribution(double mean, double variance) {
+            std::random_device rd{};
+            std::mt19937 gen{rd()};
+            std::normal_distribution<> d{mean, variance};
+            Vector<double,NDIM> result;
+            for (int i = 0; i < NDIM; ++i) result[i]=d(gen);
+            return result;
         }
     };
 
@@ -274,7 +286,7 @@ namespace madness {
             if (gridtype=="random") {
                 for (long i=0; i<rank; ++i) {
 //                    omega2.push_back(FunctionFactory<double,LDIM>(world).functor(randomgaussian<LDIM>(RandomValue<double>()+10.0,radius)));
-                    omega2.push_back(FunctionFactory<double,LDIM>(world).functor(randomgaussian<LDIM>(7.0,radius)));
+                    omega2.push_back(FunctionFactory<double,LDIM>(world).functor(randomgaussian<LDIM>(50.0,radius)));
                 }
                 print("using random gaussian distribution");
             } else if (gridtype=="cartesian") {
@@ -303,8 +315,9 @@ namespace madness {
             auto Y=inner(lrfunctor,omega2,p2,p1);
             t1.tag("Yforming");
 
-            g=orthonormalize_rrcd(Y,1.e-9);
-            t1.tag("Y orthonormalizing");
+            double tol=1.e-12;
+            g=orthonormalize_rrcd(Y,tol);
+            t1.tag("Y orthonormalizing with tol"+std::to_string(tol));
 
             print("Y.size()",Y.size());
             print("g.size()",g.size());
