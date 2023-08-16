@@ -41,7 +41,7 @@
 
 #include <madness/mra/mra.h>
 #include <madness/mra/lbdeux.h>
-#include<madness/chem/QCCalculationParametersBase.h>
+#include"madness/mra/QCCalculationParametersBase.h"
 #include<madness/chem/SCF.h>
 #include <madness/mra/nonlinsol.h>
 #include<madness/chem/projector.h>

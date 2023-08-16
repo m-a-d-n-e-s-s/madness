@@ -40,7 +40,7 @@
 
  */
 #include "smooth.h"
-#include<madness/chem/commandlineparser.h>
+#include"madness/mra/commandlineparser.h"
 #include<madness/misc/info.h>
 
 

@@ -38,7 +38,7 @@
 
 #include <madness/tensor/solvers.h>
 #include<madness/chem/molecule.h>
-#include<madness/chem/QCCalculationParametersBase.h>
+#include"madness/mra/QCCalculationParametersBase.h"
 
 namespace madness {
 

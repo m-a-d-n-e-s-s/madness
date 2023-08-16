@@ -6,7 +6,7 @@
  */
 
 #include <madness/chem/TDHF.h>
-#include <madness/chem/commandlineparser.h>
+#include <madness/mra/commandlineparser.h>
 #include <madness/misc/info.h>
 #include <madness/world/worldmem.h>
 
