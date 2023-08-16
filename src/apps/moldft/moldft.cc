@@ -37,7 +37,7 @@
 /// \defgroup moldft The molecular density functional and Hartree-Fock code
 
 #include<madness/chem/SCF.h>
-#include<madness/world/commandlineparser.h>
+#include"madness/mra/commandlineparser.h"
 #include<madness/chem/molopt.h>
 #include <madness/world/worldmem.h>
 #include <madness/misc/info.h>

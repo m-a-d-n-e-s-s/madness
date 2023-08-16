@@ -1,6 +1,6 @@
 #include <madness/mra/mra.h>
 #include <madness/mra/funcplot.h>
-#include <madness/world/commandlineparser.h>
+#include "madness/mra/commandlineparser.h"
 #include <madness/chem/CalculationParameters.h>
 #include <madness/chem/molecule.h>
 

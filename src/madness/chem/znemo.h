@@ -10,7 +10,7 @@
 
 #include <madness/chem/CalculationParameters.h>
 #include <madness/chem/MolecularOrbitals.h>
-#include <madness/world/QCCalculationParametersBase.h>
+#include "madness/mra/QCCalculationParametersBase.h"
 #include <madness/chem/SCFOperators.h>
 #include <madness/chem/molecular_optimizer.h>
 #include <madness/chem/molecularbasis.h>

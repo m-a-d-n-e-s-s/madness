@@ -7,8 +7,8 @@
 
 
 
-#include<madness/world/QCCalculationParametersBase.h>
-#include<parallel_archive.h>
+#include"QCCalculationParametersBase.h"
+#include"parallel_archive.h"
 
 using namespace madness;
 

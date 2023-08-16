@@ -12,14 +12,14 @@ set(MADWORLD_HEADERS
     text_fstream_archive.h worlddc.h mem_func_wrapper.h taskfn.h group.h 
     dist_cache.h distributed_id.h type_traits.h function_traits.h stubmpi.h 
     bgq_atomics.h binsorter.h parsec.h meta.h worldinit.h thread_info.h
-    cloud.h test_utilities.h timing_utilities.h commandlineparser.h QCCalculationParametersBase.h)
+    cloud.h test_utilities.h timing_utilities.h)
 set(MADWORLD_SOURCES
     madness_exception.cc world.cc timers.cc future.cc redirectio.cc
     archive_type_names.cc debug.cc print.cc worldmem.cc worldrmi.cc
     safempi.cc worldpapi.cc worldref.cc worldam.cc worldprofile.cc thread.cc 
     world_task_queue.cc worldgop.cc deferred_cleanup.cc worldmutex.cc
     binary_fstream_archive.cc text_fstream_archive.cc lookup3.c worldmpi.cc 
-    group.cc parsec.cc archive.cc QCCalculationParametersBase.cc)
+    group.cc parsec.cc archive.cc)
 
 if(MADNESS_ENABLE_CEREAL)
     set(MADWORLD_HEADERS ${MADWORLD_HEADERS} "cereal_archive.h")
@@ -95,10 +95,9 @@ if(BUILD_TESTING)
       test_dc.cc test_hashthreaded.cc test_queue.cc test_world.cc 
       test_worldprofile.cc test_binsorter.cc test_vector.cc test_worldptr.cc 
       test_worldref.cc test_stack.cc test_googletest.cc test_tree.cc
-      test_QCCalculationParametersBase.cc
           )
 
-  add_unittests(world "${WORLD_TEST_SOURCES}" "MADworld;MADgtest;MADmisc" "unittests;short")
+  add_unittests(world "${WORLD_TEST_SOURCES}" "MADworld;MADgtest" "unittests;short")
 
   if (TARGET PaRSEC::parsec AND PARSEC_HAVE_CUDA)
     include(CheckLanguage)

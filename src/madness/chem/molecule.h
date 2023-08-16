@@ -37,8 +37,8 @@
 
 #include<madness/chem/corepotential.h>
 #include<madness/chem/atomutil.h>
-#include<madness/world/commandlineparser.h>
-#include<madness/world/QCCalculationParametersBase.h>
+#include"madness/mra/commandlineparser.h"
+#include"madness/mra/QCCalculationParametersBase.h"
 #include <madness/world/vector.h>
 #include <vector>
 #include <string>

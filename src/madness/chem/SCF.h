@@ -46,7 +46,7 @@
 #include <madness/mra/mra.h>
 
 #include<madness/chem/CalculationParameters.h>
-#include<madness/world/commandlineparser.h>
+#include"madness/mra/commandlineparser.h"
 #include<madness/chem/molecule.h>
 #include<madness/chem/molecularbasis.h>
 #include<madness/chem/corepotential.h>

@@ -56,7 +56,7 @@
 #include<madness/chem/pcm.h>
 #include<madness/chem/AC.h>
 #include<madness/chem/pointgroupsymmetry.h>
-#include<madness/world/commandlineparser.h>
+#include"madness/mra/commandlineparser.h"
 #include<madness/chem/QCPropertyInterface.h>
 #include <madness/world/timing_utilities.h>
 

@@ -33,7 +33,7 @@
 #define MADNESS_MRA_FUNCPLOT_H__INCLUDED
 
 #include <madness/constants.h>
-#include <madness/world/QCCalculationParametersBase.h>
+#include "QCCalculationParametersBase.h"
 /*!
 
   \file mra/funcplot.h

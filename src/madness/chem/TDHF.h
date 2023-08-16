@@ -15,7 +15,7 @@
 #include<madness/chem/SCFOperators.h>
 #include <math.h>
 #include<madness/chem/GuessFactory.h>
-#include<madness/world/commandlineparser.h>
+#include"madness/mra/commandlineparser.h"
 
 
 namespace madness {
