@@ -6,7 +6,7 @@
 #ifndef SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_
 #define SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_
 
-#include <madness/chem/QCCalculationParametersBase.h>
+#include <madness/world/QCCalculationParametersBase.h>
 #include <madness/chem/molecule.h>
 #include <madness/chem/xcfunctional.h>
 #include <madness/mra/mra.h>

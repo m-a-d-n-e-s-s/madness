@@ -5,7 +5,7 @@
  *      Author: fbischoff
  */
 
-#include<madness/chem/QCCalculationParametersBase.h>
+#include<madness/world/QCCalculationParametersBase.h>
 #include <iostream>
 #include <fstream>
 #include <iomanip>

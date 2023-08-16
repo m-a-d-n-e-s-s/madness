@@ -7,7 +7,7 @@
 
 
 #include<madness/chem/CC2.h>
-#include<madness/chem/commandlineparser.h>
+#include<madness/world/commandlineparser.h>
 #include "MolecularOrbitals.h"
 #include "localizer.h"
 

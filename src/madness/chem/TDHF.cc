@@ -10,7 +10,7 @@
 #include<madness/chem/oep.h>
 #include<madness/world/test_utilities.h>
 #include<madness/chem/write_test_input.h>
-#include<madness/chem/commandlineparser.h>
+#include<madness/world/commandlineparser.h>
 
 
 namespace madness {

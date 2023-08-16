@@ -33,7 +33,7 @@
 #define MADNESS_MRA_FUNCPLOT_H__INCLUDED
 
 #include <madness/constants.h>
-
+#include <madness/world/QCCalculationParametersBase.h>
 /*!
 
   \file mra/funcplot.h
@@ -44,6 +44,53 @@
  */
 
 namespace madness {
+
+    struct PlotParameters : public QCCalculationParametersBase {
+        PlotParameters(World& world, const commandlineparser parser=commandlineparser(), const std::string tag="plot") : PlotParameters() {
+            read_input_and_commandline_options(world,parser,tag);
+        }
+
+        PlotParameters() : QCCalculationParametersBase() {
+
+            // initialize with: key, value, comment (optional), allowed values (optional)
+            initialize<double>("zoom",2,"zoom into the simulation cell");
+            initialize<long>("npoints",151,"number of plot points per dimension");
+            initialize<std::vector<double>>("origin",{0.0,0.0,0.0},"origin of the plot");
+            initialize<std::vector<std::string>>("plane",{"x1","x2"},"plot plane: x1, x2, .., x6");
+        }
+
+        PlotParameters& set_zoom(const double z) {
+            set_user_defined_value("zoom",z);
+            return *this;
+        }
+        PlotParameters& set_npoints(const long n) {
+            set_user_defined_value("npoints",n);
+            return *this;
+        }
+        PlotParameters& set_plane(const std::vector<std::string> plane) {
+            set_user_defined_value("plane",plane);
+            return *this;
+        }
+        PlotParameters& set_origin(const std::vector<double> origin) {
+            set_user_defined_value("origin",origin);
+            return *this;
+        }
+
+
+        double zoom() const {return get<double>("zoom");}
+        long npoints() const {return get<long>("npoints");}
+
+        template<std::size_t NDIM>
+        Vector<double,NDIM> origin() const {
+            auto origin_vec=get<std::vector<double>>("origin");
+            Vector<double,NDIM> o(origin_vec);
+            return o;
+        }
+
+        std::vector<std::string> plane() const {return get<std::vector<std::string>>("plane");}
+
+
+    };
     /// Writes an OpenDX format file with a cube/slice of points on a uniform grid
 
     /// Collective operation but only process 0 writes the file.  By convention OpenDX
@@ -717,7 +764,90 @@ namespace madness {
 //    	function.get_impl()->print_plane(filename.c_str(),cc1,cc2,coord);
     }
 
-    template<size_t NDIM, typename opT>
+
+/// plot a 2-d slice of a given function and the according MRA structure
+/// FIXME: doesn't work for more than 1 rank
+
+/// the plotting parameters are taken from the input file "input" and its
+/// data group "plot", e.g. plotting the xy plane around (0,0,0.7):
+/// plot
+///   plane x1 x2
+///   zoom 2.0
+///   npoints 100
+///   origin 0.0 0.0 0.7
+/// end
+/// @param[in]	world	the world
+/// @param[in]	vfunction	the function to plot
+/// @param[in]	name		the output name
+template<size_t NDIM>
+void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfunction,
+                const std::string name, const PlotParameters param) {
+
+    if (world.size()>1) return;
+
+    auto plane=param.plane();
+    std::string c1=plane[0];
+    std::string c2=plane[1];
+    auto npoints=param.npoints();
+    auto origin=param.origin<NDIM>();
+    auto coord=param.origin<NDIM>();
+    double scale=1.0/param.zoom();
+    std::string output_type="gnuplot";
+
+    auto plane2dim = [](std::string c) {
+        if (c=="x1") return 0;
+        else if (c=="x2") return 1;
+        else if (c=="x3") return 2;
+        else if (c=="x4") return 3;
+        else if (c=="x5") return 4;
+        else if (c=="x6") return 5;
+        else return -1;
+    };
+
+    // convert human to mad form
+    std::size_t cc1=plane2dim(c1);
+    std::size_t cc2=plane2dim(c2);
+
+    MADNESS_ASSERT(cc1>=0 && cc1<NDIM);
+    MADNESS_ASSERT(cc2>=0 && cc2<NDIM);
+
+    // output file name for the gnuplot data
+    std::string filename="plane_"+c1+c2+"_"+name;
+    // assume a cubic cell
+    double lo=-FunctionDefaults<NDIM>::get_cell_width()[0]*0.5;
+    lo=lo*scale;
+
+    const double stepsize=FunctionDefaults<NDIM>::get_cell_width()[0]*scale/npoints;
+
+    if(world.rank() == 0) {
+
+        // plot 3d plot
+        FILE *f =  0;
+        f=fopen(filename.c_str(), "w");
+        if(!f) MADNESS_EXCEPTION("plot_along: failed to open the plot file", 0);
+
+        for (int i0=0; i0<npoints; i0++) {
+            for (int i1=0; i1<npoints; i1++) {
+                // plot plane
+                coord[cc1]=lo+origin[cc1]+i0*stepsize;
+                coord[cc2]=lo+origin[cc2]+i1*stepsize;
+
+                fprintf(f,"%12.6f %12.6f",coord[cc1],coord[cc2]);
+                for (std::size_t ivec=0; ivec<vfunction.size(); ++ivec)
+                    fprintf(f,"  %12.20f",vfunction[ivec](coord));
+                fprintf(f,"\n");
+
+            }
+            // additional blank line between blocks for gnuplot
+            if (output_type=="gnuplot") fprintf(f,"\n");
+        }
+        fclose(f);
+
+    }
+}
+
+
+template<size_t NDIM, typename opT>
     void plot_plane(World& world, const opT& op, const std::string name) {
 
          if (world.size()>1) return;

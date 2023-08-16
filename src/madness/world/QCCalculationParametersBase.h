@@ -18,7 +18,7 @@
 #include <madness/misc/misc.h>
 #include <madness/world/archive.h>
 #include <madness/world/world.h>
-#include<madness/chem/commandlineparser.h>
+#include<madness/world/commandlineparser.h>
 #include<madness/external/nlohmann_json/json.hpp>
 
 
