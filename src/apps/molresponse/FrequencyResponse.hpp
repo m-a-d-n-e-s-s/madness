@@ -212,7 +212,7 @@ private:
     X_space compute_coulomb_term(World &world, const X_space &B, const X_space &C, const X_space &D) const;
     X_space compute_exchange_term(World &world, const X_space &x_left, const X_space &x_right, const X_space &x_apply) const;
     X_space compute_beta(World &world, const X_space &XB, const X_space &XC);
-    std::tuple<X_space, X_space, X_space, X_space> compute_gamma_virt_and_occ(World &world, const X_space &A,
+    std::tuple<X_space, X_space, X_space, X_space> compute_gamma_unrelaxed_block(World &world, const X_space &A,
                                                                               const X_space &B);
     std::pair<X_space, X_space> compute_first_order_fock_matrix_terms(World &world, const X_space &A,
                                                                       const X_space &phi0, const X_space &B) const;

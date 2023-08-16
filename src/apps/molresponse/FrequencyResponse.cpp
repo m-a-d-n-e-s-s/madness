@@ -501,6 +501,9 @@ auto QuadraticResponse::setup_XBC(World &world) -> std::pair<X_space, X_space> {
     auto xb = to_response_matrix(x_data[1].first.copy());
     auto xc = to_response_matrix(x_data[2].first.copy());
 
+    print("x_data norms x", x_data[1].first.x.norm2());
+    print("x_data norms y", x_data[1].first.y.norm2());
+
     // create new response matrices to hold the organized data
     auto XB = create_response_matrix(6, r_params.num_orbitals());
     auto XC = create_response_matrix(6, r_params.num_orbitals());
@@ -562,16 +565,18 @@ Tensor<double> QuadraticResponse::compute_beta_unrelaxed(World &world, const X_s
     };
 
     auto dipole_vectors = create_dipole();
+    std::vector<std::string> names_i = {"x", "y", "z"};
+    std::vector<std::string> names_j = {"xx", "xy", "xz", "yy", "yz", "zz"};
     // for each vector in dipole vectors
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 6; j++) {
             auto beta_AB_x = (dot(world, AB_left.x[j], AB_right.x[j]) * dipole_vectors[i]).trace();
-            auto beta_AB_y = (dot(world, AB_left.y[j], AB_right.y[j]) * dipole_vectors[i]).trace();
             auto beta_BA_x = (dot(world, BA_left.x[j], BA_right.x[j]) * dipole_vectors[i]).trace();
+            auto beta_AB_y = (dot(world, AB_left.y[j], AB_right.y[j]) * dipole_vectors[i]).trace();
             auto beta_BA_y = (dot(world, BA_left.y[j], BA_right.y[j]) * dipole_vectors[i]).trace();
             if (r_params.print_level() > 0) {
-                print("i ", i, " j ", j, " beta_AB_x ", beta_AB_x, " beta_AB_y ", beta_AB_y, " beta_BA_x ", beta_BA_x,
-                      " beta_BA_y ", beta_BA_y, "\n");
+                print(names_i[i], names_j[j], " beta_AB_x ", beta_AB_x, " beta_BA_x ", beta_BA_x, " beta_AB_y ",
+                      beta_AB_y, " beta_BA_y ", beta_BA_y, "\n");
             }
             beta(i, j) = beta_AB_x + beta_AB_y + beta_BA_x + beta_BA_y;
         }
@@ -593,7 +598,7 @@ Tensor<double> QuadraticResponse::compute_beta(World &world) {
     auto apply_projector = [&](auto &xi) { return projector(xi); };
 
     auto perturbation_A = generator(world, *this);
-    auto XA = x_data[0].first.copy();
+    auto XA = -1.0* x_data[0].first.copy();
 
     // first step to compute beta is to construct the X_space representations of the virt/virt and occ/occ blocks of gamma
 
@@ -605,7 +610,7 @@ Tensor<double> QuadraticResponse::compute_beta(World &world) {
     }
 
 
-    auto [AB_left, AB_right, BA_left, BA_right] = compute_gamma_virt_and_occ(world, XB, XC);
+    auto [AB_left, AB_right, BA_left, BA_right] = compute_gamma_unrelaxed_block(world, XB, XC);
 
     auto beta_unrelaxed = compute_beta_unrelaxed(world, AB_left, AB_right, BA_left, BA_right);
 
@@ -615,6 +620,16 @@ Tensor<double> QuadraticResponse::compute_beta(World &world) {
 
     auto beta_relaxed = inner(XA, second_order_x);
 
+    if (world.rank() == 0) {
+        cout << "beta unrelaxed " << endl;
+        cout << beta_unrelaxed << endl;
+    }
+
+    if (world.rank() == 0) {
+        cout << "beta relaxed " << endl;
+        cout << beta_relaxed << endl;
+    }
+
     auto beta = beta_relaxed + beta_unrelaxed;
 
     if (world.rank() == 0) {
@@ -622,7 +637,7 @@ Tensor<double> QuadraticResponse::compute_beta(World &world) {
         cout << beta << endl;
     }
 
-    return beta;
+    return 2*beta;
 }
 
 std::pair<X_space, X_space> QuadraticResponse::compute_first_order_fock_matrix_terms(World &world, const X_space &A,
@@ -633,27 +648,90 @@ std::pair<X_space, X_space> QuadraticResponse::compute_first_order_fock_matrix_t
     auto g1a = compute_g1_term(world, A, phi0, phi0);
     auto g1b = compute_g1_term(world, B, phi0, phi0);
 
+    auto norm_g1ax = g1a.x.norm2();
+    auto norm_g1bx = g1b.x.norm2();
+    auto norm_g1ay = g1a.y.norm2();
+    auto norm_g1by = g1b.y.norm2();
+
+    if (world.rank() == 0) {
+        cout << "norm_g1ax " << norm_g1ax << " norm_g1bx " << norm_g1bx << " norm_g1ay " << norm_g1ay << " norm_g1by "
+             << norm_g1by << endl;
+    }
+
     auto [VA, VB] = dipole_perturbation(world, phi0, phi0);
+    auto normVAx = VA.x.norm2();
+    auto normVAy = VA.y.norm2();
+    auto normVBx = VB.x.norm2();
+    auto normVBy = VB.y.norm2();
+    if (world.rank() == 0) {
+        cout << "normVAx " << normVAx << " normVAy " << normVAy << " normVBx " << normVBx << " normVBy " << normVBy
+             << endl;
+    }
 
     auto f1a = g1a + VA;
     auto f1b = g1b + VB;
 
+    auto normf1ax = f1a.x.norm2();
+    auto normf1bx = f1b.x.norm2();
+    auto normf1ay = f1a.y.norm2();
+    auto normf1by = f1b.y.norm2();
+    if (world.rank() == 0) {
+        cout << "normf1ax " << normf1ax << " normf1bx " << normf1bx << " normf1ay " << normf1ay << " normf1by "
+             << normf1by << endl;
+    }
+
     auto FAXB = X_space(world, A.num_states(), A.num_orbitals());
     auto FBXA = X_space(world, A.num_states(), A.num_orbitals());
 
+    std::vector<std::string> names_1 = {"x", "x", "x", "y", "y", "z"};
+    std::vector<std::string> names_2 = {"x", "y", "z", "y", "z", "z"};
+
     // Here contains the y components
     for (auto i = 0; i < A.num_states(); i++) {
+        print("i", i);
+
+
         auto fax = matrix_inner(world, phi0.x[i], f1a.x[i]);
         auto fax_dagger = matrix_inner(world, phi0.y[i], f1a.y[i]);
         auto fbx = matrix_inner(world, phi0.x[i], f1b.x[i]);
         auto fb_dagger = matrix_inner(world, phi0.y[i], f1b.y[i]);
 
 
-        FAXB.x[i] = transform(world, B.x[i], fax, false);
-        FAXB.y[i] = transform(world, B.y[i], fax_dagger, false);
-        FBXA.x[i] = transform(world, A.x[i], fbx, false);
-        FBXA.y[i] = transform(world, A.y[i], fb_dagger, false);
+        FAXB.x[i] = copy(world, transform(world, B.x[i], fax, true), true);
+        FAXB.y[i] = copy(world, transform(world, B.y[i], fax_dagger, true), true);
+        FBXA.x[i] = copy(world, transform(world, A.x[i], fbx, true), true);
+        FBXA.y[i] = copy(world, transform(world, A.y[i], fb_dagger, true), true);
+
+        print("<0|F[", names_1[i], "]0>\n", fax);
+        auto fxab_norm = norm2s_T(world, (FAXB.x[i]));
+        print("norm of FAXB.x[i]", names_1[i], names_2[i], fxab_norm);
+
+        print("<0|F_dagger[", names_1[i], "]0>\n", fax_dagger);
+        auto fxab_dagger_norm = norm2s_T(world, (FAXB.y[i]));
+        print("norm of FAXB.y[i]", names_1[i], names_2[i], fxab_dagger_norm);
+
+
+        print("<0|F[", names_2[i], "]0>\n", fbx);
+        auto fbx_norm = norm2s_T(world, (FBXA.x[i]));
+        print("norm of FBXA.x[i]", names_2[i], names_1[i], fbx_norm);
+
+        print("<0|F_dagger[", names_2[i], "]0>\n", fb_dagger);
+        auto fbx_dagger_norm = norm2s_T(world, (FBXA.y[i]));
+        print("norm of FBXA.x[i]", names_2[i], names_1[i], fbx_norm);
     }
+
+    // print norms of FAXB and FBXA
+    auto norm_FAXB_x = FAXB.x.norm2();
+    auto norm_FAXB_y = FAXB.y.norm2();
+    auto norm_FBXA_x = FBXA.x.norm2();
+    auto norm_FBXA_y = FBXA.y.norm2();
+    if (world.rank() == 0) {
+        cout << "norm FAXB:\n x " << norm_FAXB_x << " y " << norm_FAXB_y << endl;
+        cout << "norm FBXA:\n x " << norm_FBXA_x << " y " << norm_FBXA_y << endl;
+    }
+
+
+    world.gop.fence();
 
     return {FAXB, FBXA};
 }
@@ -669,53 +747,58 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms(World &world,
     // We have 2 terms to compute because we need to compute the contributions of BC and CB terms
     auto g1_kbc = -1.0 * oop_apply(compute_g1_term(world, BC_left, BC_right, phi0), apply_projector);
     auto g1_kcb = -1.0 * oop_apply(compute_g1_term(world, CB_left, CB_right, phi0), apply_projector);
+
+    auto norm_g1_kbc_x = g1_kbc.x.norm2();
+    auto norm_g1_kbc_y = g1_kbc.y.norm2();
+    auto norm_g1_kcb_x = g1_kcb.x.norm2();
+    auto norm_g1_kcb_y = g1_kcb.y.norm2();
+    if (world.rank() == 0) {
+        cout << "norm_g1_kbc_x " << norm_g1_kbc_x << " norm_g1_kbc_y " << norm_g1_kbc_y << " norm_g1_kcb_x "
+             << norm_g1_kcb_x << " norm_g1_kcb_y " << norm_g1_kcb_y << endl;
+    }
+
+
     // the next term we need to compute are the first order fock matrix terms
     // -Q FB*XC
-    auto fbxc = -1.0 * oop_apply(compute_g1_term(world, B, phi0, C), apply_projector);
+    auto g1bxc = -1.0 * oop_apply(compute_g1_term(world, B, phi0, C), apply_projector);
     // -Q FC*XB
-    auto fcxb = -1.0 * oop_apply(compute_g1_term(world, C, phi0, B), apply_projector);
+    auto g1cxb = -1.0 * oop_apply(compute_g1_term(world, C, phi0, B), apply_projector);
 
     // -Q ( FB ) * ( XC )
-    auto [VBXC, VCXB] = dipole_perturbation(world, C, B);
+    auto [vbxc, vcxb] = dipole_perturbation(world, C, B);
 
-    VBXC = -1.0 * oop_apply(VBXC, apply_projector);
-    VCXB = -1.0 * oop_apply(VCXB, apply_projector);
+    vbxc = -1.0 * oop_apply(vbxc, apply_projector);
+    vcxb = -1.0 * oop_apply(vcxb, apply_projector);
 
-    auto [FB, FC] = compute_first_order_fock_matrix_terms(world, B, phi0, C);
+    auto [zFBzC, zFCzB] = compute_first_order_fock_matrix_terms(world, B, phi0, C);
 
-    auto XA = x_data[0].first.copy();
+    auto XA = -1.0 * x_data[0].first.copy();
 
 
     // compute inner of each with XA
     auto g1_kbc_inner = inner(XA, g1_kbc);
     auto g1_kcb_inner = inner(XA, g1_kcb);
-    auto fbxc_inner = inner(XA, fbxc);
-    auto fcxb_inner = inner(XA, fcxb);
-    auto FB_inner = inner(XA, FB);
-    auto FC_inner = inner(XA, FC);
-    auto VBXC_inner = inner(XA, VBXC);
-    auto VCXB_inner = inner(XA, VCXB);
+    auto g1cxb_inner = inner(XA, g1cxb);
+    auto g1bxc_inner = inner(XA, g1bxc);
+    auto zFBzC_inner = inner(XA, zFBzC);
+    auto zFCzB_inner = inner(XA, zFCzB);
+    auto VBXC_inner = inner(XA, vbxc);
+    auto VCXB_inner = inner(XA, vcxb);
     // print the inner of each
+
     if (world.rank() == 0) {
-        cout << "g1_kbc_inner" << endl;
-        cout << g1_kbc_inner << endl;
-        cout << "g1_kcb_inner" << endl;
-        cout << g1_kcb_inner << endl;
-        cout << "fbxc_inner" << endl;
-        cout << fbxc_inner << endl;
-        cout << "fcxb_inner" << endl;
-        cout << fcxb_inner << endl;
-        cout << "FB_inner" << endl;
-        cout << FB_inner << endl;
-        cout << "FC_inner" << endl;
-        cout << FC_inner << endl;
-        cout << "VBXC_inner" << endl;
-        cout << VBXC_inner << endl;
-        cout << "VCXB_inner" << endl;
-        cout << VCXB_inner << endl;
+        print("Inner products of XA with each term in rhs vectors\n");
+        print("g1_kbc\n", g1_kbc_inner);
+        print("g1_kcb\n", g1_kcb_inner);
+        print("g1bxc\n", g1bxc_inner);
+        print("g1cxb\n", g1cxb_inner);
+        print("zFBzC\n", zFBzC_inner);
+        print("zFCzB\n", zFCzB_inner);
+        print("vbxc\n", VBXC_inner);
+        print("vcxb\n", VCXB_inner);
     }
 
-    return g1_kbc + g1_kcb + fbxc + fcxb + FB + FC + VBXC + VCXB;
+    return g1_kbc + g1_kcb + g1bxc + g1cxb + zFBzC + zFCzB + vbxc + vcxb;
 
     // the next term we need to compute are the first order fock matrix terms
 }
@@ -733,7 +816,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms(World &world,
  */
 
 std::tuple<X_space, X_space, X_space, X_space>
-QuadraticResponse::compute_gamma_virt_and_occ(World &world, const X_space &A, const X_space &B) {
+QuadraticResponse::compute_gamma_unrelaxed_block(World &world, const X_space &A, const X_space &B) {
 
 
     X_space AB_left = X_space(world, A.num_states(), B.num_orbitals());
@@ -752,18 +835,62 @@ QuadraticResponse::compute_gamma_virt_and_occ(World &world, const X_space &A, co
     std::vector<std::string> names = {"xx", "xy", "xz", "yy", "yz", "zz"};
     // Here contains the y components
     for (auto i = 0; i < A.num_states(); i++) {
+
         auto AB = matrix_inner(world, A.y[i], B.x[i]);
         auto BA = matrix_inner(world, B.y[i], A.x[i]);
+        if (world.rank() == 0) { print(names[i], AB, BA); }
+        // although we know there is a negative sign in the density matrix we do not include it here for _left.y terms
+        auto temp = -1.0 * transform(world, ground_orbitals, 1.0 * AB, true);
+        AB_left.y[i] = copy(world, temp, true);
+
+        temp = -1.0 * transform(world, ground_orbitals, 1.0 * BA, true);
+        BA_left.y[i] = copy(world, temp, true);
+
+        auto norm_temp = norm2s_T(world, temp);
+        auto norm_ground = norm2s_T(world, ground_orbitals);
+        if (world.rank() == 0) { print("norm of temp: ", norm_temp); }
+        if (world.rank() == 0) { print("norm of ground ", norm_ground); }
+
+        AB_right.y[i] = copy(world, ground_orbitals, true);
+        BA_right.y[i] = copy(world, ground_orbitals, true);
+
+
+        //print the norms of each vector
+    }
+
+
+    if (r_params.print_level() > 0) {
+        auto AB_left_x = AB_left.x.norm2();
+        auto AB_right_x = AB_right.x.norm2();
+        auto AB_left_y = AB_left.y.norm2();
+        auto AB_right_y = AB_left.y.norm2();
+
+        auto BA_left_x = BA_left.x.norm2();
+        auto BA_right_x = BA_right.x.norm2();
+        auto BA_left_y = BA_left.y.norm2();
+        auto BA_right_y = BA_left.y.norm2();
 
         if (world.rank() == 0) {
-            print(names[i], AB,BA);
+            print("NORMS of UNRELAXED BLOCKS");
+            print("AB_left_x");
+            print(AB_left_x);
+            print("AB_right_x");
+            print(AB_right_x);
+            print("BA_left_x");
+            print(BA_left_x);
+            print("BA_right_x");
+            print(BA_right_x);
+            print("AB_left_y");
+            print(AB_left_y);
+            print("AB_right_y");
+            print(AB_right_y);
+            print("BA_left_y");
+            print(BA_left_y);
+            print("BA_right_y");
+            print(BA_right_y);
         }
-        // although we know there is a negative sign in the density matrix we do not include it here for _left.y terms
-        AB_left.y[i] = -1.0 * transform(world, ground_orbitals, AB, false);
-        AB_right.y[i] = copy(world, ground_orbitals, false);
-        BA_left.y[i] = -1.0 * transform(world, ground_orbitals, BA, false);
-        BA_right.y[i] = copy(world, ground_orbitals, false);
     }
+
 
     return {AB_left, AB_right, BA_left, BA_right};
 }
@@ -797,7 +924,7 @@ auto QuadraticResponse::dipole_perturbation(World &world, const X_space &left, c
         VC.y[i] = dipole_vectors[case_2_indices[i]] * right.y[i];
     }
 
-    return {VB, VC};
+    return {1.0 * VB, 1.0 * VC};
     // in the first case i need to mulitply x x x y y z to vectors in right
     // in the second case i need to multiply x y z y z a to vectors in left
 }
@@ -827,12 +954,12 @@ X_space QuadraticResponse::compute_coulomb_term(World &world, const X_space &x_l
 
     // create the density for each state in B
     for (const auto &b: x_left.active) {
-
         x_phi = mul(world, x_left.x[b], x_right.x[b], false);
         y_phi = mul(world, x_left.y[b], x_right.y[b], false);
         world.gop.fence();
         rhoX[b] = sum(world, x_phi, true);
         rhoX[b] += sum(world, y_phi, true);
+        world.gop.fence();
     }
 
     truncate(world, rhoX);
@@ -866,7 +993,6 @@ X_space QuadraticResponse::compute_exchange_term(World &world, const X_space &x_
 
     vector_real_function_3d xb;
     vector_real_function_3d yb;
-    if (world.rank() == 0) { print("K1StrategyFull"); }
 
     auto k1 = create_response_matrix(x_left.num_states(), x_left.num_orbitals());
     auto k2 = create_response_matrix(x_left.num_states(), x_left.num_orbitals());
@@ -875,7 +1001,6 @@ X_space QuadraticResponse::compute_exchange_term(World &world, const X_space &x_
 
 
     for (int k = 0; k < x_left.num_states(); k++) {
-
 
         auto K1 = Koperator(x_left.x[k], x_right.x[k]);
         auto K2 = Koperator(x_right.y[k], x_left.y[k]);
@@ -894,6 +1019,7 @@ X_space QuadraticResponse::compute_exchange_term(World &world, const X_space &x_
         K.x[k] = gaxpy_oop(1.0, k1[k], 1.0, k2[k], false);
         K.y[k] = gaxpy_oop(1.0, k1_conjugate[k], 1.0, k2_conjugate[k], false);
     }
+    world.gop.fence();
 
     return K;
 }
