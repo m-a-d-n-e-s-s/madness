@@ -7,9 +7,8 @@
 
 
 
-#include<madness/chem/QCCalculationParametersBase.h>
-#include<madness/mra/mra.h>
-#include<madness/world/parallel_archive.h>
+#include"QCCalculationParametersBase.h"
+#include"parallel_archive.h"
 
 using namespace madness;
 
@@ -443,7 +442,7 @@ bool test_derived(World& world) {
 int main(int argc, char** argv) {
 	initialize(argc, argv);
 	World world(SafeMPI::COMM_WORLD);
-	startup(world,argc,argv);
+//	startup(world,argc,argv);
 	std::cout.precision(6);
 
 	int success=0;

@@ -13,7 +13,6 @@ set(MADCHEM_HEADERS
     ccpairfunction.h
     CCPotentials.h
     CCStructures.h
-    commandlineparser.h
     corepotential.h
     correlationfactor.h
     diamagneticpotentialfactor.h
@@ -48,7 +47,6 @@ set(MADCHEM_HEADERS
     polynomial.h
     potentialmanager.h
     projector.h
-    QCCalculationParametersBase.h
     QCPropertyInterface.h
     SCF.h
     SCFOperators.h
@@ -87,7 +85,6 @@ set(MADCHEM_SOURCES
     pcm.cc
     pointgroupsymmetry.cc
     polynomial.cc
-    QCCalculationParametersBase.cc
     SCF.cc
     SCFOperators.cc
     TDHF.cc
@@ -142,7 +139,7 @@ if(BUILD_TESTING)
   SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
   # The list of unit test source files
   set(CHEM_TEST_SOURCES_SHORT test_pointgroupsymmetry.cc test_masks_and_boxes.cc
-  test_QCCalculationParametersBase.cc test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc)
+          test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc)
   set(CHEM_TEST_SOURCES_LONG test_localizer.cc test_ccpairfunction.cc)
   if (LIBXC_FOUND)
     list(APPEND CHEM_TEST_SOURCES_SHORT test_dft.cc )

@@ -42,8 +42,8 @@
 
 #include<madness/chem/molecule.h>
 #include<madness/chem/molecularbasis.h>
-#include<madness/chem/QCCalculationParametersBase.h>
-#include<madness/chem/commandlineparser.h>
+#include<madness/mra/QCCalculationParametersBase.h>
+#include<madness/mra/commandlineparser.h>
 
 
 namespace madness {
