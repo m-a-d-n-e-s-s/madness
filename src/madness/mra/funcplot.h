@@ -766,7 +766,6 @@ namespace madness {
 
 
 /// plot a 2-d slice of a given function and the according MRA structure
-/// FIXME: doesn't work for more than 1 rank
 
 /// the plotting parameters are taken from the input file "input" and its
 /// data group "plot", e.g. plotting the xy plane around (0,0,0.7):
@@ -847,65 +846,36 @@ void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfuncti
 }
 
 
-template<size_t NDIM, typename opT>
-    void plot_plane(World& world, const opT& op, const std::string name) {
+    template<size_t NDIM, typename opT>
+    void plot_plane(World& world, const opT& op, const std::string name, const PlotParameters param) {
 
          if (world.size()>1) return;
-         // determine the ploting plane
-         std::string c1, c2;
 
-         // zoom factor
-         double zoom=1.0;
+        auto plane=param.plane();
+        std::string c1=plane[0];
+        std::string c2=plane[1];
+        auto npoints=param.npoints();
+        auto origin=param. template origin<NDIM>();
+        auto coord=param. template origin<NDIM>();
+        double scale=1.0/param.zoom();
+        std::string output_type="gnuplot";
 
-         // output type: mathematica or gnuplot
-         std::string output_type="gnuplot";
+        auto plane2dim = [](std::string c) {
+            if (c=="x1") return 0;
+            else if (c=="x2") return 1;
+            else if (c=="x3") return 2;
+            else if (c=="x4") return 3;
+            else if (c=="x5") return 4;
+            else if (c=="x6") return 5;
+            else return -1;
+        };
 
-         // number of points in each direction
-         int npoints=200;
+        // convert human to mad form
+        std::size_t cc1=plane2dim(c1);
+        std::size_t cc2=plane2dim(c2);
 
-         // the coordinates to be plotted
-         Vector<double,NDIM> coord(0.0);
-         Vector<double,NDIM> origin(0.0);
-
-         try {
-             std::ifstream f("input");
-             position_stream(f, "plot");
-             std::string s;
-             while (f >> s) {
-                 if (s == "end") {
-                     break;
-                 } else if (s == "plane") {
-                     f >> c1 >> c2;
-                 } else if (s == "zoom") {
-                     f >> zoom;
-                 } else if (s == "output") {
-                     f >> output_type;
-                 } else if (s == "points") {
-                     f >> npoints;
-                 } else if (s == "origin") {
-                     for (std::size_t i=0; i<NDIM; ++i) f >> origin[i];
-                 }
-             }
-         } catch (...) {
-             print("can't locate plot in file input -- using default values");
-         }
-         double scale=1.0/zoom;
-         coord=origin;
-
-         // convert human to mad form
-         int cc1=0, cc2=1;
-         if (c1=="x1") cc1=0;
-         if (c1=="x2") cc1=1;
-         if (c1=="x3") cc1=2;
-         if (c1=="x4") cc1=3;
-         if (c1=="x5") cc1=4;
-         if (c1=="x6") cc1=5;
-         if (c2=="x1") cc2=0;
-         if (c2=="x2") cc2=1;
-         if (c2=="x3") cc2=2;
-         if (c2=="x4") cc2=3;
-         if (c2=="x5") cc2=4;
-         if (c2=="x6") cc2=5;
+        MADNESS_ASSERT(cc1>=0 && cc1<NDIM);
+        MADNESS_ASSERT(cc2>=0 && cc2<NDIM);
 
          // output file name for the gnuplot data
          std::string filename="plane_"+c1+c2+"_"+name;
