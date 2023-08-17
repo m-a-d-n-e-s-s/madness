@@ -26,6 +26,7 @@ class GroundStateCalculation {
     // Ground state parameters that are read in from archive
     std::string inFile{"../moldft.restartdata"};///< Name of input archive to read in ground state
     bool spinrestricted{true};///< Indicates if ground state calc. was open or closed
+    double converged_for_thresh{1.e10};
     ///< shell
     unsigned int num_orbitals{};///< Number of orbitals in ground state
     Tensor<double> energies{};  ///< Energy of ground state orbitals
@@ -87,6 +88,7 @@ public:
         input &molecule_in;    // Molecule
         input &xc;             // std:string        xc functional
         input &localize_method;// std:string        localize  method
+        input &converged_for_thresh;
         input &num_orbitals;   // int
         input &energies;       // Tensor<double>    orbital energies
         input &occ;            // Tensor<double>    orbital occupations
