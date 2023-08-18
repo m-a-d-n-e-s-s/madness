@@ -83,6 +83,9 @@ namespace madness {
         template<std::size_t NDIM>
         Vector<double,NDIM> origin() const {
             auto origin_vec=get<std::vector<double>>("origin");
+            // fill in zeros if the default origin has fewer dimensions than the actual origin
+            std::size_t missing=NDIM-origin_vec.size();
+            for (auto i=0; i<missing; ++i) origin_vec.push_back(0.0);
             Vector<double,NDIM> o(origin_vec);
             return o;
         }

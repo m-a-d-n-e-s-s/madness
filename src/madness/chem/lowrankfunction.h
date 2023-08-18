@@ -87,7 +87,7 @@ namespace madness {
             return exp(-exponent*r2);
         }
 
-        Vector<double,NDIM> gaussian_random_distribution(double mean, double variance) {
+        static Vector<double,NDIM> gaussian_random_distribution(double mean, double variance) {
             std::random_device rd{};
             std::mt19937 gen{rd()};
             std::normal_distribution<> d{mean, variance};
@@ -209,6 +209,60 @@ namespace madness {
 
         }
 
+        /// inner product: result(1) = \int f(1,2) delta(2) d2
+
+        /// @param[in]  functor the hidim function
+        /// @param[in]  grid     grid points with delta functions
+        /// @param[in]  p1      the variable in f(1,2) to be integrated over
+        /// @param[in]  p2      the variable in rhs to be integrated over (usually all of them)
+        static std::vector<Function<T,LDIM>> inner(LRFunctor& functor, const std::vector<Vector<double,LDIM>>& grid,
+                                                   const particle<LDIM> p1, const particle<LDIM> p2) {
+            std::vector<Function<T,LDIM>> result;
+            MADNESS_CHECK(functor.has_f() xor functor.has_f12());
+            MADNESS_CHECK(p1.is_first() xor p1.is_last());
+            MADNESS_CHECK(p2.is_first());
+
+            if (functor.has_f()) {
+                MADNESS_EXCEPTION("no grid points with an explicit hi-dim function",1);
+
+            } else if (functor.has_f12()) {
+                // functor is now a(1) b(2) f12
+                // result(1) = \int a(1) f(1,2) b(2) delta(R-2) d2
+                //           = a(1) f(1,R) b(R)
+                World& world=functor.f12->get_world();
+                auto premultiply= p1.is_first() ? functor.a : functor.b;
+                auto postmultiply= p1.is_first() ? functor.b : functor.a;
+
+                std::vector<Function<T,LDIM>> f1R= slater_functions_on_grid(world,grid);
+                print("bla1");
+                if (premultiply.is_initialized()) {
+                    for (int i=0; i<grid.size(); ++i) f1R[i] = f1R[i]*premultiply(grid[i]);
+                }
+                print("bla2");
+                if (postmultiply.is_initialized()) f1R=f1R*postmultiply;
+                print("bla3");
+                result=f1R;
+
+            } else {
+                MADNESS_EXCEPTION("confused functor in LowRankFunction",1);
+            }
+            return result;
+
+        }
+
+
+        static std::vector<Function<T,LDIM>> slater_functions_on_grid(World& world, const std::vector<Vector<double,LDIM>>& grid) {
+            std::vector<Function<T,LDIM>> result;
+            for (const auto& point : grid) {
+                auto sl=[&point](const Vector<double,LDIM>& r) {
+                    return exp(-sqrt(madness::inner(r-point,r-point)+1.e-12));
+                };
+                result.push_back(FunctionFactory<T,LDIM>(world).functor(sl));
+            }
+            return result;
+        }
+
+
         World& world;
         std::vector<Function<T,LDIM>> g,h;
         LRFunctor lrfunctor;
@@ -274,45 +328,58 @@ namespace madness {
             return *this;
         }
 
+        void project(const double volume_per_point, const double radius, const std::string gridtype, std::string rhsfunctiontype) {
+            long rank=0;
+            if (gridtype=="random") {
+                // number of points within radius = variance: 0.67 * #total points = 0.67*rank
+                // volume of sphere 4/3 pi *r^3
+                // volume per point=volume/#points in radius = volume / (0.67 * rank)
+                // rank= volume/(0.67/volume_per_point)
+                double volume=4.0/3.0*constants::pi *std::pow(radius,3.0);
+                rank = lround(volume/(0.67*volume_per_point ));
+            }
+            project(rank,radius,gridtype,rhsfunctiontype);
+        }
+
         /// following Halko
 
         /// ||A - Q Q^T A||< epsilon
         /// Y = A Omega && Q = QR(Y)
         /// || f(1,2) - \sum_i g_i(1) h_i(2) || < epsilon
         /// Y_i(1) = \int f(1,2) Omega_i(2) d2 && g_i(1) = QR(Y_i(1)) && h_i(2) = \int g_i^*(1) f(1,2) d1
-        void project(const long rank, const double radius, const std::string gridtype) {
+        void project(const long rank, const double radius, const std::string gridtype, std::string rhsfunctiontype) {
             timer t1(world);
-            std::vector<Function<double,LDIM>> omega2;
-            if (gridtype=="random") {
-                for (long i=0; i<rank; ++i) {
-//                    omega2.push_back(FunctionFactory<double,LDIM>(world).functor(randomgaussian<LDIM>(RandomValue<double>()+10.0,radius)));
-                    omega2.push_back(FunctionFactory<double,LDIM>(world).functor(randomgaussian<LDIM>(50.0,radius)));
-                }
-                print("using random gaussian distribution");
-            } else if (gridtype=="cartesian") {
 
-                cartesian_grid<LDIM> cg(9,-radius,radius);
-                auto c=cg;
-                c.index=0;
-                for (; c(); ++c) {
-                    omega2.push_back(FunctionFactory<double,LDIM>(world)
-                            .functor([&c](const Vector<double,LDIM>& r)
-                             {
-                                 auto r_rel=r-c.get_coordinates();
-                                 return exp(-10*madness::inner(r_rel,r_rel));
-                             }));
+            // make grid
+            std::vector<Vector<double,LDIM>> grid;
+            if (gridtype=="random") {
+                for (int i=0; i<rank; ++i) {
+                    auto tmp=randomgaussian<LDIM>::gaussian_random_distribution(0,radius);
+                    auto cell=FunctionDefaults<LDIM>::get_cell();
+                    auto is_in_cell = [&cell](const Vector<double,LDIM>& r) {
+                        for (int d=0; d<LDIM; ++d) if (r[d]<cell(d,0) or r[d]>cell(d,1)) return false;
+                        return true;
+                    };
+                    if (not is_in_cell(tmp)) continue;
+                    grid.push_back(tmp);
                 }
+                double volume = 4.0/3.0*constants::pi * std::pow(radius,3.0);
+                print("volume element in random grid",volume/(0.67*rank));
+
+
+            } else if (gridtype=="cartesian") {
+                long nperdim=std::lround(std::pow(double(rank),1.0/3.0));
+                cartesian_grid<LDIM> cg(nperdim,-radius,radius);
+                for (cg.index=0; cg(); ++cg) grid.push_back(cg.get_coordinates());
                 print("volume element in cartesian grid",cg.volume_per_gridpoint());
             } else {
-                MADNESS_EXCEPTION("confused gridtype",1);
+                MADNESS_EXCEPTION("unknown grid type in project",1);
             }
 
+            print("grid is",gridtype,"with radius",radius,"and",grid.size(),"gridpoints");
+            print("rhs functions are",rhsfunctiontype);
 
-            t1.tag("projection lowdim functions");
-            print("radius",radius);
-            print("initial rank",omega2.size());
-
-            auto Y=inner(lrfunctor,omega2,p2,p1);
+            auto Y=Yformer(grid,rhsfunctiontype);
             t1.tag("Yforming");
 
             double tol=1.e-12;
@@ -325,6 +392,31 @@ namespace madness {
             h=inner(lrfunctor,g,p1,p1);
             t1.tag("Y backprojection");
 
+        }
+
+        /// apply a rhs (delta or exponential) on grid points to the hi-dim function and form Y = A_ij w_j (in Halko's language)
+        std::vector<Function<T,LDIM>> Yformer(const std::vector<Vector<double,LDIM>>& grid, const std::string rhsfunctiontype,
+                                              const double exponent=30.0) {
+
+            std::vector<Function<double,LDIM>> Y;
+            if (rhsfunctiontype=="delta") {
+                Y=inner(lrfunctor,grid,p2,p1);
+
+            } else if (rhsfunctiontype=="exponential") {
+                std::vector<Function<double,LDIM>> omega;
+                for (const auto& point : grid) {
+                    omega.push_back(FunctionFactory<double,LDIM>(world)
+                            .functor([&point,&exponent](const Vector<double,LDIM>& r)
+                                     {
+                                         auto r_rel=r-point;
+                                         return exp(-exponent*madness::inner(r_rel,r_rel));
+                                     }));
+                }
+                Y=inner(lrfunctor,omega,p2,p1);
+            } else {
+                MADNESS_EXCEPTION("confused rhsfunctiontype",1);
+            }
+            return Y;
         }
 
         long rank() const {return g.size();}

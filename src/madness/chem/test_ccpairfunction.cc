@@ -21,9 +21,12 @@ struct XParameters : QCCalculationParametersBase {
     XParameters() : QCCalculationParametersBase() {
 
         // initialize with: key, value, comment (optional), allowed values (optional)
-        initialize<double>("radius",5.0,"the radius");
-        initialize<int>("rank",500,"the number of grid points in random grids");
+        initialize<double>("radius",2.0,"the radius");
+        initialize<double>("volume_element",0.1,"volume covered by each grid point");
+        initialize<long>("rank",500,"the number of grid points in random grids");
         initialize<std::string>("gridtype","random","the grid type",{"random","cartesian"});
+        initialize<std::string>("rhsfunctiontype","delta","the type of function",{"delta","exponential"});
+        initialize<int>("optimize",0,"number of optimization iterations");
     }
 
     void read_and_set_derived_values(World& world, const commandlineparser& parser, std::string tag) {
@@ -31,8 +34,11 @@ struct XParameters : QCCalculationParametersBase {
     }
 
     double radius() const {return get<double>("radius");}
-    int rank() const {return get<int>("rank");}
+    double volume_element() const {return get<double>("volume_element");}
+    long rank() const {return get<long>("rank");}
+    int optimize() const {return get<int>("optimize");}
     std::string gridtype() const {return get<std::string>("gridtype");}
+    std::string rhsfunctiontype() const {return get<std::string>("rhsfunctiontype");}
 };
 
 
@@ -161,6 +167,8 @@ int test_lowrank_function3(World& world, XParameters& parameters) {
     constexpr std::size_t NDIM=2*LDIM;
     print("eps, k, NDIM",FunctionDefaults<NDIM>::get_thresh(),FunctionDefaults<NDIM>::get_k(),NDIM);
 
+    parameters.print("grid","end");
+
     Vector<double,LDIM> offset;
     offset.fill(0.0);
 //    Function<double,LDIM> phi1=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r)
@@ -181,12 +189,14 @@ int test_lowrank_function3(World& world, XParameters& parameters) {
 //    };
 
     LowRank<double,6> lrf(f12,copy(phi1),copy(phi2));
-    lrf.project(parameters.rank(),parameters.radius(),parameters.gridtype());
-    lrf.optimize(1);
+//    plot_plane<6>(world,lrf.lrfunctor,"plot_f12_r2",PlotParameters(world).set_plane({"x1","x4"}));
+//    lrf.project(parameters.rank(),parameters.radius(),parameters.gridtype(),parameters.rhsfunctiontype());
+    lrf.project(parameters.volume_element(),parameters.radius(),parameters.gridtype(),parameters.rhsfunctiontype());
+    lrf.optimize(parameters.optimize());
     print("lrf.rank()",lrf.rank());
 
     // compare
-    // \phi(1) \bar \phi(1) = \int phi(1) \phi(2) f(1,2) d2
+    // \phi(1) \bar \phi(1) = \intn phi(1) \phi(2) f(1,2) d2
     //       = \int \sum_r g_r(1) h_r(2)  d2
     //       = \sum_r g_r(1) <\phi|h_r>
     auto reference = phi1* (*f12)(phi2);
@@ -198,12 +208,10 @@ int test_lowrank_function3(World& world, XParameters& parameters) {
     double resultnorm=result.norm2();
     double error=diff.norm2();
     print("refnorm, resultnorm, abs. error, rel. error",refnorm, resultnorm, error, error/refnorm);
-    print("radius, initial/final rank, rel. error",parameters.radius(),parameters.rank(),lrf.rank(), error/refnorm);
+    print("radius, initial/final rank, vol. el, rel. error",parameters.radius(),parameters.rank(),lrf.rank(), parameters.volume_element(), error/refnorm);
 
-    plot<LDIM>({reference, result, diff}, "f_and_approx", std::vector<std::string>({"adsf", "asdf", "diff"}));
-
-    plot_plane<6>(world,lrf.lrfunctor,"plot_f12_r2");
-    plot_plane<6>(world,lrf,"lrf_6d");
+//    plot_plane<LDIM>(world,{reference, result, diff}, "f_and_approx", PlotParameters(world).set_plane({"x1","x2"}));
+//    plot_plane<6>(world,lrf,"lrf_6d",PlotParameters(world).set_plane({"x1","x4"}));
 
 
 
@@ -263,7 +271,7 @@ int test_lowrank_function(World& world) {
     f12.reconstruct();
     Function<double,NDIM> reference=inner(lhs,rhs,{0},{0});
     LowRank<double,NDIM> lrf(rhs);
-    lrf.project(50,3.0,"random");
+    lrf.project(50l,3.0,"random","delta");
     lrf.optimize();
 
     double ferror=lrf.error();
@@ -297,7 +305,7 @@ int test_lowrank_function(World& world) {
         double radius = 5.0;
 
         LowRank<double, NDIM> lr(copy(f));
-        lr.project(rank, radius,"random");
+        lr.project(rank, radius,"random","delta");
         double err = lr.error();
         print("error in f_approx", err);
         lr.orthonormalize(true);
@@ -1237,7 +1245,6 @@ int main(int argc, char **argv) {
           FunctionDefaults<6>::get_thresh());
     XParameters parameters;
     parameters.read_and_set_derived_values(world,parser,"grid");
-    parameters.print("grid parameters");
     int isuccess=0;
 #ifdef USE_GENTENSOR
 
