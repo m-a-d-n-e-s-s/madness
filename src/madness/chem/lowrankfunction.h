@@ -255,7 +255,7 @@ namespace madness {
             std::vector<Function<T,LDIM>> result;
             for (const auto& point : grid) {
                 auto sl=[&point](const Vector<double,LDIM>& r) {
-                    return exp(-sqrt(madness::inner(r-point,r-point)+1.e-12));
+                    return exp(-sqrt(madness::inner(r-point,r-point)+1.e-8));
                 };
                 result.push_back(FunctionFactory<T,LDIM>(world).functor(sl));
             }
