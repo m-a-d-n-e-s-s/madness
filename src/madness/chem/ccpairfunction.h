@@ -8,8 +8,8 @@
 
 
 #include <madness/mra/mra.h>
-#include<madness/chem/commandlineparser.h>
-#include<madness/chem/QCCalculationParametersBase.h>
+#include<madness/mra/commandlineparser.h>
+#include<madness/mra/QCCalculationParametersBase.h>
 #include <algorithm>
 #include <iomanip>
 #include <madness/mra/macrotaskq.h>
