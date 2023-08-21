@@ -9,10 +9,11 @@ set(MADMRA_HEADERS
     mraimpl.h  funcplot.h  function_common_data.h function_factory.h
     function_interface.h gfit.h convolution1d.h simplecache.h derivative.h
     displacements.h functypedefs.h sdf_shape_3D.h sdf_domainmask.h vmra1.h
-    leafop.h nonlinsol.h macrotaskq.h macrotaskpartitioner.h)
+    leafop.h nonlinsol.h macrotaskq.h macrotaskpartitioner.h QCCalculationParametersBase.h
+    commandlineparser.h)
 set(MADMRA_SOURCES
     mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc startup.cc legendre.cc 
-    twoscale.cc qmprop.cc)
+    twoscale.cc qmprop.cc QCCalculationParametersBase.cc)
 
 # Create the MADmra library
 add_mad_library(mra MADMRA_SOURCES MADMRA_HEADERS "linalg;tinyxml;muparser" "madness/mra")
@@ -36,7 +37,7 @@ if(BUILD_TESTING)
   set(MRA_TEST_SOURCES testbsh.cc testproj.cc 
       testpdiff.cc testdiff1Db.cc testgconv.cc testopdir.cc testinnerext.cc 
       testgaxpyext.cc testvmra.cc, test_vectormacrotask.cc test_cloud.cc
-      test_macrotaskpartitioner.cc)
+      test_macrotaskpartitioner.cc test_QCCalculationParametersBase.cc)
   add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest" "unittests;short")
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
       testper.cc)

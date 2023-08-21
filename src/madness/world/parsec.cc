@@ -6,6 +6,8 @@
 #include "thread.h"
 #include <parsec/parsec_internal.h>
 
+#include <cinttypes>
+
 // Here we initialize with the right child class
 namespace madness {
 #ifndef MADNESS_ASSERTIONS_DISABLE
@@ -66,7 +68,7 @@ namespace madness {
     }
 
     static char *madness_parsec_key_print(char *buffer, size_t buffer_size, parsec_key_t k, void *user_data) {
-        snprintf(buffer, buffer_size, "MADNESS_TASK(%" PRIx64 ")", (intptr_t)(k));
+        snprintf(buffer, buffer_size, "MADNESS_TASK(%" PRIxPTR ")", k);
         return buffer;
     }
 

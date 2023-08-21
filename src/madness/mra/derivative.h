@@ -370,7 +370,12 @@ namespace madness {
                     return;
                 }
             }
-            tensorT gcoeffs = df->parent_to_child(found_argT.get().second, found_argT.get().first,key).full_tensor_copy();
+#ifdef HAVE_PARSEC
+            std::cerr << "FATAL ERROR: PaRSEC does not support recursive task execution but Derivative::do_diff2b requires this. Use a different backend" << std::endl;
+            abort();
+#endif
+            const auto& found_argT_value = found_argT.get();  // do not recursively execute tasks to avoid making PaRSEC sad
+            tensorT gcoeffs = df->parent_to_child(found_argT_value.second, found_argT_value.first,key).full_tensor_copy();
 
             //if (this->bc.get_bc().dim(0) == 1) {
             if (NDIM == 1) {

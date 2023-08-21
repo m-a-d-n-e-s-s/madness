@@ -51,7 +51,7 @@
 #include<madness/chem/nemo.h>
 #include<madness/chem/correlationfactor.h>
 #include<madness/chem/electronic_correlation_factor.h>
-#include<madness/chem/commandlineparser.h>
+#include"madness/mra/commandlineparser.h"
 
 
 // switch the electronic interaction on or off

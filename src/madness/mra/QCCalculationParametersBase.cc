@@ -5,11 +5,11 @@
  *      Author: fbischoff
  */
 
-#include<madness/chem/QCCalculationParametersBase.h>
+#include"QCCalculationParametersBase.h"
 #include <iostream>
 #include <fstream>
 #include <iomanip>
-#include<madness/world/worldgop.h>
+#include"worldgop.h"
 
 
 
