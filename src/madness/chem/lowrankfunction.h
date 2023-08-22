@@ -390,9 +390,12 @@ namespace madness {
             auto Y=Yformer(grid,rhsfunctiontype);
             t1.tag("Yforming");
 
-            double tol=1.e-12;
+            double tol=1.e-8;
+            std::ostringstream oss;
+            oss << std::scientific << std::setprecision(1) << tol;
+            std::string scientificString = oss.str();
             g=orthonormalize_rrcd(Y,tol);
-            t1.tag("Y orthonormalizing with tol"+std::to_string(tol));
+            t1.tag("Y orthonormalizing with tol "+scientificString);
 
             print("Y.size()",Y.size());
             print("g.size()",g.size());
@@ -474,28 +477,34 @@ namespace madness {
             return s;
 
         }
-        void orthonormalize_cd() {
+
+        /// orthonormalize g or h by rr-cholesky
+
+        /// usage: orthonormalize_cd(h,tol) or orthonormalize_cd(g,tol)
+        void orthonormalize_cd(const std::vector<Function<T,LDIM>>& to_ortho, double tol) {
+            MADNESS_CHECK((&to_ortho == &h) or(&to_ortho == &g)) ;
             /**
-             *  |g >s< h| = |g_ortho><g_ortho | g> s < h |
-             *           = |g_ortho> gg s < h |
+             *  |g >< h| = |g_ortho><g_ortho | g> < h |
+             *           = |g_ortho> gg < h |
              *           = |g_ortho> <h_non_ortho |
              */
             World& world=g.front().world();
 
-            auto g_ortho= orthonormalize_rrcd(g,1.e-10);
-//        auto g_ortho= orthonormalize_canonical(g,1.e-8);      // similar to SVD
-//        auto g_ortho= orthonormalize_symmetric(g);
+            auto ortho= orthonormalize_rrcd(to_ortho,tol);
 
-            auto ovlp=matrix_inner(world,g_ortho,g_ortho);
+            auto ovlp=matrix_inner(world,ortho,ortho);
             for (int i=0; i<ovlp.dim(0); ++i) ovlp(i,i)-=1.0;
             MADNESS_CHECK(fabs(ovlp.normf()/ovlp.size()<1.e-10));
 
-            Tensor<double> gg=matrix_inner(world,g_ortho,g);
+            Tensor<double> gg=matrix_inner(world,ortho,to_ortho);
             /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
-//            h=truncate(transform(world,h,transpose(gg)));
-//            g=truncate(g_ortho);
-            h=(transform(world,h,transpose(gg)));
-            g=(g_ortho);
+            if (&to_ortho == &h) {
+                g=(transform(world,g,transpose(gg)));
+                h=(ortho);
+            } else {
+                g=(ortho);
+                h=(transform(world,h,transpose(gg)));
+            }
 
         }
 
@@ -506,13 +515,14 @@ namespace madness {
         /// optimize using Cholesky decomposition
         void optimize_cd(const long nopt) {
 
+            double tol=1.e-12;
             timer t(world);
             for (int iopt=0; iopt<nopt; ++iopt) {
-//                this->orthonormalize_cd();      // g orthonormal, h not
+                this->orthonormalize_cd(h,tol);      // h orthonormal, g not
                 t.tag("ortho1");
                 auto gtmp=inner(lrfunctor,h,p2,p1);
                 t.tag("inner1");
-                g=orthonormalize_rrcd(gtmp,1.e-12);
+                g=orthonormalize_rrcd(gtmp,tol);
                 t.tag("ortho2");
                 h=inner(lrfunctor,g,p1,p1);
                 t.tag("inner2");
