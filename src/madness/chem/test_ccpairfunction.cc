@@ -188,27 +188,51 @@ int test_lowrank_function3(World& world, XParameters& parameters) {
 //        return exp(-(r1-r2).normf() -r2.normf());
 //    };
 
+     auto compute_result = [&world, &one](const auto& lrf) {
+         real_function_3d result=real_factory_3d(world);
+         for (int r=0; r<lrf.rank(); ++r) result+=lrf.g[r]*inner(one,lrf.h[r]);
+         return result;
+     };
+     auto compute_error = [&world,&parameters](const auto reference, const auto result, const auto lrf,
+             const std::string msg="") {
+         auto diff=reference-result;
+
+         double refnorm=reference.norm2();
+         double resultnorm=result.norm2();
+         double error=diff.norm2();
+//         print("refnorm, resultnorm, abs. error, rel. error",refnorm, resultnorm, error, error/refnorm);
+         print(msg,"radius, initial/final rank, vol. el, rel. error",parameters.radius(),parameters.rank(),lrf.rank(), parameters.volume_element(), error/refnorm);
+
+     };
+
+    auto reference = phi1* (*f12)(phi2);
+
     LowRank<double,6> lrf(f12,copy(phi1),copy(phi2));
 //    plot_plane<6>(world,lrf.lrfunctor,"plot_f12_r2",PlotParameters(world).set_plane({"x1","x4"}));
 //    lrf.project(parameters.rank(),parameters.radius(),parameters.gridtype(),parameters.rhsfunctiontype());
     lrf.project(parameters.volume_element(),parameters.radius(),parameters.gridtype(),parameters.rhsfunctiontype());
-    lrf.optimize(parameters.optimize());
-    print("lrf.rank()",lrf.rank());
 
     // compare
     // \phi(1) \bar \phi(1) = \intn phi(1) \phi(2) f(1,2) d2
     //       = \int \sum_r g_r(1) h_r(2)  d2
     //       = \sum_r g_r(1) <\phi|h_r>
-    auto reference = phi1* (*f12)(phi2);
-    real_function_3d result=real_factory_3d(world);
-    for (int r=0; r<lrf.rank(); ++r) result+=lrf.g[r]*inner(one,lrf.h[r]);
-    auto diff=reference-result;
+    real_function_3d result=compute_result(lrf);
+    compute_error(reference,result,lrf,"initial projection");
 
-    double refnorm=reference.norm2();
-    double resultnorm=result.norm2();
-    double error=diff.norm2();
-    print("refnorm, resultnorm, abs. error, rel. error",refnorm, resultnorm, error, error/refnorm);
-    print("radius, initial/final rank, vol. el, rel. error",parameters.radius(),parameters.rank(),lrf.rank(), parameters.volume_element(), error/refnorm);
+    lrf.optimize(parameters.optimize());
+    result=compute_result(lrf);
+    std::string msg="optimization:"+std::to_string(parameters.optimize());
+    compute_error(reference,result,lrf,msg);
+
+//    real_function_3d result=real_factory_3d(world);
+//    for (int r=0; r<lrf.rank(); ++r) result+=lrf.g[r]*inner(one,lrf.h[r]);
+//    auto diff=reference-result;
+//
+//    double refnorm=reference.norm2();
+//    double resultnorm=result.norm2();
+//    double error=diff.norm2();
+//    print("refnorm, resultnorm, abs. error, rel. error",refnorm, resultnorm, error, error/refnorm);
+//    print("radius, initial/final rank, vol. el, rel. error",parameters.radius(),parameters.rank(),lrf.rank(), parameters.volume_element(), error/refnorm);
 
 //    plot_plane<LDIM>(world,{reference, result, diff}, "f_and_approx", PlotParameters(world).set_plane({"x1","x2"}));
 //    plot_plane<6>(world,lrf,"lrf_6d",PlotParameters(world).set_plane({"x1","x4"}));

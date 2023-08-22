@@ -532,7 +532,7 @@ namespace madness {
     	Tensor<T> U = transpose(Linv);
 
     	World& world=v.front().world();
-    	return transform(world, pv, U);
+    	return transform(world, pv, U,tol);
     }
 
     /// convenience routine for orthonromalize_cholesky: orthonromalize_cholesky without information on pivoting and rank

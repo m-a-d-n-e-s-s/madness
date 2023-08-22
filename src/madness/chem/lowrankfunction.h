@@ -98,7 +98,6 @@ namespace madness {
     };
 
 
-
     template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
     class LowRank {
     public:
@@ -196,11 +195,20 @@ namespace madness {
                 World& world=rhs.front().world();
                 auto premultiply= p1.is_first() ? functor.a : functor.b;
                 auto postmultiply= p1.is_first() ? functor.b : functor.a;
-                auto tmp=copy(world,rhs);
 
-                if (premultiply.is_initialized()) tmp=tmp*premultiply;
-                result=apply(world,*(functor.f12),tmp);
-                if (postmultiply.is_initialized()) result=result*postmultiply;
+                const int nbatch=30;
+                for (int i=0; i<rhs.size(); i+=nbatch) {
+                    std::vector<Function<T,LDIM>> tmp;
+                    auto begin= rhs.begin()+i;
+                    auto end= (i+nbatch)<rhs.size() ? rhs.begin()+i+nbatch : rhs.end();
+                    std::copy(begin,end, std::back_inserter(tmp));
+
+                    if (premultiply.is_initialized()) tmp=tmp*premultiply;
+                    auto tmp1=apply(world,*(functor.f12),tmp);
+                    if (postmultiply.is_initialized()) tmp1=tmp1*postmultiply;
+                    for (auto& t : tmp1) result.push_back(t);
+
+                }
 
             } else {
                 MADNESS_EXCEPTION("confused functor in LowRankFunction",1);
@@ -492,7 +500,7 @@ namespace madness {
         }
 
         void optimize(const long nopt=2) {
-            optimize_svd(nopt);
+            optimize_cd(nopt);
         }
 
         /// optimize using Cholesky decomposition
