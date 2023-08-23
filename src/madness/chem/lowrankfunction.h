@@ -390,7 +390,7 @@ namespace madness {
             auto Y=Yformer(grid,rhsfunctiontype);
             t1.tag("Yforming");
 
-            double tol=1.e-8;
+            double tol=1.e-10;
             std::ostringstream oss;
             oss << std::scientific << std::setprecision(1) << tol;
             std::string scientificString = oss.str();

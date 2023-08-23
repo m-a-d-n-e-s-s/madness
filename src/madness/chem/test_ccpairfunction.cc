@@ -221,7 +221,7 @@ int test_lowrank_function3(World& world, XParameters& parameters) {
 
     lrf.optimize(parameters.optimize());
     result=compute_result(lrf);
-    std::string msg="optimization:"+std::to_string(parameters.optimize());
+    std::string msg="optimization:"+std::to_string(parameters.optimize())+"    ";
     compute_error(reference,result,lrf,msg);
 
 //    real_function_3d result=real_factory_3d(world);
