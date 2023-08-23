@@ -10,7 +10,7 @@
 using namespace madness;
 
 static const double Z = 80.0;      // nuclear charge
-static const double L = 160.0/Z;    // L=40/Z [-L,L] box size so exp(-Zr)=1e-16 padded a bit since we are masking
+static const double L = 40.0/Z;    // L=40/Z [-L,L] box size so exp(-Zr)=1e-16 padded a bit since we are masking
 static const long k = 8;           // wavelet order
 static const double thresh = 1e-6; // precision
 static const double c = 137.035999679; // speed of light
@@ -206,22 +206,18 @@ std::tuple<real_function_3d, real_function_3d, double> iterate(World& world,
                                                                const real_function_3d& mask,
                                                                const real_function_3d& psi,
                                                                const real_function_3d& phi,
-                                                               const real_function_3d& fakeV,
                                                                const double energy,
                                                                const int iter,
                                                                solverT& solver)
 {
     real_convolution_3d op = BSHOperator3D(world, sqrt(-2*energy), rcut*0.1, thresh);
-    //real_function_3d rhs = -2*(psi*V - energy*(psi-phi));
-    real_function_3d rhs = -2*(0.5*(psi+phi)*V - energy*(psi-phi));
+    real_function_3d rhs = -2*(psi*V - energy*(psi-phi));
     rhs.truncate();
     real_function_3d phi_new = apply(op,rhs);
 
-    //double s = 1.0 + energy/(2*c*c);
-    double s = 1.0;
-    rhs = -2*(energy*(psi-s*phi));
+    double s = 1.0 + energy/(2*c*c);
     //rhs = -2*(pVp(world,V,gradV,phi) + energy*(psi-s*phi));
-    //rhs = -2*(pVp(world,V,phi) + energy*(psi-s*phi));
+    rhs = -2*(pVp(world,V,phi) + energy*(psi-s*phi));
     rhs.truncate();
     real_function_3d psimphi_new = apply(op,rhs);
     real_function_3d psi_new = s*phi_new + psimphi_new;
@@ -300,8 +296,6 @@ void run(World& world) {
     coord_3d lo = {0.0,0.0,-L}, hi = {0.0,0.0,L};
     const int npt = 1001;
     
-    real_function_3d fakeV = 1e-4*Vnuc;
-
     real_function_3d mask  = real_factory_3d(world).f(mask3);
     plot_line("mask.dat", npt, lo, hi, mask);
     
@@ -324,7 +318,7 @@ void run(World& world) {
         sprintf(fname,"psi-phi-%3.3d.dat", iter);
         plot_line(fname, npt, lo, hi, psi, phi);
         
-        auto [psi_new, phi_new, rnorm] = iterate(world, Vnuc, gradV, mask, psi, phi, fakeV, energy, iter, solver);
+        auto [psi_new, phi_new, rnorm] = iterate(world, Vnuc, gradV, mask, psi, phi, energy, iter, solver);
         psi = psi_new;
         phi = phi_new;
 
