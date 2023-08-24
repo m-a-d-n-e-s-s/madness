@@ -565,6 +565,7 @@ Tensor<double> QuadraticResponse::compute_beta_unrelaxed(World &world, const X_s
     };
 
     auto dipole_vectors = create_dipole();
+    truncate(world, dipole_vectors, true);
     std::vector<std::string> names_i = {"x", "y", "z"};
     std::vector<std::string> names_j = {"xx", "xy", "xz", "yy", "yz", "zz"};
     // for each vector in dipole vectors
@@ -617,6 +618,7 @@ Tensor<double> QuadraticResponse::compute_beta(World &world) {
 
     auto second_order_x =
             compute_second_order_perturbation_terms(world, XB, XC, AB_left, AB_right, BA_left, BA_right, phi0);
+    second_order_x.truncate();
 
     auto beta_relaxed = inner(XA, second_order_x);
 
@@ -729,6 +731,8 @@ std::pair<X_space, X_space> QuadraticResponse::compute_first_order_fock_matrix_t
         cout << "norm FAXB:\n x " << norm_FAXB_x << " y " << norm_FAXB_y << endl;
         cout << "norm FBXA:\n x " << norm_FBXA_x << " y " << norm_FBXA_y << endl;
     }
+    FAXB.truncate();
+    FBXA.truncate();
 
 
     world.gop.fence();
@@ -891,6 +895,11 @@ QuadraticResponse::compute_gamma_unrelaxed_block(World &world, const X_space &A,
         }
     }
 
+    AB_left.truncate();
+    AB_right.truncate();
+    BA_left.truncate();
+    BA_right.truncate();
+
 
     return {AB_left, AB_right, BA_left, BA_right};
 }
@@ -906,6 +915,7 @@ auto QuadraticResponse::dipole_perturbation(World &world, const X_space &left, c
         f[i++] = 1;
         d = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
     }
+    truncate(world, dipole_vectors, true);
 
     std::array<int, 6> case_1_indices = {0, 0, 0, 1, 1, 2};
     std::array<int, 6> case_2_indices = {0, 1, 2, 1, 2, 2};
@@ -923,6 +933,9 @@ auto QuadraticResponse::dipole_perturbation(World &world, const X_space &left, c
         VC.x[i] = dipole_vectors[case_2_indices[i]] * right.x[i];
         VC.y[i] = dipole_vectors[case_2_indices[i]] * right.y[i];
     }
+
+    VB.truncate();
+    VC.truncate();
 
     return {1.0 * VB, 1.0 * VC};
     // in the first case i need to mulitply x x x y y z to vectors in right
@@ -970,6 +983,7 @@ X_space QuadraticResponse::compute_coulomb_term(World &world, const X_space &x_l
         J.y[k] = mul(world, temp_J[k], x_apply.y[k], false);
     }
     world.gop.fence();
+    J.truncate();
 
     return J;
 }
@@ -1020,6 +1034,7 @@ X_space QuadraticResponse::compute_exchange_term(World &world, const X_space &x_
         K.y[k] = gaxpy_oop(1.0, k1_conjugate[k], 1.0, k2_conjugate[k], false);
     }
     world.gop.fence();
+    K.truncate();
 
     return K;
 }
