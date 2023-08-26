@@ -7,7 +7,7 @@
 #include <madness/mra/nonlinsol.h>
 #include <madness/chem/atomutil.h>
 
-using namespace madness;
+using namespace madness; 
 
 static const double Z = 80.0;      // nuclear charge
 static const double L = 40.0/Z;    // L=40/Z [-L,L] box size so exp(-Zr)=1e-16 padded a bit since we are masking
@@ -198,7 +198,8 @@ std::tuple<double,double,double,double> compute_energy(World& world,
 
 // (T-E) phi = -V psi + E(psi-phi)
 // and with s=1+E/2mc^2
-// (T-E) (psi-s*phi) = - pVp phi - E(psi-s*phi)
+// T (psi-s*phi) = - pVp phi/4mc^2
+// BAD!! (T-E) (psi-s*phi) = - pVp phi - E(psi-s*phi)
 template <typename solverT>
 std::tuple<real_function_3d, real_function_3d, double> iterate(World& world,
                                                                const real_function_3d& V,
@@ -210,6 +211,7 @@ std::tuple<real_function_3d, real_function_3d, double> iterate(World& world,
                                                                const int iter,
                                                                solverT& solver)
 {
+    real_convolution_3d coulop = CoulombOperator(world, rcut*0.1, thresh);
     real_convolution_3d op = BSHOperator3D(world, sqrt(-2*energy), rcut*0.1, thresh);
     real_function_3d rhs = -2*(psi*V - energy*(psi-phi));
     rhs.truncate();
@@ -217,9 +219,9 @@ std::tuple<real_function_3d, real_function_3d, double> iterate(World& world,
 
     double s = 1.0 + energy/(2*c*c);
     //rhs = -2*(pVp(world,V,gradV,phi) + energy*(psi-s*phi));
-    rhs = -2*(pVp(world,V,phi) + energy*(psi-s*phi));
+    rhs = -(2/(4*constants::pi))*pVp(world,V,phi);
     rhs.truncate();
-    real_function_3d psimphi_new = apply(op,rhs);
+    real_function_3d psimphi_new = apply(coulop,rhs);
     real_function_3d psi_new = s*phi_new + psimphi_new;
 
     psi_new.truncate();
@@ -234,13 +236,13 @@ std::tuple<real_function_3d, real_function_3d, double> iterate(World& world,
     double rnorm = (psi_new-psi).norm2() + (phi_new-phi).norm2();
 
     // Comment out next 5 lines to not use the solver (i.e., to just do fixed-point iteration)
-    // if (iter>5) {
-    //     F f = solver.update(F(psi,phi), F(psi_new-psi, phi_new-phi));
-    //     psi_new = f.psi;
-    //     phi_new = f.phi;
-    //     psi_new.truncate();
-    //     phi_new.truncate();
-    // }
+    if (iter>1) {
+        F f = solver.update(F(psi,phi), F(psi_new-psi, phi_new-phi));
+        psi_new = f.psi;
+        phi_new = f.phi;
+        psi_new.truncate();
+        phi_new.truncate();
+    }
 
     double stepnorm = (psi_new-psi).norm2() + (phi_new-phi).norm2();
     double maxstep = 1e-1;
