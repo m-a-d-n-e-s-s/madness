@@ -272,6 +272,8 @@ namespace madness {
 
 
         World& world;
+        double tol; // rrcd tol
+        bool stable_power_iteration=true;
         std::vector<Function<T,LDIM>> g,h;
         LRFunctor lrfunctor;
         particle<LDIM> p1=particle<LDIM>::particle1();
@@ -336,7 +338,9 @@ namespace madness {
             return *this;
         }
 
-        void project(const double volume_per_point, const double radius, const std::string gridtype, std::string rhsfunctiontype) {
+        void project(const double volume_per_point, const double radius, const std::string gridtype, std::string rhsfunctiontype,
+                     double tol1) {
+            tol=tol1;
             long rank=0;
             if (gridtype=="random") {
                 // number of points within radius = variance: 0.67 * #total points = 0.67*rank
@@ -390,7 +394,6 @@ namespace madness {
             auto Y=Yformer(grid,rhsfunctiontype);
             t1.tag("Yforming");
 
-            double tol=1.e-10;
             std::ostringstream oss;
             oss << std::scientific << std::setprecision(1) << tol;
             std::string scientificString = oss.str();
@@ -481,7 +484,7 @@ namespace madness {
         /// orthonormalize g or h by rr-cholesky
 
         /// usage: orthonormalize_cd(h,tol) or orthonormalize_cd(g,tol)
-        void orthonormalize_cd(const std::vector<Function<T,LDIM>>& to_ortho, double tol) {
+        void orthonormalize_cd(const std::vector<Function<T,LDIM>>& to_ortho) {
             MADNESS_CHECK((&to_ortho == &h) or(&to_ortho == &g)) ;
             /**
              *  |g >< h| = |g_ortho><g_ortho | g> < h |
@@ -490,13 +493,16 @@ namespace madness {
              */
             World& world=g.front().world();
 
+            timer t(world);
             auto ortho= orthonormalize_rrcd(to_ortho,tol);
+            t.tag("ortho_cd ortho_first");
 
             auto ovlp=matrix_inner(world,ortho,ortho);
             for (int i=0; i<ovlp.dim(0); ++i) ovlp(i,i)-=1.0;
             MADNESS_CHECK(fabs(ovlp.normf()/ovlp.size()<1.e-10));
 
             Tensor<double> gg=matrix_inner(world,ortho,to_ortho);
+            t.tag("ortho_cd matrix_inner");
             /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
             if (&to_ortho == &h) {
                 g=(transform(world,g,transpose(gg)));
@@ -505,20 +511,41 @@ namespace madness {
                 g=(ortho);
                 h=(transform(world,h,transpose(gg)));
             }
-
+            t.tag("ortho_cd ortho_second");
         }
 
         void optimize(const long nopt=2) {
-            optimize_cd(nopt);
+            optimize_fast(nopt);
+        }
+
+        /// optimize using Cholesky decomposition
+
+        /// if stable_power_iteration is true, orthonormalize in between applications of the kernel (Alg. 4.4 in Halko)
+        /// @param[in]  nopt       number of half iterations (wrt to Alg. 4.3 in Halko)
+        void optimize_fast(const long nopt) {
+            timer t(world);
+            for (int i=0; i<nopt; ++i) {
+                // orthonormalize h
+                if (stable_power_iteration) h=orthonormalize_rrcd(h,tol);
+//                h=madness::orthonormalize(h);
+                t.tag("ortho1 with Q2");
+                g=inner(lrfunctor,h,p2,p1);
+                t.tag("inner1");
+//                if (stable_power_iteration) g=orthonormalize_rrcd(g,tol);
+                g=orthonormalize_rrcd(g,tol);
+                t.tag("ortho2");
+                h=inner(lrfunctor,g,p1,p1);
+                t.tag("inner2");
+            }
+            t.tag("optimize_fast");
         }
 
         /// optimize using Cholesky decomposition
         void optimize_cd(const long nopt) {
 
-            double tol=1.e-12;
             timer t(world);
             for (int iopt=0; iopt<nopt; ++iopt) {
-                this->orthonormalize_cd(h,tol);      // h orthonormal, g not
+                this->orthonormalize_cd(h);      // h orthonormal, g not
                 t.tag("ortho1");
                 auto gtmp=inner(lrfunctor,h,p2,p1);
                 t.tag("inner1");

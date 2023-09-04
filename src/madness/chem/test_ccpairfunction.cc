@@ -24,8 +24,10 @@ struct XParameters : QCCalculationParametersBase {
         initialize<double>("radius",2.0,"the radius");
         initialize<double>("volume_element",0.1,"volume covered by each grid point");
         initialize<long>("rank",500,"the number of grid points in random grids");
+        initialize<bool>("stable_power_iteration",true,"use stable power iteration algorithm (orthonormalize)");
+        initialize<double>("tol",1.e-5,"rank-reduced choleski tolerance");
         initialize<std::string>("gridtype","random","the grid type",{"random","cartesian"});
-        initialize<std::string>("rhsfunctiontype","delta","the type of function",{"delta","exponential"});
+        initialize<std::string>("rhsfunctiontype","exponential","the type of function",{"delta","exponential"});
         initialize<int>("optimize",0,"number of optimization iterations");
     }
 
@@ -35,7 +37,9 @@ struct XParameters : QCCalculationParametersBase {
 
     double radius() const {return get<double>("radius");}
     double volume_element() const {return get<double>("volume_element");}
+    double tol() const {return get<double>("tol");}
     long rank() const {return get<long>("rank");}
+    bool stable_power_iteration() const {return get<bool>("stable_power_iteration");}
     int optimize() const {return get<int>("optimize");}
     std::string gridtype() const {return get<std::string>("gridtype");}
     std::string rhsfunctiontype() const {return get<std::string>("rhsfunctiontype");}
@@ -193,51 +197,47 @@ int test_lowrank_function3(World& world, XParameters& parameters) {
          for (int r=0; r<lrf.rank(); ++r) result+=lrf.g[r]*inner(one,lrf.h[r]);
          return result;
      };
-     auto compute_error = [&world,&parameters](const auto reference, const auto result, const auto lrf,
-             const std::string msg="") {
+     auto compute_relative_error = [&world,&parameters](const auto reference, const auto result, const auto lrf) {
          auto diff=reference-result;
-
          double refnorm=reference.norm2();
          double resultnorm=result.norm2();
          double error=diff.norm2();
-//         print("refnorm, resultnorm, abs. error, rel. error",refnorm, resultnorm, error, error/refnorm);
-         print(msg,"radius, initial/final rank, vol. el, rel. error",parameters.radius(),parameters.rank(),lrf.rank(), parameters.volume_element(), error/refnorm);
+         return error/refnorm;
+     };
 
+     auto output=[&parameters] (const double projection_error, const long projection_rank, const double projection_time,
+         const double optimized_error, const long optimized_rank, const double optimized_time) {
+         print("error",parameters.radius(),parameters.gridtype(),parameters.rhsfunctiontype(),parameters.volume_element(),
+               parameters.tol(),
+               projection_error,projection_rank,projection_time,
+               optimized_error,optimized_rank,optimized_time);
      };
 
     auto reference = phi1* (*f12)(phi2);
+    output(0.0,0.0,0.0,0.0,0.0,0.0);
 
     LowRank<double,6> lrf(f12,copy(phi1),copy(phi2));
+    lrf.stable_power_iteration=parameters.stable_power_iteration();
 //    plot_plane<6>(world,lrf.lrfunctor,"plot_f12_r2",PlotParameters(world).set_plane({"x1","x4"}));
 //    lrf.project(parameters.rank(),parameters.radius(),parameters.gridtype(),parameters.rhsfunctiontype());
-    lrf.project(parameters.volume_element(),parameters.radius(),parameters.gridtype(),parameters.rhsfunctiontype());
+    double cpu0=cpu_time();
+    lrf.project(parameters.volume_element(),parameters.radius(),parameters.gridtype(),parameters.rhsfunctiontype(),parameters.tol());
+    double cpu1=cpu_time();
 
     // compare
     // \phi(1) \bar \phi(1) = \intn phi(1) \phi(2) f(1,2) d2
     //       = \int \sum_r g_r(1) h_r(2)  d2
     //       = \sum_r g_r(1) <\phi|h_r>
     real_function_3d result=compute_result(lrf);
-    compute_error(reference,result,lrf,"initial projection");
+    double projection_error=compute_relative_error(reference,result,lrf);
+    output(projection_error,lrf.rank(),cpu1-cpu0,0.0,0.0,0.0);
 
+    cpu0=cpu_time();
     lrf.optimize(parameters.optimize());
+    cpu1=cpu_time();
     result=compute_result(lrf);
-    std::string msg="optimization:"+std::to_string(parameters.optimize())+"    ";
-    compute_error(reference,result,lrf,msg);
-
-//    real_function_3d result=real_factory_3d(world);
-//    for (int r=0; r<lrf.rank(); ++r) result+=lrf.g[r]*inner(one,lrf.h[r]);
-//    auto diff=reference-result;
-//
-//    double refnorm=reference.norm2();
-//    double resultnorm=result.norm2();
-//    double error=diff.norm2();
-//    print("refnorm, resultnorm, abs. error, rel. error",refnorm, resultnorm, error, error/refnorm);
-//    print("radius, initial/final rank, vol. el, rel. error",parameters.radius(),parameters.rank(),lrf.rank(), parameters.volume_element(), error/refnorm);
-
-//    plot_plane<LDIM>(world,{reference, result, diff}, "f_and_approx", PlotParameters(world).set_plane({"x1","x2"}));
-//    plot_plane<6>(world,lrf,"lrf_6d",PlotParameters(world).set_plane({"x1","x4"}));
-
-
+    double optimization_error=compute_relative_error(reference,result,lrf);
+    output(projection_error,lrf.rank(),cpu1-cpu0,optimization_error,lrf.rank(),cpu1-cpu0);
 
 
     return t1.end();
