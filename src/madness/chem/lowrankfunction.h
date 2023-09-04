@@ -403,8 +403,8 @@ namespace madness {
             print("Y.size()",Y.size());
             print("g.size()",g.size());
 
-            h=inner(lrfunctor,g,p1,p1);
-            t1.tag("Y backprojection");
+            h=truncate(inner(lrfunctor,g,p1,p1));
+            t1.tag("Y backprojection with truncation");
 
         }
 
@@ -521,21 +521,20 @@ namespace madness {
         /// optimize using Cholesky decomposition
 
         /// if stable_power_iteration is true, orthonormalize in between applications of the kernel (Alg. 4.4 in Halko)
-        /// @param[in]  nopt       number of half iterations (wrt to Alg. 4.3 in Halko)
+        /// @param[in]  nopt       number of iterations (wrt to Alg. 4.3 in Halko)
         void optimize_fast(const long nopt) {
             timer t(world);
             for (int i=0; i<nopt; ++i) {
                 // orthonormalize h
-                if (stable_power_iteration) h=orthonormalize_rrcd(h,tol);
+                if (stable_power_iteration) h=truncate(orthonormalize_rrcd(h,tol));
 //                h=madness::orthonormalize(h);
-                t.tag("ortho1 with Q2");
-                g=inner(lrfunctor,h,p2,p1);
-                t.tag("inner1");
-//                if (stable_power_iteration) g=orthonormalize_rrcd(g,tol);
-                g=orthonormalize_rrcd(g,tol);
-                t.tag("ortho2");
-                h=inner(lrfunctor,g,p1,p1);
-                t.tag("inner2");
+                t.tag("ortho1 with rrcd/truncate");
+                g=truncate(inner(lrfunctor,h,p2,p1));
+                t.tag("inner1/truncate");
+                g=truncate(orthonormalize_rrcd(g,tol));
+                t.tag("ortho2/truncate");
+                h=truncate(inner(lrfunctor,g,p1,p1));
+                t.tag("inner2/truncate");
             }
             t.tag("optimize_fast");
         }
