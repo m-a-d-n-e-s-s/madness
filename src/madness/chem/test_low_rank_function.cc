@@ -4,845 +4,176 @@
 
 
 #include<madness.h>
-#include<madness/chem/ccpairfunction.h>
-#include<madness/chem/correlationfactor.h>
-#include<madness/chem/electronic_correlation_factor.h>
-#include<madness/chem/CCStructures.h>
-#include<madness/chem/CCPotentials.h>
-#include<madness/chem/projector.h>
-#include<madness/chem/localizer.h>
 #include<madness/chem/lowrankfunction.h>
+#include<madness/chem/electronic_correlation_factor.h>
+
 
 #include<madness/world/test_utilities.h>
+#include<madness/world/timing_utilities.h>
 #include <random>
 
-template<typename T, std::size_t LDIM>
-typename std::enable_if<LDIM<=2,double>::type compute_error_with_reconstruction(const Tensor<T>& s,
-                      const std::vector<Function<T,LDIM>>& g,
-                      const std::vector<Function<T,LDIM>>& h,
-                      const Function<double,2*LDIM>& f,
-                      std::string name="") {
-    auto fapprox=s[0]*hartree_product(g[0],h[0]);
-    for (int i=1; i<g.size(); ++i) fapprox+=s[i]*hartree_product(g[i],h[i]);
-    double err=(f-fapprox).norm2();
-    double norm=f.norm2();
-    print("rank, norma and error in f_approx (reconstructed)", g.size(), norm, err, err/norm);
-    if (not name.empty())
-        plot<2*LDIM>({f,fapprox,f-fapprox},name,std::vector<std::string>({"adsf","asdf","diff"}));
-    return err;
+
+using namespace madness;
+
+struct LowRankFunctionParameters : QCCalculationParametersBase {
+
+    LowRankFunctionParameters() : QCCalculationParametersBase() {
+
+        // initialize with: key, value, comment (optional), allowed values (optional)
+        initialize<double>("radius",2.0,"the radius");
+        initialize<double>("volume_element",0.1,"volume covered by each grid point");
+        initialize<long>("rank",500,"the number of grid points in random grids");
+        initialize<bool>("stable_power_iteration",true,"use stable power iteration algorithm (orthonormalize)");
+        initialize<double>("tol",1.e-12,"rank-reduced choleski tolerance");
+        initialize<std::string>("gridtype","random","the grid type",{"random","cartesian"});
+        initialize<std::string>("rhsfunctiontype","exponential","the type of function",{"delta","exponential"});
+        initialize<int>("optimize",1,"number of optimization iterations");
+    }
+
+    void read_and_set_derived_values(World& world, const commandlineparser& parser, std::string tag) {
+        read_input_and_commandline_options(world,parser,tag);
+    }
+
+    double radius() const {return get<double>("radius");}
+    double volume_element() const {return get<double>("volume_element");}
+    double tol() const {return get<double>("tol");}
+    long rank() const {return get<long>("rank");}
+    bool stable_power_iteration() const {return get<bool>("stable_power_iteration");}
+    int optimize() const {return get<int>("optimize");}
+    std::string gridtype() const {return get<std::string>("gridtype");}
+    std::string rhsfunctiontype() const {return get<std::string>("rhsfunctiontype");}
 };
 
 
-Tensor<double> gaussian_random_distribution(double mean, double variance, long n) {
-    std::random_device rd{};
-    std::mt19937 gen{rd()};
-    std::normal_distribution<> d{mean, variance};
-    Tensor<double> result(n);
-    for (int i = 0; i < n; ++i) result(i)=d(gen);
-    return result;
-}
 
-
-Tensor<double> random_factors(const long n, const long nran) {
-    Tensor<double> factors(n,nran);
-    for (long i=0; i<nran; ++i) factors(_,i) = gaussian_random_distribution(0.0, 1.0, n);
-    return factors;
-}
-
-// nran random vectors on a regular grid
-template<typename T, std::size_t LDIM>
-std::vector<Function<T,LDIM>> random_vectors(World &world,
-                                             const std::vector<Function<T,LDIM>>& regular_grid_Y,
-                                             const long nran) {
-    Tensor<double> factors=random_factors(regular_grid_Y.size(),nran);
-    /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
-    return truncate(transform(world,regular_grid_Y,factors));
-};
-
-
-template<std::size_t NDIM>
-struct cartesian_grid {
-    Vector<double,NDIM> lovec,hivec;
-    std::vector<long> stride;
-    long index=0;
-    long n_per_dim;
-    long total_n;
-    Vector<double,NDIM> increment;
-
-    cartesian_grid(const long n_per_dim, const double lo, const double hi)
-            : n_per_dim(n_per_dim) {
-        lovec.fill(lo);
-        hivec.fill(hi);
-        increment=(hivec-lovec)*(1.0/double(n_per_dim-1));
-        stride=std::vector<long>(NDIM,1l);
-        total_n=std::pow(n_per_dim,NDIM);
-        for (long i=NDIM-2; i>=0; --i) stride[i]=n_per_dim*stride[i+1];
-    }
-
-    cartesian_grid(const cartesian_grid<NDIM>& other) : lovec(other.lovec),
-            hivec(other.hivec), stride(other.stride), index(0), n_per_dim(other.n_per_dim),
-            total_n(other.total_n), increment(other.increment) {
-    }
-
-    cartesian_grid& operator=(const cartesian_grid<NDIM>& other) {
-        cartesian_grid<NDIM> tmp(other);
-        std::swap(*this,other);
-        return *this;
-    }
-
-    double volume_per_gridpoint() const{
-        double volume=1.0;
-        for (int i=0; i<NDIM; ++i) volume*=(hivec[i]-lovec[i]);
-        return volume/total_n;
-    }
-
-    void operator++() {
-        index++;
-    }
-
-    bool operator()() const {
-        return index < total_n;
-    }
-
-    Vector<double,NDIM> get_coordinates() const {
-        Vector<double,NDIM> tmp(NDIM);
-        for (int idim=0; idim<NDIM; ++idim) {
-            tmp[idim]=(index/stride[idim])%n_per_dim;
-        }
-        return lovec+tmp*increment;
-    }
-
-};
-
-template<std::size_t NDIM>
-struct gauss {
-    double a=2.0;
-    gauss() = default;
-    double operator()(const Vector<double,NDIM>& r) const {
-        return exp(-a*inner(r,r));
-    }
-};
-
-struct hidim_orbitals {
-    std::shared_ptr<real_convolution_3d> f12;
-    real_function_3d phi1, phi2;
-    hidim_orbitals(std::shared_ptr<real_convolution_3d>& f, const real_function_3d& phi1, const real_function_3d& phi2)
-            : f12(f), phi1(phi1), phi2(phi2) {
-    }
-
-    double operator()(const Vector<double,6>& coord) const {
-
-        Vector<double,3> left,right;
-        for (int i=0; i<3; ++i) {
-            left[i]=coord[i];
-            right[i]=coord[i+3];
-        }
-
-        auto f12_functor=[](const Vector<double,6>& r) {
-            Vector<double,3> r1,r2;
-            for (int i=0; i<3; ++i) {
-                r1[i]=r[i];
-                r2[i]=r[i+3];
-            }
-            return exp(-(r1-r2).normf());
-        };
-
-        return phi1(left)*phi2(right)*f12_functor(coord);
-    }
-
-};
-
-template<typename T, std::size_t LDIM>
-void orthonormalize_svd(World& world, std::vector<Function<T,LDIM>>& g, std::vector<Function<T,LDIM>>& h, Tensor<double>& s) {
-    /**
-     *  |g >s< h| = |g_ortho><g_ortho | g> s < h | h_ortho ><h_ortho |
-     *           = |g_ortho> gg s hh <h_ortho |
-     *           = |g_ortho> U s VT <h_ortho |
-     */
-    timer t(world);
-    std::vector<Function<T,LDIM>> g_ortho=orthonormalize_canonical(g,1.e-8);
-    std::vector<Function<T,LDIM>> h_ortho=orthonormalize_canonical(h,1.e-8);
-    t.tag("orthonormalize_canonical");
-    auto gg=matrix_inner(world,g_ortho,g);
-    auto hh=matrix_inner(world,h,h_ortho);
-    t.tag("matrix_inner");
-    for (int i=0; i<gg.dim(0); ++i) gg(_,i)*=s(i);
-    auto ovlp=inner(gg,hh);
-    Tensor<double> U,VT;
-    svd(ovlp,U,s,VT);
-    auto V=transpose(VT);
-
-    // truncate
-//    for (int i=1; i<s.size(); ++i) {
-//        if (s[i]<1.e-2) {
-//            s=s(Slice(0,i-1));
-//            U=U(_,Slice(0,i-1));
-//            V=V(_,Slice(0,i-1));
-//            print("truncating svd at i",i);
-//            break;
-//        }
-//    }
-    g=transform(world,g_ortho,U);
-    h=transform(world,h_ortho,V);
-    t.tag("transform");
-
-    // test
-//    auto gg1=matrix_inner(world,g,g);
-//    auto hh1=matrix_inner(world,h,h);
-//    for (int i=0; i<gg1.dim(0); ++i) {
-//        gg1(i,i)-=1.0;
-//        hh1(i,i)-=1.0;
-//    }
-//    double gmatnorm=gg1.normf()/gg1.size();
-//    double hmatnorm=hh1.normf()/hh1.size();
-//    print("g/h identity",gmatnorm,hmatnorm);
-//    print("singular values",s);
-
-}
-
-
-template<typename T, std::size_t LDIM>
-std::vector<Function<T,LDIM>> form_inner(const hidim_orbitals& f, const std::vector<Function<T,LDIM>>& vec,
-                                         const bool transpose) {
-    double cpu0=cpu_time();
-    World& world=vec.front().world();
-    std::vector<Function<T,LDIM>> result;
-    if (transpose) {
-        result=f.phi2*apply(world,(*f.f12),vec*f.phi1);
-    } else {
-        result=f.phi1*apply(world,(*f.f12),vec*f.phi2);
-    }
-    double cpu1=cpu_time();
-    std::printf("form inner finished after %4.2fs \n",cpu1-cpu0);
-    return result;
-}
-
-// note that we assume f is symmetric!!!!!
-template<typename T, std::size_t LDIM>
-std::vector<Function<T,LDIM>> form_inner(const Function<T,2*LDIM>& f, const std::vector<Function<T,LDIM>>& vec,
-                                         const bool transpose) {
-    double cpu0=cpu_time();
-    std::vector<Function<T,LDIM>> result(vec.size());
-    if (transpose) {
-        if constexpr (std::is_same<Function<T,LDIM>,Function<T,1>>::value) {
-            for (int i=0; i<vec.size(); ++i) result[i]=inner(f,vec[i],{0},{0});
-        } else {
-            for (int i=0; i<vec.size(); ++i) result[i]=inner(f,vec[i],{0,1},{0,1});
-        }
-
-    } else {
-        if constexpr (std::is_same<Function<T,LDIM>,Function<T,1>>::value) {
-            for (int i=0; i<vec.size(); ++i) result[i]=inner(f,vec[i],{1},{0});
-        } else {
-            for (int i=0; i<vec.size(); ++i) result[i]=inner(f,vec[i],{2,3},{0,1});
-        }
-
-    }
-//    if constexpr (std::is_same<Function<T,LDIM>,Function<T,1>>::value) {
-//        for (int i=0; i<vec.size(); ++i) result[i]=inner(f,vec[i],{1},{0});
-//    } else {
-//        for (int i=0; i<vec.size(); ++i) result[i]=inner(f,vec[i],{2,3},{0,1});
-//    }
-    double cpu1=cpu_time();
-    std::printf("form inner finished after %4.2fs \n",cpu1-cpu0);
-    return result;
-}
-
-// note that we assume f is symmetric!!!!!
-template<typename T, std::size_t LDIM>
-typename std::enable_if<LDIM==3,std::vector<Function<T,LDIM>>>::type form_inner(const real_convolution_3d& f,
-                                         const std::vector<Function<T,LDIM>>& vec, const bool transpose) {
-    double cpu0=cpu_time();
-    World& world=vec.front().world();
-    std::vector<Function<T,LDIM>> result=apply(world,f,vec);
-    double cpu1=cpu_time();
-    std::printf("form inner finished after %4.2fs \n",cpu1-cpu0);
-    return result;
-}
-
-template<typename T, std::size_t LDIM, typename hidimT>
-std::vector<Function<T,LDIM>> form_inner(const hidimT& hidim, const std::vector<Function<T,LDIM>>& vec) {
-    return form_inner(hidim,vec,false);
-}
-
-template<typename T, std::size_t LDIM, typename hidimT>
-std::vector<Function<T,LDIM>> form_inner_transpose(const hidimT& hidim, const std::vector<Function<T,LDIM>>& vec) {
-    return form_inner(hidim,vec,true);
-}
-
-
-template<typename T, std::size_t LDIM>
-class LowRank {
-public:
-
-    Tensor<double> s;
-    std::vector<Function<T,LDIM>> g,h;
-    std::string orthonormalize_method="cd";
-    cartesian_grid<LDIM> cg;
-
-    LowRank(Tensor<double>& s, std::vector<Function<T,LDIM>> g, std::vector<Function<T,LDIM>> h)
-            : s(s), g(g), h(h) {}
-
-    LowRank(const cartesian_grid<LDIM>& cg) : cg(cg) {}
-
-    LowRank() =default;      // Default constructor necessary for storage in vector
-
-    LowRank(const LowRank& a) : s(copy(a.s)), g(copy(a.g.front().world(),a.g)),
-                h(copy(a.h.front().world(),a.h)), cg(a.cg) {} // Copy constructor necessary
-
-    LowRank& operator=(const LowRank& f) { // Assignment required for storage in vector
-        LowRank ff(f);
-        std::swap(ff.s,s);
-        std::swap(ff.g,g);
-        std::swap(ff.h,h);
-        return *this;
-    }
-
-    template<typename hidimT>
-    void project(World& world, const hidimT& f, const std::vector<Function<T,LDIM>>& regular_grid_Y, const long ntrial) {
-
-        timer t1(world);
-        auto Y=random_vectors(world, regular_grid_Y, ntrial);
-        t1.tag("Yforming");
-        print("Y.size()",Y.size());
-
-//        for (int i=0; i<regular_grid_Y.size(); i+=10) {
-//            std::string name="gridY"+std::to_string(i);
-//            plot_line(name.c_str(),100,cg.lovec,cg.hivec,regular_grid_Y[i]);
-//        }
-//        for (int i=0; i<Y.size(); i+=1) {
-//            std::string name="Y"+std::to_string(i);
-//            plot_line(name.c_str(),100,cg.lovec,cg.hivec,Y[i]);
-//        }
-
-
-
-//    std::vector<Function<double,LDIM>> g=orthonormalize_canonical(Y,1.e-8);
-        g=orthonormalize_cd(Y);
-//        for (int i=0; i<Y.size(); i+=10) {
-//            std::string name="g"+std::to_string(i);
-//            plot_line(name.c_str(),100,cg.lovec,cg.hivec,g[i]);
-//        }
-        print("g.size()",g.size());
-        t1.tag("Y orthonormalizing");
-
-//        Localizer localizer;
-//        bool localize=false;
-//        if (localize) {
-//            localizer.set_method("boys");
-//            MolecularOrbitals<double,LDIM> mos;
-//            mos.set_mos(g);
-//            std::vector<int> set(g.size(),0);
-//            mos.update_localize_set(set);
-//            localizer.localize(mos,true);
-//            g=mos.get_mos();
-//            t1.tag("Y localizing");
-//        }
-
-        h=form_inner_transpose(f,g);
-        s=Tensor<double>(g.size());
-        s=1.0;
-//        orthonormalize();
-//        plot_plane<2*LDIM>(world,*this,"lrf00");
-//        auto rec=reconstruct();
-//        plot_plane<2*LDIM>(world,rec,"lrf00-rec");
-        t1.tag("Y backprojection");
-    }
-
-    void orthonormalize() {
-        if (orthonormalize_method=="svd") {
-            orthonormalize_svd();
-        } else if (orthonormalize_method=="cd") {
-            /**
-             *  |g >s< h| = |g_ortho><g_ortho | g> s < h |
-             *           = |g_ortho> gg s < h |
-             *           = |g_ortho> <h_non_ortho |
-             */
-            double ssum=s.sum()/s.dim(0);
-            MADNESS_CHECK(fabs(ssum-1.0)<1.e-10);
-            World& world=g.front().world();
-
-            auto g_ortho= orthonormalize_cd(g);
-//            auto g_ortho= orthonormalize_canonical(g,1.e-8);      // similar to SVD
-//            auto g_ortho= orthonormalize_symmetric(g);
-
-            auto ovlp=matrix_inner(world,g_ortho,g_ortho);
-            for (int i=0; i<ovlp.dim(0); ++i) ovlp(i,i)-=1.0;
-            MADNESS_CHECK(fabs(ovlp.normf()/ovlp.size()<1.e-12));
-
-            Tensor<double> gg=matrix_inner(world,g_ortho,g);
-            for (int i=0; i<gg.dim(0); ++i) gg(i,_)*=s(i);
-            /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
-            h=transform(world,h,transpose(gg));
-            g=g_ortho;
-            s.fill(1.0);
-
-        } else {
-            MADNESS_EXCEPTION("confused orthonormalize_method in low_rank_function",1);
-        }
-
-    }
-
-    void orthonormalize_svd() {
-        ::orthonormalize_svd(g.front().world(),g,h,s);
-    }
-
-    template<typename hidimT>
-    void optimize(const hidimT& f, const std::vector<Function<T,LDIM>>& regular_grid_Y, long nopt=2) {
-        if (orthonormalize_method=="svd") optimize_svd(f,regular_grid_Y,nopt);
-        else if (orthonormalize_method=="cd") optimize_cd(f,regular_grid_Y,nopt);
-        else {
-            MADNESS_EXCEPTION("confused orthonormalize_method in low_rank_function",1);
-        }
-    }
-
-    /// following Halko, Algorithm 4.4
-    template<typename hidimT>
-    void optimize_cd(const hidimT& f, const std::vector<Function<T,LDIM>>& regular_grid_Y, long nopt) {
-        World& world=g.front().world();
-        double ssum=s.sum()/s.dim(0);
-        MADNESS_CHECK(fabs(ssum-1.0)<1.e-10);
-        for (int iopt=0; iopt<nopt; ++iopt) {
-            timer t(world);
-
-            auto Ytilde=orthonormalize_symmetric(form_inner_transpose(f,g));
-            auto Y=orthonormalize_symmetric(form_inner(f,Ytilde));       // only correct if f is symmetric!!!
-
-            g=Y;
-            h=form_inner_transpose(f,g);
-            orthonormalize();
-
-//            plot_plane<2*LDIM>(world,*this,"lrf_iter"+std::to_string(iopt));
-            if (iopt%2==0) compute_error(f,regular_grid_Y);
-            t.end("finished optimization iteration "+std::to_string(iopt));
-        }
-    }
-
-    template<typename hidimT>
-    void optimize_svd(const hidimT& f, const std::vector<Function<T,LDIM>>& regular_grid_Y, long nopt) {
-        World& world=g.front().world();
-        for (int iopt=0; iopt<nopt; ++iopt) {
-            timer t(world);
-            std::vector<Function<double,LDIM>> htmp(g.size()), gtmp(g.size());
-
-            for (int i=0; i<h.size(); ++i) h[i]*=1.0/s[i];
-            gtmp=form_inner(f,h);       // only correct if f is symmetric!!!
-            for (int i=0; i<g.size(); ++i) g[i]*=1.0/s[i];
-            htmp=form_inner_transpose(f,g);
-
-            g=gtmp;
-            h=htmp;
-
-            if (g.size()>1) orthonormalize();
-//            plot_plane<2*LDIM>(world,*this,"lrf_iter"+std::to_string(iopt));
-
-            if (iopt%2==0) compute_error(f,regular_grid_Y);
-            t.end("finished optimization iteration "+std::to_string(iopt));
-        }
-    }
-
-    T operator()(const Vector<double,2*LDIM>& coord) const {
-        Vector<double,LDIM> left,right;
-        for (int i=0; i<LDIM; ++i) {
-            left[i]=coord[i];
-            right[i]=coord[i+LDIM];
-        }
-        T result=0.0;
-        for (int i=0; i<g.size(); ++i) result+=s(i)*g[i](left)*h[i](right);
-        return result;
-    }
-
-    // check accuracy by applying hi/lo-dim function on a set of trial functions
-    // cf Halko, sec 4.3
-    template<typename hidimT>
-    double compute_error(const hidimT& f, const std::vector<Function<T,LDIM>>& regular_grid_Y) const {
-        const long ntrial=15;
-        World& world=g.front().world();
-        timer t(world);
-
-        // omega(ngrid,ntrial) is a set of random vectors on a regular grid
-        Tensor<double> omega=random_factors(regular_grid_Y.size(),ntrial);
-        /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
-        /// A_omega(1,ntrial)
-        auto A_omega=transform(world,regular_grid_Y,omega); // this is Y
-//        print("A_omega.size()",A_omega.size());
-
-        auto QTAw=matrix_inner(world,g,A_omega);
-        auto QQTAw=transform(world,g,QTAw);
-
-        // test orthonormality of g
-        auto gTg=matrix_inner(world,g,g);
-        for (int i=0; i<g.size(); ++i) gTg(i,i)-=1.0;
-        print("norm(gTg-1)",gTg.normf());
-
-//        std::vector<double> Aapproxnorms(ntrial,0.0);
-//        std::vector<Function<T,LDIM>> A_approx_omega;
-//        if (LDIM<2) {
-//            auto A_approx=reconstruct();
-//            auto A_approx_omega=transform(world,regular_grid_Y,omega); // this is Y
-//            print("A_approx_omega.size()",A_approx_omega.size());
-//            Aapproxnorms=norm2s(world,A_approx_omega);
-//        }
-
-        MADNESS_CHECK(std::pow(cg.n_per_dim,LDIM)==regular_grid_Y.size());
-
-        // h_delta_i = h_j(R_i)
-        print("volume per gridpoint",cg.volume_per_gridpoint());
-        Tensor<double> h_delta_i(g.size(),regular_grid_Y.size());
-        auto c=cg;
-        for (int i=0; i<h_delta_i.dim(0); ++i) {
-            c.index=0;
-            for (; c(); ++c) h_delta_i(i,c.index)=h[i](c.get_coordinates());
-        }
-        print("h_delta_i.max",h_delta_i.absmax());
-//        print("h_delta_i",h_delta_i);
-        double ssum=s.sum()/s.dim(0);
-        MADNESS_CHECK(fabs(ssum-1.0)<1.e-10);
-//        for (int r=0; r<s.size(); ++r) h_delta_i(r,_)*=s(r);
-
-        // h_omega(rank,ntrial) = (Q^T A) omega_itrial
-        Tensor<double> h_omega=inner(h_delta_i,omega);
-//        print("h_omega.max",h_omega.absmax());
-
-
-        /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
-        // gh_omega(1,ntrial)
-        std::vector<Function<T,LDIM>> gh_omega=transform(world,g,h_omega); // = QQ^T omega
-//        print("gh_omega.size()",gh_omega.size());
-
-        std::vector<double> Anorms=norm2s(world,A_omega);
-//        print("A norms",Anorms);
-
-        std::vector<double> QQTAnorms=norm2s(world,QQTAw);
-//        print("QQT A norms",QQTAnorms);
-//        print("A approx norms",Aapproxnorms);
-
-        std::vector<double> ghnorms=norm2s(world,gh_omega);
-//        print("gh norms",ghnorms);
-        std::vector<double> QQTA_norms=norm2s(world,A_omega-QQTAw);
-        std::vector<double> A_gh_norms=norm2s(world,A_omega-gh_omega);
-//        std::vector<double> A_Approx_norms=norm2s(world,Anorms,Aapproxnorms);
-//        std::vector<double> Aapprox_gh_norms=norm2s(world,Aapproxnorms-gh_omega);
-//        print("(1-QQT) A norms       ",QQTA_norms);
-//        print("A - gh diff norms     ",A_gh_norms);
-//        print("A_approx - gh diff norms",A_Approx_norms);
-//        print("A - A_approx diff norms ",Aapprox_gh_norms);
-        double max_gh=*std::max_element(A_gh_norms.begin(),A_gh_norms.end());
-        double err_gh=10.0*sqrt(2.0/constants::pi)*max_gh* cg.volume_per_gridpoint();
-        double max_QQT=*std::max_element(QQTA_norms.begin(),QQTA_norms.end());
-        double err_QQT=10.0*sqrt(2.0/constants::pi)*max_QQT* cg.volume_per_gridpoint();
-        std::stringstream ss;
-
-        ss << "rank and error in f_approx " <<  g.size() << " " << std::scientific << err_gh << "; QQTA: " << err_QQT;
-        t.tag(ss.str());
-
-        if constexpr (LDIM<2) compute_error_with_reconstruction(s,h,g,f,"name");
-
-        return err_gh;
-    }
-
-    Function<T,2*LDIM> reconstruct() const {
-        auto fapprox=s[0]*hartree_product(g[0],h[0]);
-        for (int i=1; i<g.size(); ++i) fapprox+=s[i]*hartree_product(g[i],h[i]);
-        return fapprox;
-    }
-
-    LowRank operator*(double a) const { // Scale by a constant necessary
-        return LowRank(s*a,g,h);
-    }
-
-};
-
-// This interface is necessary to compute inner products
-template<typename T, std::size_t LDIM>
-double inner(const LowRank<T,LDIM>& a, const LowRank<T,LDIM>& b) {
-    World& world=a.world;
-    return (matrix_inner(world,a.g,b.g).emul(matrix_inner(world,a.h,b.h))).sum();
-}
-
-
-
-template<typename T, std::size_t LDIM>
-typename std::enable_if<(LDIM==3), real_convolution_3d>::type hidim(World& world) {
-    auto f_op= SlaterOperator(world,1.0,1.e-8,0.1*FunctionDefaults<3>::get_thresh());
-    auto f12_functor=[](const Vector<double,2*LDIM>& r) {
-        Vector<double,LDIM> r1,r2;
-        for (int i=0; i<LDIM; ++i) {
-            r1[i]=r[i];
-            r2[i]=r[i+LDIM];
-        }
-        return exp(-(r1-r2).normf());
-    };
-    plot_plane<2*LDIM>(world,f12_functor,"f12_functor");
-    return f_op;
-}
-
-template<typename T, std::size_t LDIM>
-typename std::enable_if<(LDIM<3), Function<T,2*LDIM>>::type hidim(World& world) {
-
-    auto f12_functor=[](const Vector<double,2*LDIM>& r) {
-        Vector<double,LDIM> r1,r2;
-        for (int i=0; i<LDIM; ++i) {
-            r1[i]=r[i];
-            r2[i]=r[i+LDIM];
-        }
-        return exp(-(r1-r2).normf())* exp(-2.0*inner(r,r));
-    };
-    auto f=FunctionFactory<double,2*LDIM>(world).functor(f12_functor);
-    plot_plane<2*LDIM>(world,f12_functor,"f12_functor");
-//    Function<double,2*LDIM> f;
-    return f;
-}
-
-template<typename T, std::size_t NDIM>
-std::vector<Function<T,NDIM>> uniformly_distributed_slater(World& world,
-                     cartesian_grid<NDIM>& cg) {
-    Vector<double,NDIM> R;
-    auto sl=[&R](const Vector<double,NDIM>& r) {
-        return exp(-sqrt(inner(r-R,r-R)+1.e-12));
-    };
-
-    std::vector<Function<T,NDIM>> result;
-    auto c=cg;
-    c.index=0;
-    for (; c(); ++c) {
-        R=c.get_coordinates();
-        result.push_back(FunctionFactory<T,NDIM>(world).functor(sl));
-    }
-    return result;
-
-}
-
-real_function_6d K(World& world, const real_function_6d& f, const real_function_3d& phi) {
-
-    print("entering K(real_function_6d)");
-    timer t1(world);
-    const int particle=1;
-    real_convolution_3d op = CoulombOperator(world, 0.0001, FunctionDefaults<3>::get_thresh());
-    op.destructive() = true;
-    op.particle() = particle;
-
-    real_function_6d x = multiply(copy(f), copy(phi), particle).truncate();
-    t1.tag("multiply before");
-    x = op(x).truncate();
-    t1.tag("apply G");
-    real_function_6d result = multiply(x, copy(phi), particle).truncate();
-    t1.tag("multiply after");
-
-    return result;
-}
-
-template<typename T, std::size_t LDIM>
-LowRank<T,LDIM> K(World& world, const LowRank<T,LDIM>& f, const Function<T,LDIM>& phi) {
-
-    print("entering K(LowRank)");
-    timer t1(world);
-    const int particle=1;
-    real_convolution_3d op = CoulombOperator(world, 0.0001, FunctionDefaults<3>::get_thresh());
-    op.destructive() = true;
-    op.particle() = particle;
-
-    auto tmp=truncate(mul(world,phi,f.g));
-    t1.tag("multiply before");
-    auto x = apply(world,op,tmp);
-    t1.tag("apply G");
-    auto g_final=mul(world,phi,x);
-    t1.tag("multiply after");
-    LowRank<T,LDIM> result=f;
-    result.g=g_final;
-
-    return result;
-}
-
-int test_lowrank_function(World& world) {
+int test_lowrank_function(World& world, LowRankFunctionParameters& parameters) {
+    test_output t1("CCPairFunction::low rank function");
+    t1.set_cout_to_terminal();
+    madness::default_random_generator.setstate(int(cpu_time())%4149);
     madness::default_random_generator.setstate(int(cpu_time())%4149);
 
-    print("");
     constexpr std::size_t LDIM=3;
-    long n_per_dim=10;
-    double radius=2.0;
-    long ntrial=120;
-
-
-
-    print("LDIM, n_per_dim, ntrial",LDIM,n_per_dim,ntrial);
     constexpr std::size_t NDIM=2*LDIM;
-    timer t1(world);
+    print("eps, k, NDIM",FunctionDefaults<NDIM>::get_thresh(),FunctionDefaults<NDIM>::get_k(),NDIM);
 
-    Function<double,LDIM> phi_slater=FunctionFactory<double,LDIM>(world)
-            .functor([](const Vector<double,LDIM>& r) {return exp(-2.0*r.normf());});
+    parameters.print("grid","end");
 
-    Function<double,LDIM> phi_gauss=FunctionFactory<double,LDIM>(world)
-            .functor([](const Vector<double,LDIM>& r) {return exp(-2.0*inner(r,r));});
-
+    Vector<double,LDIM> offset;
+    offset.fill(0.0);
+//    Function<double,LDIM> phi1=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r)
+//            { return exp(-r.normf());});
+    Function<double,LDIM> phi1=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r)
+                                                                           { return 1.0;});
+    Function<double,LDIM> phi2=FunctionFactory<double,LDIM>(world).functor([&offset](const Vector<double,LDIM>& r)
+                                                                           { return exp(-1.0*(r-offset).normf());});
     Function<double,LDIM> one=FunctionFactory<double,LDIM>(world)
-            .functor([](const Vector<double,LDIM>& r) {return 1.0;});
+            .functor([](const Vector<double,LDIM>& r) { return 1.0;});
 
-    Function<double,LDIM> phi_gauss_displaced=FunctionFactory<double,LDIM>(world)
-            .functor([](const Vector<double,LDIM>& r) {
-                Vector<double,LDIM> R;
-                R.fill(0.5);
-                return exp(-1.0*inner(r-R,r-R));
-            });
+    std::shared_ptr<real_convolution_3d> f12(SlaterOperatorPtr(world,1.0,1.e-6,FunctionDefaults<LDIM>::get_thresh()));
 
-    Function<double,LDIM> phi1=copy(phi_slater);
-    Function<double,LDIM> phi2=copy(one);
+//    auto f = [](const coord_6d& r) {
+//        coord_3d r1={r[0],r[1],r[2]};
+//        coord_3d r2={r[3],r[4],r[5]};
+//        return exp(-(r1-r2).normf() -r2.normf());
+//    };
 
-    auto f=hidim<double,LDIM>(world);
-//    std::shared_ptr<real_convolution_3d> f12(SlaterOperatorPtr(world,1.0,1.e-6,FunctionDefaults<NDIM>::get_thresh()));
-//    auto f=hidim_orbitals(f12,phi1,phi2);
+    auto compute_result = [&world, &one](const auto& lrf) {
+        real_function_3d result=real_factory_3d(world);
+        for (int r=0; r<lrf.rank(); ++r) result+=lrf.g[r]*inner(one,lrf.h[r]);
+        return result;
+    };
+    auto compute_relative_error = [&world,&parameters](const auto reference, const auto result, const auto lrf) {
+        auto diff=reference-result;
+        double refnorm=reference.norm2();
+        double resultnorm=result.norm2();
+        double error=diff.norm2();
+        return error/refnorm;
+    };
 
-//    plot_plane<2*LDIM>(world,f,"hidim_orbitals");
+    auto output=[&parameters] (const double projection_error, const long projection_rank, const double projection_time,
+                               const double optimized_error, const long optimized_rank, const double optimized_time) {
+        print("error",parameters.radius(),parameters.gridtype(),parameters.rhsfunctiontype(),parameters.volume_element(),
+              parameters.tol(),
+              projection_error,projection_rank,projection_time,
+              optimized_error,optimized_rank,optimized_time);
+    };
 
+    // \phi(1) \bar \phi(1) = \intn phi(1) \phi(2) f(1,2) d2
+    auto reference = phi1* (*f12)(phi2);
+    output(0.0,0.0,0.0,0.0,0.0,0.0);
 
-    double lo=-radius;
-    double hi=radius;
+    LowRank<double,6> lrf(f12,copy(phi1),copy(phi2));
+    lrf.stable_power_iteration=parameters.stable_power_iteration();
+//    plot_plane<6>(world,lrf.lrfunctor,"plot_f12_r2",PlotParameters(world).set_plane({"x1","x4"}));
+//    lrf.project(parameters.rank(),parameters.radius(),parameters.gridtype(),parameters.rhsfunctiontype());
+    double cpu0=cpu_time();
+    lrf.project(parameters.volume_element(),parameters.radius(),parameters.gridtype(),parameters.rhsfunctiontype(),parameters.tol());
+    double cpu1=cpu_time();
 
+    // compare
+    // \phi(1) \bar \phi(1) = \int phi(1) \phi(2) f(1,2) d2
+    //       = \int \sum_r g_r(1) h_r(2)  d2
+    //       = \sum_r g_r(1) <\phi|h_r>
+    real_function_3d result=compute_result(lrf);
+    double projection_error=compute_relative_error(reference,result,lrf);
+    output(projection_error,lrf.rank(),cpu1-cpu0,0.0,0.0,0.0);
 
-    cartesian_grid<LDIM> cg(n_per_dim,lo,hi);
-    LowRank<double,LDIM> lrf(cg);
-
-    auto regular_grid_Y=uniformly_distributed_slater<double,LDIM>(world,cg);
-//    for (int i=0; i<regular_grid_Y.size(); i+=10) {
-//        std::string name="gridY_raw"+std::to_string(i);
-//        plot_line(name.c_str(),100,cg.lovec,cg.hivec,regular_grid_Y[i]);
-//    }
-
-    std::vector<double> phi2_values(regular_grid_Y.size());
-    for (auto c=cg; c(); ++c) {
-        phi2_values[c.index]=phi2(c.get_coordinates());
-//        print("c.index, coord",c.index,c.get_coordinates(),phi2_values[c.index]);
-    }
-    scale(world,regular_grid_Y,phi2_values);
-    regular_grid_Y=regular_grid_Y*phi1;
-
-    print("regular_grid_Y.size()",regular_grid_Y.size());
-
-    lrf.project(world,f,regular_grid_Y,ntrial);
-
-    t1.tag("project");
-    lrf.compute_error(f,regular_grid_Y);
-//    lrf.orthonormalize();
-//    lrf.compute_error(f,regular_grid_Y);
-    t1.tag("compute error");
-
-    plot_plane<2*LDIM>(world,lrf,"lrf0");
-    t1.tag("plot lrf0");
-
-    print("\nstarting optimization\n");
-
-    lrf.optimize(f,regular_grid_Y,2);
-    t1.tag("optimize");
-
-    lrf.compute_error(f,regular_grid_Y);
-    plot_plane<2*LDIM>(world,lrf,"lrf1");
-
-    t1.end("total time ");
-
-    real_function_6d f12f=TwoElectronFactory(world).slater();
-    real_function_6d full_f=CompositeFactory<double,NDIM,LDIM>(world).g12(f12f)
-                 .particle1(copy(phi1)).particle2(copy(-1.0*phi2));
-    full_f.fill_cuspy_tree();
-    plot_plane<2*LDIM>(world,full_f,"full_f");
-
-    auto lrf_reconstruct=lrf.reconstruct();
-    auto diff=(lrf_reconstruct-full_f).norm2();
-    print("diff(lrf-full_f) ",diff);
-
-    // apply K
-    auto klrf=K(world,lrf,phi1);
-    plot_plane<2*LDIM>(world,klrf,"Klrf");
-    auto kfull_f=K(world,full_f,phi1);
-    plot_plane<2*LDIM>(world,kfull_f,"Kfull_f");
-
-    auto klrf_reconstruct=klrf.reconstruct();
-    auto kdiff=(klrf_reconstruct-kfull_f).norm2();
-    print("diff(K(lrf)-K(full_f)) ",kdiff);
+    double cpu2=cpu_time();
+    lrf.optimize(parameters.optimize());
+    double cpu3=cpu_time();
+    result=compute_result(lrf);
+    double optimization_error=compute_relative_error(reference,result,lrf);
+    output(projection_error,lrf.rank(),cpu1-cpu0,optimization_error,lrf.rank(),cpu3-cpu2);
+    bool success=(projection_error<5.e-2) and (optimization_error<1.e-2);
 
 
-
-    return 0;
-}
-
-int test_6d_convolution(World& world) {
-    timer t1(world);
-    real_function_3d one=real_factory_3d(world).functor([](const coord_3d& r){return 1.0;});
-    real_function_3d phi=real_factory_3d(world).functor([](const coord_3d& r){return exp(-2.0*inner(r,r));});
-//    auto f12= SlaterF12Operator(world,1.0,1.e-4,1.e-3);
-    auto g12=CoulombOperator(world,1.e-4,1.e-4);
-    g12.particle()=1;
-    auto f12=TwoElectronFactory(world).dcut(1.e-7).f12().gamma(1.0);
-    {
-        real_function_6d f = CompositeFactory<double, 6, 3>(world).g12(f12).particle1(copy(phi)).particle2(copy(phi));
-        f.fill_cuspy_tree();
-        f.print_size("cuspy tree phi(1)phi(2)");
-        t1.tag("fill cuspy tree");
-        real_function_6d X = (multiply(f, copy(phi), 1)).truncate();
-        real_function_6d Y = g12(X);     // overwrite X to save space
-        real_function_6d Z = (multiply(f, copy(phi), 1)).truncate();
-        t1.tag("apply exchange");
-
-
-    }
-
-    {
-        real_function_6d f = CompositeFactory<double, 6, 3>(world).g12(f12).particle1(copy(phi)).particle2(copy(one));
-        f.fill_cuspy_tree();
-        f.print_size("cuspy tree phi(1)one(2)");
-        t1.tag("fill cuspy tree");
-        real_function_6d X = (multiply(f, copy(phi), 1)).truncate();
-        real_function_6d Y = g12(X);     // overwrite X to save space
-        real_function_6d Z = (multiply(f, copy(phi), 1)).truncate();
-        t1.tag("apply exchange");
-    }
-    t1.tag("fill cuspy tree");
-    return  1.0;
+    return t1.end(success);
 
 }
-
 
 int main(int argc, char **argv) {
 
     madness::World& world = madness::initialize(argc, argv);
     startup(world, argc, argv);
     commandlineparser parser(argc, argv);
+    int k = parser.key_exists("k") ? std::atoi(parser.value("k").c_str()) : 6;
+    double thresh  = parser.key_exists("thresh") ? std::stod(parser.value("thresh")) : 1.e-4;
     FunctionDefaults<6>::set_tensor_type(TT_2D);
 
-    double thresh=1.e-4;
-    int k=6;
     FunctionDefaults<1>::set_thresh(thresh);
-    FunctionDefaults<1>::set_cubic_cell(-10.,10.);
-    FunctionDefaults<1>::set_k(k);
     FunctionDefaults<2>::set_thresh(thresh);
-    FunctionDefaults<2>::set_cubic_cell(-10.,10.);
-    FunctionDefaults<2>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
-    FunctionDefaults<3>::set_cubic_cell(-10.,10.);
-    FunctionDefaults<3>::set_k(k);
     FunctionDefaults<4>::set_thresh(thresh);
-    FunctionDefaults<4>::set_cubic_cell(-10.,10.);
-    FunctionDefaults<4>::set_k(k);
+    FunctionDefaults<5>::set_thresh(thresh);
     FunctionDefaults<6>::set_thresh(thresh);
-    FunctionDefaults<6>::set_cubic_cell(-10.,10.);
+
+    FunctionDefaults<1>::set_k(k);
+    FunctionDefaults<2>::set_k(k);
+    FunctionDefaults<3>::set_k(k);
+    FunctionDefaults<4>::set_k(k);
+    FunctionDefaults<5>::set_k(k);
     FunctionDefaults<6>::set_k(k);
+
+    FunctionDefaults<1>::set_cubic_cell(-10.,10.);
+    FunctionDefaults<2>::set_cubic_cell(-10.,10.);
+    FunctionDefaults<3>::set_cubic_cell(-10.,10.);
+    FunctionDefaults<4>::set_cubic_cell(-10.,10.);
+    FunctionDefaults<5>::set_cubic_cell(-10.,10.);
+    FunctionDefaults<6>::set_cubic_cell(-10.,10.);
+
+    FunctionDefaults<2>::set_tensor_type(TT_FULL);
     print("numerical parameters: k, eps(3D), eps(6D)", FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(),
           FunctionDefaults<6>::get_thresh());
+    LowRankFunctionParameters parameters;
+    parameters.read_and_set_derived_values(world,parser,"grid");
     int isuccess=0;
 #ifdef USE_GENTENSOR
 
     try {
         parser.set_keyval("geometry", "he");
         parser.print_map();
-        Molecule mol(world, parser);
-        mol.print();
-        CCParameters ccparam(world, parser);
 
-
-//        isuccess+= test_6d_convolution(world);
-
-//        std::shared_ptr<NuclearCorrelationFactor> ncf = create_nuclear_correlation_factor(world,
-//                mol, nullptr, std::make_pair("slater", 2.0));
-        isuccess+=test_lowrank_function(world);
+        isuccess+=test_lowrank_function(world,parameters);
     } catch (std::exception& e) {
         madness::print("an error occured");
         madness::print(e.what());
