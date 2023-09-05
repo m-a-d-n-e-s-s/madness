@@ -524,17 +524,18 @@ namespace madness {
         /// @param[in]  nopt       number of iterations (wrt to Alg. 4.3 in Halko)
         void optimize_fast(const long nopt) {
             timer t(world);
+            double tight_thresh=FunctionDefaults<3>::get_thresh()*0.1;
             for (int i=0; i<nopt; ++i) {
                 // orthonormalize h
-                if (stable_power_iteration) h=truncate(orthonormalize_rrcd(h,tol));
+                if (stable_power_iteration) h=truncate(orthonormalize_rrcd(h,tol),tight_thresh);
 //                h=madness::orthonormalize(h);
-                t.tag("ortho1 with rrcd/truncate");
-                g=truncate(inner(lrfunctor,h,p2,p1));
-                t.tag("inner1/truncate");
-                g=truncate(orthonormalize_rrcd(g,tol));
-                t.tag("ortho2/truncate");
-                h=truncate(inner(lrfunctor,g,p1,p1));
-                t.tag("inner2/truncate");
+                t.tag("ortho1 with rrcd/truncate/tight");
+                g=truncate(inner(lrfunctor,h,p2,p1),tight_thresh);
+                t.tag("inner1/truncate/tight");
+                g=truncate(orthonormalize_rrcd(g,tol),tight_thresh);
+                t.tag("ortho2/truncate/tight");
+                h=truncate(inner(lrfunctor,g,p1,p1),tight_thresh);
+                t.tag("inner2/truncate/tight");
             }
             t.tag("optimize_fast");
         }

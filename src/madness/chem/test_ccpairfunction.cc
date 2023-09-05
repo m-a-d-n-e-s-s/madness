@@ -192,27 +192,28 @@ int test_lowrank_function3(World& world, XParameters& parameters) {
 //        return exp(-(r1-r2).normf() -r2.normf());
 //    };
 
-     auto compute_result = [&world, &one](const auto& lrf) {
-         real_function_3d result=real_factory_3d(world);
-         for (int r=0; r<lrf.rank(); ++r) result+=lrf.g[r]*inner(one,lrf.h[r]);
-         return result;
-     };
-     auto compute_relative_error = [&world,&parameters](const auto reference, const auto result, const auto lrf) {
-         auto diff=reference-result;
-         double refnorm=reference.norm2();
-         double resultnorm=result.norm2();
-         double error=diff.norm2();
-         return error/refnorm;
-     };
+    auto compute_result = [&world, &one](const auto& lrf) {
+        real_function_3d result=real_factory_3d(world);
+        for (int r=0; r<lrf.rank(); ++r) result+=lrf.g[r]*inner(one,lrf.h[r]);
+        return result;
+    };
+    auto compute_relative_error = [&world,&parameters](const auto reference, const auto result, const auto lrf) {
+        auto diff=reference-result;
+        double refnorm=reference.norm2();
+        double resultnorm=result.norm2();
+        double error=diff.norm2();
+        return error/refnorm;
+    };
 
-     auto output=[&parameters] (const double projection_error, const long projection_rank, const double projection_time,
-         const double optimized_error, const long optimized_rank, const double optimized_time) {
-         print("error",parameters.radius(),parameters.gridtype(),parameters.rhsfunctiontype(),parameters.volume_element(),
-               parameters.tol(),
-               projection_error,projection_rank,projection_time,
-               optimized_error,optimized_rank,optimized_time);
-     };
+    auto output=[&parameters] (const double projection_error, const long projection_rank, const double projection_time,
+                               const double optimized_error, const long optimized_rank, const double optimized_time) {
+        print("error",parameters.radius(),parameters.gridtype(),parameters.rhsfunctiontype(),parameters.volume_element(),
+              parameters.tol(),
+              projection_error,projection_rank,projection_time,
+              optimized_error,optimized_rank,optimized_time);
+    };
 
+    // \phi(1) \bar \phi(1) = \intn phi(1) \phi(2) f(1,2) d2
     auto reference = phi1* (*f12)(phi2);
     output(0.0,0.0,0.0,0.0,0.0,0.0);
 
@@ -232,12 +233,12 @@ int test_lowrank_function3(World& world, XParameters& parameters) {
     double projection_error=compute_relative_error(reference,result,lrf);
     output(projection_error,lrf.rank(),cpu1-cpu0,0.0,0.0,0.0);
 
-    cpu0=cpu_time();
+    double cpu2=cpu_time();
     lrf.optimize(parameters.optimize());
-    cpu1=cpu_time();
+    double cpu3=cpu_time();
     result=compute_result(lrf);
     double optimization_error=compute_relative_error(reference,result,lrf);
-    output(projection_error,lrf.rank(),cpu1-cpu0,optimization_error,lrf.rank(),cpu1-cpu0);
+    output(projection_error,lrf.rank(),cpu1-cpu0,optimization_error,lrf.rank(),cpu3-cpu2);
 
 
     return t1.end();
@@ -254,32 +255,32 @@ int test_lowrank_function(World& world) {
     print("eps, k, NDIM",FunctionDefaults<NDIM>::get_thresh(),FunctionDefaults<NDIM>::get_k(),NDIM);
 
     Function<double,NDIM> f12=FunctionFactory<double,NDIM>(world).functor([&LDIM](const Vector<double,NDIM>& r)
-        {
-            Vector<double,LDIM> r1,r2;
-            for (int i=0; i<LDIM; ++i) {
-                r1[i]=r[i];
-                r2[i]=r[i+LDIM];
-            }
-            return exp(-(r1-r2).normf());//* exp(-0.2*inner(r1,r1));
-        });
+                                                                          {
+                                                                              Vector<double,LDIM> r1,r2;
+                                                                              for (int i=0; i<LDIM; ++i) {
+                                                                                  r1[i]=r[i];
+                                                                                  r2[i]=r[i+LDIM];
+                                                                              }
+                                                                              return exp(-(r1-r2).normf());//* exp(-0.2*inner(r1,r1));
+                                                                          });
     Function<double,NDIM> phi0=FunctionFactory<double,NDIM>(world).functor([&LDIM](const Vector<double,NDIM>& r)
-          {
-              Vector<double,LDIM> r1,r2;
-              for (int i=0; i<LDIM; ++i) {
-                r1[i]=r[i];
-                r2[i]=r[i+LDIM];
-              }
-              return exp(-(r1).normf());//* exp(-0.2*inner(r1,r1));
-          });
+                                                                           {
+                                                                               Vector<double,LDIM> r1,r2;
+                                                                               for (int i=0; i<LDIM; ++i) {
+                                                                                   r1[i]=r[i];
+                                                                                   r2[i]=r[i+LDIM];
+                                                                               }
+                                                                               return exp(-(r1).normf());//* exp(-0.2*inner(r1,r1));
+                                                                           });
     Function<double,NDIM> phi1=FunctionFactory<double,NDIM>(world).functor([&LDIM](const Vector<double,NDIM>& r)
-          {
-            Vector<double,LDIM> r1,r2;
-            for (int i=0; i<LDIM; ++i) {
-                r1[i]=r[i];
-                r2[i]=r[i+LDIM];
-            }
-            return exp(-(r2).normf());//* exp(-0.2*inner(r1,r1));
-        });
+                                                                           {
+                                                                               Vector<double,LDIM> r1,r2;
+                                                                               for (int i=0; i<LDIM; ++i) {
+                                                                                   r1[i]=r[i];
+                                                                                   r2[i]=r[i+LDIM];
+                                                                               }
+                                                                               return exp(-(r2).normf());//* exp(-0.2*inner(r1,r1));
+                                                                           });
     Function<double,NDIM> one=FunctionFactory<double,NDIM>(world)
             .functor([&LDIM](const Vector<double,NDIM>& r){ return 1.0; });
 
@@ -386,7 +387,7 @@ int test_lowrank_function(World& world) {
 }
 
 int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
-               const CCParameters& parameter) {
+                     const CCParameters& parameter) {
     test_output t1("CCPairFunction::constructor");
 
     real_function_6d f=real_factory_6d(world);
@@ -449,7 +450,7 @@ int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
 }
 
 int test_operator_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
-                         const CCParameters& parameter) {
+                        const CCParameters& parameter) {
     test_output t1("CCPairFunction::test_operator_apply");
 //    t1.set_cout_to_terminal();
 
@@ -492,7 +493,7 @@ int test_operator_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> 
 
 
 int test_transformations(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
-                     const CCParameters& parameter) {
+                         const CCParameters& parameter) {
     test_output t1("CCPairFunction::test_transformations");
 
     real_function_6d f=real_factory_6d(world);
@@ -531,7 +532,7 @@ int test_transformations(World& world, std::shared_ptr<NuclearCorrelationFactor>
 }
 
 int test_multiply_with_f12(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
-                  const CCParameters& parameters) {
+                           const CCParameters& parameters) {
     test_output t1("CCPairFunction::test_multiply_with_f12");
 
     // p1: pure, corresponds to f12
@@ -573,7 +574,7 @@ int test_multiply_with_f12(World& world, std::shared_ptr<NuclearCorrelationFacto
 }
 
 int test_multiply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
-               const CCParameters& parameters) {
+                  const CCParameters& parameters) {
     test_output t1("CCPairFunction::test_multiply");
 
     // consistency check, relies on CCPairFunction::inner to work correctly
@@ -606,7 +607,7 @@ int test_multiply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, c
     return t1.end();
 }
 int test_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
-                 const CCParameters& parameters) {
+               const CCParameters& parameters) {
     test_output t1("CCPairFunction::test_inner");
     t1.set_cout_to_terminal();
 
@@ -660,8 +661,8 @@ int test_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, cons
 
     const double prefactor = 1.0 / (4 * y * y);
     const double ab_f2_ab = prefactor*( ab_ab
-                            -2.0*dot(world,apply(world,fop,a_ij_functions),b_ij_functions).trace()
-                            +dot(world,apply(world,fsq,a_ij_functions),b_ij_functions).trace() );
+                                        -2.0*dot(world,apply(world,fop,a_ij_functions),b_ij_functions).trace()
+                                        +dot(world,apply(world,fsq,a_ij_functions),b_ij_functions).trace() );
 
 
     for (auto& ket : {p2, p3, p4, p5}) {
@@ -684,7 +685,7 @@ int test_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, cons
 
 
 int test_partial_inner_6d(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
-                       const CCParameters& parameter) {
+                          const CCParameters& parameter) {
 
     CCTimer timer(world, "testing");
     test_output t1("CCPairFunction::test_partial_inner_6d");
@@ -809,7 +810,7 @@ int test_partial_inner_6d(World& world, std::shared_ptr<NuclearCorrelationFactor
     return  (t1.get_final_success()) ? 0 : 1;
 }
 int test_partial_inner_3d(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
-               const CCParameters& parameter) {
+                          const CCParameters& parameter) {
 
     CCTimer timer(world, "testing");
     test_output t1("CCPairFunction::test_partial_inner");
@@ -908,7 +909,7 @@ int test_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, cons
 }
 
 int test_scalar_multiplication(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
-               const CCParameters& parameter) {
+                               const CCParameters& parameter) {
     CCTimer timer(world, "testing");
     test_output t1("CCPairFunction::test_scalar_multiplication");
 
@@ -1013,7 +1014,7 @@ int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> 
         print("difference norms in exp(-21 - 21):",norm21_21,ref_12_12);
 
         double total_error= fabs(norm12_12-ref_12_12)+ fabs(norm12_21-ref_12_21)
-                + fabs(norm21_12-ref_12_21)+ fabs(norm21_21-ref_12_12);
+                            + fabs(norm21_12-ref_12_21)+ fabs(norm21_21-ref_12_12);
 
 
         t1.checkpoint(total_error < FunctionDefaults<3>::get_thresh(), "swap_particles u");
@@ -1024,7 +1025,7 @@ int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> 
 }
 
 int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
-                           const CCParameters& parameter) {
+                   const CCParameters& parameter) {
     test_output t1("CCPairFunction::test_projector");
     CCTimer timer(world, "testing");
 
@@ -1144,7 +1145,7 @@ int test_dirac_convolution(World& world, std::shared_ptr<NuclearCorrelationFacto
 
 /// testing <ij | g Q f | ij> = 0.032 mEh
 int test_helium(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
-                   const CCParameters& parameters) {
+                const CCParameters& parameters) {
 
     test_output t1("CCPairFunction::test_helium");
     CCTimer timer(world, "testing");
@@ -1282,7 +1283,7 @@ int main(int argc, char **argv) {
 //        data1=data(world,ccparam);
 
         std::shared_ptr<NuclearCorrelationFactor> ncf = create_nuclear_correlation_factor(world,
-                         mol, nullptr, std::make_pair("slater", 2.0));
+                                                                                          mol, nullptr, std::make_pair("slater", 2.0));
 
         isuccess+=test_lowrank_function3(world,parameters);
 //        isuccess+=test_constructor(world, ncf, mol, ccparam);
