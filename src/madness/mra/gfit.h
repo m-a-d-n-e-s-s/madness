@@ -57,7 +57,17 @@ class GFit {
 public:
 
 	/// default ctor does nothing
-	GFit() {}
+	GFit() = default;
+
+    /// copy constructor
+    GFit(const GFit& other) = default;
+
+    /// assignment operator
+    GFit& operator=(const GFit& other) {
+        coeffs_ = other.coeffs_;
+        exponents_ = other.exponents_;
+        return *this;
+    }
 
 	/// return a fit for the Coulomb function
 
@@ -114,7 +124,7 @@ public:
     /// return a fit for the F12 correlation factor
 
     /// the Slater function is defined by
-    ///  f(r) = 1 - exp(-\gamma r)
+    ///  f(r) = 1/(2 gamma) * (1 - exp(-\gamma r))
     /// @param[in]	gamma	the exponent of the Slater function
     /// @param[in]	lo	the smallest length scale that needs to be precisely represented
     /// @param[in]	hi	the largest length scale that needs to be precisely represented
@@ -123,13 +133,36 @@ public:
     static GFit F12Fit(double gamma, double lo, double hi, double eps, bool prnt=false) {
         GFit fit;
         f12_fit(gamma,lo*0.1,hi,eps*0.01,fit.coeffs_,fit.exponents_,false);
+        fit.coeffs_*=(0.5/gamma);
         if (prnt) {
             print("f12 fit");
-            auto exact=[&gamma](const double r) -> double {return 1.0-exp(-gamma*r);};
+            auto exact=[&gamma](const double r) -> double {return 0.5/gamma*(1.0-exp(-gamma*r));};
             fit.print_accuracy(exact,lo,hi);
         }
         return fit;
     }
+
+    /// return a fit for the F12^2 correlation factor
+
+    /// the Slater function square is defined by
+    ///  f(r) = [ 1/(2 gamma) * (1 - exp(-\gamma r)) ] ^2
+    /// @param[in]	gamma	the exponent of the Slater function
+    /// @param[in]	lo	the smallest length scale that needs to be precisely represented
+    /// @param[in]	hi	the largest length scale that needs to be precisely represented
+    /// @param[in]	eps	the precision threshold
+    /// @parma[in]	prnt	print level
+    static GFit F12sqFit(double gamma, double lo, double hi, double eps, bool prnt=false) {
+        GFit fit;
+        f12sq_fit(gamma,lo*0.1,hi,eps*0.01,fit.coeffs_,fit.exponents_,false);
+        fit.coeffs_*=(0.25/(gamma*gamma));
+        if (prnt) {
+            print("f12sq fit");
+            auto exact=[&gamma](const double r) -> double {return std::pow(0.5/gamma*(1.0-exp(-gamma*r)),2.0);};
+            fit.print_accuracy(exact,lo,hi);
+        }
+        return fit;
+    }
+
 
     /// return a fit for the FG function
 
@@ -493,6 +526,7 @@ private:
 	static void slater_fit(double gamma, double lo, double hi, double eps,
 			Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt) {
 
+        MADNESS_CHECK(gamma >0.0);
 		// empirical number TT for the upper integration limit
 		double TT;
 		if (eps >= 1e-2) TT = 5;
@@ -504,6 +538,7 @@ private:
 		else TT = 30;
 
 		// integration limits for quadrature over s: slo and shi
+        // slo and shi must not depend on gamma!!!
 		double slo=0.5 * log(eps) - 1.0;
 		double shi=log(TT/(lo*lo))*0.5;
 
@@ -531,32 +566,6 @@ private:
 			coeff[i]*=2.0*gamma/sqrt(constants::pi);
 			expnt[i] = 0.25*exp(-2.0*s);
 		}
-
-		// Prune large exponents from the fit ... never necessary due to construction
-
-		// Prune small exponents from Coulomb fit.  Evaluate a gaussian at
-		// the range midpoint, and replace it there with the next most
-		// diffuse gaussian.  Then examine the resulting error at the two
-		// end points ... if this error is less than the desired
-		// precision, can discard the diffuse gaussian.
-
-		if (gamma == 0.0) {
-			double mid = lo + (hi-lo)*0.5;
-			long i;
-			for (i=npt-1; i>0; --i) {
-				double cnew = coeff[i]*exp(-(expnt[i]-expnt[i-1])*mid*mid);
-				double errlo = coeff[i]*exp(-expnt[i]*lo*lo) -
-						cnew*exp(-expnt[i-1]*lo*lo);
-				double errhi = coeff[i]*exp(-expnt[i]*hi*hi) -
-						cnew*exp(-expnt[i-1]*hi*hi);
-				if (std::max(std::abs(errlo),std::abs(errhi)) > 0.03*eps) break;
-				npt--;
-				coeff[i-1] = coeff[i-1] + cnew;
-			}
-			coeff = coeff(Slice(0,npt-1));
-			expnt = expnt(Slice(0,npt-1));
-		}
-
 
 		if (prnt) {
 			std::cout << "weights and roots for a Slater function with gamma=" << gamma << std::endl;
@@ -603,7 +612,33 @@ private:
     }
 
 
-        void static bsh_fit_ndim(int ndim, double mu, double lo, double hi, double eps,
+    /// fit a correlation factor f12^2 = (1- exp(-mu r))^2 = 1 - 2 exp(-mu r) + exp(-2 mu r)
+
+    /// no factor 1/(2 mu) or square of it included!
+    /// use the Slater fit with an additional term: 1*exp(-0 r^2)
+    static void f12sq_fit(double gamma, double lo, double hi, double eps,
+                        Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt) {
+        Tensor<double> coeff1,expnt1, coeff2, expnt2;
+        slater_fit(gamma, lo, hi, eps, coeff1, expnt1, prnt);
+        slater_fit(2.0*gamma, lo, hi, eps, coeff2, expnt2, prnt);
+
+        // check exponents are the same
+        MADNESS_CHECK((expnt1-expnt2).normf()/expnt1.size()<1.e-12);
+
+        // add exponential terms
+        auto coeff=coeff2-2.0*coeff1;
+        pcoeff=Tensor<double>(coeff1.size()+1);
+        pcoeff(Slice(1,-1,1))=coeff(_);
+        pexpnt=Tensor<double>(expnt1.size()+1);
+        pexpnt(Slice(1,-1,1))=expnt1(_);
+
+        // add constant term
+        pcoeff(0l)=1.0;
+        pexpnt(0l)=1.e-10;
+    }
+
+
+    void static bsh_fit_ndim(int ndim, double mu, double lo, double hi, double eps,
 			Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt) {
 
 		if (mu > 0) {

@@ -1398,6 +1398,15 @@ namespace madness {
     /// Applies an operator to a vector of functions --- q[i] = apply(op,f[i])
     template <typename T, typename R, std::size_t NDIM, std::size_t KDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
+    apply(const SeparatedConvolution<T,KDIM>& op,
+          const std::vector< Function<R,NDIM> > f) {
+        return apply(op.get_world(),op,f);
+    }
+
+
+    /// Applies an operator to a vector of functions --- q[i] = apply(op,f[i])
+    template <typename T, typename R, std::size_t NDIM, std::size_t KDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     apply(World& world,
           const SeparatedConvolution<T,KDIM>& op,
           const std::vector< Function<R,NDIM> > f) {

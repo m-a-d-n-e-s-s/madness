@@ -299,7 +299,7 @@ double MP2::mp3() const {
 
             CCConvolutionOperator::Parameters cparam;
             cparam.thresh_op*=0.1;
-            auto f12=CCConvolutionOperatorPtr(world,OT_F12,cparam);
+            auto f12=CCConvolutionOperatorPtr(world,OpType::OT_F12,cparam);
             auto vfij=Q12(std::vector<CCPairFunction>({f12*ij}));
             for (auto& p : vfij) tmp.push_back(p);
 
@@ -313,7 +313,7 @@ double MP2::mp3() const {
     CCTimer t2(world,"recompute MP2");
     // recompute MP2 energy
     CCConvolutionOperator::Parameters cparam;
-    auto g12=CCConvolutionOperatorPtr(world,OT_G12,cparam);
+    auto g12=CCConvolutionOperatorPtr(world,OpType::OT_G12,cparam);
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = i; j < hf->nocc(); ++j) {
             auto bra=g12*CCPairFunction(hf->R2orbital(i),hf->R2orbital(j));
@@ -800,8 +800,8 @@ double MP2::compute_gQf(const int i, const int j, ElectronPair& pair) const {
 
     CCTimer timer(world,"gQf with ccpairfunction");
     CCConvolutionOperator::Parameters param;
-    auto f=CCConvolutionOperatorPtr(world,OT_F12,param);
-    auto g=CCConvolutionOperatorPtr(world,OT_G12,param);
+    auto f=CCConvolutionOperatorPtr(world,OpType::OT_F12,param);
+    auto g=CCConvolutionOperatorPtr(world,OpType::OT_G12,param);
 //    print("operator constructor",timer.reset());
 
     CCPairFunction fij(f,ket_i,ket_j);

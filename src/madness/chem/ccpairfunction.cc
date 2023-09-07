@@ -21,7 +21,7 @@ CCPairFunction::invert_sign() {
 bool CCPairFunction::is_convertible_to_pure_no_op() const {
     if (has_operator()) {
         const auto type=get_operator().type();
-        if (not (type==OT_SLATER or type==OT_F12)) return false;
+        if (not (type==OpType::OT_SLATER or type==OpType::OT_F12)) return false;
     }
     if (is_decomposed() and (get_a().size()>1)) return false;
     return true;
@@ -103,10 +103,7 @@ CCPairFunction multiply(const CCPairFunction& other, const real_function_3d& f, 
 /// multiplication with a 2-particle function
 CCPairFunction& CCPairFunction::multiply_with_op_inplace(const std::shared_ptr<CCConvolutionOperator> op) {
     if (has_operator()) {
-        auto ops=combine(get_operator_ptr(),op);
-        MADNESS_CHECK(ops.size()==1);
-        MADNESS_CHECK(ops.front().first==1.0);
-        auto newop=std::make_shared<CCConvolutionOperator>(ops.front().second);
+        auto newop=combine(get_operator_ptr(),op);
         reset_operator(newop);
     } else {
         reset_operator(op);
@@ -407,24 +404,25 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
 //        }
         // include the operator(s), if any
         if (f1.has_operator() or f2.has_operator()) {
-            auto ops=combine(f1.get_operator_ptr(),f2.get_operator_ptr());
-            for (const auto& single_op : ops) {
-                auto fac=single_op.first;
-                auto op=single_op.second;
-                double bla=0.0;
-                if (op.get_op()) {
-                    real_function_6d tmp1;
-                    if (R2.is_initialized()) {
-                        tmp1= CompositeFactory<double, 6, 3>(world()).g12(op.get_kernel()).ket(ket).particle1(R2).particle2(R2);
-                    } else {
-                        tmp1= CompositeFactory<double, 6, 3>(world()).g12(op.get_kernel()).ket(ket);
-                    }
-                    bla=fac*inner(bra,tmp1);
-                } else {
-                    bla=fac*inner(bra,ket);
-                }
-                result+=bla;
-            }
+            MADNESS_EXCEPTION("still to debug",1);
+//            auto ops=combine(f1.get_operator_ptr(),f2.get_operator_ptr());
+//            for (const auto& single_op : ops) {
+//                auto fac=single_op.first;
+//                auto op=single_op.second;
+//                double bla=0.0;
+//                if (op.get_op()) {
+//                    real_function_6d tmp1;
+//                    if (R2.is_initialized()) {
+//                        tmp1= CompositeFactory<double, 6, 3>(world()).g12(op.get_kernel()).ket(ket).particle1(R2).particle2(R2);
+//                    } else {
+//                        tmp1= CompositeFactory<double, 6, 3>(world()).g12(op.get_kernel()).ket(ket);
+//                    }
+//                    bla=fac*inner(bra,tmp1);
+//                } else {
+//                    bla=fac*inner(bra,ket);
+//                }
+//                result+=bla;
+//            }
         } else {
             // no operators
             result=inner(bra,ket);
@@ -435,28 +433,29 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
         const pureT& bra=f1.get_function();
 
         auto ops=combine(f1.get_operator_ptr(),f2.get_operator_ptr());
-        if (ops.size()>0) {
-            for (const auto& single_op : ops) {
-                auto fac = single_op.first;
-                auto op = single_op.second;
-                double bla=0.0;
-                for (int i=0; i<a.size(); ++i) {
-                    if (op.get_op()) {
-                        real_function_6d tmp = CompositeFactory<double, 6, 3>(world()).g12(op.get_kernel()).particle1(a[i]).particle2(b[i]);
-                        bla += fac * inner(bra, tmp);
-                    } else {
-                        real_function_6d tmp = CompositeFactory<double, 6, 3>(world()).particle1(a[i]).particle2(b[i]);
-                        bla += fac * inner(bra,tmp);
-                    }
-                }
-                result+=bla;
-            }
-        } else { // no operators
+        MADNESS_EXCEPTION("still to debug",1);
+//        if (ops.size()>0) {
+//            for (const auto& single_op : ops) {
+//                auto fac = single_op.first;
+//                auto op = single_op.second;
+//                double bla=0.0;
+//                for (int i=0; i<a.size(); ++i) {
+//                    if (op.get_op()) {
+//                        real_function_6d tmp = CompositeFactory<double, 6, 3>(world()).g12(op.get_kernel()).particle1(a[i]).particle2(b[i]);
+//                        bla += fac * inner(bra, tmp);
+//                    } else {
+//                        real_function_6d tmp = CompositeFactory<double, 6, 3>(world()).particle1(a[i]).particle2(b[i]);
+//                        bla += fac * inner(bra,tmp);
+//                    }
+//                }
+//                result+=bla;
+//            }
+//        } else { // no operators
             for (int i=0; i<a.size(); ++i) {
                 real_function_6d tmp = CompositeFactory<double, 6, 3>(world()).particle1(a[i]).particle2(b[i]);
                 result+=inner(bra,tmp);
             }
-        }
+//        }
     } else if (f1.is_decomposed() and f2.is_pure()) {     // with or without op
         result= f2.inner_internal(f1,R2);
 
@@ -470,30 +469,31 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
         const vector_real_function_3d b2 = R2.is_initialized() ?  R2* f2.get_b() : f2.get_b();
 
 
+        MADNESS_EXCEPTION("still to debug",1);
         auto ops=combine(f1.get_operator_ptr(),f2.get_operator_ptr());
-        if (ops.size()==0) {
-            // <p1 | p2> = \sum_ij <a_i b_i | a_j b_j> = \sum_ij <a_i|a_j> <b_i|b_j>
-            result = (matrix_inner(world(), a1, a2)).trace(matrix_inner(world(),b1,b2));
-        } else {
-            // <a_i b_i | op | a_j b_j>  =  <a_i * a_j | op(b_i*b_j) >
-            for (const auto& single_op : ops) {
-                auto fac = single_op.first;
-                auto op = single_op.second;
-
-                double bla=0.0;
-                if (op.get_op()) {
-                    for (size_t i = 0; i < a1.size(); i++) {
-                        vector_real_function_3d aa = truncate(a1[i] * a2);
-                        vector_real_function_3d bb = truncate(b1[i] * b2);
-                        vector_real_function_3d aopx = op(aa);
-                        bla += fac * inner(bb, aopx);
-                    }
-                } else {
-                    bla += fac*(matrix_inner(world(), a1, a2)).trace(matrix_inner(world(),b1,b2));
-                }
-                result+=bla;
-            }
-        }
+//        if (ops.size()==0) {
+//            // <p1 | p2> = \sum_ij <a_i b_i | a_j b_j> = \sum_ij <a_i|a_j> <b_i|b_j>
+//            result = (matrix_inner(world(), a1, a2)).trace(matrix_inner(world(),b1,b2));
+//        } else {
+//            // <a_i b_i | op | a_j b_j>  =  <a_i * a_j | op(b_i*b_j) >
+//            for (const auto& single_op : ops) {
+//                auto fac = single_op.first;
+//                auto op = single_op.second;
+//
+//                double bla=0.0;
+//                if (op.get_op()) {
+//                    for (size_t i = 0; i < a1.size(); i++) {
+//                        vector_real_function_3d aa = truncate(a1[i] * a2);
+//                        vector_real_function_3d bb = truncate(b1[i] * b2);
+//                        vector_real_function_3d aopx = op(aa);
+//                        bla += fac * inner(bb, aopx);
+//                    }
+//                } else {
+//                    bla += fac*(matrix_inner(world(), a1, a2)).trace(matrix_inner(world(),b1,b2));
+//                }
+//                result+=bla;
+//            }
+//        }
     } else MADNESS_EXCEPTION(
             ("CCPairFunction Overlap not supported for combination " + f1.name() + " and " + f2.name()).c_str(), 1) ;
     return result;

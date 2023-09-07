@@ -7,6 +7,7 @@
 
 
 #include<madness/mra/mra.h>
+#include<madness/mra/vmra.h>
 #include<madness/world/timing_utilities.h>
 #include<madness/chem/electronic_correlation_factor.h>
 #include <random>
@@ -99,16 +100,22 @@ namespace madness {
     };
 
 
+    /// LowRankFunction represents a hi-dimensional (NDIM) function as a sum of products of low-dimensional (LDIM) functions
+
+    /// f(1,2) = \sum_i g_i(1) h_i(2)
+    /// a LowRankFunction can be created from a hi-dim function directly, or from a composite like f(1,2) phi(1) psi(2),
+    /// where f(1,2) is a two-particle function (e.g. a Slater function)
     template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
     class LowRank {
     public:
 
+        /// what the LowRankFunction will represent
         struct LRFunctor {
             LRFunctor() = default;
 
-            Function<T, NDIM> f;
-            std::shared_ptr<SeparatedConvolution<T,LDIM>> f12;
-            Function<T,LDIM> a,b;
+            Function<T, NDIM> f;    ///< a hi-dim function
+            std::shared_ptr<SeparatedConvolution<T,LDIM>> f12;  ///< a two-particle function
+            Function<T,LDIM> a,b;   ///< the lo-dim functions
             bool has_f() const {
                 return f.is_initialized();
             }
@@ -273,7 +280,8 @@ namespace madness {
 
 
         World& world;
-        double tol; // rrcd tol
+        double rank_revealing_tol;     // rrcd tol
+        bool do_print=true;
         bool stable_power_iteration=true;
         std::vector<Function<T,LDIM>> g,h;
         LRFunctor lrfunctor;
@@ -341,7 +349,7 @@ namespace madness {
 
         void project(const double volume_per_point, const double radius, const std::string gridtype, std::string rhsfunctiontype,
                      double tol1) {
-            tol=tol1;
+            rank_revealing_tol=tol1;
             long rank=0;
             if (gridtype=="random") {
                 // number of points within radius = variance: 0.67 * #total points = 0.67*rank
@@ -362,6 +370,7 @@ namespace madness {
         /// Y_i(1) = \int f(1,2) Omega_i(2) d2 && g_i(1) = QR(Y_i(1)) && h_i(2) = \int g_i^*(1) f(1,2) d1
         void project(const long rank, const double radius, const std::string gridtype, std::string rhsfunctiontype) {
             timer t1(world);
+            t1.do_print=do_print;
 
             // make grid
             std::vector<Vector<double,LDIM>> grid;
@@ -376,33 +385,39 @@ namespace madness {
                     if (not is_in_cell(tmp)) continue;
                     grid.push_back(tmp);
                 }
-                double volume = 4.0/3.0*constants::pi * std::pow(radius,3.0);
-                print("volume element in random grid",volume/(0.67*rank));
+                if (world.rank()==0 and do_print) {
+                    double volume = 4.0/3.0*constants::pi * std::pow(radius,3.0);
+                    print("volume element in random grid",volume/(0.67*rank));
+                }
 
 
             } else if (gridtype=="cartesian") {
                 long nperdim=std::lround(std::pow(double(rank),1.0/3.0));
                 cartesian_grid<LDIM> cg(nperdim,-radius,radius);
                 for (cg.index=0; cg(); ++cg) grid.push_back(cg.get_coordinates());
-                print("volume element in cartesian grid",cg.volume_per_gridpoint());
+                if (world.rank()==0 and do_print) print("volume element in cartesian grid",cg.volume_per_gridpoint());
             } else {
                 MADNESS_EXCEPTION("unknown grid type in project",1);
             }
 
-            print("grid is",gridtype,"with radius",radius,"and",grid.size(),"gridpoints");
-            print("rhs functions are",rhsfunctiontype);
+            if (world.rank()==0 and do_print) {
+                print("grid is",gridtype,"with radius",radius,"and",grid.size(),"gridpoints");
+                print("rhs functions are",rhsfunctiontype);
+            }
 
             auto Y=Yformer(grid,rhsfunctiontype);
             t1.tag("Yforming");
 
             std::ostringstream oss;
-            oss << std::scientific << std::setprecision(1) << tol;
+            oss << std::scientific << std::setprecision(1) << rank_revealing_tol;
             std::string scientificString = oss.str();
-            g=orthonormalize_rrcd(Y,tol);
-            t1.tag("Y orthonormalizing with tol "+scientificString);
+            g=orthonormalize_rrcd(Y,rank_revealing_tol);
+            t1.tag("Y orthonormalizing with rank_revealing_tol "+scientificString);
 
-            print("Y.size()",Y.size());
-            print("g.size()",g.size());
+            if (world.rank()==0 and do_print) {
+                print("Y.size()",Y.size());
+                print("g.size()",g.size());
+            }
 
             h=truncate(inner(lrfunctor,g,p1,p1));
             t1.tag("Y backprojection with truncation");
@@ -442,98 +457,21 @@ namespace madness {
             return fapprox;
         }
 
-        Tensor<double> orthonormalize(const bool s_in_h) {
-            return orthonormalize_svd(s_in_h);
-        }
-
-
-        /// @return     the singular values s
-        Tensor<double> orthonormalize_svd(const bool s_in_h) {
-            timer t(world);
-            /**
-             *  |g >< h| = |g_ortho><g_ortho | g> < h | h_ortho ><h_ortho |
-             *           = |g_ortho> gg hh <h_ortho |
-             *           = |g_ortho> U s VT <h_ortho |
-             */
-            std::vector<Function<T,LDIM>> g_ortho=orthonormalize_rrcd(g,1.e-8);
-            t.tag("ortho1");
-            std::vector<Function<T,LDIM>> h_ortho=orthonormalize_rrcd(h,1.e-8);
-            t.tag("ortho2");
-            auto gg=matrix_inner(world,g_ortho,g);
-            auto hh=matrix_inner(world,h,h_ortho);
-            auto ovlp=madness::inner(gg,hh);
-            Tensor<T> U,VT;
-            Tensor<double> s;
-            svd(ovlp,U,s,VT);
-            auto V=transpose(VT);
-
-
-            t.tag("svd");
-            g=transform(world,g_ortho,U);
-            t.tag("transform1");
-            h=transform(world,h_ortho,V);
-            t.tag("transform2");
-
-
-            // include singular values into h
-            if (s_in_h) for (int i=0; i<h.size(); ++i) h[i]*=s[i];
-            t.end("orthonormalization");
-            return s;
-
-        }
-
-        /// orthonormalize g or h by rr-cholesky
-
-        /// usage: orthonormalize_cd(h,tol) or orthonormalize_cd(g,tol)
-        void orthonormalize_cd(const std::vector<Function<T,LDIM>>& to_ortho) {
-            MADNESS_CHECK((&to_ortho == &h) or(&to_ortho == &g)) ;
-            /**
-             *  |g >< h| = |g_ortho><g_ortho | g> < h |
-             *           = |g_ortho> gg < h |
-             *           = |g_ortho> <h_non_ortho |
-             */
-            World& world=g.front().world();
-
-            timer t(world);
-            auto ortho= orthonormalize_rrcd(to_ortho,tol);
-            t.tag("ortho_cd ortho_first");
-
-            auto ovlp=matrix_inner(world,ortho,ortho);
-            for (int i=0; i<ovlp.dim(0); ++i) ovlp(i,i)-=1.0;
-            MADNESS_CHECK(fabs(ovlp.normf()/ovlp.size()<1.e-10));
-
-            Tensor<double> gg=matrix_inner(world,ortho,to_ortho);
-            t.tag("ortho_cd matrix_inner");
-            /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
-            if (&to_ortho == &h) {
-                g=(transform(world,g,transpose(gg)));
-                h=(ortho);
-            } else {
-                g=(ortho);
-                h=(transform(world,h,transpose(gg)));
-            }
-            t.tag("ortho_cd ortho_second");
-        }
-
-        void optimize(const long nopt=2) {
-            optimize_fast(nopt);
-        }
-
         /// optimize using Cholesky decomposition
 
         /// if stable_power_iteration is true, orthonormalize in between applications of the kernel (Alg. 4.4 in Halko)
         /// @param[in]  nopt       number of iterations (wrt to Alg. 4.3 in Halko)
-        void optimize_fast(const long nopt) {
+        void optimize(const long nopt=1) {
             timer t(world);
+            t.do_print=do_print;
             double tight_thresh=FunctionDefaults<3>::get_thresh()*0.1;
             for (int i=0; i<nopt; ++i) {
                 // orthonormalize h
-                if (stable_power_iteration) h=truncate(orthonormalize_rrcd(h,tol),tight_thresh);
-//                h=madness::orthonormalize(h);
+                if (stable_power_iteration) h=truncate(orthonormalize_rrcd(h,rank_revealing_tol),tight_thresh);
                 t.tag("ortho1 with rrcd/truncate/tight");
                 g=truncate(inner(lrfunctor,h,p2,p1),tight_thresh);
                 t.tag("inner1/truncate/tight");
-                g=truncate(orthonormalize_rrcd(g,tol),tight_thresh);
+                g=truncate(orthonormalize_rrcd(g,rank_revealing_tol),tight_thresh);
                 t.tag("ortho2/truncate/tight");
                 h=truncate(inner(lrfunctor,g,p1,p1),tight_thresh);
                 t.tag("inner2/truncate/tight");
@@ -541,58 +479,10 @@ namespace madness {
             t.tag("optimize_fast");
         }
 
-        /// optimize using Cholesky decomposition
-        void optimize_cd(const long nopt) {
-
-            timer t(world);
-            for (int iopt=0; iopt<nopt; ++iopt) {
-                this->orthonormalize_cd(h);      // h orthonormal, g not
-                t.tag("ortho1");
-                auto gtmp=inner(lrfunctor,h,p2,p1);
-                t.tag("inner1");
-                g=orthonormalize_rrcd(gtmp,tol);
-                t.tag("ortho2");
-                h=inner(lrfunctor,g,p1,p1);
-                t.tag("inner2");
-
-                if (iopt%2==1) {
-                    double err=error();
-                    print("optimization iteration",iopt,", error in f_approx_opt",err);
-                }
-            }
-            t.tag("optimize");
-        }
-
-        /// assumes g and h to be orthonormal -> simple projection
-        void optimize_svd(const long nopt=2) {
-
-            timer t(world);
-            for (int iopt=0; iopt<nopt; ++iopt) {
-                auto s=orthonormalize(true);    // includes singular values in h -> not normalized any more
-                std::vector<Function<double,LDIM>> gtmp(g.size());
-                /// remove singular values from h again -> normalized
-                if constexpr (LDIM == 1) gtmp= inner(lrfunctor, h, {1}, {0});
-                if constexpr (LDIM == 2) gtmp= inner(lrfunctor, h, {2, 3}, {0, 1});
-                if constexpr (LDIM == 3) gtmp= inner(lrfunctor, h, {3, 4, 5}, {0, 1, 2});
-                std::vector<double> sinv(s.size());
-                for (int i=0; i<s.size(); ++i) sinv[i]=1.0/s[i];
-                scale(world,gtmp,sinv);
-//                g=orthonormalize_canonical(gtmp,1.e-12);
-                g=orthonormalize_rrcd(gtmp,1.e-12);
-                std::vector<Function<double,LDIM>> htmp(g.size());
-                if constexpr (LDIM==1) htmp=inner(lrfunctor,g,{0},{0});
-                if constexpr (LDIM==2) htmp=inner(lrfunctor,g,{0,1},{0,1});
-                if constexpr (LDIM==3) htmp=inner(lrfunctor,g,{0,1,2},{0,1,2});
-                h=htmp;
-
-//                if (g.size()>1) s=orthonormalize(true);
-
-                if (iopt%2==1) {
-                    double err=error();
-                    print("optimization iteration",iopt,", error in f_approx_opt",err);
-                }
-            }
-            t.tag("optimize");
+        double check_orthonormality(const std::vector<Function<T,LDIM>>& v) const {
+            Tensor<T> ovlp=matrix_inner(world,v,v);
+            for (int i=0; i<ovlp.dim(0); ++i) ovlp(i,i)-=1.0;
+            return ovlp.normf()/ovlp.dim(0);
         }
 
         double explicit_error() const {
@@ -609,7 +499,46 @@ namespace madness {
             else return randomized_error();
         }
 
-    //    double get() const {return x;}
+        /// compute the l2 error |functor - \sum_i g_ih_i|_2
+
+        /// \int (f(1,2) - gh(1,2))^2 = \int f(1,2)^2 - 2\int f(1,2) gh(1,2) + \int gh(1,2)^2
+        double l2error() const {
+            MADNESS_CHECK(lrfunctor.has_f12());
+
+            timer t(world);
+            t.do_print=do_print;
+            const Function<T,LDIM> one=FunctionFactory<T,LDIM>(world).f([](const Vector<double,LDIM>& r){return 1.0;});
+            const Function<T,LDIM> pre=(lrfunctor.a.is_initialized()) ? lrfunctor.a : one;
+            const Function<T,LDIM> post=(lrfunctor.b.is_initialized()) ? lrfunctor.b : one;
+            const SeparatedConvolution<T,LDIM>& f12=*lrfunctor.f12;
+            const SeparatedConvolution<T,LDIM> f12sq= SeparatedConvolution<T,LDIM>::combine(f12,f12);
+
+            // \int f(1,2)^2 d1d2 = \int f(1,2)^2 pre(1)^2 post(2)^2 d1 d2
+            double term1 =madness::inner(post*post,f12sq(pre*pre));
+            t.tag("computing term1");
+
+            // \int f(1,2) pre(1) post(2) \sum_i g(1) h(2) d1d2
+            double term2=madness::inner(pre*g,f12(post*h));
+            t.tag("computing term2");
+
+            // g functions are orthonormal
+            // \int gh(1,2)^2 d1d2 = \int \sum_{ij} g_i(1) g_j(1) h_i(2) h_j(2) d1d2
+            //   = \sum_{ij} \int g_i(1) g_j(1) d1 \int h_i(2) h_j(2) d2
+            //   = \sum_{ij} delta_{ij} \int h_i(2) h_j(2) d2
+            //   = \sum_{i} \int h_i(2) h_i(2) d2
+            double zero=check_orthonormality(g);
+            if (zero>1.e-10) print("g is not orthonormal",zero);
+            double term3=madness::inner(h,h);
+            t.tag("computing term3");
+
+            double error=sqrt(term1-2.0*term2+term3)/term1;
+            if (world.rank()==0 and do_print) {
+                print("term1,2,3, error",term1, term2, term3, "  --",error);
+            }
+
+            return error;
+        }
+
     };
 
     // This interface is necessary to compute inner products

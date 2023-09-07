@@ -28,8 +28,8 @@ CCPotentials::CCPotentials(World& world_,  std::shared_ptr<Nemo> nemo, const CCP
           corrfac(world, param.gamma(), 1.e-7, nemo->get_calc()->molecule),
           get_potentials(world, param),
           output(world) {
-    g12=std::shared_ptr<CCConvolutionOperator>(new CCConvolutionOperator(world,OT_G12,param));
-    f12=std::shared_ptr<CCConvolutionOperator>(new CCConvolutionOperator(world,OT_F12,param));
+    g12=std::shared_ptr<CCConvolutionOperator>(new CCConvolutionOperator(world,OpType::OT_G12,param));
+    f12=std::shared_ptr<CCConvolutionOperator>(new CCConvolutionOperator(world,OpType::OT_F12,param));
     output.debug = parameters.debug();
 //    reset_nemo(nemo);
 //    g12.update_elements(mo_bra_, mo_ket_);
@@ -1886,11 +1886,11 @@ CCPotentials::make_xy_op_u(const CCFunction& x, const CCFunction& y, const CCCon
         result = inner(u.get_function(), xy_op);
     } else if (u.component->is_decomposed()) {
         if (u.component->has_operator()) {
-            if (op.type() == OT_G12 and u.decomposed().get_operator_ptr()->type() == OT_F12)
+            if (op.type() == OpType::OT_G12 and u.decomposed().get_operator_ptr()->type() == OpType::OT_F12)
                 result = make_xy_gf_ab(x, y, u.decomposed().get_a()[0], u.decomposed().get_b()[0]);
-            else if (op.type() == OT_F12 and u.decomposed().get_operator_ptr()->type() == OT_G12)
+            else if (op.type() == OpType::OT_F12 and u.decomposed().get_operator_ptr()->type() == OpType::OT_G12)
                 result = make_xy_gf_ab(x, y, u.decomposed().get_a()[0], u.decomposed().get_b()[0]);
-            else if (op.type() == OT_F12 and u.decomposed().get_operator_ptr()->type() == OT_F12)
+            else if (op.type() == OpType::OT_F12 and u.decomposed().get_operator_ptr()->type() == OpType::OT_F12)
                 result = make_xy_ff_ab(x, y, u.decomposed().get_a()[0], u.decomposed().get_b()[0]);
             else MADNESS_EXCEPTION(("xy_" + op.name() + u.name() + " not implemented").c_str(), 1);
         } else {
@@ -3209,7 +3209,7 @@ real_function_6d CCPotentials::make_6D_pair(const CCPair& pair) const {
                 result += ab;
             }
         } else if (f.is_op_decomposed()) {
-            MADNESS_ASSERT(f.get_operator().type() == OT_F12);
+            MADNESS_ASSERT(f.get_operator().type() == OpType::OT_F12);
             real_function_6d fxy = make_f_xy(f.get_a()[0], f.get_b()[0]);
             result += fxy;
         } else MADNESS_EXCEPTION("Unknown type of CCPairFunction", 1);
@@ -3415,7 +3415,7 @@ void CCPotentials::test_singles_potential() const {
 void CCPotentials::test() {
     output.section("Testing enums");
     CalcType test2 = CT_MP2;
-    OpType test3 = OT_G12;
+    OpType test3 = OpType::OT_G12;
     FuncType test4 = HOLE;
     CCState test5 = GROUND_STATE;
     PotentialType test6 = POT_F3D_;
