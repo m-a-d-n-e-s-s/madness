@@ -599,7 +599,7 @@ Tensor<double> QuadraticResponse::compute_beta(World &world) {
     auto apply_projector = [&](auto &xi) { return projector(xi); };
 
     auto perturbation_A = generator(world, *this);
-    auto XA = -1.0 * x_data[0].first.copy();
+    auto XA = 1.0 * x_data[0].first.copy();
 
     // first step to compute beta is to construct the X_space representations of the virt/virt and occ/occ blocks of gamma
 
