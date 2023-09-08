@@ -39,6 +39,7 @@ if (NOT MADNESS_BUILD_MADWORLD_ONLY)
 	add_subdirectory(tensor)
 	add_subdirectory(mra)
 	add_subdirectory(chem)
+	add_subdirectory(lcao)
 # Create the super library that contains all MADNESS libraries
 	add_library(madness
     	$<TARGET_OBJECTS:MADworld-obj> $<TARGET_OBJECTS:MADmisc-obj>
