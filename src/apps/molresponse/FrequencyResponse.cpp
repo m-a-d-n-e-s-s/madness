@@ -599,7 +599,7 @@ Tensor<double> QuadraticResponse::compute_beta(World &world) {
     auto apply_projector = [&](auto &xi) { return projector(xi); };
 
     auto perturbation_A = generator(world, *this);
-    auto XA = 1.0 * x_data[0].first.copy();
+    auto XA = -1.0 * x_data[0].first.copy();
 
     // first step to compute beta is to construct the X_space representations of the virt/virt and occ/occ blocks of gamma
 
@@ -639,7 +639,7 @@ Tensor<double> QuadraticResponse::compute_beta(World &world) {
         cout << beta << endl;
     }
 
-    return -2 * beta;
+    return 2 * beta;
 }
 
 std::pair<X_space, X_space> QuadraticResponse::compute_first_order_fock_matrix_terms(World &world, const X_space &A,
@@ -756,9 +756,12 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms(World &world,
     auto norm_g1_kbc_y = g1_kbc.y.norm2();
     auto norm_g1_kcb_x = g1_kcb.x.norm2();
     auto norm_g1_kcb_y = g1_kcb.y.norm2();
-    if (world.rank() == 0) {
-        cout << "norm_g1_kbc_x " << norm_g1_kbc_x << " norm_g1_kbc_y " << norm_g1_kbc_y << " norm_g1_kcb_x "
-             << norm_g1_kcb_x << " norm_g1_kcb_y " << norm_g1_kcb_y << endl;
+    if (r_params.print_level() > 15) {
+
+        if (world.rank() == 0) {
+            cout << "norm_g1_kbc_x " << norm_g1_kbc_x << " norm_g1_kbc_y " << norm_g1_kbc_y << " norm_g1_kcb_x "
+                 << norm_g1_kcb_x << " norm_g1_kcb_y " << norm_g1_kcb_y << endl;
+        }
     }
 
 
@@ -779,27 +782,30 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms(World &world,
     auto XA = -1.0 * x_data[0].first.copy();
 
 
-    // compute inner of each with XA
-    auto g1_kbc_inner = inner(XA, g1_kbc);
-    auto g1_kcb_inner = inner(XA, g1_kcb);
-    auto g1cxb_inner = inner(XA, g1cxb);
-    auto g1bxc_inner = inner(XA, g1bxc);
-    auto zFBzC_inner = inner(XA, zFBzC);
-    auto zFCzB_inner = inner(XA, zFCzB);
-    auto VBXC_inner = inner(XA, vbxc);
-    auto VCXB_inner = inner(XA, vcxb);
-    // print the inner of each
+    if (r_params.print_level() > 15) {
 
-    if (world.rank() == 0) {
-        print("Inner products of XA with each term in rhs vectors\n");
-        print("g1_kbc\n", g1_kbc_inner);
-        print("g1_kcb\n", g1_kcb_inner);
-        print("g1bxc\n", g1bxc_inner);
-        print("g1cxb\n", g1cxb_inner);
-        print("zFBzC\n", zFBzC_inner);
-        print("zFCzB\n", zFCzB_inner);
-        print("vbxc\n", VBXC_inner);
-        print("vcxb\n", VCXB_inner);
+        // compute inner of each with XA
+        auto g1_kbc_inner = inner(XA, g1_kbc);
+        auto g1_kcb_inner = inner(XA, g1_kcb);
+        auto g1cxb_inner = inner(XA, g1cxb);
+        auto g1bxc_inner = inner(XA, g1bxc);
+        auto zFBzC_inner = inner(XA, zFBzC);
+        auto zFCzB_inner = inner(XA, zFCzB);
+        auto VBXC_inner = inner(XA, vbxc);
+        auto VCXB_inner = inner(XA, vcxb);
+        // print the inner of each
+
+        if (world.rank() == 0) {
+            print("Inner products of XA with each term in rhs vectors\n");
+            print("g1_kbc\n", g1_kbc_inner);
+            print("g1_kcb\n", g1_kcb_inner);
+            print("g1bxc\n", g1bxc_inner);
+            print("g1cxb\n", g1cxb_inner);
+            print("zFBzC\n", zFBzC_inner);
+            print("zFCzB\n", zFCzB_inner);
+            print("vbxc\n", VBXC_inner);
+            print("vcxb\n", VCXB_inner);
+        }
     }
 
     return g1_kbc + g1_kcb + g1bxc + g1cxb + zFBzC + zFCzB + vbxc + vcxb;
