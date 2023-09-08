@@ -5,7 +5,6 @@
 
 #include<madness.h>
 #include<madness/chem/lowrankfunction.h>
-#include<madness/chem/electronic_correlation_factor.h>
 
 
 #include<madness/world/test_utilities.h>
@@ -25,7 +24,9 @@ struct LowRankFunctionParameters : QCCalculationParametersBase {
         initialize<double>("volume_element",0.1,"volume covered by each grid point");
         initialize<long>("rank",500,"the number of grid points in random grids");
         initialize<bool>("stable_power_iteration",true,"use stable power iteration algorithm (orthonormalize)");
-        initialize<double>("tol",1.e-12,"rank-reduced choleski tolerance");
+        initialize<double>("tol",1.e-12,"rank-reduced cholesky tolerance");
+        initialize<std::string>("f12type","Slater","correlation factor",{"Slater","SlaterF12"});
+        initialize<std::string>("transpose","slater2","transpose of the matrix",{"slater1","slater2"});
         initialize<std::string>("gridtype","random","the grid type",{"random","cartesian"});
         initialize<std::string>("rhsfunctiontype","exponential","the type of function",{"delta","exponential"});
         initialize<int>("optimize",1,"number of optimization iterations");
@@ -60,15 +61,18 @@ int test_lowrank_function(World& world, LowRankFunctionParameters& parameters) {
     print("eps, k, NDIM, id",FunctionDefaults<NDIM>::get_thresh(),FunctionDefaults<NDIM>::get_k(),NDIM,id);
 
     parameters.print("grid","end");
+    std::string f12type=parameters.get<std::string>("f12type");
+    std::string transpose=parameters.get<std::string>("transpose");
 
     json j;
     std::string jsonfilename="test_low_rank_function."+id+".json";
     j["radius"]=parameters.radius();
-    j["f12type"]="SlaterF12";
+    j["f12type"]=parameters.get<std::string>("f12type");
     j["gamma"]=parameters.gamma();
     j["volume_element"]=parameters.volume_element();
     j["tol"]=parameters.tol();
     j["rank"]=parameters.rank();
+    j["transpose"]=transpose;
     j["stable_power_iteration"]=parameters.stable_power_iteration();
     j["gridtype"]=parameters.gridtype();
     j["rhsfunctiontype"]=parameters.rhsfunctiontype();
@@ -79,17 +83,33 @@ int test_lowrank_function(World& world, LowRankFunctionParameters& parameters) {
 
     Vector<double,LDIM> offset;
     offset.fill(0.0);
-//    Function<double,LDIM> phi1=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r)
-//            { return exp(-r.normf());});
     Function<double,LDIM> phi1=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r)
                                                                            { return 1.0;});
     Function<double,LDIM> phi2=FunctionFactory<double,LDIM>(world).functor([&offset](const Vector<double,LDIM>& r)
                                                                            { return exp(-1.0*(r-offset).normf());});
+    if (transpose=="slater1") std::swap(phi1,phi2);
+    {
+        double n1 = phi1.norm2();
+        double n2 = phi2.norm2();
+        bool first_one = (fabs(phi1({1, 1, 1}) - 1.0) < 1.e-6);
+        if (world.rank() == 0) {
+            if (first_one) print("1(1) phi(2)");
+            else print("phi(1) 1(2)");
+            print("norms", n1, n2);
+        }
+    }
+
     Function<double,LDIM> one=FunctionFactory<double,LDIM>(world)
             .functor([](const Vector<double,LDIM>& r) { return 1.0;});
 
 
-    std::shared_ptr<real_convolution_3d> f12(SlaterF12OperatorPtr(world,parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
+    std::shared_ptr<real_convolution_3d> f12;
+    if (f12type=="slaterf12") f12.reset(SlaterF12OperatorPtr(world,parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
+    else if (f12type=="slater") f12.reset(SlaterOperatorPtr(world,parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
+    else {
+        MADNESS_EXCEPTION(std::string("unknown f12type"+f12type).c_str(),1);
+    }
+
 
     auto compute_result = [&world, &one](const auto& lrf) {
         real_function_3d result=real_factory_3d(world);
@@ -119,7 +139,7 @@ int test_lowrank_function(World& world, LowRankFunctionParameters& parameters) {
     print("reference.norm2() = int f12 phi2 d2",n2);
     output(0.0,0.0,0.0,0.0,0.0,0.0);
 
-    LowRank<double,6> lrf(f12,copy(phi1),copy(phi2));
+    LowRankFunction<double,6> lrf(f12, copy(phi1), copy(phi2));
     lrf.stable_power_iteration=parameters.stable_power_iteration();
     plot_plane<6>(world,lrf.lrfunctor,"plot_original."+id,PlotParameters(world).set_plane({"x1","x4"}));
     double cpu0=cpu_time();

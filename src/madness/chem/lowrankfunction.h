@@ -106,7 +106,7 @@ namespace madness {
     /// a LowRankFunction can be created from a hi-dim function directly, or from a composite like f(1,2) phi(1) psi(2),
     /// where f(1,2) is a two-particle function (e.g. a Slater function)
     template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
-    class LowRank {
+    class LowRankFunction {
     public:
 
         /// what the LowRankFunction will represent
@@ -123,14 +123,20 @@ namespace madness {
                 return (f12.get());
             }
             T operator()(const Vector<double,NDIM>& r) const {
-                Vector<double,LDIM> first, second;
-                for (int i=0; i<LDIM; ++i) {
-                    first[i]=r[i];
-                    second[i]=r[i+LDIM];
+
+                if (f12->info.type==OT_SLATER) {
+                    double gamma=f12->info.mu;
+                    Vector<double,LDIM> first, second;
+                    for (int i=0; i<LDIM; ++i) {
+                        first[i]=r[i];
+                        second[i]=r[i+LDIM];
+                    }
+                    MADNESS_CHECK(has_f12());
+                    double result=a(first)*b(second)*exp(-gamma*(first-second).normf());
+                    return result;
+                } else {
+                    return 1.0;
                 }
-                MADNESS_CHECK(has_f12());
-                double result=a(first)*b(second)*exp(-(first-second).normf());
-                return result;
             }
         };
 
@@ -242,6 +248,7 @@ namespace madness {
                 MADNESS_EXCEPTION("no grid points with an explicit hi-dim function",1);
 
             } else if (functor.has_f12()) {
+                MADNESS_CHECK(functor.f12->info.type==OT_SLATER);
                 // functor is now a(1) b(2) f12
                 // result(1) = \int a(1) f(1,2) b(2) delta(R-2) d2
                 //           = a(1) f(1,R) b(R)
@@ -280,7 +287,7 @@ namespace madness {
 
 
         World& world;
-        double rank_revealing_tol;     // rrcd tol
+        double rank_revealing_tol=1.e-12;     // rrcd tol
         bool do_print=true;
         bool stable_power_iteration=true;
         std::vector<Function<T,LDIM>> g,h;
@@ -288,33 +295,34 @@ namespace madness {
         particle<LDIM> p1=particle<LDIM>::particle1();
         particle<LDIM> p2=particle<LDIM>::particle2();
 
-        LowRank(World& world) : world(world) {}
+        LowRankFunction(World& world) : world(world) {}
 
         /// construct from the hi-dim function f
-        LowRank(const Function<T,NDIM>& f) : LowRank(f.world()) {
+        LowRankFunction(const Function<T,NDIM>& f) : LowRankFunction(f.world()) {
             lrfunctor.f=f;
         }
 
         /// construct from the hi-dim function  f12*a(1)(b(2)
-        LowRank(const std::shared_ptr<SeparatedConvolution<T,LDIM>> f12, const Function<T,LDIM>& a,
-                const Function<T,LDIM>& b) : LowRank(a.world()) {
+        LowRankFunction(const std::shared_ptr<SeparatedConvolution<T,LDIM>> f12, const Function<T,LDIM>& a,
+                        const Function<T,LDIM>& b) : LowRankFunction(a.world()) {
             lrfunctor.a=a;
             lrfunctor.b=b;
             lrfunctor.f12=f12;
         }
 
-        LowRank(std::vector<Function<T,LDIM>> g, std::vector<Function<T,LDIM>> h)
+        LowRankFunction(std::vector<Function<T,LDIM>> g, std::vector<Function<T,LDIM>> h)
                 : world(g.front().world()), g(g), h(h) {}
 
-        LowRank(const LowRank& a) : world(a.world), g(copy(world,a.g)), h(copy(world,a.h)) {} // Copy constructor necessary
+        LowRankFunction(const LowRankFunction& a) : world(a.world), g(copy(world, a.g)), h(copy(world, a.h)) {} // Copy constructor necessary
 
-        LowRank& operator=(const LowRank& f) { // Assignment required for storage in vector
-            LowRank ff(f);
+        LowRankFunction& operator=(const LowRankFunction& f) { // Assignment required for storage in vector
+            LowRankFunction ff(f);
             std::swap(ff.g,g);
             std::swap(ff.h,h);
             return *this;
         }
 
+        /// function evaluation
         T operator()(const Vector<double,NDIM>& r) const {
             Vector<double,LDIM> first, second;
             for (int i=0; i<LDIM; ++i) {
@@ -326,25 +334,42 @@ namespace madness {
             return result;
         }
 
-        LowRank operator-(const LowRank& b) const { // Operator- necessary
-            return LowRank(g-b.g,h-b.h);
+        /*
+         * arithmetic section
+         */
+
+        /// addition
+        LowRankFunction operator+(const LowRankFunction& b) const {
+            return LowRankFunction(g + b.g, h + b.h);
+        }
+        /// subtraction
+        LowRankFunction operator-(const LowRankFunction& b) const {
+            return LowRankFunction(g - b.g, h - b.h);
         }
 
-        LowRank& operator+=(const LowRank& b) { // Operator+= necessary
+        /// in-place addition
+        LowRankFunction& operator+=(const LowRankFunction& b) {
             g+=b.g;
             h+=b.h;
             return *this;
         }
 
-        LowRank operator*(double a) const { // Scale by a constant necessary
-            return LowRank(g*a,h);
+        /// in-place subtraction
+        LowRankFunction& operator-=(const LowRankFunction& b) {
+            g-=b.g;
+            h-=b.h;
+            return *this;
         }
 
-        LowRank multiply(const std::vector<Function<T,LDIM>>& vec, const long particle) {
-            auto result=*this;  // deep copy
-            if (particle==0) result.g=g*vec;
-            if (particle==1) result.h=h*vec;
-            return *this;
+        /// scale by a scalar
+        template<typename Q>
+        LowRankFunction operator*(const Q a) const {
+            return LowRankFunction<TensorResultType<T,Q>,NDIM>(g * a, Q(h));
+        }
+
+        /// in-place scale by a scalar (no type conversion)
+        LowRankFunction operator*(const T a) const {
+            return LowRankFunction(g * a, h);
         }
 
         void project(const double volume_per_point, const double radius, const std::string gridtype, std::string rhsfunctiontype,
@@ -411,8 +436,16 @@ namespace madness {
             std::ostringstream oss;
             oss << std::scientific << std::setprecision(1) << rank_revealing_tol;
             std::string scientificString = oss.str();
-            g=orthonormalize_rrcd(Y,rank_revealing_tol);
-            t1.tag("Y orthonormalizing with rank_revealing_tol "+scientificString);
+            double err=1.0;
+            double tight_thresh=FunctionDefaults<3>::get_thresh()*0.1;
+            g=Y;
+            while (err>1.e-10) {
+                g=truncate(orthonormalize_rrcd(g,rank_revealing_tol),std::min(1.e-3,tight_thresh*100.0));
+                err=check_orthonormality(g);
+                print("error of non-orthonormality",err);
+                t1.tag("Y orthonormalizing with rank_revealing_tol loose_thresh "+scientificString);
+            }
+            g=truncate(g);
 
             if (world.rank()==0 and do_print) {
                 print("Y.size()",Y.size());
@@ -482,7 +515,7 @@ namespace madness {
         double check_orthonormality(const std::vector<Function<T,LDIM>>& v) const {
             Tensor<T> ovlp=matrix_inner(world,v,v);
             for (int i=0; i<ovlp.dim(0); ++i) ovlp(i,i)-=1.0;
-            return ovlp.normf()/ovlp.dim(0);
+            return ovlp.normf()/ovlp.size();
         }
 
         double explicit_error() const {
@@ -531,7 +564,7 @@ namespace madness {
             double term3=madness::inner(h,h);
             t.tag("computing term3");
 
-            double error=sqrt(term1-2.0*term2+term3)/term1;
+            double error=sqrt(term1-2.0*term2+term3)/sqrt(term1);
             if (world.rank()==0 and do_print) {
                 print("term1,2,3, error",term1, term2, term3, "  --",error);
             }
@@ -543,7 +576,7 @@ namespace madness {
 
     // This interface is necessary to compute inner products
     template<typename T, std::size_t NDIM>
-    double inner(const LowRank<T,NDIM>& a, const LowRank<T,NDIM>& b) {
+    double inner(const LowRankFunction<T,NDIM>& a, const LowRankFunction<T,NDIM>& b) {
         World& world=a.world;
         return (matrix_inner(world,a.g,b.g).emul(matrix_inner(world,a.h,b.h))).sum();
     }
@@ -551,11 +584,11 @@ namespace madness {
 
 
     template<typename T, std::size_t NDIM>
-    LowRank<T,NDIM> inner(const Function<T,NDIM>& lhs, const LowRank<T,NDIM>& rhs, const std::tuple<int> v1, const std::tuple<int> v2) {
+    LowRankFunction<T,NDIM> inner(const Function<T,NDIM>& lhs, const LowRankFunction<T,NDIM>& rhs, const std::tuple<int> v1, const std::tuple<int> v2) {
         World& world=rhs.world;
         // int lhs(1,2) rhs(2,3) d2 = \sum \int lhs(1,2) g_i(2) h_i(3) d2
         //                      = \sum \int lhs(1,2) g_i(2) d2 h_i(3)
-        LowRank<T,NDIM+NDIM-2> result(world);
+        LowRankFunction<T, NDIM + NDIM - 2> result(world);
         result.h=rhs.h;
         decltype(rhs.g) g;
         for (int i=0; i<rhs.rank(); ++i) {
@@ -566,11 +599,11 @@ namespace madness {
     }
 
     template<typename T, std::size_t NDIM>
-    LowRank<T,NDIM> inner(const LowRank<T,NDIM>& f, const Function<T,NDIM>& g, const std::tuple<int> v1, const std::tuple<int> v2) {
+    LowRankFunction<T,NDIM> inner(const LowRankFunction<T,NDIM>& f, const Function<T,NDIM>& g, const std::tuple<int> v1, const std::tuple<int> v2) {
         World& world=f.world;
         // int f(1,2) k(2,3) d2 = \sum \int g_i(1) h_i(2) k(2,3) d2
         //                      = \sum g_i(1) \int h_i(2) k(2,3) d2
-        LowRank<T,NDIM+NDIM-2> result(world);
+        LowRankFunction<T, NDIM + NDIM - 2> result(world);
         result.g=f.g;
         decltype(f.h) h;
         for (int i=0; i<f.rank(); ++i) {
