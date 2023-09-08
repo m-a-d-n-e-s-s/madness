@@ -639,7 +639,7 @@ Tensor<double> QuadraticResponse::compute_beta(World &world) {
         cout << beta << endl;
     }
 
-    return 2 * beta;
+    return -2.0 * beta;
 }
 
 std::pair<X_space, X_space> QuadraticResponse::compute_first_order_fock_matrix_terms(World &world, const X_space &A,
