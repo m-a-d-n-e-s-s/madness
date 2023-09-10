@@ -952,10 +952,15 @@ void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfuncti
         fprintf(file,"%d %12.8f %12.8f %12.8f \n",int(molecular_info.size()),
                 cell(0,0),cell(1,0),cell(2,0));
 
+        // grid spacing for each dimension such that the cell edges are plotted
+        const auto xdelta = xlen/(npt[0]-1);
+        const auto ydelta = ylen/(npt[1]-1);
+        const auto zdelta = zlen/(npt[2]-1);
+
         // print the cell constants
-        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[0],xlen/npt[0],0.0,0.0);
-        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[1],0.0,ylen/npt[1],0.0);
-        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[2],0.0,0.0,zlen/npt[2]);
+        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[0],xdelta,0.0,0.0);
+        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[1],0.0,ydelta,0.0);
+        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[2],0.0,0.0,zdelta);
 
         // print the molecule
         for (const std::string& s : molecular_info) fprintf(file,"%s",s.c_str());
@@ -966,9 +971,9 @@ void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfuncti
          for (int i = 0; i < npt[0]; ++i) {
              for (int j = 0; j < npt[1]; ++j) {
                  for (int k = 0; k < npt[2]; ++k) {
-                     double x = cell(0, 0) + origin[0] + xlen / npt[0] * i;
-                     double y = cell(1, 0) + origin[1] + ylen / npt[1] * j;
-                     double z = cell(2, 0) + origin[2] + zlen / npt[2] * k;
+                     double x = cell(0, 0) + origin[0] + xdelta * i;
+                     double y = cell(1, 0) + origin[1] + ydelta * j;
+                     double z = cell(2, 0) + origin[2] + zdelta * k;
                      // the original format has up to 6 entries per line: https://paulbourke.net/dataformats/cube/
                      // stick with this, even though many codes can read an arbitrary number of entries per line
                      if (count_per_line < 6) {
