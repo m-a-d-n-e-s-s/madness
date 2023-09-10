@@ -961,21 +961,29 @@ void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfuncti
         for (const std::string& s : molecular_info) fprintf(file,"%s",s.c_str());
 
 
-        Tensor<double>grid(npt[0],npt[1],npt[2]);
-        for (int i=0;i<npt[0];++i) {
-            for (int j=0;j<npt[1];++j) {
-                for (int k=0;k<npt[2];++k) {
-                    double x=cell(0,0)+origin[0]+xlen/npt[0]*i;
-                    double y=cell(1,0)+origin[1]+ylen/npt[1]*j;
-                    double z=cell(2,0)+origin[2]+zlen/npt[2]*k;
-                    fprintf(file,"%12.8f",f(x,y,z));
-                }
-            }
-            fprintf(file,"\n");
-        }
-        fclose(file);
-
-    }
+         Tensor<double> grid(npt[0], npt[1], npt[2]);
+         long count_per_line = 0;
+         for (int i = 0; i < npt[0]; ++i) {
+             for (int j = 0; j < npt[1]; ++j) {
+                 for (int k = 0; k < npt[2]; ++k) {
+                     double x = cell(0, 0) + origin[0] + xlen / npt[0] * i;
+                     double y = cell(1, 0) + origin[1] + ylen / npt[1] * j;
+                     double z = cell(2, 0) + origin[2] + zlen / npt[2] * k;
+                     // the original format has up to 6 entries per line: https://paulbourke.net/dataformats/cube/
+                     // stick with this, even though many codes can read an arbitrary number of entries per line
+                     if (count_per_line < 6) {
+                        fprintf(file, "%12.5e ", f(x, y, z));
+                        count_per_line++;
+                     } else {
+                        fprintf(file, "%12.5e\n", f(x, y, z));
+                        count_per_line = 0;
+                     }
+                 }
+             }
+         }
+         fprintf(file, "\n");
+         fclose(file);
+     }
 
     /// convenience to get plot_plane and plot_cubefile
     template<size_t NDIM>
