@@ -1,6 +1,8 @@
 #include <limits>
+#include <memory>
 #include <algorithm>
 #include <madness.h>
+#include <madness/misc/gnuplot.h>
 
 // In this file we are translating the Maple code from the paper into C++ using the MADNESS library.
 // The Maple code is in the comments, and the C++ code is below it.
@@ -11,14 +13,15 @@
 // Also, MADNESS uses the notation A(i,j) = x to set the value of A(i,j) to x
 // Also, MADNESS uses the notation A(i) = x to set the value of A(i) to x
 
+// In this file we are also building a new class to implement the B-spline basis functions and knots.
+// The class is called Bspline and it is defined below.
+
 template<typename T> struct is_complex : std::false_type {};
 template<typename T> struct is_complex<std::complex<T>> : std::true_type {};
 template<typename T> struct scalar_type {typedef T type; };
 template<typename T> struct scalar_type<std::complex<T>> {typedef T type;};
 
-// In this file we are also building a new class to implement the B-spline basis functions and knots.
-
-using namespace madness;
+using namespace madness; // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 // Locate the interval containing x in the padded knot vector t (increasing order) using linear search.
 // Works for general knots on the interval including the endpoints.  Since it using the padded knot vector
@@ -56,15 +59,12 @@ Tensor<T> uniform_knots(size_t nknots, T xlo, T xhi) {
     return pts;
 }
     
-// Chebyshev points augmented to include the endpoints
+// Chebyshev points modifyed to include the endpoints
 template <typename T>
 Tensor<T> cheby_knots(size_t nknots, T xlo, T xhi) {
     Tensor<T> pts(nknots);
     T pi = std::atan(T(1))*4;
-    pts[0] = T(-1.0);
-    for (size_t i=0; i<(nknots-2); i++) pts[nknots-i-2] = std::cos((i+1)*pi/(nknots - 1));
-    pts[nknots-1] = T(1.0);
-    print("before", pts);
+    for (size_t i=0; i<nknots; i++) pts[nknots-1-i] = std::cos(i*pi/(nknots - 1));
     pts = (pts + T(1.0))*(T(0.5)*(xhi-xlo)) + xlo;
     return pts;
 }
@@ -78,19 +78,22 @@ Tensor<T> oversample_knots(const Tensor<T>& knots) {
     Tensor<T> newknots(2*nknots - 1);
     for (size_t i=0; i<nknots-1; i++) {
         newknots[2*i] = knots[i];
-        if (knots[i] == 0 || knots[i+1] == 0) {
+        if (knots[i] == 0 || knots[i+1] == 0 || knots[i]*knots[i+1] < 0) {
             newknots[2*i+1] = 0.5*(knots[i] + knots[i+1]);
         }
         else {
-            newknots[2*i+1] = std::sqrt(knots[i]*knots[i+1]);
+            double sgn = (knots[i] > 0) ? 1 : -1;
+            newknots[2*i+1] = sgn*std::sqrt(knots[i]*knots[i+1]);
         }
     }
     newknots[2*nknots-2] = knots[nknots-1];
     return newknots;
 }
 
+// Needs extending to permit use of optimized xinterval() functions that use knowledge of the knot spacing
 template <typename T>
 class BsplineBasis {
+public:
     const size_t order; // the order of the basis
     const size_t p;     // the degree of the basis = order-1
     const size_t nknots;// the number of unique/unpadded knots
@@ -108,8 +111,6 @@ class BsplineBasis {
         for (size_t i=0; i<order-1; i++) padded[i+nknots+order-1] = knots[nknots-1];
         return padded;
     }
-
-public:
     
     BsplineBasis() : order(0) {}
 
@@ -206,26 +207,39 @@ public:
     }
 
     // Make the matrix that does LSQ fit from values on sample points (which must be strictly within basis support) to basis coefficients (c).
+    // nzeroL/R are the number of basis functions to be neglected on the left/right side of the interval.
+    // nzero=0 (default) fits all basis functions.
+    // nzero=1 sets the value on the boundary to zero.
+    // nzero=2 sets the value and first derivative on the boundary to zero.
+    // highest permitted value is p+1=order.
     // This is the pseudo-inverse of A[i,j] = b[j](Xsample[i]) computed using the non-zero singular values.
     // make_lsq_matrix := proc(t, order, Xsample) local Npknots, Nbasis, A, i, u, s, vt; Npknots := numelems(t); Nbasis := Npknots - order; A := tabulate_basis(t, order, Xsample); u, s, vt := SingularValues(A, output = ['U', 'S', 'Vt'], thin); for i to Nbasis do s[i] := 1.0/s[i]; end do; return Transpose((u . (DiagonalMatrix(s[1 .. Nbasis]))) . vt); end proc;
-    Tensor<T> make_lsq_matrix(const Tensor<T>& Xsample) const {
-        if (Xsample.dims()[0] < nbasis) throw "make_lsq_matrix: no. of samples must be >= no. of basis functions";
+    Tensor<T> make_lsq_matrix(const Tensor<T>& Xsample, size_t nzeroL=0, size_t nzeroR=0) const {
+        size_t nsample = Xsample.dims()[0];
+        if (nsample < nbasis) throw "make_lsq_matrix: no. of samples must be >= no. of basis functions";
+        MADNESS_ASSERT(nzeroL <= order);
+        MADNESS_ASSERT(nzeroR <= order);
+        
         Tensor<T> A = tabulate_basis(Xsample);
+        A = A(_,Slice(nzeroL,nbasis-nzeroR-1));
+        size_t nbasnew = nbasis-nzeroL-nzeroR;
         Tensor<T> u, s, vt;
         svd(A, u, s, vt);
-        for (size_t i=0; i<nbasis; i++) {
+        for (size_t i=0; i<nbasnew; i++) {
             T fac = 1.0/s[i];
-            for (size_t j=0; j<nbasis; j++) {
+            for (size_t j=0; j<nbasnew; j++) {
                 vt(i,j) *= fac;
             }
         }
-        return transpose(inner(u,vt));
+        Tensor<T> M(nbasis,nsample);
+        M(Slice(nzeroL,nbasis-nzeroR-1),_) = transpose(inner(u,vt));
+        return M;
     }
 
     template <typename R>
-    Tensor<R> fit(const Tensor<T>& Xsample, const Tensor<R>& Ysample) const {
+    Tensor<R> fit(const Tensor<T>& Xsample, const Tensor<R>& Ysample, size_t nzeroL=0, size_t nzeroR=0) const {
         MADNESS_ASSERT(Xsample.dims()[0] == Ysample.dims()[0]);
-        Tensor<T> A = make_lsq_matrix(Xsample);
+        Tensor<T> A = make_lsq_matrix(Xsample,nzeroL,nzeroR);
         return inner(A,Ysample);
     }
 
@@ -307,15 +321,15 @@ public:
 
     // Test the basic class functionality --- this is not yet a unit test
     static bool test() {
-        size_t nknots = 21;
-        size_t order = 5;
-        T xlo = 1.0;
-        T xhi = 13.0;
+        size_t nknots = 32;
+        size_t order = 8;
+        T xlo = -constants::pi;
+        T xhi = 2*constants::pi;
         T xtest = 1.77;
         auto knots = uniform_knots(nknots, xlo, xhi);     print("uniform", knots);
         auto cheby = cheby_knots(nknots, xlo, xhi);       print("cheby", cheby);
 
-        knots = cheby;
+        //knots = cheby;
         
         auto pad = BsplineBasis<T>::pad_knots(order, knots); print("pad", pad);
         auto xsam = oversample_knots(knots);              print("xsam", xsam);
@@ -330,32 +344,51 @@ public:
             print("deBoor", B.deBoor(xtest, c) - b[i]);
         }
         
-        // for (size_t i=0; i<xsam.dims()[0]; i++) {
-        //     print(xsam[i], xinterval(xsam[i], pad, order), xinterval_uniform(xsam[i], pad, order));
-        // }
+        for (size_t i=0; i<nsam; i++) {
+            print(xsam[i], xinterval(xsam[i], pad, order), xinterval_uniform(xsam[i], pad, order));
+        }
 
         //print(B.tabulate_basis(knots));
         //print(B.tabulate_basis(xsam));
 
         Tensor<T> f(nsam), df(nsam), d2f(nsam);
+        // for (size_t i=0; i<nsam; i++) {
+        //     f[i] = std::exp(-2*xsam[i]);
+        //     df[i] = -2*f[i];
+        //     d2f[i] = 4*f[i];
+        // }
         for (size_t i=0; i<nsam; i++) {
             f[i] = std::sin(xsam[i]);
             df[i] = std::cos(xsam[i]);
             d2f[i] = -std::sin(xsam[i]);
         }
+        {
+            for (size_t nzeroL=0; nzeroL<=2; nzeroL++) {
+                for (size_t nzeroR=0; nzeroR<=2; nzeroR++) {
+                    auto M = B.make_lsq_matrix(xsam,nzeroL,nzeroR);
+                    auto c1 = inner(M,f);
+                    print("sin c", nzeroL, nzeroR, c1);
+                }
+            }
+        }
         auto c = B.fit(xsam,f);
         print(std::sin(1.5), B.deBoor(1.5, c));
+        //print(std::exp(-2*1.5), B.deBoor(1.5, c));
         print("|fit-f|", (B.deBoor(xsam, c) - f).normf());
 
         // Compute first derivative in the lower order basis
         BsplineBasis<T> B1(order - 1, knots);
         auto d = B.deriv_exact(c);
         print(std::cos(1.5), B1.deBoor(1.5, d));
+        //print(-2*std::exp(-2*1.5), B1.deBoor(1.5, d));
 
         auto dMat = B.make_deriv_exact_matrix();
         auto d2 = inner(dMat,c);
         auto df2 = B1.deBoor(xsam, d2);
+        Tensor<T> derr1,derr2,derr3;
+        derr1 = df2-df;
         print("Err in 'exact' first derivative", (df2-df).normf());
+        print(derr1);
 
         // Compute second derivative in the two lower order basis by applying deriv_exact twice
         BsplineBasis<T> B2(order - 2, knots);
@@ -366,17 +399,25 @@ public:
             print("Err in 'exact' second derivative", (df2-d2f).normf());
 
         }
-
+        
         // Compute first derivative in the same order basis
         auto dMat2 = B.make_deriv_matrix(xsam);
         auto d3 = inner(dMat2,c);
         auto df3 = B.deBoor(xsam, d3);
-        print("Err in fit+1 first derivative", (df3-df).normf());
+        derr2 = df3-df;
+        print(derr2);
+        print("Err in fit+1 first derivative", derr2.normf());
         {
             auto dMat2 = B.make_deriv_matrixX(xsam);
             auto d3 = inner(dMat2,c);
             auto df3 = B.deBoor(xsam, d3);
-            print("Err in fit-1 first derivative", (df3-df).normf());
+            derr3 = df3-df;
+            print(derr3);
+            print("Err in fit-1 first derivative", derr3.normf());
+        }
+        {
+            Gnuplot g("set style data l; set xrange [-2.5:5.5]");
+            g.plot(xsam, derr1, derr2, derr3);
         }
         // Compute second derivative in the same order basis
         {
@@ -391,9 +432,143 @@ public:
             df2 = B.deBoor(xsam, d2);
             print("Err in fit-2 second derivative", (df2-d2f).normf());
         }
-        
 
         return true;
+    }
+};
+
+// To dos:
+// Perhaps Need to eliminate shared_ptr since will be inefficient for large number of functions with threading
+// need to modify tests that B=other.B to accomodate type promotion such as float->double
+
+template <typename T>
+class BsplineFunction {
+public:
+    typedef typename TensorTypeData<T>::scalar_type scalar_type;
+    typedef BsplineBasis<scalar_type> basisT;
+    typedef std::shared_ptr<const basisT> basis_ptrT;
+    typedef Tensor<T> tensorT;
+    typedef BsplineFunction<T> bfunctionT;
+
+    template <typename U> friend class BsplineFunction;
+
+private:
+    basis_ptrT B;
+    Tensor<T> c;
+
+public:
+    BsplineFunction() = default;
+    ~BsplineFunction() = default;
+
+    BsplineFunction(const BsplineFunction<T>& other) // Deep copy constructor
+        : B(other.B)
+        , c(copy(other.c))
+    {}
+
+    BsplineFunction(BsplineFunction<T>&& other) // Move constructor
+        : B(std::move(other.B))
+        , c(std::move(other.c))
+    {}
+
+    template <typename U>
+    BsplineFunction(const BsplineFunction<U>& other) // Deep copy constructor
+        : B(other.B)
+        , c(other.c) // with type conversion don't need to take a copy
+    {}
+
+    BsplineFunction& operator=(const bfunctionT& other) { // Deep assignment
+        if (this != &other) {
+            B = other.B;
+            c = copy(other.c);
+        }
+        return *this;
+    }
+    
+    BsplineFunction(basis_ptrT& B, const tensorT& c = tensorT()) // Copies the coefficients
+        : B(B)
+        , c(copy(c))
+    {}
+
+    BsplineFunction(basis_ptrT& B, tensorT&& c) // Moves the coefficients
+        : B(B)
+        , c(std::move(c))
+    {}
+
+    template <typename U>
+    auto operator+(const BsplineFunction<U>& other) const {
+        MADNESS_ASSERT(B);
+        MADNESS_ASSERT(B == other.B);
+        return BsplineFunction<TENSOR_RESULT_TYPE(T,U)>  (B, c + other.c);
+    }
+
+    template <typename U>
+    BsplineFunction<T> operator+(const T& s) const {
+        MADNESS_ASSERT(B);
+        return BsplineFunction(B, c + s);
+    }
+
+
+    void operator+=(const BsplineFunction<T>& other) const {
+        MADNESS_ASSERT(B);
+        MADNESS_ASSERT(B == other.B);
+        c += other.c;
+    }
+
+    void operator+=(const T& s) const {
+        MADNESS_ASSERT(B);
+        c += s;
+    }
+
+    BsplineFunction<T> operator-(const BsplineFunction<T>& other) const {
+        MADNESS_ASSERT(B);
+        MADNESS_ASSERT(B == other.B);
+        return BsplineFunction(B, c - other.c);
+    }
+
+    BsplineFunction<T> operator-(const T& s) const {
+        MADNESS_ASSERT(B);
+        return BsplineFunction(B, c - s);
+    }
+
+    void operator-=(const BsplineFunction<T>& other) const {
+        MADNESS_ASSERT(B);
+        MADNESS_ASSERT(B == other.B);
+        c -= other.c;
+    }
+
+    void operator-=(const T& s) const {
+        MADNESS_ASSERT(B);
+        c -= s;
+    }
+
+    BsplineFunction<T> operator*(const T& s) const {
+        MADNESS_ASSERT(B);
+        return BsplineFunction(B, c*s);
+    }
+
+    void operator*=(const T& s) const {
+        MADNESS_ASSERT(B);
+        c *= s;
+    }
+
+    static void test() {
+        size_t nknots = 21;
+        size_t order = 5;
+        T xlo = 0.0;
+        T xhi = 13.0;
+        auto knots = cheby_knots(nknots, xlo, xhi);
+        std::shared_ptr<const basisT> B(new basisT(order, knots));
+        BsplineFunction<T> f(B,knots);
+        f += f;
+        f += 1;
+
+        // Solve H atom
+        // 1) Project guess
+        // 2) Project potential
+        // 3) Compute energy
+        // 4) V * psi
+        // 5) -2*G V*psi
+        // 6) Compute residual norm
     }
 };
 
@@ -435,7 +610,6 @@ public:
 //     return 0.5*(b - a)*sum;
 // }
 
-
 // Given quadrature points and weights on [-1,1] adaptively compute int(f(x),x=a..b) to accuracy eps
 // adaptive_quadrature := proc(f, a, b, X, W, eps) local i0, i1; i0 := quadrature(f, a, b, X, W); i1 := quadrature(f, a, 1/2*a + 1/2*b, X, W) + quadrature(f, 1/2*a + 1/2*b, b, X, W); print(a, b, i0, i1, abs(i0 - i1)); if abs(i0 - i1) <= eps then return i1; else return adaptive_quadrature(f, a, 1/2*a + 1/2*b, X, W, 0.5*eps) + adaptive_quadrature(f, 1/2*a + 1/2*b, b, X, W, 0.5*eps); end if; end proc;
 // Make the quadrature points and weights for a rule that employs n GL points between each knot (without padding).  So we will have n*(nknot-1) points.
@@ -445,5 +619,6 @@ public:
 int main() {
     //BsplineBasis<float>::test();
     BsplineBasis<double>::test();
+    //BsplineFunction<double>::test();
     return 0;
 }
