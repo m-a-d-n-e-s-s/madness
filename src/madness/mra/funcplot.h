@@ -990,6 +990,30 @@ void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfuncti
          fclose(file);
      }
 
+     template<size_t NDIM>
+     typename std::enable_if<NDIM==3,void>::type
+     print_tree_jsonfile(World& world, const Function<double,NDIM>& f, std::string filename) {
+
+         if (world.size() > 1)
+             return;
+
+         Tensor<double> cell = copy(FunctionDefaults<3>::get_cell());
+         std::ofstream os(filename.c_str());
+
+         os << "{";
+         os << "\"cell\":[";
+         for (int xyz = 0; xyz != 3; ++xyz) {
+             os << "[" << cell(xyz, 0) << "," << cell(xyz, 1) << "]";
+             if (xyz != 2)
+                 os << ",";
+         }
+         os << "],";
+
+         os << "\"tree\":{";
+         f.print_tree_json(os);
+         os << "}}";
+     }
+
     /// convenience to get plot_plane and plot_cubefile
     template<size_t NDIM>
     void plot(const std::vector<Function<double,NDIM> >& vf, const std::string& name, const std::vector<std::string>& header){
