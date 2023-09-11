@@ -450,6 +450,26 @@ namespace madness {
             ar & coeff() & _has_children & _norm_tree & dnorm & snorm;
         }
 
+        /// like operator<<(ostream&, const FunctionNode<T,NDIM>&) but
+        /// produces a sequence JSON-formatted key-value pairs
+        /// @warning enclose the output in curly braces to make
+        /// a valid JSON object
+        void print_json(std::ostream& s) const {
+            s << "\"has_coeff\":" << this->has_coeff()
+              << ",\"has_children\":" << this->has_children() << ",\"norm\":";
+            double norm = this->has_coeff() ? this->coeff().normf() : 0.0;
+            if (norm < 1e-12)
+                norm = 0.0;
+            double nt = this->get_norm_tree();
+            if (nt == 1e300)
+                nt = 0.0;
+            s << norm << ",\"norm_tree\":" << nt << ",\"snorm\":"
+              << this->get_snorm() << ",\"dnorm\":" << this->get_dnorm()
+              << ",\"rank\":" << this->coeff().rank();
+            if (this->coeff().is_assigned())
+                s << ",\"dim\":" << this->coeff().dim(0);
+        }
+
     };
 
     template <typename T, std::size_t NDIM>
@@ -1310,6 +1330,14 @@ namespace madness {
 
         /// Functor for the do_print_tree method (using GraphViz)
         void do_print_tree_graphviz(const keyT& key, std::ostream& os, Level maxlevel) const;
+
+        /// Same as print_tree() but in JSON format
+        /// @param[out] os the ostream to where the output is sent
+        /// @param[in] maxlevel the maximum level of the tree for printing
+        void print_tree_json(std::ostream& os = std::cout, Level maxlevel = 10000) const;
+
+        /// Functor for the do_print_tree_json method
+        void do_print_tree_json(const keyT& key, std::multimap<Level, std::tuple<tranT, std::string>>& data, Level maxlevel) const;
 
         /// convert a number [0,limit] to a hue color code [blue,red],
         /// or, if log is set, a number [1.e-10,limit]

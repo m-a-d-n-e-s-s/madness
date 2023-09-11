@@ -859,6 +859,13 @@ namespace madness {
             if (impl) impl->print_tree(os);
         }
 
+        /// same as print_tree() but produces JSON-formatted string
+        /// @warning enclose the result in braces to make it a valid JSON object
+        void print_tree_json(std::ostream& os = std::cout) const {
+            PROFILE_MEMBER_FUNC(Function);
+            if (impl) impl->print_tree_json(os);
+        }
+
         /// Process 0 prints a graphviz-formatted output of all nodes in the tree (collective)
         void print_tree_graphviz(std::ostream& os = std::cout) const {
             PROFILE_MEMBER_FUNC(Function);
