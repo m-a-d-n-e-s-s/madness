@@ -71,7 +71,7 @@ Tensor<T> cheby_knots(size_t nknots, T xlo, T xhi) {
 
 // Oversample the knots by inserting geometric mean of neighboring knots.  For knots on a geometric/exponential grid this is
 // what you want, and for a uniform grid we have sqrt(a*(a+h))= a+h/2+O(h^2) where a is a knot and h is the knot spacing.
-// So for a dense grid it will also be close to the geometric mean for a>>h.
+// So for a dense uniform grid it will also be close to the geometric mean for a>>h.
 template <typename T>
 Tensor<T> oversample_knots(const Tensor<T>& knots) {
     long nknots = knots.size();
@@ -90,10 +90,16 @@ Tensor<T> oversample_knots(const Tensor<T>& knots) {
     return newknots;
 }
 
-// Needs extending to permit use of optimized xinterval() functions that use knowledge of the knot spacing
+// 1. Needs extending to permit use of optimized xinterval() functions that use knowledge of the knot spacing
+// 2. Ditto for weights
+// 3. Ditto for oversampling
+// 4. Since smoothed derivatives are much more accurate (compared to the "exact" derivative) on the interior of the interval but much less acccurate at the endpoints, we should perhaps increase the density of oversampling for the smoothing near the endpoints.  Or perhaps constrain the intermediate fits to respect the exact derivative at the endpoints.  
+
+// For now just bundle the knots, oversampling, and the basis functions together in a class, and use the slow generic xinterval() function.
 template <typename T>
 class BsplineBasis {
 public:
+    // Minimum data required to describe the basis
     const size_t order; // the order of the basis
     const size_t p;     // the degree of the basis = order-1
     const size_t nknots;// the number of unique/unpadded knots
@@ -124,13 +130,16 @@ public:
         , knots(copy(knots))
         , t(pad_knots(order, knots))
     {
-        if (order < 1) throw "BsplineBasis: order must be >= 1";
-        if (order > 10) throw "BsplineBasis: order must be <= 10 (for now)";
+        if (order < 2) throw "BsplineBasis: order must be >= 2";
+        if (order > 20) throw "BsplineBasis: order must be <= 20 (sanity check)";
         if (knots.size() < 2*order - 1) throw "BsplineBasis: knots must have at least 2*order - 1 elements";
         if (knots[0] > knots[knots.size()-1]) throw "BsplineBasis: knots must be in increasing order";
         if (t.size() != npknots) throw "BsplineBasis: internal error with padded knots";
         if (npknots-order != nbasis) throw "BsplineBasis: internal error with number of basis functions";
     }
+
+    // Returns the total number of basis functions corresponding to the length of a coefficient vector
+    size_t size() const { return nbasis; }
 
     // Stably evaluate a spline expansion at a point, i.e., compute sum(i) c[i] b[i](x)
     template <typename R>
@@ -148,21 +157,45 @@ public:
     }
 
     // Stably evaluate a spline expansion at many points, i.e., compute f[j] = sum(i) c[i] b[i](x[j])
+    // This is the unvectorized version.
     template <typename R>
-    Tensor<R> deBoor(const Tensor<T>& x, const Tensor<R>& c) const {
+    Tensor<R> deBoor_unvectorized(const Tensor<T>& x, const Tensor<R>& c) const {
         MADNESS_ASSERT(c.dims()[0] == nbasis);
-        const size_t nsam = x.dims()[0];
-        std::vector<size_t> k(nsam);
-        Tensor<R> d(p+1,nsam);
-        for (size_t i=0; i<nsam; i++) {
+        const size_t nx = x.dims()[0];
+        std::vector<size_t> k(nx);
+        Tensor<R> d(p+1,nx);
+        for (size_t i=0; i<nx; i++) {
             k[i] = xinterval(x[i], t, order);
             d(_,i) =  c(Slice(k[i]-p, k[i]));
         }
 
         for (size_t r=0; r<p; r++) {
             for (size_t j=p; j>r; j--) {
-                for (size_t i=0; i<nsam; i++) {
+                for (size_t i=0; i<nx; i++) {
                     T a = (x[i] - t[j+k[i]-p])/(t[j+k[i]-r] - t[j+k[i]-p]);
+                    d(j,i) = (T(1)-a)*d(j-1,i) + a*d(j,i);
+                }
+            }
+        }
+        return copy(d(p,_));
+    }
+
+    // Stably evaluate a spline expansion at many points, i.e., compute f[j] = sum(i) c[i] b[i](x[j])
+    template <typename R>
+    Tensor<R> deBoor(const Tensor<T>& x, const Tensor<R>& c) const {
+        MADNESS_ASSERT(c.dims()[0] == nbasis);
+        const size_t nx = x.dims()[0];
+        Tensor<R> d(p+1,nx), s(2*p,nx); // zeroing not necessary 
+        for (size_t i=0; i<nx; i++) { // non-sequential writes could be optimized?
+            size_t k = xinterval(x[i], t, order);
+            d(_,i) =  c(Slice(k-p, k));
+            s(_,i) =  t(Slice(k-p+1, k+p));
+        }
+
+        for (size_t r=0; r<p; r++) {
+            for (size_t j=p; j>r; j--) {
+                for (size_t i=0; i<nx; i++) {
+                    T a = (x[i] - s(j-1,i))/(s(p+j-r-1,i) - s(j-1,i));
                     d(j,i) = (T(1)-a)*d(j-1,i) + a*d(j,i);
                 }
             }
@@ -322,7 +355,7 @@ public:
     // Test the basic class functionality --- this is not yet a unit test
     static bool test() {
         size_t nknots = 32;
-        size_t order = 8;
+        size_t order = 4; 
         T xlo = -constants::pi;
         T xhi = 2*constants::pi;
         T xtest = 1.77;
@@ -362,15 +395,15 @@ public:
             df[i] = std::cos(xsam[i]);
             d2f[i] = -std::sin(xsam[i]);
         }
-        {
-            for (size_t nzeroL=0; nzeroL<=2; nzeroL++) {
-                for (size_t nzeroR=0; nzeroR<=2; nzeroR++) {
-                    auto M = B.make_lsq_matrix(xsam,nzeroL,nzeroR);
-                    auto c1 = inner(M,f);
-                    print("sin c", nzeroL, nzeroR, c1);
-                }
-            }
-        }
+        // {
+        //     for (size_t nzeroL=0; nzeroL<=2; nzeroL++) {
+        //         for (size_t nzeroR=0; nzeroR<=2; nzeroR++) {
+        //             auto M = B.make_lsq_matrix(xsam,nzeroL,nzeroR);
+        //             auto c1 = inner(M,f);
+        //             print("sin c", nzeroL, nzeroR, c1);
+        //         }
+        //     }
+        // }
         auto c = B.fit(xsam,f);
         print(std::sin(1.5), B.deBoor(1.5, c));
         //print(std::exp(-2*1.5), B.deBoor(1.5, c));
@@ -437,9 +470,17 @@ public:
     }
 };
 
-// To dos:
-// Perhaps Need to eliminate shared_ptr since will be inefficient for large number of functions with threading
-// need to modify tests that B=other.B to accomodate type promotion such as float->double
+// To dos: Perhaps Need to eliminate shared_ptr since will be
+// inefficient for large number of functions with threading.  Indeed
+// GPU will need to insist all functions (in a vector of functions)
+// are using the same basis in order to adopt a good data structure. The use of a vector
+// of functions as the central data structure is central.
+// Also, need to modify tests that B=other.B to accomodate type promotion
+// such as float->double, or real->complex.
+
+// OK, so since all we are doing for now is getting the numerics working and in testing we'll always be using the same basis, we'll adopt a global basis for now, and put the oversampling into that.  Down the road, we'll need a vector of functions for which we can control the basis since each atom will likely need at least need a different knot distribution.
+
+
 
 template <typename T>
 class BsplineFunction {
@@ -476,6 +517,16 @@ public:
         , c(other.c) // with type conversion don't need to take a copy
     {}
 
+    BsplineFunction(basis_ptrT& B, const tensorT& c = tensorT()) // Copies the coefficients, default is zero
+        : B(B)
+        , c(c.size()>0 ? copy(c) : tensorT(B->nbasis))
+    {}
+
+    BsplineFunction(basis_ptrT& B, tensorT&& c) // Moves the coefficients
+        : B(B)
+        , c(std::move(c))
+    {}
+
     BsplineFunction& operator=(const bfunctionT& other) { // Deep assignment
         if (this != &other) {
             B = other.B;
@@ -484,16 +535,6 @@ public:
         return *this;
     }
     
-    BsplineFunction(basis_ptrT& B, const tensorT& c = tensorT()) // Copies the coefficients
-        : B(B)
-        , c(copy(c))
-    {}
-
-    BsplineFunction(basis_ptrT& B, tensorT&& c) // Moves the coefficients
-        : B(B)
-        , c(std::move(c))
-    {}
-
     template <typename U>
     auto operator+(const BsplineFunction<U>& other) const {
         MADNESS_ASSERT(B);
@@ -507,14 +548,13 @@ public:
         return BsplineFunction(B, c + s);
     }
 
-
-    void operator+=(const BsplineFunction<T>& other) const {
+    void operator+=(const BsplineFunction<T>& other) {
         MADNESS_ASSERT(B);
         MADNESS_ASSERT(B == other.B);
         c += other.c;
     }
 
-    void operator+=(const T& s) const {
+    void operator+=(const T& s) {
         MADNESS_ASSERT(B);
         c += s;
     }
@@ -530,13 +570,13 @@ public:
         return BsplineFunction(B, c - s);
     }
 
-    void operator-=(const BsplineFunction<T>& other) const {
+    void operator-=(const BsplineFunction<T>& other) {
         MADNESS_ASSERT(B);
         MADNESS_ASSERT(B == other.B);
         c -= other.c;
     }
 
-    void operator-=(const T& s) const {
+    void operator-=(const T& s) {
         MADNESS_ASSERT(B);
         c -= s;
     }
@@ -546,10 +586,22 @@ public:
         return BsplineFunction(B, c*s);
     }
 
-    void operator*=(const T& s) const {
+    void operator*=(const T& s) {
         MADNESS_ASSERT(B);
         c *= s;
     }
+
+    static bfunctionT zero(basis_ptrT& B) {
+        return BsplineFunction(B);
+    }
+
+    // // Projects function (takes scalar_type as argument) onto the basis
+    // template <typename func>
+    // static bfunctionT project(const basis_ptrT& B, ) {
+    //     return BsplineFunction(B, 1.0);
+    // }
+
+    
 
     static void test() {
         size_t nknots = 21;
@@ -559,7 +611,8 @@ public:
         auto knots = cheby_knots(nknots, xlo, xhi);
         std::shared_ptr<const basisT> B(new basisT(order, knots));
         BsplineFunction<T> f(B,knots);
-        f += f;
+        BsplineFunction<T> g(B,knots);
+        f += g;
         f += 1;
 
         // Solve H atom
@@ -619,6 +672,6 @@ public:
 int main() {
     //BsplineBasis<float>::test();
     BsplineBasis<double>::test();
-    //BsplineFunction<double>::test();
+    BsplineFunction<double>::test();
     return 0;
 }
