@@ -23,55 +23,123 @@ template<typename T> struct scalar_type<std::complex<T>> {typedef T type;};
 
 using namespace madness; // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-// Locate the interval containing x in the padded knot vector t (increasing order) using linear search.
-// Works for general knots on the interval including the endpoints.  Since it using the padded knot vector
-// it returns an index in the inclusive range order-1..Npknots-order-1.
 template <typename T>
-size_t xinterval(T x, const Tensor<T>& t, size_t order) {
-    size_t Npknots = t.size();
-    if (x < t[0] || x > t[Npknots-1]) {
-        print(x, t[0], t[Npknots-1]);
-        throw "Xinterval: x not in t";
-    }
-    for (size_t i=order-1; i<Npknots-order-1; i++) {
-        if (x >= t[i] && x < t[i+1]) return i;
-    }
-    return Npknots - order - 1;
-}
+class KnotsGeneral {
+    const Tensor<T> _knots; // unique knot vector in ascending order
+    const T xlo, xhi; // interval
+    const size_t nknots; // number of knots
 
-// Locate the interval containing x in the padded *uniform* knot vector t (increasing order)
-// Note that the knot interval is inclusive of both sides, whereas the general function above is exclusive of the right side.
-template <typename T>
-size_t xinterval_uniform(T x, const Tensor<T>& t, size_t order) {
-    size_t Npknots = t.size();
-    if (x < t[order-1] || x > t[Npknots-order]) throw "Xinterval: x not in t";
-    T h = ((t[Npknots-order] - t[order-1])/(Npknots - 2* order + 1)) * (1 + std::numeric_limits<T>::epsilon());
-    size_t i = size_t((x - t[0])/h ) + order - 1;
-    return i;
-}
+public:
+    KnotsGeneral(const Tensor<T>& knots)
+        : _knots(knots)
+        , xlo(_knots[0])
+        , xhi(_knots[knots.size()-1])
+        , nknots(_knots.size())
+    {
+        for (size_t i=1; i<nknots; i++) {
+            if (_knots[i] < _knots[i-1]) throw "KnotsGeneral: knots not in ascending order or not unique";
+        }
+    }
 
-// Uniform points
+    size_t size() const {return nknots;}
+
+    // Return (shallow copy) the knots
+    const Tensor<T> knots() const {
+        return _knots;
+    }
+
+    // Locate the leftmost index of the unique knot interval
+    // containing x in the vector of unique knots. If x exactly equals
+    // a knot return the knot index (even if it is the rightmost
+    // knot).
+    //
+    // This general version is dumb and slow ... linear search!!!!!  Bisection would be a better choice.
+    size_t interval(T x) const {
+#if !defined(NDEBUG)
+        if (x < xlo || x > xhi) throw "interval: x not in range";
+#endif
+        for (size_t i=0; i<nknots-2; i++) {
+            if (x >= _knots[i] && x < _knots[i+1]) return i;
+        }
+        return nknots-1;
+    }
+};
+
 template <typename T>
-Tensor<T> uniform_knots(size_t nknots, T xlo, T xhi) {
-    Tensor<T> pts(nknots);
-    T h = (xhi - xlo)/(nknots - 1);
-    for (size_t i=0; i<nknots; i++) pts[i] = i*h + xlo;
-    return pts;
-}
+class KnotsUniform {
+    const T xlo, xhi; // interval
+    const size_t nknots; // number of knots
+    const T h; // knot spacing
+    const T rheps; // reciprocal of knot spacing scaled by (1+epsilon) ... CAN THIS NOW BE JUST 1/h?
+
+public:
+    KnotsUniform(T xlo, T xhi, size_t nknots)
+        : xlo(xlo)
+        , xhi(xhi)
+        , nknots(nknots)
+        , h((xhi - xlo)/(nknots-1))
+        , rheps(1.0/h) //(1.0/(h*(1+std::numeric_limits<T>::epsilon())))
+    {}
+
+    Tensor<T> knots() const {
+        Tensor<T> pts(nknots);
+        T h = (xhi - xlo)/(nknots - 1);
+        for (size_t i=0; i<nknots; i++) pts[i] = i*h + xlo;
+        return pts;
+    }
+
+    size_t interval(T x) const {
+#if !defined(NDEBUG)
+        if (x < xlo || x > xhi) throw "Xinterval: x not in t";
+#endif
+        return size_t((x - xlo)*rheps);
+    }
+
+    size_t size() const {return nknots;}
+};
     
-// Chebyshev points modifyed to include the endpoints
+// Chebyshev points *modified to include the endpoints*
 template <typename T>
-Tensor<T> cheby_knots(size_t nknots, T xlo, T xhi) {
-    Tensor<T> pts(nknots);
-    T pi = std::atan(T(1))*4;
-    for (size_t i=0; i<nknots; i++) pts[nknots-1-i] = std::cos(i*pi/(nknots - 1));
-    pts = (pts + T(1.0))*(T(0.5)*(xhi-xlo)) + xlo;
-    return pts;
-}
+class KnotsChebyshev {
+    const T xlo, xhi; // interval
+    const double rL; // 1.0/(xhi-xlo)
+    const size_t nknots; // number of knots
 
+public:
+    KnotsChebyshev(T xlo, T xhi, size_t nknots)
+        : xlo(xlo)
+        , xhi(xhi)
+        , rL(1.0/(xhi-xlo))
+        , nknots(nknots)
+    {}
+    
+    // Generate the knots
+    Tensor<T> knots() const {
+        Tensor<T> pts(nknots);
+        static const T pi = std::atan(T(1))*4; // since T might be dd or qd
+        for (size_t i=0; i<nknots; i++) pts[nknots-1-i] = std::cos(i*pi/(nknots - 1));
+        pts = (pts + T(1.0))*(T(0.5)*(xhi-xlo)) + xlo;
+        return pts;
+    }
+    
+    // Locate the leftmost index of the knot interval containing x in
+    // the vector of unique knots.  If x exactly equals a knot return the knot index.
+    size_t interval(T x) const {
+#if !defined(NDEBUG)
+        if (x < xlo || x > xhi) throw "Xinterval: x not in t";
+#endif
+        static const T tworpi = 2.0/std::atan(T(1))*4;
+        T y = (x - xlo)*rL;
+        T z = std::acos(y)*tworpi;
+        return size_t(z*(nknots - 1));
+    }
+
+    size_t size() const {return nknots;}
+};
+    
 // Oversample the knots by inserting geometric mean of neighboring knots.  For knots on a geometric/exponential grid this is
 // what you want, and for a uniform grid we have sqrt(a*(a+h))= a+h/2+O(h^2) where a is a knot and h is the knot spacing.
-// So for a dense uniform grid it will also be close to the geometric mean for a>>h.
+// So for a dense uniform grid it will be close to the geometric mean for a>>h.
 template <typename T>
 Tensor<T> oversample_knots(const Tensor<T>& knots) {
     long nknots = knots.size();
@@ -95,10 +163,10 @@ Tensor<T> oversample_knots(const Tensor<T>& knots) {
 // 3. Ditto for oversampling
 // 4. Since smoothed derivatives are much more accurate (compared to the "exact" derivative) on the interior of the interval but much less acccurate at the endpoints, we should perhaps increase the density of oversampling for the smoothing near the endpoints.  Or perhaps constrain the intermediate fits to respect the exact derivative at the endpoints.  
 
-// For now just bundle the knots, oversampling, and the basis functions together in a class, and use the slow generic xinterval() function.
-template <typename T>
-class BsplineBasis {
-public:
+// knots is templated primarily so we can inline the interval method for vectorization
+template <typename T, typename knotsT>
+class BsplineBasis : protected knotsT {
+public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const this will have to go too!
     // Minimum data required to describe the basis
     const size_t order; // the order of the basis
     const size_t p;     // the degree of the basis = order-1
@@ -106,7 +174,7 @@ public:
     const size_t npknots;// the number of padded knots
     const size_t nbasis;// the number of basis functions
     const Tensor<T> knots; // the unpadded knots
-    const Tensor<T> t; // the padded knots
+    Tensor<T> t; // the padded knots
 
     // Pad/repeat the knots at the ends to complete the basis
     static Tensor<T> pad_knots(size_t order, const Tensor<T>& knots) {
@@ -117,23 +185,24 @@ public:
         for (size_t i=0; i<order-1; i++) padded[i+nknots+order-1] = knots[nknots-1];
         return padded;
     }
-    
-    BsplineBasis() : order(0) {}
 
     /// Construct a B-spline basis with the given order and (unpadded) knots.
-    BsplineBasis(size_t order, const Tensor<T>& knots)
-        : order(order)
+    BsplineBasis(size_t order, const knotsT& knots)
+        : knotsT(knots)
+        , order(order)
         , p(order - 1)
         , nknots(knots.size())
         , npknots(nknots + 2*order - 2)
         , nbasis(nknots + order - 2)
-        , knots(copy(knots))
-        , t(pad_knots(order, knots))
+        , knots(knots.knots())
     {
         if (order < 2) throw "BsplineBasis: order must be >= 2";
         if (order > 20) throw "BsplineBasis: order must be <= 20 (sanity check)";
-        if (knots.size() < 2*order - 1) throw "BsplineBasis: knots must have at least 2*order - 1 elements";
-        if (knots[0] > knots[knots.size()-1]) throw "BsplineBasis: knots must be in increasing order";
+        if (nknots < 2*order - 1) throw "BsplineBasis: knots must have at least 2*order - 1 elements";
+        for (size_t i=1; i<nknots; i++) {
+            if (this->knots[i] < this->knots[i-1]) throw "BsplineBasis: knots not in ascending order or not unique";
+        }
+        t = pad_knots(order,this->knots);
         if (t.size() != npknots) throw "BsplineBasis: internal error with padded knots";
         if (npknots-order != nbasis) throw "BsplineBasis: internal error with number of basis functions";
     }
@@ -141,11 +210,16 @@ public:
     // Returns the total number of basis functions corresponding to the length of a coefficient vector
     size_t size() const { return nbasis; }
 
+    // Returns a const ref to the knots object
+    const knotsT& knots_object() const {return *(knotsT*)this;}
+
+    // in next few routines can k=interval(x)+p is usually used with k-p except where k-r.
+    
     // Stably evaluate a spline expansion at a point, i.e., compute sum(i) c[i] b[i](x)
     template <typename R>
     R deBoor(T x, const Tensor<R>& c) const {
         MADNESS_ASSERT(c.dims()[0] == nbasis);
-        size_t k = xinterval(x, t, order);
+        size_t k = knotsT::interval(x) + p;
         Tensor<R> d = copy(c(Slice(k-p, k)));
         for (size_t r=0; r<p; r++) {
             for (size_t j=p; j>r; j--) {
@@ -165,7 +239,7 @@ public:
         std::vector<size_t> k(nx);
         Tensor<R> d(p+1,nx);
         for (size_t i=0; i<nx; i++) {
-            k[i] = xinterval(x[i], t, order);
+            k[i] = knotsT::interval(x[i]) + p;
             d(_,i) =  c(Slice(k[i]-p, k[i]));
         }
 
@@ -187,7 +261,7 @@ public:
         const size_t nx = x.dims()[0];
         Tensor<R> d(p+1,nx), s(2*p,nx); // zeroing not necessary 
         for (size_t i=0; i<nx; i++) { // non-sequential writes could be optimized?
-            size_t k = xinterval(x[i], t, order);
+            size_t k = knotsT::interval(x[i])+p;
             d(_,i) =  c(Slice(k-p, k));
             s(_,i) =  t(Slice(k-p+1, k+p));
         }
@@ -205,7 +279,7 @@ public:
 
     // Evaluate the basis functions at the point x
     Tensor<T> bspline(T x) const {
-        size_t k = xinterval(x, t, order);
+        size_t k = knotsT::interval(x)+p;
         Tensor<T> bm1(nbasis);
         Tensor<T> b(nbasis);
         bm1[k] = T(1.0);
@@ -308,7 +382,7 @@ public:
     // make_deriv_matrix := proc(t, order, Xsample) local Npknots, Nbasis, t1, A, M, dMat; Npknots := numelems(t); Nbasis := Npknots - order; t1 := Vector(Npknots + 2); t1[2 .. Npknots + 1] := t; t1[1] := t[1]; t1[Npknots + 2] := t[Npknots]; A := tabulate_basis(t, order, Xsample); M := make_lsq_matrix(t1, order + 1, Xsample); dMat := make_deriv_exact_matrix(t1, order + 1); return (dMat . M) . A; end proc;
     Tensor<T> make_deriv_matrix(const Tensor<T>& Xsample) const {
         size_t nsample = Xsample.dims()[0];
-        BsplineBasis B1 = BsplineBasis(order + 1, this->knots);
+        BsplineBasis<T,knotsT> B1 = BsplineBasis(order + 1, knots_object());
         Tensor<T> A = tabulate_basis(Xsample);
         Tensor<T> M = B1.make_lsq_matrix(Xsample);
         Tensor<T> dMat = B1.make_deriv_exact_matrix();
@@ -318,7 +392,7 @@ public:
     // same riff as make_deriv2_matrixX ... need more understanding
     Tensor<T> make_deriv_matrixX(const Tensor<T>& Xsample) const {
         size_t nsample = Xsample.dims()[0];
-        BsplineBasis B1 = BsplineBasis(order - 1, this->knots);
+        BsplineBasis<T,knotsT> B1 = BsplineBasis(order - 1, knots_object());
         Tensor<T> A = B1.tabulate_basis(Xsample);
         Tensor<T> M = make_lsq_matrix(Xsample);
         Tensor<T> dMat = make_deriv_exact_matrix();
@@ -329,8 +403,8 @@ public:
     // Gives us 2 order higher accuracy and produces a result in the same order basis as the input.
     Tensor<T> make_deriv2_matrix(const Tensor<T>& Xsample) const {
         size_t nsample = Xsample.dims()[0];
-        BsplineBasis B1 = BsplineBasis(order + 1, this->knots);
-        BsplineBasis B2 = BsplineBasis(order + 2, this->knots);
+        BsplineBasis<T,knotsT> B1 = BsplineBasis(order + 1, knots_object());
+        BsplineBasis<T,knotsT> B2 = BsplineBasis(order + 2, knots_object());
         Tensor<T> A = tabulate_basis(Xsample);
         Tensor<T> M2 = B2.make_lsq_matrix(Xsample);
         Tensor<T> dMat2 = B2.make_deriv_exact_matrix();
@@ -343,8 +417,8 @@ public:
     // Need to understand why this sometimes seems better than make_deriv2_matrix which intuitively seems better.
     Tensor<T> make_deriv2_matrixX(const Tensor<T>& Xsample) const {
         size_t nsample = Xsample.dims()[0];
-        BsplineBasis B1 = BsplineBasis(order - 1, this->knots);
-        BsplineBasis B2 = BsplineBasis(order - 2, this->knots);
+        BsplineBasis<T,knotsT> B1 = BsplineBasis(order - 1, knots_object());
+        BsplineBasis<T,knotsT> B2 = BsplineBasis(order - 2, knots_object());
         Tensor<T> A = B2.tabulate_basis(Xsample);
         Tensor<T> M = make_lsq_matrix(Xsample);
         Tensor<T> dMat2 = B1.make_deriv_exact_matrix();
@@ -358,18 +432,13 @@ public:
         size_t order = 4; 
         T xlo = -constants::pi;
         T xhi = 2*constants::pi;
-        T xtest = 1.77;
-        auto knots = uniform_knots(nknots, xlo, xhi);     print("uniform", knots);
-        auto cheby = cheby_knots(nknots, xlo, xhi);       print("cheby", cheby);
-
-        //knots = cheby;
-        
-        auto pad = BsplineBasis<T>::pad_knots(order, knots); print("pad", pad);
-        auto xsam = oversample_knots(knots);              print("xsam", xsam);
+        T xtest = 0.5*(xhi+xlo);
+        auto knots = knotsT(xlo, xhi, nknots); print("uniform", knots.knots());
+        auto xsam = oversample_knots(knots.knots()); print("xsam", xsam);
         long nbasis = nknots + order - 2;
         size_t nsam = xsam.dims()[0];
         
-        BsplineBasis<T> B(order, knots);
+        BsplineBasis<T,knotsT> B(order, knots);
         
         for (long i=0; i<nbasis; i++) {
             auto b = B.bspline(xtest);
@@ -378,7 +447,7 @@ public:
         }
         
         for (size_t i=0; i<nsam; i++) {
-            print(xsam[i], xinterval(xsam[i], pad, order), xinterval_uniform(xsam[i], pad, order));
+            print(xsam[i], knots.interval(xsam[i]));
         }
 
         //print(B.tabulate_basis(knots));
@@ -410,7 +479,7 @@ public:
         print("|fit-f|", (B.deBoor(xsam, c) - f).normf());
 
         // Compute first derivative in the lower order basis
-        BsplineBasis<T> B1(order - 1, knots);
+        BsplineBasis<T,knotsT> B1(order - 1, knots);
         auto d = B.deriv_exact(c);
         print(std::cos(1.5), B1.deBoor(1.5, d));
         //print(-2*std::exp(-2*1.5), B1.deBoor(1.5, d));
@@ -424,7 +493,7 @@ public:
         print(derr1);
 
         // Compute second derivative in the two lower order basis by applying deriv_exact twice
-        BsplineBasis<T> B2(order - 2, knots);
+        BsplineBasis<T,knotsT> B2(order - 2, knots);
         {
             auto dMat1 = B1.make_deriv_exact_matrix();
             auto d2 = inner(dMat1,inner(dMat,c));
@@ -449,7 +518,7 @@ public:
             print("Err in fit-1 first derivative", derr3.normf());
         }
         {
-            Gnuplot g("set style data l; set xrange [-2.5:5.5]");
+            Gnuplot g("set style data l"); // ; set xrange [-2.5:5.5]
             g.plot(xsam, derr1, derr2, derr3);
         }
         // Compute second derivative in the same order basis
@@ -486,7 +555,8 @@ template <typename T>
 class BsplineFunction {
 public:
     typedef typename TensorTypeData<T>::scalar_type scalar_type;
-    typedef BsplineBasis<scalar_type> basisT;
+    typedef KnotsChebyshev<scalar_type> knotsT;
+    typedef BsplineBasis<scalar_type,knotsT> basisT;
     typedef std::shared_ptr<const basisT> basis_ptrT;
     typedef Tensor<T> tensorT;
     typedef BsplineFunction<T> bfunctionT;
@@ -671,7 +741,7 @@ public:
 
 int main() {
     //BsplineBasis<float>::test();
-    BsplineBasis<double>::test();
-    BsplineFunction<double>::test();
+    BsplineBasis<double,KnotsUniform<double>>::test();
+    //BsplineFunction<double>::test();
     return 0;
 }
