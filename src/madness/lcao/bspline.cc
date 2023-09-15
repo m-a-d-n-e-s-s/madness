@@ -25,6 +25,10 @@ using namespace madness; // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 template <typename T>
 class KnotsGeneral {
+public:
+    static constexpr const char* name = "general";
+
+private:    
     const Tensor<T> _knots; // unique knot vector in ascending order
     const T xlo, xhi; // interval
     const size_t nknots; // number of knots
@@ -50,8 +54,7 @@ public:
 
     // Locate the leftmost index of the unique knot interval
     // containing x in the vector of unique knots. If x exactly equals
-    // a knot return the knot index (even if it is the rightmost
-    // knot).
+    // a knot return the knot index (unless it is the rightmost knot).
     //
     // This general version is dumb and slow ... linear search!!!!!  Bisection would be a better choice.
     size_t interval(T x) const {
@@ -67,18 +70,22 @@ public:
 
 template <typename T>
 class KnotsUniform {
-    const T xlo, xhi; // interval
+public:
+    static constexpr const char* name = "uniform";
+
+private:
     const size_t nknots; // number of knots
+    const T xlo, xhi; // interval
     const T h; // knot spacing
-    const T rheps; // reciprocal of knot spacing scaled by (1+epsilon) ... CAN THIS NOW BE JUST 1/h?
+    const T rheps; // reciprocal of knot spacing
 
 public:
-    KnotsUniform(T xlo, T xhi, size_t nknots)
-        : xlo(xlo)
+    KnotsUniform(size_t nknots, T xlo, T xhi)
+        : nknots(nknots)
+        , xlo(xlo)
         , xhi(xhi)
-        , nknots(nknots)
         , h((xhi - xlo)/(nknots-1))
-        , rheps(1.0/h) //(1.0/(h*(1+std::numeric_limits<T>::epsilon())))
+        , rheps(1.0/(h*(1+std::numeric_limits<T>::epsilon()))) // to avoid endpoint issues
     {}
 
     Tensor<T> knots() const {
@@ -101,37 +108,40 @@ public:
 // Chebyshev points *modified to include the endpoints*
 template <typename T>
 class KnotsChebyshev {
-    const T xlo, xhi; // interval
-    const double rL; // 1.0/(xhi-xlo)
+public:
+    static constexpr const char* name = "chebyshev-modified";
+
+private:
     const size_t nknots; // number of knots
+    const T xlo, xhi; // interval
+    const T h, rh; // grid spacing before cosine transform and its inverse
+    const double rLhalf; // 2.0/(xhi-xlo)
 
 public:
-    KnotsChebyshev(T xlo, T xhi, size_t nknots)
-        : xlo(xlo)
+    KnotsChebyshev(size_t nknots, T xlo, T xhi)
+        : nknots(nknots)
+        , xlo(xlo)
         , xhi(xhi)
-        , rL(1.0/(xhi-xlo))
-        , nknots(nknots)
+        , h(constants::pi/(nknots - 1)) // WHAT ABOUT dd/qd
+        , rh(1.0/this->h) 
+        , rLhalf((1.0-std::numeric_limits<T>::epsilon())*2.0/(xhi-xlo)) // to avoid endpoint issues
     {}
     
     // Generate the knots
     Tensor<T> knots() const {
         Tensor<T> pts(nknots);
-        static const T pi = std::atan(T(1))*4; // since T might be dd or qd
-        for (size_t i=0; i<nknots; i++) pts[nknots-1-i] = std::cos(i*pi/(nknots - 1));
+        for (size_t i=0; i<nknots; i++) pts[nknots-1-i] = std::cos(i*h);
         pts = (pts + T(1.0))*(T(0.5)*(xhi-xlo)) + xlo;
         return pts;
     }
     
-    // Locate the leftmost index of the knot interval containing x in
-    // the vector of unique knots.  If x exactly equals a knot return the knot index.
     size_t interval(T x) const {
 #if !defined(NDEBUG)
         if (x < xlo || x > xhi) throw "Xinterval: x not in t";
 #endif
-        static const T tworpi = 2.0/std::atan(T(1))*4;
-        T y = (x - xlo)*rL;
-        T z = std::acos(y)*tworpi;
-        return size_t(z*(nknots - 1));
+        T y = (x - xlo)*rLhalf - T(1);
+        size_t k = size_t((nknots-T(1)) - std::acos(y)*rh);
+        return k;
     }
 
     size_t size() const {return nknots;}
@@ -167,7 +177,7 @@ Tensor<T> oversample_knots(const Tensor<T>& knots) {
 template <typename T, typename knotsT>
 class BsplineBasis : protected knotsT {
 public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const this will have to go too!
-    // Minimum data required to describe the basis
+    typedef knotsT knots_type;
     const size_t order; // the order of the basis
     const size_t p;     // the degree of the basis = order-1
     const size_t nknots;// the number of unique/unpadded knots
@@ -268,7 +278,7 @@ public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const 
 
         for (size_t r=0; r<p; r++) {
             for (size_t j=p; j>r; j--) {
-                for (size_t i=0; i<nx; i++) {
+                for (size_t i=0; i<nx; i++) { // Does this really vectorize or do we need an IVDEP pragma?
                     T a = (x[i] - s(j-1,i))/(s(p+j-r-1,i) - s(j-1,i));
                     d(j,i) = (T(1)-a)*d(j-1,i) + a*d(j,i);
                 }
@@ -429,27 +439,27 @@ public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const 
     // Test the basic class functionality --- this is not yet a unit test
     static bool test() {
         size_t nknots = 32;
-        size_t order = 4; 
-        T xlo = -constants::pi;
-        T xhi = 2*constants::pi;
+        size_t order = 8; 
+        T xlo = -1; //-constants::pi;
+        T xhi = 1; //2*constants::pi;
         T xtest = 0.5*(xhi+xlo);
-        auto knots = knotsT(xlo, xhi, nknots); print("uniform", knots.knots());
+        auto knots = knotsT(nknots, xlo, xhi); print(knotsT::name, knots.knots());
         auto xsam = oversample_knots(knots.knots()); print("xsam", xsam);
         long nbasis = nknots + order - 2;
         size_t nsam = xsam.dims()[0];
         
         BsplineBasis<T,knotsT> B(order, knots);
         
-        for (long i=0; i<nbasis; i++) {
-            auto b = B.bspline(xtest);
-            Tensor<T> c(nbasis); c(i) = 1.0;
-            print("deBoor", B.deBoor(xtest, c) - b[i]);
-        }
-        
         for (size_t i=0; i<nsam; i++) {
-            print(xsam[i], knots.interval(xsam[i]));
+            print("interval:", xsam[i], knots.interval(xsam[i]));
         }
 
+        // for (long i=0; i<nbasis; i++) {
+        //     auto b = B.bspline(xtest);
+        //     Tensor<T> c(nbasis); c(i) = 1.0;
+        //     print("deBoor", B.deBoor(xtest, c) - b[i]);
+        // }
+        
         //print(B.tabulate_basis(knots));
         //print(B.tabulate_basis(xsam));
 
@@ -474,15 +484,15 @@ public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const 
         //     }
         // }
         auto c = B.fit(xsam,f);
-        print(std::sin(1.5), B.deBoor(1.5, c));
-        //print(std::exp(-2*1.5), B.deBoor(1.5, c));
+        print(std::sin(xtest), B.deBoor(xtest, c));
+        //print(std::exp(-2*xtest), B.deBoor(xtest, c));
         print("|fit-f|", (B.deBoor(xsam, c) - f).normf());
 
         // Compute first derivative in the lower order basis
         BsplineBasis<T,knotsT> B1(order - 1, knots);
         auto d = B.deriv_exact(c);
-        print(std::cos(1.5), B1.deBoor(1.5, d));
-        //print(-2*std::exp(-2*1.5), B1.deBoor(1.5, d));
+        print(std::cos(xtest), B1.deBoor(xtest, d));
+        //print(-2*std::exp(-2*xtest), B1.deBoor(xtest, d));
 
         auto dMat = B.make_deriv_exact_matrix();
         auto d2 = inner(dMat,c);
@@ -490,7 +500,7 @@ public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const 
         Tensor<T> derr1,derr2,derr3;
         derr1 = df2-df;
         print("Err in 'exact' first derivative", (df2-df).normf());
-        print(derr1);
+        //print(derr1);
 
         // Compute second derivative in the two lower order basis by applying deriv_exact twice
         BsplineBasis<T,knotsT> B2(order - 2, knots);
@@ -507,18 +517,20 @@ public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const 
         auto d3 = inner(dMat2,c);
         auto df3 = B.deBoor(xsam, d3);
         derr2 = df3-df;
-        print(derr2);
+        //print(derr2);
         print("Err in fit+1 first derivative", derr2.normf());
         {
             auto dMat2 = B.make_deriv_matrixX(xsam);
             auto d3 = inner(dMat2,c);
             auto df3 = B.deBoor(xsam, d3);
             derr3 = df3-df;
-            print(derr3);
+            //print(derr3);
             print("Err in fit-1 first derivative", derr3.normf());
         }
         {
-            Gnuplot g("set style data l"); // ; set xrange [-2.5:5.5]
+            char buf[256];
+            snprintf(buf, sizeof(buf), "set style data l; set xrange [%.1f:%.1f]", xlo, xhi);
+            Gnuplot g(buf); // ; set xrange 
             g.plot(xsam, derr1, derr2, derr3);
         }
         // Compute second derivative in the same order basis
@@ -551,17 +563,15 @@ public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const 
 
 
 
-template <typename T>
+template <typename T, typename basisT>
 class BsplineFunction {
 public:
     typedef typename TensorTypeData<T>::scalar_type scalar_type;
-    typedef KnotsChebyshev<scalar_type> knotsT;
-    typedef BsplineBasis<scalar_type,knotsT> basisT;
     typedef std::shared_ptr<const basisT> basis_ptrT;
     typedef Tensor<T> tensorT;
-    typedef BsplineFunction<T> bfunctionT;
+    typedef BsplineFunction<T,basisT> bfunctionT;
 
-    template <typename U> friend class BsplineFunction;
+    template <typename U, typename V> friend class BsplineFunction;
 
 private:
     basis_ptrT B;
@@ -571,20 +581,14 @@ public:
     BsplineFunction() = default;
     ~BsplineFunction() = default;
 
-    BsplineFunction(const BsplineFunction<T>& other) // Deep copy constructor
+    BsplineFunction(const bfunctionT& other) // Deep copy constructor
         : B(other.B)
         , c(copy(other.c))
     {}
 
-    BsplineFunction(BsplineFunction<T>&& other) // Move constructor
+    BsplineFunction(bfunctionT&& other) // Move constructor
         : B(std::move(other.B))
         , c(std::move(other.c))
-    {}
-
-    template <typename U>
-    BsplineFunction(const BsplineFunction<U>& other) // Deep copy constructor
-        : B(other.B)
-        , c(other.c) // with type conversion don't need to take a copy
     {}
 
     BsplineFunction(basis_ptrT& B, const tensorT& c = tensorT()) // Copies the coefficients, default is zero
@@ -605,20 +609,18 @@ public:
         return *this;
     }
     
-    template <typename U>
-    auto operator+(const BsplineFunction<U>& other) const {
+    auto operator+(const bfunctionT& other) const {
         MADNESS_ASSERT(B);
         MADNESS_ASSERT(B == other.B);
-        return BsplineFunction<TENSOR_RESULT_TYPE(T,U)>  (B, c + other.c);
+        return bfunctionT(B, c + other.c);
     }
 
-    template <typename U>
-    BsplineFunction<T> operator+(const T& s) const {
+    bfunctionT operator+(const T& s) const {
         MADNESS_ASSERT(B);
-        return BsplineFunction(B, c + s);
+        return bfunctionT(B, c + s);
     }
 
-    void operator+=(const BsplineFunction<T>& other) {
+    void operator+=(const bfunctionT& other) {
         MADNESS_ASSERT(B);
         MADNESS_ASSERT(B == other.B);
         c += other.c;
@@ -629,18 +631,18 @@ public:
         c += s;
     }
 
-    BsplineFunction<T> operator-(const BsplineFunction<T>& other) const {
+    bfunctionT operator-(const bfunctionT& other) const {
         MADNESS_ASSERT(B);
         MADNESS_ASSERT(B == other.B);
         return BsplineFunction(B, c - other.c);
     }
 
-    BsplineFunction<T> operator-(const T& s) const {
+    bfunctionT operator-(const T& s) const {
         MADNESS_ASSERT(B);
         return BsplineFunction(B, c - s);
     }
 
-    void operator-=(const BsplineFunction<T>& other) {
+    void operator-=(const bfunctionT& other) {
         MADNESS_ASSERT(B);
         MADNESS_ASSERT(B == other.B);
         c -= other.c;
@@ -651,7 +653,7 @@ public:
         c -= s;
     }
 
-    BsplineFunction<T> operator*(const T& s) const {
+    bfunctionT operator*(const T& s) const {
         MADNESS_ASSERT(B);
         return BsplineFunction(B, c*s);
     }
@@ -671,17 +673,14 @@ public:
     //     return BsplineFunction(B, 1.0);
     // }
 
-    
-
     static void test() {
         size_t nknots = 21;
         size_t order = 5;
         T xlo = 0.0;
         T xhi = 13.0;
-        auto knots = cheby_knots(nknots, xlo, xhi);
-        std::shared_ptr<const basisT> B(new basisT(order, knots));
-        BsplineFunction<T> f(B,knots);
-        BsplineFunction<T> g(B,knots);
+        std::shared_ptr<const basisT> B(new basisT(order, KnotsChebyshev<T>(nknots, xlo, xhi)));
+        bfunctionT f(B);
+        bfunctionT g(B);
         f += g;
         f += 1;
 
@@ -741,7 +740,8 @@ public:
 
 int main() {
     //BsplineBasis<float>::test();
-    BsplineBasis<double,KnotsUniform<double>>::test();
-    //BsplineFunction<double>::test();
+    //BsplineBasis<double,KnotsUniform<double>>::test();
+    //BsplineBasis<double,KnotsChebyshev<double>>::test();
+    BsplineFunction<double,BsplineBasis<double,KnotsChebyshev<double>>>::test();
     return 0;
 }
