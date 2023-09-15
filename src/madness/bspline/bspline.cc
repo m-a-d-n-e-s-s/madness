@@ -23,10 +23,12 @@ template<typename T> struct scalar_type<std::complex<T>> {typedef T type;};
 
 using namespace madness; // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
+// Knots classes generate (don't need to store) the knots and provide the interval function via a inline-able templated interface 
 template <typename T>
 class KnotsGeneral {
 public:
     static constexpr const char* name = "general";
+    typedef T value_type;
 
 private:    
     const Tensor<T> _knots; // unique knot vector in ascending order
@@ -72,6 +74,7 @@ template <typename T>
 class KnotsUniform {
 public:
     static constexpr const char* name = "uniform";
+    typedef T value_type;
 
 private:
     const size_t nknots; // number of knots
@@ -110,6 +113,7 @@ template <typename T>
 class KnotsChebyshev {
 public:
     static constexpr const char* name = "chebyshev-modified";
+    typedef T value_type;
 
 private:
     const size_t nknots; // number of knots
@@ -168,15 +172,16 @@ Tensor<T> oversample_knots(const Tensor<T>& knots) {
     return newknots;
 }
 
-// 1. Needs extending to permit use of optimized xinterval() functions that use knowledge of the knot spacing
-// 2. Ditto for weights
-// 3. Ditto for oversampling
 // 4. Since smoothed derivatives are much more accurate (compared to the "exact" derivative) on the interior of the interval but much less acccurate at the endpoints, we should perhaps increase the density of oversampling for the smoothing near the endpoints.  Or perhaps constrain the intermediate fits to respect the exact derivative at the endpoints.  
 
-// knots is templated primarily so we can inline the interval method for vectorization
+// Manages the nearly minimum amount of data to define the b-spline basis and to efficiently compute values and related matrices/operators
 template <typename T, typename knotsT>
 class BsplineBasis : protected knotsT {
+    static_assert(std::is_same<T,typename knotsT::value_type>::value, "Bsplinebasis: T and knotsT::value_type must be the same");
+    
 public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const this will have to go too!
+    typedef T value_type;
+    
     typedef knotsT knots_type;
     const size_t order; // the order of the basis
     const size_t p;     // the degree of the basis = order-1
@@ -559,130 +564,208 @@ public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const 
 // Also, need to modify tests that B=other.B to accomodate type promotion
 // such as float->double, or real->complex.
 
-// OK, so since all we are doing for now is getting the numerics working and in testing we'll always be using the same basis, we'll adopt a global basis for now, and put the oversampling into that.  Down the road, we'll need a vector of functions for which we can control the basis since each atom will likely need at least need a different knot distribution.
+// Since all we are doing for now is getting the radial numerics working for a single atom and
+// in testing we'll always be using the same basis, we'll adopt a
+// global basis for now, and also put the oversampling into that.  Down the
+// road, we'll need a vector of functions for which we can control the
+// basis since each atom will likely need at least need a different
+// knot distribution.
 
-
-
-template <typename T, typename basisT>
-class BsplineFunction {
+// Manages all of the data, including multiple matrices, that are
+// needed to compute with the b-spline basis, including the basis
+// itself.  It is presently assumed that the basis is the same for all
+// functions and we are computing on a radial grid, so we include
+// factors of r**2 and 4pi as needed.
+//
+// Here T is the type of the coefficients, which may be complex
+template <typename T>
+class BsplineData {
 public:
+    typedef T value_type;
     typedef typename TensorTypeData<T>::scalar_type scalar_type;
-    typedef std::shared_ptr<const basisT> basis_ptrT;
+    typedef KnotsChebyshev<scalar_type> knotsT;
+    typedef BsplineBasis<scalar_type,knotsT> basisT;
     typedef Tensor<T> tensorT;
-    typedef BsplineFunction<T,basisT> bfunctionT;
-
-    template <typename U, typename V> friend class BsplineFunction;
+    typedef Tensor<scalar_type> stensorT;
 
 private:
-    basis_ptrT B;
+    static const BsplineData<T>* data; // pointer to the singleton global data
+
+    const basisT B; // the basis
+    const stensorT rsam; // sample points
+    const stensorT M; // the LSQ matrix M(nbasis,nsamples), the pseudoinverse of A
+    const stensorT A; // the tabluated basis functions A(nsamples,nbasis)
+
+    BsplineData(size_t order, size_t nknots, scalar_type rlo, scalar_type rhi)
+        : B(order, knotsT(nknots, rlo, rhi))
+        , rsam(oversample_knots(B.knots))
+        , M(B.make_lsq_matrix(rsam))
+        , A(B.tabulate_basis(rsam))
+    { }
+    
+public:
+    static const BsplineData<T>* ptr() {
+        if (!data) throw "you forgot to call BsplineData::init()";
+        return data;
+    }
+
+    static void init(size_t order, size_t nknots, scalar_type rlo, scalar_type rhi) {
+        if (BsplineData<T>::data) throw "BsplineData already initialized";
+        BsplineData<T>::data = new BsplineData<T>(order, nknots, rlo, rhi);
+    }
+
+    static void clean() {
+        if (BsplineData<T>::data) delete BsplineData<T>::data;
+        BsplineData<T>::data = nullptr;
+    }
+
+    static const size_t nbasis() { return basis().nbasis; }
+
+    static const size_t order() { return basis().order; }
+
+    static const size_t nknots() { return basis().nknots; }
+
+    static const scalar_type rlo() { return knots().xlo; }
+
+    static const scalar_type rhi() { return knots().xhi; }
+
+    static const basisT& basis() { return ptr()->B; }
+
+    static const knotsT& knots() { return basis().knots(); }
+
+    static const stensorT& lsq_matrix() { return ptr()->M; }
+
+    static const stensorT& basis_matrix() { return ptr()->A; }
+
+    static const tensorT& deriv_matrix() { return basis().make_deriv_matrix(); }
+
+    static const tensorT& deriv2_matrix(const stensorT& x) { return basis().make_deriv2_matrix(); }
+
+    static const stensorT& rsample() { return ptr()->rsam; }
+
+    template <typename funcT>
+    static tensorT tabulate(const funcT& func) {
+        const auto& rsam = rsample();
+        tensorT f(rsam.size());
+        for (size_t i=0; i<rsam.size(); ++i) f[i] = func(rsam[i]);
+        return f;
+    }
+
+    template <typename funcT>
+    static tensorT project(const funcT& func) {
+        return inner(lsq_matrix(), tabulate(func));
+    }
+};
+
+template <typename T> const BsplineData<T>* BsplineData<T>::data = nullptr;
+
+template <typename T>
+class BsplineFunction {
+public:
+    typedef T value_type;
+    typedef typename TensorTypeData<T>::scalar_type scalar_type;
+
+private:
+    typedef typename TensorTypeData<T>::scalar_type scalarT;
+    typedef Tensor<T> tensorT;
+    typedef Tensor<scalarT> stensorT;
+    typedef BsplineFunction<T> bfunctionT;
+    typedef BsplineData<T> bdataT;
+
+    template <typename U> friend class BsplineFunction;
+
     Tensor<T> c;
 
 public:
-    BsplineFunction() = default;
-    ~BsplineFunction() = default;
-
     BsplineFunction(const bfunctionT& other) // Deep copy constructor
-        : B(other.B)
-        , c(copy(other.c))
+        : c(copy(other.c))
     {}
 
     BsplineFunction(bfunctionT&& other) // Move constructor
-        : B(std::move(other.B))
-        , c(std::move(other.c))
+        : c(std::move(other.c))
     {}
 
-    BsplineFunction(basis_ptrT& B, const tensorT& c = tensorT()) // Copies the coefficients, default is zero
-        : B(B)
-        , c(c.size()>0 ? copy(c) : tensorT(B->nbasis))
+    BsplineFunction(const tensorT& c = tensorT()) // Copies the coefficients, default is zero
+        : c(c.size()>0 ? copy(c) : tensorT(bdataT::nbasis()))
     {}
 
-    BsplineFunction(basis_ptrT& B, tensorT&& c) // Moves the coefficients
-        : B(B)
-        , c(std::move(c))
+    BsplineFunction(tensorT&& c) // Moves the coefficients
+        : c(std::move(c))
     {}
 
     BsplineFunction& operator=(const bfunctionT& other) { // Deep assignment
         if (this != &other) {
-            B = other.B;
             c = copy(other.c);
         }
         return *this;
     }
     
     auto operator+(const bfunctionT& other) const {
-        MADNESS_ASSERT(B);
-        MADNESS_ASSERT(B == other.B);
-        return bfunctionT(B, c + other.c);
+        return bfunctionT(c + other.c);
     }
 
     bfunctionT operator+(const T& s) const {
-        MADNESS_ASSERT(B);
-        return bfunctionT(B, c + s);
+        return bfunctionT(c + s);
     }
 
     void operator+=(const bfunctionT& other) {
-        MADNESS_ASSERT(B);
-        MADNESS_ASSERT(B == other.B);
         c += other.c;
     }
 
     void operator+=(const T& s) {
-        MADNESS_ASSERT(B);
         c += s;
     }
 
     bfunctionT operator-(const bfunctionT& other) const {
-        MADNESS_ASSERT(B);
-        MADNESS_ASSERT(B == other.B);
-        return BsplineFunction(B, c - other.c);
+        return BsplineFunction(c - other.c);
     }
 
     bfunctionT operator-(const T& s) const {
-        MADNESS_ASSERT(B);
-        return BsplineFunction(B, c - s);
+        return BsplineFunction(c - s);
     }
 
     void operator-=(const bfunctionT& other) {
-        MADNESS_ASSERT(B);
-        MADNESS_ASSERT(B == other.B);
         c -= other.c;
     }
 
     void operator-=(const T& s) {
-        MADNESS_ASSERT(B);
         c -= s;
     }
 
     bfunctionT operator*(const T& s) const {
-        MADNESS_ASSERT(B);
-        return BsplineFunction(B, c*s);
+        return BsplineFunction(c*s);
     }
 
     void operator*=(const T& s) {
-        MADNESS_ASSERT(B);
         c *= s;
     }
 
-    static bfunctionT zero(basis_ptrT& B) {
-        return BsplineFunction(B);
+    // Projects function (taking scalar_type as argument) onto the
+    // basis.  If a functor or a lambda is provided instead of a bare
+    // function pointer or an std::function then it could be inlined.
+    template <typename funcT>
+    static bfunctionT project(const funcT& func) {        
+        return bfunctionT(bdataT::project(func));
     }
 
-    // // Projects function (takes scalar_type as argument) onto the basis
-    // template <typename func>
-    // static bfunctionT project(const basis_ptrT& B, ) {
-    //     return BsplineFunction(B, 1.0);
-    // }
+    T operator()(scalarT x) const {
+        return bdataT::basis().deBoor(x, c);
+    }
 
     static void test() {
         size_t nknots = 21;
         size_t order = 5;
         T xlo = 0.0;
         T xhi = 13.0;
-        std::shared_ptr<const basisT> B(new basisT(order, KnotsChebyshev<T>(nknots, xlo, xhi)));
-        bfunctionT f(B);
-        bfunctionT g(B);
-        f += g;
-        f += 1;
+        bdataT::init(order, nknots, xlo, xhi);
+
+        auto f = [](scalarT x){ return std::exp(-x); };
+
+        auto g = bfunctionT::project(f);
+
+        print(g(0.5), std::exp(-0.5));
+
+        g += 1;
 
         // Solve H atom
         // 1) Project guess
@@ -742,6 +825,6 @@ int main() {
     //BsplineBasis<float>::test();
     //BsplineBasis<double,KnotsUniform<double>>::test();
     //BsplineBasis<double,KnotsChebyshev<double>>::test();
-    BsplineFunction<double,BsplineBasis<double,KnotsChebyshev<double>>>::test();
+    BsplineFunction<double>::test();
     return 0;
 }
