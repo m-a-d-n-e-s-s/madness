@@ -1418,8 +1418,8 @@ void ResponseBase::solve(World &world) {
         auto r_matrix = to_response_matrix(Chi);
         auto response_densities = make_density(world, Chi);
         do_response_orbital_vtk_plots(world, r_params.plot_pts(), r_params.L(), molecule, ground_orbitals, r_matrix);
-        do_response_density_vtk_plots(world, r_params.plot_pts(), r_params.L(), molecule, ground_density,
-                                      response_densities);
+        do_response_density_vtk_plots_new(world, r_params.plot_pts(), r_params.L(), molecule, ground_density,
+                                          response_densities);
     }
 #endif
 #endif

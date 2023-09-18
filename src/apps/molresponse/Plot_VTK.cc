@@ -157,6 +157,38 @@ namespace madness {
             state_number++;
         });
     }
+    void do_response_density_vtk_plots_new(World &world, int npt_plot, double L, const Molecule &molecule,
+                                           const real_function_3d &ground_density,
+                                           const vector_real_function_3d &response_density) {
+        // Stuff needed to plot
+        //
+        Vector<double, 3> box_lo{-L / 4, -L / 4, -L / 4};
+        Vector<double, 3> box_hi{L / 4, L / 4, L / 4};
+
+
+        std::string vtk_dir = "vtk_plots";
+        std::filesystem::create_directories(vtk_dir);
+
+        std::string geo_file;
+        const char *filename;
+
+        Vector<long, 3> points{npt_plot, npt_plot, npt_plot};
+
+        std::string response_file;
+        //***********************************ground density plot
+        auto density_file = vtk_dir + "/" + "density.vts";
+        filename = density_file.c_str();
+        plotvtk_begin<3>(world, filename, box_lo, box_hi, points, true);
+        plotvtk_data<double, 3>(ground_density, "ground", world, filename, box_lo, box_hi, points, true, false);
+        //***********************************ground density plot
+        int state_number = 0;
+        std::for_each(response_density.begin(), response_density.end(), [&](const auto &rho_i) {
+          auto field_name = "response_" + std::to_string(state_number);
+          plotvtk_data<double, 3>(rho_i, field_name.c_str(), world, filename, box_lo, box_hi, points, true, false);
+          state_number++;
+        });
+        plotvtk_end<3>(world, filename, true);
+    }
     void do_vtk_plots(World &world, int npt_plot, double L, int lowest_orbital, int highest_orbital,
                       const Molecule &molecule, std::vector<real_function_3d> densities, const std::string &name) {
         // Stuff needed to plot
