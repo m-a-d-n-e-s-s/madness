@@ -15,6 +15,88 @@
 
 namespace madness {
 
+    struct LowRankFunctionParameters : QCCalculationParametersBase {
+
+        LowRankFunctionParameters() : QCCalculationParametersBase() {
+
+            // initialize with: key, value, comment (optional), allowed values (optional)
+            initialize<double>("radius",2.0,"the radius");
+            initialize<double>("gamma",1.0,"the exponent of the correlation factor");
+            initialize<double>("volume_element",0.1,"volume covered by each grid point");
+            initialize<bool>("hard_shell",true,"radius is hard");
+            initialize<double>("tol",1.e-8,"rank-reduced cholesky tolerance");
+            initialize<std::string>("f12type","Slater","correlation factor",{"Slater","SlaterF12"});
+            initialize<std::string>("orthomethod","cholesky","orthonormalization",{"cholesky","canonical","symmetric"});
+            initialize<std::string>("transpose","slater2","transpose of the matrix",{"slater1","slater2"});
+            initialize<std::string>("gridtype","random","the grid type",{"random","cartesian","spherical"});
+            initialize<std::string>("rhsfunctiontype","exponential","the type of function",{"delta","exponential"});
+            initialize<int>("optimize",1,"number of optimization iterations");
+        }
+
+        void read_and_set_derived_values(World& world, const commandlineparser& parser, std::string tag) {
+            read_input_and_commandline_options(world,parser,tag);
+        }
+
+        double radius() const {return get<double>("radius");}
+        double gamma() const {return get<double>("gamma");}
+        double volume_element() const {return get<double>("volume_element");}
+        double tol() const {return get<double>("tol");}
+        bool hard_shell() const {return get<bool>("hard_shell");}
+        int optimize() const {return get<int>("optimize");}
+        std::string gridtype() const {return get<std::string>("gridtype");}
+        std::string orthomethod() const {return get<std::string>("orthomethod");}
+        std::string rhsfunctiontype() const {return get<std::string>("rhsfunctiontype");}
+        std::string f12type() const {return get<std::string>("f12type");}
+    };
+
+
+
+    template<std::size_t NDIM>
+    class cgrid {
+    public:
+        double volume_element=0.1;
+        double radius=3;
+        bool hard_shell=true;
+
+        cgrid(const double volume_element, const double radius, bool hard_shell)
+                :volume_element(volume_element), radius(radius), hard_shell(hard_shell) {
+        };
+
+        std::vector<Vector<double,NDIM>> get_coordinates() const {
+            // 1D grid
+            double volume_element_1d=std::pow(volume_element,1./NDIM);
+            long ngrid=std::ceil(radius/volume_element_1d);
+            double stepsize=radius/ngrid;
+            double scale=1.0;
+            if (not hard_shell) scale=std::pow(2.0,1.0/(ngrid+1));
+            print("scale",scale);
+
+            std::vector<double> coord1d;
+            print("volume element, stepsize, ngrid" ,volume_element, std::pow(stepsize,NDIM),stepsize,ngrid);
+            for (int i=0; i<ngrid+1; ++i) {
+                if (not hard_shell) stepsize*=scale;
+                double c=i*stepsize;
+                coord1d.push_back(c);
+                if (i!=0) coord1d.push_back(-c);
+                print("coord",c);
+            }
+            print("coord1d",coord1d.size());
+            std::vector<Vector<double,NDIM>> result;
+            for (int i=0; i<coord1d.size(); ++i) {
+                for (int j=0; j<coord1d.size(); ++j) {
+                    for (int k=0; k<coord1d.size(); ++k) {
+                        Vector<double,NDIM> c{coord1d[i],coord1d[j],coord1d[k]};
+                        double cutoff = hard_shell ? radius : 2.0*radius;
+                        if (c.normf()<cutoff) result.push_back(c);
+                    }
+                }
+            }
+            print("result.size()",result.size());
+//        for (auto& r: result) print(r);
+            return  result;
+
+        }
+    };
 
     template<std::size_t NDIM>
     struct cartesian_grid {
@@ -25,14 +107,19 @@ namespace madness {
         long total_n;
         Vector<double,NDIM> increment;
 
+        cartesian_grid(const double volume_per_gridpoint, const double radius) {
+            double length_per_gridpoint=std::pow(volume_per_gridpoint,1.0/NDIM);
+            n_per_dim=ceil(2.0*radius/length_per_gridpoint);
+            print("length per gridpoint, n_per_dim",length_per_gridpoint,n_per_dim);
+            print("volume_per_gridpoint",std::pow(length_per_gridpoint,NDIM));
+            initialize(-radius,radius);
+            print("increment",increment);
+        }
+
+
         cartesian_grid(const long n_per_dim, const double lo, const double hi)
                 : n_per_dim(n_per_dim) {
-            lovec.fill(lo);
-            hivec.fill(hi);
-            increment=(hivec-lovec)*(1.0/double(n_per_dim-1));
-            stride=std::vector<long>(NDIM,1l);
-            total_n=std::pow(n_per_dim,NDIM);
-            for (long i=NDIM-2; i>=0; --i) stride[i]=n_per_dim*stride[i+1];
+            initialize(lo,hi);
         }
 
         cartesian_grid(const cartesian_grid<NDIM>& other) : lovec(other.lovec),
@@ -44,6 +131,16 @@ namespace madness {
             cartesian_grid<NDIM> tmp(other);
             std::swap(*this,other);
             return *this;
+        }
+
+        void initialize(const double lo, const double hi) {
+            lovec.fill(lo);
+            hivec.fill(hi);
+            increment=(hivec-lovec)*(1.0/double(n_per_dim-1));
+            stride=std::vector<long>(NDIM,1l);
+            total_n=std::pow(n_per_dim,NDIM);
+            for (long i=NDIM-2; i>=0; --i) stride[i]=n_per_dim*stride[i+1];
+
         }
 
         double volume_per_gridpoint() const{
@@ -287,9 +384,9 @@ namespace madness {
 
 
         World& world;
-        double rank_revealing_tol=1.e-12;     // rrcd tol
+        double rank_revealing_tol=1.e-8;     // rrcd tol
+        std::string orthomethod="symmetric";
         bool do_print=true;
-        bool stable_power_iteration=true;
         std::vector<Function<T,LDIM>> g,h;
         LRFunctor lrfunctor;
         particle<LDIM> p1=particle<LDIM>::particle1();
@@ -372,36 +469,26 @@ namespace madness {
             return LowRankFunction(g * a, h);
         }
 
-        void project(const double volume_per_point, const double radius, const std::string gridtype, std::string rhsfunctiontype,
-                     double tol1) {
-            rank_revealing_tol=tol1;
-            long rank=0;
-            if (gridtype=="random") {
-                // number of points within radius = variance: 0.67 * #total points = 0.67*rank
-                // volume of sphere 4/3 pi *r^3
-                // volume per point=volume/#points in radius = volume / (0.67 * rank)
-                // rank= volume/(0.67/volume_per_point)
-                double volume=4.0/3.0*constants::pi *std::pow(radius,3.0);
-                rank = lround(volume/(0.67*volume_per_point ));
-            }
-            project(rank,radius,gridtype,rhsfunctiontype);
-        }
-
         /// following Halko
 
         /// ||A - Q Q^T A||< epsilon
         /// Y = A Omega && Q = QR(Y)
         /// || f(1,2) - \sum_i g_i(1) h_i(2) || < epsilon
         /// Y_i(1) = \int f(1,2) Omega_i(2) d2 && g_i(1) = QR(Y_i(1)) && h_i(2) = \int g_i^*(1) f(1,2) d1
-        void project(const long rank, const double radius, const std::string gridtype, std::string rhsfunctiontype) {
+        void project(const LowRankFunctionParameters& params) {
             timer t1(world);
             t1.do_print=do_print;
+            orthomethod=params.orthomethod();
+            rank_revealing_tol=params.tol();
+
 
             // make grid
             std::vector<Vector<double,LDIM>> grid;
-            if (gridtype=="random") {
+            if (params.gridtype()=="random") {
+                double volume=4.0/3.0*constants::pi *std::pow(params.radius(),3.0);
+                long rank = lround(volume/(0.67*params.volume_element() ));
                 for (int i=0; i<rank; ++i) {
-                    auto tmp=randomgaussian<LDIM>::gaussian_random_distribution(0,radius);
+                    auto tmp=randomgaussian<LDIM>::gaussian_random_distribution(0,params.radius());
                     auto cell=FunctionDefaults<LDIM>::get_cell();
                     auto is_in_cell = [&cell](const Vector<double,LDIM>& r) {
                         for (int d=0; d<LDIM; ++d) if (r[d]<cell(d,0) or r[d]>cell(d,1)) return false;
@@ -411,39 +498,57 @@ namespace madness {
                     grid.push_back(tmp);
                 }
                 if (world.rank()==0 and do_print) {
-                    double volume = 4.0/3.0*constants::pi * std::pow(radius,3.0);
+                    double volume = 4.0/3.0*constants::pi * std::pow(params.radius(),3.0);
                     print("volume element in random grid",volume/(0.67*rank));
                 }
 
 
-            } else if (gridtype=="cartesian") {
-                long nperdim=std::lround(std::pow(double(rank),1.0/3.0));
-                cartesian_grid<LDIM> cg(nperdim,-radius,radius);
-                for (cg.index=0; cg(); ++cg) grid.push_back(cg.get_coordinates());
-                if (world.rank()==0 and do_print) print("volume element in cartesian grid",cg.volume_per_gridpoint());
+//            } else if (gridtype=="cartesian") {
+//                long nperdim=std::lround(std::pow(double(rank),1.0/3.0));
+//                cartesian_grid<LDIM> cg(nperdim,-radius,radius);
+//                for (cg.index=0; cg(); ++cg) grid.push_back(cg.get_coordinates());
+//                if (world.rank()==0 and do_print) print("volume element in cartesian grid",cg.volume_per_gridpoint());
+            } else if (params.gridtype()=="spherical") {
+                cgrid<LDIM> cg(params.volume_element(),params.radius(),params.hard_shell());
+                grid=cg.get_coordinates();
+//                cartesian_grid<LDIM> cg(volume_per_point,radius);
+//                for (cg.index=0; cg(); ++cg) grid.push_back(cg.get_coordinates());
+//                if (world.rank()==0 and do_print) print("volume element in cartesian grid",cg.volume_per_gridpoint());
             } else {
                 MADNESS_EXCEPTION("unknown grid type in project",1);
             }
 
-            if (world.rank()==0 and do_print) {
-                print("grid is",gridtype,"with radius",radius,"and",grid.size(),"gridpoints");
-                print("rhs functions are",rhsfunctiontype);
-            }
 
-            auto Y=Yformer(grid,rhsfunctiontype);
+            auto Y=Yformer(grid,params.rhsfunctiontype());
             t1.tag("Yforming");
+            auto norms=norm2s(world,Y);
+            for (int i=0; i<Y.size(); ++i) if (norms[i]>rank_revealing_tol) g.push_back(Y[i]);
+            normalize(world,g);
+            print("g.size after normalization",g.size());
 
             std::ostringstream oss;
             oss << std::scientific << std::setprecision(1) << rank_revealing_tol;
             std::string scientificString = oss.str();
             double err=1.0;
-            double tight_thresh=FunctionDefaults<3>::get_thresh()*0.1;
-            g=Y;
-            while (err>1.e-10) {
-                g=truncate(orthonormalize_rrcd(g,rank_revealing_tol),std::min(1.e-3,tight_thresh*100.0));
+            // need only approximate orthonormality here, as we will re-orthonormalize in the optimization step
+            while (err>1.e-1) {
+                double tight_thresh=FunctionDefaults<3>::get_thresh()*0.1;
                 err=check_orthonormality(g);
-                print("error of non-orthonormality",err);
-                t1.tag("Y orthonormalizing with rank_revealing_tol loose_thresh "+scientificString);
+                t1.tag("check orthonormality");
+                auto ovlp=matrix_inner(world,g,g);
+                t1.tag("compute ovlp");
+//                g=truncate(orthonormalize_rrcd(g,ovlp,rank_revealing_tol),tight_thresh);
+                g=truncate(orthonormalize_rrcd(g,ovlp,rank_revealing_tol));
+                t1.tag("rrcd/truncate/thresh");
+//                ovlp=matrix_inner(world,g,g);
+//                t1.tag("compute ovlp");
+//                g=truncate(madness::orthonormalize(g));
+//                t1.tag("ortho/symmetric/truncate");
+                auto sz=get_size(world,g);
+                print("gsize",sz);
+                t1.tag("Y orthonormalizing rrcd ");
+                err=check_orthonormality(g);
+                t1.tag("Y orthonormalizing with rank_revealing_tol normal thresh "+scientificString);
             }
             g=truncate(g);
 
@@ -467,12 +572,13 @@ namespace madness {
 
             } else if (rhsfunctiontype=="exponential") {
                 std::vector<Function<double,LDIM>> omega;
+                double coeff=std::pow(2.0*exponent/constants::pi,0.25*LDIM);
                 for (const auto& point : grid) {
                     omega.push_back(FunctionFactory<double,LDIM>(world)
-                            .functor([&point,&exponent](const Vector<double,LDIM>& r)
+                            .functor([&point,&exponent,&coeff](const Vector<double,LDIM>& r)
                                      {
                                          auto r_rel=r-point;
-                                         return exp(-exponent*madness::inner(r_rel,r_rel));
+                                         return coeff*exp(-exponent*madness::inner(r_rel,r_rel));
                                      }));
                 }
                 Y=inner(lrfunctor,omega,p2,p1);
@@ -490,31 +596,58 @@ namespace madness {
             return fapprox;
         }
 
+
+        std::vector<Function<T,LDIM>> orthonormalize(const std::vector<Function<T,LDIM>>& g) const {
+
+            double tol=rank_revealing_tol;
+            print("orthonormalizing with method/tol",orthomethod,tol);
+            std::vector<Function<T,LDIM>> g2;
+            auto ovlp=matrix_inner(world,g,g);
+            if (orthomethod=="symmetric") g2=orthonormalize_symmetric(g,ovlp);
+            else if (orthomethod=="canonical") g2=orthonormalize_canonical(g,ovlp,tol);
+            else if (orthomethod=="cholesky") g2=orthonormalize_rrcd(g,ovlp,tol);
+            else {
+                MADNESS_EXCEPTION("no such orthomethod",1);
+            }
+            double tight_thresh=FunctionDefaults<3>::get_thresh()*0.1;
+            return truncate(g2,tight_thresh);
+        }
+
+
         /// optimize using Cholesky decomposition
 
-        /// if stable_power_iteration is true, orthonormalize in between applications of the kernel (Alg. 4.4 in Halko)
         /// @param[in]  nopt       number of iterations (wrt to Alg. 4.3 in Halko)
         void optimize(const long nopt=1) {
             timer t(world);
             t.do_print=do_print;
-            double tight_thresh=FunctionDefaults<3>::get_thresh()*0.1;
+            double tight_thresh=FunctionDefaults<3>::get_thresh();
+            print("tight_thresh",tight_thresh);
             for (int i=0; i<nopt; ++i) {
                 // orthonormalize h
-                if (stable_power_iteration) h=truncate(orthonormalize_rrcd(h,rank_revealing_tol),tight_thresh);
-                t.tag("ortho1 with rrcd/truncate/tight");
+//                h=truncate(orthonormalize_cd(h),tight_thresh);
+                auto ovlp=matrix_inner(world,h,h);
+                h=truncate(orthonormalize(h),tight_thresh);
+                t.tag("ortho1");
                 g=truncate(inner(lrfunctor,h,p2,p1),tight_thresh);
-                t.tag("inner1/truncate/tight");
-                g=truncate(orthonormalize_rrcd(g,rank_revealing_tol),tight_thresh);
-                t.tag("ortho2/truncate/tight");
+                t.tag("inner1");
+//                g=truncate(orthonormalize_cd(g),tight_thresh);
+                ovlp=matrix_inner(world,g,g);
+                g=truncate(orthonormalize(g),tight_thresh);
+                t.tag("ortho2");
                 h=truncate(inner(lrfunctor,g,p1,p1),tight_thresh);
-                t.tag("inner2/truncate/tight");
+                t.tag("inner2");
             }
             t.tag("optimize_fast");
         }
 
         double check_orthonormality(const std::vector<Function<T,LDIM>>& v) const {
+            timer t(world);
             Tensor<T> ovlp=matrix_inner(world,v,v);
             for (int i=0; i<ovlp.dim(0); ++i) ovlp(i,i)-=1.0;
+            print("absmax",ovlp.absmax());
+            print("l2",ovlp.normf()/ovlp.size());
+            t.tag("check_orthonoramality");
+            return ovlp.absmax();
             return ovlp.normf()/ovlp.size();
         }
 
