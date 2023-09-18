@@ -46,6 +46,9 @@ namespace madness {
                                        const real_function_3d &ground_density,
                                        const vector_real_function_3d &response_density);
 
+    void do_response_density_vtk_plots_new(World &world, int npt_plot, double L, const Molecule &molecule,
+                                           const real_function_3d &ground_density,
+                                           const vector_real_function_3d &response_density);
     void do_vtk_plots(World &world, int npt_plot, double L, int lowest_orbital, int highest_orbital,
                       const Molecule &molecule, std::vector<real_function_3d> densities, const std::string &name);
 
