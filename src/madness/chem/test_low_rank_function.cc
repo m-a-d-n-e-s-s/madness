@@ -251,11 +251,28 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
             Tensor<double> i_gk = inner(world, phi, gk);
             double result_left = j_hj.trace(i_gk);
             print("result_left, optimize", result_left);
+            print("left optimize rank",fi_one.rank());
             j["left_optimize"]=result_left-reference;
             j["left_optimize_rank"]=fi_one.rank();
             j["left_optimize_compute_time"]=t.tag("left_optimize_compute_time");
         }
         json2file(j,jsonfilename);
+
+        fi_one.reorthonormalize();
+        j["left_reorthonormalize"]=t.tag("left_reorthonormalize");
+        print("left reorthonormalize rank",fi_one.rank());
+        {
+            auto gk = mul(world, phi_k, g12(fi_one.g * phi_k)); // function of 1
+            auto hj = fi_one.h * phi; // function of 2
+            Tensor<double> j_hj = inner(world, phi, hj);
+            Tensor<double> i_gk = inner(world, phi, gk);
+            double result_left = j_hj.trace(i_gk);
+            print("result_left, reorthonormalize", result_left);
+            j["left_project"]=result_left-reference;
+            j["left_project_rank"]=fi_one.rank();
+            j["left_project_compute_time"]=t.tag("left_project_compute_time");
+        }
+        j["left_reorthonormalize_compute_time"]=t.tag("left_reorthonormalize_compute_time");
     }
 
     // lowrankfunction right phi: lrf(1',2) = f12(1',2) i(1')

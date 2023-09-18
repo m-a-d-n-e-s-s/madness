@@ -503,17 +503,9 @@ namespace madness {
                 }
 
 
-//            } else if (gridtype=="cartesian") {
-//                long nperdim=std::lround(std::pow(double(rank),1.0/3.0));
-//                cartesian_grid<LDIM> cg(nperdim,-radius,radius);
-//                for (cg.index=0; cg(); ++cg) grid.push_back(cg.get_coordinates());
-//                if (world.rank()==0 and do_print) print("volume element in cartesian grid",cg.volume_per_gridpoint());
             } else if (params.gridtype()=="spherical") {
                 cgrid<LDIM> cg(params.volume_element(),params.radius(),params.hard_shell());
                 grid=cg.get_coordinates();
-//                cartesian_grid<LDIM> cg(volume_per_point,radius);
-//                for (cg.index=0; cg(); ++cg) grid.push_back(cg.get_coordinates());
-//                if (world.rank()==0 and do_print) print("volume element in cartesian grid",cg.volume_per_gridpoint());
             } else {
                 MADNESS_EXCEPTION("unknown grid type in project",1);
             }
@@ -521,36 +513,14 @@ namespace madness {
 
             auto Y=Yformer(grid,params.rhsfunctiontype());
             t1.tag("Yforming");
-            auto norms=norm2s(world,Y);
-            for (int i=0; i<Y.size(); ++i) if (norms[i]>rank_revealing_tol) g.push_back(Y[i]);
-            normalize(world,g);
-            print("g.size after normalization",g.size());
 
-            std::ostringstream oss;
-            oss << std::scientific << std::setprecision(1) << rank_revealing_tol;
-            std::string scientificString = oss.str();
-            double err=1.0;
-            // need only approximate orthonormality here, as we will re-orthonormalize in the optimization step
-            while (err>1.e-1) {
-                double tight_thresh=FunctionDefaults<3>::get_thresh()*0.1;
-                err=check_orthonormality(g);
-                t1.tag("check orthonormality");
-                auto ovlp=matrix_inner(world,g,g);
-                t1.tag("compute ovlp");
-//                g=truncate(orthonormalize_rrcd(g,ovlp,rank_revealing_tol),tight_thresh);
-                g=truncate(orthonormalize_rrcd(g,ovlp,rank_revealing_tol));
-                t1.tag("rrcd/truncate/thresh");
-//                ovlp=matrix_inner(world,g,g);
-//                t1.tag("compute ovlp");
-//                g=truncate(madness::orthonormalize(g));
-//                t1.tag("ortho/symmetric/truncate");
-                auto sz=get_size(world,g);
-                print("gsize",sz);
-                t1.tag("Y orthonormalizing rrcd ");
-                err=check_orthonormality(g);
-                t1.tag("Y orthonormalizing with rank_revealing_tol normal thresh "+scientificString);
-            }
-            g=truncate(g);
+            auto ovlp=matrix_inner(world,Y,Y);  // error in symmetric matrix_inner, use non-symmetric form here!
+            t1.tag("compute ovlp");
+            g=truncate(orthonormalize_rrcd(Y,ovlp,rank_revealing_tol));
+            t1.tag("rrcd/truncate/thresh");
+            auto sz=get_size(world,g);
+            print("gsize",sz);
+            check_orthonormality(g);
 
             if (world.rank()==0 and do_print) {
                 print("Y.size()",Y.size());
@@ -585,7 +555,12 @@ namespace madness {
             } else {
                 MADNESS_EXCEPTION("confused rhsfunctiontype",1);
             }
-            return Y;
+            auto norms=norm2s(world,Y);
+            std::vector<Function<double,LDIM>> Ynormalized;
+
+            for (int i=0; i<Y.size(); ++i) if (norms[i]>rank_revealing_tol) Ynormalized.push_back(Y[i]);
+            normalize(world,Ynormalized);
+            return Ynormalized;
         }
 
         long rank() const {return g.size();}
@@ -600,12 +575,19 @@ namespace madness {
         std::vector<Function<T,LDIM>> orthonormalize(const std::vector<Function<T,LDIM>>& g) const {
 
             double tol=rank_revealing_tol;
-            print("orthonormalizing with method/tol",orthomethod,tol);
             std::vector<Function<T,LDIM>> g2;
             auto ovlp=matrix_inner(world,g,g);
-            if (orthomethod=="symmetric") g2=orthonormalize_symmetric(g,ovlp);
-            else if (orthomethod=="canonical") g2=orthonormalize_canonical(g,ovlp,tol);
-            else if (orthomethod=="cholesky") g2=orthonormalize_rrcd(g,ovlp,tol);
+            if (orthomethod=="symmetric") {
+                print("orthonormalizing with method/tol",orthomethod,tol);
+                g2=orthonormalize_symmetric(g,ovlp);
+            } else if (orthomethod=="canonical") {
+                tol*=0.01;
+                print("orthonormalizing with method/tol",orthomethod,tol);
+                g2=orthonormalize_canonical(g,ovlp,tol);
+            } else if (orthomethod=="cholesky") {
+                print("orthonormalizing with method/tol",orthomethod,tol);
+                g2=orthonormalize_rrcd(g,ovlp,tol);
+            }
             else {
                 MADNESS_EXCEPTION("no such orthomethod",1);
             }
@@ -620,35 +602,117 @@ namespace madness {
         void optimize(const long nopt=1) {
             timer t(world);
             t.do_print=do_print;
-            double tight_thresh=FunctionDefaults<3>::get_thresh();
-            print("tight_thresh",tight_thresh);
             for (int i=0; i<nopt; ++i) {
                 // orthonormalize h
-//                h=truncate(orthonormalize_cd(h),tight_thresh);
-                auto ovlp=matrix_inner(world,h,h);
-                h=truncate(orthonormalize(h),tight_thresh);
+                h=truncate(orthonormalize(h));
                 t.tag("ortho1");
-                g=truncate(inner(lrfunctor,h,p2,p1),tight_thresh);
+                g=truncate(inner(lrfunctor,h,p2,p1));
                 t.tag("inner1");
-//                g=truncate(orthonormalize_cd(g),tight_thresh);
-                ovlp=matrix_inner(world,g,g);
-                g=truncate(orthonormalize(g),tight_thresh);
+                g=truncate(orthonormalize(g));
                 t.tag("ortho2");
-                h=truncate(inner(lrfunctor,g,p1,p1),tight_thresh);
+                h=truncate(inner(lrfunctor,g,p1,p1));
                 t.tag("inner2");
             }
-            t.tag("optimize_fast");
         }
 
+        /// after external operations g might not be orthonormal and/or optimal
+
+        /// orthonormalization similar to Bischoff, Harrison, Valeev, JCP 137 104103 (2012), Sec II C 3
+        /// f   =\sum_i g_i h_i
+        ///     = g X- (X+)^T (Y+)^T Y- h
+        ///     = g X-  U S V^T  Y- h
+        ///     = g (X- U) (S V^T Y-) h
+        /// requires 2 matrix_inner and 2 transforms. g and h are optimal, but contain all cusps etc..
+        /// @param[in]  thresh        SVD threshold
+        void reorthonormalize(double thresh=-1.0) {
+            if (thresh<0.0) thresh=rank_revealing_tol;
+            Tensor<T> ovlp_g = matrix_inner(world, g, g);
+            Tensor<T> ovlp_h = matrix_inner(world, h, h);
+            auto [eval_g, evec_g] = syev(ovlp_g);
+            auto [eval_h, evec_h] = syev(ovlp_h);
+            Tensor<T> Xplus=copy(evec_g);
+            Tensor<T> Xminus=copy(evec_g);
+            Tensor<T> Yplus=copy(evec_h);
+            Tensor<T> Yminus=copy(evec_h);
+//            print("eval_g",eval_g);
+//            print("eval_h",eval_h);
+            for (int i=0; i<eval_g.size(); ++i) Xplus(_,i)*=std::pow(eval_g(i),0.5);
+            for (int i=0; i<eval_g.size(); ++i) Xminus(_,i)*=std::pow(eval_g(i),-0.5);
+            for (int i=0; i<eval_h.size(); ++i) Yplus(_,i)*=std::pow(eval_h(i),0.5);
+            for (int i=0; i<eval_h.size(); ++i) Yminus(_,i)*=std::pow(eval_h(i),-0.5);
+
+            // test
+            //{
+            //    auto gortho = transform(world, h, Yminus);
+            //    auto one=matrix_inner(world,gortho,gortho);
+            //    check_orthonormality(one);
+            //}
+            //{
+            //    auto gortho = transform(world, g, Xminus);
+            //    auto one=matrix_inner(world,gortho,gortho);
+            //    check_orthonormality(one);
+            //}
+            //{
+            //    auto one=madness::inner(Xminus,Xplus,1,1);
+            //    check_orthonormality(one);
+            //    one=madness::inner(Yminus,Yplus,1,1);
+            //    check_orthonormality(one);
+            //}
+
+            Tensor<T> M=madness::inner(Xplus,Yplus,0,0);    // (X+)^T Y+
+            auto [U,s,VT]=svd(M);
+//            print("s",s);
+
+            // truncate
+            typename Tensor<T>::scalar_type s_accumulated=0.0;
+            int i=s.size()-1;
+            for (;i>=0; i--) {
+                s_accumulated+=s[i];
+                if (s_accumulated>thresh) {
+                    i++;
+                    break;
+                }
+            }
+            print("accumulated s",s_accumulated,thresh,s.size(),i);
+            for (int j=0; j<s.size(); ++j) VT(j,_)*=s[j];
+            // test
+//            auto mm=madness::inner(U,VT,1,0);
+//            double none=(mm-M).normf();
+//            print("U S V^T - M",none);
+
+
+            Tensor<T> XX=madness::inner(Xminus,U,1,0);
+            Tensor<T> YY=madness::inner(Yminus,VT,1,1);
+
+            g=truncate(transform(world,g,XX));
+            h=truncate(transform(world,h,YY));
+//            {
+//                auto one=matrix_inner(world,g,g);
+//                check_orthonormality(one);
+//            }
+//            {
+//                auto one=matrix_inner(world,h,h);
+//                check_orthonormality(one);
+//            }
+
+
+
+        }
+
+
         double check_orthonormality(const std::vector<Function<T,LDIM>>& v) const {
-            timer t(world);
             Tensor<T> ovlp=matrix_inner(world,v,v);
-            for (int i=0; i<ovlp.dim(0); ++i) ovlp(i,i)-=1.0;
-            print("absmax",ovlp.absmax());
-            print("l2",ovlp.normf()/ovlp.size());
+            return check_orthonormality(ovlp);
+        }
+
+        double check_orthonormality(const Tensor<T>& ovlp) const {
+            timer t(world);
+            Tensor<T> ovlp2=ovlp;
+            for (int i=0; i<ovlp2.dim(0); ++i) ovlp2(i,i)-=1.0;
+            print("absmax",ovlp2.absmax());
+            print("l2",ovlp2.normf()/ovlp2.size());
             t.tag("check_orthonoramality");
             return ovlp.absmax();
-            return ovlp.normf()/ovlp.size();
         }
 
         double explicit_error() const {
