@@ -303,6 +303,35 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
 
 }
 
+template<std::size_t LDIM>
+int test_grids(World& world, LowRankFunctionParameters& parameters) {
+    randomgrid<LDIM> g(parameters.volume_element(),parameters.radius());
+    g.get_grid();
+
+    return 0;
+}
+
+template<std::size_t LDIM>
+int test_construction_optimization(World& world, LowRankFunctionParameters parameters) {
+    parameters.set_user_defined_value("volume_element",0.05);
+    constexpr std::size_t NDIM=2*LDIM;
+    test_output t1("LowRankFunction::construction/optimization in dimension "+std::to_string(NDIM));
+    t1.set_cout_to_terminal();
+    OperatorInfo info(1.0,1.e-6,FunctionDefaults<LDIM>::get_thresh(),OT_SLATER);
+    auto slater=std::shared_ptr<SeparatedConvolution<double,LDIM> >(new SeparatedConvolution<double,LDIM>(world,info));
+    Function<double,LDIM> one=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r){return exp(-0.2*inner(r,r));});
+
+    LowRankFunction<double,NDIM> lrf(slater,one,one);
+    lrf.project(parameters);
+    double error=lrf.l2error();
+    t1.checkpoint(error<2.e-2,"l2 error in projection "+std::to_string(error));
+    print("l2 error project ",error);
+    lrf.optimize();
+    error=lrf.l2error();
+    print("l2 error optimize",error);
+    t1.checkpoint(error<1.e-2,"l2 error in optimization "+std::to_string(error));
+    return t1.end();
+}
 
 int main(int argc, char **argv) {
 
@@ -310,7 +339,7 @@ int main(int argc, char **argv) {
     startup(world, argc, argv);
     commandlineparser parser(argc, argv);
     int k = parser.key_exists("k") ? std::atoi(parser.value("k").c_str()) : 6;
-    double thresh  = parser.key_exists("thresh") ? std::stod(parser.value("thresh")) : 1.e-4;
+    double thresh  = parser.key_exists("thresh") ? std::stod(parser.value("thresh")) : 1.e-5;
     FunctionDefaults<6>::set_tensor_type(TT_2D);
 
     FunctionDefaults<1>::set_thresh(thresh);
@@ -346,12 +375,17 @@ int main(int argc, char **argv) {
 
 
     try {
-        parser.set_keyval("geometry", "he");
-        parser.print_map();
 
+        isuccess+=test_grids<1>(world,parameters);
+        isuccess+=test_grids<2>(world,parameters);
+        isuccess+=test_grids<3>(world,parameters);
+        isuccess+=test_construction_optimization<1>(world,parameters);
+        isuccess+=test_construction_optimization<2>(world,parameters);
+//        isuccess+=test_arithmetic<1>(world,parameters);
+//        isuccess+=test_arithmetic<2>(world,parameters);
 
 //        isuccess+=test_lowrank_function(world,parameters);
-        isuccess+=test_Kcommutator(world,parameters);
+       isuccess+=test_Kcommutator(world,parameters);
     } catch (std::exception& e) {
         madness::print("an error occured");
         madness::print(e.what());

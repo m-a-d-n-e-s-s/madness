@@ -55,7 +55,7 @@ namespace madness {
             // initialize with: key, value, comment (optional), allowed values (optional)
             initialize<double>("zoom",2,"zoom into the simulation cell");
             initialize<long>("npoints",151,"number of plot points per dimension");
-            initialize<std::vector<double>>("origin",{0.0,0.0,0.0},"origin of the plot");
+            initialize<std::vector<double>>("origin",{},"origin of the plot");
             initialize<std::vector<std::string>>("plane",{"x1","x2"},"plot plane: x1, x2, .., x6");
         }
 
@@ -84,7 +84,7 @@ namespace madness {
         Vector<double,NDIM> origin() const {
             auto origin_vec=get<std::vector<double>>("origin");
             // fill in zeros if the default origin has fewer dimensions than the actual origin
-            std::size_t missing=NDIM-origin_vec.size();
+            int missing=NDIM-origin_vec.size();
             for (auto i=0; i<missing; ++i) origin_vec.push_back(0.0);
             Vector<double,NDIM> o(origin_vec);
             return o;

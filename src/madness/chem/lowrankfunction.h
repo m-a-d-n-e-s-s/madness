@@ -50,15 +50,88 @@ namespace madness {
     };
 
 
+    class gridbase {
+    protected:
+        double volume_element=0.1;
+        double radius=3;
+    };
 
     template<std::size_t NDIM>
-    class cgrid {
+    class randomgrid : public gridbase {
+    public:
+        randomgrid(const double volume_element, const double radius) : gridbase() {
+            this->volume_element=volume_element;
+            this->radius=radius;
+        }
+
+        std::vector<Vector<double,NDIM>> get_grid() const {
+            std::vector<Vector<double, NDIM>> grid;
+            long npoint_within_volume=volume()/volume_element;
+            print("npoint_within_volume",npoint_within_volume);
+
+            auto cell = FunctionDefaults<NDIM>::get_cell();
+            auto is_in_cell = [&cell](const Vector<double, NDIM>& r) {
+                for (int d = 0; d < NDIM; ++d) if (r[d] < cell(d, 0) or r[d] > cell(d, 1)) return false;
+                return true;
+            };
+            double rad=radius;
+            auto is_in_sphere = [&rad](const Vector<double, NDIM>& r) {
+                return (r.normf()<rad);
+            };
+
+            // set variance such that about 70% of all grid points sits within the radius
+            double variance=radius;
+            if (NDIM==2) variance=0.6*radius;
+            if (NDIM==3) variance=0.5*radius;
+            long maxrank=10*npoint_within_volume;
+            long rank=0;
+            for (int r=0; r<maxrank; ++r) {
+                auto tmp = gaussian_random_distribution(0, variance);
+                if (not is_in_cell(tmp)) continue;
+                if (is_in_sphere(tmp)) ++rank;
+                grid.push_back(tmp);
+                if (rank==npoint_within_volume) break;
+            }
+            print("grid points in volume ",rank);
+            print("total grid points     ",grid.size());
+            print("ratio                 ",rank/double(grid.size()));
+            print("volume element        ",volume()/rank);
+            return grid;
+        }
+
+    private:
+
+        double volume() const {
+            MADNESS_CHECK(NDIM>0 and NDIM<4);
+            if (NDIM==1) return 2.0*radius;
+            if (NDIM==2) return constants::pi*radius*radius;
+            if (NDIM==3) return 4.0 / 3.0 * constants::pi * std::pow(radius, 3.0);
+        }
+
+        static Vector<double,NDIM> gaussian_random_distribution(double mean, double variance) {
+            std::random_device rd{};
+            std::mt19937 gen{rd()};
+            std::normal_distribution<> d{mean, variance};
+            Vector<double,NDIM> result;
+            for (int i = 0; i < NDIM; ++i) result[i]=d(gen);
+            return result;
+        }
+
+//        double computed_volume_element() const {
+//            double volume = 4.0 / 3.0 * constants::pi * std::pow(radius, 3.0);
+//            print("volume element in random grid", volume / (0.67 * rank));
+//        }
+
+    };
+
+    template<std::size_t NDIM>
+    class sphericalgrid : public gridbase {
     public:
         double volume_element=0.1;
         double radius=3;
         bool hard_shell=true;
 
-        cgrid(const double volume_element, const double radius, bool hard_shell)
+        sphericalgrid(const double volume_element, const double radius, bool hard_shell)
                 :volume_element(volume_element), radius(radius), hard_shell(hard_shell) {
         };
 
@@ -584,34 +657,8 @@ namespace madness {
         /// make a sampling grid Omega_i(r) for the Halko algorithm
         std::vector<Vector<double,LDIM>> make_grid(const LowRankFunctionParameters& params) const {
 
-            std::vector<Vector<double,LDIM>> grid;
-            if (params.gridtype()=="random") {
-                double volume=4.0/3.0*constants::pi *std::pow(params.radius(),3.0);
-                long rank = lround(volume/(0.67*params.volume_element() ));
-                for (int i=0; i<rank; ++i) {
-                    auto tmp=randomgaussian<LDIM>::gaussian_random_distribution(0,params.radius());
-                    auto cell=FunctionDefaults<LDIM>::get_cell();
-                    auto is_in_cell = [&cell](const Vector<double,LDIM>& r) {
-                        for (int d=0; d<LDIM; ++d) if (r[d]<cell(d,0) or r[d]>cell(d,1)) return false;
-                        return true;
-                    };
-                    if (not is_in_cell(tmp)) continue;
-                    grid.push_back(tmp);
-                }
-                if (world.rank()==0 and do_print) {
-                    double volume = 4.0/3.0*constants::pi * std::pow(params.radius(),3.0);
-                    print("volume element in random grid",volume/(0.67*rank));
-                }
-
-
-            } else if (params.gridtype()=="spherical") {
-                cgrid<LDIM> cg(params.volume_element(),params.radius(),params.hard_shell());
-                grid=cg.get_coordinates();
-            } else {
-                MADNESS_EXCEPTION("unknown grid type in project",1);
-            }
-
-            return grid;
+            randomgrid<LDIM> grid(params.volume_element(),params.radius());
+            return grid.get_grid();
         }
 
         double check_orthonormality(const std::vector<Function<T,LDIM>>& v) const {
@@ -673,8 +720,8 @@ namespace madness {
             //   = \sum_{ij} \int g_i(1) g_j(1) d1 \int h_i(2) h_j(2) d2
             //   = \sum_{ij} delta_{ij} \int h_i(2) h_j(2) d2
             //   = \sum_{i} \int h_i(2) h_i(2) d2
-//            double zero=check_orthonormality(g);
-//            if (zero>1.e-10) print("g is not orthonormal",zero);
+            double zero=check_orthonormality(g);
+            if (zero>1.e-10) print("g is not orthonormal",zero);
             double term3=madness::inner(h,h);
             t.tag("computing term3");
 
