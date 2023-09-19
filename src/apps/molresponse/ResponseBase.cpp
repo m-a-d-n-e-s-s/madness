@@ -1364,6 +1364,81 @@ void ResponseBase::function_data_to_json(json &j_mol_in, size_t iter, const Tens
     j_mol_in["protocol_data"][index]["iter_data"].push_back(j);
 }
 
+void ResponseBase::write_vtk(World &world) {
+    // Get start time
+    molresponse::start_timer(world);
+
+    // Plotting input orbitals
+    //if (r_params.plot_initial()) { PlotGroundDensityVTK(world, *this); }
+    const auto protocol = r_params.protocol();
+    if (world.rank() == 0) {
+        print("Response State Calculation for the following protocols");
+        print("Protocol: ", protocol);
+    }
+    bool first_protocol = true;
+    // access the last protocol only
+    auto iter_thresh = protocol.back();
+    // We set the protocol and function defaults here for the given threshold of
+    set_protocol(world, iter_thresh);
+    if (world.rank() == 0) { print("Successfully set protocol"); }
+    // protocol
+    if (first_protocol) {
+        if (r_params.restart()) {
+            if (world.rank() == 0) { print("   Restarting from file:", r_params.restart_file()); }
+            load(world, r_params.restart_file());
+            first_protocol = false;
+        } else {
+            this->initialize(world);
+            if (world.rank() == 0) { print("Successfully initialized "); }
+        }
+        check_k(world, iter_thresh, FunctionDefaults<3>::get_k());
+        if (world.rank() == 0) { print("Successfully check K first initialization "); }
+        first_protocol = false;
+    } else {
+        check_k(world, iter_thresh, FunctionDefaults<3>::get_k());
+        if (world.rank() == 0) { print("Successfully check K not first initialization "); }
+    }
+    // Now actually ready to iterate...
+    // At this point we should know if calc converged maybe add a flag to response.json which states if it has
+    // check norms of vectors ground and response
+    auto x_norms = Chi.norm2s();
+    if (world.rank() == 0) {
+        print("x_norms");
+        print(x_norms);
+    }
+    auto ground_orbitals_norms = norm2s(world, ground_orbitals);
+    if (world.rank() == 0) {
+        print("rho_norms");
+        print(ground_orbitals_norms);
+    }
+    auto response_densities = make_density(world, Chi);
+    auto rho_norms = norm2s(world, response_densities);
+    if (world.rank() == 0) {
+        print("rho_norms");
+        print(rho_norms);
+    }
+
+#if defined(__has_include)
+#if __has_include(<filesystem>)
+#define MADCHEM_HAS_STD_FILESYSTEM
+// <filesystem> is not reliably usable on Linux with gcc < 9
+#if defined(__GNUC__)
+#if __GNUC__ >= 7 && __GNUC__ < 9
+#undef MADCHEM_HAS_STD_FILESYSTEM
+#endif
+#endif
+#if defined(MADCHEM_HAS_STD_FILESYSTEM)
+    auto r_matrix = to_response_matrix(Chi);
+    do_response_orbital_vtk_plots(world, r_params.plot_pts(), r_params.L(), molecule, ground_orbitals, r_matrix);
+    do_response_density_vtk_plots_new(world, r_params.plot_pts(), r_params.L(), molecule, ground_density,
+                                      response_densities);
+#endif
+#endif
+#endif
+
+
+    // Plot the response function if desired
+}
 void ResponseBase::solve(World &world) {
     // Get start time
     molresponse::start_timer(world);

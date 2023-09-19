@@ -696,6 +696,56 @@ auto RunResponse(World &world, const std::string &filename, double frequency, co
     return {save_path, calc.j_molresponse["converged"]};
 }
 
+/**
+ *
+ * @param world
+ * @param filename
+ * @param frequency
+ * @param property
+ * @param xc
+ * @param moldft_path
+ * @param restart_path
+ * @return
+ */
+auto WriteVTKOutputs(World &world, const std::string &filename, double frequency, const std::string &property,
+                     const std::string &xc, const std::filesystem::path &moldft_path,
+                     std::filesystem::path restart_path, const std::string &precision)
+        -> std::pair<std::filesystem::path, bool> {
+    // Set the response parameters
+    ResponseParameters r_params{};
+    set_frequency_response_parameters(world, r_params, property, xc, frequency, precision);
+    auto save_path =
+            set_frequency_path_and_restart(world, r_params, property, frequency, xc, moldft_path, restart_path, true);
+    if (world.rank() == 0) { molresponse::write_response_input(r_params, filename); }
+    // if rbase exists and converged I just return save path and true
+    auto calc_params = initialize_calc_params(world, std::string(filename));
+    RHS_Generator rhs_generator;
+    if (property == "dipole") {
+        rhs_generator = dipole_generator;
+    } else {
+        rhs_generator = nuclear_generator;
+    }
+    FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
+    FrequencyResponse calc(world, calc_params, frequency, rhs_generator);
+    if (world.rank() == 0) {
+        print("\n\n");
+        print(" MADNESS Time-Dependent Density Functional Theory Response "
+              "Program");
+        print(" ----------------------------------------------------------\n");
+        print("\n");
+        calc_params.molecule.print();
+        print("\n");
+        calc_params.response_parameters.print("response");
+        // put the response parameters in a j_molrespone json object
+        calc_params.response_parameters.to_json(calc.j_molresponse);
+    }
+    calc.write_vtk(world);
+    world.gop.fence();
+    // set protocol to the first
+    //calc.time_data.print_data();
+    return {save_path, true};
+}
+
 /***
  * sets the run path based on the run type set by r_params
  * creates the run directory and sets current directory to the run data
@@ -819,6 +869,41 @@ void runFrequencyTests(World &world, const frequencySchema &schema, const std::s
     }
 }
 
+/**
+ * Takes in the moldft path where moldft restart file exists
+ * runs a response calculations for given property at given frequencies.
+ *
+ *
+ * @param world
+ * @param moldft_path
+ * @param frequencies
+ * @param xc
+ * @param property
+ */
+void write_VTK_outputs(World &world, const frequencySchema &schema, const std::string &high_prec) {
+    std::filesystem::current_path(schema.moldft_path);
+    // add a restart path
+    auto restart_path =
+            addPath(schema.moldft_path, "/" + schema.op + "_0-000000.00000/restart_" + schema.op + "_0-000000.00000");
+    std::pair<std::filesystem::path, bool> success{schema.moldft_path, false};
+    bool first = true;
+    for (const auto &freq: schema.freq) {
+        if (world.rank() == 0) { print(success.second); }
+        std::filesystem::current_path(schema.moldft_path);
+        if (first) {
+            first = false;
+        } else if (success.second) {
+            // if the previous run succeeded then set the restart path
+            restart_path = success.first;
+            if (world.rank() == 0) { print("restart_path", restart_path); }
+        } else {
+            throw Response_Convergence_Error{};
+        }
+        success = WriteVTKOutputs(world, "response.in", freq, schema.op, schema.xc, schema.moldft_path, restart_path,
+                                  high_prec);
+        if (world.rank() == 0) { print("Frequency ", freq, " completed"); }
+    }
+}
 
 // set up a function that creates a beta_json with the fields defined  below.  in each field there will
 // a vector of values.
@@ -850,9 +935,6 @@ void append_to_beta_json(const std::array<double, 3> &freq, const std::array<dou
     // append each value of the columns to the beta json
     // for each value of beta
     // capitalize the direction
-
-
-
 
 
     for (int i = 0; i < 18; i++) {

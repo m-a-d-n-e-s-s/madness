@@ -555,6 +555,8 @@ public:
     }
 
 
+    void write_vtk(World &world);
+
 protected:
     // Given molecule returns the nuclear potential of the molecule
     ResponseParameters r_params;

@@ -3,6 +3,7 @@
 
 set(MY_EXECUTABLES
         mad-freq
+        mad-freq_vtk_plots
         mad-excited
         frequency_calc
         excited_state_calc
