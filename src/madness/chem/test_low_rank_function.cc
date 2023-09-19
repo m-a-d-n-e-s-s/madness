@@ -216,6 +216,19 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
 
     json2file(j,jsonfilename);
     timer t(world);
+    auto compute_error = [&](const std::string msg, const LowRankFunction<double,6>& lrf) {
+        auto gk = mul(world, phi_k, g12(lrf.g * phi_k)); // function of 1
+        auto hj = lrf.h * phi; // function of 2
+        Tensor<double> j_hj = inner(world, phi, hj);
+        Tensor<double> i_gk = inner(world, phi, gk);
+        double result_right = j_hj.trace(i_gk);
+        print(msg, result_right);
+        j[msg]=result_right-reference;
+        j[msg+"_rank"]=lrf.rank();
+        j[msg+"_compute_time"]=t.tag(msg+"_compute_time");
+        json2file(j,jsonfilename);
+    };
+
 
     {
         // lowrankfunction left phi: lrf(1',2) = f12(1',2) i(1')
@@ -225,97 +238,66 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
         real_function_3d one = real_factory_3d(world).f([](const coord_3d& r) { return 1.0; });
         LowRankFunction<double, 6> fi_one(f12ptr, copy(phi), copy(one));
         fi_one.project(parameters);
+        double l2error=fi_one.l2error();
+        print("left_project_l2error",l2error);
+
         j["left_project_time"]=t.tag("left_project_time");
         json2file(j,jsonfilename);
-
-        {
-            auto gk = mul(world, phi_k, g12(fi_one.g * phi_k)); // function of 1
-            auto hj = fi_one.h * phi; // function of 2
-            Tensor<double> j_hj = inner(world, phi, hj);
-            Tensor<double> i_gk = inner(world, phi, gk);
-            double result_left = j_hj.trace(i_gk);
-            print("result_left, project only", result_left);
-            j["left_project"]=result_left-reference;
-            j["left_project_rank"]=fi_one.rank();
-            j["left_project_compute_time"]=t.tag("left_project_compute_time");
-        }
-        json2file(j,jsonfilename);
+        compute_error("left_project",fi_one);
 
         fi_one.optimize();
+        l2error=fi_one.l2error();
+        print("left_optimize_l2error",l2error);
         j["left_optimize_time"]=t.tag("left_optimize_time");
         json2file(j,jsonfilename);
-        {
-            auto gk = mul(world, phi_k, g12(fi_one.g * phi_k)); // function of 1
-            auto hj = fi_one.h * phi; // function of 2
-            Tensor<double> j_hj = inner(world, phi, hj);
-            Tensor<double> i_gk = inner(world, phi, gk);
-            double result_left = j_hj.trace(i_gk);
-            print("result_left, optimize", result_left);
-            print("left optimize rank",fi_one.rank());
-            j["left_optimize"]=result_left-reference;
-            j["left_optimize_rank"]=fi_one.rank();
-            j["left_optimize_compute_time"]=t.tag("left_optimize_compute_time");
-        }
-        json2file(j,jsonfilename);
+        compute_error("left_optimize",fi_one);
 
         fi_one.reorthonormalize();
         j["left_reorthonormalize"]=t.tag("left_reorthonormalize");
-        print("left reorthonormalize rank",fi_one.rank());
-        {
-            auto gk = mul(world, phi_k, g12(fi_one.g * phi_k)); // function of 1
-            auto hj = fi_one.h * phi; // function of 2
-            Tensor<double> j_hj = inner(world, phi, hj);
-            Tensor<double> i_gk = inner(world, phi, gk);
-            double result_left = j_hj.trace(i_gk);
-            print("result_left, reorthonormalize", result_left);
-            j["left_project"]=result_left-reference;
-            j["left_project_rank"]=fi_one.rank();
-            j["left_project_compute_time"]=t.tag("left_project_compute_time");
-        }
-        j["left_reorthonormalize_compute_time"]=t.tag("left_reorthonormalize_compute_time");
+        json2file(j,jsonfilename);
+        compute_error("left_reorthonormalize",fi_one);
     }
 
-    // lowrankfunction right phi: lrf(1',2) = f12(1',2) i(1')
-    {
-        real_function_3d one = real_factory_3d(world).f([](const coord_3d &r) { return 1.0; });
-        LowRankFunction<double, 6> fi_one(f12ptr, copy(one), copy(phi));
-        fi_one.project(parameters);
-        std::swap(fi_one.g,fi_one.h);
-        j["right_project_time"]=t.tag("right_project_time");
-        json2file(j,jsonfilename);
-
-
-        {
-            auto gk = mul(world, phi_k, g12(fi_one.g * phi_k)); // function of 1
-            auto hj = fi_one.h * phi; // function of 2
-            Tensor<double> j_hj = inner(world, phi, hj);
-            Tensor<double> i_gk = inner(world, phi, gk);
-            double result_right = j_hj.trace(i_gk);
-            print("result_right, project only", result_right);
-            j["right_project"]=result_right-reference;
-            j["right_project_rank"]=fi_one.rank();
-            j["left_optimize_compute_time"]=t.tag("left_optimize_compute_time");
-            j["right_project_compute_time"]=t.tag("right_project_compute_time");
-        }
-        json2file(j,jsonfilename);
-        std::swap(fi_one.g,fi_one.h);
-        fi_one.optimize();
-        std::swap(fi_one.g,fi_one.h);
-        {
-            auto gk = mul(world, phi_k, g12(fi_one.g * phi_k)); // function of 1
-            auto hj = fi_one.h * phi; // function of 2
-            Tensor<double> j_hj = inner(world, phi, hj);
-            Tensor<double> i_gk = inner(world, phi, gk);
-            double result_right = j_hj.trace(i_gk);
-            print("result_right, optimize", result_right);
-            j["right_optimize"]=result_right-reference;
-            j["right_optimize_rank"]=fi_one.rank();
-            j["right_optimize_compute_time"]=t.tag("right_optimize_compute_time");
-        }
-        json2file(j,jsonfilename);
-
-    }
-
+//    // lowrankfunction right phi: lrf(1',2) = f12(1',2) i(1')
+//    {
+//        real_function_3d one = real_factory_3d(world).f([](const coord_3d &r) { return 1.0; });
+//        LowRankFunction<double, 6> fi_one(f12ptr, copy(one), copy(phi));
+//        fi_one.project(parameters);
+//        std::swap(fi_one.g,fi_one.h);
+//        j["right_project_time"]=t.tag("right_project_time");
+//        json2file(j,jsonfilename);
+//
+//
+//        {
+//            auto gk = mul(world, phi_k, g12(fi_one.g * phi_k)); // function of 1
+//            auto hj = fi_one.h * phi; // function of 2
+//            Tensor<double> j_hj = inner(world, phi, hj);
+//            Tensor<double> i_gk = inner(world, phi, gk);
+//            double result_right = j_hj.trace(i_gk);
+//            print("result_right, project only", result_right);
+//            j["right_project"]=result_right-reference;
+//            j["right_project_rank"]=fi_one.rank();
+//            j["left_optimize_compute_time"]=t.tag("left_optimize_compute_time");
+//            j["right_project_compute_time"]=t.tag("right_project_compute_time");
+//        }
+//        json2file(j,jsonfilename);
+//        std::swap(fi_one.g,fi_one.h);
+//        fi_one.optimize();
+//        std::swap(fi_one.g,fi_one.h);
+//        {
+//            auto gk = mul(world, phi_k, g12(fi_one.g * phi_k)); // function of 1
+//            auto hj = fi_one.h * phi; // function of 2
+//            Tensor<double> j_hj = inner(world, phi, hj);
+//            Tensor<double> i_gk = inner(world, phi, gk);
+//            double result_right = j_hj.trace(i_gk);
+//            print("result_right, optimize", result_right);
+//            j["right_optimize"]=result_right-reference;
+//            j["right_optimize_rank"]=fi_one.rank();
+//            j["right_optimize_compute_time"]=t.tag("right_optimize_compute_time");
+//        }
+//        json2file(j,jsonfilename);
+//
+//    }
 
     return 0;
 
