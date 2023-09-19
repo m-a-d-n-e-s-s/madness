@@ -65,7 +65,6 @@ namespace madness {
         std::filesystem::create_directories(vtk_dir);
 
         std::string geo_file;
-        const char *filename;
 
         Vector<long, 3> points{npt_plot, npt_plot, npt_plot};
         // Plot the whole box?
@@ -83,12 +82,13 @@ namespace madness {
 
         int orb_num = 0;
 
+        auto orbital_file = vtk_dir + "/" + "orbitals.vts";
+        plotvtk_begin<3>(world, orbital_file.c_str(), box_lo, box_hi, points, true);
+
         std::for_each(ground_orbs.begin(), ground_orbs.end(), [&](const auto &phi0_i) {
-            auto orb_file = vtk_dir + "/phi0_" + std::to_string(orb_num) + ".vts";
-            filename = orb_file.c_str();
-            plotvtk_begin<3>(world, filename, box_lo, box_hi, points, true);
-            plotvtk_data<double, 3>(phi0_i, "ground_orbtial", world, filename, box_lo, box_hi, points, true, false);
-            plotvtk_end<3>(world, filename, true);
+            auto orb_name = "/phi0_" + std::to_string(orb_num);
+            plotvtk_data<double, 3>(phi0_i, orb_name.c_str(), world, orbital_file.c_str(), box_lo, box_hi, points, true,
+                                    false);
             orb_num++;
         });
 
@@ -99,26 +99,21 @@ namespace madness {
             // plot the x first
             auto orb_num = 0;
             std::for_each(xy.begin(), xy.begin() + num_orbitals, [&](const auto &xi) {
-                auto orb_file = vtk_dir + "/" + "x" + std::to_string(state_number) + std::to_string(orb_num) + ".vts";
-                filename = orb_file.c_str();
-                plotvtk_begin<3>(world, filename, box_lo, box_hi, points, true);
-                plotvtk_data<double, 3>(xi, "response_x_orbitals", world, filename, box_lo, box_hi, points, true,
-                                        false);
-                plotvtk_end<3>(world, filename, true);
+                auto field_name = "x_orbital_" + std::to_string(state_number) + "_" + std::to_string(orb_num);
+                plotvtk_data<double, 3>(xi, field_name.c_str(), world, orbital_file.c_str(), box_lo, box_hi, points,
+                                        true, false);
                 orb_num++;
             });
             orb_num = 0;
             std::for_each(xy.begin() + num_orbitals, xy.end(), [&](const auto &yi) {
-                auto orb_file = vtk_dir + "/" + "y" + std::to_string(state_number) + std::to_string(orb_num) + ".vts";
-                filename = orb_file.c_str();
-                plotvtk_begin<3>(world, filename, box_lo, box_hi, points, true);
-                plotvtk_data<double, 3>(yi, "response_y_orbitals", world, filename, box_lo, box_hi, points, true,
-                                        false);
-                plotvtk_end<3>(world, filename, true);
+                auto field_name = "y_orbital_" + std::to_string(state_number) + "_" + std::to_string(orb_num);
+                plotvtk_data<double, 3>(yi, field_name.c_str(), world, orbital_file.c_str(), box_lo, box_hi, points,
+                                        true, false);
                 orb_num++;
             });
             state_number++;
         });
+        plotvtk_end<3>(world, orbital_file.c_str(), true);
     }
     void do_response_density_vtk_plots(World &world, int npt_plot, double L, const Molecule &molecule,
                                        const real_function_3d &ground_density,
@@ -162,8 +157,9 @@ namespace madness {
                                            const vector_real_function_3d &response_density) {
         // Stuff needed to plot
         //
-        Vector<double, 3> box_lo{-L / 4, -L / 4, -L / 4};
-        Vector<double, 3> box_hi{L / 4, L / 4, L / 4};
+        auto L_box = L / 10;
+        Vector<double, 3> box_lo{-L_box, -L_box, -L_box};
+        Vector<double, 3> box_hi{L_box , L_box, L_box};
 
 
         std::string vtk_dir = "vtk_plots";
@@ -183,9 +179,9 @@ namespace madness {
         //***********************************ground density plot
         int state_number = 0;
         std::for_each(response_density.begin(), response_density.end(), [&](const auto &rho_i) {
-          auto field_name = "response_" + std::to_string(state_number);
-          plotvtk_data<double, 3>(rho_i, field_name.c_str(), world, filename, box_lo, box_hi, points, true, false);
-          state_number++;
+            auto field_name = "response_" + std::to_string(state_number);
+            plotvtk_data<double, 3>(rho_i, field_name.c_str(), world, filename, box_lo, box_hi, points, true, false);
+            state_number++;
         });
         plotvtk_end<3>(world, filename, true);
     }
