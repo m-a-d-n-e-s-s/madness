@@ -57,8 +57,8 @@ namespace madness {
                                        const response_matrix &responseMatrix) {
         // Stuff needed to plot
         //
-        Vector<double, 3> box_lo{-L / 4, -L / 4, -L / 4};
-        Vector<double, 3> box_hi{L / 4, L / 4, L / 4};
+        Vector<double, 3> box_lo{-L / 10, -L / 10, -L / 10};
+        Vector<double, 3> box_hi{L / 10, L / 10, L / 10};
 
 
         std::string vtk_dir = "vtk_plots";
@@ -159,7 +159,7 @@ namespace madness {
         //
         auto L_box = L / 10;
         Vector<double, 3> box_lo{-L_box, -L_box, -L_box};
-        Vector<double, 3> box_hi{L_box , L_box, L_box};
+        Vector<double, 3> box_hi{L_box, L_box, L_box};
 
 
         std::string vtk_dir = "vtk_plots";
