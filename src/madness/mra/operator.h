@@ -1043,7 +1043,7 @@ namespace madness {
             initialize(coeff,expnt);
         }
 
-        void initialize(const Tensor<Q>& coeff, const Tensor<Q>& expnt) {
+        void initialize(const Tensor<Q>& coeff, const Tensor<double>& expnt) {
             // Presently we must have periodic or non-periodic in all dimensions.
             for (std::size_t d=1; d<NDIM; ++d) {
                 MADNESS_ASSERT(bc(d,0)==bc(0,0));

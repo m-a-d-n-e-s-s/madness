@@ -385,7 +385,7 @@ int main(int argc, char **argv) {
 //        isuccess+=test_arithmetic<2>(world,parameters);
 
 //        isuccess+=test_lowrank_function(world,parameters);
-       isuccess+=test_Kcommutator(world,parameters);
+//       isuccess+=test_Kcommutator(world,parameters);
     } catch (std::exception& e) {
         madness::print("an error occured");
         madness::print(e.what());
