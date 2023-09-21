@@ -518,12 +518,9 @@ namespace madness {
     		return v;
     	}
 
-        auto sv=copy(ovlp);
     	rr_cholesky(ovlp,tol,piv,rank); // destroys ovlp and gives back Upper ∆ Matrix from CCD
-        // ovlp zeroed such that input = inner(transpose(output),output).
 
-
-                // rearrange and truncate the functions according to the pivoting of the rr_cholesky
+    	// rearrange and truncate the functions according to the pivoting of the rr_cholesky
     	std::vector<Function<T,NDIM> > pv(rank);
     	for(integer i=0;i<rank;++i){
     		pv[i]=v[piv[i]];
@@ -534,21 +531,8 @@ namespace madness {
     	Tensor<T> Linv = inverse(L);
     	Tensor<T> U = transpose(Linv);
 
-//        // L L^T = ovlp
-//        // Linv ovlp LT inv = 1
-//        Tensor<T> LTinv=inverse(ovlp);
-//        Tensor<T> test=inner(LTinv, inner(sv,Linv));
-//        print("LTinv, inner(sv,Linv)");
-//        print(test);
-//
-//        print("ovlp - LLt");
-//        print(sv-inner(L,L,1,0));
-//        print("Linv ovlp Ltinv",inner(Linv, inner(sv,LTinv)).normf());
-//
-//
-//        throw;
     	World& world=v.front().world();
-    	return transform(world, pv, U,tol);
+    	return transform(world, pv, U);
     }
 
     /// convenience routine for orthonromalize_cholesky: orthonromalize_cholesky without information on pivoting and rank
@@ -572,7 +556,7 @@ namespace madness {
     	}
     	// compute overlap
     	World& world=v.front().world();
-    	Tensor<T> ovlp = matrix_inner(world, v, v,true);
+    	Tensor<T> ovlp = matrix_inner(world, v, v);
     	return orthonormalize_rrcd(v,ovlp,tol);
     }
 
