@@ -257,11 +257,11 @@ namespace madness {
     }
 
     namespace detail {
-        template <typename T> T mynorm(T t) {
-            return t*t;
+        template <typename T> double mynorm(T t) {
+            return double(t)*t;
         }
 
-        template <typename T> T mynorm(std::complex<T> t) {
+        template <typename T> double mynorm(std::complex<T> t) {
             return std::norm(t);
         }
     }

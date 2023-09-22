@@ -53,13 +53,13 @@ namespace {
         return ((double) x)*x;
     }
 
-//    template <> double mynorm<float_complex>(float_complex x) {
-//        return (double) std::norm(x);
-//    }
-//
-//    template <> double mynorm<double_complex>(double_complex x) {
-//        return (double) std::norm(x);
-//    }
+    template <> double mynorm<float_complex>(float_complex x) {
+        return (double) std::norm(x);
+    }
+    
+    template <> double mynorm<double_complex>(double_complex x) {
+        return (double) std::norm(x);
+    }
 
     template <typename T, typename Q>
     inline
