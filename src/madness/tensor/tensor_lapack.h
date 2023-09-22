@@ -102,8 +102,31 @@ namespace madness {
     /// Solves non-symmetric or non-Hermitian generalized eigenvalue problem
 
     template <typename T>
-    void ggev(const Tensor<T>& A, Tensor<T>& B, Tensor<T>& VR,
-              Tensor<std::complex<T>>& e);
+    struct complex_type {
+        typedef std::complex<T> type;
+    };
+
+    template <typename T>
+    struct complex_type<std::complex<T>> {
+        typedef std::complex<T> type;
+    };
+    
+    template <typename T>
+    struct real_type {
+        typedef T type;
+    };
+
+    template <typename T>
+    struct real_type<std::complex<T>> {
+        typedef T type;
+    };
+    
+    template <typename T>
+    void ggev(const Tensor<T>& A, const Tensor<T>& B, Tensor<typename complex_type<T>::type>& VR,
+              Tensor<typename complex_type<T>::type>& e);
+    // template <typename T>
+    // void ggev(const Tensor<T>& A, Tensor<T>& B, Tensor<T>& VR,
+    //           Tensor<std::complex<T>>& e);
     // END BRYAN ADDITIONS
     /// Solves symmetric or Hermitian eigenvalue problem - MATLAB syntax
 

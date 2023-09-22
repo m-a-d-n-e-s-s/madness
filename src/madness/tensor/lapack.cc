@@ -391,13 +391,23 @@ STATIC inline void dsyev_(const char* jobz, const char* uplo, integer *n,
 #endif
 }
 
-#if MADNESS_LINALG_USE_LAPACKE
 STATIC inline void dsyev_(const char* jobz, const char* uplo, integer *n,
                           real8 *a, integer *lda, real8 *w,  real8 *work,  integer *lwork,
                           integer *info, char_len jobzlen, char_len uplo_len ) {
+#if MADNESS_LINALG_USE_LAPACKE
   dsyev_(jobz, uplo, n, a, lda, w, work, lwork, info);
-}
+#else
+  dsyev_(jobz, uplo, n, a, lda, w,  work,  lwork, info, jobzlen, uplo_len );
 #endif
+}
+
+// #if MADNESS_LINALG_USE_LAPACKE
+// STATIC inline void dsyev_(const char* jobz, const char* uplo, integer *n,
+//                           real8 *a, integer *lda, real8 *w,  real8 *work,  integer *lwork,
+//                           integer *info, char_len jobzlen, char_len uplo_len ) {
+//   dsyev_(jobz, uplo, n, a, lda, w, work, lwork, info);
+// }
+// #endif
 
 STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
                    complex_real4 *a, integer *lda, real4 *w,
@@ -495,77 +505,51 @@ STATIC inline void dgeev_(const char* jobz, const char* uplo, integer *n,
 /// These oddly-named wrappers enable the generic ggev iterface to get
 /// the correct LAPACK routine based upon the argument type.  Internal
 /// use only.
-STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
-                          real4 *a, integer *lda, real4 *b, integer *ldb,
-                          real4 *w_real, real4 *w_imag, real4 *beta,
-                          real4 *vl, integer *ldvl, real4 *vr, integer *ldvr,
-                          real4 *work,  integer *lwork, integer *info,
-                          char_len jobzlen, char_len uplo_len) {
-#if MADNESS_LINALG_USE_LAPACKE
-    sggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info );
-#else
-    sggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info,
-           jobzlen, uplo_len );
-#endif
-}
-
-STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
-                          real8 *a, integer *lda, real8 *b, integer *ldb,
-                          real8 *w_real, real8 *w_imag, real8 *beta,
-                          real8 *vl, integer *ldvl, real8 *vr, integer *ldvr,
-                          real8 *work,  integer *lwork, integer *info,
-                          char_len jobzlen, char_len uplo_len) {
-#if MADNESS_LINALG_USE_LAPACKE
-    dggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info );
-#else
-    dggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info, jobzlen, uplo_len);    
-#endif
-}
-
+// NOTE since the complex and real lapack APIs differ we are lazily only providing the complex interface here
+// so real matrics are mapped into these (at the expense of perhaps double the computational cost)
 STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
                           complex_real4 *a, integer *lda, complex_real4 *b, integer *ldb,
-                          complex_real4 *w, complex_real4 *w_imag, complex_real4 *beta,
+                          complex_real4 *alpha, complex_real4 *beta,
                           complex_real4 *vl, integer *ldvl, complex_real4 *vr, integer *ldvr,
-                          complex_real4 *work,  integer *lwork, integer *info,
-                          char_len jobzlen, char_len uplo_len) {
-    Tensor<float> rwork(max((integer) 1, (integer) (2* (*n))));
+                          complex_real4 *work,  integer *lwork, 
+                          integer *info,
+                          char_len jobzlen, char_len jobrlen) {
+    Tensor<float> rwork(8*(*n));
 #if MADNESS_LINALG_USE_LAPACKE
-    cggev_(jobl, jobr, n, reinterpret_cast<lapack_complex_float*>(a), lda,
+    cggev_(jobl, jobr, n,
+           reinterpret_cast<lapack_complex_float*>(a), lda,
            reinterpret_cast<lapack_complex_float*>(b), ldb,
-           reinterpret_cast<lapack_complex_float*>(w),
+           reinterpret_cast<lapack_complex_float*>(alpha),
            reinterpret_cast<lapack_complex_float*>(beta),
            reinterpret_cast<lapack_complex_float*>(vl), ldvl,
            reinterpret_cast<lapack_complex_float*>(vr), ldvr,
-           reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(), info );
+           reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(), info);
 #else
-    cggev_(jobl, jobr, n, a, lda, b, ldb, w, beta, vl, ldvl, vr, ldvr, work, lwork, rwork.ptr(), info,
-           jobzlen, uplo_len );
-
+    cggev_(jobl, jobr, n, a, lda, b, ldb, alpha, beta, vl, ldvl, vr, ldvr, work, lwork, rwork.ptr(), info, jobzlen, jobrlen);
 #endif
 }
-
 
 STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
                           complex_real8 *a, integer *lda, complex_real8 *b, integer *ldb,
-                          complex_real8 *w, complex_real8 *w_imag, complex_real8 *beta,
+                          complex_real8 *alpha, complex_real8 *beta,
                           complex_real8 *vl, integer *ldvl, complex_real8 *vr, integer *ldvr,
-                          complex_real8 *work,  integer *lwork, integer *info,
-                          char_len jobzlen, char_len uplo_len) {
-    Tensor<double> rwork(max((integer) 1, (integer) (2* (*n))));
+                          complex_real8 *work,  integer *lwork, 
+                          integer *info,
+                          char_len jobzlen, char_len jobrlen) {
+    Tensor<double> rwork(8*(*n));
 #if MADNESS_LINALG_USE_LAPACKE
-    zggev_(jobl, jobr, n, reinterpret_cast<lapack_complex_double*>(a), lda,
+    zggev_(jobl, jobr, n,
+           reinterpret_cast<lapack_complex_double*>(a), lda,
            reinterpret_cast<lapack_complex_double*>(b), ldb,
-           reinterpret_cast<lapack_complex_double*>(w),
+           reinterpret_cast<lapack_complex_double*>(alpha),
            reinterpret_cast<lapack_complex_double*>(beta),
            reinterpret_cast<lapack_complex_double*>(vl), ldvl,
            reinterpret_cast<lapack_complex_double*>(vr), ldvr,
-           reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(), info );
+           reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(), info);
 #else
-    zggev_(jobl, jobr, n, a, lda, b, ldb, w, beta, vl, ldvl, vr, ldvr, work, lwork, rwork.ptr(), info,
-           jobzlen, uplo_len );
+    zggev_(jobl, jobr, n, a, lda, b, ldb, alpha, beta, vl, ldvl, vr, ldvr, work, lwork, rwork.ptr(), info, jobzlen, jobrlen);
 #endif
 }
-// bryan edits end
 
 
 /// These oddly-named wrappers enable the generic orgqr/unggr iterface to get
@@ -871,7 +855,7 @@ namespace madness {
         TENSOR_ASSERT(info == 0, "(s/d)syev/(c/z)heev failed", info, &A);
         V = transpose(V);
     }
-// bryan edits
+
     /** \brief   Real non-symmetric or complex non-Hermitian eigenproblem.
 
     A is a real non-symmetric or complex non-Hermitian matrix.  Return V and e
@@ -912,7 +896,6 @@ namespace madness {
         std::complex<double> my_i(0,1);
         e = e_real + e_imag * my_i;
     }
-// bryan edits end
 
     /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
 
@@ -960,7 +943,6 @@ namespace madness {
         V = transpose(V);
     }
 
-    // bryan edit start
     /** \brief  Generalized real-non-symmetric or complex-non-Hermitian eigenproblem.
 
     This from the LAPACK documentation
@@ -1000,57 +982,39 @@ namespace madness {
           abs(real part)+abs(imag. part)=1.
 
     */
-    // Might not work if A is complex (type issues on tensor e)
+
     template <typename T>
-    void ggev(const Tensor<T>& A, Tensor<T>& B, Tensor<T>& VR,
-              Tensor<std::complex<T>>& e) {
+    void ggev(const Tensor<T>& A, const Tensor<T>& B, Tensor<typename complex_type<T>::type>& VR, Tensor<typename complex_type<T>::type>& e) {
+        using complexT = typename complex_type<T>::type;
+        using realT = typename real_type<T>::type;
+        
         TENSOR_ASSERT(A.ndim() == 2, "ggev requires a matrix",A.ndim(),&A);
         TENSOR_ASSERT(A.dim(0) == A.dim(1), "ggev requires square matrix",0,&A);
         TENSOR_ASSERT(B.ndim() == 2, "ggev requires a matrix",B.ndim(),&A);
         TENSOR_ASSERT(B.dim(0) == B.dim(1), "ggev requires square matrix",0,&A);
         integer n = A.dim(0);
-        integer lwork = max(max((integer) 1,(integer) (3*n)),(integer) (34*n));
+        integer lwork = 40*n;
         integer info;
-        Tensor<T> work(lwork);
-        Tensor<T> A_copy = copy(A);
-        Tensor<T> VL(n,n); // Should not be referenced
-        Tensor<T> e_real(n), e_imag(n), beta(n);
-        dggev_("N", "V", &n,
-                A_copy.ptr(), &n, B.ptr(), &n,
-                e_real.ptr(), e_imag.ptr(), beta.ptr(),
-                VL.ptr(), &n, VR.ptr(), &n,
-                work.ptr(), &lwork, &info,
-                (char_len) 1, (char_len) 1);
+        Tensor<complexT> work(lwork);
+        Tensor<complexT> A_copy = transpose(A);
+        Tensor<complexT> B_copy = transpose(B);
+        Tensor<complexT> alpha(n), beta(n);
+        Tensor<complexT> VL(1,1); // Should not be referenced
+        VR = Tensor<complexT>(n,n);
+        dggev_("N", "V", &n, A_copy.ptr(), &n, B_copy.ptr(), &n,
+               alpha.ptr(), beta.ptr(),
+               VL.ptr(), &n, VR.ptr(), &n,
+               work.ptr(), &lwork, &info,
+               (char_len) 1, (char_len) 1);
         mask_info(info);
         TENSOR_ASSERT(info == 0, "(s/d)ggev/(c/z)ggev failed", info, &A);
-
-        // Sometimes useful
-        //print("e_real:\n", e_real);
-        //print("e_imag:\n", e_imag);
-        //print("beta:\n", beta);
-
-        // Now put energies back where user expects them to be
-        // Need to be smart with the division, possibly throw
-        // errors if neccessary.
-        std::complex<double> my_i(0,1);
-        for(int i = 0; i < e.dim(0); i++)
-        {
-           MADNESS_ASSERT(beta(i) >=  1e-14); // Do something smarter here?
-           // Two cases:
-           // Case 1: Real value (imaginary == 0)
-           if(e_imag(i) == 0.0)
-              e(i) = e_real(i) / beta(i);
-           // Case 2: Complex value (need to handle the pair)
-           else
-           {
-              e(i) = (e_real(i) + my_i * e_imag(i)) / beta(i);
-              e(i+1) = (e_real(i) - my_i * e_imag(i)) / beta(i);
-              i = i + 1; // Already took care of the paired value as well
-           }
+        e = Tensor<complexT>(n);
+        for (int i=0; i<n; ++i) {
+            MADNESS_ASSERT(beta(i) != complexT(0));
+            e(i) = alpha(i)/beta(i); // overly simplisitic but for physical matrices this should be fine (?)
         }
         VR = transpose(VR);
     }
-// bryan edits stop
     /** \brief  Compute the Cholesky factorization.
 
     Compute the Cholesky factorization of the symmetric positive definite matrix A
@@ -1312,8 +1276,6 @@ namespace madness {
         return conj_transpose(a);
     }
 
-
-
     /// Example and test code for interface to LAPACK SVD interfae
     template <typename T>
     double test_svd(int n, int m) {
@@ -1377,13 +1339,20 @@ namespace madness {
         Tensor<T> a(n,n), V;
         Tensor< typename Tensor<T>::scalar_type > e;
         a.fillrandom();
-        //a += madness::my_conj_transpose(a);
-        a += madness::transpose(a);
+        for (int i=0; i<n; ++i) { // Make A Hermitian
+            a(i,i) = a(i,i) + conditional_conj(a(i,i));
+            for (int j=0; j<i; ++j) {
+                a(i,j) = conditional_conj(a(j,i));
+            }
+        }
+
         syev(a,V,e);
+        
         double err = 0.0;
         for (int i=0; i<n; ++i) {
-            err = max(err,(double) (inner(a,V(_,i)) - V(_,i)*e(i)).normf());
-          //err = max(err,(double) (inner(a,V(_,i)) - V(_,i)*((T) e(i))).normf());
+            double erri = (double) (inner(a,V(_,i)) - V(_,i)*e(i)).normf();
+            //print(i, erri, inner(a,V(_,i)) - V(_,i)*e(i));
+            err = max(err,erri);
         }
         return err;
     }
@@ -1411,14 +1380,49 @@ namespace madness {
 
         a.fillrandom();
         b.fillrandom();
-        a += madness::my_conj_transpose(a);
-        b += madness::my_conj_transpose(b);
+        for (int i=0; i<n; ++i) { // Make A and B Hermitian
+            a(i,i) = a(i,i) + conditional_conj(a(i,i)); 
+            b(i,i) = b(i,i) + conditional_conj(b(i,i)) + T(2*n);  // make B pos-def
+            for (int j=0; j<i; ++j) {
+                a(i,j) = conditional_conj(a(j,i));
+                b(i,j) = conditional_conj(b(j,i));
+            }
+        }
 
-        for (int i=0; i<n; ++i) b(i,i) = 2*n;	// To make pos-def
         sygv(a,b,1,V,e);
+        
         double err = 0.0;
         for (int i=0; i<n; ++i) {
             err = max(err,(double) (inner(a,V(_,i)) - inner(b,V(_,i))*(T) e(i)).normf());
+        }
+        return err;
+    }
+
+    template <typename T>
+    double test_ggev(int n) {
+        using complexT = typename complex_type<T>::type;
+        using realT = typename real_type<T>::type;
+        Tensor<T> a(n,n), b(n,n);
+        Tensor<complexT> e, V;
+        
+        a.fillrandom();
+        b.fillrandom();
+
+        b += madness::my_conj_transpose(b); // make b hermitian and pos-def
+        for (int i=0; i<n; ++i) b(i,i) = 2*n;
+        
+        ggev(a,b,V,e);
+
+        typename Tensor<T>::float_scalar_type err = 0.0;
+        // print("");
+        // print("a"); print(a);
+        // print("b"); print(b);
+        // print("V"); print(V);
+        // print("e"); print(e);
+        for (int i=0; i<n; ++i) {
+            err = max(err,(inner(a,V(_,i)) - inner(b,V(_,i))*e(i)).normf());
+            //print("err",i, (inner(a,V(_,i)) - inner(b,V(_,i))*e(i)).normf());
+            //print(inner(a,V(_,i)) - inner(b,V(_,i))*e(i));
         }
         return err;
     }
@@ -1544,8 +1548,8 @@ namespace madness {
 
             cout << "error in double syev " << test_syev<double>(21) << endl;
             cout << "error in float syev " << test_syev<float>(21) << endl;
-            cout << "error in float_complex syev " << test_syev<float_complex>(21) << endl;
-            cout << "error in double_complex syev " << test_syev<double_complex>(21) << endl;
+            cout << "error in float_complex syev " << test_syev<float_complex>(23) << endl;
+            cout << "error in double_complex syev " << test_syev<double_complex>(23) << endl;
             cout << endl;
 
 
@@ -1553,6 +1557,10 @@ namespace madness {
             cout << "error in double sygv " << test_sygv<double>(20) << endl;
             cout << "error in float_complex sygv " << test_sygv<float_complex>(23) << endl;
             cout << "error in double_complex sygv " << test_sygv<double_complex>(24) << endl;
+            cout << "error in float ggev " << test_ggev<float>(21) << endl;
+            cout << "error in double ggev " << test_ggev<double>(21) << endl;
+            cout << "error in float_complex ggev " << test_ggev<float_complex>(21) << endl;
+            cout << "error in double_complex ggev " << test_ggev<double_complex>(21) << endl;
             cout << endl;
 
             cout << "error in float gesv " << test_gesv<float>(20,30) << endl;
@@ -1598,150 +1606,136 @@ namespace madness {
         return true;			//
     }
 
-    // int main() {
-    //   test_tensor_lapack();
-    //   return 0;
-    // }
 
     // GCC 4.4.3 seems to want these explicitly instantiated whereas previous
     // versions were happy with the instantiations caused by the test code above
 
-    template
-    void svd_result(Tensor<float>& a, Tensor<float>& U,
-             Tensor<Tensor<float>::scalar_type >& s, Tensor<float>& VT, Tensor<float>& work);
+    // Is this still necessary???????? Trying without
 
-    template
-    void orgqr(Tensor<float>& A, const Tensor<float>& tau);
+    // template
+    // void svd_result(Tensor<float>& a, Tensor<float>& U,
+    //          Tensor<Tensor<float>::scalar_type >& s, Tensor<float>& VT, Tensor<float>& work);
 
-
-    template
-    void svd(const Tensor<float>& a, Tensor<float>& U,
-             Tensor<Tensor<float>::scalar_type >& s, Tensor<float>& VT);
-
-    template
-    void svd(const Tensor<double>& a, Tensor<double>& U,
-             Tensor<Tensor<double>::scalar_type >& s, Tensor<double>& VT);
-
-    template
-    void svd_result(Tensor<double>& a, Tensor<double>& U,
-             Tensor<Tensor<double>::scalar_type >& s, Tensor<double>& VT, Tensor<double>& work);
-
-    template
-    void gelss(const Tensor<double>& a, const Tensor<double>& b, double rcond,
-               Tensor<double>& x, Tensor<Tensor<double>::scalar_type >& s,
-               long &rank, Tensor<Tensor<double>::scalar_type>& sumsq);
-
-    template
-    void syev(const Tensor<double>& A,
-              Tensor<double>& V, Tensor<Tensor<double>::scalar_type >& e);
+    // template
+    // void orgqr(Tensor<float>& A, const Tensor<float>& tau);
 
 
-    template
-    void cholesky(Tensor<double>& A);
+    // template
+    // void svd(const Tensor<float>& a, Tensor<float>& U,
+    //          Tensor<Tensor<float>::scalar_type >& s, Tensor<float>& VT);
 
-    template
-    void rr_cholesky(Tensor<double>& A, typename Tensor<double>::scalar_type tol, Tensor<integer>& piv, int& rank);
+    // template
+    // void svd(const Tensor<double>& a, Tensor<double>& U,
+    //          Tensor<Tensor<double>::scalar_type >& s, Tensor<double>& VT);
 
+    // template
+    // void svd_result(Tensor<double>& a, Tensor<double>& U,
+    //          Tensor<Tensor<double>::scalar_type >& s, Tensor<double>& VT, Tensor<double>& work);
 
-    template
-    Tensor<double> inverse(const Tensor<double>& A);
+    // template
+    // void gelss(const Tensor<double>& a, const Tensor<double>& b, double rcond,
+    //            Tensor<double>& x, Tensor<Tensor<double>::scalar_type >& s,
+    //            long &rank, Tensor<Tensor<double>::scalar_type>& sumsq);
 
-    template
-    void qr(Tensor<float>& A, Tensor<float>& R);
-
-    template
-    void qr(Tensor<double>& A, Tensor<double>& R);
-
-    template
-    void qr(Tensor<float_complex>& A, Tensor<float_complex>& R);
-
-    template
-    void qr(Tensor<double_complex>& A, Tensor<double_complex>& R);
-
+    // template
+    // void syev(const Tensor<double>& A,
+    //           Tensor<double>& V, Tensor<Tensor<double>::scalar_type >& e);
 
 
-    template
-    void lq(Tensor<double>& A, Tensor<double>& L);
+    // template
+    // void cholesky(Tensor<double>& A);
 
-    template
-    void lq_result(Tensor<double>& A, Tensor<double>& R, Tensor<double>& tau, Tensor<double>& work,
-    		bool do_qr);
-
-
-    template
-    void geqp3(Tensor<double>& A, Tensor<double>& tau, Tensor<integer>& jpvt);
-
-//     template
-//     void triangular_solve(const Tensor<double>& L, Tensor<double>& B,
-//                           const char* side, const char* transa);
-
-    template
-    void orgqr(Tensor<double>& A, const Tensor<double>& tau);
-
-    template
-    void svd(const Tensor<float_complex>& a, Tensor<float_complex>& U,
-             Tensor<Tensor<float_complex>::scalar_type >& s, Tensor<float_complex>& VT);
+    // template
+    // void rr_cholesky(Tensor<double>& A, typename Tensor<double>::scalar_type tol, Tensor<integer>& piv, int& rank);
 
 
-    template
-    void svd_result(Tensor<float_complex>& a, Tensor<float_complex>& U,
-             Tensor<Tensor<float_complex>::scalar_type >& s, Tensor<float_complex>& VT,
-             Tensor<float_complex>& work);
+    // template
+    // Tensor<double> inverse(const Tensor<double>& A);
+
+    // template
+    // void qr(Tensor<float>& A, Tensor<float>& R);
+
+    // template
+    // void qr(Tensor<double>& A, Tensor<double>& R);
+
+    // template
+    // void qr(Tensor<float_complex>& A, Tensor<float_complex>& R);
+
+    // template
+    // void qr(Tensor<double_complex>& A, Tensor<double_complex>& R);
 
 
-    template
-    void svd(const Tensor<double_complex>& a, Tensor<double_complex>& U,
-             Tensor<Tensor<double_complex>::scalar_type >& s, Tensor<double_complex>& VT);
 
-    template
-    void svd_result(Tensor<double_complex>& a, Tensor<double_complex>& U,
-             Tensor<Tensor<double_complex>::scalar_type >& s, Tensor<double_complex>& VT,
-             Tensor<double_complex>& work);
+    // template
+    // void lq(Tensor<double>& A, Tensor<double>& L);
 
-    template
-    void gelss(const Tensor<double_complex>& a, const Tensor<double_complex>& b, double rcond,
-               Tensor<double_complex>& x, Tensor<Tensor<double_complex>::scalar_type >& s,
-               long &rank, Tensor<Tensor<double_complex>::scalar_type>& sumsq);
+    // template
+    // void lq_result(Tensor<double>& A, Tensor<double>& R, Tensor<double>& tau, Tensor<double>& work,
+    // 		bool do_qr);
 
-    template
-    void syev(const Tensor<double_complex>& A,
-              Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
 
-// bryan edits start
-    template
-    void geev(const Tensor<double>& A, Tensor<double>& V, Tensor<std::complex<double>>& e);
+    // template
+    // void geqp3(Tensor<double>& A, Tensor<double>& tau, Tensor<integer>& jpvt);
 
-    template
-    void ggev(const Tensor<double>& A, Tensor<double>& B, Tensor<double>& V, Tensor<std::complex     <double>>& e);
-// bryan edits end
+    // template
+    // void orgqr(Tensor<double>& A, const Tensor<double>& tau);
 
-    template
-    void cholesky(Tensor<double_complex>& A);
+    // template
+    // void svd(const Tensor<float_complex>& a, Tensor<float_complex>& U,
+    //          Tensor<Tensor<float_complex>::scalar_type >& s, Tensor<float_complex>& VT);
 
-    template
-    void rr_cholesky(Tensor<double_complex>& A, typename Tensor<double_complex>::scalar_type tol, Tensor<integer>& piv, int& rank);
 
-//     template
-//     void triangular_solve(const Tensor<double_complex>& L, Tensor<double_complex>& B,
-//                           const char* side, const char* transa);
-    template
-    void gesv(const Tensor<double>& a, const Tensor<double>& b, Tensor<double>& x);
+    // template
+    // void svd_result(Tensor<float_complex>& a, Tensor<float_complex>& U,
+    //          Tensor<Tensor<float_complex>::scalar_type >& s, Tensor<float_complex>& VT,
+    //          Tensor<float_complex>& work);
 
-    template
-    void gesv(const Tensor<double_complex>& a, const Tensor<double_complex>& b, Tensor<double_complex>& x);
 
-    template
-    void sygv(const Tensor<double>& A, const Tensor<double>& B, int itype,
-              Tensor<double>& V, Tensor<Tensor<double>::scalar_type >& e);
-    template
-    void sygv(const Tensor<double_complex>& A, const Tensor<double_complex>& B, int itype,
-              Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
+    // template
+    // void svd(const Tensor<double_complex>& a, Tensor<double_complex>& U,
+    //          Tensor<Tensor<double_complex>::scalar_type >& s, Tensor<double_complex>& VT);
 
-    template
-    void orgqr(Tensor<complex_real4>& A, const Tensor<complex_real4>& tau);
+    // template
+    // void svd_result(Tensor<double_complex>& a, Tensor<double_complex>& U,
+    //          Tensor<Tensor<double_complex>::scalar_type >& s, Tensor<double_complex>& VT,
+    //          Tensor<double_complex>& work);
 
-    template
-    void orgqr(Tensor<double_complex>& A, const Tensor<double_complex>& tau);
+    // template
+    // void gelss(const Tensor<double_complex>& a, const Tensor<double_complex>& b, double rcond,
+    //            Tensor<double_complex>& x, Tensor<Tensor<double_complex>::scalar_type >& s,
+    //            long &rank, Tensor<Tensor<double_complex>::scalar_type>& sumsq);
+
+    // template
+    // void syev(const Tensor<double_complex>& A,
+    //           Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
+
+    // template
+    // void geev(const Tensor<double>& A, Tensor<double>& V, Tensor<std::complex<double>>& e);
+
+    // template
+    // void cholesky(Tensor<double_complex>& A);
+
+    // template
+    // void rr_cholesky(Tensor<double_complex>& A, typename Tensor<double_complex>::scalar_type tol, Tensor<integer>& piv, int& rank);
+
+    // template
+    // void gesv(const Tensor<double>& a, const Tensor<double>& b, Tensor<double>& x);
+
+    // template
+    // void gesv(const Tensor<double_complex>& a, const Tensor<double_complex>& b, Tensor<double_complex>& x);
+
+    // template
+    // void sygv(const Tensor<double>& A, const Tensor<double>& B, int itype,
+    //           Tensor<double>& V, Tensor<Tensor<double>::scalar_type >& e);
+    // template
+    // void sygv(const Tensor<double_complex>& A, const Tensor<double_complex>& B, int itype,
+    //           Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
+
+    // template
+    // void orgqr(Tensor<complex_real4>& A, const Tensor<complex_real4>& tau);
+
+    // template
+    // void orgqr(Tensor<double_complex>& A, const Tensor<double_complex>& tau);
 
 
 } // namespace madness

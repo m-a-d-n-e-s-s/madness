@@ -1819,11 +1819,13 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
 
         /// Returns a pointer to the internal data
         T* ptr() {
+            MADNESS_ASSERT(_p);
             return _p;
         }
 
         /// Returns a pointer to the internal data
         const T* ptr() const {
+            MADNESS_ASSERT(_p);
             return _p;
         }
 
