@@ -7,17 +7,14 @@
 #include "gauleg.h"
 #include <madness/misc/gnuplot.h>
 
-// In this file we are translating the Maple code from the paper into C++ using the MADNESS library.
-// The Maple code is in the comments, and the C++ code is below it.
-// For indexing matrices MADNESS uses the notation A(i,j) just the same as Maple.
-// Also, MADNESS uses the notation A(i) to refer to the ith element of a vector, just like Maple.
-// Also, MADNESS indexes from 0, not 1, so we have to be very careful about that.
-// Also, to index a range MADNESS uses the notation Slice(a,b) which is the same as Maple's a..b.
-// Also, MADNESS uses the notation A(i,j) = x to set the value of A(i,j) to x
-// Also, MADNESS uses the notation A(i) = x to set the value of A(i) to x
+// For indexing matrices MADNESS uses the notation A(i,j).
+// For indexing vectors MADNESS uses the notation A(i).
+// MADNESS indexes from 0.
+// To index an inclusive range from a to b MADNESS uses the notation Slice(a,b).
 
-// In this file we are also building a new class to implement the B-spline basis functions and knots.
-// The class is called Bspline and it is defined below.
+// In this file building new classes to implement B-spline basis
+// functions and knots and test them as radial basis functions for
+// quantum chemistry applications.
 
 template<typename T> struct is_complex : std::false_type {};
 template<typename T> struct is_complex<std::complex<T>> : std::true_type {};
@@ -221,25 +218,12 @@ Tensor<T> oversample_knots(const Tensor<T>& knots) {
     return newknots;
 }
 
-// 4. Since smoothed derivatives are much more accurate (compared to the "exact" derivative) on the interior of the interval but much less acccurate at the endpoints, we should perhaps increase the density of oversampling for the smoothing near the endpoints.  Or perhaps constrain the intermediate fits to respect the exact derivative at the endpoints.  
-
 // Manages the nearly minimum amount of data to define the b-spline basis and to efficiently compute values and related matrices/operators
 template <typename T, typename knotsT>
 class BsplineBasis : protected knotsT {
     static_assert(std::is_same<T,typename knotsT::value_type>::value, "Bsplinebasis: T and knotsT::value_type must be the same");
+    static_assert(std::is_floating_point<T>::value, "Bsplinebasis: T must be floating point");
     
-public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const this will have to go too!
-    typedef T value_type;
-    
-    typedef knotsT knots_type;
-    const size_t order; // the order of the basis
-    const size_t p;     // the degree of the basis = order-1
-    const size_t nknots;// the number of unique/unpadded knots
-    const size_t npknots;// the number of padded knots
-    const size_t nbasis;// the number of basis functions
-    const Tensor<T> knots; // the unpadded knots
-    Tensor<T> t; // the padded knots
-
     // Pad/repeat the knots at the ends to complete the basis
     static Tensor<T> pad_knots(size_t order, const Tensor<T>& knots) {
         long nknots = knots.size();
@@ -250,6 +234,17 @@ public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const 
         return padded;
     }
 
+public:
+    typedef T value_type;
+    typedef knotsT knots_type;
+    const size_t order; // the order of the basis
+    const size_t p;     // the degree of the basis = order-1
+    const size_t nknots;// the number of unique/unpadded knots
+    const size_t npknots;// the number of padded knots
+    const size_t nbasis;// the number of basis functions
+    const Tensor<T> knots; // the unpadded knots
+    Tensor<T> t; // the padded knots
+
     /// Construct a B-spline basis with the given order and (unpadded) knots.
     BsplineBasis(size_t order, const knotsT& knots)
         : knotsT(knots)
@@ -259,6 +254,7 @@ public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const 
         , npknots(nknots + 2*order - 2)
         , nbasis(nknots + order - 2)
         , knots(knots.knots())
+        , t(pad_knots(order,knots.knots()))
     {
         if (order < 2) throw "BsplineBasis: order must be >= 2";
         if (order > 20) throw "BsplineBasis: order must be <= 20 (sanity check)";
@@ -266,7 +262,6 @@ public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const 
         for (size_t i=1; i<nknots; i++) {
             if (this->knots[i] < this->knots[i-1]) throw "BsplineBasis: knots not in ascending order or not unique";
         }
-        t = pad_knots(order,this->knots);
         if (t.size() != npknots) throw "BsplineBasis: internal error with padded knots";
         if (npknots-order != nbasis) throw "BsplineBasis: internal error with number of basis functions";
     }
@@ -382,9 +377,8 @@ public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const 
     // nzero=0 (default) fits all basis functions.
     // nzero=1 sets the value on the boundary to zero.
     // nzero=2 sets the value and first derivative on the boundary to zero.
-    // highest permitted value is p+1=order.
+    // highest permitted value is order (degree+1)
     // This is the pseudo-inverse of A[i,j] = b[j](Xsample[i]) computed using the non-zero singular values.
-    // make_lsq_matrix := proc(t, order, Xsample) local Npknots, Nbasis, A, i, u, s, vt; Npknots := numelems(t); Nbasis := Npknots - order; A := tabulate_basis(t, order, Xsample); u, s, vt := SingularValues(A, output = ['U', 'S', 'Vt'], thin); for i to Nbasis do s[i] := 1.0/s[i]; end do; return Transpose((u . (DiagonalMatrix(s[1 .. Nbasis]))) . vt); end proc;
     Tensor<T> make_lsq_matrix(const Tensor<T>& Xsample, size_t nzeroL=0, size_t nzeroR=0) const {
         size_t nsample = Xsample.dims()[0];
         if (nsample < nbasis) throw "make_lsq_matrix: no. of samples must be >= no. of basis functions";
@@ -410,16 +404,12 @@ public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const 
     template <typename R>
     Tensor<R> fit(const Tensor<T>& Xsample, const Tensor<R>& Ysample, size_t nzeroL=0, size_t nzeroR=0) const {
         MADNESS_ASSERT(Xsample.dims()[0] == Ysample.dims()[0]);
-        Tensor<T> A = make_lsq_matrix(Xsample,nzeroL,nzeroR);
-        return inner(A,Ysample);
+        Tensor<T> M = make_lsq_matrix(Xsample,nzeroL,nzeroR);
+        return inner(M,Ysample);
     }
 
-    // // Compute the "exact" derivative of a bspline expansion in terms of splines one degree lower!!!
-    // // Note to evaluate this need new set of padded knots with one fewer padding at each end.
-    
-    // // Note that it is just differentiating the piecewise polyn so boundary conditions are not enforced.
-    // // The right way to enfoce b.c.s is to remove the problematic basis functions at the boundary.
-    // // deriv_exact := proc(c, t, order) local p, d, j; p := order - 1; d := Vector(numelems(c) - 1); for j to numelems(c) - 1 do d[j] := p*(c[j + 1] - c[j])/(t[j + p + 1] - t[j + 1]); end do; return d; end proc;
+    // Compute the "exact" derivative of a bspline expansion in terms of splines one degree lower.
+    // Note to evaluate the result need to constuct a basis of degree p-1.
     Tensor<T> deriv_exact(const Tensor<T>& c) const {
         MADNESS_ASSERT(c.dims()[0] == nbasis);
         Tensor<T> d(nbasis - 1);
@@ -429,8 +419,7 @@ public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const 
         return d;
     }
 
-    // Make the (bidiagonal) matrix represenation of the operator that computes the exact derivative
-    // make_deriv_exact_matrix := proc(t, order) local p, Nbasis, dMat, j, s; p := order - 1; Nbasis := numelems(t) - order; dMat := Matrix(Nbasis - 1, Nbasis); for j to Nbasis - 1 do s := p/(t[j + p + 1] - t[j + 1]); dMat[j, j + 1] := s; dMat[j, j] := -s; end do; return dMat; end proc;
+    // Make the (bidiagonal) matrix represenation of the operator that computes the exact derivative in terms of splines one degree lower
     Tensor<T> make_deriv_exact_matrix() const {
         Tensor<T> dMat(nbasis - 1, nbasis);
         for (size_t j=0; j<nbasis - 1; j++) {
@@ -443,7 +432,6 @@ public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const 
 
     // Make the matrix that applies the derivative after projecting into a one higher order basis.
     // Gives us 1 order higher accuracy and produces a result in the same order basis as the input.
-    // make_deriv_matrix := proc(t, order, Xsample) local Npknots, Nbasis, t1, A, M, dMat; Npknots := numelems(t); Nbasis := Npknots - order; t1 := Vector(Npknots + 2); t1[2 .. Npknots + 1] := t; t1[1] := t[1]; t1[Npknots + 2] := t[Npknots]; A := tabulate_basis(t, order, Xsample); M := make_lsq_matrix(t1, order + 1, Xsample); dMat := make_deriv_exact_matrix(t1, order + 1); return (dMat . M) . A; end proc;
     Tensor<T> make_deriv_matrix(const Tensor<T>& Xsample) const {
         size_t nsample = Xsample.dims()[0];
         BsplineBasis<T,knotsT> B1 = BsplineBasis(order + 1, knots_object());
@@ -453,7 +441,7 @@ public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const 
         return inner(inner(dMat,M),A);
     }
 
-    // same riff as make_deriv2_matrixX ... need more understanding
+    // Make the matrix that applies the exact derivative and projects back into the original order basis.
     Tensor<T> make_deriv_matrixX(const Tensor<T>& Xsample) const {
         size_t nsample = Xsample.dims()[0];
         BsplineBasis<T,knotsT> B1 = BsplineBasis(order - 1, knots_object());
@@ -476,9 +464,8 @@ public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const 
         return inner(inner(inner(dMat1,dMat2),M2),A);
     }
 
-    // Make the matrix that applies the second derivative and then projects into a two higher order basis.
+    // Make the matrix that applies the exact second derivative and then projects into a two higher order basis.
     // Produces a result in the same order basis as the input.
-    // Need to understand why this sometimes seems better than make_deriv2_matrix which intuitively seems better.
     Tensor<T> make_deriv2_matrixX(const Tensor<T>& Xsample) const {
         size_t nsample = Xsample.dims()[0];
         BsplineBasis<T,knotsT> B1 = BsplineBasis(order - 1, knots_object());
@@ -645,51 +632,35 @@ public: // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< when we remove const 
     }
 };
 
-// To dos: Perhaps Need to eliminate shared_ptr since will be
-// inefficient for large number of functions with threading.  Indeed
-// GPU will need to insist all functions (in a vector of functions)
-// are using the same basis in order to adopt a good data structure. The use of a vector
-// of functions as the central data structure is central.
-// Also, need to modify tests that B=other.B to accomodate type promotion
-// such as float->double, or real->complex.
-
-// Since all we are doing for now is getting the radial numerics working for a single atom and
-// in testing we'll always be using the same basis, we'll adopt a
-// global basis for now, and also put the oversampling into that.  Down the
-// road, we'll need a vector of functions for which we can control the
-// basis since each atom will likely need at least need a different
-// knot distribution.
-
 // Manages all of the data, including multiple matrices, that are
 // needed to compute with the b-spline basis, including the basis
 // itself.  It is presently assumed that the basis is the same for all
 // functions and we are computing on a radial grid, so we include
 // factors of r**2 and 4pi as needed.
-//
-// Here T is the type of the coefficients, which may be complex
+
+// T is the same type as used in the BsplineBasis and Knots
 template <typename T>
 class BsplineData {
+    static_assert(std::is_floating_point<T>::value, "BsplineData: T must be floating point");
 public:
     typedef T value_type;
-    typedef typename TensorTypeData<T>::scalar_type scalar_type;
     //typedef KnotsChebyshev<scalar_type> knotsT;
-    typedef KnotsUniform<scalar_type> knotsT;
-    typedef BsplineBasis<scalar_type,knotsT> basisT;
+    typedef KnotsUniform<T> knotsT;
+    typedef BsplineBasis<T,knotsT> basisT;
     typedef Tensor<T> tensorT;
-    typedef Tensor<scalar_type> stensorT;
 
 private:
     static const BsplineData<T>* data; // pointer to the singleton global data
 
     const basisT B; // the basis
-    const stensorT rsam; // sample points
-    const stensorT M[3][3]; // the LSQ matrix M(nbasis,nsamples), the pseudoinverse of A index by [nzeroL][nzeroR]
-    const stensorT A; // the tabluated basis functions A(nsamples,nbasis)
-    const std::pair<stensorT,stensorT> XW; // the quadrature points and weights for matrix elements
-    const stensorT D; // first derivative operator
-    const stensorT D2; // second derivative operator
+    const tensorT rsam; // sample points
+    const tensorT M[3][3]; // the LSQ matrix M(nbasis,nsamples), the pseudoinverse of A index by [nzeroL][nzeroR]
+    const tensorT A; // the tabluated basis functions A(nsamples,nbasis)
+    const std::pair<tensorT,tensorT> XW; // the quadrature points and weights for matrix elements
+    const tensorT D; // first derivative operator
+    const tensorT D2; // second derivative operator
 
-    BsplineData(size_t order, size_t nknots, scalar_type rlo, scalar_type rhi)
+    BsplineData(size_t order, size_t nknots, T rlo, T rhi)
         : B(order, knotsT(nknots, rlo, rhi))
         , rsam(oversample_knots(B.knots))
         , M {{B.make_lsq_matrix(rsam, 0, 0), B.make_lsq_matrix(rsam, 0, 1), B.make_lsq_matrix(rsam, 0, 2)},
@@ -707,7 +678,7 @@ public:
         return data;
     }
 
-    static void init(size_t order, size_t nknots, scalar_type rlo, scalar_type rhi) {
+    static void init(size_t order, size_t nknots, T rlo, T rhi) {
         if (BsplineData<T>::data) throw "BsplineData already initialized";
         BsplineData<T>::data = new BsplineData<T>(order, nknots, rlo, rhi);
     }
@@ -723,9 +694,9 @@ public:
 
     static const size_t nknots() { return basis().nknots; }
 
-    static const scalar_type rlo() { return knots().xlo; }
+    static const T rlo() { return knots().xlo; }
 
-    static const scalar_type rhi() { return knots().xhi; }
+    static const T rhi() { return knots().xhi; }
 
     static const basisT& basis() { return ptr()->B; }
 
@@ -733,37 +704,38 @@ public:
 
     static const knotsT& knots_object() { return *(knotsT*)(&basis()); }
 
-    static const stensorT& lsq_matrix(size_t nzeroL=0, size_t nzeroR=0) {
+    static const tensorT& lsq_matrix(size_t nzeroL=0, size_t nzeroR=0) {
         MADNESS_ASSERT(nzeroL<3 and nzeroR<3);
         return ptr()->M[nzeroL][nzeroR];
     }
 
-    static const stensorT& basis_matrix() { return ptr()->A; }
+    static const tensorT& basis_matrix() { return ptr()->A; }
 
     static const tensorT& deriv_matrix() { return ptr()->D; }
 
     static const tensorT& deriv2_matrix() { return ptr()->D2; }
 
-    static const stensorT& rsample() { return ptr()->rsam; }
+    static const tensorT& rsample() { return ptr()->rsam; }
 
-    static const std::pair<stensorT,stensorT> quadrature() { return ptr()->XW; }
+    static const std::pair<tensorT,tensorT> quadrature() { return ptr()->XW; }
 
     // Tabulate the function at the sample points
     template <typename funcT>
-    static tensorT tabulate(const funcT& func) {
+    static auto tabulate(const funcT& func) {
+        using resultT = decltype(func(T(0)));
         const auto& rsam = rsample();
-        tensorT f(rsam.size());
+        Tensor<resultT> f(rsam.size());
         for (size_t i=0; i<rsam.size(); ++i) f[i] = func(rsam[i]);
         return f;
     }
 
     template <typename funcT>
-    static tensorT project(const funcT& func, size_t nzeroL=0, size_t nzeroR=0) {
+    static auto project(const funcT& func, size_t nzeroL=0, size_t nzeroR=0) {
         return inner(lsq_matrix(nzeroL,nzeroR), tabulate(func));
     }    
-             };
+};
 
-    template <typename T> const BsplineData<T>* BsplineData<T>::data = nullptr;
+template <typename T> const BsplineData<T>* BsplineData<T>::data = nullptr;
 
 template <typename T>
 class BsplineFunction {
@@ -998,14 +970,14 @@ public:
         }
         {
             auto nbasis = bdataT::nbasis();
-            Tensor<T> V(nbasis, nbasis);
+            Tensor<std::complex<T>> V(nbasis, nbasis);
             Tensor<std::complex<T>> e(nbasis);
             ggev(KE, S, V, e);
             print("eigenvalues of KE", e);
         }
         {
             auto nbasis = bdataT::nbasis();
-            Tensor<T> V(nbasis, nbasis);
+            Tensor<std::complex<T>> V(nbasis, nbasis);
             Tensor<std::complex<T>> e(nbasis);
             stensorT H = KE+PE;
             //print("H");
@@ -1016,6 +988,7 @@ public:
                 stensorT e(nbasis-1);
                 stensorT HH(H(Slice(0,-2), Slice(0,-2)));
                 stensorT SS(S(Slice(0,-2), Slice(0,-2)));
+                stensorT V;
                 // print("HH");
                 // print(HH);
                 // print("SS");
