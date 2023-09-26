@@ -11,7 +11,6 @@
 #define CCSTRUCTURES_H_
 
 #include <madness/mra/mra.h>
-
 #include<madness/mra/commandlineparser.h>
 #include<madness/chem/ccpairfunction.h>
 #include<madness/mra/QCCalculationParametersBase.h>

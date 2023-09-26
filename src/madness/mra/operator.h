@@ -131,6 +131,7 @@ namespace madness {
         OT_ONE,         /// indicates the identity
         OT_G12,         /// 1/r
         OT_SLATER,      /// exp(-r)
+        OT_GAUSS,       /// exp(-r2)
         OT_F12,         /// 1-exp(-r)
         OT_FG12,        /// (1-exp(-r))/r
         OT_F212,        /// (1-exp(-r))^2
@@ -230,6 +231,7 @@ namespace madness {
             GFit<Q,NDIM> fit;
             if (type==OT_G12) {fit=GFit<Q,NDIM>::CoulombFit(lo,hi,eps,false);
             } else if (type==OT_SLATER) {fit=GFit<Q,NDIM>::SlaterFit(mu,lo,hi,eps,false);
+            } else if (type==OT_GAUSS) {fit=GFit<Q,NDIM>::GaussFit(mu,lo,hi,eps,false);
             } else if (type==OT_F12) {fit=GFit<Q,NDIM>::F12Fit(mu,lo,hi,eps,false);
             } else if (type==OT_FG12) {fit=GFit<Q,NDIM>::FGFit(mu,lo,hi,eps,false);
             } else if (type==OT_F212) {fit=GFit<Q,NDIM>::F12sqFit(mu,lo,hi,eps,false);
@@ -1657,6 +1659,10 @@ namespace madness {
             OperatorInfo info=left.info;
             if ((left.info.type==OT_F12) and (right.info.type==OT_G12)) {
                 info.type=OT_FG12;
+            } else if ((left.info.type==OT_GAUSS) and (right.info.type==OT_GAUSS)) {
+                info=right.info;
+                info.type=OT_GAUSS;
+                info.mu=2.0*right.info.mu;
             } else if ((left.info.type==OT_SLATER) and (right.info.type==OT_SLATER)) {
                 info=right.info;
                 info.type=OT_SLATER;
@@ -1900,7 +1906,30 @@ namespace madness {
         return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_SLATER),bc,k);
     }
 
-    /// Factory function generating separated kernel for convolution with exp(-mu*r) in 3D
+    /// Factory function generating separated kernel for convolution with exp(-mu*r*r)
+
+    /// lo and eps are not used here
+    template<std::size_t NDIM>
+    static inline SeparatedConvolution<double,NDIM> GaussOperator(World& world,
+                                                                double mu, double lo=0.0, double eps=0.0,
+                                                                const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
+                                                                int k=FunctionDefaults<NDIM>::get_k()) {
+        return SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_GAUSS),bc,k);
+    }
+
+    /// Factory function generating separated kernel for convolution with exp(-mu*r*r) in 3D
+
+    /// lo and eps are not used here
+    template<std::size_t NDIM>
+    static inline SeparatedConvolution<double, NDIM>* GaussOperatorPtr(World& world,
+                                                                     double mu, double lo=0.0, double eps=0.0,
+                                                                     const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
+                                                                     int k = FunctionDefaults<NDIM>::get_k()) {
+        return new SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_GAUSS),bc,k);
+    }
+
+
+/// Factory function generating separated kernel for convolution with exp(-mu*r) in 3D
     /// Note that the 1/(2mu) factor of SlaterF12Operator is not included, this is just the exponential function
     static inline SeparatedConvolution<double, 3>* SlaterOperatorPtr(World& world,
                                                                  double mu, double lo, double eps,

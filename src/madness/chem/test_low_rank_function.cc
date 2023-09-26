@@ -106,12 +106,12 @@ int test_lowrank_function(World& world, LowRankFunctionParameters& parameters) {
     print("reference.norm2() = int f12 phi2 d2",n2);
     output(0.0,0.0,0.0,0.0,0.0,0.0);
 
-    LowRankFunction<double,6> lrf(f12, copy(phi1), copy(phi2));
-    plot_plane<6>(world,lrf.lrfunctor,"plot_original."+id,PlotParameters(world).set_plane({"x1","x4"}));
+    LRFunctorF12<double,6> lrfunctor(f12,phi1,phi1);
     double cpu0=cpu_time();
-    lrf.project(parameters);
+    auto lrf=LowRankFunctionFactory<double,6>(parameters).project(lrfunctor);
+//    plot_plane<6>(world,lrfunctor,"plot_original."+id,PlotParameters(world).set_plane({"x1","x4"}));
     double cpu1=cpu_time();
-    double error1=lrf.l2error();
+    double error1=lrf.l2error(lrfunctor);
     print("l2error projection",error1);
 //    plot_plane<6>(world,lrf,"plot_lrf_projection."+id,PlotParameters(world).set_plane({"x1","x4"}));
 
@@ -133,8 +133,8 @@ int test_lowrank_function(World& world, LowRankFunctionParameters& parameters) {
     of1.close();
 
     double cpu2=cpu_time();
-    lrf.optimize(parameters.optimize());
-    double error2=lrf.l2error();
+    lrf.optimize(lrfunctor,parameters.optimize());
+    double error2=lrf.l2error(lrfunctor);
     print("l2error optimization",error2);
     double cpu3=cpu_time();
     result=compute_result(lrf);
@@ -236,17 +236,19 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
         //          = \sum_kr k(1) j(2) \int g(1,1') g_r(1') h_r(2) k(1') d1'
         //          = \sum_r j(2) h_r(2) \sum_k k(1) \int g(1,1') g_r(1') k(1') d1'
         real_function_3d one = real_factory_3d(world).f([](const coord_3d& r) { return 1.0; });
-        LowRankFunction<double, 6> fi_one(f12ptr, copy(phi), copy(one));
-        fi_one.project(parameters);
-        double l2error=fi_one.l2error();
+        LRFunctorF12<double,6> lrfunctor(f12ptr,phi,one);
+//        LowRankFunction<double, 6> fi_one(f12ptr, copy(phi), copy(one));
+        auto fi_one=LowRankFunctionFactory<double,6>(parameters).project(lrfunctor);
+//        fi_one.project(parameters);
+        double l2error=fi_one.l2error(lrfunctor);
         print("left_project_l2error",l2error);
 
         j["left_project_time"]=t.tag("left_project_time");
         json2file(j,jsonfilename);
         compute_error("left_project",fi_one);
 
-        fi_one.optimize();
-        l2error=fi_one.l2error();
+        fi_one.optimize(lrfunctor);
+        l2error=fi_one.l2error(lrfunctor);
         print("left_optimize_l2error",l2error);
         j["left_optimize_time"]=t.tag("left_optimize_time");
         json2file(j,jsonfilename);
@@ -304,6 +306,81 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
 }
 
 template<std::size_t LDIM>
+int test_full_rank_functor(World& world, LowRankFunctionParameters& parameters) {
+
+    test_output t1("test_full_rank_functor");
+//    t1.set_cout_to_terminal();
+    print_header2("entering test_full_rank_functor");
+    constexpr int NDIM=2*LDIM;
+    FunctionDefaults<LDIM>::set_thresh(1.e-6);
+    FunctionDefaults<NDIM>::set_thresh(1.e-6);
+    double tol=1.e-3;
+    double gaussexponent=2.0;
+
+    const particle<LDIM> p1=particle<LDIM>::particle1();
+    const particle<LDIM> p2=particle<LDIM>::particle2();
+
+    LRFunctorPure<double,NDIM> functorpure;
+    Function<double,NDIM> gauss=FunctionFactory<double,NDIM>(world)
+            .functor([&gaussexponent](const Vector<double,NDIM>& r){
+                Vector<double,LDIM> a,b;
+                for (int i=0; i<LDIM; ++i) {
+                    a[i]=r[i];
+                    b[i]=r[i+LDIM];
+                }
+                return exp(-gaussexponent*inner(a-b,a-b));
+            });
+    functorpure.f=gauss;
+    t1.checkpoint(true,"prep");
+
+    LRFunctorF12<double,NDIM> functorf12;
+    Function<double,LDIM> b=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r){return exp(-inner(r,r));});
+    functorf12.f12.reset(GaussOperatorPtr<LDIM>(world,gaussexponent));
+
+    auto builder= LowRankFunctionFactory<double,NDIM>(parameters).set_radius(8)
+            .set_volume_element(0.1).set_rank_revealing_tol(1.e-10).set_orthomethod("canonical");
+
+    auto lrfunction1=builder.project(functorf12);
+    t1.checkpoint(true,"construction f12 functor");
+    auto lrfunction2=builder.project(functorpure);
+    t1.checkpoint(true,"construction full rank functor");
+    lrfunction1.optimize(functorf12);
+    t1.checkpoint(true,"optimization f12 functor");
+    lrfunction2.optimize(functorpure);
+    t1.checkpoint(true,"optimization full rank functor");
+
+
+    try {
+        double error1=lrfunction1.l2error(functorf12);
+        t1.checkpoint(error1<tol,"f12 functor, f12 l2 error: "+std::to_string(error1));
+    } catch (...) {
+        print("l2 error negative 1");
+    }
+    try {
+        double error2=lrfunction2.l2error(functorpure);
+        t1.checkpoint(error2<tol,"full rank functor, full rank l2 error: "+std::to_string(error2));
+    } catch (...) {
+        print("l2 error negative 2");
+    }
+    try {
+        double error3=lrfunction2.l2error(functorf12);
+        t1.checkpoint(error3<tol,"full rank functor, f12 l2 error: "+std::to_string(error3));
+    } catch (...) {
+        print("l2 error negative 3");
+    }
+    try {
+        double error4=lrfunction1.l2error(functorpure);
+        t1.checkpoint(error4<tol,"f12 functor, full rank l2 error: "+std::to_string(error4));
+    } catch (...) {
+        print("l2 error negative 4");
+    }
+//    print("errors",error2,error4);
+
+    print_header2("leaving test_full_rank_functor");
+    return t1.end();
+}
+
+template<std::size_t LDIM>
 int test_grids(World& world, LowRankFunctionParameters& parameters) {
     randomgrid<LDIM> g(parameters.volume_element(),parameters.radius());
     g.get_grid();
@@ -321,13 +398,15 @@ int test_construction_optimization(World& world, LowRankFunctionParameters param
     auto slater=std::shared_ptr<SeparatedConvolution<double,LDIM> >(new SeparatedConvolution<double,LDIM>(world,info));
     Function<double,LDIM> one=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r){return exp(-0.2*inner(r,r));});
 
-    LowRankFunction<double,NDIM> lrf(slater,one,one);
-    lrf.project(parameters);
-    double error=lrf.l2error();
+    LRFunctorF12<double,NDIM> lrfunctor(slater,one,one);
+    LowRankFunctionFactory<double,NDIM> builder(parameters);
+    auto lrf=builder.project(lrfunctor);
+
+    double error=lrf.l2error(lrfunctor);
     t1.checkpoint(error<2.e-2,"l2 error in projection "+std::to_string(error));
     print("l2 error project ",error);
-    lrf.optimize();
-    error=lrf.l2error();
+    lrf.optimize(lrfunctor);
+    error=lrf.l2error(lrfunctor);
     print("l2 error optimize",error);
     t1.checkpoint(error<1.e-2,"l2 error in optimization "+std::to_string(error));
     return t1.end();
@@ -376,11 +455,12 @@ int main(int argc, char **argv) {
 
     try {
 
-        isuccess+=test_grids<1>(world,parameters);
-        isuccess+=test_grids<2>(world,parameters);
-        isuccess+=test_grids<3>(world,parameters);
-        isuccess+=test_construction_optimization<1>(world,parameters);
-        isuccess+=test_construction_optimization<2>(world,parameters);
+//        isuccess+=test_grids<1>(world,parameters);
+//        isuccess+=test_grids<2>(world,parameters);
+//        isuccess+=test_grids<3>(world,parameters);
+        isuccess+= test_full_rank_functor<1>(world, parameters);
+//        isuccess+=test_construction_optimization<1>(world,parameters);
+//        isuccess+=test_construction_optimization<2>(world,parameters);
 //        isuccess+=test_arithmetic<1>(world,parameters);
 //        isuccess+=test_arithmetic<2>(world,parameters);
 

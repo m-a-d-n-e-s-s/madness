@@ -121,6 +121,29 @@ public:
 		return fit;
 	}
 
+    /// return a (trivial) fit for a single Gauss function
+
+    /// the Gauss function is defined by
+    ///  f(r) = exp(-\gamma r^2)
+    /// @param[in]	gamma	the exponent of the Gauss function
+    /// @param[in]	lo	the smallest length scale that needs to be precisely represented
+    /// @param[in]	hi	the largest length scale that needs to be precisely represented
+    /// @param[in]	eps	the precision threshold
+    /// @parma[in]	prnt	print level
+    static GFit GaussFit(double gamma, double lo, double hi, double eps, bool prnt=false) {
+        GFit fit;
+        fit.coeffs_=Tensor<T>(1);
+        fit.exponents_=Tensor<double>(1);
+        fit.coeffs_=1.0;
+        fit.exponents_=gamma;
+        if (prnt) {
+            print("Gauss fit");
+            auto exact = [&gamma](const double r) -> double { return exp(-gamma * r*r); };
+            fit.print_accuracy(exact, lo, hi);
+        }
+        return fit;
+    }
+
     /// return a fit for the F12 correlation factor
 
     /// the Slater function is defined by

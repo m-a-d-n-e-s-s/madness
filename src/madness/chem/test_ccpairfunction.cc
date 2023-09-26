@@ -10,7 +10,6 @@
 #include<madness/chem/CCStructures.h>
 #include<madness/chem/CCPotentials.h>
 #include<madness/chem/projector.h>
-#include<madness/chem/lowrankfunction.h>
 
 #include<madness/world/test_utilities.h>
 

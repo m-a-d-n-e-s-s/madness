@@ -240,31 +240,175 @@ namespace madness {
 
     };
 
+template<std::size_t PDIM>
+struct particle {
+    std::array<int,PDIM> dims;
 
-    template<std::size_t NDIM>
-    struct randomgaussian {
-        Vector<double,NDIM> random_origin;
-        double exponent;
-        double radius=2;
-        randomgaussian(double exponent, double radius) : exponent(exponent), radius(radius) {
-            Vector<double,NDIM> ran= this->gaussian_random_distribution(0,radius);
-            random_origin=2.0*radius*ran-Vector<double,NDIM>(radius);
-        }
-        double operator()(const Vector<double,NDIM>& r) const {
-    //        return exp(-exponent*inner(r-random_origin,r-random_origin));
-            double r2=inner(r-random_origin,r-random_origin);
-            return exp(-exponent*r2);
-        }
+    /// default constructor
+    particle() = default;
 
-        static Vector<double,NDIM> gaussian_random_distribution(double mean, double variance) {
-            std::random_device rd{};
-            std::mt19937 gen{rd()};
-            std::normal_distribution<> d{mean, variance};
-            Vector<double,NDIM> result;
-            for (int i = 0; i < NDIM; ++i) result[i]=d(gen);
+    /// convenience for particle 1 (the left/first particle)
+    static particle particle1() {
+        particle p;
+        for (int i=0; i<PDIM; ++i) p.dims[i]=i;
+        return p;
+    }
+    /// convenience for particle 2 (the right/second particle)
+    static particle particle2() {
+        particle p;
+        for (int i=0; i<PDIM; ++i) p.dims[i]=i+PDIM;
+        return p;
+    }
+
+
+    particle(const int p) : particle(std::vector<int>(1,p)) {}
+    particle(const int p1, const int p2) : particle(std::vector<int>({p1,p2})) {}
+    particle(const int p1, const int p2,const int p3) : particle(std::vector<int>({p1,p2,p3})) {}
+    particle(const std::vector<int> p) {
+        for (int i=0; i<PDIM; ++i) dims[i]=p[i];
+    }
+
+    /// assuming two particles only
+    bool is_first() const {return dims[0]==0;}
+    /// assuming two particles only
+    bool is_last() const {return dims[0]==(PDIM);}
+
+    template<std::size_t DUMMYDIM=PDIM>
+    typename std::enable_if_t<DUMMYDIM==1, std::tuple<int>>
+    get_tuple() const {return std::tuple<int>(dims[0]);}
+
+    template<std::size_t DUMMYDIM=PDIM>
+    typename std::enable_if_t<DUMMYDIM==2, std::tuple<int,int>>
+    get_tuple() const {return std::tuple<int,int>(dims[0],dims[1]);}
+
+    template<std::size_t DUMMYDIM=PDIM>
+    typename std::enable_if_t<DUMMYDIM==3, std::tuple<int,int,int>>
+    get_tuple() const {return std::tuple<int,int,int>(dims[0],dims[1],dims[2]);}
+};
+
+/// the low-rank functor is what the LowRankFunction will represent
+
+/// derive from this class :
+/// must implement in inner product
+/// may implement an operator()(const coord_nd&)
+template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
+struct LRFunctorBase {
+
+    virtual ~LRFunctorBase() {};
+    virtual std::vector<Function<T,LDIM>> inner(const std::vector<Function<T,LDIM>>& rhs,
+                                        const particle<LDIM> p1, const particle<LDIM> p2) const =0;
+
+    virtual Function<T,LDIM> inner(const Function<T,LDIM>& rhs, const particle<LDIM> p1, const particle<LDIM> p2) const {
+        return inner(std::vector<Function<T,LDIM>>({rhs}),p1,p2)[0];
+    }
+
+    virtual T operator()(const Vector<T,NDIM>& r) const =0;
+    virtual typename Tensor<T>::scalar_type l2norm() const {
+        MADNESS_EXCEPTION("L2 norm not implemented",1);
+    }
+
+    virtual World& world() const =0;
+    friend std::vector<Function<T,LDIM>> inner(const LRFunctorBase& functor, const std::vector<Function<T,LDIM>>& rhs,
+                                               const particle<LDIM> p1, const particle<LDIM> p2) {
+        return functor.inner(rhs,p1,p2);
+    }
+    friend Function<T,LDIM> inner(const LRFunctorBase& functor, const Function<T,LDIM>& rhs,
+                                               const particle<LDIM> p1, const particle<LDIM> p2) {
+        return functor.inner(rhs,p1,p2);
+    }
+
+};
+
+template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
+struct LRFunctorF12 : public LRFunctorBase<T,NDIM> {
+    LRFunctorF12() = default;
+    LRFunctorF12(const std::shared_ptr<SeparatedConvolution<T,LDIM>> f12, const Function<T,LDIM>& a,
+                 const Function<T,LDIM>& b) : f12(f12), a(a), b(b) {}
+
+    std::shared_ptr<SeparatedConvolution<T,LDIM>> f12;  ///< a two-particle function
+    Function<T,LDIM> a,b;   ///< the lo-dim functions
+
+    World& world() const {return f12->get_world();}
+    std::vector<Function<T,LDIM>> inner(const std::vector<Function<T,LDIM>>& rhs,
+                                        const particle<LDIM> p1, const particle<LDIM> p2) const {
+
+        std::vector<Function<T,LDIM>> result;
+        // functor is now a(1) b(2) f12
+        // result(1) = \int a(1) f(1,2) b(2) rhs(2) d2
+        World& world=rhs.front().world();
+        auto premultiply= p1.is_first() ? a : b;
+        auto postmultiply= p1.is_first() ? b : a;
+
+        const int nbatch=30;
+        for (int i=0; i<rhs.size(); i+=nbatch) {
+            std::vector<Function<T,LDIM>> tmp;
+            auto begin= rhs.begin()+i;
+            auto end= (i+nbatch)<rhs.size() ? rhs.begin()+i+nbatch : rhs.end();
+            std::copy(begin,end, std::back_inserter(tmp));
+
+            if (premultiply.is_initialized()) tmp=tmp*premultiply;
+            auto tmp1=apply(world,*(f12),tmp);
+            if (postmultiply.is_initialized()) tmp1=tmp1*postmultiply;
+            for (auto& t : tmp1) result.push_back(t);
+        }
+        return result;
+    }
+
+    typename Tensor<T>::scalar_type l2norm() const {
+        const Function<T,LDIM> one=FunctionFactory<T,LDIM>(world()).f([](const Vector<double,LDIM>& r){return 1.0;});
+        const Function<T,LDIM> pre=(a.is_initialized()) ? a : one;
+        const Function<T,LDIM> post=(b.is_initialized()) ? b : one;
+        const SeparatedConvolution<T,LDIM>& f12a=*(f12);
+        const SeparatedConvolution<T,LDIM> f12sq= SeparatedConvolution<T,LDIM>::combine(f12a,f12a);
+
+        // \int f(1,2)^2 d1d2 = \int f(1,2)^2 pre(1)^2 post(2)^2 d1 d2
+        typename Tensor<T>::scalar_type term1 =madness::inner(post*post,f12sq(pre*pre));
+        return term1;
+
+    }
+
+    T operator()(const Vector<double,NDIM>& r) const {
+
+        if (f12->info.type==OT_SLATER) {
+            double gamma=f12->info.mu;
+            Vector<double,LDIM> first, second;
+            for (int i=0; i<LDIM; ++i) {
+                first[i]=r[i];
+                second[i]=r[i+LDIM];
+            }
+            double result=a(first)*b(second)*exp(-gamma*(first-second).normf());
             return result;
+        } else {
+            return 1.0;
         }
-    };
+    }
+};
+
+template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
+struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
+    LRFunctorPure() = default;
+    LRFunctorPure(const Function<T,NDIM>& f) : f(f) {}
+    World& world() const {return f.world();}
+
+    Function<T, NDIM> f;    ///< a hi-dim function
+
+    std::vector<Function<T,LDIM>> inner(const std::vector<Function<T,LDIM>>& rhs,
+                                        const particle<LDIM> p1, const particle<LDIM> p2) const {
+        std::vector<Function<T,LDIM>> result;
+        for (const auto& r : rhs) result.push_back(madness::inner(f,r,p1.get_tuple(),p2.get_tuple()));
+        return result;
+    }
+
+    T operator()(const Vector<double,NDIM>& r) const {
+        return f(r);
+    }
+
+    typename Tensor<T>::scalar_type l2norm() const {
+        double n=f.norm2();
+        return n*n;
+
+    }
+};
 
 
     /// LowRankFunction represents a hi-dimensional (NDIM) function as a sum of products of low-dimensional (LDIM) functions
@@ -276,158 +420,23 @@ namespace madness {
     class LowRankFunction {
     public:
 
-        /// what the LowRankFunction will represent
-        struct LRFunctor {
-            LRFunctor() = default;
-
-            Function<T, NDIM> f;    ///< a hi-dim function
-            std::shared_ptr<SeparatedConvolution<T,LDIM>> f12;  ///< a two-particle function
-            Function<T,LDIM> a,b;   ///< the lo-dim functions
-            bool has_f() const {
-                return f.is_initialized();
-            }
-            bool has_f12() const {
-                return (f12.get());
-            }
-            T operator()(const Vector<double,NDIM>& r) const {
-
-                if (f12->info.type==OT_SLATER) {
-                    double gamma=f12->info.mu;
-                    Vector<double,LDIM> first, second;
-                    for (int i=0; i<LDIM; ++i) {
-                        first[i]=r[i];
-                        second[i]=r[i+LDIM];
-                    }
-                    MADNESS_CHECK(has_f12());
-                    double result=a(first)*b(second)*exp(-gamma*(first-second).normf());
-                    return result;
-                } else {
-                    return 1.0;
-                }
-            }
-        };
-
-        template<std::size_t PDIM>
-        struct particle {
-            std::array<int,PDIM> dims;
-
-            /// default constructor
-            particle() = default;
-
-            /// convenience for particle 1 (the left/first particle)
-            static particle particle1() {
-                particle p;
-                for (int i=0; i<PDIM; ++i) p.dims[i]=i;
-                return p;
-            }
-            /// convenience for particle 2 (the right/second particle)
-            static particle particle2() {
-                particle p;
-                for (int i=0; i<PDIM; ++i) p.dims[i]=i+PDIM;
-                return p;
-            }
-
-
-            particle(const int p) : particle(std::vector<int>(1,p)) {}
-            particle(const int p1, const int p2) : particle(std::vector<int>({p1,p2})) {}
-            particle(const int p1, const int p2,const int p3) : particle(std::vector<int>({p1,p2,p3})) {}
-            particle(const std::vector<int> p) {
-                for (int i=0; i<PDIM; ++i) dims[i]=p[i];
-            }
-
-            /// assuming two particles only
-            bool is_first() const {return dims[0]==0;}
-            /// assuming two particles only
-            bool is_last() const {return dims[0]==(PDIM);}
-
-            template<std::size_t DUMMYDIM=PDIM>
-            typename std::enable_if_t<DUMMYDIM==1, std::tuple<int>>
-            get_tuple() const {return std::tuple<int>(dims[0]);}
-
-            template<std::size_t DUMMYDIM=PDIM>
-            typename std::enable_if_t<DUMMYDIM==2, std::tuple<int,int>>
-            get_tuple() const {return std::tuple<int,int>(dims[0],dims[1]);}
-
-            template<std::size_t DUMMYDIM=PDIM>
-            typename std::enable_if_t<DUMMYDIM==3, std::tuple<int,int,int>>
-            get_tuple() const {return std::tuple<int,int,int>(dims[0],dims[1],dims[2]);}
-        };
-
-
-        /// inner product: result(1) = \int f(1,2) rhs(2) d2
-
-        /// @param[in]  functor the hidim function
-        /// @param[in]  rhs     the rhs
-        /// @param[in]  p1      the variable in f(1,2) to be integrated over
-        /// @param[in]  p2      the variable in rhs to be integrated over (usually all of them)
-        static std::vector<Function<T,LDIM>> inner(LRFunctor& functor, const std::vector<Function<T,LDIM>>& rhs,
-                                                   const particle<LDIM> p1, const particle<LDIM> p2) {
-            std::vector<Function<T,LDIM>> result;
-            MADNESS_CHECK(functor.has_f() xor functor.has_f12());
-            MADNESS_CHECK(p1.is_first() xor p1.is_last());
-            MADNESS_CHECK(p2.is_first());
-
-            if (functor.has_f()) {
-                for (const auto& r : rhs) result.push_back(madness::inner(functor.f,r,p1.get_tuple(),p2.get_tuple()));
-
-            } else if (functor.has_f12()) {
-                // functor is now a(1) b(2) f12
-                // result(1) = \int a(1) f(1,2) b(2) rhs(2) d2
-                World& world=rhs.front().world();
-                auto premultiply= p1.is_first() ? functor.a : functor.b;
-                auto postmultiply= p1.is_first() ? functor.b : functor.a;
-
-                const int nbatch=30;
-                for (int i=0; i<rhs.size(); i+=nbatch) {
-                    std::vector<Function<T,LDIM>> tmp;
-                    auto begin= rhs.begin()+i;
-                    auto end= (i+nbatch)<rhs.size() ? rhs.begin()+i+nbatch : rhs.end();
-                    std::copy(begin,end, std::back_inserter(tmp));
-
-                    if (premultiply.is_initialized()) tmp=tmp*premultiply;
-                    auto tmp1=apply(world,*(functor.f12),tmp);
-                    if (postmultiply.is_initialized()) tmp1=tmp1*postmultiply;
-                    for (auto& t : tmp1) result.push_back(t);
-
-                }
-
-            } else {
-                MADNESS_EXCEPTION("confused functor in LowRankFunction",1);
-            }
-            return result;
-
-        }
-
-
-
         World& world;
         double rank_revealing_tol=1.e-8;     // rrcd tol
         std::string orthomethod="canonical";
         bool do_print=true;
         std::vector<Function<T,LDIM>> g,h;
-        LRFunctor lrfunctor;
-        particle<LDIM> p1=particle<LDIM>::particle1();
-        particle<LDIM> p2=particle<LDIM>::particle2();
+        const particle<LDIM> p1=particle<LDIM>::particle1();
+        const particle<LDIM> p2=particle<LDIM>::particle2();
 
         LowRankFunction(World& world) : world(world) {}
 
-        /// construct from the hi-dim function f
-        LowRankFunction(const Function<T,NDIM>& f) : LowRankFunction(f.world()) {
-            lrfunctor.f=f;
+        LowRankFunction(std::vector<Function<T,LDIM>> g, std::vector<Function<T,LDIM>> h,
+                        double tol, std::string orthomethod) : world(g.front().world()),
+                        rank_revealing_tol(tol), orthomethod(orthomethod), g(g), h(h) {}
+
+        LowRankFunction(const LowRankFunction& other) : world(other.world), g(copy(world, other.g)),
+            h(copy(world, other.h)), rank_revealing_tol(other.rank_revealing_tol), orthomethod(other.orthomethod) {
         }
-
-        /// construct from the hi-dim function  f12*a(1)(b(2)
-        LowRankFunction(const std::shared_ptr<SeparatedConvolution<T,LDIM>> f12, const Function<T,LDIM>& a,
-                        const Function<T,LDIM>& b) : LowRankFunction(a.world()) {
-            lrfunctor.a=a;
-            lrfunctor.b=b;
-            lrfunctor.f12=f12;
-        }
-
-        LowRankFunction(std::vector<Function<T,LDIM>> g, std::vector<Function<T,LDIM>> h)
-                : world(g.front().world()), g(g), h(h) {}
-
-        LowRankFunction(const LowRankFunction& a) : world(a.world), g(copy(world, a.g)), h(copy(world, a.h)) {} // Copy constructor necessary
 
         LowRankFunction& operator=(const LowRankFunction& f) { // Assignment required for storage in vector
             LowRankFunction ff(f);
@@ -486,69 +495,6 @@ namespace madness {
             return LowRankFunction(g * a, h);
         }
 
-        /// following Halko
-
-        /// ||A - Q Q^T A||< epsilon
-        /// Y = A Omega && Q = QR(Y)
-        /// || f(1,2) - \sum_i g_i(1) h_i(2) || < epsilon
-        /// Y_i(1) = \int f(1,2) Omega_i(2) d2 && g_i(1) = QR(Y_i(1)) && h_i(2) = \int g_i^*(1) f(1,2) d1
-        void project(const LowRankFunctionParameters& params) {
-            timer t1(world);
-            t1.do_print=do_print;
-            orthomethod=params.orthomethod();
-            rank_revealing_tol=params.tol();
-
-            // get sampling grid
-            std::vector<Vector<double,LDIM>> grid=make_grid(params);
-            auto Y=Yformer(grid,params.rhsfunctiontype());
-            t1.tag("Yforming");
-
-            auto ovlp=matrix_inner(world,Y,Y);  // error in symmetric matrix_inner, use non-symmetric form here!
-            t1.tag("compute ovlp");
-            g=truncate(orthonormalize_rrcd(Y,ovlp,rank_revealing_tol));
-            t1.tag("rrcd/truncate/thresh");
-            auto sz=get_size(world,g);
-            if (world.rank()==0 and do_print) print("gsize",sz);
-            check_orthonormality(g);
-
-            if (world.rank()==0 and do_print) {
-                print("Y.size()",Y.size());
-                print("g.size()",g.size());
-            }
-
-            h=truncate(inner(lrfunctor,g,p1,p1));
-            t1.tag("Y backprojection with truncation");
-
-        }
-
-        /// apply a rhs (delta or exponential) on grid points to the hi-dim function and form Y = A_ij w_j (in Halko's language)
-        std::vector<Function<T,LDIM>> Yformer(const std::vector<Vector<double,LDIM>>& grid, const std::string rhsfunctiontype,
-                                              const double exponent=30.0) {
-
-            std::vector<Function<double,LDIM>> Y;
-            if (rhsfunctiontype=="exponential") {
-                std::vector<Function<double,LDIM>> omega;
-                double coeff=std::pow(2.0*exponent/constants::pi,0.25*LDIM);
-                for (const auto& point : grid) {
-                    omega.push_back(FunctionFactory<double,LDIM>(world)
-                            .functor([&point,&exponent,&coeff](const Vector<double,LDIM>& r)
-                                     {
-                                         auto r_rel=r-point;
-                                         return coeff*exp(-exponent*madness::inner(r_rel,r_rel));
-                                     }));
-                }
-                Y=inner(lrfunctor,omega,p2,p1);
-            } else {
-                MADNESS_EXCEPTION("confused rhsfunctiontype",1);
-            }
-            auto norms=norm2s(world,Y);
-            std::vector<Function<double,LDIM>> Ynormalized;
-
-            for (int i=0; i<Y.size(); ++i) if (norms[i]>rank_revealing_tol) Ynormalized.push_back(Y[i]);
-            normalize(world,Ynormalized);
-            return Ynormalized;
-        }
-
         long rank() const {return g.size();}
 
         /// return the size in GByte
@@ -563,7 +509,6 @@ namespace madness {
             for (int i=1; i<g.size(); ++i) fapprox+=hartree_product(g[i],h[i]);
             return fapprox;
         }
-
 
         /// orthonormalize the argument vector
         std::vector<Function<T,LDIM>> orthonormalize(const std::vector<Function<T,LDIM>>& g) const {
@@ -593,18 +538,18 @@ namespace madness {
         /// optimize the lrf using the lrfunctor
 
         /// @param[in]  nopt       number of iterations (wrt to Alg. 4.3 in Halko)
-        void optimize(const long nopt=1) {
+        void optimize(const LRFunctorBase<T,NDIM>& lrfunctor1, const long nopt=1) {
             timer t(world);
             t.do_print=do_print;
             for (int i=0; i<nopt; ++i) {
                 // orthonormalize h
                 h=truncate(orthonormalize(h));
                 t.tag("ortho1");
-                g=truncate(inner(lrfunctor,h,p2,p1));
+                g=truncate(inner(lrfunctor1,h,p2,p1));
                 t.tag("inner1");
                 g=truncate(orthonormalize(g));
                 t.tag("ortho2");
-                h=truncate(inner(lrfunctor,g,p1,p1));
+                h=truncate(inner(lrfunctor1,g,p1,p1));
                 t.tag("inner2");
             }
         }
@@ -654,12 +599,6 @@ namespace madness {
             h=truncate(transform(world,h,YY));
         }
 
-        /// make a sampling grid Omega_i(r) for the Halko algorithm
-        std::vector<Vector<double,LDIM>> make_grid(const LowRankFunctionParameters& params) const {
-
-            randomgrid<LDIM> grid(params.volume_element(),params.radius());
-            return grid.get_grid();
-        }
 
         double check_orthonormality(const std::vector<Function<T,LDIM>>& v) const {
             Tensor<T> ovlp=matrix_inner(world,v,v);
@@ -679,40 +618,22 @@ namespace madness {
             return ovlp.absmax();
         }
 
-        double explicit_error() const {
-            auto fapprox=reconstruct();
-            return (lrfunctor.f-fapprox).norm2();
-        }
-
-        double randomized_error() const {
-            return 1.e9;
-        }
-
-        double error() const {
-            if (LDIM<3) return explicit_error();
-            else return randomized_error();
-        }
-
         /// compute the l2 error |functor - \sum_i g_ih_i|_2
 
         /// \int (f(1,2) - gh(1,2))^2 = \int f(1,2)^2 - 2\int f(1,2) gh(1,2) + \int gh(1,2)^2
-        double l2error() const {
-            MADNESS_CHECK(lrfunctor.has_f12());
+        /// since we are subtracting large numbers the numerics are sensitive, and NaN may be returned..
+        double l2error(const LRFunctorBase<T,NDIM>& lrfunctor1) const {
 
             timer t(world);
             t.do_print=do_print;
-            const Function<T,LDIM> one=FunctionFactory<T,LDIM>(world).f([](const Vector<double,LDIM>& r){return 1.0;});
-            const Function<T,LDIM> pre=(lrfunctor.a.is_initialized()) ? lrfunctor.a : one;
-            const Function<T,LDIM> post=(lrfunctor.b.is_initialized()) ? lrfunctor.b : one;
-            const SeparatedConvolution<T,LDIM>& f12=*lrfunctor.f12;
-            const SeparatedConvolution<T,LDIM> f12sq= SeparatedConvolution<T,LDIM>::combine(f12,f12);
 
-            // \int f(1,2)^2 d1d2 = \int f(1,2)^2 pre(1)^2 post(2)^2 d1 d2
-            double term1 =madness::inner(post*post,f12sq(pre*pre));
+            // \int f(1,2)^2 d1d2
+            double term1 =lrfunctor1.l2norm();
             t.tag("computing term1");
 
             // \int f(1,2) pre(1) post(2) \sum_i g(1) h(2) d1d2
-            double term2=madness::inner(pre*g,f12(post*h));
+//            double term2=madness::inner(pre*g,f12(post*h));
+            double term2=madness::inner(g,inner(lrfunctor1,h,p2,p1));
             t.tag("computing term2");
 
             // g functions are orthonormal
@@ -722,9 +643,15 @@ namespace madness {
             //   = \sum_{i} \int h_i(2) h_i(2) d2
             double zero=check_orthonormality(g);
             if (zero>1.e-10) print("g is not orthonormal",zero);
-            double term3=madness::inner(h,h);
+            double term3a=madness::inner(h,h);
+            auto tmp1=matrix_inner(world,h,h);
+            auto tmp2=matrix_inner(world,g,g);
+            double term3=tmp1.trace(tmp2);
+            print("term3/a/diff",term3a,term3,term3-term3a);
             t.tag("computing term3");
 
+            double arg=term1-2.0*term2+term3;
+            if (arg<0.0) throw std::runtime_error("negative argument in l2error");
             double error=sqrt(term1-2.0*term2+term3)/sqrt(term1);
             if (world.rank()==0 and do_print) {
                 print("term1,2,3, error",term1, term2, term3, "  --",error);
@@ -774,6 +701,97 @@ namespace madness {
         return result;
     }
 
+    template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
+    class LowRankFunctionFactory {
+            public:
+
+        const particle<LDIM> p1=particle<LDIM>::particle1();
+        const particle<LDIM> p2=particle<LDIM>::particle2();
+        LowRankFunctionParameters parameters;
+        LowRankFunctionFactory() = default;
+        LowRankFunctionFactory(const LowRankFunctionParameters param) : parameters(param) {}
+        LowRankFunctionFactory(const LowRankFunctionFactory& other) = default;
+
+        LowRankFunctionFactory& set_radius(const double radius) {
+            parameters.set_user_defined_value("radius",radius);
+            return *this;
+        }
+        LowRankFunctionFactory& set_volume_element(const double volume_element) {
+            parameters.set_user_defined_value("volume_element",volume_element);
+            return *this;
+        }
+        LowRankFunctionFactory& set_rank_revealing_tol(const double rrtol) {
+            parameters.set_user_defined_value("tol",rrtol);
+            return *this;
+        }
+        LowRankFunctionFactory& set_orthomethod(const std::string orthomethod) {
+            parameters.set_user_defined_value("orthomethod",orthomethod);
+            return *this;
+        }
+
+        LowRankFunction<T,NDIM> project(const LRFunctorBase<T,NDIM>& lrfunctor) const {
+            World& world=lrfunctor.world();
+            bool do_print=true;
+            timer t1(world);
+            t1.do_print=do_print;
+            auto orthomethod=parameters.orthomethod();
+            auto rank_revealing_tol=parameters.tol();
+
+            // get sampling grid
+            randomgrid<LDIM> rgrid(parameters.volume_element(),parameters.radius());
+            std::vector<Vector<double,LDIM>> grid=rgrid.get_grid();
+            auto Y=Yformer(lrfunctor,grid,parameters.rhsfunctiontype());
+            t1.tag("Yforming");
+
+            auto ovlp=matrix_inner(world,Y,Y);  // error in symmetric matrix_inner, use non-symmetric form here!
+            t1.tag("compute ovlp");
+            auto g=truncate(orthonormalize_rrcd(Y,ovlp,rank_revealing_tol));
+            t1.tag("rrcd/truncate/thresh");
+            auto sz=get_size(world,g);
+            if (world.rank()==0 and do_print) print("gsize",sz);
+//            check_orthonormality(g);
+
+            if (world.rank()==0 and do_print) {
+                print("Y.size()",Y.size());
+                print("g.size()",g.size());
+            }
+
+            auto h=truncate(inner(lrfunctor,g,p1,p1));
+            t1.tag("Y backprojection with truncation");
+            return LowRankFunction<T,NDIM>(g,h,parameters.tol(),parameters.orthomethod());
+
+        }
+
+        /// apply a rhs (delta or exponential) on grid points to the hi-dim function and form Y = A_ij w_j (in Halko's language)
+        std::vector<Function<T,LDIM>> Yformer(const LRFunctorBase<T,NDIM>& lrfunctor1, const std::vector<Vector<double,LDIM>>& grid,
+                                              const std::string rhsfunctiontype, const double exponent=30.0) const {
+
+            World& world=lrfunctor1.world();
+            std::vector<Function<double,LDIM>> Y;
+            if (rhsfunctiontype=="exponential") {
+                std::vector<Function<double,LDIM>> omega;
+                double coeff=std::pow(2.0*exponent/constants::pi,0.25*LDIM);
+                for (const auto& point : grid) {
+                    omega.push_back(FunctionFactory<double,LDIM>(world)
+                                            .functor([&point,&exponent,&coeff](const Vector<double,LDIM>& r)
+                                                     {
+                                                         auto r_rel=r-point;
+                                                         return coeff*exp(-exponent*madness::inner(r_rel,r_rel));
+                                                     }));
+                }
+                Y=inner(lrfunctor1,omega,p2,p1);
+            } else {
+                MADNESS_EXCEPTION("confused rhsfunctiontype",1);
+            }
+            auto norms=norm2s(world,Y);
+            std::vector<Function<double,LDIM>> Ynormalized;
+
+            for (int i=0; i<Y.size(); ++i) if (norms[i]>parameters.tol()) Ynormalized.push_back(Y[i]);
+            normalize(world,Ynormalized);
+            return Ynormalized;
+        }
+
+    };
 
 
 } // namespace madness
