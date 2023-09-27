@@ -1929,7 +1929,17 @@ namespace madness {
     }
 
 
-/// Factory function generating separated kernel for convolution with exp(-mu*r) in 3D
+    /// Factory function generating separated kernel for convolution with exp(-mu*r) in 3D
+    /// Note that the 1/(2mu) factor of SlaterF12Operator is not included, this is just the exponential function
+    template<std::size_t NDIM>
+    static inline SeparatedConvolution<double, NDIM>* SlaterOperatorPtr_ND(World& world,
+                                                                     double mu, double lo, double eps,
+                                                                     const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
+                                                                     int k = FunctionDefaults<NDIM>::get_k()) {
+        return new SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_SLATER),bc,k);
+    }
+
+    /// Factory function generating separated kernel for convolution with exp(-mu*r) in 3D
     /// Note that the 1/(2mu) factor of SlaterF12Operator is not included, this is just the exponential function
     static inline SeparatedConvolution<double, 3>* SlaterOperatorPtr(World& world,
                                                                  double mu, double lo, double eps,

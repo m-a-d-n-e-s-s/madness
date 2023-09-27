@@ -274,6 +274,12 @@ struct particle {
         for (int i=0; i<PDIM; ++i) dims[i]=p[i];
     }
 
+    std::string str() const {
+        std::stringstream ss;
+        ss << *this;
+        return ss.str();
+    }
+
     /// assuming two particles only
     bool is_first() const {return dims[0]==0;}
     /// assuming two particles only
@@ -377,24 +383,32 @@ struct LRFunctorF12 : public LRFunctorBase<T,NDIM> {
 
         // \int f(1,2)^2 d1d2 = \int f(1,2)^2 pre(1)^2 post(2)^2 d1 d2
         typename Tensor<T>::scalar_type term1 =madness::inner(post*post,f12sq(pre*pre));
-        return term1;
+        return sqrt(term1);
 
     }
 
     T operator()(const Vector<double,NDIM>& r) const {
 
-        if (f12->info.type==OT_SLATER) {
-            double gamma=f12->info.mu;
+        auto split = [](const Vector<double,NDIM>& r) {
             Vector<double,LDIM> first, second;
             for (int i=0; i<LDIM; ++i) {
                 first[i]=r[i];
                 second[i]=r[i+LDIM];
             }
-            double result=a(first)*b(second)*exp(-gamma*(first-second).normf());
-            return result;
-        } else {
-            return 1.0;
-        }
+            return std::make_pair(first,second);
+        };
+
+        double gamma=f12->info.mu;
+        auto [first,second]=split(r);
+
+        double result=1.0;
+        if (a.is_initialized()) result*=a(first);
+        if (b.is_initialized()) result*=b(first);
+        if (f12->info.type==OT_SLATER) result*=exp(-gamma*(first-second).normf());
+        else if (f12->info.type==OT_GAUSS) result*=exp(-gamma* madness::inner(first-second,first-second));
+        else return 1.0;
+        return result;
+
     }
 };
 
@@ -418,9 +432,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     }
 
     typename Tensor<T>::scalar_type norm2() const {
-        double n=f.norm2();
-        return n*n;
-
+        return f.norm2();
     }
 };
 
@@ -537,10 +549,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         /// l2 norm
         typename TensorTypeData<T>::scalar_type norm2() const {
             auto tmp1=matrix_inner(world,h,h);
-            auto gg=copy(g);
-            compress(world,gg);
-            auto tmp2=matrix_inner(world,gg,g);
-            return tmp1.trace(tmp2);
+            auto tmp2=matrix_inner(world,g,g);
+            return sqrt(tmp1.trace(tmp2));
         }
 
         std::vector<Function<T,LDIM>> get_functions(const particle<LDIM>& p) const {
@@ -750,7 +760,21 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
      *  d = inner(lrf(1,2), lrf(1,2))
      */
 
-    ///  lrf(1,3) = inner(lrf(1,2), lrf(2,3))
+    ///  lrf(1,3) = inner(full(1,2), lrf(2,3))
+
+    /// @param[in] f1 the first function
+    /// @param[in] f2 the second function
+    /// @param[in] p1 the integration variable of the first function
+    /// @param[in] p2 the integration variable of the second function
+    template<typename T, std::size_t NDIM, std::size_t PDIM>
+    LowRankFunction<T,NDIM> inner(const Function<T,NDIM>& f1, const LowRankFunction<T,NDIM>& f2,
+                                  const particle<PDIM> p1, const particle<PDIM> p2) {
+        auto result=inner(f2,f1,p2,p1);
+        std::swap(result.g,result.h);
+        return result;
+    }
+
+    ///  lrf(1,3) = inner(lrf(1,2), full(2,3))
 
     /// @param[in] f1 the first function
     /// @param[in] f2 the second function
@@ -793,7 +817,6 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         // inner(lrf(1,2) ,lrf(2,3) ) = \sum_ij g1_i(1) <h1_i(2) g2_j(2)> h2_j(3)
         auto matrix=matrix_inner(world,f2.get_functions(p2),f1.get_functions(p1));
         auto htilde=transform(world,f2.get_functions(p2.complement()),matrix);
-        print("p1 complement",p1.complement());
         auto gg=copy(world,f1.get_functions(p1.complement()));
         return LowRankFunction<T,NDIM>(gg,htilde,f1.rank_revealing_tol,f1.orthomethod);
     }
@@ -805,14 +828,14 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     /// @param[in] p1 the integration variable of the first function
     /// @param[in] p2 the integration variable of the second function, dummy variable for consistent notation
     template<typename T, std::size_t NDIM, std::size_t PDIM>
-    std::vector<Function<T,NDIM>> inner(const LowRankFunction<T,NDIM>& f1, const std::vector<Function<T,PDIM>>& vf,
+    std::vector<Function<T,NDIM-PDIM>> inner(const LowRankFunction<T,NDIM>& f1, const std::vector<Function<T,PDIM>>& vf,
                                   const particle<PDIM> p1, const particle<PDIM> p2=particle<PDIM>::particle1()) {
         World& world=f1.world;
         static_assert(2*PDIM==NDIM);
         MADNESS_CHECK(p2.is_first());
 
         // inner(lrf(1,2), f_k(2) ) = \sum_i g1_i(1) <h1_i(2) f_k(2)>
-        auto matrix=matrix_inner(world,vf,f1.get_functions(p1));
+        auto matrix=matrix_inner(world,f1.get_functions(p1),vf);
         return transform(world,f1.get_functions(p1.complement()),matrix);
     }
 
@@ -825,12 +848,12 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     template<typename T, std::size_t NDIM, std::size_t PDIM>
     Function<T,NDIM> inner(const LowRankFunction<T,NDIM>& f1, const Function<T,PDIM>& f2,
                                         const particle<PDIM> p1, const particle<PDIM> p2=particle<PDIM>::particle1()) {
-        return inner(f1,std::vector<Function<T,PDIM>>({f2}),p1,p2);
+        return inner(f1,std::vector<Function<T,PDIM>>({f2}),p1,p2)[0];
     }
 
     template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
     class LowRankFunctionFactory {
-            public:
+    public:
 
         const particle<LDIM> p1=particle<LDIM>::particle1();
         const particle<LDIM> p2=particle<LDIM>::particle2();
