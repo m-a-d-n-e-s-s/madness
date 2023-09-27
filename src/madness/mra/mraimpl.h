@@ -3213,10 +3213,21 @@ template <typename T, std::size_t NDIM>
             return woT::task(world.rank(),&implT::compress_op, key, v, nonstandard1);
         }
         else {
-            Future<coeffT > result(node.coeff());
-            if (!keepleaves) node.clear_coeff();
-        	node.set_dnorm(0.0);
-            return result;
+            // special case: tree has only root node: keep sum coeffs and make zero diff coeffs
+            if (key.level()==0) {
+//            if (0) {
+                Future<coeffT > result(node.coeff());
+                coeffT sdcoeff(cdata.v2k,this->get_tensor_type());
+                sdcoeff(cdata.s0)+=node.coeff();
+                node.coeff()=sdcoeff;
+                node.set_dnorm(0.0);
+                return result;
+            } else {
+                Future<coeffT > result(node.coeff());
+                if (!keepleaves) node.clear_coeff();
+                node.set_dnorm(0.0);
+                return result;
+            }
         }
     }
 
