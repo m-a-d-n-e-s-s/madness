@@ -813,7 +813,9 @@ namespace madness {
     {
         world.gop.fence();
         compress(world, f);
-        if ((void*)(&f) != (void*)(&g)) compress(world, g);
+//        if ((void*)(&f) != (void*)(&g)) compress(world, g);
+        compress(world, g);
+
 
         std::vector<const FunctionImpl<T,NDIM>*> left(f.size());
         std::vector<const FunctionImpl<R,NDIM>*> right(g.size());
@@ -1162,6 +1164,17 @@ namespace madness {
             r[i] = copy(v[i], false);
         }
         if (fence) world.gop.fence();
+        return r;
+    }
+
+
+    /// Returns a deep copy of a vector of functions
+    template <typename T, std::size_t NDIM>
+    std::vector< Function<T,NDIM> >
+    copy(const std::vector< Function<T,NDIM> >& v, bool fence=true) {
+        PROFILE_BLOCK(Vcopy);
+        std::vector< Function<T,NDIM> > r(v.size());
+        if (v.size()>0) r=copy(v.front().world(),v,fence);
         return r;
     }
 

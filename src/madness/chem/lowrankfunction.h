@@ -260,6 +260,12 @@ struct particle {
         return p;
     }
 
+    /// return the other particle
+    particle complement() const {
+        MADNESS_CHECK(is_first() or is_last());
+        if (is_first()) return particle2();
+        return particle1();
+    }
 
     particle(const int p) : particle(std::vector<int>(1,p)) {}
     particle(const int p1, const int p2) : particle(std::vector<int>({p1,p2})) {}
@@ -286,6 +292,14 @@ struct particle {
     get_tuple() const {return std::tuple<int,int,int>(dims[0],dims[1],dims[2]);}
 };
 
+template<std::size_t PDIM>
+std::ostream& operator<<(std::ostream& os, const particle<PDIM>& p) {
+    os << "(";
+    for (auto i=0; i<PDIM-1; ++i) os << p.dims[i] << ";";
+    os << p.dims[PDIM-1] << ")";
+    return os;
+}
+
 /// the low-rank functor is what the LowRankFunction will represent
 
 /// derive from this class :
@@ -303,7 +317,7 @@ struct LRFunctorBase {
     }
 
     virtual T operator()(const Vector<T,NDIM>& r) const =0;
-    virtual typename Tensor<T>::scalar_type l2norm() const {
+    virtual typename Tensor<T>::scalar_type norm2() const {
         MADNESS_EXCEPTION("L2 norm not implemented",1);
     }
 
@@ -354,7 +368,7 @@ struct LRFunctorF12 : public LRFunctorBase<T,NDIM> {
         return result;
     }
 
-    typename Tensor<T>::scalar_type l2norm() const {
+    typename Tensor<T>::scalar_type norm2() const {
         const Function<T,LDIM> one=FunctionFactory<T,LDIM>(world()).f([](const Vector<double,LDIM>& r){return 1.0;});
         const Function<T,LDIM> pre=(a.is_initialized()) ? a : one;
         const Function<T,LDIM> post=(b.is_initialized()) ? b : one;
@@ -403,7 +417,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         return f(r);
     }
 
-    typename Tensor<T>::scalar_type l2norm() const {
+    typename Tensor<T>::scalar_type norm2() const {
         double n=f.norm2();
         return n*n;
 
@@ -432,10 +446,19 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
         LowRankFunction(std::vector<Function<T,LDIM>> g, std::vector<Function<T,LDIM>> h,
                         double tol, std::string orthomethod) : world(g.front().world()),
-                        rank_revealing_tol(tol), orthomethod(orthomethod), g(g), h(h) {}
+                        rank_revealing_tol(tol), orthomethod(orthomethod), g(g), h(h) {
 
-        LowRankFunction(const LowRankFunction& other) : world(other.world), g(copy(world, other.g)),
-            h(copy(world, other.h)), rank_revealing_tol(other.rank_revealing_tol), orthomethod(other.orthomethod) {
+        }
+
+        /// shallow copy ctor
+        LowRankFunction(const LowRankFunction& other) : world(other.world),
+            g(other.g), h(other.h),
+            rank_revealing_tol(other.rank_revealing_tol), orthomethod(other.orthomethod) {
+        }
+
+        /// deep copy
+        friend LowRankFunction copy(const LowRankFunction& other) {
+            return LowRankFunction<T,NDIM>(madness::copy(other.g),madness::copy(other.h),other.rank_revealing_tol,other.orthomethod);
         }
 
         LowRankFunction& operator=(const LowRankFunction& f) { // Assignment required for storage in vector
@@ -463,37 +486,71 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
         /// addition
         LowRankFunction operator+(const LowRankFunction& b) const {
-            return LowRankFunction(g + b.g, h + b.h);
+            LowRankFunction<T,NDIM> result=copy(*this);
+            result+=b;
+            return result;
         }
         /// subtraction
         LowRankFunction operator-(const LowRankFunction& b) const {
-            return LowRankFunction(g - b.g, h - b.h);
+            LowRankFunction<T,NDIM> result=copy(*this);
+            result-=b;
+            return result;
         }
 
         /// in-place addition
         LowRankFunction& operator+=(const LowRankFunction& b) {
-            g+=b.g;
-            h+=b.h;
+
+            g=append(g,copy(b.g));
+            h=append(h,copy(b.h));
             return *this;
         }
 
         /// in-place subtraction
         LowRankFunction& operator-=(const LowRankFunction& b) {
-            g-=b.g;
-            h-=b.h;
+            g=append(g,-1.0*b.g);   // operator* implies deep copy of b.g
+            h=append(h,copy(b.h));
             return *this;
         }
 
         /// scale by a scalar
         template<typename Q>
         LowRankFunction operator*(const Q a) const {
-            return LowRankFunction<TensorResultType<T,Q>,NDIM>(g * a, Q(h));
+            return LowRankFunction<TensorResultType<T,Q>,NDIM>(g * a, Q(h),rank_revealing_tol,orthomethod);
+        }
+
+        /// out-of-place scale by a scalar (no type conversion)
+        LowRankFunction operator*(const T a) const {
+            return LowRankFunction(g * a, h,rank_revealing_tol,orthomethod);
+        }
+
+        /// multiplication with a scalar
+        friend LowRankFunction operator*(const T a, const LowRankFunction& other) {
+            return other*a;
         }
 
         /// in-place scale by a scalar (no type conversion)
-        LowRankFunction operator*(const T a) const {
-            return LowRankFunction(g * a, h);
+        LowRankFunction& operator*=(const T a) {
+            g=g*a;
+            return *this;
         }
+
+        /// l2 norm
+        typename TensorTypeData<T>::scalar_type norm2() const {
+            auto tmp1=matrix_inner(world,h,h);
+            auto gg=copy(g);
+            compress(world,gg);
+            auto tmp2=matrix_inner(world,gg,g);
+            return tmp1.trace(tmp2);
+        }
+
+        std::vector<Function<T,LDIM>> get_functions(const particle<LDIM>& p) const {
+            MADNESS_CHECK(p.is_first() or p.is_last());
+            if (p.is_first()) return g;
+            return h;
+        }
+
+        std::vector<Function<T,LDIM>> get_g() const {return g;}
+        std::vector<Function<T,LDIM>> get_h() const {return h;}
 
         long rank() const {return g.size();}
 
@@ -516,10 +573,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             double tol=rank_revealing_tol;
             std::vector<Function<T,LDIM>> g2;
             auto ovlp=matrix_inner(world,g,g);
-            if (orthomethod=="symmetric") {
-                print("orthonormalizing with method/tol",orthomethod,tol);
-                g2=orthonormalize_symmetric(g,ovlp);
-            } else if (orthomethod=="canonical") {
+            if (orthomethod=="canonical") {
                 tol*=0.01;
                 print("orthonormalizing with method/tol",orthomethod,tol);
                 g2=orthonormalize_canonical(g,ovlp,tol);
@@ -628,7 +682,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             t.do_print=do_print;
 
             // \int f(1,2)^2 d1d2
-            double term1 =lrfunctor1.l2norm();
+            double term1 = lrfunctor1.norm2();
             t.tag("computing term1");
 
             // \int f(1,2) pre(1) post(2) \sum_i g(1) h(2) d1d2
@@ -671,34 +725,107 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
 
 
-    template<typename T, std::size_t NDIM>
-    LowRankFunction<T,NDIM> inner(const Function<T,NDIM>& lhs, const LowRankFunction<T,NDIM>& rhs, const std::tuple<int> v1, const std::tuple<int> v2) {
-        World& world=rhs.world;
-        // int lhs(1,2) rhs(2,3) d2 = \sum \int lhs(1,2) g_i(2) h_i(3) d2
-        //                      = \sum \int lhs(1,2) g_i(2) d2 h_i(3)
-        LowRankFunction<T, NDIM + NDIM - 2> result(world);
-        result.h=rhs.h;
-        decltype(rhs.g) g;
-        for (int i=0; i<rhs.rank(); ++i) {
-            g.push_back(inner(lhs,rhs.g[i],{v1},{0}));
+//    template<typename T, std::size_t NDIM>
+//    LowRankFunction<T,NDIM> inner(const Function<T,NDIM>& lhs, const LowRankFunction<T,NDIM>& rhs,
+//                                  const std::tuple<int> v1, const std::tuple<int> v2) {
+//        World& world=rhs.world;
+//        // int lhs(1,2) rhs(2,3) d2 = \sum \int lhs(1,2) g_i(2) h_i(3) d2
+//        //                      = \sum \int lhs(1,2) g_i(2) d2 h_i(3)
+//        LowRankFunction<T, NDIM + NDIM - 2> result(world);
+//        result.h=rhs.h;
+//        decltype(rhs.g) g;
+//        for (int i=0; i<rhs.rank(); ++i) {
+//            g.push_back(inner(lhs,rhs.g[i],{v1},{0}));
+//        }
+//        result.g=g;
+//        return result;
+//    }
+
+    /**
+     * inner product: LowRankFunction lrf; Function f, g; double d
+     *  lrf(1,3) = inner(lrf(1,2), lrf(2,3))
+     *  lrf(1,3) = inner(lrf(1,2), f(2,3))
+     *  g(1) = inner(lrf(1,2), f(2))
+     *  d = inner(lrf(1,2), f(1,2))
+     *  d = inner(lrf(1,2), lrf(1,2))
+     */
+
+    ///  lrf(1,3) = inner(lrf(1,2), lrf(2,3))
+
+    /// @param[in] f1 the first function
+    /// @param[in] f2 the second function
+    /// @param[in] p1 the integration variable of the first function
+    /// @param[in] p2 the integration variable of the second function
+    template<typename T, std::size_t NDIM, std::size_t PDIM>
+    LowRankFunction<T,NDIM> inner(const LowRankFunction<T,NDIM>& f1, const Function<T,NDIM>& f2,
+                                  const particle<PDIM> p1, const particle<PDIM> p2) {
+        World& world=f1.world;
+        static_assert(2*PDIM==NDIM);
+        // int f(1,2) k(2,3) d2 = \sum \int g_i(1) h_i(2) k(2,3) d2
+        //                      = \sum g_i(1) \int h_i(2) k(2,3) d2
+        LowRankFunction<T, NDIM> result(world);
+        if (p1.is_last()) { // integrate over 2: result(1,3) = lrf(1,2) f(2,3)
+            result.g = f1.g;
+            decltype(f1.h) h;
+            for (int i=0; i<f1.rank(); ++i) h.push_back(inner(f1.h[i],f2,(particle<PDIM>::particle1().get_tuple()),p2.get_tuple()));
+            result.h=copy(h);
+        } else if (p1.is_first()) { // integrate over 1: result(2,3) = lrf(1,2) f(1,3)
+            result.g = f1.h;        // correct! second variable of f1 becomes first variable of result
+            decltype(f1.g) h;
+            for (int i=0; i<f1.rank(); ++i) h.push_back(inner(f1.g[i],f2,particle<PDIM>::particle1().get_tuple(),p2.get_tuple()));
+            result.h=copy(h);
         }
-        result.g=g;
         return result;
     }
 
-    template<typename T, std::size_t NDIM>
-    LowRankFunction<T,NDIM> inner(const LowRankFunction<T,NDIM>& f, const Function<T,NDIM>& g, const std::tuple<int> v1, const std::tuple<int> v2) {
-        World& world=f.world;
-        // int f(1,2) k(2,3) d2 = \sum \int g_i(1) h_i(2) k(2,3) d2
-        //                      = \sum g_i(1) \int h_i(2) k(2,3) d2
-        LowRankFunction<T, NDIM + NDIM - 2> result(world);
-        result.g=f.g;
-        decltype(f.h) h;
-        for (int i=0; i<f.rank(); ++i) {
-            h.push_back(inner(f.h[i],g,{0},{v2}));
-        }
-        result.h=h;
-        return result;
+    ///  lrf(1,3) = inner(lrf(1,2), lrf(2,3))
+
+    /// @param[in] f1 the first function
+    /// @param[in] f2 the second function
+    /// @param[in] p1 the integration variable of the first function
+    /// @param[in] p2 the integration variable of the second function
+    template<typename T, std::size_t NDIM, std::size_t PDIM>
+    LowRankFunction<T,NDIM> inner(const LowRankFunction<T,NDIM>& f1, const LowRankFunction<T,NDIM>& f2,
+                                  const particle<PDIM> p1, const particle<PDIM> p2) {
+        World& world=f1.world;
+        static_assert(2*PDIM==NDIM);
+
+        // inner(lrf(1,2) ,lrf(2,3) ) = \sum_ij g1_i(1) <h1_i(2) g2_j(2)> h2_j(3)
+        auto matrix=matrix_inner(world,f2.get_functions(p2),f1.get_functions(p1));
+        auto htilde=transform(world,f2.get_functions(p2.complement()),matrix);
+        print("p1 complement",p1.complement());
+        auto gg=copy(world,f1.get_functions(p1.complement()));
+        return LowRankFunction<T,NDIM>(gg,htilde,f1.rank_revealing_tol,f1.orthomethod);
+    }
+
+    ///  f(1) = inner(lrf(1,2), f(2))
+
+    /// @param[in] f1 the first function
+    /// @param[in] vf vector of the second functions
+    /// @param[in] p1 the integration variable of the first function
+    /// @param[in] p2 the integration variable of the second function, dummy variable for consistent notation
+    template<typename T, std::size_t NDIM, std::size_t PDIM>
+    std::vector<Function<T,NDIM>> inner(const LowRankFunction<T,NDIM>& f1, const std::vector<Function<T,PDIM>>& vf,
+                                  const particle<PDIM> p1, const particle<PDIM> p2=particle<PDIM>::particle1()) {
+        World& world=f1.world;
+        static_assert(2*PDIM==NDIM);
+        MADNESS_CHECK(p2.is_first());
+
+        // inner(lrf(1,2), f_k(2) ) = \sum_i g1_i(1) <h1_i(2) f_k(2)>
+        auto matrix=matrix_inner(world,vf,f1.get_functions(p1));
+        return transform(world,f1.get_functions(p1.complement()),matrix);
+    }
+
+    ///  f(1) = inner(lrf(1,2), f(2))
+
+    /// @param[in] f1 the first function
+    /// @param[in] vf the second function
+    /// @param[in] p1 the integration variable of the first function
+    /// @param[in] p2 the integration variable of the second function, dummy variable for consistent notation
+    template<typename T, std::size_t NDIM, std::size_t PDIM>
+    Function<T,NDIM> inner(const LowRankFunction<T,NDIM>& f1, const Function<T,PDIM>& f2,
+                                        const particle<PDIM> p1, const particle<PDIM> p2=particle<PDIM>::particle1()) {
+        return inner(f1,std::vector<Function<T,PDIM>>({f2}),p1,p2);
     }
 
     template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>

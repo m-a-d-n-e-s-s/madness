@@ -380,12 +380,107 @@ int test_full_rank_functor(World& world, LowRankFunctionParameters& parameters) 
     return t1.end();
 }
 
-template<std::size_t LDIM>
-int test_grids(World& world, LowRankFunctionParameters& parameters) {
-    randomgrid<LDIM> g(parameters.volume_element(),parameters.radius());
-    g.get_grid();
 
-    return 0;
+template<std::size_t LDIM>
+int test_arithmetic(World& world, LowRankFunctionParameters parameters) {
+    constexpr std::size_t NDIM = 2 * LDIM;
+    test_output t1("LowRankFunction::arithmetic in dimension " + std::to_string(NDIM));
+    t1.set_cout_to_terminal();
+    double thresh=FunctionDefaults<LDIM>::get_thresh();
+    Function<double,LDIM> phi=FunctionFactory<double,LDIM>(world)
+            .functor([](const Vector<double,LDIM>& r){return exp(-4.0*inner(r,r));});
+
+    LRFunctorF12<double,NDIM> functor1;
+    functor1.f12.reset(GaussOperatorPtr<LDIM>(world,1.0));
+    functor1.a=phi;
+    LRFunctorF12<double,NDIM> functor2;
+    functor2.f12.reset(GaussOperatorPtr<LDIM>(world,2.0));
+    functor2.a=phi;
+
+    auto builder= LowRankFunctionFactory<double,NDIM>(parameters).set_radius(8)
+            .set_volume_element(0.1).set_rank_revealing_tol(1.e-10).set_orthomethod("canonical");
+    auto lrf1=builder.project(functor1);
+    auto lrf2=builder.project(functor2);
+
+    Vector<double,NDIM> r;
+    r.fill(0.2);
+    print("lrf1(r)",lrf1(r));
+
+    // addition/subtraction
+    {
+        auto l1=lrf1+lrf1;
+        t1.checkpoint(fabs(l1(r)-2.0*lrf1(r))<thresh,"addition - value");
+        t1.checkpoint(l1.rank()==lrf1.rank()*2,"addition - rank");
+        t1.checkpoint(&l1.get_g().front()!=&lrf1.get_g().front(),"addition - deep copy");
+
+        auto l2=l1-lrf1;
+        t1.checkpoint(fabs(l2(r)-lrf1(r))<thresh,"subtraction - value");
+        t1.checkpoint(l2.rank()==lrf1.rank()*3,"subtraction - rank");
+        t1.checkpoint(&l2.get_g().front()!=&lrf1.get_g().front(),"subtraction - deep copy");
+
+        l2+=lrf1;
+        t1.checkpoint(fabs(l2(r)-2.0*lrf1(r))<thresh,"in-place-addition - value");
+        t1.checkpoint(l2.rank()==lrf1.rank()*4,"in-place-addition - rank");
+
+        l2-=lrf1;
+        t1.checkpoint(fabs(l2(r)-lrf1(r))<thresh,"in-place-subtraction - value");
+        t1.checkpoint(l2.rank()==lrf1.rank()*5,"in-place-subtraction - rank");
+    }
+
+
+    // norm
+    {
+        double n1=lrf1.norm2();
+        double refn1=functor1.norm2();
+        t1.checkpoint(fabs(n1-refn1)<thresh,"norm2 computation");
+        double n2=lrf2.norm2();
+        double refn2=functor2.norm2();
+        t1.checkpoint(fabs(n2-refn2)<thresh,"norm2 computation");
+    }
+
+    // inner
+    {
+        std::vector<Function<double,LDIM>> arg(3);
+        for (int i=0; i<3; ++i) arg[i]=FunctionFactory<double,LDIM>(world)
+                .functor([&i](const Vector<double,LDIM>& r)
+                         {return exp(-r.normf());});
+        auto p1=particle<LDIM>::particle1();
+        auto p2=particle<LDIM>::particle2();
+
+        auto fullrank1=lrf1.reconstruct();
+        auto fullrank2=lrf2.reconstruct();
+        t1.checkpoint(true,"prep inner");
+
+        for (auto p11 : {p1,p2}) {
+            for (auto p22 : {p1,p2}) {
+                auto lhs0=inner(fullrank1,fullrank2,p11.get_tuple(),p22.get_tuple());
+                auto lhs1=inner(lrf1,fullrank2,p11,p22);
+                auto lhs2=inner(lrf1,lrf2,p11,p22);
+                double l0=lhs0.norm2();
+                double l1=lhs1.norm2();
+                double l2=lhs2.norm2();
+
+                print("inner(lrf,full,",p11,p22,"): ",fullrank1.norm2(),lhs1.norm2(),lhs2.norm2());
+
+            }
+        }
+
+//        auto lhs1=inner(functor1,arg,p2,p1);
+//        auto lhs2=inner(lrf1,arg,p2,p1);
+//        double error=norm2(world,lhs1-lhs2);
+    }
+
+    // scalar multiplication
+    {
+        auto l1=2.0*lrf1;
+        t1.checkpoint(fabs(l1(r)-2.0*lrf1(r))<thresh,"oop-place multiplication");
+        t1.checkpoint(&l1.get_g().front()!=&lrf1.get_g().front(),"subtraction - deep copy");
+        l1*=0.5;
+        t1.checkpoint(fabs(l1(r)-lrf1(r))<thresh,"in-place multiplication");
+
+    }
+
+    return t1.end();
 }
 
 template<std::size_t LDIM>
@@ -401,14 +496,28 @@ int test_construction_optimization(World& world, LowRankFunctionParameters param
     LRFunctorF12<double,NDIM> lrfunctor(slater,one,one);
     LowRankFunctionFactory<double,NDIM> builder(parameters);
     auto lrf=builder.project(lrfunctor);
+    t1.checkpoint(lrf.rank()>0,"construction");
 
     double error=lrf.l2error(lrfunctor);
-    t1.checkpoint(error<2.e-2,"l2 error in projection "+std::to_string(error));
     print("l2 error project ",error);
+    t1.checkpoint(error<2.e-2,"l2 error in projection "+std::to_string(error));
+
+    auto lrf2(lrf);
+    error=lrf2.l2error(lrfunctor);
+    print("l2 error copy ctor  ",error);
+    MADNESS_CHECK(lrf.rank()==lrf2.rank());
+    MADNESS_CHECK(&(lrf.g[0]) != &(lrf2.g[0]));  // deep copy
+    t1.checkpoint(error<2.e-2,"l2 error in copy ctor "+std::to_string(error));
+
     lrf.optimize(lrfunctor);
     error=lrf.l2error(lrfunctor);
     print("l2 error optimize",error);
     t1.checkpoint(error<1.e-2,"l2 error in optimization "+std::to_string(error));
+
+    lrf.reorthonormalize();
+    error=lrf.l2error(lrfunctor);
+    print("l2 error reorthonormalize",error);
+    t1.checkpoint(error<1.e-2,"l2 error in reorthonormalization "+std::to_string(error));
     return t1.end();
 }
 
@@ -442,7 +551,6 @@ int main(int argc, char **argv) {
     FunctionDefaults<5>::set_cubic_cell(-10.,10.);
     FunctionDefaults<6>::set_cubic_cell(-10.,10.);
 
-
     FunctionDefaults<2>::set_tensor_type(TT_FULL);
     print("numerical parameters: k, eps(3D), eps(6D)", FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(),
           FunctionDefaults<6>::get_thresh());
@@ -458,10 +566,10 @@ int main(int argc, char **argv) {
 //        isuccess+=test_grids<1>(world,parameters);
 //        isuccess+=test_grids<2>(world,parameters);
 //        isuccess+=test_grids<3>(world,parameters);
-        isuccess+= test_full_rank_functor<1>(world, parameters);
+//        isuccess+=test_full_rank_functor<1>(world, parameters);
 //        isuccess+=test_construction_optimization<1>(world,parameters);
 //        isuccess+=test_construction_optimization<2>(world,parameters);
-//        isuccess+=test_arithmetic<1>(world,parameters);
+        isuccess+=test_arithmetic<1>(world,parameters);
 //        isuccess+=test_arithmetic<2>(world,parameters);
 
 //        isuccess+=test_lowrank_function(world,parameters);
