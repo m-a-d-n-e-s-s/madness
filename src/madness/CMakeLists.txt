@@ -94,7 +94,13 @@ if(HAVE_IBMBGQ OR HAVE_IBMBGP)
   target_link_libraries(madness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a)
 endif()
 if (LAPACK_FOUND)
-  target_link_libraries(madness PUBLIC ${LAPACK_LIBRARIES})
+
+	# if LAPACK_LIBRARIES includes IMPORTED targets make sure they are available
+	if (LAPACK_LIBRARIES MATCHES OpenMP::OpenMP_C AND NOT TARGET OpenMP::OpenMP_C)
+		find_package(OpenMP REQUIRED COMPONENTS C)
+	endif()
+
+	target_link_libraries(madness PUBLIC ${LAPACK_LIBRARIES})
 	if (LAPACK_INCLUDE_DIRS)
 		target_include_directories(madness PUBLIC ${LAPACK_INCLUDE_DIRS})
 	endif(LAPACK_INCLUDE_DIRS)
