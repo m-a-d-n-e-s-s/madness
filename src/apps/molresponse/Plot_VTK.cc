@@ -57,8 +57,9 @@ namespace madness {
                                        const response_matrix &responseMatrix) {
         // Stuff needed to plot
         //
-        Vector<double, 3> box_lo{-L / 10, -L / 10, -L / 10};
-        Vector<double, 3> box_hi{L / 10, L / 10, L / 10};
+        double box_size = L / 2;
+        Vector<double, 3> box_lo{-box_size, -box_size, -box_size};
+        Vector<double, 3> box_hi{box_size, box_size, box_size};
 
 
         std::string vtk_dir = "vtk_plots";
@@ -120,8 +121,9 @@ namespace madness {
                                        const vector_real_function_3d &response_density) {
         // Stuff needed to plot
         //
-        Vector<double, 3> box_lo{-L / 4, -L / 4, -L / 4};
-        Vector<double, 3> box_hi{L / 4, L / 4, L / 4};
+        double box_size = L / 2;
+        Vector<double, 3> box_lo{-box_size, -box_size, -box_size};
+        Vector<double, 3> box_hi{box_size, box_size, box_size};
 
 
         std::string vtk_dir = "vtk_plots";
@@ -155,11 +157,9 @@ namespace madness {
     void do_response_density_vtk_plots_new(World &world, int npt_plot, double L, const Molecule &molecule,
                                            const real_function_3d &ground_density,
                                            const vector_real_function_3d &response_density) {
-        // Stuff needed to plot
-        //
-        auto L_box = L / 10;
-        Vector<double, 3> box_lo{-L_box, -L_box, -L_box};
-        Vector<double, 3> box_hi{L_box, L_box, L_box};
+        double box_size = L / 2;
+        Vector<double, 3> box_lo{-box_size, -box_size, -box_size};
+        Vector<double, 3> box_hi{box_size, box_size, box_size};
 
 
         std::string vtk_dir = "vtk_plots";
