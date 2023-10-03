@@ -113,6 +113,7 @@ namespace madness {
                         f = NULL;
                     }
                 }
+                if (ftee) fprintf(ftee,"\n");
             }
             if (f) fflush(f);
         }
