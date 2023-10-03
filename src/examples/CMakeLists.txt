@@ -5,7 +5,7 @@ set(EXAMPLE_SOURCES
     sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio 
     dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver
     testspectralprop dielectric_external_field tiny h2dynamic newsolver testcomplexfunctionsolver
-    helium_exact density_smoothing siam_example ac_corr
+    helium_exact density_smoothing siam_example ac_corr dirac-hatom
     derivatives array_worldobject)
  
 if(LIBXC_FOUND)

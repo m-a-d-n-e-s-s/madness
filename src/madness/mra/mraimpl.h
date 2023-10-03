@@ -2707,7 +2707,61 @@ namespace madness {
     }
 
     template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::print_tree_json(std::ostream& os, Level maxlevel) const {
+        std::multimap<Level, std::tuple<tranT, std::string>> data;
+        if (world.rank() == 0) do_print_tree_json(cdata.key0, data, maxlevel);
+        world.gop.fence();
+        if (world.rank() == 0) {
+            for (Level level = 0; level != maxlevel; ++level) {
+                if (data.count(level) == 0)
+                    break;
+                else {
+                    if (level > 0)
+                        os << ",";
+                    os << "\"" << level << "\":{";
+                    os << "\"level\": " << level << ",";
+                    os << "\"nodes\":{";
+                    auto range = data.equal_range(level);
+                    for (auto it = range.first; it != range.second; ++it) {
+                        os << "\"" << std::get<0>(it->second) << "\":"
+                           << std::get<1>(it->second);
+                        if (std::next(it) != range.second)
+                            os << ",";
+                    }
+                    os << "}}";
+                }
+            }
+            os.flush();
+        }
+        world.gop.fence();
+    }
+
+
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::do_print_tree_json(const keyT& key, std::multimap<Level, std::tuple<tranT, std::string>>& data, Level maxlevel) const {
+        typename dcT::const_iterator it = coeffs.find(key).get();
+        if (it == coeffs.end()) {
+            MADNESS_EXCEPTION("FunctionImpl: do_print_tree_json: null node pointer",0);
+        }
+        else {
+            const nodeT& node = it->second;
+            std::ostringstream oss;
+            oss << "{";
+            node.print_json(oss);
+            oss << ",\"owner\": " << coeffs.owner(key) << "}";
+            auto node_json_str = oss.str();
+            data.insert(std::make_pair(key.level(), std::make_tuple(key.translation(), node_json_str)));
+            if (key.level() < maxlevel  &&  node.has_children()) {
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    do_print_tree_json(kit.key(),data, maxlevel);
+                }
+            }
+        }
+    }
+
+    template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::print_tree_graphviz(std::ostream& os, Level maxlevel) const {
+        // aggregate data by level, thus collect data first, then dump
         if (world.rank() == 0) do_print_tree_graphviz(cdata.key0, os, maxlevel);
         world.gop.fence();
         if (world.rank() == 0) os.flush();
@@ -3213,10 +3267,21 @@ template <typename T, std::size_t NDIM>
             return woT::task(world.rank(),&implT::compress_op, key, v, nonstandard1);
         }
         else {
-            Future<coeffT > result(node.coeff());
-            if (!keepleaves) node.clear_coeff();
-        	node.set_dnorm(0.0);
-            return result;
+            // special case: tree has only root node: keep sum coeffs and make zero diff coeffs
+            if (key.level()==0) {
+//            if (0) {
+                Future<coeffT > result(node.coeff());
+                coeffT sdcoeff(cdata.v2k,this->get_tensor_type());
+                sdcoeff(cdata.s0)+=node.coeff();
+                node.coeff()=sdcoeff;
+                node.set_dnorm(0.0);
+                return result;
+            } else {
+                Future<coeffT > result(node.coeff());
+                if (!keepleaves) node.clear_coeff();
+                node.set_dnorm(0.0);
+                return result;
+            }
         }
     }
 
