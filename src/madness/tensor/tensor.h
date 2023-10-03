@@ -1769,14 +1769,14 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         }
 
 
-        /// Return the trace of two tensors (no complex conjugate invoked)
+        /// Return the trace (dot product) of two tensors (no complex conjugate invoked)
         T trace(const Tensor<T>& t) const {
             T result = 0;
             BINARY_OPTIMIZED_ITERATOR(const T,(*this),const T,t,result += (*_p0)*(*_p1));
             return result;
         }
 
-        /// Return the trace of two tensors with complex conjugate of the leftmost (i.e., this)
+        /// Return the trace (dot product) of two tensors with complex conjugate of the leftmost (i.e., this)
         template <class Q>
         TENSOR_RESULT_TYPE(T,Q) trace_conj(const Tensor<Q>& t) const {
             TENSOR_RESULT_TYPE(T,Q) result = 0;
@@ -2237,6 +2237,14 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         }
     }
 
+    /// Promotes a 1-d vector (anything that supports size() and indexing via []) to a diagonal matrix
+    template <typename Q>
+    auto diagonal(const Q& v) {
+        long n = v.size();
+        Tensor<remove_fcvr_t<decltype(v[0])>> r(n,n);
+        for (long i=0; i<n; i++) r(i,i) = v[i];
+        return r;
+    }
 
     /// Inner product ... result(i,j,...,p,q,...) = sum(z) left(i,j,...,z)*right(z,p,q,...)
 
@@ -2252,9 +2260,8 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         if (k0 < 0) k0 += left.ndim();
         if (k1 < 0) k1 += right.ndim();
         long nd = left.ndim() + right.ndim() - 2;
-        TENSOR_ASSERT(nd!=0, "result is a scalar but cannot return one ... use dot",
+        TENSOR_ASSERT(nd!=0, "result is a scalar but cannot return one ... use trace",
                       nd, &left);
-
 
         TENSOR_ASSERT(left.dim(k0) == right.dim(k1),"common index must be same length",
                 	right.dim(k1), &left);
