@@ -60,10 +60,24 @@ namespace madness {
 		compressed, 				///< d coeffs in internal nodes, s and d coeffs at the root
 		nonstandard, 				///< s and d coeffs in internal nodes
     	nonstandard_with_leaves, 	///< like nonstandard, with s coeffs at the leaves
+        nonstandard_after_apply, 	///< s and d coeffs, state after operator application
 		redundant,					///< s coeffs everywhere
 		on_demand,					///< no coeffs anywhere, but a functor providing if necessary
 		unknown
     };
+
+    template<std::size_t NDIM=1>
+    std::ostream& operator<<(std::ostream& os, const TreeState treestate) {
+        if (treestate==reconstructed) os << "reconstructed";
+        if (treestate==compressed) os << "compressed";
+        if (treestate==nonstandard) os << "nonstandard";
+        if (treestate==nonstandard_with_leaves) os << "nonstandard_with_leaves";
+        if (treestate==nonstandard_after_apply) os << "nonstandard_after_apply";
+        if (treestate==redundant) os << "redundant";
+        if (treestate==on_demand) os << "on_demand";
+        if (treestate==unknown) os << "unknown";
+        return os;
+    }
 
     /*!
       \brief This class is used to specify boundary conditions for all operators

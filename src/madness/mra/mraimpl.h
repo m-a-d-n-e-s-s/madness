@@ -1506,9 +1506,10 @@ namespace madness {
         if (is_reconstructed()) {
             return;
         } else if (is_redundant() or is_nonstandard_with_leaves()) {
+            this->tree_state=redundant; // current state has leaf nodes -> remove internal nodes
     		this->undo_redundant(fence);
     		return;
-    	} else if (is_compressed() or is_nonstandard()) {
+    	} else if (is_compressed() or is_nonstandard() or tree_state==nonstandard_after_apply) {
             // Must set true here so that successive calls without fence do the right thing
             set_tree_state(reconstructed);
             if (world.rank() == coeffs.owner(cdata.key0))
@@ -1530,7 +1531,7 @@ namespace madness {
     /// @param[in] redundant    keep only sum coeffs at all levels, discard difference coeffs
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::compress(const TreeState newstate, bool fence) {
-        MADNESS_CHECK(is_reconstructed());
+        MADNESS_CHECK_THROW(is_reconstructed(),"impl::compress wants a reconstructe tree");
         // Must set true here so that successive calls without fence do the right thing
         set_tree_state(newstate);
         bool keepleaves1=(tree_state==nonstandard_with_leaves) or (tree_state==redundant);
@@ -1545,27 +1546,30 @@ namespace madness {
             world.gop.fence();
     }
 
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::remove_internal_coefficients(const bool fence) {
+        flo_unary_op_node_inplace(remove_internal_coeffs(),fence);
+    }
+
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::remove_leaf_coefficients(const bool fence) {
+        flo_unary_op_node_inplace(remove_leaf_coeffs(),fence);
+    }
+
     /// convert this to redundant, i.e. have sum coefficients on all levels
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::make_redundant(const bool fence) {
 
         // fast return if possible
         if (is_redundant()) return;
-
-        // NS form might have leaf sum coeffs, but we don't know
-        // change to standard compressed form
-        if (is_nonstandard()) this->standard(true);
-
-        // we need the leaf sum coeffs, so reconstruct
-        if (is_compressed()) reconstruct(true);
-
+        MADNESS_CHECK_THROW(is_reconstructed(),"impl::make_redundant() wants a reconstructed tree");
         compress(redundant,fence);
     }
 
     /// convert this from redundant to standard reconstructed form
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::undo_redundant(const bool fence) {
-        MADNESS_CHECK(is_redundant());
+        MADNESS_CHECK_THROW(is_redundant(),"impl::undo_redundant() wants a redundant tree");
         set_tree_state(reconstructed);
         flo_unary_op_node_inplace(remove_internal_coeffs(),fence);
     }

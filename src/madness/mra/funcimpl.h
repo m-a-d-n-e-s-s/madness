@@ -2123,7 +2123,6 @@ namespace madness {
         };
 
         /// remove all coefficients of internal nodes
-        /// presumably to switch from redundant to reconstructed state
         struct remove_internal_coeffs {
             typedef Range<typename dcT::iterator> rangeT;
 
@@ -2134,6 +2133,22 @@ namespace madness {
 
                 nodeT& node = it->second;
                 if (node.has_children()) node.clear_coeff();
+                return true;
+            }
+            template <typename Archive> void serialize(const Archive& ar) {}
+
+        };
+
+        /// remove all coefficients of leaf nodes
+        struct remove_leaf_coeffs {
+            typedef Range<typename dcT::iterator> rangeT;
+
+            /// constructor need impl for cdata
+            remove_leaf_coeffs() {}
+
+            bool operator()(typename rangeT::iterator& it) const {
+                nodeT& node = it->second;
+                if (not node.has_children()) node.clear_coeff();
                 return true;
             }
             template <typename Archive> void serialize(const Archive& ar) {}
@@ -4410,6 +4425,7 @@ namespace madness {
         /// cf reconstruct_op
         void trickle_down_op(const keyT& key, const coeffT& s);
 
+        /// reconstruct this tree -- respects fence
         void reconstruct(bool fence);
 
         // Invoked on node where key is local
@@ -4435,6 +4451,9 @@ namespace madness {
 
         /// convert this from redundant to standard reconstructed form
         void undo_redundant(const bool fence);
+
+        void remove_internal_coefficients(const bool fence);
+        void remove_leaf_coefficients(const bool fence);
 
 
         /// compute for each FunctionNode the norm of the function inside that node
@@ -4740,7 +4759,7 @@ namespace madness {
             if (fence)
                 world.gop.fence();
 
-            set_tree_state(nonstandard);
+            set_tree_state(nonstandard_after_apply);
 //            this->compressed=true;
 //            this->nonstandard=true;
 //            this->redundant=false;
@@ -4885,6 +4904,7 @@ namespace madness {
                 }
             }
             if (fence) world.gop.fence();
+            set_tree_state(TreeState::nonstandard_after_apply);
         }
 
         /// after apply we need to do some cleanup;
@@ -4922,6 +4942,7 @@ namespace madness {
 
             }
             if (fence) world.gop.fence();
+            set_tree_state(TreeState::nonstandard_after_apply);
         }
 
         /// recursive part of recursive_apply
@@ -5052,6 +5073,7 @@ namespace madness {
 
             }
             if (fence) world.gop.fence();
+            set_tree_state(TreeState::nonstandard_after_apply);
         }
 
         /// recursive part of recursive_apply
