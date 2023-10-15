@@ -821,14 +821,12 @@ namespace madness {
                 current_state=impl->get_tree_state();
             }
             MADNESS_CHECK_THROW(current_state!=TreeState::nonstandard_after_apply,"unknown tree state");
+            bool must_fence=false;
 
             if (finalstate==reconstructed) {
                 if (current_state==reconstructed) return *this;
                 if (current_state==compressed) impl->reconstruct(fence);
-                if (current_state==nonstandard) {
-                    impl->standard(true);
-                    impl->reconstruct(fence);
-                }
+                if (current_state==nonstandard) impl->reconstruct(fence);
                 if (current_state==nonstandard_with_leaves) impl->remove_internal_coefficients(fence);
                 if (current_state==redundant) impl->remove_internal_coefficients(fence);
                 impl->set_tree_state(reconstructed);
@@ -839,6 +837,7 @@ namespace madness {
                 if (current_state==nonstandard_with_leaves) impl->standard(fence);
                 if (current_state==redundant) {
                     impl->remove_internal_coefficients(true);
+                    must_fence=true;
                     impl->set_tree_state(reconstructed);
                     impl->compress(compressed,fence);
                 }
@@ -847,12 +846,14 @@ namespace madness {
                 if (current_state==reconstructed) impl->compress(nonstandard,fence);
                 if (current_state==compressed) {
                     impl->reconstruct(true);
+                    must_fence=true;
                     impl->compress(nonstandard,fence);
                 }
                 if (current_state==nonstandard) return *this;
                 if (current_state==nonstandard_with_leaves) impl->remove_leaf_coefficients(fence);
                 if (current_state==redundant) {
                     impl->remove_internal_coefficients(true);
+                    must_fence=true;
                     impl->set_tree_state(reconstructed);
                     impl->compress(nonstandard,fence);
                 }
@@ -861,16 +862,19 @@ namespace madness {
                 if (current_state==reconstructed) impl->compress(nonstandard_with_leaves,fence);
                 if (current_state==compressed) {
                     impl->reconstruct(true);
+                    must_fence=true;
                     impl->compress(nonstandard_with_leaves,fence);
                 }
                 if (current_state==nonstandard) {
                     impl->standard(true);
+                    must_fence=true;
                     impl->reconstruct(true);
                     impl->compress(nonstandard_with_leaves,fence);
                 }
                 if (current_state==nonstandard_with_leaves) return *this;
                 if (current_state==redundant) {
                     impl->remove_internal_coefficients(true);
+                    must_fence=true;
                     impl->set_tree_state(reconstructed);
                     impl->compress(nonstandard_with_leaves,fence);
                 }
@@ -879,15 +883,18 @@ namespace madness {
                 if (current_state==reconstructed) impl->make_redundant(fence);
                 if (current_state==compressed) {
                     impl->reconstruct(true);
+                    must_fence=true;
                     impl->make_redundant(fence);
                 }
                 if (current_state==nonstandard) {
                     impl->standard(true);
+                    must_fence=true;
                     impl->reconstruct(true);
                     impl->make_redundant(fence);
                 }
                 if (current_state==nonstandard_with_leaves) {
                     impl->remove_internal_coefficients(true);
+                    must_fence=true;
                     impl->set_tree_state(reconstructed);
                     impl->make_redundant(fence);
                 }
@@ -896,6 +903,7 @@ namespace madness {
             } else {
                 MADNESS_EXCEPTION("unknown/unsupported final tree state",1);
             }
+            if (must_fence and world().rank()==0) print("could not respect fence in change_tree_state");
             if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
             return *this;
         }
@@ -2534,8 +2542,8 @@ namespace madness {
         MADNESS_CHECK(world.size() == 1);
 
         if (prepare) {
-            f.make_nonstandard(false, false);
-            g.make_nonstandard(false, false);
+            f.change_tree_state(nonstandard);
+            g.change_tree_state(nonstandard);
             world.gop.fence();
             f.get_impl()->compute_snorm_and_dnorm(false);
             g.get_impl()->compute_snorm_and_dnorm(false);
@@ -2549,7 +2557,7 @@ namespace madness {
             result=FunctionFactory<resultT,NDIM>(world)
                             .k(f.k()).thresh(f.thresh()).empty().nofence();
             result.get_impl()->partial_inner(*f.get_impl(),*g.get_impl(),v1,v2);
-            result.get_impl()->set_tree_state(nonstandard);
+            result.get_impl()->set_tree_state(nonstandard_after_apply);
             world.gop.set_forbid_fence(false);
         }
 
@@ -2575,13 +2583,10 @@ namespace madness {
 
             for (auto& key : erase_list(f_nc)) f_nc.get_coeffs().erase(key);
             for (auto& key : erase_list(g_nc)) g_nc.get_coeffs().erase(key);
-            g_nc.standard(false);
-            f_nc.standard(false);
             world.gop.fence();
             g_nc.reconstruct(false);
             f_nc.reconstruct(false);
             world.gop.fence();
-//            print("timings: get_lists, recur, contract",wall_get_lists,wall_recur,wall_contract);
 
         }
 
