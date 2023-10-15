@@ -17,7 +17,7 @@ int test_conversion(World& world) {
     f.reconstruct();
     double fnorm=f.norm2();
     double f1norm=f1.norm2();
-    std::vector<real_function_2d> vf={f1,f2};
+    std::vector<real_function_2d> vf={f1,f2,f1};
     std::vector<double> vfnorm=norm2s(world,vf);
     real_function_2d ref;
     double norm=fnorm;
@@ -65,7 +65,7 @@ int test_conversion(World& world) {
     auto check_is_nonstandard = [&](const real_function_2d& arg) {
         auto [correct_k_leaf, norm_leaf]=check_nodes_have_coeffs(arg,0,true);
         auto [correct_k_interior, norm_interior]=check_nodes_have_coeffs(arg,2*k,false);
-        bool correct_norm=true;
+        bool correct_norm=norm_leaf<1.e-12;
         return correct_k_interior and correct_k_leaf and correct_norm and (arg.tree_size()==ref.tree_size());
     };
 

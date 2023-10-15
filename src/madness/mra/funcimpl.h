@@ -4430,7 +4430,7 @@ namespace madness {
 
         // Invoked on node where key is local
         //        void reconstruct_op(const keyT& key, const tensorT& s);
-        void reconstruct_op(const keyT& key, const coeffT& s);
+        void reconstruct_op(const keyT& key, const coeffT& s, const bool accumulate_NS=true);
 
         /// compress the wave function
 
