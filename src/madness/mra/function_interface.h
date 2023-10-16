@@ -189,6 +189,16 @@ namespace madness {
 
 		}
 
+        /// replicate low-dimensional functions over all ranks of this world
+        void replicate_low_dim_functions(const bool fence) {
+            if (impl_m1 and (not impl_m1->is_on_demand())) impl_m1->replicate(false);
+            if (impl_m2 and (not impl_m2->is_on_demand())) impl_m2->replicate(false);
+
+            if (impl_p1 and (not impl_p1->is_on_demand())) impl_p1->replicate(false);
+            if (impl_p2 and (not impl_p2->is_on_demand())) impl_p2->replicate(false);
+            if (fence) world.gop.fence();
+        }
+
 		void make_redundant(const bool fence) {
 			// prepare base functions that make this function
 			if (impl_ket and (not impl_ket->is_on_demand())) impl_ket->make_redundant(false);

@@ -322,7 +322,7 @@ CCConvolutionOperator::operator()(const CCFunction& bra, const CCFunction& ket, 
 
 real_function_6d CCConvolutionOperator::operator()(const real_function_6d& u, const size_t particle) const {
     MADNESS_ASSERT(particle == 1 or particle == 2);
-    MADNESS_ASSERT(operator_type == OT_G12);
+    MADNESS_ASSERT(operator_type == OpType::OT_G12);
     MADNESS_ASSERT(op);
     op->particle() = particle;
     return (*op)(u);
@@ -331,7 +331,7 @@ real_function_6d CCConvolutionOperator::operator()(const real_function_6d& u, co
 real_function_3d
 CCConvolutionOperator::operator()(const CCFunction& bra, const real_function_6d& u, const size_t particle) const {
     MADNESS_ASSERT(particle == 1 or particle == 2);
-    MADNESS_ASSERT(operator_type == OT_G12);
+    MADNESS_ASSERT(operator_type == OpType::OT_G12);
     MADNESS_ASSERT(op);
     const real_function_6d tmp = multiply(copy(u), copy(bra.function), particle);
     op->particle() = particle;
@@ -406,33 +406,47 @@ size_t CCConvolutionOperator::info() const {
 
 SeparatedConvolution<double, 3> *
 CCConvolutionOperator::init_op(const OpType& type, const Parameters& parameters) const {
+    bool debug=false;
+    bool printme=(world.rank()==0) and debug;
     switch (type) {
-        case OT_G12 : {
-            if (world.rank() == 0)
+        case OpType::OT_G12 : {
+            if (printme)
                 std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
                           << " and lo=" << parameters.lo << std::endl;
             return CoulombOperatorPtr(world, parameters.lo, parameters.thresh_op);
         }
-        case OT_F12 : {
-            if (world.rank() == 0)
+        case OpType::OT_F12 : {
+            if (printme)
                 std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
                           << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
             return SlaterF12OperatorPtr(world, parameters.gamma, parameters.lo, parameters.thresh_op);
         }
-        case OT_SLATER : {
-            if (world.rank() == 0)
+        case OpType::OT_SLATER : {
+            if (printme)
                 std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
                           << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
             return SlaterOperatorPtr(world, parameters.gamma, parameters.lo, parameters.thresh_op);
         }
-        case OT_BSH : {
-            if (world.rank() == 0)
+        case OpType::OT_BSH : {
+            if (printme)
                 std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
                           << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
             return BSHOperatorPtr3D(world, parameters.gamma, parameters.lo, parameters.thresh_op);
         }
-        case OT_ONE : {
-            if (world.rank() == 0)
+        case OpType::OT_FG12: {
+            if (printme)
+                std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
+                          << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
+            return FGOperatorPtr(world, parameters.gamma, parameters.lo, parameters.thresh_op);
+        }
+        case OpType::OT_F2G12: {
+            if (printme)
+                std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
+                          << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
+            return F2GOperatorPtr(world, parameters.gamma, parameters.lo, parameters.thresh_op);
+        }
+        case OpType::OT_ONE : {
+            if (printme)
                 std::cout << "Creating " << assign_name(type) << " Operator " << std::endl;
             return nullptr;
         }
@@ -442,25 +456,6 @@ CCConvolutionOperator::init_op(const OpType& type, const Parameters& parameters)
         }
     }
 
-}
-
-/// Assigns strings to enums for formated output
-std::string
-assign_name(const PairFormat& input) {
-    switch (input) {
-        case PT_FULL:
-            return "full";
-        case PT_DECOMPOSED:
-            return "decomposed";
-        case PT_OP_DECOMPOSED:
-            return "operator-decomposed";
-        default: {
-            MADNESS_EXCEPTION("Unvalid enum assignement!", 1);
-            return "undefined";
-        }
-    }
-    MADNESS_EXCEPTION("assign_name:pairtype, should not end up here", 1);
-    return "unknown pairtype";
 }
 
 /// Assigns strings to enums for formated output
@@ -484,17 +479,17 @@ assign_name(const CCState& input) {
 std::string
 assign_name(const OpType& input) {
     switch (input) {
-        case OT_G12:
+        case OpType::OT_G12:
             return "g12";
-        case OT_F12:
+        case OpType::OT_F12:
             return "f12";
-        case OT_SLATER:
+        case OpType::OT_SLATER:
             return "slater";
-        case OT_FG12:
+        case OpType::OT_FG12:
             return "fg12";
-        case OT_BSH:
+        case OpType::OT_BSH:
             return "bsh";
-        case OT_ONE:
+        case OpType::OT_ONE:
             return "identity";
         default: {
             MADNESS_EXCEPTION("Unvalid enum assignement!", 1);

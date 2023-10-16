@@ -23,11 +23,6 @@ class ProjectorBase;
 /// Types of Functions used by CC_function class
 enum FuncType { UNDEFINED, HOLE, PARTICLE, MIXED, RESPONSE };
 
-/// FuncTypes used by the CC_function_6d structure
-enum PairFormat { PT_UNDEFINED, PT_FULL, PT_DECOMPOSED, PT_OP_DECOMPOSED };
-
-
-
 /// structure for a CC Function 3D which holds an index and a type
 // the type is defined by the enum FuncType (definition at the start of this file)
 struct CCFunction : public archive::ParallelSerializableObject {
@@ -95,7 +90,9 @@ public:
     virtual void swap_particles_inplace() = 0;
     virtual bool is_pure() const {return false;}
     virtual bool is_decomposed() const {return false;}
-    virtual bool has_operator() const {return false;}
+    virtual bool has_operator() const = 0;
+    virtual void set_operator(const std::shared_ptr<CCConvolutionOperator> op) = 0;
+    virtual const std::shared_ptr<CCConvolutionOperator> get_operator_ptr() const = 0;
     virtual void print_size() const = 0;
     virtual std::string name(const bool transpose=false) const = 0;
     virtual World& world() const =0;
@@ -110,11 +107,12 @@ public:
     TwoBodyFunctionPureComponent() = default;
 
     explicit TwoBodyFunctionPureComponent(const Function<T,6>& f) : u(f) {}
+    explicit TwoBodyFunctionPureComponent(const std::shared_ptr<CCConvolutionOperator> op, const Function<T,6>& f)
+            : u(f), op(op) {}
 
     /// deep copy
     std::shared_ptr<TwoBodyFunctionComponentBase> clone() override {
-        TwoBodyFunctionPureComponent<T> result;
-        result.u=madness::copy(u);
+        TwoBodyFunctionPureComponent<T> result(op,madness::copy(u));
         return std::make_shared<TwoBodyFunctionPureComponent<T>>(result);
     }
 
@@ -126,6 +124,8 @@ public:
 
     bool is_pure() const override {return true;}
 
+    bool has_operator() const override {return op!=nullptr;}
+
     World& world() const override {return u.world();};
 
     void serialize() {}
@@ -135,8 +135,12 @@ public:
     }
 
     std::string name(const bool transpose) const override {
-        if (transpose) return "< u |";
-        return "|u>";
+        if (transpose) {
+            if (has_operator()) return "< u |"+get_operator_ptr()->name();
+            return "< u |";
+        }
+        if (has_operator()) return get_operator_ptr()->name() + "| u >";
+        return "| u >";
     }
 
 
@@ -151,6 +155,10 @@ public:
         u=swap_particles(u);
     }
 
+    const std::shared_ptr<CCConvolutionOperator> get_operator_ptr() const override {return op;};
+
+    void set_operator(const std::shared_ptr<CCConvolutionOperator> op1) override {op=op1;}
+
     real_function_6d& get_function() {
         return u;
     }
@@ -158,6 +166,7 @@ public:
 private:
     /// pure 6D function
     real_function_6d u;
+    std::shared_ptr<CCConvolutionOperator> op;
 
 };
 
@@ -174,7 +183,7 @@ public:
 
     TwoBodyFunctionSeparatedComponent(const std::vector<Function<T,3>>& a,
                                       const std::vector<Function<T,3>>& b,
-                                      const CCConvolutionOperator* op) : a(a), b(b), op(op) {};
+                                      const std::shared_ptr<CCConvolutionOperator> op) : a(a), b(b), op(op) {};
 
     TwoBodyFunctionSeparatedComponent(const TwoBodyFunctionSeparatedComponent& other) = default;
 
@@ -208,32 +217,50 @@ public:
 
     std::string name(const bool transpose) const override {
         if (transpose) {
-            if (has_operator()) return "<ab|"+get_operator_ptr()->name();
-            return "<ab|";
+            if (has_operator()) return "<ab |"+get_operator_ptr()->name();
+            return "<ab |";
         }
-        if (has_operator()) return get_operator_ptr()->name() + "|xy>";
-        return "|ab>";
+        if (has_operator()) return get_operator_ptr()->name() + "| ab>";
+        return "| ab>";
     };
 
     void serialize() {}
 
     template<typename Q, std::size_t MDIM>
-    TwoBodyFunctionPureComponent<T> apply(const SeparatedConvolution<Q,MDIM>* op, const int particle=0) {}
+    TwoBodyFunctionPureComponent<T> apply(const SeparatedConvolution<Q,MDIM>* op, const int particle=0) {
+        MADNESS_EXCEPTION("TwoBodyFunctionPureComponent<T> apply not yet implemented",1);
+    }
 
     /// return f(2,1)
     void swap_particles_inplace() override {
         std::swap(a,b);
     }
 
+    long rank() const {
+        MADNESS_CHECK(a.size()==b.size());
+        return a.size();
+    }
+
     std::vector<Function<T,3>> get_a() const {return a;}
     std::vector<Function<T,3>> get_b() const {return b;}
-    const CCConvolutionOperator* get_operator_ptr() const {return op;};
+    std::vector<Function<T,3>> get_vector(const int i) const {
+        MADNESS_CHECK(i==0 or i==1);
+        if (i==0) return a;
+        else if (i==1) return b;
+        else {
+            MADNESS_EXCEPTION("confused index in TwoBodyFunctionSeparatedComponent",1);
+        }
+    }
+
+    const std::shared_ptr<CCConvolutionOperator> get_operator_ptr() const override {return op;};
+
+    void set_operator(const std::shared_ptr<CCConvolutionOperator> op1) override {op=op1;}
 
 private:
 
     std::vector<Function<T,3>> a;
     std::vector<Function<T,3>> b;
-    const CCConvolutionOperator* op=nullptr;
+    std::shared_ptr<CCConvolutionOperator> op;
 
 };
 
@@ -263,9 +290,21 @@ private:
  *  - mul_partial
  */
 
+/// a 6D function, either in full or low rank form, possibly including an 2-particle function
+
+/**
+ * the function is stored as
+ *  - pure: full rank form, 6D
+ *  - op_pure: full rank form, 6D with an 2-particle function f(1,2) |u>
+ *  - decomposed: sum of two vectors of 3D functions \sum_i |a_i(1) b_i(2)>
+ *  - op_decomposed: as above, with an 2-particle function: f(1,2) \sum_i |a_i b_i>
+ *
+**/
 struct CCPairFunction {
 
 using T=double;
+using pureT=Function<T,6>;
+
 public:
 
     /// empty ctor
@@ -276,10 +315,20 @@ public:
         component.reset(new TwoBodyFunctionPureComponent<T>(copy(ket)));
     }
 
+    /// takes a deep copy of the argument function
+    explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator> op_, const real_function_6d& ket) {
+        component.reset(new TwoBodyFunctionPureComponent<T>(op_,copy(ket)));
+    }
+
     /// takes a deep copy of the argument functions
     explicit CCPairFunction(const vector_real_function_3d& f1, const vector_real_function_3d& f2) {
         World& world=f1.front().world();
         component.reset(new TwoBodyFunctionSeparatedComponent<T>(copy(world,f1),copy(world,f2)));
+    }
+
+    /// takes a deep copy of the argument functions
+    explicit CCPairFunction(const real_function_3d& f1, const real_function_3d& f2) :
+            CCPairFunction(std::vector<real_function_3d>({f1}),std::vector<real_function_3d>({f2})) {
     }
 
     /// takes a deep copy of the argument functions
@@ -288,16 +337,22 @@ public:
     }
 
     /// takes a deep copy of the argument functions
-    explicit CCPairFunction(const CCConvolutionOperator *op_, const CCFunction& f1, const CCFunction& f2) :
+    explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator> op_, const CCFunction& f1, const CCFunction& f2) :
             CCPairFunction(op_,std::vector<real_function_3d>({f1.function}),std::vector<real_function_3d>({f2.function})) {
     }
 
     /// takes a deep copy of the argument functions
-    explicit CCPairFunction(const CCConvolutionOperator *op_, const std::vector<real_function_3d>& f1,
+    explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator> op_, const std::vector<real_function_3d>& f1,
                             const std::vector<real_function_3d>& f2) {
         World& world=f1.front().world();
         component.reset(new TwoBodyFunctionSeparatedComponent<T>(copy(world,f1),copy(world,f2),op_));
     }
+
+    /// takes a deep copy of the argument functions
+    explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator> op_, const real_function_3d& f1,
+                            const real_function_3d& f2) : CCPairFunction(op_,std::vector<real_function_3d>({f1}),
+                                                                         std::vector<real_function_3d>({f2})) {
+    };
 
     /// shallow assignment operator
     CCPairFunction& operator()(const CCPairFunction& other) {
@@ -314,6 +369,10 @@ public:
         result.component=other.component->clone();
         return result;
     }
+
+    /// add all like functions up, return *this for chaining
+    friend std::vector<CCPairFunction> consolidate(const std::vector<CCPairFunction>& other);
+
 
     void info() const { print_size(); }
 
@@ -336,21 +395,58 @@ public:
     /// deep copy necessary otherwise: shallow copy errors
     CCPairFunction invert_sign();
 
+    /// scalar multiplication: f*fac
     CCPairFunction operator*(const double fac) const {
         CCPairFunction result=copy(*this);
         result*=fac;
         return result;
     }
 
+    /// scalar multiplication: fac*f
     friend CCPairFunction operator*(const double fac, const CCPairFunction& f) {
         return fac*f;
     }
 
-    bool is_pure() const {return component->is_pure();}
-    bool is_decomposed() const {return component->is_decomposed();}
-    bool is_decomposed_no_op() const {return component->is_decomposed() and (not component->has_operator());}
-    bool is_op_decomposed() const {return component->is_decomposed() and component->has_operator();}
+    /// multiplication with a 2-particle function
+    friend CCPairFunction operator*(const std::shared_ptr<CCConvolutionOperator> op, const CCPairFunction& f) {
+        CCPairFunction result=copy(f);
+        return result.multiply_with_op_inplace(op);
+    }
+
+    /// multiplication with a 2-particle function
+    friend std::vector<CCPairFunction> operator*(const std::shared_ptr<CCConvolutionOperator> op,
+            const std::vector<CCPairFunction>& f) {
+        std::vector<CCPairFunction> result;
+        for (auto& ff : f) {
+            result.push_back(copy(ff));
+            result.back().multiply_with_op_inplace(op);
+        }
+        return result;
+    }
+
+    friend std::vector<CCPairFunction> multiply(const std::vector<CCPairFunction>& other, const real_function_3d f,
+                                                const std::array<int, 3>& v1) {
+        std::vector<CCPairFunction> result;
+        for (auto& o : other) result.push_back(multiply(o,f,v1));
+        return result;
+    }
+
+    /// multiplication with a 2-particle function
+    CCPairFunction operator*(const std::shared_ptr<CCConvolutionOperator> op) {
+        CCPairFunction result=copy(*this);
+        return result.multiply_with_op_inplace(op);
+    }
+
+    CCPairFunction& multiply_with_op_inplace(const std::shared_ptr<CCConvolutionOperator> op);
+
+
     bool has_operator() const {return component->has_operator();}
+    bool is_pure() const {return component->is_pure();}
+    bool is_op_pure() const {return is_pure() and has_operator();}
+    bool is_pure_no_op() const {return is_pure() and (not has_operator());}
+    bool is_decomposed() const {return component->is_decomposed();}
+    bool is_op_decomposed() const {return component->is_decomposed() and component->has_operator();}
+    bool is_decomposed_no_op() const {return component->is_decomposed() and (not component->has_operator());}
 
     TwoBodyFunctionPureComponent<T>& pure() const {
         if (auto ptr=dynamic_cast<TwoBodyFunctionPureComponent<T>*>(component.get())) return *ptr;
@@ -366,15 +462,45 @@ public:
         MADNESS_CHECK(component->is_decomposed());
         return decomposed().get_a();
     }
+
     vector_real_function_3d get_b() const {
         MADNESS_CHECK(component->is_decomposed());
         return decomposed().get_b();
     }
 
-    const CCConvolutionOperator& get_operator() const {
-        MADNESS_CHECK(is_op_decomposed());
-        return *decomposed().get_operator_ptr();
+    std::vector<Function<T,3>> get_vector(const int i) const {
+        MADNESS_CHECK(component->is_decomposed());
+        return decomposed().get_vector(i);
     }
+
+    const CCConvolutionOperator& get_operator() const {
+        MADNESS_CHECK(component and component->has_operator());
+        return *(component->get_operator_ptr());
+    }
+
+    const std::shared_ptr<CCConvolutionOperator> get_operator_ptr() const {
+        MADNESS_CHECK(component);
+        return component->get_operator_ptr();
+    }
+
+    void reset_operator(const std::shared_ptr<CCConvolutionOperator> op) {
+        MADNESS_CHECK(component);
+        component->set_operator(op);
+    }
+
+    /// can this be converted to a pure representation (depends on the operator, if present)
+    bool is_convertible_to_pure_no_op() const;
+
+    /// out-of-place conversion to pure function
+    CCPairFunction to_pure() const {
+        auto tmp=copy(*this);
+        MADNESS_CHECK(tmp.is_convertible_to_pure_no_op());
+        tmp.convert_to_pure_no_op_inplace();
+        return tmp;
+    }
+
+    /// convert this into a pure hi-dim function
+    void convert_to_pure_no_op_inplace();
 
     CCPairFunction& operator*=(const double fac) {
         if (component->is_pure()) pure()*=fac;
@@ -392,12 +518,16 @@ public:
         return component->name(transpose);
     }
 
+    /// multiply CCPairFunction with a 3D function of one of the two particles
+    friend CCPairFunction multiply(const CCPairFunction& other, const real_function_3d& f, const std::array<int, 3>& v1);
+
     /// @param[in] f: a 3D-CC_function
     /// @param[in] particle: the particle on which the operation acts
     /// @param[out] <f|u>_particle (projection from 6D to 3D)
     real_function_3d project_out(const CCFunction& f, const size_t particle) const;
 
-    // result is: <x|op12|f>_particle
+    /// result is: <x|op12|f>_particle
+
     /// @param[in] x: a 3D-CC_function
     /// @param[in] op: a CC_convoltion_operator which is currently either f12 or g12
     /// @param[in] particle: the particle on which the operation acts (can be 1 or 2)
@@ -415,6 +545,7 @@ public:
     double
     make_xy_u(const CCFunction& xx, const CCFunction& yy) const;
 
+    /// compute the inner product of this and other
     double inner_internal(const CCPairFunction& other, const real_function_3d& R2) const;
 
     friend double inner(const CCPairFunction& a, const CCPairFunction& b, const real_function_3d& R2) {
@@ -426,13 +557,17 @@ public:
         return a.inner_internal(b,R2);
     }
 
-    friend double inner(const std::vector<CCPairFunction>& va, const std::vector<CCPairFunction>& vb) {
-        real_function_3d R2;
+    friend double inner(const std::vector<CCPairFunction>& va, const std::vector<CCPairFunction>& vb,
+                        const real_function_3d R2=real_function_3d()) {
+        double wall0=cpu_time();
+//        real_function_3d R2;
         double result=0.0;
         for (auto& a : va) {
             for (auto& b : vb) {
                 double tmp=a.inner_internal(b,R2);
-                print("result from inner",a.name(true),b.name(),tmp);
+                double wall1=cpu_time();
+                print("result from inner",a.name(true),b.name(),tmp,wall1-wall0,"s");
+                wall0=wall1;
                 result+=tmp;
             }
         }
@@ -443,22 +578,6 @@ public:
 public:
     /// the 3 types of 6D-function that occur in the CC potential which coupled doubles to singles
     std::shared_ptr<TwoBodyFunctionComponentBase> component;
-
-//         World& world;
-//         /// the type of the given 6D-function
-//         const PairFormat type;
-//         /// if type==decomposed this is the first particle
-//         vector_real_function_3d a;
-//         /// if type==decomposed this is the second particle
-//         vector_real_function_3d b;
-//         /// if type==op_decomposed_ this is the symmetric 6D-operator (g12 or f12) in u=op12|xy>
-//         const CCConvolutionOperator *op;
-//         /// if type==op_decomposed_ this is the first particle in u=op12|xy>
-//         CCFunction x;
-//         /// if type==op_decomposed_ this is the second particle in u=op12|xy>
-//         CCFunction y;
-//         /// if type=pure_ this is just the MRA 6D-function
-//         real_function_6d u;
 
     /// @param[in] f: a 3D-CC_function
     /// @param[in] particle: the particle on which the operation acts
@@ -505,6 +624,10 @@ public:
                                    const std::array<int, 3>& v1,
                                    const std::array<int, 3>& v2) const;
 
+    CCPairFunction partial_inner(const CCPairFunction& other,
+                                   const std::array<int, 3>& v1,
+                                   const std::array<int, 3>& v2) const;
+
 };
 
 /// apply the projector on the argument function, potentially yielding a vector of CCPairfunctions as result
@@ -518,9 +641,19 @@ std::vector<CCPairFunction> apply(const ProjectorBase& P, const std::vector<CCPa
 /// convenience function
 CCPairFunction apply(const ProjectorBase& P, const CCPairFunction& argument);
 
+/// apply the convolution operator on the argument function, potentially yielding a vector of CCPairfunctions as result
+template<typename T, std::size_t NDIM>
+std::vector<CCPairFunction> apply(const SeparatedConvolution<T,NDIM>& op, const std::vector<CCPairFunction>& argument);
+
+/// convenience function
+template<typename T, std::size_t NDIM>
+CCPairFunction apply(const SeparatedConvolution<T,NDIM>& op, const CCPairFunction& argument);
+
 real_function_3d inner(const CCPairFunction& c, const real_function_3d& f,
                        const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2={0,1,2});
 
+CCPairFunction inner(const CCPairFunction& c1, const CCPairFunction& c2,
+                       const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2);
 
 } // namespace madness
 

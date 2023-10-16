@@ -1252,6 +1252,7 @@ namespace madness {
 
             // if this and g are the same, use norm2()
             if (this->get_impl()==g.get_impl()) {
+                if (this->get_impl()->is_redundant()) this->get_impl()->undo_redundant(true);
                 double norm=this->norm2();
                 return norm*norm;
             }
@@ -1359,29 +1360,24 @@ namespace madness {
         /// g is constructed with an implicit multiplication, e.g.
         ///  result = <this|g>,   with g = 1/r12 | gg>
         /// @param[in]  g	on-demand function
-        template <typename R>
-        TENSOR_RESULT_TYPE(T,R) inner_on_demand(const Function<R,NDIM>& g) const {
-          MADNESS_ASSERT(g.is_on_demand() and (not this->is_on_demand()));
+        template<typename R>
+        TENSOR_RESULT_TYPE(T, R) inner_on_demand(const Function<R, NDIM>& g) const {
+            MADNESS_ASSERT(g.is_on_demand() and (not this->is_on_demand()));
 
-          this->reconstruct();
+            constexpr std::size_t LDIM=std::max(NDIM/2,std::size_t(1));
+            auto func=dynamic_cast<CompositeFunctorInterface<T,NDIM,LDIM>* >(g.get_impl()->get_functor().get());
+            MADNESS_ASSERT(func);
+            func->make_redundant(true);
+            func->replicate_low_dim_functions(true);
+            this->reconstruct();        // if this == &g we don't need g to be redundant
 
-          // save for later, will be removed by make_Vphi
-          std::shared_ptr< FunctionFunctorInterface<T,NDIM> > func=g.get_impl()->get_functor();
-          //leaf_op<T,NDIM> fnode_is_leaf(this->get_impl().get());
-          Leaf_op_other<T,NDIM> fnode_is_leaf(this->get_impl().get());
-          g.get_impl()->make_Vphi(fnode_is_leaf,true);  // fence here
+            if (VERIFY_TREE) verify_tree();
 
-          if (VERIFY_TREE) verify_tree();
-          TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*g.get_impl());
-          impl->world.gop.sum(local);
-          impl->world.gop.fence();
+            TENSOR_RESULT_TYPE(T, R) local = impl->inner_local_on_demand(*g.get_impl());
+            impl->world.gop.sum(local);
+            impl->world.gop.fence();
 
-          // restore original state
-          g.get_impl()->set_functor(func);
-          g.get_impl()->get_coeffs().clear();
-        	g.get_impl()->set_tree_state(on_demand);
-
-          return local;
+            return local;
         }
 
         /// project this on the low-dim function g: h(x) = <f(x,y) | g(y)>
@@ -2149,21 +2145,12 @@ namespace madness {
 
     	if (op.modified()) {
 
-    		MADNESS_ASSERT(not op.is_slaterf12);
     	    ff.get_impl()->make_redundant(true);
             result = apply_only(op, ff, fence);
             ff.get_impl()->undo_redundant(false);
             result.get_impl()->trickle_down(true);
 
     	} else {
-
-        	// the slaterf12 function is
-        	//  1/(2 mu) \int d1 (1 - exp(- mu r12)) f(1)
-        	//       = 1/(2 mu) (f.trace() - \int d1 exp(-mu r12) f(1) )
-        	// f.trace() is just a number
-    		R ftrace=0.0;
-    		if (op.is_slaterf12) ftrace=f.trace();
-//            print("ftrace",ftrace);
 
     		// saves the standard() step, which is very expensive in 6D
 //    		Function<R,NDIM> fff=copy(ff);
@@ -2196,7 +2183,6 @@ namespace madness {
             } else {
             	ff.standard();
             }
-        	if (op.is_slaterf12) result=(result-ftrace).scale(-0.5/op.mu());
 
     	}
         if (print_timings) result.print_size("result after reconstruction");

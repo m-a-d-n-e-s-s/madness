@@ -21,18 +21,6 @@
 
 namespace madness {
 
-/// Operatortypes used by the CCConvolutionOperator Class
-enum OpType {
-    OT_UNDEFINED,
-    OT_ONE,         /// indicates the identity
-    OT_G12,         /// 1/r
-    OT_SLATER,      /// exp(r)
-    OT_F12,         /// 1-exp(r)
-    OT_FG12,        /// (1-exp(r))/r
-    OT_F212,        /// (1-exp(r))^2
-    OT_BSH          /// exp(r)/r
-};
-
 /// Calculation Types used by CC2
 enum CalcType {
     CT_UNDEFINED, CT_MP2, CT_CC2, CT_LRCCS, CT_LRCC2, CT_CISPD, CT_ADC2, CT_TDHF, CT_TEST
@@ -61,10 +49,6 @@ enum PotentialType {
     POT_cis_,
     POT_singles_
 };
-
-/// Assigns strings to enums for formated output
-std::string
-assign_name(const PairFormat& input);
 
 /// Assigns strings to enums for formated output
 std::string
@@ -744,66 +728,25 @@ struct CCConvolutionOperator {
 
     CCConvolutionOperator(const CCConvolutionOperator& other) = default;
 
-    friend bool can_combine(const CCConvolutionOperator& left, const CCConvolutionOperator& right) {
-        return (combine_OT(left,right).first!=OT_UNDEFINED);
+protected:
+
+    friend CCConvolutionOperator combine(const CCConvolutionOperator& a, const CCConvolutionOperator& b) {
+        auto info= SeparatedConvolution<double,3>::combine_OT((*a.get_op()),(*b.get_op()));
+        Parameters param;
+        param.gamma=info.mu;
+        param.thresh_op=info.thresh;
+        param.lo=info.lo;
+        param.freeze=a.parameters.freeze;
+        return CCConvolutionOperator(a.world, info.type, param);
     }
 
-    friend std::pair<OpType,Parameters> combine_OT(const CCConvolutionOperator& left, const CCConvolutionOperator& right) {
-        OpType type=OT_UNDEFINED;
-        Parameters param=left.parameters;
-        if ((left.type()==OT_F12) and (right.type()==OT_G12)) {
-            type=OT_FG12;
-        }
-        if ((left.type()==OT_G12) and (right.type()==OT_F12)) {
-            type=OT_FG12;
-            param.gamma=right.parameters.gamma;
-        }
-        if ((left.type()==OT_F12) and (right.type()==OT_F12)) {
-            type=OT_F212;
-            // keep the original gamma
-            // (f12)^2 = (1- slater12)^2  = 1/(4 gamma) (1 - 2 exp(-gamma) + exp(-2 gamma))
-            MADNESS_CHECK(right.parameters.gamma == left.parameters.gamma);
-        }
-        return std::make_pair(type,param);
+    friend std::shared_ptr<CCConvolutionOperator> combine(const std::shared_ptr<CCConvolutionOperator>& a,
+                                         const std::shared_ptr<CCConvolutionOperator>& b) {
+        auto bla=combine(*a,*b);
+        return std::shared_ptr<CCConvolutionOperator>(new CCConvolutionOperator(combine(*a,*b)));
     }
 
-
-    /// combine 2 convolution operators to one
-
-    /// @return a vector of pairs: factor and convolution operator
-    friend std::vector<std::pair<double,CCConvolutionOperator>> combine(const CCConvolutionOperator& left, const CCConvolutionOperator& right) {
-        MADNESS_CHECK(can_combine(left,right));
-        MADNESS_CHECK(left.world.id()==right.world.id());
-        auto [type,param]=combine_OT(left,right);
-        std::vector<std::pair<double,CCConvolutionOperator>> result;
-        if (type==OT_FG12) {
-            // fg = (1 - exp(-gamma r12))  / r12 = 1/r12 - exp(-gamma r12)/r12 = coulomb - bsh
-
-            // coulombfit return 1/r
-            // we need 1/(2 gamma) 1/r
-            result.push_back(std::make_pair(1.0/(2.0*param.gamma),CCConvolutionOperator(left.world, OT_G12, param)));
-
-            // bshfit returns 1/(4 pi) exp(-gamma r)/r
-            // we need 1/(2 gamma) exp(-gamma r)/r
-            const double factor = 4.0 * constants::pi /(2.0*param.gamma);
-            result.push_back(std::make_pair(-factor,CCConvolutionOperator(left.world, OT_BSH, param)));
-        } else if (type==OT_F212) {
-//             we use the slater operator which is S = e^(-y*r12), y=gamma
-//             the f12 operator is: 1/2y*(1-e^(-y*r12)) = 1/2y*(1-S)
-//             so the squared f12 operator is: f*f = 1/(4*y*y)(1-2S+S*S), S*S = S(2y) = e(-2y*r12)
-//             we have then: <xy|f*f|xy> = 1/(4*y*y)*(<xy|xy> - 2*<xy|S|xy> + <xy|SS|xy>)
-//             we have then: <xy|f*f|xy> =(<xy|f12|xy> -  1/(4*y*y)*2*<xy|S|xy>
-            MADNESS_CHECK(left.parameters.gamma==right.parameters.gamma);
-            const double prefactor = 1.0 / (4.0 * param.gamma); // Slater has no 1/(2 gamma) per se.
-            Parameters param2=param;
-            param2.gamma*=2.0;
-            result.push_back(std::make_pair(1.0*prefactor,CCConvolutionOperator(left.world, OT_ONE, param)));
-            result.push_back(std::make_pair(-2.0*prefactor,CCConvolutionOperator(left.world, OT_SLATER, left.parameters)));
-            result.push_back(std::make_pair(1.0*prefactor,CCConvolutionOperator(left.world, OT_SLATER, param2)));
-        }
-        return result;
-    }
-
+public:
     /// @param[in] f: a 3D function
     /// @param[out] the convolution op(f), no intermediates are used
     real_function_3d operator()(const real_function_3d& f) const {
@@ -834,8 +777,8 @@ struct CCConvolutionOperator {
     // @param[in] f: a vector of 3D functions
     // @param[out] the convolution of op with each function, no intermeditates are used
     vector_real_function_3d operator()(const vector_real_function_3d& f) const {
-        if (op) return apply<double, double, 3>(world, (*op), f);
-        return f;
+        MADNESS_CHECK(op);
+        return apply<double, double, 3>(world, (*op), f);
     }
 
     // @param[in] bra: a 3D CC_function, if nuclear-correlation factors are used they have to be applied before
@@ -891,9 +834,10 @@ struct CCConvolutionOperator {
 
     /// create a TwoElectronFactory with the operatorkernel
     TwoElectronFactory get_kernel() const {
-        if (type() == OT_G12) return TwoElectronFactory(world).dcut(1.e-7);
-        else if (type() == OT_F12) return TwoElectronFactory(world).dcut(1.e-7).f12().gamma(parameters.gamma);
-        else if (type() == OT_FG12) return TwoElectronFactory(world).dcut(1.e-7).BSH().gamma(parameters.gamma);
+        if (type() == OpType::OT_G12) return TwoElectronFactory(world).dcut(1.e-7);
+        else if (type() == OpType::OT_F12) return TwoElectronFactory(world).dcut(1.e-7).f12().gamma(parameters.gamma);
+        else if (type() == OpType::OT_FG12) return TwoElectronFactory(world).dcut(1.e-7).BSH().gamma(parameters.gamma);
+        else if (type() == OpType::OT_SLATER) return TwoElectronFactory(world).dcut(1.e-7).slater().gamma(parameters.gamma);
         else error("no kernel of type " + name() + " implemented");
         return TwoElectronFactory(world);
     }
@@ -908,7 +852,7 @@ private:
     /// the world
     World& world;
     /// the operatortype, currently this can be g12_ or f12_
-    const OpType operator_type = OT_UNDEFINED;
+    const OpType operator_type = OpType::OT_UNDEFINED;
 
     /// @param[in] optype: can be f12_ or g12_ depending on which operator shall be intitialzied
     /// @param[in] parameters: parameters (thresholds etc)
@@ -928,7 +872,15 @@ private:
                       << "!!!!!\n\n" << std::endl;
         MADNESS_EXCEPTION(msg.c_str(), 1);
     }
+public:
 };
+
+template<typename T=double>
+std::shared_ptr<CCConvolutionOperator> CCConvolutionOperatorPtr(World& world, const OpType type,
+                                                                       CCConvolutionOperator::Parameters param) {
+    return std::shared_ptr<CCConvolutionOperator>(new CCConvolutionOperator(world,type,param));
+}
+
 
 class CCPair : public archive::ParallelSerializableObject {
 public:

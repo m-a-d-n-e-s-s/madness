@@ -17,7 +17,7 @@ struct timer {
         sss = cpu_time();
     }
 
-    void tag(const std::string msg) {
+    double tag(const std::string msg) {
         world.gop.fence();
         double tt1 = wall_time() - ttt;
         double ss1 = cpu_time() - sss;
@@ -29,10 +29,11 @@ struct timer {
         }
         ttt = wall_time();
         sss = cpu_time();
+        return ss1;
     }
 
-    void end(const std::string msg) {
-        tag(msg);
+    double end(const std::string msg) {
+        return tag(msg);
 //        world.gop.fence();
 //        double tt1 = wall_time() - ttt;
 //        double ss1 = cpu_time() - sss;

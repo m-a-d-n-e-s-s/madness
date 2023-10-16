@@ -52,6 +52,21 @@
 
 namespace madness {
 
+    template<typename T, std::size_t NDIM>
+    class SeparatedConvolution;
+
+    class CCPairFunction;
+    template<typename T, std::size_t NDIM>
+    std::vector<CCPairFunction> apply(const SeparatedConvolution<T,NDIM>& op, const std::vector<CCPairFunction>& argument);
+
+    template <typename T, typename R, std::size_t NDIM, std::size_t KDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
+    apply(const SeparatedConvolution<T,KDIM>& op, const std::vector< Function<R,NDIM> > f);
+
+
+        template<typename T, std::size_t NDIM>
+    CCPairFunction apply(const SeparatedConvolution<T,NDIM>& op, const CCPairFunction& argument);
+
     /// SeparatedConvolutionInternal keeps data for 1 term and all dimensions and 1 displacement
     /// Why is this here?? Why don't you just use ConvolutionND in SeparatedConvolutionData??
     template <typename Q, std::size_t NDIM>
@@ -110,17 +125,46 @@ namespace madness {
     */
 
 
+    /// operator types
+    enum OpType {
+        OT_UNDEFINED,
+        OT_ONE,         /// indicates the identity
+        OT_G12,         /// 1/r
+        OT_SLATER,      /// exp(-r)
+        OT_GAUSS,       /// exp(-r2)
+        OT_F12,         /// 1-exp(-r)
+        OT_FG12,        /// (1-exp(-r))/r
+        OT_F212,        /// (1-exp(-r))^2
+        OT_F2G12,       /// (1-exp(-r))^2/r = 1/r + exp(-2r)/r - 2 exp(-r)/r
+        OT_BSH          /// exp(-r)/r
+    };
+
+    struct OperatorInfo {
+        OperatorInfo() = default;
+//        template<std::size_t NDIM>
+//        OperatorInfo(double mu, double lo=1.e-5, double thresh=FunctionDefaults<NDIM>::get_thresh()) : mu(mu), thresh(thresh), lo(lo) {}
+        OperatorInfo(double mu, double lo, double thresh, OpType type) : mu(mu), thresh(thresh), lo(lo), type(type) {}
+        OpType type=OT_UNDEFINED;    ///< introspection
+        double mu=0.0;     ///< some introspection
+        double thresh=1.e-4;
+        double lo=1.e-5;
+    };
 
     template <typename Q, std::size_t NDIM>
     class SeparatedConvolution : public WorldObject< SeparatedConvolution<Q,NDIM> > {
     public:
+
         typedef Q opT;  ///< The apply function uses this to infer resultT=opT*inputT
+
+        OperatorInfo info;
+
         bool doleaves;  ///< If should be applied to leaf coefficients ... false by default
         bool isperiodicsum;///< If true the operator 1D kernels have been summed over lattice translations
                            ///< and may be non-zero at both ends of the unit cell
-        bool modified_;     ///< use modified NS form
-        int particle_;
-        bool destructive_;	///< destroy the argument or restore it (expensive for 6d functions)
+        bool modified_=false;     ///< use modified NS form
+        int particle_=1;        ///< must only be 1 or 2
+        bool destructive_=false;	///< destroy the argument or restore it (expensive for 6d functions)
+        bool print_timings=false;
 
         typedef Key<NDIM> keyT;
         const static size_t opdim=NDIM;
@@ -129,11 +173,6 @@ namespace madness {
         Timer timer_low_accumulate;
         Timer timer_stats_accumulate;
 
-        // if this is a Slater-type convolution kernel: 1-exp(-mu r12)/(2 mu)
-        bool is_slaterf12;
-        bool print_timings=false;
-        double mu_;
-
     private:
 
 
@@ -141,7 +180,7 @@ namespace madness {
         const BoundaryConditions<NDIM> bc;
         const int k;
         const FunctionCommonData<Q,NDIM>& cdata;
-        const int rank;
+        int rank;
         const std::vector<long> vk;
         const std::vector<long> v2k;
         const std::vector<Slice> s0;
@@ -161,8 +200,8 @@ namespace madness {
         bool& destructive() {return destructive_;}
         const bool& destructive() const {return destructive_;}
 
-        const double& gamma() const {return mu_;}
-        const double& mu() const {return mu_;}
+        const double& gamma() const {return info.mu;}
+        const double& mu() const {return info.mu;}
 
     private:
 
@@ -180,6 +219,43 @@ namespace madness {
             const Q* U;         // Ptr to matrix
             const Q* VT;
         };
+
+        static inline std::pair<Tensor<Q>,Tensor<Q>>
+        make_coeff_for_operator(World& world, double mu, double lo, double eps, OpType type,
+                                const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc()) {
+
+            const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
+            double hi = cell_width.normf(); // Diagonal width of cell
+            if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+
+            GFit<Q,NDIM> fit;
+            if (type==OT_G12) {fit=GFit<Q,NDIM>::CoulombFit(lo,hi,eps,false);
+            } else if (type==OT_SLATER) {fit=GFit<Q,NDIM>::SlaterFit(mu,lo,hi,eps,false);
+            } else if (type==OT_GAUSS) {fit=GFit<Q,NDIM>::GaussFit(mu,lo,hi,eps,false);
+            } else if (type==OT_F12) {fit=GFit<Q,NDIM>::F12Fit(mu,lo,hi,eps,false);
+            } else if (type==OT_FG12) {fit=GFit<Q,NDIM>::FGFit(mu,lo,hi,eps,false);
+            } else if (type==OT_F212) {fit=GFit<Q,NDIM>::F12sqFit(mu,lo,hi,eps,false);
+            } else if (type==OT_F2G12) {fit=GFit<Q,NDIM>::F2GFit(mu,lo,hi,eps,false);
+            } else if (type==OT_BSH) {fit=GFit<Q,NDIM>::BSHFit(mu,lo,hi,eps,false);
+            } else {
+                MADNESS_EXCEPTION("Operator type not implemented",1);
+            }
+
+            Tensor<Q> coeff=fit.coeffs();
+            Tensor<Q> expnt=fit.exponents();
+
+            if (bc(0,0) == BC_PERIODIC) {
+                fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+            }
+
+            return std::make_pair(coeff,expnt);
+        }
+
+        static inline std::pair<Tensor<double>,Tensor<double>>
+        make_coeff_for_operator(World& world, OperatorInfo info,
+                                const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc()) {
+            return make_coeff_for_operator(world,info.mu,info.lo,info.thresh,info.type,bc);
+        }
 
 //        /// return the right block of the upsampled operator (modified NS only)
 //
@@ -882,8 +958,7 @@ namespace madness {
                 , modified_(false)
                 , particle_(1)
                 , destructive_(false)
-                , is_slaterf12(false)
-                , mu_(0.0)
+                , info()
                 , bc(bc)
                 , k(k)
                 , cdata(FunctionCommonData<Q,NDIM>::get(k))
@@ -917,8 +992,7 @@ namespace madness {
                 , modified_(false)
                 , particle_(1)
                 , destructive_(false)
-                , is_slaterf12(false)
-                , mu_(0.0)
+                , info()
                 , ops(argops)
                 , bc(bc)
                 , k(k)
@@ -936,8 +1010,22 @@ namespace madness {
         }
 
         /// Constructor for Gaussian Convolutions (mostly for backward compatability)
+        SeparatedConvolution(World& world, const OperatorInfo info1,
+                             const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
+                             int k=FunctionDefaults<NDIM>::get_k(),
+                             bool doleaves = false)
+               : SeparatedConvolution(world,Tensor<double>(0l),Tensor<double>(0l),info1.lo,info1.thresh,bc,k,doleaves,info1.mu) {
+            info.type=info1.type;
+            auto [coeff, expnt] =make_coeff_for_operator(world, info1, bc);
+            rank=coeff.dim(0);
+            ops.resize(rank);
+            initialize(coeff,expnt);
+        }
+
+        /// Constructor for Gaussian Convolutions (mostly for backward compatability)
         SeparatedConvolution(World& world,
                              const Tensor<Q>& coeff, const Tensor<double>& expnt,
+                             double lo, double thresh,
                              const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
                              int k=FunctionDefaults<NDIM>::get_k(),
                              bool doleaves = false,
@@ -945,11 +1033,7 @@ namespace madness {
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , doleaves(doleaves)
                 , isperiodicsum(bc(0,0)==BC_PERIODIC)
-                , modified_(false)
-                , particle_(1)
-                , destructive_(false)
-                , is_slaterf12(mu>0.0)
-                , mu_(mu)
+                , info(mu,lo,thresh,OT_UNDEFINED)
                 , ops(coeff.dim(0))
                 , bc(bc)
                 , k(k)
@@ -957,8 +1041,11 @@ namespace madness {
                 , rank(coeff.dim(0))
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
-                , s0(std::max<std::size_t>(2,NDIM),Slice(0,k-1))
-        {
+                , s0(std::max<std::size_t>(2,NDIM),Slice(0,k-1)) {
+            initialize(coeff,expnt);
+        }
+
+        void initialize(const Tensor<Q>& coeff, const Tensor<double>& expnt) {
             // Presently we must have periodic or non-periodic in all dimensions.
             for (std::size_t d=1; d<NDIM; ++d) {
                 MADNESS_ASSERT(bc(d,0)==bc(0,0));
@@ -993,8 +1080,7 @@ namespace madness {
                 , modified_(false)
                 , particle_(1)
                 , destructive_(false)
-                , is_slaterf12(false)
-                , mu_(0.0)
+                , info(0.0,0.0,0.0,OT_UNDEFINED)
                 , ops(coeff.dim(0))
                 , bc(bc)
                 , k(k)
@@ -1097,6 +1183,12 @@ namespace madness {
             return madness::apply(*this, f);
         }
 
+        /// apply this on a vector of functions
+        template <typename T, size_t FDIM>
+        std::vector<Function<TENSOR_RESULT_TYPE(T,Q),FDIM>> operator()(const std::vector<Function<T,FDIM>>& f) const {
+            return madness::apply(*this, f);
+        }
+
         /// apply this operator on a separable function f(1,2) = f(1) f(2)
 
         /// @param[in]  f1   a function of dim LDIM
@@ -1105,7 +1197,6 @@ namespace madness {
         template <typename T, size_t LDIM>
         Function<TENSOR_RESULT_TYPE(T,Q),LDIM+LDIM>
         operator()(const Function<T,LDIM>& f1, const Function<Q,LDIM>& f2) const {
-        	MADNESS_ASSERT(not is_slaterf12);
             return madness::apply(*this, std::vector<Function<Q,LDIM>>({f1}),
                                   std::vector<Function<Q,LDIM>>({f2}));
         }
@@ -1118,8 +1209,15 @@ namespace madness {
         template <typename T, size_t LDIM>
         Function<TENSOR_RESULT_TYPE(T,Q),LDIM+LDIM>
         operator()(const std::vector<Function<T,LDIM>>& f1, const std::vector<Function<Q,LDIM>>& f2) const {
-            MADNESS_ASSERT(not is_slaterf12);
             return madness::apply(*this, f1, f2);
+        }
+
+        /// apply this onto another suitable argument, returning the same type
+
+        /// argT must implement argT::apply(const SeparatedConvolution& op, const argT& arg)
+        template<typename argT>
+        argT operator()(const argT& argument) const {
+            return madness::apply(*this,argument);
         }
 
 
@@ -1551,6 +1649,73 @@ namespace madness {
             return tt;
         }
 
+
+        static bool can_combine(const SeparatedConvolution<Q,NDIM>& left, const SeparatedConvolution<Q,NDIM>& right) {
+            return (combine_OT(left,right).type!=OT_UNDEFINED);
+        }
+
+        /// return operator type and other info of the combined operator (e.g. fg = f(1,2)* g(1,2)
+        static OperatorInfo combine_OT(const SeparatedConvolution<Q,NDIM>& left, const SeparatedConvolution<Q,NDIM>& right) {
+            OperatorInfo info=left.info;
+            if ((left.info.type==OT_F12) and (right.info.type==OT_G12)) {
+                info.type=OT_FG12;
+            } else if ((left.info.type==OT_GAUSS) and (right.info.type==OT_GAUSS)) {
+                info=right.info;
+                info.type=OT_GAUSS;
+                info.mu=2.0*right.info.mu;
+            } else if ((left.info.type==OT_SLATER) and (right.info.type==OT_SLATER)) {
+                info=right.info;
+                info.type=OT_SLATER;
+                info.mu=2.0*right.info.mu;
+            } else if ((left.info.type==OT_G12) and (right.info.type==OT_F12)) {
+                info=right.info;
+                info.type=OT_FG12;
+            } else if ((left.info.type==OT_G12) and (right.info.type==OT_F212)) {
+                info=right.info;
+                info.type=OT_F2G12;
+            } else if (((left.info.type==OT_F212) and (right.info.type==OT_G12)) or
+                ((left.info.type==OT_F12) and (right.info.type==OT_FG12)) or
+                ((left.info.type==OT_FG12) and (right.info.type==OT_F12))) {
+                info=right.info;
+                info.type=OT_F2G12;
+                if (right.info.type!=OT_G12) MADNESS_CHECK(right.info.mu == left.info.mu);
+            } else if ((left.info.type==OT_F12) and (right.info.type==OT_F12)) {
+                info.type=OT_F212;
+                // keep the original gamma
+                // (f12)^2 = (1- slater12)^2  = 1/(4 gamma) (1 - 2 exp(-gamma) + exp(-2 gamma))
+                MADNESS_CHECK(right.info.mu == left.info.mu);
+            } else {
+                MADNESS_EXCEPTION("unknown combination of SeparatedConvolutions: feel free to extend in operator.h",1);
+            }
+            return info;
+        }
+
+
+        /// combine 2 convolution operators to one
+        static SeparatedConvolution<Q,NDIM> combine(const SeparatedConvolution<Q,NDIM>& left,
+                                                    const SeparatedConvolution<Q,NDIM>& right) {
+            MADNESS_CHECK(can_combine(left,right));
+            MADNESS_CHECK(left.get_world().id()==right.get_world().id());
+
+            auto info=combine_OT(left,right);
+            return SeparatedConvolution<Q,NDIM>(left.get_world(),info,left.bc,left.k);
+        }
+
+        /// combine 2 convolution operators to one
+        friend SeparatedConvolution<Q,NDIM> combine(const std::shared_ptr<SeparatedConvolution<Q,NDIM>> left,
+                                                    const std::shared_ptr<SeparatedConvolution<Q,NDIM>> right) {
+            SeparatedConvolution<Q,NDIM> result;
+            if (left and right) {
+                return combine(*left, *right);
+            } else if (left) {
+                return *left;
+            } else if (right) {
+                return *right;
+            } else {
+                MADNESS_EXCEPTION("can't combine empty SeparatedConvolutions",1);
+            }
+            return result;
+        }
     };
 
 
@@ -1604,7 +1769,7 @@ namespace madness {
         if (bc(0,0) == BC_PERIODIC) {
             fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
         }
-        return SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
+        return SeparatedConvolution<double,3>(world, coeff, expnt, lo, eps, bc, k);
     }
 
 
@@ -1627,94 +1792,45 @@ namespace madness {
         if (bc(0,0) == BC_PERIODIC) {
             fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
         }
-        return new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
+        return new SeparatedConvolution<double,3>(world, coeff, expnt, lo, eps, bc, k);
     }
 
 
     /// Factory function generating separated kernel for convolution with BSH kernel in general NDIM
     template <std::size_t NDIM>
-    static
-    inline
-    SeparatedConvolution<double,NDIM> BSHOperator(World& world,
-                                                  double mu,
-                                                  double lo,
-                                                  double eps,
-                                                  const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
-                                                  int k=FunctionDefaults<NDIM>::get_k())
-    {
+    static inline
+    SeparatedConvolution<double,NDIM>
+    BSHOperator(World& world, double mu, double lo, double eps,
+                const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
+                int k=FunctionDefaults<NDIM>::get_k()) {
     	if (eps>1.e-4) {
     		if (world.rank()==0) print("the accuracy in BSHOperator is too small, tighten the threshold",eps);
     		MADNESS_EXCEPTION("0",1);
     	}
-        const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
-        double hi = cell_width.normf(); // Diagonal width of cell
-        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
-
-        GFit<double,NDIM> fit=GFit<double,NDIM>::BSHFit(mu,lo,hi,eps,false);
-		Tensor<double> coeff=fit.coeffs();
-		Tensor<double> expnt=fit.exponents();
-
-        if (bc(0,0) == BC_PERIODIC) {
-            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
-        }
-
-        return SeparatedConvolution<double,NDIM>(world, coeff, expnt, bc, k);
+        return SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_BSH),bc,k);
     }
 
     /// Factory function generating separated kernel for convolution with BSH kernel in general NDIM
     template <std::size_t NDIM>
-    static
-    inline
-    SeparatedConvolution<double,NDIM>* BSHOperatorPtr(World& world,
-                                                  double mu,
-                                                  double lo,
-                                                  double eps,
-                                                  const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
-                                                  int k=FunctionDefaults<NDIM>::get_k())
-    {
-    	if (eps>1.e-4) {
-    		if (world.rank()==0) print("the accuracy in BSHOperator is too small, tighten the threshold",eps);
-    		MADNESS_EXCEPTION("0",1);
-    	}
-        const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
-        double hi = cell_width.normf(); // Diagonal width of cell
-        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
-
-        GFit<double,NDIM> fit=GFit<double,NDIM>::BSHFit(mu,lo,hi,eps,false);
-		Tensor<double> coeff=fit.coeffs();
-		Tensor<double> expnt=fit.exponents();
-
-        if (bc(0,0) == BC_PERIODIC) {
-            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+    static inline
+    SeparatedConvolution<double,NDIM>*
+    BSHOperatorPtr(World& world, double mu, double lo, double eps,
+                   const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
+                   int k=FunctionDefaults<NDIM>::get_k()) {
+        if (eps>1.e-4) {
+            if (world.rank()==0) print("the accuracy in BSHOperator is too small, tighten the threshold",eps);
+            MADNESS_EXCEPTION("0",1);
         }
-
-        return new SeparatedConvolution<double,NDIM>(world, coeff, expnt, bc, k);
+        return new SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_BSH),bc,k);
     }
 
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
-    static
-    inline
-    SeparatedConvolution<double,3> BSHOperator3D(World& world,
-                                                 double mu,
-                                                 double lo,
-                                                 double eps,
-                                                 const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
-                                                 int k=FunctionDefaults<3>::get_k())
-
-    {
-        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
-        double hi = cell_width.normf(); // Diagonal width of cell
-        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
-
-        GFit<double,3> fit=GFit<double,3>::BSHFit(mu,lo,hi,eps,false);
-		Tensor<double> coeff=fit.coeffs();
-		Tensor<double> expnt=fit.exponents();
-
-        if (bc(0,0) == BC_PERIODIC) {
-            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
-        }
-        return SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
+    static inline SeparatedConvolution<double,3>
+    BSHOperator3D(World& world, double mu, double lo, double eps,
+                  const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                  int k=FunctionDefaults<3>::get_k()) {
+        return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_BSH),bc,k);
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
@@ -1744,8 +1860,7 @@ namespace madness {
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
-    static
-    inline
+    static inline
     SeparatedConvolution<double_complex,3>* PeriodicBSHOperatorPtr3D(World& world,
                                                          Vector<double,3> args,
                                                          double mu,
@@ -1769,49 +1884,59 @@ namespace madness {
         return new SeparatedConvolution<double_complex,3>(world, args, coeff, expnt, bc, k);
     }
 
-    /// Factory function generating separated kernel for convolution with (1 - exp(-mu*r))/(2 mu) in 3D
 
-    /// note that the 1/2mu factor is not included here, nor is the term 1/(2mu)
-    static inline SeparatedConvolution<double,3> SlaterF12Operator(World& world,
-    		double mu, double lo, double eps,
-    		const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
-    		int k=FunctionDefaults<3>::get_k()) {
+    static inline SeparatedConvolution<double,3>
+    SlaterF12Operator(World& world, double mu, double lo, double eps,
+                      const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(), int k=FunctionDefaults<3>::get_k()) {
+        return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F12),bc,k);
+    }
 
-        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
-        double hi = cell_width.normf(); // Diagonal width of cell
-        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
-
-        GFit<double,3> fit=GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
-		Tensor<double> coeff=fit.coeffs();
-		Tensor<double> expnt=fit.exponents();
-
-        if (bc(0,0) == BC_PERIODIC) {
-            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
-        }
-        return SeparatedConvolution<double,3>(world, coeff, expnt, bc, k, false, mu);
+    static inline SeparatedConvolution<double,3> SlaterF12sqOperator(World& world,
+                                                                   double mu, double lo, double eps,
+                                                                   const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                                                                   int k=FunctionDefaults<3>::get_k()) {
+        return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F212),bc,k);
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r) in 3D
-    /// Note that the 1/(2mu) factor is not included, this is just the exponential function
     static inline SeparatedConvolution<double,3> SlaterOperator(World& world,
     		double mu, double lo, double eps,
     		const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
     		int k=FunctionDefaults<3>::get_k()) {
+        return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_SLATER),bc,k);
+    }
 
-        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
-        double hi = cell_width.normf(); // Diagonal width of cell
-        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+    /// Factory function generating separated kernel for convolution with exp(-mu*r*r)
 
-        GFit<double,3> fit=GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
-		Tensor<double> coeff=fit.coeffs();
-		Tensor<double> expnt=fit.exponents();
+    /// lo and eps are not used here
+    template<std::size_t NDIM>
+    static inline SeparatedConvolution<double,NDIM> GaussOperator(World& world,
+                                                                double mu, double lo=0.0, double eps=0.0,
+                                                                const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
+                                                                int k=FunctionDefaults<NDIM>::get_k()) {
+        return SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_GAUSS),bc,k);
+    }
 
-        if (bc(0,0) == BC_PERIODIC) {
-            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
-        }
-        SeparatedConvolution<double,3> tmp(world, coeff, expnt, bc, k, false, mu);
-        tmp.is_slaterf12 = false;
-        return tmp;
+    /// Factory function generating separated kernel for convolution with exp(-mu*r*r) in 3D
+
+    /// lo and eps are not used here
+    template<std::size_t NDIM>
+    static inline SeparatedConvolution<double, NDIM>* GaussOperatorPtr(World& world,
+                                                                     double mu, double lo=0.0, double eps=0.0,
+                                                                     const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
+                                                                     int k = FunctionDefaults<NDIM>::get_k()) {
+        return new SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_GAUSS),bc,k);
+    }
+
+
+    /// Factory function generating separated kernel for convolution with exp(-mu*r) in 3D
+    /// Note that the 1/(2mu) factor of SlaterF12Operator is not included, this is just the exponential function
+    template<std::size_t NDIM>
+    static inline SeparatedConvolution<double, NDIM>* SlaterOperatorPtr_ND(World& world,
+                                                                     double mu, double lo, double eps,
+                                                                     const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
+                                                                     int k = FunctionDefaults<NDIM>::get_k()) {
+        return new SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_SLATER),bc,k);
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r) in 3D
@@ -1820,41 +1945,64 @@ namespace madness {
                                                                  double mu, double lo, double eps,
                                                                  const BoundaryConditions<3>& bc = FunctionDefaults<3>::get_bc(),
                                                                  int k = FunctionDefaults<3>::get_k()) {
-
-        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
-        double hi = cell_width.normf(); // Diagonal width of cell
-        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
-
-        GFit<double,3> fit=GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
-        Tensor<double> coeff=fit.coeffs();
-        Tensor<double> expnt=fit.exponents();
-
-        if (bc(0,0) == BC_PERIODIC) {
-            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
-        }
-        SeparatedConvolution<double,3>* tmp=new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k, false, mu);
-        tmp->is_slaterf12 = false;
-        return tmp;
+        return new SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_SLATER),bc,k);
     }
 
     /// Factory function generating separated kernel for convolution with (1 - exp(-mu*r))/(2 mu) in 3D
+
+    /// includes the factor 1/(2 mu)
     static inline SeparatedConvolution<double,3>* SlaterF12OperatorPtr(World& world,
     		double mu, double lo, double eps,
     		const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
     		int k=FunctionDefaults<3>::get_k()) {
+        return new SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F12),bc,k);
+    }
 
-        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
-        double hi = cell_width.normf(); // Diagonal width of cell
-        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
 
-        GFit<double,3> fit=GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
-		Tensor<double> coeff=fit.coeffs();
-		Tensor<double> expnt=fit.exponents();
+    /// Factory function generating separated kernel for convolution with 1/(2 mu)*(1 - exp(-mu*r))/r in 3D
 
-        if (bc(0,0) == BC_PERIODIC) {
-            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
-        }
-        return new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k, false, mu);
+    /// fg = (1 - exp(-gamma r12))  / r12 = 1/r12 - exp(-gamma r12)/r12 = coulomb - bsh
+    /// includes the factor 1/(2 mu)
+    static inline SeparatedConvolution<double,3>
+    FGOperator(World& world, double mu, double lo, double eps,
+               const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+               int k=FunctionDefaults<3>::get_k()) {
+        return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_FG12),bc,k);
+    }
+
+    /// Factory function generating separated kernel for convolution with 1/(2 mu)*(1 - exp(-mu*r))/r in 3D
+
+    /// fg = (1 - exp(-gamma r12))  / r12 = 1/r12 - exp(-gamma r12)/r12 = coulomb - bsh
+    /// includes the factor 1/(2 mu)
+    static inline SeparatedConvolution<double,3>*
+    FGOperatorPtr(World& world, double mu, double lo, double eps,
+                  const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                  int k=FunctionDefaults<3>::get_k()) {
+        return new SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_FG12),bc,k);
+    }
+
+    /// Factory function generating separated kernel for convolution with (1/(2 mu)*(1 - exp(-mu*r)))^2/r in 3D
+
+    /// f2g = (1/(2 gamma) (1 - exp(-gamma r12)))^2  / r12
+    ///     = 1/(4 gamma) * [ 1/r12 - 2 exp(-gamma r12)/r12 + exp(-2 gamma r12)/r12 ]
+    /// includes the factor 1/(2 mu)^2
+    static inline SeparatedConvolution<double,3>*
+    F2GOperatorPtr(World& world, double mu, double lo, double eps,
+                   const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                   int k=FunctionDefaults<3>::get_k()) {
+        return new SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F2G12),bc,k);
+    }
+
+    /// Factory function generating separated kernel for convolution with (1/(2 mu)*(1 - exp(-mu*r)))^2/r in 3D
+
+    /// f2g = (1/(2 gamma) (1 - exp(-gamma r12)))^2  / r12
+    ///     = 1/(4 gamma) * [ 1/r12 - 2 exp(-gamma r12)/r12 + exp(-2 gamma r12)/r12 ]
+    /// includes the factor 1/(2 mu)^2
+    static inline SeparatedConvolution<double,3>
+    F2GOperator(World& world, double mu, double lo, double eps,
+                const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                int k=FunctionDefaults<3>::get_k()) {
+        return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F2G12),bc,k);
     }
 
 
@@ -1869,7 +2017,7 @@ namespace madness {
         Tensor<double> coeffs(1), exponents(1);
         exponents(0L) =  exponent;
         coeffs(0L)=pow(exponent/M_PI,0.5*3.0);  // norm of the gaussian
-        return SeparatedConvolution<double,3>(world, coeffs, exponents);
+        return SeparatedConvolution<double,3>(world, coeffs, exponents, 1.e-8, eps);
 
     }
 
@@ -1885,7 +2033,7 @@ namespace madness {
         Tensor<double> coeffs(1), exponents(1);
         exponents(0L) =  exponent;
         coeffs(0L)=pow(exponent/M_PI,0.5*NDIM);  // norm of the gaussian
-        return SeparatedConvolution<double,NDIM>(world, coeffs, exponents);
+        return SeparatedConvolution<double,NDIM>(world, coeffs, exponents, 1.e-8, eps);
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
@@ -1909,7 +2057,7 @@ namespace madness {
         if (bc(0,0) == BC_PERIODIC) {
             fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
         }
-        return new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
+        return new SeparatedConvolution<double,3>(world, coeff, expnt, lo, eps, bc, k);
     }
 
 
@@ -2019,6 +2167,7 @@ namespace madness {
 
         return gradG;
     }
+
 
 
     namespace archive {

@@ -24,6 +24,7 @@ set(MADCHEM_HEADERS
     gth_pseudopotential.h
     GuessFactory.h
     localizer.h
+    lowrankfunction.h
     masks_and_boxes.h
     molecularbasis.h
     molecular_functors.h
@@ -139,8 +140,8 @@ if(BUILD_TESTING)
   SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
   # The list of unit test source files
   set(CHEM_TEST_SOURCES_SHORT test_pointgroupsymmetry.cc test_masks_and_boxes.cc
-          test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc)
-  set(CHEM_TEST_SOURCES_LONG test_localizer.cc test_ccpairfunction.cc)
+  test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc)
+  set(CHEM_TEST_SOURCES_LONG test_localizer.cc test_ccpairfunction.cc test_low_rank_function.cc)
   if (LIBXC_FOUND)
     list(APPEND CHEM_TEST_SOURCES_SHORT test_dft.cc )
     list(APPEND CHEM_TEST_SOURCES_LONG test_SCFOperators.cc)

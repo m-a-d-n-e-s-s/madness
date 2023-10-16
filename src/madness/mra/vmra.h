@@ -813,7 +813,9 @@ namespace madness {
     {
         world.gop.fence();
         compress(world, f);
-        if ((void*)(&f) != (void*)(&g)) compress(world, g);
+//        if ((void*)(&f) != (void*)(&g)) compress(world, g);
+        compress(world, g);
+
 
         std::vector<const FunctionImpl<T,NDIM>*> left(f.size());
         std::vector<const FunctionImpl<R,NDIM>*> right(g.size());
@@ -1043,7 +1045,45 @@ namespace madness {
     }
 
 
-    /// Computes the square of a vector of functions --- q[i] = v[i]**2
+    /// multiply a high-dimensional function with a low-dimensional function
+
+    /// @param[in]  f   NDIM function of NDIM dimensions
+    /// @param[in]  g   LDIM function of LDIM
+    /// @param[in]  v   dimension indices of f to multiply
+    /// @return     h[i](0,1,2,3) = f(0,1,2,3) * g[i](1,2,3) for v={1,2,3}
+    template<typename T, std::size_t NDIM, std::size_t LDIM>
+    std::vector<Function<T,NDIM> > partial_mul(const Function<T,NDIM> f, const std::vector<Function<T,LDIM> > g,
+                                 const int particle) {
+
+        World& world=f.world();
+        std::vector<Function<T,NDIM> > result(g.size());
+        for (auto& r : result) r.set_impl(f, false);
+
+        FunctionImpl<T,NDIM>* fimpl=f.get_impl().get();
+        fimpl->make_redundant(false);
+        make_redundant(world,g,false);
+        world.gop.fence();
+
+        for (std::size_t i=0; i<result.size(); ++i) {
+            FunctionImpl<T,LDIM>* gimpl=g[i].get_impl().get();
+            result[i].get_impl()->multiply(fimpl,gimpl,particle);     // stupid naming inconsistency
+        }
+        world.gop.fence();
+
+        fimpl->undo_redundant(false);
+        for (auto& ig : g) ig.get_impl()->undo_redundant(false);
+        world.gop.fence();
+        return result;
+    }
+
+    template<typename T, std::size_t NDIM, std::size_t LDIM>
+    std::vector<Function<T,NDIM> > multiply(const Function<T,NDIM> f, const std::vector<Function<T,LDIM> > g,
+                              const std::tuple<int,int,int> v) {
+        return partial_mul<T,NDIM,LDIM>(f,g,std::array<int,3>({std::get<0>(v),std::get<1>(v),std::get<2>(v)}));
+    }
+
+
+/// Computes the square of a vector of functions --- q[i] = v[i]**2
     template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
     square(World& world,
@@ -1124,6 +1164,17 @@ namespace madness {
             r[i] = copy(v[i], false);
         }
         if (fence) world.gop.fence();
+        return r;
+    }
+
+
+    /// Returns a deep copy of a vector of functions
+    template <typename T, std::size_t NDIM>
+    std::vector< Function<T,NDIM> >
+    copy(const std::vector< Function<T,NDIM> >& v, bool fence=true) {
+        PROFILE_BLOCK(Vcopy);
+        std::vector< Function<T,NDIM> > r(v.size());
+        if (v.size()>0) r=copy(v.front().world(),v,fence);
         return r;
     }
 
@@ -1344,7 +1395,6 @@ namespace madness {
 
         std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> > result(f.size());
         for (unsigned int i=0; i<f.size(); ++i) {
-            MADNESS_ASSERT(not op[i]->is_slaterf12);
             result[i] = apply_only(*op[i], f[i], false);
         }
 
@@ -1361,13 +1411,22 @@ namespace madness {
     /// Applies an operator to a vector of functions --- q[i] = apply(op,f[i])
     template <typename T, typename R, std::size_t NDIM, std::size_t KDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
+    apply(const SeparatedConvolution<T,KDIM>& op,
+          const std::vector< Function<R,NDIM> > f) {
+        return apply(op.get_world(),op,f);
+    }
+
+
+    /// Applies an operator to a vector of functions --- q[i] = apply(op,f[i])
+    template <typename T, typename R, std::size_t NDIM, std::size_t KDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     apply(World& world,
           const SeparatedConvolution<T,KDIM>& op,
           const std::vector< Function<R,NDIM> > f) {
         PROFILE_BLOCK(Vapply);
 
         std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
-        bool print_timings=(NDIM==6) and (world.rank()==0);
+        bool print_timings=(NDIM==6) and (world.rank()==0) and op.print_timings;
 
         double wall0=wall_time();
         reconstruct(world, f);
@@ -1396,15 +1455,6 @@ namespace madness {
             op.print_timer();
         }
         reconstruct(world, result);
-
-        if (op.is_slaterf12) {
-        	MADNESS_ASSERT(not op.destructive());
-        	if (typeid(T)!=typeid(R)) MADNESS_EXCEPTION("think again!",1);
-            for (unsigned int i=0; i<f.size(); ++i) {
-            	R trace=f[i].trace();
-                result[i]=(result[i]-trace).scale(-0.5/op.mu());
-            }
-        }
 
         return result;
     }

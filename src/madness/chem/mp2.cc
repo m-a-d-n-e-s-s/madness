@@ -50,6 +50,8 @@
 #include<madness/chem/correlationfactor.h>
 #include<madness/chem/nemo.h>
 #include<madness/chem/localizer.h>
+#include<madness/chem/ccpairfunction.h>
+#include<madness/chem/CCStructures.h>
 
 #include <iostream>
 
@@ -260,6 +262,7 @@ double MP2::value(const Tensor<double>& x) {
     if (world.rank() == 0) {
         printf("current decoupled mp2 energy %12.8f\n", correlation_energy);
     }
+    if (param.no_compute()) return correlation_energy;
 
     correlation_energy = 0.0;
     if (hf->get_calc().param.do_localize()) {
@@ -278,6 +281,186 @@ double MP2::value(const Tensor<double>& x) {
         }
     }
     return correlation_energy;
+}
+
+double MP2::mp3() const {
+
+    typedef std::vector<CCPairFunction> ClusterFunction;
+    Pairs<ClusterFunction> clusterfunctions;
+    double mp3_energy=0.0;
+    CCTimer t1(world,"make pairs");
+    // load converged MP1 wave functions
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        for (int j = i; j < hf->nocc(); ++j) {
+//            pairs(i, j) = make_pair(i, j);                // initialize
+            ClusterFunction tmp;
+            tmp.push_back(CCPairFunction(pairs(i,j).function));
+            CCPairFunction ij(hf->nemo(i),hf->nemo(j));
+
+            CCConvolutionOperator::Parameters cparam;
+            cparam.thresh_op*=0.1;
+            auto f12=CCConvolutionOperatorPtr(world,OpType::OT_F12,cparam);
+            auto vfij=Q12(std::vector<CCPairFunction>({f12*ij}));
+            for (auto& p : vfij) tmp.push_back(p);
+
+            clusterfunctions(i,j)=tmp;
+            print("prep pairs",t1.reset());
+        }
+    }
+    t1.print();
+    auto R2 = hf->nemo_ptr->ncf->square();
+
+    CCTimer t2(world,"recompute MP2");
+    // recompute MP2 energy
+    CCConvolutionOperator::Parameters cparam;
+    auto g12=CCConvolutionOperatorPtr(world,OpType::OT_G12,cparam);
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        for (int j = i; j < hf->nocc(); ++j) {
+            auto bra=g12*CCPairFunction(hf->R2orbital(i),hf->R2orbital(j));
+            double energy1=inner(bra,clusterfunctions(i,j).front());
+            double energy=energy1+pairs(i,j).ij_gQf_ij;
+            print("MP2 energy: gQf, u",pairs(i,j).ij_gQf_ij,energy1,energy);
+            print("time compute <ij|u>",t2.reset());
+
+            double energy2=inner({bra},clusterfunctions(i,j));
+            printf("MP2 energy: cluster %12.8f\n",energy2);
+            print("time clusterfunction",t2.reset());
+        }
+    }
+
+    CCTimer t3(world,"MP3");
+
+    // compute the term <i(1) |g(1,2) | j(1)>(2)
+    madness::Pairs<real_function_3d> gij;
+
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        for (int j = i; j < hf->nocc(); ++j) {
+            gij.insert(i,j,(*g12)(hf->nemo(i)*hf->R2orbital(j)));
+        }
+    }
+    print("\n compute term1 of the MP3 energy\n");
+    // compute the MP3 energy
+    double term1=0.0;
+    if (0) {
+        for (int i = param.freeze(); i < hf->nocc(); ++i) {
+            for (int j = i; j < hf->nocc(); ++j) {
+                auto bra = clusterfunctions(i, j);
+                double tmp1 = inner(bra, g12 * clusterfunctions(i, j), R2);
+                double tmp2 = inner(bra, g12 * clusterfunctions(j, i), R2);
+                double fac = (i == j) ? 0.5 : 1.0;
+                double tmp = fac * (4.0 * tmp1 - 2.0 * tmp2);
+                print("mp3 energy: term1", i, j, tmp);
+                term1 += tmp;
+            }
+        }
+    }
+    printf("MP3 energy: term1 %12.8f\n",term1);
+    print("time term1",t3.reset());
+
+
+    // compute intermediates for terms G, I, H, and J
+
+    // \sum_j tau_ij(1,2) * phi_j(2)
+    std::vector<ClusterFunction> tau_i_jj(hf->nocc()-param.freeze());
+    // \sum_j tau_ij(1,2) * phi_j(1)
+    std::vector<ClusterFunction> tau_ij_j(hf->nocc()-param.freeze());
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        for (int j = param.freeze(); j < hf->nocc(); ++j) {
+            auto tmp2=multiply(clusterfunctions(i,j),hf->R2orbital(j),{3,4,5});
+            for (auto& t : tmp2) tau_i_jj[i].push_back(t);
+
+            auto tmp4=multiply(clusterfunctions(i,j),hf->R2orbital(j),{0,1,2});
+            for (auto& t : tmp4) tau_ij_j[i].push_back(t);
+        }
+    }
+    print("info on tau_i_jj and tau_ij_j");
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        for (auto& c: tau_i_jj[i]) c.info();
+    }
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        for (auto& c: tau_ij_j[i]) c.info();
+    }
+
+    print("time GHIJ prep",t3.reset());
+    // terms G, I, H, J of Bartlett/Silver 1975
+    double term2a=0.0;
+    real_convolution_3d& g=*(g12->get_op());
+    g.particle()=2;
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        auto gtau=g(tau_i_jj[i]);
+        print("info on gtau_i_jj");
+        for (auto& g :gtau) g.info();
+        double G=inner(gtau,tau_i_jj[i],R2);
+        print("G",G);
+//        double G=inner(tau_i_jj[i],g12*tau_i_jj[i],R2);
+        double I=inner(tau_i_jj[i],g12*tau_ij_j[i],R2);
+        print("I",I);
+        double H=inner(tau_ij_j[i],g12*tau_i_jj[i],R2);
+        print("H",H);
+        double J=inner(tau_ij_j[i],g12*tau_ij_j[i],R2);
+        print("J",J);
+        double tmp = (8.0 *G - 4.0*I + 2.0* H  - 4.0*J);
+        print("mp3 energy: term2",i,tmp);
+        term2a+=tmp;
+    }
+    print("time GHIJ ",t3.reset());
+
+    double term2=0.0;
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        for (int j = param.freeze(); j < hf->nocc(); ++j) {
+            auto bra_ij=clusterfunctions(i,j);
+
+            double tmp=0.0;
+            for (int k=param.freeze(); k<hf->nocc(); ++k) {
+                auto tau_ij_gik = multiply(bra_ij,gij(i,k),{3,4,5});
+                auto tau_ij_gjk = multiply(bra_ij,gij(j,k),{3,4,5});
+
+                double tmp1=2.0*inner(tau_ij_gik,clusterfunctions(k,j),R2)
+                             - inner(tau_ij_gik,clusterfunctions(j,k),R2)
+                             +2.0* inner(tau_ij_gjk,clusterfunctions(i,k),R2)
+                              - inner(tau_ij_gjk,clusterfunctions(k,i),R2);
+                tmp-=2.0*tmp1;
+            }
+            print("mp3 energy: term2",i,j,tmp);
+            term2+=tmp;
+        }
+    }
+    print("time term2",t3.reset());
+
+    double term3=0.0;
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        for (int j = param.freeze(); j < hf->nocc(); ++j) {
+            double tmp=0.0;
+            for (int k=param.freeze(); k<hf->nocc(); ++k) {
+                for (int l=param.freeze(); l<hf->nocc(); ++l) {
+                    auto bra = clusterfunctions(i,k);
+                    double ovlp1=inner(bra,clusterfunctions(j,l),R2);
+                    double ovlp2=inner(bra,clusterfunctions(l,j),R2);
+                    auto ket_i=hf->nemo(i);
+                    auto ket_k=hf->nemo(k);
+                    auto bra_j=hf->R2orbital(j);
+                    auto bra_l=hf->R2orbital(l);
+
+                    double g_jlik=inner(bra_j*ket_i, (*g12)(bra_l*ket_k));
+                    double g_jlki=inner(bra_j*ket_k, (*g12)(bra_l*ket_i));
+                    tmp+=(2.0*ovlp1 - ovlp2)*g_jlik;
+                }
+            }
+            print("mp3 energy: term3",i,j,tmp);
+            term3+=tmp;
+        }
+    }
+    print("time term3",t3.reset());
+    t3.print();
+    printf("term1  %12.8f\n",term1);
+    printf("term2a %12.8f\n",term2a);
+    printf("term2  %12.8f\n",term2);
+    printf("term3  %12.8f\n",term3);
+    mp3_energy=term1+term2a+term2+term3;
+    printf("MP3 en %12.8f\n",mp3_energy);
+
+
+    return mp3_energy;
 }
 
 /// solve the residual equation for electron pair (i,j)
@@ -525,13 +708,6 @@ double MP2::asymmetry(const real_function_6d& f, const std::string s) const {
     return diff;
 }
 
-void MP2::test(const std::string filename) {
-    if (world.rank() == 0)
-        printf("starting coupling at time %8.1fs\n", wall_time());
-    if (world.rank() == 0)
-        printf("ending coupling at time %8.1fs\n", wall_time());
-}
-
 /// compute the matrix element <ij | g12 Q12 f12 | phi^0>
 
 /// scales quartically. I think I can get this down to cubically by
@@ -540,6 +716,7 @@ void MP2::test(const std::string filename) {
 /// @return 	the energy <ij | g Q f | kl>
 double MP2::compute_gQf(const int i, const int j, ElectronPair& pair) const {
 
+    CCTimer t1(world,"gQf old");
     // for clarity of notation
     const int k = pair.i;
     const int l = pair.j;
@@ -618,6 +795,33 @@ double MP2::compute_gQf(const int i, const int j, ElectronPair& pair) const {
     const double e = a - o1a - o2a + o12;
     if (world.rank() == 0)
         printf("<%d%d | g Q12 f          | %d%d>  %12.8f\n", i, j, k, l, e);
+
+    print("gQf old",t1.reset());
+
+    CCTimer timer(world,"gQf with ccpairfunction");
+    CCConvolutionOperator::Parameters param;
+    auto f=CCConvolutionOperatorPtr(world,OpType::OT_F12,param);
+    auto g=CCConvolutionOperatorPtr(world,OpType::OT_G12,param);
+//    print("operator constructor",timer.reset());
+
+    CCPairFunction fij(f,ket_i,ket_j);
+    CCPairFunction gij(g,bra_k,bra_l);
+//    CCPairFunction ij({psi},{psi});
+    std::vector<CCPairFunction> vfij={fij};
+    std::vector<CCPairFunction> vgij={gij};
+//    std::vector<CCPairFunction> vij={ij};
+//    print("g/f ij constructor",timer.reset());
+
+//    StrongOrthogonalityProjector<double,3> SO(world);
+//    SO.set_spaces({psi},{psi},{psi},{psi});
+    std::vector<CCPairFunction> Qfij=Q12(vfij);
+//    std::vector<CCPairFunction> Qgij=Q12(vgij);
+//    print("SO application",timer.reset());
+
+    double result1=inner(vgij,Qfij);
+    print("inner",timer.reset());
+
+    print("<ij | g (Q f | ij>)",result1);
 
     return e;
 }

@@ -329,6 +329,7 @@ class MP2 : public OptimizationTargetInterface, public QCPropertyInterface {
             initialize < int > ("freeze", 0);
             initialize < int > ("maxsub", 2);
             initialize < bool > ("restart", true);
+            initialize < bool > ("no_compute", false);
             initialize < int > ("maxiter", 5);
         }
 
@@ -362,6 +363,7 @@ class MP2 : public OptimizationTargetInterface, public QCPropertyInterface {
         int i() const { return this->get<std::vector<int> >("pair")[0]; }    /// convenience function
         int j() const { return this->get<std::vector<int> >("pair")[1]; }    /// convenience function
         int restart() const { return this->get<bool>("restart"); }    /// convenience function
+        int no_compute() const { return this->get<bool>("no_compute"); }    /// convenience function
         int maxiter() const { return this->get<int>("maxiter"); }    /// convenience function
         int maxsub() const { return this->get<int>("maxsub"); }    /// convenience function
         bool do_oep() const { return do_oep1;}
@@ -460,6 +462,8 @@ public:
         return hf->orbital_energy(i) + hf->orbital_energy(j);
     }
 
+    double mp3() const;
+
     /// solve the residual equation for electron pair (i,j)
 
     /// \todo Parameter documentation. Below are un-doxygenated comments that no longer seem relevant?
@@ -502,8 +506,6 @@ public:
     real_function_6d swap_particles(const real_function_6d& f) const;
 
     double asymmetry(const real_function_6d& f, const std::string s) const;
-
-    void test(const std::string filename);
 
     /// compute the matrix element <ij | g12 Q12 f12 | phi^0>
 
