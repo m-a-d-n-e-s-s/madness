@@ -719,7 +719,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl || is_compressed()) return *this;
             if (VERIFY_TREE) verify_tree();
-            if (impl->is_nonstandard()) {
+            if (impl->is_nonstandard() or impl->is_nonstandard_with_leaves()) {
                 impl->standard(fence);
             } else {
                 const_cast<Function<T,NDIM>*>(this)->impl->compress(TreeState::compressed, fence);
@@ -767,6 +767,21 @@ namespace madness {
             if (fence && VERIFY_TREE) verify_tree();
         }
 
+        /// Converts the function to redundant form, i.e. sum coefficients on all levels
+
+        /// By default fence=true meaning that this operation completes before returning,
+        /// otherwise if fence=false it returns without fencing and the user must invoke
+        /// world.gop.fence() to assure global completion before using the function
+        /// for other purposes.
+        ///
+        /// Must be already compressed.
+        void make_redundant(bool fence = true) {
+            PROFILE_MEMBER_FUNC(Function);
+            verify();
+            change_tree_state(redundant, fence);
+            if (fence && VERIFY_TREE) verify_tree();
+        }
+
         /// Reconstructs the function, transforming into scaling function basis.  Possible non-blocking comm.
 
         /// By default fence=true meaning that this operation completes before returning,
@@ -781,7 +796,114 @@ namespace madness {
         const Function<T,NDIM>& reconstruct(bool fence = true) const {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl || impl->is_reconstructed()) return *this;
-            const_cast<Function<T,NDIM>*>(this)->impl->reconstruct(fence);
+            change_tree_state(reconstructed, fence);
+            if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
+            return *this;
+        }
+
+        /// changes tree state to given state
+
+        /// Since reconstruction/compression do not discard information we define them
+        /// as const ... "logical constness" not "bitwise constness".
+        /// @param[in]  finalstate  The final state of the tree
+        /// @param[in]  fence       Fence after the operation (might not be respected!!!)
+        const Function<T,NDIM>& change_tree_state(const TreeState finalstate, bool fence = true) const {
+            PROFILE_MEMBER_FUNC(Function);
+            if (not impl) return *this;
+            TreeState current_state=impl->get_tree_state();
+            if (finalstate==current_state) return *this;
+            MADNESS_CHECK_THROW(current_state!=TreeState::unknown,"unknown tree state");
+
+            // very special case
+            if (impl->get_tree_state()==nonstandard_after_apply) {
+                MADNESS_CHECK(finalstate==reconstructed);
+                impl->reconstruct(fence);
+                current_state=impl->get_tree_state();
+            }
+            MADNESS_CHECK_THROW(current_state!=TreeState::nonstandard_after_apply,"unknown tree state");
+            bool must_fence=false;
+
+            if (finalstate==reconstructed) {
+                if (current_state==reconstructed) return *this;
+                if (current_state==compressed) impl->reconstruct(fence);
+                if (current_state==nonstandard) impl->reconstruct(fence);
+                if (current_state==nonstandard_with_leaves) impl->remove_internal_coefficients(fence);
+                if (current_state==redundant) impl->remove_internal_coefficients(fence);
+                impl->set_tree_state(reconstructed);
+            } else if (finalstate==compressed) {
+                if (current_state==reconstructed) impl->compress(compressed,fence);
+                if (current_state==compressed) return *this;
+                if (current_state==nonstandard) impl->standard(fence);
+                if (current_state==nonstandard_with_leaves) impl->standard(fence);
+                if (current_state==redundant) {
+                    impl->remove_internal_coefficients(true);
+                    must_fence=true;
+                    impl->set_tree_state(reconstructed);
+                    impl->compress(compressed,fence);
+                }
+                impl->set_tree_state(compressed);
+            } else if (finalstate==nonstandard) {
+                if (current_state==reconstructed) impl->compress(nonstandard,fence);
+                if (current_state==compressed) {
+                    impl->reconstruct(true);
+                    must_fence=true;
+                    impl->compress(nonstandard,fence);
+                }
+                if (current_state==nonstandard) return *this;
+                if (current_state==nonstandard_with_leaves) impl->remove_leaf_coefficients(fence);
+                if (current_state==redundant) {
+                    impl->remove_internal_coefficients(true);
+                    must_fence=true;
+                    impl->set_tree_state(reconstructed);
+                    impl->compress(nonstandard,fence);
+                }
+                impl->set_tree_state(nonstandard);
+            } else if (finalstate==nonstandard_with_leaves) {
+                if (current_state==reconstructed) impl->compress(nonstandard_with_leaves,fence);
+                if (current_state==compressed) {
+                    impl->reconstruct(true);
+                    must_fence=true;
+                    impl->compress(nonstandard_with_leaves,fence);
+                }
+                if (current_state==nonstandard) {
+                    impl->standard(true);
+                    must_fence=true;
+                    impl->reconstruct(true);
+                    impl->compress(nonstandard_with_leaves,fence);
+                }
+                if (current_state==nonstandard_with_leaves) return *this;
+                if (current_state==redundant) {
+                    impl->remove_internal_coefficients(true);
+                    must_fence=true;
+                    impl->set_tree_state(reconstructed);
+                    impl->compress(nonstandard_with_leaves,fence);
+                }
+                impl->set_tree_state(nonstandard_with_leaves);
+            } else if (finalstate==redundant) {
+                if (current_state==reconstructed) impl->make_redundant(fence);
+                if (current_state==compressed) {
+                    impl->reconstruct(true);
+                    must_fence=true;
+                    impl->make_redundant(fence);
+                }
+                if (current_state==nonstandard) {
+                    impl->standard(true);
+                    must_fence=true;
+                    impl->reconstruct(true);
+                    impl->make_redundant(fence);
+                }
+                if (current_state==nonstandard_with_leaves) {
+                    impl->remove_internal_coefficients(true);
+                    must_fence=true;
+                    impl->set_tree_state(reconstructed);
+                    impl->make_redundant(fence);
+                }
+                if (current_state==redundant) return *this;
+                impl->set_tree_state(redundant);
+            } else {
+                MADNESS_EXCEPTION("unknown/unsupported final tree state",1);
+            }
+            if (must_fence and world().rank()==0) print("could not respect fence in change_tree_state");
             if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
             return *this;
         }
@@ -1397,15 +1519,16 @@ namespace madness {
                     .k(g.k()).thresh(g.thresh());
             Function<resultT,KDIM> result=factory;      // no empty() here!
 
-            FunctionImpl<R,LDIM>* gimpl = const_cast< FunctionImpl<R,LDIM>* >(g.get_impl().get());
-
-            this->reconstruct();
-            gimpl->make_redundant(true);
-            this->get_impl()->project_out(result.get_impl().get(),gimpl,dim,true);
+            change_tree_state(reconstructed,false);
+            g.change_tree_state(redundant,false);
+            world().gop.fence();
+            this->get_impl()->project_out(result.get_impl().get(),g.get_impl().get(),dim,true);
 //            result.get_impl()->project_out2(this->get_impl().get(),gimpl,dim);
             result.world().gop.fence();
-            result.get_impl()->trickle_down(true);
-            gimpl->undo_redundant(true);
+            g.change_tree_state(reconstructed,false);
+            result.get_impl()->trickle_down(false);
+            result.get_impl()->set_tree_state(reconstructed);
+            result.world().gop.fence();
             return result;
         }
 
@@ -2072,7 +2195,7 @@ namespace madness {
         if (op.modified()) {
             result.get_impl()->trickle_down(true);
         } else {
-    		result.reconstruct();
+    		result.get_impl()->reconstruct(true);
         }
     	standard(world,ff1,false);
     	if (not same) standard(world,ff2,false);
@@ -2175,7 +2298,8 @@ namespace madness {
 				op.print_timer();
 			}
 
-            result.reconstruct();
+            result.get_impl()->reconstruct(true);
+
 //            fff.clear();
             if (op.destructive()) {
             	ff.world().gop.fence();
@@ -2411,8 +2535,8 @@ namespace madness {
         MADNESS_CHECK(world.size() == 1);
 
         if (prepare) {
-            f.make_nonstandard(false, false);
-            g.make_nonstandard(false, false);
+            f.change_tree_state(nonstandard);
+            g.change_tree_state(nonstandard);
             world.gop.fence();
             f.get_impl()->compute_snorm_and_dnorm(false);
             g.get_impl()->compute_snorm_and_dnorm(false);
@@ -2426,13 +2550,14 @@ namespace madness {
             result=FunctionFactory<resultT,NDIM>(world)
                             .k(f.k()).thresh(f.thresh()).empty().nofence();
             result.get_impl()->partial_inner(*f.get_impl(),*g.get_impl(),v1,v2);
-            result.get_impl()->set_tree_state(nonstandard);
+            result.get_impl()->set_tree_state(nonstandard_after_apply);
             world.gop.set_forbid_fence(false);
         }
 
         if (finish) {
 
             world.gop.fence();
+            result.get_impl()->reconstruct(true);
             result.reconstruct();
             FunctionImpl<T,LDIM>& f_nc=const_cast<FunctionImpl<T,LDIM>&>(*f.get_impl());
             FunctionImpl<R,KDIM>& g_nc=const_cast<FunctionImpl<R,KDIM>&>(*g.get_impl());
@@ -2451,13 +2576,10 @@ namespace madness {
 
             for (auto& key : erase_list(f_nc)) f_nc.get_coeffs().erase(key);
             for (auto& key : erase_list(g_nc)) g_nc.get_coeffs().erase(key);
-            g_nc.standard(false);
-            f_nc.standard(false);
             world.gop.fence();
             g_nc.reconstruct(false);
             f_nc.reconstruct(false);
             world.gop.fence();
-//            print("timings: get_lists, recur, contract",wall_get_lists,wall_recur,wall_contract);
 
         }
 

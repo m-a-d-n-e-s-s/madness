@@ -135,17 +135,36 @@ namespace madness {
                   bool fence=true) {
 
         PROFILE_BLOCK(Vcompress);
-        bool must_fence = false;
-        for (unsigned int i=0; i<v.size(); ++i) {
-            if (!v[i].is_compressed()) {
-                v[i].compress(false);
-                must_fence = true;
-            }
-        }
-
-        if (fence && must_fence) world.gop.fence();
+        change_tree_state(v, TreeState::compressed, fence);
+//        bool must_fence = false;
+//        for (unsigned int i=0; i<v.size(); ++i) {
+//            if (!v[i].is_compressed()) {
+//                v[i].compress(false);
+//                must_fence = true;
+//            }
+//        }
+//
+//        if (fence && must_fence) world.gop.fence();
     }
 
+
+    /// reconstruct a vector of functions
+
+    /// implies fence
+    /// return v for chaining
+    template <typename T, std::size_t NDIM>
+    const std::vector< Function<T,NDIM> >& reconstruct(const std::vector< Function<T,NDIM> >& v) {
+        return change_tree_state(v, TreeState::reconstructed, true);
+    }
+
+    /// compress a vector of functions
+
+    /// implies fence
+    /// return v for chaining
+    template <typename T, std::size_t NDIM>
+    const std::vector< Function<T,NDIM> >& compress(const std::vector< Function<T,NDIM> >& v) {
+        return change_tree_state(v, TreeState::compressed, true);
+    }
 
     /// Reconstruct a vector of functions
     template <typename T, std::size_t NDIM>
@@ -153,15 +172,16 @@ namespace madness {
                      const std::vector< Function<T,NDIM> >& v,
                      bool fence=true) {
         PROFILE_BLOCK(Vreconstruct);
-        bool must_fence = false;
-        for (unsigned int i=0; i<v.size(); ++i) {
-            if (v[i].is_compressed() or v[i].is_nonstandard()) {
-                v[i].reconstruct(false);
-                must_fence = true;
-            }
-        }
-
-        if (fence && must_fence) world.gop.fence();
+//        bool must_fence = false;
+        change_tree_state(v, TreeState::reconstructed, fence);
+//        for (unsigned int i=0; i<v.size(); ++i) {
+//            if (v[i].is_compressed() or v[i].is_nonstandard()) {
+//                v[i].reconstruct(false);
+//                must_fence = true;
+//            }
+//        }
+//
+//        if (fence && must_fence) world.gop.fence();
     }
 
     /// change tree_state of a vector of functions to redundant
@@ -171,15 +191,16 @@ namespace madness {
                   bool fence=true) {
 
         PROFILE_BLOCK(Vcompress);
-        bool must_fence = false;
-        for (unsigned int i=0; i<v.size(); ++i) {
-            if (!v[i].get_impl()->is_redundant()) {
-                v[i].get_impl()->make_redundant(false);
-                must_fence = true;
-            }
-        }
-
-        if (fence && must_fence) world.gop.fence();
+        change_tree_state(v, TreeState::redundant, fence);
+//        bool must_fence = false;
+//        for (unsigned int i=0; i<v.size(); ++i) {
+//            if (!v[i].get_impl()->is_redundant()) {
+//                v[i].get_impl()->make_redundant(false);
+//                must_fence = true;
+//            }
+//        }
+//
+//        if (fence && must_fence) world.gop.fence();
     }
 
     /// refine the functions according to the autorefine criteria
@@ -225,11 +246,12 @@ namespace madness {
                           std::vector< Function<T,NDIM> >& v,
                           bool fence= true) {
         PROFILE_BLOCK(Vnonstandard);
-        reconstruct(world, v);
-        for (unsigned int i=0; i<v.size(); ++i) {
-            v[i].make_nonstandard(false, false);
-        }
-        if (fence) world.gop.fence();
+        change_tree_state(v, TreeState::nonstandard, fence);
+//        reconstruct(world, v);
+//        for (unsigned int i=0; i<v.size(); ++i) {
+//            v[i].make_nonstandard(false, false);
+//        }
+//        if (fence) world.gop.fence();
     }
 
 
@@ -239,10 +261,39 @@ namespace madness {
                   std::vector< Function<T,NDIM> >& v,
                   bool fence=true) {
         PROFILE_BLOCK(Vstandard);
-        for (unsigned int i=0; i<v.size(); ++i) {
-            v[i].standard(false);
-        }
+        change_tree_state(v, TreeState::compressed, fence);
+//        for (unsigned int i=0; i<v.size(); ++i) {
+//            v[i].standard(false);
+//        }
+//        if (fence) world.gop.fence();
+    }
+
+
+    /// change tree state of the functions
+
+    /// will respect fence
+    /// @return v   for chaining
+    template <typename T, std::size_t NDIM>
+    const std::vector<Function<T,NDIM>>& change_tree_state(const std::vector<Function<T,NDIM>>& v,
+                                                     const TreeState finalstate,
+                                                     const bool fence=true) {
+        if (v.size()==0) return v;
+        // find initialized function with world
+        Function<T,NDIM> dummy;
+        for (const auto& f : v)
+            if (f.is_initialized()) {
+                dummy=f;
+                break;
+            }
+        if (not dummy.is_initialized()) return v;
+        World& world=dummy.world();
+
+//        if (not fence) world.gop.set_forbid_fence(true);    // make sure fence is respected
+        for (unsigned int i=0; i<v.size(); ++i) v[i].change_tree_state(finalstate,fence);
+//        if (not fence) world.gop.set_forbid_fence(false);
         if (fence) world.gop.fence();
+
+        return v;
     }
 
 
@@ -1390,19 +1441,20 @@ namespace madness {
 
         std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
 
-        reconstruct(world, f);
+//        reconstruct(world, f);
         make_nonstandard(world, ncf);
 
         std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> > result(f.size());
         for (unsigned int i=0; i<f.size(); ++i) {
             result[i] = apply_only(*op[i], f[i], false);
+            result[i].get_impl()->set_tree_state(nonstandard_after_apply);
         }
 
         world.gop.fence();
 
         standard(world, ncf, false);  // restores promise of logical constness
+        reconstruct(result);
         world.gop.fence();
-        reconstruct(world, result);
 
         return result;
     }

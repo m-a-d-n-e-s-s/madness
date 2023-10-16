@@ -1508,21 +1508,25 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::reconstruct(bool fence) {
 
-        if (is_reconstructed()) {
-            return;
-        } else if (is_redundant() or is_nonstandard_with_leaves()) {
-    		this->undo_redundant(fence);
-    		return;
-    	} else if (is_compressed() or is_nonstandard()) {
+        if (is_reconstructed()) return;
+
+        if (is_redundant() or is_nonstandard_with_leaves()) {
+            set_tree_state(reconstructed);
+    		this->remove_internal_coefficients(fence);
+    	} else if (is_compressed() or tree_state==nonstandard_after_apply) {
             // Must set true here so that successive calls without fence do the right thing
             set_tree_state(reconstructed);
             if (world.rank() == coeffs.owner(cdata.key0))
-                woT::task(world.rank(), &implT::reconstruct_op, cdata.key0,coeffT());
-            if (fence)
-                world.gop.fence();
+                woT::task(world.rank(), &implT::reconstruct_op, cdata.key0,coeffT(), true);
+        } else if (is_nonstandard()) {
+            // Must set true here so that successive calls without fence do the right thing
+            set_tree_state(reconstructed);
+            if (world.rank() == coeffs.owner(cdata.key0))
+                woT::task(world.rank(), &implT::reconstruct_op, cdata.key0,coeffT(), false);
     	} else {
             MADNESS_EXCEPTION("cannot reconstruct this tree",1);
         }
+        if (fence) world.gop.fence();
 
     }
 
@@ -1535,7 +1539,7 @@ namespace madness {
     /// @param[in] redundant    keep only sum coeffs at all levels, discard difference coeffs
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::compress(const TreeState newstate, bool fence) {
-        MADNESS_CHECK(is_reconstructed());
+        MADNESS_CHECK_THROW(is_reconstructed(),"impl::compress wants a reconstructe tree");
         // Must set true here so that successive calls without fence do the right thing
         set_tree_state(newstate);
         bool keepleaves1=(tree_state==nonstandard_with_leaves) or (tree_state==redundant);
@@ -1550,27 +1554,30 @@ namespace madness {
             world.gop.fence();
     }
 
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::remove_internal_coefficients(const bool fence) {
+        flo_unary_op_node_inplace(remove_internal_coeffs(),fence);
+    }
+
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::remove_leaf_coefficients(const bool fence) {
+        flo_unary_op_node_inplace(remove_leaf_coeffs(),fence);
+    }
+
     /// convert this to redundant, i.e. have sum coefficients on all levels
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::make_redundant(const bool fence) {
 
         // fast return if possible
         if (is_redundant()) return;
-
-        // NS form might have leaf sum coeffs, but we don't know
-        // change to standard compressed form
-        if (is_nonstandard()) this->standard(true);
-
-        // we need the leaf sum coeffs, so reconstruct
-        if (is_compressed()) reconstruct(true);
-
+        MADNESS_CHECK_THROW(is_reconstructed(),"impl::make_redundant() wants a reconstructed tree");
         compress(redundant,fence);
     }
 
     /// convert this from redundant to standard reconstructed form
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::undo_redundant(const bool fence) {
-        MADNESS_CHECK(is_redundant());
+        MADNESS_CHECK_THROW(is_redundant(),"impl::undo_redundant() wants a redundant tree");
         set_tree_state(reconstructed);
         flo_unary_op_node_inplace(remove_internal_coeffs(),fence);
     }
@@ -2094,7 +2101,7 @@ namespace madness {
     }
 
     template <typename T, std::size_t NDIM>
-    void FunctionImpl<T,NDIM>::reconstruct_op(const keyT& key, const coeffT& s) {
+    void FunctionImpl<T,NDIM>::reconstruct_op(const keyT& key, const coeffT& s, const bool accumulate_NS) {
         //PROFILE_MEMBER_FUNC(FunctionImpl);
         // Note that after application of an integral operator not all
         // siblings may be present so it is necessary to check existence
@@ -2121,7 +2128,7 @@ namespace madness {
         if (node.has_children() || node.has_coeff()) { // Must allow for inconsistent state from transform, etc.
             coeffT d = node.coeff();
             if (!d.has_data()) d = coeffT(cdata.v2k,targs);
-            if (key.level() > 0) d(cdata.s0) += s; // -- note accumulate for NS summation
+            if (accumulate_NS and (key.level() > 0)) d(cdata.s0) += s; // -- note accumulate for NS summation
             if (d.dim(0)==2*get_k()) {              // d might be pre-truncated if it's a leaf
                 d = unfilter(d);
                 node.clear_coeff();
@@ -2131,7 +2138,7 @@ namespace madness {
                     coeffT ss = copy(d(child_patch(child)));
                     ss.reduce_rank(thresh);
                     //PROFILE_BLOCK(recon_send); // Too fine grain for routine profiling
-                    woT::task(coeffs.owner(child), &implT::reconstruct_op, child, ss);
+                    woT::task(coeffs.owner(child), &implT::reconstruct_op, child, ss, accumulate_NS);
                 }
             } else {
                 MADNESS_ASSERT(node.is_leaf());
