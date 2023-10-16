@@ -1955,6 +1955,14 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         return (-t)+=x;
     }
 
+    /// Returns a new tensor filled with ones
+    template <typename T>
+    Tensor<T> ones(long n) {
+        Tensor<T> result = Tensor<T>(1,&n,false);
+        UNARY_OPTIMIZED_ITERATOR(T,result,*_p0 = 1.0);
+        return result;
+    }
+
     /// Returns a new contiguous tensor that is a deep copy of the input
 
     /// \ingroup tensor
