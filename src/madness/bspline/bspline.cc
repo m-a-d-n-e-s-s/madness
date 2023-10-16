@@ -27,7 +27,7 @@ using namespace madness; // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 // Define a gnuplot data block from a 1-d or 2-d tensor
 template <typename T>
-void gnuplot_db(Gnuplot& g, const std::string& name, const Tensor<T>& t) {
+void gnuplot_tensor_db(Gnuplot& g, const std::string& name, const Tensor<T>& t) {
     if (t.ndim() > 2) throw "gnuplot: too many dimensions";
     g("$",false);
     g(name,false);
@@ -43,6 +43,7 @@ void gnuplot_db(Gnuplot& g, const std::string& name, const Tensor<T>& t) {
     g("EOD");
 }
         
+// Plot multiple columns of a tensor
 template <typename T>
 void gnuplot_tensor(Gnuplot& g, const Tensor<T>& x, const Tensor<T>& t) {
     const size_t n=t.dims()[0], m=t.dims()[1];
@@ -50,7 +51,7 @@ void gnuplot_tensor(Gnuplot& g, const Tensor<T>& x, const Tensor<T>& t) {
         Tensor<T> data(n,m+1);
         data(_,0) = x;
         data(_,Slice(1,-1)) = t;
-        gnuplot_db(g, "data", data);
+        gnuplot_tensor_db(g, "data", data);
     }
     char buf[256];
     std::string cmd = "plot ";
@@ -145,7 +146,62 @@ public:
 
     size_t size() const {return nknots;}
 };
-    
+
+// Quartic to linear rational form
+template <typename T>
+class KnotsRational {
+public:
+    static constexpr const char* name = "rational form";
+    typedef T value_type;
+
+private:
+    const size_t nknots; // number of knots
+    const T a;   // scaling parameter
+    const T xhi; // [0,xhi] interval
+
+    T Q(T i) const {
+        return i*i*(T(1) + a)/(a*i + T(1));
+    }
+
+    T Qinv(T x) const {
+        return (a*x + std::sqrt(a*a*x*x + T(4)*a*x + T(4)*x))/(T(2)*(T(1) + a));
+    }
+            
+
+public:
+    KnotsRational(size_t nknots, T a, T xhi)
+        : nknots(nknots)
+        , a(a)
+        , xhi(xhi)
+    {}
+
+    Tensor<T> knots() const {
+        Tensor<T> pts(nknots);
+        for (size_t i=0; i<nknots-1; i++) {
+            T ii = T(i)/T(nknots-1);
+            pts[i] = xhi*Q(Q(ii));
+        }
+        pts[nknots-1] = xhi; // to avoid rounding errors
+        return pts;
+    }
+
+    size_t interval(T x) const {
+#if !defined(NDEBUG)
+        if (x < 0 || x > xhi) throw "Xinterval: x not in t";
+#endif
+        T xx = (x/xhi) * (T(1)-2*std::numeric_limits<T>::epsilon());
+        T ii = Qinv(Qinv(xx));
+        size_t j = size_t(ii*(nknots-1));
+
+#if !defined(NDEBUG)
+        if (j >= (nknots-1)) throw "interval: result interval out of range";
+#endif
+        return j;
+    }
+
+    size_t size() const {return nknots;}
+};
+
 // Geometric or exponential (logarithmic depending on your perspective) knot spacing in [xlo,xhi+xlo] shifted to zero on the left
 // so resulting grid is [0,xhi].
 template <typename T>
@@ -167,7 +223,7 @@ public:
         , xhi(xhi)
         , h(std::pow((xhi+xlo)/xlo,1.0/(nknots-1)))
         , rxlo(1.0/xlo)
-        , rlogh((1.0-4*std::numeric_limits<T>::epsilon())/std::log(h)) // to avoid endpoint issues
+        , rlogh((1.0-10*std::numeric_limits<T>::epsilon())/std::log(h)) // to avoid endpoint issues ...
     {
         print("KnotsGeometricShifted: h = ", h, " xlo = ", xlo, " xhi = ", xhi, " nknots = ", nknots, " rlogh = ", rlogh, " rxlo = ", rxlo);
     }
@@ -201,7 +257,7 @@ private:
     const size_t nknots; // number of knots
     const T xlo, xhi; // interval
     const T h, rh; // grid spacing before cosine transform and its inverse
-    const double rLhalf; // 2.0/(xhi-xlo)
+    const T rLhalf; // 2.0/(xhi-xlo)
 
 public:
     KnotsChebyshev(size_t nknots, T xlo, T xhi)
@@ -248,7 +304,7 @@ Tensor<T> oversample_knots(const Tensor<T>& knots) {
             newknots[2*i+1] = 0.5*(knots[i] + knots[i+1]);
         }
         else {
-            double sgn = (knots[i] > 0) ? 1 : -1;
+            T sgn = (knots[i] > 0) ? 1 : -1;
             newknots[2*i+1] = sgn*std::sqrt(knots[i]*knots[i+1]);
         }
     }
@@ -562,7 +618,8 @@ public:
         T xlo = 0;//1e-5; //-1; //-constants::pi;
         T xhi = 25;  //2*constants::pi;
         T xtest = 1; //0.5*(xhi+xlo);
-        auto knots = knotsT(nknots, xlo, xhi); print(knotsT::name, knots.knots());
+        //auto knots = knotsT(nknots, xlo, xhi); print(knotsT::name, knots.knots());
+        auto knots = knotsT(nknots, 0.1, xhi); print(knotsT::name, knots.knots());
         auto xsam = oversample_knots(knots.knots()); print("xsam", xsam);
         long nbasis = nknots + order - 2;
         size_t nsam = xsam.dims()[0];
@@ -635,7 +692,7 @@ public:
         }
         
         // Compute first derivative in the same order basis
-        auto dMat2 = B.make_deriv_matrix(xsam);
+        auto dMat2 = B.make_deriv_matrix(xsam,0,0);
         auto d3 = inner(dMat2,c);
         auto df3 = B.deBoor(xsam, d3);
         derr2 = df3-df;
@@ -657,14 +714,14 @@ public:
         }
         // Compute second derivative in the same order basis
         {
-            auto d2Mat = B.make_deriv2_matrix(xsam);
+            auto d2Mat = B.make_deriv2_matrix(xsam,0,0);
             d2 = inner(d2Mat,c);
             df2 = B.deBoor(xsam, d2);
             d2err2 = df2-d2f;
             print("Err in fit+2 second derivative", (df2-d2f).normf(), d2err2[0]);
         }
         {
-            auto d2Mat = B.make_deriv2_matrixX(xsam,0,0);
+            auto d2Mat = B.make_deriv2_matrixX(xsam);
             d2 = inner(d2Mat,c);
             df2 = B.deBoor(xsam, d2);
             d2err3 = df2-d2f;
@@ -693,7 +750,9 @@ class BsplineData {
     static_assert(std::is_floating_point<T>::value, "BsplineData: T must be floating point");
 public:
     typedef T value_type;
-    typedef KnotsChebyshev<T> knotsT;
+    typedef KnotsRational<T> knotsT;
+    //typedef KnotsChebyshev<T> knotsT;
+    //typedef KnotsGeometricShifted<T> knotsT;
     //typedef KnotsUniform<T> knotsT;
     typedef BsplineBasis<T,knotsT> basisT;
     typedef Tensor<T> tensorT;
@@ -720,9 +779,9 @@ public:
 
     BsplineData(size_t order, size_t nknots, T rlo, T rhi)
         : B(order, knotsT(nknots, rlo, rhi))
-        , ones(tensorT(B.nbasis).fill(1))
+        , ones(Tensor<T>(B.nbasis,1).fill(1))
         , rsam(oversample_knots(B.knots))
-        , XW(B.make_spline_quadrature((3*B.p+4)/2))
+        , XW(B.make_spline_quadrature((2*B.p+4)/2))
         , Asam(B.tabulate_basis(rsam))
         , A(B.tabulate_basis(XW.first))
         , Ar(copy(A).emul(outer(XW.first,ones)))
@@ -833,6 +892,12 @@ public:
 
 template <typename T> const BsplineData<T>* BsplineData<T>::data = nullptr;
 
+double exact_energy(double Z) {
+    const double c = 137.035999679;
+    double Za = Z/c;
+    double s = Za*Za / (1.0 - Za*Za);
+    return c*c/std::sqrt(1.0 + s) - c*c;
+}
 
 // Here T (real or complex) is the type of the function/coefficients and scalarT (real) is the type of the basis functions and knots
 template <typename T>
@@ -858,25 +923,25 @@ public:
         : nzeroL(other.nzeroL)
         , nzeroR(other.nzeroR)
         , c(copy(other.c))
-    {}
+    {print("in copy fun constructor");}
 
     BsplineFunction(bfunctionT&& other) // Move constructor
         : nzeroL(other.nzeroL)
         , nzeroR(other.nzeroR)
         , c(std::move(other.c))
-    {}
+    {print("in move fun constructor");}
 
     BsplineFunction(const tensorT& c = tensorT(), size_t nzeroL=0, size_t nzeroR=0) // Copies the coefficients, default is zero
         : nzeroL(nzeroL)
         , nzeroR(nzeroR)
         , c(c.size()>0 ? copy(c) : tensorT(bdataT::nbasis()))
-    {}
+    {print("in copy ten constructor");}
 
     BsplineFunction(tensorT&& c, size_t nzeroL=0, size_t nzeroR=0) // Moves the coefficients
         : nzeroL(nzeroL)
         , nzeroR(nzeroR)
         , c(std::move(c))
-    {}
+    {print("in move ten constructor");}
 
     // Projects function (taking scalar_type as argument) onto the
     // basis.  If a functor or a lambda is provided instead of a bare
@@ -885,7 +950,7 @@ public:
     BsplineFunction (const funcT& func, size_t nzeroR=0, size_t nzeroL=0)
         : nzeroL(nzeroL)
         , nzeroR(nzeroR)
-        , c(bdataT::project(func, nzeroR, nzeroL))
+        , c(bdataT::project(func, nzeroR, nzeroL)) 
     {}
 
     size_t nzL() const { return nzeroL; }
@@ -1005,17 +1070,21 @@ public:
     }
 
     static void test() {
+        const T Z = 10.0;
         size_t nknots = 61;
-        size_t order = 8;
-        T xlo = 0.0;
-        T xhi = 50.0;
+        size_t order = 20;
+        T xlo = 0.1; // a for KnotsRational //.01 for 103 //1e-7;
+        T xhi = 26.0;
+        
         bdataT::init(order, nknots, xlo, xhi);
+
+        print("knots", bdataT::knots());
 
         auto f = [](scalarT x){ return std::exp(-x); };
         auto fdat = bdataT::tabulate(f);
         
-        bfunctionT g(f,0,2);
-        print(g(0.5), std::exp(-0.5));
+        // bfunctionT g(f,0,2);
+        // print(g(0.5), std::exp(-0.5));
         // {
         //     Gnuplot G("set style data lines; set title 'error in g=exp(-x)'; set xlabel 'x'; set ylabel 'g(x)-exp(-x)'; set key left top");
         //     G.plot(bdataT::rsample(), g(bdataT::rsample())-fdat);
@@ -1029,20 +1098,55 @@ public:
         //     G.plot(bdataT::rsample(), h(bdataT::rsample())-fdat.emul(fdat));
         // }
 
-        print("g(0.5)   = ", g(0.5), f(0.5));
-        g += 1;
-        print("g(0.5)+1 = ", g(0.5), f(0.5)+1);
-        print("Dg(0.5)", g.D()(0.5), -f(0.5));
+        // print("g(0.5)   = ", g(0.5), f(0.5));
+        // g += 1;
+        // print("g(0.5)+1 = ", g(0.5), f(0.5)+1);
+        // print("Dg(0.5)", g.D()(0.5), -f(0.5));
 
         // Construct the overlap, kinetic, and potential matrices and diagonalize to verify that they are correct.
         stensorT S  = bdataT::overlap_matrix();
         stensorT KE = bdataT::ke_matrix();
-        stensorT PE = (-4*constants::pi)*::madness::inner(bdataT::ptr()->AWr,bdataT::ptr()->A,0,0);
+        stensorT PE = (-Z*4*constants::pi)*::madness::inner(bdataT::ptr()->AWr,bdataT::ptr()->A,0,0);
+
+        // Now balance the matrices to try to improve the condition numbers --- jacobi preconditioning is equivalent to normalizing the basis functions
+        size_t nbasis = bdataT::nbasis();
+        stensorT d(nbasis);
+        ITERATOR(d, d[_i] = 1.0/std::sqrt(S(_i,_i)));
+        //auto dd = outer(d,d);
+        //S.emul(dd);
+        //KE.emul(dd);
+        //PE.emul(dd);
+        {
+            stensorT V, e;
+            syev(S, V, e);
+            print("eigenvalues of S", e);
+        }
+        {
+            stensorT V, e;
+            stensorT H = bdataT::ke_matrix();
+            sygv(H, S, 1, V, e);
+            print("eigenvalues of KE", e);
+        }
+        stensorT c0;
+        T S00;
         {
             stensorT V, e;
             stensorT H = bdataT::ke_matrix()+PE;
             sygv(H, S, 1, V, e);
             print("eigenvalues of H", e);
+            c0 = V(_,0);
+            print("c0", c0);
+            S00 = c0.trace(::madness::inner(S,c0));
+            print("S00", S00);
+            print("EEEE",c0.trace(::madness::inner(H,c0))/S00);
+
+            {
+                    bfunctionT psi(c0);
+                    auto rsam = bdataT::ptr()->rsample();
+                    Gnuplot g("set title \"non-rel\"; set style data lines; set xrange [0:1]");
+                    g.plot(rsam, psi(rsam));
+                }
+            
         }
 
         // {
@@ -1069,14 +1173,90 @@ public:
         auto drF = rF.D(); print("drF", drF.nzL(), drF.nzR());
         auto drFX = F + r*F.D(); print("drFX", drFX.nzL(), drFX.nzR());
         print("err", (drF-drFX).norm());
-        print(" rF analytic", 0.3*f(0.3), rF(0.3));
-        print("DrF analytic", f(0.3)-0.3*f(0.3), drF(0.3), drFX(0.3));
 
-        auto dftest(::madness::inner(bdataT::ptr()->A + ::madness::inner(bdataT::ptr()->Ar,bdataT::deriv_matrix(0,1)), F.coeffs()));
+        // print(" rF analytic", 0.3*f(0.3), rF(0.3));
+        // print("DrF analytic", f(0.3)-0.3*f(0.3), drF(0.3), drFX(0.3));
+
+        // auto dftest(::madness::inner(bdataT::ptr()->A + ::madness::inner(bdataT::ptr()->Ar,bdataT::deriv_matrix(0,1)), F.coeffs()));
+        // {
+        //     Gnuplot gG("set style data line; set key left top; set xlabel 'x'; set ylabel 'y'; set logscale x");
+        //     auto X = bdataT::quadrature().first;
+        //     gG.plot(X, drF(X)- drFexact(X), drFX(X)- drFexact(X), dftest- drFexact(X));
+        // }
+        
         {
-            Gnuplot gG("set style data line; set key left top; set xlabel 'x'; set ylabel 'y'; set logscale x");
-            auto X = bdataT::quadrature().first;
-            gG.plot(X, drF(X)- drFexact(X), drFX(X)- drFexact(X), dftest- drFexact(X));
+            // In here implement SF Dirac
+            const T c = 137.035999679;
+
+            // <i|p.Vp|j> = <pi|V|pj> = <di/dr | V | dj/dr> = Z int( 4 pi r^2 i' 1/r j' ) = Z 4 pi int(r i' j') = Z 4 pi sum((R A D)^T W (R A D)) where A is in order-1 basis
+
+            //  d/dx V(r) d/dx f(r)
+            //= d/dx V(r)  x/r f'(r)
+            //=  x/r V' x/r f' +  V  1/r f'(r) +  V(r) -x^2/r^3 f'(r) +  V(r)  x^2/r^2 f''
+            //=  x^2/r^2 V' f' +  V f' / r - V f' x^2/r^3 + V f'' x^2/r^2
+            //sum(x) --> V' f' +  2 V f' / r + V f''
+            // now compute spherical integral
+            // 4 pi int(r^2 g (V' f' +  2 V f' / r + V f''), r=0..R)
+            //=4 pi int(r^2 g V' f', r=0..R) + 8 pi int(r g V f', r=0..R) + 4 pi int(r g V f'', r=0..R)
+            // putting V=-Z/r
+            //=- Z 4 pi int(r g f', r=0..R) - Z 8 pi int(g f', r=0..R) - Z 4 pi int(g f'', r=0..R)
+            //...
+
+
+            // sum(x) int(g(r) d/dx V(r) d/dx f(r) dxdydz, -inf..inf)
+            //=sum(x)-int((d/dx g(r)) V(r) (d/dx f(r)) dxdydz, -inf..inf) assuming zero bc at infinity
+            
+            // <i|px.Vpx|j> = <px i| V | px j> ... but this assumes zero bc on both sides
+
+            // px f(r) = (x/r) f'(r)
+            // sum(x y z) (px f(r)) (px g(r)) = sum(x y z) (x**2/r**2) f' g' = f' g' which is the same as above
+
+            // int(b[i](r) r^2 d/dr  
+            
+            const auto& [X,W] = bdataT::quadrature();
+            auto D = bdataT::basis().make_deriv_exact_matrix();
+            BsplineBasis<T,typename bdataT::knotsT> B1(bdataT::order()-1, bdataT::knots_object());
+            auto ones = bdataT::ptr()->ones;
+            auto AD = ::madness::inner(B1.tabulate_basis(X), D);
+            auto RAD = copy(AD).emul(outer(X,ones));
+            auto WRAD = copy(RAD).emul(outer(W,ones));
+            print("Z", Z);
+            auto PVP = ::madness::inner(WRAD,AD,0,0) * (-Z*0.25*4*constants::pi/(c*c));
+            //PVP.emul(dd);
+
+            T PVP00 = c0.trace(::madness::inner(PVP,c0))/S00;
+            print("PVP00",PVP00,Z*Z*Z*Z/(4*c*c));
+            {
+                size_t nbasis = bdataT::nbasis();
+                stensorT SX(2*nbasis,2*nbasis), HX(2*nbasis,2*nbasis);
+                Slice s0(0,nbasis-1), s1(nbasis,2*nbasis-1);
+                SX(s0,s0) = S(s0,s0);
+                SX(s1,s1) = KE(s0,s0)*(0.5/(c*c));
+                HX(s0,s0) = PE(s0,s0);
+                HX(s0,s1) = KE(s0,s0);
+                HX(s1,s0) = KE(s0,s0);
+                HX(s1,s1) = PVP(s0,s0)-KE(s0,s0);
+                stensorT V, e;
+                sygv(HX, SX, 1, V, e);
+                print("eigenvalues of H sf", e);
+                print("exact", exact_energy(Z), e(nbasis), exact_energy(Z)-e(nbasis));
+
+                {
+                    print("rsam", bdataT::ptr()->rsample());
+                    print("starting to plot");
+                    bfunctionT psi(copy(V(s0,nbasis)));
+                    T sgn = psi(bdataT::ptr()->rsample()[0]) > 0 ? 1.0 : -1.0;
+                    psi *= sgn;
+                    bfunctionT phi(sgn*copy(V(s1,nbasis)));
+                    bfunctionT psinr(c0);
+                    sgn = psinr(bdataT::ptr()->rsample()[0]) > 0 ? 1.0 : -1.0;
+                    psinr *= sgn;
+                    print("plotting");
+                    auto rsam = bdataT::ptr()->rsample();
+                    Gnuplot g("set style data lines; set xrange [1e-7:1]; set logscale x","sfdirac.gnuplot");
+                    g.plot(rsam, psi(rsam), phi(rsam), psinr(rsam));
+                }
+            }
         }
     }
 };
@@ -1136,10 +1316,12 @@ public:
 // }
 
 int main() {
+    std::cout.precision(10);
     //BsplineBasis<float>::test();
     //BsplineBasis<double,KnotsUniform<double>>::test();
     //BsplineBasis<double,KnotsChebyshev<double>>::test();
     //BsplineBasis<double,KnotsGeometricShifted<double>>::test();
+    //BsplineBasis<double,KnotsRational<double>>::test();
     BsplineFunction<double>::test();
     return 0;
 }
