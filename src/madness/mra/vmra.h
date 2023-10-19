@@ -288,6 +288,19 @@ namespace madness {
         if (not dummy.is_initialized()) return v;
         World& world=dummy.world();
 
+        // a couple of special cases
+        if (finalstate==nonstandard) {
+            bool must_fence=false;
+            for (auto& f : v) {
+                if (f.get_impl()->get_tree_state()== reconstructed) continue;
+                if (f.get_impl()->get_tree_state()!=nonstandard) {
+                    must_fence=true;
+                    f.change_tree_state(reconstructed,false);
+                }
+            }
+            if (must_fence) world.gop.fence();
+//            if (world.rank()==0 and must_fence) print("could not respect fence in change_tree_state(vector)");
+        }
 //        if (not fence) world.gop.set_forbid_fence(true);    // make sure fence is respected
         for (unsigned int i=0; i<v.size(); ++i) v[i].change_tree_state(finalstate,fence);
 //        if (not fence) world.gop.set_forbid_fence(false);
@@ -1481,7 +1494,7 @@ namespace madness {
         bool print_timings=(NDIM==6) and (world.rank()==0) and op.print_timings;
 
         double wall0=wall_time();
-        reconstruct(world, f);
+//        reconstruct(world, f);
         make_nonstandard(world, ncf);
         double wall1=wall_time();
         if (print_timings) printf("timer: %20.20s %8.2fs\n", "make_nonstandard", wall1-wall0);
@@ -1494,7 +1507,12 @@ namespace madness {
         world.gop.fence();
 
         // restores promise of logical constness
-        if (not op.destructive()) standard(world, ncf, false);
+        if (op.destructive()) {
+            for (auto& ff : ncf) ff.clear(false);
+            world.gop.fence();
+        } else {
+            reconstruct(world,f);
+        }
 
         // svd-tensor requires some cleanup after apply
         if (result[0].get_impl()->get_tensor_type()==TT_2D) {

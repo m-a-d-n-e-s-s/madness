@@ -54,6 +54,7 @@ namespace madness {
     protected:
         double volume_element=0.1;
         double radius=3;
+        bool do_print=false;
     };
 
     template<std::size_t NDIM>
@@ -67,7 +68,7 @@ namespace madness {
         std::vector<Vector<double,NDIM>> get_grid() const {
             std::vector<Vector<double, NDIM>> grid;
             long npoint_within_volume=volume()/volume_element;
-            print("npoint_within_volume",npoint_within_volume);
+            if (do_print) print("npoint_within_volume",npoint_within_volume);
 
             auto cell = FunctionDefaults<NDIM>::get_cell();
             auto is_in_cell = [&cell](const Vector<double, NDIM>& r) {
@@ -92,10 +93,12 @@ namespace madness {
                 grid.push_back(tmp);
                 if (rank==npoint_within_volume) break;
             }
-            print("grid points in volume ",rank);
-            print("total grid points     ",grid.size());
-            print("ratio                 ",rank/double(grid.size()));
-            print("volume element        ",volume()/rank);
+            if (do_print) {
+                print("grid points in volume ",rank);
+                print("total grid points     ",grid.size());
+                print("ratio                 ",rank/double(grid.size()));
+                print("volume element        ",volume()/rank);
+            }
             return grid;
         }
 
@@ -117,58 +120,6 @@ namespace madness {
             return result;
         }
 
-//        double computed_volume_element() const {
-//            double volume = 4.0 / 3.0 * constants::pi * std::pow(radius, 3.0);
-//            print("volume element in random grid", volume / (0.67 * rank));
-//        }
-
-    };
-
-    template<std::size_t NDIM>
-    class sphericalgrid : public gridbase {
-    public:
-        double volume_element=0.1;
-        double radius=3;
-        bool hard_shell=true;
-
-        sphericalgrid(const double volume_element, const double radius, bool hard_shell)
-                :volume_element(volume_element), radius(radius), hard_shell(hard_shell) {
-        };
-
-        std::vector<Vector<double,NDIM>> get_coordinates() const {
-            // 1D grid
-            double volume_element_1d=std::pow(volume_element,1./NDIM);
-            long ngrid=std::ceil(radius/volume_element_1d);
-            double stepsize=radius/ngrid;
-            double scale=1.0;
-            if (not hard_shell) scale=std::pow(2.0,1.0/(ngrid+1));
-            print("scale",scale);
-
-            std::vector<double> coord1d;
-            print("volume element, stepsize, ngrid" ,volume_element, std::pow(stepsize,NDIM),stepsize,ngrid);
-            for (int i=0; i<ngrid+1; ++i) {
-                if (not hard_shell) stepsize*=scale;
-                double c=i*stepsize;
-                coord1d.push_back(c);
-                if (i!=0) coord1d.push_back(-c);
-                print("coord",c);
-            }
-            print("coord1d",coord1d.size());
-            std::vector<Vector<double,NDIM>> result;
-            for (int i=0; i<coord1d.size(); ++i) {
-                for (int j=0; j<coord1d.size(); ++j) {
-                    for (int k=0; k<coord1d.size(); ++k) {
-                        Vector<double,NDIM> c{coord1d[i],coord1d[j],coord1d[k]};
-                        double cutoff = hard_shell ? radius : 2.0*radius;
-                        if (c.normf()<cutoff) result.push_back(c);
-                    }
-                }
-            }
-            print("result.size()",result.size());
-//        for (auto& r: result) print(r);
-            return  result;
-
-        }
     };
 
     template<std::size_t NDIM>
@@ -279,6 +230,13 @@ struct particle {
         ss << *this;
         return ss.str();
     }
+
+
+    /// type conversion to std::array
+    std::array<int,PDIM> get_array() const {
+        return dims;
+    }
+
 
     /// assuming two particles only
     bool is_first() const {return dims[0]==0;}
@@ -422,9 +380,10 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
     std::vector<Function<T,LDIM>> inner(const std::vector<Function<T,LDIM>>& rhs,
                                         const particle<LDIM> p1, const particle<LDIM> p2) const {
-        std::vector<Function<T,LDIM>> result;
-        for (const auto& r : rhs) result.push_back(madness::inner(f,r,p1.get_tuple(),p2.get_tuple()));
-        return result;
+        return madness::innerXX<LDIM>(f,rhs,p1.get_array(),p2.get_array());
+//        std::vector<Function<T,LDIM>> result;
+//        for (const auto& r : rhs) result.push_back(madness::inner(f,r,p1.get_tuple(),p2.get_tuple()));
+//        return result;
     }
 
     T operator()(const Vector<double,NDIM>& r) const {
@@ -449,7 +408,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         World& world;
         double rank_revealing_tol=1.e-8;     // rrcd tol
         std::string orthomethod="canonical";
-        bool do_print=true;
+        bool do_print=false;
         std::vector<Function<T,LDIM>> g,h;
         const particle<LDIM> p1=particle<LDIM>::particle1();
         const particle<LDIM> p2=particle<LDIM>::particle2();
@@ -693,6 +652,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
             // \int f(1,2)^2 d1d2
             double term1 = lrfunctor1.norm2();
+            term1=term1*term1;
             t.tag("computing term1");
 
             // \int f(1,2) pre(1) post(2) \sum_i g(1) h(2) d1d2
@@ -783,6 +743,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     template<typename T, std::size_t NDIM, std::size_t PDIM>
     LowRankFunction<T,NDIM> inner(const LowRankFunction<T,NDIM>& f1, const Function<T,NDIM>& f2,
                                   const particle<PDIM> p1, const particle<PDIM> p2) {
+        static_assert(TensorTypeData<T>::iscomplex==false, "complex inner in LowRankFunction not implemented");
         World& world=f1.world;
         static_assert(2*PDIM==NDIM);
         // int f(1,2) k(2,3) d2 = \sum \int g_i(1) h_i(2) k(2,3) d2
@@ -790,14 +751,12 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         LowRankFunction<T, NDIM> result(world);
         if (p1.is_last()) { // integrate over 2: result(1,3) = lrf(1,2) f(2,3)
             result.g = f1.g;
-            decltype(f1.h) h;
-            for (int i=0; i<f1.rank(); ++i) h.push_back(inner(f1.h[i],f2,(particle<PDIM>::particle1().get_tuple()),p2.get_tuple()));
-            result.h=copy(h);
+            change_tree_state(f1.h,reconstructed);
+            result.h=innerXX<PDIM>(f2,f1.h,p2.get_array(),particle<PDIM>::particle1().get_array());
         } else if (p1.is_first()) { // integrate over 1: result(2,3) = lrf(1,2) f(1,3)
             result.g = f1.h;        // correct! second variable of f1 becomes first variable of result
-            decltype(f1.g) h;
-            for (int i=0; i<f1.rank(); ++i) h.push_back(inner(f1.g[i],f2,particle<PDIM>::particle1().get_tuple(),p2.get_tuple()));
-            result.h=copy(h);
+            change_tree_state(f1.g,reconstructed);
+            result.h=innerXX<PDIM>(f2,f1.g,p2.get_array(),particle<PDIM>::particle1().get_array());
         }
         return result;
     }

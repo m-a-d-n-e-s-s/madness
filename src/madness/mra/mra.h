@@ -903,7 +903,9 @@ namespace madness {
             } else {
                 MADNESS_EXCEPTION("unknown/unsupported final tree state",1);
             }
-            if (must_fence and world().rank()==0) print("could not respect fence in change_tree_state");
+            if (must_fence and world().rank()==0) {
+                print("could not respect fence in change_tree_state");
+            }
             if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
             return *this;
         }
@@ -2509,8 +2511,8 @@ namespace madness {
     /// @param[in]  task    0: everything, 1; prepare only (fence), 2: work only (no fence), 3: finalize only (fence)
     template<std::size_t NDIM, typename T, std::size_t LDIM, typename R, std::size_t KDIM,
             std::size_t CDIM = (KDIM + LDIM - NDIM) / 2>
-    Function<TENSOR_RESULT_TYPE(T, R), NDIM>
-    innerXX(const Function<T, LDIM>& f, const Function<R, KDIM>& g, const std::array<int, CDIM> v1,
+    std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>>
+    innerXX(const Function<T, LDIM>& f, const std::vector<Function<R, KDIM>>& vg, const std::array<int, CDIM> v1,
            const std::array<int, CDIM> v2, int task=0) {
         bool prepare = ((task==0) or (task==1));
         bool work = ((task==0) or (task==2));
@@ -2527,8 +2529,8 @@ namespace madness {
         MADNESS_CHECK((v2[0]==0) or (v2[CDIM-1]==KDIM-1));
 
         MADNESS_CHECK(f.is_initialized());
-        MADNESS_CHECK(g.is_initialized());
-        MADNESS_CHECK(f.world().id() == g.world().id());
+        MADNESS_CHECK(vg[0].is_initialized());
+        MADNESS_CHECK(f.world().id() == vg[0].world().id());
         // this needs to be run in a single world, so that all coefficients are local.
         // Use macrotasks if run on multiple processes.
         World& world=f.world();
@@ -2536,32 +2538,33 @@ namespace madness {
 
         if (prepare) {
             f.change_tree_state(nonstandard);
-            g.change_tree_state(nonstandard);
+            change_tree_state(vg,nonstandard);
             world.gop.fence();
             f.get_impl()->compute_snorm_and_dnorm(false);
-            g.get_impl()->compute_snorm_and_dnorm(false);
+            for (auto& g : vg) g.get_impl()->compute_snorm_and_dnorm(false);
             world.gop.fence();
         }
 
         typedef TENSOR_RESULT_TYPE(T, R) resultT;
-        Function<resultT,NDIM> result;
+        std::vector<Function<resultT,NDIM>> result(vg.size());
         if (work) {
             world.gop.set_forbid_fence(true);
-            result=FunctionFactory<resultT,NDIM>(world)
-                            .k(f.k()).thresh(f.thresh()).empty().nofence();
-            result.get_impl()->partial_inner(*f.get_impl(),*g.get_impl(),v1,v2);
-            result.get_impl()->set_tree_state(nonstandard_after_apply);
+            for (int i=0; i<vg.size(); ++i)  {
+                result[i]=FunctionFactory<resultT,NDIM>(world)
+                        .k(f.k()).thresh(f.thresh()).empty().nofence();
+                result[i].get_impl()->partial_inner(*f.get_impl(),*(vg[i]).get_impl(),v1,v2);
+                result[i].get_impl()->set_tree_state(nonstandard_after_apply);
+            }
             world.gop.set_forbid_fence(false);
         }
 
         if (finish) {
 
             world.gop.fence();
-            result.get_impl()->reconstruct(true);
-            result.reconstruct();
-            FunctionImpl<T,LDIM>& f_nc=const_cast<FunctionImpl<T,LDIM>&>(*f.get_impl());
-            FunctionImpl<R,KDIM>& g_nc=const_cast<FunctionImpl<R,KDIM>&>(*g.get_impl());
+//            result.get_impl()->reconstruct(true);
 
+            change_tree_state(result,reconstructed);
+//            result.reconstruct();
             // restore initial state of g and h
             auto erase_list = [] (const auto& funcimpl) {
                 typedef typename std::decay_t<decltype(funcimpl)>::keyT keyTT;
@@ -2574,16 +2577,34 @@ namespace madness {
                 return to_be_erased;
             };
 
+            FunctionImpl<T,LDIM>& f_nc=const_cast<FunctionImpl<T,LDIM>&>(*f.get_impl());
             for (auto& key : erase_list(f_nc)) f_nc.get_coeffs().erase(key);
-            for (auto& key : erase_list(g_nc)) g_nc.get_coeffs().erase(key);
+            for (auto& g : vg) {
+                FunctionImpl<R,KDIM>& g_nc=const_cast<FunctionImpl<R,KDIM>&>(*g.get_impl());
+                for (auto& key : erase_list(g_nc)) g_nc.get_coeffs().erase(key);
+            }
             world.gop.fence();
-            g_nc.reconstruct(false);
+            change_tree_state(vg,reconstructed);
             f_nc.reconstruct(false);
             world.gop.fence();
 
         }
 
         return result;
+    }
+
+
+    /// Computes the partial scalar/inner product between two functions, returns a low-dim function
+
+    /// syntax similar to the inner product in tensor.h
+    /// e.g result=inner<3>(f,g),{0},{1}) : r(x,y) = int f(x1,x) g(y,x1) dx1
+    /// @param[in]  task    0: everything, 1; prepare only (fence), 2: work only (no fence), 3: finalize only (fence)
+    template<std::size_t NDIM, typename T, std::size_t LDIM, typename R, std::size_t KDIM,
+            std::size_t CDIM = (KDIM + LDIM - NDIM) / 2>
+    Function<TENSOR_RESULT_TYPE(T, R), NDIM>
+    innerXX(const Function<T, LDIM>& f, const Function<R, KDIM>& g, const std::array<int, CDIM> v1,
+            const std::array<int, CDIM> v2, int task=0) {
+        return innerXX<NDIM,T,LDIM,R,KDIM>(f,std::vector<Function<R,KDIM>>({g}),v1,v2,task)[0];
     }
 
     /// Computes the partial scalar/inner product between two functions, returns a low-dim function

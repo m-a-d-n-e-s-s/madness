@@ -309,7 +309,7 @@ template<std::size_t LDIM>
 int test_full_rank_functor(World& world, LowRankFunctionParameters& parameters) {
 
     test_output t1("test_full_rank_functor");
-//    t1.set_cout_to_terminal();
+    t1.set_cout_to_terminal();
     print_header2("entering test_full_rank_functor");
     constexpr int NDIM=2*LDIM;
     FunctionDefaults<LDIM>::set_thresh(1.e-6);
@@ -470,12 +470,12 @@ int test_inner(World& world, LowRankFunctionParameters parameters) {
             .functor([](const Vector<double,LDIM>& r){return exp(-4.0*inner(r,r));});
 
     LRFunctorF12<double,NDIM> functor1;
-//    functor1.f12.reset(GaussOperatorPtr<LDIM>(world,1.0));
-    functor1.f12.reset(SlaterOperatorPtr_ND<LDIM>(world,1.0,1.e-4,thresh));
+    functor1.f12.reset(GaussOperatorPtr<LDIM>(world,1.0));
+//    functor1.f12.reset(SlaterOperatorPtr_ND<LDIM>(world,1.0,1.e-4,thresh));
     functor1.a=phi;
     LRFunctorF12<double,NDIM> functor2;
-//    functor2.f12.reset(GaussOperatorPtr<LDIM>(world,2.0));
-    functor2.f12.reset(SlaterOperatorPtr_ND<LDIM>(world,2.0,1.e-4,thresh));
+    functor2.f12.reset(GaussOperatorPtr<LDIM>(world,2.0));
+//    functor2.f12.reset(SlaterOperatorPtr_ND<LDIM>(world,2.0,1.e-4,thresh));
     functor2.a=phi;
 
     auto p1=particle<LDIM>::particle1();
@@ -491,7 +491,7 @@ int test_inner(World& world, LowRankFunctionParameters parameters) {
     // f2(x,y) = exp(-a*x^2) * exp(-g (x-y)^2)
     // with a=4, g=2
     // int f1(x,y),f2(x,z) dx = inner(f1,f2,0,0) : norm^2 = Pi^2/(2 Sqrt[2] Sqrt[a gamma] Sqrt[1 + 2 a + gamma]) = 0.37197471167788324677
-    // int f1(x,y),f2(z,x) dx = inner(f1,f2,0,1) : norm^2 = 0.32972034117743393239
+    // int f1(x,y),f2(z,x) dx = inner(f1,f2,0,1) : norm^2 = Pi^2/(2 Sqrt[a (1 + a + gamma) (a + 2 gamma)]) = 0.32972034117743393239
     // int f1(y,x),f2(x,z) dx = inner(f1,f2,1,0) : norm^2 = 0.26921553123369812300
     // int f1(y,x),f2(z,x) dx = inner(f1,f2,1,1) : norm^2 = 0.35613867236025352322
 
@@ -509,7 +509,8 @@ int test_inner(World& world, LowRankFunctionParameters parameters) {
 
                 // full/full
                 auto lhs1=inner(fullrank1,fullrank2,p11.get_tuple(),p22.get_tuple());
-                double l1=lhs1.norm2();
+                const double l1=lhs1.norm2();
+                print("l1",l1,l1*l1,ref);
                 t1.checkpoint(fabs(l1*l1-ref)<thresh,"inner(full,full,"+p11.str()+","+p22.str()+")");
                 double asymmetric_ref=inner(fullrank1,lhs1);
                 double asymmetric1=inner(fullrank1,lhs1);
@@ -544,8 +545,8 @@ int test_inner(World& world, LowRankFunctionParameters parameters) {
                 counter++;
             }
         }
-
     }
+//    return t1.end();
 
     // inner f(1,2) g(2)
     // this is surprisingly inaccurate, but algorithm is correct, the error can be systematically decreased
@@ -599,7 +600,7 @@ int test_construction_optimization(World& world, LowRankFunctionParameters param
     parameters.set_user_defined_value("volume_element",0.05);
     constexpr std::size_t NDIM=2*LDIM;
     test_output t1("LowRankFunction::construction/optimization in dimension "+std::to_string(NDIM));
-    t1.set_cout_to_terminal();
+//    t1.set_cout_to_terminal();
     OperatorInfo info(1.0,1.e-6,FunctionDefaults<LDIM>::get_thresh(),OT_SLATER);
     auto slater=std::shared_ptr<SeparatedConvolution<double,LDIM> >(new SeparatedConvolution<double,LDIM>(world,info));
     Function<double,LDIM> one=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r){return exp(-0.2*inner(r,r));});
@@ -677,11 +678,12 @@ int main(int argc, char **argv) {
 //        isuccess+=test_grids<1>(world,parameters);
 //        isuccess+=test_grids<2>(world,parameters);
 //        isuccess+=test_grids<3>(world,parameters);
-//        isuccess+=test_full_rank_functor<1>(world, parameters);
-//        isuccess+=test_construction_optimization<1>(world,parameters);
-//        isuccess+=test_construction_optimization<2>(world,parameters);
+        isuccess+=test_full_rank_functor<1>(world, parameters);
+        isuccess+=test_construction_optimization<1>(world,parameters);
+        isuccess+=test_construction_optimization<2>(world,parameters);
         isuccess+=test_arithmetic<1>(world,parameters);
         isuccess+=test_arithmetic<2>(world,parameters);
+
         isuccess+=test_inner<1>(world,parameters);
         isuccess+=test_inner<2>(world,parameters);
 
