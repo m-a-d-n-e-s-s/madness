@@ -363,7 +363,7 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
         param1.set_user_defined_value<double>("l", 50);
 
         if (precision == "low") {
-            param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
+            param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-7});
             param1.set_user_defined_value<double>("dconv", 1e-4);
         } else if (precision == "high") {
             param1.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-8});
