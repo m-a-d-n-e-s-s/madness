@@ -433,6 +433,12 @@ namespace madness {
             SafeMPI::Intracomm::Bcast(&buffer, sizeof(T), MPI_BYTE, root);
         }
 
+//        template <typename T>
+//        typename std::enable_if<!std::is_pointer<T>::value, void>::type
+//        Scan(T& buffer, int root) const {
+//            SafeMPI::Intracomm::Scan(&buffer, sizeof(T), MPI_BYTE,root);
+//        }
+
         /// Access the rank of this process.
 
         /// \return The rank of this process.
@@ -447,6 +453,9 @@ namespace madness {
 
         /// \return The number of processes.
         int size() const { return SafeMPI::Intracomm::Get_size(); }
+
+        /// \return The number of processes.
+        auto info() const { return SafeMPI::Intracomm::Get_info(); }
     }; // class WorldMpiInterface
 
 }

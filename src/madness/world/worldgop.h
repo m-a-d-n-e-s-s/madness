@@ -904,6 +904,89 @@ namespace madness {
             else return std::vector<T>();
         }
 
+        template <typename T>
+        std::vector<T> concat1(const std::vector<T>& v, size_t bufsz=1024*1024) {
+            SafeMPI::Request req0, req1;
+            ProcessID parent, child0, child1;
+            world_.mpi.binary_tree_info(0, parent, child0, child1);
+            Tag gsum_tag = world_.mpi.unique_tag();
+
+            MADNESS_ASSERT(bufsz <= std::numeric_limits<int>::max());
+
+            unsigned char* buf0 = new unsigned char[bufsz];
+            unsigned char* buf1 = new unsigned char[bufsz];
+
+            if (child0 != -1) req0 = world_.mpi.Irecv(buf0, bufsz, MPI_BYTE, child0, gsum_tag);
+            if (child1 != -1) req1 = world_.mpi.Irecv(buf1, bufsz, MPI_BYTE, child1, gsum_tag);
+
+            std::vector<T> left, right;
+            if (child0 != -1) {
+                World::await(req0);
+                archive::BufferInputArchive ar(buf0, bufsz);
+                ar & left;
+            }
+            if (child1 != -1) {
+                World::await(req1);
+                archive::BufferInputArchive ar(buf1, bufsz);
+                ar & right;
+                for (unsigned int i=0; i<right.size(); ++i) left.push_back(right[i]);
+            }
+
+            for (unsigned int i=0; i<v.size(); ++i) left.push_back(v[i]);
+
+            if (parent != -1) {
+                archive::BufferOutputArchive ar(buf0, bufsz);
+                ar & left;
+                req0 = world_.mpi.Isend(buf0, ar.size(), MPI_BYTE, parent, gsum_tag);
+                World::await(req0);
+            }
+
+            delete [] buf0;
+            delete [] buf1;
+
+            return left;
+        }
+        template <typename T>
+        void myscan(T* buf, T* off) {
+            SafeMPI::Request req0, req1;
+            ProcessID parent, child0, child1;
+            world_.mpi.binary_tree_info(0, parent, child0, child1);
+            Tag gsum_tag = world_.mpi.unique_tag();
+             WorldSumOp<T> op;
+
+            int nelem = 1;
+
+            T* buf0 = new T[nelem];
+            T* buf1 = new T[nelem];
+
+            if (child0 != -1) req0 = world_.mpi.Irecv(buf0, nelem*sizeof(T), MPI_BYTE, child0, gsum_tag);
+            if (child1 != -1) req1 = world_.mpi.Irecv(buf1, nelem*sizeof(T), MPI_BYTE, child1, gsum_tag);
+
+            if (child0 != -1) {
+                World::await(req0);
+                for (long i=0; i<(long)nelem; ++i) off[i] = op(0,buf0[i]);
+                //for (long i=0; i<(long)nelem; ++i) off[i] = op(buf[i],buf0[i]);
+                 std::cout << "chi a " << std::endl;
+            }
+            if (child1 != -1) {
+                World::await(req1);
+                //for (long i=0; i<(long)nelem; ++i) off[i] = op(buf[i],buf1[i]);
+                for (long i=0; i<(long)nelem; ++i) off[i] = op(0,buf0[i]);
+                 std::cout << "chi b " << std::endl;
+            }
+
+
+            if (parent != -1) {
+                req0 = world_.mpi.Isend(buf, sizeof(T), MPI_BYTE, parent, gsum_tag);
+                World::await(req0);
+            }
+
+            delete [] buf0;
+            delete [] buf1;
+
+        }
+
+
         /// Receive data from \c source
 
         /// \tparam valueT The data type stored in cache
