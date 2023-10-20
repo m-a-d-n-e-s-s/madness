@@ -357,7 +357,7 @@ void runMOLDFT(World &world, const moldftSchema &moldftSchema, bool try_run, boo
     json calcInfo;
 
     if (world.rank() == 0) {
-        param1.set_user_defined_value("maxiter", 20);
+        param1.set_user_defined_value("maxiter", 30);
         //param1.set_user_defined_value("Kain", true);
         param1.set_user_defined_value<std::string>("xc", moldftSchema.xc);
         param1.set_user_defined_value<double>("l", 50);
@@ -554,8 +554,8 @@ void set_frequency_response_parameters(World &world, ResponseParameters &r_param
             r_params.set_user_defined_value<double>("dconv", 1e-6);
         }
         //r_params.set_user_defined_value("archive", std::string("../restartdata"));
-        r_params.set_user_defined_value("maxiter", size_t(25));
-        r_params.set_user_defined_value("maxsub", size_t(5));
+        r_params.set_user_defined_value("maxiter", size_t(35));
+        r_params.set_user_defined_value("maxsub", size_t(10));
         r_params.set_user_defined_value("kain", true);
         r_params.set_user_defined_value("omega", frequency);
         r_params.set_user_defined_value("first_order", true);
