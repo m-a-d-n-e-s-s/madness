@@ -25,8 +25,8 @@ void FrequencyResponse::iterate(World &world) {
                                   r_params.dconv());//.01 .0001 .1e-5
     auto thresh = FunctionDefaults<3>::get_thresh();
     auto density_target = dconv * std::max(size_t(5.0), molecule.natom());
-    const double a_pow{0.428};
-    const double b_pow{-1.282};
+    const double a_pow{0.618};
+    const double b_pow{-.069};
     const double x_residual_target = pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
     Tensor<double> x_residual((int(m)));
     Tensor<double> density_residuals((int(m)));
@@ -110,8 +110,7 @@ void FrequencyResponse::iterate(World &world) {
 
             // Todo add chi norm and chi_x
             if (world.rank() == 0) {
-                function_data_to_json(j_molresponse, iter, chi_norms, x_residual, rho_norms,
-                                      density_residuals);
+                function_data_to_json(j_molresponse, iter, chi_norms, x_residual, rho_norms, density_residuals);
                 frequency_to_json(j_molresponse, iter, polar, res_polar);
             }
             if (r_params.print_level() >= 1) {
@@ -130,9 +129,7 @@ void FrequencyResponse::iterate(World &world) {
                 return ((ri < x_residual_target) && (di < density_target));
             };
 
-            for (const auto &b: Chi.active) {
-                converged[b] = check_convergence(x_residual[b], density_residuals[b]);
-            }
+            for (const auto &b: Chi.active) { converged[b] = check_convergence(x_residual[b], density_residuals[b]); }
             int b = 0;
             auto remove_converged = [&]() {
                 Chi.reset_active();
@@ -287,7 +284,7 @@ auto FrequencyResponse::update_response(World &world, X_space &chi, XCOperator<d
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
     inner_to_json(world, "x_update", response_context.inner(new_chi, new_chi), iter_function_data);
-    // if (false) { x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation); }
+    x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation);
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "update response", "update", iter_timing); }
 
     auto new_rho = response_context.compute_density(world, new_chi, ground_orbitals, rho_old, true);
