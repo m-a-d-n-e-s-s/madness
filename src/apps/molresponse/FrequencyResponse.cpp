@@ -25,8 +25,8 @@ void FrequencyResponse::iterate(World &world) {
                                   r_params.dconv());//.01 .0001 .1e-5
     auto thresh = FunctionDefaults<3>::get_thresh();
     auto density_target = dconv * std::max(size_t(5.0), molecule.natom());
-    const double a_pow{0.618};
-    const double b_pow{-.069};
+    const double a_pow{0.6201};
+    const double b_pow{.10273};
     const double x_residual_target = pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
     Tensor<double> x_residual((int(m)));
     Tensor<double> density_residuals((int(m)));
