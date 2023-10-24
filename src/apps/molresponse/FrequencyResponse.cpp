@@ -25,11 +25,10 @@ void FrequencyResponse::iterate(World &world) {
                                   r_params.dconv());//.01 .0001 .1e-5
     auto thresh = FunctionDefaults<3>::get_thresh();
     auto density_target = dconv * std::max(size_t(5.0), molecule.natom());
-    const double a_pow{0.747};
-    const double b_pow{-0.012};
-
-    const double x_relative_target = pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
-    Tensor<double> x_relative_residuals((int(m)));
+    const double a_pow{0.502};
+    const double b_pow{-0.993};
+    const double x_residual_target = pow(thresh, a_pow) * pow(10, b_pow);//thresh^a*10^b
+    Tensor<double> x_residual((int(m)));
     Tensor<double> density_residuals((int(m)));
 
     bool static_res = (omega == 0.0);
@@ -74,9 +73,9 @@ void FrequencyResponse::iterate(World &world) {
     if (thresh >= 1e-2) {
         max_rotation = 2;
     } else if (thresh >= 1e-4) {
-        max_rotation = 2 * x_relative_target;
+        max_rotation = 2 * x_residual_target;
     } else if (thresh >= 1e-6) {
-        max_rotation = 2 * x_relative_target;
+        max_rotation = 2 * x_residual_target;
     } else if (thresh >= 1e-7) {
         max_rotation = .01;
     }
@@ -111,7 +110,7 @@ void FrequencyResponse::iterate(World &world) {
 
             // Todo add chi norm and chi_x
             if (world.rank() == 0) {
-                function_data_to_json(j_molresponse, iter, chi_norms, x_relative_residuals, rho_norms,
+                function_data_to_json(j_molresponse, iter, chi_norms, x_residual, rho_norms,
                                       density_residuals);
                 frequency_to_json(j_molresponse, iter, polar, res_polar);
             }
@@ -123,16 +122,16 @@ void FrequencyResponse::iterate(World &world) {
                     print("Chi Norms at start of iteration: ", iter);
                     print("||X||: ", chi_norms);
                     print("<< XI | XJ >>(omega): \n", polar);
-                    print("targets : ||x||", x_relative_target, "    ||delta_rho||", density_target);
+                    print("targets : ||x||", x_residual_target, "    ||delta_rho||", density_target);
                 }
             }
             auto check_convergence = [&](auto &ri, auto &di) {
                 if (world.rank() == 0) { print("              ", ri, "    ", di); }
-                return ((ri < x_relative_target) && (di < density_target));
+                return ((ri < x_residual_target) && (di < density_target));
             };
 
             for (const auto &b: Chi.active) {
-                converged[b] = check_convergence(x_relative_residuals[b], density_residuals[b]);
+                converged[b] = check_convergence(x_residual[b], density_residuals[b]);
             }
             int b = 0;
             auto remove_converged = [&]() {
@@ -185,7 +184,7 @@ void FrequencyResponse::iterate(World &world) {
         inner_to_json(world, "density_norms", rho_omega_norm, iter_function_data);
         auto [new_chi, new_res, new_rho] =
                 update_response(world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega, kain_x_space, iter,
-                                max_rotation, rho_omega, x_relative_residuals, residuals);
+                                max_rotation, rho_omega, x_residual, residuals);
 
         auto old_rho = copy(world, rho_omega);
         rho_omega = copy(world, new_rho);
@@ -212,12 +211,12 @@ void FrequencyResponse::iterate(World &world) {
         }
 
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-        x_relative_residuals = copy(new_res.residual_norms);
+        x_residual = copy(new_res.residual_norms);
         residuals = new_res.residual.copy();
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "copy_response_data", "copy_response_data", iter_timing);
         }
-        inner_to_json(world, "x_relative_residuals", x_relative_residuals, iter_function_data);
+        inner_to_json(world, "x_residual", x_residual, iter_function_data);
 
         inner_to_json(world, "density_residuals", old_density_residual, iter_function_data);
 
@@ -244,7 +243,7 @@ void FrequencyResponse::iterate(World &world) {
         time_data.add_data(iter_timing);
         function_data.add_data(iter_function_data);
     }
-    function_data.add_convergence_targets(FunctionDefaults<3>::get_thresh(), density_target, x_relative_target);
+    function_data.add_convergence_targets(FunctionDefaults<3>::get_thresh(), density_target, x_residual_target);
     Chi.reset_active();
     if (world.rank() == 0) print("\n");
     if (world.rank() == 0) print("   Finished Response Calculation ");
@@ -258,7 +257,7 @@ void FrequencyResponse::iterate(World &world) {
     }
     if (world.rank() == 0) {
         print(" Final energy residuals X:");
-        print(x_relative_residuals);
+        print(x_residual);
         print(" Final density residuals:");
         print(density_residuals);
     }

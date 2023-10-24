@@ -1161,10 +1161,10 @@ auto ResponseBase::update_residual(World &world, const X_space &chi, const X_spa
         res = chi - g_chi;
         auto rx = to_response_matrix(res);
         auto gx = to_response_matrix(g_chi);
-        for (const auto &b: chi.active) { residual_norms(b) = norm2(world, rx[b]) / norm2(world, gx[b]); }
+        for (const auto &b: chi.active) { residual_norms(b) = norm2(world, rx[b]); }// / norm2(world, gx[b]); }
     } else {
         res.x = chi.x - g_chi.x;
-        for (const auto &b: chi.active) { residual_norms(b) = norm2(world, res.x[b]) / norm2(world, g_chi.x[b]); }
+        for (const auto &b: chi.active) { residual_norms(b) = norm2(world, res.x[b]); }// / norm2(world, g_chi.x[b]); }
     }
     if (r_params.print_level() >= 1) {
         molresponse::end_timer(world, "compute_bsh_residual", "compute_bsh_residual", iter_timing);
@@ -2264,7 +2264,8 @@ response_data::response_data() : iter(0) {
     function_data.insert({"d", std::vector<Tensor<double>>(0)});
     function_data.insert({"density_norms", std::vector<Tensor<double>>(0)});
     function_data.insert({"r_d", std::vector<Tensor<double>>(0)});
-    function_data.insert({"x_relative_residuals", std::vector<Tensor<double>>(0)});
+    function_data.insert({"x_absolute_residuals", std::vector<Tensor<double>>(0)});
+    function_data.insert({"x_residuals", std::vector<Tensor<double>>(0)});
 }
 
 
