@@ -81,6 +81,7 @@ void FrequencyResponse::iterate(World &world) {
         max_rotation = .01;
     }
     PQ = generator(world, *this);
+    PQ.truncate();
 
     vector<bool> converged(Chi.num_states(), false);
     Chi.reset_active();
@@ -222,6 +223,8 @@ void FrequencyResponse::iterate(World &world) {
 
         auto dnorm = norm2s_T(world, rho_omega);
         iter_function_data["d"] = dnorm;
+
+        Chi.truncate();
         polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
         res_polar = ((compute_y) ? -2 : -4) * response_context.inner(new_res.residual, PQ);
         inner_to_json(world, "alpha", polar, iter_function_data);
