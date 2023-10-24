@@ -284,6 +284,8 @@ auto FrequencyResponse::update_response(World &world, X_space &chi, XCOperator<d
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
     inner_to_json(world, "x_update", response_context.inner(new_chi, new_chi), iter_function_data);
+
+    bool compute_Y = r_params.calc_type() == "full";
     x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation);
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "update response", "update", iter_timing); }
 
