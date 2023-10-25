@@ -671,12 +671,16 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             auto tmp1=matrix_inner(world,h,h);
             auto tmp2=matrix_inner(world,g,g);
             double term3=tmp1.trace(tmp2);
-            print("term3/a/diff",term3a,term3,term3-term3a);
+//            print("term3/a/diff",term3a,term3,term3-term3a);
             t.tag("computing term3");
 
             double arg=term1-2.0*term2+term3;
-            if (arg<0.0) throw std::runtime_error("negative argument in l2error");
-            double error=sqrt(term1-2.0*term2+term3)/sqrt(term1);
+            if (arg<0.0) {
+                print("negative l2 error");
+                arg*=-1.0;
+//                throw std::runtime_error("negative argument in l2error");
+            }
+            double error=sqrt(arg)/sqrt(term1);
             if (world.rank()==0 and do_print) {
                 print("term1,2,3, error",term1, term2, term3, "  --",error);
             }

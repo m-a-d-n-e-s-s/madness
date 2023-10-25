@@ -37,6 +37,43 @@ struct test_output {
 		logger.clear();
 	}
 
+    void checkpoint(double error, double tol,
+                    std::string message, double time=-1.0) {
+        bool use_logger=cout_set_to_logger;
+        set_cout_to_terminal();
+        bool success=error<tol;
+        final_success = success and final_success;
+        if (not have_checkpoints) print("");    // first checkpoint
+        have_checkpoints=true;
+        std::cout << "  " << ltrim_to_length(message,66);
+        double time1=cpu_time()-time_last_checkpoint;
+        time_last_checkpoint=cpu_time();
+        print_success_fail(std::cout,success,time1,error);
+        if (not success) {
+            print_and_clear_log();
+        }
+        if (use_logger) set_cout_to_logger();
+    }
+
+    void checkpoint(double value, double reference, double tol,
+                    std::string message, double time=-1.0) {
+        bool use_logger=cout_set_to_logger;
+        set_cout_to_terminal();
+        double error=fabs(value-reference);
+        bool success=error<tol;
+        final_success = success and final_success;
+        if (not have_checkpoints) print("");    // first checkpoint
+        have_checkpoints=true;
+        std::cout << "  " << ltrim_to_length(message,66);
+        double time1=cpu_time()-time_last_checkpoint;
+        time_last_checkpoint=cpu_time();
+        print_success_fail(std::cout,success,time1,error);
+        if (not success) {
+            print_and_clear_log();
+        }
+        if (use_logger) set_cout_to_logger();
+    }
+
     void checkpoint(bool success, std::string message, double time=-1.0) {
         bool use_logger=cout_set_to_logger;
         set_cout_to_terminal();
@@ -46,14 +83,14 @@ struct test_output {
         std::cout << "  " << ltrim_to_length(message,66);
         double time1=cpu_time()-time_last_checkpoint;
         time_last_checkpoint=cpu_time();
-        print_success_fail(std::cout,success,time1);
+        print_success_fail(std::cout,success,time1,-1.0);
         if (not success) {
             print_and_clear_log();
         }
         if (use_logger) set_cout_to_logger();
     }
 
-    void print_success_fail(std::ostream& os, bool success, double time=-1.0) {
+    void print_success_fail(std::ostream& os, bool success, double time, double error) {
 
         if (success) os << "\033[32m"   << "passed " << "\033[0m";
         else os << "\033[31m"   << "failed " << "\033[0m";
@@ -62,6 +99,7 @@ struct test_output {
             ss<< " in " << std::fixed << std::setprecision(1) << time << "s";
             os << ss.str();
         }
+        if (error>=0.0) os << " error " << error;
         os << std::endl;
     }
 
@@ -70,7 +108,7 @@ struct test_output {
         if (have_checkpoints) std::cout << ltrim_to_length("--> final result -->",70);
         success = success and final_success;
         double time_end=cpu_time();
-        print_success_fail(std::cout,success,time_end-time_begin);
+        print_success_fail(std::cout,success,time_end-time_begin,-1.0);
         if (not success) print_and_clear_log();
 		return (success) ? 0 : 1;
 	}

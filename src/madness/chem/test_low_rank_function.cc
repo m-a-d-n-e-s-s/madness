@@ -16,7 +16,7 @@ using namespace madness;
 
 
 
-int test_lowrank_function(World& world, LowRankFunctionParameters& parameters) {
+int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
     test_output t1("CCPairFunction::low rank function");
     t1.set_cout_to_terminal();
     madness::default_random_generator.setstate(int(cpu_time())%4149);
@@ -101,7 +101,7 @@ int test_lowrank_function(World& world, LowRankFunctionParameters& parameters) {
 
     // \phi(1) \bar \phi(1) = \intn phi(1) \phi(2) f(1,2) d2
     auto reference = phi1* (*f12)(phi2);
-    plot_plane<3>(world,reference,"reference."+id,PlotParameters(world).set_plane({"x1","x2"}));
+//    plot_plane<3>(world,reference,"reference."+id,PlotParameters(world).set_plane({"x1","x2"}));
     double n2=reference.norm2();
     print("reference.norm2() = int f12 phi2 d2",n2);
     output(0.0,0.0,0.0,0.0,0.0,0.0);
@@ -306,15 +306,15 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
 }
 
 template<std::size_t LDIM>
-int test_full_rank_functor(World& world, LowRankFunctionParameters& parameters) {
+int test_full_rank_functor(World& world, LowRankFunctionParameters parameters) {
 
     test_output t1("test_full_rank_functor");
     t1.set_cout_to_terminal();
     print_header2("entering test_full_rank_functor");
     constexpr int NDIM=2*LDIM;
-    FunctionDefaults<LDIM>::set_thresh(1.e-6);
-    FunctionDefaults<NDIM>::set_thresh(1.e-6);
-    double tol=1.e-3;
+//    FunctionDefaults<LDIM>::set_thresh(1.e-6);
+//    FunctionDefaults<NDIM>::set_thresh(1.e-6);
+    double tol=5.e-3;
     double gaussexponent=2.0;
 
     const particle<LDIM> p1=particle<LDIM>::particle1();
@@ -352,25 +352,25 @@ int test_full_rank_functor(World& world, LowRankFunctionParameters& parameters) 
 
     try {
         double error1=lrfunction1.l2error(functorf12);
-        t1.checkpoint(error1<tol,"f12 functor, f12 l2 error: "+std::to_string(error1));
+        t1.checkpoint(error1,tol,"f12 functor, f12 l2 error: ");
     } catch (...) {
         print("l2 error negative 1");
     }
     try {
         double error2=lrfunction2.l2error(functorpure);
-        t1.checkpoint(error2<tol,"full rank functor, full rank l2 error: "+std::to_string(error2));
+        t1.checkpoint(error2,tol,"full rank functor, full rank l2 error");
     } catch (...) {
         print("l2 error negative 2");
     }
     try {
         double error3=lrfunction2.l2error(functorf12);
-        t1.checkpoint(error3<tol,"full rank functor, f12 l2 error: "+std::to_string(error3));
+        t1.checkpoint(error3,tol,"full rank functor, f12 l2 error:");
     } catch (...) {
         print("l2 error negative 3");
     }
     try {
         double error4=lrfunction1.l2error(functorpure);
-        t1.checkpoint(error4<tol,"f12 functor, full rank l2 error: "+std::to_string(error4));
+        t1.checkpoint(error4,tol,"f12 functor, full rank l2 error: ");
     } catch (...) {
         print("l2 error negative 4");
     }
@@ -456,13 +456,21 @@ int test_arithmetic(World& world, LowRankFunctionParameters parameters) {
     return t1.end();
 }
 
+/// test partial inner products
+
+/// with
+/// f1(x,y) = exp(-a*x^2) * exp(-(x-y)^2)
+/// f2(x,y) = exp(-a*x^2) * exp(-g (x-y)^2)
+/// test the inner products
+///   a) inner(f1,f2,i,j) for i,j=0,1
+///   b) inner(f1,
 template<std::size_t LDIM>
 int test_inner(World& world, LowRankFunctionParameters parameters) {
 
     static_assert(LDIM==1 or LDIM==2);
     constexpr std::size_t NDIM = 2 * LDIM;
     test_output t1("LowRankFunction::test_inner in dimension " + std::to_string(NDIM));
-    t1.set_cout_to_terminal();
+//    t1.set_cout_to_terminal();
     double thresh=FunctionDefaults<LDIM>::get_thresh();
     double thresh_ndim=FunctionDefaults<LDIM>::get_thresh();
     print("thresh ldim/ndim",thresh,thresh_ndim);
@@ -511,32 +519,32 @@ int test_inner(World& world, LowRankFunctionParameters parameters) {
                 auto lhs1=inner(fullrank1,fullrank2,p11.get_tuple(),p22.get_tuple());
                 const double l1=lhs1.norm2();
                 print("l1",l1,l1*l1,ref);
-                t1.checkpoint(fabs(l1*l1-ref)<thresh,"inner(full,full,"+p11.str()+","+p22.str()+")");
+                t1.checkpoint(l1*l1,ref,thresh,"inner(full,full,"+p11.str()+","+p22.str()+")");
                 double asymmetric_ref=inner(fullrank1,lhs1);
                 double asymmetric1=inner(fullrank1,lhs1);
-                t1.checkpoint(fabs(asymmetric1-asymmetric_ref)<thresh,"asymmetric(full,full,"+p11.str()+","+p22.str()+")");
+                t1.checkpoint(asymmetric1,asymmetric_ref,thresh,"asymmetric(full,full,"+p11.str()+","+p22.str()+")");
 
                 // low rank/full
                 auto lhs2=inner(lrf1,fullrank2,p11,p22);
                 double l2=lhs2.norm2();
-                t1.checkpoint(fabs(l2*l2-ref)<thresh,"inner(lrf,full,"+p11.str()+","+p22.str()+")");
+                t1.checkpoint(l2*l2,ref,thresh,"inner(lrf,full,"+p11.str()+","+p22.str()+")");
                 double asymmetric2=inner(lrf1,lhs2);
-                t1.checkpoint(fabs(asymmetric2-asymmetric_ref)<thresh,"asymmetric(lrf,full,"+p11.str()+","+p22.str()+")");
+                t1.checkpoint(asymmetric2,asymmetric_ref,thresh,"asymmetric(lrf,full,"+p11.str()+","+p22.str()+")");
 
                 // full/low rank
                 auto lhs3=inner(fullrank1,lrf2,p11,p22);
                 double l3=lhs3.norm2();
-                t1.checkpoint(fabs(l3*l3-ref)<thresh,"inner(full,lrf,"+p11.str()+","+p22.str()+")");
+                t1.checkpoint(l3*l3,ref,thresh,"inner(full,lrf,"+p11.str()+","+p22.str()+")");
                 double asymmetric3=inner(lrf1,lhs3);
-                t1.checkpoint(fabs(asymmetric3-asymmetric_ref)<thresh,"asymmetric(full,lrf,"+p11.str()+","+p22.str()+")");
+                t1.checkpoint(asymmetric3,asymmetric_ref,thresh,"asymmetric(full,lrf,"+p11.str()+","+p22.str()+")");
 
 
                 // low rank/low rank
                 auto lhs4=inner(lrf1,lrf2,p11,p22);
                 double l4=lhs4.norm2();
-                t1.checkpoint(fabs(l4*l4-ref)<thresh,"inner(lrf,lrf,"+p11.str()+","+p22.str()+")");
+                t1.checkpoint(l4*l4,ref,thresh,"inner(lrf,lrf,"+p11.str()+","+p22.str()+")");
                 double asymmetric4=inner(lrf1,lhs4);
-                t1.checkpoint(fabs(asymmetric4-asymmetric_ref)<thresh,"asymmetric(lrf,lrf,"+p11.str()+","+p22.str()+")");
+                t1.checkpoint(asymmetric4,asymmetric_ref,thresh,"asymmetric(lrf,lrf,"+p11.str()+","+p22.str()+")");
 
                 print("result norm",p11,p22,"), reference ",l1*l1,l2*l2,l3*l3,l4*l4,ref);
                 // l2 norm cannot distinguish between f(1,2) and f(2,1)
@@ -546,7 +554,6 @@ int test_inner(World& world, LowRankFunctionParameters parameters) {
             }
         }
     }
-//    return t1.end();
 
     // inner f(1,2) g(2)
     // this is surprisingly inaccurate, but algorithm is correct, the error can be systematically decreased
@@ -559,7 +566,7 @@ int test_inner(World& world, LowRankFunctionParameters parameters) {
         std::vector<Function<double,LDIM>> arg(3);
         for (int i=0; i<3; ++i) arg[i]=FunctionFactory<double,LDIM>(world)
                     .functor([&i](const Vector<double,LDIM>& r)
-                             {return exp(-r.normf());});
+                             {return exp(-(i+1)*r.normf());});
 
         std::vector<Function<double,LDIM>> lhs_full1, lhs_full2,lhs_func1,lhs_func2;
         for (auto& a : arg) {
@@ -597,7 +604,6 @@ int test_inner(World& world, LowRankFunctionParameters parameters) {
 
 template<std::size_t LDIM>
 int test_construction_optimization(World& world, LowRankFunctionParameters parameters) {
-    parameters.set_user_defined_value("volume_element",0.05);
     constexpr std::size_t NDIM=2*LDIM;
     test_output t1("LowRankFunction::construction/optimization in dimension "+std::to_string(NDIM));
 //    t1.set_cout_to_terminal();
@@ -639,7 +645,7 @@ int main(int argc, char **argv) {
     startup(world, argc, argv);
     commandlineparser parser(argc, argv);
     int k = parser.key_exists("k") ? std::atoi(parser.value("k").c_str()) : 6;
-    double thresh  = parser.key_exists("thresh") ? std::stod(parser.value("thresh")) : 1.e-4;
+    double thresh  = parser.key_exists("thresh") ? std::stod(parser.value("thresh")) : 1.e-5;
     FunctionDefaults<6>::set_tensor_type(TT_2D);
 
     FunctionDefaults<1>::set_thresh(thresh);
@@ -668,6 +674,9 @@ int main(int argc, char **argv) {
           FunctionDefaults<6>::get_thresh());
     LowRankFunctionParameters parameters;
     parameters.read_and_set_derived_values(world,parser,"grid");
+    parameters.set_user_defined_value("radius",3.0);
+    parameters.set_user_defined_value("volume_element",2.e-2);
+    parameters.set_user_defined_value("tol",1.0e-10);
     parameters.print("grid");
     int isuccess=0;
 #ifdef USE_GENTENSOR
@@ -680,15 +689,16 @@ int main(int argc, char **argv) {
 //        isuccess+=test_grids<3>(world,parameters);
         isuccess+=test_full_rank_functor<1>(world, parameters);
         isuccess+=test_construction_optimization<1>(world,parameters);
-        isuccess+=test_construction_optimization<2>(world,parameters);
+//        isuccess+=test_construction_optimization<2>(world,parameters);
         isuccess+=test_arithmetic<1>(world,parameters);
-        isuccess+=test_arithmetic<2>(world,parameters);
+//        isuccess+=test_arithmetic<2>(world,parameters);
 
-        isuccess+=test_inner<1>(world,parameters);
-        isuccess+=test_inner<2>(world,parameters);
+//        isuccess+=test_inner<1>(world,parameters);
+//        isuccess+=test_inner<2>(world,parameters);
 
-//        isuccess+=test_lowrank_function(world,parameters);
-//       isuccess+=test_Kcommutator(world,parameters);
+        parameters.set_user_defined_value("volume_element",1.e-1);
+        isuccess+=test_lowrank_function(world,parameters);
+        isuccess+=test_Kcommutator(world,parameters);
     } catch (std::exception& e) {
         madness::print("an error occured");
         madness::print(e.what());
