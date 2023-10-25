@@ -33,12 +33,14 @@ jobs:
       CTEST_OUTPUT_ON_FAILURE : 1
       BUILD_CONFIG : >
         -G Ninja
+        -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
         -DCMAKE_PREFIX_PATH=/usr/local/opt/bison
         -DBUILD_SHARED_LIBS=OFF
         -DMPIEXEC_PREFLAGS='--bind-to;none;--allow-run-as-root'
         -DBUILD_TESTING=ON
         -DMADNESS_ENABLE_CEREAL=ON
         -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'Threads' }}
+        -DMADNESS_BUILD_LIBRARIES_ONLY=${{ matrix.build_type != 'Debug' }}
 
     steps:
     - uses: actions/checkout@v2
@@ -129,3 +131,8 @@ jobs:
       working-directory: ${{github.workspace}}/build
       shell: bash
       run: cmake --build . --target check-short-madness
+
+    - name: Install
+      working-directory: ${{github.workspace}}/build
+      shell: bash
+      run: cmake --build . --target install
