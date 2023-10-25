@@ -57,7 +57,7 @@ namespace madness {
         [[nodiscard]] X_space copy() const {
             auto &world = x[0][0].world();
             auto new_x = X_space(*this);// copy
-            for (const auto &i: active) {
+            for (int i = 0; i < new_x.num_states(); i++) {
                 new_x.x[i] = madness::copy(world, x[i], false);
                 new_x.y[i] = madness::copy(world, y[i], false);
             }
