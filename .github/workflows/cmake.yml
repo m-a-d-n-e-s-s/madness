@@ -136,3 +136,14 @@ jobs:
       working-directory: ${{github.workspace}}/build
       shell: bash
       run: cmake --build . --target install
+
+    - name: Test Install Tree
+      working-directory: ${{github.workspace}}/build
+      shell: bash
+      run: |
+        cmake -S $GITHUB_WORKSPACE/doc/tutorial -B test_install -DCMAKE_PREFIX_PATH=${{github.workspace}}/install
+        cmake --build test_install
+        test_install/test_runtime
+        if [ "X${{ matrix.task_backend }}" = "XThreads" ]; then  # if built more than just MADWorld run the HF test
+           test_install/simple_hf
+        fi

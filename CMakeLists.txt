@@ -730,13 +730,6 @@ install(FILES
         DESTINATION "${MADNESS_INSTALL_CMAKEDIR}/modules"
         COMPONENT madness-config)
 
-# sample CMakeLists.txt
-configure_file(
-  ${PROJECT_SOURCE_DIR}/doc/devsamp/CMakeLists.txt.sample.in
-  ${PROJECT_BINARY_DIR}/doc/devsamp/CMakeLists.txt.sample
-  @ONLY
-)
-
 # Create the version file
 write_basic_package_version_file(madness-config-version.cmake
   VERSION ${MADNESS_VERSION} COMPATIBILITY AnyNewerVersion)
