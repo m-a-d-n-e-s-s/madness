@@ -82,7 +82,10 @@ set(MADNESS_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/madness"
 
 # Build options  ==============================================================
 
-redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (excluding BLAS/LAPACK interfaces)" OFF)
+redefaultable_option(MADNESS_BUILD_LIBRARIES_ONLY "Build only MADNESS libraries" OFF)
+if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
+  redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (excluding BLAS/LAPACK interfaces)" OFF)
+endif()
 redefaultable_option(MADNESS_ENABLE_CEREAL "Support use of Cereal archives as backends for MADNESS serialization" OFF)
 
 # Enable optional libraries ====================================================
@@ -639,11 +642,11 @@ include(external/gperftools.cmake)
 include(external/tbb.cmake)
 include(external/parsec.cmake)
 include(external/boost.cmake)
-if (NOT MADNESS_BUILD_MADWORLD_ONLY)
+if (NOT MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_LIBRARIES_ONLY)
   include(external/lapack.cmake)
   include(external/libxc.cmake)
   include(external/pcm.cmake)
-endif (NOT MADNESS_BUILD_MADWORLD_ONLY)
+endif ()
 
 if (DEFINED ELEMENTAL_TAG)
   include(external/elemental.cmake)
@@ -655,7 +658,7 @@ endif (DEFINED ELEMENTAL_TAG)
 add_custom_target(everything)
 add_dependencies(everything madness)
 
-if(NOT MADNESS_BUILD_MADWORLD_ONLY AND LAPACK_FOUND)
+if(NOT (MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_LIBRARIES_ONLY) AND LAPACK_FOUND)
 	add_custom_target_subproject(madness numerical-examples)
 	add_custom_target_subproject(madness applications)
 endif()
