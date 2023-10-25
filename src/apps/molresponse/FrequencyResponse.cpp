@@ -221,7 +221,6 @@ void FrequencyResponse::iterate(World &world) {
         auto dnorm = norm2s_T(world, rho_omega);
         iter_function_data["d"] = dnorm;
 
-        Chi.truncate();
         polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
         res_polar = ((compute_y) ? -2 : -4) * response_context.inner(new_res.residual, PQ);
         inner_to_json(world, "alpha", polar, iter_function_data);
@@ -316,7 +315,7 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X, std:
     }
     // apply bsh
     X_space bsh_X(world, m, n);
-    bsh_X.active = theta_X.active;
+    bsh_X.set_active(theta_X.active);
     bsh_X.x = apply(world, bsh_x_ops, theta_X.x);
     if (compute_y) { bsh_X.y = apply(world, bsh_y_ops, theta_X.y); }
 
