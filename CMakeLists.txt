@@ -66,19 +66,18 @@ set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Whether to use extensions of C++ ISO St
 add_options(CXX ALL_BUILDS ${CMAKE_CXX${CMAKE_CXX_STANDARD}_STANDARD_COMPILE_OPTION})
 
 # Set install paths ============================================================
-
-set(MADNESS_INSTALL_BINDIR "bin" 
-    CACHE PATH "MADNESS binary install directory")
-set(MADNESS_INSTALL_INCLUDEDIR "include" 
+include(GNUInstallDirs)
+set(MADNESS_INSTALL_BINDIR "${CMAKE_INSTALL_BINDIR}"
+    CACHE PATH "MADNESS BIN install directory")
+set(MADNESS_INSTALL_INCLUDEDIR "${CMAKE_INSTALL_INCLUDEDIR}"
     CACHE PATH "MADNESS INCLUDE install directory")
-set(MADNESS_INSTALL_LIBDIR "lib"
+set(MADNESS_INSTALL_LIBDIR "${CMAKE_INSTALL_LIBDIR}"
     CACHE PATH "MADNESS LIB install directory")
-set(MADNESS_INSTALL_DATADIR "share/madness/${MADNESS_VERSION}/data"
+set(MADNESS_INSTALL_DATADIR "${CMAKE_INSTALL_DATAROOTDIR}/madness/${MADNESS_VERSION}/data"
     CACHE PATH "MADNESS DATA install directory")
-# TODO this matches Automake value, should be adjusted to the convention: share/madness/${MADNESS_VERSION}/doc
-set(MADNESS_INSTALL_DOCDIR "share/doc/madness"
+set(MADNESS_INSTALL_DOCDIR "${CMAKE_INSTALL_DATAROOTDIR}/madness/${MADNESS_VERSION}/doc"
     CACHE PATH "MADNESS DOC install directory")
-set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
+set(MADNESS_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/madness"
     CACHE PATH "MADNESS CMAKE install directory")
 
 # Build options  ==============================================================
