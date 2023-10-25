@@ -126,7 +126,9 @@ add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "madness/chem/")
   endif ()
 
 # Add executables
-add_mad_executable(plotxc "plotxc.cc;xcfunctional.h" "MADchem")
+if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
+  add_mad_executable(plotxc "plotxc.cc;xcfunctional.h" "MADchem")
+endif()
 
 # Install files
 install(FILES sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess structure_library
@@ -149,10 +151,12 @@ if(BUILD_TESTING)
   add_unittests(chem "${CHEM_TEST_SOURCES_SHORT}" "MADchem;MADgtest" "unittests;short")
   add_unittests(chem "${CHEM_TEST_SOURCES_LONG}" "MADchem;MADgtest" "unittests;long")
 
-  # Create other test executables not included in the unit tests
-  set(CHEM_OTHER_TESTS testxc benchmark_exchange_operator)
-  foreach(_test ${CHEM_OTHER_TESTS})  
-    add_mad_executable(${_test} "${_test}.cc" "MADchem")
-  endforeach()
-  
+  # Create other test executables not included in the unit tests ... consider these executables (unlike unit tests)
+  if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
+    set(CHEM_OTHER_TESTS testxc benchmark_exchange_operator)
+    foreach(_test ${CHEM_OTHER_TESTS})
+      add_mad_executable(${_test} "${_test}.cc" "MADchem")
+    endforeach()
+  endif()
+
 endif()

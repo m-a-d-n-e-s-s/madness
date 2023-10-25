@@ -66,24 +66,26 @@ set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Whether to use extensions of C++ ISO St
 add_options(CXX ALL_BUILDS ${CMAKE_CXX${CMAKE_CXX_STANDARD}_STANDARD_COMPILE_OPTION})
 
 # Set install paths ============================================================
-
-set(MADNESS_INSTALL_BINDIR "bin" 
-    CACHE PATH "MADNESS binary install directory")
-set(MADNESS_INSTALL_INCLUDEDIR "include" 
+include(GNUInstallDirs)
+set(MADNESS_INSTALL_BINDIR "${CMAKE_INSTALL_BINDIR}"
+    CACHE PATH "MADNESS BIN install directory")
+set(MADNESS_INSTALL_INCLUDEDIR "${CMAKE_INSTALL_INCLUDEDIR}"
     CACHE PATH "MADNESS INCLUDE install directory")
-set(MADNESS_INSTALL_LIBDIR "lib"
+set(MADNESS_INSTALL_LIBDIR "${CMAKE_INSTALL_LIBDIR}"
     CACHE PATH "MADNESS LIB install directory")
-set(MADNESS_INSTALL_DATADIR "share/madness/${MADNESS_VERSION}/data"
+set(MADNESS_INSTALL_DATADIR "${CMAKE_INSTALL_DATAROOTDIR}/madness/${MADNESS_VERSION}/data"
     CACHE PATH "MADNESS DATA install directory")
-# TODO this matches Automake value, should be adjusted to the convention: share/madness/${MADNESS_VERSION}/doc
-set(MADNESS_INSTALL_DOCDIR "share/doc/madness"
+set(MADNESS_INSTALL_DOCDIR "${CMAKE_INSTALL_DATAROOTDIR}/madness/${MADNESS_VERSION}/doc"
     CACHE PATH "MADNESS DOC install directory")
-set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
+set(MADNESS_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/madness"
     CACHE PATH "MADNESS CMAKE install directory")
 
 # Build options  ==============================================================
 
-redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (excluding BLAS/LAPACK interfaces)" OFF)
+redefaultable_option(MADNESS_BUILD_LIBRARIES_ONLY "Build only MADNESS libraries" OFF)
+if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
+  redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (excluding BLAS/LAPACK interfaces)" OFF)
+endif()
 redefaultable_option(MADNESS_ENABLE_CEREAL "Support use of Cereal archives as backends for MADNESS serialization" OFF)
 
 # Enable optional libraries ====================================================
@@ -640,11 +642,11 @@ include(external/gperftools.cmake)
 include(external/tbb.cmake)
 include(external/parsec.cmake)
 include(external/boost.cmake)
-if (NOT MADNESS_BUILD_MADWORLD_ONLY)
+if (NOT MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_LIBRARIES_ONLY)
   include(external/lapack.cmake)
   include(external/libxc.cmake)
   include(external/pcm.cmake)
-endif (NOT MADNESS_BUILD_MADWORLD_ONLY)
+endif ()
 
 if (DEFINED ELEMENTAL_TAG)
   include(external/elemental.cmake)
@@ -656,7 +658,7 @@ endif (DEFINED ELEMENTAL_TAG)
 add_custom_target(everything)
 add_dependencies(everything madness)
 
-if(NOT MADNESS_BUILD_MADWORLD_ONLY AND LAPACK_FOUND)
+if(NOT (MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_LIBRARIES_ONLY) AND LAPACK_FOUND)
 	add_custom_target_subproject(madness numerical-examples)
 	add_custom_target_subproject(madness applications)
 endif()
@@ -727,13 +729,6 @@ install(FILES
         "${PROJECT_SOURCE_DIR}/cmake/modules/FindTBB.cmake"
         DESTINATION "${MADNESS_INSTALL_CMAKEDIR}/modules"
         COMPONENT madness-config)
-
-# sample CMakeLists.txt
-configure_file(
-  ${PROJECT_SOURCE_DIR}/doc/devsamp/CMakeLists.txt.sample.in
-  ${PROJECT_BINARY_DIR}/doc/devsamp/CMakeLists.txt.sample
-  @ONLY
-)
 
 # Create the version file
 write_basic_package_version_file(madness-config-version.cmake
