@@ -206,7 +206,6 @@ private:
     std::pair<X_space, X_space> dipole_perturbation(World &world, const X_space &left, const X_space &right) const;
     Tensor<double> compute_beta_1(const X_space &upsilon);
     Tensor<double> compute_beta_1(World &world, const X_space &upsilon);
-    X_space compute_gamma_bc_virt(World &world, const X_space &VB, const X_space &XC);
     X_space compute_gamma_occ(World &world, const X_space &XB, const X_space &XC);
     X_space compute_g1_term(World &world, const X_space &left, const X_space &right, const X_space &apply) const;
     X_space compute_coulomb_term(World &world, const X_space &B, const X_space &C, const X_space &D) const;
