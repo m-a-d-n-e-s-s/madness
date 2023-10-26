@@ -540,8 +540,6 @@ auto QuadraticResponse::setup_XBC(World &world) -> std::pair<X_space, X_space> {
     return {r_XB, r_XC};
 }
 
-X_space QuadraticResponse::compute_gamma_bc_virt(World &world, const X_space &XB, const X_space &XC) {}
-
 Tensor<double> QuadraticResponse::compute_beta_unrelaxed(World &world, const X_space &AB_left, const X_space &AB_right,
                                                          X_space &BA_left, X_space &BA_right) {
 
