@@ -279,7 +279,7 @@ auto FrequencyResponse::update_response(World &world, X_space &chi, XCOperator<d
     for (const auto &b: new_chi.active) {
         if (bsh_norms[b] > max_rotation) {
             new_chi.x[b] = kain_chi.x[b];
-            new_chi.y[b] = kain_chi.y[b];
+            if (r_params.calc_type() == "full") { new_chi.y[b] = kain_chi.y[b]; }
         } else {
             if (world.rank() == 0)
                 print("not accepting kain update since residual norm:", bsh_norms[b],
