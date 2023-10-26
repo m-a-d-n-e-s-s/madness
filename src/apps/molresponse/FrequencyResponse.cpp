@@ -273,7 +273,7 @@ auto FrequencyResponse::update_response(World &world, X_space &chi, XCOperator<d
 
     auto [new_res, bsh_norms] = update_residual(world, chi, new_chi, r_params.calc_type(), old_residuals, xres_old);
     inner_to_json(world, "r_x", response_context.inner(new_res, new_res), iter_function_data);
-    if (iteration >= 0) {// & (iteration % 3 == 0)) {
+    if (iteration >= 0 && iteration <r_params.maxsub()+5) {// & (iteration % 3 == 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
     chi_norm=new_chi.norm2s();
