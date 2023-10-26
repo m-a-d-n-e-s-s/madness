@@ -69,7 +69,7 @@ void FrequencyResponse::iterate(World &world) {
     auto bsh_x_ops = make_bsh_operators_response(world, x_shifts, omega);
     std::vector<poperatorT> bsh_y_ops;
     bsh_y_ops = (compute_y) ? make_bsh_operators_response(world, y_shifts, -omega) : bsh_x_ops;
-    auto max_rotation = .25 * x_residual_target + x_residual_target;
+    auto max_rotation = .5 * x_residual_target + x_residual_target;
     PQ = generator(world, *this);
     PQ.truncate();
 
@@ -276,7 +276,7 @@ auto FrequencyResponse::update_response(World &world, X_space &chi, XCOperator<d
         kain_chi = kain_x_space_update(world, chi, new_res, kain_x_space, max_rotation);
     }
     // here only accept the kain updates if residual_norm is bigger than max_rotaion
-    for (const auto &b: new_chi.active) {
+    for (const auto &b: chi.active) {
         if (bsh_norms[b] > max_rotation) {
             new_chi.x[b] = kain_chi.x[b];
             if (r_params.calc_type() == "full") { new_chi.y[b] = kain_chi.y[b]; }
