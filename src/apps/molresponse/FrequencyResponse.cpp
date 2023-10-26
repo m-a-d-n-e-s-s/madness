@@ -269,20 +269,6 @@ auto FrequencyResponse::update_response(World &world, X_space &chi, XCOperator<d
     if (iteration >= 0) {// & (iteration % 3 == 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
-    // here only accept the kain updates if residual_norm is bigger than max_rotaion
-    /*
-    for (const auto &b: chi.active) {
-        if (bsh_norms[b] > max_rotation) {
-            new_chi.x[b] = kain_chi.x[b];
-            if (r_params.calc_type() == "full") { new_chi.y[b] = kain_chi.y[b]; }
-        } else {
-            if (world.rank() == 0)
-                print("not accepting kain update since residual norm:", bsh_norms[b],
-                      " is smaller than max rotation: ", max_rotation);
-        }
-    }
-     */
-
 
     inner_to_json(world, "x_update", response_context.inner(new_chi, new_chi), iter_function_data);
 
