@@ -273,7 +273,7 @@ auto FrequencyResponse::update_response(World &world, X_space &chi, XCOperator<d
     inner_to_json(world, "r_x", response_context.inner(new_res, new_res), iter_function_data);
     X_space kain_chi;
     if (iteration >= 0) {// & (iteration % 3 == 0)) {
-        new_chi = kain_x_space_update(world, chi, new_res, kain_x_space, max_rotation);
+        new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
     }
     // here only accept the kain updates if residual_norm is bigger than max_rotaion
     /*
