@@ -269,11 +269,25 @@ auto FrequencyResponse::update_response(World &world, X_space &chi, XCOperator<d
 
     inner_to_json(world, "x_new", response_context.inner(new_chi, new_chi), iter_function_data);
 
-    auto [new_res, bsh] = update_residual(world, chi, new_chi, r_params.calc_type(), old_residuals, xres_old);
+    auto [new_res, bsh_norms] = update_residual(world, chi, new_chi, r_params.calc_type(), old_residuals, xres_old);
     inner_to_json(world, "r_x", response_context.inner(new_res, new_res), iter_function_data);
+    X_space kain_chi;
     if (iteration >= 0) {// & (iteration % 3 == 0)) {
-        new_chi = kain_x_space_update(world, chi, new_res, kain_x_space, max_rotation);
+        kain_chi = kain_x_space_update(world, chi, new_res, kain_x_space, max_rotation);
     }
+    // here only accept the kain updates if residual_norm is bigger than max_rotaion
+    for (const auto &b: new_chi.active) {
+        if (bsh_norms[b] > max_rotation) {
+            new_chi.x[b] = kain_chi.x[b];
+            new_chi.y[b] = kain_chi.y[b];
+        } else {
+            if (world.rank() == 0)
+                print("not accepting kain update since residual norm:", bsh_norms[b],
+                      " is smaller than max rotation: ", max_rotation);
+        }
+    }
+
+
     inner_to_json(world, "x_update", response_context.inner(new_chi, new_chi), iter_function_data);
 
     //bool compute_y = r_params.calc_type() == "full";
@@ -282,7 +296,7 @@ auto FrequencyResponse::update_response(World &world, X_space &chi, XCOperator<d
 
     auto new_rho = response_context.compute_density(world, new_chi, ground_orbitals, rho_old, true);
 
-    return {new_chi, {new_res, bsh}, new_rho};
+    return {new_chi, {new_res, bsh_norms}, new_rho};
 }
 
 auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X, std::vector<poperatorT> &bsh_x_ops,
