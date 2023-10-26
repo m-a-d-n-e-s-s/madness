@@ -111,6 +111,7 @@ void FrequencyResponse::iterate(World &world) {
                     print("k: ", FunctionDefaults<3>::get_k());
                     print("Chi Norms at start of iteration: ", iter);
                     print("||X||: ", chi_norms);
+                    print("||f(x)-x||: ", x_residual);
                     print("<< XI | XJ >>(omega): \n", polar);
                     print("targets : ||x||", x_residual_target, "    ||delta_rho||", density_target);
                 }
