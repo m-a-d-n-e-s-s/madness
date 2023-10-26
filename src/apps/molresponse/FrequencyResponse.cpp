@@ -260,14 +260,21 @@ auto FrequencyResponse::update_response(World &world, X_space &chi, XCOperator<d
     X_space theta_X = compute_theta_X(world, x, rho_old, xc, r_params.calc_type());
     X_space new_chi = bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
+    auto chi_norm=new_chi.norm2s();
+    if (world.rank()==0) {
+        print("new_chi_norm after bsh update: ",chi_norm);
+    }
 
     inner_to_json(world, "x_new", response_context.inner(new_chi, new_chi), iter_function_data);
 
     auto [new_res, bsh_norms] = update_residual(world, chi, new_chi, r_params.calc_type(), old_residuals, xres_old);
     inner_to_json(world, "r_x", response_context.inner(new_res, new_res), iter_function_data);
-    X_space kain_chi;
     if (iteration >= 0) {// & (iteration % 3 == 0)) {
         new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
+    }
+    chi_norm=new_chi.norm2s();
+    if (world.rank()==0) {
+        print("new_chi_norm after kain update: ",chi_norm);
     }
 
     inner_to_json(world, "x_update", response_context.inner(new_chi, new_chi), iter_function_data);
