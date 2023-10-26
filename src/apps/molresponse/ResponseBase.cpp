@@ -1198,6 +1198,8 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi, const X
                 auto temp = kain_x_space[i].update(x_vectors[i], x_residuals[i]);
                 std::copy(temp.begin(), temp.begin() + n, kain_update.x[i].begin());
                 std::copy(temp.begin() + n, temp.end(), kain_update.y[i].begin());
+            }else{
+                if (world.rank() == 0) print("skipping update for state: ", i, " residual norm: ", residual_norms(i));
             }
         };
     } else {
@@ -1208,6 +1210,8 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi, const X
         for (const auto &i: Chi.active) {
             if (residual_norms(i) > max_rotation) {
                 kain_update.x[i] = kain_x_space[i].update(chi.x[i], residual_chi.x[i]);
+            } else {
+                if (world.rank() == 0) print("skipping update for state: ", i, " residual norm: ", residual_norms(i));
             }
         }
     }
