@@ -2161,7 +2161,7 @@ auto ExcitedResponse::update_response(World &world, X_space &Chi, XCOperator<dou
     // kain if iteration >0 or first run where there should not be a problem
     // computed new_chi and res
     if (r_params.kain() && (iter > 0) && true) {
-        new_chi = kain_x_space_update(world, rotated_chi, new_res, kain_x_space);
+        new_chi = kain_x_space_update(world, rotated_chi, new_res, kain_x_space, 1e-8);
     }
     if (false) { x_space_step_restriction(world, rotated_chi, new_chi, compute_y, maxrotn); }
 
