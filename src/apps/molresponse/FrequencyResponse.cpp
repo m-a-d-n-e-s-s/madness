@@ -198,7 +198,6 @@ void FrequencyResponse::iterate(World &world) {
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         x_residual = copy(new_res.residual_norms);
         iter_function_data["x_residuals"] = x_residual;
-        residuals = new_res.residual.copy();
         if (r_params.print_level() >= 1) {
             molresponse::end_timer(world, "copy_response_data", "copy_response_data", iter_timing);
         }
