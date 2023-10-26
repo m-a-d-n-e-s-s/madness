@@ -1195,12 +1195,16 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi, const X
 
         for (const auto &i: Chi.active) {
             auto temp = kain_x_space[i].update(x_vectors[i], x_residuals[i]);
+            truncate(world, temp);
             std::copy(temp.begin(), temp.begin() + n, kain_update.x[i].begin());
             std::copy(temp.begin() + n, temp.end(), kain_update.y[i].begin());
         };
     } else {
         // first compute the residuals
-        for (const auto &i: Chi.active) { kain_update.x[i] = kain_x_space[i].update(chi.x[i], residual_chi.x[i]); }
+        for (const auto &i: Chi.active) { kain_update.x[i] = kain_x_space[i].update(chi.x[i], residual_chi.x[i]);
+            // truncate the update
+            truncate(world, kain_update.x[i]);
+        }
     }
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "kain_x_update", "kain_x_update", iter_timing); }
     return kain_update;
@@ -1222,7 +1226,8 @@ void ResponseBase::x_space_step_restriction(World &world, const X_space &old_Chi
         auto m_new = to_response_matrix(temp);
         auto m_diff = to_response_matrix(diff);
 
-        for (size_t b = 0; b < m; b++) {
+        // only restrict active states
+        for (const auto &b: old_Chi.active) {
             auto step_size = norm2(world, m_diff[b]);
             auto norm_xb = norm2(world, m_old[b]);
             auto max_step = max_bsh_rotation;//norm;//* norm_xb;
