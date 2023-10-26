@@ -257,10 +257,14 @@ auto FrequencyResponse::update_response(World &world, X_space &chi, XCOperator<d
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
     auto x = chi.copy();
+    auto chi_norm=x.norm2s();
+    if (world.rank()==0) {
+        print("x before bsh update: ",chi_norm);
+    }
     X_space theta_X = compute_theta_X(world, x, rho_old, xc, r_params.calc_type());
     X_space new_chi = bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
-    auto chi_norm=new_chi.norm2s();
+     chi_norm=new_chi.norm2s();
     if (world.rank()==0) {
         print("new_chi_norm after bsh update: ",chi_norm);
     }
@@ -307,8 +311,12 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X, std:
         theta_X.x = theta_X.x * -2;
         theta_X.x.truncate_rf();
     }
+    auto chi_norm=theta_X.norm2s();
+    if (world.rank()==0) {
+        print("In bsh after theta_X+PQ: ",chi_norm);
+    }
     // apply bsh
-    X_space bsh_X(world, m, n);
+    X_space bsh_X=X_space::zero_functions(world, m, n);
     bsh_X.set_active(theta_X.active);
     bsh_X.x = apply(world, bsh_x_ops, theta_X.x);
     if (compute_y) { bsh_X.y = apply(world, bsh_y_ops, theta_X.y); }
@@ -319,6 +327,10 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X, std:
         bsh_X.x.truncate_rf();
     }
 
+    chi_norm=bsh_X.norm2s();
+    if (world.rank()==0) {
+        print("In bsh after apply: ",chi_norm);
+    }
     auto apply_projector = [&](auto &xi) { return projector(xi); };
     if (compute_y) {
         bsh_X = oop_apply(bsh_X, apply_projector);
