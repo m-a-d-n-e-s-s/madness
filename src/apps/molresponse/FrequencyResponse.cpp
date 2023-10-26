@@ -192,11 +192,7 @@ void FrequencyResponse::iterate(World &world) {
         iter_function_data["r_d"] = old_density_residual;
 
 
-        if (compute_y) {
-            Chi = new_chi.copy();
-        } else {
-            Chi.x = new_chi.x.copy();
-        }
+        Chi= new_chi.copy();
 
         if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
         x_residual = copy(new_res.residual_norms);
@@ -221,8 +217,6 @@ void FrequencyResponse::iterate(World &world) {
                 printf("\n--------Response Properties after %d-------------\n", static_cast<int>(iter));
                 print("<<X,P>> at omega =", omega);
                 print(polar);
-                print("res r<<X,P>> at omega =", omega);
-                print(res_polar);
             }
         }
         if (r_params.print_level() >= 1) {
