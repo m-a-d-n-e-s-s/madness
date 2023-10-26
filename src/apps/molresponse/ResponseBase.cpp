@@ -1174,7 +1174,7 @@ auto ResponseBase::update_residual(World &world, const X_space &chi, const X_spa
 }
 
 auto ResponseBase::kain_x_space_update(World &world, const X_space &chi, const X_space &residual_chi,
-                                       response_solver &kain_x_space, double max_rotation) -> X_space {
+                                       response_solver &kain_x_space) -> X_space {
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     size_t m = chi.num_states();
     size_t n = chi.num_orbitals();

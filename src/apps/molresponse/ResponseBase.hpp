@@ -679,7 +679,7 @@ protected:
 
 
     auto kain_x_space_update(World &world, const X_space &chi, const X_space &residual_chi,
-                             response_solver &kain_x_space, double max_rotation) -> X_space;
+                             response_solver &kain_x_space) -> X_space;
 
     void x_space_step_restriction(World &world, const X_space &old_Chi, X_space &temp, bool restrict_y,
                                   const double &max_bsh_rotation);
