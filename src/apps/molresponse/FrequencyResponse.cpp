@@ -69,16 +69,7 @@ void FrequencyResponse::iterate(World &world) {
     auto bsh_x_ops = make_bsh_operators_response(world, x_shifts, omega);
     std::vector<poperatorT> bsh_y_ops;
     bsh_y_ops = (compute_y) ? make_bsh_operators_response(world, y_shifts, -omega) : bsh_x_ops;
-    auto max_rotation = .5;
-    if (thresh >= 1e-2) {
-        max_rotation = 2;
-    } else if (thresh >= 1e-4) {
-        max_rotation = 2 * x_residual_target;
-    } else if (thresh >= 1e-6) {
-        max_rotation = 2 * x_residual_target;
-    } else if (thresh >= 1e-7) {
-        max_rotation = .01;
-    }
+    auto max_rotation = .25 * x_residual_target + x_residual_target;
     PQ = generator(world, *this);
     PQ.truncate();
 
@@ -281,7 +272,7 @@ auto FrequencyResponse::update_response(World &world, X_space &chi, XCOperator<d
     auto [new_res, bsh] = update_residual(world, chi, new_chi, r_params.calc_type(), old_residuals, xres_old);
     inner_to_json(world, "r_x", response_context.inner(new_res, new_res), iter_function_data);
     if (iteration >= 0) {// & (iteration % 3 == 0)) {
-        new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
+        new_chi = kain_x_space_update(world, chi, new_res, kain_x_space, max_rotation);
     }
     inner_to_json(world, "x_update", response_context.inner(new_chi, new_chi), iter_function_data);
 

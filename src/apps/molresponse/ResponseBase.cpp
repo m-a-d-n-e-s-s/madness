@@ -1174,24 +1174,42 @@ auto ResponseBase::update_residual(World &world, const X_space &chi, const X_spa
 }
 
 auto ResponseBase::kain_x_space_update(World &world, const X_space &chi, const X_space &residual_chi,
-                                       response_solver &kain_x_space) -> X_space {
+                                       response_solver &kain_x_space, double max_rotation) -> X_space {
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
     size_t m = chi.num_states();
     size_t n = chi.num_orbitals();
     X_space kain_update = chi.copy();
     response_matrix update(m);
 
+    // compute the norm of the residuals
+
+
+    Tensor<double> residual_norms(m);
+
     bool compute_y = r_params.omega() != 0.0;
     if (compute_y) {
         auto x_vectors = to_response_matrix(chi);
         auto x_residuals = to_response_matrix(residual_chi);
+        // compute the norm of the residuals
+        for (const auto &b: chi.active) { residual_norms(b) = norm2(world, x_residuals[b]); }// / norm2(world, gx[b]); }
+
         for (const auto &i: Chi.active) {
-            auto temp = kain_x_space[i].update(x_vectors[i], x_residuals[i]);
-            std::copy(temp.begin(), temp.begin() + n, kain_update.x[i].begin());
-            std::copy(temp.begin() + n, temp.end(), kain_update.y[i].begin());
+            if (residual_norms(i) > max_rotation) {
+                auto temp = kain_x_space[i].update(x_vectors[i], x_residuals[i]);
+                std::copy(temp.begin(), temp.begin() + n, kain_update.x[i].begin());
+                std::copy(temp.begin() + n, temp.end(), kain_update.y[i].begin());
+            }
         };
     } else {
-        for (const auto &i: Chi.active) { kain_update.x[i] = kain_x_space[i].update(chi.x[i], residual_chi.x[i]); }
+        // first compute the residuals
+        for (const auto &b: chi.active) {
+            residual_norms(b) = norm2(world, residual_chi.x[b]);
+        }// / norm2(world, g_chi.x[b]); }
+        for (const auto &i: Chi.active) {
+            if (residual_norms(i) > max_rotation) {
+                kain_update.x[i] = kain_x_space[i].update(chi.x[i], residual_chi.x[i]);
+            }
+        }
     }
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "kain_x_update", "kain_x_update", iter_timing); }
     return kain_update;
