@@ -1178,7 +1178,6 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi, const X
     size_t m = chi.num_states();
     size_t n = chi.num_orbitals();
     X_space kain_update = chi.copy();
-    kain_update.set_active(chi.active);
     response_matrix update(m);
 
     // compute the norm of the residuals
@@ -1205,6 +1204,12 @@ auto ResponseBase::kain_x_space_update(World &world, const X_space &chi, const X
             truncate(world, kain_update.x[i]);
         }
     }
+
+    // print the norms of chi and chi + update
+
+
+
+
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "kain_x_update", "kain_x_update", iter_timing); }
     return kain_update;
 }

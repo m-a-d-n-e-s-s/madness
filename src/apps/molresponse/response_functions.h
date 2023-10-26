@@ -321,7 +321,7 @@ namespace madness {
         // Mimicing standard madness calls with these 3
         void zero() {
             auto &world = x[0][0].world();
-            for (int i = 0; i < num_states; i++) { x[i] = zero_functions<double, 3>(world, num_orbitals, false); }
+            for (auto&i:active) { x[i] = zero_functions<double, 3>(world, num_orbitals, false); }
         }
 
         void compress_rf() {
