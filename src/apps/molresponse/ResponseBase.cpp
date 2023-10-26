@@ -1155,8 +1155,7 @@ auto ResponseBase::update_residual(World &world, const X_space &chi, const X_spa
     bool compute_y = r_params.omega() != 0.0;
     //	compute residual
     Tensor<double> residual_norms = copy(old_residuals);
-    X_space res = xres_old.copy();
-    res.set_active(chi.active);
+    X_space res(world, m, n);
     if (compute_y) {
         res = chi - g_chi;
         auto rx = to_response_matrix(res);
