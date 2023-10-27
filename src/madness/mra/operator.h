@@ -1757,19 +1757,7 @@ namespace madness {
 
 												   int k=FunctionDefaults<3>::get_k())
     {
-        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
-        double hi = cell_width.normf(); // Diagonal width of cell
-        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
-
-        GFit<double,3> fit=GFit<double,3>::CoulombFit(lo,hi,eps,false);
-		Tensor<double> coeff=fit.coeffs();
-		Tensor<double> expnt=fit.exponents();
-
-
-        if (bc(0,0) == BC_PERIODIC) {
-            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
-        }
-        return SeparatedConvolution<double,3>(world, coeff, expnt, lo, eps, bc, k);
+        return SeparatedConvolution<double,3>(world,OperatorInfo(0.0,lo,eps,OT_G12),bc,k);
     }
 
 
@@ -1782,17 +1770,7 @@ namespace madness {
                                                        const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
                                                        int k=FunctionDefaults<3>::get_k())
     {
-        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
-        double hi = cell_width.normf(); // Diagonal width of cell
-        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
-        GFit<double,3> fit=GFit<double,3>::CoulombFit(lo,hi,eps,false);
-		Tensor<double> coeff=fit.coeffs();
-		Tensor<double> expnt=fit.exponents();
-
-        if (bc(0,0) == BC_PERIODIC) {
-            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
-        }
-        return new SeparatedConvolution<double,3>(world, coeff, expnt, lo, eps, bc, k);
+        return new SeparatedConvolution<double,3>(world,OperatorInfo(0.0,lo,eps,OT_G12),bc,k);
     }
 
 
@@ -1896,6 +1874,13 @@ namespace madness {
                                                                    const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
                                                                    int k=FunctionDefaults<3>::get_k()) {
         return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F212),bc,k);
+    }
+
+    static inline SeparatedConvolution<double,3>* SlaterF12sqOperatorPtr(World& world,
+                                                                       double mu, double lo, double eps,
+                                                                       const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                                                                       int k=FunctionDefaults<3>::get_k()) {
+        return new SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F212),bc,k);
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r) in 3D

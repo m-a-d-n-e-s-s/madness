@@ -4444,6 +4444,8 @@ namespace madness {
         /// reconstruct this tree -- respects fence
         void reconstruct(bool fence);
 
+        void change_tree_state(const TreeState finalstate, bool fence=true);
+
         // Invoked on node where key is local
         //        void reconstruct_op(const keyT& key, const tensorT& s);
         void reconstruct_op(const keyT& key, const coeffT& s, const bool accumulate_NS=true);

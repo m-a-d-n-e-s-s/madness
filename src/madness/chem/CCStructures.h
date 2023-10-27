@@ -742,7 +742,9 @@ protected:
 
     friend std::shared_ptr<CCConvolutionOperator> combine(const std::shared_ptr<CCConvolutionOperator>& a,
                                          const std::shared_ptr<CCConvolutionOperator>& b) {
-        auto bla=combine(*a,*b);
+        if (a and (not b)) return a;
+        if ((not a) and b) return b;
+        if ((not a) and (not b)) return nullptr;
         return std::shared_ptr<CCConvolutionOperator>(new CCConvolutionOperator(combine(*a,*b)));
     }
 

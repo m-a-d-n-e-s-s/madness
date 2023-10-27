@@ -421,6 +421,12 @@ CCConvolutionOperator::init_op(const OpType& type, const Parameters& parameters)
                           << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
             return SlaterF12OperatorPtr(world, parameters.gamma, parameters.lo, parameters.thresh_op);
         }
+        case OpType::OT_F212 : {
+            if (printme)
+                std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
+                          << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
+            return SlaterF12sqOperatorPtr(world, parameters.gamma, parameters.lo, parameters.thresh_op);
+        }
         case OpType::OT_SLATER : {
             if (printme)
                 std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
@@ -491,6 +497,12 @@ assign_name(const OpType& input) {
             return "bsh";
         case OpType::OT_ONE:
             return "identity";
+        case OpType::OT_GAUSS:       /// exp(-r2)
+            return "gauss";
+        case OpType::OT_F212:        /// (1-exp(-r))^2
+            return "f12^2";
+        case OpType::OT_F2G12:       /// (1-exp(-r))^2/r = 1/r + exp(-2r)/r - 2 exp(-r)/r
+            return "f12^2g";
         default: {
             MADNESS_EXCEPTION("Unvalid enum assignement!", 1);
             return "undefined";

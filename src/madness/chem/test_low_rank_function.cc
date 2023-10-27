@@ -109,6 +109,7 @@ int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
     LRFunctorF12<double,6> lrfunctor(f12,phi1,phi1);
     double cpu0=cpu_time();
     auto lrf=LowRankFunctionFactory<double,6>(parameters).project(lrfunctor);
+    lrf.do_print=true;
 //    plot_plane<6>(world,lrfunctor,"plot_original."+id,PlotParameters(world).set_plane({"x1","x4"}));
     double cpu1=cpu_time();
     double error1=lrf.l2error(lrfunctor);
@@ -172,6 +173,7 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
     parameters.print("grid");
 
     real_convolution_3d g12=(CoulombOperator(world,1.e-6,FunctionDefaults<LDIM>::get_thresh()));
+    g12.particle()=1;
     std::shared_ptr<real_convolution_3d> f12ptr;
     std::string f12type=parameters.f12type();
     if (f12type=="slaterf12") f12ptr.reset(SlaterF12OperatorPtr(world,parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
@@ -184,7 +186,7 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
     real_function_3d phi=real_factory_3d(world).f([](const coord_3d& r){return exp(-r.normf());});
     double n=phi.norm2();
     phi.scale(1/n);
-    real_function_3d phi_k=phi; // lookys silly, helps reading.
+    real_function_3d phi_k=phi; // looks silly, helps reading.
 
 
     // reference term ( < ij | K(1) )  = <Ki(1) j(2) |
@@ -222,7 +224,9 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
         Tensor<double> j_hj = inner(world, phi, hj);
         Tensor<double> i_gk = inner(world, phi, gk);
         double result_right = j_hj.trace(i_gk);
-        print(msg, result_right);
+        print(msg,"norm ", result_right);
+        print(msg,"error", result_right-reference);
+        print(msg,"rank ", lrf.rank());
         j[msg]=result_right-reference;
         j[msg+"_rank"]=lrf.rank();
         j[msg+"_compute_time"]=t.tag(msg+"_compute_time");
@@ -230,7 +234,7 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
     };
 
 
-    {
+    if (1) {
         // lowrankfunction left phi: lrf(1',2) = f12(1',2) i(1')
         // K f12 ij = \sum_k k(1) \int g(1,1') f12(1'2) i(1') j(2) k(1') d1'
         //          = \sum_kr k(1) j(2) \int g(1,1') g_r(1') h_r(2) k(1') d1'
@@ -254,54 +258,101 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
         json2file(j,jsonfilename);
         compute_error("left_optimize",fi_one);
 
-        fi_one.reorthonormalize();
-        j["left_reorthonormalize"]=t.tag("left_reorthonormalize");
-        json2file(j,jsonfilename);
-        compute_error("left_reorthonormalize",fi_one);
+//        fi_one.reorthonormalize();
+//        j["left_reorthonormalize"]=t.tag("left_reorthonormalize");
+//        json2file(j,jsonfilename);
+//        compute_error("left_reorthonormalize",fi_one);
+
+        LowRankFunction<double,6> phi0(world);
+        phi0.g={phi};
+        phi0.h={phi};
+
+        timer t2(world);
+        // this is f12|ij>
+        auto f12ij=copy(fi_one);
+        f12ij.h=f12ij.h*phi;
+        double result1=inner(phi0,f12ij);
+        print("<ij | f12 | ij>",result1);
+        t2.tag("multiply 1(1)* phi(1))");
+
+        // this is f12|(ki) j>
+        auto f12kij=copy(f12ij);
+        f12kij.g=f12kij.g*phi;
+        double result3=inner(phi0,f12kij);
+        print("<ij | f12 | (ki) j>",result3);
+        t2.tag("multiply 1");
+
+        // this is g(f12|(ki) j>);
+        auto gf12kij=copy(f12kij);
+        gf12kij.g=g12(f12kij.g);
+        double result2=inner(phi0,gf12kij);
+        print("<ij | g(f12 | (ki) j>)",result2);
+        t2.tag("apply g ");
+
+        // this is kg(f12|(ki) j>);
+        auto kgf12kij=copy(gf12kij);
+        kgf12kij.g=gf12kij.g * phi;
+        double result4=inner(phi0,kgf12kij);
+        print("<ij | k g(f12 | (ki) j>)",result4);
+        t2.tag("apply g ");
     }
 
-//    // lowrankfunction right phi: lrf(1',2) = f12(1',2) i(1')
-//    {
-//        real_function_3d one = real_factory_3d(world).f([](const coord_3d &r) { return 1.0; });
-//        LowRankFunction<double, 6> fi_one(f12ptr, copy(one), copy(phi));
-//        fi_one.project(parameters);
-//        std::swap(fi_one.g,fi_one.h);
-//        j["right_project_time"]=t.tag("right_project_time");
-//        json2file(j,jsonfilename);
-//
-//
-//        {
-//            auto gk = mul(world, phi_k, g12(fi_one.g * phi_k)); // function of 1
-//            auto hj = fi_one.h * phi; // function of 2
-//            Tensor<double> j_hj = inner(world, phi, hj);
-//            Tensor<double> i_gk = inner(world, phi, gk);
-//            double result_right = j_hj.trace(i_gk);
-//            print("result_right, project only", result_right);
-//            j["right_project"]=result_right-reference;
-//            j["right_project_rank"]=fi_one.rank();
-//            j["left_optimize_compute_time"]=t.tag("left_optimize_compute_time");
-//            j["right_project_compute_time"]=t.tag("right_project_compute_time");
-//        }
-//        json2file(j,jsonfilename);
-//        std::swap(fi_one.g,fi_one.h);
-//        fi_one.optimize();
-//        std::swap(fi_one.g,fi_one.h);
-//        {
-//            auto gk = mul(world, phi_k, g12(fi_one.g * phi_k)); // function of 1
-//            auto hj = fi_one.h * phi; // function of 2
-//            Tensor<double> j_hj = inner(world, phi, hj);
-//            Tensor<double> i_gk = inner(world, phi, gk);
-//            double result_right = j_hj.trace(i_gk);
-//            print("result_right, optimize", result_right);
-//            j["right_optimize"]=result_right-reference;
-//            j["right_optimize_rank"]=fi_one.rank();
-//            j["right_optimize_compute_time"]=t.tag("right_optimize_compute_time");
-//        }
-//        json2file(j,jsonfilename);
-//
-//    }
 
-    return 0;
+    // apply exchange operator in 6d
+//    if (f12type=="slaterf12") {
+    if (1) {
+//        FunctionDefaults<3>::print();
+//        FunctionDefaults<6>::print();
+        real_function_6d phi0=CompositeFactory<double,6,3>(world).particle1(phi).particle2(phi);
+
+        double thresh=FunctionDefaults<3>::get_thresh();
+        double dcut=1.e-6;
+        real_function_6d tmp=TwoElectronFactory(world).dcut(dcut).gamma(parameters.gamma()).f12().thresh(thresh);
+        real_function_6d f12ij=CompositeFactory<double,6,3>(world).g12(tmp).particle1(copy(phi)).particle2(copy(phi));
+
+        timer t(world);
+        f12ij.fill_tree();
+        t.tag("exchange: fill_tree");
+        f12ij.print_size("f12ij");
+
+        auto result1=madness::inner(phi0,f12ij);
+        print("<ij | f12 | ij>", result1);
+        double reference1=inner(phi*phi,f12(phi*phi));
+        print("reference <ij |f12 | ij>",reference1);
+
+
+        real_function_6d kf12ij=multiply(f12ij,copy(phi_k),1);
+        kf12ij.print_size("kf12ij");
+        t.tag("exchange: multiply 1");
+
+        auto result2=madness::inner(phi0,kf12ij);
+        print("<ij | f12 | (ki) j>", result2);
+        double reference2=inner(phi*phi,f12(phi*phi*phi));
+        print("reference <ij |f12 | (ki) j>",reference2);
+
+        kf12ij.change_tree_state(reconstructed);
+        real_function_6d gkf12ij=g12(kf12ij).truncate();
+        gkf12ij.print_size("gkf12ij");
+        t.tag("exchange: apply g");
+
+        auto result3=madness::inner(phi0,gkf12ij);
+        print("<ij | g(1'1) f12 | (ki) j>", result3);
+        double reference3=inner(phi*phi,f12(phi*phi*g12(copy(phi))));
+        print("reference <ij | g(1'1) f12 | (ki) j>",reference3);
+
+
+        auto exf12ij=multiply(gkf12ij,copy(phi_k),1).truncate();
+        exf12ij.print_size("exf12ij");
+        t.tag("exchange: multiply 2");
+
+        auto result=madness::inner(phi0,exf12ij);
+        print("<ij | K1 f12 | ij>", result);
+        print("error",result-reference);
+
+
+    }
+
+    return t1.end();
 
 }
 
@@ -648,12 +699,17 @@ int main(int argc, char **argv) {
     double thresh  = parser.key_exists("thresh") ? std::stod(parser.value("thresh")) : 1.e-5;
     FunctionDefaults<6>::set_tensor_type(TT_2D);
 
+
+    FunctionDefaults<3>::set_truncate_mode(1);
+    FunctionDefaults<6>::set_truncate_mode(1);
+
     FunctionDefaults<1>::set_thresh(thresh);
     FunctionDefaults<2>::set_thresh(thresh);
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<4>::set_thresh(thresh);
     FunctionDefaults<5>::set_thresh(thresh);
     FunctionDefaults<6>::set_thresh(thresh);
+    FunctionDefaults<6>::set_thresh(1.e-3);
 
     FunctionDefaults<1>::set_k(k);
     FunctionDefaults<2>::set_k(k);
@@ -674,9 +730,9 @@ int main(int argc, char **argv) {
           FunctionDefaults<6>::get_thresh());
     LowRankFunctionParameters parameters;
     parameters.read_and_set_derived_values(world,parser,"grid");
-    parameters.set_user_defined_value("radius",3.0);
-    parameters.set_user_defined_value("volume_element",2.e-2);
-    parameters.set_user_defined_value("tol",1.0e-10);
+//    parameters.set_user_defined_value("radius",3.0);
+//    parameters.set_user_defined_value("volume_element",2.e-2);
+//    parameters.set_user_defined_value("tol",1.0e-10);
     parameters.print("grid");
     int isuccess=0;
 #ifdef USE_GENTENSOR
@@ -696,8 +752,8 @@ int main(int argc, char **argv) {
 //        isuccess+=test_inner<1>(world,parameters);
 //        isuccess+=test_inner<2>(world,parameters);
 
-        parameters.set_user_defined_value("volume_element",1.e-1);
-        isuccess+=test_lowrank_function(world,parameters);
+//        parameters.set_user_defined_value("volume_element",1.e-1);
+//        isuccess+=test_lowrank_function(world,parameters);
         isuccess+=test_Kcommutator(world,parameters);
     } catch (std::exception& e) {
         madness::print("an error occured");

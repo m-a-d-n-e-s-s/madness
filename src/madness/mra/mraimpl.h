@@ -1505,6 +1505,111 @@ namespace madness {
         }
     }
 
+    /// change the tree state of this function, might or might not respect fence!
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::change_tree_state(const TreeState finalstate, bool fence) {
+
+        TreeState current_state=get_tree_state();
+        if (current_state==finalstate) return;
+
+        // very special case
+        if (get_tree_state()==nonstandard_after_apply) {
+            MADNESS_CHECK(finalstate==reconstructed);
+            reconstruct(fence);
+            return;
+        }
+        MADNESS_CHECK_THROW(current_state!=TreeState::nonstandard_after_apply,"unknown tree state");
+        bool must_fence=false;
+
+        if (finalstate==reconstructed) {
+            if (current_state==reconstructed) return;
+            if (current_state==compressed) reconstruct(fence);
+            if (current_state==nonstandard) reconstruct(fence);
+            if (current_state==nonstandard_with_leaves) remove_internal_coefficients(fence);
+            if (current_state==redundant) remove_internal_coefficients(fence);
+            set_tree_state(reconstructed);
+        } else if (finalstate==compressed) {
+            if (current_state==reconstructed) compress(compressed,fence);
+            if (current_state==compressed) return;
+            if (current_state==nonstandard) standard(fence);
+            if (current_state==nonstandard_with_leaves) standard(fence);
+            if (current_state==redundant) {
+                remove_internal_coefficients(true);
+                must_fence=true;
+                set_tree_state(reconstructed);
+                compress(compressed,fence);
+            }
+            set_tree_state(compressed);
+        } else if (finalstate==nonstandard) {
+            if (current_state==reconstructed) compress(nonstandard,fence);
+            if (current_state==compressed) {
+                reconstruct(true);
+                must_fence=true;
+                compress(nonstandard,fence);
+            }
+            if (current_state==nonstandard) return;
+            if (current_state==nonstandard_with_leaves) remove_leaf_coefficients(fence);
+            if (current_state==redundant) {
+                remove_internal_coefficients(true);
+                must_fence=true;
+                set_tree_state(reconstructed);
+                compress(nonstandard,fence);
+            }
+            set_tree_state(nonstandard);
+        } else if (finalstate==nonstandard_with_leaves) {
+            if (current_state==reconstructed) compress(nonstandard_with_leaves,fence);
+            if (current_state==compressed) {
+                reconstruct(true);
+                must_fence=true;
+                compress(nonstandard_with_leaves,fence);
+            }
+            if (current_state==nonstandard) {
+                standard(true);
+                must_fence=true;
+                reconstruct(true);
+                compress(nonstandard_with_leaves,fence);
+            }
+            if (current_state==nonstandard_with_leaves) return;
+            if (current_state==redundant) {
+                remove_internal_coefficients(true);
+                must_fence=true;
+                set_tree_state(reconstructed);
+                compress(nonstandard_with_leaves,fence);
+            }
+            set_tree_state(nonstandard_with_leaves);
+        } else if (finalstate==redundant) {
+            if (current_state==reconstructed) make_redundant(fence);
+            if (current_state==compressed) {
+                reconstruct(true);
+                must_fence=true;
+                make_redundant(fence);
+            }
+            if (current_state==nonstandard) {
+                standard(true);
+                must_fence=true;
+                reconstruct(true);
+                make_redundant(fence);
+            }
+            if (current_state==nonstandard_with_leaves) {
+                remove_internal_coefficients(true);
+                must_fence=true;
+                set_tree_state(reconstructed);
+                make_redundant(fence);
+            }
+            if (current_state==redundant) return;
+            set_tree_state(redundant);
+        } else {
+            MADNESS_EXCEPTION("unknown/unsupported final tree state",1);
+        }
+        if (must_fence and world.rank()==0) {
+            print("could not respect fence in change_tree_state");
+        }
+        if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
+        return;
+    }
+
+
+
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::reconstruct(bool fence) {
 
@@ -1841,7 +1946,7 @@ namespace madness {
 
         double end=wall_time();
         double elapsed=end-begin;
-        set_tree_state(nonstandard);
+        set_tree_state(nonstandard_after_apply);
         if (fence) world.gop.fence();
         return elapsed;
     }

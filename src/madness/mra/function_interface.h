@@ -201,15 +201,15 @@ namespace madness {
 
 		void make_redundant(const bool fence) {
 			// prepare base functions that make this function
-			if (impl_ket and (not impl_ket->is_on_demand())) impl_ket->make_redundant(false);
+			if (impl_ket and (not impl_ket->is_on_demand())) impl_ket->change_tree_state(redundant,false);
 			if (impl_eri) {
-				if (not impl_eri->is_on_demand()) impl_eri->make_redundant(false);
+				if (not impl_eri->is_on_demand()) impl_eri->change_tree_state(redundant,false);
 			}
-			if (impl_m1 and (not impl_m1->is_on_demand())) impl_m1->make_redundant(false);
-			if (impl_m2 and (not impl_m2->is_on_demand())) impl_m2->make_redundant(false);
+			if (impl_m1 and (not impl_m1->is_on_demand())) impl_m1->change_tree_state(redundant,false);
+			if (impl_m2 and (not impl_m2->is_on_demand())) impl_m2->change_tree_state(redundant,false);
 
-			if (impl_p1 and (not impl_p1->is_on_demand())) impl_p1->make_redundant(false);
-			if (impl_p2 and (not impl_p2->is_on_demand())) impl_p2->make_redundant(false);
+			if (impl_p1 and (not impl_p1->is_on_demand())) impl_p1->change_tree_state(redundant,false);
+			if (impl_p2 and (not impl_p2->is_on_demand())) impl_p2->change_tree_state(redundant,false);
 			if (fence) world.gop.fence();
 		}
 
@@ -522,28 +522,28 @@ namespace madness {
 			initialize(eps);
 		}
 
-		/// overload the function of the base class
-		coeffT coeff(const Key<6>& key) const {
-
-			Tensor<double> c=make_coeff(key);
-
-			// subtract 1 from the (0,0,..,0) element of the tensor,
-			// which is the 0th order polynomial coefficient
-        	double one_coeff1=1.0*sqrt(FunctionDefaults<6>::get_cell_volume())
-        			*pow(0.5,0.5*6*key.level());
-            std::vector<long> v0(6,0L);
-            c(v0)-=one_coeff1;
-
-			c.scale(-0.5/mu);
-            return coeffT(map_coeff(c),FunctionDefaults<6>::get_thresh(),TT_FULL);
-		}
+//		/// overload the function of the base class
+//		coeffT coeff(const Key<6>& key) const {
+//
+//			Tensor<double> c=make_coeff(key);
+//
+//			// subtract 1 from the (0,0,..,0) element of the tensor,
+//			// which is the 0th order polynomial coefficient
+//        	double one_coeff1=1.0*sqrt(FunctionDefaults<6>::get_cell_volume())
+//        			*pow(0.5,0.5*6*key.level());
+//            std::vector<long> v0(6,0L);
+//            c(v0)-=one_coeff1;
+//
+//			c.scale(-0.5/mu);
+//            return coeffT(map_coeff(c),FunctionDefaults<6>::get_thresh(),TT_FULL);
+//		}
 
 	private:
 
 		double mu;
 
 		GFit<double,3> fit(const double eps) const {
-			return GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
+			return GFit<double,3>::F12Fit(mu,lo,hi,eps,false);
 		}
 	};
 
