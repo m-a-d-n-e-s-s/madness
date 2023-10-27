@@ -613,8 +613,8 @@ public:
 
     // Test the basic class functionality --- this is not yet a unit test
     static bool test() {
-        size_t nknots = 50;
-        size_t order = 12; 
+        size_t nknots = 15;
+        size_t order = 6; 
         T xlo = 0;//1e-5; //-1; //-constants::pi;
         T xhi = 25;  //2*constants::pi;
         T xtest = 1; //0.5*(xhi+xlo);
@@ -637,7 +637,12 @@ public:
         // }
         
         //print(B.tabulate_basis(knots));
-        //print(B.tabulate_basis(xsam));
+        {
+            auto xxsam = oversample_knots(oversample_knots(oversample_knots(oversample_knots(xsam))));
+            auto A = B.tabulate_basis(xxsam);
+            Gnuplot G("set style data lines; set title 'B-spline basis'; set xlabel 'x'; set ylabel 'b[i](x)'; set key off","basis.gnuplot");
+            gnuplot_tensor(G, xxsam, A);
+        }
 
         Tensor<T> f(nsam), df(nsam), d2f(nsam);
         for (size_t i=0; i<nsam; i++) {
@@ -1261,6 +1266,23 @@ public:
     }
 };
 
+// The spherical component of the GF is 2 (H(r-s) h(r) j(s) + H(s-r) h(s) j(r)) with
+// * H the Heaviside function
+// * h(r) = exp(-mu*r)/r
+// * j(s) = sinh(mu*s)/(mu*s) = (exp(mu*s) - exp(-mu*s))/(2*mu*s)
+// When applying to a function f(r) the first term gives the integral
+// (1/mu r) int_0^r s (exp(-mu*(r-s)) - exp(-mu*(r+s))) f(s) ds
+// and the second term gives the integral
+// (1/mu r) int_r^inf s (exp(-mu*(s-r)) - exp(-mu*(s+r))) f(s) ds
+// In both of the these the arguments to the exponentials are negative so nothing blows up.
+// These are again computed using GL quadrature.
+// int_0^r g(r) = \sum^{whole knot intervals} + \sum^{partial knot interval}
+// whole knot intervals are easy because they reuse the current quadrature points
+// \int_{interval} = sum_{quadrature points} w_i g(x_i) with w_i and x_ from XW as usual
+// For a partial interval, we need additional quadrature points since the range is now
+// [lo,r] or [r,hi].  Note you dont need both since [r,hi] = [lo,hi] - [lo,r], the former being the full interval.
+// 
+
 
 // // Make the matrix that applies the second derivative after projecting into a a two higher order basis.
 // // Gives us 1 order higher accuracy and produces a result in the same order basis as the input.
@@ -1321,7 +1343,7 @@ int main() {
     //BsplineBasis<double,KnotsUniform<double>>::test();
     //BsplineBasis<double,KnotsChebyshev<double>>::test();
     //BsplineBasis<double,KnotsGeometricShifted<double>>::test();
-    //BsplineBasis<double,KnotsRational<double>>::test();
+    BsplineBasis<double,KnotsRational<double>>::test();
     BsplineFunction<double>::test();
     return 0;
 }
