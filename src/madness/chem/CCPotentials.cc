@@ -3420,7 +3420,6 @@ void CCPotentials::test() {
     CCState test5 = GROUND_STATE;
     PotentialType test6 = POT_F3D_;
     assign_name(test2);
-    assign_name(test3);
     assign_name(test4);
     assign_name(test5);
     assign_name(test6);

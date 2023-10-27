@@ -88,6 +88,7 @@ int main(int argc, char** argv) {
 						hf_energy,mp2_energy,hf_energy+mp2_energy);
 			}
             double mp3_correction=mp2.mp3();
+
             print("mp3 correction",mp3_correction);
             double mp3_energy=mp3_correction+mp2_energy;
             if(world.rank() == 0) {

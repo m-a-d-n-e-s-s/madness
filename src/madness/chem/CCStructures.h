@@ -54,10 +54,6 @@ enum PotentialType {
 std::string
 assign_name(const CCState& input);
 
-/// Assigns strings to enums for formated output
-std::string
-assign_name(const OpType& input);
-
 /// Assigns enum to string
 CalcType
 assign_calctype(const std::string name);
@@ -722,8 +718,7 @@ struct CCConvolutionOperator {
     /// @param[in] optype: the operatortype (can be g12_ or f12_)
     /// @param[in] param: the parameters of the current CC-Calculation (including function and operator thresholds and the exponent for f12)
     CCConvolutionOperator(World& world, const OpType type, Parameters param) : parameters(param), world(world),
-                                                                               operator_type(type),
-                                                                               op(init_op(operator_type, parameters)) {
+                                                                               op(init_op(type, parameters)) {
     }
 
     CCConvolutionOperator(const CCConvolutionOperator& other) = default;
@@ -806,7 +801,11 @@ public:
     void update_elements(const CC_vecfunction& bra, const CC_vecfunction& ket);
 
     /// @param[out] prints the name of the operator (convenience) which is g12 or f12 or maybe other things like gf in the future
-    std::string name() const { return assign_name(operator_type); }
+    std::string name() const {
+        std::stringstream ss;
+        ss << type();
+        return ss.str();
+    }
 
     /// @param[in] the type of which intermediates will be deleted
     /// e.g if(type==HOLE) then all intermediates of type <mo_bra_k|op|HOLE> will be deleted
@@ -822,15 +821,15 @@ public:
     void print_intermediate(const FuncType type) const {
         if (type == HOLE)
             for (const auto& tmp:imH.allpairs)
-                tmp.second.print_size("<H" + std::to_string(tmp.first.first) + "|" + assign_name(operator_type) + "|H" +
+                tmp.second.print_size("<H" + std::to_string(tmp.first.first) + "|" + name() + "|H" +
                                       std::to_string(tmp.first.second) + "> intermediate");
         else if (type == PARTICLE)
             for (const auto& tmp:imP.allpairs)
-                tmp.second.print_size("<H" + std::to_string(tmp.first.first) + "|" + assign_name(operator_type) + "|P" +
+                tmp.second.print_size("<H" + std::to_string(tmp.first.first) + "|" + name() + "|P" +
                                       std::to_string(tmp.first.second) + "> intermediate");
         else if (type == RESPONSE)
             for (const auto& tmp:imR.allpairs)
-                tmp.second.print_size("<H" + std::to_string(tmp.first.first) + "|" + assign_name(operator_type) + "|R" +
+                tmp.second.print_size("<H" + std::to_string(tmp.first.first) + "|" + name() + "|R" +
                                       std::to_string(tmp.first.second) + "> intermediate");
     }
 
@@ -844,7 +843,7 @@ public:
         return TwoElectronFactory(world);
     }
 
-    OpType type() const { return operator_type; }
+    OpType type() const { return get_op()->info.type; }
 
     const Parameters parameters;
 
@@ -853,8 +852,6 @@ public:
 private:
     /// the world
     World& world;
-    /// the operatortype, currently this can be g12_ or f12_
-    const OpType operator_type = OpType::OT_UNDEFINED;
 
     /// @param[in] optype: can be f12_ or g12_ depending on which operator shall be intitialzied
     /// @param[in] parameters: parameters (thresholds etc)
@@ -870,7 +867,7 @@ private:
     /// the function will throw an MADNESS_EXCEPTION
     void error(const std::string& msg) const {
         if (world.rank() == 0)
-            std::cout << "\n\n!!!!ERROR in CCConvolutionOperator " << assign_name(operator_type) << ": " << msg
+            std::cout << "\n\n!!!!ERROR in CCConvolutionOperator " << name() << ": " << msg
                       << "!!!!!\n\n" << std::endl;
         MADNESS_EXCEPTION(msg.c_str(), 1);
     }
