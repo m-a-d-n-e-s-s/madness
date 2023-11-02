@@ -1122,7 +1122,12 @@ namespace madness {
       void operator=(const ThreadPool&) = delete;
       void operator=(ThreadPool&&) = delete;
 
-     private:
+      /// Get the number of threads from the environment.
+
+      /// \return The number of threads.
+      static int default_nthread();
+
+    private:
         friend class WorldTaskQueue;
 
         // Thread pool data
@@ -1146,11 +1151,6 @@ namespace madness {
         /// \todo Description needed.
         /// \param[in] nthread Description needed.
         ThreadPool(int nthread=-1);
-
-        /// Get the number of threads from the environment.
-
-        /// \return The number of threads.
-        int default_nthread();
 
        /// Run the next task.
 
