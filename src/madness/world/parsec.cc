@@ -226,13 +226,13 @@ namespace madness {
         if (*made_new_ctx) {
             parsec_context_wait(ctx);
             parsec_fini(&ctx);
-            if (nullptr != madness_comm_thread_es) {
+            ctx = nullptr;
+        }
+        if (nullptr != madness_comm_thread_es) {
               /* madness_comm_thread_es is just a copy of ES[0]. Resources (including es->profiling_es) are
              * actually freed during parsec_fini. Just need to free memory allocated to store it. */
               free(madness_comm_thread_es);
               madness_comm_thread_es = nullptr;
-            }
-            ctx = nullptr;
         }
     }
 
