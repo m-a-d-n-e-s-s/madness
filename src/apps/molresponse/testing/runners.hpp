@@ -472,13 +472,13 @@ void set_excited_parameters(World &world, ResponseParameters &r_params, const st
     if (world.rank() == 0) {
         if (precision == "high") {
             r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6, 1e-8});
-            r_params.set_user_defined_value<double>("dconv", 1e-6);
+            r_params.set_user_defined_value<double>("dconv", 1e-7);
         } else if (precision == "low") {
             r_params.set_user_defined_value<vector<double>>("protocol", {1e-4, 1e-6});
-            r_params.set_user_defined_value<double>("dconv", 1e-4);
+            r_params.set_user_defined_value<double>("dconv", 1e-5);
         } else {
             r_params.set_user_defined_value<vector<double>>("protocol", {1e-9});
-            r_params.set_user_defined_value<double>("dconv", 1e-6);
+            r_params.set_user_defined_value<double>("dconv", 1e-7);
         }
         //r_params.set_user_defined_value("archive", std::string("../restartdata"));
         r_params.set_user_defined_value("maxiter", size_t(15));
