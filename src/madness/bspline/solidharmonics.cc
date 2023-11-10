@@ -478,9 +478,10 @@ void test_Nlm() {
     }
 }
 
+// Now modified to compute coupling coeffs for the normalized harmonics
 template <typename T>
 auto threeJ() {
-    int lmax1 = 16;
+    int lmax1 = 4;
     int lmax2 = lmax1; // assumed equal below
     int lmax3 = lmax1 + lmax2; // Product order is sum of both
     
@@ -490,7 +491,7 @@ auto threeJ() {
     //std::vector<LebedevQuadrature> qs; // Use lowest order rule possible
     //for (int l=0; l<=2*lmax3; l++) qs.emplace_back(LebedevQuadrature(l));
 
-    std::cout << std::setprecision(6) << std::scientific;
+    std::cout << std::setprecision(14) << std::scientific;
 
     // Sparse storage for the 3j coeffs
     int lx4 = (lmax1+1)*(lmax1+1)*(lmax1+1)*(lmax1+1);
@@ -503,20 +504,20 @@ auto threeJ() {
     };
 
 
-    // N(l1,m1)*N(l2,m2) = sum(l3,m3) j(l1,m1,l2,m2,l3,m3) N(l3,m3)
-    // int(N(l1,m1)*N(l2,m2)*N(l3,m3)) = j(l1,m1,l2,m2,l3,m3) int(N(l3,m3)**2) by orthogonality
-    // --> j(l1,m1,l2,m2,l3,m3) = int(N(l1,m1)*N(l2,m2)*N(l3,m3)) * Nnorm(l3,m3)**2
-    
-    // But the function norms can be massive, so for screening small
-    // coeffs imagine using and projecting with the normalized
-    // functions
+    // since the function norms can be massive, we use and project with the normalized functions
     //
-    // N(l1,m1) N(l2,m2) Norm(l1,m1) Norm(l2,m2) = sum(l3,m3) j(l1,m1,l2,m2,l3,m3) N(l3,m3) Norm(l1,m1) Norm(l2,m2) Norm(l3,m3)
-    // int(N(l1,m1)*N(l2,m2)*N(l3,m3)) Norm(l1,m1) Norm(l2,m2) Norm(l3,m3) = j(l1,m1,l2,m2,l3,m3) Norm(l1,m1) Norm(l2,m2) / Norm(l3,m3)
+    // N(l1,m1) N(l2,m2) Norm(l1,m1) Norm(l2,m2) = sum(l3,m3) j(l1,m1,l2,m2,l3,m3) N(l3,m3) Norm(l3,m3)
+    // int(N(l1,m1)*N(l2,m2)*N(l3,m3)) Norm(l1,m1) Norm(l2,m2) Norm(l3,m3) = j(l1,m1,l2,m2,l3,m3) 
     // so the normalized 3j coeffs are
-    // Jnormalized(l1,m1,l2,m2,l3,m3) = j(l1,m1,l2,m2,l3,m3) Norm(l1,m1) Norm(l2,m2) / Norm(l3,m3)
+    // Jnormalized(l1,m1,l2,m2,l3,m3) = int(N(l1,m1)*N(l2,m2)*N(l3,m3)) Norm(l1,m1) Norm(l2,m2) Norm(l3,m3)
     // If this is small relative to unity, we can discard values.
-        
+
+    // To get the unnormalized coeffs recall how to orthogonalize with a non-normalized function
+    // fbar = f - int(f*g) g / (int(g*g))
+    // Junnormalized = int(N1*N2*N3)/int(N3*N3)
+    //               = int(N1*N2*N3)*Norm1*Norm2*Norm3/(Norm1*Norm2*Norm3/Norm3**2)
+    //               = Jnormalized*Norm3/(Norm1*Norm2)
+    
     for (int l1=0; l1<=lmax1; l1++) {
         for (int m1=-l1; m1<=l1; m1++) {
             for (int l2=0; l2<=l1; l2++) { // <<<<<<<<<<<<<< restrict range to save space
@@ -525,11 +526,11 @@ auto threeJ() {
                     NlmContainer<T> Nnorm = Nlm_normalization<T>(lmax4);
                     auto f = [&](T x, T y, T z) {
                         NlmContainer<T> v3 = Nlm(lmax4, x, y, z);
+                        v3 *= Nnorm;
                         T v1 = v3.value(l1,m1);
                         T v2 = v3.value(l2,m2);
-                        v3 *= Nnorm;
-                        v3 *= Nnorm;
-                        return v3*(v2*v1);
+                        v3 *= v1*v2;
+                        return v3;
                     };
 
                     auto C = qs[2*lmax4].cartesian_integral(f,1.0); // use lowest order possible
@@ -540,10 +541,15 @@ auto threeJ() {
                             // For screening small values need to include normalization of l1 and l2
                             // But need to partially undo that for l3 due to projection onto unnormalized functions
                             T j3value = C.value(l3,m3);
-                            T test = j3value*Nnorm.value(l1,m1)*Nnorm.value(l2,m2)/Nnorm.value(l3,m3);
+                            T test = j3value;
                             if (std::abs(test) > 1e-8) {
                                 //std::cout << std::setw(3) << l1 << " " << std::setw(3) << m1 << " " << std::setw(3) << l2 << " " << std::setw(3) << m2 << "   --> " << std::setw(3) << l3 << " " << std::setw(3) << m3 << " " << std::setw(15) << j3value << " " << test << std::endl;
                                 j3.push_back({l3,m3,j3value});
+
+                                if (l2==1 and m2==0) {
+                                    T unnorm = j3value*Nnorm.value(l3,m3)/(Nnorm.value(l1,m1)*Nnorm.value(l2,m2));
+                                    std::cout << std::setw(3) << l1 << " " << std::setw(3) << m1 << " " << std::setw(3) << l2 << " " << std::setw(3) << m2 << "   --> " << std::setw(3) << l3 << " " << std::setw(3) << m3 << " " << std::setw(15) << j3value << " " << unnorm << std::endl;
+                                }
                             }
                         }
                     }
@@ -583,6 +589,7 @@ void test_j3(int lmax1, const std::vector<std::pair<int,int>>& index, const std:
         r = 1;
 
         NlmContainer<T> N = Nlm(lmax3, x, y, z);
+        N *= Nnorm;
 
         T thresh = 500*std::numeric_limits<T>::epsilon();
         
@@ -602,9 +609,7 @@ void test_j3(int lmax1, const std::vector<std::pair<int,int>>& index, const std:
                             std::cout << std::setw(3) << l1 << " " << std::setw(3) << m1 << " " << std::setw(3) << l2 << " " << std::setw(3) << m2 << "  " << std::setw(15) << err << std::endl;
                         }
                         maxerr = std::max(err,maxerr);
-                        maxerrnorm = std::max(err*Nnorm.value(l1,m1)*Nnorm.value(l2,m2),maxerrnorm);
-                        T prodnormed = prod*Nnorm.value(l1,m1)*Nnorm.value(l2,m2);
-                        if (std::abs(prodnormed) > thresh)
+                        if (std::abs(prod) > thresh)
                             maxrelerr = std::max(err/prod,maxrelerr);
                     }
                 }
@@ -684,17 +689,17 @@ int main() {
         test_j3(lmax1, index, j3);
     }
 
-    {
-        std::cout << "Testing j3 with double-double\n";
-        auto [lmax1, index, j3] = threeJ<dd_real>();
-        test_j3(lmax1, index, j3);
+    // {
+    //     std::cout << "Testing j3 with double-double\n";
+    //     auto [lmax1, index, j3] = threeJ<dd_real>();
+    //     test_j3(lmax1, index, j3);
 
-        std::cout << "Testing j3 with double-double coeffs but in double\n";
-        std::vector<std::tuple<int,int,double>> j3d;
-        j3d.reserve(j3.size());
-        for (auto [l,m,v] : j3) {j3d.push_back({l,m,to_double(v)});}
-        test_j3(lmax1, index, j3d);
-    }        
+    //     std::cout << "Testing j3 with double-double coeffs but in double\n";
+    //     std::vector<std::tuple<int,int,double>> j3d;
+    //     j3d.reserve(j3.size());
+    //     for (auto [l,m,v] : j3) {j3d.push_back({l,m,to_double(v)});}
+    //     test_j3(lmax1, index, j3d);
+    // }        
 
     //std::ifstream f("gauleg.220bit");
  

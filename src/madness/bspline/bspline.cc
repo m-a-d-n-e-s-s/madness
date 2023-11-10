@@ -1074,7 +1074,7 @@ public:
         }
     }
 
-    static void test() {
+    static void test_fit() {
         const T Z = 10.0;
         size_t nknots = 61;
         size_t order = 20;
@@ -1085,6 +1085,24 @@ public:
 
         print("knots", bdataT::knots());
 
+        auto A = bdataT::basis_at_GL_points(); 
+        auto [X, W] = bdataT::quadrature();
+        size_t ltest = 1;
+        ?????????????????????????????
+        
+
+    }
+
+    static void test() {
+        const T Z = 10.0;
+        size_t nknots = 61;
+        size_t order = 20;
+        T xlo = 0.1; // a for KnotsRational //.01 for 103 //1e-7;
+        T xhi = 26.0;
+        
+        bdataT::init(order, nknots, xlo, xhi);
+
+        print("knots", bdataT::knots());
         auto f = [](scalarT x){ return std::exp(-x); };
         auto fdat = bdataT::tabulate(f);
         
@@ -1343,7 +1361,8 @@ int main() {
     //BsplineBasis<double,KnotsUniform<double>>::test();
     //BsplineBasis<double,KnotsChebyshev<double>>::test();
     //BsplineBasis<double,KnotsGeometricShifted<double>>::test();
-    BsplineBasis<double,KnotsRational<double>>::test();
-    BsplineFunction<double>::test();
+    //BsplineBasis<double,KnotsRational<double>>::test();
+    //BsplineFunction<double>::test();
+    BsplineFunction<double>::test_fit();
     return 0;
 }

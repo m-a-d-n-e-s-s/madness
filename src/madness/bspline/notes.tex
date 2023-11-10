@@ -16,6 +16,8 @@
 \setlength{\textwidth}{6.25in}
 
 \newcommand{\N}{\mathcal{N}}
+\newcommand{\rv}{\vb{r}}
+\newcommand{\rhat}{\hat{\rv}}
 
 \title{Notes on b-spline implementation}
 \date{\today}
@@ -25,28 +27,34 @@
 
 \maketitle
 
-This document is initially looking at the b-spline only implementation. 
+This document is initially looking at the b-spline-only implementation. 
 
 The functional form is
 \begin{eqnarray}
-  f(\vb{r}) & = & \sum_{l m} \N_{lm}(\hat{\vb{r}}) R_{lm}(r) \\
+  f(\vb{r}) & = & \sum_{l m} \N_{lm}(\rhat) r^l R_{lm}(r) \\
   R_{lm}(r) & = & \sum_i c_{lmi} b_i(r)
 \end{eqnarray}
 Comments:
 \begin{itemize}
-\item The usual spherical coordinate system with $r = |\vb(r)|$, $\theta$ ($z=r \cos \theta$), $\phi$.
-\item The $\N_{lm}(\hat{\vb{r}})$ where $\hat{r}$ is the unit vector are the real solid spherical harmonics of Yang normalized so that
+\item The usual spherical coordinate system with $r = |\rv| \in [0,\infty]$, $\theta \in [0,\pi]$ with $z=r \cos \theta$, and $\phi \in [0,2 \pi]$.
+\item The $\N_{lm}(\rhat)$ where $\hat{r}$ is the unit vector are the real solid spherical harmonics of Yang normalized so that
 \begin{eqnarray}
   \int_0^{2 \pi} d\phi \int_0^\pi d\theta \sin \theta  \N_{lm} (\hat{r}) \N_{l^\prime m^\prime}(\hat{r})  & = & \delta_{l l^\prime} \delta_{m m^\prime}
 \end{eqnarray}
 Note that Yang does not normalize his harmonics for ease of computing various quantities.  However, we need radial and angular components to be normalized so we can perform numerical thresholding without having to keep track of normalization constants, which for Yang's harmonics (denoted $N_{lm}$)  can be truly huge ($O(10^{2l})$ or worse).  Yang's normalization also results in $N_{10}=z$ but $N_{11}=-x/2$ and $N_{1-1}=-y/2$ and so potentially breaks symmetry.  
 \item $b_i(r)$ is a b-spline basis function defined on knots that include the origin. 
-\item For non-zero angular momentum $l$, we expect the radial functions to be of the form $r^l (a + b r + \cdots)$, thus to exactly represent these functions near the origin the degree of the b-spline should be $p \ge l$.
+\item We separate out the factor $r^l$, with these consequences:
+  \begin{enumerate}
+  \item Ensures correct behavior near the origin.  If we bundled $r^l$ into $R(r)$ then then degree of the b-spline basis would have to be greater than or equal to the maximum angular momentum for an exact representation.  Since some of the algorithms scale highly non-linearly with the order, we want to use order circa 8-12.
+  \item Since $r^l \N_{lm}(\rhat) = n_{lm} N_{lm}(\rv) \propto  x^i y^j z^k$ for $i+j+k=l$), we expect $R_{lm}(r)$ to tend to a non-zero constant near the origin (except for the Dirac $s$ components that are weakly singular there).  
+  \item Facilitates convolution with the Coulomb and Helmholtz GFs so we can exactly cancel factors such as $r^{-l}$.
+  \item Derivatives are also easier.
+  \end{enumerate}
 \end{itemize}
 
 \section{B-splines}
 
-The basis is specified by 
+Refer to standard references for details of the basis and associated algorithms.  The basis is specified by 
 \begin{itemize}
 \item $p$ --- the degree of the basis, and
 \item a vector of unique knots.
@@ -55,19 +63,19 @@ We employ the full set of b-splines over a vector of unique knots.  The definiti
 
 Thus, for a basis of degree $p$ (order $p+1$) and $m$ unique knots 
 \begin{itemize}
-\item they form a complete basis over the interval with approximation error $O\left(h^{r+p+1}\right)$ for a function with $r$ continuous derivatives 
+\item they form (in the limit of dense knots or infinite order) a complete basis over the interval with approximation error $O\left(h^{r+p+1}\right)$ for a function with $r$ continuous derivatives 
 \item the basis has $C_{p-1}$ continuity, meaning its value and all derivatives up to $p-1$ are continuous
 \item the number of padded knots is $m + 2p$
 \item the total number of basis functions is $m + p - 1$ 
 \item the number of basis functions non-zero over a given knot interval is $p + 1$
 \item each spline is non-zero over $p+1$ knot intervals and is controlled by $p+2$ knot values
-\item each spline is positive within its support
+\item each spline is positive within its support (and zero outside)
 \item the sum of all splines at each knot is unity by construction
 \item the fully interior sides of splines are zero at the end of their support along with their derivatives up to $p-1$
 \item splines touching the edge have lower number of vanishing derivatives, and only the first/last splines have non-zero values at the end points (and these values will be one by construction).
 \end{itemize}
 
-\section{Radial knots}
+\subsection{Radial knots}
 
 We are computing on the interval $[0,L]$ which we can obtain by scaling the unit interval $[0,1]$ by $L$.  By defining monotonicaly-increasing maps from $[0,1]$ back onto $[0,1]$ we can nest transformations.    For $n$ knots
 \begin{itemize}
@@ -84,6 +92,10 @@ The below figures display the basis with 15 knots, order 6, with uniform and rat
 \includegraphics[width=.9\linewidth]{basis.pdf}
 
 \includegraphics[width=.9\linewidth]{basis-non-uni.pdf}
+
+\section{Radial derivatives}
+
+The 
 
 \section{Angular quadrature}
 In double precision, the Lebedev or Beylkin rules suffice.  For higher precision, to exactly integrate angular momenta up to $L$  we employ
@@ -126,10 +138,10 @@ Projecting $f(\vb{r})$ into the representation is accomplished by first integrat
 \begin{eqnarray}
   \int_0^{2 \pi} d\phi \int_0^\pi d\theta \sin \theta  \N_{lm} (\hat{r}) f(\vb{r}) & = & R_{lm}(r) 
 \end{eqnarray}
-With quadrature points on the unit sphere $\hat{\vb{r}}_\mu$ with
+With quadrature points on the unit sphere $\rhat_\mu$ with
 weights $\omega_\mu$ and radial points $r_\nu$ , this becomes
 \begin{eqnarray}
-  R_{lm}(r_\nu) & = & \sum_\mu \omega_\mu \N_{lm} (\hat{\vb{r}}_\mu) f(r_\nu \hat{\vb{r}}_\mu)
+  R_{lm}(r_\nu) & = & \sum_\mu \omega_\mu \N_{lm} (\rhat_\mu) f(r_\nu \rhat_\mu)
 \end{eqnarray}
 
 The inversion from the function sampled at the grid points can be performed in several ways, paying attention to the ill-conditioning near the origin for the non-zero angular momenta.
@@ -228,7 +240,7 @@ The normalization is in the sense that an integral over the unit sphere yields
 \end{eqnarray}
 We tabluate the normalization constants and their reciprocals, so we can internally use the simple formulae of the unnormalized harmonics.
 
-Note that $\N_{lm}(\vb{r}) = r^l N_{lm}(\hat{\vb{r}})$.
+Note that $\N_{lm}(\vb{r}) = r^l N_{lm}(\rhat)$.
 
 The first few unnormalized solid harmonics are
 \begin{eqnarray}
@@ -270,11 +282,73 @@ The first few normalized solid harmonics are
 \N_{3, 3} & = &  -\frac{x \left(x^{2}-3 y^{2}\right) \sqrt{70}}{8 \sqrt{\pi}} \nonumber
 \end{eqnarray}
 
+\subsection{Products of solid harmonics}
+
+The addition of two angular momenta $l_1$ and $l_2$ (i.e., the product of the two functions) in general is a superposition of angular momenta $l_3 \in [|l_1-l_2|,l_1+l_2]$ and with $m_3 = m_1 + m_2$ (for the solid harmonics this becomes $m_3 = \pm m_1 \pm m_2$).  Rather than mess with Wigner 3j symbols or Clebsh-Gordon coefficients, etc., we just brute force compute the non-zero coefficients using orthogonal project using Gauss-Legendre quadrature in quad-double arithmetic to ensure all significant figures are correct for single, double, or double-double precision arithmetic.
+
+Defining 
+\begin{eqnarray}
+  \N_{l_1 m_1}(\rhat) \N_{l_2 m_2}(\rhat) & = & \sum_{l_3 m_3} j_{l_1 m_1 l_2 m_2 l_3 m_3} \N_{l_3 m_3}(\rhat)
+\end{eqnarray}
+and projecting from the left by $\N_{l_3 m_3}(\rhat)$ we obtain (noting the normalization condition)
+\begin{eqnarray}
+  j_{l_1 m_1 l_2 m_2 l_3 m_3} = \int_0^\pi d\theta \sin \theta \int_0^{2 \pi} d\phi \N_{l_1 m_1}(\rhat) \N_{l_2 m_2}(\rhat) \N_{l_3 m_3}(\rhat) .
+\end{eqnarray}
+Non-zero values are tabluated and stored in a file along with an index vector to facilitate look up via $(l_1, m_1, l_2, m_2)$ (using the permutation symmetry between the indices and the restrictions $l \ge |m|$).
+
+With $L$ as the maximum value of both $l_1$ and $l_2$, we have $l_3 \le 2 L$, the size of the index vector is $(L+1)^4$ with the offset into the index vector computed using
+\begin{eqnarray}
+  (l_1, m_1, l_2, m_2) & \rightarrow & (l_1 (l_1+1)+m_1) (L+1)^2 + l_2 (l_2+1)+m_2 .
+\end{eqnarray}
+The index vector stores the offset into the linear array of coupling coefficients and the number of entries.  The linear table of coefficients stores $l_3$, $m_3$ and the coefficients.
+The number of non-zero coefficients for $L \ge 8$ is tightly bounded from above by $L (L+1)^4 / 2$. For $L=20$ this is less than 2M, and for $L=12$ is less than 200K.  
+
+\subsection{Derivatives of solid harmonics}
+
 Derivatives of the unnormalized harmonics are computed as follows with $m\ge 0$, treating as zero $N_{lm}$ with $|m|>l$, and again using commas for clarity
 \begin{eqnarray}
-  \frac{\partial}{\partial x} N_{l,m} & = & \frac{1}{2}\left( N_{l-1,\pm m+1} - N_{l-1,\pm m-1} \right) \nonumber \\
-  \frac{\partial}{\partial y} N_{l,m} & = & \pm \frac{1}{2}\left( N_{l-1,\mp m+1} + N_{l-1,\mp m-1} \right) \nonumber \\
-  \frac{\partial}{\partial z} N_{l,m} & = & N_{l-1,\pm m} . \nonumber
+  \frac{\partial}{\partial x} N_{l,\pm m} & = & \frac{1}{2}\left( N_{l-1,\pm (m+1)} - N_{l-1,\pm (m-1)} \right) \nonumber \\
+  \frac{\partial}{\partial y} N_{l,\pm m} & = & \pm \frac{1}{2}\left( N_{l-1,\mp (m+1)} + N_{l-1,\mp (m-1)} \right) \nonumber \\
+  \frac{\partial}{\partial z} N_{l,\pm m} & = & N_{l-1,\pm m} . \nonumber
 \end{eqnarray}
- 
+
+\section{Derivatives of functions in the combined basis}
+
+Rewriting our representation in terms of the non-normalized spherical harmonics
+\begin{eqnarray}
+  f(\rv) & = & \sum_{l m} n_{lm} \N_{lm}(\rv) R_{lm}(r) ,
+\end{eqnarray}
+we employ the above results of derivatives of the solid harmonics to obtain (for some cartesian direction $q$)
+\begin{eqnarray}
+  \frac{\partial}{\partial q} f(\rv) & = & \sum_{l m} n_{lm} \left(R_{lm}(r) \frac{\partial}{\partial q} \N_{lm}(\rv)  + \N_{lm}(\rv)  \frac{\partial}{\partial q} R_{lm}(r) \\
+   & = & \sum_{l m} n_{lm} \left(R_{lm}(r) \frac{\partial}{\partial q} \N_{lm}(\rv)  + \N_{lm}(\rv) \hat{\vb{q}} \frac{d}{dr} R_{lm}(r) .
+ \right)
+\end{eqnarray}
+Also from above we see that the cartesian components of the unit vector $\rhat$ are
+\begin{eqnarray}
+  x & = & - \frac{2 \sqrt{\pi}}{\sqrt{3}} \N_{1,1} \\
+  y & = & - \frac{2 \sqrt{\pi}}{\sqrt{3}} \N_{1,-1} \\
+  z & = & + \frac{2 \sqrt{\pi}}{\sqrt{3}} \N_{1,0}.
+\end{eqnarray}
+Thus, we need the coupling coefficients $j_{1 0 l_1 m_1 l_2 m_2}$ and $j_{1 \pm 1 l_1 m_1 l_2 m_2}$.  For example,
+\begin{table}
+  \caption{Example 3-j coupling coeffs for $\N_{10}$ times $\N_{lm}$.}
+  \begin{tabular}{lcll}
+    $l$ & $m$  &  &  
+\N_{00}  &   $\rightarrow$ &  $ 1/\sqrt{4*pi} \N_{10} $ & \pi/3 \N_{10}\\
+\N_{1 -1}&   $\rightarrow$ &  $1/\sqrt{pi*(7-1/3)} \N_{2 -1}$  \\
+\N_{10} & $\rightarrow$ &  1/\sqrt{4*pi}  \N_{0 0} +   1/\sqrt{5 pi} \N_{2 0} \\
+\N_{11} &  $\rightarrow$ &   1/\sqrt{pi*(7-1/3)} \N_{2 1} \\
+\N_{2-2}& $\rightarrow$ &  1/\sqrt{pi*(9+1/3)} \N_{3 -2} \\
+\N_{2-1}& $\rightarrow$ &  1/\sqrt{pi*(7-1/3)} \B_{1 -1} +  1/\sqrt{pi*(6-1/6)} \N_{3 -1} 
+  \end{tabular}
+\end{table}
+
+
+\begin{eqnarray}
+  \N_{1 0} \N_{l m} & = &  j_{1 0 l m l+1 m}  N_{l+1 m} + j_{1 0 l m l-1 m} N_{l-1 m}  ~ ~ |m|<l \\
+  \N_{1 0} \N_{l l} & = &  j_{1 0 l m l+1 m}  N_{l+1 m} \\
+  
+\end{eqnarray}
+
 \end{document}
