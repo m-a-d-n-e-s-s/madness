@@ -52,6 +52,8 @@ Note that Yang does not normalize his harmonics for ease of computing various qu
   \end{enumerate}
 \end{itemize}
 
+{\bf todo:} Revisit the decision to normalize the harmonics.  Maybe it is an unnecessary complication.
+
 \section{B-splines}
 
 Refer to standard references for details of the basis and associated algorithms.  The basis is specified by 
@@ -77,7 +79,7 @@ Thus, for a basis of degree $p$ (order $p+1$) and $m$ unique knots
 
 \subsection{Radial knots}
 
-We are computing on the interval $[0,L]$ which we can obtain by scaling the unit interval $[0,1]$ by $L$.  By defining monotonicaly-increasing maps from $[0,1]$ back onto $[0,1]$ we can nest transformations.    For $n$ knots
+We are computing on the interval $[0,L]$ which we can obtain by scaling the unit interval $[0,1]$ by $L$.  By defining monotonically-increasing maps from $[0,1]$ back onto $[0,1]$ we can nest transformations.    For $n$ knots
 \begin{itemize}
 \item Uniform knots $x(i) = i/(n-1)$
 \item Chebyshev-like knots (that include the end points and concentrate quadratically on both ends) $x(i) = (1-\cos \pi i / (n-1))/2$
@@ -104,11 +106,13 @@ In double precision, the Lebedev or Beylkin rules suffice.  For higher precision
 \item $\phi$: $k_\phi = \max(1,2 L)$ equispaced points in $[0,2 \pi)$ ($\phi_i = 2 i \pi / k_\phi$) with weights $2 \pi / k_\phi$.
  \item The total number of points $k_\theta k_\phi = (l_{\mbox{max}} + 1) \max(4 l_{\mbox{max}},1) $.
 \end{itemize}
-We choose $L = \max(1, 2 l_{\mbox{max}})$, where $l_{\mbox{max}}$ is the maximum angular momentum in the basis, so that we can exactly integrate products.
+We choose $L = \max(1, 2 l_{\mbox{max}})$, where $l_{\mbox{max}}$ is the maximum angular momentum in the basis, so that we can exactly integrate products.  Table \ref{tab:GLnpts} illustrates how the required number of points scales with $l$ for each quadrature rule.
+
+{\bf todo:} Add Beylkin's rule 
 
 \begin{table}
   \begin{center}
-  \caption{Number of angular quadrature points employed for select angular momenta}
+  \caption{Number of angular quadrature points employed for select angular momenta} \label{tab:GLnpts}
   \begin{tabular}{ccc}
     $l_{\mbox{max}}$ & Lebedev & GL  \\ \hline
     0 & 6 & 1 \\
@@ -146,7 +150,7 @@ weights $\omega_\mu$ and radial points $r_\nu$ , this becomes
 
 The inversion from the function sampled at the grid points can be performed in several ways, paying attention to the ill-conditioning near the origin for the non-zero angular momenta.
 
-By omiting the first (or last) $n$ basis functions the first $n$ derivatives can be forced to be zero on the left (or right).  
+By limiting the first (or last) $n$ basis functions the first $n$ derivatives can be forced to be zero on the left (or right).  
 \begin{itemize}
 \item $n=0$ no boundary conditions,
 \item $n=1$ function value is forced to zero,
@@ -161,7 +165,7 @@ Adds a penalty to make the problem overall better conditioned and uses the norma
 \end{eqnarray}
 in which the weight is presumably to be chosen as $w(r)=r^2$.
 
-The pentalty term has little effect if $\lambda < \epsilon^2 / \sum_i c_i^2$. 
+The penalty term has little effect if $\lambda < \epsilon^2 / \sum_i c_i^2$. 
 
 Setting the variation wrt $c_i$ to zero yields
 \begin{eqnarray}
@@ -187,7 +191,7 @@ However, it is much more convenient to construct using SVD the pseudo-inverse ($
 \end{eqnarray}
 The b-spline basis is strongly linearly independent so there so there should always be a clear divide between zero and non-zero singular values and you can just use the expected number of non-zero singular values.
 
-The fit is obtained directly with a matrix-vector product of $M$ acting on the vector of weighted function values evaluated at the (oversampled) radial points.
+The fit is obtained directly with a matrix-vector product of $M$ acting on the vector of weighted function values evaluated at the (over-sampled) radial points.
 
 \subsection{Projection into the b-spline basis}
 
@@ -238,7 +242,7 @@ The normalization is in the sense that an integral over the unit sphere yields
 \begin{eqnarray}
   \int_0^{2 \pi} d\phi \int_0^\pi d\theta \sin \theta  \N_{lm} (\hat{r}) \N_{l^\prime m^\prime}(\hat{r})  & = & \delta_{l l^\prime} \delta_{m m^\prime} .
 \end{eqnarray}
-We tabluate the normalization constants and their reciprocals, so we can internally use the simple formulae of the unnormalized harmonics.
+We tabulate the normalization constants and their reciprocals, so we can internally use the simple formulae of the unnormalized harmonics.
 
 Note that $\N_{lm}(\vb{r}) = r^l N_{lm}(\rhat)$.
 
@@ -284,7 +288,7 @@ The first few normalized solid harmonics are
 
 \subsection{Products of solid harmonics}
 
-The addition of two angular momenta $l_1$ and $l_2$ (i.e., the product of the two functions) in general is a superposition of angular momenta $l_3 \in [|l_1-l_2|,l_1+l_2]$ and with $m_3 = m_1 + m_2$ (for the solid harmonics this becomes $m_3 = \pm m_1 \pm m_2$).  Rather than mess with Wigner 3j symbols or Clebsh-Gordon coefficients, etc., we just brute force compute the non-zero coefficients using orthogonal project using Gauss-Legendre quadrature in quad-double arithmetic to ensure all significant figures are correct for single, double, or double-double precision arithmetic.
+The addition of two angular momenta $l_1$ and $l_2$ (i.e., the product of the two functions) in general is a superposition of angular momenta $l_3 \in [|l_1-l_2|,l_1+l_2]$ and with $m_3 = m_1 + m_2$ (for the solid harmonics this becomes $m_3 = \pm m_1 \pm m_2$).  Rather than mess with Wigner 3j symbols or Clebsch-Gordon coefficients, etc., we just brute force compute the non-zero coefficients using orthogonal projection using Gauss-Legendre quadrature in quad-double arithmetic to ensure all significant figures are correct for single, double, or double-double precision arithmetic, and all but the last 2-4 bits are correct in quad-double.
 
 Defining 
 \begin{eqnarray}
@@ -294,16 +298,49 @@ and projecting from the left by $\N_{l_3 m_3}(\rhat)$ we obtain (noting the norm
 \begin{eqnarray}
   j_{l_1 m_1 l_2 m_2 l_3 m_3} = \int_0^\pi d\theta \sin \theta \int_0^{2 \pi} d\phi \N_{l_1 m_1}(\rhat) \N_{l_2 m_2}(\rhat) \N_{l_3 m_3}(\rhat) .
 \end{eqnarray}
-Non-zero values are tabluated and stored in a file along with an index vector to facilitate look up via $(l_1, m_1, l_2, m_2)$ (using the permutation symmetry between the indices and the restrictions $l \ge |m|$).
+Non-zero values are tabulated and stored in a file along with an index vector to facilitate look up via $(l_1, m_1, l_2, m_2)$, using the permutation symmetry between the first two indices, the restrictions $l \ge |m|$, and with the range of $l_3$ being double that of $l_1$ and $l_2$.
 
 With $L$ as the maximum value of both $l_1$ and $l_2$, we have $l_3 \le 2 L$, the size of the index vector is $(L+1)^4$ with the offset into the index vector computed using
 \begin{eqnarray}
   (l_1, m_1, l_2, m_2) & \rightarrow & (l_1 (l_1+1)+m_1) (L+1)^2 + l_2 (l_2+1)+m_2 .
 \end{eqnarray}
 The index vector stores the offset into the linear array of coupling coefficients and the number of entries.  The linear table of coefficients stores $l_3$, $m_3$ and the coefficients.
-The number of non-zero coefficients for $L \ge 8$ is tightly bounded from above by $L (L+1)^4 / 2$. For $L=20$ this is less than 2M, and for $L=12$ is less than 200K.  
+The number of non-zero coefficients for $L \ge 8$ is tightly bounded from above by $L (L+1)^4 / 2$. For $L=20$ this is less than 2M, and for $L=12$ is less than 200K.
+
+For derivatives, we must compute products with unit vectors in the Cartesian directions, and so need the coupling coefficients $j_{1 0 l m l\pm 1 m}$ and $j_{1 \pm 1 l m l\pm 1 m\pm 1}$.  For examples, see table \ref{tab:3j10}.
+\begin{table}
+  \caption{Example 3-j coupling coeffs for $\N_{10}$ times $\N_{lm}$.} \label{tab:3j10}
+  \begin{center}    
+  \begin{tabular}{lcll}
+$\N_{00}$  &   $\rightarrow$ &  $ 1/\sqrt{4 \pi} \N_{10} $ +  $\pi/3 \N_{10}$\\
+$\N_{1 -1}$&   $\rightarrow$ &  $1/\sqrt{\pi (7-1/3)} \N_{2 -1}$  \\
+$\N_{10}$ & $\rightarrow$ &  $1/\sqrt{4 \pi}  \N_{0 0} +   1/\sqrt{5 \pi} \N_{2 0}$ \\
+$\N_{11}$ &  $\rightarrow$ &   $1/\sqrt{\pi (7-1/3)} \N_{2 1}$ \\
+$\N_{2-2}$& $\rightarrow$ &  $1/\sqrt{\pi (9+1/3)} \N_{3 -2}$ \\
+$\N_{2-1}$& $\rightarrow$ &  $1/\sqrt{\pi (7-1/3)} \N_{1 -1} +  1/\sqrt{\pi (6-1/6)} \N_{3 -1} $
+  \end{tabular}
+  \end{center}
+\end{table}
+
+These have simpler forms in the unnormalized basis, for instance (noting we evaluate the below at $r=1$)
+\begin{eqnarray}
+z N_{lm} = \frac{\left(\left(l +1\right)^{2}-m^{2}\right) \mathit{Np}_{l +1,m}+r^{2} \mathit{Np}_{l -1,m}}{2 l +1} .
+\end{eqnarray}
+However, between the sparsity pattern and still having to tabulate factorials, etc.,  it seems easier for now to just use the numerically computed coupling coefficients and associated index vector.  The lookup will be outside the innermost loop(s) so should not impact performance.
+
+The coupling coefficients in the unnormalized basis $\bar{j}$ , defined so that
+\begin{eqnarray}
+  N_{l_1 m_1}(\rv) N_{l_2 m_2}(\rv) & = & \sum_{l_3 m_3} \bar{j}_{l_1 m_1 l_2 m_2 l_3 m_3} N_{l_3 m_3}(\rv)  
+\end{eqnarray}
+can be computed from those in the normalized basis ($j$) as follows
+\begin{eqnarray}
+  \bar{j}_{l_1 m_1 l_2 m_2 l_3 m_3} & = & j_{l_1 m_1 l_2 m_2 l_3 m_3} n_{l_1 m_1} n_{l_2 m_2} n^{-2}_{l_3 m_3} .
+\end{eqnarray}
+We note that while $j$ is symmetric wrt exchange of all three pairs of indices, $\bar{j}$ is only symmetric wrt exchange of the first two.
+
 
 \subsection{Derivatives of solid harmonics}
+\label{sec:solder}
 
 Derivatives of the unnormalized harmonics are computed as follows with $m\ge 0$, treating as zero $N_{lm}$ with $|m|>l$, and again using commas for clarity
 \begin{eqnarray}
@@ -316,39 +353,28 @@ Derivatives of the unnormalized harmonics are computed as follows with $m\ge 0$,
 
 Rewriting our representation in terms of the non-normalized spherical harmonics
 \begin{eqnarray}
-  f(\rv) & = & \sum_{l m} n_{lm} \N_{lm}(\rv) R_{lm}(r) ,
+  f(\rv) & = & \sum_{l m} n_{lm} N_{lm}(\rv) R_{lm}(r) ,
 \end{eqnarray}
-we employ the above results of derivatives of the solid harmonics to obtain (for some cartesian direction $q$)
+we employ the above results of derivatives of the solid harmonics to obtain (for some Cartesian direction $q$)
 \begin{eqnarray}
-  \frac{\partial}{\partial q} f(\rv) & = & \sum_{l m} n_{lm} \left(R_{lm}(r) \frac{\partial}{\partial q} \N_{lm}(\rv)  + \N_{lm}(\rv)  \frac{\partial}{\partial q} R_{lm}(r) \\
-   & = & \sum_{l m} n_{lm} \left(R_{lm}(r) \frac{\partial}{\partial q} \N_{lm}(\rv)  + \N_{lm}(\rv) \hat{\vb{q}} \frac{d}{dr} R_{lm}(r) .
- \right)
+  \frac{\partial}{\partial q} f(\rv) & = & \sum_{l m} n_{lm} \left(R_{lm}(r) \frac{\partial}{\partial q} N_{lm}(\rv)  + N_{lm}(\rv)  \frac{\partial}{\partial q} R_{lm}(r) \right) \\
+   & = & \sum_{l m} n_{lm} \left( R_{lm}(r) \frac{\partial}{\partial q} N_{lm}(\rv)  + N_{lm}(\rv) \hat{\vb{q}} \frac{d}{dr} R_{lm}(r) \right).
 \end{eqnarray}
-Also from above we see that the cartesian components of the unit vector $\rhat$ are
+Also from above we see that the Cartesian components of the unit vector $\rhat$ are
 \begin{eqnarray}
-  x & = & - \frac{2 \sqrt{\pi}}{\sqrt{3}} \N_{1,1} \\
-  y & = & - \frac{2 \sqrt{\pi}}{\sqrt{3}} \N_{1,-1} \\
-  z & = & + \frac{2 \sqrt{\pi}}{\sqrt{3}} \N_{1,0}.
+  x & = & - \frac{2 \sqrt{\pi}}{\sqrt{3}} \N_{1,1} = -2 N_{11}\\
+  y & = & - \frac{2 \sqrt{\pi}}{\sqrt{3}} \N_{1,-1}= -2 N_{1-1} \\
+  z & = & + \frac{2 \sqrt{\pi}}{\sqrt{3}} \N_{1,0} = N_{10}.
 \end{eqnarray}
-Thus, we need the coupling coefficients $j_{1 0 l_1 m_1 l_2 m_2}$ and $j_{1 \pm 1 l_1 m_1 l_2 m_2}$.  For example,
-\begin{table}
-  \caption{Example 3-j coupling coeffs for $\N_{10}$ times $\N_{lm}$.}
-  \begin{tabular}{lcll}
-    $l$ & $m$  &  &  
-\N_{00}  &   $\rightarrow$ &  $ 1/\sqrt{4*pi} \N_{10} $ & \pi/3 \N_{10}\\
-\N_{1 -1}&   $\rightarrow$ &  $1/\sqrt{pi*(7-1/3)} \N_{2 -1}$  \\
-\N_{10} & $\rightarrow$ &  1/\sqrt{4*pi}  \N_{0 0} +   1/\sqrt{5 pi} \N_{2 0} \\
-\N_{11} &  $\rightarrow$ &   1/\sqrt{pi*(7-1/3)} \N_{2 1} \\
-\N_{2-2}& $\rightarrow$ &  1/\sqrt{pi*(9+1/3)} \N_{3 -2} \\
-\N_{2-1}& $\rightarrow$ &  1/\sqrt{pi*(7-1/3)} \B_{1 -1} +  1/\sqrt{pi*(6-1/6)} \N_{3 -1} 
-  \end{tabular}
-\end{table}
+The necessary coupling cofficients ($j_{1 0 l m l\pm 1 m}$ and $j_{1 \pm 1 l m l\pm 1 m\pm 1}$) are discussed above.
 
-
-\begin{eqnarray}
-  \N_{1 0} \N_{l m} & = &  j_{1 0 l m l+1 m}  N_{l+1 m} + j_{1 0 l m l-1 m} N_{l-1 m}  ~ ~ |m|<l \\
-  \N_{1 0} \N_{l l} & = &  j_{1 0 l m l+1 m}  N_{l+1 m} \\
+The algorithm for differentiation starts by pre-tabulating the required unnormalized coupling coeffcients which are of size $\O(L^2)$.
+\begin{enumerate}
+\item Scale $R_{lm}$ by $n_{lm}$. 
+\item Perform the differentiation of the angular part by combining the radial parts according to the expressions in section \ref{sec:solder}
+\item Differentiate the radial part and add into the appropriate components of the result scaled by the coupling coefficients.
+\end{enumerate}
   
-\end{eqnarray}
+%% \end{eqnarray}
 
 \end{document}
