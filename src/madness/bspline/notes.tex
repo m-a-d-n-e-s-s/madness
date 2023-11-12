@@ -244,7 +244,7 @@ The normalization is in the sense that an integral over the unit sphere yields
 \end{eqnarray}
 We tabulate the normalization constants and their reciprocals, so we can internally use the simple formulae of the unnormalized harmonics.
 
-Note that $\N_{lm}(\vb{r}) = r^l N_{lm}(\rhat)$.
+Note that $N_{lm}(\rv) = r^l \N_{lm}(\rhat)$.
 
 The first few unnormalized solid harmonics are
 \begin{eqnarray}
@@ -292,11 +292,11 @@ The addition of two angular momenta $l_1$ and $l_2$ (i.e., the product of the tw
 
 Defining 
 \begin{eqnarray}
-  \N_{l_1 m_1}(\rhat) \N_{l_2 m_2}(\rhat) & = & \sum_{l_3 m_3} j_{l_1 m_1 l_2 m_2 l_3 m_3} \N_{l_3 m_3}(\rhat)
+  \N_{l_1 m_1}(\rhat) \N_{l_2 m_2}(\rhat) & = & \sum_{l_3 m_3} j_{l_1, m_1, l_2, m_2, l_3, m_3} \N_{l_3 m_3}(\rhat)
 \end{eqnarray}
 and projecting from the left by $\N_{l_3 m_3}(\rhat)$ we obtain (noting the normalization condition)
 \begin{eqnarray}
-  j_{l_1 m_1 l_2 m_2 l_3 m_3} = \int_0^\pi d\theta \sin \theta \int_0^{2 \pi} d\phi \N_{l_1 m_1}(\rhat) \N_{l_2 m_2}(\rhat) \N_{l_3 m_3}(\rhat) .
+  j_{l_1, m_1, l_2, m_2, l_3, m_3} = \int_0^\pi d\theta \sin \theta \int_0^{2 \pi} d\phi \N_{l_1 m_1}(\rhat) \N_{l_2 m_2}(\rhat) \N_{l_3 m_3}(\rhat) .
 \end{eqnarray}
 Non-zero values are tabulated and stored in a file along with an index vector to facilitate look up via $(l_1, m_1, l_2, m_2)$, using the permutation symmetry between the first two indices, the restrictions $l \ge |m|$, and with the range of $l_3$ being double that of $l_1$ and $l_2$.
 
@@ -307,7 +307,7 @@ With $L$ as the maximum value of both $l_1$ and $l_2$, we have $l_3 \le 2 L$, th
 The index vector stores the offset into the linear array of coupling coefficients and the number of entries.  The linear table of coefficients stores $l_3$, $m_3$ and the coefficients.
 The number of non-zero coefficients for $L \ge 8$ is tightly bounded from above by $L (L+1)^4 / 2$. For $L=20$ this is less than 2M, and for $L=12$ is less than 200K.
 
-For derivatives, we must compute products with unit vectors in the Cartesian directions, and so need the coupling coefficients $j_{1 0 l m l\pm 1 m}$ and $j_{1 \pm 1 l m l\pm 1 m\pm 1}$.  For examples, see table \ref{tab:3j10}.
+For derivatives, we must compute products with unit vectors in the Cartesian directions, and so need the coupling coefficients $j_{1, 0, l, m, l\pm 1, m}$ and $j_{1, \pm 1, l, m, l\pm 1, m\pm 1}$.  For examples, see table \ref{tab:3j10}.
 \begin{table}
   \caption{Example 3-j coupling coeffs for $\N_{10}$ times $\N_{lm}$.} \label{tab:3j10}
   \begin{center}    
@@ -330,11 +330,11 @@ However, between the sparsity pattern and still having to tabulate factorials, e
 
 The coupling coefficients in the unnormalized basis $\bar{j}$ , defined so that
 \begin{eqnarray}
-  N_{l_1 m_1}(\rv) N_{l_2 m_2}(\rv) & = & \sum_{l_3 m_3} \bar{j}_{l_1 m_1 l_2 m_2 l_3 m_3} N_{l_3 m_3}(\rv)  
+  N_{l_1 m_1}(\rv) N_{l_2 m_2}(\rv) & = & \sum_{l_3 m_3} \bar{j}_{l_1, m_1, l_2, m_2, l_3, m_3} N_{l_3 m_3}(\rv)  
 \end{eqnarray}
 can be computed from those in the normalized basis ($j$) as follows
 \begin{eqnarray}
-  \bar{j}_{l_1 m_1 l_2 m_2 l_3 m_3} & = & j_{l_1 m_1 l_2 m_2 l_3 m_3} n_{l_1 m_1} n_{l_2 m_2} n^{-2}_{l_3 m_3} .
+  \bar{j}_{l_1, m_1, l_2, m_2, l_3, m_3} & = & j_{l_1, m_1, l_2, m_2, l_3, m_3} n^{-1}_{l_1 m_1} n^{-1}_{l_2 m_2} n_{l_3 m_3} .
 \end{eqnarray}
 We note that while $j$ is symmetric wrt exchange of all three pairs of indices, $\bar{j}$ is only symmetric wrt exchange of the first two.
 
@@ -366,13 +366,14 @@ Also from above we see that the Cartesian components of the unit vector $\rhat$ 
   y & = & - \frac{2 \sqrt{\pi}}{\sqrt{3}} \N_{1,-1}= -2 N_{1-1} \\
   z & = & + \frac{2 \sqrt{\pi}}{\sqrt{3}} \N_{1,0} = N_{10}.
 \end{eqnarray}
-The necessary coupling cofficients ($j_{1 0 l m l\pm 1 m}$ and $j_{1 \pm 1 l m l\pm 1 m\pm 1}$) are discussed above.
+The necessary coupling cofficients ($j_{1, 0, l, m, l\pm 1, m}$ and $j_{1, \pm 1, l m l\pm 1, m\pm 1}$) are discussed above.
 
-The algorithm for differentiation starts by pre-tabulating the required unnormalized coupling coeffcients which are of size $\O(L^2)$.
+The algorithm for differentiation starts by pre-tabulating the required unnormalized coupling coeffcients which are of size $O(L^2)$.
 \begin{enumerate}
 \item Scale $R_{lm}$ by $n_{lm}$. 
 \item Perform the differentiation of the angular part by combining the radial parts according to the expressions in section \ref{sec:solder}
 \item Differentiate the radial part and add into the appropriate components of the result scaled by the coupling coefficients.
+\item With a little more effort these two steps could be combined and perhaps even turned into a matrix-matrix operation.
 \end{enumerate}
   
 %% \end{eqnarray}
