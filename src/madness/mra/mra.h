@@ -1256,7 +1256,8 @@ namespace madness {
 
             // if this and g are the same, use norm2()
             if (this->get_impl()==g.get_impl()) {
-                if (this->get_impl()->is_redundant()) this->get_impl()->undo_redundant(true);
+                TreeState state=this->get_impl()->get_tree_state();
+                if (not (state==reconstructed or state==compressed)) change_tree_state(reconstructed);
                 double norm=this->norm2();
                 return norm*norm;
             }
@@ -1269,16 +1270,18 @@ namespace madness {
             if (VERIFY_TREE) g.verify_tree();
 
             // compression is more efficient for 3D
-            if (NDIM==3) {
-            	if (!is_compressed()) compress(false);
-            	if (!g.is_compressed()) g.compress(false);
+            TreeState state=this->get_impl()->get_tree_state();
+            TreeState gstate=g.get_impl()->get_tree_state();
+            if (NDIM<=3) {
+                change_tree_state(compressed,false);
+                g.change_tree_state(compressed,false);
                 impl->world.gop.fence();
            }
 
             if (this->is_compressed() and g.is_compressed()) {
             } else {
-                if (not this->get_impl()->is_redundant()) this->get_impl()->make_redundant(false);
-                if (not g.get_impl()->is_redundant()) g.get_impl()->make_redundant(false);
+                change_tree_state(redundant,false);
+                g.change_tree_state(redundant,false);
                 impl->world.gop.fence();
             }
 
@@ -1287,8 +1290,9 @@ namespace madness {
             impl->world.gop.sum(local);
             impl->world.gop.fence();
 
-            if (this->get_impl()->is_redundant()) this->get_impl()->undo_redundant(false);
-            if (g.get_impl()->is_redundant()) g.get_impl()->undo_redundant(false);
+            // restore state
+            change_tree_state(state,false);
+            g.change_tree_state(gstate,false);
             impl->world.gop.fence();
 
             return local;
@@ -1304,9 +1308,9 @@ namespace madness {
         /// @return Returns local part of the inner product, i.e. over the domain of all function nodes on this compute node.
         T inner_ext_local(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, const bool leaf_refine=true, const bool keep_redundant=false) const {
             PROFILE_MEMBER_FUNC(Function);
-            if (not impl->is_redundant()) impl->make_redundant(true);
+            change_tree_state(redundant);
             T local = impl->inner_ext_local(f, leaf_refine);
-            if (not keep_redundant) impl->undo_redundant(true);
+            if (not keep_redundant) change_tree_state(reconstructed);
             return local;
         }
 
@@ -1320,11 +1324,11 @@ namespace madness {
         /// @return Returns the inner product
         T inner_ext(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, const bool leaf_refine=true, const bool keep_redundant=false) const {
             PROFILE_MEMBER_FUNC(Function);
-            if (not impl->is_redundant()) impl->make_redundant(true);
+            change_tree_state(redundant);
             T local = impl->inner_ext_local(f, leaf_refine);
             impl->world.gop.sum(local);
             impl->world.gop.fence();
-            if (not keep_redundant) impl->undo_redundant(true);
+            if (not keep_redundant) change_tree_state(reconstructed);
             return local;
         }
 
@@ -1651,14 +1655,14 @@ namespace madness {
         /// check symmetry of a function by computing the 2nd derivative
         double check_symmetry() const {
 
-        	impl->make_redundant(true);
+            change_tree_state(redundant);
             if (VERIFY_TREE) verify_tree();
             double local = impl->check_symmetry_local();
             impl->world.gop.sum(local);
             impl->world.gop.fence();
             double asy=sqrt(local);
             if (this->world().rank()==0) print("asymmetry wrt particle",asy);
-            impl->undo_redundant(true);
+            change_tree_state(reconstructed);
             return asy;
         }
 
@@ -1673,9 +1677,9 @@ namespace madness {
         /// remove all nodes with level higher than n
         Function<T,NDIM>& chop_at_level(const int n, const bool fence=true) {
             verify();
-            impl->make_redundant(true);
+            change_tree_state(redundant);
             impl->chop_at_level(n,true);
-            impl->undo_redundant(true);
+            change_tree_state(reconstructed);
             return *this;
         }
     };
@@ -2334,18 +2338,16 @@ namespace madness {
 //        Function<T,NDIM>& ff = const_cast< Function<T,NDIM>& >(f);
 //        Function<T,LDIM>& gg = const_cast< Function<T,LDIM>& >(g);
 
+        f.change_tree_state(redundant,false);
+        g.change_tree_state(redundant);
 		FunctionImpl<T,NDIM>* fimpl=f.get_impl().get();
 		FunctionImpl<T,LDIM>* gimpl=g.get_impl().get();
-		gimpl->make_redundant(false);
-        fimpl->make_redundant(false);
-        result.world().gop.fence();
 
         result.get_impl()->multiply(fimpl,gimpl,particle);
         result.world().gop.fence();
 
-        fimpl->undo_redundant(false);
-		gimpl->undo_redundant(false);
-        result.world().gop.fence();
+        f.change_tree_state(reconstructed,false);
+        g.change_tree_state(reconstructed);
         return result;
     }
 

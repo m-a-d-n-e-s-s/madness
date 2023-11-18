@@ -195,6 +195,19 @@ CCPairFunction inner(const CCPairFunction& c1, const CCPairFunction& c2,
     return c1.partial_inner(c2,v11,v22);
 }
 
+std::vector<CCPairFunction> inner(const std::vector<CCPairFunction>& c1,
+                                  const std::vector<CCPairFunction>& c2,
+                                  const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2) {
+    std::vector<CCPairFunction> result;
+    for (const auto& cc1 : c1) {
+        for (const auto& cc2 : c2) {
+            print("inner of ",cc1.name(), cc2.name());
+            result.push_back(inner(cc1,cc2,v1,v2));
+        }
+    }
+    return result;
+}
+
 CCPairFunction CCPairFunction::partial_inner(const CCPairFunction& other,
                                                const std::array<int, 3>& v1,
                                                const std::array<int, 3>& v2) const {
@@ -397,36 +410,23 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
     if (f1.is_pure() and f2.is_pure()) {        // these are 4 combinations pure/pure
         pureT bra=f1.get_function();
         pureT ket=f2.get_function();
-//        if (R2.is_initialized()) {
-//            real_function_6d R1u = multiply<double, 6, 3>(::copy(f1.pure().get_function()), ::copy(R2), 1);
-//            real_function_6d R1R2u = multiply<double, 6, 3>(R1u, ::copy(R2), 2);     // R1u function now broken
-//            bra = R1R2u;
-//        }
         // include the operator(s), if any
-        if (f1.has_operator() or f2.has_operator()) {
-            MADNESS_EXCEPTION("still to debug",1);
-//            auto ops=combine(f1.get_operator_ptr(),f2.get_operator_ptr());
-//            for (const auto& single_op : ops) {
-//                auto fac=single_op.first;
-//                auto op=single_op.second;
-//                double bla=0.0;
-//                if (op.get_op()) {
-//                    real_function_6d tmp1;
-//                    if (R2.is_initialized()) {
-//                        tmp1= CompositeFactory<double, 6, 3>(world()).g12(op.get_kernel()).ket(ket).particle1(R2).particle2(R2);
-//                    } else {
-//                        tmp1= CompositeFactory<double, 6, 3>(world()).g12(op.get_kernel()).ket(ket);
-//                    }
-//                    bla=fac*inner(bra,tmp1);
-//                } else {
-//                    bla=fac*inner(bra,ket);
-//                }
-//                result+=bla;
-//            }
+        auto op=combine(f1.get_operator_ptr(),f2.get_operator_ptr());
+        real_function_6d tmp1;
+        if (op) {
+            if (R2.is_initialized()) {
+                tmp1 = CompositeFactory<double, 6, 3>(world()).g12(op->get_kernel()).ket(ket).particle1(R2).particle2(R2);
+            } else {
+                tmp1 = CompositeFactory<double, 6, 3>(world()).g12(op->get_kernel()).ket(ket);
+            }
         } else {
-            // no operators
-            result=inner(bra,ket);
+            if (R2.is_initialized()) {
+                tmp1 = CompositeFactory<double, 6, 3>(world()).ket(ket).particle1(R2).particle2(R2);
+            } else {
+                tmp1 = CompositeFactory<double, 6, 3>(world()).ket(ket);
+            }
         }
+        result=inner(bra,tmp1);
     } else if (f1.is_pure() and f2.is_decomposed()) {       // with or without operator
         const vector_real_function_3d a = R2.is_initialized() ? R2 * f2.get_a() : copy(world(), f2.get_a());
         const vector_real_function_3d b = R2.is_initialized() ? R2 * f2.get_b() : copy(world(), f2.get_b());
@@ -593,6 +593,7 @@ std::vector<CCPairFunction> apply(const SeparatedConvolution<T,NDIM>& op, const 
     if (argument.size()==0) return argument;
     World& world=argument.front().world();
     std::vector<CCPairFunction> result;
+    timer t(world);
     for (const auto& arg : argument) {
         if (arg.is_pure()) {
             result.push_back(CCPairFunction(op(arg.get_function())));
@@ -612,6 +613,7 @@ std::vector<CCPairFunction> apply(const SeparatedConvolution<T,NDIM>& op, const 
             auto tmp=arg.to_pure();
             result.push_back(apply(op,tmp));
         }
+        t.tag("applying op to CCPairFunction "+arg.name());
     }
 
     return result;

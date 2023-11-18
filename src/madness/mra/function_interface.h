@@ -40,9 +40,11 @@
 #include <madness/mra/key.h>
 
 // needed for the TwoElectronInterface
+#include <madness/mra/operatorinfo.h>
 #include <madness/mra/gfit.h>
 #include <madness/mra/convolution1d.h>
 #include <madness/mra/function_common_data.h>
+
 namespace madness {
 
 	// forward declaration needed for CompositeFunctorInterface
@@ -430,6 +432,36 @@ namespace madness {
 		double hi;
 
 	};
+
+
+    /// a function like f(x)=1/x
+    class GeneralTwoElectronInterface : public TwoElectronInterface<double,6> {
+    public:
+
+        /// constructor: cf the Coulomb kernel
+
+        /// @param[in]	lo		the smallest length scale to be resolved
+        /// @param[in]	eps		the accuracy threshold
+        GeneralTwoElectronInterface(OperatorInfo info,
+                                   const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
+                                   int kk=FunctionDefaults<6>::get_k())
+                : TwoElectronInterface<double,6>(info.lo,info.thresh,bc,kk), info(info) {
+
+            if (info.hi<0) {
+                double hi=FunctionDefaults<3>::get_cell_width().normf();
+                if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+                this->info.hi=hi;
+            }
+            initialize(info.thresh);
+        }
+
+    private:
+        OperatorInfo info;
+
+        GFit<double,3> fit(const double eps) const {
+            return GFit<double,3>(info);
+        }
+    };
 
 	/// a function like f(x)=1/x
 	class ElectronRepulsionInterface : public TwoElectronInterface<double,6> {

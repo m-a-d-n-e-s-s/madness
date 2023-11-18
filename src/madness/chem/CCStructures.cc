@@ -404,7 +404,7 @@ size_t CCConvolutionOperator::info() const {
 
 SeparatedConvolution<double, 3> *
 CCConvolutionOperator::init_op(const OpType& type, const Parameters& parameters) const {
-    bool debug=false;
+    bool debug=true;
     bool printme=(world.rank()==0) and debug;
     print("init_op: creating",type,"with thresh, lo, gamma",parameters.thresh_op,parameters.gamma,parameters.lo);
     return new SeparatedConvolution<double,3>(world,OperatorInfo(parameters.gamma,parameters.lo,parameters.thresh_op,type));

@@ -49,6 +49,7 @@
 #include <madness/mra/displacements.h>
 #include <madness/mra/function_common_data.h>
 #include <madness/mra/gfit.h>
+#include <madness/mra/operatorinfo.h>
 
 namespace madness {
 
@@ -123,63 +124,6 @@ namespace madness {
 
 
     */
-
-
-    /// operator types
-    enum OpType {
-        OT_UNDEFINED,
-        OT_ONE,         /// indicates the identity
-        OT_G12,         /// 1/r
-        OT_SLATER,      /// exp(-r)
-        OT_GAUSS,       /// exp(-r2)
-        OT_F12,         /// 1-exp(-r)
-        OT_FG12,        /// (1-exp(-r))/r
-        OT_F212,        /// (1-exp(-r))^2
-        OT_F2G12,       /// (1-exp(-r))^2/r = 1/r + exp(-2r)/r - 2 exp(-r)/r
-        OT_BSH          /// exp(-r)/r
-    };
-
-    /// operator type to string
-    template<std::size_t N=1>   // dummy template argument to avoid ambiguity with the other operator<<
-    std::ostream& operator<<(std::ostream& os, const OpType type) {
-        auto name = [](OpType type) {
-            switch (type) {
-                case OpType::OT_UNDEFINED:
-                    return "undefined";
-                case OpType::OT_ONE:
-                    return "identity";
-                case OpType::OT_G12:
-                    return "g12";
-                case OpType::OT_SLATER:
-                    return "slater";
-                case OpType::OT_GAUSS:
-                    return "gauss";
-                case OpType::OT_F12:
-                    return "f12";
-                case OpType::OT_FG12:
-                    return "fg12";
-                case OpType::OT_F212:
-                    return "f12^2";
-                case OpType::OT_F2G12:
-                    return "f12^2g";
-                case OpType::OT_BSH:
-                    return "bsh";
-                default:
-                    return "undefined";
-            }
-        };
-        os << name(type);
-        return os;
-    }
-
-    struct OperatorInfo {
-        OperatorInfo() = default;
-        OperatorInfo(double mu, double lo, double thresh, OpType type) : mu(mu), thresh(thresh), lo(lo), type(type) {}
-        OpType type=OT_UNDEFINED;    ///< introspection
-        double mu=0.0;     ///< some introspection
-        double thresh=1.e-4;
-        double lo=1.e-5;
-    };
 
     template <typename Q, std::size_t NDIM>
     class SeparatedConvolution : public WorldObject< SeparatedConvolution<Q,NDIM> > {
@@ -259,18 +203,9 @@ namespace madness {
             double hi = cell_width.normf(); // Diagonal width of cell
             if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
 
-            GFit<Q,NDIM> fit;
-            if (type==OT_G12) {fit=GFit<Q,NDIM>::CoulombFit(lo,hi,eps,false);
-            } else if (type==OT_SLATER) {fit=GFit<Q,NDIM>::SlaterFit(mu,lo,hi,eps,false);
-            } else if (type==OT_GAUSS) {fit=GFit<Q,NDIM>::GaussFit(mu,lo,hi,eps,false);
-            } else if (type==OT_F12) {fit=GFit<Q,NDIM>::F12Fit(mu,lo,hi,eps,false);
-            } else if (type==OT_FG12) {fit=GFit<Q,NDIM>::FGFit(mu,lo,hi,eps,false);
-            } else if (type==OT_F212) {fit=GFit<Q,NDIM>::F12sqFit(mu,lo,hi,eps,false);
-            } else if (type==OT_F2G12) {fit=GFit<Q,NDIM>::F2GFit(mu,lo,hi,eps,false);
-            } else if (type==OT_BSH) {fit=GFit<Q,NDIM>::BSHFit(mu,lo,hi,eps,false);
-            } else {
-                MADNESS_EXCEPTION("Operator type not implemented",1);
-            }
+            OperatorInfo info(mu,lo,eps,type);
+            info.hi=hi;
+            GFit<Q,NDIM> fit(info);
 
             Tensor<Q> coeff=fit.coeffs();
             Tensor<Q> expnt=fit.exponents();

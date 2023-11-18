@@ -8,6 +8,7 @@
 
 
 #include <madness/mra/mra.h>
+#include<madness/world/timing_utilities.h>
 #include<madness/mra/commandlineparser.h>
 #include<madness/mra/QCCalculationParametersBase.h>
 #include <algorithm>
@@ -427,7 +428,13 @@ public:
     friend std::vector<CCPairFunction> multiply(const std::vector<CCPairFunction>& other, const real_function_3d f,
                                                 const std::array<int, 3>& v1) {
         std::vector<CCPairFunction> result;
-        for (auto& o : other) result.push_back(multiply(o,f,v1));
+        for (auto& o : other) {
+            double cpu0=cpu_time();
+            std::cout << "multiply " << o.name();
+            result.push_back(multiply(o,f,v1));
+            double cpu1=cpu_time();
+            std::cout << " done after " << cpu1-cpu0 << std::endl;
+        }
         return result;
     }
 
@@ -602,22 +609,25 @@ public:
 
     template<typename Q, std::size_t MDIM>
     friend CCPairFunction apply(const SeparatedConvolution<Q,MDIM>& G, const CCPairFunction& argument) {
+        CCPairFunction result;
+        timer t1(argument.world());
         if (argument.is_pure()) {
-            return CCPairFunction(G(argument.get_function()));
+            result=CCPairFunction(G(argument.get_function()));
         } else if (argument.is_decomposed_no_op()) {
-            real_function_6d result=real_factory_6d(argument.world()).compressed();
+            real_function_6d result1=real_factory_6d(argument.world()).compressed();
 
             MADNESS_ASSERT(argument.get_a().size() == argument.get_b().size());
 
             for (size_t k = 0; k < argument.get_a().size(); k++) {
                 const real_function_6d tmp = G(argument.get_a()[k], argument.get_b()[k]);
-                result += tmp;
+                result1 += tmp;
             }
-            return CCPairFunction(result);
+            result=CCPairFunction(result1);
         } else {
             MADNESS_EXCEPTION("unknown type in CCPairFunction::apply",1);
         }
-        return CCPairFunction();
+        t1.end("applying G to " + argument.name());
+        return result;
     };
 
     real_function_3d partial_inner(const real_function_3d& f,
@@ -654,6 +664,10 @@ real_function_3d inner(const CCPairFunction& c, const real_function_3d& f,
 
 CCPairFunction inner(const CCPairFunction& c1, const CCPairFunction& c2,
                        const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2);
+
+std::vector<CCPairFunction> inner(const std::vector<CCPairFunction>& c1,
+                                  const std::vector<CCPairFunction>& c2,
+                     const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2);
 
 } // namespace madness
 

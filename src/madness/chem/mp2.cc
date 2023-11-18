@@ -236,27 +236,12 @@ double MP2::value(const Tensor<double>& x) {
         return correlation_energy;
     }
 
-    // DEBUG: INTEGRAL TEST
-    for (int i = param.freeze(); i < hf->nocc(); ++i) {
-        for (int j = i; j < hf->nocc(); ++j) {
-            ElectronPair test = make_pair(i, j);
-            if (world.rank() == 0) {
-                std::cout << "\n-----------------------------------------\n";
-                std::cout << "<" << i << j << "|gQf|" << i << j << "> =" << test.ij_gQf_ij << std::endl;
-                std::cout << "<" << j << i << "|gQf|" << i << j << "> =" << test.ji_gQf_ij << std::endl;
-            }
-        }
-    }
-    // DEBUG END
-
     // compute the 0th order term and do some coarse pre-iterations
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = i; j < hf->nocc(); ++j) {
             pairs(i, j) = make_pair(i, j);                // initialize
-            solve_residual_equations(pairs(i, j), param.econv() * 0.5,
-                                     param.dconv());
-            correlation_energy += pairs(i, j).e_singlet
-                                  + pairs(i, j).e_triplet;
+            solve_residual_equations(pairs(i, j), param.econv() * 0.5, param.dconv());
+            correlation_energy += pairs(i, j).e_singlet + pairs(i, j).e_triplet;
         }
     }
     if (world.rank() == 0) {
@@ -285,98 +270,137 @@ double MP2::value(const Tensor<double>& x) {
 
 double MP2::mp3() const {
 
+    print_header2("computing the MP3 correlation energy");
+    print_header3("prepare the cluster function");
     typedef std::vector<CCPairFunction> ClusterFunction;
     Pairs<ClusterFunction> clusterfunctions;
-    double mp3_energy=0.0;
-    CCTimer t1(world,"make pairs");
+
+    double mp3_energy = 0.0;
+    CCTimer t1(world, "make pairs");
     // load converged MP1 wave functions
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = i; j < hf->nocc(); ++j) {
 //            pairs(i, j) = make_pair(i, j);                // initialize
             ClusterFunction tmp;
-            tmp.push_back(CCPairFunction(pairs(i,j).function));
-            CCPairFunction ij(hf->nemo(i),hf->nemo(j));
+            tmp.push_back(CCPairFunction(pairs(i, j).function));
+            CCPairFunction ij(hf->nemo(i), hf->nemo(j));
 
             CCConvolutionOperator::Parameters cparam;
-            cparam.thresh_op*=0.1;
-            auto f12=CCConvolutionOperatorPtr(world,OpType::OT_F12,cparam);
-            auto vfij=Q12(std::vector<CCPairFunction>({f12*ij}));
-            for (auto& p : vfij) tmp.push_back(p);
+            cparam.thresh_op *= 0.1;
+            auto f12 = CCConvolutionOperatorPtr(world, OpType::OT_F12, cparam);
+            auto vfij = Q12(std::vector<CCPairFunction>({f12 * ij}));
+            for (auto& p: vfij) tmp.push_back(p);
 
-            clusterfunctions(i,j)=tmp;
-            print("prep pairs",t1.reset());
+            clusterfunctions(i, j) = tmp;
+            if (i!=j) {
+                for (const auto& t : clusterfunctions(i,j)) {
+                    clusterfunctions(j, i).push_back(t.swap_particles());
+                }
+            }
         }
     }
     t1.print();
-    auto R2 = hf->nemo_ptr->ncf->square();
 
-    CCTimer t2(world,"recompute MP2");
-    // recompute MP2 energy
-    CCConvolutionOperator::Parameters cparam;
-    auto g12=CCConvolutionOperatorPtr(world,OpType::OT_G12,cparam);
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = i; j < hf->nocc(); ++j) {
-            auto bra=g12*CCPairFunction(hf->R2orbital(i),hf->R2orbital(j));
-            double energy1=inner(bra,clusterfunctions(i,j).front());
-            double energy=energy1+pairs(i,j).ij_gQf_ij;
-            print("MP2 energy: gQf, u",pairs(i,j).ij_gQf_ij,energy1,energy);
-            print("time compute <ij|u>",t2.reset());
-
-            double energy2=inner({bra},clusterfunctions(i,j));
-            printf("MP2 energy: cluster %12.8f\n",energy2);
-            print("time clusterfunction",t2.reset());
+            print("info of clusterfunction ", i, j);
+            for (auto& c: clusterfunctions(i, j)) c.info();
         }
     }
 
+    print_header3("recompute the MP2 energy");
+    auto R2 = hf->nemo_ptr->ncf->square();
+
+    CCConvolutionOperator::Parameters cparam;
+    auto g12=CCConvolutionOperatorPtr(world,OpType::OT_G12,cparam);
+    CCTimer t2(world,"recompute MP2");
+
+    // recompute MP2 energy
+    double mp2_energy=0.0;
+    for (int i = param.freeze(); i < hf->nocc(); ++i) {
+        for (int j = i; j < hf->nocc(); ++j) {
+
+//            auto bra=g12*CCPairFunction(hf->R2orbital(i),hf->R2orbital(j));
+//            auto bra=g12*CCPairFunction(hf->nemo(i),hf->nemo(j));
+            auto bra=CCPairFunction(hf->nemo(i),hf->nemo(j));
+            double direct=inner({bra},g12*clusterfunctions(i,j),R2);
+            double exchange=inner({bra},g12*clusterfunctions(j,i),R2);
+            double fac=(i==j) ? 0.5: 1.0;
+            double pair_energy=fac*(4.0*direct-2.0*exchange);
+            printf("MP2 energy: cluster %2d %2d: %12.8f\n",i,j,pair_energy);
+            mp2_energy+=pair_energy;
+        }
+    }
+    printf("total mp2 energy %12.8f\n",mp2_energy);
+    print("time clusterfunction",t2.reset());
+
+
+//    auto bra0=multiply(clusterfunctions(0,0),hf->nemo_ptr->R_square,{0,1,2});
+//    auto G2_tmp=inner(bra0,clusterfunctions(0,0),{0,1,2},{0,1,2});
+//    auto bra=g12*CCPairFunction(hf->R2orbital(0),hf->R2orbital(0));
+//    double G2=inner({bra},G2_tmp);
+//    print("G2 ",G2);
+
+    print_header3("compute the MP3 energy");
     CCTimer t3(world,"MP3");
 
     // compute the term <i(1) |g(1,2) | j(1)>(2)
     madness::Pairs<real_function_3d> gij;
 
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
-        for (int j = i; j < hf->nocc(); ++j) {
+        for (int j = param.freeze(); j < hf->nocc(); ++j) {
             gij.insert(i,j,(*g12)(hf->nemo(i)*hf->R2orbital(j)));
         }
     }
-    print("\n compute term1 of the MP3 energy\n");
+    print_header3("compute term1 of the MP3 energy");
     // compute the MP3 energy
     double term1=0.0;
-    if (0) {
+    if (1) {
         for (int i = param.freeze(); i < hf->nocc(); ++i) {
             for (int j = i; j < hf->nocc(); ++j) {
                 auto bra = clusterfunctions(i, j);
-                double tmp1 = inner(bra, g12 * clusterfunctions(i, j), R2);
-                double tmp2 = inner(bra, g12 * clusterfunctions(j, i), R2);
+                double tmp1 = inner(bra, g12 * clusterfunctions(i, j),R2);
+                double tmp2 = inner(bra, g12 * clusterfunctions(j, i),R2);
                 double fac = (i == j) ? 0.5 : 1.0;
                 double tmp = fac * (4.0 * tmp1 - 2.0 * tmp2);
-                print("mp3 energy: term1", i, j, tmp);
+                printf("mp3 energy: term1 %2d %2d: %12.8f\n", i, j, tmp);
                 term1 += tmp;
             }
         }
     }
     printf("MP3 energy: term1 %12.8f\n",term1);
     print("time term1",t3.reset());
+    print("");
 
 
     // compute intermediates for terms G, I, H, and J
 
     // \sum_j tau_ij(1,2) * phi_j(2)
     std::vector<ClusterFunction> tau_i_jj(hf->nocc()-param.freeze());
+    std::vector<ClusterFunction> tau_i_jj_R2(hf->nocc()-param.freeze());
     // \sum_j tau_ij(1,2) * phi_j(1)
     std::vector<ClusterFunction> tau_ij_j(hf->nocc()-param.freeze());
+    std::vector<ClusterFunction> tau_ij_j_R2(hf->nocc()-param.freeze());
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = param.freeze(); j < hf->nocc(); ++j) {
             auto tmp2=multiply(clusterfunctions(i,j),hf->R2orbital(j),{3,4,5});
-            for (auto& t : tmp2) tau_i_jj[i].push_back(t);
+            for (auto& t : tmp2) tau_i_jj_R2[i].push_back(t);
 
             auto tmp4=multiply(clusterfunctions(i,j),hf->R2orbital(j),{0,1,2});
-            for (auto& t : tmp4) tau_ij_j[i].push_back(t);
+            for (auto& t : tmp4) tau_ij_j_R2[i].push_back(t);
+
+            auto tmp1=multiply(clusterfunctions(i,j),hf->nemo(j),{3,4,5});
+            for (auto& t : tmp1) tau_i_jj[i].push_back(t);
+
+            auto tmp3=multiply(clusterfunctions(i,j),hf->nemo(j),{0,1,2});
+            for (auto& t : tmp3) tau_ij_j[i].push_back(t);
         }
     }
-    print("info on tau_i_jj and tau_ij_j");
+    print("info on tau_i_jj");
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (auto& c: tau_i_jj[i]) c.info();
     }
+    print("info on tau_ij_j");
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (auto& c: tau_ij_j[i]) c.info();
     }
@@ -385,46 +409,69 @@ double MP2::mp3() const {
     // terms G, I, H, J of Bartlett/Silver 1975
     double term2a=0.0;
     real_convolution_3d& g=*(g12->get_op());
-    g.particle()=2;
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
-        auto gtau=g(tau_i_jj[i]);
-        print("info on gtau_i_jj");
-        for (auto& g :gtau) g.info();
-        double G=inner(gtau,tau_i_jj[i],R2);
+        timer t4(world,"gtau");
+        g.particle()=2;
+        auto gtau_same=g(tau_i_jj_R2[i]);  // < tau_ij(1,2) j(2) | g(2,2') |
+        t4.tag("compute gtau_same");
+        g.particle()=1;
+        auto gtau_other=g(tau_ij_j_R2[i]); // < tau_ij(1,2) j(1) | g(2,2') |
+        t4.tag("compute gtau_other");
+
+//        auto tmp0=multiply(gtau_same,hf->nemo_ptr->R_square,{0,1,2});
+//        auto gtau_same_R2=multiply(tmp0,hf->nemo_ptr->R_square,{3,4,5});
+//        auto tmp1=multiply(gtau_other,hf->nemo_ptr->R_square,{0,1,2});
+//        auto gtau_other_R2=multiply(tmp1,hf->nemo_ptr->R_square,{3,4,5});
+
+
+        double G=inner(gtau_same,tau_i_jj[i],R2);
         print("G",G);
-//        double G=inner(tau_i_jj[i],g12*tau_i_jj[i],R2);
-        double I=inner(tau_i_jj[i],g12*tau_ij_j[i],R2);
+//        double G2=inner(gtau_same_R2,tau_i_jj[i]);
+//        print("G_R2",G2);
+        double I=inner(gtau_same,tau_ij_j[i],R2);
         print("I",I);
-        double H=inner(tau_ij_j[i],g12*tau_i_jj[i],R2);
+//        double I2=inner(gtau_same_R2,tau_ij_j[i]);
+//        print("I_R2",I2);
+        double H=inner(gtau_other,tau_i_jj[i],R2);
         print("H",H);
-        double J=inner(tau_ij_j[i],g12*tau_ij_j[i],R2);
+        double J=inner(gtau_other,tau_ij_j[i],R2);
         print("J",J);
+
+        t4.tag("compute inner products");
         double tmp = (8.0 *G - 4.0*I + 2.0* H  - 4.0*J);
-        print("mp3 energy: term2",i,tmp);
+        printf("mp3 energy: term2a  %2d %12.8f\n",i,tmp);
         term2a+=tmp;
     }
+    printf("MP3 energy: term2 (GHIJ) %12.8f\n",term2a);
     print("time GHIJ ",t3.reset());
 
     double term2=0.0;
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = param.freeze(); j < hf->nocc(); ++j) {
-            auto bra_ij=clusterfunctions(i,j);
-
             double tmp=0.0;
             for (int k=param.freeze(); k<hf->nocc(); ++k) {
-                auto tau_ij_gik = multiply(bra_ij,gij(i,k),{3,4,5});
-                auto tau_ij_gjk = multiply(bra_ij,gij(j,k),{3,4,5});
+                auto tau_ik=clusterfunctions(i,k);
+                auto tau_kj=clusterfunctions(k,j);
+                auto tau_ij=clusterfunctions(i,j);
+                auto tau_ji=clusterfunctions(j,i);
+                auto tau_ik_gkj = multiply(tau_ik,gij(k,j),{3,4,5});
+                auto tau_kj_gki = multiply(tau_kj,gij(k,i),{3,4,5});
+//                auto tau_ik_gkj = multiply(tau_ik,gij(k,j),{0,1,2});
+//                auto tau_kj_gki = multiply(tau_kj,gij(k,i),{0,1,2});
 
-                double tmp1=2.0*inner(tau_ij_gik,clusterfunctions(k,j),R2)
-                             - inner(tau_ij_gik,clusterfunctions(j,k),R2)
-                             +2.0* inner(tau_ij_gjk,clusterfunctions(i,k),R2)
-                              - inner(tau_ij_gjk,clusterfunctions(k,i),R2);
-                tmp-=2.0*tmp1;
+                double K=inner(tau_ij,tau_ik_gkj,R2);
+                double L=inner(tau_ij,tau_kj_gki,R2);
+                double M=inner(tau_ji,tau_kj_gki,R2);
+                double N=inner(tau_ji,tau_ik_gkj,R2);
+                print("K,L,M,N",K,L,M,N);
+
+                tmp+=-4*K-4*L + 2*M +2*N;
             }
-            print("mp3 energy: term2",i,j,tmp);
+            printf("mp3 energy: term2 %2d %2d %12.8f\n",i,j,tmp);
             term2+=tmp;
         }
     }
+    printf("MP3 energy: term2 (KLMN) %12.8f\n",term2);
     print("time term2",t3.reset());
 
     double term3=0.0;
@@ -433,23 +480,25 @@ double MP2::mp3() const {
             double tmp=0.0;
             for (int k=param.freeze(); k<hf->nocc(); ++k) {
                 for (int l=param.freeze(); l<hf->nocc(); ++l) {
-                    auto bra = clusterfunctions(i,k);
-                    double ovlp1=inner(bra,clusterfunctions(j,l),R2);
-                    double ovlp2=inner(bra,clusterfunctions(l,j),R2);
+                    auto bra_ik = clusterfunctions(i,k);
+                    auto bra_ki = clusterfunctions(k,i);
+                    double ovlp_E=inner(bra_ik,clusterfunctions(j,l),R2);
+                    double ovlp_F=inner(bra_ki,clusterfunctions(j,l),R2);
                     auto ket_i=hf->nemo(i);
                     auto ket_k=hf->nemo(k);
                     auto bra_j=hf->R2orbital(j);
                     auto bra_l=hf->R2orbital(l);
 
                     double g_jlik=inner(bra_j*ket_i, (*g12)(bra_l*ket_k));
-                    double g_jlki=inner(bra_j*ket_k, (*g12)(bra_l*ket_i));
-                    tmp+=(2.0*ovlp1 - ovlp2)*g_jlik;
+                    print("<jl | g | ik>",g_jlik);
+                    tmp+=(2.0*ovlp_E - ovlp_F)*g_jlik;
                 }
             }
-            print("mp3 energy: term3",i,j,tmp);
+            printf("mp3 energy: term3 %2d %2d %12.8f\n",i,j,tmp);
             term3+=tmp;
         }
     }
+    printf("MP3 energy: term3 %12.8f\n",term3);
     print("time term3",t3.reset());
     t3.print();
     printf("term1  %12.8f\n",term1);
@@ -468,7 +517,7 @@ void MP2::solve_residual_equations(ElectronPair& result,
                                    const double econv, const double dconv) const {
 
 
-    if (result.converged) {
+    if (result.converged or param.no_compute()) {
         result.print_energy();
         return;
     }

@@ -48,6 +48,8 @@
 #include "../tensor/tensor_lapack.h"
 #include "../world/madness_exception.h"
 #include "../world/print.h"
+#include <madness/mra/operatorinfo.h>
+
 
 namespace madness {
 
@@ -58,6 +60,29 @@ public:
 
 	/// default ctor does nothing
 	GFit() = default;
+
+    GFit(OperatorInfo info) {
+        double mu = info.mu;
+        double lo = info.lo;
+        double hi = info.hi;
+        MADNESS_CHECK_THROW(hi>0,"hi must be positive in gfit: U need to set it manually in operator.h");
+        double eps = info.thresh;
+        OpType type = info.type;
+
+
+        if (type==OT_G12) {*this=CoulombFit(lo,hi,eps,false);
+        } else if (type==OT_SLATER) {*this=SlaterFit(mu,lo,hi,eps,false);
+        } else if (type==OT_GAUSS)  {*this=GaussFit(mu,lo,hi,eps,false);
+        } else if (type==OT_F12)    {*this=F12Fit(mu,lo,hi,eps,false);
+        } else if (type==OT_FG12)   {*this=FGFit(mu,lo,hi,eps,false);
+        } else if (type==OT_F212)   {*this=F12sqFit(mu,lo,hi,eps,false);
+        } else if (type==OT_F2G12)  {*this=F2GFit(mu,lo,hi,eps,false);
+        } else if (type==OT_BSH)    {*this=BSHFit(mu,lo,hi,eps,false);
+        } else {
+            MADNESS_EXCEPTION("Operator type not implemented",1);
+        }
+
+    }
 
     /// copy constructor
     GFit(const GFit& other) = default;
