@@ -198,7 +198,6 @@ private:
     X_space compute_UPSILON(World &world, const X_space &XB, const X_space &XC);
     RHS_Generator generator;
     X_space compute_VBC(World &world, const X_space &XB, const X_space &XC);
-    std::pair<X_space, X_space> setup_rhs_BC(World &world, const X_space &PQ);
     X_space compute_gamma_quadratic(World &world, const X_space &XB, const X_space &XC,
                                     const vector_real_function_3d &phi0) const;
     X_space compute_coulomb_term(World &world, const X_space &B, const X_space &C) const;
@@ -208,18 +207,18 @@ private:
     Tensor<double> compute_beta_1(World &world, const X_space &upsilon);
     X_space compute_gamma_occ(World &world, const X_space &XB, const X_space &XC);
     X_space compute_g1_term(World &world, const X_space &left, const X_space &right, const X_space &apply) const;
-    X_space compute_coulomb_term(World &world, const X_space &B, const X_space &C, const X_space &D) const;
-    X_space compute_exchange_term(World &world, const X_space &x_left, const X_space &x_right, const X_space &x_apply) const;
+    X_space compute_coulomb_term(World &world, const X_space &A, const X_space &B, const X_space &D) const;
+    X_space compute_exchange_term(World &world, const X_space &A, const X_space &B, const X_space &x_apply) const;
     X_space compute_beta(World &world, const X_space &XB, const X_space &XC);
-    std::tuple<X_space, X_space, X_space, X_space> compute_gamma_unrelaxed_block(World &world, const X_space &A,
-                                                                              const X_space &B);
+    std::tuple<X_space, X_space, X_space, X_space> compute_zeta_response_vectors(World &world, const X_space &B,
+                                                                              const X_space &C);
     std::pair<X_space, X_space> compute_first_order_fock_matrix_terms(World &world, const X_space &A,
                                                                       const X_space &phi0, const X_space &B) const;
     Tensor<double> compute_beta_unrelaxed(World &world, const X_space &AB_left, const X_space &AB_right,
                                           X_space &BA_left, X_space &BA_right);
     X_space compute_second_order_perturbation_terms(World &world, const X_space &B, const X_space &C,
-                                                    const X_space &BC_left, const X_space &BC_right,
-                                                    const X_space &CB_left, const X_space &CB_right,
+                                                    const X_space &zeta_bc_x, const X_space &zeta_bc_y,
+                                                    const X_space &zeta_cb_x, const X_space &zeta_cb_y,
                                                     const X_space &phi0);
 };
 
