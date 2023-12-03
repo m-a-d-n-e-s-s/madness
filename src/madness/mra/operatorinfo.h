@@ -18,7 +18,8 @@ enum OpType {
     OT_FG12,        /// (1-exp(-r))/r
     OT_F212,        /// (1-exp(-r))^2
     OT_F2G12,       /// (1-exp(-r))^2/r = 1/r + exp(-2r)/r - 2 exp(-r)/r
-    OT_BSH          /// exp(-r)/r
+    OT_BSH,         /// exp(-r)/r
+    OT_SIZE         /// for ending loops
 };
 
 /// operator type to string

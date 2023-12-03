@@ -2127,6 +2127,13 @@ namespace madness {
     /// Returns a new function with the same distribution
     ///
     /// !!! For the moment does NOT respect fence option ... always fences
+    /// if the operator acts on one particle only the result will be sorted as
+    /// g.particle=1:     g(f) = \int g(x,x') f(x',y) dx' = result(x,y)
+    /// g.particle=2:     g(f) = \int g(y,y') f(x,y') dy' = result(x,y)
+    /// for the second case it will notably *not* be as it is implemented in the partial inner product!
+    /// g.particle=2                          g(f) = result(x,y)
+    ///                 inner(g(y,y'),f(x,y'),1,1) = result(y,x)
+    /// also note the confusion with the counting of the particles/integration variables
     template <typename opT, typename R, std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
     apply(const opT& op, const Function<R,NDIM>& f, bool fence=true) {

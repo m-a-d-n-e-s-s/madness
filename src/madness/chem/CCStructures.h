@@ -835,12 +835,9 @@ public:
 
     /// create a TwoElectronFactory with the operatorkernel
     TwoElectronFactory get_kernel() const {
-        if (type() == OpType::OT_G12) return TwoElectronFactory(world).dcut(1.e-7);
-        else if (type() == OpType::OT_F12) return TwoElectronFactory(world).dcut(1.e-7).f12().gamma(parameters.gamma);
-        else if (type() == OpType::OT_FG12) return TwoElectronFactory(world).dcut(1.e-7).BSH().gamma(parameters.gamma);
-        else if (type() == OpType::OT_SLATER) return TwoElectronFactory(world).dcut(1.e-7).slater().gamma(parameters.gamma);
-        else error("no kernel of type " + name() + " implemented");
-        return TwoElectronFactory(world);
+        auto factory=TwoElectronFactory(world);
+        factory.set_info(op->info);
+        return factory;
     }
 
     OpType type() const { return get_op()->info.type; }

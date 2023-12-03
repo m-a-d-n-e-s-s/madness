@@ -405,7 +405,7 @@ public:
 
     /// scalar multiplication: fac*f
     friend CCPairFunction operator*(const double fac, const CCPairFunction& f) {
-        return fac*f;
+        return f*fac;
     }
 
     /// multiplication with a 2-particle function
@@ -573,7 +573,10 @@ public:
             for (auto& b : vb) {
                 double tmp=a.inner_internal(b,R2);
                 double wall1=cpu_time();
-                print("result from inner",a.name(true),b.name(),tmp,wall1-wall0,"s");
+                std::size_t bufsize=256;
+                char buf[bufsize];
+                snprintf(buf,bufsize,"result from inner %10s %10s %12.8f %4.1fs",a.name(true).c_str(),b.name().c_str(),tmp,wall1-wall0);
+                print(std::string(buf));
                 wall0=wall1;
                 result+=tmp;
             }
@@ -581,6 +584,12 @@ public:
         return result;
     }
 
+
+    friend std::vector<CCPairFunction> swap_particles(const std::vector<CCPairFunction>& argument) {
+        std::vector<CCPairFunction> result;
+        for (auto& a : argument) result.push_back(a.swap_particles());
+        return result;
+    };
 
 public:
     /// the 3 types of 6D-function that occur in the CC potential which coupled doubles to singles
@@ -617,6 +626,7 @@ public:
             real_function_6d result1=real_factory_6d(argument.world()).compressed();
 
             MADNESS_ASSERT(argument.get_a().size() == argument.get_b().size());
+            MADNESS_CHECK_THROW(G.particle()==-1,"G must be a two-particle operator in apply(CCPairFunction)");
 
             for (size_t k = 0; k < argument.get_a().size(); k++) {
                 const real_function_6d tmp = G(argument.get_a()[k], argument.get_b()[k]);
@@ -658,6 +668,8 @@ std::vector<CCPairFunction> apply(const SeparatedConvolution<T,NDIM>& op, const 
 /// convenience function
 template<typename T, std::size_t NDIM>
 CCPairFunction apply(const SeparatedConvolution<T,NDIM>& op, const CCPairFunction& argument);
+
+std::vector<CCPairFunction> swap_particles(const std::vector<CCPairFunction>& argument);
 
 real_function_3d inner(const CCPairFunction& c, const real_function_3d& f,
                        const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2={0,1,2});

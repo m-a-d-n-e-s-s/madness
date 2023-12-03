@@ -499,12 +499,6 @@ public:
     /// param[in]		green	the Green's function
     void increment(ElectronPair& pair, real_convolution_6d& green);
 
-    /// swap particles 1 and 2
-
-    /// param[in]	f	a function of 2 particles f(1,2)
-    /// return	the input function with particles swapped g(1,2) = f(2,1)
-    real_function_6d swap_particles(const real_function_6d& f) const;
-
     double asymmetry(const real_function_6d& f, const std::string s) const;
 
     /// compute the matrix element <ij | g12 Q12 f12 | phi^0>

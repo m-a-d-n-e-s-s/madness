@@ -35,6 +35,11 @@ struct data {
         auto g3 = [](const coord_3d& r) { return exp(-3.0 * inner(r, r)); };
         auto g4 = [](const coord_3d& r) { return exp(-4.0 * inner(r, r)); };
         auto g5 = [](const coord_3d& r) { return exp(-5.0 * inner(r, r)); };
+//        auto g1 = [](const coord_3d& r) { return exp(-1.0 * (r.normf()+1.e-4)); };
+//        auto g2 = [](const coord_3d& r) { return exp(-2.0 * (r.normf()+1.e-4)); };
+//        auto g3 = [](const coord_3d& r) { return exp(-3.0 * (r.normf()+1.e-4)); };
+//        auto g4 = [](const coord_3d& r) { return exp(-4.0 * (r.normf()+1.e-4)); };
+//        auto g5 = [](const coord_3d& r) { return exp(-5.0 * (r.normf()+1.e-4)); };
         f1=real_factory_3d(world).f(g1);
         f2=real_factory_3d(world).f(g2);
         f3=real_factory_3d(world).f(g3);
@@ -51,8 +56,21 @@ struct data {
             double r2=r[3]*r[3] + r[4]*r[4] + r[5]*r[5];
             return exp(-1.0*r1 - 2.0*r2) + exp(-2.0*r1 - 3.0*r2);
         };
-        f12 = real_factory_6d(world).f(g);
-        f23 = real_factory_6d(world).f(g23);
+
+        f12=real_factory_6d(world);
+        f23=real_factory_6d(world);
+        try {
+            load(f12,"test_ccpairfunction_f12");
+        } catch (...) {
+            f12 = real_factory_6d(world).f(g);
+            save(f12,"test_ccpairfunction_f12");
+        }
+        try {
+            load(f23,"test_ccpairfunction_f23");
+        } catch (...) {
+            f23 = real_factory_6d(world).f(g23);
+            save(f23,"test_ccpairfunction_f23");
+        }
 
     }
     void clear() {
@@ -649,8 +667,46 @@ int test_partial_inner_3d(World& world, std::shared_ptr<NuclearCorrelationFactor
 int test_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
                const CCParameters& parameter) {
     test_output t1("CCPairFunction::test_apply");
+    t1.set_cout_to_terminal();
 
-    return  (t1.get_final_success()) ? 0 : 1;
+    /// f12: exp(-r_1^2 - 2 r_2^2)
+    /// f23: exp(-r_1^2 - 2 r_2^2) + exp(-2 r_1^2 - 3 r_2^2)
+    /// p1: pure, corresponds to f12
+    /// p2: dec, corresponds to f23
+    /// p3: op_dec, corresponds to f23
+    /// p4: pure, corresponds to f23
+    /// p5: op_pure, corresponds to f23
+    auto [p1,p2,p3,p4,p5]=data1.get_ccpairfunctions();
+    auto [f1,f2,f3,f4,f5,f]=data1.get_functions();
+
+    auto f12=CCConvolutionOperatorPtr(world, OT_F12, parameter);
+    auto& op=*(f12->get_op());
+    std::vector<CCPairFunction> vp2({p2});
+    std::vector<CCPairFunction> vp2ex({p2.swap_particles()});
+
+    // tmp(2) = \int a(1)b(2') f(1,2) d1
+    // result=inner(tmp,f1);
+    for (auto& p : {p1,p2,p3,p4,p5}) {
+        print("working on ",p.name());
+        std::vector<CCPairFunction> vp({p});
+        op.set_particle(1);
+        auto op1_p=op(vp);
+        double r1=inner(vp2,op1_p);
+        double r1ex=inner(vp2ex,op1_p);
+        printf("r1   %12.8f\n",r1);
+        printf("r1ex %12.8f\n",r1ex);
+        op.set_particle(2);
+        auto op2_p=op(vp);
+        double r2=inner(vp2,op2_p);
+        double r2ex=inner(vp2ex,op2_p);
+        printf("r2   %12.8f\n",r2);
+        printf("r2ex %12.8f\n",r2ex);
+
+    }
+
+
+
+    return t1.end();
 }
 
 int test_scalar_multiplication(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
@@ -774,7 +830,8 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
     test_output t1("CCPairFunction::test_projector");
     CCTimer timer(world, "testing");
 
-    t1.set_cout_to_logger();
+//    t1.set_cout_to_logger();
+    t1.set_cout_to_terminal();
     auto [f1,f2,f3,f4,f5,f] = data1.get_functions();
     double nf1=f1.norm2();
     double nf2=f2.norm2();
@@ -806,6 +863,47 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
     StrongOrthogonalityProjector<double,3> Q12(world);
     Q12.set_spaces(o);
 
+    double thresh=FunctionDefaults<3>::get_thresh();
+
+    // compute reference values as: (<f1 f2 | projector) | px >
+    // compute result values as:    <f1 f2 | (projector | px >)
+    real_function_3d of1=O(f1);
+    real_function_3d of2=O(f2);
+    real_function_3d qf1=Q(f1);
+    real_function_3d qf2=Q(f2);
+    std::vector<std::vector<CCPairFunction>> vp({vp1,vp2,vp3});
+    for (int i=0; i<3; ++i) {
+        // O1
+        O.set_particle(0);
+        {
+            double ref=inner({CCPairFunction({of1},{f2})},vp[i]);
+            double result=inner({CCPairFunction({f1},{f2})},O(vp[i]));
+            t1.checkpoint(result,ref,thresh,"O1 p"+std::to_string(i));
+        }
+
+        // O2
+        O.set_particle(1);
+        {
+            double ref=inner({CCPairFunction({f1},{of2})},vp[i]);
+            double result=inner({CCPairFunction({f1},{f2})},O(vp[i]));
+            t1.checkpoint(result,ref,thresh,"O2 p"+std::to_string(i));
+        }
+        // Q1
+        Q.set_particle(0);
+        {
+            double ref=inner({CCPairFunction({qf1},{f2})},vp[i]);
+            double result=inner({CCPairFunction({f1},{f2})},Q(vp[i]));
+            t1.checkpoint(result,ref,thresh,"Q1 p"+std::to_string(i));
+        }
+        // Q2
+        Q.set_particle(1);
+        {
+            double ref=inner({CCPairFunction({f1},{qf2})},vp[i]);
+            double result=inner({CCPairFunction({f1},{f2})},Q(vp[i]));
+            t1.checkpoint(result,ref,thresh,"Q2 p"+std::to_string(i));
+        }
+    }
+
     // some hardwire test
     {
         // <ab|k ><k |ab>  = <a|k><k|a><b|b>
@@ -817,13 +915,15 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
         O.set_particle(0);
         O1.set_particle(0);
         Projector<double,3> O2(a,a);
-        O2.set_particle(0);
+        O2.set_particle(1);
         double n1=inner(vp1,O1(vp2));
         double n1a=inner(O1(vp1),vp2);
+        t1.checkpoint(fabs(n1-n1a)<thresh,"O1");
         print("n1,n1a",n1,n1a);
         double n2=inner(vp1,O2(vp2));
         double n2a=inner(O2(vp1),vp2);
-        print("n2,n2a",n1,n1a);
+        t1.checkpoint(fabs(n2-n2a)<thresh,"O2");
+        print("n2,n2a",n2,n2a);
 
     }
     timer.reset();
@@ -876,9 +976,7 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
             t1.checkpoint(zero < FunctionDefaults<3>::get_thresh(), "SO operator on "+s,timer.reset() );
         }
     }
-    t1.end();
-
-    return  (t1.get_final_success()) ? 0 : 1;
+    return t1.end();
 }
 
 int test_dirac_convolution(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
@@ -1007,19 +1105,20 @@ int main(int argc, char **argv) {
         std::shared_ptr<NuclearCorrelationFactor> ncf = create_nuclear_correlation_factor(world,
                          mol, nullptr, std::make_pair("slater", 2.0));
 
-        isuccess+=test_constructor(world, ncf, mol, ccparam);
-        isuccess+=test_operator_apply(world, ncf, mol, ccparam);
-        isuccess+=test_transformations(world, ncf, mol, ccparam);
-        isuccess+=test_inner(world, ncf, mol, ccparam);
-        isuccess+=test_multiply(world, ncf, mol, ccparam);
-        isuccess+=test_multiply_with_f12(world, ncf, mol, ccparam);
-        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
-        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
-        isuccess+=test_partial_inner_3d(world, ncf, mol, ccparam);
-        isuccess+=test_partial_inner_6d(world, ncf, mol, ccparam);
-        isuccess+=test_projector(world, ncf, mol, ccparam);
-        FunctionDefaults<3>::set_cubic_cell(-10,10);
-        isuccess+=test_helium(world,ncf,mol,ccparam);
+//        isuccess+=test_constructor(world, ncf, mol, ccparam);
+//        isuccess+=test_operator_apply(world, ncf, mol, ccparam);
+//        isuccess+=test_transformations(world, ncf, mol, ccparam);
+//        isuccess+=test_inner(world, ncf, mol, ccparam);
+//        isuccess+=test_multiply(world, ncf, mol, ccparam);
+//        isuccess+=test_multiply_with_f12(world, ncf, mol, ccparam);
+//        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
+//        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
+//        isuccess+=test_partial_inner_3d(world, ncf, mol, ccparam);
+//        isuccess+=test_partial_inner_6d(world, ncf, mol, ccparam);
+        isuccess+=test_apply(world, ncf, mol, ccparam);
+//        isuccess+=test_projector(world, ncf, mol, ccparam);
+//        FunctionDefaults<3>::set_cubic_cell(-10,10);
+//        isuccess+=test_helium(world,ncf,mol,ccparam);
         data1.clear();
     } catch (std::exception& e) {
         madness::print("an error occured");

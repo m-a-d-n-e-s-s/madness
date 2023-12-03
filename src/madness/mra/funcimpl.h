@@ -5731,6 +5731,8 @@ namespace madness {
                     }
                     it = it_end;
                 }
+//                print("thresh               ",thresh);
+//                print("contraction list size",contraction_map.size());
 
                 // remove all double entries
                 for (auto& elem: contraction_map) {
@@ -5843,7 +5845,7 @@ namespace madness {
 
 //            print("\nkey, j_this_key", key, j_this_key);
             const double max_d_norm=j_other_list.find(j_this_key)->second;
-            const bool sd_norm_product_large = node.get_snorm() * max_d_norm > thresh;
+            const bool sd_norm_product_large = node.get_snorm() * max_d_norm > truncate_tol(thresh,key);
 //            print("sd_product_norm",node.get_snorm() * max_d_norm, thresh);
 
             // end recursion if we have reached the final scale n

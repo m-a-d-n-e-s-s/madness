@@ -171,6 +171,11 @@ namespace madness {
 
         int& particle() {return particle_;}
         const int& particle() const {return particle_;}
+        SeparatedConvolution<Q,NDIM>& set_particle(const int p) {
+            if (p!=1 and p!=2) throw std::runtime_error("particle must be 1 or 2");
+            particle_=p;
+            return *this;
+        }
 
         bool& destructive() {return destructive_;}
         const bool& destructive() const {return destructive_;}

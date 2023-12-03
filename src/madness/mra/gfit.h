@@ -79,7 +79,8 @@ public:
         } else if (type==OT_F2G12)  {*this=F2GFit(mu,lo,hi,eps,false);
         } else if (type==OT_BSH)    {*this=BSHFit(mu,lo,hi,eps,false);
         } else {
-            MADNESS_EXCEPTION("Operator type not implemented",1);
+            print("Operator type not implemented: ",type);
+            MADNESS_EXCEPTION("Operator type not implemented: ",1);
         }
 
     }

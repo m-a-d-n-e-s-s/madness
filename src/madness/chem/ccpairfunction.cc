@@ -23,7 +23,7 @@ bool CCPairFunction::is_convertible_to_pure_no_op() const {
         const auto type=get_operator().type();
         if (not (type==OpType::OT_SLATER or type==OpType::OT_F12)) return false;
     }
-    if (is_decomposed() and (get_a().size()>1)) return false;
+    if (is_decomposed() and (get_a().size()>2)) return false;
     return true;
 };
 
@@ -40,7 +40,7 @@ void CCPairFunction::convert_to_pure_no_op_inplace() {
         tmp.fill_tree();
         result=tmp;
     } else if (is_decomposed()) {
-        MADNESS_CHECK(get_a().size()<3);
+        MADNESS_CHECK_THROW(get_a().size()<3,"a.size not <3 in convert_to_pure_no_op_inplace");
         for (int i=0; i<get_a().size(); ++i) {
             if (is_op_decomposed()) {
                 tmp= CompositeFactory<double, 6, 3>(world())
@@ -231,7 +231,8 @@ CCPairFunction CCPairFunction::partial_inner(const CCPairFunction& other,
             // \int \sum_i f(1,2) a_i(1) b_i(3) d1  =  \sum_i b_i(3) \int a_i(1) f(1,2) d1
             vector_real_function_3d tmp;
             for (auto& a : other.get_vector(integration_index(v2))) {
-                tmp.push_back(innerXX<3>(this->get_function(),a,v1,a012));  // a012 is correct, referring to 3D function
+//                tmp.push_back(innerXX<3>(this->get_function(),a,v1,a012));  // a012 is correct, referring to 3D function
+                tmp.push_back(this->get_function().project_out(a,integration_index(v1)));
             }
             return CCPairFunction(tmp,other.get_vector(remaining_index(v2)));
 
@@ -488,8 +489,15 @@ CCPairFunction apply(const ProjectorBase& projector, const CCPairFunction& argum
 std::vector<CCPairFunction> apply(const ProjectorBase& projector, const std::vector<CCPairFunction>& argument) {
     if (argument.size()==0) return argument;
     World& world=argument.front().world();
-    if (auto P=dynamic_cast<const Projector<double,3>*>(&projector)) MADNESS_CHECK(P->get_particle()==0 or P->get_particle()==1);
-    if (auto Q=dynamic_cast<const QProjector<double,3>*>(&projector)) MADNESS_CHECK(Q->get_particle()==0 or Q->get_particle()==1);
+//    print("apply projector on argument with terms",argument.size());
+    if (auto P=dynamic_cast<const Projector<double,3>*>(&projector)) {
+//        print("P->get_particle()",P->get_particle());
+        MADNESS_CHECK_THROW(P->get_particle()==0 or P->get_particle()==1,"P Projector particle must be 0 or 1 in CCPairFunction");
+    }
+    if (auto Q=dynamic_cast<const QProjector<double,3>*>(&projector)) {
+//        print("Q->get_particle()",Q->get_particle());
+        MADNESS_CHECK_THROW(Q->get_particle()==0 or Q->get_particle()==1,"Q Projector particle must be 0 or 1 in CCPairFunction");
+    }
     std::vector<CCPairFunction> result;
     for (const auto& pf : argument) {
         if (pf.is_pure()) {
@@ -532,20 +540,41 @@ std::vector<CCPairFunction> apply(const ProjectorBase& projector, const std::vec
             if (auto SO=dynamic_cast<const StrongOrthogonalityProjector<double,3>*>(&projector)) {
 //                CCTimer t(world,"SO block");
                 // Q12 = 1 - O1 (1 - 1/2 O2) - O2 (1 - 1/2 O1)
+//                print("entering SO block");
                 QProjector<double,3> Q1(world,SO->bra1(),SO->ket1());
                 Q1.set_particle(0);
                 QProjector<double,3> Q2(world,SO->bra2(),SO->ket2());
                 Q2.set_particle(1);
+
+                Projector<double,3> O1(SO->bra1(),SO->ket1());
+                O1.set_particle(0);
+                Projector<double,3> O2(SO->bra2(),SO->ket2());
+                O2.set_particle(1);
+
+//                auto arg=std::vector<CCPairFunction>({pf});
+//                auto o1arg=O1(arg);
+//                auto o2arg=O2(arg);
+//                auto o1o2arg=O1(o2arg);
+//
+//                result.push_back(pf);
+//                for (auto& t: o1arg) result.push_back(-1.0*t);
+//                for (auto& t: o2arg) result.push_back(-1.0*t);
+//                for (auto& t: o1o2arg) result.push_back(t);
+
+
                 auto tmp=Q1(Q2(std::vector<CCPairFunction>({pf})));
+//                auto tmp=Q2(Q1(std::vector<CCPairFunction>({pf})));
+                print("result of SO");
+//                for (auto& t: tmp) t.print_size();
                 for (auto& t: tmp) result.push_back(t);
-//                t.print();
+                for (auto& t: result) t.print_size();
 
             } else if (auto P=dynamic_cast<const Projector<double,3>*>(&projector)) {
 //                CCTimer t(world,"P block");
-                // Q12 = 1 - O1 (1 - 1/2 O2) - O2 (1 - 1/2 O1)
+//                print("entering P block");
                 std::vector<real_function_3d> tmp= zero_functions_compressed<double,3>(world,P->get_ket_vector().size());
 
-                // per term a_i b_k:
+                // per term a_i b_i:
                 // P1 f |a b> = \sum_k |k(1)> |f_ak(2)*b(2)>
                 for (std::size_t i=0; i<pf.get_a().size(); ++i) {
                     real_function_3d a=pf.get_a()[i];
@@ -559,6 +588,8 @@ std::vector<CCPairFunction> apply(const ProjectorBase& projector, const std::vec
                     tmp+=b_f_ka;
                 }
                 truncate(world,tmp);
+//                print("size of tmp",tmp.size());
+
                 if (P->get_particle()==0) result.push_back(CCPairFunction(P->get_ket_vector(),tmp));
                 if (P->get_particle()==1) result.push_back(CCPairFunction(tmp,P->get_ket_vector()));
 //                t.print();
@@ -567,8 +598,10 @@ std::vector<CCPairFunction> apply(const ProjectorBase& projector, const std::vec
 //                CCTimer t(world,"Q block");
                 // Q1 f12 |a_i b_i> = f12 |a_i b_i> - \sum_k |k(1) a_i(2)*f_(kb_i)(2) >
                 result.push_back(pf);
+//                print("entering Q block");
                 // reuse the projector code above
                 std::vector<CCPairFunction> tmp=madness::apply(Q->get_P_projector(),std::vector<CCPairFunction>(1,pf));
+                for (auto& t : tmp) t.print_size();
                 for (auto& t : tmp) {
                     t*=-1.0;
                     result.push_back(t);
@@ -588,6 +621,12 @@ std::vector<CCPairFunction> apply(const ProjectorBase& projector, const std::vec
     return result;
 };
 
+/// apply the operator to the argument
+
+/// the operator is applied to one particle only, the other one is left untouched
+/// note the ordering of the particles, cf the corresponding comment in mra.h
+/// op.particle==1 :  op(f(x,y)) = op(x,x') f(x',y) = result(x,y);
+/// op.particle==2 :  op(f(x,y)) = op(y,y') f(x,y') = result(y,x);
 template<typename T, std::size_t NDIM>
 std::vector<CCPairFunction> apply(const SeparatedConvolution<T,NDIM>& op, const std::vector<CCPairFunction>& argument) {
     if (argument.size()==0) return argument;
@@ -595,11 +634,16 @@ std::vector<CCPairFunction> apply(const SeparatedConvolution<T,NDIM>& op, const 
     std::vector<CCPairFunction> result;
     timer t(world);
     for (const auto& arg : argument) {
-        if (arg.is_pure()) {
-            result.push_back(CCPairFunction(op(arg.get_function())));
-        } else if (arg.is_op_pure()) {
-            auto tmp=arg.to_pure();
-            result.push_back(apply(op,tmp));
+        bool convert_to_pure=(arg.has_operator() or arg.is_pure());
+
+        if (convert_to_pure) {
+            auto tmp=arg.to_pure().get_function();
+            tmp=op(tmp);
+
+            // !! confusing ordering of the result variables!!
+            if (op.particle()==2) tmp=swap_particles(tmp);
+            result.push_back(CCPairFunction(tmp));
+
         } else if (arg.is_decomposed_no_op()) {
             MADNESS_CHECK(op.particle()==1 or op.particle()==2);
             if (op.particle()==1) {
@@ -607,11 +651,11 @@ std::vector<CCPairFunction> apply(const SeparatedConvolution<T,NDIM>& op, const 
                 result.push_back(CCPairFunction(tmp,arg.get_b()));
             } else if (op.particle()==2) {
                 auto tmp= madness::apply(world,op,arg.get_b());
-                result.push_back(CCPairFunction(arg.get_a(),tmp));
+                result.push_back(CCPairFunction(tmp,arg.get_a()));
             }
-        } else if (arg.is_op_decomposed()) { // sucks..
-            auto tmp=arg.to_pure();
-            result.push_back(apply(op,tmp));
+
+        } else {
+            MADNESS_CHECK_THROW(false,"confused type in apply(CCPairFunction)");
         }
         t.tag("applying op to CCPairFunction "+arg.name());
     }
