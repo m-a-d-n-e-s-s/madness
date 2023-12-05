@@ -157,7 +157,7 @@ namespace madness {
     void do_response_density_vtk_plots_new(World &world, int npt_plot, double L, const Molecule &molecule,
                                            const real_function_3d &ground_density,
                                            const vector_real_function_3d &response_density) {
-        double box_size = L / 2;
+        double box_size = L ;
         Vector<double, 3> box_lo{-box_size, -box_size, -box_size};
         Vector<double, 3> box_hi{box_size, box_size, box_size};
 
