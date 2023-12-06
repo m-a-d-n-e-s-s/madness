@@ -365,76 +365,6 @@ double MP2::mp3() const {
         }
     }
 
-
-        if (0) {
-            print_header3("G with inner products");
-            real_convolution_3d& g = *(g12->get_op());
-            g.set_particle(1);
-            real_function_3d one=real_factory_3d(world).functor([](const coord_3d& x){return 1.0;});
-            auto one2=std::vector<CCPairFunction>({CCPairFunction(one,one)});
-            auto phi0=std::vector<CCPairFunction>({CCPairFunction(hf->orbital(0),hf->orbital(0))});
-            {
-                auto tmp=inner(phi0,phi0,{0,1,2},{0,1,2});
-                double H1=inner(tmp,g12*phi0);
-                printf("H1 = %12.8f\n",H1);
-                double H1one=inner(tmp,g12*one2);
-                printf("H1one = %12.8f\n",H1one);
-
-                double na=inner(phi0[0].get_a(),phi0[0].get_a());
-                double nb=inner(phi0[0].get_b(),phi0[0].get_a());
-                auto tmp1=g(phi0);
-                auto tmp2=g(phi0[0].get_a());
-                double n=inner(tmp2,phi0[0].get_a());
-                print("n",n);
-                double ta=inner(tmp1[0].get_a(),phi0[0].get_a());
-                double bb=inner(tmp1[0].get_b(),phi0[0].get_a());
-                print("norms (a,b) of phi0",na,nb);
-                print("norms (a,b) of g(phi0)",ta,bb);
-                double H2=inner(tmp1,phi0);
-                printf("H2 = %12.8f\n",H2);
-            }
-
-
-            const auto& pair00=clusterfunctions_R(0,0);
-            for (int i=0; i<pair00.size(); ++i) {
-                std::string msg="working on the first "+std::to_string(i)+" clusterfunctions";
-                print_header3(msg);
-                ClusterFunction few, few2;
-                std::size_t offset=0;
-                std::copy(pair00.begin()+offset,pair00.begin()+offset+1+i,std::back_inserter(few));
-                std::copy(pair00.begin()+offset,pair00.begin()+offset+1+i,std::back_inserter(few2));
-                for (auto& t : few) t.print_size();
-                print("");
-
-                double oldthresh=FunctionDefaults<6>::get_thresh();
-                FunctionDefaults<6>::set_thresh(oldthresh*0.001);
-
-                few[0].get_function().print_size("few[0]");
-                auto tmp=inner(few,few,{0,1,2},{0,1,2});
-                tmp[0].get_function().print_size("tmp[0]");
-
-//                auto tmp1=inner(few,few,{0,1,2},{3,4,5});
-//                tmp1[0].get_function().print_size("tmp1[0]");
-//
-//                auto tmp2=inner(few,few2,{0,1,2},{0,1,2});
-//                tmp2[0].get_function().print_size("tmp2[0]");
-//
-                FunctionDefaults<6>::set_thresh(oldthresh);
-                print("finished with inner(tau,tau,0,0)");
-                double G1=inner(g12*tmp,{CCPairFunction(hf->orbital(0),hf->orbital(0))});
-                printf("G = <inner(tau,tau,0,0) g12 | phi0> %12.8f\n",G1);
-                double G2=inner(g12*tmp,{CCPairFunction(one,one)});
-                printf("G = <inner(tau,tau,0,0) g12 |     > %12.8f\n",G2);
-
-                g.set_particle(2);
-                auto gtau = g(few);  // < tau_ij(1,2) j(2) | g(2,2') |
-                double G10 = inner(gtau,  few);
-                printf("G convolution    %12.8f\n", G10);
-
-            }
-        }
-        print("time extra G", t3.reset());
-
     double term_CD=0.0;
     double term_GHIJ=0.0;
     double term_KLMN=0.0;
@@ -446,12 +376,12 @@ double MP2::mp3() const {
         if (1) {
             for (int i = param.freeze(); i < hf->nocc(); ++i) {
                 for (int j = i; j < hf->nocc(); ++j) {
-//                    auto bra = clusterfunctions(i, j);
-//                    double tmp1 = inner(bra, g12 * clusterfunctions(i, j), R2);
-//                    double tmp2 = inner(bra, g12 * clusterfunctions(j, i), R2);
-                    auto bra = clusterfunctions_R2(i, j);
-                    double tmp1 = inner(bra, g12 * clusterfunctions(i, j));
-                    double tmp2 = inner(bra, g12 * clusterfunctions(j, i));
+                    auto bra = clusterfunctions(i, j);
+                    double tmp1 = inner(bra, g12 * clusterfunctions(i, j), R2);
+                    double tmp2 = inner(bra, g12 * clusterfunctions(j, i), R2);
+//                    auto bra = clusterfunctions_R2(i, j);
+//                    double tmp1 = inner(bra, g12 * clusterfunctions(i, j));
+//                    double tmp2 = inner(bra, g12 * clusterfunctions(j, i));
                     double fac = (i == j) ? 0.5 : 1.0;
                     double tmp = fac * (4.0 * tmp1 - 2.0 * tmp2);
                     printf("mp3 energy: term_CD %2d %2d: %12.8f\n", i, j, tmp);
@@ -468,26 +398,24 @@ double MP2::mp3() const {
 
         // \sum_j tau_ij(1,2) * phi_j(2)
         std::vector<ClusterFunction> tau_kk_i(hf->nocc() - param.freeze());
-        std::vector<ClusterFunction> tau_i_jj_R2(hf->nocc() - param.freeze());
+//        std::vector<ClusterFunction> tau_kk_i_R2(hf->nocc() - param.freeze());
         // \sum_j tau_ij(1,2) * phi_j(1)
         std::vector<ClusterFunction> tau_ij_j(hf->nocc() - param.freeze());
-        std::vector<ClusterFunction> tau_ij_j_R2(hf->nocc() - param.freeze());
+//        std::vector<ClusterFunction> tau_ij_j_R2(hf->nocc() - param.freeze());
         for (int i = param.freeze(); i < hf->nocc(); ++i) {
             for (int j = param.freeze(); j < hf->nocc(); ++j) {
 //                auto tmp2 = multiply(clusterfunctions(i, j), hf->R2orbital(j), {3, 4, 5});
-                auto tmp2 = multiply(clusterfunctions_R(i, j), hf->orbital(j), {3, 4, 5});
-                for (auto& t: tmp2) tau_i_jj_R2[i].push_back(t);
-
+//                for (auto& t: tmp2) tau_kk_i_R2[i].push_back(t);
+//
 //                auto tmp4 = multiply(clusterfunctions(i, j), hf->R2orbital(j), {0, 1, 2});
-                auto tmp4 = multiply(clusterfunctions_R(i, j), hf->orbital(j), {0, 1, 2});
-                for (auto& t: tmp4) tau_ij_j_R2[i].push_back(t);
+//                for (auto& t: tmp4) tau_ij_j_R2[i].push_back(t);
 
 //                auto tmp1 = multiply(clusterfunctions(i, j), hf->nemo(j), {3, 4, 5});
-                auto tmp1 = multiply(clusterfunctions_R(i, j), hf->orbital(j), {0, 1, 2});
+                auto tmp1 = multiply(clusterfunctions(i, j), hf->R2orbital(j), {0, 1, 2});
                 for (auto& t: tmp1) tau_kk_i[i].push_back(t);
 
 //                auto tmp3 = multiply(clusterfunctions(i, j), hf->nemo(j), {0, 1, 2});
-                auto tmp3 = multiply(clusterfunctions_R(i, j), hf->orbital(j), {0, 1, 2});
+                auto tmp3 = multiply(clusterfunctions(i, j), hf->R2orbital(j), {0, 1, 2});
                 for (auto& t: tmp3) tau_ij_j[i].push_back(t);
             }
         }
@@ -514,20 +442,23 @@ double MP2::mp3() const {
 
             // tmp(1',2) = g(1',1) | tau_ij(1,2) j(1) >
             g.set_particle(1);
-            auto gtau_other = g(tau_ij_j_R2[i]); // < tau_ij(1,2) j(1) | g(1,1') |
+            auto gtau_other = g(tau_ij_j[i]); // < tau_ij(1,2) j(1) | g(1,1') |
             t4.tag("compute gtau_other");
 
 
-            double G = inner(tau_kk_i[i], gtau_same);
+            auto bra_kk_i = multiply(tau_kk_i[i],R2,{3,4,5});
+            auto bra_ij_j = multiply(tau_ij_j[i],R2,{3,4,5});
+
+            double G = inner(bra_kk_i, gtau_same);
             printf("G     %12.8f\n", G);
 
-            double H = inner(tau_ij_j[i], gtau_other);
+            double H = inner(bra_ij_j, gtau_other);
             printf("H     %12.8f\n", H);
 
-            double I = inner(tau_kk_i[i], gtau_other);
+            double I = inner(bra_kk_i, gtau_other);
             printf("I     %12.8f\n", I);
 
-            double J = inner(tau_ij_j[i], gtau_same);
+            double J = inner(bra_ij_j, gtau_same);
             printf("J     %12.8f\n", J);
 
             t4.tag("compute inner products");
@@ -543,19 +474,19 @@ double MP2::mp3() const {
                 double tmp = 0.0;
                 for (int k = param.freeze(); k < hf->nocc(); ++k) {
 
-                    auto tau_ik = clusterfunctions_R(i, k);
-                    auto tau_kj = clusterfunctions_R(k, j);
-                    auto tau_ij = clusterfunctions_R(i, j);
-                    auto tau_ji = clusterfunctions_R(j, i);
-                    auto tau_ik_gkj = multiply(tau_ik, gij(k, j), {0, 1, 2});
-                    auto tau_kj_gki = multiply(tau_kj, gij(k, i), {0, 1, 2});
+                    auto tau_ik = clusterfunctions(i, k);
+                    auto tau_kj = clusterfunctions(k, j);
+                    auto tau_ij = clusterfunctions(i, j);
+                    auto tau_ji = clusterfunctions(j, i);
+                    auto tau_ik_gkj = multiply(tau_ik, gij(k, j), {3, 4, 5});
+                    auto tau_kj_gki = multiply(tau_kj, gij(k, i), {3, 4, 5});
 //                auto tau_ik_gkj = multiply(tau_ik,gij(k,j),{0,1,2});
 //                auto tau_kj_gki = multiply(tau_kj,gij(k,i),{0,1,2});
 
-                    double K = inner(tau_ij, tau_ik_gkj);//, R2);
-                    double L = inner(tau_ij, tau_kj_gki);//, R2);
-                    double M = inner(tau_ji, tau_kj_gki);//, R2);
-                    double N = inner(tau_ji, tau_ik_gkj);//, R2);
+                    double K = inner(tau_ij, tau_ik_gkj, R2);
+                    double L = inner(tau_ij, tau_kj_gki, R2);
+                    double M = inner(tau_ji, tau_kj_gki, R2);
+                    double N = inner(tau_ji, tau_ik_gkj, R2);
                     print("K,L,M,N", K, L, M, N);
 
                     tmp += -4 * K - 4 * L + 2 * M + 2 * N;
@@ -573,10 +504,10 @@ double MP2::mp3() const {
             double tmp=0.0;
             for (int k=param.freeze(); k<hf->nocc(); ++k) {
                 for (int l=param.freeze(); l<hf->nocc(); ++l) {
-                    auto bra_ik = clusterfunctions_R(i,k);
-                    auto bra_ki = clusterfunctions_R(k,i);
-                    double ovlp_E=inner(bra_ik,clusterfunctions_R(j,l));
-                    double ovlp_F=inner(bra_ki,clusterfunctions_R(j,l));
+                    auto bra_ik = clusterfunctions(i,k);
+                    auto bra_ki = clusterfunctions(k,i);
+                    double ovlp_E=inner(bra_ik,clusterfunctions(j,l),R2);
+                    double ovlp_F=inner(bra_ki,clusterfunctions(j,l),R2);
                     auto ket_i=hf->nemo(i);
                     auto ket_k=hf->nemo(k);
                     auto bra_j=hf->R2orbital(j);
