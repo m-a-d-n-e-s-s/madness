@@ -601,7 +601,7 @@ std::vector<CCPairFunction> apply(const ProjectorBase& projector, const std::vec
 //                print("entering Q block");
                 // reuse the projector code above
                 std::vector<CCPairFunction> tmp=madness::apply(Q->get_P_projector(),std::vector<CCPairFunction>(1,pf));
-                for (auto& t : tmp) t.print_size();
+//                for (auto& t : tmp) t.print_size();
                 for (auto& t : tmp) {
                     t*=-1.0;
                     result.push_back(t);
