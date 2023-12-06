@@ -564,10 +564,10 @@ std::vector<CCPairFunction> apply(const ProjectorBase& projector, const std::vec
 
                 auto tmp=Q1(Q2(std::vector<CCPairFunction>({pf})));
 //                auto tmp=Q2(Q1(std::vector<CCPairFunction>({pf})));
-                print("result of SO");
+//                print("result of SO");
 //                for (auto& t: tmp) t.print_size();
                 for (auto& t: tmp) result.push_back(t);
-                for (auto& t: result) t.print_size();
+//                for (auto& t: result) t.print_size();
 
             } else if (auto P=dynamic_cast<const Projector<double,3>*>(&projector)) {
 //                CCTimer t(world,"P block");
@@ -657,7 +657,7 @@ std::vector<CCPairFunction> apply(const SeparatedConvolution<T,NDIM>& op, const 
         } else {
             MADNESS_CHECK_THROW(false,"confused type in apply(CCPairFunction)");
         }
-        t.tag("applying op to CCPairFunction "+arg.name());
+//        t.tag("applying op to CCPairFunction "+arg.name());
     }
 
     return result;

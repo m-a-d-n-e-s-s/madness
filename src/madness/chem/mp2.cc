@@ -279,7 +279,6 @@ double MP2::mp3() const {
     auto R = hf->nemo_ptr->ncf->function();
 
     double mp3_energy = 0.0;
-    CCTimer t1(world, "make pairs");
     // load converged MP1 wave functions
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = i; j < hf->nocc(); ++j) {
@@ -302,10 +301,7 @@ double MP2::mp3() const {
             }
         }
     }
-    t1.print();
-    CCTimer t_R2(world,"make R2 pairs");
     Pairs<ClusterFunction> clusterfunctions_R2;
-    Pairs<ClusterFunction> clusterfunctions_R;
     for (int i=param.freeze(); i<hf->nocc(); ++i) {
         for (int j=i; j<hf->nocc(); ++j) {
             {
@@ -313,14 +309,8 @@ double MP2::mp3() const {
                 auto tmp2 = multiply(tmp1, R2, {3, 4, 5});
                 for (auto& t: tmp2) clusterfunctions_R2(i, j).push_back(t);
             }
-            {
-                auto tmp1 = multiply(clusterfunctions(i, j), R, {0, 1, 2});
-                auto tmp2 = multiply(tmp1, R, {3, 4, 5});
-                for (auto& t: tmp2) clusterfunctions_R(i, j).push_back(t);
-            }
         }
     }
-    t_R2.print();
 
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = i; j < hf->nocc(); ++j) {
@@ -334,7 +324,7 @@ double MP2::mp3() const {
 
     CCConvolutionOperator::Parameters cparam;
     auto g12=CCConvolutionOperatorPtr(world,OpType::OT_G12,cparam);
-    CCTimer t2(world,"recompute MP2");
+    timer t2(world, "recompute MP2");
 
     // recompute MP2 energy
     double mp2_energy=0.0;
@@ -346,15 +336,14 @@ double MP2::mp3() const {
             double exchange=inner({bra},g12*clusterfunctions(j,i),R2);
             double fac=(i==j) ? 0.5: 1.0;
             double pair_energy=fac*(4.0*direct-2.0*exchange);
-            printf("MP2 energy: cluster %2d %2d: %12.8f\n",i,j,pair_energy);
+            printf("MP2 energy for pair %2d %2d: %12.8f\n",i,j,pair_energy);
             mp2_energy+=pair_energy;
         }
     }
     printf("total mp2 energy %12.8f\n",mp2_energy);
-    print("time clusterfunction",t2.reset());
+    t2.tag("recompute MP2 energy");
 
     print_header3("compute the MP3 energy");
-    CCTimer t3(world,"MP3");
 
     // compute the term <i(1) |g(1,2) | j(1)>(2)
     madness::Pairs<real_function_3d> gij;
@@ -390,31 +379,21 @@ double MP2::mp3() const {
             }
         }
         printf("MP3 energy: term_CD %12.8f\n", term_CD);
-        print("time term_CD", t3.reset());
-        print("");
+        t2.tag("CD term");
 
 
         // compute intermediates for terms G, I, H, and J
 
         // \sum_j tau_ij(1,2) * phi_j(2)
         std::vector<ClusterFunction> tau_kk_i(hf->nocc() - param.freeze());
-//        std::vector<ClusterFunction> tau_kk_i_R2(hf->nocc() - param.freeze());
         // \sum_j tau_ij(1,2) * phi_j(1)
         std::vector<ClusterFunction> tau_ij_j(hf->nocc() - param.freeze());
-//        std::vector<ClusterFunction> tau_ij_j_R2(hf->nocc() - param.freeze());
         for (int i = param.freeze(); i < hf->nocc(); ++i) {
             for (int j = param.freeze(); j < hf->nocc(); ++j) {
-//                auto tmp2 = multiply(clusterfunctions(i, j), hf->R2orbital(j), {3, 4, 5});
-//                for (auto& t: tmp2) tau_kk_i_R2[i].push_back(t);
-//
-//                auto tmp4 = multiply(clusterfunctions(i, j), hf->R2orbital(j), {0, 1, 2});
-//                for (auto& t: tmp4) tau_ij_j_R2[i].push_back(t);
 
-//                auto tmp1 = multiply(clusterfunctions(i, j), hf->nemo(j), {3, 4, 5});
                 auto tmp1 = multiply(clusterfunctions(i, j), hf->R2orbital(j), {0, 1, 2});
                 for (auto& t: tmp1) tau_kk_i[i].push_back(t);
 
-//                auto tmp3 = multiply(clusterfunctions(i, j), hf->nemo(j), {0, 1, 2});
                 auto tmp3 = multiply(clusterfunctions(i, j), hf->R2orbital(j), {0, 1, 2});
                 for (auto& t: tmp3) tau_ij_j[i].push_back(t);
             }
@@ -428,7 +407,7 @@ double MP2::mp3() const {
             for (auto& c: tau_ij_j[i]) c.info();
         }
 
-        print("time GHIJ prep", t3.reset());
+        t2.tag("GHIJ prep");
 
         // terms G, I, H, J of Bartlett/Silver 1975
         real_convolution_3d& g = *(g12->get_op());
@@ -467,7 +446,7 @@ double MP2::mp3() const {
             term_GHIJ += tmp;
         }
         printf("MP3 energy: term_GHIJ %12.8f\n", term_GHIJ);
-        print("time GHIJ ", t3.reset());
+        t2.tag("GHIJ term");
 
         for (int i = param.freeze(); i < hf->nocc(); ++i) {
             for (int j = param.freeze(); j < hf->nocc(); ++j) {
@@ -487,7 +466,6 @@ double MP2::mp3() const {
                     double L = inner(tau_ij, tau_kj_gki, R2);
                     double M = inner(tau_ji, tau_kj_gki, R2);
                     double N = inner(tau_ji, tau_ik_gkj, R2);
-                    print("K,L,M,N", K, L, M, N);
 
                     tmp += -4 * K - 4 * L + 2 * M + 2 * N;
                 }
@@ -496,8 +474,9 @@ double MP2::mp3() const {
             }
         }
         printf("MP3 energy: term_KLMN (KLMN) %12.8f\n", term_KLMN);
-        print("time term_KLMN", t3.reset());
+        t2.tag("KLMN term");
     }
+
     print_header3("computing term EF of the MP3 energy with R2_bra");
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = param.freeze(); j < hf->nocc(); ++j) {
@@ -514,7 +493,7 @@ double MP2::mp3() const {
                     auto bra_l=hf->R2orbital(l);
 
                     double g_jlik=inner(bra_j*ket_i, (*g12)(bra_l*ket_k));
-                    print("<jl | g | ik>",g_jlik);
+//                    print("<jl | g | ik>",g_jlik);
                     tmp+=(2.0*ovlp_E - ovlp_F)*g_jlik;
                 }
             }
@@ -523,14 +502,14 @@ double MP2::mp3() const {
         }
     }
     printf("MP3 energy: term_EF %12.8f\n",term_EF);
-    print("time term_EF",t3.reset());
-    t3.print();
+    t2.tag("EF term");
+
     printf("term_CD    %12.8f\n",term_CD);
     printf("term_GHIJ  %12.8f\n",term_GHIJ);
     printf("term_KLMN  %12.8f\n",term_KLMN);
     printf("term_EF    %12.8f\n",term_EF);
     mp3_energy=term_CD+term_GHIJ+term_KLMN+term_EF;
-    printf("MP3 en %12.8f\n",mp3_energy);
+    printf("MP3 energy contribution  %12.8f\n",mp3_energy);
 
 
     return mp3_energy;
