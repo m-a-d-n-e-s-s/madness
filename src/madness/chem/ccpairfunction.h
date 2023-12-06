@@ -430,10 +430,10 @@ public:
         std::vector<CCPairFunction> result;
         for (auto& o : other) {
             double cpu0=cpu_time();
-            std::cout << "multiply " << o.name();
+//            std::cout << "multiply " << o.name();
             result.push_back(multiply(o,f,v1));
             double cpu1=cpu_time();
-            std::cout << " done after " << cpu1-cpu0 << std::endl;
+//            std::cout << " done after " << cpu1-cpu0 << std::endl;
         }
         return result;
     }
@@ -576,7 +576,7 @@ public:
                 std::size_t bufsize=256;
                 char buf[bufsize];
                 snprintf(buf,bufsize,"result from inner %10s %10s %12.8f %4.1fs",a.name(true).c_str(),b.name().c_str(),tmp,wall1-wall0);
-                print(std::string(buf));
+//                print(std::string(buf));
                 wall0=wall1;
                 result+=tmp;
             }
