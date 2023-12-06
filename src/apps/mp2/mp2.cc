@@ -91,7 +91,7 @@ int main(int argc, char** argv) {
 
             double mp3_energy=mp3_correction+mp2_energy;
             if(world.rank() == 0) {
-                printf("final hf/mp2/mp3/total energy %12.8f %12.8f %12.8f\n",
+                printf("final hf/mp2/mp3/total energy %12.8f %12.8f %12.8f %12.8f\n",
                        hf_energy,mp2_energy,mp3_correction,hf_energy+mp3_energy);
             }
         } catch (std::exception& e) {
