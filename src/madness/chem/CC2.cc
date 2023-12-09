@@ -36,10 +36,10 @@ CC2::solve() {
     // singles for ground state
     CC_vecfunction cc2singles;
 
-    double mp2_energy, cc2_energy;
+    double mp2_energy=0.0, cc2_energy=0.0, mp3_energy=0.0;
 
     bool need_tdhf=parameters.response();
-    bool need_mp2=(ctype==CT_MP2 or ctype==CT_CISPD or ctype==CT_ADC2);
+    bool need_mp2=(ctype==CT_MP2 or ctype==CT_CISPD or ctype==CT_ADC2 or ctype==CT_MP3);
     bool need_cc2=(ctype==CT_LRCC2 or ctype==CT_CC2);
 
     // check for restart data for CC2, otherwise use MP2 as guess
@@ -56,8 +56,12 @@ CC2::solve() {
     }
 
     if (need_mp2) {
-        initialize_pairs(mp2pairs, GROUND_STATE, CT_MP2, CC_vecfunction(PARTICLE), CC_vecfunction(RESPONSE), 0);
-        mp2_energy = solve_mp2_coupled(mp2pairs);
+        bool restarted=initialize_pairs(mp2pairs, GROUND_STATE, CT_MP2, CC_vecfunction(PARTICLE), CC_vecfunction(RESPONSE), 0);
+        if (restarted and parameters.no_compute_mp2()) {
+            for (auto& pair : mp2pairs.allpairs) mp2_energy+=CCOPS.compute_pair_correlation_energy(pair.second);
+        } else {
+            mp2_energy = solve_mp2_coupled(mp2pairs);
+        }
         output_calc_info_schema("mp2",mp2_energy);
         output.section(assign_name(CT_MP2) + " Calculation Ended !");
         if (world.rank() == 0)
@@ -94,6 +98,8 @@ CC2::solve() {
         ;   // we're good
     } else if (ctype == CT_MP2) {
         ;   // we're good
+    } else if (ctype == CT_MP3) {
+        mp3_energy=mp3_energy_contribution(mp2pairs);
     } else if (ctype == CT_CC2) {
         ;   // we're good
     } else if (ctype == CT_CISPD) {
@@ -355,6 +361,260 @@ Tensor<double> CC2::enforce_core_valence_separation(const Tensor<double>& fmat) 
 
 };
 
+double CC2::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
+
+    print_header2("computing the MP3 correlation energy");
+    print_header3("prepare the cluster function");
+    typedef std::vector<CCPairFunction> ClusterFunction;
+    Pairs<ClusterFunction> clusterfunctions;
+
+    auto R2 = nemo->ncf->square();
+    auto R = nemo->ncf->function();
+    std::vector<real_function_3d> nemo_orbital=CCOPS.mo_ket().get_vecfunction();
+    std::vector<real_function_3d> R2_orbital=CCOPS.mo_bra().get_vecfunction();
+    const int nocc=CCOPS.mo_ket().size();
+
+
+    double mp3_energy = 0.0;
+    // load converged MP1 wave functions
+    for (int i = parameters.freeze(); i < nocc; ++i) {
+        for (int j = i; j < nocc; ++j) {
+//            pairs(i, j) = make_pair(i, j);                // initialize
+            ClusterFunction tmp;
+            tmp.push_back(CCPairFunction(mp2pairs(i, j).function()));
+            CCPairFunction ij(nemo->get_calc()->amo[i], nemo->get_calc()->amo[j]);
+
+            CCConvolutionOperator::Parameters cparam;
+            cparam.thresh_op *= 0.1;
+            auto f12 = CCConvolutionOperatorPtr(world, OpType::OT_F12, cparam);
+            StrongOrthogonalityProjector<double, 3> Q12(world);
+            Q12.set_spaces(R2_orbital, nemo_orbital, R2_orbital, nemo_orbital);
+            auto vfij = Q12(std::vector<CCPairFunction>({f12 * ij}));
+            for (auto& p: vfij) tmp.push_back(p);
+
+            clusterfunctions(i, j)=tmp;
+            if (i!=j) {
+                for (const auto& t : clusterfunctions(i,j)) {
+                    clusterfunctions(j, i).push_back(t.swap_particles());
+                }
+            }
+        }
+    }
+    Pairs<ClusterFunction> clusterfunctions_R2;
+    for (int i=parameters.freeze(); i<nocc; ++i) {
+        for (int j=i; j<nocc; ++j) {
+            {
+                auto tmp1 = multiply(clusterfunctions(i, j), R2, {0, 1, 2});
+                auto tmp2 = multiply(tmp1, R2, {3, 4, 5});
+                for (auto& t: tmp2) clusterfunctions_R2(i, j).push_back(t);
+            }
+        }
+    }
+
+    for (int i = parameters.freeze(); i < nocc; ++i) {
+        for (int j = i; j < nocc; ++j) {
+            print("info of clusterfunction ", i, j);
+            for (auto& c: clusterfunctions(i, j)) c.info();
+        }
+    }
+
+    print_header3("recompute the MP2 energy");
+
+
+    CCConvolutionOperator::Parameters cparam;
+    auto g12=CCConvolutionOperatorPtr(world,OpType::OT_G12,cparam);
+    timer t2(world, "recompute MP2");
+
+    // recompute MP2 energy
+    double mp2_energy=0.0;
+    for (int i = parameters.freeze(); i < nocc; ++i) {
+        for (int j = i; j < nocc; ++j) {
+
+            auto bra=CCPairFunction(R2_orbital[i],R2_orbital[j]);
+            double direct=inner({bra},g12*clusterfunctions(i,j));
+            double exchange=inner({bra},g12*clusterfunctions(j,i));
+            double fac=(i==j) ? 0.5: 1.0;
+            double pair_energy=fac*(4.0*direct-2.0*exchange);
+            printf("MP2 energy for pair %2d %2d: %12.8f\n",i,j,pair_energy);
+            mp2_energy+=pair_energy;
+        }
+    }
+    printf("total mp2 energy %12.8f\n",mp2_energy);
+    t2.tag("recompute MP2 energy");
+
+    print_header3("compute the MP3 energy");
+
+    // compute the term <i(1) |g(1,2) | j(1)>(2)
+    madness::Pairs<real_function_3d> gij;
+
+    for (int i = parameters.freeze(); i < nocc; ++i) {
+        for (int j = parameters.freeze(); j < nocc; ++j) {
+            gij.insert(i,j,(*g12)(nemo_orbital[i]*R2_orbital[j]));
+        }
+    }
+
+    double term_CD=0.0;
+    double term_GHIJ=0.0;
+    double term_KLMN=0.0;
+    double term_EF=0.0;
+
+    if (1) {
+        print_header3("compute term_CD of the MP3 energy with R2_bra");
+        // compute the MP3 energy
+        if (1) {
+            for (int i = parameters.freeze(); i < nocc; ++i) {
+                for (int j = i; j < nocc; ++j) {
+                    auto bra = clusterfunctions(i, j);
+                    double tmp1 = inner(bra, g12 * clusterfunctions(i, j), R2);
+                    double tmp2 = inner(bra, g12 * clusterfunctions(j, i), R2);
+//                    auto bra = clusterfunctions_R2(i, j);
+//                    double tmp1 = inner(bra, g12 * clusterfunctions(i, j));
+//                    double tmp2 = inner(bra, g12 * clusterfunctions(j, i));
+                    double fac = (i == j) ? 0.5 : 1.0;
+                    double tmp = fac * (4.0 * tmp1 - 2.0 * tmp2);
+                    printf("mp3 energy: term_CD %2d %2d: %12.8f\n", i, j, tmp);
+                    term_CD += tmp;
+                }
+            }
+        }
+        printf("MP3 energy: term_CD %12.8f\n", term_CD);
+        t2.tag("CD term");
+
+
+        // compute intermediates for terms G, I, H, and J
+
+        // \sum_j tau_ij(1,2) * phi_j(2)
+        std::vector<ClusterFunction> tau_kk_i(nocc - parameters.freeze());
+        // \sum_j tau_ij(1,2) * phi_j(1)
+        std::vector<ClusterFunction> tau_ij_j(nocc - parameters.freeze());
+        for (int i = parameters.freeze(); i < nocc; ++i) {
+            for (int j = parameters.freeze(); j < nocc; ++j) {
+
+                auto tmp1 = multiply(clusterfunctions(i, j), R2_orbital[j], {0, 1, 2});
+                for (auto& t: tmp1) tau_kk_i[i].push_back(t);
+
+                auto tmp3 = multiply(clusterfunctions(i, j), R2_orbital[j], {0, 1, 2});
+                for (auto& t: tmp3) tau_ij_j[i].push_back(t);
+            }
+        }
+        print("info on tau_kk_i");
+        for (int i = parameters.freeze(); i < nocc; ++i) {
+            for (auto& c: tau_kk_i[i]) c.info();
+        }
+        print("info on tau_ij_j");
+        for (int i = parameters.freeze(); i < nocc; ++i) {
+            for (auto& c: tau_ij_j[i]) c.info();
+        }
+
+        t2.tag("GHIJ prep");
+
+        // terms G, I, H, J of Bartlett/Silver 1975
+        real_convolution_3d& g = *(g12->get_op());
+        for (int i = parameters.freeze(); i < nocc; ++i) {
+
+            // tmp(1,2) = g(1,1') | tau_ij(1',2) j(2) >
+            timer t4(world, "gtau");
+            g.set_particle(1);
+            auto gtau_same = g(tau_kk_i[i]);
+            t4.tag("compute gtau_same");
+
+            // tmp(1',2) = g(1',1) | tau_ij(1,2) j(1) >
+            g.set_particle(1);
+            auto gtau_other = g(tau_ij_j[i]); // < tau_ij(1,2) j(1) | g(1,1') |
+            t4.tag("compute gtau_other");
+
+
+            auto bra_kk_i = multiply(tau_kk_i[i],R2,{3,4,5});
+            auto bra_ij_j = multiply(tau_ij_j[i],R2,{3,4,5});
+
+            double G = inner(bra_kk_i, gtau_same);
+            printf("G     %12.8f\n", G);
+
+            double H = inner(bra_ij_j, gtau_other);
+            printf("H     %12.8f\n", H);
+
+            double I = inner(bra_kk_i, gtau_other);
+            printf("I     %12.8f\n", I);
+
+            double J = inner(bra_ij_j, gtau_same);
+            printf("J     %12.8f\n", J);
+
+            t4.tag("compute inner products");
+            double tmp = (8.0 * G - 4.0 * I + 2.0 * H - 4.0 * J);
+            printf("mp3 energy: term_GHIJ  %2d %12.8f\n", i, tmp);
+            term_GHIJ += tmp;
+        }
+        printf("MP3 energy: term_GHIJ %12.8f\n", term_GHIJ);
+        t2.tag("GHIJ term");
+
+        for (int i = parameters.freeze(); i < nocc; ++i) {
+            for (int j = parameters.freeze(); j < nocc; ++j) {
+                double tmp = 0.0;
+                for (int k = parameters.freeze(); k < nocc; ++k) {
+
+                    auto tau_ik = clusterfunctions(i, k);
+                    auto tau_kj = clusterfunctions(k, j);
+                    auto tau_ij = clusterfunctions(i, j);
+                    auto tau_ji = clusterfunctions(j, i);
+                    auto tau_ik_gkj = multiply(tau_ik, gij(k, j), {3, 4, 5});
+                    auto tau_kj_gki = multiply(tau_kj, gij(k, i), {3, 4, 5});
+//                auto tau_ik_gkj = multiply(tau_ik,gij(k,j),{0,1,2});
+//                auto tau_kj_gki = multiply(tau_kj,gij(k,i),{0,1,2});
+
+                    double K = inner(tau_ij, tau_ik_gkj, R2);
+                    double L = inner(tau_ij, tau_kj_gki, R2);
+                    double M = inner(tau_ji, tau_kj_gki, R2);
+                    double N = inner(tau_ji, tau_ik_gkj, R2);
+
+                    tmp += -4 * K - 4 * L + 2 * M + 2 * N;
+                }
+                printf("mp3 energy: term_KLMN with particle=1 %2d %2d %12.8f\n", i, j, tmp);
+                term_KLMN += tmp;
+            }
+        }
+        printf("MP3 energy: term_KLMN (KLMN) %12.8f\n", term_KLMN);
+        t2.tag("KLMN term");
+    }
+
+    print_header3("computing term EF of the MP3 energy with R2_bra");
+    for (int i = parameters.freeze(); i < nocc; ++i) {
+        for (int j = parameters.freeze(); j < nocc; ++j) {
+            double tmp=0.0;
+            for (int k=parameters.freeze(); k<nocc; ++k) {
+                for (int l=parameters.freeze(); l<nocc; ++l) {
+                    auto bra_ik = clusterfunctions(i,k);
+                    auto bra_ki = clusterfunctions(k,i);
+                    double ovlp_E=inner(bra_ik,clusterfunctions(j,l),R2);
+                    double ovlp_F=inner(bra_ki,clusterfunctions(j,l),R2);
+                    auto ket_i=nemo_orbital[i];
+                    auto ket_k=nemo_orbital[k];
+                    auto bra_j=R2_orbital[j];
+                    auto bra_l=R2_orbital[l];
+
+                    double g_jlik=inner(bra_j*ket_i, (*g12)(bra_l*ket_k));
+//                    print("<jl | g | ik>",g_jlik);
+                    tmp+=(2.0*ovlp_E - ovlp_F)*g_jlik;
+                }
+            }
+            printf("mp3 energy: term_EF %2d %2d %12.8f\n",i,j,tmp);
+            term_EF+=tmp;
+        }
+    }
+    printf("MP3 energy: term_EF %12.8f\n",term_EF);
+    t2.tag("EF term");
+
+    printf("term_CD    %12.8f\n",term_CD);
+    printf("term_GHIJ  %12.8f\n",term_GHIJ);
+    printf("term_KLMN  %12.8f\n",term_KLMN);
+    printf("term_EF    %12.8f\n",term_EF);
+    mp3_energy=term_CD+term_GHIJ+term_KLMN+term_EF;
+    printf("MP3 energy contribution  %12.8f\n",mp3_energy);
+
+
+    return mp3_energy;
+}
+
+
 // Solve the CCS equations for the ground state (debug potential and check HF convergence)
 std::vector<CC_vecfunction> CC2::solve_ccs() {
 //    output.section("SOLVE CCS");
@@ -398,9 +658,6 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
     std::vector<real_function_6d> result_vec = task(pair_vec, CCOPS.mo_ket().get_vecfunction(),
                                                     CCOPS.mo_bra().get_vecfunction(), parameters,
                                                     nemo->R_square, nemo->ncf->U1vec(),std::vector<std::string>({"Ue","KffK"}));
-//   std::vector<real_function_6d> Gfij_vec = task(pair_vec, CCOPS.mo_ket().get_vecfunction(),
-//                                                    CCOPS.mo_bra().get_vecfunction(), parameters,
-//                                                    nemo->R_square, nemo->ncf->U1vec(),std::vector<std::string>({"f12phi"}));
     taskq->print_taskq();
     taskq->run_all();
 
@@ -414,10 +671,12 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
 
     // transform vector back to Pairs structure
     for (int i = 0; i < pair_vec.size(); i++) {
-        pair_vec[i].constant_part = result_vec[i];// - coupling_constant_term_vec[i];
-        //save(pair_vec[i].constant_part, pair_vec[i].name() + "_const");
+        pair_vec[i].constant_part = result_vec[i];
+        pair_vec[i].functions[0] = CCPairFunction(result_vec[i]);
         pair_vec[i].constant_part.truncate().reduce_rank();
         pair_vec[i].function().truncate().reduce_rank();
+        save(pair_vec[i].constant_part, pair_vec[i].name() + "_const");
+        save(pair_vec[i].function(), pair_vec[i].name());
         if (pair_vec[i].type == GROUND_STATE) total_energy += CCOPS.compute_pair_correlation_energy(pair_vec[i]);
     }
 
@@ -466,10 +725,8 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
 //           coupling_vec[position] = tmp_coupling.second;
 //       }
         //print coupling vec
-        if (world.rank()==0) std::cout << "aaaaa coupling vector";
-        print_size(world, coupling_vec, "couplingvector");
+        if (parameters.debug()) print_size(world, coupling_vec, "couplingvector");
 
-        double total_norm = 0.0;
         double old_energy = total_energy;
         total_energy = 0.0;
 
@@ -482,21 +739,16 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
         taskq->set_printlevel(3);
         //taskq->cloud.set_debug(true);
         MacroTaskMp2UpdatePair t;
-        MacroTask task(world, t, taskq);
-        std::vector<real_function_6d> u_update = task(pair_vec, coupling_vec, parameters, nemo->get_calc()->molecule.get_all_coords_vec(),
+        MacroTask task1(world, t, taskq);
+        std::vector<real_function_6d> u_update = task1(pair_vec, coupling_vec, parameters, nemo->get_calc()->molecule.get_all_coords_vec(),
                                                       CCOPS.mo_ket().get_vecfunction(), CCOPS.mo_bra().get_vecfunction(),
                                                       nemo->ncf->U1vec(), nemo->ncf->U2());
         taskq->print_taskq();
         taskq->run_all();
 
-        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nFinished pairs update at time " << wall_time() << std::endl;
-
-        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting saving pairs and energy calculation at time " << wall_time() << std::endl;
 
         if (parameters.kain()) {
             if (world.rank()==0) std::cout << "Update with KAIN" << std::endl;
-            StrongOrthogonalityProjector<double, 3> Q(world);
-            Q.set_spaces(CCOPS.mo_bra().get_vecfunction(), CCOPS.mo_ket().get_vecfunction(), CCOPS.mo_bra().get_vecfunction(), CCOPS.mo_ket().get_vecfunction());
 
             std::vector<real_function_6d> u;
             for (auto p : pair_vec) u.push_back(p.function());
@@ -514,52 +766,36 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
         }
 
         // calculate energy and error and update pairs
+        double total_rnorm = 0.0, maxrnorm=0.0;
         for (int i = 0; i < pair_vec.size(); i++) {
-            //const real_function_6d residue = pair_vec[i].function() - u_update[i];
             const double error = u_update[i].norm2();
             if (world.rank()==0) std::cout << "residual " << pair_vec[i].i << " " << pair_vec[i].j << " " << error << std::endl;
-            total_norm = std::max(total_norm, error);
+            maxrnorm = std::max(maxrnorm, error);
+            total_rnorm+=error;
 
-            // if (parameters.kain()) {
-            //     if (world.rank()==0) std::cout << "Update with KAIN" << std::endl;
-            //     StrongOrthogonalityProjector<double, 3> Q(world);
-            //     Q.set_spaces(CCOPS.mo_bra().get_vecfunction(), CCOPS.mo_ket().get_vecfunction(), CCOPS.mo_bra().get_vecfunction(), CCOPS.mo_ket().get_vecfunction());
-            //     std::vector<real_function_6d> kain_update = copy(solver.update(pair_vec[i].function(), u_update[i]));
-            //     kain_update = Q(kain_update);
-            //     kain_update.truncate().reduce_rank();
-            //     kain_update.print_size("Kain-Update-Function");
-            //     pair_vec[i].update_u(copy(kain_update));
-            // } else {
-            //     if (world.rank()==0) std::cout << "Update without KAIN" << std::endl;
-            //     pair_vec[i].update_u(pair_vec[i].function() - u_update[i]);
-            // }
-
-            //save(pair_vec[i].function(), pair_vec[i].name());
+            save(pair_vec[i].function(), pair_vec[i].name());
             double energy = 0.0;
             if (pair_vec[i].type == GROUND_STATE) energy = CCOPS.compute_pair_correlation_energy(pair_vec[i]);
             total_energy += energy;
         }
 
-        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nFinished saving pairs and energy calculation at time " << wall_time() << std::endl;
-
-        // create new Pairs struc for MP2 pairs, needed for coupling
-        // only temporary! will be removed when compute_local_coupling is changed
-        //Pairs<CCPair> updated_pairs;
         for (auto& tmp_pair : pair_vec) {
             updated_pairs(tmp_pair.i, tmp_pair.j).update_u(tmp_pair.function());
         }
 
-        output("\n--Iteration " + stringify(iter) + " ended--");
-        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "at time " << wall_time() << std::endl;
-        // std::cout << "old_energy = " << old_energy << std::endl;
-        // std::cout << "total_energy = " << total_energy << std::endl;
-        // std::cout << "total_norm = " << total_norm << std::endl;
-        // std::cout << "econv = " << parameters.econv() << std::endl;
-        // std::cout << "dconv_6D = " << parameters.dconv_6D() << std::endl;
-        bool converged = ((std::abs(old_energy - total_energy) < parameters.econv())
-                          and (total_norm < parameters.dconv_6D()));
+		if (world.rank()==0) {
+		    std::cout << "convergence: total/max residual, energy/norm change "
+				<< std::scientific << std::setprecision(1)
+				<< maxrnorm << " " << total_rnorm << " "
+                << std::abs(old_energy - total_energy) << std::endl;
+                // << std::abs(old_norm - total_norm);
+			printf("finished iteration %2d at time %8.1fs with energy  %12.8f\n",
+					int(iter), wall_time(), total_energy);
+		}
 
-        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting final energy calculation at time " << wall_time() << std::endl;
+        bool converged = ((std::abs(old_energy - total_energy) < parameters.econv())
+                          and (maxrnorm < parameters.dconv_6D()));
+
         //print pair energies if converged
         if (converged) {
             if (world.rank() == 0) std::cout << "\nPairs converged!\n";
@@ -573,16 +809,6 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
             }
             if (world.rank() == 0) std::cout << "sum     =" << total_energy << "\n";
             break;
-        } else {
-            if (world.rank() == 0) std::cout << "\nCurrent pair energies:\n";
-            for (auto& pair : updated_pairs.allpairs) {
-                const double pair_energy = CCOPS.compute_pair_correlation_energy(pair.second);
-                if (world.rank() == 0) {
-                    std::cout << std::fixed << std::setprecision(10) << "omega_"
-                              << pair.second.i << pair.second.j << "=" << pair_energy << "\n";
-                }
-            }
-            if (world.rank() == 0) std::cout << "sum     =" << total_energy << "\n";
         }
     }
     if (world.rank()==0) {

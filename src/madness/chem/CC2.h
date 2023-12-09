@@ -129,6 +129,8 @@ public:
     /// solve the CC2 ground state equations, returns the correlation energy
     void solve();
 
+    double mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const;
+
     std::vector<CC_vecfunction>
     solve_ccs();
 

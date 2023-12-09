@@ -23,7 +23,7 @@ namespace madness {
 
 /// Calculation Types used by CC2
 enum CalcType {
-    CT_UNDEFINED, CT_MP2, CT_CC2, CT_LRCCS, CT_LRCC2, CT_CISPD, CT_ADC2, CT_TDHF, CT_TEST
+    CT_UNDEFINED, CT_MP2, CT_MP3, CT_CC2, CT_LRCCS, CT_LRCC2, CT_CISPD, CT_ADC2, CT_TDHF, CT_TEST
 };
 /// Type of Pairs used by CC_Pair2 class
 enum CCState {
@@ -210,10 +210,11 @@ struct CCParameters : public QCCalculationParametersBase {
         set_derived_values();
     };
 
+
     void initialize_parameters() {
         double thresh=1.e-3;
         double thresh_operators=1.e-6;
-        initialize < std::string > ("calc_type", "mp2", "the calculation type", {"mp2", "cc2", "cis", "lrcc2", "cispd", "adc2", "test"});
+        initialize < std::string > ("calc_type", "mp2", "the calculation type", {"mp2", "mp3", "cc2", "cis", "lrcc2", "cispd", "adc2", "test"});
         initialize < double > ("lo", 1.e-7, "the finest length scale to be resolved by 6D operators");
         initialize < double > ("dmin", 1.0, "defines the depth of the special level");
         initialize < double > ("thresh_6d", thresh, "threshold for the 6D wave function");
@@ -266,6 +267,7 @@ struct CCParameters : public QCCalculationParametersBase {
     CalcType calc_type() const {
         std::string value = get<std::string>("calc_type");
         if (value == "mp2") return CT_MP2;
+        if (value == "mp3") return CT_MP3;
         if (value == "cc2") return CT_CC2;
         if (value == "cis") return CT_LRCCS;
         if (value == "lrcc2") return CT_LRCC2;
@@ -455,8 +457,10 @@ struct Pairs {
 
     /// getter
     // at instead of [] operator bc [] inserts new element if nothing is found while at throws out of range error
+    // back to before
     T& operator()(int i, int j) {
-        return allpairs.at(std::make_pair(i, j));
+        // return allpairs.at(std::make_pair(i, j));
+        return allpairs[std::make_pair(i, j)];
     }
 
     /// setter

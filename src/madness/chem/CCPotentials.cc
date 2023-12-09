@@ -643,14 +643,12 @@ CCPotentials::fock_residue_6d_macrotask(World& world, const CCPair& u, const CCP
         real_function_6d x = CompositeFactory<double, 6, 3>(world).ket(copy(Du)).V_for_particle1(copy(U1_axis)).thresh(
                 tight_thresh).special_points(sp6d);
         x.fill_nuclear_cuspy_tree(op_mod, 1);
-        if (x.norm2() < tight_thresh) x.print_size("Un_axis_" + stringify(axis));
 
-        if (x.norm2() < tight_thresh) print("||Un|u>|| is below the threshold\n");
-
+        if (parameters.debug()) x.print_size("Un_axis_" + stringify(axis));
         Un1 += x;
-        Un1.truncate().reduce_rank();
-        if (parameters.debug()) Un1.print_size("Un1");
     }
+    if (parameters.debug()) Un1.print_size("Un1");
+
     if (u.i == u.j) {
         print(u.name() + " is a diagonal pair: Exploting permutation symmetry\n");
         Un2 = madness::swap_particles<double>(Un1);
@@ -662,17 +660,14 @@ CCPotentials::fock_residue_6d_macrotask(World& world, const CCPair& u, const CCP
             double tight_thresh = parameters.thresh_6D();
             real_function_6d x = CompositeFactory<double, 6, 3>(world).ket(copy(Du)).V_for_particle2(
                     copy(U1_axis)).thresh(tight_thresh).special_points(sp6d);
-            x.fill_nuclear_cuspy_tree(op_mod, 2);
-            if (x.norm2() < tight_thresh) x.print_size("Un_axis_" + stringify(axis));
-
-            if (x.norm2() < tight_thresh) print("||Un|u>|| is below the threshold\n");
-
+             x.fill_nuclear_cuspy_tree(op_mod, 2);
+            if (parameters.debug()) x.print_size("Un_axis_" + stringify(axis));
             Un2 += x;
-            Un2.truncate().reduce_rank();
-            if (parameters.debug()) Un2.print_size("Un2");
         }
+        if (parameters.debug()) Un2.print_size("Un2");
     }
     vphi += (Un1 + Un2);
+    if (parameters.debug()) vphi.print_size("before truncation (Un + J1 + J2)|u>");
     vphi.truncate().reduce_rank();
     if (parameters.debug()) vphi.print_size("(Un + J1 + J2)|u>");
 
@@ -774,9 +769,7 @@ CCPotentials::update_pair_mp2_macrotask(World& world, const CCPair& pair, const 
     if (world.rank()==0) print(assign_name(pair.ctype) + "-Microiteration\n");
     CCTimer timer_mp2(world, "MP2-Microiteration of pair " + pair.name());
 
-    //print coupling vector
-    if (world.rank()==0) std::cout << "aaaaa coupling macrotask of pair" << pair.name() << " ";
-    mp2_coupling.print_size("coupling in macrotask");
+    if (parameters.debug()) mp2_coupling.print_size("coupling in macrotask");
 
     double bsh_eps = pair.bsh_eps;
     real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
@@ -799,18 +792,19 @@ CCPotentials::update_pair_mp2_macrotask(World& world, const CCPair& pair, const 
 
     //CCTimer timer_addup(world, "Add constant parts and update pair " + pair.name());
     real_function_6d unew = GVmp2 + pair.constant_part;
-    unew.print_size("unew");
+    if (parameters.debug()) unew.print_size("unew");
 
     StrongOrthogonalityProjector<double, 3> Q(world);
     Q.set_spaces(mo_bra, mo_ket, mo_bra, mo_ket);
     unew = Q(unew);
 
-    unew.print_size("Q12unew");
-    //unew.truncate().reduce_rank(); // already done in Q12 application at the end
     if (parameters.debug())unew.print_size("truncated-unew");
     timer_mp2.info();
 
-    const real_function_6d residue = (pair.function() - unew).truncate();
+    real_function_6d residue = (pair.function() - unew);
+    // if (parameters.debug()) residue.print_size("bsh residual");
+    residue.truncate(FunctionDefaults<6>::get_thresh()*0.1);
+    if (parameters.debug()) residue.print_size("bsh residual, truncated");
 
     return residue;
 }
@@ -2455,7 +2449,7 @@ CCPotentials::K_macrotask(World& world, const std::vector<real_function_3d>& mo_
         result += madness::swap_particles(result);
     } else result += apply_K_macrotask(world, mo_ket, mo_bra, u, 2, parameters);
 
-    result.print_size("K|u>");
+    if (parameters.debug()) result.print_size("K|u>");
     return (result.truncate(parameters.tight_thresh_6D()));
 }
 
