@@ -483,14 +483,15 @@ double CC2::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
 
         // compute intermediates for terms G, I, H, and J
 
+        // note: elements with frozen orbitals are left empty
         // \sum_j tau_ij(1,2) * phi_j(2)
-        std::vector<ClusterFunction> tau_kk_i(nocc - parameters.freeze());
+        std::vector<ClusterFunction> tau_kk_i(nocc);    // was (nocc - nfrozen)
         // \sum_j tau_ij(1,2) * phi_j(1)
-        std::vector<ClusterFunction> tau_ij_j(nocc - parameters.freeze());
+        std::vector<ClusterFunction> tau_ij_j(nocc);
         for (int i = parameters.freeze(); i < nocc; ++i) {
             for (int j = parameters.freeze(); j < nocc; ++j) {
 
-                auto tmp1 = multiply(clusterfunctions(i, j), R2_orbital[j], {0, 1, 2});
+                auto tmp1 = multiply(clusterfunctions(i, j), R2_orbital[j], {3, 4, 5});
                 for (auto& t: tmp1) tau_kk_i[i].push_back(t);
 
                 auto tmp3 = multiply(clusterfunctions(i, j), R2_orbital[j], {0, 1, 2});
@@ -816,6 +817,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
         print_header2("end computing the MP1 wave function");
     }
 
+    doubles=Pairs<CCPair>::vector2pairs(pair_vec,triangular_map);
     return total_energy;
 }
 
