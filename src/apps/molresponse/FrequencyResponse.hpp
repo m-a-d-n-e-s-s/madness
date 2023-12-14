@@ -195,21 +195,11 @@ private:
     std::array<double, 3> frequencies;
     std::array<XData, 3> x_data;
     std::pair<X_space, X_space> setup_XBC(World &world);
-    X_space compute_UPSILON(World &world, const X_space &XB, const X_space &XC);
     RHS_Generator generator;
-    X_space compute_VBC(World &world, const X_space &XB, const X_space &XC);
-    X_space compute_gamma_quadratic(World &world, const X_space &XB, const X_space &XC,
-                                    const vector_real_function_3d &phi0) const;
-    X_space compute_coulomb_term(World &world, const X_space &B, const X_space &C) const;
-    X_space compute_exchange_term(World &world, const X_space &B, const X_space &C) const;
     std::pair<X_space, X_space> dipole_perturbation(World &world, const X_space &left, const X_space &right) const;
-    Tensor<double> compute_beta_1(const X_space &upsilon);
-    Tensor<double> compute_beta_1(World &world, const X_space &upsilon);
-    X_space compute_gamma_occ(World &world, const X_space &XB, const X_space &XC);
     X_space compute_g1_term(World &world, const X_space &left, const X_space &right, const X_space &apply) const;
     X_space compute_coulomb_term(World &world, const X_space &A, const X_space &B, const X_space &D) const;
     X_space compute_exchange_term(World &world, const X_space &A, const X_space &B, const X_space &x_apply) const;
-    X_space compute_beta(World &world, const X_space &XB, const X_space &XC);
     std::tuple<X_space, X_space, X_space, X_space> compute_zeta_response_vectors(World &world, const X_space &B,
                                                                               const X_space &C);
     std::pair<X_space, X_space> compute_first_order_fock_matrix_terms(World &world, const X_space &A,
@@ -260,7 +250,6 @@ private:
                                 vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector, double &x_shifts);
     static void frequency_to_json(json &j_mol_in, size_t iter, const Tensor<double> &polar_ij,
                                   const Tensor<double> &res_polar_ij);
-    static void compute_and_print_polarizability(World &world, X_space &Chi, X_space &pq, std::string message);
     void save(World &world, const std::string &name) override;
     std::tuple<X_space, residuals, vector_real_function_3d>
     update_response(World &world, X_space &chi, XCOperator<double, 3> &xc, std::vector<poperatorT> &bsh_x_ops,

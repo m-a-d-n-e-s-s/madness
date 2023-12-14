@@ -346,14 +346,6 @@ void FrequencyResponse::frequency_to_json(json &j_mol_in, size_t iter, const Ten
     j_mol_in["protocol_data"][index]["property_data"].push_back(j);
 }
 
-void FrequencyResponse::compute_and_print_polarizability(World &world, X_space &Chi, X_space &pq, std::string message) {
-    Tensor<double> G = -2 * inner(Chi, pq);
-    if (world.rank() == 0) {
-        print("Polarizability", message);
-        print(G);
-    }
-}
-
 void FrequencyResponse::save(World &world, const std::string &name) {
     // Archive to write everything to
     archive::ParallelOutputArchive ar(world, name.c_str(), 1);
