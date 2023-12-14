@@ -519,8 +519,6 @@ Tensor<double> QuadraticResponse::compute_beta_unrelaxed(World &world, const X_s
 
     auto dipole_vectors = create_dipole();
     truncate(world, dipole_vectors, true);
-    std::vector<std::string> names_i = {"x", "y", "z"};
-    std::vector<std::string> names_j = {"xx", "xy", "xz", "yy", "yz", "zz"};
     // for each vector in dipole vectors
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 6; j++) {
@@ -528,16 +526,8 @@ Tensor<double> QuadraticResponse::compute_beta_unrelaxed(World &world, const X_s
             auto beta_BA_x = (dot(world, BA_left.x[j], BA_right.x[j]) * dipole_vectors[i]).trace();
             auto beta_AB_y = (dot(world, AB_left.y[j], AB_right.y[j]) * dipole_vectors[i]).trace();
             auto beta_BA_y = (dot(world, BA_left.y[j], BA_right.y[j]) * dipole_vectors[i]).trace();
-            if (r_params.print_level() > 0) {
-                print(names_i[i], names_j[j], " beta_AB_x ", beta_AB_x, " beta_BA_x ", beta_BA_x, " beta_AB_y ",
-                      beta_AB_y, " beta_BA_y ", beta_BA_y, "\n");
-            }
             beta(i, j) = beta_AB_x + beta_AB_y + beta_BA_x + beta_BA_y;
         }
-    }
-    if (world.rank() == 0) {
-        cout << "beta unrelaxed " << endl;
-        cout << beta << endl;
     }
 
     return beta;
@@ -562,35 +552,16 @@ Tensor<double> QuadraticResponse::compute_beta(World &world) {
         phi0.x[i] = copy(world, ground_orbitals);
         phi0.y[i] = copy(world, ground_orbitals);
     }
-
-
     auto [zeta_bc_x, zeta_bc_y, zeta_cb_x, zeta_cb_y] = compute_zeta_response_vectors(world, XB, XC);
 
     auto beta_unrelaxed = compute_beta_unrelaxed(world, zeta_bc_x, zeta_bc_y, zeta_cb_x, zeta_cb_y);
 
-
     auto v_bc =
             compute_second_order_perturbation_terms(world, XB, XC, zeta_bc_x, zeta_bc_y, zeta_cb_x, zeta_cb_y, phi0);
     v_bc.truncate();
-
     auto beta_relaxed = inner(XA, v_bc);
-
-    if (world.rank() == 0) {
-        cout << "beta unrelaxed " << endl;
-        cout << beta_unrelaxed << endl;
-    }
-
-    if (world.rank() == 0) {
-        cout << "beta relaxed " << endl;
-        cout << beta_relaxed << endl;
-    }
-
     auto beta = beta_relaxed + beta_unrelaxed;
 
-    if (world.rank() == 0) {
-        cout << "beta" << endl;
-        cout << beta << endl;
-    }
 
     return -2.0 * beta;
 }
