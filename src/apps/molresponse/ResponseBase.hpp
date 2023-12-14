@@ -61,13 +61,8 @@ public:
         for (size_t i = 0; i < r_params.num_states(); i++)
             for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & chi_new.x[i][j];
         world.gop.fence();
-        if (r_params.omega() == 0.0) {
-            for (size_t i = 0; i < r_params.num_states(); i++)
-                for (size_t j = 0; j < r_params.num_orbitals(); j++) chi_new.y[i][j] = chi_new.x[i][j];
-        } else {
-            for (size_t i = 0; i < r_params.num_states(); i++)
-                for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & chi_new.y[i][j];
-        }
+        for (size_t i = 0; i < r_params.num_states(); i++)
+            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & chi_new.y[i][j];
         world.gop.fence();
 
         return {chi_new, Tensor<double>()};
