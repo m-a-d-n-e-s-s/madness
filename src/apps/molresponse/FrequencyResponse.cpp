@@ -448,9 +448,6 @@ auto QuadraticResponse::setup_XBC(World &world) -> std::pair<X_space, X_space> {
     auto xb = to_response_matrix(x_data[1].first.copy());
     auto xc = to_response_matrix(x_data[2].first.copy());
 
-    print("x_data norms x", x_data[1].first.x.norm2());
-    print("x_data norms y", x_data[1].first.y.norm2());
-
     // create new response matrices to hold the organized data
     auto XB = create_response_matrix(6, r_params.num_orbitals());
     auto XC = create_response_matrix(6, r_params.num_orbitals());
