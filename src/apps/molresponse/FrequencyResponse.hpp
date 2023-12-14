@@ -159,6 +159,8 @@ public:
     void set_x_data(World &world, const std::array<double, 3> &freqABC, const std::array<path, 3> &restart_files) {
         this->frequencies = freqABC;
         if (freqABC.size() != 3) { throw std::runtime_error("Quadratic response requires 3 freqABC"); }
+        // print ABC frequencies
+        print("ABC frequencies: ", freqABC[0], " ", freqABC[1], " ", freqABC[2]);
 
         for (size_t i = 0; i < freqABC.size(); i++) {
             auto omega = freqABC[i];
@@ -175,6 +177,8 @@ public:
                         std::make_unique<FullDensityStrategy>(), std::make_unique<LoadFrequencyXSpace>());
             }
 
+            // print omega before load_x_space
+            print("omega: ", omega);
             x_data[i] = frequency_contexts[i].load_x_space(world, restart_files[i], r_params, omega);
             ::check_k(world, x_data[i].first, FunctionDefaults<3>::get_thresh(), r_params.k());
         }
@@ -201,7 +205,7 @@ private:
     X_space compute_coulomb_term(World &world, const X_space &A, const X_space &B, const X_space &D) const;
     X_space compute_exchange_term(World &world, const X_space &A, const X_space &B, const X_space &x_apply) const;
     std::tuple<X_space, X_space, X_space, X_space> compute_zeta_response_vectors(World &world, const X_space &B,
-                                                                              const X_space &C);
+                                                                                 const X_space &C);
     std::pair<X_space, X_space> compute_first_order_fock_matrix_terms(World &world, const X_space &A,
                                                                       const X_space &phi0, const X_space &B) const;
     Tensor<double> compute_beta_unrelaxed(World &world, const X_space &AB_left, const X_space &AB_right,
