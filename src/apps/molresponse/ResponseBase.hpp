@@ -431,7 +431,7 @@ public:
     XData load_x_space(World &world, const std::string &filename, const ResponseParameters &r_params,
                        double omega_state) const {
         if (load_x_space_strategy_) {
-            return load_x_space_strategy_->load_x_space(world, filename, r_params, 0);
+            return load_x_space_strategy_->load_x_space(world, filename, r_params, omega_state);
         } else {
             throw madness::MadnessException("Load X Space Strategy isn't set", "Need to set a strategy", 2, 455,
                                             "inner", "ResponseBase.hpp");
