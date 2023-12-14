@@ -1096,6 +1096,13 @@ void runQuadraticResponse(World &world, const frequencySchema &schema, const std
 
                         quad_calculation.set_x_data(world, omegas, restarts);
                         auto beta_abc = quad_calculation.compute_beta(world);
+                        // print the beta values for the frequency combination
+                        if (world.rank() == 0) {
+                            print("Beta values for omega_a = ", omega_a, " omega_b = ", omega_b, " omega_c = ",
+                                  omega_c);
+                            print(beta_abc);
+                        }
+
                         nlohmann::ordered_json beta_entry;
                         //beta_entry["omega_a"] = omega_a;
                         //beta_entry["omega_b"] = omega_b;
