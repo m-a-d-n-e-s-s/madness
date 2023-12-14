@@ -175,7 +175,7 @@ public:
                         std::make_unique<FullDensityStrategy>(), std::make_unique<LoadFrequencyXSpace>());
             }
 
-            x_data[i] = frequency_contexts[i].load_x_space(world, restart_files[i], r_params);
+            x_data[i] = frequency_contexts[i].load_x_space(world, restart_files[i], r_params, omega);
             ::check_k(world, x_data[i].first, FunctionDefaults<3>::get_thresh(), r_params.k());
         }
     };
