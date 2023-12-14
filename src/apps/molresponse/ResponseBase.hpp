@@ -35,17 +35,19 @@ typedef std::pair<vector_real_function_3d, vector_real_function_3d> double_respo
 class LoadXSpaceStrategy {
 public:
     virtual ~LoadXSpaceStrategy() = default;
-    virtual XData load_x_space(World &world, const std::string &filename, const ResponseParameters &r_params) const = 0;
+    virtual XData load_x_space(World &world, const std::string &filename, const ResponseParameters &r_params,
+                               double omega_state) const = 0;
 };
 class LoadFrequencyXSpace : public LoadXSpaceStrategy {
 public:
-    XData load_x_space(World &world, const std::string &filename, const ResponseParameters &r_params) const override {
+    XData load_x_space(World &world, const std::string &filename, const ResponseParameters &r_params,
+                       double omega_state) const override {
         if (world.rank() == 0) {
             print("FrequencyResponse::load() -state");
             print("Loading X_space from file: ", filename);
             print("Number of states: ", r_params.num_states());
             print("Number of orbitals: ", r_params.num_orbitals());
-            print("Loading omega : ", r_params.omega());
+            print("Loading omega : ", omega_state);
         }
         //
 
@@ -61,8 +63,13 @@ public:
         for (size_t i = 0; i < r_params.num_states(); i++)
             for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & chi_new.x[i][j];
         world.gop.fence();
-        for (size_t i = 0; i < r_params.num_states(); i++)
-            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & chi_new.y[i][j];
+        if (omega_state == 0.0) {
+            for (size_t i = 0; i < r_params.num_states(); i++)
+                for (size_t j = 0; j < r_params.num_orbitals(); j++) chi_new.y[i][j] = chi_new.x[i][j];
+        } else {
+            for (size_t i = 0; i < r_params.num_states(); i++)
+                for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & chi_new.y[i][j];
+        }
         world.gop.fence();
 
         return {chi_new, Tensor<double>()};
@@ -70,7 +77,8 @@ public:
 };
 class LoadExcitedXSpace : public LoadXSpaceStrategy {
 public:
-    XData load_x_space(World &world, const std::string &filename, const ResponseParameters &r_params) const override {
+    XData load_x_space(World &world, const std::string &filename, const ResponseParameters &r_params,
+                       double omega_state) const override {
 
         Tensor<double> omega;
         auto new_chi = X_space(world, r_params.num_states(), r_params.num_orbitals());
@@ -420,9 +428,10 @@ public:
                                             "inner", "ResponseBase.hpp");
         }
     }
-    XData load_x_space(World &world, const std::string &filename, const ResponseParameters &r_params) const {
+    XData load_x_space(World &world, const std::string &filename, const ResponseParameters &r_params,
+                       double omega_state) const {
         if (load_x_space_strategy_) {
-            return load_x_space_strategy_->load_x_space(world, filename, r_params);
+            return load_x_space_strategy_->load_x_space(world, filename, r_params, 0);
         } else {
             throw madness::MadnessException("Load X Space Strategy isn't set", "Need to set a strategy", 2, 455,
                                             "inner", "ResponseBase.hpp");
