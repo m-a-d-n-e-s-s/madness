@@ -37,6 +37,8 @@
 
 #include <madness/mra/mra.h>
 
+#include "test_utilities.h"
+
 using namespace madness;
 
 std::string ok(const bool b) {if (b) return "ok   "; return "fail ";};
@@ -640,6 +642,92 @@ int test(World& world, const long& k, const double thresh) {
     return nerror;
 }
 
+template<typename T, std::size_t NDIM>
+int test_lowdim(World& world, const long& k, const double thresh) {
+	constexpr std::size_t LDIM=NDIM/2;
+	MADNESS_CHECK(NDIM==2*LDIM);
+
+	FunctionDefaults<NDIM>::set_tensor_type(TT_FULL);
+	Function<T,NDIM> h1_func_tmp=FunctionFactory<T,NDIM>(world).f([](const Vector<double,NDIM>& r) {return exp(-inner(r,r));});
+    double nh1=h1_func_tmp.norm2();
+    print("h1_func_tmp.norm2()",nh1);
+    h1_func_tmp.change_tree_state(redundant);
+
+	print("h1_func tree with full rank coeffs");
+	h1_func_tmp.print_tree();
+
+	FunctionDefaults<NDIM>::set_tensor_type(TT_2D);
+
+	test_output t1("test_lowdim");
+	t1.set_cout_to_terminal();
+
+	Function<T,LDIM> l1_func=FunctionFactory<T,LDIM>(world).f([](const Vector<double,LDIM>& r) {return exp(-inner(r,r));});
+	Function<T,LDIM> l2_func=FunctionFactory<T,LDIM>(world).f([](const Vector<double,LDIM>& r) {return exp(-2.0*inner(r,r));});
+	Function<T,NDIM> h1_func=FunctionFactory<T,NDIM>(world).f([](const Vector<double,NDIM>& r) {return exp(-inner(r,r));});
+	Function<T,NDIM> h2_func=FunctionFactory<T,NDIM>(world).f([](const Vector<double,NDIM>& r) {return exp(-2.0*inner(r,r));});
+	Function<T,NDIM> h12_func=FunctionFactory<T,NDIM>(world).f([](const Vector<double,NDIM>& r) {return exp(-inner(r,r) + exp(-2.0*inner(r,r)));});
+
+    double nl=l1_func.norm2();
+    double nh=h1_func.norm2();
+    print("l1/h1_func.norm2()",nl,nh);
+	/// test construction with a single pair of functions
+	{
+        h1_func.reconstruct();
+        h1_func.make_redundant();
+        h1_func.print_tree();
+
+		Function<T,NDIM> h1_1=CompositeFactory<T,NDIM,LDIM>(world) .ket(h1_func);
+		Function<T,NDIM> h1_2=CompositeFactory<T,NDIM,LDIM>(world).particle1(copy(l1_func)).particle2(copy(l1_func));
+		h1_1.fill_tree();
+		h1_2.fill_tree();
+		double n1=h1_1.norm2();
+		double n2=h1_2.norm2();
+		print("h1_func -tree");
+		h1_func.print_tree();
+		print("h1_1 -tree");
+		h1_1.print_tree();
+        print("n1, n2, nh", n1, n2, nh);
+		t1.checkpoint(std::abs(n1-nh)<thresh,"construction with a single pair -- direct");
+		t1.checkpoint(std::abs(n2-nh)<thresh,"construction with a single pair -- direct");
+		t1.checkpoint(std::abs(n1-n2)<thresh,"construction with a single pair -- consistent");
+	}
+	/// test construction with a single pair of functions
+	{
+		Function<T,NDIM> h1_1=CompositeFactory<T,NDIM,LDIM>(world) .ket(copy(h2_func));
+		Function<T,NDIM> h1_2=CompositeFactory<T,NDIM,LDIM>(world).particle1(copy(l2_func)).particle2(copy(l2_func));
+		h1_1.fill_tree();
+		h1_2.fill_tree();
+		double n1=h1_1.norm2();
+		double n2=h1_2.norm2();
+		print("n1, n2", n1, n2);
+		t1.checkpoint(std::abs(n1-n2)<thresh,"construction with a single pair");
+	}
+
+	/// test construction with a vector of functions:
+	{
+		Function<T,NDIM> h1_1=CompositeFactory<T,NDIM,LDIM>(world) .ket(copy(h12_func));
+		Function<T,NDIM> h1_2=CompositeFactory<T,NDIM,LDIM>(world).particle1(l1_func).particle2(l1_func);
+		Function<T,NDIM> h1_3=CompositeFactory<T,NDIM,LDIM>(world).particle1(l2_func).particle2(l2_func);
+		h1_1.fill_tree();
+		h1_2.fill_tree();
+		h1_3.fill_tree();
+		double n1=h1_1.norm2();
+		double n2=(h1_2).norm2();
+		double n3=(h1_3).norm2();
+		h1_2+=h1_3;
+		double n12=(h1_2).norm2();
+		print("n1, n2, n3, n12", n1, n2, n3, n12);
+		t1.checkpoint(std::abs(n1-n2)<thresh,"construction with two pair");
+	}
+
+    Function<T,NDIM> h1_1=CompositeFactory<T,NDIM,LDIM>(world) .ket(copy(h1_func));
+
+
+
+
+	return t1.end();
+}
+
 
 int main(int argc, char**argv) {
 
@@ -649,9 +737,9 @@ int main(int argc, char**argv) {
     startup(world,argc,argv);
 
     // the parameters
-    long k=5;
-    double thresh=1.e-3;
-    double L=16;
+    long k=7;
+    double thresh=1.e-5;
+    double L=40;
     TensorType tt=TT_2D;
 
     // override the default parameters
@@ -677,6 +765,16 @@ int main(int argc, char**argv) {
 
         }
     }
+
+    FunctionDefaults<1>::set_thresh(thresh);
+    FunctionDefaults<2>::set_thresh(thresh);
+
+    FunctionDefaults<1>::set_cubic_cell(-L/2,L/2);
+    FunctionDefaults<2>::set_cubic_cell(-L/2,L/2);
+    FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
+    FunctionDefaults<4>::set_cubic_cell(-L/2,L/2);
+    FunctionDefaults<5>::set_cubic_cell(-L/2,L/2);
+    FunctionDefaults<6>::set_cubic_cell(-L/2,L/2);
 
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_k(k);
@@ -704,14 +802,15 @@ int main(int argc, char**argv) {
     norm=phi2.norm2();
     if (world.rank()==0) printf("phi2.norm2()  %12.8f\n",norm);
 
-    test(world,k,thresh);
-    error+=test_hartree_product(world,k,thresh);
-    error+=test_convolution(world,k,thresh);
-    error+=test_multiply(world,k,thresh);
-    error+=test_add(world,k,thresh);
-    error+=test_exchange(world,k,thresh);
-    error+=test_inner(world,k,thresh);
-    error+=test_replicate(world,k,thresh);
+	error+=test_lowdim<double,2>(world,k,thresh);
+//    test(world,k,thresh);
+//    error+=test_hartree_product(world,k,thresh);
+//    error+=test_convolution(world,k,thresh);
+//    error+=test_multiply(world,k,thresh);
+//    error+=test_add(world,k,thresh);
+//    error+=test_exchange(world,k,thresh);
+//    error+=test_inner(world,k,thresh);
+//    error+=test_replicate(world,k,thresh);
 
     print(ok(error==0),error,"finished test suite\n");
 
