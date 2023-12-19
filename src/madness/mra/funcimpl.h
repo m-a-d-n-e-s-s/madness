@@ -685,6 +685,7 @@ namespace madness {
 
     };
 
+    /// insert/replaces the coefficients into the function
     template<typename T, std::size_t NDIM>
     struct insert_op {
     	typedef FunctionImpl<T,NDIM> implT;
@@ -706,7 +707,29 @@ namespace madness {
 
     };
 
-    template<size_t NDIM>
+    /// inserts/accumulates coefficients into impl's tree
+
+    /// NOTE: will use buffer and will need consolidation after operation ended !!  NOTE !!
+    template<typename T, std::size_t NDIM>
+    struct accumulate_op {
+        typedef GenTensor<T> coeffT;
+        typedef FunctionNode<T,NDIM> nodeT;
+
+        FunctionImpl<T,NDIM>* impl;
+        accumulate_op() = default;
+        accumulate_op(FunctionImpl<T,NDIM>* f) : impl(f) {}
+        accumulate_op(const accumulate_op& other) = default;
+        void operator()(const Key<NDIM>& key, const coeffT& coeff, const bool& is_leaf) const {
+            impl->get_coeffs().task(key, &nodeT::accumulate, coeff, impl->get_coeffs(), key, impl->get_tensor_args());
+        }
+        template <typename Archive> void serialize (Archive& ar) {
+            ar & impl;
+        }
+
+    };
+
+
+template<size_t NDIM>
     struct true_op {
 
     	template<typename T>
@@ -3627,33 +3650,38 @@ namespace madness {
         /// @param[in]	p2	FunctionImpl of particle 2
         /// @param[in]	leaf_op	operator determining of a given box will be a leaf
         template<std::size_t LDIM, typename leaf_opT>
-        void hartree_product(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2,
+        void hartree_product(const std::vector<std::shared_ptr<FunctionImpl<T,LDIM>>> p1,
+                             const std::vector<std::shared_ptr<FunctionImpl<T,LDIM>>> p2,
                              const leaf_opT& leaf_op, bool fence) {
-            MADNESS_ASSERT(p1->is_nonstandard() or p1->is_nonstandard_with_leaves());
-            MADNESS_ASSERT(p2->is_nonstandard() or p2->is_nonstandard_with_leaves());
+            MADNESS_CHECK_THROW(p1.size()==p2.size(),"hartree_product: p1 and p2 must have the same size");
+            for (auto& p : p1) MADNESS_CHECK(p->is_nonstandard() or p->is_nonstandard_with_leaves());
+            for (auto& p : p2) MADNESS_CHECK(p->is_nonstandard() or p->is_nonstandard_with_leaves());
 
             const keyT key0=cdata.key0;
 
-            if (world.rank() == this->get_coeffs().owner(key0)) {
+            for (std::size_t i=0; i<p1.size(); ++i) {
+                if (world.rank() == this->get_coeffs().owner(key0)) {
 
-                // prepare the CoeffTracker
-                CoeffTracker<T,LDIM> iap1(p1);
-                CoeffTracker<T,LDIM> iap2(p2);
+                    // prepare the CoeffTracker
+                    CoeffTracker<T,LDIM> iap1(p1[i].get());
+                    CoeffTracker<T,LDIM> iap2(p2[i].get());
 
-                // the operator making the coefficients
-                typedef hartree_op<LDIM,leaf_opT> coeff_opT;
-                coeff_opT coeff_op(this,iap1,iap2,leaf_op);
+                    // the operator making the coefficients
+                    typedef hartree_op<LDIM,leaf_opT> coeff_opT;
+                    coeff_opT coeff_op(this,iap1,iap2,leaf_op);
 
-                // this operator simply inserts the coeffs into this' tree
-                typedef insert_op<T,NDIM> apply_opT;
-                apply_opT apply_op(this);
+                    // this operator simply inserts the coeffs into this' tree
+//                typedef insert_op<T,NDIM> apply_opT;
+                    typedef accumulate_op<T,NDIM> apply_opT;
+                    apply_opT apply_op(this);
 
-                woT::task(world.rank(), &implT:: template forward_traverse<coeff_opT,apply_opT>,
-                          coeff_op, apply_op, cdata.key0);
+                    woT::task(world.rank(), &implT:: template forward_traverse<coeff_opT,apply_opT>,
+                              coeff_op, apply_op, cdata.key0);
 
+                }
             }
 
-            set_tree_state(reconstructed);
+            set_tree_state(redundant_after_merge);
             if (fence) world.gop.fence();
         }
 
@@ -3944,6 +3972,10 @@ namespace madness {
             bool have_v2() const {return iav2.get_impl();}
             bool have_eri() const {return eri;}
 
+            void accumulate_into_result(const Key<NDIM>& key, const coeffT& coeff) const {
+                result->get_coeffs().task(key, &nodeT::accumulate, coeff, result->get_coeffs(), key, result->targs);
+            }
+
             // ctor
             Vphi_op_NS() : result(), eri() {}
             Vphi_op_NS(implT* result, const opT& leaf_op, const ctT& iaket,
@@ -3965,10 +3997,9 @@ namespace madness {
                     if(leaf_op.pre_screening(key)){
                         // construct sum_coefficients, insert them and leave
                         auto [sum_coeff, error]=make_sum_coeffs(key);
-                        result->get_coeffs().replace(key,nodeT(sum_coeff,false));
+                        accumulate_into_result(key,sum_coeff);
                         return std::pair<bool,coeffT> (true,coeffT());
                     }else{
-                        result->get_coeffs().replace(key,nodeT(coeffT(),true));
                         return continue_recursion(std::vector<bool>(1<<NDIM,false),tensorT(),key);
                     }
                 }
@@ -3979,17 +4010,11 @@ namespace madness {
                 size_t il = result->get_initial_level();
                 if(FunctionDefaults<NDIM>::get_refine()) il+=1;
                 if(key.level()<int(il)){
-                    //std::cout << "n=" +  std::to_string(key.level()) + " below initial level " + std::to_string(result->get_initial_level()) + "\n";
-                    // insert empty coeffs for this box and send off jobs for the children
-                    result->get_coeffs().replace(key,nodeT(coeffT(),true));
                     return continue_recursion(std::vector<bool>(1<<NDIM,false),tensorT(),key);
                 }
                 // if further refinement is needed (because we are at a special box, special point)
                 // and the special_level is not reached then this must not be a leaf box
                 if(key.level()<result->get_special_level() and leaf_op.special_refinement_needed(key)){
-                    //std::cout << "special refinement for n=" + std::to_string(key.level()) + "\n";
-                    // insert empty coeffs for this box and send off jobs for the children
-                    result->get_coeffs().replace(key,nodeT(coeffT(),true));
                     return continue_recursion(std::vector<bool>(1<<NDIM,false),tensorT(),key);
                 }
 
@@ -3997,18 +4022,17 @@ namespace madness {
 
                 // coeffs are leaf (for whatever reason), insert into tree and stop recursion
                 if(leaf_op.post_screening(key,sum_coeff)){
-                    result->get_coeffs().replace(key,nodeT(sum_coeff,false));
+                    accumulate_into_result(key,sum_coeff);
                     return std::pair<bool,coeffT> (true,coeffT());
                 }
 
                 // coeffs are accurate, insert into tree and stop recursion
                 if(error<result->truncate_tol(result->get_thresh(),key)){
-                    result->get_coeffs().replace(key,nodeT(sum_coeff,false));
+                    accumulate_into_result(key,sum_coeff);
                     return std::pair<bool,coeffT> (true,coeffT());
                 }
 
-                // coeffs are inaccurate, insert empty node and continue recursion
-                result->get_coeffs().replace(key,nodeT(coeffT(),true));
+                // coeffs are inaccurate, continue recursion
                 std::vector<bool> child_is_leaf(1<<NDIM,false);
                 return continue_recursion(child_is_leaf,tensorT(),key);
             }
@@ -4229,21 +4253,40 @@ namespace madness {
             MADNESS_ASSERT(func);
 
             // make sure everything is in place if no fence is requested
-            if (not fence) {
-                if (not func->check_redundant())
-                MADNESS_EXCEPTION("make_Vphi requires redundant functions",1);
-            } else {
-                func->make_redundant(true);
+            if (fence) func->make_redundant(true);          // no-op if already redundant
+            MADNESS_CHECK_THROW(func->check_redundant(),"make_Vphi requires redundant functions");
+
+            // loop over all functions in the functor (either ket or particles)
+            for (auto& ket : func->impl_ket_vector) {
+                FunctionImpl<T,NDIM>* eri=func->impl_eri.get();
+                FunctionImpl<T,LDIM>* v1=func->impl_m1.get();
+                FunctionImpl<T,LDIM>* v2=func->impl_m2.get();
+                FunctionImpl<T,LDIM>* p1=nullptr;
+                FunctionImpl<T,LDIM>* p2=nullptr;
+                make_Vphi_only(leaf_op,ket.get(),v1,v2,p1,p2,eri,false);
             }
 
-            FunctionImpl<T,NDIM>* ket=func->impl_ket.get();
-            FunctionImpl<T,NDIM>* eri=func->impl_eri.get();
-            FunctionImpl<T,LDIM>* v1=func->impl_m1.get();
-            FunctionImpl<T,LDIM>* v2=func->impl_m2.get();
-            FunctionImpl<T,LDIM>* p1=func->impl_p1.get();
-            FunctionImpl<T,LDIM>* p2=func->impl_p2.get();
+            for (std::size_t i=0; i<func->impl_p1_vector.size(); ++i) {
+                FunctionImpl<T,NDIM>* ket=nullptr;
+                FunctionImpl<T,NDIM>* eri=func->impl_eri.get();
+                FunctionImpl<T,LDIM>* v1=func->impl_m1.get();
+                FunctionImpl<T,LDIM>* v2=func->impl_m2.get();
+                FunctionImpl<T,LDIM>* p1=func->impl_p1_vector[i].get();
+                FunctionImpl<T,LDIM>* p2=func->impl_p2_vector[i].get();
+                make_Vphi_only(leaf_op,ket,v1,v2,p1,p2,eri,false);
+            }
 
-            make_Vphi_only(leaf_op,ket,v1,v2,p1,p2,eri,fence);
+            // some post-processing:
+            // - FunctionNode::accumulate() uses buffer -> add the buffer contents to the actual coefficients
+            // - the operation constructs sum coefficients on all scales -> sum down to get a well-defined tree-state
+            if (fence) {
+                world.gop.fence();
+                flo_unary_op_node_inplace(do_consolidate_buffer(get_tensor_args()),true);
+                sum_down(true);
+                set_tree_state(reconstructed);
+            }
+
+
         }
 
         /// assemble the function V*phi using V and phi given from the functor
@@ -4255,33 +4298,33 @@ namespace madness {
         /// @param[in]  fence   global fence
         template<typename opT, std::size_t LDIM>
         void make_Vphi_only(const opT& leaf_op, FunctionImpl<T,NDIM>* ket,
-        		FunctionImpl<T,LDIM>* v1, FunctionImpl<T,LDIM>* v2,
-				FunctionImpl<T,LDIM>* p1, FunctionImpl<T,LDIM>* p2,
-				FunctionImpl<T,NDIM>* eri,
-				const bool fence=true) {
+                            FunctionImpl<T,LDIM>* v1, FunctionImpl<T,LDIM>* v2,
+                            FunctionImpl<T,LDIM>* p1, FunctionImpl<T,LDIM>* p2,
+                            FunctionImpl<T,NDIM>* eri,
+                            const bool fence=true) {
 
-              // prepare the CoeffTracker
-              CoeffTracker<T,NDIM> iaket(ket);
-              CoeffTracker<T,LDIM> iap1(p1);
-              CoeffTracker<T,LDIM> iap2(p2);
-              CoeffTracker<T,LDIM> iav1(v1);
-              CoeffTracker<T,LDIM> iav2(v2);
+            // prepare the CoeffTracker
+            CoeffTracker<T,NDIM> iaket(ket);
+            CoeffTracker<T,LDIM> iap1(p1);
+            CoeffTracker<T,LDIM> iap2(p2);
+            CoeffTracker<T,LDIM> iav1(v1);
+            CoeffTracker<T,LDIM> iav2(v2);
 
-              // the operator making the coefficients
-              typedef Vphi_op_NS<opT,LDIM> coeff_opT;
-              coeff_opT coeff_op(this,leaf_op,iaket,iap1,iap2,iav1,iav2,eri);
+            // the operator making the coefficients
+            typedef Vphi_op_NS<opT,LDIM> coeff_opT;
+            coeff_opT coeff_op(this,leaf_op,iaket,iap1,iap2,iav1,iav2,eri);
 
-              // this operator simply inserts the coeffs into this' tree
-              typedef noop<T,NDIM> apply_opT;
-              apply_opT apply_op;
+            // this operator simply inserts the coeffs into this' tree
+            typedef noop<T,NDIM> apply_opT;
+            apply_opT apply_op;
 
-        	if (world.rank() == coeffs.owner(cdata.key0)) {
-              woT::task(world.rank(), &implT:: template forward_traverse<coeff_opT,apply_opT>,
-			coeff_op, apply_op, cdata.key0);
-          }
+            if (world.rank() == coeffs.owner(cdata.key0)) {
+                woT::task(world.rank(), &implT:: template forward_traverse<coeff_opT,apply_opT>,
+                          coeff_op, apply_op, cdata.key0);
+            }
 
-        	set_tree_state(reconstructed);
-          if (fence) world.gop.fence();
+            set_tree_state(redundant_after_merge);
+            if (fence) world.gop.fence();
 
         }
 
@@ -4470,6 +4513,8 @@ namespace madness {
         /// reconstruct this tree -- respects fence
         void reconstruct(bool fence);
 
+        void change_tree_state(const TreeState finalstate, bool fence=true);
+
         // Invoked on node where key is local
         //        void reconstruct_op(const keyT& key, const tensorT& s);
         void reconstruct_op(const keyT& key, const coeffT& s, const bool accumulate_NS=true);
@@ -4488,8 +4533,10 @@ namespace madness {
         Future<std::pair<coeffT,double> > compress_spawn(const keyT& key, bool nonstandard, bool keepleaves,
         		bool redundant1);
 
+        private:
         /// convert this to redundant, i.e. have sum coefficients on all levels
         void make_redundant(const bool fence);
+        public:
 
         /// convert this from redundant to standard reconstructed form
         void undo_redundant(const bool fence);
@@ -4952,7 +4999,14 @@ namespace madness {
         }
 
         /// after apply we need to do some cleanup;
-        double finalize_apply(const bool fence=true);
+
+        /// forces fence
+        double finalize_apply();
+
+        /// after summing upwe need to do some cleanup;
+
+        /// forces fence
+        void finalize_sum();
 
         /// traverse a non-existing tree, make its coeffs and apply an operator
 

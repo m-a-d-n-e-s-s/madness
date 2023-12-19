@@ -814,97 +814,8 @@ namespace madness {
             if (finalstate==current_state) return *this;
             MADNESS_CHECK_THROW(current_state!=TreeState::unknown,"unknown tree state");
 
-            // very special case
-            if (impl->get_tree_state()==nonstandard_after_apply) {
-                MADNESS_CHECK(finalstate==reconstructed);
-                impl->reconstruct(fence);
-                current_state=impl->get_tree_state();
-            }
-            MADNESS_CHECK_THROW(current_state!=TreeState::nonstandard_after_apply,"unknown tree state");
-            bool must_fence=false;
-
-            if (finalstate==reconstructed) {
-                if (current_state==reconstructed) return *this;
-                if (current_state==compressed) impl->reconstruct(fence);
-                if (current_state==nonstandard) impl->reconstruct(fence);
-                if (current_state==nonstandard_with_leaves) impl->remove_internal_coefficients(fence);
-                if (current_state==redundant) impl->remove_internal_coefficients(fence);
-                impl->set_tree_state(reconstructed);
-            } else if (finalstate==compressed) {
-                if (current_state==reconstructed) impl->compress(compressed,fence);
-                if (current_state==compressed) return *this;
-                if (current_state==nonstandard) impl->standard(fence);
-                if (current_state==nonstandard_with_leaves) impl->standard(fence);
-                if (current_state==redundant) {
-                    impl->remove_internal_coefficients(true);
-                    must_fence=true;
-                    impl->set_tree_state(reconstructed);
-                    impl->compress(compressed,fence);
-                }
-                impl->set_tree_state(compressed);
-            } else if (finalstate==nonstandard) {
-                if (current_state==reconstructed) impl->compress(nonstandard,fence);
-                if (current_state==compressed) {
-                    impl->reconstruct(true);
-                    must_fence=true;
-                    impl->compress(nonstandard,fence);
-                }
-                if (current_state==nonstandard) return *this;
-                if (current_state==nonstandard_with_leaves) impl->remove_leaf_coefficients(fence);
-                if (current_state==redundant) {
-                    impl->remove_internal_coefficients(true);
-                    must_fence=true;
-                    impl->set_tree_state(reconstructed);
-                    impl->compress(nonstandard,fence);
-                }
-                impl->set_tree_state(nonstandard);
-            } else if (finalstate==nonstandard_with_leaves) {
-                if (current_state==reconstructed) impl->compress(nonstandard_with_leaves,fence);
-                if (current_state==compressed) {
-                    impl->reconstruct(true);
-                    must_fence=true;
-                    impl->compress(nonstandard_with_leaves,fence);
-                }
-                if (current_state==nonstandard) {
-                    impl->standard(true);
-                    must_fence=true;
-                    impl->reconstruct(true);
-                    impl->compress(nonstandard_with_leaves,fence);
-                }
-                if (current_state==nonstandard_with_leaves) return *this;
-                if (current_state==redundant) {
-                    impl->remove_internal_coefficients(true);
-                    must_fence=true;
-                    impl->set_tree_state(reconstructed);
-                    impl->compress(nonstandard_with_leaves,fence);
-                }
-                impl->set_tree_state(nonstandard_with_leaves);
-            } else if (finalstate==redundant) {
-                if (current_state==reconstructed) impl->make_redundant(fence);
-                if (current_state==compressed) {
-                    impl->reconstruct(true);
-                    must_fence=true;
-                    impl->make_redundant(fence);
-                }
-                if (current_state==nonstandard) {
-                    impl->standard(true);
-                    must_fence=true;
-                    impl->reconstruct(true);
-                    impl->make_redundant(fence);
-                }
-                if (current_state==nonstandard_with_leaves) {
-                    impl->remove_internal_coefficients(true);
-                    must_fence=true;
-                    impl->set_tree_state(reconstructed);
-                    impl->make_redundant(fence);
-                }
-                if (current_state==redundant) return *this;
-                impl->set_tree_state(redundant);
-            } else {
-                MADNESS_EXCEPTION("unknown/unsupported final tree state",1);
-            }
-            if (must_fence and world().rank()==0) print("could not respect fence in change_tree_state");
-            if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
+            impl->change_tree_state(finalstate, fence);
+            if (fence && VERIFY_TREE) verify_tree();
             return *this;
         }
 
@@ -1339,23 +1250,27 @@ namespace madness {
 
         /// perform the hartree product of f*g, invoked by result
         template<size_t LDIM, size_t KDIM, typename opT>
-        void do_hartree_product(const FunctionImpl<T,LDIM>* left, const FunctionImpl<T,KDIM>* right,
-                const opT* op) {
+        void do_hartree_product(const std::vector<std::shared_ptr<FunctionImpl<T,LDIM>>> left,
+                                const std::vector<std::shared_ptr<FunctionImpl<T,KDIM>>> right,
+                                const opT* op) {
 
             // get the right leaf operator
             hartree_convolute_leaf_op<T,KDIM+LDIM,LDIM,opT> leaf_op(impl.get(),left,op);
             impl->hartree_product(left,right,leaf_op,true);
+            impl->finalize_sum();
             this->truncate(0.0,false);
 
         }
 
         /// perform the hartree product of f*g, invoked by result
         template<size_t LDIM, size_t KDIM>
-        void do_hartree_product(const FunctionImpl<T,LDIM>* left, const FunctionImpl<T,KDIM>* right) {
+        void do_hartree_product(const std::vector<std::shared_ptr<FunctionImpl<T,LDIM>>> left,
+                                const std::vector<std::shared_ptr<FunctionImpl<T,KDIM>>> right) {
 
 //            hartree_leaf_op<T,KDIM+LDIM> leaf_op(impl.get(),cdata.s0);
             hartree_leaf_op<T,KDIM+LDIM> leaf_op(impl.get(),k());
             impl->hartree_product(left,right,leaf_op,true);
+            impl->finalize_sum();
             this->truncate(0.0,false);
 
         }
@@ -1394,8 +1309,10 @@ namespace madness {
 
             if (this->is_compressed() and g.is_compressed()) {
             } else {
-                if (not this->get_impl()->is_redundant()) this->get_impl()->make_redundant(false);
-                if (not g.get_impl()->is_redundant()) g.get_impl()->make_redundant(false);
+                change_tree_state(redundant);
+                g.change_tree_state(redundant);
+//                if (not this->get_impl()->is_redundant()) this->get_impl()->make_redundant(false);
+//                if (not g.get_impl()->is_redundant()) g.get_impl()->make_redundant(false);
                 impl->world.gop.fence();
             }
 
@@ -1421,7 +1338,8 @@ namespace madness {
         /// @return Returns local part of the inner product, i.e. over the domain of all function nodes on this compute node.
         T inner_ext_local(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, const bool leaf_refine=true, const bool keep_redundant=false) const {
             PROFILE_MEMBER_FUNC(Function);
-            if (not impl->is_redundant()) impl->make_redundant(true);
+            change_tree_state(redundant);
+//            if (not impl->is_redundant()) impl->make_redundant(true);
             T local = impl->inner_ext_local(f, leaf_refine);
             if (not keep_redundant) impl->undo_redundant(true);
             return local;
@@ -1437,7 +1355,8 @@ namespace madness {
         /// @return Returns the inner product
         T inner_ext(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, const bool leaf_refine=true, const bool keep_redundant=false) const {
             PROFILE_MEMBER_FUNC(Function);
-            if (not impl->is_redundant()) impl->make_redundant(true);
+            change_tree_state(redundant);
+//            if (not impl->is_redundant()) impl->make_redundant(true);
             T local = impl->inner_ext_local(f, leaf_refine);
             impl->world.gop.sum(local);
             impl->world.gop.fence();
@@ -1773,7 +1692,8 @@ namespace madness {
         /// check symmetry of a function by computing the 2nd derivative
         double check_symmetry() const {
 
-        	impl->make_redundant(true);
+            change_tree_state(redundant);
+//        	impl->make_redundant(true);
             if (VERIFY_TREE) verify_tree();
             double local = impl->check_symmetry_local();
             impl->world.gop.sum(local);
@@ -1795,7 +1715,8 @@ namespace madness {
         /// remove all nodes with level higher than n
         Function<T,NDIM>& chop_at_level(const int n, const bool fence=true) {
             verify();
-            impl->make_redundant(true);
+            change_tree_state(redundant);
+//            impl->make_redundant(true);
             impl->chop_at_level(n,true);
             impl->undo_redundant(true);
             return *this;
@@ -1961,7 +1882,11 @@ namespace madness {
         left.make_nonstandard(true,true);
         right.make_nonstandard(true,true);
 
-        result.do_hartree_product(left.get_impl().get(),right.get_impl().get());
+        std::vector<std::shared_ptr<FunctionImpl<T,KDIM>>> vleft;
+        std::vector<std::shared_ptr<FunctionImpl<T,LDIM>>> vright;
+        vleft.push_back(left.get_impl());
+        vright.push_back(right.get_impl());
+        result.do_hartree_product(vleft,vright);
 
         left.standard(false);
         if (not same) right.standard(false);
@@ -1998,7 +1923,11 @@ namespace madness {
         left.make_nonstandard(true, true);
         right.make_nonstandard(true, true);
 
-        result.do_hartree_product(left.get_impl().get(),right.get_impl().get(),&op);
+        std::vector<std::shared_ptr<FunctionImpl<T,KDIM>>> vleft;
+        std::vector<std::shared_ptr<FunctionImpl<T,LDIM>>> vright;
+        vleft.push_back(left.get_impl());
+        vright.push_back(right.get_impl());
+        result.do_hartree_product(vleft,right,&op);
 
         left.standard(false);
         if (not same) right.standard(false);
@@ -2194,7 +2123,7 @@ namespace madness {
         result.get_impl()->print_timer();
         op.print_timer();
 
-		result.get_impl()->finalize_apply(true);	// need fence before reconstruct
+		result.get_impl()->finalize_apply();	// need fence before reconstruct
 
         if (op.modified()) {
             result.get_impl()->trickle_down(true);
@@ -2273,7 +2202,8 @@ namespace madness {
     	if (op.modified()) {
 
     		MADNESS_ASSERT(not op.is_slaterf12);
-    	    ff.get_impl()->make_redundant(true);
+            ff.change_tree_state(redundant);
+//    	    ff.get_impl()->make_redundant(true);
             result = apply_only(op, ff, fence);
             ff.get_impl()->undo_redundant(false);
             result.get_impl()->trickle_down(true);
@@ -2466,7 +2396,7 @@ namespace madness {
     template<typename T, std::size_t NDIM, std::size_t LDIM>
     Function<T,NDIM> multiply(const Function<T,NDIM> f, const Function<T,LDIM> g, const int particle, const bool fence=true) {
 
-        MADNESS_ASSERT(LDIM+LDIM==NDIM);
+        static_assert(LDIM+LDIM==NDIM);
         MADNESS_ASSERT(particle==1 or particle==2);
 
         Function<T,NDIM> result;
@@ -2477,8 +2407,8 @@ namespace madness {
 
 		FunctionImpl<T,NDIM>* fimpl=f.get_impl().get();
 		FunctionImpl<T,LDIM>* gimpl=g.get_impl().get();
-		gimpl->make_redundant(false);
-        fimpl->make_redundant(false);
+        f.change_tree_state(redundant,false);
+        g.change_tree_state(redundant,false);
         result.world().gop.fence();
 
         result.get_impl()->multiply(fimpl,gimpl,particle);

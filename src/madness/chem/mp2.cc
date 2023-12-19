@@ -1150,7 +1150,8 @@ real_function_6d MP2::apply_exchange_vector(const real_function_6d& phi,
 	// prepare all constituent functions
 	std::vector<real_function_3d> ket=copy(world,hf->nemos());
 	std::vector<real_function_3d> bra=copy(world,hf->R2orbitals());
-	phi.get_impl()->make_redundant(false);
+    phi.change_tree_state(redundant,false);
+//	phi.get_impl()->make_redundant(false);
 	make_redundant(world,ket,false);
 	make_redundant(world,bra,false);
 	world.gop.fence();
