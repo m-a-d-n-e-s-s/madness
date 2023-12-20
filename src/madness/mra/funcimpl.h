@@ -720,7 +720,8 @@ namespace madness {
         accumulate_op(FunctionImpl<T,NDIM>* f) : impl(f) {}
         accumulate_op(const accumulate_op& other) = default;
         void operator()(const Key<NDIM>& key, const coeffT& coeff, const bool& is_leaf) const {
-            impl->get_coeffs().task(key, &nodeT::accumulate, coeff, impl->get_coeffs(), key, impl->get_tensor_args());
+            if (coeff.has_data())
+                impl->get_coeffs().task(key, &nodeT::accumulate, coeff, impl->get_coeffs(), key, impl->get_tensor_args());
         }
         template <typename Archive> void serialize (Archive& ar) {
             ar & impl;
@@ -5003,7 +5004,7 @@ template<size_t NDIM>
         /// forces fence
         double finalize_apply();
 
-        /// after summing upwe need to do some cleanup;
+        /// after summing up we need to do some cleanup;
 
         /// forces fence
         void finalize_sum();
@@ -6484,11 +6485,12 @@ template<size_t NDIM>
                 std::vector<Slice> other_s(fcoeff.get_svdtensor().dim_per_vector(otherdim)+1,_);
 
                 // do the actual contraction
+                std::vector<long> shape(LDIM,k);
                 for (int r=0; r<fcoeff.rank(); ++r) {
                     s[0]=Slice(r,r);
                     other_s[0]=Slice(r,r);
-                    const tensorT contracted_tensor=fcoeff.get_svdtensor().ref_vector(dim)(s).reshape(k,k,k);
-                    const tensorT other_tensor=fcoeff.get_svdtensor().ref_vector(otherdim)(other_s).reshape(k,k,k);
+                    const tensorT contracted_tensor=fcoeff.get_svdtensor().ref_vector(dim)(s).reshape(shape);
+                    const tensorT other_tensor=fcoeff.get_svdtensor().ref_vector(otherdim)(other_s).reshape(shape);
                     const double ovlp= gtensor.trace_conj(contracted_tensor);
                     const double fac=ovlp * fcoeff.get_svdtensor().weights(r);
                     final+=fac*other_tensor;

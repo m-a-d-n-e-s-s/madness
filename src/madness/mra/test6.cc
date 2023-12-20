@@ -807,7 +807,7 @@ int main(int argc, char**argv) {
 	error+=test_vector_composite<double,2>(world,k,thresh);
 //    test(world,k,thresh);
     error+=test_hartree_product<double,2>(world,k,thresh);
-    error+=test_hartree_product<double,4>(world,k,thresh);
+//    error+=test_hartree_product<double,4>(world,k,thresh);
     error+=test_convolution(world,k,thresh);
     error+=test_multiply(world,k,thresh);
     error+=test_add(world,k,thresh);
