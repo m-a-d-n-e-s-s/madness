@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.11.0)
+cmake_minimum_required (VERSION 3.12.0)  # for FindPython
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
