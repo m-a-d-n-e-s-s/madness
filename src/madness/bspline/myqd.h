@@ -14,6 +14,8 @@
 // Inject math routines into std name space to enable templated types
 namespace std {
     qd_real abs(const qd_real& x) {return ::abs(x);}
+    qd_real exp(const qd_real& x) {return ::exp(x);}
+    qd_real ldexp(const qd_real &a, int exp) {return ::ldexp(a,exp);}
     qd_real cos(const qd_real& x) {return ::cos(x);}
     qd_real sin(const qd_real& x) {return ::sin(x);}
     qd_real pow(const qd_real& x, int n) {return ::pow(x,n);}
@@ -22,6 +24,8 @@ namespace std {
     qd_real sqrt(const qd_real& x) {return ::sqrt(x);}
     
     dd_real abs(const dd_real& x) {return ::abs(x);}
+    dd_real exp(const dd_real& x) {return ::exp(x);}
+    dd_real ldexp(const dd_real &a, int exp) {return ::ldexp(a,exp);}
     dd_real cos(const dd_real& x) {return ::cos(x);}
     dd_real sin(const dd_real& x) {return ::sin(x);}
     dd_real pow(const dd_real& x, int n) {return ::pow(x,n);}
@@ -30,16 +34,87 @@ namespace std {
     dd_real sqrt(const dd_real& x) {return ::sqrt(x);}
 }
 
+template <typename T>
+T myread(const std::string& s) {
+    T x = 0;
+    int sx=1, sexpnt=1, expnt=0;
+    int n = 0;
+    int point = 0;
+    bool doingexpt = false;
+    for (char c : s) {
+        if (doingexpt) {
+            switch (c) {
+            case '-':
+                sexpnt = -1;
+                break;
+                
+            case '+':
+                break;
+
+            default:
+                expnt = 10*expnt + int(c-'0');
+            }
+
+        }
+        else {
+              switch (c) {
+              case '-':
+                  sx = -1;
+                  break;
+                  
+              case '.':
+                  point = n;
+                  break;
+                  
+              case 'e':
+              case 'E':
+                  doingexpt = true;
+                  break;
+
+              default:
+                  x = T(10)*x + int(c-'0');
+                  n++;
+              }
+        }
+    }
+    //std::cout << n << " " << expnt << " " << point << std::endl;
+    n += -sexpnt*expnt - point;
+    n = -n;
+    
+    while (abs(n)) {
+        int m;
+        if (n<0) {
+            m = std::max(n, -20);
+        }
+        else {
+            m = std::min(n, 20);
+        }
+        n -= m;
+        x *= pow(T(10), m);
+    }
+
+    if (sx<0) {
+        x = -x;
+    }
+
+    return x;
+}
+
+template <typename T>
+T myread(const char* s) {
+    return myread<T>(std::string(s));
+}
+
 template <typename T> T from_str(const char* s);
 
 template <>
 qd_real from_str<qd_real>(const char* s) {
-    return qd_real(s);
+    return myread<qd_real>(s);
 }
 
 template <>
 dd_real from_str<dd_real>(const char* s) {
-    return dd_real(s);
+    return myread<dd_real>(s);
 }
 
 template <>
@@ -60,12 +135,16 @@ float from_str<float>(const char* s) {
     return d;
 }
 
+template <typename T> T from_str(const std::string& s) {
+    return from_str<T>(s.c_str());
+}
+
 std::string to_str(const qd_real& t) {return t.to_string();}
 std::string to_str(const dd_real& t) {return t.to_string();}
-std::string to_str(double t) {char buf[256]; sprintf(buf,"%.17f",t); return buf;}
+std::string to_str(double t) {char buf[256]; sprintf(buf,"%.17e",t); return buf;}
+std::string to_str(float t) {char buf[256]; sprintf(buf,"%.8e",t); return buf;}
 
 double to_double(double d) {return d;}
-
 double to_double(float f) {return f;}
 
 // Needed since double(qd_real) not implemented and I fear what would break if I added it.

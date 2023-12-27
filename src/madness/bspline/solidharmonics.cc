@@ -546,7 +546,7 @@ auto threeJ() {
                                 //std::cout << std::setw(3) << l1 << " " << std::setw(3) << m1 << " " << std::setw(3) << l2 << " " << std::setw(3) << m2 << "   --> " << std::setw(3) << l3 << " " << std::setw(3) << m3 << " " << std::setw(15) << j3value << " " << test << std::endl;
                                 j3.push_back({l3,m3,j3value});
 
-                                if (l2==1 and m2==0) {
+                                if ((l2==1 and m2==1) or (l1==1 and m2==1)) {
                                     T unnorm = j3value*Nnorm.value(l3,m3)/(Nnorm.value(l1,m1)*Nnorm.value(l2,m2));
                                     std::cout << std::setw(3) << l1 << " " << std::setw(3) << m1 << " " << std::setw(3) << l2 << " " << std::setw(3) << m2 << "   --> " << std::setw(3) << l3 << " " << std::setw(3) << m3 << " " << std::setw(15) << j3value << " " << unnorm << std::endl;
                                 }
