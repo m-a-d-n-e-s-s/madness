@@ -77,7 +77,8 @@ namespace madness {
     /// \param group The group to be removed from the registry
     void Group::unregister_group(const DistributedID& did) {
         group_registry_container::accessor acc;
-        group_registry.find(acc, did);
+        [[maybe_unused]] auto found = group_registry.find(acc, did);
+        MADNESS_ASSERT(found);
         group_registry.erase(acc);
     }
 

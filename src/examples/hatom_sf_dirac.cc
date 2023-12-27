@@ -294,7 +294,7 @@ void run(World& world) {
         gradV[axis] = real_factory_3d(world).functor(p).truncate_mode(0);
     }
 
-    
+
     coord_3d lo = {0.0,0.0,-L}, hi = {0.0,0.0,L};
     const int npt = 1001;
     

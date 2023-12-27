@@ -348,11 +348,13 @@ namespace madness {
         ///     with a unique ID.
         /// \return The unique ID associated with the supplied data.
         template <typename T>
-        uniqueidT register_ptr(T* ptr) {
+        [[nodiscard]] uniqueidT register_ptr(T* ptr) {
             MADNESS_ASSERT(sizeof(T*) == sizeof(void *));
-            uniqueidT id = unique_obj_id();
-            map_id_to_ptr.insert(std::pair<uniqueidT,void*>(id,static_cast<void*>(ptr)));
-            map_ptr_to_id.insert(std::pair<void*,uniqueidT>(static_cast<void*>(ptr),id));
+            uniqueidT id = make_unique_obj_id();
+            [[maybe_unused]] auto&& [it1, inserted1] = map_id_to_ptr.insert(std::pair<uniqueidT,void*>(id,static_cast<void*>(ptr)));
+            MADNESS_ASSERT(inserted1);
+            [[maybe_unused]] auto&& [it2, inserted2] = map_ptr_to_id.insert(std::pair<void*,uniqueidT>(static_cast<void*>(ptr),id));
+            MADNESS_ASSERT(inserted2);
             return id;
         }
 
@@ -364,8 +366,10 @@ namespace madness {
         template <typename T>
         void unregister_ptr(T* ptr) {
             uniqueidT id = id_from_ptr(ptr);  // Will be zero if invalid
-            map_id_to_ptr.erase(id);
-            map_ptr_to_id.erase((void *) ptr);
+            [[maybe_unused]] auto erased1 = map_id_to_ptr.try_erase(id);
+            MADNESS_ASSERT(erased1);
+            [[maybe_unused]] auto erased2 = map_ptr_to_id.try_erase((void *) ptr);
+            MADNESS_ASSERT(erased2);
         }
 
         /// Unregister the unique ID for a local pointer via its ID.
@@ -376,8 +380,10 @@ namespace madness {
         template <typename T>
         void unregister_ptr(const uniqueidT id) {
             T* const ptr = ptr_from_id<T>(id);
-            map_id_to_ptr.erase(id);
-            map_ptr_to_id.erase((void *) ptr);
+            [[maybe_unused]] auto erased1 = map_id_to_ptr.try_erase(id);
+            MADNESS_ASSERT(erased1);
+            [[maybe_unused]] auto erased2 = map_ptr_to_id.try_erase((void *) ptr);
+            MADNESS_ASSERT(erased2);
         }
 
         /// Look up a local pointer from a world-wide unique ID.
@@ -386,7 +392,7 @@ namespace madness {
         /// \param[in] id The unique ID of the data.
         /// \return The local pointer or \c NULL if the ID is not found.
         template <typename T>
-        T* ptr_from_id(uniqueidT id) const {
+        [[nodiscard]] T* ptr_from_id(uniqueidT id) const {
             map_id_to_ptrT::const_iterator it = map_id_to_ptr.find(id);
             if (it == map_id_to_ptr.end())
                 return nullptr;
@@ -400,7 +406,7 @@ namespace madness {
         /// \param[in] ptr The local pointer.
         /// \return The unique ID or \c invalidid if the pointer is not found.
         template <typename T>
-        const uniqueidT& id_from_ptr(T* ptr) const {
+        [[nodiscard]] const uniqueidT& id_from_ptr(T* ptr) const {
             static uniqueidT invalidid(0,0);
             map_ptr_to_idT::const_iterator it = map_ptr_to_id.find(ptr);
             if (it == map_ptr_to_id.end())
@@ -418,7 +424,7 @@ namespace madness {
         /// \return The pointer or a default constructed `std::shared_ptr` if
         ///     the ID is not found.
         template <typename T>
-        std::shared_ptr<T> shared_ptr_from_id(uniqueidT id) const {
+        [[nodiscard]] std::shared_ptr<T> shared_ptr_from_id(uniqueidT id) const {
             T* ptr = ptr_from_id<T>(id);
             return (ptr ? ptr->shared_from_this() : std::shared_ptr<T>());
         }
@@ -429,7 +435,7 @@ namespace madness {
         /// \param[in] ptr The local pointer.
         /// \return The unique ID or an invalid ID if the pointer is not found.
         template <typename T>
-        const uniqueidT& id_from_ptr(std::shared_ptr<T>& ptr) const {
+        [[nodiscard]] const uniqueidT& id_from_ptr(std::shared_ptr<T>& ptr) const {
             return id_from_ptr(ptr.get());
         }
 

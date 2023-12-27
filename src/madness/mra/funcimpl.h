@@ -5378,7 +5378,7 @@ namespace madness {
                 const keyT& key = it->first;
                 const FunctionNode<T,NDIM>& node = it->second;
                 if (node.has_coeff()) {
-                    map->insert(acc,key);
+                    [[maybe_unused]] auto inserted = map->insert(acc,key);
                     acc->second.push_back(std::make_pair(index,&(node.coeff())));
                 }
             }
