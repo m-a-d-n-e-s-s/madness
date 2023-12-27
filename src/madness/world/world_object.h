@@ -1356,8 +1356,8 @@ namespace madness {
 
         virtual ~WorldObject() {
             if(initialized()) {
-              MADNESS_ASSERT_NOEXCEPT(World::exists(&world) && world.ptr_from_id<Derived>(id()));
-              world.unregister_ptr(static_cast<Derived *>(this));
+              MADNESS_ASSERT_NOEXCEPT(World::exists(&world) && world.ptr_from_id<Derived>(id()) && *world.ptr_from_id<Derived>(id()) == this);
+              world.unregister_ptr(this->id());
             }
         }
     };
