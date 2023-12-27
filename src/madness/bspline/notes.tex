@@ -17,7 +17,9 @@
 
 \newcommand{\N}{\mathcal{N}}
 \newcommand{\rv}{\vb{r}}
+\newcommand{\sv}{\vb{s}}
 \newcommand{\rhat}{\hat{\rv}}
+\newcommand{\shat}{\hat{\sv}}
 
 \title{Notes on b-spline implementation}
 \date{\today}
@@ -375,7 +377,130 @@ The algorithm for differentiation starts by pre-tabulating the required unnormal
 \item Differentiate the radial part and add into the appropriate components of the result scaled by the coupling coefficients.
 \item With a little more effort these two steps could be combined and perhaps even turned into a matrix-matrix operation.
 \end{enumerate}
-  
-%% \end{eqnarray}
+
+\section{Bound-state Helmholtz Green's function}
+
+The 3D Green's function (GF) satisfies
+\begin{eqnarray}
+   \left(-\nabla^2 + \mu^2\right) G(\rv,\sv; \mu) & = & \delta^{(3)}(\rv - \sv)
+\end{eqnarray}
+and is given by
+\begin{eqnarray}
+  G(\rv,\sv; \mu) & = & \frac{\mathrm{e}^{-\mu |\rv-\sv|}}{4 \pi |\rv-\sv|} .
+\end{eqnarray}
+In the limit $\mu=0$ the Coulomb GF is obtained.
+
+Expanding using the normalized solid harmonics
+\begin{eqnarray}
+  G(\rv,\sv; \mu) & = & \mu 
+  \sum_{lm}
+  \left(    
+  \Theta(r-s) h_l(\mu r) j_l(\mu s)
+  +
+  \Theta(s-r) j_l(\mu r) h_l(\mu s)
+  \right)
+  \N_{lm}(\rhat) \N_{lm}(\shat) .
+\end{eqnarray}
+Note the radial part of the kernel is independent of $m$.
+
+The Coulomb GF is obtained in the limit $\mu=0$, which here includes in the angular part of the integration the $1/4\pi$ unlike elsewhere in MADNESS.  The factor of $\mu$ at the front is cancelled, so just set it to one for this purpose.
+\begin{eqnarray}
+  h_l(r) & = & r^{-(l+1)} , \\
+  j_l(r) & = & \frac{r^l}{2l+1}.
+\end{eqnarray}
+
+For the BSH, the real functions $h_l$ and $j_l$ are defined as
+\begin{eqnarray}
+  h_l(r) & = & -\sqrt{\frac{\pi}{2r}} {\mathrm e}^{i \left(l-\frac{1}{2}\right) \frac{\pi}{2}} H_{l +\frac{1}{2}}^{\left(1\right)} \left(i r  \right) ,\\
+  j_l(r) & = & \sqrt{\frac{\pi}{2r}} {\mathrm e}^{-i \left(l+\frac{1}{2}\right) \frac{\pi}{2}} J_{l +\frac{1}{2}} \left(i r  \right) .
+\end{eqnarray}
+where $H^{(1)}$ and $J$ are modified (i.e., imaginary argument) Hankel and Bessel functions, respectively, of the first kind.
+
+The functions $h_l(r)$ are everywhere positive and decay exponentially at long range,
+\begin{eqnarray}
+  h_0(r) & = & \frac{{\mathrm e}^{-r}}{r}, \\
+  h_1(r) & = & \frac{{\mathrm e}^{-r} \left(r +1\right) }{r^{2}} ,\\
+  h_2(r) & = & \frac{{\mathrm e}^{-r} \left(r^{2}+3 r +3\right)}{r^{3}} ,\\
+  h_3(r) & = & \frac{{\mathrm e}^{-r} \left(r^{3}+6 r^{2}+15 r +15\right)}{r^{4}} .
+\end{eqnarray}
+We also have
+\begin{eqnarray}
+  \lim_{r \rightarrow 0} h_l(r) & = & \frac{(2l-1)!!}{r^{l+1}} , \\
+  \lim_{r \rightarrow \infty} h_l(r) & = & \frac{{\mathrm e}^{-r}}{r} .
+\end{eqnarray}
+
+The functions $j_l(r)$ are also everywhere positive but have exponentially growing and decaying components,
+\begin{eqnarray}
+  j_0(r) & = & \frac{{\mathrm e}^{r}-{\mathrm e}^{-r}}{2 r} ,\\
+  j_1(r) & = & \frac{{\mathrm e}^{-r}\left(r +1\right) +{\mathrm e}^{r} \left(r -1\right)}{2 r^{2}} , \\
+  j_2(r) & = & \frac{{\mathrm e}^{-r}\left(-r^{2}-3 r -3\right)+{\mathrm e}^{r} \left(r^{2}-3 r +3\right)}{2 r^{3}} , \\
+  j_3(r) & = & \frac{{\mathrm e}^{-r}\left(r^{3}+6 r^{2}+15 r +15\right)+{\mathrm e}^{r} \left(r^{3}-6 r^{2}+15 r -15\right)}{2 r^{4}} .
+\end{eqnarray}
+We also have
+\begin{eqnarray}
+  \lim_{r \rightarrow 0} j_l(r) & = & \frac{r^l}{(2l+1)!!} , \\
+  \lim_{r \rightarrow \infty} j_l(r) & = & \frac{{\mathrm e}^{r}}{2r} .
+\end{eqnarray}
+
+Recall that $\mu = \sqrt{-2 \epsilon}$ and for heavy elements is in the approximate range $0.1<\mu<100$.  Also, our simulation box is circa 100 units and we need to resolve close to the singularity if computing with a point charge model.  Thus, we will need to evaluate with something like $10^{-7} < \mu r < 10^4$.  Note that $r^{30}exp(-r)$ is less than 1e-16 for $r<0.295$ and $r>195$.
+
+Underflow, overflow, and cancellation all need to be explicitly managed when evaluating these functions.
+\begin{itemize}
+\item  Underflow: Near the origin, $j_l$ can underflow and be rounded to zero.  But, it can be multiplied by a corresponding large $h_l$ that if $j_l$ were correct would product a significant contribution.  At long range, $h_l$ gets very small and can underflow, but can be multiplied by an exponentially large $j_l$.
+\item Overflow: We've already noted that $h_l$ can get big and overflow near the origin.  Similarly, $j_l$ gets exponentially large at long range and will easily overflow.
+\item Cancellation: The upward recurrence to evaluate $j_l$ is unstable and is discussed below.
+\item Cancellation: Even the expression for $j_1(r)$ is unstable for $r<0.02$ (in double precision) since it limits to $O(r^2)$ and even using \verb+std::expm1+ only corrects the linear term in the cancellation.
+\item Exponent range: In double precision $10^{\pm 308}$.  In single precision $10^{\pm 38}$.  Too positive will give overflow; too negative will initially produce denormalized numbers (reduced precision) and then underflow to zero.
+\end{itemize}
+
+For these reasons, instead of computing the bare functions, we examined computing with
+\begin{eqnarray*}
+  \bar{h}_l & = & {\mathrm e}^{-r} \frac{r^{l+1}}{(2l-1)!!} h_l(r) ,\\
+  \bar{j}_l & = & {\mathrm e}^{r} \frac{(2l+1)!!}{r^l} j_l(r).
+\end{eqnarray*}
+However, the additional powers of $r$ were not that helpful (basically just moved the problems from one end of the range to the other) and make other aspects of the calculation more complicated.  So we instead just explicitly separate out the exponential with
+\begin{eqnarray}
+  \bar{h}_l & = & {\mathrm e}^{-r} h_l(r) , \\
+  \bar{j}_l & = & {\mathrm e}^{r} j_l(r) .
+\end{eqnarray}
+The asymptotics at the origin are unchanged, and at long range are now
+\begin{eqnarray}
+  \lim_{r \rightarrow \infty} \bar{h}_l(r) & = & \frac{1}{r}, \\
+  \lim_{r \rightarrow \infty} \bar{j}_l(r) & = & \frac{1}{2r} .
+\end{eqnarray}
+
+In terms of these functions, the BSH GF becomes
+\begin{eqnarray}
+  G(\rv,\sv; \mu) & = & \mu {\mathrm e}^{-\mu |r-s|}
+  \sum_{lm} \\
+  & & 
+  \left(    
+  \Theta(r-s) \bar{h}_l(\mu r) \bar{j}_l(\mu s)
+  +
+  \Theta(s-r) \bar{j}_l(\mu r) \bar{h}_l(\mu s)
+  \right)
+  \N_{lm}(\rhat) \N_{lm}(\shat)
+\end{eqnarray}
+in which, due to the Heaviside functions, we can now see that the exponential is always decaying.
+
+\subsection{Recursions to evaluate the spherical Bessel/Hankel functions}
+
+The relevant recursions for $\bar{h}_l(r)$ and $\bar{j}_l(r)$, as defined above, are the same as those for $h_l(r)$ and $j_l(r)$, differing only in their starting values.
+\begin{eqnarray}
+  \bar{j}_{l+1} & = & -\frac{2l+1}{r} \bar{j}_l + \bar{j}_{l-1} \\
+  \bar{j}_{l-1} & = & \!\ \frac{2l+1}{r} \bar{j}_l + \bar{j}_{l+1} \\
+  \bar{h}_{l+1} & = & \!\ \frac{2l+1}{r} \bar{h}_l + \bar{h}_{l-1} \\
+  \bar{j}_0(r) & = & -\frac{\mathrm{expm1}(-2)}{2r} \\
+  \bar{j}_1(r) & = & \frac{r-1+\exp(-2r)(r+1)}{2 r^2} \\
+  \bar{h}_0(r) & = & \frac{1}{r} \\
+  \bar{h}_1(r) & = & \frac{r+1}{r^2}
+\end{eqnarray}
+The upward recursion for $\bar{h}_l$ is stable for all $r$.  The downward recursion for $\bar{j}$ is stable for all $r$, and Miller's algorithm can be used reliably, but it is expensive for large $r$ (since the downward recursion must be started at very high $l$).  The upward recursion for $\bar{j}_l$ is unstable, but for large $r$ it can provide sufficient accuracy, even without extended precision.  With extended precision, it is possible to evaluate the entire range --- this is examined in the following table.
+
+The Taylor series for $j_l$ is rapidly convergent ($j$ instead of $\bar{j}$ is preferable since the former contains only even/odd terms)
+\begin{eqnarray}
+ j_l(r) & = & r^l \sum_{k=0}^\infty \frac{r^{2k}}{2^k k! (2l+2k+1)!!} .
+\end{eqnarray}
+
 
 \end{document}
