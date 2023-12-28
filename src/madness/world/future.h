@@ -528,7 +528,7 @@ namespace madness {
         /// \param[in] value The value to be assigned.
         inline void set(const T& value) {
             MADNESS_CHECK(f);
-            std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
+            std::shared_ptr< FutureImpl<T> > ff = f; // manage lifetime of f
             ff->set(value);
         }
 
@@ -538,7 +538,7 @@ namespace madness {
         /// \param[in] value The value to be assigned.
         inline void set(T&& value) {
             MADNESS_CHECK(f);
-            std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
+            std::shared_ptr< FutureImpl<T> > ff = f; // manage lifetime of f
             ff->set(std::move(value));
         }
 
@@ -549,7 +549,7 @@ namespace madness {
         /// \param[in] input_arch Description needed.
         inline void set(const archive::BufferInputArchive& input_arch) {
             MADNESS_CHECK(f);
-            std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
+            std::shared_ptr< FutureImpl<T> > ff = f; // manage lifetime of f
             ff->set(input_arch);
         }
 

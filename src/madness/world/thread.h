@@ -960,7 +960,7 @@ namespace madness {
     	    count = 0;
     	}
 
-        /// Contructor setting the specified task attributes.
+        /// Constructor setting the specified task attributes.
 
         /// \param[in] attr The task attributes.
         explicit PoolTaskInterface(const TaskAttributes& attr)
