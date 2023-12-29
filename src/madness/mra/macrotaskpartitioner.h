@@ -132,8 +132,8 @@ public:
 class Batch {
 public:
     friend class MacroTaskPartitioner;
-    Batch_1D result;
     std::vector<Batch_1D> input;
+    Batch_1D result;
 
     Batch() {}
     Batch(const Batch& other) {

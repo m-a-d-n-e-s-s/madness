@@ -225,7 +225,6 @@ void SVDTensor<T>::orthonormalize_random(const double& eps) {
 
 	long maxrank=std::min(this->kVec(0),this->kVec(1));
 
-	double wall0=wall_time();
 	RandomizedMatrixDecomposition<T> rmd=RMDFactory().maxrank(maxrank);
 	Tensor<T> scr=this->make_left_vector_with_weights();
 	Tensor<T> Q=rmd.compute_range(scr,this->flat_vector(1),eps*0.1);

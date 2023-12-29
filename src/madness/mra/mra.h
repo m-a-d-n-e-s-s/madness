@@ -2220,7 +2220,7 @@ namespace madness {
             result.get_impl()->apply(op, *f.get_impl(), fence);
 
         } else {        // general version for higher dimension
-            bool print_timings=false;
+	  //bool print_timings=false;
             Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> r1;
 
             result.set_impl(f, false);

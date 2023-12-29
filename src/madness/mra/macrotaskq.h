@@ -128,8 +128,13 @@ public:
 
     /// create an empty taskq and initialize the subworlds
 	MacroTaskQ(World& universe, int nworld, const long printlevel=0)
-		  : universe(universe), WorldObject<MacroTaskQ>(universe), taskq(), cloud(universe), printlevel(printlevel),
-		    nsubworld(nworld) {
+	  : WorldObject<MacroTaskQ>(universe)
+	  , universe(universe)
+	  , taskq()
+	  , printlevel(printlevel)
+	  , nsubworld(nworld)
+	  , cloud(universe)
+        {
 
 		subworld_ptr=create_worlds(universe,nworld);
 		this->process_pending();
@@ -241,7 +246,10 @@ private:
 	/// scheduler is located on universe.rank==0
 	long get_scheduled_task_number(World& subworld) {
 		long number=0;
-		if (subworld.rank()==0) number=this->send(ProcessID(0), &MacroTaskQ::get_scheduled_task_number_local);
+		if (subworld.rank()==0) {
+		  Future<long> r = this->send(ProcessID(0), &MacroTaskQ::get_scheduled_task_number_local);
+		  number=r.get();
+		}
 		subworld.gop.broadcast_serializable(number, 0);
 		subworld.gop.fence();
 		return number;
