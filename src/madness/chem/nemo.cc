@@ -315,7 +315,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 
 	// guess has already been performed in value()
 	vecfuncT& nemo = calc->amo;
-	long nmo = nemo.size();
+	//long nmo = nemo.size();
 
 	// NOTE that nemos are somewhat sensitive to sparse operations (why??)
 	// Therefore set all tolerance thresholds to zero, also in the mul_sparse
@@ -549,8 +549,8 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
         // compute the exchange-correlation potential
         if (calc->xc.is_dft()) {
             XCOperator<double, 3> xcoperator(world, this, ispin);
-            double exc = 0.0;
-            if (ispin == 0) exc = xcoperator.compute_xc_energy();
+            //double exc = 0.0;
+            //if (ispin == 0) exc = xcoperator.compute_xc_energy();
             real_function_3d xc_pot = xcoperator.make_xc_potential();
 
             // compute the asymptotic correction of exchange-correlation potential

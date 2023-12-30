@@ -115,8 +115,11 @@ namespace madness {
                 if(pimpl->remote_ref) {
                     // Unarchive the value to a temporary since it is going to
                     // be forwarded to another node.
-                    T value;
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wuninitialized-const-reference"
+		    T value;
                     input_arch & value;
+#pragma clang diagnostic pop
 
                     // Copy world and owner from remote_ref since sending remote_ref
                     // will invalidate it.

@@ -297,7 +297,6 @@ void TDHF::symmetrize(std::vector<CC_vecfunction> &v) const {
 /// on output the solution
 std::vector<CC_vecfunction> TDHF::solve_cis() const {
     if (world.rank()==0) print_header2("computing CIS excitations");
-    int i=0;
     std::vector<CC_vecfunction> ccs;
     // look for restart options
     if (parameters.restart()=="iterate" or parameters.restart()=="no_compute") {
@@ -672,18 +671,18 @@ TDHF::apply_G(std::vector<CC_vecfunction> &x, std::vector<vector_real_function_3
         vector_real_function_3d residual = sub(world, x[i].get_vecfunction(), GV);
         result.push_back(residual);
 
-        // Calculate Second Order Energy Update
-        const vector_real_function_3d bra_GV = make_bra(GV);
-        {
-            // Inner product of Vpsi and the residual (Vi is scaled to -2.0 --> multiply later with 0.5)
-            double tmp = inner(world, make_bra(residual), Vi).sum();
-            // squared norm of GVpsi (Psi_tilde)
-            double tmp2 = inner(world, make_bra(GV), GV).sum();
+//         // Calculate Second Order Energy Update
+//         const vector_real_function_3d bra_GV = make_bra(GV);
+//         {
+//             // Inner product of Vpsi and the residual (Vi is scaled to -2.0 --> multiply later with 0.5)
+//             double tmp = inner(world, make_bra(residual), Vi).sum();
+//             // squared norm of GVpsi (Psi_tilde)
+//             double tmp2 = inner(world, make_bra(GV), GV).sum();
 
-            // Factor 0.5 removes the factor 2 from the scaling before
-            const double sou = (0.5 * tmp / tmp2);
-//            msg << "FYI: second order update would be: " << sou << " norm after QG is " << tmp2 << "\n";
-        }
+//             // Factor 0.5 removes the factor 2 from the scaling before
+//             //const double sou = (0.5 * tmp / tmp2);
+// //            msg << "FYI: second order update would be: " << sou << " norm after QG is " << tmp2 << "\n";
+//         }
         // clear potential
         Vi.clear();
     }
@@ -763,10 +762,10 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
             CCTimer timeK(world, "pK");
             vector_real_function_3d Kp;
             // summation over all active indices
-            for (const auto itmp:x.functions) {
+            for (const auto& itmp:x.functions) {
                 const size_t i = itmp.first;
                 real_function_3d Ki = real_factory_3d(world);
-                for (const auto ktmp:x.functions) {
+                for (const auto& ktmp:x.functions) {
                     const size_t k = ktmp.first;
                     Ki += ((*g12)(mo_bra_(k), mo_ket_(i)) * x(k).function).truncate();
                 }
@@ -1118,7 +1117,7 @@ TDHF::apply_excitation_operators(const vector_real_function_3d &seed, const bool
         std::vector<std::string> exop_strings = parameters.exops();
         if (parameters.guess_excitation_operators() != "custom")
             exop_strings = (guessfactory::make_predefined_exop_strings(parameters.guess_excitation_operators()));
-        for (const auto ex: exop_strings) {
+        for (const auto& ex: exop_strings) {
             vector_real_function_3d cseed = copy(world, seed, false);
             exlist.push_back(std::make_pair(cseed, ex));
         }

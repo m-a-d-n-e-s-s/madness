@@ -18,7 +18,7 @@ void jacobi(Tensor<double>& A, Tensor<double>& V, const std::vector<int>& set) {
     MADNESS_CHECK(n == V.dim(0) && n == V.dim(1));
     MADNESS_CHECK(n == long(set.size()));
 
-    int i, j, k, iter, nrotsum, nrot;
+    int i, j, k, iter, nrot;
     double tolmin = std::sqrt(n) * 5.0e-16, tol = 0.05;
     double maxd;
 
@@ -60,7 +60,6 @@ void jacobi(Tensor<double>& A, Tensor<double>& V, const std::vector<int>& set) {
       } \
     }
 
-    nrotsum = 0;
     for (iter=0; iter<5000; iter++) {
         double maxdaij = 0.0;
         nrot = 0;
@@ -124,7 +123,6 @@ void jacobi(Tensor<double>& A, Tensor<double>& V, const std::vector<int>& set) {
             }
         }
         //printf("iter=%d nrot=%d err=%e\n", iter, nrot, maxdaij);
-        nrotsum += nrot;
         if (nrot == 0 && tol <= tolmin) break;
         tol = std::min(tol,maxdaij*1e-1);
         //tol = std::min(tol,maxdaij*maxdaij); // is not quadratic if only block diagonalizing?

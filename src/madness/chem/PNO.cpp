@@ -510,7 +510,7 @@ std::vector<PNOPairs> PNO::solve_cispd(std::vector<PNOPairs>& result) const {
 	// 1. get CIS vectors
 	MyTimer timer_read_cis = MyTimer(world).start();
 	std::vector<CISData> cis_result;
-	for (const auto cispd : param.cispd()) {
+	for (const auto& cispd : param.cispd()) {
 		// contains excitation number and cis excitation energy
 		const size_t ex = cispd.first;
 		const double omega = cispd.second;
@@ -693,7 +693,7 @@ PNOPairs PNO::freeze_insignificant_pairs(PNOPairs& pairs)const{
 			for(const auto orb: param.freeze_pairs_of_orbital()){
 			  if(it.i()==size_t(orb) or it.j()==size_t(orb)) freeze=true;
 			}
-			for(const auto pair: param.freeze_pairs()){
+			for(const auto& pair: param.freeze_pairs()){
 			  if(it.i()==size_t(pair.first) and it.j()==size_t(pair.second)) freeze=true;
 			  if(it.j()==size_t(pair.first) and it.i()==size_t(pair.second)) freeze=true;
 			}
@@ -1784,7 +1784,7 @@ madness::PairEnergies PNO::t_solve(PNOPairs& pairs, const Tensor<double>& F_occ,
 	auto iter = 0;
 	while (!converged && size_t(iter) < max_niter) {
 		std::valarray<Tensor<double> > R_ij(npairs); // ij -> <ij|R|ab>
-		auto flatten = [npno_total,&pairs](const std::valarray<Tensor<double> >& arr) {
+		auto flatten = [npno_total](const std::valarray<Tensor<double> >& arr) {
 			std::valarray<double> flattened_arr(npno_total);
 			auto iter = std::begin(flattened_arr);
 			for (const auto& tensor: arr) {

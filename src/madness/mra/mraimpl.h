@@ -1229,7 +1229,7 @@ namespace madness {
     /// @param[in]  targs   target tensor arguments (threshold and full/low rank)
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::compute_snorm_and_dnorm(bool fence) {
-        const auto& data=FunctionCommonData<T,NDIM>::get(get_k());
+        //const auto& data=FunctionCommonData<T,NDIM>::get(get_k());
         flo_unary_op_node_inplace(
                 do_compute_snorm_and_dnorm(cdata),fence);
     }
@@ -1746,8 +1746,8 @@ namespace madness {
         if (key.level()> 0 && !nonstandard1)
             d(cdata.s0) = 0.0;
 
-            coeffT dd=coeffT(d,targs2);
-            acc->second.set_coeff(dd);
+	coeffT dd=coeffT(d,targs2);
+	acc->second.set_coeff(dd);
         cpu1=cpu_time();
         timer_compress_svd.accumulate(cpu1-cpu0);
 

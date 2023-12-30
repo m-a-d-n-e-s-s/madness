@@ -74,8 +74,8 @@ void OEP::analyze() {
     for (std::size_t imo = 0; imo < calc->amo.size(); ++imo) {
         save(calc->amo[imo], "oep_nemo" + stringify(imo));
     }
-    double n1=R_square.norm2();
-    double n2=norm2(world,calc->get_amo());
+    //double n1=R_square.norm2();
+    //double n2=norm2(world,calc->get_amo());
     real_function_3d Slater=compute_slater_potential(calc->get_amo());
     real_function_3d Slater_dcep_diff=Slater-Vfinal;
     save(Slater,"Slater_oepnemo");
@@ -176,7 +176,7 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 
 
 	print("FINAL", model, "ENERGY Evir:");
-	double Evir = compute_energy(KS_nemo, Ex_vir)[0];
+	//double Evir = compute_energy(KS_nemo, Ex_vir)[0];
 
 	print("FINAL", model, "ENERGY Econv:");
 	double Econv = compute_energy(KS_nemo, Ex_conv)[0];
@@ -340,7 +340,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
         Voep=p(Voep)[0];
 
         // compute new (current) energy
-        double old_energy = energy;
+        //double old_energy = energy;
         double Ex_KS = compute_exchange_energy_vir(KS_nemo, Voep);
 
 		std::vector<double> oldenergies=energies;
@@ -492,7 +492,7 @@ bool OEP::selftest() {
     tensorT KS_Fock=copy(HF_Fock);
 	vecfuncT KS_nemo = copy(world,calc->amo);
 	real_function_3d Voep = copy(Vs);
-    double energy=iterate("oaep",HF_nemo,HF_Fock,KS_nemo,KS_Fock,Voep,Vs);
+	//double energy=iterate("oaep",HF_nemo,HF_Fock,KS_nemo,KS_Fock,Voep,Vs);
 
 
     test_output ihf_vir("test virial ocep exchange energy");

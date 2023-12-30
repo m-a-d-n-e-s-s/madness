@@ -386,10 +386,10 @@ void SCF::load_mos(World& world) {
       repeat for beta if !spinrestricted
      */
     // Local copies for a basic check
-    double L;
-    int k1;                    // Ignored for restarting, used in response only
+    double L=0;
+    int k1=0;                    // Ignored for restarting, used in response only
     unsigned int version = 4;// UPDATE THIS IF YOU CHANGE ANYTHING
-    unsigned int archive_version;
+    unsigned int archive_version=0;
 
     ar & archive_version;
 

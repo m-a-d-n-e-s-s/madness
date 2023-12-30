@@ -72,6 +72,8 @@ public:
 
 	NemoBase(World& w) : world(w) {}
 
+    virtual ~NemoBase() {}
+
     virtual std::shared_ptr<Fock<double,3>> make_fock_operator() const {
 	    MADNESS_EXCEPTION("implement make_fock operator for your derived NemoBase class",1);
 	    return std::shared_ptr<Fock<double,3>>();
@@ -183,7 +185,7 @@ public:
 		// T = 0.5\sum_i \int R^2 U1.U1 F^2 - 2 R^2 U1.grad(F) F + R^2 grad(F)^2
 		//   = 0.5 (<U1.U1 | rho > + <R^2|grad(F)^2> - 2<R^2 | U1.grad(F) >)
 		// note: U1=-grad(R)/R
-		auto id=nemo.front().world().id();
+		//auto id=nemo.front().world().id();
 		//auto id1=R_square.world().id();
 		//auto worldid=world.id();
 		world.gop.fence();

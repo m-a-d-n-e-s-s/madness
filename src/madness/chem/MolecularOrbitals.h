@@ -265,11 +265,11 @@ public:
 
 */
 		bool spinrestricted = false;
-        double L;
-        int k1;                    // Ignored for restarting, used in response only
+        double L=0;
+        int k1=0;                    // Ignored for restarting, used in response only
         unsigned int version = 4;  // UPDATE THIS IF YOU CHANGE ANYTHING
 	//        unsigned int archive_version;
-		double current_energy, converged_to_thresh;
+		double current_energy=0, converged_to_thresh=0;
         std::string xc, localize_method;
 
 
@@ -296,9 +296,9 @@ public:
 		bool spinrestricted = false;
         unsigned int version=4;
 		double current_energy=0.0, converged_to_thresh=1.e10;
-        double L;
+        double L=0;
         std::string xc, localize_method;
-        int k1;                    // Ignored for restarting, used in response only
+        int k1=0;                    // Ignored for restarting, used in response only
 		archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, filename.c_str());
         ar & version;
         ar & current_energy & spinrestricted;
