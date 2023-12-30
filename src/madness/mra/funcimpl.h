@@ -3785,7 +3785,7 @@ namespace madness {
         	double error=0.0;
         	double lo=0.0, hi=0.0, lo1=0.0, hi1=0.0, lo2=0.0, hi2=0.0;
 
-        	pointwise_multiplier() :gimpl(0), impl(0) {}
+	  pointwise_multiplier() : impl(0), gimpl(0) {}
         	pointwise_multiplier(const Key<NDIM> key, const coeffT& clhs, implT* i, const FunctionImpl<T,LDIM>* gimpl)
         		: impl(i), gimpl(gimpl), coeff_lhs(clhs) {
         		val_lhs=impl->coeffs2values(key,coeff_lhs);

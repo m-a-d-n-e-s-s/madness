@@ -184,8 +184,8 @@ public:
 		//   = 0.5 (<U1.U1 | rho > + <R^2|grad(F)^2> - 2<R^2 | U1.grad(F) >)
 		// note: U1=-grad(R)/R
 		auto id=nemo.front().world().id();
-        auto id1=R_square.world().id();
-        auto worldid=world.id();
+		//auto id1=R_square.world().id();
+		//auto worldid=world.id();
 		world.gop.fence();
 		real_function_3d dens=dot(world,nemo,nemo)*R_square;
 	    real_function_3d U1dotU1=real_factory_3d(world)
@@ -194,8 +194,8 @@ public:
 
 	    double ke2=0.0;
 	    double ke3=0.0;
-	    double ke3_real=0.0;
-	    double ke3_imag=0.0;
+	    //double ke3_real=0.0;
+	    //double ke3_imag=0.0;
 
 	    for (int axis = 0; axis < NDIM; axis++) {
 	        real_derivative_3d D = free_space_derivative<double, NDIM>(world, axis);

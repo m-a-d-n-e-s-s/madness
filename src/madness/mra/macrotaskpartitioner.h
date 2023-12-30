@@ -200,6 +200,8 @@ public:
 
     MacroTaskPartitioner() {}
 
+    virtual ~MacroTaskPartitioner() {}
+
     MacroTaskPartitioner& set_nsubworld(const long& n) {
         nsubworld=n;
         return *this;

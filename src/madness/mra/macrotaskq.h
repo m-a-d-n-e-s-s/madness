@@ -320,7 +320,7 @@ class MacroTask {
 public:
 
     MacroTask(World &world, taskT &task, std::shared_ptr<MacroTaskQ> taskq_ptr = 0)
-            : world(world), task(task), taskq_ptr(taskq_ptr) {
+            : task(task), world(world), taskq_ptr(taskq_ptr) {
         if (taskq_ptr) {
             // for the time being this condition must hold because tasks are
             // constructed as replicated objects and are not broadcast to other processes
@@ -395,7 +395,7 @@ private:
 
         MacroTaskInternal(const taskT &task, const std::pair<Batch,double> &batch_prio,
                           const recordlistT &inputrecords, const recordlistT &outputrecords)
-                : task(task), inputrecords(inputrecords), outputrecords(outputrecords) {
+  	  : inputrecords(inputrecords), outputrecords(outputrecords), task(task) {
             static_assert(is_madness_function<resultT>::value || is_madness_function_vector<resultT>::value);
             this->task.batch=batch_prio.first;
             this->priority=batch_prio.second;

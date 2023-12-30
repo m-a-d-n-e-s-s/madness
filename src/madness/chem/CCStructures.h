@@ -600,7 +600,7 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
 
         ar & type & omega & current_error & delta & irrep ;
         if (ar.is_input_archive) {
-            std::size_t size;
+	    std::size_t size=0; // set to zero to silence compiler warning
             ar & size;
             CC_functionvec tmp(size);
 

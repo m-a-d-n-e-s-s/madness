@@ -268,7 +268,7 @@ public:
         double L;
         int k1;                    // Ignored for restarting, used in response only
         unsigned int version = 4;  // UPDATE THIS IF YOU CHANGE ANYTHING
-        unsigned int archive_version;
+	//        unsigned int archive_version;
 		double current_energy, converged_to_thresh;
         std::string xc, localize_method;
 
