@@ -77,7 +77,7 @@ second element of \c v you'll get a runtime exception.
 The fix (other than using arrays) is to initialize STL vectors and
 other containers from the special element returned by
 \c Future<T>::default_initializer(), which if passed into the copy
-constructor will cause it to behave just like the default contructor.
+constructor will cause it to behave just like the default constructor.
 Thus, the following code is what you actually need to use an STL
 vector of futures
 \code

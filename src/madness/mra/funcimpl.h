@@ -5377,7 +5377,7 @@ namespace madness {
                 const keyT& key = it->first;
                 const FunctionNode<T,NDIM>& node = it->second;
                 if (node.has_coeff()) {
-                    map->insert(acc,key);
+                    [[maybe_unused]] auto inserted = map->insert(acc,key);
                     acc->second.push_back(std::make_pair(index,&(node.coeff())));
                 }
             }
@@ -6641,9 +6641,12 @@ namespace madness {
                     ar & id;
                     World* world = World::world_from_id(id.get_world_id());
                     MADNESS_ASSERT(world);
-                    ptr = static_cast< const FunctionImpl<T,NDIM>*>(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
+                    auto ptr_opt = world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id);
+                    if (!ptr_opt)
+                      MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
+                    ptr = static_cast< const FunctionImpl<T,NDIM>*>(*ptr_opt);
                     if (!ptr)
-                        MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
+                        MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use an unregistered object",0);
                 } else {
                     ptr=nullptr;
                 }
@@ -6669,9 +6672,12 @@ namespace madness {
                     ar & id;
                     World* world = World::world_from_id(id.get_world_id());
                     MADNESS_ASSERT(world);
-                    ptr = static_cast< FunctionImpl<T,NDIM>*>(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
+                    auto ptr_opt = world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id);
+                    if (!ptr_opt)
+                      MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
+                    ptr = static_cast< FunctionImpl<T,NDIM>*>(*ptr_opt);
                     if (!ptr)
-                        MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
+                      MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use an unregistered object",0);
                 } else {
                     ptr=nullptr;
                 }

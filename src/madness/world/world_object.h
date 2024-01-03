@@ -401,31 +401,48 @@ namespace madness {
         /// \return Description needed.
         /// \todo Parameter/return descriptions needed.
         static bool is_ready(const uniqueidT& id, objT*& obj, const AmArg& arg, am_handlerT ptr) {
-            obj = static_cast<objT*>(arg.get_world()->template ptr_from_id<Derived>(id));
+          std::optional<Derived *> opt_obj =
+              arg.get_world()->template ptr_from_id<Derived>(id);
+          if (opt_obj) {
+            // if opt_obj == nullptr, then this ID has already been deregistered
+            MADNESS_ASSERT(*opt_obj != nullptr);
+            obj = static_cast<objT *>(*opt_obj);
+          } else
+            obj = nullptr;
 
-            if (obj) {
-                if (obj->ready || arg.is_pending()) return true;
-            }
+          if (obj) {
+            if (obj->ready || arg.is_pending())
+              return true;
+          }
 
-            MADNESS_PRAGMA_CLANG(diagnostic push)
-            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
+          MADNESS_PRAGMA_CLANG(diagnostic push)
+          MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
 
-            ScopedMutex<Spinlock> lock(pending_mutex); // BEGIN CRITICAL SECTION
+          ScopedMutex<Spinlock> lock(pending_mutex); // BEGIN CRITICAL SECTION
 
-            if (!obj) obj = static_cast<objT*>(arg.get_world()->template ptr_from_id<Derived>(id));
+          if (!obj) {
+            std::optional<Derived *> opt_obj =
+                arg.get_world()->template ptr_from_id<Derived>(id);
+            if (opt_obj) {
+              // if opt_obj == nullptr, then this ID has already been deregistered
+              MADNESS_ASSERT(*opt_obj != nullptr);
+              obj = static_cast<objT *>(*opt_obj);
+            } else
+              obj = nullptr;
+          }
 
-            if (obj) {
-                if (obj->ready || arg.is_pending())
-                    return true; // END CRITICAL SECTION
-            }
-            const_cast<AmArg&>(arg).set_pending();
-            const_cast<pendingT&>(pending).push_back(detail::PendingMsg(id, ptr, arg));
+          if (obj) {
+            if (obj->ready || arg.is_pending())
+              return true; // END CRITICAL SECTION
+          }
+          const_cast<AmArg &>(arg).set_pending();
+          const_cast<pendingT &>(pending).push_back(
+              detail::PendingMsg(id, ptr, arg));
 
-            MADNESS_PRAGMA_CLANG(diagnostic pop)
+          MADNESS_PRAGMA_CLANG(diagnostic pop)
 
-            return false; // END CRITICAL SECTION
+          return false; // END CRITICAL SECTION
         }
-
 
         /// Handler for an incoming AM.
 
@@ -1359,8 +1376,8 @@ namespace madness {
 
         virtual ~WorldObject() {
             if(initialized()) {
-              MADNESS_ASSERT_NOEXCEPT(World::exists(&world) && world.ptr_from_id<Derived>(id()));
-              world.unregister_ptr(static_cast<Derived *>(this));
+              MADNESS_ASSERT_NOEXCEPT(World::exists(&world) && world.ptr_from_id<Derived>(id()) && *world.ptr_from_id<Derived>(id()) == this);
+              world.unregister_ptr(this->id());
             }
         }
     };
@@ -1383,8 +1400,10 @@ namespace madness {
                 ar & id;
                 World* world = World::world_from_id(id.get_world_id());
                 MADNESS_ASSERT(world);
-                ptr = world->ptr_from_id< WorldObject<Derived> >(id);
-                if (!ptr) MADNESS_EXCEPTION("WorldObj: remote operation attempting to use a locally uninitialized object",0);
+                auto ptr_opt = world->ptr_from_id< WorldObject<Derived> >(id);
+                if (!ptr_opt) MADNESS_EXCEPTION("WorldObj: remote operation attempting to use a locally uninitialized object",0);
+                ptr = *ptr_opt;
+                if (!ptr) MADNESS_EXCEPTION("WorldObj: remote operation attempting to use a locally deregistered object",0);
             }
         };
 
@@ -1420,8 +1439,10 @@ namespace madness {
                 ar & id;
                 World* world = World::world_from_id(id.get_world_id());
                 MADNESS_ASSERT(world);
-                ptr = world->ptr_from_id< WorldObject<Derived> >(id);
-                if (!ptr) MADNESS_EXCEPTION("WorldObj: remote operation attempting to use a locally uninitialized object",0);
+                auto ptr_opt = world->ptr_from_id< WorldObject<Derived> >(id);
+                if (!ptr_opt) MADNESS_EXCEPTION("WorldObj: remote operation attempting to use a locally uninitialized object",0);
+                ptr = *ptr_opt;
+                if (!ptr) MADNESS_EXCEPTION("WorldObj: remote operation attempting to use a locally deregistered object",0);
             }
         };
 
