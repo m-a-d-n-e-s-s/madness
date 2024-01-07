@@ -228,8 +228,7 @@ add_feature_info(DQ_PREBUF ENABLE_DQ_PREBUF
 set(MADNESS_DQ_USE_PREBUF ${ENABLE_DQ_PREBUF} CACHE BOOL
     "Enables thread-local buffer for task aggregation to reduce lock contention")
 
-set(MADNESS_DQ_PREBUF_SIZE 20 CACHE STRING "Numberof entries in the thread-pool prebuffer for task aggregation to reduce lock contention")
-#set(MADNESS_DQ_PREBUF_SZ ${MADNESS_DQ_PREBUF_SIZE} CACHE STRING "Numberof entries in the thread-pool prebuffer for task aggregation to reduce lock contention")
+set(MADNESS_DQ_PREBUF_SIZE 20 CACHE STRING "Number of entries in the thread-pool prebuffer for task aggregation to reduce lock contention")
 
 option(ENABLE_BSEND_ACKS 
     "Use MPI Send instead of MPI Bsend for huge message acknowledgements" ON)
