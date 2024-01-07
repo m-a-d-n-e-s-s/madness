@@ -84,7 +84,7 @@ namespace madness {
         waiter.reset();
 #endif
 
-        if (print_debug_info)
+        if (print_debug_info && narrived > 0)
             print_error(rank, ":RMI: ", narrived, " messages just arrived\n");
 
         if (narrived) {
