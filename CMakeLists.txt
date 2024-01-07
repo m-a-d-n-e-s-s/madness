@@ -249,6 +249,12 @@ add_feature_info(TASK_DEBUG_TRACE ENABLE_TASK_DEBUG_TRACE "supports debug trace 
 set(MADNESS_TASK_DEBUG_TRACE ${ENABLE_TASK_DEBUG_TRACE} CACHE BOOL
         "Enable task debug tracing.")
 
+option(ENABLE_WORLDOBJECT_FUTURE_TRACE
+        "Enable tracing of futures assicuated with WorldObjects." OFF)
+add_feature_info(WORLDOBJECT_FUTURE_TRACE ENABLE_WORLDOBJECT_FUTURE_TRACE "supports tracing of futures associated with WorldObjects")
+set(MADNESS_WORLDOBJECT_FUTURE_TRACE ${ENABLE_WORLDOBJECT_FUTURE_TRACE} CACHE BOOL
+        "Enable tracing of futures assicuated with WorldObjects.")
+
 set(FORTRAN_INTEGER_SIZE 4 CACHE STRING "The fortran integer size (4 or 8 bytes) used for BLAS and LAPACK function calls")
 if(NOT (FORTRAN_INTEGER_SIZE EQUAL 4 OR FORTRAN_INTEGER_SIZE EQUAL 8))
   message(FATAL_ERROR "Incorrect fortran integer size '${FORTRAN_INTEGER_SIZE}'\n"

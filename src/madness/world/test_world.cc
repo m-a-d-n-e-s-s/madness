@@ -495,7 +495,20 @@ void test6(World& world) {
         a.task(p, &Foo::ping, me, 1);
       }
 
+#ifdef MADNESS_WORLDOBJECT_FUTURE_TRACE
+      for (ProcessID p = 0; p != nproc; ++p) {
+        auto f = a.task(p, &Foo::get0);
+        a.trace(f);
+      }
+#endif
+
       world.gop.fence();
+
+#ifdef MADNESS_WORLDOBJECT_FUTURE_TRACE
+      MADNESS_CHECK(a.trace_status_nfuture_registered() == a.trace_futures() ? nproc : 0);
+      MADNESS_CHECK(decltype(a)::trace_status_nfuture_assigned(a.id()) ==
+                    decltype(a)::trace_futures(a.id()) ? nproc : 0);
+#endif
 
       // stress the large message protocol ... off by default
       if (0) {
@@ -1349,9 +1362,7 @@ int main(int argc, char** argv) {
 #if  MADNESS_CATCH_SIGNALS
     signal(SIGSEGV, mad_signal_handler);
 #endif
-    initialize(argc,argv);
-
-    World world(SafeMPI::COMM_WORLD);
+    World& world = initialize(argc,argv);
 
     redirectio(world);
     print("The processor frequency is",cpu_frequency());
