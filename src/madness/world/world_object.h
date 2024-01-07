@@ -336,6 +336,10 @@ namespace madness {
 
     } // namespace detail
 
+    /// Base class for WorldObject, useful for introspection
+    struct WorldObjectBase {
+      virtual ~WorldObjectBase() = default;
+    };
 
     /// Implements most parts of a globally addressable object (via unique ID).
 
@@ -357,7 +361,7 @@ namespace madness {
     /// \tparam Derived The derived class. \c WorldObject is a curiously
     ///     recurring template pattern.
     template <class Derived>
-    class WorldObject {
+    class WorldObject : public WorldObjectBase {
     public:
         /// \todo Description needed.
         typedef WorldObject<Derived> objT;
