@@ -150,6 +150,8 @@ namespace madness {
 
         friend class detail::DeferredCleanup;
 
+      public:
+
         // Message tags
         struct PointToPointTag { };
         struct LazySyncTag { };
@@ -161,6 +163,7 @@ namespace madness {
         struct AllReduceTag { };
         struct GroupAllReduceTag { };
 
+      private:
 
         /// Delayed send callback object
 

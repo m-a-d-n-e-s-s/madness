@@ -35,9 +35,13 @@
 #include <madness/world/madness_exception.h>
 #include <madness/world/worldhashmap.h>
 #include <madness/world/future.h>
+#include <madness/world/distributed_id.h>
 
 namespace madness {
     namespace detail {
+
+
+        extern std::unique_ptr<std::array<std::pair<std::atomic<std::size_t>, std::atomic<std::size_t>>, 1000000>> dist_caches_stats;
 
         /// Distributed caching utility
 
@@ -131,7 +135,33 @@ namespace madness {
 
             }; // class CacheData
 
-            public:
+            enum AccessType { R, W };
+
+            template <typename Key>
+            static void update_stats(const Key& key, AccessType access) {
+              if constexpr (!std::is_same_v<uniqueidT, Key> && !std::is_fundamental_v<Key>) {
+                if constexpr (std::is_same_v<DistributedID, std::decay_t<decltype(key.key())>>) {
+                  update_stats_impl(key.key(), access);
+                }
+                else {
+                  std::cout << "";
+                }
+              }
+            }
+
+            static void update_stats_impl(const DistributedID& id, AccessType access) {
+              auto &stats = *dist_caches_stats;
+              auto world_id = id.first.get_world_id();
+              auto obj_id = id.first.get_obj_id();
+              if (world_id == 0 && obj_id < stats.size()) {
+                if (access == AccessType::R)
+                  stats[obj_id].first++;
+                else
+                  stats[obj_id].second++;
+              }
+            }
+
+          public:
 
             /// Set the cache value accosted with \c key
 
@@ -152,12 +182,14 @@ namespace madness {
 
                     // A new element was inserted, so create a new cache object.
                     acc->second = new CacheData<value_type>(value);
+                    update_stats(key, AccessType::W);
                     acc.release();
 
                 } else {
 
                     // The element already existed, so retrieve the data
                     Cache* cache = acc->second;
+                    update_stats(key, AccessType::W);
                     caches_.erase(acc);
 
                     // Set the cache value
@@ -183,16 +215,19 @@ namespace madness {
             /// \param[out] value The data that will be cached
             template <typename valueT>
             static void get_cache_value(const keyT& key, madness::Future<valueT>& value) {
+                MADNESS_ASSERT(!value.probe());
                 // Retrieve the cached future
                 typename cache_container::accessor acc;
                 if(caches_.insert(acc, datum_type(key, static_cast<Cache*>(nullptr)))) {
                     // A new element was inserted, so create a new cache object.
                     acc->second = new CacheData<valueT>(value);
+                    update_stats(key, AccessType::R);
                     acc.release();
                 } else {
                     // The element already existed, so retrieve the data and
                     // remove the cache element.
                     Cache* cache = acc->second;
+                    update_stats(key, AccessType::R);
                     caches_.erase(acc);
 
                     // Get the result
@@ -218,6 +253,7 @@ namespace madness {
                     // A new element was inserted, so create a new cache object.
                     acc->second = new CacheData<valueT>();
                     madness::Future<valueT> value(acc->second->template get<valueT>());
+                    update_stats(key, AccessType::R);
                     acc.release();
 
                     return value;
@@ -225,6 +261,7 @@ namespace madness {
                     // The element already existed, so retrieve the data and
                     // remove the cache element.
                     Cache* cache = acc->second;
+                    update_stats(key, AccessType::R);
                     caches_.erase(acc);
 
                     // Get the result
@@ -235,10 +272,22 @@ namespace madness {
                 }
             }
 
+            static void dump(std::ostream& os) {
+              os << "DistCache contents:" << (caches_.size()>0 ? "\n" : " empty\n");
+              for (auto &[key, value] : caches_) {
+                os << "  " << key << ": " << value << "\n";
+              }
+              os << std::flush;
+            }
+
         }; // class DistCache
 
         template <typename keyT>
         typename DistCache<keyT>::cache_container DistCache<keyT>::caches_;
+
+
+        void dump_dist_caches_and_stats(std::ostream& os);
+        void stdout_dump_dist_caches_and_stats();
 
     }  // namespace detail
 } // namespace madness

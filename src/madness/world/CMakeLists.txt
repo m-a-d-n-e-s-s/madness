@@ -10,7 +10,7 @@ set(MADWORLD_HEADERS
     atomicint.h posixmem.h worldptr.h deferred_cleanup.h MADworld.h world.h 
     uniqueid.h worldprofile.h timers.h binary_fstream_archive.h mpi_archive.h 
     text_fstream_archive.h worlddc.h mem_func_wrapper.h taskfn.h group.h 
-    dist_cache.h distributed_id.h type_traits.h function_traits.h stubmpi.h 
+    dist_cache.h distributed_id.h type_traits.h function_traits.h stubmpi.h
     bgq_atomics.h binsorter.h parsec.h meta.h worldinit.h thread_info.h
     cloud.h test_utilities.h timing_utilities.h)
 set(MADWORLD_SOURCES
@@ -19,7 +19,7 @@ set(MADWORLD_SOURCES
     safempi.cc worldpapi.cc worldref.cc worldam.cc worldprofile.cc thread.cc 
     world_task_queue.cc worldgop.cc deferred_cleanup.cc worldmutex.cc
     binary_fstream_archive.cc text_fstream_archive.cc lookup3.c worldmpi.cc 
-    group.cc parsec.cc archive.cc)
+    group.cc parsec.cc archive.cc dist_cache.cc)
 
 if(MADNESS_ENABLE_CEREAL)
     set(MADWORLD_HEADERS ${MADWORLD_HEADERS} "cereal_archive.h")
