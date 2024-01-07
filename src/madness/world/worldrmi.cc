@@ -132,7 +132,7 @@ namespace madness {
             // Only ordered messages can end up in the queue due to
             // out-of-order receipt or order of recv buffer processing.
 
-            // Sort queued messages by ascending recv count
+            // Sort queued messages by source and ascending (modulo overflow) recv count
             std::sort(q.get(),q.get()+n_in_q);
 
             // Loop thru messages ... since we have sorted only one pass
@@ -322,6 +322,9 @@ namespace madness {
         status.reset(new SafeMPI::Status[maxq_]);
         ind.reset(new int[maxq_]);
         q.reset(new qmsg[maxq_]);
+        MADNESS_ASSERT(maxq_ <= 1<<14);  // 16 bit task counter is sufficient to ensure that up to 2^14 tasks can be
+                                         // pending per rank .. although maxq_ controls the TOTAL queue size, do this
+                                         // purely as a reminder
 
         // Allocate receive buffers
         if(nproc > 1) {
