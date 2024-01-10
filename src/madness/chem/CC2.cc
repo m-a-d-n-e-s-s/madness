@@ -34,7 +34,7 @@ CC2::solve() {
     // doubles for ground state
     Pairs<CCPair> mp2pairs, cc2pairs;
     // singles for ground state
-    CC_vecfunction cc2singles;
+    CC_vecfunction cc2singles(PARTICLE);
 
     double mp2_energy, cc2_energy;
 
@@ -44,7 +44,8 @@ CC2::solve() {
 
     // check for restart data for CC2, otherwise use MP2 as guess
     if (need_cc2) {
-        bool found_cc2d = initialize_pairs(cc2pairs, GROUND_STATE, CT_CC2, cc2singles, CC_vecfunction(RESPONSE));
+        Pairs<CCPair> dummypairs;
+        bool found_cc2d = initialize_pairs(dummypairs, GROUND_STATE, CT_CC2, cc2singles, CC_vecfunction(RESPONSE));
         if (not found_cc2d) need_mp2=true;
     }
 
