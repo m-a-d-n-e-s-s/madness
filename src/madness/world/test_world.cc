@@ -419,91 +419,132 @@ public:
 
 void test6(World& world) {
     PROFILE_FUNC;
-    ProcessID me = world.rank();
-    ProcessID nproc = world.nproc();
-    world.srand(73); // Everyone needs the same seed
-    Foo a(world, me*100);
-    const auto dbuf_sum = std::accumulate(a.dbuf().begin(), a.dbuf().end(), 0.0);
+    uniqueidT id;
+    {
+      ProcessID me = world.rank();
+      ProcessID nproc = world.nproc();
+      world.srand(73); // Everyone needs the same seed
+      Foo a(world, me * 100);
+      id = a.id();
+      MADNESS_CHECK(world.ptr_from_id<Foo>(id) && world.ptr_from_id<Foo>(id).value() == &a);
+      MADNESS_CHECK(world.id_from_ptr(&a) && world.id_from_ptr(&a).value() == id);
+      const auto dbuf_sum =
+          std::accumulate(a.dbuf().begin(), a.dbuf().end(), 0.0);
 
-    if (me == 0) {
+      if (me == 0) {
         print(a.id());
-        for (ProcessID p=0; p<nproc; ++p) {
-            MADNESS_CHECK(a.send(p,&Foo::get0).get() == p*100);
-            MADNESS_CHECK(a.task(p,&Foo::get0).get() == p*100);
+        for (ProcessID p = 0; p < nproc; ++p) {
+          MADNESS_CHECK(a.send(p, &Foo::get0).get() == p * 100);
+          MADNESS_CHECK(a.task(p, &Foo::get0).get() == p * 100);
 
-            MADNESS_CHECK(a.send(p,&Foo::get0f).get() == p*100);
-            MADNESS_CHECK(a.task(p,&Foo::get0f).get() == p*100);
+          MADNESS_CHECK(a.send(p, &Foo::get0f).get() == p * 100);
+          MADNESS_CHECK(a.task(p, &Foo::get0f).get() == p * 100);
 
-            MADNESS_CHECK(a.send(p,&Foo::get1,1).get() == p*100+1);
-            MADNESS_CHECK(a.task(p,&Foo::get1,Future<int>(1)).get() == p*100+1);
+          MADNESS_CHECK(a.send(p, &Foo::get1, 1).get() == p * 100 + 1);
+          MADNESS_CHECK(a.task(p, &Foo::get1, Future<int>(1)).get() ==
+                        p * 100 + 1);
 
-            MADNESS_CHECK(a.send(p,&Foo::get2,1,2).get() == p*100+3);
-            MADNESS_CHECK(a.task(p,&Foo::get2,1,2).get() == p*100+3);
+          MADNESS_CHECK(a.send(p, &Foo::get2, 1, 2).get() == p * 100 + 3);
+          MADNESS_CHECK(a.task(p, &Foo::get2, 1, 2).get() == p * 100 + 3);
 
-            MADNESS_CHECK(a.send(p,&Foo::get3,1,2,3).get() == p*100+6);
-            MADNESS_CHECK(a.task(p,&Foo::get3,1,2,3).get() == p*100+6);
+          MADNESS_CHECK(a.send(p, &Foo::get3, 1, 2, 3).get() == p * 100 + 6);
+          MADNESS_CHECK(a.task(p, &Foo::get3, 1, 2, 3).get() == p * 100 + 6);
 
-            MADNESS_CHECK(a.send(p,&Foo::get4,1,2,3,4).get() == p*100+10);
-            MADNESS_CHECK(a.task(p,&Foo::get4,1,2,3,4).get() == p*100+10);
+          MADNESS_CHECK(a.send(p, &Foo::get4, 1, 2, 3, 4).get() ==
+                        p * 100 + 10);
+          MADNESS_CHECK(a.task(p, &Foo::get4, 1, 2, 3, 4).get() ==
+                        p * 100 + 10);
 
-            MADNESS_CHECK(a.send(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);
-            MADNESS_CHECK(a.task(p,&Foo::get5,1,2,3,4,5).get() == p*100+15);
+          MADNESS_CHECK(a.send(p, &Foo::get5, 1, 2, 3, 4, 5).get() ==
+                        p * 100 + 15);
+          MADNESS_CHECK(a.task(p, &Foo::get5, 1, 2, 3, 4, 5).get() ==
+                        p * 100 + 15);
 
-            MADNESS_CHECK(a.task(p,&Foo::getbuf0,a.dbuf()).get() == p*100+dbuf_sum);
+          MADNESS_CHECK(a.task(p, &Foo::getbuf0, a.dbuf()).get() ==
+                        p * 100 + dbuf_sum);
 
-            MADNESS_CHECK(a.send(p,&Foo::get0c).get() == p*100);
-            MADNESS_CHECK(a.task(p,&Foo::get0c).get() == p*100);
+          MADNESS_CHECK(a.send(p, &Foo::get0c).get() == p * 100);
+          MADNESS_CHECK(a.task(p, &Foo::get0c).get() == p * 100);
 
-            MADNESS_CHECK(a.send(p,&Foo::get1c,1).get() == p*100+1);
-            MADNESS_CHECK(a.task(p,&Foo::get1c,1).get() == p*100+1);
+          MADNESS_CHECK(a.send(p, &Foo::get1c, 1).get() == p * 100 + 1);
+          MADNESS_CHECK(a.task(p, &Foo::get1c, 1).get() == p * 100 + 1);
 
-            MADNESS_CHECK(a.send(p,&Foo::get2c,1,2).get() == p*100+3);
-            MADNESS_CHECK(a.task(p,&Foo::get2c,1,2).get() == p*100+3);
+          MADNESS_CHECK(a.send(p, &Foo::get2c, 1, 2).get() == p * 100 + 3);
+          MADNESS_CHECK(a.task(p, &Foo::get2c, 1, 2).get() == p * 100 + 3);
 
-            MADNESS_CHECK(a.send(p,&Foo::get3c,1,2,3).get() == p*100+6);
-            MADNESS_CHECK(a.task(p,&Foo::get3c,1,2,3).get() == p*100+6);
+          MADNESS_CHECK(a.send(p, &Foo::get3c, 1, 2, 3).get() == p * 100 + 6);
+          MADNESS_CHECK(a.task(p, &Foo::get3c, 1, 2, 3).get() == p * 100 + 6);
 
-            MADNESS_CHECK(a.send(p,&Foo::get4c,1,2,3,4).get() == p*100+10);
-            MADNESS_CHECK(a.task(p,&Foo::get4c,1,2,3,4).get() == p*100+10);
+          MADNESS_CHECK(a.send(p, &Foo::get4c, 1, 2, 3, 4).get() ==
+                        p * 100 + 10);
+          MADNESS_CHECK(a.task(p, &Foo::get4c, 1, 2, 3, 4).get() ==
+                        p * 100 + 10);
 
-            MADNESS_CHECK(a.send(p,&Foo::get5c,1,2,3,4,5).get() == p*100+15);
-            MADNESS_CHECK(a.task(p,&Foo::get5c,1,2,3,4,5).get() == p*100+15);
+          MADNESS_CHECK(a.send(p, &Foo::get5c, 1, 2, 3, 4, 5).get() ==
+                        p * 100 + 15);
+          MADNESS_CHECK(a.task(p, &Foo::get5c, 1, 2, 3, 4, 5).get() ==
+                        p * 100 + 15);
 
-            MADNESS_CHECK(a.task(p,&Foo::getbuf0c,a.dbuf()).get() == p*100+dbuf_sum);
+          MADNESS_CHECK(a.task(p, &Foo::getbuf0c, a.dbuf()).get() ==
+                        p * 100 + dbuf_sum);
         }
-    } // me == 0
+      } // me == 0
 
-    for(ProcessID p=0; p!=nproc; ++p) {
-      a.send(p, &Foo::ping_am, me, 1);
-      a.task(p, &Foo::ping, me, 1);
-    }
+      for (ProcessID p = 0; p != nproc; ++p) {
+        a.send(p, &Foo::ping_am, me, 1);
+        a.task(p, &Foo::ping, me, 1);
+      }
 
-    world.gop.fence();
+#ifdef MADNESS_WORLDOBJECT_FUTURE_TRACE
+      for (ProcessID p = 0; p != nproc; ++p) {
+        auto f = a.task(p, &Foo::get0);
+        a.trace(f);
+      }
+#endif
 
-    // stress the large message protocol ... off by default
-    if (0) {
-      const auto dbuf_sum_long = std::accumulate(a.dbuf_long().begin(), a.dbuf_long().end(), 0.0);
-      const auto dbuf_sum_short = std::accumulate(a.dbuf_short().begin(), a.dbuf_short().end(), 0.0);
+      world.gop.fence();
+
+#ifdef MADNESS_WORLDOBJECT_FUTURE_TRACE
+      MADNESS_CHECK(a.trace_status_nfuture_registered() == a.trace_futures() ? nproc : 0);
+      MADNESS_CHECK(decltype(a)::trace_status_nfuture_assigned(a.id()) ==
+                    decltype(a)::trace_futures(a.id()) ? nproc : 0);
+#endif
+
+      // stress the large message protocol ... off by default
+      if (0) {
+        const auto dbuf_sum_long =
+            std::accumulate(a.dbuf_long().begin(), a.dbuf_long().end(), 0.0);
+        const auto dbuf_sum_short =
+            std::accumulate(a.dbuf_short().begin(), a.dbuf_short().end(), 0.0);
 #if 0 // uncomment to STRESS the large msg protocol
       const size_t nmsg = 128;
 #else
-      const size_t nmsg = 1;
+        const size_t nmsg = 1;
 #endif
-      std::vector<Future<double>> results;
-      std::vector<double> results_ref;
-      for(size_t m=0; m!=nmsg; ++m) {
-        for (ProcessID p=0; p<nproc; ++p) {
-          results.push_back(a.task(p,&Foo::getbuf0c,a.dbuf_long()));
-          results_ref.push_back(p*100+dbuf_sum_long);
-          results.push_back(a.task(p,&Foo::getbuf0c,a.dbuf_short()));
-          results_ref.push_back(p*100+dbuf_sum_short);
+        std::vector<Future<double>> results;
+        std::vector<double> results_ref;
+        for (size_t m = 0; m != nmsg; ++m) {
+          for (ProcessID p = 0; p < nproc; ++p) {
+            results.push_back(a.task(p, &Foo::getbuf0c, a.dbuf_long()));
+            results_ref.push_back(p * 100 + dbuf_sum_long);
+            results.push_back(a.task(p, &Foo::getbuf0c, a.dbuf_short()));
+            results_ref.push_back(p * 100 + dbuf_sum_short);
+          }
+        }
+        world.gop.fence();
+        for (size_t r = 0; r != results.size(); r += 2) {
+          MADNESS_CHECK(results[r].get() == results_ref[r]);
         }
       }
-      world.gop.fence();
-      for(size_t r=0; r!=results.size(); r += 2) {
-        MADNESS_CHECK(results[r].get() == results_ref[r]);
-      }
     }
+
+    // test that the object is gone
+    auto ptr_opt = world.ptr_from_id<Foo>(id);
+#ifndef NDEBUG
+    MADNESS_CHECK(ptr_opt && *ptr_opt == nullptr);
+#else
+    MADNESS_CHECK(!ptr_opt);
+#endif
 
     print("test 6 (world object active message and tasks) seems to be working");
 }
@@ -1321,9 +1362,7 @@ int main(int argc, char** argv) {
 #if  MADNESS_CATCH_SIGNALS
     signal(SIGSEGV, mad_signal_handler);
 #endif
-    initialize(argc,argv);
-
-    World world(SafeMPI::COMM_WORLD);
+    World& world = initialize(argc,argv);
 
     redirectio(world);
     print("The processor frequency is",cpu_frequency());

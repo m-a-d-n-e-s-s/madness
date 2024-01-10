@@ -515,7 +515,8 @@ namespace madness {
             if (dest == me) {
                 // Was using iterator ... try accessor ?????
                 accessor acc;
-                local.insert(acc,datum.first);
+                // N.B. key might already exist if want to simply replace
+                [[maybe_unused]] auto inserted = local.insert(acc,datum.first);
                 acc->second = datum.second;
             }
             else {
@@ -542,7 +543,8 @@ namespace madness {
         void erase(const keyT& key) {
             ProcessID dest = owner(key);
             if (dest == me) {
-                local.erase(key);
+                [[maybe_unused]] auto erased = local.try_erase(key);
+                MADNESS_ASSERT(erased);
             }
             else {
                 void(implT::*eraser)(const keyT&) = &implT::erase;
@@ -622,7 +624,8 @@ namespace madness {
         MEMFUN_RETURNT(memfunT)
         itemfun(const keyT& key, memfunT memfun) {
             accessor acc;
-            local.insert(acc, key);
+            // N.B. key may already exist, this is just to ensure lock is held by acc
+            [[maybe_unused]] auto inserted = local.insert(acc, key);
             return (acc->second.*memfun)();
         }
 
@@ -631,7 +634,8 @@ namespace madness {
         MEMFUN_RETURNT(memfunT)
         itemfun(const keyT& key, memfunT memfun, const arg1T& arg1) {
             accessor acc;
-            local.insert(acc, key);
+            // N.B. key may already exist, this is just to ensure lock is held by acc
+            [[maybe_unused]] auto inserted = local.insert(acc, key);
             return (acc->second.*memfun)(arg1);
         }
 
@@ -640,7 +644,8 @@ namespace madness {
         MEMFUN_RETURNT(memfunT)
         itemfun(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2) {
             accessor acc;
-            local.insert(acc, key);
+            // N.B. key may already exist, this is just to ensure lock is held by acc
+            [[maybe_unused]] auto inserted = local.insert(acc, key);
             return (acc->second.*memfun)(arg1,arg2);
         }
 
@@ -649,7 +654,8 @@ namespace madness {
         MEMFUN_RETURNT(memfunT)
         itemfun(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3) {
             accessor acc;
-            local.insert(acc, key);
+            // N.B. key may already exist, this is just to ensure lock is held by acc
+            [[maybe_unused]] auto inserted = local.insert(acc, key);
             return (acc->second.*memfun)(arg1,arg2,arg3);
         }
 
@@ -658,7 +664,8 @@ namespace madness {
         MEMFUN_RETURNT(memfunT)
         itemfun(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4) {
             accessor acc;
-            local.insert(acc, key);
+            // N.B. key may already exist, this is just to ensure lock is held by acc
+            [[maybe_unused]] auto inserted = local.insert(acc, key);
             return (acc->second.*memfun)(arg1,arg2,arg3,arg4);
         }
 
@@ -667,7 +674,8 @@ namespace madness {
         MEMFUN_RETURNT(memfunT)
         itemfun(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5) {
             accessor acc;
-            local.insert(acc, key);
+            // N.B. key may already exist, this is just to ensure lock is held by acc
+            [[maybe_unused]] auto inserted = local.insert(acc, key);
             return (acc->second.*memfun)(arg1,arg2,arg3,arg4,arg5);
         }
 
@@ -676,7 +684,8 @@ namespace madness {
         MEMFUN_RETURNT(memfunT)
         itemfun(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6) {
             accessor acc;
-            local.insert(acc, key);
+            // N.B. key may already exist, this is just to ensure lock is held by acc
+            [[maybe_unused]] auto inserted = local.insert(acc, key);
             return (acc->second.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6);
         }
 
@@ -686,7 +695,8 @@ namespace madness {
         itemfun(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
 				const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const arg7T& arg7) {
             accessor acc;
-            local.insert(acc, key);
+            // N.B. key may already exist, this is just to ensure lock is held by acc
+            [[maybe_unused]] auto inserted = local.insert(acc, key);
             return (acc->second.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7);
         }
 

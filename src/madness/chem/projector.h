@@ -25,7 +25,7 @@ namespace madness {
         virtual std::string type() const = 0;
     };
 
-    class CCPairFunction;
+    struct CCPairFunction;
     std::vector<CCPairFunction> apply(const ProjectorBase& P, const std::vector<CCPairFunction>& argument);
 
 /// simple projector class

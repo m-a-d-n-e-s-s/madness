@@ -113,7 +113,7 @@ real_function_3d apply_polynomial_exop(real_function_3d& f, const std::string& e
 
 void PolynomialFunctor::test() {
 	std::cout << "Test polynomial functor " << "\n input string is " << input_string_ << std::endl;
-	for(const auto mono : data_){
+	for(const auto& mono : data_){
 		for(const auto entry : mono){
 			std::cout << entry << ",";
 		}
@@ -187,13 +187,13 @@ std::vector<std::vector<double> > PolynomialFunctor::read_string(const std::stri
 }
 
 double PolynomialTrigonometricsFunctor::compute_value(const coord_3d& r) const {
-	double result = 0.0;
-	for (size_t i = 0; i < data_.size(); i++) {
-		if (data_[i].size() != 4) MADNESS_EXCEPTION("ERROR in polynomial exop functor, data is faulty", 1);
-		result += (data_[i][3] * pow(sin(r[0]), data_[i][0]) * pow(sin(r[1]), data_[i][1]) * pow(sin(r[2]), data_[i][2]));
-	}
-        throw "CONTROL REACHES END OF NON-VOID FUNCTION!!!!!!!!!!!!!";
-        return 99.0;
+       double result = 0.0;
+       for (size_t i = 0; i < data_.size(); i++) {
+       	if (data_[i].size() != 4) MADNESS_EXCEPTION("ERROR in polynomial exop functor, data is faulty", 1);
+       	result += (data_[i][3] * pow(sin(r[0]), data_[i][0]) * pow(sin(r[1]), data_[i][1]) * pow(sin(r[2]), data_[i][2]));
+       }
+       throw "CONTROL REACHES END OF NON-VOID FUNCTION JUST GUESSING THAT RESULT IS SUPPOSED TO BE RETURNED!";
+       return result; 
 }
 
 double GaussFunctor::operator ()(const coord_3d& rr) const {

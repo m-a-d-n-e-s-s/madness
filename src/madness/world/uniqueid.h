@@ -56,17 +56,17 @@ namespace madness {
         unsigned long worldid; ///< ID of the \c World the object belongs to.
         unsigned long objid; ///< ID of the object.
 
-        /// Constructor that sets the world and object IDs.
+    public:
+        /// Default constructor.
+        uniqueidT()
+                : worldid(0), objid(0) {};
+
+        /// Constructor that uses the world and object IDs.
 
         /// \param[in] worldid The ID of the \c World the object belongs to.
         /// \param[in] objid The ID of the object.
         uniqueidT(unsigned long worldid, unsigned long objid)
-                : worldid(worldid), objid(objid) {};
-
-    public:
-        /// Constructor.
-        uniqueidT()
-                : worldid(0), objid(0) {};
+            : worldid(worldid), objid(objid) {};
 
         /// nonnull state tester
 

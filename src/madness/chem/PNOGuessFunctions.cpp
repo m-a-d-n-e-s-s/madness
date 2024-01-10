@@ -18,7 +18,7 @@ namespace madness {
 	// Read Exponents from file
 	std::map<std::string, std::vector<std::vector<double> > > exponents = read_basis_from_file("bas", molecule.get_atoms());
 	print("Exponents from file bas:");
-	for (const auto x : exponents) {
+	for (const auto& x : exponents) {
 		if (world.rank() == 0) {
 			std::cout << x.first << " Exponents\n";
 			for (size_t l = 0; l < x.second.size(); ++l) {
@@ -31,7 +31,7 @@ namespace madness {
 	time_1.stop().print("Read Exponents From File");
 	vector_real_function_3d virtuals;
 	MyTimer time_2 = MyTimer(world).start();
-	for (const madness::Atom atom : molecule.get_atoms()) {
+	for (const madness::Atom& atom : molecule.get_atoms()) {
 		std::vector<std::vector<double> > exp_atom = exponents.at(atomic_number_to_symbol(atom.atomic_number));
 		for (size_t l = 0; l < exp_atom.size(); ++l) {
 			for (const double e : exp_atom[l]) {

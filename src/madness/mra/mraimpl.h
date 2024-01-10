@@ -1229,7 +1229,7 @@ namespace madness {
     /// @param[in]  targs   target tensor arguments (threshold and full/low rank)
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::compute_snorm_and_dnorm(bool fence) {
-        const auto& data=FunctionCommonData<T,NDIM>::get(get_k());
+        //const auto& data=FunctionCommonData<T,NDIM>::get(get_k());
         flo_unary_op_node_inplace(
                 do_compute_snorm_and_dnorm(cdata),fence);
     }

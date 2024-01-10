@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.11.0)
+cmake_minimum_required (VERSION 3.12.0)  # for FindPython
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
@@ -228,8 +228,7 @@ add_feature_info(DQ_PREBUF ENABLE_DQ_PREBUF
 set(MADNESS_DQ_USE_PREBUF ${ENABLE_DQ_PREBUF} CACHE BOOL
     "Enables thread-local buffer for task aggregation to reduce lock contention")
 
-set(MADNESS_DQ_PREBUF_SIZE 20 CACHE STRING "Numberof entries in the thread-pool prebuffer for task aggregation to reduce lock contention")
-#set(MADNESS_DQ_PREBUF_SZ ${MADNESS_DQ_PREBUF_SIZE} CACHE STRING "Numberof entries in the thread-pool prebuffer for task aggregation to reduce lock contention")
+set(MADNESS_DQ_PREBUF_SIZE 20 CACHE STRING "Number of entries in the thread-pool prebuffer for task aggregation to reduce lock contention")
 
 option(ENABLE_BSEND_ACKS 
     "Use MPI Send instead of MPI Bsend for huge message acknowledgements" ON)
@@ -248,6 +247,12 @@ option(ENABLE_TASK_DEBUG_TRACE
 add_feature_info(TASK_DEBUG_TRACE ENABLE_TASK_DEBUG_TRACE "supports debug trace of task engine")
 set(MADNESS_TASK_DEBUG_TRACE ${ENABLE_TASK_DEBUG_TRACE} CACHE BOOL
         "Enable task debug tracing.")
+
+option(ENABLE_WORLDOBJECT_FUTURE_TRACE
+        "Enable tracing of futures assicuated with WorldObjects." OFF)
+add_feature_info(WORLDOBJECT_FUTURE_TRACE ENABLE_WORLDOBJECT_FUTURE_TRACE "supports tracing of futures associated with WorldObjects")
+set(MADNESS_WORLDOBJECT_FUTURE_TRACE ${ENABLE_WORLDOBJECT_FUTURE_TRACE} CACHE BOOL
+        "Enable tracing of futures assicuated with WorldObjects.")
 
 set(FORTRAN_INTEGER_SIZE 4 CACHE STRING "The fortran integer size (4 or 8 bytes) used for BLAS and LAPACK function calls")
 if(NOT (FORTRAN_INTEGER_SIZE EQUAL 4 OR FORTRAN_INTEGER_SIZE EQUAL 8))

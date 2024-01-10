@@ -16,7 +16,7 @@
 
 namespace madness {
 
-class CCConvolutionOperator;
+struct CCConvolutionOperator;
 class ProjectorBase;
 
 /// FuncTypes used by the CC_function_6d structure
@@ -100,6 +100,7 @@ public:
     virtual std::string name(const bool transpose=false) const = 0;
     virtual World& world() const =0;
     virtual std::shared_ptr<TwoBodyFunctionComponentBase> clone() = 0;
+    virtual ~TwoBodyFunctionComponentBase() {}
 };
 
 /// a two-body, explicitly 6-dimensional function

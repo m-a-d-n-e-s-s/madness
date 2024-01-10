@@ -378,7 +378,7 @@ namespace madness {
         /// Accumulate inplace and if necessary connect node to parent
         void accumulate2(const tensorT& t, const typename FunctionNode<T,NDIM>::dcT& c,
                            const Key<NDIM>& key) {
-            double cpu0=cpu_time();
+	  // double cpu0=cpu_time();
             if (has_coeff()) {
             	MADNESS_ASSERT(coeff().is_full_tensor());
                 //            	if (coeff().type==TT_FULL) {
@@ -404,14 +404,13 @@ namespace madness {
 		      const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
                 }
             }
-            double cpu1=cpu_time();
+            //double cpu1=cpu_time();
         }
 
 
         /// Accumulate inplace and if necessary connect node to parent
         void accumulate(const coeffT& t, const typename FunctionNode<T,NDIM>::dcT& c,
                           const Key<NDIM>& key, const TensorArgs& args) {
-            double cpu0=cpu_time();
             if (has_coeff()) {
                 coeff().add_SVD(t,args.thresh);
                 if (buffer.rank()<coeff().rank()) {
@@ -436,7 +435,6 @@ namespace madness {
 		      const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
                 }
             }
-            double cpu1=cpu_time();
         }
 
         void consolidate_buffer(const TensorArgs& args) {
@@ -3823,7 +3821,7 @@ template<size_t NDIM>
         	double error=0.0;
         	double lo=0.0, hi=0.0, lo1=0.0, hi1=0.0, lo2=0.0, hi2=0.0;
 
-        	pointwise_multiplier() :gimpl(0), impl(0) {}
+	  pointwise_multiplier() : impl(0), gimpl(0) {}
         	pointwise_multiplier(const Key<NDIM> key, const coeffT& clhs, implT* i, const FunctionImpl<T,LDIM>* gimpl)
         		: impl(i), gimpl(gimpl), coeff_lhs(clhs) {
         		val_lhs=impl->coeffs2values(key,coeff_lhs);
@@ -4144,9 +4142,10 @@ template<size_t NDIM>
                 Key<LDIM> key1, key2;
                 key.break_apart(key1,key2);
 
-                bool printme=(int(key.translation()[0])==int(std::pow(key.level(),2)/2)) and
-                             (int(key.translation()[1])==int(std::pow(key.level(),2)/2)) and
-                             (int(key.translation()[2])==int(std::pow(key.level(),2)/2));
+        		// bool printme=(int(key.translation()[0])==int(std::pow(key.level(),2)/2)) and
+        		// 		(int(key.translation()[1])==int(std::pow(key.level(),2)/2)) and
+			// 			(int(key.translation()[2])==int(std::pow(key.level(),2)/2));
+
 //        		printme=false;
 
                 // get/make all coefficients
@@ -5449,7 +5448,7 @@ template<size_t NDIM>
                 const keyT& key = it->first;
                 const FunctionNode<T,NDIM>& node = it->second;
                 if (node.has_coeff()) {
-                    map->insert(acc,key);
+                    [[maybe_unused]] auto inserted = map->insert(acc,key);
                     acc->second.push_back(std::make_pair(index,&(node.coeff())));
                 }
             }
@@ -5632,9 +5631,9 @@ template<size_t NDIM>
                            const std::array<int, CDIM> v1, const std::array<int, CDIM> v2) {
 
             typedef std::multimap<Key<NDIM>, std::list<Key<CDIM>>> contractionmapT;
-            double wall_get_lists=0.0;
-            double wall_recur=0.0;
-            double wall_contract=0.0;
+            //double wall_get_lists=0.0;
+            //double wall_recur=0.0;
+            //double wall_contract=0.0;
             std::size_t nmax=FunctionDefaults<CDIM>::get_max_refine_level();
             const double thresh=FunctionDefaults<NDIM>::get_thresh();
 
@@ -5649,13 +5648,13 @@ template<size_t NDIM>
             for (int n=0; n<nmax; ++n) {
 
                 // list of nodes with d coefficients (and their parents)
-                double wall0 = wall_time();
+	      //double wall0 = wall_time();
                 auto [g_ijlist, g_jlist] = g.get_contraction_node_lists(n, v1);
                 auto [h_ijlist, h_jlist] = h.get_contraction_node_lists(n, v2);
                 if ((g_ijlist.size() == 0) and (h_ijlist.size() == 0)) break;
-                double wall1 = wall_time();
-                wall_get_lists += (wall1 - wall0);
-                wall0 = wall1;
+                //double wall1 = wall_time();
+                //wall_get_lists += (wall1 - wall0);
+                //wall0 = wall1;
 //                print("g_jlist");
 //                for (const auto& kv : g_jlist) print(kv.first,kv.second);
 //                print("h_jlist");
@@ -5695,8 +5694,8 @@ template<size_t NDIM>
                     elem.second.sort();
                     elem.second.unique();
                 }
-                wall1 = wall_time();
-                wall_recur += (wall1 - wall0);
+                //wall1 = wall_time();
+                //wall_recur += (wall1 - wall0);
 //                if (n==2) {
 //                    print("contraction map for n=", n);
 //                    print_map(contraction_map);
@@ -5790,7 +5789,6 @@ template<size_t NDIM>
                 bool this_first, const double thresh) {
 
             std::multimap<Key<FDIM>, std::list<Key<CDIM>>> contraction_map;
-            std::size_t level=key.level();
 
             // fast return if the other function has no d coeffs
             if (j_other_list.empty()) return contraction_map;
@@ -6715,9 +6713,12 @@ template<size_t NDIM>
                     ar & id;
                     World* world = World::world_from_id(id.get_world_id());
                     MADNESS_ASSERT(world);
-                    ptr = static_cast< const FunctionImpl<T,NDIM>*>(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
+                    auto ptr_opt = world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id);
+                    if (!ptr_opt)
+                      MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
+                    ptr = static_cast< const FunctionImpl<T,NDIM>*>(*ptr_opt);
                     if (!ptr)
-                        MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
+                        MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use an unregistered object",0);
                 } else {
                     ptr=nullptr;
                 }
@@ -6743,9 +6744,12 @@ template<size_t NDIM>
                     ar & id;
                     World* world = World::world_from_id(id.get_world_id());
                     MADNESS_ASSERT(world);
-                    ptr = static_cast< FunctionImpl<T,NDIM>*>(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
+                    auto ptr_opt = world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id);
+                    if (!ptr_opt)
+                      MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
+                    ptr = static_cast< FunctionImpl<T,NDIM>*>(*ptr_opt);
                     if (!ptr)
-                        MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
+                      MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use an unregistered object",0);
                 } else {
                     ptr=nullptr;
                 }

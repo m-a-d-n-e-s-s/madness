@@ -61,9 +61,10 @@ CC2::solve() {
         mp2_energy = solve_mp2_coupled(mp2pairs);
         output_calc_info_schema("mp2",mp2_energy);
         output.section(assign_name(CT_MP2) + " Calculation Ended !");
-        if (world.rank() == 0)
+        if (world.rank() == 0) {
             printf_msg_energy_time("MP2 correlation energy",mp2_energy,wall_time());
 //            std::cout << std::fixed << std::setprecision(10) << " MP2 Correlation Energy =" << mp2_energy << "\n";
+	}
     }
 
     if (need_cc2) {
@@ -84,11 +85,11 @@ CC2::solve() {
         cc2_energy = solve_cc2(cc2singles, cc2pairs);
 
         output.section(assign_name(CT_CC2) + " Calculation Ended !");
-        if (world.rank() == 0)
+        if (world.rank() == 0) {
             printf_msg_energy_time("CC2 correlation energy",cc2_energy,wall_time());
 //            std::cout << std::fixed << std::setprecision(10) << " MP2 Correlation Energy =" << mp2_energy << "\n";
             std::cout << std::fixed << std::setprecision(10) << " CC2 Correlation Energy =" << cc2_energy << "\n";
-
+        }
     }
 
     if (ctype == CT_LRCCS) {

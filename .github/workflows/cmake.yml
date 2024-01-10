@@ -33,6 +33,7 @@ jobs:
       CTEST_OUTPUT_ON_FAILURE : 1
       BUILD_CONFIG : >
         -G Ninja
+        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
         -DCMAKE_PREFIX_PATH=/usr/local/opt/bison
         -DBUILD_SHARED_LIBS=OFF
