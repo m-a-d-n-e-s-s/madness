@@ -329,7 +329,7 @@ namespace madness {
             Function<T,2*NDIM> result=copy(f);
             result-=hartree_product(ket1_,h2);
             result-=hartree_product(h1,ket2_);
-            result.truncate();
+            result.truncate().reduce_rank(FunctionDefaults<2*NDIM>::get_thresh()*0.1);
             return result;
         }
 
