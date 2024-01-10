@@ -280,6 +280,10 @@ namespace madness {
     /// - \c nthread : indicates number of threads. 0 threads is interpreted
     ///   as 1 thread for backward compatibility and ease of specifying
     ///   defaults. The default value is 0 (==1).
+    /// - \c unordered : indicates that if sent to another process it can
+    //    be submitted in any order, not in the same order as it was received
+    //    on the sender rank (\sa RMI::ATTR_UNORDERED ). The
+    //    default value is false.
     class TaskAttributes {
         unsigned long flags; ///< Byte-string storing the specified attributes.
 
@@ -288,6 +292,7 @@ namespace madness {
         static const unsigned long GENERATOR = 1ul<<8; ///< Mask for generator bit.
         static const unsigned long STEALABLE = GENERATOR<<1; ///< Mask for stealable bit.
         static const unsigned long HIGHPRIORITY = GENERATOR<<2; ///< Mask for priority bit.
+        static const unsigned long UNORDERED = GENERATOR<<3; ///< Mask for unordered bit
 
         /// Sets the attributes to the desired values.
 
@@ -326,6 +331,13 @@ namespace madness {
             return flags&HIGHPRIORITY;
         }
 
+        /// Test if the unordered attribute is true.
+
+        /// \return True if this task is a unordered, false otherwise.
+        bool is_unordered() const {
+            return flags&UNORDERED;
+        }
+
         /// Sets the generator attribute.
 
         /// \param[in] generator_hint The new value for the generator attribute.
@@ -352,6 +364,14 @@ namespace madness {
                 flags |= HIGHPRIORITY;
             else
                 flags &= ~HIGHPRIORITY;
+        }
+
+        /// Sets the unordered attribute.
+
+        /// \param[in] unordered The new value for the unordered attribute.
+        void set_unordered(bool unordered) {
+            if (unordered) flags |= UNORDERED;
+            else flags &= ~UNORDERED;
         }
 
         /// Set the number of threads.
@@ -400,10 +420,9 @@ namespace madness {
             return TaskAttributes(GENERATOR);
         }
 
-        /// \todo Brief description needed.
+        /// \brief Creates a TaskAttributed object with the high-priority attribute set.
 
-        /// \todo Descriptions needed.
-        /// \return Description needed.
+        /// \return a TaskAttributed object with the high-priority attribute set.
         static TaskAttributes hipri() {
             return TaskAttributes(HIGHPRIORITY);
         }
@@ -416,6 +435,20 @@ namespace madness {
             TaskAttributes t;
             t.set_nthread(nthread);
             return t;
+        }
+
+        /// \brief Creates a TaskAttributed object with the unordered attribute set.
+
+        /// \return a TaskAttributed object with the unordered attribute set.
+        static TaskAttributes unordered() {
+            return TaskAttributes(UNORDERED);
+        }
+
+        /// \brief Creates a TaskAttributed object with the high-priority and unordered attribute set.
+
+        /// \return a TaskAttributed object with the high-priority and unordered attribute set.
+        static TaskAttributes hipri_unordered() {
+            return TaskAttributes(HIGHPRIORITY | UNORDERED);
         }
     };
 

@@ -638,7 +638,7 @@ namespace madness {
             typename taskT::futureT result;
             detail::info<memfnT> info(objid, me, memfn, result.remote_ref(world), attr);
             world.am.send(dest, & objT::template spawn_remote_task_handler<taskT>,
-                    new_am_arg(info, a1, a2, a3, a4, a5, a6, a7, a8, a9));
+                    new_am_arg(info, a1, a2, a3, a4, a5, a6, a7, a8, a9), attr.is_unordered() ? RMI::ATTR_UNORDERED : RMI::ATTR_ORDERED);
 
             return result;
         }
