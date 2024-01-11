@@ -191,9 +191,11 @@ int main(int argc, char**argv) {
         error+=test_projector<double,3>(world);
         error+=test_projector<double,4>(world);
 
-        error+=test_Q12_projector<double,2>(world);
-        error+=test_Q12_projector<double,4>(world);
+        if (HAVE_GENTENSOR) {
+            error+=test_Q12_projector<double,2>(world);
+            error+=test_Q12_projector<double,4>(world);
 //        error+=test_Q12_projector<double,6>(world);
+        }
 
     }
 
