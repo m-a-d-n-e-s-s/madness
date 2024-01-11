@@ -924,10 +924,10 @@ void Molecule::orient(bool verbose) {
 /// @param[in]  D   the rotation matrix
 void Molecule::rotate(const Tensor<double>& D) {
     madness::Tensor<double> r(3L), rU;
-    for (unsigned int i=0; i<atoms.size(); ++i) {
-        r[0]=atoms[i].x; r[1]=atoms[i].y, r[2]= atoms[i].z;
+    for (auto& atom: atoms) {
+        r[0]=atom.x; r[1]=atom.y, r[2]= atom.z;
         rU = inner(r,D);
-        atoms[i].x=rU[0]; atoms[i].y=rU[1]; atoms[i].z=rU[2];
+        atom.x=rU[0]; atom.y=rU[1]; atom.z=rU[2];
     }
     // field rotation
     rU = inner(field,D);
@@ -941,18 +941,18 @@ void Molecule::rotate(const Tensor<double>& D) {
 /// The molecule will be contained in the cube [-L,+L].
 double Molecule::bounding_cube() const {
     double L = 0.0;
-    for (unsigned int i=0; i<atoms.size(); ++i) {
-        L = std::max(L, fabs(atoms[i].x));
-        L = std::max(L, fabs(atoms[i].y));
-        L = std::max(L, fabs(atoms[i].z));
+    for (const auto& atom: atoms) {
+        L = std::max(L, fabs(atom.x));
+        L = std::max(L, fabs(atom.y));
+        L = std::max(L, fabs(atom.z));
     }
     return L;
 }
 
 double Molecule::total_nuclear_charge() const {
     double sum = 0.0;
-    for (unsigned int i=0; i<atoms.size(); ++i) {
-        sum += atoms[i].q;
+    for (const auto& atom: atoms) {
+        sum += atom.q;
     }
     return sum;
 }
