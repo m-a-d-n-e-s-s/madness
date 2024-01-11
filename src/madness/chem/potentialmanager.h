@@ -106,6 +106,46 @@ public:
     };
 };
 
+class NuclearDensityFunctor : public FunctionFunctorInterface<double,3> {
+private:
+  const Molecule& molecule;
+  const double R;
+  std::vector<coord_3d> specialpt;
+  const int maxR = 1;
+public:
+  NuclearDensityFunctor(const Molecule& molecule, double R)
+      : molecule(molecule), R(R), specialpt(molecule.get_all_coords_vec())
+  {}
+
+  double operator()(const coord_3d& x) const {
+    double big = 2*R + 6.0*molecule.smallest_length_scale();
+    double sum = 0.0;
+    for (int i=-maxR; i<=+maxR; i++) {
+      double xx = x[0]+i*R;
+      if (xx < big && xx > -big) {
+        for (int j=-maxR; j<=+maxR; j++) {
+          double yy = x[1]+j*R;
+          if (yy < big && yy > -big) {
+            for (int k=-maxR; k<=+maxR; k++) {
+              double zz = x[2]+k*R;
+              if (zz < big && zz > -big)
+                sum += molecule.nuclear_charge_density(x[0]+i*R, x[1]+j*R, x[2]+k*R);
+            }
+          }
+        }
+      }
+    }
+    return sum;
+  }
+
+  std::vector<coord_3d> special_points() const {return specialpt;}
+
+  Level special_level() {
+    return 10;
+  }
+
+};
+
 
 class PotentialManager {
 private:
@@ -208,7 +248,15 @@ public:
     void make_nuclear_potential(World& world) {
         double safety = 0.1;
         double vtol = FunctionDefaults<3>::get_thresh() * safety;
-        vnuc = real_factory_3d(world).functor(real_functor_3d(new MolecularPotentialFunctor(mol))).thresh(vtol).truncate_on_project();
+
+        FunctionFunctorInterface<double,3>* functor;
+        auto bc= FunctionDefaults<3>::get_bc();
+        if (bc(0,0) == BC_PERIODIC) {
+            functor = new NuclearDensityFunctor(mol, FunctionDefaults<3>::get_cell_width().max());
+        } else {
+            functor = new MolecularPotentialFunctor(mol);
+        }
+        vnuc = real_factory_3d(world).functor(real_functor_3d(functor)).thresh(vtol).truncate_on_project();
         vnuc.set_thresh(FunctionDefaults<3>::get_thresh());
         vnuc.reconstruct();
         //     "" is  legacy core_type value for all-electron (also be used by CorePotentialManager)

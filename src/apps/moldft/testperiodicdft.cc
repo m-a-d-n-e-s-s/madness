@@ -12,6 +12,7 @@
 #include <madness/tensor/solvers.h>
 #include<madness/chem/molecule.h>
 #include<madness/chem/molecularbasis.h>
+#include<madness/chem/potentialmanager.h>
 #include<madness/chem/xcfunctional.h>
 
 using namespace madness;
@@ -176,46 +177,6 @@ public:
     }
 
     std::vector<coord_3d> special_points() const {return specialpt;}
-};
-
-class NuclearDensityFunctor : public FunctionFunctorInterface<double,3> {
-private:
-    const Molecule& molecule;
-    const double R;
-    std::vector<coord_3d> specialpt;
-    const int maxR = 1;
-public:
-    NuclearDensityFunctor(const Molecule& molecule, double R)
-        : molecule(molecule), R(R), specialpt(molecule.get_all_coords_vec())
-    {}
-
-    double operator()(const coord_3d& x) const {
-        double big = 2*R + 6.0*molecule.smallest_length_scale();
-        double sum = 0.0;
-        for (int i=-maxR; i<=+maxR; i++) {
-            double xx = x[0]+i*R;
-            if (xx < big && xx > -big) {
-                for (int j=-maxR; j<=+maxR; j++) {
-                    double yy = x[1]+j*R;
-                    if (yy < big && yy > -big) {
-                        for (int k=-maxR; k<=+maxR; k++) {
-                            double zz = x[2]+k*R;
-                            if (zz < big && zz > -big)
-                                sum += molecule.nuclear_charge_density(x[0]+i*R, x[1]+j*R, x[2]+k*R);
-                        }
-                    }
-                }
-            }
-        }
-        return sum;
-    }
-
-    std::vector<coord_3d> special_points() const {return specialpt;}
-
-    Level special_level() {
-        return 10;
-    }
-
 };
 
 class KPeriodicBSHOperator {
