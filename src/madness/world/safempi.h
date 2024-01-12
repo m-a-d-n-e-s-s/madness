@@ -70,6 +70,7 @@
 #include <madness/world/worldmutex.h>
 #include <madness/world/type_traits.h>
 #include <iostream>
+#include <csignal>
 #include <cstring>
 #include <memory>
 #include <sstream>
@@ -792,7 +793,15 @@ namespace SafeMPI {
             // if SIGABRT has a handler, call std::abort to allow it be caught,
             // else call MPI_Abort which does not seem to call abort at all,
             // instead sends SIGTERM followed by SIGKILL
-            MPI_Abort(pimpl->comm, code);
+            // if have a custom signal handler for SIGABRT (i.e. we are running under a
+            // debugger) then call abort()
+            struct sigaction sa;
+            auto rc = sigaction(SIGABRT, NULL, &sa);
+            if (rc == 0 && sa.sa_handler != SIG_DFL) {
+              abort();
+            } else {
+              MPI_Abort(pimpl->comm, code);
+            }
         }
 
         void Barrier() const {
