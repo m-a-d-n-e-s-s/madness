@@ -1258,7 +1258,7 @@ namespace madness {
             hartree_convolute_leaf_op<T,KDIM+LDIM,LDIM,opT> leaf_op(impl.get(),left,op);
             impl->hartree_product(left,right,leaf_op,true);
             impl->finalize_sum();
-            this->truncate();
+//            this->truncate();
 
         }
 
@@ -1271,7 +1271,7 @@ namespace madness {
             hartree_leaf_op<T,KDIM+LDIM> leaf_op(impl.get(),k());
             impl->hartree_product(left,right,leaf_op,true);
             impl->finalize_sum();
-            this->truncate();
+//            this->truncate();
 
         }
 

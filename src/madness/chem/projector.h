@@ -275,61 +275,68 @@ namespace madness {
     	/// J. Chem. Phys., vol. 139, no. 11, p. 114106, 2013.
         Function<T,2*NDIM> operator()(const Function<T,2*NDIM>& f) const {
 
-        	// simple and it works for higher accuracies, but might be
-        	// imprecise for lower accuracies
+            // simple and it works for higher accuracies, but might be
+            // imprecise for lower accuracies
 //        	return (f-O1(f)-O2(f)+O1(O2(f))).truncate().reduce_rank();
 
-        	// Eq. (A9): g_kl = < k(1) l(2) | f(1,2) >
-        	// note no (kl) symmetry here!
-            reconstruct(world,bra1_,false);
-            reconstruct(world,bra2_,true);
-        	Tensor<double> g_kl(bra1_.size(),bra2_.size());
-        	for (size_t k=0; k<bra1_.size(); ++k) {
-        		for (size_t l=0; l<bra2_.size(); ++l) {
-        			Function<T,2*NDIM> kl=CompositeFactory<T,2*NDIM,NDIM>(world)
-    	            		.particle1(bra1_[k]).particle2(bra2_[l]);
-        			g_kl(k,l)=inner(f,kl);
-        		}
-        	}
+            // Eq. (A9): g_kl = < k(1) l(2) | f(1,2) >
+            // note no (kl) symmetry here!
+            reconstruct(world, bra1_, false);
+            reconstruct(world, bra2_, true);
+            Tensor<double> g_kl(bra1_.size(), bra2_.size());
+            for (size_t k = 0; k < bra1_.size(); ++k) {
+                for (size_t l = 0; l < bra2_.size(); ++l) {
+                    Function<T, 2 * NDIM> kl = CompositeFactory<T, 2 * NDIM, NDIM>(world)
+                            .particle1(bra1_[k]).particle2(bra2_[l]);
+                    g_kl(k, l) = inner(f, kl);
+                }
+            }
 
-        	// Eq. (A12)
-        	// project out the mainly first particle: O1 (1 - 1/2 O2)
-            std::vector<Function<T,NDIM>> h2(bra1_.size());
-            std::vector<Function<T,NDIM>> h1(ket2_.size());
-            reconstruct(world,bra1_,false);
-            reconstruct(world,bra2_,true);
-        	for (size_t k=0; k<bra1_.size(); ++k) {
+            // Eq. (A12)
+            // project out the mainly first particle: O1 (1 - 1/2 O2)
+            std::vector<Function<T, NDIM>> h2(bra1_.size());
+            std::vector<Function<T, NDIM>> h1(ket2_.size());
+            reconstruct(world, bra1_, false);
+            reconstruct(world, bra2_, true);
+            for (size_t k = 0; k < bra1_.size(); ++k) {
 
                 // project out the mainly first particle: O1 (1 - 1/2 O2): first term
-        		// Eq. (A10)
-        		h2[k]=f.project_out(bra1_[k],0);
+                // Eq. (A10)
+                h2[k] = f.project_out(bra1_[k], 0);
 
                 // project out the mainly second particle: O2 (1 - 1/2 O1): first term
                 // Eq. (A11)
-                std::size_t l=k;
-                h1[l]=f.project_out(bra2_[l],1);
+                std::size_t l = k;
+                h1[l] = f.project_out(bra2_[l], 1);
 
-        	}
+            }
 
             // Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
             // project out the mainly first particle: O1 (1 - 1/2 O2): second term
             // Eq. (A12), (A13)
-            h2-=transform(world,ket2_,0.5*transpose(g_kl),false);   // ordering g(k,l) is correct
-            h1-=transform(world,ket1_,0.5*g_kl,true);               // ordering g(k,l) is correct
+            h2 -= transform(world, ket2_, 0.5 * transpose(g_kl), false);   // ordering g(k,l) is correct
+            h1 -= transform(world, ket1_, 0.5 * g_kl, true);               // ordering g(k,l) is correct
             // aka
             // 	for (size_t l=0; l<ket2_.size(); ++l) {
             // 		h2[k]-=0.5*g_kl(k,l)*ket2_[l];
             // 	}
 
-            change_tree_state(h1,reconstructed,false);
-            change_tree_state(h2,reconstructed,false);
-            change_tree_state(ket1_,reconstructed,false);
-            change_tree_state(ket2_,reconstructed,false);
+            change_tree_state(h1, reconstructed, false);
+            change_tree_state(h2, reconstructed, false);
+            change_tree_state(ket1_, reconstructed, false);
+            change_tree_state(ket2_, reconstructed, false);
             world.gop.fence();
-            Function<T,2*NDIM> result=copy(f);
-            result-=hartree_product(ket1_,h2);
-            result-=hartree_product(h1,ket2_);
-            result.truncate().reduce_rank(FunctionDefaults<2*NDIM>::get_thresh()*0.1);
+
+            double thresh=FunctionDefaults<2*NDIM>::get_thresh();
+            double tight_thresh=thresh*0.1;
+            FunctionDefaults<2*NDIM>::set_thresh(tight_thresh);
+
+            Function<T, 2 * NDIM> result = copy(f);
+            result -= hartree_product(ket1_, h2);
+            result -= hartree_product(h1, ket2_);
+            result.truncate().reduce_rank();
+            result.set_thresh(FunctionDefaults<2 * NDIM>::get_thresh());
+            FunctionDefaults<2*NDIM>::set_thresh(thresh);
             return result;
         }
 
