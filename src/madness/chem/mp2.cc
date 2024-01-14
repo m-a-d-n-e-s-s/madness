@@ -1150,7 +1150,8 @@ real_function_6d MP2::apply_exchange_vector(const real_function_6d& phi,
 	// prepare all constituent functions
 	std::vector<real_function_3d> ket=copy(world,hf->nemos());
 	std::vector<real_function_3d> bra=copy(world,hf->R2orbitals());
-	phi.get_impl()->make_redundant(false);
+    phi.change_tree_state(redundant,false);
+//	phi.get_impl()->make_redundant(false);
 	make_redundant(world,ket,false);
 	make_redundant(world,bra,false);
 	world.gop.fence();
@@ -1405,59 +1406,59 @@ real_function_6d MP2::multiply_with_0th_order_Hamiltonian(
     real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2 * eps), lo,
                                                 bsh_eps);
     op_mod.modified() = true;
-	real_function_6d vphi = CompositeFactory<double, 6, 3>(world).ket(copy(f)).V_for_particle1(
+    real_function_6d vphi = CompositeFactory<double, 6, 3>(world).ket(copy(f)).V_for_particle1(
             copy(v_local)).V_for_particle2(copy(v_local));
     vphi.fill_tree(op_mod);
     vphi.print_size("vphi: local parts");
 
     // the part with the derivative operators: U1
-	std::vector<real_function_6d> Drhs(6);
+    std::vector<real_function_6d> Drhs(6);
     for (int axis = 0; axis < 6; ++axis) {
-    	real_derivative_6d D = free_space_derivative<double, 6>(world,axis);
-    	Drhs[axis] = D(f).truncate();
+        real_derivative_6d D = free_space_derivative<double, 6>(world,axis);
+        Drhs[axis] = D(f).truncate();
     }
 //	const std::vector<real_function_6d> Drhs = truncate(grad(f));
 
-	std::vector<real_function_3d> U1_6d;
-	for (int axis = 0; axis < 6; ++axis) {
+    std::vector<real_function_3d> U1_6d;
+    for (int axis = 0; axis < 6; ++axis) {
         // note integer arithmetic
-		U1_6d.push_back(copy(hf->nemo_ptr->ncf->U1(axis % 3)));
-	}
+        U1_6d.push_back(copy(hf->nemo_ptr->ncf->U1(axis % 3)));
+    }
 
-        double tight_thresh = std::min(FunctionDefaults<6>::get_thresh(), 1.e-4);
-	std::vector<real_function_6d> x(6);
-	for (int axis = 0; axis < 6; ++axis) {
+    double tight_thresh = std::min(FunctionDefaults<6>::get_thresh(), 1.e-4);
+    std::vector<real_function_6d> x(6);
+    for (int axis = 0; axis < 6; ++axis) {
 
         if (axis / 3 + 1 == 1) {
-			x[axis] =CompositeFactory<double, 6, 3>(world).ket(Drhs[axis])
-						.V_for_particle1(U1_6d[axis]).thresh(tight_thresh);
+            x[axis] =CompositeFactory<double, 6, 3>(world).ket(Drhs[axis])
+                    .V_for_particle1(U1_6d[axis]).thresh(tight_thresh);
 
         } else if (axis / 3 + 1 == 2) {
-			x[axis] =CompositeFactory<double, 6, 3>(world).ket(Drhs[axis])
-						.V_for_particle2(U1_6d[axis]).thresh(tight_thresh);
-		}
+            x[axis] =CompositeFactory<double, 6, 3>(world).ket(Drhs[axis])
+                    .V_for_particle2(U1_6d[axis]).thresh(tight_thresh);
         }
-	world.gop.fence();
-	for (auto xx : x) {
-		CompositeFunctorInterface<double, 6, 3>* func=
-				dynamic_cast<CompositeFunctorInterface<double, 6, 3>* >(&(*xx.get_impl()->get_functor()));
-		func->make_redundant(false);
-	}
-	world.gop.fence();
-	for (auto xx : x) xx.fill_tree(op_mod,false);
-	world.gop.fence();
-	print_size(world,x,"x after fill_tree");
+    }
+    world.gop.fence();
+    for (auto xx : x) {
+        CompositeFunctorInterface<double, 6, 3>* func=
+                dynamic_cast<CompositeFunctorInterface<double, 6, 3>* >(&(*xx.get_impl()->get_functor()));
+        func->make_redundant(false);
+    }
+    world.gop.fence();
+    for (auto xx : x) xx.fill_tree(op_mod,false);
+    world.gop.fence();
+    print_size(world,x,"x after fill_tree");
 
-	set_thresh(world,x,FunctionDefaults<6>::get_thresh());
-	for (auto xx : x) vphi += xx;
-        vphi.truncate().reduce_rank();
+    set_thresh(world,x,FunctionDefaults<6>::get_thresh());
+    for (auto xx : x) vphi += xx;
+    vphi.truncate().reduce_rank();
 
     vphi.print_size("(U_nuc + J) |ket>:  made V tree");
     END_TIMER(world, "apply (U + J) |ket>");
 
     // and the exchange
     START_TIMER(world);
-	if (not param.do_oep()) vphi = (vphi - K(f, i == j)).truncate().reduce_rank();
+    if (not param.do_oep()) vphi = (vphi - K(f, i == j)).truncate().reduce_rank();
     vphi.print_size("(U_nuc + J - K) |ket>:  made V tree");
     END_TIMER(world, "apply K |ket>");
 
