@@ -12,15 +12,13 @@ template<typename T>
 Tensor<T> RandomizedMatrixDecomposition<T>::compute_range(const Tensor<T>& tensor,
 		const double& eps, std::array<long,2> vectordim) {
 
-	typedef typename Tensor<T>::scalar_type scalar_type;
+        //typedef typename Tensor<T>::scalar_type scalar_type;
 
 	// fast return if possible
 	range=Tensor<T>(0l,0l);
 	if (tensor.normf()<eps) return range;
 
 	const Tensor<T> matrix=resize_to_matrix(tensor,vectordim);
-	const long m=matrix.dim(0);
-	const long n=matrix.dim(1);
 
 	maxrank=std::min(maxrank,matrix.dim(0));
 
@@ -86,7 +84,7 @@ Tensor<T> RandomizedMatrixDecomposition<T>::do_compute_range(const Y_former& Yfo
 template<typename T>
 Tensor<T> RandomizedMatrixDecomposition<T>::compute_range(const Tensor<T>& columnspace,
 		const Tensor<T>& rowspace, const double& eps) {
-	typedef typename Tensor<T>::scalar_type scalar_type;
+        //typedef typename Tensor<T>::scalar_type scalar_type;
 
 	// fast return if possible
 	Tensor<T> Q(0l,0l);

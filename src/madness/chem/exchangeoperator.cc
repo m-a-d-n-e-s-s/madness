@@ -266,7 +266,7 @@ Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_ba
     // some helper functions
     std::size_t nrow = bra_batch.size();
     std::size_t ncolumn = vf_batch.size();
-    auto ij = [&nrow, &ncolumn](const int i, const int j) { return i * ncolumn + j; };
+    auto ij = [&ncolumn](const int i, const int j) { return i * ncolumn + j; };
 
     auto Nslice = [&Nij, &ij, &ncolumn](const long irow, const Slice s) {
         vecfuncT result;

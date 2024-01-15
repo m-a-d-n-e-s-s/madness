@@ -65,6 +65,8 @@ public:
     SCFOperatorBase() = default;
     SCFOperatorBase(std::shared_ptr<MacroTaskQ> taskq) : taskq(taskq) {}
 
+    virtual ~SCFOperatorBase() {}
+
     std::shared_ptr<MacroTaskQ> taskq=0;
 
     /// print some information about this operator

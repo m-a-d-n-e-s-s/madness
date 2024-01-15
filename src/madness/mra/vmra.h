@@ -1516,8 +1516,7 @@ namespace madness {
 
         // svd-tensor requires some cleanup after apply
         if (result[0].get_impl()->get_tensor_type()==TT_2D) {
-            for (auto& r : result) r.get_impl()->finalize_apply(false);
-            world.gop.fence();
+            for (auto& r : result) r.get_impl()->finalize_apply();
         }
 
         if (print_timings) {

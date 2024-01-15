@@ -1221,24 +1221,28 @@ namespace madness {
 
         /// perform the hartree product of f*g, invoked by result
         template<size_t LDIM, size_t KDIM, typename opT>
-        void do_hartree_product(const FunctionImpl<T,LDIM>* left, const FunctionImpl<T,KDIM>* right,
-                const opT* op) {
+        void do_hartree_product(const std::vector<std::shared_ptr<FunctionImpl<T,LDIM>>> left,
+                                const std::vector<std::shared_ptr<FunctionImpl<T,KDIM>>> right,
+                                const opT* op) {
 
             // get the right leaf operator
             hartree_convolute_leaf_op<T,KDIM+LDIM,LDIM,opT> leaf_op(impl.get(),left,op);
             impl->hartree_product(left,right,leaf_op,true);
-            this->truncate(0.0,false);
+            impl->finalize_sum();
+//            this->truncate();
 
         }
 
         /// perform the hartree product of f*g, invoked by result
         template<size_t LDIM, size_t KDIM>
-        void do_hartree_product(const FunctionImpl<T,LDIM>* left, const FunctionImpl<T,KDIM>* right) {
+        void do_hartree_product(const std::vector<std::shared_ptr<FunctionImpl<T,LDIM>>> left,
+                                const std::vector<std::shared_ptr<FunctionImpl<T,KDIM>>> right) {
 
 //            hartree_leaf_op<T,KDIM+LDIM> leaf_op(impl.get(),cdata.s0);
             hartree_leaf_op<T,KDIM+LDIM> leaf_op(impl.get(),k());
             impl->hartree_product(left,right,leaf_op,true);
-            this->truncate(0.0,false);
+            impl->finalize_sum();
+//            this->truncate();
 
         }
 
@@ -1822,37 +1826,41 @@ namespace madness {
         return mul(left,right,true);
     }
 
-    /// Performs a Hartree product on the two given low-dimensional functions
+    /// Performs a Hartree/outer product on the two given low-dimensional function vectors
+
+    /// @return   result(x,y) = \sum_i f_i(x) g_i(y)
     template<typename T, std::size_t KDIM, std::size_t LDIM>
     Function<T,KDIM+LDIM>
-    hartree_product(const Function<T,KDIM>& left2, const Function<T,LDIM>& right2) {
+    hartree_product(const std::vector<Function<T,KDIM>>& left, const std::vector<Function<T,LDIM>>& right) {
 
-        // we need both sum and difference coeffs for error estimation
-        Function<T,KDIM>& left = const_cast< Function<T,KDIM>& >(left2);
-        Function<T,LDIM>& right = const_cast< Function<T,LDIM>& >(right2);
+        MADNESS_CHECK_THROW(left.size()==right.size(), "hartree_product: left and right must have same size");
+        if (left.size()==0) return Function<T,KDIM+LDIM>();
 
         const double thresh=FunctionDefaults<KDIM+LDIM>::get_thresh();
 
-        FunctionFactory<T,KDIM+LDIM> factory=FunctionFactory<T,KDIM+LDIM>(left.world())
-                .k(left.k()).thresh(thresh);
+        FunctionFactory<T,KDIM+LDIM> factory=FunctionFactory<T,KDIM+LDIM>(left.front().world())
+                .k(left.front().k()).thresh(thresh);
         Function<T,KDIM+LDIM> result=factory.empty();
 
-        bool same=(left2.get_impl()==right2.get_impl());
-
         // some prep work
-        left.make_nonstandard(true,true);
-        right.make_nonstandard(true,true);
+        change_tree_state(left,nonstandard_with_leaves);
+        change_tree_state(right,nonstandard_with_leaves);
+        std::vector<std::shared_ptr<FunctionImpl<T,KDIM>>> vleft=get_impl(left);
+        std::vector<std::shared_ptr<FunctionImpl<T,LDIM>>> vright=get_impl(right);
 
-        result.do_hartree_product(left.get_impl().get(),right.get_impl().get());
-
-        left.standard(false);
-        if (not same) right.standard(false);
-        left2.world().gop.fence();
+        result.do_hartree_product(vleft,vright);
 
         return result;
 
     }
 
+    /// Performs a Hartree product on the two given low-dimensional functions
+    template<typename T, std::size_t KDIM, std::size_t LDIM>
+    Function<T,KDIM+LDIM>
+    hartree_product(const Function<T,KDIM>& left2, const Function<T,LDIM>& right2) {
+        typedef std::vector<Function<T,KDIM>> vector;
+        return hartree_product(vector({left2}),vector({right2}));
+    }
 
     /// Performs a Hartree product on the two given low-dimensional functions
     template<typename T, std::size_t KDIM, std::size_t LDIM, typename opT>
@@ -1880,7 +1888,11 @@ namespace madness {
         left.make_nonstandard(true, true);
         right.make_nonstandard(true, true);
 
-        result.do_hartree_product(left.get_impl().get(),right.get_impl().get(),&op);
+        std::vector<std::shared_ptr<FunctionImpl<T,KDIM>>> vleft;
+        std::vector<std::shared_ptr<FunctionImpl<T,LDIM>>> vright;
+        vleft.push_back(left.get_impl());
+        vright.push_back(right.get_impl());
+        result.do_hartree_product(vleft,right,&op);
 
         left.standard(false);
         if (not same) right.standard(false);
@@ -2076,7 +2088,7 @@ namespace madness {
         result.get_impl()->print_timer();
         op.print_timer();
 
-		result.get_impl()->finalize_apply(true);	// need fence before reconstruct
+		result.get_impl()->finalize_apply();	// need fence before reconstruct
 
         if (op.modified()) {
             result.get_impl()->trickle_down(true);
@@ -2102,7 +2114,7 @@ namespace madness {
             result.get_impl()->apply(op, *f.get_impl(), fence);
 
         } else {        // general version for higher dimension
-            bool print_timings=false;
+	  //bool print_timings=false;
             Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> r1;
 
             result.set_impl(f, false);
@@ -2336,7 +2348,7 @@ namespace madness {
     template<typename T, std::size_t NDIM, std::size_t LDIM>
     Function<T,NDIM> multiply(const Function<T,NDIM> f, const Function<T,LDIM> g, const int particle, const bool fence=true) {
 
-        MADNESS_ASSERT(LDIM+LDIM==NDIM);
+        static_assert(LDIM+LDIM==NDIM);
         MADNESS_ASSERT(particle==1 or particle==2);
 
         Function<T,NDIM> result;

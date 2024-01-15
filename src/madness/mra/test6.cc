@@ -158,41 +158,47 @@ static double V(const Vector<double,3>& r) {
 }
 
 /// test f(1,2) = g(1) h(2)
+template<typename T, std::size_t NDIM>
 int test_hartree_product(World& world, const long& k, const double thresh) {
-    test_output output("testing hartree_product");
-//    output.set_cout_to_terminal();
-	bool good;
-
-    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
-    real_function_3d phisq=phi*phi;
+    test_output t1(std::string("testing hartree_product for dimension "+std::to_string(NDIM)));
+//    t1.set_cout_to_terminal();
+    constexpr std::size_t LDIM=NDIM/2;
+    static_assert(LDIM*2==NDIM);
+    double loose=1.1*std::pow(2.0,1.5*LDIM);
+    print("loosening factor",loose);
+    FunctionDefaults<NDIM>::set_tensor_type(TT_2D);
+    FunctionDefaults<LDIM>::set_tensor_type(TT_FULL);
 
     {
-        real_function_6d ij=hartree_product(phi,phi);
-        ij.print_size("ij before truncation");
+        Function<T,LDIM> phi=FunctionFactory<T,LDIM>(world).f([](const Vector<double,LDIM>& r) {return exp(-inner(r,r));});
+        auto reference=[](const Vector<double,NDIM>& r) {return exp(-inner(r,r));};
+
+        Function<T,NDIM> ij=hartree_product(phi,phi);
+        double err1=ij.err(reference);
         ij.truncate();
-        ij.print_size("ij after truncation");
-
-        double norm=ij.norm2();
-        double err=ij.err(gauss_6d);
-        print("norm(ij), error, thresh",norm, err, thresh);
-
-        good=is_small(err,thresh*2.5);
-        output.checkpoint(good, "hartree_product(phi,phi)");
-
+        double err2=ij.err(reference);
+        print("err1, err2",err1,err2);
+        t1.checkpoint(is_small(err2,thresh*loose),"hartree_product(gauss,gauss) error:");
     }
 
     {
-        real_function_6d iij=hartree_product(phisq,phi);
-        iij.print_size("iij before truncation");
-        double norm=iij.norm2();
-        double err=iij.err(r2r);
-        print("norm(iij), error, thresh",norm, err, thresh);
-        good=is_small(err,thresh*2.0);
-        output.checkpoint(good, "hartree_product(phi^2,phi)");
+        Function<T,LDIM> phi=FunctionFactory<T,LDIM>(world).f([](const Vector<double,LDIM>& r) {return exp(-sqrt(inner(r,r)+1.e-1));});
+        Function<T,NDIM> ij=hartree_product(phi,phi);
+        auto reference=[](const Vector<double,NDIM>& r) {
+            double r1=0.0, r2=0.0;
+           	for (std::size_t i=0; i<LDIM; ++i) {
+                 r1+=r[i]*r[i];
+                 r2+=r[i+LDIM]*r[i+LDIM];
+            }
+            return exp(-sqrt(r1+1.e-1)-sqrt(r2+1.e-1));
+        };
+        double err=ij.err(reference);
+        print("err",err);
+        t1.checkpoint(is_small(err,thresh*loose*3.0),"hartree_product(slater,slater) error:");
     }
 
 	print("all done\n");
-    return  (output.get_final_success()) ? 0 : 1;
+    return t1.end();
 }
 
 /// test f(1,2)*g(1)
@@ -499,7 +505,7 @@ int test_convolution(World& world, const long& k, const double thresh) {
     	print("<phi | H | phi>: ",KE + PE);
 
 
-    	phi=green(-2.0*vphi);
+    	phi=green(-2.0*vphi).truncate();
     	double norm=phi.norm2();
     	phi.scale(1.0/norm);
     	print("phi.norm2()",norm);
@@ -643,6 +649,100 @@ int test(World& world, const long& k, const double thresh) {
     return nerror;
 }
 
+template<typename T, std::size_t NDIM>
+int test_vector_composite(World& world, const long& k, const double thresh) {
+	constexpr std::size_t LDIM=NDIM/2;
+	MADNESS_CHECK(NDIM==2*LDIM);
+
+	FunctionDefaults<NDIM>::set_tensor_type(TT_2D);
+
+	test_output t1("test_vector_composite for dimension "+std::to_string(NDIM));
+//	t1.set_cout_to_terminal();
+
+	Function<T,LDIM> l1_func=FunctionFactory<T,LDIM>(world).f([](const Vector<double,LDIM>& r) {return exp(-inner(r,r));});
+	Function<T,LDIM> l2_func=FunctionFactory<T,LDIM>(world).f([](const Vector<double,LDIM>& r) {return exp(-2.0*inner(r,r));});
+	Function<T,NDIM> h1_func=FunctionFactory<T,NDIM>(world).f([](const Vector<double,NDIM>& r) {return exp(-inner(r,r));});
+	Function<T,NDIM> h2_func=FunctionFactory<T,NDIM>(world).f([](const Vector<double,NDIM>& r) {return exp(-2.0*inner(r,r));});
+	Function<T,NDIM> h12_func=FunctionFactory<T,NDIM>(world).f([](const Vector<double,NDIM>& r) {return exp(-inner(r,r)) + exp(-2.0*inner(r,r));});
+    Function<T,NDIM> h1_eri_func=FunctionFactory<T,NDIM>(world).f([](const Vector<double,NDIM>& r) {
+        Vector<double,LDIM> r1, r2;
+        for (std::size_t i=0; i<LDIM; ++i) {
+             r1[i]=r[i];
+             r2[i]=r[i+LDIM];
+        }
+        return exp(-inner(r1,r1) - inner(r2,r2)- (r1-r2).normf());
+    }).thresh(thresh*0.01); // high accuracy for the reference number
+
+    Function<T,NDIM> eri=FunctionFactory<T,NDIM>(world).is_on_demand().f([](const Vector<double,NDIM>& r) {
+        Vector<double,LDIM> r1, r2;
+        for (std::size_t i=0; i<LDIM; ++i) {
+            r1[i]=r[i];
+            r2[i]=r[i+LDIM];
+        }
+        return exp(- (r1-r2).normf());
+    });
+
+    // the analytical norm of a 1D Gauss functions with f(x) = exp(-alpha x^2) : ||f(x)||_2= (pi/(2 alpha))^1/4
+    double nh_analytical=std::pow(M_PI/2.0,0.25*NDIM);
+    double nl=l1_func.norm2();
+    double nh=h1_func.norm2();
+    print("l1/h1_func.norm2(),n_analytical",nl,nh,nh_analytical);
+	/// test construction with a single pair of functions
+	{
+		Function<T,NDIM> h1_1=CompositeFactory<T,NDIM,LDIM>(world) .ket(h1_func);
+		Function<T,NDIM> h1_2=CompositeFactory<T,NDIM,LDIM>(world).particle1(l1_func).particle2(l1_func);
+		h1_1.fill_tree();
+		h1_2.fill_tree();
+		double n1=h1_1.norm2();
+		double n2=h1_2.norm2();
+        print("n1, n2, nh", n1, n2, nh);
+		t1.checkpoint(std::abs(n1-nh)<thresh,"construction with a single pair -- direct");
+		t1.checkpoint(std::abs(n2-nh)<thresh,"construction with a single pair -- direct");
+		t1.checkpoint(std::abs(n1-n2)<thresh,"construction with a single pair -- consistent");
+	}
+
+    /// test construction with a single pair of functions and eri
+    {
+        Function<T,NDIM> h1_1=CompositeFactory<T,NDIM,LDIM>(world).ket(h1_func).g12(eri);
+        Function<T,NDIM> h1_2=CompositeFactory<T,NDIM,LDIM>(world).g12(eri).particle1(l1_func).particle2(l1_func);
+        h1_1.fill_cuspy_tree();
+        h1_2.fill_cuspy_tree();
+        double n1=h1_1.norm2();
+        double n2=h1_2.norm2();
+        double n3=h1_eri_func.norm2();
+        print("n1, n2, nh", n1, n2, n3);
+        t1.checkpoint(std::abs(n1-n3)<thresh*30,"construction with a single pair and eri -- direct REDUCED ACC");
+        t1.checkpoint(std::abs(n2-n3)<thresh*30,"construction with a single pair and eri -- direct REDUCED ACC");
+        t1.checkpoint(std::abs(n1-n2)<thresh*30,"construction with a single pair and eri -- consistent REDUCED ACC");
+    }
+
+	/// test construction with a vector of functions:
+	{
+		Function<T,NDIM> h1_1=CompositeFactory<T,NDIM,LDIM>(world).ket(h12_func);   // reference
+		Function<T,NDIM> h1_2=CompositeFactory<T,NDIM,LDIM>(world).particle1({l1_func,l2_func}).particle2({l1_func,l2_func});
+		Function<T,NDIM> h1_3=CompositeFactory<T,NDIM,LDIM>(world).ket({h1_func,h2_func});
+		h1_1.fill_tree();
+		h1_2.fill_tree();
+		h1_3.fill_tree();
+		double n1=h1_1.norm2();
+		double n2=(h1_2).norm2();
+		double n3=(h1_3).norm2();
+		h1_2+=h1_3;
+		double n12=(h1_2).norm2();
+		print("n1, n2, n3, n12", n1, n2, n3, n12);
+		t1.checkpoint(std::abs(n1-n2)<thresh,"construction with a vector of functions -- particles");
+        t1.checkpoint(std::abs(n1-n3)<thresh,"construction with a vector of functions -- ket");
+        t1.checkpoint(std::abs(n2-n3)<thresh,"construction with a vector of functions -- consistent");
+	}
+
+    Function<T,NDIM> h1_1=CompositeFactory<T,NDIM,LDIM>(world) .ket(copy(h1_func));
+
+
+
+
+	return t1.end();
+}
+
 
 int main(int argc, char**argv) {
 
@@ -653,9 +753,9 @@ int main(int argc, char**argv) {
     startup(world,argc,argv);
 
     // the parameters
-    long k=5;
-    double thresh=1.e-3;
-    double L=16;
+    long k=7;
+    double thresh=1.e-5;
+    double L=40;
     TensorType tt=TT_2D;
 
     // override the default parameters
@@ -682,7 +782,19 @@ int main(int argc, char**argv) {
         }
     }
 
-    FunctionDefaults<3>::set_thresh(thresh*0.1);
+    FunctionDefaults<1>::set_thresh(thresh);
+    FunctionDefaults<2>::set_thresh(thresh);
+    FunctionDefaults<3>::set_thresh(thresh);
+    FunctionDefaults<4>::set_thresh(thresh);
+
+    FunctionDefaults<1>::set_cubic_cell(-L/2,L/2);
+    FunctionDefaults<2>::set_cubic_cell(-L/2,L/2);
+    FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
+    FunctionDefaults<4>::set_cubic_cell(-L/2,L/2);
+    FunctionDefaults<5>::set_cubic_cell(-L/2,L/2);
+    FunctionDefaults<6>::set_cubic_cell(-L/2,L/2);
+
+    FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
     FunctionDefaults<6>::set_thresh(thresh);
@@ -701,23 +813,22 @@ int main(int argc, char**argv) {
 
     int error=0;
 
-    {
-        real_function_3d phi=real_factory_3d(world).f(gauss_3d);
-        double norm=phi.norm2();
-        if (world.rank()==0) printf("phi.norm2()   %12.8f\n",norm);
+    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
+    double norm=phi.norm2();
+    if (world.rank()==0) printf("phi.norm2()   %12.8f\n",norm);
 
-        real_function_3d phi2=2.0*phi*phi;
-        norm=phi2.norm2();
-        if (world.rank()==0) printf("phi2.norm2()  %12.8f\n",norm);
+    real_function_3d phi2=2.0*phi*phi;
+    norm=phi2.norm2();
+    if (world.rank()==0) printf("phi2.norm2()  %12.8f\n",norm);
 
-//    test(world,k,thresh);
-        error+=test_hartree_product(world,k,thresh);
-//    error+=test_convolution(world,k,thresh);
-//    error+=test_multiply(world,k,thresh);
-//    error+=test_add(world,k,thresh);
-//    error+=test_exchange(world,k,thresh);
-//    error+=test_inner(world,k,thresh);
-//    error+=test_replicate(world,k,thresh);
+    test(world,k,thresh);
+    error+=test_hartree_product(world,k,thresh);
+    error+=test_convolution(world,k,thresh);
+    error+=test_multiply(world,k,thresh);
+    error+=test_add(world,k,thresh);
+    error+=test_exchange(world,k,thresh);
+    error+=test_inner(world,k,thresh);
+    error+=test_replicate(world,k,thresh);
 
         print(ok(error==0),error,"finished test suite\n");
         world.gop.fence();

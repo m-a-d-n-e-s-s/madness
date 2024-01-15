@@ -127,7 +127,9 @@ add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "madness/chem/")
   endif ()
 
 # Add executables
-add_mad_executable(plotxc "plotxc.cc;xcfunctional.h" "MADchem")
+if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
+  add_mad_executable(plotxc "plotxc.cc;xcfunctional.h" "MADchem")
+endif()
 
 # Install files
 install(FILES sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess structure_library
@@ -140,7 +142,7 @@ if(BUILD_TESTING)
   SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
   # The list of unit test source files
   set(CHEM_TEST_SOURCES_SHORT test_pointgroupsymmetry.cc test_masks_and_boxes.cc
-  test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc)
+  test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc test_projector.cc)
   set(CHEM_TEST_SOURCES_LONG test_localizer.cc test_ccpairfunction.cc test_low_rank_function.cc)
   if (LIBXC_FOUND)
     list(APPEND CHEM_TEST_SOURCES_SHORT test_dft.cc )
@@ -150,10 +152,12 @@ if(BUILD_TESTING)
   add_unittests(chem "${CHEM_TEST_SOURCES_SHORT}" "MADchem;MADgtest" "unittests;short")
   add_unittests(chem "${CHEM_TEST_SOURCES_LONG}" "MADchem;MADgtest" "unittests;long")
 
-  # Create other test executables not included in the unit tests
-  set(CHEM_OTHER_TESTS testxc benchmark_exchange_operator)
-  foreach(_test ${CHEM_OTHER_TESTS})  
-    add_mad_executable(${_test} "${_test}.cc" "MADchem")
-  endforeach()
-  
+  # Create other test executables not included in the unit tests ... consider these executables (unlike unit tests)
+  if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
+    set(CHEM_OTHER_TESTS testxc benchmark_exchange_operator)
+    foreach(_test ${CHEM_OTHER_TESTS})
+      add_mad_executable(${_test} "${_test}.cc" "MADchem")
+    endforeach()
+  endif()
+
 endif()

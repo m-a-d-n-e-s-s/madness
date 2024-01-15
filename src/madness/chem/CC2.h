@@ -62,6 +62,8 @@ public:
 
     }
 
+    virtual ~CC2() {}
+
 
     double value() {
         return value(nemo->molecule().get_all_coords());

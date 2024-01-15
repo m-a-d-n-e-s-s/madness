@@ -34,7 +34,7 @@ CC2::solve() {
     // doubles for ground state
     Pairs<CCPair> mp2pairs, cc2pairs;
     // singles for ground state
-    CC_vecfunction cc2singles;
+    CC_vecfunction cc2singles(PARTICLE);
 
     double mp2_energy=0.0, cc2_energy=0.0, mp3_energy=0.0;
 
@@ -44,7 +44,8 @@ CC2::solve() {
 
     // check for restart data for CC2, otherwise use MP2 as guess
     if (need_cc2) {
-        bool found_cc2d = initialize_pairs(cc2pairs, GROUND_STATE, CT_CC2, cc2singles, CC_vecfunction(RESPONSE));
+        Pairs<CCPair> dummypairs;
+        bool found_cc2d = initialize_pairs(dummypairs, GROUND_STATE, CT_CC2, cc2singles, CC_vecfunction(RESPONSE));
         if (not found_cc2d) need_mp2=true;
     }
 
@@ -64,9 +65,10 @@ CC2::solve() {
         }
         output_calc_info_schema("mp2",mp2_energy);
         output.section(assign_name(CT_MP2) + " Calculation Ended !");
-        if (world.rank() == 0)
+        if (world.rank() == 0) {
             printf_msg_energy_time("MP2 correlation energy",mp2_energy,wall_time());
 //            std::cout << std::fixed << std::setprecision(10) << " MP2 Correlation Energy =" << mp2_energy << "\n";
+	}
     }
 
     if (need_cc2) {
@@ -87,11 +89,11 @@ CC2::solve() {
         cc2_energy = solve_cc2(cc2singles, cc2pairs);
 
         output.section(assign_name(CT_CC2) + " Calculation Ended !");
-        if (world.rank() == 0)
+        if (world.rank() == 0) {
             printf_msg_energy_time("CC2 correlation energy",cc2_energy,wall_time());
 //            std::cout << std::fixed << std::setprecision(10) << " MP2 Correlation Energy =" << mp2_energy << "\n";
             std::cout << std::fixed << std::setprecision(10) << " CC2 Correlation Energy =" << cc2_energy << "\n";
-
+        }
     }
 
     if (ctype == CT_LRCCS) {

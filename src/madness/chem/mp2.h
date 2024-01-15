@@ -96,6 +96,8 @@ public:
             world(world), nemo_ptr(nemo), coords_sum(-1.0) {
     }
 
+    World& get_world() {return world;} // just to silence compiler about unused private variable
+
     bool provides_gradient() const { return true; }
 
     double value() {

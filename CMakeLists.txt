@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.11.0)
+cmake_minimum_required (VERSION 3.12.0)  # for FindPython
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
@@ -66,24 +66,26 @@ set(CMAKE_CXX_EXTENSIONS OFF CACHE BOOL "Whether to use extensions of C++ ISO St
 add_options(CXX ALL_BUILDS ${CMAKE_CXX${CMAKE_CXX_STANDARD}_STANDARD_COMPILE_OPTION})
 
 # Set install paths ============================================================
-
-set(MADNESS_INSTALL_BINDIR "bin" 
-    CACHE PATH "MADNESS binary install directory")
-set(MADNESS_INSTALL_INCLUDEDIR "include" 
+include(GNUInstallDirs)
+set(MADNESS_INSTALL_BINDIR "${CMAKE_INSTALL_BINDIR}"
+    CACHE PATH "MADNESS BIN install directory")
+set(MADNESS_INSTALL_INCLUDEDIR "${CMAKE_INSTALL_INCLUDEDIR}"
     CACHE PATH "MADNESS INCLUDE install directory")
-set(MADNESS_INSTALL_LIBDIR "lib"
+set(MADNESS_INSTALL_LIBDIR "${CMAKE_INSTALL_LIBDIR}"
     CACHE PATH "MADNESS LIB install directory")
-set(MADNESS_INSTALL_DATADIR "share/madness/${MADNESS_VERSION}/data"
+set(MADNESS_INSTALL_DATADIR "${CMAKE_INSTALL_DATAROOTDIR}/madness/${MADNESS_VERSION}/data"
     CACHE PATH "MADNESS DATA install directory")
-# TODO this matches Automake value, should be adjusted to the convention: share/madness/${MADNESS_VERSION}/doc
-set(MADNESS_INSTALL_DOCDIR "share/doc/madness"
+set(MADNESS_INSTALL_DOCDIR "${CMAKE_INSTALL_DATAROOTDIR}/madness/${MADNESS_VERSION}/doc"
     CACHE PATH "MADNESS DOC install directory")
-set(MADNESS_INSTALL_CMAKEDIR "lib/cmake/madness"
+set(MADNESS_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/madness"
     CACHE PATH "MADNESS CMAKE install directory")
 
 # Build options  ==============================================================
 
-redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (excluding BLAS/LAPACK interfaces)" OFF)
+redefaultable_option(MADNESS_BUILD_LIBRARIES_ONLY "Build only MADNESS libraries" OFF)
+if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
+  redefaultable_option(MADNESS_BUILD_MADWORLD_ONLY "Build only MADWorld runtime (excluding BLAS/LAPACK interfaces)" OFF)
+endif()
 redefaultable_option(MADNESS_ENABLE_CEREAL "Support use of Cereal archives as backends for MADNESS serialization" OFF)
 
 # Enable optional libraries ====================================================
@@ -226,8 +228,7 @@ add_feature_info(DQ_PREBUF ENABLE_DQ_PREBUF
 set(MADNESS_DQ_USE_PREBUF ${ENABLE_DQ_PREBUF} CACHE BOOL
     "Enables thread-local buffer for task aggregation to reduce lock contention")
 
-set(MADNESS_DQ_PREBUF_SIZE 20 CACHE STRING "Numberof entries in the thread-pool prebuffer for task aggregation to reduce lock contention")
-#set(MADNESS_DQ_PREBUF_SZ ${MADNESS_DQ_PREBUF_SIZE} CACHE STRING "Numberof entries in the thread-pool prebuffer for task aggregation to reduce lock contention")
+set(MADNESS_DQ_PREBUF_SIZE 20 CACHE STRING "Number of entries in the thread-pool prebuffer for task aggregation to reduce lock contention")
 
 option(ENABLE_BSEND_ACKS 
     "Use MPI Send instead of MPI Bsend for huge message acknowledgements" ON)
@@ -246,6 +247,12 @@ option(ENABLE_TASK_DEBUG_TRACE
 add_feature_info(TASK_DEBUG_TRACE ENABLE_TASK_DEBUG_TRACE "supports debug trace of task engine")
 set(MADNESS_TASK_DEBUG_TRACE ${ENABLE_TASK_DEBUG_TRACE} CACHE BOOL
         "Enable task debug tracing.")
+
+option(ENABLE_WORLDOBJECT_FUTURE_TRACE
+        "Enable tracing of futures assicuated with WorldObjects." OFF)
+add_feature_info(WORLDOBJECT_FUTURE_TRACE ENABLE_WORLDOBJECT_FUTURE_TRACE "supports tracing of futures associated with WorldObjects")
+set(MADNESS_WORLDOBJECT_FUTURE_TRACE ${ENABLE_WORLDOBJECT_FUTURE_TRACE} CACHE BOOL
+        "Enable tracing of futures assicuated with WorldObjects.")
 
 set(FORTRAN_INTEGER_SIZE 4 CACHE STRING "The fortran integer size (4 or 8 bytes) used for BLAS and LAPACK function calls")
 if(NOT (FORTRAN_INTEGER_SIZE EQUAL 4 OR FORTRAN_INTEGER_SIZE EQUAL 8))
@@ -640,11 +647,11 @@ include(external/gperftools.cmake)
 include(external/tbb.cmake)
 include(external/parsec.cmake)
 include(external/boost.cmake)
-if (NOT MADNESS_BUILD_MADWORLD_ONLY)
+if (NOT MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_LIBRARIES_ONLY)
   include(external/lapack.cmake)
   include(external/libxc.cmake)
   include(external/pcm.cmake)
-endif (NOT MADNESS_BUILD_MADWORLD_ONLY)
+endif ()
 
 if (DEFINED ELEMENTAL_TAG)
   include(external/elemental.cmake)
@@ -656,7 +663,7 @@ endif (DEFINED ELEMENTAL_TAG)
 add_custom_target(everything)
 add_dependencies(everything madness)
 
-if(NOT MADNESS_BUILD_MADWORLD_ONLY AND LAPACK_FOUND)
+if(NOT (MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_LIBRARIES_ONLY) AND LAPACK_FOUND)
 	add_custom_target_subproject(madness numerical-examples)
 	add_custom_target_subproject(madness applications)
 endif()
@@ -727,13 +734,6 @@ install(FILES
         "${PROJECT_SOURCE_DIR}/cmake/modules/FindTBB.cmake"
         DESTINATION "${MADNESS_INSTALL_CMAKEDIR}/modules"
         COMPONENT madness-config)
-
-# sample CMakeLists.txt
-configure_file(
-  ${PROJECT_SOURCE_DIR}/doc/devsamp/CMakeLists.txt.sample.in
-  ${PROJECT_BINARY_DIR}/doc/devsamp/CMakeLists.txt.sample
-  @ONLY
-)
 
 # Create the version file
 write_basic_package_version_file(madness-config-version.cmake

@@ -82,10 +82,9 @@ if (WORLD_GET_DEFAULT_DISABLED)
   target_compile_definitions(${targetname} PUBLIC -DMADNESS_DISABLE_WORLD_GET_DEFAULT=1)
 endif (WORLD_GET_DEFAULT_DISABLED)
 
-# recent PaRSEC does export its targets
-#if (TARGET PaRSEC::parsec)
-#  add_subproject_parsec_target_to_export_set("madness" "world")
-#endif()
+# record the list of dependencies to be used in madness-config.cmake
+get_target_property(MADNESS_MADWORLD_INTERFACE_LINK_LIBRARIES MADworld INTERFACE_LINK_LIBRARIES)
+set(MADNESS_MADWORLD_INTERFACE_LINK_LIBRARIES "${MADNESS_MADWORLD_INTERFACE_LINK_LIBRARIES}" CACHE INTERNAL "public library dependencies of MADworld" FORCE)
 
 if(BUILD_TESTING)
 

@@ -320,12 +320,17 @@ public:
 template<typename T, std::size_t NDIM, std::size_t MDIM>
 class CompositeFactory : public FunctionFactory<T, NDIM> {
 public:
-    std::shared_ptr<FunctionImpl<T, NDIM> > _ket;            ///< supposedly a 6D pair function ket
+    typedef std::shared_ptr<FunctionImpl<T, MDIM>> implT_ptr_lodim;
+    typedef std::shared_ptr<FunctionImpl<T, NDIM>> implT_ptr_hidim;
+//      std::vector<implT_ptr_lodim> _particle1;
+//      std::vector<implT_ptr_lodim> _particle2;
+    std::vector<implT_ptr_hidim> _ket;
+//    std::shared_ptr<FunctionImpl<T, NDIM> > _ket;            ///< supposedly a 6D pair function ket
     std::shared_ptr<FunctionImpl<T, NDIM> > _g12;            ///< supposedly a interaction potential
     std::shared_ptr<FunctionImpl<T, MDIM> > _v1;             ///< supposedly a potential for particle 1
     std::shared_ptr<FunctionImpl<T, MDIM> > _v2;             ///< supposedly a potential for particle 2
-    std::shared_ptr<FunctionImpl<T, MDIM> > _particle1;      ///< supposedly particle 1
-    std::shared_ptr<FunctionImpl<T, MDIM> > _particle2;      ///< supposedly particle 2
+    std::vector<std::shared_ptr<FunctionImpl<T, MDIM> >> _particle1;      ///< supposedly particle 1
+    std::vector<std::shared_ptr<FunctionImpl<T, MDIM> >> _particle2;      ///< supposedly particle 2
 
 private:
     std::shared_ptr<CompositeFunctorInterface<T, NDIM, MDIM> > _func;
@@ -336,15 +341,19 @@ public:
 
     CompositeFactory(World& world)
             : FunctionFactory<T, NDIM>(world), _ket(), _g12(), _v1(), _v2(), _particle1(), _particle2(), _func() {
-
         this->_tree_state = on_demand;
     }
 
     /// provide directly the NDIM (6D) pair function ket
     CompositeFactory&
-    //        ket(const std::shared_ptr<FunctionImpl<T, NDIM> >& f) {
     ket(const Function<T, NDIM>& f) {
-        _ket = f.get_impl();
+        _ket.push_back(f.get_impl());
+        return self();
+    }
+
+    CompositeFactory&
+    ket(const std::vector<Function<T, NDIM>>& vf) {
+        for (auto f: vf) _ket.push_back(f.get_impl());
         return self();
     }
 
@@ -373,7 +382,15 @@ public:
     /// direct product
     CompositeFactory&
     particle1(const Function<T, MDIM>& f) {
-        _particle1 = f.get_impl();
+        _particle1.push_back(f.get_impl());
+        return self();
+    }
+
+    /// provide particle 1, used with particle 2 to set up a pair function by
+    /// direct product
+    CompositeFactory&
+    particle1(const std::vector<Function<T, MDIM>>& vf) {
+        for (auto f: vf) _particle1.push_back(f.get_impl());
         return self();
     }
 
@@ -381,7 +398,15 @@ public:
     /// direct product
     CompositeFactory&
     particle2(const Function<T, MDIM>& f) {
-        _particle2 = f.get_impl();
+        _particle2.push_back(f.get_impl());
+        return self();
+    }
+
+    /// provide particle 2, used with particle 1 to set up a pair function by
+    /// direct product
+    CompositeFactory&
+    particle2(const std::vector<Function<T, MDIM>>& vf) {
+        for (auto f: vf) _particle2.push_back(f.get_impl());
         return self();
     }
 
