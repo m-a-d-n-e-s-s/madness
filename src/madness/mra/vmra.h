@@ -1124,7 +1124,8 @@ namespace madness {
         for (auto& r : result) r.set_impl(f, false);
 
         FunctionImpl<T,NDIM>* fimpl=f.get_impl().get();
-        fimpl->make_redundant(false);
+//        fimpl->make_redundant(false);
+        fimpl->change_tree_state(redundant,false);
         make_redundant(world,g,false);
         world.gop.fence();
 

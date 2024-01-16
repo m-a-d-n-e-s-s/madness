@@ -801,7 +801,6 @@ int main(int argc, char**argv) {
     FunctionDefaults<6>::set_k(k);
     FunctionDefaults<6>::set_cubic_cell(-L/2,L/2);
     FunctionDefaults<6>::set_tensor_type(tt);
-    FunctionDefaults<6>::set_truncate_mode(3);
 
     print("entering testsuite for 6-dimensional functions\n");
     print("k            ",k);
@@ -813,16 +812,10 @@ int main(int argc, char**argv) {
 
     int error=0;
 
-    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
-    double norm=phi.norm2();
-    if (world.rank()==0) printf("phi.norm2()   %12.8f\n",norm);
-
-    real_function_3d phi2=2.0*phi*phi;
-    norm=phi2.norm2();
-    if (world.rank()==0) printf("phi2.norm2()  %12.8f\n",norm);
-
-    test(world,k,thresh);
-    error+=test_hartree_product(world,k,thresh);
+	error+=test_vector_composite<double,2>(world,k,thresh);
+//    test(world,k,thresh);
+    error+=test_hartree_product<double,2>(world,k,thresh);
+    error+=test_hartree_product<double,4>(world,k,thresh);
     error+=test_convolution(world,k,thresh);
     error+=test_multiply(world,k,thresh);
     error+=test_add(world,k,thresh);
@@ -832,8 +825,6 @@ int main(int argc, char**argv) {
 
         print(ok(error==0),error,"finished test suite\n");
         world.gop.fence();
-    }
-
     finalize();
 
     return error;

@@ -1952,7 +1952,7 @@ namespace madness {
         double end=wall_time();
         double elapsed=end-begin;
         set_tree_state(nonstandard_after_apply);
-        if (fence) world.gop.fence();
+        world.gop.fence();
         return elapsed;
     }
 
