@@ -189,13 +189,20 @@ extern "C"
                 real4* work,  integer* lwork, integer* info,
                 char_len jobzlen, char_len uplo_len);
 
-// extern "C"
-//     void dggev_(const char* jobz, const char* uplo, integer *n,
-//                 real8* a, integer* lda, real8* b, integer* ldb,
-//                 real8* alphar, real8* alphai, real8* beta, 
-//                 real8* vl, integer* ldvl, real8* vr, integer* ldvr,
-//                 real8* work,  integer* lwork, integer* info,
-//                 char_len jobzlen, char_len uplo_len);
+extern "C"
+     void dggev_(const char* jobl, const char* jobr, integer *n,
+		 real8 *a, integer *lda, real8 *b, integer *ldb,
+		 real8 *w_real, real8 *w_imag, real8 *beta,
+		 real8 *vl, integer *ldvl, real8 *vr, integer *ldvr,
+		 real8 *work,  integer *lwork, integer *info,
+		 char_len jobzlen, char_len uplo_len);
+
+  //  void dggev_(const char* jobz, const char* uplo, integer *n,
+  //                real8* a, integer* lda, real8* b, integer* ldb,
+  //                real8* alphar, real8* alphai, real8* beta, 
+  //                real8* vl, integer* ldvl, real8* vr, integer* ldvr,
+  //                real8* work,  integer* lwork, integer* info,
+  //                char_len jobzlen, char_len uplo_len);
 
 extern "C"
     void cggev_(const char* jobz, const char* uplo, integer *n,

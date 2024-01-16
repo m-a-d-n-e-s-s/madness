@@ -210,6 +210,8 @@ public:
 
     TDHF(World &world, const commandlineparser &parser, std::shared_ptr<Nemo> nemo);
 
+    virtual ~TDHF() {}
+
     void initialize();
 
     std::string name() const {return "TDHF";};

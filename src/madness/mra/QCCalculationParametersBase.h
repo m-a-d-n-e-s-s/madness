@@ -8,18 +8,18 @@
 #ifndef SRC_APPS_CHEM_QCCALCULATIONPARAMETERSBASE_H_
 #define SRC_APPS_CHEM_QCCALCULATIONPARAMETERSBASE_H_
 
-#include<string>
+#include <string>
 #include <algorithm>
-#include<iomanip>
+#include <iomanip>
 #include <typeindex>
 #include <map>
 #include <fstream>
 #include <typeinfo>
 #include "madness/misc/misc.h"
-#include "archive.h"
-#include "world.h"
-#include"commandlineparser.h"
-#include"madness/external/nlohmann_json/json.hpp"
+#include "madness/world/archive.h"
+#include "madness/world/world.h"
+#include "madness/mra/commandlineparser.h"
+#include "madness/external/nlohmann_json/json.hpp"
 
 
 namespace madness {

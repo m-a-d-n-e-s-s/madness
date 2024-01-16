@@ -165,52 +165,58 @@ namespace madness {
 
 	public:
 		/// various MRA functions of NDIM dimensionality
-		std::shared_ptr<implT> impl_ket;	///< supposedly the pair function
+		std::vector<std::shared_ptr<implT>> impl_ket_vector;	///< supposedly the pair function
 		std::shared_ptr<implT> impl_eri;	///< supposedly 1/r12
 
 		/// various MRA functions of MDIM dimensionality (e.g. 3, if NDIM==6)
 		std::shared_ptr<implL> impl_m1;	///< supposedly 1/r1
 		std::shared_ptr<implL> impl_m2;	///< supposedly 1/r2
-		std::shared_ptr<implL> impl_p1;	///< supposedly orbital 1
-		std::shared_ptr<implL> impl_p2;	///< supposedly orbital 2
+		std::vector<std::shared_ptr<implL>> impl_p1_vector;	///< supposedly orbital 1
+		std::vector<std::shared_ptr<implL>> impl_p2_vector;	///< supposedly orbital 2
 
 	public:
 
 		/// constructor takes its Factory
-		CompositeFunctorInterface(World& world, pimplT ket, pimplT g12,
-				pimplL v1, pimplL v2, pimplL p1, pimplL p2)
-			: world(world), impl_ket(ket), impl_eri(g12)
-			, impl_m1(v1), impl_m2(v2), impl_p1(p1), impl_p2(p2)
+		CompositeFunctorInterface(World& world, std::vector<pimplT> ket, pimplT g12,
+				pimplL v1, pimplL v2, std::vector<pimplL> p1, std::vector<pimplL> p2)
+			: world(world), impl_ket_vector(ket), impl_eri(g12)
+			, impl_m1(v1), impl_m2(v2), impl_p1_vector(p1), impl_p2_vector(p2)
 		{
 
 			// some consistency checks
 			// either a pair ket is provided, or two particles (tba)
-			MADNESS_ASSERT(impl_ket or (impl_p1 and impl_p2));
+            MADNESS_CHECK_THROW(impl_p1_vector.size()==impl_p2_vector.size(), "CompositeFunctorInterface: p1 and p2 must have the same size");
+			MADNESS_CHECK_THROW(impl_ket_vector.size()>0 or (impl_p1_vector.size()>0),"CompositeFunctorInterface: either ket or p1 must be provided");
 
 		}
 
 		void make_redundant(const bool fence) {
 			// prepare base functions that make this function
-			if (impl_ket and (not impl_ket->is_on_demand())) impl_ket->make_redundant(false);
+            for (auto& k : impl_ket_vector) if (k and (not k->is_on_demand())) k->change_tree_state(redundant,false);
 			if (impl_eri) {
-				if (not impl_eri->is_on_demand()) impl_eri->make_redundant(false);
+				if (not impl_eri->is_on_demand()) impl_eri->change_tree_state(redundant,false);
 			}
-			if (impl_m1 and (not impl_m1->is_on_demand())) impl_m1->make_redundant(false);
-			if (impl_m2 and (not impl_m2->is_on_demand())) impl_m2->make_redundant(false);
+			if (impl_m1 and (not impl_m1->is_on_demand())) impl_m1->change_tree_state(redundant,false);
+			if (impl_m2 and (not impl_m2->is_on_demand())) impl_m2->change_tree_state(redundant,false);
 
-			if (impl_p1 and (not impl_p1->is_on_demand())) impl_p1->make_redundant(false);
-			if (impl_p2 and (not impl_p2->is_on_demand())) impl_p2->make_redundant(false);
+            for (auto& k : impl_p1_vector) if (k and (not k->is_on_demand())) k->change_tree_state(redundant,false);
+            for (auto& k : impl_p2_vector) if (k and (not k->is_on_demand())) k->change_tree_state(redundant,false);
+//			if (impl_p1 and (not impl_p1->is_on_demand())) impl_p1->make_redundant(false);
+//			if (impl_p2 and (not impl_p2->is_on_demand())) impl_p2->make_redundant(false);
 			if (fence) world.gop.fence();
 		}
 
 		/// return true if all constituent functions are in redundant tree state
 		bool check_redundant() const {
-			if (impl_ket and (not impl_ket->is_redundant())) return false;
+            for (auto& k : impl_ket_vector) if (k and (not k->is_redundant())) return false;
+//			if (impl_ket and (not impl_ket->is_redundant())) return false;
 			if (impl_eri) MADNESS_ASSERT(impl_eri->is_on_demand());
 			if (impl_m1 and (not impl_m1->is_redundant())) return false;
 			if (impl_m2 and (not impl_m2->is_redundant())) return false;
-			if (impl_p1 and (not impl_p1->is_redundant())) return false;
-			if (impl_p2 and (not impl_p2->is_redundant())) return false;
+            for (auto& k : impl_p1_vector) if (k and (not k->is_redundant())) return false;
+            for (auto& k : impl_p2_vector) if (k and (not k->is_redundant())) return false;
+//            if (impl_p1 and (not impl_p1->is_redundant())) return false;
+//			if (impl_p2 and (not impl_p2->is_redundant())) return false;
 			return true;
 		}
 

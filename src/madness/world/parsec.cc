@@ -135,11 +135,18 @@ namespace madness {
         return PARSEC_SUCCESS;
     }
 
-    static int parsec_madness_taskpool_leave_wait(parsec_taskpool_t* tp, void*_)
+    static int parsec_madness_taskpool_leave_wait(parsec_taskpool_t* tp, void*_b)
     {
         assert(tp != NULL);
         assert(NULL != tp->tdm.module);
-        (void)_;
+
+        bool restart = *(bool*)_b;
+
+        if(!restart) {
+            /* This is the final taskpool_wait: we don't want to restart the termination
+             * detection and re-attach to the context. */
+            return PARSEC_SUCCESS;
+        }
 
         /* Reset termination detector, so we can start adding tasks again */
         tp->tdm.module->monitor_taskpool(tp, parsec_taskpool_termination_detected);
@@ -156,6 +163,7 @@ namespace madness {
     parsec_context_t *ParsecRuntime::ctx = nullptr;
     std::optional<bool> ParsecRuntime::made_new_ctx{};
     parsec_execution_stream_t *ParsecRuntime::madness_comm_thread_es = nullptr;
+    bool ParsecRuntime::parsec_restart_taskpool = true;
 #ifdef PARSEC_PROF_TRACE
     int ParsecRuntime::taskpool_profiling_array[2];
 #endif
@@ -173,6 +181,8 @@ namespace madness {
         else {
           made_new_ctx = false;
         }
+        parsec_restart_taskpool = true;
+
         tp = PARSEC_OBJ_NEW(parsec_taskpool_t);
         tp->taskpool_name = strdup("MADNESS taskpool");
         tp->devices_index_mask = PARSEC_DEVICES_ALL;
@@ -181,6 +191,7 @@ namespace madness {
         tp->update_nb_runtime_task = madness_parsec_update_runtime_nb_tasks;
         tp->on_enter_wait = parsec_madness_taskpool_enter_wait;
         tp->on_leave_wait = parsec_madness_taskpool_leave_wait;
+        tp->on_leave_wait_data = &parsec_restart_taskpool;
 
         parsec_termdet_open_module(tp, (char*)"local");
         tp->tdm.module->monitor_taskpool(tp, parsec_taskpool_termination_detected);
@@ -208,18 +219,20 @@ namespace madness {
 
 
     ParsecRuntime::~ParsecRuntime() {
-        parsec_context_wait(ctx);
+        parsec_restart_taskpool = false;
+        parsec_taskpool_wait(tp);
         parsec_taskpool_free(tp);
         assert(made_new_ctx.has_value());
         if (*made_new_ctx) {
+            parsec_context_wait(ctx);
             parsec_fini(&ctx);
-            if (nullptr != madness_comm_thread_es) {
+            ctx = nullptr;
+        }
+        if (nullptr != madness_comm_thread_es) {
               /* madness_comm_thread_es is just a copy of ES[0]. Resources (including es->profiling_es) are
              * actually freed during parsec_fini. Just need to free memory allocated to store it. */
               free(madness_comm_thread_es);
               madness_comm_thread_es = nullptr;
-            }
-            ctx = nullptr;
         }
     }
 

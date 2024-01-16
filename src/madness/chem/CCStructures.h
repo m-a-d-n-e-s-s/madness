@@ -138,7 +138,7 @@ struct CCMessenger {
 
 /// Timer Structure
 struct CCTimer {
-    /// TDA_TIMER contructor
+    /// TDA_TIMER constructor
     /// @param[in] world the world
     /// @param[in] msg	a string that contains the desired printout when info function is called
     CCTimer(World& world, std::string msg) : world(world), start_wall(wall_time()), start_cpu(cpu_time()),
@@ -600,7 +600,7 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
 
         ar & type & omega & current_error & delta & irrep ;
         if (ar.is_input_archive) {
-            std::size_t size;
+	    std::size_t size=0; // set to zero to silence compiler warning
             ar & size;
             CC_functionvec tmp(size);
 

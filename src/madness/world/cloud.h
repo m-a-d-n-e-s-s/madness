@@ -325,9 +325,9 @@ private:
     template<typename T> using is_world_constructible = std::is_constructible<T, World &>;
 
     struct cloudtimer {
+        World& world;
         double cpu0;
         std::atomic<long> &rtime;
-        World& world;
 
         cloudtimer(World& world, std::atomic<long> &readtime) : world(world), cpu0(cpu_time()), rtime(readtime) {}
 

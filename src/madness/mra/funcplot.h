@@ -952,30 +952,67 @@ void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfuncti
         fprintf(file,"%d %12.8f %12.8f %12.8f \n",int(molecular_info.size()),
                 cell(0,0),cell(1,0),cell(2,0));
 
+        // grid spacing for each dimension such that the cell edges are plotted
+        const auto xdelta = xlen/(npt[0]-1);
+        const auto ydelta = ylen/(npt[1]-1);
+        const auto zdelta = zlen/(npt[2]-1);
+
         // print the cell constants
-        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[0],xlen/npt[0],0.0,0.0);
-        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[1],0.0,ylen/npt[1],0.0);
-        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[2],0.0,0.0,zlen/npt[2]);
+        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[0],xdelta,0.0,0.0);
+        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[1],0.0,ydelta,0.0);
+        fprintf(file,"%d %12.6f %12.6f %12.6f\n",npt[2],0.0,0.0,zdelta);
 
         // print the molecule
         for (const std::string& s : molecular_info) fprintf(file,"%s",s.c_str());
 
 
-        Tensor<double>grid(npt[0],npt[1],npt[2]);
-        for (int i=0;i<npt[0];++i) {
-            for (int j=0;j<npt[1];++j) {
-                for (int k=0;k<npt[2];++k) {
-                    double x=cell(0,0)+origin[0]+xlen/npt[0]*i;
-                    double y=cell(1,0)+origin[1]+ylen/npt[1]*j;
-                    double z=cell(2,0)+origin[2]+zlen/npt[2]*k;
-                    fprintf(file,"%12.8f",f(x,y,z));
-                }
-            }
-            fprintf(file,"\n");
-        }
-        fclose(file);
+         Tensor<double> grid(npt[0], npt[1], npt[2]);
+         long count_per_line = 0;
+         for (int i = 0; i < npt[0]; ++i) {
+             for (int j = 0; j < npt[1]; ++j) {
+                 for (int k = 0; k < npt[2]; ++k) {
+                     double x = cell(0, 0) + origin[0] + xdelta * i;
+                     double y = cell(1, 0) + origin[1] + ydelta * j;
+                     double z = cell(2, 0) + origin[2] + zdelta * k;
+                     // the original format has up to 6 entries per line: https://paulbourke.net/dataformats/cube/
+                     // stick with this, even though many codes can read an arbitrary number of entries per line
+                     if (count_per_line < 6) {
+                        fprintf(file, "%12.5e ", f(x, y, z));
+                        count_per_line++;
+                     } else {
+                        fprintf(file, "%12.5e\n", f(x, y, z));
+                        count_per_line = 0;
+                     }
+                 }
+             }
+         }
+         fprintf(file, "\n");
+         fclose(file);
+     }
 
-    }
+     template<size_t NDIM>
+     typename std::enable_if<NDIM==3,void>::type
+     print_tree_jsonfile(World& world, const Function<double,NDIM>& f, std::string filename) {
+
+         if (world.size() > 1)
+             return;
+
+         Tensor<double> cell = copy(FunctionDefaults<3>::get_cell());
+         std::ofstream os(filename.c_str());
+
+         os << "{";
+         os << "\"cell\":[";
+         for (int xyz = 0; xyz != 3; ++xyz) {
+             os << "[" << cell(xyz, 0) << "," << cell(xyz, 1) << "]";
+             if (xyz != 2)
+                 os << ",";
+         }
+         os << "],";
+
+         os << "\"tree\":{";
+         f.print_tree_json(os);
+         os << "}}";
+     }
 
     /// convenience to get plot_plane and plot_cubefile
     template<size_t NDIM>

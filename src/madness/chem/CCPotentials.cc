@@ -2460,7 +2460,7 @@ CCPotentials::K_macrotask(World& world, const std::vector<real_function_3d>& mo_
 madness::real_function_3d
 CCPotentials::K(const CCFunction& f) const {
     real_function_3d result = real_factory_3d(world);
-    for (const auto k_iterator : mo_ket_.functions) {
+    for (const auto& k_iterator : mo_ket_.functions) {
         result += g12(mo_bra_(k_iterator.first), f) * mo_ket_(k_iterator.first).function;
     }
     return result;
@@ -2649,9 +2649,9 @@ CCPotentials::x_s3a(const CC_vecfunction& x, const CC_vecfunction& t) const {
     vector_real_function_3d Ut = Uop(t.get_vecfunction());
     const double nuc = inner(world, x.get_vecfunction(), Ut).sum();
     double pot = 0.0;
-    for (const auto itmp : x.functions) {
+    for (const auto& itmp : x.functions) {
         const size_t i = itmp.first;
-        for (const auto ktmp : mo_ket_.functions) {
+        for (const auto& ktmp : mo_ket_.functions) {
             // unfrozen summation !!!!!! important !!!!
             const size_t k = ktmp.first;
             const double gpart = make_xy_op_ab(x(i), mo_bra_(k), g12, t(i), mo_ket_(k));
@@ -2679,9 +2679,9 @@ double
 CCPotentials::x_s3c(const CC_vecfunction& x, const CC_vecfunction& t) const {
     MADNESS_ASSERT(x.size() == t.size());
     double result = 0.0;
-    for (const auto itmp : x.functions) {
+    for (const auto& itmp : x.functions) {
         const size_t i = itmp.first;
-        for (const auto ktmp : t.functions) {
+        for (const auto& ktmp : t.functions) {
             const size_t k = ktmp.first;
             result += (2.0 * make_xy_op_ab(x(i), mo_bra_(k), g12, mo_ket_(i), t(k)) -
                        make_xy_op_ab(x(i), mo_bra_(k), g12, t(k), mo_ket_(i)));
@@ -2695,9 +2695,9 @@ CCPotentials::x_s5b(const CC_vecfunction& x, const CC_vecfunction& t1, const CC_
     MADNESS_ASSERT(x.size() == t1.size());
     MADNESS_ASSERT(t1.size() == t2.size());
     double result = 0.0;
-    for (const auto itmp : x.functions) {
+    for (const auto& itmp : x.functions) {
         const size_t i = itmp.first;
-        for (const auto ktmp : t1.functions) {
+        for (const auto& ktmp : t1.functions) {
             const size_t k = ktmp.first;
             result += (2.0 * make_xy_op_ab(x(i), mo_bra_(k), g12, t1(i), t2(k)) -
                        make_xy_op_ab(x(i), mo_bra_(k), g12, t2(k), t1(i)));
@@ -2711,11 +2711,11 @@ CCPotentials::x_s5c(const CC_vecfunction& x, const CC_vecfunction& t1, const CC_
     MADNESS_ASSERT(x.size() == t1.size());
     MADNESS_ASSERT(t1.size() == t2.size());
     double result = 0.0;
-    for (const auto itmp : x.functions) {
+    for (const auto& itmp : x.functions) {
         const size_t i = itmp.first;
-        for (const auto ktmp : t1.functions) {
+        for (const auto& ktmp : t1.functions) {
             const size_t k = ktmp.first;
-            for (const auto ltmp : t2.functions) {
+            for (const auto& ltmp : t2.functions) {
                 const size_t l = ltmp.first;
                 result += (2.0 * make_xy_op_ab(mo_bra_(l), mo_bra_(k), g12, mo_ket_(i), t1(k)) -
                            make_xy_op_ab(mo_bra_(l), mo_bra_(k), g12, t1(k), mo_ket_(i))) *
@@ -2732,11 +2732,11 @@ CCPotentials::x_s6(const CC_vecfunction& x, const CC_vecfunction& t1, const CC_v
     MADNESS_ASSERT(x.size() == t1.size());
     MADNESS_ASSERT(t1.size() == t2.size());
     double result = 0.0;
-    for (const auto itmp : x.functions) {
+    for (const auto& itmp : x.functions) {
         const size_t i = itmp.first;
-        for (const auto ktmp : t1.functions) {
+        for (const auto& ktmp : t1.functions) {
             const size_t k = ktmp.first;
-            for (const auto ltmp : t2.functions) {
+            for (const auto& ltmp : t2.functions) {
                 const size_t l = ltmp.first;
                 result += (2.0 * make_xy_op_ab(mo_bra_(l), mo_bra_(k), g12, t3(i), t1(k)) -
                            make_xy_op_ab(mo_bra_(l), mo_bra_(k), g12, t1(k), t3(i))) *
@@ -2750,9 +2750,9 @@ CCPotentials::x_s6(const CC_vecfunction& x, const CC_vecfunction& t1, const CC_v
 double
 CCPotentials::x_s2b(const CC_vecfunction& x, const Pairs<CCPair>& u) const {
     double result = 0.0;
-    for (const auto itmp : x.functions) {
+    for (const auto& itmp : x.functions) {
         const size_t i = itmp.first;
-        for (const auto ktmp : x.functions) {
+        for (const auto& ktmp : x.functions) {
             const size_t k = ktmp.first;
             result += (2.0 * make_xy_op_u(x(i), mo_bra_(k), g12, get_pair_function(u, i, k)) -
                        make_xy_op_u(mo_bra_(k), x(i), g12, get_pair_function(u, i, k)));
@@ -2764,12 +2764,12 @@ CCPotentials::x_s2b(const CC_vecfunction& x, const Pairs<CCPair>& u) const {
 double
 CCPotentials::x_s2c(const CC_vecfunction& x, const Pairs<CCPair>& u) const {
     double result = 0.0;
-    for (const auto itmp : x.functions) {
+    for (const auto& itmp : x.functions) {
         const size_t i = itmp.first;
-        for (const auto ktmp : x.functions) {
+        for (const auto& ktmp : x.functions) {
             const size_t k = ktmp.first;
             const real_function_3d kgi = g12(mo_bra_(k), mo_ket_(i));
-            for (const auto ltmp : x.functions) {
+            for (const auto& ltmp : x.functions) {
                 const size_t l = ltmp.first;
                 real_function_3d l_kgi = (mo_bra_(l).function * kgi).truncate();
                 result += 2.0 * make_xy_u(x(i), l_kgi, get_pair_function(u, k, l)) -
@@ -2784,11 +2784,11 @@ double
 CCPotentials::x_s4a(const CC_vecfunction& x, const CC_vecfunction& t, const Pairs<CCPair>& u) const {
     double result = 0.0;
     MADNESS_ASSERT(x.size() == t.size());
-    for (const auto itmp : x.functions) {
+    for (const auto& itmp : x.functions) {
         const size_t i = itmp.first;
-        for (const auto ktmp : x.functions) {
+        for (const auto& ktmp : x.functions) {
             const size_t k = ktmp.first;
-            for (const auto ltmp : x.functions) {
+            for (const auto& ltmp : x.functions) {
                 const size_t l = ltmp.first;
                 result += (2.0 * make_xy_op_u(mo_bra_(l), mo_bra_(k), g12, get_pair_function(u, i, k)) -
                            make_xy_op_u(mo_bra_(k), mo_bra_(l), g12, get_pair_function(u, i, k))) *
@@ -2803,12 +2803,12 @@ double
 CCPotentials::x_s4b(const CC_vecfunction& x, const CC_vecfunction& t, const Pairs<CCPair>& u) const {
     double result = 0.0;
     MADNESS_ASSERT(x.size() == t.size());
-    for (const auto itmp : x.functions) {
+    for (const auto& itmp : x.functions) {
         const size_t i = itmp.first;
-        for (const auto ktmp : x.functions) {
+        for (const auto& ktmp : x.functions) {
             const size_t k = ktmp.first;
             const real_function_3d kgti = g12(mo_bra_(k), t(i));
-            for (const auto ltmp : x.functions) {
+            for (const auto& ltmp : x.functions) {
                 const size_t l = ltmp.first;
                 real_function_3d l_kgti = (mo_bra_(l).function * kgti).truncate();
                 result += 2.0 * make_xy_u(x(i), l_kgti, get_pair_function(u, k, l)) -
@@ -2823,12 +2823,12 @@ double
 CCPotentials::x_s4c(const CC_vecfunction& x, const CC_vecfunction& t, const Pairs<CCPair>& u) const {
     double result = 0.0;
     MADNESS_ASSERT(x.size() == t.size());
-    for (const auto itmp : x.functions) {
+    for (const auto& itmp : x.functions) {
         const size_t i = itmp.first;
-        for (const auto ktmp : x.functions) {
+        for (const auto& ktmp : x.functions) {
             const size_t k = ktmp.first;
             const real_function_3d kgtk = g12(mo_bra_(k), t(k));
-            for (const auto ltmp : x.functions) {
+            for (const auto& ltmp : x.functions) {
                 const size_t l = ltmp.first;
                 const real_function_3d lgtk = g12(mo_bra_(l), t(k));
                 const real_function_3d k_lgtk = (mo_bra_(k).function * lgtk).truncate();
@@ -3049,7 +3049,7 @@ CC_vecfunction CCPotentials::make_t_intermediate(const CC_vecfunction& tau, cons
     }
 
     CC_vecfunction result(returntype);
-    for (const auto itmp:tau.functions) {
+    for (const auto& itmp:tau.functions) {
         const size_t i = itmp.first;
         CCFunction t(mo_ket_(i).function + factor * tau(i).function, i, MIXED);
         result.insert(i, t);

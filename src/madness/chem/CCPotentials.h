@@ -102,7 +102,7 @@ public:
     /// get the corresponding mo bra vectors to a ket vector
     vector_real_function_3d get_mo_bra(const CC_vecfunction& ket) const {
         vector_real_function_3d result;
-        for (const auto ktmp:ket.functions) {
+        for (const auto& ktmp:ket.functions) {
             result.push_back(mo_bra_(ktmp.first).function);
         }
         return result;
