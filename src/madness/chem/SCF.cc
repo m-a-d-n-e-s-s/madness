@@ -386,10 +386,10 @@ void SCF::load_mos(World& world) {
       repeat for beta if !spinrestricted
      */
     // Local copies for a basic check
-    double L;
-    int k1;                    // Ignored for restarting, used in response only
+    double L=0;
+    int k1=0;                    // Ignored for restarting, used in response only
     unsigned int version = 4;// UPDATE THIS IF YOU CHANGE ANYTHING
-    unsigned int archive_version;
+    unsigned int archive_version=0;
 
     ar & archive_version;
 
@@ -1309,25 +1309,25 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
     exc = 0.0;
     enl = 0.0;
 
-    // compute the local DFT potential for the MOs
-    if (xc.is_dft() && !(xc.hf_exchange_coefficient() == 1.0)) {
-        START_TIMER(world);
-
-        XCOperator<double, 3> xcoperator(world, this, ispin, param.dft_deriv());
-        if (ispin == 0) exc = xcoperator.compute_xc_energy();
-        vloc += xcoperator.make_xc_potential();
-
-        END_TIMER(world, "DFT potential");
-    }
-
-    vloc.truncate();
-
     vecfuncT Vpsi;
     print_meminfo(world.rank(), "V*psi");
     if (xc.hf_exchange_coefficient()) {
         START_TIMER(world);
         //            vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
-        Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin);
+        Exchange<double, 3> K(world, this, ispin);
+	if (param.hfexalg()=="multiworld") {
+	  //if (world.rank() == 0) print("selecting exchange multi world");
+	  K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient);
+	}
+	else if (param.hfexalg()=="largemem") {
+	  //if (world.rank() == 0) print("selecting exchange large memory");
+	  K.set_algorithm(Exchange<double,3>::Algorithm::large_memory);
+	}
+	else if (param.hfexalg()=="smallmem") {
+	  //if (world.rank() == 0) print("selecting exchange small memory");
+	  K.set_algorithm(Exchange<double,3>::Algorithm::small_memory);
+	}
+	
         K.set_symmetric(true).set_printlevel(param.print_level());
         vecfuncT Kamo = K(amo);
         tensorT excv = inner(world, Kamo, amo);
@@ -1341,16 +1341,34 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         END_TIMER(world, "HF exchange");
         exc = exchf * xc.hf_exchange_coefficient() + exc;
     }
-    // need to come back to this for psp - when is this used?
-    if (molecule.parameters.pure_ae()) {
-        potentialmanager->apply_nonlocal_potential(world, amo, Vpsi);
+    else {
+      Vpsi = zero_functions<double,3>(world, amo.size());	  
     }
+
+    // compute the local DFT potential for the MOs
+    if (xc.is_dft() && !(xc.hf_exchange_coefficient() == 1.0)) { //??RJH?? Won't this incorrectly exclude hybrid DFT with coeff=1.0?
+        START_TIMER(world);
+
+        XCOperator<double, 3> xcoperator(world, this, ispin, param.dft_deriv());
+        if (ispin == 0) exc = xcoperator.compute_xc_energy();
+        vloc += xcoperator.make_xc_potential();
+
+        END_TIMER(world, "DFT potential");
+    }
+
+    vloc.truncate();
+    
+    // need to come back to this for psp - when is this used?
+    // RJH commented this out since it seems to never do anything useful ... if pure all-electron there is not a non-local part
+    // if (molecule.parameters.pure_ae()) {
+    //     potentialmanager->apply_nonlocal_potential(world, amo, Vpsi);
+    // }
 
     START_TIMER(world);
     if (!molecule.parameters.pure_ae()) {
-        Vpsi += gthpseudopotential->apply_potential(world, vloc, amo, occ, enl);
+        gaxpy(world, 1.0, Vpsi, 1.0, gthpseudopotential->apply_potential(world, vloc, amo, occ, enl));
     } else {
-        Vpsi += mul_sparse(world, vloc, amo, vtol);
+        gaxpy(world, 1.0, Vpsi, 1.0, mul_sparse(world, vloc, amo, vtol));
     }
 
     END_TIMER(world, "V*psi");

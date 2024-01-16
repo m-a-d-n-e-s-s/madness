@@ -132,8 +132,8 @@ public:
 class Batch {
 public:
     friend class MacroTaskPartitioner;
-    Batch_1D result;
     std::vector<Batch_1D> input;
+    Batch_1D result;
 
     Batch() {}
     Batch(const Batch& other) {
@@ -199,6 +199,8 @@ public:
     std::size_t dimension = 1;              ///< partition one or two vectors
 
     MacroTaskPartitioner() {}
+
+    virtual ~MacroTaskPartitioner() {}
 
     MacroTaskPartitioner& set_nsubworld(const long& n) {
         nsubworld=n;

@@ -71,7 +71,7 @@ public:
 class ProjRLMFunctor : public FunctionFunctorInterface<double,3> {
 private:
     double alpha; // radius
-    int l, m, i; // i = 1,2,3 and m = 0,1,2,3 and l = 0,1,2,3 (angular momentum)
+    int l, m; // i = 1,2,3 and m = 0,1,2,3 and l = 0,1,2,3 (angular momentum) (i just used in constructor)
     coord_3d center;
     std::vector<coord_3d> specialpts;
     // gamma of half-integers starting and 1 (which means 1/2)
@@ -88,7 +88,7 @@ public:
     static const double gamma_data[17];
     
     ProjRLMFunctor(double alpha, int l, int m, int i, const coord_3d& center) 
-     : alpha(alpha), l(l), m(m), i(i), center(center) {
+     : alpha(alpha), l(l), m(m), center(center) {
         specialpts.push_back(coord_3d(0.0));
         sqrtPI = std::sqrt(constants::pi);
         itmp = 2*l + (4*i-1);
@@ -361,10 +361,20 @@ public:
      : maxL(radii.dim(0)), radii(radii), center(center) {}
   
     real_function_3d nlmproj(World& world, int l, int m, int i) {
-        real_function_3d f1 = (m < 2*l+1) ?
-           real_factory_3d(world).functor(real_functor_3d(new ProjRLMFunctor(radii(l), l, m, i, center))).
-               truncate_on_project().nofence().truncate_mode(0) : real_factory_3d(world);
-        return f1;
+      // real_function_3d f1 = (m < 2*l+1) ?
+      // 	real_factory_3d(world).functor(real_functor_3d(new ProjRLMFunctor(radii(l), l, m, i, center))).
+      // 	truncate_on_project().nofence().truncate_mode(0) : real_factory_3d(world);
+
+      real_function_3d f1;
+      if (m < 2*l+1) {
+	auto functor = real_functor_3d(new ProjRLMFunctor(radii(l), l, m, i, center));
+	f1 = real_factory_3d(world).functor(functor).truncate_on_project().nofence().truncate_mode(0);
+      }
+      else {
+	f1 = real_factory_3d(world);
+      }
+	
+      return f1;
     }
 
     ProjRLMFunctor nlmproj_functor(World& world, int l, int m, int i) {

@@ -186,15 +186,8 @@ namespace madness {
         Function<T,NDIM>
         operator()(const functionT& f, bool fence=true) const {
             if (VERIFY_TREE) f.verify_tree();
-
-            if (f.is_compressed()) {
-                if (fence) {
-                    f.reconstruct();
-                }
-                else {
-                    MADNESS_EXCEPTION("diff: trying to diff a compressed function without fencing",0);
-                }
-            }
+            if (fence) f.change_tree_state(reconstructed);
+            MADNESS_CHECK_THROW(f.is_reconstructed(),"diff: trying to diff a compressed function without fencing");
 
             functionT df;
             df.set_impl(f,false);

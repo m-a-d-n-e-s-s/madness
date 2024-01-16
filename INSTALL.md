@@ -104,6 +104,9 @@ The following CMake cache variables turn features on and off.
       otherwise the default is OFF.
 * MADNESS_BUILD_MADWORLD_ONLY --- whether to build the MADNESS runtime only; if `ON`, discovery of BLAS/LAPACK
       and building of numerical components and applications will be disabled [default=`OFF`]
+* MADNESS_BUILD_LIBRARIES_ONLY --- whether to build the MADNESS libraries only; if `ON`,
+      building of numerical components and applications will be disabled and
+      the value of `MADNESS_BUILD_MADWORLD_ONLY` ignored [default=`OFF`]
 
 ## External libraries
 

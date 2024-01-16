@@ -7,10 +7,10 @@
 #include <madness/mra/nonlinsol.h>
 #include <madness/chem/atomutil.h>
 
-using namespace madness;
+using namespace madness; 
 
-static const double Z = 10.0;      // nuclear charge
-static const double L = 40.0/Z;    // [-L,L] box size so exp(-Zr)=1e-16 padded a bit since we are masking
+static const double Z = 80.0;      // nuclear charge
+static const double L = 40.0/Z;    // L=40/Z [-L,L] box size so exp(-Zr)=1e-16 padded a bit since we are masking
 static const long k = 8;           // wavelet order
 static const double thresh = 1e-6; // precision
 static const double c = 137.035999679; // speed of light
@@ -98,14 +98,33 @@ struct allocator {
     }
 };
 
+double exact_energy(double Z) {
+    if (Z<=10) {
+        double a2 = Z*Z/(c*c);
+        double a4 = a2*a2;
+        double a6 = a4*a2;
+        double a8 = a4*a4;
+        return Z*Z*(-1.0/2.0 - 1.0/8.0*a2 - 1/16*a4 - 5.0/128.0*a6 - 7.0/256.0*a8);
+    }
+    double Za = Z/c;
+    double s = Za / sqrt(1.0 - Za*Za);
+    return c*c/std::sqrt(1.0 + s*s) - c*c;
+}
+
 static double psi_guess(const coord_3d& r) {
     double R = std::sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
-    return std::pow(R+rcut,v)*exp(-Z*R)/sqrt(constants::pi/(Z*Z*Z)); // note +rcut in singular part to smooth on nuclear scale
+    const double expnt = std::sqrt(-2*exact_energy(Z)*(1+exact_energy(Z)/(2*c*c)));
+    return std::pow(R+rcut,v)*exp(-expnt*R)/sqrt(constants::pi/(expnt*expnt*expnt)); // note +rcut in singular part to smooth on nuclear scale
+    //const double expnt = Z*0.5;
+    //return exp(-expnt*R)/sqrt(constants::pi/(expnt*expnt*expnt)); // note +rcut in singular part to smooth on nuclear scale
 }
 
 static double phi_guess(const coord_3d& r) {
     double R = std::sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
-    return exp(-Z*R)/sqrt(constants::pi/(Z*Z*Z));
+    const double expnt = std::sqrt(-2*exact_energy(Z)*(1+exact_energy(Z)/(2*c*c)));
+    return exp(-expnt*R)/sqrt(constants::pi/(expnt*expnt*expnt));
+    // const double expnt = Z;
+    // return exp(-expnt*R)/sqrt(constants::pi/(expnt*expnt*expnt)); // note +rcut in singular part to smooth on nuclear scale
 }
 
 static double V(const coord_3d& r) {
@@ -179,7 +198,8 @@ std::tuple<double,double,double,double> compute_energy(World& world,
 
 // (T-E) phi = -V psi + E(psi-phi)
 // and with s=1+E/2mc^2
-// (T-E) (psi-s*phi) = - pVp phi - E(psi-s*phi)
+// T (psi-s*phi) = - pVp phi/4mc^2
+// BAD!! (T-E) (psi-s*phi) = - pVp phi - E(psi-s*phi)
 template <typename solverT>
 std::tuple<real_function_3d, real_function_3d, double> iterate(World& world,
                                                                const real_function_3d& V,
@@ -191,16 +211,17 @@ std::tuple<real_function_3d, real_function_3d, double> iterate(World& world,
                                                                const int iter,
                                                                solverT& solver)
 {
+    real_convolution_3d coulop = CoulombOperator(world, rcut*0.1, thresh);
     real_convolution_3d op = BSHOperator3D(world, sqrt(-2*energy), rcut*0.1, thresh);
     real_function_3d rhs = -2*(psi*V - energy*(psi-phi));
     rhs.truncate();
     real_function_3d phi_new = apply(op,rhs);
 
     double s = 1.0 + energy/(2*c*c);
-    rhs = -2*(pVp(world,V,gradV,phi) + energy*(psi-s*phi));
-    //rhs = -2*(pVp(world,V,phi) + energy*(psi-s*phi));
+    //rhs = -2*(pVp(world,V,gradV,phi) + energy*(psi-s*phi));
+    rhs = -(2/(4*constants::pi))*pVp(world,V,phi);
     rhs.truncate();
-    real_function_3d psimphi_new = apply(op,rhs);
+    real_function_3d psimphi_new = apply(coulop,rhs);
     real_function_3d psi_new = s*phi_new + psimphi_new;
 
     psi_new.truncate();
@@ -209,16 +230,19 @@ std::tuple<real_function_3d, real_function_3d, double> iterate(World& world,
     psi_new = psi_new * mask;
     phi_new = phi_new * mask;
     
+    double rnormL = (psi_new-psi).norm2();
+    double rnormP = (phi_new-phi).norm2();
+    if (world.rank() == 0) print(rnormL, rnormP);
     double rnorm = (psi_new-psi).norm2() + (phi_new-phi).norm2();
 
     // Comment out next 5 lines to not use the solver (i.e., to just do fixed-point iteration)
-    // if (iter>5) {
-    //     F f = solver.update(F(psi,phi), F(psi_new-psi, phi_new-phi));
-    //     psi_new = f.psi;
-    //     phi_new = f.phi;
-    //     psi_new.truncate();
-    //     phi_new.truncate();
-    // }
+    if (iter>1) {
+        F f = solver.update(F(psi,phi), F(psi_new-psi, phi_new-phi));
+        psi_new = f.psi;
+        phi_new = f.phi;
+        psi_new.truncate();
+        phi_new.truncate();
+    }
 
     double stepnorm = (psi_new-psi).norm2() + (phi_new-phi).norm2();
     double maxstep = 1e-1;
@@ -234,19 +258,6 @@ std::tuple<real_function_3d, real_function_3d, double> iterate(World& world,
     phi_new *= 1.0/sqrt(norm);
     
     return {psi_new, phi_new, rnorm};
-}
-
-double exact_energy(double Z) {
-    if (Z<=10) {
-        double a2 = Z*Z/(c*c);
-        double a4 = a2*a2;
-        double a6 = a4*a2;
-        double a8 = a4*a4;
-        return Z*Z*(-1.0/2.0 - 1.0/8.0*a2 - 1/16*a4 - 5.0/128.0*a6 - 7.0/256.0*a8);
-    }
-    double Za = Z/c;
-    double s = Za / sqrt(1.0 - Za*Za);
-    return c*c/std::sqrt(1.0 + s*s) - c*c;
 }
 
 void run(World& world) {
@@ -283,7 +294,7 @@ void run(World& world) {
         gradV[axis] = real_factory_3d(world).functor(p).truncate_mode(0);
     }
 
-    
+
     coord_3d lo = {0.0,0.0,-L}, hi = {0.0,0.0,L};
     const int npt = 1001;
     
@@ -304,14 +315,15 @@ void run(World& world) {
     solver.set_maxsub(10);
     
     double energy = -0.5*Z*Z; // NR energy guess
-    for (int iter=0; iter<100; iter++) {
+    for (int iter=0; iter<1000; iter++) {
         char fname[256];
         sprintf(fname,"psi-phi-%3.3d.dat", iter);
         plot_line(fname, npt, lo, hi, psi, phi);
         
         auto [psi_new, phi_new, rnorm] = iterate(world, Vnuc, gradV, mask, psi, phi, energy, iter, solver);
-        psi = psi_new*mask;
-        phi = phi_new*mask;
+        psi = psi_new;
+        phi = phi_new;
+
         auto psisize = psi.size();
         auto phisize = phi.size();
         auto phinorm = phi.norm2();
