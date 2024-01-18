@@ -59,18 +59,18 @@ struct data {
 
         f12=real_factory_6d(world);
         f23=real_factory_6d(world);
-        try {
-            load(f12,"test_ccpairfunction_f12");
-        } catch (...) {
+//        try {
+//            load(f12,"test_ccpairfunction_f12");
+//        } catch (...) {
             f12 = real_factory_6d(world).f(g);
-            save(f12,"test_ccpairfunction_f12");
-        }
-        try {
-            load(f23,"test_ccpairfunction_f23");
-        } catch (...) {
+//            save(f12,"test_ccpairfunction_f12");
+//        }
+//        try {
+//            load(f23,"test_ccpairfunction_f23");
+//        } catch (...) {
             f23 = real_factory_6d(world).f(g23);
-            save(f23,"test_ccpairfunction_f23");
-        }
+//            save(f23,"test_ccpairfunction_f23");
+//        }
 
     }
     void clear() {
@@ -1084,6 +1084,8 @@ int main(int argc, char **argv) {
     madness::World& world = madness::initialize(argc, argv);
     startup(world, argc, argv);
     commandlineparser parser(argc, argv);
+    FunctionDefaults<3>::set_k(5);
+    FunctionDefaults<6>::set_k(5);
     FunctionDefaults<6>::set_tensor_type(TT_2D);
     FunctionDefaults<3>::set_thresh(1.e-5);
     FunctionDefaults<3>::set_cubic_cell(-1.0,1.0);
@@ -1105,18 +1107,22 @@ int main(int argc, char **argv) {
         std::shared_ptr<NuclearCorrelationFactor> ncf = create_nuclear_correlation_factor(world,
                          mol, nullptr, std::make_pair("slater", 2.0));
 
-//        isuccess+=test_constructor(world, ncf, mol, ccparam);
-//        isuccess+=test_operator_apply(world, ncf, mol, ccparam);
-//        isuccess+=test_transformations(world, ncf, mol, ccparam);
-//        isuccess+=test_inner(world, ncf, mol, ccparam);
-//        isuccess+=test_multiply(world, ncf, mol, ccparam);
-//        isuccess+=test_multiply_with_f12(world, ncf, mol, ccparam);
-//        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
-//        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
-//        isuccess+=test_partial_inner_3d(world, ncf, mol, ccparam);
-//        isuccess+=test_partial_inner_6d(world, ncf, mol, ccparam);
-        isuccess+=test_apply(world, ncf, mol, ccparam);
-//        isuccess+=test_projector(world, ncf, mol, ccparam);
+        isuccess+=test_constructor(world, ncf, mol, ccparam);
+        isuccess+=test_operator_apply(world, ncf, mol, ccparam);
+        isuccess+=test_transformations(world, ncf, mol, ccparam);
+        isuccess+=test_inner(world, ncf, mol, ccparam);
+        isuccess+=test_multiply(world, ncf, mol, ccparam);
+        isuccess+=test_multiply_with_f12(world, ncf, mol, ccparam);
+        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
+        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
+        isuccess+=test_partial_inner_3d(world, ncf, mol, ccparam);
+        isuccess+=test_partial_inner_6d(world, ncf, mol, ccparam);
+        FunctionDefaults<3>::set_thresh(1.e-5);
+        FunctionDefaults<3>::set_cubic_cell(-10.,10.);
+        FunctionDefaults<6>::set_thresh(1.e-3);
+        FunctionDefaults<6>::set_cubic_cell(-10.,10.);
+//        isuccess+=test_apply(world, ncf, mol, ccparam);
+        isuccess+=test_projector(world, ncf, mol, ccparam);
 //        FunctionDefaults<3>::set_cubic_cell(-10,10);
 //        isuccess+=test_helium(world,ncf,mol,ccparam);
         data1.clear();
