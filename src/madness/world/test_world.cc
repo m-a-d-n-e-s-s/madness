@@ -505,9 +505,9 @@ void test6(World& world) {
       world.gop.fence();
 
 #ifdef MADNESS_WORLDOBJECT_FUTURE_TRACE
-      MADNESS_CHECK(a.trace_status_nfuture_registered() == a.trace_futures() ? nproc : 0);
+      MADNESS_CHECK(a.trace_status_nfuture_registered() == (a.trace_futures() ? nproc : 0));
       MADNESS_CHECK(decltype(a)::trace_status_nfuture_assigned(a.id()) ==
-                    decltype(a)::trace_futures(a.id()) ? nproc : 0);
+                    (decltype(a)::trace_futures(a.id()) ? nproc : 0));
 #endif
 
       // stress the large message protocol ... off by default

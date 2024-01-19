@@ -410,9 +410,9 @@ namespace madness {
                 // Send active message to children
                 if(child1 != -1) {
                     AmArg* const args1 = copy_am_arg(*args0);
-                    world_.am.send(child1, handler, args1);
+                    world_.am.send(child1, handler, args1, RMI::ATTR_UNORDERED);
                 }
-                world_.am.send(child0, handler, args0);
+                world_.am.send(child0, handler, args0, RMI::ATTR_UNORDERED);
             }
         }
 
@@ -445,9 +445,9 @@ namespace madness {
                 // Send active message to children
                 if(child1 != -1) {
                     AmArg* const args1 = copy_am_arg(*args0);
-                    world_.am.send(child1, handler, args1);
+                    world_.am.send(child1, handler, args1, RMI::ATTR_UNORDERED);
                 }
-                world_.am.send(child0, handler, args0);
+                world_.am.send(child0, handler, args0, RMI::ATTR_UNORDERED);
             }
         }
 
