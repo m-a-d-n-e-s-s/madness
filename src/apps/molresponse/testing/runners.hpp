@@ -1098,8 +1098,8 @@ void runQuadraticResponse(World &world, const frequencySchema &schema, const std
                         auto beta_abc = quad_calculation.compute_beta(world);
                         // print the beta values for the frequency combination
                         if (world.rank() == 0) {
-                            print("Beta values for omega_a = ", omega_a, " omega_b = ", omega_b, " omega_c = ",
-                                  omega_c);
+                            print("Beta values for omega_a = ", omega_a, " omega_b = ", omega_b,
+                                  " omega_c = ", omega_c);
                             print(beta_abc);
                         }
 
@@ -1156,6 +1156,151 @@ void runQuadraticResponse(World &world, const frequencySchema &schema, const std
         }
     }
 }
+
+/**
+ * Takes in a series of frequencies and runs a quadratic response calculations
+ * for given property at given frequencies.
+ *
+ * The frequencies are given in a vector of doubles
+ * For quadratic response the set of frequencies that a the first order response calculations have been run.
+ *
+ * The assumption is that response vectors are store in restart path.  If they aren't already then we need to
+ * run the first order responnse calculation with the mad-freq executable.  This would be equivalent to running
+ * the runFrequencyTests function.
+ *
+ * So the first step of this function is to check if the restart path exists for all frequencies.
+ * If it does, then we can run the quadratic response calculation. which does a double for loop through the frequencies
+ *
+ * Also, this function will save the quadratic response output to a json file formatted
+ *
+ * A-freq, B-freq, C-freq, A, B, C, , Beta(value)
+ *
+ * where A-freq, B-freq, C-freq are the frequencies used in the first order response calculations
+ * and A, B, C are the perturbation operator used in the quadratic response calculation
+ * and Beta is the value of the quadratic response calculation
+ *
+ * As an example, if A,B,C are dipole operators then this calculations gives the hyperpolarizability
+ *
+ *
+ *
+ *
+ * @param world
+ * @param moldft_path
+ * @param frequencies
+ * @param xc
+ * @param property
+ */
+void runPODResponse(World &world, const frequencySchema &schema, const std::string precision) {
+    std::filesystem::current_path(schema.moldft_path);
+
+    bool run_first_order = false;
+
+    // add a restart path
+    auto restart_path =
+            addPath(schema.moldft_path, "/" + schema.op + "_0-000000.00000/restart_" + schema.op + "_0-000000.00000");
+    try {
+        for (const auto &freq: schema.freq) {
+            std::filesystem::current_path(schema.moldft_path);
+            ResponseParameters r_params{};
+            auto save_path = set_frequency_path_and_restart(world, r_params, schema.op, freq, schema.xc,
+                                                            schema.moldft_path, restart_path, true);
+
+
+            if (std::filesystem::exists("response_base.json")) {
+                std::ifstream ifs("response_base.json");
+                json response_base;
+                ifs >> response_base;
+                if (response_base["converged"] && response_base["precision"]["dconv"] == r_params.dconv()) {
+                    { print("Response calculation already converged"); }
+                    continue;
+                } else {
+                    if (world.rank() == 0) { print("Response calculation not converged"); }
+                    run_first_order = true;
+                    break;
+                }
+            }
+            if (!std::filesystem::exists(save_path)) { throw Response_Convergence_Error{}; }
+        }
+        world.gop.fence();
+
+        if (world.rank() == 0) { print("Running quadratic response calculations"); }
+        std::filesystem::current_path(schema.moldft_path);
+        RHS_Generator rhs_generator;
+        if (schema.op == "dipole") {
+            rhs_generator = dipole_generator;
+        } else {
+            rhs_generator = nuclear_generator;
+        }
+        ResponseParameters quad_parameters{};
+        if (world.rank() == 0) { print("Set up rhs generator"); }
+
+        setHyperpolarizabilityParameters(world, quad_parameters, schema.op, schema.xc, schema.freq, std::string());
+        if (world.rank() == 0) { molresponse::write_response_input(quad_parameters, "quad.in"); }
+
+        //auto calc_params = initialize_calc_params(world, std::string("quad.in"));
+        commandlineparser parser;
+        std::string moldft_archive = "moldft.restartdata";
+        GroundStateCalculation ground_calculation{world, moldft_archive};
+        if (world.rank() == 0) { ground_calculation.print_params(); }
+        Molecule molecule = ground_calculation.molecule();
+        quad_parameters.set_ground_state_calculation_data(ground_calculation);
+        if (world.rank() == 0) { quad_parameters.print(); }
+
+        world.gop.fence();
+        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
+
+        nlohmann::ordered_json beta_json = create_beta_json();
+
+        PODResponse pod_calculation{
+                world,
+                {ground_calculation, molecule, quad_parameters},
+                rhs_generator,
+        };
+        //if beta.json exists remove it
+        if (std::filesystem::exists("beta.json")) { std::filesystem::remove("beta.json"); }
+
+
+        auto generate_omega_restart_path = [&](double frequency) {
+            // this is the path to the restart file for the linear response calculation
+            auto linear_response_calc_path =
+                    generate_response_frequency_run_path(schema.moldft_path, schema.op, frequency, schema.xc);
+            // this is the path to the restart file for the pod calculation
+            auto restart_file_and_path = generate_frequency_save_path(linear_response_calc_path);
+            return restart_file_and_path.first.replace_extension("");
+        };
+        // for each frequency in the frequency list
+        // generate the restart path for the linear response calculation
+        // generate the restart path for the pod calculation
+
+        auto frequencies = schema.freq;
+        auto num_freq = frequencies.size();
+
+        std::vector<path> restart_paths(num_freq);
+
+        std::for_each(frequencies.begin(), frequencies.end(), [&](double frequency) {
+            auto restart_file_and_path = generate_omega_restart_path(frequency);
+            restart_paths.push_back(restart_file_and_path);
+        });
+
+        pod_calculation.set_x_data(world, frequencies, restart_paths);
+
+        pod_calculation.compute_pod_modes(world);
+        // print the beta values for the frequency combination
+    } catch (Response_Convergence_Error &e) {
+        if (true) {
+            // if the first order response calculations haven't been run then run them
+            if (world.rank() == 0) { print("Running first order response calculations"); }
+
+            runFrequencyTests(world, schema, precision);
+        } else {
+            if (world.rank() == 0) {
+                print("First order response calculations haven't been run and can't be run");
+                print("Quadratic response calculations can't be run");
+            }
+        }
+    }
+}
+
 
 /**
  *
