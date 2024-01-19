@@ -15,6 +15,7 @@ set(MY_EXECUTABLES
         test_development
         x_space_testing
         mad-quadratic
+        pod_response
         )
 
 add_mad_executable(test_schema_json "madness_catch_main.cc;qcschema_json_testing.cpp" "MADresponse;MADchem")

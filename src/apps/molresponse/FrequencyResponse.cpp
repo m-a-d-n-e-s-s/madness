@@ -584,7 +584,6 @@ std::pair<X_space, X_space> QuadraticResponse::compute_first_order_fock_matrix_t
         FAXB.y[i] = copy(world, transform(world, B.y[i], fax_dagger, true), true);
         FBXA.x[i] = copy(world, transform(world, A.x[i], fbx, true), true);
         FBXA.y[i] = copy(world, transform(world, A.y[i], fb_dagger, true), true);
-
     }
 
     FAXB.truncate();
@@ -830,3 +829,59 @@ X_space QuadraticResponse::compute_exchange_term(World &world, const X_space &A,
 
 
 //
+void PODResponse::compute_pod_modes(World &world) {
+    //
+    // 1. Convert the x_data into a response matrix
+    // 2. Compute the SVD of the response matrix
+    // 3. Compute the POD modes
+
+
+    // num calculations
+    auto m = x_data.size();
+    auto n = x_data[0].first.num_orbitals();
+
+
+    auto all_chi = X_space(world, m, n);
+    if (world.rank() == 0) print("m: ", m);
+    if (world.rank() == 0) print("n: ", n);
+
+    for (auto i = 0; i < m; i++) {
+
+
+        // first step is to copy x_data_i into response_matrix_i
+        auto x_data_i = x_data[i].first;
+        for (auto j = 0; j < n; j++) {
+            auto index = i * 3 + j;
+            all_chi.x[index] = copy(world, x_data_i.x[j]);
+            all_chi.y[index] = copy(world, x_data_i.y[j]);
+        }
+    }
+
+    auto A = inner(all_chi, all_chi);
+
+    // A = U * diag(s) * VT    for A real
+    // A = U * diag(s) * VH    for A complex
+
+    Tensor<double> VT(m, m);
+    Tensor<double> U(m, m);
+    Tensor<double> sigma(4);
+    svd(A, U, sigma, VT);
+
+    // create a json printing out the singular values
+    json j = {};
+    j["sigma"] = tensor_to_json(sigma);
+    j["VT"] = tensor_to_json(VT);
+    j["U"] = tensor_to_json(U);
+    j["A"] = tensor_to_json(A);
+
+    if (world.rank() == 0) print("sigma: ", sigma);
+    if (world.rank() == 0) print("VT: ", VT);
+    if (world.rank() == 0) print("U: ", U);
+    if (world.rank() == 0) print("A: ", A);
+
+
+    if (world.rank() == 0) {
+        std::ofstream o("pod.json");
+        o << std::setw(4) << j << std::endl;
+    }
+}
