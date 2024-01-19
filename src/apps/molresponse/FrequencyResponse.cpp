@@ -885,3 +885,8 @@ void PODResponse::compute_pod_modes(World &world) {
         o << std::setw(4) << j << std::endl;
     }
 }
+void PODResponse::load(World &world, const std::string &name) {}
+void PODResponse::save(World &world, const std::string &name) {}
+
+void PODResponse::iterate(World &world) {}
+void PODResponse::initialize(World &world) {}

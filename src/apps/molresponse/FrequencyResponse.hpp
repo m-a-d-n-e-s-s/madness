@@ -396,7 +396,6 @@ private:
     std::vector<Context> frequency_contexts;
     std::vector<double> frequencies;
     std::vector<XData> x_data;
-    std::pair<X_space, X_space> setup_XBC(World &world);
     RHS_Generator generator;
 };
 
