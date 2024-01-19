@@ -1376,23 +1376,18 @@ namespace madness {
         TENSOR_RESULT_TYPE(T, R) inner_on_demand(const Function<R, NDIM>& g) const {
             MADNESS_ASSERT(g.is_on_demand() and (not this->is_on_demand()));
 
-          this->reconstruct();
-
-          // save for later, will be removed by make_Vphi
-          std::shared_ptr< FunctionFunctorInterface<T,NDIM> > func=g.get_impl()->get_functor();
-          //leaf_op<T,NDIM> fnode_is_leaf(this->get_impl().get());
-          Leaf_op_other<T,NDIM> fnode_is_leaf(this->get_impl().get());
-          g.get_impl()->make_Vphi(fnode_is_leaf,true);  // fence here
+            constexpr std::size_t LDIM=std::max(NDIM/2,std::size_t(1));
+            auto func=dynamic_cast<CompositeFunctorInterface<T,NDIM,LDIM>* >(g.get_impl()->get_functor().get());
+            MADNESS_ASSERT(func);
+            func->make_redundant(true);
+            func->replicate_low_dim_functions(true);
+            this->reconstruct();        // if this == &g we don't need g to be redundant
 
             if (VERIFY_TREE) verify_tree();
-          TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*g.get_impl());
+
+            TENSOR_RESULT_TYPE(T, R) local = impl->inner_local_on_demand(*g.get_impl());
             impl->world.gop.sum(local);
             impl->world.gop.fence();
-
-          // restore original state
-          g.get_impl()->set_functor(func);
-          g.get_impl()->get_coeffs().clear();
-        	g.get_impl()->set_tree_state(on_demand);
 
             return local;
         }
