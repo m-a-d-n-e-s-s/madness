@@ -1422,8 +1422,9 @@ namespace madness {
             return result;
         }
 
-        template<std::size_t LDIM>
-        Function<T,LDIM> dirac_convolution(const bool fence=true) const {
+        Function<T,NDIM/2> dirac_convolution(const bool fence=true) const {
+            constexpr std::size_t LDIM=NDIM/2;
+            MADNESS_CHECK_THROW(NDIM==2*LDIM,"NDIM must be even");
 //        	// this will be the result function
         	FunctionFactory<T,LDIM> factory=FunctionFactory<T,LDIM>(world()).k(this->k());
         	Function<T,LDIM> f = factory;

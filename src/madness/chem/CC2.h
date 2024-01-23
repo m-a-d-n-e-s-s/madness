@@ -420,8 +420,8 @@ public:
                                                      parameters.lo(), parameters.thresh_bsh_6D());
         Gscreen.modified() = true;
 
-        const CCFunction& moi = CCOPS.mo_ket(pair.i);
-        const CCFunction& moj = CCOPS.mo_ket(pair.j);
+        const CCFunction<double,3>& moi = CCOPS.mo_ket(pair.i);
+        const CCFunction<double,3>& moj = CCOPS.mo_ket(pair.j);
 
         pair.constant_part = CCOPS.make_constant_part_mp2(moi, moj, &Gscreen);
         save(pair.constant_part, pair.name() + "_const");

@@ -25,10 +25,13 @@ namespace madness {
         virtual std::string type() const = 0;
     };
 
+    template<typename T, std::size_t NDIM>
     struct CCPairFunction;
-    std::vector<CCPairFunction> apply(const ProjectorBase& P, const std::vector<CCPairFunction>& argument);
 
-/// simple projector class
+    template<typename T, std::size_t NDIM>
+    std::vector<CCPairFunction<T,NDIM>> apply(const ProjectorBase& P, const std::vector<CCPairFunction<T,NDIM>>& argument);
+
+    /// simple projector class
 
     /// use this class to project a function or a set of functions on
     /// another space of function. The projector can handle different sets of
@@ -181,7 +184,7 @@ namespace madness {
             return result;
         }
 
-        real_function_6d operator()(const real_function_6d& f, const size_t particle) const {
+        Function<T,2*NDIM> operator()(const Function<T,2*NDIM>& f, const size_t particle) const {
             return f-O(f,particle);
         }
 

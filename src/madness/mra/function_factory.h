@@ -432,20 +432,23 @@ public:
 };
 
 /// factory for generating TwoElectronInterfaces
-class TwoElectronFactory : public FunctionFactory<double, 6> {
+template<typename T=double, std::size_t NDIM=6>
+class TwoElectronFactory : public FunctionFactory<T, NDIM> {
 
 protected:
-    typedef std::shared_ptr<FunctionFunctorInterface<double, 6> > InterfacePtr;
+    typedef std::shared_ptr<FunctionFunctorInterface<T, NDIM> > InterfacePtr;
 
 public:
     TwoElectronFactory(World& world)
-            : FunctionFactory<double, 6>(world),  interface_(), bc_(FunctionDefaults<6>::get_bc()) {
-        _tree_state = on_demand;
+            : FunctionFactory<T, NDIM>(world),  interface_(), bc_(FunctionDefaults<NDIM>::get_bc()) {
+        this->_tree_state = on_demand;
         info.mu=-1.0;
         info.type=OT_G12;
-        info.thresh=FunctionDefaults<3>::get_thresh();
-        this->_thresh = (FunctionDefaults<3>::get_thresh());
-        this->_k = (FunctionDefaults<3>::get_k());
+        constexpr std::size_t LDIM=NDIM/2;
+        static_assert(NDIM==2*LDIM, "NDIM must be even");
+        info.thresh=FunctionDefaults<LDIM>::get_thresh();
+        this->_thresh = (FunctionDefaults<LDIM>::get_thresh());
+        this->_k = (FunctionDefaults<LDIM>::get_k());
 
     }
 
@@ -457,7 +460,7 @@ public:
 
     /// the requested precision
     TwoElectronFactory& thresh(double thresh) {
-        _thresh=thresh;
+        this->_thresh=thresh;
         info.thresh = thresh;
         return self();
     }
@@ -499,7 +502,7 @@ public:
         if (this->interface_) return this->interface_;
 
         const_cast<InterfacePtr& >(this->interface_) =
-                InterfacePtr(new GeneralTwoElectronInterface(info));
+                InterfacePtr(new GeneralTwoElectronInterface<T,NDIM>(info));
 
 //        // construction of the functor is const in spirit, but non-const in sad reality..
 //        if (info.type==OT_G12) {
@@ -538,7 +541,7 @@ protected:
 
 //    double gamma_;
 
-    BoundaryConditions<6> bc_;
+    BoundaryConditions<NDIM> bc_;
 
 };
 

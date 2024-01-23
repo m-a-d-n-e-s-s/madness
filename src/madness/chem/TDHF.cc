@@ -69,7 +69,7 @@ void TDHF::initialize() {
 
     msg.section("Initialize TDHF Class");
     msg.debug = parameters.debug();
-    g12=std::make_shared<CCConvolutionOperator>(world, OpType::OT_G12, parameters.get_ccc_parameters(get_calcparam().lo()));
+    g12=std::make_shared<CCConvolutionOperator<double,3>>(world, OpType::OT_G12, parameters.get_ccc_parameters(get_calcparam().lo()));
 
     const double old_thresh = FunctionDefaults<3>::get_thresh();
     if (old_thresh > parameters.thresh() * 0.1 and old_thresh > 1.e-5) {

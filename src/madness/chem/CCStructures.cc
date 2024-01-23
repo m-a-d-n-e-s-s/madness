@@ -63,36 +63,12 @@ CCTimer::info(const bool debug, const double norm) {
     }
 }
 
-void
-CCFunction::info(World& world, const std::string& msg) const {
-    if (world.rank() == 0) {
-        std::cout << "Information about 3D function: " << name() << " " << msg << std::endl;
-        std::cout << std::setw(10) << std::setfill(' ') << std::setw(50) << " |f|    : " << function.norm2()
-                  << std::endl;
-        std::cout << std::setw(10) << std::setfill(' ') << std::setw(50) << " |error|: " << current_error << std::endl;
-    }
-}
-
-std::string
-CCFunction::name() const {
-    if (type == HOLE) {
-        return "phi" + stringify(i);
-    } else if (type == PARTICLE) {
-        return "tau" + stringify(i);
-    } else if (type == MIXED) {
-        return "t" + stringify(i);
-    } else if (type == RESPONSE) {
-        return "x" + stringify(i);
-    } else {
-        return "function" + stringify(i);
-    }
-}
 
 madness::CC_vecfunction
 CC_vecfunction::copy() const {
-    std::vector<CCFunction> vn;
+    std::vector<CCFunction<double,3>> vn;
     for (auto x : functions) {
-        const CCFunction fn(madness::copy(x.second.function), x.second.i, x.second.type);
+        const CCFunction<double,3> fn(madness::copy(x.second.function), x.second.i, x.second.type);
         vn.push_back(fn);
     }
     CC_vecfunction result(vn, type);
@@ -161,7 +137,7 @@ CCIntermediatePotentials::operator()(const CC_vecfunction& f, const PotentialTyp
 }
 
 madness::real_function_3d
-CCIntermediatePotentials::operator()(const CCFunction& f, const PotentialType& type) const {
+CCIntermediatePotentials::operator()(const CCFunction<double,3>& f, const PotentialType& type) const {
     output("Getting " + assign_name(type) + " for " + f.name());
     real_function_3d result = real_factory_3d(world);
     if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED))
@@ -299,9 +275,10 @@ void CCParameters::sanity_check(World& world) const {
     }
 }
 
-real_function_3d
-CCConvolutionOperator::operator()(const CCFunction& bra, const CCFunction& ket, const bool use_im) const {
-    real_function_3d result;
+template<typename T, std::size_t NDIM>
+Function<T,NDIM>
+CCConvolutionOperator<T,NDIM>::operator()(const CCFunction<T,NDIM>& bra, const CCFunction<T,NDIM>& ket, const bool use_im) const {
+    Function<T,NDIM> result;
     if (not use_im) {
         if (world.rank() == 0)
             std::cout << "Recalculating <" << bra.name() << "|" << name() << "|" << ket.name()
@@ -320,52 +297,60 @@ CCConvolutionOperator::operator()(const CCFunction& bra, const CCFunction& ket, 
     return result;
 }
 
-real_function_6d CCConvolutionOperator::operator()(const real_function_6d& u, const size_t particle) const {
+template<typename T, std::size_t NDIM>
+Function<T,2*NDIM> CCConvolutionOperator<T,NDIM>::operator()(const Function<T,2*NDIM>& u, const size_t particle) const {
     MADNESS_CHECK(particle == 1 or particle == 2);
     MADNESS_CHECK(op);
     op->particle() = particle;
     return (*op)(u);
 }
 
-real_function_3d
-CCConvolutionOperator::operator()(const CCFunction& bra, const real_function_6d& u, const size_t particle) const {
+template<typename T, std::size_t NDIM>
+Function<T,NDIM>
+CCConvolutionOperator<T,NDIM>::operator()(const CCFunction<T,NDIM>& bra, const Function<T,2*NDIM>& u, const size_t particle) const {
     MADNESS_CHECK(particle == 1 or particle == 2);
     MADNESS_CHECK(op);
-    const real_function_6d tmp = multiply(copy(u), copy(bra.function), particle);
+    const Function<T,2*NDIM> tmp = multiply(copy(u), copy(bra.function), particle);
     op->particle() = particle;
-    const real_function_6d g_tmp = (*op)(tmp);
-    const real_function_3d result = g_tmp.dirac_convolution<3>();
+    const Function<T,2*NDIM> g_tmp = (*op)(tmp);
+    const Function<T,NDIM> result = g_tmp.dirac_convolution();
     return result;
 }
 
-
-void CCConvolutionOperator::update_elements(const CC_vecfunction& bra, const CC_vecfunction& ket) {
-    const std::string operation_name = "<" + assign_name(bra.type) + "|" + name() + "|" + assign_name(ket.type) + ">";
-    if (world.rank() == 0)
-        std::cout << "updating operator elements: " << operation_name << " (" << bra.size() << "x" << ket.size() << ")"
-                  << std::endl;
-    if (bra.type != HOLE)
-        error("Can not create intermediate of type " + operation_name + " , bra-element has to be of type HOLE");
-    op.reset(init_op(type(), parameters));
-    intermediateT xim;
-    for (auto tmpk : bra.functions) {
-        const CCFunction& k = tmpk.second;
-        for (auto tmpl : ket.functions) {
-            const CCFunction& l = tmpl.second;
-            real_function_3d kl = (bra(k).function * l.function);
-            real_function_3d result = ((*op)(kl)).truncate();
-            result.reconstruct(); // for sparse multiplication
-            xim.insert(k.i, l.i, result);
+template<typename T, std::size_t NDIM>
+void CCConvolutionOperator<T,NDIM>::update_elements(const CC_vecfunction& bra, const CC_vecfunction& ket) {
+    if constexpr (NDIM==6) {
+        const std::string operation_name = "<" + assign_name(bra.type) + "|" + name() + "|" + assign_name(ket.type) + ">";
+        if (world.rank() == 0)
+            std::cout << "updating operator elements: " << operation_name << " (" << bra.size() << "x" << ket.size() << ")"
+                      << std::endl;
+        if (bra.type != HOLE)
+            error("Can not create intermediate of type " + operation_name + " , bra-element has to be of type HOLE");
+        op.reset(init_op(type(), parameters));
+        intermediateT<T,NDIM> xim;
+        for (auto tmpk : bra.functions) {
+            const CCFunction<T,NDIM>& k = tmpk.second;
+            for (auto tmpl : ket.functions) {
+                const CCFunction<T,NDIM>& l = tmpl.second;
+                Function<T,NDIM> kl = (bra(k).function * l.function);
+                Function<T,NDIM> result = ((*op)(kl)).truncate();
+                result.reconstruct(); // for sparse multiplication
+                xim.insert(k.i, l.i, result);
+            }
         }
+        if (ket.type == HOLE) imH = xim;
+        else if (ket.type == PARTICLE) imP = xim;
+        else if (ket.type == RESPONSE) imR = xim;
+        else error("Can not create intermediate of type <" + assign_name(bra.type) + "|op|" + assign_name(ket.type) + ">");
+    } else {
+        std::string msg="update_elements not implemented for NDIM="+std::to_string(NDIM);
+        MADNESS_EXCEPTION(msg.c_str(),1);
     }
-    if (ket.type == HOLE) imH = xim;
-    else if (ket.type == PARTICLE) imP = xim;
-    else if (ket.type == RESPONSE) imR = xim;
-    else error("Can not create intermediate of type <" + assign_name(bra.type) + "|op|" + assign_name(ket.type) + ">");
 }
 
 
-void CCConvolutionOperator::clear_intermediates(const FuncType& type) {
+template<typename T, std::size_t NDIM>
+void CCConvolutionOperator<T,NDIM>::clear_intermediates(const FuncType& type) {
     if (world.rank() == 0)
         std::cout << "Deleting all <HOLE|" << name() << "|" << assign_name(type) << "> intermediates \n";
     switch (type) {
@@ -386,7 +371,8 @@ void CCConvolutionOperator::clear_intermediates(const FuncType& type) {
     }
 }
 
-size_t CCConvolutionOperator::info() const {
+template<typename T, std::size_t NDIM>
+size_t CCConvolutionOperator<T,NDIM>::info() const {
     const size_t size_imH = size_of(imH);
     const size_t size_imP = size_of(imP);
     const size_t size_imR = size_of(imR);
@@ -402,12 +388,13 @@ size_t CCConvolutionOperator::info() const {
     return size_imH + size_imP + size_imR;
 }
 
-SeparatedConvolution<double, 3> *
-CCConvolutionOperator::init_op(const OpType& type, const Parameters& parameters) const {
+template<typename T, std::size_t NDIM>
+SeparatedConvolution<T, NDIM> *
+CCConvolutionOperator<T,NDIM>::init_op(const OpType& type, const CCConvolutionOperator<T,NDIM>::Parameters& parameters) const {
     bool debug=false;
     bool printme=(world.rank()==0) and debug;
     if (printme) print("init_op: creating",type,"with thresh, lo, gamma",parameters.thresh_op,parameters.lo,parameters.gamma);
-    return new SeparatedConvolution<double,3>(world,OperatorInfo(parameters.gamma,parameters.lo,parameters.thresh_op,type));
+    return new SeparatedConvolution<T,NDIM>(world,OperatorInfo(parameters.gamma,parameters.lo,parameters.thresh_op,type));
 }
 
 /// Assigns strings to enums for formated output
@@ -538,15 +525,6 @@ assign_name(const FuncType& inp) {
     return "???";
 }
 
-/// Returns the size of an intermediate
-double
-size_of(const intermediateT& im) {
-    double size = 0.0;
-    for (const auto& tmp : im.allpairs) {
-        size += get_size<double, 3>(tmp.second);
-    }
-    return size;
-}
 
 std::vector<real_function_6d>
 MacroTaskMp2ConstantPart::operator() (const std::vector<CCPair>& pair, const std::vector<real_function_3d>& mo_ket,
@@ -580,6 +558,14 @@ MacroTaskMp2UpdatePair::operator() (const std::vector<CCPair> &pair,
     }
     return result;
 }
+
+template class CCConvolutionOperator<double,3>;
+template class CCConvolutionOperator<double,2>;
+template class CCConvolutionOperator<double,1>;
+
+template class CCFunction<double,3>;
+template class CCFunction<double,2>;
+template class CCFunction<double,1>;
 
 }// end namespace madness
 

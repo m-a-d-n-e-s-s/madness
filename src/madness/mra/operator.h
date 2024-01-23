@@ -56,17 +56,24 @@ namespace madness {
     template<typename T, std::size_t NDIM>
     class SeparatedConvolution;
 
-    class CCPairFunction;
     template<typename T, std::size_t NDIM>
-    std::vector<CCPairFunction> apply(const SeparatedConvolution<T,NDIM>& op, const std::vector<CCPairFunction>& argument);
+    class CCPairFunction;
 
     template <typename T, typename R, std::size_t NDIM, std::size_t KDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     apply(const SeparatedConvolution<T,KDIM>& op, const std::vector< Function<R,NDIM> > f);
 
+    template<typename T, std::size_t NDIM>
+    std::vector<CCPairFunction<T,NDIM>> apply(const SeparatedConvolution<T,NDIM>& op, const std::vector<CCPairFunction<T,NDIM>>& argument);
 
-        template<typename T, std::size_t NDIM>
-    CCPairFunction apply(const SeparatedConvolution<T,NDIM>& op, const CCPairFunction& argument);
+    template<typename T, std::size_t NDIM>
+    std::vector<CCPairFunction<T,NDIM>> apply(const SeparatedConvolution<T,NDIM/2>& op, const std::vector<CCPairFunction<T,NDIM>>& argument);
+
+    template<typename T, std::size_t NDIM>
+    CCPairFunction<T,NDIM> apply(const SeparatedConvolution<T,NDIM>& op, const CCPairFunction<T,NDIM>& argument);
+
+    template<typename T, std::size_t NDIM>
+    CCPairFunction<T,NDIM> apply(const SeparatedConvolution<T,NDIM/2>& op, const CCPairFunction<T,NDIM>& argument);
 
     /// SeparatedConvolutionInternal keeps data for 1 term and all dimensions and 1 displacement
     /// Why is this here?? Why don't you just use ConvolutionND in SeparatedConvolutionData??

@@ -272,7 +272,7 @@ double MP2::mp3() const {
 
     print_header2("computing the MP3 correlation energy");
     print_header3("prepare the cluster function");
-    typedef std::vector<CCPairFunction> ClusterFunction;
+    typedef std::vector<CCPairFunction<double,6>> ClusterFunction;
     Pairs<ClusterFunction> clusterfunctions;
 
     auto R2 = hf->nemo_ptr->ncf->square();
@@ -284,13 +284,13 @@ double MP2::mp3() const {
         for (int j = i; j < hf->nocc(); ++j) {
 //            pairs(i, j) = make_pair(i, j);                // initialize
             ClusterFunction tmp;
-            tmp.push_back(CCPairFunction(pairs(i, j).function));
-            CCPairFunction ij(hf->nemo(i), hf->nemo(j));
+            tmp.push_back(CCPairFunction<double,6>(pairs(i, j).function));
+            CCPairFunction<double,6> ij(hf->nemo(i), hf->nemo(j));
 
-            CCConvolutionOperator::Parameters cparam;
+            CCConvolutionOperator<double,3>::Parameters cparam;
             cparam.thresh_op *= 0.1;
-            auto f12 = CCConvolutionOperatorPtr(world, OpType::OT_F12, cparam);
-            auto vfij = Q12(std::vector<CCPairFunction>({f12 * ij}));
+            auto f12 = CCConvolutionOperatorPtr<double,3>(world, OpType::OT_F12, cparam);
+            auto vfij = Q12(std::vector<CCPairFunction<double,6>>({f12 * ij}));
             for (auto& p: vfij) tmp.push_back(p);
 
             clusterfunctions(i, j) = tmp;
@@ -322,8 +322,8 @@ double MP2::mp3() const {
     print_header3("recompute the MP2 energy");
 
 
-    CCConvolutionOperator::Parameters cparam;
-    auto g12=CCConvolutionOperatorPtr(world,OpType::OT_G12,cparam);
+    CCConvolutionOperator<double,3>::Parameters cparam;
+    auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,cparam);
     timer t2(world, "recompute MP2");
 
     // recompute MP2 energy
@@ -331,7 +331,7 @@ double MP2::mp3() const {
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = i; j < hf->nocc(); ++j) {
 
-            auto bra=CCPairFunction(hf->nemo(i),hf->nemo(j));
+            auto bra=CCPairFunction<double,6>(hf->nemo(i),hf->nemo(j));
             double direct=inner({bra},g12*clusterfunctions(i,j),R2);
             double exchange=inner({bra},g12*clusterfunctions(j,i),R2);
             double fac=(i==j) ? 0.5: 1.0;
@@ -834,22 +834,22 @@ double MP2::compute_gQf(const int i, const int j, ElectronPair& pair) const {
     print("gQf old",t1.reset());
 
     CCTimer timer(world,"gQf with ccpairfunction");
-    CCConvolutionOperator::Parameters param;
-    auto f=CCConvolutionOperatorPtr(world,OpType::OT_F12,param);
-    auto g=CCConvolutionOperatorPtr(world,OpType::OT_G12,param);
+    CCConvolutionOperator<double,3>::Parameters param;
+    auto f=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_F12,param);
+    auto g=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,param);
 //    print("operator constructor",timer.reset());
 
-    CCPairFunction fij(f,ket_i,ket_j);
-    CCPairFunction gij(g,bra_k,bra_l);
+    CCPairFunction<double,6> fij(f,ket_i,ket_j);
+    CCPairFunction<double,6> gij(g,bra_k,bra_l);
 //    CCPairFunction ij({psi},{psi});
-    std::vector<CCPairFunction> vfij={fij};
-    std::vector<CCPairFunction> vgij={gij};
+    std::vector<CCPairFunction<double,6>> vfij={fij};
+    std::vector<CCPairFunction<double,6>> vgij={gij};
 //    std::vector<CCPairFunction> vij={ij};
 //    print("g/f ij constructor",timer.reset());
 
 //    StrongOrthogonalityProjector<double,3> SO(world);
 //    SO.set_spaces({psi},{psi},{psi},{psi});
-    std::vector<CCPairFunction> Qfij=Q12(vfij);
+    std::vector<CCPairFunction<double,6>> Qfij=Q12(vfij);
 //    std::vector<CCPairFunction> Qgij=Q12(vgij);
 //    print("SO application",timer.reset());
 

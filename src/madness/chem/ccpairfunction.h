@@ -17,6 +17,7 @@
 
 namespace madness {
 
+template<typename T, std::size_t NDIM>
 struct CCConvolutionOperator;
 class ProjectorBase;
 
@@ -26,45 +27,65 @@ enum FuncType { UNDEFINED, HOLE, PARTICLE, MIXED, RESPONSE };
 
 /// structure for a CC Function 3D which holds an index and a type
 // the type is defined by the enum FuncType (definition at the start of this file)
+template<typename T=double, std::size_t NDIM=3>
 struct CCFunction : public archive::ParallelSerializableObject {
     CCFunction() : current_error(99), i(99), type(UNDEFINED) {};
 
-    CCFunction(const real_function_3d& f) : current_error(99), function(f), i(99), type(UNDEFINED) {};
+    CCFunction(const Function<T,NDIM>& f) : current_error(99), function(f), i(99), type(UNDEFINED) {};
 
-    CCFunction(const real_function_3d& f, const size_t& ii) : current_error(99), function(f), i(ii), type(UNDEFINED) {};
+    CCFunction(const Function<T,NDIM>& f, const size_t& ii) : current_error(99), function(f), i(ii), type(UNDEFINED) {};
 
-    CCFunction(const real_function_3d& f, const size_t& ii, const FuncType& type_) : current_error(99), function(f),
+    CCFunction(const Function<T,NDIM>& f, const size_t& ii, const FuncType& type_) : current_error(99), function(f),
                                                                                      i(ii), type(type_) {};
 
     CCFunction(const CCFunction& other) : current_error(other.current_error), function(other.function), i(other.i),
                                           type(other.type) {};
     double current_error;
-    real_function_3d function;
+    Function<T,NDIM> function;
 
-    real_function_3d get() const { return function; }
+    Function<T,NDIM> get() const { return function; }
 
-    real_function_3d f() const { return function; }
+    Function<T,NDIM> f() const { return function; }
 
-    void set(const real_function_3d& other) { function = other; }
+    void set(const Function<T,NDIM>& other) { function = other; }
 
     size_t i;
     FuncType type;
 
-    void info(World& world, const std::string& msg = " ") const;
+    void info(World& world, const std::string& msg = " ") const {
+        if (world.rank() == 0) {
+            std::cout << "Information about 3D function: " << name() << " " << msg << std::endl;
+            std::cout << std::setw(10) << std::setfill(' ') << std::setw(50) << " |f|    : " << function.norm2()
+                      << std::endl;
+            std::cout << std::setw(10) << std::setfill(' ') << std::setw(50) << " |error|: " << current_error << std::endl;
+        }
+    };
 
-    std::string name() const;
+    std::string name() const {
+        if (type == HOLE) {
+            return "phi" + stringify(i);
+        } else if (type == PARTICLE) {
+            return "tau" + stringify(i);
+        } else if (type == MIXED) {
+            return "t" + stringify(i);
+        } else if (type == RESPONSE) {
+            return "x" + stringify(i);
+        } else {
+            return "function" + stringify(i);
+        }
+    };
 
     double inner(const CCFunction& f) const {
         return inner(f.function);
     }
 
-    double inner(const real_function_3d& f) const {
+    double inner(const Function<T,NDIM>& f) const {
         return function.inner(f);
     }
 
     /// scalar multiplication
     CCFunction operator*(const double& fac) const {
-        real_function_3d fnew = fac * function;
+        Function<T,NDIM> fnew = fac * function;
         return CCFunction(fnew, i, type);
     }
 
@@ -92,8 +113,8 @@ public:
     virtual bool is_pure() const {return false;}
     virtual bool is_decomposed() const {return false;}
     virtual bool has_operator() const = 0;
-    virtual void set_operator(const std::shared_ptr<CCConvolutionOperator> op) = 0;
-    virtual const std::shared_ptr<CCConvolutionOperator> get_operator_ptr() const = 0;
+//    virtual void set_operator(const std::shared_ptr<CCConvolutionOperator> op) = 0;
+//    virtual const std::shared_ptr<CCConvolutionOperator> get_operator_ptr() const = 0;
     virtual void print_size() const = 0;
     virtual std::string name(const bool transpose=false) const = 0;
     virtual World& world() const =0;
@@ -102,20 +123,22 @@ public:
 };
 
 /// a two-body, explicitly 6-dimensional function
-template<typename T>
+template<typename T, std::size_t NDIM>
 class TwoBodyFunctionPureComponent : public TwoBodyFunctionComponentBase {
+    static constexpr std::size_t LDIM=NDIM/2;
+    static_assert(NDIM%2==0,"NDIM must be even");
 
 public:
     TwoBodyFunctionPureComponent() = default;
 
-    explicit TwoBodyFunctionPureComponent(const Function<T,6>& f) : u(f) {}
-    explicit TwoBodyFunctionPureComponent(const std::shared_ptr<CCConvolutionOperator> op, const Function<T,6>& f)
+    explicit TwoBodyFunctionPureComponent(const Function<T,NDIM>& f) : u(f) {}
+    explicit TwoBodyFunctionPureComponent(const std::shared_ptr<CCConvolutionOperator<T,LDIM>> op, const Function<T,NDIM>& f)
             : u(f), op(op) {}
 
     /// deep copy
     std::shared_ptr<TwoBodyFunctionComponentBase> clone() override {
-        TwoBodyFunctionPureComponent<T> result(op,madness::copy(u));
-        return std::make_shared<TwoBodyFunctionPureComponent<T>>(result);
+        TwoBodyFunctionPureComponent<T,NDIM> result(op,madness::copy(u));
+        return std::make_shared<TwoBodyFunctionPureComponent<T,NDIM>>(result);
     }
 
     template<typename Q>
@@ -154,45 +177,48 @@ public:
 
     /// return f(2,1)
     void swap_particles_inplace() override {
-        u=swap_particles(u);
+        if constexpr (NDIM==6) u=swap_particles(u);
+        else MADNESS_EXCEPTION("swap_particles_inplace not implemented for NDIM!=6",1);
     }
 
-    const std::shared_ptr<CCConvolutionOperator> get_operator_ptr() const override {return op;};
+    const std::shared_ptr<CCConvolutionOperator<T,LDIM>> get_operator_ptr() const {return op;};
 
-    void set_operator(const std::shared_ptr<CCConvolutionOperator> op1) override {op=op1;}
+    void set_operator(const std::shared_ptr<CCConvolutionOperator<T,LDIM>> op1) {op=op1;}
 
-    real_function_6d& get_function() {
+    Function<T,NDIM>& get_function() {
         return u;
     }
 
 private:
     /// pure 6D function
-    real_function_6d u;
-    std::shared_ptr<CCConvolutionOperator> op;
+    Function<T,NDIM> u;
+    std::shared_ptr<CCConvolutionOperator<T,LDIM>> op;
 
 };
 
 /// holds two vectors a and b of low-dimensional functions forming a high-dim function by a sum of outer products
 /// f(1,2) = sum_i |a_i b_i >
-template<typename T>
+template<typename T, std::size_t NDIM>
 class TwoBodyFunctionSeparatedComponent : public TwoBodyFunctionComponentBase {
+    static constexpr std::size_t LDIM=NDIM/2;
+    static_assert(NDIM%2==0,"NDIM must be even");
 
 public:
     TwoBodyFunctionSeparatedComponent() = default;
 
-    TwoBodyFunctionSeparatedComponent(const std::vector<Function<T,3>>& a,
-                                      const std::vector<Function<T,3>>& b) : a(a), b(b), op(nullptr) {};
+    TwoBodyFunctionSeparatedComponent(const std::vector<Function<T,LDIM>>& a,
+                                      const std::vector<Function<T,LDIM>>& b) : a(a), b(b), op(nullptr) {};
 
-    TwoBodyFunctionSeparatedComponent(const std::vector<Function<T,3>>& a,
-                                      const std::vector<Function<T,3>>& b,
-                                      const std::shared_ptr<CCConvolutionOperator> op) : a(a), b(b), op(op) {};
+    TwoBodyFunctionSeparatedComponent(const std::vector<Function<T,LDIM>>& a,
+                                      const std::vector<Function<T,LDIM>>& b,
+                                      const std::shared_ptr<CCConvolutionOperator<T,LDIM>> op) : a(a), b(b), op(op) {};
 
     TwoBodyFunctionSeparatedComponent(const TwoBodyFunctionSeparatedComponent& other) = default;
 
     /// deep copy
     std::shared_ptr<TwoBodyFunctionComponentBase> clone() override {
-        TwoBodyFunctionSeparatedComponent<T> result(madness::copy(world(),a),madness::copy(world(),b),op);
-        return std::make_shared<TwoBodyFunctionSeparatedComponent<T>>(result);
+        TwoBodyFunctionSeparatedComponent<T,NDIM> result(madness::copy(world(),a),madness::copy(world(),b),op);
+        return std::make_shared<TwoBodyFunctionSeparatedComponent<T,NDIM>>(result);
     }
 
     template<typename Q>
@@ -229,7 +255,7 @@ public:
     void serialize() {}
 
     template<typename Q, std::size_t MDIM>
-    TwoBodyFunctionPureComponent<T> apply(const SeparatedConvolution<Q,MDIM>* op, const int particle=0) {
+    TwoBodyFunctionPureComponent<T,NDIM> apply(const SeparatedConvolution<Q,MDIM>* op, const int particle=0) {
         MADNESS_EXCEPTION("TwoBodyFunctionPureComponent<T> apply not yet implemented",1);
     }
 
@@ -243,9 +269,9 @@ public:
         return a.size();
     }
 
-    std::vector<Function<T,3>> get_a() const {return a;}
-    std::vector<Function<T,3>> get_b() const {return b;}
-    std::vector<Function<T,3>> get_vector(const int i) const {
+    std::vector<Function<T,LDIM>> get_a() const {return a;}
+    std::vector<Function<T,LDIM>> get_b() const {return b;}
+    std::vector<Function<T,LDIM>> get_vector(const int i) const {
         MADNESS_CHECK(i==0 or i==1);
         if (i==0) return a;
         else if (i==1) return b;
@@ -254,15 +280,15 @@ public:
         }
     }
 
-    const std::shared_ptr<CCConvolutionOperator> get_operator_ptr() const override {return op;};
+    const std::shared_ptr<CCConvolutionOperator<T,LDIM>> get_operator_ptr() const {return op;};
 
-    void set_operator(const std::shared_ptr<CCConvolutionOperator> op1) override {op=op1;}
+    void set_operator(const std::shared_ptr<CCConvolutionOperator<T,LDIM>> op1) {op=op1;}
 
 private:
 
-    std::vector<Function<T,3>> a;
-    std::vector<Function<T,3>> b;
-    std::shared_ptr<CCConvolutionOperator> op;
+    std::vector<Function<T,LDIM>> a;
+    std::vector<Function<T,LDIM>> b;
+    std::shared_ptr<CCConvolutionOperator<T,LDIM>> op;
 
 };
 
@@ -302,10 +328,12 @@ private:
  *  - op_decomposed: as above, with an 2-particle function: f(1,2) \sum_i |a_i b_i>
  *
 **/
+template<typename T=double, std::size_t NDIM=6>
 struct CCPairFunction {
+    static constexpr std::size_t LDIM=NDIM/2;
+    static_assert(NDIM%2==0,"NDIM must be even");
 
-using T=double;
-using pureT=Function<T,6>;
+using pureT=Function<T,NDIM>;
 
 public:
 
@@ -313,47 +341,47 @@ public:
     CCPairFunction() = default;
 
     /// takes a deep copy of the argument function
-    explicit CCPairFunction(const real_function_6d& ket) {
-        component.reset(new TwoBodyFunctionPureComponent<T>(copy(ket)));
+    explicit CCPairFunction(const Function<T,NDIM>& ket) {
+        component.reset(new TwoBodyFunctionPureComponent<T,NDIM>(copy(ket)));
     }
 
     /// takes a deep copy of the argument function
-    explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator> op_, const real_function_6d& ket) {
-        component.reset(new TwoBodyFunctionPureComponent<T>(op_,copy(ket)));
+    explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator<T,LDIM>> op_, const Function<T,NDIM>& ket) {
+        component.reset(new TwoBodyFunctionPureComponent<T,NDIM>(op_,copy(ket)));
     }
 
     /// takes a deep copy of the argument functions
-    explicit CCPairFunction(const vector_real_function_3d& f1, const vector_real_function_3d& f2) {
+    explicit CCPairFunction(const std::vector<Function<T,LDIM>>& f1, const std::vector<Function<T,LDIM>>& f2) {
         World& world=f1.front().world();
-        component.reset(new TwoBodyFunctionSeparatedComponent<T>(copy(world,f1),copy(world,f2)));
+        component.reset(new TwoBodyFunctionSeparatedComponent<T,NDIM>(copy(world,f1),copy(world,f2)));
     }
 
     /// takes a deep copy of the argument functions
-    explicit CCPairFunction(const real_function_3d& f1, const real_function_3d& f2) :
-            CCPairFunction(std::vector<real_function_3d>({f1}),std::vector<real_function_3d>({f2})) {
+    explicit CCPairFunction(const Function<T,LDIM>& f1, const Function<T,LDIM>& f2) :
+            CCPairFunction(std::vector<Function<T,LDIM>>({f1}),std::vector<Function<T,LDIM>>({f2})) {
     }
 
     /// takes a deep copy of the argument functions
-    explicit CCPairFunction(const std::pair<vector_real_function_3d, vector_real_function_3d>& f) :
+    explicit CCPairFunction(const std::pair<std::vector<Function<T,LDIM>>, std::vector<Function<T,LDIM>>>& f) :
             CCPairFunction(f.first,f.second) {
     }
 
     /// takes a deep copy of the argument functions
-    explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator> op_, const CCFunction& f1, const CCFunction& f2) :
-            CCPairFunction(op_,std::vector<real_function_3d>({f1.function}),std::vector<real_function_3d>({f2.function})) {
+    explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator<T,LDIM>> op_, const CCFunction<T,LDIM>& f1, const CCFunction<T,LDIM>& f2) :
+            CCPairFunction(op_,std::vector<Function<T,LDIM>>({f1.function}),std::vector<Function<T,LDIM>>({f2.function})) {
     }
 
     /// takes a deep copy of the argument functions
-    explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator> op_, const std::vector<real_function_3d>& f1,
-                            const std::vector<real_function_3d>& f2) {
+    explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator<T,LDIM>> op_, const std::vector<Function<T,LDIM>>& f1,
+                            const std::vector<Function<T,LDIM>>& f2) {
         World& world=f1.front().world();
-        component.reset(new TwoBodyFunctionSeparatedComponent<T>(copy(world,f1),copy(world,f2),op_));
+        component.reset(new TwoBodyFunctionSeparatedComponent<T,NDIM>(copy(world,f1),copy(world,f2),op_));
     }
 
     /// takes a deep copy of the argument functions
-    explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator> op_, const real_function_3d& f1,
-                            const real_function_3d& f2) : CCPairFunction(op_,std::vector<real_function_3d>({f1}),
-                                                                         std::vector<real_function_3d>({f2})) {
+    explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator<T,LDIM>> op_, const Function<T,LDIM>& f1,
+                            const Function<T,LDIM>& f2) : CCPairFunction(op_,std::vector<Function<T,LDIM>>({f1}),
+                                                                         std::vector<Function<T,LDIM>>({f2})) {
     };
 
     /// shallow assignment operator
@@ -383,12 +411,12 @@ public:
         return component->world();
     }
 
-    Function<T,6>& get_function() {
+    Function<T,NDIM>& get_function() {
         MADNESS_CHECK(component and (component->is_pure()));
         return pure().get_function();
     }
 
-    Function<T,6>& get_function() const {
+    Function<T,NDIM>& get_function() const {
         MADNESS_CHECK(component and (component->is_pure()));
         return pure().get_function();
     }
@@ -410,13 +438,13 @@ public:
     }
 
     /// multiplication with a 2-particle function
-    friend CCPairFunction operator*(const std::shared_ptr<CCConvolutionOperator> op, const CCPairFunction& f) {
+    friend CCPairFunction operator*(const std::shared_ptr<CCConvolutionOperator<T,LDIM>> op, const CCPairFunction& f) {
         CCPairFunction result=copy(f);
         return result.multiply_with_op_inplace(op);
     }
 
     /// multiplication with a 2-particle function
-    friend std::vector<CCPairFunction> operator*(const std::shared_ptr<CCConvolutionOperator> op,
+    friend std::vector<CCPairFunction> operator*(const std::shared_ptr<CCConvolutionOperator<T,LDIM>> op,
             const std::vector<CCPairFunction>& f) {
         std::vector<CCPairFunction> result;
         for (auto& ff : f) {
@@ -426,8 +454,8 @@ public:
         return result;
     }
 
-    friend std::vector<CCPairFunction> multiply(const std::vector<CCPairFunction>& other, const real_function_3d f,
-                                                const std::array<int, 3>& v1) {
+    friend std::vector<CCPairFunction> multiply(const std::vector<CCPairFunction>& other, const Function<T,LDIM> f,
+                                                const std::array<int, LDIM>& v1) {
         std::vector<CCPairFunction> result;
         for (auto& o : other) {
             double cpu0=cpu_time();
@@ -440,12 +468,12 @@ public:
     }
 
     /// multiplication with a 2-particle function
-    CCPairFunction operator*(const std::shared_ptr<CCConvolutionOperator> op) {
+    CCPairFunction operator*(const std::shared_ptr<CCConvolutionOperator<T,LDIM>> op) {
         CCPairFunction result=copy(*this);
         return result.multiply_with_op_inplace(op);
     }
 
-    CCPairFunction& multiply_with_op_inplace(const std::shared_ptr<CCConvolutionOperator> op);
+    CCPairFunction<T,NDIM>& multiply_with_op_inplace(const std::shared_ptr<CCConvolutionOperator<T,LDIM>> op);
 
 
     bool has_operator() const {return component->has_operator();}
@@ -456,44 +484,54 @@ public:
     bool is_op_decomposed() const {return component->is_decomposed() and component->has_operator();}
     bool is_decomposed_no_op() const {return component->is_decomposed() and (not component->has_operator());}
 
-    TwoBodyFunctionPureComponent<T>& pure() const {
-        if (auto ptr=dynamic_cast<TwoBodyFunctionPureComponent<T>*>(component.get())) return *ptr;
+    TwoBodyFunctionPureComponent<T,NDIM>& pure() const {
+        if (auto ptr=dynamic_cast<TwoBodyFunctionPureComponent<T,NDIM>*>(component.get())) return *ptr;
         MADNESS_EXCEPTION("bad cast in TwoBodyFunction",1);
     }
 
-    TwoBodyFunctionSeparatedComponent<T>& decomposed() const {
-        if (auto ptr=dynamic_cast<TwoBodyFunctionSeparatedComponent<T>*>(component.get())) return *ptr;
+    TwoBodyFunctionSeparatedComponent<T,NDIM>& decomposed() const {
+        if (auto ptr=dynamic_cast<TwoBodyFunctionSeparatedComponent<T,NDIM>*>(component.get())) return *ptr;
         MADNESS_EXCEPTION("bad cast in TwoBodyFunction",1);
     }
 
-    vector_real_function_3d get_a() const {
+    std::vector<Function<T,LDIM>> get_a() const {
         MADNESS_CHECK(component->is_decomposed());
         return decomposed().get_a();
     }
 
-    vector_real_function_3d get_b() const {
+    std::vector<Function<T,LDIM>> get_b() const {
         MADNESS_CHECK(component->is_decomposed());
         return decomposed().get_b();
     }
 
-    std::vector<Function<T,3>> get_vector(const int i) const {
+    std::vector<Function<T,LDIM>> get_vector(const int i) const {
         MADNESS_CHECK(component->is_decomposed());
         return decomposed().get_vector(i);
     }
 
-    const CCConvolutionOperator& get_operator() const {
+    const CCConvolutionOperator<T,LDIM>& get_operator() const {
         MADNESS_CHECK(component and component->has_operator());
-        return *(component->get_operator_ptr());
+        if (is_pure()) return *(pure().get_operator_ptr());
+        if (is_decomposed()) return *(decomposed().get_operator_ptr());
+        MADNESS_EXCEPTION("bad cast in TwoBodyFunction",1);
+        return *(decomposed().get_operator_ptr());
     }
 
-    const std::shared_ptr<CCConvolutionOperator> get_operator_ptr() const {
+    const std::shared_ptr<CCConvolutionOperator<T,LDIM>> get_operator_ptr() const {
         MADNESS_CHECK(component);
-        return component->get_operator_ptr();
+        if (is_pure()) return (pure().get_operator_ptr());
+        if (is_decomposed()) return (decomposed().get_operator_ptr());
+        MADNESS_EXCEPTION("bad cast in TwoBodyFunction",1);
+//        return component->get_operator_ptr();
     }
 
-    void reset_operator(const std::shared_ptr<CCConvolutionOperator> op) {
+    void reset_operator(const std::shared_ptr<CCConvolutionOperator<T,LDIM>> op) {
         MADNESS_CHECK(component);
-        component->set_operator(op);
+        if (is_pure()) pure().set_operator(op);
+        else if (is_decomposed()) decomposed().set_operator(op);
+        else {
+            MADNESS_EXCEPTION("bad cast in TwoBodyFunction",1);
+        }
     }
 
     /// can this be converted to a pure representation (depends on the operator, if present)
@@ -527,12 +565,38 @@ public:
     }
 
     /// multiply CCPairFunction with a 3D function of one of the two particles
-    friend CCPairFunction multiply(const CCPairFunction& other, const real_function_3d& f, const std::array<int, 3>& v1);
+    friend CCPairFunction<T,NDIM> multiply(const CCPairFunction<T,NDIM>& other, const Function<T,LDIM>& f,
+                                           const std::array<int, LDIM>& v1) {
+        auto a012=std::array<int,LDIM>();
+        auto a345=std::array<int,LDIM>();
+        for (int i=0; i<LDIM; ++i) {
+            a012[i]=i;
+            a345[i]=i+LDIM;
+        }
+        int particle=-1;
+        if (v1== a012) particle=0;
+        if (v1== a345) particle=1;
+        MADNESS_CHECK(particle==0 or particle==1);
+        World& world=other.world();
+
+        if (other.is_decomposed()) {
+            if (particle == 0) {
+                return CCPairFunction<T,NDIM>(other.get_operator_ptr(), f * other.get_a(), copy(world, other.get_b()));
+            } else {
+                return CCPairFunction<T,NDIM>(other.get_operator_ptr(), copy(world, other.get_a()), f * other.get_b());
+            }
+        } else if (other.is_pure()) {
+            auto tmp=multiply(other.get_function(),f,particle+1);
+            return CCPairFunction<T,NDIM>(other.get_operator_ptr(),tmp);
+        } else  {
+            MADNESS_EXCEPTION("confused CCPairFunction<T,NDIM> in multiply",1);
+        }
+    };
 
     /// @param[in] f: a 3D-CC_function
     /// @param[in] particle: the particle on which the operation acts
     /// @param[out] <f|u>_particle (projection from 6D to 3D)
-    real_function_3d project_out(const CCFunction& f, const size_t particle) const;
+    Function<T,LDIM> project_out(const CCFunction<T,LDIM>& f, const size_t particle) const;
 
     /// result is: <x|op12|f>_particle
 
@@ -540,8 +604,8 @@ public:
     /// @param[in] op: a CC_convoltion_operator which is currently either f12 or g12
     /// @param[in] particle: the particle on which the operation acts (can be 1 or 2)
     /// @param[out] the operator is applied and afterwards a convolution with the delta function makes a 3D-function: <x|op|u>_particle
-    real_function_3d
-    dirac_convolution(const CCFunction& x, const CCConvolutionOperator& op, const size_t particle) const;
+    Function<T,LDIM>
+    dirac_convolution(const CCFunction<T,LDIM>& x, const CCConvolutionOperator<T,LDIM>& op, const size_t particle) const;
 
     /// @param[out] particles are interchanged, if the function was u(1,2) the result is u(2,1)
     CCPairFunction swap_particles() const {
@@ -551,24 +615,24 @@ public:
     };
 
     double
-    make_xy_u(const CCFunction& xx, const CCFunction& yy) const;
+    make_xy_u(const CCFunction<T,LDIM>& xx, const CCFunction<T,LDIM>& yy) const;
 
     /// compute the inner product of this and other
-    double inner_internal(const CCPairFunction& other, const real_function_3d& R2) const;
+    double inner_internal(const CCPairFunction& other, const Function<T,LDIM>& R2) const;
 
-    friend double inner(const CCPairFunction& a, const CCPairFunction& b, const real_function_3d& R2) {
+    friend double inner(const CCPairFunction& a, const CCPairFunction& b, const Function<T,LDIM>& R2) {
         return a.inner_internal(b,R2);
     }
 
     friend double inner(const CCPairFunction& a, const CCPairFunction& b) {
-        real_function_3d R2;
+        Function<T,LDIM> R2;
         return a.inner_internal(b,R2);
     }
 
     friend double inner(const std::vector<CCPairFunction>& va, const std::vector<CCPairFunction>& vb,
-                        const real_function_3d R2=real_function_3d()) {
+                        const Function<T,LDIM> R2=Function<T,LDIM>()) {
         double wall0=cpu_time();
-//        real_function_3d R2;
+//        Function<T,LDIM> R2;
         double result=0.0;
         for (auto& a : va) {
             for (auto& b : vb) {
@@ -599,38 +663,43 @@ public:
     /// @param[in] f: a 3D-CC_function
     /// @param[in] particle: the particle on which the operation acts
     /// @param[out] <f|u>_particle (projection from 6D to 3D) for the case that u=|ab> so <f|u>_particle = <f|a>*|b> if particle==1
-    real_function_3d project_out_decomposed(const real_function_3d& f, const size_t particle) const;
+    Function<T,LDIM> project_out_decomposed(const Function<T,LDIM>& f, const size_t particle) const;
 
     /// @param[in] f: a 3D-CC_function
     /// @param[in] particle: the particle on which the operation acts
     /// @param[out] <f|u>_particle (projection from 6D to 3D) for the case that u=op|xy> so <f|u>_particle = <f|op|x>*|y> if particle==1
-    real_function_3d project_out_op_decomposed(const CCFunction& f, const size_t particle) const;
+    Function<T,LDIM> project_out_op_decomposed(const CCFunction<T,LDIM>& f, const size_t particle) const;
 
     /// @param[in] x: a 3D-CC_function
     /// @param[in] op: a CC_convoltion_operator which is currently either f12 or g12
     /// @param[in] particle: the particle on which the operation acts (can be 1 or 2)
     /// @param[out] the operator is applied and afterwards a convolution with the delta function makes a 3D-function: <x|op|u>_particle
     /// in this case u=|ab> and the result is <x|op|u>_1 = <x|op|a>*|b> for particle==1
-    real_function_3d
-    dirac_convolution_decomposed(const CCFunction& x, const CCConvolutionOperator& op, const size_t particle) const;
+    Function<T,LDIM>
+    dirac_convolution_decomposed(const CCFunction<T,LDIM>& x, const CCConvolutionOperator<T,LDIM>& op, const size_t particle) const;
 
     /// small helper function that gives back (a,b) or (b,a) depending on the value of particle
-    const std::pair<vector_real_function_3d, vector_real_function_3d> assign_particles(const size_t particle) const;
+    const std::pair<std::vector<Function<T,LDIM>>, std::vector<Function<T,LDIM>>> assign_particles(const size_t particle) const;
 
-    template<typename Q, std::size_t MDIM>
-    friend CCPairFunction apply(const SeparatedConvolution<Q,MDIM>& G, const CCPairFunction& argument) {
+    static std::vector<CCPairFunction<T,NDIM>> apply(const ProjectorBase& P, const std::vector<CCPairFunction<T,NDIM>>& argument);
+
+    /// apply the operator on a CCPairfunction, both with the same dimension
+
+    /// note there is another function, where the operator works only on some dimensions of the CCPairFunction!
+    /// @return result(x) = \int op(x,x') arg(x') dx': a CCPairfunction with the same dimension as the argument
+    friend CCPairFunction<T,NDIM> apply(const SeparatedConvolution<T,NDIM>& G, const CCPairFunction<T,NDIM>& argument) {
         CCPairFunction result;
         timer t1(argument.world());
         if (argument.is_pure()) {
             result=CCPairFunction(G(argument.get_function()));
         } else if (argument.is_decomposed_no_op()) {
-            real_function_6d result1=real_factory_6d(argument.world()).compressed();
+            Function<T,NDIM> result1=real_factory_6d(argument.world()).compressed();
 
             MADNESS_ASSERT(argument.get_a().size() == argument.get_b().size());
             MADNESS_CHECK_THROW(G.particle()==-1,"G must be a two-particle operator in apply(CCPairFunction)");
 
             for (size_t k = 0; k < argument.get_a().size(); k++) {
-                const real_function_6d tmp = G(argument.get_a()[k], argument.get_b()[k]);
+                const Function<T,NDIM> tmp = G(argument.get_a()[k], argument.get_b()[k]);
                 result1 += tmp;
             }
             result=CCPairFunction(result1);
@@ -641,15 +710,76 @@ public:
         return result;
     };
 
-    real_function_3d partial_inner(const real_function_3d& f,
-                                   const std::array<int, 3>& v1,
-                                   const std::array<int, 3>& v2) const;
+
+    Function<T,LDIM> partial_inner(const Function<T,LDIM>& f,
+                                   const std::array<int, LDIM>& v1,
+                                   const std::array<int, LDIM>& v2) const;
 
     CCPairFunction partial_inner(const CCPairFunction& other,
-                                   const std::array<int, 3>& v1,
-                                   const std::array<int, 3>& v2) const;
+                                   const std::array<int, LDIM>& v1,
+                                   const std::array<int, LDIM>& v2) const;
 
 };
+
+//template<typename T, std::size_t NDIM>
+//std::vector<CCPairFunction<T,NDIM>> swap_particles(const std::vector<CCPairFunction<T,NDIM>>& argument);
+
+/// apply the operator to the argument
+
+/// the operator is applied to one particle only, the other one is left untouched
+/// note the ordering of the particles, cf the corresponding comment in mra.h
+/// op.particle==1 :  op(f(x,y)) = op(x,x') f(x',y) = result(x,y);
+/// op.particle==2 :  op(f(x,y)) = op(y,y') f(x,y') = result(y,x);
+template<typename T, std::size_t NDIM>
+CCPairFunction<T,NDIM> apply(const SeparatedConvolution<T,NDIM/2>& op, const CCPairFunction<T,NDIM>& arg) {
+    bool convert_to_pure=(arg.has_operator() or arg.is_pure());
+    CCPairFunction<T, NDIM> result;
+    World& world = arg.world();
+
+    if (convert_to_pure) {
+        auto tmp=arg.to_pure().get_function();
+        tmp=op(tmp);
+
+        result=(CCPairFunction<T,NDIM>(tmp));
+        // !! confusing ordering of the result variables!!
+        if (op.particle()==2) result.swap_particles();
+
+    } else if (arg.is_decomposed_no_op()) {
+        MADNESS_CHECK(op.particle()==1 or op.particle()==2);
+        if (op.particle()==1) {
+            auto tmp= madness::apply(world,op,arg.get_a());
+            result=(CCPairFunction<T,NDIM>(tmp,arg.get_b()));
+        } else if (op.particle()==2) {
+            auto tmp= madness::apply(world,op,arg.get_b());
+            result=(CCPairFunction<T,NDIM>(tmp,arg.get_a()));
+        }
+
+    } else {
+        MADNESS_CHECK_THROW(false,"confused type in apply(CCPairFunction<T,NDIM>)");
+    }
+
+    return result;
+}
+
+/// apply the operator to the argument
+
+/// the operator is applied to one particle only, the other one is left untouched
+/// note the ordering of the particles, cf the corresponding comment in mra.h
+/// op.particle==1 :  op(f(x,y)) = op(x,x') f(x',y) = result(x,y);
+/// op.particle==2 :  op(f(x,y)) = op(y,y') f(x,y') = result(y,x);
+template<typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM>> apply(const SeparatedConvolution<T,NDIM/2>& op, const std::vector<CCPairFunction<T,NDIM>>& argument) {
+    std::vector<CCPairFunction<T, NDIM>> result;
+    for (const auto& arg : argument) result.push_back(madness::apply(op, arg));
+    return result;
+}
+
+template<typename T, std::size_t NDIM>
+CCPairFunction<T,NDIM> apply(const ProjectorBase& projector, const CCPairFunction<T,NDIM>& argument) {
+    auto result=madness::apply(projector,std::vector<CCPairFunction<T,NDIM>> (1,argument));
+    MADNESS_CHECK(result.size()==1);
+    return result[0];
+}
 
 /// apply the projector on the argument function, potentially yielding a vector of CCPairfunctions as result
 
@@ -657,30 +787,46 @@ public:
 ///  Q12 f12 |ij> = (1 - O1) (1 - O2) f12 i(1) j(2)
 ///              = f12 ij - \sum_k k(1) f_ik(2) j(2) - \sum_k k(2) f_ij(1)j(1)
 /// which is a pure function and a decomposed function
-std::vector<CCPairFunction> apply(const ProjectorBase& P, const std::vector<CCPairFunction>& argument);
-
-/// convenience function
-CCPairFunction apply(const ProjectorBase& P, const CCPairFunction& argument);
-
-/// apply the convolution operator on the argument function, potentially yielding a vector of CCPairfunctions as result
 template<typename T, std::size_t NDIM>
-std::vector<CCPairFunction> apply(const SeparatedConvolution<T,NDIM>& op, const std::vector<CCPairFunction>& argument);
+std::vector<CCPairFunction<T,NDIM>> apply(const ProjectorBase& projector, const std::vector<CCPairFunction<T,NDIM>>& argument) {
+    return CCPairFunction<T,NDIM>::apply(projector,argument);
+}
 
-/// convenience function
+
+
 template<typename T, std::size_t NDIM>
-CCPairFunction apply(const SeparatedConvolution<T,NDIM>& op, const CCPairFunction& argument);
+Function<T,CCPairFunction<T,NDIM>::LDIM>inner(const CCPairFunction<T,NDIM>& c, const Function<T,CCPairFunction<T,NDIM>::LDIM>& f,
+                                              const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2) {
+    constexpr std::size_t LDIM=CCPairFunction<T,NDIM>::LDIM;
+    auto v11=std::array<int,LDIM>({std::get<0>(v1),std::get<1>(v1),std::get<2>(v1)});
+    auto v22=std::array<int,LDIM>({std::get<0>(v2),std::get<1>(v2),std::get<2>(v2)});
 
-std::vector<CCPairFunction> swap_particles(const std::vector<CCPairFunction>& argument);
+    return c.partial_inner(f,v11,v22);
+}
 
-real_function_3d inner(const CCPairFunction& c, const real_function_3d& f,
-                       const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2={0,1,2});
+template<typename T, std::size_t NDIM>
+CCPairFunction<T,NDIM> inner(const CCPairFunction<T,NDIM>& c1, const CCPairFunction<T,NDIM>& c2,
+                             const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2) {
+    constexpr std::size_t LDIM=CCPairFunction<T,NDIM>::LDIM;
+    auto v11=std::array<int,LDIM>({std::get<0>(v1),std::get<1>(v1),std::get<2>(v1)});
+    auto v22=std::array<int,LDIM>({std::get<0>(v2),std::get<1>(v2),std::get<2>(v2)});
 
-CCPairFunction inner(const CCPairFunction& c1, const CCPairFunction& c2,
-                       const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2);
+    return c1.partial_inner(c2,v11,v22);
+}
 
-std::vector<CCPairFunction> inner(const std::vector<CCPairFunction>& c1,
-                                  const std::vector<CCPairFunction>& c2,
-                     const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2);
+template<typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM>> inner(const std::vector<CCPairFunction<T,NDIM>>& c1,
+                                          const std::vector<CCPairFunction<T,NDIM>>& c2,
+                                          const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2) {
+    std::vector<CCPairFunction<T,NDIM>> result;
+    for (const auto& cc1 : c1) {
+        for (const auto& cc2 : c2) {
+            print("inner of ",cc1.name(), cc2.name());
+            result.push_back(inner(cc1,cc2,v1,v2));
+        }
+    }
+    return result;
+}
 
 } // namespace madness
 

@@ -367,7 +367,7 @@ double CC2::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
 
     print_header2("computing the MP3 correlation energy");
     print_header3("prepare the cluster function");
-    typedef std::vector<CCPairFunction> ClusterFunction;
+    typedef std::vector<CCPairFunction<double,6>> ClusterFunction;
     Pairs<ClusterFunction> clusterfunctions;
 
     auto R2 = nemo->ncf->square();
@@ -386,12 +386,12 @@ double CC2::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
             tmp.push_back(CCPairFunction(mp2pairs(i, j).function()));
             CCPairFunction ij(nemo->get_calc()->amo[i], nemo->get_calc()->amo[j]);
 
-            CCConvolutionOperator::Parameters cparam;
+            CCConvolutionOperator<double,3>::Parameters cparam;
             cparam.thresh_op *= 0.1;
-            auto f12 = CCConvolutionOperatorPtr(world, OpType::OT_F12, cparam);
+            auto f12 = CCConvolutionOperatorPtr<double,3>(world, OpType::OT_F12, cparam);
             StrongOrthogonalityProjector<double, 3> Q12(world);
             Q12.set_spaces(R2_orbital, nemo_orbital, R2_orbital, nemo_orbital);
-            auto vfij = Q12(std::vector<CCPairFunction>({f12 * ij}));
+            auto vfij = Q12(std::vector<CCPairFunction<double,6>>({f12 * ij}));
             for (auto& p: vfij) tmp.push_back(p);
 
             clusterfunctions(i, j)=tmp;
@@ -423,8 +423,8 @@ double CC2::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
     print_header3("recompute the MP2 energy");
 
 
-    CCConvolutionOperator::Parameters cparam;
-    auto g12=CCConvolutionOperatorPtr(world,OpType::OT_G12,cparam);
+    CCConvolutionOperator<double,3>::Parameters cparam;
+    auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,cparam);
     timer t2(world, "recompute MP2");
 
     // recompute MP2 energy
@@ -432,7 +432,7 @@ double CC2::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
     for (int i = parameters.freeze(); i < nocc; ++i) {
         for (int j = i; j < nocc; ++j) {
 
-            auto bra=CCPairFunction(R2_orbital[i],R2_orbital[j]);
+            auto bra=CCPairFunction<double,6>(R2_orbital[i],R2_orbital[j]);
             double direct=inner({bra},g12*clusterfunctions(i,j));
             double exchange=inner({bra},g12*clusterfunctions(j,i));
             double fac=(i==j) ? 0.5: 1.0;
@@ -675,7 +675,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
     // transform vector back to Pairs structure
     for (int i = 0; i < pair_vec.size(); i++) {
         pair_vec[i].constant_part = result_vec[i];
-        pair_vec[i].functions[0] = CCPairFunction(result_vec[i]);
+        pair_vec[i].functions[0] = CCPairFunction<double,6>(result_vec[i]);
         pair_vec[i].constant_part.truncate().reduce_rank();
         pair_vec[i].function().truncate().reduce_rank();
         save(pair_vec[i].constant_part, pair_vec[i].name() + "_const");
@@ -1175,9 +1175,9 @@ CC2::initialize_singles(CC_vecfunction& singles, const FuncType type, const int 
     MADNESS_ASSERT(singles.size() == 0);
     bool restarted = false;
 
-    std::vector<CCFunction> vs;
+    std::vector<CCFunction<double,3>> vs;
     for (size_t i = parameters.freeze(); i < CCOPS.mo_ket().size(); i++) {
-        CCFunction single_i;
+        CCFunction<double,3> single_i;
         single_i.type = type;
         single_i.i = i;
         std::string name;
