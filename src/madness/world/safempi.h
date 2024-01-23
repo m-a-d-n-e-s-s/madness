@@ -533,6 +533,13 @@ namespace SafeMPI {
                 return result;
             }
 
+            /// \return the period of repeat of unique tags produces by unique_tag()
+            static int unique_tag_period() {
+              const auto min_tag_value = 1024;
+              const auto max_tag_value = 4094;
+              return max_tag_value - min_tag_value + 1;
+            }
+
             /// Returns a unique tag reserved for long-term use (0<tag<1000)
 
             /// Get a tag from this routine for long-term/repeated use.
@@ -810,7 +817,7 @@ namespace SafeMPI {
             MADNESS_MPI_TEST(MPI_Barrier(pimpl->comm));
         }
 
-        /// Returns a unique tag for temporary use (1023<tag<=4095)
+        /// Returns a unique tag for temporary use (1023<tag<4095)
 
         /// These tags are intended for one time use to avoid tag
         /// collisions with other messages around the same time period.
@@ -822,6 +829,11 @@ namespace SafeMPI {
         int unique_tag() {
             MADNESS_ASSERT(pimpl);
             return pimpl->unique_tag();
+        }
+
+        /// \return the period of repeat of unique tags produces by unique_tag()
+        static int unique_tag_period() {
+          return Impl::unique_tag_period();
         }
 
         /// Returns a unique tag reserved for long-term use (0<tag<1000)
