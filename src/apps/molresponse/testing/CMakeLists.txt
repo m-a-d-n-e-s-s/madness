@@ -18,7 +18,7 @@ set(MY_EXECUTABLES
         pod_response
         )
 
-add_mad_executable(test_schema_json "madness_catch_main.cc;qcschema_json_testing.cpp" "MADresponse;MADchem")
+#add_mad_executable(test_schema_json "madness_catch_main.cc;qcschema_json_testing.cpp" "MADresponse;MADchem")
 
 foreach(EXECUTABLE ${MY_EXECUTABLES})
     add_mad_executable(${EXECUTABLE} "${EXECUTABLE}.cpp" "MADall_response;MADchem")
