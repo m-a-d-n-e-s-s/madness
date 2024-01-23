@@ -1266,6 +1266,7 @@ void runPODResponse(World &world, const frequencySchema &schema, const std::stri
                     generate_response_frequency_run_path(schema.moldft_path, schema.op, frequency, schema.xc);
             // this is the path to the restart file for the pod calculation
             auto restart_file_and_path = generate_frequency_save_path(linear_response_calc_path);
+            if(world.rank() == 0) {print("restart file and path", restart_file_and_path.first.replace_extension("")); }
             return restart_file_and_path.first.replace_extension("");
         };
         // for each frequency in the frequency list
@@ -1275,7 +1276,7 @@ void runPODResponse(World &world, const frequencySchema &schema, const std::stri
         auto frequencies = schema.freq;
         auto num_freq = frequencies.size();
 
-        std::vector<path> restart_paths(num_freq);
+        std::vector<path> restart_paths;
 
         std::for_each(frequencies.begin(), frequencies.end(), [&](double frequency) {
             auto restart_file_and_path = generate_omega_restart_path(frequency);

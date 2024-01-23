@@ -356,10 +356,9 @@ public:
 
     void set_x_data(World &world, const std::vector<double> &freqABC, const std::vector<path> &restart_files) {
         this->frequencies = freqABC;
-        if (freqABC.size() != 3) { throw std::runtime_error("Quadratic response requires 3 freqABC"); }
-        // print ABC frequencies
-        print("ABC frequencies: ", freqABC[0], " ", freqABC[1], " ", freqABC[2]);
 
+        frequency_contexts.resize(freqABC.size());
+        x_data.resize(freqABC.size());
         for (size_t i = 0; i < freqABC.size(); i++) {
             auto omega = freqABC[i];
 
@@ -377,7 +376,9 @@ public:
 
             // print omega before load_x_space
             print("omega: ", omega);
-            x_data[i] = frequency_contexts[i].load_x_space(world, restart_files[i], r_params, omega);
+            print("restart_files[i]: ", restart_files[i]);
+
+            x_data[i] = frequency_contexts[i].load_x_space(world, restart_files[i].string(), r_params, omega);
             ::check_k(world, x_data[i].first, FunctionDefaults<3>::get_thresh(), r_params.k());
         }
     };
