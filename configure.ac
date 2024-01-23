@@ -1,7 +1,7 @@
-AC_PREREQ(2.59)
+AC_PREREQ([2.72])
 # was 2.61 but jaguar is not up to date so backported which
 # involved replacing AC_PROG_SED and UINT*_T type checks.
-AC_INIT([MADNESS], [0.10], [https://github.com/m-a-d-n-e-s-s/madness], , [https://github.com/m-a-d-n-e-s-s/madness])
+AC_INIT([MADNESS],[0.10],[https://github.com/m-a-d-n-e-s-s/madness],[],[https://github.com/m-a-d-n-e-s-s/madness])
 AC_CONFIG_SRCDIR([configure.ac])
 
 # This is where autoconf automatically generated files go
@@ -24,7 +24,7 @@ ACX_CRAYXE
 ACX_MAC
 ACX_IBMBGP
 ACX_IBMBGQ
-#AC_AIX
+#AC_USE_SYSTEM_EXTENSIONS
 ACX_WITH_STUBMPI
 
 # Set default thread processor-affinity
@@ -69,7 +69,7 @@ initial_CXXFLAGS="$CXXFLAGS"
 AC_PROG_CC([$MPICC])
 AC_PROG_CXX([$MPICXX])
 AC_PROG_F77([$MPIF77]) # f90 is a superset of f77
-AC_LANG_CPLUSPLUS
+AC_LANG([C++])
 AC_MSG_NOTICE([Compiler choices after 'AC LANG' ... $CXX and $CC])
 
 CFLAGS="$initial_CFLAGS"
@@ -159,8 +159,29 @@ if test $HAVE_LATEX = YES; then
 fi
 AM_CONDITIONAL([CAN_BUILD_DOC], [test $HAVE_DOXYGEN = YES])
 
-AC_HEADER_TIME
-AC_HEADER_STDC
+m4_warn([obsolete],
+[Update your code to rely only on HAVE_SYS_TIME_H,
+then remove this warning and the obsolete code below it.
+All current systems provide time.h; it need not be checked for.
+Not all systems provide sys/time.h, but those that do, all allow
+you to include it and time.h simultaneously.])dnl
+AC_CHECK_HEADERS_ONCE([sys/time.h])
+# Obsolete code to be removed.
+if test $ac_cv_header_sys_time_h = yes; then
+  AC_DEFINE([TIME_WITH_SYS_TIME],[1],[Define to 1 if you can safely include both <sys/time.h>
+	     and <time.h>.  This macro is obsolete.])
+fi
+# End of obsolete code.
+
+m4_warn([obsolete],
+[The preprocessor macro 'STDC_HEADERS' is obsolete.
+  Except in unusual embedded environments, you can safely include all
+  C89 headers unconditionally.])dnl
+# Autoupdate added the next two lines to ensure that your configure
+# script's behavior did not change.  They are probably safe to remove.
+AC_CHECK_INCLUDES_DEFAULT
+AC_PROG_EGREP
+
 AC_CHECK_HEADERS([limits.h stddef.h stdint.h stdlib.h string.h sys/param.h sys/time.h unistd.h])
 AC_CHECK_HEADERS([bits/atomicity.h ext/atomicity.h])
 # Check c++11 headers
@@ -172,7 +193,20 @@ AC_TYPE_PID_T
 AC_C_RESTRICT
 ACX_CHECK_TLS
 AC_TYPE_SIZE_T
-AC_HEADER_TIME
+m4_warn([obsolete],
+[Update your code to rely only on HAVE_SYS_TIME_H,
+then remove this warning and the obsolete code below it.
+All current systems provide time.h; it need not be checked for.
+Not all systems provide sys/time.h, but those that do, all allow
+you to include it and time.h simultaneously.])dnl
+AC_CHECK_HEADERS_ONCE([sys/time.h])
+# Obsolete code to be removed.
+if test $ac_cv_header_sys_time_h = yes; then
+  AC_DEFINE([TIME_WITH_SYS_TIME],[1],[Define to 1 if you can safely include both <sys/time.h>
+	     and <time.h>.  This macro is obsolete.])
+fi
+# End of obsolete code.
+
 #AC_TYPE_UINT64_T
 #AC_TYPE_INT64_T
 AC_CHECK_TYPES([uint64_t, int64_t, uint32_t, int32_t, uint16_t, uint8_t, long long])
@@ -194,7 +228,7 @@ ACX_WITH_ELEMENTAL
 
 # Set the default fortran integer type
 AC_ARG_WITH([fortran-int32],
-            [AC_HELP_STRING([--with-fortran-int32], [Set FORTRAN integer size to 32 bit. By default, assume 32-bit integers.])],
+            [AS_HELP_STRING([--with-fortran-int32],[Set FORTRAN integer size to 32 bit. By default, assume 32-bit integers.])],
             [
               case $withval in
               yes)
@@ -247,8 +281,7 @@ fi
 
 # How to handle MADNESS exceptions.
 AC_ARG_ENABLE(madex,
-              [AC_HELP_STRING([--enable-madex=arg],
-                [Specifies behavior of MADNESS assertions: throw (default), abort, assert, disable])],
+              [AS_HELP_STRING([--enable-madex=arg],[Specifies behavior of MADNESS assertions: throw (default), abort, assert, disable])],
               [madex=$enableval],
               [madex=throw])
 case $madex in
@@ -272,7 +305,7 @@ esac
 
 # Determine if we should use the instrumented new/delete
 AC_ARG_ENABLE([memstats],
-              [AC_HELP_STRING([--enable-memstats], [If yes, gather memory statistics (expensive)])],
+              [AS_HELP_STRING([--enable-memstats],[If yes, gather memory statistics (expensive)])],
               [memstats=$enableval],
               [memstats=no])
 if test "$memstats" = "yes"; then
@@ -281,36 +314,32 @@ if test "$memstats" = "yes"; then
 fi
 
 AC_ARG_ENABLE([profile], 
-              [AC_HELP_STRING([--enable-profile], [Enables profiling])], 
+              [AS_HELP_STRING([--enable-profile],[Enables profiling])], 
               [AC_MSG_NOTICE([Enabling profiling]); AC_DEFINE(WORLD_PROFILE_ENABLE, [1], [Define if should enable profiling])], 
               [])
 
 AC_ARG_ENABLE([tensor-bounds-checking], 
-              [AC_HELP_STRING([--enable-tensor-bounds-checking],
-                [Enable checking of bounds in tensors ... slow but useful for debugging])], 
+              [AS_HELP_STRING([--enable-tensor-bounds-checking],[Enable checking of bounds in tensors ... slow but useful for debugging])], 
               [AC_MSG_NOTICE([Enabling tensor bounds checking]); AC_DEFINE(TENSOR_BOUNDS_CHECKING, [1], [Define if should enable bounds checking in tensors])], 
               [])
 
 AC_ARG_ENABLE([tensor-instance-count], 
-              [AC_HELP_STRING([--enable-tensor-instance-count],
-                [Enable counting of allocated tensors for memory leak detection])], 
+              [AS_HELP_STRING([--enable-tensor-instance-count],[Enable counting of allocated tensors for memory leak detection])], 
               [AC_MSG_NOTICE([Enabling tensor instance counting]); AC_DEFINE(TENSOR_INSTANCE_COUNT, [1], [Define if should enable instance counting in tensors])], 
               [])
 
 AC_ARG_ENABLE([spinlocks], 
-              [AC_HELP_STRING([--enable-spinlocks],
-                [Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)])], 
+              [AS_HELP_STRING([--enable-spinlocks],[Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)])], 
               [AC_MSG_NOTICE([Enabling use of spinlocks]); AC_DEFINE(USE_SPINLOCKS, [1], [Define if should use spinlocks])], 
               [])
 
 AC_ARG_ENABLE([never-spin], 
-              [AC_HELP_STRING([--enable-never-spin],
-                [Disables use of spinlocks (notably for use inside virtual machines)])], 
+              [AS_HELP_STRING([--enable-never-spin],[Disables use of spinlocks (notably for use inside virtual machines)])], 
               [AC_MSG_NOTICE([Disabling use of spinlocks]); AC_DEFINE(NEVER_SPIN, [1], [Define if should use never use spinlocks])], 
               [])
 
 AC_ARG_WITH([papi], 
-            [AC_HELP_STRING([--with-papi], [Enables use of PAPI])], 
+            [AS_HELP_STRING([--with-papi],[Enables use of PAPI])], 
             [AC_MSG_NOTICE([Enabling use of PAPI]); AC_DEFINE(HAVE_PAPI,[1], [Define if have PAPI])], 
             [])
 
@@ -323,7 +352,7 @@ AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_HOST], ["$HOSTNAME"],[Configured on th
 
 # Not yet enabled the user to configure this stuff but probably should
 AC_ARG_ENABLE([bsend-ack],
-            [AC_HELP_STRING([--disable-bsend-ack], [Use MPI Send instead of MPI Bsend for huge message acknowledgements.])],
+            [AS_HELP_STRING([--disable-bsend-ack],[Use MPI Send instead of MPI Bsend for huge message acknowledgements.])],
             [
               if test "x$enableval" != xno; then
                 AC_DEFINE([MADNESS_USE_BSEND_ACKS],[1],[Define when MADNESS should use Bsend for huge message acknowledgements.])
@@ -339,7 +368,7 @@ if test X$MADNESS_HAS_ELEMENTAL = X1; then
   MADNESS_MPI_THREAD_LEVEL=MPI_THREAD_MULTIPLE
 fi
 AC_ARG_WITH([mpi-thread],
-            [AC_HELP_STRING([--with-mpi-thread], [Thread level for MPI (multiple,serialized)])],
+            [AS_HELP_STRING([--with-mpi-thread],[Thread level for MPI (multiple,serialized)])],
             [
               case $withval in
                 multiple)
