@@ -837,11 +837,12 @@ void PODResponse::compute_pod_modes(World &world) {
 
 
     // num calculations
+    auto num_states = x_data.size() * 3;
     auto m = x_data.size();
     auto n = x_data[0].first.num_orbitals();
 
 
-    auto all_chi = X_space(world, m, n);
+    auto all_chi = X_space(world, num_states, n);
     if (world.rank() == 0) print("m: ", m);
     if (world.rank() == 0) print("n: ", n);
 
@@ -850,8 +851,9 @@ void PODResponse::compute_pod_modes(World &world) {
 
         // first step is to copy x_data_i into response_matrix_i
         auto x_data_i = x_data[i].first;
-        for (auto j = 0; j < n; j++) {
+        for (auto j = 0; j < 3; j++) {
             auto index = i * 3 + j;
+            if (world.rank() == 0) print("index: ", index);
             all_chi.x[index] = copy(world, x_data_i.x[j]);
             all_chi.y[index] = copy(world, x_data_i.y[j]);
         }
@@ -859,12 +861,21 @@ void PODResponse::compute_pod_modes(World &world) {
 
     auto A = inner(all_chi, all_chi);
 
+    // eigen values and eigen vectors
+
+    Tensor<double> e(num_states, 1);
+    Tensor<double> u(num_states, num_states);
+
+    syev(A,u,e);
+
+
+
     // A = U * diag(s) * VT    for A real
     // A = U * diag(s) * VH    for A complex
 
-    Tensor<double> VT(m, m);
-    Tensor<double> U(m, m);
-    Tensor<double> sigma(4);
+    Tensor<double> VT(num_states, num_states);
+    Tensor<double> U(num_states, num_states);
+    Tensor<double> sigma(num_states);
     svd(A, U, sigma, VT);
 
     // create a json printing out the singular values
@@ -873,6 +884,8 @@ void PODResponse::compute_pod_modes(World &world) {
     j["VT"] = tensor_to_json(VT);
     j["U"] = tensor_to_json(U);
     j["A"] = tensor_to_json(A);
+    j["eigenvectors"] = tensor_to_json(u);
+    j["eigenvalues"] = tensor_to_json(e);
 
     if (world.rank() == 0) print("sigma: ", sigma);
     if (world.rank() == 0) print("VT: ", VT);
