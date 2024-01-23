@@ -194,9 +194,9 @@ namespace madness {
     void WorldGopInterface::broadcast(void* buf, size_t nbyte, ProcessID root, bool dowork, Tag bcast_tag) {
       if(bcast_tag < 0)
         bcast_tag = world_.mpi.unique_tag();
-      const size_t int_max = static_cast<size_t>(std::numeric_limits<int>::max());
+      const size_t max_msg_size = static_cast<size_t>(max_reducebcast_msg_size());
       while (nbyte) {
-        const int n = static_cast<int>(std::min(int_max, nbyte));
+        const int n = static_cast<int>(std::min(max_msg_size, nbyte));
         broadcast_impl(buf, n, root, dowork, bcast_tag, world_);
         nbyte -= n;
         buf = static_cast<char*>(buf) + n;

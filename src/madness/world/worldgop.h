@@ -143,10 +143,11 @@ namespace madness {
     /// If native AM interoperates with MPI we probably should map these to MPI.
     class WorldGopInterface {
     private:
-        World& world_; ///< MPI interface
+        World& world_; ///< World object that this is a part of
         std::shared_ptr<detail::DeferredCleanup> deferred_; ///< Deferred cleanup object.
         bool debug_; ///< Debug mode
         bool forbid_fence_=false; ///< forbid calling fence() in case of several active worlds
+        int max_reducebcast_msg_size_ = std::numeric_limits<int>::max();  ///< maximum size of messages (in bytes) sent by reduce and broadcast
 
         friend class detail::DeferredCleanup;
 
@@ -624,11 +625,34 @@ namespace madness {
                         bool pause_during_epilogue = false,
                         bool debug = false);
 
+        int initial_max_reducebcast_msg_size() {
+          int result = std::numeric_limits<int>::max();
+          const auto* initial_max_reducebcast_msg_size_cstr = std::getenv("MAD_MAX_REDUCEBCAST_MSG_SIZE");
+          if (initial_max_reducebcast_msg_size_cstr) {
+            result = std::atoi(initial_max_reducebcast_msg_size_cstr);
+            const auto do_print = SafeMPI::COMM_WORLD.Get_rank() == 0 && !madness::quiet();
+            if (result<=0) {
+              if (do_print)
+                std::cout
+                    << "!!MADNESS WARNING: Invalid value for environment variable MAD_MAX_REDUCEBCAST_MSG_SIZE.\n"
+                    << "!!MADNESS WARNING: MAD_MAX_REDUCEBCAST_MSG_SIZE = "
+                    << result << "\n";
+              result = std::numeric_limits<int>::max();
+            }
+            if(do_print) {
+              std::cout
+                  << "MADNESS max msg size for GOP reduce/broadcast set to "
+                  << result << " bytes.\n";
+            }
+          }
+          return result;
+        }
+
     public:
 
         // In the World constructor can ONLY rely on MPI and MPI being initialized
         WorldGopInterface(World& world) :
-            world_(world), deferred_(new detail::DeferredCleanup()), debug_(false)
+            world_(world), deferred_(new detail::DeferredCleanup()), debug_(false), max_reducebcast_msg_size_(initial_max_reducebcast_msg_size())
         { }
 
         ~WorldGopInterface() {
@@ -650,6 +674,26 @@ namespace madness {
             forbid_fence_ = value;
             return status;
         }
+
+        /// Set the maximum size of messages (in bytes) sent by reduce and broadcast
+
+        /// \param sz the maximum size of messages (in bytes) sent by reduce and broadcast
+        /// \return the previous maximum size of messages (in bytes) sent by reduce and broadcast
+        /// \pre `sz>0`
+        int set_max_reducebcast_msg_size(int sz) {
+          MADNESS_ASSERT(sz>0);
+          std::swap(max_reducebcast_msg_size_,sz);
+          return max_reducebcast_msg_size_;
+        }
+
+
+        /// Returns the maximum size of messages (in bytes) sent by reduce and broadcast
+
+        /// \return the maximum size of messages (in bytes) sent by reduce and broadcast
+        int max_reducebcast_msg_size() const {
+          return max_reducebcast_msg_size_;
+        }
+
         /// Synchronizes all processes in communicator ... does NOT fence pending AM or tasks
         void barrier() {
             long i = world_.rank();
@@ -767,9 +811,9 @@ namespace madness {
         /// Optimizations can be added for long messages and to reduce the memory footprint
         template <typename T, class opT>
             void reduce(T* buf, std::size_t nelem, opT op) {
-          const std::size_t nelem_per_intmax_nbytes = std::numeric_limits<int>::max() / sizeof(T);
+          const std::size_t nelem_per_maxmsg = max_reducebcast_msg_size() / sizeof(T);
           while (nelem) {
-            const int n = std::min(nelem_per_intmax_nbytes, nelem);
+            const int n = std::min(nelem_per_maxmsg, nelem);
             reduce_impl(buf, n, op);
             nelem -= n;
             buf += n;
