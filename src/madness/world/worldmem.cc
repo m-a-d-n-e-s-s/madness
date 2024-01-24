@@ -136,7 +136,7 @@ namespace madness {
   }
 } // namespace madness
 
-void* operator new(size_t size) throw (std::bad_alloc) {
+void* operator new(size_t size) noexcept(false) {
     // user-size + actual_pointer + pre_checksum + post_checksum + padding
     std::size_t actual_size = size + madness::WorldMemInfo::overhead;
 
