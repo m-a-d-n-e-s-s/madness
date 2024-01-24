@@ -141,7 +141,7 @@ public:
   std::vector<coord_3d> special_points() const {return specialpt;}
 
   Level special_level() {
-    return 10;
+    return 50;
   }
 
 };
@@ -257,6 +257,9 @@ public:
             functor = new MolecularPotentialFunctor(mol);
         }
         vnuc = real_factory_3d(world).functor(real_functor_3d(functor)).thresh(vtol).truncate_on_project();
+        if (bc(0,0) == BC_PERIODIC) {
+            vnuc.scale(-1);
+        }
         vnuc.set_thresh(FunctionDefaults<3>::get_thresh());
         vnuc.reconstruct();
         //     "" is  legacy core_type value for all-electron (also be used by CorePotentialManager)
