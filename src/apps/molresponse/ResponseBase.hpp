@@ -243,11 +243,11 @@ public:
                        const poperatorT &coulomb_ops) const override {
 
         X_space J = X_space::zero_functions(world, x.num_states(), x.num_orbitals());
-        if (world.rank() == 0) { print("J1StrategyStable"); }
+        //if (world.rank() == 0) { print("J1StrategyStable"); }
         vector_real_function_3d temp_J(3);
         for (const auto &b: x.active) {
             temp_J[b] = apply(*coulomb_ops, rho1[b]);
-            if (true) {
+            if (false) {
                 auto norm = temp_J[b].norm2();
                 if (world.rank() == 0) print("norm of temp_J:", norm);
             }
