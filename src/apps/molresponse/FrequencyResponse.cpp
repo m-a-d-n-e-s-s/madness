@@ -258,12 +258,12 @@ auto FrequencyResponse::update_response(World &world, X_space &chi, XCOperator<d
 
     auto x = chi.copy();
     auto chi_norm = x.norm2s();
-    if (world.rank() == 0) { print("x before bsh update: ", chi_norm); }
+    //if (world.rank() == 0) { print("x before bsh update: ", chi_norm); }
     X_space theta_X = compute_theta_X(world, x, rho_old, xc, r_params.calc_type());
     X_space new_chi = bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops, projector, x_shifts);
 
     chi_norm = new_chi.norm2s();
-    if (world.rank() == 0) { print("new_chi_norm after bsh update: ", chi_norm); }
+    //if (world.rank() == 0) { print("new_chi_norm after bsh update: ", chi_norm); }
 
     inner_to_json(world, "x_new", response_context.inner(new_chi, new_chi), iter_function_data);
 
