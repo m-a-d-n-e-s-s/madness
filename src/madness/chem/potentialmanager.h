@@ -109,12 +109,15 @@ public:
 class NuclearDensityFunctor : public FunctionFunctorInterface<double,3> {
 private:
   const Molecule& molecule;
-  const double R;
+  const double R; // Needed only for the periodic case
   std::vector<coord_3d> specialpt;
-  const int maxR = 1;
+  const int maxR;
 public:
+  explicit NuclearDensityFunctor(const Molecule& molecule)
+      : molecule(molecule), R(0), specialpt(molecule.get_all_coords_vec()), maxR(0)
+  {}
   NuclearDensityFunctor(const Molecule& molecule, double R)
-      : molecule(molecule), R(R), specialpt(molecule.get_all_coords_vec())
+      : molecule(molecule), R(R), specialpt(molecule.get_all_coords_vec()), maxR(1)
   {}
 
   double operator()(const coord_3d& x) const {
@@ -248,18 +251,7 @@ public:
     void make_nuclear_potential(World& world) {
         double safety = 0.1;
         double vtol = FunctionDefaults<3>::get_thresh() * safety;
-
-        FunctionFunctorInterface<double,3>* functor;
-        auto bc= FunctionDefaults<3>::get_bc();
-        if (bc(0,0) == BC_PERIODIC) {
-            functor = new NuclearDensityFunctor(mol, FunctionDefaults<3>::get_cell_width().max());
-        } else {
-            functor = new MolecularPotentialFunctor(mol);
-        }
-        vnuc = real_factory_3d(world).functor(real_functor_3d(functor)).thresh(vtol).truncate_on_project();
-        if (bc(0,0) == BC_PERIODIC) {
-            vnuc.scale(-1);
-        }
+        vnuc = real_factory_3d(world).functor(real_functor_3d(new MolecularPotentialFunctor(mol))).thresh(vtol).truncate_on_project();
         vnuc.set_thresh(FunctionDefaults<3>::get_thresh());
         vnuc.reconstruct();
         //     "" is  legacy core_type value for all-electron (also be used by CorePotentialManager)
