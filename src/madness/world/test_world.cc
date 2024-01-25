@@ -1178,10 +1178,15 @@ void test13(World& world) {
 void test14(World& world) {
 
   if (world.size() > 1) {
+    static size_t call_counter = 0;
+    ++call_counter;
+
     const auto n = 1 + std::numeric_limits<int>::max()/sizeof(int);
     auto iarray = std::make_unique<int[]>(n);
     iarray[0] = -1;
     iarray[n-1] = -1;
+
+    world.gop.set_max_reducebcast_msg_size(std::numeric_limits<int>::max()/(std::min(10ul,call_counter)));
     world.gop.broadcast(iarray.get(), n, 0);
 
     if (world.rank() == 1) {
