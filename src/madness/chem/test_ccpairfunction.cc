@@ -17,58 +17,65 @@ using namespace madness;
 
 
 bool longtest=false;
+template<typename T, std::size_t NDIM>
 struct data {
-    real_function_3d f1,f2,f3,f4,f5;
-    real_function_6d f12,f23;
+    static constexpr std::size_t LDIM=NDIM/2;
+    Function<T,LDIM> f1,f2,f3,f4,f5;
+    Function<T,NDIM> f12,f23;
 
-    std::shared_ptr<CCConvolutionOperator<double,3>> f12_op;
+    std::shared_ptr<CCConvolutionOperator<T,LDIM>> f12_op;
     data() {}
 
-    data(World& world, CCParameters& parameters) {
-        f12_op.reset(new CCConvolutionOperator(world,OT_F12,parameters));
-        if (not f1.is_initialized()) initialize(world);
+    data(World& world, const CCParameters& parameters) {
+        if (not is_initialized()) initialize(world,parameters);
     }
 
-    void initialize(World& world) {
-        auto g1 = [](const coord_3d& r) { return exp(-1.0 * inner(r, r)); };
-        auto g2 = [](const coord_3d& r) { return exp(-2.0 * inner(r, r)); };
-        auto g3 = [](const coord_3d& r) { return exp(-3.0 * inner(r, r)); };
-        auto g4 = [](const coord_3d& r) { return exp(-4.0 * inner(r, r)); };
-        auto g5 = [](const coord_3d& r) { return exp(-5.0 * inner(r, r)); };
-//        auto g1 = [](const coord_3d& r) { return exp(-1.0 * (r.normf()+1.e-4)); };
-//        auto g2 = [](const coord_3d& r) { return exp(-2.0 * (r.normf()+1.e-4)); };
-//        auto g3 = [](const coord_3d& r) { return exp(-3.0 * (r.normf()+1.e-4)); };
-//        auto g4 = [](const coord_3d& r) { return exp(-4.0 * (r.normf()+1.e-4)); };
-//        auto g5 = [](const coord_3d& r) { return exp(-5.0 * (r.normf()+1.e-4)); };
-        f1=real_factory_3d(world).f(g1);
-        f2=real_factory_3d(world).f(g2);
-        f3=real_factory_3d(world).f(g3);
-        f4=real_factory_3d(world).f(g4);
-        f5=real_factory_3d(world).f(g5);
+    bool is_initialized() const {
+        return f1.is_initialized();
+    }
 
-        auto g = [](const coord_6d& r) {
-            double r1=r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
-            double r2=r[3]*r[3] + r[4]*r[4] + r[5]*r[5];
+    void initialize(World& world, const CCParameters& parameters) {
+        f12_op.reset(new CCConvolutionOperator<T,LDIM>(world,OT_F12,parameters));
+        auto g1 = [](const Vector<double,LDIM>& r) { return exp(-1.0 * inner(r, r)); };
+        auto g2 = [](const Vector<double,LDIM>& r) { return exp(-2.0 * inner(r, r)); };
+        auto g3 = [](const Vector<double,LDIM>& r) { return exp(-3.0 * inner(r, r)); };
+        auto g4 = [](const Vector<double,LDIM>& r) { return exp(-4.0 * inner(r, r)); };
+        auto g5 = [](const Vector<double,LDIM>& r) { return exp(-5.0 * inner(r, r)); };
+        f1=FunctionFactory<T,LDIM>(world).f(g1);
+        f2=FunctionFactory<T,LDIM>(world).f(g2);
+        f3=FunctionFactory<T,LDIM>(world).f(g3);
+        f4=FunctionFactory<T,LDIM>(world).f(g4);
+        f5=FunctionFactory<T,LDIM>(world).f(g5);
+
+        auto g = [](const Vector<double,NDIM>& r) {
+            double r1=0.0, r2=0.0;
+            for (int i=0; i<LDIM; ++i) {
+                r1+=r[i]*r[i];
+                r2+=r[i+LDIM]*r[i+LDIM];
+            }
             return exp(-1.0*r1 - 2.0*r2);
         };
-        auto g23 = [](const coord_6d& r) {
-            double r1=r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
-            double r2=r[3]*r[3] + r[4]*r[4] + r[5]*r[5];
+        auto g23 = [](const Vector<double,NDIM>& r) {
+            double r1=0.0, r2=0.0;
+            for (int i=0; i<LDIM; ++i) {
+                r1+=r[i]*r[i];
+                r2+=r[i+LDIM]*r[i+LDIM];
+            }
             return exp(-1.0*r1 - 2.0*r2) + exp(-2.0*r1 - 3.0*r2);
         };
 
-        f12=real_factory_6d(world);
-        f23=real_factory_6d(world);
+        f12=FunctionFactory<T,NDIM>(world);
+        f23=FunctionFactory<T,NDIM>(world);
 //        try {
 //            load(f12,"test_ccpairfunction_f12");
 //        } catch (...) {
-            f12 = real_factory_6d(world).f(g);
+            f12 = FunctionFactory<T,NDIM>(world).f(g);
 //            save(f12,"test_ccpairfunction_f12");
 //        }
 //        try {
 //            load(f23,"test_ccpairfunction_f23");
 //        } catch (...) {
-            f23 = real_factory_6d(world).f(g23);
+            f23 = FunctionFactory<T,NDIM>(world).f(g23);
 //            save(f23,"test_ccpairfunction_f23");
 //        }
 
@@ -105,17 +112,33 @@ struct data {
     /// p4: pure, corresponds to f23
     /// p5: op_pure, corresponds to f23
     auto get_ccpairfunctions() const {
-        CCPairFunction<double,6> p1(f12);
-        CCPairFunction<double,6> p2({f1,f2},{f2,f3});
-        CCPairFunction<double,6> p3(f12_op,{f1,f2},{f2,f3});
-        CCPairFunction<double,6> p4(f23); // two-term, corresponds to p2
-        CCPairFunction<double,6> p5(f12_op,f23); // two-term, corresponds to p2
+        CCPairFunction<T,NDIM> p1(f12);
+        CCPairFunction<T,NDIM> p2({f1,f2},{f2,f3});
+        CCPairFunction<T,NDIM> p3(f12_op,{f1,f2},{f2,f3});
+        CCPairFunction<T,NDIM> p4(f23); // two-term, corresponds to p2
+        CCPairFunction<T,NDIM> p5(f12_op,f23); // two-term, corresponds to p2
         return std::make_tuple(p1,p2,p3,p4,p5);
     }
 
 };
 
-data data1;
+
+template<std::size_t NDIM>
+data<double,NDIM>& get_data(World& world, const CCParameters& parameters, bool initialize=true) {
+    static data<double,NDIM> data1;
+    if (not data1.is_initialized() and initialize) data1.initialize(world,parameters);
+    return data1;
+}
+
+template<std::size_t NDIM>
+void clear_data(World& world, const CCParameters& parameters) {
+    auto data1=get_data<NDIM>(world,parameters,false);
+    data1.clear();
+    world.gop.fence();
+}
+
+
+
 
 /// Computes the electrostatic potential due to a Gaussian charge distribution
 
@@ -149,22 +172,28 @@ public:
     }
 };
 
-int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+
+
+
+template<typename T, std::size_t NDIM>
+int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const data<T,NDIM>& data,
                      const CCParameters& parameter) {
-    test_output t1("CCPairFunction<double,6>::constructor");
+    test_output t1("constructor<T,"+std::to_string(NDIM)+">");
+    static_assert(NDIM%2==0, "NDIM must be even");
+    constexpr std::size_t LDIM=NDIM/2;
 
-    real_function_6d f=real_factory_6d(world);
-    auto [f1,f2,f3,f4,f5,ff]=data1.get_functions();
+    Function<T,NDIM> f=FunctionFactory<T,NDIM>(world);
+    auto [f1,f2,f3,f4,f5,ff]=data.get_functions();
 
-    vector_real_function_3d  a= zero_functions<double,3>(world,3);
-    vector_real_function_3d  b= zero_functions<double,3>(world,3);
-    auto f12=CCConvolutionOperatorPtr<double,3>(world, OT_F12, parameter);
+    std::vector<Function<T,LDIM>>  a= zero_functions<T,LDIM>(world,LDIM);
+    std::vector<Function<T,LDIM>>  b= zero_functions<T,LDIM>(world,LDIM);
+    auto f12=CCConvolutionOperatorPtr<double,LDIM>(world, OT_F12, parameter);
     t1.checkpoint(true,"preparation");
 
-    CCPairFunction<double,6> p1;
-    CCPairFunction<double,6> p2(f);
-    CCPairFunction<double,6> p3({f1,f2},{f1,f3});
-    CCPairFunction<double,6> p4(f12,{f1,f2},{f2,f3});
+    CCPairFunction<T,NDIM> p1;
+    CCPairFunction<T,NDIM> p2(f);
+    CCPairFunction<T,NDIM> p3({f1,f2},{f1,f3});
+    CCPairFunction<T,NDIM> p4(f12,{f1,f2},{f2,f3});
     t1.checkpoint(true,"construction");
 
     {
@@ -197,7 +226,7 @@ int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
     t1.checkpoint(true,"checks on op_decomposed");
 
     {
-        CCPairFunction<double,6> tmp;
+        CCPairFunction<T,NDIM> tmp;
         tmp=p2;
         MADNESS_CHECK(tmp.is_pure());
         MADNESS_CHECK(tmp.component==p2.component);
@@ -212,17 +241,21 @@ int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
     return t1.end();
 }
 
-int test_operator_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+template<typename T, std::size_t NDIM>
+int test_operator_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const data<T,NDIM>& data,
                         const CCParameters& parameter) {
-    test_output t1("CCPairFunction<double,6>::test_operator_apply");
+    test_output t1("test_operator_apply<double,"+std::to_string(NDIM)+">");
 //    t1.set_cout_to_terminal();
+
+    static_assert(NDIM%2==0, "NDIM must be even");
+    constexpr std::size_t LDIM=NDIM/2;
 
     double exponent=1.0; // corresponds to the exponent of data::f1 and data::ff
 //    double coefficient=pow(1.0/constants::pi*exponent,0.5*3);
     double coefficient=1.0;
-    const coord_3d center={0.0,0.0,-0.0};
+    const Vector<double,LDIM> center(0.0);
 
-    auto Gaussian = [&center, &exponent, &coefficient](const coord_3d& r) {
+    auto Gaussian = [&center, &exponent, &coefficient](const Vector<double,LDIM>& r) {
         return coefficient * exp(-exponent*inner(r-center,r-center));
     };
 
@@ -231,15 +264,15 @@ int test_operator_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> 
 //    GaussianPotential gpot(center, exponent, coefficient);
 //    real_function_3d op_a=real_factory_3d(world).functor(gpot);
 
-    real_function_3d a=real_factory_3d(world).functor(Gaussian);
+    Function<T,LDIM> a=FunctionFactory<T,LDIM>(world).functor(Gaussian);
     exponent=2.0;
-    real_function_3d b=real_factory_3d(world).functor(Gaussian);
+    Function<T,LDIM> b=FunctionFactory<T,LDIM>(world).functor(Gaussian);
 
-    auto [f1,f2,f3,f4,f5,ff]=data1.get_functions();
-    CCPairFunction<double,6> c1(a,b);
-    CCPairFunction<double,6> c2(f1,f2);
+    auto [f1,f2,f3,f4,f5,ff]=data.get_functions();
+    CCPairFunction<T,NDIM> c1(a,b);
+    CCPairFunction<T,NDIM> c2(f1,f2);
 //    CCPairFunction<double,6> ref(op_a,b);
-    auto op= CoulombOperator(world,1.e-5,FunctionDefaults<3>::get_thresh());
+    auto op= CoulombOperator_ndim<LDIM>(world,1.e-5,FunctionDefaults<LDIM>::get_thresh());
     op.print_timings=false;
     op.particle()=1;
 
@@ -249,68 +282,75 @@ int test_operator_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> 
     double norm1=inner(op_c1,op_c1);
     double norm2=inner(op_c2,op_c2);
     print("norm1,norm2",norm1,norm2);
-    bool good=fabs(norm1-norm2)<FunctionDefaults<3>::get_thresh();
+    bool good=fabs(norm1-norm2)<FunctionDefaults<LDIM>::get_thresh();
     t1.checkpoint(good,"op(xx)");
     return t1.end();
 }
 
 
-int test_transformations(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+template<typename T, std::size_t NDIM>
+int test_transformations(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const data<T,NDIM>& data,
                          const CCParameters& parameter) {
-    test_output t1("CCPairFunction<double,6>::test_transformations");
+    test_output t1("test_transformations<double,"+std::to_string(NDIM)+">");
+    static_assert(NDIM%2==0, "NDIM must be even");
+    constexpr std::size_t LDIM=NDIM/2;
 
-    real_function_6d f=real_factory_6d(world);
-    auto [f1,f2,f3,f4,f5,ff]=data1.get_functions();
-    auto f12=CCConvolutionOperatorPtr<double,3>(world, OT_F12, parameter);
-    auto g12=CCConvolutionOperatorPtr<double,3>(world, OT_G12, parameter);
+//    auto data=get_data<NDIM>(world,parameter);
+    auto [f1,f2,f3,f4,f5,ff]=data.get_functions();
+    auto f12=CCConvolutionOperatorPtr<double,LDIM>(world, OT_F12, parameter);
+    auto g12=CCConvolutionOperatorPtr<double,LDIM>(world, OT_G12, parameter);
 
 
-    CCPairFunction<double,6> p1(ff);
+    CCPairFunction<T,NDIM> p1(ff);
     t1.checkpoint(p1.is_pure(),"is_pure");
     t1.checkpoint(p1.is_pure_no_op(),"is_pure_no_op");
 
-    CCPairFunction<double,6> p2(f12,ff);
+    CCPairFunction<T,NDIM> p2(f12,ff);
     t1.checkpoint(p2.is_pure(),"is_pure");
     t1.checkpoint(p2.is_op_pure(),"is_op_pure");
     t1.checkpoint(p2.is_convertible_to_pure_no_op(),"is_convertible_to_pure_no_op");
-    CCPairFunction<double,6> p3=copy(p2);
+    CCPairFunction<T,NDIM> p3=copy(p2);
     p3.convert_to_pure_no_op_inplace();
     t1.checkpoint(p2.is_op_pure(),"is_op_pure");
     t1.checkpoint(p3.is_pure_no_op(),"is_pure_no_op");
 
-    CCPairFunction<double,6> p4(g12,ff);
+    CCPairFunction<T,NDIM> p4(g12,ff);
     t1.checkpoint(p4.is_pure(),"is_pure");
     t1.checkpoint(p4.is_op_pure(),"is_op_pure");
     t1.checkpoint(not p4.is_convertible_to_pure_no_op(),"not is_convertible_to_pure_no_op");
 
-    CCPairFunction<double,6> p5(f12,f1,f2);
+    CCPairFunction<T,NDIM> p5(f12,f1,f2);
     t1.checkpoint(not p5.is_pure(),"is_pure");
     t1.checkpoint(p5.is_op_decomposed(),"is_op_decomposed");
     t1.checkpoint(p5.is_convertible_to_pure_no_op(),"is_convertible_to_pure_no_op");
-    CCPairFunction<double,6> p6=copy(p5);
+    CCPairFunction<T,NDIM> p6=copy(p5);
     p6.convert_to_pure_no_op_inplace();
     t1.checkpoint(p6.is_pure_no_op(),"is_pure_no_op");
 
     return t1.end();
 }
 
-int test_multiply_with_f12(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+template<typename T, std::size_t NDIM>
+int test_multiply_with_f12(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const data<T,NDIM>& data,
                            const CCParameters& parameters) {
-    test_output t1("CCPairFunction<double,6>::test_multiply_with_f12");
+    test_output t1("test_multiply_with_f12<double,"+std::to_string(NDIM)+">");
+    static_assert(NDIM%2==0, "NDIM must be even");
+    constexpr std::size_t LDIM=NDIM/2;
 
     // p1: pure, corresponds to f12
     // p2: dec, corresponds to f23
     // p3: op_dec, corresponds to f23
     // p4: pure, corresponds to f23
     // p5: op_pure, corresponds to f23
-    auto [p1,p2,p3,p4,p5]=data1.get_ccpairfunctions();  // p2-p5 correspond to f23
-    auto f12=data1.f12_op;
+//    auto data=get_data<NDIM>(world,parameters);
+    auto [p1,p2,p3,p4,p5]=data.get_ccpairfunctions();  // p2-p5 correspond to f23
+    auto f12=data.f12_op;
 
-    double thresh=FunctionDefaults<3>::get_thresh();
+    double thresh=FunctionDefaults<LDIM>::get_thresh();
 
     // decomposed
-    CCPairFunction<double,6> tmp1=f12*p2;         // should now be identical to p3
-    CCPairFunction<double,6> tmp2=p2*f12;         // should now be identical to p3
+    CCPairFunction<double,NDIM> tmp1=f12*p2;         // should now be identical to p3
+    CCPairFunction<double,NDIM> tmp2=p2*f12;         // should now be identical to p3
     double ref=inner(p2,p3);
 
     double r1=inner(p2,tmp1);
@@ -336,30 +376,40 @@ int test_multiply_with_f12(World& world, std::shared_ptr<NuclearCorrelationFacto
     return t1.end();
 }
 
-int test_multiply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+template<typename T, std::size_t NDIM>
+int test_multiply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const data<T,NDIM>& data,
                   const CCParameters& parameters) {
-    test_output t1("CCPairFunction<double,6>::test_multiply");
+    test_output t1("test_multiply<"+std::to_string(NDIM)+">");
+    static_assert(NDIM%2==0, "NDIM must be even");
+    constexpr std::size_t LDIM=NDIM/2;
 
     // consistency check, relies on CCPairFunction<double,6>::inner to work correctly
+    double thresh=FunctionDefaults<LDIM>::get_thresh();
+//    auto data=get_data<NDIM>(world,parameters);
+    auto [p1,p2,p3,p4,p5]=data.get_ccpairfunctions();  // p2-p5 correspond to f23
+    auto [f1,f2,f3,f4,f5,f]=data.get_functions();
 
-    double thresh=FunctionDefaults<3>::get_thresh();
-    auto [p1,p2,p3,p4,p5]=data1.get_ccpairfunctions();  // p2-p5 correspond to f23
-    auto [f1,f2,f3,f4,f5,f]=data1.get_functions();
+    auto particle1=std::array<int,LDIM>();
+    auto particle2=std::array<int,LDIM>();
+    for (int i=0; i<LDIM; ++i) {
+        particle1[i]=i;
+        particle2[i]=i+LDIM;
+    }
 
     // reference value is <bra | f(1/2) p>  = <f1 f | p>
-    CCPairFunction<double,6> bra(f1,f2);
-    CCPairFunction<double,6> bra1(f1*f2,f2);
-    CCPairFunction<double,6> bra2(f1,f2*f2);
+    CCPairFunction<T,NDIM> bra(f1,f2);
+    CCPairFunction<T,NDIM> bra1(f1*f2,f2);
+    CCPairFunction<T,NDIM> bra2(f1,f2*f2);
     for (auto& p : {p2,p3,p4,p5}) {
 
-        auto tmp1=multiply(p,f2,{0,1,2});
+        auto tmp1=multiply(p,f2,particle1);
         double ovlp1=inner(bra,tmp1);
         double ref1=p.has_operator() ? inner(bra1,p3) : inner(bra1,p2);
 
         bool good=(fabs(ovlp1-ref1)<thresh);
         t1.checkpoint(good,"f(1)*"+p.name());
 
-        auto tmp2=multiply(p,f2,{3,4,5});
+        auto tmp2=multiply(p,f2,particle2);
         double ovlp2=inner(bra,tmp2);
         double ref2=p.has_operator() ? inner(bra2,p3) : inner(bra2,p2);
 
@@ -369,9 +419,13 @@ int test_multiply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, c
 
     return t1.end();
 }
-int test_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+
+template<typename T, std::size_t NDIM>
+int test_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const data<T,NDIM>& data,
                const CCParameters& parameters) {
-    test_output t1("CCPairFunction<double,6>::test_inner");
+    test_output t1("test_inner<"+std::to_string(NDIM)+">");
+    static_assert(NDIM%2==0, "NDIM must be even");
+    constexpr std::size_t LDIM=NDIM/2;
     t1.set_cout_to_terminal();
 
     /// f1: exp(-1.0 r^2)
@@ -381,19 +435,20 @@ int test_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, cons
     /// f5: exp(-5.0 r^2)
     /// f: exp(-r_1^2 - 2 r_2^2)
     /// f23: exp(-r_1^2 - 2 r_2^2) + exp(-2 r_1^2 - 3 r_2^2)
-    auto [f1,f2,f3,f4,f5,f]=data1.get_functions();
+//    auto data=get_data<NDIM>(world,parameters);
+    auto [f1,f2,f3,f4,f5,f]=data.get_functions();
     /// p1: pure, corresponds to f12
     /// p2: dec, corresponds to f23
     /// p3: op_dec, corresponds to f23
     /// p4: pure, corresponds to f23
     /// p5: op_pure, corresponds to f23
-    auto [p1,p2,p3,p4,p5]=data1.get_ccpairfunctions();
-    auto f12 = *(data1.f12_op);
+    auto [p1,p2,p3,p4,p5]=data.get_ccpairfunctions();
+    auto f12 = *(data.f12_op);
 
     /// results
-    auto a=std::vector<real_function_3d>({f1,f2});
-    auto b=std::vector<real_function_3d>({f2,f3});
-    std::vector<real_function_3d> a_ij_functions, b_ij_functions;
+    auto a=std::vector<Function<T,LDIM>>({f1,f2});
+    auto b=std::vector<Function<T,LDIM>>({f2,f3});
+    std::vector<Function<T,LDIM>> a_ij_functions, b_ij_functions;
     for (int i=0; i<a.size(); ++i) {
         for (int j=0; j<a.size(); ++j) {
             a_ij_functions.push_back(a[i]*a[j]);
@@ -419,8 +474,8 @@ int test_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, cons
     // operator apply of SlaterF12Operator includes a factor of 1/(2 gamma) and the identity
     // operator apply of SlaterOperator has no further terms
     const double y = parameters.gamma();
-    SeparatedConvolution<double, 3> fop= SlaterOperator(world, y, parameters.lo(), parameters.thresh_bsh_3D());
-    SeparatedConvolution<double, 3> fsq = SlaterOperator(world, 2.0 * y, parameters.lo(), parameters.thresh_bsh_3D());
+    SeparatedConvolution<double, LDIM> fop= SlaterOperator<LDIM>(world, y, parameters.lo(), parameters.thresh_bsh_3D());
+    SeparatedConvolution<double, LDIM> fsq = SlaterOperator<LDIM>(world, 2.0 * y, parameters.lo(), parameters.thresh_bsh_3D());
 
     const double prefactor = 1.0 / (4 * y * y);
     const double ab_f2_ab = prefactor*( ab_ab
@@ -447,20 +502,22 @@ int test_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, cons
 }
 
 
-int test_partial_inner_6d(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+template<typename T, std::size_t NDIM>
+int test_partial_inner_6d(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const data<T,NDIM>& data,
                           const CCParameters& parameter) {
 
     CCTimer timer(world, "testing");
     test_output t1("CCPairFunction<double,6>::test_partial_inner_6d");
     t1.set_cout_to_terminal();
-    auto [f1,f2,f3,f4,f5,f] = data1.get_functions();
+//    auto data=get_data<6>(world,parameter);
+    auto [f1,f2,f3,f4,f5,f] = data.get_functions();
 
     std::vector<real_function_3d> a = {f1, f2};
     std::vector<real_function_3d> b = {f2, f3};
 
     auto f12=CCConvolutionOperatorPtr<double,3>(world, OT_F12, parameter);
 
-    auto [p1,p2,p3,p4,nil]=data1.get_ccpairfunctions();
+    auto [p1,p2,p3,p4,nil]=data.get_ccpairfunctions();
     CCPairFunction<double,6> p11({f1},{f1});
     CCPairFunction<double,6> p12({f1},{f2});
 
@@ -568,16 +625,18 @@ int test_partial_inner_6d(World& world, std::shared_ptr<NuclearCorrelationFactor
         print("time after r4 ", timer.reset());
 
     }
-
-
-    return  (t1.get_final_success()) ? 0 : 1;
+    return t1.end();
 }
-int test_partial_inner_3d(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+
+
+template<typename T, std::size_t NDIM>
+int test_partial_inner_3d(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const data<T,NDIM>& data,
                           const CCParameters& parameter) {
 
     CCTimer timer(world, "testing");
     test_output t1("CCPairFunction<double,6>::test_partial_inner");
-    auto [f1,f2,f3,f4,f5,f] = data1.get_functions();
+//    auto data=get_data<6>(world,parameter);
+    auto [f1,f2,f3,f4,f5,f] = data.get_functions();
 
     std::vector<real_function_3d> a = {f1, f2};
     std::vector<real_function_3d> b = {f2, f3};
@@ -664,7 +723,8 @@ int test_partial_inner_3d(World& world, std::shared_ptr<NuclearCorrelationFactor
     return  (t1.get_final_success()) ? 0 : 1;
 }
 
-int test_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+template<typename T, std::size_t NDIM>
+int test_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const data<T,NDIM>& data,
                const CCParameters& parameter) {
     test_output t1("CCPairFunction::test_apply");
     t1.set_cout_to_terminal();
@@ -676,8 +736,9 @@ int test_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, cons
     /// p3: op_dec, corresponds to f23
     /// p4: pure, corresponds to f23
     /// p5: op_pure, corresponds to f23
-    auto [p1,p2,p3,p4,p5]=data1.get_ccpairfunctions();
-    auto [f1,f2,f3,f4,f5,f]=data1.get_functions();
+//    auto data=get_data<6>(world,parameter);
+    auto [p1,p2,p3,p4,p5]=data.get_ccpairfunctions();
+    auto [f1,f2,f3,f4,f5,f]=data.get_functions();
 
     auto f12=CCConvolutionOperatorPtr<double,3>(world, OT_F12, parameter);
     auto& op=*(f12->get_op());
@@ -704,26 +765,28 @@ int test_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, cons
 
     }
 
-
-
     return t1.end();
 }
 
-int test_scalar_multiplication(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+template<typename T, std::size_t NDIM>
+int test_scalar_multiplication(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const data<T,NDIM>& data,
                                const CCParameters& parameter) {
     CCTimer timer(world, "testing");
     test_output t1("CCPairFunction<double,6>::test_scalar_multiplication");
+    static_assert(NDIM%2==0, "NDIM must be even");
+    constexpr std::size_t LDIM=NDIM/2;
 
-    auto [f1,f2,f3,f4,f5,f] = data1.get_functions();
+//    auto data=get_data<NDIM>(world,parameter);
+    auto [f1,f2,f3,f4,f5,f] = data.get_functions();
 
-    std::vector<real_function_3d> a = {f1, f2};
-    std::vector<real_function_3d> b = {f3, f1};
+    std::vector<Function<T,LDIM>> a = {f1, f2};
+    std::vector<Function<T,LDIM>> b = {f3, f1};
 
     print("time in preparation",timer.reset());
     t1.checkpoint(true,"prep");
 
-    CCPairFunction<double,6> p(f);
-    CCPairFunction<double,6> p1(a,b);
+    CCPairFunction<T,NDIM> p(f);
+    CCPairFunction<T,NDIM> p1(a,b);
     double norm1=inner(p,p1);
     double pnorm=inner(p,p);
     double p1norm=inner(p1,p1);
@@ -743,31 +806,32 @@ int test_scalar_multiplication(World& world, std::shared_ptr<NuclearCorrelationF
     double norm2=inner(p,p1);
     print("norm1,norm2",norm1,norm2);
 
-    print("time in scaling and inner",timer.reset());
-    bool bsuccess=fabs(4.0*norm1-norm2)<FunctionDefaults<3>::get_thresh();
+    bool bsuccess=fabs(4.0*norm1-norm2)<FunctionDefaults<LDIM>::get_thresh();
     t1.checkpoint(bsuccess,"scaling");
 
-    t1.end();
-    return  (t1.get_final_success()) ? 0 : 1;
+    return t1.end();
 }
 
-int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+template<typename T, std::size_t NDIM>
+int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const data<T,NDIM>& data,
                         const CCParameters& parameters) {
-    test_output t1("CCPairFunction<double,6>::swap_particles");
-    CCTimer timer(world, "testing swap_particles");
+    test_output t1("swap_particles<"+std::to_string(NDIM)+">");
+    static_assert(NDIM%2==0, "NDIM must be even");
+    constexpr std::size_t LDIM=NDIM/2;
 
     // prepare
-    auto one = [](const coord_3d& r) { return 1.0; };
-    real_function_3d R2 = real_factory_3d(world).f(one);
+    auto one = [](const Vector<double,LDIM>& r) { return 1.0; };
+    Function<T,LDIM> R2 = FunctionFactory<T,LDIM>(world).f(one);
 
-    auto [f1,f2,f3,f4,f5,f] = data1.get_functions();
-    std::vector<real_function_3d> a = {f1, f2};
-    std::vector<real_function_3d> b = {f3, f1};
+//    auto data=get_data<NDIM>(world,parameters);
+    auto [f1,f2,f3,f4,f5,f] = data.get_functions();
+    std::vector<Function<T,LDIM>> a = {f1, f2};
+    std::vector<Function<T,LDIM>> b = {f3, f1};
 
     // test decomposed
     {
-        CCPairFunction<double,6> p1(a, b);
-        CCPairFunction<double,6> p2(b, a);
+        CCPairFunction<T,NDIM> p1(a, b);
+        CCPairFunction<T,NDIM> p2(b, a);
 
         double norm1 = inner(p1, p2.swap_particles(), R2);
         double norm1a = inner(p1, p1, R2);
@@ -776,19 +840,19 @@ int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> 
         print("norm1 ", norm1);
         print("norm1a", norm1a);
         print("norm2 ", norm2);
-        t1.checkpoint(std::abs(norm1 - norm2) < FunctionDefaults<3>::get_thresh(), "swap_particles a,b");
+        t1.checkpoint(std::abs(norm1 - norm2) < FunctionDefaults<LDIM>::get_thresh(), "swap_particles a,b");
     }
 
     // test pure
     {
-        CCPairFunction<double,6> p(f);
-        CCPairFunction<double,6> p_swapped=p.swap_particles();
+        CCPairFunction<T,NDIM> p(f);
+        CCPairFunction<T,NDIM> p_swapped=p.swap_particles();
         double pnorm=p.get_function().norm2();
         double psnorm=p_swapped.get_function().norm2();
         print("p/s norm",pnorm,psnorm);
 
-        CCPairFunction<double,6> p1({f1}, {f2});
-        CCPairFunction<double,6> p2({f2}, {f1});
+        CCPairFunction<T,NDIM> p1({f1}, {f2});
+        CCPairFunction<T,NDIM> p2({f2}, {f1});
         double ref1=inner(f1,f1)*inner(f2,f2);
         double ref2=inner(f1,f2)*inner(f2,f1);
         print("ref1/2",ref1,ref2);
@@ -820,19 +884,20 @@ int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> 
 
         t1.checkpoint(total_error < FunctionDefaults<3>::get_thresh(), "swap_particles u");
     };
-    t1.end();
 
-    return  (t1.get_final_success()) ? 0 : 1;
+    return t1.end();
 }
 
-int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+
+template<typename T, std::size_t NDIM>
+int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const data<T,NDIM>& data,
                    const CCParameters& parameter) {
     test_output t1("CCPairFunction<double,6>::test_projector");
-    CCTimer timer(world, "testing");
 
 //    t1.set_cout_to_logger();
     t1.set_cout_to_terminal();
-    auto [f1,f2,f3,f4,f5,f] = data1.get_functions();
+//    auto data=get_data<6>(world,parameter);
+    auto [f1,f2,f3,f4,f5,f] = data.get_functions();
     double nf1=f1.norm2();
     double nf2=f2.norm2();
     f1.scale(1.0/nf1);
@@ -926,7 +991,6 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
         print("n2,n2a",n2,n2a);
 
     }
-    timer.reset();
 
 
     // test {O,Q} with particles 1,2 on all three CCPairFunction<double,6> types
@@ -944,13 +1008,13 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
                 double n1 = inner(Op, vp3) + inner(Qp, vp3);
                 double n2 = inner(vp, vp3);
                 print("n1 (RI), n2", n1, n2, fabs(n1 - n2));
-                t1.checkpoint(fabs(n1 - n2) < FunctionDefaults<3>::get_thresh(), "RI with particle "+std::to_string(particle)+" on "+s ,timer.reset());
+                t1.checkpoint(fabs(n1 - n2) < FunctionDefaults<3>::get_thresh(), "RI with particle "+std::to_string(particle)+" on "+s);
 
                 auto Op1 = O(Op);
                 double n3=inner(Op, vp3);
                 double n4=inner(Op1, vp3);
                 print("n3, n4", n3, n4);
-                t1.checkpoint(fabs(n3-n4) < FunctionDefaults<3>::get_thresh(), "idempotency with particle "+std::to_string(particle)+" on "+s,timer.reset());
+                t1.checkpoint(fabs(n3-n4) < FunctionDefaults<3>::get_thresh(), "idempotency with particle "+std::to_string(particle)+" on "+s);
 
             }
             // testing SO projector
@@ -973,21 +1037,15 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
             n1 = inner(SOp, vp3);
             print("SO: n1, n2, n3", n1, n2, n3, fabs(n1 - n2));
             double zero=fabs(n1-n2) + fabs(n1-n3) + fabs(n2-n3);
-            t1.checkpoint(zero < FunctionDefaults<3>::get_thresh(), "SO operator on "+s,timer.reset() );
+            t1.checkpoint(zero < FunctionDefaults<3>::get_thresh(), "SO operator on "+s);
         }
     }
     return t1.end();
 }
 
-int test_dirac_convolution(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
-                           const CCParameters& parameter) {
-    test_output t1("CCPairFunction<double,6>::test_dirac_convolution");
-
-    return  (t1.get_final_success()) ? 0 : 1;
-}
 
 /// testing <ij | g Q f | ij> = 0.032 mEh
-int test_helium(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, const Molecule& molecule,
+int test_helium(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf,
                 const CCParameters& parameters) {
 
     test_output t1("CCPairFunction<double,6>::test_helium");
@@ -1084,53 +1142,87 @@ int main(int argc, char **argv) {
     madness::World& world = madness::initialize(argc, argv);
     startup(world, argc, argv);
     commandlineparser parser(argc, argv);
-    FunctionDefaults<3>::set_k(5);
-    FunctionDefaults<6>::set_k(5);
+    int k=6;
+    double thresh=1.e-5;
+    if (parser.key_exists("k")) k=std::stoi(parser.value("k"));
+    if (parser.key_exists("thresh")) thresh=std::stod(parser.value("thresh"));
+    FunctionDefaults<1>::set_k(k);
+    FunctionDefaults<2>::set_k(k);
+    FunctionDefaults<3>::set_k(k);
+    FunctionDefaults<4>::set_k(k);
+    FunctionDefaults<5>::set_k(k);
+    FunctionDefaults<6>::set_k(k);
+    FunctionDefaults<1>::set_thresh(thresh);
+    FunctionDefaults<2>::set_thresh(thresh);
+    FunctionDefaults<3>::set_thresh(thresh);
+    FunctionDefaults<4>::set_thresh(thresh);
+    FunctionDefaults<5>::set_thresh(thresh);
+    FunctionDefaults<6>::set_thresh(thresh);
     FunctionDefaults<6>::set_tensor_type(TT_2D);
-    FunctionDefaults<3>::set_thresh(1.e-5);
-    FunctionDefaults<3>::set_cubic_cell(-1.0,1.0);
-    FunctionDefaults<6>::set_cubic_cell(-1.0,1.0);
+    FunctionDefaults<1>::set_cubic_cell(-10.,10.);
+    FunctionDefaults<2>::set_cubic_cell(-10.,10.);
+    FunctionDefaults<3>::set_cubic_cell(-10.,10.);
+    FunctionDefaults<4>::set_cubic_cell(-10.,10.);
+    FunctionDefaults<5>::set_cubic_cell(-10.,10.);
+    FunctionDefaults<6>::set_cubic_cell(-10.,10.);
     print("numerical parameters: k, eps(3D), eps(6D)", FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(),
           FunctionDefaults<6>::get_thresh());
     int isuccess=0;
 #ifdef USE_GENTENSOR
 
+    CCParameters ccparam(world, parser);
     try {
         parser.set_keyval("geometry", "he");
         parser.print_map();
         Molecule mol(world, parser);
         mol.print();
-        CCParameters ccparam(world, parser);
-
-        data1=data(world,ccparam);
-
         std::shared_ptr<NuclearCorrelationFactor> ncf = create_nuclear_correlation_factor(world,
-                         mol, nullptr, std::make_pair("slater", 2.0));
+                                             mol, nullptr, std::make_pair("slater", 2.0));
 
-        isuccess+=test_constructor(world, ncf, mol, ccparam);
-        isuccess+=test_operator_apply(world, ncf, mol, ccparam);
-        isuccess+=test_transformations(world, ncf, mol, ccparam);
-        isuccess+=test_inner(world, ncf, mol, ccparam);
-        isuccess+=test_multiply(world, ncf, mol, ccparam);
-        isuccess+=test_multiply_with_f12(world, ncf, mol, ccparam);
-        isuccess+=test_swap_particles(world, ncf, mol, ccparam);
-        isuccess+=test_scalar_multiplication(world, ncf, mol, ccparam);
-        isuccess+=test_partial_inner_3d(world, ncf, mol, ccparam);
-        isuccess+=test_partial_inner_6d(world, ncf, mol, ccparam);
+        auto data2=data<double,2>(world,ccparam);
+        auto data4=data<double,4>(world,ccparam);
+//        auto data6=data<double,6>(world,ccparam);
+
+        isuccess+=test_constructor<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_constructor<double,4>(world, ncf, data4, ccparam);
+        isuccess+=test_operator_apply<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_operator_apply<double,4>(world, ncf, data4, ccparam);
+        isuccess+=test_transformations<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_transformations<double,4>(world, ncf, data4, ccparam);
+        isuccess+=test_multiply_with_f12<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_multiply_with_f12<double,4>(world, ncf, data4, ccparam);
+        isuccess+=test_inner<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_inner<double,4>(world, ncf, data4, ccparam);
+        isuccess+=test_multiply<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_multiply<double,4>(world, ncf, data4, ccparam);
+        isuccess+=test_swap_particles<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_swap_particles<double,4>(world, ncf, data4, ccparam);
+        isuccess+=test_scalar_multiplication<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_scalar_multiplication<double,4>(world, ncf, data4, ccparam);
+
+//        isuccess+=test_partial_inner_3d(world, ncf, data2, ccparam);
+//        isuccess+=test_partial_inner_6d(world, ncf, data4, ccparam);
         FunctionDefaults<3>::set_thresh(1.e-5);
         FunctionDefaults<3>::set_cubic_cell(-10.,10.);
         FunctionDefaults<6>::set_thresh(1.e-3);
         FunctionDefaults<6>::set_cubic_cell(-10.,10.);
-//        isuccess+=test_apply(world, ncf, mol, ccparam);
-        isuccess+=test_projector(world, ncf, mol, ccparam);
+//        isuccess+=test_apply(world, ncf, data, ccparam);
+//        isuccess+=test_projector(world, ncf, mol, ccparam);
 //        FunctionDefaults<3>::set_cubic_cell(-10,10);
-//        isuccess+=test_helium(world,ncf,mol,ccparam);
-        data1.clear();
+//        isuccess+=test_helium(world,ncf,ccparam);
+        data2.clear();
+        data4.clear();
+//        data6.clear();
+        world.gop.fence();
     } catch (std::exception& e) {
         madness::print("an error occured");
         madness::print(e.what());
-        data1.clear();
+        clear_data<2>(world,ccparam);
+        clear_data<4>(world,ccparam);
+        clear_data<6>(world,ccparam);
+        world.gop.fence();
     }
+    world.gop.fence();
 #else
     print("could not run test_ccpairfunction: U need to compile with ENABLE_GENTENSOR=1");
 #endif

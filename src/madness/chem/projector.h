@@ -116,10 +116,10 @@ namespace madness {
         operator()(const Function<T,KDIM>& f, size_t particle1=-1) const {
             Function<T,KDIM> result = FunctionFactory<T,KDIM>(f.world());
             if (particle1==-1) particle1=particle;
-            MADNESS_ASSERT(particle1 == 1 or particle1 == 2);
+            MADNESS_CHECK_THROW(particle1 == 1 or particle1 == 2, "particle must be 1 or 2");
             for (size_t i = 0; i < mo_ket_.size(); i++) {
                 Function<T,NDIM> tmp1 = mo_ket_[i];
-                Function<T,NDIM> tmp2 = f.project_out(mo_bra_[i], particle - 1);
+                Function<T,NDIM> tmp2 = f.project_out(mo_bra_[i], particle1 - 1);
                 Function<T,KDIM> tmp12;
                 if (particle1 == 1) {
                     tmp12 = CompositeFactory<T, KDIM, NDIM>(f.world()).particle1(copy(tmp1)).particle2(copy(tmp2));

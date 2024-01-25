@@ -288,22 +288,42 @@ namespace madness {
         if (not dummy.is_initialized()) return v;
         World& world=dummy.world();
 
-        // a couple of special cases
-        if (finalstate==nonstandard) {
-            bool must_fence=false;
+
+        // if a tree state cannot directly be changed to finalstate, we need to go via intermediate
+        auto change_initial_to_intermediate =[](const std::vector<Function<T,NDIM>>& v,
+                                                  const TreeState initialstate,
+                                                  const TreeState intermediatestate) {
+            int must_fence=0;
             for (auto& f : v) {
-                if (f.get_impl()->get_tree_state()== reconstructed) continue;
-                if (f.get_impl()->get_tree_state()!=nonstandard) {
-                    must_fence=true;
-                    f.change_tree_state(reconstructed,false);
+                if (f.get_impl()->get_tree_state()==initialstate) {
+                    f.change_tree_state(intermediatestate,false);
+                    must_fence=1;
                 }
             }
-            if (must_fence) world.gop.fence();
-//            if (world.rank()==0 and must_fence) print("could not respect fence in change_tree_state(vector)");
+            return must_fence;
+        };
+
+        int do_fence=0;
+        if (finalstate==compressed) {
+            do_fence+=change_initial_to_intermediate(v,redundant,TreeState::reconstructed);
         }
-//        if (not fence) world.gop.set_forbid_fence(true);    // make sure fence is respected
+        if (finalstate==nonstandard) {
+            do_fence+=change_initial_to_intermediate(v,compressed,TreeState::reconstructed);
+            do_fence+=change_initial_to_intermediate(v,redundant,TreeState::reconstructed);
+        }
+        if (finalstate==nonstandard_with_leaves) {
+            do_fence+=change_initial_to_intermediate(v,compressed,TreeState::reconstructed);
+            do_fence+=change_initial_to_intermediate(v,nonstandard,TreeState::reconstructed);
+            do_fence+=change_initial_to_intermediate(v,redundant,TreeState::reconstructed);
+        }
+        if (finalstate==redundant) {
+            do_fence+=change_initial_to_intermediate(v,compressed,TreeState::reconstructed);
+            do_fence+=change_initial_to_intermediate(v,nonstandard,TreeState::reconstructed);
+            do_fence+=change_initial_to_intermediate(v,nonstandard_with_leaves,TreeState::reconstructed);
+        }
+        if (do_fence>0) world.gop.fence();
+
         for (unsigned int i=0; i<v.size(); ++i) v[i].change_tree_state(finalstate,fence);
-//        if (not fence) world.gop.set_forbid_fence(false);
         if (fence) world.gop.fence();
 
         return v;
@@ -650,6 +670,13 @@ namespace madness {
     void set_impl(std::vector<Function<T,NDIM>>& v, const std::vector<std::shared_ptr<FunctionImpl<T,NDIM>>> vimpl) {
         MADNESS_CHECK(vimpl.size()==v.size());
         for (std::size_t i=0; i<vimpl.size(); ++i) v[i].set_impl(vimpl[i]);
+    }
+
+    template<typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM>> impl2function(const std::vector<std::shared_ptr<FunctionImpl<T,NDIM>>> vimpl) {
+        std::vector<Function<T,NDIM>> v(vimpl.size());
+        for (std::size_t i=0; i<vimpl.size(); ++i) v[i].set_impl(vimpl[i]);
+        return v;
     }
 
 

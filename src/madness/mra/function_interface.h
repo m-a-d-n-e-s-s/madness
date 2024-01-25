@@ -52,8 +52,15 @@ namespace madness {
 	class FunctionImpl;
 
     template<typename T, std::size_t NDIM>
+    class Function;
+
+    template<typename T, std::size_t NDIM>
     Tensor<T> fcube(const Key<NDIM>&, T (*f)(const Vector<double,NDIM>&), const Tensor<double>&);
 
+//    template <typename T, std::size_t NDIM>
+//    const std::vector<Function<T,NDIM>>& change_tree_state(const std::vector<Function<T,NDIM>>& v,
+//    const TreeState finalstate,
+//    const bool fence);
 
 
 	/// Abstract base class interface required for functors used as input to Functions
@@ -194,19 +201,12 @@ namespace madness {
 
         /// replicate low-dimensional functions over all ranks of this world
         void replicate_low_dim_functions(const bool fence) {
-			// prepare base functions that make this function
-            for (auto& k : impl_ket_vector) if (k and (not k->is_on_demand())) k->change_tree_state(redundant,false);
-			if (impl_eri) {
-				if (not impl_eri->is_on_demand()) impl_eri->change_tree_state(redundant,false);
-			}
-			if (impl_m1 and (not impl_m1->is_on_demand())) impl_m1->change_tree_state(redundant,false);
-			if (impl_m2 and (not impl_m2->is_on_demand())) impl_m2->change_tree_state(redundant,false);
+            if (impl_m1 and (not impl_m1->is_on_demand())) impl_m1->replicate(false);
+            if (impl_m2 and (not impl_m2->is_on_demand())) impl_m2->replicate(false);
 
-            for (auto& k : impl_p1_vector) if (k and (not k->is_on_demand())) k->change_tree_state(redundant,false);
-            for (auto& k : impl_p2_vector) if (k and (not k->is_on_demand())) k->change_tree_state(redundant,false);
-//			if (impl_p1 and (not impl_p1->is_on_demand())) impl_p1->make_redundant(false);
-//			if (impl_p2 and (not impl_p2->is_on_demand())) impl_p2->make_redundant(false);
-			if (fence) world.gop.fence();
+            for (auto& p1 : impl_p1_vector) if (p1 and (not p1->is_on_demand())) p1->replicate(false);
+            for (auto& p2 : impl_p2_vector) if (p2 and (not p2->is_on_demand())) p2->replicate(false);
+            if (fence) world.gop.fence();
         }
 
 		void make_redundant(const bool fence) {
@@ -218,8 +218,10 @@ namespace madness {
 			if (impl_m1 and (not impl_m1->is_on_demand())) impl_m1->change_tree_state(redundant,false);
 			if (impl_m2 and (not impl_m2->is_on_demand())) impl_m2->change_tree_state(redundant,false);
 
-            for (auto& k : impl_p1_vector) if (k and (not k->is_on_demand())) k->change_tree_state(redundant,false);
-            for (auto& k : impl_p2_vector) if (k and (not k->is_on_demand())) k->change_tree_state(redundant,false);
+            change_tree_state(impl2function(impl_p1_vector),redundant,false);
+            change_tree_state(impl2function(impl_p2_vector),redundant,false);
+//            for (auto& k : impl_p1_vector) if (k and (not k->is_on_demand())) k->change_tree_state(redundant,false);
+//            for (auto& k : impl_p2_vector) if (k and (not k->is_on_demand())) k->change_tree_state(redundant,false);
 //			if (impl_p1 and (not impl_p1->is_on_demand())) impl_p1->change_tree_state(redundant,false);
 //			if (impl_p2 and (not impl_p2->is_on_demand())) impl_p2->change_tree_state(redundant,false);
 			if (fence) world.gop.fence();
@@ -338,7 +340,7 @@ namespace madness {
 				:rank(), k(kk), lo(lo), hi(1.0) {
 
 			// Presently we must have periodic or non-periodic in all dimensions.
-			for (std::size_t d=1; d<6; ++d) {MADNESS_ASSERT(bc(d,0)==bc(0,0));}
+			for (std::size_t d=1; d<NDIM; ++d) {MADNESS_ASSERT(bc(d,0)==bc(0,0));}
 
 			const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
 			hi = width.normf(); // Diagonal width of cell
@@ -396,7 +398,9 @@ namespace madness {
 				// include weights in first vector
 				scr1(mu,Slice(_))=r0*ops[mu].getfac();
 
-                if (NDIM==4) {
+                if (NDIM==2) {
+                    ;
+                } else if (NDIM==4) {
                     scr3(mu,Slice(_))=r1;
                 } else if (NDIM==6) {
                     // merge second and third vector to scr(r,k1,k2)
@@ -406,7 +410,12 @@ namespace madness {
                 }
 			}
 
-            if (NDIM==2) return scr1;
+            if (NDIM==2) {
+                // perform sum over the rank
+                Tensor<double> result(scr1.dim(1));
+                for (long mu=0; mu<rank; ++mu) result(_)+= scr1(mu,_);
+                return result;
+            }
             else if (NDIM==4) return inner(scr1,scr3,0,0);
             else if (NDIM==6) return inner(scr1,scr2,0,0);
             else {
@@ -420,7 +429,7 @@ namespace madness {
 			std::vector<long> map(NDIM);
             if (NDIM==2) {
                 map[0]=0;	map[1]=1;
-                return copy(c);
+                return copy(c.reshape(k,k));
             } else if (NDIM==4) {
                 map[0]=0;	map[1]=2;
                 map[2]=1;	map[3]=3;
@@ -442,12 +451,12 @@ namespace madness {
 			// set some parameters
 			rank=coeff.dim(0);
 			ops.resize(rank);
-			const Tensor<double>& width = FunctionDefaults<6>::get_cell_width();
+			const Tensor<double>& width = FunctionDefaults<LDIM>::get_cell_width();
 
 			// construct all the terms
 			for (int mu=0; mu<rank; ++mu) {
 				//                double c = std::pow(sqrt(expnt(mu)/pi),static_cast<int>(NDIM)); // Normalization coeff
-				double c = std::pow(sqrt(expnt(mu)/constants::pi),3); // Normalization coeff
+				double c = std::pow(sqrt(expnt(mu)/constants::pi),LDIM); // Normalization coeff
 
 				// We cache the normalized operator so the factor is the value we must multiply
 				// by to recover the coeff we want.

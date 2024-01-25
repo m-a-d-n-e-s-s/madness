@@ -177,8 +177,7 @@ public:
 
     /// return f(2,1)
     void swap_particles_inplace() override {
-        if constexpr (NDIM==6) u=swap_particles(u);
-        else MADNESS_EXCEPTION("swap_particles_inplace not implemented for NDIM!=6",1);
+        u=swap_particles(u);
     }
 
     const std::shared_ptr<CCConvolutionOperator<T,LDIM>> get_operator_ptr() const {return op;};
@@ -641,7 +640,7 @@ public:
                 std::size_t bufsize=256;
                 char buf[bufsize];
                 snprintf(buf,bufsize,"result from inner %10s %10s %12.8f %4.1fs",a.name(true).c_str(),b.name().c_str(),tmp,wall1-wall0);
-//                print(std::string(buf));
+                print(std::string(buf));
                 wall0=wall1;
                 result+=tmp;
             }

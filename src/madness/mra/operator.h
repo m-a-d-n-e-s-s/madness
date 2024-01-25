@@ -1726,6 +1726,20 @@ namespace madness {
     }
 
     /// Factory function generating separated kernel for convolution with 1/r in 3D.
+    template<std::size_t NDIM>
+    static
+    inline
+    SeparatedConvolution<double,NDIM> CoulombOperator_ndim(World& world,
+                                                   double lo,
+                                                   double eps,
+                                                   const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
+
+                                                   int k=FunctionDefaults<NDIM>::get_k())
+    {
+        return SeparatedConvolution<double,NDIM>(world,OperatorInfo(0.0,lo,eps,OT_G12),bc,k);
+    }
+
+    /// Factory function generating separated kernel for convolution with 1/r in 3D.
     static
     inline
     SeparatedConvolution<double,3> CoulombOperator(World& world,
@@ -1862,11 +1876,12 @@ namespace madness {
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r) in 3D
-    static inline SeparatedConvolution<double,3> SlaterOperator(World& world,
+    template<std::size_t NDIM=3>
+    static inline SeparatedConvolution<double,NDIM> SlaterOperator(World& world,
     		double mu, double lo, double eps,
-    		const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
-    		int k=FunctionDefaults<3>::get_k()) {
-        return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_SLATER),bc,k);
+    		const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
+    		int k=FunctionDefaults<NDIM>::get_k()) {
+        return SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_SLATER),bc,k);
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r*r)

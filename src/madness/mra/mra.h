@@ -1400,7 +1400,7 @@ namespace madness {
         template <typename R, size_t LDIM>
         Function<TENSOR_RESULT_TYPE(T,R),NDIM-LDIM> project_out(const Function<R,LDIM>& g, const int dim) const {
             if (NDIM<=LDIM) MADNESS_EXCEPTION("confused dimensions in project_out?",1);
-            MADNESS_ASSERT(dim==0 or dim==1);
+            MADNESS_CHECK_THROW(dim==0 or dim==1,"dim must be 0 or 1 in project_out");
             verify();
             typedef TENSOR_RESULT_TYPE(T,R) resultT;
             static const size_t KDIM=NDIM-LDIM;
@@ -2282,17 +2282,23 @@ namespace madness {
 
     /// param[in]	f	a function of 2 particles f(1,2)
     /// return	the input function with particles swapped g(1,2) = f(2,1)
-    template <typename T>
-    Function<T,6>
-    swap_particles(const Function<T,6> & f){
+    template <typename T, std::size_t NDIM>
+    typename std::enable_if_t<NDIM%2==0, Function<T,NDIM>>
+    swap_particles(const Function<T,NDIM> & f){
       // this could be done more efficiently for SVD, but it works decently
-      std::vector<long> map(6);
-      map[0]=3;
-      map[1]=4;
-      map[2]=5;     // 2 -> 1
-      map[3]=0;
-      map[4]=1;
-      map[5]=2;     // 1 -> 2
+      std::vector<long> map(NDIM);
+      constexpr std::size_t LDIM=NDIM/2;
+      static_assert(LDIM*2==NDIM);
+      for (auto d=0; d<LDIM; ++d) {
+          map[d]=d+LDIM;
+          map[d+LDIM]=d;
+      }
+//      map[0]=3;
+//      map[1]=4;
+//      map[2]=5;     // 2 -> 1
+//      map[3]=0;
+//      map[4]=1;
+//      map[5]=2;     // 1 -> 2
       return mapdim(f,map);
     }
 

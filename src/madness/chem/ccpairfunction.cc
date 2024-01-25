@@ -172,6 +172,8 @@ CCPairFunction<T,NDIM> CCPairFunction<T,NDIM>::partial_inner(const CCPairFunctio
         } else if (other.is_decomposed_no_op()) {
             // \int \sum_i f(1,2) a_i(1) b_i(3) d1  =  \sum_i b_i(3) \int a_i(1) f(1,2) d1
             std::vector<Function<T,LDIM>> tmp;
+            auto avec=other.get_vector(integration_index(v2));
+            change_tree_state(avec,redundant);
             for (auto& a : other.get_vector(integration_index(v2))) {
 //                tmp.push_back(innerXX<3>(this->get_function(),a,v1,a012));  // a012 is correct, referring to 3D function
                 tmp.push_back(this->get_function().project_out(a,integration_index(v1)));
