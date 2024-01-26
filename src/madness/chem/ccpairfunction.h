@@ -33,8 +33,8 @@ struct CCFunction : public archive::ParallelSerializableObject {
 
     CCFunction(const Function<T,NDIM>& f) : current_error(99), function(f), i(99), type(UNDEFINED) {};
 
-    CCFunction(const Function<T,NDIM>& f, const size_t& ii) : current_error(99), function(f), i(ii), type(UNDEFINED) {};
-
+//    CCFunction(const Function<T,NDIM>& f, const size_t& ii) : current_error(99), function(f), i(ii), type(UNDEFINED) {};
+//
     CCFunction(const Function<T,NDIM>& f, const size_t& ii, const FuncType& type_) : current_error(99), function(f),
                                                                                      i(ii), type(type_) {};
 
@@ -720,9 +720,6 @@ public:
 
 };
 
-//template<typename T, std::size_t NDIM>
-//std::vector<CCPairFunction<T,NDIM>> swap_particles(const std::vector<CCPairFunction<T,NDIM>>& argument);
-
 /// apply the operator to the argument
 
 /// the operator is applied to one particle only, the other one is left untouched
@@ -741,7 +738,7 @@ CCPairFunction<T,NDIM> apply(const SeparatedConvolution<T,NDIM/2>& op, const CCP
 
         result=(CCPairFunction<T,NDIM>(tmp));
         // !! confusing ordering of the result variables!!
-        if (op.particle()==2) result.swap_particles();
+        if (op.particle()==2) result=result.swap_particles();
 
     } else if (arg.is_decomposed_no_op()) {
         MADNESS_CHECK(op.particle()==1 or op.particle()==2);
@@ -792,7 +789,6 @@ std::vector<CCPairFunction<T,NDIM>> apply(const ProjectorBase& projector, const 
 }
 
 
-
 template<typename T, std::size_t NDIM>
 Function<T,CCPairFunction<T,NDIM>::LDIM>inner(const CCPairFunction<T,NDIM>& c, const Function<T,CCPairFunction<T,NDIM>::LDIM>& f,
                                               const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2) {
@@ -801,6 +797,13 @@ Function<T,CCPairFunction<T,NDIM>::LDIM>inner(const CCPairFunction<T,NDIM>& c, c
     auto v22=std::array<int,LDIM>({std::get<0>(v2),std::get<1>(v2),std::get<2>(v2)});
 
     return c.partial_inner(f,v11,v22);
+}
+
+template<typename T, std::size_t NDIM>
+Function<T,CCPairFunction<T,NDIM>::LDIM>inner(const CCPairFunction<T,NDIM>& c, const Function<T,CCPairFunction<T,NDIM>::LDIM>& f,
+                                              const std::array<int,CCPairFunction<T,NDIM>::LDIM>& v1,
+                                              const std::array<int,CCPairFunction<T,NDIM>::LDIM>& v2) {
+    return c.partial_inner(f,v1,v2);
 }
 
 template<typename T, std::size_t NDIM>
@@ -814,9 +817,27 @@ CCPairFunction<T,NDIM> inner(const CCPairFunction<T,NDIM>& c1, const CCPairFunct
 }
 
 template<typename T, std::size_t NDIM>
+CCPairFunction<T,NDIM> inner(const CCPairFunction<T,NDIM>& c1, const CCPairFunction<T,NDIM>& c2,
+                             const std::array<int,CCPairFunction<T,NDIM>::LDIM>& v1,
+                             const std::array<int,CCPairFunction<T,NDIM>::LDIM>& v2) {
+    return c1.partial_inner(c2,v1,v2);
+}
+
+template<typename T, std::size_t NDIM>
 std::vector<CCPairFunction<T,NDIM>> inner(const std::vector<CCPairFunction<T,NDIM>>& c1,
                                           const std::vector<CCPairFunction<T,NDIM>>& c2,
                                           const std::tuple<int,int,int> v1, const std::tuple<int,int,int> v2) {
+    constexpr std::size_t LDIM=CCPairFunction<T,NDIM>::LDIM;
+    auto v11=std::array<int,LDIM>({std::get<0>(v1),std::get<1>(v1),std::get<2>(v1)});
+    auto v22=std::array<int,LDIM>({std::get<0>(v2),std::get<1>(v2),std::get<2>(v2)});
+    return inner(c1,c2,v11,v22);
+}
+
+template<typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM>> inner(const std::vector<CCPairFunction<T,NDIM>>& c1,
+                                          const std::vector<CCPairFunction<T,NDIM>>& c2,
+                                          const std::array<int,CCPairFunction<T,NDIM>::LDIM>& v1,
+                                          const std::array<int,CCPairFunction<T,NDIM>::LDIM>& v2) {
     std::vector<CCPairFunction<T,NDIM>> result;
     for (const auto& cc1 : c1) {
         for (const auto& cc2 : c2) {

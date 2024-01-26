@@ -295,7 +295,7 @@ namespace madness {
                                                   const TreeState intermediatestate) {
             int must_fence=0;
             for (auto& f : v) {
-                if (f.get_impl()->get_tree_state()==initialstate) {
+                if (f.is_initialized() and f.get_impl()->get_tree_state()==initialstate) {
                     f.change_tree_state(intermediatestate,false);
                     must_fence=1;
                 }

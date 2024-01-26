@@ -63,6 +63,7 @@ struct OperatorInfo {
     double thresh=1.e-4;
     double lo=1.e-5;
     double hi=-1.0;
+    bool debug=false;
 };
 
 

@@ -211,11 +211,34 @@ namespace madness {
         make_coeff_for_operator(World& world, double mu, double lo, double eps, OpType type,
                                 const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc()) {
 
+            OperatorInfo info(mu,lo,eps,type);
+            return make_coeff_for_operator(world, info, bc);
+//            const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
+//            double hi = cell_width.normf(); // Diagonal width of cell
+//            if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+//
+//            OperatorInfo info(mu,lo,eps,type);
+//            info.hi=hi;
+//            GFit<Q,NDIM> fit(info);
+//
+//            Tensor<Q> coeff=fit.coeffs();
+//            Tensor<Q> expnt=fit.exponents();
+//
+//            if (bc(0,0) == BC_PERIODIC) {
+//                fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+//            }
+//
+//            return std::make_pair(coeff,expnt);
+        }
+
+        static inline std::pair<Tensor<double>,Tensor<double>>
+        make_coeff_for_operator(World& world, OperatorInfo info,
+                                const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc()) {
+
             const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
             double hi = cell_width.normf(); // Diagonal width of cell
             if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
 
-            OperatorInfo info(mu,lo,eps,type);
             info.hi=hi;
             GFit<Q,NDIM> fit(info);
 
@@ -227,12 +250,6 @@ namespace madness {
             }
 
             return std::make_pair(coeff,expnt);
-        }
-
-        static inline std::pair<Tensor<double>,Tensor<double>>
-        make_coeff_for_operator(World& world, OperatorInfo info,
-                                const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc()) {
-            return make_coeff_for_operator(world,info.mu,info.lo,info.thresh,info.type,bc);
         }
 
 //        /// return the right block of the upsampled operator (modified NS only)
@@ -1332,8 +1349,8 @@ namespace madness {
                 // get the appropriate singular vector (left or right depends on particle)
                 // and apply the full tensor muopxv_fast on it, term by term
                 s[0]=Slice(r,r);
-                const Tensor<T> chunk=svdcoeff.ref_vector(particle()-1)(s).reshape(2*k,2*k,2*k);
-                const Tensor<T> chunk0=f0.get_svdtensor().ref_vector(particle()-1)(s).reshape(k,k,k);
+                const Tensor<T> chunk=svdcoeff.ref_vector(particle()-1)(s).reshape(v2k);
+                const Tensor<T> chunk0=f0.get_svdtensor().ref_vector(particle()-1)(s).reshape(vk);
 //                const double weight=std::abs(coeff.config().weights(r));
 
                 // accumulate all terms of the operator for a specific term of the function
@@ -1723,20 +1740,6 @@ namespace madness {
         return SeparatedConvolution<double_complex,3>(world, args, coeff, expnt, bc, k, false);
 //        return SeparatedConvolution<double_complex,3>(world, coeff, expnt, bc, k);
 
-    }
-
-    /// Factory function generating separated kernel for convolution with 1/r in 3D.
-    template<std::size_t NDIM>
-    static
-    inline
-    SeparatedConvolution<double,NDIM> CoulombOperator_ndim(World& world,
-                                                   double lo,
-                                                   double eps,
-                                                   const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
-
-                                                   int k=FunctionDefaults<NDIM>::get_k())
-    {
-        return SeparatedConvolution<double,NDIM>(world,OperatorInfo(0.0,lo,eps,OT_G12),bc,k);
     }
 
     /// Factory function generating separated kernel for convolution with 1/r in 3D.

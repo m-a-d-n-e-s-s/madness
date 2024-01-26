@@ -6593,27 +6593,57 @@ template<size_t NDIM>
                 if (fcoeff.has_no_data() or gcoeff.has_no_data())
                     return Future<argT> (argT(fnode.is_leaf(),coeffT()));;
 
-                // let's specialize for the time being on SVD tensors for f and full tensors of half dim for g
-                MADNESS_ASSERT(gcoeff.is_full_tensor());
-                MADNESS_ASSERT(fcoeff.is_svd_tensor());
-                const tensorT gtensor=gcoeff.full_tensor();
+                MADNESS_CHECK(gcoeff.is_full_tensor());
                 tensorT final(result->cdata.vk);
-
-                const int otherdim=(dim+1)%2;
                 const int k=fcoeff.dim(0);
-                std::vector<Slice> s(fcoeff.get_svdtensor().dim_per_vector(dim)+1,_);
-                std::vector<Slice> other_s(fcoeff.get_svdtensor().dim_per_vector(otherdim)+1,_);
+                const int k_ldim=std::pow(k,LDIM);
+                std::vector<long> shape(LDIM, k);
 
-                // do the actual contraction
-                std::vector<long> shape(LDIM,k);
-                for (int r=0; r<fcoeff.rank(); ++r) {
-                    s[0]=Slice(r,r);
-                    other_s[0]=Slice(r,r);
-                    const tensorT contracted_tensor=fcoeff.get_svdtensor().ref_vector(dim)(s).reshape(shape);
-                    const tensorT other_tensor=fcoeff.get_svdtensor().ref_vector(otherdim)(other_s).reshape(shape);
-                    const double ovlp= gtensor.trace_conj(contracted_tensor);
-                    const double fac=ovlp * fcoeff.get_svdtensor().weights(r);
-                    final+=fac*other_tensor;
+                if (fcoeff.is_full_tensor()) {
+                    //  result_i = \sum_j g_j f_ji
+                    const tensorT gtensor = gcoeff.full_tensor().reshape(k_ldim);
+                    const tensorT ftensor = fcoeff.full_tensor().reshape(k_ldim,k_ldim);
+                    final=inner(gtensor,ftensor,0,dim).reshape(shape);
+
+                } else if (fcoeff.is_svd_tensor()) {
+                    if (fcoeff.rank()>0) {
+
+                        //  result_i = \sum_jr g_j a_rj w_r b_ri
+                        const int otherdim = (dim + 1) % 2;
+                        const tensorT gtensor = gcoeff.full_tensor().flat();
+                        const tensorT atensor = fcoeff.get_svdtensor().flat_vector(dim);  // a_rj
+                        const tensorT btensor = fcoeff.get_svdtensor().flat_vector(otherdim);
+                        const tensorT gatensor = inner(gtensor, atensor, 0, 1);              // ga_r
+                        tensorT weights = copy(fcoeff.get_svdtensor().weights_);
+                        weights.emul(gatensor); // ga_r * w_r
+                        // sum over all ranks of b, include new weights:
+                        // result_i = \sum_r ga_r * w_r * b_ri
+                        for (int r = 0; r < fcoeff.rank(); ++r) final += weights(r) * btensor(r, _);
+                        final = final.reshape(shape);
+                    }
+
+                } else {
+                    MADNESS_EXCEPTION("unsupported tensor type in project_out_op",1);
+                }
+                if (0) {
+                    const tensorT gtensor = gcoeff.full_tensor();
+
+                    const int otherdim = (dim + 1) % 2;
+                    const int k = fcoeff.dim(0);
+                    std::vector<Slice> s(fcoeff.get_svdtensor().dim_per_vector(dim) + 1, _);
+                    std::vector<Slice> other_s(fcoeff.get_svdtensor().dim_per_vector(otherdim) + 1, _);
+
+                    // do the actual contraction
+                    for (int r = 0; r < fcoeff.rank(); ++r) {
+                        s[0] = Slice(r, r);
+                        other_s[0] = Slice(r, r);
+                        const tensorT contracted_tensor = fcoeff.get_svdtensor().ref_vector(dim)(s).reshape(shape);
+                        const tensorT other_tensor = fcoeff.get_svdtensor().ref_vector(otherdim)(other_s).reshape(
+                                shape);
+                        const double ovlp = gtensor.trace_conj(contracted_tensor);
+                        const double fac = ovlp * fcoeff.get_svdtensor().weights(r);
+                        final += fac * other_tensor;
+                    }
                 }
 
                 // accumulate the result

@@ -67,17 +67,18 @@ public:
         double hi = info.hi;
         MADNESS_CHECK_THROW(hi>0,"hi must be positive in gfit: U need to set it manually in operator.h");
         double eps = info.thresh;
+        bool debug=info.debug;
         OpType type = info.type;
 
 
-        if (type==OT_G12) {*this=CoulombFit(lo,hi,eps,false);
-        } else if (type==OT_SLATER) {*this=SlaterFit(mu,lo,hi,eps,false);
-        } else if (type==OT_GAUSS)  {*this=GaussFit(mu,lo,hi,eps,false);
-        } else if (type==OT_F12)    {*this=F12Fit(mu,lo,hi,eps,false);
-        } else if (type==OT_FG12)   {*this=FGFit(mu,lo,hi,eps,false);
-        } else if (type==OT_F212)   {*this=F12sqFit(mu,lo,hi,eps,false);
-        } else if (type==OT_F2G12)  {*this=F2GFit(mu,lo,hi,eps,false);
-        } else if (type==OT_BSH)    {*this=BSHFit(mu,lo,hi,eps,false);
+        if (type==OT_G12) {*this=CoulombFit(lo,hi,eps,debug);
+        } else if (type==OT_SLATER) {*this=SlaterFit(mu,lo,hi,eps,debug);
+        } else if (type==OT_GAUSS)  {*this=GaussFit(mu,lo,hi,eps,debug);
+        } else if (type==OT_F12)    {*this=F12Fit(mu,lo,hi,eps,debug);
+        } else if (type==OT_FG12)   {*this=FGFit(mu,lo,hi,eps,debug);
+        } else if (type==OT_F212)   {*this=F12sqFit(mu,lo,hi,eps,debug);
+        } else if (type==OT_F2G12)  {*this=F2GFit(mu,lo,hi,eps,debug);
+        } else if (type==OT_BSH)    {*this=BSHFit(mu,lo,hi,eps,debug);
         } else {
             print("Operator type not implemented: ",type);
             MADNESS_EXCEPTION("Operator type not implemented: ",1);

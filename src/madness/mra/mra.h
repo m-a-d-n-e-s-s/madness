@@ -2109,8 +2109,11 @@ namespace madness {
     apply_only(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
+        constexpr std::size_t OPDIM=opT::opdim;
+        constexpr bool low_dim=(OPDIM*2==NDIM);     // apply on some dimensions only
+
         // specialized version for 3D
-        if (NDIM <= 3) {
+        if (NDIM <= 3 and (not low_dim)) {
             result.set_impl(f, false);
             result.get_impl()->apply(op, *f.get_impl(), fence);
 
