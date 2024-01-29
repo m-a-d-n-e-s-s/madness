@@ -150,7 +150,7 @@ namespace madness {
 
         /// Default constructor makes uninitialized function.  No communication.
 
-        /// An unitialized function can only be assigned to.  Any other operation will throw.
+        /// An uninitialized function can only be assigned to.  Any other operation will throw.
         Function() : impl() {}
 
 

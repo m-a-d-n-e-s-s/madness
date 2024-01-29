@@ -236,7 +236,7 @@ namespace madness {
         return (tree_state==compressed);
     }
 
-    /// Returns true if the function is compressed.
+    /// Returns true if the function is reconstructed.
     template <typename T, std::size_t NDIM>
     bool FunctionImpl<T,NDIM>::is_reconstructed() const {
         return (tree_state==reconstructed);
