@@ -398,12 +398,14 @@ double MP2::mp3() const {
                 for (auto& t: tmp3) tau_ij_j[i].push_back(t);
             }
         }
-        print("info on tau_kk_i");
+        print("info on tau_kk_i, consolidated with op_pure_to_pure");
         for (int i = param.freeze(); i < hf->nocc(); ++i) {
+            tau_kk_i[i]=consolidate(tau_kk_i[i],{"op_pure_to_pure"});
             for (auto& c: tau_kk_i[i]) c.info();
         }
-        print("info on tau_ij_j");
+        print("info on tau_ij_j, consolidated with op_pure_to_pure");
         for (int i = param.freeze(); i < hf->nocc(); ++i) {
+            tau_ij_j[i]=consolidate(tau_ij_j[i],{"op_pure_to_pure"});
             for (auto& c: tau_ij_j[i]) c.info();
         }
 
@@ -418,11 +420,17 @@ double MP2::mp3() const {
             g.set_particle(1);
             auto gtau_same = g(tau_kk_i[i]);
             t4.tag("compute gtau_same");
+//            gtau_same=consolidate(gtau_same,{"op_pure_to_pure"});
+//            t4.tag("consolidate gtau_same");
 
             // tmp(1',2) = g(1',1) | tau_ij(1,2) j(1) >
             g.set_particle(1);
             auto gtau_other = g(tau_ij_j[i]); // < tau_ij(1,2) j(1) | g(1,1') |
             t4.tag("compute gtau_other");
+//            gtau_other=consolidate(gtau_other,{"op_pure_to_pure"});
+//            t4.tag("consolidate gtau_other");
+
+
 
 
             auto bra_kk_i = multiply(tau_kk_i[i],R2,{3,4,5});

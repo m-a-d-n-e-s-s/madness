@@ -62,19 +62,66 @@ void CCPairFunction<T,NDIM>::convert_to_pure_no_op_inplace() {
 };
 
 template<typename T, std::size_t NDIM>
-std::vector<CCPairFunction<T,NDIM>> consolidate(const std::vector<CCPairFunction<T,NDIM>>& other) {
+std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::consolidate(const std::vector<CCPairFunction<T,NDIM>>& other,
+                                                std::vector<std::string> options) const {
+
+    // return only one term of a hi-dim function
+    bool one_term=find(options.begin(),options.end(),"one_term")!=options.end();
+    // convert op_pure functions to pure
+    bool op_pure_to_pure=find(options.begin(),options.end(),"op_pure_to_pure")!=options.end();
+    // reorthogonalize decomposed functions and op_decomposed functions
+    bool svd=find(options.begin(),options.end(),"svd")!=options.end();
+
 
     std::vector<CCPairFunction<T,NDIM>> result;
-    std::vector<Function<T,NDIM>> all_pure;
+
+    // sort the terms into pure, decomposed, op_decomposed, op_pure
+    std::vector<Function<T,NDIM>> pure;
+    std::vector<std::vector<Function<T,NDIM>>> op_pure(OT_SIZE);
     for (auto& c : other) {
-        if (c.is_pure_no_op()) all_pure.push_back(c.get_function());
-        else result.push_back(c);
+        if (c.is_pure_no_op()) {
+            pure.push_back(c.get_function());
+        } else if (c.is_op_pure()) {
+            int opint=int(c.get_operator().type());
+            op_pure[opint].push_back(c.get_function());
+        }
+
+        else {
+            result.push_back(c);
+        }
     }
-    if (not all_pure.empty()) {
-        for (std::size_t i=1; i<all_pure.size(); ++i) all_pure.front()+=all_pure[i];
-        all_pure.front().truncate();
-        result.push_back(CCPairFunction<T,NDIM>(all_pure.front()));
+    // accumulate all pure functions
+    if (pure.size()>0) {
+        Function<T,NDIM> pure_result=CompositeFactory<T,NDIM,LDIM>(world()).ket(pure);
+        pure_result.fill_tree();
+        result.push_back(CCPairFunction<T,NDIM>(pure_result));
     }
+
+    // accumulate all op_pure functions
+    for (int opint=OT_G12; opint<OT_SIZE; ++opint) {
+        if (op_pure[opint].size()>0) {
+            auto op=CCConvolutionOperatorPtr<T,LDIM>(world(),OpType(opint),CCParameters());
+            print("consolidating",op->name());
+            Function<T,NDIM> tmp;
+            if (op_pure_to_pure) {
+                tmp=CompositeFactory<T,NDIM,LDIM>(world()).ket(op_pure[opint]).g12(op->get_kernel());
+                tmp.fill_tree();
+                result.push_back(CCPairFunction<T,NDIM>(tmp));
+            } else {
+                tmp=CompositeFactory<T,NDIM,LDIM>(world()).ket(op_pure[opint]);
+                tmp.fill_tree();
+                result.push_back(CCPairFunction<T,NDIM>(op,tmp));
+            }
+        }
+    }
+
+
+
+//    if (not all_pure.empty()) {
+//        for (std::size_t i=1; i<all_pure.size(); ++i) all_pure.front()+=all_pure[i];
+//        all_pure.front().truncate();
+//        result.push_back(CCPairFunction<T,NDIM>(all_pure.front()));
+//    }
 
     return result;
 }

@@ -399,8 +399,19 @@ public:
         return result;
     }
 
-    /// add all like functions up, return *this for chaining
-    friend std::vector<CCPairFunction> consolidate(const std::vector<CCPairFunction>& other);
+    std::vector<CCPairFunction> consolidate(const std::vector<CCPairFunction>& other,
+                                                   std::vector<std::string> options={}) const;
+
+    /// collect the terms into a compact format
+
+    /// @param[in] other: a vector of CCPairFunctions
+    /// @param[in] options: a vector of strings which can be "one_term", "op_pure_to_pure", "svd"
+    friend std::vector<CCPairFunction> consolidate(const std::vector<CCPairFunction>& other,
+                                                   std::vector<std::string> options={}) {
+
+        if (other.size()>0) return other.front().consolidate(other,options); // workaround
+        return other;
+    };
 
 
     void info() const { print_size(); }

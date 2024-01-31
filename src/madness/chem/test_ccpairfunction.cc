@@ -735,6 +735,47 @@ int test_partial_inner_3d(World& world, std::shared_ptr<NuclearCorrelationFactor
     return t1.end();
 }
 
+
+template<typename T, std::size_t NDIM>
+int test_consolidate(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, data<T,NDIM>& data,
+               const CCParameters& parameter) {
+    test_output t1("CCPairFunction::test_consolidate");
+    static_assert(NDIM % 2 == 0, "NDIM must be even");
+    constexpr std::size_t LDIM = NDIM / 2;
+    t1.set_cout_to_terminal();
+
+    /// f12: exp(-r_1^2 - 2 r_2^2)
+    /// f23: exp(-r_1^2 - 2 r_2^2) + exp(-2 r_1^2 - 3 r_2^2)
+    /// p1: pure, corresponds to f12
+    /// p2: dec, corresponds to f23
+    /// p3: op_dec, corresponds to f23
+    /// p4: pure, corresponds to f23
+    /// p5: op_pure, corresponds to f23
+    auto [p1,p2,p3,p4,p5]=data.get_ccpairfunctions();
+
+    for (const auto& p : {p1,p4,p5}) {
+        auto tmp=std::vector<CCPairFunction<T,NDIM>>({p,p});
+
+        double r1=inner(tmp,{p1});
+        print("r1",r1);
+        auto tmp1=consolidate(tmp,{"sdf"});
+        double r2=inner(tmp1,{p1});
+        print("r2",r2);
+
+        t1.checkpoint(tmp1.size()==1 && tmp.size()==2,"vector size");
+        t1.checkpoint(r1,r2,FunctionDefaults<LDIM>::get_thresh(),"consolidate");
+
+    }
+    throw;
+
+
+
+
+
+    return t1.end();
+}
+
+
 template<typename T, std::size_t NDIM>
 int test_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, data<T,NDIM>& data,
                const CCParameters& parameter) {
@@ -750,7 +791,6 @@ int test_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, data
     /// p3: op_dec, corresponds to f23
     /// p4: pure, corresponds to f23
     /// p5: op_pure, corresponds to f23
-//    auto data=get_data<6>(world,parameter);
     auto [p1,p2,p3,p4,p5]=data.get_ccpairfunctions();
     auto [f1,f2,f3,f4,f5,f]=data.get_functions();
 
@@ -1123,6 +1163,9 @@ int main(int argc, char **argv) {
         auto data4=data<double,4>(world,ccparam);
         auto data6=data<double,6>(world,ccparam);
 
+        isuccess+=test_consolidate<double,2>(world, ncf, data2, ccparam);
+
+        throw;
         isuccess+=test_constructor<double,2>(world, ncf, data2, ccparam);
         isuccess+=test_operator_apply<double,2>(world, ncf, data2, ccparam);
         isuccess+=test_transformations<double,2>(world, ncf, data2, ccparam);
@@ -1135,6 +1178,8 @@ int main(int argc, char **argv) {
         isuccess+=test_partial_inner_3d<double,2>(world, ncf, data2, ccparam);
         isuccess+=test_partial_inner_6d<double,2>(world, ncf, data2, ccparam);
         isuccess+=test_apply<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_consolidate<double,2>(world, ncf, data2, ccparam);
+
 
 //        isuccess+=test_constructor<double,4>(world, ncf, data4, ccparam);
 //        isuccess+=test_operator_apply<double,4>(world, ncf, data4, ccparam);
