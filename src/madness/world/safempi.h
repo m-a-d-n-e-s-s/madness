@@ -71,6 +71,7 @@
 #include <madness/world/type_traits.h>
 #include <iostream>
 #include <csignal>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <sstream>
@@ -805,7 +806,7 @@ namespace SafeMPI {
             struct sigaction sa;
             auto rc = sigaction(SIGABRT, NULL, &sa);
             if (rc == 0 && sa.sa_handler != SIG_DFL) {
-              abort();
+              std::abort();
             } else {
               MPI_Abort(pimpl->comm, code);
             }
