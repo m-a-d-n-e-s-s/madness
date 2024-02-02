@@ -161,7 +161,7 @@ namespace madness {
 
         explicit
         FunctionNode(const coeffT& coeff, double norm_tree, double snorm, double dnorm, bool has_children) :
-                _coeffs(coeff), _norm_tree(norm_tree), _has_children(has_children), snorm(snorm), dnorm(dnorm) {
+	  _coeffs(coeff), _norm_tree(norm_tree), _has_children(has_children), dnorm(dnorm), snorm(snorm) {
         }
 
         FunctionNode(const FunctionNode<T, NDIM>& other) {

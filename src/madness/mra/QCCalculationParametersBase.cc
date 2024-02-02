@@ -42,7 +42,7 @@ std::string QCCalculationParametersBase::print_to_string(bool non_defaults_only)
 		const QCParameter& param=std::get<2>(p);
 		if (non_defaults_only and (param.precedence==QCParameter::def)) continue;
 		ss << param.print_line(std::get<1>(p));
-        if (++counter<list.size()) ss << std::endl; // no newline at the very end
+		if (++counter<int(list.size())) ss << std::endl; // no newline at the very end
 	}
 	return ss.str();
 }

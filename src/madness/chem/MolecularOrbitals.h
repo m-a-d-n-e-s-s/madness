@@ -46,7 +46,7 @@ public:
         auto slices = convert_set_to_slice(localize_sets);
         auto s=slices[iset];
         MolecularOrbitals result;
-        MADNESS_CHECK(mo.size()>=s.end+1);
+        MADNESS_CHECK(mo.size()>=size_t(s.end+1));
 //        result.mo.assign(mo.begin()+s.start,mo.begin()+s.end+1);
         for (int i=s.start; i<s.end+1; ++i) result.mo.push_back(copy(mo[i]));
         if (eps.size()>0) result.eps=copy(eps(s));
@@ -121,7 +121,7 @@ public:
         set_all_orbitals_occupied();
         std::size_t nmo = mo.size();
         std::vector<int> set = std::vector<int>(static_cast<size_t>(nmo), 0);
-        for (int i = 1; i < nmo; ++i) {
+        for (size_t i = 1; i < nmo; ++i) {
             set[i] = set[i - 1];
             // Only the new/boys localizers can tolerate not separating out the core orbitals
             if (eps(i) - eps(i - 1) > bandwidth || get_occ()(i) != 1.0) ++(set[i]);
@@ -133,7 +133,7 @@ public:
     static std::vector<Slice> convert_set_to_slice(const std::vector<int>& localized_set) {
         std::vector<Slice> blocks;
         long ilo=0;
-        for (int i=1; i<localized_set.size(); ++i) {
+        for (size_t i=1; i<localized_set.size(); ++i) {
             if (not (localized_set[i]==localized_set[i-1])) {
                 blocks.push_back(Slice(ilo, i-1));
                 ilo=i;

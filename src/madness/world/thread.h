@@ -49,6 +49,9 @@
 #include <typeinfo>
 #include <new>
 
+#include <sys/sysinfo.h>
+
+
 //////////// Parsec Related Begin ////////////////////
 #ifdef HAVE_PARSEC
 #include "parsec.h"
@@ -94,6 +97,59 @@ namespace madness {
     class AtomicInt;
     void error(const char *msg);
 
+    class ThreadBinder {
+      static const size_t maxncpu = 1024;
+      size_t ncpu = 0;
+      bool do_bind = true;
+      size_t cpus[maxncpu];
+      std::atomic<size_t> nextcpu = 0;
+      static thread_local bool bound;
+      
+    public:
+      
+      ThreadBinder() {
+#ifndef ON_A_MAC
+	ncpu = 0;
+        cpu_set_t mask;
+        sched_getaffinity(0, sizeof(mask), &mask);
+        for (size_t i=0; i<maxncpu; i++) {
+	  if (CPU_ISSET(int(i),&mask)) {
+	    MADNESS_CHECK(ncpu <= maxncpu);
+	    cpus[ncpu++] = i;
+	  }
+	}
+	std::cout << "ncpu: " << get_ncpu() << std::endl;
+	for (size_t i=0; i<get_ncpu(); i++) {
+	  std::cout << get_cpus()[i] << " " ;
+	}
+	std::cout << std::endl;
+	nextcpu = ncpu/2;
+#endif
+      }
+
+      void set_do_bind(bool value) {do_bind = value;}
+      
+      const size_t* get_cpus() const { return cpus; }
+      
+      const size_t get_ncpu() const { return ncpu; }
+      
+      void bind() {
+#ifndef ON_A_MAC
+	if (!bound && do_bind) { // In TBB this is called by each task
+	  bound = true;
+	  cpu_set_t mask;
+	  CPU_ZERO(&mask);
+	  size_t cpu = cpus[nextcpu++ % ncpu];
+	  CPU_SET(cpu, &mask);
+	  sched_setaffinity(0, sizeof(mask), &mask);
+	  std::cout << "bound thread to " << cpu << std::endl;
+	}
+#endif
+      }
+    };
+
+    extern ThreadBinder binder;
+
     /// \addtogroup threads
     /// @{
 
@@ -107,9 +163,6 @@ namespace madness {
     class ThreadBase {
         friend class ThreadPool;
 
-        static bool bind[3]; ///< \todo Brief description needed.
-        static int cpulo[3]; ///< \todo Brief description needed.
-        static int cpuhi[3]; ///< \todo Brief description needed.
         static pthread_key_t thread_key; ///< Thread id key.
 
         /// \todo Brief description needed.
@@ -195,20 +248,6 @@ namespace madness {
 
         /// \return The number of hardward processors.
         static int num_hw_processors();
-
-        /// Specify the affinity pattern or how to bind threads to CPUs.
-
-        /// \todo Descriptions needed.
-        /// \param[in] bind Description needed.
-        /// \param[in] cpu Description needed.
-        static void set_affinity_pattern(const bool bind[3], const int cpu[3]);
-
-        /// \todo Brief description needed.
-
-        /// \todo Descriptions needed.
-        /// \param[in] logical_id Description needed.
-        /// \param[in] ind Description needed.
-        static void set_affinity(int logical_id, int ind=-1);
 
         /// \todo Brief description needed.
 
@@ -434,7 +473,7 @@ namespace madness {
         /// \param[in] barrier Pointer to the shared barrier.
         TaskThreadEnv(int nthread, int id, Barrier* barrier)
             : _nthread(nthread), _id(id), _barrier(barrier)
-        {}
+        {::madness::binder.bind();}
 
 #if HAVE_INTEL_TBB
         /// Constructor collecting necessary environmental information.
@@ -447,7 +486,7 @@ namespace madness {
         /// Need to figure out why.
         TaskThreadEnv(int nthread, int id)
             : _nthread(nthread), _id(id), _barrier(nullptr)
-        {};
+      {::madness::binder.bind();};
 #endif
 
         /// Get the number of threads collaborating on this task.

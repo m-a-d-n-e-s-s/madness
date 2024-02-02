@@ -314,7 +314,7 @@ Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_ba
 }
 
 
-template
+template 
 class Exchange<double_complex, 3>::ExchangeImpl;
 
 template
@@ -327,5 +327,6 @@ template<> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl
 template<> Spinlock WorldObject<WorldContainerImpl<long, std::vector<unsigned char>, madness::Hash<long> > >::pending_mutex(
         0);
 
+Exchange<double,3>::ExchangeImpl junkjunkjunk(World& world, const SCF *calc, const int ispin) {return Exchange<double,3>::ExchangeImpl(world, calc, ispin);}
 
 } /* namespace madness */

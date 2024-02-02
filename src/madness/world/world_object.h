@@ -485,10 +485,10 @@ namespace madness {
                 typename detail::task_arg<arg7T>::type arg7;
                 typename detail::task_arg<arg8T>::type arg8;
                 typename detail::task_arg<arg9T>::type arg9;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wuninitialized-const-reference"
+		MADNESS_PRAGMA_CLANG(diagnostic push)
+                MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wuninitialized-const-reference")
                 arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6 & arg7 & arg8 & arg9;
-#pragma clang diagnostic pop
+		MADNESS_PRAGMA_CLANG(diagnostic pop)
                 typename detail::info<memfnT>::futureT result(info.ref);
                 detail::run_function(result, task_helper::make_task_fn(obj, info.memfun()),
                         arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);

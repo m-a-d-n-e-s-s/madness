@@ -422,7 +422,7 @@ struct PairVectorMap {
     void print(const std::string msg="PairVectorMap") const {
         madness::print(msg);
         madness::print("vector element <-> pair index");
-        for (int i=0; i<map.size(); ++i) {
+        for (size_t i=0; i<map.size(); ++i) {
             madness::print(i, " <-> ",map[i]);
         }
     }
@@ -1106,7 +1106,7 @@ class MacroTaskMp2ConstantPart : public MacroTaskOperationBase {
         partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
                                    const std::string policy) const override {
             partitionT p;
-            for (int i = 0; i < vsize1; i++) {
+            for (size_t i = 0; i < vsize1; i++) {
                 Batch batch(Batch_1D(i,i+1), Batch_1D(i,i+1));
                 p.push_back(std::make_pair(batch,1.0));
             }
@@ -1146,7 +1146,7 @@ class MacroTaskMp2UpdatePair : public MacroTaskOperationBase {
         partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
                                    const std::string policy) const override {
             partitionT p;
-            for (int i = 0; i < vsize1; i++) {
+            for (size_t i = 0; i < vsize1; i++) {
                 Batch batch(Batch_1D(i, i+1), Batch_1D(i, i+1), Batch_1D(i,i+1));
                 p.push_back(std::make_pair(batch, 1.0));
             }

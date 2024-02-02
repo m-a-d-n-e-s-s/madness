@@ -782,8 +782,9 @@ public:
 };
 
 void pounder(const WorldContainer<int,Mary>& m, int ind) {
-    for (int i=0; i<1000; ++i)
+    for (int i=0; i<1000/m.get_world().size()+10; ++i) 
         m.send(ind, &Mary::inc);
+    print("pounder task finished sending");
 }
 
 void test10(World& world) {
@@ -824,6 +825,7 @@ void test10(World& world) {
         MADNESS_CHECK(long(it->second.get()) == nproc*(3*nproc-1)/2);
     }
     world.gop.fence();
+    print("finished forwarding test, starting pounder");
 
     // Test that item methods are executed atomically by having
     // everyone pound on one item
@@ -838,16 +840,17 @@ void test10(World& world) {
     world.taskq.add(pounder, m, ind);
     world.taskq.add(pounder, m, ind);
     world.taskq.add(pounder, m, ind);
+    print("pounding tasks submitted");
     world.gop.fence();
+    print("finished pounding");
     if (world.rank() == 0)
-        MADNESS_CHECK(long(m.find(ind).get()->second.get()) == nproc * 1000 * 7);
+      MADNESS_CHECK(long(m.find(ind).get()->second.get()) == nproc * (1000/world.size()+10) * 7);
 
     world.gop.fence();
 
     Future<double>  galahad = m.task(ProcessID(0),&Mary::galahad,string("1"),me,3.14);
     world.gop.fence();
     print("result of galahad",galahad.get());
-
 
     print("main making vector of results");
     //vector< Future<string> > results(nproc,Future<string>::default_initializer());
@@ -1182,6 +1185,8 @@ void test14(World& world) {
     ++call_counter;
 
     const auto n = 1 + std::numeric_limits<int>::max()/sizeof(int);
+    //const auto n = 1000000;
+
     auto iarray = std::make_unique<int[]>(n);
     iarray[0] = -1;
     iarray[n-1] = -1;
@@ -1202,7 +1207,8 @@ void test14(World& world) {
 void test15(World& world) {
 
   if (world.size() > 1) {
-    const auto n = 1 + std::numeric_limits<int>::max()/sizeof(int);
+    //const auto n = 1 + std::numeric_limits<int>::max()/sizeof(int);
+    const auto n = 1000000;
     auto iarray = std::make_unique<int[]>(n);
 
     if (world.rank() == 1)

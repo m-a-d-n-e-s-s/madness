@@ -4,6 +4,11 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
+## I know this is obnoxious but I don't know any other way to keep
+## things clean.  Make the build verbose so that people see the warning
+## messages and fix the issues --- some of them are real
+#set(CMAKE_VERBOSE_MAKEFILE ON CACHE BOOL "ON")
+
 # safety net for dev workflow: accidental install will not affect FindOrFetch*
 if (NOT DEFINED CACHE{CMAKE_FIND_NO_INSTALL_PREFIX})
   set(CMAKE_FIND_NO_INSTALL_PREFIX ON CACHE BOOL "Whether find_* commands will search CMAKE_INSTALL_PREFIX and CMAKE_STAGING_PREFIX; see https://cmake.org/cmake/help/latest/variable/CMAKE_FIND_NO_INSTALL_PREFIX.html#variable:CMAKE_FIND_NO_INSTALL_PREFIX")
@@ -110,7 +115,21 @@ option(ENABLE_PAPI "Enables use of PAPI" OFF)
 option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
 option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)
 
-####### preferred task backend
+set(CMAKE_REQUIRED_LIBRARIES ${LAPACK_LIBRARIES})
+check_cxx_source_compiles(
+    "
+    namespace madness {
+      template <typename T>
+      void mTxmq(long dimi, long dimj, long dimk,
+		 T* __restrict__ c, const T* a, const T* b, long ldb=-1);
+
+      template <>
+      void mTxmq(long dimi, long dimj, long dimk, double* __restrict__ c, const  double* a, const double* b, long ldb);
+    }
+    int main() { double a[1], b[1], c[1]; madness::mTxmq(1,1,1,c,a,b,1); return 0; }
+    " HAVE_MTXMQ)
+
+  ####### preferred task backend
 set(MADNESS_TASK_VALID_BACKENDS Pthreads TBB PaRSEC)
 set(MADNESS_TASK_BACKEND Pthreads CACHE STRING "The backend to use for dispatching tasks")
 set_property(CACHE MADNESS_TASK_BACKEND PROPERTY STRINGS ${MADNESS_TASK_VALID_BACKENDS})
@@ -358,7 +377,7 @@ if (NOT DEFINED MADNESS_CONFIGURATION_DATE)
   set(MADNESS_CONFIGURATION_DATE "${madness_configuration_date}" CACHE INTERNAL "")
 endif (NOT DEFINED MADNESS_CONFIGURATION_DATE)
 
-set(MAD_BIND_DEFAULT "-1 -1 -1" CACHE STRING "The default binding for threads")
+set(MAD_BIND_DEFAULT "ON" CACHE STRING "The default binding for threads")
 
 # Check if the target platform is CRAY XE
 check_cxx_source_compiles(

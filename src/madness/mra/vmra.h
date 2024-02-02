@@ -1119,7 +1119,7 @@ namespace madness {
     	typedef typename Tensor<T>::scalar_type scalartype;
     	reconstruct(world,v);
     	std::vector<Function<scalartype,NDIM> > result(v.size());
-    	for (int i=0; i<v.size(); ++i) result[i]=abs_square(v[i],false);
+    	for (size_t i=0; i<v.size(); ++i) result[i]=abs_square(v[i],false);
     	if (fence) world.gop.fence();
         return result;
     }
@@ -1538,6 +1538,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator+(const std::vector<Function<T,NDIM> >& lhs,
             const std::vector<Function<T,NDIM>>& rhs) {
+        MADNESS_CHECK(lhs.size() == rhs.size());
         return gaxpy_oop(1.0,lhs,1.0,rhs);
     }
 
@@ -1545,6 +1546,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator-(const std::vector<Function<T,NDIM> >& lhs,
             const std::vector<Function<T,NDIM> >& rhs) {
+        MADNESS_CHECK(lhs.size() == rhs.size());
         return gaxpy_oop(1.0,lhs,-1.0,rhs);
     }
 
@@ -1552,6 +1554,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator+(const std::vector<Function<T,NDIM> >& lhs,
             const Function<T,NDIM>& rhs) {
+        MADNESS_CHECK(lhs.size() == rhs.size());
         return gaxpy_oop(1.0,lhs,1.0,rhs);
     }
 
@@ -1559,6 +1562,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator-(const std::vector<Function<T,NDIM> >& lhs,
             const Function<T,NDIM>& rhs) {
+        MADNESS_CHECK(lhs.size() == rhs.size());
         return gaxpy_oop(1.0,lhs,-1.0,rhs);
     }
 
@@ -1566,6 +1570,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator+(const Function<T,NDIM>& lhs,
             const std::vector<Function<T,NDIM> >& rhs) {
+        MADNESS_CHECK(lhs.size() == rhs.size());
         return gaxpy_oop(1.0,rhs,1.0,lhs);
     }
 
@@ -1573,6 +1578,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator-(const Function<T,NDIM>& lhs,
             const std::vector<Function<T,NDIM> >& rhs) {
+        MADNESS_CHECK(lhs.size() == rhs.size());
         return gaxpy_oop(-1.0,rhs,1.0,lhs);
     }
 
@@ -1618,29 +1624,19 @@ namespace madness {
 
 
     template <typename T, std::size_t NDIM>
-    std::vector<Function<T,NDIM> > operator+=(std::vector<Function<T,NDIM> >& rhs,
-            const std::vector<Function<T,NDIM> >& lhs) {
-        if (rhs.size()==0) return rhs;
-        MADNESS_CHECK(rhs.size()==lhs.size());
-        if (rhs.front().world().id()==lhs.front().world().id()) {
-            rhs=add(rhs[0].world(),rhs,lhs);
-        } else {
-            MADNESS_CHECK(rhs.front().is_compressed());
-            MADNESS_CHECK(lhs.front().is_compressed());
-            for (auto i=0; i<rhs.size(); ++i) {
-                rhs[i].gaxpy(T(1.0), lhs[i], T(1.0), false);
-            }
-        }
-        return rhs;
+    std::vector<Function<T,NDIM> > operator+=(std::vector<Function<T,NDIM> >& lhs, const std::vector<Function<T,NDIM> >& rhs) {
+        MADNESS_CHECK(lhs.size() == rhs.size());
+        if (lhs.size() > 0) gaxpy(lhs.front().world(), 1.0, lhs, 1.0, rhs);
+	return lhs;
     }
 
     template <typename T, std::size_t NDIM>
-    std::vector<Function<T,NDIM> > operator-=(std::vector<Function<T,NDIM> >& rhs,
-            const std::vector<Function<T,NDIM> >& lhs) {
-        if (rhs.size()>0) rhs=sub(rhs[0].world(),rhs,lhs);
-        return rhs;
+    std::vector<Function<T,NDIM> > operator-=(std::vector<Function<T,NDIM> >& lhs,
+            const std::vector<Function<T,NDIM> >& rhs) {
+        MADNESS_CHECK(lhs.size() == rhs.size());
+        if (lhs.size() > 0) gaxpy(lhs.front().world(), 1.0, lhs, -1.0, rhs);
+	return lhs;
     }
-
 
     /// return the real parts of the vector's function (if complex)
     template <typename T, std::size_t NDIM>

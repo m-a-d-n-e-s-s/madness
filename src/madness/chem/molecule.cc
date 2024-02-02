@@ -338,7 +338,7 @@ void Molecule::read_xyz(const std::string filename) {
         add_atom(xx,yy,zz,qq,atn,psat);
         if (current_line==natom_expected+2) break;
     }
-    MADNESS_CHECK(natom_expected==natom());
+    MADNESS_CHECK(size_t(natom_expected)==natom());
     update_rcut_with_eprec(parameters.eprec());
 }
 
