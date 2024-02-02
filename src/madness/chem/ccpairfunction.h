@@ -402,6 +402,12 @@ public:
     std::vector<CCPairFunction> consolidate(const std::vector<CCPairFunction>& other,
                                                    std::vector<std::string> options={}) const;
 
+    /// turn decomposed functions with operator into decomposed functions using LowRankFunction
+    static std::vector<CCPairFunction> op_dec_to_dec(const std::vector<CCPairFunction>& other);
+
+    static std::vector<CCPairFunction> collect_same_types(const std::vector<CCPairFunction>& other);
+
+
     /// collect the terms into a compact format
 
     /// @param[in] other: a vector of CCPairFunctions

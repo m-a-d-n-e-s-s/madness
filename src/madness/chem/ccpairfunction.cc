@@ -5,6 +5,7 @@
 #include<madness/chem/ccpairfunction.h>
 #include<madness/chem/CCStructures.h>
 #include<madness/chem/projector.h>
+#include<madness/chem/lowrankfunction.h>
 #include<madness/mra/operator.h>
 
 using namespace madness;
@@ -61,6 +62,84 @@ void CCPairFunction<T,NDIM>::convert_to_pure_no_op_inplace() {
     component.reset(new TwoBodyFunctionPureComponent<T,NDIM>(result));
 };
 
+/// turn decomposed functions with operator into decomposed functions using LowRankFunction
+template<typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::op_dec_to_dec(const std::vector<CCPairFunction<T,NDIM>>& other) {
+    LowRankFunctionParameters lrparameters;
+    auto builder = LowRankFunctionFactory<T,NDIM>(lrparameters);
+    builder.set_volume_element(3.e-2);
+    builder.parameters.print("lrparameters");
+    std::vector<CCPairFunction<T,NDIM>> result;
+    for (const auto& c : other) {
+        if (c.is_op_decomposed()) {
+            LRFunctorF12<T,NDIM> functor(c.get_operator_ptr()->get_op(),c.get_a().front(),c.get_b().front());
+            LowRankFunction<T,NDIM> tmp=builder.project(functor);
+            double l2error=tmp.l2error(functor);
+            print("error",l2error);
+            tmp.optimize(functor);
+            l2error=tmp.l2error(functor);
+            print("error after optimization",l2error);
+            print("rank after optimization",tmp.rank());
+            result.push_back(CCPairFunction<T,NDIM>(tmp.get_g(),tmp.get_h()));
+        } else {
+            result.push_back(c);
+        }
+    }
+    return result;
+
+}
+
+/// collect all terms with the same operator
+template<typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::collect_same_types(const std::vector<CCPairFunction<T, NDIM>>& other) {
+
+    if (other.size()==0) return other;
+    World& world=other.front().world();
+
+    /// vector includes OT_ONE, meaning no operator
+    std::vector<std::vector<Function<T,NDIM>>> op_pure(OT_SIZE);
+    std::vector<std::vector<Function<T,LDIM>>> op_decomposed_a(OT_SIZE);
+    std::vector<std::vector<Function<T,LDIM>>> op_decomposed_b(OT_SIZE);
+    std::vector<std::shared_ptr<CCConvolutionOperator<T,LDIM>>> ops(OT_SIZE);
+
+    for (const auto& c : other) {
+        if (c.has_operator()) {
+            int iop=int(c.get_operator().type());
+            ops[iop]=c.get_operator_ptr();
+        }
+        int iop=int(c.get_operator().type());
+        if (c.is_decomposed()) {
+            op_decomposed_a[iop]=append(op_decomposed_a[iop],c.get_a());
+            op_decomposed_b[iop]=append(op_decomposed_a[iop],c.get_b());
+        } else if (c.is_pure()) {
+            op_pure[iop].push_back(c.get_function());
+        }
+    }
+
+    std::vector<CCPairFunction<T,NDIM>> result;
+    // accumulate all op_pure functions
+    for (int opint=OT_ONE; opint<OT_SIZE; ++opint) {
+        if (op_pure[opint].size()>0) {
+//            auto op=CCConvolutionOperatorPtr<T,LDIM>(world,OpType(opint),CCParameters());
+            auto op=ops[opint];
+            Function<T,NDIM> tmp=CompositeFactory<T,NDIM,LDIM>(world).ket(op_pure[opint]);
+            tmp.fill_tree();
+            result.push_back(CCPairFunction<T,NDIM>(op,tmp));
+        }
+        if (op_decomposed_a[opint].size()>0) {
+
+            if (opint!=OT_ONE) {
+//                auto op=CCConvolutionOperatorPtr<T,LDIM>(world,OpType(opint),CCParameters());
+                result.push_back(CCPairFunction<T,NDIM>(ops[opint],op_decomposed_a[opint],op_decomposed_b[opint]));
+            } else {
+                result.push_back(CCPairFunction<T,NDIM>(op_decomposed_a[opint],op_decomposed_b[opint]));
+            }
+        }
+    }
+    return result;
+
+}
+
 template<typename T, std::size_t NDIM>
 std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::consolidate(const std::vector<CCPairFunction<T,NDIM>>& other,
                                                 std::vector<std::string> options) const {
@@ -69,6 +148,8 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::consolidate(const st
     bool one_term=find(options.begin(),options.end(),"one_term")!=options.end();
     // convert op_pure functions to pure
     bool op_pure_to_pure=find(options.begin(),options.end(),"op_pure_to_pure")!=options.end();
+    // convert op_dec functions to dec (via LowRankFunctions
+    bool op_dec_to_dec=find(options.begin(),options.end(),"op_dec_to_dec")!=options.end();
     // reorthogonalize decomposed functions and op_decomposed functions
     bool svd=find(options.begin(),options.end(),"svd")!=options.end();
 
@@ -115,6 +196,7 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::consolidate(const st
         }
     }
 
+    if (op_dec_to_dec) result=CCPairFunction<T,NDIM>::op_dec_to_dec(result);
 
 
 //    if (not all_pure.empty()) {

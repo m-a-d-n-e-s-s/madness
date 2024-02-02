@@ -51,6 +51,7 @@
 #include<madness/chem/nemo.h>
 #include<madness/chem/localizer.h>
 #include<madness/chem/ccpairfunction.h>
+#include<madness/chem/lowrankfunction.h>
 #include<madness/chem/CCStructures.h>
 
 #include <iostream>
@@ -386,6 +387,7 @@ double MP2::mp3() const {
 
         // \sum_j tau_ij(1,2) * phi_j(2)
         std::vector<ClusterFunction> tau_kk_i(hf->nocc() - param.freeze());
+        std::vector<ClusterFunction> tau_kk_i_lrf(hf->nocc() - param.freeze()); // low-rank
         // \sum_j tau_ij(1,2) * phi_j(1)
         std::vector<ClusterFunction> tau_ij_j(hf->nocc() - param.freeze());
         for (int i = param.freeze(); i < hf->nocc(); ++i) {
@@ -402,10 +404,13 @@ double MP2::mp3() const {
         for (int i = param.freeze(); i < hf->nocc(); ++i) {
             tau_kk_i[i]=consolidate(tau_kk_i[i],{"op_pure_to_pure"});
             for (auto& c: tau_kk_i[i]) c.info();
+            print("info on tau_kk_i, consolidated with op_dec_to_dec");
+            tau_kk_i[i]=consolidate(tau_kk_i[i],{"op_dec_to_dec"});
+            for (auto& c: tau_kk_i[i]) c.info();
         }
         print("info on tau_ij_j, consolidated with op_pure_to_pure");
         for (int i = param.freeze(); i < hf->nocc(); ++i) {
-            tau_ij_j[i]=consolidate(tau_ij_j[i],{"op_pure_to_pure"});
+            tau_ij_j[i]=consolidate(tau_ij_j[i],{"op_pure_to_pure","op_dec_to_dec"});
             for (auto& c: tau_ij_j[i]) c.info();
         }
 
@@ -429,9 +434,6 @@ double MP2::mp3() const {
             t4.tag("compute gtau_other");
 //            gtau_other=consolidate(gtau_other,{"op_pure_to_pure"});
 //            t4.tag("consolidate gtau_other");
-
-
-
 
             auto bra_kk_i = multiply(tau_kk_i[i],R2,{3,4,5});
             auto bra_ij_j = multiply(tau_ij_j[i],R2,{3,4,5});

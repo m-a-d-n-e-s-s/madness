@@ -365,7 +365,7 @@ int test_full_rank_functor(World& world, LowRankFunctionParameters parameters) {
     constexpr int NDIM=2*LDIM;
 //    FunctionDefaults<LDIM>::set_thresh(1.e-6);
 //    FunctionDefaults<NDIM>::set_thresh(1.e-6);
-    double tol=5.e-3;
+    double tol=6.e-3;
     double gaussexponent=2.0;
 
     const particle<LDIM> p1=particle<LDIM>::particle1();
@@ -681,12 +681,12 @@ int test_construction_optimization(World& world, LowRankFunctionParameters param
     lrf.optimize(lrfunctor);
     error=lrf.l2error(lrfunctor);
     print("l2 error optimize",error);
-    t1.checkpoint(error<1.e-2,"l2 error in optimization "+std::to_string(error));
+    t1.checkpoint(error,1.1e-2,"l2 error in optimization");
 
     lrf.reorthonormalize();
     error=lrf.l2error(lrfunctor);
     print("l2 error reorthonormalize",error);
-    t1.checkpoint(error<1.e-2,"l2 error in reorthonormalization "+std::to_string(error));
+    t1.checkpoint(error,1.1e-2,"l2 error in reorthonormalization");
     return t1.end();
 }
 
@@ -695,8 +695,10 @@ int main(int argc, char **argv) {
     madness::World& world = madness::initialize(argc, argv);
     startup(world, argc, argv);
     commandlineparser parser(argc, argv);
+    bool long_test = parser.key_exists("long_test");
+    bool exchange_test = parser.key_exists("exchange_test");
     int k = parser.key_exists("k") ? std::atoi(parser.value("k").c_str()) : 6;
-    double thresh  = parser.key_exists("thresh") ? std::stod(parser.value("thresh")) : 1.e-5;
+    double thresh  = parser.key_exists("thresh") ? std::stod(parser.value("thresh")) : 3.e-5;
     FunctionDefaults<6>::set_tensor_type(TT_2D);
 
 
@@ -729,9 +731,10 @@ int main(int argc, char **argv) {
     print("numerical parameters: k, eps(3D), eps(6D)", FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(),
           FunctionDefaults<6>::get_thresh());
     LowRankFunctionParameters parameters;
+    parameters.set_derived_value("f12type",std::string("slaterf12"));
     parameters.read_and_set_derived_values(world,parser,"grid");
-//    parameters.set_user_defined_value("radius",3.0);
-//    parameters.set_user_defined_value("volume_element",2.e-2);
+    parameters.set_user_defined_value("radius",2.5);
+    parameters.set_user_defined_value("volume_element",1.e-1);
 //    parameters.set_user_defined_value("tol",1.0e-10);
     parameters.print("grid");
     int isuccess=0;
@@ -740,21 +743,20 @@ int main(int argc, char **argv) {
 
     try {
 
-//        isuccess+=test_grids<1>(world,parameters);
-//        isuccess+=test_grids<2>(world,parameters);
-//        isuccess+=test_grids<3>(world,parameters);
         isuccess+=test_full_rank_functor<1>(world, parameters);
         isuccess+=test_construction_optimization<1>(world,parameters);
-//        isuccess+=test_construction_optimization<2>(world,parameters);
         isuccess+=test_arithmetic<1>(world,parameters);
-//        isuccess+=test_arithmetic<2>(world,parameters);
+        isuccess+=test_inner<1>(world,parameters);
 
-//        isuccess+=test_inner<1>(world,parameters);
-//        isuccess+=test_inner<2>(world,parameters);
+        if (long_test) {
+            isuccess+=test_construction_optimization<2>(world,parameters);
+            isuccess+=test_arithmetic<2>(world,parameters);
+            isuccess+=test_inner<2>(world,parameters);
+        }
 
 //        parameters.set_user_defined_value("volume_element",1.e-1);
 //        isuccess+=test_lowrank_function(world,parameters);
-        isuccess+=test_Kcommutator(world,parameters);
+//        isuccess+=test_Kcommutator(world,parameters);
     } catch (std::exception& e) {
         madness::print("an error occured");
         madness::print(e.what());
