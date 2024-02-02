@@ -377,7 +377,7 @@ if (NOT DEFINED MADNESS_CONFIGURATION_DATE)
   set(MADNESS_CONFIGURATION_DATE "${madness_configuration_date}" CACHE INTERNAL "")
 endif (NOT DEFINED MADNESS_CONFIGURATION_DATE)
 
-set(MAD_BIND_DEFAULT "ON" CACHE STRING "The default binding for threads")
+set(MAD_BIND_DEFAULT "OFF" CACHE STRING "The default binding for threads")
 
 # Check if the target platform is CRAY XE
 check_cxx_source_compiles(
