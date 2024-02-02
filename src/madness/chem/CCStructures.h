@@ -462,7 +462,7 @@ struct Pairs {
 
     static std::vector<T> pairs2vector(const Pairs<T>& argument, const PairVectorMap map) {
         std::vector<T> vector;
-        for (int i=0; i<argument.allpairs.size(); ++i) {
+        for (size_t i=0; i<argument.allpairs.size(); ++i) {
             vector.push_back(argument(map.map[i].first,map.map[i].second));
         }
         return vector;

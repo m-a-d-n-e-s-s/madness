@@ -85,7 +85,7 @@ public:
 
 	    Tensor<T> in=inner(world,Vpsi,bra_res);	// no shift here!
 	    Tensor<double> delta_eps(psi.size());
-	    for (int i=0; i<psi.size(); ++i) delta_eps(i)=std::real(in(i))/(norms[i]*norms[i]);
+	    for (size_t i=0; i<psi.size(); ++i) delta_eps(i)=std::real(in(i))/(norms[i]*norms[i]);
 
 	    if (printme) print("orbital energy update",delta_eps);
 	    double cpu1=cpu_time();
@@ -124,8 +124,8 @@ public:
 			const Tensor<T> fock1) const {
 
 		// check dimensions
-		bool consistent=(psi.size()==fock1.dim(0));
-		if ((fock1.ndim()==2) and not (psi.size()==fock1.dim(1))) consistent=false;
+   	        bool consistent=(psi.size()==size_t(fock1.dim(0)));
+		if ((fock1.ndim()==2) and not (psi.size()==size_t(fock1.dim(1)))) consistent=false;
 
 		if (not consistent) {
 			print("Fock matrix dimensions",fock1.ndim(), fock1.dim(0), fock1.dim(1));

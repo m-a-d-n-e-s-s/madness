@@ -1013,7 +1013,7 @@ void SCF::initial_guess(World& world) {
 
             // Get center of charge for madness
             std::vector<double> mad_coc(3, 0);
-            for (int i = 0; i < molecule.natom(); ++i) {
+            for (size_t i = 0; i < molecule.natom(); ++i) {
                 const Atom& atom = molecule.get_atom(i);
                 int charge = atom.atomic_number;
                 mad_coc[0] += atom.x * charge;
@@ -1060,7 +1060,7 @@ void SCF::initial_guess(World& world) {
             // And rotate
             molecule.rotate(q(Slice(0, 2), Slice(0, 2)));
             if (world.rank() == 0 && param.print_level() > 3) print("New MADNESS coordinates:");
-            for (int i = 0; i < molecule.natom(); ++i) {
+            for (size_t i = 0; i < molecule.natom(); ++i) {
                 const Atom& atom = molecule.get_atom(i);
                 if (world.rank() == 0 && param.print_level() > 3)
                     print(atomic_number_to_symbol(atom.atomic_number), atom.x, atom.y, atom.z);
@@ -2038,7 +2038,7 @@ void SCF::solve(World& world) {
     const double dconv = std::max(FunctionDefaults<3>::get_thresh(),
                                   param.dconv());
     const double trantol = vtol / std::min(30.0, double(amo.size()));
-    const double tolloc = 1e-6; // was std::min(1e-6,0.01*dconv) but now trying to avoid unnecessary change // moved to localizer.h
+    //const double tolloc = 1e-6; // was std::min(1e-6,0.01*dconv) but now trying to avoid unnecessary change // moved to localizer.h
     double update_residual = 0.0, bsh_residual = 0.0;
     subspaceT subspace;
     tensorT Q;

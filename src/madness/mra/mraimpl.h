@@ -402,7 +402,7 @@ namespace madness {
     Tensor<double> FunctionImpl<T,NDIM>::print_plane_local(const int xaxis, const int yaxis, const coordT& el2) {
         coordT x_sim;
         user_to_sim<NDIM>(el2,x_sim);
-        x_sim[2]+=1.e-10;
+        x_sim[0]+=1.e-10;
 
         // dimensions are: (# boxes)(hue, x lo left, y lo left, x hi right, y hi right)
         Tensor<double> plotinfo(coeffs.size(),5);

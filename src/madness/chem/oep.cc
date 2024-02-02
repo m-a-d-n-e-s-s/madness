@@ -239,10 +239,10 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	bool converged=false;
 
 	timer timer1(world,param.print_level()>=3);
-	for (int iter = 0; iter < oep_param.maxiter(); ++iter) {
+	for (size_t iter = 0; iter < oep_param.maxiter(); ++iter) {
 
 	    if (param.do_localize()) {
-	    	for (int i=0; i<KS_nemo.size(); ++i) calc->aeps(i)=KS_Fock(i,i);
+	    	for (size_t i=0; i<KS_nemo.size(); ++i) calc->aeps(i)=KS_Fock(i,i);
 	    	KS_nemo=localize(KS_nemo,param.econv(),iter==0);
 	    	if (param.print_level()>=10) calc->analyze_vectors(world,KS_nemo,calc->aocc,tensorT(),calc->aset);
 	    }
@@ -372,13 +372,13 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		KS_nemo = nemo_new;
 		timer1.tag("post-process");
 		if (oep_param.saving_amount() >= 3)
-			for (int n=0; n<KS_nemo.size(); ++n) save(KS_nemo[n], "KS_nemo"+stringify(n)+"iter"+stringify(iter));
+			for (size_t n=0; n<KS_nemo.size(); ++n) save(KS_nemo[n], "KS_nemo"+stringify(n)+"iter"+stringify(iter));
 
 		double deltadensity=0.0;
 		converged=check_convergence(energies,oldenergies,bshnorm,deltadensity,param,
 				param.econv(),param.dconv());
 		if (world.rank() == 0) {
-			printf("\nfinished %s iteration %2d at time %8.1fs with energy %12.8f; residual %12.8f\n\n",
+			printf("\nfinished %s iteration %2lu at time %8.1fs with energy %12.8f; residual %12.8f\n\n",
 					model.c_str(), iter, wall_time(), energy,bshnorm);
 		}
 

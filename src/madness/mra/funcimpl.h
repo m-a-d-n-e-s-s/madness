@@ -2269,6 +2269,8 @@ template<size_t NDIM>
             /// return the norm of the difference of this node and its "mirror" node
             double operator()(typename rangeT::iterator& it) const {
 
+	      // Temporary fix to GCC whining about out of range access for NDIM!=6
+  	      if constexpr(NDIM==6) {
                 const keyT& key = it->first;
                 const nodeT& fnode = it->second;
 
@@ -2318,6 +2320,10 @@ template<size_t NDIM>
                     norm=fnode.coeff().normf();
                 }
                 return norm*norm;
+	      }
+	      else {
+		throw "ONLY FOR DIM 6!";
+	      }
             }
 
             double operator()(double a, double b) const {
