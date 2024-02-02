@@ -37,9 +37,10 @@
 
 #include <madness/madness_config.h>
 
-#ifndef HAVE_MTXMQ
-#error "MTXMQ missing"
-#endif
+// This just to check if config is actually working
+//#ifndef HAVE_MTXMQ
+//#error "MTXMQ missing"
+//#endif
 
 #define HAVE_FAST_BLAS
 #ifdef  HAVE_FAST_BLAS
