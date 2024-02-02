@@ -99,6 +99,7 @@ namespace madness {
 
     class ThreadBinder {
       static const size_t maxncpu = 1024;
+      bool print;
       size_t ncpu = 0;
       bool do_bind = true;
       size_t cpus[maxncpu];
@@ -107,7 +108,7 @@ namespace madness {
       
     public:
       
-      ThreadBinder() {
+      ThreadBinder(bool print = false) : print(print) {
 #ifndef ON_A_MAC
 	ncpu = 0;
         cpu_set_t mask;
@@ -118,11 +119,13 @@ namespace madness {
 	    cpus[ncpu++] = i;
 	  }
 	}
-	std::cout << "ncpu: " << get_ncpu() << std::endl;
-	for (size_t i=0; i<get_ncpu(); i++) {
-	  std::cout << get_cpus()[i] << " " ;
+	if (print) {
+	  std::cout << "ncpu: " << get_ncpu() << std::endl;
+	  for (size_t i=0; i<get_ncpu(); i++) {
+	    std::cout << get_cpus()[i] << " " ;
+	  }
+	  std::cout << std::endl;
 	}
-	std::cout << std::endl;
 	nextcpu = ncpu/2;
 #endif
       }
@@ -135,14 +138,14 @@ namespace madness {
       
       void bind() {
 #ifndef ON_A_MAC
-	if (!bound && do_bind) { // In TBB this is called by each task
+	if (do_bind && !bound) { // In TBB this is called by each task, so check do_bind first
 	  bound = true;
 	  cpu_set_t mask;
 	  CPU_ZERO(&mask);
 	  size_t cpu = cpus[nextcpu++ % ncpu];
 	  CPU_SET(cpu, &mask);
 	  sched_setaffinity(0, sizeof(mask), &mask);
-	  std::cout << "bound thread to " << cpu << std::endl;
+	  if (print) std::cout << "bound thread to " << cpu << std::endl;
 	}
 #endif
       }
