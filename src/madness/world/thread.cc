@@ -46,8 +46,6 @@
 #include <cstring>
 #include <fstream>
 
-#include <sys/sysinfo.h>
-
 #if defined(HAVE_IBMBGQ) and defined(HPM)
 extern "C" unsigned int HPM_Prof_init_thread(void);
 extern "C" void HPM_Prof_start(unsigned int);
