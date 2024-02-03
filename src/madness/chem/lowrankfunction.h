@@ -299,12 +299,36 @@ struct LRFunctorBase {
 
 template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
 struct LRFunctorF12 : public LRFunctorBase<T,NDIM> {
-    LRFunctorF12() = default;
-    LRFunctorF12(const std::shared_ptr<SeparatedConvolution<T,LDIM>> f12, const Function<T,LDIM>& a,
-                 const Function<T,LDIM>& b) : f12(f12), a(a), b(b) {}
+//    LRFunctorF12() = default;
+    LRFunctorF12(const std::shared_ptr<SeparatedConvolution<T,LDIM>> f12, const std::vector<Function<T,LDIM>>& a,
+                 const std::vector<Function<T,LDIM>>& b) : f12(f12), a(a), b(b) {
 
+        // if a or b are missing, they are assumed to be 1
+        // you may not provide a or b, but if you do they have to have the same size because they are summed up
+        if (a.size()>0 and b.size()>0)
+            MADNESS_CHECK_THROW(a.size()==b.size(), "a and b must have the same size");
+        if (a.size()==0) this->a.resize(1);
+        if (b.size()==0) this->b.resize(1);
+        MADNESS_CHECK_THROW(this->a.size()==this->b.size(), "a and b must have the same size");
+    }
+
+    LRFunctorF12(const std::shared_ptr<SeparatedConvolution<T,LDIM>> f12, const Function<T,LDIM>& a,
+                 const Function<T,LDIM>& b) : f12(f12), a({a}), b({b}) {
+
+        // if a or b are missing, they are assumed to be 1
+        // you may not provide a or b, but if you do they have to have the same size because they are summed up
+        if (a.size()>0 and b.size()>0)
+            MADNESS_CHECK_THROW(a.size()==b.size(), "a and b must have the same size");
+        if (a.size()==0) this->a.resize(1);
+        if (b.size()==0) this->b.resize(1);
+        MADNESS_CHECK_THROW(this->a.size()==this->b.size(), "a and b must have the same size");
+
+    }
+
+private:
     std::shared_ptr<SeparatedConvolution<T,LDIM>> f12;  ///< a two-particle function
-    Function<T,LDIM> a,b;   ///< the lo-dim functions
+    std::vector<Function<T,LDIM>> a,b;   ///< the lo-dim functions
+public:
 
     World& world() const {return f12->get_world();}
     std::vector<Function<T,LDIM>> inner(const std::vector<Function<T,LDIM>>& rhs,
@@ -314,39 +338,50 @@ struct LRFunctorF12 : public LRFunctorBase<T,NDIM> {
         // functor is now a(1) b(2) f12
         // result(1) = \int a(1) f(1,2) b(2) rhs(2) d2
         World& world=rhs.front().world();
-        auto premultiply= p1.is_first() ? a : b;
-        auto postmultiply= p1.is_first() ? b : a;
+        bool have_a_and_b = (a.size()>0 and b.size()>0);
+
 
         const int nbatch=30;
         for (int i=0; i<rhs.size(); i+=nbatch) {
-            std::vector<Function<T,LDIM>> tmp;
+            std::vector<Function<T,LDIM>> tmp, tmp2;
             auto begin= rhs.begin()+i;
             auto end= (i+nbatch)<rhs.size() ? rhs.begin()+i+nbatch : rhs.end();
             std::copy(begin,end, std::back_inserter(tmp));
+            tmp2= zero_functions_compressed<T,LDIM>(world,tmp.size());
 
-            if (premultiply.is_initialized()) tmp=tmp*premultiply;
-            auto tmp1=apply(world,*(f12),tmp);
-            if (postmultiply.is_initialized()) tmp1=tmp1*postmultiply;
-            for (auto& t : tmp1) result.push_back(t);
+            for (int ia=0; ia<a.size(); ia++) {
+                auto premultiply= p1.is_first() ? a[ia] : b[ia];
+                auto postmultiply= p1.is_first() ? b[ia] : a[ia];
+                if (premultiply.is_initialized()) tmp=tmp*premultiply;
+                auto tmp1=apply(world,*(f12),tmp);
+                if (postmultiply.is_initialized()) tmp1=tmp1*postmultiply;
+                tmp2+=tmp1;
+            }
+
+            for (auto& t : tmp2) result.push_back(t);
         }
         return result;
     }
 
     typename Tensor<T>::scalar_type norm2() const {
         const Function<T,LDIM> one=FunctionFactory<T,LDIM>(world()).f([](const Vector<double,LDIM>& r){return 1.0;});
-        const Function<T,LDIM> pre=(a.is_initialized()) ? a : one;
-        const Function<T,LDIM> post=(b.is_initialized()) ? b : one;
+        std::size_t sz=a.size();
+        if (sz==0) return 0.0;
+        const std::vector<Function<T,LDIM>> pre=(a.front().is_initialized()) ? a : std::vector<Function<T,LDIM>>(sz,one);
+        const std::vector<Function<T,LDIM>> post=(b.front().is_initialized()) ? b : std::vector<Function<T,LDIM>>(sz,one);
         const SeparatedConvolution<T,LDIM>& f12a=*(f12);
         const SeparatedConvolution<T,LDIM> f12sq= SeparatedConvolution<T,LDIM>::combine(f12a,f12a);
 
         // \int f(1,2)^2 d1d2 = \int f(1,2)^2 pre(1)^2 post(2)^2 d1 d2
-        typename Tensor<T>::scalar_type term1 =madness::inner(post*post,f12sq(pre*pre));
+        // \sum_i || f(1,2) a_i(1) b_i(2) || = \sum_i \int f(1,2)^2 a_i(1)^2 b_i(2)^2 d1d2
+        typename Tensor<T>::scalar_type term1 =madness::inner(mul(world(),post,post),f12sq(mul(world(),pre,pre)));
         return sqrt(term1);
 
     }
 
     T operator()(const Vector<double,NDIM>& r) const {
 
+        if (a.size()==0) return 0.0;
         auto split = [](const Vector<double,NDIM>& r) {
             Vector<double,LDIM> first, second;
             for (int i=0; i<LDIM; ++i) {
@@ -360,11 +395,15 @@ struct LRFunctorF12 : public LRFunctorBase<T,NDIM> {
         auto [first,second]=split(r);
 
         double result=1.0;
-        if (a.is_initialized()) result*=a(first);
-        if (b.is_initialized()) result*=b(first);
-        if (f12->info.type==OT_SLATER) result*=exp(-gamma*(first-second).normf());
-        else if (f12->info.type==OT_GAUSS) result*=exp(-gamma* madness::inner(first-second,first-second));
-        else return 1.0;
+        for (std::size_t ia=0; ia<a.size(); ++ia) {
+            if (a[ia].is_initialized()) result*=a[ia](first);
+            if (b[ia].is_initialized()) result*=b[ia](first);
+            if (f12->info.type==OT_SLATER) result*=exp(-gamma*(first-second).normf());
+            else if (f12->info.type==OT_GAUSS) result*=exp(-gamma* madness::inner(first-second,first-second));
+            else {
+                MADNESS_EXCEPTION("no such operator_type",1);
+            }
+        }
         return result;
 
     }

@@ -384,9 +384,9 @@ int test_full_rank_functor(World& world, LowRankFunctionParameters parameters) {
     functorpure.f=gauss;
     t1.checkpoint(true,"prep");
 
-    LRFunctorF12<double,NDIM> functorf12;
-    Function<double,LDIM> b=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r){return exp(-inner(r,r));});
-    functorf12.f12.reset(GaussOperatorPtr<LDIM>(world,gaussexponent));
+    auto gaussop=std::shared_ptr<SeparatedConvolution<double,LDIM>>(GaussOperatorPtr<LDIM>(world,gaussexponent));
+    LRFunctorF12<double,NDIM> functorf12(gaussop,std::vector<Function<double,LDIM>>({}),{});
+//    functorf12.f12.reset(GaussOperatorPtr<LDIM>(world,gaussexponent));
 
     auto builder= LowRankFunctionFactory<double,NDIM>(parameters).set_radius(8)
             .set_volume_element(0.1).set_rank_revealing_tol(1.e-10).set_orthomethod("canonical");
@@ -443,12 +443,15 @@ int test_arithmetic(World& world, LowRankFunctionParameters parameters) {
     Function<double,LDIM> phi=FunctionFactory<double,LDIM>(world)
             .functor([](const Vector<double,LDIM>& r){return exp(-4.0*inner(r,r));});
 
-    LRFunctorF12<double,NDIM> functor1;
-    functor1.f12.reset(GaussOperatorPtr<LDIM>(world,1.0));
-    functor1.a=phi;
-    LRFunctorF12<double,NDIM> functor2;
-    functor2.f12.reset(GaussOperatorPtr<LDIM>(world,2.0));
-    functor2.a=phi;
+    auto gauss1=std::shared_ptr<SeparatedConvolution<double,LDIM>>(GaussOperatorPtr<LDIM>(world,1.0));
+    LRFunctorF12<double,NDIM> functor1(gauss1,{phi},{});
+//    functor1.f12.reset(GaussOperatorPtr<LDIM>(world,1.0));
+//    functor1.a={phi};
+    auto gauss2=std::shared_ptr<SeparatedConvolution<double,LDIM>>(GaussOperatorPtr<LDIM>(world,2.0));
+    LRFunctorF12<double,NDIM> functor2(gauss2,{phi},{});
+//    LRFunctorF12<double,NDIM> functor2;
+//    functor2.f12.reset(GaussOperatorPtr<LDIM>(world,2.0));
+//    functor2.a={phi};
 
     auto p1=particle<LDIM>::particle1();
     auto p2=particle<LDIM>::particle2();
@@ -528,14 +531,11 @@ int test_inner(World& world, LowRankFunctionParameters parameters) {
     Function<double,LDIM> phi=FunctionFactory<double,LDIM>(world)
             .functor([](const Vector<double,LDIM>& r){return exp(-4.0*inner(r,r));});
 
-    LRFunctorF12<double,NDIM> functor1;
-    functor1.f12.reset(GaussOperatorPtr<LDIM>(world,1.0));
-//    functor1.f12.reset(SlaterOperatorPtr_ND<LDIM>(world,1.0,1.e-4,thresh));
-    functor1.a=phi;
-    LRFunctorF12<double,NDIM> functor2;
-    functor2.f12.reset(GaussOperatorPtr<LDIM>(world,2.0));
-//    functor2.f12.reset(SlaterOperatorPtr_ND<LDIM>(world,2.0,1.e-4,thresh));
-    functor2.a=phi;
+    auto gauss1=std::shared_ptr<SeparatedConvolution<double,LDIM>>(GaussOperatorPtr<LDIM>(world,1.0));
+    LRFunctorF12<double,NDIM> functor1(gauss1,{phi},{});
+    auto gauss2=std::shared_ptr<SeparatedConvolution<double,LDIM>>(GaussOperatorPtr<LDIM>(world,2.0));
+    LRFunctorF12<double,NDIM> functor2(gauss2,{phi},{});
+//   functor2.a={phi};
 
     auto p1=particle<LDIM>::particle1();
     auto p2=particle<LDIM>::particle2();
