@@ -445,13 +445,8 @@ int test_arithmetic(World& world, LowRankFunctionParameters parameters) {
 
     auto gauss1=std::shared_ptr<SeparatedConvolution<double,LDIM>>(GaussOperatorPtr<LDIM>(world,1.0));
     LRFunctorF12<double,NDIM> functor1(gauss1,{phi},{});
-//    functor1.f12.reset(GaussOperatorPtr<LDIM>(world,1.0));
-//    functor1.a={phi};
     auto gauss2=std::shared_ptr<SeparatedConvolution<double,LDIM>>(GaussOperatorPtr<LDIM>(world,2.0));
     LRFunctorF12<double,NDIM> functor2(gauss2,{phi},{});
-//    LRFunctorF12<double,NDIM> functor2;
-//    functor2.f12.reset(GaussOperatorPtr<LDIM>(world,2.0));
-//    functor2.a={phi};
 
     auto p1=particle<LDIM>::particle1();
     auto p2=particle<LDIM>::particle2();
@@ -657,36 +652,46 @@ template<std::size_t LDIM>
 int test_construction_optimization(World& world, LowRankFunctionParameters parameters) {
     constexpr std::size_t NDIM=2*LDIM;
     test_output t1("LowRankFunction::construction/optimization in dimension "+std::to_string(NDIM));
-//    t1.set_cout_to_terminal();
+    t1.set_cout_to_terminal();
     OperatorInfo info(1.0,1.e-6,FunctionDefaults<LDIM>::get_thresh(),OT_SLATER);
     auto slater=std::shared_ptr<SeparatedConvolution<double,LDIM> >(new SeparatedConvolution<double,LDIM>(world,info));
-    Function<double,LDIM> one=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r){return exp(-0.2*inner(r,r));});
+    Function<double,LDIM> one=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r){return exp(-0.4*inner(r,r));});
+    Function<double,LDIM> half=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r){return sqrt(0.5)*exp(-0.4*inner(r,r));});
 
-    LRFunctorF12<double,NDIM> lrfunctor(slater,one,one);
-    LowRankFunctionFactory<double,NDIM> builder(parameters);
-    auto lrf=builder.project(lrfunctor);
-    t1.checkpoint(lrf.rank()>0,"construction");
+    LRFunctorF12<double,NDIM> lrfunctor1(slater,one,one);
+    LRFunctorF12<double,NDIM> lrfunctor2(slater,{half,half},{half,half});
 
-    double error=lrf.l2error(lrfunctor);
-    print("l2 error project ",error);
-    t1.checkpoint(error<2.e-2,"l2 error in projection "+std::to_string(error));
+    for (auto& lrfunctor : {lrfunctor1,lrfunctor2}) {
+        LowRankFunctionFactory<double, NDIM> builder(parameters);
+        auto lrf = builder.project(lrfunctor);
+        t1.checkpoint(lrf.rank() > 0, "construction");
 
-    auto lrf2(lrf);
-    error=lrf2.l2error(lrfunctor);
-    print("l2 error copy ctor  ",error);
-    MADNESS_CHECK(lrf.rank()==lrf2.rank());
-    MADNESS_CHECK(&(lrf.g[0]) != &(lrf2.g[0]));  // deep copy
-    t1.checkpoint(error<2.e-2,"l2 error in copy ctor "+std::to_string(error));
+        // with Slater tol must be relaxed
+        double tol = 1.e-2;
 
-    lrf.optimize(lrfunctor);
-    error=lrf.l2error(lrfunctor);
-    print("l2 error optimize",error);
-    t1.checkpoint(error,1.1e-2,"l2 error in optimization");
+        double error = lrf.l2error(lrfunctor);
+        double norm = lrf.norm2();
+        print("lrf.norm", norm);
+        print("l2 error project ", error);
+        t1.checkpoint(error, tol, "l2 error in projection");
 
-    lrf.reorthonormalize();
-    error=lrf.l2error(lrfunctor);
-    print("l2 error reorthonormalize",error);
-    t1.checkpoint(error,1.1e-2,"l2 error in reorthonormalization");
+        auto lrf2(lrf);
+        error = lrf2.l2error(lrfunctor);
+        print("l2 error copy ctor  ", error);
+        MADNESS_CHECK(lrf.rank() == lrf2.rank());
+        MADNESS_CHECK(&(lrf.g[0]) != &(lrf2.g[0]));  // deep copy
+        t1.checkpoint(error, tol, "l2 error in copy ctor");
+
+        lrf.optimize(lrfunctor);
+        error = lrf.l2error(lrfunctor);
+        print("l2 error optimize", error);
+        t1.checkpoint(error, tol, "l2 error in optimization");
+
+        lrf.reorthonormalize();
+        error = lrf.l2error(lrfunctor);
+        print("l2 error reorthonormalize", error);
+        t1.checkpoint(error, tol, "l2 error in reorthonormalization");
+    }
     return t1.end();
 }
 

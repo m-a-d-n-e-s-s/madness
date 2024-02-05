@@ -307,8 +307,8 @@ struct LRFunctorF12 : public LRFunctorBase<T,NDIM> {
         // you may not provide a or b, but if you do they have to have the same size because they are summed up
         if (a.size()>0 and b.size()>0)
             MADNESS_CHECK_THROW(a.size()==b.size(), "a and b must have the same size");
-        if (a.size()==0) this->a.resize(1);
-        if (b.size()==0) this->b.resize(1);
+        if (a.size()==0) this->a.resize(b.size());
+        if (b.size()==0) this->b.resize(a.size());
         MADNESS_CHECK_THROW(this->a.size()==this->b.size(), "a and b must have the same size");
     }
 
@@ -335,24 +335,27 @@ public:
                                         const particle<LDIM> p1, const particle<LDIM> p2) const {
 
         std::vector<Function<T,LDIM>> result;
-        // functor is now a(1) b(2) f12
-        // result(1) = \int a(1) f(1,2) b(2) rhs(2) d2
+        // functor is now \sum_i a_i(1) b_i(2) f12
+        // result(1) = \sum_i \int a_i(1) f(1,2) b_i(2) rhs(2) d2
+        //            = \sum_i a_i(1) \int f(1,2) b_i(2) rhs(2) d2
         World& world=rhs.front().world();
-        bool have_a_and_b = (a.size()>0 and b.size()>0);
-
 
         const int nbatch=30;
         for (int i=0; i<rhs.size(); i+=nbatch) {
-            std::vector<Function<T,LDIM>> tmp, tmp2;
+            std::vector<Function<T,LDIM>> rhs_batch;
             auto begin= rhs.begin()+i;
             auto end= (i+nbatch)<rhs.size() ? rhs.begin()+i+nbatch : rhs.end();
-            std::copy(begin,end, std::back_inserter(tmp));
-            tmp2= zero_functions_compressed<T,LDIM>(world,tmp.size());
+            std::copy(begin,end, std::back_inserter(rhs_batch));
+            auto tmp2= zero_functions_compressed<T,LDIM>(world,rhs_batch.size());
+
+            if (a.size()==0) tmp2=apply(world,*(f12),rhs_batch);
 
             for (int ia=0; ia<a.size(); ia++) {
                 auto premultiply= p1.is_first() ? a[ia] : b[ia];
                 auto postmultiply= p1.is_first() ? b[ia] : a[ia];
-                if (premultiply.is_initialized()) tmp=tmp*premultiply;
+
+                auto tmp=copy(world,rhs_batch);
+                if (premultiply.is_initialized()) tmp=rhs_batch*premultiply;
                 auto tmp1=apply(world,*(f12),tmp);
                 if (postmultiply.is_initialized()) tmp1=tmp1*postmultiply;
                 tmp2+=tmp1;
@@ -364,17 +367,30 @@ public:
     }
 
     typename Tensor<T>::scalar_type norm2() const {
-        const Function<T,LDIM> one=FunctionFactory<T,LDIM>(world()).f([](const Vector<double,LDIM>& r){return 1.0;});
-        std::size_t sz=a.size();
-        if (sz==0) return 0.0;
-        const std::vector<Function<T,LDIM>> pre=(a.front().is_initialized()) ? a : std::vector<Function<T,LDIM>>(sz,one);
-        const std::vector<Function<T,LDIM>> post=(b.front().is_initialized()) ? b : std::vector<Function<T,LDIM>>(sz,one);
+        const Function<T, LDIM> one = FunctionFactory<T, LDIM>(world()).f(
+                [](const Vector<double, LDIM>& r) { return 1.0; });
+        std::vector<Function<T, LDIM>> pre, post;
+        std::size_t sz = a.size();
+        if (sz == 0) {
+            pre = std::vector<Function<T, LDIM>>(1, one);
+            post = std::vector<Function<T, LDIM>>(1, one);
+        } else {
+            pre = (a.front().is_initialized()) ? a : std::vector<Function<T, LDIM>>(sz, one);
+            post = (b.front().is_initialized()) ? b : std::vector<Function<T, LDIM>>(sz, one);
+        }
+
         const SeparatedConvolution<T,LDIM>& f12a=*(f12);
         const SeparatedConvolution<T,LDIM> f12sq= SeparatedConvolution<T,LDIM>::combine(f12a,f12a);
 
         // \int f(1,2)^2 d1d2 = \int f(1,2)^2 pre(1)^2 post(2)^2 d1 d2
-        // \sum_i || f(1,2) a_i(1) b_i(2) || = \sum_i \int f(1,2)^2 a_i(1)^2 b_i(2)^2 d1d2
-        typename Tensor<T>::scalar_type term1 =madness::inner(mul(world(),post,post),f12sq(mul(world(),pre,pre)));
+        // || \sum_i f(1,2) a_i(1) b_i(2) || = \int ( \sum_{ij} a_i(1) a_j(1) f(1,2)^2 b_i(1) b_j(2) ) d1d2
+        std::vector<Function<T,LDIM>> aa,bb;
+        for (std::size_t i=0; i<pre.size(); ++i) {
+            aa=append(aa,(pre[i]*pre));
+            bb=append(bb,(post[i]*post));
+        }
+//        typename Tensor<T>::scalar_type term1 =madness::inner(mul(world(),post,post),f12sq(mul(world(),pre,pre)));
+        typename Tensor<T>::scalar_type term1 =madness::inner(bb,f12sq(aa));
         return sqrt(term1);
 
     }
@@ -394,15 +410,18 @@ public:
         double gamma=f12->info.mu;
         auto [first,second]=split(r);
 
-        double result=1.0;
+
+        double result=0.0;
         for (std::size_t ia=0; ia<a.size(); ++ia) {
-            if (a[ia].is_initialized()) result*=a[ia](first);
-            if (b[ia].is_initialized()) result*=b[ia](first);
-            if (f12->info.type==OT_SLATER) result*=exp(-gamma*(first-second).normf());
-            else if (f12->info.type==OT_GAUSS) result*=exp(-gamma* madness::inner(first-second,first-second));
+            double result1=1.0;
+            if (a[ia].is_initialized()) result1*=a[ia](first);
+            if (b[ia].is_initialized()) result1*=b[ia](first);
+            if (f12->info.type==OT_SLATER) result1*=exp(-gamma*(first-second).normf());
+            else if (f12->info.type==OT_GAUSS) result1*=exp(-gamma* madness::inner(first-second,first-second));
             else {
                 MADNESS_EXCEPTION("no such operator_type",1);
             }
+            result+=result1;
         }
         return result;
 
