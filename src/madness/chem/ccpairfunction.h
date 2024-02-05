@@ -399,14 +399,21 @@ public:
         return result;
     }
 
+private:
     std::vector<CCPairFunction> consolidate(const std::vector<CCPairFunction>& other,
                                                    std::vector<std::string> options={}) const;
 
     /// turn decomposed functions with operator into decomposed functions using LowRankFunction
     static std::vector<CCPairFunction> op_dec_to_dec(const std::vector<CCPairFunction>& other);
 
+    /// turn pure functions with operator into pure functions without operators
+    static std::vector<CCPairFunction> op_pure_to_pure(const std::vector<CCPairFunction>& other);
+
     static std::vector<CCPairFunction> collect_same_types(const std::vector<CCPairFunction>& other);
 
+public:
+    // check if all types (pure. op_pure, decomposed, op_decomposed, with various ops) occur only once
+    static bool is_collected(const std::vector<CCPairFunction<T,NDIM>>& other);
 
     /// collect the terms into a compact format
 
@@ -865,6 +872,11 @@ std::vector<CCPairFunction<T,NDIM>> inner(const std::vector<CCPairFunction<T,NDI
     return result;
 }
 
+template<typename T, std::size_t NDIM>
+bool is_collected(const std::vector<CCPairFunction<T,NDIM>>& other) {
+    return CCPairFunction<T,NDIM>::is_collected(other);
+
+}
 } // namespace madness
 
 #endif //MADNESS_CCPAIRFUNCTION_H

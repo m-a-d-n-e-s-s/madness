@@ -62,24 +62,40 @@ void CCPairFunction<T,NDIM>::convert_to_pure_no_op_inplace() {
     component.reset(new TwoBodyFunctionPureComponent<T,NDIM>(result));
 };
 
+template<typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::op_pure_to_pure(const std::vector<CCPairFunction<T,NDIM>>& other) {
+    World& world=other.front().world();
+    std::vector<CCPairFunction<T,NDIM>> result;
+    Function<T,NDIM> pure=FunctionFactory<T,NDIM>(world);
+    for (const auto& c : other) {
+        if (c.is_pure_no_op()) {
+            pure+=c.get_function();
+        } else if (c.is_op_pure()) {
+            Function<T,NDIM> tmp=CompositeFactory<T,NDIM,LDIM>(world).g12(c.get_operator().get_kernel()).ket(c.get_function());
+            tmp.fill_tree();
+            pure+=tmp;
+        } else if (c.is_decomposed()) {
+            result.push_back(c);
+        }
+    }
+    if (pure.is_initialized()) result.push_back(CCPairFunction<T,NDIM>(pure));
+    return result;
+}
+
 /// turn decomposed functions with operator into decomposed functions using LowRankFunction
 template<typename T, std::size_t NDIM>
 std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::op_dec_to_dec(const std::vector<CCPairFunction<T,NDIM>>& other) {
     LowRankFunctionParameters lrparameters;
     auto builder = LowRankFunctionFactory<T,NDIM>(lrparameters);
-    builder.set_volume_element(3.e-2);
-    builder.parameters.print("lrparameters");
+//    builder.set_volume_element(3.e-2);
+//    builder.parameters.print("lrparameters");
     std::vector<CCPairFunction<T,NDIM>> result;
     for (const auto& c : other) {
         if (c.is_op_decomposed()) {
-            LRFunctorF12<T,NDIM> functor(c.get_operator_ptr()->get_op(),c.get_a().front(),c.get_b().front());
+            LRFunctorF12<T,NDIM> functor(c.get_operator_ptr()->get_op(),c.get_a(),c.get_b());
             LowRankFunction<T,NDIM> tmp=builder.project(functor);
             double l2error=tmp.l2error(functor);
-            print("error",l2error);
             tmp.optimize(functor);
-            l2error=tmp.l2error(functor);
-            print("error after optimization",l2error);
-            print("rank after optimization",tmp.rank());
             result.push_back(CCPairFunction<T,NDIM>(tmp.get_g(),tmp.get_h()));
         } else {
             result.push_back(c);
@@ -89,11 +105,13 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::op_dec_to_dec(const 
 
 }
 
-/// collect all terms with the same operator
+/// collect all terms with of similiar type: pure, op_pure, decomposed, op_decomposed
 template<typename T, std::size_t NDIM>
 std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::collect_same_types(const std::vector<CCPairFunction<T, NDIM>>& other) {
 
     if (other.size()==0) return other;
+    if (is_collected(other)) return other;
+
     World& world=other.front().world();
 
     /// vector includes OT_ONE, meaning no operator
@@ -102,42 +120,56 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::collect_same_types(c
     std::vector<std::vector<Function<T,LDIM>>> op_decomposed_b(OT_SIZE);
     std::vector<std::shared_ptr<CCConvolutionOperator<T,LDIM>>> ops(OT_SIZE);
 
+    // collect terms of the same type
     for (const auto& c : other) {
-        if (c.has_operator()) {
-            int iop=int(c.get_operator().type());
-            ops[iop]=c.get_operator_ptr();
-        }
-        int iop=int(c.get_operator().type());
+        int iop= (c.has_operator()) ? int(c.get_operator().type()) : OT_ONE;
+        ops[iop]=c.get_operator_ptr();
         if (c.is_decomposed()) {
             op_decomposed_a[iop]=append(op_decomposed_a[iop],c.get_a());
-            op_decomposed_b[iop]=append(op_decomposed_a[iop],c.get_b());
+            op_decomposed_b[iop]=append(op_decomposed_b[iop],c.get_b());
         } else if (c.is_pure()) {
             op_pure[iop].push_back(c.get_function());
         }
     }
 
     std::vector<CCPairFunction<T,NDIM>> result;
-    // accumulate all op_pure functions
+
+    // accumulate all terms of the same type
     for (int opint=OT_ONE; opint<OT_SIZE; ++opint) {
         if (op_pure[opint].size()>0) {
-//            auto op=CCConvolutionOperatorPtr<T,LDIM>(world,OpType(opint),CCParameters());
             auto op=ops[opint];
-            Function<T,NDIM> tmp=CompositeFactory<T,NDIM,LDIM>(world).ket(op_pure[opint]);
-            tmp.fill_tree();
-            result.push_back(CCPairFunction<T,NDIM>(op,tmp));
+            if (op_pure[opint].size()>1) {
+                Function<T,NDIM> tmp=CompositeFactory<T,NDIM,LDIM>(world).ket(op_pure[opint]);
+                tmp.fill_tree();
+                result.push_back(CCPairFunction<T,NDIM>(op,tmp));
+            } else {
+                MADNESS_CHECK_THROW(op_pure[opint].size()==1,"op_pure[opint].size()!=1");
+                result.push_back(CCPairFunction<T,NDIM>(op,op_pure[opint].front()));
+            }
         }
         if (op_decomposed_a[opint].size()>0) {
-
-            if (opint!=OT_ONE) {
-//                auto op=CCConvolutionOperatorPtr<T,LDIM>(world,OpType(opint),CCParameters());
-                result.push_back(CCPairFunction<T,NDIM>(ops[opint],op_decomposed_a[opint],op_decomposed_b[opint]));
-            } else {
-                result.push_back(CCPairFunction<T,NDIM>(op_decomposed_a[opint],op_decomposed_b[opint]));
-            }
+            result.push_back(CCPairFunction<T,NDIM>(ops[opint],op_decomposed_a[opint],op_decomposed_b[opint]));
         }
     }
     return result;
 
+}
+template<typename T, std::size_t NDIM>
+bool CCPairFunction<T,NDIM>::is_collected(const std::vector<CCPairFunction<T,NDIM>>& other) {
+
+    // simply count the occurence of each term
+    std::map<int,int> counter;
+    for (const auto& c : other) {
+        int index=0;
+        if (c.has_operator()) index=int(c.get_operator().type()) *100;
+        if (c.is_op_pure()) index+=1;
+        if (c.is_op_decomposed()) index+=2;
+        if (c.is_pure_no_op()) index+=3;
+        if (c.is_decomposed_no_op()) index+=4;
+        counter[index]++;
+    }
+    for (const auto& c : counter) if (c.second>1) return false;
+    return true;
 }
 
 template<typename T, std::size_t NDIM>
@@ -153,57 +185,14 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::consolidate(const st
     // reorthogonalize decomposed functions and op_decomposed functions
     bool svd=find(options.begin(),options.end(),"svd")!=options.end();
 
-
-    std::vector<CCPairFunction<T,NDIM>> result;
-
-    // sort the terms into pure, decomposed, op_decomposed, op_pure
-    std::vector<Function<T,NDIM>> pure;
-    std::vector<std::vector<Function<T,NDIM>>> op_pure(OT_SIZE);
-    for (auto& c : other) {
-        if (c.is_pure_no_op()) {
-            pure.push_back(c.get_function());
-        } else if (c.is_op_pure()) {
-            int opint=int(c.get_operator().type());
-            op_pure[opint].push_back(c.get_function());
-        }
-
-        else {
-            result.push_back(c);
-        }
-    }
-    // accumulate all pure functions
-    if (pure.size()>0) {
-        Function<T,NDIM> pure_result=CompositeFactory<T,NDIM,LDIM>(world()).ket(pure);
-        pure_result.fill_tree();
-        result.push_back(CCPairFunction<T,NDIM>(pure_result));
-    }
-
-    // accumulate all op_pure functions
-    for (int opint=OT_G12; opint<OT_SIZE; ++opint) {
-        if (op_pure[opint].size()>0) {
-            auto op=CCConvolutionOperatorPtr<T,LDIM>(world(),OpType(opint),CCParameters());
-            print("consolidating",op->name());
-            Function<T,NDIM> tmp;
-            if (op_pure_to_pure) {
-                tmp=CompositeFactory<T,NDIM,LDIM>(world()).ket(op_pure[opint]).g12(op->get_kernel());
-                tmp.fill_tree();
-                result.push_back(CCPairFunction<T,NDIM>(tmp));
-            } else {
-                tmp=CompositeFactory<T,NDIM,LDIM>(world()).ket(op_pure[opint]);
-                tmp.fill_tree();
-                result.push_back(CCPairFunction<T,NDIM>(op,tmp));
-            }
-        }
-    }
+    // always collect all terms of the same type
+    auto result= is_collected(other) ? other : collect_same_types(other);
 
     if (op_dec_to_dec) result=CCPairFunction<T,NDIM>::op_dec_to_dec(result);
+    if (op_pure_to_pure) result=CCPairFunction<T,NDIM>::op_pure_to_pure(result);
 
+    if (not is_collected(result)) result=collect_same_types(result);
 
-//    if (not all_pure.empty()) {
-//        for (std::size_t i=1; i<all_pure.size(); ++i) all_pure.front()+=all_pure[i];
-//        all_pure.front().truncate();
-//        result.push_back(CCPairFunction<T,NDIM>(all_pure.front()));
-//    }
 
     return result;
 }

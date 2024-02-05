@@ -12,6 +12,7 @@
 #include<madness/chem/projector.h>
 
 #include<madness/world/test_utilities.h>
+#include<random>
 
 using namespace madness;
 
@@ -742,7 +743,7 @@ int test_consolidate(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
     test_output t1("CCPairFunction::test_consolidate");
     static_assert(NDIM % 2 == 0, "NDIM must be even");
     constexpr std::size_t LDIM = NDIM / 2;
-    t1.set_cout_to_terminal();
+//    t1.set_cout_to_terminal();
 
     /// f12: exp(-r_1^2 - 2 r_2^2)
     /// f23: exp(-r_1^2 - 2 r_2^2) + exp(-2 r_1^2 - 3 r_2^2)
@@ -753,24 +754,85 @@ int test_consolidate(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
     /// p5: op_pure, corresponds to f23
     auto [p1,p2,p3,p4,p5]=data.get_ccpairfunctions();
 
+    // collect all terms of similar type, no conversions
     for (const auto& p : {p1,p4,p5}) {
         auto tmp=std::vector<CCPairFunction<T,NDIM>>({p,p});
-
+        double r0=inner(p,{p1});
         double r1=inner(tmp,{p1});
-        print("r1",r1);
-        auto tmp1=consolidate(tmp,{"sdf"});
+        auto tmp1=consolidate(tmp,{});
         double r2=inner(tmp1,{p1});
-        print("r2",r2);
-
         t1.checkpoint(tmp1.size()==1 && tmp.size()==2,"vector size");
-        t1.checkpoint(r1,r2,FunctionDefaults<LDIM>::get_thresh(),"consolidate");
-
+        t1.checkpoint(2.0*r0,r1,FunctionDefaults<LDIM>::get_thresh(),"consolidate");
+        t1.checkpoint(2.0*r0,r2,FunctionDefaults<LDIM>::get_thresh(),"consolidate");
     }
-    throw;
 
+    // convert op_pure to pure
+    for (const auto& p : {p5}) {
+        auto tmp=std::vector<CCPairFunction<T,NDIM>>({p});
+        t1.checkpoint(tmp.front().is_op_pure(),"correct initial type: op_pure");
+        auto tmp1=consolidate(tmp,{"op_pure_to_pure"});
+        t1.checkpoint(tmp1.front().is_pure_no_op(),"correct final type: pure");
+        t1.checkpoint(is_collected(tmp1),"is_collected");
 
+        double r0=inner(p,{p1});
+        double r1=inner(tmp,{p1});
+        t1.checkpoint(r0,r1,FunctionDefaults<LDIM>::get_thresh(),"correct numbers");
+    }
 
+    // convert op_decomposed to decomposed
+    for (const auto& p : {p3}) {
+        auto tmp=std::vector<CCPairFunction<T,NDIM>>({p});
+        t1.checkpoint(tmp.front().is_op_decomposed(),"correct initial type: op_decomposed");
+        auto tmp1=consolidate(tmp,{"op_dec_to_dec"});
+        t1.checkpoint(tmp1.front().is_decomposed_no_op(),"correct final type: decomposed");
 
+        double r0=inner(p,{p1});
+        double r1=inner(tmp,{p1});
+        t1.checkpoint(r0,r1,FunctionDefaults<LDIM>::get_thresh(),"correct numbers");
+    }
+
+    // some random composition of the above
+    // a vector of numerically identical terms is created, then a random permutation is applied, and the result is checked
+    for (int i=0; i<5; ++i) {
+        std::vector<CCPairFunction<T,NDIM>> pvec={p2,p3,p4,p5};     // numerically all the same
+
+        std::random_device rd;  // a seed source for the random number engine
+        std::mt19937 gen(rd()); // mersenne_twister_engine seeded with rd()
+        std::uniform_int_distribution<> distrib(0, 3);
+        std::vector<int> mapping(5);
+        for (int i=0; i<5; ++i) mapping[i]=distrib(gen);
+        print("mapping",mapping);
+
+        std::vector<CCPairFunction<T,NDIM>> tmp;
+        for (auto m: mapping) tmp.push_back(pvec[m]);
+
+        double n0=inner({p1},tmp);
+
+        auto tmp1=consolidate(tmp,{}); // collect only, no conversions
+        print("tmp");
+        for (auto& c : tmp) c.print_size();
+        print("tmp1");
+        for (auto& c : tmp1) c.print_size();
+
+        t1.checkpoint(is_collected(tmp1),"random is_collected");
+        double n1=inner({p1},tmp1);
+        t1.checkpoint(n0,n1,FunctionDefaults<LDIM>::get_thresh(),"random collect numerics");
+
+        tmp1=consolidate(tmp1,{"op_pure_to_pure"}); //
+        print("tmp1 after op_pure_to_pure");
+        for (auto& c : tmp1) c.print_size();
+        t1.checkpoint(is_collected(tmp1),"random is_collected");
+        double n2=inner({p1},tmp1);
+        t1.checkpoint(n0,n2,FunctionDefaults<LDIM>::get_thresh(),"random op_pure_to_pure numerics");
+
+        tmp1=consolidate(tmp1,{"op_dec_to_dec"}); //
+        print("tmp1 after op_dec_to_dec");
+        for (auto& c : tmp1) c.print_size();
+        t1.checkpoint(is_collected(tmp1),"random is_collected");
+        double n3=inner({p1},tmp1);
+        t1.checkpoint(n0,n3,FunctionDefaults<LDIM>::get_thresh(),"random op_dec_to_dec numerics");
+        t1.checkpoint(tmp1.size()<=2,"only max. two types of terms after consolidate");
+    }
 
     return t1.end();
 }
@@ -1163,9 +1225,6 @@ int main(int argc, char **argv) {
         auto data4=data<double,4>(world,ccparam);
         auto data6=data<double,6>(world,ccparam);
 
-        isuccess+=test_consolidate<double,2>(world, ncf, data2, ccparam);
-
-        throw;
         isuccess+=test_constructor<double,2>(world, ncf, data2, ccparam);
         isuccess+=test_operator_apply<double,2>(world, ncf, data2, ccparam);
         isuccess+=test_transformations<double,2>(world, ncf, data2, ccparam);

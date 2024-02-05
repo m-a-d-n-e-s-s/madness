@@ -312,18 +312,11 @@ struct LRFunctorF12 : public LRFunctorBase<T,NDIM> {
         MADNESS_CHECK_THROW(this->a.size()==this->b.size(), "a and b must have the same size");
     }
 
-    LRFunctorF12(const std::shared_ptr<SeparatedConvolution<T,LDIM>> f12, const Function<T,LDIM>& a,
-                 const Function<T,LDIM>& b) : f12(f12), a({a}), b({b}) {
+    /// delegate to the other ctor with vector arguments
+    LRFunctorF12(const std::shared_ptr<SeparatedConvolution<T,LDIM>> f12,
+                 const Function<T,LDIM>& a, const Function<T,LDIM>& b)
+                 : LRFunctorF12(f12,std::vector<Function<T,LDIM>>({a}), std::vector<Function<T,LDIM>>({b})) {}
 
-        // if a or b are missing, they are assumed to be 1
-        // you may not provide a or b, but if you do they have to have the same size because they are summed up
-        if (a.size()>0 and b.size()>0)
-            MADNESS_CHECK_THROW(a.size()==b.size(), "a and b must have the same size");
-        if (a.size()==0) this->a.resize(1);
-        if (b.size()==0) this->b.resize(1);
-        MADNESS_CHECK_THROW(this->a.size()==this->b.size(), "a and b must have the same size");
-
-    }
 
 private:
     std::shared_ptr<SeparatedConvolution<T,LDIM>> f12;  ///< a two-particle function
