@@ -49,9 +49,6 @@
 #include <typeinfo>
 #include <new>
 
-#include <sys/sysinfo.h>
-
-
 //////////// Parsec Related Begin ////////////////////
 #ifdef HAVE_PARSEC
 #include "parsec.h"
