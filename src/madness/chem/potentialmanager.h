@@ -106,33 +106,59 @@ public:
     };
 };
 
+// utility type conversion function
+inline Tensor<double> array_to_tensor(const std::array<std::array<double, 2>, 3> arr) {
+  Tensor<double> tensor(3, 2);
+  for (size_t i = 0; i < 3; i++) {
+    for (size_t j = 0; j < 2; j++) {
+      tensor(i, j) = arr[i][j];
+    }
+  }
+  return tensor;
+}
+
 class NuclearDensityFunctor : public FunctionFunctorInterface<double,3> {
 private:
   const Molecule& molecule;
-  const double R; // Needed only for the periodic case
+  const Tensor<double> cell;
   std::vector<coord_3d> specialpt;
-  const int maxR;
+  std::array<std::vector<int>, 3> allowed_increments;
 public:
-  explicit NuclearDensityFunctor(const Molecule& molecule)
-      : molecule(molecule), R(0), specialpt(molecule.get_all_coords_vec()), maxR(0)
-  {}
-  NuclearDensityFunctor(const Molecule& molecule, double R)
-      : molecule(molecule), R(R), specialpt(molecule.get_all_coords_vec()), maxR(1)
-  {}
+  // Perform a type conversion. Needed by MPQC.
+  NuclearDensityFunctor(const Molecule& molecule, const BoundaryConditions<3> bc, const std::array<std::array<double, 2>, 3> cell) :
+    NuclearDensityFunctor(molecule, bc, array_to_tensor(cell)){}
+  NuclearDensityFunctor(const Molecule& molecule, const BoundaryConditions<3> bc, const Tensor<double> cell)
+      : molecule(molecule), cell(cell), specialpt(molecule.get_all_coords_vec())
+  {
+    for (int i = 0; i < 3; i++ ) {
+      allowed_increments[i] = {0};
+      if (bc(i, 0) == BC_PERIODIC) {
+        allowed_increments[i].push_back(-1);
+      }
+      if (bc(i, 1) == BC_PERIODIC) {
+        allowed_increments[i].push_back(1);
+      }
+    }
+  }
 
   double operator()(const coord_3d& x) const {
-    double big = 2*R + 6.0*molecule.smallest_length_scale();
+    double tol = 6.0 * molecule.smallest_length_scale();
     double sum = 0.0;
-    for (int i=-maxR; i<=+maxR; i++) {
-      double xx = x[0]+i*R;
-      if (xx < big && xx > -big) {
-        for (int j=-maxR; j<=+maxR; j++) {
-          double yy = x[1]+j*R;
-          if (yy < big && yy > -big) {
-            for (int k=-maxR; k<=+maxR; k++) {
-              double zz = x[2]+k*R;
-              if (zz < big && zz > -big)
-                sum += molecule.nuclear_charge_density(x[0]+i*R, x[1]+j*R, x[2]+k*R);
+    double xdisp = cell(0, 1) - cell(0, 0);
+    double ydisp = cell(1, 1) - cell(1, 0);
+    double zdisp = cell(2, 1) - cell(2, 0);
+    // TODO: Check if the if statements do anything. The nuclear_charge_density filter
+    //       of large rvalues may make it redundant.
+    for (const auto xinc: allowed_increments[0]) {
+      double xtgt = x[0]+xinc*xdisp;
+      if (xtgt < cell(0, 1) + tol && xtgt > cell(0, 0) - tol) {
+        for (const auto yinc: allowed_increments[1]) {
+          double ytgt = x[1]+yinc*ydisp;
+          if (ytgt < cell(1, 1) + tol && ytgt > cell(1, 0) - tol) {
+            for (const auto zinc: allowed_increments[2]) {
+              double ztgt = x[2]+zinc*zdisp;
+              if (ztgt < cell(2, 1) + tol && xtgt > cell(2, 0) - tol)
+                sum += molecule.nuclear_charge_density(xtgt, ytgt, ztgt);
             }
           }
         }
