@@ -34,7 +34,7 @@ auto main(int argc, char *argv[]) -> int {
         startup(world, argc, argv, true);
 
         try {
-            sleep(5);
+            //sleep(5);
             std::cout.precision(6);
             if (argc != 6) {
                 std::cout << "Wrong number of inputs" << std::endl;

@@ -393,6 +393,8 @@ public:
     void compute_pod_modes(World &world);
 
 
+    void compute_pod_modes_2(World &world);
+
 private:
     std::vector<Context> frequency_contexts;
     std::vector<double> frequencies;

@@ -863,21 +863,16 @@ void PODResponse::compute_pod_modes(World &world) {
 
     // eigen values and eigen vectors
 
+    // literally the same thing as the svd...
     Tensor<double> e(num_states, 1);
     Tensor<double> u(num_states, num_states);
-
-    syev(A,u,e);
-
-
-
+    syev(A, u, e);
     // A = U * diag(s) * VT    for A real
     // A = U * diag(s) * VH    for A complex
-
     Tensor<double> VT(num_states, num_states);
     Tensor<double> U(num_states, num_states);
     Tensor<double> sigma(num_states);
     svd(A, U, sigma, VT);
-
     // create a json printing out the singular values
     json j = {};
     j["sigma"] = tensor_to_json(sigma);
@@ -892,11 +887,220 @@ void PODResponse::compute_pod_modes(World &world) {
     if (world.rank() == 0) print("U: ", U);
     if (world.rank() == 0) print("A: ", A);
 
+    // compute the POD modes
+
 
     if (world.rank() == 0) {
         std::ofstream o("pod.json");
         o << std::setw(4) << j << std::endl;
     }
+}
+void PODResponse::compute_pod_modes_2(World &world) {
+    //
+    // 1. Convert the x_data into a response matrix
+    // 2. Compute the SVD of the response matrix
+    // 3. Compute the POD modes
+    // In this strategy we will unpack all x and y response functions into a single vector.
+
+
+    // num calculations
+    auto num_states = x_data.size() * 3;
+    auto m = x_data.size();
+    auto n = x_data[0].first.num_orbitals();
+    auto total_orbitals = num_states * n * 2;// 2 for x and y
+
+    if (world.rank() == 0) print("m: ", m);
+    if (world.rank() == 0) print("n: ", n);
+
+
+    auto all_chi = X_space(world, num_states, n);
+    if (world.rank() == 0) print("m: ", m);
+    if (world.rank() == 0) print("n: ", n);
+
+    // Create one large x_space with each state
+    for (auto i = 0; i < m; i++) {
+        auto x_data_i = x_data[i].first;
+        for (auto j = 0; j < 3; j++) {
+            auto index = i * 3 + j;
+            all_chi.x[index] = copy(world, x_data_i.x[j]);
+            all_chi.y[index] = copy(world, x_data_i.y[j]);
+        }
+    }
+
+    // Turn into response matrix
+    auto all_x = to_response_matrix(all_chi);
+    vector_real_function_3d all_response_functions(total_orbitals);
+    // unpack all_x into a single vector
+    auto index = 0;
+    for (auto all_x_i: all_x) {
+        for (auto all_x_ij: all_x_i) { all_response_functions[index++] = madness::copy(all_x_ij, false); }
+    }
+    world.gop.fence();
+
+    // Compute the 2 pt correlation matrix between response functions  // contains both x and y components
+    auto A = matrix_inner(world, all_response_functions, all_response_functions, true);
+
+
+    //auto A = inner(all_chi, all_chi);
+
+    // eigen values and eigen vectors
+
+    // literally the same thing as the svd...
+    Tensor<double> e(num_states, 1);
+    Tensor<double> u(num_states, num_states);
+    syev(A, u, e);
+
+    Tensor<double> UU(total_orbitals, total_orbitals);
+    Tensor<double> EE(total_orbitals, 1);
+
+    for (auto i = 0; i < total_orbitals; i++) {
+        auto index_i = total_orbitals - i - 1;
+        for (auto j = 0; j < total_orbitals; j++) { UU(i, j) = u(index_i, j); }
+        EE(i, 0) = e(index_i, 0);
+    }
+    // A = U * diag(s) * VT    for A real
+    // A = U * diag(s) * VH    for A complex
+    Tensor<double> VT(num_states, num_states);
+    Tensor<double> U(num_states, num_states);
+    Tensor<double> sigma(num_states);
+    svd(A, U, sigma, VT);
+    // create a json printing out the singular values
+    if (world.rank() == 0) print("Eigenvlaues: \n", EE);
+
+    auto pod_modes = transform(world, all_response_functions, UU, false);
+    world.gop.fence();
+
+    double pod_threshold = 1e-6;
+    // find index of first sigma less than threshold
+    auto pod_index = 0;
+    for (auto i = 0; i < sigma.size(); i++) {
+        if (sigma[i] < pod_threshold) {
+            pod_index = i;
+            break;
+        }
+    }
+    if (world.rank() == 0) print("pod_index: ", pod_index);
+    // select the last pod_index modes
+    auto num_modes = pod_index + 1;
+    auto pod_modes_selected = vector_real_function_3d(num_modes);
+
+    for (auto i = 0; i < num_modes; i++) { pod_modes_selected[i] = copy(pod_modes[i], false) * (1 / EE[i]); }
+    // normalize the pod modes
+    normalize(world, pod_modes_selected, true);
+    //auto etas = orthonormalize(pod_modes_selected);
+    auto etas = pod_modes_selected;
+    world.gop.fence();
+
+    // now compute the orbital energies of the pod modes
+    auto kinetic_energy = vector<double>(num_modes);
+
+    vecfuncT detax = apply(world, *(gradop[0]), etas, false);
+    vecfuncT detay = apply(world, *(gradop[1]), etas, false);
+    vecfuncT detaz = apply(world, *(gradop[2]), etas, false);
+    world.gop.fence();
+
+    auto dx2 = mul(world, detax, detax, false);
+    auto dy2 = mul(world, detay, detay, false);
+    auto dz2 = mul(world, detaz, detay, false);
+    world.gop.fence();
+    for (auto i = 0; i < num_modes; i++) {
+        kinetic_energy[i] =
+                0.5 * inner(detax[i], detax[i]) + 0.5 * inner(detay[i], detay[i]) + 0.5 * inner(detaz[i], detaz[i]);
+    }
+    world.gop.fence();
+    // print the kinetic energy of each mode
+    if (world.rank() == 0) print("kinetic energy: \n", kinetic_energy);
+
+    // now get the nuclear energy for the system
+    auto nuclear_energy = vector<double>(num_modes);
+    auto vnuc = this->potential_manager->vnuclear();
+    auto vk = vnuc * square(world, etas);
+    for (auto i = 0; i < num_modes; i++) { nuclear_energy[i] = inner(etas[i], vk[i]); }
+    // print the nuclear energy of each mode
+    if (world.rank() == 0) print("nuclear energy: \n", nuclear_energy);
+    auto ground_orbitals = this->get_orbitals();
+    // compute ground density
+    auto ground_density = 2.0 * sum(world, square(world, ground_orbitals), true);
+    auto coulomb_j = apply(*shared_coulomb_operator, ground_density);
+    auto coulomb_energy = vector<double>(num_modes);
+    auto jk = coulomb_j * square(world, etas);
+    for (auto i = 0; i < num_modes; i++) { coulomb_energy[i] = inner(etas[i], jk[i]); }
+    // print the coulomb energy of each mode
+    if (world.rank() == 0) print("coulomb energy: \n", coulomb_energy);
+
+    // exchange
+    auto exchange_energy = vector<double>(num_modes);
+    for (int a = 0; a < num_modes; a++) {
+        auto phi_aj = copy(world, ground_orbitals, true);
+        phi_aj = mul(world, etas[a], phi_aj, true);
+        auto exchange_j = apply(world, *shared_coulomb_operator, phi_aj);
+        auto exchange_jk = sum(world, exchange_j, true);
+
+        exchange_energy[a] = -2 * inner(etas[a], exchange_jk);
+    }
+    // print the exchange energy of each mode
+    if (world.rank() == 0) print("exchange energy: \n", exchange_energy);
+
+    // compute the total energy of each mode
+    auto total_energy = vector<double>(num_modes);
+    for (auto i = 0; i < num_modes; i++) {
+        total_energy[i] = kinetic_energy[i] + nuclear_energy[i] + coulomb_energy[i] + exchange_energy[i];
+    }
+    // print the total energy of each mode
+    if (world.rank() == 0) print("total energy: \n", total_energy);
+    // Now sort the modes by total energy and only grab the positive modes
+
+    std::vector<int> indices(etas.size());
+    std::iota(indices.begin(), indices.end(), 0);// Fill indices with 0, 1, ..., n
+
+    std::sort(indices.begin(), indices.end(), [&](int i, int j) { return total_energy[i] > total_energy[j]; });
+    auto sorted_modes = vector_real_function_3d(num_modes);
+    auto sorted_energies = vector<double>(num_modes);
+
+    for (auto i = 0; i < num_modes; i++) {
+        sorted_modes[i] = copy(etas[indices[i]], false);
+        sorted_energies[i] = total_energy[indices[i]];
+    }
+    world.gop.fence();
+    // Take only the positive
+    auto pos_modes = vector_real_function_3d();
+    auto pos_energies = vector<double>();
+    for (auto i = 0; i < num_modes; i++) {
+        // if the sorted energy is positive push back
+        if (sorted_energies[i] > 0) {
+            pos_modes.push_back(copy(sorted_modes[i], false));
+            pos_energies.push_back(sorted_energies[i]);
+        }
+    }
+    world.gop.fence();
+    auto num_pos_modes = pos_modes.size();
+    if (world.rank() == 0) print("num_pos_modes: ", num_pos_modes);
+    // print the positive energies
+    if (world.rank() == 0) print("pos_energies: \n", pos_energies);
+
+    // now remove the positive modes
+
+
+    json j = {};
+    j["sigma"] = tensor_to_json(sigma);
+    j["VT"] = tensor_to_json(VT);
+    j["U"] = tensor_to_json(U);
+    j["A"] = tensor_to_json(A);
+    j["eigenvectors"] = tensor_to_json(UU);
+    j["eigenvalues"] = tensor_to_json(EE);
+    j["kinetic_energy"] = kinetic_energy;
+    j["nuclear_energy"] = nuclear_energy;
+    j["coulomb_energy"] = coulomb_energy;
+    j["exchange_energy"] = exchange_energy;
+    j["total_energy"] = pos_energies;
+
+    if (world.rank() == 0) {
+        std::ofstream o("pod.json");
+        o << std::setw(4) << j << std::endl;
+    }
+
+
+    world.gop.fence();
 }
 void PODResponse::load(World &world, const std::string &name) {}
 void PODResponse::save(World &world, const std::string &name) {}

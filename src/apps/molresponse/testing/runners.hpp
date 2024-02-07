@@ -1285,7 +1285,8 @@ void runPODResponse(World &world, const frequencySchema &schema, const std::stri
 
         pod_calculation.set_x_data(world, frequencies, restart_paths);
 
-        pod_calculation.compute_pod_modes(world);
+        //pod_calculation.compute_pod_modes(world);
+        pod_calculation.compute_pod_modes_2(world);
         // print the beta values for the frequency combination
     } catch (Response_Convergence_Error &e) {
         if (true) {
