@@ -160,7 +160,7 @@ public:
 	void run_all(MacroTaskBase::taskqT vtask=MacroTaskBase::taskqT()) {
 
 		for (const auto& t : vtask) if (universe.rank()==0) t->set_waiting();
-		for (int i=0; i<vtask.size(); ++i) add_replicated_task(vtask[i]);
+		for (size_t i=0; i<vtask.size(); ++i) add_replicated_task(vtask[i]);
 		if (printdebug()) print_taskq();
 
 		cloud.replicate();

@@ -197,7 +197,7 @@ double CCPairFunction::inner_internal(const CCPairFunction& other, const real_fu
                 MADNESS_EXCEPTION(("6D Overlap with operatortype " + assign_name(f2.get_operator().type()) + " not supported").c_str(), 1);
             }
         }
-        for (int i=0; i<a.size(); ++i) {
+        for (size_t i=0; i<a.size(); ++i) {
             auto x=a[i];
             auto y=b[i];
             real_function_6d opxy;

@@ -150,7 +150,7 @@ namespace madness {
 
         /// Default constructor makes uninitialized function.  No communication.
 
-        /// An unitialized function can only be assigned to.  Any other operation will throw.
+        /// An uninitialized function can only be assigned to.  Any other operation will throw.
         Function() : impl() {}
 
 
@@ -2116,7 +2116,7 @@ namespace madness {
     	op.reset_timer();
 
 		// will fence here
-        for (int i=0; i<f1.size(); ++i)
+        for (size_t i=0; i<f1.size(); ++i)
             result.get_impl()->recursive_apply(op, f1[i].get_impl().get(),f2[i].get_impl().get(),false);
         world.gop.fence();
 

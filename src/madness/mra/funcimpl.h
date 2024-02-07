@@ -161,7 +161,7 @@ namespace madness {
 
         explicit
         FunctionNode(const coeffT& coeff, double norm_tree, double snorm, double dnorm, bool has_children) :
-                _coeffs(coeff), _norm_tree(norm_tree), _has_children(has_children), snorm(snorm), dnorm(dnorm) {
+	  _coeffs(coeff), _norm_tree(norm_tree), _has_children(has_children), dnorm(dnorm), snorm(snorm) {
         }
 
         FunctionNode(const FunctionNode<T, NDIM>& other) {
@@ -2269,6 +2269,8 @@ template<size_t NDIM>
             /// return the norm of the difference of this node and its "mirror" node
             double operator()(typename rangeT::iterator& it) const {
 
+	      // Temporary fix to GCC whining about out of range access for NDIM!=6
+  	      if constexpr(NDIM==6) {
                 const keyT& key = it->first;
                 const nodeT& fnode = it->second;
 
@@ -2318,6 +2320,10 @@ template<size_t NDIM>
                     norm=fnode.coeff().normf();
                 }
                 return norm*norm;
+	      }
+	      else {
+		throw "ONLY FOR DIM 6!";
+	      }
             }
 
             double operator()(double a, double b) const {
@@ -4788,8 +4794,9 @@ template<size_t NDIM>
 
             const std::vector<opkeyT>& disp = op->get_disp(key.level()); // list of displacements sorted in orer of increasing distance
             const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
-	    int ndone=1;	// Counts #done at each distance
-	    uint64_t distsq = 99999999999999; 
+            int nvalid=1;       // Counts #valid at each distance
+            int nused=1;	// Counts #used at each distance
+	    uint64_t distsq = 99999999999999;
             for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
 	        keyT d;
                 Key<NDIM-opdim> nullkey(key.level());
@@ -4798,24 +4805,26 @@ template<size_t NDIM>
 
 		uint64_t dsq = d.distsq();
 		if (dsq != distsq) { // Moved to next shell of neighbors
-		    if (ndone == 0 && dsq > 1) {
+		    if (nvalid > 0 && nused == 0 && dsq > 1) {
 		        // Have at least done the input box and all first
 		        // nearest neighbors, and for all of the last set
 		        // of neighbors had no contribution.  Thus,
 		        // assuming monotonic decrease, we are done.
 		        break;
 		    }
-		    ndone = 0;
+		    nused = 0;
+                    nvalid = 0;
 		    distsq = dsq;
 		} 
 
                 keyT dest = neighbor(key, d, is_periodic);
                 if (dest.is_valid()) {
+                    nvalid++;
                     double opnorm = op->norm(key.level(), *it, source);
                     double tol = truncate_tol(thresh, key);
 
                     if (cnorm*opnorm> tol/fac) {
-		        ndone++;
+                        nused++;
 		        tensorT result = op->apply(source, *it, c, tol/fac/cnorm);
 			if (result.normf() > 0.3*tol/fac) {
 			  if (coeffs.is_local(dest))

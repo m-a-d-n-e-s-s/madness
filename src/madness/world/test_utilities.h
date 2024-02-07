@@ -21,7 +21,7 @@ struct test_output {
 
     static std::string ltrim_to_length(std::string line, long length=70) {
         int ncharacter=line.size();
-        if (line.size()<length) line+= std::string(length-ncharacter, ' ' );
+        if (line.size()<size_t(length)) line+= std::string(length-ncharacter, ' ' );
         return line;
     }
 

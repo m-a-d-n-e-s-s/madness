@@ -496,7 +496,7 @@ namespace madness {
     /// Scalable and fair condition variable (spins on local value)
     class ConditionVariable : public Spinlock {
     public:
-        static const int MAX_NTHREAD = 64;
+        static const int MAX_NTHREAD = 128;
         mutable int back; // used to be volatile, but is protected by mutex and associated barriers
         mutable int front; // ditto
         mutable volatile bool* fifo[MAX_NTHREAD]; // volatile needed here; Circular buffer of flags
@@ -561,7 +561,7 @@ namespace madness {
     /// need this if using pthread_mutex .. why not pthread_cv?
     class MutexFair : private Spinlock {
     private:
-        static const int MAX_NTHREAD = 64;
+        static const int MAX_NTHREAD = 128;
         mutable volatile bool* q[MAX_NTHREAD]; // volatile needed
         mutable int n; // volatile not needed due to use of spinlock and associated barriers
         mutable int front;
@@ -701,7 +701,7 @@ namespace madness {
         const int nthread;
         volatile bool sense;
         AtomicInt nworking;
-        volatile bool* pflags[64];
+        volatile bool* pflags[128];
 
     public:
         Barrier(int nthread)

@@ -318,7 +318,7 @@ Tensor<double> CC2::enforce_core_valence_separation(const Tensor<double>& fmat) 
     if (nemo->get_param().localize_method()=="canon") {
         auto nmo=nemo->get_calc()->amo.size();
         Tensor<double> fmat1(nmo,nmo);
-        for (int i=0; i<nmo; ++i) fmat1(i,i)=nemo->get_calc()->aeps(i);
+        for (size_t i=0; i<nmo; ++i) fmat1(i,i)=nemo->get_calc()->aeps(i);
         return fmat1;
     }
 
@@ -334,7 +334,7 @@ Tensor<double> CC2::enforce_core_valence_separation(const Tensor<double>& fmat) 
     //hf->reset_orbitals(lmo);
     nemo->get_calc()->amo=lmo.get_mos();
     nemo->get_calc()->aeps=lmo.get_eps();
-    MADNESS_CHECK(nemo->get_calc()->aeps.size()==nemo->get_calc()->amo.size());
+    MADNESS_CHECK(size_t(nemo->get_calc()->aeps.size())==nemo->get_calc()->amo.size());
     //orbitals_ = nemo->R*nemo->get_calc()->amo;
     //R2orbitals_ = nemo->ncf->square()*nemo->get_calc()->amo;
 
@@ -415,7 +415,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
 //   std::vector<real_function_6d> coupling_constant_term_vec=Pairs<real_function_6d>::pairs2vector(coupling_constant_term,triangular_map);
 
     // transform vector back to Pairs structure
-    for (int i = 0; i < pair_vec.size(); i++) {
+    for (size_t i = 0; i < pair_vec.size(); i++) {
         pair_vec[i].constant_part = result_vec[i];// - coupling_constant_term_vec[i];
         //save(pair_vec[i].constant_part, pair_vec[i].name() + "_const");
         pair_vec[i].constant_part.truncate().reduce_rank();
@@ -503,20 +503,20 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
             std::vector<real_function_6d> u;
             for (auto p : pair_vec) u.push_back(p.function());
             std::vector<real_function_6d> kain_update = copy(world,solver.update(u, u_update));
-            for (int i=0; i<pair_vec.size(); ++i) {
+            for (size_t i=0; i<pair_vec.size(); ++i) {
                 kain_update[i].truncate().reduce_rank();
                 kain_update[i].print_size("Kain-Update-Function");
                 pair_vec[i].update_u(copy(kain_update[i]));
             }
         } else {
             if (world.rank()==0) std::cout << "Update without KAIN" << std::endl;
-            for (int i=0; i<pair_vec.size(); ++i) {
+            for (size_t i=0; i<pair_vec.size(); ++i) {
                 pair_vec[i].update_u(pair_vec[i].function() - u_update[i]);
             }
         }
 
         // calculate energy and error and update pairs
-        for (int i = 0; i < pair_vec.size(); i++) {
+        for (size_t i = 0; i < pair_vec.size(); i++) {
             //const real_function_6d residue = pair_vec[i].function() - u_update[i];
             const double error = u_update[i].norm2();
             if (world.rank()==0) std::cout << "residual " << pair_vec[i].i << " " << pair_vec[i].j << " " << error << std::endl;

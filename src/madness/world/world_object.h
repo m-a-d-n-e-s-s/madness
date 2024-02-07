@@ -485,10 +485,10 @@ namespace madness {
                 typename detail::task_arg<arg7T>::type arg7;
                 typename detail::task_arg<arg8T>::type arg8;
                 typename detail::task_arg<arg9T>::type arg9;
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wuninitialized-const-reference"
+		MADNESS_PRAGMA_CLANG(diagnostic push)
+                MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wuninitialized-const-reference")
                 arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6 & arg7 & arg8 & arg9;
-#pragma clang diagnostic pop
+		MADNESS_PRAGMA_CLANG(diagnostic pop)
                 typename detail::info<memfnT>::futureT result(info.ref);
                 detail::run_function(result, task_helper::make_task_fn(obj, info.memfun()),
                         arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
@@ -638,7 +638,7 @@ namespace madness {
             typename taskT::futureT result;
             detail::info<memfnT> info(objid, me, memfn, result.remote_ref(world), attr);
             world.am.send(dest, & objT::template spawn_remote_task_handler<taskT>,
-                    new_am_arg(info, a1, a2, a3, a4, a5, a6, a7, a8, a9));
+                    new_am_arg(info, a1, a2, a3, a4, a5, a6, a7, a8, a9), RMI::ATTR_UNORDERED);
 
             return result;
         }

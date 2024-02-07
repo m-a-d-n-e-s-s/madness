@@ -248,6 +248,7 @@ namespace madness {
 
 #if HAVE_INTEL_TBB
             void run() {
+  	        ::madness::binder.bind();
                 set_rmi_task_is_running(true);
                 RMI::set_this_thread_is_server(true);
 
@@ -261,6 +262,7 @@ namespace madness {
             }
 #else
             void run() {
+  	        ::madness::binder.bind();
                 RMI::set_this_thread_is_server(true);
                 try {
                     while (! finished) process_some();

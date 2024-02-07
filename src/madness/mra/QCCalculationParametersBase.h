@@ -214,7 +214,7 @@ public:
         }
 
         std::string result;
-        for (int i=0; i<commentlines.size(); ++i) {
+        for (size_t i=0; i<commentlines.size(); ++i) {
             if (i==0) result=keyval+fill_right(40,commentlines[i])+allowed_val;
             else result+="\n"+empty_keyval+commentlines[i];
         }

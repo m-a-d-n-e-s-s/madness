@@ -70,6 +70,8 @@
 #include <madness/world/worldmutex.h>
 #include <madness/world/type_traits.h>
 #include <iostream>
+#include <csignal>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 #include <sstream>
@@ -532,6 +534,13 @@ namespace SafeMPI {
                 return result;
             }
 
+            /// \return the period of repeat of unique tags produces by unique_tag()
+            static int unique_tag_period() {
+              const auto min_tag_value = 1024;
+              const auto max_tag_value = 4094;
+              return max_tag_value - min_tag_value + 1;
+            }
+
             /// Returns a unique tag reserved for long-term use (0<tag<1000)
 
             /// Get a tag from this routine for long-term/repeated use.
@@ -792,7 +801,15 @@ namespace SafeMPI {
             // if SIGABRT has a handler, call std::abort to allow it be caught,
             // else call MPI_Abort which does not seem to call abort at all,
             // instead sends SIGTERM followed by SIGKILL
-            MPI_Abort(pimpl->comm, code);
+            // if have a custom signal handler for SIGABRT (i.e. we are running under a
+            // debugger) then call abort()
+            struct sigaction sa;
+            auto rc = sigaction(SIGABRT, NULL, &sa);
+            if (rc == 0 && sa.sa_handler != SIG_DFL) {
+              std::abort();
+            } else {
+              MPI_Abort(pimpl->comm, code);
+            }
         }
 
         void Barrier() const {
@@ -801,7 +818,7 @@ namespace SafeMPI {
             MADNESS_MPI_TEST(MPI_Barrier(pimpl->comm));
         }
 
-        /// Returns a unique tag for temporary use (1023<tag<=4095)
+        /// Returns a unique tag for temporary use (1023<tag<4095)
 
         /// These tags are intended for one time use to avoid tag
         /// collisions with other messages around the same time period.
@@ -813,6 +830,11 @@ namespace SafeMPI {
         int unique_tag() {
             MADNESS_ASSERT(pimpl);
             return pimpl->unique_tag();
+        }
+
+        /// \return the period of repeat of unique tags produces by unique_tag()
+        static int unique_tag_period() {
+          return Impl::unique_tag_period();
         }
 
         /// Returns a unique tag reserved for long-term use (0<tag<1000)
