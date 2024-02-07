@@ -722,9 +722,7 @@ ExcitedResponse::rotate_excited_space(World &world, X_space &chi, X_space &lchi,
                                       X_space &gamma_chi) {
     // Debugging output
     Tensor<double> A;
-
     X_space chi_copy = chi.copy();
-
     X_space l_copy = lchi.copy();
 
     Tensor<double> S = response_space_inner(chi_copy.x, chi_copy.x) -
