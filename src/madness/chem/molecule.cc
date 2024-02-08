@@ -1053,15 +1053,17 @@ double Molecule::nuclear_attraction_potential_second_derivative(int atom,
 
 }
 
-
-double Molecule::nuclear_charge_density(double x, double y, double z) const {
+double Molecule::nuclear_charge_density(double x, double y, double z, double rscale) const {
   // Only one atom will contribute due to the short range of the nuclear charge density
 
+  MADNESS_ASSERT(rscale > 0.0);
+  const double rscale_inv = 1.0/rscale;
   for (unsigned int i=0; i<atoms.size(); i++) {
-      double rsq = distance_sq(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z)*rcut[i]*rcut[i];
+      const auto rcut_i = rcut[i] * rscale_inv;
+      double rsq = distance_sq(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z)*rcut_i*rcut_i;
       if (rsq < 36.0) {
           double r = sqrt(rsq);
-          return atoms[i].q * smoothed_density(r)*rcut[i]*rcut[i]*rcut[i];
+          return atoms[i].q * smoothed_density(r)*rcut_i*rcut_i*rcut_i;
       }
   }
   return 0.0;
