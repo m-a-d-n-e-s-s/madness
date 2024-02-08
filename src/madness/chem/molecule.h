@@ -469,8 +469,6 @@ public:
 
     double nuclear_charge_density(double x, double y, double z) const;
 
-    double mol_nuclear_charge_density(double x, double y, double z) const;
-
     double smallest_length_scale() const;
 
     std::string symmetrize_and_identify_point_group(const double symtol);
