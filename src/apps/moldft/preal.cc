@@ -96,27 +96,6 @@ public:
     }
 };
 
-// Functor for the nuclear charge density
-class NuclearDensityFunctor : public FunctionFunctorInterface<double,3> {
-  Molecule molecule;
-  std::vector<coord_3d> specialpts;
-public:
-  NuclearDensityFunctor(const Molecule& molecule) : 
-    molecule(molecule), specialpts(molecule.get_all_coords_vec()) {}
- 
-  double operator()(const Vector<double,3>& r) const {
-    return molecule.mol_nuclear_charge_density(r[0], r[1], r[2]);
-  }
-
-  std::vector<coord_3d> special_points() const{
-    return specialpts;
-  }
-
-  Level special_level() {
-    return 15;
-  }
-};
-
 // Functor for the nuclear potential
 class MolecularPotentialFunctor : public FunctionFunctorInterface<double,3> {
 private:

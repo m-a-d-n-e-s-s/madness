@@ -106,46 +106,40 @@ public:
     };
 };
 
+/// Default functor for the nuclear charge density
+
+/// This assumes the default nuclear model optimized to produce potential
+/// close that of a point nucleus (smoothed Coulomb potential). The model
+/// is
 class NuclearDensityFunctor : public FunctionFunctorInterface<double,3> {
 private:
-  const Molecule& molecule;
-  const double R; // Needed only for the periodic case
-  std::vector<coord_3d> specialpt;
-  const int maxR;
+  const Molecule& atoms;
+  BoundaryConditions<3> bc_;
+  Tensor<double> cell;
+  std::vector<coord_3d> special_points_;
+  int maxR;
+  int special_level_ = 15;
+  double rscale = 1.0;
 public:
-  explicit NuclearDensityFunctor(const Molecule& molecule)
-      : molecule(molecule), R(0), specialpt(molecule.get_all_coords_vec()), maxR(0)
-  {}
-  NuclearDensityFunctor(const Molecule& molecule, double R)
-      : molecule(molecule), R(R), specialpt(molecule.get_all_coords_vec()), maxR(1)
-  {}
+  /// Generic constructor, can handle open and periodic boundaries
+  /// \param molecule atoms
+  /// \param bc boundary conditions
+  /// \param cell simulation cell (unit cell, if periodic)
+  /// \param special_level the initial refinement level
+  /// \param rscale setting `rscale>1` will make a nucleus larger by a factor of \p rscale (in other words, `rcut` is multiplied by the inverse of by this)
+  NuclearDensityFunctor(const Molecule& atoms,
+                        const BoundaryConditions<3>& bc = FunctionDefaults<3>::get_bc(),
+                        const Tensor<double>& cell = FunctionDefaults<3>::get_cell(),
+                        int special_level = 15,
+                        double rscale = 1.0);
 
-  double operator()(const coord_3d& x) const {
-    double big = 2*R + 6.0*molecule.smallest_length_scale();
-    double sum = 0.0;
-    for (int i=-maxR; i<=+maxR; i++) {
-      double xx = x[0]+i*R;
-      if (xx < big && xx > -big) {
-        for (int j=-maxR; j<=+maxR; j++) {
-          double yy = x[1]+j*R;
-          if (yy < big && yy > -big) {
-            for (int k=-maxR; k<=+maxR; k++) {
-              double zz = x[2]+k*R;
-              if (zz < big && zz > -big)
-                sum += molecule.nuclear_charge_density(x[0]+i*R, x[1]+j*R, x[2]+k*R);
-            }
-          }
-        }
-      }
-    }
-    return sum;
-  }
+  double operator()(const coord_3d& x) const;
 
-  std::vector<coord_3d> special_points() const {return specialpt;}
+  std::vector<coord_3d> special_points() const;
 
-  Level special_level() {
-    return 50;
-  }
+  Level special_level();
+
+  NuclearDensityFunctor& set_rscale(double rscale);
 
 };
 
