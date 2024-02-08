@@ -467,7 +467,10 @@ public:
     /// @return     a vector which all 3 components of the dipole derivative
     Tensor<double> nuclear_dipole_derivative(const int atom, const int axis) const;
 
-    double nuclear_charge_density(double x, double y, double z) const;
+    /// evaluate the nuclear charge density at point `{x,y,z}`
+    /// \param x,y,z the point at which the nuclear charge density is evaluated
+    /// \param rscale setting `rscale>1` will make a nucleus larger by a factor of \p rscale (in other words, `rcut` is multiplied by the inverse of by this)
+    double nuclear_charge_density(double x, double y, double z, double rscale = 1.) const;
 
     double smallest_length_scale() const;
 
