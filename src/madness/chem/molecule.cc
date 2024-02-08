@@ -956,18 +956,7 @@ double Molecule::total_nuclear_charge() const {
     }
     return sum;
 }
-//Nuclear charge density of the molecule
-double Molecule::mol_nuclear_charge_density(double x, double y, double z) const {
-    // Only one atom will contribute due to the short range of the nuclear            
-    // charge density                                                                                                                                        
-    for (unsigned int i=0; i<atoms.size(); i++) {
-        double r = distance(x, y, z, atoms[i].x, atoms[i].y, atoms[i].z)*rcut[i];
-        if (r < 6.0) {
-            return atoms[i].atomic_number*smoothed_density(r)*rcut[i]*rcut[i]*rcut[i];
-        }
-    }
-    return  0.0;
-}
+
 double Molecule::nuclear_attraction_potential(double x, double y, double z) const {
     // This is very inefficient since it scales as O(ngrid*natom)
     // ... we can easily make an O(natom) version using
