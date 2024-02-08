@@ -88,6 +88,7 @@ set(MADCHEM_SOURCES
     oep.cc
     pcm.cc
     pointgroupsymmetry.cc
+    potentialmanager.cc
     polynomial.cc
     SCF.cc
     SCFOperators.cc

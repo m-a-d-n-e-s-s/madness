@@ -940,7 +940,7 @@ int main(int argc, char** argv) {
     aobasis.read_file("sto-3g");
 
     // Nuclear potential
-    real_function_3d vnuc = real_factory_3d(world).functor(real_functor_3d(new NuclearDensityFunctor(molecule, L))).truncate_mode(0).truncate_on_project();
+    real_function_3d vnuc = real_factory_3d(world).functor(real_functor_3d(new NuclearDensityFunctor(molecule))).truncate_mode(0).truncate_on_project();
     double nuclear_charge=vnuc.trace();
     if (world.rank() == 0) print("total nuclear charge", nuclear_charge);
     vnuc = -1.0*make_coulomb_potential(world, vnuc);
