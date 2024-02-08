@@ -169,6 +169,15 @@ namespace madness {
                 v[d] = (bc[2*d]==BC_PERIODIC);
             return v;
         }
+
+        /// Checks whether the boundary condition along any axis is periodic
+
+        /// @return Returns true if any dimension is periodic
+        bool is_periodic_any() const {
+          for (std::size_t d=0; d<NDIM; ++d)
+            if (bc[2*d]==BC_PERIODIC) return true;
+          return false;
+        }
     };
 
 
