@@ -302,16 +302,21 @@ double MP2::mp3() const {
             }
         }
     }
-    Pairs<ClusterFunction> clusterfunctions_R2;
-    for (int i=param.freeze(); i<hf->nocc(); ++i) {
-        for (int j=i; j<hf->nocc(); ++j) {
-            {
-                auto tmp1 = multiply(clusterfunctions(i, j), R2, {0, 1, 2});
-                auto tmp2 = multiply(tmp1, R2, {3, 4, 5});
-                for (auto& t: tmp2) clusterfunctions_R2(i, j).push_back(t);
-            }
-        }
-    }
+//    Pairs<ClusterFunction> clusterfunctions_R2;
+//    for (int i=param.freeze(); i<hf->nocc(); ++i) {
+//        for (int j=i; j<hf->nocc(); ++j) {
+//            {
+//                auto tmp1 = multiply(clusterfunctions(i, j), R2, {0, 1, 2});
+//                auto tmp2 = multiply(tmp1, R2, {3, 4, 5});
+//                for (auto& t: tmp2) clusterfunctions_R2(i, j).push_back(t);
+//                if (i!=j) {
+//                    for (const auto& t : clusterfunctions_R2(i,j)) {
+//                        clusterfunctions_R2(j, i).push_back(t.swap_particles());
+//                    }
+//                }
+//            }
+//        }
+//    }
 
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = i; j < hf->nocc(); ++j) {
@@ -386,10 +391,9 @@ double MP2::mp3() const {
         // compute intermediates for terms G, I, H, and J
 
         // \sum_j tau_ij(1,2) * phi_j(2)
-        std::vector<ClusterFunction> tau_kk_i(hf->nocc() - param.freeze());
-        std::vector<ClusterFunction> tau_kk_i_lrf(hf->nocc() - param.freeze()); // low-rank
+        std::vector<ClusterFunction> tau_kk_i(hf->nocc());
         // \sum_j tau_ij(1,2) * phi_j(1)
-        std::vector<ClusterFunction> tau_ij_j(hf->nocc() - param.freeze());
+        std::vector<ClusterFunction> tau_ij_j(hf->nocc());
         for (int i = param.freeze(); i < hf->nocc(); ++i) {
             for (int j = param.freeze(); j < hf->nocc(); ++j) {
 
@@ -402,10 +406,7 @@ double MP2::mp3() const {
         }
         print("info on tau_kk_i, consolidated with op_pure_to_pure");
         for (int i = param.freeze(); i < hf->nocc(); ++i) {
-            tau_kk_i[i]=consolidate(tau_kk_i[i],{"op_pure_to_pure"});
-            for (auto& c: tau_kk_i[i]) c.info();
-            print("info on tau_kk_i, consolidated with op_dec_to_dec");
-            tau_kk_i[i]=consolidate(tau_kk_i[i],{"op_dec_to_dec"});
+            tau_kk_i[i]=consolidate(tau_kk_i[i],{"op_pure_to_pure","op_dec_to_dec"});
             for (auto& c: tau_kk_i[i]) c.info();
         }
         print("info on tau_ij_j, consolidated with op_pure_to_pure");
@@ -414,7 +415,7 @@ double MP2::mp3() const {
             for (auto& c: tau_ij_j[i]) c.info();
         }
 
-        t2.tag("GHIJ prep");
+        t2.tag("GHIJ term prep");
 
         // terms G, I, H, J of Bartlett/Silver 1975
         real_convolution_3d& g = *(g12->get_op());
@@ -425,15 +426,15 @@ double MP2::mp3() const {
             g.set_particle(1);
             auto gtau_same = g(tau_kk_i[i]);
             t4.tag("compute gtau_same");
-//            gtau_same=consolidate(gtau_same,{"op_pure_to_pure"});
-//            t4.tag("consolidate gtau_same");
+            //            gtau_same=consolidate(gtau_same,{"op_pure_to_pure"});
+            //            t4.tag("consolidate gtau_same");
 
             // tmp(1',2) = g(1',1) | tau_ij(1,2) j(1) >
             g.set_particle(1);
             auto gtau_other = g(tau_ij_j[i]); // < tau_ij(1,2) j(1) | g(1,1') |
             t4.tag("compute gtau_other");
-//            gtau_other=consolidate(gtau_other,{"op_pure_to_pure"});
-//            t4.tag("consolidate gtau_other");
+            //            gtau_other=consolidate(gtau_other,{"op_pure_to_pure"});
+            //            t4.tag("consolidate gtau_other");
 
             auto bra_kk_i = multiply(tau_kk_i[i],R2,{3,4,5});
             auto bra_ij_j = multiply(tau_ij_j[i],R2,{3,4,5});
@@ -457,7 +458,54 @@ double MP2::mp3() const {
         }
         printf("MP3 energy: term_GHIJ %12.8f\n", term_GHIJ);
         t2.tag("GHIJ term");
+    }
 
+
+    if (1) { // new KLMN algorithm
+        timer multiply_KLMN(world,"multiplication in KLMN term");
+        multiply_KLMN.interrupt();
+        timer inner_KLMN(world,"inner in KLMN term");
+        inner_KLMN.interrupt();
+        // prepare intermediates for terms K, L, M, N of Bartlett/Silver 1975
+        // tau_g_ij(1,2) = \sum_k tau_ik(1,1') g_jk(2)
+        Pairs<ClusterFunction> tau_ik_g_kj, tau_kj_g_ki;
+        for (int i = param.freeze(); i < hf->nocc(); ++i) {
+            for (int j = param.freeze(); j < hf->nocc(); ++j) {
+                multiply_KLMN.resume();
+                std::vector<CCPairFunction<double,6>> tmp1, tmp2;
+                for (int k = param.freeze(); k < hf->nocc(); ++k) {
+                    tmp1+=multiply(clusterfunctions(i,k), gij(k, j), {3, 4, 5});
+                    tmp2+=multiply(clusterfunctions(k,j), gij(k, i), {3, 4, 5});
+                }
+                tmp1=consolidate(tmp1,{});
+                tmp2=consolidate(tmp2,{});
+                tau_ik_g_kj(i,j)=tmp1;
+                tau_kj_g_ki(i,j)=tmp2;
+                multiply_KLMN.interrupt();
+
+                inner_KLMN.resume();
+                double K = inner(clusterfunctions(i,j), tau_ik_g_kj(i,j), R2);
+                double L = inner(clusterfunctions(i,j), tau_kj_g_ki(i,j), R2);
+                double M = inner(clusterfunctions(j,i), tau_kj_g_ki(i,j), R2);
+                double N = inner(clusterfunctions(j,i), tau_ik_g_kj(i,j), R2);
+                inner_KLMN.interrupt();
+
+                double tmp = -4 * K - 4 * L + 2 * M + 2 * N;
+                printf("mp3 energy: term_KLMN with particle=1 %2d %2d %12.8f\n", i, j, tmp);
+                term_KLMN += tmp;
+            }
+        }
+        printf("MP3 energy: term_KLMN (KLMN) %12.8f\n", term_KLMN);
+        multiply_KLMN.print("multiplication in KLMN term");
+        inner_KLMN.print("inner in KLMN term");
+        t2.tag("KLMN term");
+    }
+
+    if (0) { // old KLMN algorithm
+        timer multiply_KLMN(world,"multiplication in KLMN term");
+        multiply_KLMN.interrupt();
+        timer inner_KLMN(world,"inner in KLMN term");
+        inner_KLMN.interrupt();
         for (int i = param.freeze(); i < hf->nocc(); ++i) {
             for (int j = param.freeze(); j < hf->nocc(); ++j) {
                 double tmp = 0.0;
@@ -467,15 +515,19 @@ double MP2::mp3() const {
                     auto tau_kj = clusterfunctions(k, j);
                     auto tau_ij = clusterfunctions(i, j);
                     auto tau_ji = clusterfunctions(j, i);
+                    multiply_KLMN.resume();
                     auto tau_ik_gkj = multiply(tau_ik, gij(k, j), {3, 4, 5});
                     auto tau_kj_gki = multiply(tau_kj, gij(k, i), {3, 4, 5});
+                    multiply_KLMN.interrupt();
 //                auto tau_ik_gkj = multiply(tau_ik,gij(k,j),{0,1,2});
 //                auto tau_kj_gki = multiply(tau_kj,gij(k,i),{0,1,2});
 
+                    inner_KLMN.resume();
                     double K = inner(tau_ij, tau_ik_gkj, R2);
                     double L = inner(tau_ij, tau_kj_gki, R2);
                     double M = inner(tau_ji, tau_kj_gki, R2);
                     double N = inner(tau_ji, tau_ik_gkj, R2);
+                    inner_KLMN.interrupt();
 
                     tmp += -4 * K - 4 * L + 2 * M + 2 * N;
                 }
@@ -484,6 +536,8 @@ double MP2::mp3() const {
             }
         }
         printf("MP3 energy: term_KLMN (KLMN) %12.8f\n", term_KLMN);
+        multiply_KLMN.print("multiplication in KLMN term");
+        inner_KLMN.print("inner in KLMN term");
         t2.tag("KLMN term");
     }
 

@@ -872,6 +872,15 @@ std::vector<CCPairFunction<T,NDIM>> inner(const std::vector<CCPairFunction<T,NDI
     return result;
 }
 
+
+template <typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM> >& operator+=(std::vector<CCPairFunction<T,NDIM> >& rhs,
+        const std::vector<CCPairFunction<T,NDIM> >& lhs) {
+    for (const auto& l : lhs) rhs.push_back(l);
+    return rhs;
+}
+
+
 template<typename T, std::size_t NDIM>
 bool is_collected(const std::vector<CCPairFunction<T,NDIM>>& other) {
     return CCPairFunction<T,NDIM>::is_collected(other);
