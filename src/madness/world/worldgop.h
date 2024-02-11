@@ -47,6 +47,7 @@
 #include <madness/world/world_task_queue.h>
 #include <madness/world/group.h>
 #include <madness/world/dist_cache.h>
+#include <madness/world/units.h>
 
 namespace madness {
 
@@ -629,16 +630,17 @@ namespace madness {
           int result = std::numeric_limits<int>::max();
           const auto* initial_max_reducebcast_msg_size_cstr = std::getenv("MAD_MAX_REDUCEBCAST_MSG_SIZE");
           if (initial_max_reducebcast_msg_size_cstr) {
-            result = std::atoi(initial_max_reducebcast_msg_size_cstr);
+            auto result_u64 = cstr_to_memory_size(initial_max_reducebcast_msg_size_cstr);
             const auto do_print = SafeMPI::COMM_WORLD.Get_rank() == 0 && !madness::quiet();
-            if (result<=0) {
+            if (result_u64>std::numeric_limits<int>::max()) {
               if (do_print)
                 std::cout
                     << "!!MADNESS WARNING: Invalid value for environment variable MAD_MAX_REDUCEBCAST_MSG_SIZE.\n"
                     << "!!MADNESS WARNING: MAD_MAX_REDUCEBCAST_MSG_SIZE = "
-                    << result << "\n";
+                    << result_u64 << "\n";
               result = std::numeric_limits<int>::max();
             }
+            result = static_cast<int>(result_u64);
             if(do_print) {
               std::cout
                   << "MADNESS max msg size for GOP reduce/broadcast set to "

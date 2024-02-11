@@ -34,6 +34,7 @@
 #include <madness/world/worldrmi.h>
 #include <madness/world/posixmem.h>
 #include <madness/world/timers.h>
+#include <madness/world/units.h>
 #include <iostream>
 #include <algorithm>
 #include <utility>
@@ -245,24 +246,7 @@ namespace madness {
         const char* mad_buffer_size = getenv("MAD_BUFFER_SIZE");
         if(mad_buffer_size) {
             // Convert the string into bytes
-            std::stringstream ss(mad_buffer_size);
-            double memory = 0.0;
-            if(ss >> memory) {
-                if(memory > 0.0) {
-                    std::string unit;
-                    if(ss >> unit) { // Failure == assume bytes
-                        if(unit == "KB" || unit == "kB") {
-                            memory *= 1024.0;
-                        } else if(unit == "MB") {
-                            memory *= 1048576.0;
-                        } else if(unit == "GB") {
-                            memory *= 1073741824.0;
-                        }
-                    }
-                }
-            }
-
-            max_msg_len_ = memory;
+            max_msg_len_ = cstr_to_memory_size(mad_buffer_size);
             // Check that the size of the receive buffers is reasonable.
             if(max_msg_len_ < 1024) {
                 max_msg_len_ = DEFAULT_MAX_MSG_LEN; // = 3*512*1024
