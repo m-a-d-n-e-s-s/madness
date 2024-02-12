@@ -77,7 +77,7 @@ namespace madness{
 
                     //read in what's in the archive. See SCF::save_mos for how these archives are stored
                     archive::ParallelInputArchive input(world, filename.c_str());
-                    unsigned int version;
+                    unsigned int version=0;
                     std::string xc;
                     std::string localize_method;
 
@@ -113,7 +113,7 @@ namespace madness{
                     complex_derivative_3d Dx(world,0);
                     complex_derivative_3d Dy(world,1);
                     complex_derivative_3d Dz(world,2);
-                    double myc = 137.0359895; //speed of light in atomic units
+                    //double myc = 137.0359895; //speed of light in atomic units
                     std::complex<double> myi(0,1);
                     if(spinrestricted){ 
                          //If the calculation was spin-restricted in moldft, then we only have "spin-up" orbitals
@@ -210,7 +210,7 @@ namespace madness{
 
                          if(!Krestricted){
                               // Read in beta quantities
-                              unsigned int num_betas;
+                              unsigned int num_betas=0;
                               input & num_betas;
 
                               Tensor<double> beta_energies;

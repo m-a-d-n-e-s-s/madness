@@ -68,9 +68,8 @@ extern "C" void HPM_Prof_stop(unsigned int);
 #include <thread>
 
 namespace madness {
-    int ThreadBase::cpulo[3];
-    int ThreadBase::cpuhi[3];
-    bool ThreadBase::bind[3];
+    ThreadBinder binder;
+    thread_local bool ThreadBinder::bound = false;
     pthread_key_t ThreadBase::thread_key;
 
     ThreadPool* ThreadPool::instance_ptr = 0;
@@ -202,86 +201,10 @@ namespace madness {
         //std::cout << "NCPU " << ncpu << std::endl;
 #else
         return std::thread::hardware_concurrency();
+	//return get_nprocs();
 #endif
     }
 
-    // Specify the affinity pattern or how to bind threads to cpus
-    void ThreadBase::set_affinity_pattern(const bool bind[3], const int cpu[3]) {
-        memcpy(ThreadBase::bind, bind, 3*sizeof(bool));
-        memcpy(ThreadBase::cpulo, cpu, 3*sizeof(int));
-
-        int ncpu = num_hw_processors();
-
-        // impose sanity and compute cpuhi
-        for (int i=0; i<3; ++i) {
-            if (cpulo[i] < 0) cpulo[i] = 0;
-            if (cpulo[i] >= ncpu) cpulo[i] = ncpu-1;
-
-            if (i<2 && bind[i]) cpuhi[i] = cpulo[i];
-            else cpuhi[i] = ncpu-1;
-
-            //std::cout << "PATTERN " << i << " " << bind[i] << " " << cpulo[i] << " " << cpuhi[i] << std::endl;
-        }
-    }
-
-    void ThreadBase::set_affinity(int logical_id, int ind) {
-        if (logical_id < 0 || logical_id > 2) {
-            std::cout << "ThreadBase: set_affinity: logical_id bad?" << std::endl;
-            return;
-        }
-
-        if (!bind[logical_id]) return;
-
-        // If binding the main or rmi threads the cpu id is a specific cpu.
-        //
-        // If binding a pool thread, the cpuid is the lowest cpu
-        // to be used.
-        //
-        // If floating any thread it is floated from the cpuid to ncpu-1
-
-        int lo=cpulo[logical_id], hi=cpuhi[logical_id];
-
-        if (logical_id == 2) {
-            if (ind < 0) {
-                std::cout << "ThreadBase: set_affinity: pool thread index bad?" << std::endl;
-                return;
-            }
-            if (bind[2]) {
-                int nnn = hi-lo+1;
-                lo += (ind % nnn);
-                hi = lo;
-            }
-        }
-
-#ifndef ON_A_MAC
-        cpu_set_t mask;
-        CPU_ZERO(&mask);
-        for (int i=lo; i<=hi; ++i) CPU_SET(i,&mask);
-        if (sched_setaffinity(0, sizeof(mask), &mask) == -1) {
-            perror("system error message");
-            std::cout << "ThreadBase: set_affinity: Could not set cpu affinity" << std::endl;
-        }
-        //else {
-        //    printf("managed to set affinity\n");
-        //}
-#endif
-    }
-
-#if defined(HAVE_IBMBGQ) and defined(HPM)
-  void ThreadBase::set_hpm_thread_env(int hpm_thread_id) {
-    if (hpm_thread_id == ThreadBase::hpm_thread_id_all) {
-      ThreadBase::main_instrumented = true;
-      ThreadBase::all_instrumented = true;
-    } else if (hpm_thread_id == ThreadBase::hpm_thread_id_main) {
-      ThreadBase::main_instrumented = true;
-      ThreadBase::all_instrumented = false;
-    } else {
-      ThreadBase::main_instrumented = false;
-      ThreadBase::all_instrumented = false;
-    }
-    ThreadBase::hpm_thread_id = hpm_thread_id;
-  }
-#endif
 
 #ifdef MADNESS_TASK_PROFILING
 
@@ -425,7 +348,7 @@ namespace madness {
 
     void ThreadPool::thread_main(ThreadPoolThread* const thread) {
         PROFILE_MEMBER_FUNC(ThreadPool);
-        thread->set_affinity(2, thread->get_pool_thread_index());
+	binder.bind();
 
 #if !HAVE_PARSEC
 #define MULTITASK

@@ -113,9 +113,9 @@ namespace madness {
         /// @return the projected function
         template<std::size_t KDIM>
         typename std::enable_if<KDIM==2*NDIM, Function<T,KDIM> >::type
-        operator()(const Function<T,KDIM>& f, size_t particle1=-1) const {
+        operator()(const Function<T,KDIM>& f, size_t particle1=size_t(-1)) const {
             Function<T,KDIM> result = FunctionFactory<T,KDIM>(f.world());
-            if (particle1==-1) particle1=particle;
+            if (particle1==size_t(-1)) particle1=particle;
             MADNESS_CHECK_THROW(particle1 == 1 or particle1 == 2, "particle must be 1 or 2");
             for (size_t i = 0; i < mo_ket_.size(); i++) {
                 Function<T,NDIM> tmp1 = mo_ket_[i];

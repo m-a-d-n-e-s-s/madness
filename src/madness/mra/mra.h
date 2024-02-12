@@ -150,7 +150,7 @@ namespace madness {
 
         /// Default constructor makes uninitialized function.  No communication.
 
-        /// An unitialized function can only be assigned to.  Any other operation will throw.
+        /// An uninitialized function can only be assigned to.  Any other operation will throw.
         Function() : impl() {}
 
 
@@ -987,9 +987,10 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             other.verify();
-            MADNESS_ASSERT(impl->get_tree_state() == other.get_impl()->get_tree_state());
+            MADNESS_CHECK_THROW(impl->get_tree_state() == other.get_impl()->get_tree_state(),
+                "gaxpy requires both functions to be in the same tree state");
             bool same_world=this->world().id()==other.world().id();
-            MADNESS_ASSERT(same_world or is_compressed());
+            MADNESS_CHECK(same_world or is_compressed());
 
             if (not same_world) {
                 impl->gaxpy_inplace(alpha,*other.get_impl(),beta,fence);
@@ -1902,6 +1903,18 @@ namespace madness {
         return result;
     }
 
+    /// adds beta*right only left:  alpha*left + beta*right optional fence and no automatic compression
+
+    /// left and right might live in different worlds, the accumulation is non-blocking
+    template <typename L, typename R,std::size_t NDIM>
+    void
+    gaxpy(TENSOR_RESULT_TYPE(L,R) alpha, Function<L,NDIM>& left,
+              TENSOR_RESULT_TYPE(L,R) beta,  const Function<R,NDIM>& right, bool fence=true) {
+        PROFILE_FUNC;
+        Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
+        left.gaxpy(alpha, right, beta, fence);
+    }
+
     /// Returns new function alpha*left + beta*right optional fence and no automatic compression
     template <typename L, typename R,std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
@@ -2082,7 +2095,7 @@ namespace madness {
     	op.reset_timer();
 
 		// will fence here
-        for (int i=0; i<f1.size(); ++i)
+        for (size_t i=0; i<f1.size(); ++i)
             result.get_impl()->recursive_apply(op, f1[i].get_impl().get(),f2[i].get_impl().get(),false);
         world.gop.fence();
 

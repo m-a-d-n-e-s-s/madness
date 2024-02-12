@@ -144,7 +144,7 @@ void TDHF::prepare_calculation() {
     } else {
         std::size_t nmo=get_calc()->aeps.size();
         fmat=Tensor<double>(nmo,nmo);
-        for (int i=0; i<nmo; ++i) fmat(i,i)= get_calc()->aeps(i);
+        for (size_t i=0; i<nmo; ++i) fmat(i,i)= get_calc()->aeps(i);
     }
 
     std::size_t nfrozen=Localizer::determine_frozen_orbitals(fmat);
@@ -302,7 +302,7 @@ std::vector<CC_vecfunction> TDHF::solve_cis() const {
     if (parameters.restart()=="iterate" or parameters.restart()=="no_compute") {
         auto excitations_list=parameters.excitations();
         if (excitations_list.empty()) {
-            for (int i=0; i<parameters.nexcitations(); ++i) excitations_list.push_back(i);
+            for (size_t i=0; i<parameters.nexcitations(); ++i) excitations_list.push_back(i);
         }
         for (auto ex : excitations_list) {
             std::string filename= filename_for_roots(ex);

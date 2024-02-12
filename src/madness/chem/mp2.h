@@ -122,7 +122,7 @@ public:
     void reset_orbitals(const MolecularOrbitals<double,3>& mos) {
         nemo_ptr->get_calc()->amo=mos.get_mos();
         nemo_ptr->get_calc()->aeps=mos.get_eps();
-        MADNESS_CHECK(nemo_ptr->get_calc()->aeps.size()==nemo_ptr->get_calc()->amo.size());
+        MADNESS_CHECK(size_t(nemo_ptr->get_calc()->aeps.size())==nemo_ptr->get_calc()->amo.size());
         orbitals_ = nemo_ptr->R*nemo_ptr->get_calc()->amo;
         R2orbitals_ = nemo_ptr->ncf->square()*nemo_ptr->get_calc()->amo;
     }

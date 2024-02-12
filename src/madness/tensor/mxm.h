@@ -37,6 +37,11 @@
 
 #include <madness/madness_config.h>
 
+// This just to check if config is actually working
+//#ifndef HAVE_MTXMQ
+//#error "MTXMQ missing"
+//#endif
+
 #define HAVE_FAST_BLAS
 #ifdef  HAVE_FAST_BLAS
 //#ifdef HAVE_INTEL_MKL
@@ -262,7 +267,13 @@ namespace madness {
         const T one = 1.0;  // alpha in *gemm
         const T zero = 0.0; // beta  in *gemm
         cblas::gemm(cblas::NoTrans,cblas::Trans,dimj,dimi,dimk,one,b,ldb,a,dimi,zero,c,dimj);
-    }
+    }  
+
+#ifdef HAVE_MTXMQ
+template <>
+void mTxmq(long dimi, long dimj, long dimk, double* MADNESS_RESTRICT c, const double* a, const double* b, long ldb);
+#endif
+
 #endif
     
 #ifdef HAVE_INTEL_MKL
@@ -345,6 +356,11 @@ namespace madness {
         const cT zero = 0.0; // beta  in *gemm
         cblas::gemm(cblas::NoTrans,cblas::Trans,dimj,dimi,dimk,one,b,ldb,a,dimi,zero,c,dimj);
     }
+
+#ifdef HAVE_MTXMQ
+template <>
+void mTxmq(long dimi, long dimj, long dimk, double* MADNESS_RESTRICT c, const double* a, const double* b, long ldb);
+#endif
     
 #else
 

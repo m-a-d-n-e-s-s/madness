@@ -3071,7 +3071,7 @@ CC_vecfunction CCPotentials::make_full_t_intermediate(const CC_vecfunction& tau)
 
     CC_vecfunction result(returntype);
     for (size_t i = 0; i < mo_ket_.size(); i++) {
-        if (i < parameters.freeze()) {
+        if (int(i) < parameters.freeze()) {
             result.insert(i, mo_ket_(i));
         } else {
             CCFunction<double,3> t(mo_ket_(i).function + tau(i).function, i, MIXED);

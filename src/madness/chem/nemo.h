@@ -199,7 +199,7 @@ public:
 	    //double ke3_real=0.0;
 	    //double ke3_imag=0.0;
 
-	    for (int axis = 0; axis < NDIM; axis++) {
+	    for (size_t axis = 0; axis < NDIM; axis++) {
 	        real_derivative_3d D = free_space_derivative<double, NDIM>(world, axis);
 	        const std::vector<Function<T,NDIM> > dnemo = apply(world, D, nemo);
 

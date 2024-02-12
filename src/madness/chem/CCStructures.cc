@@ -534,7 +534,7 @@ MacroTaskMp2ConstantPart::operator() (const std::vector<CCPair>& pair, const std
                                       const std::vector<std::string>& argument) const {
     World& world = mo_ket[0].world();
     resultT result = zero_functions_compressed<double, 6>(world, pair.size());
-    for (int i = 0; i < pair.size(); i++) {
+    for (size_t i = 0; i < pair.size(); i++) {
         result[i] = CCPotentials::make_constant_part_mp2_macrotask(world, pair[i], mo_ket, mo_bra, parameters,
                                                                    Rsquare, U1, argument);
     }
@@ -552,7 +552,7 @@ MacroTaskMp2UpdatePair::operator() (const std::vector<CCPair> &pair,
     World& world = mo_ket[0].world();
     resultT result = zero_functions_compressed<double, 6>(world, pair.size());
 
-    for (int i = 0; i < pair.size(); i++) {
+    for (size_t i = 0; i < pair.size(); i++) {
         //(i, j) -> j*(j+1) + i
         result[i] = CCPotentials::update_pair_mp2_macrotask(world, pair[i], parameters, all_coords_vec, mo_ket,
                                                             mo_bra, U1, U2, mp2_coupling[i]);
