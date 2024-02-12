@@ -397,8 +397,11 @@ double MP2::mp3() const {
         for (int i = param.freeze(); i < hf->nocc(); ++i) {
             for (int j = param.freeze(); j < hf->nocc(); ++j) {
 
-                auto tmp1 = multiply(clusterfunctions(i, j), hf->R2orbital(j), {0, 1, 2});
-                for (auto& t: tmp1) tau_kk_i[i].push_back(t);
+                auto tmp2=multiply(clusterfunctions(i,j),hf->R2orbital(i),{0,1,2});
+                for (auto& t : tmp2) tau_kk_i[j].push_back(t);
+
+                // auto tmp1 = multiply(clusterfunctions(i, j), hf->R2orbital(j), {0, 1, 2});
+                // for (auto& t: tmp1) tau_kk_i[i].push_back(t);
 
                 auto tmp3 = multiply(clusterfunctions(i, j), hf->R2orbital(j), {0, 1, 2});
                 for (auto& t: tmp3) tau_ij_j[i].push_back(t);
@@ -535,7 +538,7 @@ double MP2::mp3() const {
                 term_KLMN += tmp;
             }
         }
-        printf("MP3 energy: term_KLMN (KLMN) %12.8f\n", term_KLMN);
+        printf("MP3 energy: term_KLMN (KLMN), old algorithm %12.8f\n", term_KLMN);
         multiply_KLMN.print("multiplication in KLMN term");
         inner_KLMN.print("inner in KLMN term");
         t2.tag("KLMN term");
