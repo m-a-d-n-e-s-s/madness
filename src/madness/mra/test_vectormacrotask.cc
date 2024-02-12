@@ -59,10 +59,12 @@ public:
     typedef std::tuple<const real_function_3d &, const double &,
             const std::vector<real_function_3d> &> argtupleT;
 
+    // you need to define the result type
+    // resultT must implement gaxpy(alpha, result, beta, contribution)
+    // with resultT result, contribution;
     using resultT = std::vector<real_function_3d>;
 
     // you need to define an empty constructor for the result
-    // resultT must implement operator+=(const resultT&)
     resultT allocator(World &world, const argtupleT &argtuple) const {
         std::size_t n = std::get<2>(argtuple).size();
         resultT result = zero_functions_compressed<double, 3>(world, n);
@@ -81,7 +83,8 @@ public:
 class MicroTask1 : public MacroTaskOperationBase{
 public:
     // you need to define the result type
-    // resultT must implement operator+=(const resultT&)
+    // resultT must implement gaxpy(alpha, result, beta, contribution)
+    // with resultT result, contribution;
     typedef real_function_3d resultT;
 
     // you need to define the exact argument(s) of operator() as tuple
@@ -104,7 +107,8 @@ public:
 class MicroTask2 : public MacroTaskOperationBase{
 public:
     // you need to define the result type
-    // resultT must implement operator+=(const resultT&)
+    // resultT must implement gaxpy(alpha, result, beta, contribution)
+    // with resultT result, contribution;
     typedef std::vector<real_function_3d> resultT;
 
     // you need to define the exact argument(s) of operator() as tuple

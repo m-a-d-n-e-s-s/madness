@@ -1016,9 +1016,10 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             other.verify();
-            MADNESS_ASSERT(impl->get_tree_state() == other.get_impl()->get_tree_state());
+            MADNESS_CHECK_THROW(impl->get_tree_state() == other.get_impl()->get_tree_state(),
+                "gaxpy requires both functions to be in the same tree state");
             bool same_world=this->world().id()==other.world().id();
-            MADNESS_ASSERT(same_world or is_compressed());
+            MADNESS_CHECK(same_world or is_compressed());
 
             if (not same_world) {
                 impl->gaxpy_inplace(alpha,*other.get_impl(),beta,fence);
@@ -1934,6 +1935,18 @@ namespace madness {
         left2.world().gop.fence();
 
         return result;
+    }
+
+    /// adds beta*right only left:  alpha*left + beta*right optional fence and no automatic compression
+
+    /// left and right might live in different worlds, the accumulation is non-blocking
+    template <typename L, typename R,std::size_t NDIM>
+    void
+    gaxpy(TENSOR_RESULT_TYPE(L,R) alpha, Function<L,NDIM>& left,
+              TENSOR_RESULT_TYPE(L,R) beta,  const Function<R,NDIM>& right, bool fence=true) {
+        PROFILE_FUNC;
+        Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
+        left.gaxpy(alpha, right, beta, fence);
     }
 
     /// Returns new function alpha*left + beta*right optional fence and no automatic compression

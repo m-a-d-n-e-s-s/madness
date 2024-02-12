@@ -143,6 +143,7 @@ std::vector<Function<T,NDIM> > projector_irrep::apply_symmetry_operators(
 	world.gop.fence();
 
 	// loop over all requested irreps
+	for (auto& o : opvrhs) change_tree_state(o,compressed);
 	for (size_t j=0; j<all_irreps.size(); ++j) {
 		std::string& irrep=all_irreps[j];
 
