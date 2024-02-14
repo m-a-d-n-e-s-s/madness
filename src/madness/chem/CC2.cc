@@ -10,6 +10,7 @@
 #include<madness/mra/commandlineparser.h>
 #include "MolecularOrbitals.h"
 #include "localizer.h"
+#include <timing_utilities.h>
 
 namespace madness {
 
@@ -363,38 +364,15 @@ Tensor<double> CC2::enforce_core_valence_separation(const Tensor<double>& fmat) 
 
 };
 
-double CC2::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
-
-    print_header2("computing the MP3 correlation energy");
-    print_header3("prepare the cluster function");
+double CC2::compute_mp3_cd(const Pairs<CCPair>& mp2pairs) const {
+    print_header3("compute term_CD of the MP3 energy with R2_bra");
+    // compute the MP3 energy
+    std::size_t nocc=CCOPS.mo_ket().size();
     typedef std::vector<CCPairFunction<double,6>> ClusterFunction;
     Pairs<ClusterFunction> clusterfunctions;
-
-    auto R2 = nemo->ncf->square();
-    auto R = nemo->ncf->function();
-    std::vector<real_function_3d> nemo_orbital=CCOPS.mo_ket().get_vecfunction();
-    std::vector<real_function_3d> R2_orbital=CCOPS.mo_bra().get_vecfunction();
-    const int nocc=CCOPS.mo_ket().size();
-
-
-    double mp3_energy = 0.0;
-    // load converged MP1 wave functions
     for (int i = parameters.freeze(); i < nocc; ++i) {
         for (int j = i; j < nocc; ++j) {
-//            pairs(i, j) = make_pair(i, j);                // initialize
-            ClusterFunction tmp;
-            tmp.push_back(CCPairFunction(mp2pairs(i, j).function()));
-            CCPairFunction ij(nemo->get_calc()->amo[i], nemo->get_calc()->amo[j]);
-
-            CCConvolutionOperator<double,3>::Parameters cparam;
-            cparam.thresh_op *= 0.1;
-            auto f12 = CCConvolutionOperatorPtr<double,3>(world, OpType::OT_F12, cparam);
-            StrongOrthogonalityProjector<double, 3> Q12(world);
-            Q12.set_spaces(R2_orbital, nemo_orbital, R2_orbital, nemo_orbital);
-            auto vfij = Q12(std::vector<CCPairFunction<double,6>>({f12 * ij}));
-            for (auto& p: vfij) tmp.push_back(p);
-
-            clusterfunctions(i, j)=tmp;
+            clusterfunctions(i,j)=mp2pairs(i,j).functions;
             if (i!=j) {
                 for (const auto& t : clusterfunctions(i,j)) {
                     clusterfunctions(j, i).push_back(t.swap_particles());
@@ -402,188 +380,64 @@ double CC2::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
             }
         }
     }
-    Pairs<ClusterFunction> clusterfunctions_R2;
-    for (int i=parameters.freeze(); i<nocc; ++i) {
-        for (int j=i; j<nocc; ++j) {
-            {
-                auto tmp1 = multiply(clusterfunctions(i, j), R2, {0, 1, 2});
-                auto tmp2 = multiply(tmp1, R2, {3, 4, 5});
-                for (auto& t: tmp2) clusterfunctions_R2(i, j).push_back(t);
+    const auto& R2=nemo->R_square;
+    CCConvolutionOperator<double,3>::Parameters cparam;
+    auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,cparam);
+
+    timer t2(world);
+    double result = 0.0;
+    for (int i = parameters.freeze(); i < nocc; ++i) {
+        for (int j = i; j < nocc; ++j) {
+            auto bra = clusterfunctions(i, j);
+            double tmp1 = inner(bra, g12 * clusterfunctions(i, j), R2);
+            double tmp2 = inner(bra, g12 * clusterfunctions(j, i), R2);
+            double fac = (i == j) ? 0.5 : 1.0;
+            double tmp = fac * (4.0 * tmp1 - 2.0 * tmp2);
+            printf("mp3 energy: term_CD %2d %2d: %12.8f\n", i, j, tmp);
+            result+= tmp;
+        }
+    }
+    printf("MP3 energy: term_CD %12.8f\n", result);
+    t2.tag("CD term");
+    return result;
+};
+
+double CC2::compute_mp3_ef(const Pairs<CCPair>& mp2pairs) const {
+
+
+    // prepare cluster functions
+    std::size_t nocc=CCOPS.mo_ket().size();
+    typedef std::vector<CCPairFunction<double,6>> ClusterFunction;
+    Pairs<ClusterFunction> clusterfunctions;
+    for (int i = parameters.freeze(); i < nocc; ++i) {
+        for (int j = i; j < nocc; ++j) {
+            clusterfunctions(i,j)=mp2pairs(i,j).functions;
+            if (i!=j) {
+                for (const auto& t : clusterfunctions(i,j)) {
+                    clusterfunctions(j, i).push_back(t.swap_particles());
+                }
             }
         }
     }
 
-    for (int i = parameters.freeze(); i < nocc; ++i) {
-        for (int j = i; j < nocc; ++j) {
-            print("info of clusterfunction ", i, j);
-            for (auto& c: clusterfunctions(i, j)) c.info();
-        }
-    }
 
-    print_header3("recompute the MP2 energy");
 
+    const auto& R2=nemo->R_square;
+    double result=0.0;
+    const std::vector<real_function_3d>& nemo_orbital=CCOPS.mo_ket().get_vecfunction();
+    const std::vector<real_function_3d>& R2_orbital=CCOPS.mo_bra().get_vecfunction();
 
     CCConvolutionOperator<double,3>::Parameters cparam;
     auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,cparam);
-    timer t2(world, "recompute MP2");
 
-    // recompute MP2 energy
-    double mp2_energy=0.0;
-    for (int i = parameters.freeze(); i < nocc; ++i) {
-        for (int j = i; j < nocc; ++j) {
+    timer t2(world);
 
-            auto bra=CCPairFunction<double,6>(R2_orbital[i],R2_orbital[j]);
-            double direct=inner({bra},g12*clusterfunctions(i,j));
-            double exchange=inner({bra},g12*clusterfunctions(j,i));
-            double fac=(i==j) ? 0.5: 1.0;
-            double pair_energy=fac*(4.0*direct-2.0*exchange);
-            printf("MP2 energy for pair %2d %2d: %12.8f\n",i,j,pair_energy);
-            mp2_energy+=pair_energy;
-        }
-    }
-    printf("total mp2 energy %12.8f\n",mp2_energy);
-    t2.tag("recompute MP2 energy");
-
-    print_header3("compute the MP3 energy");
-
-    // compute the term <i(1) |g(1,2) | j(1)>(2)
-    madness::Pairs<real_function_3d> gij;
-
-    for (int i = parameters.freeze(); i < nocc; ++i) {
-        for (int j = parameters.freeze(); j < nocc; ++j) {
-            gij.insert(i,j,(*g12)(nemo_orbital[i]*R2_orbital[j]));
-        }
-    }
-
-    double term_CD=0.0;
-    double term_GHIJ=0.0;
-    double term_KLMN=0.0;
-    double term_EF=0.0;
-
-    if (1) {
-        print_header3("compute term_CD of the MP3 energy with R2_bra");
-        // compute the MP3 energy
-        if (1) {
-            for (int i = parameters.freeze(); i < nocc; ++i) {
-                for (int j = i; j < nocc; ++j) {
-                    auto bra = clusterfunctions(i, j);
-                    double tmp1 = inner(bra, g12 * clusterfunctions(i, j), R2);
-                    double tmp2 = inner(bra, g12 * clusterfunctions(j, i), R2);
-//                    auto bra = clusterfunctions_R2(i, j);
-//                    double tmp1 = inner(bra, g12 * clusterfunctions(i, j));
-//                    double tmp2 = inner(bra, g12 * clusterfunctions(j, i));
-                    double fac = (i == j) ? 0.5 : 1.0;
-                    double tmp = fac * (4.0 * tmp1 - 2.0 * tmp2);
-                    printf("mp3 energy: term_CD %2d %2d: %12.8f\n", i, j, tmp);
-                    term_CD += tmp;
-                }
-            }
-        }
-        printf("MP3 energy: term_CD %12.8f\n", term_CD);
-        t2.tag("CD term");
-
-
-        // compute intermediates for terms G, I, H, and J
-
-        // note: elements with frozen orbitals are left empty
-        // \sum_j tau_ij(1,2) * phi_j(2)
-        std::vector<ClusterFunction> tau_kk_i(nocc);    // was (nocc - nfrozen)
-        // \sum_j tau_ij(1,2) * phi_j(1)
-        std::vector<ClusterFunction> tau_ij_j(nocc);
-        for (int i = parameters.freeze(); i < nocc; ++i) {
-            for (int j = parameters.freeze(); j < nocc; ++j) {
-
-                auto tmp1 = multiply(clusterfunctions(i, j), R2_orbital[j], {3, 4, 5});
-                for (auto& t: tmp1) tau_kk_i[i].push_back(t);
-
-                auto tmp3 = multiply(clusterfunctions(i, j), R2_orbital[j], {0, 1, 2});
-                for (auto& t: tmp3) tau_ij_j[i].push_back(t);
-            }
-        }
-        print("info on tau_kk_i");
-        for (int i = parameters.freeze(); i < nocc; ++i) {
-            for (auto& c: tau_kk_i[i]) c.info();
-        }
-        print("info on tau_ij_j");
-        for (int i = parameters.freeze(); i < nocc; ++i) {
-            for (auto& c: tau_ij_j[i]) c.info();
-        }
-
-        t2.tag("GHIJ prep");
-
-        // terms G, I, H, J of Bartlett/Silver 1975
-        real_convolution_3d& g = *(g12->get_op());
-        for (int i = parameters.freeze(); i < nocc; ++i) {
-
-            // tmp(1,2) = g(1,1') | tau_ij(1',2) j(2) >
-            timer t4(world, "gtau");
-            g.set_particle(1);
-            auto gtau_same = g(tau_kk_i[i]);
-            t4.tag("compute gtau_same");
-
-            // tmp(1',2) = g(1',1) | tau_ij(1,2) j(1) >
-            g.set_particle(1);
-            auto gtau_other = g(tau_ij_j[i]); // < tau_ij(1,2) j(1) | g(1,1') |
-            t4.tag("compute gtau_other");
-
-
-            auto bra_kk_i = multiply(tau_kk_i[i],R2,{3,4,5});
-            auto bra_ij_j = multiply(tau_ij_j[i],R2,{3,4,5});
-
-            double G = inner(bra_kk_i, gtau_same);
-            printf("G     %12.8f\n", G);
-
-            double H = inner(bra_ij_j, gtau_other);
-            printf("H     %12.8f\n", H);
-
-            double I = inner(bra_kk_i, gtau_other);
-            printf("I     %12.8f\n", I);
-
-            double J = inner(bra_ij_j, gtau_same);
-            printf("J     %12.8f\n", J);
-
-            t4.tag("compute inner products");
-            double tmp = (8.0 * G - 4.0 * I + 2.0 * H - 4.0 * J);
-            printf("mp3 energy: term_GHIJ  %2d %12.8f\n", i, tmp);
-            term_GHIJ += tmp;
-        }
-        printf("MP3 energy: term_GHIJ %12.8f\n", term_GHIJ);
-        t2.tag("GHIJ term");
-
-        for (int i = parameters.freeze(); i < nocc; ++i) {
-            for (int j = parameters.freeze(); j < nocc; ++j) {
-                double tmp = 0.0;
-                for (int k = parameters.freeze(); k < nocc; ++k) {
-
-                    auto tau_ik = clusterfunctions(i, k);
-                    auto tau_kj = clusterfunctions(k, j);
-                    auto tau_ij = clusterfunctions(i, j);
-                    auto tau_ji = clusterfunctions(j, i);
-                    auto tau_ik_gkj = multiply(tau_ik, gij(k, j), {3, 4, 5});
-                    auto tau_kj_gki = multiply(tau_kj, gij(k, i), {3, 4, 5});
-//                auto tau_ik_gkj = multiply(tau_ik,gij(k,j),{0,1,2});
-//                auto tau_kj_gki = multiply(tau_kj,gij(k,i),{0,1,2});
-
-                    double K = inner(tau_ij, tau_ik_gkj, R2);
-                    double L = inner(tau_ij, tau_kj_gki, R2);
-                    double M = inner(tau_ji, tau_kj_gki, R2);
-                    double N = inner(tau_ji, tau_ik_gkj, R2);
-
-                    tmp += -4 * K - 4 * L + 2 * M + 2 * N;
-                }
-                printf("mp3 energy: term_KLMN with particle=1 %2d %2d %12.8f\n", i, j, tmp);
-                term_KLMN += tmp;
-            }
-        }
-        printf("MP3 energy: term_KLMN (KLMN) %12.8f\n", term_KLMN);
-        t2.tag("KLMN term");
-    }
 
     print_header3("computing term EF of the MP3 energy with R2_bra");
     for (int i = parameters.freeze(); i < nocc; ++i) {
         for (int j = parameters.freeze(); j < nocc; ++j) {
             double tmp=0.0;
-            for (int k=parameters.freeze(); k<nocc; ++k) {
+            for (int k=parameters.freeze(); k< nocc; ++k) {
                 for (int l=parameters.freeze(); l<nocc; ++l) {
                     auto bra_ik = clusterfunctions(i,k);
                     auto bra_ki = clusterfunctions(k,i);
@@ -600,21 +454,45 @@ double CC2::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
                 }
             }
             printf("mp3 energy: term_EF %2d %2d %12.8f\n",i,j,tmp);
-            term_EF+=tmp;
+            result+=tmp;
         }
     }
-    printf("MP3 energy: term_EF %12.8f\n",term_EF);
+    printf("MP3 energy: term_EF %12.8f\n",result);
     t2.tag("EF term");
+    return result;
+};
 
-    printf("term_CD    %12.8f\n",term_CD);
-    printf("term_GHIJ  %12.8f\n",term_GHIJ);
-    printf("term_KLMN  %12.8f\n",term_KLMN);
-    printf("term_EF    %12.8f\n",term_EF);
-    mp3_energy=term_CD+term_GHIJ+term_KLMN+term_EF;
-    printf("MP3 energy contribution  %12.8f\n",mp3_energy);
+double CC2::compute_mp3_ghij(const Pairs<CCPair>& mp2pairs) const {
 
+    double result=0.0;
+    return result;
+};
+double CC2::compute_mp3_klmn(const Pairs<CCPair>& mp2pairs) const {
+    double result=0.0;
+    return result;
 
-    return mp3_energy;
+};
+
+double CC2::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
+
+//    print_header2("computing the MP3 correlation energy");
+//    print_header3("prepare the cluster function");
+//    typedef std::vector<CCPairFunction<double,6>> ClusterFunction;
+//    Pairs<ClusterFunction> clusterfunctions;
+//
+//    auto R2 = nemo->ncf->square();
+//    auto R = nemo->ncf->function();
+//    std::vector<real_function_3d> nemo_orbital=CCOPS.mo_ket().get_vecfunction();
+//    std::vector<real_function_3d> R2_orbital=CCOPS.mo_bra().get_vecfunction();
+//    const int nocc=CCOPS.mo_ket().size();
+
+    double result=0.0;
+    result+=compute_mp3_cd(mp2pairs);
+    result+=compute_mp3_ef(mp2pairs);
+    result+=compute_mp3_ghij(mp2pairs);
+    result+=compute_mp3_klmn(mp2pairs);
+
+    return result;
 }
 
 
