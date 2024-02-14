@@ -434,12 +434,15 @@ private:
             resultT result = get_output(subworld, cloud, argtuple);       // lives in the universe
             if constexpr (is_madness_function<resultT>::value) {
                 result_tmp.compress();
+                gaxpy(1.0,result,1.0, result_tmp);
                 result += result_tmp;
             } else if constexpr(is_madness_function_vector<resultT>::value) {
                 compress(subworld, result_tmp);
                 resultT tmp1=task.allocator(subworld,argtuple);
                 tmp1=task.batch.template insert_result_batch(tmp1,result_tmp);
-                result += tmp1;
+            	gaxpy(1.0,result,1.0,tmp1,false);
+            	// was using operator+=, but this requires a fence, which is not allowed here..
+                // result += tmp1;
             } else {
                 MADNESS_EXCEPTION("failing result",1);
             }

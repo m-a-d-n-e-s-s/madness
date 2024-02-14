@@ -1358,6 +1358,15 @@ namespace madness {
         return result;
     }
 
+
+    /// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] + beta*b[i]
+    template <typename T, typename Q, typename R, std::size_t NDIM>
+	void gaxpy(Q alpha, std::vector<Function<T,NDIM>>& a, Q beta, const std::vector<Function<R,NDIM>>& b, const bool fence) {
+	    if (a.size() == 0) return;
+    	World& world=a.front().world();
+    	gaxpy(world,alpha,a,beta,b,fence);
+    }
+
     /// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] + beta*b[i]
     template <typename T, typename Q, typename R, std::size_t NDIM>
     void gaxpy(World& world,
@@ -1368,8 +1377,12 @@ namespace madness {
                bool fence=true) {
         PROFILE_BLOCK(Vgaxpy);
         MADNESS_ASSERT(a.size() == b.size());
-        compress(world, a);
-        compress(world, b);
+    	if (fence) {
+			compress(a.front().world(), a);
+			compress(b.front().world(), b);
+    	}
+    	for (const auto& aa : a) MADNESS_CHECK_THROW(aa.is_compressed(),"vector-gaxpy requires compressed functions");
+    	for (const auto& bb : b) MADNESS_CHECK_THROW(bb.is_compressed(),"vector-gaxpy requires compressed functions");
 
         for (unsigned int i=0; i<a.size(); ++i) {
             a[i].gaxpy(alpha, b[i], beta, false);
@@ -1554,7 +1567,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator+(const std::vector<Function<T,NDIM> >& lhs,
             const Function<T,NDIM>& rhs) {
-        MADNESS_CHECK(lhs.size() == rhs.size());
+        // MADNESS_CHECK(lhs.size() == rhs.size()); // no!!
         return gaxpy_oop(1.0,lhs,1.0,rhs);
     }
 
@@ -1562,7 +1575,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator-(const std::vector<Function<T,NDIM> >& lhs,
             const Function<T,NDIM>& rhs) {
-        MADNESS_CHECK(lhs.size() == rhs.size());
+        // MADNESS_CHECK(lhs.size() == rhs.size());  // no
         return gaxpy_oop(1.0,lhs,-1.0,rhs);
     }
 
@@ -1570,7 +1583,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator+(const Function<T,NDIM>& lhs,
             const std::vector<Function<T,NDIM> >& rhs) {
-        MADNESS_CHECK(lhs.size() == rhs.size());
+        // MADNESS_CHECK(lhs.size() == rhs.size());   // no
         return gaxpy_oop(1.0,rhs,1.0,lhs);
     }
 
@@ -1578,7 +1591,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator-(const Function<T,NDIM>& lhs,
             const std::vector<Function<T,NDIM> >& rhs) {
-        MADNESS_CHECK(lhs.size() == rhs.size());
+//         MADNESS_CHECK(lhs.size() == rhs.size());  // no
         return gaxpy_oop(-1.0,rhs,1.0,lhs);
     }
 

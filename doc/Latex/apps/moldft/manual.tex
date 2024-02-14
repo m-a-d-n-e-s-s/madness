@@ -189,7 +189,8 @@ quadrature weights).  This is usually not needed unless you have moved
 the build/installation directory.
 
 \verb+MAD_BUFFER_SIZE+ --- Sets the buffer size (in bytes) used by the
-active messages (default is 1.5MBytes).  Never needed by moldft?
+active messages; an integer, with optional units (1KB = 1024, 1MB = 1024^2, etc.); default is 1536KB.
+Never needed by moldft?
 
 \verb+MAD_RECV_BUFFERS+ --- Sets the number of receive buffers used by
 the communication thread (default is 128 and a minimum of 32 is
