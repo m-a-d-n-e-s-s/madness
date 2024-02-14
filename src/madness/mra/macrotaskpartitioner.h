@@ -229,7 +229,7 @@ public:
 
         constexpr std::size_t I1 = get_index_of_first_vector_argument<tupleT, 0>();
         constexpr std::size_t I2 = get_index_of_second_vector_argument<tupleT, 1>();
-        std::size_t vsize1,vsize2;
+        std::size_t vsize1=0,vsize2=0;
         if constexpr (I2 < std::tuple_size_v<tupleT>) {     // found at least 2 vectors of madness functions
             constexpr std::size_t I2 = get_index_of_second_vector_argument<tupleT, 0>();
             vsize2 = std::get<I2>(argtuple).size();
