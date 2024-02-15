@@ -12,6 +12,7 @@
 #include<madness/chem/SCF.h>
 #include<madness/chem/nemo.h>
 #include<madness/chem/CCPotentials.h>
+#include<madness/chem/mp3.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/vmra.h>
@@ -131,12 +132,6 @@ public:
     /// solve the CC2 ground state equations, returns the correlation energy
     void solve();
 
-    double compute_mp3_cd(const Pairs<CCPair>& mp2pairs) const;
-    double compute_mp3_ef(const Pairs<CCPair>& mp2pairs) const;
-    double compute_mp3_ef_with_permutational_symmetry(const Pairs<CCPair>& mp2pairs) const;
-    double compute_mp3_ghij(const Pairs<CCPair>& mp2pairs) const;
-    double compute_mp3_klmn(const Pairs<CCPair>& mp2pairs) const;
-    double mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const;
 
     std::vector<CC_vecfunction>
     solve_ccs();
@@ -144,6 +139,12 @@ public:
     /// solve the MP2 equations (uncoupled -> Canonical Orbitals)
     double
     solve_mp2(Pairs<CCPair>& doubles);
+
+    double compute_mp3(const Pairs<CCPair>& mp2pairs) const {
+        MP3 mp3(CCOPS);
+        double mp3_contribution=mp3.mp3_energy_contribution(mp2pairs);
+        return mp3_contribution;
+    }
 
     double
     solve_cc2(CC_vecfunction& tau, Pairs<CCPair>& u);

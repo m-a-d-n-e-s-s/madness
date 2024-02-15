@@ -813,7 +813,7 @@ public:
         }
     }
 
-private:
+protected:
     // member variables
     /// MPI World
     World& world;
