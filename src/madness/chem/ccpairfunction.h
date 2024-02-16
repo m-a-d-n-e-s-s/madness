@@ -880,6 +880,13 @@ std::vector<CCPairFunction<T,NDIM> >& operator+=(std::vector<CCPairFunction<T,ND
     return rhs;
 }
 
+template <typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM> > operator*(const double fac, const std::vector<CCPairFunction<T,NDIM> >& arg) {
+    std::vector<CCPairFunction<T,NDIM>> result;
+    for (const auto& l : arg) result.push_back(fac*l);
+    return result;
+}
+
 
 template<typename T, std::size_t NDIM>
 bool is_collected(const std::vector<CCPairFunction<T,NDIM>>& other) {

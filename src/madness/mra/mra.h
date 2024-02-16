@@ -795,8 +795,10 @@ namespace madness {
         void sum_down(bool fence = true) const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
-            MADNESS_ASSERT(is_reconstructed());
+            MADNESS_CHECK_THROW(impl->get_tree_state()==redundant_after_merge, "sum_down requires a redundant_after_merge state");
             const_cast<Function<T,NDIM>*>(this)->impl->sum_down(fence);
+            const_cast<Function<T,NDIM>*>(this)->impl->set_tree_state(reconstructed);
+
             if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
         }
 
@@ -2240,6 +2242,7 @@ namespace madness {
 
         result.set_impl(ff, false);
         result.get_impl()->apply_1d_realspace_push(op, ff.get_impl().get(), axis, fence);
+        result.get_impl()->set_tree_state(redundant_after_merge);
         return result;
     }
 

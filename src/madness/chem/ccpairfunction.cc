@@ -139,8 +139,11 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::collect_same_types(c
         if (op_pure[opint].size()>0) {
             auto op=ops[opint];
             if (op_pure[opint].size()>1) {
-                Function<T,NDIM> tmp=CompositeFactory<T,NDIM,LDIM>(world).ket(op_pure[opint]);
-                tmp.fill_tree();
+                // Function<T,NDIM> tmp=CompositeFactory<T,NDIM,LDIM>(world).ket(op_pure[opint]);
+                // tmp.fill_tree();
+                Tensor<double> c(1,op_pure[opint].size());
+                c=1.0;
+                Function<T,NDIM> tmp=transform_reconstructed(world, op_pure[opint],c,true)[0];
                 result.push_back(CCPairFunction<T,NDIM>(op,tmp));
             } else {
                 MADNESS_CHECK_THROW(op_pure[opint].size()==1,"op_pure[opint].size()!=1");

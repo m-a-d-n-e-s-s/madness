@@ -31,6 +31,7 @@ public:
     double compute_mp3_ef_with_permutational_symmetry(const Pairs<CCPair>& mp2pairs) const;
     double compute_mp3_ghij(const Pairs<CCPair>& mp2pairs) const;
     double compute_mp3_klmn(const Pairs<CCPair>& mp2pairs) const;
+    double compute_mp3_klmn_fast(const Pairs<CCPair>& mp2pairs) const;
     double mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const;
 
 };

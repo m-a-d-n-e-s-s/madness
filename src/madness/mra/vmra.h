@@ -710,6 +710,45 @@ namespace madness {
         return vc;
     }
 
+    /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
+
+    /// all trees are in reconstructed state, final trees have to be summed down if no fence is present
+    template <typename T, typename R, std::size_t NDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> >
+    transform_reconstructed(World& world,
+              const std::vector< Function<T,NDIM> >& v,
+              const Tensor<R>& c,
+              bool fence=true) {
+
+        PROFILE_BLOCK(Vtransformsp);
+        typedef TENSOR_RESULT_TYPE(T,R) resultT;
+        int n = v.size();  // n is the old dimension
+        int m = c.dim(1);  // m is the new dimension
+        MADNESS_ASSERT(n==c.dim(0));
+
+        // if we fence set the right tree state here, otherwise it has to be correct from the start.
+        if (fence) change_tree_state(v,reconstructed);
+        for (const auto& vv : v) MADNESS_CHECK_THROW(
+            vv.get_impl()->get_tree_state()==reconstructed,"trees have to be reconstructed in transform_reconstructed");
+
+        std::vector< Function<resultT,NDIM> > vc = zero_functions<resultT,NDIM>(world, m);
+
+        for (int i=0; i<m; ++i) {
+            vc[i].get_impl()->set_tree_state(redundant_after_merge);
+            for (int j=0; j<n; ++j) {
+                if (c(j,i) != R(0.0)) vc[i].get_impl()->merge_trees(resultT(1.0),*v[j].get_impl(),resultT(c(j,i)),false);
+            }
+        }
+
+        // if we fence we can as well finish the job here. Otherwise no harm done, as the tree state is well-defined.
+        if (fence) {
+            world.gop.fence();
+            for (auto& r : vc) r.sum_down(false);
+            world.gop.fence();
+        }
+        return vc;
+    }
+
     /// this version of transform uses Function::vtransform and screens
     /// using both elements of `c` and `v`
     template <typename L, typename R, std::size_t NDIM>

@@ -348,8 +348,77 @@ double MP3::compute_mp3_ghij(const Pairs<CCPair>& mp2pairs) const {
     return result;
 };
 
-double MP3::compute_mp3_klmn(const Pairs<CCPair>& mp2pairs) const {
+double MP3::compute_mp3_klmn_fast(const Pairs<CCPair>& mp2pairs) const {
 
+    // prepare cluster functions
+    std::size_t nocc=mo_ket().size();
+    typedef std::vector<CCPairFunction<double,6>> ClusterFunction;
+    Pairs<ClusterFunction> clusterfunctions;
+    for (int i = parameters.freeze(); i < nocc; ++i) {
+        for (int j = i; j < nocc; ++j) {
+            clusterfunctions(i,j)=mp2pairs(i,j).functions;
+            if (i!=j) {
+                for (const auto& t : clusterfunctions(i,j)) {
+                    clusterfunctions(j, i).push_back(t.swap_particles());
+                }
+            }
+        }
+    }
+    double result=0.0;
+
+    const auto& R2=nemo_->R_square;
+    const std::vector<real_function_3d>& nemo_orbital=mo_ket().get_vecfunction();
+    const std::vector<real_function_3d>& R2_orbital=mo_bra().get_vecfunction();
+
+    CCConvolutionOperator<double,3>::Parameters cparam;
+    auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,cparam);
+
+    // compute the term <i(1) |g(1,2) | j(1)>(2)
+    madness::Pairs<real_function_3d> gij;
+
+    for (int i = parameters.freeze(); i < nocc; ++i) {
+        for (int j = parameters.freeze(); j < nocc; ++j) {
+            gij.insert(i,j,(*g12)(nemo_orbital[i]*R2_orbital[j]));
+        }
+    }
+
+
+    timer multiply_KLMN(world, "multiplication in KLMN term");
+    multiply_KLMN.interrupt();
+    timer inner_KLMN(world, "inner in KLMN term");
+    inner_KLMN.interrupt();
+    // prepare intermediates for terms K, L, M, N of Bartlett/Silver 1975
+    // tau_g_ij(1,2) = \sum_k tau_ik(1,1') g_jk(2)
+    Pairs<ClusterFunction> tau_ik_g_kj, tau_kj_g_ki;
+    for (int i = parameters.freeze(); i < nocc; ++i) {
+        for (int j = parameters.freeze(); j < nocc; ++j) {
+            multiply_KLMN.resume();
+            std::vector<CCPairFunction<double, 6>> rhs;
+            for (int k = parameters.freeze(); k < nocc; ++k) {
+                rhs +=  4.0 * multiply(clusterfunctions(i, k), gij(k, j), {3, 4, 5});   // K
+                rhs +=  4.0 * multiply(clusterfunctions(k, j), gij(k, i), {3, 4, 5});   // L
+                rhs += -2.0 * multiply(clusterfunctions(j, k), gij(k, i), {0, 1, 2});   // M
+                rhs += -2.0 * multiply(clusterfunctions(k, i), gij(k, j), {0, 1, 2});    //  N
+            }
+            rhs = consolidate(rhs, {});
+            multiply_KLMN.interrupt();
+
+            inner_KLMN.resume();
+            double tmp = inner(clusterfunctions(i, j), rhs, R2);
+            inner_KLMN.interrupt();
+
+            printf("mp3 energy: term_KLMN with particle=1 %2d %2d %12.8f\n", i, j, tmp);
+            result += tmp;
+        }
+    }
+    printf("MP3 energy: term_KLMN (KLMN) %12.8f\n", result);
+    multiply_KLMN.print("multiplication in KLMN term");
+    inner_KLMN.print("inner in KLMN term");
+
+    return result;
+
+};
+double MP3::compute_mp3_klmn(const Pairs<CCPair>& mp2pairs) const {
 
     // prepare cluster functions
     std::size_t nocc=mo_ket().size();
@@ -441,12 +510,14 @@ double MP3::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
 
     double term_CD=0.0, term_EF=0.0, term_GHIJ=0.0, term_KLMN=0.0;
     timer t2(world);
-    term_CD=compute_mp3_cd(mp2pairs);
+    // term_CD=compute_mp3_cd(mp2pairs);
     t2.tag("CD term");
-    term_EF=compute_mp3_ef_with_permutational_symmetry(mp2pairs);
+    // term_EF=compute_mp3_ef_with_permutational_symmetry(mp2pairs);
     t2.tag("EF term");
-    term_GHIJ=compute_mp3_ghij(mp2pairs);
+    // term_GHIJ=compute_mp3_ghij(mp2pairs);
     t2.tag("GHIJ term");
+    term_KLMN=compute_mp3_klmn_fast(mp2pairs);
+    t2.tag("KLMN term fast");
     term_KLMN=compute_mp3_klmn(mp2pairs);
     t2.tag("KLMN term");
 
