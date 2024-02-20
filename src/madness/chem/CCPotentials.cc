@@ -679,28 +679,6 @@ CCPotentials::fock_residue_6d_macrotask(World& world, const CCPair& u, const CCP
 }
 
 madness::real_function_6d
-CCPotentials::make_constant_part_mp2(const CCFunction<double,3>& ti, const CCFunction<double,3>& tj,
-                                     const real_convolution_6d *Gscreen) const {
-    output.section("Calculating Constant Part of MP2 pair " + ti.name() + tj.name());
-    CCTimer time(world, "Calculating Constant Part of MP2");
-    MADNESS_ASSERT(ti.type == HOLE);
-    MADNESS_ASSERT(tj.type == HOLE);
-    real_function_6d V = apply_Vreg(ti, tj, Gscreen);
-    print_size(V, "Vreg", parameters.debug());
-    V = apply_Q12t(V, mo_ket_);
-    print_size(V, "QVreg");
-    real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * get_epsilon(ti.i, tj.i)), parameters.lo(),
-                                           parameters.thresh_bsh_6D());
-    G.destructive() = true;
-    real_function_6d GV = -2.0 * G(V);
-    print_size(GV, "GVreg", parameters.debug());
-    GV = apply_Q12t(GV, mo_ket_);
-    print_size(GV, "GVreg");
-    time.info();
-    return GV;
-}
-
-madness::real_function_6d
 CCPotentials::make_constant_part_mp2_macrotask(World& world, const CCPair& pair,
                                                const std::vector<real_function_3d>& mo_ket,
                                                const std::vector<real_function_3d>& mo_bra,

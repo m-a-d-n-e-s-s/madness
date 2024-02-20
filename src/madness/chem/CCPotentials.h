@@ -259,14 +259,6 @@ public:
                               const std::vector<real_function_3d>& U1,
                               const real_function_3d& U2);
 
-    /// Function evaluates the consant part of the ground state for MP2
-    /// @param[out]The result is \f$ Q12(G(Q12(Vreg|titj>))) \f$
-    /// @param[in] ti, first particle -> should be HOLE state
-    /// @param[in] tj, second particle -> should be HOLE state
-    /// @param[in] Gscreen pointer to bsh operator (in order to screen), has to be in modified NS form
-    real_function_6d
-    make_constant_part_mp2(const CCFunction<double,3>& ti, const CCFunction<double,3>& tj, const real_convolution_6d *Gscreen = NULL) const;
-
     /// Static version of make_constant_part_mp2 to be called from macrotask.
     static madness::real_function_6d
     make_constant_part_mp2_macrotask(World& world, const CCPair& pair, const std::vector<real_function_3d>& mo_ket,
