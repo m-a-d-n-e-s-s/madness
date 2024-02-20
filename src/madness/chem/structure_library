@@ -301,7 +301,7 @@ end
 
 structure=water2
 geometry 
-units angs
+units angstrom
              h       -1.958940   -0.032063    0.725554
              h       -0.607485    0.010955    0.056172
              o       -1.538963    0.004548   -0.117331
@@ -312,7 +312,7 @@ end
 
 structure=water3
 geometry 
-units angs
+units angstrom
        o          -0.167787    1.645761    0.108747
        h           0.613411    1.102620    0.113724
        h          -0.093821    2.209720   -0.643619
@@ -326,7 +326,7 @@ end
 
 structure=water4
 geometry 
-units angs
+units angstrom
     o       0.216486   -1.989005    0.035297
     h       -0.603911   -1.505274   -0.033552
     h        0.138672   -2.535875    0.799566
@@ -344,7 +344,7 @@ end
 
 structure=water5
 geometry 
-units angs
+units angstrom
           o       -0.571270    2.322980   -0.003174
           o        2.038411    1.261129   -0.102281
           o        1.831197   -1.536089    0.156570
