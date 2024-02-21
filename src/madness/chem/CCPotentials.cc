@@ -315,7 +315,8 @@ CCPotentials::compute_pair_correlation_energy(const CCPair& u, const CC_vecfunct
     MADNESS_ASSERT(u.type == GROUND_STATE);
     if (singles.functions.empty()) MADNESS_ASSERT(u.ctype == CT_MP2);
 
-    output("Compute pair-correlation energy of pair " + u.name());
+    const bool print_details=(world.rank()==0 and parameters.debug());
+    if (parameters.debug()) output("Compute pair-correlation energy of pair " + u.name());
     double result = 0.0;
     const CCFunction<double,3>& mobi = mo_bra_(u.i);
     const CCFunction<double,3>& mobj = mo_bra_(u.j);
@@ -332,7 +333,7 @@ CCPotentials::compute_pair_correlation_energy(const CCPair& u, const CC_vecfunct
             tmp = 2.0 * (2.0 * part1 - part2);     // non symmetric pairs -> offdiagonal -> count twice
         }
         result += tmp;
-        if (world.rank() == 0)
+        if (print_details)
             std::cout << std::setfill(' ') << std::setw(15) << "from " + u.functions[mm].name() + "="
                       << std::setfill(' ') << std::fixed << std::setprecision(10) << tmp << "\n";
     }
@@ -340,15 +341,15 @@ CCPotentials::compute_pair_correlation_energy(const CCPair& u, const CC_vecfunct
         MADNESS_ASSERT(singles.type == PARTICLE);
         const double omega_s = 2.0 * mobi.inner((*g12)(mobj, singles(u.j)) * singles(u.i).function) -
                                mobi.inner((*g12)(mobj, singles(u.i)) * singles(u.j).function);
-        if (world.rank() == 0)
+        if (print_details)
             std::cout << std::setw(15) << "from singles=" << std::setfill(' ') << std::fixed << std::setprecision(10)
                       << omega_s << "\n\n";
 
         result += omega_s;
     }
-    if (world.rank() == 0) std::cout << "------------\n" << std::fixed << std::setprecision(10) << result << "\n\n";
+    // if (world.rank() == 0) std::cout << "------------\n" << std::fixed << std::setprecision(10) << result << "\n\n";
 
-    timer.info();
+    timer.info(parameters.debug());
     return result;
 }
 
@@ -705,7 +706,7 @@ CCPotentials::make_constant_part_mp2_macrotask(World& world, const CCPair& pair,
                                                  parameters.lo(), parameters.thresh_bsh_6D());
     Gscreen.modified() = true;
 
-    print("Calculating Constant Part of MP2 pair " + i_name + j_name);
+    print("\nCalculating Constant Part of MP2 pair " + i_name + j_name);
     CCTimer time(world, "Calculating Constant Part of MP2");
     MADNESS_ASSERT(i_type == HOLE);
     MADNESS_ASSERT(j_type == HOLE);
@@ -1447,7 +1448,7 @@ CCPotentials::apply_Vreg_macrotask(World& world, const std::vector<real_function
     const std::string x_name = "phi" + stringify(i);
     const std::string y_name = "phi" + stringify(j);
 
-    print("Applying Vreg to |" + x_name + y_name + ">\n");
+    // print("Applying Vreg to |" + x_name + y_name + ">\n");
     CCTimer timer(world, "Vreg|" + x_name + y_name + ">");
     //CCTimer time_f(world, "F-Part");
     //const real_function_6d F_part = apply_reduced_F(ti, tj, Gscreen);
@@ -1601,7 +1602,7 @@ CCPotentials::apply_transformed_Ue_macrotask(World& world, const std::vector<rea
     const std::string x_name = "phi" + stringify(i);
     const std::string y_name = "phi" + stringify(j);
 
-    if (parameters.debug()) print("\nComputing Ue|" + x_name + y_name + ">\n");
+    if (parameters.debug()) print("Computing Ue|" + x_name + y_name + ">");
 
     real_function_3d x_function=mo_ket[i];
     real_function_3d y_function=mo_ket[j];

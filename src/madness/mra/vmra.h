@@ -724,7 +724,7 @@ namespace madness {
         typedef TENSOR_RESULT_TYPE(T,R) resultT;
         int n = v.size();  // n is the old dimension
         int m = c.dim(1);  // m is the new dimension
-        MADNESS_ASSERT(n==c.dim(0));
+        MADNESS_CHECK(n==c.dim(0));
 
         // if we fence set the right tree state here, otherwise it has to be correct from the start.
         if (fence) change_tree_state(v,reconstructed);

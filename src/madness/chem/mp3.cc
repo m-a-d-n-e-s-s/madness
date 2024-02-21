@@ -216,8 +216,6 @@ double MP3::compute_mp3_ef_with_permutational_symmetry(const Pairs<CCPair>& mp2p
                 for (const auto& p:perms) all_tau_permutations.push_back(p);
                 const double weight=perms.size();
 
-                print("ij, i, j, k, l",ij," -- ", i,j,k,l," - ",perms.size(),perms);
-
                 // terms C+D = <tau_ij | tau_kl> (2*<ij|g|kl> - <ji|g|kl>)
                 //           = <tau_ij | tau_kl> (2*(ik|jl) - (jk|il))
                 double ovlp=inner(clusterfunctions(i,j),clusterfunctions(k,l),R2);
@@ -246,6 +244,72 @@ double MP3::compute_mp3_ef_with_permutational_symmetry(const Pairs<CCPair>& mp2p
     printf("MP3 energy: term_EF %12.8f\n",result);
     return result;
 };
+
+double MP3::compute_mp3_ef_low_scaling(const Pairs<CCPair>& mp2pairs,
+    const Pairs<std::vector<CCPairFunction<double,6>>> clusterfunctions) const {
+
+    print_header3("computing term EF of the MP3 energy with R2_bra, low-scaling version");
+
+    std::size_t nocc=mo_ket().size();
+    std::size_t nfrozen=parameters.freeze();
+
+    const auto& R2=nemo_->R_square;
+    double result=0.0;
+    const std::vector<real_function_3d>& nemo_orbital=mo_ket().get_vecfunction();
+    const std::vector<real_function_3d>& R2_orbital=mo_bra().get_vecfunction();
+
+    CCConvolutionOperator<double,3>::Parameters cparam;
+    auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,cparam);
+
+    // number of pairs
+    auto npair = [&nocc, &nfrozen]() { return (nocc - nfrozen) * (nocc - nfrozen + 1) / 2; };
+
+    // turn composite index ij into i and j, taking care of frozen orbitals
+    PairVectorMap map=PairVectorMap::triangular_map(nfrozen,nocc);
+    auto ij_to_i_and_j = [&map](const int ij) { return map.map[ij]; };
+
+    timer timer_sum(world);
+    timer_sum.interrupt();
+    timer timer_inner(world);
+    timer_inner.interrupt();
+
+    /// <ij | kl >  = (ik | jl)
+    std::vector<permutation> all_tau_permutations;
+    // loop over unique pairs (ij)
+    for (int i=nfrozen; i<nocc; ++i) {
+        for (int j=nfrozen; j<nocc; ++j) {
+            timer_sum.resume();
+            std::vector<CCPairFunction<double,6>> sigma;
+            for (int k=nfrozen; k<nocc; ++k) {
+                for (int l=nfrozen; l<nocc; ++l) {
+                    const auto& ket_i=nemo_orbital[i];
+                    const auto& ket_k=nemo_orbital[k];
+                    const auto& ket_l=nemo_orbital[l];
+                    const auto& bra_i=R2_orbital[i];
+                    const auto& bra_j=R2_orbital[j];
+                    const auto& bra_l=R2_orbital[l];
+                    double g_ikjl=inner(bra_i*ket_k, (*g12)(bra_j*ket_l));
+                    double g_jkil=inner(bra_j*ket_k, (*g12)(bra_l*ket_i));
+                    double g_ijkl=(2.0* g_ikjl - g_jkil);
+                    sigma+=g_ijkl*clusterfunctions(k,l);
+                }
+            }
+            sigma=consolidate(sigma,{});
+            timer_sum.interrupt();
+            timer_inner.resume();
+            double tmp=inner(clusterfunctions(i,j),sigma,R2);
+            printf("mp3 energy: term_EF %2d %2d %12.8f\n",i,j,tmp);
+            result+=tmp;
+            timer_inner.interrupt();
+        }
+    }
+
+    timer_sum.print("summation/consolidation in EF term");
+    timer_inner.print("inner in EF term");
+    printf("MP3 energy: term_EF %12.8f\n",result);
+    return result;
+
+}
 
 
 double MP3::compute_mp3_ghij(const Pairs<CCPair>& mp2pairs) const {
@@ -395,10 +459,10 @@ double MP3::compute_mp3_klmn_fast(const Pairs<CCPair>& mp2pairs) const {
             multiply_KLMN.resume();
             std::vector<CCPairFunction<double, 6>> rhs;
             for (int k = parameters.freeze(); k < nocc; ++k) {
-                rhs +=  4.0 * multiply(clusterfunctions(i, k), gij(k, j), {3, 4, 5});   // K
-                rhs +=  4.0 * multiply(clusterfunctions(k, j), gij(k, i), {3, 4, 5});   // L
-                rhs += -2.0 * multiply(clusterfunctions(j, k), gij(k, i), {0, 1, 2});   // M
-                rhs += -2.0 * multiply(clusterfunctions(k, i), gij(k, j), {0, 1, 2});    //  N
+                rhs += +2.0 * multiply(clusterfunctions(j, k), gij(k, i), {0, 1, 2});   // M
+                rhs += +2.0 * multiply(clusterfunctions(k, i), gij(k, j), {0, 1, 2});    //  N
+                rhs += -4.0 * multiply(clusterfunctions(i, k), gij(k, j), {3, 4, 5});   // K
+                rhs += -4.0 * multiply(clusterfunctions(k, j), gij(k, i), {3, 4, 5});   // L
             }
             rhs = consolidate(rhs, {});
             multiply_KLMN.interrupt();
@@ -508,18 +572,33 @@ double MP3::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
     //    std::vector<real_function_3d> R2_orbital=mo_bra().get_vecfunction();
     //    const int nocc=mo_ket().size();
 
+    std::size_t nocc=mo_ket().size();
+    typedef std::vector<CCPairFunction<double,6>> ClusterFunction;
+    Pairs<ClusterFunction> clusterfunctions;
+    for (int i = parameters.freeze(); i < nocc; ++i) {
+        for (int j = i; j < nocc; ++j) {
+            clusterfunctions(i,j)=mp2pairs(i,j).functions;
+            if (i!=j) {
+                for (const auto& t : clusterfunctions(i,j)) {
+                    clusterfunctions(j, i).push_back(t.swap_particles());
+                }
+            }
+        }
+    }
+
     double term_CD=0.0, term_EF=0.0, term_GHIJ=0.0, term_KLMN=0.0;
     timer t2(world);
-    // term_CD=compute_mp3_cd(mp2pairs);
-    t2.tag("CD term");
     // term_EF=compute_mp3_ef_with_permutational_symmetry(mp2pairs);
-    t2.tag("EF term");
-    // term_GHIJ=compute_mp3_ghij(mp2pairs);
+    term_EF=compute_mp3_ef_low_scaling(mp2pairs,clusterfunctions);
+    t2.tag("EF term, low scaling");
+    term_CD=compute_mp3_cd(mp2pairs);
+    t2.tag("CD term");
+    term_GHIJ=compute_mp3_ghij(mp2pairs);
     t2.tag("GHIJ term");
     term_KLMN=compute_mp3_klmn_fast(mp2pairs);
     t2.tag("KLMN term fast");
-    term_KLMN=compute_mp3_klmn(mp2pairs);
-    t2.tag("KLMN term");
+    // term_KLMN=compute_mp3_klmn(mp2pairs);
+    // t2.tag("KLMN term");
 
     printf("term_CD    %12.8f\n",term_CD);
     printf("term_GHIJ  %12.8f\n",term_GHIJ);

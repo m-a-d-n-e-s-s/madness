@@ -359,7 +359,7 @@ Tensor<double> CC2::enforce_core_valence_separation(const Tensor<double>& fmat) 
     }
 
     MADNESS_CHECK(Localizer::check_core_valence_separation(fock2,lmo.get_localize_sets()));
-    if (world.rank()==0) lmo.pretty_print("localized MOs");
+    // if (world.rank()==0) lmo.pretty_print("localized MOs");
     return fock2;
 
 };
@@ -408,7 +408,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
         }
 
     } else {
-        if (world.rank()==0) print("Starting MP2 constant part calculation");
+        if (world.rank()==0) print_header3("Starting MP2 constant part calculation");
         // calc constant part via taskq
         auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
         taskq->set_printlevel(3);
@@ -432,7 +432,11 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
             pair_vec[i].function().truncate().reduce_rank();
             save(pair_vec[i].constant_part, pair_vec[i].name() + "_const");
             // save(pair_vec[i].function(), pair_vec[i].name());
-            if (pair_vec[i].type == GROUND_STATE) total_energy += CCOPS.compute_pair_correlation_energy(pair_vec[i]);
+            if (pair_vec[i].type == GROUND_STATE) {
+                double energy = CCOPS.compute_pair_correlation_energy(pair_vec[i]);
+                if (world.rank()==0) printf("pair energy for pair %zu %zu: %12.8f\n", pair_vec[i].i, pair_vec[i].j, energy);
+                total_energy += energy;
+            }
         }
         if (world.rank()==0) {
             printf("current decoupled mp2 energy %12.8f\n", total_energy);
@@ -441,19 +445,19 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
     }
 
 
+    print_header3("Starting updating MP2 pairs");
+
     // create new pairs structure
     Pairs<CCPair> updated_pairs;
-    for (auto& tmp_pair : pair_vec) {
-        updated_pairs.insert(tmp_pair.i, tmp_pair.j, tmp_pair);
-    }
+    for (auto& tmp_pair : pair_vec) updated_pairs.insert(tmp_pair.i, tmp_pair.j, tmp_pair);
 
     auto solver= nonlinear_vector_solver<double,6>(world,pair_vec.size());
     solver.set_maxsub(parameters.kain_subspace());
     solver.do_print = (world.rank() == 0);
 
+
     for (size_t iter = 0; iter < parameters.iter_max_6D(); iter++) {
 
-//        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting coupling at time " << wall_time() << std::endl;
         // compute the coupling between the pair functions
         Pairs<real_function_6d> coupling=compute_local_coupling(updated_pairs);
         auto coupling_vec=Pairs<real_function_6d>::pairs2vector(coupling,triangular_map);
@@ -462,7 +466,6 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
         double old_energy = total_energy;
         total_energy = 0.0;
 
-        if (world.rank()==0) std::cout << std::fixed << std::setprecision(1) << "\nStarting pairs update at time " << wall_time() << std::endl;
         // calc update for pairs via macrotask
         auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
         taskq->set_printlevel(3);
@@ -504,7 +507,11 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
 
             save(pair_vec[i].function(), pair_vec[i].name());
             double energy = 0.0;
-            if (pair_vec[i].type == GROUND_STATE) energy = CCOPS.compute_pair_correlation_energy(pair_vec[i]);
+            if (pair_vec[i].type == GROUND_STATE) {
+                double energy = CCOPS.compute_pair_correlation_energy(pair_vec[i]);
+                if (world.rank()==0) printf("pair energy for pair %zu %zu: %12.8f\n", pair_vec[i].i, pair_vec[i].j, energy);
+                total_energy += energy;
+            }
             total_energy += energy;
         }
 

@@ -29,6 +29,7 @@ public:
     double compute_mp3_cd(const Pairs<CCPair>& mp2pairs) const;
     double compute_mp3_ef(const Pairs<CCPair>& mp2pairs) const;
     double compute_mp3_ef_with_permutational_symmetry(const Pairs<CCPair>& mp2pairs) const;
+    double compute_mp3_ef_low_scaling(const Pairs<CCPair>& mp2pairs, const Pairs<std::vector<CCPairFunction<double,6>>> clusterfunctions) const;
     double compute_mp3_ghij(const Pairs<CCPair>& mp2pairs) const;
     double compute_mp3_klmn(const Pairs<CCPair>& mp2pairs) const;
     double compute_mp3_klmn_fast(const Pairs<CCPair>& mp2pairs) const;
