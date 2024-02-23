@@ -942,15 +942,15 @@ namespace madness {
 
               // receive data in batches
 
-              auto receive_batch = [&,this](int batch, size_t buf_offset) {
+              auto receive_batch = [&,this](const int batch, const size_t buf_offset) {
                 SafeMPI::Request req0, req1;
                 if (child0 != -1 && batch < child0_nbatch) {
                   int msg_size = batch_size;
                   // if last batch, receive # of bytes to expect
                   if (batch + 1 == child0_nbatch) {
-                    auto req0 = world_.mpi.Irecv(
+                    auto req = world_.mpi.Irecv(
                         &msg_size, 1, MPI_INT, child0, tags[0]);
-                    World::await(req0);
+                    World::await(req);
                   }
 
                   req0 = world_.mpi.Irecv(buf0.get() + buf_offset,
@@ -961,12 +961,12 @@ namespace madness {
                   int msg_size = batch_size;
                   // if last batch, receive # of bytes to expect
                   if (batch + 1 == child1_nbatch) {
-                    auto req1 = world_.mpi.Irecv(
-                        &msg_size, 1, MPI_INT, child0, tags[0]);
-                    World::await(req1);
+                    auto req = world_.mpi.Irecv(
+                        &msg_size, 1, MPI_INT, child1, tags[0]);
+                    World::await(req);
                   }
                   req1 = world_.mpi.Irecv(buf1.get() + buf_offset,
-                                          bufsz - batch_size, MPI_BYTE, child1,
+                                          msg_size, MPI_BYTE, child1,
                                           tags[batch + 1]);
                 }
 
@@ -1008,25 +1008,25 @@ namespace madness {
               ar & left;
               const auto total_nbytes_to_send = ar.size();
 
+              // send nbatches to expect
+              const int nbatch = (total_nbytes_to_send + batch_size - 1) / batch_size;
+              world_.mpi.Send(&nbatch, 1, MPI_INT, parent,
+                              tags[0]);
+
               size_t buf_offset = 0;
               int batch = 0;
               while (buf_offset < bufsz) {
 
-                // send nbatches to expect
-                const int nbatch = (total_nbytes_to_send + batch_size - 1) / batch_size;
-                world_.mpi.Send(&nbatch, 1, MPI_INT, parent,
-                                 tags[0]);
-
                 // send data in batches
-                auto send_batch = [&,this](int batch, size_t buf_offset) {
+                auto send_batch = [&,this](const int batch, const size_t buf_offset) {
                   const int nbytes_to_send = static_cast<int>(
                       std::min(static_cast<size_t>(batch_size),
                                total_nbytes_to_send - buf_offset));
                   // if last batch, send # of bytes to expect
                   if (batch + 1 == nbatch) {
-                    auto req0 = world_.mpi.Isend(
+                    auto req = world_.mpi.Isend(
                         &nbytes_to_send, 1, MPI_INT, parent, tags[0]);
-                    World::await(req0);
+                    World::await(req);
                   }
                   auto req0 =
                       world_.mpi.Isend(buf0.get() + buf_offset, nbytes_to_send,
