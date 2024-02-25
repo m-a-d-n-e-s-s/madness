@@ -294,7 +294,7 @@ double MP3::compute_mp3_ef_low_scaling(const Pairs<CCPair>& mp2pairs,
                     sigma+=g_ijkl*clusterfunctions(k,l);
                 }
             }
-            sigma=consolidate(sigma,{});
+            sigma=consolidate(sigma,{"remove_lindep"});
             timer_sum.interrupt();
             timer_inner.resume();
             double tmp=inner(clusterfunctions(i,j),sigma,R2);

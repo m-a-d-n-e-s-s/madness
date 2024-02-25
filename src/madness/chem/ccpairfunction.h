@@ -409,6 +409,10 @@ private:
     /// turn pure functions with operator into pure functions without operators
     static std::vector<CCPairFunction> op_pure_to_pure(const std::vector<CCPairFunction>& other);
 
+    /// remove linear dependent terms in the low-rank parts
+    static std::vector<CCPairFunction> remove_linearly_dependent_terms(const std::vector<CCPairFunction>& other,
+        double thresh=-1.0);
+
     static std::vector<CCPairFunction> collect_same_types(const std::vector<CCPairFunction>& other);
 
 public:

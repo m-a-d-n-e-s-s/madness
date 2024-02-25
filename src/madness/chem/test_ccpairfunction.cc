@@ -791,6 +791,25 @@ int test_consolidate(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
         t1.checkpoint(r0,r1,FunctionDefaults<LDIM>::get_thresh(),"correct numbers");
     }
 
+    // remove linear dependencies
+    for (const auto& p : {p3}) {
+        auto tmp=std::vector<CCPairFunction<T,NDIM>>({p});
+        tmp+=tmp;
+        t1.checkpoint(tmp.size()==1,"correct number of terms");
+        t1.checkpoint(tmp.front().get_a().size()==2,"correct number of vectors in a");
+        t1.checkpoint(tmp.front().is_op_decomposed(),"correct initial type: op_decomposed");
+        auto tmp1=consolidate(tmp,{"remove_lindep"});
+        t1.checkpoint(tmp1.front().is_decomposed(),"correct final type: decomposed");
+        t1.checkpoint(tmp1.size()==1,"correct number of terms");
+        t1.checkpoint(tmp1.front().get_a().size()==2,"correct number of vectors in a");
+
+        double r0=2*inner(p,{p1});
+        double r1=inner(tmp,{p1});
+        t1.checkpoint(r0,r1,FunctionDefaults<LDIM>::get_thresh(),"correct numbers");
+    }
+
+
+
     // some random composition of the above
     // a vector of numerically identical terms is created, then a random permutation is applied, and the result is checked
     for (int i=0; i<5; ++i) {

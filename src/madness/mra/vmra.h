@@ -731,22 +731,23 @@ namespace madness {
         for (const auto& vv : v) MADNESS_CHECK_THROW(
             vv.get_impl()->get_tree_state()==reconstructed,"trees have to be reconstructed in transform_reconstructed");
 
-        std::vector< Function<resultT,NDIM> > vc = zero_functions<resultT,NDIM>(world, m);
+        std::vector< Function<resultT,NDIM> > result = zero_functions<resultT,NDIM>(world, m);
 
         for (int i=0; i<m; ++i) {
-            vc[i].get_impl()->set_tree_state(redundant_after_merge);
+            result[i].get_impl()->set_tree_state(redundant_after_merge);
             for (int j=0; j<n; ++j) {
-                if (c(j,i) != R(0.0)) vc[i].get_impl()->merge_trees(resultT(1.0),*v[j].get_impl(),resultT(c(j,i)),false);
+                if (c(j,i) != R(0.0)) v[j].get_impl()->accumulate_trees(*(result[i].get_impl()),resultT(c(j,i)),true);
             }
         }
 
         // if we fence we can as well finish the job here. Otherwise no harm done, as the tree state is well-defined.
         if (fence) {
             world.gop.fence();
-            for (auto& r : vc) r.sum_down(false);
+            // for (auto& r : vc) r.sum_down(false);
+            for (auto& r : result) r.get_impl()->finalize_sum();
             world.gop.fence();
         }
-        return vc;
+        return result;
     }
 
     /// this version of transform uses Function::vtransform and screens

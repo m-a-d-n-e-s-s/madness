@@ -1151,6 +1151,15 @@ template<size_t NDIM>
             if (fence) world.gop.fence();
         }
 
+        /// merge the trees of this and other, while multiplying them with the alpha or beta, resp
+
+        /// result and rhs do not have to have the same distribution or live in the same world
+        /// result+=alpha* this
+        /// @param[in]	alpha	prefactor for this
+        template<typename Q, typename R>
+        void accumulate_trees(FunctionImpl<Q,NDIM>& result, const R alpha, const bool fence=true) const {
+            flo_unary_op_node_inplace(do_accumulate_trees<Q,R>(result,alpha),fence);
+        }
 
         /// perform: this= alpha*f + beta*g, invoked by result
 
@@ -2337,6 +2346,36 @@ template<size_t NDIM>
 
 
         };
+
+        /// merge the coefficent boxes of this into result's tree
+
+        /// result+= alpha*this
+        /// this and result don't have to have the same distribution or live in the same world
+        /// no comm, and the tree should be in an consistent state by virtue
+        template<typename Q, typename R>
+        struct do_accumulate_trees{
+            typedef Range<typename dcT::const_iterator> rangeT;
+            FunctionImpl<Q,NDIM>* result=0;
+            T alpha=T(1.0);
+            do_accumulate_trees() = default;
+            do_accumulate_trees(FunctionImpl<Q,NDIM>& result, const T alpha)
+                : result(&result), alpha(alpha) {}
+
+            /// return the norm of the difference of this node and its "mirror" node
+            bool operator()(typename rangeT::iterator& it) const {
+
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+                if (node.has_coeff()) result->get_coeffs().task(key, &nodeT::accumulate,
+                    alpha*node.coeff(), result->get_coeffs(), key, result->targs);
+                return true;
+            }
+
+            template <typename Archive> void serialize(const Archive& ar) {
+                MADNESS_EXCEPTION("no serialization of do_accumulate_trees",1);
+            }
+        };
+
 
         /// merge the coefficent boxes of this into other's tree
 

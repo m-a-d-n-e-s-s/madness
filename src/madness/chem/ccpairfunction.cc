@@ -105,6 +105,44 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::op_dec_to_dec(const 
 
 }
 
+/// turn decomposed functions with operator into decomposed functions using LowRankFunction
+template<typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::remove_linearly_dependent_terms(const std::vector<CCPairFunction<T,NDIM>>& other,
+    double thresh) {
+    if (thresh<0.0) thresh=FunctionDefaults<3>::get_thresh()*0.1;
+    std::vector<CCPairFunction<T,NDIM>> result;
+    for (const auto& c : other) {
+        if (c.is_pure()) result.push_back(c);
+        else if (c.is_decomposed()) {
+
+            LowRankFunction<T,NDIM> lrf(c.get_a(),c.get_b(),thresh,"canonical");
+            lrf.reorthonormalize();
+            result.push_back(CCPairFunction<T,NDIM>(c.get_operator_ptr(),lrf.get_g(),lrf.get_h()));
+
+
+//            auto a=c.get_a();
+//            auto b=c.get_b();
+//            auto ovlp=matrix_inner(c.world(),a,b);
+//            auto [U,s,VT]=svd(ovlp);
+//            // truncate the singular values
+//            auto n=0;
+//            for (int i=0; i<s.size(); ++i) if (s(i)>thresh) n++;
+//            if (n<s.size()) {
+//                s=s(Slice(0,n-1));      // start and end indices of Slice are inclusive -> n-1
+//                U=U(_,Slice(0,n-1));
+//                VT=VT(Slice(0,n-1),_);
+//            }
+//            auto UU=transform(c.world(),a,U);
+//            auto VVT=transform(c.world(),b,transpose(VT));
+//            result.push_back(CCPairFunction<T,NDIM>(c.get_operator_ptr(),UU,VVT));
+        } else {
+            MADNESS_EXCEPTION("you should not be here",1);
+        }
+    }
+
+    return result;
+}
+
 /// collect all terms with of similiar type: pure, op_pure, decomposed, op_decomposed
 template<typename T, std::size_t NDIM>
 std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::collect_same_types(const std::vector<CCPairFunction<T, NDIM>>& other) {
@@ -186,10 +224,11 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::consolidate(const st
     // convert op_dec functions to dec (via LowRankFunctions
     bool op_dec_to_dec=find(options.begin(),options.end(),"op_dec_to_dec")!=options.end();
     // reorthogonalize decomposed functions and op_decomposed functions
-    bool svd=find(options.begin(),options.end(),"svd")!=options.end();
+    bool lindep=find(options.begin(),options.end(),"remove_lindep")!=options.end();
 
     // always collect all terms of the same type
     auto result= is_collected(other) ? other : collect_same_types(other);
+    if (lindep) result=CCPairFunction<T,NDIM>::remove_linearly_dependent_terms(result);
 
     if (op_dec_to_dec) result=CCPairFunction<T,NDIM>::op_dec_to_dec(result);
     if (op_pure_to_pure) result=CCPairFunction<T,NDIM>::op_pure_to_pure(result);
