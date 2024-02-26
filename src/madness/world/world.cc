@@ -173,8 +173,6 @@ namespace madness {
 	else {
 	  ::madness::binder.set_do_bind(false);
 	}
-	std::cout <<  "about to call bind" << std::endl; 
-        ::madness::binder.bind(); // bind the main thread
 
 #if defined(HAVE_IBMBGQ) and defined(HPM)
         // HPM Profiler
