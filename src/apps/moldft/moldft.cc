@@ -62,13 +62,13 @@ using namespace madness;
 
 static double ttt, sss;
 
-static void START_TIMER(World& world) {
+static void START_TIMER(World &world) {
     world.gop.fence();
     ttt = wall_time();
     sss = cpu_time();
 }
 
-static void END_TIMER(World& world, const char *msg) {
+static void END_TIMER(World &world, const char *msg) {
     ttt = wall_time() - ttt;
     sss = cpu_time() - sss;
     if (world.rank() == 0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
@@ -76,7 +76,7 @@ static void END_TIMER(World& world, const char *msg) {
 
 int main(int argc, char **argv) {
 
-    World& world=initialize(argc, argv);
+    World &world = initialize(argc, argv);
     if (world.rank() == 0) {
         print_header1("MOLDFT -- molecular DFT and Hartree-Fock code");
     }
@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
         try {
             // Load info for MADNESS numerical routines
             startup(world, argc, argv, true);
-            if (world.rank()==0) print(info::print_revision_information());
+            if (world.rank() == 0) print(info::print_revision_information());
 
             commandlineparser parser(argc, argv);
 
@@ -161,7 +161,7 @@ int main(int argc, char **argv) {
                 } else {
                     MolecularEnergy E(world, calc);
                     double energy = E.value(calc.molecule.get_all_coords().flat()); // ugh!
-                    if ((world.rank() == 0) and (calc.param.print_level() > 0)){
+                    if ((world.rank() == 0) and (calc.param.print_level() > 0)) {
                         printf("final energy=%16.8f \n", energy);
                         E.output_calc_info_schema();
                     }
@@ -174,7 +174,11 @@ int main(int argc, char **argv) {
                     rho.gaxpy(1.0, brho, 1.0);
 
                     if (calc.param.derivatives()) calc.derivatives(world, rho);
-                    if (calc.param.dipole()) calc.dipole(world, rho);
+                    // automatically print dipole moment and output scf info
+                    std::map<std::string, double> results;
+                    results["scf_energy"] = calc.current_energy;
+                    auto dipole_t = calc.dipole(world, rho);
+                    calc.output_scf_info_schema(results, dipole_t);
                 }
 
                 //        if (calc.param.twoint) {
@@ -186,15 +190,15 @@ int main(int argc, char **argv) {
 
             }
         }
-        catch (const SafeMPI::Exception& e) {
+        catch (const SafeMPI::Exception &e) {
             print(e);
             error("caught an MPI exception");
         }
-        catch (const madness::MadnessException& e) {
+        catch (const madness::MadnessException &e) {
             print(e);
             error("caught a MADNESS exception");
         }
-        catch (const madness::TensorException& e) {
+        catch (const madness::TensorException &e) {
             print(e);
             error("caught a Tensor exception");
         }
@@ -202,11 +206,11 @@ int main(int argc, char **argv) {
             print(s);
             error("caught a string exception");
         }
-        catch (const std::string& s) {
+        catch (const std::string &s) {
             print(s);
             error("caught a string (class) exception");
         }
-        catch (const std::exception& e) {
+        catch (const std::exception &e) {
             print(e.what());
             error("caught an STL exception");
         }
