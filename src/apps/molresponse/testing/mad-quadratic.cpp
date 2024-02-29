@@ -45,22 +45,17 @@ auto main(int argc, char *argv[]) -> int {
             const std::string op{argv[3]};
             const std::string precision{argv[4]};
             const std::string static_calc{argv[5]};
-            if (precision != "high" && precision != "low" && precision != "super") {
-                if (world.rank() == 0) { std::cout << "Set precision to low high super" << std::endl; }
-                return 1;
-            }
+
+
             auto schema = runSchema(world, xc);
             auto m_schema = moldftSchema(world, molecule_name, xc, schema);
+
+
             auto f_schema = frequencySchema(world, schema, m_schema, op, static_calc == "true");
-            if (std::filesystem::exists(m_schema.calc_info_json_path) &&
-                std::filesystem::exists(m_schema.moldft_restart)) {
-                runFrequencyTests(world, f_schema, precision);
-            } else {
-                moldft(world, m_schema, true, false, precision);
-                runFrequencyTests(world, f_schema, precision);
-                world.gop.fence();
-                world.gop.fence();
-            }
+
+
+            runQuadraticResponse(world, f_schema, precision);
+            world.gop.fence();
         } catch (const SafeMPI::Exception &e) {
             print(e.what());
             error("caught an MPI exception");
@@ -81,7 +76,6 @@ auto main(int argc, char *argv[]) -> int {
         } catch (...) { error("caught unhandled exception"); }
         // Nearly all memory will be freed at this point
         print_stats(world);
-        if (world.rank() == 0) { print("Finished All Frequencies"); }
     }
     finalize();
     return 0;

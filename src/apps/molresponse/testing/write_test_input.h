@@ -23,9 +23,8 @@ namespace molresponse {
 
         write_test_input() : filename_("moldft.in") {}
 
-        explicit write_test_input(const CalculationParameters& param, const std::string& filename,
-                                  std::string mol_path)
-            : filename_(filename),molecule_path(mol_path) {
+        explicit write_test_input(const CalculationParameters &param, const std::string &filename, std::string mol_path)
+            : filename_(filename), molecule_path(mol_path) {
             std::ofstream of(filename_);
             write_to_test_input("dft", &param, of);
             write_molecule_to_test_input(molecule_path, of);
@@ -38,27 +37,33 @@ namespace molresponse {
 
         std::string filename() const { return filename_; }
 
-        static std::ostream& write_to_test_input(const std::string& groupname,
-                                                 const QCCalculationParametersBase* param,
-                                                 std::ostream& of) {
+        static std::ostream &write_to_test_input(const std::string &groupname, const QCCalculationParametersBase *param,
+                                                 std::ostream &of) {
             of << groupname << endl;
             of << param->print_to_string(true);
             of << "end\n";
             return of;
         }
 
-        static std::ostream& write_molecule_to_test_input(std::string mol_path, std::ostream& of) {
+        static std::ostream &write_molecule_to_test_input(std::string mol_path, std::ostream &of) {
 
 
-            std::cout<<mol_path<<"\n";
+            std::cout << mol_path << "\n";
             std::ifstream mol_file(mol_path);
             std::string line;
-            while(getline(mol_file,line)){
-                std::cout<<line<<"\n";
-                of<<line<<"\n";
+            std::string no_orient_line;
+            int i = 0;
+            while (getline(mol_file, line)) {
+                if (i == 1) {
+                    no_orient_line = "no_orient true";
+                    std::cout << no_orient_line << "\n";
+                    of << no_orient_line << "\n";
+                }
+                std::cout << line << "\n";
+                of << line << "\n";
+                i++;
             }
             return of;
-
         }
     };
     /// will write a test input and remove it from disk upon destruction
@@ -71,7 +76,7 @@ namespace molresponse {
 
         write_response_input() : filename_("response_test") {}
 
-        explicit write_response_input(const ResponseParameters& param, const std::string& filename)
+        explicit write_response_input(const ResponseParameters &param, const std::string &filename)
             : filename_(filename) {
             std::ofstream of(filename_);
             write_to_test_input("response", &param, of);
@@ -84,9 +89,8 @@ namespace molresponse {
 
         std::string filename() const { return filename_; }
 
-        static std::ostream& write_to_test_input(const std::string& groupname,
-                                                 const ResponseParameters* param,
-                                                 std::ostream& of) {
+        static std::ostream &write_to_test_input(const std::string &groupname, const ResponseParameters *param,
+                                                 std::ostream &of) {
             of << groupname << endl;
             of << param->print_to_string(true);
             of << "end\n";
@@ -95,7 +99,7 @@ namespace molresponse {
     };
 
 
-}// namespace madness
+}// namespace molresponse
 
 
 #endif//MADNESS_WRITE_RESPONSE_INPUT_H

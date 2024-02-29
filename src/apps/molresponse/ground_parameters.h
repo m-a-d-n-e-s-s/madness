@@ -25,14 +25,15 @@ using namespace madness;
 class GroundStateCalculation {
     // Ground state parameters that are read in from archive
     std::string inFile{"../moldft.restartdata"};///< Name of input archive to read in ground state
-    bool spinrestricted{true};///< Indicates if ground state calc. was open or closed
+    bool spinrestricted{true};                  ///< Indicates if ground state calc. was open or closed
+    double converged_for_thresh{1.e10};
     ///< shell
-    unsigned int num_orbitals{};///< Number of orbitals in ground state
-    Tensor<double> energies{};  ///< Energy of ground state orbitals
-    Tensor<double> occ{};       ///< Occupancy of ground state orbitals
-    double L{};                 ///< Box size of ground state - response calcluation is in same box
-    int k{};                    ///< Order of polynomial used in ground state
-    Molecule molecule_in{};     ///< The molecule used in ground state calculation
+    unsigned int num_orbitals{};               ///< Number of orbitals in ground state
+    Tensor<double> energies{};                 ///< Energy of ground state orbitals
+    Tensor<double> occ{};                      ///< Occupancy of ground state orbitals
+    double L{};                                ///< Box size of ground state - response calcluation is in same box
+    int k{};                                   ///< Order of polynomial used in ground state
+    Molecule molecule_in{};                    ///< The molecule used in ground state calculation
     std::vector<real_function_3d> g_orbitals{};///< The ground state orbitals
     std::string xc{};                          ///< Name of xc functional used in ground state
     std::string localize_method{};             ///< Name of xc functional used in ground state
@@ -41,10 +42,7 @@ class GroundStateCalculation {
 public:
     explicit GroundStateCalculation(World &world) { read(world); }
 
-    explicit GroundStateCalculation(World &world, const std::string &input_file)
-        : inFile{input_file} {
-        read(world);
-    }
+    explicit GroundStateCalculation(World &world, const std::string &input_file) : inFile{input_file} { read(world); }
 
     GroundStateCalculation(const GroundStateCalculation &other) = default;
 
@@ -79,18 +77,19 @@ public:
         std::vector<int> dummy2;
 
         archive::ParallelInputArchive input(world, inFile.c_str());
-        input &dummyversion;
-        input &dummy1;         // double
-        input &spinrestricted; // bool
-        input &L;              // double            box size
-        input &k;              // int               wavelet order
-        input &molecule_in;    // Molecule
-        input &xc;             // std:string        xc functional
-        input &localize_method;// std:string        localize  method
-        input &num_orbitals;   // int
-        input &energies;       // Tensor<double>    orbital energies
-        input &occ;            // Tensor<double>    orbital occupations
-        input &dummy2;         // std::vector<int>  sets of orbitals(?)
+        input & dummyversion;
+        input & dummy1;         // double
+        input & spinrestricted; // bool
+        input & L;              // double            box size
+        input & k;              // int               wavelet order
+        input & molecule_in;    // Molecule
+        input & xc;             // std:string        xc functional
+        input & localize_method;// std:string        localize  method
+        if (dummyversion > 3) { input & converged_for_thresh; }
+        input & num_orbitals;// int
+        input & energies;    // Tensor<double>    orbital energies
+        input & occ;         // Tensor<double>    orbital occupations
+        input & dummy2;      // std::vector<int>  sets of orbitals(?)
 
         // Check that order is positive and less than 30
         if (k < 1 or k > 30) {
@@ -111,7 +110,7 @@ public:
         // Read in ground state orbitals
         for (unsigned int i = 0; i < num_orbitals; i++) {
             real_function_3d reader;
-            input &reader;
+            input & reader;
             g_orbitals.push_back(reader);
         }
         world.gop.fence();

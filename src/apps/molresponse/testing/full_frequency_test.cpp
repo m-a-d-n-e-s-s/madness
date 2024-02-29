@@ -52,7 +52,7 @@ int main(int argc, char *argv[]) {
 
                         auto m_schema = moldftSchema(world, molecule_name, xc, schema);
                         moldft(world, m_schema, true, false, precision);
-                        auto f_schema = frequencySchema(world, schema, m_schema, op);
+                        auto f_schema = frequencySchema(world, schema, m_schema, op, false);
                         runFrequencyTests(world, f_schema, precision);
 
                     } catch (const SafeMPI::Exception &e) {

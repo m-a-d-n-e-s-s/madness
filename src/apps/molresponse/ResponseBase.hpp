@@ -23,21 +23,115 @@
 
 using namespace madness;
 
+
+// I need to creat a load X_space function strategy which will be used by the FrequencyResponse class
+// and the ExcitedResponse class. This will allow me to load the X_space in the FrequencyResponse class
+// and the Quadratic response class.  This way I can use the same X_space for both classes.
+// and load depending on the type of response I am doing.
+
+typedef std::pair<X_space, Tensor<double>> XData;
+typedef std::pair<vector_real_function_3d, vector_real_function_3d> double_response_vector;
+
+class LoadXSpaceStrategy {
+public:
+    virtual ~LoadXSpaceStrategy() = default;
+    virtual XData load_x_space(World &world, const std::string &filename, const ResponseParameters &r_params,
+                               double omega_state) const = 0;
+};
+class LoadFrequencyXSpace : public LoadXSpaceStrategy {
+public:
+    XData load_x_space(World &world, const std::string &filename, const ResponseParameters &r_params,
+                       double omega_state) const override {
+        if (world.rank() == 0) {
+            print("FrequencyResponse::load() -state");
+            print("Loading X_space from file: ", filename);
+            print("Number of states: ", r_params.num_states());
+            print("Number of orbitals: ", r_params.num_orbitals());
+            print("Loading omega : ", omega_state);
+        }
+        //
+
+        X_space chi_new(world, r_params.num_states(), r_params.num_orbitals());
+
+
+        // The archive to read from
+        archive::ParallelInputArchive ar(world, filename.c_str());
+        ar & r_params.archive();
+        ar & r_params.tda();
+        ar & r_params.num_orbitals();
+        ar & r_params.num_states();
+        for (size_t i = 0; i < r_params.num_states(); i++)
+            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & chi_new.x[i][j];
+        world.gop.fence();
+        if (omega_state == 0.0) {
+            for (size_t i = 0; i < r_params.num_states(); i++)
+                for (size_t j = 0; j < r_params.num_orbitals(); j++) chi_new.y[i][j] = chi_new.x[i][j];
+        } else {
+            for (size_t i = 0; i < r_params.num_states(); i++)
+                for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & chi_new.y[i][j];
+        }
+        world.gop.fence();
+
+        return {chi_new, Tensor<double>()};
+    }
+};
+class LoadExcitedXSpace : public LoadXSpaceStrategy {
+public:
+    XData load_x_space(World &world, const std::string &filename, const ResponseParameters &r_params,
+                       double omega_state) const override {
+
+        Tensor<double> omega;
+        auto new_chi = X_space(world, r_params.num_states(), r_params.num_orbitals());
+        // The archive to read from
+        archive::ParallelInputArchive ar(world, filename.c_str());
+
+        // Reading in, in this order;
+        //  string           ground-state archive name (garch_name)
+        //  bool             TDA flag
+        // size_t                number of ground state orbitals (n)
+        // size_t                number of excited state orbitals (m)
+        //  Tensor<double>   energies of m x-components
+        //  for i from 0 to m-1
+        //     for j from 0 to n-1
+        //        Function<double,3> x_response[i][j]
+        //  (If TDA flag == True)
+        //  (Tensor<double>  energies of m y-components    )
+        //  (for i from 0 to m-1                       )
+        //  (   for j from 0 to n-1                    )
+        //  (      Function<double,3> y_response[i][j] )
+
+        ar & r_params.archive();
+        ar & r_params.tda();
+        ar & r_params.num_orbitals();
+        ar & r_params.num_states();
+        ar & omega;
+
+
+        for (size_t i = 0; i < r_params.num_states(); i++)
+            for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & new_chi.x[i][j];
+        world.gop.fence();
+
+        if (not r_params.tda()) {
+            for (size_t i = 0; i < r_params.num_states(); i++)
+                for (size_t j = 0; j < r_params.num_orbitals(); j++) ar & new_chi.y[i][j];
+            world.gop.fence();
+        }
+        return {new_chi, omega};
+    }
+};
+
+
 class ComputeDensityStrategy {
 public:
     virtual ~ComputeDensityStrategy() = default;
-    virtual vector_real_function_3d
-    compute_density(World &world, const X_space &x,
-                    const vector_real_function_3d &phi0,
-                    const vector_real_function_3d &rho1, bool update) const = 0;
+    virtual vector_real_function_3d compute_density(World &world, const X_space &x, const vector_real_function_3d &phi0,
+                                                    const vector_real_function_3d &rho1, bool update) const = 0;
 };
 
 class StaticDensityStrategy : public ComputeDensityStrategy {
 public:
-    vector_real_function_3d compute_density(World &world, const X_space &x,
-                                            const vector_real_function_3d &phi0,
-                                            const vector_real_function_3d &rho1,
-                                            bool update) const override {
+    vector_real_function_3d compute_density(World &world, const X_space &x, const vector_real_function_3d &phi0,
+                                            const vector_real_function_3d &rho1, bool update) const override {
 
         vector_real_function_3d rho_new;
         if (update) {
@@ -59,10 +153,8 @@ public:
 };
 class FullDensityStrategy : public ComputeDensityStrategy {
 public:
-    vector_real_function_3d compute_density(World &world, const X_space &x,
-                                            const vector_real_function_3d &phi0,
-                                            const vector_real_function_3d &rho1,
-                                            bool update) const override {
+    vector_real_function_3d compute_density(World &world, const X_space &x, const vector_real_function_3d &phi0,
+                                            const vector_real_function_3d &rho1, bool update) const override {
         vector_real_function_3d rho_new;
         if (update) {
             rho_new = copy(world, rho1);
@@ -89,29 +181,30 @@ public:
 class VXC1Strategy {
 public:
     virtual ~VXC1Strategy() = default;
-    virtual X_space compute_VXC1(World &world, const X_space &x,
-                                 const vector_real_function_3d &rho1,
-                                 const vector_real_function_3d &phi0,
+    virtual X_space compute_VXC1(World &world, const X_space &x, const vector_real_function_3d &rho1,
+                                 const std::pair<vector_real_function_3d, vector_real_function_3d> &phi0,
                                  const XCOperator<double, 3> &xc) const = 0;
 };
 
 class VXC1StrategyStandard : public VXC1Strategy {
 
 public:
-    X_space compute_VXC1(World &world, const X_space &x,
-                         const vector_real_function_3d &rho1,
-                         const vector_real_function_3d &phi0,
+    X_space compute_VXC1(World &world, const X_space &x, const vector_real_function_3d &rho1,
+                         const std::pair<vector_real_function_3d, vector_real_function_3d> &phi0,
                          const XCOperator<double, 3> &xc) const override {
 
-        X_space W = X_space::zero_functions(world, x.num_states(),
-                                            x.num_orbitals());
+        X_space W = X_space::zero_functions(world, x.num_states(), x.num_orbitals());
 
-        auto compute_wx = [&, &phi0 = phi0](auto rho_alpha) {
+        auto compute_wx_x = [&, &phi0 = phi0](auto rho_alpha) {
             auto xc_rho = xc.apply_xc_kernel(rho_alpha);
-            return mul(world, xc_rho, phi0);
+            return mul(world, xc_rho, phi0.first);
         };
-        std::transform(rho1.begin(), rho1.end(), W.x.begin(), compute_wx);
-        W.y = W.x.copy();
+        auto compute_wx_y = [&, &phi0 = phi0](auto rho_alpha) {
+            auto xc_rho = xc.apply_xc_kernel(rho_alpha);
+            return mul(world, xc_rho, phi0.second);
+        };
+        std::transform(rho1.begin(), rho1.end(), W.x.begin(), compute_wx_x);
+        std::transform(rho1.begin(), rho1.end(), W.y.begin(), compute_wx_y);
         return W;
     }
 };
@@ -120,25 +213,22 @@ public:
 class J1Strategy {
 public:
     virtual ~J1Strategy() = default;
-    virtual X_space compute_J1(World &world, const X_space &x,
-                               const vector_real_function_3d &rho1,
-                               const vector_real_function_3d &phi0,
+    virtual X_space compute_J1(World &world, const X_space &x, const vector_real_function_3d &rho1,
+                               const std::pair<vector_real_function_3d, vector_real_function_3d> &phi0,
                                const poperatorT &coulomb_ops) const = 0;
 };
 
 class J1StrategyFull : public J1Strategy {
 public:
-    X_space compute_J1(World &world, const X_space &x,
-                       const vector_real_function_3d &rho1,
-                       const vector_real_function_3d &phi0,
+    X_space compute_J1(World &world, const X_space &x, const vector_real_function_3d &rho1,
+                       const std::pair<vector_real_function_3d, vector_real_function_3d> &phi0,
                        const poperatorT &coulomb_ops) const override {
 
-        X_space J = X_space::zero_functions(world, x.num_states(),
-                                            x.num_orbitals());
+        X_space J = X_space::zero_functions(world, x.num_states(), x.num_orbitals());
         vector_real_function_3d temp_J(3);
         for (const auto &b: x.active) {
             temp_J[b] = apply(*coulomb_ops, rho1[b]);
-            J.x[b] = mul(world, temp_J[b], phi0, false);
+            J.x[b] = mul(world, temp_J[b], phi0.first, false);
         }
         J.y = J.x.copy();
         return J;
@@ -148,25 +238,23 @@ public:
 
 class J1StrategyStable : public J1Strategy {
 public:
-    X_space compute_J1(World &world, const X_space &x,
-                       const vector_real_function_3d &rho1,
-                       const vector_real_function_3d &phi0,
+    X_space compute_J1(World &world, const X_space &x, const vector_real_function_3d &rho1,
+                       const std::pair<vector_real_function_3d, vector_real_function_3d> &phi0,
                        const poperatorT &coulomb_ops) const override {
 
-        X_space J = X_space::zero_functions(world, x.num_states(),
-                                            x.num_orbitals());
-        if (world.rank() == 0) { print("J1StrategyStable"); }
+        X_space J = X_space::zero_functions(world, x.num_states(), x.num_orbitals());
+        //if (world.rank() == 0) { print("J1StrategyStable"); }
         vector_real_function_3d temp_J(3);
         for (const auto &b: x.active) {
             temp_J[b] = apply(*coulomb_ops, rho1[b]);
-            if (true) {
+            if (false) {
                 auto norm = temp_J[b].norm2();
                 if (world.rank() == 0) print("norm of temp_J:", norm);
             }
-            J.x[b] = mul(world, temp_J[b], phi0, false);
+            J.x[b] = mul(world, temp_J[b], phi0.first, false);
+            J.y[b] = mul(world, temp_J[b], phi0.second, false);
         }
         world.gop.fence();
-        J.y = J.x.copy();
         return J;
     }
 };
@@ -175,7 +263,8 @@ class K1Strategy {
 public:
     virtual ~K1Strategy() = default;
     virtual X_space compute_K1(World &world, const X_space &x,
-                               const vector_real_function_3d &phi0) const = 0;
+                               const std::pair<vector_real_function_3d, vector_real_function_3d> &phi_0X,
+                               const std::pair<vector_real_function_3d, vector_real_function_3d> &rhs_vec) const = 0;
 
     static auto make_k(const vecfuncT &ket, const vecfuncT &bra) {
         auto &world = ket[0].world();
@@ -190,10 +279,10 @@ public:
 class K1StrategyFull : public K1Strategy {
 public:
     X_space compute_K1(World &world, const X_space &x,
-                       const vector_real_function_3d &phi0) const override {
+                       const std::pair<vector_real_function_3d, vector_real_function_3d> &phi_0X,
+                       const std::pair<vector_real_function_3d, vector_real_function_3d> &rhs_vec) const override {
 
-        auto K = X_space::zero_functions(world, x.num_states(),
-                                         x.num_orbitals());
+        auto K = X_space::zero_functions(world, x.num_states(), x.num_orbitals());
 
 
         vector_real_function_3d k1x, k1y, k2x, k2y;
@@ -201,27 +290,24 @@ public:
         vector_real_function_3d yb;
         if (world.rank() == 0) { print("K1StrategyFull"); }
 
-        auto k1x_temp =
-                create_response_matrix(x.num_states(), x.num_orbitals());
-        auto k1y_temp =
-                create_response_matrix(x.num_states(), x.num_orbitals());
-        auto k2x_temp =
-                create_response_matrix(x.num_states(), x.num_orbitals());
-        auto k2y_temp =
-                create_response_matrix(x.num_states(), x.num_orbitals());
+        auto k1x_temp = create_response_matrix(x.num_states(), x.num_orbitals());
+        auto k1y_temp = create_response_matrix(x.num_states(), x.num_orbitals());
+        auto k2x_temp = create_response_matrix(x.num_states(), x.num_orbitals());
+        auto k2y_temp = create_response_matrix(x.num_states(), x.num_orbitals());
 
 
         for (const auto &b: x.active) {
-            auto K1X = make_k(x.x[b], phi0);
-            auto K1Y = make_k(phi0, x.y[b]);
-            auto K2X = make_k(x.y[b], phi0);
-            auto K2Y = make_k(phi0, x.x[b]);
+            auto K1X = make_k(x.x[b], phi_0X.first);
+            auto K1Y = make_k(phi_0X.first, x.y[b]);
+
+            auto K2X = make_k(x.y[b], phi_0X.first);
+            auto K2Y = make_k(phi_0X.second, x.x[b]);
             world.gop.fence();
 
-            k1x_temp[b] = K1X(phi0);
-            k1y_temp[b] = K1Y(phi0);
-            k2x_temp[b] = K2X(phi0);
-            k2y_temp[b] = K2Y(phi0);
+            k1x_temp[b] = K1X(rhs_vec.first);
+            k1y_temp[b] = K1Y(rhs_vec.first);
+            k2x_temp[b] = K2X(rhs_vec.second);
+            k2y_temp[b] = K2Y(rhs_vec.second);
             world.gop.fence();
             K.x[b] = gaxpy_oop(1.0, k1x_temp[b], 1.0, k1y_temp[b], false);
             K.y[b] = gaxpy_oop(1.0, k2x_temp[b], 1.0, k2y_temp[b], false);
@@ -235,9 +321,9 @@ public:
 class K1StrategyStatic : public K1Strategy {
 public:
     X_space compute_K1(World &world, const X_space &x,
-                       const vector_real_function_3d &phi0) const override {
-        X_space K = X_space::zero_functions(world, x.num_states(),
-                                            x.num_orbitals());
+                       const std::pair<vector_real_function_3d, vector_real_function_3d> &phi_0X,
+                       const std::pair<vector_real_function_3d, vector_real_function_3d> &rhs_vec) const override {
+        X_space K = X_space::zero_functions(world, x.num_states(), x.num_orbitals());
         vector_real_function_3d k1x, k1y, k2x, k2y;
         const double lo = 1e-10;
 
@@ -246,10 +332,10 @@ public:
         auto k2_temp = create_response_matrix(x.num_states(), x.num_orbitals());
 
         for (const auto &b: x.active) {
-            auto K1Xs = make_k(x.x[b], phi0);
-            auto K1Ys = make_k(phi0, x.x[b]);
-            k1_temp[b] = K1Xs(phi0);
-            k2_temp[b] = K1Ys(phi0);
+            auto K1Xs = make_k(x.x[b], phi_0X.first);
+            auto K1Ys = make_k(phi_0X.first, x.x[b]);
+            k1_temp[b] = K1Xs(rhs_vec.first);
+            k2_temp[b] = K1Ys(rhs_vec.first);
             K.x[b] = gaxpy_oop(1.0, k1_temp[b], 1.0, k2_temp[b], false);
         }
         world.gop.fence();
@@ -261,8 +347,7 @@ class inner_strategy {
 
 public:
     virtual ~inner_strategy() = default;
-    [[nodiscard]] virtual Tensor<double>
-    compute_inner(const X_space &x, const X_space &y) const = 0;
+    [[nodiscard]] virtual Tensor<double> compute_inner(const X_space &x, const X_space &y) const = 0;
 };
 
 class Context {
@@ -273,91 +358,83 @@ private:
     std::unique_ptr<K1Strategy> k1_strategy_;
     std::unique_ptr<VXC1Strategy> vxc1_strategy_;
     std::unique_ptr<ComputeDensityStrategy> density_strategy_;
+    std::unique_ptr<LoadXSpaceStrategy> load_x_space_strategy_;
 
 public:
-    explicit Context(
-            std::unique_ptr<inner_strategy> &&innerStrategy = {},
-            std::unique_ptr<J1Strategy> &&j1Strategy = {},
-            std::unique_ptr<K1Strategy> &&k1Strategy = {},
-            std::unique_ptr<VXC1Strategy> &&vxc1trategy = {},
-            std::unique_ptr<ComputeDensityStrategy> &&densityStrategy = {})
-        : inner_strategy_(std::move(innerStrategy)),
-          j1_strategy_(std::move(j1Strategy)),
-          k1_strategy_(std::move(k1Strategy)),
-          vxc1_strategy_(std::move(vxc1trategy)),
-          density_strategy_(std::move(densityStrategy)) {}
-    void
-    set_strategy(std::unique_ptr<inner_strategy> &&strategy,
-                 std::unique_ptr<J1Strategy> &&j1Strategy,
-                 std::unique_ptr<K1Strategy> &&K1Strategy,
-                 std::unique_ptr<VXC1Strategy> &&vxc1Strategy,
-                 std::unique_ptr<ComputeDensityStrategy> &&densityStrategy) {
+    explicit Context(std::unique_ptr<inner_strategy> &&innerStrategy = {},
+                     std::unique_ptr<J1Strategy> &&j1Strategy = {}, std::unique_ptr<K1Strategy> &&k1Strategy = {},
+                     std::unique_ptr<VXC1Strategy> &&vxc1trategy = {},
+                     std::unique_ptr<ComputeDensityStrategy> &&densityStrategy = {},
+                     std::unique_ptr<LoadXSpaceStrategy> &&loadXSpaceStrategy = {})
+        : inner_strategy_(std::move(innerStrategy)), j1_strategy_(std::move(j1Strategy)),
+          k1_strategy_(std::move(k1Strategy)), vxc1_strategy_(std::move(vxc1trategy)),
+          density_strategy_(std::move(densityStrategy)), load_x_space_strategy_(std::move(loadXSpaceStrategy)) {}
+    void set_strategy(std::unique_ptr<inner_strategy> &&strategy, std::unique_ptr<J1Strategy> &&j1Strategy,
+                      std::unique_ptr<K1Strategy> &&K1Strategy, std::unique_ptr<VXC1Strategy> &&vxc1Strategy,
+                      std::unique_ptr<ComputeDensityStrategy> &&densityStrategy,
+                      std::unique_ptr<LoadXSpaceStrategy> &&loadXSpaceStrategy) {
         inner_strategy_ = std::move(strategy);
         j1_strategy_ = std::move(j1Strategy);
         k1_strategy_ = std::move(K1Strategy);
         vxc1_strategy_ = std::move(vxc1Strategy);
         density_strategy_ = std::move(densityStrategy);
+        load_x_space_strategy_ = std::move(loadXSpaceStrategy);
     }
 
-    [[nodiscard]] Tensor<double> inner(const X_space &x,
-                                       const X_space &y) const {
+    [[nodiscard]] Tensor<double> inner(const X_space &x, const X_space &y) const {
         if (inner_strategy_) {
             return inner_strategy_->compute_inner(x, y);
         } else {
-            throw madness::MadnessException("Inner product Strategy isn't set",
-                                            "Need to set a strategy", 2, 455,
+            throw madness::MadnessException("Inner product Strategy isn't set", "Need to set a strategy", 2, 455,
                                             "inner", "ResponseBase.hpp");
         }
     }
 
-    X_space compute_j1(World &world, const X_space &x,
-                       const vector_real_function_3d &rho1,
-                       const vector_real_function_3d &phi0,
-                       const poperatorT &coulomb_ops) const {
+    X_space compute_j1(World &world, const X_space &x, const vector_real_function_3d &rho1,
+                       const double_response_vector &phi0, const poperatorT &coulomb_ops) const {
         if (j1_strategy_) {
             return j1_strategy_->compute_J1(world, x, rho1, phi0, coulomb_ops);
         } else {
-            throw madness::MadnessException("Compute J1 Strategy isn't set",
-                                            "Need to set a strategy", 2, 455,
-                                            "inner", "ResponseBase.hpp");
+            throw madness::MadnessException("Compute J1 Strategy isn't set", "Need to set a strategy", 2, 455, "inner",
+                                            "ResponseBase.hpp");
         }
     }
 
-    X_space compute_k1(World &world, const X_space &x,
-                       const vector_real_function_3d &phi0) const {
+    X_space compute_k1(World &world, const X_space &x, const double_response_vector &phi0X,
+                       const double_response_vector &phi0) const {
         if (k1_strategy_) {
-            return k1_strategy_->compute_K1(world, x, phi0);
+            return k1_strategy_->compute_K1(world, x, phi0X, phi0);
         } else {
-            throw madness::MadnessException("Compute K1 Strategy isn't set",
-                                            "Need to set a strategy", 2, 455,
-                                            "inner", "ResponseBase.hpp");
+            throw madness::MadnessException("Compute K1 Strategy isn't set", "Need to set a strategy", 2, 455, "inner",
+                                            "ResponseBase.hpp");
         }
     }
-    X_space compute_VXC1(World &world, const X_space &x,
-                         const vector_real_function_3d &rho1,
-                         const vector_real_function_3d &phi0,
-                         const XCOperator<double, 3> &xc) const {
+    X_space compute_VXC1(World &world, const X_space &x, const vector_real_function_3d &rho1,
+                         const double_response_vector &phi0, const XCOperator<double, 3> &xc) const {
         if (vxc1_strategy_) {
             return vxc1_strategy_->compute_VXC1(world, x, rho1, phi0, xc);
         } else {
-            throw madness::MadnessException("Compute VXC1 Strategy isn't set",
-                                            "Need to set a strategy", 2, 455,
+            throw madness::MadnessException("Compute VXC1 Strategy isn't set", "Need to set a strategy", 2, 455,
                                             "inner", "ResponseBase.hpp");
         }
     }
 
-    vector_real_function_3d compute_density(World &world, const X_space &x,
-                                            const vector_real_function_3d &phi0,
-                                            const vector_real_function_3d &rho1,
-                                            bool update) const {
+    vector_real_function_3d compute_density(World &world, const X_space &x, const vector_real_function_3d &phi0,
+                                            const vector_real_function_3d &rho1, bool update) const {
         if (density_strategy_) {
-            return density_strategy_->compute_density(world, x, phi0, rho1,
-                                                      update);
+            return density_strategy_->compute_density(world, x, phi0, rho1, update);
         } else {
-            throw madness::MadnessException(
-                    "Compute Density Strategy isn't set",
-                    "Need to set a strategy", 2, 455, "inner",
-                    "ResponseBase.hpp");
+            throw madness::MadnessException("Compute Density Strategy isn't set", "Need to set a strategy", 2, 455,
+                                            "inner", "ResponseBase.hpp");
+        }
+    }
+    XData load_x_space(World &world, const std::string &filename, const ResponseParameters &r_params,
+                       double omega_state) const {
+        if (load_x_space_strategy_) {
+            return load_x_space_strategy_->load_x_space(world, filename, r_params, omega_state);
+        } else {
+            throw madness::MadnessException("Load X Space Strategy isn't set", "Need to set a strategy", 2, 455,
+                                            "inner", "ResponseBase.hpp");
         }
     }
 };
@@ -365,25 +442,19 @@ public:
 
 class full_inner_product : public inner_strategy {
 public:
-    [[nodiscard]] Tensor<double>
-    compute_inner(const X_space &x, const X_space &y) const override {
+    [[nodiscard]] Tensor<double> compute_inner(const X_space &x, const X_space &y) const override {
         return inner(x, y);
     }
 };
 
 class static_inner_product : public inner_strategy {
 public:
-    [[nodiscard]] Tensor<double>
-    compute_inner(const X_space &x, const X_space &y) const override {
+    [[nodiscard]] Tensor<double> compute_inner(const X_space &x, const X_space &y) const override {
         return response_space_inner(x.x, y.x);
     }
 };
-typedef std::vector<XNonlinearSolver<vector_real_function_3d, double,
-                                     response_matrix_allocator>>
-        response_solver;
-typedef std::vector<
-        XNonlinearSolver<real_function_3d, double, response_function_allocator>>
-        response_function_solver;
+typedef std::vector<XNonlinearSolver<vector_real_function_3d, double, response_matrix_allocator>> response_solver;
+typedef std::vector<XNonlinearSolver<real_function_3d, double, response_function_allocator>> response_function_solver;
 
 class response_timing {
     std::map<std::string, std::vector<double>> wall_time_data;
@@ -412,8 +483,7 @@ public:
     void to_json(json &j);
 
     void add_data(std::map<std::string, Tensor<double>> values);
-    void add_convergence_targets(double p_thresh, double p_density_target,
-                                 double p_bsh_target);
+    void add_convergence_targets(double p_thresh, double p_density_target, double p_bsh_target);
 };
 
 class ResponseTester;
@@ -424,8 +494,7 @@ struct residuals {
 };
 
 
-using gamma_orbitals =
-        std::tuple<X_space, vector_real_function_3d, vector_real_function_3d>;
+using gamma_orbitals = std::tuple<X_space, vector_real_function_3d, vector_real_function_3d>;
 
 class ResponseBase {
 public:
@@ -440,13 +509,9 @@ public:
     virtual void iterate(World &world) = 0;
 
     //virtual void iterate();
-    auto get_parameter() const -> CalcParams {
-        return {ground_calc, molecule, r_params};
-    }
+    auto get_parameter() const -> CalcParams { return {ground_calc, molecule, r_params}; }
 
-    auto get_orbitals() const -> vector_real_function_3d {
-        return ground_orbitals;
-    }
+    auto get_orbitals() const -> vector_real_function_3d { return ground_orbitals; }
 
     auto get_chi() const -> X_space { return Chi.copy(); };
 
@@ -494,6 +559,8 @@ public:
     }
 
 
+    void write_vtk(World &world);
+
 protected:
     // Given molecule returns the nuclear potential of the molecule
     ResponseParameters r_params;
@@ -507,14 +574,11 @@ protected:
 
     std::shared_ptr<PotentialManager> potential_manager;
     // shared pointers to Operators
-    poperatorT
-            shared_coulomb_operator;// shared pointer to seperated convolution operator
+    poperatorT shared_coulomb_operator;// shared pointer to seperated convolution operator
     std::vector<std::shared_ptr<real_derivative_3d>> gradop;
     // Stored functions
-    mutable real_function_3d
-            stored_v_nuc;// Stored nuclear potential from ground state
-    mutable real_function_3d
-            stored_v_coul;// Stored coulomb potential from ground state
+    mutable real_function_3d stored_v_nuc; // Stored nuclear potential from ground state
+    mutable real_function_3d stored_v_coul;// Stored coulomb potential from ground state
 
     // Ground state orbitals and energies
     vector_real_function_3d ground_orbitals{};
@@ -533,8 +597,7 @@ protected:
 
     functionT ground_density;// ground state density
 
-    mutable response_space
-            stored_potential;// The ground state potential, stored only
+    mutable response_space stored_potential;// The ground state potential, stored only
     // if store_potential is true (default is
 
     double vtol{};
@@ -575,27 +638,25 @@ protected:
 
         FunctionDefaults<3>::set_autorefine(false);
         FunctionDefaults<3>::set_apply_randomize(false);
+
         FunctionDefaults<3>::set_project_randomize(false);
         GaussianConvolution1DCache<double>::map.clear();
 
         double safety = 0.1;
         vtol = FunctionDefaults<3>::get_thresh() * safety;
-        shared_coulomb_operator =
-                poperatorT(CoulombOperatorPtr(world, r_params.lo(), thresh));
+        shared_coulomb_operator = poperatorT(CoulombOperatorPtr(world, r_params.lo(), thresh));
         gradop = gradient_operator<double, 3>(world);
         potential_manager = std::make_shared<PotentialManager>(molecule, "a");
         potential_manager->make_nuclear_potential(world);
         // GaussianConvolution1DCache<double>::map.clear();//(TODO:molresponse-What
         // Create the masking function
-        mask = real_function_3d(
-                real_factory_3d(world).f(mask3).initial_level(4).norefine());
+        mask = real_function_3d(real_factory_3d(world).f(mask3).initial_level(4).norefine());
 
         ground_density = make_ground_density(world);
         ground_density.truncate(FunctionDefaults<3>::get_thresh());
         // Basic print
         if (world.rank() == 0) {
-            print("\nSolving NDIM=", 3, " with thresh", thresh, "    k",
-                  FunctionDefaults<3>::get_k(), "  dconv",
+            print("\nSolving NDIM=", 3, " with thresh", thresh, "    k", FunctionDefaults<3>::get_k(), "  dconv",
                   std::max(thresh, r_params.dconv()), "\n");
         }
     }
@@ -604,8 +665,7 @@ protected:
 
     auto make_ground_density(World &world) const -> functionT;
 
-    auto ComputeHamiltonianPair(World &world) const
-            -> std::pair<Tensor<double>, Tensor<double>>;
+    auto ComputeHamiltonianPair(World &world) const -> std::pair<Tensor<double>, Tensor<double>>;
 
     auto Coulomb(World &world) const -> real_function_3d;
 
@@ -619,82 +679,71 @@ protected:
 
     void load_balance_chi(World &world);
 
-    auto make_bsh_operators_response(World &world, double &shift,
-                                     const double omega) const
-            -> vector<poperatorT>;
+    auto make_bsh_operators_response(World &world, double &shift, const double omega) const -> vector<poperatorT>;
 
 
-    auto kain_x_space_update(World &world, const X_space &chi,
-                             const X_space &residual_chi,
+    auto kain_x_space_update(World &world, const X_space &chi, const X_space &residual_chi,
                              response_solver &kain_x_space) -> X_space;
 
-    void x_space_step_restriction(World &world, const X_space &old_Chi,
-                                  X_space &temp, bool restrict_y,
+    void x_space_step_restriction(World &world, const X_space &old_Chi, X_space &temp, bool restrict_y,
                                   const double &max_bsh_rotation);
+#if defined(__has_include)
+#if __has_include(<filesystem>)
+#define MADCHEM_HAS_STD_FILESYSTEM
+// <filesystem> is not reliably usable on Linux with gcc < 9
+#if defined(__GNUC__)
+#if __GNUC__ >= 7 && __GNUC__ < 9
+#undef MADCHEM_HAS_STD_FILESYSTEM
+#endif
+#endif
+#if defined(MADCHEM_HAS_STD_FILESYSTEM)
+    void PlotGroundDensityVTK(World &world, const ResponseBase &calc);
+    void plotResponseOrbitals(World &world, size_t iteration, const response_space &x_response,
+                              const response_space &y_response, const ResponseParameters &responseParameters,
+                              const GroundStateCalculation &g_params);
 
-//    void plotResponseOrbitals(World &world, size_t iteration,
-//                              const response_space &x_response,
-//                              const response_space &y_response,
-//                              const ResponseParameters &responseParameters,
-//                              const GroundStateCalculation &g_params);
+#endif
+#endif
+#endif
 
-    static auto orbital_load_balance(World &world, const gamma_orbitals &,
-                                     double load_balance) -> gamma_orbitals;
 
-    auto compute_gamma_tda(World &world, const gamma_orbitals &density,
-                           const XCOperator<double, 3> &xc) const -> X_space;
+    static auto orbital_load_balance(World &world, const gamma_orbitals &, double load_balance) -> gamma_orbitals;
 
-    auto compute_gamma_static(World &world, const gamma_orbitals &,
-                              const XCOperator<double, 3> &xc) const -> X_space;
-
-    auto compute_gamma_full(World &world, const gamma_orbitals &,
-                            const XCOperator<double, 3> &xc) const -> X_space;
-    auto compute_gamma(World &world, const gamma_orbitals &,
-                       const XCOperator<double, 3> &xc) const -> X_space;
-
-    auto compute_V0X(World &world, const X_space &X,
-                     const XCOperator<double, 3> &xc, bool compute_Y) const
+    auto compute_gamma_tda(World &world, const gamma_orbitals &density, const XCOperator<double, 3> &xc) const
             -> X_space;
 
-    auto compute_lambda_X(World &world, const X_space &chi,
-                          XCOperator<double, 3> &xc,
+    auto compute_gamma_static(World &world, const gamma_orbitals &, const XCOperator<double, 3> &xc) const -> X_space;
+
+    auto compute_gamma_full(World &world, const gamma_orbitals &, const XCOperator<double, 3> &xc) const -> X_space;
+    auto compute_gamma(World &world, const gamma_orbitals &, const XCOperator<double, 3> &xc) const -> X_space;
+
+    auto compute_V0X(World &world, const X_space &X, const XCOperator<double, 3> &xc, bool compute_Y) const -> X_space;
+
+    auto compute_lambda_X(World &world, const X_space &chi, XCOperator<double, 3> &xc,
                           const std::string &calc_type) const -> X_space;
 
-    auto compute_theta_X(World &world, const X_space &chi,
-                         const vector_real_function_3d &rho1,
-                         const XCOperator<double, 3> &xc,
-                         const std::string &calc_type) const -> X_space;
+    auto compute_theta_X(World &world, const X_space &chi, const vector_real_function_3d &rho1,
+                         const XCOperator<double, 3> &xc, const std::string &calc_type) const -> X_space;
 
-    auto compute_F0X(World &world, const X_space &X,
-                     const XCOperator<double, 3> &xc, bool compute_Y) const
-            -> X_space;
+    auto compute_F0X(World &world, const X_space &X, const XCOperator<double, 3> &xc, bool compute_Y) const -> X_space;
 
-    void analyze_vectors(World &world, const vecfuncT &x,
-                         const std::string &response_state);
+    void analyze_vectors(World &world, const vecfuncT &x, const std::string &response_state);
 
-    auto project_ao_basis(World &world, const AtomicBasisSet &aobasis)
-            -> vecfuncT;
+    auto project_ao_basis(World &world, const AtomicBasisSet &aobasis) -> vecfuncT;
 
 
-    static auto project_ao_basis_only(World &world,
-                                      const AtomicBasisSet &aobasis,
-                                      const Molecule &mol) -> vecfuncT;
+    static auto project_ao_basis_only(World &world, const AtomicBasisSet &aobasis, const Molecule &mol) -> vecfuncT;
 
     void converged_to_json(json &j);
 
-    auto update_residual(World &world, const X_space &chi, const X_space &g_chi,
-                         const std::string &calc_type,
-                         const Tensor<double> &old_residuals,
-                         const X_space &xres_old) -> residuals;
+    auto update_residual(World &world, const X_space &chi, const X_space &g_chi, const std::string &calc_type,
+                         const Tensor<double> &old_residuals, const X_space &xres_old) -> residuals;
 
-    auto compute_response_potentials(World &world, const X_space &chi,
-                                     XCOperator<double, 3> &xc,
-                                     const std::string &calc_type) const
-            -> std::tuple<X_space, X_space, X_space>;
+    auto compute_response_potentials(World &world, const X_space &chi, XCOperator<double, 3> &xc,
+                                     const std::string &calc_type) const -> std::tuple<X_space, X_space, X_space>;
 
     // compute exchange |i><i|J|p>
-    auto exchangeHF(const vecfuncT &ket, const vecfuncT &bra,
-                    const vecfuncT &vf) const -> vecfuncT {
+    auto exchangeHF(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf) const -> vecfuncT {
         World &world = ket[0].world();
         auto n = bra.size();
         auto nf = ket.size();
@@ -714,8 +763,7 @@ protected:
         // i-j sym
         for (int i = 0; i < n; ++i) {
             // for each |i> <i|phi>
-            vecfuncT psi_f =
-                    mul_sparse(world, bra[i], vf, mul_tol, true);/// was vtol
+            vecfuncT psi_f = mul_sparse(world, bra[i], vf, mul_tol, true);/// was vtol
             truncate(world, psi_f, tol, true);
             // apply to vector of products <i|phi>..<i|1> <i|2>...<i|N>
             psi_f = apply(world, *shared_coulomb_operator, psi_f);
@@ -730,17 +778,13 @@ protected:
         return Kf;
     }
 
-    static void print_inner(World &world, const std::string &name,
-                            const X_space &left, const X_space &right);
+    static void print_inner(World &world, const std::string &name, const X_space &left, const X_space &right);
 
-    void function_data_to_json(json &j_mol_in, size_t iter,
-                               const Tensor<double> &x_norms,
-                               const Tensor<double> &x_abs_norms,
-                               const Tensor<double> &rho_norms,
+    void function_data_to_json(json &j_mol_in, size_t iter, const Tensor<double> &x_norms,
+                               const Tensor<double> &x_abs_norms, const Tensor<double> &rho_norms,
                                const Tensor<double> &rho_res_norms);
     X_space compute_TX(World &world, const X_space &X, bool compute_Y) const;
-    vecfuncT update_density(World &world, const X_space &chi,
-                            const vecfuncT &old_density) const;
+    vecfuncT update_density(World &world, const X_space &chi, const vecfuncT &old_density) const;
 };
 
 
@@ -755,8 +799,7 @@ protected:
 void check_k(World &world, X_space &Chi, double thresh, int k);
 
 
-auto add_randomness(World &world, const response_space &f, double magnitude)
-        -> response_space;
+auto add_randomness(World &world, const response_space &f, double magnitude) -> response_space;
 
 void normalize(World &world, response_space &f);
 
@@ -768,8 +811,7 @@ static auto kronecker(size_t l, size_t n) -> double {
     return 0.0;
 }
 
-auto solid_harmonics(World &world, int n)
-        -> std::map<std::vector<int>, real_function_3d>;
+auto solid_harmonics(World &world, int n) -> std::map<std::vector<int>, real_function_3d>;
 
 /***
  * @brief Prints the norms of the functions of a response space
@@ -787,8 +829,8 @@ auto make_xyz_functions(World &world) -> vector_real_function_3d;
 
 // Selects from a list of functions and energies the k functions with the
 // lowest energy
-auto select_functions(World &world, response_space f, Tensor<double> &energies,
-                      size_t k, size_t print_level) -> response_space;
+auto select_functions(World &world, response_space f, Tensor<double> &energies, size_t k, size_t print_level)
+        -> response_space;
 
 // Sorts the given tensor of eigenvalues and
 // response functions
@@ -808,26 +850,20 @@ auto gram_schmidt(World &world, const response_space &f) -> response_space;
 /// \param x
 /// \param y
 /// \return
-auto transition_density(World &world, const vector_real_function_3d &orbitals,
-                        const response_space &x, const response_space &y)
+auto transition_density(World &world, const vector_real_function_3d &orbitals, const response_space &x,
+                        const response_space &y) -> vector_real_function_3d;
+
+auto transition_densityTDA(World &world, const vector_real_function_3d &orbitals, const response_space &x)
         -> vector_real_function_3d;
 
-auto transition_densityTDA(World &world,
-                           const vector_real_function_3d &orbitals,
-                           const response_space &x) -> vector_real_function_3d;
+auto transform(World &world, const response_space &f, const Tensor<double> &U) -> response_space;
 
-auto transform(World &world, const response_space &f, const Tensor<double> &U)
-        -> response_space;
-
-auto transform(World &world, const X_space &x, const Tensor<double> &U)
-        -> X_space;
+auto transform(World &world, const X_space &x, const Tensor<double> &U) -> X_space;
 
 // result(i,j) = inner(a[i],b[j]).sum()
-auto expectation(World &world, const response_space &A, const response_space &B)
-        -> Tensor<double>;
+auto expectation(World &world, const response_space &A, const response_space &B) -> Tensor<double>;
 
-void inner_to_json(World &world, const std::string &name,
-                   const Tensor<double> &m_val,
+void inner_to_json(World &world, const std::string &name, const Tensor<double> &m_val,
                    std::map<std::string, Tensor<double>> &data);
 class ResponseTester {
 
@@ -838,21 +874,18 @@ public:
         p->check_k(world, thresh, FunctionDefaults<3>::get_k());
     }
 
-    static X_space compute_gamma_full(World &world, ResponseBase *p,
-                                      double thresh) {
+    static X_space compute_gamma_full(World &world, ResponseBase *p, double thresh) {
         XCOperator<double, 3> xc = p->make_xc_operator(world);
         return X_space{};
     }
 
     X_space compute_lambda_X(World &world, ResponseBase *p, double thresh) {
         XCOperator<double, 3> xc = p->make_xc_operator(world);
-        X_space gamma =
-                p->compute_lambda_X(world, p->Chi, xc, p->r_params.calc_type());
+        X_space gamma = p->compute_lambda_X(world, p->Chi, xc, p->r_params.calc_type());
         return gamma;
     }
 
-    std::pair<X_space, X_space> compute_VFOX(World &world, ResponseBase *p,
-                                             bool compute_y) {
+    std::pair<X_space, X_space> compute_VFOX(World &world, ResponseBase *p, bool compute_y) {
         XCOperator<double, 3> xc = p->make_xc_operator(world);
         X_space V = p->compute_V0X(world, p->Chi, xc, compute_y);
         X_space F = p->compute_F0X(world, p->Chi, xc, compute_y);

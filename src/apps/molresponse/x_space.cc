@@ -168,7 +168,7 @@ namespace madness {
     auto inner(const X_space &A, const X_space &B) -> Tensor<double> {
         MADNESS_ASSERT(size_states(A) > 0);
         MADNESS_ASSERT(size_orbitals(A) > 0);
-        MADNESS_ASSERT(same_size(A, B));
+        MADNESS_ASSERT(A.num_orbitals()==B.num_orbitals());
 
         // return response_space_inner(A.x, B.x) + response_space_inner(A.y, B.y);
 
@@ -181,7 +181,7 @@ namespace madness {
         auto b_transpose = transposeResponseMatrix(b);
 
         world.gop.fence();
-        Tensor<double> result(a.size(), a.size());
+        Tensor<double> result(A.num_states(), B.num_states());
         int p = 0;
         std::for_each(a_transpose.begin(), a_transpose.end(),
                       [&](const auto &ati) {

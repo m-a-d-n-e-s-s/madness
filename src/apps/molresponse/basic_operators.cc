@@ -61,14 +61,6 @@ namespace madness {
         response_space result = f.copy();
         for (const auto &i: f.active) { result.x[i] = apply(world, op, f[i]); }
         world.gop.fence();
-        /*
-        for (unsigned int i = 0; i < f.size(); i++) {
-            // Using vmra.h function, line 889
-            /// Applies a vector of operators to a vector of functions --- q[i] =
-            /// apply(op[i],f[i])
-            result[i] = apply(world, op, f[i]);
-        }
-         */
 
         return result;
     }

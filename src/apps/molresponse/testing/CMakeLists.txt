@@ -3,6 +3,7 @@
 
 set(MY_EXECUTABLES
         mad-freq
+        mad-freq_vtk_plots
         mad-excited
         frequency_calc
         excited_state_calc
@@ -13,9 +14,11 @@ set(MY_EXECUTABLES
         generate_frequency_data
         test_development
         x_space_testing
+        mad-quadratic
+        pod_response
         )
 
-add_mad_executable(test_schema_json "madness_catch_main.cc;qcschema_json_testing.cpp" "MADresponse;MADchem")
+#add_mad_executable(test_schema_json "madness_catch_main.cc;qcschema_json_testing.cpp" "MADresponse;MADchem")
 
 foreach(EXECUTABLE ${MY_EXECUTABLES})
     add_mad_executable(${EXECUTABLE} "${EXECUTABLE}.cpp" "MADall_response;MADchem")

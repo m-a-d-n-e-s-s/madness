@@ -34,4 +34,11 @@ public:
                        __LINE__, __FUNCTION__, __FILE__) {}
 };
 
+class Quad_Response_Error : public MadException {
+public:
+    explicit Quad_Response_Error()
+            : MadException("Previous frequency response calculation did not converge ", nullptr, 25,
+                           __LINE__, __FUNCTION__, __FILE__) {}
+};
+
 #endif// MADNESS_RESPONSEEXCEPTIONS_HPP
