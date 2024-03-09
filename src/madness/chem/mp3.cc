@@ -204,6 +204,7 @@ double MP3::compute_mp3_ef_with_permutational_symmetry(const Pairs<CCPair>& mp2p
     for (int ij=0; ij<npair(); ++ij) {
         auto [i,j]=ij_to_i_and_j(ij);
         double tmp=0;
+        std::vector<CCPairFunction<double,6>> tmp_tau;
         // loop over all k and l
         for (int k=nfrozen; k<nocc; ++k) {
             for (int l=nfrozen; l<nocc; ++l) {
@@ -218,7 +219,6 @@ double MP3::compute_mp3_ef_with_permutational_symmetry(const Pairs<CCPair>& mp2p
 
                 // terms C+D = <tau_ij | tau_kl> (2*<ij|g|kl> - <ji|g|kl>)
                 //           = <tau_ij | tau_kl> (2*(ik|jl) - (jk|il))
-                double ovlp=inner(clusterfunctions(i,j),clusterfunctions(k,l),R2);
                 const auto& ket_i=nemo_orbital[i];
                 const auto& ket_k=nemo_orbital[k];
                 const auto& ket_l=nemo_orbital[l];
@@ -227,9 +227,13 @@ double MP3::compute_mp3_ef_with_permutational_symmetry(const Pairs<CCPair>& mp2p
                 const auto& bra_l=R2_orbital[l];
                 double g_ikjl=inner(bra_i*ket_k, (*g12)(bra_j*ket_l));
                 double g_jkil=inner(bra_j*ket_k, (*g12)(bra_l*ket_i));
-                tmp+=weight*ovlp*(2.0* g_ikjl - g_jkil);
+                // double ovlp=inner(clusterfunctions(i,j),clusterfunctions(k,l),R2);
+                tmp_tau+=weight*(2.0* g_ikjl - g_jkil)*clusterfunctions(k,l);
+                // tmp+=weight*ovlp*(2.0* g_ikjl - g_jkil);
             }
         }
+        tmp_tau=consolidate(tmp_tau,{"remove_lindep"});
+        tmp=inner(clusterfunctions(i,j),tmp_tau,R2);
         printf("mp3 energy: term_EF %2d %2d %12.8f\n",i,j,tmp);
         result+=tmp;
     }
@@ -272,6 +276,8 @@ double MP3::compute_mp3_ef_low_scaling(const Pairs<CCPair>& mp2pairs,
     timer_sum.interrupt();
     timer timer_inner(world);
     timer_inner.interrupt();
+    timer timer_consolidate(world);
+    timer_consolidate.interrupt();
 
     /// <ij | kl >  = (ik | jl)
     std::vector<permutation> all_tau_permutations;
@@ -294,8 +300,10 @@ double MP3::compute_mp3_ef_low_scaling(const Pairs<CCPair>& mp2pairs,
                     sigma+=g_ijkl*clusterfunctions(k,l);
                 }
             }
-            sigma=consolidate(sigma,{"remove_lindep"});
             timer_sum.interrupt();
+            timer_consolidate.resume();
+            sigma=consolidate(sigma,{"remove_lindep"});
+            timer_consolidate.interrupt();
             timer_inner.resume();
             double tmp=inner(clusterfunctions(i,j),sigma,R2);
             printf("mp3 energy: term_EF %2d %2d %12.8f\n",i,j,tmp);
@@ -304,7 +312,8 @@ double MP3::compute_mp3_ef_low_scaling(const Pairs<CCPair>& mp2pairs,
         }
     }
 
-    timer_sum.print("summation/consolidation in EF term");
+    timer_sum.print("summation in EF term");
+    timer_consolidate.print("consolidation in EF term");
     timer_inner.print("inner in EF term");
     printf("MP3 energy: term_EF %12.8f\n",result);
     return result;
@@ -588,9 +597,12 @@ double MP3::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
 
     double term_CD=0.0, term_EF=0.0, term_GHIJ=0.0, term_KLMN=0.0;
     timer t2(world);
-    // term_EF=compute_mp3_ef_with_permutational_symmetry(mp2pairs);
-    term_EF=compute_mp3_ef_low_scaling(mp2pairs,clusterfunctions);
-    t2.tag("EF term, low scaling");
+    term_EF=compute_mp3_ef_with_permutational_symmetry(mp2pairs);
+    t2.tag("EF term, permutational symmetry");
+    // term_EF=compute_mp3_ef_low_scaling(mp2pairs,clusterfunctions);
+    // t2.tag("EF term, low scaling");
+    // term_EF=compute_mp3_ef(mp2pairs);
+    // t2.tag("EF term, naive implementation");
     term_CD=compute_mp3_cd(mp2pairs);
     t2.tag("CD term");
     term_GHIJ=compute_mp3_ghij(mp2pairs);

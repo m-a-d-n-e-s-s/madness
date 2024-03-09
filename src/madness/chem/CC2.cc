@@ -60,7 +60,7 @@ CC2::solve() {
     if (need_mp2) {
         bool restarted=initialize_pairs(mp2pairs, GROUND_STATE, CT_MP2, CC_vecfunction(PARTICLE), CC_vecfunction(RESPONSE), 0);
         if (restarted and parameters.no_compute_mp2()) {
-            for (auto& pair : mp2pairs.allpairs) mp2_energy+=CCOPS.compute_pair_correlation_energy(pair.second);
+//            for (auto& pair : mp2pairs.allpairs) mp2_energy+=CCOPS.compute_pair_correlation_energy(pair.second);
         } else {
             mp2_energy = solve_mp2_coupled(mp2pairs);
         }

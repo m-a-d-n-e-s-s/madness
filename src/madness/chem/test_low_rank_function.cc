@@ -691,6 +691,14 @@ int test_construction_optimization(World& world, LowRankFunctionParameters param
         error = lrf.l2error(lrfunctor);
         print("l2 error reorthonormalize", error);
         t1.checkpoint(error, tol, "l2 error in reorthonormalization");
+
+        lrf+=lrf;
+        lrf*=0.5;
+        lrf.reorthonormalize();
+        error = lrf.l2error(lrfunctor);
+        print("l2 error reorthonormalize with lindep", error);
+        t1.checkpoint(error, tol, "l2 error in reorthonormalization with lindep");
+
     }
     return t1.end();
 }

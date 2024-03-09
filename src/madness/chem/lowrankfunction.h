@@ -643,10 +643,33 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             Tensor<T> ovlp_h = matrix_inner(world, h, h);
             auto [eval_g, evec_g] = syev(ovlp_g);
             auto [eval_h, evec_h] = syev(ovlp_h);
-            Tensor<T> Xplus=copy(evec_g);
-            Tensor<T> Xminus=copy(evec_g);
-            Tensor<T> Yplus=copy(evec_h);
-            Tensor<T> Yminus=copy(evec_h);
+
+            // get relevant part of the eigenvalues and eigenvectors
+            // eigenvalues are sorted in ascending order
+            auto get_slice = [](auto eval, double thresh) {
+                // remove small/negative eigenvalues
+                eval.screen(thresh);
+                Slice s;
+                for (int i=0; i<eval.size(); ++i) {
+                    MADNESS_CHECK_THROW(eval[i]>=0.0,"negative eigenvalues in reorthonormalize");
+                    if (eval[i]>thresh) {
+                        return s=Slice(i,-1);       // from i to the end
+                        break;
+                    }
+                }
+                return s;
+            };
+
+            Slice gslice=get_slice(eval_g,1.e-14);
+            Slice hslice=get_slice(eval_h,1.e-14);
+
+            Tensor<T> Xplus=copy(evec_g(_,gslice));
+            Tensor<T> Xminus=copy(evec_g(_,gslice));
+            Tensor<T> Yplus=copy(evec_h(_,hslice));
+            Tensor<T> Yminus=copy(evec_h(_,hslice));
+            eval_g=copy(eval_g(gslice));
+            eval_h=copy(eval_h(hslice));
+
             for (int i=0; i<eval_g.size(); ++i) Xplus(_,i)*=std::pow(eval_g(i),0.5);
             for (int i=0; i<eval_g.size(); ++i) Xminus(_,i)*=std::pow(eval_g(i),-0.5);
             for (int i=0; i<eval_h.size(); ++i) Yplus(_,i)*=std::pow(eval_h(i),0.5);
