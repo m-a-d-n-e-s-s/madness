@@ -339,14 +339,14 @@ public:
     /// empty ctor
     CCPairFunction() = default;
 
-    /// takes a deep copy of the argument function
+    /// takes a shallow copy of the argument function
     explicit CCPairFunction(const Function<T,NDIM>& ket) {
-        component.reset(new TwoBodyFunctionPureComponent<T,NDIM>(copy(ket)));
+        component.reset(new TwoBodyFunctionPureComponent<T,NDIM>(ket));
     }
 
-    /// takes a deep copy of the argument function
+    /// takes a shallow copy of the argument function
     explicit CCPairFunction(const std::shared_ptr<CCConvolutionOperator<T,LDIM>> op_, const Function<T,NDIM>& ket) {
-        component.reset(new TwoBodyFunctionPureComponent<T,NDIM>(op_,copy(ket)));
+        component.reset(new TwoBodyFunctionPureComponent<T,NDIM>(op_,ket));
     }
 
     /// takes a deep copy of the argument functions
@@ -409,6 +409,9 @@ private:
     /// turn pure functions with operator into pure functions without operators
     static std::vector<CCPairFunction> op_pure_to_pure(const std::vector<CCPairFunction>& other);
 
+    /// turn decomposed functions with operator into pure functions without operators
+    static std::vector<CCPairFunction> op_dec_to_pure(const std::vector<CCPairFunction>& other);
+
     /// remove linear dependent terms in the low-rank parts
     static std::vector<CCPairFunction> remove_linearly_dependent_terms(const std::vector<CCPairFunction>& other,
         double thresh=-1.0);
@@ -423,6 +426,7 @@ public:
 
     /// @param[in] other: a vector of CCPairFunctions
     /// @param[in] options: a vector of strings which can be "one_term", "op_pure_to_pure", "svd"
+    /// TODO: implement a function for removing linearly dependent terms without orthonormalization
     friend std::vector<CCPairFunction> consolidate(const std::vector<CCPairFunction>& other,
                                                    std::vector<std::string> options={}) {
 
@@ -881,6 +885,13 @@ template <typename T, std::size_t NDIM>
 std::vector<CCPairFunction<T,NDIM> >& operator+=(std::vector<CCPairFunction<T,NDIM> >& rhs,
         const std::vector<CCPairFunction<T,NDIM> >& lhs) {
     for (const auto& l : lhs) rhs.push_back(l);
+    return rhs;
+}
+
+template <typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM> >& operator-=(std::vector<CCPairFunction<T,NDIM> >& rhs,
+        const std::vector<CCPairFunction<T,NDIM> >& lhs) {
+    for (const auto& l : lhs) rhs.push_back(-1.0*l);
     return rhs;
 }
 

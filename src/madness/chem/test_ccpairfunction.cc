@@ -121,7 +121,7 @@ struct data {
         CCPairFunction<T,NDIM> p2({f1,f2},{f2,f3});
         CCPairFunction<T,NDIM> p3(f12_op,{f1,f2},{f2,f3});
         CCPairFunction<T,NDIM> p4(f23); // two-term, corresponds to p2
-        CCPairFunction<T,NDIM> p5(f12_op,f23); // two-term, corresponds to p2
+        CCPairFunction<T,NDIM> p5(f12_op,copy(f23)); // two-term, corresponds to p2
         return std::make_tuple(p1,p2,p3,p4,p5);
     }
 
@@ -306,6 +306,12 @@ int test_transformations(World& world, std::shared_ptr<NuclearCorrelationFactor>
     auto f12=CCConvolutionOperatorPtr<double,LDIM>(world, OT_F12, parameter);
     auto g12=CCConvolutionOperatorPtr<double,LDIM>(world, OT_G12, parameter);
 
+    auto compute_diff_norm = [](const CCPairFunction<T,NDIM>& f1, const CCPairFunction<T,NDIM> f2) {
+        std::vector<CCPairFunction<T,NDIM>> diff;
+        diff+={f1};
+        diff-={f2};
+        return sqrt(inner(diff,diff));
+    };
 
     CCPairFunction<T,NDIM> p1(ff);
     t1.checkpoint(p1.is_pure(),"is_pure");
@@ -325,6 +331,7 @@ int test_transformations(World& world, std::shared_ptr<NuclearCorrelationFactor>
     t1.checkpoint(p4.is_op_pure(),"is_op_pure");
     t1.checkpoint(not p4.is_convertible_to_pure_no_op(),"not is_convertible_to_pure_no_op");
 
+    // convert f12 f1 f2 to pure_op_op
     CCPairFunction<T,NDIM> p5(f12,f1,f2);
     t1.checkpoint(not p5.is_pure(),"is_pure");
     t1.checkpoint(p5.is_op_decomposed(),"is_op_decomposed");
@@ -332,6 +339,21 @@ int test_transformations(World& world, std::shared_ptr<NuclearCorrelationFactor>
     CCPairFunction<T,NDIM> p6=copy(p5);
     p6.convert_to_pure_no_op_inplace();
     t1.checkpoint(p6.is_pure_no_op(),"is_pure_no_op");
+    double d6=compute_diff_norm(p5,p6);
+    t1.checkpoint(d6,FunctionDefaults<NDIM>::get_thresh()*50,"numerics");
+
+    // convert \sum_i f12 f1_i f2_i to pure_op_op
+    CCPairFunction<T,NDIM> p7(f12,{f1,f2,f3},{f1,f2,f3});
+    t1.checkpoint(not p7.is_pure(),"is_pure");
+    t1.checkpoint(p7.is_op_decomposed(),"is_op_decomposed");
+    t1.checkpoint(p7.is_convertible_to_pure_no_op(),"is_convertible_to_pure_no_op");
+    CCPairFunction<T,NDIM> p8=copy(p7);
+    p8.convert_to_pure_no_op_inplace();
+    t1.checkpoint(p8.is_pure_no_op(),"is_pure_no_op");
+    double d8=compute_diff_norm(p7,p8);
+    t1.checkpoint(d8,FunctionDefaults<NDIM>::get_thresh()*50,"numerics");
+
+
 
     return t1.end();
 }

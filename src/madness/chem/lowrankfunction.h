@@ -628,6 +628,14 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             }
         }
 
+        /// remove linear dependencies without orthonormalization
+        void remove_linear_depdencies(double thresh=-1.0) {
+
+            // use rank-revealing cholesky decomposition to remove linear dependencies
+
+
+        }
+
         /// after external operations g might not be orthonormal and/or optimal -- reorthonormalize
 
         /// orthonormalization similar to Bischoff, Harrison, Valeev, JCP 137 104103 (2012), Sec II C 3
@@ -660,8 +668,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 return s;
             };
 
-            Slice gslice=get_slice(eval_g,1.e-14);
-            Slice hslice=get_slice(eval_h,1.e-14);
+            Slice gslice=get_slice(eval_g,1.e-13);
+            Slice hslice=get_slice(eval_h,1.e-13);
 
             Tensor<T> Xplus=copy(evec_g(_,gslice));
             Tensor<T> Xminus=copy(evec_g(_,gslice));

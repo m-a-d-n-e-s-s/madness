@@ -237,6 +237,8 @@ double MP3::compute_mp3_ef_with_permutational_symmetry(const Pairs<CCPair>& mp2p
         printf("mp3 energy: term_EF %2d %2d %12.8f\n",i,j,tmp);
         result+=tmp;
     }
+    printf("MP3 energy: term_EF %12.8f\n",result);
+
     // sanity check
     int npermutations=all_tau_permutations.size();
     all_tau_permutations=permutation::remove_duplicates(all_tau_permutations);
@@ -245,7 +247,6 @@ double MP3::compute_mp3_ef_with_permutational_symmetry(const Pairs<CCPair>& mp2p
     MADNESS_CHECK_THROW(npermutations==nuniquepermutations,"incorrect number of unique permutations");
     MADNESS_CHECK_THROW(npermutations==ntotalpermutations,"incorrect number of unique permutations");
 
-    printf("MP3 energy: term_EF %12.8f\n",result);
     return result;
 };
 
@@ -320,24 +321,12 @@ double MP3::compute_mp3_ef_low_scaling(const Pairs<CCPair>& mp2pairs,
 
 }
 
-
-double MP3::compute_mp3_ghij(const Pairs<CCPair>& mp2pairs) const {
-
+double MP3::compute_mp3_ghij(const Pairs<CCPair>& mp2pairs,
+    const Pairs<std::vector<CCPairFunction<double,6>>> clusterfunctions) const {
+    typedef std::vector<CCPairFunction<double,6>> ClusterFunction;
 
     // prepare cluster functions
     std::size_t nocc=mo_ket().size();
-    typedef std::vector<CCPairFunction<double,6>> ClusterFunction;
-    Pairs<ClusterFunction> clusterfunctions;
-    for (int i = parameters.freeze(); i < nocc; ++i) {
-        for (int j = i; j < nocc; ++j) {
-            clusterfunctions(i,j)=mp2pairs(i,j).functions;
-            if (i!=j) {
-                for (const auto& t : clusterfunctions(i,j)) {
-                    clusterfunctions(j, i).push_back(t.swap_particles());
-                }
-            }
-        }
-    }
     double result=0.0;
 
     const auto& R2=nemo_->R_square;
@@ -365,15 +354,12 @@ double MP3::compute_mp3_ghij(const Pairs<CCPair>& mp2pairs) const {
             for (auto& t: tmp3) tau_ij_j[i].push_back(t);
         }
     }
-    print("info on tau_kk_i, consolidated with op_pure_to_pure");
+    std::vector<std::string> consolidation={"op_pure_to_pure","remove_lindep"};
+    print("consolidating with ",consolidation);
     for (int i = parameters.freeze(); i < nocc; ++i) {
-        tau_kk_i[i] = consolidate(tau_kk_i[i], {"op_pure_to_pure", "op_dec_to_dec"});
-        for (auto& c: tau_kk_i[i]) c.info();
-    }
-    print("info on tau_ij_j, consolidated with op_pure_to_pure");
-    for (int i = parameters.freeze(); i < nocc; ++i) {
-        tau_ij_j[i] = consolidate(tau_ij_j[i], {"op_pure_to_pure", "op_dec_to_dec"});
-        for (auto& c: tau_ij_j[i]) c.info();
+        tau_kk_i[i] = consolidate(tau_kk_i[i],consolidation);
+        tau_ij_j[i] = consolidate(tau_ij_j[i], consolidation);
+        // for (auto& c: tau_kk_i[i]) c.info();
     }
 
     t2.tag("GHIJ term prep");
@@ -386,15 +372,11 @@ double MP3::compute_mp3_ghij(const Pairs<CCPair>& mp2pairs) const {
         g.set_particle(1);
         auto gtau_same = g(tau_kk_i[i]);
         t4.tag("compute gtau_same");
-        //            gtau_same=consolidate(gtau_same,{"op_pure_to_pure"});
-        //            t4.tag("consolidate gtau_same");
 
         // tmp(1',2) = g(1',1) | tau_ij(1,2) j(1) >
         g.set_particle(1);
         auto gtau_other = g(tau_ij_j[i]); // < tau_ij(1,2) j(1) | g(1,1') |
         t4.tag("compute gtau_other");
-        //            gtau_other=consolidate(gtau_other,{"op_pure_to_pure"});
-        //            t4.tag("consolidate gtau_other");
 
         auto bra_kk_i = multiply(tau_kk_i[i], R2, {3, 4, 5});
         auto bra_ij_j = multiply(tau_ij_j[i], R2, {3, 4, 5});
@@ -414,6 +396,73 @@ double MP3::compute_mp3_ghij(const Pairs<CCPair>& mp2pairs) const {
         t4.tag("compute inner products");
         double tmp = (8.0 * G - 4.0 * I + 2.0 * H - 4.0 * J);
         printf("mp3 energy: term_GHIJ  %2d %12.8f\n", i, tmp);
+        result += tmp;
+    }
+    printf("MP3 energy: term_GHIJ %12.8f\n", result);
+    t2.tag("GHIJ term");
+    return result;
+};
+
+
+double MP3::compute_mp3_ghij_fast(const Pairs<CCPair>& mp2pairs, const Pairs<std::vector<CCPairFunction<double,6>>> clusterfunctions) const {
+
+    print_header3("entering compute_mp3_ghij_fast");
+
+    // prepare cluster functions
+    std::size_t nocc=mo_ket().size();
+    typedef std::vector<CCPairFunction<double,6>> ClusterFunction;
+    double result=0.0;
+
+    const auto& R2=nemo_->R_square;
+    const std::vector<real_function_3d>& nemo_orbital=mo_ket().get_vecfunction();
+    const std::vector<real_function_3d>& R2_orbital=mo_bra().get_vecfunction();
+
+    CCConvolutionOperator<double,3>::Parameters cparam;
+    auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,cparam);
+
+    timer t2(world);
+
+    // compute intermediates for terms G, I, H, and J
+
+    // \sum_j tau_ij(1,2) * phi_j(2)
+    std::vector<ClusterFunction> tau_kk_i(nocc);
+    // \sum_j tau_ij(1,2) * phi_j(1)
+    std::vector<ClusterFunction> tau_ij_j(nocc);
+
+    for (int i = parameters.freeze(); i < nocc; ++i) {
+        for (int j = parameters.freeze(); j < nocc; ++j) {
+            auto tmp2 = multiply(clusterfunctions(i, j), R2_orbital[i], {0, 1, 2});
+            for (auto& t: tmp2) tau_kk_i[j].push_back(t);
+
+            auto tmp3 = multiply(clusterfunctions(i, j), R2_orbital[j], {0, 1, 2});
+            for (auto& t: tmp3) tau_ij_j[i].push_back(t);
+        }
+    }
+
+    std::vector<std::string> consolidation={"op_pure_to_pure","remove_lindep","op_dec_to_pure"};
+    print("consolidating with ",consolidation);
+    std::vector<ClusterFunction> intermediate(nocc);
+    for (int i = parameters.freeze(); i < nocc; ++i) {
+        intermediate[i]=2.0*tau_kk_i[i];
+        intermediate[i]-=tau_ij_j[i];
+        intermediate[i]=consolidate(intermediate[i],consolidation);
+    }
+
+    t2.tag("GHIJ term prep");
+
+    // terms G, I, H, J of Bartlett/Silver 1975
+    real_convolution_3d& g = *(g12->get_op());
+    g.set_particle(1);
+    for (int i = parameters.freeze(); i < nocc; ++i) {
+        // tmp(1,2) = g(1,1') | tau_ij(1',2) j(2) >
+        timer t4(world, "gtau");
+        auto gintermediate = g(intermediate[i]);
+        t4.tag("compute gintermediate");
+        auto bra_intermediate = multiply(intermediate[i], R2, {3, 4, 5});
+        t4.tag("multiply");
+        double tmp = 2.0*inner(bra_intermediate, gintermediate);
+        printf("mp3 energy: term_GHIJ  %2d %12.8f\n", i, tmp);
+        t4.tag("inner");
         result += tmp;
     }
     printf("MP3 energy: term_GHIJ %12.8f\n", result);
@@ -597,15 +646,11 @@ double MP3::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
 
     double term_CD=0.0, term_EF=0.0, term_GHIJ=0.0, term_KLMN=0.0;
     timer t2(world);
-    term_EF=compute_mp3_ef_with_permutational_symmetry(mp2pairs);
-    t2.tag("EF term, permutational symmetry");
-    // term_EF=compute_mp3_ef_low_scaling(mp2pairs,clusterfunctions);
-    // t2.tag("EF term, low scaling");
-    // term_EF=compute_mp3_ef(mp2pairs);
-    // t2.tag("EF term, naive implementation");
-    term_CD=compute_mp3_cd(mp2pairs);
-    t2.tag("CD term");
-    term_GHIJ=compute_mp3_ghij(mp2pairs);
+//    term_EF=compute_mp3_ef_with_permutational_symmetry(mp2pairs);
+//    t2.tag("EF term, permutational symmetry");
+//    term_CD=compute_mp3_cd(mp2pairs);
+//    t2.tag("CD term");
+    term_GHIJ=compute_mp3_ghij_fast(mp2pairs,clusterfunctions);
     t2.tag("GHIJ term");
     term_KLMN=compute_mp3_klmn_fast(mp2pairs);
     t2.tag("KLMN term fast");

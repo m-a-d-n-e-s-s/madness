@@ -25,40 +25,27 @@ bool CCPairFunction<T,NDIM>::is_convertible_to_pure_no_op() const {
         const auto type=get_operator().type();
         if (not (type==OpType::OT_SLATER or type==OpType::OT_F12)) return false;
     }
-    if (is_decomposed() and (get_a().size()>2)) return false;
     return true;
 };
 
 
 template<typename T, std::size_t NDIM>
 void CCPairFunction<T,NDIM>::convert_to_pure_no_op_inplace() {
-    pureT tmp;
-    pureT result=FunctionFactory<T,NDIM>(world());
+    pureT result;
     if (is_pure_no_op()) {
         return;
     } else if (is_pure()) {
-        tmp= CompositeFactory<T, NDIM, LDIM>(world())
+        result= CompositeFactory<T, NDIM, LDIM>(world())
                 .g12(get_operator().get_kernel())
                 .ket(get_function());
-        tmp.fill_tree();
-        result=tmp;
     } else if (is_decomposed()) {
-        MADNESS_CHECK_THROW(get_a().size()<3,"a.size not <3 in convert_to_pure_no_op_inplace");
-        for (int i=0; i<get_a().size(); ++i) {
-            if (is_op_decomposed()) {
-                tmp= CompositeFactory<T, NDIM, LDIM>(world())
-                        .g12(get_operator().get_kernel())
-                        .particle1(get_a()[i])
-                        .particle2(get_b()[i]);
-            } else if (is_decomposed_no_op()) {
-                tmp= CompositeFactory<T, NDIM, LDIM>(world())
-                        .particle1(get_a()[i])
-                        .particle2(get_b()[i]);
-            }
-            tmp.fill_tree();
-            result+=tmp;
-        }
+        result= CompositeFactory<T, NDIM, LDIM>(world())
+                .g12(get_operator().get_kernel())
+                .particle1(get_a())
+                .particle2(get_b());
     }
+    result.fill_tree();
+    result.truncate(FunctionDefaults<NDIM>::get_thresh()*0.1);
     component.reset(new TwoBodyFunctionPureComponent<T,NDIM>(result));
 };
 
@@ -78,7 +65,10 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::op_pure_to_pure(cons
             result.push_back(c);
         }
     }
-    if (pure.is_initialized()) result.push_back(CCPairFunction<T,NDIM>(pure));
+    if (pure.is_initialized()) {
+        pure.truncate(FunctionDefaults<NDIM>::get_thresh()*0.1);
+        result.push_back(CCPairFunction<T,NDIM>(pure));
+    }
     return result;
 }
 
@@ -102,6 +92,23 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::op_dec_to_dec(const 
         }
     }
     return result;
+}
+
+/// turn decomposed functions with operator into pure functions
+template<typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::op_dec_to_pure(const std::vector<CCPairFunction<T,NDIM>>& other) {
+    LowRankFunctionParameters lrparameters;
+    std::vector<CCPairFunction<T,NDIM>> result;
+    for (const auto& c : other) {
+        if (c.is_op_decomposed()) {
+            CCPairFunction<T,NDIM> tmp=copy(c);
+            tmp.convert_to_pure_no_op_inplace();
+            result.push_back(tmp);
+        } else {
+            result.push_back(c);
+        }
+    }
+    return result;
 
 }
 
@@ -119,22 +126,6 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::remove_linearly_depe
             lrf.reorthonormalize();
             result.push_back(CCPairFunction<T,NDIM>(c.get_operator_ptr(),lrf.get_g(),lrf.get_h()));
 
-
-//            auto a=c.get_a();
-//            auto b=c.get_b();
-//            auto ovlp=matrix_inner(c.world(),a,b);
-//            auto [U,s,VT]=svd(ovlp);
-//            // truncate the singular values
-//            auto n=0;
-//            for (int i=0; i<s.size(); ++i) if (s(i)>thresh) n++;
-//            if (n<s.size()) {
-//                s=s(Slice(0,n-1));      // start and end indices of Slice are inclusive -> n-1
-//                U=U(_,Slice(0,n-1));
-//                VT=VT(Slice(0,n-1),_);
-//            }
-//            auto UU=transform(c.world(),a,U);
-//            auto VVT=transform(c.world(),b,transpose(VT));
-//            result.push_back(CCPairFunction<T,NDIM>(c.get_operator_ptr(),UU,VVT));
         } else {
             MADNESS_EXCEPTION("you should not be here",1);
         }
@@ -185,7 +176,7 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::collect_same_types(c
                 result.push_back(CCPairFunction<T,NDIM>(op,tmp));
             } else {
                 MADNESS_CHECK_THROW(op_pure[opint].size()==1,"op_pure[opint].size()!=1");
-                result.push_back(CCPairFunction<T,NDIM>(op,op_pure[opint].front()));
+                result.push_back(CCPairFunction<T,NDIM>(op,copy(op_pure[opint].front())));
             }
         }
         if (op_decomposed_a[opint].size()>0) {
@@ -223,6 +214,8 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::consolidate(const st
     bool op_pure_to_pure=find(options.begin(),options.end(),"op_pure_to_pure")!=options.end();
     // convert op_dec functions to dec (via LowRankFunctions
     bool op_dec_to_dec=find(options.begin(),options.end(),"op_dec_to_dec")!=options.end();
+    // convert op_dec functions to pure (via fill_tree)
+    bool op_dec_to_pure=find(options.begin(),options.end(),"op_dec_to_pure")!=options.end();
     // reorthogonalize decomposed functions and op_decomposed functions
     bool lindep=find(options.begin(),options.end(),"remove_lindep")!=options.end();
 
@@ -231,6 +224,7 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::consolidate(const st
     if (lindep) result=CCPairFunction<T,NDIM>::remove_linearly_dependent_terms(result);
 
     if (op_dec_to_dec) result=CCPairFunction<T,NDIM>::op_dec_to_dec(result);
+    if (op_dec_to_pure) result=CCPairFunction<T,NDIM>::op_dec_to_pure(result);
     if (op_pure_to_pure) result=CCPairFunction<T,NDIM>::op_pure_to_pure(result);
 
     if (not is_collected(result)) result=collect_same_types(result);
