@@ -616,6 +616,41 @@ double MP3::compute_mp3_klmn(const Pairs<CCPair>& mp2pairs) const {
 
 };
 
+double MP3::mp3_test(const Pairs<CCPair>& mp2pairs, const Pairs<std::vector<CCPairFunction<double,6>>> clusterfunctions) const {
+    print_header2("entering mp3 test");
+
+    auto R2 = nemo_->ncf->square();
+    const int nocc=mo_ket().size();
+    std::vector<real_function_3d> nemo_orbital=mo_ket().get_vecfunction();
+    std::vector<real_function_3d> R2_orbital=mo_bra().get_vecfunction();
+    //    std::vector<real_function_3d> nemo_orbital=mo_ket().get_vecfunction();
+    std::vector<CCPairFunction<double,6>> ij;
+    int i=1, j=1;
+    ij.push_back(CCPairFunction<double,6>(nemo_orbital[i],nemo_orbital[j]));
+    CCConvolutionOperator<double,3>::Parameters cparam;
+    auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,cparam);
+    double eri=0.0;
+    for (int i=0; i<nocc; ++i) {
+        for (int j=0; j<nocc; ++j) {
+            std::vector<CCPairFunction<double, 6>> ii;
+            ii.push_back(CCPairFunction<double, 6>(nemo_orbital[i], nemo_orbital[j]));
+            double tmp = inner(ii, g12 * ii, R2);
+            print("eri for pair", i,j, tmp);
+            eri += tmp;
+        }
+    }
+    print("total eri",eri);
+
+    print("eri(1,1)",eri);
+    double mp2_energy=inner(clusterfunctions(i,j),ij,R2);
+    print("mp2 energy for pair ", i, j, mp2_energy);
+
+    double mp3_contrib=inner(clusterfunctions(i,j),clusterfunctions(i,j),R2);
+    print("<tau_ij | tau_ij>",mp3_contrib);
+
+    return 0.0;
+}
+
 double MP3::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
 
     print_header2("computing the MP3 correlation energy");
@@ -630,6 +665,7 @@ double MP3::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
     //    std::vector<real_function_3d> R2_orbital=mo_bra().get_vecfunction();
     //    const int nocc=mo_ket().size();
 
+    timer t2(world);
     std::size_t nocc=mo_ket().size();
     typedef std::vector<CCPairFunction<double,6>> ClusterFunction;
     Pairs<ClusterFunction> clusterfunctions;
@@ -644,18 +680,17 @@ double MP3::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
         }
     }
 
+    t2.tag("make cluster functions");
+    mp3_test(mp2pairs,clusterfunctions);
     double term_CD=0.0, term_EF=0.0, term_GHIJ=0.0, term_KLMN=0.0;
-    timer t2(world);
-//    term_EF=compute_mp3_ef_with_permutational_symmetry(mp2pairs);
-//    t2.tag("EF term, permutational symmetry");
-//    term_CD=compute_mp3_cd(mp2pairs);
-//    t2.tag("CD term");
-    term_GHIJ=compute_mp3_ghij_fast(mp2pairs,clusterfunctions);
-    t2.tag("GHIJ term");
     term_KLMN=compute_mp3_klmn_fast(mp2pairs);
     t2.tag("KLMN term fast");
-    // term_KLMN=compute_mp3_klmn(mp2pairs);
-    // t2.tag("KLMN term");
+    term_GHIJ=compute_mp3_ghij_fast(mp2pairs,clusterfunctions);
+    t2.tag("GHIJ term");
+    term_EF=compute_mp3_ef_with_permutational_symmetry(mp2pairs);
+    t2.tag("EF term, permutational symmetry");
+    term_CD=compute_mp3_cd(mp2pairs);
+    t2.tag("CD term");
 
     printf("term_CD    %12.8f\n",term_CD);
     printf("term_GHIJ  %12.8f\n",term_GHIJ);

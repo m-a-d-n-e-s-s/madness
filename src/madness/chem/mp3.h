@@ -36,6 +36,7 @@ public:
     double compute_mp3_klmn(const Pairs<CCPair>& mp2pairs) const;
     double compute_mp3_klmn_fast(const Pairs<CCPair>& mp2pairs) const;
     double mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const;
+    double mp3_test(const Pairs<CCPair>& mp2pairs, const Pairs<std::vector<CCPairFunction<double,6>>> clusterfunctions) const;
 
 };
 }
