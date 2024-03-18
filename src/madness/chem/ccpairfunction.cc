@@ -74,9 +74,10 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::op_pure_to_pure(cons
 
 /// turn decomposed functions with operator into decomposed functions using LowRankFunction
 template<typename T, std::size_t NDIM>
-std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::op_dec_to_dec(const std::vector<CCPairFunction<T,NDIM>>& other) {
+std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::op_dec_to_dec(const std::vector<CCPairFunction<T,NDIM>>& other,
+                                                                          const std::vector<Vector<double,CCPairFunction<T,NDIM>::LDIM>>& centers) {
     LowRankFunctionParameters lrparameters;
-    auto builder = LowRankFunctionFactory<T,NDIM>(lrparameters);
+    auto builder = LowRankFunctionFactory<T,NDIM>(lrparameters,centers);
 //    builder.set_volume_element(3.e-2);
 //    builder.parameters.print("lrparameters");
     std::vector<CCPairFunction<T,NDIM>> result;
@@ -84,7 +85,7 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::op_dec_to_dec(const 
         if (c.is_op_decomposed()) {
             LRFunctorF12<T,NDIM> functor(c.get_operator_ptr()->get_op(),c.get_a(),c.get_b());
             LowRankFunction<T,NDIM> tmp=builder.project(functor);
-            double l2error=tmp.l2error(functor);
+//            double l2error=tmp.l2error(functor);
             tmp.optimize(functor);
             result.push_back(CCPairFunction<T,NDIM>(tmp.get_g(),tmp.get_h()));
         } else {
@@ -206,7 +207,8 @@ bool CCPairFunction<T,NDIM>::is_collected(const std::vector<CCPairFunction<T,NDI
 
 template<typename T, std::size_t NDIM>
 std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::consolidate(const std::vector<CCPairFunction<T,NDIM>>& other,
-                                                std::vector<std::string> options) const {
+                                                const std::vector<std::string>& options,
+                                                const std::vector<Vector<double,CCPairFunction<T,NDIM>::LDIM>>& centers) const {
 
     // return only one term of a hi-dim function
     bool one_term=find(options.begin(),options.end(),"one_term")!=options.end();
@@ -223,7 +225,7 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::consolidate(const st
     auto result= is_collected(other) ? other : collect_same_types(other);
     if (lindep) result=CCPairFunction<T,NDIM>::remove_linearly_dependent_terms(result);
 
-    if (op_dec_to_dec) result=CCPairFunction<T,NDIM>::op_dec_to_dec(result);
+    if (op_dec_to_dec) result=CCPairFunction<T,NDIM>::op_dec_to_dec(result,centers);
     if (op_dec_to_pure) result=CCPairFunction<T,NDIM>::op_dec_to_pure(result);
     if (op_pure_to_pure) result=CCPairFunction<T,NDIM>::op_pure_to_pure(result);
 

@@ -38,7 +38,6 @@ int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
     j["gamma"]=parameters.gamma();
     j["volume_element"]=parameters.volume_element();
     j["tol"]=parameters.tol();
-    j["hard_shell"]=parameters.hard_shell();
     j["transpose"]=transpose;
     j["orthomethod"]=parameters.orthomethod();
     j["gridtype"]=parameters.gridtype();
@@ -203,7 +202,6 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
     j["thresh"]=FunctionDefaults<3>::get_thresh();
     j["volume_element"]=parameters.volume_element();
     j["tol"]=parameters.tol();
-    j["hard_shell"]=parameters.hard_shell();
     j["orthomethod"]=parameters.orthomethod();
     j["gridtype"]=parameters.gridtype();
     j["rhsfunctiontype"]=parameters.rhsfunctiontype();
@@ -703,6 +701,92 @@ int test_construction_optimization(World& world, LowRankFunctionParameters param
     return t1.end();
 }
 
+template<std::size_t LDIM>
+int test_molecular_grid(World& world, LowRankFunctionParameters parameters) {
+    constexpr std::size_t NDIM=2*LDIM;
+    test_output t1("LowRankFunction::molecular_grid in dimension "+std::to_string(NDIM));
+    t1.set_cout_to_terminal();
+    OperatorInfo info(1.0,1.e-6,FunctionDefaults<LDIM>::get_thresh(),OT_SLATER);
+    auto slater=std::shared_ptr<SeparatedConvolution<double,LDIM> >(new SeparatedConvolution<double,LDIM>(world,info));
+
+    /*
+     * we test the accuracy of the matrix element <dens(1) | f12 | dens(2)>_12
+     */
+
+    // a molecule of hydrogen atoms in the xy plane
+    std::vector<Vector<double,LDIM>> atomic_sites;
+    atomic_sites.push_back(Vector<double,LDIM>( 0.0));
+    atomic_sites.push_back(Vector<double,LDIM>( 2.0));
+    atomic_sites.push_back(Vector<double,LDIM>(-4.0));
+    if (LDIM>1) {
+        atomic_sites.back()[0]=0.0;
+        atomic_sites.back()[1]=-4.0;
+    }
+
+    randomgrid<LDIM> rgrid(parameters.volume_element(), parameters.radius());
+//    randomgrid<LDIM> rgrid(parameters.volume_element(), 1.0);
+    molecular_grid<LDIM> mgrid(atomic_sites,rgrid);
+    auto grid=mgrid.get_grid();
+    mgrid.visualize("grid",grid);
+
+    // something like a density
+    auto dens=[&atomic_sites](const Vector<double,LDIM>& r) {
+        double result=0.0;
+        for (auto& c : atomic_sites) result+=exp(-0.4*inner(r-c,r-c));
+        return result;
+    };
+
+    Function<double,LDIM> density=FunctionFactory<double,LDIM>(world).functor(dens);
+    Function<double,LDIM> one=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r){return exp(-0.4*inner(r,r));});
+    Function<double,LDIM> half=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r){return sqrt(0.5)*exp(-0.4*inner(r,r));});
+
+    LRFunctorF12<double,NDIM> lrfunctor(slater,density,density);
+    {
+
+//        atomic_sites.erase(atomic_sites.begin()+1, atomic_sites.end());
+        LowRankFunctionFactory<double, NDIM> builder(parameters, atomic_sites);
+        auto lrf = builder.project(lrfunctor);
+        t1.checkpoint(lrf.rank() > 0, "construction");
+
+        // with Slater tol must be relaxed
+        double tol = 1.e-2;
+
+        double error = lrf.l2error(lrfunctor);
+        double norm = lrf.norm2();
+        print("lrf.norm", norm);
+        print("l2 error project ", error);
+        t1.checkpoint(error, tol, "l2 error in projection");
+
+        auto lrf2(lrf);
+        error = lrf2.l2error(lrfunctor);
+        print("l2 error copy ctor  ", error);
+        MADNESS_CHECK(lrf.rank() == lrf2.rank());
+        MADNESS_CHECK(&(lrf.g[0]) != &(lrf2.g[0]));  // deep copy
+        t1.checkpoint(error, tol, "l2 error in copy ctor");
+
+        lrf.optimize(lrfunctor);
+        error = lrf.l2error(lrfunctor);
+        print("l2 error optimize", error);
+        t1.checkpoint(error, tol, "l2 error in optimization");
+
+        lrf.reorthonormalize();
+        error = lrf.l2error(lrfunctor);
+        print("l2 error reorthonormalize", error);
+        t1.checkpoint(error, tol, "l2 error in reorthonormalization");
+
+        lrf+=lrf;
+        lrf*=0.5;
+        lrf.reorthonormalize();
+        error = lrf.l2error(lrfunctor);
+        print("l2 error reorthonormalize with lindep", error);
+        t1.checkpoint(error, tol, "l2 error in reorthonormalization with lindep");
+
+    }
+    return t1.end();
+}
+
+
+
 int main(int argc, char **argv) {
 
     madness::World& world = madness::initialize(argc, argv);
@@ -765,6 +849,7 @@ int main(int argc, char **argv) {
             isuccess+=test_construction_optimization<2>(world,parameters);
             isuccess+=test_arithmetic<2>(world,parameters);
             isuccess+=test_inner<2>(world,parameters);
+            isuccess+=test_molecular_grid<2>(world,parameters);
         }
 
 //        parameters.set_user_defined_value("volume_element",1.e-1);

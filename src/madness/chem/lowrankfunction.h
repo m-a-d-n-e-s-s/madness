@@ -23,13 +23,12 @@ namespace madness {
             initialize<double>("radius",2.0,"the radius");
             initialize<double>("gamma",1.0,"the exponent of the correlation factor");
             initialize<double>("volume_element",0.1,"volume covered by each grid point");
-            initialize<bool>("hard_shell",true,"radius is hard");
             initialize<double>("tol",1.e-8,"rank-reduced cholesky tolerance");
             initialize<std::string>("f12type","Slater","correlation factor",{"Slater","SlaterF12"});
             initialize<std::string>("orthomethod","cholesky","orthonormalization",{"cholesky","canonical","symmetric"});
             initialize<std::string>("transpose","slater2","transpose of the matrix",{"slater1","slater2"});
             initialize<std::string>("gridtype","random","the grid type",{"random","cartesian","spherical"});
-            initialize<std::string>("rhsfunctiontype","exponential","the type of function",{"delta","exponential"});
+            initialize<std::string>("rhsfunctiontype","exponential","the type of function",{"exponential"});
             initialize<int>("optimize",1,"number of optimization iterations");
         }
 
@@ -41,7 +40,6 @@ namespace madness {
         double gamma() const {return get<double>("gamma");}
         double volume_element() const {return get<double>("volume_element");}
         double tol() const {return get<double>("tol");}
-        bool hard_shell() const {return get<bool>("hard_shell");}
         int optimize() const {return get<int>("optimize");}
         std::string gridtype() const {return get<std::string>("gridtype");}
         std::string orthomethod() const {return get<std::string>("orthomethod");}
@@ -51,16 +49,37 @@ namespace madness {
 
 
     class gridbase {
+    public:
+        double get_volume_element() const {return volume_element;}
+        double get_radius() const {return radius;}
+
+        // visualize the grid in xyz format
+        template<std::size_t NDIM>
+        void visualize(const std::string filename, const std::vector<Vector<double,NDIM>>& grid) const {
+            print("visualizing grid to file",filename);
+            print("a total of",grid.size(),"grid points");
+            std::ofstream file(filename);
+            for (const auto& r : grid) {
+                // formatted output
+                file << std::fixed << std::setprecision(6);
+                for (int i=0; i<NDIM; ++i) file << r[i] << " ";
+                file << std::endl;
+            }
+            file.close();
+        }
+
     protected:
         double volume_element=0.1;
         double radius=3;
         bool do_print=false;
     };
 
+    /// grid with random points around the origin, with a Gaussian distribution
     template<std::size_t NDIM>
     class randomgrid : public gridbase {
     public:
-        randomgrid(const double volume_element, const double radius) : gridbase() {
+        randomgrid(const double volume_element, const double radius, const Vector<double,NDIM> origin=Vector<double,NDIM>(0.0))
+            : gridbase(), origin(origin) {
             this->volume_element=volume_element;
             this->radius=radius;
         }
@@ -76,8 +95,9 @@ namespace madness {
                 return true;
             };
             double rad=radius;
-            auto is_in_sphere = [&rad](const Vector<double, NDIM>& r) {
-                return (r.normf()<rad);
+            auto o=origin;
+            auto is_in_sphere = [&rad,&o](const Vector<double, NDIM>& r) {
+                return ((r-o).normf()<rad);
             };
 
             // set variance such that about 70% of all grid points sits within the radius
@@ -87,19 +107,25 @@ namespace madness {
             long maxrank=10*npoint_within_volume;
             long rank=0;
             for (int r=0; r<maxrank; ++r) {
-                auto tmp = gaussian_random_distribution(0, variance);
+                auto tmp = gaussian_random_distribution(origin, variance);
                 if (not is_in_cell(tmp)) continue;
                 if (is_in_sphere(tmp)) ++rank;
                 grid.push_back(tmp);
                 if (rank==npoint_within_volume) break;
             }
             if (do_print) {
+                print("origin                ",origin);
+                print("radius                ",radius);
                 print("grid points in volume ",rank);
                 print("total grid points     ",grid.size());
                 print("ratio                 ",rank/double(grid.size()));
                 print("volume element        ",volume()/rank);
             }
             return grid;
+        }
+
+        Vector<double,NDIM> get_origin() const {
+            return origin;
         }
 
     private:
@@ -111,14 +137,19 @@ namespace madness {
             if (NDIM==3) return 4.0 / 3.0 * constants::pi * std::pow(radius, 3.0);
         }
 
-        static Vector<double,NDIM> gaussian_random_distribution(double mean, double variance) {
+        static Vector<double,NDIM> gaussian_random_distribution(const Vector<double,NDIM> origin, double variance) {
             std::random_device rd{};
             std::mt19937 gen{rd()};
-            std::normal_distribution<> d{mean, variance};
             Vector<double,NDIM> result;
-            for (int i = 0; i < NDIM; ++i) result[i]=d(gen);
+            for (int i = 0; i < NDIM; ++i) {
+                std::normal_distribution<> d{origin[i], variance};
+                result[i]=d(gen);
+            }
+
             return result;
         }
+
+        Vector<double,NDIM> origin;
 
     };
 
@@ -188,6 +219,35 @@ namespace madness {
             }
             return lovec+tmp*increment;
         }
+
+    };
+
+    /// given a molecule, return a suitable grid
+    template<std::size_t NDIM>
+    class molecular_grid : public gridbase {
+
+    public:
+        /// ctor takes molecule and grid
+        molecular_grid(const std::vector<Vector<double,NDIM>> origins, randomgrid<NDIM> grid) {
+            for (const auto& coords : origins) {
+                atomicgrid.push_back(randomgrid(grid.get_volume_element(),grid.get_radius(),coords));
+            }
+        }
+
+        molecular_grid(const Molecule& molecule, randomgrid<NDIM> grid) : molecular_grid(molecule.get_all_coords_vec(),grid) {}
+
+        std::vector<Vector<double,NDIM>> get_grid() const {
+            std::vector<Vector<double,NDIM>> grid;
+            for (const auto& atomic : atomicgrid) {
+                print("atom sites",atomic.get_origin());
+                auto atomgrid=atomic.get_grid();
+                grid.insert(grid.end(),atomgrid.begin(),atomgrid.end());
+            }
+            return grid;
+        }
+
+    private:
+        std::vector<randomgrid<NDIM>> atomicgrid;
 
     };
 
@@ -902,9 +962,17 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
         const particle<LDIM> p1=particle<LDIM>::particle1();
         const particle<LDIM> p2=particle<LDIM>::particle2();
+
         LowRankFunctionParameters parameters;
+        std::vector<Vector<double,LDIM>> origins;  ///< origins of the molecular grid
+
         LowRankFunctionFactory() = default;
-        LowRankFunctionFactory(const LowRankFunctionParameters param) : parameters(param) {}
+        LowRankFunctionFactory(const LowRankFunctionParameters param, const std::vector<Vector<double,LDIM>> origins={})
+                : parameters(param), origins(origins) {}
+
+        LowRankFunctionFactory(const LowRankFunctionParameters param, const Molecule& molecule)
+                : LowRankFunctionFactory(param,molecule.get_all_coords_vec()){}
+
         LowRankFunctionFactory(const LowRankFunctionFactory& other) = default;
 
         LowRankFunctionFactory& set_radius(const double radius) {
@@ -933,8 +1001,15 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             auto rank_revealing_tol=parameters.tol();
 
             // get sampling grid
+            std::vector<Vector<double,LDIM>> grid;
             randomgrid<LDIM> rgrid(parameters.volume_element(),parameters.radius());
-            std::vector<Vector<double,LDIM>> grid=rgrid.get_grid();
+            if (origins.size()>0) {
+                molecular_grid<LDIM> mgrid(origins,rgrid);
+                grid=mgrid.get_grid();
+            } else {
+                grid=rgrid.get_grid();
+            }
+
             auto Y=Yformer(lrfunctor,grid,parameters.rhsfunctiontype());
             t1.tag("Yforming");
 

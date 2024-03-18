@@ -420,6 +420,7 @@ double MP3::compute_mp3_ghij_fast(const Pairs<CCPair>& mp2pairs, const Pairs<std
     CCConvolutionOperator<double,3>::Parameters cparam;
     auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,cparam);
 
+    const Molecule molecule=nemo_->molecule();
     timer t2(world);
 
     // compute intermediates for terms G, I, H, and J
@@ -439,13 +440,13 @@ double MP3::compute_mp3_ghij_fast(const Pairs<CCPair>& mp2pairs, const Pairs<std
         }
     }
 
-    std::vector<std::string> consolidation={"op_pure_to_pure","remove_lindep","op_dec_to_pure"};
+    std::vector<std::string> consolidation={"op_pure_to_pure","remove_lindep","op_dec_to_dec"};
     print("consolidating with ",consolidation);
     std::vector<ClusterFunction> intermediate(nocc);
     for (int i = parameters.freeze(); i < nocc; ++i) {
         intermediate[i]=2.0*tau_kk_i[i];
         intermediate[i]-=tau_ij_j[i];
-        intermediate[i]=consolidate(intermediate[i],consolidation);
+        intermediate[i]=consolidate(intermediate[i],consolidation,molecule.get_all_coords_vec());
     }
 
     t2.tag("GHIJ term prep");
@@ -683,10 +684,10 @@ double MP3::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
     t2.tag("make cluster functions");
     mp3_test(mp2pairs,clusterfunctions);
     double term_CD=0.0, term_EF=0.0, term_GHIJ=0.0, term_KLMN=0.0;
-    term_KLMN=compute_mp3_klmn_fast(mp2pairs);
-    t2.tag("KLMN term fast");
     term_GHIJ=compute_mp3_ghij_fast(mp2pairs,clusterfunctions);
     t2.tag("GHIJ term");
+    term_KLMN=compute_mp3_klmn_fast(mp2pairs);
+    t2.tag("KLMN term fast");
     term_EF=compute_mp3_ef_with_permutational_symmetry(mp2pairs);
     t2.tag("EF term, permutational symmetry");
     term_CD=compute_mp3_cd(mp2pairs);

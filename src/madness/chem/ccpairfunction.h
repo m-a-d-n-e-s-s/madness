@@ -401,10 +401,12 @@ public:
 
 private:
     std::vector<CCPairFunction> consolidate(const std::vector<CCPairFunction>& other,
-                                                   std::vector<std::string> options={}) const;
+                                                   const std::vector<std::string>& options,
+                                                   const std::vector<Vector<double,LDIM>>& centers) const;
 
     /// turn decomposed functions with operator into decomposed functions using LowRankFunction
-    static std::vector<CCPairFunction> op_dec_to_dec(const std::vector<CCPairFunction>& other);
+    static std::vector<CCPairFunction> op_dec_to_dec(const std::vector<CCPairFunction>& other,
+                                                     const std::vector<Vector<double,LDIM>>& centers);
 
     /// turn pure functions with operator into pure functions without operators
     static std::vector<CCPairFunction> op_pure_to_pure(const std::vector<CCPairFunction>& other);
@@ -426,11 +428,13 @@ public:
 
     /// @param[in] other: a vector of CCPairFunctions
     /// @param[in] options: a vector of strings which can be "one_term", "op_pure_to_pure", "svd"
+    /// @param[in] centers: a vector of 3D-vectors which are the centers of the grid for low-rank functions
     /// TODO: implement a function for removing linearly dependent terms without orthonormalization
     friend std::vector<CCPairFunction> consolidate(const std::vector<CCPairFunction>& other,
-                                                   std::vector<std::string> options={}) {
+                                                   const std::vector<std::string> options,
+                                                   const std::vector<Vector<double,LDIM>> centers=std::vector<Vector<double,LDIM>>()) {
 
-        if (other.size()>0) return other.front().consolidate(other,options); // workaround
+        if (other.size()>0) return other.front().consolidate(other,options,centers); // workaround
         return other;
     };
 
