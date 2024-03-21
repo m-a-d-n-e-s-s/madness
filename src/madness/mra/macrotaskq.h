@@ -455,9 +455,11 @@ class MacroTask {
     typedef typename taskT::argtupleT argtupleT;
     typedef Cloud::recordlistT recordlistT;
     taskT task;
+    bool debug=false;
 
 public:
 
+    /// constructor takes the actual task
     MacroTask(World &world, taskT &task, std::shared_ptr<MacroTaskQ> taskq_ptr = 0)
             : task(task), world(world), taskq_ptr(taskq_ptr) {
         if (taskq_ptr) {
@@ -465,6 +467,10 @@ public:
             // constructed as replicated objects and are not broadcast to other processes
             MADNESS_CHECK(world.id()==taskq_ptr->get_world().id());
         }
+    }
+
+    void set_debug(const bool value) {
+        debug=value;
     }
 
     /// this mimicks the original call to the task functor, called from the universe
@@ -476,6 +482,7 @@ public:
 
         const bool immediate_execution = (not taskq_ptr);
         if (not taskq_ptr) taskq_ptr.reset(new MacroTaskQ(world, world.size()));
+        if (debug) taskq_ptr->set_printlevel(20);
 
         auto argtuple = std::tie(args...);
         static_assert(std::is_same<decltype(argtuple), argtupleT>::value, "type or number of arguments incorrect");
@@ -499,7 +506,7 @@ public:
         }
         taskq_ptr->add_tasks(vtask);
 
-        if (immediate_execution) taskq_ptr->run_all(vtask);
+        if (immediate_execution) taskq_ptr->run_all();
 
         return std::move(result);
     }
@@ -587,7 +594,6 @@ private:
             if constexpr (is_madness_function<resultT>::value) {
                 result_tmp.compress();
                 gaxpy(1.0,result,1.0, result_tmp);
-                result += result_tmp;
             } else if constexpr(is_madness_function_vector<resultT>::value) {
                 compress(subworld, result_tmp);
                 resultT tmp1=task.allocator(subworld,argtuple);

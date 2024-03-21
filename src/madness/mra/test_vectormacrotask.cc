@@ -262,6 +262,7 @@ int test_task1(World& universe, const std::vector<real_function_3d>& v3) {
     MicroTask1 t1;
     real_function_3d ref_t1 = t1(v3[0], 2.0, v3);
     MacroTask task1(universe, t1);
+    task1.set_debug(true);
     real_function_3d ref_t2 = task1(v3[0], 2.0, v3);
     int success = check(universe,ref_t1, ref_t2, "task1 immediate");
     return success;
