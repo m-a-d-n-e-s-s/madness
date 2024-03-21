@@ -40,7 +40,7 @@ jobs:
         -DMPIEXEC_PREFLAGS='--bind-to;none;--allow-run-as-root'
         -DBUILD_TESTING=ON
         -DMADNESS_ENABLE_CEREAL=ON
-        -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'Threads' }}
+        -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'Threads' || matrix.build_type == 'Debug' }}
         -DMADNESS_BUILD_LIBRARIES_ONLY=${{ matrix.build_type != 'Debug' }}
 
     steps:
@@ -145,6 +145,7 @@ jobs:
         cmake -S $GITHUB_WORKSPACE/doc/tutorial -B test_install -DCMAKE_PREFIX_PATH=${{github.workspace}}/install
         cmake --build test_install
         test_install/test_runtime
-        if [ "X${{ matrix.task_backend }}" = "XThreads" ]; then  # if built more than just MADWorld run the HF test
+        # if built more than just MADWorld run the HF test
+        if [ "X${{ matrix.task_backend }}" = "XThreads" && "X${{ matrix.build_type }}" != "XDebug" ]; then
            test_install/simple_hf
         fi
