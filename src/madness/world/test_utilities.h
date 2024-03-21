@@ -127,6 +127,7 @@ struct test_output {
             std::cout.rdbuf(stream_buffer_cout);
         }
         cout_set_to_logger=false;
+        std::cout << std::endl;
     }
 
     std::stringstream logger;

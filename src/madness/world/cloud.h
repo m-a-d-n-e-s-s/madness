@@ -60,11 +60,25 @@ struct Recordlist {
         return list.size();
     }
 
+    // if type provides id() member function (i.e. WorldObject) use that for hashing, otherwise use hash_value() for
+    // fundamental types (see worldhash.h)
+    template <typename T>
+    using member_id_t = decltype(std::declval<T>().id());
+
+    template <typename T>
+    using has_member_id = madness::meta::is_detected<member_id_t, T>;
+
     template<typename T, std::size_t NDIM>
     static keyT compute_record(const Function<T,NDIM>& arg) {return hash_value(arg.get_impl()->id());}
 
     template<typename T, std::size_t NDIM>
     static keyT compute_record(const FunctionImpl<T,NDIM>* arg) {return hash_value(arg->id());}
+
+    template<typename keyQ, typename valueT>
+    static keyT compute_record(const WorldContainer<keyQ,valueT>& arg) {return hash_value(arg.id());}
+
+    template<typename keyQ, typename valueT>
+    static keyT compute_record(const std::shared_ptr<WorldContainer<keyQ,valueT>>& arg) {return hash_value(arg->id());}
 
     template<typename T, std::size_t NDIM>
     static keyT compute_record(const std::shared_ptr<madness::FunctionImpl<T, NDIM>>& arg) {return hash_value(arg->id());}
@@ -76,7 +90,18 @@ struct Recordlist {
     static keyT compute_record(const Tensor<T>& arg) {return hash_value(arg.normf());}
 
     template<typename T>
-    static keyT compute_record(const T& arg) {return hash_value(arg);}
+    static keyT compute_record(const std::shared_ptr<T>& arg) {return compute_record(*arg);}
+
+    template<typename T>
+    static keyT compute_record(const T& arg) {
+        if constexpr (has_member_id<T>::value) {
+            return hash_value(arg.id());
+        } else if constexpr (std::is_pointer_v<T> && has_member_id<std::remove_pointer_t<T>>::value) {
+            return hash_value(arg->id());
+        } else {
+            return hash_value(arg);
+        }
+    }
 
 
     friend std::ostream &operator<<(std::ostream &os, const Recordlist &arg) {
@@ -349,22 +374,25 @@ private:
 //        if (auto obj = std::get_if<T>(&cached_objects.find(record)->second)) return *obj;
         if (auto obj = std::any_cast<T>(&cached_objects.find(record)->second)) return *obj;
         MADNESS_EXCEPTION("failed to load from cloud-cache", 1);
-        return T();
+        T target = allocator<T>(world);
+        return target;
     }
 
     template<typename T>
     T load_internal(madness::World &world, recordlistT &recordlist) const {
-        T result;
+//        T result;
         if constexpr (is_vector<T>::value) {
             if constexpr( is_parallel_serializable_object<typename T::value_type>::value) {
-                result = load_vector_of_parallel_serializable_objects<T>(world, recordlist);
+//                result = load_vector_of_parallel_serializable_objects<T>(world, recordlist);
+                return load_vector_of_parallel_serializable_objects<T>(world, recordlist);
             } else {
-                result = load_other<T>(world, recordlist);
+//                result = load_other<T>(world, recordlist);
+                return load_vector_other<T>(world, recordlist);
             }
         } else {
-            result = load_other<T>(world, recordlist);
+//            result = load_other<T>(world, recordlist);
+            return load_other<T>(world, recordlist);
         }
-        return result;
     }
 
     bool is_cached(const keyT &key) const {
@@ -383,8 +411,11 @@ private:
 
     template<typename T>
     T allocator(World &world) const {
-        if constexpr (is_world_constructible<T>::value) return T(world);
-        return T();
+        if constexpr (is_world_constructible<T>::value) {
+            return T(world);
+        } else {
+            return T();
+        }
     }
 
     template<typename T>
@@ -410,6 +441,16 @@ private:
     }
 
     template<typename T>
+    T load_vector_other(World &world, recordlistT &recordlist) const {
+        std::size_t sz = load_other<std::size_t>(world, recordlist);
+        T target(sz);
+        for (std::size_t i = 0; i < sz; ++i) {
+            target[i] = load_other<typename T::value_type>(world, recordlist);
+        }
+        return target;
+    }
+
+    template<typename T>
     T load_other(World &world, recordlistT &recordlist) const {
         keyT record = recordlist.pop_front_and_return();
         if (force_load_from_cache) MADNESS_CHECK(is_cached(record));
@@ -426,8 +467,8 @@ private:
 
     // overloaded
     template<typename T>
-    std::enable_if_t<is_parallel_serializable_object<T>::value, recordlistT>
-    store_other(madness::World& world, const std::vector<T>& source) {
+//    std::enable_if_t<is_parallel_serializable_object<T>::value, recordlistT>
+    recordlistT store_other(madness::World& world, const std::vector<T>& source) {
         if (debug)
             std::cout << "storing " << typeid(source).name() << " of size " << source.size() << std::endl;
         recordlistT l = store_other(world, source.size());

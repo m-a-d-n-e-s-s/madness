@@ -126,6 +126,40 @@ int chunk_example(World &universe) {
     }
 }
 
+
+template<typename T> using is_world_constructible = std::is_constructible<T, World &>;
+
+
+/// test storing and loading a custom WorldObject, used e.g. for the scalar output of a macrotask
+int test_custom_worldobject(World& universe, World& subworld, Cloud& cloud) {
+    test_output t1("testing custom worldobject");
+    t1.set_cout_to_terminal();
+    cloud.set_debug(false);
+    auto o1 =std::shared_ptr<ScalarResult<>>(new ScalarResult(universe));
+    auto o5 =std::shared_ptr<ScalarResult<>>(new ScalarResult(universe));
+    *o1=1.2;
+    if (universe.rank() == 0) gaxpy(1.0,*o1,2.0,2.8);
+
+    auto adrecords = cloud.store(universe, o1);
+    MacroTaskQ::set_pmap(subworld);
+    print("world constructible",is_world_constructible<ScalarResult<>>::value);
+
+    cloud.set_force_load_from_cache(false);
+    auto o2 = cloud.load<std::shared_ptr<ScalarResult<>>>(subworld, adrecords);
+    cloud.set_force_load_from_cache(true);
+    auto o3 = cloud.load<std::shared_ptr<ScalarResult<>>>(subworld, adrecords);
+    double d1=o1->get_local();
+    double d2=o2->get_local();
+    double d3=o3->get_local();
+    std::cout << "pointer  " << o1->id() << " " << o2->id() << " " << o3->id() <<  " other: " << o5->id() << std::endl;
+    std::cout << "numerics (plain)" << d1 << " " << d2 << " " << d3 << std::endl;
+    std::cout << "numerics (get)  " << o1->get() << " " << o2->get() << " " << o3->get() << std::endl;
+    double error=d1-d2;
+    cloud.set_force_load_from_cache(false);
+    return t1.end(error < 1.e-10 );
+
+}
+
 int main(int argc, char **argv) {
 
     madness::World &universe = madness::initialize(argc, argv);
@@ -139,7 +173,10 @@ int main(int argc, char **argv) {
 //        cloud.set_debug(true);
 
         auto subworld_ptr = MacroTaskQ::create_worlds(universe, universe.size());
-        World &subworld = *subworld_ptr;
+        World& subworld = *subworld_ptr;
+
+        // test storing custom WorldObject
+        success += test_custom_worldobject(universe, subworld, cloud);
 
         if (universe.rank() == 0) print("entering test_cloud");
         print("my world: universe_rank, subworld_id", universe.rank(), subworld.id());
@@ -261,6 +298,68 @@ int main(int argc, char **argv) {
             success += test_tuple.end(error < 1.e-10 && error1 > -1.e-10);
             cloud.set_force_load_from_cache(false);
         }
+
+
+        // test storing WorldContainer
+        test_output test_worldcontainer("testing worldcontainer");
+        test_worldcontainer.set_cout_to_terminal();
+        cloud.set_debug(false);
+        typedef WorldContainer<int,double> result_container;
+        result_container ad(universe);
+        ad.replace(0,1.0);
+        auto adrecords = cloud.store(universe, ad);
+        {
+            MacroTaskQ::set_pmap(subworld);
+
+            cloud.set_force_load_from_cache(false);
+            auto t2 = cloud.load<result_container>(subworld, adrecords);
+            cloud.set_force_load_from_cache(true);
+            auto t3 = cloud.load<result_container>(subworld, adrecords);
+            double d1=ad.find(0).get()->second;
+            double d2=t2.find(0).get()->second;
+            double d3=t3.find(0).get()->second;
+            std::cout << "array_double " << d1 << " " << d2 << " " << d3 << std::endl;
+            double error=d1-d2;
+            success += test_worldcontainer.end(error < 1.e-10 );
+            cloud.set_force_load_from_cache(false);
+        }
+
+        // test pointer to WorldContainer
+        if constexpr (0) {
+            typedef std::shared_ptr<Function<double, 3>::implT> impl_ptrT;
+            auto p1 = std::shared_ptr<WorldContainer<int, double>>(new WorldContainer<int, double>(universe));
+            p1->replace(0,1.5);
+            auto precords = cloud.store(universe, p1);
+
+            {
+                test_output test_dc_ptr("testing cloud/shared_ptr<WorldDC> in world " + std::to_string(subworld.id()));
+                test_dc_ptr.set_cout_to_terminal();
+                MacroTaskQ::set_pmap(subworld);
+
+                auto p3 = cloud.load<std::shared_ptr<WorldContainer<int,double>>>(subworld, precords);
+                auto p4 = cloud.load<std::shared_ptr<WorldContainer<int,double>>>(subworld, precords);
+                auto p5 = cloud.load<std::shared_ptr<WorldContainer<int,double>>>(subworld, precords);
+                std::cout << "p1/p2/p3/p4" << " " << p1.get() << " " << p3.get() << " " << p4.get() << " "
+                                << p5.get() << std::endl;
+                test_dc_ptr.end(p1 == p3 && p1 == p4 && p1 == p5
+                             && p1->get_world().id() == p3->get_world().id()
+                             && p1->get_world().id() == p4->get_world().id()
+                             && p1->get_world().id() == p5->get_world().id());
+                double d3=p3->find(0).get()->second;
+                double d4=p4->find(0).get()->second;
+                double d5=p5->find(0).get()->second;
+
+                MacroTaskQ::set_pmap(universe);
+                cloud.clear_cache(subworld);
+            }
+            subworld.gop.fence();
+            universe.gop.fence();
+            test_output test_dc_ptr("testing cloud/shared_ptr<Function> numerics in universe");
+            double ffnorm = ff.norm2();
+            test_dc_ptr.end((ffnorm < 1.e-10));
+            universe.gop.fence();
+        }
+
 
         // test storing twice (using cache)
         {

@@ -138,6 +138,55 @@ public:
     }
 };
 
+class VectorOfScalarTask : public MacroTaskOperationBase{
+public:
+    // you need to define the result type
+    // resultT must implement gaxpy(alpha, result, beta, contribution)
+    // with resultT result, contribution;
+    typedef std::vector<std::shared_ptr<ScalarResult<double>>> resultT;
+
+    // you need to define the exact argument(s) of operator() as tuple
+    typedef std::tuple<const std::vector<real_function_3d> &, const double &,
+            const std::vector<real_function_3d> &> argtupleT;
+
+    resultT allocator(World &world, const argtupleT &argtuple) const {
+        std::size_t n = std::get<0>(argtuple).size();
+        return scalar_result_shared_ptr_vector<double>(world,n);
+    }
+
+    resultT operator()(const std::vector<real_function_3d>& f1, const double &arg2,
+                       const std::vector<real_function_3d>& f2) const {
+        World &world = f1[0].world();
+        auto result=scalar_result_shared_ptr_vector<double>(world,f1.size());
+        for (int i=0; i<f1.size(); ++i) *result[i]=double(i);
+        return result;
+    }
+};
+
+class ScalarTask : public MacroTaskOperationBase{
+public:
+    // you need to define the result type
+    // resultT must implement gaxpy(alpha, result, beta, contribution)
+    // with resultT result, contribution;
+    typedef std::shared_ptr<ScalarResult<double>> resultT;
+
+    // you need to define the exact argument(s) of operator() as tuple
+    typedef std::tuple<const std::vector<real_function_3d> &> argtupleT;
+
+    resultT allocator(World &world, const argtupleT &argtuple) const {
+        return resultT(new ScalarResult<double>(world));
+    }
+
+    resultT operator()(const std::vector<real_function_3d>& f1) const {
+        World &world = f1[0].world();
+        resultT result(new ScalarResult<double>(world));
+        *result=double(f1.size());
+        return result;
+    }
+};
+
+
+
 int check_vector(World& universe, const std::vector<real_function_3d> &ref, const std::vector<real_function_3d> &test,
                         const std::string msg) {
     double norm_ref = norm2(universe, ref);
@@ -218,6 +267,38 @@ int test_task1(World& universe, const std::vector<real_function_3d>& v3) {
     return success;
 }
 
+/// each task accumulates into the same result
+int test_scalar_task(World& universe, const std::vector<real_function_3d>& v3) {
+    if (universe.rank()==0) print("\nstarting ScalarTask\n");
+    ScalarTask t1;
+    std::shared_ptr<ScalarResult<double>> result = t1(v3);
+    print("result",result->get());
+
+
+    MacroTask task1(universe, t1);
+    auto result2= task1(v3);
+    print("result",result2->get());
+
+//    int success = check(universe,ref_t1, ref_t2, "task1 immediate");
+    int success=0;
+    return success;
+}
+int test_vector_of_scalar_task(World& universe, const std::vector<real_function_3d>& v3) {
+    if (universe.rank()==0) print("\nstarting VectorOfScalarTask\n");
+    VectorOfScalarTask t1;
+    std::vector<std::shared_ptr<ScalarResult<double>>> result = t1(v3, 2.0, v3);
+    for (auto& r : result) print("result",r->get());
+
+
+    MacroTask task1(universe, t1);
+    auto result2= task1(v3, 2.0, v3);
+    for (auto& r : result2) print("result",r->get());
+
+//    int success = check(universe,ref_t1, ref_t2, "task1 immediate");
+    int success=0;
+    return success;
+}
+
 int test_2d_partitioning(World& universe, const std::vector<real_function_3d>& v3) {
     if (universe.rank() == 0) print("\nstarting 2d partitioning");
     auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size()));
@@ -265,6 +346,12 @@ int main(int argc, char **argv) {
         success+=test_immediate(universe,v3,ref);
         timer1.tag("immediate taskq execution");
 
+        success+=test_vector_of_scalar_task(universe,v3);
+        timer1.tag("vector of scalar task execution");
+
+        success+=test_scalar_task(universe,v3);
+        timer1.tag("scalar task execution");
+
         success+=test_deferred(universe,v3,ref);
         timer1.tag("deferred taskq execution");
 
@@ -284,7 +371,7 @@ int main(int argc, char **argv) {
     }
 
     madness::finalize();
-    return 0;
+    return success;
 }
 
 template<> volatile std::list<detail::PendingMsg> WorldObject<MacroTaskQ>::pending = std::list<detail::PendingMsg>();
