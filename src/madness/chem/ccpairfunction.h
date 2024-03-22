@@ -606,6 +606,22 @@ public:
         return component->name(transpose);
     }
 
+    typename Tensor<T>::scalar_type norm2() const {
+        if (component->is_pure()) return pure().get_function().norm2();
+        if (component->is_decomposed()) {
+            Function<T,LDIM> R2;
+            auto tmp= inner_internal(*this,R2);
+            typename Tensor<T>::scalar_type result=std::real(tmp);
+            typename Tensor<T>::scalar_type imag=std::imag(tmp);
+            if ((imag>1.e-14) or (result<-1.e-14)) {
+                MADNESS_EXCEPTION("bad norm in TwoBodyFunction",1);
+            }
+            return sqrt(std::abs(result));
+        }
+        MADNESS_EXCEPTION("bad cast in TwoBodyFunction",1);
+        return 0.0;
+    }
+
     /// multiply CCPairFunction with a 3D function of one of the two particles
     friend CCPairFunction<T,NDIM> multiply(const CCPairFunction<T,NDIM>& other, const Function<T,LDIM>& f,
                                            const std::array<int, LDIM>& v1) {

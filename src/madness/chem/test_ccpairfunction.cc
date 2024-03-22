@@ -117,10 +117,10 @@ struct data {
     /// p5: op_pure, corresponds to f23
     auto get_ccpairfunctions() {
         if (not is_initialized()) initialize();
-        CCPairFunction<T,NDIM> p1(f12);
+        CCPairFunction<T,NDIM> p1(copy(f12));
         CCPairFunction<T,NDIM> p2({f1,f2},{f2,f3});
         CCPairFunction<T,NDIM> p3(f12_op,{f1,f2},{f2,f3});
-        CCPairFunction<T,NDIM> p4(f23); // two-term, corresponds to p2
+        CCPairFunction<T,NDIM> p4(copy(f23)); // two-term, corresponds to p2
         CCPairFunction<T,NDIM> p5(f12_op,copy(f23)); // two-term, corresponds to p2
         return std::make_tuple(p1,p2,p3,p4,p5);
     }
@@ -143,8 +143,9 @@ int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
     auto f12=CCConvolutionOperatorPtr<double,LDIM>(world, OT_F12, parameter);
     t1.checkpoint(true,"preparation");
 
+    auto f_copy=copy(f);
     CCPairFunction<T,NDIM> p1;
-    CCPairFunction<T,NDIM> p2(f);
+    CCPairFunction<T,NDIM> p2(f_copy);
     CCPairFunction<T,NDIM> p3({f1,f2},{f1,f3});
     CCPairFunction<T,NDIM> p4(f12,{f1,f2},{f2,f3});
     t1.checkpoint(true,"construction");
@@ -155,7 +156,7 @@ int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
         MADNESS_CHECK(!p2.is_op_decomposed());
         auto p = p2.pure();
         auto ff = p2.pure().get_function();
-        MADNESS_CHECK((ff.get_impl()==f.get_impl())); // shallow copy of f
+        MADNESS_CHECK((ff.get_impl()==f_copy.get_impl())); // shallow copy of f
     }
     t1.checkpoint(true,"checks on pure");
 
@@ -199,7 +200,7 @@ int test_load_store(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf,
                      const CCParameters& parameter) {
     test_output t1("load/store of <T,"+std::to_string(NDIM)+">");
 
-    t1.set_cout_to_terminal();
+//    t1.set_cout_to_terminal();
     static_assert(NDIM%2==0, "NDIM must be even");
     constexpr std::size_t LDIM=NDIM/2;
 
@@ -251,7 +252,7 @@ template<typename T, std::size_t NDIM>
 int test_operator_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, data<T,NDIM>& data,
                         const CCParameters& parameter) {
     test_output t1("test_operator_apply<double,"+std::to_string(NDIM)+">");
-    t1.set_cout_to_terminal();
+//    t1.set_cout_to_terminal();
 
     static_assert(NDIM%2==0, "NDIM must be even");
     constexpr std::size_t LDIM=NDIM/2;
@@ -366,7 +367,7 @@ int test_transformations(World& world, std::shared_ptr<NuclearCorrelationFactor>
         return sqrt(inner(diff,diff));
     };
 
-    CCPairFunction<T,NDIM> p1(ff);
+    CCPairFunction<T,NDIM> p1(copy(ff));
     t1.checkpoint(p1.is_pure(),"is_pure");
     t1.checkpoint(p1.is_pure_no_op(),"is_pure_no_op");
 
@@ -379,7 +380,7 @@ int test_transformations(World& world, std::shared_ptr<NuclearCorrelationFactor>
     t1.checkpoint(p2.is_op_pure(),"is_op_pure");
     t1.checkpoint(p3.is_pure_no_op(),"is_pure_no_op");
 
-    CCPairFunction<T,NDIM> p4(g12,ff);
+    CCPairFunction<T,NDIM> p4(g12,copy(ff));
     t1.checkpoint(p4.is_pure(),"is_pure");
     t1.checkpoint(p4.is_op_pure(),"is_op_pure");
     t1.checkpoint(not p4.is_convertible_to_pure_no_op(),"not is_convertible_to_pure_no_op");
@@ -507,7 +508,7 @@ int test_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, data
     test_output t1("test_inner<"+std::to_string(NDIM)+">");
     static_assert(NDIM%2==0, "NDIM must be even");
     constexpr std::size_t LDIM=NDIM/2;
-    t1.set_cout_to_terminal();
+//    t1.set_cout_to_terminal();
 
     /// f1: exp(-1.0 r^2)
     /// f2: exp(-2.0 r^2)
@@ -590,7 +591,7 @@ int test_partial_inner_6d(World& world, std::shared_ptr<NuclearCorrelationFactor
     test_output t1("test_partial_inner6d<"+std::to_string(NDIM)+">");
     static_assert(NDIM%2==0, "NDIM must be even");
     constexpr std::size_t LDIM=NDIM/2;
-    t1.set_cout_to_terminal();
+//    t1.set_cout_to_terminal();
 //    auto data=get_data<6>(world,parameter);
     auto [f1,f2,f3,f4,f5,f] = data.get_functions();
 
@@ -718,7 +719,7 @@ int test_partial_inner_3d(World& world, std::shared_ptr<NuclearCorrelationFactor
                           const CCParameters& parameter) {
 
     test_output t1("test_partial_inner<"+std::to_string(NDIM)+">");
-    t1.set_cout_to_terminal();
+//    t1.set_cout_to_terminal();
     static_assert(NDIM%2==0, "NDIM must be even");
     constexpr std::size_t LDIM=NDIM/2;
     auto [f1,f2,f3,f4,f5,f] = data.get_functions();
@@ -735,7 +736,7 @@ int test_partial_inner_3d(World& world, std::shared_ptr<NuclearCorrelationFactor
 
     auto f12=CCConvolutionOperatorPtr<double,LDIM>(world, OT_F12, parameter);
 
-    CCPairFunction<T,NDIM> p1(f);   // e(-r1 - 2r2)
+    CCPairFunction<T,NDIM> p1(copy(f));   // e(-r1 - 2r2)
     CCPairFunction<T,NDIM> p2(a,b);
     CCPairFunction<T,NDIM> p3(f12,a,b);
     CCPairFunction<T,NDIM> p11({f1},{f1});
@@ -870,7 +871,7 @@ int test_consolidate(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
     for (const auto& p : {p3}) {
         auto tmp=std::vector<CCPairFunction<T,NDIM>>({p});
         tmp+=tmp;
-        t1.checkpoint(tmp.size()==1,"correct number of terms");
+        t1.checkpoint(tmp.size()==2,"correct number of terms");
         t1.checkpoint(tmp.front().get_a().size()==2,"correct number of vectors in a");
         t1.checkpoint(tmp.front().is_op_decomposed(),"correct initial type: op_decomposed");
         auto tmp1=consolidate(tmp,{"remove_lindep"});
@@ -938,7 +939,7 @@ int test_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, data
     test_output t1("CCPairFunction::test_apply");
     static_assert(NDIM%2==0, "NDIM must be even");
     constexpr std::size_t LDIM=NDIM/2;
-    t1.set_cout_to_terminal();
+//    t1.set_cout_to_terminal();
 
     /// f12: exp(-r_1^2 - 2 r_2^2)
     /// f23: exp(-r_1^2 - 2 r_2^2) + exp(-2 r_1^2 - 3 r_2^2)
@@ -994,7 +995,7 @@ int test_scalar_multiplication(World& world, std::shared_ptr<NuclearCorrelationF
     print("time in preparation",timer.reset());
     t1.checkpoint(true,"prep");
 
-    CCPairFunction<T,NDIM> p(f);
+    CCPairFunction<T,NDIM> p(copy(f));
     CCPairFunction<T,NDIM> p1(a,b);
     double norm1=inner(p,p1);
     double pnorm=inner(p,p);
@@ -1054,7 +1055,7 @@ int test_swap_particles(World& world, std::shared_ptr<NuclearCorrelationFactor> 
 
     // test pure
     {
-        CCPairFunction<T,NDIM> p(f);
+        CCPairFunction<T,NDIM> p(copy(f));
         CCPairFunction<T,NDIM> p_swapped=p.swap_particles();
         double pnorm=p.get_function().norm2();
         double psnorm=p_swapped.get_function().norm2();
@@ -1106,7 +1107,7 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
     constexpr std::size_t LDIM=NDIM/2;
 
 //    t1.set_cout_to_logger();
-    t1.set_cout_to_terminal();
+//    t1.set_cout_to_terminal();
     const auto [f11,f22,f3,f4,f5,f] = data.get_functions();
     auto f1=copy(f11);  // keep f1, f2 constant for use in other tests!
     auto f2=copy(f22);
@@ -1129,7 +1130,7 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
 
     CCPairFunction<T,NDIM> p1(a,b);
     CCPairFunction<T,NDIM> p2(f12,a,b);
-    CCPairFunction<T,NDIM> p3(f); // outer (f1,f2)
+    CCPairFunction<T,NDIM> p3(copy(f)); // outer (f1,f2)
 
     std::vector<CCPairFunction<T,NDIM>> vp1({p1});
     std::vector<CCPairFunction<T,NDIM>> vp2({p2});
@@ -1336,6 +1337,7 @@ int main(int argc, char **argv) {
 
 
 //        isuccess+=test_constructor<double,4>(world, ncf, data4, ccparam);
+//        isuccess+=test_load_store<double,4>(world,ncf,data2,ccparam);
 //        isuccess+=test_operator_apply<double,4>(world, ncf, data4, ccparam);
 //        isuccess+=test_transformations<double,4>(world, ncf, data4, ccparam);
 //        isuccess+=test_multiply_with_f12<double,4>(world, ncf, data4, ccparam);
