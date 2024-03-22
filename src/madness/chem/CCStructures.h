@@ -727,6 +727,11 @@ struct CCConvolutionOperator {
         double lo = 1.e-6;
         int freeze = 0;
         double gamma = 1.0; /// f12 exponent
+
+        template<typename archiveT>
+        void serialize(archiveT& ar) {
+            ar & thresh_op & lo & freeze & gamma;
+        }
     };
 
 

@@ -652,19 +652,40 @@ double MP3::mp3_test(const Pairs<CCPair>& mp2pairs, const Pairs<std::vector<CCPa
     return 0.0;
 }
 
+double MP3::compute_mp3_cd(World& world,
+                           const long i, const long j,
+                           const Pairs<std::vector<CCPairFunction<double,6>>>& pair_square,
+                           const std::vector<Function<double,3>>& mo_ket,
+                           const std::vector<Function<double,3>>& mo_bra,
+                           const CCParameters& parameters,
+                           const Molecule& molecule,
+                           const Function<double,3>& Rsquare,
+                           const std::vector<std::string>& argument) {
+    print_header2("entering compute_mp3_cd");
+
+    CCConvolutionOperator<double,3>::Parameters cparam(parameters);
+    auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,cparam);
+
+    double result = 0.0;
+//    for (int i = parameters.freeze(); i < nocc; ++i) {
+//        for (int j = i; j < nocc; ++j) {
+            auto bra = pair_square(i, j);
+            double tmp1 = inner(bra, g12 * pair_square(i, j), Rsquare);
+            double tmp2 = inner(bra, g12 * pair_square(j, i), Rsquare);
+            double fac = (i == j) ? 0.5 : 1.0;
+            double tmp = fac * (4.0 * tmp1 - 2.0 * tmp2);
+            printf("mp3 energy: term_CD %2ld %2ld: %12.8f\n", i, j, tmp);
+            result+= tmp;
+//        }
+//    }
+    printf("MP3 energy: term_CD %12.8f\n", result);
+    return result;
+}
+
 double MP3::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
 
     print_header2("computing the MP3 correlation energy");
     print("mp2pairs.size()",mp2pairs.allpairs.size());
-    //    print_header3("prepare the cluster function");
-    //    typedef std::vector<CCPairFunction<double,6>> ClusterFunction;
-    //    Pairs<ClusterFunction> clusterfunctions;
-    //
-    //    auto R2 = nemo->ncf->square();
-    //    auto R = nemo->ncf->function();
-    //    std::vector<real_function_3d> nemo_orbital=mo_ket().get_vecfunction();
-    //    std::vector<real_function_3d> R2_orbital=mo_bra().get_vecfunction();
-    //    const int nocc=mo_ket().size();
 
     timer t2(world);
     std::size_t nocc=mo_ket().size();
@@ -682,22 +703,84 @@ double MP3::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
     }
 
     t2.tag("make cluster functions");
-    mp3_test(mp2pairs,clusterfunctions);
+//    mp3_test(mp2pairs,clusterfunctions);
     double term_CD=0.0, term_EF=0.0, term_GHIJ=0.0, term_KLMN=0.0;
+    term_CD=compute_mp3_cd(mp2pairs);
+    t2.tag("CD term");
+
     term_GHIJ=compute_mp3_ghij_fast(mp2pairs,clusterfunctions);
     t2.tag("GHIJ term");
     term_KLMN=compute_mp3_klmn_fast(mp2pairs);
     t2.tag("KLMN term fast");
     term_EF=compute_mp3_ef_with_permutational_symmetry(mp2pairs);
     t2.tag("EF term, permutational symmetry");
-    term_CD=compute_mp3_cd(mp2pairs);
-    t2.tag("CD term");
 
     printf("term_CD    %12.8f\n",term_CD);
     printf("term_GHIJ  %12.8f\n",term_GHIJ);
     printf("term_KLMN  %12.8f\n",term_KLMN);
     printf("term_EF    %12.8f\n",term_EF);
     double mp3_energy=term_CD+term_GHIJ+term_KLMN+term_EF;
+    printf("MP3 energy contribution  %12.8f\n",mp3_energy);
+    return mp3_energy;
+}
+
+double MP3::mp3_energy_contribution_macrotask_driver(const Pairs<CCPair>& mp2pairs) const {
+
+    print_header2("computing the MP3 correlation energy, macrotask version");
+    print("mp2pairs.size()",mp2pairs.allpairs.size());
+
+    // compute all ij pairs
+    timer t2(world);
+    std::size_t nocc=mo_ket().size();
+    typedef std::vector<CCPairFunction<double,6>> ClusterFunction;
+    Pairs<ClusterFunction> clusterfunctions;
+    for (int i = parameters.freeze(); i < nocc; ++i) {
+        for (int j = i; j < nocc; ++j) {
+            clusterfunctions(i,j)=mp2pairs(i,j).functions;
+            if (i!=j) {
+                for (const auto& t : clusterfunctions(i,j)) {
+                    clusterfunctions(j, i).push_back(t.swap_particles());
+                }
+            }
+        }
+    }
+    // turn Pair into vector for cloud and stuff -- will be reversed later on
+    PairVectorMap square_map=PairVectorMap::quadratic_map(parameters.freeze(),mo_ket().size());
+    auto clusterfunc_vec=Pairs<std::vector<CCPairFunction<double,6>>>::pairs2vector(clusterfunctions,square_map);
+
+    t2.tag("make cluster functions");
+
+    // create dummy scheduling vector of length npair=nocc*(nocc+1)/2, for the macrotask scheduler
+    std::vector<int> ij_vec(mp2pairs.allpairs.size());
+
+    // get mos
+    const std::vector<real_function_3d>& ket=mo_ket().get_vecfunction();
+    const std::vector<real_function_3d>& bra=mo_bra().get_vecfunction();
+
+
+
+    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),3));
+    MacroTaskMP3 task;
+    MacroTask macrotask(world,task,taskq);
+    taskq->print_taskq();
+//    auto cd_future=macrotask(std::string("cd"), ij_vec, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
+//    auto ef_future=macrotask("ef", mp2pairs, clusterfunctions, mo_ket(), mo_bra(), parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
+//    auto ghij_future=macrotask("ghij", mp2pairs, clusterfunctions, mo_ket(), mo_bra(), parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
+//    auto klmn_future=macrotask("klmn", mp2pairs, clusterfunctions, mo_ket(), mo_bra(), parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
+    taskq->run_all();
+
+//    double term_CD=cd_future->get();
+//    double term_EF=ef_future->get();
+//    double term_GHIJ=ghij_future->get();
+//    double term_KLMN=klmn_future->get();
+
+//    printf("term_CD    %12.8f\n",term_CD);
+//    printf("term_GHIJ  %12.8f\n",term_GHIJ);
+//    printf("term_KLMN  %12.8f\n",term_KLMN);
+//    printf("term_EF    %12.8f\n",term_EF);
+//    double mp3_energy=term_CD+term_GHIJ+term_KLMN+term_EF;
+//    double mp3_energy=term_CD;
+    double mp3_energy=-1.0;
     printf("MP3 energy contribution  %12.8f\n",mp3_energy);
     return mp3_energy;
 }

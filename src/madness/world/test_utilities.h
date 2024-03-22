@@ -28,7 +28,7 @@ struct test_output {
     }
 
     ~test_output() {
-        set_cout_to_terminal();
+        set_cout_to_terminal(false);
     }
 
 	void print_and_clear_log() {
@@ -40,7 +40,7 @@ struct test_output {
     void checkpoint(double error, double tol,
                     std::string message, double time=-1.0) {
         bool use_logger=cout_set_to_logger;
-        set_cout_to_terminal();
+        set_cout_to_terminal(false);
         bool success=error<tol;
         final_success = success and final_success;
         if (not have_checkpoints) print("");    // first checkpoint
@@ -58,7 +58,7 @@ struct test_output {
     void checkpoint(double value, double reference, double tol,
                     std::string message, double time=-1.0) {
         bool use_logger=cout_set_to_logger;
-        set_cout_to_terminal();
+        set_cout_to_terminal(false);
         double error=fabs(value-reference);
         bool success=error<tol;
         final_success = success and final_success;
@@ -76,7 +76,7 @@ struct test_output {
 
     void checkpoint(bool success, std::string message, double time=-1.0) {
         bool use_logger=cout_set_to_logger;
-        set_cout_to_terminal();
+        set_cout_to_terminal(false);
         final_success = success and final_success;
         if (not have_checkpoints) print("");    // first checkpoint
         have_checkpoints=true;
@@ -104,7 +104,7 @@ struct test_output {
     }
 
 	int end(bool success=true) {
-        set_cout_to_terminal();
+        set_cout_to_terminal(false);
         if (have_checkpoints) std::cout << ltrim_to_length("--> final result -->",70);
         success = success and final_success;
         double time_end=cpu_time();
@@ -121,13 +121,14 @@ struct test_output {
         std::cout.rdbuf(stream_buffer_file);
     }
 
-    void set_cout_to_terminal() {
+    /// newline for use by user, not for internal use (e.g. checkpoint())
+    void set_cout_to_terminal(bool newline=true) {
         if (not cout_set_to_logger) return;
         if (cout_set_to_logger) {
             std::cout.rdbuf(stream_buffer_cout);
         }
         cout_set_to_logger=false;
-        std::cout << std::endl;
+        if (newline) std::cout << std::endl;
     }
 
     std::stringstream logger;

@@ -153,8 +153,6 @@ public:
 
     World& world() const override {return u.world();};
 
-    void serialize() {}
-
     void print_size() const override {
         u.print_size(name(false));
     }
@@ -328,7 +326,7 @@ private:
  *
 **/
 template<typename T=double, std::size_t NDIM=6>
-struct CCPairFunction {
+struct CCPairFunction : public archive::ParallelSerializableObject {
     static constexpr std::size_t LDIM=NDIM/2;
     static_assert(NDIM%2==0,"NDIM must be even");
 
@@ -397,6 +395,15 @@ public:
         CCPairFunction result;
         result.component=other.component->clone();
         return result;
+    }
+
+    bool is_assigned() const {
+        return component.get();
+    }
+
+    hashT hash() const {
+        MADNESS_EXCEPTION("no hash in CCPairFunction",1);
+        return hashT();
     }
 
 private:
@@ -755,6 +762,64 @@ public:
                                    const std::array<int, LDIM>& v2) const;
 
 };
+
+namespace archive {
+template <class archiveT, class T, std::size_t NDIM>
+struct ArchiveLoadImpl< ParallelInputArchive<archiveT>, CCPairFunction<T,NDIM> > {
+    static inline void load(const ParallelInputArchive<archiveT>& ar, CCPairFunction<T,NDIM>& p) {
+        constexpr std::size_t LDIM=CCPairFunction<T,NDIM>::LDIM;
+        bool exists, is_pure, has_operator;
+        ar & exists;
+        if (exists) {
+            ar & is_pure & has_operator;
+            if (is_pure) {
+                Function<T,NDIM> f;
+                ar & f;
+                p=CCPairFunction<T,NDIM>(f);
+            } else {
+                std::size_t sz;
+                ar & sz;
+                std::vector<Function<T,LDIM>> a(sz),b(sz);
+                for (auto& aa : a) ar & aa;
+                for (auto& bb : b) ar & bb;
+                p=CCPairFunction<T,NDIM>(a,b);
+            }
+
+            // store construction parameters of the operator, not the operator itself
+            if (has_operator) {
+                auto param=typename CCConvolutionOperator<T,LDIM>::Parameters();
+                OpType type;
+                ar & param & type;
+                auto op=std::make_shared<CCConvolutionOperator<T,LDIM>>(*ar.get_world(),type,param);
+                p.reset_operator(op);
+            }
+        }
+    }
+};
+
+template <class archiveT, class T, std::size_t NDIM>
+struct ArchiveStoreImpl< ParallelOutputArchive<archiveT>, CCPairFunction<T,NDIM> > {
+    static inline void store(const ParallelOutputArchive<archiveT>& ar, const CCPairFunction<T,NDIM>& f) {
+        bool exists=f.is_assigned();
+        ar & exists;
+        if (exists) {
+            ar & f.is_pure() & f.has_operator();
+            if (f.is_pure()) ar & f.get_function();
+            if (f.is_decomposed()) {
+                auto avec=f.get_a();
+                auto bvec=f.get_b();
+                ar & avec.size();
+                for (const auto& a : avec) ar & a;
+                for (const auto& b : bvec) ar & b;
+            }
+            // store construction parameters of the operator, not the operator itself
+            if (f.has_operator()) {
+                ar & f.get_operator().parameters & f.get_operator().type();
+            }
+        }
+    }
+};
+}
 
 /// apply the operator to the argument
 

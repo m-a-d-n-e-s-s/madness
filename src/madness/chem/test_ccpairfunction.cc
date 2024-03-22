@@ -155,7 +155,7 @@ int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
         MADNESS_CHECK(!p2.is_op_decomposed());
         auto p = p2.pure();
         auto ff = p2.pure().get_function();
-        MADNESS_CHECK(!(ff.get_impl()==f.get_impl())); // deep copy of f
+        MADNESS_CHECK((ff.get_impl()==f.get_impl())); // shallow copy of f
     }
     t1.checkpoint(true,"checks on pure");
 
@@ -193,6 +193,59 @@ int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
 
     return t1.end();
 }
+
+template<typename T, std::size_t NDIM>
+int test_load_store(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, data<T,NDIM>& data,
+                     const CCParameters& parameter) {
+    test_output t1("load/store of <T,"+std::to_string(NDIM)+">");
+
+    t1.set_cout_to_terminal();
+    static_assert(NDIM%2==0, "NDIM must be even");
+    constexpr std::size_t LDIM=NDIM/2;
+
+    auto [p1,p2,p3,p4,p5]=data.get_ccpairfunctions();  // p2-p5 correspond to f23
+    auto [f1,f2,f3,f4,f5,ff]=data.get_functions();
+
+    auto compute_diff_norm = [](const CCPairFunction<T,NDIM>& f1, const CCPairFunction<T,NDIM> f2) {
+        std::vector<CCPairFunction<T,NDIM>> diff;
+        diff+={f1};
+        diff-={f2};
+        double in = inner(diff,diff);
+        if (in<0) return -sqrt(-in);
+        return sqrt(in);
+    };
+
+    std::string fname="ccpairfunction_test";
+    {
+        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, fname, 1);
+        ar & f1;
+        ar & p2;
+        ar & p3;
+        ar & p4;
+        ar & p5;
+    }
+    {
+        archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, fname, 1);
+        CCPairFunction<T,NDIM> g2, g3, g4, g5;
+        ar & f1;
+        ar & g2;
+        ar & g3;
+        ar & g4;
+        ar & g5;
+
+        double n2=compute_diff_norm(g2,p2);
+        double n3=compute_diff_norm(g3,p3);
+        double n4=compute_diff_norm(g4,p4);
+        double n5=compute_diff_norm(g5,p5);
+        t1.checkpoint(n2,FunctionDefaults<LDIM>::get_thresh(),"store/load "+p2.name());
+        t1.checkpoint(n3,FunctionDefaults<LDIM>::get_thresh(),"store/load "+p3.name());
+        t1.checkpoint(n4,FunctionDefaults<LDIM>::get_thresh(),"store/load "+p4.name());
+        t1.checkpoint(n5,FunctionDefaults<LDIM>::get_thresh(),"store/load "+p5.name());
+    }
+    t1.checkpoint(true,"checks on load/store");
+    return t1.end();
+}
+
 
 template<typename T, std::size_t NDIM>
 int test_operator_apply(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, data<T,NDIM>& data,
@@ -1267,6 +1320,7 @@ int main(int argc, char **argv) {
         auto data6=data<double,6>(world,ccparam);
 
         isuccess+=test_constructor<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_load_store<double,2>(world,ncf,data2,ccparam);
         isuccess+=test_operator_apply<double,2>(world, ncf, data2, ccparam);
         isuccess+=test_transformations<double,2>(world, ncf, data2, ccparam);
         isuccess+=test_multiply_with_f12<double,2>(world, ncf, data2, ccparam);
