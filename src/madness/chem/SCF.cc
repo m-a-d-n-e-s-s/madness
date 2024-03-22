@@ -1455,7 +1455,6 @@ tensorT SCF::derivatives(World& world, const functionT& rho) const {
                    r[i * 3 + 2]);
         }
     }
-    e_data.add_gradient(r);
     return r;
 }
 

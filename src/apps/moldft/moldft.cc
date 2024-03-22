@@ -173,7 +173,10 @@ int main(int argc, char **argv) {
                         brho = calc.make_density(world, calc.bocc, calc.bmo);
                     rho.gaxpy(1.0, brho, 1.0);
 
-                    if (calc.param.derivatives()) calc.derivatives(world, rho);
+                    if (calc.param.derivatives()){
+                        auto gradient=calc.derivatives(world, rho);
+                        calc.e_data.add_gradient(gradient);
+                    }
                     // automatically print dipole moment and output scf info
                     std::map<std::string, double> results;
                     results["scf_energy"] = calc.current_energy;
