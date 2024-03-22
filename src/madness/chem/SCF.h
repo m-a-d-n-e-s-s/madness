@@ -171,6 +171,8 @@ public:
     class scf_data {
 
         std::map<std::string, std::vector<double>> e_data;
+        json gradient;
+        json hessian;
         int iter;
     public:
 
@@ -181,6 +183,8 @@ public:
         void print_data();
 
         void add_data(std::map<std::string, double> values);
+
+        void add_gradient(const Tensor<double> &grad);
     };
 
 

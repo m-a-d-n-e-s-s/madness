@@ -226,6 +226,10 @@ void scf_data::print_data() {
     for (const auto &[key, value]: e_data) { print(key, " : ", value); }
 }
 
+void scf_data::add_gradient(const Tensor<double> &grad) {
+    gradient = tensor_to_json(grad);
+}
+
 
 //    SCF::SCF(World & world, const char *filename) : SCF(world, (world.rank() == 0 ? std::make_shared<std::ifstream>(filename) : nullptr)){
 //    }
@@ -1452,6 +1456,7 @@ tensorT SCF::derivatives(World& world, const functionT& rho) const {
                    r[i * 3 + 2]);
         }
     }
+    e_data.add_gradient(r);
     return r;
 }
 
