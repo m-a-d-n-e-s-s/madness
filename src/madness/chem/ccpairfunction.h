@@ -120,6 +120,7 @@ public:
     virtual World& world() const =0;
     virtual std::shared_ptr<TwoBodyFunctionComponentBase> clone() = 0;
     virtual ~TwoBodyFunctionComponentBase() {}
+    virtual hashT hash() const = 0;
 };
 
 /// a two-body, explicitly 6-dimensional function
@@ -184,6 +185,12 @@ public:
 
     Function<T,NDIM>& get_function() {
         return u;
+    }
+
+    hashT hash() const override {
+        hashT h1=hash_value(u.get_impl());
+        if (op) hash_combine(h1,hash_value(*op));
+        return h1;
     }
 
 private:
@@ -251,7 +258,18 @@ public:
 
     void serialize() {}
 
-    template<typename Q, std::size_t MDIM>
+    hashT hash() const override {
+        hashT h1=0;
+        for (const auto& aa : a) hash_combine(h1,hash_value(aa.get_impl()));
+        for (const auto& bb : b) hash_combine(h1,hash_value(bb.get_impl()));
+        // print("hashvalue of TwoBodyFunctionSeparatedComponent: ",h1);
+
+        if (op) hash_combine(h1,hash_value(*op));
+        return h1;
+    }
+
+
+        template<typename Q, std::size_t MDIM>
     TwoBodyFunctionPureComponent<T,NDIM> apply(const SeparatedConvolution<Q,MDIM>* op, const int particle=0) {
         MADNESS_EXCEPTION("TwoBodyFunctionPureComponent<T> apply not yet implemented",1);
     }
@@ -401,9 +419,9 @@ public:
         return component.get();
     }
 
-    hashT hash() const {
-        MADNESS_EXCEPTION("no hash in CCPairFunction",1);
-        return hashT();
+    friend hashT hash_value(const CCPairFunction& f) {
+        if (not f.is_assigned()) { return hashT(); }
+        return f.component->hash();
     }
 
 private:

@@ -840,6 +840,16 @@ public:
     /// prints out information (operatorname, number of stored intermediates ...)
     size_t info() const;
 
+    friend hashT hash_value(CCConvolutionOperator<T,NDIM>& op) {
+        hashT h;
+        hash_combine(h, op.parameters.thresh_op);
+        hash_combine(h, op.parameters.lo);
+        hash_combine(h, op.parameters.freeze);
+        hash_combine(h, op.parameters.gamma);
+        hash_combine(h, int(op.type()));
+        return h;
+    }
+
     /// sanity check .. doens not do so much
     void sanity() const { print_intermediate(HOLE); }
 

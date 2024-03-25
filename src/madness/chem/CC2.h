@@ -138,7 +138,7 @@ public:
 
     double compute_mp3(const Pairs<CCPair>& mp2pairs) const {
         MP3 mp3(CCOPS);
-        double mp3_contribution=mp3.mp3_energy_contribution(mp2pairs);
+        double mp3_contribution=mp3.mp3_energy_contribution_macrotask_driver(mp2pairs);
         return mp3_contribution;
     }
 

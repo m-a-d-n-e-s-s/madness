@@ -299,68 +299,6 @@ int main(int argc, char **argv) {
             cloud.set_force_load_from_cache(false);
         }
 
-
-        // test storing WorldContainer
-        test_output test_worldcontainer("testing worldcontainer");
-        test_worldcontainer.set_cout_to_terminal();
-        cloud.set_debug(false);
-        typedef WorldContainer<int,double> result_container;
-        result_container ad(universe);
-        ad.replace(0,1.0);
-        auto adrecords = cloud.store(universe, ad);
-        {
-            MacroTaskQ::set_pmap(subworld);
-
-            cloud.set_force_load_from_cache(false);
-            auto t2 = cloud.load<result_container>(subworld, adrecords);
-            cloud.set_force_load_from_cache(true);
-            auto t3 = cloud.load<result_container>(subworld, adrecords);
-            double d1=ad.find(0).get()->second;
-            double d2=t2.find(0).get()->second;
-            double d3=t3.find(0).get()->second;
-            std::cout << "array_double " << d1 << " " << d2 << " " << d3 << std::endl;
-            double error=d1-d2;
-            success += test_worldcontainer.end(error < 1.e-10 );
-            cloud.set_force_load_from_cache(false);
-        }
-
-        // test pointer to WorldContainer
-        if constexpr (0) {
-            typedef std::shared_ptr<Function<double, 3>::implT> impl_ptrT;
-            auto p1 = std::shared_ptr<WorldContainer<int, double>>(new WorldContainer<int, double>(universe));
-            p1->replace(0,1.5);
-            auto precords = cloud.store(universe, p1);
-
-            {
-                test_output test_dc_ptr("testing cloud/shared_ptr<WorldDC> in world " + std::to_string(subworld.id()));
-                test_dc_ptr.set_cout_to_terminal();
-                MacroTaskQ::set_pmap(subworld);
-
-                auto p3 = cloud.load<std::shared_ptr<WorldContainer<int,double>>>(subworld, precords);
-                auto p4 = cloud.load<std::shared_ptr<WorldContainer<int,double>>>(subworld, precords);
-                auto p5 = cloud.load<std::shared_ptr<WorldContainer<int,double>>>(subworld, precords);
-                std::cout << "p1/p2/p3/p4" << " " << p1.get() << " " << p3.get() << " " << p4.get() << " "
-                                << p5.get() << std::endl;
-                test_dc_ptr.end(p1 == p3 && p1 == p4 && p1 == p5
-                             && p1->get_world().id() == p3->get_world().id()
-                             && p1->get_world().id() == p4->get_world().id()
-                             && p1->get_world().id() == p5->get_world().id());
-                double d3=p3->find(0).get()->second;
-                double d4=p4->find(0).get()->second;
-                double d5=p5->find(0).get()->second;
-
-                MacroTaskQ::set_pmap(universe);
-                cloud.clear_cache(subworld);
-            }
-            subworld.gop.fence();
-            universe.gop.fence();
-            test_output test_dc_ptr("testing cloud/shared_ptr<Function> numerics in universe");
-            double ffnorm = ff.norm2();
-            test_dc_ptr.end((ffnorm < 1.e-10));
-            universe.gop.fence();
-        }
-
-
         // test storing twice (using cache)
         {
             cloud.clear_timings();

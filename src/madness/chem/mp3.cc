@@ -726,8 +726,10 @@ double MP3::mp3_energy_contribution(const Pairs<CCPair>& mp2pairs) const {
 
 double MP3::mp3_energy_contribution_macrotask_driver(const Pairs<CCPair>& mp2pairs) const {
 
-    print_header2("computing the MP3 correlation energy, macrotask version");
-    print("mp2pairs.size()",mp2pairs.allpairs.size());
+    if (world.rank()==0) {
+        print_header2("computing the MP3 correlation energy, macrotask version");
+        print("mp2pairs.size()",mp2pairs.allpairs.size());
+    }
 
     // compute all ij pairs
     timer t2(world);
@@ -757,24 +759,24 @@ double MP3::mp3_energy_contribution_macrotask_driver(const Pairs<CCPair>& mp2pai
     const std::vector<real_function_3d>& ket=mo_ket().get_vecfunction();
     const std::vector<real_function_3d>& bra=mo_bra().get_vecfunction();
 
-
-
     auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),3));
+    // taskq->set_printlevel(20);
+    // taskq->cloud.set_debug(true);
     MacroTaskMP3 task;
     MacroTask macrotask(world,task,taskq);
-    taskq->print_taskq();
-//    auto cd_future=macrotask(std::string("cd"), ij_vec, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
+    auto cd_future=macrotask(std::string("cd"), ij_vec, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
 //    auto ef_future=macrotask("ef", mp2pairs, clusterfunctions, mo_ket(), mo_bra(), parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
 //    auto ghij_future=macrotask("ghij", mp2pairs, clusterfunctions, mo_ket(), mo_bra(), parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
 //    auto klmn_future=macrotask("klmn", mp2pairs, clusterfunctions, mo_ket(), mo_bra(), parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
+    taskq->print_taskq();
     taskq->run_all();
 
-//    double term_CD=cd_future->get();
+    double term_CD=cd_future->get();
 //    double term_EF=ef_future->get();
 //    double term_GHIJ=ghij_future->get();
 //    double term_KLMN=klmn_future->get();
 
-//    printf("term_CD    %12.8f\n",term_CD);
+    printf("term_CD    %12.8f\n",term_CD);
 //    printf("term_GHIJ  %12.8f\n",term_GHIJ);
 //    printf("term_KLMN  %12.8f\n",term_KLMN);
 //    printf("term_EF    %12.8f\n",term_EF);
