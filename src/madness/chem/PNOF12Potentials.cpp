@@ -81,8 +81,6 @@ F12Potentials::F12Potentials(World& world,const Nemo& nemo, const BasisFunctions
 	fop = std::shared_ptr < real_convolution_3d > (SlaterF12OperatorPtr(world, param.gamma(), lo, eps));
 	slaterop = std::shared_ptr < real_convolution_3d > (SlaterF12OperatorPtr(world, param.gamma(), lo, eps));
 	slaterop_sq = std::shared_ptr < real_convolution_3d > (SlaterF12OperatorPtr(world, param.gamma() * 2.0, lo, eps));
-	slaterop->is_slaterf12 = false;
-	slaterop_sq->is_slaterf12 = false;
 	fop = std::shared_ptr < real_convolution_3d > (SlaterF12OperatorPtr(world, param.gamma(), lo, eps));
 
 	//test

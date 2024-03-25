@@ -607,7 +607,7 @@ public:
         Tensor<double> coeffs(1), exponents(1);
         exponents(0L) = 1.0 / (2.0 * 0.04);
         coeffs(0L) = pow((1.0 / (2.0 * 0.04)) / M_PI, 0.5);
-        SeparatedConvolution<double, 1> op(world, coeffs, exponents);
+        SeparatedConvolution<double, 1> op(world, coeffs, exponents,1.e-5,1.e-5);
         real_function_1d sf = apply(op, f);
         double diff = (f - sf).norm2();
         output("||f - smoothed_f||_1D=" + stringify(diff));

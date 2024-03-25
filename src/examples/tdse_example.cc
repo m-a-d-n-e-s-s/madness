@@ -175,7 +175,7 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
 
     Tensor<double> coeff(1); coeff[0] = 1.0/pow(constants::pi*tmax,1.5);
     Tensor<double> expnt(1); expnt[0] = 1.0/tmax;
-    operatorT* op = new operatorT(world,coeff,expnt);
+    operatorT* op = new operatorT(world,coeff,expnt,0.0,0.0);
 
     for (int iter=0; iter<20; iter++) {
         if (world.rank() == 0) print("ITER",iter);
@@ -197,7 +197,7 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
             delete op;
             coeff[0] = 1.0/sqrt(constants::pi*tmax);
             expnt[0] = 1.0/tmax;
-            op = new operatorT(world,coeff,expnt);
+            op = new operatorT(world,coeff,expnt,0.0,0.0);
         }
     }
     delete op;

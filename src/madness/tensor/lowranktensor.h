@@ -695,9 +695,6 @@ public:
 	friend GenTensor<TENSOR_RESULT_TYPE(R,Q)> transform_dir(
 			const GenTensor<R>& t, const Tensor<Q>& c, const int axis);
 
-	template <typename R, typename Q>
-	friend GenTensor<TENSOR_RESULT_TYPE(R,Q)> outer(
-			const GenTensor<R>& t1, const GenTensor<Q>& t2);
 
 	std::string what_am_i() const {
 		TensorType tt;
@@ -815,7 +812,7 @@ void change_tensor_type(GenTensor<T>& t, const TensorArgs& targs) {
 /// all other combinations are currently invalid.
 template <class T, class Q>
 GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const GenTensor<T>& t1,
-		const GenTensor<Q>& t2, const TensorArgs final_tensor_args) {
+		const GenTensor<Q>& t2, const TensorArgs final_tensor_args=TensorArgs(-1.0,TT_2D)) {
 
     typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 

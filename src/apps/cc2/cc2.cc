@@ -93,13 +93,10 @@ int main(int argc, char **argv) {
             calc->param.print("dft","end");
             print("\n");
             cc2.tdhf->get_parameters().print("response","end");
+            print("\n");
+            nemo->molecule().print();
         }
         double hf_energy = nemo->value();
-        if (world.rank() == 0)
-            std::cout << "\n\n\n\n\n\n Reference Calculation Ended\n SCF Energy is: " << hf_energy
-                      << "\n current wall-time: " << wall_time()
-                      << "\n current cpu-time: " << cpu_time() << "\n\n\n";
-
         cc2.solve();
 
         if (world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());

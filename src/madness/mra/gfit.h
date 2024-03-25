@@ -48,6 +48,8 @@
 #include "../tensor/tensor_lapack.h"
 #include "../world/madness_exception.h"
 #include "../world/print.h"
+#include <madness/mra/operatorinfo.h>
+
 
 namespace madness {
 
@@ -57,7 +59,42 @@ class GFit {
 public:
 
 	/// default ctor does nothing
-	GFit() {}
+	GFit() = default;
+
+    GFit(OperatorInfo info) {
+        double mu = info.mu;
+        double lo = info.lo;
+        double hi = info.hi;
+        MADNESS_CHECK_THROW(hi>0,"hi must be positive in gfit: U need to set it manually in operator.h");
+        double eps = info.thresh;
+        bool debug=info.debug;
+        OpType type = info.type;
+
+
+        if (type==OT_G12) {*this=CoulombFit(lo,hi,eps,debug);
+        } else if (type==OT_SLATER) {*this=SlaterFit(mu,lo,hi,eps,debug);
+        } else if (type==OT_GAUSS)  {*this=GaussFit(mu,lo,hi,eps,debug);
+        } else if (type==OT_F12)    {*this=F12Fit(mu,lo,hi,eps,debug);
+        } else if (type==OT_FG12)   {*this=FGFit(mu,lo,hi,eps,debug);
+        } else if (type==OT_F212)   {*this=F12sqFit(mu,lo,hi,eps,debug);
+        } else if (type==OT_F2G12)  {*this=F2GFit(mu,lo,hi,eps,debug);
+        } else if (type==OT_BSH)    {*this=BSHFit(mu,lo,hi,eps,debug);
+        } else {
+            print("Operator type not implemented: ",type);
+            MADNESS_EXCEPTION("Operator type not implemented: ",1);
+        }
+
+    }
+
+    /// copy constructor
+    GFit(const GFit& other) = default;
+
+    /// assignment operator
+    GFit& operator=(const GFit& other) {
+        coeffs_ = other.coeffs_;
+        exponents_ = other.exponents_;
+        return *this;
+    }
 
 	/// return a fit for the Coulomb function
 
@@ -79,8 +116,15 @@ public:
 	/// @parma[in]	prnt	print level
 	static GFit BSHFit(double mu, double lo, double hi, double eps, bool prnt=false) {
 		GFit fit;
-		if (NDIM==3) bsh_fit(mu,lo,hi,eps,fit.coeffs_,fit.exponents_,prnt);
+        bool fix_interval=false;
+		if (NDIM==3) bsh_fit(mu,lo,hi,eps,fit.coeffs_,fit.exponents_,prnt,fix_interval);
 		else bsh_fit_ndim(NDIM,mu,lo,hi,eps,fit.coeffs_,fit.exponents_,prnt);
+
+        if (prnt) {
+            print("bsh fit");
+            auto exact = [&mu](const double r) -> double { return 1.0/(4.0 * constants::pi) * exp(-mu * r)/r; };
+            fit.print_accuracy(exact, lo, hi);
+        }
 		return fit;
 	}
 
@@ -95,9 +139,160 @@ public:
 	/// @parma[in]	prnt	print level
 	static GFit SlaterFit(double gamma, double lo, double hi, double eps, bool prnt=false) {
 		GFit fit;
-		slater_fit(gamma,lo,hi,eps,fit.coeffs_,fit.exponents_,prnt);
+		slater_fit(gamma,lo,hi,eps,fit.coeffs_,fit.exponents_,false);
+        if (prnt) {
+            print("Slater fit");
+            auto exact = [&gamma](const double r) -> double { return exp(-gamma * r); };
+            fit.print_accuracy(exact, lo, hi);
+        }
 		return fit;
 	}
+
+    /// return a (trivial) fit for a single Gauss function
+
+    /// the Gauss function is defined by
+    ///  f(r) = exp(-\gamma r^2)
+    /// @param[in]	gamma	the exponent of the Gauss function
+    /// @param[in]	lo	the smallest length scale that needs to be precisely represented
+    /// @param[in]	hi	the largest length scale that needs to be precisely represented
+    /// @param[in]	eps	the precision threshold
+    /// @parma[in]	prnt	print level
+    static GFit GaussFit(double gamma, double lo, double hi, double eps, bool prnt=false) {
+        GFit fit;
+        fit.coeffs_=Tensor<T>(1);
+        fit.exponents_=Tensor<double>(1);
+        fit.coeffs_=1.0;
+        fit.exponents_=gamma;
+        if (prnt) {
+            print("Gauss fit");
+            auto exact = [&gamma](const double r) -> double { return exp(-gamma * r*r); };
+            fit.print_accuracy(exact, lo, hi);
+        }
+        return fit;
+    }
+
+    /// return a fit for the F12 correlation factor
+
+    /// the Slater function is defined by
+    ///  f(r) = 1/(2 gamma) * (1 - exp(-\gamma r))
+    /// @param[in]	gamma	the exponent of the Slater function
+    /// @param[in]	lo	the smallest length scale that needs to be precisely represented
+    /// @param[in]	hi	the largest length scale that needs to be precisely represented
+    /// @param[in]	eps	the precision threshold
+    /// @parma[in]	prnt	print level
+    static GFit F12Fit(double gamma, double lo, double hi, double eps, bool prnt=false) {
+        GFit fit;
+        f12_fit(gamma,lo*0.1,hi,eps*0.01,fit.coeffs_,fit.exponents_,false);
+        fit.coeffs_*=(0.5/gamma);
+        if (prnt) {
+            print("f12 fit");
+            auto exact=[&gamma](const double r) -> double {return 0.5/gamma*(1.0-exp(-gamma*r));};
+            fit.print_accuracy(exact,lo,hi);
+        }
+        return fit;
+    }
+
+    /// return a fit for the F12^2 correlation factor
+
+    /// the Slater function square is defined by
+    ///  f(r) = [ 1/(2 gamma) * (1 - exp(-\gamma r)) ] ^2
+    /// @param[in]	gamma	the exponent of the Slater function
+    /// @param[in]	lo	the smallest length scale that needs to be precisely represented
+    /// @param[in]	hi	the largest length scale that needs to be precisely represented
+    /// @param[in]	eps	the precision threshold
+    /// @parma[in]	prnt	print level
+    static GFit F12sqFit(double gamma, double lo, double hi, double eps, bool prnt=false) {
+        GFit fit;
+        f12sq_fit(gamma,lo*0.1,hi,eps*0.01,fit.coeffs_,fit.exponents_,false);
+        fit.coeffs_*=(0.25/(gamma*gamma));
+        if (prnt) {
+            print("f12sq fit");
+            auto exact=[&gamma](const double r) -> double {return std::pow(0.5/gamma*(1.0-exp(-gamma*r)),2.0);};
+            fit.print_accuracy(exact,lo,hi);
+        }
+        return fit;
+    }
+
+
+    /// return a fit for the FG function
+
+    /// fg = 1/(2 mu) * (1 - exp(-gamma r12))  / r12
+    ///    = 1/(2 mu) *( 1/r12 - exp(-gamma r12)/r12)
+    ///    = 1/(2 mu) * (coulomb - bsh)
+    /// @param[in]	gamma	the exponent of the Slater function
+    /// @param[in]	lo	the smallest length scale that needs to be precisely represented
+    /// @param[in]	hi	the largest length scale that needs to be precisely represented
+    /// @param[in]	eps	the precision threshold
+    /// @parma[in]	prnt	print level
+    static GFit FGFit(double gamma, double lo, double hi, double eps, bool prnt=false) {
+        GFit bshfit,coulombfit;
+        eps*=0.1;
+        lo*=0.1;
+//        bool restrict_interval=false;
+        bool fix_interval=true;
+        bsh_fit(gamma,lo,hi,eps,bshfit.coeffs_,bshfit.exponents_,false,fix_interval);
+        bsh_fit(0.0,lo,hi,eps,coulombfit.coeffs_,coulombfit.exponents_,false,fix_interval);
+        // check the exponents are identical
+        auto diffexponents=(coulombfit.exponents() - bshfit.exponents());
+        MADNESS_CHECK(diffexponents.normf()/coulombfit.exponents().size()<1.e-12);
+        auto diffcoefficients=(coulombfit.coeffs() - bshfit.coeffs());
+        GFit fgfit;
+        fgfit.exponents_=bshfit.exponents_;
+        fgfit.coeffs_=4.0*constants::pi*0.5/gamma*diffcoefficients;
+        GFit<double,3>::prune_small_coefficients(eps,lo,hi,fgfit.coeffs_,fgfit.exponents_);
+
+        if (prnt) {
+            print("fg fit");
+            auto exact=[&gamma](const double r) -> double {return 0.5/gamma*(1.0-exp(-gamma*r))/r;};
+            fgfit.print_accuracy(exact,lo,hi);
+        }
+        return fgfit;
+    }
+
+    /// return a fit for the F2G function
+
+    /// f2g = (1/(2 mu) * (1 - exp(-gamma r12)))^2  / r12
+    ///    = 1/(4 mu^2) * [ 1/r12 - 2 exp(-gamma r12)/r12) + exp(-2 gamma r12)/r12 ]
+    /// @param[in]	gamma	the exponent of the Slater function
+    /// @param[in]	lo	the smallest length scale that needs to be precisely represented
+    /// @param[in]	hi	the largest length scale that needs to be precisely represented
+    /// @param[in]	eps	the precision threshold
+    /// @parma[in]	prnt	print level
+    static GFit F2GFit(double gamma, double lo, double hi, double eps, bool prnt=false) {
+        GFit bshfit,coulombfit,bsh2fit;
+        eps*=0.1;
+        lo*=0.1;
+//        bool restrict_interval=false;
+        bool fix_interval=true;
+        bsh_fit(gamma,lo,hi,eps,bshfit.coeffs_,bshfit.exponents_,false,fix_interval);
+        bsh_fit(2.0*gamma,lo,hi,eps,bsh2fit.coeffs_,bsh2fit.exponents_,false,fix_interval);
+        bsh_fit(0.0,lo,hi,eps,coulombfit.coeffs_,coulombfit.exponents_,false,fix_interval);
+
+        // check the exponents are identical
+        auto diffexponents=(coulombfit.exponents() - bshfit.exponents());
+        MADNESS_CHECK(diffexponents.normf()/coulombfit.exponents().size()<1.e-12);
+        auto diffexponents1=(coulombfit.exponents() - bsh2fit.exponents());
+        MADNESS_CHECK(diffexponents1.normf()/coulombfit.exponents().size()<1.e-12);
+
+        auto coefficients=(coulombfit.coeffs() - 2.0* bshfit.coeffs() + bsh2fit.coeffs());
+        GFit f2gfit;
+        f2gfit.exponents_=bshfit.exponents_;
+        // additional factor 4 pi due to implementation of bsh_fit
+        double fourpi=4.0*constants::pi;
+        double fourmu2=4.0*gamma*gamma;
+        f2gfit.coeffs_=fourpi/fourmu2*coefficients;
+        GFit<double,3>::prune_small_coefficients(eps,lo,hi,f2gfit.coeffs_,f2gfit.exponents_);
+
+        if (prnt) {
+            print("fg fit");
+            auto exact=[&gamma](const double r) -> double {
+                return 0.25/(gamma*gamma)*(1.0-2.0*exp(-gamma*r)+exp(-2.0*gamma*r))/r;
+            };
+            f2gfit.print_accuracy(exact,lo,hi);
+        }
+        return f2gfit;
+    }
+
 
 	/// return a fit for a general isotropic function
 
@@ -114,7 +309,26 @@ public:
 	/// return the exponents of the fit
 	Tensor<T> exponents() const {return exponents_;}
 
-	void truncate_periodic_expansion(Tensor<double>& c, Tensor<double>& e,
+    void static prune_small_coefficients(const double eps, const double lo, const double hi,
+                                  Tensor<double>& coeff, Tensor<double>& expnt) {
+        double mid = lo + (hi-lo)*0.5;
+        long npt=coeff.size();
+        long i;
+        for (i=npt-1; i>0; --i) {
+            double cnew = coeff[i]*exp(-(expnt[i]-expnt[i-1])*mid*mid);
+            double errlo = coeff[i]*exp(-expnt[i]*lo*lo) -
+                           cnew*exp(-expnt[i-1]*lo*lo);
+            double errhi = coeff[i]*exp(-expnt[i]*hi*hi) -
+                           cnew*exp(-expnt[i-1]*hi*hi);
+            if (std::max(std::abs(errlo),std::abs(errhi)) > 0.03*eps) break;
+            npt--;
+            coeff[i-1] = coeff[i-1] + cnew;
+        }
+        coeff = coeff(Slice(0,npt-1));
+        expnt = expnt(Slice(0,npt-1));
+    }
+
+    void truncate_periodic_expansion(Tensor<double>& c, Tensor<double>& e,
 			double L, bool discardG0) const {
 		double tcut = 0.25/L/L;
 
@@ -157,6 +371,35 @@ private:
 
 	}
 
+    /// print coefficients and exponents, and values and errors
+
+    /// @param[in]  op  the exact function, e.g. 1/r, exp(-mu r), etc
+    /// @param[in]  lo  lower bound for the range r
+    /// @param[in]  hi  higher bound for the range r
+    template<typename opT>
+    void print_accuracy(opT op, const double lo, const double hi) const {
+
+        std::cout << "weights and roots" << std::endl;
+        for (int i=0; i<coeffs_.size(); ++i)
+            std::cout << i << " " << coeffs_[i] << " " << exponents_[i] << std::endl;
+
+        long npt = 300;
+        std::cout << "       x         value   abserr   relerr" << std::endl;
+        std::cout << "  ------------  ------- -------- -------- " << std::endl;
+        double step = exp(log(hi/lo)/(npt+1));
+        for (int i=0; i<=npt; ++i) {
+            double r = lo*(pow(step,i+0.5));
+//            double exact = exp(-mu*r)/r/4.0/constants::pi;
+            double exact = op(r);
+            double test = 0.0;
+            for (int j=0; j<coeffs_.dim(0); ++j)
+                test += coeffs_[j]*exp(-r*r*exponents_[j]);
+            double err = 0.0;
+            if (exact) err = (exact-test)/exact;
+            printf("  %.6e %8.1e %8.1e %8.1e\n",r, exact, exact-test, err);
+        }
+    }
+
 	/// the coefficients of the expansion f(x) = \sum_m coeffs[m] exp(-exponents[m] * x^2)
 	Tensor<T> coeffs_;
 
@@ -173,11 +416,14 @@ private:
 	/// Multiresolution Quantum Chemistry in Multiwavelet Bases,
 	/// Lecture Notes in Computer Science, vol. 2660, p. 707, 2003.
 	static void bsh_fit(double mu, double lo, double hi, double eps,
-			Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt) {
+			Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt, bool fix_interval) {
 
-                if (mu < 0.0) throw "cannot handle negative mu in bsh_fit";
+        if (mu < 0.0) throw "cannot handle negative mu in bsh_fit";
+//        bool restrict_interval=(mu>0) and use_mu_for_restricting_interval;
 
-		if (mu > 0) {
+
+		if ((mu > 0) and (not fix_interval)) {
+//        if (restrict_interval) {
 			// Restrict hi according to the exponential decay
 			double r = -log(4*constants::pi*0.01*eps);
 			r = -log(r * 4*constants::pi*0.01*eps);
@@ -195,7 +441,8 @@ private:
 		else if (eps >= 1e-12) TT = 26;
 		else TT = 30;
 
-		if (mu > 0) {
+        if ((mu > 0) and (not fix_interval)) {
+//		if (restrict_interval) {
 			slo = -0.5*log(4.0*TT/(mu*mu));
 		}
 		else {
@@ -253,21 +500,9 @@ private:
 		// end points ... if this error is less than the desired
 		// precision, can discard the diffuse gaussian.
 
-		if (mu == 0.0) {
-			double mid = lo + (hi-lo)*0.5;
-			long i;
-			for (i=npt-1; i>0; --i) {
-				double cnew = coeff[i]*exp(-(expnt[i]-expnt[i-1])*mid*mid);
-				double errlo = coeff[i]*exp(-expnt[i]*lo*lo) -
-						cnew*exp(-expnt[i-1]*lo*lo);
-				double errhi = coeff[i]*exp(-expnt[i]*hi*hi) -
-						cnew*exp(-expnt[i-1]*hi*hi);
-				if (std::max(std::abs(errlo),std::abs(errhi)) > 0.03*eps) break;
-				npt--;
-				coeff[i-1] = coeff[i-1] + cnew;
-			}
-			coeff = coeff(Slice(0,npt-1));
-			expnt = expnt(Slice(0,npt-1));
+        if ((mu == 0.0) and (not fix_interval)) {
+//		if (restrict_interval) {
+            GFit<double,3>::prune_small_coefficients(eps,lo,hi,coeff,expnt);
 		}
 
 		// Modify the coeffs of the largest exponents to satisfy the moment conditions
@@ -328,27 +563,6 @@ private:
 			coeff(Slice(0,nmom-1)) = ncoeff;
 		}
 
-		if (prnt) {
-			for (int i=0; i<npt; ++i)
-				std::cout << i << " " << coeff[i] << " " << expnt[i] << std::endl;
-
-			long npt = 300;
-			//double hi = 1.0;
-			//if (mu) hi = min(1.0,30.0/mu);
-			std::cout << "       x         value   abserr   relerr" << std::endl;
-			std::cout << "  ------------  ------- -------- -------- " << std::endl;
-			double step = exp(log(hi/lo)/(npt+1));
-			for (int i=0; i<=npt; ++i) {
-				double r = lo*(pow(step,i+0.5));
-				double exact = exp(-mu*r)/r/4.0/constants::pi;
-				double test = 0.0;
-				for (int j=0; j<coeff.dim(0); ++j)
-					test += coeff[j]*exp(-r*r*expnt[j]);
-				double err = 0.0;
-				if (exact) err = (exact-test)/exact;
-				printf("  %.6e %8.1e %8.1e %8.1e\n",r, exact, exact-test, err);
-			}
-		}
 		pcoeff = coeff;
 		pexpnt = expnt;
 	}
@@ -362,6 +576,7 @@ private:
 	static void slater_fit(double gamma, double lo, double hi, double eps,
 			Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt) {
 
+        MADNESS_CHECK(gamma >0.0);
 		// empirical number TT for the upper integration limit
 		double TT;
 		if (eps >= 1e-2) TT = 5;
@@ -373,6 +588,7 @@ private:
 		else TT = 30;
 
 		// integration limits for quadrature over s: slo and shi
+        // slo and shi must not depend on gamma!!!
 		double slo=0.5 * log(eps) - 1.0;
 		double shi=log(TT/(lo*lo))*0.5;
 
@@ -401,32 +617,6 @@ private:
 			expnt[i] = 0.25*exp(-2.0*s);
 		}
 
-		// Prune large exponents from the fit ... never necessary due to construction
-
-		// Prune small exponents from Coulomb fit.  Evaluate a gaussian at
-		// the range midpoint, and replace it there with the next most
-		// diffuse gaussian.  Then examine the resulting error at the two
-		// end points ... if this error is less than the desired
-		// precision, can discard the diffuse gaussian.
-
-		if (gamma == 0.0) {
-			double mid = lo + (hi-lo)*0.5;
-			long i;
-			for (i=npt-1; i>0; --i) {
-				double cnew = coeff[i]*exp(-(expnt[i]-expnt[i-1])*mid*mid);
-				double errlo = coeff[i]*exp(-expnt[i]*lo*lo) -
-						cnew*exp(-expnt[i-1]*lo*lo);
-				double errhi = coeff[i]*exp(-expnt[i]*hi*hi) -
-						cnew*exp(-expnt[i-1]*hi*hi);
-				if (std::max(std::abs(errlo),std::abs(errhi)) > 0.03*eps) break;
-				npt--;
-				coeff[i-1] = coeff[i-1] + cnew;
-			}
-			coeff = coeff(Slice(0,npt-1));
-			expnt = expnt(Slice(0,npt-1));
-		}
-
-
 		if (prnt) {
 			std::cout << "weights and roots for a Slater function with gamma=" << gamma << std::endl;
 			for (int i=0; i<npt; ++i)
@@ -453,7 +643,52 @@ private:
 		pexpnt = expnt;
 	}
 
-	void static bsh_fit_ndim(int ndim, double mu, double lo, double hi, double eps,
+
+    /// fit a correlation factor (1- exp(-mu r))
+
+    /// use the Slater fit with an additional term: 1*exp(-0 r^2)
+    static void f12_fit(double gamma, double lo, double hi, double eps,
+                           Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt) {
+        Tensor<double> coeff,expnt;
+        slater_fit(gamma, lo, hi, eps, coeff, expnt, prnt);
+
+        pcoeff=Tensor<double>(coeff.size()+1);
+        pcoeff(Slice(1,-1,1))=-coeff(_);
+        pexpnt=Tensor<double>(expnt.size()+1);
+        pexpnt(Slice(1,-1,1))=expnt(_);
+
+        pcoeff(0l)=1.0;
+        pexpnt(0l)=1.e-10;
+    }
+
+
+    /// fit a correlation factor f12^2 = (1- exp(-mu r))^2 = 1 - 2 exp(-mu r) + exp(-2 mu r)
+
+    /// no factor 1/(2 mu) or square of it included!
+    /// use the Slater fit with an additional term: 1*exp(-0 r^2)
+    static void f12sq_fit(double gamma, double lo, double hi, double eps,
+                        Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt) {
+        Tensor<double> coeff1,expnt1, coeff2, expnt2;
+        slater_fit(gamma, lo, hi, eps, coeff1, expnt1, prnt);
+        slater_fit(2.0*gamma, lo, hi, eps, coeff2, expnt2, prnt);
+
+        // check exponents are the same
+        MADNESS_CHECK((expnt1-expnt2).normf()/expnt1.size()<1.e-12);
+
+        // add exponential terms
+        auto coeff=coeff2-2.0*coeff1;
+        pcoeff=Tensor<double>(coeff1.size()+1);
+        pcoeff(Slice(1,-1,1))=coeff(_);
+        pexpnt=Tensor<double>(expnt1.size()+1);
+        pexpnt(Slice(1,-1,1))=expnt1(_);
+
+        // add constant term
+        pcoeff(0l)=1.0;
+        pexpnt(0l)=1.e-10;
+    }
+
+
+    void static bsh_fit_ndim(int ndim, double mu, double lo, double hi, double eps,
 			Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt) {
 
 		if (mu > 0) {

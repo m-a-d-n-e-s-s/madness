@@ -80,11 +80,19 @@ int main(int argc, char** argv) {
 
             if (world.rank() == 0) printf("\nstarting at time %.1fs\n", wall_time());
 
-            const double hf_energy = mp2.get_hf().value();
-            const double mp2_energy = mp2.value();
-            if (world.rank() == 0) {
-                printf("final hf/mp2/total energy %12.8f %12.8f %12.8f\n",
-                       hf_energy, mp2_energy, hf_energy + mp2_energy);
+			const double hf_energy=mp2.get_hf().value();
+			const double mp2_energy=mp2.value();
+//            const double mp2_energy=0.0;
+			if(world.rank() == 0) {
+				printf("final hf/mp2/total energy %12.8f %12.8f %12.8f\n",
+						hf_energy,mp2_energy,hf_energy+mp2_energy);
+			}
+            double mp3_correction=mp2.mp3();
+
+            double mp3_energy=mp3_correction+mp2_energy;
+            if(world.rank() == 0) {
+                printf("final hf/mp2/mp3/total energy %12.8f %12.8f %12.8f %12.8f\n",
+                       hf_energy,mp2_energy,mp3_correction,hf_energy+mp3_energy);
             }
         } catch (std::exception& e) {
 

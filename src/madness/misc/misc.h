@@ -46,6 +46,8 @@ namespace madness {
                                           const char comment='#', bool rewind=true, bool silent=false);
     std::string lowercase(const std::string& s);
     void gprofexit(int id, int nproc);
+    /// creates a unique filename, using PBS ID if available
+    std::string unique_fileid();
 }
 
 #endif // MADNESS_MISC_MISC_H__INCLUDED

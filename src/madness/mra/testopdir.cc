@@ -39,6 +39,7 @@
 #include <madness/mra/operator.h>
 #include <madness/mra/funcplot.h>
 #include <madness/constants.h>
+#include <madness/world/test_utilities.h>
 
 using namespace madness;
 
@@ -294,9 +295,82 @@ int testgradG(World& world) {
 }
 
 
+
+/// test the various operators following op_type
+template<std::size_t NDIM>
+int test_combined_operators(World& world) {
+    FunctionDefaults<NDIM>::set_cubic_cell(-20,20);
+    FunctionDefaults<NDIM>::set_k(8);
+    FunctionDefaults<NDIM>::set_thresh(1.e-5);
+
+    test_output t("testing combined operators");
+//        t.set_cout_to_terminal();
+
+    // parameters for the convolutions
+    double mu=1.0;
+    double lo=1.e-6;
+    double thresh=FunctionDefaults<NDIM>::get_thresh();
+
+    // we assume these three are actually working and correct
+    auto slater=SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,thresh,OT_SLATER));
+    auto slater2=SeparatedConvolution<double,NDIM>(world,OperatorInfo(2.0*mu,lo,thresh,OT_SLATER));
+    auto bsh=SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,thresh,OT_BSH));
+    auto bsh2=SeparatedConvolution<double,NDIM>(world,OperatorInfo(2.0*mu,lo,thresh,OT_BSH));
+    auto coulomb=SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,thresh,OT_G12));
+
+    for (int itype=int(OT_ONE); itype<int(OT_SIZE); ++itype) {
+        OpType type=OpType(itype);
+        if (type==OT_ONE) continue;
+        if (type==OT_G12) continue;
+        if (type==OT_BSH) continue;
+        if (type==OT_GAUSS) continue;
+        if (type==OT_SLATER) continue;
+
+        std::stringstream ss;
+        ss << type;
+        std::string type_str=ss.str();
+
+        // test construction
+        double mu=1.0;
+        double lo=1.e-6;
+        double thresh=FunctionDefaults<NDIM>::get_thresh();
+        OperatorInfo info(mu,lo,thresh,type);
+        SeparatedConvolution<double,NDIM> op(world,info);
+
+        // argument is a Gaussian function exp(-r^2) in any dimension
+        Function<double,NDIM> arg=FunctionFactory<double,NDIM>(world)
+                .functor([](const Vector<double,NDIM>& r){return exp(-inner(r,r));});
+
+        // test application
+        Function<double,NDIM> result=op(arg);
+        Function<double,NDIM> ref;
+        print("result norm",result.norm2());
+        double fourpi=4.0*constants::pi;
+
+        // numerical checks
+        if (type==OT_F12) { // (1 - Slater)/(2 mu)
+            ref=0.5*(arg.trace() - slater(arg));
+        } else if (type==OT_F212) { // ((1 - Slater)/(2 mu) )^2  = 1/(4 mu^2) (1 - 2 Slater + Slater2 )
+            ref=0.25*(arg.trace() - 2*slater(arg) + slater2(arg));
+        } else if (type==OT_F2G12) { // ((1 - Slater)/(2 mu))^2 1/g  = 1/(4 mu^2) (g12 - 2 bsh + bsh2 )
+            ref=0.25*(coulomb(arg)- 2*fourpi*bsh(arg) + fourpi*bsh2(arg));
+        } else if (type==OT_FG12) {  // (1 - Slater)/(2 mu) 1/g  = 1/(2 mu) (g12 - bsh )
+            ref=0.5*(coulomb(arg)- fourpi*bsh(arg));
+        }
+        double error=(ref-result).norm2()/ref.norm2();
+        print("refnorm",ref.norm2());
+        print("diff norm  ",(ref-result).norm2());
+
+        t.checkpoint(error,thresh,type_str);
+    }
+
+    return t.end();
+
+}
+
+
 int main(int argc, char**argv) {
-    initialize(argc,argv);
-    World world(SafeMPI::COMM_WORLD);
+    World& world=initialize(argc,argv);
     int success=0;
 
     try {
@@ -307,6 +381,7 @@ int main(int argc, char**argv) {
         std::cout << "small test : " << smalltest << std::endl;
 
         success+=test_opdir(world);
+        success+=test_combined_operators<3>(world);
         if (!smalltest) success+=testgradG(world);
     }
     catch (const SafeMPI::Exception& e) {
@@ -325,10 +400,10 @@ int main(int argc, char**argv) {
         print(s);
         error("caught a c-string exception");
     }
-    catch (const char* s) {
-        print(s);
-        error("caught a c-string exception");
-    }
+//    catch (const char* s) {
+//        print(s);
+//        error("caught a c-string exception");
+//    }
     catch (const std::string& s) {
         print(s);
         error("caught a string (class) exception");

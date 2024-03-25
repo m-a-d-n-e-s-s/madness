@@ -25,10 +25,13 @@ namespace madness {
         virtual std::string type() const = 0;
     };
 
+    template<typename T, std::size_t NDIM>
     struct CCPairFunction;
-    std::vector<CCPairFunction> apply(const ProjectorBase& P, const std::vector<CCPairFunction>& argument);
 
-/// simple projector class
+    template<typename T, std::size_t NDIM>
+    std::vector<CCPairFunction<T,NDIM>> apply(const ProjectorBase& P, const std::vector<CCPairFunction<T,NDIM>>& argument);
+
+    /// simple projector class
 
     /// use this class to project a function or a set of functions on
     /// another space of function. The projector can handle different sets of
@@ -113,10 +116,10 @@ namespace madness {
         operator()(const Function<T,KDIM>& f, size_t particle1=size_t(-1)) const {
             Function<T,KDIM> result = FunctionFactory<T,KDIM>(f.world());
             if (particle1==size_t(-1)) particle1=particle;
-            MADNESS_ASSERT(particle1 == 1 or particle1 == 2);
+            MADNESS_CHECK_THROW(particle1 == 1 or particle1 == 2, "particle must be 1 or 2");
             for (size_t i = 0; i < mo_ket_.size(); i++) {
                 Function<T,NDIM> tmp1 = mo_ket_[i];
-                Function<T,NDIM> tmp2 = f.project_out(mo_bra_[i], particle - 1);
+                Function<T,NDIM> tmp2 = f.project_out(mo_bra_[i], particle1 - 1);
                 Function<T,KDIM> tmp12;
                 if (particle1 == 1) {
                     tmp12 = CompositeFactory<T, KDIM, NDIM>(f.world()).particle1(copy(tmp1)).particle2(copy(tmp2));
@@ -181,7 +184,7 @@ namespace madness {
             return result;
         }
 
-        real_function_6d operator()(const real_function_6d& f, const size_t particle) const {
+        Function<T,2*NDIM> operator()(const Function<T,2*NDIM>& f, const size_t particle) const {
             return f-O(f,particle);
         }
 

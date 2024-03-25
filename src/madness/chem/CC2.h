@@ -12,6 +12,7 @@
 #include<madness/chem/SCF.h>
 #include<madness/chem/nemo.h>
 #include<madness/chem/CCPotentials.h>
+#include<madness/chem/mp3.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/vmra.h>
@@ -131,12 +132,15 @@ public:
     /// solve the CC2 ground state equations, returns the correlation energy
     void solve();
 
+
     std::vector<CC_vecfunction>
     solve_ccs();
 
-    /// solve the MP2 equations (uncoupled -> Canonical Orbitals)
-    double
-    solve_mp2(Pairs<CCPair>& doubles);
+    double compute_mp3(const Pairs<CCPair>& mp2pairs) const {
+        MP3 mp3(CCOPS);
+        double mp3_contribution=mp3.mp3_energy_contribution_macrotask_driver(mp2pairs);
+        return mp3_contribution;
+    }
 
     double
     solve_cc2(CC_vecfunction& tau, Pairs<CCPair>& u);
@@ -403,28 +407,6 @@ public:
     bool
     iterate_lrcc2_pairs(const CC_vecfunction& cc2_s, const Pairs<CCPair>& cc2_d, const CC_vecfunction lrcc2_s,
                         Pairs<CCPair>& lrcc2_d);
-
-    bool update_constant_part_mp2(CCPair& pair) {
-        MADNESS_ASSERT(pair.ctype == CT_MP2);
-        MADNESS_ASSERT(pair.type == GROUND_STATE);
-        if (parameters.no_compute_mp2_constantpart()) {
-            pair.constant_part=real_factory_6d(world);
-            load(pair.constant_part,pair.name()+"_const");
-        }
-        if (pair.constant_part.is_initialized()) return false;
-
-        // make screening Operator
-        real_convolution_6d Gscreen = BSHOperator<6>(world, sqrt(-2.0 * CCOPS.get_epsilon(pair.i, pair.j)),
-                                                     parameters.lo(), parameters.thresh_bsh_6D());
-        Gscreen.modified() = true;
-
-        const CCFunction& moi = CCOPS.mo_ket(pair.i);
-        const CCFunction& moj = CCOPS.mo_ket(pair.j);
-
-        pair.constant_part = CCOPS.make_constant_part_mp2(moi, moj, &Gscreen);
-        save(pair.constant_part, pair.name() + "_const");
-        return true;
-    }
 
     bool update_constant_part_cc2_gs(const CC_vecfunction& tau, CCPair& pair) {
         MADNESS_ASSERT(pair.ctype == CT_CC2);
