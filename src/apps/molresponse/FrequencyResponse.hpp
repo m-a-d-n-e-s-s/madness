@@ -166,15 +166,13 @@ public:
             auto omega = freqABC[i];
 
             if (omega == 0.0) {
-                frequency_contexts[i].set_strategy(
-                        std::make_unique<static_inner_product>(), std::make_unique<J1StrategyStable>(),
-                        std::make_unique<K1StrategyStatic>(), std::make_unique<VXC1StrategyStandard>(),
-                        std::make_unique<StaticDensityStrategy>(), std::make_unique<LoadFrequencyXSpace>());
+                frequency_contexts[i].set_strategy(std::make_unique<static_inner_product>(), std::make_unique<J1StrategyStable>(),
+                                                   std::make_unique<K1StrategyStatic>(), std::make_unique<VXC1StrategyStandard>(),
+                                                   std::make_unique<StaticDensityStrategy>(), std::make_unique<LoadFrequencyXSpace>(), r_params);
             } else {
-                frequency_contexts[i].set_strategy(
-                        std::make_unique<full_inner_product>(), std::make_unique<J1StrategyStable>(),
-                        std::make_unique<K1StrategyFull>(), std::make_unique<VXC1StrategyStandard>(),
-                        std::make_unique<FullDensityStrategy>(), std::make_unique<LoadFrequencyXSpace>());
+                frequency_contexts[i].set_strategy(std::make_unique<full_inner_product>(), std::make_unique<J1StrategyStable>(),
+                                                   std::make_unique<K1StrategyFull>(), std::make_unique<VXC1StrategyStandard>(),
+                                                   std::make_unique<FullDensityStrategy>(), std::make_unique<LoadFrequencyXSpace>(), r_params);
             }
 
             // print omega before load_x_space
@@ -363,15 +361,13 @@ public:
             auto omega = freqABC[i];
 
             if (omega == 0.0) {
-                frequency_contexts[i].set_strategy(
-                        std::make_unique<static_inner_product>(), std::make_unique<J1StrategyStable>(),
-                        std::make_unique<K1StrategyStatic>(), std::make_unique<VXC1StrategyStandard>(),
-                        std::make_unique<StaticDensityStrategy>(), std::make_unique<LoadFrequencyXSpace>());
+                frequency_contexts[i].set_strategy(std::make_unique<static_inner_product>(), std::make_unique<J1StrategyStable>(),
+                                                   std::make_unique<K1StrategyStatic>(), std::make_unique<VXC1StrategyStandard>(),
+                                                   std::make_unique<StaticDensityStrategy>(), std::make_unique<LoadFrequencyXSpace>(), r_params);
             } else {
-                frequency_contexts[i].set_strategy(
-                        std::make_unique<full_inner_product>(), std::make_unique<J1StrategyStable>(),
-                        std::make_unique<K1StrategyFull>(), std::make_unique<VXC1StrategyStandard>(),
-                        std::make_unique<FullDensityStrategy>(), std::make_unique<LoadFrequencyXSpace>());
+                frequency_contexts[i].set_strategy(std::make_unique<full_inner_product>(), std::make_unique<J1StrategyStable>(),
+                                                   std::make_unique<K1StrategyFull>(), std::make_unique<VXC1StrategyStandard>(),
+                                                   std::make_unique<FullDensityStrategy>(), std::make_unique<LoadFrequencyXSpace>(), r_params);
             }
 
             // print omega before load_x_space
@@ -409,15 +405,13 @@ public:
     FrequencyResponse(World &world, const CalcParams &params, double frequency, RHS_Generator rhs)
         : ResponseBase(world, params), omega{frequency}, generator{std::move(rhs)}, PQ{} {
         if (omega == 0.0) {
-            response_context.set_strategy(
-                    std::make_unique<static_inner_product>(), std::make_unique<J1StrategyStable>(),
-                    std::make_unique<K1StrategyStatic>(), std::make_unique<VXC1StrategyStandard>(),
-                    std::make_unique<StaticDensityStrategy>(), std::make_unique<LoadFrequencyXSpace>());
+            response_context.set_strategy(std::make_unique<static_inner_product>(), std::make_unique<J1StrategyStable>(), std::make_unique<K1StrategyStatic>(),
+                                          std::make_unique<VXC1StrategyStandard>(), std::make_unique<StaticDensityStrategy>(),
+                                          std::make_unique<LoadFrequencyXSpace>(),r_params);
         } else {
-            response_context.set_strategy(std::make_unique<full_inner_product>(), std::make_unique<J1StrategyStable>(),
-                                          std::make_unique<K1StrategyFull>(), std::make_unique<VXC1StrategyStandard>(),
-                                          std::make_unique<FullDensityStrategy>(),
-                                          std::make_unique<LoadFrequencyXSpace>());
+            response_context.set_strategy(std::make_unique<full_inner_product>(), std::make_unique<J1StrategyStable>(), std::make_unique<K1StrategyFull>(),
+                                          std::make_unique<VXC1StrategyStandard>(), std::make_unique<FullDensityStrategy>(),
+                                          std::make_unique<LoadFrequencyXSpace>(), r_params);
         }
         PQ = generator(world, *this);
     }
