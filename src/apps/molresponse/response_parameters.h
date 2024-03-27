@@ -24,7 +24,6 @@ namespace madness {
 
     struct ResponseParameters : public QCCalculationParametersBase {
         ResponseParameters(const ResponseParameters &other) = default;
-
         ResponseParameters() {
             initialize<std::string>("archive", "../moldft.restartdata", "file to read ground parameters from");
             initialize<bool>("nwchem", false, "Using nwchem files for intelligent starting guess");
@@ -51,6 +50,8 @@ namespace madness {
                                "Number of iterations to diagonalize in a subspace "
                                "consisting of old and new vectors");
             initialize<int>("k", -1, "polynomial order");
+            initialize<std::string>("deriv","abgv","derivative method",{"abgv","bspline","ble"});
+            initialize<std::string>("dft_deriv","abgv","derivative method for gga potentials",{"abgv","bspline","ble"});
             initialize<bool>("random", true, "Use random guess for initial response functions");
             initialize<bool>("store_potential", true, "Store the potential instead of computing each iteration");
             initialize<bool>("e_range", false, "Use an energy range to excite from");
@@ -152,6 +153,8 @@ namespace madness {
 
         size_t maxsub() const { return get<size_t>("maxsub"); }
 
+        std::string deriv() const {return get<std::string>("deriv");}
+        std::string dft_deriv() const {return get<std::string>("dft_deriv");}
         std::string xc() const { return get<std::string>("xc"); }
 
         std::string hfexalg() const { return get<std::string>("hfexalg"); }
