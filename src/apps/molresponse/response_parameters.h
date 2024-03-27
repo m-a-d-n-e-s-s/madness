@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "madness/tensor/tensor_json.hpp"
+
 namespace madness {
 
     struct ResponseParameters : public QCCalculationParametersBase {
@@ -35,15 +36,13 @@ namespace madness {
             initialize<bool>("plot", false, "turn on plotting of final orbitals. Output format is .vts");
             initialize<bool>("plot_range", false, "controls which orbitals will be plotted");
             initialize<std::vector<int>>("plot_data", std::vector<int>{0}, "Orbitals to plot");
-            initialize<std::vector<double>>("plot_cell", std::vector<double>(),
-                                            "lo-hi plot cell (default is all space)");
+            initialize<std::vector<double>>("plot_cell", std::vector<double>(), "lo-hi plot cell (default is all space)");
             initialize<double>("plot_l", -1.0, "Controls the plotting box size");
             initialize<size_t>("plot_pts", 81, "Controls number of points in plots");
             initialize<bool>("plot_all_orbitals", false, "Turn on 2D plotting of response orbitals ");
             initialize<size_t>("maxiter", 25, "maximum number of iterations");
             initialize<double>("dconv", 1.e-4, "recommended values: 1.e-4 < dconv < 1.e-8");
-            initialize<bool>("conv_only_dens", false,
-                             "if true remove bsh_residual from convergence criteria (deprecated)");
+            initialize<bool>("conv_only_dens", false, "if true remove bsh_residual from convergence criteria (deprecated)");
             initialize<bool>("dconv_set", false, "Convergence flage for the orbtial density");
             initialize<bool>("guess_xyz", true, "ExcitedState intial guess functions ground MO * <x,y,z>");
             initialize<double>("lo", 1.e-10, "smallest length scale we need to resolve");
@@ -65,6 +64,9 @@ namespace madness {
             initialize<double>("maxbsh", 10, "Max bsh residual");
             initialize<size_t>("maxsub", 10, "size of iterative subspace ... set to 0 or 1 to disable");
             initialize<std::string>("xc", "hf", "XC input line");
+            initialize<std::string>("hfexalg", "multiworld",
+                                    "hf exchange algorithm: choose from multiworld "
+                                    "(default), smallmem, largemem");
             initialize<bool>("save", false, "if true save orbitals to disk");
             initialize<std::string>("save_file", "none", "File name to save orbitals for restart");
             initialize<bool>("save_density", false, "Flag to save density at each iteration");
@@ -93,52 +95,97 @@ namespace madness {
         using QCCalculationParametersBase::read_input_and_commandline_options;
 
         std::string localize() const { return get<std::string>("localize"); }
+
         std::string archive() const { return get<std::string>("archive"); }
+
         std::string calc_type() const { return get<std::string>("calc_type"); }
+
         std::string nwchem_dir() const { return get<std::string>("nwchem_dir"); }
+
         bool nwchem() const { return get<bool>("nwchem"); }
+
         size_t num_states() const { return get<size_t>("states"); }
+
         size_t num_orbitals() const { return get<size_t>("num_orbitals"); }
+
         int print_level() const { return get<int>("print_level"); }
+
         bool tda() const { return get<bool>("tda"); }
+
         bool plot() const { return get<bool>("plot"); }
 
         double plot_l() const { return get<double>("plot_l"); }
+
         size_t plot_pts() const { return get<size_t>("plot_pts"); }
+
         bool plot_all_orbitals() const { return get<bool>("plot_all_orbitals"); }
+
         size_t maxiter() const { return get<size_t>("maxiter"); }
+
         double dconv() const { return get<double>("dconv"); }
+
         bool guess_xyz() const { return get<bool>("guess_xyz"); }
+
         double lo() const { return get<double>("lo"); }
+
         std::vector<double> protocol() const { return get<std::vector<double>>("protocol"); }
+
         size_t larger_subspace() const { return get<size_t>("larger_subspace"); }
+
         int k() const { return get<int>("k"); }
+
         bool random() const { return get<bool>("random"); }
+
         bool store_potential() const { return get<bool>("store_potential"); }
+
         vector<double> freq_range() const { return get<vector<double>>("freq_range"); }
+
         bool quadratic() const { return get<bool>("quadratic"); }
+
         bool plot_initial() const { return get<bool>("plot_initial"); }
+
         bool restart() const { return get<bool>("restart"); }
+
         std::string restart_file() const { return get<std::string>("restart_file"); }
+
         bool kain() const { return get<bool>("kain"); }
+
         size_t maxsub() const { return get<size_t>("maxsub"); }
+
         std::string xc() const { return get<std::string>("xc"); }
+
+        std::string hfexalg() const { return get<std::string>("hfexalg"); }
+
         bool save() const { return get<bool>("save"); }
+
         std::string save_file() const { return get<std::string>("save_file"); }
+
         size_t guess_max_iter() const { return get<size_t>("guess_max_iter"); }
+
         bool property() const { return get<bool>("property"); }
+
         int loadbalparts() const { return get<int>("loadbalparts"); }
+
         bool excited_state() const { return get<bool>("excited_state"); }
+
         bool first_order() const { return get<bool>("first_order"); }
+
         bool second_order() const { return get<bool>("second_order"); }
+
         bool third_order() const { return get<bool>("third_order"); }
+
         bool dipole() const { return get<bool>("dipole"); }
+
         bool nuclear() const { return get<bool>("nuclear"); }
+
         std::string d2_types() const { return get<std::string>("d2_types"); }
+
         double omega() const { return get<double>("omega"); }
+
         double L() const { return get<double>("l"); }
 
         bool spinrestricted() const { return get<bool>("spinrestricted"); }
+
         void set_ground_state_calculation_data(GroundStateCalculation g_params) {
             set_derived_value<size_t>("num_orbitals", g_params.n_orbitals());
             set_derived_value<bool>("spinrestricted", g_params.is_spinrestricted());
@@ -147,6 +194,7 @@ namespace madness {
             set_derived_value<std::string>("xc", g_params.get_xc());
             set_derived_value<std::string>("localize", g_params.get_localize_method());
         }
+
         void set_derived_values(World &world, Molecule molecule) {
             // read the parameters from file and brodcast
             // tag
@@ -195,12 +243,18 @@ namespace madness {
 
         // convenience getters
         double econv() const { return get<double>("econv"); }
+
         bool first_run() const { return get<bool>("first_run"); }
+
         std::string local() const { return get<std::string>("local"); }
     };
+
     void from_json(const nlohmann::json &, ResponseParameters &p);
+
     bool operator==(const ResponseParameters &p1, const ResponseParameters &p2);
+
     bool operator!=(const ResponseParameters &p1, const ResponseParameters &p2);
+
     // convenience getters
     void to_json(nlohmann::json &j);
 };// namespace madness
