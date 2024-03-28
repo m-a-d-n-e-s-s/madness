@@ -209,7 +209,7 @@ public:
 //            }
 
             if (source_type()=="xyz") set_derived_value("units",std::string("angstrom"));
-            if (units()=="bohr" or units()=="au") set_derived_value("units","atomic");
+            if (units()=="bohr" or units()=="au") set_derived_value("units",std::string("atomic"));
         }
 
         std::string source_type() const {return get<std::string>("source_type");}
