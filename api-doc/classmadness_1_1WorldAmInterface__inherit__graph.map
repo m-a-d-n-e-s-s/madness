@@ -1,0 +1,4 @@
+<map id="madness::WorldAmInterface" name="madness::WorldAmInterface">
+<area shape="rect" id="node1" title="Implements AM interface." alt="" coords="5,80,212,107"/>
+<area shape="rect" id="node2" href="$classmadness_1_1Mutex.html" title="Mutex using pthread mutex operations." alt="" coords="17,5,200,32"/>
+</map>

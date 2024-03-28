@@ -1,0 +1,25 @@
+<map id="madness::MP2" name="madness::MP2">
+<area shape="rect" id="node1" title="a class for computing the first order wave function and MP2 pair energies" alt="" coords="1075,189,1192,215"/>
+<area shape="rect" id="node2" href="$structmadness_1_1OptimizationTargetInterface.html" title="The interface to be provided by functions to be optimized." alt="" coords="685,5,898,47"/>
+<area shape="rect" id="node3" href="$classQCPropertyInterface.html" title="class implementing properties of QC models" alt="" coords="714,71,869,98"/>
+<area shape="rect" id="node4" href="$classmadness_1_1StrongOrthogonalityProjector.html" title=" " alt="" coords="681,123,901,164"/>
+<area shape="rect" id="node5" href="$classmadness_1_1ProjectorBase.html" title=" " alt="" coords="303,130,482,157"/>
+<area shape="rect" id="node6" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="689,189,894,215"/>
+<area shape="rect" id="node7" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="311,189,474,215"/>
+<area shape="rect" id="node8" href="$structmadness_1_1MP2_1_1Parameters.html" title="POD for MP2 keywords." alt="" coords="692,239,891,266"/>
+<area shape="rect" id="node9" href="$classmadness_1_1QCCalculationParametersBase.html" title="class for holding the parameters for calculation" alt="" coords="249,239,536,266"/>
+<area shape="rect" id="node10" href="$classmadness_1_1World.html" title="A parallel world class." alt="" coords="728,429,855,455"/>
+<area shape="rect" id="node14" href="$classmadness_1_1WorldTaskQueue.html" title="Multi&#45;threaded queue to manage and run tasks." alt="" coords="1035,562,1232,589"/>
+<area shape="rect" id="node18" href="$classmadness_1_1WorldGopInterface.html" title="Provides collectives that interoperate with the AM and task interfaces." alt="" coords="1028,405,1239,431"/>
+<area shape="rect" id="node11" href="$classNO__DEFAULTS.html" title="Disables default copy constructor and assignment operators." alt="" coords="335,551,450,578"/>
+<area shape="rect" id="node12" href="$classmadness_1_1WorldAmInterface.html" title="Implements AM interface." alt="" coords="289,306,496,333"/>
+<area shape="rect" id="node13" href="$classmadness_1_1Mutex.html" title="Mutex using pthread mutex operations." alt="" coords="11,306,194,333"/>
+<area shape="rect" id="node15" href="$classmadness_1_1CallbackInterface.html" title="The class used for callbacks (e.g., dependency tracking)." alt="" coords="690,613,893,639"/>
+<area shape="rect" id="node16" href="$classmadness_1_1AtomicInt.html" title="An integer with atomic set, get, read+increment, read+decrement, and decrement+test operations." alt="" coords="715,663,867,690"/>
+<area shape="rect" id="node17" href="$classmadness_1_1ConcurrentHashMap.html" title=" " alt="" coords="265,357,520,399"/>
+<area shape="rect" id="node19" href="$classmadness_1_1ConcurrentHashMap.html" title=" " alt="" coords="273,423,512,464"/>
+<area shape="rect" id="node20" href="$classmadness_1_1WorldMpiInterface.html" title="This class wraps/extends the MPI interface for World." alt="" coords="289,489,497,515"/>
+<area shape="rect" id="node21" href="$classmadness_1_1detail_1_1WorldMpiRuntime.html" title="MPI runtime reference counter." alt="" coords="5,511,200,552"/>
+<area shape="rect" id="node22" href="$classSafeMPI_1_1Intracomm.html" title="Wrapper around MPI_Comm. Has a shallow copy constructor; use Create(Get_group()) for deep copy." alt="" coords="25,459,180,486"/>
+<area shape="rect" id="node23" href="$structmadness_1_1MP2_1_1Pairs.html" title=" " alt="" coords="693,291,889,332"/>
+</map>

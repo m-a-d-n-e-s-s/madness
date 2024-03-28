@@ -1,0 +1,12 @@
+<map id="DF" name="DF">
+<area shape="rect" id="node1" title="Given a molecule and nonrelativistic ground state orbitals, solve the Dirac&#45;Hartree&#45;Fock equations." alt="" coords="529,407,569,433"/>
+<area shape="rect" id="node2" href="$structmadness_1_1InitParameters.html" title=" " alt="" coords="457,317,641,344"/>
+<area shape="rect" id="node3" href="$classmadness_1_1Molecule.html" title=" " alt="" coords="475,227,623,253"/>
+<area shape="rect" id="node4" href="$classmadness_1_1CorePotentialManager.html" title=" " alt="" coords="384,117,619,143"/>
+<area shape="rect" id="node5" title=" " alt="" coords="219,5,277,32"/>
+<area shape="rect" id="node10" href="$structmadness_1_1DFParameters.html" title=" " alt="" coords="5,175,187,201"/>
+<area shape="rect" id="node6" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="828,117,1033,143"/>
+<area shape="rect" id="node7" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="869,5,1032,32"/>
+<area shape="rect" id="node8" href="$structmadness_1_1Molecule_1_1GeometryParameters.html" title=" " alt="" coords="642,109,803,151"/>
+<area shape="rect" id="node9" href="$classmadness_1_1QCCalculationParametersBase.html" title="class for holding the parameters for calculation" alt="" coords="558,5,845,32"/>
+</map>

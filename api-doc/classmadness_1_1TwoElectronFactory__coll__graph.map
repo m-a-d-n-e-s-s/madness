@@ -1,0 +1,5 @@
+<map id="madness::TwoElectronFactory" name="madness::TwoElectronFactory">
+<area shape="rect" id="node1" title="factory for generating TwoElectronInterfaces" alt="" coords="117,109,332,136"/>
+<area shape="rect" id="node2" href="$classmadness_1_1FunctionFactory.html" title=" " alt="" coords="5,5,196,47"/>
+<area shape="rect" id="node3" href="$classmadness_1_1BoundaryConditions.html" title=" " alt="" coords="221,13,479,39"/>
+</map>

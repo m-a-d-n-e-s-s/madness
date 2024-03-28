@@ -1,0 +1,52 @@
+<map id="basetensor.h" name="basetensor.h">
+<area shape="rect" id="node1" title="Declares BaseTensor." alt="" coords="1722,5,1827,32"/>
+<area shape="rect" id="node2" href="$gfit_8h.html" title="fit isotropic functions to a set of Gaussians with controlled precision" alt="" coords="902,304,957,331"/>
+<area shape="rect" id="node16" href="$basetensor_8cc.html" title="Implements BaseTensor." alt="" coords="1865,155,1975,181"/>
+<area shape="rect" id="node17" href="$tensorexcept_8h.html" title="Declares and implements TensorException." alt="" coords="1765,80,1883,107"/>
+<area shape="rect" id="node18" href="$tensor_8h.html" title="Defines and implements most of Tensor." alt="" coords="1701,155,1776,181"/>
+<area shape="rect" id="node3" href="$function__interface_8h.html" title=" " alt="" coords="1016,379,1168,405"/>
+<area shape="rect" id="node15" href="$operator_8h.html" title="Implements most functionality of separated operators." alt="" coords="904,379,992,405"/>
+<area shape="rect" id="node4" href="$function__factory_8h.html" title=" " alt="" coords="1080,453,1219,480"/>
+<area shape="rect" id="node5" href="$funcimpl_8h.html" title="Provides FunctionCommonData, FunctionImpl and FunctionFactory." alt="" coords="1211,528,1301,555"/>
+<area shape="rect" id="node6" href="$mra_8h.html" title="Main include file for MADNESS and defines Function interface." alt="" coords="1185,603,1245,629"/>
+<area shape="rect" id="node7" href="$x__space_8h.html" title=" " alt="" coords="3225,677,3311,704"/>
+<area shape="rect" id="node8" href="$distpm_8cc.html" title=" " alt="" coords="3541,677,3627,704"/>
+<area shape="rect" id="node9" href="$plotxc_8cc.html" title=" " alt="" coords="13,677,93,704"/>
+<area shape="rect" id="node10" href="$potentialmanager_8h.html" title=" " alt="" coords="1704,677,1853,704"/>
+<area shape="rect" id="node12" href="$testxc_8cc.html" title=" " alt="" coords="117,677,197,704"/>
+<area shape="rect" id="node13" href="$testlda_8cc.html" title=" " alt="" coords="221,677,307,704"/>
+<area shape="rect" id="node14" href="$startup_8cc.html" title=" " alt="" coords="2702,677,2789,704"/>
+<area shape="rect" id="node11" href="$ground__parameters_8h.html" title=" " alt="" coords="1698,752,1859,779"/>
+<area shape="rect" id="node50" href="$tensoriter_8h.html" title="Declares TensorIterator." alt="" coords="3907,229,4003,256"/>
+<area shape="rect" id="node19" href="$pointgroup_8h.html" title="Implements basic functionality for Abelian point groups (D2h and subgroups)" alt="" coords="1912,229,2016,256"/>
+<area shape="rect" id="node20" href="$apps_2periodic__old_2molecularbasis_8h.html" title=" " alt="" coords="2040,229,2173,256"/>
+<area shape="rect" id="node21" href="$madness_2chem_2molecularbasis_8h.html" title=" " alt="" coords="1661,304,1795,331"/>
+<area shape="rect" id="node22" href="$MolecularOrbitals_8h.html" title=" " alt="" coords="1819,304,1968,331"/>
+<area shape="rect" id="node23" href="$molecule_8cc.html" title=" " alt="" coords="2043,304,2143,331"/>
+<area shape="rect" id="node24" href="$molecule_8h.html" title=" " alt="" coords="1691,229,1786,256"/>
+<area shape="rect" id="node25" href="$pcm_8h.html" title=" " alt="" coords="2167,304,2230,331"/>
+<area shape="rect" id="node26" href="$vibanal_8h.html" title=" " alt="" coords="2264,304,2347,331"/>
+<area shape="rect" id="node27" href="$molopt_8h.html" title=" " alt="" coords="2197,229,2277,256"/>
+<area shape="rect" id="node28" href="$xcfunctional_8h.html" title=" " alt="" coords="263,229,377,256"/>
+<area shape="rect" id="node29" href="$xcfunctional__ldaonly_8cc.html" title=" " alt="" coords="296,304,469,331"/>
+<area shape="rect" id="node30" href="$xcfunctional__libxc_8cc.html" title=" " alt="" coords="494,304,653,331"/>
+<area shape="rect" id="node31" href="$convolution1d_8h.html" title="Compuates most matrix elements over 1D operators (including Gaussians)" alt="" coords="1033,304,1159,331"/>
+<area shape="rect" id="node32" href="$derivative_8h.html" title="Declaration and initialization of tree traversal functions and generic derivative." alt="" coords="1641,453,1741,480"/>
+<area shape="rect" id="node33" href="$funcdefaults_8h.html" title="Provides FunctionDefaults and utilities for coordinate transformation." alt="" coords="1525,379,1640,405"/>
+<area shape="rect" id="node34" href="$legendre_8cc.html" title="Legendre quadrature, polynomials and scaling functions." alt="" coords="2353,229,2450,256"/>
+<area shape="rect" id="node35" href="$test__mra6_8cc.html" title=" " alt="" coords="1293,379,1400,405"/>
+<area shape="rect" id="node36" href="$twoscale_8cc.html" title="Routines to provide twoscale &amp; correlation coeffs for Legendre basis." alt="" coords="728,304,827,331"/>
+<area shape="rect" id="node37" href="$twoscale_8h.html" title=" " alt="" coords="843,229,935,256"/>
+<area shape="rect" id="node38" href="$aligned_8h.html" title="Provides routines for internal use optimized for aligned data." alt="" coords="1027,229,1109,256"/>
+<area shape="rect" id="node39" href="$distributed__matrix_8h.html" title=" " alt="" coords="2475,229,2629,256"/>
+<area shape="rect" id="node40" href="$fred_8cc.html" title=" " alt="" coords="2653,229,2720,256"/>
+<area shape="rect" id="node41" href="$gentensor_8h.html" title=" " alt="" coords="1387,304,1485,331"/>
+<area shape="rect" id="node42" href="$gmres_8h.html" title="Defines a general operator interface and a templated GMRES solver for solving linear equations." alt="" coords="2744,229,2819,256"/>
+<area shape="rect" id="node43" href="$jacobi_8h.html" title=" " alt="" coords="2843,229,2917,256"/>
+<area shape="rect" id="node44" href="$jimkernel_8cc.html" title=" " alt="" coords="2941,229,3043,256"/>
+<area shape="rect" id="node45" href="$lapack_8cc.html" title="Partial interface from Tensor to LAPACK." alt="" coords="3067,229,3149,256"/>
+<area shape="rect" id="node46" href="$kain_8cc.html" title=" " alt="" coords="3173,229,3240,256"/>
+<area shape="rect" id="node47" href="$miketest_8cc.html" title=" " alt="" coords="3265,229,3362,256"/>
+<area shape="rect" id="node48" href="$lowranktensor_8h.html" title=" " alt="" coords="3386,229,3513,256"/>
+<area shape="rect" id="node49" href="$mtxmq__avx__rjh_8cc.html" title=" " alt="" coords="3537,229,3679,256"/>
+</map>

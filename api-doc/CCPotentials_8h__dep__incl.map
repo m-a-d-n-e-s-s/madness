@@ -1,0 +1,15 @@
+<map id="CCPotentials.h" name="CCPotentials.h">
+<area shape="rect" id="node1" title=" " alt="" coords="268,5,385,32"/>
+<area shape="rect" id="node2" href="$madchem_8h.html" title=" " alt="" coords="151,229,249,256"/>
+<area shape="rect" id="node6" href="$CC2_8h.html" title=" " alt="" coords="239,80,299,107"/>
+<area shape="rect" id="node12" href="$CCStructures_8cc.html" title=" " alt="" coords="323,80,447,107"/>
+<area shape="rect" id="node13" href="$CCPotentials_8cc.html" title=" " alt="" coords="472,80,595,107"/>
+<area shape="rect" id="node3" href="$simple__hf_8cpp.html" title=" " alt="" coords="5,304,117,331"/>
+<area shape="rect" id="node4" href="$dirac-hatom_8cc.html" title="solve the hydrogen atom using the 4&#45;component Dirac equation" alt="" coords="141,304,259,331"/>
+<area shape="rect" id="node5" href="$SCF_8cc.html" title="Molecular HF and DFT code." alt="" coords="283,304,346,331"/>
+<area shape="rect" id="node7" href="$cc2_8cc.html" title=" " alt="" coords="238,155,301,181"/>
+<area shape="rect" id="node8" href="$CC2_8cc.html" title=" " alt="" coords="325,155,392,181"/>
+<area shape="rect" id="node9" href="$PNO_8h.html" title=" " alt="" coords="417,155,479,181"/>
+<area shape="rect" id="node10" href="$pno_8cpp.html" title=" " alt="" coords="361,229,434,256"/>
+<area shape="rect" id="node11" href="$PNO_8cpp.html" title=" " alt="" coords="459,229,536,256"/>
+</map>

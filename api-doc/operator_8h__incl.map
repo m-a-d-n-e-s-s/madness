@@ -1,0 +1,52 @@
+<map id="operator.h" name="operator.h">
+<area shape="rect" id="node1" title="Implements most functionality of separated operators." alt="" coords="1354,5,1442,32"/>
+<area shape="rect" id="node2" title=" " alt="" coords="2678,505,2770,531"/>
+<area shape="rect" id="node3" title=" " alt="" coords="452,177,522,203"/>
+<area shape="rect" id="node4" href="$adquad_8h.html" title=" " alt="" coords="253,177,428,203"/>
+<area shape="rect" id="node9" href="$aligned_8h.html" title="Provides routines for internal use optimized for aligned data." alt="" coords="756,177,946,203"/>
+<area shape="rect" id="node34" href="$tensor__lapack_8h.html" title="Prototypes for a partial interface from Tensor to LAPACK." alt="" coords="971,169,1142,211"/>
+<area shape="rect" id="node36" href="$constants_8h.html" title="Defines common mathematical and physical constants." alt="" coords="1318,177,1478,203"/>
+<area shape="rect" id="node37" href="$simplecache_8h.html" title=" " alt="" coords="2349,177,2558,203"/>
+<area shape="rect" id="node44" href="$convolution1d_8h.html" title="Compuates most matrix elements over 1D operators (including Gaussians)" alt="" coords="1094,87,1312,114"/>
+<area shape="rect" id="node46" href="$displacements_8h.html" title=" " alt="" coords="1832,87,2054,114"/>
+<area shape="rect" id="node47" href="$function__common__data_8h.html" title=" " alt="" coords="1639,80,1807,121"/>
+<area shape="rect" id="node49" href="$gfit_8h.html" title="fit isotropic functions to a set of Gaussians with controlled precision" alt="" coords="1466,87,1614,114"/>
+<area shape="rect" id="node5" href="$legendre_8h.html" title=" " alt="" coords="94,259,278,285"/>
+<area shape="rect" id="node6" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS." alt="" coords="462,587,664,613"/>
+<area shape="rect" id="node8" href="$MADworld_8h.html" title="This header should include pretty much everything needed for the parallel runtime." alt="" coords="145,341,349,367"/>
+<area shape="rect" id="node7" title=" " alt="" coords="1212,661,1348,688"/>
+<area shape="rect" id="node10" href="$tensor_8h.html" title="Defines and implements most of Tensor." alt="" coords="1190,259,1373,285"/>
+<area shape="rect" id="node22" title=" " alt="" coords="1076,505,1143,531"/>
+<area shape="rect" id="node27" href="$cblas_8h.html" title="Define BLAS like functions." alt="" coords="284,423,460,449"/>
+<area shape="rect" id="node33" title=" " alt="" coords="352,259,419,285"/>
+<area shape="rect" id="node11" href="$ran_8h.html" title=" " alt="" coords="841,505,994,531"/>
+<area shape="rect" id="node12" title=" " alt="" coords="1240,587,1318,613"/>
+<area shape="rect" id="node13" href="$posixmem_8h.html" title="Implement dummy posix_memalign if it is missing on the system." alt="" coords="536,423,742,449"/>
+<area shape="rect" id="node14" title=" " alt="" coords="2228,423,2306,449"/>
+<area shape="rect" id="node15" title=" " alt="" coords="2105,505,2168,531"/>
+<area shape="rect" id="node16" title=" " alt="" coords="1620,505,1676,531"/>
+<area shape="rect" id="node17" title=" " alt="" coords="920,423,982,449"/>
+<area shape="rect" id="node18" title=" " alt="" coords="2142,587,2208,613"/>
+<area shape="rect" id="node19" title=" " alt="" coords="2010,505,2081,531"/>
+<area shape="rect" id="node20" href="$archive_8h.html" title="Interface templates for the archives (serialization)." alt="" coords="1816,423,2001,449"/>
+<area shape="rect" id="node24" href="$basetensor_8h.html" title="Declares BaseTensor." alt="" coords="1172,505,1386,531"/>
+<area shape="rect" id="node26" href="$mxm_8h.html" title="Internal use only." alt="" coords="526,341,702,367"/>
+<area shape="rect" id="node31" href="$tensorexcept_8h.html" title="Declares and implements TensorException." alt="" coords="1058,423,1284,449"/>
+<area shape="rect" id="node32" href="$tensoriter_8h.html" title="Declares TensorIterator." alt="" coords="1040,341,1244,367"/>
+<area shape="rect" id="node21" title=" " alt="" coords="1511,505,1596,531"/>
+<area shape="rect" id="node23" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling." alt="" coords="1700,497,1884,539"/>
+<area shape="rect" id="node25" href="$slice_8h.html" title="Declares and implements Slice." alt="" coords="1552,587,1724,613"/>
+<area shape="rect" id="node28" href="$fortran__ctypes_8h.html" title="Correspondence between C++ and Fortran types." alt="" coords="626,505,817,531"/>
+<area shape="rect" id="node30" href="$cblas__types_8h.html" title="Define types used by CBLAS API." alt="" coords="285,497,449,539"/>
+<area shape="rect" id="node29" title=" " alt="" coords="2549,587,2620,613"/>
+<area shape="rect" id="node35" href="$elem_8h.html" title=" " alt="" coords="838,259,1013,285"/>
+<area shape="rect" id="node38" href="$key_8h.html" title="Multidimension Key for MRA tree and associated iterators." alt="" coords="2518,259,2666,285"/>
+<area shape="rect" id="node43" href="$worldhashmap_8h.html" title="Defines and implements a concurrent hashmap." alt="" coords="2345,341,2578,367"/>
+<area shape="rect" id="node39" href="$power_8h.html" title=" " alt="" coords="2654,341,2821,367"/>
+<area shape="rect" id="node40" href="$vector_8h.html" title="Implement the madness:Vector class, an extension of std::array that supports some mathematical operat..." alt="" coords="1733,341,1910,367"/>
+<area shape="rect" id="node41" href="$worldhash_8h.html" title="Defines hash functions for use in distributed containers." alt="" coords="2482,423,2686,449"/>
+<area shape="rect" id="node42" href="$binary__fstream__archive_8h.html" title="Implements an archive wrapping a binary filestream." alt="" coords="2102,333,2269,375"/>
+<area shape="rect" id="node45" href="$twoscale_8h.html" title=" " alt="" coords="546,177,732,203"/>
+<area shape="rect" id="node48" href="$funcdefaults_8h.html" title="Provides FunctionDefaults and utilities for coordinate transformation." alt="" coords="1704,177,1912,203"/>
+<area shape="rect" id="node50" href="$print_8h.html" title="Defines simple templates for printing to std::cout &quot;a la Python&quot;." alt="" coords="2762,423,2929,449"/>
+</map>
