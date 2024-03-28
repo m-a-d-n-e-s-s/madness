@@ -961,12 +961,12 @@ struct ExactSpinor : public FunctionFunctorInterface<double_complex,3> {
     }
 
     void set_ansatz(const AnsatzBase& ansatz) {
-        compute_F =  (ansatz.iansatz==3) ? true  : false;
+        compute_F = (ansatz.iansatz == 3);
         cusp_a=ansatz.get_cusp_a();
-        regularized= (ansatz.iansatz==0) ? false : true;
+        regularized= !(ansatz.iansatz == 0);
     }
 
-    int l_char_to_int(const char lc) const {
+    static int l_char_to_int(const char lc) {
         int ll=0;
         if (lc=='S') ll=0;
         else if (lc=='P') ll=1;
@@ -1323,10 +1323,10 @@ void run(World& world, ansatzT ansatz, const int nuclear_charge, const commandli
         guess= schrodinger2dirac(wf,ansatz,nuclear_charge);
     } else {
         print("\nUsing exact spinor guess\n");
-        for (int i=0; i<nstates; ++i) {
-            states[i].set_ansatz(ansatz);
-            guess.push_back(states[i].get_spinor(world));
-            states[i].print();
+        for (auto& state: states) {
+            state.set_ansatz(ansatz);
+            guess.push_back(state.get_spinor(world));
+            state.print();
             guess.back().print_norms("guess");
 
         }
