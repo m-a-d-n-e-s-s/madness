@@ -661,24 +661,210 @@ double MP3::compute_mp3_cd(World& world,
                            const Molecule& molecule,
                            const Function<double,3>& Rsquare,
                            const std::vector<std::string>& argument) {
-    print_header2("entering compute_mp3_cd");
 
     CCConvolutionOperator<double,3>::Parameters cparam(parameters);
     auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,cparam);
 
-    double result = 0.0;
-//    for (int i = parameters.freeze(); i < nocc; ++i) {
-//        for (int j = i; j < nocc; ++j) {
-            auto bra = pair_square(i, j);
-            double tmp1 = inner(bra, g12 * pair_square(i, j), Rsquare);
-            double tmp2 = inner(bra, g12 * pair_square(j, i), Rsquare);
-            double fac = (i == j) ? 0.5 : 1.0;
-            double tmp = fac * (4.0 * tmp1 - 2.0 * tmp2);
-            printf("mp3 energy: term_CD %2ld %2ld: %12.8f\n", i, j, tmp);
-            result+= tmp;
-//        }
-//    }
-    printf("MP3 energy: term_CD %12.8f\n", result);
+    auto bra = pair_square(i, j);
+    double tmp1 = inner(bra, g12 * pair_square(i, j), Rsquare);
+    double tmp2 = inner(bra, g12 * pair_square(j, i), Rsquare);
+    double fac = (i == j) ? 0.5 : 1.0;
+    double result = fac * (4.0 * tmp1 - 2.0 * tmp2);
+    printf("mp3 energy: term_CD %2ld %2ld: %12.8f\n", i, j, result);
+    return result;
+}
+
+double MP3::compute_mp3_ef(World& world,
+                           const long i, const long j,
+                           const Pairs<std::vector<CCPairFunction<double,6>>>& pair_square,
+                           const std::vector<Function<double,3>>& mo_ket,
+                           const std::vector<Function<double,3>>& mo_bra,
+                           const CCParameters& parameters,
+                           const Molecule& molecule,
+                           const Function<double,3>& Rsquare,
+                           const std::vector<std::string>& argument) {
+
+    CCConvolutionOperator<double,3>::Parameters cparam;
+    auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,cparam);
+
+    int nfrozen=parameters.freeze();
+    int nocc=mo_ket.size();
+
+    /// <ij | kl >  = (ik | jl)
+    std::vector<permutation> all_tau_permutations;
+    std::vector<CCPairFunction<double,6>> tmp_tau;
+
+    // loop over all k and l
+    for (int k=nfrozen; k<nocc; ++k) {
+        for (int l=nfrozen; l<nocc; ++l) {
+
+            // make all possible permutations of the 4 indices i,j,k,l
+            permutation p0(i,j,k,l);
+            auto perms=p0.make_all_tau_permutations();  // permutations are sorted
+            // continue only if this permutation is the canonical one
+            if (p0!=perms.front()) continue;
+            // for (const auto& p:perms) all_tau_permutations.push_back(p);
+            const double weight=perms.size();
+
+            // terms C+D = <tau_ij | tau_kl> (2*<ij|g|kl> - <ji|g|kl>)
+            //           = <tau_ij | tau_kl> (2*(ik|jl) - (jk|il))
+            const auto& ket_i=mo_ket[i];
+            const auto& ket_k=mo_ket[k];
+            const auto& ket_l=mo_ket[l];
+            const auto& bra_i=mo_bra[i];
+            const auto& bra_j=mo_bra[j];
+            const auto& bra_l=mo_bra[l];
+            double g_ikjl=inner(bra_i*ket_k, (*g12)(bra_j*ket_l));
+            double g_jkil=inner(bra_j*ket_k, (*g12)(bra_l*ket_i));
+            tmp_tau+=weight*(2.0* g_ikjl - g_jkil)*pair_square(k,l);
+        }
+    }
+    tmp_tau=consolidate(tmp_tau,{"remove_lindep"});
+    double result=inner(pair_square(i,j),tmp_tau,Rsquare);
+    printf("mp3 energy: term_EF %2ld %2ld %12.8f\n",i,j,result);
+
+    // can't do sanity check, because we are working on a single pair
+//    int npermutations=all_tau_permutations.size();
+//    all_tau_permutations=permutation::remove_duplicates(all_tau_permutations);
+//    int nuniquepermutations=all_tau_permutations.size();
+//    int ntotalpermutations=std::pow(nocc-nfrozen,4);
+//    MADNESS_CHECK_THROW(npermutations==nuniquepermutations,"incorrect number of unique permutations");
+//    MADNESS_CHECK_THROW(npermutations==ntotalpermutations,"incorrect number of unique permutations");
+
+    return result;
+}
+
+double MP3::compute_mp3_ghij(World& world,
+                           const long i, const long jj,
+                           const Pairs<std::vector<CCPairFunction<double,6>>>& pair_square,
+                           const std::vector<Function<double,3>>& mo_ket,
+                           const std::vector<Function<double,3>>& mo_bra,
+                           const CCParameters& parameters,
+                           const Molecule& molecule,
+                           const Function<double,3>& Rsquare,
+                           const std::vector<std::string>& argument) {
+
+    // this scales linearly, use only the diagaonal contributions
+    if (i!=jj) return 0.0;
+
+    print_header3("entering compute_mp3_ghij_fast");
+
+    // prepare cluster functions
+    std::size_t nocc=mo_ket.size();
+    typedef std::vector<CCPairFunction<double,6>> ClusterFunction;
+    double result=0.0;
+
+    CCConvolutionOperator<double,3>::Parameters cparam;
+    auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,cparam);
+
+    timer t2(world);
+
+    // compute intermediates for terms G, I, H, and J
+
+    // \sum_j tau_ij(1,2) * phi_j(2)
+    ClusterFunction tau_kk_i;
+    // \sum_j tau_ij(1,2) * phi_j(1)
+    ClusterFunction tau_ij_j;
+
+    for (int j = parameters.freeze(); j < nocc; ++j) {
+        // auto tmp2 = multiply(pair_square(i, j), mo_bra[i], {0, 1, 2});
+        // for (auto& t: tmp2) tau_kk_i[j].push_back(t);
+        auto tmp2 = multiply(pair_square(i, j), mo_bra[j], {3, 4, 5});
+        for (auto& t: tmp2) tau_kk_i.push_back(t);
+
+        auto tmp3 = multiply(pair_square(i, j), mo_bra[j], {0, 1, 2});
+        for (auto& t: tmp3) tau_ij_j.push_back(t);
+    }
+
+    // std::vector<std::string> consolidation={"op_pure_to_pure","remove_lindep","op_dec_to_dec"};
+    std::vector<std::string> consolidation={"op_pure_to_pure","remove_lindep","op_dec_to_pure"};
+    print("consolidating with ",consolidation);
+    ClusterFunction intermediate;
+    // for (int i = parameters.freeze(); i < nocc; ++i) {
+        intermediate=2.0*tau_kk_i;
+        intermediate-=tau_ij_j;
+        intermediate=consolidate(intermediate,consolidation,molecule.get_all_coords_vec());
+    // }
+
+    t2.tag("GHIJ term prep");
+
+    // terms G, I, H, J of Bartlett/Silver 1975
+    real_convolution_3d& g = *(g12->get_op());
+    g.set_particle(1);
+    // for (int i = parameters.freeze(); i < nocc; ++i) {
+        // tmp(1,2) = g(1,1') | tau_ij(1',2) j(2) >
+        timer t4(world, "gtau");
+        auto gintermediate = g(intermediate);
+        t4.tag("compute gintermediate");
+        auto bra_intermediate = multiply(intermediate, Rsquare, {3, 4, 5});
+        t4.tag("multiply");
+        double tmp = 2.0*inner(bra_intermediate, gintermediate);
+        printf("mp3 energy: term_GHIJ  %2ld %12.8f\n", i, tmp);
+        t4.tag("inner");
+        result += tmp;
+    // }
+    t2.tag("GHIJ term");
+    return result;
+}
+
+
+double MP3::compute_mp3_klmn(World& world,
+                           const long i, const long j,
+                           const Pairs<std::vector<CCPairFunction<double,6>>>& pair_square,
+                           const std::vector<Function<double,3>>& mo_ket,
+                           const std::vector<Function<double,3>>& mo_bra,
+                           const CCParameters& parameters,
+                           const Molecule& molecule,
+                           const Function<double,3>& Rsquare,
+                           const std::vector<std::string>& argument) {
+
+    // prepare cluster functions
+    std::size_t nocc=mo_ket.size();
+    typedef std::vector<CCPairFunction<double,6>> ClusterFunction;
+    double result=0.0;
+
+    CCConvolutionOperator<double,3>::Parameters cparam;
+    auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,cparam);
+
+    // compute the term <i(1) |g(1,2) | j(1)>(2)
+    madness::Pairs<real_function_3d> gij;
+
+    for (int k = parameters.freeze(); k < nocc; ++k) {
+        for (int l = parameters.freeze(); l < nocc; ++l) {
+            gij.insert(k,l,(*g12)(mo_ket[k]*mo_bra[l]));
+        }
+    }
+
+
+    timer multiply_KLMN(world, "multiplication in KLMN term");
+    multiply_KLMN.interrupt();
+    timer inner_KLMN(world, "inner in KLMN term");
+    inner_KLMN.interrupt();
+
+    // for (int i = parameters.freeze(); i < nocc; ++i) {
+        // for (int j = parameters.freeze(); j < nocc; ++j) {
+            multiply_KLMN.resume();
+            std::vector<CCPairFunction<double, 6>> rhs;
+            for (int k = parameters.freeze(); k < nocc; ++k) {
+                rhs += +2.0 * multiply(pair_square(j, k), gij(k, i), {0, 1, 2});   // M
+                rhs += +2.0 * multiply(pair_square(k, i), gij(k, j), {0, 1, 2});    //  N
+                rhs += -4.0 * multiply(pair_square(i, k), gij(k, j), {3, 4, 5});   // K
+                rhs += -4.0 * multiply(pair_square(k, j), gij(k, i), {3, 4, 5});   // L
+            }
+            rhs = consolidate(rhs, {});
+            multiply_KLMN.interrupt();
+
+            inner_KLMN.resume();
+            double tmp = inner(pair_square(i, j), rhs, Rsquare);
+            inner_KLMN.interrupt();
+
+            printf("mp3 energy: term_KLMN with particle=1 %2ld %2ld %12.8f\n", i, j, tmp);
+            result += tmp;
+        // }
+    // }
+    multiply_KLMN.print("multiplication in KLMN term");
+    inner_KLMN.print("inner in KLMN term");
+
     return result;
 }
 
@@ -752,8 +938,12 @@ double MP3::mp3_energy_contribution_macrotask_driver(const Pairs<CCPair>& mp2pai
 
     t2.tag("make cluster functions");
 
-    // create dummy scheduling vector of length npair=nocc*(nocc+1)/2, for the macrotask scheduler
-    std::vector<int> ij_vec(mp2pairs.allpairs.size());
+    // create dummy scheduling vector of length npair=nocc*(nocc+1)/2, for the macrotask scheduler, triangular form
+    std::vector<int> ij_triangular(mp2pairs.allpairs.size());
+    // create dummy scheduling vector of length nact for the macrotask scheduler, square form
+    std::vector<int> nact(nocc-parameters.freeze());
+    std::vector<int> dummy;
+
 
     // get mos
     const std::vector<real_function_3d>& ket=mo_ket().get_vecfunction();
@@ -762,28 +952,29 @@ double MP3::mp3_energy_contribution_macrotask_driver(const Pairs<CCPair>& mp2pai
     auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),3));
     // taskq->set_printlevel(20);
     // taskq->cloud.set_debug(true);
-    MacroTaskMP3 task;
-    MacroTask macrotask(world,task,taskq);
-    auto cd_future=macrotask(std::string("cd"), ij_vec, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
-//    auto ef_future=macrotask("ef", mp2pairs, clusterfunctions, mo_ket(), mo_bra(), parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
-//    auto ghij_future=macrotask("ghij", mp2pairs, clusterfunctions, mo_ket(), mo_bra(), parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
-//    auto klmn_future=macrotask("klmn", mp2pairs, clusterfunctions, mo_ket(), mo_bra(), parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
+    MacroTaskMP3 task_triangular("triangular");
+    MacroTaskMP3 task_square("square");
+    MacroTask macrotask_triangular(world,task_triangular,taskq);
+    MacroTask macrotask_square(world,task_square,taskq);
+    auto ghij_future=macrotask_triangular(std::string("ghij"), ij_triangular, dummy, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
+    auto klmn_future=macrotask_square(std::string("klmn"), nact, nact, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
+    auto cd_future=macrotask_triangular(std::string("cd"), ij_triangular, dummy, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
+    auto ef_future=macrotask_triangular(std::string("ef"), ij_triangular, dummy, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
     taskq->print_taskq();
     taskq->run_all();
 
     double term_CD=cd_future->get();
-//    double term_EF=ef_future->get();
-//    double term_GHIJ=ghij_future->get();
-//    double term_KLMN=klmn_future->get();
+    double term_EF=ef_future->get();
+    double term_GHIJ=ghij_future->get();
+    double term_KLMN=klmn_future->get();
 
     printf("term_CD    %12.8f\n",term_CD);
-//    printf("term_GHIJ  %12.8f\n",term_GHIJ);
-//    printf("term_KLMN  %12.8f\n",term_KLMN);
-//    printf("term_EF    %12.8f\n",term_EF);
-//    double mp3_energy=term_CD+term_GHIJ+term_KLMN+term_EF;
-//    double mp3_energy=term_CD;
-    double mp3_energy=-1.0;
+    printf("term_GHIJ  %12.8f\n",term_GHIJ);
+    printf("term_KLMN  %12.8f\n",term_KLMN);
+    printf("term_EF    %12.8f\n",term_EF);
+    double mp3_energy=term_CD+term_GHIJ+term_KLMN+term_EF;
     printf("MP3 energy contribution  %12.8f\n",mp3_energy);
     return mp3_energy;
+    // return 0.0;
 }
 }

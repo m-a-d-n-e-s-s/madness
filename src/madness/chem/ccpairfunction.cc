@@ -77,9 +77,13 @@ template<typename T, std::size_t NDIM>
 std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::op_dec_to_dec(const std::vector<CCPairFunction<T,NDIM>>& other,
                                                                           const std::vector<Vector<double,CCPairFunction<T,NDIM>::LDIM>>& centers) {
     LowRankFunctionParameters lrparameters;
+    lrparameters.set_derived_value("tol",1.e-10);
     auto builder = LowRankFunctionFactory<T,NDIM>(lrparameters,centers);
 //    builder.set_volume_element(3.e-2);
-//    builder.parameters.print("lrparameters");
+    if (other.front().world().rank()==0) {
+        builder.parameters.print("lrparameters");
+        print("centers",centers);
+    }
     std::vector<CCPairFunction<T,NDIM>> result;
     for (const auto& c : other) {
         if (c.is_op_decomposed()) {

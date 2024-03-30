@@ -1009,6 +1009,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             } else {
                 grid=rgrid.get_grid();
             }
+            if (world.rank()==0) print("grid size",grid.size());
 
             auto Y=Yformer(lrfunctor,grid,parameters.rhsfunctiontype());
             t1.tag("Yforming");
