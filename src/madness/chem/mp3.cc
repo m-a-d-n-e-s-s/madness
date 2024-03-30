@@ -766,18 +766,22 @@ double MP3::compute_mp3_ghij(World& world,
     // \sum_j tau_ij(1,2) * phi_j(1)
     ClusterFunction tau_ij_j;
 
-    for (int j = parameters.freeze(); j < nocc; ++j) {
-        // auto tmp2 = multiply(pair_square(i, j), mo_bra[i], {0, 1, 2});
-        // for (auto& t: tmp2) tau_kk_i[j].push_back(t);
-        auto tmp2 = multiply(pair_square(i, j), mo_bra[j], {3, 4, 5});
-        for (auto& t: tmp2) tau_kk_i.push_back(t);
-
-        auto tmp3 = multiply(pair_square(i, j), mo_bra[j], {0, 1, 2});
-        for (auto& t: tmp3) tau_ij_j.push_back(t);
+    for (int ii = parameters.freeze(); ii < nocc; ++ii) {
+        // for (int j = parameters.freeze(); j < nocc; ++j) {
+            auto tmp2 = multiply(pair_square(ii, i), mo_bra[ii], {0, 1, 2});
+            for (auto& t: tmp2) tau_kk_i.push_back(t);
+        // }
     }
 
-    // std::vector<std::string> consolidation={"op_pure_to_pure","remove_lindep","op_dec_to_dec"};
-    std::vector<std::string> consolidation={"op_pure_to_pure","remove_lindep","op_dec_to_pure"};
+    // for (int i = parameters.freeze(); i < nocc; ++i) {
+        for (int j = parameters.freeze(); j < nocc; ++j) {
+            auto tmp3 = multiply(pair_square(i, j), mo_bra[j], {0, 1, 2});
+            for (auto& t: tmp3) tau_ij_j.push_back(t);
+        }
+    // }
+
+    std::vector<std::string> consolidation={"op_pure_to_pure","remove_lindep","op_dec_to_dec"};
+    // std::vector<std::string> consolidation={"op_pure_to_pure","remove_lindep","op_dec_to_pure"};
     print("consolidating with ",consolidation);
     ClusterFunction intermediate;
     // for (int i = parameters.freeze(); i < nocc; ++i) {
