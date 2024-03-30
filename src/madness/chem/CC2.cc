@@ -303,12 +303,14 @@ CC2::solve() {
 }
 
 void CC2::output_calc_info_schema(const std::string model, const double& energy) const {
-    nlohmann::json j;
-    j["model"]=model;
-    j["driver"]="energy";
-    j["return_energy"]=energy;
-    j["mp2_correlation_energy"]=energy;
-    update_schema(nemo->get_param().prefix()+".calc_info", j);
+    if (world.rank()==0) {
+        nlohmann::json j;
+        j["model"]=model;
+        j["driver"]="energy";
+        j["return_energy"]=energy;
+        j["mp2_correlation_energy"]=energy;
+        update_schema(nemo->get_param().prefix()+".calc_info", j);
+    }
 }
 
 
