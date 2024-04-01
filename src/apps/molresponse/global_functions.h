@@ -48,9 +48,9 @@ CalcParams initialize_calc_params(World &world, const std::string &input_file);
 // kinetic energy operator on response vector
 response_space T(World &world, response_space &f);
 
-auto make_k (const vecfuncT &ket, const vecfuncT &bra);
+auto make_k(const vecfuncT &ket, const vecfuncT &bra, const ResponseParameters &r_params);
 auto ground_exchange(const vecfuncT &phi0, const X_space &x, bool compute_y) -> X_space;
-auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &x, const bool& compute_y) -> X_space;
+auto ground_exchange(const vecfuncT &phi0, const X_space &chi, const bool &compute_y, const ResponseParameters &r_params) -> X_space;
 auto response_exchange(const vecfuncT &phi0, const X_space &x, bool compute_y) -> X_space;
 vecfuncT K(vecfuncT &ket, vecfuncT &bra, vecfuncT &vf);
 auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &bra_i,
