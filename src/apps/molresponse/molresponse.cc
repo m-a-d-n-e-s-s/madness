@@ -42,15 +42,14 @@
 #include "FrequencyResponse.hpp"
 // #include "ResponseExceptions.hpp"
 
-#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) &&                   \
-    defined(HAVE_UNISTD_H)
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 
 #include <sys/stat.h>
 
 static inline int file_exists(const char *inpname) {
-  struct stat buffer {};
-  size_t rc = stat(inpname, &buffer);
-  return (rc == 0);
+    struct stat buffer {};
+    size_t rc = stat(inpname, &buffer);
+    return (rc == 0);
 }
 
 #endif
@@ -58,99 +57,86 @@ static inline int file_exists(const char *inpname) {
 using namespace madness;
 
 int main(int argc, char **argv) {
-  World &world = madness::initialize(argc, argv);
-  startup(world, argc, argv, true);
-  if (world.rank() == 0) {
-    print_header1("MOLRESPONSE -- MADNESS Time-Dependent Density Functional "
-                  "Theory Excited-State Program ");
-  }
-
-  //    sleep(10);
-  int result = 0;
-  std::cout.precision(6);
-  std::string filename = "response.in";
-
-  commandlineparser parser(argc, argv);
-
-  if (parser.key_exists("help")) {
-    ExcitedResponse::help();
-  } else if (parser.key_exists("print_parameters")) {
-    ExcitedResponse::print_parameters();
-  } else {
-
-    molresponse::start_timer(world);
-    // try catch would start here
-    try {
-      auto calc_params = initialize_calc_params(world, filename);
-      if (calc_params.response_parameters.excited_state()) {
-
-        ExcitedResponse calc(world, calc_params);
-        if (world.rank() == 0) {
-          print("\n\n");
-          print(
-              " MADNESS Time-Dependent Density Functional Theory Excited-State "
-              "Program");
-          print(
-              " ----------------------------------------------------------\n");
-          print("\n");
-          calc_params.molecule.print();
-          print("\n");
-          calc_params.response_parameters.print("response");
-          // put the response parameters in a j_molrespone json object
-        }
-        calc_params.response_parameters.to_json(calc.j_molresponse);
-        // set protocol to the first
-        calc.solve(world);
-        calc.output_json();
-      } else if (calc_params.response_parameters.first_order()) {
-        RHS_Generator rhsGenerator;
-        if (calc_params.response_parameters.dipole()) {
-          rhsGenerator = dipole_generator;
-        } else if (calc_params.response_parameters.nuclear()) {
-          rhsGenerator = nuclear_generator;
-        }
-        auto omega = calc_params.response_parameters.omega();
-        FrequencyResponse calc(world, calc_params, omega, rhsGenerator);
-        // Warm and fuzzy for the user
-        if (world.rank() == 0) {
-          print("\n\n");
-          print(" MADNESS Time-Dependent Density Functional Theory Frequency "
-                "Response "
-                "Program");
-          print(
-              " ----------------------------------------------------------\n");
-          print("\n");
-          calc_params.molecule.print();
-          print("\n");
-          calc_params.response_parameters.print("response");
-        }
-        calc_params.response_parameters.to_json(calc.j_molresponse);
-        // set protocol to the first
-        calc.solve(world);
-        calc.output_json();
-      } else {
-        if (world.rank() == 0) {
-          print("Response not implemented");
-        }
-      }
-
-    } catch (const SafeMPI::Exception &e) {
-      print(e);
-    } catch (const madness::MadnessException &e) {
-      std::cout << e << std::endl;
-    } catch (const madness::TensorException &e) {
-      print(e);
-    } catch (const char *s) {
-      print(s);
-    } catch (const std::string &s) {
-      print(s);
-    } catch (const std::exception &e) {
-      print(e.what());
-    } catch (...) {
-      error("caught unhandled exception");
+    World &world = madness::initialize(argc, argv);
+    startup(world, argc, argv, true);
+    if (world.rank() == 0) {
+        print_header1("MOLRESPONSE -- MADNESS Time-Dependent Density Functional "
+                      "Theory Excited-State Program ");
     }
-  }
 
-  finalize();
-  return result;
+    //    sleep(10);
+    int result = 0;
+    std::cout.precision(6);
+    std::string filename = "response.in";
+
+    commandlineparser parser(argc, argv);
+
+    if (parser.key_exists("help")) {
+        ExcitedResponse::help();
+    } else if (parser.key_exists("print_parameters")) {
+        ExcitedResponse::print_parameters();
+    } else {
+
+        molresponse::start_timer(world);
+        // try catch would start here
+        try {
+            auto calc_params = initialize_calc_params(world, filename);
+            if (calc_params.response_parameters.excited_state()) {
+
+                ExcitedResponse calc(world, calc_params);
+                if (world.rank() == 0) {
+                    print("\n\n");
+                    print(" MADNESS Time-Dependent Density Functional Theory Excited-State "
+                          "Program");
+                    print(" ----------------------------------------------------------\n");
+                    print("\n");
+                    calc_params.molecule.print();
+                    print("\n");
+                    calc_params.response_parameters.print("response");
+                    // put the response parameters in a j_molrespone json object
+                }
+                calc_params.response_parameters.to_json(calc.j_molresponse);
+                // set protocol to the first
+                calc.solve(world);
+                calc.output_json();
+            } else if (calc_params.response_parameters.first_order()) {
+                RHS_Generator rhsGenerator;
+                if (calc_params.response_parameters.dipole()) {
+                    rhsGenerator = dipole_generator;
+                } else if (calc_params.response_parameters.nuclear()) {
+                    rhsGenerator = nuclear_generator;
+                }
+                auto omega = calc_params.response_parameters.omega();
+                FrequencyResponse calc(world, calc_params, omega, rhsGenerator);
+                // Warm and fuzzy for the user
+                if (world.rank() == 0) {
+                    print("\n\n");
+                    print(" MADNESS Time-Dependent Density Functional Theory Frequency "
+                          "Response "
+                          "Program");
+                    print(" ----------------------------------------------------------\n");
+                    print("\n");
+                    calc_params.molecule.print();
+                    print("\n");
+                    calc_params.response_parameters.print("response");
+                }
+                calc_params.response_parameters.to_json(calc.j_molresponse);
+                // set protocol to the first
+                calc.solve(world);
+                calc.output_json();
+            } else {
+                if (world.rank() == 0) { print("Response not implemented"); }
+            }
+
+        } catch (const SafeMPI::Exception &e) { print(e); } catch (const madness::MadnessException &e) {
+            std::cout << e << std::endl;
+        } catch (const madness::TensorException &e) { print(e); } catch (const char *s) {
+            print(s);
+        } catch (const std::string &s) { print(s); } catch (const std::exception &e) {
+            print(e.what());
+        } catch (...) { error("caught unhandled exception"); }
+    }
+
+    finalize();
+    return result;
 }

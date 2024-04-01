@@ -189,7 +189,7 @@ void ResponseBase::check_k(World &world, double thresh, int k) {
 auto ResponseBase::ComputeHamiltonianPair(World &world) const -> std::pair<Tensor<double>, Tensor<double>> {
     // Basic output
     if (r_params.print_level() >= 1) molresponse::start_timer(world);
-    auto phi = ground_orbitals;
+    auto phi = copy(world, ground_orbitals, true);
     // Get sizes
     auto num_orbitals = phi.size();
     // Debugging
@@ -248,9 +248,9 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const -> std::pair<Tenso
 
     double exc = 0.0;
     double enl = 0.0;
-
+    auto phi0 = copy(world, ground_orbitals);
     auto c_xc = xcf.hf_exchange_coefficient();
-    auto Vpsi = zero_functions<double, 3>(world, phi.size());
+    auto Vpsi = zero_functions<double, 3>(world, phi0.size());
     if (xcf.hf_exchange_coefficient() > 0.0) {
 
         molresponse::start_timer(world);
@@ -266,11 +266,11 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const -> std::pair<Tenso
             // if (world.rank() == 0) print("selecting exchange small memory");
             k.set_algorithm(Exchange<double, 3>::Algorithm::small_memory);
         }
-        k.set_bra_and_ket(phi, phi);
-        k.set_symmetric(true).set_printlevel(r_params.print_level());
-        world.gop.fence();
-        vecfuncT kphi = k(phi);
-        tensorT excv = inner(world, kphi, phi);
+        k.set_bra_and_ket(phi0, phi0);
+        //k.set_symmetric(true).set_printlevel(r_params.print_level());
+
+        auto kphi = k(phi);
+        auto excv = inner(world, kphi, phi0);
         double exchf = 0.0;
         for (unsigned long i = 0; i < phi.size(); ++i) { exchf -= 0.5 * excv[i]; }
         if (!xcf.is_spin_polarized()) exchf *= 2.0;
@@ -292,7 +292,7 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const -> std::pair<Tenso
     }
     v_local.truncate();
 
-    gaxpy(world, 1.0, Vpsi, 1.0, mul_sparse(world, v_local, phi, vtol));
+    gaxpy(world, 1.0, Vpsi, 1.0, mul_sparse(world, v_local, phi0, vtol));
     truncate(world, Vpsi);
 
     if (r_params.store_potential()) {
@@ -300,7 +300,7 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const -> std::pair<Tenso
         for (int i = 0; i < r_params.num_states(); i++) { stored_potential.push_back(Vpsi); }
     }
 
-    auto phi_V_phi = matrix_inner(world, phi, Vpsi);
+    auto phi_V_phi = matrix_inner(world, phi0, Vpsi);
 
 
     // Now create the new_hamiltonian
@@ -323,6 +323,14 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const -> std::pair<Tenso
 
     // End timer
     if (r_params.print_level() >= 1) molresponse::end_timer(world, "   Create grnd ham:");
+    phi0.clear();
+    fx.clear();
+    fy.clear();
+    fz.clear();
+    v_local.clear();
+    v_nuc.clear();
+    v_coul.clear();
+    phi.clear();
     return {new_hamiltonian, new_hamiltonian_no_diag};
 }
 
@@ -696,7 +704,7 @@ auto ResponseBase::compute_gamma_static(World &world, const gamma_orbitals &gamm
     }
     inner_to_json(world, "v1_xc", response_context.inner(xy, W), iter_function_data);
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    K = response_exchange_multiworld(phi0, xy, false);
+    K = response_exchange(phi0, xy, false);
     std::transform(K.x.begin(), K.x.end(), K.x.begin(), [&](auto &kxi) { return projector(kxi); });
     inner_to_json(world, "k1", response_context.inner(xy, K), iter_function_data);
     if (r_params.print_level() >= 1) { molresponse::end_timer(world, "K[omega]", "K[omega]", iter_timing); }
@@ -975,7 +983,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
         v_xc = Function<double, 3>(FunctionFactory<double, 3>(world).fence(false).initial_level(1));
     }
     if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
-    K0 = ground_exchange_multiworld(ground_orbitals, X, compute_Y);
+    K0 = ground_exchange(ground_orbitals, X, compute_Y, r_params);
 
     if (r_params.print_level() >= 20) {
         auto xk0x = response_context.inner(X, K0);
@@ -1007,7 +1015,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     } else {
         V0 = X.copy();
         V0.x = v0 * V0.x;
-        V0.x += -c_xc * K0.x;
+        V0.x = -c_xc * K0.x + V0.x;
         V0.x.truncate_rf();
         V0.y = V0.x.copy();
         inner_to_json(world, "v0", response_context.inner(X, V0), iter_function_data);
