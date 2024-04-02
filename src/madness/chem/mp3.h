@@ -108,9 +108,10 @@ private:
             } else {
                 MADNESS_CHECK(partitioner->dimension==2);
                 MADNESS_CHECK(j_vec.size()==ij_vec.size());
-                i=batch.input[0].begin;
-                j=batch.input[1].begin;
+                i=batch.input[0].begin+parameters.freeze();
+                j=batch.input[1].begin+parameters.freeze();
             }
+            print("i,j,parameters.freeze()=",i,j,parameters.freeze());
 
             // convert vector of vectors back to Pairs
             PairVectorMap square_map=PairVectorMap::quadratic_map(parameters.freeze(),mo_ket.size());
