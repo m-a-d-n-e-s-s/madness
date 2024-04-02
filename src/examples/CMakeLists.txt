@@ -6,7 +6,7 @@ set(EXAMPLE_SOURCES
     dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver
     testspectralprop dielectric_external_field tiny h2dynamic newsolver testcomplexfunctionsolver
     helium_exact density_smoothing siam_example ac_corr dirac-hatom
-    derivatives array_worldobject)
+    derivatives array_worldobject writecoeff)
  
 if(LIBXC_FOUND)
   list(APPEND EXAMPLE_SOURCES hefxc)
