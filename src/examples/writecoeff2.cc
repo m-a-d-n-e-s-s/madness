@@ -7,23 +7,25 @@ using namespace madness;
 static const size_t D = 2;
 typedef Vector<double,D> coordT;
 typedef Key<D> keyT;
-typedef std::shared_ptr< FunctionFunctorInterface<std::complex<double>,D> > functorT;
-typedef Function<std::complex<double>,D> cfunctionT;
-typedef FunctionFactory<std::complex<double>,D> factoryT;
-typedef SeparatedConvolution<std::complex<double>,D> operatorT;
+typedef double dataT; // was std::complex<double>
+typedef std::shared_ptr< FunctionFunctorInterface<dataT,D> > functorT;
+typedef Function<dataT,D> cfunctionT;
+typedef FunctionFactory<dataT,D> factoryT;
+typedef SeparatedConvolution<dataT,D> operatorT;
 
-static const double R = 1.4;    // bond length
-static const double L = 32.0*R; // box size
-static const long k = 3;        // wavelet order
+static const double L = 4.0;
+static const long k = 5;        // wavelet order
 static const double thresh = 1e-3; // precision
 
-static std::complex<double> f(const coordT& r)
+static dataT f(const coordT& r)
 {
-    return std::complex<double>(0.0,2.0);
+    double R = r.normf();
+    return std::exp(-R*R);
 }
 
 template <typename T, std::size_t NDIM>
-void write_function_coeffs(const typename FunctionImpl<T,NDIM>::dcT& coeffs, std::ostream& out, const Key<NDIM>& key) {
+void write_function_coeffs(const Function<T,NDIM>& f, std::ostream& out, const Key<NDIM>& key) {
+    const auto& coeffs = f.get_impl()->get_coeffs();
     auto it = coeffs.find(key).get();
     if (it == coeffs.end()) {
         for (int i=0; i<key.level(); ++i) out << "  ";
@@ -31,11 +33,16 @@ void write_function_coeffs(const typename FunctionImpl<T,NDIM>::dcT& coeffs, std
     }
     else {
         const auto& node = it->second;
-        for (int i=0; i<key.level(); ++i) out << "  ";
-        out << key << "  " << node << " --> " << "\n";
+        if (node.has_coeff()) {
+            auto values = f.get_impl()->coeffs2values(key, node.coeff());
+            for (int i=0; i<key.level(); ++i) out << "  ";
+            out << key << std::endl;
+            for (size_t i=0; i< values.size(); i++) out << values.ptr()[i] << " ";
+            out << std::endl;
+        }
         if (node.has_children()) {
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                write_function_coeffs<T,NDIM>(coeffs, out, kit.key());
+                write_function_coeffs<T,NDIM>(f, out, kit.key());
             }
         }
     }
@@ -46,7 +53,7 @@ void write_function(const Function<T,NDIM>& f, std::ostream& out) {
     if (f.get_impl()->world.rank() == 0) {
         out << NDIM << " " << f.k() << " " << FunctionDefaults<NDIM>::get_cell() << std::endl;
         
-        write_function_coeffs<T,NDIM>(f.get_impl()->get_coeffs(), out, Key<NDIM>(0));
+        write_function_coeffs(f, out, Key<NDIM>(0));
     }
     f.get_impl()->world.gop.fence();
 }
