@@ -1042,10 +1042,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::diff(const DerivativeBase<T,NDIM>* D, const implT* f, bool fence) {
         typedef std::pair<keyT,coeffT> argT;
-        typename dcT::const_iterator end = f->coeffs.end();
-        for (typename dcT::const_iterator it=f->coeffs.begin(); it!=end; ++it) {
-            const keyT& key = it->first;
-            const nodeT& node = it->second;
+        for (const auto& [key, node]: f->coeffs) {
             if (node.has_coeff()) {
                 Future<argT> left  = D->find_neighbor(f, key,-1);
                 argT center(key,node.coeff());
