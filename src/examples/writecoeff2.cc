@@ -1,3 +1,5 @@
+#include <iostream>
+#include <iomanip>
 #include <complex>
 #include <memory>
 #include <madness/mra/mra.h>
@@ -9,7 +11,7 @@ typedef Vector<double,D> coordT;
 typedef Key<D> keyT;
 typedef double dataT; // was std::complex<double>
 typedef std::shared_ptr< FunctionFunctorInterface<dataT,D> > functorT;
-typedef Function<dataT,D> cfunctionT;
+typedef Function<dataT,D> functionT;
 typedef FunctionFactory<dataT,D> factoryT;
 typedef SeparatedConvolution<dataT,D> operatorT;
 
@@ -36,8 +38,10 @@ void write_function_coeffs(const Function<T,NDIM>& f, std::ostream& out, const K
         if (node.has_coeff()) {
             auto values = f.get_impl()->coeffs2values(key, node.coeff());
             for (int i=0; i<key.level(); ++i) out << "  ";
-            out << key << std::endl;
-            for (size_t i=0; i< values.size(); i++) out << values.ptr()[i] << " ";
+            out << key.level() << " ";
+            for (int i=0; i<NDIM; ++i) out << key.translation()[i] << " ";
+            out << std::endl;
+            for (size_t i=0; i< values.size(); i++) out  << values.ptr()[i] << " ";
             out << std::endl;
         }
         if (node.has_children()) {
@@ -50,18 +54,102 @@ void write_function_coeffs(const Function<T,NDIM>& f, std::ostream& out, const K
 
 template <typename T, std::size_t NDIM>
 void write_function(const Function<T,NDIM>& f, std::ostream& out) {
+    auto flags = out.flags();
+    auto precision = out.precision();
+    out << std::setprecision(17);
+    out << std::scientific;
+
     if (f.get_impl()->world.rank() == 0) {
-        out << NDIM << " " << f.k() << " " << FunctionDefaults<NDIM>::get_cell() << std::endl;
+        out << NDIM << std::endl;
+        const auto& cell = FunctionDefaults<NDIM>::get_cell();
+        for (int d=0; d<NDIM; ++d) {
+            for (int i=0; i<2; ++i) out << cell(d,i) << " ";
+            out << std::endl;
+        }
+        out << f.k() << std::endl;
         
         write_function_coeffs(f, out, Key<NDIM>(0));
     }
     f.get_impl()->world.gop.fence();
+
+    out << std::setprecision(precision);
+    out.setf(flags);
+}
+
+template <typename T, std::size_t NDIM>
+void read_function_coeffs(Function<T,NDIM>& f, std::istream& in, const Key<NDIM>& key) {
+    auto& coeffs = f.get_impl()->get_coeffs();
+
+    while (1) {
+        Level n;
+        Vector<Translation,NDIM> l;
+        long dims[NDIM];
+        in >> n;
+        if (in.eof()) break;
+        
+        for (int i=0; i<NDIM; ++i) {
+            in >> l[i];
+            dims[i] = f.k();
+        }
+        Key<NDIM> key(n,l);
+        
+        Tensor<T> values(NDIM,dims);
+        for (size_t i=0; i< values.size(); i++) in >> values.ptr()[i];
+        auto t = f.get_impl()->values2coeffs(key, values);
+
+        //f.get_impl()->accumulate2(t, coeffs, key);
+        coeffs.task(key, &FunctionNode<T,NDIM>::accumulate2, t, coeffs, key);
+    }
+}
+
+template <typename T, std::size_t NDIM>
+Function<T,NDIM> read_function(World& world, std::istream& in) {
+    size_t ndim;
+    in >> ndim;
+    MADNESS_CHECK(ndim == NDIM);
+    
+    Tensor<double> cell(NDIM,2);
+    for (int d=0; d<NDIM; ++d) {
+        for (int i=0; i<2; ++i) in >> cell(d,i);
+    }
+    FunctionDefaults<NDIM>::set_cell(cell);
+
+    int k;
+    in >> k;
+    FunctionFactory<T,NDIM> factory(world);
+    Function<T,NDIM> f(factory.k(k).empty());
+    world.gop.fence();
+    
+    read_function_coeffs(f, in, Key<NDIM>(0));
+
+    f.verify_tree();
+    
+    return f;
 }
 
 void test(World& world) {
-    cfunctionT fun = factoryT(world).f(f);
+    functionT fun = factoryT(world).f(f);
     fun.truncate();
-    write_function(fun,std::cout);    
+
+    {
+        double norm = fun.norm2();
+        if (world.rank() == 0) std::cout << "norm = " << norm << std::endl;
+        std::ofstream out("fun.dat", std::ios::out);
+        write_function(fun,out);
+        out.close();
+        //fun.print_tree();
+    }
+
+    {
+        std::ifstream in("fun.dat", std::ios::in);
+        functionT fun2 = read_function<dataT,D>(world, in);
+        double norm = fun2.norm2();
+        if (world.rank() == 0) std::cout << "norm = " << norm << std::endl;
+        //write_function(fun2,std::cout);
+        //fun2.print_tree();
+        double err = (fun - fun2).norm2();
+        if (world.rank() == 0) std::cout << "error = " << err << std::endl;
+    }
 }
 
 int main(int argc, char** argv)
