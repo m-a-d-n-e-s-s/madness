@@ -203,8 +203,8 @@ namespace madness {
         GenTensor get_tensor() const {return *this;}
         GenTensor& get_tensor() {return *this;}
 
-        GenTensor full_tensor_copy() const {return copy(*this);}
-        GenTensor full_tensor_copy() {return copy(*this);}
+        Tensor<T> full_tensor_copy() const {return copy(*this);}
+        Tensor<T> full_tensor_copy() {return copy(*this);}
 
         bool is_assigned() const {return this->size()>0;};
         bool has_data() const {return this->size()>0;};

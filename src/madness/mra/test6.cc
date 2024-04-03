@@ -36,8 +36,7 @@
 /// \brief test various functionality for 6d functions
 
 #include <madness/mra/mra.h>
-
-#include "test_utilities.h"
+#include <madness/world/test_utilities.h>
 
 using namespace madness;
 
@@ -747,8 +746,9 @@ int test_vector_composite(World& world, const long& k, const double thresh) {
 
 int main(int argc, char**argv) {
 
-    initialize(argc,argv);
-    World world(SafeMPI::COMM_WORLD);
+//    initialize(argc,argv);
+//    World world(SafeMPI::COMM_WORLD);
+    World& world= initialize(argc,argv);
     srand(time(nullptr));
     startup(world,argc,argv);
 
@@ -823,9 +823,8 @@ int main(int argc, char**argv) {
     error+=test_inner(world,k,thresh);
     error+=test_replicate(world,k,thresh);
 
-    print(ok(error==0),error,"finished test suite\n");
-
-    world.gop.fence();
+        print(ok(error==0),error,"finished test suite\n");
+        world.gop.fence();
     finalize();
 
     return error;

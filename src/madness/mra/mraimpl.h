@@ -2103,8 +2103,12 @@ namespace madness {
         }
 
         if (this->world.rank()==0) {
-            printf("%40s at time %.1fs: norm/tree/#coeff/size: %7.5f %zu, %6.3f m, %6.3f GByte\n",
+
+            std::size_t bufsize=128;
+            char buf[bufsize];
+            snprintf(buf, bufsize, "%40s at time %.1fs: norm/tree/#coeff/size: %7.5f %zu, %6.3f m, %6.3f GByte",
                    (name.c_str()), wall, norm, tsize,double(ncoeff)*1.e-6,double(ncoeff)/fac*d);
+            print(std::string(buf));
         }
     }
 
@@ -3166,13 +3170,9 @@ namespace madness {
 
 
     template <typename T, std::size_t NDIM>
-    void FunctionImpl<T,NDIM>::tnorm(const tensorT& t, double* lo, double* hi) const {
+    void FunctionImpl<T,NDIM>::tnorm(const tensorT& t, double* lo, double* hi) {
         //PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
-        // Chosen approach looks stupid but it is more accurate
-        // than the simple approach of summing everything and
-        // subtracting off the low-order stuff to get the high
-        // order (assuming the high-order stuff is small relative
-        // to the low-order)
+        auto& cdata=FunctionCommonData<T,NDIM>::get(t.dim(0));
         tensorT work = copy(t);
         tensorT tlo = work(cdata.sh);
         *lo = tlo.normf();
@@ -3181,7 +3181,8 @@ namespace madness {
     }
 
     template <typename T, std::size_t NDIM>
-    void FunctionImpl<T,NDIM>::tnorm(const GenTensor<T>& t, double* lo, double* hi) const {
+    void FunctionImpl<T,NDIM>::tnorm(const GenTensor<T>& t, double* lo, double* hi) {
+        auto& cdata=FunctionCommonData<T,NDIM>::get(t.dim(0));
 		coeffT shalf=t(cdata.sh);
 		*lo=shalf.normf();
 		coeffT sfull=copy(t);
@@ -3191,9 +3192,10 @@ namespace madness {
 
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::tnorm(const SVDTensor<T>& t, double* lo, double* hi,
-    		const int particle) const {
+    		const int particle) {
     	*lo=0.0;
     	*hi=0.0;
+        auto& cdata=FunctionCommonData<T,NDIM>::get(t.dim(0));
     	if (t.rank()==0) return;
     	const tensorT vec=t.flat_vector(particle-1);
     	for (long i=0; i<t.rank(); ++i) {

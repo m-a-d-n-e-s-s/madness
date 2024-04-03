@@ -107,6 +107,16 @@ public:
     void serialize(Archive& ar) {
         ar & x & y & z & q & atomic_number & mass & pseudo_atom;
     }
+    hashT hash() const {
+        hashT h=hash_value(x);
+        hash_combine(h,y);
+        hash_combine(h,z);
+        hash_combine(h,q);
+        hash_combine(h,atomic_number);
+        hash_combine(h,mass);
+        hash_combine(h,pseudo_atom);
+        return h;
+    }
 };
 
 std::ostream& operator<<(std::ostream& s, const Atom& atom);
@@ -520,6 +530,13 @@ public:
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & atoms & rcut & core_pot & parameters & pointgroup_ & field;
+    }
+
+    hashT hash() const {
+        hashT h= hash_range(atoms.begin(),atoms.end());
+        hash_combine(h,hash_range(rcut.begin(),rcut.end()));
+        hash_combine(h,pointgroup_);
+        return h;
     }
     [[nodiscard]] json to_json() const;
 };

@@ -35,6 +35,145 @@
 
 namespace madness {
 
+/// helper class for returning the result of a task, which is not a madness Function, but a simple scalar
+
+/// the result value is accumulated via gaxpy in universe rank=0, after completion of the taskq the final
+/// value can be obtained via get(), which includes a broadcast of the final value to all processes
+template<typename T=double>
+class ScalarResult : public WorldObject<ScalarResult<T>> {
+public:
+    typedef T value_type;
+    ScalarResult(World &world) : WorldObject<ScalarResult<T>>(world) {
+        this->process_pending();
+    }
+
+    /// Disable the default copy constructor
+    ScalarResult<T>(const ScalarResult<T>& other) = delete;
+    ScalarResult<T>(ScalarResult<T>&& ) = default;
+    ScalarResult<T>& operator=(ScalarResult<T>&& ) = default;
+
+    /// disable assignment operator
+    ScalarResult<T>& operator=(const ScalarResult<T>& other) = delete;
+
+    ~ScalarResult() {
+//        print("calling destructor of ScalarResult",this->id());
+//        std::cout << std::flush;
+    }
+
+    /// simple assignment of the scalar value
+    ScalarResult<T>& operator=(const T& x) {
+        value = x;
+        return *this;
+    }
+
+    ScalarResult<T>& operator+= (const T& x) {
+        gaxpy(1.0, x, 1.0,true);
+        return *this;
+    }
+
+    /// accumulate, optional fence
+    void gaxpy(const double a, const T& right, double b, const bool fence=true) {
+        if (this->get_world().rank()==0) {
+            value =a*value + b * right;
+        }
+        else this->send(0, &ScalarResult<T>::gaxpy, a, right, b, fence);
+    }
+
+    template<typename Archive>
+    void serialize(Archive &ar) {
+        ar & value;
+    }
+
+    /// after completion of the taskq get the final value
+    T get() {
+        this->get_world().gop.broadcast_serializable(*this, 0);
+        return value;
+    }
+
+    /// get the local value of this rank, which might differ for different ranks
+    /// for the final value use get()
+    T get_local() const {
+        return value;
+    }
+
+private:
+    /// the scalar value
+    T value=T();
+};
+
+/// helper function to create a vector of ScalarResult, circumventing problems with the constructors
+template<typename T>
+std::vector<std::shared_ptr<ScalarResult<T>>> scalar_result_shared_ptr_vector(World& world, std::size_t n)  {
+    auto v=std::vector<std::shared_ptr<ScalarResult<T>>>();
+    for (std::size_t i=0; i<n; ++i) v.emplace_back(std::make_shared<ScalarResult<T>>(world));
+//    for (int i=0; i<n; ++i) print("creating vector of ScalarResult",v[i]->id());
+    std::cout << std::flush;
+    auto ptr_opt = world.ptr_from_id< WorldObject< ScalarResult<T> > >(v[0]->id());
+    if (!ptr_opt)
+    MADNESS_EXCEPTION("ScalarResult: remote operation attempting to use a locally uninitialized object",0);
+    auto ptr = static_cast< ScalarResult<T>*>(*ptr_opt);
+    if (!ptr)
+    MADNESS_EXCEPTION("ScalarResult<T> operation attempting to use an unregistered object",0);
+    return v;
+}
+
+
+// type traits to check if a template parameter is a WorldContainer
+template<typename>
+struct is_scalar_result_ptr : std::false_type {};
+
+template <typename T>
+struct is_scalar_result_ptr<std::shared_ptr<madness::ScalarResult<T>>> : std::true_type {};
+
+template<typename>
+struct is_scalar_result_ptr_vector : std::false_type {
+};
+
+template<typename T>
+struct is_scalar_result_ptr_vector<std::vector<std::shared_ptr<typename madness::ScalarResult<T>>>> : std::true_type {
+};
+
+
+
+/// the result type of a macrotask must implement gaxpy
+template<typename T>
+void gaxpy(const double a, ScalarResult<T>& left, const double b, const T& right, const bool fence=true) {
+    left.gaxpy(a, right, b, fence);
+}
+
+template <class Archive, typename T>
+struct madness::archive::ArchiveStoreImpl<Archive, std::shared_ptr<ScalarResult<T>>> {
+    static void store(const Archive& ar, const std::shared_ptr<ScalarResult<T>>& ptr) {
+        bool exists=(ptr) ? true : false;
+        ar & exists;
+        if (exists) ar & ptr->id();
+    }
+};
+
+
+template <class Archive, typename T>
+struct madness::archive::ArchiveLoadImpl<Archive, std::shared_ptr<ScalarResult<T>>> {
+    static void load(const Archive& ar, std::shared_ptr<ScalarResult<T>>& ptr) {
+        bool exists=false;
+        ar & exists;
+        if (exists) {
+            uniqueidT id;
+            ar & id;
+            World* world = World::world_from_id(id.get_world_id());
+            MADNESS_ASSERT(world);
+            auto ptr_opt = (world->ptr_from_id<  ScalarResult<T> >(id));
+            if (!ptr_opt)
+            MADNESS_EXCEPTION("ScalarResult: remote operation attempting to use a locally uninitialized object",0);
+            ptr.reset(ptr_opt.value(), [] (ScalarResult<T> *p_) -> void {}); // disable destruction
+            if (!ptr)
+            MADNESS_EXCEPTION("ScalarResult<T> operation attempting to use an unregistered object",0);
+        } else {
+            ptr=nullptr;
+        }
+    }
+};
+
+
 /// base class
 class MacroTaskBase {
 public:
@@ -316,9 +455,11 @@ class MacroTask {
     typedef typename taskT::argtupleT argtupleT;
     typedef Cloud::recordlistT recordlistT;
     taskT task;
+    bool debug=false;
 
 public:
 
+    /// constructor takes the actual task
     MacroTask(World &world, taskT &task, std::shared_ptr<MacroTaskQ> taskq_ptr = 0)
             : task(task), world(world), taskq_ptr(taskq_ptr) {
         if (taskq_ptr) {
@@ -326,6 +467,10 @@ public:
             // constructed as replicated objects and are not broadcast to other processes
             MADNESS_CHECK(world.id()==taskq_ptr->get_world().id());
         }
+    }
+
+    void set_debug(const bool value) {
+        debug=value;
     }
 
     /// this mimicks the original call to the task functor, called from the universe
@@ -337,6 +482,7 @@ public:
 
         const bool immediate_execution = (not taskq_ptr);
         if (not taskq_ptr) taskq_ptr.reset(new MacroTaskQ(world, world.size()));
+        if (debug) taskq_ptr->set_printlevel(20);
 
         auto argtuple = std::tie(args...);
         static_assert(std::is_same<decltype(argtuple), argtupleT>::value, "type or number of arguments incorrect");
@@ -349,7 +495,8 @@ public:
 
         // store input and output: output being a pointer to a universe function (vector)
         recordlistT inputrecords = taskq_ptr->cloud.store(world, argtuple);
-        auto[outputrecords, result] =prepare_output(taskq_ptr->cloud, argtuple);
+        resultT result = task.allocator(world, argtuple);
+        auto outputrecords =prepare_output_records(taskq_ptr->cloud, result);
 
         // create tasks and add them to the taskq
         MacroTaskBase::taskqT vtask;
@@ -359,9 +506,9 @@ public:
         }
         taskq_ptr->add_tasks(vtask);
 
-        if (immediate_execution) taskq_ptr->run_all(vtask);
+        if (immediate_execution) taskq_ptr->run_all();
 
-        return result;
+        return std::move(result);
     }
 
 private:
@@ -369,20 +516,28 @@ private:
     World &world;
     std::shared_ptr<MacroTaskQ> taskq_ptr;
 
-    /// prepare the output of the macrotask: Function<T,NDIM> must be created in the universe
-    std::pair<recordlistT, resultT> prepare_output(Cloud &cloud, const argtupleT &argtuple) {
-        static_assert(is_madness_function<resultT>::value || is_madness_function_vector<resultT>::value);
-        resultT result = task.allocator(world, argtuple);
+    /// store the result WorldObject in the cloud and return the recordlist
+    recordlistT prepare_output_records(Cloud &cloud, resultT& result) {
+        static_assert(is_madness_function<resultT>::value
+                      || is_madness_function_vector<resultT>::value
+                      || is_scalar_result_ptr<resultT>::value
+                      || is_scalar_result_ptr_vector<resultT>::value,
+                        "unknown result type in prepare_output_records");
         recordlistT outputrecords;
         if constexpr (is_madness_function<resultT>::value) {
             outputrecords += cloud.store(world, result.get_impl().get()); // store pointer to FunctionImpl
-        } else if constexpr (is_vector<resultT>::value) {
+        } else if constexpr (is_madness_function_vector<resultT>::value) {
             outputrecords += cloud.store(world, get_impl(result));
+        } else if constexpr (is_scalar_result_ptr<resultT>::value) {
+            outputrecords += cloud.store(world, result);               // store pointer to ScalarResult
+        } else if constexpr (is_vector<resultT>::value && is_scalar_result_ptr<typename resultT::value_type>::value) {
+            outputrecords+=cloud.store(world,result);
         } else {
             MADNESS_EXCEPTION("\n\n  unknown result type in prepare_input ", 1);
         }
-        return std::make_pair(outputrecords, result);
+        return outputrecords;
     }
+
 
     class MacroTaskInternal : public MacroTaskIntermediate<MacroTask> {
 
@@ -396,7 +551,11 @@ private:
         MacroTaskInternal(const taskT &task, const std::pair<Batch,double> &batch_prio,
                           const recordlistT &inputrecords, const recordlistT &outputrecords)
   	  : inputrecords(inputrecords), outputrecords(outputrecords), task(task) {
-            static_assert(is_madness_function<resultT>::value || is_madness_function_vector<resultT>::value);
+            static_assert(is_madness_function<resultT>::value
+                          || is_madness_function_vector<resultT>::value
+                          || is_scalar_result_ptr<resultT>::value
+                          || is_scalar_result_ptr_vector<resultT>::value,
+                          "unknown result type in MacroTaskInternal constructor");
             this->task.batch=batch_prio.first;
             this->priority=batch_prio.second;
         }
@@ -435,7 +594,6 @@ private:
             if constexpr (is_madness_function<resultT>::value) {
                 result_tmp.compress();
                 gaxpy(1.0,result,1.0, result_tmp);
-                result += result_tmp;
             } else if constexpr(is_madness_function_vector<resultT>::value) {
                 compress(subworld, result_tmp);
                 resultT tmp1=task.allocator(subworld,argtuple);
@@ -443,6 +601,16 @@ private:
             	gaxpy(1.0,result,1.0,tmp1,false);
             	// was using operator+=, but this requires a fence, which is not allowed here..
                 // result += tmp1;
+            } else if constexpr (is_scalar_result_ptr<resultT>::value) {
+                gaxpy(1.0, *result, 1.0, result_tmp->get_local(), false);
+            } else if constexpr (is_scalar_result_ptr_vector<resultT>::value) {
+                resultT tmp1=task.allocator(subworld,argtuple);
+                tmp1=task.batch.template insert_result_batch(tmp1,result_tmp);
+
+                std::size_t sz=result.size();
+                for (int i=0; i<sz; ++i) {
+                    gaxpy(1.0, *(result[i]), 1.0, tmp1[i]->get_local(), false);
+                }
             } else {
                 MADNESS_EXCEPTION("failing result",1);
             }
@@ -463,6 +631,13 @@ private:
                 std::vector<impl_ptrT> rimpl = cloud.load<std::vector<impl_ptrT>>(subworld, outputrecords);
                 result.resize(rimpl.size());
                 set_impl(result, rimpl);
+            } else if constexpr (is_scalar_result_ptr<resultT>::value) {
+                result = cloud.load<resultT>(subworld, outputrecords);
+            } else if constexpr (is_scalar_result_ptr_vector<resultT>::value) {
+                typedef typename resultT::value_type::element_type::value_type T;
+                typedef typename resultT::value_type::element_type ScalarResultT;
+                result=cloud.load<std::vector<std::shared_ptr<ScalarResultT>>>(subworld, outputrecords);
+
             } else {
                 MADNESS_EXCEPTION("unknown result type in get_output", 1);
             }
