@@ -53,7 +53,25 @@ void write_function_coeffs(const Function<T,NDIM>& f, std::ostream& out, const K
 }
 
 template <typename T, std::size_t NDIM>
+size_t count_leaf_nodes(const Function<T,NDIM>& f) {
+    const auto& coeffs = f.get_impl()->get_coeffs();
+    size_t count = 0;
+    for (auto it = coeffs.begin(); it != coeffs.end(); ++it) {
+        const auto& key = it->first;
+        const auto& node = it->second;
+        if (node.has_coeff()) {
+            count++;
+        }
+    }
+    f.get_impl()->world.gop.sum(count);    
+    return count;
+}
+
+template <typename T, std::size_t NDIM>
 void write_function(const Function<T,NDIM>& f, std::ostream& out) {
+    f.reconstruct();
+    std::cout << "NUMBER OF LEAF NODES: " << count_leaf_nodes(f) << std::endl;
+    
     auto flags = out.flags();
     auto precision = out.precision();
     out << std::setprecision(17);
