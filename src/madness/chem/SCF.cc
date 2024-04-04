@@ -157,33 +157,35 @@ tensorT Q2(const tensorT& s) {
 
 void SCF::output_calc_info_schema() const {
     nlohmann::json j = {};
-    vec_pair_ints int_vals;
-    vec_pair_T<double> double_vals;
-    vec_pair_tensor_T<double> double_tensor_vals;
-
-
-    int_vals.emplace_back("calcinfo_nmo", param.nmo_alpha() + param.nmo_beta());
-    int_vals.emplace_back("calcinfo_nalpha", param.nalpha());
-    int_vals.emplace_back("calcinfo_nbeta", param.nbeta());
-    int_vals.emplace_back("calcinfo_natom", molecule.natom());
-    int_vals.emplace_back("k", FunctionDefaults<3>::get_k());
-
-    to_json(j, int_vals);
-//    double_vals.push_back({"return_energy", value(molecule.get_all_coords().flat())});
-    double_vals.emplace_back("return_energy", current_energy);
-    to_json(j, double_vals);
-    double_tensor_vals.emplace_back("scf_eigenvalues_a", aeps);
-    if (param.nbeta() != 0 && !param.spin_restricted()) {
-        double_tensor_vals.emplace_back("scf_eigenvalues_b", beps);
-    }
-
-    to_json(j, double_tensor_vals);
-    param.to_json(j);
-    e_data.to_json(j);
-
-//    output_schema(param.prefix()+".calc_info", j);
     World& world=amo.front().world();
-    if (world.rank()==0) update_schema(param.prefix()+".calc_info", j);
+    if (world.rank()==0) {
+        vec_pair_ints int_vals;
+        vec_pair_T<double> double_vals;
+        vec_pair_tensor_T<double> double_tensor_vals;
+
+
+        int_vals.emplace_back("calcinfo_nmo", param.nmo_alpha() + param.nmo_beta());
+        int_vals.emplace_back("calcinfo_nalpha", param.nalpha());
+        int_vals.emplace_back("calcinfo_nbeta", param.nbeta());
+        int_vals.emplace_back("calcinfo_natom", molecule.natom());
+        int_vals.emplace_back("k", FunctionDefaults<3>::get_k());
+
+        to_json(j, int_vals);
+        //    double_vals.push_back({"return_energy", value(molecule.get_all_coords().flat())});
+        double_vals.emplace_back("return_energy", current_energy);
+        to_json(j, double_vals);
+        double_tensor_vals.emplace_back("scf_eigenvalues_a", aeps);
+        if (param.nbeta() != 0 && !param.spin_restricted()) {
+            double_tensor_vals.emplace_back("scf_eigenvalues_b", beps);
+        }
+
+        to_json(j, double_tensor_vals);
+        param.to_json(j);
+        e_data.to_json(j);
+
+        //    output_schema(param.prefix()+".calc_info", j);
+        update_schema(param.prefix()+".calc_info", j);
+    }
 }
 
 void scf_data::add_data(std::map<std::string, double> values) {
