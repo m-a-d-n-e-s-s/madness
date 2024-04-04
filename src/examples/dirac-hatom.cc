@@ -24,6 +24,8 @@ static double lo=1.e-7;
 static double nucrad=1e-8;
 static double nucexpt=3.0/nucrad; // actually the squareroot of the Gaussian exponent
 
+real_function_3d mask;
+
 class DiracParameters : public QCCalculationParametersBase {
 public:
     /// ctor reading out the input file
@@ -272,6 +274,43 @@ double compute_electronic_energy(const double energy) {
     return energy-c*c-shift;
 }
 
+
+double mask1d(double x) {
+    /* Iterated first beta function to switch smoothly
+           from 0->1 in [0,1].  n iterations produce 2*n-1
+           zero derivatives at the end points. Order of polyn
+           is 3^n.
+
+           Currently use one iteration so that first deriv.
+           is zero at interior boundary and is exactly representable
+           by low order multiwavelet without refinement */
+
+    x = (x * x * (3. - 2. * x));
+    return x;
+}
+
+double mask3d(const Vector<double,3>& ruser) {
+    coord_3d rsim;
+    user_to_sim(ruser, rsim);
+    double x = rsim[0], y = rsim[1], z = rsim[2];
+    double lo = 0.0625, hi = 1.0 - lo, result = 1.0;
+    double rlo = 1.0 / lo;
+
+    if (x < lo)
+        result *= mask1d(x * rlo);
+    else if (x > hi)
+        result *= mask1d((1.0 - x) * rlo);
+    if (y < lo)
+        result *= mask1d(y * rlo);
+    else if (y > hi)
+        result *= mask1d((1.0 - y) * rlo);
+    if (z < lo)
+        result *= mask1d(z * rlo);
+    else if (z > hi)
+        result *= mask1d((1.0 - z) * rlo);
+
+    return result;
+}
 
 template<typename T, std::size_t NDIM>
 class MyDerivativeOperator : public SCFOperatorBase<T,NDIM> {
@@ -1267,6 +1306,14 @@ Spinor apply_bsh(ansatzT& ansatz, const MatrixOperator& Hd, const MatrixOperator
     return result.truncate();
 }
 
+void apply_mask(std::vector<Spinor>& v) {
+  for (auto& s : v) {
+    for (auto& f : s.components) {
+      f = f*mask;
+    }
+  }
+}
+
 template<typename AnsatzT>
 std::vector<Spinor> iterate(const std::vector<Spinor>& input, const std::vector<double> energy, const AnsatzT& ansatz, const int maxiter) {
 
@@ -1297,6 +1344,7 @@ std::vector<Spinor> iterate(const std::vector<Spinor>& input, const std::vector<
         double res=0.0;
         for (const auto& r : residual) res+=norm2(world,r.components);
         newpsi=truncate(solver.update(current,residual,1.e-4,3));
+	apply_mask(newpsi);
         orthonormalize(newpsi,ansatz);
 	auto bra=ansatz.make_vbra(newpsi);
         Tensor<double_complex> fock;
@@ -1344,6 +1392,9 @@ void run(World& world, ansatzT ansatz, const int nuclear_charge, const commandli
 //    Nemo nemo(world,parser);
 //    if (world.rank()==0) nemo.get_param().print("dft","end");
 
+    mask = real_factory_3d(world).f(&mask3d);
+    mask.truncate();
+    mask.reconstruct();
 
     std::vector<Spinor> guesses;
     std::vector<double> energies;
@@ -1392,13 +1443,12 @@ void run(World& world, ansatzT ansatz, const int nuclear_charge, const commandli
 
         }
     }
+    apply_mask(guess);
     orthonormalize(guess,ansatz);
     auto bra=ansatz.make_vbra(guess);
     Tensor<double_complex> S=matrix_inner(bra,guess);
     print("initial overlap after  orthonormalization");
     print(S);
-
-
 
 
 //    for (ExactSpinor& state : states) {
