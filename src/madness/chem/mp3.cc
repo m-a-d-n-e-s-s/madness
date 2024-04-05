@@ -266,13 +266,6 @@ double MP3::compute_mp3_ef_low_scaling(const Pairs<CCPair>& mp2pairs,
     CCConvolutionOperator<double,3>::Parameters cparam;
     auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,cparam);
 
-    // number of pairs
-    auto npair = [&nocc, &nfrozen]() { return (nocc - nfrozen) * (nocc - nfrozen + 1) / 2; };
-
-    // turn composite index ij into i and j, taking care of frozen orbitals
-    PairVectorMap map=PairVectorMap::triangular_map(nfrozen,nocc);
-    auto ij_to_i_and_j = [&map](const int ij) { return map.map[ij]; };
-
     timer timer_sum(world);
     timer_sum.interrupt();
     timer timer_inner(world);
@@ -824,7 +817,6 @@ double MP3::compute_mp3_klmn(World& world,
 
     // prepare cluster functions
     std::size_t nocc=mo_ket.size();
-    typedef std::vector<CCPairFunction<double,6>> ClusterFunction;
     double result=0.0;
 
     CCConvolutionOperator<double,3>::Parameters cparam;

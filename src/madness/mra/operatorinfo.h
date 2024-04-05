@@ -57,11 +57,11 @@ std::ostream& operator<<(std::ostream& os, const OpType type) {
 
 struct OperatorInfo {
     OperatorInfo() = default;
-    OperatorInfo(double mu, double lo, double thresh, OpType type) : mu(mu), thresh(thresh), lo(lo), type(type) { }
-    OpType type=OT_UNDEFINED;    ///< introspection
+    OperatorInfo(double mu, double lo, double thresh, OpType type) : mu(mu), lo(lo), thresh(thresh), type(type) { }
     double mu=0.0;     ///< some introspection
-    double thresh=1.e-4;
     double lo=1.e-5;
+    double thresh=1.e-4;
+    OpType type=OT_UNDEFINED;    ///< introspection
     double hi=-1.0;
     bool debug=false;
 };

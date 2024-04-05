@@ -707,7 +707,8 @@ public:
 /// some 6D operations are also included
 /// The structure does not know if nuclear correlation facors are used, so the corresponding bra states have to be prepared beforehand
 template<typename T=double, std::size_t NDIM=3>
-struct CCConvolutionOperator {
+class CCConvolutionOperator {
+public:
 
     /// parameter class
     struct Parameters {

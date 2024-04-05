@@ -214,8 +214,6 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::consolidate(const st
                                                 const std::vector<std::string>& options,
                                                 const std::vector<Vector<double,CCPairFunction<T,NDIM>::LDIM>>& centers) const {
 
-    // return only one term of a hi-dim function
-    bool one_term=find(options.begin(),options.end(),"one_term")!=options.end();
     // convert op_pure functions to pure
     bool op_pure_to_pure=find(options.begin(),options.end(),"op_pure_to_pure")!=options.end();
     // convert op_dec functions to dec (via LowRankFunctions
@@ -320,7 +318,7 @@ CCPairFunction<T,NDIM> CCPairFunction<T,NDIM>::partial_inner(const CCPairFunctio
     MADNESS_CHECK(not this->is_op_pure()); // not implemented yet
     MADNESS_CHECK(not other.is_op_pure()); // not implemented yet
 
-    auto integration_index=[&a012,&a345](auto v) {return (v==a012) ? 0l : 1l;};
+    auto integration_index=[&a012](auto v) {return (v==a012) ? 0l : 1l;};
     auto remaining_index=[&integration_index](auto v) {return (integration_index(v)+1)%2;};
 
     CCPairFunction<T,NDIM> result;
@@ -523,8 +521,6 @@ template<typename T, std::size_t NDIM>
 double CCPairFunction<T,NDIM>::inner_internal(const CCPairFunction<T,NDIM>& other, const Function<T,LDIM>& R2) const {
     const CCPairFunction<T,NDIM>& f1=*this;
     const CCPairFunction<T,NDIM>& f2=other;
-
-    double thresh=FunctionDefaults<6>::get_thresh()*0.1;
 
     double result = 0.0;
     if (f1.is_pure() and f2.is_pure()) {        // these are 4 combinations pure/pure

@@ -5465,8 +5465,8 @@ template<size_t NDIM>
         /// compute the inner product of this range with other
         template<typename R>
         struct do_inner_local_on_demand {
-            const FunctionImpl<R,NDIM>* ket;
             const FunctionImpl<T,NDIM>* bra;
+            const FunctionImpl<R,NDIM>* ket;
             bool leaves_only=true;
             typedef TENSOR_RESULT_TYPE(T,R) resultT;
 
@@ -5591,9 +5591,6 @@ template<size_t NDIM>
         template <typename R>
         TENSOR_RESULT_TYPE(T,R) inner_local_on_demand(const FunctionImpl<R,NDIM>& gimpl) const {
             PROFILE_MEMBER_FUNC(FunctionImpl);
-            typedef TENSOR_RESULT_TYPE(T,R) resultT;
-            typedef FunctionImpl<R,NDIM> implR;
-
             MADNESS_CHECK(this->is_reconstructed());
 
             typedef Range<typename dcT::const_iterator> rangeT;
@@ -5805,9 +5802,9 @@ template<size_t NDIM>
             std::size_t nmax=FunctionDefaults<CDIM>::get_max_refine_level();
             const double thresh=FunctionDefaults<NDIM>::get_thresh();
 
-            auto print_map = [](const auto& map) {
-                for (const auto& kv : map) print(kv.first,"--",kv.second);
-            };
+            // auto print_map = [](const auto& map) {
+                // for (const auto& kv : map) print(kv.first,"--",kv.second);
+            // };
             // logical constness, not bitwise constness
             FunctionImpl<Q,LDIM>& g_nc=const_cast<FunctionImpl<Q,LDIM>&>(g);
             FunctionImpl<R,KDIM>& h_nc=const_cast<FunctionImpl<R,KDIM>&>(h);
@@ -6672,26 +6669,6 @@ template<size_t NDIM>
 
                 } else {
                     MADNESS_EXCEPTION("unsupported tensor type in project_out_op",1);
-                }
-                if (0) {
-                    const tensorT gtensor = gcoeff.full_tensor();
-
-                    const int otherdim = (dim + 1) % 2;
-                    const int k = fcoeff.dim(0);
-                    std::vector<Slice> s(fcoeff.get_svdtensor().dim_per_vector(dim) + 1, _);
-                    std::vector<Slice> other_s(fcoeff.get_svdtensor().dim_per_vector(otherdim) + 1, _);
-
-                    // do the actual contraction
-                    for (int r = 0; r < fcoeff.rank(); ++r) {
-                        s[0] = Slice(r, r);
-                        other_s[0] = Slice(r, r);
-                        const tensorT contracted_tensor = fcoeff.get_svdtensor().ref_vector(dim)(s).reshape(shape);
-                        const tensorT other_tensor = fcoeff.get_svdtensor().ref_vector(otherdim)(other_s).reshape(
-                                shape);
-                        const double ovlp = gtensor.trace_conj(contracted_tensor);
-                        const double fac = ovlp * fcoeff.get_svdtensor().weights(r);
-                        final += fac * other_tensor;
-                    }
                 }
 
                 // accumulate the result

@@ -809,7 +809,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             //   = \sum_{i} \int h_i(2) h_i(2) d2
             double zero=check_orthonormality(g);
             if (zero>1.e-10) print("g is not orthonormal",zero);
-            double term3a=madness::inner(h,h);
+            // double term3a=madness::inner(h,h);
             auto tmp1=matrix_inner(world,h,h);
             auto tmp2=matrix_inner(world,g,g);
             double term3=tmp1.trace(tmp2);

@@ -74,6 +74,7 @@ public:
     resultT operator()(const real_function_3d &f1, const double &arg2,
                        const std::vector<real_function_3d> &f2) const {
         World& world=f1.world();
+        if (world.rank()==0) print("in MicroTask");
         real_convolution_3d op=CoulombOperator(world,1.e-4,1.e-5);
         return arg2 * f1 * apply(world,op,f2);
     }
@@ -295,7 +296,6 @@ int test_vector_of_scalar_task(World& universe, const std::vector<real_function_
     auto result2= task1(v3, 2.0, v3);
     for (auto& r : result2) print("result",r->get());
 
-//    int success = check(universe,ref_t1, ref_t2, "task1 immediate");
     int success=0;
     return success;
 }

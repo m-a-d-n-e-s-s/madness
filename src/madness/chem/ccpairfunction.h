@@ -18,7 +18,7 @@
 namespace madness {
 
 template<typename T, std::size_t NDIM>
-struct CCConvolutionOperator;
+class CCConvolutionOperator;
 class ProjectorBase;
 
 /// FuncTypes used by the CC_function_6d structure
@@ -28,7 +28,8 @@ enum FuncType { UNDEFINED, HOLE, PARTICLE, MIXED, RESPONSE };
 /// structure for a CC Function 3D which holds an index and a type
 // the type is defined by the enum FuncType (definition at the start of this file)
 template<typename T=double, std::size_t NDIM=3>
-struct CCFunction : public archive::ParallelSerializableObject {
+class CCFunction : public archive::ParallelSerializableObject {
+public:
     CCFunction() : current_error(99), i(99), type(UNDEFINED) {};
 
     CCFunction(const Function<T,NDIM>& f) : current_error(99), function(f), i(99), type(UNDEFINED) {};
@@ -344,7 +345,8 @@ private:
  *
 **/
 template<typename T=double, std::size_t NDIM=6>
-struct CCPairFunction : public archive::ParallelSerializableObject {
+class CCPairFunction : public archive::ParallelSerializableObject {
+public:
     static constexpr std::size_t LDIM=NDIM/2;
     static_assert(NDIM%2==0,"NDIM must be even");
 
@@ -518,10 +520,10 @@ public:
                                                 const std::array<int, LDIM>& v1) {
         std::vector<CCPairFunction> result;
         for (auto& o : other) {
-            double cpu0=cpu_time();
+//            double cpu0=cpu_time();
 //            std::cout << "multiply " << o.name();
             result.push_back(multiply(o,f,v1));
-            double cpu1=cpu_time();
+//            double cpu1=cpu_time();
 //            std::cout << " done after " << cpu1-cpu0 << std::endl;
         }
         return result;
@@ -802,7 +804,9 @@ template <class archiveT, class T, std::size_t NDIM>
 struct ArchiveLoadImpl< ParallelInputArchive<archiveT>, CCPairFunction<T,NDIM> > {
     static inline void load(const ParallelInputArchive<archiveT>& ar, CCPairFunction<T,NDIM>& p) {
         constexpr std::size_t LDIM=CCPairFunction<T,NDIM>::LDIM;
-        bool exists, is_pure, has_operator;
+        bool exists=false;
+        bool is_pure=false;
+        bool has_operator=false;
         ar & exists;
         if (exists) {
             ar & is_pure & has_operator;
@@ -811,7 +815,7 @@ struct ArchiveLoadImpl< ParallelInputArchive<archiveT>, CCPairFunction<T,NDIM> >
                 ar & f;
                 p=CCPairFunction<T,NDIM>(f);
             } else {
-                std::size_t sz;
+                std::size_t sz=0;
                 ar & sz;
                 std::vector<Function<T,LDIM>> a(sz),b(sz);
                 for (auto& aa : a) ar & aa;
@@ -822,7 +826,7 @@ struct ArchiveLoadImpl< ParallelInputArchive<archiveT>, CCPairFunction<T,NDIM> >
             // store construction parameters of the operator, not the operator itself
             if (has_operator) {
                 auto param=typename CCConvolutionOperator<T,LDIM>::Parameters();
-                OpType type;
+                OpType type=OT_UNDEFINED;
                 ar & param & type;
                 auto op=std::make_shared<CCConvolutionOperator<T,LDIM>>(*ar.get_world(),type,param);
                 p.reset_operator(op);

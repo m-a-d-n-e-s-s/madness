@@ -194,7 +194,7 @@ public:
 	bool is_running() const {return stat==Running;}
 	bool is_waiting() const {return stat==Waiting;}
 
-	virtual void run(World& world, Cloud& cloud, taskqT& taskq) = 0;
+	virtual void run(World& world, Cloud& cloud, taskqT& taskq, const long element) = 0;
 	virtual void cleanup() = 0;		// clear static data (presumably persistent input data)
 
     virtual void print_me(std::string s="") const {
@@ -230,10 +230,10 @@ public:
 
 	~MacroTaskIntermediate() {}
 
-	void run(World& world, Cloud& cloud) {
-		dynamic_cast<macrotaskT*>(this)->run(world,cloud);
-		world.gop.fence();
-	}
+	// void run(World& world, Cloud& cloud) {
+		// dynamic_cast<macrotaskT*>(this)->run(world,cloud);
+		// world.gop.fence();
+	// }
 
 	void cleanup() {};
 };
@@ -326,7 +326,7 @@ public:
 			std::shared_ptr<MacroTaskBase> task=taskq[element];
             if (printdebug()) print("starting task no",element, "in subworld",subworld.id(),"at time",wall_time());
 
-			task->run(subworld,cloud, taskq);
+			task->run(subworld,cloud, taskq, element);
 
 			double cpu1=cpu_time();
             set_complete(element);
@@ -457,6 +457,30 @@ class MacroTask {
     taskT task;
     bool debug=false;
 
+	/// RAII class to redirect cout to a file
+	struct io_redirect {
+		std::streambuf* stream_buffer_cout;
+		std::ofstream ofile;
+
+		io_redirect(const long task_number, std::string filename) {
+	        std::size_t bufsize=256;
+	        char cfilename[bufsize];
+			std::snprintf(cfilename,bufsize,"%s.%5.5ld",filename.c_str(),task_number);
+			ofile=std::ofstream(cfilename);
+			std::cout << "redirecting to file" << cfilename << std::endl;
+			stream_buffer_cout = std::cout.rdbuf(ofile.rdbuf());
+			std::cout.sync_with_stdio(true);
+		}
+
+		~io_redirect() {
+			std::cout.rdbuf(stream_buffer_cout);
+			ofile.close();
+			std::cout.sync_with_stdio(true);
+			std::cout << "redirecting back to cout" << std::endl;
+		}
+	};
+
+
 public:
 
     /// constructor takes the actual task
@@ -583,8 +607,9 @@ private:
             print(ss.str());
         }
 
-        void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq) {
+        void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element) {
 
+        	io_redirect io(element,"task");
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             const argtupleT batched_argtuple = task.batch.template copy_input_batch(argtuple);
 
@@ -634,7 +659,6 @@ private:
             } else if constexpr (is_scalar_result_ptr<resultT>::value) {
                 result = cloud.load<resultT>(subworld, outputrecords);
             } else if constexpr (is_scalar_result_ptr_vector<resultT>::value) {
-                typedef typename resultT::value_type::element_type::value_type T;
                 typedef typename resultT::value_type::element_type ScalarResultT;
                 result=cloud.load<std::vector<std::shared_ptr<ScalarResultT>>>(subworld, outputrecords);
 

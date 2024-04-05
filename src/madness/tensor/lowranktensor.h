@@ -755,7 +755,7 @@ struct ArchiveLoadImpl< Archive, GenTensor<T> > {
 	friend class GenTensor<T>;
 	/// Replaces this GenTensor with one loaded from an archive
 	static void load(const Archive& ar, GenTensor<T>& tensor) {
-		int index;
+		int index=-1;
 		ar & index;
 		if (index==0) {
 			Tensor<T> tt;
@@ -769,6 +769,8 @@ struct ArchiveLoadImpl< Archive, GenTensor<T> > {
 			TensorTrain<T> tt;
 			ar & tt;
 			tensor=tt;
+		} else {
+			MADNESS_EXCEPTION("unknow tensor type",1);
 		}
 
 
@@ -903,7 +905,6 @@ operator*(const Q& x, const GenTensor<T>& t) {
  /// @return     the sum GenTensor of the input GenTensors
  template<typename T>
 GenTensor<T> reduce(std::list<GenTensor<T> >& addends, double eps, bool are_optimal=false) {
-	typedef typename std::list<GenTensor<T> >::iterator iterT;
 
 	// fast return
 	addends.remove_if([](auto element) {return not element.is_assigned();});

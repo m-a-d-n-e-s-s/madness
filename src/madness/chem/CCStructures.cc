@@ -320,7 +320,6 @@ CCConvolutionOperator<T,NDIM>::operator()(const CCFunction<T,NDIM>& bra, const F
 template<typename T, std::size_t NDIM>
 void CCConvolutionOperator<T,NDIM>::update_elements(const CC_vecfunction& bra, const CC_vecfunction& ket) {
     if constexpr (NDIM==3) {
-        constexpr std::size_t LDIM=NDIM/2;
         const std::string operation_name = "<" + assign_name(bra.type) + "|" + name() + "|" + assign_name(ket.type) + ">";
         if (world.rank() == 0)
             std::cout << "updating operator elements: " << operation_name << " (" << bra.size() << "x" << ket.size() << ")"

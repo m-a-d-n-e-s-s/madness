@@ -3388,7 +3388,6 @@ void CCPotentials::test_singles_potential() const {
 void CCPotentials::test() {
     output.section("Testing enums");
     CalcType test2 = CT_MP2;
-    OpType test3 = OpType::OT_G12;
     FuncType test4 = HOLE;
     CCState test5 = GROUND_STATE;
     PotentialType test6 = POT_F3D_;

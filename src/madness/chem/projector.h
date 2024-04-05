@@ -26,7 +26,7 @@ namespace madness {
     };
 
     template<typename T, std::size_t NDIM>
-    struct CCPairFunction;
+    class CCPairFunction;
 
     template<typename T, std::size_t NDIM>
     std::vector<CCPairFunction<T,NDIM>> apply(const ProjectorBase& P, const std::vector<CCPairFunction<T,NDIM>>& argument);
