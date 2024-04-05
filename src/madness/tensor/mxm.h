@@ -270,8 +270,31 @@ namespace madness {
     }  
 
 #ifdef HAVE_MTXMQ
-template <>
-void mTxmq(long dimi, long dimj, long dimk, double* MADNESS_RESTRICT c, const double* a, const double* b, long ldb);
+    template <>
+    void mTxmq(long dimi, long dimj, long dimk, double* MADNESS_RESTRICT c, const double* a, const double* b, long ldb);
+
+    // Bootstrap complex*real from real*real
+    template <typename T>
+    void mTxmq(long dimi, long dimj, long dimk, std::complex<T>* MADNESS_RESTRICT c, const std::complex<T>* a, const T* b, long ldb) {
+      T* Rc = new T[dimi*dimj];
+      T* Ic = new T[dimi*dimj];
+      T* Ra = new T[dimi*dimk];
+      T* Ia = new T[dimi*dimk];
+
+      for (long i=0; i<dimi*dimk; i++) {
+	Ra[i] = a[i].real();
+	Ia[i] = a[i].imag();
+      }
+      mTxmq(dimi,dimj,dimk,Rc,Ra,b,ldb);
+      mTxmq(dimi,dimj,dimk,Ic,Ia,b,ldb);
+      for (long i=0; i<dimi*dimj; i++) c[i] = std::complex<T>(Rc[i],Ic[i]);
+      
+      delete[] Rc;
+      delete[] Ic;
+      delete[] Ra;
+      delete[] Ia;
+    }  
+  
 #endif
 
 #endif

@@ -186,10 +186,15 @@ namespace madness {
 #endif
 #if HAVE_INTEL_MKL
             print("                   BLAS ...", "Intel MKL",  mflopslo, mflopshi, "MFLOP/s");
+#elif defined(HAVE_FAST_BLAS)
+            print("                   BLAS ...", "Fast BLAS not MKL",  mflopslo, mflopshi, "MFLOP/s");
 #else
             print("                   BLAS ...", "Slow reference",  mflopslo, mflopshi, "MFLOP/s");
 #endif
-           	print("               compiled ...",__TIME__," on ",__DATE__);
+#ifdef HAVE_MTXMQ
+            print("                   BLAS ...", "Have MTXMQ");
+#endif
+            print("               compiled ...",__TIME__," on ",__DATE__);
 
             //         print(" ");
             //         IndexIterator::test();
