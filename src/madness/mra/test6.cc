@@ -127,21 +127,21 @@ static double gauss_plus_tight_3d(const coord_3d& r) {
 }
 
 
-static double gauss_6d(const coord_6d& r) {
-    coord_3d r1, r2;
-    r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
-    r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
-    return gauss_3d(r1)*gauss_3d(r2);
-}
-
-
-static double r2r(const coord_6d& r) {
-    coord_3d r1, r2;
-    r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
-    r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
-    double g1=gauss_3d(r1);
-    return g1*g1*gauss_3d(r2);
-}
+// static double gauss_6d(const coord_6d& r) {
+//     coord_3d r1, r2;
+//     r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
+//     r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
+//     return gauss_3d(r1)*gauss_3d(r2);
+// }
+//
+//
+// static double r2r(const coord_6d& r) {
+//     coord_3d r1, r2;
+//     r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
+//     r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
+//     double g1=gauss_3d(r1);
+//     return g1*g1*gauss_3d(r2);
+// }
 
 //static double add_test(const coord_6d& r) {
 //    coord_3d r1, r2;

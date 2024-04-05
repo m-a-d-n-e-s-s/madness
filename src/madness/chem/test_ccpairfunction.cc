@@ -576,7 +576,6 @@ int test_inner(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, data
 
             print(bra.name(true)+ket.name(),"ref, result, diff", ref, result, ref-result);
             double thresh=FunctionDefaults<LDIM>::get_thresh();
-            bool good=(fabs(result-ref)<thresh);
             t1.checkpoint(result,ref,thresh,bra.name(true)+ket.name());
         }
     }
@@ -1112,7 +1111,6 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
     auto f1=copy(f11);  // keep f1, f2 constant for use in other tests!
     auto f2=copy(f22);
     double nf1=f1.norm2();
-    double nf2=f2.norm2();
     f1.scale(1.0/nf1);
     f2.scale(1.0/nf1);
     std::vector<Function<T,LDIM>> a = {f1+f2, f2+f3, f3+f4};
@@ -1122,8 +1120,6 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
     auto f12=CCConvolutionOperatorPtr<double,LDIM>(world, OT_F12, parameter);
 
     {
-        double n1=inner(f1,o[0]);
-        double n2=inner(f2,o[0]);
         auto ovlp=matrix_inner(world,o,o);
         print("<o | o>", ovlp);
     }
@@ -1186,7 +1182,6 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
     {
         // <ab|k ><k |ab>  = <a|k><k|a><b|b>
         auto ak_tensor=matrix_inner(world,a,o);
-        double ak=ak_tensor.trace(ak_tensor);
         auto aa=matrix_inner(world,a,a);
         auto bb=matrix_inner(world,b,b);
         Projector<double,LDIM> O1(a,a);

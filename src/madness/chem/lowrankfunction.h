@@ -534,8 +534,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
         /// shallow copy ctor
         LowRankFunction(const LowRankFunction& other) : world(other.world),
-            g(other.g), h(other.h),
-            rank_revealing_tol(other.rank_revealing_tol), orthomethod(other.orthomethod) {
+            rank_revealing_tol(other.rank_revealing_tol), orthomethod(other.orthomethod),
+            g(other.g), h(other.h) {
         }
 
         /// deep copy

@@ -809,7 +809,7 @@ template<size_t NDIM>
     	CoeffTracker() : impl(), key_(), is_leaf_(unknown), coeff_() {}
 
     	/// the initial ctor making the root key
-    	CoeffTracker(const implT* impl) : impl(impl), is_leaf_(no) {
+    	CoeffTracker(const implT* impl) : impl(impl), key_(), is_leaf_(no) {
             if (impl) key_=impl->get_cdata().key0;
     	}
 
@@ -5810,7 +5810,7 @@ template<size_t NDIM>
             FunctionImpl<R,KDIM>& h_nc=const_cast<FunctionImpl<R,KDIM>&>(h);
 
             std::list<contractionmapT> all_contraction_maps;
-            for (int n=0; n<nmax; ++n) {
+            for (std::size_t n=0; n<nmax; ++n) {
 
                 // list of nodes with d coefficients (and their parents)
 	      //double wall0 = wall_time();
@@ -5912,7 +5912,7 @@ template<size_t NDIM>
                 if ((key.level()==n) and (has_d_coeffs(node.coeff()))) {
                     ij_list.insert(key);
                     Vector<Translation,CDIM> j_trans;
-                    for (int i=0; i<CDIM; ++i) j_trans[i]=key.translation()[v[i]];
+                    for (std::size_t i=0; i<CDIM; ++i) j_trans[i]=key.translation()[v[i]];
                     Key<CDIM> jkey(n,j_trans);
                     const double max_d_norm=j_list[jkey];
                     j_list.insert_or_assign(jkey,std::max(max_d_norm,node.get_dnorm()));
@@ -6078,10 +6078,10 @@ template<size_t NDIM>
                     static_assert(JDIM == std::tuple_size<std::decay_t<decltype(v)>>::value);
 
                     Vector<Translation, IDIM + JDIM> l;
-                    for (int i = 0; i < v.size(); ++i) l[v[i]] = j_key.translation()[i];
+                    for (std::size_t i = 0; i < v.size(); ++i) l[v[i]] = j_key.translation()[i];
                     std::array<int, IDIM> vc1;
                     auto vc = v_complement(v, vc1);
-                    for (int i = 0; i < vc.size(); ++i) l[vc[i]] = i_key.translation()[i];
+                    for (std::size_t i = 0; i < vc.size(); ++i) l[vc[i]] = i_key.translation()[i];
 
                     return Key<IDIM + JDIM>(i_key.level(), l);
                 };
@@ -6109,7 +6109,7 @@ template<size_t NDIM>
 
                 // offset: 0 for full tensor, 1 for svd representation with rand being the first dimension (r,d1,d2,d3) -> (r,d1*d2*d3)
                 auto fuse = [](Tensor<T> tensor, const std::array<int, CDIM>& v, int offset) {
-                    for (int i = 0; i < CDIM - 1; ++i) {
+                    for (std::size_t i = 0; i < CDIM - 1; ++i) {
                         MADNESS_CHECK((v[i] + 1) == v[i + 1]); // make sure v is contiguous and ascending
                         tensor = tensor.fusedim(v[0]+offset);
                     }

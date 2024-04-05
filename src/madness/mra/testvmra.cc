@@ -468,7 +468,6 @@ int main(int argc, char**argv) {
     for (int iarg=1; iarg<argc; iarg++) if (strcmp(argv[iarg],"--small")==0) smalltest=true;
     std::cout << "small test : " << smalltest << std::endl;
     if (smalltest) return 0;
-    int ierror=0;
     madness::default_random_generator.setstate(int(cpu_time()*1000)%4149);
 
 

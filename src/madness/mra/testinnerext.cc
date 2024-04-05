@@ -143,8 +143,8 @@ int test_partial_inner(World& world) {
     double g23=inner(g2,g3);
     double g24=inner(g2,g4);
     double g33=inner(g3,g3);
-    double g34=inner(g3,g4);
-    double g44=inner(g4,g4);
+    // double g34=inner(g3,g4);
+    // double g44=inner(g4,g4);
 
     {   // test unevenly refined functions
         real_function_2d f12=real_factory_2d(world)
@@ -165,7 +165,7 @@ int test_partial_inner(World& world) {
         FunctionDefaults<2>::set_tensor_type(TT_2D);
         real_function_2d r_svd = inner(f2_svd, f2_svd, {0}, {1});
         FunctionDefaults<2>::set_tensor_type(TT_FULL);
-        double n_svd=inner(f2_svd,r_svd);
+        // double n_svd=inner(f2_svd,r_svd);
         MADNESS_CHECK(test(" int f2(1,2)*f2(2,1) d1 (svd)", n,g12*g12*g12));
     }
     {

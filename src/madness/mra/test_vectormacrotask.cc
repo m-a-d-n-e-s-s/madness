@@ -99,7 +99,6 @@ public:
 
     resultT operator()(const real_function_3d &f1, const double &arg2,
                        const std::vector<real_function_3d> &f2) const {
-        World &world = f1.world();
         auto result = arg2 * f1 * inner(f2, f2);
         return result;
     }

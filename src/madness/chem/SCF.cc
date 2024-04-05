@@ -91,14 +91,14 @@ static double rsquared(const coordT& r) {
     return r[0] * r[0] + r[1] * r[1] + r[2] * r[2];
 }
 
-// Returns exp(-I*t*V)
-static Function<double_complex, 3> make_exp(double t, const Function<double, 3>& v) {
-    v.reconstruct();
-    Function<double_complex, 3> expV = double_complex(0.0, -t) * v;
-    expV.unaryop(unaryexp<3>());
-    //expV.truncate(); expV.reconstruct();
-    return expV;
-}
+// // Returns exp(-I*t*V)
+// static Function<double_complex, 3> make_exp(double t, const Function<double, 3>& v) {
+//     v.reconstruct();
+//     Function<double_complex, 3> expV = double_complex(0.0, -t) * v;
+//     expV.unaryop(unaryexp<3>());
+//     //expV.truncate(); expV.reconstruct();
+//     return expV;
+// }
 
 // Timer modified to correctly nest
 static bool print_timings = false;

@@ -532,7 +532,8 @@ public:
 
         if (immediate_execution) taskq_ptr->run_all();
 
-        return std::move(result);
+        // return std::move(result);
+        return result;
     }
 
 private:

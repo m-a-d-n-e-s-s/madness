@@ -755,7 +755,7 @@ struct ArchiveLoadImpl< Archive, GenTensor<T> > {
 	friend class GenTensor<T>;
 	/// Replaces this GenTensor with one loaded from an archive
 	static void load(const Archive& ar, GenTensor<T>& tensor) {
-		int index=-1;
+		int index=-2;
 		ar & index;
 		if (index==0) {
 			Tensor<T> tt;
@@ -769,6 +769,8 @@ struct ArchiveLoadImpl< Archive, GenTensor<T> > {
 			TensorTrain<T> tt;
 			ar & tt;
 			tensor=tt;
+		} else if (index==-1) {	 // defined value: empty tensor
+			;
 		} else {
 			MADNESS_EXCEPTION("unknow tensor type",1);
 		}

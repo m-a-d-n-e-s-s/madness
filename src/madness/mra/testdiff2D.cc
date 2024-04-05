@@ -122,7 +122,7 @@ int main(int argc, char** argv) {
         bc(0,1) = BC_FREE ;
         bc(1,0) = BC_FREE ;
         bc(1,1) = BC_FREE ;
-        bc = bc ;
+        // bc = bc ;
 
 /*
 //Create a derived class FreeSpaceDerivative, PeriodicDerivative
@@ -138,7 +138,7 @@ int main(int argc, char** argv) {
         // X Left  B.C.: Dirichlet
         bc(0,0) = BC_FREE ;
         bc(0,1) = BC_DIRICHLET ;
-        bc = bc ;
+        // bc = bc ;
 
         Derivative<double,2> dx2(world, test_axis, bc, xleft_d, xright_d, k) ;
         functionT dudx2 = dx2(u) ;
@@ -148,7 +148,7 @@ int main(int argc, char** argv) {
         // X Left  B.C.: Free
         bc(0,0) = BC_NEUMANN ;
         bc(0,1) = BC_FREE ;
-        bc = bc ;
+        // bc = bc ;
 
         Derivative<double,2> dx3(world, test_axis, bc, xleft_n, xright_n, k) ;
         functionT dudx3 = dx3(u) ;
@@ -158,7 +158,7 @@ int main(int argc, char** argv) {
         // X Left  B.C.: Neumann
         bc(0,0) = BC_FREE ;
         bc(0,1) = BC_NEUMANN ;
-        bc = bc ;
+        // bc = bc ;
 
         Derivative<double,2> dx4(world, test_axis, bc, xleft_n, xright_n, k) ;
         functionT dudx4 = dx4(u) ;
@@ -174,7 +174,7 @@ int main(int argc, char** argv) {
         bc(0,1) = BC_FREE ;
         bc(1,0) = BC_DIRICHLET ;
         bc(1,1) = BC_FREE ;
-        bc = bc ;
+        // bc = bc ;
 
         Derivative<double,2> dy1(world, test_axis, bc, yleft_d, yright_d, k) ;
         functionT dudy1 = dy1(u) ;
@@ -184,7 +184,7 @@ int main(int argc, char** argv) {
         // Y Left  B.C.: Dirichlet
         bc(1,0) = BC_FREE ;
         bc(1,1) = BC_DIRICHLET ;
-        bc = bc ;
+        // bc = bc ;
 
         Derivative<double,2> dy2(world, test_axis, bc, yleft_d, yright_d, k) ;
         functionT dudy2 = dy2(u) ;
@@ -194,7 +194,7 @@ int main(int argc, char** argv) {
         // Y Left  B.C.: Free
         bc(1,0) = BC_NEUMANN ;
         bc(1,1) = BC_FREE ;
-        bc = bc ;
+        // bc = bc ;
 
         Derivative<double,2> dy3(world, test_axis, bc, yleft_n, yright_n, k) ;
         functionT dudy3 = dy3(u) ;
@@ -204,7 +204,7 @@ int main(int argc, char** argv) {
         // Y Left  B.C.: Neumann
         bc(1,0) = BC_FREE ;
         bc(1,1) = BC_NEUMANN ;
-        bc = bc ;
+        // bc = bc ;
 
         Derivative<double,2> dy4(world, test_axis, bc, yleft_n, yright_n, k) ;
         functionT dudy4 = dy4(u) ;

@@ -82,10 +82,10 @@ int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
         for (int r=0; r<lrf.rank(); ++r) result+=lrf.g[r]*inner(one,lrf.h[r]);
         return result;
     };
-    auto compute_relative_error = [&world,&parameters](const auto reference, const auto result, const auto lrf) {
+    auto compute_relative_error = [](const auto reference, const auto result, const auto lrf) {
         auto diff=reference-result;
         double refnorm=reference.norm2();
-        double resultnorm=result.norm2();
+        // double resultnorm=result.norm2();
         double error=diff.norm2();
         return error/refnorm;
     };
@@ -366,8 +366,8 @@ int test_full_rank_functor(World& world, LowRankFunctionParameters parameters) {
     double tol=6.e-3;
     double gaussexponent=2.0;
 
-    const particle<LDIM> p1=particle<LDIM>::particle1();
-    const particle<LDIM> p2=particle<LDIM>::particle2();
+    // const particle<LDIM> p1=particle<LDIM>::particle1();
+    // const particle<LDIM> p2=particle<LDIM>::particle2();
 
     LRFunctorPure<double,NDIM> functorpure;
     Function<double,NDIM> gauss=FunctionFactory<double,NDIM>(world)
@@ -446,8 +446,8 @@ int test_arithmetic(World& world, LowRankFunctionParameters parameters) {
     auto gauss2=std::shared_ptr<SeparatedConvolution<double,LDIM>>(GaussOperatorPtr<LDIM>(world,2.0));
     LRFunctorF12<double,NDIM> functor2(gauss2,{phi},{});
 
-    auto p1=particle<LDIM>::particle1();
-    auto p2=particle<LDIM>::particle2();
+    // auto p1=particle<LDIM>::particle1();
+    // auto p2=particle<LDIM>::particle2();
 
     auto builder= LowRankFunctionFactory<double,NDIM>(parameters).set_radius(4)
             .set_volume_element(0.1).set_rank_revealing_tol(1.e-10).set_orthomethod("canonical");
@@ -793,7 +793,6 @@ int main(int argc, char **argv) {
     startup(world, argc, argv);
     commandlineparser parser(argc, argv);
     bool long_test = parser.key_exists("long_test");
-    bool exchange_test = parser.key_exists("exchange_test");
     int k = parser.key_exists("k") ? std::atoi(parser.value("k").c_str()) : 6;
     double thresh  = parser.key_exists("thresh") ? std::stod(parser.value("thresh")) : 3.e-5;
     FunctionDefaults<6>::set_tensor_type(TT_2D);
