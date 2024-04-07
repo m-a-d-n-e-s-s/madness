@@ -13,6 +13,7 @@ using namespace madness;
 // Constants for use in tests
 const double L = 16.0;   // box size [-L,L]^3
 const double a_gaussian = 1.0; 
+const std::size_t bufsize=256;
 
 // Analytic gaussian function
 double gaussian(const coord_3d& r) {
@@ -69,7 +70,7 @@ public:
 };
 
 char* p(char* buf, const char* name, int k, int initial_level, double thresh, int order) {
-    sprintf(buf, "%s-%02d-%02d-%.1e-%d.dat", name, k, initial_level, thresh, order);
+    snprintf(buf, bufsize, "%s-%02d-%02d-%.1e-%d.dat", name, k, initial_level, thresh, order);
     return buf;
 }
 
@@ -144,7 +145,7 @@ void plotter3(const std::string& fname, const std::vector<coord_3d>& pts, real_f
 
 void test(World& world, int k, int initial_level, double thresh, int truncmode, bool refine) {
 
-    char buf[256];
+    char buf[bufsize];
 
     print("\n\n\n");
     print("testing function:", funcname, "k:", k, "initial level:", initial_level, "thresh:", thresh, "truncmode:", truncmode, "refine:", refine);

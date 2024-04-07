@@ -524,7 +524,7 @@ namespace madness {
             std::vector<Slice> s0(NDIM/2,s);
 
             const double tol=f->get_thresh();
-            const double thresh=f->truncate_tol(tol, key);
+            const double thresh=f->truncate_tol(tol, key)*0.3;      // custom factor to "ensure" accuracy
             // include the wavelets in the norm, makes it much more accurate
             const double fnorm=fcoeff.normf();
             const double gnorm=gcoeff.normf();
@@ -809,7 +809,7 @@ template<size_t NDIM>
     	CoeffTracker() : impl(), key_(), is_leaf_(unknown), coeff_() {}
 
     	/// the initial ctor making the root key
-    	CoeffTracker(const implT* impl) : impl(impl), is_leaf_(no) {
+    	CoeffTracker(const implT* impl) : impl(impl), key_(), is_leaf_(no) {
             if (impl) key_=impl->get_cdata().key0;
     	}
 
@@ -942,6 +942,7 @@ template<size_t NDIM>
     private:
         typedef WorldObject< FunctionImpl<T,NDIM> > woT; ///< Base class world object type
     public:
+        typedef T typeT;
         typedef FunctionImpl<T,NDIM> implT; ///< Type of this class (implementation)
         typedef std::shared_ptr< FunctionImpl<T,NDIM> > pimplT; ///< pointer to this class
         typedef Tensor<T> tensorT; ///< Type of tensor for anything but to hold coeffs
@@ -1150,6 +1151,15 @@ template<size_t NDIM>
             if (fence) world.gop.fence();
         }
 
+        /// merge the trees of this and other, while multiplying them with the alpha or beta, resp
+
+        /// result and rhs do not have to have the same distribution or live in the same world
+        /// result+=alpha* this
+        /// @param[in]	alpha	prefactor for this
+        template<typename Q, typename R>
+        void accumulate_trees(FunctionImpl<Q,NDIM>& result, const R alpha, const bool fence=true) const {
+            flo_unary_op_node_inplace(do_accumulate_trees<Q,R>(result,alpha),fence);
+        }
 
         /// perform: this= alpha*f + beta*g, invoked by result
 
@@ -2337,6 +2347,36 @@ template<size_t NDIM>
 
         };
 
+        /// merge the coefficent boxes of this into result's tree
+
+        /// result+= alpha*this
+        /// this and result don't have to have the same distribution or live in the same world
+        /// no comm, and the tree should be in an consistent state by virtue
+        template<typename Q, typename R>
+        struct do_accumulate_trees{
+            typedef Range<typename dcT::const_iterator> rangeT;
+            FunctionImpl<Q,NDIM>* result=0;
+            T alpha=T(1.0);
+            do_accumulate_trees() = default;
+            do_accumulate_trees(FunctionImpl<Q,NDIM>& result, const T alpha)
+                : result(&result), alpha(alpha) {}
+
+            /// return the norm of the difference of this node and its "mirror" node
+            bool operator()(typename rangeT::iterator& it) const {
+
+                const keyT& key = it->first;
+                const nodeT& node = it->second;
+                if (node.has_coeff()) result->get_coeffs().task(key, &nodeT::accumulate,
+                    alpha*node.coeff(), result->get_coeffs(), key, result->targs);
+                return true;
+            }
+
+            template <typename Archive> void serialize(const Archive& ar) {
+                MADNESS_EXCEPTION("no serialization of do_accumulate_trees",1);
+            }
+        };
+
+
         /// merge the coefficent boxes of this into other's tree
 
         /// no comm, and the tree should be in an consistent state by virtue
@@ -3313,11 +3353,11 @@ template<size_t NDIM>
         ///
         /// k=number of wavelets, so k=5 means max order is 4, so max exactly
         /// representable squarable polynomial is of order 2.
-        void tnorm(const tensorT& t, double* lo, double* hi) const;
+        void static tnorm(const tensorT& t, double* lo, double* hi);
 
-        void tnorm(const GenTensor<T>& t, double* lo, double* hi) const;
+        void static tnorm(const GenTensor<T>& t, double* lo, double* hi);
 
-        void tnorm(const SVDTensor<T>& t, double* lo, double* hi, const int particle) const;
+        void static tnorm(const SVDTensor<T>& t, double* lo, double* hi, const int particle);
 
         // This invoked if node has not been autorefined
         void do_square_inplace(const keyT& key);
@@ -3821,67 +3861,52 @@ template<size_t NDIM>
 
         template<std::size_t LDIM>
         struct pointwise_multiplier {
-        	const implT* impl;
-        	const FunctionImpl<T,LDIM>* gimpl;
         	coeffT val_lhs, coeff_lhs;
+            long oversampling=1;
         	double error=0.0;
         	double lo=0.0, hi=0.0, lo1=0.0, hi1=0.0, lo2=0.0, hi2=0.0;
 
-	  pointwise_multiplier() : impl(0), gimpl(0) {}
-        	pointwise_multiplier(const Key<NDIM> key, const coeffT& clhs, implT* i, const FunctionImpl<T,LDIM>* gimpl)
-        		: impl(i), gimpl(gimpl), coeff_lhs(clhs) {
-        		val_lhs=impl->coeffs2values(key,coeff_lhs);
+    	    pointwise_multiplier() {}
+        	pointwise_multiplier(const Key<NDIM> key, const coeffT& clhs) : coeff_lhs(clhs) {
+                const auto& fcf=FunctionCommonFunctionality<T,NDIM>(coeff_lhs.dim(0));
+        		val_lhs=fcf.coeffs2values(key,coeff_lhs);
         		error=0.0;
-        		impl->tnorm(coeff_lhs,&lo,&hi);
-        		gimpl->tnorm(coeff_lhs.get_svdtensor(),&lo1,&hi1,1);
-        		gimpl->tnorm(coeff_lhs.get_svdtensor(),&lo2,&hi2,2);
-        	}
-
-        	pointwise_multiplier(const Key<NDIM> key, const coeffT& clhs, implT* i)
-        		: impl(i), gimpl(0), coeff_lhs(clhs) {
-        		val_lhs=impl->coeffs2values(key,coeff_lhs);
-        		error=0.0;
-        		impl->tnorm(coeff_lhs,&lo,&hi);
-        	}
-
-        	/// multiply values of rhs and lhs, result on rhs, rhs and lhs are of the same dimensions
-        	coeffT operator()(const Key<NDIM> key, const coeffT& coeff_rhs) {
-        		double rlo, rhi;
-        		impl->tnorm(coeff_rhs,&rlo,&rhi);
-        		error = hi*rlo + rhi*lo + rhi*hi;
-        		coeffT val_rhs=impl->coeffs2values(key, coeff_rhs);
-        		val_rhs.emul(val_lhs);
-        		return impl->values2coeffs(key,val_rhs);
-
+        		implT::tnorm(coeff_lhs,&lo,&hi);
+                if (coeff_lhs.is_svd_tensor()) {
+                    FunctionImpl<T,LDIM>::tnorm(coeff_lhs.get_svdtensor(),&lo1,&hi1,1);
+                    FunctionImpl<T,LDIM>::tnorm(coeff_lhs.get_svdtensor(),&lo2,&hi2,2);
+                }
         	}
 
         	/// multiply values of rhs and lhs, result on rhs, rhs and lhs are of the same dimensions
         	tensorT operator()(const Key<NDIM> key, const tensorT& coeff_rhs) {
 
 				MADNESS_ASSERT(coeff_rhs.dim(0)==coeff_lhs.dim(0));
+                auto fcf=FunctionCommonFunctionality<T,NDIM>(coeff_lhs.dim(0));
 
 				// the tnorm estimate is not tight enough to be efficient, better use oversampling
 				bool use_tnorm=false;
         		if (use_tnorm) {
 					double rlo, rhi;
-					impl->tnorm(coeff_rhs,&rlo,&rhi);
+					implT::tnorm(coeff_rhs,&rlo,&rhi);
 					error = hi*rlo + rhi*lo + rhi*hi;
-					tensorT val_rhs=impl->coeffs2values(key, coeff_rhs);
+					tensorT val_rhs=fcf.coeffs2values(key, coeff_rhs);
 					val_rhs.emul(val_lhs.full_tensor_copy());
-					return impl->values2coeffs(key,val_rhs);
+					return fcf.values2coeffs(key,val_rhs);
         		} else {	// use quadrature of order k+1
 
-    	            auto cdata=FunctionCommonData<T,NDIM>::get(impl->get_k()+1);		// npt=k+1
-                	FunctionCommonFunctionality<T,NDIM> fcf_hi_npt(cdata);
+    	            auto& cdata=FunctionCommonData<T,NDIM>::get(coeff_rhs.dim(0));		// npt=k+1
+                    auto& cdata_npt=FunctionCommonData<T,NDIM>::get(coeff_rhs.dim(0)+oversampling);		// npt=k+1
+                	FunctionCommonFunctionality<T,NDIM> fcf_hi_npt(cdata_npt);
 
     	            // coeffs2values for rhs: k -> npt=k+1
-		            tensorT coeff1(cdata.vk);
-		            coeff1(impl->cdata.s0)=coeff_rhs;		// s0 is smaller than vk!
+		            tensorT coeff1(cdata_npt.vk);
+		            coeff1(cdata.s0)=coeff_rhs;		// s0 is smaller than vk!
 		            tensorT val_rhs_k1=fcf_hi_npt.coeffs2values(key,coeff1);
 
 		            // coeffs2values for lhs: k -> npt=k+1
-		            tensorT coeff_lhs_k1(cdata.vk);
-		            coeff_lhs_k1(impl->cdata.s0)=coeff_lhs.full_tensor_copy();
+		            tensorT coeff_lhs_k1(cdata_npt.vk);
+		            coeff_lhs_k1(cdata.s0)=coeff_lhs.full_tensor_copy();
 		            tensorT val_lhs_k1=fcf_hi_npt.coeffs2values(key,coeff_lhs_k1);
 
 		            // multiply
@@ -3891,24 +3916,25 @@ template<size_t NDIM>
 		            tensorT result1=fcf_hi_npt.values2coeffs(key,val_lhs_k1);
 
                     // extract coeffs up to k
-                    tensorT result=copy(result1(impl->cdata.s0));
-                    result1(impl->cdata.s0)=0.0;
+                    tensorT result=copy(result1(cdata.s0));
+                    result1(cdata.s0)=0.0;
                     error=result1.normf();
                     return result;
-
         		}
-
         	}
 
         	/// multiply values of rhs and lhs, result on rhs, rhs and lhs are of differnet dimensions
         	coeffT operator()(const Key<NDIM> key, const tensorT& coeff_rhs, const int particle) {
                 Key<LDIM> key1, key2;
                 key.break_apart(key1,key2);
-                MADNESS_ASSERT(gimpl);
-            	FunctionCommonFunctionality<T,LDIM> fcf_lo(gimpl->cdata);
-            	FunctionCommonFunctionality<T,NDIM> fcf_hi(impl->cdata);
-            	FunctionCommonFunctionality<T,LDIM> fcf_lo_npt(gimpl->get_k()+1);
-            	FunctionCommonFunctionality<T,NDIM> fcf_hi_npt(impl->get_k()+1);
+                const long k=coeff_rhs.dim(0);
+                auto& cdata=FunctionCommonData<T,NDIM>::get(k);
+                auto& cdata_lowdim=FunctionCommonData<T,LDIM>::get(k);
+            	FunctionCommonFunctionality<T,LDIM> fcf_lo(cdata_lowdim);
+            	FunctionCommonFunctionality<T,NDIM> fcf_hi(cdata);
+            	FunctionCommonFunctionality<T,LDIM> fcf_lo_npt(k+oversampling);
+            	FunctionCommonFunctionality<T,NDIM> fcf_hi_npt(k+oversampling);
+
 
             	// make hi-dim values from lo-dim coeff_rhs on npt grid points
                 tensorT ones=tensorT(fcf_lo_npt.cdata.vk);
@@ -3935,16 +3961,14 @@ template<size_t NDIM>
 	            coeffT result1=fcf_hi_npt.values2coeffs(key,val_lhs_npt);
 
                 // extract coeffs up to k
-	            coeffT result=copy(result1(impl->cdata.s0));
-                result1(impl->cdata.s0)=0.0;
+	            coeffT result=copy(result1(cdata.s0));
+                result1(cdata.s0)=0.0;
                 error=result1.normf();
-                result.reduce_rank(impl->get_tensor_args().thresh);
                 return result;
-
         	}
 
             template <typename Archive> void serialize(const Archive& ar) {
-                ar & error & lo & lo1 & lo2 & hi & hi1& hi2 & gimpl & impl & val_lhs & coeff_lhs;
+                ar & error & lo & lo1 & lo2 & hi & hi1& hi2 & val_lhs & coeff_lhs;
             }
 
 
@@ -4165,25 +4189,19 @@ template<size_t NDIM>
                 double refine_error=compute_error_from_inaccurate_refinement(key,ceri);
                 double error=refine_error;
 
-                // prepare the multiplication
-                pointwise_multiplier<LDIM> pm;
-                if (have_v1()) pm=pointwise_multiplier<LDIM>(key,coeff_ket,result,iav1.get_impl());
-                else if (have_v2()) {
-                    pm=pointwise_multiplier<LDIM>(key,coeff_ket,result,iav2.get_impl());
-                } else {
-                    pm=pointwise_multiplier<LDIM>(key,coeff_ket,result);
-                }
+        		// prepare the multiplication
+        		pointwise_multiplier<LDIM> pm(key,coeff_ket);
 
-                // perform the multiplication, compute tnorm part of the total error
-                coeffT cresult(result->cdata.vk,result->get_tensor_args());
-                if (have_v1()) {
-                    cresult+=pm(key,cpot1.get_tensor(),1);
-                    error+=pm.error;
-                }
-                if (have_v2()) {
-                    cresult+=pm(key,cpot2.get_tensor(),2);
-                    error+=pm.error;
-                }
+        		// perform the multiplication, compute tnorm part of the total error
+        		coeffT cresult(result->cdata.vk,result->get_tensor_args());
+        		if (have_v1()) {
+        			cresult+=pm(key,cpot1.get_tensor(),1);
+        			error+=pm.error;
+            	}
+        		if (have_v2()) {
+        			cresult+=pm(key,cpot2.get_tensor(),2);
+        			error+=pm.error;
+        		}
 
                 if (have_eri()) {
                     tensorT result1=cresult.full_tensor_copy();
@@ -5443,6 +5461,144 @@ template<size_t NDIM>
                 (rangeT(coeffs.begin(),coeffs.end()),do_inner_local<R>(&g, leaves_only));
         }
 
+
+        /// compute the inner product of this range with other
+        template<typename R>
+        struct do_inner_local_on_demand {
+            const FunctionImpl<T,NDIM>* bra;
+            const FunctionImpl<R,NDIM>* ket;
+            bool leaves_only=true;
+            typedef TENSOR_RESULT_TYPE(T,R) resultT;
+
+            do_inner_local_on_demand(const FunctionImpl<T,NDIM>* bra, const FunctionImpl<R,NDIM>* ket,
+                                     const bool leaves_only=true)
+                    : bra(bra), ket(ket), leaves_only(leaves_only) {}
+            resultT operator()(typename dcT::const_iterator& it) const {
+
+                constexpr std::size_t LDIM=std::max(NDIM/2,std::size_t(1));
+
+                const keyT& key=it->first;
+                const nodeT& fnode = it->second;
+                if (not fnode.has_coeff()) return resultT(0.0); // probably internal nodes
+
+                // assuming all boxes (esp the low-dim ones) are local, i.e. the functions are replicated
+                auto find_valid_parent = [](auto& key, auto& impl, auto&& find_valid_parent) {
+                    MADNESS_CHECK(impl->get_coeffs().owner(key)==impl->world.rank()); // make sure everything is local!
+                    if (impl->get_coeffs().probe(key)) return key;
+                    auto parentkey=key.parent();
+                    return find_valid_parent(parentkey, impl, find_valid_parent);
+                };
+
+                // returns coefficients, empty if no functor present
+                auto get_coeff = [&find_valid_parent](const auto& key, const auto& v_impl) {
+                    if ((v_impl.size()>0) and v_impl.front().get()) {
+                        auto impl=v_impl.front();
+
+//                    bool have_impl=impl.get();
+//                    if (have_impl) {
+                        auto parentkey = find_valid_parent(key, impl, find_valid_parent);
+                        MADNESS_CHECK(impl->get_coeffs().probe(parentkey));
+                        typename decltype(impl->coeffs)::accessor acc;
+                        impl->get_coeffs().find(acc,parentkey);
+                        auto parentcoeff=acc->second.coeff();
+                        auto coeff=impl->parent_to_child(parentcoeff, parentkey, key);
+                        return coeff;
+                    } else {
+                        // get type of vector elements
+                        typedef typename std::decay_t<decltype(v_impl)>::value_type::element_type::typeT S;
+//                        typedef typename std::decay_t<decltype(v_impl)>::value_type S;
+                        return GenTensor<S>();
+//                        return GenTensor<typename std::decay_t<decltype(*impl)>::typeT>();
+                    }
+                };
+
+                auto make_vector = [](auto& arg) {
+                    return std::vector<std::decay_t<decltype(arg)>>(1,arg);
+                };
+
+
+                Key<LDIM> key1,key2;
+                key.break_apart(key1,key2);
+
+                auto func=dynamic_cast<CompositeFunctorInterface<R,NDIM,LDIM>* >(ket->functor.get());
+                MADNESS_ASSERT(func);
+
+                MADNESS_CHECK_THROW(func->impl_ket_vector.size()==0 or func->impl_ket_vector.size()==1,
+                                    "only one ket function supported in inner_on_demand");
+                MADNESS_CHECK_THROW(func->impl_p1_vector.size()==0 or func->impl_p1_vector.size()==1,
+                                    "only one p1 function supported in inner_on_demand");
+                MADNESS_CHECK_THROW(func->impl_p2_vector.size()==0 or func->impl_p2_vector.size()==1,
+                                    "only one p2 function supported in inner_on_demand");
+                auto coeff_bra=fnode.coeff();
+                auto coeff_ket=get_coeff(key,func->impl_ket_vector);
+                auto coeff_v1=get_coeff(key1,make_vector(func->impl_m1));
+                auto coeff_v2=get_coeff(key2,make_vector(func->impl_m2));
+                auto coeff_p1=get_coeff(key1,func->impl_p1_vector);
+                auto coeff_p2=get_coeff(key2,func->impl_p2_vector);
+
+                // construct |ket(1,2)> or |p(1)p(2)> or |p(1)p(2) ket(1,2)>
+                double error=0.0;
+                if (coeff_ket.has_data() and coeff_p1.has_data()) {
+                    pointwise_multiplier<LDIM> pm(key,coeff_ket);
+                    coeff_ket=pm(key,outer(coeff_p1,coeff_p2,TensorArgs(TT_FULL,-1.0)).full_tensor());
+                    error+=pm.error;
+                } else if (coeff_ket.has_data() or coeff_p1.has_data()) {
+                    coeff_ket = (coeff_ket.has_data()) ? coeff_ket : outer(coeff_p1,coeff_p2);
+                } else { // not ket and no p1p2
+                    MADNESS_EXCEPTION("confused ket/p1p2 in do_inner_local_on_demand",1);
+                }
+
+                // construct (v(1) + v(2)) |ket(1,2)>
+                coeffT v1v2ket;
+                if (coeff_v1.has_data()) {
+                    pointwise_multiplier<LDIM> pm(key,coeff_ket);
+                    v1v2ket = pm(key,coeff_v1.full_tensor(), 1);
+                    error+=pm.error;
+                    v1v2ket+= pm(key,coeff_v2.full_tensor(), 2);
+                    error+=pm.error;
+                } else {
+                    v1v2ket = coeff_ket;
+                }
+
+                resultT result;
+                if (func->impl_eri) {         // project bra*ket onto eri, avoid multiplication with eri
+                    MADNESS_CHECK(func->impl_eri->get_functor()->provides_coeff());
+                    coeffT coeff_eri=func->impl_eri->get_functor()->coeff(key).full_tensor();
+                    pointwise_multiplier<LDIM> pm(key,v1v2ket);
+                    tensorT braket=pm(key,coeff_bra.full_tensor_copy().conj());
+                    error+=pm.error;
+                    if (error>1.e-3) print("error in key",key,error);
+                    result=coeff_eri.full_tensor().trace(braket);
+
+                } else {                            // no eri, project ket onto bra
+                    result=coeff_bra.full_tensor_copy().trace_conj(v1v2ket.full_tensor_copy());
+                }
+                return result;
+            }
+
+            resultT operator()(resultT a, resultT b) const {
+                return (a+b);
+            }
+
+            template <typename Archive> void serialize(const Archive& ar) {
+                throw "NOT IMPLEMENTED";
+            }
+        };
+
+        /// Returns the inner product of this with function g constructed on-the-fly
+
+        /// the leaf boxes of this' MRA tree defines the inner product
+        template <typename R>
+        TENSOR_RESULT_TYPE(T,R) inner_local_on_demand(const FunctionImpl<R,NDIM>& gimpl) const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            MADNESS_CHECK(this->is_reconstructed());
+
+            typedef Range<typename dcT::const_iterator> rangeT;
+            rangeT range(coeffs.begin(), coeffs.end());
+            return world.taskq.reduce<T, rangeT, do_inner_local_on_demand<T>>(range,
+                               do_inner_local_on_demand<R>(this, &gimpl));
+        }
+
         /// Type of the entry in the map returned by make_key_vec_map
         typedef std::vector< std::pair<int,const coeffT*> > mapvecT;
 
@@ -5646,15 +5802,15 @@ template<size_t NDIM>
             std::size_t nmax=FunctionDefaults<CDIM>::get_max_refine_level();
             const double thresh=FunctionDefaults<NDIM>::get_thresh();
 
-            auto print_map = [](const auto& map) {
-                for (const auto& kv : map) print(kv.first,"--",kv.second);
-            };
+            // auto print_map = [](const auto& map) {
+                // for (const auto& kv : map) print(kv.first,"--",kv.second);
+            // };
             // logical constness, not bitwise constness
             FunctionImpl<Q,LDIM>& g_nc=const_cast<FunctionImpl<Q,LDIM>&>(g);
             FunctionImpl<R,KDIM>& h_nc=const_cast<FunctionImpl<R,KDIM>&>(h);
 
             std::list<contractionmapT> all_contraction_maps;
-            for (int n=0; n<nmax; ++n) {
+            for (std::size_t n=0; n<nmax; ++n) {
 
                 // list of nodes with d coefficients (and their parents)
 	      //double wall0 = wall_time();
@@ -5697,6 +5853,8 @@ template<size_t NDIM>
                     }
                     it = it_end;
                 }
+//                print("thresh               ",thresh);
+//                print("contraction list size",contraction_map.size());
 
                 // remove all double entries
                 for (auto& elem: contraction_map) {
@@ -5754,7 +5912,7 @@ template<size_t NDIM>
                 if ((key.level()==n) and (has_d_coeffs(node.coeff()))) {
                     ij_list.insert(key);
                     Vector<Translation,CDIM> j_trans;
-                    for (int i=0; i<CDIM; ++i) j_trans[i]=key.translation()[v[i]];
+                    for (std::size_t i=0; i<CDIM; ++i) j_trans[i]=key.translation()[v[i]];
                     Key<CDIM> jkey(n,j_trans);
                     const double max_d_norm=j_list[jkey];
                     j_list.insert_or_assign(jkey,std::max(max_d_norm,node.get_dnorm()));
@@ -5808,7 +5966,7 @@ template<size_t NDIM>
 
 //            print("\nkey, j_this_key", key, j_this_key);
             const double max_d_norm=j_other_list.find(j_this_key)->second;
-            const bool sd_norm_product_large = node.get_snorm() * max_d_norm > thresh;
+            const bool sd_norm_product_large = node.get_snorm() * max_d_norm > truncate_tol(thresh,key);
 //            print("sd_product_norm",node.get_snorm() * max_d_norm, thresh);
 
             // end recursion if we have reached the final scale n
@@ -5920,10 +6078,10 @@ template<size_t NDIM>
                     static_assert(JDIM == std::tuple_size<std::decay_t<decltype(v)>>::value);
 
                     Vector<Translation, IDIM + JDIM> l;
-                    for (int i = 0; i < v.size(); ++i) l[v[i]] = j_key.translation()[i];
+                    for (std::size_t i = 0; i < v.size(); ++i) l[v[i]] = j_key.translation()[i];
                     std::array<int, IDIM> vc1;
                     auto vc = v_complement(v, vc1);
-                    for (int i = 0; i < vc.size(); ++i) l[vc[i]] = i_key.translation()[i];
+                    for (std::size_t i = 0; i < vc.size(); ++i) l[vc[i]] = i_key.translation()[i];
 
                     return Key<IDIM + JDIM>(i_key.level(), l);
                 };
@@ -5951,7 +6109,7 @@ template<size_t NDIM>
 
                 // offset: 0 for full tensor, 1 for svd representation with rand being the first dimension (r,d1,d2,d3) -> (r,d1*d2*d3)
                 auto fuse = [](Tensor<T> tensor, const std::array<int, CDIM>& v, int offset) {
-                    for (int i = 0; i < CDIM - 1; ++i) {
+                    for (std::size_t i = 0; i < CDIM - 1; ++i) {
                         MADNESS_CHECK((v[i] + 1) == v[i + 1]); // make sure v is contiguous and ascending
                         tensor = tensor.fusedim(v[0]+offset);
                     }
@@ -6004,9 +6162,9 @@ template<size_t NDIM>
                     int gparticle=  v1[0]==0 ? 0 : 1;       // which particle to integrate over
                     int hparticle=  v2[0]==0 ? 0 : 1;       // which particle to integrate over
                     // merge multiple contraction dimensions into one
-                    Tensor<Q> gtensor = gcoeff1.get_svdtensor().make_vector_with_weights(gparticle);
+                    Tensor<Q> gtensor = gcoeff1.get_svdtensor().flat_vector_with_weights(gparticle);
                     Tensor<Q> gtensor_other = gcoeff1.get_svdtensor().flat_vector((gparticle+1)%2);
-                    Tensor<R> htensor = hcoeff1.get_svdtensor().make_vector_with_weights(hparticle);
+                    Tensor<R> htensor = hcoeff1.get_svdtensor().flat_vector_with_weights(hparticle);
                     Tensor<R> htensor_other = hcoeff1.get_svdtensor().flat_vector((hparticle+1)%2);
                     Tensor<T> tmp1=inner(gtensor,htensor,1,1);      // tmp1(r,r') = sum_j b(r,j) a(r',j)
                     Tensor<T> tmp2=inner(tmp1,gtensor_other,0,0);   // tmp2(r',i) = sum_r tmp1(r,r') a(r,i)
@@ -6018,9 +6176,9 @@ template<size_t NDIM>
                     if (key.level() > 0) {
                         GenTensor<Q> gcoeff2 = copy(gcoeff1(g->get_cdata().s0));
                         GenTensor<R> hcoeff2 = copy(hcoeff1(h->get_cdata().s0));
-                        Tensor<Q> gtensor = gcoeff2.get_svdtensor().make_vector_with_weights(gparticle);
+                        Tensor<Q> gtensor = gcoeff2.get_svdtensor().flat_vector_with_weights(gparticle);
                         Tensor<Q> gtensor_other = gcoeff2.get_svdtensor().flat_vector((gparticle+1)%2);
-                        Tensor<R> htensor = hcoeff2.get_svdtensor().make_vector_with_weights(hparticle);
+                        Tensor<R> htensor = hcoeff2.get_svdtensor().flat_vector_with_weights(hparticle);
                         Tensor<R> htensor_other = hcoeff2.get_svdtensor().flat_vector((hparticle+1)%2);
                         Tensor<T> tmp1=inner(gtensor,htensor,1,1);      // tmp1(r,r') = sum_j b(r,j) a(r',j)
                         Tensor<T> tmp2=inner(tmp1,gtensor_other,0,0);   // tmp2(r',i) = sum_r tmp1(r,r') a(r,i)
@@ -6480,27 +6638,37 @@ template<size_t NDIM>
                 if (fcoeff.has_no_data() or gcoeff.has_no_data())
                     return Future<argT> (argT(fnode.is_leaf(),coeffT()));;
 
-                // let's specialize for the time being on SVD tensors for f and full tensors of half dim for g
-                MADNESS_ASSERT(gcoeff.is_full_tensor());
-                MADNESS_ASSERT(fcoeff.is_svd_tensor());
-                const tensorT gtensor=gcoeff.full_tensor();
+                MADNESS_CHECK(gcoeff.is_full_tensor());
                 tensorT final(result->cdata.vk);
-
-                const int otherdim=(dim+1)%2;
                 const int k=fcoeff.dim(0);
-                std::vector<Slice> s(fcoeff.get_svdtensor().dim_per_vector(dim)+1,_);
-                std::vector<Slice> other_s(fcoeff.get_svdtensor().dim_per_vector(otherdim)+1,_);
+                const int k_ldim=std::pow(k,LDIM);
+                std::vector<long> shape(LDIM, k);
 
-                // do the actual contraction
-                std::vector<long> shape(LDIM,k);
-                for (int r=0; r<fcoeff.rank(); ++r) {
-                    s[0]=Slice(r,r);
-                    other_s[0]=Slice(r,r);
-                    const tensorT contracted_tensor=fcoeff.get_svdtensor().ref_vector(dim)(s).reshape(shape);
-                    const tensorT other_tensor=fcoeff.get_svdtensor().ref_vector(otherdim)(other_s).reshape(shape);
-                    const double ovlp= gtensor.trace_conj(contracted_tensor);
-                    const double fac=ovlp * fcoeff.get_svdtensor().weights(r);
-                    final+=fac*other_tensor;
+                if (fcoeff.is_full_tensor()) {
+                    //  result_i = \sum_j g_j f_ji
+                    const tensorT gtensor = gcoeff.full_tensor().reshape(k_ldim);
+                    const tensorT ftensor = fcoeff.full_tensor().reshape(k_ldim,k_ldim);
+                    final=inner(gtensor,ftensor,0,dim).reshape(shape);
+
+                } else if (fcoeff.is_svd_tensor()) {
+                    if (fcoeff.rank()>0) {
+
+                        //  result_i = \sum_jr g_j a_rj w_r b_ri
+                        const int otherdim = (dim + 1) % 2;
+                        const tensorT gtensor = gcoeff.full_tensor().flat();
+                        const tensorT atensor = fcoeff.get_svdtensor().flat_vector(dim);  // a_rj
+                        const tensorT btensor = fcoeff.get_svdtensor().flat_vector(otherdim);
+                        const tensorT gatensor = inner(gtensor, atensor, 0, 1);              // ga_r
+                        tensorT weights = copy(fcoeff.get_svdtensor().weights_);
+                        weights.emul(gatensor); // ga_r * w_r
+                        // sum over all ranks of b, include new weights:
+                        // result_i = \sum_r ga_r * w_r * b_ri
+                        for (int r = 0; r < fcoeff.rank(); ++r) final += weights(r) * btensor(r, _);
+                        final = final.reshape(shape);
+                    }
+
+                } else {
+                    MADNESS_EXCEPTION("unsupported tensor type in project_out_op",1);
                 }
 
                 // accumulate the result

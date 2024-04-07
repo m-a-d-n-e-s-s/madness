@@ -82,12 +82,41 @@ bool test_loose1(std::string msg, double a, double b, double tol=thresh) {
 }
 
 
+int test_tight_diffuse(World& world) {
+    FunctionDefaults<4>::set_thresh(1.e-5);
+    double a=1.e2;
+    double b=1.e-2;
+    for (int i=0; i<4; ++i) {
+        a=std::pow(10.0,double(i));
+        b=std::pow(0.1,double(i));
+        print("a,b",a,b);
+
+        real_function_2d aa=real_factory_2d(world).functor([&](const coord_2d& r){return exp(-a*inner(r,r));});
+        real_function_2d bb=real_factory_2d(world).functor([&](const coord_2d& r){return exp(-b*inner(r,r));});
+        real_function_4d cc=real_factory_4d(world).functor([&](const coord_4d& r){return exp(-b*inner(r,r));});
+        real_function_4d dd=CompositeFactory<double,4,2>(world).particle1(aa).particle2(copy(aa));
+        aa.print_size("exp(-1000 r^2");
+        bb.print_size("exp(-0.001 r^2");
+        double result=inner(cc,dd);
+        double refresult=std::pow(constants::pi/(a+b),2.0);
+        print("result,refresult,error",result,refresult,result-refresult);
+        MADNESS_CHECK(test(" inner(exp(-a r^2 , exp(-b r^2))  ", result,refresult));
+    }
+
+
+
+
+    return 0;
+
+
+}
+
 int test_partial_inner(World& world) {
-    print("\ntesting partial inner\n");
     bool do_low_rank=false;
 #if HAVE_GENTENSOR
     do_low_rank=true;
 #endif
+    print("\ntesting partial inner; low rank: ",do_low_rank,"\n");
 
     real_function_1d one_1d=real_factory_1d(world).functor([](const coord_1d& r){return 1.0;});
     real_function_2d one_2d=real_factory_2d(world).functor([](const coord_2d& r){return 1.0;});
@@ -114,8 +143,8 @@ int test_partial_inner(World& world) {
     double g23=inner(g2,g3);
     double g24=inner(g2,g4);
     double g33=inner(g3,g3);
-    double g34=inner(g3,g4);
-    double g44=inner(g4,g4);
+    // double g34=inner(g3,g4);
+    // double g44=inner(g4,g4);
 
     {   // test unevenly refined functions
         real_function_2d f12=real_factory_2d(world)
@@ -136,7 +165,7 @@ int test_partial_inner(World& world) {
         FunctionDefaults<2>::set_tensor_type(TT_2D);
         real_function_2d r_svd = inner(f2_svd, f2_svd, {0}, {1});
         FunctionDefaults<2>::set_tensor_type(TT_FULL);
-        double n_svd=inner(f2_svd,r_svd);
+        // double n_svd=inner(f2_svd,r_svd);
         MADNESS_CHECK(test(" int f2(1,2)*f2(2,1) d1 (svd)", n,g12*g12*g12));
     }
     {
@@ -270,6 +299,7 @@ int main(int argc, char** argv) {
     initialize<6>(world);
 
     test_partial_inner(world);
+    test_tight_diffuse(world);
 
     if (!smalltest) {
         real_function_3d alpha1 = real_factory_3d(world).f(alpha_func);

@@ -15,19 +15,27 @@ using namespace madness;
 enum Uplo {upper, lower};
 static bool debug=false;
 static double alpha1=constants::fine_structure_constant;
+static double clight=1.0/alpha1;
 static double shift=0.0;
 static double epsilon=1.e-12;
 static bool use_ble=false;
+static bool use_bsp=false;
 static double lo=1.e-7;
+static double nucrad=1e-8;
+static double nucexpt=3.0/nucrad; // actually the squareroot of the Gaussian exponent
+
+real_function_3d mask;
 
 class DiracParameters : public QCCalculationParametersBase {
 public:
     /// ctor reading out the input file
     DiracParameters() {
         initialize<double>("shift",0.0);
+	initialize<double>("nucrad",1e-8);
         initialize<double>("charge",10.0);
         initialize<double>("lo",1.e-7,"lo for the operator apply");
         initialize<bool>("use_ble",false);
+        initialize<bool>("use_bsp",false);
         initialize<long>("nstates",1);
         initialize<long>("ansatz",0);
     }
@@ -38,9 +46,11 @@ public:
     }
 
     double shift() const {return get<double>("shift");}
+    double nucrad() const {return get<double>("nucrad");}
     double charge() const {return get<double>("charge");}
     double lo() const {return get<double>("lo");}
     bool use_ble() const {return get<bool>("use_ble");}
+    bool use_bsp() const {return get<bool>("use_bsp");}
     long nstates() const {return get<long>("nstates");}
     long ansatz() const {return get<long>("ansatz");}
 
@@ -133,11 +143,11 @@ struct SphericalHarmonics{
 
     double_complex operator()(const coord_3d& xyz) const {
         if (zero) return {0.0,0.0};
-        const double r=xyz.normf();
-        const double r2=r*r;
-        const double x=xyz[0];
-        const double y=xyz[1];
-        const double z=xyz[2];
+        // const double r=xyz.normf();
+        // const double r2=r*r;
+        // const double x=xyz[0];
+        // const double y=xyz[1];
+        // const double z=xyz[2];
         const double_complex i=double_complex(0.0,1.0);
         auto stepx=stepfunction(0);
         auto stepy=stepfunction(1);
@@ -209,7 +219,7 @@ struct Xi {
     long k, component, a;
     double m, l;
     Xi(const long k, const double m, const double component, const double j, const long l)
-                : k(k), m(m), component(component), l(l) {
+      : k(k),  component(component), a(0), m(m), l(l) {
         MADNESS_CHECK(component==0 or component==1);
         a=compute_a(j,l);
     }
@@ -239,7 +249,7 @@ struct Xi {
 struct Omega {
     long k, component;
     double m;
-    Omega(const long k, const double m, const double component) : k(k), m(m), component(component) {
+    Omega(const long k, const double m, const double component) : k(k), component(component), m(m) {
         MADNESS_CHECK(component==0 or component==1);
     }
     double_complex operator()(const coord_3d& xyz) const {
@@ -265,6 +275,43 @@ double compute_electronic_energy(const double energy) {
 }
 
 
+double mask1d(double x) {
+    /* Iterated first beta function to switch smoothly
+           from 0->1 in [0,1].  n iterations produce 2*n-1
+           zero derivatives at the end points. Order of polyn
+           is 3^n.
+
+           Currently use one iteration so that first deriv.
+           is zero at interior boundary and is exactly representable
+           by low order multiwavelet without refinement */
+
+    x = (x * x * (3. - 2. * x));
+    return x;
+}
+
+double mask3d(const Vector<double,3>& ruser) {
+    coord_3d rsim;
+    user_to_sim(ruser, rsim);
+    double x = rsim[0], y = rsim[1], z = rsim[2];
+    double lo = 0.0625, hi = 1.0 - lo, result = 1.0;
+    double rlo = 1.0 / lo;
+
+    if (x < lo)
+        result *= mask1d(x * rlo);
+    else if (x > hi)
+        result *= mask1d((1.0 - x) * rlo);
+    if (y < lo)
+        result *= mask1d(y * rlo);
+    else if (y > hi)
+        result *= mask1d((1.0 - y) * rlo);
+    if (z < lo)
+        result *= mask1d(z * rlo);
+    else if (z > hi)
+        result *= mask1d((1.0 - z) * rlo);
+
+    return result;
+}
+
 template<typename T, std::size_t NDIM>
 class MyDerivativeOperator : public SCFOperatorBase<T,NDIM> {
     typedef Function<T,NDIM> functionT;
@@ -275,6 +322,7 @@ public:
 
     MyDerivativeOperator(World& world, const int axis1) : world(world), axis(axis1) {}
     void set_ble1() {ble=true;};
+    void set_bspline1() {bsp=true;};
 
     std::string info() const {return "D"+std::to_string(axis);}
 
@@ -286,6 +334,7 @@ public:
     vecfuncT operator()(const vecfuncT& vket) const {
         auto gradop = free_space_derivative<T,NDIM>(world, axis);
         if (ble) gradop.set_ble1();
+        else if (bsp) gradop.set_bspline1();
         vecfuncT dvket=apply(world, gradop, vket, false);
         world.gop.fence();
         return dvket;
@@ -293,7 +342,7 @@ public:
 
     T operator()(const functionT& bra, const functionT& ket) const {
         vecfuncT vbra(1,bra), vket(1,ket);
-        Tensor<T> tmat=this->operator()(vbra,vket);
+        Tensor<T> tmat=this->operator()(vbra,vket); 
         return tmat(0l,0l);
     }
 
@@ -307,6 +356,7 @@ private:
     World& world;
     int axis;
     bool ble=false;
+    bool bsp=false;
 };
 
 
@@ -350,7 +400,11 @@ public:
     }
 
     Spinor& truncate() {
-        madness::truncate(components);
+        double thresh = components[0].thresh();
+        components[0].truncate(thresh,false);
+        components[1].truncate(thresh,false);
+        components[2].truncate(thresh/clight,false);
+	components[3].truncate(thresh/clight);
         return *this;
     }
 
@@ -358,8 +412,15 @@ public:
         auto norms = norm2s(world(), components);
         auto realnorms = norm2s(world(), real(components));
         auto imagnorms = norm2s(world(), imag(components));
+	size_t sizes[4];
+	for (size_t i=0; i<4; i++) sizes[i] = components[i].size();
         print(text,norms);
         print("  -- real,imag",realnorms,imagnorms);
+	print("  -- sizes", sizes);
+	size_t k = components[0].k();
+	for (auto& s : sizes) s /= k*k*k;
+	print("  -- nodes", sizes);
+	
 //        print("  -- moments  ",x1,y1,z1,x2,y2,z2);
 //        plot(text);
     }
@@ -404,14 +465,14 @@ std::vector<Spinor> operator*(const std::vector<Spinor>& arg, const T fac) {
 }
 double_complex inner(const std::vector<Spinor>& bra, const std::vector<Spinor> ket) {
     double_complex result=0.0;
-    for (int i=0; i<bra.size(); ++i) result+=inner(bra[i],ket[i]);
+    for (size_t i=0; i<bra.size(); ++i) result+=inner(bra[i],ket[i]);
     return result;
 }
 
 Tensor<double_complex> matrix_inner(const std::vector<Spinor>& bra, const std::vector<Spinor> ket) {
     Tensor<double_complex> result(bra.size(),ket.size());
-    for (int i=0; i<bra.size(); ++i) {
-        for (int j=0; j<ket.size(); ++j) {
+    for (size_t i=0; i<bra.size(); ++i) {
+        for (size_t j=0; j<ket.size(); ++j) {
             result(i,j)=inner(bra[i],ket[j]);
         }
     }
@@ -419,12 +480,12 @@ Tensor<double_complex> matrix_inner(const std::vector<Spinor>& bra, const std::v
 }
 
 std::vector<Spinor> operator-=(std::vector<Spinor>& left, const std::vector<Spinor>& right) {
-    for (int i=0; i<right.size(); ++i) left[i]-=right[i];
+    for (size_t i=0; i<right.size(); ++i) left[i]-=right[i];
     return left;
 }
 
 std::vector<Spinor> operator+=(std::vector<Spinor>& left, const std::vector<Spinor>& right) {
-    for (int i=0; i<right.size(); ++i) left[i]+=right[i];
+    for (size_t i=0; i<right.size(); ++i) left[i]+=right[i];
     return left;
 }
 
@@ -520,8 +581,8 @@ public:
         double_complex norm1=inner(arg,arg);
         Spinor result;
         for (auto& c : result.components) c=complex_factory_3d(world).compressed();
-        for (int i=0; i<ncol(); ++i) {
-            for (int j=0; j<nrow(); ++j) {
+        for (size_t i=0; i<ncol(); ++i) {
+            for (size_t j=0; j<nrow(); ++j) {
                 const opT& ops=elements[i][j];
                 for (const auto& op : ops) {
                     auto fac=op.first;
@@ -551,16 +612,16 @@ public:
     void add_submatrix(int istart, int jstart, const MatrixOperator& submatrix) {
         if (istart+submatrix.ncol()>ncol()) throw std::runtime_error("submatrix too large: too many columns");
         if (jstart+submatrix.nrow()>nrow()) throw std::runtime_error("submatrix too large: too many rows");
-        for (int i=istart; i<istart+submatrix.ncol(); ++i) {
-            for (int j=jstart; j<jstart+submatrix.nrow(); ++j) {
+        for (size_t i=istart; i<istart+submatrix.ncol(); ++i) {
+            for (size_t j=jstart; j<jstart+submatrix.nrow(); ++j) {
                 for (auto& elem : submatrix.elements[i-istart][j-jstart]) elements[i][j].push_back(elem);
             }
         }
     }
 
     MatrixOperator& operator+=(const MatrixOperator& other) {
-        for (int i=0; i<ncol(); ++i) {
-            for (int j=0; j<nrow(); ++j) {
+        for (size_t i=0; i<ncol(); ++i) {
+            for (size_t j=0; j<nrow(); ++j) {
                 for (auto& elem : other.elements[i][j]) elements[i][j].push_back(elem);
             }
         }
@@ -569,8 +630,8 @@ public:
 
     MatrixOperator operator+(const MatrixOperator& other) const {
         MatrixOperator result;
-        for (int i=0; i<ncol(); ++i) {
-            for (int j=0; j<nrow(); ++j) {
+        for (size_t i=0; i<ncol(); ++i) {
+            for (size_t j=0; j<nrow(); ++j) {
                 for (auto& elem : this->elements[i][j]) result.elements[i][j].push_back(elem);
                 for (auto& elem : other.elements[i][j]) result.elements[i][j].push_back(elem);
             }
@@ -584,8 +645,8 @@ public:
 
     void print(std::string name="") const {
         madness::print(name);
-        for (int i=0; i<ncol(); i++) {
-            for (int j=0; j<nrow(); j++) {
+        for (size_t i=0; i<ncol(); i++) {
+	  for (size_t j=0; j<nrow(); j++) {
                 const opT& ops=elements[i][j];
                 for (auto op : ops) {
                     auto fac=op.first;
@@ -633,10 +694,19 @@ MatrixOperator make_Hdiag(World& world, const LocalPotentialOperator<double_comp
     Hv.add_operator(3,3, 1.0,std::make_shared<LocalPotentialOperator<double_complex,3>>(V1));
     return Hv;
 }
+
+// Potential due to gaussian with exponent
+double potn(double r) {
+  double nr = r*nucexpt;
+  if (nr > 1e-8) return std::erf(nr)/r;
+  else return 2.0*nucexpt/std::sqrt(constants::pi); // to avoid divide by zero at origin
+}
+
 /// this is the nuclear potential on the diagonal
 MatrixOperator make_Hv(World& world, const double nuclear_charge) {
     complex_function_3d V=complex_factory_3d(world)
-            .functor([&nuclear_charge](const coord_3d& r){return double_complex(-nuclear_charge/(r.normf()+1.e-13));});
+      .functor([&nuclear_charge](const coord_3d& r){return double_complex(-nuclear_charge*potn(r.normf()));});
+          //.functor([&nuclear_charge](const coord_3d& r){return double_complex(-nuclear_charge/(r.normf()+1.e-13));});
     auto V1=LocalPotentialOperator<double_complex,3>(world,"V",V);
     return make_Hdiag(world,V1);
 }
@@ -653,9 +723,16 @@ MatrixOperator make_sp(World& world) {
     auto Dx=MyDerivativeOperator<double_complex,3>(world,0);
     auto Dy=MyDerivativeOperator<double_complex,3>(world,1);
     if (use_ble) {
+        MADNESS_CHECK(!use_bsp);
         Dz.set_ble1();
         Dx.set_ble1();
         Dy.set_ble1();
+    }
+    if (use_bsp) {
+        MADNESS_CHECK(!use_ble);
+        Dz.set_bspline1();
+        Dx.set_bspline1();
+        Dy.set_bspline1();
     }
 
     sp.add_operator(0,0,-c*ii,std::make_shared<MyDerivativeOperator<double_complex,3>>(Dz));
@@ -721,7 +798,7 @@ std::vector<Spinor> schrodinger2dirac(const std::vector<complex_function_3d> wf,
     MatrixOperator Rinv=ansatz.Rinv(world);
     std::vector<Spinor> result=Rinv(result1);
 
-    for (int i=0; i<result.size(); ++i) result[i].print_norms("dirac"+std::to_string(i));
+    for (size_t i=0; i<result.size(); ++i) result[i].print_norms("dirac"+std::to_string(i));
     return result;
 }
 
@@ -749,7 +826,7 @@ Tensor<double_complex> get_fock_transformation(World& world, const std::vector<S
 /// zero to take advantage of this.
 std::vector<Spinor>
 transform(World& world, const std::vector<Spinor>& v,
-          const Tensor<double_complex>& c, bool fence=true) {
+          const Tensor<double_complex>& c) {
 
     PROFILE_BLOCK(Vtransformsp);
     int n = v.size();  // n is the old dimension
@@ -757,7 +834,7 @@ transform(World& world, const std::vector<Spinor>& v,
     MADNESS_ASSERT(n==c.dim(0));
 
     std::vector<Spinor> vc(m);
-    for (int i=0; i<vc.size(); ++i) vc[i]=Spinor(world);
+    for (size_t i=0; i<vc.size(); ++i) vc[i]=Spinor(world);
 
     for (int i=0; i<m; ++i) {
         for (int j=0; j<n; ++j) {
@@ -766,7 +843,7 @@ transform(World& world, const std::vector<Spinor>& v,
         }
     }
 
-    if (fence) world.gop.fence();
+    world.gop.fence(); // must always fence here to ensure gaxpy's are complete
     return vc;
 }
 
@@ -775,8 +852,8 @@ std::vector<Spinor> orthonormalize_fock(const std::vector<Spinor>& arg,
                                         Tensor<double_complex>& fock) {
     World& world=arg.front().world();
     Tensor<double_complex> ovlp(arg.size(),arg.size());
-    for (int i=0; i<arg.size(); ++i) {
-        for (int j=i; j<arg.size(); ++j) {
+    for (size_t i=0; i<arg.size(); ++i) {
+        for (size_t j=i; j<arg.size(); ++j) {
             ovlp(i,j)=inner(bra[i],arg[j]);
             ovlp(j,i)=std::conj(ovlp(i,j));
         }
@@ -799,8 +876,8 @@ public:
 
     AnsatzBase(const double Z, const double a) : nuclear_charge(Z), a(a) {}
     int iansatz=0;
-    double a=-1.3;
     double nuclear_charge=0.0;
+    double a=-1.3;
 
     virtual void normalize(Spinor& bra, Spinor& ket) const {
         Metric m;
@@ -821,7 +898,7 @@ public:
     }
 
     virtual void normalize(std::vector<Spinor>& bra, std::vector<Spinor>& ket) const {
-        for (int i=0; i<ket.size(); ++i) normalize(bra[i],ket[i]);
+        for (size_t i=0; i<ket.size(); ++i) normalize(bra[i],ket[i]);
     }
 
 
@@ -916,8 +993,8 @@ public:
 
 MatrixOperator moments(World& world, int axis, int order) {
     MatrixOperator result;
-    int a=axis;
-    int o=order;
+    //int a=axis;
+    //int o=order;
     complex_function_3d m=complex_factory_3d(world)
             .functor([&axis, &order](const coord_3d& r){return double_complex(std::pow(r[axis],double(order)),0.0);});
     auto mm=LocalPotentialOperator<double_complex,3>(world,"moment",m);
@@ -938,7 +1015,7 @@ struct ExactSpinor : public FunctionFunctorInterface<double_complex,3> {
     ExactSpinor(const int n, const char lc, const double j, const int Z, const double m=0.0)
             : ExactSpinor(n, l_char_to_int(lc),j,Z,m) { }
     ExactSpinor(const int n, const int l, const double j, const int Z,const double m=0.0)
-            : n(n), l(l), j(j), Z(Z), m(m) {
+        : n(n), l(l), Z(Z), j(j), m(m) {
         if (std::abs(j-(l+0.5))<1.e-10) k=lround(-j-0.5);       // j = l+1/2
         else k=lround(j+0.5);
 
@@ -961,12 +1038,12 @@ struct ExactSpinor : public FunctionFunctorInterface<double_complex,3> {
     }
 
     void set_ansatz(const AnsatzBase& ansatz) {
-        compute_F =  (ansatz.iansatz==3) ? true  : false;
+        compute_F = (ansatz.iansatz == 3);
         cusp_a=ansatz.get_cusp_a();
-        regularized= (ansatz.iansatz==0) ? false : true;
+        regularized= !(ansatz.iansatz == 0);
     }
 
-    int l_char_to_int(const char lc) const {
+    static int l_char_to_int(const char lc) {
         int ll=0;
         if (lc=='S') ll=0;
         else if (lc=='P') ll=1;
@@ -1086,7 +1163,7 @@ struct ExactSpinor : public FunctionFunctorInterface<double_complex,3> {
         double g=radial * (Z/c*rho* Lnk1 + (gamma - k)*En * Lnk);
         double f=radial * ((gamma-k)*rho*Lnk1 + Z/c*En * Lnk);
 //        double f=Z*alpha1*radial;
-        double sgnk= (k>0) ? 1.0 : -1.0;
+        //double sgnk= (k>0) ? 1.0 : -1.0;
 
 //        return angular(coord,g,f);
 //        if (component==0) {
@@ -1171,7 +1248,7 @@ void orthonormalize(std::vector<Spinor>& arg, const AnsatzT ansatz) {
         for (int i=0; i<Q.dim(0); ++i)
             for (int j=0; j<i; ++j)
                 maxq = std::max(maxq,std::abs(Q(i,j)));
-        arg = transform(world, arg, Q, true);
+        arg = transform(world, arg, Q);
         truncate(arg);
     } while (maxq>0.01);
 
@@ -1192,17 +1269,28 @@ Spinor apply_bsh(ansatzT& ansatz, const MatrixOperator& Hd, const MatrixOperator
 
     auto bra=ansatz.make_bra(spinor);
     if (debug) show_norms(bra,spinor,"spinor before vpsi");
-    auto vpsi=-2.0*Hv(spinor).truncate();
+    auto vpsi=-2.0*Hv(spinor);
+
+    vpsi.components[2] *= clight; // Scale small components so that integral operator maintains precision
+    vpsi.components[3] *= clight;
+
+    vpsi.truncate();
     if (debug) show_norms(bra,vpsi,"norms of vpsi");
     if (debug) show_norms(ansatz.make_bra(vpsi),vpsi,"<vpsi | vpsi>");
     t.tag("Vpsi");
 
     auto g=BSHOperator<3>(world,mu,lo,FunctionDefaults<3>::get_thresh());
-
     auto gvpsi1=apply(world,g,vpsi.components);
+    gvpsi1 = truncate(gvpsi1); /// Truncate before undoing scaling
+    
+    vpsi.components[2] *= 1.0/clight; // Undo scaling
+    vpsi.components[3] *= 1.0/clight;
+    gvpsi1[2] *= 1.0/clight;
+    gvpsi1[3] *= 1.0/clight;
     t.tag("GVpsi");
 
-    auto gvpsi=Spinor(truncate(gvpsi1));
+    auto gvpsi=Spinor(gvpsi1);
+    
     if (debug) show_norms(ansatz.make_bra(gvpsi),gvpsi,"|| gvpsi ||");
 
     auto result1=Hd(gvpsi);
@@ -1218,6 +1306,14 @@ Spinor apply_bsh(ansatzT& ansatz, const MatrixOperator& Hd, const MatrixOperator
     return result.truncate();
 }
 
+void apply_mask(std::vector<Spinor>& v) {
+  for (auto& s : v) {
+    for (auto& f : s.components) {
+      f = f*mask;
+    }
+  }
+}
+
 template<typename AnsatzT>
 std::vector<Spinor> iterate(const std::vector<Spinor>& input, const std::vector<double> energy, const AnsatzT& ansatz, const int maxiter) {
 
@@ -1225,7 +1321,7 @@ std::vector<Spinor> iterate(const std::vector<Spinor>& input, const std::vector<
     World& world=input.front().world();
     spinorallocator alloc(world,input.size());
     XNonlinearSolver<std::vector<Spinor>,double_complex,spinorallocator> solver(alloc);
-    solver.set_maxsub(3);
+    solver.set_maxsub(5); // was 3
     solver.do_print=true;
 
     auto Hv=ansatz.make_Hv(world);
@@ -1235,28 +1331,41 @@ std::vector<Spinor> iterate(const std::vector<Spinor>& input, const std::vector<
     std::vector<Spinor> current=copy(input);
     orthonormalize(current,ansatz);
     for (int iter=0; iter<maxiter; ++iter) {
-        if (iter<3) solver.clear_subspace();    // start KAIN after 3 iterations only
+        if (iter<2) solver.clear_subspace();    // start KAIN after 1st iteration since initial guess might be not very smooth
         double wall0=wall_time();
 
         print_header3("Iteration "+std::to_string(iter));
         orthonormalize(current,ansatz);
         std::vector<Spinor> newpsi;
         for (auto& n : current) n.print_norms("norm of current spinor");
-        for (int i=0; i<current.size(); ++i) newpsi.push_back(apply_bsh(ansatz,Hd,Hv,metric,current[i],energy[i]));
+        for (size_t i=0; i<current.size(); ++i) newpsi.push_back(apply_bsh(ansatz,Hd,Hv,metric,current[i],energy[i]));
         for (auto& n : newpsi) n.print_norms("norm of updated spinor");
         auto residual=truncate(current-newpsi);
         double res=0.0;
         for (const auto& r : residual) res+=norm2(world,r.components);
         newpsi=truncate(solver.update(current,residual,1.e-4,3));
+	apply_mask(newpsi);
         orthonormalize(newpsi,ansatz);
-        auto bra=ansatz.make_vbra(newpsi);
-        Tensor<double_complex> fock=matrix_inner(bra,H(newpsi));
+	auto bra=ansatz.make_vbra(newpsi);
+        Tensor<double_complex> fock;
+	{
+	  auto Hpsi = H(newpsi);
+	  auto Hvpsi = Hv(newpsi);
+	  fock =matrix_inner(bra,Hpsi);
+	
+	  Vector<double,3> lo = {0.0, 0.0, 0.0};
+	  Vector<double,3> hi = {0.0, 0.0, 0.5*FunctionDefaults<3>::get_cell()(2,1)};
+	  Hpsi[0].components.insert(Hpsi[0].components.end(), Hvpsi[0].components.begin(), Hvpsi[0].components.end());
+	  Hpsi[0].components.insert(Hpsi[0].components.end(), newpsi[0].components.begin(), newpsi[0].components.end());
+	  plot_line("Hpsi.dat", 10001, lo, hi, Hpsi[0].components);
+	}
+	
         fock+=conj_transpose(fock);
         fock*=0.5;
         newpsi=truncate(orthonormalize_fock(newpsi,bra,fock));
         bra=ansatz.make_vbra(newpsi);
         std::vector<double> energy_differences;
-        for (int i=0; i<current.size(); ++i) {
+        for (size_t i=0; i<current.size(); ++i) {
 //            newpsi[i].plot("psi"+std::to_string(i)+"_iteration"+std::to_string(iter)+"_ansatz"+ansatz.filename());
             double en=real(inner(bra[i],H(newpsi[i])));
 //            show_norms(bra,H(newpsi),"energy contributions");
@@ -1278,11 +1387,14 @@ std::vector<Spinor> iterate(const std::vector<Spinor>& input, const std::vector<
 template<typename ansatzT>
 void run(World& world, ansatzT ansatz, const int nuclear_charge, const commandlineparser& parser, const int nstates) {
 
-    double thresh=FunctionDefaults<3>::get_thresh();
-    long tmode=FunctionDefaults<3>::get_truncate_mode();
+  //double thresh=FunctionDefaults<3>::get_thresh();
+  //long tmode=FunctionDefaults<3>::get_truncate_mode();
 //    Nemo nemo(world,parser);
 //    if (world.rank()==0) nemo.get_param().print("dft","end");
 
+    mask = real_factory_3d(world).f(&mask3d);
+    mask.truncate();
+    mask.reconstruct();
 
     std::vector<Spinor> guesses;
     std::vector<double> energies;
@@ -1323,21 +1435,20 @@ void run(World& world, ansatzT ansatz, const int nuclear_charge, const commandli
         guess= schrodinger2dirac(wf,ansatz,nuclear_charge);
     } else {
         print("\nUsing exact spinor guess\n");
-        for (int i=0; i<nstates; ++i) {
-            states[i].set_ansatz(ansatz);
-            guess.push_back(states[i].get_spinor(world));
-            states[i].print();
+        for (auto& state: states) {
+            state.set_ansatz(ansatz);
+            guess.push_back(state.get_spinor(world));
+            state.print();
             guess.back().print_norms("guess");
 
         }
     }
+    apply_mask(guess);
     orthonormalize(guess,ansatz);
     auto bra=ansatz.make_vbra(guess);
     Tensor<double_complex> S=matrix_inner(bra,guess);
     print("initial overlap after  orthonormalization");
     print(S);
-
-
 
 
 //    for (ExactSpinor& state : states) {
@@ -1353,11 +1464,11 @@ void run(World& world, ansatzT ansatz, const int nuclear_charge, const commandli
     }
 
 
-    const double alpha=constants::fine_structure_constant;
-    const double c=1.0/alpha;
-    const double gamma= compute_gamma(nuclear_charge);
-    double electronic_energy=gamma*c*c - c*c;
-    double energy=ansatz.energy();
+    //const double alpha=constants::fine_structure_constant;
+    //const double c=1.0/alpha;
+    //const double gamma= compute_gamma(nuclear_charge);
+    //double electronic_energy=gamma*c*c - c*c;
+    //double energy=ansatz.energy();
 
     auto Hv=ansatz.make_Hv(world);
     auto Hd=ansatz.make_Hd(world);
@@ -1452,13 +1563,17 @@ int main(int argc, char* argv[]) {
     int tmode=1;
     if (parser.key_exists("k")) FunctionDefaults<3>::set_k(atoi(parser.value("k").c_str()));
     if (parser.key_exists("thresh")) FunctionDefaults<3>::set_thresh(atof(parser.value("thresh").c_str()));
-    if (parser.key_exists("L")) FunctionDefaults<3>::set_cubic_cell(atof(parser.value("L").c_str()),atof(parser.value("L").c_str()));
+    if (parser.key_exists("L")) FunctionDefaults<3>::set_cubic_cell(-atof(parser.value("L").c_str()),atof(parser.value("L").c_str()));
     if (parser.key_exists("truncate_mode")) tmode=atoi(parser.value("truncate_mode").c_str());
     FunctionDefaults<3>::set_truncate_mode(tmode);
 
     DiracParameters parameters(world,parser);
     parameters.print("dirac");
     use_ble=parameters.use_ble();
+    use_bsp=parameters.use_bsp();
+    nucrad=parameters.nucrad();
+    nucexpt=3.0/nucrad;
+    print("square root of nuclear exponent", nucexpt);
     lo=parameters.lo();
 
     print("\nCalculation parameters");
@@ -1473,7 +1588,7 @@ int main(int argc, char* argv[]) {
     const double gamma= compute_gamma(parameters.charge());
     print("speed of light",c);
     print("fine structure constant",alpha);
-    const int k=1;
+    //const int k=1;
     print("gamma",gamma);
     double energy_exact=gamma*c*c - c*c;
     print("1s energy for Z=",parameters.charge(),": ",energy_exact);

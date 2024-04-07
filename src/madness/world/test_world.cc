@@ -1130,7 +1130,7 @@ void test13(World& world) {
     fout & 1.0 & "hello";
     fout.close();
 
-    double v;
+    double v=0.0;
     char s[6];
     archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> fin(world, "fred");
     fin & v & s;

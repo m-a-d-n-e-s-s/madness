@@ -176,7 +176,7 @@ int main(int argc, char** argv) {
 
     for (int iter=0; iter<100; iter++) {
       char filename[256];
-      sprintf(filename, "phi-%3.3d.dat", iter);
+      snprintf(filename, 256, "phi-%3.3d.dat", iter);
       plot(filename,phi);
 
       real_function_3d Vphi = V*phi;
