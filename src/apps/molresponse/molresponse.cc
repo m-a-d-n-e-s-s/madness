@@ -72,9 +72,9 @@ int main(int argc, char **argv) {
     commandlineparser parser(argc, argv);
 
     if (parser.key_exists("help")) {
-        ExcitedResponse::help();
+        FrequencyResponse::help();
     } else if (parser.key_exists("print_parameters")) {
-        ExcitedResponse::print_parameters();
+        FrequencyResponse::print_parameters();
     } else {
 
         molresponse::start_timer(world);
