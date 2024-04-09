@@ -1,0 +1,5 @@
+geometry
+eprec 1e-6
+units angstrom
+Ne                    0.000000000000     0.000000000000     0.000000000000
+end
