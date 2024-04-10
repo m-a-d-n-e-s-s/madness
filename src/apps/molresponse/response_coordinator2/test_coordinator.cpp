@@ -12,6 +12,7 @@
 #include "response_functions.h"
 #include "string"
 #include "x_space.h"
+#include <filesystem>
 
 
 using path = std::filesystem::path;
@@ -40,36 +41,31 @@ TEST_CASE("Hash Generation Test") {
     // step 1 is to read molecule from molecule file or
     // to read in the molecule directory from geometry input
     Molecule molecule = Molecule();
-    molecule.read(world, "molecule.in");
+    path json_input_path("resources/inputs/input.json");
+    print("Full path to json input file: ", json_input_path.string());
 
-    std::string filename = "response.in";
 
-    commandlineparser parser(argc, argv);
+    path molecule_path("resources/molecules/Be.mol");
+    // print full path
+    print("Full path to molecule file: ", molecule_path.string());
 
-    if (parser.key_exists("help")) {
-        FrequencyResponse::help();
-    } else if (parser.key_exists("print_parameters")) {
-        FrequencyResponse::print_parameters();
+
+
+    std::ifstream molecule_stream(molecule_path);
+
+    if (!molecule_stream.is_open()) {
+        throw std::runtime_error("Could not open molecule file");
     } else {
-        molresponse::start_timer(world);
-
+        molecule.read(molecule_stream);
+        molecule_stream.close();
     }
 
+    print("Molecule read from file: ");
+    molecule.print();
+    // Read in json
 
-
-    const std::string molecule_name{argv[1]};
-    const std::string xc{argv[2]};
-    const std::string op{argv[3]};
-    const std::string precision{argv[4]};
-    const std::string static_calc{argv[5]};
-    if (precision != "high" && precision != "low" && precision != "super") {
-        if (world.rank() == 0) { std::cout << "Set precision to low high super" << std::endl; }
-        return 1;
-    }
-    auto schema = runSchema(world, xc);
-
-    // read in
-
-
+    std::ifstream input_stream(json_input_path);
+    json input_json = json::parse(input_stream);
+    print("Input json read from file: ");
+    print(input_json.dump(4));
 }
-
