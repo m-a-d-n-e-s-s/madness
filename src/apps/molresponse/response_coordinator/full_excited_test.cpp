@@ -45,7 +45,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    auto schema = runSchema(world, xc);
+    auto schema = ResponseCalcManager(world, xc);
 
     try {
         if (std::filesystem::is_directory(schema.molecules)) {

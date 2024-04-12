@@ -49,7 +49,7 @@ auto main(int argc, char *argv[]) -> int {
                 if (world.rank() == 0) { std::cout << "Set precision to low high super" << std::endl; }
                 return 1;
             }
-            auto schema = runSchema(world, xc);
+            auto schema = ResponseCalcManager(world, xc);
             auto m_schema = moldftSchema(world, molecule_name, xc, schema);
             auto f_schema = frequencySchema(world, schema, m_schema, op, static_calc == "true");
             write_VTK_outputs(world, f_schema, precision);

@@ -47,7 +47,7 @@ auto main(int argc, char *argv[]) -> int {
             const std::string static_calc{argv[5]};
 
 
-            auto schema = runSchema(world, xc);
+            auto schema = ResponseCalcManager(world, xc);
             auto m_schema = moldftSchema(world, molecule_name, xc, schema);
 
 
