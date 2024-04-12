@@ -1,6 +1,7 @@
 //
 // Created by adrianhurtado on 1/1/22.
 //
+#include "CalculationParameters.h"
 #define CATCH_CONFIG_RUNNER
 
 #include "ExcitedResponse.hpp"
@@ -31,6 +32,7 @@ int main(int argc, char *argv[]) {
     // print_stats(world);
 }
 
+
 TEST_CASE("Hash Generation Test") {
     // Set up the run directories
     using namespace madness;
@@ -38,19 +40,12 @@ TEST_CASE("Hash Generation Test") {
     World &world = World::get_default();
     std::cout.precision(6);
 
-    // step 1 is to read molecule from molecule file or
-    // to read in the molecule directory from geometry input
     Molecule molecule = Molecule();
     path json_input_path("resources/inputs/input.json");
     print("Full path to json input file: ", json_input_path.string());
-
-
-    path molecule_path("resources/molecules/Be.mol");
+    path molecule_path("resources/molecules/H2O.mol");
     // print full path
     print("Full path to molecule file: ", molecule_path.string());
-
-
-
     std::ifstream molecule_stream(molecule_path);
 
     if (!molecule_stream.is_open()) {
@@ -68,4 +63,24 @@ TEST_CASE("Hash Generation Test") {
     json input_json = json::parse(input_stream);
     print("Input json read from file: ");
     print(input_json.dump(4));
+
+    json moldft_json = input_json["moldft"];
+    json molresponse_json = input_json["molresponse"];
+    commandlineparser parser;
+
+    CalculationParameters moldft_params;
+    moldft_params.from_json(moldft_json);
+    moldft_params.print();
+
+
+    auto schema = runSchema(world, molecule, moldft_params);
+    schema.print();
+    auto moldft_schema = moldftSchema(world, schema);
+
+
+    if (world.rank() == 0) print("input filename: ", parser.value("input"));
+
+
+    // The json is converted into a temporary getKW file which is then read by the parser.
+    // Now we need to write a function
 }
