@@ -10,7 +10,9 @@
 #include<madness/mra/vmra.h>
 #include<madness/world/timing_utilities.h>
 #include<madness/chem/electronic_correlation_factor.h>
+#include<madness/chem/IntegratorXX.h>
 #include <random>
+
 
 
 namespace madness {
@@ -27,7 +29,7 @@ namespace madness {
             initialize<std::string>("f12type","Slater","correlation factor",{"Slater","SlaterF12"});
             initialize<std::string>("orthomethod","cholesky","orthonormalization",{"cholesky","canonical","symmetric"});
             initialize<std::string>("transpose","slater2","transpose of the matrix",{"slater1","slater2"});
-            initialize<std::string>("gridtype","random","the grid type",{"random","cartesian","spherical"});
+            initialize<std::string>("gridtype","random","the grid type",{"random","cartesian","dftgrid"});
             initialize<std::string>("rhsfunctiontype","exponential","the type of function",{"exponential"});
             initialize<int>("optimize",1,"number of optimization iterations");
         }
@@ -53,6 +55,7 @@ namespace madness {
         double get_volume_element() const {return volume_element;}
         double get_radius() const {return radius;}
 
+        virtual ~gridbase() = default;
         // visualize the grid in xyz format
         template<std::size_t NDIM>
         void visualize(const std::string filename, const std::vector<Vector<double,NDIM>>& grid) const {
@@ -72,6 +75,45 @@ namespace madness {
         double volume_element=0.1;
         double radius=3;
         bool do_print=false;
+    };
+
+    template<std::size_t NDIM>
+    class dftgrid : public gridbase {
+    public:
+        GridBuilder builder;
+        explicit dftgrid(const double volume_element, const double radius) {
+            // increase number of radial grid points until the volume element is below the threshold
+            double current_ve=1.0;
+            std::size_t nradial=10;
+            while (current_ve>volume_element) {
+                nradial+=10;
+                print("trying nradial",nradial);
+                GridBuilder tmp;
+                tmp.set_angular_order(7);
+                tmp.set_nradial(nradial);
+                tmp.make_grid();
+                double volume=4./3. *M_PI * std::pow(radius,3.0);
+                auto npoints=tmp.get_points().size();
+                current_ve=volume/npoints;
+                print("volume, npoints, volume element",volume,npoints,current_ve);
+            }
+            builder.set_nradial(nradial);
+            builder.set_angular_order(7);
+        }
+
+
+        explicit dftgrid(const std::size_t nradial, const std::size_t angular_order, const coord_3d origin=coord_3d()) {
+            static_assert(NDIM==3,"DFT Grids only defined for NDIM=3");
+            builder.set_nradial(nradial);
+            builder.set_angular_order(angular_order);
+            builder.set_origin(origin);
+            builder.make_grid();
+        }
+
+        std::vector<Vector<double,NDIM>> get_grid() const {
+            return builder.get_points();
+        }
+
     };
 
     /// grid with random points around the origin, with a Gaussian distribution
@@ -227,27 +269,61 @@ namespace madness {
     class molecular_grid : public gridbase {
 
     public:
-        /// ctor takes molecule and grid
-        molecular_grid(const std::vector<Vector<double,NDIM>> origins, randomgrid<NDIM> grid) {
-            for (const auto& coords : origins) {
-                atomicgrid.push_back(randomgrid(grid.get_volume_element(),grid.get_radius(),coords));
+        /// ctor takes centers of the grid and the grid parameters
+        molecular_grid(const std::vector<Vector<double,NDIM>> origins, const LowRankFunctionParameters& params)
+            : centers(origins) {
+            if (centers.size()==0) centers.push_back({0,0,0});
+            if (params.gridtype()=="random") grid_builder=std::make_shared<randomgrid<NDIM>>(params.volume_element(),params.radius());
+            // else if (params.gridtype()=="cartesian") grid_builder=std::make_shared<cartesian_grid<NDIM>>(params.volume_element(),params.radius());
+            else if (params.gridtype()=="dftgrid") {
+                if constexpr (NDIM==3) {
+                    grid_builder=std::make_shared<dftgrid<NDIM>>(params.volume_element(),params.radius());
+                } else {
+                    MADNESS_EXCEPTION("no dft grid with NDIM != 3",1);
+                }
+            } else {
+                MADNESS_EXCEPTION("no such grid type",1);
             }
         }
 
-        molecular_grid(const Molecule& molecule, randomgrid<NDIM> grid) : molecular_grid(molecule.get_all_coords_vec(),grid) {}
+
+        /// ctor takes centers of the grid and the grid builder
+        molecular_grid(const std::vector<Vector<double,NDIM>> origins, std::shared_ptr<gridbase> grid)
+            : centers(origins), grid_builder(grid) {
+            if (centers.size()==0) centers.push_back({0,0,0});
+        }
+
+        /// ctor takes molecule and grid builder
+        molecular_grid(const Molecule& molecule, std::shared_ptr<gridbase> grid) : molecular_grid(molecule.get_all_coords_vec(),grid) {}
 
         std::vector<Vector<double,NDIM>> get_grid() const {
+            MADNESS_CHECK_THROW(grid_builder,"no grid builder given in molecular_grid");
+            MADNESS_CHECK_THROW(centers.size()>0,"no centers given in molecular_grid");
             std::vector<Vector<double,NDIM>> grid;
-            for (const auto& atomic : atomicgrid) {
-                print("atom sites",atomic.get_origin());
-                auto atomgrid=atomic.get_grid();
-                grid.insert(grid.end(),atomgrid.begin(),atomgrid.end());
+            for (const auto& coords : centers) {
+                print("atom sites",coords);
+                if (auto builder=dynamic_cast<dftgrid<NDIM>*>(grid_builder.get())) {
+                    if constexpr (NDIM==3) {
+                        dftgrid<NDIM> b1(builder->builder.get_nradial(),builder->builder.get_angular_order(),coords);
+                        auto atomgrid=b1.get_grid();
+                        grid.insert(grid.end(),atomgrid.begin(),atomgrid.end());
+                    } else {
+                        MADNESS_EXCEPTION("no DFT grid for NDIM /= 3",1);
+                    }
+                } else if (auto builder=dynamic_cast<randomgrid<NDIM>*>(grid_builder.get())) {
+                    randomgrid<NDIM> b1(builder->get_volume_element(),builder->get_radius(),coords);
+                    auto atomgrid=b1.get_grid();
+                    grid.insert(grid.end(),atomgrid.begin(),atomgrid.end());
+                } else {
+                    MADNESS_EXCEPTION("no such grid builder",1);
+                }
             }
             return grid;
         }
 
     private:
-        std::vector<randomgrid<NDIM>> atomicgrid;
+        std::vector<Vector<double,NDIM>> centers;
+        std::shared_ptr<gridbase> grid_builder;
 
     };
 
@@ -1001,14 +1077,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             auto rank_revealing_tol=parameters.tol();
 
             // get sampling grid
-            std::vector<Vector<double,LDIM>> grid;
-            randomgrid<LDIM> rgrid(parameters.volume_element(),parameters.radius());
-            if (origins.size()>0) {
-                molecular_grid<LDIM> mgrid(origins,rgrid);
-                grid=mgrid.get_grid();
-            } else {
-                grid=rgrid.get_grid();
-            }
+            molecular_grid<LDIM> mgrid(origins,parameters);
+            auto grid=mgrid.get_grid();
             if (world.rank()==0) print("grid size",grid.size());
 
             auto Y=Yformer(lrfunctor,grid,parameters.rhsfunctiontype());

@@ -24,6 +24,7 @@ set(MADCHEM_HEADERS
     gaussian.h
     gth_pseudopotential.h
     GuessFactory.h
+    IntegratorXX.h
     localizer.h
     lowrankfunction.h
     masks_and_boxes.h
@@ -123,6 +124,11 @@ add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "madness/chem/")
     target_link_libraries(${targetname} PUBLIC ${PCM_LIBRARIES})
   endif ()
 
+  if (INTEGRATORXX_FOUND)
+    target_include_directories(${targetname} PUBLIC ${INTEGRATORXX_INCLUDE_DIRS})
+    target_link_libraries(${targetname} PUBLIC ${INTEGRATORXX_LIBRARIES})
+  endif ()
+
   if (BOOST_FOUND)
     target_include_directories(${targetname} PUBLIC ${BOOST_INCLUDE_DIRS})
     target_link_libraries(${targetname} PUBLIC ${BOOST_LIBRARIES})
@@ -150,7 +156,10 @@ if(BUILD_TESTING)
     list(APPEND CHEM_TEST_SOURCES_SHORT test_dft.cc )
     list(APPEND CHEM_TEST_SOURCES_LONG test_SCFOperators.cc)
   endif(LIBXC_FOUND)
-  
+  if (INTEGRATORXX_FOUND)
+    list(APPEND CHEM_TEST_SOURCES_SHORT test_IntegratorXX.cc )
+  endif(INTEGRATORXX_FOUND)
+
   add_unittests(chem "${CHEM_TEST_SOURCES_SHORT}" "MADchem;MADgtest" "unittests;short")
   add_unittests(chem "${CHEM_TEST_SOURCES_LONG}" "MADchem;MADgtest" "unittests;long")
 

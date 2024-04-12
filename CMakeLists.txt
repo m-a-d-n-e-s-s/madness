@@ -114,6 +114,7 @@ option(ENABLE_LIBUNWIND
 option(ENABLE_PAPI "Enables use of PAPI" OFF)
 option(ENABLE_LIBXC "Enables use of the libxc library of density functionals" ON)
 option(ENABLE_PCM "Enables use of the polarizable continuum model library" ON)
+option(ENABLE_INTEGRATORXX "Enables use of the IntegratorXX for building DFT quadrature grids" ON)
 
 set(CMAKE_REQUIRED_LIBRARIES ${LAPACK_LIBRARIES})
 check_cxx_source_compiles(
@@ -670,6 +671,7 @@ if (NOT MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_LIBRARIES_ONLY)
   include(external/lapack.cmake)
   include(external/libxc.cmake)
   include(external/pcm.cmake)
+  include(external/integratorxx.cmake)
 endif ()
 
 if (DEFINED ELEMENTAL_TAG)

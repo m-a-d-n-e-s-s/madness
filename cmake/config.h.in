@@ -58,6 +58,7 @@
 #cmakedefine HAVE_PAPI 1
 #cmakedefine MADNESS_HAS_PCM 1
 #cmakedefine MADNESS_HAS_LIBXC 1
+#cmakedefine MADNESS_HAS_INTEGRATORXX 1
 #cmakedefine MADNESS_HAS_BOOST 1
 #cmakedefine MADNESS_HAS_ELEMENTAL 1
 #cmakedefine MADNESS_HAS_ELEMENTAL_EMBEDDED 1

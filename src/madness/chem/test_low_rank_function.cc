@@ -723,9 +723,8 @@ int test_molecular_grid(World& world, LowRankFunctionParameters parameters) {
         atomic_sites.back()[1]=-4.0;
     }
 
-    randomgrid<LDIM> rgrid(parameters.volume_element(), parameters.radius());
-//    randomgrid<LDIM> rgrid(parameters.volume_element(), 1.0);
-    molecular_grid<LDIM> mgrid(atomic_sites,rgrid);
+    parameters.print("grid parameters in test_molecular_grid");
+    molecular_grid<LDIM> mgrid(atomic_sites,parameters);
     auto grid=mgrid.get_grid();
     mgrid.visualize("grid",grid);
 
@@ -764,7 +763,7 @@ int test_molecular_grid(World& world, LowRankFunctionParameters parameters) {
         MADNESS_CHECK(&(lrf.g[0]) != &(lrf2.g[0]));  // deep copy
         t1.checkpoint(error, tol, "l2 error in copy ctor");
 
-        lrf.optimize(lrfunctor);
+        lrf.optimize(lrfunctor,parameters.optimize());
         error = lrf.l2error(lrfunctor);
         print("l2 error optimize", error);
         t1.checkpoint(error, tol, "l2 error in optimization");
@@ -836,6 +835,12 @@ int main(int argc, char **argv) {
     int isuccess=0;
 #ifdef USE_GENTENSOR
 
+    // parameters.set_user_defined_value("volume_element",3.e-1);
+    // parameters.set_user_defined_value("gridtype",std::string("random"));
+    // isuccess+=test_molecular_grid<3>(world,parameters);
+    // parameters.set_user_defined_value("gridtype",std::string("dftgrid"));
+    // isuccess+=test_molecular_grid<3>(world,parameters);
+    // parameters.set_user_defined_value("gridtype",std::string("random"));
 
     try {
 
