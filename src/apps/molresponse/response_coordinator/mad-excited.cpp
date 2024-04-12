@@ -50,7 +50,7 @@ auto main(int argc, char *argv[]) -> int {
     }
 
 
-    auto schema = runSchema(world, xc);
+    auto schema = ResponseCalcManager(world, xc);
     auto mol_path = addPath(schema.molecules, molecule_name);
 
     try {

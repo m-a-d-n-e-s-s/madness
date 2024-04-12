@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
     startup(world, argc, argv);
     std::cout.precision(6);
 
-    auto schema = runSchema(world, xc);
+    auto schema = ResponseCalcManager(world, xc);
 
     try {
         if (std::filesystem::is_directory(schema.molecules)) {

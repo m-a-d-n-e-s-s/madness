@@ -49,7 +49,7 @@ auto main(int argc, char *argv[]) -> int {
                 if (world.rank() == 0) { std::cout << "Set precision to low high super" << std::endl; }
                 return 1;
             }
-            auto schema = runSchema(world, xc);
+            auto schema = ResponseCalcManager(world, xc, <#initializer#>, <#initializer#>);
             auto m_schema = moldftSchema(world, molecule_name, xc, schema);
             auto f_schema = frequencySchema(world, schema, m_schema, op, static_calc == "true");
             if (std::filesystem::exists(m_schema.calc_info_json_path) &&
