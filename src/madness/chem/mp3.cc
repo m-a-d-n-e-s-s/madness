@@ -687,6 +687,7 @@ double MP3::compute_mp3_ef(World& world,
     std::vector<permutation> all_tau_permutations;
     std::vector<CCPairFunction<double,6>> tmp_tau;
 
+    long counter=0;
     // loop over all k and l
     for (std::size_t k=nfrozen; k<nocc; ++k) {
         for (std::size_t l=nfrozen; l<nocc; ++l) {
@@ -710,6 +711,9 @@ double MP3::compute_mp3_ef(World& world,
             double g_ikjl=inner(bra_i*ket_k, (*g12)(bra_j*ket_l));
             double g_jkil=inner(bra_j*ket_k, (*g12)(bra_l*ket_i));
             tmp_tau+=weight*(2.0* g_ikjl - g_jkil)*pair_square(k,l);
+
+            // save some memory
+            if (counter%10) tmp_tau=consolidate(tmp_tau,{"remove_lindep"});
         }
     }
     tmp_tau=consolidate(tmp_tau,{"remove_lindep"});

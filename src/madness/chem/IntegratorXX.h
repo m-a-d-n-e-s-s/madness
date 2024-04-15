@@ -9,7 +9,10 @@
 #include<madness/world/vector.h>
 
 #ifdef MADNESS_HAS_INTEGRATORXX
+#ifndef INTEGRATORXX_INCLUDED
+#define INTEGRATORXX_INCLUDED
 #include <integratorxx/generators/impl/impl.hpp>
+#endif
 #endif
 
 
