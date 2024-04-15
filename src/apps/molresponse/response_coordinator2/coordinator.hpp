@@ -72,9 +72,8 @@ struct ResponseCalcManager {
     explicit ResponseCalcManager(World &world, const path &molecule_path, const CalculationParameters &moldft_params,
                                  const ResponseParameters &response_params) : moldft_params(moldft_params),
                                                                               response_params(response_params) {
-
         xc = moldft_params.xc();
-        op = response_params.property();
+        op = "dipole";
         freq = response_params.freq_range();
 
         root = std::filesystem::current_path();//="/"+molecule_name;
@@ -102,7 +101,6 @@ struct ResponseCalcManager {
         params_json["moldft"] = moldft_params.to_json();
         params_json["response"] = response_params.to_json();
 
-
         // hash based on the parameters and create directories
         auto param_hash = std::hash<json>{}(params_json);
         auto param_dir = "params_" + std::to_string(param_hash);
@@ -119,7 +117,7 @@ struct ResponseCalcManager {
         // Write the parameters to the json file
         param_json_path = param_path / path("params.json");
         if (world.rank() == 0) {
-            ::print("Writing param json to: ", param_path);
+            ::print("Writing param json to: ", param_json_path);
             std::ofstream ofs(param_json_path);
             ofs << std::setw(4) << params_json;
             ofs.close();
@@ -130,18 +128,18 @@ struct ResponseCalcManager {
         auto moldft_dir = "moldft_" + std::to_string(molecule_hash);
         moldft_path = param_path / path(moldft_dir);
 
-        if (std::filesystem::is_directory(moldft_dir)) {
+        if (std::filesystem::is_directory(moldft_path)) {
             cout << "moldft directory found"
                  << "\n";
         } else {// create the file
             cout << "Creating moldft directory"
                  << "\n";
-            std::filesystem::create_directory(moldft_dir);
+            std::filesystem::create_directory(moldft_path);
         }
         // Write the molecule and params
         moldft_json["molecule"] = molecule_json;
-        moldft_json_path = moldft_dir / path("moldft.json");
-        moldft_path = root / path(moldft_dir);
+        moldft_json_path = moldft_path / path("moldft.json");
+
         if (world.rank() == 0) {
             ::print("Writing moldft json to: ", moldft_json_path);
             std::ofstream ofs(moldft_json_path);
