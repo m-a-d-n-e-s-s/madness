@@ -98,8 +98,8 @@ struct ResponseCalcManager {
         molresponse_json["molecule"] = molecule.to_json();
 
         params_json = {};
-        params_json["moldft"] = moldft_params.to_json();
-        params_json["response"] = response_params.to_json();
+        params_json["moldft"] = moldft_params.to_json_if_precedence("defined");
+        params_json["response"] = response_params.to_json_if_precedence("defined");
 
         // hash based on the parameters and create directories
         auto param_hash = std::hash<json>{}(params_json);
