@@ -436,7 +436,6 @@ namespace madness {
 
         json to_json_if_precedence(const std::string &precedence) const {
             json j_params = {};
-            // TODO Is there a way to the get member for every parameter even though get is a template function?
             for (auto &p: parameters) {
                 auto param_type = p.second.get_type();
                 if (p.second.print_precedence() == precedence) {
