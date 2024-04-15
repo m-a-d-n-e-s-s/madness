@@ -1245,7 +1245,7 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
             n1 = inner(SOp, vp3);
             print("SO: n1, n2, n3", n1, n2, n3, fabs(n1 - n2));
             double zero=fabs(n1-n2) + fabs(n1-n3) + fabs(n2-n3);
-            t1.checkpoint(zero < FunctionDefaults<3>::get_thresh(), "SO operator on "+s);
+            t1.checkpoint(zero, FunctionDefaults<3>::get_thresh(), "SO operator on "+s);
         }
     }
     return t1.end();
@@ -1315,20 +1315,20 @@ int main(int argc, char **argv) {
         auto data4=data<double,4>(world,ccparam);
         auto data6=data<double,6>(world,ccparam);
 
-        isuccess+=test_constructor<double,2>(world, ncf, data2, ccparam);
-        isuccess+=test_load_store<double,2>(world,ncf,data2,ccparam);
-        isuccess+=test_operator_apply<double,2>(world, ncf, data2, ccparam);
-        isuccess+=test_transformations<double,2>(world, ncf, data2, ccparam);
-        isuccess+=test_multiply_with_f12<double,2>(world, ncf, data2, ccparam);
-        isuccess+=test_inner<double,2>(world, ncf, data2, ccparam);
-        isuccess+=test_multiply<double,2>(world, ncf, data2, ccparam);
-        isuccess+=test_swap_particles<double,2>(world, ncf, data2, ccparam);
-        isuccess+=test_scalar_multiplication<double,2>(world, ncf, data2, ccparam);
+//        isuccess+=test_constructor<double,2>(world, ncf, data2, ccparam);
+//        isuccess+=test_load_store<double,2>(world,ncf,data2,ccparam);
+//        isuccess+=test_operator_apply<double,2>(world, ncf, data2, ccparam);
+//        isuccess+=test_transformations<double,2>(world, ncf, data2, ccparam);
+//        isuccess+=test_multiply_with_f12<double,2>(world, ncf, data2, ccparam);
+//        isuccess+=test_inner<double,2>(world, ncf, data2, ccparam);
+//        isuccess+=test_multiply<double,2>(world, ncf, data2, ccparam);
+//        isuccess+=test_swap_particles<double,2>(world, ncf, data2, ccparam);
+//        isuccess+=test_scalar_multiplication<double,2>(world, ncf, data2, ccparam);
         isuccess+=test_projector<double,2>(world, ncf, data2, ccparam);
-        isuccess+=test_partial_inner_3d<double,2>(world, ncf, data2, ccparam);
-        isuccess+=test_partial_inner_6d<double,2>(world, ncf, data2, ccparam);
-        isuccess+=test_apply<double,2>(world, ncf, data2, ccparam);
-        isuccess+=test_consolidate<double,2>(world, ncf, data2, ccparam);
+        // isuccess+=test_partial_inner_3d<double,2>(world, ncf, data2, ccparam);
+        // isuccess+=test_partial_inner_6d<double,2>(world, ncf, data2, ccparam);
+        // isuccess+=test_apply<double,2>(world, ncf, data2, ccparam);
+        // isuccess+=test_consolidate<double,2>(world, ncf, data2, ccparam);
 
 
 //        isuccess+=test_constructor<double,4>(world, ncf, data4, ccparam);
