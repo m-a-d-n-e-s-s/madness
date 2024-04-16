@@ -459,6 +459,10 @@ nlohmann::json Molecule::to_json() const {
     mol_schema["symbols"] = {};
     mol_schema["geometry"] = {};
 
+    mol_schema["units"] = parameters.units();
+    mol_schema["eprec"] = get_eprec();
+
+
 //    get_atomic_data(atoms[0].atomic_number).symbol;
     for (size_t i = 0; i < natom(); ++i) {
         mol_schema["symbols"].push_back(get_atomic_data(atoms[i].atomic_number).symbol);
