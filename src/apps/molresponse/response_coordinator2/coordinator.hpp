@@ -8,19 +8,14 @@
 #include <utility>
 
 #include "CalculationParameters.h"
-#include "ExcitedResponse.hpp"
 #include "FrequencyResponse.hpp"
 #include "ResponseExceptions.hpp"
 #include "madness/chem/SCF.h"
-#include "madness/tensor/tensor_json.hpp"
 #include "madness/world/worldmem.h"
 #include "response_data_base.hpp"
-#include "response_functions.h"
 #include "sstream"
 #include "string"
-#include "timer.h"
 #include "write_test_input.h"
-#include "x_space.h"
 
 using path = std::filesystem::path;
 
@@ -40,7 +35,7 @@ auto addPath(const path &root, const std::string &branch) -> path {
     return p_branch;
 }
 
-struct ResponseCalcManager {
+class ResponseCalcManager {
 
     path molecule_path;
     CalculationParameters moldft_params;
@@ -69,8 +64,48 @@ struct ResponseCalcManager {
     std::vector<double> freq;
     Molecule molecule;
 
+public:
+
+    // Create a bunch of getters
+    auto get_molecule_path() const -> const path & { return molecule_path; }
+
+    auto get_moldft_params() const -> const CalculationParameters & { return moldft_params; }
+
+    auto get_response_params() const -> const ResponseParameters & { return response_params; }
+
+    auto get_root() const -> const path & { return root; }
+
+    auto get_param_path() const -> const path & { return param_path; }
+
+    auto get_param_json_path() const -> const path & { return param_json_path; }
+
+    auto get_moldft_path() const -> const path & { return moldft_path; }
+
+    auto get_moldft_json_path() const -> const path & { return moldft_json_path; }
+
+    auto get_moldft_restart() const -> const path & { return moldft_restart; }
+
+    auto get_calc_info_json_path() const -> const path & { return calc_info_json_path; }
+
+    auto get_moldft_json() const -> const json & { return moldft_json; }
+
+    auto get_molresponse_json() const -> const json & { return molresponse_json; }
+
+    auto get_params_json() const -> const json & { return params_json; }
+
+    auto get_calc_info_json() const -> const json & { return calc_info_json; }
+
+    auto get_op() const -> const std::string & { return op; }
+
+    auto get_xc() const -> const std::string & { return xc; }
+
+    auto get_freq() const -> const std::vector<double> & { return freq; }
+
+    auto get_molecule() const -> const Molecule & { return molecule; }
+
+
     explicit ResponseCalcManager(World &world, const path &molecule_path, const CalculationParameters &moldft_params,
-                                 const ResponseParameters &response_params) : moldft_params(moldft_params),
+                                 const ResponseParameters &response_params) : molecule_path(molecule_path),moldft_params(moldft_params),
                                                                               response_params(response_params) {
         xc = moldft_params.xc();
         op = "dipole";
@@ -177,55 +212,6 @@ struct ResponseCalcManager {
         ::print("freq: ", freq);
         ::print("------------------------------------------------");
     }
-};
-
-// sets the current path to the save path
-/**
- * Generates the frequency save path with format
- * /frequency_run_path/restart_[frequency_run_filename].00000
- *
- * @param frequency_run_path
- * @return
- */
-auto generate_frequency_save_path(
-        const std::filesystem::path &frequency_run_path) -> std::pair<std::filesystem::path, std::string> {
-
-    auto save_path = std::filesystem::path(frequency_run_path);
-    auto run_name = frequency_run_path.filename();
-    std::string save_string = "restart_" + run_name.string();
-    save_path += "/";
-    save_path += save_string;
-    save_path += ".00000";
-
-    return {save_path, save_string};
-}
-
-/**
- * generates the frequency response path using the format
- * [property]_[xc]_[1-100]
- *
- * where 1-100 corresponds a frequency of 1.100
- *
- * @param moldft_path
- * @param property
- * @param frequency
- * @param xc
- * @return
- */
-auto generate_response_frequency_run_path(const std::filesystem::path &moldft_path, const std::string &property,
-                                          const double &frequency, const std::string &xc)
--> std::filesystem::path {
-    std::string s_frequency = std::to_string(frequency);
-    auto sp = s_frequency.find('.');
-    s_frequency = s_frequency.replace(sp, sp, "-");
-    std::string run_name = property + "_" + xc + "_" + s_frequency;
-    // set r_params to restart true if restart file exist
-
-    auto run_path = moldft_path;
-    run_path += "/";
-    run_path += std::filesystem::path(run_name);
-    return run_path;
-}
 
 /**
  * Runs moldft in the path provided.  Also generates the moldft input file_name
@@ -236,35 +222,30 @@ auto generate_response_frequency_run_path(const std::filesystem::path &moldft_pa
  * @param moldft_filename
  * @param xc
  */
-void
-runMOLDFT(World &world, const ResponseCalcManager &moldftSchema, bool try_run, bool restart,
-          const std::string &precision) {
+    void
+    run_moldft(World &world, bool restart) const {
 
-    json calcInfo;
-    auto param1 = moldftSchema.moldft_params;
-    world.gop.broadcast_serializable(param1, 0);
+        json calcInfo;
+        auto param1 = moldft_params;
+        world.gop.broadcast_serializable(param1, 0);
 
-    //If the parameters are exactly equal do not run
-    // If calc info doesn't exist the param_calc will definitely be different
-
-    // if parameters are different or if I want to run no matter what run
-    // if I want to restart and if I can. restart
-    if (try_run) {
-        if (world.rank() == 0) { print("-------------Running moldft------------"); }
+        if (world.rank() == 0) {
+            ::print("-------------Running moldft------------");
+        }
         // if params are different run and if restart exists and if im asking to restar
-        if (std::filesystem::exists(moldftSchema.moldft_restart) && restart) {
+        if (std::filesystem::exists(moldft_restart) && restart) {
             param1.set_user_defined_value<bool>("restart", true);
         }
         world.gop.fence();
         if (world.rank() == 0) {
             molresponse::write_test_input test_input(param1, "moldft.in",
-                                                     moldftSchema.molecule_path);// molecule HF
+                                                     molecule_path);// molecule HF
         }
         world.gop.fence();
         commandlineparser parser;
         parser.set_keyval("input", "moldft.in");
 
-        if (world.rank() == 0) print("input filename: ", parser.value("input"));
+        if (world.rank() == 0) ::print("input filename: ", parser.value("input"));
 
 
         print_meminfo(world.rank(), "startup");
@@ -273,14 +254,11 @@ runMOLDFT(World &world, const ResponseCalcManager &moldftSchema, bool try_run, b
         std::cout.precision(6);
         SCF calc(world, parser);
         if (world.rank() == 0) {
-            print("\n\n");
-            print(" MADNESS Hartree-Fock and Density Functional Theory "
-                  "Program");
-            print(" ----------------------------------------------------------"
-                  "\n");
-            print("\n");
-            calc.molecule.print();
-            print("\n");
+            ::print("\n\n");
+            ::print(" MADNESS Hartree-Fock and Density Functional Theory "
+                    "Program");
+            ::print(" ----------------------------------------------------------"
+                    "\n");
             calc.param.print("dft");
         }
         if (world.size() > 1) {
@@ -306,13 +284,32 @@ runMOLDFT(World &world, const ResponseCalcManager &moldftSchema, bool try_run, b
             calc.output_scf_info_schema(results, dipole_t);
             ME.output_calc_info_schema();
         }
-    } else {
-        if (world.rank() == 0) {
-            print("Skipping Calculation and printing CALC INFO");
-            std::cout << calcInfo;
-        }
     }
-}
+
+/**
+ * generates the frequency response path using the format
+ * [property]_[xc]_[1-100]
+ *
+ * where 1-100 corresponds a frequency of 1.100
+ *
+ * @param moldft_path
+ * @param property
+ * @param frequency
+ * @param xc
+ * @return
+ */
+    auto generate_response_frequency_run_path(const double &frequency)
+    -> std::filesystem::path {
+        std::string s_frequency = std::to_string(frequency);
+        auto sp = s_frequency.find('.');
+        s_frequency = s_frequency.replace(sp, sp, "-");
+        std::string run_name = op + "_" + xc + "_" + s_frequency;
+
+        auto run_path = moldft_path;
+        run_path += "/";
+        run_path += std::filesystem::path(run_name);
+        return run_path;
+    }
 
 
 /***
@@ -324,59 +321,59 @@ runMOLDFT(World &world, const ResponseCalcManager &moldftSchema, bool try_run, b
  * @param frequency
  * @param moldft_path
  */
-static auto set_frequency_path_and_restart(World &world, ResponseParameters &parameters, const std::string &property,
-                                           const double &frequency,
-                                           const std::string &xc, const std::filesystem::path &moldft_path,
-                                           std::filesystem::path &restart_path, bool restart)
--> std::filesystem::path {
+    auto set_frequency_path_and_restart(World &world, const double &frequency,
+                                        std::filesystem::path &restart_path, bool restart)
+    -> std::filesystem::path {
 
-    if (world.rank() == 0) { print("restart path", restart_path); }
+        if (world.rank() == 0) { ::print("restart path", restart_path); }
 
 
-    // change the logic create save path
-    auto frequency_run_path = generate_response_frequency_run_path(moldft_path, property, frequency, xc);
-    world.gop.fence();
-    if (world.rank() == 0) { print("frequency run path", frequency_run_path); }
-    if (std::filesystem::is_directory(frequency_run_path)) {
-        if (world.rank() == 0) { cout << "Response directory found " << std::endl; }
-    } else {// create the file
-        std::filesystem::create_directory(frequency_run_path);
-        if (world.rank() == 0) { cout << "Creating response_path directory" << std::endl; }
-    }
-    std::filesystem::current_path(frequency_run_path);
-    // frequency save path
-    auto [save_path, save_string] = generate_frequency_save_path(frequency_run_path);
-    if (world.rank() == 0) { print("save path", save_path); }
-    if (world.rank() == 0) { print("save string", save_string); }
-
-
-    if (world.rank() == 0) {
-        parameters.set_user_defined_value("save", true);
-        parameters.set_user_defined_value("save_file", save_string);
-        if (restart) {//if we are trying a restart calculation
-            if (std::filesystem::exists(save_path)) {
-                //if the save path exists then we know we can
-                // restart from the previous save
-                parameters.set_user_defined_value("restart", true);
-                parameters.set_user_defined_value("restart_file", save_string);
-            } else if (std::filesystem::exists(restart_path)) {
-                parameters.set_user_defined_value("restart", true);
-                auto split_restart_path = split(restart_path.replace_extension("").string(), '/');
-                std::string restart_file_short =
-                        "../" + split_restart_path[split_restart_path.size() - 2] + "/" +
-                        split_restart_path[split_restart_path.size() - 1];
-                parameters.set_user_defined_value("restart_file", restart_file_short);
-                // Then we restart from the previous file instead
-            } else {
-                parameters.set_user_defined_value("restart", false);
-            }
-            // neither file exists therefore you need to start from fresh
+        // change the logic create save path
+        auto frequency_run_path = generate_response_frequency_run_path(frequency);
+        world.gop.fence();
+        if (world.rank() == 0) { ::print("frequency run path", frequency_run_path); }
+        if (std::filesystem::is_directory(frequency_run_path)) {
+            if (world.rank() == 0) { cout << "Response directory found " << std::endl; }
+        } else {// create the file
+            std::filesystem::create_directory(frequency_run_path);
+            if (world.rank() == 0) { cout << "Creating response_path directory" << std::endl; }
         }
+        std::filesystem::current_path(frequency_run_path);
+        // frequency save path
+        auto [save_path, save_string] = generate_frequency_save_path(frequency_run_path);
+        if (world.rank() == 0) { ::print("save path", save_path); }
+        if (world.rank() == 0) { ::print("save string", save_string); }
+
+        ResponseParameters parameters(response_params);
+
+
+        if (world.rank() == 0) {
+            parameters.set_user_defined_value("save", true);
+            parameters.set_user_defined_value("save_file", save_string);
+            if (restart) {//if we are trying a restart calculation
+                if (std::filesystem::exists(save_path)) {
+                    //if the save path exists then we know we can
+                    // restart from the previous save
+                    parameters.set_user_defined_value("restart", true);
+                    parameters.set_user_defined_value("restart_file", save_string);
+                } else if (std::filesystem::exists(restart_path)) {
+                    parameters.set_user_defined_value("restart", true);
+                    auto split_restart_path = split(restart_path.replace_extension("").string(), '/');
+                    std::string restart_file_short =
+                            "../" + split_restart_path[split_restart_path.size() - 2] + "/" +
+                            split_restart_path[split_restart_path.size() - 1];
+                    parameters.set_user_defined_value("restart_file", restart_file_short);
+                    // Then we restart from the previous file instead
+                } else {
+                    parameters.set_user_defined_value("restart", false);
+                }
+                // neither file exists therefore you need to start from fresh
+            }
+        }
+        world.gop.broadcast_serializable(parameters, 0);
+        // if restart and restartfile exists go ahead and set the restart file
+        return save_path;
     }
-    world.gop.broadcast_serializable(parameters, 0);
-    // if restart and restartfile exists go ahead and set the restart file
-    return save_path;
-}
 
 /**
  *
@@ -389,58 +386,58 @@ static auto set_frequency_path_and_restart(World &world, ResponseParameters &par
  * @param restart_path
  * @return
  */
-auto RunResponse(World &world, const std::string &filename, double frequency, const std::string &property,
-                 const std::string &xc,
-                 const std::filesystem::path &moldft_path, std::filesystem::path restart_path,
-                 const std::string &precision)
--> std::pair<std::filesystem::path, bool> {
-    // Set the response parameters
-    ResponseParameters r_params{};
-    //set_frequency_response_parameters(world, r_params, property, xc, frequency, precision);
-    auto save_path = set_frequency_path_and_restart(world, r_params, property, frequency, xc, moldft_path, restart_path,
-                                                    true);
-    if (world.rank() == 0) { molresponse::write_response_input(r_params, filename); }
-    // if rbase exists and converged I just return save path and true
-    if (std::filesystem::exists("response_base.json")) {
-        std::ifstream ifs("response_base.json");
-        json response_base;
-        ifs >> response_base;
-        if (response_base["converged"] && response_base["precision"]["dconv"] == r_params.dconv()) {
-            return {save_path, true};
+    auto RunResponse(World &world, const std::string &filename, double frequency, const std::string &property,
+                     const std::string &xc,
+                     const std::filesystem::path &moldft_path, std::filesystem::path restart_path,
+                     const std::string &precision)
+    -> std::pair<std::filesystem::path, bool> {
+        // Set the response parameters
+        ResponseParameters r_params{};
+        //set_frequency_response_parameters(world, r_params, property, xc, frequency, precision);
+        auto save_path = set_frequency_path_and_restart(world, frequency,
+                                                        restart_path,
+                                                        true);
+        if (world.rank() == 0) { molresponse::write_response_input(r_params, filename); }
+        // if rbase exists and converged I just return save path and true
+        if (std::filesystem::exists("response_base.json")) {
+            std::ifstream ifs("response_base.json");
+            json response_base;
+            ifs >> response_base;
+            if (response_base["converged"] && response_base["precision"]["dconv"] == r_params.dconv()) {
+                return {save_path, true};
+            }
         }
+        auto calc_params = initialize_calc_params(world, std::string(filename));
+        RHS_Generator rhs_generator;
+        if (property == "dipole") {
+            rhs_generator = dipole_generator;
+        } else {
+            rhs_generator = nuclear_generator;
+        }
+        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
+        FrequencyResponse calc(world, calc_params, frequency, rhs_generator);
+        if (world.rank() == 0) {
+            ::print("\n\n");
+            ::print(" MADNESS Time-Dependent Density Functional Theory Response "
+                    "Program");
+            ::print(" ----------------------------------------------------------\n");
+            ::print("\n");
+            calc_params.molecule.print();
+            ::print("\n");
+            calc_params.response_parameters.print("response");
+            // put the response parameters in a j_molrespone json object
+            calc_params.response_parameters.to_json(calc.j_molresponse);
+        }
+        calc.solve(world);
+        world.gop.fence();
+        // set protocol to the first
+        if (world.rank() == 0) {
+            //calc.time_data.to_json(calc.j_molresponse);
+            calc.output_json();
+        }
+        //calc.time_data.print_data();
+        return {save_path, calc.j_molresponse["converged"]};
     }
-    auto calc_params = initialize_calc_params(world, std::string(filename));
-    RHS_Generator rhs_generator;
-    if (property == "dipole") {
-        rhs_generator = dipole_generator;
-    } else {
-        rhs_generator = nuclear_generator;
-    }
-    FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
-    FrequencyResponse calc(world, calc_params, frequency, rhs_generator);
-    if (world.rank() == 0) {
-        print("\n\n");
-        print(" MADNESS Time-Dependent Density Functional Theory Response "
-              "Program");
-        print(" ----------------------------------------------------------\n");
-        print("\n");
-        calc_params.molecule.print();
-        print("\n");
-        calc_params.response_parameters.print("response");
-        // put the response parameters in a j_molrespone json object
-        calc_params.response_parameters.to_json(calc.j_molresponse);
-    }
-    calc.solve(world);
-    world.gop.fence();
-    // set protocol to the first
-    if (world.rank() == 0) {
-        //calc.time_data.to_json(calc.j_molresponse);
-        calc.output_json();
-    }
-    //calc.time_data.print_data();
-    return {save_path, calc.j_molresponse["converged"]};
-}
-
 
 /**
  * Takes in the moldft path where moldft restart file exists
@@ -453,340 +450,274 @@ auto RunResponse(World &world, const std::string &filename, double frequency, co
  * @param xc
  * @param property
  */
-void runFrequencyTests(World &world, const ResponseCalcManager &schema) {
-    std::filesystem::current_path(schema.moldft_path);
-    // add a restart path
-    auto restart_path = addPath(schema.moldft_path,
-                                "/" + schema.op + "_0-000000.00000/restart_" + schema.op + "_0-000000.00000");
-    std::pair<std::filesystem::path, bool> success{schema.moldft_path, false};
-    bool first = true;
-    for (const auto &freq: schema.freq) {
-        if (world.rank() == 0) { print(success.second); }
-        std::filesystem::current_path(schema.moldft_path);
-        if (first) {
-            first = false;
-        } else if (success.second) {
-            // if the previous run succeeded then set the restart path
-            restart_path = success.first;
-            if (world.rank() == 0) { print("restart_path", restart_path); }
-        } else {
-            throw Response_Convergence_Error{};
+    void runFrequencyTests(World &world) {
+        std::filesystem::current_path(moldft_path);
+        // add a restart path
+        auto restart_path = addPath(moldft_path,
+                                    "/" + op + "_0-000000.00000/restart_" + op + "_0-000000.00000");
+        std::pair<std::filesystem::path, bool> success{moldft_path, false};
+        bool first = true;
+        for (const auto &freq: freq) {
+            if (world.rank() == 0) { ::print(success.second); }
+            std::filesystem::current_path(moldft_path);
+            if (first) {
+                first = false;
+            } else if (success.second) {
+                // if the previous run succeeded then set the restart path
+                restart_path = success.first;
+                if (world.rank() == 0) { ::print("restart_path", restart_path); }
+            } else {
+                throw Response_Convergence_Error{};
+            }
+            //success = RunResponse(world, "response.in", freq, schema.op, schema.xc, schema.moldft_path, restart_path,
+            //                      high_prec);
+            if (world.rank() == 0) { ::print("Frequency ", freq, " completed"); }
         }
-        //success = RunResponse(world, "response.in", freq, schema.op, schema.xc, schema.moldft_path, restart_path,
-        //                      high_prec);
-        if (world.rank() == 0) { print("Frequency ", freq, " completed"); }
     }
-}
 
+    void runQuadraticResponse(World &world) {
+        std::filesystem::current_path(moldft_path);
+
+        bool run_first_order = false;
+
+        // add a restart path
+        auto restart_path = addPath(moldft_path,
+                                    "/" + op + "_0-000000.00000/restart_" + op + "_0-000000.00000");
+        try {
+            for (const auto &freq: freq) {
+                std::filesystem::current_path(moldft_path);
+                ResponseParameters r_params{};
+                auto save_path = set_frequency_path_and_restart(world, freq,
+                                                                restart_path, true);
+
+
+                if (std::filesystem::exists("response_base.json")) {
+                    std::ifstream ifs("response_base.json");
+                    json response_base;
+                    ifs >> response_base;
+                    if (response_base["converged"] && response_base["precision"]["dconv"] == r_params.dconv()) {
+                        { ::print("Response calculation already converged"); }
+                        continue;
+                    } else {
+                        if (world.rank() == 0) { ::print("Response calculation not converged"); }
+                        run_first_order = true;
+                        break;
+                    }
+                }
+                if (!std::filesystem::exists(save_path)) { throw Response_Convergence_Error{}; }
+            }
+            world.gop.fence();
+
+            if (world.rank() == 0) { ::print("Running quadratic response calculations"); }
+            std::filesystem::current_path(moldft_path);
+            RHS_Generator rhs_generator;
+            if (op == "dipole") {
+                rhs_generator = dipole_generator;
+            } else {
+                rhs_generator = nuclear_generator;
+            }
+            ResponseParameters quad_parameters{};
+            if (world.rank() == 0) { ::print("Set up rhs generator"); }
+
+            //setHyperpolarizabilityParameters(world, quad_parameters, schema.op, schema.xc, schema.freq, std::string());
+            if (world.rank() == 0) { molresponse::write_response_input(quad_parameters, "quad.in"); }
+
+            //auto calc_params = initialize_calc_params(world, std::string("quad.in"));
+            commandlineparser parser;
+            std::string moldft_archive = "moldft.restartdata";
+            GroundStateCalculation ground_calculation{world, moldft_archive};
+            if (world.rank() == 0) { ground_calculation.print_params(); }
+            Molecule molecule = ground_calculation.molecule();
+            quad_parameters.set_ground_state_calculation_data(ground_calculation);
+            if (world.rank() == 0) { quad_parameters.print(); }
+
+            world.gop.fence();
+            FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
+
+            nlohmann::ordered_json beta_json = create_beta_json();
+
+            QuadraticResponse quad_calculation{
+                    world,
+                    {ground_calculation, molecule, quad_parameters},
+                    rhs_generator,
+            };
+            //if beta.json exists remove it
+            if (std::filesystem::exists("beta.json")) { std::filesystem::remove("beta.json"); }
+
+            for (const auto &omega_b: freq) {
+                for (const auto &omega_c: freq) {
+
+
+                    auto generate_omega_restart_path = [&](double frequency) {
+                        auto linear_response_calc_path = generate_response_frequency_run_path(frequency);
+                        auto restart_file_and_path = generate_frequency_save_path(linear_response_calc_path);
+                        return restart_file_and_path;
+                    };
+
+
+                    auto omega_a = omega_b + omega_c;
+                    if (world.rank() == 0) {
+                        ::print("New combination of frequencies ", omega_a, " ", omega_b, " ", omega_c);
+                        ::print("-------------------------------------------");
+                    }
+                    if (omega_a <= freq.back()) {
+
+                        auto restartA = generate_omega_restart_path(omega_a);
+                        auto restartB = generate_omega_restart_path(omega_b);
+                        auto restartC = generate_omega_restart_path(omega_c);
+                        if (world.rank() == 0) {
+                            ::print("Restart file for A", restartA.first);
+                            ::print("Restart file for B", restartB.first);
+                            ::print("Restart file for C", restartC.first);
+                        }
+
+                        // check if restartA exists
+                        if (!std::filesystem::exists(restartA.first)) {
+                            if (world.rank() == 0) {
+                                ::print("Restart file for omega_a = ", omega_a, " doesn't exist");
+                            }
+                            throw Response_Convergence_Error{};
+                        } else {
+                            if (world.rank() == 0) { ::print("Restart file for omega_a = ", omega_a, " exists"); }
+
+                            std::array<double, 3> omegas{omega_a, omega_b, omega_c};
+
+                            // remove .00000 from restartA.first
+
+                            std::array<path, 3> restarts{restartA.first.replace_extension(""),
+                                                         restartB.first.replace_extension(""),
+                                                         restartC.first.replace_extension("")};
+
+                            quad_calculation.set_x_data(world, omegas, restarts);
+                            auto beta_abc = quad_calculation.compute_beta(world);
+                            // print the beta values for the frequency combination
+                            if (world.rank() == 0) {
+                                ::print("Beta values for omega_a = ", omega_a, " omega_b = ", omega_b, " omega_c = ",
+                                        omega_c);
+                                ::print(beta_abc);
+                            }
+
+                            nlohmann::ordered_json beta_entry;
+                            //beta_entry["omega_a"] = omega_a;
+                            //beta_entry["omega_b"] = omega_b;
+                            //beta_entry["omega_c"] = omega_c;
+
+
+                            std::array<double, 18> beta_vector{};
+                            std::copy(beta_abc.ptr(), beta_abc.ptr() + 3 * 6, beta_vector.begin());
+                            append_to_beta_json({omega_a, omega_b, omega_c}, beta_vector, beta_json);
+
+                            std::ofstream outfile("beta.json");
+                            if (outfile.is_open()) {
+                                outfile << beta_json.dump(4);
+                                outfile.close();
+                            } else {
+                                std::cerr << "Failed to open file for writing: "
+                                          << "beta.json" << std::endl;
+                            }
+                        }
+
+
+                    } else {
+                        if (world.rank() == 0) {
+                            ::print("Skipping omega_a = ", omega_a, " because it is greater than the max frequency");
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            // print the beta table
+            if (world.rank() == 0) { ::print(beta_json.dump(4)); }
+
+            // write the beta json to file
+            std::ofstream ofs("beta.json");
+            ofs << std::setw(4) << beta_json << std::endl;
+            ofs.close();
+
+
+        } catch (Response_Convergence_Error &e) {
+            if (true) {
+                // if the first order response calculations haven't been run then run them
+                if (world.rank() == 0) { ::print("Running first order response calculations"); }
+                runFrequencyTests(world);
+            } else {
+                if (world.rank() == 0) {
+                    ::print("First order response calculations haven't been run and can't be run");
+                    ::print("Quadratic response calculations can't be run");
+                }
+            }
+        }
+    }
+// sets the current path to the save path
+/**
+ * Generates the frequency save path with format
+ * /frequency_run_path/restart_[frequency_run_filename].00000
+ *
+ * @param frequency_run_path
+ * @return
+ */
+    auto generate_frequency_save_path(
+            const std::filesystem::path &frequency_run_path) -> std::pair<std::filesystem::path, std::string> {
+
+        auto save_path = std::filesystem::path(frequency_run_path);
+        auto run_name = frequency_run_path.filename();
+        std::string save_string = "restart_" + run_name.string();
+        save_path += "/";
+        save_path += save_string;
+        save_path += ".00000";
+
+        return {save_path, save_string};
+    }
 // set up a function that creates a beta_json with the fields defined  below.  in each field there will
 // a vector of values.
 
-nlohmann::ordered_json create_beta_json() {
-    // i need A B C to hold char values and A-freq, B-freq, C-freq to hold double values
+    nlohmann::ordered_json create_beta_json() {
+        // i need A B C to hold char values and A-freq, B-freq, C-freq to hold double values
 
 
-    nlohmann::ordered_json beta_json = {{"A-freq", json::array()},
-                                        {"B-freq", json::array()},
-                                        {"C-freq", json::array()},
-                                        {"A",      json::array()},
-                                        {"B",      json::array()},
-                                        {"C",      json::array()},
-                                        {"Beta",   json::array()}};
-    return beta_json;
-}
+        nlohmann::ordered_json beta_json = {{"A-freq", json::array()},
+                                            {"B-freq", json::array()},
+                                            {"C-freq", json::array()},
+                                            {"A",      json::array()},
+                                            {"B",      json::array()},
+                                            {"C",      json::array()},
+                                            {"Beta",   json::array()}};
+        return beta_json;
+    }
 
 
 // for a set of frequencies create a table from the beta values
-void append_to_beta_json(const std::array<double, 3> &freq, const std::array<double, 18> &beta,
-                         nlohmann::ordered_json &beta_json) {
+    void append_to_beta_json(const std::array<double, 3> &freq, const std::array<double, 18> &beta,
+                             nlohmann::ordered_json &beta_json) {
 
 
-    // create 3 columns of directions for each A,B,C
-    std::array<char, 18> direction_A{'X', 'X', 'X', 'X', 'X', 'X', 'Y', 'Y', 'Y', 'Y', 'Y', 'Y', 'Z', 'Z', 'Z', 'Z',
-                                     'Z', 'Z'};
-    std::array<char, 18> direction_B{'X', 'X', 'X', 'Y', 'Y', 'Z', 'X', 'X', 'X', 'Y', 'Y', 'Z', 'X', 'X', 'X', 'Y',
-                                     'Y', 'Z'};
-    std::array<char, 18> direction_C{'X', 'Y', 'Z', 'Y', 'Z', 'Z', 'X', 'Y', 'Z', 'Y', 'Z', 'Z', 'X', 'Y', 'Z', 'Y',
-                                     'Z', 'Z'};
+        // create 3 columns of directions for each A,B,C
+        std::array<char, 18> direction_A{'X', 'X', 'X', 'X', 'X', 'X', 'Y', 'Y', 'Y', 'Y', 'Y', 'Y', 'Z', 'Z', 'Z', 'Z',
+                                         'Z', 'Z'};
+        std::array<char, 18> direction_B{'X', 'X', 'X', 'Y', 'Y', 'Z', 'X', 'X', 'X', 'Y', 'Y', 'Z', 'X', 'X', 'X', 'Y',
+                                         'Y', 'Z'};
+        std::array<char, 18> direction_C{'X', 'Y', 'Z', 'Y', 'Z', 'Z', 'X', 'Y', 'Z', 'Y', 'Z', 'Z', 'X', 'Y', 'Z', 'Y',
+                                         'Z', 'Z'};
 
-    // append each value of the columns to the beta json
-    // for each value of beta
-    // capitalize the direction
-
-
-    for (int i = 0; i < 18; i++) {
-        beta_json["A-freq"].push_back(freq[0]);
-        beta_json["B-freq"].push_back(freq[1]);
-        beta_json["C-freq"].push_back(freq[2]);
+        // append each value of the columns to the beta json
+        // for each value of beta
+        // capitalize the direction
 
 
-        beta_json["A"].push_back(std::string(1, direction_A[i]));
-        beta_json["B"].push_back(std::string(1, direction_B[i]));
-        beta_json["C"].push_back(std::string(1, direction_C[i]));
-        beta_json["Beta"].push_back(beta[i]);
-    }
-}
-
-/**
- * Takes in a series of frequencies and runs a quadratic response calculations
- * for given property at given frequencies.
- *
- * The frequencies are given in a vector of doubles
- * For quadratic response the set of frequencies that a the first order response calculations have been run.
- *
- * The assumption is that response vectors are store in restart path.  If they aren't already then we need to
- * run the first order responnse calculation with the mad-freq executable.  This would be equivalent to running
- * the runFrequencyTests function.
- *
- * So the first step of this function is to check if the restart path exists for all frequencies.
- * If it does, then we can run the quadratic response calculation. which does a double for loop through the frequencies
- *
- * Also, this function will save the quadratic response output to a json file formatted
- *
- * A-freq, B-freq, C-freq, A, B, C, , Beta(value)
- *
- * where A-freq, B-freq, C-freq are the frequencies used in the first order response calculations
- * and A, B, C are the perturbation operator used in the quadratic response calculation
- * and Beta is the value of the quadratic response calculation
- *
- * As an example, if A,B,C are dipole operators then this calculations gives the hyperpolarizability
- *
- *
- *
- *
- * @param world
- * @param moldft_path
- * @param frequencies
- * @param xc
- * @param property
- */
-void runQuadraticResponse(World &world, const ResponseCalcManager &schema) {
-    std::filesystem::current_path(schema.moldft_path);
-
-    bool run_first_order = false;
-
-    // add a restart path
-    auto restart_path = addPath(schema.moldft_path,
-                                "/" + schema.op + "_0-000000.00000/restart_" + schema.op + "_0-000000.00000");
-    try {
-        for (const auto &freq: schema.freq) {
-            std::filesystem::current_path(schema.moldft_path);
-            ResponseParameters r_params{};
-            auto save_path = set_frequency_path_and_restart(world, r_params, schema.op, freq, schema.xc,
-                                                            schema.moldft_path, restart_path, true);
+        for (int i = 0; i < 18; i++) {
+            beta_json["A-freq"].push_back(freq[0]);
+            beta_json["B-freq"].push_back(freq[1]);
+            beta_json["C-freq"].push_back(freq[2]);
 
 
-            if (std::filesystem::exists("response_base.json")) {
-                std::ifstream ifs("response_base.json");
-                json response_base;
-                ifs >> response_base;
-                if (response_base["converged"] && response_base["precision"]["dconv"] == r_params.dconv()) {
-                    { print("Response calculation already converged"); }
-                    continue;
-                } else {
-                    if (world.rank() == 0) { print("Response calculation not converged"); }
-                    run_first_order = true;
-                    break;
-                }
-            }
-            if (!std::filesystem::exists(save_path)) { throw Response_Convergence_Error{}; }
-        }
-        world.gop.fence();
-
-        if (world.rank() == 0) { print("Running quadratic response calculations"); }
-        std::filesystem::current_path(schema.moldft_path);
-        RHS_Generator rhs_generator;
-        if (schema.op == "dipole") {
-            rhs_generator = dipole_generator;
-        } else {
-            rhs_generator = nuclear_generator;
-        }
-        ResponseParameters quad_parameters{};
-        if (world.rank() == 0) { print("Set up rhs generator"); }
-
-        //setHyperpolarizabilityParameters(world, quad_parameters, schema.op, schema.xc, schema.freq, std::string());
-        if (world.rank() == 0) { molresponse::write_response_input(quad_parameters, "quad.in"); }
-
-        //auto calc_params = initialize_calc_params(world, std::string("quad.in"));
-        commandlineparser parser;
-        std::string moldft_archive = "moldft.restartdata";
-        GroundStateCalculation ground_calculation{world, moldft_archive};
-        if (world.rank() == 0) { ground_calculation.print_params(); }
-        Molecule molecule = ground_calculation.molecule();
-        quad_parameters.set_ground_state_calculation_data(ground_calculation);
-        if (world.rank() == 0) { quad_parameters.print(); }
-
-        world.gop.fence();
-        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
-
-        nlohmann::ordered_json beta_json = create_beta_json();
-
-        QuadraticResponse quad_calculation{
-                world,
-                {ground_calculation, molecule, quad_parameters},
-                rhs_generator,
-        };
-        //if beta.json exists remove it
-        if (std::filesystem::exists("beta.json")) { std::filesystem::remove("beta.json"); }
-
-        for (const auto &omega_b: schema.freq) {
-            for (const auto &omega_c: schema.freq) {
-
-
-                auto generate_omega_restart_path = [&](double frequency) {
-                    auto linear_response_calc_path = generate_response_frequency_run_path(schema.moldft_path, schema.op,
-                                                                                          frequency, schema.xc);
-                    auto restart_file_and_path = generate_frequency_save_path(linear_response_calc_path);
-                    return restart_file_and_path;
-                };
-
-
-                auto omega_a = omega_b + omega_c;
-                if (world.rank() == 0) {
-                    print("New combination of frequencies ", omega_a, " ", omega_b, " ", omega_c);
-                    print("-------------------------------------------");
-                }
-                if (omega_a <= schema.freq.back()) {
-
-                    auto restartA = generate_omega_restart_path(omega_a);
-                    auto restartB = generate_omega_restart_path(omega_b);
-                    auto restartC = generate_omega_restart_path(omega_c);
-                    if (world.rank() == 0) {
-                        print("Restart file for A", restartA.first);
-                        print("Restart file for B", restartB.first);
-                        print("Restart file for C", restartC.first);
-                    }
-
-                    // check if restartA exists
-                    if (!std::filesystem::exists(restartA.first)) {
-                        if (world.rank() == 0) { print("Restart file for omega_a = ", omega_a, " doesn't exist"); }
-                        throw Response_Convergence_Error{};
-                    } else {
-                        if (world.rank() == 0) { print("Restart file for omega_a = ", omega_a, " exists"); }
-
-                        std::array<double, 3> omegas{omega_a, omega_b, omega_c};
-
-                        // remove .00000 from restartA.first
-
-                        std::array<path, 3> restarts{restartA.first.replace_extension(""),
-                                                     restartB.first.replace_extension(""),
-                                                     restartC.first.replace_extension("")};
-
-                        quad_calculation.set_x_data(world, omegas, restarts);
-                        auto beta_abc = quad_calculation.compute_beta(world);
-                        // print the beta values for the frequency combination
-                        if (world.rank() == 0) {
-                            print("Beta values for omega_a = ", omega_a, " omega_b = ", omega_b, " omega_c = ",
-                                  omega_c);
-                            print(beta_abc);
-                        }
-
-                        nlohmann::ordered_json beta_entry;
-                        //beta_entry["omega_a"] = omega_a;
-                        //beta_entry["omega_b"] = omega_b;
-                        //beta_entry["omega_c"] = omega_c;
-
-
-                        std::array<double, 18> beta_vector{};
-                        std::copy(beta_abc.ptr(), beta_abc.ptr() + 3 * 6, beta_vector.begin());
-                        append_to_beta_json({omega_a, omega_b, omega_c}, beta_vector, beta_json);
-
-                        std::ofstream outfile("beta.json");
-                        if (outfile.is_open()) {
-                            outfile << beta_json.dump(4);
-                            outfile.close();
-                        } else {
-                            std::cerr << "Failed to open file for writing: "
-                                      << "beta.json" << std::endl;
-                        }
-                    }
-
-
-                } else {
-                    if (world.rank() == 0) {
-                        print("Skipping omega_a = ", omega_a, " because it is greater than the max frequency");
-                    }
-                    continue;
-                }
-            }
-        }
-
-        // print the beta table
-        if (world.rank() == 0) { print(beta_json.dump(4)); }
-
-        // write the beta json to file
-        std::ofstream ofs("beta.json");
-        ofs << std::setw(4) << beta_json << std::endl;
-        ofs.close();
-
-
-    } catch (Response_Convergence_Error &e) {
-        if (true) {
-            // if the first order response calculations haven't been run then run them
-            if (world.rank() == 0) { print("Running first order response calculations"); }
-            runFrequencyTests(world, schema);
-        } else {
-            if (world.rank() == 0) {
-                print("First order response calculations haven't been run and can't be run");
-                print("Quadratic response calculations can't be run");
-            }
+            beta_json["A"].push_back(std::string(1, direction_A[i]));
+            beta_json["B"].push_back(std::string(1, direction_B[i]));
+            beta_json["C"].push_back(std::string(1, direction_C[i]));
+            beta_json["Beta"].push_back(beta[i]);
         }
     }
-}
+};
 
-/**
- * Takes in a series of frequencies and runs a quadratic response calculations
- * for given property at given frequencies.
- *
- * The frequencies are given in a vector of doubles
- * For quadratic response the set of frequencies that a the first order response calculations have been run.
- *
- * The assumption is that response vectors are store in restart path.  If they aren't already then we need to
- * run the first order responnse calculation with the mad-freq executable.  This would be equivalent to running
- * the runFrequencyTests function.
- *
- * So the first step of this function is to check if the restart path exists for all frequencies.
- * If it does, then we can run the quadratic response calculation. which does a double for loop through the frequencies
- *
- * Also, this function will save the quadratic response output to a json file formatted
- *
- * A-freq, B-freq, C-freq, A, B, C, , Beta(value)
- *
- * where A-freq, B-freq, C-freq are the frequencies used in the first order response calculations
- * and A, B, C are the perturbation operator used in the quadratic response calculation
- * and Beta is the value of the quadratic response calculation
- *
- * As an example, if A,B,C are dipole operators then this calculations gives the hyperpolarizability
- *
- *
- *
- *
- * @param world
- * @param moldft_path
- * @param frequencies
- * @param xc
- * @param property
- */
-
-/**
- *
- * @param world
- * @param m_schema
- * @param try_moldft do we try moldft or not... if we try we still may restart
- * @param restart  do we force a restart or not
- * @param precision high precision or no?
- */
-void moldft(World &world, ResponseCalcManager &m_schema, bool try_moldft, bool restart, const std::string &precision) {
-
-    if (std::filesystem::is_directory(m_schema.moldft_path)) {
-        if (world.rank() == 0) { cout << "MOLDFT directory found " << m_schema.moldft_path << "\n"; }
-    } else {// create the file
-        if (world.rank() == 0) { std::filesystem::create_directory(m_schema.moldft_path); }
-        world.gop.fence();
-    }
-    std::filesystem::current_path(m_schema.moldft_path);
-    if (world.rank() == 0) { cout << "Entering : " << m_schema.moldft_path << " to run MOLDFT \n\n"; }
-    runMOLDFT(world, m_schema, try_moldft, restart, precision);
-}
 
 #endif// MADNESS_RUNNERS_HPP

@@ -5,15 +5,10 @@
 
 #define CATCH_CONFIG_RUNNER
 
-#include "ExcitedResponse.hpp"
 #include "FrequencyResponse.hpp"
-#include "ResponseExceptions.hpp"
 #include "coordinator.hpp"
 #include "madness/external/catch/catch.hpp"
-#include "madness/tensor/tensor_json.hpp"
-#include "response_functions.h"
 #include "string"
-#include "x_space.h"
 #include <filesystem>
 
 
@@ -28,9 +23,6 @@ int main(int argc, char *argv[]) {
 
     return result;
 
-    // print_meminfo(world.rank(), "startup");
-    // std::cout.precision(6);
-    // print_stats(world);
 }
 
 
@@ -90,8 +82,25 @@ TEST_CASE("Param Hash Generation Test") {
     auto response_manager2 = ResponseCalcManager(world, mol2_path, moldft_params, molresponse_params);
 
     // Test that the param directories are the same
-    CHECK(response_manager.param_path == response_manager2.param_path);
+    CHECK(response_manager.get_param_path()== response_manager2.get_param_path());
     // Test that the molecule directories are different
-    CHECK(response_manager.moldft_path != response_manager2.moldft_path);
+    CHECK(response_manager.get_moldft_path()!= response_manager2.get_moldft_path());
 
+}
+
+TEST_CASE("Test Manager Run MOLDFT"){ 
+    using namespace madness;
+
+    World &world = World::get_default();
+    std::cout.precision(6);
+
+    path mol1_path("resources/molecules/He.mol");
+    path json_input_path("resources/inputs/input.json");
+
+    auto [moldft_params, molresponse_params] = get_params(json_input_path);
+
+
+    auto response_manager = ResponseCalcManager(world, mol1_path, moldft_params, molresponse_params);
+
+    response_manager.run_moldft(world,true);
 }
