@@ -105,13 +105,15 @@ public:
 
 
     explicit ResponseCalcManager(World &world, const path &molecule_path, const CalculationParameters &moldft_params,
-                                 const ResponseParameters &response_params) : molecule_path(molecule_path),moldft_params(moldft_params),
+                                 const ResponseParameters &response_params) : moldft_params(moldft_params),
                                                                               response_params(response_params) {
         xc = moldft_params.xc();
         op = "dipole";
         freq = response_params.freq_range();
 
         root = std::filesystem::current_path();//="/"+molecule_name;
+        this->molecule_path = root / molecule_path;
+
         ::print("Full path to molecule file: ", molecule_path.string());
         std::ifstream molecule_stream(molecule_path);
 
@@ -130,6 +132,7 @@ public:
 
         molresponse_json = {};
         molresponse_json["response"] = response_params.to_json_if_precedence("defined");
+
         molresponse_json["molecule"] = molecule.to_json();
 
         params_json = {};
@@ -224,6 +227,9 @@ public:
  */
     void
     run_moldft(World &world, bool restart) const {
+
+        // first thing to do is change the current directory to the moldft path
+        std::filesystem::current_path(moldft_path);
 
         json calcInfo;
         auto param1 = moldft_params;

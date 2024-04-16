@@ -23,8 +23,8 @@ namespace molresponse {
 
         write_test_input() : filename_("moldft.in") {}
 
-        explicit write_test_input(const CalculationParameters &param, const std::string &filename, std::string mol_path)
-            : filename_(filename), molecule_path(mol_path) {
+        explicit write_test_input(const CalculationParameters &param,  std::string filename,  std::string mol_path)
+            : filename_(std::move(filename)), molecule_path(std::move(mol_path)) {
             std::ofstream of(filename_);
             write_to_test_input("dft", &param, of);
             write_molecule_to_test_input(molecule_path, of);
