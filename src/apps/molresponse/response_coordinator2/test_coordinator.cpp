@@ -15,8 +15,31 @@
 
 using path = std::filesystem::path;
 
+// Global structure to store command line arguments
+struct CommandLineArgs {
+    int argc;
+    std::vector<std::string> argv;
+
+    CommandLineArgs() : argc(0) {}
+
+    void parse(int _argc, char *_argv[]) {
+        argc = _argc;
+        argv.clear();
+        for (int i = 0; i < argc; ++i) {
+            argv.emplace_back(_argv[i]);
+        }
+    }
+};
+
+// Global instance
+CommandLineArgs cmdArgs;
+
 int main(int argc, char *argv[]) {
     World &world = madness::initialize(argc, argv);
+
+    // Parse command line arguments
+    cmdArgs.parse(argc, argv);
+
     int result = 0;
     world.gop.fence();
     startup(world, argc, argv);
@@ -232,7 +255,7 @@ TEST_CASE("INPUT TO JSON") {
 }
 
 class Parameters {
-    json input_json;
+    json all_input_json;
     commandlineparser parser;
     Molecule molecule;
 
@@ -243,10 +266,11 @@ public:
 
     explicit Parameters(World &world, json input_json) {
 
-        this->input_json = std::move(input_json);
-        std::ofstream all_input_file("input");
-        write_json_to_input_file(input_json, {"dft", "response"}, all_input_file);
-        write_molecule_json_to_input_file(input_json["molecule"], all_input_file);
+        all_input_json = std::move(input_json);
+
+        std::ofstream all_input_file("example_input_file");
+        write_json_to_input_file(all_input_json, {"dft", "response"}, all_input_file);
+        write_molecule_json_to_input_file(all_input_json["molecule"], all_input_file);
         all_input_file.close();
 
 
@@ -258,42 +282,70 @@ public:
 
         molresponse_params = ResponseParameters(world, parser);
         molresponse_params.print("response");
+
+
     }
 
     explicit Parameters(World &world, commandlineparser parser) : parser(std::move(parser)) {
 
-        molecule = Molecule(world, parser);
+        molecule = Molecule(world, this->parser);
         molecule.print();
 
-        moldft_params = CalculationParameters(world, parser);
+        moldft_params = CalculationParameters(world, this->parser);
         moldft_params.print("dft");
 
-        molresponse_params = ResponseParameters(world, parser);
+        molresponse_params = ResponseParameters(world, this->parser);
         molresponse_params.print("response");
 
 
-        input_json = {};
-        input_json["dft"] = moldft_params.to_json_if_precedence("defined");
-        input_json["response"] = molresponse_params.to_json_if_precedence("defined");
-        input_json["molecule"] = molecule.to_json();
+        all_input_json = {};
+        all_input_json["dft"] = moldft_params.to_json_if_precedence("defined");
+        all_input_json["response"] = molresponse_params.to_json_if_precedence("defined");
+        all_input_json["molecule"] = molecule.to_json();
+        print(all_input_json.dump(4));
 
     }
+
     json get_input_json() {
-        return input_json;
+        return all_input_json;
     }
 
 };
 
-TEST_CASE("Testing Parameters Class") {
+
+TEST_CASE("Testing Parameters Class", "[Parameters]") {
     using namespace madness;
 
     World &world = World::get_default();
+    auto testArgs(cmdArgs);
+
+    // commandlineparser parser(2, std::vector{std::string{"binaryname"}, std::string{"input"}});
     commandlineparser parser;
     parser.set_defaults();
+
     if (world.rank() == 0) print("input filename: ", parser.value("input"));
 
     Parameters params(world, parser);
     Parameters params2(world, params.get_input_json());
 
     CHECK(params.get_input_json() == params2.get_input_json());
+
+}
+TEST_CASE("Read From JSON or Parameters", "[JSON]") {
+    using namespace madness;
+
+    World &world = World::get_default();
+    auto testArgs(cmdArgs);
+
+    // commandlineparser parser(2, std::vector{std::string{"binaryname"}, std::string{"input"}});
+    commandlineparser parser;
+    parser.set_defaults();
+
+    if (world.rank() == 0) print("input filename: ", parser.value("input"));
+
+    Parameters params(world, parser);
+    Parameters params2(world, params.get_input_json());
+
+    CHECK(params.get_input_json() == params2.get_input_json());
+
 }
