@@ -338,7 +338,7 @@ namespace madness {
     	    auto left=append(ket1_,h1);
     	    auto right=append(h2,ket2_);
     	    auto tmp=hartree_product(left,right);
-    	    tmp.truncate();
+    	    tmp.truncate(thresh*0.3);
     	    result-=tmp;
             // result -= hartree_product(ket1_, h2);
             // result -= hartree_product(h1, ket2_);

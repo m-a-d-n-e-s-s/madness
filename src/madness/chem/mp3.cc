@@ -663,7 +663,10 @@ double MP3::compute_mp3_cd(World& world,
     double tmp2 = inner(bra, g12 * pair_square(j, i), Rsquare);
     double fac = (i == j) ? 0.5 : 1.0;
     double result = fac * (4.0 * tmp1 - 2.0 * tmp2);
-    printf("mp3 energy: term_CD %2ld %2ld: %12.8f\n", i, j, result);
+	std::size_t bufsize=256;
+	char buf[bufsize];
+    snprintf(buf,bufsize,"mp3 energy: term_CD %2ld %2ld: %12.8f\n", i, j, result);
+    print(std::string(buf));
     return result;
 }
 
@@ -687,6 +690,7 @@ double MP3::compute_mp3_ef(World& world,
     std::vector<permutation> all_tau_permutations;
     std::vector<CCPairFunction<double,6>> tmp_tau;
 
+    long counter=0;
     // loop over all k and l
     for (std::size_t k=nfrozen; k<nocc; ++k) {
         for (std::size_t l=nfrozen; l<nocc; ++l) {
@@ -710,11 +714,17 @@ double MP3::compute_mp3_ef(World& world,
             double g_ikjl=inner(bra_i*ket_k, (*g12)(bra_j*ket_l));
             double g_jkil=inner(bra_j*ket_k, (*g12)(bra_l*ket_i));
             tmp_tau+=weight*(2.0* g_ikjl - g_jkil)*pair_square(k,l);
+
+            // save some memory
+            if (counter%10) tmp_tau=consolidate(tmp_tau,{"remove_lindep"});
         }
     }
     tmp_tau=consolidate(tmp_tau,{"remove_lindep"});
     double result=inner(pair_square(i,j),tmp_tau,Rsquare);
-    printf("mp3 energy: term_EF %2ld %2ld %12.8f\n",i,j,result);
+	std::size_t bufsize=256;
+	char buf[bufsize];
+    snprintf(buf, bufsize,"mp3 energy: term_EF %2ld %2ld %12.8f\n",i,j,result);
+    print(std::string(buf));
 
     // can't do sanity check, because we are working on a single pair
 //    int npermutations=all_tau_permutations.size();
@@ -796,7 +806,10 @@ double MP3::compute_mp3_ghij(World& world,
         auto bra_intermediate = multiply(intermediate, Rsquare, {3, 4, 5});
         t4.tag("multiply");
         double tmp = 2.0*inner(bra_intermediate, gintermediate);
-        printf("mp3 energy: term_GHIJ  %2ld %12.8f\n", i, tmp);
+	    std::size_t bufsize=256;
+	    char buf[bufsize];
+        snprintf(buf, bufsize,"mp3 energy: term_GHIJ  %2ld %12.8f\n", i, tmp);
+        print(std::string(buf));
         t4.tag("inner");
         result += tmp;
     // }
@@ -854,7 +867,10 @@ double MP3::compute_mp3_klmn(World& world,
             double tmp = inner(pair_square(i, j), rhs, Rsquare);
             inner_KLMN.interrupt();
 
-            printf("mp3 energy: term_KLMN with particle=1 %2ld %2ld %12.8f\n", i, j, tmp);
+	        std::size_t bufsize=256;
+	        char buf[bufsize];
+            snprintf(buf,bufsize,"mp3 energy: term_KLMN with particle=1 %2ld %2ld %12.8f\n", i, j, tmp);
+            print(std::string(buf));
             result += tmp;
         // }
     // }
@@ -956,20 +972,21 @@ double MP3::mp3_energy_contribution_macrotask_driver(const Pairs<CCPair>& mp2pai
     auto klmn_future=macrotask_square(std::string("klmn"), nact, nact, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
     auto cd_future=macrotask_triangular(std::string("cd"), ij_triangular, dummy, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
     auto ef_future=macrotask_triangular(std::string("ef"), ij_triangular, dummy, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
-    taskq->print_taskq();
+    // taskq->print_taskq();
     taskq->run_all();
 
     double term_CD=cd_future->get();
     double term_EF=ef_future->get();
     double term_GHIJ=ghij_future->get();
     double term_KLMN=klmn_future->get();
-
-    printf("term_CD    %12.8f\n",term_CD);
-    printf("term_GHIJ  %12.8f\n",term_GHIJ);
-    printf("term_KLMN  %12.8f\n",term_KLMN);
-    printf("term_EF    %12.8f\n",term_EF);
     double mp3_energy=term_CD+term_GHIJ+term_KLMN+term_EF;
-    printf("MP3 energy contribution  %12.8f\n",mp3_energy);
+    if (world.rank()==0) {
+        printf("term_CD    %12.8f\n",term_CD);
+        printf("term_GHIJ  %12.8f\n",term_GHIJ);
+        printf("term_KLMN  %12.8f\n",term_KLMN);
+        printf("term_EF    %12.8f\n",term_EF);
+        printf("MP3 energy contribution  %12.8f\n",mp3_energy);
+    }
     return mp3_energy;
     // return 0.0;
 }

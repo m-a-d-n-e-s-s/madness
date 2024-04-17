@@ -63,8 +63,8 @@ CC2::solve() {
 //            for (auto& pair : mp2pairs.allpairs) mp2_energy+=CCOPS.compute_pair_correlation_energy(pair.second);
         } else {
             mp2_energy = solve_mp2_coupled(mp2pairs);
+            output_calc_info_schema("mp2",mp2_energy);
         }
-        output_calc_info_schema("mp2",mp2_energy);
         output.section(assign_name(CT_MP2) + " Calculation Ended !");
         if (world.rank() == 0) {
             printf_msg_energy_time("MP2 correlation energy",mp2_energy,wall_time());
@@ -88,6 +88,7 @@ CC2::solve() {
         }
 
         cc2_energy = solve_cc2(cc2singles, cc2pairs);
+        output_calc_info_schema("cc2",cc2_energy);
 
         output.section(assign_name(CT_CC2) + " Calculation Ended !");
         if (world.rank() == 0) {
@@ -103,6 +104,13 @@ CC2::solve() {
         ;   // we're good
     } else if (ctype == CT_MP3) {
         mp3_energy=compute_mp3(mp2pairs);
+        double hf_energy=nemo->value();
+        if (world.rank()==0) {
+            printf_msg_energy_time("MP3 energy contribution",mp3_energy,wall_time());
+            printf("final hf/mp2/mp3/total energy %12.8f %12.8f %12.8f %12.8f\n",
+                    hf_energy,mp2_energy,mp3_energy,hf_energy+mp2_energy+mp3_energy);
+            output_calc_info_schema("mp3",mp3_energy);
+        }
     } else if (ctype == CT_CC2) {
         ;   // we're good
     } else if (ctype == CT_CISPD) {
@@ -308,7 +316,7 @@ void CC2::output_calc_info_schema(const std::string model, const double& energy)
         j["model"]=model;
         j["driver"]="energy";
         j["return_energy"]=energy;
-        j["mp2_correlation_energy"]=energy;
+        j[model]=energy;
         update_schema(nemo->get_param().prefix()+".calc_info", j);
     }
 }
