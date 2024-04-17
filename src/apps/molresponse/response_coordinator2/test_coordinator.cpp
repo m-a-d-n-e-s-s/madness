@@ -33,6 +33,125 @@ struct CommandLineArgs {
 
 // Global instance
 CommandLineArgs cmdArgs;
+// Create function which converts json input to and outputs to a output stream
+
+void write_molecule_json_to_input_file(const json &molecule_json, std::ostream &output_stream) {
+
+    output_stream << "geometry" << std::endl;
+    output_stream << "    " << "units" << " " << std::string(molecule_json["units"]) << std::endl;
+    output_stream << "    " << "eprec" << " " << molecule_json["eprec"] << std::endl;
+    // for each key within the block write the key value pair to the file line by line
+    // grab the geometry and symbols as two separate arrays
+    std::vector<std::string> symbols;
+    std::vector<std::vector<double>> geometry;
+
+    auto coords = molecule_json["geometry"];
+    auto symbols_json = molecule_json["symbols"];
+
+    auto n = symbols_json.size();
+
+    std::vector<std::pair<std::string, std::vector<double>>> lines(n);
+
+    for (int i = 0; i < n; i++) {
+        symbols.push_back(symbols_json[i]);
+        geometry.push_back(coords[i]);
+    }
+
+    for (int i = 0; i < n; i++) {
+        output_stream << "    " << symbols[i] << " " << geometry[i][0] << " " << geometry[i][1] << " " << geometry[i][2]
+                      << std::endl;
+    }
+    output_stream << "end" << std::endl << std::endl;
+
+}
+
+void
+write_json_to_input_file(const json &input_json, const std::vector<std::string> &keys, std::ostream &output_stream) {
+
+    for (const auto &key: keys) {
+
+        if (input_json.find(key) == input_json.end()) {
+            throw std::runtime_error("Key not found in input json");
+        }
+
+        output_stream << key << std::endl;
+        // for each key within the block write the key value pair to the file line by line
+        for (auto &[key, value]: input_json[key].items()) {
+            output_stream << "    " << key << " " << value << std::endl;
+        }
+        output_stream << "end" << std::endl << std::endl;
+
+    }
+
+}
+
+void write_moldft_input(const json &input_json, std::ostream &out) {
+    write_json_to_input_file(input_json, {"dft"}, out);
+    write_molecule_json_to_input_file(input_json["molecule"], out);
+}
+
+void write_response_input(const json &input_json, std::ostream &out) {
+    write_json_to_input_file(input_json, {"response"}, out);
+}
+
+class Parameters {
+    json all_input_json;
+    commandlineparser parser;
+    Molecule molecule;
+
+    CalculationParameters moldft_params;
+    ResponseParameters molresponse_params;
+
+public:
+
+    explicit Parameters(World &world, json input_json) {
+
+        all_input_json = std::move(input_json);
+
+        std::ofstream all_input_file("example_input_file");
+        write_json_to_input_file(all_input_json, {"dft", "response"}, all_input_file);
+        write_molecule_json_to_input_file(all_input_json["molecule"], all_input_file);
+        all_input_file.close();
+
+
+        molecule = Molecule(world, parser);
+        molecule.print();
+
+        moldft_params = CalculationParameters(world, parser);
+        moldft_params.print("dft");
+
+        molresponse_params = ResponseParameters(world, parser);
+        molresponse_params.print("response");
+
+
+    }
+
+    explicit Parameters(World &world, commandlineparser parser) : parser(std::move(parser)) {
+
+        molecule = Molecule(world, this->parser);
+        molecule.print();
+
+        moldft_params = CalculationParameters(world, this->parser);
+        moldft_params.print("dft");
+
+        molresponse_params = ResponseParameters(world, this->parser);
+        molresponse_params.print("response");
+
+
+        all_input_json = {};
+        all_input_json["dft"] = moldft_params.to_json_if_precedence("defined");
+        all_input_json["response"] = molresponse_params.to_json_if_precedence("defined");
+        all_input_json["molecule"] = molecule.to_json();
+        print(all_input_json.dump(4));
+
+    }
+
+    json get_input_json() {
+        return all_input_json;
+    }
+
+};
+
 
 int main(int argc, char *argv[]) {
     World &world = madness::initialize(argc, argv);
@@ -102,7 +221,6 @@ TEST_CASE("Param Hash Generation Test") {
 
     auto response_manager = ResponseCalcManager(world, mol1_path, moldft_params, molresponse_params);
     auto response_manager2 = ResponseCalcManager(world, mol2_path, moldft_params, molresponse_params);
-
     // Test that the param directories are the same
     CHECK(response_manager.get_param_path() == response_manager2.get_param_path());
     // Test that the molecule directories are different
@@ -127,66 +245,6 @@ TEST_CASE("Test Manager Run MOLDFT") {
     response_manager.run_moldft(world, true);
 }
 
-// Create function which converts json input to and outputs to a output stream
-
-void write_molecule_json_to_input_file(const json &molecule_json, std::ostream &output_stream) {
-
-    output_stream << "geometry" << std::endl;
-    output_stream << "    " << "units" << " " << std::string(molecule_json["units"]) << std::endl;
-    output_stream << "    " << "eprec" << " " << molecule_json["eprec"] << std::endl;
-    // for each key within the block write the key value pair to the file line by line
-    // grab the geometry and symbols as two separate arrays
-    std::vector<std::string> symbols;
-    std::vector<std::vector<double>> geometry;
-
-    auto coords = molecule_json["geometry"];
-    auto symbols_json = molecule_json["symbols"];
-
-    auto n = symbols_json.size();
-
-    std::vector<std::pair<std::string, std::vector<double>>> lines(n);
-
-    for (int i = 0; i < n; i++) {
-        symbols.push_back(symbols_json[i]);
-        geometry.push_back(coords[i]);
-    }
-
-    for (int i = 0; i < n; i++) {
-        output_stream << "    " << symbols[i] << " " << geometry[i][0] << " " << geometry[i][1] << " " << geometry[i][2]
-                      << std::endl;
-    }
-    output_stream << "end" << std::endl << std::endl;
-
-}
-
-void
-write_json_to_input_file(const json &input_json, const std::vector<std::string> &keys, std::ostream &output_stream) {
-
-    for (const auto &key: keys) {
-
-        if (input_json.find(key) == input_json.end()) {
-            throw std::runtime_error("Key not found in input json");
-        }
-
-        output_stream << key << std::endl;
-        // for each key within the block write the key value pair to the file line by line
-        for (auto &[key, value]: input_json[key].items()) {
-            output_stream << "    " << key << " " << value << std::endl;
-        }
-        output_stream << "end" << std::endl << std::endl;
-
-    }
-
-}
-
-void write_moldft_input(const json &input_json, std::ostream &out) {
-    write_json_to_input_file(input_json, {"dft"}, out);
-    write_molecule_json_to_input_file(input_json["molecule"], out);
-}
-
-void write_response_input(const json &input_json, std::ostream &out) {
-    write_json_to_input_file(input_json, {"response"}, out);
-}
 
 TEST_CASE("Testing Function which writes input file from json input") {
 
@@ -254,64 +312,6 @@ TEST_CASE("INPUT TO JSON") {
 
 }
 
-class Parameters {
-    json all_input_json;
-    commandlineparser parser;
-    Molecule molecule;
-
-    CalculationParameters moldft_params;
-    ResponseParameters molresponse_params;
-
-public:
-
-    explicit Parameters(World &world, json input_json) {
-
-        all_input_json = std::move(input_json);
-
-        std::ofstream all_input_file("example_input_file");
-        write_json_to_input_file(all_input_json, {"dft", "response"}, all_input_file);
-        write_molecule_json_to_input_file(all_input_json["molecule"], all_input_file);
-        all_input_file.close();
-
-
-        molecule = Molecule(world, parser);
-        molecule.print();
-
-        moldft_params = CalculationParameters(world, parser);
-        moldft_params.print("dft");
-
-        molresponse_params = ResponseParameters(world, parser);
-        molresponse_params.print("response");
-
-
-    }
-
-    explicit Parameters(World &world, commandlineparser parser) : parser(std::move(parser)) {
-
-        molecule = Molecule(world, this->parser);
-        molecule.print();
-
-        moldft_params = CalculationParameters(world, this->parser);
-        moldft_params.print("dft");
-
-        molresponse_params = ResponseParameters(world, this->parser);
-        molresponse_params.print("response");
-
-
-        all_input_json = {};
-        all_input_json["dft"] = moldft_params.to_json_if_precedence("defined");
-        all_input_json["response"] = molresponse_params.to_json_if_precedence("defined");
-        all_input_json["molecule"] = molecule.to_json();
-        print(all_input_json.dump(4));
-
-    }
-
-    json get_input_json() {
-        return all_input_json;
-    }
-
-};
-
 
 TEST_CASE("Testing Parameters Class", "[Parameters]") {
     using namespace madness;
@@ -349,3 +349,6 @@ TEST_CASE("Read From JSON or Parameters", "[JSON]") {
     CHECK(params.get_input_json() == params2.get_input_json());
 
 }
+
+
+
