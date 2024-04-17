@@ -71,131 +71,6 @@ std::pair<CalculationParameters, ResponseParameters> get_params(const std::strin
 
 }
 
-TEST_CASE("Basic Response Manager Test") {
-    // Set up the run directories
-    using namespace madness;
-
-    World &world = World::get_default();
-    std::cout.precision(6);
-
-    path json_input_path("resources/inputs/input.json");
-    path molecule_path("resources/molecules/H2O.mol");
-    // print full path
-    // Read in json
-
-    auto [moldft_params, molresponse_params] = get_params(json_input_path);
-    auto response_manager = ResponseCalcManager(world, molecule_path, moldft_params, molresponse_params);
-    response_manager.print();
-    // The json is converted into a temporary getKW file which is then read by the parser.
-    // Now we need to write a function
-}
-
-TEST_CASE("Param Hash Generation Test") {
-    // Set up the run directories
-    using namespace madness;
-
-    World &world = World::get_default();
-    std::cout.precision(6);
-
-    path mol1_path("resources/molecules/H2O.mol");
-    path mol2_path("resources/molecules/Be.mol");
-    path json_input_path("resources/inputs/input.json");
-
-    auto [moldft_params, molresponse_params] = get_params(json_input_path);
-
-
-    auto response_manager = ResponseCalcManager(world, mol1_path, moldft_params, molresponse_params);
-    auto response_manager2 = ResponseCalcManager(world, mol2_path, moldft_params, molresponse_params);
-    // Test that the param directories are the same
-    CHECK(response_manager.get_param_path() == response_manager2.get_param_path());
-    // Test that the molecule directories are different
-    CHECK(response_manager.get_moldft_path() != response_manager2.get_moldft_path());
-
-}
-
-TEST_CASE("Test Manager Run MOLDFT") {
-    using namespace madness;
-
-    World &world = World::get_default();
-    std::cout.precision(6);
-
-    path mol1_path("resources/molecules/He.mol");
-    path json_input_path("resources/inputs/input.json");
-
-    auto [moldft_params, molresponse_params] = get_params(json_input_path);
-
-
-    auto response_manager = ResponseCalcManager(world, mol1_path, moldft_params, molresponse_params);
-
-    response_manager.run_moldft(world, true);
-}
-
-
-TEST_CASE("Testing Function which writes input file from json input") {
-
-    using namespace madness;
-
-    World &world = World::get_default();
-    std::cout.precision(6);
-    path mol1_path("resources/molecules/H2.mol");
-    path json_input_path("resources/inputs/input.json");
-
-    auto [moldft_params, molresponse_params] = get_params(json_input_path);
-
-    std::ifstream molecule_stream(mol1_path);
-    Molecule molecule;
-    if (!molecule_stream.is_open()) {
-        throw std::runtime_error("Could not open molecule file");
-    } else {
-        molecule.read(molecule_stream);
-        molecule_stream.close();
-    }
-    ::print("Molecule read from file: ");
-    molecule.print();
-
-    json all_input_blocks = {};
-    all_input_blocks["dft"] = moldft_params.to_json_if_precedence("defined");
-    all_input_blocks["response"] = molresponse_params.to_json_if_precedence("defined");
-    all_input_blocks["molecule"] = molecule.to_json();
-
-    print(all_input_blocks.dump(4));
-    write_json_to_input_file(all_input_blocks, {"dft", "response"}, std::cout);
-    write_molecule_json_to_input_file(all_input_blocks["molecule"], std::cout);
-
-    std::ofstream moldft_input_file("example_moldft.in");
-    write_moldft_input(all_input_blocks, moldft_input_file);
-    moldft_input_file.close();
-
-    std::ofstream response_input_file("example_response.in");
-    write_response_input(all_input_blocks, response_input_file);
-    response_input_file.close();
-
-    std::ofstream all_input_file("input");
-    write_json_to_input_file(all_input_blocks, {"dft", "response"}, all_input_file);
-    write_molecule_json_to_input_file(all_input_blocks["molecule"], all_input_file);
-    all_input_file.close();
-
-
-}
-
-TEST_CASE("INPUT TO JSON") {
-    using namespace madness;
-
-    World &world = World::get_default();
-
-    commandlineparser parser;
-
-    Molecule molecule(world, parser);
-    molecule.print();
-
-    CalculationParameters moldft_params(world, parser);
-    moldft_params.print("dft");
-
-    ResponseParameters molresponse_params(world, parser);
-    molresponse_params.print("response");
-
-
-}
 
 
 TEST_CASE("Testing Parameters Class", "[Parameters]") {
@@ -235,5 +110,23 @@ TEST_CASE("Paramter Reader From input path", "[JSON]") {
 
 }
 
+TEST_CASE("Run MOLDFT") {
+    // Set up the run directories
+    using namespace madness;
+
+    World &world = World::get_default();
+    std::cout.precision(6);
+
+    path json_input_path("example.json");
+
+    ParameterManager params(world, json_input_path);
+    auto response_manager = ResponseCalcManager(world, params);
+
+    response_manager.run_moldft(world,false);
+
+
+    // The json is converted into a temporary getKW file which is then read by the parser.
+    // Now we need to write a function
+}
 
 

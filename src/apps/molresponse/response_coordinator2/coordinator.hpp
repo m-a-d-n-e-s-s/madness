@@ -209,42 +209,56 @@ public:
         return all_input_json;
     }
 
-    void write_input_file() {
+    void write_input_file() const {
         std::ofstream all_input_file(input_file_path);
         write_json_to_input_file(all_input_json, {"dft", "response"}, all_input_file);
         write_molecule_json_to_input_file(all_input_json["molecule"], all_input_file);
         all_input_file.close();
     }
 
-    void write_json_input() {
+    void write_json_input() const {
         std::ofstream all_input_file(input_file_json_path);
         all_input_file << all_input_json.dump(4);
         all_input_file.close();
+    }
+
+    void write_moldft_input_file(std::ostream &os) const {
+        write_moldft_input(all_input_json, os);
+    }
+
+    void write_response_input_file(std::ostream &os) const {
+        write_response_input(all_input_json, os);
+    }
+
+    auto get_moldft_params() const -> const CalculationParameters & { return moldft_params; }
+
+    auto get_molresponse_params() const -> const ResponseParameters & { return molresponse_params; }
+
+    auto get_molecule() const -> const Molecule & { return molecule; }
+
+    void write_moldft_json(std::ostream &os) {
+        os << std::setw(4) << all_input_json["dft"];
+        os << std::setw(4) << all_input_json["molecule"];
+    }
+
+    void write_response_json(std::ostream &os) {
+        os << std::setw(4) << all_input_json["response"];
     }
 
 };
 
 class ResponseCalcManager {
 
-    path molecule_path;
-    CalculationParameters moldft_params;
-    ResponseParameters response_params;
 
     path root;       // root directory
 
-
-
-    path param_path;// molecule directory
-    path param_json_path;
+    ParameterManager parameter_manager;
 
     path moldft_path;// molecule directory
     path moldft_json_path;
     path moldft_restart;
 
     path calc_info_json_path;
-    json moldft_json;
-    json molresponse_json;
-    json params_json;
 
     json calc_info_json;
 
@@ -255,18 +269,8 @@ class ResponseCalcManager {
 
 public:
 
-    // Create a bunch of getters
-    auto get_molecule_path() const -> const path & { return molecule_path; }
-
-    auto get_moldft_params() const -> const CalculationParameters & { return moldft_params; }
-
-    auto get_response_params() const -> const ResponseParameters & { return response_params; }
 
     auto get_root() const -> const path & { return root; }
-
-    auto get_param_path() const -> const path & { return param_path; }
-
-    auto get_param_json_path() const -> const path & { return param_json_path; }
 
     auto get_moldft_path() const -> const path & { return moldft_path; }
 
@@ -275,12 +279,6 @@ public:
     auto get_moldft_restart() const -> const path & { return moldft_restart; }
 
     auto get_calc_info_json_path() const -> const path & { return calc_info_json_path; }
-
-    auto get_moldft_json() const -> const json & { return moldft_json; }
-
-    auto get_molresponse_json() const -> const json & { return molresponse_json; }
-
-    auto get_params_json() const -> const json & { return params_json; }
 
     auto get_calc_info_json() const -> const json & { return calc_info_json; }
 
@@ -293,67 +291,17 @@ public:
     auto get_molecule() const -> const Molecule & { return molecule; }
 
 
-    explicit ResponseCalcManager(World &world, const path &molecule_path, const CalculationParameters &moldft_params,
-                                 const ResponseParameters &response_params) : moldft_params(moldft_params),
-                                                                              response_params(response_params) {
-        xc = moldft_params.xc();
+    explicit ResponseCalcManager(World &world, ParameterManager pm) : parameter_manager(std::move(pm)) {
+        xc = parameter_manager.get_moldft_params().xc();
         op = "dipole";
-        freq = response_params.freq_range();
+        freq = parameter_manager.get_molresponse_params().freq_range();
 
-        root = std::filesystem::current_path();//="/"+molecule_name;
-        this->molecule_path = root / molecule_path;
+        root = std::filesystem::current_path();
+        auto molecule_json = parameter_manager.get_input_json()["molecule"];
+        auto param_hash = std::hash<json>{}(molecule_json);
+        auto param_dir = "moldft_" + std::to_string(param_hash);
 
-        ::print("Full path to molecule file: ", molecule_path.string());
-        std::ifstream molecule_stream(molecule_path);
-
-        if (!molecule_stream.is_open()) {
-            throw std::runtime_error("Could not open molecule file");
-        } else {
-            molecule.read(molecule_stream);
-            molecule_stream.close();
-        }
-        ::print("Molecule read from file: ");
-        molecule.print();
-
-        moldft_json = {};
-        moldft_json["moldft"] = moldft_params.to_json_if_precedence("defined");
-        //moldft_json["molecule"] = molecule.to_json();
-
-        molresponse_json = {};
-        molresponse_json["response"] = response_params.to_json_if_precedence("defined");
-
-        molresponse_json["molecule"] = molecule.to_json();
-
-        params_json = {};
-        params_json["moldft"] = moldft_params.to_json_if_precedence("defined");
-        params_json["response"] = response_params.to_json_if_precedence("defined");
-
-        // hash based on the parameters and create directories
-        auto param_hash = std::hash<json>{}(params_json);
-        auto param_dir = "params_" + std::to_string(param_hash);
-        param_path = root / path(param_dir);
-
-        if (std::filesystem::is_directory(param_path)) {
-            cout << "params directory found"
-                 << "\n";
-        } else {// create the file
-            cout << "Creating params directory"
-                 << "\n";
-            std::filesystem::create_directory(param_path);
-        }
-        // Write the parameters to the json file
-        param_json_path = param_path / path("params.json");
-        if (world.rank() == 0) {
-            ::print("Writing param json to: ", param_json_path);
-            std::ofstream ofs(param_json_path);
-            ofs << std::setw(4) << params_json;
-            ofs.close();
-        }
-
-        auto molecule_json = molecule.to_json();
-        auto molecule_hash = std::hash<json>{}(molecule_json);
-        auto moldft_dir = "moldft_" + std::to_string(molecule_hash);
-        moldft_path = param_path / path(moldft_dir);
+        moldft_path = root / path(param_dir);
 
         if (std::filesystem::is_directory(moldft_path)) {
             cout << "moldft directory found"
@@ -364,16 +312,16 @@ public:
             std::filesystem::create_directory(moldft_path);
         }
         // Write the molecule and params
-        moldft_json["molecule"] = molecule_json;
         moldft_json_path = moldft_path / path("moldft.json");
 
         if (world.rank() == 0) {
             ::print("Writing moldft json to: ", moldft_json_path);
             std::ofstream ofs(moldft_json_path);
-            ofs << std::setw(4) << moldft_json;
+            parameter_manager.write_moldft_json(ofs);
             ofs.close();
         }
         world.gop.fence();
+
         moldft_restart = addPath(moldft_path, "/mad.restartdata.00000");
         calc_info_json_path = addPath(moldft_path, "/mad.calc_info.json");
         if (std::filesystem::exists(moldft_restart) && std::filesystem::exists(calc_info_json_path)) {
@@ -421,7 +369,7 @@ public:
         std::filesystem::current_path(moldft_path);
 
         json calcInfo;
-        auto param1 = moldft_params;
+        auto param1 = parameter_manager.get_moldft_params();
         world.gop.broadcast_serializable(param1, 0);
 
         if (world.rank() == 0) {
@@ -433,8 +381,14 @@ public:
         }
         world.gop.fence();
         if (world.rank() == 0) {
-            molresponse::write_test_input test_input(param1, "moldft.in",
-                                                     molecule_path);// molecule HF
+
+            parameter_manager.write_moldft_input_file(std::cout);
+
+            std::ofstream ofs("moldft.in");
+            parameter_manager.write_moldft_input_file(ofs);
+            ofs.close();
+
+
         }
         world.gop.fence();
         commandlineparser parser;
@@ -539,7 +493,7 @@ public:
         if (world.rank() == 0) { ::print("save path", save_path); }
         if (world.rank() == 0) { ::print("save string", save_string); }
 
-        ResponseParameters parameters(response_params);
+        ResponseParameters parameters(parameter_manager.get_molresponse_params());
 
 
         if (world.rank() == 0) {
