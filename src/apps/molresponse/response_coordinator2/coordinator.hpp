@@ -35,6 +35,195 @@ auto addPath(const path &root, const std::string &branch) -> path {
     return p_branch;
 }
 
+void write_molecule_json_to_input_file(const json &molecule_json, std::ostream &output_stream) {
+    output_stream << "geometry" << std::endl;
+    // get parameters seperately
+    auto parameters = molecule_json["parameters"];
+
+    for (auto &[key, value]: parameters.items()) {
+        output_stream << "    " << key << " " << value << std::endl;
+    }
+
+    // grab the geometry and symbols as two separate arrays
+    std::vector<std::string> symbols;
+    std::vector<std::vector<double>> geometry;
+
+    auto coords = molecule_json["geometry"];
+    auto symbols_json = molecule_json["symbols"];
+
+    auto n = symbols_json.size();
+    std::vector<std::pair<std::string, std::vector<double>>> lines(n);
+
+    for (int i = 0; i < n; i++) {
+        symbols.push_back(symbols_json[i]);
+        geometry.push_back(coords[i]);
+    }
+
+    for (int i = 0; i < n; i++) {
+        output_stream << "    " << symbols[i] << " " << geometry[i][0] << " " << geometry[i][1] << " " << geometry[i][2]
+                      << std::endl;
+    }
+    output_stream << "end" << std::endl << std::endl;
+
+}
+
+void
+write_json_to_input_file(const json &input_json, const std::vector<std::string> &keys, std::ostream &output_stream) {
+
+    for (const auto &key: keys) {
+
+        if (input_json.find(key) == input_json.end()) {
+            throw std::runtime_error("Key not found in input json");
+        }
+
+        output_stream << key << std::endl;
+        // for each key within the block write the key value pair to the file line by line
+        for (auto &[key, value]: input_json[key].items()) {
+            output_stream << "    " << key << " " << value << std::endl;
+        }
+        output_stream << "end" << std::endl << std::endl;
+
+    }
+
+}
+
+void write_moldft_input(const json &input_json, std::ostream &out) {
+    write_json_to_input_file(input_json, {"dft"}, out);
+    write_molecule_json_to_input_file(input_json["molecule"], out);
+}
+
+void write_response_input(const json &input_json, std::ostream &out) {
+    write_json_to_input_file(input_json, {"response"}, out);
+}
+
+class ParameterManager {
+
+private:
+
+    path input_file_path;
+    path input_file_json_path;
+    std::string input_file_base;
+
+
+    json all_input_json;
+    commandlineparser parser;
+    Molecule molecule;
+
+    CalculationParameters moldft_params;
+    ResponseParameters molresponse_params;
+
+public:
+
+    explicit ParameterManager(World &world, const path &file_path) {
+
+        // Get extension of file if it has one
+        auto file_extension = file_path.extension();
+        print("file extension", file_extension);
+
+
+        input_file_base = file_path.stem().string();
+        if (world.rank() == 0) {
+            print("Input file path: ", file_path);
+            print("Input file base name: ", input_file_base);
+        }
+
+        if (file_extension == path(".json")) {
+            if (world.rank() == 0) print("Reading input file from json");
+            input_file_json_path = file_path;
+
+
+            std::ifstream input_stream(input_file_json_path);
+            all_input_json = json::parse(input_stream);
+            input_file_path = path(input_file_base);
+
+            molecule = Molecule(world, parser);
+            moldft_params = CalculationParameters(world, parser);
+            molresponse_params = ResponseParameters(world, parser);
+
+            write_input_file();
+
+
+        } else {
+
+            if (world.rank() == 0) print("Reading input file");
+
+            input_file_path = file_path;
+            std::ifstream input_stream(input_file_path);
+            input_file_json_path = path(input_file_base + ".json");
+
+            molecule = Molecule(world, this->parser);
+            moldft_params = CalculationParameters(world, this->parser);
+
+            molresponse_params = ResponseParameters(world, this->parser);
+
+
+            all_input_json = {};
+            all_input_json["dft"] = moldft_params.to_json_if_precedence("defined");
+            all_input_json["response"] = molresponse_params.to_json_if_precedence("defined");
+            all_input_json["molecule"] = molecule.to_json();
+
+            write_json_input();
+
+        }
+
+    }
+
+    explicit ParameterManager(World
+                              &world, json
+                              input_json) {
+
+        all_input_json = std::move(input_json);
+        write_input_file();
+
+        molecule = Molecule(world, parser);
+        moldft_params = CalculationParameters(world, parser);
+        molresponse_params = ResponseParameters(world, parser);
+
+        // output the json to input
+
+
+
+
+    }
+
+    explicit ParameterManager(World
+                              &world, commandlineparser
+                              parser) : parser(std::move(parser)) {
+
+        molecule = Molecule(world, this->parser);
+        moldft_params = CalculationParameters(world, this->parser);
+
+        molresponse_params = ResponseParameters(world, this->parser);
+
+
+        all_input_json = {};
+        all_input_json["dft"] = moldft_params.to_json_if_precedence("defined");
+        all_input_json["response"] = molresponse_params.to_json_if_precedence("defined");
+        all_input_json["molecule"] = molecule.to_json();
+
+        write_json_input();
+
+    }
+
+    json get_input_json() {
+        return all_input_json;
+    }
+
+    void write_input_file() {
+        std::ofstream all_input_file(input_file_path);
+        write_json_to_input_file(all_input_json, {"dft", "response"}, all_input_file);
+        write_molecule_json_to_input_file(all_input_json["molecule"], all_input_file);
+        all_input_file.close();
+    }
+
+    void write_json_input() {
+        std::ofstream all_input_file(input_file_json_path);
+        all_input_file << all_input_json.dump(4);
+        all_input_file.close();
+    }
+
+};
+
 class ResponseCalcManager {
 
     path molecule_path;
