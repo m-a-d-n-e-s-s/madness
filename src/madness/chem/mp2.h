@@ -464,8 +464,6 @@ public:
         return hf->orbital_energy(i) + hf->orbital_energy(j);
     }
 
-    double mp3() const;
-
     /// solve the residual equation for electron pair (i,j)
 
     /// \todo Parameter documentation. Below are un-doxygenated comments that no longer seem relevant?

@@ -194,7 +194,7 @@ public:
 	bool is_running() const {return stat==Running;}
 	bool is_waiting() const {return stat==Waiting;}
 
-	virtual void run(World& world, Cloud& cloud, taskqT& taskq, const long element) = 0;
+	virtual void run(World& world, Cloud& cloud, taskqT& taskq, const long element, const bool debug) = 0;
 	virtual void cleanup() = 0;		// clear static data (presumably persistent input data)
 
     virtual void print_me(std::string s="") const {
@@ -210,6 +210,7 @@ public:
     }
 
     double get_priority() const {return priority;}
+    void set_priority(const double p) {priority=p;}
 
     friend std::ostream& operator<<(std::ostream& os, const MacroTaskBase::Status s) {
     	if (s==MacroTaskBase::Status::Running) os << "Running";
@@ -229,11 +230,6 @@ public:
 	MacroTaskIntermediate() {}
 
 	~MacroTaskIntermediate() {}
-
-	// void run(World& world, Cloud& cloud) {
-		// dynamic_cast<macrotaskT*>(this)->run(world,cloud);
-		// world.gop.fence();
-	// }
 
 	void cleanup() {};
 };
@@ -256,6 +252,7 @@ class MacroTaskQ : public WorldObject< MacroTaskQ> {
     std::shared_ptr< WorldDCPmapInterface< Key<6> > > pmap6;
 
 	bool printdebug() const {return printlevel>=10;}
+	bool printprogress() const {return (printlevel>=3) and (not (printdebug()));}
     bool printtimings() const {return universe.rank()==0 and printlevel>=3;}
 
 public:
@@ -301,6 +298,11 @@ public:
 		for (const auto& t : vtask) if (universe.rank()==0) t->set_waiting();
 		for (size_t i=0; i<vtask.size(); ++i) add_replicated_task(vtask[i]);
 		if (printdebug()) print_taskq();
+		if (printtimings()) {
+			print("number of tasks in taskq",taskq.size());
+			print("redirecting output to files task.#####");
+		}
+
 
 		cloud.replicate();
         universe.gop.fence();
@@ -319,24 +321,38 @@ public:
 		World& subworld=get_subworld();
 //		if (printdebug()) print("I am subworld",subworld.id());
 		double tasktime=0.0;
-		while (true){
+		if (printprogress() and universe.rank()==0) std::cout << "progress in percent: " << std::flush;
+		while (true) {
 			long element=get_scheduled_task_number(subworld);
-            double cpu0=cpu_time();
+			double cpu0=cpu_time();
 			if (element<0) break;
 			std::shared_ptr<MacroTaskBase> task=taskq[element];
-            if (printdebug()) print("starting task no",element, "in subworld",subworld.id(),"at time",wall_time());
+			if (printdebug()) print("starting task no",element, "in subworld",subworld.id(),"at time",wall_time());
 
-			task->run(subworld,cloud, taskq, element);
+			task->run(subworld,cloud, taskq, element, printdebug());
 
 			double cpu1=cpu_time();
-            set_complete(element);
+			set_complete(element);
 			tasktime+=(cpu1-cpu0);
-			if (subworld.rank()==0 and printlevel>=3) printf("completed task %3ld after %6.1fs at time %6.1fs\n",element,cpu1-cpu0,wall_time());
+			if (printdebug()) printf("completed task %3ld after %6.1fs at time %6.1fs\n",element,cpu1-cpu0,wall_time());
 
+			// print progress
+			const std::size_t ntask=taskq.size();
+			// return percentile of ntask for element
+			auto in_percentile = [&ntask](const long element) {
+				return std::floor(element/(0.1*(ntask+1)));
+			};
+			auto is_first_in_percentile = [&](const long element) {
+				return (in_percentile(element)!=in_percentile(element-1));
+			};
+			if (printprogress() and is_first_in_percentile(element)) {
+				std::cout << int(in_percentile(element)*10) << " " << std::flush;
+			}
 		}
         universe.gop.set_forbid_fence(false);
 		universe.gop.fence();
 		universe.gop.sum(tasktime);
+		if (printprogress() and universe.rank()==0) std::cout << std::endl;
         double cpu11=cpu_time();
         if (printlevel>=3) cloud.print_timings(universe);
         if (printtimings()) {
@@ -461,13 +477,14 @@ class MacroTask {
 	struct io_redirect {
 		std::streambuf* stream_buffer_cout;
 		std::ofstream ofile;
+		bool debug=false;
 
-		io_redirect(const long task_number, std::string filename) {
+		io_redirect(const long task_number, std::string filename, bool debug=false) : debug(debug) {
 	        std::size_t bufsize=256;
 	        char cfilename[bufsize];
 			std::snprintf(cfilename,bufsize,"%s.%5.5ld",filename.c_str(),task_number);
 			ofile=std::ofstream(cfilename);
-			std::cout << "redirecting to file" << cfilename << std::endl;
+			if (debug) std::cout << "redirecting to file " << cfilename << std::endl;
 			stream_buffer_cout = std::cout.rdbuf(ofile.rdbuf());
 			std::cout.sync_with_stdio(true);
 		}
@@ -476,7 +493,7 @@ class MacroTask {
 			std::cout.rdbuf(stream_buffer_cout);
 			ofile.close();
 			std::cout.sync_with_stdio(true);
-			std::cout << "redirecting back to cout" << std::endl;
+			if (debug) std::cout << "redirecting back to cout" << std::endl;
 		}
 	};
 
@@ -608,38 +625,44 @@ private:
             print(ss.str());
         }
 
-        void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element) {
+        void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug) {
 
-        	io_redirect io(element,"task");
+        	io_redirect io(element,"task",debug);
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             const argtupleT batched_argtuple = task.batch.template copy_input_batch(argtuple);
+        	try {
+        		resultT result_tmp = std::apply(task, batched_argtuple);
 
-            resultT result_tmp = std::apply(task, batched_argtuple);
+        		resultT result = get_output(subworld, cloud, argtuple);       // lives in the universe
+        		if constexpr (is_madness_function<resultT>::value) {
+        			result_tmp.compress();
+        			gaxpy(1.0,result,1.0, result_tmp);
+        		} else if constexpr(is_madness_function_vector<resultT>::value) {
+        			compress(subworld, result_tmp);
+        			resultT tmp1=task.allocator(subworld,argtuple);
+        			tmp1=task.batch.template insert_result_batch(tmp1,result_tmp);
+        			gaxpy(1.0,result,1.0,tmp1,false);
+        			// was using operator+=, but this requires a fence, which is not allowed here..
+        			// result += tmp1;
+        		} else if constexpr (is_scalar_result_ptr<resultT>::value) {
+        			gaxpy(1.0, *result, 1.0, result_tmp->get_local(), false);
+        		} else if constexpr (is_scalar_result_ptr_vector<resultT>::value) {
+        			resultT tmp1=task.allocator(subworld,argtuple);
+        			tmp1=task.batch.template insert_result_batch(tmp1,result_tmp);
 
-            resultT result = get_output(subworld, cloud, argtuple);       // lives in the universe
-            if constexpr (is_madness_function<resultT>::value) {
-                result_tmp.compress();
-                gaxpy(1.0,result,1.0, result_tmp);
-            } else if constexpr(is_madness_function_vector<resultT>::value) {
-                compress(subworld, result_tmp);
-                resultT tmp1=task.allocator(subworld,argtuple);
-                tmp1=task.batch.template insert_result_batch(tmp1,result_tmp);
-            	gaxpy(1.0,result,1.0,tmp1,false);
-            	// was using operator+=, but this requires a fence, which is not allowed here..
-                // result += tmp1;
-            } else if constexpr (is_scalar_result_ptr<resultT>::value) {
-                gaxpy(1.0, *result, 1.0, result_tmp->get_local(), false);
-            } else if constexpr (is_scalar_result_ptr_vector<resultT>::value) {
-                resultT tmp1=task.allocator(subworld,argtuple);
-                tmp1=task.batch.template insert_result_batch(tmp1,result_tmp);
-
-                std::size_t sz=result.size();
-                for (int i=0; i<sz; ++i) {
-                    gaxpy(1.0, *(result[i]), 1.0, tmp1[i]->get_local(), false);
-                }
-            } else {
-                MADNESS_EXCEPTION("failing result",1);
-            }
+        			std::size_t sz=result.size();
+        			for (int i=0; i<sz; ++i) {
+        				gaxpy(1.0, *(result[i]), 1.0, tmp1[i]->get_local(), false);
+        			}
+        		} else {
+        			MADNESS_EXCEPTION("failing result",1);
+        		}
+        	} catch (std::exception& e) {
+        		print("failing task no",element,"in subworld",subworld.id(),"at time",wall_time());
+        		print(e.what());
+        		print("\n\n");
+        		MADNESS_EXCEPTION("failing task",1);
+        	}
 
         };
 

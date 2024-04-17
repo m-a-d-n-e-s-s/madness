@@ -111,7 +111,7 @@ private:
                 i=batch.input[0].begin+parameters.freeze();
                 j=batch.input[1].begin+parameters.freeze();
             }
-            print("i,j,parameters.freeze()=",i,j,parameters.freeze());
+            // print("i,j,parameters.freeze()=",i,j,parameters.freeze());
 
             // convert vector of vectors back to Pairs
             PairVectorMap square_map=PairVectorMap::quadratic_map(parameters.freeze(),mo_ket.size());
