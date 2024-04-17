@@ -335,8 +335,13 @@ namespace madness {
             FunctionDefaults<2*NDIM>::set_thresh(tight_thresh);
 
             Function<T, 2 * NDIM> result = copy(f);
-            result -= hartree_product(ket1_, h2);
-            result -= hartree_product(h1, ket2_);
+    	    auto left=append(ket1_,h1);
+    	    auto right=append(h2,ket2_);
+    	    auto tmp=hartree_product(left,right);
+    	    tmp.truncate();
+    	    result-=tmp;
+            // result -= hartree_product(ket1_, h2);
+            // result -= hartree_product(h1, ket2_);
             result.truncate().reduce_rank();
             result.set_thresh(FunctionDefaults<2 * NDIM>::get_thresh());
             FunctionDefaults<2*NDIM>::set_thresh(thresh);
