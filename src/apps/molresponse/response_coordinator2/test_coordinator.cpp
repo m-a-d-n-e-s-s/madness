@@ -10,6 +10,7 @@
 #include "madness/external/catch/catch.hpp"
 #include "string"
 #include <filesystem>
+#include <utility>
 
 
 using path = std::filesystem::path;
@@ -138,7 +139,7 @@ void write_molecule_json_to_input_file(const json &molecule_json, std::ostream &
 void
 write_json_to_input_file(const json &input_json, const std::vector<std::string> &keys, std::ostream &output_stream) {
 
-    for (auto key: keys) {
+    for (const auto &key: keys) {
 
         if (input_json.find(key) == input_json.end()) {
             throw std::runtime_error("Key not found in input json");
@@ -159,6 +160,7 @@ void write_moldft_input(const json &input_json, std::ostream &out) {
     write_json_to_input_file(input_json, {"dft"}, out);
     write_molecule_json_to_input_file(input_json["molecule"], out);
 }
+
 void write_response_input(const json &input_json, std::ostream &out) {
     write_json_to_input_file(input_json, {"response"}, out);
 }
@@ -185,14 +187,10 @@ TEST_CASE("Testing Function which writes input file from json input") {
     ::print("Molecule read from file: ");
     molecule.print();
 
-
     json all_input_blocks = {};
-
     all_input_blocks["dft"] = moldft_params.to_json_if_precedence("defined");
     all_input_blocks["response"] = molresponse_params.to_json_if_precedence("defined");
     all_input_blocks["molecule"] = molecule.to_json();
-
-
 
     print(all_input_blocks.dump(4));
     write_json_to_input_file(all_input_blocks, {"dft", "response"}, std::cout);
@@ -206,4 +204,96 @@ TEST_CASE("Testing Function which writes input file from json input") {
     write_response_input(all_input_blocks, response_input_file);
     response_input_file.close();
 
+    std::ofstream all_input_file("input");
+    write_json_to_input_file(all_input_blocks, {"dft", "response"}, all_input_file);
+    write_molecule_json_to_input_file(all_input_blocks["molecule"], all_input_file);
+    all_input_file.close();
+
+
+}
+
+TEST_CASE("INPUT TO JSON") {
+    using namespace madness;
+
+    World &world = World::get_default();
+
+    commandlineparser parser;
+
+    Molecule molecule(world, parser);
+    molecule.print();
+
+    CalculationParameters moldft_params(world, parser);
+    moldft_params.print("dft");
+
+    ResponseParameters molresponse_params(world, parser);
+    molresponse_params.print("response");
+
+
+}
+
+class Parameters {
+    json input_json;
+    commandlineparser parser;
+    Molecule molecule;
+
+    CalculationParameters moldft_params;
+    ResponseParameters molresponse_params;
+
+public:
+
+    explicit Parameters(World &world, json input_json) {
+
+        this->input_json = std::move(input_json);
+        std::ofstream all_input_file("input");
+        write_json_to_input_file(input_json, {"dft", "response"}, all_input_file);
+        write_molecule_json_to_input_file(input_json["molecule"], all_input_file);
+        all_input_file.close();
+
+
+        molecule = Molecule(world, parser);
+        molecule.print();
+
+        moldft_params = CalculationParameters(world, parser);
+        moldft_params.print("dft");
+
+        molresponse_params = ResponseParameters(world, parser);
+        molresponse_params.print("response");
+    }
+
+    explicit Parameters(World &world, commandlineparser parser) : parser(std::move(parser)) {
+
+        molecule = Molecule(world, parser);
+        molecule.print();
+
+        moldft_params = CalculationParameters(world, parser);
+        moldft_params.print("dft");
+
+        molresponse_params = ResponseParameters(world, parser);
+        molresponse_params.print("response");
+
+
+        input_json = {};
+        input_json["dft"] = moldft_params.to_json_if_precedence("defined");
+        input_json["response"] = molresponse_params.to_json_if_precedence("defined");
+        input_json["molecule"] = molecule.to_json();
+
+    }
+    json get_input_json() {
+        return input_json;
+    }
+
+};
+
+TEST_CASE("Testing Parameters Class") {
+    using namespace madness;
+
+    World &world = World::get_default();
+    commandlineparser parser;
+    parser.set_defaults();
+    if (world.rank() == 0) print("input filename: ", parser.value("input"));
+
+    Parameters params(world, parser);
+    Parameters params2(world, params.get_input_json());
+
+    CHECK(params.get_input_json() == params2.get_input_json());
 }

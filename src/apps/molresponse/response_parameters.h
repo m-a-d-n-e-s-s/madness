@@ -24,6 +24,10 @@ namespace madness {
 
     struct ResponseParameters : public QCCalculationParametersBase {
         ResponseParameters(const ResponseParameters &other) = default;
+        ResponseParameters(World& world, const commandlineparser& parser) : ResponseParameters() {
+            read_input_and_commandline_options(world, parser, "response");
+            // convenience option -- needs to be moved to the MolecularOptimizer class
+        }
         ResponseParameters() {
             initialize<std::string>("archive", "../moldft.restartdata", "file to read ground parameters from");
             initialize<bool>("nwchem", false, "Using nwchem files for intelligent starting guess");
