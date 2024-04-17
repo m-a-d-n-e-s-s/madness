@@ -459,9 +459,8 @@ nlohmann::json Molecule::to_json() const {
     mol_schema["symbols"] = {};
     mol_schema["geometry"] = {};
 
-    mol_schema["units"] = parameters.units();
-    mol_schema["eprec"] = get_eprec();
-
+    auto molecule_parameters = parameters.to_json();
+    mol_schema["parameters"] = molecule_parameters;
 
 //    get_atomic_data(atoms[0].atomic_number).symbol;
     for (size_t i = 0; i < natom(); ++i) {
@@ -469,6 +468,34 @@ nlohmann::json Molecule::to_json() const {
         mol_schema["geometry"].push_back({atoms[i].x, atoms[i].y, atoms[i].z});
     }
     return mol_schema;
+}
+
+void Molecule::from_json(const json & mol_json){
+    atoms.clear();
+    rcut.clear();
+
+    parameters.from_json(mol_json["parameters"]);
+
+    double scale =1.0;
+    if (parameters.units()=="angstrom") scale = 1e-10 / madness::constants::atomic_unit_of_length;
+    auto symbols = mol_json["symbols"];
+    auto geometry = mol_json["geometry"];
+
+
+    for (size_t i = 0; i < symbols.size(); ++i) {
+        std::string symbol = symbols[i];
+        double x = (geometry[i][0]);
+        double y = (geometry[i][1]);
+        double z = (geometry[i][2]);
+        x*=scale;
+        y*=scale;
+        z*=scale;
+        int atomic_number = symbol_to_atomic_number(symbol);
+        double q = atomic_number;
+
+        add_atom(x, y, z, q, atomic_number);
+    }
+
 }
 
 
@@ -962,8 +989,8 @@ double Molecule::total_nuclear_charge() const {
 }
 //Nuclear charge density of the molecule
 double Molecule::mol_nuclear_charge_density(double x, double y, double z) const {
-    // Only one atom will contribute due to the short range of the nuclear            
-    // charge density                                                                                                                                        
+    // Only one atom will contribute due to the short range of the nuclear
+    // charge density
     for (unsigned int i=0; i<atoms.size(); i++) {
         double r = distance(x, y, z, atoms[i].x, atoms[i].y, atoms[i].z)*rcut[i];
         if (r < 6.0) {

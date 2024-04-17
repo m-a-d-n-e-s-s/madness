@@ -539,6 +539,7 @@ public:
         return h;
     }
     [[nodiscard]] json to_json() const;
+    void from_json(const json &  mol_json);
 };
 
 }
