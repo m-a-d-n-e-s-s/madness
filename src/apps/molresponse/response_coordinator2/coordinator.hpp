@@ -331,27 +331,19 @@ public:
 
 
     auto get_root() const -> const path & { return root; }
-
     auto get_moldft_path() const -> const path & { return moldft_path; }
-
     auto get_moldft_json_path() const -> const path & { return moldft_json_path; }
-
     auto get_moldft_restart() const -> const path & { return moldft_restart; }
-
     auto get_calc_info_json_path() const -> const path & { return calc_info_json_path; }
-
     auto get_calc_info_json() const -> const json & { return calc_info_json; }
-
     auto get_op() const -> const std::string & { return op; }
-
     auto get_xc() const -> const std::string & { return xc; }
-
     auto get_freq() const -> const std::vector<double> & { return freq; }
-
     auto get_molecule() const -> const Molecule & { return molecule; }
 
 
     explicit ResponseCalcManager(World &world, ParameterManager pm) : parameter_manager(std::move(pm)) {
+
         xc = parameter_manager.get_moldft_params().xc();
         op = "dipole";
         freq = parameter_manager.get_molresponse_params().freq_range();
@@ -360,9 +352,7 @@ public:
         auto molecule_json = parameter_manager.get_input_json()["molecule"];
         auto param_hash = std::hash<json>{}(molecule_json);
         auto param_dir = "moldft_" + std::to_string(param_hash);
-
         moldft_path = root / path(param_dir);
-
         if (std::filesystem::is_directory(moldft_path)) {
             cout << "moldft directory found"
                  << "\n";

@@ -161,7 +161,6 @@ TEST_CASE("Run MOLDFT + MOLRESPONSE") {
     auto response_manager = ResponseCalcManager(world, params);
 
     response_manager.run_moldft(world,true);
-
     response_manager.run_molresponse(world);
 
     // The json is converted into a temporary getKW file which is then read by the parser.
