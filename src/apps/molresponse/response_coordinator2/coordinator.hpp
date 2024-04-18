@@ -13,6 +13,7 @@
 #include "madness/chem/SCF.h"
 #include "madness/world/worldmem.h"
 #include "response_data_base.hpp"
+#include "response_parameters.h"
 #include "sstream"
 #include "string"
 #include "write_test_input.h"
@@ -530,7 +531,7 @@ public:
  * @param moldft_path
  */
     auto set_frequency_path_and_restart(World &world, const double &frequency,
-                                        std::filesystem::path &restart_path, bool restart)
+                                        std::filesystem::path &restart_path, bool restart,ResponseParameters &parameters)
     -> std::filesystem::path {
 
         if (world.rank() == 0) { ::print("restart path", restart_path); }
@@ -551,8 +552,6 @@ public:
         auto [save_path, save_string] = generate_frequency_save_path(frequency_run_path);
         if (world.rank() == 0) { ::print("save path", save_path); }
         if (world.rank() == 0) { ::print("save string", save_string); }
-
-        ResponseParameters parameters(parameter_manager.get_molresponse_params());
 
 
         if (world.rank() == 0) {
@@ -594,17 +593,16 @@ public:
  * @param restart_path
  * @return
  */
-    auto RunResponse(World &world, const std::string &filename, double frequency, const std::string &property,
-                     const std::string &xc,
-                     const std::filesystem::path &moldft_path, std::filesystem::path restart_path,
-                     const std::string &precision)
+    auto RunResponse(World &world, const std::string &filename, double frequency, std::filesystem::path restart_path)
     -> std::pair<std::filesystem::path, bool> {
         // Set the response parameters
-        ResponseParameters r_params{};
-        //set_frequency_response_parameters(world, r_params, property, xc, frequency, precision);
+        ResponseParameters r_params=parameter_manager.get_molresponse_params();
+        r_params.set_user_defined_value("omega", frequency);
         auto save_path = set_frequency_path_and_restart(world, frequency,
                                                         restart_path,
-                                                        true);
+                                                        true,r_params);
+
+
         if (world.rank() == 0) { molresponse::write_response_input(r_params, filename); }
         // if rbase exists and converged I just return save path and true
         if (std::filesystem::exists("response_base.json")) {
@@ -617,7 +615,7 @@ public:
         }
         auto calc_params = initialize_calc_params(world, std::string(filename));
         RHS_Generator rhs_generator;
-        if (property == "dipole") {
+        if (op == "dipole") {
             rhs_generator = dipole_generator;
         } else {
             rhs_generator = nuclear_generator;
@@ -658,7 +656,7 @@ public:
  * @param xc
  * @param property
  */
-    void runFrequencyTests(World &world) {
+    void run_molresponse(World &world) {
         std::filesystem::current_path(moldft_path);
         // add a restart path
         auto restart_path = addPath(moldft_path,
@@ -677,7 +675,7 @@ public:
             } else {
                 throw Response_Convergence_Error{};
             }
-            //success = RunResponse(world, "response.in", freq, schema.op, schema.xc, schema.moldft_path, restart_path,
+            success = RunResponse(world, "response.in", freq,  restart_path);
             //                      high_prec);
             if (world.rank() == 0) { ::print("Frequency ", freq, " completed"); }
         }
@@ -696,7 +694,7 @@ public:
                 std::filesystem::current_path(moldft_path);
                 ResponseParameters r_params{};
                 auto save_path = set_frequency_path_and_restart(world, freq,
-                                                                restart_path, true);
+                                                                restart_path, true, r_params);
 
 
                 if (std::filesystem::exists("response_base.json")) {
@@ -848,7 +846,7 @@ public:
             if (true) {
                 // if the first order response calculations haven't been run then run them
                 if (world.rank() == 0) { ::print("Running first order response calculations"); }
-                runFrequencyTests(world);
+                run_molresponse(world);
             } else {
                 if (world.rank() == 0) {
                     ::print("First order response calculations haven't been run and can't be run");
