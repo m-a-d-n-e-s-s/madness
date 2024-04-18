@@ -145,4 +145,27 @@ TEST_CASE("Run MOLDFT") {
     // Now we need to write a function
 }
 
+TEST_CASE("Run MOLDFT + MOLRESPONSE") {
+    // Set up the run directories
+    using namespace madness;
+
+    World &world = World::get_default();
+    std::cout.precision(6);
+
+
+    path input_json("resources/inputs/freq_input.json");
+    path mol_input("resources/molecules/He.mol");
+
+
+    ParameterManager params(world, input_json, mol_input);
+    auto response_manager = ResponseCalcManager(world, params);
+
+    response_manager.run_moldft(world,true);
+
+    response_manager.run_molresponse(world);
+
+    // The json is converted into a temporary getKW file which is then read by the parser.
+    // Now we need to write a function
+}
+
 
