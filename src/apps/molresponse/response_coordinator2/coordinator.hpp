@@ -168,6 +168,65 @@ public:
 
     }
 
+    explicit ParameterManager(World & world, const path& input_file,const path & mol_file) {
+
+        Molecule molecule;
+        auto mol_stream = std::ifstream(mol_file);
+        molecule.read(mol_stream);
+        mol_stream.close();
+
+        // check if the input file is a json file
+        // Get extension of file if it has one
+        auto file_extension = input_file.extension();
+        print("file extension", file_extension);
+        input_file_base = input_file.stem().string();
+
+        if (world.rank() == 0) {
+            print("Input file path: ", input_file);
+            print("Input file base name: ", input_file_base);
+        }
+
+        if (file_extension == path(".json")) {
+            if (world.rank() == 0) print("Reading input file from json");
+            input_file_json_path = input_file;
+
+            std::ifstream input_stream(input_file_json_path);
+
+            all_input_json = json::parse(input_stream);
+            all_input_json["molecule"] = molecule.to_json();
+
+            input_file_path = path(input_file_base);
+
+            moldft_params.from_json(all_input_json["dft"]);
+            molresponse_params.from_json(all_input_json["response"]);
+
+            write_input_file();
+
+
+        } else {
+            if (world.rank() == 0) print("Reading input file");
+
+            input_file_path = input_file;
+            std::ifstream input_stream(input_file_path);
+            input_file_json_path = path(input_file_base + ".json");
+
+            molecule = Molecule(world, this->parser);
+            moldft_params = CalculationParameters(world, this->parser);
+            molresponse_params = ResponseParameters(world, this->parser);
+
+
+            all_input_json = {};
+            all_input_json["dft"] = moldft_params.to_json_if_precedence("defined");
+            all_input_json["response"] = molresponse_params.to_json_if_precedence("defined");
+            all_input_json["molecule"] = molecule.to_json();
+
+            write_json_input();
+
+        }
+
+
+    }
+
     explicit ParameterManager(World
                               &world, json
                               input_json) {
