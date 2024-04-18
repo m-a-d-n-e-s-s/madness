@@ -110,6 +110,23 @@ TEST_CASE("Paramter Reader From input path", "[JSON]") {
 
 }
 
+TEST_CASE("Define parameters with input and mol file separately") {
+    // Set up the run directories
+    using namespace madness;
+
+    World &world = World::get_default();
+    std::cout.precision(6);
+
+    path input_json("resources/inputs/input.json");
+    path mol_input("resources/molecules/H2O.mol");
+
+
+    ParameterManager params(world, input_json, mol_input);
+    auto response_manager = ResponseCalcManager(world, params);
+
+    response_manager.run_moldft(world,false);
+}
+
 TEST_CASE("Run MOLDFT") {
     // Set up the run directories
     using namespace madness;
@@ -123,7 +140,6 @@ TEST_CASE("Run MOLDFT") {
     auto response_manager = ResponseCalcManager(world, params);
 
     response_manager.run_moldft(world,false);
-
 
     // The json is converted into a temporary getKW file which is then read by the parser.
     // Now we need to write a function
