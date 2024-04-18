@@ -118,7 +118,7 @@ TEST_CASE("Define parameters with input and mol file separately") {
     std::cout.precision(6);
 
     path input_json("resources/inputs/input.json");
-    path mol_input("resources/molecules/H2O.mol");
+    path mol_input("resources/molecules/H2.mol");
 
 
     ParameterManager params(world, input_json, mol_input);
