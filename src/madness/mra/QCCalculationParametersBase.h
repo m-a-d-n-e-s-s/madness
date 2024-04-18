@@ -398,13 +398,13 @@ namespace madness {
 
     public:
         void from_json(const json &j) {
-            for (auto [key, value]: j.items()) {
+            for (const auto & [key, value]: j.items()) {
                 QCParameter &parameter = get_parameter(key);
                 // ::print("key: ", key, " value: ", value);
                 parameter.set_user_defined_value(tostring(value));
             }
         }
-        json to_json() const {
+        [[nodiscard]] json to_json() const {
             json j_params = {};
             // TODO Is there a way to the get member for every parameter even though get is a template function?
             for (auto &p: parameters) {
@@ -434,7 +434,7 @@ namespace madness {
             return j_params;
         }
 
-        json to_json_if_precedence(const std::string &precedence) const {
+        [[nodiscard]] json to_json_if_precedence(const std::string &precedence) const {
             json j_params = {};
             for (auto &p: parameters) {
                 auto param_type = p.second.get_type();
@@ -534,7 +534,7 @@ namespace madness {
         }
 
     protected:
-        const QCParameter &get_parameter(const std::string key) const {
+        const QCParameter &get_parameter(const std::string & key) const {
             if (not parameter_exists(key)) { throw std::runtime_error("could not find parameter for key " + key); }
             const QCParameter &parameter = parameters.find(key)->second;
             return parameter;
