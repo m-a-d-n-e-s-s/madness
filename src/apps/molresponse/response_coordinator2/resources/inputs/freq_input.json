@@ -12,7 +12,7 @@
         "maxsub": 10,
         "maxiter": 10,
         "omega": 0.0,
-        "protocol": [1e-4,1e-6,1e-8]
-        "freq_range" [0.0, 0.056,0.1]
+        "protocol": [1e-4,1e-6,1e-8],
+        "freq_range": [0.0, 0.056,0.1]
     }
 }
