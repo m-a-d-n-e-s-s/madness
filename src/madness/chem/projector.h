@@ -272,16 +272,12 @@ namespace madness {
             return madness::apply(*this,argument);
         }
 
-        /// apply the strong orthogonality operator Q12 on a function f
+        /// apply the projection parts of the strong orthogonality operator Q12 on a function f
 
-    	/// notation of the equations follows
-    	/// J. Chem. Phys., vol. 139, no. 11, p. 114106, 2013.
-        Function<T,2*NDIM> operator()(const Function<T,2*NDIM>& f) const {
-
-            // simple and it works for higher accuracies, but might be
-            // imprecise for lower accuracies
-//        	return (f-O1(f)-O2(f)+O1(O2(f))).truncate().reduce_rank();
-
+        /// The SO operator is defined as 1-O1-O2+O1O2, where O1 and O2 are projectors
+        /// return the term -O1-O2+O1O2 only, such that Q12 f = 1 + outer(result.first,result.second)
+        std::pair<std::vector<Function<T,NDIM>>,std::vector<Function<T,NDIM>>>
+        get_vectors_for_outer_product(const Function<T,2*NDIM>& f) const {
             // Eq. (A9): g_kl = < k(1) l(2) | f(1,2) >
             // note no (kl) symmetry here!
             reconstruct(world, bra1_, false);
@@ -330,21 +326,35 @@ namespace madness {
             change_tree_state(ket2_, reconstructed, false);
             world.gop.fence();
 
+    	    auto left=append(ket1_,h1);
+    	    auto right=append(h2,ket2_);
+    	    return std::make_pair(-1.0*left,right);
+        }
+
+        /// apply the strong orthogonality operator Q12 on a function f
+
+    	/// notation of the equations follows
+    	/// J. Chem. Phys., vol. 139, no. 11, p. 114106, 2013.
+        Function<T,2*NDIM> operator()(const Function<T,2*NDIM>& f) const {
+
+            // simple and it works for higher accuracies, but might be
+            // imprecise for lower accuracies
+//        	return (f-O1(f)-O2(f)+O1(O2(f))).truncate().reduce_rank();
+
+    	    auto [left,right]=get_vectors_for_outer_product(f);
+
+    	    // temporarily tighten the threshold
             double thresh=FunctionDefaults<2*NDIM>::get_thresh();
             double tight_thresh=thresh*0.1;
             FunctionDefaults<2*NDIM>::set_thresh(tight_thresh);
 
-            Function<T, 2 * NDIM> result = copy(f);
-    	    auto left=append(ket1_,h1);
-    	    auto right=append(h2,ket2_);
     	    auto tmp=hartree_product(left,right);
     	    tmp.truncate(thresh*0.3);
-    	    result-=tmp;
-            // result -= hartree_product(ket1_, h2);
-            // result -= hartree_product(h1, ket2_);
-            result.truncate().reduce_rank();
-            result.set_thresh(FunctionDefaults<2 * NDIM>::get_thresh());
+
             FunctionDefaults<2*NDIM>::set_thresh(thresh);
+            Function<T, 2 * NDIM> result = copy(f);
+    	    result+=tmp;
+            result.truncate(thresh).reduce_rank();
             return result;
         }
 
