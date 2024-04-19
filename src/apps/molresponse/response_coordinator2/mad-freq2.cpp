@@ -1,6 +1,8 @@
 //
 // Created by adrianhurtado on 1/1/22.
+#include "FrequencyResponse.hpp"
 #include "coordinator.hpp"
+#include <madness/misc/info.h>
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 
@@ -20,6 +22,7 @@ using path = std::filesystem::path;
 using namespace madness;
 
 
+
 auto main(int argc, char *argv[]) -> int {
 
     madness::initialize(argc, argv);
@@ -28,14 +31,35 @@ auto main(int argc, char *argv[]) -> int {
     {
         World world(SafeMPI::COMM_WORLD);
         startup(world, argc, argv, true);
+        if (world.rank() == 0) print(info::print_revision_information());
 
         try {
+            // I need to write a help and a print parameters function which will be called by the commandlineparser
+            print_meminfo(world.rank(), "startup");
 
+            ParameterManager params;
+            if(argc == 1) {
+                print("No input file found");
+                path input_json("resources/inputs/freq_input.json");
+                path mol_input("resources/molecules/H2O.mol");
+                params=ParameterManager(world, input_json, mol_input);
+            }else if(argc == 2) {
+                print("Input file found");
+                path input_file(argv[1]);
+                commandlineparser parser(argc, argv);
+                params=ParameterManager(world, parser);
+            }else if(argc == 3) {
+                print("Input and mol file found");
+                path input_file(argv[1]);
+                path mol_input(argv[2]);
+                params=ParameterManager(world, input_file, mol_input);
+            }else {
+                error("Too many arguments");
+            }
 
-            path input_json("resources/inputs/freq_input.json");
-            path mol_input("resources/molecules/H2.mol");
+            //print params
+            params.print_params();
 
-            ParameterManager params(world, input_json, mol_input);
             auto response_manager = ResponseCalcManager(world, params);
 
             if(world.rank() == 0) {
