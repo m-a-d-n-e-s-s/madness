@@ -1,11 +1,6 @@
 //
 // Created by adrianhurtado on 1/1/22.
-//
-#include "ResponseExceptions.hpp"
 #include "coordinator.hpp"
-#include "madness/tensor/tensor_json.hpp"
-#include "madness/world/worldmem.h"
-#include "response_functions.h"
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 
@@ -28,37 +23,34 @@ using namespace madness;
 auto main(int argc, char *argv[]) -> int {
 
     madness::initialize(argc, argv);
+    std::cout.precision(6);
 
     {
         World world(SafeMPI::COMM_WORLD);
         startup(world, argc, argv, true);
 
         try {
-            sleep(5);
-            std::cout.precision(6);
-            if (argc != 6) {
-                std::cout << "Wrong number of inputs" << std::endl;
-                return 1;
+
+
+            path input_json("resources/inputs/freq_input.json");
+            path mol_input("resources/molecules/H2.mol");
+
+            ParameterManager params(world, input_json, mol_input);
+            auto response_manager = ResponseCalcManager(world, params);
+
+            if(world.rank() == 0) {
+                print("Running MOLDFT");
+                print("Calc Info Path: ", response_manager.calc_info_json_path);
+                print("Moldft Path: ", response_manager.moldft_path);
             }
-            const std::string molecule_name{argv[1]};
-            const std::string xc{argv[2]};
-            const std::string op{argv[3]};
-            const std::string precision{argv[4]};
-            const std::string static_calc{argv[5]};
-            if (precision != "high" && precision != "low" && precision != "super") {
-                if (world.rank() == 0) { std::cout << "Set precision to low high super" << std::endl; }
-                return 1;
-            }
-            auto schema = ResponseCalcManager(world, xc, <#initializer#>, <#initializer#>);
-            auto m_schema = moldftSchema(world, molecule_name, xc, schema);
-            auto f_schema = frequencySchema(world, schema, m_schema, op, static_calc == "true");
-            if (std::filesystem::exists(m_schema.calc_info_json_path) &&
-                std::filesystem::exists(m_schema.moldft_restart)) {
-                runFrequencyTests(world, f_schema, precision);
+
+            if (std::filesystem::exists(response_manager.calc_info_json_path) &&
+                std::filesystem::exists(response_manager.moldft_path)) {
+                response_manager.run_molresponse(world);
             } else {
-                moldft(world, m_schema, true, false, precision);
-                runFrequencyTests(world, f_schema, precision);
+                response_manager.run_moldft(world,true);
                 world.gop.fence();
+                response_manager.run_molresponse(world);
                 world.gop.fence();
             }
         } catch (const SafeMPI::Exception &e) {

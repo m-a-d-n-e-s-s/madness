@@ -1009,7 +1009,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X, const XCOperator<
     double v_tol = safety * FunctionDefaults<3>::get_thresh();
     if (compute_Y) {
         V0 = X * v0;
-        V0 += -c_xc * K0;
+        V0 = V0 - c_xc * K0;
         V0.truncate();
         inner_to_json(world, "v0", response_context.inner(X, V0), iter_function_data);
     } else {
