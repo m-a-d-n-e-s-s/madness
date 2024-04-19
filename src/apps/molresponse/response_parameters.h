@@ -99,101 +99,56 @@ namespace madness {
     public:
         using QCCalculationParametersBase::read_input_and_commandline_options;
 
-        std::string localize() const { return get<std::string>("localize"); }
+        [[nodiscard ]] std::string localize() const { return get<std::string>("localize"); }
+        [[nodiscard ]] std::string archive() const { return get<std::string>("archive"); }
+        [[nodiscard ]] std::string calc_type() const { return get<std::string>("calc_type"); }
+        [[nodiscard ]] std::string nwchem_dir() const { return get<std::string>("nwchem_dir"); }
+        [[nodiscard ]] bool nwchem() const { return get<bool>("nwchem"); }
+        [[nodiscard ]] size_t num_states() const { return get<size_t>("states"); }
+        [[nodiscard ]] size_t num_orbitals() const { return get<size_t>("num_orbitals"); }
+        [[nodiscard ]] int print_level() const { return get<int>("print_level"); }
+        [[nodiscard ]] bool tda() const { return get<bool>("tda"); }
+        [[nodiscard ]] bool plot() const { return get<bool>("plot"); }
+        [[nodiscard ]] double plot_l() const { return get<double>("plot_l"); }
+        [[nodiscard ]] size_t plot_pts() const { return get<size_t>("plot_pts"); }
+        [[nodiscard ]] bool plot_all_orbitals() const { return get<bool>("plot_all_orbitals"); }
+        [[nodiscard ]] size_t maxiter() const { return get<size_t>("maxiter"); }
+        [[nodiscard ]] double dconv() const { return get<double>("dconv"); }
+        [[nodiscard ]] bool guess_xyz() const { return get<bool>("guess_xyz"); }
+        [[nodiscard ]] double lo() const { return get<double>("lo"); }
+        [[nodiscard ]] std::vector<double> protocol() const { return get<std::vector<double>>("protocol"); }
+        [[nodiscard ]] size_t larger_subspace() const { return get<size_t>("larger_subspace"); }
+        [[nodiscard ]] int k() const { return get<int>("k"); }
+        [[nodiscard ]] bool random() const { return get<bool>("random"); }
+        [[nodiscard ]] bool store_potential() const { return get<bool>("store_potential"); }
+        [[nodiscard ]] vector<double> freq_range() const { return get<vector<double>>("freq_range"); }
+        [[nodiscard ]] bool quadratic() const { return get<bool>("quadratic"); }
+        [[nodiscard ]] bool plot_initial() const { return get<bool>("plot_initial"); }
+        [[nodiscard ]] bool restart() const { return get<bool>("restart"); }
+        [[nodiscard ]] std::string restart_file() const { return get<std::string>("restart_file"); }
+        [[nodiscard ]] bool kain() const { return get<bool>("kain"); }
+        [[nodiscard ]] size_t maxsub() const { return get<size_t>("maxsub"); }
+        [[nodiscard ]] std::string deriv() const {return get<std::string>("deriv");}
+        [[nodiscard ]] std::string dft_deriv() const {return get<std::string>("dft_deriv");}
+        [[nodiscard ]] std::string xc() const { return get<std::string>("xc"); }
+        [[nodiscard ]] std::string hfexalg() const { return get<std::string>("hfexalg"); }
+        [[nodiscard ]] bool save() const { return get<bool>("save"); }
+        [[nodiscard ]] std::string save_file() const { return get<std::string>("save_file"); }
+        [[nodiscard ]] size_t guess_max_iter() const { return get<size_t>("guess_max_iter"); }
+        [[nodiscard ]] bool property() const { return get<bool>("property"); }
+        [[nodiscard ]] int loadbalparts() const { return get<int>("loadbalparts"); }
+        [[nodiscard ]] bool excited_state() const { return get<bool>("excited_state"); }
+        [[nodiscard ]] bool first_order() const { return get<bool>("first_order"); }
+        [[nodiscard ]] bool second_order() const { return get<bool>("second_order"); }
+        [[nodiscard ]] bool third_order() const { return get<bool>("third_order"); }
+        [[nodiscard ]] bool dipole() const { return get<bool>("dipole"); }
+        [[nodiscard ]] bool nuclear() const { return get<bool>("nuclear"); }
+        [[nodiscard ]] std::string d2_types() const { return get<std::string>("d2_types"); }
+        [[nodiscard ]] double omega() const { return get<double>("omega"); }
+        [[nodiscard ]] double L() const { return get<double>("l"); }
+        [[nodiscard ]] bool spinrestricted() const { return get<bool>("spinrestricted"); }
+        void set_ground_state_calculation_data(const GroundStateCalculation & g_params) {
 
-        std::string archive() const { return get<std::string>("archive"); }
-
-        std::string calc_type() const { return get<std::string>("calc_type"); }
-
-        std::string nwchem_dir() const { return get<std::string>("nwchem_dir"); }
-
-        bool nwchem() const { return get<bool>("nwchem"); }
-
-        size_t num_states() const { return get<size_t>("states"); }
-
-        size_t num_orbitals() const { return get<size_t>("num_orbitals"); }
-
-        int print_level() const { return get<int>("print_level"); }
-
-        bool tda() const { return get<bool>("tda"); }
-
-        bool plot() const { return get<bool>("plot"); }
-
-        double plot_l() const { return get<double>("plot_l"); }
-
-        size_t plot_pts() const { return get<size_t>("plot_pts"); }
-
-        bool plot_all_orbitals() const { return get<bool>("plot_all_orbitals"); }
-
-        size_t maxiter() const { return get<size_t>("maxiter"); }
-
-        double dconv() const { return get<double>("dconv"); }
-
-        bool guess_xyz() const { return get<bool>("guess_xyz"); }
-
-        double lo() const { return get<double>("lo"); }
-
-        std::vector<double> protocol() const { return get<std::vector<double>>("protocol"); }
-
-        size_t larger_subspace() const { return get<size_t>("larger_subspace"); }
-
-        int k() const { return get<int>("k"); }
-
-        bool random() const { return get<bool>("random"); }
-
-        bool store_potential() const { return get<bool>("store_potential"); }
-
-        vector<double> freq_range() const { return get<vector<double>>("freq_range"); }
-
-        bool quadratic() const { return get<bool>("quadratic"); }
-
-        bool plot_initial() const { return get<bool>("plot_initial"); }
-
-        bool restart() const { return get<bool>("restart"); }
-
-        std::string restart_file() const { return get<std::string>("restart_file"); }
-
-        bool kain() const { return get<bool>("kain"); }
-
-        size_t maxsub() const { return get<size_t>("maxsub"); }
-
-        std::string deriv() const {return get<std::string>("deriv");}
-        std::string dft_deriv() const {return get<std::string>("dft_deriv");}
-        std::string xc() const { return get<std::string>("xc"); }
-
-        std::string hfexalg() const { return get<std::string>("hfexalg"); }
-
-        bool save() const { return get<bool>("save"); }
-
-        std::string save_file() const { return get<std::string>("save_file"); }
-
-        size_t guess_max_iter() const { return get<size_t>("guess_max_iter"); }
-
-        bool property() const { return get<bool>("property"); }
-
-        int loadbalparts() const { return get<int>("loadbalparts"); }
-
-        bool excited_state() const { return get<bool>("excited_state"); }
-
-        bool first_order() const { return get<bool>("first_order"); }
-
-        bool second_order() const { return get<bool>("second_order"); }
-
-        bool third_order() const { return get<bool>("third_order"); }
-
-        bool dipole() const { return get<bool>("dipole"); }
-
-        bool nuclear() const { return get<bool>("nuclear"); }
-
-        std::string d2_types() const { return get<std::string>("d2_types"); }
-
-        double omega() const { return get<double>("omega"); }
-
-        double L() const { return get<double>("l"); }
-
-        bool spinrestricted() const { return get<bool>("spinrestricted"); }
-
-        void set_ground_state_calculation_data(GroundStateCalculation g_params) {
             set_derived_value<size_t>("num_orbitals", g_params.n_orbitals());
             set_derived_value<bool>("spinrestricted", g_params.is_spinrestricted());
             set_derived_value<double>("l", g_params.get_L());
@@ -202,7 +157,7 @@ namespace madness {
             set_derived_value<std::string>("localize", g_params.get_localize_method());
         }
 
-        void set_derived_values(World &world, Molecule molecule) {
+        void set_derived_values(World &world, const Molecule & molecule) {
             // read the parameters from file and brodcast
             // tag
             vector<std::string> calculation_type;
