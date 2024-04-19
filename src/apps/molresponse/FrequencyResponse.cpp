@@ -4,8 +4,6 @@
 
 #include "FrequencyResponse.hpp"
 
-#include "property.h"
-
 
 void FrequencyResponse::initialize(World &world) {
     if (world.rank() == 0) { print("FrequencyResponse::initialize()"); }

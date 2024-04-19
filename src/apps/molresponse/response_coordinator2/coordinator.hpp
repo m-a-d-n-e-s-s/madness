@@ -314,6 +314,7 @@ class ResponseCalcManager {
 
     ParameterManager parameter_manager;
 
+public:
     path moldft_path;// molecule directory
     path moldft_json_path;
     path moldft_restart;
@@ -327,7 +328,6 @@ class ResponseCalcManager {
     std::vector<double> freq;
     Molecule molecule;
 
-public:
 
 
     auto get_root() const -> const path & { return root; }
@@ -425,6 +425,26 @@ public:
         if (world.rank() == 0) {
             ::print("-------------Running moldft------------");
         }
+
+        if (world.rank() ==0){
+            std::cout << "moldft path: " << moldft_path << std::endl;
+            std::cout << "moldft restart path: " << moldft_restart << std::endl;
+            std::cout << "calc_info json path: " << calc_info_json_path << std::endl;
+        }
+
+        if (std::filesystem::exists(moldft_restart) && std::filesystem::exists(calc_info_json_path)) {
+            // if both exist, read the calc_info json
+            std::ifstream ifs(calc_info_json_path);
+
+            calcInfo = json::parse(ifs);
+            if (world.rank() == 0) {
+
+                std::cout << "time: " << calc_info_json["time"] << std::endl;
+                std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"] << std::endl;
+            }
+        }else{
+
+
         // if params are different run and if restart exists and if im asking to restar
         if (std::filesystem::exists(moldft_restart) && restart) {
             param1.set_user_defined_value<bool>("restart", true);
@@ -483,6 +503,7 @@ public:
             calc.output_scf_info_schema(results, dipole_t);
             ME.output_calc_info_schema();
         }
+        }
     }
 
 /**
@@ -525,8 +546,6 @@ public:
     -> std::filesystem::path {
 
         if (world.rank() == 0) { ::print("restart path", restart_path); }
-
-
         // change the logic create save path
         auto frequency_run_path = generate_response_frequency_run_path(frequency);
         world.gop.fence();
@@ -554,12 +573,23 @@ public:
                     parameters.set_user_defined_value("restart", true);
                     parameters.set_user_defined_value("restart_file", save_string);
                 } else if (std::filesystem::exists(restart_path)) {
+
+                    ::print("restart path exists", restart_path);
                     parameters.set_user_defined_value("restart", true);
-                    auto split_restart_path = split(restart_path.replace_extension("").string(), '/');
-                    std::string restart_file_short =
-                            "../" + split_restart_path[split_restart_path.size() - 2] + "/" +
-                            split_restart_path[split_restart_path.size() - 1];
-                    parameters.set_user_defined_value("restart_file", restart_file_short);
+                    ::print(restart_path.parent_path().stem());
+                    ::print(restart_path.filename().stem());
+
+                    // get the directory of the restart path
+                    auto new_restart_path = path("../") / restart_path.parent_path().stem() / restart_path.filename().stem();
+
+                    // format restart path to be ../restart_path/restart_path
+
+
+
+
+                    //
+                    ::print("new restart file: ", restart_path);
+                    parameters.set_user_defined_value("restart_file", new_restart_path.string());
                     // Then we restart from the previous file instead
                 } else {
                     parameters.set_user_defined_value("restart", false);
@@ -588,6 +618,8 @@ public:
         // Set the response parameters
         ResponseParameters r_params=parameter_manager.get_molresponse_params();
         r_params.set_user_defined_value("omega", frequency);
+
+
         auto save_path = set_frequency_path_and_restart(world, frequency,
                                                         restart_path,
                                                         true,r_params);
