@@ -77,6 +77,18 @@ auto main(int argc, char *argv[]) -> int {
                 response_manager.run_molresponse(world);
                 world.gop.fence();
             }
+
+            // if quadratic response is requested
+            //
+            if (params.get_molresponse_params().quadratic()) {
+                if (world.rank() == 0) {
+                    print("Compute Quadratic Response Properties ");
+                }
+                response_manager.run_quadratic_response(world);
+            }
+
+
+
         } catch (const SafeMPI::Exception &e) {
             print(e.what());
             error("caught an MPI exception");
