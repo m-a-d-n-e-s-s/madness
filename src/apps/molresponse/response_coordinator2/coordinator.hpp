@@ -290,11 +290,9 @@ public:
         write_response_input(all_input_json, os);
     }
 
-    auto get_moldft_params() const -> const CalculationParameters & { return moldft_params; }
-
-    auto get_molresponse_params() const -> const ResponseParameters & { return molresponse_params; }
-
-    auto get_molecule() const -> const Molecule & { return molecule; }
+    [[nodiscard]] auto get_moldft_params() const -> const CalculationParameters & { return moldft_params; }
+    [[nodiscard]] auto get_molresponse_params() const -> const ResponseParameters & { return molresponse_params; }
+    [[nodiscard]] auto get_molecule() const -> const Molecule & { return molecule; }
 
     void write_moldft_json(std::ostream &os) {
         os << std::setw(4) << all_input_json["dft"];
@@ -330,16 +328,16 @@ public:
 
 
 
-    auto get_root() const -> const path & { return root; }
-    auto get_moldft_path() const -> const path & { return moldft_path; }
-    auto get_moldft_json_path() const -> const path & { return moldft_json_path; }
-    auto get_moldft_restart() const -> const path & { return moldft_restart; }
-    auto get_calc_info_json_path() const -> const path & { return calc_info_json_path; }
-    auto get_calc_info_json() const -> const json & { return calc_info_json; }
-    auto get_op() const -> const std::string & { return op; }
-    auto get_xc() const -> const std::string & { return xc; }
-    auto get_freq() const -> const std::vector<double> & { return freq; }
-    auto get_molecule() const -> const Molecule & { return molecule; }
+    [[nodiscard]] auto get_root() const -> const path & { return root; }
+    [[nodiscard]] auto get_moldft_path() const -> const path & { return moldft_path; }
+    [[nodiscard]] auto get_moldft_json_path() const -> const path & { return moldft_json_path; }
+    [[nodiscard]] auto get_moldft_restart() const -> const path & { return moldft_restart; }
+    [[nodiscard]] auto get_calc_info_json_path() const -> const path & { return calc_info_json_path; }
+    [[nodiscard]] auto get_calc_info_json() const -> const json & { return calc_info_json; }
+    [[nodiscard]] auto get_op() const -> const std::string & { return op; }
+    [[nodiscard]] auto get_xc() const -> const std::string & { return xc; }
+    [[nodiscard]] auto get_freq() const -> const std::vector<double> & { return freq; }
+    [[nodiscard]] auto get_molecule() const -> const Molecule & { return molecule; }
 
 
     explicit ResponseCalcManager(World &world, ParameterManager pm) : parameter_manager(std::move(pm)) {
@@ -518,7 +516,7 @@ public:
  * @param xc
  * @return
  */
-    auto generate_response_frequency_run_path(const double &frequency)
+    [[nodiscard]] auto generate_response_frequency_run_path(const double &frequency) const 
     -> std::filesystem::path {
         std::string s_frequency = std::to_string(frequency);
         auto sp = s_frequency.find('.');
@@ -703,7 +701,7 @@ public:
         }
     }
 
-    void runQuadraticResponse(World &world) {
+    void run_quadratic_response(World &world) {
         std::filesystem::current_path(moldft_path);
 
         bool run_first_order = false;
@@ -744,10 +742,32 @@ public:
             } else {
                 rhs_generator = nuclear_generator;
             }
-            ResponseParameters quad_parameters{};
             if (world.rank() == 0) { ::print("Set up rhs generator"); }
 
-            //setHyperpolarizabilityParameters(world, quad_parameters, schema.op, schema.xc, schema.freq, std::string());
+            auto set_hyperpolarizability_parameters = [&] (){
+                ResponseParameters quad_parameters{};
+
+                auto moldft_params = parameter_manager.get_moldft_params();
+                auto molresponse_params = parameter_manager.get_molresponse_params();
+
+                quad_parameters.set_user_defined_value("quadratic", true);
+                quad_parameters.set_user_defined_value("freq_range", molresponse_params.freq_range());
+                quad_parameters.set_user_defined_value("xc", moldft_params.xc());
+
+                if (op == "dipole") {
+                    quad_parameters.set_user_defined_value("dipole", true);
+                    quad_parameters.set_derived_value<size_t>("states", 3);
+                }
+
+                auto final_protocol = *molresponse_params.protocol().end();
+                quad_parameters.set_user_defined_value<vector<double>>("protocol", {final_protocol});
+
+                return quad_parameters;
+                
+            };
+
+            auto quad_parameters = set_hyperpolarizability_parameters();
+
             if (world.rank() == 0) { molresponse::write_response_input(quad_parameters, "quad.in"); }
 
             //auto calc_params = initialize_calc_params(world, std::string("quad.in"));
@@ -774,7 +794,6 @@ public:
 
             for (const auto &omega_b: freq) {
                 for (const auto &omega_c: freq) {
-
 
                     auto generate_omega_restart_path = [&](double frequency) {
                         auto linear_response_calc_path = generate_response_frequency_run_path(frequency);
@@ -826,9 +845,6 @@ public:
                             }
 
                             nlohmann::ordered_json beta_entry;
-                            //beta_entry["omega_a"] = omega_a;
-                            //beta_entry["omega_b"] = omega_b;
-                            //beta_entry["omega_c"] = omega_c;
 
 
                             std::array<double, 18> beta_vector{};
