@@ -114,6 +114,25 @@ private:
     ResponseParameters molresponse_params;
 
 public:
+    ParameterManager() = default;
+
+    void print_params() const {
+        ::print("------------Parameter Manager---------------");
+        ::print("Input File Path: ", input_file_path);
+        ::print("Input File Json Path: ", input_file_json_path);
+        ::print("Input File Base: ", input_file_base);
+        ::print("-------------------------------------------");
+    }
+    explicit ParameterManager(World &world,  commandlineparser par):parser(std::move(par)) {
+        molecule = Molecule(world, this->parser);
+        moldft_params = CalculationParameters(world, this->parser);
+        molresponse_params = ResponseParameters(world, this->parser);
+        all_input_json = {};
+        all_input_json["dft"] = moldft_params.to_json_if_precedence("defined");
+        all_input_json["response"] = molresponse_params.to_json_if_precedence("defined");
+        all_input_json["molecule"] = molecule.to_json();
+        write_json_input();
+    }
 
     explicit ParameterManager(World &world, const path &file_path) {
 
@@ -243,25 +262,6 @@ public:
 
 
 
-
-    }
-
-    explicit ParameterManager(World
-                              &world, commandlineparser
-                              parser) : parser(std::move(parser)) {
-
-        molecule = Molecule(world, this->parser);
-        moldft_params = CalculationParameters(world, this->parser);
-
-        molresponse_params = ResponseParameters(world, this->parser);
-
-
-        all_input_json = {};
-        all_input_json["dft"] = moldft_params.to_json_if_precedence("defined");
-        all_input_json["response"] = molresponse_params.to_json_if_precedence("defined");
-        all_input_json["molecule"] = molecule.to_json();
-
-        write_json_input();
 
     }
 

@@ -123,7 +123,6 @@ TEST_CASE("Define parameters with input and mol file separately") {
 
     ParameterManager params(world, input_json, mol_input);
     auto response_manager = ResponseCalcManager(world, params);
-
     response_manager.run_moldft(world,false);
 }
 
