@@ -231,6 +231,10 @@ public:
         subworld.gop.fence();
     }
 
+    void clear() {
+        container.clear();
+    }
+
     void clear_timings() {
         reading_time=0l;
         writing_time=0l;

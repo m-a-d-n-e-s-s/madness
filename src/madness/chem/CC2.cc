@@ -479,10 +479,16 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
 
         // calc update for pairs via macrotask
         auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
-        taskq->set_printlevel(3);
-        //taskq->cloud.set_debug(true);
+        taskq->set_printlevel(10);
+        taskq->cloud.set_debug(true);
         MacroTaskMp2UpdatePair t;
         MacroTask task1(world, t, taskq);
+        task1.set_debug(true);
+        for (const auto& p :pair_vec) {
+            print("pair",p.i,p.j);
+            p.function().print_size("pair_vec function before update macrotask is called");
+            p.constant_part.print_size("pair_vec constant part before update macrotask is called");
+        }
         std::vector<real_function_6d> u_update = task1(pair_vec, coupling_vec, parameters, nemo->get_calc()->molecule.get_all_coords_vec(),
                                                       CCOPS.mo_ket().get_vecfunction(), CCOPS.mo_bra().get_vecfunction(),
                                                       nemo->ncf->U1vec(), nemo->ncf->U2());
@@ -620,7 +626,7 @@ Pairs<real_function_6d> CC2::compute_local_coupling(const Pairs<real_function_6d
             }
             world.gop.fence();
             const double thresh = FunctionDefaults<6>::get_thresh();
-            coupling(i, j).truncate(thresh * 0.1).reduce_rank();
+            coupling(i, j).truncate(thresh * 0.3).reduce_rank();
         }
     }
     world.gop.fence();
