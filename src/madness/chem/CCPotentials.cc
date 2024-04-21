@@ -2504,7 +2504,7 @@ CCPotentials::apply_K_macrotask(World& world, const std::vector<real_function_3d
         result += (multiply(copy(Y), copy(mo_ket[k]),
                             particle)).truncate();     // this will destroy X, but I d not intend to use it again so I choose here to save this copy
     }
-    return result;
+    return result.truncate(parameters.tight_thresh_3D()*3.0);
 }
 
 madness::real_function_6d
