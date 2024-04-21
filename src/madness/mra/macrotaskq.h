@@ -303,9 +303,11 @@ public:
 			print("redirecting output to files task.#####");
 		}
 
-
+		double cpu0=cpu_time();
 		cloud.replicate();
         universe.gop.fence();
+		double cpu1=cpu_time();
+		if (printtimings()) print("cloud replication wall time",cpu1-cpu0);
         if (printdebug()) cloud.print_size(universe);
         universe.gop.set_forbid_fence(true); // make sure there are no hidden universe fences
         pmap1=FunctionDefaults<1>::get_pmap();
@@ -363,6 +365,7 @@ public:
 		// cleanup task-persistent input data
 		for (auto& task : taskq) task->cleanup();
 		cloud.clear_cache(subworld);
+		cloud.clear();
 		subworld.gop.fence();
         subworld.gop.fence();
         universe.gop.fence();
@@ -638,7 +641,14 @@ private:
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             const argtupleT batched_argtuple = task.batch.template copy_input_batch(argtuple);
         	try {
+			    print("starting task no",element, "in subworld",subworld.id(),"at time",wall_time());
+        	    double cpu0=cpu_time();
         		resultT result_tmp = std::apply(task, batched_argtuple);
+        	    double cpu1=cpu_time();
+			    std::size_t bufsize=256;
+			    char buffer[bufsize];
+		    	std::snprintf(buffer,bufsize,"completed task %3ld after %6.1fs at time %6.1fs\n",element,cpu1-cpu0,wall_time());
+        		print(std::string(buffer));
 
         		resultT result = get_output(subworld, cloud, argtuple);       // lives in the universe
         		if constexpr (is_madness_function<resultT>::value) {
