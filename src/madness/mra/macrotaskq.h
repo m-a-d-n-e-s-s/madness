@@ -472,6 +472,7 @@ class MacroTask {
     typedef Cloud::recordlistT recordlistT;
     taskT task;
     bool debug=false;
+	std::string name="unknown_task";
 
 	/// RAII class to redirect cout to a file
 	struct io_redirect {
@@ -514,6 +515,11 @@ public:
         debug=value;
     }
 
+	/// set a name for this task for debugging and output naming
+	void set_name(const std::string name1) {
+	    name=name1;
+    }
+
     /// this mimicks the original call to the task functor, called from the universe
 
     /// store all input to the cloud, create output Function<T,NDIM> in the universe,
@@ -543,7 +549,7 @@ public:
         MacroTaskBase::taskqT vtask;
         for (const auto& batch_prio : partition) {
             vtask.push_back(
-                    std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task, batch_prio, inputrecords, outputrecords)));
+                    std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task, batch_prio, inputrecords, outputrecords, name)));
         }
         taskq_ptr->add_tasks(vtask);
 
@@ -589,10 +595,11 @@ private:
         recordlistT outputrecords;
     public:
         taskT task;
+    	std::string name="unknown_task"; // for identification in debug output
 
         MacroTaskInternal(const taskT &task, const std::pair<Batch,double> &batch_prio,
-                          const recordlistT &inputrecords, const recordlistT &outputrecords)
-  	  : inputrecords(inputrecords), outputrecords(outputrecords), task(task) {
+                          const recordlistT &inputrecords, const recordlistT &outputrecords, std::string name)
+  	  : inputrecords(inputrecords), outputrecords(outputrecords), task(task), name(name) {
             static_assert(is_madness_function<resultT>::value
                           || is_madness_function_vector<resultT>::value
                           || is_scalar_result_ptr<resultT>::value
@@ -627,7 +634,7 @@ private:
 
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug) {
 
-        	io_redirect io(element,"task",debug);
+        	io_redirect io(element,name+"_task",debug);
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             const argtupleT batched_argtuple = task.batch.template copy_input_batch(argtuple);
         	try {

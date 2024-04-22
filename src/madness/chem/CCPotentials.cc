@@ -1755,6 +1755,9 @@ CCPotentials::apply_exchange_commutator_macrotask(World& world, const std::vecto
 
     //final result
     Kfxy.print_size("Kf" + x_name + y_name);
+    Kfxy.set_thresh(parameters.thresh_6D());
+    Kfxy.truncate().reduce_rank();
+    Kfxy.print_size("Kf after truncation" + x_name + y_name);
     fKxy.print_size("fK" + x_name + y_name);
     real_function_6d result = (Kfxy - fKxy);
     result.set_thresh(parameters.thresh_6D());
@@ -2504,7 +2507,7 @@ CCPotentials::apply_K_macrotask(World& world, const std::vector<real_function_3d
         result += (multiply(copy(Y), copy(mo_ket[k]),
                             particle)).truncate();     // this will destroy X, but I d not intend to use it again so I choose here to save this copy
     }
-    return result.truncate(parameters.tight_thresh_3D()*3.0);
+    return result.truncate(parameters.tight_thresh_3D()*3.0).reduce_rank(parameters.tight_thresh_6D()*3.0);
 }
 
 madness::real_function_6d
