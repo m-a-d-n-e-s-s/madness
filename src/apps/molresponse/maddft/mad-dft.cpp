@@ -1,7 +1,6 @@
 //
 // Created by adrianhurtado on 1/1/22.
-#include "FrequencyResponse.hpp"
-#include "coordinator.hpp"
+#include "response_manager.hpp"
 #include <madness/misc/info.h>
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)

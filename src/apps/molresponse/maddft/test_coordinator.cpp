@@ -6,7 +6,7 @@
 #define CATCH_CONFIG_RUNNER
 
 #include "FrequencyResponse.hpp"
-#include "coordinator.hpp"
+#include "response_manager.hpp"
 #include "madness/external/catch/catch.hpp"
 #include "string"
 #include <filesystem>
