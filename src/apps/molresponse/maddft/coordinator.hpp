@@ -116,12 +116,35 @@ private:
 public:
     ParameterManager() = default;
 
-    void print_params() const {
+    void print_file_paths() const {
         ::print("------------Parameter Manager---------------");
         ::print("Input File Path: ", input_file_path);
         ::print("Input File Json Path: ", input_file_json_path);
         ::print("Input File Base: ", input_file_base);
         ::print("-------------------------------------------");
+
+
+
+    }
+
+    static void help() {
+        print_header2("help page for MADNESS DFT and Response Properties Code ");
+        print("This code is designed to run DFT and Response Property calculations");
+        print("Within the input one defines both the ground and response calculations in the input file by specifiying the dft and response blocks");
+        print("By defining the quadratic block one can compute quadratic response properties such as the hyperpolarizability");
+
+    }
+    void print_params() const {
+        ::print("------------Parameter Manager---------------");
+        ::print("Molecule: ");
+        molecule.print();
+        ::print("Moldft Parameters: ");
+        moldft_params.print();
+        ::print("Molresponse Parameters: ");
+        molresponse_params.print();
+        ::print("-------------------------------------------");
+
+
     }
     explicit ParameterManager(World &world,  commandlineparser par):parser(std::move(par)) {
         molecule = Molecule(world, this->parser);

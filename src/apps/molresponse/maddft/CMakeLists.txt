@@ -2,7 +2,7 @@
 
 
 set(MY_EXECUTABLES
-        mad-freq2
+        mad-dft
 )
 
 
