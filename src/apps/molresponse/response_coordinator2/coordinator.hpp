@@ -370,8 +370,8 @@ public:
         }
         world.gop.fence();
 
-        moldft_restart = addPath(moldft_path, "/mad.restartdata.00000");
-        calc_info_json_path = addPath(moldft_path, "/mad.calc_info.json");
+        moldft_restart = addPath(moldft_path, "/moldft.restartdata.00000");
+        calc_info_json_path = addPath(moldft_path, "/moldft.calc_info.json");
         if (std::filesystem::exists(moldft_restart) && std::filesystem::exists(calc_info_json_path)) {
             // if both exist, read the calc_info json
             std::ifstream ifs(calc_info_json_path);
@@ -759,7 +759,7 @@ public:
                     quad_parameters.set_derived_value<size_t>("states", 3);
                 }
 
-                auto final_protocol = *molresponse_params.protocol().end();
+                auto final_protocol = molresponse_params.protocol().back();
                 quad_parameters.set_user_defined_value<vector<double>>("protocol", {final_protocol});
 
                 return quad_parameters;
@@ -768,7 +768,6 @@ public:
 
             auto quad_parameters = set_hyperpolarizability_parameters();
 
-            if (world.rank() == 0) { molresponse::write_response_input(quad_parameters, "quad.in"); }
 
             //auto calc_params = initialize_calc_params(world, std::string("quad.in"));
             commandlineparser parser;
@@ -783,6 +782,8 @@ public:
             FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
 
             nlohmann::ordered_json beta_json = create_beta_json();
+
+            if (world.rank() == 0) { molresponse::write_response_input(quad_parameters, "quad.in"); }
 
             QuadraticResponse quad_calculation{
                     world,
