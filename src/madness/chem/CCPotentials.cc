@@ -718,15 +718,31 @@ CCPotentials::make_constant_part_mp2_macrotask(World& world, const CCPair& pair,
     MADNESS_ASSERT(mo_ket.size() == mo_bra.size());
     StrongOrthogonalityProjector<double, 3> Q(world);
     Q.set_spaces(mo_bra, mo_ket, mo_bra, mo_ket);
-    V = Q(V);
 
-    V.print_size("QVreg");
+//    V = Q(V);
+//
+//    V.print_size("QVreg");
     real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * epsilon), parameters.lo(),
                                            parameters.thresh_bsh_6D());
     G.destructive() = true;
-    real_function_6d GV = -2.0 * G(V);
-    if (parameters.debug()) GV.print_size("GVreg");
+//    real_function_6d GV = -2.0 * G(V);
 
+    // save memory:
+    // split application of the BSH operator into high-rank, local part U|ij>, and
+    // low-rank, delocalized part (-O1 -O2 +O1O2) U|ij> by splitting the SO operator
+
+    // delocalized part
+    auto [left,right]=Q.get_vectors_for_outer_product(V);
+    real_function_6d GV1=-2.0*G(left,right);
+    GV1.truncate();
+
+    // local part
+    real_function_6d GV = -2.0 * G(V);      // note V is destroyed here
+    GV.truncate();
+
+    GV+=GV1;
+    GV.truncate();
+    if (parameters.debug()) GV.print_size("GVreg");
     //MADNESS_ASSERT(t.type == HOLE || t.type == MIXED);
     MADNESS_ASSERT(mo_ket.size() == mo_bra.size());
     GV = Q(GV);
@@ -1739,6 +1755,9 @@ CCPotentials::apply_exchange_commutator_macrotask(World& world, const std::vecto
 
     //final result
     Kfxy.print_size("Kf" + x_name + y_name);
+    Kfxy.set_thresh(parameters.thresh_6D());
+    Kfxy.truncate().reduce_rank();
+    Kfxy.print_size("Kf after truncation" + x_name + y_name);
     fKxy.print_size("fK" + x_name + y_name);
     real_function_6d result = (Kfxy - fKxy);
     result.set_thresh(parameters.thresh_6D());
@@ -2488,7 +2507,7 @@ CCPotentials::apply_K_macrotask(World& world, const std::vector<real_function_3d
         result += (multiply(copy(Y), copy(mo_ket[k]),
                             particle)).truncate();     // this will destroy X, but I d not intend to use it again so I choose here to save this copy
     }
-    return result;
+    return result.truncate(parameters.tight_thresh_3D()*3.0).reduce_rank(parameters.tight_thresh_6D()*3.0);
 }
 
 madness::real_function_6d
