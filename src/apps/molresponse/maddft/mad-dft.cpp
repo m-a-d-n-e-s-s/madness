@@ -38,7 +38,7 @@ auto main(int argc, char *argv[]) -> int {
         commandlineparser parser(argc, argv);
 
         if (parser.key_exists("help")) {
-            SCF::help();
+            ParameterManager::help();
 
         } else if (parser.key_exists("print_parameters")) {
             params.print_params();
