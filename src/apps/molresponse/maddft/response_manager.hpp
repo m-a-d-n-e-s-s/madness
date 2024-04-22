@@ -12,7 +12,6 @@
 #include "ResponseExceptions.hpp"
 #include "madness/chem/SCF.h"
 #include "madness/world/worldmem.h"
-#include "response_data_base.hpp"
 #include "response_parameters.h"
 #include "sstream"
 #include "string"
