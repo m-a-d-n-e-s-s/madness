@@ -424,6 +424,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
         taskq->set_printlevel(3);
         MacroTaskMp2ConstantPart t;
         MacroTask task(world, t, taskq);
+        task.set_name("MP2_Constant_Part");
         std::vector<real_function_6d> result_vec = task(pair_vec, CCOPS.mo_ket().get_vecfunction(),
                                                         CCOPS.mo_bra().get_vecfunction(), parameters,
                                                         nemo->R_square, nemo->ncf->U1vec(),std::vector<std::string>({"Ue","KffK"}));
@@ -455,7 +456,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
     }
 
 
-    print_header3("Starting updating MP2 pairs");
+    if (world.rank()==0) print_header3("Starting updating MP2 pairs");
 
     // create new pairs structure
     Pairs<CCPair> updated_pairs;

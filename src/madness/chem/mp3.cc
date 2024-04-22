@@ -828,9 +828,8 @@ double MP3::compute_mp3_klmn(World& world,
                            const Function<double,3>& Rsquare,
                            const std::vector<std::string>& argument) {
 
-    // prepare cluster functions
+    print_header3("starting term KLMN with particles "+std::to_string(i)+" "+std::to_string(j));
     std::size_t nocc=mo_ket.size();
-    double result=0.0;
 
     CCConvolutionOperator<double,3>::Parameters cparam;
     auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,cparam);
@@ -850,31 +849,35 @@ double MP3::compute_mp3_klmn(World& world,
     timer inner_KLMN(world, "inner in KLMN term");
     inner_KLMN.interrupt();
 
-    // for (std::size_t i = parameters.freeze(); i < nocc; ++i) {
-        // for (std::size_t j = parameters.freeze(); j < nocc; ++j) {
-            multiply_KLMN.resume();
-            std::vector<CCPairFunction<double, 6>> rhs;
-            for (std::size_t k = parameters.freeze(); k < nocc; ++k) {
-                rhs += +2.0 * multiply(pair_square(j, k), gij(k, i), {0, 1, 2});   // M
-                rhs += +2.0 * multiply(pair_square(k, i), gij(k, j), {0, 1, 2});    //  N
-                rhs += -4.0 * multiply(pair_square(i, k), gij(k, j), {3, 4, 5});   // K
-                rhs += -4.0 * multiply(pair_square(k, j), gij(k, i), {3, 4, 5});   // L
-            }
-            rhs = consolidate(rhs, {});
-            multiply_KLMN.interrupt();
+    multiply_KLMN.resume();
+    std::vector<CCPairFunction<double, 6>> rhs;
+    for (std::size_t k = parameters.freeze(); k < nocc; ++k) {
+        // rhs += +2.0 * multiply(pair_square(j, k), gij(k, i), {0, 1, 2});   // M
+        // rhs += +2.0 * multiply(pair_square(k, i), gij(k, j), {0, 1, 2});    //  N
+        // rhs += -4.0 * multiply(pair_square(i, k), gij(k, j), {3, 4, 5});   // K
+        // rhs += -4.0 * multiply(pair_square(k, j), gij(k, i), {3, 4, 5});   // L
+        rhs += multiply(pair_square(k, j), gij(k, i), {0, 1, 2});
+        rhs += multiply(pair_square(k, j), gij(k, i), {3, 4, 5});
+    }
+    rhs = consolidate(rhs, {});
 
-            inner_KLMN.resume();
-            double tmp = inner(pair_square(i, j), rhs, Rsquare);
-            inner_KLMN.interrupt();
+    std::vector<CCPairFunction<double, 6>> lhs;
+    lhs+=2.0*pair_square(i,j);
+    lhs-= pair_square(j,i);
+    lhs=consolidate(lhs,{});
+    multiply_KLMN.interrupt();
 
-	        std::size_t bufsize=256;
-	        char buf[bufsize];
-            snprintf(buf,bufsize,"mp3 energy: term_KLMN with particle=1 %2ld %2ld %12.8f\n", i, j, tmp);
-            print(std::string(buf));
-            result += tmp;
-        // }
-    // }
-    multiply_KLMN.print("multiplication in KLMN term");
+    inner_KLMN.resume();
+    // double result = inner(pair_square(i, j), rhs, Rsquare);
+    double result = -2.0*inner(lhs, rhs, Rsquare);
+    inner_KLMN.interrupt();
+
+	std::size_t bufsize=256;
+	char buf[bufsize];
+    snprintf(buf,bufsize,"mp3 energy: term_KLMN %2ld %2ld %12.8f\n", i, j, result);
+    print(std::string(buf));
+
+    multiply_KLMN.print("multiplication in KLMN term with remove_lindep");
     inner_KLMN.print("inner in KLMN term");
 
     return result;
@@ -968,26 +971,26 @@ double MP3::mp3_energy_contribution_macrotask_driver(const Pairs<CCPair>& mp2pai
     MacroTaskMP3 task_square("square");
     MacroTask macrotask_triangular(world,task_triangular,taskq);
     MacroTask macrotask_square(world,task_square,taskq);
-    auto ghij_future=macrotask_triangular(std::string("ghij"), ij_triangular, dummy, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
+    // auto ghij_future=macrotask_triangular(std::string("ghij"), ij_triangular, dummy, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
     auto klmn_future=macrotask_square(std::string("klmn"), nact, nact, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
-    auto cd_future=macrotask_triangular(std::string("cd"), ij_triangular, dummy, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
-    auto ef_future=macrotask_triangular(std::string("ef"), ij_triangular, dummy, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
+    // auto cd_future=macrotask_triangular(std::string("cd"), ij_triangular, dummy, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
+    // auto ef_future=macrotask_triangular(std::string("ef"), ij_triangular, dummy, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
     // taskq->print_taskq();
     taskq->run_all();
 
-    double term_CD=cd_future->get();
-    double term_EF=ef_future->get();
-    double term_GHIJ=ghij_future->get();
-    double term_KLMN=klmn_future->get();
-    double mp3_energy=term_CD+term_GHIJ+term_KLMN+term_EF;
-    if (world.rank()==0) {
-        printf("term_CD    %12.8f\n",term_CD);
-        printf("term_GHIJ  %12.8f\n",term_GHIJ);
-        printf("term_KLMN  %12.8f\n",term_KLMN);
-        printf("term_EF    %12.8f\n",term_EF);
-        printf("MP3 energy contribution  %12.8f\n",mp3_energy);
-    }
-    return mp3_energy;
-    // return 0.0;
+    // double term_CD=cd_future->get();
+    // double term_EF=ef_future->get();
+    // double term_GHIJ=ghij_future->get();
+    // double term_KLMN=klmn_future->get();
+    // double mp3_energy=term_CD+term_GHIJ+term_KLMN+term_EF;
+    // if (world.rank()==0) {
+        // printf("term_CD    %12.8f\n",term_CD);
+        // printf("term_GHIJ  %12.8f\n",term_GHIJ);
+        // printf("term_KLMN  %12.8f\n",term_KLMN);
+        // printf("term_EF    %12.8f\n",term_EF);
+        // printf("MP3 energy contribution  %12.8f\n",mp3_energy);
+    // }
+    // return mp3_energy;
+    return 0.0;
 }
 }
