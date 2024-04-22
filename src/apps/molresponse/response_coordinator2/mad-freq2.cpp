@@ -72,6 +72,9 @@ auto main(int argc, char *argv[]) -> int {
                 std::filesystem::exists(response_manager.moldft_path)) {
                 response_manager.run_molresponse(world);
             } else {
+                if(world.rank() == 0) {
+                    print("Running MOLDFT since no previous calculation was found");
+                }
                 response_manager.run_moldft(world,true);
                 world.gop.fence();
                 response_manager.run_molresponse(world);
@@ -86,8 +89,6 @@ auto main(int argc, char *argv[]) -> int {
                 }
                 response_manager.run_quadratic_response(world);
             }
-
-
 
         } catch (const SafeMPI::Exception &e) {
             print(e.what());
