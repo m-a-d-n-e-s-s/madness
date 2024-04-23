@@ -43,6 +43,16 @@ auto main(int argc, char *argv[]) -> int {
             params.print_params();
         } else {
 
+            if(parser.key_exists("dft")){
+                print("Running DFT");
+            }
+            if(parser.key_exists("response")){
+                print("Running Response");
+            }
+            if(parser.key_exists("quadratic")){
+                print("Running Quadratic Response");
+            }
+
 
             try {
                 // I need to write a help and a print parameters function which will be called by the commandlineparser
@@ -51,9 +61,11 @@ auto main(int argc, char *argv[]) -> int {
                 ParameterManager params;
                 if (argc == 1) {
                     print("No input file found");
-                    path input_json("resources/inputs/freq_input.json");
-                    path mol_input("resources/molecules/H2O.mol");
-                    params = ParameterManager(world, input_json, mol_input);
+                    print("For help type: ./mad-dft --help");
+                    print("For print parameters type: ./mad-dft --print_parameters");
+                    return 1;
+
+
                 } else if (argc == 2) {
                     print("Input file found");
                     path input_file(argv[1]);
@@ -79,6 +91,18 @@ auto main(int argc, char *argv[]) -> int {
                     print("Moldft Path: ", response_manager.moldft_path);
                 }
 
+                if(params.get_run_moldft()){
+
+                if (std::filesystem::exists(response_manager.calc_info_json_path) &&
+                    std::filesystem::exists(response_manager.moldft_path)) {
+                    print(" MOLDFT and Calc Info Found... Skipping MOLDFT");
+                }else{
+                    response_manager.run_molresponse(world);
+                }
+                }
+            // if both exist, read the calc_info json
+
+                // 
                 if (std::filesystem::exists(response_manager.calc_info_json_path) &&
                     std::filesystem::exists(response_manager.moldft_path)) {
                     response_manager.run_molresponse(world);
@@ -88,6 +112,7 @@ auto main(int argc, char *argv[]) -> int {
                     }
                     response_manager.run_moldft(world, true);
                     world.gop.fence();
+
                     response_manager.run_molresponse(world);
                     world.gop.fence();
                 }

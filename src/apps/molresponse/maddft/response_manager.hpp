@@ -104,13 +104,16 @@ private:
     path input_file_json_path;
     std::string input_file_base;
 
-
     json all_input_json;
     commandlineparser parser;
     Molecule molecule;
 
     CalculationParameters moldft_params;
     ResponseParameters molresponse_params;
+
+    bool run_moldft = false;
+    bool run_response = false;
+    bool run_quadratic_response = false;
 
 public:
     ParameterManager() = default;
@@ -192,6 +195,17 @@ public:
             input_file_path = file_path;
             std::ifstream input_stream(input_file_path);
             input_file_json_path = path(input_file_base + ".json");
+
+            if(parser.key_exists("dft")){
+                run_moldft = true;
+            }
+            if(parser.key_exists("response")){
+                run_response = true;
+            }
+            if(parser.key_exists("quadratic")){
+                run_quadratic_response = true;
+            }
+
 
             molecule = Molecule(world, this->parser);
             moldft_params = CalculationParameters(world, this->parser);
@@ -280,11 +294,6 @@ public:
         moldft_params = CalculationParameters(world, parser);
         molresponse_params = ResponseParameters(world, parser);
 
-        // output the json to input
-
-
-
-
     }
 
     json get_input_json() {
@@ -323,6 +332,15 @@ public:
 
     void write_response_json(std::ostream &os) {
         os << std::setw(4) << all_input_json["response"];
+    }
+    [[nodiscard]] bool get_run_moldft() const {
+        return run_moldft;
+    }
+    [[nodiscard]] bool get_run_response() const {
+        return run_response;
+    }
+    [[nodiscard]] bool get_run_quadratic_response() const {
+        return run_quadratic_response;
     }
 
 };
@@ -369,10 +387,10 @@ public:
         freq = parameter_manager.get_molresponse_params().freq_range();
 
         root = std::filesystem::current_path();
-        auto molecule_json = parameter_manager.get_input_json()["molecule"];
-        auto param_hash = std::hash<json>{}(molecule_json);
-        auto param_dir = "moldft_" + std::to_string(param_hash);
-        moldft_path = root / path(param_dir);
+        //auto molecule_json = parameter_manager.get_input_json()["molecule"];
+        //auto param_hash = std::hash<json>{}(molecule_json);
+        //auto param_dir = "moldft_" + std::to_string(param_hash);
+        moldft_path = root;// / path(param_dir);
         if (std::filesystem::is_directory(moldft_path)) {
             cout << "moldft directory found"
                  << "\n";
