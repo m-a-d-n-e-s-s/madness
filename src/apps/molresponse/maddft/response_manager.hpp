@@ -1,7 +1,3 @@
-//
-// Created by adrianhurtado on 2/11/22.
-//
-
 #ifndef MADNESS_RUNNERS_HPP
 #define MADNESS_RUNNERS_HPP
 
@@ -15,11 +11,12 @@
 #include "response_parameters.h"
 #include "sstream"
 #include "string"
+#include "world.h"
 #include "write_test_input.h"
 
 using path = std::filesystem::path;
 
-auto split(const std::string &s, char delim) -> vector<std::string> {
+auto split(const std::string& s, char delim) -> vector<std::string> {
   vector<std::string> result;
   std::stringstream ss(s);
   std::string item;
@@ -31,19 +28,19 @@ auto split(const std::string &s, char delim) -> vector<std::string> {
   return result;
 }
 
-auto addPath(const path &root, const std::string &branch) -> path {
+auto addPath(const path& root, const std::string& branch) -> path {
   path p_branch = root;
   p_branch += branch;
   return p_branch;
 }
 
-void write_molecule_json_to_input_file(const json &molecule_json,
-                                       std::ostream &output_stream) {
+void write_molecule_json_to_input_file(const json& molecule_json,
+                                       std::ostream& output_stream) {
   output_stream << "geometry" << std::endl;
   // get parameters seperately
   auto parameters = molecule_json["parameters"];
 
-  for (auto &[key, value] : parameters.items()) {
+  for (auto& [key, value] : parameters.items()) {
     output_stream << "    " << key << " " << value << std::endl;
   }
 
@@ -69,12 +66,10 @@ void write_molecule_json_to_input_file(const json &molecule_json,
   output_stream << "end" << std::endl << std::endl;
 }
 
-void write_json_to_input_file(const json &input_json,
-                              const std::vector<std::string> &keys,
-                              std::ostream &output_stream) {
-
-  for (const auto &key : keys) {
-
+void write_json_to_input_file(const json& input_json,
+                              const std::vector<std::string>& keys,
+                              std::ostream& output_stream) {
+  for (const auto& key : keys) {
     if (input_json.find(key) == input_json.end()) {
       throw std::runtime_error("Key not found in input json");
     }
@@ -82,28 +77,40 @@ void write_json_to_input_file(const json &input_json,
     output_stream << key << std::endl;
     // for each key within the block write the key value pair to the file line
     // by line
-    for (auto &[key, value] : input_json[key].items()) {
+    for (auto& [key, value] : input_json[key].items()) {
       output_stream << "    " << key << " " << value << std::endl;
     }
     output_stream << "end" << std::endl << std::endl;
   }
 }
 
-void write_moldft_input(const json &input_json, std::ostream &out) {
+void write_moldft_input(const json& input_json, std::ostream& out) {
   write_json_to_input_file(input_json, {"dft"}, out);
   write_molecule_json_to_input_file(input_json["molecule"], out);
 }
 
-void write_response_input(const json &input_json, std::ostream &out) {
+void write_response_input(const json& input_json, std::ostream& out) {
   write_json_to_input_file(input_json, {"response"}, out);
 }
 
-class ParameterManager {
+// Three ways to construct the ParameterManagerClass.
+// The first is a simple input file which contains
+// moldft and response parameters and geometry
+//
+// The second is a json file which contains the same information
+//
+// The last is a mix of input file and molecule file
+// which the input file contains the moldft and response
+// parameters and the molecule file contains the geometry
+// and the input file can be either a json or a text file
 
-private:
+class ParameterManager {
+ private:
   path input_file_path;
   path input_file_json_path;
   std::string input_file_base;
+  path final_input_file_path = "final_input";
+  path final_input_json_path = "final_input.json";
 
   json all_input_json;
   commandlineparser parser;
@@ -116,12 +123,13 @@ private:
   bool run_response = false;
   bool run_quadratic_response = false;
 
-public:
+ public:
   ParameterManager() = default;
 
   void print_file_paths() const {
     ::print("------------Parameter Manager---------------");
     ::print("Input File Path: ", input_file_path);
+    ::print("Final Input File Path: ", final_input_file_path);
     ::print("Input File Json Path: ", input_file_json_path);
     ::print("Input File Base: ", input_file_base);
     ::print("-------------------------------------------");
@@ -131,11 +139,13 @@ public:
     print_header2("help page for MADNESS DFT and Response Properties Code ");
     print(
         "This code is designed to run DFT and Response Property calculations");
-    print("Within the input one defines both the ground and response "
-          "calculations in the input file by specifiying the dft and response "
-          "blocks");
-    print("By defining the quadratic block one can compute quadratic response "
-          "properties such as the hyperpolarizability");
+    print(
+        "Within the input one defines both the ground and response "
+        "calculations in the input file by specifiying the dft and response "
+        "blocks");
+    print(
+        "By defining the quadratic block one can compute quadratic response "
+        "properties such as the hyperpolarizability");
   }
   void print_params() const {
     ::print("------------Parameter Manager---------------");
@@ -147,9 +157,12 @@ public:
     molresponse_params.print();
     ::print("-------------------------------------------");
   }
-  explicit ParameterManager(World &world, commandlineparser par)
+  /*
+   * Constructor for the ParameterManager class that just takes in a parser which is the standard
+   *
+   */
+  explicit ParameterManager(World& world, commandlineparser par)
       : parser(std::move(par)) {
-
     // Here we try to read Molecule, ground, and response parameters from the
     // input file
     molecule = Molecule(world, this->parser);
@@ -161,82 +174,14 @@ public:
     all_input_json["response"] =
         molresponse_params.to_json_if_precedence("defined");
     all_input_json["molecule"] = molecule.to_json();
-    write_json_input();
   }
 
-  explicit ParameterManager(World &world, const path &file_path) {
-
-    // Get extension of file if it has one
-    auto file_extension = file_path.extension();
-    print("file extension", file_extension);
-
-    input_file_base = file_path.stem().string();
-    if (world.rank() == 0) {
-      print("Input file path: ", file_path);
-      print("Input file base name: ", input_file_base);
-    }
-
-    if (file_extension == path(".json")) {
-      if (world.rank() == 0)
-        print("Reading input file from json");
-      input_file_json_path = file_path;
-
-      std::ifstream input_stream(input_file_json_path);
-      all_input_json = json::parse(input_stream);
-      input_file_path = path(input_file_base);
-
-      molecule = Molecule(world, parser);
-      moldft_params = CalculationParameters(world, parser);
-      molresponse_params = ResponseParameters(world, parser);
-
-      write_input_file();
-
-    } else {
-
-      if (world.rank() == 0)
-        print("Reading input file");
-
-      input_file_path = file_path;
-      std::ifstream input_stream(input_file_path);
-      input_file_json_path = path(input_file_base + ".json");
-
-      if (parser.key_exists("dft")) {
-        run_moldft = true;
-      }
-      if (parser.key_exists("response")) {
-        run_response = true;
-      }
-      if (parser.key_exists("quadratic")) {
-        run_quadratic_response = true;
-      }
-
-      molecule = Molecule(world, this->parser);
-      moldft_params = CalculationParameters(world, this->parser);
-
-      molresponse_params = ResponseParameters(world, this->parser);
-
-      all_input_json = {};
-      all_input_json["dft"] = moldft_params.to_json_if_precedence("defined");
-      all_input_json["response"] =
-          molresponse_params.to_json_if_precedence("defined");
-      all_input_json["molecule"] = molecule.to_json();
-
-      write_json_input();
-    }
-  }
-
-  explicit ParameterManager(World &world, const path &input_file,
-                            const path &mol_file) {
-
-    Molecule molecule;
+  explicit ParameterManager(World& world, const path& input_file,
+                            const path& mol_file) {
+    // First read the molecule file because we have one
     auto mol_stream = std::ifstream(mol_file);
     molecule.read(mol_stream);
     mol_stream.close();
-
-    // check if the input file is a json file
-    // Get extension of file if it has one
-    auto file_extension = input_file.extension();
-    print("file extension", file_extension);
     input_file_base = input_file.stem().string();
 
     if (world.rank() == 0) {
@@ -244,32 +189,23 @@ public:
       print("Input file base name: ", input_file_base);
     }
 
-    if (file_extension == path(".json")) {
-      if (world.rank() == 0)
-        print("Reading input file from json");
-      input_file_json_path = input_file;
+    std::ifstream input_file_stream(input_file);
+    bool is_json = json::accept(input_file_stream);
+    input_file_stream.close();
+    input_file_stream.open(input_file);
 
-      std::ifstream input_stream(input_file_json_path);
-
-      all_input_json = json::parse(input_stream);
+    if (is_json) {
+      if (world.rank() == 0) {
+        print(input_file, " is a json file");
+      }
+      all_input_json = json::parse(input_file_stream);
       all_input_json["molecule"] = molecule.to_json();
-
-      input_file_path = path(input_file_base);
-
       moldft_params.from_json(all_input_json["dft"]);
       molresponse_params.from_json(all_input_json["response"]);
-
-      write_input_file();
-
     } else {
-      if (world.rank() == 0)
-        print("Reading input file");
-
-      input_file_path = input_file;
-      std::ifstream input_stream(input_file_path);
-      input_file_json_path = path(input_file_base + ".json");
-
-      molecule = Molecule(world, this->parser);
+      if (world.rank() == 0) {
+        print(input_file, " is not json file");
+      }
       moldft_params = CalculationParameters(world, this->parser);
       molresponse_params = ResponseParameters(world, this->parser);
 
@@ -278,16 +214,12 @@ public:
       all_input_json["response"] =
           molresponse_params.to_json_if_precedence("defined");
       all_input_json["molecule"] = molecule.to_json();
-
-      write_json_input();
     }
+    input_file_stream.close();
   }
 
-  explicit ParameterManager(World &world, json input_json) {
-
+  explicit ParameterManager(World& world, json input_json) {
     all_input_json = std::move(input_json);
-    write_input_file();
-
     molecule = Molecule(world, parser);
     moldft_params = CalculationParameters(world, parser);
     molresponse_params = ResponseParameters(world, parser);
@@ -295,47 +227,40 @@ public:
 
   json get_input_json() { return all_input_json; }
 
-  void write_input_file() const {
-    std::ofstream all_input_file(input_file_path);
-    write_json_to_input_file(all_input_json, {"dft", "response"},
-                             all_input_file);
-    write_molecule_json_to_input_file(all_input_json["molecule"],
-                                      all_input_file);
-    all_input_file.close();
+  void write_input_file(std::ostream& os) const {
+    write_json_to_input_file(all_input_json, {"dft", "response"}, os);
+    write_molecule_json_to_input_file(all_input_json["molecule"], os);
   }
 
-  void write_json_input() const {
-    std::ofstream all_input_file(input_file_json_path);
-    all_input_file << all_input_json.dump(4);
-    all_input_file.close();
+  void write_json_input(std::ostream& os) const {
+    os << all_input_json.dump(4);
   }
 
-  void write_moldft_input_file(std::ostream &os) const {
+  void write_moldft_input_file(std::ostream& os) const {
     write_moldft_input(all_input_json, os);
   }
 
-  void write_response_input_file(std::ostream &os) const {
+  void write_response_input_file(std::ostream& os) const {
     write_response_input(all_input_json, os);
   }
 
-  [[nodiscard]] auto
-  get_moldft_params() const -> const CalculationParameters & {
+  [[nodiscard]] auto get_moldft_params() const -> const CalculationParameters& {
     return moldft_params;
   }
-  [[nodiscard]] auto
-  get_molresponse_params() const -> const ResponseParameters & {
+  [[nodiscard]] auto get_molresponse_params() const
+      -> const ResponseParameters& {
     return molresponse_params;
   }
-  [[nodiscard]] auto get_molecule() const -> const Molecule & {
+  [[nodiscard]] auto get_molecule() const -> const Molecule& {
     return molecule;
   }
 
-  void write_moldft_json(std::ostream &os) {
+  void write_moldft_json(std::ostream& os) {
     os << std::setw(4) << all_input_json["dft"];
     os << std::setw(4) << all_input_json["molecule"];
   }
 
-  void write_response_json(std::ostream &os) {
+  void write_response_json(std::ostream& os) {
     os << std::setw(4) << all_input_json["response"];
   }
   [[nodiscard]] bool get_run_moldft() const { return run_moldft; }
@@ -346,15 +271,22 @@ public:
 };
 
 class ResponseCalcManager {
-
-  path root; // root directory
-
+  path root;  // root directory
   ParameterManager parameter_manager;
+  void define_response_paths() {
+    for (const auto& freq : freq) {
+      response_paths.push_back(generate_response_frequency_run_path(freq));
+    }
+  }
 
-public:
-  path moldft_path; // molecule directory
+ public:
+  path moldft_path;  // molecule directory
   path moldft_json_path;
   path moldft_restart;
+
+  path quadratic_json_path;
+
+  vector<path> response_paths;
 
   path calc_info_json_path;
 
@@ -365,46 +297,56 @@ public:
   std::vector<double> freq;
   Molecule molecule;
 
-  [[nodiscard]] auto get_root() const -> const path & { return root; }
-  [[nodiscard]] auto get_moldft_path() const -> const path & {
+  [[nodiscard]] auto get_root() const -> const path& { return root; }
+  [[nodiscard]] auto get_moldft_path() const -> const path& {
     return moldft_path;
   }
-  [[nodiscard]] auto get_moldft_json_path() const -> const path & {
+  [[nodiscard]] auto get_moldft_json_path() const -> const path& {
     return moldft_json_path;
   }
-  [[nodiscard]] auto get_moldft_restart() const -> const path & {
+  [[nodiscard]] auto get_moldft_restart() const -> const path& {
     return moldft_restart;
   }
-  [[nodiscard]] auto get_calc_info_json_path() const -> const path & {
+  [[nodiscard]] auto get_calc_info_json_path() const -> const path& {
     return calc_info_json_path;
   }
-  [[nodiscard]] auto get_calc_info_json() const -> const json & {
+  [[nodiscard]] auto get_calc_info_json() const -> const json& {
     return calc_info_json;
   }
-  [[nodiscard]] auto get_op() const -> const std::string & { return op; }
-  [[nodiscard]] auto get_xc() const -> const std::string & { return xc; }
-  [[nodiscard]] auto get_freq() const -> const std::vector<double> & {
+  [[nodiscard]] auto get_op() const -> const std::string& { return op; }
+  [[nodiscard]] auto get_xc() const -> const std::string& { return xc; }
+  [[nodiscard]] auto get_freq() const -> const std::vector<double>& {
     return freq;
   }
-  [[nodiscard]] auto get_molecule() const -> const Molecule & {
+  [[nodiscard]] auto get_molecule() const -> const Molecule& {
     return molecule;
   }
 
-  explicit ResponseCalcManager(World &world, ParameterManager pm)
+  explicit ResponseCalcManager(World& world, ParameterManager pm)
       : parameter_manager(std::move(pm)) {
-
     xc = parameter_manager.get_moldft_params().xc();
     op = "dipole";
     freq = parameter_manager.get_molresponse_params().freq_range();
+    define_response_paths();
 
+    quadratic_json_path = moldft_path / "beta.json";
     root = std::filesystem::current_path();
-    // auto molecule_json = parameter_manager.get_input_json()["molecule"];
-    // auto param_hash = std::hash<json>{}(molecule_json);
-    // auto param_dir = "moldft_" + std::to_string(param_hash);
-    moldft_path = root; // / path(param_dir);
+    moldft_path = root / "output";
+
+    // write out the input file to the output directory
+    if (world.rank() == 0) {
+      std::ofstream ofs("final_input");
+      parameter_manager.write_input_file(ofs);
+      ofs.close();
+      std::ofstream ofs_json("final_input.json");
+      parameter_manager.write_json_input(ofs_json);
+      ofs_json.close();
+    }
+    world.gop.fence();
+
     if (std::filesystem::is_directory(moldft_path)) {
       cout << "moldft directory found" << "\n";
-    } else { // create the file
+    } else {  // create the file
       cout << "Creating moldft directory" << "\n";
       std::filesystem::create_directory(moldft_path);
     }
@@ -427,7 +369,6 @@ public:
       std::ifstream ifs(calc_info_json_path);
       ifs >> calc_info_json;
       if (world.rank() == 0) {
-
         std::cout << "time: " << calc_info_json["time"] << std::endl;
         std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"]
                   << std::endl;
@@ -454,17 +395,29 @@ public:
     ::print("------------------------------------------------");
   }
 
-  /**
-   * Runs moldft in the path provided.  Also generates the moldft input
-   * file_name in the directory provided.
-   *
-   * @param world
-   * @param moldft_path
-   * @param moldft_filename
-   * @param xc
-   */
-  void run_moldft(World &world, bool restart) const {
+  void output_calc_path_json() const {
+    std::ofstream ofs("calc_path.json");
+    json calc_path_json;
+    calc_path_json["moldft_path"] = moldft_path;
+    calc_path_json["moldft_restart"] = moldft_restart;
+    calc_path_json["calc_info_json_path"] = calc_info_json_path;
+    calc_path_json["moldft_json_path"] = moldft_json_path;
+    calc_path_json["response_paths"] = response_paths;
+    calc_path_json["quadratic_json_path"] = quadratic_json_path;
+    ofs << std::setw(4) << calc_path_json;
+    ofs.close();
+  }
 
+  /**
+     * Runs moldft in the path provided.  Also generates the moldft input
+     * file_name in the directory provided.
+     *
+     * @param world
+     * @param moldft_path
+     * @param moldft_filename
+     * @param xc
+     */
+  void run_moldft(World& world, bool restart) const {
     // first thing to do is change the current directory to the moldft path
     std::filesystem::current_path(moldft_path);
 
@@ -489,21 +442,17 @@ public:
 
       calcInfo = json::parse(ifs);
       if (world.rank() == 0) {
-
         std::cout << "time: " << calc_info_json["time"] << std::endl;
         std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"]
                   << std::endl;
       }
     } else {
-
       // if params are different run and if restart exists and if im asking to
-      // restar
       if (std::filesystem::exists(moldft_restart) && restart) {
         param1.set_user_defined_value<bool>("restart", true);
       }
       world.gop.fence();
       if (world.rank() == 0) {
-
         parameter_manager.write_moldft_input_file(std::cout);
 
         std::ofstream ofs("moldft.in");
@@ -524,10 +473,12 @@ public:
       SCF calc(world, parser);
       if (world.rank() == 0) {
         ::print("\n\n");
-        ::print(" MADNESS Hartree-Fock and Density Functional Theory "
-                "Program");
-        ::print(" ----------------------------------------------------------"
-                "\n");
+        ::print(
+            " MADNESS Hartree-Fock and Density Functional Theory "
+            "Program");
+        ::print(
+            " ----------------------------------------------------------"
+            "\n");
         calc.param.print("dft");
       }
       if (world.size() > 1) {
@@ -542,7 +493,7 @@ public:
       MolecularEnergy ME(world, calc);
       world.gop.fence();
       // double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
-      ME.value(calc.molecule.get_all_coords().flat()); // ugh!
+      ME.value(calc.molecule.get_all_coords().flat());  // ugh!
       world.gop.fence();
       const real_function_3d rho =
           2.0 * calc.make_density(world, calc.aocc, calc.amo);
@@ -558,19 +509,19 @@ public:
   }
 
   /**
-   * generates the frequency response path using the format
-   * [property]_[xc]_[1-100]
-   *
-   * where 1-100 corresponds a frequency of 1.100
-   *
-   * @param moldft_path
-   * @param property
-   * @param frequency
-   * @param xc
-   * @return
-   */
+     * generates the frequency response path using the format
+     * [property]_[xc]_[1-100]
+     *
+     * where 1-100 corresponds a frequency of 1.100
+     *
+     * @param moldft_path
+     * @param property
+     * @param frequency
+     * @param xc
+     * @return
+     */
   [[nodiscard]] auto generate_response_frequency_run_path(
-      const double &frequency) const -> std::filesystem::path {
+      const double& frequency) const -> std::filesystem::path {
     std::string s_frequency = std::to_string(frequency);
     auto sp = s_frequency.find('.');
     s_frequency = s_frequency.replace(sp, sp, "-");
@@ -583,18 +534,18 @@ public:
   }
 
   /***
-   * sets the run path based on the run type set by r_params
-   * creates the run directory and sets current directory to the run data
-   * returns the name of parameter file to run from
-   *
-   * @param parameters
-   * @param frequency
-   * @param moldft_path
-   */
+     * sets the run path based on the run type set by r_params
+     * creates the run directory and sets current directory to the run data
+     * returns the name of parameter file to run from
+     *
+     * @param parameters
+     * @param frequency
+     * @param moldft_path
+     */
   auto set_frequency_path_and_restart(
-      World &world, const double &frequency,
-      std::filesystem::path &restart_path, bool restart,
-      ResponseParameters &parameters) -> std::filesystem::path {
+      World& world, const double& frequency,
+      std::filesystem::path& restart_path, bool restart,
+      ResponseParameters& parameters) -> std::filesystem::path {
 
     if (world.rank() == 0) {
       ::print("restart path", restart_path);
@@ -609,7 +560,7 @@ public:
       if (world.rank() == 0) {
         cout << "Response directory found " << std::endl;
       }
-    } else { // create the file
+    } else {  // create the file
       std::filesystem::create_directory(frequency_run_path);
       if (world.rank() == 0) {
         cout << "Creating response_path directory" << std::endl;
@@ -629,7 +580,7 @@ public:
     if (world.rank() == 0) {
       parameters.set_user_defined_value("save", true);
       parameters.set_user_defined_value("save_file", save_string);
-      if (restart) { // if we are trying a restart calculation
+      if (restart) {  // if we are trying a restart calculation
         if (std::filesystem::exists(save_path)) {
           // if the save path exists then we know we can
           //  restart from the previous save
@@ -666,17 +617,17 @@ public:
   }
 
   /**
-   *
-   * @param world
-   * @param filename
-   * @param frequency
-   * @param property
-   * @param xc
-   * @param moldft_path
-   * @param restart_path
-   * @return
-   */
-  auto RunResponse(World &world, const std::string &filename, double frequency,
+     *
+     * @param world
+     * @param filename
+     * @param frequency
+     * @param property
+     * @param xc
+     * @param moldft_path
+     * @param restart_path
+     * @return
+     */
+  auto RunResponse(World& world, const std::string& filename, double frequency,
                    std::filesystem::path restart_path)
       -> std::pair<std::filesystem::path, bool> {
     // Set the response parameters
@@ -710,8 +661,9 @@ public:
     FrequencyResponse calc(world, calc_params, frequency, rhs_generator);
     if (world.rank() == 0) {
       ::print("\n\n");
-      ::print(" MADNESS Time-Dependent Density Functional Theory Response "
-              "Program");
+      ::print(
+          " MADNESS Time-Dependent Density Functional Theory Response "
+          "Program");
       ::print(" ----------------------------------------------------------\n");
       ::print("\n");
       calc_params.molecule.print();
@@ -732,17 +684,17 @@ public:
   }
 
   /**
-   * Takes in the moldft path where moldft restart file exists
-   * runs a response calculations for given property at given frequencies.
-   *
-   *
-   * @param world
-   * @param moldft_path
-   * @param frequencies
-   * @param xc
-   * @param property
-   */
-  void run_molresponse(World &world) {
+     * Takes in the moldft path where moldft restart file exists
+     * runs a response calculations for given property at given frequencies.
+     *
+     *
+     * @param world
+     * @param moldft_path
+     * @param frequencies
+     * @param xc
+     * @param property
+     */
+  void run_molresponse(World& world) {
     std::filesystem::current_path(moldft_path);
     // add a restart path
     auto restart_path =
@@ -750,7 +702,7 @@ public:
                 "/" + op + "_0-000000.00000/restart_" + op + "_0-000000.00000");
     std::pair<std::filesystem::path, bool> success{moldft_path, false};
     bool first = true;
-    for (const auto &freq : freq) {
+    for (const auto& freq : freq) {
       if (world.rank() == 0) {
         ::print(success.second);
       }
@@ -774,7 +726,7 @@ public:
     }
   }
 
-  void run_quadratic_response(World &world) {
+  void run_quadratic_response(World& world) {
     std::filesystem::current_path(moldft_path);
 
     bool run_first_order = false;
@@ -784,7 +736,7 @@ public:
         addPath(moldft_path,
                 "/" + op + "_0-000000.00000/restart_" + op + "_0-000000.00000");
     try {
-      for (const auto &freq : freq) {
+      for (const auto& freq : freq) {
         std::filesystem::current_path(moldft_path);
         ResponseParameters r_params{};
         auto save_path = set_frequency_path_and_restart(
@@ -886,8 +838,8 @@ public:
         std::filesystem::remove("beta.json");
       }
 
-      for (const auto &omega_b : freq) {
-        for (const auto &omega_c : freq) {
+      for (const auto& omega_b : freq) {
+        for (const auto& omega_c : freq) {
 
           auto generate_omega_restart_path = [&](double frequency) {
             auto linear_response_calc_path =
@@ -961,7 +913,6 @@ public:
                           << std::endl;
               }
             }
-
           } else {
             if (world.rank() == 0) {
               ::print("Skipping omega_a = ", omega_a,
@@ -981,8 +932,7 @@ public:
       std::ofstream ofs("beta.json");
       ofs << std::setw(4) << beta_json << std::endl;
       ofs.close();
-
-    } catch (Response_Convergence_Error &e) {
+    } catch (Response_Convergence_Error& e) {
       if (true) {
         // if the first order response calculations haven't been run then run
         // them
@@ -992,8 +942,9 @@ public:
         run_molresponse(world);
       } else {
         if (world.rank() == 0) {
-          ::print("First order response calculations haven't been run and "
-                  "can't be run");
+          ::print(
+              "First order response calculations haven't been run and "
+              "can't be run");
           ::print("Quadratic response calculations can't be run");
         }
       }
@@ -1001,14 +952,14 @@ public:
   }
   // sets the current path to the save path
   /**
-   * Generates the frequency save path with format
-   * /frequency_run_path/restart_[frequency_run_filename].00000
-   *
-   * @param frequency_run_path
-   * @return
-   */
-  auto
-  generate_frequency_save_path(const std::filesystem::path &frequency_run_path)
+     * Generates the frequency save path with format
+     * /frequency_run_path/restart_[frequency_run_filename].00000
+     *
+     * @param frequency_run_path
+     * @return
+     */
+  auto generate_frequency_save_path(
+      const std::filesystem::path& frequency_run_path)
       -> std::pair<std::filesystem::path, std::string> {
 
     auto save_path = std::filesystem::path(frequency_run_path);
@@ -1036,9 +987,9 @@ public:
   }
 
   // for a set of frequencies create a table from the beta values
-  void append_to_beta_json(const std::array<double, 3> &freq,
-                           const std::array<double, 18> &beta,
-                           nlohmann::ordered_json &beta_json) {
+  void append_to_beta_json(const std::array<double, 3>& freq,
+                           const std::array<double, 18>& beta,
+                           nlohmann::ordered_json& beta_json) {
 
     // create 3 columns of directions for each A,B,C
     std::array<char, 18> direction_A{'X', 'X', 'X', 'X', 'X', 'X',
@@ -1068,4 +1019,4 @@ public:
   }
 };
 
-#endif // MADNESS_RUNNERS_HPP
+#endif  // MADNESS_RUNNERS_HPP
