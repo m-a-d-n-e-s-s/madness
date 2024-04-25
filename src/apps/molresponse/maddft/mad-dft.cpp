@@ -104,13 +104,12 @@ auto main(int argc, char* argv[]) -> int {
 
         } else if (argc == 2) {
           path input_file(argv[1]);
-          commandlineparser parser(argc, argv);
           if (world.rank() == 0) {
             print("Input file found");
             print("Parsing Command Line");
           }
-          parser.print_map();
-          params = ParameterManager(world, parser);
+          // TODO: Adjust to read in the input file... I need to parse the input file name
+          params = ParameterManager(world, input_file);
         } else if (argc == 3) {
           if (world.rank() == 0) {
             print("Input and mol file found");
