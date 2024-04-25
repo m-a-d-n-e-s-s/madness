@@ -157,23 +157,40 @@ class ParameterManager {
     molresponse_params.print();
     ::print("-------------------------------------------");
   }
-  /*
-   * Constructor for the ParameterManager class that just takes in a parser which is the standard
-   *
-   */
-  explicit ParameterManager(World& world, commandlineparser par)
-      : parser(std::move(par)) {
-    // Here we try to read Molecule, ground, and response parameters from the
-    // input file
-    molecule = Molecule(world, this->parser);
-    moldft_params = CalculationParameters(world, this->parser);
-    molresponse_params = ResponseParameters(world, this->parser);
+  explicit ParameterManager(World& world, const path& input_file) {
+    // First read the molecule file because we have one
+    input_file_base = input_file.stem().string();
 
-    all_input_json = {};
-    all_input_json["dft"] = moldft_params.to_json_if_precedence("defined");
-    all_input_json["response"] =
-        molresponse_params.to_json_if_precedence("defined");
-    all_input_json["molecule"] = molecule.to_json();
+    if (world.rank() == 0) {
+      print("Input file path: ", input_file);
+      print("Input file base name: ", input_file_base);
+    }
+
+    std::ifstream input_file_stream(input_file);
+    bool is_json = json::accept(input_file_stream);
+    input_file_stream.close();
+    input_file_stream.open(input_file);
+
+    if (is_json) {
+      if (world.rank() == 0) {
+        print(input_file, " is a json file");
+      }
+      all_input_json = json::parse(input_file_stream);
+    } else {
+      if (world.rank() == 0) {
+        print(input_file, " is not json file");
+      }
+      moldft_params = CalculationParameters(world, this->parser);
+      molresponse_params = ResponseParameters(world, this->parser);
+      molecule = Molecule(world, this->parser);
+
+      all_input_json = {};
+      all_input_json["dft"] = moldft_params.to_json_if_precedence("defined");
+      all_input_json["response"] =
+          molresponse_params.to_json_if_precedence("defined");
+      all_input_json["molecule"] = molecule.to_json();
+    }
+    input_file_stream.close();
   }
 
   explicit ParameterManager(World& world, const path& input_file,
@@ -216,13 +233,6 @@ class ParameterManager {
       all_input_json["molecule"] = molecule.to_json();
     }
     input_file_stream.close();
-  }
-
-  explicit ParameterManager(World& world, json input_json) {
-    all_input_json = std::move(input_json);
-    molecule = Molecule(world, parser);
-    moldft_params = CalculationParameters(world, parser);
-    molresponse_params = ResponseParameters(world, parser);
   }
 
   json get_input_json() { return all_input_json; }
