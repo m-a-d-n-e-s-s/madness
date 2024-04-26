@@ -482,11 +482,10 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
 
         // calc update for pairs via macrotask
         auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
-        taskq->set_printlevel(10);
-        taskq->cloud.set_debug(true);
+        taskq->set_printlevel(3);
+        //taskq->cloud.set_debug(true);
         MacroTaskMp2UpdatePair t;
         MacroTask task1(world, t, taskq);
-        task1.set_debug(true);
         if (world.rank()==0) print("pair_vec before update");
         for (auto& p :pair_vec) {
             if (world.rank()==0) print("pair",p.i,p.j, p.function().get_impl()->get_tree_state());
