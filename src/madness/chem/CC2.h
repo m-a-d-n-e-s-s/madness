@@ -473,7 +473,10 @@ public:
     }
 
     /// forward to the other function (converting CCPair to real_function)
-    Pairs<real_function_6d> compute_local_coupling(const Pairs<CCPair> &pairs) const {
+    Pairs<real_function_6d> compute_local_coupling(const std::vector<CCPair> &vpairs) const {
+        // create new pairs structure
+        Pairs<CCPair> pairs;
+        for (auto& tmp_pair : vpairs) pairs.insert(tmp_pair.i, tmp_pair.j, tmp_pair);
         auto ccpair2function = [](const CCPair& a) {return a.function();};
         return compute_local_coupling(pairs.convert<real_function_6d>(pairs,ccpair2function));
 

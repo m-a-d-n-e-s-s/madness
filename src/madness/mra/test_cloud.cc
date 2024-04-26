@@ -31,6 +31,43 @@ struct gaussian {
     }
 };
 
+
+/// this class stores different member variables in different records of the cloud
+class custom_serialize_tester {
+public:
+    int i;
+    double d;
+
+    custom_serialize_tester() : i(0), d(0.0) {}
+    bool operator==(const custom_serialize_tester& other) const {
+        return i == other.i && d == other.d;
+    }
+
+    /// customized function to store this to the cloud
+
+    /// functions and constant_part can be very large and we want to split them and store them in differenc records
+    Recordlist<Cloud::keyT> cloud_store(World& world, Cloud& cloud) const {
+        // save bookkeeping stuff in a vector
+        std::vector<unsigned char> v;
+        archive::VectorOutputArchive arout(v);
+        arout &  i;
+
+        Recordlist<Cloud::keyT> records;
+        records+=cloud.store(world,v);
+        records+=cloud.store(world,d);
+        return records;
+    }
+
+    void cloud_load(World& world, const Cloud& cloud, Recordlist<Cloud::keyT>& recordlist) {
+        std::vector<unsigned char> v=cloud.forward_load<std::vector<unsigned char>>(world,recordlist);
+        archive::VectorInputArchive arin(v);
+        arin & i;
+        d=cloud.forward_load<double>(world,recordlist);
+    }
+
+
+};
+
 template<typename T>
 double norm(const T i1) { return fabs(i1); }
 
@@ -157,6 +194,35 @@ int test_custom_worldobject(World& universe, World& subworld, Cloud& cloud) {
     double error=d1-d2;
     cloud.set_force_load_from_cache(false);
     return t1.end(error < 1.e-10 );
+}
+
+int test_custom_serialization(World& universe, Cloud& cloud) {
+    test_output t1("testing custom serialization");
+    t1.set_cout_to_terminal();
+    cloud.set_debug(true);
+    custom_serialize_tester cst;
+    cst.i=1;
+    cst.d=2.0;
+    static_assert(Cloud::has_cloud_serialize<custom_serialize_tester>::value,"custom_serialize_tester must have a cloud_serialize method");
+    {
+        auto records = cloud.store(universe, cst);
+        auto cst2=cloud.load<custom_serialize_tester>(universe, records);
+        t1.checkpoint(cst==cst2,"custom serialization");
+    }
+
+    // test being part of a tuple
+    typedef std::tuple<int,double,custom_serialize_tester> tupleT;
+    tupleT tuple1=std::make_tuple(1,2.0,cst);
+    cloud.clear();
+    {
+        auto records = cloud.store(universe, tuple1);
+        auto tuple2=cloud.load<tupleT>(universe, records);
+
+        t1.checkpoint(tuple1==tuple2,"custom serialization with tuple");
+    }
+
+    return t1.end();
+
 
 }
 
@@ -177,6 +243,7 @@ int main(int argc, char **argv) {
 
         // test storing custom WorldObject
         success += test_custom_worldobject(universe, subworld, cloud);
+        success += test_custom_serialization(universe, cloud);
 
         if (universe.rank() == 0) print("entering test_cloud");
         print("my world: universe_rank, subworld_id", universe.rank(), subworld.id());

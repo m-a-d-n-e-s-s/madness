@@ -934,6 +934,40 @@ public:
     size_t i;
     size_t j;
 
+    /// customized function to store this to the cloud
+
+    /// functions and constant_part can be very large and we want to split them and store them in different records
+    Recordlist<Cloud::keyT> cloud_store(World& world, Cloud& cloud) const {
+        // save bookkeeping stuff in a vector
+        std::vector<unsigned char> v;
+        archive::VectorOutputArchive arout(v);
+        bool function_is_assigned=(functions.size()>0 && functions[0].is_assigned());
+        arout & type & ctype & i & j & bsh_eps & function_is_assigned & constant_part.is_initialized();
+
+        Recordlist<Cloud::keyT> records;
+        records+=cloud.store(world,v);
+        if (function_is_assigned) records+=cloud.store(world,functions[0]);
+        if (constant_part.is_initialized()) records+=cloud.store(world,constant_part);
+        return records;
+   }
+
+    /// customized function to load this from the cloud
+
+    /// functions and constant_part can be very large and we want to split them and store them in different records
+    /// @param[inout] recordlist: containing the keys of the member variables -> will be reduced by the keys which are used
+    void cloud_load(World& world, const Cloud& cloud, Recordlist<Cloud::keyT>& recordlist) {
+        // load bookkeeping stuff in a vector
+        std::vector<unsigned char> v=cloud.forward_load<std::vector<unsigned char>>(world,recordlist);
+        archive::VectorInputArchive arin(v);
+        bool function_is_assigned = false, constant_part_is_initialized=false;
+        arin & type & ctype & i & j & bsh_eps & function_is_assigned & constant_part_is_initialized;
+        functions.clear();
+        constant_part.clear();
+
+        if (function_is_assigned) functions.emplace_back(cloud.forward_load<CCPairFunction<double,6>>(world,recordlist));
+        if (constant_part_is_initialized) constant_part=cloud.forward_load<real_function_6d>(world,recordlist);
+   }
+
     /// gives back the pure 6D part of the pair function
     real_function_6d function() const {
         MADNESS_ASSERT(not functions.empty());
