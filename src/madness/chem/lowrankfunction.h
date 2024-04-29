@@ -764,10 +764,19 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             }
         }
 
-        /// remove linear dependencies without orthonormalization
+        /// remove linear dependencies using rank-revealing cholesky decomposition
+        ///
+        /// @return this with g orthonormal and h orthogonal
         void remove_linear_depdencies(double thresh=-1.0) {
 
+            // with g~ being the orthonormalized g and h~ the orthonormalized h (from rrcd)
+            // f(1,2) = sum_i | g_i(1)>< h_i(2) |
+            //        = sum_{i,j,k}  | g~_j(1)>< g~_j(1) | g_i(1) >  < h_i(2) | h~_k(2) >< h~_k(2) |
+            //        = sum_{i,j,k}  | g~_j(1)> (G_ji H_ik < h~_k(2) |)
+
             // use rank-revealing cholesky decomposition to remove linear dependencies
+            Tensor<T> ovlp = matrix_inner(world, g, g);
+            auto g1=orthonormalize_rrcd(g,ovlp,rank_revealing_tol);
 
 
         }
@@ -779,12 +788,16 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         ///     = g X- (X+)^T (Y+)^T Y- h
         ///     = g X-  U S V^T  Y- h
         ///     = g (X- U) (S V^T Y-) h
-        /// requires 2 matrix_inner and 2 transforms. g and h are optimal, but contain all cusps etc..
+        /// requires 2 matrix_inner and 2 transforms. g and h are optimal
         /// @param[in]  thresh        SVD threshold
         void reorthonormalize(double thresh=-1.0) {
             if (thresh<0.0) thresh=rank_revealing_tol;
             Tensor<T> ovlp_g = matrix_inner(world, g, g);
             Tensor<T> ovlp_h = matrix_inner(world, h, h);
+
+            ovlp_g=0.5*(ovlp_g+transpose(ovlp_g));
+            ovlp_h=0.5*(ovlp_h+transpose(ovlp_h));
+
             auto [eval_g, evec_g] = syev(ovlp_g);
             auto [eval_h, evec_h] = syev(ovlp_h);
 
@@ -804,8 +817,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 return s;
             };
 
-            Slice gslice=get_slice(eval_g,1.e-13);
-            Slice hslice=get_slice(eval_h,1.e-13);
+            Slice gslice=get_slice(eval_g,1.e-12);
+            Slice hslice=get_slice(eval_h,1.e-12);
 
             Tensor<T> Xplus=copy(evec_g(_,gslice));
             Tensor<T> Xminus=copy(evec_g(_,gslice));
