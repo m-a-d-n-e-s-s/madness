@@ -1,6 +1,7 @@
 #ifndef MADNESS_RUNNERS_HPP
 #define MADNESS_RUNNERS_HPP
 
+#include <strstream>
 #include <utility>
 
 #include "CalculationParameters.h"
@@ -106,16 +107,18 @@ void write_response_input(const json& input_json, std::ostream& out) {
 
 class ParameterManager {
  private:
+  std::string input_file_base;
+
   path input_file_path;
   path input_file_json_path;
-  std::string input_file_base;
+
   path final_input_file_path = "final_input";
   path final_input_json_path = "final_input.json";
 
   json all_input_json;
   commandlineparser parser;
-  Molecule molecule;
 
+  Molecule molecule;
   CalculationParameters moldft_params;
   ResponseParameters molresponse_params;
 
@@ -157,6 +160,13 @@ class ParameterManager {
     molresponse_params.print();
     ::print("-------------------------------------------");
   }
+
+  /**
+     * Broadcasts the parameters to all the nodes from 0
+     *
+     * @param world
+     */
+
   explicit ParameterManager(World& world, const path& input_file) {
     // First read the molecule file because we have one
     input_file_base = input_file.stem().string();
@@ -176,10 +186,22 @@ class ParameterManager {
         print(input_file, " is a json file");
       }
       all_input_json = json::parse(input_file_stream);
-    } else {
-      if (world.rank() == 0) {
-        print(input_file, " is not json file");
+      // if key 'dft' is in the json file then we know we are running moldft
+      if (all_input_json.find("dft") != all_input_json.end()) {
+        moldft_params.from_json(all_input_json["dft"]);
+        run_moldft = true;
       }
+      if (all_input_json.find("response") != all_input_json.end()) {
+        molresponse_params.from_json(all_input_json["response"]);
+        run_response = true;
+      }
+
+      moldft_params.from_json(all_input_json["dft"]);
+      molresponse_params.from_json(all_input_json["response"]);
+      molecule.from_json(all_input_json["molecule"]);
+
+    } else {
+      print(input_file, " is not json file");
       moldft_params = CalculationParameters(world, this->parser);
       molresponse_params = ResponseParameters(world, this->parser);
       molecule = Molecule(world, this->parser);
@@ -215,10 +237,12 @@ class ParameterManager {
       if (world.rank() == 0) {
         print(input_file, " is a json file");
       }
+
       all_input_json = json::parse(input_file_stream);
       all_input_json["molecule"] = molecule.to_json();
       moldft_params.from_json(all_input_json["dft"]);
       molresponse_params.from_json(all_input_json["response"]);
+
     } else {
       if (world.rank() == 0) {
         print(input_file, " is not json file");
@@ -405,15 +429,26 @@ class ResponseCalcManager {
     ::print("------------------------------------------------");
   }
 
+  [[nodiscard]] path relative_to_root(const path& p) const {
+    return std::filesystem::relative(p, root);
+  }
+
   void output_calc_path_json() const {
     std::ofstream ofs("calc_path.json");
     json calc_path_json;
-    calc_path_json["moldft_path"] = moldft_path;
-    calc_path_json["moldft_restart"] = moldft_restart;
-    calc_path_json["calc_info_json_path"] = calc_info_json_path;
-    calc_path_json["moldft_json_path"] = moldft_json_path;
-    calc_path_json["response_paths"] = response_paths;
-    calc_path_json["quadratic_json_path"] = quadratic_json_path;
+
+    calc_path_json["moldft_path"] = relative_to_root(moldft_path);
+    calc_path_json["moldft_restart"] = relative_to_root(moldft_restart);
+    calc_path_json["calc_info_json_path"] =
+        relative_to_root(calc_info_json_path);
+    calc_path_json["moldft_json_path"] = relative_to_root(moldft_json_path);
+
+    calc_path_json["response_paths"] = {};
+    for (const auto& path : response_paths) {
+      calc_path_json["response_paths"].push_back(relative_to_root(path));
+    }
+    calc_path_json["quadratic_json_path"] =
+        relative_to_root(quadratic_json_path);
     ofs << std::setw(4) << calc_path_json;
     ofs.close();
   }
