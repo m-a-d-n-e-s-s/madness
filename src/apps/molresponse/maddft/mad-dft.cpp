@@ -108,7 +108,6 @@ auto main(int argc, char* argv[]) -> int {
             print("Input file found");
             print("Parsing Command Line");
           }
-          // TODO: Adjust to read in the input file... I need to parse the input file name
           params = ParameterManager(world, input_file);
         } else if (argc == 3) {
           if (world.rank() == 0) {

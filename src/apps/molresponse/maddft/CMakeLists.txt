@@ -17,7 +17,7 @@ endforeach ()
 
 
 # The list of unit test source files
-set(RESPONSE_TEST_SOURCES test_coordinator
+set(RESPONSE_TEST_SOURCES test_coordinator test_manager
 )
 
 foreach (EXECUTABLE ${RESPONSE_TEST_SOURCES})
