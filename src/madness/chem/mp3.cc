@@ -721,13 +721,12 @@ double MP3::compute_mp3_ef(World& world,
             // if (counter%10) tmp_tau=consolidate(tmp_tau,{"remove_lindep"});
         }
     }
-    timer_prep.print("preparing in EF term");
-    timer timer_consolidate(world);
+    timer_prep.tag("preparing in EF term");
     tmp_tau=consolidate(tmp_tau,{"remove_lindep"});
-    timer_consolidate.print("consolidation in EF term");
+    timer_prep.tag("consolidation in EF term");
     timer timer_inner(world);
     double result=inner(pair_square(i,j),tmp_tau,Rsquare);
-    timer_inner.print("inner in EF term");
+    timer_prep.tag("inner in EF term");
 
 	std::size_t bufsize=256;
 	char buf[bufsize];

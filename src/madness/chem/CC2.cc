@@ -528,19 +528,21 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
         // calculate energy and error and update pairs
         double total_rnorm = 0.0, maxrnorm=0.0;
         for (size_t i = 0; i < pair_vec.size(); i++) {
+            save(pair_vec[i].function(), pair_vec[i].name());
+
+            // compute bsh residual
             const double error = u_update[i].norm2();
-            if (world.rank()==0) std::cout << "residual " << pair_vec[i].i << " " << pair_vec[i].j << " " << error << std::endl;
             maxrnorm = std::max(maxrnorm, error);
             total_rnorm+=error;
 
-            save(pair_vec[i].function(), pair_vec[i].name());
-            double energy = 0.0;
-            if (pair_vec[i].type == GROUND_STATE) {
-                double energy = CCOPS.compute_pair_correlation_energy(pair_vec[i]);
-                if (world.rank()==0) printf("pair energy for pair %zu %zu: %12.8f\n", pair_vec[i].i, pair_vec[i].j, energy);
-                total_energy += energy;
-            }
+            // compute energy
+            double energy = CCOPS.compute_pair_correlation_energy(pair_vec[i]);
             total_energy += energy;
+
+	        std::size_t bufsize=256;
+	        char buf[bufsize];
+            snprintf(buf, bufsize,"energy/residual for pair  %zu %zu: %12.8f %12.8f\n",pair_vec[i].i,pair_vec[i].j,energy,error);
+            if (world.rank()==0) print(std::string(buf));
         }
 
 

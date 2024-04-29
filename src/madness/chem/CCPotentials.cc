@@ -89,6 +89,12 @@ CCPotentials::make_pair_gs(const real_function_6d& u, const CC_vecfunction& tau,
     CCPairFunction<double,6> u_part(u);
     functions.push_back(u_part);
     if (parameters.decompose_Q()) {
+//        StrongOrthogonalityProjector<double,3> Q(world);
+//        Q.set_spaces(mo_bra().get_vecfunction(),mo_ket().get_vecfunction(),
+//            mo_bra().get_vecfunction(),mo_ket().get_vecfunction());
+//        auto fij=std::vector<CCPairFunction<double,6>>({CCPairFunction<double,6>(f12, t(i), t(j))});
+//
+//        functions+=Q(fij);
         CCPairFunction<double,6> f_part(f12, t(i), t(j));
         functions.push_back(f_part);
         CCPairFunction<double,6> Ot1 = apply_Ot(f_part, pt, 1);
@@ -101,6 +107,7 @@ CCPotentials::make_pair_gs(const real_function_6d& u, const CC_vecfunction& tau,
         functions.push_back(PQ);
         functions.push_back(QP);
     } else {
+        MADNESS_EXCEPTION("always use decoposition of Q",1);
         // TODO: turn this into separated form, needed (only?) in the energy computation
         real_function_6d ftt = make_f_xy(t(i), t(j));
         real_function_6d Qftt = apply_Q12t(ftt, pt);
@@ -322,21 +329,25 @@ CCPotentials::compute_pair_correlation_energy(const CCPair& u, const CC_vecfunct
     const CCFunction<double,3>& mobj = mo_bra_(u.j);
     const bool symmetric = (u.i == u.j);
 
+    // bra is 2*direct - exchange or < 2 ij - ji| g | tau_{ij}>
+    auto bra=CCPairFunction<double,6>(g12,{2.0*mobi.function,mobj.function},{mobj.function,-1.0*mobi.function});
+    double fac= (symmetric) ? 1.0 : 2.0;
+    result = fac* inner({bra},u.functions);
 
-    for (size_t mm = 0; mm < u.functions.size(); mm++) {
-        double tmp = 0.0;
-        const double part1 = make_xy_op_u(mobi, mobj, *g12, u.functions[mm]);
-        if (symmetric) tmp = part1;
-        else     //if(world.rank()==0) std::cout << std::fixed << std::setprecision(10) << part1 << "\n";
-        {
-            const double part2 = make_xy_op_u(mobj, mobi, *g12, u.functions[mm]);
-            tmp = 2.0 * (2.0 * part1 - part2);     // non symmetric pairs -> offdiagonal -> count twice
-        }
-        result += tmp;
-        if (print_details)
-            std::cout << std::setfill(' ') << std::setw(15) << "from " + u.functions[mm].name() + "="
-                      << std::setfill(' ') << std::fixed << std::setprecision(10) << tmp << "\n";
-    }
+    // for (size_t mm = 0; mm < u.functions.size(); mm++) {
+//        double tmp = 0.0;
+//        const double part1 = make_xy_op_u(mobi, mobj, *g12, u.functions[mm]);
+//        if (symmetric) tmp = part1;
+//        else     //if(world.rank()==0) std::cout << std::fixed << std::setprecision(10) << part1 << "\n";
+//        {
+//            const double part2 = make_xy_op_u(mobj, mobi, *g12, u.functions[mm]);
+//            tmp = 2.0 * (2.0 * part1 - part2);     // non symmetric pairs -> offdiagonal -> count twice
+//        }
+//        result += tmp;
+//        if (print_details)
+//            std::cout << std::setfill(' ') << std::setw(15) << "from " + u.functions[mm].name() + "="
+//                      << std::setfill(' ') << std::fixed << std::setprecision(10) << tmp << "\n";
+    // }
     if (u.ctype == CT_CC2 && !singles.get_vecfunction().empty()) {
         MADNESS_ASSERT(singles.type == PARTICLE);
         const double omega_s = 2.0 * mobi.inner((*g12)(mobj, singles(u.j)) * singles(u.i).function) -
