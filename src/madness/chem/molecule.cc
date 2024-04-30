@@ -305,6 +305,8 @@ void Molecule::read(std::istream& f) {
   }
   throw "No end to the geometry in the input file";
 finished:;
+  if (parameters.no_orient() == false)
+    orient();
   update_rcut_with_eprec(parameters.eprec());
 }
 
