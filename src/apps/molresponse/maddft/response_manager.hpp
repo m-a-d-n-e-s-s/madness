@@ -124,7 +124,6 @@ class ParameterManager {
 
   bool run_moldft = false;
   bool run_response = false;
-  bool run_quadratic_response = false;
 
  public:
   ParameterManager() = default;
@@ -175,44 +174,80 @@ class ParameterManager {
     bool is_json = json::accept(input_file_stream);
     input_file_stream.close();
     input_file_stream.open(input_file);
+    if (world.rank() == 0) {
+      print("Input file path: ", input_file);
+      print("Input file base name: ", input_file_base);
+      print("Input file is json: ", is_json);
+    }
 
     if (is_json) {
       all_input_json = json::parse(input_file_stream);
       // if key 'dft' is in the json file then we know we are running moldft
 
-      moldft_params.from_json(all_input_json["dft"]);
-      molresponse_params.from_json(all_input_json["response"]);
+      if (all_input_json.contains("dft")) {
+        moldft_params.from_json(all_input_json["dft"]);
+      }
+      if (all_input_json.contains("response")) {
+        molresponse_params.from_json(all_input_json["response"]);
+      }
       // Here i first read the molecule from the json file with all parameters
       // I then create the molecule object from the json file
       // I then copy the molecule object back to the json file
       // This is because the orientation of the molecule can change
       // as the molecule object is created
       // TODO:(ahurta92) I can add a final json allowing us to see any changes in parameters after parsing
-      molecule.from_json(all_input_json["molecule"]);
-      all_input_json["molecule"] = molecule.to_json();
+      if (all_input_json.contains("molecule")) {
+        molecule.from_json(all_input_json["molecule"]);
+
+        all_input_json["molecule"] = molecule.to_json();
+      } else {
+        throw std::runtime_error("Molecule not found in input file");
+      }
 
     } else {
-      parser.set_keyval("input", input_file.string());
-
-      moldft_params = CalculationParameters(world, this->parser);
-      molresponse_params = ResponseParameters(world, this->parser);
-      molecule = Molecule(world, this->parser);
-
       all_input_json = {};
-      all_input_json["dft"] = moldft_params.to_json_if_precedence("defined");
-      all_input_json["response"] =
-          molresponse_params.to_json_if_precedence("defined");
+      molecule.read(input_file_stream);
+      input_file_stream.close();
+      input_file_stream.open(input_file);
       all_input_json["molecule"] = molecule.to_json();
+
+      parser.set_keyval("input", input_file.string());
+      try {
+        moldft_params = CalculationParameters(world, this->parser);
+        auto moldft_json = moldft_params.to_json_if_precedence("defined");
+        if (!moldft_json.is_null()) {
+          all_input_json["dft"] =
+              moldft_params.to_json_if_precedence("defined");
+        }
+      } catch (std::exception& e) {
+        print(e.what());
+        moldft_params = CalculationParameters();
+      }
+      try {
+        molresponse_params = ResponseParameters(world, this->parser);
+        auto molresponse_json =
+            molresponse_params.to_json_if_precedence("defined");
+        if (!molresponse_json.is_null()) {
+          all_input_json["response"] = molresponse_json;
+        }
+      } catch (std::exception& e) {
+        print(e.what());
+        molresponse_params = ResponseParameters();
+      }
     }
     input_file_stream.close();
 
-    if (all_input_json.find("dft") != all_input_json.end()) {
+    if (all_input_json.contains("dft")) {
       moldft_params.from_json(all_input_json["dft"]);
       run_moldft = true;
     }
-    if (all_input_json.find("response") != all_input_json.end()) {
+    if (all_input_json.contains("response")) {
       molresponse_params.from_json(all_input_json["response"]);
       run_response = true;
+    }
+
+    if (world.rank() == 0) {
+      print(all_input_json.dump(4));
     }
   }
 
@@ -257,10 +292,13 @@ class ParameterManager {
           molresponse_params.to_json_if_precedence("defined");
       all_input_json["molecule"] = molecule.to_json();
     }
+    if (world.rank() == 0) {
+      print(all_input_json.dump(4));
+    }
     input_file_stream.close();
   }
 
-  json get_input_json() const { return all_input_json; }
+  [[nodiscard]] json get_input_json() const { return all_input_json; }
 
   void write_input_file(std::ostream& os) const {
     write_json_to_input_file(all_input_json, {"dft", "response"}, os);
@@ -300,9 +338,6 @@ class ParameterManager {
   }
   [[nodiscard]] bool get_run_moldft() const { return run_moldft; }
   [[nodiscard]] bool get_run_response() const { return run_response; }
-  [[nodiscard]] bool get_run_quadratic_response() const {
-    return run_quadratic_response;
-  }
 };
 
 // create a helper class for checking equivalence of two parameter class
