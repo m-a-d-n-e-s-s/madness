@@ -115,7 +115,7 @@ auto main(int argc, char* argv[]) -> int {
           }
           path input_file(argv[1]);
           path mol_input(argv[2]);
-          params = ParameterManager(world, input_file, mol_input);
+          params = ParameterManager(world, {input_file, mol_input});
         } else {
           error("Too many arguments");
         }
