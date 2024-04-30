@@ -122,7 +122,6 @@ auto main(int argc, char* argv[]) -> int {
 
         // print params
         auto response_manager = ResponseCalcManager(world, params);
-
         if (world.rank() == 0) {
           print("Running MOLDFT");
           print("Calc Info Path: ", response_manager.calc_info_json_path);

@@ -116,7 +116,6 @@ TEST_CASE("Mixed Input") {
             json::diff(params.get_input_json(), params2.get_input_json());
         i++;
         if (world.rank() == 0) {
-
           print("diff case: ", i);
           print(diff.dump(2));
         }
@@ -124,4 +123,11 @@ TEST_CASE("Mixed Input") {
       REQUIRE(check_equal);
     }
   }
+}
+
+TEST_CASE("Response Manager") {
+  World& world = World::get_default();
+
+  auto params = ParameterManager(world, {"input.json"});
+  auto response_manager = ResponseCalcManager(world, params);
 }
