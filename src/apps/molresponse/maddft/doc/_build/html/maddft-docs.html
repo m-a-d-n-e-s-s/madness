@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="./">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>MADNESS-QCEngine Documentation &#8212; maddft  documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d1102ebc" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css?v=12dfc556" />
+    <script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9a2dae69"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+
+  
+  
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section class="tex2jax_ignore mathjax_ignore" id="madness-qcengine-documentation">
+<h1>MADNESS-QCEngine Documentation<a class="headerlink" href="#madness-qcengine-documentation" title="Link to this heading">¶</a></h1>
+<p>Purpose: To provide a single executable for running chemistry applications. This will be
+the main executable used within QCEngine.</p>
+<section id="current-functionality">
+<h2>Current Functionality<a class="headerlink" href="#current-functionality" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>hf/dft</p>
+<ul>
+<li><p>geometry optimization</p></li>
+</ul>
+</li>
+<li><p>linear response</p>
+<ul>
+<li><p>excited states</p></li>
+<li><p>dipole</p></li>
+<li><p>nuclear</p></li>
+</ul>
+</li>
+<li><p>response properties</p>
+<ul>
+<li><p>polarizability</p></li>
+<li><p>hyperpolarizability</p></li>
+<li><p>gradients of excited states and response states - optimized for excited states</p></li>
+</ul>
+</li>
+</ul>
+<p>The executable is designed to be a single executable that can be used to run all of the above from either
+an input file in the MADNESS format or JSON input.</p>
+<section id="examples">
+<h3>Examples:<a class="headerlink" href="#examples" title="Link to this heading">¶</a></h3>
+<p>H2 Dipole frequency response calculation with hyperpolarizability calculation</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>dft
+<span class="w">    </span>econv<span class="w"> </span><span class="m">0</span>.01
+<span class="w">    </span>protocol<span class="w"> </span><span class="o">[</span><span class="m">0</span>.0001<span class="o">]</span>
+end
+
+response
+<span class="w">    </span>dipole<span class="w"> </span><span class="nb">true</span>
+<span class="w">    </span>first_order<span class="w"> </span><span class="nb">true</span>
+<span class="w">    </span>freq_range<span class="w"> </span><span class="o">[</span><span class="m">0</span>.0,0.056,0.1<span class="o">]</span>
+<span class="w">    </span>kain<span class="w"> </span><span class="nb">true</span>
+<span class="w">    </span>maxiter<span class="w"> </span><span class="m">10</span>
+<span class="w">    </span>maxsub<span class="w"> </span><span class="m">10</span>
+<span class="w">    </span>omega<span class="w"> </span><span class="m">0</span>.0
+<span class="w">    </span>protocol<span class="w"> </span><span class="o">[</span><span class="m">0</span>.0001<span class="o">]</span>
+<span class="w">    </span>quadratic<span class="w"> </span><span class="nb">true</span>
+end
+
+geometry
+<span class="w">    </span>eprec<span class="w"> </span><span class="m">0</span>.0001
+<span class="w">    </span>field<span class="w"> </span><span class="o">[</span><span class="m">0</span>.0,0.0,0.0<span class="o">]</span>
+<span class="w">    </span>no_orient<span class="w"> </span><span class="nb">false</span>
+<span class="w">    </span>psp_calc<span class="w"> </span><span class="nb">false</span>
+<span class="w">    </span>pure_ae<span class="w"> </span><span class="nb">true</span>
+<span class="w">    </span>symtol<span class="w"> </span>-0.01
+<span class="w">    </span>H<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span>
+<span class="w">    </span>H<span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span><span class="w"> </span><span class="m">0</span>.7414
+end
+</pre></div>
+</div>
+<p>Or in JSON format:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;dft&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;econv&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.01</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;protocol&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">            </span><span class="mf">0.0001</span>
+<span class="w">        </span><span class="p">]</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;molecule&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;geometry&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">            </span><span class="p">[</span>
+<span class="w">                </span><span class="mf">0.0</span><span class="p">,</span>
+<span class="w">                </span><span class="mf">0.0</span><span class="p">,</span>
+<span class="w">                </span><span class="mf">0.0</span>
+<span class="w">            </span><span class="p">],</span>
+<span class="w">            </span><span class="p">[</span>
+<span class="w">                </span><span class="mf">0.0</span><span class="p">,</span>
+<span class="w">                </span><span class="mf">0.0</span><span class="p">,</span>
+<span class="w">                </span><span class="mf">0.7414</span>
+<span class="w">            </span><span class="p">]</span>
+<span class="w">        </span><span class="p">],</span>
+<span class="w">        </span><span class="nt">&quot;parameters&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">            </span><span class="nt">&quot;eprec&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.0001</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;field&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">                </span><span class="mf">0.0</span><span class="p">,</span>
+<span class="w">                </span><span class="mf">0.0</span><span class="p">,</span>
+<span class="w">                </span><span class="mf">0.0</span>
+<span class="w">            </span><span class="p">],</span>
+<span class="w">            </span><span class="nt">&quot;no_orient&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;psp_calc&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;pure_ae&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">            </span><span class="nt">&quot;symtol&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">-0.01</span>
+<span class="w">        </span><span class="p">},</span>
+<span class="w">        </span><span class="nt">&quot;symbols&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">            </span><span class="s2">&quot;H&quot;</span><span class="p">,</span>
+<span class="w">            </span><span class="s2">&quot;H&quot;</span>
+<span class="w">        </span><span class="p">]</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;response&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;dipole&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;first_order&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;freq_range&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">            </span><span class="mf">0.0</span><span class="p">,</span>
+<span class="w">            </span><span class="mf">0.056</span><span class="p">,</span>
+<span class="w">            </span><span class="mf">0.1</span>
+<span class="w">        </span><span class="p">],</span>
+<span class="w">        </span><span class="nt">&quot;kain&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;maxiter&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;maxsub&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;omega&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">0.0</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;protocol&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">            </span><span class="mf">0.0001</span>
+<span class="w">        </span><span class="p">],</span>
+<span class="w">        </span><span class="nt">&quot;quadratic&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>To run the calculation, use the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>maddft<span class="w"> </span>input<span class="w"> </span>
+</pre></div>
+</div>
+<p>or</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>maddft<span class="w"> </span>input.json
+</pre></div>
+</div>
+<p>as well as in parallel:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mpirun<span class="w"> </span>-np<span class="w"> </span><span class="m">4</span><span class="w"> </span>maddft<span class="w"> </span>input
+mpirun<span class="w"> </span>-np<span class="w"> </span><span class="m">4</span><span class="w"> </span>maddft<span class="w"> </span>input.json
+</pre></div>
+</div>
+<p>The outputs will be stored in a directory called <code class="docutils literal notranslate"><span class="pre">output</span></code> in the current working directory.</p>
+<section id="linear-response-directories">
+<h4>Linear Response Directories<a class="headerlink" href="#linear-response-directories" title="Link to this heading">¶</a></h4>
+<p>Since each response calculation is independent they are placed in separate directories with
+the following naming convention:</p>
+<p><code class="docutils literal notranslate"><span class="pre">[perturbation]_[frequency]</span></code> so for example the dipole response at 0.056 would be in the directory <code class="docutils literal notranslate"><span class="pre">dipole_0-056000</span></code></p>
+</section>
+</section>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">maddft</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<search id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</search>
+<script>document.getElementById('searchbox').style.display = "block"</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &#169;2024, Adrian Hurtado.
+      
+      |
+      Powered by <a href="https://www.sphinx-doc.org/">Sphinx 7.3.7</a>
+      &amp; <a href="https://alabaster.readthedocs.io">Alabaster 0.7.16</a>
+      
+      |
+      <a href="_sources/maddft-docs.md.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
