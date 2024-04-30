@@ -1,19 +1,19 @@
 #ifndef MADNESS_RUNNERS_HPP
 #define MADNESS_RUNNERS_HPP
 
-#include <strstream>
+#include <algorithm>
 #include <utility>
 
 #include "CalculationParameters.h"
-#include "FrequencyResponse.hpp"
-#include "ResponseExceptions.hpp"
+#include "maddft/write_test_input.h"
 #include "madness/chem/SCF.h"
+#include "madness/world/world.h"
 #include "madness/world/worldmem.h"
-#include "response_parameters.h"
+#include "molresponse/FrequencyResponse.hpp"
+#include "molresponse/ResponseExceptions.hpp"
+#include "molresponse/response_parameters.h"
 #include "sstream"
 #include "string"
-#include "world.h"
-#include "write_test_input.h"
 
 using path = std::filesystem::path;
 
@@ -438,9 +438,11 @@ class ResponseCalcManager {
 
   explicit ResponseCalcManager(World& world, ParameterManager pm)
       : parameter_manager(std::move(pm)) {
+
     xc = parameter_manager.get_moldft_params().xc();
-    op = "dipole";
+    op = parameter_manager.get_molresponse_params().perturbation();
     freq = parameter_manager.get_molresponse_params().freq_range();
+
     define_response_paths();
 
     quadratic_json_path = moldft_path / "beta.json";
@@ -1083,10 +1085,9 @@ class ResponseCalcManager {
      * @param frequency_run_path
      * @return
      */
-  auto generate_frequency_save_path(
+  static auto generate_frequency_save_path(
       const std::filesystem::path& frequency_run_path)
       -> std::pair<std::filesystem::path, std::string> {
-
     auto save_path = std::filesystem::path(frequency_run_path);
     auto run_name = frequency_run_path.filename();
     std::string save_string = "restart_" + run_name.string();
@@ -1099,7 +1100,7 @@ class ResponseCalcManager {
   // set up a function that creates a beta_json with the fields defined  below.
   // in each field there will a vector of values.
 
-  nlohmann::ordered_json create_beta_json() {
+  static nlohmann::ordered_json create_beta_json() {
     // i need A B C to hold char values and A-freq, B-freq, C-freq to hold
     // double values
 
@@ -1112,10 +1113,9 @@ class ResponseCalcManager {
   }
 
   // for a set of frequencies create a table from the beta values
-  void append_to_beta_json(const std::array<double, 3>& freq,
-                           const std::array<double, 18>& beta,
-                           nlohmann::ordered_json& beta_json) {
-
+  static void append_to_beta_json(const std::array<double, 3>& freq,
+                                  const std::array<double, 18>& beta,
+                                  nlohmann::ordered_json& beta_json) {
     // create 3 columns of directions for each A,B,C
     std::array<char, 18> direction_A{'X', 'X', 'X', 'X', 'X', 'X',
                                      'Y', 'Y', 'Y', 'Y', 'Y', 'Y',
