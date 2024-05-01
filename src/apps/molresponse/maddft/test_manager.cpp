@@ -130,4 +130,17 @@ TEST_CASE("Response Manager") {
 
   auto params = ParameterManager(world, {"input.json"});
   auto response_manager = ResponseCalcManager(world, params);
+
+  auto check_manager = [&](auto& manager) {
+    REQUIRE(manager.get_xc() == "hf");
+    REQUIRE(manager.get_op() == "dipole");
+  };
+
+  check_manager(response_manager);
+
+  if (world.rank() == 0) {
+    print("Checking Response Manager");
+    response_manager.print();
+  }
+  response_manager.output_calc_path_json();
 }

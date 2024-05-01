@@ -16,7 +16,10 @@ author = "Adrian Hurtado"
 extensions = [
     "myst_parser",
     "sphinx_copybutton",
+    "sphinxcontrib.bibtex",
+    "sphinx.ext.mathjax",
 ]
+
 
 myst_enable_extensions = [
     "dollarmath",  # Allows $ symbols for math expressions
@@ -44,3 +47,7 @@ html_theme = "pydata_sphinx_theme"
 
 
 html_static_path = ["_static"]
+
+bibtex_bibfiles = ["references.bib"]
+bibtex_default_style = "plain"
+bibtex_reference_style = "label"

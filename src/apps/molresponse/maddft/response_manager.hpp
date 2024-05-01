@@ -2,6 +2,7 @@
 #define MADNESS_RUNNERS_HPP
 
 #include <algorithm>
+#include <filesystem>
 #include <utility>
 
 #include "CalculationParameters.h"
@@ -387,24 +388,20 @@ bool operator==(const ParameterManager& lhs, const ParameterManager& rhs) {
 class ResponseCalcManager {
   path root;  // root directory
   ParameterManager parameter_manager;
-  void define_response_paths() {
-    for (const auto& freq : freq) {
-      response_paths.push_back(generate_response_frequency_run_path(freq));
-    }
-  }
 
  public:
-  path moldft_path;  // molecule directory
-  path moldft_json_path;
-  path moldft_restart;
+  path moldft_path;       // base moldft path
+  path moldft_json_path;  // path to moldft json file
+  path moldft_restart;    // path to moldft restart file
 
-  path quadratic_json_path;
+  path quadratic_json_path;  // path to the quadratic json file
 
-  vector<path> response_paths;
+  vector<path> response_paths;  // paths to response calculations
 
-  path calc_info_json_path;
+  path calc_info_json_path;  // path to the calc info json file containing
+                             // paths to the moldft and response calculations
 
-  json calc_info_json;
+  json calc_info_json;  // json containing the moldft calc info
 
   std::string op;
   std::string xc;
@@ -436,29 +433,23 @@ class ResponseCalcManager {
     return molecule;
   }
 
+  //TODO: I should be allowed to run multiple xc and ops and freqs as well as excited states
   explicit ResponseCalcManager(World& world, ParameterManager pm)
       : parameter_manager(std::move(pm)) {
-
     xc = parameter_manager.get_moldft_params().xc();
     op = parameter_manager.get_molresponse_params().perturbation();
     freq = parameter_manager.get_molresponse_params().freq_range();
 
-    define_response_paths();
-
-    quadratic_json_path = moldft_path / "beta.json";
     root = std::filesystem::current_path();
-    moldft_path = root / "output";
 
-    // write out the input file to the output directory
-    if (world.rank() == 0) {
-      std::ofstream ofs("final_input");
-      parameter_manager.write_input_file(ofs);
-      ofs.close();
-      std::ofstream ofs_json("final_input.json");
-      parameter_manager.write_json_input(ofs_json);
-      ofs_json.close();
-    }
-    world.gop.fence();
+    auto define_response_paths = [&]() {
+      for (const auto& freq : freq) {
+        response_paths.push_back(generate_response_frequency_run_path(freq));
+      }
+    };
+
+    moldft_path = root / "output";
+    quadratic_json_path = moldft_path / "beta.json";
 
     if (std::filesystem::is_directory(moldft_path)) {
       cout << "moldft directory found" << "\n";
@@ -466,16 +457,6 @@ class ResponseCalcManager {
       cout << "Creating moldft directory" << "\n";
       std::filesystem::create_directory(moldft_path);
     }
-    // Write the molecule and params
-    moldft_json_path = moldft_path / path("moldft.json");
-
-    if (world.rank() == 0) {
-      ::print("Writing moldft json to: ", moldft_json_path);
-      std::ofstream ofs(moldft_json_path);
-      parameter_manager.write_moldft_json(ofs);
-      ofs.close();
-    }
-    world.gop.fence();
 
     moldft_restart = addPath(moldft_path, "/moldft.restartdata.00000");
     calc_info_json_path = addPath(moldft_path, "/moldft.calc_info.json");
@@ -509,28 +490,40 @@ class ResponseCalcManager {
     ::print("op: ", op);
     ::print("freq: ", freq);
     ::print("------------------------------------------------");
+    ::print("Response Paths: ");
+    for (const auto& path : response_paths) {
+      ::print(path);
+    }
   }
 
   [[nodiscard]] path relative_to_root(const path& p) const {
     return std::filesystem::relative(p, root);
   }
 
+  path getAbsolutePath(const path& relativePath,
+                       const path& rootDirectory) const {
+    return std::filesystem::relative(relativePath, rootDirectory);
+    return std::filesystem::weakly_canonical(
+        std::filesystem::relative(relativePath, rootDirectory));
+  }
+
   void output_calc_path_json() const {
     std::ofstream ofs("calc_path.json");
     json calc_path_json;
 
-    calc_path_json["moldft_path"] = relative_to_root(moldft_path);
-    calc_path_json["moldft_restart"] = relative_to_root(moldft_restart);
+    calc_path_json["moldft_path"] = getAbsolutePath(moldft_path, root);
+    calc_path_json["moldft_restart"] = getAbsolutePath(moldft_restart, root);
     calc_path_json["calc_info_json_path"] =
-        relative_to_root(calc_info_json_path);
-    calc_path_json["moldft_json_path"] = relative_to_root(moldft_json_path);
+        getAbsolutePath(calc_info_json_path, root);
+    calc_path_json["moldft_json_path"] =
+        getAbsolutePath(moldft_json_path, root);
 
     calc_path_json["response_paths"] = {};
     for (const auto& path : response_paths) {
-      calc_path_json["response_paths"].push_back(relative_to_root(path));
+      calc_path_json["response_paths"].push_back(getAbsolutePath(path, root));
     }
     calc_path_json["quadratic_json_path"] =
-        relative_to_root(quadratic_json_path);
+        getAbsolutePath(quadratic_json_path, root);
     ofs << std::setw(4) << calc_path_json;
     ofs.close();
   }
@@ -653,11 +646,7 @@ class ResponseCalcManager {
     auto sp = s_frequency.find('.');
     s_frequency = s_frequency.replace(sp, sp, "-");
     std::string run_name = op + "_" + xc + "_" + s_frequency;
-
-    auto run_path = moldft_path;
-    run_path += "/";
-    run_path += std::filesystem::path(run_name);
-    return run_path;
+    return moldft_path / std::filesystem::path(run_name);
   }
 
   /***
@@ -672,8 +661,7 @@ class ResponseCalcManager {
   auto set_frequency_path_and_restart(
       World& world, const double& frequency,
       std::filesystem::path& restart_path, bool restart,
-      ResponseParameters& parameters) -> std::filesystem::path {
-
+      ResponseParameters& parameters) const -> std::filesystem::path {
     if (world.rank() == 0) {
       ::print("restart path", restart_path);
     }
@@ -714,7 +702,6 @@ class ResponseCalcManager {
           parameters.set_user_defined_value("restart", true);
           parameters.set_user_defined_value("restart_file", save_string);
         } else if (std::filesystem::exists(restart_path)) {
-
           ::print("restart path exists", restart_path);
           parameters.set_user_defined_value("restart", true);
           ::print(restart_path.parent_path().stem());
