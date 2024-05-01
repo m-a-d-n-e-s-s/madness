@@ -11,7 +11,12 @@ Welcome to maddft's documentation!
    :caption: Contents:
 
    introduction.rst
+   installation.rst
    maddft-docs.md
+   response_properties.rst
+   examples.rst
+   quickstart.rst
+   references.rst
 
 
 

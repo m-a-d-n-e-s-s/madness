@@ -1,5 +1,5 @@
 =======================
-Welcome to MyProject!
+Welcome to MADQCEngine!
 =======================
 
 Introduction
@@ -21,9 +21,10 @@ Getting Started
 
 This documentation will guide you through the features, setup, and use of MyProject. Here's how to get started:
 
-1. **Installation**: Learn how to install MyProject on your machine. See :doc:`usage/installation`.
+1. **Installation**: Learn how to install MyProject on your machine. See :doc:`installation`.
 2. **Quick Start**: Jump straight into using MyProject with our Quick Start guide. See :doc:`quickstart`.
 3. **Examples**: Check out some examples to see what MyProject can do. See :doc:`examples`.
+4. **Reponse Properties** Getting the property you want from the response object can be a bit tricky. See :doc:`response_properties`.
 
 Navigate through the documentation using the sidebar. Each section is designed to help you understand and use MyProject effectively.
 
