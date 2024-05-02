@@ -1,2 +1,0 @@
-MADNESS-QCEngine Examples
-==============================
