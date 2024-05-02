@@ -389,40 +389,39 @@ class ResponseCalcManager {
   path root;  // root directory
   ParameterManager parameter_manager;
 
- public:
-  path moldft_path;       // base moldft path
-  path moldft_json_path;  // path to moldft json file
-  path moldft_restart;    // path to moldft restart file
-
-  path quadratic_json_path;  // path to the quadratic json file
-
+  path moldft_path;     // base moldft path
+  path moldft_restart;  // path to moldft restart file
+  path moldft_calc_info_path;
+  path moldft_scf_calc_info_path;
+  //
+  path calc_path_json_path;  // path to the calc path json file
+  json calc_path_json = {};  // json object to store the calc paths
+  //
   vector<path> response_paths;  // paths to response calculations
-
-  path calc_info_json_path;  // path to the calc info json file containing
-                             // paths to the moldft and response calculations
-
-  json calc_info_json;  // json containing the moldft calc info
+  path quadratic_json_path;     // path to the quadratic json file
+                                // paths to the moldft and response calculations
 
   std::string op;
   std::string xc;
   std::vector<double> freq;
   Molecule molecule;
 
+ public:
+  [[nodiscard]] auto get_calc_path_json() const -> const json& {
+    return calc_path_json;
+  }
   [[nodiscard]] auto get_root() const -> const path& { return root; }
   [[nodiscard]] auto get_moldft_path() const -> const path& {
     return moldft_path;
   }
-  [[nodiscard]] auto get_moldft_json_path() const -> const path& {
-    return moldft_json_path;
-  }
   [[nodiscard]] auto get_moldft_restart() const -> const path& {
     return moldft_restart;
   }
-  [[nodiscard]] auto get_calc_info_json_path() const -> const path& {
-    return calc_info_json_path;
+  [[nodiscard]] auto get_moldft_calc_info_path() const -> const path& {
+    return moldft_calc_info_path;
   }
-  [[nodiscard]] auto get_calc_info_json() const -> const json& {
-    return calc_info_json;
+  [[nodiscard]] auto get_moldft_scf_calc_info() const -> json {
+    return moldft_scf_calc_info_path;
   }
   [[nodiscard]] auto get_op() const -> const std::string& { return op; }
   [[nodiscard]] auto get_xc() const -> const std::string& { return xc; }
@@ -432,45 +431,62 @@ class ResponseCalcManager {
   [[nodiscard]] auto get_molecule() const -> const Molecule& {
     return molecule;
   }
+  [[nodiscard]] auto get_quadratic_path() const -> const path& {
+    return quadratic_json_path;
+  }
 
   //TODO: I should be allowed to run multiple xc and ops and freqs as well as excited states
   explicit ResponseCalcManager(World& world, ParameterManager pm)
       : parameter_manager(std::move(pm)) {
+
     xc = parameter_manager.get_moldft_params().xc();
     op = parameter_manager.get_molresponse_params().perturbation();
     freq = parameter_manager.get_molresponse_params().freq_range();
 
     root = std::filesystem::current_path();
+#include <string_view>
+
+    json input_json = parameter_manager.get_input_json();
+    input_json.erase("resposne");
+
+    std::hash<json> json_hash;  // hash the json object
+    // create a hash of the json object using only molecule and dft parameters
+    auto hash = json_hash(input_json);
+    std::string output_directory = "output_" + std::to_string(hash);
+
+    moldft_path = root / output_directory;
+    moldft_restart = moldft_path / "moldft.restartdata.00000";
+    moldft_calc_info_path = moldft_path / "moldft.calc_info.json";
+    moldft_scf_calc_info_path = moldft_path / "moldft.scf_info.json";
 
     auto define_response_paths = [&]() {
       for (const auto& freq : freq) {
         response_paths.push_back(generate_response_frequency_run_path(freq));
       }
     };
+    define_response_paths();
 
-    moldft_path = root / "output";
+    auto create_calc_path_json = [&]() {
+      calc_path_json["moldft_path"] = getAbsolutePath(moldft_path, root);
+      calc_path_json["moldft_restart"] = getAbsolutePath(moldft_restart, root);
+      calc_path_json["moldft_calc_info"] =
+          getAbsolutePath(moldft_calc_info_path, root);
+      calc_path_json["moldft_scf_calc_info"] =
+          getAbsolutePath(moldft_scf_calc_info_path, root);
+
+      calc_path_json["response_paths"] = {};
+      for (const auto& path : response_paths) {
+        calc_path_json["response_paths"].push_back(getAbsolutePath(path, root));
+      }
+      calc_path_json["quadratic_json_path"] =
+          getAbsolutePath(quadratic_json_path, root);
+    };
+
     quadratic_json_path = moldft_path / "beta.json";
 
-    if (std::filesystem::is_directory(moldft_path)) {
-      cout << "moldft directory found" << "\n";
-    } else {  // create the file
-      cout << "Creating moldft directory" << "\n";
-      std::filesystem::create_directory(moldft_path);
-    }
+    create_calc_path_json();
+    output_calc_path_json();
 
-    moldft_restart = addPath(moldft_path, "/moldft.restartdata.00000");
-    calc_info_json_path = addPath(moldft_path, "/moldft.calc_info.json");
-    if (std::filesystem::exists(moldft_restart) &&
-        std::filesystem::exists(calc_info_json_path)) {
-      // if both exist, read the calc_info json
-      std::ifstream ifs(calc_info_json_path);
-      ifs >> calc_info_json;
-      if (world.rank() == 0) {
-        std::cout << "time: " << calc_info_json["time"] << std::endl;
-        std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"]
-                  << std::endl;
-      }
-    }
     if (world.rank() == 0) {
       print();
     }
@@ -483,8 +499,8 @@ class ResponseCalcManager {
     ::print("----------------- Moldft Paths --------------------");
     ::print("moldft path :", moldft_path);
     ::print("moldft restart path :", moldft_restart);
-    ::print("calc_info json path :", calc_info_json_path);
-    ::print("moldft json path :", moldft_json_path);
+    ::print("moldft calc_info json path :", moldft_calc_info_path);
+    ::print("moldft scf_info json path :", moldft_calc_info_path);
     ::print("----------------- Parameters --------------------");
     ::print("xc: ", xc);
     ::print("op: ", op);
@@ -494,6 +510,10 @@ class ResponseCalcManager {
     for (const auto& path : response_paths) {
       ::print(path);
     }
+    ::print("Quadratic Path: ", quadratic_json_path);
+    ::print("------------------------------------------------");
+    ::print("Calc Path Json: ");
+    ::print(calc_path_json.dump(4));
   }
 
   [[nodiscard]] path relative_to_root(const path& p) const {
@@ -509,21 +529,6 @@ class ResponseCalcManager {
 
   void output_calc_path_json() const {
     std::ofstream ofs("calc_path.json");
-    json calc_path_json;
-
-    calc_path_json["moldft_path"] = getAbsolutePath(moldft_path, root);
-    calc_path_json["moldft_restart"] = getAbsolutePath(moldft_restart, root);
-    calc_path_json["calc_info_json_path"] =
-        getAbsolutePath(calc_info_json_path, root);
-    calc_path_json["moldft_json_path"] =
-        getAbsolutePath(moldft_json_path, root);
-
-    calc_path_json["response_paths"] = {};
-    for (const auto& path : response_paths) {
-      calc_path_json["response_paths"].push_back(getAbsolutePath(path, root));
-    }
-    calc_path_json["quadratic_json_path"] =
-        getAbsolutePath(quadratic_json_path, root);
     ofs << std::setw(4) << calc_path_json;
     ofs.close();
   }
@@ -539,6 +544,12 @@ class ResponseCalcManager {
      */
   void run_moldft(World& world, bool restart) const {
     // first thing to do is change the current directory to the moldft path
+    // create the moldft path if it does not exist
+
+    if (!std::filesystem::exists(moldft_path)) {
+      std::filesystem::create_directory(moldft_path);
+    }
+
     std::filesystem::current_path(moldft_path);
 
     json calcInfo;
@@ -549,22 +560,16 @@ class ResponseCalcManager {
       ::print("-------------Running moldft------------");
     }
 
-    if (world.rank() == 0) {
-      std::cout << "moldft path: " << moldft_path << std::endl;
-      std::cout << "moldft restart path: " << moldft_restart << std::endl;
-      std::cout << "calc_info json path: " << calc_info_json_path << std::endl;
-    }
-
     if (std::filesystem::exists(moldft_restart) &&
-        std::filesystem::exists(calc_info_json_path)) {
+        std::filesystem::exists(moldft_calc_info_path)) {
       // if both exist, read the calc_info json
-      std::ifstream ifs(calc_info_json_path);
+      std::ifstream ifs(moldft_calc_info_path);
 
-      calcInfo = json::parse(ifs);
+      auto moldft_calc_info = json::parse(ifs);
       if (world.rank() == 0) {
-        std::cout << "time: " << calc_info_json["time"] << std::endl;
-        std::cout << "MOLDFT return energy: " << calc_info_json["return_energy"]
-                  << std::endl;
+        std::cout << "time: " << moldft_calc_info["time"] << std::endl;
+        std::cout << "MOLDFT return energy: "
+                  << moldft_calc_info["return_energy"] << std::endl;
       }
     } else {
       // if params are different run and if restart exists and if im asking to

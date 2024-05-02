@@ -124,43 +124,34 @@ auto main(int argc, char* argv[]) -> int {
         auto response_manager = ResponseCalcManager(world, params);
         if (world.rank() == 0) {
           print("Running MOLDFT");
-          print("Calc Info Path: ", response_manager.calc_info_json_path);
-          print("Moldft Path: ", response_manager.moldft_path);
+          print("Calc Info Path: ",
+                response_manager.get_moldft_calc_info_path());
+          print("Moldft Path: ", response_manager.get_moldft_path());
         }
         response_manager.output_calc_path_json();
 
         if (params.get_run_moldft()) {
-          if (std::filesystem::exists(response_manager.calc_info_json_path) &&
-              std::filesystem::exists(response_manager.moldft_path)) {
+          if (std::filesystem::exists(
+                  response_manager.get_moldft_calc_info_path()) &&
+              std::filesystem::exists(response_manager.get_moldft_path())) {
             print(" MOLDFT and Calc Info Found... Skipping MOLDFT");
+            // TODO: check if the moldft calculation is complete (@ahurta92)
           } else {
-            response_manager.run_molresponse(world);
+            response_manager.run_moldft(world, true);
+            world.gop.fence();
           }
         }
-        // if both exist, read the calc_info json
-
-        //
-        if (std::filesystem::exists(response_manager.calc_info_json_path) &&
-            std::filesystem::exists(response_manager.moldft_path)) {
-          response_manager.run_molresponse(world);
-        } else {
-          if (world.rank() == 0) {
-            print("Running MOLDFT since no previous calculation was found");
-          }
-          response_manager.run_moldft(world, true);
-          world.gop.fence();
-
+        if (params.get_run_response()) {
           response_manager.run_molresponse(world);
           world.gop.fence();
         }
 
-        // if quadratic response is requested
-        //
         if (params.get_molresponse_params().quadratic()) {
           if (world.rank() == 0) {
             print("Compute Quadratic Response Properties ");
           }
-          if (!std::filesystem::exists(response_manager.quadratic_json_path)) {
+          if (!std::filesystem::exists(response_manager.get_quadratic_path())) {
+            // TODO: check if the quadratic response calculation is complete (@ahurta92)
             response_manager.run_quadratic_response(world);
           } else {
             print(
@@ -168,6 +159,7 @@ auto main(int argc, char* argv[]) -> int {
                 "Response");
           }
         }
+        // TODO: Add logic for cubic response and excited states and other applications (@ahurta92)
       } catch (const SafeMPI::Exception& e) {
         print(e.what());
         error("caught an MPI exception");
