@@ -3408,7 +3408,7 @@ template <typename T, std::size_t NDIM>
         // insert snorm, dnorm=0.0, normtree (=snorm)
         else {
             // special case: tree has only root node: keep sum coeffs and make zero diff coeffs
-            if (key.level()==0) {
+            if ((key.level()==0) and (not redundant1)) {
                 coeffT result(node.coeff());
                 coeffT sdcoeff(cdata.v2k,this->get_tensor_type());
                 sdcoeff(cdata.s0)+=node.coeff();
