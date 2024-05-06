@@ -398,8 +398,11 @@ class ResponseCalcManager {
   json calc_path_json = {};  // json object to store the calc paths
   //
   vector<path> response_paths;  // paths to response calculations
-  path quadratic_json_path;     // path to the quadratic json file
-                                // paths to the moldft and response calculations
+  vector<path> response_restart_paths;
+  vector<path> response_outfiles_paths;
+
+  path quadratic_json_path;  // path to the quadratic json file
+                             // paths to the moldft and response calculations
 
   std::string op;
   std::string xc;
@@ -438,16 +441,14 @@ class ResponseCalcManager {
   //TODO: I should be allowed to run multiple xc and ops and freqs as well as excited states
   explicit ResponseCalcManager(World& world, ParameterManager pm)
       : parameter_manager(std::move(pm)) {
-
     xc = parameter_manager.get_moldft_params().xc();
     op = parameter_manager.get_molresponse_params().perturbation();
     freq = parameter_manager.get_molresponse_params().freq_range();
 
     root = std::filesystem::current_path();
-#include <string_view>
 
     json input_json = parameter_manager.get_input_json();
-    input_json.erase("resposne");
+    input_json.erase("response");
 
     std::hash<json> json_hash;  // hash the json object
     // create a hash of the json object using only molecule and dft parameters
@@ -462,27 +463,53 @@ class ResponseCalcManager {
     auto define_response_paths = [&]() {
       for (const auto& freq : freq) {
         response_paths.push_back(generate_response_frequency_run_path(freq));
+        auto [restart_path, restart_string] =
+            generate_frequency_save_path(response_paths.back());
+        response_restart_paths.push_back(response_paths.back() / restart_path);
       }
     };
-    define_response_paths();
+
+    if (parameter_manager.get_run_response()) {
+      define_response_paths();
+    }
+
+    if (parameter_manager.get_molresponse_params().quadratic()) {
+      quadratic_json_path = moldft_path / "beta.json";
+    }
 
     auto create_calc_path_json = [&]() {
-      calc_path_json["moldft_path"] = getAbsolutePath(moldft_path, root);
-      calc_path_json["moldft_restart"] = getAbsolutePath(moldft_restart, root);
-      calc_path_json["moldft_calc_info"] =
+      calc_path_json["moldft"] = {};
+      calc_path_json["moldft"]["calc_dirs"] =
+          getAbsolutePath(moldft_path, root);
+      calc_path_json["moldft"]["restart"] =
+          getAbsolutePath(moldft_restart, root);
+      calc_path_json["moldft"]["outfiles"] = {};
+
+      calc_path_json["moldft"]["outfiles"]["calc_info"] =
           getAbsolutePath(moldft_calc_info_path, root);
-      calc_path_json["moldft_scf_calc_info"] =
+      calc_path_json["moldft"]["outfiles"]["scf_info"] =
           getAbsolutePath(moldft_scf_calc_info_path, root);
 
-      calc_path_json["response_paths"] = {};
+      calc_path_json["response"] = {};
+      calc_path_json["response"]["calc_dirs"] = {};
       for (const auto& path : response_paths) {
-        calc_path_json["response_paths"].push_back(getAbsolutePath(path, root));
+        calc_path_json["response"]["calc_dirs"].push_back(
+            getAbsolutePath(path, root));
       }
+      calc_path_json["response"]["restarts"] = {};
+      for (const auto& path : response_restart_paths) {
+        calc_path_json["response"]["restarts"].push_back(
+            getAbsolutePath(path, root));
+      }
+      calc_path_json["response"]["outfiles"] = {};
+      for (const auto& path : response_paths) {
+        calc_path_json["response"]["outfiles"].push_back(
+            getAbsolutePath(path / "response_base.json", root));
+      }
+
       calc_path_json["quadratic_json_path"] =
           getAbsolutePath(quadratic_json_path, root);
     };
-
-    quadratic_json_path = moldft_path / "beta.json";
 
     create_calc_path_json();
     output_calc_path_json();
