@@ -40,7 +40,7 @@ if(BUILD_TESTING)
       test_macrotaskpartitioner.cc test_QCCalculationParametersBase.cc)
   add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest" "unittests;short")
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
-      testper.cc)
+      testper.cc testtran.cc)
   add_unittests(mra_sepop "${MRA_SEPOP_TEST_SOURCES}" "libtest_sepop;MADgtest" "unittests;short")
   
   # Test executables that are not run with unit tests ... consider these executables (unlike unit tests)

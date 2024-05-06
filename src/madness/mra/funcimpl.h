@@ -2719,6 +2719,31 @@ template<size_t NDIM>
             }
         }
 
+        template <typename Q, typename R>
+        /// @todo I don't know what this does other than a trasform
+        void vtransform_fast_doit(const std::vector< std::shared_ptr< FunctionImpl<T,NDIM> > >& vright,
+                                  const Tensor<Q>& c,
+                                  std::vector< std::shared_ptr< FunctionImpl<T,NDIM> > >& vleft,
+                                  const keyT& key,
+                                  double tol) {
+            for (size_t mu=0; mu<vright.size(); ++mu) {
+                typename dcT::const_accessor accright;
+                if (vright[mu]->get_coeffs().find(accright,key)) {
+                    for (size_t nu=0; nu<vleft.size(); ++nu) {
+                        typename dcT::accessor accleft;
+                        if (vleft[nu]->get_coeffs().find(accleft,key)) {
+                            auto& right = accright->second.coeff();
+                            auto& left = accleft->second.coeff();
+                            left.gaxpy(1.0, right, c(mu,nu));
+                        }
+                        else {
+                            accleft->second.coeff() = accright->second.coeff() * c(mu,nu);
+                        }
+                    }                        
+                }
+            }
+        }
+
         /// Refine multiple functions down to the same finest level
 
         /// @param v the vector of functions we are refining.
@@ -2832,11 +2857,36 @@ template<size_t NDIM>
                         const std::vector< std::shared_ptr< FunctionImpl<T,NDIM> > >& vleft,
                         double tol,
                         bool fence) {
-            for (unsigned int j=0; j<vright.size(); ++j) {
-                world.taskq.add(*this, &implT:: template vtransform_doit<Q,R>, vright[j], copy(c(j,_)), vleft, tol);
+            bool old = false;
+            // Build list of nodes in the union of all of the function trees
+            std::vector<keyT> keys;
+            for (const auto& f : vright) {
+                if (f) {
+                    for (const auto& it : f->coeffs) {
+                        keys.push_back(it.first);
+                    }
+                }
             }
-            if (fence)
-                world.gop.fence();
+            // get unique keys
+            std::sort(keys.begin(), keys.end());
+            keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+            
+            for (const auto& key : keys) {
+                world.taskq.add(*this, &implT:: template vtransform_fast_doit<Q,R>, vright, c, vleft, key, tol);
+            }
+
+            // Old way
+            if (old) {
+                for (unsigned int i=0; i<vleft.size(); ++i) {
+                    world.taskq.add(*this, &implT:: template vtransform_doit<Q,R>, vright, c, vleft[i], tol);
+                }
+                if (fence)
+                    world.gop.fence();
+                return;
+            }
+
+
+            if (fence) world.gop.fence();
         }
 
         /// Unary operation applied inplace to the values with optional refinement and fence
