@@ -1592,7 +1592,7 @@ namespace madness {
                         double tol,
                         bool fence=true) {
             PROFILE_MEMBER_FUNC(Function);
-            vresult[0].impl->vtransform(vimpl(v), c, vimpl(vresult), tol, fence);
+            vresult[0].impl->vtransform(vimpl<R,NDIM>(v), c, vimpl<T,NDIM>(vresult), tol, fence);
         }
 
         /// This is replaced with alpha*left + beta*right ...  private

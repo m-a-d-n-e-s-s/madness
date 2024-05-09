@@ -5,7 +5,7 @@ using namespace madness;
 
 static const double L = 32.0;   // box size
 static const long k = 8;        // wavelet order
-static const double thresh = 1e-7; // precision
+static const double thresh = 1e-4; // precision
 
 double psi(const Vector<double,3>& r) {
   return exp(-sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]+1e-6));
@@ -28,30 +28,41 @@ int main(int argc, char**argv) {
   FunctionDefaults<3>::set_truncate_mode(1);
   FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
 
-  print(psi({0.0,0.0,0.0}), psi({0.0,0.0,1.0}));
-
   Function<double,3> u = FunctionFactory<double,3>(world).f(psi);
   Function<double,3> v = FunctionFactory<double,3>(world).f(V);
 
-  u.print_tree();
-  v.print_tree();
-  
+  u.truncate();
+  v.truncate();
+  u.compress();
+
+  //print("u");
+  //u.print_tree();
+  // v.print_tree();
 
   std::vector<Function<double,3>> w(2);
   w[0] = u;
   w[1] = v;
 
   Tensor<double> c(2,2);
-  c(0,0) = 9.0;
-  c(1,1) = 4.0;
-  c(0,1) = 0.5;
-  c(1,0) =-0.5;
+  c(0,0) = 2.0;
+  c(1,1) = 3.0;
+  c(0,1) = 5.0;
+  c(1,0) = 7.0;
+
+  auto newu = c(0,0)*w[0] + c(0,1)*w[1];
+  auto newv = c(1,0)*w[0] + c(1,1)*w[1];
 
   auto r = transform(world, w, c, 0.0, true);
+  r[0].verify_tree();
+  r[1].verify_tree();
 
-  auto r2 = transform(world, w, c);
+  //print("new");
+  //r[0].print_tree();
+  //print("old");
+  //newu.print_tree();
 
-  print("err ", norm2s(world, r-r2));
+  print("newu", (newu-r[0]).norm2());
+  print("newv", (newv-r[1]).norm2());
 
   finalize();
 

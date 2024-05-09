@@ -2721,25 +2721,43 @@ template<size_t NDIM>
 
         template <typename Q, typename R>
         /// @todo I don't know what this does other than a trasform
-        void vtransform_fast_doit(const std::vector< std::shared_ptr< FunctionImpl<T,NDIM> > >& vright,
+        void vtransform_fast_doit(const keyT& key,
+                                  const std::vector< std::shared_ptr< FunctionImpl<R,NDIM> > >& vright,
                                   const Tensor<Q>& c,
-                                  std::vector< std::shared_ptr< FunctionImpl<T,NDIM> > >& vleft,
-                                  const keyT& key,
-                                  double tol) {
+                                  const double tol,
+                                  const std::vector< std::shared_ptr< FunctionImpl<T,NDIM> > >& vleft)
+        {
+            //print("vtransform_fast_doit", key);
+
+            // Loop thru input functions
             for (size_t mu=0; mu<vright.size(); ++mu) {
                 typename dcT::const_accessor accright;
+                // If the function has a node at this key
                 if (vright[mu]->get_coeffs().find(accright,key)) {
+                    const auto& rightnode = accright->second;
+                    const auto& rightcoeff = rightnode.coeff(); // might be empty
+                    // Loop thru output functions
                     for (size_t nu=0; nu<vleft.size(); ++nu) {
                         typename dcT::accessor accleft;
-                        if (vleft[nu]->get_coeffs().find(accleft,key)) {
-                            auto& right = accright->second.coeff();
-                            auto& left = accleft->second.coeff();
-                            left.gaxpy(1.0, right, c(mu,nu));
+                        // Try to insert an empty node at this key
+                        if (vleft[nu]->get_coeffs().insert(accleft,key)) {
+                            //print("   inserted", key);
                         }
-                        else {
-                            accleft->second.coeff() = accright->second.coeff() * c(mu,nu);
+                        auto& leftnode = accleft->second;
+                        // Ensure that the left node has children if the right node does, no need to worry about parents
+                        if (rightnode.has_children()) leftnode.set_has_children(true);
+                        // If the right node has coefficients then do the operation
+                        if (rightnode.has_coeff()) {
+                            // If the left node has no coefficients then create them
+                            if (!leftnode.has_coeff()) {
+                                leftnode.set_coeff(coeffT(cdata.v2k,targs));
+                                //print("   set coeff", key, accleft->second.has_coeff());
+                            }
+                            auto& leftcoeff = accleft->second.coeff();
+                            leftcoeff.gaxpy(1.0, rightcoeff, c(nu,mu));
+                            //print("   doing op", key, leftnode.has_coeff());
                         }
-                    }                        
+                    }
                 }
             }
         }
@@ -2857,6 +2875,7 @@ template<size_t NDIM>
                         const std::vector< std::shared_ptr< FunctionImpl<T,NDIM> > >& vleft,
                         double tol,
                         bool fence) {
+            //print("vtransform");
             bool old = false;
             // Build list of nodes in the union of all of the function trees
             std::vector<keyT> keys;
@@ -2867,23 +2886,25 @@ template<size_t NDIM>
                     }
                 }
             }
+            //print("number of non-unique keys", keys.size());
             // get unique keys
             std::sort(keys.begin(), keys.end());
             keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+            //print("number of unique keys", keys.size());
             
             for (const auto& key : keys) {
-                world.taskq.add(*this, &implT:: template vtransform_fast_doit<Q,R>, vright, c, vleft, key, tol);
+                world.taskq.add(*this, &implT:: template vtransform_fast_doit<Q,R>, key, vright, c, tol, vleft);
             }
 
-            // Old way
-            if (old) {
-                for (unsigned int i=0; i<vleft.size(); ++i) {
-                    world.taskq.add(*this, &implT:: template vtransform_doit<Q,R>, vright, c, vleft[i], tol);
-                }
-                if (fence)
-                    world.gop.fence();
-                return;
-            }
+            // // Old way
+            // if (old) {
+            //     for (unsigned int i=0; i<vleft.size(); ++i) {
+            //         world.taskq.add(*this, &implT:: template vtransform_doit<Q,R>, vright, c, vleft[i], tol);
+            //     }
+            //     if (fence)
+            //         world.gop.fence();
+            //     return;
+            // }
 
 
             if (fence) world.gop.fence();
