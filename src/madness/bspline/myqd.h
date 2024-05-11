@@ -119,11 +119,12 @@ dd_real from_str<dd_real>(const char* s) {
 
 template <>
 double from_str<double>(const char* s) {
-    double d;
-    auto status = sscanf(s, "%lf", &d);
-    if (status == EOF) throw "EOF reading double from string";
-    if (status != 1) throw "failed to read double from string";
-    return d;
+    // double d;
+    // auto status = sscanf(s, "%lf", &d);
+    // if (status == EOF) throw "EOF reading double from string";
+    // if (status != 1) throw "failed to read double from string";
+    // return d;
+    return atof(s);
 }
 
 template <>
@@ -141,8 +142,8 @@ template <typename T> T from_str(const std::string& s) {
 
 std::string to_str(const qd_real& t) {return t.to_string();}
 std::string to_str(const dd_real& t) {return t.to_string();}
-std::string to_str(double t) {char buf[256]; sprintf(buf,"%.17e",t); return buf;}
-std::string to_str(float t) {char buf[256]; sprintf(buf,"%.8e",t); return buf;}
+std::string to_str(double t) {char buf[256]; sprintf(buf,"%.19e",t); return buf;}
+std::string to_str(float t) {char buf[256]; sprintf(buf,"%.9e",t); return buf;}
 
 double to_double(double d) {return d;}
 double to_double(float f) {return f;}

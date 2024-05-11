@@ -409,7 +409,7 @@ The Coulomb GF is obtained in the limit $\mu=0$, which here includes in the angu
   j_l(r) & = & \frac{r^l}{2l+1}.
 \end{eqnarray}
 
-For the BSH, the real functions $h_l$ and $j_l$ are defined as
+For the BSH, the real functions $h_l$ (modified spherical Hankel functions of the first kind) and $j_l$ (modified spherical Bessel functions of the first kind) are defined as
 \begin{eqnarray}
   h_l(r) & = & -\sqrt{\frac{\pi}{2r}} {\mathrm e}^{i \left(l-\frac{1}{2}\right) \frac{\pi}{2}} H_{l +\frac{1}{2}}^{\left(1\right)} \left(i r  \right) ,\\
   j_l(r) & = & \sqrt{\frac{\pi}{2r}} {\mathrm e}^{-i \left(l+\frac{1}{2}\right) \frac{\pi}{2}} J_{l +\frac{1}{2}} \left(i r  \right) .
@@ -431,18 +431,29 @@ We also have
 
 The functions $j_l(r)$ are also everywhere positive but have exponentially growing and decaying components,
 \begin{eqnarray}
-  j_0(r) & = & \frac{{\mathrm e}^{r}-{\mathrm e}^{-r}}{2 r} ,\\
+  j_0(r) & = & \frac{{\mathrm e}^{r}-{\mathrm e}^{-r}}{2 r} , \label{eqn:j0} \\
   j_1(r) & = & \frac{{\mathrm e}^{-r}\left(r +1\right) +{\mathrm e}^{r} \left(r -1\right)}{2 r^{2}} , \\
   j_2(r) & = & \frac{{\mathrm e}^{-r}\left(-r^{2}-3 r -3\right)+{\mathrm e}^{r} \left(r^{2}-3 r +3\right)}{2 r^{3}} , \\
   j_3(r) & = & \frac{{\mathrm e}^{-r}\left(r^{3}+6 r^{2}+15 r +15\right)+{\mathrm e}^{r} \left(r^{3}-6 r^{2}+15 r -15\right)}{2 r^{4}} .
 \end{eqnarray}
 We also have
-\begin{eqnarray}
-  \lim_{r \rightarrow 0} j_l(r) & = & \frac{r^l}{(2l+1)!!} , \\
-  \lim_{r \rightarrow \infty} j_l(r) & = & \frac{{\mathrm e}^{r}}{2r} .
+\begin{eqnarray} 
+  \lim_{r \rightarrow 0} j_l(r) & = & \frac{r^l}{(2l+1)!!} , \label{eqn:jsmallr}\\
+  \lim_{r \rightarrow 0} \frac{j_l(r)}{j_{l-1}} & = & \frac{r}{2l+1} \\
+  \lim_{r \rightarrow \infty} j_l(r) & = & \frac{{\mathrm e}^{r}}{2r} \\
+  \lim_{r \rightarrow \infty} \frac{j_l(r)}{j_{l-1}} & = & 1 - \frac{l}{r} + \frac{l(l-1)}{2 r^2} + \frac{l(l-1)}{2 r^3} - O(r^{-4}) .
 \end{eqnarray}
+Note that the asymptotic behavior won't dominate until for large $r$ we have $r \gg l$, and for small $r$ that $r \ll 2l+1$.  The large $l$ limit emerges from the Taylor series expansion given further below, or from the expression above for the small $r$ limit (i.e., small relative to $l$).
 
 Recall that $\mu = \sqrt{-2 \epsilon}$ and for heavy elements is in the approximate range $0.1<\mu<100$.  Also, our simulation box is circa 100 units and we need to resolve close to the singularity if computing with a point charge model.  Thus, we will need to evaluate with something like $10^{-7} < \mu r < 10^4$.  Note that $r^{30}exp(-r)$ is less than 1e-16 for $r<0.295$ and $r>195$.
+
+Derivatives.  Following from the NIST Handbook section 10.51(ii) we get things that look like backward, central, and foward difference formulas
+\begin{eqnarray}
+  j_l(r)^\prime & = & j_{l-1} - \frac{n+1}{r} j_l(r) \\
+              & = & \frac{1}{2l+1} \left( l j_{l-1}(r) + (l+1) j_{l+1}(r)  \right) \\
+              & = &  j_{l+1} + \frac{n}{r} j_l(r)
+\end{eqnarray}
+
 
 Underflow, overflow, and cancellation all need to be explicitly managed when evaluating these functions.
 \begin{itemize}
@@ -490,7 +501,7 @@ The relevant recursions for $\bar{h}_l(r)$ and $\bar{j}_l(r)$, as defined above,
   \bar{j}_{l+1} & = & -\frac{2l+1}{r} \bar{j}_l + \bar{j}_{l-1} \\
   \bar{j}_{l-1} & = & \!\ \frac{2l+1}{r} \bar{j}_l + \bar{j}_{l+1} \\
   \bar{h}_{l+1} & = & \!\ \frac{2l+1}{r} \bar{h}_l + \bar{h}_{l-1} \\
-  \bar{j}_0(r) & = & -\frac{\mathrm{expm1}(-2)}{2r} \\
+  \bar{j}_0(r) & = & -\frac{\mathrm{expm1}(-2r)}{2r} \\
   \bar{j}_1(r) & = & \frac{r-1+\exp(-2r)(r+1)}{2 r^2} \\
   \bar{h}_0(r) & = & \frac{1}{r} \\
   \bar{h}_1(r) & = & \frac{r+1}{r^2}
@@ -499,8 +510,184 @@ The upward recursion for $\bar{h}_l$ is stable for all $r$.  The downward recurs
 
 The Taylor series for $j_l$ is rapidly convergent ($j$ instead of $\bar{j}$ is preferable since the former contains only even/odd terms)
 \begin{eqnarray}
- j_l(r) & = & r^l \sum_{k=0}^\infty \frac{r^{2k}}{2^k k! (2l+2k+1)!!} .
+  j_l(r) & = & r^l \sum_{k=0}^\infty \frac{r^{2k}}{2^k k! (2l+2k+1)!!} \\
+  & = & \frac{r^l}{(2l+1)!!} \left(1  + \frac{r^2}{2 (2l+3)} + \frac{r^4}{8 (2l+3)(2l+5)} + \cdots \right)
 \end{eqnarray}
 
+\subsection{Integral representation}
+
+There is a curious integral representation for $j_l(r)$ (there's a phase factor missing here --- prolly $-1^l$)
+\begin{eqnarray}
+  j_l(r) & = & \frac{1}{2} \int_{-1}^1 dx \exp(-xr) P_l(x) .
+\end{eqnarray}
+[Aside: this perhaps relates to the the asymptotic formula for GL quadrature points and weights].
+    
+Thinking about orthogonal projection, we can see that $j_l(r)$ is just the $l$'th coefficient in the expansion of $\exp(-xr)$ in terms of Legendre polynomials.  The orthogonality of $P_l$ to lower order monomials implies that the first $l$ terms in the Taylor series of $\exp(-xr)$ do not contribute.  Taking this into account is essential for small $r$ or large $l$.  The necessary order of the GL quadrature must exactly integrate the kernel of the integral assuming that the Taylor series expansion of the exponential is terminated at some degree $k$.  Thus, the number of quadrature points $n \ge (l+k+1)/2$.
+
+\subsection{Miller's algorithm}
+
+The upward recursion can be seen to be unstable from at least two perspectives.  The first is cancellation since in $j_l$ the first $l$ terms in the Taylor series vanishes.  Even evaluating $j_0$ (equation \ref{eqn:j0}) must be done with care for small $r$. However, this hints that the upward recursion can work for large $r$.   The second is that there are two solutions to the upward recursion --- one growing expoenntially and the other, which is the one we want. Any numerical error will rapidly overwhelm the desired solution.  Google for ``linear second-order recurrence'' to learn more.
+
+Equation \ref{eqn:jsmallr} (the first term in the Taylor series) is also the asymptotic form of $j_l$ for large order $l$.  Recalling the gamma function at half-integral arguments and Stirling's formula,
+\begin{eqnarray}
+  \Gamma(n+\frac{1}{2}) & = & 2^{-n} \Gamma(\frac{1}{2}) (2n-1)!! \\
+  \Gamma(\frac{1}{2}) & = & \sqrt{\pi} \\
+  \Gamma(z) & \approx & \sqrt{2 \pi} z^{z - \frac{1}{2}} \exp(-z) \\
+\end{eqnarray}
+we obtain
+\begin{eqnarray}
+  n! & \rightarrow & \sqrt{2 \pi} n^{n+1/2} e^{-n} \\
+  (2n+1)!! & = & \frac{(2n+1)!}{2^n n!} \\
+  & \rightarrow & (2n + 1)^{2n+3/2} \exp(-n - 1) n^{-n - 1/2} 2^{-n}
+\end{eqnarray}
+which are accurate to a few percent even for $n=1$.  Thus, 
+\begin{eqnarray}
+  j_l(r) & \rightarrow & \sqrt{2} (2 l+3)^{l+1} e^{-l-\frac{3}{2}} r^l 
+\end{eqnarray}
+
+\subsubsection{How to chose the upper limit in the downward recursion?}
+
+To avoid overflow in the downward recursion we already rewrite the original downward recursion
+\begin{eqnarray}
+  j_{n-1} & = & j_{n+1} + \frac{2n+1}{r} j_{n} 
+\end{eqnarray}
+to compute the ratio
+\begin{eqnarray}
+  R_n & = & \frac{j_n}{j_{n-1}} \\
+      & < & 1 ~ ~ \forall ~ ~ r>0.
+\end{eqnarray}
+yielding
+\begin{eqnarray}
+  R_{n} & = & \frac{1}{R_{n+1} + \frac{2n+1}{r}}.
+\end{eqnarray}
+This connects us to the continued-fraction form of the solution to the recurrence.
+
+Note for large $n$ s.t. $2n+1 \gg r$ (small $r$ limit)
+\begin{eqnarray}
+  R_n & \rightarrow & \frac{r}{2n+1} - \frac{r^3}{(2n + 3)(2 n + 1)^2} + \frac{2r^5}{(2 n + 5) (2 n + 3) (2 n + 1)^3} - \cdots
+\end{eqnarray}
+and for small $n$ s.t. $n \ll r$ (large $r$ limit)
+\begin{eqnarray}
+  \lim_{r \rightarrow \infty} R_n & = & 1 - \frac{n}{r} + \frac{n(n-1)}{2 r^2} + \frac{n(n-1)}{2 r^3} - O(r^{-4}).
+\end{eqnarray}
+
+Examining the original downward recurrence for $j_n$ and starting it with positive values, then all $j_n(r)>0$.  Hence, $j_{n-1}(r) > j_{n+1}(r)$ or $R_n R_{n+1} < 1$.  But there is likely a stronger statement that $1 > R_n > R_{n+1}$ for all $n$ and $r$ --- empirically this is true.  The asymptotic forms of $j_n(r)$ for either small or large $r$ yield this result in those regions.  What happens in the middle ground? The ratio $R_n(r=2n+1)$ varies only slightly from $R_2=0.65$ to $R_{30}=0.62$.  Similarly, $R_n(r=n)$ yields $R_2=0.36$ and $R_{30}=.41$.  Thus, there are nearly universal (independent of $n$) values of the ratio in this transition zone.
+
+What are sensible constraints on the starting guess?  We would naturally pick $R_{n+1}=0$, which results in $R_n = r/(2n+1)$ but then we would have $R_n < 1$ only in the small $r$ zone.  For this, our initial guess should be adjusted to $R_{n+1} > \max (0,1 - (2n+1)/r)$.  To satisfy the tighter $R_n < R_{n+1}$ we pick our guess $\bar{R}_{n+1}$
+\begin{eqnarray}
+  \bar{R}_{n+1} & = & \frac{-\frac{2n+3}{r} + \sqrt{\left(\frac{2n+3}{r}\right)^2 + 4}}{2}
+\end{eqnarray}
+We get lucky!  This formula does a remarkably good job of estimating the ratio for all values of $r$. Part of this is that it builds in nearly the correct limits for small ($R_n \rightarrow 0$) and large ($R_n \rightarrow 1$) $r$ and monotonically interpolates between them.
+\begin{eqnarray}
+  \lim_{r \rightarrow 0} \bar{R}_{n}(r) & = & \frac{r}{2 n + 1} - \frac{r^3}{(2n + 1)^3} + \cdots \\
+  \lim_{r \rightarrow \infty} \bar{R}_{n}(r) & = & 1 - \frac{2n - 1}{2r} + \frac{(2n + 1)^2}{8 r^2} + \cdots
+\end{eqnarray}
+
+With this insight, we can solve for rational functions that reproduce the first two terms in both the Taylor series at the origin and asymptotic series for large $r$
+\begin{eqnarray}
+  \bar{R}_n & = & \frac{r^2 + (n + 1)r}{r^2 + (2 n + 1) r + (2 n + 1) (n + 1)}
+\end{eqnarray}
+or the first three terms of each
+\begin{eqnarray}
+  \bar{R}_{n} & = & \frac{2 r^{3}+\left(3 n +3\right) r^{2}+\left(2 n +3\right) \left(n +1\right) r}{2 r^{3}+\left(5 n +3\right) r^{2}+\left(6 n +3\right) \left(n +1\right) r +\left(2 n +3\right) \left(2 n +1\right) \left(n +1\right)}
+\end{eqnarray}
+The first of these is pleasingly simple but is better only at small $r$, whereas the latter is better over the entire range --- but not for larger $l$.  So we'll probably just stick with the original version.
+
+If we make an error $\epsilon_{n+1}$ in $R_{n+1}$ (so $R_{n+1} = \bar{R}_{n+1} + \epsilon_{n+1}$), we can estimate the error in $R_{n}$ as follows
+\begin{eqnarray}
+  R_{n} + \epsilon_{n} & = & \frac{1}{R_{n+1} + \epsilon_{n+1} + \frac{2n+1}{r}} \\
+  & = & \frac{1}{\left(R_{n+1} + \frac{2n+1}{r}\right) \left(1 + \epsilon_{n+1}\frac{1}{R_{n+1} +  \frac{2n+1}{r}} \right)} \\
+  & = & R_{n} \frac{1}{1 + \epsilon_{n+1} R_{n}} \\
+  & \approx & R_{n} - \epsilon_{n+1} R^2_n 
+\end{eqnarray}
+in the last line of which we assumed that 
+\begin{eqnarray}
+  \epsilon_{n+1} R_{n} & \ll & 1 .
+\end{eqnarray}
+Hence,
+\begin{eqnarray}
+  \epsilon_n & \approx & \epsilon_{n+1} R^2_n
+\end{eqnarray}
+This result agrees excellently with numerical experiments, and also with Perron's theorem that describes how the ratio between the two solutions changes between iterations of the recurrence.
+
+We want full accuracy in $R_l$ since it connects $j_l$ to $j_{l-1}$, etc., and we will compute the scaling factor from $j_0$.
+Recurring down from $n+1$ (which we estimate from one of the above formulae) to $l$, the error in $R_l$ is
+\begin{eqnarray}
+  \epsilon_l & \approx & \epsilon_{n+1} R^2_n R^2_{n-1} \ldots R^2_l \\
+             & = & \epsilon_{n+1} \prod_{m=l}^n R^2_m
+\end{eqnarray}
+and hence the relative error in $R_l$ is
+\begin{eqnarray}
+  \epsilon_l R_l^{-1} & \approx & \epsilon_{n+1} R_l \prod_{m=l+1}^n R^2_m
+\end{eqnarray}
+
+Defining $\gamma$ to be the geometric mean of the relevant ratios so that
+\begin{eqnarray}
+   \prod_{m=l+1}^n R^2_m  & = & \gamma^{2(n-l)}
+\end{eqnarray}
+we obtain
+\begin{eqnarray}
+  \epsilon_l R_l^{-1} & \approx & \epsilon_{n+1} R_l \gamma^{2(n-l)}
+\end{eqnarray}
+
+So for a relative error of $p$ decimal places, we can estimate the required $n$ by solving
+\begin{eqnarray}
+  -2.3 p & \approx  & \log \epsilon_{n+1} + \log R_l + 2(n-l) \log \gamma
+\end{eqnarray}
+Approximating $\gamma = \sqrt{\bar{R}_l \bar{R}_{n+1}}$, noting we already need to compute $\bar{R}_{n+1}$ for the starting guess, we obtain
+\begin{eqnarray}
+  -2.3 p & \approx  & \log \epsilon_{n+1} + \log R_l + (n-l) \log \bar{R}_l \bar{R}_{n+1}
+\end{eqnarray}
+
+Still need estimate of $\epsilon_{n+1}$ !!!!!!!!!!!!
+
+\subsubsection{When is the upward recursion stable?}
+
+Starting from the upward recursion for the ratio
+\begin{eqnarray}
+  R_{n+1} & = & R_{n}^{-1} - \frac{2n+1}{r}
+\end{eqnarray}
+we first examine the behavior for small $r$.  The series expansion for $R_n(r)$ yields
+\begin{eqnarray}
+  R_n^{-1} & = & \frac{2n+1}{r} \left(1 + \frac{r^2}{(2n+1)(2n+3)} + \cdots \right) .
+\end{eqnarray}
+hence,
+\begin{eqnarray}
+  R_{n+1} & = & \frac{2n+1}{r} \left(1 + \frac{r^2}{(2n+1)(2n+3)} + \cdots - 1 \right) \\
+         & = & \frac{r}{2n+3} + \cdots
+\end{eqnarray}
+with the $1$ on the far right being from the subtraction in the recurrence, and the second line assuming exact arithmetic and showing how the recursion follows from the Taylor series expansion, or vice versa. Introducing a relative error $\epsilon_n$ in the computed value for $R_n$ and also the relative precision of computation $\epsilon_{\mbox{mach}}$, we obtain
+\begin{eqnarray}
+  R_{n+1} & = & \frac{2n+1}{r} \left( (1+\epsilon_n) \left(1 + \frac{r^2}{(2n+1)(2n+3)} + \cdots\right) - 1 + \epsilon_{\mbox{mach}} \right) \\
+         & \approx & \frac{r}{2n+3}\left(1 + \frac{(2n+1)(2n+3)}{r^2}(\epsilon_n + \epsilon_{\mbox{mach}})\right).
+\end{eqnarray}
+Thus, we identify the amplication of the relative error as being
+\begin{eqnarray}
+  \epsilon_{n+1} & = & \frac{(2n+1)(2n+3)}{r^2}(\epsilon_n + \epsilon_{\mbox{mach}})
+\end{eqnarray}
+This suggests that for $r>2n+1$ that the recursion should be stable.  However, our analysis was just for small $r$.  So let's repeat with the large $r$ expansion for $R_n$ that yields
+\begin{eqnarray}
+  R_n^{-1} & = & 1 + \frac{n}{r} + \cdots
+\end{eqnarray}
+hence, using machine arithmetic
+\begin{eqnarray}
+  R_{n+1} & \approx & (1 + \epsilon_n) \left(1 + \frac{n}{r} \right) - \frac{2n+1}{r} + \epsilon_{\mbox{mach}} \\
+         & \approx & 1 - \frac{n+1}{r} + \epsilon_n \left(1 + \frac{n}{r} \right) + \epsilon_{\mbox{mach}} \\
+  \epsilon_{n+1} & = & \epsilon_n \left(1 + \frac{n}{r} \right) + \epsilon_{\mbox{mach}}
+\end{eqnarray}
+Thus, the relative error is still being magnified as we recur up, but now by a factor less than two each iteration.  For $r \gg n$ the accumulation of roundoff error will perhaps be the most significant.  Thus, for very large $r$ the upward recursion can yield many correct significant figures but since it does not ``self-correct'' in the manner of the downward recursion it cannot yield full accuracy without additional techniques?
+
+Scaling reciprocal of $r$ by $(1\pm\epsilon)$ changes in average signed, average absolute, and maximum absolute relative error in units of machine epsilon over the test suite that has $r$ exactly representable in float and above, but most values do not have an exact reciprocal.
+\begin{verbatim}
+   -1  test bessel2:  8.7695   8.9804  45 eps
+    0  test bessel2:  0.917688 1.43011 14 eps 
+   +1  test bessel2: -7.52305  7.72235 46 eps
+\end{verbatim}
+
+Benefit of gradient correction
+\begin{verbatim}
+before test bessel2: 0.917688 1.86626 14.756 eps 
+ after test bessel2: -0.108574 0.809596 6.00438 eps
+\end{verbatim}
 
 \end{document}

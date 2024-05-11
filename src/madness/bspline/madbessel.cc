@@ -1,10 +1,66 @@
+//#pragma GCC optimize "-fno-associative-math"
+
 #include <iostream>
 #include <fstream>
+#include <cassert>
 #include <vector>
 #include <tuple>
 #include <limits>
 #include <cmath>
 #include <myqd.h>
+
+template <typename T>
+class Matrix {
+    size_t n, m;
+    std::vector<T> data;
+
+public:
+    Matrix() : n(0), m(0) {}
+    Matrix(size_t n, size_t m) : n(n), m(m), data(n*m) {}
+    T& operator()(size_t i, size_t j) { return data.at(i*m+j); }
+    const T& operator()(size_t i, size_t j) const { return data.at(i*m+j); }
+    size_t rows() const { return n; }
+    size_t cols() const { return m; }
+};
+
+
+size_t ggi = 9999999;
+std::vector<double> ggr;
+Matrix<double> ggj, ggh;
+
+// print a vector
+template <typename T>
+std::ostream& operator<<(std::ostream& s, const std::vector<T>& v) {
+    s << "[ ";
+    for (const auto& x : v) s << x << " ";
+    s << "]";
+    return s;
+}
+// print a pair
+template <typename T, typename U>
+std::ostream& operator<<(std::ostream& s, const std::pair<T,U>& p) {
+    s << "(" << p.first << ", " << p.second << ")";
+    return s;
+}
+
+
+template<typename T>
+T log10_estimate(T x) {
+    int e;
+    T m = std::frexp(x, &e);
+    return (e-1)*T(0.30103); // log10(2) = 0.30103
+}
+
+double log10_estimate(double x) {
+    int e =  (int((*((long*)(&x))) >> 52) & 0x7FF) -1023;    
+    return e*0.30103; // log10(2) = 0.30103
+}
+
+float log10_estimate(float x) {
+    std::cout << "float\n";
+    int e =  (int((*((int*)(&x))) >> 23) & 0xFF) - 127;    
+    return e*0.30103; // log10(2) = 0.30103
+}
 
 template <typename T>
 T myexpm1(const T& x) {
@@ -15,14 +71,14 @@ T myexpm1(const T& x) {
         // 15 for double
         // 25 for dd
         // 42 for qd
-        for (size_t i=2; i<100; i++) {
+        for (size_t i=2; i<42; i++) {
             t *= x/i;
             s += t;
-            if (std::abs(t) < std::numeric_limits<T>::epsilon()) break;
+            //if (std::abs(t) < std::numeric_limits<T>::epsilon()) break;
         }
         return s;
     }
-    return exp(x)-T(1);
+    return std::exp(x)-T(1);
 }
 
 namespace std {
@@ -86,6 +142,208 @@ T mypow(const T& x, const int k) {
     return r;
 }
 
+// Barycentric interpolation class using N uniformly spaced-intervals with m uniformly spaced points within each interval (including endpoints)
+template <typename T>
+class BarycentricX {
+    size_t N; // Number of larger intervals
+    size_t m; // Number of points in each interval
+    T a; // Left endpoint of the interval
+    T b; // Right endpoint of the interval
+    T H; // Larger interval size
+    T h; // Smaller interval size
+
+    std::vector<T> y; // Vector of function values
+    std::vector<T> w; // Vector of m Barycentric weights
+
+    static size_t factorial(size_t n) {
+        size_t f = 1;
+        for (size_t i=1; i<=n; i++) f *= i;
+        return f;
+    }
+
+    static std::vector<T> weights(const size_t m) {
+        std::vector<T> w(m);
+        size_t n = m-1;
+        size_t nfac = factorial(n);
+        T sign = 1;
+        for (size_t j=0; j<=n; j++) {
+            w[j] = sign*nfac/(factorial(j)*factorial(n-j));
+            sign = -sign;
+        }
+        return w;
+    }
+
+    public:
+
+    template <typename funcT>
+    BarycentricX(size_t N, size_t m, T a, T b, funcT f) 
+        : N(N)
+        , m(m)
+        , a(a)
+        , b(b)
+        , H((b-a)/N)
+        , h(H/(m-1))
+        , y(N*(m-1)+1)
+        , w(weights(m))
+    {
+        assert(m>=2);
+        assert(N>=1);
+        for (size_t i=0; i<y.size(); i++) {
+            T x = a + i*h;
+            y[i] = f(x);
+        }
+        // std::cout << "H = " << H << std::endl;
+        // std::cout << "h = " << h << std::endl;
+        // std::cout << "y = " << y << std::endl;
+        // std::cout << f(a) << " " << f(b) << std::endl;
+        // std::cout << "w = " << w << std::endl;
+    }
+
+    T operator()(T x) {
+        //std::cout << "input x = " << x << " " << N << " " << H << std::endl;
+        assert(x>=a && x<b);
+        x -= a;
+        const size_t i = x/H;
+        x -= i*H;
+        //std::cout << "i = " << i << " " << x << std::endl;
+
+        T num = 0;
+        T den = 0;
+        for (size_t j=0; j<m; j++) {
+            T diff = x-j*h;
+            if (diff == 0) return y[i*(m-1) + j];
+            //std::cout << "diff = " << diff << " j " << j << std::endl;
+            T wj = w[j]/diff;
+            num += wj*y[i*(m-1)+j];
+            den += wj;
+        }
+        return num/den;
+    }
+
+    std::vector<T> operator()(const std::vector<T>& x) {
+        std::vector<T> r(x.size());
+        for (size_t i=0; i<x.size(); i++) r[i] = operator()(x[i]);
+    }    
+
+    template <typename funcT>
+    std::pair<T,T> maxerr(funcT f, size_t oversample=5) {
+        T testh = h/oversample;
+        T err = 0;
+        T relerr = 0;
+        T x = a;
+        while (x < b) {
+            T fx = f(x);
+            T abserr = std::abs(fx - (*this)(x));
+            err = std::max(err, abserr);
+            if (fx != 0) relerr = std::max(relerr, abserr/std::abs(fx));
+            x += testh;
+        }
+        return std::make_pair(err, relerr);
+    }    
+};
+
+// Barycentric interpolation class using N uniformly spaced-intervals (so N+1 points) and order m interpolation
+template <typename T>
+class Barycentric {
+    size_t N; // Number of larger intervals
+    size_t m; // Number of points for interpolation
+    T a; // Left endpoint of the interval
+    T b; // Right endpoint of the interval
+    T h; // Interval size
+
+    std::vector<T> y; // Vector of function values
+    std::vector<T> w; // Vector of m Barycentric weights
+
+    static size_t factorial(size_t n) {
+        size_t f = 1;
+        for (size_t i=1; i<=n; i++) f *= i;
+        return f;
+    }
+
+    static std::vector<T> weights(const size_t m) {
+        std::vector<T> w(m);
+        size_t n = m-1;
+        size_t nfac = factorial(n);
+        T sign = 1;
+        for (size_t j=0; j<=n; j++) {
+            w[j] = sign*nfac/(factorial(j)*factorial(n-j));
+            sign = -sign;
+        }
+        return w;
+    }
+
+    public:
+
+    Barycentric() {}
+
+    template <typename funcT>
+    Barycentric(size_t N, size_t m, T a, T b, funcT f) 
+        : N(N)
+        , m(m)
+        , a(a)
+        , b(b)
+        , h((b-a)/N)
+        , y(N+1)
+        , w(weights(m))
+    {
+        assert(m>=2);
+        assert(N>=m);
+        for (size_t i=0; i<y.size(); i++) {
+            T x = a + i*h;
+            y[i] = f(x);
+        }
+        // std::cout << "h = " << h << std::endl;
+        // std::cout << "y = " << y << std::endl;
+        // std::cout << f(a) << " " << f(b) << std::endl;
+        // std::cout << "w = " << w << std::endl;
+    }
+
+    T operator()(T x) {
+        //std::cout << "input x = " << x << " " << N << " " << h << std::endl;
+        assert(x>=a && x<b);
+        x -= a;
+        size_t i = std::min(size_t(x/h), N-(m+1)/2);
+        //std::cout << "initial i = " << i << " " << x << std::endl;
+        i -= std::min((m-1)/2, i);
+        x -= i*h;
+        //std::cout << "shifted i = " << i << " " << x << std::endl;
+
+        T num = 0;
+        T den = 0;
+        for (size_t j=0; j<m; j++) {
+            T diff = x-j*h;
+            if (diff == 0) return y[i + j];
+            T wj = w[j]/diff;
+            //std::cout << "diff = " << diff << " j " << j << std::endl;
+            num += wj*y[i+j];
+            den += wj;
+        }
+        return num/den;
+    }
+
+    template <typename funcT>
+    std::pair<T,T> maxerr(funcT f, size_t oversample=5) {
+        T testh = h/oversample;
+        T err = 0;
+        T relerr = 0;
+        T x = a;
+        while (x < b) {
+            T fx = f(x);
+            T abserr = std::abs(fx - (*this)(x));
+            err = std::max(err, abserr);
+            if (fx != 0) relerr = std::max(relerr, abserr/std::abs(fx));
+            if (relerr > 1e-14) {
+                std::cout << "bad err " << x << " " << fx << " " << (*this)(x) << " " << abserr << " " << relerr << std::endl;
+                break;
+            }
+            x += testh;
+        }
+        return std::make_pair(err, relerr);
+    }    
+};
+
+Barycentric<double> b33;
+
 template <typename T>
 T JSphericalSeries(const size_t l, const T& r) {
     auto c = [](size_t l, size_t i) {
@@ -134,11 +392,314 @@ T JSphericalSeries(const size_t l, const T& r) {
 }
 
 
+// template <typename T>
+// T JSphericalRatioSeries(const size_t l, const T& r) {
+//     T jl = 0;  // j_l
+//     T jl1 = 0; // j_{l-1}
+
+//     T rk = 1;
+//     T r2 = r*r;
+//     for (size_t i=l; i<(l+maxi); i+=2) {
+
+//         s += term;
+//         //std::cout << i << " " << to_str(c(l,i)) << " " << ri << " " << to_str(term) << " " << to_str(s) << std::endl;
+//         ri *= r2;
+//         if (ri < std::numeric_limits<T>::epsilon()) break;
+//     }
+
+//     return (r*jl)/((2*l+1)*jl1);
+// }
+
+template <typename T>
+T JsphericalscaledX(size_t l, T r);
+
+template <typename T>
+T Jsphericalscaled(size_t l, T r) {
+    if (r == T(0.0)) return T(0.0);
+    const T one = T(1.0);
+    const T half = T(0.5);
+    T rr = one/r;
+    if (r < T(std::max(10.0,5.0*l))) {
+        //size_t n = l+40; // dp ... these with r < T(std::max(10.0,5.0*l))
+        //size_t n = l+70; // dd
+        //size_t n = l+120; // qd
+
+        size_t n;
+        if constexpr (std::is_same<T,double>::value) n = l+40;
+        else if constexpr (std::is_same<T,dd_real>::value) n = l+70;
+        else if constexpr (std::is_same<T,qd_real>::value) n = l+120;
+        T R;
+        T j0;
+
+        // // Make initial guess for downward recursion ratio R_n
+        // if (r > std::max(2*l,size_t(10))) { // Recur up and use downward recursion to correct accumulated rounding errors
+        //     T expm2r = std::exp(-T(2)*r);
+        //     j0 = (one-expm2r)*half*rr;
+        //     if (l == 0) return j0;
+            
+        //     R = (r-one+(r+one)*expm2r)/(r*(one-expm2r));
+        //     size_t m = 1;
+        //     while (m < n) {
+        //         std::cout << "      m " << m << " " << to_str(R) << std::endl;
+        //         R = T(1)/R - T(2*m+1.0)*rr;
+        //         m += 1;
+        //     }
+        //     T Rtest = JsphericalscaledX(n,r)/JsphericalscaledX(n-1,r);
+        //     std::cout << "Guess " << l << " " << to_str(r) << " " << to_str(R) << " " << to_str(Rtest) << " " << to_str((R-Rtest)/Rtest) << std::endl;
+        // }
+        // else {
+        //     j0 = -myexpm1(-T(2)*r)*half*rr; // for small r use expm1 to avoid cancellation
+        //     if (l == 0) return j0;
+        //     T t = T(2*n+1.0)*rr;
+        //     R = (std::sqrt(t*t + T(4)) - t)*half;
+        // }
+
+        j0 = -myexpm1(-T(2)*r)*half*rr; // for small r use expm1 to avoid cancellation
+        if (l == 0) return j0;
+
+        R = (r*(2*r*r + (2*r + 1 + n)*n)) / (2*r*r*r + (1 + (2 + 4*r)*r + (4*r + 3 + 2*n)*n)*n);
+        // {
+        //     T Rtest = JsphericalscaledX(n,r)/JsphericalscaledX(n-1,r);
+        //     std::cout << "Guess " << l << " " << to_str(r) << " " << to_str(R) << " " << to_str(Rtest) << " " << to_str((R-Rtest)/Rtest) << std::endl;
+        // }            
+        
+        // Recur downward
+        while (--n>=l) {
+            R = T(1.0)/(R + T(2*n+1.0)*rr); // Compute R_n from R_{n+1}
+        }
+
+        T s = R;
+        for (int n=l-1; n>=1; n--) {
+            R = T(1.0)/(R + T(2*n+1.0)*rr); // Compute R_n from R_{n+1}
+            s *= R;
+            //std::cout << "R " << n << " " << to_str(R) << " " << to_str(s) << std::endl;
+        }
+        //std::cout << "final s " << to_str(s) << std::endl;
+
+        //std::cout << to_str(j0) << std::endl;
+        //T j0test = from_str<T>("0.4637228398768963676128862664265477510043731236013416774891131525604899694555197938928784651025466370");
+        //std::cout << "j0 err " << to_str((j0test - j0)/j0) << std::endl;
+        return s*j0;
+    }
+    else {
+        const T expm2r = std::exp(-T(2)*r);
+        T j0 = (one-expm2r)*half*rr;
+        if (l == 0) return j0;
+        T j1 = ((one+expm2r)*half - j0)*rr;
+        if (l == 1) return j1;
+        for (size_t n=1; n<l; n++) {
+            T j2 = j0 - T(2*n+1.0)*j1*rr;
+            j0 = j1;
+            j1 = j2;
+        }
+        return j1;
+    }
+}
+
+template <typename T>
+T Rsmallr(size_t l, T r) {
+    size_t tl1 = 2*l+1; 
+    size_t tl3 = 2*l+3;
+    size_t tl3sq = tl3*tl3;
+    size_t tl5 = 2*l+5;
+    size_t tl7 = 2*l+7;
+    size_t tl9 = 2*l+9;
+    size_t tl1sq = tl1*tl1;
+    size_t tl1cu = tl1sq*tl1;
+    size_t tl1fo = tl1sq*tl1sq;
+    size_t tl1fi = tl1sq*tl1cu;
+    T rsq = r*r;
+
+    //     (1/(2*l + 1) + (-1/((2*l + 1)^2*(2*l + 3)) + (2/((2*l + 5)*(2*l + 3)*(2*l + 1)^3) + ((-10*l - 17)/((2*l + 1)^4*(2*l + 7)*(2*l + 3)^2*(2*l + 5)) + (28*l + 62)*r^2/((2*l + 1)^5*(2*l + 7)*(2*l + 9)*(2*l + 3)^2*(2*l + 5)))*r^2)*r^2)*r^2)*r
+
+    return (T(1)/tl1 + (-T(1)/(tl1sq*tl3) + (T(2)/(tl5*tl3*tl1cu) + (T(-10*l - 17)/(tl1fo*tl7*tl3sq*tl5) + T(28*l + 62)*rsq/(tl1fi*tl7*tl9*tl3sq*tl5))*rsq)*rsq)*rsq)*r;
+}
+
+template <typename T>
+T RsmallrX(size_t l, T r) {
+    T rr = T(1)/r;
+    T r1 = r/T(2*l+1.0); T r1sq = r1*r1; T r1cub = r1sq*r1; T r1four = r1sq*r1sq; T r1five = r1four*r1;
+    T r3 = r/T(2*l+3.0); T r3sq = r3*r3;
+    T r5 = r/T(2*l+5.0);
+    T r7 = r/T(2*l+7.0);
+    T r9 = r/T(2*l+9.0);
+    T r11 = r/T(2*l+11.0);
+    //(-10*l - 17)*r^7/((2*l + 1)^4*(2*l + 7)*(2*l + 3)^2*(2*l + 5)) + (28*l + 62)*r^9/((2*l + 1)^5*(2*l + 7)*(2*l + 9)*(2*l + 3)^2*(2*l + 5))
+    return ((r1 - r1sq*r3) + 2*r5*r3*r1cub) - T(10*l+17.0)*r1four*r7*r3sq*r5*rr + T(28*l+62.0)*r1five*r7*r9*r3sq*r5*rr;
+    //- T(336*l*l*l + 2392*l*l + 5564*l + 4146.0)*r11*r5*r5*r3sq*r3*r7*r1four*r1sq*r9*rr*rr*rr;
+}
+
+template <typename T>
+std::vector<T> JsphericalscaledVec(size_t maxl, T r) {
+    assert(maxl == 32);
+    if (r == T(0.0)) return std::vector<T>(maxl+1,T(0.0));
+    const T eps = std::numeric_limits<T>::epsilon();
+    const T min = std::numeric_limits<T>::min();
+
+    const T one = T(1.0);
+    const T two = T(2.0);
+    const T half = T(0.5);
+    
+    T rr = one/r;
+    T R;
+
+    bool doprint = (ggi != 9999999) && (std::abs(r - 0.00191116) < 0.00001);
+    //bool doprint = false;
+    if (doprint) {
+        std::cout << "printing " << r << " " << (ggj(33,ggi)>min) << " " << min << std::endl;
+    }
+
+    std::vector<T> j(maxl+1);
+
+    T rcut = 20.0; // So that exp(-2*rcut) is much less than epsilon including gradual underflow
+    if constexpr      (std::is_same<T,float>::value) rcut = 10.0;
+    else if constexpr (std::is_same<T,double>::value) rcut = 20.0;
+    else if constexpr (std::is_same<T,dd_real>::value) rcut = 40.0;
+    else if constexpr (std::is_same<T,qd_real>::value) rcut = 80.0;
+
+    auto RELERR = [&](const T& a, const T&b) {return (std::abs(a-b)/std::abs(b))/eps;};
+
+    if (r < std::max(rcut,T(12.5*maxl))) {
+        if (r < 0.5) { // was 2.5
+            R = Rsmallr(48,r);
+        }
+        else {
+            R = b33(r); // Very accurate guess for R_38, slight error at small r but going from 38 to 33 will fix it // was 38 now 48
+        }
+        size_t n = 48;
+        while (--n>maxl) {
+            R = T(1.0)/(R + T(2*n+1.0)*rr); // Compute R_n from R_{n+1}
+        }
+
+        if (doprint) {
+            T Rtest = ggj(33,ggi)/ggj(32,ggi);
+            T relerr = RELERR(R,Rtest);
+            if (relerr > 0) {
+                std::cout << 33 << " Rtest " << Rtest << " " << R << " " << ggi << " " << r << " " << ggr[ggi] << " " << ggj(33,ggi) << " " << ggj(32,ggi) << " " << relerr << std::endl;
+            }
+        }
+
+        T Rsave = R;
+        
+        // for (int l=maxl; l>0; l--) {
+        //     j[l] = R = T(1.0)/(R + T(2*l+1.0)*rr); // Compute R_n from R_{n+1}
+        // }
+        // std::cout << "OLD " << r << " " <<  maxl << std::endl;
+        // std::cout << "OLD " <<  j << std::endl;
+        // j[0] = -myexpm1(-two*r)*half*rr; // for small r use expm1 to avoid cancellation
+        // for (size_t l=1; l<=maxl; l++) {
+        //     j[l] *= j[l-1];
+        // }
+        // std::cout << "OLD " <<  j << std::endl;
+
+        // j = std::vector<T>(maxl+1,T(-1.0));
+
+        T j1 = min * std::max(one, Rsave*r/T(2*maxl+1.0)); //was Rsave ... now trying to avoid underflow in s below
+        T j0 = j1/Rsave; // was 1
+        j[maxl] = j0;
+
+        if (doprint) {
+            T R = Rsave;
+            T Rtest = ggj(maxl+1,ggi)/ggj(maxl,ggi);
+            T relerr = RELERR(R,Rtest);
+            if (relerr > 0) {
+                std::cout << maxl+1 << " Rtest " << Rtest << " " << R << " " << ggi << " " << r << " " << ggr[ggi] << " " << ggj(maxl+1,ggi) << " " << ggj(maxl,ggi) << " " << relerr << std::endl;
+            }
+        }
+        
+        for (int l=maxl; l>0; l--) {
+            j[l-1] = j1 + (T(2*l+1.0)*rr)*j0;
+            
+            //std::cout << "NEW " << l << " " <<  j1 << " " << j0 << " " << j[l-1] << std::endl;
+            j1 = j0;
+            j0 = j[l-1];
+
+            if (doprint) {
+                T R = j1/j0;
+                T Rtest = ggj(l,ggi)/ggj(l-1,ggi);
+                T relerr = RELERR(R,Rtest);
+                if (relerr > 0) {
+                    std::cout << l << " Rtest " << Rtest << " " << R << " " << ggi << " " << r << " " << ggr[ggi] << " " << ggj(l,ggi) << " " << ggj(l-1,ggi) << " " << relerr << std::endl;
+                }
+            }
+
+            
+        }
+        //std::cout << "NEW " <<  j << std::endl;
+
+        if (doprint) {
+            T R = j[32]/j[0];
+            T Rtest = ggj(32,ggi)/ggj(0,ggi);
+            T relerr = RELERR(R,Rtest);
+            if (relerr > 0) {
+                std::cout << 99 << " Rtestall " << Rtest << " " << R << " " << ggi << " " << r << " " << ggr[ggi] << " " << ggj(0,ggi) << " " << ggj(32,ggi) << " " << relerr << std::endl;
+            }
+        }
+        
+        
+        j0 = -myexpm1(-two*r)*half*rr; // for small r use expm1 to avoid cancellation
+
+        // if (ggi != 9999999) {
+        //     T j0test = ggj(0,ggi);
+        //     T relerr = RELERR(j0,j0test);
+        //     if (relerr > 0) {
+        //         std::cout << 0 << " Rtest00 " << ggi << " " << r << " " << ggr[ggi] << " " << j0 << " " << j0test << " " << relerr <<  std::endl;
+        //     }
+        // }
+
+        T s = j0/j[0];
+        if (doprint) std::cout << "s " << s << std::endl;
+        
+        if (s < min) {
+            std::cout << "warning " << s << " " << min << std::endl;
+        }
+        j[0] = j0;
+
+        double reps = to_double(dd_real(r) - dd_real(1.0)/dd_real(rr));
+        
+        for (size_t l=1; l<=maxl; l++) {
+            j[l] *= s;
+
+            j[l] += (j[l-1]-(one+T(l+1)*rr)*j[l])*reps; // correction due to inexact computing of 1/r
+            
+            if (doprint) {
+                T R = j[l]/j[l-1];
+                T Rtest = ggj(l,ggi)/ggj(l-1,ggi);
+                T relerr = RELERR(R,Rtest);
+                if (relerr > 0) {
+                    std::cout << l << " RtestZ " << Rtest << " " << R << " " << ggi << " " << r << " " << ggr[ggi] << " " << ggj(l,ggi) << " " << ggj(l-1,ggi) << " " << relerr << std::endl;
+                }
+            }
+        }
+        //std::cout << s << std::endl;
+        //std::cout << "NEW " <<  j << std::endl;
+        //std::exit(0);
+    }
+    else {
+        // const T expm2r = std::exp(-two*r);
+        // j[0] = (one-expm2r)*half*rr;
+        // j[1] = ((one+expm2r)*half - j[0])*rr;
+        j[0] = half*rr;
+        j[1] = (half - j[0])*rr;
+        for (size_t l=1; l<maxl; l++) {
+            j[l+1] = j[l-1] - T(2*l+1.0)*j[l]*rr;
+        }
+    }
+    
+    return j;
+}
+
+template <typename T>
+T JsphericalscaledY(size_t l, T r) {
+    return JsphericalscaledVec(32, r)[l];
+}
+
+
 // Computes exp(-r)*j(l,r) using Miller's algorithm and downward recursion.
 // In Maple:
 // j := (l, x) -> Re(I^(-l)*sqrt(-1/2*I*Pi/x)*BesselJ(l + 1/2, x*I))
 template <typename T>
-T Jsphericalscaled(size_t l, T r)
+T JsphericalscaledX(size_t l, T r)
 {
     if (r <= T(0.5)) {
         T ee = std::expm1(-r)+T(1);
@@ -196,18 +757,85 @@ T Jsphericalscaled(size_t l, T r)
 }
 
 template <typename T>
-class Matrix {
-    size_t n, m;
-    std::vector<T> data;
+T Rlarger(size_t l, T r) {
+    T one = T(1);
+    T expm2r = std::exp(-T(2)*r);
+    T rr = one/r;
+    T R = (r-one+(r+one)*expm2r)/(r*(one-expm2r));
+    size_t n = 1;
+    while (n < l) {
+        R = T(1)/R - T(2*n+1.0)*rr;
+        n += 1;
+    }
+    return R;
+}
 
-public:
-    Matrix() : n(0), m(0) {}
-    Matrix(size_t n, size_t m) : n(n), m(m), data(n*m) {}
-    T& operator()(size_t i, size_t j) { return data[i*m+j]; }
-    const T& operator()(size_t i, size_t j) const { return data[i*m+j]; }
-    size_t rows() const { return n; }
-    size_t cols() const { return m; }
-};
+template <typename T>
+T Rguess(size_t l, T r) {
+    //if (r < 0.5*T(double(l))) {
+    double rcut = 10.0;
+    if (r < T(std::min(rcut, 0.5*l))) {
+        return Rsmallr(l+1,r);
+    }
+    else if (r > T(rcut)) {
+        return Rlarger(l+1,r);
+    }
+    else {
+        T s = T(2*l+1.0)/r;
+        return (std::sqrt(s*s + T(4)) - s)*T(0.5);
+    }
+}
+
+// Computes R_l using Miller's algorithm and downward recursion starting from l=n
+template <typename T>
+T Rdown(size_t n, size_t l, T r) {
+    // R = \frac{-\frac{2n+3}{r} + \sqrt{\left(\frac{2n+3}{r}\right)^2 + 4}}{2}
+    T rr = T(1)/r;
+
+    T R = Rguess(n,r);
+    while (n >= l) {
+        R = T(1.0)/(R + T(2*n+1.0)*rr); // Compute R_n from R_{n+1}
+        n--;
+    }
+    return R;
+}
+
+// For given l and r, compute the required starting value for downward recursion to obtain full precision in R_l(r) = j_l(r)/j_{l-1}(r)
+// initializing with the guess described in the notes.
+template <typename T>
+size_t miller_start(size_t l, T r)
+{
+    T eps=std::numeric_limits<T>::epsilon();
+    T R;
+
+    // Find upper bound for n stepping forward by nstep
+    size_t nstep = 10;
+    size_t n = l+nstep;
+    while (1) {
+        R = Rdown(n,l,r);
+        T R1 = Rdown(n+nstep,l,r);
+        T err = std::abs(R-R1);
+        std::cout << "n=" << n << " R=" << to_str(R) << " R1=" << to_str(R1) << " err=" << to_str(err) << std::endl;
+        if (err < eps*R) break;
+        n += nstep;
+    }
+    T Rbest = R;
+
+    // Tighten the bound stepping back by 1
+    while (n>l) {
+        T R1 = Rdown(n-1,l,r);
+        T err = std::abs(R1-Rbest);
+        std::cout << "n=" << n << " R=" << to_str(R) << " R1=" << to_str(R1) << " err=" << to_str(err/R) << std::endl;
+        if (err > eps*R) break;
+        R = R1;
+        n = n-1;
+    }
+
+    std::cout << "n=" << n << " R=" << to_str(R) << " R-Rguess" << to_str((R-Rguess(l,r))/R) << std::endl;
+    
+    return n;
+}
+
 
 template <typename T> struct bessel_traits {};
 template <> struct bessel_traits<float>  {static constexpr size_t maxL=4;};
@@ -228,18 +856,22 @@ load_bessel_test_data() {
     std::string line;
     std::getline(f, line); std::getline(f, line);
 
-    Matrix<T> h(maxL+1, nR), j(maxL+1, nR);
+    //Matrix<T> h(maxL+1, nR), j(maxL+1, nR);
+    Matrix<T> h(maxL+2, nR), j(maxL+2, nR);
     std::vector<T> r(nR);
 
     std::string rs, js, hs;
     
     // for each l and for each r read l, r, j, h
-    for (size_t l=0; l<=maxL; l++) {
+    for (size_t l=0; l<=maxL+1; l++) {
         for (size_t i=0; i<nR; i++) {
             size_t ll;
             f >> ll >> rs >> js >> hs;
             r[i] = from_str<T>(rs);
             j(l,i) = from_str<T>(js);
+            if (j(l,i) == 0) {
+                std::cout << "j(" << l << "," << i << ") is zero" << std::endl;
+            }
             h(l,i) = from_str<T>(hs);
             if (l != ll) throw std::runtime_error("l mismatch");
         }
@@ -252,7 +884,8 @@ void test_bessel() {
     std::vector<T> r;
     Matrix<T> j, h;
     std::tie(r, j, h) = load_bessel_test_data<T>();
-    const size_t nR=r.size(), maxL=j.rows()-1; 
+    const size_t nR=r.size(), maxL=j.rows()-1;
+    const T eps = std::numeric_limits<T>::epsilon();
     
     for (size_t l=0; l<=maxL; l+=1) {
         for (size_t i=0; i<nR; i+=1) {
@@ -271,12 +904,74 @@ void test_bessel() {
             else if constexpr (std::is_same_v<T, dd_real>) fudge = 50;
 
             if (err > 2e-323) { // really tiny values will be denormed
-                if (relerr > fudge*std::numeric_limits<T>::epsilon()) {
-                    std::cout << "l=" << l << " r=" << r[i] << " j=" << to_str(j(l,i)) << " j0=" << to_str(j0) << " err=" << err << " relerr=" << relerr << " " << std::endl;
+                if (relerr > fudge*eps) {
+                    std::cout << "l=" << l << " r=" << r[i] << " j=" << to_str(j(l,i)) << " j0=" << to_str(j0) << " err=" << err << " relerr=" << relerr/eps << " " << std::endl;
                 }
             }
         }
     }
+}
+
+template <typename T>
+void test_bessel2() {
+    std::vector<T> r;
+    Matrix<T> j, h;
+    std::tie(r, j, h) = load_bessel_test_data<T>();
+    const size_t nR=r.size(), maxL=j.rows()-2; // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! was -1
+    const T eps = std::numeric_limits<T>::epsilon();
+
+    T maxabserr = 0;
+    T avgabserr = 0;
+    T avgsgnerr = 0;
+    T count = 0;
+    T worstr = 0;
+        
+    //std::cout << "r " << r;
+    
+    for (size_t i=0; i<nR; i+=1) {
+        ggi = i;
+        std::cout << "r " << i << " " << r[i] << std::endl;
+        std::vector<T> js = JsphericalscaledVec(maxL, r[i]);
+        for (size_t l=0; l<=maxL; l+=1) {
+            //for (size_t l=40; l<=40; l+=5) {
+            //for (size_t i=300; i<=300; i+=20) {
+
+            double reps = to_double(dd_real(r[i]) - dd_real(1.0)/dd_real(1.0/r[i]));
+            
+            T j0 = js[l];
+            T err = (j0-j(l,i));
+            T relerr = (err/j(l,i))/eps;
+            T estrelerr = ((l/r[i])*reps)/eps;
+            T estrelerr2 = 0.0;
+            if (l > 0) {
+                estrelerr2 = (j(l-1,i)-(1+(l+1)/r[i])*j(l,i))*reps/(j(l,i)*eps);
+            }
+            avgsgnerr += relerr;
+            err = abs(err);
+            relerr = relerr;
+            avgabserr += std::abs(relerr);
+            if (std::abs(relerr) > maxabserr) {
+                maxabserr = std::abs(relerr);
+                worstr = r[i];
+            }
+            maxabserr = std::max(maxabserr,std::abs(relerr));
+            count += 1;
+            // double gives 26eps with worst errors at short and intermediate distances ... this was due to values of r not being representable exactly in doubles
+            // qd gives 10eps
+            // dd gives 50eps nearly everywhere
+            T fudge = 10;
+            if constexpr (std::is_same_v<T, double>) fudge = 1;
+            else if constexpr (std::is_same_v<T, qd_real>) fudge = 10;
+            else if constexpr (std::is_same_v<T, dd_real>) fudge = 10;
+
+            if (j(l,i)>std::numeric_limits<T>::min()) { // really tiny values will be denormed
+                if (relerr > fudge) {
+                    std::cout << "l=" << l << " r=" << r[i] << " j=" << to_str(j(l,i)) << " j0=" << to_str(j0) << " err=" << err << " relerr=" << relerr << " " << estrelerr << " " << estrelerr2 << std::endl;
+                }
+            }
+        }
+    }
+    std::cout << "test bessel2: " << avgsgnerr/count << " " << avgabserr/count << " " << maxabserr << " eps" << " " << worstr << std::endl;
 }
 
 template <typename T>
@@ -294,7 +989,18 @@ void test() {
     std::cout << buf << " " << expn << std::endl;
 }
 
+
 int main() {
+
+    // for (int i=-330; i<=330; i+=1) {
+    //     char buf[100];
+    //     sprintf(buf, "1e%d", i);
+    //     double x = atof(buf);
+    //     double y = from_str<double>(buf);
+    //     std::cout << i << " " << x << " " << y << std::endl;
+    // }
+    // return 0;
+    
     unsigned int oldcw; // For x86
     fpu_fix_start(&oldcw);
 
@@ -305,18 +1011,78 @@ int main() {
         factorial_cache<double> f;
         factorial_cache<dd_real> fd;
         factorial_cache<qd_real> fq;
+        factorial_cache<size_t> fs;
         double_factorial_cache<double> df;
         double_factorial_cache<dd_real> dfd;
         double_factorial_cache<qd_real> dfq;
+        double_factorial_cache<size_t> dfs;
+
+        for (size_t i=0; i<21; i++) std::cout << i << " " << factorial<size_t>(i) << " " << double_factorial<size_t>(i) << std::endl;
     }
 
-    std::cout << "7! " << factorial<double>(7) << std::endl;
-    std::cout << "7! " << factorial<dd_real>(7) << std::endl;
-    std::cout << "7! " << factorial<qd_real>(7) << std::endl;
+    // std::cout << "7! " << factorial<double>(7) << std::endl;
+    // std::cout << "7! " << factorial<dd_real>(7) << std::endl;
+    // std::cout << "7! " << factorial<qd_real>(7) << std::endl;
 
-    std::cout << "7!! " << double_factorial<double>(7) << std::endl;
-    std::cout << "7!! " << double_factorial<dd_real>(7) << std::endl;
-    std::cout << "7!! " << double_factorial<qd_real>(7) << std::endl;
+    // std::cout << "7!! " << double_factorial<double>(7) << std::endl;
+    // std::cout << "7!! " << double_factorial<dd_real>(7) << std::endl;
+    // std::cout << "7!! " << double_factorial<qd_real>(7) << std::endl;
+
+    
+    // float x = 0.001f;
+    // for (int i=0; i<10; i++) {
+    //     std::cout << x << " " << log10_estimate(x) << std::endl;
+    //     x *= 10;
+    // }
+
+    // Small r is when r < n ... so Taylor series for R is rapidly convergent as is downward recursion
+    // Large r is when r > 5*n ... so upwrard recursion for R is sufficiently accurate
+    size_t L = 48;
+    //auto f = [=](double r){return Jsphericalscaled(L, r)/Jsphericalscaled(L-1, r);};
+    auto f33 = [=](double r){return r==0 ? 0 : to_double(Jsphericalscaled(L, dd_real(r))/Jsphericalscaled(L-1, dd_real(r)));};
+    //BarycentricX<double> b(2000, 6, L, 12.5*L, f33);
+    Barycentric<double> b(1250, 12, 0.5, 12.5*L, f33);
+    b33 = b;
+    std::cout << (Jsphericalscaled(32, 0.7*L) - JsphericalscaledY(32, 0.7*L))/Jsphericalscaled(32, 0.7*L) << std::endl;
+
+    // std::cout << b(20.018) << std::endl;
+    // std::cout << f(20.018) << std::endl;
+    // return 0;
+
+    
+    std::cout << "double " << std::numeric_limits<double>::epsilon() << " " << std::numeric_limits<double>::min() << std::endl;
+    std::cout << b.maxerr(f33) << std::endl;
+
+
+    std::tie(ggr, ggj, ggh) = load_bessel_test_data<double>();
+    
+    test_bessel2<double>();
+
+    return 0;
+    
+    // using T = qd_real;
+    // //T x = from_str<T>("0.9");
+    // //T tt = from_str<T>("0.00002382456605715974270203848124219941145285588565482387037934163044550358740304620994555378008103303005");
+    // T x = from_str<T>("40.0");
+    // T tt = from_str<T>("0.008555280151367187500000000000000000326580158489513959748694041681666003919215557451893157658276768298");
+    // T told = Jsphericalscaled(5, x);
+    // T tnew = JsphericalscaledX(5, x);
+    // std::cout << to_str((told-tt)/tt) << std::endl;
+    // std::cout << to_str((tnew-tt)/tt) << std::endl;
+    // std::cout << to_str(tt) << std::endl;
+
+    // return 0;
+    
+    // T step = 0.0625;
+    // T r = 1.0;
+    // while (r <= T(4.0)) {
+    //     size_t n = miller_start(20, r);
+    //     std::cout << "test " << to_str(r) << " " << n << std::endl;
+    //     r += step;
+    // }
+    // return 0;
+
+    
 
     test<dd_real>();
     test<qd_real>();

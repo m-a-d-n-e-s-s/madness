@@ -1093,6 +1093,8 @@ public:
 
     // }
 
+    
+
     static void test() {
         const T Z = 10.0;
         size_t nknots = 61;
