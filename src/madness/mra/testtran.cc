@@ -7,7 +7,7 @@ static const double L = 32.0;   // box size
 static const long k = 8;        // wavelet order
 static const double thresh = 1e-4; // precision
 
-static const size_t nfunc = 4; // number of functions
+static const size_t nfunc = 8; // number of functions
 
 // A class that behaves like a function to compute a Gaussian of given origin and exponent
 class Gaussian : public FunctionFunctorInterface<double,3> {
@@ -114,8 +114,19 @@ int main(int argc, char**argv) {
   // }
   
   auto r = transform(world, v, c, 0.0, true); // new transform uses mxm and thresholding
-  
+
+  // print("new[0]");
+  // r[0].print_tree();
+  // print("old[0]");
+  // rold[0].print_tree();
+
+  // print("new[1]");
+  // r[1].print_tree();
+  // print("old[1]");
+  // rold[1].print_tree();
+
   for (const auto& f : r) {
+      print("verifying");
       f.verify_tree();
   }
 

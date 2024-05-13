@@ -2720,8 +2720,78 @@ template<size_t NDIM>
         }
 
         template <typename Q, typename R>
-        /// @todo I don't know what this does other than a trasform
+        /// @todo I don't know what this does other than a transform ---  left[i] = sum[j] right[j]*c[j,i]
         void vtransform_fast_doit(const keyT& key,
+                                  const std::vector< std::shared_ptr< FunctionImpl<R,NDIM> > >& vright,
+                                  const Tensor<Q>& c,
+                                  const double tol,
+                                  const std::vector< std::shared_ptr< FunctionImpl<T,NDIM> > >& vleft)
+        {
+            //print("vtransform_fast_doit", key);
+
+            // Loop thru input functions
+            std::vector<size_t> ind;
+            for (size_t mu=0; mu<vright.size(); ++mu) {
+                typename dcT::const_accessor accright;
+                // If the function has a node at this key
+                if (vright[mu]->get_coeffs().find(accright,key)) {
+                    const auto& rightnode = accright->second;
+                    const auto& rightcoeff = rightnode.coeff(); // might be empty
+                    if (rightnode.has_coeff()) {
+                        ind.push_back(mu);
+                    }
+                    else {
+                        for (size_t nu=0; nu<vleft.size(); ++nu) {
+                            typename dcT::accessor accleft;
+                            vleft[nu]->get_coeffs().insert(accleft,key);
+                            auto& leftnode = accleft->second;
+                            if (rightnode.has_children()) leftnode.set_has_children(true);
+                        }
+                    }
+                }
+            }
+
+            if (ind.size() == 0) return;
+
+            long d = std::pow(cdata.v2k[0], NDIM);
+            
+            Tensor<R> values(ind.size(),d);
+            for (size_t mu=0; mu<ind.size(); ++mu) {
+                const auto& rightnode = vright[ind[mu]]->get_coeffs().find(key).get()->second;
+                const auto& rightcoeff = rightnode.coeff();
+                values(mu,_) = rightcoeff.full_tensor().flat();
+            }
+            
+            for (size_t i=0; i<ind.size(); i++) {
+                size_t mu = ind[i];
+                const auto& rightnode = vright[mu]->get_coeffs().find(key).get()->second;
+                
+                // Loop thru output functions
+                for (size_t nu=0; nu<vleft.size(); ++nu) {
+                    typename dcT::accessor accleft;
+                    // Try to insert an empty node at this key
+                    if (vleft[nu]->get_coeffs().insert(accleft,key)) {
+                        //print("   inserted", key);
+                    }
+                    auto& leftnode = accleft->second;
+                    // Ensure that the left node has children if the right node does, no need to worry about parents
+
+                    if (rightnode.has_children()) leftnode.set_has_children(true);
+                    // If the left node has no coefficients then create them
+                    if (!leftnode.has_coeff()) {
+                        leftnode.set_coeff(coeffT(cdata.v2k,targs));
+                        //print("   set coeff", key, accleft->second.has_coeff());
+                    }
+                    auto& leftcoeff = accleft->second.coeff();
+                    Tensor<R> rightcoeff = values(i,_).reshape(cdata.v2k);
+                    leftcoeff.gaxpy(1.0, rightcoeff, c(mu,nu));
+                }
+            }
+        }
+
+        template <typename Q, typename R>
+        /// @todo I don't know what this does other than a transform ---  left[i] = sum[j] right[j]*c[j,i]
+        void vtransform_fast_doit_working_but_slow(const keyT& key,
                                   const std::vector< std::shared_ptr< FunctionImpl<R,NDIM> > >& vright,
                                   const Tensor<Q>& c,
                                   const double tol,
@@ -2754,7 +2824,7 @@ template<size_t NDIM>
                                 //print("   set coeff", key, accleft->second.has_coeff());
                             }
                             auto& leftcoeff = accleft->second.coeff();
-                            leftcoeff.gaxpy(1.0, rightcoeff, c(nu,mu));
+                            leftcoeff.gaxpy(1.0, rightcoeff, c(mu,nu));
                             //print("   doing op", key, leftnode.has_coeff());
                         }
                     }
