@@ -5,9 +5,9 @@ using namespace madness;
 
 static const double L = 32.0;   // box size
 static const long k = 8;        // wavelet order
-static const double thresh = 1e-4; // precision
+static const double thresh = 1e-6; // precision
 
-static const size_t nfunc = 8; // number of functions
+static const size_t nfunc = 64; // number of functions
 
 // A class that behaves like a function to compute a Gaussian of given origin and exponent
 class Gaussian : public FunctionFunctorInterface<double,3> {
@@ -58,6 +58,7 @@ real_functor_3d random_gaussian() {
     double lo = log(expntmin);
     double hi = log(expntmax);
     double expnt = exp(RandomValue<double>()*(hi-lo) + lo);
+    print("expnt",expnt,origin);
     double coeff = pow(2.0*expnt/constants::pi,0.75);
     return real_functor_3d(new Gaussian(origin,expnt,coeff));
 }
@@ -71,14 +72,7 @@ std::vector<real_function_3d> random_gaussians(size_t n, World& world) {
     return result;
 }
 
-
-int main(int argc, char**argv) {
-  initialize(argc,argv);
-  World world(SafeMPI::COMM_WORLD);
-
-  // Load info for MADNESS numerical routines
-  startup(world,argc,argv);
-  std::cout.precision(8);
+void test(World& world) {
 
   FunctionDefaults<3>::set_k(k);
   FunctionDefaults<3>::set_thresh(thresh);
@@ -100,10 +94,12 @@ int main(int argc, char**argv) {
       }
   }
 
-  print("c");
-  print(c);
+  // print("c");
+  // print(c);
 
+  double time_old = wall_time();
   auto rold = transform(world, v, c); // old transform uses gaxpy and only zero-based sparsity
+  time_old = wall_time() - time_old;
 
   // manual loop no sparsity or asynchronous execution
   // std::vector<real_function_3d> rold = zero_functions_compressed<double,3>(world, v.size());
@@ -113,7 +109,12 @@ int main(int argc, char**argv) {
   //     }
   // }
   
+  double time_new = wall_time();
   auto r = transform(world, v, c, 0.0, true); // new transform uses mxm and thresholding
+  time_new = wall_time() - time_new;
+
+  print("time_old", time_old);
+  print("time_new", time_new);
 
   // print("new[0]");
   // r[0].print_tree();
@@ -134,9 +135,19 @@ int main(int argc, char**argv) {
   for (size_t i=0; i<nfunc; i++) {
       print("error", i, (rold[i]-r[i]).norm2());
   }
+}
 
-  finalize();
-
-  return 0;
+int main(int argc, char**argv) {
+    World& world = initialize(argc,argv);
+    
+    // Load info for MADNESS numerical routines
+    startup(world,argc,argv);
+    std::cout.precision(8);
+    
+    test(world);
+    
+    finalize();
+    
+    return 0;
 }
 

@@ -52,6 +52,18 @@
 #include "leafop.h"
 
 namespace madness {
+    inline Spinlock __timer_mutex;
+    inline void __update_timer(double inc, double& timer) {
+        ScopedMutex obolus(__timer_mutex);
+        timer += inc;
+    }
+    
+    inline double __gather_time = 0.0;
+    inline double __logic_time = 0.0;
+    inline double __scatter_time = 0.0;
+    inline double __transform_time = 0.0;
+
+    
     template <typename T, std::size_t NDIM>
     class DerivativeBase;
 
@@ -2720,8 +2732,88 @@ template<size_t NDIM>
         }
 
         template <typename Q, typename R>
-        /// @todo I don't know what this does other than a transform ---  left[i] = sum[j] right[j]*c[j,i]
+        /// @todo I don't know what this does other than a transform ---  left[nu] = sum[mu] right[mu]*c[mu,nu]
         void vtransform_fast_doit(const keyT& key,
+                                  const std::vector< std::shared_ptr< FunctionImpl<R,NDIM> > >& vright,
+                                  const Tensor<Q>& c,
+                                  const double tol,
+                                  const std::vector< std::shared_ptr< FunctionImpl<T,NDIM> > >& vleft)
+        {
+            //print("vtransform_fast_doit", key);
+
+            const long nleft = c.dims()[1];
+            const long nright = c.dims()[0];
+            MADNESS_CHECK(nleft == vleft.size());
+            MADNESS_CHECK(nright == vright.size());
+
+            double start = wall_time();
+            // Loop thru input functions
+            std::vector<size_t> ind;
+            ind.reserve(nright); // reserve the maximum possible size
+            for (size_t mu=0; mu<vright.size(); ++mu) {
+                typename dcT::const_accessor accright;
+                // If the function has a node at this key
+                if (vright[mu]->get_coeffs().find(accright,key)) {
+                    const auto& rightnode = accright->second;
+                    const auto& rightcoeff = rightnode.coeff(); // might be empty
+                    if (rightnode.has_coeff()) {
+                        ind.push_back(mu);
+                    }
+                    else {
+                        for (size_t nu=0; nu<vleft.size(); ++nu) {
+                            typename dcT::accessor accleft;
+                            vleft[nu]->get_coeffs().insert(accleft,key);
+                            auto& leftnode = accleft->second;
+                            if (rightnode.has_children()) leftnode.set_has_children(true);
+                        }
+                    }
+                }
+            }
+            __update_timer(wall_time()-start, __logic_time);
+
+            const long nright_sparse = ind.size();
+            if (nright_sparse == 0) return;
+
+            long d = std::pow(cdata.v2k[0], NDIM); // number of coefficients (2k)**ndim
+
+            start = wall_time();
+            // Gather the values of the right functions
+            Tensor<R> values(nright_sparse,d);
+            for (size_t mu=0; mu<nright_sparse; ++mu) {
+                const auto& rightnode = vright[ind[mu]]->get_coeffs().find(key).get()->second;
+                const auto& rightcoeff = rightnode.coeff();
+                values(mu,_) = rightcoeff.full_tensor().flat();
+            }
+
+            // Gather the relevant entries of the transformation tensor
+            Tensor<T> t(nright_sparse,nleft);
+            for (size_t mu=0; mu<nright_sparse; ++mu) {
+                t(mu,_) = c(ind[mu],_);
+            }
+            __update_timer(wall_time()-start, __gather_time);
+
+            start = wall_time();
+            // Perform the transformation sum(mu) t(mu,nu)*values(mu,i) -> s(nu,i)
+            Tensor<T> snew = inner(t,values,0,0); // should map to dgemm 'T','N'
+            __update_timer(wall_time()-start, __transform_time);
+
+            start = wall_time();
+            // Loop thru output functions
+            for (size_t nu=0; nu<vleft.size(); ++nu) {
+                typename dcT::accessor accleft;
+                // Try to insert an empty node at this key
+                vleft[nu]->get_coeffs().insert(accleft,key);
+                auto& leftnode = accleft->second;
+                leftnode.set_has_children(true);
+                auto newcoeff = copy(snew(nu,_).reshape(cdata.v2k));
+                leftnode.set_coeff(newcoeff);
+            }
+            __update_timer(wall_time()-start, __scatter_time);
+        }
+
+        template <typename Q, typename R>
+        /// @todo I don't know what this does other than a transform ---  left[i] = sum[j] right[j]*c[j,i]
+        void vtransform_fast_doit_step1_working(const keyT& key,
                                   const std::vector< std::shared_ptr< FunctionImpl<R,NDIM> > >& vright,
                                   const Tensor<Q>& c,
                                   const double tol,
@@ -2788,7 +2880,7 @@ template<size_t NDIM>
                 }
             }
         }
-
+        
         template <typename Q, typename R>
         /// @todo I don't know what this does other than a transform ---  left[i] = sum[j] right[j]*c[j,i]
         void vtransform_fast_doit_working_but_slow(const keyT& key,
@@ -2976,8 +3068,9 @@ template<size_t NDIM>
             //     return;
             // }
 
-
             if (fence) world.gop.fence();
+
+            print("timings", __gather_time, __scatter_time, __transform_time, __logic_time);
         }
 
         /// Unary operation applied inplace to the values with optional refinement and fence
