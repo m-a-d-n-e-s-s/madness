@@ -54,8 +54,8 @@
 namespace madness {
     inline Spinlock __timer_mutex;
     inline void __update_timer(double inc, double& timer) {
-        ScopedMutex obolus(__timer_mutex);
-        timer += inc;
+        // ScopedMutex obolus(__timer_mutex);
+        // timer += inc;
     }
     
     inline double __gather_time = 0.0;
@@ -2750,6 +2750,7 @@ template<size_t NDIM>
             // Loop thru input functions
             std::vector<size_t> ind;
             ind.reserve(nright); // reserve the maximum possible size
+	    bool isleaf = true;
             for (size_t mu=0; mu<vright.size(); ++mu) {
                 typename dcT::const_accessor accright;
                 // If the function has a node at this key
@@ -2758,17 +2759,20 @@ template<size_t NDIM>
                     const auto& rightcoeff = rightnode.coeff(); // might be empty
                     if (rightnode.has_coeff()) {
                         ind.push_back(mu);
-                    }
-                    else {
-                        for (size_t nu=0; nu<vleft.size(); ++nu) {
-                            typename dcT::accessor accleft;
-                            vleft[nu]->get_coeffs().insert(accleft,key);
-                            auto& leftnode = accleft->second;
-                            if (rightnode.has_children()) leftnode.set_has_children(true);
-                        }
+			isleaf = false;
                     }
                 }
             }
+
+	    if (isleaf) { // if a leaf for all input functions
+	      for (size_t nu=0; nu<vleft.size(); ++nu) {
+		typename dcT::accessor accleft;
+		vleft[nu]->get_coeffs().insert(accleft,key);
+		auto& leftnode = accleft->second;
+	        leftnode.set_has_children(false);
+	      }
+	    }
+	    
             __update_timer(wall_time()-start, __logic_time);
 
             const long nright_sparse = ind.size();
@@ -2778,6 +2782,7 @@ template<size_t NDIM>
 
             start = wall_time();
             // Gather the values of the right functions
+
             Tensor<R> values(nright_sparse,d);
             for (size_t mu=0; mu<nright_sparse; ++mu) {
                 const auto& rightnode = vright[ind[mu]]->get_coeffs().find(key).get()->second;
@@ -2786,10 +2791,16 @@ template<size_t NDIM>
             }
 
             // Gather the relevant entries of the transformation tensor
-            Tensor<T> t(nright_sparse,nleft);
-            for (size_t mu=0; mu<nright_sparse; ++mu) {
+            Tensor<T> t;
+	    if (nright == nright_sparse) {
+	      t = c;
+	    }
+	    else {
+	      t = Tensor<T>(nright_sparse,nleft);
+	      for (size_t mu=0; mu<nright_sparse; ++mu) {
                 t(mu,_) = c(ind[mu],_);
-            }
+	      }
+	    }
             __update_timer(wall_time()-start, __gather_time);
 
             start = wall_time();
