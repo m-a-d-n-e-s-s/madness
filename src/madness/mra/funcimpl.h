@@ -2748,31 +2748,34 @@ template<size_t NDIM>
 
             double start = wall_time();
             // Loop thru input functions
-            std::vector<size_t> ind;
-            ind.reserve(nright); // reserve the maximum possible size
-	    bool isleaf = true;
+            bool isleaf = true;
+            std::vector<const typename FunctionImpl<R, NDIM>::coeffT*> coeffs;
+            coeffs.reserve(nright); // reserve the maximum possible size
+            std::vector<std::size_t> ind;
+            ind.reserve(nright);
             for (size_t mu=0; mu<vright.size(); ++mu) {
                 typename dcT::const_accessor accright;
                 // If the function has a node at this key
                 if (vright[mu]->get_coeffs().find(accright,key)) {
                     const auto& rightnode = accright->second;
-                    const auto& rightcoeff = rightnode.coeff(); // might be empty
                     if (rightnode.has_coeff()) {
+                        const auto& rightcoeff = rightnode.coeff(); // might be empty
+                        coeffs.push_back(&rightcoeff);
                         ind.push_back(mu);
-			isleaf = false;
+                        isleaf = false;
                     }
                 }
             }
 
-	    if (isleaf) { // if a leaf for all input functions
-	      for (size_t nu=0; nu<vleft.size(); ++nu) {
-		typename dcT::accessor accleft;
-		vleft[nu]->get_coeffs().insert(accleft,key);
-		auto& leftnode = accleft->second;
-	        leftnode.set_has_children(false);
-	      }
-	    }
-	    
+            if (isleaf) { // if a leaf for all input functions
+                for (size_t nu=0; nu<vleft.size(); ++nu) {
+                    typename dcT::accessor accleft;
+                    vleft[nu]->get_coeffs().insert(accleft,key);
+                    auto& leftnode = accleft->second;
+                    leftnode.set_has_children(false);
+                }
+            }
+
             __update_timer(wall_time()-start, __logic_time);
 
             const long nright_sparse = ind.size();
@@ -2782,25 +2785,24 @@ template<size_t NDIM>
 
             start = wall_time();
             // Gather the values of the right functions
-
-            Tensor<R> values(nright_sparse,d);
+            const long vdims[] = {nright_sparse, d};
+            Tensor<R> values(2, vdims, false); // do not initialize
             for (size_t mu=0; mu<nright_sparse; ++mu) {
-                const auto& rightnode = vright[ind[mu]]->get_coeffs().find(key).get()->second;
-                const auto& rightcoeff = rightnode.coeff();
+                const auto& rightcoeff = *coeffs[mu];
                 values(mu,_) = rightcoeff.full_tensor().flat();
             }
 
             // Gather the relevant entries of the transformation tensor
             Tensor<T> t;
-	    if (nright == nright_sparse) {
-	      t = c;
-	    }
-	    else {
-	      t = Tensor<T>(nright_sparse,nleft);
-	      for (size_t mu=0; mu<nright_sparse; ++mu) {
-                t(mu,_) = c(ind[mu],_);
-	      }
-	    }
+            if (nright == nright_sparse) {
+                t = c;
+            } else {
+                const long tdims[] = {nright_sparse, nleft};
+                t = Tensor<T>(2, tdims, false);
+                for (size_t mu=0; mu<nright_sparse; ++mu) {
+                    t(mu,_) = c(ind[mu],_);
+                }
+            }
             __update_timer(wall_time()-start, __gather_time);
 
             start = wall_time();
