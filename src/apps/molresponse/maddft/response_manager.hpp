@@ -118,8 +118,8 @@ class ParameterManager {
   commandlineparser parser;
 
   Molecule molecule;
-  CalculationParameters moldft_params;
-  ResponseParameters molresponse_params;
+  CalculationParameters moldft_params{};
+  ResponseParameters molresponse_params{};
 
   bool run_moldft = false;
   bool run_response = false;
@@ -177,7 +177,7 @@ class ParameterManager {
 
   /**
    * Reads the chemical parameters from the json file
-   * Available parameters are for 
+   * Available parameters are for
    *  - dft
    *  - response
    *
@@ -197,8 +197,8 @@ class ParameterManager {
 
   /**
    * Reads the chemical parameters from standard madness input file
-   * and writes the input to json if parameters are defined 
-   * Available parameters are for 
+   * and writes the input to json if parameters are defined
+   * Available parameters are for
    *  - dft
    *  - response
    *
@@ -453,7 +453,7 @@ class ResponseCalcManager {
     std::hash<json> json_hash;  // hash the json object
     // create a hash of the json object using only molecule and dft parameters
     auto hash = json_hash(input_json);
-    std::string output_directory = "output_" + std::to_string(hash);
+    std::string output_directory = "output";// + std::to_string(hash);
 
     moldft_path = root / output_directory;
     moldft_restart = moldft_path / "moldft.restartdata.00000";
