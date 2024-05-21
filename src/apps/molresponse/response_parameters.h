@@ -6,8 +6,6 @@
 #ifndef SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_
 #define SRC_APPS_MOLRESPONSE_RESPONSE_PARAMETERS_H_
 
-#include <functional>
-#include <numeric>
 #include <string>
 #include <vector>
 
