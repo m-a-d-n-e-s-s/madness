@@ -445,6 +445,22 @@ class ResponseCalcManager {
     op = parameter_manager.get_molresponse_params().perturbation();
     freq = parameter_manager.get_molresponse_params().freq_range();
 
+      // if we are doing a quadratic response calculation then the freq range is considered as input frequencies and we compute
+      // the linear response at all possible sums of the input frequencies
+      if (parameter_manager.get_molresponse_params().quadratic()) {
+
+        auto freqs_copy = freq;
+        auto num_freqs = freq.size();
+
+        for(int i = 0; i < num_freqs; i++){
+          for(int j = i; j < num_freqs; j++){
+              freqs_copy.push_back(freq[i] + freq[j]);
+          }
+        }
+      freq = freqs_copy;
+      }
+
+
     root = std::filesystem::current_path();
 
     json input_json = parameter_manager.get_input_json();
@@ -848,6 +864,9 @@ class ResponseCalcManager {
                 "/" + op + "_0-000000.00000/restart_" + op + "_0-000000.00000");
     std::pair<std::filesystem::path, bool> success{moldft_path, false};
     bool first = true;
+
+
+
     for (const auto& freq : freq) {
       if (world.rank() == 0) {
         ::print(success.second);
@@ -984,6 +1003,8 @@ class ResponseCalcManager {
         std::filesystem::remove("beta.json");
       }
 
+      auto max_freq = freq.back();
+
       for (const auto& omega_b : freq) {
         for (const auto& omega_c : freq) {
 
@@ -1001,7 +1022,7 @@ class ResponseCalcManager {
                     " ", omega_c);
             ::print("-------------------------------------------");
           }
-          if (omega_a <= freq.back()) {
+          if (omega_a <= max_freq) {
 
             auto restartA = generate_omega_restart_path(omega_a);
             auto restartB = generate_omega_restart_path(omega_b);
