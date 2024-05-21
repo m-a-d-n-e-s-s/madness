@@ -455,8 +455,28 @@ class QCCalculationParametersBase {
   void from_json(const json& j) {
     for (const auto& [key, value] : j.items()) {
       QCParameter& parameter = get_parameter(key);
-      // ::print("key: ", key, " value: ", value);
-      parameter.set_user_defined_value(tostring(value));
+     // ::madness::print("key: ", key, " value: ", value);
+      // get the type of the parameter
+      if (parameter.get_type() == "i") {
+        int ival = value.get<int>();
+        parameter.set_user_defined_value(tostring(ival));
+      } else if (parameter.get_type() == "d") {
+        double dval = value.get<double>();
+        parameter.set_user_defined_value(tostring(dval));
+      } else if (parameter.get_type() == "b") {
+        bool bval = value.get<bool>();
+        parameter.set_user_defined_value(tostring(bval));
+      } else if (parameter.get_type() == "St6vectorIdSaIdEE") {
+        std::vector<double> dvec = value.get<std::vector<double>>();
+        parameter.set_user_defined_value(tostring(dvec));
+      } else if (parameter.get_type() ==
+                 "NSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE") {
+        std::string sval = value.get<std::string>();
+        parameter.set_user_defined_value(tostring(sval));
+      } else if (parameter.get_type() == "m") {
+        size_t mval = value.get<size_t>();
+        parameter.set_user_defined_value(tostring(mval));
+      }
     }
   }
   [[nodiscard]] json to_json() const {
