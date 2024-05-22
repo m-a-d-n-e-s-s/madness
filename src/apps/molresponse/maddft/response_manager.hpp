@@ -1154,7 +1154,7 @@ public:
 
                             std::array<double, 18> beta_vector{};
                             std::copy(beta_abc.ptr(), beta_abc.ptr() + 3 * 6, beta_vector.begin());
-                            append_to_beta_json({omega_a, omega_b, omega_c}, beta_vector, beta_json);
+                            append_to_beta_json({-1.0 * omega_a, omega_b, omega_c}, beta_vector, beta_json);
 
                             std::ofstream outfile("beta.json");
                             if (outfile.is_open())
@@ -1178,12 +1178,6 @@ public:
                     }
                 }
             }
-
-            // // print the beta table
-            // if (world.rank() == 0)
-            // {
-            //     ::print(beta_json.dump(4));
-            // }
 
             // write the beta json to file
             std::ofstream ofs("beta.json");
