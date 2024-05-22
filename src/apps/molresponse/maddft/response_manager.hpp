@@ -477,14 +477,13 @@ public:
 
                     if (std::find_if(freqs_copy.begin(), freqs_copy.end(), [&](double x) { return compare_freqs(x, omega_3); }) != freqs_copy.end())
                     {
-                      continue;
+                        continue;
                     }
                     if (omega_2 == 0.0)
                         continue;
                     freqs_copy.push_back(omega_3);
                 }
             }
-
 
 
             freq = freqs_copy;
@@ -1079,12 +1078,16 @@ public:
             }
 
             auto max_freq = freq.back();
-            auto num_freqs = freq.size() / 2;
+            auto num_freqs = (freq.size() / 2) + 1;
+            if (world.rank() == 0)
+            {
+                ::print("Number of frequencies: ", num_freqs);
+            }
 
 
             for (int b = 0; b < num_freqs; b++)
             {
-                for (int c = 0; c < num_freqs; c++)
+                for (int c = b; c < num_freqs; c++)
                 {
 
                     auto generate_omega_restart_path = [&](double frequency)
@@ -1176,11 +1179,11 @@ public:
                 }
             }
 
-            // print the beta table
-            if (world.rank() == 0)
-            {
-                ::print(beta_json.dump(4));
-            }
+            // // print the beta table
+            // if (world.rank() == 0)
+            // {
+            //     ::print(beta_json.dump(4));
+            // }
 
             // write the beta json to file
             std::ofstream ofs("beta.json");
