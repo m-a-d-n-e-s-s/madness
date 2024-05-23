@@ -49,6 +49,17 @@ myst_enable_extensions = [
     "tasklist",
 ]
 
+latex_elements = {
+        'preamble': r'''
+        \usepackage{amsmath}
+        \usepackage{amsfonts}
+        \usepackage{amssymb}
+        \usepackage{bm}
+        \usepackage{physics}
+    '''
+}
+
+
 
 
 # Add any paths that contain templates here, relative to this directory.
