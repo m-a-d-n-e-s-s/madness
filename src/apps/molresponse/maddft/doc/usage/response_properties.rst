@@ -162,5 +162,58 @@ respect to perturbation in the dipole operator at frequencies :math:`\omega_{n} 
 
 
 
+On beta.json file
+=================
+
+beta.json prints the quadratic response at all frequency non-redudant combinations of the frequencies in the freq_range. f
+
+For each frequency, we print 10 components of the first hyperpolarizability tensor :math:`\beta_{ijk}`, the minimal
+number of components needed to fully determine each component by symmetry.  
+
+.. code-block:: none
+
+   A B C
+
+1   x y z -> 6
+2   x x x -> 1
+3   x y y -> 3
+4   x z z -> 3
+5   y x x -> 3
+6   y y y -> 1
+7   y z z -> 3
+8   z x x -> 3
+9   z y y -> 3
+10  z z z -> 1
+
+
+
+To compute a single component \beta_{ABC}(\omega_a;\omega_b,\omega_c) we use the following formula:
+
+.. math::
+   \braket{\braket{A;B,C}} = \braket{X^{(A)}| V^{(BC)}} + \braket{\zeta^{(BC)}_x | v^{(A)} | \zeta^{(BC)}_y} + \braket{\zeta^{(CB)}_x | v^{(A)} | \zeta^{(CB)}_y}
+    
+
+In order to compute this we need to define :math:`\zeta^{(BC)}_x` and :math:`\zeta^{(BC)}_y` as well as second order perturbation operators :math:`V^{(BC)}`, 
+for pairs XY, XX, YY, ZZ.  From there, we can compute the 10 above components of the first hyperpolarizability tensor.
+
+
+.. code-block:: none
+
+    X ;XX
+    X ;YY
+    X ;ZZ
+    Y ;XX
+    Y ;YY
+    Y ;ZZ
+    Z ;XX
+    Z ;YY
+    Z ;ZZ
+    X ;YZ
+
+
+
+
+
+
 
 
