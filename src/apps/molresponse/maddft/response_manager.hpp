@@ -1152,8 +1152,8 @@ public:
 
                             nlohmann::ordered_json beta_entry;
 
-                            std::array<double, 18> beta_vector{};
-                            std::copy(beta_abc.ptr(), beta_abc.ptr() + 3 * 6, beta_vector.begin());
+                            std::array<double, 10> beta_vector{};
+                            std::copy(beta_abc.ptr(), beta_abc.ptr() + 10, beta_vector.begin());
                             append_to_beta_json({-1.0 * omega_a, omega_b, omega_c}, beta_vector, beta_json);
 
                             std::ofstream outfile("beta.json");
@@ -1240,12 +1240,12 @@ public:
     }
 
     // for a set of frequencies create a table from the beta values
-    static void append_to_beta_json(const std::array<double, 3> &freq, const std::array<double, 18> &beta, nlohmann::ordered_json &beta_json)
+    static void append_to_beta_json(const std::array<double, 3> &freq, const std::array<double, 10> &beta, nlohmann::ordered_json &beta_json)
     {
         // create 3 columns of directions for each A,B,C
-        std::array<char, 18> direction_A{'X', 'X', 'X', 'X', 'X', 'X', 'Y', 'Y', 'Y', 'Y', 'Y', 'Y', 'Z', 'Z', 'Z', 'Z', 'Z', 'Z'};
-        std::array<char, 18> direction_B{'X', 'X', 'X', 'Y', 'Y', 'Z', 'X', 'X', 'X', 'Y', 'Y', 'Z', 'X', 'X', 'X', 'Y', 'Y', 'Z'};
-        std::array<char, 18> direction_C{'X', 'Y', 'Z', 'Y', 'Z', 'Z', 'X', 'Y', 'Z', 'Y', 'Z', 'Z', 'X', 'Y', 'Z', 'Y', 'Z', 'Z'};
+        std::array<char, 10> direction_A{'X', 'X', 'X', 'Y', 'Y', 'Y', 'Z', 'Z', 'Z'};
+        std::array<char, 10> direction_B{'X', 'Y', 'Z', 'X', 'Y', 'Z', 'X', 'Y', 'Y'};
+        std::array<char, 10> direction_C{'X', 'Y', 'Z', 'X', 'Y', 'Z', 'X', 'Y', 'Z'};
 
         // append each value of the columns to the beta json
         // for each value of beta

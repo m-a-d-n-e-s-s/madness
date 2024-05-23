@@ -255,7 +255,7 @@ private:
     X_space compute_exchange_term(World &world, const X_space &A, const X_space &B, const X_space &x_apply) const;
     std::tuple<X_space, X_space, X_space, X_space> compute_zeta_response_vectors(World &world, const X_space &B, const X_space &C);
     std::pair<X_space, X_space> compute_first_order_fock_matrix_terms(World &world, const X_space &A, const X_space &phi0, const X_space &B) const;
-    Tensor<double> compute_beta_unrelaxed(World &world, const X_space &AB_left, const X_space &AB_right, X_space &BA_left, X_space &BA_right);
+    Tensor<double> compute_beta_tensor(World &world, const X_space &AB_left, const X_space &AB_right, const X_space &BA_left, const X_space &BA_right, const X_space &XA, const X_space &VBC);
     X_space compute_second_order_perturbation_terms(World &world, const X_space &B, const X_space &C, const X_space &zeta_bc_x, const X_space &zeta_bc_y, const X_space &zeta_cb_x,
                                                     const X_space &zeta_cb_y, const X_space &phi0);
 };
