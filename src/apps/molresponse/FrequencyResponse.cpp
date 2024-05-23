@@ -3,6 +3,7 @@
 //
 
 #include "FrequencyResponse.hpp"
+#include "x_space.h"
 
 
 void FrequencyResponse::initialize(World &world)
@@ -543,11 +544,16 @@ auto QuadraticResponse::setup_XBC(World &world) -> std::pair<X_space, X_space>
     return {r_xb, r_xc};
 }
 
-Tensor<double> QuadraticResponse::compute_beta_unrelaxed(World &world, const X_space &AB_left, const X_space &AB_right, X_space &BA_left, X_space &BA_right)
+//
+//
+// <C;A,B> = <V(BC);X(A)> + <zeta(bc)_x| v(a) | zeta_(bc)_y> + < zeta(cb)_x| v(a) | zeta_(cb)_y >
+//
+//
+// vc = x x x x y y y z z z
+//
+Tensor<double> QuadraticResponse::compute_beta_tensor(World &world, const X_space &BC_left, const X_space &BC_right, const X_space &CB_left, const X_space &CB_right, const X_space &XA,
+                                                      const X_space &VBC)
 {
-
-    Tensor<double> beta(3, 6);
-
     auto create_dipole = [&]()
     {
         vector_real_function_3d dipole_vectors(3);
@@ -562,22 +568,56 @@ Tensor<double> QuadraticResponse::compute_beta_unrelaxed(World &world, const X_s
         return dipole_vectors;
     };
 
-    auto dipole_vectors = create_dipole();
+    auto dipole_vectors = create_dipole(); // x y z
     truncate(world, dipole_vectors, true);
+
+    std::vector<int> indices_A{0, 0, 0, 1, 1, 1, 2, 2, 2, 0};
+    std::vector<int> indices_BC{0, 1, 2, 0, 1, 2, 0, 1, 2, 0};
+
+    Tensor<double> beta(10);
     // for each vector in dipole vectors
-    for (int i = 0; i < 3; i++)
+    //
+    vector_real_function_3d dipole_vector_A(10);
+
+
+    auto vbc = to_response_matrix(VBC);
+    auto xa = to_response_matrix(XA);
+
+    auto bc_left = to_response_matrix(BC_left);
+    auto bc_right = to_response_matrix(BC_right);
+    auto cb_left = to_response_matrix(CB_left);
+    auto cb_right = to_response_matrix(CB_right);
+
+
+    vector_real_function_3d vbc_1(10);
+    vector_real_function_3d bc(10);
+    vector_real_function_3d cb(10);
+
+    for (int i = 0; i < 10; i++)
     {
-        for (int j = 0; j < 6; j++)
-        {
-            auto beta_AB_x = (dot(world, AB_left.x[j], AB_right.x[j]) * dipole_vectors[i]).trace();
-            auto beta_BA_x = (dot(world, BA_left.x[j], BA_right.x[j]) * dipole_vectors[i]).trace();
-            auto beta_AB_y = (dot(world, AB_left.y[j], AB_right.y[j]) * dipole_vectors[i]).trace();
-            auto beta_BA_y = (dot(world, BA_left.y[j], BA_right.y[j]) * dipole_vectors[i]).trace();
-            beta(i, j) = beta_AB_x + beta_AB_y + beta_BA_x + beta_BA_y;
-        }
+        vbc_1[i] = dot(world, vbc[indices_BC[i]], xa[indices_A[i]], false);
+        bc[i] = dot(world, bc_left[indices_BC[i]], bc_right[indices_A[i]], false);
+        cb[i] = dot(world, cb_left[indices_BC[i]], cb_right[indices_A[i]], false);
+        dipole_vector_A[i] = dipole_vectors[indices_A[i]];
+    }
+    world.gop.fence();
+
+    Tensor<double> beta_BC_1(10);
+    Tensor<double> beta_BC_2(10);
+    Tensor<double> beta_CB_1(10);
+    Tensor<double> beta_CB_2(10);
+
+    // Why is there a necessary fence here?
+    beta_BC_1 = inner(world, bc, dipole_vector_A);
+    beta_BC_2 = inner(world, cb, dipole_vector_A);
+
+    for (int i = 0; i < 10; i++)
+    {
+        beta[i] = beta_BC_1[i] + beta_BC_2[i] + beta_CB_1[i] + beta_CB_2[i] + vbc_1[i].trace();
     }
 
-    return beta;
+
+    return -2.0 * beta;
 }
 
 Tensor<double> QuadraticResponse::compute_beta(World &world)
@@ -601,17 +641,30 @@ Tensor<double> QuadraticResponse::compute_beta(World &world)
         phi0.x[i] = copy(world, ground_orbitals);
         phi0.y[i] = copy(world, ground_orbitals);
     }
-    auto [zeta_bc_x, zeta_bc_y, zeta_cb_x, zeta_cb_y] = compute_zeta_response_vectors(world, XB, XC);
-
-    auto beta_unrelaxed = compute_beta_unrelaxed(world, zeta_bc_x, zeta_bc_y, zeta_cb_x, zeta_cb_y);
-
-    auto v_bc = compute_second_order_perturbation_terms(world, XB, XC, zeta_bc_x, zeta_bc_y, zeta_cb_x, zeta_cb_y, phi0);
-    v_bc.truncate();
-    auto beta_relaxed = inner(XA, v_bc);
-    auto beta = beta_relaxed + beta_unrelaxed;
 
 
-    return -2.0 * beta;
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::start_timer(world);
+    }
+    auto [zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right] = compute_zeta_response_vectors(world, XB, XC);
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::end_timer(world, "Compute Zeta(BC) and Zeta(CB)");
+    }
+
+
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::start_timer(world);
+    }
+    auto VBC = compute_second_order_perturbation_terms(world, XB, XC, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right, phi0);
+
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::end_timer(world, "V(BC) and V(CB)");
+    }
+    return compute_beta_tensor(world, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right, XA, VBC);
 }
 
 // computes <phi0|Fa|phi0> * XB
@@ -674,12 +727,10 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms(World &world,
     // -Q ( FB ) * ( XC )
     auto [vbxc, vcxb] = dipole_perturbation(world, C, B);
 
-    vbxc = -1.0 * oop_apply(vbxc, apply_projector);
-    vcxb = -1.0 * oop_apply(vcxb, apply_projector);
+    vbxc = -1.0 * oop_apply(vbxc, apply_projector, false);
+    vcxb = -1.0 * oop_apply(vcxb, apply_projector, false);
 
     auto [zFBzC, zFCzB] = compute_first_order_fock_matrix_terms(world, B, phi0, C);
-
-    auto XA = -1.0 * x_data[0].first.copy();
 
 
     return g1_kbc + g1_kcb + g1bxc + g1cxb + zFBzC + zFCzB + vbxc + vcxb;
@@ -754,6 +805,16 @@ std::tuple<X_space, X_space, X_space, X_space> QuadraticResponse::compute_zeta_r
 
 auto QuadraticResponse::dipole_perturbation(World &world, const X_space &left, const X_space &right) const -> std::pair<X_space, X_space>
 {
+
+
+    auto num_states = left.num_states();
+    MADNESS_ASSERT(num_states == right.num_states());
+
+    std::vector<int> case_1_indices{0, 1, 2, 1}; // x y z y
+    std::vector<int> case_2_indices{0, 1, 2, 2}; // x y z z
+    auto VB = X_space(world, left.num_states(), right.num_orbitals());
+    auto VC = X_space(world, left.num_states(), right.num_orbitals());
+
     vector_real_function_3d dipole_vectors(3);
     size_t i = 0;
     // creates a vector of x y z dipole functions
@@ -765,29 +826,21 @@ auto QuadraticResponse::dipole_perturbation(World &world, const X_space &left, c
     }
     truncate(world, dipole_vectors, true);
 
-    std::array<int, 6> case_1_indices = {0, 0, 0, 1, 1, 2};
-    std::array<int, 6> case_2_indices = {0, 1, 2, 1, 2, 2};
 
-    auto VB = X_space(world, left.num_states(), right.num_orbitals());
-
-    for (int i = 0; i < 6; i++)
+    for (int i = 0; i < num_states; i++)
     {
-        VB.x[i] = dipole_vectors[case_1_indices[i]] * left.x[i];
-        VB.y[i] = dipole_vectors[case_1_indices[i]] * left.y[i];
-    }
 
-    auto VC = X_space(world, left.num_states(), right.num_orbitals());
+        VB.x[i] = mul(world, dipole_vectors[case_1_indices[i]], left.x[i], false);
+        VB.y[i] = mul(world, dipole_vectors[case_1_indices[i]], left.y[i], false);
 
-    for (int i = 0; i < 6; i++)
-    {
-        VC.x[i] = dipole_vectors[case_2_indices[i]] * right.x[i];
-        VC.y[i] = dipole_vectors[case_2_indices[i]] * right.y[i];
+        VC.x[i] = mul(world, dipole_vectors[case_2_indices[i]], right.x[i], false);
+        VC.y[i] = mul(world, dipole_vectors[case_2_indices[i]], right.y[i], false);
     }
 
     VB.truncate();
     VC.truncate();
 
-    return {1.0 * VB, 1.0 * VC};
+    return {VB, VC};
     // in the first case i need to mulitply x x x y y z to vectors in right
     // in the second case i need to multiply x y z y z a to vectors in left
 }
