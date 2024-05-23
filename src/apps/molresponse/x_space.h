@@ -120,16 +120,16 @@ namespace madness
         {
             if (n_orbitals > 0)
             {
-                MADNESS_ASSERT(n_orbitals == x.size());
-                MADNESS_ASSERT(n_orbitals == y.size());
-                MADNESS_ASSERT(x.size() == y.size());
+                MADNESS_ASSERT(n_orbitals == vx.size());
+                MADNESS_ASSERT(n_orbitals == vy.size());
+                MADNESS_ASSERT(vx.size() == vy.size());
             }
             else
             { // g_states == 0 (empty vector)
-                n_orbitals = x.size();
+                n_orbitals = vx.size();
             }
-            MADNESS_ASSERT(x.size() == num_orbitals());
-            MADNESS_ASSERT(y.size() == num_orbitals());
+            MADNESS_ASSERT(vx.size() == num_orbitals());
+            MADNESS_ASSERT(vy.size() == num_orbitals());
             active.push_back(active.back() + 1);
             n_states++;
             x.push_back(vx);
