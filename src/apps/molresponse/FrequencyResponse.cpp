@@ -664,7 +664,16 @@ Tensor<double> QuadraticResponse::compute_beta(World &world)
     {
         molresponse::end_timer(world, "V(BC) and V(CB)");
     }
-    return compute_beta_tensor(world, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right, XA, VBC);
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::start_timer(world);
+    }
+    auto beta = compute_beta_tensor(world, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right, XA, VBC);
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::end_timer(world, "compute_beta_tensor");
+    }
+    return beta;
 }
 
 // computes <phi0|Fa|phi0> * XB
