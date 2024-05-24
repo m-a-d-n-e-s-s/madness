@@ -211,6 +211,16 @@ for pairs XY, XX, YY, ZZ.  From there, we can compute the 10 above components of
     X ;YZ
 
 
+Second order perturbation operators are defined as:
+
+.. math::
+
+    \begin{align*}
+    V_p^{(BC)}(r) = & - \hat{Q} \hat{g_1} \bqty{ \hat{\zeta}^{(BC)}} \ket{\phi_p} - \hat{Q} \hat{g_1} \bqty{ \hat{\zeta}^{(BC)}} \ket{\phi_p} \\
+    &-\hat{Q} \hat{g_2} \bqty{ \gamma^{(B)}\gamma^{(C)}+\gamma^{(C)}\gamma^{(B)}} \ket{\phi_p} \\
+    &-\hat{Q} \hat{F}^{(B)} \ket{x_p^(C)} - \hat{Q} \hat{F}^{(C)} \ket{x_p^(B)}
+    \end{align*}
+
 
 
 
