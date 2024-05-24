@@ -1243,9 +1243,9 @@ public:
     static void append_to_beta_json(const std::array<double, 3> &freq, const std::array<double, 10> &beta, nlohmann::ordered_json &beta_json)
     {
         // create 3 columns of directions for each A,B,C
-        std::array<char, 10> direction_A{'X', 'X', 'X', 'Y', 'Y', 'Y', 'Z', 'Z', 'Z'};
-        std::array<char, 10> direction_B{'X', 'Y', 'Z', 'X', 'Y', 'Z', 'X', 'Y', 'Y'};
-        std::array<char, 10> direction_C{'X', 'Y', 'Z', 'X', 'Y', 'Z', 'X', 'Y', 'Z'};
+        std::array<char, 10> direction_A{'X', 'X', 'X', 'Y', 'Y', 'Y', 'Z', 'Z', 'Z', 'X'};
+        std::array<char, 10> direction_B{'X', 'Y', 'Z', 'X', 'Y', 'Z', 'X', 'Y', 'Y', 'Y'};
+        std::array<char, 10> direction_C{'X', 'Y', 'Z', 'X', 'Y', 'Z', 'X', 'Y', 'Z', 'Z'};
 
         // append each value of the columns to the beta json
         // for each value of beta
