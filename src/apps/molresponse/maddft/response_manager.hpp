@@ -1142,7 +1142,7 @@ public:
                             std::array<path, 3> restarts{restartA.first.replace_extension(""), restartB.first.replace_extension(""), restartC.first.replace_extension("")};
 
                             quad_calculation.set_x_data(world, omegas, restarts);
-                            auto beta_abc = quad_calculation.compute_beta(world);
+                            auto beta_abc = quad_calculation.compute_beta_v2(world);
                             // print the beta values for the frequency combination
                             if (world.rank() == 0)
                             {

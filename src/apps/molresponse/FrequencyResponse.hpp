@@ -241,6 +241,7 @@ public:
     void iterate(World &world) override;
 
     Tensor<double> compute_beta(World &world);
+    Tensor<double> compute_beta_v2(World &world);
 
 
 private:
@@ -255,9 +256,17 @@ private:
     X_space compute_exchange_term(World &world, const X_space &A, const X_space &B, const X_space &x_apply) const;
     std::tuple<X_space, X_space, X_space, X_space> compute_zeta_response_vectors(World &world, const X_space &B, const X_space &C);
     std::pair<X_space, X_space> compute_first_order_fock_matrix_terms(World &world, const X_space &A, const X_space &phi0, const X_space &B) const;
+    std::pair<X_space, X_space> compute_first_order_fock_matrix_terms_v2(World &world, const X_space &B, const X_space &C, const X_space &g1b, const X_space &g1c, const X_space &VB, const X_space &VC,
+                                                                         const X_space &phi0) const;
     Tensor<double> compute_beta_tensor(World &world, const X_space &AB_left, const X_space &AB_right, const X_space &BA_left, const X_space &BA_right, const X_space &XA, const X_space &VBC);
     X_space compute_second_order_perturbation_terms(World &world, const X_space &B, const X_space &C, const X_space &zeta_bc_x, const X_space &zeta_bc_y, const X_space &zeta_cb_x,
                                                     const X_space &zeta_cb_y, const X_space &phi0);
+    X_space compute_second_order_perturbation_terms_v2(World &world, const X_space &B, const X_space &C, const X_space &zeta_bc_x, const X_space &zeta_bc_y, const X_space &zeta_cb_x,
+                                                       const X_space &zeta_cb_y, const X_space &phi0);
+    std::tuple<X_space, X_space, X_space, X_space, X_space, X_space> compute_beta_exchange(World &world, const X_space &B, const X_space &C, const X_space &zeta_bc_left, const X_space &zeta_bc_right,
+                                                                                           const X_space &zeta_cb_left, const X_space &zeta_cb_right, const X_space &phi0);
+    std::tuple<X_space, X_space, X_space, X_space, X_space, X_space> compute_beta_coulomb(World &world, const X_space &B, const X_space &C, const X_space &zeta_bc_left, const X_space &zeta_bc_right,
+                                                                                          const X_space &zeta_cb_left, const X_space &zeta_cb_right, const X_space &phi0);
 };
 
 
