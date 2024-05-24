@@ -1251,7 +1251,7 @@ public:
         // for each value of beta
         // capitalize the direction
 
-        for (int i = 0; i < 18; i++)
+        for (int i = 0; i < 10; i++)
         {
             beta_json["A-freq"].push_back(freq[0]);
             beta_json["B-freq"].push_back(freq[1]);
