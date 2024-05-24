@@ -333,8 +333,8 @@ auto FrequencyResponse::update_response(World &world, X_space &chi, XCOperator<d
     return {new_chi, {new_res, bsh_norms}, new_rho};
 }
 
-auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X, std::vector<poperatorT> &bsh_x_ops, std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector,
-                                            double &x_shifts) -> X_space
+auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X, std::vector<poperatorT> &bsh_x_ops, std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector, double &x_shifts)
+    -> X_space
 {
     if (r_params.print_level() >= 1)
     {
@@ -534,14 +534,14 @@ void QuadraticResponse::initialize(World &world) {}
 auto QuadraticResponse::setup_XBC(World &world) -> std::pair<X_space, X_space>
 {
 
-    auto r_xb = x_data[0].first.copy();
-    auto r_xc = x_data[0].first.copy();
+    auto B = x_data[1].first.copy();
+    auto C = x_data[2].first.copy();
 
-    r_xb.push_back(r_xb.x[1], r_xb.y[1]);
-    r_xc.push_back(r_xc.x[2], r_xc.y[2]);
+    B.push_back(copy(world, B.x.x[1]), copy(world, B.y.x[1]));
+    C.push_back(copy(C.x.x[2]), copy(C.y.x[2]));
 
 
-    return {r_xb, r_xc};
+    return {B, C};
 }
 
 //
@@ -682,9 +682,22 @@ std::pair<X_space, X_space> QuadraticResponse::compute_first_order_fock_matrix_t
 {
 
 
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::start_timer(world);
+    }
     auto g1a = compute_g1_term(world, A, phi0, phi0);
     auto g1b = compute_g1_term(world, B, phi0, phi0);
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::end_timer(world, "VBC: first_order_terms: compute g1 terms");
+    }
 
+
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::start_timer(world);
+    }
     auto [VA, VB] = dipole_perturbation(world, phi0, phi0);
 
     auto f1a = g1a + VA;
@@ -710,6 +723,10 @@ std::pair<X_space, X_space> QuadraticResponse::compute_first_order_fock_matrix_t
     FAXB.truncate();
     FBXA.truncate();
 
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::end_timer(world, "VBC: first_order_terms: compute FBC terms");
+    }
     world.gop.fence();
 
     return {FAXB, FBXA};
@@ -722,24 +739,59 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms(World &world,
     QProjector<double, 3> projector(world, ground_orbitals);
     auto apply_projector = [&](auto &xi) { return projector(xi); };
 
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::start_timer(world);
+    }
+
     // We have 2 terms to compute because we need to compute the contributions of BC and CB terms
     auto g1_kbc = -1.0 * oop_apply(compute_g1_term(world, zeta_bc_x, zeta_bc_y, phi0), apply_projector);
     auto g1_kcb = -1.0 * oop_apply(compute_g1_term(world, zeta_cb_x, zeta_cb_y, phi0), apply_projector);
 
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::end_timer(world, "VBC:second_order_terms: compute g1 terms");
+    }
 
+
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::start_timer(world);
+    }
     // the next term we need to compute are the first order fock matrix terms
     // -Q FB*XC
     auto g1bxc = -1.0 * oop_apply(compute_g1_term(world, B, phi0, C), apply_projector);
     // -Q FC*XB
     auto g1cxb = -1.0 * oop_apply(compute_g1_term(world, C, phi0, B), apply_projector);
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::end_timer(world, "VBC:second_order_terms: compute first order fock matrix terms");
+    }
 
+
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::start_timer(world);
+    }
     // -Q ( FB ) * ( XC )
     auto [vbxc, vcxb] = dipole_perturbation(world, C, B);
 
     vbxc = -1.0 * oop_apply(vbxc, apply_projector, false);
     vcxb = -1.0 * oop_apply(vcxb, apply_projector, false);
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::end_timer(world, "VBC:second_order_terms: compute dipole perturbation terms");
+    }
 
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::start_timer(world);
+    }
     auto [zFBzC, zFCzB] = compute_first_order_fock_matrix_terms(world, B, phi0, C);
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::end_timer(world, "VBC:second_order_terms: compute first order fock matrix terms");
+    }
 
 
     return g1_kbc + g1_kcb + g1bxc + g1cxb + zFBzC + zFCzB + vbxc + vcxb;
