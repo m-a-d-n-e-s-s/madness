@@ -570,7 +570,7 @@ Tensor<double> QuadraticResponse::compute_beta_tensor(World &world, const X_spac
     truncate(world, dipole_vectors, true);
 
     std::vector<int> indices_A{0, 0, 0, 1, 1, 1, 2, 2, 2, 0};
-    std::vector<int> indices_BC{0, 1, 2, 0, 1, 2, 0, 1, 2, 0};
+    std::vector<int> indices_BC{0, 1, 2, 0, 1, 2, 0, 1, 2, 3};
 
     Tensor<double> beta(10);
     // for each vector in dipole vectors
@@ -867,6 +867,24 @@ std::tuple<X_space, X_space, X_space, X_space, X_space, X_space> QuadraticRespon
                                                                                                           const X_space &zeta_bc_right, const X_space &zeta_cb_left, const X_space &zeta_cb_right,
                                                                                                           const X_space &phi0)
 {
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::start_timer(world);
+    }
+    auto zeta_bc = compute_exchange_term(world, zeta_bc_left, zeta_bc_right, phi0);
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::end_timer(world, "k: zeta_bc");
+    }
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::start_timer(world);
+    }
+    auto zeta_cb = compute_exchange_term(world, zeta_cb_left, zeta_cb_right, phi0);
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::end_timer(world, "k: zeta_cb");
+    }
 
     if (r_params.print_level() >= 1)
     {
@@ -906,24 +924,6 @@ std::tuple<X_space, X_space, X_space, X_space, X_space, X_space> QuadraticRespon
         molresponse::end_timer(world, "k: cphi0_phi0");
     }
 
-    if (r_params.print_level() >= 1)
-    {
-        molresponse::start_timer(world);
-    }
-    auto zeta_bc = compute_exchange_term(world, zeta_bc_left, zeta_bc_right, phi0);
-    if (r_params.print_level() >= 1)
-    {
-        molresponse::end_timer(world, "k: zeta_bc");
-    }
-    if (r_params.print_level() >= 1)
-    {
-        molresponse::start_timer(world);
-    }
-    auto zeta_cb = compute_exchange_term(world, zeta_cb_left, zeta_cb_right, phi0);
-    if (r_params.print_level() >= 1)
-    {
-        molresponse::end_timer(world, "k: zeta_cb");
-    }
 
     world.gop.fence();
 
@@ -944,11 +944,11 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(World &wor
     {
         molresponse::start_timer(world);
     }
-    auto g_bphi0c = 2.0 * j_bphi0c - k_bphi0c;
-    auto g_cphi0B = 2.0 * J_cphi0B - K_cphi0B;
-
     auto g_zeta_bc = 2.0 * J_zeta_bc - K_zeta_bc;
     auto g_zeta_cb = 2.0 * J_zeta_cb - K_zeta_cb;
+
+    auto g_bphi0c = 2.0 * j_bphi0c - k_bphi0c;
+    auto g_cphi0B = 2.0 * J_cphi0B - K_cphi0B;
 
     auto g1b = 2.0 * J_bphi0_phi0 - K_bphi0_phi0;
     auto g1c = 2.0 * J_cphi0_phi0 - K_cphi0_phi0;
@@ -962,7 +962,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(World &wor
     {
         molresponse::start_timer(world);
     }
-    auto [VB, VC] = dipole_perturbation(world, phi0, phi0);
+    auto [VBphi0, VCphi0] = dipole_perturbation(world, phi0, phi0);
     auto [vbxc, vcxb] = dipole_perturbation(world, C, B);
     if (r_params.print_level() >= 1)
     {
@@ -973,7 +973,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(World &wor
     auto FB_C = vbxc + g_bphi0c;
     auto FC_B = vcxb + g_cphi0B;
 
-    auto [fb_C, fc_B] = compute_first_order_fock_matrix_terms_v2(world, B, C, g1b, g1c, VB, VC, phi0);
+    auto [fb_C, fc_B] = compute_first_order_fock_matrix_terms_v2(world, B, C, g1b, g1c, VBphi0, VBphi0, phi0);
 
 
     // now project terms
@@ -990,6 +990,8 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(World &wor
     g_zeta_cb = -1.0 * oop_apply(g_zeta_cb, apply_projector, false);
     FB_C = -1.0 * oop_apply(FB_C, apply_projector, false);
     FC_B = -1.0 * oop_apply(FC_B, apply_projector, false);
+
+    world.gop.fence();
     if (r_params.print_level() >= 1)
     {
         molresponse::end_timer(world, "projecting terms");
