@@ -1143,12 +1143,23 @@ public:
 
                             quad_calculation.set_x_data(world, omegas, restarts);
                             auto beta_abc = quad_calculation.compute_beta_v2(world);
-                            // print the beta values for the frequency combination
+
+                            // Make a table printing the beta value for each direction
+                            //[XXX,XYY,XZZ,YXX,YYY,YZZ,ZXX,ZYY,ZZZ,XYZ]
+
+                            vector<std::string> directions{"XXX", "XYY", "XZZ", "YXX", "YYY", "YZZ", "ZXX", "ZYY", "ZZZ", "XYZ"};
+
                             if (world.rank() == 0)
                             {
-                                ::print("Beta values for omega_a = ", omega_a, " omega_b = ", omega_b, " omega_c = ", omega_c);
-                                ::print(beta_abc);
+                                for (int i = 0; i < 10; i++)
+                                {
+                                    if (world.rank() == 0)
+                                    {
+                                        ::print(directions[i], " : ", beta_abc[i]);
+                                    }
+                                }
                             }
+
 
                             nlohmann::ordered_json beta_entry;
 
