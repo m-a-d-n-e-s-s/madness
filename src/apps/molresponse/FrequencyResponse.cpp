@@ -728,33 +728,33 @@ std::pair<X_space, X_space> QuadraticResponse::compute_first_order_fock_matrix_t
     {
         molresponse::start_timer(world);
     }
-    auto f1a = g1b + VB;
-    auto f1b = g1c + VC;
+    auto f1b = g1b + VB;
+    auto f1c = g1c + VC;
 
-    auto FAXB = X_space(world, VB.num_states(), VB.num_orbitals());
-    auto FBXA = X_space(world, VB.num_states(), VB.num_orbitals());
+    auto FBC = X_space(world, VB.num_states(), VB.num_orbitals());
+    auto FCB = X_space(world, VB.num_states(), VB.num_orbitals());
     // Here contains the y components
     for (auto i = 0; i < VB.num_states(); i++)
     {
 
-        auto fax = matrix_inner(world, phi0.x[i], f1a.x[i]);
-        auto fax_dagger = matrix_inner(world, phi0.y[i], f1a.y[i]);
         auto fbx = matrix_inner(world, phi0.x[i], f1b.x[i]);
-        auto fb_dagger = matrix_inner(world, phi0.y[i], f1b.y[i]);
+        auto fbx_dagger = matrix_inner(world, phi0.y[i], f1b.y[i]);
+        auto fcx = matrix_inner(world, phi0.x[i], f1b.x[i]);
+        auto fc_dagger = matrix_inner(world, phi0.y[i], f1b.y[i]);
 
-        FAXB.x[i] = copy(world, transform(world, C.x[i], fax, true), true);
-        FAXB.y[i] = copy(world, transform(world, C.y[i], fax_dagger, true), true);
-        FBXA.x[i] = copy(world, transform(world, B.x[i], fbx, true), true);
-        FBXA.y[i] = copy(world, transform(world, B.y[i], fb_dagger, true), true);
+        FBC.x[i] = copy(world, transform(world, C.x[i], fbx, true), true);
+        FBC.y[i] = copy(world, transform(world, C.y[i], fbx_dagger, true), true);
+        FCB.x[i] = copy(world, transform(world, B.x[i], fcx, true), true);
+        FCB.y[i] = copy(world, transform(world, B.y[i], fc_dagger, true), true);
     }
 
-    FAXB.truncate();
-    FBXA.truncate();
+    FBC.truncate();
+    FCB.truncate();
     if (r_params.print_level() >= 1)
     {
         molresponse::end_timer(world, "Fock transformation terms");
     }
-    return {FAXB, FBXA};
+    return {FBC, FCB};
 }
 // computes <phi0|Fa|phi0> * XB
 // where Fa=g1[xa]+va
