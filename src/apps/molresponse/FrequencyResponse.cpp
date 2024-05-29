@@ -1132,7 +1132,7 @@ std::tuple<X_space, X_space, X_space, X_space> QuadraticResponse::compute_zeta_r
 
         auto matrix_cybx = matrix_inner(world, C.y[i], B.x[i]);
         auto tilde_phi_cb = -1.0 * transform(world, ground_orbitals, 1.0 * matrix_cybx, true);
-        zeta_cb_right.y[i] = copy(world, tilde_phi_cb, true);
+        zeta_cb_left.y[i] = copy(world, tilde_phi_cb, true);
 
         // print the norms of each vector
     }
@@ -1203,20 +1203,20 @@ X_space QuadraticResponse::compute_g1_term(World &world, const X_space &left, co
     return 2 * JBC - KBC;
 }
 // compute rhoBC and apply to D
-X_space QuadraticResponse::compute_coulomb_term(World &world, const X_space &A, const X_space &B, const X_space &x_apply) const
+X_space QuadraticResponse::compute_coulomb_term(World &world, const X_space &B, const X_space &C, const X_space &x_apply) const
 {
 
-    X_space J = X_space::zero_functions(world, A.num_states(), A.num_orbitals());
-    vector_real_function_3d rhoX(A.num_states());
-    vector_real_function_3d temp_J(A.num_states());
+    X_space J = X_space::zero_functions(world, B.num_states(), B.num_orbitals());
+    vector_real_function_3d rhoX(B.num_states());
+    vector_real_function_3d temp_J(B.num_states());
 
     vector_real_function_3d x_phi, y_phi;
 
     // create the density for each state in B
-    for (const auto &b : A.active)
+    for (const auto &b : B.active)
     {
-        x_phi = mul(world, A.x[b], B.x[b], false);
-        y_phi = mul(world, A.y[b], B.y[b], false);
+        x_phi = mul(world, B.x[b], C.x[b], false);
+        y_phi = mul(world, B.y[b], C.y[b], false);
         world.gop.fence();
         rhoX[b] = sum(world, x_phi, true);
         rhoX[b] += sum(world, y_phi, true);
@@ -1225,7 +1225,7 @@ X_space QuadraticResponse::compute_coulomb_term(World &world, const X_space &A, 
 
     // truncate(world, rhoX);
 
-    for (const auto &k : A.active)
+    for (const auto &k : B.active)
     {
         temp_J[k] = apply(*shared_coulomb_operator, rhoX[k]);
         J.x[k] = mul(world, temp_J[k], x_apply.x[k], false);
