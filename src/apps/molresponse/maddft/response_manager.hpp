@@ -1151,6 +1151,7 @@ public:
 
                             if (world.rank() == 0)
                             {
+                                ::print("Beta values for omega_a = ", omega_a, " omega_b = ", omega_b, " omega_c = ", omega_c);
                                 for (int i = 0; i < 10; i++)
                                 {
                                     if (world.rank() == 0)
