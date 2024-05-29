@@ -545,7 +545,7 @@ auto QuadraticResponse::setup_XBC(World &world) -> std::pair<X_space, X_space>
     vector<int> c_index{0, 1, 2, 2};
 
 
-    for (auto i = 0; num_states; i++)
+    for (auto i = 0; i<num_states; i++)
     {
         new_B.x[i] = copy(world, B.x[b_index[i]]);
         new_B.y[i] = copy(world, B.y[b_index[i]]);
