@@ -547,10 +547,10 @@ auto QuadraticResponse::setup_XBC(World &world) -> std::pair<X_space, X_space>
 
     for (auto i = 0; num_states; i++)
     {
-        new_B.x[i] = copy(world, B.x[i]);
-        new_B.y[i] = copy(world, B.y[i]);
-        new_C.x[i] = copy(world, C.x[i]);
-        new_C.y[i] = copy(world, C.y[i]);
+        new_B.x[i] = copy(world, B.x[b_index[i]]);
+        new_B.y[i] = copy(world, B.y[b_index[i]]);
+        new_C.x[i] = copy(world, C.x[c_index[i]]);
+        new_C.y[i] = copy(world, C.y[c_index[i]]);
     }
 
     return {new_B, new_C};
@@ -1011,8 +1011,6 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(World &wor
 
 
     return g_zeta_bc + g_zeta_cb + f_bxc + f_cxb + FBC + FCB;
-
-
     // the next term we need to compute are the first order fock matrix terms
 }
 
