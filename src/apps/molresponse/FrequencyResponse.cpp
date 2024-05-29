@@ -535,11 +535,25 @@ auto QuadraticResponse::setup_XBC(World &world) -> std::pair<X_space, X_space>
     auto B = x_data[1].first.copy();
     auto C = x_data[2].first.copy();
 
-    B.push_back(copy(world, B.x.x[1]), copy(world, B.y.x[1]));
-    C.push_back(copy(C.x.x[2]), copy(C.y.x[2]));
+    auto num_states = B.num_states() + 1;
+    auto num_orbitals = B.num_orbitals();
+
+    auto new_B = X_space(world, num_states, num_orbitals);
+    auto new_C = X_space(world, num_states, num_orbitals);
+
+    vector<int> b_index{0, 1, 2, 1};
+    vector<int> c_index{0, 1, 2, 2};
 
 
-    return {B, C};
+    for (auto i = 0; num_states; i++)
+    {
+        new_B.x[i] = copy(world, B.x[i]);
+        new_B.y[i] = copy(world, B.y[i]);
+        new_C.x[i] = copy(world, C.x[i]);
+        new_C.y[i] = copy(world, C.y[i]);
+    }
+
+    return {new_B, new_C};
 }
 
 //
@@ -801,45 +815,6 @@ std::tuple<X_space, X_space, X_space, X_space, X_space, X_space> QuadraticRespon
                                                                                                          const X_space &zeta_bc_right, const X_space &zeta_cb_left, const X_space &zeta_cb_right,
                                                                                                          const X_space &phi0)
 {
-
-    if (r_params.print_level() >= 1)
-    {
-        molresponse::start_timer(world);
-    }
-    auto bphi0c = compute_coulomb_term(world, B, phi0, C);
-    if (r_params.print_level() >= 1)
-    {
-        molresponse::end_timer(world, "j: bphi0c");
-    }
-    if (r_params.print_level() >= 1)
-    {
-        molresponse::start_timer(world);
-    }
-    auto cphi0B = compute_coulomb_term(world, C, phi0, B);
-    if (r_params.print_level() >= 1)
-    {
-        molresponse::end_timer(world, "j: cphi0B");
-    }
-
-    if (r_params.print_level() >= 1)
-    {
-        molresponse::start_timer(world);
-    }
-    auto bphi0_phi0 = compute_coulomb_term(world, B, phi0, phi0);
-    if (r_params.print_level() >= 1)
-    {
-        molresponse::end_timer(world, "j: bphi0_phi0");
-    }
-    if (r_params.print_level() >= 1)
-    {
-        molresponse::start_timer(world);
-    }
-    auto cphi0_phi0 = compute_coulomb_term(world, C, phi0, phi0);
-    if (r_params.print_level() >= 1)
-    {
-        molresponse::end_timer(world, "j: cphi0_phi0");
-    }
-
     if (r_params.print_level() >= 1)
     {
         molresponse::start_timer(world);
@@ -859,9 +834,48 @@ std::tuple<X_space, X_space, X_space, X_space, X_space, X_space> QuadraticRespon
         molresponse::end_timer(world, "j: zeta_cb");
     }
 
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::start_timer(world);
+    }
+    auto bxc = compute_coulomb_term(world, B, phi0, C);
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::end_timer(world, "j: bphi0c");
+    }
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::start_timer(world);
+    }
+    auto cxb = compute_coulomb_term(world, C, phi0, B);
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::end_timer(world, "j: cphi0B");
+    }
+
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::start_timer(world);
+    }
+    auto bphi0 = compute_coulomb_term(world, B, phi0, phi0);
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::end_timer(world, "j: bphi0_phi0");
+    }
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::start_timer(world);
+    }
+    auto cphi0 = compute_coulomb_term(world, C, phi0, phi0);
+    if (r_params.print_level() >= 1)
+    {
+        molresponse::end_timer(world, "j: cphi0_phi0");
+    }
+
+
     world.gop.fence();
 
-    return {bphi0c, cphi0B, bphi0_phi0, cphi0_phi0, zeta_bc, zeta_cb};
+    return {zeta_bc, zeta_cb, bxc, cxb, bphi0, cphi0};
 }
 std::tuple<X_space, X_space, X_space, X_space, X_space, X_space> QuadraticResponse::compute_beta_exchange(World &world, const X_space &B, const X_space &C, const X_space &zeta_bc_left,
                                                                                                           const X_space &zeta_bc_right, const X_space &zeta_cb_left, const X_space &zeta_cb_right,
@@ -890,7 +904,7 @@ std::tuple<X_space, X_space, X_space, X_space, X_space, X_space> QuadraticRespon
     {
         molresponse::start_timer(world);
     }
-    auto bphi0c = compute_exchange_term(world, B, phi0, C);
+    auto bxc = compute_exchange_term(world, B, phi0, C);
     if (r_params.print_level() >= 1)
     {
         molresponse::end_timer(world, "k: bphi0c");
@@ -899,7 +913,7 @@ std::tuple<X_space, X_space, X_space, X_space, X_space, X_space> QuadraticRespon
     {
         molresponse::start_timer(world);
     }
-    auto cphi0B = compute_exchange_term(world, C, phi0, B);
+    auto cxb = compute_exchange_term(world, C, phi0, B);
     if (r_params.print_level() >= 1)
     {
         molresponse::end_timer(world, "k: cphi0B");
@@ -909,7 +923,7 @@ std::tuple<X_space, X_space, X_space, X_space, X_space, X_space> QuadraticRespon
     {
         molresponse::start_timer(world);
     }
-    auto bphi0_phi0 = compute_exchange_term(world, B, phi0, phi0);
+    auto bphi0 = compute_exchange_term(world, B, phi0, phi0);
     if (r_params.print_level() >= 1)
     {
         molresponse::end_timer(world, "k: bphi0_phi0");
@@ -918,24 +932,23 @@ std::tuple<X_space, X_space, X_space, X_space, X_space, X_space> QuadraticRespon
     {
         molresponse::start_timer(world);
     }
-    auto cphi0_phi0 = compute_exchange_term(world, C, phi0, phi0);
+    auto cphi0 = compute_exchange_term(world, C, phi0, phi0);
     if (r_params.print_level() >= 1)
     {
         molresponse::end_timer(world, "k: cphi0_phi0");
     }
 
-
     world.gop.fence();
-
-    return {bphi0c, cphi0B, bphi0_phi0, cphi0_phi0, zeta_bc, zeta_cb};
+    return {zeta_bc, zeta_cb, bxc, cxb, bphi0, cphi0};
 }
 
 X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(World &world, const X_space &B, const X_space &C, const X_space &zeta_bc_left, const X_space &zeta_bc_right,
                                                                       const X_space &zeta_cb_left, const X_space &zeta_cb_right, const X_space &phi0)
 {
 
-    auto [k_bphi0c, K_cphi0B, K_bphi0_phi0, K_cphi0_phi0, K_zeta_bc, K_zeta_cb] = compute_beta_exchange(world, B, C, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right, phi0);
-    auto [j_bphi0c, J_cphi0B, J_bphi0_phi0, J_cphi0_phi0, J_zeta_bc, J_zeta_cb] = compute_beta_coulomb(world, B, C, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right, phi0);
+
+    auto [j_zeta_bc, j_zeta_cb, j_bxc, j_cxb, j_bphi0, j_cphi0] = compute_beta_coulomb(world, B, C, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right, phi0);
+    auto [k_zeta_bc, k_zeta_cb, k_bxc, k_cxb, k_bphi0, k_cphi0] = compute_beta_exchange(world, B, C, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right, phi0);
 
 
     // sum k and j terms
@@ -944,14 +957,14 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(World &wor
     {
         molresponse::start_timer(world);
     }
-    auto g_zeta_bc = 2.0 * J_zeta_bc - K_zeta_bc;
-    auto g_zeta_cb = 2.0 * J_zeta_cb - K_zeta_cb;
+    auto g_zeta_bc = 2.0 * j_zeta_bc - k_zeta_bc;
+    auto g_zeta_cb = 2.0 * j_zeta_cb - k_zeta_cb;
 
-    auto g_bphi0c = 2.0 * j_bphi0c - k_bphi0c;
-    auto g_cphi0B = 2.0 * J_cphi0B - K_cphi0B;
+    auto g_bxc = 2.0 * j_bxc - k_bxc;
+    auto g_cxb = 2.0 * j_cxb - k_cxb;
 
-    auto g1b = 2.0 * J_bphi0_phi0 - K_bphi0_phi0;
-    auto g1c = 2.0 * J_cphi0_phi0 - K_cphi0_phi0;
+    auto g1b = 2.0 * j_bphi0 - k_bphi0;
+    auto g1c = 2.0 * j_cphi0 - k_cphi0;
 
     if (r_params.print_level() >= 1)
     {
@@ -962,22 +975,17 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(World &wor
     {
         molresponse::start_timer(world);
     }
-    auto [VBphi0, VCphi0] = dipole_perturbation(world, phi0, phi0);
-    auto [vbxc, vcxb] = dipole_perturbation(world, C, B);
+
+
+    auto [v_bxc, v_cxb] = dipole_perturbation(world, B, C);
     if (r_params.print_level() >= 1)
     {
         molresponse::end_timer(world, "Create dipole terms");
     }
 
 
-    auto FB_C = vbxc + g_bphi0c;
-    auto FC_B = vcxb + g_cphi0B;
-
-    auto [fb_C, fc_B] = compute_first_order_fock_matrix_terms_v2(world, B, C, g1b, g1c, VBphi0, VBphi0, phi0);
-
-
-    // now project terms
-    //
+    auto f_bxc = v_bxc + g_bxc;
+    auto f_cxb = v_cxb + g_cxb;
     if (r_params.print_level() >= 1)
     {
         molresponse::start_timer(world);
@@ -988,8 +996,8 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(World &wor
 
     g_zeta_bc = -1.0 * oop_apply(g_zeta_bc, apply_projector, false);
     g_zeta_cb = -1.0 * oop_apply(g_zeta_cb, apply_projector, false);
-    FB_C = -1.0 * oop_apply(FB_C, apply_projector, false);
-    FC_B = -1.0 * oop_apply(FC_B, apply_projector, false);
+    f_bxc = -1.0 * oop_apply(f_bxc, apply_projector, false);
+    f_cxb = -1.0 * oop_apply(f_cxb, apply_projector, false);
 
     world.gop.fence();
     if (r_params.print_level() >= 1)
@@ -998,16 +1006,13 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(World &wor
     }
 
 
-    // put together Fock matrix terms
-    if (r_params.print_level() >= 1)
-    {
-        molresponse::start_timer(world);
-    }
-
-    return g_zeta_bc + g_zeta_cb + FB_C + FC_B + fb_C + fc_B;
+    auto [VBphi0, VCphi0] = dipole_perturbation(world, phi0, phi0);
+    auto [FBC, FCB] = compute_first_order_fock_matrix_terms_v2(world, B, C, g1b, g1c, VBphi0, VBphi0, phi0);
 
 
-    return X_space(world, B.num_states(), C.num_orbitals());
+    return g_zeta_bc + g_zeta_cb + f_bxc + f_cxb + FBC + FCB;
+
+
     // the next term we need to compute are the first order fock matrix terms
 }
 
@@ -1098,20 +1103,23 @@ std::tuple<X_space, X_space, X_space, X_space> QuadraticResponse::compute_zeta_r
     // zeta_cb_x=[x(c),tilde_phi_dagger(cb)]
     // zeta_cb_y=[y_dagger(b),phi_0]
 
-    X_space zeta_bc_x = X_space(world, B.num_states(), C.num_orbitals());
-    X_space zeta_bc_y = X_space(world, B.num_states(), C.num_orbitals());
+    X_space zeta_bc_left = X_space(world, B.num_states(), C.num_orbitals());
+    X_space zeta_bc_right = X_space(world, B.num_states(), C.num_orbitals());
 
-    X_space zeta_cb_x = X_space(world, C.num_states(), B.num_orbitals());
-    X_space zeta_cb_y = X_space(world, C.num_states(), B.num_orbitals());
+    X_space zeta_cb_left = X_space(world, C.num_states(), B.num_orbitals());
+    X_space zeta_cb_right = X_space(world, C.num_states(), B.num_orbitals());
 
     // Here are all the x components
     for (auto i = 0; i < B.num_states(); i++)
     {
-        zeta_bc_x.x[i] = copy(world, B.x[i], false);
-        zeta_cb_x.x[i] = copy(world, C.x[i], false);
+        zeta_bc_left.x[i] = copy(world, B.x[i], false);
+        zeta_cb_left.x[i] = copy(world, C.x[i], false);
 
-        zeta_bc_y.x[i] = copy(world, C.y[i], false);
-        zeta_cb_y.x[i] = copy(world, B.y[i], false);
+        zeta_bc_right.x[i] = copy(world, C.y[i], false);
+        zeta_cb_right.x[i] = copy(world, B.y[i], false);
+
+        zeta_cb_right.y[i] = copy(world, ground_orbitals, false);
+        zeta_bc_right.y[i] = copy(world, ground_orbitals, false);
     }
 
     // Here contains the y components
@@ -1122,24 +1130,22 @@ std::tuple<X_space, X_space, X_space, X_space> QuadraticResponse::compute_zeta_r
 
         auto matrix_bycx = matrix_inner(world, B.y[i], C.x[i]);
         auto tilde_phi_bc = -1.0 * transform(world, ground_orbitals, 1.0 * matrix_bycx, true);
-        zeta_bc_x.y[i] = copy(world, tilde_phi_bc, true);
+        zeta_bc_left.y[i] = copy(world, tilde_phi_bc, true);
 
         auto matrix_cybx = matrix_inner(world, C.y[i], B.x[i]);
         auto tilde_phi_cb = -1.0 * transform(world, ground_orbitals, 1.0 * matrix_cybx, true);
-        zeta_cb_x.y[i] = copy(world, tilde_phi_cb, true);
+        zeta_cb_right.y[i] = copy(world, tilde_phi_cb, true);
 
-        zeta_bc_y.y[i] = copy(world, ground_orbitals, true);
-        zeta_cb_y.y[i] = copy(world, ground_orbitals, true);
         // print the norms of each vector
     }
 
-    zeta_bc_x.truncate();
-    zeta_bc_y.truncate();
-    zeta_cb_x.truncate();
-    zeta_cb_y.truncate();
+    zeta_bc_left.truncate();
+    zeta_bc_right.truncate();
+    zeta_cb_left.truncate();
+    zeta_cb_right.truncate();
 
 
-    return {zeta_bc_x, zeta_bc_y, zeta_cb_x, zeta_cb_y};
+    return {zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right};
 }
 
 
