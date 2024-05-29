@@ -331,8 +331,8 @@ auto FrequencyResponse::update_response(World &world, X_space &chi, XCOperator<d
     return {new_chi, {new_res, bsh_norms}, new_rho};
 }
 
-auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X, std::vector<poperatorT> &bsh_x_ops, std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector,
-                                            double &x_shifts) -> X_space
+auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X, std::vector<poperatorT> &bsh_x_ops, std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector, double &x_shifts)
+    -> X_space
 {
     if (r_params.print_level() >= 1)
     {
@@ -545,7 +545,7 @@ auto QuadraticResponse::setup_XBC(World &world) -> std::pair<X_space, X_space>
     vector<int> c_index{0, 1, 2, 2};
 
 
-    for (auto i = 0; i<num_states; i++)
+    for (auto i = 0; i < num_states; i++)
     {
         new_B.x[i] = copy(world, B.x[b_index[i]]);
         new_B.y[i] = copy(world, B.y[b_index[i]]);
@@ -590,18 +590,19 @@ Tensor<double> QuadraticResponse::compute_beta_tensor(World &world, const X_spac
 
     for (int i = 0; i < 10; i++)
     {
-
         auto a = indices_A[i];
         auto bc = indices_BC[i];
 
-        auto one =dot(world,BC_left.x[bc],BC_right.x[bc] * dipole_vectors[a],false).trace();
-        auto two = dot(world, BC_left.y[bc], BC_right.y[bc] * dipole_vectors[a], false).trace();
-        auto three = dot(world, CB_left.x[bc], CB_right.x[bc] * dipole_vectors[a], false).trace();
-        auto four = dot(world, CB_left.y[bc], CB_right.y[bc] * dipole_vectors[a], false).trace();
-        auto five = dot(world, XA.x[a], VBC.x[bc], false).trace();
-        auto six = dot(world, XA.y[a], VBC.y[bc], false).trace();
-        beta[i] = one + two + three + four + five + six;
+        auto one = dot(world, BC_left.x[bc], BC_right.x[bc] * dipole_vectors[a], false);
+        auto two = dot(world, BC_left.y[bc], BC_right.y[bc] * dipole_vectors[a], false);
+        auto three = dot(world, CB_left.x[bc], CB_right.x[bc] * dipole_vectors[a], false);
+        auto four = dot(world, CB_left.y[bc], CB_right.y[bc] * dipole_vectors[a], false);
 
+        auto five = dot(world, XA.x[a], VBC.x[bc], false);
+        auto six = dot(world, XA.y[a], VBC.y[bc], false);
+
+        world.gop.fence();
+        beta[i] = one.trace()+ two.trace() + three.trace() + four.trace() + five.trace() + six.trace();
     }
     world.gop.fence();
 
