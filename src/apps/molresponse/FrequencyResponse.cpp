@@ -1154,8 +1154,8 @@ auto QuadraticResponse::dipole_perturbation(World &world, const X_space &left, c
     auto num_states = left.num_states();
     MADNESS_ASSERT(num_states == right.num_states());
 
-    std::vector<int> case_1_indices{0, 1, 2, 1}; // x y z y
-    std::vector<int> case_2_indices{0, 1, 2, 2}; // x y z z
+    std::vector<int> index_B{0, 1, 2, 1}; // x y z y
+    std::vector<int> index_C{0, 1, 2, 2}; // x y z z
     auto VB = X_space(world, left.num_states(), right.num_orbitals());
     auto VC = X_space(world, left.num_states(), right.num_orbitals());
 
@@ -1174,11 +1174,11 @@ auto QuadraticResponse::dipole_perturbation(World &world, const X_space &left, c
     for (int i = 0; i < num_states; i++)
     {
 
-        VB.x[i] = mul(world, dipole_vectors[case_1_indices[i]], left.x[i], false);
-        VB.y[i] = mul(world, dipole_vectors[case_1_indices[i]], left.y[i], false);
+        VB.x[i] = mul(world, dipole_vectors[index_B[i]], left.x[i], false);
+        VB.y[i] = mul(world, dipole_vectors[index_B[i]], left.y[i], false);
 
-        VC.x[i] = mul(world, dipole_vectors[case_2_indices[i]], right.x[i], false);
-        VC.y[i] = mul(world, dipole_vectors[case_2_indices[i]], right.y[i], false);
+        VC.x[i] = mul(world, dipole_vectors[index_C[i]], right.x[i], false);
+        VC.y[i] = mul(world, dipole_vectors[index_C[i]], right.y[i], false);
     }
 
     VB.truncate();
