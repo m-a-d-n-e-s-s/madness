@@ -585,49 +585,25 @@ Tensor<double> QuadraticResponse::compute_beta_tensor(World &world, const X_spac
 
     std::vector<int> indices_A{0, 0, 0, 1, 1, 1, 2, 2, 2, 0};
     std::vector<int> indices_BC{0, 1, 2, 0, 1, 2, 0, 1, 2, 3};
-
     Tensor<double> beta(10);
-    // for each vector in dipole vectors
-    //
-    vector_real_function_3d dipole_vector_A(10);
 
-
-    auto vbc = to_response_matrix(VBC);
-    auto xa = to_response_matrix(XA);
-
-    auto bc_left = to_response_matrix(BC_left);
-    auto bc_right = to_response_matrix(BC_right);
-    auto cb_left = to_response_matrix(CB_left);
-    auto cb_right = to_response_matrix(CB_right);
-
-
-    vector_real_function_3d vbc_1(10);
-    vector_real_function_3d bc(10);
-    vector_real_function_3d cb(10);
 
     for (int i = 0; i < 10; i++)
     {
-        vbc_1[i] = dot(world, vbc[indices_BC[i]], xa[indices_A[i]], false);
-        bc[i] = dot(world, bc_left[indices_BC[i]], bc_right[indices_A[i]], false);
-        cb[i] = dot(world, cb_left[indices_BC[i]], cb_right[indices_A[i]], false);
-        dipole_vector_A[i] = dipole_vectors[indices_A[i]];
+
+        auto a = indices_A[i];
+        auto bc = indices_BC[i];
+
+        auto one =dot(world,BC_left.x[bc],BC_right.x[bc] * dipole_vectors[a],false).trace();
+        auto two = dot(world, BC_left.y[bc], BC_right.y[bc] * dipole_vectors[a], false).trace();
+        auto three = dot(world, CB_left.x[bc], CB_right.x[bc] * dipole_vectors[a], false).trace();
+        auto four = dot(world, CB_left.y[bc], CB_right.y[bc] * dipole_vectors[a], false).trace();
+        auto five = dot(world, XA.x[a], VBC.x[bc], false).trace();
+        auto six = dot(world, XA.y[a], VBC.y[bc], false).trace();
+        beta[i] = one + two + three + four + five + six;
+
     }
     world.gop.fence();
-
-    Tensor<double> beta_BC_1(10);
-    Tensor<double> beta_BC_2(10);
-    Tensor<double> beta_CB_1(10);
-    Tensor<double> beta_CB_2(10);
-
-    // Why is there a necessary fence here?
-    beta_BC_1 = inner(world, bc, dipole_vector_A);
-    beta_BC_2 = inner(world, cb, dipole_vector_A);
-
-    for (int i = 0; i < 10; i++)
-    {
-        beta[i] = beta_BC_1[i] + beta_BC_2[i] + beta_CB_1[i] + beta_CB_2[i] + vbc_1[i].trace();
-    }
-
 
     return -2.0 * beta;
 }
