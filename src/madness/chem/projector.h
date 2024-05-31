@@ -17,11 +17,15 @@ namespace madness {
     class ProjectorBase {
     protected:
         /// a projector might work only on a subset of dimensions, e.g. P(1) | \psi(1,2) >
-        int particle=-1;
+        int particle=-1;        // must only be 0 or 1!
     public:
         virtual ~ProjectorBase() {}
-        virtual void set_particle(const int p) {particle=p;}
-        int get_particle() const {return particle;}
+        virtual void set_particle(const int p)
+        {
+            MADNESS_CHECK_THROW(p==0 or p==1, "particle must be 0 or 1");
+            particle=p;
+        }
+        virtual int get_particle() const {return particle;}
         virtual std::string type() const = 0;
     };
 
@@ -113,21 +117,24 @@ namespace madness {
         /// @return the projected function
         template<std::size_t KDIM>
         typename std::enable_if<KDIM==2*NDIM, Function<T,KDIM> >::type
-        operator()(const Function<T,KDIM>& f, size_t particle1=size_t(-1)) const {
+        operator()(const Function<T,KDIM>& f, int particle1=-1) const {
             Function<T,KDIM> result = FunctionFactory<T,KDIM>(f.world());
-            if (particle1==size_t(-1)) particle1=particle;
-            MADNESS_CHECK_THROW(particle1 == 1 or particle1 == 2, "particle must be 1 or 2");
+            if (particle1==-1) particle1=get_particle();
+            MADNESS_CHECK_THROW(particle1 == 0 or particle1 == 1, "particle must be 1 or 2");
             for (size_t i = 0; i < mo_ket_.size(); i++) {
                 Function<T,NDIM> tmp1 = mo_ket_[i];
-                Function<T,NDIM> tmp2 = f.project_out(mo_bra_[i], particle1 - 1);
+                Function<T,NDIM> tmp2 = f.project_out(mo_bra_[i], particle1);
                 Function<T,KDIM> tmp12;
-                if (particle1 == 1) {
+                if (particle1 == 0) {
                     tmp12 = CompositeFactory<T, KDIM, NDIM>(f.world()).particle1(copy(tmp1)).particle2(copy(tmp2));
                     tmp12.fill_tree();
-                } else {
+                } else if (particle1==1) {
                     tmp12 = CompositeFactory<T, KDIM, NDIM>(f.world()).particle1(copy(tmp2)).particle2(copy(tmp1));
                     tmp12.fill_tree();
+                } else {
+                    MADNESS_EXCEPTION("messed up",1);
                 }
+
                 result += tmp12;
             }
             return result;
@@ -184,7 +191,7 @@ namespace madness {
             return result;
         }
 
-        Function<T,2*NDIM> operator()(const Function<T,2*NDIM>& f, const size_t particle) const {
+        Function<T,2*NDIM> operator()(const Function<T,2*NDIM>& f, const size_t particle=-1) const {
             return f-O(f,particle);
         }
 
@@ -200,8 +207,12 @@ namespace madness {
         Projector<T,NDIM> get_P_projector() const {return O;}
 
         void set_particle(const int p) override {
-            particle=p;
             O.set_particle(p);
+            particle=p;
+        }
+
+        int get_particle() const override {
+            return O.get_particle();
         }
 
     private:
@@ -367,6 +378,35 @@ namespace madness {
         std::vector<Function<T,NDIM> > ket1_, bra1_, ket2_, bra2_;
 
     };
+
+
+    /// an outer product of two projectors
+    template<typename projT, typename projQ>
+    class OuterProjector : public ProjectorBase {
+        projT projector0;
+        projQ projector1;
+    public:
+
+        OuterProjector() = default;
+        OuterProjector(const projT& p0, const projQ& p1) : projector0(p0), projector1(p1) {
+            projector0.set_particle(0);
+            projector1.set_particle(1);
+        }
+
+        std::string type() const override {
+            return "OuterProjector";
+        }
+
+        template<typename resultT>
+        resultT operator()(const resultT& argument) const {
+            return projector0(projector1(argument));
+        }
+    };
+
+    template<typename projT, typename projQ>
+    OuterProjector<projT, projQ> outer(const projT& p0 , const projQ& p1) {
+        return OuterProjector<projT, projQ>(p0, p1);
+    }
 }
 
 #endif /* PROJECTOR_H_ */

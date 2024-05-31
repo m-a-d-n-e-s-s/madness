@@ -618,10 +618,10 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::apply(const Projecto
                 auto tmp2=CCPairFunction<T,NDIM>(tmp);
                 result.push_back(tmp2);
             } else if (auto P=dynamic_cast<const Projector<double,LDIM>*>(&projector)) {
-                result.push_back(CCPairFunction<T,NDIM>((*P)(pf.get_function(),P->get_particle()+1)));
+                result.push_back(CCPairFunction<T,NDIM>((*P)(pf.get_function())));
 
             } else if (auto Q=dynamic_cast<const QProjector<double,LDIM>*>(&projector)) {
-                result.push_back(CCPairFunction<T,NDIM>((*Q)(pf.get_function(),Q->get_particle()+1)));
+                result.push_back(CCPairFunction<T,NDIM>((*Q)(pf.get_function())));
 
             } else {
                 MADNESS_EXCEPTION("CCPairFunction<T,NDIM>: unknown projector type",1);

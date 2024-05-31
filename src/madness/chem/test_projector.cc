@@ -74,6 +74,36 @@ int test_projector(World& world) {
 }
 
 template<typename T, std::size_t NDIM>
+int test_projector_outer(World& world) {
+    test_output t1("testing projector_outer for dimension " + std::to_string(NDIM));
+    constexpr std::size_t LDIM=NDIM/2;
+    static_assert(2*LDIM==NDIM);
+
+    auto g1=[](const Vector<double,LDIM>& r){return exp(-inner(r,r));};
+    auto g_hidim=[](const Vector<double,NDIM>& r){return 2.0*exp(-3.0*inner(r,r));};
+    Function<double,LDIM> f1=FunctionFactory<double,LDIM>(world).f(g1);
+    Function<double,NDIM> f_hidim=FunctionFactory<double,NDIM>(world).f(g_hidim);
+
+
+    // compare explicit SO projector Q12 and outer product projector Q1Q2
+    StrongOrthogonalityProjector<double,LDIM> Q1(world);
+    Q1.set_spaces({f1});
+
+    QProjector<double,LDIM> q(world,{f1});
+    auto Q2=outer(q,q);
+
+    auto Q1f=Q1(f_hidim);
+    auto Q2f=Q2(f_hidim);
+    double err=(Q1f-Q2f).norm2();
+    double norm=Q1f.norm2();
+    print("norm",norm);
+
+    t1.checkpoint(err/norm,FunctionDefaults<NDIM>::get_thresh(),"Q1 direct and Q2 outer are the same");
+
+    return t1.end();
+}
+
+template<typename T, std::size_t NDIM>
 int test_Q12_projector(World& world) {
     test_output t1("testing Q12 projector for dimension "+std::to_string(NDIM));
     t1.set_cout_to_terminal();
@@ -128,8 +158,8 @@ int test_Q12_projector(World& world) {
     // SO(f) = f - O1(f) - O2(f) + O1O2(f)
     Projector<T,LDIM> O1(vphi);
     Projector<T,LDIM> O2(vphi);
-    O1.set_particle(1);
-    O2.set_particle(2);
+    O1.set_particle(0);
+    O2.set_particle(1);
     Function<T,NDIM> f3=f-O1(f)-O2(f)+O1(O2(f));
     double err1=(f1-f3).norm2()/f.norm2();
     print("err1",err1);
@@ -190,6 +220,8 @@ int main(int argc, char**argv) {
         error+=test_projector<double,2>(world);
         error+=test_projector<double,3>(world);
         error+=test_projector<double,4>(world);
+
+        error+=test_projector_outer<double,2>(world);
 
         if (HAVE_GENTENSOR) {
             error+=test_Q12_projector<double,2>(world);

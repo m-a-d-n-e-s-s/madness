@@ -125,7 +125,7 @@ CCIntermediatePotentials::operator()(const CC_vecfunction& f, const PotentialTyp
     else if (type == POT_s2c_ and f.type == RESPONSE) return current_s2c_potential_ex_;
     else if (f.type == HOLE) {
         output(assign_name(type) + " is zero for HOLE states");
-        result = zero_functions<double, 3>(world, f.size());
+        // result = zero_functions<double, 3>(f.size());
     } else {
         output("ERROR: Potential was not supposed to be stored");
         MADNESS_EXCEPTION("Potential was not supposed to be stored", 1);
@@ -139,22 +139,17 @@ CCIntermediatePotentials::operator()(const CC_vecfunction& f, const PotentialTyp
 madness::real_function_3d
 CCIntermediatePotentials::operator()(const CCFunction<double,3>& f, const PotentialType& type) const {
     output("Getting " + assign_name(type) + " for " + f.name());
-    real_function_3d result = real_factory_3d(world);
-    if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED))
-        return current_singles_potential_gs_[f.i - parameters.freeze()];
+    if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED)) return current_singles_potential_gs_[f.i - parameters.freeze()];
     else if (type == POT_singles_ and f.type == RESPONSE) return current_singles_potential_ex_[f.i - parameters.freeze()];
     else if (type == POT_s2b_ and f.type == PARTICLE) return current_s2b_potential_gs_[f.i - parameters.freeze()];
     else if (type == POT_s2b_ and f.type == RESPONSE) return current_s2b_potential_ex_[f.i - parameters.freeze()];
     else if (type == POT_s2c_ and f.type == PARTICLE) return current_s2c_potential_gs_[f.i - parameters.freeze()];
     else if (type == POT_s2c_ and f.type == RESPONSE) return current_s2c_potential_ex_[f.i - parameters.freeze()];
     else if (f.type == HOLE) output(assign_name(type) + " is zero for HOLE states");
-    else MADNESS_EXCEPTION("Potential was not supposed to be stored", 1)
+    else MADNESS_EXCEPTION("Potential was not supposed to be stored", 1);
 
-    ;
-    if (result.norm2() < FunctionDefaults<3>::get_thresh())
-        output("WARNING: Potential seems to be zero ||V||=" + std::to_string(double(result.norm2())));
 
-    return result;
+    return real_function_3d();
 }
 
 void
@@ -527,34 +522,54 @@ assign_name(const FuncType& inp) {
 
 
 std::vector<real_function_6d>
-MacroTaskMp2ConstantPart::operator() (const std::vector<CCPair>& pair, const std::vector<real_function_3d>& mo_ket,
-                                      const std::vector<real_function_3d>& mo_bra, const CCParameters& parameters,
-                                      const real_function_3d& Rsquare, const std::vector<real_function_3d>& U1,
+//MacroTaskMp2ConstantPart::operator() (const std::vector<CCPair>& pair, const std::vector<real_function_3d>& mo_ket,
+//                                      const std::vector<real_function_3d>& mo_bra, const CCParameters& parameters,
+//                                      const real_function_3d& Rsquare, const std::vector<real_function_3d>& U1,
+//                                      const std::vector<std::string>& argument) const {
+MacroTaskMp2ConstantPart::operator() (const std::vector<CCPair>& pair, const Info& info,
                                       const std::vector<std::string>& argument) const {
-    World& world = mo_ket[0].world();
+    World& world =info.mo_ket[0].world();
     resultT result = zero_functions_compressed<double, 6>(world, pair.size());
     for (size_t i = 0; i < pair.size(); i++) {
-        result[i] = CCPotentials::make_constant_part_mp2_macrotask(world, pair[i], mo_ket, mo_bra, parameters,
-                                                                   Rsquare, U1, argument);
+        result[i] = CCPotentials::make_constant_part_mp2_macrotask(world, pair[i], info.mo_ket, info.mo_bra,
+                                    info.parameters, info.R_square, info.U1, argument);
     }
     return result;
 }
 
 std::vector<real_function_6d>
+MacroTaskConstantPart::operator() (const std::vector<CCPair>& pair,
+                                   const std::vector<Function<double,3>> & gs_singles,
+                                   const std::vector<Function<double,3>> & ex_singles,
+                                   const Info& info) const {
+    World& world =info.mo_ket[0].world();
+    resultT result = zero_functions_compressed<double, 6>(world, pair.size());
+    for (size_t i = 0; i < pair.size(); i++) {
+        result[i] = CCPotentials::make_constant_part_macrotask(world, pair[i], gs_singles, ex_singles, info);
+    }
+    return result;
+}
+
+
+std::vector<real_function_6d>
+//MacroTaskMp2UpdatePair::operator() (const std::vector<CCPair> &pair,
+//                                    const std::vector<real_function_6d> &mp2_coupling,
+//                                    const CCParameters &parameters,
+//                                    const std::vector<madness::Vector<double, 3>> &all_coords_vec,
+//                                    const std::vector<real_function_3d> &mo_ket,
+//                                    const std::vector<real_function_3d> &mo_bra,
+//                                    const std::vector<real_function_3d> &U1, const real_function_3d &U2) const {
 MacroTaskMp2UpdatePair::operator() (const std::vector<CCPair> &pair,
                                     const std::vector<real_function_6d> &mp2_coupling,
-                                    const CCParameters &parameters,
                                     const std::vector<madness::Vector<double, 3>> &all_coords_vec,
-                                    const std::vector<real_function_3d> &mo_ket,
-                                    const std::vector<real_function_3d> &mo_bra,
-                                    const std::vector<real_function_3d> &U1, const real_function_3d &U2) const {
-    World& world = mo_ket[0].world();
+                                    const Info& info) const {
+    World& world = info.mo_ket[0].world();
     resultT result = zero_functions_compressed<double, 6>(world, pair.size());
 
     for (size_t i = 0; i < pair.size(); i++) {
         //(i, j) -> j*(j+1) + i
-        result[i] = CCPotentials::update_pair_mp2_macrotask(world, pair[i], parameters, all_coords_vec, mo_ket,
-                                                            mo_bra, U1, U2, mp2_coupling[i]);
+        result[i] = CCPotentials::update_pair_mp2_macrotask(world, pair[i], info.parameters, all_coords_vec, info.mo_ket,
+                                                            info.mo_bra, info.U1, info.U2, mp2_coupling[i]);
     }
     return result;
 }

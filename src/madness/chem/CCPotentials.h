@@ -142,7 +142,7 @@ public:
     /// makes the t intermediates
     /// t_i = mo_ket_(i) + factor*tau(i)
     /// if factor!=1 then we can not use intermediates and set the type to UNDEFINED
-    CC_vecfunction make_t_intermediate(const CC_vecfunction& tau, const double factor = 1.0) const;
+    CC_vecfunction make_t_intermediate(const CC_vecfunction& tau, const CCParameters& parameters) const;
 
     /// makes the t intermediates
     /// t_i = mo_ket_(i) + factor*tau(i)
@@ -267,6 +267,20 @@ public:
                                                    const std::vector<real_function_3d>& U1,
                                                    const std::vector<std::string> argument);
 
+    /// Compute the constant part of MP2, CC2 or LR-CC2
+    ///
+    /// depending on pair.calc_type different terms are included in the constant part.
+    /// @param[in] pair         the (empty) pair function, determines the terms in the constant part, contains some bookkeeping information (bsh_eps, i, j)
+    /// @param[in] gs_singles   the ground-state singles for CC2 (used for the T1-transformed SO projector), may be left empty for MP2
+    /// @param[in] ex_singles   the excited-state singles for CC2 (used for the T1-transformed SO projector), may be left empty for MP2 and GS-CC2
+    /// @param[in] info         the Info object, containing the some basic quantities (MOs, parameters, etc)
+    /// @return            the constant part of the MP2, CC2 or LR-CC2: G(Q12(g~|titj>))
+    static madness::real_function_6d
+    make_constant_part_macrotask(World& world, const CCPair& pair,
+                                 const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
+                                 const Info& info);
+
+
     /// Static function to iterate the mp2 pairs from macrotask
     static madness::real_function_6d
     update_pair_mp2_macrotask(World& world, const CCPair& pair, const CCParameters& parameters,
@@ -331,6 +345,17 @@ public:
     real_function_6d
     apply_Vreg(const CCFunction<double,3>& ti, const CCFunction<double,3>& tj, const real_convolution_6d *Gscreen = NULL) const;
 
+    /// Apply the Regularization potential
+    /// \f$ V_{reg} = [ U_e - [K,f12] + f12(F12-eij) + [F,Qt] ]|titj> \f$
+    /// @param[in] ti, first function in the ket, for MP2 it is the Orbital, for CC2 the relaxed Orbital t_i=\phi_i + \tau_i
+    /// @param[in] tj, second function in the ket ...
+    /// @param[in] pointer to bsh operator (in order to screen)
+    /// @param[out] the regularization potential (unprojected), see equation above
+    std::vector<CCPairFunction<double,6>>
+    static apply_Vreg(World& world, const CCFunction<double,3>& ti, const CCFunction<double,3>& tj,
+                      const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
+                      const Info& info, const std::vector<std::string>& argument, const double bsh_eps);
+
     /// Static version of apply_Vreg to be used from a macrotask. Will eventually replace former.
     madness::real_function_6d
     static
@@ -351,8 +376,19 @@ public:
     /// @param[in] tj, second function in the ket ...
     /// @param[in] pointer to bsh operator (in order to screen)
     real_function_6d
-    apply_reduced_F(const CCFunction<double,3>& ti, const CCFunction<double,3>& tj, const real_convolution_6d *Gscreen = NULL) const;
+    apply_reduced_F1(const CCFunction<double,3>& ti, const CCFunction<double,3>& tj, const real_convolution_6d *Gscreen = NULL) const;
 
+    /// evaluates: \f$ (F(1)-ei)|ti> (x) |tj> + |ti> (x) (F(2)-ej)|tj> \f$ with the help of the singles potential
+    /// singles equation is: (F-ei)|ti> = - V(ti)
+    /// response singles equation: (F-ei-omega)|xi> = - V(xi)
+    /// response:  \f$ (F12-ei-ej-omega)|xitj> = (F1 - ei - omega)|xi> (x) |tj> + |xi> (x) (F2-ej)|tj> \f$
+    /// so in both cases the result will be: |V(ti),tj> + |ti,V(tj)>
+    /// @param[in] ti, first function in the ket, for MP2 it is the Orbital, for CC2 the relaxed Orbital t_i=\phi_i + \tau_i
+    /// @param[in] tj, second function in the ket ...
+    /// @param[in] pointer to bsh operator (in order to screen)
+    real_function_6d
+    static apply_reduced_F(World& world, const CCFunction<double,3>& ti, const CCFunction<double,3>& tj,
+                    const Info& info, const real_convolution_6d *Gscreen = NULL);
 
     /// Apply Ue on a tensor product of two 3d functions: Ue(1,2) |x(1)y(2)> (will be either |ij> or |\tau_i\tau_j> or mixed forms)
     /// The Transformed electronic regularization potential (Kutzelnigg) is R_{12}^{-1} U_e R_{12} with R_{12} = R_1*R_2
@@ -375,6 +411,24 @@ public:
                                           const std::vector<real_function_3d>& U1, const size_t& i, const size_t& j,
                                           const FuncType& x_type, const FuncType& y_type,
                                           const real_convolution_6d *Gscreen = NULL);
+
+    real_function_6d
+    static apply_Ue(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
+                    const Info& info, const real_convolution_6d *Gscreen);
+
+
+    static real_function_6d
+    apply_KffK(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
+                                                  const Info& info, const real_convolution_6d *Gscreen) ;
+    static CCPairFunction<double,6>
+    apply_commutator_F_Qt_f12(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
+                          const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
+                          const Info& info, const real_convolution_6d *Gscreen) ;
+
+    static CCPairFunction<double,6>
+    apply_commutator_F_dQt_f12(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
+                          const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
+                          const Info& info, const real_convolution_6d *Gscreen) ;
 
     /// Apply Ue on a tensor product of two 3d functions: Ue(1,2) |x(1)y(2)> (will be either |ij> or |\tau_i\tau_j> or mixed forms)
     /// The Transformed electronic regularization potential (Kutzelnigg) is R_{12}^{-1} U_e R_{12} with R_{12} = R_1*R_2
@@ -681,6 +735,11 @@ public:
     real_function_6d
     make_f_xy(const CCFunction<double,3>& x, const CCFunction<double,3>& y, const real_convolution_6d *Gscreen = NULL) const;
 
+    /// Creates a 6D function with the correlation factor and two given CCFunctions
+    real_function_6d
+    static make_f_xy(World& world, const CCFunction<double,3>& x, const CCFunction<double,3>& y,
+              const Info& info, const real_convolution_6d *Gscreen = NULL);
+
     real_function_6d
     static make_f_xy_macrotask( World& world, const real_function_3d& x_ket, const real_function_3d& y_ket,
                                 const real_function_3d& x_bra, const real_function_3d& y_bra,
@@ -805,7 +864,9 @@ public:
         }
     }
 
-protected:
+public:
+
+
     // member variables
     /// MPI World
     World& world;
@@ -828,6 +889,8 @@ public:
     CorrelationFactor corrfac;
     /// Manager for stored intermediate potentials which are s2c, s2b and the whole singles potentials without fock-residue for GS and EX state
     mutable CCIntermediatePotentials get_potentials;
+    /// POD for basis and intermediates
+    Info info;
 public:
     /// Messenger structure for formated output and to store warnings
     CCMessenger output;

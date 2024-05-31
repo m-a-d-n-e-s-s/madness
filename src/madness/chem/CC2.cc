@@ -30,6 +30,7 @@ CC2::solve() {
     dummy_mo.print_frozen_orbitals(parameters.freeze());
 
     CCOPS.reset_nemo(nemo);
+    CCOPS.get_potentials.parameters=parameters;
     CCOPS.update_intermediates(CCOPS.mo_ket());
 
     // doubles for ground state
@@ -248,6 +249,15 @@ CC2::solve() {
         std::vector<std::pair<std::string, std::pair<double, double> > > timings;
 
         auto vccs=solve_ccs();
+        Info info;
+        info.mo_bra=CCOPS.mo_bra().get_vecfunction();
+        info.mo_ket=CCOPS.mo_ket().get_vecfunction();
+        info.parameters=parameters;
+        info.R_square=nemo->R_square;
+        info.U1=nemo->ncf->U1vec();
+        info.U2=nemo->ncf->U2();
+        info.intermediate_potentials=CCOPS.get_potentials;
+
 
         std::vector<std::pair<std::string, std::pair<double, double> > > results_ex;
         for (size_t xxx = 0; xxx < vccs.size(); xxx++) {
@@ -268,10 +278,11 @@ CC2::solve() {
             if (found_lrcc2d) iterate_lrcc2_singles(cc2singles, cc2pairs, lrcc2_s, lrcc2_d);
             else iterate_ccs_singles(lrcc2_s);
             const double omega_cis = lrcc2_s.omega;
+            info.intermediate_potentials=CCOPS.get_potentials;  // update applied singles potentials
 
             for (size_t iter = 0; iter < parameters.iter_max(); iter++) {
                 output.section("Macroiteration " + std::to_string(int(iter)) + " of LRCC2");
-                bool dconv = iterate_lrcc2_pairs(cc2singles, cc2pairs, lrcc2_s, lrcc2_d);
+                bool dconv = iterate_lrcc2_pairs(cc2singles, cc2pairs, lrcc2_s, lrcc2_d, info);
                 bool sconv = iterate_lrcc2_singles(cc2singles, cc2pairs, lrcc2_s, lrcc2_d);
                 if (dconv and sconv) break;
             }
@@ -408,6 +419,14 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
     // make vector holding CCPairs for partitioner of MacroTask
     std::vector<CCPair> pair_vec=Pairs<CCPair>::pairs2vector(doubles,triangular_map);
 
+    Info info;
+    info.mo_bra=CCOPS.mo_bra().get_vecfunction();
+    info.mo_ket=CCOPS.mo_ket().get_vecfunction();
+    info.parameters=parameters;
+    info.R_square=nemo->R_square;
+    info.U1=nemo->ncf->U1vec();
+    info.U2=nemo->ncf->U2();
+
     // read constant part from file
     if (parameters.no_compute_mp2_constantpart()) {
         if (world.rank()==0) print("Skipping MP2 constant part calculation");
@@ -422,12 +441,11 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
         // calc constant part via taskq
         auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
         taskq->set_printlevel(3);
-        MacroTaskMp2ConstantPart t;
+        MacroTaskConstantPart t;
         MacroTask task(world, t, taskq);
         task.set_name("MP2_Constant_Part");
-        std::vector<real_function_6d> result_vec = task(pair_vec, CCOPS.mo_ket().get_vecfunction(),
-                                                        CCOPS.mo_bra().get_vecfunction(), parameters,
-                                                        nemo->R_square, nemo->ncf->U1vec(),std::vector<std::string>({"Ue","KffK"}));
+        std::vector<Function<double,3>> gs_singles, ex_singles;         // dummy vectors
+        std::vector<real_function_6d> result_vec = task(pair_vec, gs_singles, ex_singles, info) ;
         taskq->print_taskq();
         taskq->run_all();
 
@@ -494,9 +512,11 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
             p.function().print_size("pair_vec function before update after reconstruction");         // flodbg 2.0 GByte
             p.constant_part.print_size("pair_vec constant part before update macrotask is called");
         }
-        std::vector<real_function_6d> u_update = task1(pair_vec, coupling_vec, parameters, nemo->get_calc()->molecule.get_all_coords_vec(),
-                                                      CCOPS.mo_ket().get_vecfunction(), CCOPS.mo_bra().get_vecfunction(),
-                                                      nemo->ncf->U1vec(), nemo->ncf->U2());
+//        std::vector<real_function_6d> u_update = task1(pair_vec, coupling_vec, parameters, nemo->get_calc()->molecule.get_all_coords_vec(),
+//                                                      CCOPS.mo_ket().get_vecfunction(), CCOPS.mo_bra().get_vecfunction(),
+//                                                      nemo->ncf->U1vec(), nemo->ncf->U2());
+        auto all_coords=nemo->get_calc()->molecule.get_all_coords_vec();
+        std::vector<real_function_6d> u_update = task1(pair_vec, coupling_vec, all_coords , info);
         taskq->print_taskq();
         taskq->run_all();
 
@@ -705,7 +725,7 @@ CC2::iterate_adc2_pairs(Pairs<CCPair>& cispd, const CC_vecfunction& ccs) {
 
 bool
 CC2::iterate_lrcc2_pairs(const CC_vecfunction& cc2_s, const Pairs<CCPair>& cc2_d, const CC_vecfunction lrcc2_s,
-                         Pairs<CCPair>& lrcc2_d) {
+                         Pairs<CCPair>& lrcc2_d, const Info& info) {
     output.section("Solve LRCC2 for Excitation energy " + std::to_string(double(lrcc2_s.omega)));
     MADNESS_ASSERT(lrcc2_s.type == RESPONSE);
     CCOPS.update_intermediates(lrcc2_s);
@@ -721,7 +741,9 @@ CC2::iterate_lrcc2_pairs(const CC_vecfunction& cc2_s, const Pairs<CCPair>& cc2_d
             output("Skipping Pair Iteration, No significant Change in Singles");
         else {
             pair.bsh_eps = CCOPS.get_epsilon(pair.i, pair.j) + lrcc2_s.omega;
-            update_constant_part_lrcc2(pair, cc2_s, lrcc2_s);
+            // update_constant_part_lrcc2(pair, cc2_s, lrcc2_s);
+            pair.constant_part=CCPotentials::make_constant_part_macrotask(world, pair,
+                         cc2_s, lrcc2_s, info);
             conv = iterate_pair(pair, lrcc2_s);
         }
     }
@@ -743,11 +765,25 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles) {
     double omega = CCOPS.compute_cc2_correlation_energy(singles, doubles);
     if (world.rank() == 0)
         std::cout << std::fixed << std::setprecision(10) << "Current Correlation Energy = " << omega << "\n";
+    CC_vecfunction ex_singles_dummy;
+    vector_real_function_3d empty(CCOPS.mo_ket().size()-parameters.freeze());
+    Info info;
+    info.intermediate_potentials=CCIntermediatePotentials(parameters);
+    info.mo_bra=CCOPS.mo_bra().get_vecfunction();
+    info.mo_ket=CCOPS.mo_ket().get_vecfunction();
+    info.parameters=parameters;
+    info.R_square=nemo->R_square;
+    info.U1=nemo->ncf->U1vec();
+    info.U2=nemo->ncf->U2();
+    info.intermediate_potentials.insert(empty,singles,POT_singles_); // initialize with empty vector
 
     if (not parameters.no_compute_cc2()) {
         // first singles iteration
         output.section("Initialize Singles to the Doubles");
         iterate_cc2_singles(singles, doubles);
+        // nasty hack
+        info.intermediate_potentials=CCOPS.get_potentials;
+        info.intermediate_potentials.parameters=parameters;
         // update correlation energy
         omega = CCOPS.compute_cc2_correlation_energy(singles, doubles);
 
@@ -759,7 +795,9 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles) {
             bool doubles_converged = true;
             for (auto& pairs: doubles.allpairs) {
                 CCPair& pair = pairs.second;
-                update_constant_part_cc2_gs(singles, pair);
+                // update_constant_part_cc2_gs(singles, pair);
+                pair.constant_part=CCPotentials::make_constant_part_macrotask(world, pair,
+                             singles, ex_singles_dummy, info);
                 bool pair_converged = iterate_pair(pair, singles);
                 save(pair.function(), pair.name());
                 if (not pair_converged) doubles_converged = false;

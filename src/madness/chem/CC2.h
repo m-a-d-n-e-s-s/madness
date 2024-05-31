@@ -406,7 +406,7 @@ public:
 
     bool
     iterate_lrcc2_pairs(const CC_vecfunction& cc2_s, const Pairs<CCPair>& cc2_d, const CC_vecfunction lrcc2_s,
-                        Pairs<CCPair>& lrcc2_d);
+                        Pairs<CCPair>& lrcc2_d, const Info& info);
 
     bool update_constant_part_cc2_gs(const CC_vecfunction& tau, CCPair& pair) {
         MADNESS_ASSERT(pair.ctype == CT_CC2);

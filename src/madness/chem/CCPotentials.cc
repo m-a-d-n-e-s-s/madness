@@ -26,16 +26,16 @@ CCPotentials::CCPotentials(World& world_,  std::shared_ptr<Nemo> nemo, const CCP
           //orbital_energies_(init_orbital_energies(nemo))
 //          g12(std::shared_ptr<CCConvolutionOperator(world, OT_G12, param)), f12(world, OT_F12, param),
           corrfac(world, param.gamma(), 1.e-7, nemo->get_calc()->molecule),
-          get_potentials(world, param),
+          get_potentials(param),
           output(world) {
     g12=std::shared_ptr<CCConvolutionOperator<double,3>>(new CCConvolutionOperator<double,3>(world,OpType::OT_G12,param));
     f12=std::shared_ptr<CCConvolutionOperator<double,3>>(new CCConvolutionOperator<double,3>(world,OpType::OT_F12,param));
     output.debug = parameters.debug();
-//    reset_nemo(nemo);
-//    g12.update_elements(mo_bra_, mo_ket_);
-//    g12.sanity();
-//    f12.update_elements(mo_bra_, mo_ket_);
-//    f12.sanity();
+    //    reset_nemo(nemo);
+    //    g12.update_elements(mo_bra_, mo_ket_);
+    //    g12.sanity();
+    //    f12.update_elements(mo_bra_, mo_ket_);
+    //    f12.sanity();
 }
 
 madness::CC_vecfunction
@@ -78,7 +78,7 @@ CCPotentials::make_pair_gs(const real_function_6d& u, const CC_vecfunction& tau,
     MADNESS_ASSERT(tau.type == PARTICLE || tau.type == HOLE);
     // for  MP2: tau is empty or Hole states, the function will give back mo_ket_
     // for freeze!=0 the function will give back (mo0,mo1,...,t_freeze,t_freeze+1,...)
-    const CC_vecfunction t = make_t_intermediate(tau);
+    const CC_vecfunction t = make_t_intermediate(tau,parameters);
     // functions for the projector
     CC_vecfunction pt;
     if (!parameters.QtAnsatz()) pt = mo_ket_;
@@ -222,7 +222,7 @@ CCPotentials::make_pair_ex(const real_function_6d& u, const CC_vecfunction& tau,
     MADNESS_ASSERT(!(j < parameters.freeze()));
     // for  CIS(D): tau is empty or Hole states, the function will give back mo_ket_
     // for freeze!=0 the function will give back (mo0,mo1,...,t_freeze,t_freeze+1,...)
-    const CC_vecfunction t = make_t_intermediate(tau).copy();
+    const CC_vecfunction t = make_t_intermediate(tau,parameters).copy();
     // functions for the projector
     CC_vecfunction pt;
     if (!parameters.QtAnsatz()) pt = mo_ket_.copy();
@@ -661,7 +661,7 @@ CCPotentials::fock_residue_6d_macrotask(World& world, const CCPair& u, const CCP
             double tight_thresh = parameters.thresh_6D();
             real_function_6d x = CompositeFactory<double, 6, 3>(world).ket(copy(Du)).V_for_particle2(
                     copy(U1_axis)).thresh(tight_thresh).special_points(sp6d);
-             x.fill_nuclear_cuspy_tree(op_mod, 2);
+            x.fill_nuclear_cuspy_tree(op_mod, 2);
             if (parameters.debug()) x.print_size("Un_axis_" + stringify(axis));
             Un2 += x;
         }
@@ -678,6 +678,120 @@ CCPotentials::fock_residue_6d_macrotask(World& world, const CCPair& u, const CCP
 
     return vphi;
 }
+
+/// the constant part is the contribution to the doubles that are independent of the doubles
+
+/// CC-equations from Kottmann et al., JCTC 13, 5956 (2017)
+/// MP2:
+///    cp = G Q g~ |ij>
+///    g~ = Ue - KffK
+/// GS-CC2: eqs. (6,7)
+///   cp  = G Qt g~ |t_i t_j>
+///    g~ = Ue - KffK - Fock_commutator - reduced_Fock
+/// LRCC2: eqs. (24-29)
+///   cp  = G d(Qt g~ d|t_i t_j>)
+///       = G (Qt g~ d|t_i t_j> + Qt dg~ |t_i t_j> + dQt g~ |t_i t_j>)
+madness::real_function_6d
+CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
+            const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
+            const Info& info) {
+    const CalcType targetstate=pair.ctype;
+    const auto& parameters=info.parameters;
+
+    // t1-transformed orbitals
+    CC_vecfunction t(MIXED);
+    if (targetstate==CT_CC2 or targetstate==CT_LRCC2)
+    {
+        for (int i=0; i<info.mo_ket.size(); i++) {
+            CCFunction<double,3> t1(info.mo_ket[i] + gs_singles(i).function, i, MIXED);
+            t.insert(i, t1);
+        }
+    }
+
+    // construct the projectors
+    // Q12 = (1-|i><i|)  (1-|j><j|)
+    StrongOrthogonalityProjector<double, 3> Q12(world);
+    Q12.set_spaces(info.mo_bra,info.mo_ket,info.mo_bra,info.mo_ket);
+
+    // Q12t = (1-|t_i><i|)(1-|t_j><j|)
+    StrongOrthogonalityProjector<double, 3> Q12t(world);
+    Q12t.set_spaces(info.mo_bra,t.get_vecfunction(),info.mo_bra,t.get_vecfunction());
+
+    // dQ12t = -(Qt(1) Ox(2) + Ox(1) Qt(2))      eq. (22)
+    QProjector<double,3> Qt(world,info.mo_bra,t.get_vecfunction());
+    Projector<double,3> Ox(info.mo_bra,ex_singles.get_vecfunction());
+    auto dQt_1 = outer(Qt,Ox);
+    auto dQt_2 = outer(Ox,Qt);
+
+    std::size_t i=pair.i;
+    std::size_t j=pair.j;
+    auto phi = [&](size_t i) { return CCFunction<double,3>(info.mo_ket[i],i,HOLE); };
+    // auto t = [&](size_t i) { return CCFunction<double,3>(info.mo_ket[i]+gs_singles(i).function); };
+    auto x = [&](size_t i) { return ex_singles(i); };
+
+    // save memory:
+    // split application of the BSH operator into high-rank, local part U|ij>, and
+    // low-rank, delocalized part (-O1 -O2 +O1O2) U|ij> by splitting the SO operator
+    auto apply_in_separated_form = [](const StrongOrthogonalityProjector<double,3>& Q,
+        const std::vector<CCPairFunction<double,6>>& ccp) {
+
+        std::vector<CCPairFunction<double,6>> result;
+        for (const auto& cc : ccp) {
+            if (cc.is_pure()) {
+                auto [left,right]=Q.get_vectors_for_outer_product(cc.get_function());
+                result.push_back(cc);
+                result.push_back(CCPairFunction<double,6>(left,right));
+            } else if (cc.is_decomposed()) {
+                result.push_back(Q(cc));
+            }
+        }
+        return result;
+    };
+
+    // compute all 6d potentials without applying the SO projector
+    std::vector<CCPairFunction<double,6>> V;
+    if (targetstate==CT_MP2) {
+        std::vector<std::string> argument={"Ue","KffK"};
+        auto Vreg=apply_Vreg(world,phi(i),phi(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
+        V=consolidate(apply_in_separated_form(Q12,Vreg));
+    } else if (targetstate==CT_CC2) {       // Eq. (42) of Kottmann, JCTC 13, 5945 (2017)
+        std::vector<std::string> argument={"Ue","KffK","comm_F_Qt_f12","reduced_Fock"};
+        auto Vreg=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
+        V=consolidate(Q12t(Vreg));
+    } else if (targetstate==CT_LRCC2) {     // Eq. (25) of Kottmann, JCTC 13, 5956 (2017)
+        // eq. (25) Q12t (g~ - omega f12) (|x_i t_j> + |t_i x_j> )
+        // note the term omega f12 is included in the reduced_Fock term, see eq. (34)
+        std::vector<std::string> argument={"Ue","KffK","comm_F_Qt_f12","reduced_Fock"};
+        auto Vreg=apply_Vreg(world,t(i),x(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
+        Vreg+=apply_Vreg(world,x(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
+        V=consolidate(apply_in_separated_form(Q12t,Vreg));
+
+        // eq. (29) first term: dQt g~ |t_i t_j>
+        argument={"Ue","KffK","comm_F_Qt_f12","reduced_Fock"};
+        auto Vreg1=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
+        V-=consolidate(dQt_1(Vreg1) + dQt_2(Vreg1));
+
+        // eq. (29) second term = eq. (31): [F12, dQt] f12 |t_i t_j> + omega dQ12t f12 |t_i t_j>
+        argument={"comm_F_dQt_f12"};
+        V+=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
+    }
+    V=consolidate(V);
+    MADNESS_CHECK(V.size()==2);     // term 1: 6d, hi-rank, local; term 2: 3d, low-rank, delocalized
+
+    // the Green's function
+    auto G = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
+    G.destructive() = true;
+
+    real_function_6d GV=real_factory_6d(world).empty();
+    for (const auto& vv : V) GV+= (-2.0 * G(vv)).get_function();      // note V is destroyed here
+    GV=Q12(GV).truncate().reduce_rank();
+
+    GV.print_size("GVreg");
+    return GV;
+}
+
+
+
 
 madness::real_function_6d
 CCPotentials::make_constant_part_mp2_macrotask(World& world, const CCPair& pair,
@@ -719,13 +833,13 @@ CCPotentials::make_constant_part_mp2_macrotask(World& world, const CCPair& pair,
     StrongOrthogonalityProjector<double, 3> Q(world);
     Q.set_spaces(mo_bra, mo_ket, mo_bra, mo_ket);
 
-//    V = Q(V);
-//
-//    V.print_size("QVreg");
+    //    V = Q(V);
+    //
+    //    V.print_size("QVreg");
     real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * epsilon), parameters.lo(),
                                            parameters.thresh_bsh_6D());
     G.destructive() = true;
-//    real_function_6d GV = -2.0 * G(V);
+    //    real_function_6d GV = -2.0 * G(V);
 
     // save memory:
     // split application of the BSH operator into high-rank, local part U|ij>, and
@@ -904,6 +1018,7 @@ CCPotentials::make_constant_part_cc2_Qt_gs(const CCPair& u, const CC_vecfunction
     real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * get_epsilon(ti.i, tj.i)), parameters.lo(),
                                            parameters.thresh_bsh_6D());
     G.destructive() = true;
+    G.particle_=-1;
     // calculate [F,Qt] commutator which is [F1,Q1t]Q2t + Q1t [F2,Q2t]
     // and [F1,Q1t] = - [F1,O1t] = - (F-e_k) |tk><k| = - (F-e_k) |tauk><k| = |Vk><k|
     // commutator is applied to f12|titj>
@@ -1425,7 +1540,7 @@ CCPotentials::apply_Vreg(const CCFunction<double,3>& ti, const CCFunction<double
     output("Applying Vreg to |" + ti.name() + tj.name() + ">");
     CCTimer timer(world, "Vreg|" + ti.name() + tj.name() + ">");
     CCTimer time_f(world, "F-Part");
-    const real_function_6d F_part = apply_reduced_F(ti, tj, Gscreen);
+    const real_function_6d F_part = apply_reduced_F1(ti, tj, Gscreen);
     time_f.stop();
     CCTimer time_u(world, "U-Part");
     const real_function_6d U_part = apply_transformed_Ue(ti, tj, Gscreen);
@@ -1447,6 +1562,66 @@ CCPotentials::apply_Vreg(const CCFunction<double,3>& ti, const CCFunction<double
 
     timer.info(true, result.norm2());
     return result;
+}
+
+
+/// Apply the Regularization potential
+
+/// four terms can be calculated
+/// \f$ V_{reg} = [ U_e - [K,f12] + f12(F12-eij) + [F,Qt] ]|titj> \f$
+///   - Ue = [T,f12]
+///   - [K,f12]
+///   - [F12,Q12t] f12 or  [F12,dQ12t] f12
+///   - f12 (F - e_ij - omega) or f12 (F - e_ij)
+///  the last terms are computed using the converged singles potential, i.e. we assume that the following equation holds
+///  (see Kottmann et al., JCTC 13, 5945 (2017) eqs (30), (31), (44)
+///  (see Kottmann et al., JCTC 13, 5956 (2017) eqs (17), (19), (32)
+///  CC2:   (F - e_i ) |t_i t_j> = | Vtau >
+///  LRCC2: (F - e_i - omega) |x_i> = | Vx >
+/// @param[in] ti, first function in the ket, for MP2 it is the Orbital, for CC2 the relaxed Orbital t_i=\phi_i + \tau_i
+/// @param[in] tj, second function in the ket ...
+/// @param[in] gs_singles, the converged ground state singles: with   (F - e_i ) |t_i t_j> = | Vtau >
+/// @param[in] ex_singles, the converged excited state singles: with (F - e_i - omega) |x_i> = | Vx >
+/// @param[in] info Info structure holding the applied singles potentials Vtau and Vx and reference orbitals
+/// @param[out] the regularization potential (unprojected), see equation above
+std::vector<CCPairFunction<double,6>>
+    CCPotentials::apply_Vreg(World& world, const CCFunction<double,3>& ti, const CCFunction<double,3>& tj,
+                          const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
+                          const Info& info, const std::vector<std::string>& argument, const double bsh_eps) {
+
+    const auto parameters=info.parameters;
+    if (parameters.debug() and (world.rank()==0)) {
+        print("computing the following terms in constant_part for pair: (",ti.name(),",", tj.name(),"):" , argument);
+    }
+
+    real_convolution_6d Gscreen = BSHOperator<6>(world, sqrt(-2.0 * bsh_eps),
+                                                 parameters.lo(), parameters.thresh_bsh_6D());
+    Gscreen.modified() = true;
+
+    auto exists=[&](const std::string term) {
+        return std::find(argument.begin(), argument.end(), term) != argument.end();
+    };
+
+    // calculate the regularized potential
+    real_function_6d V=real_factory_6d(world);
+    std::vector<CCPairFunction<double,6>> V_lowrank;
+    if (exists("Ue")) V += apply_Ue(world,ti,tj,info,&Gscreen);
+    if (exists("KffK")) V -= apply_KffK(world,ti,tj,info,&Gscreen);
+    if (exists("reduced_Fock")) V += apply_reduced_F(world,ti,tj,info,&Gscreen);
+    if (exists("comm_F_Qt_f12")) {
+        V_lowrank += apply_commutator_F_Qt_f12(world,ti,tj,gs_singles,ex_singles,info,&Gscreen);
+    }
+    if (exists("comm_F_dQt_f12")) {
+        V_lowrank += apply_commutator_F_dQt_f12(world,ti,tj,gs_singles,ex_singles,info,&Gscreen);
+    }
+    V.truncate().reduce_rank();
+    if (parameters.debug()) V.print_size("Vreg");
+
+    std::vector<CCPairFunction<double,6>> result;
+    result+=CCPairFunction<double,6>(V);
+    result+=V_lowrank;
+    return result;
+
 }
 
 madness::real_function_6d
@@ -1509,7 +1684,7 @@ CCPotentials::apply_Vreg_macrotask(World& world, const std::vector<real_function
 }
 
 madness::real_function_6d
-CCPotentials::apply_reduced_F(const CCFunction<double,3>& ti, const CCFunction<double,3>& tj, const real_convolution_6d *Gscreen) const {
+CCPotentials::apply_reduced_F1(const CCFunction<double,3>& ti, const CCFunction<double,3>& tj, const real_convolution_6d *Gscreen) const {
     //CC_Timer time(world,"(F-eij)|"+ti.name()+tj.name()+">");
     // get singles potential
     const bool symmetric = (ti.type == tj.type && ti.i == tj.i);
@@ -1526,6 +1701,26 @@ CCPotentials::apply_reduced_F(const CCFunction<double,3>& ti, const CCFunction<d
     return result;
 }
 
+/// compute the reduced Fock term, either with or without the omega term
+/// using Eqs (33) and (34) of Kottmann et al., JCTC 13, 5956 (2017)
+/// f12 (F12 - e_ij) |ti tj>
+/// f12 (F12 - e_ij - omega) |ti xj>
+madness::real_function_6d
+CCPotentials::apply_reduced_F(World& world, const CCFunction<double,3>& ti, const CCFunction<double,3>& tj,
+                              const Info& info, const real_convolution_6d *Gscreen) {
+    //CC_Timer time(world,"(F-eij)|"+ti.name()+tj.name()+">");
+    // get singles potential
+    const bool symmetric = (ti == tj);
+    const real_function_3d Vti = info.intermediate_potentials(ti, POT_singles_);
+    const real_function_3d Vtj = info.intermediate_potentials(tj, POT_singles_);
+    const real_function_6d Vt = make_f_xy(world, Vti, tj, info, Gscreen);
+    real_function_6d tV;
+    if (symmetric) tV = madness::swap_particles(Vt);
+    else tV = make_f_xy(world, ti, Vtj, info, Gscreen);
+
+    const real_function_6d result = -1.0 * (Vt + tV);
+    return result;
+}
 
 madness::real_function_6d
 CCPotentials::apply_transformed_Ue(const CCFunction<double,3>& x, const CCFunction<double,3>& y, const real_convolution_6d *Gscreen) const {
@@ -1609,6 +1804,101 @@ CCPotentials::apply_transformed_Ue(const CCFunction<double,3>& x, const CCFuncti
     return Uxy;
 }
 
+
+madness::real_function_6d
+CCPotentials::apply_Ue(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
+        const Info& info, const real_convolution_6d *Gscreen) {
+
+    const std::string x_name = phi_i.name();
+    const std::string y_name = phi_j.name();
+    const auto& parameters=info.parameters;
+
+    if (parameters.debug()) print("Computing Ue|" + x_name + y_name + ">");
+
+    real_function_3d x_function=phi_i.function;
+    real_function_3d y_function=phi_j.function;
+    CorrelationFactor corrfac(world, parameters.gamma(), 1.e-7, parameters.lo());
+
+    const bool symmetric = (phi_i.type == phi_j.type && phi_i.i == phi_j.i);
+    CCTimer time_Ue(world, "Ue|" + x_name + y_name + ">");
+    double tight_thresh = parameters.thresh_6D();     // right now this is the std. thresh
+    // check if screening operator is in modified NS Form
+    if (Gscreen != NULL) {
+        if (!Gscreen->modified()) error("Demanded Screening for Ue but given BSH Operator is not in modified NS form");
+    }
+    if (parameters.debug()) print("Applying transformed Ue to \n" + x_name + y_name);
+
+    if (parameters.debug() && symmetric) print("Exploiting Pair Symmetry\n");
+
+    real_function_6d Uxy = real_factory_6d(world);
+    Uxy.set_thresh(tight_thresh);
+    // Apply the untransformed U Potential
+    Uxy = corrfac.apply_U(x_function, y_function, *Gscreen, symmetric);
+    Uxy.set_thresh(tight_thresh);
+    // Apply the double commutator R^{-1}[[T,f,R]
+    for (size_t axis = 0; axis < 3; axis++) {
+        // Make the local parts of the Nuclear and electronic U potentials
+        const real_function_3d Un_local = info.U1[axis];
+        const real_function_3d Un_local_x = (Un_local * x_function).truncate();
+        real_function_3d Un_local_y;
+        if (symmetric) Un_local_y = copy(Un_local_x);
+        else Un_local_y = (Un_local * y_function).truncate();
+
+        const real_function_6d Ue_local = corrfac.U1(axis);
+        // Now add the Un_local_x part to the first particle of the Ue_local potential
+        real_function_6d UeUnx = CompositeFactory<double, 6, 3>(world).g12(Ue_local).particle1(Un_local_x).particle2(
+                copy(y_function)).thresh(tight_thresh);
+        // Fill the Tree where it will be necessary
+        UeUnx.fill_cuspy_tree(*Gscreen);
+        // Set back the thresh
+        UeUnx.set_thresh(FunctionDefaults<6>::get_thresh());
+//        print_size(UeUnx, "UeUnx", parameters.debug());
+        // Now add the Un_local_y part to the second particle of the Ue_local potential
+        real_function_6d UeUny;
+        if (symmetric) UeUny = -1.0 * madness::swap_particles(UeUnx);     // Ue_local is antisymmetric
+        else {
+            UeUny = CompositeFactory<double, 6, 3>(world).g12(Ue_local).particle1(copy(x_function)).particle2(
+                    Un_local_y).thresh(tight_thresh);
+            // Fill the Tree were it will be necessary
+            UeUny.fill_cuspy_tree(*Gscreen);
+            // Set back the thresh
+            UeUny.set_thresh(FunctionDefaults<6>::get_thresh());
+        }
+//        print_size(UeUny, "UeUny", parameters.debug());
+        // Construct the double commutator part and add it to the Ue part
+        real_function_6d diff = (UeUnx - UeUny).scale(-1.0);
+        diff.truncate();
+        Uxy = (Uxy + diff).truncate();
+    }
+    if (parameters.debug()) time_Ue.info();
+
+    // sanity check: <xy|R2 [T,g12] |xy> = <xy |R2 U |xy> - <xy|R2 g12 | xy> = 0
+    CCTimer time_sane(world, "Ue-Sanity-Check");
+    real_function_6d tmp = CompositeFactory<double, 6, 3>(world).particle1(
+            copy(x_function * info.R_square)).particle2(copy(y_function * info.R_square));
+    const double a = inner(Uxy, tmp);
+    const real_function_3d xx = (x_function * x_function * info.R_square);
+    const real_function_3d yy = (y_function * y_function * info.R_square);
+//    const real_function_3d gxx = g12(xx);
+    real_convolution_3d poisson= CoulombOperator(world,parameters.lo(),parameters.thresh_3D());
+    const real_function_3d gxx= poisson(xx);
+
+    const double aa = inner(yy, gxx);
+    const double error = std::fabs(a - aa);
+    const double diff = a - aa;
+    time_sane.info(parameters.debug(), error);
+    if (world.rank() == 0) {
+        std::cout << std::fixed << std::setprecision(10) << "<" << x_name + y_name << "|U_R|" << x_name + y_name
+                  << "> =" << a << ", <" << x_name + y_name << "|g12|" << x_name + y_name
+                  << "> =" << aa << ", diff=" << error << "\n";
+        //printf("<xy| U_R |xy>  %12.8f\n",a);
+        //printf("<xy|1/r12|xy>  %12.8f\n",aa);
+        if (error > FunctionDefaults<6>::get_thresh() * 10.0) std::cout << ("Ue Potential plain wrong!\n");
+        else if (error > FunctionDefaults<6>::get_thresh()) std::cout << ("Ue Potential wrong!!!!\n");
+        else std::cout << ("Ue seems to be sane, diff=" + std::to_string(diff)) << std::endl;
+    }
+    return Uxy;
+}
 
 madness::real_function_6d
 CCPotentials::apply_transformed_Ue_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
@@ -1704,6 +1994,159 @@ CCPotentials::apply_transformed_Ue_macrotask(World& world, const std::vector<rea
     }
     return Uxy;
 }
+
+
+/// calculate [F,Qt] f12 |rhs>
+
+/// From Eqs. (42) - (44) of Kottmann et al. JCTC 13, 5945 (2017)
+/// and eq. (30) of Kottmann et al. JCTC 13, 5956 (2017)
+/// [F,Qt] = [F1,Q1t]Q2t + Q1t [F2,Q2t]
+/// and [F1,Q1t] = - [F1,O1t] = - (F-e_k) |tk><k| = - (F-e_k) |tauk><k| = |Vk><k|
+/// commutator is applied to f12|titj>
+/// @return the commutator [F,Qt] f12 |phi_i phi_j>
+madness::CCPairFunction<double,6>
+CCPotentials::apply_commutator_F_Qt_f12(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
+                                                  const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
+                                                  const Info& info, const real_convolution_6d *Gscreen) {
+    const auto& parameters=info.parameters;
+
+    // if ground-state use Eqs (43)-(44) of Kottmann et al. JCTC 13, 5945 (2017)
+    auto f12=CCConvolutionOperatorPtr<double,3>(world,OT_F12,parameters);
+    auto ftt=std::vector<CCPairFunction<double,6>>({CCPairFunction<double,6>(f12, phi_i.function, phi_j.function)});
+
+    const vector_real_function_3d Vtau=info.intermediate_potentials(gs_singles, POT_singles_);
+    Projector<double,3> OVtau(info.mo_bra,Vtau);
+    QProjector<double,3> Qt(world,info.mo_bra,gs_singles.get_vecfunction());
+
+    auto p1=outer(OVtau,Qt);
+    auto p2=outer(Qt,OVtau);
+
+    // result=Qt2(Ov1(ftt)) + Qt1(Ov2(ftt));
+    auto result=p1(ftt) + p2(ftt);
+
+    result=consolidate(result,{});     // will collect similar terms only
+    MADNESS_CHECK_THROW(result.size()==1 and result[0].is_decomposed(),"apply_Fock_commutator should return a single CCPairFunction");
+    return result[0];
+}
+
+/// calculate [F,dQt] f12 |rhs>
+
+/// Using eq. (31) of Kottmann et al. JCTC 13, 5956 (2017)
+/// note that we leave the omega dQ12t term out, as it cancels with eq. (29)
+/// @return [F,Qt] f12 |rhs> - omega dQ12 f12 |phi_i phi_j>
+madness::CCPairFunction<double,6>
+CCPotentials::apply_commutator_F_dQt_f12(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
+                                                  const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
+                                                  const Info& info, const real_convolution_6d *Gscreen) {
+    const auto& parameters=info.parameters;
+
+
+    auto f12=CCConvolutionOperatorPtr<double,3>(world,OT_F12,parameters);
+    auto ftt=std::vector<CCPairFunction<double,6>>({CCPairFunction<double,6>(f12, phi_i.function, phi_j.function)});
+
+    const vector_real_function_3d Vtau=info.intermediate_potentials(gs_singles, POT_singles_);
+    const vector_real_function_3d Vx=info.intermediate_potentials(ex_singles, POT_singles_);
+    Projector<double,3> OVtau(info.mo_bra,Vtau);
+    Projector<double,3> Ox(info.mo_bra,ex_singles.get_vecfunction());
+    Projector<double,3> OVx(info.mo_bra,Vx);
+    QProjector<double,3> Qt(world,info.mo_bra,gs_singles.get_vecfunction());
+
+    auto p1_1=outer(OVx,Qt);
+    auto p1_2=outer(Qt,OVx);
+    auto p2_1=outer(Ox,OVtau);
+    auto p2_2=outer(OVtau,Ox);
+
+    auto result=p1_1(ftt) + p1_2(ftt) - p2_1(ftt) - p2_2(ftt);
+    result=consolidate(result,{""});     // will collect similar terms only
+    MADNESS_CHECK_THROW(result.size()==1 and result[0].is_decomposed(),"apply_Fock_commutator should return a single CCPairFunction");
+    return result[0];
+}
+
+
+madness::real_function_6d
+CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
+                                                  const Info& info, const real_convolution_6d *Gscreen) {
+    real_function_3d x_ket = phi_i.function;
+    real_function_3d y_ket = phi_j.function;
+    real_function_3d x_bra = (info.R_square*phi_i.function).truncate();
+    real_function_3d y_bra = (info.R_square*phi_j.function).truncate();
+    const std::string x_name = phi_i.name();
+    const std::string y_name = phi_j.name();
+
+    const auto& parameters=info.parameters;
+
+    //apply Kf
+    if (parameters.debug()) print("\nComputing [K,f]|" + x_name + y_name + ">\n");
+
+    CCTimer time(world, "[K,f]|" + x_name + y_name + ">");
+    CCTimer part1_time(world, "Kf" + x_name + y_name + ">");
+
+    bool symmetric_kf = false;
+    if ((phi_i.type == phi_j.type) && (phi_i.i == phi_j.i)) symmetric_kf = true;
+
+    // First make the 6D function f12|x,y>
+    real_function_6d f12xy = make_f_xy_macrotask(world, x_ket, y_ket, x_bra, y_bra, phi_i.i, phi_j.i,
+        parameters, phi_i.type, phi_j.type, Gscreen);
+    f12xy.truncate().reduce_rank();
+    // Apply the Exchange Operator
+    real_function_6d Kfxy = K_macrotask(world, info.mo_ket, info.mo_bra, f12xy, symmetric_kf, parameters);
+
+    if (parameters.debug()) part1_time.info();
+
+    //apply fk
+    CCTimer part2_time(world, "fK" + x_name + y_name + ">");
+
+    const bool symmetric_fk = (phi_i==phi_j);
+    const real_function_3d Kx = K_macrotask(world, info.mo_ket, info.mo_bra, x_ket, parameters);
+    const FuncType Kx_type = UNDEFINED;
+    const real_function_6d fKphi0b = make_f_xy_macrotask(world, Kx, y_ket, x_bra, y_bra, phi_i.i, phi_j.i,
+        parameters, Kx_type, phi_j.type, Gscreen);
+    real_function_6d fKphi0a;
+    if (symmetric_fk) fKphi0a = madness::swap_particles(fKphi0b);
+    else {
+        real_function_3d Ky = K_macrotask(world, info.mo_ket, info.mo_bra, y_ket, parameters);
+        const FuncType Ky_type = UNDEFINED;
+        fKphi0a = make_f_xy_macrotask(world, x_ket, Ky, x_bra, y_bra, phi_i.i, phi_j.i,
+            parameters, phi_i.type, Ky_type, Gscreen);
+    }
+    const real_function_6d fKxy = (fKphi0a + fKphi0b);
+
+    if (parameters.debug()) part2_time.info();
+
+    //final result
+    Kfxy.print_size("Kf" + x_name + y_name);
+    Kfxy.set_thresh(parameters.thresh_6D());
+    Kfxy.truncate().reduce_rank();
+    Kfxy.print_size("Kf after truncation" + x_name + y_name);
+    fKxy.print_size("fK" + x_name + y_name);
+    real_function_6d result = (Kfxy - fKxy);
+    result.set_thresh(parameters.thresh_6D());
+    result.print_size("[K,f]" + x_name + y_name);
+    result.truncate().reduce_rank();
+    result.print_size("[K,f]" + x_name + y_name);
+
+    //sanity check
+    CCTimer sanity(world, "[K,f] sanity check");
+    // make the <xy| bra state which is <xy|R2
+    const real_function_3d brax = (x_ket * info.R_square);
+    const real_function_3d bray = (y_ket * info.R_square);
+    real_function_3d xres = result.project_out(brax, 0);
+    const double test = bray.inner(xres);
+    const double diff = test;
+    if (world.rank() == 0) {
+        std::cout << std::fixed << std::setprecision(10)
+                  << "<" << x_name << y_name << "[K,f]" << x_name << y_name << "> =" << test << "\n";
+    }
+    if (world.rank() == 0 && fabs(diff) > parameters.thresh_6D()) print("Exchange Commutator Plain Wrong");
+    else print("Exchange Commutator seems to be sane, diff=" + std::to_string(diff));
+
+    if (parameters.debug()) sanity.info(diff);
+
+    if (parameters.debug()) print("\n");
+
+    return result;
+}
+
 
 madness::real_function_6d
 CCPotentials::apply_exchange_commutator_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
@@ -2244,7 +2687,7 @@ CCPotentials::potential_singles_gs(const CC_vecfunction& singles, const Pairs<CC
     if (name == POT_F3D_) {
         result = fock_residue_closed_shell(singles);
     } else if (name == POT_ccs_) {
-        const CC_vecfunction t = make_t_intermediate(singles);
+        const CC_vecfunction t = make_t_intermediate(singles,parameters);
         result = apply_Qt(ccs_unprojected(t, singles),
                           t);     // this is not the full t projector, but the potential will be projeted afterwards and this will unclude th frozen mos
     } else if (name == POT_s2b_) {
@@ -2350,7 +2793,7 @@ CCPotentials::potential_singles_ex(const CC_vecfunction& singles_gs, const Pairs
     if (name == POT_F3D_) {
         result = fock_residue_closed_shell(singles_ex);
     } else if (name == POT_ccs_) {
-        const CC_vecfunction t = make_t_intermediate(singles_gs);
+        const CC_vecfunction t = make_t_intermediate(singles_gs,parameters);
         vector_real_function_3d part1 = apply_Qt(ccs_unprojected(t, singles_ex), t);
         vector_real_function_3d part2 = apply_Qt(ccs_unprojected(singles_ex, singles_gs), t);
         vector_real_function_3d part3 = apply_projector(ccs_unprojected(t, singles_gs), singles_ex);
@@ -2566,6 +3009,20 @@ CCPotentials::make_f_xy(const CCFunction<double,3>& x, const CCFunction<double,3
     }
     return fxy;
 }
+
+madness::real_function_6d
+CCPotentials::make_f_xy(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
+                        const Info& info, const real_convolution_6d *Gscreen) {
+    const auto& parameters=info.parameters;
+    CorrelationFactor corrfac(world, parameters.gamma(), 1.e-7, parameters.lo());
+
+    real_function_6d fxy = CompositeFactory<double, 6, 3>(world).g12(corrfac.f()).
+                                                    particle1(copy(phi_i.function)).particle2(copy(phi_j.function));
+    if (Gscreen == NULL) fxy.fill_tree().truncate().reduce_rank();
+    else fxy.fill_cuspy_tree(*Gscreen).truncate().reduce_rank();
+    return fxy;
+}
+
 
 madness::real_function_6d
 CCPotentials::make_f_xy_macrotask(World& world, const real_function_3d& x_ket, const real_function_3d& y_ket,
@@ -3029,12 +3486,12 @@ void CCPotentials::plot(const real_function_3d& f, const std::string& msg, const
 /// makes the t intermediates
 /// t_i = mo_ket_(i) + factor*tau(i)
 /// if factor!=1 then we can not use intermediates and set the type to UNDEFINED
-CC_vecfunction CCPotentials::make_t_intermediate(const CC_vecfunction& tau, const double factor) const {
+CC_vecfunction CCPotentials::make_t_intermediate(const CC_vecfunction& tau, const CCParameters& parameters) const {
+
     FuncType returntype = MIXED;
-    if (factor != 1.0) returntype = UNDEFINED;
 
     if (tau.type == HOLE) {
-        output("make_t_intermediate: returning hole states");
+        // output("make_t_intermediate: returning hole states");
         return CC_vecfunction(get_active_mo_ket(), HOLE, parameters.freeze());
     }
     if (tau.size() == 0) {
@@ -3045,7 +3502,7 @@ CC_vecfunction CCPotentials::make_t_intermediate(const CC_vecfunction& tau, cons
     CC_vecfunction result(returntype);
     for (const auto& itmp:tau.functions) {
         const size_t i = itmp.first;
-        CCFunction<double,3> t(mo_ket_(i).function + factor * tau(i).function, i, MIXED);
+        CCFunction<double,3> t(mo_ket_(i).function + tau(i).function, i, MIXED);
         result.insert(i, t);
 
     }

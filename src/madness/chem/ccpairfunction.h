@@ -458,7 +458,7 @@ public:
     /// @param[in] centers: a vector of 3D-vectors which are the centers of the grid for low-rank functions
     /// TODO: implement a function for removing linearly dependent terms without orthonormalization
     friend std::vector<CCPairFunction> consolidate(const std::vector<CCPairFunction>& other,
-                                                   const std::vector<std::string> options,
+                                                   const std::vector<std::string> options=std::vector<std::string>(),
                                                    const std::vector<Vector<double,LDIM>> centers=std::vector<Vector<double,LDIM>>()) {
 
         if (other.size()>0) return other.front().consolidate(other,options,centers); // workaround
@@ -760,33 +760,8 @@ public:
     const std::pair<std::vector<Function<T,LDIM>>, std::vector<Function<T,LDIM>>> assign_particles(const size_t particle) const;
 
     static std::vector<CCPairFunction<T,NDIM>> apply(const ProjectorBase& P, const std::vector<CCPairFunction<T,NDIM>>& argument);
-
-    /// apply the operator on a CCPairfunction, both with the same dimension
-
-    /// note there is another function, where the operator works only on some dimensions of the CCPairFunction!
-    /// @return result(x) = \int op(x,x') arg(x') dx': a CCPairfunction with the same dimension as the argument
-    friend CCPairFunction<T,NDIM> apply(const SeparatedConvolution<T,NDIM>& G, const CCPairFunction<T,NDIM>& argument) {
-        CCPairFunction result;
-        timer t1(argument.world());
-        if (argument.is_pure()) {
-            result=CCPairFunction(G(argument.get_function()));
-        } else if (argument.is_decomposed_no_op()) {
-            Function<T,NDIM> result1=real_factory_6d(argument.world()).compressed();
-
-            MADNESS_ASSERT(argument.get_a().size() == argument.get_b().size());
-            MADNESS_CHECK_THROW(G.particle()==-1,"G must be a two-particle operator in apply(CCPairFunction)");
-
-            for (size_t k = 0; k < argument.get_a().size(); k++) {
-                const Function<T,NDIM> tmp = G(argument.get_a()[k], argument.get_b()[k]);
-                result1 += tmp;
-            }
-            result=CCPairFunction(result1);
-        } else {
-            MADNESS_EXCEPTION("unknown type in CCPairFunction::apply",1);
-        }
-        t1.end("applying G to " + argument.name());
-        return result;
-    };
+    static std::vector<CCPairFunction<T,NDIM>> apply(const SeparatedConvolution<T,NDIM>& G, const CCPairFunction<T,NDIM>& argument);
+    static std::vector<CCPairFunction<T,NDIM>> apply(const SeparatedConvolution<T,NDIM>& G, const std::vector<CCPairFunction<T,NDIM>>& argument);
 
 
     Function<T,LDIM> partial_inner(const Function<T,LDIM>& f,
@@ -909,12 +884,33 @@ std::vector<CCPairFunction<T,NDIM>> apply(const SeparatedConvolution<T,NDIM/2>& 
     return result;
 }
 
+/// apply the operator on a CCPairfunction, both with the same dimension
+
+/// note there is another function, where the operator works only on some dimensions of the CCPairFunction!
+/// @return result(x) = \int op(x,x') arg(x') dx': a CCPairfunction with the same dimension as the argument
 template<typename T, std::size_t NDIM>
-CCPairFunction<T,NDIM> apply(const ProjectorBase& projector, const CCPairFunction<T,NDIM>& argument) {
-    auto result=madness::apply(projector,std::vector<CCPairFunction<T,NDIM>> (1,argument));
-    MADNESS_CHECK(result.size()==1);
-    return result[0];
-}
+CCPairFunction<T,NDIM> apply(const SeparatedConvolution<T,NDIM>& G, const CCPairFunction<T,NDIM>& argument) {
+    CCPairFunction result;
+    timer t1(argument.world());
+    if (argument.is_pure()) {
+        result=CCPairFunction(G(argument.get_function()));
+    } else if (argument.is_decomposed_no_op()) {
+        Function<T,NDIM> result1=real_factory_6d(argument.world()).compressed();
+
+        MADNESS_ASSERT(argument.get_a().size() == argument.get_b().size());
+
+        for (size_t k = 0; k < argument.get_a().size(); k++) {
+            const Function<T,NDIM> tmp = G(argument.get_a()[k], argument.get_b()[k]);
+            result1 += tmp;
+        }
+        result=CCPairFunction(result1);
+    } else {
+        MADNESS_EXCEPTION("unknown type in CCPairFunction::apply",1);
+    }
+    t1.end("applying G to " + argument.name());
+    return result;
+};
+
 
 /// apply the projector on the argument function, potentially yielding a vector of CCPairfunctions as result
 
@@ -927,6 +923,13 @@ std::vector<CCPairFunction<T,NDIM>> apply(const ProjectorBase& projector, const 
     return CCPairFunction<T,NDIM>::apply(projector,argument);
 }
 
+
+template<typename T, std::size_t NDIM>
+CCPairFunction<T,NDIM> apply(const ProjectorBase& projector, const CCPairFunction<T,NDIM>& argument) {
+    auto result=madness::apply(projector,std::vector<CCPairFunction<T,NDIM>> (1,argument));
+    MADNESS_CHECK(result.size()==1);
+    return result[0];
+}
 
 template<typename T, std::size_t NDIM>
 Function<T,CCPairFunction<T,NDIM>::LDIM>inner(const CCPairFunction<T,NDIM>& c, const Function<T,CCPairFunction<T,NDIM>::LDIM>& f,
@@ -987,6 +990,28 @@ std::vector<CCPairFunction<T,NDIM>> inner(const std::vector<CCPairFunction<T,NDI
     return result;
 }
 
+template <typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM> > operator+(const std::vector<CCPairFunction<T,NDIM>> c1, const std::vector<CCPairFunction<T,NDIM> >& c2) {
+    std::vector<CCPairFunction<T,NDIM>> result;
+    for (const auto& l : c1) result.push_back(l);
+    for (const auto& l : c2) result.push_back(l);
+    return result;
+}
+
+template <typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM> > operator-(const std::vector<CCPairFunction<T,NDIM>> c1, const std::vector<CCPairFunction<T,NDIM> >& c2) {
+    std::vector<CCPairFunction<T,NDIM>> result;
+    for (const auto& l : c1) result.push_back(l);
+    for (const auto& l : c2) result.push_back(-1.0*l);
+    return result;
+}
+
+template <typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM> >& operator+=(std::vector<CCPairFunction<T,NDIM> >& lhs,
+        const CCPairFunction<T,NDIM >& rhs) {
+    lhs.push_back(rhs);
+    return lhs;
+}
 
 template <typename T, std::size_t NDIM>
 std::vector<CCPairFunction<T,NDIM> >& operator+=(std::vector<CCPairFunction<T,NDIM> >& rhs,
