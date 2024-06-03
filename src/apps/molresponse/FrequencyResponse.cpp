@@ -331,8 +331,8 @@ auto FrequencyResponse::update_response(World &world, X_space &chi, XCOperator<d
     return {new_chi, {new_res, bsh_norms}, new_rho};
 }
 
-auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X, std::vector<poperatorT> &bsh_x_ops, std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector, double &x_shifts)
-    -> X_space
+auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X, std::vector<poperatorT> &bsh_x_ops, std::vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector,
+                                            double &x_shifts) -> X_space
 {
     if (r_params.print_level() >= 1)
     {
@@ -529,28 +529,50 @@ void QuadraticResponse::initialize(World &world) {}
 
 
 // To compute 2nd order we need rhs of xx,yy,zz and yz only.
-auto QuadraticResponse::setup_XBC(World &world) -> std::pair<X_space, X_space>
+auto QuadraticResponse::setup_XBC(World &world, const double &omega_b, const double &omega_c) -> std::pair<X_space, X_space>
 {
+
+    if (omega_b == omega_c && omega_b == 0)
+    {
+        this->index_B = {0, 1, 2, 3};
+        this->index_C = {0, 1, 2, 2};
+    }
+    else if (omega_b == omega_c && omega_b != 0)
+    {
+        this->index_B = {0, 0, 0, 1, 1, 2};
+        this->index_C = {0, 1, 2, 1, 2, 2};
+    }
+    else
+    {
+        this->index_B = {0, 0, 0, 1, 1, 1, 2, 2, 2};
+        this->index_C = {0, 1, 2, 0, 1, 2, 0, 1, 2};
+    }
+
 
     auto B = x_data[1].first.copy();
     auto C = x_data[2].first.copy();
 
-    auto num_states = B.num_states() + 1;
+    auto num_states = index_B.size();
     auto num_orbitals = B.num_orbitals();
 
     auto new_B = X_space(world, num_states, num_orbitals);
     auto new_C = X_space(world, num_states, num_orbitals);
 
-    vector<int> b_index{0, 1, 2, 1};
-    vector<int> c_index{0, 1, 2, 2};
 
-
-    for (auto i = 0; i < num_states; i++)
+    for (int i = 0; i < num_states; i++)
     {
-        new_B.x[i] = copy(world, B.x[b_index[i]]);
-        new_B.y[i] = copy(world, B.y[b_index[i]]);
-        new_C.x[i] = copy(world, C.x[c_index[i]]);
-        new_C.y[i] = copy(world, C.y[c_index[i]]);
+        new_B.x[i] = copy(world, B.x[index_B[i]]);
+        new_B.y[i] = copy(world, B.y[index_B[i]]);
+        new_C.x[i] = copy(world, C.x[index_C[i]]);
+        new_C.y[i] = copy(world, C.y[index_C[i]]);
+    }
+    for (int i = 0; i < num_states; i++)
+    {
+        this->bc_directions.push_back({xyz[index_B[i]], xyz[index_C[i]]});
+    }
+    if (world.rank() == 0)
+    {
+        print("bc_directions: ", bc_directions);
     }
 
     return {new_B, new_C};
@@ -563,8 +585,8 @@ auto QuadraticResponse::setup_XBC(World &world) -> std::pair<X_space, X_space>
 //
 // vc = x x x x y y y z z z
 //
-Tensor<double> QuadraticResponse::compute_beta_tensor(World &world, const X_space &BC_left, const X_space &BC_right, const X_space &CB_left, const X_space &CB_right, const X_space &XA,
-                                                      const X_space &VBC)
+std::pair<Tensor<double>, std::vector<std::string>> QuadraticResponse::compute_beta_tensor(World &world, const X_space &BC_left, const X_space &BC_right, const X_space &CB_left,
+                                                                                           const X_space &CB_right, const X_space &XA, const X_space &VBC)
 {
     auto create_dipole = [&]()
     {
@@ -583,12 +605,34 @@ Tensor<double> QuadraticResponse::compute_beta_tensor(World &world, const X_spac
     auto dipole_vectors = create_dipole(); // x y z
     truncate(world, dipole_vectors, true);
 
-    std::vector<int> indices_A{0, 0, 0, 1, 1, 1, 2, 2, 2, 0};
-    std::vector<int> indices_BC{0, 1, 2, 0, 1, 2, 0, 1, 2, 3};
-    Tensor<double> beta(10);
+    std::vector<int> indices_A;
+    std::vector<int> indices_BC;
+
+    if (BC_left.num_states() == 4)
+    {
+        indices_A = {0, 0, 0, 1, 1, 1, 2, 2, 2, 0};
+        indices_BC = {0, 1, 2, 0, 1, 2, 0, 1, 2, 3};
+    }
+    else if (BC_left.num_states() == 6)
+    {
+        indices_A = {0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2};
+        indices_BC = {0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5};
+    }
+    else
+    {
+        indices_A = {0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+        indices_BC = {0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8};
+    }
+
+    int num_elements = indices_A.size();
+
+    std::vector<std::string> beta_indices(num_elements);
 
 
-    for (int i = 0; i < 10; i++)
+    Tensor<double> beta(num_elements);
+
+
+    for (int i = 0; i < num_elements; i++)
     {
         auto a = indices_A[i];
         auto bc = indices_BC[i];
@@ -602,18 +646,19 @@ Tensor<double> QuadraticResponse::compute_beta_tensor(World &world, const X_spac
         auto six = dot(world, XA.y[a], VBC.y[bc], false);
 
         world.gop.fence();
-        beta[i] = one.trace()+ two.trace() + three.trace() + four.trace() + five.trace() + six.trace();
+        beta[i] = one.trace() + two.trace() + three.trace() + four.trace() + five.trace() + six.trace();
+        beta_indices[i] = bc_directions[bc] + xyz[a];
     }
     world.gop.fence();
 
-    return -2.0 * beta;
+    return {-2.0 * beta, beta_indices};
 }
 
-Tensor<double> QuadraticResponse::compute_beta_v2(World &world)
+std::pair<Tensor<double>, std::vector<std::string>> QuadraticResponse::compute_beta_v2(World &world, const double &omega_b, const double &omega_c)
 {
     // step 0: construct all response vectors
     auto XA = -1.0 * x_data[0].first.copy();
-    auto [XB, XC] = setup_XBC(world);
+    auto [XB, XC] = setup_XBC(world, omega_b, omega_c);
     X_space phi0 = X_space(world, XB.num_states(), XC.num_orbitals());
     for (auto i = 0; i < phi0.num_states(); i++)
     {
@@ -637,8 +682,7 @@ Tensor<double> QuadraticResponse::compute_beta_v2(World &world)
     {
         molresponse::start_timer(world);
     }
-    auto beta = compute_beta_tensor(world, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right, XA, VBC);
-    return beta;
+    return compute_beta_tensor(world, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right, XA, VBC);
 }
 
 Tensor<double> QuadraticResponse::compute_beta(World &world)
@@ -1131,8 +1175,6 @@ auto QuadraticResponse::dipole_perturbation(World &world, const X_space &left, c
     auto num_states = left.num_states();
     MADNESS_ASSERT(num_states == right.num_states());
 
-    std::vector<int> index_B{0, 1, 2, 1}; // x y z y
-    std::vector<int> index_C{0, 1, 2, 2}; // x y z z
     auto VB = X_space(world, left.num_states(), right.num_orbitals());
     auto VC = X_space(world, left.num_states(), right.num_orbitals());
 
@@ -1162,8 +1204,6 @@ auto QuadraticResponse::dipole_perturbation(World &world, const X_space &left, c
     VC.truncate();
 
     return {VB, VC};
-    // in the first case i need to mulitply x x x y y z to vectors in right
-    // in the second case i need to multiply x y z y z a to vectors in left
 }
 
 

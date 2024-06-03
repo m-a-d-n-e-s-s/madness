@@ -30,7 +30,8 @@ class QuadraticResponse : public ResponseBase
     // And 2nd order right hand side perturbation vector vBC(xB,xC) and
     // pBC and qBC are the homogeneous components of the 2nd order density matrix response
     // made entirely from first order vectors xB, xC
-    // vBC(xB,xC) = Q*(
+
+
 public:
     QuadraticResponse(World &world, const CalcParams &params, RHS_Generator rhs_generator) : ResponseBase(world, params), generator(std::move(rhs_generator))
     {
@@ -241,14 +242,24 @@ public:
     void iterate(World &world) override;
 
     Tensor<double> compute_beta(World &world);
-    Tensor<double> compute_beta_v2(World &world);
+    std::pair<Tensor<double>, std::vector<std::string>> compute_beta_v2(World &world, const double &omega_b, const double &omega_c);
 
 
 private:
+    std::vector<int> index_A;
+    std::vector<int> index_B;
+    std::vector<int> index_C;
+    std::vector<std::string> bc_directions;
+    std::vector<std::string> a{"X", "Y", "Z"};
+    bool indicies_set;
+
+    std::map<int, std::string> xyz = {{0, "X"}, {1, "Y"}, {2, "Z"}};
+
+
     std::array<Context, 3> frequency_contexts;
     std::array<double, 3> frequencies;
     std::array<XData, 3> x_data;
-    std::pair<X_space, X_space> setup_XBC(World &world);
+    std::pair<X_space, X_space> setup_XBC(World &world, const double &omega_b, const double &omega_c);
     RHS_Generator generator;
     std::pair<X_space, X_space> dipole_perturbation(World &world, const X_space &left, const X_space &right) const;
     X_space compute_g1_term(World &world, const X_space &left, const X_space &right, const X_space &apply) const;
@@ -258,7 +269,8 @@ private:
     std::pair<X_space, X_space> compute_first_order_fock_matrix_terms(World &world, const X_space &A, const X_space &phi0, const X_space &B) const;
     std::pair<X_space, X_space> compute_first_order_fock_matrix_terms_v2(World &world, const X_space &B, const X_space &C, const X_space &g1b, const X_space &g1c, const X_space &VB, const X_space &VC,
                                                                          const X_space &phi0) const;
-    Tensor<double> compute_beta_tensor(World &world, const X_space &AB_left, const X_space &AB_right, const X_space &BA_left, const X_space &BA_right, const X_space &XA, const X_space &VBC);
+    std::pair<Tensor<double>, std::vector<std::string>> compute_beta_tensor(World &world, const X_space &AB_left, const X_space &AB_right, const X_space &BA_left, const X_space &BA_right,
+                                                                            const X_space &XA, const X_space &VBC);
     X_space compute_second_order_perturbation_terms(World &world, const X_space &B, const X_space &C, const X_space &zeta_bc_x, const X_space &zeta_bc_y, const X_space &zeta_cb_x,
                                                     const X_space &zeta_cb_y, const X_space &phi0);
     X_space compute_second_order_perturbation_terms_v2(World &world, const X_space &B, const X_space &C, const X_space &zeta_bc_x, const X_space &zeta_bc_y, const X_space &zeta_cb_x,
