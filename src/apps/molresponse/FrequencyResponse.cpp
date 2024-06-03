@@ -534,7 +534,7 @@ auto QuadraticResponse::setup_XBC(World &world, const double &omega_b, const dou
 
     if (omega_b == omega_c && omega_b == 0)
     {
-        this->index_B = {0, 1, 2, 3};
+        this->index_B = {0, 1, 2, 1};
         this->index_C = {0, 1, 2, 2};
     }
     else if (omega_b == omega_c && omega_b != 0)
@@ -568,7 +568,8 @@ auto QuadraticResponse::setup_XBC(World &world, const double &omega_b, const dou
     }
     for (int i = 0; i < num_states; i++)
     {
-        this->bc_directions.push_back({xyz[index_B[i]], xyz[index_C[i]]});
+auto        bc_direction_i =std::string(xyz[index_B[i]]+xyz[index_C[i]]);
+        this->bc_directions.push_back(bc_direction_i);
     }
     if (world.rank() == 0)
     {
@@ -699,7 +700,7 @@ Tensor<double> QuadraticResponse::compute_beta(World &world)
 
     // first step to compute beta is to construct the X_space representations of the virt/virt and occ/occ blocks of gamma
 
-    auto [XB, XC] = setup_XBC(world);
+    auto [XB, XC] = setup_XBC(world, 0.0, 0.0);
     X_space phi0 = X_space(world, XB.num_states(), XC.num_orbitals());
     for (auto i = 0; i < phi0.num_states(); i++)
     {
@@ -738,7 +739,7 @@ Tensor<double> QuadraticResponse::compute_beta(World &world)
     {
         molresponse::end_timer(world, "compute_beta_tensor");
     }
-    return beta;
+    return beta.first;
 }
 
 std::pair<X_space, X_space> QuadraticResponse::compute_first_order_fock_matrix_terms_v2(World &world, const X_space &B, const X_space &C, const X_space &g1b, const X_space &g1c, const X_space &VB,
