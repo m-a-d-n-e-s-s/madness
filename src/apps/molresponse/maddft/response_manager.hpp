@@ -1162,9 +1162,7 @@ public:
 
                             nlohmann::ordered_json beta_entry;
 
-                            std::array<double, 10> beta_vector{};
-                            std::copy(beta_abc.ptr(), beta_abc.ptr() + 10, beta_vector.begin());
-                            append_to_beta_json({-1.0 * omega_a, omega_b, omega_c}, beta_vector, beta_json);
+                            append_to_beta_json({-1.0 * omega_a, omega_b, omega_c}, beta_directions, beta, beta_json);
 
                             std::ofstream outfile("beta.json");
                             if (outfile.is_open())
