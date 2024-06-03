@@ -221,6 +221,17 @@ Second order perturbation operators are defined as:
     &-\hat{Q} \hat{F}^{(B)} \ket{x_p^(C)} - \hat{Q} \hat{F}^{(C)} \ket{x_p^(B)}
     \end{align*}
 
+Quadratic Response Properties
+
+In general, there are 27 unique elements to the hyperpolarizability tensor, however,
+since quadratic response response functions are symmetric to simultaneous permutations for perturbation and frequency.  For example,
+
+.. math:: 
+   \left< \left< v^{(A)}; v^{(B)}(\omega_b),v^{(C)}(\omega_c) \right>\right> =\left< \left< v^{(A)}; v^{(C)}(\omega_c),v^{(B)}(\omega_B) \right>\right
+
+
+
+
 
 
 
