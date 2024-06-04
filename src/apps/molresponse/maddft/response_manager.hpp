@@ -220,6 +220,7 @@ public:
      * @param world : madness world
      * @param input_file : path to the input file
      */
+
     void read_chem_params_and_write_json(World &world, const path &input_file)
     {
         parser.set_keyval("input", input_file.string());
