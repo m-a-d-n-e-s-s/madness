@@ -1102,18 +1102,13 @@ public:
                     auto omega_c = freq[c];
                     auto omega_a = freq[b + c];
 
-                    if (world.rank() == 0)
-                    {
-                        ::print("New combination of frequencies ", omega_a, " ", omega_b, " ", omega_c);
-                        ::print("-------------------------------------------");
-                    }
                     if (omega_a <= max_freq)
                     {
 
                         auto restartA = generate_omega_restart_path(omega_a);
                         auto restartB = generate_omega_restart_path(omega_b);
                         auto restartC = generate_omega_restart_path(omega_c);
-                        if (world.rank() == 0)
+                        if (world.rank() == 0 && quad_parameters.print_level() > 10)
                         {
                             ::print("Restart file for A", restartA.first);
                             ::print("Restart file for B", restartB.first);
@@ -1131,7 +1126,7 @@ public:
                         }
                         else
                         {
-                            if (world.rank() == 0)
+                            if (world.rank() == 0 && quad_parameters.print_level() > 10)
                             {
                                 ::print("Restart file for omega_a = ", omega_a, " exists");
                             }
@@ -1141,7 +1136,7 @@ public:
                             quad_calculation.set_x_data(world, omegas, restarts);
                             auto [beta, beta_directions] = quad_calculation.compute_beta_v2(world, omega_b, omega_c);
 
-                            if (world.rank() == 0)
+                            if (world.rank() == 0 && quad_parameters.print_level() > 10)
                             {
                                 ::print("Beta values for omega_a = ", omega_a, " omega_b = ", omega_b, " omega_c = ", omega_c);
                                 for (int i = 0; i < beta_directions.size(); i++)
