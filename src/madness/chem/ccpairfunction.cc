@@ -38,11 +38,17 @@ void CCPairFunction<T,NDIM>::convert_to_pure_no_op_inplace() {
         result= CompositeFactory<T, NDIM, LDIM>(world())
                 .g12(get_operator().get_kernel())
                 .ket(get_function());
-    } else if (is_decomposed()) {
+    } else if (is_decomposed_no_op()) {
+        result= CompositeFactory<T, NDIM, LDIM>(world())
+                .particle1(get_a())
+                .particle2(get_b());
+    } else if (is_op_decomposed()) {
         result= CompositeFactory<T, NDIM, LDIM>(world())
                 .g12(get_operator().get_kernel())
                 .particle1(get_a())
                 .particle2(get_b());
+    } else {
+        MADNESS_EXCEPTION("error in convert_to_pure_no_op_inplace",1);
     }
     result.fill_tree();
     result.truncate(FunctionDefaults<NDIM>::get_thresh()*0.1);

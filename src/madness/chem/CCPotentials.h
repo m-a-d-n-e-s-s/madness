@@ -150,6 +150,11 @@ public:
     CC_vecfunction make_full_t_intermediate(const CC_vecfunction& tau) const;
 
     /// makes the t intermediates
+    /// t_i = mo_ket_(i) + factor*tau(i)
+    /// if the core is frozen the core ti will just be mo_ket_
+    static CC_vecfunction make_full_t_intermediate(const CC_vecfunction& tau, const Info& info);
+
+    /// makes the t intermediates
     /// t_i = mo_ket_(i) + tau
     /// i = tau.i
     CCFunction<double,3> make_t_intermediate(const CCFunction<double,3>& tau) const;

@@ -66,7 +66,9 @@ namespace madness {
 
         /// bra and ket spaces are not symmetric (e.g. |ket>^+ = <bra|R2 )
         Projector(const funcT& bra, const funcT& ket) : mo_ket_(vecfuncT(1,ket))
-                , mo_bra_(vecfuncT(1,bra)) {}
+                , mo_bra_(vecfuncT(1,bra)) {
+            MADNESS_CHECK_THROW(mo_bra_.size()==mo_ket_.size(), "bra and ket spaces must have the same size in projector");
+        }
 
         /// constructor with a set of orbitals to project out
 
@@ -260,6 +262,8 @@ namespace madness {
     		bra1_=bra1;
     		ket2_=ket2;
     		bra2_=bra2;
+            MADNESS_CHECK_THROW(ket1.size()==bra1.size(), "bra1 and ket1 spaces must have the same size in SOprojector");
+            MADNESS_CHECK_THROW(ket2.size()==bra2.size(), "bra2 and ket2 spaces must have the same size in SOprojector");
     	}
 
     	/// return the orbital space for the ket of particle 1

@@ -1175,6 +1175,18 @@ struct Info {
     Function<double,3> R_square, U2;
     std::vector<Function<double,3>> U1;
 
+    vector_real_function_3d get_active_mo_ket() const {
+        vector_real_function_3d result;
+        for (size_t i = parameters.freeze(); i < mo_ket.size(); i++) result.push_back(mo_ket[i]);
+        return result;
+    }
+
+    vector_real_function_3d get_active_mo_bra() const {
+        vector_real_function_3d result;
+        for (size_t i = parameters.freeze(); i < mo_bra.size(); i++) result.push_back(mo_bra[i]);
+        return result;
+    }
+
     /// customized function to store this to the cloud
 
     /// functions and constant_part can be very large and we want to split them and store them in different records

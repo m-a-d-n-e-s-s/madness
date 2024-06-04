@@ -884,6 +884,13 @@ std::vector<CCPairFunction<T,NDIM>> apply(const SeparatedConvolution<T,NDIM/2>& 
     return result;
 }
 
+template<typename T, std::size_t NDIM>
+CCPairFunction<T,NDIM> apply(const SeparatedConvolution<T,NDIM>& G, const std::vector<CCPairFunction<T,NDIM>>& argument) {
+    CCPairFunction result;
+    for (const auto& a : argument) result+=G(a);
+    return result;
+}
+
 /// apply the operator on a CCPairfunction, both with the same dimension
 
 /// note there is another function, where the operator works only on some dimensions of the CCPairFunction!
@@ -895,14 +902,8 @@ CCPairFunction<T,NDIM> apply(const SeparatedConvolution<T,NDIM>& G, const CCPair
     if (argument.is_pure()) {
         result=CCPairFunction(G(argument.get_function()));
     } else if (argument.is_decomposed_no_op()) {
-        Function<T,NDIM> result1=real_factory_6d(argument.world()).compressed();
-
         MADNESS_ASSERT(argument.get_a().size() == argument.get_b().size());
-
-        for (size_t k = 0; k < argument.get_a().size(); k++) {
-            const Function<T,NDIM> tmp = G(argument.get_a()[k], argument.get_b()[k]);
-            result1 += tmp;
-        }
+        Function<T,NDIM> result1=G(argument.get_a(), argument.get_b());
         result=CCPairFunction(result1);
     } else {
         MADNESS_EXCEPTION("unknown type in CCPairFunction::apply",1);
