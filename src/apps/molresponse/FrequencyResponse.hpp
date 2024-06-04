@@ -211,8 +211,6 @@ public:
         {
             throw std::runtime_error("Quadratic response requires 3 freqABC");
         }
-        // print ABC frequencies
-        print("ABC frequencies: ", freqABC[0], " ", freqABC[1], " ", freqABC[2]);
 
         for (size_t i = 0; i < freqABC.size(); i++)
         {
