@@ -1135,18 +1135,11 @@ public:
                             {
                                 ::print("Restart file for omega_a = ", omega_a, " exists");
                             }
-
                             std::array<double, 3> omegas{omega_a, omega_b, omega_c};
-
-                            // remove .00000 from restartA.first
-
                             std::array<path, 3> restarts{restartA.first.replace_extension(""), restartB.first.replace_extension(""), restartC.first.replace_extension("")};
 
                             quad_calculation.set_x_data(world, omegas, restarts);
                             auto [beta, beta_directions] = quad_calculation.compute_beta_v2(world, omega_b, omega_c);
-
-                            // Make a table printing the beta value for each direction
-                            //[XXX,XYY,XZZ,YXX,YYY,YZZ,ZXX,ZYY,ZZZ,XYZ]
 
                             if (world.rank() == 0)
                             {
@@ -1160,11 +1153,8 @@ public:
                                 }
                             }
 
-
                             nlohmann::ordered_json beta_entry;
-
                             append_to_beta_json({-1.0 * omega_a, omega_b, omega_c}, beta_directions, beta, beta_json);
-
                             std::ofstream outfile("beta.json");
                             if (outfile.is_open())
                             {

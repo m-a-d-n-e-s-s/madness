@@ -649,7 +649,11 @@ std::pair<Tensor<double>, std::vector<std::string>> QuadraticResponse::compute_b
 
         world.gop.fence();
         beta[i] = one.trace() + two.trace() + three.trace() + four.trace() + five.trace() + six.trace();
-        beta_indices[i] = bc_directions[bc] + xyz[a];
+        beta_indices[i] = xyz[a] + bc_directions[bc];
+        if (world.rank() == 0)
+        {
+            print("beta[", beta_indices[i], "] = ", beta[i]);
+        }
     }
     world.gop.fence();
 
