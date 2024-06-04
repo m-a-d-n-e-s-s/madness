@@ -528,8 +528,6 @@ void QuadraticResponse::iterate(World &world) {}
 void QuadraticResponse::initialize(World &world) {}
 
 
-const int &hello;
-
 // To compute 2nd order we need rhs of xx,yy,zz and yz only.
 auto QuadraticResponse::setup_XBC(World &world, const double &omega_b, const double &omega_c) -> std::pair<X_space, X_space>
 {
