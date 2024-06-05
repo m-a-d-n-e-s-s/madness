@@ -1256,7 +1256,7 @@ public:
         };
 
 
-        if (num_unique_elements == 10)
+        if (num_unique_elements == 12)
         {
 
 
@@ -1302,7 +1302,7 @@ public:
                 else if (ijk == "YZZ")
                 {
 
-                    auto other_ijk = {"ZYZ", "ZZY"};
+                    auto other_ijk = {"ZZY"};
                     push_back_others(other_ijk, beta_value);
                 }
                 else if (ijk == "ZXX")
@@ -1312,7 +1312,7 @@ public:
                 }
                 else if (ijk == "ZYY")
                 {
-                    auto other_ijk = {"YZY", "YYZ"};
+                    auto other_ijk = {"YZY"};
                     push_back_others(other_ijk, beta_value);
                 }
             }
