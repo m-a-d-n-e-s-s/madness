@@ -248,7 +248,7 @@ private:
     std::vector<int> index_B;
     std::vector<int> index_C;
     std::vector<std::string> bc_directions;
-    std::vector<std::string> a{"X", "Y", "Z"};
+    std::vector<std::string> a_directions{"X", "Y", "Z"};
     bool indicies_set;
 
     std::map<int, std::string> xyz = {{0, "X"}, {1, "Y"}, {2, "Z"}};

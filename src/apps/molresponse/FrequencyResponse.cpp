@@ -607,37 +607,14 @@ std::pair<Tensor<double>, std::vector<std::string>> QuadraticResponse::compute_b
     auto dipole_vectors = create_dipole(); // x y z
     truncate(world, dipole_vectors, true);
 
-    std::vector<int> indices_A;
-    std::vector<int> indices_BC;
-
-    if (BC_left.num_states() == 4)
-    {
-        indices_A = {0, 0, 0, 1, 1, 1, 2, 2, 2, 0};
-        indices_BC = {0, 1, 2, 0, 1, 2, 0, 1, 2, 3};
-    }
-    else if (BC_left.num_states() == 6)
-    {
-        indices_A = {0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2};
-        indices_BC = {0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5};
-    }
-    else
-    {
-        indices_A = {0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2};
-        indices_BC = {0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8, 0, 1, 2, 3, 4, 5, 6, 7, 8};
-    }
-
-    int num_elements = indices_A.size();
-
+    int num_elements = XA.num_states()* BC_left.num_states();
     std::vector<std::string> beta_indices(num_elements);
-
-
     Tensor<double> beta(num_elements);
 
 
-    for (int i = 0; i < num_elements; i++)
-    {
-        auto a = indices_A[i];
-        auto bc = indices_BC[i];
+    int i=0;
+    for(int a =0; a<XA.num_states();a++){
+        for(int bc =0; bc<BC_left.num_states();bc++){
 
         auto one = dot(world, BC_left.x[bc], BC_right.x[bc] * dipole_vectors[a], false);
         auto two = dot(world, BC_left.y[bc], BC_right.y[bc] * dipole_vectors[a], false);
@@ -650,9 +627,16 @@ std::pair<Tensor<double>, std::vector<std::string>> QuadraticResponse::compute_b
         world.gop.fence();
         beta[i] = one.trace() + two.trace() + three.trace() + four.trace() + five.trace() + six.trace();
         beta_indices[i] = xyz[a] + bc_directions[bc];
+        i++;
+        world.gop.fence();
+        }
+    }
+
+    for (int i = 0; i < num_elements; i++)
+    {
         if (world.rank() == 0 and r_params.print_level() >= 1)
         {
-            print("beta[", beta_indices[i], "] = ", beta[i]);
+            print("i = ",i," beta[", beta_indices[i], "] = ", beta[i]);
         }
     }
     world.gop.fence();
