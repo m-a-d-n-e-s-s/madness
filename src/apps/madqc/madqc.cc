@@ -29,8 +29,6 @@
   fax:   865-572-0680
 */
 
-
-
 #include <madness/madchem.h>
 
 using namespace madness;
