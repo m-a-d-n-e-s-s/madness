@@ -751,8 +751,8 @@ std::pair<X_space, X_space> QuadraticResponse::compute_first_order_fock_matrix_t
 
         auto fbx = matrix_inner(world, phi0.x[i], f1b.x[i]);
         auto fbx_dagger = matrix_inner(world, phi0.y[i], f1b.y[i]);
-        auto fcx = matrix_inner(world, phi0.x[i], f1b.x[i]);
-        auto fc_dagger = matrix_inner(world, phi0.y[i], f1b.y[i]);
+        auto fcx = matrix_inner(world, phi0.x[i], f1c.x[i]);
+        auto fc_dagger = matrix_inner(world, phi0.y[i], f1c.y[i]);
 
         FBC.x[i] = copy(world, transform(world, C.x[i], fbx, true), true);
         FBC.y[i] = copy(world, transform(world, C.y[i], fbx_dagger, true), true);
