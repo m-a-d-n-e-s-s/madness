@@ -1011,7 +1011,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(World &wor
     }
 
     auto [VBphi0, VCphi0] = dipole_perturbation(world, phi0, phi0);
-    auto [FBC, FCB] = compute_first_order_fock_matrix_terms_v2(world, B, C, g1b, g1c, VBphi0, VBphi0, phi0);
+    auto [FBC, FCB] = compute_first_order_fock_matrix_terms_v2(world, B, C, g1b, g1c, VBphi0, VCphi0, phi0);
 
     return g_zeta_bc + g_zeta_cb + f_bxc + f_cxb + FBC + FCB;
     // the next term we need to compute are the first order fock matrix terms
