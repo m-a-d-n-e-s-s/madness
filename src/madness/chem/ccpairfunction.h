@@ -116,7 +116,7 @@ public:
     virtual bool has_operator() const = 0;
 //    virtual void set_operator(const std::shared_ptr<CCConvolutionOperator> op) = 0;
 //    virtual const std::shared_ptr<CCConvolutionOperator> get_operator_ptr() const = 0;
-    virtual void print_size() const = 0;
+    virtual void print_size(const std::string name="") const = 0;
     virtual std::string name(const bool transpose=false) const = 0;
     virtual World& world() const =0;
     virtual std::shared_ptr<TwoBodyFunctionComponentBase> clone() = 0;
@@ -155,8 +155,8 @@ public:
 
     World& world() const override {return u.world();};
 
-    void print_size() const override {
-        u.print_size(name(false));
+    void print_size(const std::string name1="") const override {
+        u.print_size(name1+name(false));
     }
 
     std::string name(const bool transpose) const override {
@@ -240,7 +240,7 @@ public:
         return a.front().world();
     };
 
-    void print_size() const override {
+    void print_size(const std::string name1="") const override {
         if (a.size() > 0) {
             World& world = a.front().world();
             madness::print_size(world, a, "a from " + name(false));
@@ -441,6 +441,9 @@ private:
     /// turn decomposed functions with operator into pure functions without operators
     static std::vector<CCPairFunction> op_dec_to_pure(const std::vector<CCPairFunction>& other);
 
+    /// turn decomposed functions without operator into pure functions without operators
+    static std::vector<CCPairFunction> dec_to_pure(const std::vector<CCPairFunction>& other);
+
     /// remove linear dependent terms in the low-rank parts
     static std::vector<CCPairFunction> remove_linearly_dependent_terms(const std::vector<CCPairFunction>& other,
         double thresh=-1.0);
@@ -617,8 +620,22 @@ public:
     }
 
     /// print the size of the functions
-    void print_size() const {
-        if (component) component->print_size();
+    void print_size(const std::string name1="") const {
+        if (not component) {
+            print("CCPairFunction "+name1+ " not assigned");
+        } else if (component->is_pure()) {
+            component->print_size(name1);
+        } else {
+            double wall=wall_time();
+            double norm=this->norm2();
+            std::size_t fsize=get_a().size();
+            std::size_t bufsize=128;
+            char buf[bufsize];
+            snprintf(buf, bufsize, "%40s at time %.1fs: norm/  #functions: %7.5f %zu \n",
+                   ((name1+" "+name()).c_str()), wall, norm, fsize);
+            if (world().rank()==0) print(std::string(buf));
+        }
+
     };
 
     std::string name(const bool transpose=false) const {

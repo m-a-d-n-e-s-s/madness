@@ -115,31 +115,37 @@ namespace madness {
         /// |result> = \sum_p |p(particle)> <p(particle)|f(1,2)>_{particle}
         /// \f]
         /// @param[in] f the 6D function to be projected
-        /// @param[in] the particle that is projected (1 or 2)
+        /// @param[in] the particle that is projected (0 or 1)
         /// @return the projected function
         template<std::size_t KDIM>
         typename std::enable_if<KDIM==2*NDIM, Function<T,KDIM> >::type
         operator()(const Function<T,KDIM>& f, int particle1=-1) const {
-            Function<T,KDIM> result = FunctionFactory<T,KDIM>(f.world());
             if (particle1==-1) particle1=get_particle();
-            MADNESS_CHECK_THROW(particle1 == 0 or particle1 == 1, "particle must be 1 or 2");
-            for (size_t i = 0; i < mo_ket_.size(); i++) {
-                Function<T,NDIM> tmp1 = mo_ket_[i];
-                Function<T,NDIM> tmp2 = f.project_out(mo_bra_[i], particle1);
-                Function<T,KDIM> tmp12;
-                if (particle1 == 0) {
-                    tmp12 = CompositeFactory<T, KDIM, NDIM>(f.world()).particle1(copy(tmp1)).particle2(copy(tmp2));
-                    tmp12.fill_tree();
-                } else if (particle1==1) {
-                    tmp12 = CompositeFactory<T, KDIM, NDIM>(f.world()).particle1(copy(tmp2)).particle2(copy(tmp1));
-                    tmp12.fill_tree();
-                } else {
-                    MADNESS_EXCEPTION("messed up",1);
-                }
+            MADNESS_CHECK_THROW(particle1 == 0 or particle1 == 1, "particle must be 0 or 1");
+            auto [left,right]=get_vectors_for_outer_product(f);
+            return hartree_product(left,right);
+        }
 
-                result += tmp12;
+        /// apply the projection parts of the operator on a function f
+
+        /// The operator applied on f(1,2) is
+        ///  O(1)f(1,2) = \sum_i |i(1) > <i(1) | f(1,2)>_1 = \sum_i |i(1) f_i(2)>
+        /// return the lo-dim vectors i and f_i only, perform no outer product
+        std::pair<std::vector<Function<T,NDIM>>,std::vector<Function<T,NDIM>>>
+        get_vectors_for_outer_product(const Function<T,2*NDIM>& f) const {
+            World& world=f.world();
+            reconstruct(world, mo_bra_, false);
+            f.reconstruct(false);
+            reconstruct(world, mo_ket_, true);
+            std::vector<Function<T,NDIM>> projected;
+            for (const auto& i : mo_bra_) {
+                projected.push_back(f.project_out(i,particle));
             }
-            return result;
+            if (particle==0) return std::make_pair(mo_ket_,projected);
+            else if (particle==1) return std::make_pair(projected,mo_ket_);
+            else {
+                MADNESS_EXCEPTION("confused particles in Projector::get_vector_for_outer_products",1);
+            }
         }
 
         template<typename argT>

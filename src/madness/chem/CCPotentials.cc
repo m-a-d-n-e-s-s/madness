@@ -719,6 +719,7 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
     auto dQt_1 = outer(Qt,Ox);
     auto dQt_2 = outer(Ox,Qt);
 
+
     std::size_t i=pair.i;
     std::size_t j=pair.j;
     auto phi = [&](size_t i) { return CCFunction<double,3>(info.mo_ket[i],i,HOLE); };
@@ -750,6 +751,10 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
     auto apply_G_and_print = [&](const std::vector<CCPairFunction<double,6>>& cc, std::string name) {
         std::vector<CCPairFunction<double,6>> tmp1;
         print("cc in apply_G_and_print:",name,cc.size());
+        for (const auto& tt : cc) {
+            print(tt.name());
+            tt.print_size();
+        }
         for (const auto& tt : cc) tmp1 += GG(copy(tt));
         print("tmp1 after apply G");
         for (const auto& tt : tmp1) {
@@ -772,87 +777,58 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
         std::vector<std::string> argument={"Ue","KffK","comm_F_Qt_f12","reduced_Fock"};
         auto Vreg=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
         V=consolidate(Q12t(Vreg));
-    } else if (targetstate==CT_LRCC2) {     // Eq. (25) of Kottmann, JCTC 13, 5956 (2017)
+    } else if (targetstate==CT_LRCC2)
+    {
+        // Eq. (25) of Kottmann, JCTC 13, 5956 (2017)
         // eq. (25) Q12t (g~ - omega f12) (|x_i t_j> + |t_i x_j> )
         // note the term omega f12 is included in the reduced_Fock term, see eq. (34)
         if (0)
         {
+            print_header3("Q12t g~ |x_i t_j + t_i x_j>");
             std::vector<std::string> argument={"Ue","KffK","comm_F_Qt_f12","reduced_Fock"};
             auto Vreg=apply_Vreg(world,x(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
-            //debug Vreg+=apply_Vreg(world,t(i),x(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
+            Vreg+=apply_Vreg(world,t(i),x(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
             V=consolidate(apply_in_separated_form(Q12t,Vreg));
             apply_G_and_print(V,"functional response");
         }
 
         if (0) {
-            std::vector<std::string> argument={"Ue","KffK","reduced_Fock"};
-            auto Vreg=apply_Vreg(world,x(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
-            Vreg+=apply_Vreg(world,t(i),x(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
-
-            V=consolidate(apply_in_separated_form(Q12t,Vreg));
-            apply_G_and_print(V,"functional response in old terminology, V -- separated");
-//            print("debug 1", V.size());
-//            for (auto& vv : V) {
-//                print(vv.name());
-//                vv.print_size();
-//            }
-//            for (auto& vv : V) vv.convert_to_pure_no_op_inplace();
-//            print("debug 2", V.size());
-//            for (auto& vv : V) {
-//                print(vv.name());
-//                vv.print_size();
-//            }
-//            V=consolidate(V);
-//            print("debug 3", V.size());
-//            for (auto& vv : V) {
-//                print(vv.name());
-//                vv.print_size();
-//            }
-//            print("V separate-consolidate",V.size());
-//            V[0].get_function().print_size("Q12t_FQtQtF_f12.size() separate-consolidate");
-//            apply_G_and_print(V,"functional response in old terminology, V -- consolidated");
-//
-//            auto Q12V=Q12t(Vreg);
-//            print("Q12t_Ue_KffK_redF.size()",Q12V.size());
-//            Q12V[0].get_function().print_size("Q12t_FQtQtF_f12");
-//            apply_G_and_print(Q12V,"functional response in old terminology, Q12V- single term");
-        }
-        if (1) {
             print_header3("[F12,Qt] f12 |x_i t_j + t_i x_j>");
             std::vector<std::string> argument={"comm_F_Qt_f12"};
             auto Vreg=apply_Vreg(world,x(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
             Vreg+=apply_Vreg(world,t(i),x(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
             auto Q12V=Q12t(Vreg);
-            print("Q12t_FQtQtF_f12.size()",Q12V.size());
-            apply_G_and_print(Q12V,"commutator response in old terminology: Q12V direct");
-
-            V=consolidate(apply_in_separated_form(Q12t,Vreg));
-            apply_G_and_print(V,"commutator response in old terminology: Q12V separated");
-
+            // apply_G_and_print(Q12V,"commutator response in old terminology: Q12V direct");
         }
 
         // eq. (29) first term: dQt g~ |t_i t_j>
         if (1) {
-            print_header3("dQt g~ |t_i t_j>");
-            const std::vector<std::string> argument={"Ue","KffK","comm_F_Qt_f12","reduced_Fock"};
+            print_header3("dQt g~ |t_i t_j> -- incomplete !!");
+            // const std::vector<std::string> argument={"Ue","KffK","comm_F_Qt_f12","reduced_Fock"};
+            const std::vector<std::string> argument={"Ue","KffK","reduced_Fock"};
             auto Vreg1=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
-            V-=consolidate(dQt_1(Vreg1) + dQt_2(Vreg1));
-            apply_G_and_print(consolidate(dQt_1(Vreg1) + dQt_2(Vreg1)),"projector response");
-        }
 
+            auto tmp=consolidate(dQt_1(Vreg1) + dQt_2(Vreg1));
+            V-=tmp;
+
+            MADNESS_CHECK_THROW(tmp.size()==1,"tmp size is incorrect");
+            tmp[0].print_size("dQt g~ |t_i t_j>");
+            apply_G_and_print(tmp,"projector response");
+        }
 
 
         // eq. (29) second term = eq. (31): [F12, dQt] f12 |t_i t_j> + omega dQ12t f12 |t_i t_j>
         if (1) {
             print_header3("[F12, dQt] f12 |t_i t_j>");
             const std::vector<std::string> argument={"comm_F_dQt_f12"};
-            // V+=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
-            auto tmp1=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
-            apply_G_and_print(tmp1,"commutator projector response");
+            auto tmp=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
+            tmp=consolidate(tmp);
+            MADNESS_CHECK_THROW(tmp.size()==1,"tmp size incorrect");
+            tmp[0].print_size();
+            V+=tmp;
+            apply_G_and_print(tmp,"commutator projector response");
         }
-
     }
-    throw;
 
     V=consolidate(V);
     MADNESS_CHECK(V.size()==2);     // term 1: 6d, hi-rank, local; term 2: 3d, low-rank, delocalized
@@ -862,8 +838,8 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
     G.destructive() = true;
 
     real_function_6d GV=real_factory_6d(world).empty();
-    for (const auto& vv : V) GV+= (-2.0 * G(vv)).get_function();      // note V is destroyed here
-    GV=Q12(GV).truncate().reduce_rank();
+    for (const auto& vv : V) GV+= (G(vv)).get_function();      // note V is destroyed here
+    GV=-2.0*Q12(GV).truncate().reduce_rank();
 
     GV.print_size("GVreg");
     return GV;
@@ -1488,7 +1464,7 @@ CCPotentials::make_constant_part_cc2_Qt_ex(const CCPair& u, const CC_vecfunction
     CCTimer time_cpr(world, "Commutator-Projector Response");
     // Make functional response part: G(QtVreg|xitj + tixj>)
     real_function_6d functional_response;
-    if (0) {
+    if (1) {
         time_fr.start();
         const real_function_6d Vxt = (apply_Vreg(xi, tj, Gscreen)).truncate().reduce_rank();
         if (symmetric) {
@@ -1509,7 +1485,7 @@ CCPotentials::make_constant_part_cc2_Qt_ex(const CCPair& u, const CC_vecfunction
 
     // make Projector Response: -G(OxQt+QtOx)Vreg|titj>
     real_function_6d projector_response;
-    if (0) {
+    if (1) {
         time_pr.start();
         // here is an inconsistency: The Vreg potential will apply (F12-eij) to the |titj> state but we have here (F12-eij-omega)
         // in the future this part here is supposed to be entirely 3D and not use the 6D apply_Vreg function, so right now this is a workaround
@@ -1592,9 +1568,6 @@ CCPotentials::make_constant_part_cc2_Qt_ex(const CCPair& u, const CC_vecfunction
         const vector_real_function_3d Vxtmp = get_potentials(x, POT_singles_);
         const vector_real_function_3d Vttmp = get_potentials(tau, POT_singles_);
 
-    madness::print_size(world,Vxtmp,"Vxtmp");
-    madness::print_size(world,Vttmp,"Vttmp");
-    madness::print_size(world,get_active_mo_bra(),"active bra");
         const CC_vecfunction Vx(Vxtmp, UNDEFINED, parameters.freeze());
         const CC_vecfunction Vt(Vttmp, UNDEFINED, parameters.freeze());
         CCPairFunction<double,6> ftt(f12, ti, tj);
@@ -2149,24 +2122,22 @@ CCPotentials::apply_commutator_F_dQt_f12(World& world, const CCFunction<double,3
     auto f12=CCConvolutionOperatorPtr<double,3>(world,OT_F12,parameters);
     auto ftt=std::vector<CCPairFunction<double,6>>({CCPairFunction<double,6>(f12, phi_i.function, phi_j.function)});
 
+    auto t=CCPotentials::make_active_t_intermediate(gs_singles,info);
     const vector_real_function_3d Vtau=info.intermediate_potentials(gs_singles, POT_singles_);
     const vector_real_function_3d Vx=info.intermediate_potentials(ex_singles, POT_singles_);
     auto bra=info.get_active_mo_bra();
-    madness::print_size(world,Vtau,"Vtau");
-    madness::print_size(world,Vx,"x");
-    madness::print_size(world,bra,"active bra");
 
     Projector<double,3> OVtau(bra,Vtau);
     Projector<double,3> Ox(bra,ex_singles.get_vecfunction());
     Projector<double,3> OVx(bra,Vx);
-    QProjector<double,3> Qt(world,bra,gs_singles.get_vecfunction());
+    QProjector<double,3> Qt(world,bra,t.get_vecfunction());
 
-    auto p1_1=outer(OVx,Qt);
-    auto p1_2=outer(Qt,OVx);
-    auto p2_1=outer(Ox,OVtau);
-    auto p2_2=outer(OVtau,Ox);
+    auto OvxQt=outer(OVx,Qt);
+    auto QtOvx=outer(Qt,OVx);
+    auto OxOvt=outer(Ox,OVtau);
+    auto OvtOx=outer(OVtau,Ox);
 
-    auto result=p1_1(ftt) + p1_2(ftt) - p2_1(ftt) - p2_2(ftt);
+    auto result=OvxQt(ftt) + QtOvx(ftt) - OxOvt(ftt) - OvtOx(ftt);
     result=consolidate(result);     // will collect similar terms only
     MADNESS_CHECK_THROW(result.size()==1 and result[0].is_decomposed(),"apply_Fock_commutator should return a single CCPairFunction");
     return result[0];
@@ -3647,7 +3618,8 @@ CC_vecfunction CCPotentials::make_full_t_intermediate(const CC_vecfunction& tau)
 }
 
 /// makes the t intermediates
-/// t_i = mo_ket_(i) + factor*tau(i)
+
+/// t_i = mo_ket_(i) + tau(i)
 /// if the core is frozen the core ti will just be mo_ket_
 CC_vecfunction CCPotentials::make_full_t_intermediate(const CC_vecfunction& tau, const Info& info) {
 
@@ -3661,6 +3633,22 @@ CC_vecfunction CCPotentials::make_full_t_intermediate(const CC_vecfunction& tau,
             CCFunction<double,3> t(info.mo_ket[i] + tau(i).function, i, MIXED);
             result.insert(i, t);
         }
+    }
+    return result;
+}
+
+/// makes the t intermediates
+
+/// t_i = mo_ket_(i) + tau(i)
+/// skip frozen core orbitals
+CC_vecfunction CCPotentials::make_active_t_intermediate(const CC_vecfunction& tau, const Info& info) {
+
+    if (tau.type == HOLE or tau.size()==0) return CC_vecfunction(info.mo_ket,HOLE);
+
+    CC_vecfunction result(MIXED);
+    for (size_t i = info.parameters.freeze(); i < info.mo_ket.size(); i++) {
+        CCFunction<double,3> t(info.mo_ket[i] + tau(i).function, i, MIXED);
+        result.insert(i, t);
     }
     return result;
 }

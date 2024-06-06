@@ -95,10 +95,18 @@ int test_projector_outer(World& world) {
     auto Q1f=Q1(f_hidim);
     auto Q2f=Q2(f_hidim);
     double err=(Q1f-Q2f).norm2();
-    double norm=Q1f.norm2();
-    print("norm",norm);
+    print("error",err);
+    double norm1=Q1f.norm2();
+    double norm2=Q2f.norm2();
+    print("norm1/2",norm1,norm2);
+    double trace1=Q1f.trace();
+    double trace2=Q2f.trace();
+    print("trace1/2",trace1,trace2);
 
-    t1.checkpoint(err/norm,FunctionDefaults<NDIM>::get_thresh(),"Q1 direct and Q2 outer are the same");
+    t1.checkpoint(norm1-norm2,FunctionDefaults<NDIM>::get_thresh(),"Q1 direct and Q2 outer are the same");
+    t1.checkpoint(trace1-trace2,FunctionDefaults<NDIM>::get_thresh(),"Q1 direct and Q2 outer are the same");
+    // loosen threshold due to outer product
+    t1.checkpoint(err,FunctionDefaults<NDIM>::get_thresh()*3.0,"Q1 direct and Q2 outer are the same");
 
     return t1.end();
 }

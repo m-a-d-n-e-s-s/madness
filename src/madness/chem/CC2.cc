@@ -741,14 +741,14 @@ CC2::iterate_lrcc2_pairs(const CC_vecfunction& cc2_s, const Pairs<CCPair>& cc2_d
             // output("Skipping Pair Iteration, No significant Change in Singles");
         // else {
             pair.bsh_eps = CCOPS.get_epsilon(pair.i, pair.j) + lrcc2_s.omega;
-            update_constant_part_lrcc2(pair, cc2_s, lrcc2_s);
-            // pair.constant_part=CCPotentials::make_constant_part_macrotask(world, pair,
-                         // cc2_s, lrcc2_s, info);
+            // update_constant_part_lrcc2(pair, cc2_s, lrcc2_s);
+            pair.constant_part=CCPotentials::make_constant_part_macrotask(world, pair,
+                         cc2_s, lrcc2_s, info);
             conv = iterate_pair(pair, lrcc2_s);
         // }
     }
-
     return conv;
+
 }
 
 
