@@ -29,7 +29,7 @@
   fax:   865-572-0680
 */
 
-#include <madness/madchem.h>
+#include "madchem.h"
 
 using namespace madness;
 
@@ -56,17 +56,12 @@ int main(int argc, char** argv) {
     // 2a from the model downstream
     // 2b from the task downstream
 
-    toplevelparameter parameters
-    parameters.set_tight();
-
-    optimizer
 
     // read input file
     // read into parameter handler
 
 
 
-    if (task=="optimize")
 
     // create class corresponding to qc model
 
