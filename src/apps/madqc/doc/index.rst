@@ -57,6 +57,7 @@ This documentation will guide you through the features, setup, and use of MADQCE
 3. **Reponse Properties** Learn how to compute HF/DFT response properties. See :doc:`usage/response_properties`.
 4. **Calculation Structure** Learn how :code:`madqce` manages calculations and where to find the output files. See :doc:`usage/calculation_structure`.
 5. **Interfacing with QCEngine** Learn how to interface with QCEngine. See :doc:`usage/qcengine_interface`.
+6. **Property Examples* Learn how to compute specific properties using MADQCEngine. See :doc:`usage/property_examples`.
 
 Navigate through the documentation using the sidebar. Each section is designed to help you understand and use MyProject effectively.
 
