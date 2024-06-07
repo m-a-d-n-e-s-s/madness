@@ -1247,7 +1247,7 @@ public:
         // i need A B C to hold char values and A-freq, B-freq, C-freq to hold
         // double values
 
-        nlohmann::ordered_json beta_json = {{"A-freq", json::array()}, {"B-freq", json::array()}, {"C-freq", json::array()}, {"A", json::array()}, {"B", json::array()}, {"C", json::array()}, {"Beta", json::array()}};
+        nlohmann::ordered_json beta_json = {{"Afreq", json::array()}, {"Bfreq", json::array()}, {"Cfreq", json::array()}, {"A", json::array()}, {"B", json::array()}, {"C", json::array()}, {"Beta", json::array()}};
         return beta_json;
     }
     static nlohmann::ordered_json create_alpha_json()
@@ -1272,25 +1272,9 @@ public:
     {
 
         auto num_unique_elements = beta_directions.size();
-
-        auto push_back_others = [&](auto other_ijk, auto beta_value)
+        // Let's just make sure it's correct
+        if (true)
         {
-            for (const auto &_ijk : other_ijk)
-            {
-                beta_json["A-freq"].push_back(freq[0]);
-                beta_json["B-freq"].push_back(freq[1]);
-                beta_json["C-freq"].push_back(freq[2]);
-
-                beta_json["A"].push_back(std::string(1, _ijk[0]));
-                beta_json["B"].push_back(std::string(1, _ijk[1]));
-                beta_json["C"].push_back(std::string(1, _ijk[2]));
-                beta_json["Beta"].push_back(beta_value);
-            }
-        };
-
-        if (num_unique_elements == 12)
-        {
-
             for (int i = 0; i < num_unique_elements; i++)
             {
                 auto ijk = beta_directions[i];
@@ -1300,139 +1284,181 @@ public:
                 auto B = ijk[1];
                 auto C = ijk[2];
 
-                beta_json["A-freq"].push_back(freq[0]);
-                beta_json["B-freq"].push_back(freq[1]);
-                beta_json["C-freq"].push_back(freq[2]);
+                beta_json["Afreq"].push_back(freq[0]);
+                beta_json["Bfreq"].push_back(freq[1]);
+                beta_json["Cfreq"].push_back(freq[2]);
 
                 beta_json["A"].push_back(std::string(1, A));
                 beta_json["B"].push_back(std::string(1, B));
                 beta_json["C"].push_back(std::string(1, C));
                 beta_json["Beta"].push_back(beta_value);
-
-                if (ijk == "XYZ")
-                {
-                    auto other_ijk = {"XZY", "YXZ", "YZX", "ZXY", "ZYX"};
-                    push_back_others(other_ijk, beta_value);
-                }
-                else if (ijk == "XYY")
-                {
-                    auto other_ijk = {"YXY", "YYX"};
-                    push_back_others(other_ijk, beta_value);
-                }
-                else if (ijk == "XZZ")
-                {
-                    auto other_ijk = {"ZXZ", "ZZX"};
-                    push_back_others(other_ijk, beta_value);
-                }
-                else if (ijk == "YXX")
-                {
-                    auto other_ijk = {"XYX", "XXY"};
-                    push_back_others(other_ijk, beta_value);
-                }
-                else if (ijk == "YZZ")
-                {
-
-                    auto other_ijk = {"ZZY"};
-                    push_back_others(other_ijk, beta_value);
-                }
-                else if (ijk == "ZXX")
-                {
-                    auto other_ijk = {"XZX", "XXZ"};
-                    push_back_others(other_ijk, beta_value);
-                }
-                else if (ijk == "ZYY")
-                {
-                    auto other_ijk = {"YZY"};
-                    push_back_others(other_ijk, beta_value);
-                }
             }
+            return;
         }
-        else if (num_unique_elements == 18)
+
+        if (false)
         {
-            for (int i = 0; i < num_unique_elements; i++)
+            auto push_back_others = [&](auto other_ijk, auto beta_value)
             {
-                auto ijk = beta_directions[i];
-                auto beta_value = beta[i];
+                for (const auto &_ijk : other_ijk)
+                {
+                    beta_json["A-freq"].push_back(freq[0]);
+                    beta_json["B-freq"].push_back(freq[1]);
+                    beta_json["C-freq"].push_back(freq[2]);
 
-                auto A = ijk[0];
-                auto B = ijk[1];
-                auto C = ijk[2];
+                    beta_json["A"].push_back(std::string(1, _ijk[0]));
+                    beta_json["B"].push_back(std::string(1, _ijk[1]));
+                    beta_json["C"].push_back(std::string(1, _ijk[2]));
+                    beta_json["Beta"].push_back(beta_value);
+                }
+            };
 
-                beta_json["A-freq"].push_back(freq[0]);
-                beta_json["B-freq"].push_back(freq[1]);
-                beta_json["C-freq"].push_back(freq[2]);
+            if (num_unique_elements == 12)
+            {
 
-                beta_json["A"].push_back(std::string(1, A));
-                beta_json["B"].push_back(std::string(1, B));
-                beta_json["C"].push_back(std::string(1, C));
-                beta_json["Beta"].push_back(beta_value);
+                for (int i = 0; i < num_unique_elements; i++)
+                {
+                    auto ijk = beta_directions[i];
+                    auto beta_value = beta[i];
 
-                if (ijk == "XXY")
-                {
-                    auto other_ijk = {"XYX"};
-                    push_back_others(other_ijk, beta_value);
-                }
-                else if (ijk == "XXZ")
-                {
-                    auto other_ijk = {"XZX"};
-                    push_back_others(other_ijk, beta_value);
-                }
-                else if (ijk == "XYZ")
-                {
-                    auto other_ijk = {"XZY"};
-                    push_back_others(other_ijk, beta_value);
-                }
-                else if (ijk == "YXY")
-                {
-                    auto other_ijk = {"YYX"};
-                    push_back_others(other_ijk, beta_value);
-                }
-                else if (ijk == "YXZ")
-                {
-                    auto other_ijk = {"YZX"};
-                    push_back_others(other_ijk, beta_value);
-                }
-                else if (ijk == "YYZ")
-                {
-                    auto other_ijk = {"YZY"};
-                    push_back_others(other_ijk, beta_value);
-                }
-                else if (ijk == "ZXY")
-                {
-                    auto other_ijk = {"ZYX"};
-                    push_back_others(other_ijk, beta_value);
-                }
-                else if (ijk == "ZXZ")
-                {
-                    auto other_ijk = {"ZZX"};
-                    push_back_others(other_ijk, beta_value);
-                }
-                else if (ijk == "ZYZ")
-                {
-                    auto other_ijk = {"ZZY"};
-                    push_back_others(other_ijk, beta_value);
+                    auto A = ijk[0];
+                    auto B = ijk[1];
+                    auto C = ijk[2];
+
+                    beta_json["A-freq"].push_back(freq[0]);
+                    beta_json["B-freq"].push_back(freq[1]);
+                    beta_json["C-freq"].push_back(freq[2]);
+
+                    beta_json["A"].push_back(std::string(1, A));
+                    beta_json["B"].push_back(std::string(1, B));
+                    beta_json["C"].push_back(std::string(1, C));
+                    beta_json["Beta"].push_back(beta_value);
+
+                    if (ijk == "XYZ")
+                    {
+                        auto other_ijk = {"XZY", "YXZ", "YZX", "ZXY", "ZYX"};
+                        push_back_others(other_ijk, beta_value);
+                    }
+                    else if (ijk == "XYY")
+                    {
+                        auto other_ijk = {"YXY", "YYX"};
+                        push_back_others(other_ijk, beta_value);
+                    }
+                    else if (ijk == "XZZ")
+                    {
+                        auto other_ijk = {"ZXZ", "ZZX"};
+                        push_back_others(other_ijk, beta_value);
+                    }
+                    else if (ijk == "YXX")
+                    {
+                        auto other_ijk = {"XYX", "XXY"};
+                        push_back_others(other_ijk, beta_value);
+                    }
+                    else if (ijk == "YZZ")
+                    {
+
+                        auto other_ijk = {"ZZY"};
+                        push_back_others(other_ijk, beta_value);
+                    }
+                    else if (ijk == "ZXX")
+                    {
+                        auto other_ijk = {"XZX", "XXZ"};
+                        push_back_others(other_ijk, beta_value);
+                    }
+                    else if (ijk == "ZYY")
+                    {
+                        auto other_ijk = {"YZY"};
+                        push_back_others(other_ijk, beta_value);
+                    }
                 }
             }
-        }
-        else
-        {
-            for (int i = 0; i < num_unique_elements; i++)
+            else if (num_unique_elements == 18)
             {
-                auto ijk = beta_directions[i];
-                auto beta_value = beta[i];
+                for (int i = 0; i < num_unique_elements; i++)
+                {
+                    auto ijk = beta_directions[i];
+                    auto beta_value = beta[i];
 
-                auto A = ijk[0];
-                auto B = ijk[1];
-                auto C = ijk[2];
+                    auto A = ijk[0];
+                    auto B = ijk[1];
+                    auto C = ijk[2];
 
-                beta_json["A-freq"].push_back(freq[0]);
-                beta_json["B-freq"].push_back(freq[1]);
-                beta_json["C-freq"].push_back(freq[2]);
+                    beta_json["A-freq"].push_back(freq[0]);
+                    beta_json["B-freq"].push_back(freq[1]);
+                    beta_json["C-freq"].push_back(freq[2]);
 
-                beta_json["A"].push_back(std::string(1, A));
-                beta_json["B"].push_back(std::string(1, B));
-                beta_json["C"].push_back(std::string(1, C));
-                beta_json["Beta"].push_back(beta_value);
+                    beta_json["A"].push_back(std::string(1, A));
+                    beta_json["B"].push_back(std::string(1, B));
+                    beta_json["C"].push_back(std::string(1, C));
+                    beta_json["Beta"].push_back(beta_value);
+
+                    if (ijk == "XXY")
+                    {
+                        auto other_ijk = {"XYX"};
+                        push_back_others(other_ijk, beta_value);
+                    }
+                    else if (ijk == "XXZ")
+                    {
+                        auto other_ijk = {"XZX"};
+                        push_back_others(other_ijk, beta_value);
+                    }
+                    else if (ijk == "XYZ")
+                    {
+                        auto other_ijk = {"XZY"};
+                        push_back_others(other_ijk, beta_value);
+                    }
+                    else if (ijk == "YXY")
+                    {
+                        auto other_ijk = {"YYX"};
+                        push_back_others(other_ijk, beta_value);
+                    }
+                    else if (ijk == "YXZ")
+                    {
+                        auto other_ijk = {"YZX"};
+                        push_back_others(other_ijk, beta_value);
+                    }
+                    else if (ijk == "YYZ")
+                    {
+                        auto other_ijk = {"YZY"};
+                        push_back_others(other_ijk, beta_value);
+                    }
+                    else if (ijk == "ZXY")
+                    {
+                        auto other_ijk = {"ZYX"};
+                        push_back_others(other_ijk, beta_value);
+                    }
+                    else if (ijk == "ZXZ")
+                    {
+                        auto other_ijk = {"ZZX"};
+                        push_back_others(other_ijk, beta_value);
+                    }
+                    else if (ijk == "ZYZ")
+                    {
+                        auto other_ijk = {"ZZY"};
+                        push_back_others(other_ijk, beta_value);
+                    }
+                }
+            }
+            else
+            {
+                for (int i = 0; i < num_unique_elements; i++)
+                {
+                    auto ijk = beta_directions[i];
+                    auto beta_value = beta[i];
+
+                    auto A = ijk[0];
+                    auto B = ijk[1];
+                    auto C = ijk[2];
+
+                    beta_json["A-freq"].push_back(freq[0]);
+                    beta_json["B-freq"].push_back(freq[1]);
+                    beta_json["C-freq"].push_back(freq[2]);
+
+                    beta_json["A"].push_back(std::string(1, A));
+                    beta_json["B"].push_back(std::string(1, B));
+                    beta_json["C"].push_back(std::string(1, C));
+                    beta_json["Beta"].push_back(beta_value);
+                }
             }
         }
     }

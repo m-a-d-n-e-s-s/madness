@@ -526,21 +526,22 @@ void QuadraticResponse::initialize(World &world) {}
 auto QuadraticResponse::setup_XBC(World &world, const double &omega_b, const double &omega_c) -> std::pair<X_space, X_space>
 {
 
-    if (omega_b == omega_c && omega_b == 0)
+    if (false)
     {
-        this->index_B = {0, 1, 2, 1};
-        this->index_C = {0, 1, 2, 2};
+
+        if (omega_b == omega_c && omega_b == 0)
+        {
+            this->index_B = {0, 1, 2, 1};
+            this->index_C = {0, 1, 2, 2};
+        }
+        else if (omega_b == omega_c && omega_b != 0)
+        {
+            this->index_B = {0, 0, 0, 1, 1, 2};
+            this->index_C = {0, 1, 2, 1, 2, 2};
+        }
     }
-    else if (omega_b == omega_c && omega_b != 0)
-    {
-        this->index_B = {0, 0, 0, 1, 1, 2};
-        this->index_C = {0, 1, 2, 1, 2, 2};
-    }
-    else
-    {
-        this->index_B = {0, 0, 0, 1, 1, 1, 2, 2, 2};
-        this->index_C = {0, 1, 2, 0, 1, 2, 0, 1, 2};
-    }
+    this->index_B = {0, 0, 0, 1, 1, 1, 2, 2, 2};
+    this->index_C = {0, 1, 2, 0, 1, 2, 0, 1, 2};
 
     auto B = x_data[1].first.copy();
     auto C = x_data[2].first.copy();
@@ -555,7 +556,7 @@ auto QuadraticResponse::setup_XBC(World &world, const double &omega_b, const dou
     {
         new_B.x[i] = copy(world, B.x[index_B[i]]);
         new_B.y[i] = copy(world, B.y[index_B[i]]);
-        
+
         new_C.x[i] = copy(world, C.x[index_C[i]]);
         new_C.y[i] = copy(world, C.y[index_C[i]]);
     }
