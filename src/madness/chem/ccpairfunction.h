@@ -626,7 +626,12 @@ public:
         } else if (component->is_pure()) {
             component->print_size(name1);
         } else {
+            print("printing",name1,name());
             double wall=wall_time();
+            component->print_size();
+            double anorm=madness::norm2(world(),get_a());
+            double bnorm=madness::norm2(world(),get_b());
+            print("anorm, bnorm",anorm,bnorm);
             double norm=this->norm2();
             std::size_t fsize=get_a().size();
             std::size_t bufsize=128;
@@ -644,8 +649,13 @@ public:
     }
 
     typename Tensor<T>::scalar_type norm2() const {
-        if (component->is_pure()) return pure().get_function().norm2();
-        if (component->is_decomposed()) {
+        if (is_pure_no_op()) {
+            return pure().get_function().norm2();
+        } else if (is_op_pure()) {
+            double n2=inner(*this,*this);
+            if (n2<0.0) print("norm of ",name()," is < 0.0");
+            return sqrt(std::max(0.0,n2));
+        } else if (component->is_decomposed()) {
             Function<T,LDIM> R2;
             auto tmp= inner_internal(*this,R2);
             typename Tensor<T>::scalar_type result=std::real(tmp);

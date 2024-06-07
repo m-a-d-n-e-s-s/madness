@@ -73,7 +73,9 @@ namespace madness {
         /// constructor with a set of orbitals to project out
 
         /// bra and ket spaces are symmetric
-        Projector(const vecfuncT& p) : mo_ket_(p), mo_bra_(p) {}
+        Projector(const vecfuncT& p) : mo_ket_(p), mo_bra_(p) {
+            MADNESS_CHECK_THROW(mo_bra_.size()==mo_ket_.size(), "bra and ket spaces must have the same size in projector");
+        }
 
         /// constructor with a set of orbitals to project out
 
@@ -401,6 +403,11 @@ namespace madness {
         OuterProjector(const projT& p0, const projQ& p1) : projector0(p0), projector1(p1) {
             projector0.set_particle(0);
             projector1.set_particle(1);
+            print("projector vector sizes",
+            projector0.get_bra_vector().size(),
+            projector1.get_bra_vector().size(),
+            projector0.get_ket_vector().size(),
+            projector1.get_ket_vector().size());
         }
 
         std::string type() const override {

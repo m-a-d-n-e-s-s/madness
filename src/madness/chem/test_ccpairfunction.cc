@@ -196,6 +196,31 @@ int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
 }
 
 template<typename T, std::size_t NDIM>
+int test_norm(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, data<T,NDIM>& data,
+                     const CCParameters& parameter) {
+    test_output t1("norm of <T,"+std::to_string(NDIM)+">");
+
+    auto [p1,p2,p3,p4,p5]=data.get_ccpairfunctions();  // p2-p5 correspond to f230
+    for (const CCPairFunction<T,NDIM>& p : {p2,p3,p4,p5}) {
+        double n=p.norm2();
+        print("norm of ",p.name(),n);
+        double n1=sqrt(inner(p,p));
+        print("inner",n1);
+        t1.checkpoint(n,n1,FunctionDefaults<NDIM>::get_thresh(),"norm of p");
+    }
+
+    double n2=p2.norm2();
+    double n3=p3.norm2();
+    double n4=p4.norm2();
+    double n5=p5.norm2();
+    t1.checkpoint(n2,n4,FunctionDefaults<NDIM>::get_thresh(),"norm of p2/4");
+    t1.checkpoint(n3,n5,FunctionDefaults<NDIM>::get_thresh(),"norm of p3/5");
+
+    return t1.end();
+
+}
+
+template<typename T, std::size_t NDIM>
 int test_load_store(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, data<T,NDIM>& data,
                      const CCParameters& parameter) {
     test_output t1("load/store of <T,"+std::to_string(NDIM)+">");
@@ -1324,6 +1349,7 @@ int main(int argc, char **argv) {
         isuccess+=test_constructor<double,2>(world, ncf, data2, ccparam);
         isuccess+=test_load_store<double,2>(world,ncf,data2,ccparam);
         isuccess+=test_operator_apply<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_norm<double,2>(world,ncf,data2,ccparam);
         isuccess+=test_transformations<double,2>(world, ncf, data2, ccparam);
         isuccess+=test_multiply_with_f12<double,2>(world, ncf, data2, ccparam);
         isuccess+=test_inner<double,2>(world, ncf, data2, ccparam);

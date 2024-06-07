@@ -715,9 +715,10 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
 
     // dQ12t = -(Qt(1) Ox(2) + Ox(1) Qt(2))      eq. (22)
     QProjector<double,3> Qt(world,info.mo_bra,t.get_vecfunction());
-    Projector<double,3> Ox(info.mo_bra,ex_singles.get_vecfunction());
+    Projector<double,3> Ox(info.get_active_mo_bra(),ex_singles.get_vecfunction());
     auto dQt_1 = outer(Qt,Ox);
     auto dQt_2 = outer(Ox,Qt);
+
 
 
     std::size_t i=pair.i;
@@ -782,7 +783,7 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
         // Eq. (25) of Kottmann, JCTC 13, 5956 (2017)
         // eq. (25) Q12t (g~ - omega f12) (|x_i t_j> + |t_i x_j> )
         // note the term omega f12 is included in the reduced_Fock term, see eq. (34)
-        if (0)
+        if (1)
         {
             print_header3("Q12t g~ |x_i t_j + t_i x_j>");
             std::vector<std::string> argument={"Ue","KffK","comm_F_Qt_f12","reduced_Fock"};
@@ -798,21 +799,21 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
             auto Vreg=apply_Vreg(world,x(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
             Vreg+=apply_Vreg(world,t(i),x(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
             auto Q12V=Q12t(Vreg);
-            // apply_G_and_print(Q12V,"commutator response in old terminology: Q12V direct");
+            apply_G_and_print(Q12V,"commutator response in old terminology: Q12V direct");
         }
 
         // eq. (29) first term: dQt g~ |t_i t_j>
         if (1) {
-            print_header3("dQt g~ |t_i t_j> -- incomplete !!");
-            // const std::vector<std::string> argument={"Ue","KffK","comm_F_Qt_f12","reduced_Fock"};
-            const std::vector<std::string> argument={"Ue","KffK","reduced_Fock"};
+            print_header3("dQt g~ |t_i t_j> ");
+            const std::vector<std::string> argument={"Ue","KffK","comm_F_Qt_f12","reduced_Fock"};
+            // const std::vector<std::string> argument={"Ue","KffK","reduced_Fock"};
             auto Vreg1=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
 
             auto tmp=consolidate(dQt_1(Vreg1) + dQt_2(Vreg1));
             V-=tmp;
 
-            MADNESS_CHECK_THROW(tmp.size()==1,"tmp size is incorrect");
-            tmp[0].print_size("dQt g~ |t_i t_j>");
+            // MADNESS_CHECK_THROW(tmp.size()==1,"tmp size is incorrect");
+            // for (auto& t : tmp) t.print_size("dQt g~ |t_i t_j>");
             apply_G_and_print(tmp,"projector response");
         }
 
@@ -823,8 +824,6 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
             const std::vector<std::string> argument={"comm_F_dQt_f12"};
             auto tmp=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
             tmp=consolidate(tmp);
-            MADNESS_CHECK_THROW(tmp.size()==1,"tmp size incorrect");
-            tmp[0].print_size();
             V+=tmp;
             apply_G_and_print(tmp,"commutator projector response");
         }
@@ -1697,7 +1696,7 @@ std::vector<CCPairFunction<double,6>>
     }
 
     std::vector<CCPairFunction<double, 6>> result;
-    result+=CCPairFunction<double,6>(V);
+    if (V.tree_size()>0) result+=CCPairFunction<double,6>(V);
     result+=V_lowrank;
     return result;
 
