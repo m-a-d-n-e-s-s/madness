@@ -70,7 +70,8 @@ void write_molecule_json_to_input_file(const json &molecule_json, std::ostream &
     {
         output_stream << "    " << symbols[i] << " " << geometry[i][0] << " " << geometry[i][1] << " " << geometry[i][2] << std::endl;
     }
-    output_stream << "end" << std::endl << std::endl;
+    output_stream << "end" << std::endl
+                  << std::endl;
 }
 
 void write_json_to_input_file(const json &input_json, const std::vector<std::string> &keys, std::ostream &output_stream)
@@ -89,7 +90,8 @@ void write_json_to_input_file(const json &input_json, const std::vector<std::str
         {
             output_stream << "    " << key << " " << value << std::endl;
         }
-        output_stream << "end" << std::endl << std::endl;
+        output_stream << "end" << std::endl
+                      << std::endl;
     }
 }
 
@@ -414,7 +416,7 @@ class ResponseCalcManager
     path root; // root directory
     ParameterManager parameter_manager;
 
-    path moldft_path; // base moldft path
+    path moldft_path;    // base moldft path
     path moldft_restart; // path to moldft restart file
     path moldft_calc_info_path;
     path moldft_scf_calc_info_path;
@@ -426,6 +428,7 @@ class ResponseCalcManager
     vector<path> response_restart_paths;
     vector<path> response_outfiles_paths;
 
+    path alpha_json_path;
     path quadratic_json_path; // path to the quadratic json file
                               // paths to the moldft and response calculations
 
@@ -459,14 +462,14 @@ public:
         //
         //
 
-
         if (parameter_manager.get_molresponse_params().quadratic())
         {
 
             vector<double> freqs_copy = freq;
             auto num_freqs = freq.size();
 
-            auto compare_freqs = [](double x, double y) { return std::abs(x - y) < 1e-3; };
+            auto compare_freqs = [](double x, double y)
+            { return std::abs(x - y) < 1e-3; };
 
             for (int i = 0; i < num_freqs; i++)
             {
@@ -476,7 +479,8 @@ public:
                     auto omega_2 = freq[j];
                     auto omega_3 = omega_1 + omega_2;
 
-                    if (std::find_if(freqs_copy.begin(), freqs_copy.end(), [&](double x) { return compare_freqs(x, omega_3); }) != freqs_copy.end())
+                    if (std::find_if(freqs_copy.begin(), freqs_copy.end(), [&](double x)
+                                     { return compare_freqs(x, omega_3); }) != freqs_copy.end())
                     {
                         continue;
                     }
@@ -486,13 +490,11 @@ public:
                 }
             }
 
-
             freq = freqs_copy;
             std::sort(freq.begin(), freq.end());
             // only unique frequencies
             freq.erase(std::unique(freq.begin(), freq.end()), freq.end());
         }
-
 
         root = std::filesystem::current_path();
 
@@ -504,7 +506,7 @@ public:
         auto hash = json_hash(input_json);
         std::string output_directory = "output"; // + std::to_string(hash);
 
-        moldft_path = root / output_directory;
+        moldft_path = root;
         moldft_restart = moldft_path / "moldft.restartdata.00000";
         moldft_calc_info_path = moldft_path / "moldft.calc_info.json";
         moldft_scf_calc_info_path = moldft_path / "moldft.scf_info.json";
@@ -522,6 +524,7 @@ public:
         if (parameter_manager.get_run_response())
         {
             define_response_paths();
+            alpha_json_path = moldft_path / "alpha.json";
         }
 
         if (parameter_manager.get_molresponse_params().quadratic())
@@ -557,6 +560,7 @@ public:
             }
 
             calc_path_json["quadratic_json_path"] = getAbsolutePath(quadratic_json_path, root);
+            calc_path_json["alpha_json_path"] = getAbsolutePath(alpha_json_path, root);
         };
 
         create_calc_path_json();
@@ -839,7 +843,7 @@ public:
      * @param restart_path
      * @return
      */
-    auto RunResponse(World &world, const std::string &filename, double frequency, std::filesystem::path restart_path) -> std::pair<std::filesystem::path, bool>
+    auto RunResponse(World &world, const std::string &filename, double frequency, std::filesystem::path restart_path, nlohmann::ordered_json &alpha_json) -> std::pair<std::filesystem::path, bool>
     {
         // Set the response parameters
         ResponseParameters r_params = parameter_manager.get_molresponse_params();
@@ -888,6 +892,23 @@ public:
             calc_params.response_parameters.to_json(calc.j_molresponse);
         }
         calc.solve(world);
+        auto [omega, polar_omega] = calc.get_response_data();
+        // flatten polar_omega
+        auto alpha = polar_omega.flat();
+        std::vector<std::string> ij{"XX", "XY", "XZ", "YX", "YY", "YZ", "ZX", "ZY", "ZZ"};
+
+        append_to_alpha_json(omega, ij, alpha, alpha_json);
+        std::ofstream outfile("../alpha.json");
+        if (outfile.is_open())
+        {
+            outfile << alpha_json.dump(4);
+            outfile.close();
+        }
+        else
+        {
+            std::cerr << "Failed to open file for writing: " << "../alpha.json" << std::endl;
+        }
+
         world.gop.fence();
         // set protocol to the first
         if (world.rank() == 0)
@@ -918,6 +939,7 @@ public:
         std::pair<std::filesystem::path, bool> success{moldft_path, false};
         bool first = true;
 
+        nlohmann::ordered_json alpha_json;
 
         for (const auto &freq : freq)
         {
@@ -943,7 +965,7 @@ public:
             {
                 throw Response_Convergence_Error{};
             }
-            success = RunResponse(world, "response.in", freq, restart_path);
+            success = RunResponse(world, "response.in", freq, restart_path, alpha_json);
             //                      high_prec);
             if (world.rank() == 0)
             {
@@ -1085,7 +1107,6 @@ public:
                 ::print("Number of frequencies: ", num_freqs);
             }
 
-
             for (int b = 0; b < num_freqs; b++)
             {
                 for (int c = b; c < num_freqs; c++)
@@ -1147,8 +1168,6 @@ public:
                                     }
                                 }
                             }
-
-                            nlohmann::ordered_json beta_entry;
                             append_to_beta_json({-1.0 * omega_a, omega_b, omega_c}, beta_directions, beta, beta_json);
                             std::ofstream outfile("beta.json");
                             if (outfile.is_open())
@@ -1228,15 +1247,29 @@ public:
         // i need A B C to hold char values and A-freq, B-freq, C-freq to hold
         // double values
 
-        nlohmann::ordered_json beta_json = {{"A-freq", json::array()}, {"B-freq", json::array()}, {"C-freq", json::array()}, {"A", json::array()},
-                                            {"B", json::array()},      {"C", json::array()},      {"Beta", json::array()}};
+        nlohmann::ordered_json beta_json = {{"A-freq", json::array()}, {"B-freq", json::array()}, {"C-freq", json::array()}, {"A", json::array()}, {"B", json::array()}, {"C", json::array()}, {"Beta", json::array()}};
         return beta_json;
+    }
+    static nlohmann::ordered_json create_alpha_json()
+    {
+        nlohmann::ordered_json alpha_json = {{"omega", json::array()}, {"ij", json::array()}, {"alpha", json::array()}};
+        return alpha_json;
+    }
+
+    static void append_to_alpha_json(const double &omega, const std::vector<std::string> &ij, const Tensor<double> &alpha, nlohmann::ordered_json &alpha_json)
+    {
+        auto num_unique_elements = ij.size();
+        for (int i = 0; i < num_unique_elements; i++)
+        {
+            alpha_json["omega"].push_back(omega);
+            alpha_json["ij"].push_back(ij[i]);
+            alpha_json["alpha"].push_back(alpha[i]);
+        }
     }
 
     // for a set of frequencies create a table from the beta values
     static void append_to_beta_json(const std::array<double, 3> &freq, const std::vector<std::string> &beta_directions, const Tensor<double> &beta, nlohmann::ordered_json &beta_json)
     {
-
 
         auto num_unique_elements = beta_directions.size();
 
@@ -1255,10 +1288,8 @@ public:
             }
         };
 
-
         if (num_unique_elements == 12)
         {
-
 
             for (int i = 0; i < num_unique_elements; i++)
             {
@@ -1268,7 +1299,6 @@ public:
                 auto A = ijk[0];
                 auto B = ijk[1];
                 auto C = ijk[2];
-
 
                 beta_json["A-freq"].push_back(freq[0]);
                 beta_json["B-freq"].push_back(freq[1]);
@@ -1327,7 +1357,6 @@ public:
                 auto A = ijk[0];
                 auto B = ijk[1];
                 auto C = ijk[2];
-
 
                 beta_json["A-freq"].push_back(freq[0]);
                 beta_json["B-freq"].push_back(freq[1]);
@@ -1395,7 +1424,6 @@ public:
                 auto A = ijk[0];
                 auto B = ijk[1];
                 auto C = ijk[2];
-
 
                 beta_json["A-freq"].push_back(freq[0]);
                 beta_json["B-freq"].push_back(freq[1]);

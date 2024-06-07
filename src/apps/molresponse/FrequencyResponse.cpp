@@ -39,9 +39,6 @@ void FrequencyResponse::iterate(World &world)
     int r_vector_size;
     all_done = false;
     r_vector_size = (compute_y) ? 2 * n : n;
-    Tensor<double> v_polar(m, m);
-    Tensor<double> polar;
-    Tensor<double> res_polar;
 
     vecfuncT rho_omega_old(m);
     // initialize DFT XC functional operator
@@ -124,7 +121,7 @@ void FrequencyResponse::iterate(World &world)
             if (world.rank() == 0)
             {
                 function_data_to_json(j_molresponse, iter, chi_norms, x_residual, rho_norms, density_residuals);
-                frequency_to_json(j_molresponse, iter, polar, res_polar);
+                frequency_to_json(j_molresponse, iter, polar, polar);
             }
             if (r_params.print_level() >= 1)
             {
@@ -235,9 +232,7 @@ void FrequencyResponse::iterate(World &world)
         iter_function_data["d"] = dnorm;
 
         polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
-        res_polar = ((compute_y) ? -2 : -4) * response_context.inner(new_res.residual, PQ);
         inner_to_json(world, "alpha", polar, iter_function_data);
-        inner_to_json(world, "r_alpha", res_polar, iter_function_data);
         if (r_params.print_level() >= 20)
         {
             if (world.rank() == 0)

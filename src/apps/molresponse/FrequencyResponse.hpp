@@ -547,8 +547,13 @@ public:
 
     RHS_Generator generator;
 
+    std::pair<double,Tensor<double>> get_response_data(){
+        return {omega, polar};
+    };
+
 private:
     double omega;
+    Tensor<double> polar;
     void iterate(World &world) override;
     X_space bsh_update_response(World &world, X_space &theta_X, vector<poperatorT> &bsh_x_ops, vector<poperatorT> &bsh_y_ops, QProjector<double, 3> &projector, double &x_shifts);
     static void frequency_to_json(json &j_mol_in, size_t iter, const Tensor<double> &polar_ij, const Tensor<double> &res_polar_ij);
