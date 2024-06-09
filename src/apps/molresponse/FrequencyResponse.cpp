@@ -1164,11 +1164,11 @@ auto QuadraticResponse::dipole_perturbation(World &world, const X_space &left, c
     for (int i = 0; i < num_states; i++)
     {
 
-        VB.x[i] = mul(world, dipole_vectors[index_B[i]], left.x[i], false);
-        VB.y[i] = mul(world, dipole_vectors[index_B[i]], left.y[i], false);
+        VB.x[i] = mul(world, dipole_vectors[index_B[i]], right.x[i], false);
+        VB.y[i] = mul(world, dipole_vectors[index_B[i]], right.y[i], false);
 
-        VC.x[i] = mul(world, dipole_vectors[index_C[i]], right.x[i], false);
-        VC.y[i] = mul(world, dipole_vectors[index_C[i]], right.y[i], false);
+        VC.x[i] = mul(world, dipole_vectors[index_C[i]], left.x[i], false);
+        VC.y[i] = mul(world, dipole_vectors[index_C[i]], left.y[i], false);
     }
     world.gop.fence();
 
