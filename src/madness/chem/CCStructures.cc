@@ -542,10 +542,15 @@ MacroTaskConstantPart::operator() (const std::vector<CCPair>& pair,
                                    const std::vector<Function<double,3>> & gs_singles,
                                    const std::vector<Function<double,3>> & ex_singles,
                                    const Info& info) const {
+
     World& world =info.mo_ket[0].world();
+    CC_vecfunction singles(gs_singles, PARTICLE, info.parameters.freeze());
+    CC_vecfunction exsingles(gs_singles, PARTICLE, info.parameters.freeze());
+
+
     resultT result = zero_functions_compressed<double, 6>(world, pair.size());
     for (size_t i = 0; i < pair.size(); i++) {
-        result[i] = CCPotentials::make_constant_part_macrotask(world, pair[i], gs_singles, ex_singles, info);
+        result[i] = CCPotentials::make_constant_part_macrotask(world, pair[i], singles, exsingles, info);
     }
     return result;
 }

@@ -1158,7 +1158,7 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
     std::vector<CCPairFunction<T,NDIM>> vp3({p3});
 
     Projector<T,LDIM> O(o,o);
-    QProjector<T,LDIM> Q(world,o,o);
+    QProjector<T,LDIM> Q(o,o);
     StrongOrthogonalityProjector<T,LDIM> Q12(world);
     Q12.set_spaces(o);
 

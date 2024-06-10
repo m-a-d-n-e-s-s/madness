@@ -81,7 +81,20 @@ namespace madness {
 
         /// bra and ket spaces are not symmetric (e.g. |ket>^+ = <bra|R2 )
         Projector(const vecfuncT& bra, const vecfuncT& ket) : mo_ket_(ket),
-                mo_bra_(bra) {}
+                mo_bra_(bra) {
+            MADNESS_CHECK_THROW(mo_bra_.size()==mo_ket_.size(), "bra and ket spaces must have the same size in projector");
+        }
+
+    	void set_spaces(const vecfuncT& p) {
+            mo_bra_=p;
+            mo_ket_=p;
+        }
+
+        void set_spaces(const vecfuncT& bra, const vecfuncT& ket) {
+            mo_bra_=bra;
+            mo_ket_=ket;
+            MADNESS_CHECK_THROW(mo_bra_.size()==mo_ket_.size(), "bra and ket spaces must have the same size in projector");
+        }
 
         virtual std::string type() const override {return "PProjector";}
 
@@ -179,16 +192,31 @@ namespace madness {
         QProjector() = default;
 
         /// constructor with symmetric bra and ket spaces
-        QProjector(World& world, const vecfuncT& amo) : O(amo) {};
+        [[deprecated]] QProjector(World& world, const vecfuncT& amo) : O(amo) {};
 
         /// constructor with asymmetric bra and ket spaces
-        QProjector(World& world, const vecfuncT& bra, const vecfuncT& ket)
+        [[deprecated]] QProjector(World& world, const vecfuncT& bra, const vecfuncT& ket)
+            : O(bra,ket) {};
+
+        /// constructor with symmetric bra and ket spaces
+        QProjector(const vecfuncT& amo) : O(amo) {};
+
+        /// constructor with asymmetric bra and ket spaces
+        QProjector(const vecfuncT& bra, const vecfuncT& ket)
             : O(bra,ket) {};
 
         /// copy ctor
         QProjector(const QProjector& other) = default;
 
         std::string type() const override {return "QProjector";}
+
+        void set_spaces(const vecfuncT& p) {
+            O.set_spaces(p);
+        }
+
+        void set_spaces(const vecfuncT& bra, const vecfuncT& ket) {
+            O.set_spaces(bra,ket);
+        }
 
         Function<T,NDIM> operator()(const Function<T,NDIM>& rhs) const {
             return (rhs-O(rhs)).truncate();
@@ -403,11 +431,6 @@ namespace madness {
         OuterProjector(const projT& p0, const projQ& p1) : projector0(p0), projector1(p1) {
             projector0.set_particle(0);
             projector1.set_particle(1);
-            print("projector vector sizes",
-            projector0.get_bra_vector().size(),
-            projector1.get_bra_vector().size(),
-            projector0.get_ket_vector().size(),
-            projector1.get_ket_vector().size());
         }
 
         std::string type() const override {

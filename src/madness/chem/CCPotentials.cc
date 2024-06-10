@@ -697,29 +697,39 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
             const Info& info) {
     const CalcType targetstate=pair.ctype;
     const auto& parameters=info.parameters;
-
-    // t1-transformed orbitals
-    CC_vecfunction t(MIXED);
-    if (targetstate==CT_CC2 or targetstate==CT_LRCC2) {
-        t=CCPotentials::make_full_t_intermediate(gs_singles,info);
-    }
-
+    std::string msg="compute constant part of pair "+std::to_string(pair.i) + " " + std::to_string(pair.j);
+    print_header3(msg);
+    timer t1(world);
+print("debug 1");
     // construct the projectors
     // Q12 = (1-|i><i|)  (1-|j><j|)
     StrongOrthogonalityProjector<double, 3> Q12(world);
     Q12.set_spaces(info.mo_bra,info.mo_ket,info.mo_bra,info.mo_ket);
+print("debug 2");
 
     // Q12t = (1-|t_i><i|)(1-|t_j><j|)
     StrongOrthogonalityProjector<double, 3> Q12t(world);
-    Q12t.set_spaces(info.mo_bra,t.get_vecfunction(),info.mo_bra,t.get_vecfunction());
+
+print("debug 3");
+    // t1-transformed orbitals
+    CC_vecfunction t(MIXED);
+    if (targetstate==CT_CC2 or targetstate==CT_LRCC2) {
+        t=CCPotentials::make_full_t_intermediate(gs_singles,info);
+        Q12t.set_spaces(info.mo_bra,t.get_vecfunction(),info.mo_bra,t.get_vecfunction());
+    }
+
+print("debug 4");
 
     // dQ12t = -(Qt(1) Ox(2) + Ox(1) Qt(2))      eq. (22)
-    QProjector<double,3> Qt(world,info.mo_bra,t.get_vecfunction());
-    Projector<double,3> Ox(info.get_active_mo_bra(),ex_singles.get_vecfunction());
+    QProjector<double,3> Qt;
+    Projector<double,3> Ox;
+    if (targetstate==CT_LRCC2) {
+        Qt.set_spaces(info.mo_bra,t.get_vecfunction());
+        Ox.set_spaces(info.get_active_mo_bra(),ex_singles.get_vecfunction());
+    }
     auto dQt_1 = outer(Qt,Ox);
     auto dQt_2 = outer(Ox,Qt);
-
-
+print("debug 5");
 
     std::size_t i=pair.i;
     std::size_t j=pair.j;
@@ -790,7 +800,7 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
             auto Vreg=apply_Vreg(world,x(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
             Vreg+=apply_Vreg(world,t(i),x(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
             V=consolidate(apply_in_separated_form(Q12t,Vreg));
-            apply_G_and_print(V,"functional response");
+            // apply_G_and_print(V,"functional response");
         }
 
         if (0) {
@@ -798,8 +808,8 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
             std::vector<std::string> argument={"comm_F_Qt_f12"};
             auto Vreg=apply_Vreg(world,x(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
             Vreg+=apply_Vreg(world,t(i),x(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
-            auto Q12V=Q12t(Vreg);
-            apply_G_and_print(Q12V,"commutator response in old terminology: Q12V direct");
+            // auto Q12V=Q12t(Vreg);
+            // apply_G_and_print(Q12V,"commutator response in old terminology: Q12V direct");
         }
 
         // eq. (29) first term: dQt g~ |t_i t_j>
@@ -814,7 +824,7 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
 
             // MADNESS_CHECK_THROW(tmp.size()==1,"tmp size is incorrect");
             // for (auto& t : tmp) t.print_size("dQt g~ |t_i t_j>");
-            apply_G_and_print(tmp,"projector response");
+            // apply_G_and_print(tmp,"projector response");
         }
 
 
@@ -825,12 +835,13 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
             auto tmp=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
             tmp=consolidate(tmp);
             V+=tmp;
-            apply_G_and_print(tmp,"commutator projector response");
+            // apply_G_and_print(tmp,"commutator projector response");
         }
     }
 
     V=consolidate(V);
     MADNESS_CHECK(V.size()==2);     // term 1: 6d, hi-rank, local; term 2: 3d, low-rank, delocalized
+    t1.end("finished computing potential for constant part");
 
     // the Green's function
     auto G = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
@@ -841,6 +852,7 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
     GV=-2.0*Q12(GV).truncate().reduce_rank();
 
     GV.print_size("GVreg");
+    t1.end("finished applying G on potential for constant part");
     return GV;
 }
 
@@ -2094,7 +2106,7 @@ CCPotentials::apply_commutator_F_Qt_f12(World& world, const CCFunction<double,3>
 
     const vector_real_function_3d Vtau=info.intermediate_potentials(gs_singles, POT_singles_);
     Projector<double,3> OVtau(info.get_active_mo_bra(),Vtau);
-    QProjector<double,3> Qt(world,info.get_active_mo_bra(),gs_singles.get_vecfunction());
+    QProjector<double,3> Qt(info.get_active_mo_bra(),gs_singles.get_vecfunction());
 
     auto p1=outer(OVtau,Qt);
     auto p2=outer(Qt,OVtau);
@@ -2129,7 +2141,7 @@ CCPotentials::apply_commutator_F_dQt_f12(World& world, const CCFunction<double,3
     Projector<double,3> OVtau(bra,Vtau);
     Projector<double,3> Ox(bra,ex_singles.get_vecfunction());
     Projector<double,3> OVx(bra,Vx);
-    QProjector<double,3> Qt(world,bra,t.get_vecfunction());
+    QProjector<double,3> Qt(bra,t.get_vecfunction());
 
     auto OvxQt=outer(OVx,Qt);
     auto QtOvx=outer(Qt,OVx);

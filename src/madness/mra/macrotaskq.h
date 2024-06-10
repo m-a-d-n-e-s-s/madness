@@ -506,7 +506,7 @@ public:
 
     /// constructor takes the actual task
     MacroTask(World &world, taskT &task, std::shared_ptr<MacroTaskQ> taskq_ptr = 0)
-            : task(task), world(world), taskq_ptr(taskq_ptr) {
+            : task(task), name(task.name), world(world), taskq_ptr(taskq_ptr) {
         if (taskq_ptr) {
             // for the time being this condition must hold because tasks are
             // constructed as replicated objects and are not broadcast to other processes
@@ -716,6 +716,7 @@ private:
 class MacroTaskOperationBase {
 public:
     Batch batch;
+	std::string name;
     std::shared_ptr<MacroTaskPartitioner> partitioner=0;
     MacroTaskOperationBase() : batch(Batch(_, _, _)), partitioner(new MacroTaskPartitioner) {}
 };

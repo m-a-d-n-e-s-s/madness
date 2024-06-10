@@ -38,6 +38,11 @@ CC2::solve() {
     // singles for ground state
     CC_vecfunction cc2singles(PARTICLE);
 
+    // Pairs structure to vector if necessary
+    const std::size_t nfreeze=parameters.freeze();
+    const int nocc=CCOPS.mo_ket().size();
+    triangular_map=PairVectorMap::triangular_map(nfreeze,nocc);
+
     double mp2_energy=0.0, cc2_energy=0.0, mp3_energy=0.0;
 
     bool need_tdhf=parameters.response();
@@ -412,9 +417,6 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
 
     if (world.rank()==0) print_header2(" computing the MP1 wave function");
     double total_energy = 0.0;
-    const std::size_t nfreeze=parameters.freeze();
-    const int nocc=CCOPS.mo_ket().size();
-    auto triangular_map=PairVectorMap::triangular_map(nfreeze,nocc);
 
     // make vector holding CCPairs for partitioner of MacroTask
     std::vector<CCPair> pair_vec=Pairs<CCPair>::pairs2vector(doubles,triangular_map);
@@ -443,7 +445,6 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
         taskq->set_printlevel(3);
         MacroTaskConstantPart t;
         MacroTask task(world, t, taskq);
-        task.set_name("MP2_Constant_Part");
         std::vector<Function<double,3>> gs_singles, ex_singles;         // dummy vectors
         std::vector<real_function_6d> result_vec = task(pair_vec, gs_singles, ex_singles, info) ;
         taskq->print_taskq();
@@ -736,16 +737,16 @@ CC2::iterate_lrcc2_pairs(const CC_vecfunction& cc2_s, const Pairs<CCPair>& cc2_d
         const size_t i = pair.i;
         const size_t j = pair.j;
         // check if singles have significantly changed
-        // if (lrcc2_s(i).current_error < 0.1 * parameters.thresh_6D() and
-            // lrcc2_s(j).current_error < 0.1 * parameters.thresh_6D())
-            // output("Skipping Pair Iteration, No significant Change in Singles");
-        // else {
+        if (lrcc2_s(i).current_error < 0.1 * parameters.thresh_6D() and
+            lrcc2_s(j).current_error < 0.1 * parameters.thresh_6D())
+            output("Skipping Pair Iteration, No significant Change in Singles");
+        else {
             pair.bsh_eps = CCOPS.get_epsilon(pair.i, pair.j) + lrcc2_s.omega;
             // update_constant_part_lrcc2(pair, cc2_s, lrcc2_s);
             pair.constant_part=CCPotentials::make_constant_part_macrotask(world, pair,
                          cc2_s, lrcc2_s, info);
             conv = iterate_pair(pair, lrcc2_s);
-        // }
+        }
     }
     return conv;
 
@@ -792,12 +793,21 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles) {
             output.section("Macroiteration " + std::to_string(int(iter)) + " of CC2");
 
             // iterate doubles
+            std::vector<CCPair> pair_vec=Pairs<CCPair>::pairs2vector(doubles,triangular_map);
+            MacroTaskConstantPart t;
+            MacroTask task(world, t);
+            std::vector<real_function_6d> result_vec = task(pair_vec, singles.get_vecfunction(),
+                ex_singles_dummy.get_vecfunction(), info) ;
+            auto constant_part=Pairs<real_function_6d>::vector2pairs(result_vec,triangular_map);
+
+
             bool doubles_converged = true;
             for (auto& pairs: doubles.allpairs) {
                 CCPair& pair = pairs.second;
+                pair.constant_part= constant_part(pair.i, pair.j);
                 // update_constant_part_cc2_gs(singles, pair);
-                pair.constant_part=CCPotentials::make_constant_part_macrotask(world, pair,
-                             singles, ex_singles_dummy, info);
+                // pair.constant_part=CCPotentials::make_constant_part_macrotask(world, pair,
+                             // singles, ex_singles_dummy, info);
                 bool pair_converged = iterate_pair(pair, singles);
                 save(pair.function(), pair.name());
                 if (not pair_converged) doubles_converged = false;

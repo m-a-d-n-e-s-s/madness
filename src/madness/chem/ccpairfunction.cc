@@ -657,8 +657,8 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::apply(const Projecto
         } else if (pf.is_decomposed_no_op()) {  // pair function is sum_i | a_i b_i >
             if (auto SO=dynamic_cast<const StrongOrthogonalityProjector<double,LDIM>*>(&projector)) {
                 // Q12 | kl > = (1-O1)(1-O2) |kl> = |(1-O1)k (1-O2)l>
-                QProjector<double,LDIM> Q1(world,SO->bra1(),SO->ket1());
-                QProjector<double,LDIM> Q2(world,SO->bra2(),SO->ket2());
+                QProjector<double,LDIM> Q1(SO->bra1(),SO->ket1());
+                QProjector<double,LDIM> Q2(SO->bra2(),SO->ket2());
                 result.push_back(CCPairFunction<T,NDIM>(Q1(pf.get_a()),Q2(pf.get_b())));
 
             } else if (auto P=dynamic_cast<const Projector<double,LDIM>*>(&projector)) {
@@ -680,9 +680,9 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::apply(const Projecto
 //                CCTimer t(world,"SO block");
                 // Q12 = 1 - O1 (1 - 1/2 O2) - O2 (1 - 1/2 O1)
 //                print("entering SO block");
-                QProjector<double,LDIM> Q1(world,SO->bra1(),SO->ket1());
+                QProjector<double,LDIM> Q1(SO->bra1(),SO->ket1());
                 Q1.set_particle(0);
-                QProjector<double,LDIM> Q2(world,SO->bra2(),SO->ket2());
+                QProjector<double,LDIM> Q2(SO->bra2(),SO->ket2());
                 Q2.set_particle(1);
 
                 Projector<double,LDIM> O1(SO->bra1(),SO->ket1());

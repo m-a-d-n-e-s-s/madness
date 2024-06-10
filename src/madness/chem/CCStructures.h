@@ -379,6 +379,7 @@ struct CCParameters : public QCCalculationParametersBase {
 struct PairVectorMap {
 
     std::vector<std::pair<int, int>> map; ///< maps pair index (i,j) to vector index k
+    PairVectorMap() = default;
     PairVectorMap(const std::vector<std::pair<int, int>> map1) : map(map1) {}
 
     static PairVectorMap triangular_map(const int nfreeze, const int nocc) {
@@ -1285,7 +1286,10 @@ class MacroTaskConstantPart : public MacroTaskOperationBase {
     };
 
 public:
-    MacroTaskConstantPart(){partitioner.reset(new ConstantPartPartitioner());}
+    MacroTaskConstantPart()  {
+        partitioner.reset(new ConstantPartPartitioner());
+        name="ConstantPart";
+    }
 
     // typedef std::tuple<const std::vector<CCPair>&, const std::vector<Function<double,3>>&,
     // const std::vector<Function<double,3>>&, const CCParameters&, const Function<double,3>&,

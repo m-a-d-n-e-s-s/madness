@@ -128,6 +128,8 @@ public:
     CCPotentials CCOPS;
     /// Formated Output (same as used in CC2Potentials structure)
     CCMessenger& output;
+    /// map Pair struct to vector
+    PairVectorMap triangular_map;
 
     /// solve the CC2 ground state equations, returns the correlation energy
     void solve();
