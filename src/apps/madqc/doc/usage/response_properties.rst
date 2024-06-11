@@ -165,70 +165,21 @@ respect to perturbation in the dipole operator at frequencies :math:`\omega_{n} 
 On beta.json file
 =================
 
-beta.json prints the quadratic response at all frequency non-redudant combinations of the frequencies in the freq_range. f
+beta.json prints the quadratic response at all frequency non-redudant combinations of the frequencies in the freq_range. 
+In general, there are 27 unique elements to the hyperpolarizability tensor.
 
-For each frequency, we print 10 components of the first hyperpolarizability tensor :math:`\beta_{ijk}`, the minimal
-number of components needed to fully determine each component by symmetry.  
-
-.. code-block:: none
-
-   A B C
-
-1   x y z -> 6
-2   x x x -> 1
-3   x y y -> 3
-4   x z z -> 3
-5   y x x -> 3
-6   y y y -> 1
-7   y z z -> 3
-8   z x x -> 3
-9   z y y -> 3
-10  z z z -> 1
-
-
-
-To compute a single component \beta_{ABC}(\omega_a;\omega_b,\omega_c) we use the following formula:
-
-.. math::
-   \braket{\braket{A;B,C}} = \braket{X^{(A)}| V^{(BC)}} + \braket{\zeta^{(BC)}_x | v^{(A)} | \zeta^{(BC)}_y} + \braket{\zeta^{(CB)}_x | v^{(A)} | \zeta^{(CB)}_y}
-    
-
-In order to compute this we need to define :math:`\zeta^{(BC)}_x` and :math:`\zeta^{(BC)}_y` as well as second order perturbation operators :math:`V^{(BC)}`, 
-for pairs XY, XX, YY, ZZ.  From there, we can compute the 10 above components of the first hyperpolarizability tensor.
-
-
-.. code-block:: none
-
-    X ;XX
-    X ;YY
-    X ;ZZ
-    Y ;XX
-    Y ;YY
-    Y ;ZZ
-    Z ;XX
-    Z ;YY
-    Z ;ZZ
-    X ;YZ
-
-
-Second order perturbation operators are defined as:
-
-.. math::
-
-    \begin{align*}
-    V_p^{(BC)}(r) = & - \hat{Q} \hat{g_1} \bqty{ \hat{\zeta}^{(BC)}} \ket{\phi_p} - \hat{Q} \hat{g_1} \bqty{ \hat{\zeta}^{(BC)}} \ket{\phi_p} \\
-    &-\hat{Q} \hat{g_2} \bqty{ \gamma^{(B)}\gamma^{(C)}+\gamma^{(C)}\gamma^{(B)}} \ket{\phi_p} \\
-    &-\hat{Q} \hat{F}^{(B)} \ket{x_p^(C)} - \hat{Q} \hat{F}^{(C)} \ket{x_p^(B)}
-    \end{align*}
-
-Quadratic Response Properties
-
-In general, there are 27 unique elements to the hyperpolarizability tensor, however,
-since quadratic response response functions are symmetric to simultaneous permutations for perturbation and frequency.  For example,
 
 .. math:: 
-   \left< \left< v^{(A)}; v^{(B)}(\omega_b),v^{(C)}(\omega_c) \right>\right> =\left< \left< v^{(A)}; v^{(C)}(\omega_c),v^{(B)}(\omega_B) \right>\right
-
+    \begin{equation}
+	    \begin{aligned}
+		V_p^{BC}(r) =        & -g^{'}_p[\hat{\zeta}^{BC}](r) -  g^{''}_p[\hat{\chi}^{B} \hat{\chi}^{C}](r)                     \\
+		                     & -\hat{Q}^{0} \hat{F}^{B} x_p^{C}(r) + \sum_{k} x_k^{C}(r)F_{kp}^{B} \\
+		                     & -\hat{Q}^{0} \hat{F}^{C} x_p^{B}(r) + \sum_{k} x_k^{B}(r)F_{kp}^{C}                                          \\
+		V_p^{BC\dagger}(r) = & -g^{'}_p[\hat{\zeta}^{BC\dagger}](r)-  g^{''}_p[\hat{\chi}^{B\dagger} \hat{\chi}^{C\dagger}](r) \\
+		                     & -\hat{Q}^0 \hat{F}^{B\dagger} y_p^{C}(r) + \sum_{k} y_k^{C}(r)F_{kp}^{*B}  \\
+		                     & -\hat{Q}^0 \hat{F}^{C\dagger} y_p^{B}(r) + \sum_{k} y_k^{B}(r)F_{kp}^{*C}
+	    \end{aligned}
+    \end{equation}
 
 
 

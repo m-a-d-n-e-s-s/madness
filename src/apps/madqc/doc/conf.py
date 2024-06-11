@@ -19,12 +19,21 @@ extensions = [
     "sphinxcontrib.bibtex",
     "sphinx.ext.mathjax",
 ]
+latex_engine = 'xelatex'
+latex_elements = {
+    'preamble': r'''
+    \usepackage{physics},
+    '''
+}
+latex_additional_files = ['mra.sty']
+
 
 
 myst_enable_extensions = [
     "dollarmath",  # Allows $ symbols for math expressions
     "amsmath",  # Enables support for amsmath LaTeX environments
     "deflist",  # Enables definition lists
+
     # add other extensions as needed
 ]
 
