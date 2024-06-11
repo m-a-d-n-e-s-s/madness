@@ -109,6 +109,9 @@ or in JSON format:
 Quadratic Response
 ==================
 
+Hyperpolarizability
+---------------------
+
 An example of a quadratic response function is the first hyperpolarizability.
 To compute the first hyperpolarizability the input file to `maddft` will be:
 
@@ -128,8 +131,32 @@ To compute the first hyperpolarizability the input file to `maddft` will be:
     end
 
 where the :code:`quadratic` keyword is set to true to compute the quadratic response function.
-In this case, the first hyperpolarizability will be computed from all mix of all possible frequencies in the :code:`freq_range`.
 
+In this calculation the components of the first hyperpolarizability will be computed by first computing the 
+linear response vectors in all direction at all combinations of the frequencies in the freq_range.
+In order to compute the quadratic response function from linear response functions the second-order perturbation
+operators need to be computed. The second-order perturbation operators are defined as: 
+
+.. math:: 
+    \begin{equation}
+	    \begin{aligned}
+		V_p^{BC}(r) =        & -g^{'}_p[\hat{\zeta}^{BC}](r) -  g^{''}_p[\hat{\chi}^{B} \hat{\chi}^{C}](r)                     \\
+		                     & -\hat{Q}^{0} \hat{F}^{B} x_p^{C}(r) + \sum_{k} x_k^{C}(r)F_{kp}^{B} \\
+		                     & -\hat{Q}^{0} \hat{F}^{C} x_p^{B}(r) + \sum_{k} x_k^{B}(r)F_{kp}^{C}                                          \\
+		V_p^{BC\dagger}(r) = & -g^{'}_p[\hat{\zeta}^{BC\dagger}](r)-  g^{''}_p[\hat{\chi}^{B\dagger} \hat{\chi}^{C\dagger}](r) \\
+		                     & -\hat{Q}^0 \hat{F}^{B\dagger} y_p^{C}(r) + \sum_{k} y_k^{C}(r)F_{kp}^{*B}  \\
+		                     & -\hat{Q}^0 \hat{F}^{C\dagger} y_p^{B}(r) + \sum_{k} y_k^{B}(r)F_{kp}^{*C}
+	    \end{aligned}
+    \end{equation}
+
+
+In general, there are 27 unique elements to the hyperpolarizability tensor.  These are computed by constructing 9 unique second-order perturbation operators 
+$XX, XY, XZ, YX, YY, YZ, ZX, ZY, ZZ$ and tracing with the linear response vectors $X, Y, Z$. 
+The hyperpolarizability tensor is outputed in beta.json file, which contains the 27 unique elements of the hyperpolarizability tensor at each frequency in the freq_range,
+in dictionary format which can be easily read into a pandas dataframe.
+
+Two-absorption Amplitude
+-------------------------
 
 Two-absorption amplitude can be computed from second-order response :math:`\gamma^{\alpha\beta}`.
 From pole-analysis the two-photon absorption amplitude :math:`\sigma_{n\alpha\beta}` is
@@ -161,25 +188,6 @@ In this case, the two-photon absorption is computed by first computing the excit
 respect to perturbation in the dipole operator at frequencies :math:`\omega_{n} = \omega_{\beta} + \omega_{\alpha}`.
 
 
-
-On beta.json file
-=================
-
-beta.json prints the quadratic response at all frequency non-redudant combinations of the frequencies in the freq_range. 
-In general, there are 27 unique elements to the hyperpolarizability tensor.
-
-
-.. math:: 
-    \begin{equation}
-	    \begin{aligned}
-		V_p^{BC}(r) =        & -g^{'}_p[\hat{\zeta}^{BC}](r) -  g^{''}_p[\hat{\chi}^{B} \hat{\chi}^{C}](r)                     \\
-		                     & -\hat{Q}^{0} \hat{F}^{B} x_p^{C}(r) + \sum_{k} x_k^{C}(r)F_{kp}^{B} \\
-		                     & -\hat{Q}^{0} \hat{F}^{C} x_p^{B}(r) + \sum_{k} x_k^{B}(r)F_{kp}^{C}                                          \\
-		V_p^{BC\dagger}(r) = & -g^{'}_p[\hat{\zeta}^{BC\dagger}](r)-  g^{''}_p[\hat{\chi}^{B\dagger} \hat{\chi}^{C\dagger}](r) \\
-		                     & -\hat{Q}^0 \hat{F}^{B\dagger} y_p^{C}(r) + \sum_{k} y_k^{C}(r)F_{kp}^{*B}  \\
-		                     & -\hat{Q}^0 \hat{F}^{C\dagger} y_p^{B}(r) + \sum_{k} y_k^{B}(r)F_{kp}^{*C}
-	    \end{aligned}
-    \end{equation}
 
 
 
