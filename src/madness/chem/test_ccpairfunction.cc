@@ -1353,7 +1353,7 @@ int main(int argc, char **argv) {
         data6.clear();
         world.gop.fence();
     } catch (std::exception& e) {
-        madness::print("an error occured");
+        madness::print("an error occurred");
         madness::print(e.what());
         world.gop.fence();
     }

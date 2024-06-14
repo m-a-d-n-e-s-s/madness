@@ -150,7 +150,7 @@ namespace mu
       \param [in] iErrc the error code.
       \param [in] sTok The token string related to this error.
       \param [in] sExpr The expression related to the error.
-      \param [in] iPos the position in the expression where the error occured. 
+      \param [in] iPos the position in the expression where the error occurred.
   */
   ParserError::ParserError( EErrorCodes iErrc,
                             const string_type &sTok,
@@ -173,7 +173,7 @@ namespace mu
   //------------------------------------------------------------------------------
   /** \brief Construct an error object. 
       \param [in] iErrc the error code.
-      \param [in] iPos the position in the expression where the error occured. 
+      \param [in] iPos the position in the expression where the error occurred.
       \param [in] sTok The token string related to this error.
   */
   ParserError::ParserError(EErrorCodes iErrc, int iPos, const string_type &sTok) 

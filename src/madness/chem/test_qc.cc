@@ -228,7 +228,7 @@ int main(int argc, char** argv) {
 			run_all_calculations(world, {tparam});
     	}
     } catch (std::exception& e) {
-    	print("an error occured, moldft tests failed");
+    	print("an error occurred, moldft tests failed");
     	print(e.what());
     	result=1;
     }
