@@ -615,9 +615,15 @@ std::pair<Tensor<double>, std::vector<std::string>> QuadraticResponse::compute_b
             auto two = dot(world, BC_left.y[bc], BC_right.y[bc] * dipole_vectors[a], false);
             auto three = dot(world, CB_left.x[bc], CB_right.x[bc] * dipole_vectors[a], false);
             auto four = dot(world, CB_left.y[bc], CB_right.y[bc] * dipole_vectors[a], false);
-
             auto five = dot(world, XA.x[a], VBC.x[bc], false);
             auto six = dot(world, XA.y[a], VBC.y[bc], false);
+
+            one.truncate(); 
+            two.truncate();
+            three.truncate();
+            four.truncate();
+            five.truncate();
+            six.truncate();
 
             world.gop.fence();
             beta[i] = one.trace() + two.trace() + three.trace() + four.trace() + five.trace() + six.trace();
@@ -1000,6 +1006,12 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(World &wor
     g_zeta_cb = -1.0 * oop_apply(g_zeta_cb, apply_projector, false);
     f_bxc = -1.0 * oop_apply(f_bxc, apply_projector, false);
     f_cxb = -1.0 * oop_apply(f_cxb, apply_projector, false);
+    g_zeta_bc.truncate();
+    g_zeta_cb.truncate();
+    f_bxc.truncate();
+    f_cxb.truncate();
+
+
     world.gop.fence();
     if (r_params.print_level() >= 1)
     {
@@ -1009,7 +1021,9 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(World &wor
     auto [VBphi0, VCphi0] = dipole_perturbation(world, phi0, phi0);
     auto [FBC, FCB] = compute_first_order_fock_matrix_terms_v2(world, B, C, g1b, g1c, VBphi0, VCphi0, phi0);
 
-    return g_zeta_bc + g_zeta_cb + f_bxc + f_cxb + FBC + FCB;
+    auto VBC = g_zeta_bc + g_zeta_cb + f_bxc + f_cxb + FBC + FCB;
+    VBC.truncate();
+    return VBC;
     // the next term we need to compute are the first order fock matrix terms
 }
 
