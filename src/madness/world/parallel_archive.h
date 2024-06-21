@@ -169,7 +169,7 @@ namespace madness {
                 MADNESS_ASSERT(filename);
                 MADNESS_ASSERT(strlen(filename)-1<sizeof(fname));
                 strcpy(fname,filename); // Save the filename for later
-                std::size_t bufsize=256;
+                constexpr std::size_t bufsize=256;
                 char buf[bufsize];
                 MADNESS_ASSERT(strlen(filename)+7 <= sizeof(buf));
                 snprintf(buf, bufsize, "%s.%5.5d", filename, world.rank());
@@ -222,7 +222,7 @@ namespace madness {
             typename std::enable_if_t<std::is_same<X,BinaryFstreamInputArchive>::value || std::is_same<X,BinaryFstreamOutputArchive>::value,
                                       bool>
             exists(World& world, const char* filename) {
-                std::size_t bufsize=256;
+                constexpr std::size_t bufsize=256;
                 char buf[bufsize];
                 MADNESS_ASSERT(strlen(filename)+7 <= sizeof(buf));
                 snprintf(buf,bufsize, "%s.%5.5d", filename, world.rank());
@@ -273,7 +273,7 @@ namespace madness {
                                       void>
             remove(World& world, const char* filename) {
                 if (world.rank() == 0) {
-                    std::size_t bufsize=268;
+                    constexpr std::size_t bufsize=268;
                     char buf[bufsize];
                     MADNESS_ASSERT(strlen(filename)+7 <= sizeof(buf));
                     for (ProcessID p=0; p<world.size(); ++p) {
