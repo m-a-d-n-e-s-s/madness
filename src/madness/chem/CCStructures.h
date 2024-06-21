@@ -19,6 +19,8 @@
 #include <iostream>
 #include <madness/mra/macrotaskq.h>
 
+#include "lowrankfunction.h"
+
 namespace madness {
 
 /// Calculation Types used by CC2
@@ -1170,6 +1172,7 @@ private:
 struct Info {
     std::vector<Function<double,3>> mo_ket;
     std::vector<Function<double,3>> mo_bra;
+    std::vector<madness::Vector<double,3>> molecular_coordinates;
     CCParameters parameters;
     std::vector<double> orbital_energies;
     CCIntermediatePotentials intermediate_potentials;
@@ -1199,6 +1202,7 @@ struct Info {
         records+=cloud.store(world,orbital_energies);
         records+=cloud.store(world,intermediate_potentials);
         records+=cloud.store(world,R_square);
+        records+=cloud.store(world,molecular_coordinates);
         records+=cloud.store(world,U2);
         records+=cloud.store(world,U1);
         return records;
@@ -1216,6 +1220,7 @@ struct Info {
         orbital_energies=cloud.forward_load<std::vector<double>>(world,recordlist);
         intermediate_potentials=cloud.forward_load<CCIntermediatePotentials>(world,recordlist);
         R_square=cloud.forward_load<Function<double,3>>(world,recordlist);
+        molecular_coordinates=cloud.forward_load<std::vector<madness::Vector<double,3>>>(world,recordlist);
         U2=cloud.forward_load<Function<double,3>>(world,recordlist);
         U1=cloud.forward_load<std::vector<Function<double,3>>>(world,recordlist);
     }
@@ -1353,6 +1358,64 @@ public:
 //                        const std::vector<Function<double,3>>& U1, const Function<double,3>& U2) const;
     resultT operator() (const std::vector<CCPair>& pair, const std::vector<real_function_6d>& mp2_coupling,
                         const std::vector< madness::Vector<double,3> >& all_coords_vec, const Info& info) const;
+};
+
+
+class MacroTaskIteratePair : public MacroTaskOperationBase {
+
+    class IteratePairPartitioner : public MacroTaskPartitioner {
+    public :
+        IteratePairPartitioner() = default;
+
+        partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
+                                   const std::string policy) const override {
+            partitionT p;
+            for (size_t i = 0; i < vsize1; i++) {
+                Batch batch(Batch_1D(i,i+1), Batch_1D(i,i+1));
+                p.push_back(std::make_pair(batch,1.0));
+            }
+            return p;
+        }
+    };
+public:
+    MacroTaskIteratePair() {partitioner.reset(new IteratePairPartitioner());}
+
+    typedef std::tuple<
+        const std::vector<CCPair>&,
+        const std::vector<real_function_6d>&,
+        const std::vector<Function<double,3>>&,
+        const std::vector<Function<double,3>>&,
+        const std::vector< madness::Vector<double,3> >&,
+        const Info&,
+        const std::size_t&
+        > argtupleT;
+
+    using resultT = std::vector<real_function_6d>;
+
+    resultT allocator(World& world, const argtupleT& argtuple) const {
+        std::size_t n = std::get<0>(argtuple).size();
+        resultT result = zero_functions_compressed<double, 6>(world, n);
+        return result;
+    }
+
+    /// iterate a given pair of the MP2, CC2 or LRCC2 calculation
+
+    /// will *NOT* compute the local coupling,
+    /// will apply the Fock operators (J-K+V)|pair> and use
+    /// the (excited) singles vectors to update the pair
+    /// @param[in] pair: the pair which will be updated
+    /// @param[in] gs_singles: the ground state singles, may be dummy for MP2
+    /// @param[in] ex_singles: the excited state singles, may be dummy for MP2, CC2
+    /// @param[in] all_coords_vec: the coordinates of the atoms
+    /// @param[in] info: the info structure
+    /// @param[in] maxiter: the maximal number of iterations
+    resultT operator() (const std::vector<CCPair>& pair,
+        const std::vector<real_function_6d>& local_coupling,
+        const std::vector<Function<double,3>>& gs_singles,
+        const std::vector<Function<double,3>>& ex_singles,
+        const std::vector< madness::Vector<double,3> >& all_coords_vec,
+        const Info& info,
+        const std::size_t& maxiter) const;
 };
 
 }//namespace madness

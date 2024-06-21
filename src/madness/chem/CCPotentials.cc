@@ -700,17 +700,14 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
     std::string msg="compute constant part of pair "+std::to_string(pair.i) + " " + std::to_string(pair.j);
     print_header3(msg);
     timer t1(world);
-print("debug 1");
     // construct the projectors
     // Q12 = (1-|i><i|)  (1-|j><j|)
     StrongOrthogonalityProjector<double, 3> Q12(world);
     Q12.set_spaces(info.mo_bra,info.mo_ket,info.mo_bra,info.mo_ket);
-print("debug 2");
 
     // Q12t = (1-|t_i><i|)(1-|t_j><j|)
     StrongOrthogonalityProjector<double, 3> Q12t(world);
 
-print("debug 3");
     // t1-transformed orbitals
     CC_vecfunction t(MIXED);
     if (targetstate==CT_CC2 or targetstate==CT_LRCC2) {
@@ -718,7 +715,6 @@ print("debug 3");
         Q12t.set_spaces(info.mo_bra,t.get_vecfunction(),info.mo_bra,t.get_vecfunction());
     }
 
-print("debug 4");
 
     // dQ12t = -(Qt(1) Ox(2) + Ox(1) Qt(2))      eq. (22)
     QProjector<double,3> Qt;
@@ -729,7 +725,6 @@ print("debug 4");
     }
     auto dQt_1 = outer(Qt,Ox);
     auto dQt_2 = outer(Ox,Qt);
-print("debug 5");
 
     std::size_t i=pair.i;
     std::size_t j=pair.j;
@@ -788,8 +783,7 @@ print("debug 5");
         std::vector<std::string> argument={"Ue","KffK","comm_F_Qt_f12","reduced_Fock"};
         auto Vreg=apply_Vreg(world,t(i),t(j),gs_singles,ex_singles,info,argument,pair.bsh_eps);
         V=consolidate(Q12t(Vreg));
-    } else if (targetstate==CT_LRCC2)
-    {
+    } else if (targetstate==CT_LRCC2) {
         // Eq. (25) of Kottmann, JCTC 13, 5956 (2017)
         // eq. (25) Q12t (g~ - omega f12) (|x_i t_j> + |t_i x_j> )
         // note the term omega f12 is included in the reduced_Fock term, see eq. (34)
@@ -981,8 +975,123 @@ CCPotentials::update_pair_mp2_macrotask(World& world, const CCPair& pair, const 
     residue.truncate(FunctionDefaults<6>::get_thresh()*0.1);
     if (parameters.debug()) residue.print_size("bsh residual, truncated");
 
-    return residue;
+    // return residue;
+    return unew;
 }
+
+
+CCPair CCPotentials::iterate_pair_macrotask(World& world,
+    const CCPair& pair, const CC_vecfunction& singles,
+    const real_function_6d& coupling,
+    const Info& info, const long maxiter) {
+    if (world.rank()==0) print_header2("Iterate Pair " + pair.name());
+    if (pair.ctype == CT_CC2) MADNESS_ASSERT(singles.type == PARTICLE);
+    if (pair.ctype == CT_CISPD) MADNESS_ASSERT(singles.type == RESPONSE);
+    if (pair.ctype == CT_MP2) MADNESS_ASSERT(singles.get_vecfunction().empty());
+    if (pair.ctype == CT_ADC2)MADNESS_ASSERT(singles.type == RESPONSE);
+
+    real_function_6d constant_part = pair.constant_part;
+    constant_part.truncate().reduce_rank();
+    pair.function().truncate().reduce_rank();
+
+    StrongOrthogonalityProjector<double,3> Q12(world);
+    Q12.set_spaces(info.mo_bra,info.mo_ket,info.mo_bra,info.mo_ket);
+
+    double bsh_eps = pair.bsh_eps; //CCOPS.get_epsilon(pair.i,pair.j)+omega;
+    real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * bsh_eps), info.parameters.lo(), info.parameters.thresh_bsh_6D());
+    G.destructive() = true;
+
+    NonlinearSolverND<6> solver(info.parameters.kain_subspace());
+    solver.do_print = (world.rank() == 0);
+
+    double omega = 0.0;
+    // if (pair.type == GROUND_STATE) omega = CCOPS.compute_pair_correlation_energy(pair, singles);
+    // if (pair.type == EXCITED_STATE) omega = CCOPS.compute_excited_pair_energy(pair, singles);
+
+    // if (world.rank() == 0)
+        // std::cout << "Correlation Energy of Pair " << pair.name() << " =" << std::fixed << std::setprecision(10)
+                  // << omega << "\n";
+
+    CCPair result=pair;
+
+    for (size_t iter = 0; iter < maxiter; iter++) {
+        if (world.rank()==0) print_header3(assign_name(pair.ctype) + "-Microiteration");
+        CCTimer timer_mp2(world, "MP2-Microiteration of pair " + pair.name());
+
+
+        CCTimer timer_mp2_potential(world, "MP2-Potential of pair " + pair.name());
+        // real_function_6d mp2_potential = -2.0 * CCOPS.fock_residue_6d(pair);
+        real_function_6d mp2_potential = -2.0 * fock_residue_6d_macrotask(world,result,info.parameters,
+                                                                           info.molecular_coordinates,info.mo_ket,info.mo_bra,
+                                                                           info.U1,info.U2);
+        mp2_potential += 2.0 * coupling;
+
+        if (info.parameters.debug()) mp2_potential.print_size(assign_name(pair.ctype) + " Potential");
+        mp2_potential.truncate().reduce_rank();
+        timer_mp2_potential.info(true, mp2_potential.norm2());
+
+        CCTimer timer_G(world, "Apply Greens Operator on MP2-Potential of pair " + pair.name());
+        const real_function_6d GVmp2 = G(mp2_potential);
+        timer_G.info(true, GVmp2.norm2());
+
+        CCTimer timer_addup(world, "Add constant parts and update pair " + pair.name());
+        real_function_6d unew = Q12(GVmp2 + constant_part);
+        // unew.print_size("unew");
+        // unew = CCOPS.apply_Q12t(unew, CCOPS.mo_ket());
+        // unew.print_size("Q12unew");
+        //unew.truncate().reduce_rank(); // already done in Q12 application at the end
+        if (info.parameters.debug())unew.print_size("truncated-unew");
+        const real_function_6d residue =  result.function() - unew;
+        const double error = residue.norm2();
+        if (info.parameters.kain()) {
+            real_function_6d kain_update = copy(solver.update(pair.function(), residue));
+            // kain_update = CCOPS.apply_Q12t(kain_update, CCOPS.mo_ket());
+            kain_update = Q12(kain_update);
+            kain_update.truncate().reduce_rank();
+            kain_update.print_size("Kain-Update-Function");
+            // pair.update_u(copy(kain_update));
+            result.update_u(copy(kain_update));
+        } else {
+            // pair.update_u(unew);
+            result.update_u(unew);
+        }
+
+        timer_addup.info(true, pair.function().norm2());
+
+        double omega_new = 0.0;
+        double delta = 0.0;
+        // if (pair.type == GROUND_STATE) omega_new = CCOPS.compute_pair_correlation_energy(pair, singles);
+        // else if (pair.type == EXCITED_STATE) omega_new = CCOPS.compute_excited_pair_energy(pair, singles);
+        delta = omega - omega_new;
+
+        const double current_norm = pair.function().norm2();
+
+        omega = omega_new;
+        if (world.rank() == 0) {
+            std::cout << std::fixed
+                      << std::setw(50) << std::setfill('#')
+                      << "\n" << "Iteration " << iter << " of pair " << pair.name()
+                      << std::setprecision(4) << "||u|| = " << current_norm
+                      << "\n" << std::setprecision(10) << "error = " << error << "\nomega = " << omega << "\ndelta = "
+                      << delta << "\n"
+                      << std::setw(50) << std::setfill('#') << "\n";
+        }
+
+
+        // output("\n--Iteration " + stringify(iter) + " ended--");
+        // save(pair.function(), pair.name());
+        // timer_mp2.info();
+        bool converged=(fabs(error) < info.parameters.dconv_6D())  and (fabs(delta) < info.parameters.econv_pairs());
+        if (converged) {
+            if (world.rank()==0) print("Iteration converged after",iter,"iterations");
+            break;
+        } else {
+            if (world.rank()==0) print("Iteration not converged after",iter,"iterations");
+        }
+    }
+    return result;
+}
+
 
 madness::real_function_6d
 CCPotentials::make_constant_part_cc2_gs(const CCPair& u, const CC_vecfunction& tau,
@@ -1665,10 +1774,10 @@ CCPotentials::apply_Vreg(const CCFunction<double,3>& ti, const CCFunction<double
 ///  (see Kottmann et al., JCTC 13, 5956 (2017) eqs (17), (19), (32)
 ///  CC2:   (F - e_i ) |t_i t_j> = | Vtau >
 ///  LRCC2: (F - e_i - omega) |x_i> = | Vx >
-/// @param[in] ti, first function in the ket, for MP2 it is the Orbital, for CC2 the relaxed Orbital t_i=\phi_i + \tau_i
-/// @param[in] tj, second function in the ket ...
-/// @param[in] gs_singles, the converged ground state singles: with   (F - e_i ) |t_i t_j> = | Vtau >
-/// @param[in] ex_singles, the converged excited state singles: with (F - e_i - omega) |x_i> = | Vx >
+/// @param[in] ti first function in the ket, for MP2 it is the Orbital, for CC2 the relaxed Orbital t_i=\phi_i + \tau_i
+/// @param[in] tj second function in the ket ...
+/// @param[in] gs_singles the converged ground state singles: with   (F - e_i ) |t_i t_j> = | Vtau >
+/// @param[in] ex_singles the converged excited state singles: with (F - e_i - omega) |x_i> = | Vx >
 /// @param[in] info Info structure holding the applied singles potentials Vtau and Vx and reference orbitals
 /// @param[out] the regularization potential (unprojected), see equation above
 std::vector<CCPairFunction<double,6>>

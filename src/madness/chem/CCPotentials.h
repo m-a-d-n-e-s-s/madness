@@ -47,7 +47,7 @@ public:
     real_function_6d make_6D_pair(const CCPair& pair) const;
 
     /// Function to load a function from disc
-    /// @param[in] the function which will be loaded
+    /// @param[in] f the function which will be loaded
     /// @param[in] name of the file in which the function was stored
     /// @return true or false depending on if the data was found on disc
     template<typename T, size_t NDIM>
@@ -218,8 +218,8 @@ public:
 
     /// Compute pair correlation energies of MP2 or CC2 Ground State
     // Off diagonal pair energies are multiplied with 2.0 to acount for their permuted partners
-    /// @param[in] The Pair_function
-    /// @param[in] The Singles (for MP2 give empty function) for the energy contribution over disconnected doubles
+    /// @param[in] u the Pair_function
+    /// @param[in] singles the Singles (for MP2 give empty function) for the energy contribution over disconnected doubles
     /// @param[out] 2*<ij|g|u> - <ji|g|u> , where i and j are determined by u (see CC_Pair class)
     double
     compute_pair_correlation_energy(const CCPair& u, const CC_vecfunction& singles = CC_vecfunction(PARTICLE)) const;
@@ -300,6 +300,13 @@ public:
                                           const std::vector<real_function_3d>& mo_bra,
                                           const std::vector<real_function_3d>& U1,
                                           const real_function_3d& U2, const real_function_6d& mp2_coupling);
+
+
+    /// iterate a pair for MP2, CC2, LRCC2 on constant singles
+    static CCPair iterate_pair_macrotask(World& world,
+                                         const CCPair& pair, const CC_vecfunction& singles,
+                                         const real_function_6d& coupling,
+                                         const Info& info, const long maxiter);
 
 
     /// Function evaluates the consant part of the ground state for CC2
