@@ -748,6 +748,11 @@ public:
 
     CCConvolutionOperator(const CCConvolutionOperator& other) = default;
 
+    static inline
+    std::shared_ptr<CCConvolutionOperator> CCConvolutionOperatorPtr(World& world, const OpType type, Parameters param) {
+        return std::shared_ptr<CCConvolutionOperator>(new CCConvolutionOperator(world, type, param));
+    }
+
 protected:
 
     friend CCConvolutionOperator combine(const CCConvolutionOperator& a, const CCConvolutionOperator& b) {
@@ -1385,7 +1390,6 @@ public:
         const std::vector<real_function_6d>&,
         const std::vector<Function<double,3>>&,
         const std::vector<Function<double,3>>&,
-        const std::vector< madness::Vector<double,3> >&,
         const Info&,
         const std::size_t&
         > argtupleT;
@@ -1413,7 +1417,6 @@ public:
         const std::vector<real_function_6d>& local_coupling,
         const std::vector<Function<double,3>>& gs_singles,
         const std::vector<Function<double,3>>& ex_singles,
-        const std::vector< madness::Vector<double,3> >& all_coords_vec,
         const Info& info,
         const std::size_t& maxiter) const;
 };

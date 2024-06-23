@@ -310,26 +310,31 @@ CCPotentials::make_pair_ex(const real_function_6d& u, const CC_vecfunction& tau,
 }
 
 double
-CCPotentials::compute_pair_correlation_energy(const CCPair& u, const CC_vecfunction& singles) const {
+CCPotentials::compute_pair_correlation_energy(World& world, const Info& info,
+    const CCPair& u, const CC_vecfunction& singles) {
+
     CCTimer timer(world, "Compute Correlation Energy");
     MADNESS_ASSERT(u.type == GROUND_STATE);
     if (singles.functions.empty()) MADNESS_ASSERT(u.ctype == CT_MP2);
 
-    const bool print_details=(world.rank()==0 and parameters.debug());
-    if (parameters.debug()) output("Compute pair-correlation energy of pair " + u.name());
+    const bool print_details=(world.rank()==0 and info.parameters.debug());
     double result = 0.0;
-    const CCFunction<double,3>& mobi = mo_bra_(u.i);
-    const CCFunction<double,3>& mobj = mo_bra_(u.j);
+    const CCFunction<double,3>& mobi = info.mo_bra[u.i];
+    const CCFunction<double,3>& mobj = info.mo_bra[u.j];
     const bool symmetric = (u.i == u.j);
 
+    auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,info.parameters);
+    CCPairFunction<double,6> ij(mobi.f(),mobj.f());
+    CCPairFunction<double,6> ji(mobj.f(),mobi.f());
 
     for (size_t mm = 0; mm < u.functions.size(); mm++) {
         double tmp = 0.0;
-        const double part1 = make_xy_op_u(mobi, mobj, *g12, u.functions[mm]);
+        // const double part1 = make_xy_op_u(mobi, mobj, *g12, u.functions[mm]);
+        const double part1 = inner(ij,g12*u.functions[mm]);
         if (symmetric) tmp = part1;
-        else     //if(world.rank()==0) std::cout << std::fixed << std::setprecision(10) << part1 << "\n";
-        {
-            const double part2 = make_xy_op_u(mobj, mobi, *g12, u.functions[mm]);
+        else {
+            // const double part2 = make_xy_op_u(mobj, mobi, *g12, u.functions[mm]);
+            const double part2 = inner(ji,g12*u.functions[mm]);
             tmp = 2.0 * (2.0 * part1 - part2);     // non symmetric pairs -> offdiagonal -> count twice
         }
         result += tmp;
@@ -349,7 +354,7 @@ CCPotentials::compute_pair_correlation_energy(const CCPair& u, const CC_vecfunct
     }
     // if (world.rank() == 0) std::cout << "------------\n" << std::fixed << std::setprecision(10) << result << "\n\n";
 
-    timer.info(parameters.debug());
+    timer.info(info.parameters.debug());
     return result;
 }
 
@@ -362,7 +367,7 @@ CCPotentials::compute_cc2_correlation_energy(const CC_vecfunction& singles, cons
     for (const auto& tmp : doubles.allpairs) {
         const size_t i = tmp.second.i;
         const size_t j = tmp.second.j;
-        const double omega = compute_pair_correlation_energy(tmp.second, singles);
+        const double omega = compute_pair_correlation_energy(world, info, tmp.second, singles);
         result += omega;
         if (world.rank() == 0)
             std::cout << std::fixed << "omega  " << i << j << " =" << std::setprecision(10) << omega << "\n";
@@ -1044,7 +1049,8 @@ CCPair CCPotentials::iterate_pair_macrotask(World& world,
         const real_function_6d residue =  result.function() - unew;
         const double error = residue.norm2();
         if (info.parameters.kain()) {
-            real_function_6d kain_update = copy(solver.update(pair.function(), residue));
+
+            real_function_6d kain_update = copy(solver.update(result.function(), residue));
             // kain_update = CCOPS.apply_Q12t(kain_update, CCOPS.mo_ket());
             kain_update = Q12(kain_update);
             kain_update.truncate().reduce_rank();
@@ -1056,15 +1062,15 @@ CCPair CCPotentials::iterate_pair_macrotask(World& world,
             result.update_u(unew);
         }
 
-        timer_addup.info(true, pair.function().norm2());
+        timer_addup.info(true, result.function().norm2());
 
         double omega_new = 0.0;
         double delta = 0.0;
-        // if (pair.type == GROUND_STATE) omega_new = CCOPS.compute_pair_correlation_energy(pair, singles);
+        if (pair.ctype == CT_MP2) omega_new = CCPotentials::compute_pair_correlation_energy(world, info, result);
         // else if (pair.type == EXCITED_STATE) omega_new = CCOPS.compute_excited_pair_energy(pair, singles);
         delta = omega - omega_new;
 
-        const double current_norm = pair.function().norm2();
+        const double current_norm = result.function().norm2();
 
         omega = omega_new;
         if (world.rank() == 0) {

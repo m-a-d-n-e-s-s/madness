@@ -584,7 +584,6 @@ MacroTaskIteratePair::operator()(const std::vector<CCPair>& pair,
         const std::vector<real_function_6d>& local_coupling,
         const std::vector<Function<double,3>>& gs_singles,
         const std::vector<Function<double,3>>& ex_singles,
-        const std::vector< madness::Vector<double,3> >& all_coords_vec,
         const Info& info,
         const std::size_t& maxiter) const {
     World& world = info.mo_ket[0].world();

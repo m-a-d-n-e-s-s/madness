@@ -29,6 +29,19 @@ public:
         orbital_energies_=init_orbital_energies(*nemo);
     };
 
+    Info update_info(const CCParameters& parameters, const std::shared_ptr<Nemo> nemo) const {
+        Info info;
+        info.mo_bra=mo_bra().get_vecfunction();
+        info.mo_ket=mo_ket().get_vecfunction();
+        info.molecular_coordinates=nemo->get_calc()->molecule.get_all_coords_vec();
+        info.parameters=parameters;
+        info.R_square=nemo->R_square;
+        info.U1=nemo->ncf->U1vec();
+        info.U2=nemo->ncf->U2();
+        info.intermediate_potentials=get_potentials;
+        return info;
+    }
+
     virtual
     ~CCPotentials() {};
 
@@ -221,8 +234,11 @@ public:
     /// @param[in] u the Pair_function
     /// @param[in] singles the Singles (for MP2 give empty function) for the energy contribution over disconnected doubles
     /// @param[out] 2*<ij|g|u> - <ji|g|u> , where i and j are determined by u (see CC_Pair class)
-    double
-    compute_pair_correlation_energy(const CCPair& u, const CC_vecfunction& singles = CC_vecfunction(PARTICLE)) const;
+    static double
+    compute_pair_correlation_energy(World& world,
+        const Info& info,
+        const CCPair& u,
+        const CC_vecfunction& singles = CC_vecfunction(PARTICLE));
 
     /// Compute CC2 correlation energy
     /// @param[in] The Pair_function
