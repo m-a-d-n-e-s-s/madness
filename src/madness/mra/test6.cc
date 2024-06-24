@@ -36,8 +36,7 @@
 /// \brief test various functionality for 6d functions
 
 #include <madness/mra/mra.h>
-
-#include "test_utilities.h"
+#include <madness/world/test_utilities.h>
 
 using namespace madness;
 
@@ -128,21 +127,21 @@ static double gauss_plus_tight_3d(const coord_3d& r) {
 }
 
 
-static double gauss_6d(const coord_6d& r) {
-    coord_3d r1, r2;
-    r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
-    r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
-    return gauss_3d(r1)*gauss_3d(r2);
-}
-
-
-static double r2r(const coord_6d& r) {
-    coord_3d r1, r2;
-    r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
-    r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
-    double g1=gauss_3d(r1);
-    return g1*g1*gauss_3d(r2);
-}
+// static double gauss_6d(const coord_6d& r) {
+//     coord_3d r1, r2;
+//     r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
+//     r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
+//     return gauss_3d(r1)*gauss_3d(r2);
+// }
+//
+//
+// static double r2r(const coord_6d& r) {
+//     coord_3d r1, r2;
+//     r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
+//     r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
+//     double g1=gauss_3d(r1);
+//     return g1*g1*gauss_3d(r2);
+// }
 
 //static double add_test(const coord_6d& r) {
 //    coord_3d r1, r2;
@@ -747,8 +746,9 @@ int test_vector_composite(World& world, const long& k, const double thresh) {
 
 int main(int argc, char**argv) {
 
-    initialize(argc,argv);
-    World world(SafeMPI::COMM_WORLD);
+//    initialize(argc,argv);
+//    World world(SafeMPI::COMM_WORLD);
+    World& world= initialize(argc,argv);
     srand(time(nullptr));
     startup(world,argc,argv);
 
@@ -823,9 +823,8 @@ int main(int argc, char**argv) {
     error+=test_inner(world,k,thresh);
     error+=test_replicate(world,k,thresh);
 
-    print(ok(error==0),error,"finished test suite\n");
-
-    world.gop.fence();
+        print(ok(error==0),error,"finished test suite\n");
+        world.gop.fence();
     finalize();
 
     return error;

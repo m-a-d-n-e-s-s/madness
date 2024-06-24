@@ -102,12 +102,23 @@ if(BUILD_TESTING)
     include(CheckLanguage)
     check_language(CUDA)
     if(CMAKE_CUDA_COMPILER)
+      # cmake 3.17 decouples C++ and CUDA standards, see https://gitlab.kitware.com/cmake/cmake/issues/19123
+      # cmake 3.18 knows that CUDA 11 provides cuda_std_17
+      cmake_minimum_required(VERSION 3.18.0)
+      set(CMAKE_CUDA_STANDARD 17)
+      set(CMAKE_CUDA_EXTENSIONS OFF)
+      set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+      set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+      # N.B. need relaxed constexpr for std::complex
+      # see https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#constexpr-functions%5B/url%5D:
+      if (DEFINED CMAKE_CUDA_FLAGS)
+        set(CMAKE_CUDA_FLAGS "--expt-relaxed-constexpr ${CMAKE_CUDA_FLAGS}")
+      else()
+        set(CMAKE_CUDA_FLAGS "--expt-relaxed-constexpr")
+      endif()
+
       enable_language(CUDA)
-      CMAKE_PUSH_CHECK_STATE()
-      STRING(REPLACE "-std=c++1z" "" _tmp "${CMAKE_CXX_FLAGS}")
-      SET(CMAKE_CXX_FLAGS "${_tmp}")
       add_library(MADtest_cuda hello_world.cu)
-      CMAKE_POP_CHECK_STATE()
       target_link_libraries(test_world PRIVATE MADtest_cuda)
     endif(CMAKE_CUDA_COMPILER)
   endif ()

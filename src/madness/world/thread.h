@@ -125,6 +125,7 @@ namespace madness {
 	}
 	nextcpu = ncpu/2;
 #endif
+          if (this->print) { };
       }
 
       void set_do_bind(bool value) {do_bind = value;}

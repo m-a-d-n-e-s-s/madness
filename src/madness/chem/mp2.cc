@@ -50,6 +50,8 @@
 #include<madness/chem/correlationfactor.h>
 #include<madness/chem/nemo.h>
 #include<madness/chem/localizer.h>
+#include<madness/chem/ccpairfunction.h>
+#include<madness/chem/CCStructures.h>
 
 #include <iostream>
 
@@ -234,32 +236,18 @@ double MP2::value(const Tensor<double>& x) {
         return correlation_energy;
     }
 
-    // DEBUG: INTEGRAL TEST
-    for (int i = param.freeze(); i < hf->nocc(); ++i) {
-        for (int j = i; j < hf->nocc(); ++j) {
-            ElectronPair test = make_pair(i, j);
-            if (world.rank() == 0) {
-                std::cout << "\n-----------------------------------------\n";
-                std::cout << "<" << i << j << "|gQf|" << i << j << "> =" << test.ij_gQf_ij << std::endl;
-                std::cout << "<" << j << i << "|gQf|" << i << j << "> =" << test.ji_gQf_ij << std::endl;
-            }
-        }
-    }
-    // DEBUG END
-
     // compute the 0th order term and do some coarse pre-iterations
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = i; j < hf->nocc(); ++j) {
             pairs(i, j) = make_pair(i, j);                // initialize
-            solve_residual_equations(pairs(i, j), param.econv() * 0.5,
-                                     param.dconv());
-            correlation_energy += pairs(i, j).e_singlet
-                                  + pairs(i, j).e_triplet;
+            solve_residual_equations(pairs(i, j), param.econv() * 0.5, param.dconv());
+            correlation_energy += pairs(i, j).e_singlet + pairs(i, j).e_triplet;
         }
     }
     if (world.rank() == 0) {
         printf("current decoupled mp2 energy %12.8f\n", correlation_energy);
     }
+    if (param.no_compute()) return correlation_energy;
 
     correlation_energy = 0.0;
     if (hf->get_calc().param.do_localize()) {
@@ -280,12 +268,13 @@ double MP2::value(const Tensor<double>& x) {
     return correlation_energy;
 }
 
+
 /// solve the residual equation for electron pair (i,j)
 void MP2::solve_residual_equations(ElectronPair& result,
                                    const double econv, const double dconv) const {
 
 
-    if (result.converged) {
+    if (result.converged or param.no_compute()) {
         result.print_energy();
         return;
     }
@@ -498,23 +487,6 @@ void MP2::increment(ElectronPair& pair, real_convolution_6d& green) {
     }
 }
 
-/// swap particles 1 and 2
-
-/// param[in]	f	a function of 2 particles f(1,2)
-/// return	the input function with particles swapped g(1,2) = f(2,1)
-real_function_6d MP2::swap_particles(const real_function_6d& f) const {
-
-    // this could be done more efficiently for SVD, but it works decently
-    std::vector<long> map(6);
-    map[0] = 3;
-    map[1] = 4;
-    map[2] = 5;    // 2 -> 1
-    map[3] = 0;
-    map[4] = 1;
-    map[5] = 2;    // 1 -> 2
-    return mapdim(f, map);
-}
-
 double MP2::asymmetry(const real_function_6d& f, const std::string s) const {
     return 0.0;
     const real_function_6d ff = swap_particles(f);
@@ -525,13 +497,6 @@ double MP2::asymmetry(const real_function_6d& f, const std::string s) const {
     return diff;
 }
 
-void MP2::test(const std::string filename) {
-    if (world.rank() == 0)
-        printf("starting coupling at time %8.1fs\n", wall_time());
-    if (world.rank() == 0)
-        printf("ending coupling at time %8.1fs\n", wall_time());
-}
-
 /// compute the matrix element <ij | g12 Q12 f12 | phi^0>
 
 /// scales quartically. I think I can get this down to cubically by
@@ -540,6 +505,7 @@ void MP2::test(const std::string filename) {
 /// @return 	the energy <ij | g Q f | kl>
 double MP2::compute_gQf(const int i, const int j, ElectronPair& pair) const {
 
+    CCTimer t1(world,"gQf old");
     // for clarity of notation
     const int k = pair.i;
     const int l = pair.j;
@@ -618,6 +584,33 @@ double MP2::compute_gQf(const int i, const int j, ElectronPair& pair) const {
     const double e = a - o1a - o2a + o12;
     if (world.rank() == 0)
         printf("<%d%d | g Q12 f          | %d%d>  %12.8f\n", i, j, k, l, e);
+
+    print("gQf old",t1.reset());
+
+    CCTimer timer(world,"gQf with ccpairfunction");
+    CCConvolutionOperator<double,3>::Parameters param;
+    auto f=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_F12,param);
+    auto g=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,param);
+//    print("operator constructor",timer.reset());
+
+    CCPairFunction<double,6> fij(f,ket_i,ket_j);
+    CCPairFunction<double,6> gij(g,bra_k,bra_l);
+//    CCPairFunction ij({psi},{psi});
+    std::vector<CCPairFunction<double,6>> vfij={fij};
+    std::vector<CCPairFunction<double,6>> vgij={gij};
+//    std::vector<CCPairFunction> vij={ij};
+//    print("g/f ij constructor",timer.reset());
+
+//    StrongOrthogonalityProjector<double,3> SO(world);
+//    SO.set_spaces({psi},{psi},{psi},{psi});
+    std::vector<CCPairFunction<double,6>> Qfij=Q12(vfij);
+//    std::vector<CCPairFunction> Qgij=Q12(vgij);
+//    print("SO application",timer.reset());
+
+    double result1=inner(vgij,Qfij);
+    print("inner",timer.reset());
+
+    print("<ij | g (Q f | ij>)",result1);
 
     return e;
 }

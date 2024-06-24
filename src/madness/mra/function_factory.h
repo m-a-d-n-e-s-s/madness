@@ -50,6 +50,7 @@
 #include <madness/tensor/gentensor.h>
 #include <madness/mra/key.h>
 #include <madness/mra/function_interface.h>
+#include <madness/mra/operatorinfo.h>
 
 
 namespace madness {
@@ -66,6 +67,7 @@ Tensor<T> fcube(const Key<NDIM>&, T (*f)(const Vector<double, NDIM>&), const Ten
 
 template<typename T, std::size_t NDIM>
 Tensor<T> fcube(const Key<NDIM>& key, const FunctionFunctorInterface<T, NDIM>& f, const Tensor<double>& qx);
+
 
 /// FunctionFactory implements the named-parameter idiom for Function
 
@@ -323,7 +325,7 @@ public:
 //      std::vector<implT_ptr_lodim> _particle1;
 //      std::vector<implT_ptr_lodim> _particle2;
     std::vector<implT_ptr_hidim> _ket;
-//    std::shared_ptr<FunctionImpl<T,NDIM> > _ket;            ///< supposedly a 6D pair function ket
+//    std::shared_ptr<FunctionImpl<T, NDIM> > _ket;            ///< supposedly a 6D pair function ket
     std::shared_ptr<FunctionImpl<T, NDIM> > _g12;            ///< supposedly a interaction potential
     std::shared_ptr<FunctionImpl<T, MDIM> > _v1;             ///< supposedly a potential for particle 1
     std::shared_ptr<FunctionImpl<T, MDIM> > _v2;             ///< supposedly a potential for particle 2
@@ -430,54 +432,66 @@ public:
 };
 
 /// factory for generating TwoElectronInterfaces
-class TwoElectronFactory : public FunctionFactory<double, 6> {
+template<typename T=double, std::size_t NDIM=6>
+class TwoElectronFactory : public FunctionFactory<T, NDIM> {
 
 protected:
-    typedef std::shared_ptr<FunctionFunctorInterface<double, 6> > InterfacePtr;
+    typedef std::shared_ptr<FunctionFunctorInterface<T, NDIM> > InterfacePtr;
 
 public:
     TwoElectronFactory(World& world)
-            : FunctionFactory<double, 6>(world), type_(coulomb_), interface_(),
-              dcut_(FunctionDefaults<3>::get_thresh()), gamma_(-1.0), bc_(FunctionDefaults<6>::get_bc()) {
-        _tree_state = on_demand;
-        this->_thresh = (FunctionDefaults<3>::get_thresh());
-        this->_k = (FunctionDefaults<3>::get_k());
+            : FunctionFactory<T, NDIM>(world),  interface_(), bc_(FunctionDefaults<NDIM>::get_bc()) {
+        this->_tree_state = on_demand;
+        info.mu=-1.0;
+        info.type=OT_G12;
+        constexpr std::size_t LDIM=NDIM/2;
+        static_assert(NDIM==2*LDIM, "NDIM must be even");
+        info.thresh=FunctionDefaults<LDIM>::get_thresh();
+        this->_thresh = (FunctionDefaults<LDIM>::get_thresh());
+        this->_k = (FunctionDefaults<LDIM>::get_k());
 
     }
 
     /// the smallest length scale to be represented (aka lo)
     TwoElectronFactory& dcut(double dcut) {
-        dcut_ = dcut;
+        info.lo = dcut;
         return self();
     }
 
     /// the requested precision
     TwoElectronFactory& thresh(double thresh) {
-        _thresh = thresh;
+        this->_thresh=thresh;
+        info.thresh = thresh;
         return self();
     }
 
     /// the exponent of a slater function
     TwoElectronFactory& gamma(double g) {
-        gamma_ = g;
+        info.mu = g;
         return self();
     }
 
     /// return the operator  (1 - exp(-gamma x) / (2 gamma)
     TwoElectronFactory& f12() {
-        type_ = f12_;
+        info.type=OT_F12;
         return self();
     }
 
     /// return the operator  (1 - exp(-gamma x) / (2 gamma)
     TwoElectronFactory& slater() {
-        type_ = slater_;
+        info.type=OT_SLATER;
         return self();
     }
 
     /// return the BSH operator
     TwoElectronFactory& BSH() {
-        type_ = bsh_;
+        info.type=OT_BSH;
+        return self();
+    }
+
+    /// return the BSH operator
+    TwoElectronFactory& set_info(const OperatorInfo info1) {
+        info=info1;
         return self();
     }
 
@@ -487,31 +501,25 @@ public:
         // return if we already have a valid interface
         if (this->interface_) return this->interface_;
 
-        // construction of the functor is const in spirit, but non-const in sad reality..
-        if (type_ == coulomb_) {
-            const_cast<InterfacePtr& >(this->interface_) =
-                    InterfacePtr(new ElectronRepulsionInterface(
-                            dcut_, _thresh, bc_, _k));
-        } else if (type_ == f12_) {
-            // make sure gamma is set
-            MADNESS_ASSERT(gamma_ > 0);
-            const_cast<InterfacePtr& >(this->interface_) =
-                    InterfacePtr(new SlaterF12Interface(
-                            gamma_, dcut_, _thresh, bc_, _k));
-        } else if (type_ == slater_) {
-            // make sure gamma is set
-            MADNESS_ASSERT(gamma_ > 0);
-            const_cast<InterfacePtr& >(this->interface_) =
-                    InterfacePtr(new SlaterFunctionInterface(
-                            gamma_, dcut_, _thresh, bc_, _k));
-        } else if (type_ == bsh_) {
-            const_cast<InterfacePtr& >(this->interface_) =
-                    InterfacePtr(new BSHFunctionInterface(
-                            gamma_, dcut_, _thresh, bc_, _k));
+        const_cast<InterfacePtr& >(this->interface_) =
+                InterfacePtr(new GeneralTwoElectronInterface<T,NDIM>(info));
 
-        } else {
-            MADNESS_EXCEPTION("unimplemented integral kernel", 1);
-        }
+//        // construction of the functor is const in spirit, but non-const in sad reality..
+//        if (info.type==OT_G12) {
+//            const_cast<InterfacePtr& >(this->interface_) =
+//                    InterfacePtr(new ElectronRepulsionInterface(info.lo, _thresh, bc_, _k));
+//        } else if (info.type == OT_F12) {
+//            const_cast<InterfacePtr& >(this->interface_) =
+//                    InterfacePtr(new SlaterF12Interface(info.mu, info.lo, _thresh, bc_, _k));
+//        } else if (info.type == OT_SLATER) {
+//            const_cast<InterfacePtr& >(this->interface_) =
+//                    InterfacePtr(new SlaterFunctionInterface(info.mu,info.lo, _thresh, bc_, _k));
+//        } else if (info.type==OT_BSH) {
+//            const_cast<InterfacePtr& >(this->interface_) =
+//                    InterfacePtr(new BSHFunctionInterface(info.mu, info.lo, _thresh, bc_, _k));
+//        } else {
+//            MADNESS_EXCEPTION("unimplemented integral kernel", 1);
+//        }
         return this->interface_;
     }
 
@@ -519,20 +527,21 @@ public:
 
 protected:
 
-    enum operatortype {
-        coulomb_, slater_, f12_, bsh_
-    };
+//    enum operatortype {
+//        coulomb_, slater_, f12_, bsh_
+//    };
 
-    operatortype type_;
+    OperatorInfo info;
+//    operatortype type_;
 
     /// the interface providing the actual coefficients
     InterfacePtr interface_;
 
-    double dcut_;           ///< cutoff radius for 1/r12, aka regularization
+//    double dcut_;           ///< cutoff radius for 1/r12, aka regularization
 
-    double gamma_;
+//    double gamma_;
 
-    BoundaryConditions<6> bc_;
+    BoundaryConditions<NDIM> bc_;
 
 };
 

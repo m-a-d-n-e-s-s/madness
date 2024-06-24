@@ -36,9 +36,9 @@
 
 
 #include <madness/world/worldmem.h>
-#include<madness.h>
-#include<madness/chem/SCF.h>
-#include<madchem.h>
+#include <madness.h>
+#include <madness/chem/SCF.h>
+#include <madchem.h>
 
 #if defined(__has_include)
 #  if __has_include(<filesystem>)
@@ -91,14 +91,14 @@ static double rsquared(const coordT& r) {
     return r[0] * r[0] + r[1] * r[1] + r[2] * r[2];
 }
 
-// Returns exp(-I*t*V)
-static Function<double_complex, 3> make_exp(double t, const Function<double, 3>& v) {
-    v.reconstruct();
-    Function<double_complex, 3> expV = double_complex(0.0, -t) * v;
-    expV.unaryop(unaryexp<3>());
-    //expV.truncate(); expV.reconstruct();
-    return expV;
-}
+// // Returns exp(-I*t*V)
+// static Function<double_complex, 3> make_exp(double t, const Function<double, 3>& v) {
+//     v.reconstruct();
+//     Function<double_complex, 3> expV = double_complex(0.0, -t) * v;
+//     expV.unaryop(unaryexp<3>());
+//     //expV.truncate(); expV.reconstruct();
+//     return expV;
+// }
 
 // Timer modified to correctly nest
 static bool print_timings = false;
@@ -138,7 +138,6 @@ tensorT Q2(const tensorT& s) {
     return Q;
 }
 
-}// namespace madness
 // void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
 //                                  const tensorT &dipole_T) const {
 //     nlohmann::json j = {};
@@ -157,33 +156,35 @@ tensorT Q2(const tensorT& s) {
 
 void SCF::output_calc_info_schema() const {
     nlohmann::json j = {};
-    vec_pair_ints int_vals;
-    vec_pair_T<double> double_vals;
-    vec_pair_tensor_T<double> double_tensor_vals;
-
-
-    int_vals.emplace_back("calcinfo_nmo", param.nmo_alpha() + param.nmo_beta());
-    int_vals.emplace_back("calcinfo_nalpha", param.nalpha());
-    int_vals.emplace_back("calcinfo_nbeta", param.nbeta());
-    int_vals.emplace_back("calcinfo_natom", molecule.natom());
-    int_vals.emplace_back("k", FunctionDefaults<3>::get_k());
-
-    to_json(j, int_vals);
-//    double_vals.push_back({"return_energy", value(molecule.get_all_coords().flat())});
-    double_vals.emplace_back("return_energy", current_energy);
-    to_json(j, double_vals);
-    double_tensor_vals.emplace_back("scf_eigenvalues_a", aeps);
-    if (param.nbeta() != 0 && !param.spin_restricted()) {
-        double_tensor_vals.emplace_back("scf_eigenvalues_b", beps);
-    }
-
-    to_json(j, double_tensor_vals);
-    param.to_json(j);
-    e_data.to_json(j);
-
-//    output_schema(param.prefix()+".calc_info", j);
     World& world=amo.front().world();
-    if (world.rank()==0) update_schema(param.prefix()+".calc_info", j);
+    if (world.rank()==0) {
+        vec_pair_ints int_vals;
+        vec_pair_T<double> double_vals;
+        vec_pair_tensor_T<double> double_tensor_vals;
+
+
+        int_vals.emplace_back("calcinfo_nmo", param.nmo_alpha() + param.nmo_beta());
+        int_vals.emplace_back("calcinfo_nalpha", param.nalpha());
+        int_vals.emplace_back("calcinfo_nbeta", param.nbeta());
+        int_vals.emplace_back("calcinfo_natom", molecule.natom());
+        int_vals.emplace_back("k", FunctionDefaults<3>::get_k());
+
+        to_json(j, int_vals);
+        //    double_vals.push_back({"return_energy", value(molecule.get_all_coords().flat())});
+        double_vals.emplace_back("return_energy", current_energy);
+        to_json(j, double_vals);
+        double_tensor_vals.emplace_back("scf_eigenvalues_a", aeps);
+        if (param.nbeta() != 0 && !param.spin_restricted()) {
+            double_tensor_vals.emplace_back("scf_eigenvalues_b", beps);
+        }
+
+        to_json(j, double_tensor_vals);
+        param.to_json(j);
+        e_data.to_json(j);
+
+        //    output_schema(param.prefix()+".calc_info", j);
+        update_schema(param.prefix()+".calc_info", j);
+    }
 }
 
 void scf_data::add_data(std::map<std::string, double> values) {
@@ -210,7 +211,7 @@ scf_data::scf_data() : iter(0) {
 
 
 void scf_data::to_json(json &j) const {
-    ::print("SCF DATA TO JSON");
+    madness::print("SCF DATA TO JSON");
 
     j["scf_e_data"] = json();
     j["scf_e_data"]["iterations"] = iter;
@@ -2365,3 +2366,4 @@ void SCF::solve(World& world) {
 
 }        // end solve function
 
+} // namespace madness

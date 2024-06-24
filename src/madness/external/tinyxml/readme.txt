@@ -332,7 +332,7 @@ Which is much easier to deal with. See TiXmlHandle for more information.
 <h3> Row and Column tracking </h3>
 Being able to track nodes and attributes back to their origin location
 in source files can be very important for some applications. Additionally,
-knowing where parsing errors occured in the original source can be very
+knowing where parsing errors occurred in the original source can be very
 time saving.
 
 TinyXML can tracks the row and column origin of all nodes and attributes

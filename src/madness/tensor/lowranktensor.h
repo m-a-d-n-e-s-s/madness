@@ -695,9 +695,6 @@ public:
 	friend GenTensor<TENSOR_RESULT_TYPE(R,Q)> transform_dir(
 			const GenTensor<R>& t, const Tensor<Q>& c, const int axis);
 
-	template <typename R, typename Q>
-	friend GenTensor<TENSOR_RESULT_TYPE(R,Q)> outer(
-			const GenTensor<R>& t1, const GenTensor<Q>& t2);
 
 	std::string what_am_i() const {
 		TensorType tt;
@@ -758,7 +755,7 @@ struct ArchiveLoadImpl< Archive, GenTensor<T> > {
 	friend class GenTensor<T>;
 	/// Replaces this GenTensor with one loaded from an archive
 	static void load(const Archive& ar, GenTensor<T>& tensor) {
-		int index;
+		int index=-2;
 		ar & index;
 		if (index==0) {
 			Tensor<T> tt;
@@ -772,6 +769,10 @@ struct ArchiveLoadImpl< Archive, GenTensor<T> > {
 			TensorTrain<T> tt;
 			ar & tt;
 			tensor=tt;
+		} else if (index==-1) {	 // defined value: empty tensor
+			;
+		} else {
+			MADNESS_EXCEPTION("unknow tensor type",1);
 		}
 
 
@@ -815,7 +816,7 @@ void change_tensor_type(GenTensor<T>& t, const TensorArgs& targs) {
 /// all other combinations are currently invalid.
 template <class T, class Q>
 GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const GenTensor<T>& t1,
-		const GenTensor<Q>& t2, const TensorArgs final_tensor_args) {
+		const GenTensor<Q>& t2, const TensorArgs final_tensor_args=TensorArgs(-1.0,TT_2D)) {
 
     typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
@@ -906,7 +907,6 @@ operator*(const Q& x, const GenTensor<T>& t) {
  /// @return     the sum GenTensor of the input GenTensors
  template<typename T>
 GenTensor<T> reduce(std::list<GenTensor<T> >& addends, double eps, bool are_optimal=false) {
-	typedef typename std::list<GenTensor<T> >::iterator iterT;
 
 	// fast return
 	addends.remove_if([](auto element) {return not element.is_assigned();});

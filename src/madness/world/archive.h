@@ -1547,13 +1547,13 @@ namespace madness {
                   ar & allocator;
                   s = std::set<T, Compare, Alloc>(allocator);
                 }
-                std::size_t size;
+                std::size_t size=0;
                 ar >> size;
                 s.clear();
                 auto hint = s.begin();
                 for (std::size_t i = 0; i < size; ++i)
                 {
-                  typename std::set<T, Compare, Alloc>::key_type key;
+                  typename std::set<T, Compare, Alloc>::key_type key=0;
                   ar >> key;
                   hint = s.emplace_hint(hint, std::move(key));
                 }
@@ -1604,7 +1604,7 @@ namespace madness {
                     ar & allocator;
                     s = std::list<T, Alloc>(allocator);
             }
-            std::size_t size;
+            std::size_t size=0;
             ar >> size;
             s.clear();
             for (std::size_t i = 0; i < size; ++i)
