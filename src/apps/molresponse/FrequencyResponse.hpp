@@ -10,7 +10,6 @@ using path = std::filesystem::path;
 
 class FrequencyResponse;
 
-
 using RHS_Generator = std::function<X_space(World &, ResponseBase &)>;
 
 response_space vector_to_PQ(World &world, const vector_real_function_3d &rhs_operators, const vector_real_function_3d &ground_orbitals);
@@ -30,7 +29,6 @@ class QuadraticResponse : public ResponseBase
     // And 2nd order right hand side perturbation vector vBC(xB,xC) and
     // pBC and qBC are the homogeneous components of the 2nd order density matrix response
     // made entirely from first order vectors xB, xC
-
 
 public:
     QuadraticResponse(World &world, const CalcParams &params, RHS_Generator rhs_generator) : ResponseBase(world, params), generator(std::move(rhs_generator))
@@ -67,7 +65,6 @@ public:
         FunctionDefaults<3>::set_thresh(thresh);
         FunctionDefaults<3>::set_refine(true);
         FunctionDefaults<3>::set_initial_level(2);
-
 
         FunctionDefaults<3>::set_autorefine(false);
         FunctionDefaults<3>::set_apply_randomize(false);
@@ -203,7 +200,6 @@ public:
         world.gop.fence();
     }
 
-
     void set_x_data(World &world, const std::array<double, 3> &freqABC, const std::array<path, 3> &restart_files)
     {
         this->frequencies = freqABC;
@@ -242,7 +238,6 @@ public:
     Tensor<double> compute_beta(World &world);
     std::pair<Tensor<double>, std::vector<std::string>> compute_beta_v2(World &world, const double &omega_b, const double &omega_c);
 
-
 private:
     std::vector<int> index_A;
     std::vector<int> index_B;
@@ -252,7 +247,6 @@ private:
     bool indicies_set;
 
     std::map<int, std::string> xyz = {{0, "X"}, {1, "Y"}, {2, "Z"}};
-
 
     std::array<Context, 3> frequency_contexts;
     std::array<double, 3> frequencies;
@@ -278,7 +272,6 @@ private:
     std::tuple<X_space, X_space, X_space, X_space, X_space, X_space> compute_beta_coulomb(World &world, const X_space &B, const X_space &C, const X_space &zeta_bc_left, const X_space &zeta_bc_right,
                                                                                           const X_space &zeta_cb_left, const X_space &zeta_cb_right, const X_space &phi0);
 };
-
 
 // Create a quadratic response class
 
@@ -329,7 +322,6 @@ public:
         FunctionDefaults<3>::set_refine(true);
         FunctionDefaults<3>::set_initial_level(2);
 
-
         FunctionDefaults<3>::set_autorefine(false);
         FunctionDefaults<3>::set_apply_randomize(false);
         FunctionDefaults<3>::set_project_randomize(false);
@@ -464,7 +456,6 @@ public:
         world.gop.fence();
     }
 
-
     void set_x_data(World &world, const std::vector<double> &freqABC, const std::vector<path> &restart_files)
     {
         this->frequencies = freqABC;
@@ -504,7 +495,6 @@ public:
 
     void compute_pod_modes(World &world);
 
-
     void compute_pod_modes_2(World &world);
 
 private:
@@ -513,7 +503,6 @@ private:
     std::vector<XData> x_data;
     RHS_Generator generator;
 };
-
 
 class FrequencyResponse : public ResponseBase
 {
@@ -547,7 +536,8 @@ public:
 
     RHS_Generator generator;
 
-    std::pair<double,Tensor<double>> get_response_data(){
+    std::pair<double, Tensor<double>> get_response_data()
+    {
         return {omega, polar};
     };
 
@@ -563,6 +553,5 @@ private:
                                                                             response_solver &kain_x_space, size_t iteration, const double &max_rotation, const vector_real_function_3d &rho_old,
                                                                             const Tensor<double> &old_residuals, const X_space &xres_old);
 };
-
 
 #endif // MADNESS_FREQUENCYRESPONSE_HPP

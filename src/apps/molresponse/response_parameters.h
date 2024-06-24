@@ -180,7 +180,6 @@ namespace madness
             else if (dipole())
             {
                 set_derived_value<std::string>("perturbation", "dipole");
-                print("dipole calculation\n");
                 set_derived_value<size_t>("states", 3);
             }
             else if (nuclear())
