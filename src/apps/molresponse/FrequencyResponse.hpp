@@ -35,7 +35,8 @@ public:
     {
         FunctionDefaults<3>::set_cubic_cell(-r_params.L(), r_params.L());
         FunctionDefaults<3>::set_truncate_mode(1);
-        auto thresh = r_params.protocol()[0];
+        // set thresh to the last value in the protocol
+        auto thresh=r_params.protocol().back();
 
         int k;
         // Allow for imprecise conversion of threshold

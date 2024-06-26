@@ -526,20 +526,6 @@ void QuadraticResponse::initialize(World &world) {}
 auto QuadraticResponse::setup_XBC(World &world, const double &omega_b, const double &omega_c) -> std::pair<X_space, X_space>
 {
 
-    if (false)
-    {
-
-        if (omega_b == omega_c && omega_b == 0)
-        {
-            this->index_B = {0, 1, 2, 1};
-            this->index_C = {0, 1, 2, 2};
-        }
-        else if (omega_b == omega_c && omega_b != 0)
-        {
-            this->index_B = {0, 0, 0, 1, 1, 2};
-            this->index_C = {0, 1, 2, 1, 2, 2};
-        }
-    }
     this->index_B = {0, 0, 0, 1, 1, 1, 2, 2, 2};
     this->index_C = {0, 1, 2, 0, 1, 2, 0, 1, 2};
 
@@ -618,12 +604,13 @@ std::pair<Tensor<double>, std::vector<std::string>> QuadraticResponse::compute_b
             auto five = dot(world, XA.x[a], VBC.x[bc], false);
             auto six = dot(world, XA.y[a], VBC.y[bc], false);
 
-            one.truncate(); 
-            two.truncate();
-            three.truncate();
-            four.truncate();
-            five.truncate();
-            six.truncate();
+            // Truncation here might be a bad idea, scheisse
+            // one.truncate();
+            // two.truncate();
+            // three.truncate();
+            // four.truncate();
+            // five.truncate();
+            // six.truncate();
 
             world.gop.fence();
             beta[i] = one.trace() + two.trace() + three.trace() + four.trace() + five.trace() + six.trace();
@@ -1010,7 +997,6 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(World &wor
     g_zeta_cb.truncate();
     f_bxc.truncate();
     f_cxb.truncate();
-
 
     world.gop.fence();
     if (r_params.print_level() >= 1)

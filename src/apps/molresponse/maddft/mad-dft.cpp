@@ -189,17 +189,7 @@ auto main(int argc, char *argv[]) -> int
           {
             print("Compute Quadratic Response Properties ");
           }
-          if (!std::filesystem::exists(response_manager.get_quadratic_path()))
-          {
-            // TODO: check if the quadratic response calculation is complete (@ahurta92)
-            response_manager.run_quadratic_response(world);
-          }
-          else
-          {
-            print(
-                "Quadratic Response Properties Found... Skipping Quadratic "
-                "Response");
-          }
+          response_manager.run_quadratic_response(world);
         }
         // TODO: Add logic for cubic response and excited states and other applications (@ahurta92)
       }

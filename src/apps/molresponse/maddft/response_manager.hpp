@@ -855,16 +855,34 @@ public:
         {
             molresponse::write_response_input(r_params, filename);
         }
+        bool converged = false;
         // if rbase exists and converged I just return save path and true
-        if (std::filesystem::exists("response_base.json"))
+        if (world.rank() == 0)
         {
-            std::ifstream ifs("response_base.json");
-            json response_base;
-            ifs >> response_base;
-            if (response_base["converged"] && response_base["precision"]["dconv"] == r_params.dconv())
+            ::print("Checking if response has converged for frequency: ", frequency);
+
+            if (std::filesystem::exists("response_base.json"))
             {
-                return {save_path, true};
+                {
+                    std::ifstream ifs("response_base.json");
+                    json response_base;
+                    ifs >> response_base;
+                    if (response_base["converged"] && response_base["precision"]["dconv"] == r_params.dconv())
+                        converged = true;
+                    ::print("Response has converged: ", converged);
+                }
             }
+        }
+        world.gop.broadcast(converged, 0);
+        if (converged)
+        {
+
+            return {save_path, true};
+        }
+        world.gop.fence();
+        if (world.rank() == 0)
+        {
+            ::print("Running response calculation for frequency: ", frequency);
         }
         auto calc_params = initialize_calc_params(world, std::string(filename));
         RHS_Generator rhs_generator;
@@ -941,12 +959,33 @@ public:
 
         nlohmann::ordered_json alpha_json;
 
-        for (const auto &freq : freq)
+        // if (world.rank() == 0)
+        // {
+        if (std::filesystem::exists("alpha.json"))
         {
-            if (world.rank() == 0)
-            {
-                ::print(success.second);
-            }
+            ::print("Alpha json exists");
+            std::ifstream ifs("alpha.json");
+            ifs >> alpha_json;
+            // auto freq_map = std::map<double, int>{};
+            // for (int i = 0; i < freq.size(); i++)
+            // {
+            //     freq_map[freq[i]] = i;
+            // }
+            // std::vector<double> omegas = alpha_json["omega"];
+            // start_omega = freq_map[omegas.back() - 1];
+        }
+        else
+        {
+            alpha_json = nlohmann::ordered_json{};
+        }
+        // }
+        int start_omega = 0;
+        // world.gop.broadcast(alpha_json, 0);
+        world.gop.fence();
+
+        for (int i = start_omega; i < freq.size(); i++)
+        {
+            auto freq_i = freq[i];
             std::filesystem::current_path(moldft_path);
             if (first)
             {
@@ -965,12 +1004,7 @@ public:
             {
                 throw Response_Convergence_Error{};
             }
-            success = RunResponse(world, "response.in", freq, restart_path, alpha_json);
-            //                      high_prec);
-            if (world.rank() == 0)
-            {
-                ::print("Frequency ", freq, " completed");
-            }
+            success = RunResponse(world, "response.in", freq_i, restart_path, alpha_json);
         }
     }
 
@@ -998,7 +1032,10 @@ public:
                     if (response_base["converged"] && response_base["precision"]["dconv"] == r_params.dconv())
                     {
                         {
-                            ::print("Response calculation already converged");
+                            if (world.rank() == 0)
+                            {
+                                ::print("Response calculation already converged");
+                            }
                         }
                         continue;
                     }
@@ -1082,8 +1119,6 @@ public:
             world.gop.fence();
             FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
 
-            nlohmann::ordered_json beta_json = create_beta_json();
-
             if (world.rank() == 0)
             {
                 molresponse::write_response_input(quad_parameters, "quad.in");
@@ -1094,11 +1129,6 @@ public:
                 {ground_calculation, molecule, quad_parameters},
                 rhs_generator,
             };
-            // if beta.json exists remove it
-            if (std::filesystem::exists("beta.json"))
-            {
-                std::filesystem::remove("beta.json");
-            }
 
             auto max_freq = freq.back();
             auto num_freqs = (freq.size() / 2) + 1;
@@ -1107,67 +1137,121 @@ public:
                 ::print("Number of frequencies: ", num_freqs);
             }
 
-            for (int b = 0; b < num_freqs; b++)
+            nlohmann::ordered_json beta_json;
+            // if beta.json exists read it in
+            int start_b = 0;
+            int start_c = 0;
+            // if (world.rank() == 0)
+            // {
+            if (std::filesystem::exists("beta.json"))
             {
-                for (int c = b; c < num_freqs; c++)
+                ::print("Beta json exists");
+                std::ifstream ifs("beta.json");
+                ifs >> beta_json;
+                auto freq_map = std::map<double, int>{};
+                for (int i = 0; i < freq.size(); i++)
                 {
+                    freq_map[freq[i]] = i;
+                }
+                std::vector<double> bfreq = beta_json["Bfreq"];
+                std::vector<double> cfreq = beta_json["Cfreq"];
 
-                    auto generate_omega_restart_path = [&](double frequency)
-                    {
-                        auto linear_response_calc_path = generate_response_frequency_run_path(frequency);
-                        auto restart_file_and_path = generate_frequency_save_path(linear_response_calc_path);
-                        return restart_file_and_path;
-                    };
+                auto last_b = freq_map[bfreq[bfreq.size() - 1]];
+                auto last_c = freq_map[cfreq[cfreq.size() - 1]];
+
+                // if last_c == num_freqs - 1 then we increment b and set c to b
+                                // else we increment c and keep b the same
+                if (last_c == num_freqs - 1)
+                {
+                    start_b = last_b + 1;
+                    start_c = start_b;
+                }
+                else
+                {
+                    start_b = last_b;
+                    start_c = last_c + 1;
+                }
+            }
+            else
+            {
+                beta_json = create_beta_json();
+            }
+            //}
+            // world.gop.broadcast(beta_json, 0);
+            // world.gop.broadcast(start_b, 0);
+            // world.gop.broadcast(start_c, 0);
+
+            // get the last element of Bfreq and Cfreq
+
+            // find unique of bfreq
+            // find unique of cfreq
+            auto generate_omega_restart_path = [&](double frequency)
+            {
+                auto linear_response_calc_path = generate_response_frequency_run_path(frequency);
+                auto restart_file_and_path = generate_frequency_save_path(linear_response_calc_path);
+                return restart_file_and_path;
+            };
+
+            if (world.rank() == 0)
+            {
+                ::print("Start B: ", start_b);
+                ::print("Start C: ", start_c);
+            }
+
+            bool first_run = true;
+            for (int b = start_b; b < num_freqs; b++)
+            {
+                for (int c = (first_run ? start_c : b); c < num_freqs; c++)
+                {
 
                     auto omega_b = freq[b];
                     auto omega_c = freq[c];
                     auto omega_a = freq[b + c];
 
-                    if (omega_a <= max_freq)
+                    auto restartA = generate_omega_restart_path(omega_a);
+                    auto restartB = generate_omega_restart_path(omega_b);
+                    auto restartC = generate_omega_restart_path(omega_c);
+                    if (world.rank() == 0 && quad_parameters.print_level() > 10)
                     {
+                        ::print("Restart file for A", restartA.first);
+                        ::print("Restart file for B", restartB.first);
+                        ::print("Restart file for C", restartC.first);
+                    }
 
-                        auto restartA = generate_omega_restart_path(omega_a);
-                        auto restartB = generate_omega_restart_path(omega_b);
-                        auto restartC = generate_omega_restart_path(omega_c);
+                    // check if restartA exists
+                    if (!std::filesystem::exists(restartA.first))
+                    {
+                        if (world.rank() == 0)
+                        {
+                            ::print("Restart file for omega_a = ", omega_a, " doesn't exist");
+                        }
+                        throw Response_Convergence_Error{};
+                    }
+                    else
+                    {
                         if (world.rank() == 0 && quad_parameters.print_level() > 10)
                         {
-                            ::print("Restart file for A", restartA.first);
-                            ::print("Restart file for B", restartB.first);
-                            ::print("Restart file for C", restartC.first);
+                            ::print("Restart file for omega_a = ", omega_a, " exists");
                         }
+                        std::array<double, 3> omegas{omega_a, omega_b, omega_c};
+                        std::array<path, 3> restarts{restartA.first.replace_extension(""), restartB.first.replace_extension(""), restartC.first.replace_extension("")};
 
-                        // check if restartA exists
-                        if (!std::filesystem::exists(restartA.first))
+                        quad_calculation.set_x_data(world, omegas, restarts);
+                        auto [beta, beta_directions] = quad_calculation.compute_beta_v2(world, omega_b, omega_c);
+
+                        if (world.rank() == 0 && quad_parameters.print_level() > 10)
                         {
-                            if (world.rank() == 0)
+                            ::print("Beta values for omega_a = ", omega_a, " omega_b = ", omega_b, " omega_c = ", omega_c);
+                            for (int i = 0; i < beta_directions.size(); i++)
                             {
-                                ::print("Restart file for omega_a = ", omega_a, " doesn't exist");
-                            }
-                            throw Response_Convergence_Error{};
-                        }
-                        else
-                        {
-                            if (world.rank() == 0 && quad_parameters.print_level() > 10)
-                            {
-                                ::print("Restart file for omega_a = ", omega_a, " exists");
-                            }
-                            std::array<double, 3> omegas{omega_a, omega_b, omega_c};
-                            std::array<path, 3> restarts{restartA.first.replace_extension(""), restartB.first.replace_extension(""), restartC.first.replace_extension("")};
-
-                            quad_calculation.set_x_data(world, omegas, restarts);
-                            auto [beta, beta_directions] = quad_calculation.compute_beta_v2(world, omega_b, omega_c);
-
-                            if (world.rank() == 0 && quad_parameters.print_level() > 10)
-                            {
-                                ::print("Beta values for omega_a = ", omega_a, " omega_b = ", omega_b, " omega_c = ", omega_c);
-                                for (int i = 0; i < beta_directions.size(); i++)
+                                if (world.rank() == 0)
                                 {
-                                    if (world.rank() == 0)
-                                    {
-                                        ::print(beta_directions[i], " : ", beta[i]);
-                                    }
+                                    ::print(beta_directions[i], " : ", beta[i]);
                                 }
                             }
+                        }
+                        if (world.rank() == 0)
+                        {
                             append_to_beta_json({-1.0 * omega_a, omega_b, omega_c}, beta_directions, beta, beta_json);
                             std::ofstream outfile("beta.json");
                             if (outfile.is_open())
@@ -1180,22 +1264,11 @@ public:
                                 std::cerr << "Failed to open file for writing: " << "beta.json" << std::endl;
                             }
                         }
-                    }
-                    else
-                    {
-                        if (world.rank() == 0)
-                        {
-                            ::print("Skipping omega_a = ", omega_a, " because it is greater than the max frequency");
-                        }
-                        continue;
+                        world.gop.broadcast(beta, 0);
+                        world.gop.fence();
                     }
                 }
             }
-
-            // write the beta json to file
-            std::ofstream ofs("beta.json");
-            ofs << std::setw(4) << beta_json << std::endl;
-            ofs.close();
         }
         catch (Response_Convergence_Error &e)
         {
@@ -1228,7 +1301,8 @@ public:
      * @param frequency_run_path
      * @return
      */
-    static auto generate_frequency_save_path(const std::filesystem::path &frequency_run_path) -> std::pair<std::filesystem::path, std::string>
+    static auto
+    generate_frequency_save_path(const std::filesystem::path &frequency_run_path) -> std::pair<std::filesystem::path, std::string>
     {
         auto save_path = std::filesystem::path(frequency_run_path);
         auto run_name = frequency_run_path.filename();
@@ -1245,8 +1319,6 @@ public:
     static nlohmann::ordered_json create_beta_json()
     {
         // i need A B C to hold char values and A-freq, B-freq, C-freq to hold
-        // double values
-
         nlohmann::ordered_json beta_json = {{"Afreq", json::array()}, {"Bfreq", json::array()}, {"Cfreq", json::array()}, {"A", json::array()}, {"B", json::array()}, {"C", json::array()}, {"Beta", json::array()}};
         return beta_json;
     }
