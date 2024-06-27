@@ -134,7 +134,8 @@ namespace madness {
         template <typename objT>
         inline void deferred_cleanup(World& world, const std::shared_ptr<objT>& p,
                                      bool assume_p_is_unique) {
-            if(p.unique() || assume_p_is_unique) {
+            const auto p_is_unique = p.use_count() == 1;
+            if(p_is_unique || assume_p_is_unique) {
                 // This is the last local pointer so we will place it in the
                 // deferred deleter list for later cleanup.
                 DeferredCleanup::get_deferred_cleanup(world)->add(p);

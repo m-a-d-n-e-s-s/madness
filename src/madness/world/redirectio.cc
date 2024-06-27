@@ -40,7 +40,7 @@ using std::endl;
 static std::ofstream fout;
 namespace madness {
     void redirectio(const World& world, bool split) {
-        std::size_t bufsize=256;
+        constexpr std::size_t bufsize=256;
         char filename[bufsize];
         std::snprintf(filename,bufsize,"log.%5.5d",world.mpi.rank());
         char errfilename[bufsize];
