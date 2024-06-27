@@ -1,0 +1,6 @@
+<map id="madness::MacroTaskMp2ConstantPart" name="madness::MacroTaskMp2ConstantPart">
+<area shape="rect" id="node1" title=" " alt="" coords="5,260,275,287"/>
+<area shape="rect" id="node2" href="$classmadness_1_1MacroTaskOperationBase.html" title=" " alt="" coords="13,184,267,211"/>
+<area shape="rect" id="node3" href="$classmadness_1_1Batch.html" title="a batch consists of a 2D&#45;input batch and a 1D&#45;output batch: K&#45;batch &lt;&#45; (I&#45;batch, J&#45;batch)" alt="" coords="77,95,203,121"/>
+<area shape="rect" id="node4" href="$classmadness_1_1Batch__1D.html" title=" " alt="" coords="65,5,215,32"/>
+</map>

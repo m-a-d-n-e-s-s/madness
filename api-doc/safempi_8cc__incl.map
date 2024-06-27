@@ -1,0 +1,33 @@
+<map id="safempi.cc" name="safempi.cc">
+<area shape="rect" id="node1" title=" " alt="" coords="1573,5,1667,32"/>
+<area shape="rect" id="node2" href="$safempi_8h.html" title="Serializes calls to MPI in case it does not support THREAD_MULTIPLE." alt="" coords="1323,80,1514,107"/>
+<area shape="rect" id="node19" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling." alt="" coords="1223,229,1407,271"/>
+<area shape="rect" id="node3" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS." alt="" coords="913,319,1116,345"/>
+<area shape="rect" id="node5" title=" " alt="" coords="1676,155,1735,181"/>
+<area shape="rect" id="node6" href="$worldmutex_8h.html" title="Implements Mutex, MutexFair, Spinlock, ConditionVariable." alt="" coords="579,155,794,181"/>
+<area shape="rect" id="node20" title=" " alt="" coords="1231,319,1297,345"/>
+<area shape="rect" id="node23" href="$type__traits_8h.html" title=" " alt="" coords="1516,229,1671,271"/>
+<area shape="rect" id="node27" title=" " alt="" coords="1188,155,1268,181"/>
+<area shape="rect" id="node28" title=" " alt="" coords="1293,155,1361,181"/>
+<area shape="rect" id="node29" title=" " alt="" coords="1385,155,1452,181"/>
+<area shape="rect" id="node30" title=" " alt="" coords="1476,155,1553,181"/>
+<area shape="rect" id="node31" title=" " alt="" coords="1577,155,1652,181"/>
+<area shape="rect" id="node4" title=" " alt="" coords="947,393,1083,420"/>
+<area shape="rect" id="node7" title=" " alt="" coords="301,237,385,263"/>
+<area shape="rect" id="node8" title=" " alt="" coords="409,237,473,263"/>
+<area shape="rect" id="node9" title=" " alt="" coords="497,237,559,263"/>
+<area shape="rect" id="node10" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS." alt="" coords="583,237,790,263"/>
+<area shape="rect" id="node11" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info." alt="" coords="97,237,276,263"/>
+<area shape="rect" id="node17" href="$atomicint_8h.html" title="Implements AtomicInt." alt="" coords="814,237,1013,263"/>
+<area shape="rect" id="node12" title=" " alt="" coords="301,319,368,345"/>
+<area shape="rect" id="node13" title=" " alt="" coords="1140,319,1207,345"/>
+<area shape="rect" id="node14" title=" " alt="" coords="5,319,64,345"/>
+<area shape="rect" id="node15" title=" " alt="" coords="88,319,179,345"/>
+<area shape="rect" id="node16" title=" " alt="" coords="203,319,277,345"/>
+<area shape="rect" id="node18" title=" " alt="" coords="770,319,889,345"/>
+<area shape="rect" id="node21" title=" " alt="" coords="1432,319,1496,345"/>
+<area shape="rect" id="node22" title=" " alt="" coords="1321,319,1407,345"/>
+<area shape="rect" id="node24" title=" " alt="" coords="1521,319,1591,345"/>
+<area shape="rect" id="node25" title=" " alt="" coords="1645,393,1737,420"/>
+<area shape="rect" id="node26" href="$meta_8h.html" title=" " alt="" coords="1667,319,1837,345"/>
+</map>

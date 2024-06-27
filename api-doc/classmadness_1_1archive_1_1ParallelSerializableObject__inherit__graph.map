@@ -1,0 +1,18 @@
+<map id="madness::archive::ParallelSerializableObject" name="madness::archive::ParallelSerializableObject">
+<area shape="rect" id="node1" title="Objects that implement their own parallel archive interface should derive from this class." alt="" coords="5,479,199,520"/>
+<area shape="rect" id="node2" href="$classmadness_1_1Function.html" title=" " alt="" coords="271,5,426,47"/>
+<area shape="rect" id="node3" href="$classmadness_1_1Function.html" title=" " alt="" coords="271,71,426,112"/>
+<area shape="rect" id="node4" href="$classmadness_1_1Function.html" title=" " alt="" coords="271,136,426,177"/>
+<area shape="rect" id="node5" href="$classmadness_1_1Function.html" title=" " alt="" coords="264,202,433,258"/>
+<area shape="rect" id="node6" href="$classmadness_1_1Function.html" title=" " alt="" coords="271,283,426,324"/>
+<area shape="rect" id="node7" href="$classmadness_1_1WorldContainer.html" title=" " alt="" coords="254,348,443,389"/>
+<area shape="rect" id="node8" href="$classmadness_1_1WorldContainer.html" title=" " alt="" coords="254,413,443,455"/>
+<area shape="rect" id="node9" href="$classmadness_1_1CCFunction.html" title="structure for a CC Function 3D which holds an index and a type" alt="" coords="267,479,430,520"/>
+<area shape="rect" id="node10" href="$classmadness_1_1CCPair.html" title=" " alt="" coords="283,545,414,571"/>
+<area shape="rect" id="node11" href="$classmadness_1_1CCPairFunction.html" title="a 6D function, either in full or low rank form, possibly including an 2&#45;particle function" alt="" coords="255,596,442,637"/>
+<area shape="rect" id="node12" href="$structmadness_1_1CC__vecfunction.html" title="A helper structure which holds a map of functions." alt="" coords="253,662,444,689"/>
+<area shape="rect" id="node13" href="$classmadness_1_1ElectronPair.html" title="enhanced POD for the pair functions" alt="" coords="265,713,432,739"/>
+<area shape="rect" id="node14" href="$classmadness_1_1Function.html" title="A multiresolution adaptive numerical function." alt="" coords="271,764,426,805"/>
+<area shape="rect" id="node15" href="$classmadness_1_1MolecularOrbitals.html" title=" " alt="" coords="247,829,451,871"/>
+<area shape="rect" id="node16" href="$classmadness_1_1WorldContainer.html" title="Makes a distributed container with specified attributes." alt="" coords="247,895,450,936"/>
+</map>

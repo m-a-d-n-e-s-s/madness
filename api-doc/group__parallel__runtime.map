@@ -1,0 +1,10 @@
+<map id="Parallel programming environment" name="Parallel programming environment">
+<area shape="rect" id="node1" href="$group__threading.html" title=" " alt="" coords="438,5,561,31"/>
+<area shape="rect" id="node2" href="$group__world__object.html" title=" " alt="" coords="416,55,583,95"/>
+<area shape="rect" id="node3" href="$group__futures.html" title=" " alt="" coords="464,120,535,145"/>
+<area shape="rect" id="node4" href="$group__mpi.html" title=" " alt="" coords="418,170,581,210"/>
+<area shape="rect" id="node5" title=" " alt="" coords="197,142,360,182"/>
+<area shape="rect" id="node6" href="$group__world.html" title=" " alt="" coords="408,235,591,289"/>
+<area shape="rect" id="node7" href="$group__serialization.html" title=" " alt="" coords="448,313,551,339"/>
+<area shape="rect" id="node8" href="$group__libraries.html" title=" " alt="" coords="5,149,149,175"/>
+</map>

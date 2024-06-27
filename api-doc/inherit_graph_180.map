@@ -1,0 +1,18 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="node1" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="5,317,168,344"/>
+<area shape="rect" id="node2" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="223,5,435,61"/>
+<area shape="rect" id="node3" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="226,85,431,112"/>
+<area shape="rect" id="node4" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="243,136,414,163"/>
+<area shape="rect" id="node5" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="239,187,418,213"/>
+<area shape="rect" id="node6" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="223,237,435,293"/>
+<area shape="rect" id="node7" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="216,317,441,344"/>
+<area shape="rect" id="node8" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="226,368,431,395"/>
+<area shape="rect" id="node9" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="229,419,428,461"/>
+<area shape="rect" id="node10" href="$classmadness_1_1SRConf.html" title=" " alt="" coords="241,485,416,512"/>
+<area shape="rect" id="node12" href="$classmadness_1_1Tensor.html" title="A tensor is a multidimension array." alt="" coords="244,536,413,563"/>
+<area shape="rect" id="node16" href="$classmadness_1_1TensorTrain.html" title=" " alt="" coords="229,587,429,613"/>
+<area shape="rect" id="node11" href="$classmadness_1_1SVDTensor.html" title=" " alt="" coords="491,485,687,512"/>
+<area shape="rect" id="node13" href="$classmadness_1_1GenTensor.html" title=" " alt="" coords="492,536,687,563"/>
+<area shape="rect" id="node15" href="$classmadness_1_1SliceTensor.html" title="Indexing a non&#45;constant tensor with slices returns a SliceTensor." alt="" coords="489,587,689,613"/>
+<area shape="rect" id="node14" href="$classmadness_1_1SliceLowRankTensor.html" title="implements a temporary(!) slice of a LowRankTensor" alt="" coords="737,536,996,563"/>
+</map>

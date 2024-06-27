@@ -1,0 +1,4 @@
+<map id="madness::detail::result_of&lt; fnT, typename std::enable_if&lt; is_type&lt; decltype(&amp;fnT::operator())&gt;::value &gt;::type &gt;" name="madness::detail::result_of&lt; fnT, typename std::enable_if&lt; is_type&lt; decltype(&amp;fnT::operator())&gt;::value &gt;::type &gt;">
+<area shape="rect" id="node1" title=" " alt="" coords="13,95,235,180"/>
+<area shape="rect" id="node2" href="$structmadness_1_1detail_1_1result__of.html" title=" " alt="" coords="5,5,243,47"/>
+</map>

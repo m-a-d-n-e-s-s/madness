@@ -1,0 +1,7 @@
+<map id="madness::WorldDCPmapInterface&lt; keyT &gt;" name="madness::WorldDCPmapInterface&lt; keyT &gt;">
+<area shape="rect" id="node1" title="Interface to be provided by any process map." alt="" coords="5,104,245,145"/>
+<area shape="rect" id="node2" href="$classmadness_1_1LevelPmap.html" title="A pmap that locates children on odd levels with their even level parents." alt="" coords="328,5,489,47"/>
+<area shape="rect" id="node3" href="$classmadness_1_1SimplePmap.html" title="A simple process map." alt="" coords="323,71,494,112"/>
+<area shape="rect" id="node4" href="$classmadness_1_1WorldDCDefaultPmap.html" title="Default process map is &quot;random&quot; using madness::hash(key)" alt="" coords="293,136,524,177"/>
+<area shape="rect" id="node5" href="$classmadness_1_1WorldDCLocalPmap.html" title="Local process map will always return the current process as owner." alt="" coords="301,201,517,243"/>
+</map>
