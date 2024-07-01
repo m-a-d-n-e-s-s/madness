@@ -622,15 +622,6 @@ std::pair<Tensor<double>, std::vector<std::string>> QuadraticResponse::compute_b
     beta *= -2.0;
     world.gop.fence();
 
-    if (world.rank() == 0 and r_params.print_level() >= 1)
-    {
-        for (int i = 0; i < num_elements; i++)
-        {
-            // print beta value with 4 decimal places in standard notation
-            std::cout << std::fixed << std::setprecision(5) << "i = " << i + 1 << ", beta[" << beta_indices[i] << "]" << " = " << beta[i] << std::endl;
-        }
-    }
-    world.gop.fence();
 
     return {beta, beta_indices};
 }

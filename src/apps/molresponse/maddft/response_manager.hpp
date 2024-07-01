@@ -1137,54 +1137,52 @@ public:
                 ::print("Number of frequencies: ", num_freqs);
             }
 
-            nlohmann::ordered_json beta_json;
             // if beta.json exists read it in
             int start_b = 0;
             int start_c = 0;
-            // if (world.rank() == 0)
-            // {
-            if (std::filesystem::exists("beta.json"))
+            nlohmann::ordered_json beta_json;
+            if (world.rank() == 0)
             {
-                ::print("Beta json exists");
-                std::ifstream ifs("beta.json");
-                ifs >> beta_json;
-                auto freq_map = std::map<double, int>{};
-                for (int i = 0; i < freq.size(); i++)
+                if (std::filesystem::exists("beta.json"))
                 {
-                    freq_map[freq[i]] = i;
-                }
-                std::vector<double> bfreq = beta_json["Bfreq"];
-                std::vector<double> cfreq = beta_json["Cfreq"];
+                    if (world.rank() == 0)
+                    {
+                        ::print("Beta json exists");
+                    }
+                    std::ifstream ifs("beta.json");
+                    ifs >> beta_json;
+                    auto freq_map = std::map<double, int>{};
+                    for (int i = 0; i < freq.size(); i++)
+                    {
+                        freq_map[freq[i]] = i;
+                    }
+                    std::vector<double> bfreq = beta_json["Bfreq"];
+                    std::vector<double> cfreq = beta_json["Cfreq"];
 
-                auto last_b = freq_map[bfreq[bfreq.size() - 1]];
-                auto last_c = freq_map[cfreq[cfreq.size() - 1]];
+                    auto last_b = freq_map[bfreq[bfreq.size() - 1]];
+                    auto last_c = freq_map[cfreq[cfreq.size() - 1]];
 
-                // if last_c == num_freqs - 1 then we increment b and set c to b
-                // else we increment c and keep b the same
-                if (last_c == num_freqs - 1)
-                {
-                    start_b = last_b + 1;
-                    start_c = start_b;
+                    // if last_c == num_freqs - 1 then we increment b and set c to b
+                    // else we increment c and keep b the same
+                    if (last_c == num_freqs - 1)
+                    {
+                        start_b = last_b + 1;
+                        start_c = start_b;
+                    }
+                    else
+                    {
+                        start_b = last_b;
+                        start_c = last_c + 1;
+                    }
                 }
                 else
                 {
-                    start_b = last_b;
-                    start_c = last_c + 1;
+                    beta_json = create_beta_json();
                 }
             }
-            else
-            {
-                beta_json = create_beta_json();
-            }
-            //}
-            // world.gop.broadcast(beta_json, 0);
-            // world.gop.broadcast(start_b, 0);
-            // world.gop.broadcast(start_c, 0);
+            world.gop.broadcast_serializable(start_b, 0);
+            world.gop.broadcast_serializable(start_c, 0);
 
-            // get the last element of Bfreq and Cfreq
-
-            // find unique of bfreq
-            // find unique of cfreq
             auto generate_omega_restart_path = [&](double frequency)
             {
                 auto linear_response_calc_path = generate_response_frequency_run_path(frequency);
@@ -1204,6 +1202,8 @@ public:
                 for (int c = (first_run ? start_c : b); c < num_freqs; c++)
                 {
 
+                    ::print(world.rank(), "b = ", b, " c = ", c);
+
                     auto omega_b = freq[b];
                     auto omega_c = freq[c];
                     auto omega_a = freq[b + c];
@@ -1211,57 +1211,28 @@ public:
                     auto restartA = generate_omega_restart_path(omega_a);
                     auto restartB = generate_omega_restart_path(omega_b);
                     auto restartC = generate_omega_restart_path(omega_c);
+                    std::array<double, 3> omegas{omega_a, omega_b, omega_c};
+                    std::array<path, 3> restarts{restartA.first.replace_extension(""), restartB.first.replace_extension(""), restartC.first.replace_extension("")};
+
+                    quad_calculation.set_x_data(world, omegas, restarts);
+                    auto [beta, beta_directions] = quad_calculation.compute_beta_v2(world, omega_b, omega_c);
+
                     if (world.rank() == 0 && quad_parameters.print_level() > 10)
                     {
-                        ::print("Restart file for A", restartA.first);
-                        ::print("Restart file for B", restartB.first);
-                        ::print("Restart file for C", restartC.first);
-                    }
-
-                    // check if restartA exists
-                    if (!std::filesystem::exists(restartA.first))
-                    {
-                        if (world.rank() == 0)
+                        ::print("Beta values for omega_A", " = -(omega_", b, " + omega_", c, ") = -", omega_a, " = (", omega_b, " + ", omega_c, ")");
                         {
-                            ::print("Restart file for omega_a = ", omega_a, " doesn't exist");
-                        }
-                        throw Response_Convergence_Error{};
-                    }
-                    else
-                    {
-                        if (world.rank() == 0 && quad_parameters.print_level() > 10)
-                        {
-                            ::print("Restart file for omega_a = ", omega_a, " exists");
-                        }
-                        std::array<double, 3> omegas{omega_a, omega_b, omega_c};
-                        std::array<path, 3> restarts{restartA.first.replace_extension(""), restartB.first.replace_extension(""), restartC.first.replace_extension("")};
-
-                        quad_calculation.set_x_data(world, omegas, restarts);
-                        auto [beta, beta_directions] = quad_calculation.compute_beta_v2(world, omega_b, omega_c);
-
-                        if (world.rank() == 0)
-                        {
-                            ::print("Beta values for omega_A", " = -(omega_", b, " + omega_", c, ") = -", omega_a, " = (", omega_b, " + ", omega_c, ")");
+                            for (int i = 0; i < beta_directions.size(); i++)
                             {
-                                for (int i = 0; i < beta_directions.size(); i++)
-                                {
-                                    std::cout << std::fixed << std::setprecision(5) << "i = " << i + 1 << ", beta[" << beta_directions[i] << "]" << " = " << beta[i] << std::endl;
-                                }
-                            }
-                            world.gop.fence();
-                            append_to_beta_json({-1.0 * omega_a, omega_b, omega_c}, beta_directions, beta, beta_json);
-                            std::ofstream outfile("beta.json");
-                            if (outfile.is_open())
-                            {
-                                outfile << beta_json.dump(4);
-                                outfile.close();
-                            }
-                            else
-                            {
-                                std::cerr << "Failed to open file for writing: " << "beta.json" << std::endl;
+                                std::cout << std::fixed << std::setprecision(5) << "i = " << i + 1 << ", beta[" << beta_directions[i] << "]" << " = " << beta[i] << std::endl;
                             }
                         }
-                        world.gop.fence();
+                        append_to_beta_json({-1.0 * omega_a, omega_b, omega_c}, beta_directions, beta, beta_json);
+                        std::ofstream outfile("beta.json");
+                        if (outfile.is_open())
+                        {
+                            outfile << beta_json.dump(4);
+                            outfile.close();
+                        }
                     }
                 }
             }
@@ -1361,5 +1332,5 @@ public:
         }
         return;
     }
-
+};
 #endif // MADNESS_RUNNERS_HPP
