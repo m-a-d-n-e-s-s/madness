@@ -3,89 +3,88 @@
 //
 
 #include "ResponseBase.hpp"
+// #if defined(__has_include)
+// #if __has_include(<filesystem>)
+// #define MADCHEM_HAS_STD_FILESYSTEM
+// // <filesystem> is not reliably usable on Linux with gcc < 9
+// #if defined(__GNUC__)
+// #if __GNUC__ >= 7 && __GNUC__ < 9
+// #undef MADCHEM_HAS_STD_FILESYSTEM
+// #endif
+// #endif
+// #if defined(MADCHEM_HAS_STD_FILESYSTEM)
 
-#if defined(__has_include)
-#if __has_include(<filesystem>)
-#define MADCHEM_HAS_STD_FILESYSTEM
-// <filesystem> is not reliably usable on Linux with gcc < 9
-#if defined(__GNUC__)
-#if __GNUC__ >= 7 && __GNUC__ < 9
-#undef MADCHEM_HAS_STD_FILESYSTEM
-#endif
-#endif
-#if defined(MADCHEM_HAS_STD_FILESYSTEM)
+// #include <Plot_VTK.h>
+// #include <filesystem>
 
-#include <Plot_VTK.h>
-#include <filesystem>
+// void ResponseBase::plotResponseOrbitals(World &world, size_t iteration, const response_space &x_response, const response_space &y_response, ResponseParameters const &responseParameters,
+//                                         GroundStateCalculation const &g_params)
+// {
+//     std::filesystem::create_directories("plots/densities");
+//     std::filesystem::create_directory("plots/orbitals");
 
-void ResponseBase::plotResponseOrbitals(World &world, size_t iteration, const response_space &x_response, const response_space &y_response, ResponseParameters const &responseParameters,
-                                        GroundStateCalculation const &g_params)
-{
-    std::filesystem::create_directories("plots/densities");
-    std::filesystem::create_directory("plots/orbitals");
+//     // TESTING
+//     // get transition density
+//     // num orbitals
+//     size_t n = x_response[0].size();
+//     size_t m = x_response.size();
 
-    // TESTING
-    // get transition density
-    // num orbitals
-    size_t n = x_response[0].size();
-    size_t m = x_response.size();
+//     real_function_3d rho0 = dot(world, ground_orbitals, ground_orbitals);
+//     std::vector<real_function_3d> rho1 = transition_density(world, ground_orbitals, x_response, y_response);
+//     std::string dir("xyz");
+//     // for plot_name size
+//     size_t buffSize = 500;
+//     char plot_name[buffSize];
+//     double Lp = std::min(responseParameters.L(), 24.0);
+//     // Doing line plots along each axis
+//     for (int d = 0; d < 3; d++)
+//     {
+//         // print ground_state
+//         plotCoords plt(d, Lp);
+//         // plot ground density
+//         if (iteration == 1)
+//         {
+//             snprintf(plot_name, buffSize, "plots/densities/rho0_%c_0.plt", dir[d]);
+//             plot_line(plot_name, 5001, plt.lo, plt.hi, rho0);
+//         }
+//         // plot ground orbitals and transition densities in xyz directions
+//         snprintf(plot_name, buffSize, "plots/orbitals/phi0_%c_0.plt", dir[d]);
+//         plot_line(plot_name, 5001, plt.lo, plt.hi, ground_orbitals);
+//         snprintf(plot_name, buffSize, "plots/densities/rho1_%c.plt", dir[d]);
+//         plot_line(plot_name, 5001, plt.lo, plt.hi, rho1);
 
-    real_function_3d rho0 = dot(world, ground_orbitals, ground_orbitals);
-    std::vector<real_function_3d> rho1 = transition_density(world, ground_orbitals, x_response, y_response);
-    std::string dir("xyz");
-    // for plot_name size
-    size_t buffSize = 500;
-    char plot_name[buffSize];
-    double Lp = std::min(responseParameters.L(), 24.0);
-    // Doing line plots along each axis
-    for (int d = 0; d < 3; d++)
-    {
-        // print ground_state
-        plotCoords plt(d, Lp);
-        // plot ground density
-        if (iteration == 1)
-        {
-            snprintf(plot_name, buffSize, "plots/densities/rho0_%c_0.plt", dir[d]);
-            plot_line(plot_name, 5001, plt.lo, plt.hi, rho0);
-        }
-        // plot ground orbitals and transition densities in xyz directions
-        snprintf(plot_name, buffSize, "plots/orbitals/phi0_%c_0.plt", dir[d]);
-        plot_line(plot_name, 5001, plt.lo, plt.hi, ground_orbitals);
-        snprintf(plot_name, buffSize, "plots/densities/rho1_%c.plt", dir[d]);
-        plot_line(plot_name, 5001, plt.lo, plt.hi, rho1);
+//         for (int b = 0; b < static_cast<int>(m); b++)
+//         {
+//             // plot x and y transition orbitals
+//             snprintf(plot_name, buffSize, "plots/orbitals/phix_%c_%d.plt", dir[d], static_cast<int>(b));
+//             plot_line(plot_name, 5001, plt.lo, plt.hi, x_response[b]);
+//             snprintf(plot_name, buffSize, "plots/orbitals/phiy_%c_%d.plt", dir[d], static_cast<int>(b));
+//             plot_line(plot_name, 5001, plt.lo, plt.hi, y_response[b]);
+//         }
+//     }
+//     world.gop.fence();
+//     // END TESTING
+// }
 
-        for (int b = 0; b < static_cast<int>(m); b++)
-        {
-            // plot x and y transition orbitals
-            snprintf(plot_name, buffSize, "plots/orbitals/phix_%c_%d.plt", dir[d], static_cast<int>(b));
-            plot_line(plot_name, 5001, plt.lo, plt.hi, x_response[b]);
-            snprintf(plot_name, buffSize, "plots/orbitals/phiy_%c_%d.plt", dir[d], static_cast<int>(b));
-            plot_line(plot_name, 5001, plt.lo, plt.hi, y_response[b]);
-        }
-    }
-    world.gop.fence();
-    // END TESTING
-}
+// void PlotGroundDensityVTK(World &world, const ResponseBase &calc)
+// {
+//     auto [ground_calc, molecule, r_params] = calc.get_parameter();
+//     auto ground_orbitals = calc.get_orbitals();
 
-void PlotGroundDensityVTK(World &world, const ResponseBase &calc)
-{
-    auto [ground_calc, molecule, r_params] = calc.get_parameter();
-    auto ground_orbitals = calc.get_orbitals();
+//     if (r_params.plot_initial())
+//     {
+//         if (world.rank() == 0)
+//             print("\n   Plotting ground state densities.\n");
+//         if (r_params.plot_l() > 0.0)
+//             do_vtk_plots(world, int(r_params.plot_pts()), r_params.plot_l(), 0, int(r_params.num_orbitals()), molecule, square(world, ground_orbitals), "ground");
+//         else
+//             do_vtk_plots(world, int(r_params.plot_pts()), r_params.L() / 2.0, 0, int(r_params.num_orbitals()), molecule, square(world, ground_orbitals), "ground");
+//     }
+// }
 
-    if (r_params.plot_initial())
-    {
-        if (world.rank() == 0)
-            print("\n   Plotting ground state densities.\n");
-        if (r_params.plot_l() > 0.0)
-            do_vtk_plots(world, int(r_params.plot_pts()), r_params.plot_l(), 0, int(r_params.num_orbitals()), molecule, square(world, ground_orbitals), "ground");
-        else
-            do_vtk_plots(world, int(r_params.plot_pts()), r_params.L() / 2.0, 0, int(r_params.num_orbitals()), molecule, square(world, ground_orbitals), "ground");
-    }
-}
-
-#endif
-#endif
-#endif
+// #endif
+// #endif
+// #endif
 
 // Initializes calculation object for both excited state and frequency dependent
 // Copies both the response and ground state
