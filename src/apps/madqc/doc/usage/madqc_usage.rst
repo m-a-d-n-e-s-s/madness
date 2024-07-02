@@ -1,3 +1,0 @@
-MAD-QCEngine Usage Examples
-===========================
-
