@@ -716,7 +716,7 @@ private:
 class MacroTaskOperationBase {
 public:
     Batch batch;
-	std::string name;
+	std::string name="unknown_task";
     std::shared_ptr<MacroTaskPartitioner> partitioner=0;
     MacroTaskOperationBase() : batch(Batch(_, _, _)), partitioner(new MacroTaskPartitioner) {}
 };

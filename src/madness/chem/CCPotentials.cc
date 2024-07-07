@@ -962,6 +962,7 @@ CCPotentials::update_pair_mp2_macrotask(World& world, const CCPair& pair, const 
 
     CCTimer timer_G(world, "Apply Greens Operator on MP2-Potential of pair " + pair.name());
     const real_function_6d GVmp2 = G(mp2_potential);
+    if (parameters.debug()) GVmp2.print_size("GVmp2");
     timer_G.info(true, GVmp2.norm2());
 
     //CCTimer timer_addup(world, "Add constant parts and update pair " + pair.name());
@@ -972,7 +973,7 @@ CCPotentials::update_pair_mp2_macrotask(World& world, const CCPair& pair, const 
     Q.set_spaces(mo_bra, mo_ket, mo_bra, mo_ket);
     unew = Q(unew);
 
-    if (parameters.debug())unew.print_size("truncated-unew");
+    if (parameters.debug())unew.print_size("Q12(unew)");
     timer_mp2.info();
 
     real_function_6d residue = (pair.function() - unew);
@@ -1037,6 +1038,7 @@ CCPair CCPotentials::iterate_pair_macrotask(World& world,
 
         CCTimer timer_G(world, "Apply Greens Operator on MP2-Potential of pair " + pair.name());
         const real_function_6d GVmp2 = G(mp2_potential);
+        if (info.parameters.debug()) GVmp2.print_size("GVmp2");
         timer_G.info(true, GVmp2.norm2());
 
         CCTimer timer_addup(world, "Add constant parts and update pair " + pair.name());
@@ -1045,7 +1047,7 @@ CCPair CCPotentials::iterate_pair_macrotask(World& world,
         // unew = CCOPS.apply_Q12t(unew, CCOPS.mo_ket());
         // unew.print_size("Q12unew");
         //unew.truncate().reduce_rank(); // already done in Q12 application at the end
-        if (info.parameters.debug())unew.print_size("truncated-unew");
+        if (info.parameters.debug()) unew.print_size("Q12(unew)");
         const real_function_6d residue =  result.function() - unew;
         const double error = residue.norm2();
         if (info.parameters.kain()) {
@@ -1053,8 +1055,9 @@ CCPair CCPotentials::iterate_pair_macrotask(World& world,
             real_function_6d kain_update = copy(solver.update(result.function(), residue));
             // kain_update = CCOPS.apply_Q12t(kain_update, CCOPS.mo_ket());
             kain_update = Q12(kain_update);
+            kain_update.print_size("Kain-Update-Function not truncated");
             kain_update.truncate().reduce_rank();
-            kain_update.print_size("Kain-Update-Function");
+            kain_update.print_size("Kain-Update-Function truncated");
             // pair.update_u(copy(kain_update));
             result.update_u(copy(kain_update));
         } else {
@@ -1199,7 +1202,8 @@ CCPotentials::make_constant_part_cc2_Qt_gs(const CCPair& u, const CC_vecfunction
     real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * get_epsilon(ti.i, tj.i)), parameters.lo(),
                                            parameters.thresh_bsh_6D());
     G.destructive() = true;
-    G.particle_=-1;
+    G.particle_=1;
+    // G.particle_=-1;
     // calculate [F,Qt] commutator which is [F1,Q1t]Q2t + Q1t [F2,Q2t]
     // and [F1,Q1t] = - [F1,O1t] = - (F-e_k) |tk><k| = - (F-e_k) |tauk><k| = |Vk><k|
     // commutator is applied to f12|titj>

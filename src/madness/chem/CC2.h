@@ -116,6 +116,20 @@ public:
         output("Plotted " + msg);
     }
 
+    /// return RMS norm and max norm of residuals
+    static std::pair<double,double> residual_stats(const std::vector<real_function_6d>& residual) {
+        if (residual.size()==0) return std::make_pair(0.0,0.0);
+        World& world=residual.front().world();
+        auto errors=norm2s(world,residual);
+        double rnorm=0.0, maxrnorm=0.0;
+        for (double& e : errors) {
+            maxrnorm=std::max(maxrnorm,e);
+            rnorm+=e*e;
+        }
+        rnorm=sqrt(rnorm/errors.size());
+        return std::make_pair(rnorm,maxrnorm);
+    }
+
     /// The World
     World& world;
     /// Structure holds all the parameters used in the CC2 calculation

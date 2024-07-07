@@ -611,6 +611,13 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
         }
     }
 
+    hashT hash() const {
+        hashT hashval = std::hash<FuncType>{}(type);
+        for (const auto& f : functions) hash_combine(hashval, hash_value(f.second.f().get_impl()->id()));
+
+        return hashval;
+    }
+
     typedef std::map<std::size_t, CCFunction<double,3>> CC_functionmap;
     CC_functionmap functions;
 
@@ -1340,7 +1347,10 @@ class MacroTaskMp2UpdatePair : public MacroTaskOperationBase {
         }
     };
 public:
-    MacroTaskMp2UpdatePair() {partitioner.reset(new UpdatePairPartitioner());}
+    MacroTaskMp2UpdatePair() {
+        partitioner.reset(new UpdatePairPartitioner());
+        name="MP2UpdatePair";
+    }
 
     // typedef std::tuple<const std::vector<CCPair>&, const std::vector<real_function_6d>&, const CCParameters&,
                         // const std::vector< madness::Vector<double,3> >&,
@@ -1376,20 +1386,23 @@ class MacroTaskIteratePair : public MacroTaskOperationBase {
                                    const std::string policy) const override {
             partitionT p;
             for (size_t i = 0; i < vsize1; i++) {
-                Batch batch(Batch_1D(i,i+1), Batch_1D(i,i+1));
+                Batch batch(Batch_1D(i, i+1), Batch_1D(i, i+1), Batch_1D(i,i+1));
                 p.push_back(std::make_pair(batch,1.0));
             }
             return p;
         }
     };
 public:
-    MacroTaskIteratePair() {partitioner.reset(new IteratePairPartitioner());}
+    MacroTaskIteratePair() {
+        partitioner.reset(new IteratePairPartitioner());
+        name="IteratePair";
+    }
 
     typedef std::tuple<
-        const std::vector<CCPair>&,
-        const std::vector<real_function_6d>&,
-        const std::vector<Function<double,3>>&,
-        const std::vector<Function<double,3>>&,
+        const std::vector<CCPair>&,      // pair
+        const std::vector<real_function_6d>&,   // local coupling
+        const CC_vecfunction&,          // gs singles
+        const CC_vecfunction&,          // ex singles
         const Info&,
         const std::size_t&
         > argtupleT;
@@ -1415,8 +1428,8 @@ public:
     /// @param[in] maxiter: the maximal number of iterations
     resultT operator() (const std::vector<CCPair>& pair,
         const std::vector<real_function_6d>& local_coupling,
-        const std::vector<Function<double,3>>& gs_singles,
-        const std::vector<Function<double,3>>& ex_singles,
+        const CC_vecfunction& gs_singles,
+        const CC_vecfunction& ex_singles,
         const Info& info,
         const std::size_t& maxiter) const;
 };

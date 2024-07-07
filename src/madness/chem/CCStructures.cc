@@ -582,19 +582,15 @@ MacroTaskMp2UpdatePair::operator() (const std::vector<CCPair> &pair,
 std::vector<real_function_6d>
 MacroTaskIteratePair::operator()(const std::vector<CCPair>& pair,
         const std::vector<real_function_6d>& local_coupling,
-        const std::vector<Function<double,3>>& gs_singles,
-        const std::vector<Function<double,3>>& ex_singles,
+        const CC_vecfunction& gs_singles,
+        const CC_vecfunction& ex_singles,
         const Info& info,
         const std::size_t& maxiter) const {
     World& world = info.mo_ket[0].world();
     resultT result = zero_functions_compressed<double, 6>(world, pair.size());
 
     for (size_t i = 0; i < pair.size(); i++) {
-        //(i, j) -> j*(j+1) + i
-        // result[i] = CCPotentials::update_pair_mp2_macrotask(world, pair[i], info.parameters, all_coords_vec, info.mo_ket,
-                                                            // info.mo_bra, info.U1, info.U2, local_coupling[i]);
         result[i]=  CCPotentials::iterate_pair_macrotask(world, pair[i], gs_singles, local_coupling[i], info, maxiter).function();
-
     }
     return result;
 
