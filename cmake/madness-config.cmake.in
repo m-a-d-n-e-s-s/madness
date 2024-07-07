@@ -1,18 +1,16 @@
 # - CMAKE Config file for the MADNESS package
 #
 # Valid COMPONENTS: world tensor misc tensor linalg tinyxml muparser mra chem
-# If MADNESS_FIND_COMPONENTS only contains world, will load the subset of targets
-# necessary for MADworld
 #
 # The following variables are defined:
-#  MADNESS_FOUND                - System has the MADNESS package
-#  MADNESS_INCLUDE_DIRS         - The MADNESS include directory
-#  MADNESS_LIBRARIES            - The MADNESS libraries and their dependencies
-#  MADNESS_INSTALL_LIBRARY_DIR  - Where MADNESS libraries will be installed (same for CONFIG files imported from the build and install trees)
-#  MADNESS_<COMPONENT>_FOUND    - System has the specified MADNESS COMPONENT
-#  MADNESS_<COMPONENT>_LIBRARY  - The MADNESS COMPONENT library
-#  MADNESS_F77_INTEGER_SIZE     - The default F77 integer size used for BLAS calls
-#  MADNESS_ASSUMES_ASLR_DISABLED - Whether MADNESS assumes ASLR to be disabled
+#  madness_FOUND                - System has the MADNESS package
+#  madness_INCLUDE_DIRS         - The MADNESS include directory
+#  madness_LIBRARIES            - The MADNESS libraries and their dependencies
+#  madness_INSTALL_LIBRARY_DIR  - Where MADNESS libraries will be installed (same for CONFIG files imported from the build and install trees)
+#  madness_<COMPONENT>_FOUND    - System has the specified MADNESS COMPONENT
+#  madness_<COMPONENT>_LIBRARY  - The MADNESS COMPONENT library
+#  madness_F77_INTEGER_SIZE     - The default F77 integer size used for BLAS calls
+#  madness_ASSUMES_ASLR_DISABLED - Whether MADNESS assumes ASLR to be disabled
 #
 # Additionally MADNESS exports the following variables from its dependent packages:
 # = LAPACK =
@@ -29,19 +27,19 @@
 #    MPIEXEC_POSTFLAGS          Flags to pass to MPIEXEC_EXECUTABLE after other flags
 
 # Set package version
-set(MADNESS_VERSION "@MADNESS_VERSION@")
+set(madness_VERSION "@MADNESS_VERSION@")
 
 @PACKAGE_INIT@
 
-set(MADNESS_CMAKE_TOOLCHAIN_FILE "@CMAKE_TOOLCHAIN_FILE@")
+set(madness_CMAKE_TOOLCHAIN_FILE "@CMAKE_TOOLCHAIN_FILE@")
 
 # ensure that CMAKE_SYSTEM_NAME matches what was used to compile MADNESS
 if (NOT CMAKE_SYSTEM_NAME STREQUAL @CMAKE_SYSTEM_NAME@)
   set (ERROR_MESSAGE "CMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}, does not match CMAKE_SYSTEM_NAME=@CMAKE_SYSTEM_NAME@ used to compile MADNESS")
-  if (MADNESS_CMAKE_TOOLCHAIN_FILE)
+  if (madness_CMAKE_TOOLCHAIN_FILE)
     set (ERROR_MESSAGE "${ERROR_MESSAGE}; make sure to use toolchain @CMAKE_TOOLCHAIN_FILE@ to compile your code!")
     message (FATAL_ERROR "${ERROR_MESSAGE}")
-  endif(MADNESS_CMAKE_TOOLCHAIN_FILE)
+  endif(madness_CMAKE_TOOLCHAIN_FILE)
 endif()
 
 # check for prereqs:
@@ -52,8 +50,8 @@ if (NOT TARGET Threads::Threads)
 endif()
 
 # 2. Cereal
-set(MADNESS_HAS_CEREAL @MADNESS_HAS_CEREAL@)
-if (MADNESS_HAS_CEREAL)
+set(madness_HAS_CEREAL @MADNESS_HAS_CEREAL@)
+if (madness_HAS_CEREAL)
   get_filename_component(cereal_DIR "@cereal_CONFIG@" DIRECTORY)
   find_package(cereal QUIET CONFIG HINTS "${cereal_DIR}")
   if (NOT TARGET cereal)
@@ -62,103 +60,72 @@ if (MADNESS_HAS_CEREAL)
           INTERFACE_INCLUDE_DIRECTORIES "${cereal_INCLUDE_DIRS}"
           INTERFACE_COMPILE_DEFINITIONS "CEREAL_THREAD_SAFE=1")
   endif(NOT TARGET cereal)
-endif(MADNESS_HAS_CEREAL)
-
-# determine if only looking for MADworld ... this is a common scenario that loads a subset of targets
-set(MADNESS_FIND_WORLD_ONLY FALSE)
-list(LENGTH MADNESS_FIND_COMPONENTS MADNESS_FIND_NUM_COMPONENTS)
-list(FIND MADNESS_FIND_COMPONENTS world MADNESS_FIND_COMPONENTS_world_idx)
-if (MADNESS_FIND_NUM_COMPONENTS EQUAL 1 AND MADNESS_FIND_COMPONENTS_world_idx GREATER -1)
-  set(MADNESS_FIND_WORLD_ONLY TRUE)
-endif()
-
-# Include library IMPORT targets
-if(NOT TARGET MADworld)
-  include("${CMAKE_CURRENT_LIST_DIR}/madness-targets.cmake")
-endif(NOT TARGET MADworld)
-if(NOT MADNESS_FIND_WORLD_ONLY)
-  set(MADNESS_TOP_TARGET_LIBRARY madness)
-  set(MADNESS_TARGET_COMPONENT madness)
-else(NOT MADNESS_FIND_WORLD_ONLY)
-  set(MADNESS_TOP_TARGET_LIBRARY MADworld)
-  set(MADNESS_TARGET_COMPONENT world)
-endif(NOT MADNESS_FIND_WORLD_ONLY)
+endif(madness_HAS_CEREAL)
 
 # Set the madness libraries target
-set(MADNESS_LIBRARIES ${MADNESS_TOP_TARGET_LIBRARY})
+set(madness_LIBRARIES madness)
 
-set(MADNESS_SOURCE_DIR "@MADNESS_SOURCE_DIR@")
-set(MADNESS_BINARY_DIR "@MADNESS_BINARY_DIR@")
+set(madness_SOURCE_DIR "@MADNESS_SOURCE_DIR@")
+set(madness_BINARY_DIR "@MADNESS_BINARY_DIR@")
 
 # Set Elemental variables
-set(MADNESS_HAS_ELEMENTAL @MADNESS_HAS_ELEMENTAL@)
-set(MADNESS_HAS_ELEMENTAL_EMBEDDED @MADNESS_HAS_ELEMENTAL_EMBEDDED@)
+set(madness_HAS_ELEMENTAL @MADNESS_HAS_ELEMENTAL@)
+set(madness_HAS_ELEMENTAL_EMBEDDED @MADNESS_HAS_ELEMENTAL_EMBEDDED@)
 
-set(MADNESS_INSTALL_LIBRARY_DIR "@PACKAGE_MADNESS_INSTALL_LIBDIR@")
-set(MADNESS_BUILD_INCLUDE_DIRS "${MADNESS_SOURCE_DIR}/src" "${MADNESS_BINARY_DIR}/src")
-set(MADNESS_INSTALL_INCLUDE_DIRS "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@"
+set(madness_INSTALL_LIBRARY_DIR "@PACKAGE_MADNESS_INSTALL_LIBDIR@")
+set(madness_BUILD_INCLUDE_DIRS "${madness_SOURCE_DIR}/src" ":" "${madness_BINARY_DIR}/src")
+set(madness_INSTALL_INCLUDE_DIRS "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@" ":"
       "@PACKAGE_MADNESS_INSTALL_INCLUDEDIR@/madness/external")
+set(madness_INSTALL_CMAKEDIR "@PACKAGE_MADNESS_INSTALL_CMAKEDIR@")
 
-if (MADNESS_HAS_ELEMENTAL)
-  if(MADNESS_HAS_ELEMENTAL_EMBEDDED)
+if (madness_HAS_ELEMENTAL)
+  if(madness_HAS_ELEMENTAL_EMBEDDED)
     set(Elemental_SOURCE_DIR "@Elemental_SOURCE_DIR@")
     set(Elemental_BINARY_DIR "@Elemental_BINARY_DIR@")
-    list(APPEND MADNESS_BUILD_INCLUDE_DIRS
+    list(APPEND madness_BUILD_INCLUDE_DIRS
         "${Elemental_SOURCE_DIR}/include" "${Elemental_BINARY_DIR}/include"
         "${Elemental_SOURCE_DIR}/external/pmrrr/include"
         "${Elemental_BINARY_DIR}/external/pmrrr/include")
-  else(MADNESS_HAS_ELEMENTAL_EMBEDDED)
+  else(madness_HAS_ELEMENTAL_EMBEDDED)
     set(Elemental_SOURCE_DIR "@ELEMENTAL_SOURCE_DIR@")
     set(Elemental_BINARY_DIR "@ELEMENTAL_BINARY_DIR@")
     # elemental package and component name depends on version
     set(ELEMENTAL_PACKAGE_NAME @ELEMENTAL_PACKAGE_NAME@)
     set(ELEMENTAL_CONFIGURE_NAME @ELEMENTAL_CONFIG_NAME@)
     # where to look for elemental cmake config file
-    if(CMAKE_CURRENT_LIST_DIR EQUAL MADNESS_BINARY_DIR)
+    if(CMAKE_CURRENT_LIST_DIR EQUAL madness_BINARY_DIR)
       set(Elemental_DIR "${Elemental_BINARY_DIR}")
     else()
       set(Elemental_DIR "${PACKAGE_PREFIX_DIR}/CMake/elemental")
     endif()
     find_package(${ELEMENTAL_CONFIGURE_NAME} REQUIRED
                  COMPONENTS REQUIRED ${ELEMENTAL_PACKAGE_NAME})
-    list(APPEND MADNESS_BUILD_INCLUDE_DIRS
+    list(APPEND madness_BUILD_INCLUDE_DIRS
         "${Elemental_SOURCE_DIR}/include" "${Elemental_BINARY_DIR}/include"
         "${Elemental_SOURCE_DIR}/external/pmrrr/include"
         "${Elemental_BINARY_DIR}/external/pmrrr/include"
         "${Elemental_SOURCE_DIR}/external/pmrrr/suite_sparse"
         "${Elemental_BINARY_DIR}/external/pmrrr/suite_sparse"
         )
-  endif(MADNESS_HAS_ELEMENTAL_EMBEDDED)
-endif(MADNESS_HAS_ELEMENTAL)
+  endif(madness_HAS_ELEMENTAL_EMBEDDED)
+endif(madness_HAS_ELEMENTAL)
 
-# define MADNESS_INCLUDE_DIRS according to where we are compiling: MADNESS build tree or outside
-# external packages should use MADNESS_BUILD_INCLUDE_DIRS and MADNESS_INSTALL_INCLUDE_DIRS directly
-if(CMAKE_CURRENT_LIST_DIR EQUAL MADNESS_BINARY_DIR)
-  set(MADNESS_INCLUDE_DIRS "${MADNESS_BUILD_INCLUDE_DIRS}")
+# define madness_INCLUDE_DIRS according to where we are compiling: MADNESS build tree or outside
+# external packages should use madness_BUILD_INCLUDE_DIRS and madness_INSTALL_INCLUDE_DIRS directly
+if(CMAKE_CURRENT_LIST_DIR EQUAL madness_BINARY_DIR)
+  set(madness_INCLUDE_DIRS "${madness_BUILD_INCLUDE_DIRS}")
 else()
-  set(MADNESS_INCLUDE_DIRS "${MADNESS_INSTALL_INCLUDE_DIRS}")
+  set(madness_INCLUDE_DIRS "${madness_INSTALL_INCLUDE_DIRS}")
 endif()
 
-# Set component variables
-foreach(_comp ${MADNESS_FIND_COMPONENTS})
-  if(TARGET MAD${_comp})
-    set(MADNESS_${_comp}_FOUND TRUE)
-    set(MADNESS_${_comp}_LIBRARY MAD${_comp})
-  else()
-    set(MADNESS_${_comp}_FOUND FALSE)
-    set(MADNESS_${_comp}_LIBRARY "MADNESS_${_comp}_LIBRARY-NOTFOUND")
-  endif()
-endforeach()
-
 # Set the Fortran 77 integer size (4 or 8)
-set(MADNESS_F77_INTEGER_SIZE @FORTRAN_INTEGER_SIZE@)
+set(madness_F77_INTEGER_SIZE @FORTRAN_INTEGER_SIZE@)
 
 # whether MADNESS assumes ASLR to be disabled
-set(MADNESS_ASSUMES_ASLR_DISABLED "@MADNESS_ASSUMES_ASLR_DISABLED@")
+set(madness_ASSUMES_ASLR_DISABLED "@MADNESS_ASSUMES_ASLR_DISABLED@")
 
-check_required_components(${MADNESS_TARGET_COMPONENT})
-
-set(MADNESS_FOUND TRUE)
+# list of dependencies of MADworld
+set(madness_MADWORLD_INTERFACE_LINK_LIBRARIES "@MADNESS_MADWORLD_INTERFACE_LINK_LIBRARIES@")
 
 ########### LAPACK ############
 # this is formatted to be added to CMAKE_REQUIRED_LIBRARIES
@@ -172,35 +139,82 @@ set(MPIEXEC_EXECUTABLE "@MPIEXEC_EXECUTABLE@" CACHE FILEPATH "Executable for run
 set(MPIEXEC_NUMPROC_FLAG "@MPIEXEC_NUMPROC_FLAG@" CACHE STRING "Maximum number of processors available to run MPI applications")
 set(MPIEXEC_PREFLAGS "@MPIEXEC_PREFLAGS@" CACHE STRING "Flag used by MPI to specify the number of processes for mpiexec")
 set(MPIEXEC_POSTFLAGS "@MPIEXEC_POSTFLAGS@" CACHE STRING "These flags will be placed after all flags passed to mpiexec")
+# load MPI::MPI_CXX ... also, if MADworld depends on PaRSEC, enable C language and load MPI_C
+cmake_policy(SET CMP0057 NEW)  # treat IN_LIST as operator
+if (MPI::MPI_CXX IN_LIST madness_MADWORLD_INTERFACE_LINK_LIBRARIES)
+    set(_mpi_languages CXX)
+endif()
+if (PaRSEC::parsec IN_LIST madness_MADWORLD_INTERFACE_LINK_LIBRARIES)
+   enable_language(C)
+   list(APPEND _mpi_languages C)
+endif()
+find_package(MPI REQUIRED COMPONENTS "${_mpi_languages}")
 
 ########### PaRSEC ############
-# if MADworld depends on PaRSEC, enable C language and load MPI_C
-get_target_property(_madworld_link_libraries MADworld INTERFACE_LINK_LIBRARIES)
-cmake_policy(SET CMP0057 NEW)  # treat IN_LIST as operator
-if (MPI::MPI_CXX IN_LIST _madworld_link_libraries)
-    set(_mpi_languages CXX)
-    if (PaRSEC::parsec IN_LIST _madworld_link_libraries)
-        enable_language(C)
-        list(APPEND _mpi_languages C)
-        if (NOT TARGET PaRSEC::parsec)
-           include( CMakeFindDependencyMacro )
-           get_filename_component(_parsec_config_dir "@PaRSEC_CONFIG@" DIRECTORY)
-           find_dependency(PaRSEC CONFIG REQUIRED COMPONENTS parsec PATHS "${_parsec_config_dir}" NO_DEFAULT_PATH)
-        endif()
-    endif()
-    find_package(MPI REQUIRED COMPONENTS "${_mpi_languages}")
+if (PaRSEC::parsec IN_LIST madness_MADWORLD_INTERFACE_LINK_LIBRARIES AND NOT TARGET PaRSEC::parsec)
+    include( CMakeFindDependencyMacro )
+    get_filename_component(_parsec_config_dir "@PaRSEC_CONFIG@" DIRECTORY)
+    find_dependency(PaRSEC CONFIG REQUIRED COMPONENTS parsec PATHS "${_parsec_config_dir}" NO_DEFAULT_PATH)
 endif()
 
 ########### TBB ############
-if (TBB::tbb IN_LIST _madworld_link_libraries)
+if (TBB::tbb IN_LIST madness_MADWORLD_INTERFACE_LINK_LIBRARIES)
    if (NOT TARGET TBB::tbb)
        include( CMakeFindDependencyMacro )
-       if ("@TBB_CONFIG@")
+       if (NOT "@TBB_CONFIG@" STREQUAL "")
            get_filename_component(_tbb_config_dir "@TBB_CONFIG@" DIRECTORY)
            find_dependency(TBB CONFIG REQUIRED COMPONENTS tbb PATHS "${_tbb_config_dir}" NO_DEFAULT_PATH)
        else()
+           # use madness' FindTBB
+           set(_orig_CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}")
+           if(CMAKE_CURRENT_LIST_DIR EQUAL madness_BINARY_DIR)
+               set(madness_MODULE_DIR "${madness_SOURCE_DIR}/cmake/modules")
+           else()
+               set(madness_MODULE_DIR "${madness_INSTALL_CMAKEDIR}/modules")
+           endif()
+           set(CMAKE_MODULE_PATH "${madness_MODULE_DIR};${CMAKE_MODULE_PATH}")
            get_filename_component(_tbb_root_dir "@TBB_INCLUDE_DIR@/.." DIRECTORY)
-           find_dependency(TBB MODULE REQUIRED COMPONENTS tbb PATHS "${_tbb_root_dir}" NO_DEFAULT_PATH)
+           find_dependency(TBB REQUIRED COMPONENTS tbb PATHS "${_tbb_root_dir}" NO_DEFAULT_PATH)
+           set(CMAKE_MODULE_PATH "${_orig_CMAKE_MODULE_PATH}")
        endif()
    endif()
 endif()
+
+########### LibXC ############
+if (@LIBXC_FOUND@)
+  #message("LIBXC_ROOT_DIR" "${LIBXC_ROOT_DIR}")
+  set(LIBXC_ROOT_DIR "@LIBXC_INCLUDE_DIRS@/..")
+  #message("LIBXC_ROOT_DIR" "${LIBXC_ROOT_DIR}")
+  set(LIBXC_INCLUDE_DIRS "${LIBXC_INCLUDE_DIRS}" ":" "@LIBXC_INCLUDE_DIRS@")
+  set(LIBXC_LIBRARIES "@LIBXC_LIBRARIES@")
+  set(LIBXC_FOUND 1)
+endif()
+  
+### LAPACK_LIBRARIES might include IMPORTED targets that are not globally available
+if (LAPACK_LIBRARIES MATCHES OpenMP::OpenMP_C AND NOT TARGET OpenMP::OpenMP_C)
+  find_package(OpenMP REQUIRED COMPONENTS C)
+endif()
+if (LAPACK_LIBRARIES MATCHES Threads::Threads AND NOT TARGET Threads::Threads)
+  find_package(Threads REQUIRED)
+endif()
+
+# Include library IMPORT targets
+if(NOT TARGET madness)
+  include("${CMAKE_CURRENT_LIST_DIR}/madness-targets.cmake")
+endif(NOT TARGET madness)
+
+# Set component variables
+foreach(_comp ${madness_FIND_COMPONENTS})
+  if(("${_comp}" STREQUAL madness AND TARGET madness) OR TARGET MAD${_comp})
+    set(madness_${_comp}_FOUND TRUE)
+    set(madness_${_comp}_LIBRARY MAD${_comp})
+  else()
+    set(madness_${_comp}_FOUND FALSE)
+    set(madness_${_comp}_LIBRARY "madness_${_comp}_LIBRARY-NOTFOUND")
+  endif()
+endforeach()
+
+# done
+set(madness_FOUND TRUE)
+check_required_components(madness)
+

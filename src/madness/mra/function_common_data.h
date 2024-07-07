@@ -188,7 +188,7 @@ namespace madness {
             if (found) {
                 acc->second+=time;
             } else {
-                map2.insert(std::pair<int,double>(-10,time));
+                [[maybe_unused]] auto&& [it, inserted] = map2.insert(std::pair<int,double>(-10,time));
             }
 
 
@@ -203,7 +203,7 @@ namespace madness {
             if (found) {
                 acc->second+=1.0;
             } else {
-                map2.insert(std::pair<int,long>(ilog,1));
+              [[maybe_unused]] auto&& [it, inserted] = map2.insert(std::pair<int,long>(ilog,1));
             }
         }
 

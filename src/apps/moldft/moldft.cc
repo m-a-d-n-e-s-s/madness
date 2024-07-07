@@ -37,7 +37,7 @@
 /// \defgroup moldft The molecular density functional and Hartree-Fock code
 
 #include<madness/chem/SCF.h>
-#include<madness/chem/commandlineparser.h>
+#include"madness/mra/commandlineparser.h"
 #include<madness/chem/molopt.h>
 #include <madness/world/worldmem.h>
 #include <madness/misc/info.h>
@@ -49,11 +49,11 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static inline int file_exists(const char *inpname) {
-    struct stat buffer;
-    int rc = stat(inpname, &buffer);
-    return (rc == 0);
-}
+// static inline int file_exists(const char *inpname) {
+//     struct stat buffer;
+//     int rc = stat(inpname, &buffer);
+//     return (rc == 0);
+// }
 
 #endif
 
@@ -161,9 +161,11 @@ int main(int argc, char **argv) {
                 } else {
                     MolecularEnergy E(world, calc);
                     double energy = E.value(calc.molecule.get_all_coords().flat()); // ugh!
-                    if ((world.rank() == 0) and (calc.param.print_level() > 0))
+                    if ((world.rank() == 0) and (calc.param.print_level() > 0)){
                         printf("final energy=%16.8f \n", energy);
-                    E.output_calc_info_schema();
+                        E.output_calc_info_schema();
+                    }
+
 
                     functionT rho = calc.make_density(world, calc.aocc, calc.amo);
                     functionT brho = rho;

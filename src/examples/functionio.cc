@@ -71,7 +71,7 @@
   \par Points of interest
   - Moving MADNESS functions to/from disk
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/functionio.cc>here</a>.
+  The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/functionio.cc>here</a>.
 
   \par Background
   MADNESS functions are parallel objects distributed across the whole

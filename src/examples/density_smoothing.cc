@@ -32,16 +32,15 @@
  */
 
 /*!
-  \file examples/nemo.cc
+  \file examples/density_smoothing.cc
   \brief solve the HF equations using numerical exponential MOs
 
   The source is
-  <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local
-  /trunk/src/apps/examples/nemo.cc>here</a>.
+  <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/density_smoothing.cc>here</a>.
 
  */
 #include "smooth.h"
-#include<madness/chem/commandlineparser.h>
+#include"madness/mra/commandlineparser.h"
 #include<madness/misc/info.h>
 
 

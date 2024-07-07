@@ -50,6 +50,7 @@ class OEP;
 class NuclearCorrelationFactor;
 class XCfunctional;
 class MacroTaskQ;
+class Molecule;
 
 typedef std::vector<real_function_3d> vecfuncT;
 
@@ -63,6 +64,8 @@ public:
 
     SCFOperatorBase() = default;
     SCFOperatorBase(std::shared_ptr<MacroTaskQ> taskq) : taskq(taskq) {}
+
+    virtual ~SCFOperatorBase() {}
 
     std::shared_ptr<MacroTaskQ> taskq=0;
 
@@ -115,9 +118,11 @@ public:
     };
 
     /// default ctor
-    Exchange() = default;
+//    Exchange() = default;
 
-    Exchange(std::shared_ptr<MacroTaskQ> taskq) : SCFOperatorBase<T, NDIM>(taskq) {}
+    Exchange(World& world, const double lo, const double thresh=FunctionDefaults<NDIM>::get_thresh());
+
+//    Exchange(std::shared_ptr<MacroTaskQ> taskq) : SCFOperatorBase<T, NDIM>(taskq) {}
 
     /// ctor with a conventional calculation
     Exchange(World& world, const SCF *calc, const int ispin);
@@ -140,7 +145,7 @@ public:
         return *this;
     }
 
-    Exchange& set_parameters(const vecfuncT& bra, const vecfuncT& ket, const double lo1);
+    Exchange& set_bra_and_ket(const vecfuncT& bra, const vecfuncT& ket);
 
     Function<T, NDIM> operator()(const Function<T, NDIM>& ket) const {
         vecfuncT vket(1, ket);
@@ -169,10 +174,9 @@ public:
     /// @param[in]  vket    vector of real_function_3d, the set of ket states
     /// @return K_ij
     Tensor<T> operator()(const vecfuncT& vbra, const vecfuncT& vket) const {
-        const auto bra_equiv_ket = &vbra == &vket;
         vecfuncT vKket = this->operator()(vket);
         World& world=vket[0].world();
-        auto result = matrix_inner(world, vbra, vKket, bra_equiv_ket);
+        auto result = matrix_inner(world, vbra, vKket);
         return result;
     }
 
@@ -366,6 +370,11 @@ public:
     /// default empty ctor
     Coulomb(World& world) : world(world) {};
 
+    /// default empty ctor
+    Coulomb(World& world, const double lo, const double thresh=FunctionDefaults<3>::get_thresh()) : world(world) {
+        reset_poisson_operator_ptr(lo,thresh);
+    };
+
     /// ctor with an SCF calculation providing the MOs and density
     Coulomb(World& world, const SCF* calc);
 
@@ -449,6 +458,9 @@ public:
     Nuclear(World& world, const SCF* calc);
 
     Nuclear(World& world, const NemoBase* nemo);
+
+    /// simple constructor takes a molecule, no nuclear correlation factor or core potentials
+    Nuclear(World& world, const Molecule& molecule);
 
     Nuclear(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf)
         : world(world), ncf(ncf) {}

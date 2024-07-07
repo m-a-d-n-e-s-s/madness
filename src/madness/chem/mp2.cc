@@ -50,6 +50,8 @@
 #include<madness/chem/correlationfactor.h>
 #include<madness/chem/nemo.h>
 #include<madness/chem/localizer.h>
+#include<madness/chem/ccpairfunction.h>
+#include<madness/chem/CCStructures.h>
 
 #include <iostream>
 
@@ -234,32 +236,18 @@ double MP2::value(const Tensor<double>& x) {
         return correlation_energy;
     }
 
-    // DEBUG: INTEGRAL TEST
-    for (int i = param.freeze(); i < hf->nocc(); ++i) {
-        for (int j = i; j < hf->nocc(); ++j) {
-            ElectronPair test = make_pair(i, j);
-            if (world.rank() == 0) {
-                std::cout << "\n-----------------------------------------\n";
-                std::cout << "<" << i << j << "|gQf|" << i << j << "> =" << test.ij_gQf_ij << std::endl;
-                std::cout << "<" << j << i << "|gQf|" << i << j << "> =" << test.ji_gQf_ij << std::endl;
-            }
-        }
-    }
-    // DEBUG END
-
     // compute the 0th order term and do some coarse pre-iterations
     for (int i = param.freeze(); i < hf->nocc(); ++i) {
         for (int j = i; j < hf->nocc(); ++j) {
             pairs(i, j) = make_pair(i, j);                // initialize
-            solve_residual_equations(pairs(i, j), param.econv() * 0.5,
-                                     param.dconv());
-            correlation_energy += pairs(i, j).e_singlet
-                                  + pairs(i, j).e_triplet;
+            solve_residual_equations(pairs(i, j), param.econv() * 0.5, param.dconv());
+            correlation_energy += pairs(i, j).e_singlet + pairs(i, j).e_triplet;
         }
     }
     if (world.rank() == 0) {
         printf("current decoupled mp2 energy %12.8f\n", correlation_energy);
     }
+    if (param.no_compute()) return correlation_energy;
 
     correlation_energy = 0.0;
     if (hf->get_calc().param.do_localize()) {
@@ -280,12 +268,13 @@ double MP2::value(const Tensor<double>& x) {
     return correlation_energy;
 }
 
+
 /// solve the residual equation for electron pair (i,j)
 void MP2::solve_residual_equations(ElectronPair& result,
                                    const double econv, const double dconv) const {
 
 
-    if (result.converged) {
+    if (result.converged or param.no_compute()) {
         result.print_energy();
         return;
     }
@@ -498,23 +487,6 @@ void MP2::increment(ElectronPair& pair, real_convolution_6d& green) {
     }
 }
 
-/// swap particles 1 and 2
-
-/// param[in]	f	a function of 2 particles f(1,2)
-/// return	the input function with particles swapped g(1,2) = f(2,1)
-real_function_6d MP2::swap_particles(const real_function_6d& f) const {
-
-    // this could be done more efficiently for SVD, but it works decently
-    std::vector<long> map(6);
-    map[0] = 3;
-    map[1] = 4;
-    map[2] = 5;    // 2 -> 1
-    map[3] = 0;
-    map[4] = 1;
-    map[5] = 2;    // 1 -> 2
-    return mapdim(f, map);
-}
-
 double MP2::asymmetry(const real_function_6d& f, const std::string s) const {
     return 0.0;
     const real_function_6d ff = swap_particles(f);
@@ -525,13 +497,6 @@ double MP2::asymmetry(const real_function_6d& f, const std::string s) const {
     return diff;
 }
 
-void MP2::test(const std::string filename) {
-    if (world.rank() == 0)
-        printf("starting coupling at time %8.1fs\n", wall_time());
-    if (world.rank() == 0)
-        printf("ending coupling at time %8.1fs\n", wall_time());
-}
-
 /// compute the matrix element <ij | g12 Q12 f12 | phi^0>
 
 /// scales quartically. I think I can get this down to cubically by
@@ -540,6 +505,7 @@ void MP2::test(const std::string filename) {
 /// @return 	the energy <ij | g Q f | kl>
 double MP2::compute_gQf(const int i, const int j, ElectronPair& pair) const {
 
+    CCTimer t1(world,"gQf old");
     // for clarity of notation
     const int k = pair.i;
     const int l = pair.j;
@@ -618,6 +584,33 @@ double MP2::compute_gQf(const int i, const int j, ElectronPair& pair) const {
     const double e = a - o1a - o2a + o12;
     if (world.rank() == 0)
         printf("<%d%d | g Q12 f          | %d%d>  %12.8f\n", i, j, k, l, e);
+
+    print("gQf old",t1.reset());
+
+    CCTimer timer(world,"gQf with ccpairfunction");
+    CCConvolutionOperator<double,3>::Parameters param;
+    auto f=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_F12,param);
+    auto g=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,param);
+//    print("operator constructor",timer.reset());
+
+    CCPairFunction<double,6> fij(f,ket_i,ket_j);
+    CCPairFunction<double,6> gij(g,bra_k,bra_l);
+//    CCPairFunction ij({psi},{psi});
+    std::vector<CCPairFunction<double,6>> vfij={fij};
+    std::vector<CCPairFunction<double,6>> vgij={gij};
+//    std::vector<CCPairFunction> vij={ij};
+//    print("g/f ij constructor",timer.reset());
+
+//    StrongOrthogonalityProjector<double,3> SO(world);
+//    SO.set_spaces({psi},{psi},{psi},{psi});
+    std::vector<CCPairFunction<double,6>> Qfij=Q12(vfij);
+//    std::vector<CCPairFunction> Qgij=Q12(vgij);
+//    print("SO application",timer.reset());
+
+    double result1=inner(vgij,Qfij);
+    print("inner",timer.reset());
+
+    print("<ij | g (Q f | ij>)",result1);
 
     return e;
 }
@@ -1150,7 +1143,8 @@ real_function_6d MP2::apply_exchange_vector(const real_function_6d& phi,
 	// prepare all constituent functions
 	std::vector<real_function_3d> ket=copy(world,hf->nemos());
 	std::vector<real_function_3d> bra=copy(world,hf->R2orbitals());
-	phi.get_impl()->make_redundant(false);
+    phi.change_tree_state(redundant,false);
+//	phi.get_impl()->make_redundant(false);
 	make_redundant(world,ket,false);
 	make_redundant(world,bra,false);
 	world.gop.fence();
@@ -1405,59 +1399,59 @@ real_function_6d MP2::multiply_with_0th_order_Hamiltonian(
     real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2 * eps), lo,
                                                 bsh_eps);
     op_mod.modified() = true;
-	real_function_6d vphi = CompositeFactory<double, 6, 3>(world).ket(copy(f)).V_for_particle1(
+    real_function_6d vphi = CompositeFactory<double, 6, 3>(world).ket(copy(f)).V_for_particle1(
             copy(v_local)).V_for_particle2(copy(v_local));
     vphi.fill_tree(op_mod);
     vphi.print_size("vphi: local parts");
 
     // the part with the derivative operators: U1
-	std::vector<real_function_6d> Drhs(6);
+    std::vector<real_function_6d> Drhs(6);
     for (int axis = 0; axis < 6; ++axis) {
-    	real_derivative_6d D = free_space_derivative<double, 6>(world,axis);
-    	Drhs[axis] = D(f).truncate();
+        real_derivative_6d D = free_space_derivative<double, 6>(world,axis);
+        Drhs[axis] = D(f).truncate();
     }
 //	const std::vector<real_function_6d> Drhs = truncate(grad(f));
 
-	std::vector<real_function_3d> U1_6d;
-	for (int axis = 0; axis < 6; ++axis) {
+    std::vector<real_function_3d> U1_6d;
+    for (int axis = 0; axis < 6; ++axis) {
         // note integer arithmetic
-		U1_6d.push_back(copy(hf->nemo_ptr->ncf->U1(axis % 3)));
-	}
+        U1_6d.push_back(copy(hf->nemo_ptr->ncf->U1(axis % 3)));
+    }
 
-        double tight_thresh = std::min(FunctionDefaults<6>::get_thresh(), 1.e-4);
-	std::vector<real_function_6d> x(6);
-	for (int axis = 0; axis < 6; ++axis) {
+    double tight_thresh = std::min(FunctionDefaults<6>::get_thresh(), 1.e-4);
+    std::vector<real_function_6d> x(6);
+    for (int axis = 0; axis < 6; ++axis) {
 
         if (axis / 3 + 1 == 1) {
-			x[axis] =CompositeFactory<double, 6, 3>(world).ket(Drhs[axis])
-						.V_for_particle1(U1_6d[axis]).thresh(tight_thresh);
+            x[axis] =CompositeFactory<double, 6, 3>(world).ket(Drhs[axis])
+                    .V_for_particle1(U1_6d[axis]).thresh(tight_thresh);
 
         } else if (axis / 3 + 1 == 2) {
-			x[axis] =CompositeFactory<double, 6, 3>(world).ket(Drhs[axis])
-						.V_for_particle2(U1_6d[axis]).thresh(tight_thresh);
-		}
+            x[axis] =CompositeFactory<double, 6, 3>(world).ket(Drhs[axis])
+                    .V_for_particle2(U1_6d[axis]).thresh(tight_thresh);
         }
-	world.gop.fence();
-	for (auto xx : x) {
-		CompositeFunctorInterface<double, 6, 3>* func=
-				dynamic_cast<CompositeFunctorInterface<double, 6, 3>* >(&(*xx.get_impl()->get_functor()));
-		func->make_redundant(false);
-	}
-	world.gop.fence();
-	for (auto xx : x) xx.fill_tree(op_mod,false);
-	world.gop.fence();
-	print_size(world,x,"x after fill_tree");
+    }
+    world.gop.fence();
+    for (auto xx : x) {
+        CompositeFunctorInterface<double, 6, 3>* func=
+                dynamic_cast<CompositeFunctorInterface<double, 6, 3>* >(&(*xx.get_impl()->get_functor()));
+        func->make_redundant(false);
+    }
+    world.gop.fence();
+    for (auto xx : x) xx.fill_tree(op_mod,false);
+    world.gop.fence();
+    print_size(world,x,"x after fill_tree");
 
-	set_thresh(world,x,FunctionDefaults<6>::get_thresh());
-	for (auto xx : x) vphi += xx;
-        vphi.truncate().reduce_rank();
+    set_thresh(world,x,FunctionDefaults<6>::get_thresh());
+    for (auto xx : x) vphi += xx;
+    vphi.truncate().reduce_rank();
 
     vphi.print_size("(U_nuc + J) |ket>:  made V tree");
     END_TIMER(world, "apply (U + J) |ket>");
 
     // and the exchange
     START_TIMER(world);
-	if (not param.do_oep()) vphi = (vphi - K(f, i == j)).truncate().reduce_rank();
+    if (not param.do_oep()) vphi = (vphi - K(f, i == j)).truncate().reduce_rank();
     vphi.print_size("(U_nuc + J - K) |ket>:  made V tree");
     END_TIMER(world, "apply K |ket>");
 

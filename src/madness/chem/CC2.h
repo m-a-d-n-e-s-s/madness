@@ -12,6 +12,7 @@
 #include<madness/chem/SCF.h>
 #include<madness/chem/nemo.h>
 #include<madness/chem/CCPotentials.h>
+#include<madness/chem/mp3.h>
 #include <madness/mra/operator.h>
 #include <madness/mra/mra.h>
 #include <madness/mra/vmra.h>
@@ -24,15 +25,6 @@ namespace madness {
 
 class CC2 : public OptimizationTargetInterface, public QCPropertyInterface {
 public:
-
-//    CC2(World& world_, const CCParameters& param, const std::shared_ptr<Nemo> nemo_)
-//            : world(world_),
-//              parameters(param),
-//              nemo(nemo_),
-//              CCOPS(world, nemo, parameters),
-//              output(CCOPS.output) {
-//        parameters.sanity_check(world);
-//    }
 
     CC2(World& world_, const commandlineparser& parser, const std::shared_ptr<Nemo> nemo_)
             : world(world_),
@@ -51,7 +43,7 @@ public:
 
         FunctionDefaults<3>::set_thresh(parameters.thresh_3D());
         FunctionDefaults<6>::set_thresh(parameters.thresh_6D());
-        // Make shure that k is the same in 3d and 6d functions
+        // Make sure that k is the same in 3d and 6d functions
         FunctionDefaults<6>::set_k(FunctionDefaults<3>::get_k());
         // by default SCF sets the truncate_mode to 1
         FunctionDefaults<3>::set_truncate_mode(3);
@@ -68,9 +60,10 @@ public:
         parameters.sanity_check(world);
 
         tdhf.reset(new TDHF(world,parser,nemo));
-        tdhf->parameters.print("response","end");
 
     }
+
+    virtual ~CC2() {}
 
 
     double value() {
@@ -126,7 +119,7 @@ public:
     /// The World
     World& world;
     /// Structure holds all the parameters used in the CC2 calculation
-    const CCParameters parameters;
+    CCParameters parameters;
     /// The SCF Calculation
     std::shared_ptr<Nemo> nemo;
     /// The excited state cis calculation
@@ -139,12 +132,15 @@ public:
     /// solve the CC2 ground state equations, returns the correlation energy
     void solve();
 
+
     std::vector<CC_vecfunction>
     solve_ccs();
 
-    /// solve the MP2 equations (uncoupled -> Canonical Orbitals)
-    double
-    solve_mp2(Pairs<CCPair>& doubles);
+    double compute_mp3(const Pairs<CCPair>& mp2pairs) const {
+        MP3 mp3(CCOPS);
+        double mp3_contribution=mp3.mp3_energy_contribution_macrotask_driver(mp2pairs);
+        return mp3_contribution;
+    }
 
     double
     solve_cc2(CC_vecfunction& tau, Pairs<CCPair>& u);
@@ -206,7 +202,7 @@ public:
             old_singles(tmp.first).function = copy(tmp.second.function);
 
         // KAIN solver
-        typedef allocator<double, 3> allocT;
+        typedef vector_function_allocator<double, 3> allocT;
         typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
         allocT alloc(world, singles.size());
         solverT solver(allocT(world, singles.size()));
@@ -310,9 +306,9 @@ public:
             // print information
             if (world.rank() == 0) std::cout << "\n\n-----Results of current interation:-----\n";
             if (world.rank() == 0)
-                std::cout << "\nName: ||" << singles.name() << "||, ||GV" << singles.name() << ", ||residual||" << "\n";
+                std::cout << "\nName: ||" << singles.name(0) << "||, ||GV" << singles.name(0) << ", ||residual||" << "\n";
             if (world.rank() == 0)
-                std::cout << singles.name() << ": " << std::scientific << std::setprecision(parameters.output_prec())
+                std::cout << singles.name(0) << ": " << std::scientific << std::setprecision(parameters.output_prec())
                           << sqrt(R2xinnerx.sum()) << ", " << sqrt(R2GVinnerGV.sum()) << ", " << sqrt(R2rinnerr.sum())
                           << "\n----------------------------------------\n";
             for (size_t i = 0; i < GV.size(); i++) {
@@ -386,7 +382,6 @@ public:
         else if (ctype == CT_LRCC2) update_reg_residues_ex(singles2, singles, ex_doubles);
 
         //CCOPS.plot(singles);
-        singles.save_functions();
         if (no_change) output("Change of Singles was below  = " + std::to_string(parameters.dconv_3D()) + "!");
         return no_change;
     }
@@ -412,28 +407,6 @@ public:
     bool
     iterate_lrcc2_pairs(const CC_vecfunction& cc2_s, const Pairs<CCPair>& cc2_d, const CC_vecfunction lrcc2_s,
                         Pairs<CCPair>& lrcc2_d);
-
-    bool update_constant_part_mp2(CCPair& pair) {
-        MADNESS_ASSERT(pair.ctype == CT_MP2);
-        MADNESS_ASSERT(pair.type == GROUND_STATE);
-        if (parameters.no_compute_mp2_constantpart()) {
-            pair.constant_part=real_factory_6d(world);
-            load(pair.constant_part,pair.name()+"_const");
-        }
-        if (pair.constant_part.is_initialized()) return false;
-
-        // make screening Operator
-        real_convolution_6d Gscreen = BSHOperator<6>(world, sqrt(-2.0 * CCOPS.get_epsilon(pair.i, pair.j)),
-                                                     parameters.lo(), parameters.thresh_bsh_6D());
-        Gscreen.modified() = true;
-
-        const CCFunction& moi = CCOPS.mo_ket(pair.i);
-        const CCFunction& moj = CCOPS.mo_ket(pair.j);
-
-        pair.constant_part = CCOPS.make_constant_part_mp2(moi, moj, &Gscreen);
-        save(pair.constant_part, pair.name() + "_const");
-        return true;
-    }
 
     bool update_constant_part_cc2_gs(const CC_vecfunction& tau, CCPair& pair) {
         MADNESS_ASSERT(pair.ctype == CT_CC2);
@@ -514,9 +487,10 @@ public:
 
     double solve_mp2_coupled(Pairs<CCPair> &doubles);
 
-    bool check_core_valence_separation() const;
+    bool check_core_valence_separation(const Tensor<double>& fmat) const;
 
-    void enforce_core_valence_separation();
+    /// @return     the new fock matrix
+    Tensor<double> enforce_core_valence_separation(const Tensor<double>& fmat);
 };
 
 

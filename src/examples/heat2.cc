@@ -40,7 +40,7 @@
 \defgroup heatex2 Evolve in time 3D heat equation with a linear term
 \ingroup examples
 
-The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/heat2.cc>here</a>.
+The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/heat2.cc>here</a>.
 
 \par Points of interest
   - application of a function of a function to exponentiate the potential
@@ -147,7 +147,7 @@ int main(int argc, char** argv) {
     real_tensor expnt(1), coeff(1);
     expnt[0] = 1.0/(4.0*c*tstep*0.5);
     coeff[0] = pow(4.0*constants::pi*c*tstep*0.5,-1.5);
-    real_convolution_3d G(world, coeff, expnt);
+    real_convolution_3d G(world, coeff, expnt, 1.e-4, 1.e-4);
 
     // Propagate forward 50 time steps
     real_function_3d u = u0;

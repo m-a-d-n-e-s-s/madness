@@ -33,19 +33,8 @@
   \file gstart_env_var.dox
   \brief Getting started with MADNESS: MADNESS environment variables.
   \addtogroup gstart_env_var
-  \todo Verify that this information isn't stale. It's imported from a 2010 document.
 
-\par Environment variables
-
-- `MAD_BIND` -- Specifies the binding of threads to physical processors. On both the Cray-XT and the IBM BG/P the default value should be used. On other machines there is sometimes a small performance gain to be had from forcing threads to use the same processor, thereby improving cache locality. The value is a character string containing three integers in the range. The first indicates the core to which the main thread should be bound, the second the core for the communication thread, and the third the core for first thread in the pool. Subsequent threads use successively higher cores. A value of -1 indicates "do not bind". The default on the XT is `"1 0 2"` and on the BG/P `"-1 -1 -1"`.
-
-- `MAD_NUM_THREADS` -- Specifies the total number of threads to be used by each MPI process. If running with just one MPI processes, there will be this many threads executing the application code so the minimum value is one. If running with more than one MPI processes, one thread is dedicated to communication so the minimum value is two. The default value is the number of processors detected (using this default is the only way presently to have different numbers of threads on different nodes).
-
-- `MRA_DATA_DIR` -- Specifies the directory that contains the MADNESS data files (notably the autocorrelation coefficients, two-scale coefficients, and Gauss-Legendre points and weights). Sometimes the compiled-in default must be
-overridden. Only MPI process zero will use this.
-.
-
-\todo Scott, Robert, Justus, someone. This had included a reference to the deprecated POOL_NTHREAD. Seeing as it was deprecated when the document was written in 2009/2010, I just deleted the line. Should we add it back it?
+This section is superseded by the <a href="https://madness.readthedocs.io/en/latest">MADNESS readthedocs</a>.
 
 Previous: \ref gstart_think_madness
 */

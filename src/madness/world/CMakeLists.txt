@@ -12,14 +12,14 @@ set(MADWORLD_HEADERS
     text_fstream_archive.h worlddc.h mem_func_wrapper.h taskfn.h group.h 
     dist_cache.h distributed_id.h type_traits.h function_traits.h stubmpi.h 
     bgq_atomics.h binsorter.h parsec.h meta.h worldinit.h thread_info.h
-    cloud.h test_utilities.h timing_utilities.h)
+    cloud.h test_utilities.h timing_utilities.h units.h)
 set(MADWORLD_SOURCES
     madness_exception.cc world.cc timers.cc future.cc redirectio.cc
     archive_type_names.cc debug.cc print.cc worldmem.cc worldrmi.cc
     safempi.cc worldpapi.cc worldref.cc worldam.cc worldprofile.cc thread.cc 
     world_task_queue.cc worldgop.cc deferred_cleanup.cc worldmutex.cc
     binary_fstream_archive.cc text_fstream_archive.cc lookup3.c worldmpi.cc 
-    group.cc parsec.cc archive.cc)
+    group.cc parsec.cc archive.cc units.cc)
 
 if(MADNESS_ENABLE_CEREAL)
     set(MADWORLD_HEADERS ${MADWORLD_HEADERS} "cereal_archive.h")
@@ -82,10 +82,9 @@ if (WORLD_GET_DEFAULT_DISABLED)
   target_compile_definitions(${targetname} PUBLIC -DMADNESS_DISABLE_WORLD_GET_DEFAULT=1)
 endif (WORLD_GET_DEFAULT_DISABLED)
 
-# recent PaRSEC does export its targets
-#if (TARGET PaRSEC::parsec)
-#  add_subproject_parsec_target_to_export_set("madness" "world")
-#endif()
+# record the list of dependencies to be used in madness-config.cmake
+get_target_property(MADNESS_MADWORLD_INTERFACE_LINK_LIBRARIES MADworld INTERFACE_LINK_LIBRARIES)
+set(MADNESS_MADWORLD_INTERFACE_LINK_LIBRARIES "${MADNESS_MADWORLD_INTERFACE_LINK_LIBRARIES}" CACHE INTERNAL "public library dependencies of MADworld" FORCE)
 
 if(BUILD_TESTING)
 
@@ -99,14 +98,29 @@ if(BUILD_TESTING)
 
   add_unittests(world "${WORLD_TEST_SOURCES}" "MADworld;MADgtest" "unittests;short")
 
-  find_package(CUDA)
-  if (TARGET PaRSEC::parsec AND CUDA_FOUND)
-    CMAKE_PUSH_CHECK_STATE()
-    STRING(REPLACE "-std=c++1z" "" _tmp "${CMAKE_CXX_FLAGS}")
-    SET(CMAKE_CXX_FLAGS "${_tmp}")
-    cuda_add_library(MADtest_cuda hello_world.cu EXCLUDE_FROM_ALL)
-    CMAKE_POP_CHECK_STATE()
-    target_link_libraries(test_world PRIVATE MADtest_cuda)
+  if (TARGET PaRSEC::parsec AND PARSEC_HAVE_CUDA)
+    include(CheckLanguage)
+    check_language(CUDA)
+    if(CMAKE_CUDA_COMPILER)
+      # cmake 3.17 decouples C++ and CUDA standards, see https://gitlab.kitware.com/cmake/cmake/issues/19123
+      # cmake 3.18 knows that CUDA 11 provides cuda_std_17
+      cmake_minimum_required(VERSION 3.18.0)
+      set(CMAKE_CUDA_STANDARD 17)
+      set(CMAKE_CUDA_EXTENSIONS OFF)
+      set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+      set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+      # N.B. need relaxed constexpr for std::complex
+      # see https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#constexpr-functions%5B/url%5D:
+      if (DEFINED CMAKE_CUDA_FLAGS)
+        set(CMAKE_CUDA_FLAGS "--expt-relaxed-constexpr ${CMAKE_CUDA_FLAGS}")
+      else()
+        set(CMAKE_CUDA_FLAGS "--expt-relaxed-constexpr")
+      endif()
+
+      enable_language(CUDA)
+      add_library(MADtest_cuda hello_world.cu)
+      target_link_libraries(test_world PRIVATE MADtest_cuda)
+    endif(CMAKE_CUDA_COMPILER)
   endif ()
 
   set_tests_properties(madness/test/world/test_googletest/run PROPERTIES WILL_FAIL TRUE)

@@ -33,6 +33,7 @@ namespace madness {
         size_t num_states;  // Num. of resp. states
         size_t num_orbitals;// Num. of ground states
         response_matrix x;
+        std::list<size_t> active;
 
         // Member functions
     public:
@@ -42,7 +43,13 @@ namespace madness {
    * num_orbitals(0)
    * x() default constructor of std::vector
    */
-        response_space() : num_states(0), num_orbitals(0), x() {}
+        response_space() : num_states(0), num_orbitals(0), x(), active(0) {}
+
+        void reset_active() {
+            active.resize(num_states);
+            size_t i{0};
+            for (auto &ai: active) { ai = i++; }
+        }
 
         // Copy constructor
         /**
@@ -53,9 +60,7 @@ namespace madness {
    * @param y
    */
         response_space(const response_space &y)
-                : num_states(y.size()),
-                  num_orbitals(y.size_orbitals()),
-                  x(y.x) {}
+            : num_states(y.size()), num_orbitals(y.size_orbitals()), x(y.x), active(y.active) {}
 
         // assignment
         // Copy assignment should copy the members of y and leave y Unchanged
@@ -66,12 +71,17 @@ namespace madness {
                 this->num_states = y.size();
                 this->num_orbitals = y.size_orbitals();
                 this->x = y.x;
+                this->active = y.active;
                 if (x.size() != num_states) { x.resize(num_states); }
-                World &world = y[0][0].world();
-                // print("perhaps this is the problem");
-                std::transform(y.x.begin(), y.x.end(), x.begin(),
-                               [&](auto yi) { return madness::copy(world, yi); });
             }
+            return *this;//
+        }
+
+        response_space &operator=(const response_matrix &y) {
+            //
+            this->num_states = y.size();
+            this->num_orbitals = y[0].size();
+            this->x = y;
             return *this;//
         }
         // Initialize functions to zero
@@ -87,13 +97,11 @@ namespace madness {
    * @param num_orbitals
    */
         response_space(World &world, size_t num_states, size_t num_orbitals)
-                : num_states(num_states),
-                  num_orbitals(num_orbitals),
-                  x(response_matrix(num_states)) {
-            for (auto &state: x) {
-                state = zero_functions<double, 3>(world, static_cast<int>(num_orbitals), false);
-            }
-            world.gop.fence();
+            : num_states(num_states), num_orbitals(num_orbitals), x(response_matrix(num_states)),
+              active(num_states) {
+            for (auto &state: x) { state = vector_real_function_3d(num_orbitals); }
+            reset_active();
+            //world.gop.fence();
         }
         // Conversion from respones_matrix
         /**
@@ -102,111 +110,134 @@ namespace madness {
    * @param x
    */
         explicit response_space(const response_matrix &x)
-                : num_states(x.size()),
-                  num_orbitals(x[0].size()),
-                  x(x) {}
+            : num_states(x.size()), num_orbitals(x[0].size()), x(x), active(num_states) {
+            reset_active();
+        }
 
         // Determines if two ResponseFunctions are the same size
         friend bool same_size(const response_space &a, const response_space &b) {
             return ((a.size() == b.size()) && (a.size_orbitals() == b.size_orbitals()));
         }
+        // Returns a deep copy
+        [[nodiscard]] response_space copy() const {
+            World &world = x[0][0].world();
+            response_space result(*this);
+            std::transform(x.begin(), x.end(), result.x.begin(),
+                           [&world](const vector_real_function_3d &xi) { return madness::copy(world, xi, false); });
+            world.gop.fence();
+            return result;
+        }
+        [[nodiscard]] response_space copy(const std::shared_ptr<WorldDCPmapInterface<Key<3>>> &pmap,
+                                          bool fence = false) const {
+            auto &world = x[0][0].world();
+            response_space result(*this);
+            std::transform(x.begin(), x.end(), result.x.begin(),
+                           [&](const auto &xi) { return madness::copy(world, xi, pmap, fence); });
+            world.gop.fence();
+            return result;
+        }
 
-        // 1D accessor for x
-        // std::vector<Function<double, 3>> &operator[](int64_t i) { return x[i]; }
-        /**
-   * @brief access vector of functions with std::vector.at()
-   *
-   * @param i
-   * @return vector_real_function_3d&
-   */
         vector_real_function_3d &operator[](size_t i) { return x.at(i); }
-
-        /**
-   * @brief access vector of functions const
-   *
-   * @param i
-   * @return const vector_real_function_3d&
-   */
         const vector_real_function_3d &operator[](size_t i) const { return x.at(i); }
 
-        // KAIN must have this
-        // element wise addition.  we add each vector separately
-        // addition c = this.x+b
-        // we need a new function
-        /**
-   * @brief elementwise addition of response_space
-   *
-   * @param rhs_y
-   * @return response_space
-   */
+        friend auto
+        inplace_unary_apply(response_space &A,
+                            const std::function<void(vector_real_function_3d &)> &func) {
+            auto &world = A.x[0][0].world();
+            for (auto &i: A.active) { func(A.x[i]); }
+            world.gop.fence();
+        }
+
+        friend auto oop_unary_apply(
+                const response_space &A,
+                const std::function<vector_real_function_3d(const vector_real_function_3d &)> &func)
+                -> response_space {
+            auto result = A.copy();
+            auto &world = result.x[0][0].world();
+            for (auto &i: result.active) { result.x[i] = func(A.x[i]); }
+            world.gop.fence();
+            return result;
+        }
+
+        friend auto
+        binary_apply(const response_space &A, const response_space &B,
+                     const std::function<vector_real_function_3d(vector_real_function_3d,
+                                                                 vector_real_function_3d)> &func)
+                -> response_space {
+            MADNESS_ASSERT(same_size(A, B));
+
+            response_space result = A.copy();// create zero_functions
+            auto &world = result.x[0][0].world();
+
+            for (const auto &i: result.active) {
+                auto ax = result.x[i];
+                auto bx = B.x[i];
+                result.x[i] = func(ax, bx);
+            }
+            world.gop.fence();
+            return result;
+        }
+
+        template<class T>
+        friend auto binary_inplace(response_space &A, const response_space &B, const T &func) {
+            MADNESS_ASSERT(same_size(A, B));
+            auto &world = A.x[0][0].world();
+            for (const auto &i: A.active) {
+                auto ax = A.x[i];
+                auto bx = B.x[i];
+                func(ax, bx);
+            }
+            world.gop.fence();
+
+            return A;
+        }
+
         response_space operator+(const response_space &rhs_y) const {
+
             MADNESS_ASSERT(size() > 0);
             MADNESS_ASSERT(same_size(*this, rhs_y));// assert that same size
 
-            World &world = this->x[0][0].world();
-
-            response_space result(world, num_states, num_orbitals);// create zero_functions
-
-            for (size_t i = 0; i < num_states; i++) { result[i] = add(world, x[i], rhs_y[i]); }
+            auto result = binary_apply(*this, rhs_y, [&](auto xi, auto vi) {
+                return gaxpy_oop(1.0, xi, 1.0, vi, false);
+            });
             return result;
         }
-        /*
-  friend response_space operator+(const response_space& a,
-                                  const response_space& b) {
-    return a.operator+(b);
-  }
-  */
 
-        /**
-   * @brief elementwise subtraction of response space
-   *
-   * @param rhs_y
-   * @return response_space
-   */
         response_space operator-(const response_space &rhs_y) const {
             MADNESS_ASSERT(size() > 0);
             MADNESS_ASSERT(same_size(*this, rhs_y));// assert that same size
-
-            World &world = this->x[0][0].world();
-
-            response_space result(world, num_states, num_orbitals);// create zero_functions
-
-            for (size_t i = 0; i < num_states; i++) {
-                result[i] = sub(world, x[i], rhs_y[i], false);
-            }
+            auto result = binary_apply(*this, rhs_y, [&](auto xi, auto vi) {
+                return gaxpy_oop(1.0, xi, -1.0, vi, false);
+            });
             return result;
         }
 
-        /**
-   * @brief multiplication by scalar
-   *
-   * @param y
-   * @param a
-   * @return response_space
-   */
-        friend response_space operator*(response_space y, double a) {
+        friend response_space operator*(const response_space &y, double a) {
             World &world = y.x.at(0).at(0).world();
-            response_space result = y.copy();// deep copy
-
-            for (unsigned int i = 0; i < y.num_states; i++) { madness::scale(world, result[i], a); }
-
+            auto multiply_scalar = [&](vector_real_function_3d &vi) {
+                madness::scale(world, vi, a, false);
+            };
+            auto result = y.copy();
+            inplace_unary_apply(result, multiply_scalar);
             return result;
         }
 
-        friend response_space operator*(double a, response_space y) {
+        friend response_space operator*(double a, response_space &y) {
             World &world = y.x.at(0).at(0).world();
-            response_space result = y.copy();// deep copy
-
-            for (unsigned int i = 0; i < y.num_states; i++) { madness::scale(world, result[i], a); }
-
+            auto multiply_scalar = [&](vector_real_function_3d &vi) {
+                madness::scale(world, vi, a, false);
+            };
+            auto result = y.copy();
+            inplace_unary_apply(result, multiply_scalar);
             return result;
         }
 
         response_space &operator*=(double a) {
             World &world = this->x[0][0].world();
-
-            for (size_t i = 0; i < num_states; i++) { madness::scale(world, this->x[i], a); }
-
+            auto multiply_scalar = [&](vector_real_function_3d &vi) {
+                madness::scale(world, vi, a, false);
+            };
+            inplace_unary_apply(*this, multiply_scalar);
             return *this;
         }
 
@@ -214,14 +245,10 @@ namespace madness {
         // g[i][j] = x[i][j] * f
         friend response_space operator*(const response_space &a, const Function<double, 3> &f) {
             World &world = a.x.at(0).at(0).world();
-            response_space result(world, a.num_states, a.num_orbitals);// create zero_functions
-
-            for (unsigned int i = 0; i < a.num_states; i++) {
-                // Using vmra.h funciton
-                result[i] = mul(f.world(), f, a[i]);
-            }
-
-            return result;
+            auto multiply_scalar_function = [&](const vector_real_function_3d &vi) {
+                return mul(world, f, vi, false);
+            };
+            return oop_unary_apply(a, multiply_scalar_function);
         }
 
         // Scaling all internal functions by an external function
@@ -233,61 +260,41 @@ namespace madness {
 
         response_space operator*(const Function<double, 3> &f) {
             World &world = x[0][0].world();
-            response_space result(world, num_states, num_orbitals);// create zero_functions
 
-            for (size_t i = 0; i < num_states; i++) {
-                // Using vmra.h funciton
-                result[i] = mul(f.world(), f, x[i]);
-            }
+            auto multiply_scalar_function = [&](const vector_real_function_3d &vi) {
+                return mul(world, f, vi, false);
+            };
 
-            return result;
+            return oop_unary_apply(*this, multiply_scalar_function);
         }
 
         friend response_space operator*(const response_space &a, const Tensor<double> &b) {
             MADNESS_ASSERT(a.size() > 0);
             MADNESS_ASSERT(!a[0].empty());
             World &world = a[0][0].world();
-            response_space result(world, a.num_states, a.num_orbitals);
 
-            for (unsigned int i = 0; i < a.size(); i++) {
-                result[i] = transform(world, a[i], b, false);
-            }
-
-            return result;
+            auto response_transform = [&](const vector_real_function_3d &vi) {
+                return transform(world, vi, b, false);
+            };
+            return oop_unary_apply(a, response_transform);
         }
 
         // KAIN must have this
         response_space &operator+=(const response_space &b) {
             MADNESS_ASSERT(same_size(*this, b));
-            World &world = x[0][0].world();
-            for (size_t i = 0; i < num_states; i++) { this->x[i] = add(world, this->x[i], b[i]); }
+            auto &world = x[0][0].world();
+
+            auto a_plus_equal_b = [&](vector_real_function_3d &a,
+                                      const vector_real_function_3d &g) {
+                gaxpy(world, 1.0, a, 1.0, g, false);
+            };
+            binary_inplace(*this, b, a_plus_equal_b);
+            return *this;
+
 
             return *this;
         }
 
-        // Returns a deep copy
-        response_space copy() const {
-            response_space result(x[0][0].world(), num_states, num_orbitals);
-            World &world = x[0][0].world();
-
-
-            std::transform(x.begin(), x.end(), result.x.begin(),
-                           [&world](auto xi) { return madness::copy(world, xi); });
-
-
-            return result;
-        }
-
-        response_space copy(const std::shared_ptr<WorldDCPmapInterface<Key<3> > > &pmap,
-                            bool fence = false) const {
-            response_space result(x[0][0].world(), num_states, num_orbitals);
-
-            for (size_t i = 0; i < num_states; i++) {
-                result.x[i] = madness::copy(x[0][0].world(), x[i], pmap, fence);
-            }
-
-            return result;
-        }
 
         // Mimicking std::vector with these 4
         void push_back(const vector_real_function_3d &f) {
@@ -325,7 +332,7 @@ namespace madness {
 
         const auto begin() const { return x.begin(); }
 
-        const auto end() const { return x.end(); }
+        [[nodiscard]] const auto end() const { return x.end(); }
 
         size_t size() const { return num_states; }
 
@@ -347,13 +354,13 @@ namespace madness {
         void compress_rf() {
             //for (size_t k = 0; k < num_states; k++) { compress(x[0][0].world(), x[k], true); }
             auto &world = x[0][0].world();
-            std::for_each(x.begin(), x.end(), [&](auto xi) { compress(world, xi, true); });
+            std::for_each(x.begin(), x.end(), [&](auto &xi) { compress(world, xi, true); });
         }
 
         void reconstruct_rf() {
             //for (size_t k = 0; k < num_states; k++) { reconstruct(x[0][0].world(), x[k], true); }
             auto &world = x[0][0].world();
-            std::for_each(x.begin(), x.end(), [&](auto xi) { reconstruct(world, xi, true); });
+            std::for_each(x.begin(), x.end(), [&](auto &xi) { reconstruct(world, xi, true); });
         }
 
         void truncate_rf() {
@@ -367,7 +374,7 @@ namespace madness {
 
         void truncate_rf(double tol) {
             auto &world = x[0][0].world();
-            std::for_each(x.begin(), x.end(), [&](auto xi) { truncate(world, xi, tol, true); });
+            std::for_each(x.begin(), x.end(), [&](auto &xi) { truncate(world, xi, tol, true); });
             /*
             for (size_t k = 0; k < num_states; k++) { truncate(x[0][0].world(), x[k], tol, true); }
              */

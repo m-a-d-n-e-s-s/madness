@@ -48,17 +48,17 @@ public:
     /// corresponding vector components may be left empty.
     ///
     /// Note the additional quantities \f$ \zeta \f$ and \f$ \chi \f$, which are defined as
-    /// \f$
-    /// \rho = exp(\zeta)
-    /// \f$
+    /// \f[
+    /// \rho = \exp(\zeta)
+    /// \f]
     /// and thus the derivative of rho is given by
-    /// \f$
-    /// \nabla_x\rho = exp(\zeta)\nabla_x\zeta = \rho \nabla_x\zeta
-    /// \f$
+    /// \f[
+    /// \nabla_x\rho = \exp(\zeta)\nabla_x\zeta = \rho \nabla_x\zeta
+    /// \f]
     /// The reduced gradients \sigma may then be expressed as
-    /// \f$
+    /// \f[
     ///   \sigma = |\nabla\rho|^2 = |\rho|^2 |\nabla\zeta|^2 = |\rho|^2 \chi
-    /// \f$
+    /// \f]
     enum xc_arg {
         enum_rhoa=0,            ///< alpha density \f$ \rho_\alpha \f$
         enum_rhob=1,            ///< beta density \f$ \rho_\beta \f$

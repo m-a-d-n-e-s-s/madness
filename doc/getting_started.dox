@@ -33,7 +33,6 @@
   \file getting_started.dox
   \brief An overview of programming with MADNESS.
   \addtogroup getting_started
-  \todo Verify that the code snippets here aren't stale. They're imported from a 2010 document.
 
 This module aims to satisfy the needs of first-time users of the MADNESS numerical programming environment. Programmers interested in using the parallel programming environment should refer to the \ref parallel_runtime module.
 
@@ -47,21 +46,11 @@ MADNESS stands for multiresolution adaptive numerical environment for scientific
 - providing fast and accurate solutions for a variety of differential and integral equations in 1 to 6 dimensions
 (and perhaps higher), and
 - facilitating the use of massively parallel computer resources by a wider audience.
-.
+
 
 In MADNESS, your code is written in terms of functions and operators, using the C++ language, and for this reason it can be thought of as a basis-free method. There is, of course, an underlying representation and approximation using bases and grids, and they adapt and refine automatically to satisfy the requested precision -- but you do not have to think about this until efficiency or memory use become concerns, if ever.
 
-The numerical operations can be regarded as a finite precision equivalent of the mathematical calculus used to express your equations. For example, the code corresponding to
-\f[
-\int \left( \frac{1}{2} \left( \frac{d\psi}{dx} \right)^{2} + V(x)\psi (x)^{2} \right) \mathit{dx}
-\f]
-in three dimensions is just
-\code
-  real_function_3d dpsidx = Dx(psi);
-  double result = 0.5*inner(dpsidx, dpsidx) + inner(V(x), psi*psi); 
-\endcode
-where `psi` is a 3-D function and `Dx(psi)` takes the derivative of `psi` in the  \f$x\f$ direction (see below for how to make the derivative operator). The `inner` method computes the \f$L_{2}\f$ inner product of the functions.
-
+The numerical operations can be regarded as a finite precision equivalent of the mathematical calculus used to express your equations.
 Within MADNESS you can apply both differential operators and integral operators. Important and common convolution
 operators with physically relevant Green functions (e.g., Coulomb, bound-state Helmholtz, free-particle quantum
 propagator) are built in. Many physical problems can be restated in integral form with huge benefits in ease and

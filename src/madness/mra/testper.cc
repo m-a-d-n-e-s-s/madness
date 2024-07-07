@@ -65,7 +65,8 @@ int test_per(World& world) {
     expnt[0] = 10000.0;
     coeff[0] = sqrt(expnt[0]/constants::pi);
     print(coeff,expnt);
-    SeparatedConvolution<double,1> op(world, coeff, expnt);
+    double lo=1.e-6; thresh=1.e-4;  // dummy values
+    SeparatedConvolution<double,1> op(world, coeff, expnt, lo, thresh);
 
     Function<double,1> f = FunctionFactory<double,1>(world).f(constant).initial_level(3).norefine();
 
@@ -108,10 +109,10 @@ int main(int argc, char**argv) {
         print(e);
         error("caught a Tensor exception");
     }
-    catch (const char* s) {
-        print(s);
-        error("caught a c-string exception");
-    }
+//    catch (const char* s) {
+//        print(s);
+//        error("caught a c-string exception");
+//    }
     catch (char* s) {
         print(s);
         error("caught a c-string exception");

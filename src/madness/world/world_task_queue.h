@@ -433,7 +433,7 @@ namespace madness {
             typedef detail::TaskHandlerInfo<typename taskT::futureT::remote_refT, typename taskT::functionT> infoT;
             world.am.send(where, & WorldTaskQueue::template remote_task_handler<taskT>,
                     new_am_arg(infoT(result.remote_ref(world), fn, attr),
-                    a1, a2, a3, a4, a5, a6, a7, a8, a9));
+                    a1, a2, a3, a4, a5, a6, a7, a8, a9), RMI::ATTR_UNORDERED);
 
             return result;
         }

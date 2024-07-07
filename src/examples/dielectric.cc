@@ -37,7 +37,7 @@
   \defgroup exampledielectric Poisson's equation in a dielectric medium
   \ingroup examples
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/dielectric.cc>here</a>.
+  The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/dielectric.cc>here</a>.
 
   \par Points of interest
   - use of iterative equation solver
@@ -92,7 +92,6 @@
                     \frac{1}{\epsilon_1 |r|} + \left( \frac{1}{\epsilon_2} - \frac{1}{\epsilon_1} \right) \frac{1}{R}  & |r| < R
                \end{array}
             \right .
-
   \f]
   The surface charge density integrated over the suface has the value
   \f[
@@ -257,11 +256,11 @@ int main(int argc, char **argv) {
     print("coords", atomic_coords);
 
     // Functors for mask related quantities
-    real_functor_3d volume_functor(new MolecularVolumeMask(sigma, atomic_radii, atomic_coords));
-    real_functor_3d gradx_functor(new MolecularVolumeMaskGrad(sigma, atomic_radii, atomic_coords, 0));
-    real_functor_3d grady_functor(new MolecularVolumeMaskGrad(sigma, atomic_radii, atomic_coords, 1));
-    real_functor_3d gradz_functor(new MolecularVolumeMaskGrad(sigma, atomic_radii, atomic_coords, 2));
-    real_functor_3d surface_functor(new MolecularSurface(sigma, atomic_radii, atomic_coords));
+    auto volume_functor = MolecularVolumeMask(sigma, atomic_radii, atomic_coords);
+    auto gradx_functor = MolecularVolumeMaskGrad(sigma, atomic_radii, atomic_coords, 0);
+    auto grady_functor = MolecularVolumeMaskGrad(sigma, atomic_radii, atomic_coords, 1);
+    auto gradz_functor = MolecularVolumeMaskGrad(sigma, atomic_radii, atomic_coords, 2);
+    auto surface_functor = MolecularSurface(sigma, atomic_radii, atomic_coords);
 
     // Make the actual functions
     TIME("make volume ", real_function_3d volume = real_factory_3d(world).functor(volume_functor));

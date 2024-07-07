@@ -37,6 +37,11 @@
 
 #include <madness/madness_config.h>
 
+// This just to check if config is actually working
+//#ifndef HAVE_MTXMQ
+//#error "MTXMQ missing"
+//#endif
+
 #define HAVE_FAST_BLAS
 #ifdef  HAVE_FAST_BLAS
 //#ifdef HAVE_INTEL_MKL
@@ -262,7 +267,36 @@ namespace madness {
         const T one = 1.0;  // alpha in *gemm
         const T zero = 0.0; // beta  in *gemm
         cblas::gemm(cblas::NoTrans,cblas::Trans,dimj,dimi,dimk,one,b,ldb,a,dimi,zero,c,dimj);
-    }
+    }  
+
+#ifdef HAVE_MTXMQ
+    template <>
+    void mTxmq(long dimi, long dimj, long dimk, double* MADNESS_RESTRICT c, const double* a, const double* b, long ldb);
+
+    // Bootstrap complex*real from real*real
+    template <typename T>
+    void mTxmq(long dimi, long dimj, long dimk, std::complex<T>* MADNESS_RESTRICT c, const std::complex<T>* a, const T* b, long ldb) {
+      T* Rc = new T[dimi*dimj];
+      T* Ic = new T[dimi*dimj];
+      T* Ra = new T[dimi*dimk];
+      T* Ia = new T[dimi*dimk];
+
+      for (long i=0; i<dimi*dimk; i++) {
+	Ra[i] = a[i].real();
+	Ia[i] = a[i].imag();
+      }
+      mTxmq(dimi,dimj,dimk,Rc,Ra,b,ldb);
+      mTxmq(dimi,dimj,dimk,Ic,Ia,b,ldb);
+      for (long i=0; i<dimi*dimj; i++) c[i] = std::complex<T>(Rc[i],Ic[i]);
+      
+      delete[] Rc;
+      delete[] Ic;
+      delete[] Ra;
+      delete[] Ia;
+    }  
+  
+#endif
+
 #endif
     
 #ifdef HAVE_INTEL_MKL
@@ -345,6 +379,11 @@ namespace madness {
         const cT zero = 0.0; // beta  in *gemm
         cblas::gemm(cblas::NoTrans,cblas::Trans,dimj,dimi,dimk,one,b,ldb,a,dimi,zero,c,dimj);
     }
+
+#ifdef HAVE_MTXMQ
+template <>
+void mTxmq(long dimi, long dimj, long dimk, double* MADNESS_RESTRICT c, const double* a, const double* b, long ldb);
+#endif
     
 #else
 

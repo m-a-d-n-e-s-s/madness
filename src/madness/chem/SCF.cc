@@ -36,9 +36,9 @@
 
 
 #include <madness/world/worldmem.h>
-#include<madness.h>
-#include<madness/chem/SCF.h>
-#include<madchem.h>
+#include <madness.h>
+#include <madness/chem/SCF.h>
+#include <madchem.h>
 
 #if defined(__has_include)
 #  if __has_include(<filesystem>)
@@ -91,14 +91,14 @@ static double rsquared(const coordT& r) {
     return r[0] * r[0] + r[1] * r[1] + r[2] * r[2];
 }
 
-// Returns exp(-I*t*V)
-static Function<double_complex, 3> make_exp(double t, const Function<double, 3>& v) {
-    v.reconstruct();
-    Function<double_complex, 3> expV = double_complex(0.0, -t) * v;
-    expV.unaryop(unaryexp<3>());
-    //expV.truncate(); expV.reconstruct();
-    return expV;
-}
+// // Returns exp(-I*t*V)
+// static Function<double_complex, 3> make_exp(double t, const Function<double, 3>& v) {
+//     v.reconstruct();
+//     Function<double_complex, 3> expV = double_complex(0.0, -t) * v;
+//     expV.unaryop(unaryexp<3>());
+//     //expV.truncate(); expV.reconstruct();
+//     return expV;
+// }
 
 // Timer modified to correctly nest
 static bool print_timings = false;
@@ -138,36 +138,53 @@ tensorT Q2(const tensorT& s) {
     return Q;
 }
 
-}// namespace madness
+// void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
+//                                  const tensorT &dipole_T) const {
+//     nlohmann::json j = {};
+//     // if it exists figure out the size.  pushback for each protocol
+//     const double thresh = FunctionDefaults<3>::get_thresh();
+//     const int k = FunctionDefaults<3>::get_k();
+//     j["scf_threshold"] = thresh;
+//     j["scf_k"] = k;
+//     for (auto const &[key, val]: vals) {
+//         j[key] = val;
+//     }
+//     j["scf_dipole_moment"] = tensor_to_json(dipole_T);
+//     int num = 0;
+//     update_schema(param.prefix()+".scf_info", j);
+// }
 
 void SCF::output_calc_info_schema() const {
     nlohmann::json j = {};
-    vec_pair_ints int_vals;
-    vec_pair_T<double> double_vals;
-    vec_pair_tensor_T<double> double_tensor_vals;
+    World& world=amo.front().world();
+    if (world.rank()==0) {
+        vec_pair_ints int_vals;
+        vec_pair_T<double> double_vals;
+        vec_pair_tensor_T<double> double_tensor_vals;
 
 
-    int_vals.push_back({"calcinfo_nmo", param.nmo_alpha() + param.nmo_beta()});
-    int_vals.push_back({"calcinfo_nalpha", param.nalpha()});
-    int_vals.push_back({"calcinfo_nbeta", param.nbeta()});
-    int_vals.push_back({"calcinfo_natom", molecule.natom()});
-    int_vals.push_back({"k", FunctionDefaults<3>::get_k()});
+        int_vals.emplace_back("calcinfo_nmo", param.nmo_alpha() + param.nmo_beta());
+        int_vals.emplace_back("calcinfo_nalpha", param.nalpha());
+        int_vals.emplace_back("calcinfo_nbeta", param.nbeta());
+        int_vals.emplace_back("calcinfo_natom", molecule.natom());
+        int_vals.emplace_back("k", FunctionDefaults<3>::get_k());
 
-    to_json(j, int_vals);
-//    double_vals.push_back({"return_energy", value(molecule.get_all_coords().flat())});
-    double_vals.push_back({"return_energy", current_energy});
-    to_json(j, double_vals);
-    double_tensor_vals.push_back({"scf_eigenvalues_a", aeps});
-    if (param.nbeta() != 0 && !param.spin_restricted()) {
-        double_tensor_vals.push_back({"scf_eigenvalues_b", beps});
+        to_json(j, int_vals);
+        //    double_vals.push_back({"return_energy", value(molecule.get_all_coords().flat())});
+        double_vals.emplace_back("return_energy", current_energy);
+        to_json(j, double_vals);
+        double_tensor_vals.emplace_back("scf_eigenvalues_a", aeps);
+        if (param.nbeta() != 0 && !param.spin_restricted()) {
+            double_tensor_vals.emplace_back("scf_eigenvalues_b", beps);
+        }
+
+        to_json(j, double_tensor_vals);
+        param.to_json(j);
+        e_data.to_json(j);
+
+        //    output_schema(param.prefix()+".calc_info", j);
+        update_schema(param.prefix()+".calc_info", j);
     }
-
-    to_json(j, double_tensor_vals);
-    param.to_json(j);
-    e_data.to_json(j);
-
-//    output_schema(param.prefix()+".calc_info", j);
-    update_schema(param.prefix()+".calc_info", j);
 }
 
 void scf_data::add_data(std::map<std::string, double> values) {
@@ -194,7 +211,7 @@ scf_data::scf_data() : iter(0) {
 
 
 void scf_data::to_json(json &j) const {
-    ::print("SCF DATA TO JSON");
+    madness::print("SCF DATA TO JSON");
 
     j["scf_e_data"] = json();
     j["scf_e_data"]["iterations"] = iter;
@@ -310,10 +327,10 @@ void SCF::save_mos(World& world) {
       Molecule molecule;
       std::string xc;
       */
-    unsigned int version = 3;
+    unsigned int version = 4;
     ar & version;
     ar & current_energy & param.spin_restricted();
-    ar & param.L() & FunctionDefaults<3>::get_k() & molecule & param.xc() & param.localize_method();
+    ar & param.L() & FunctionDefaults<3>::get_k() & molecule & param.xc() & param.localize_method() & converged_for_thresh;
     // Re order so it doesn't effect orbital data
 
     ar & (unsigned int) (amo.size());
@@ -370,10 +387,10 @@ void SCF::load_mos(World& world) {
       repeat for beta if !spinrestricted
      */
     // Local copies for a basic check
-    double L;
-    int k1;                    // Ignored for restarting, used in response only
-    unsigned int version = 3;// UPDATE THIS IF YOU CHANGE ANYTHING
-    unsigned int archive_version;
+    double L=0;
+    int k1=0;                    // Ignored for restarting, used in response only
+    unsigned int version = 4;// UPDATE THIS IF YOU CHANGE ANYTHING
+    unsigned int archive_version=0;
 
     ar & archive_version;
 
@@ -389,7 +406,7 @@ void SCF::load_mos(World& world) {
     // EPS, SWAP, ... sigh
     ar & current_energy & spinrest;
     // Reorder
-    ar & L & k1 & molecule & param.xc() & param.localize_method();
+    ar & L & k1 & molecule & param.xc() & param.localize_method() & converged_for_thresh;
 
     ar & nmo;
     MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha()));
@@ -997,7 +1014,7 @@ void SCF::initial_guess(World& world) {
 
             // Get center of charge for madness
             std::vector<double> mad_coc(3, 0);
-            for (int i = 0; i < molecule.natom(); ++i) {
+            for (size_t i = 0; i < molecule.natom(); ++i) {
                 const Atom& atom = molecule.get_atom(i);
                 int charge = atom.atomic_number;
                 mad_coc[0] += atom.x * charge;
@@ -1044,7 +1061,7 @@ void SCF::initial_guess(World& world) {
             // And rotate
             molecule.rotate(q(Slice(0, 2), Slice(0, 2)));
             if (world.rank() == 0 && param.print_level() > 3) print("New MADNESS coordinates:");
-            for (int i = 0; i < molecule.natom(); ++i) {
+            for (size_t i = 0; i < molecule.natom(); ++i) {
                 const Atom& atom = molecule.get_atom(i);
                 if (world.rank() == 0 && param.print_level() > 3)
                     print(atomic_number_to_symbol(atom.atomic_number), atom.x, atom.y, atom.z);
@@ -1293,8 +1310,44 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
     exc = 0.0;
     enl = 0.0;
 
+    vecfuncT Vpsi;
+    print_meminfo(world.rank(), "V*psi");
+    if (xc.hf_exchange_coefficient()) {
+        START_TIMER(world);
+        //            vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
+        Exchange<double, 3> K(world, this, ispin);
+	if (param.hfexalg()=="multiworld") {
+	  //if (world.rank() == 0) print("selecting exchange multi world");
+	  K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient);
+	}
+	else if (param.hfexalg()=="largemem") {
+	  //if (world.rank() == 0) print("selecting exchange large memory");
+	  K.set_algorithm(Exchange<double,3>::Algorithm::large_memory);
+	}
+	else if (param.hfexalg()=="smallmem") {
+	  //if (world.rank() == 0) print("selecting exchange small memory");
+	  K.set_algorithm(Exchange<double,3>::Algorithm::small_memory);
+	}
+	
+        K.set_symmetric(true).set_printlevel(param.print_level());
+        vecfuncT Kamo = K(amo);
+        tensorT excv = inner(world, Kamo, amo);
+        double exchf = 0.0;
+        for (unsigned long i = 0; i < amo.size(); ++i) {
+            exchf -= 0.5 * excv[i] * occ[i];
+        }
+        if (!xc.is_spin_polarized()) exchf *= 2.0;
+        Vpsi=-xc.hf_exchange_coefficient()* Kamo;
+        Kamo.clear();
+        END_TIMER(world, "HF exchange");
+        exc = exchf * xc.hf_exchange_coefficient() + exc;
+    }
+    else {
+      Vpsi = zero_functions<double,3>(world, amo.size());	  
+    }
+
     // compute the local DFT potential for the MOs
-    if (xc.is_dft() && !(xc.hf_exchange_coefficient() == 1.0)) {
+    if (xc.is_dft() && !(xc.hf_exchange_coefficient() == 1.0)) { //??RJH?? Won't this incorrectly exclude hybrid DFT with coeff=1.0?
         START_TIMER(world);
 
         XCOperator<double, 3> xcoperator(world, this, ispin, param.dft_deriv());
@@ -1305,38 +1358,21 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
     }
 
     vloc.truncate();
+    
+    // need to come back to this for psp - when is this used?
+    // RJH commented this out since it seems to never do anything useful ... if pure all-electron there is not a non-local part
+    // if (molecule.parameters.pure_ae()) {
+    //     potentialmanager->apply_nonlocal_potential(world, amo, Vpsi);
+    // }
 
     START_TIMER(world);
-    vecfuncT Vpsi;
     if (!molecule.parameters.pure_ae()) {
-        Vpsi = gthpseudopotential->apply_potential(world, vloc, amo, occ, enl);
+        gaxpy(world, 1.0, Vpsi, 1.0, gthpseudopotential->apply_potential(world, vloc, amo, occ, enl));
     } else {
-        Vpsi = mul_sparse(world, vloc, amo, vtol);
+        gaxpy(world, 1.0, Vpsi, 1.0, mul_sparse(world, vloc, amo, vtol));
     }
 
     END_TIMER(world, "V*psi");
-    print_meminfo(world.rank(), "V*psi");
-    if (xc.hf_exchange_coefficient()) {
-        START_TIMER(world);
-        //            vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
-        Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin).set_symmetric(true);
-        vecfuncT Kamo = K(amo);
-        tensorT excv = inner(world, Kamo, amo);
-        double exchf = 0.0;
-        for (unsigned long i = 0; i < amo.size(); ++i) {
-            exchf -= 0.5 * excv[i] * occ[i];
-        }
-        if (!xc.is_spin_polarized())
-            exchf *= 2.0;
-        gaxpy(world, 1.0, Vpsi, -xc.hf_exchange_coefficient(), Kamo);
-        Kamo.clear();
-        END_TIMER(world, "HF exchange");
-        exc = exchf * xc.hf_exchange_coefficient() + exc;
-    }
-    // need to come back to this for psp - when is this used?
-    if (molecule.parameters.pure_ae()) {
-        potentialmanager->apply_nonlocal_potential(world, amo, Vpsi);
-    }
 
     START_TIMER(world);
     truncate(world, Vpsi);
@@ -2003,7 +2039,7 @@ void SCF::solve(World& world) {
     const double dconv = std::max(FunctionDefaults<3>::get_thresh(),
                                   param.dconv());
     const double trantol = vtol / std::min(30.0, double(amo.size()));
-    const double tolloc = 1e-6; // was std::min(1e-6,0.01*dconv) but now trying to avoid unnecessary change // moved to localizer.h
+    //const double tolloc = 1e-6; // was std::min(1e-6,0.01*dconv) but now trying to avoid unnecessary change // moved to localizer.h
     double update_residual = 0.0, bsh_residual = 0.0;
     subspaceT subspace;
     tensorT Q;
@@ -2199,6 +2235,7 @@ void SCF::solve(World& world) {
             if (converged || iter == param.maxiter() - 1) {
                 if (world.rank() == 0 && converged and (param.print_level() > 1)) {
                     print("\nConverged!\n");
+                    converged_for_thresh=param.econv();
                 }
 
                 // Diagonalize to get the eigenvalues and if desired the final eigenvectors
@@ -2329,3 +2366,4 @@ void SCF::solve(World& world) {
 
 }        // end solve function
 
+} // namespace madness

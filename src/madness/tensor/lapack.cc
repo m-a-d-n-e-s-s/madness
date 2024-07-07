@@ -509,18 +509,16 @@ STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
 #endif
 }
 
+#if MADNESS_LINALG_USE_LAPACKE
 STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
                           real8 *a, integer *lda, real8 *b, integer *ldb,
                           real8 *w_real, real8 *w_imag, real8 *beta,
                           real8 *vl, integer *ldvl, real8 *vr, integer *ldvr,
                           real8 *work,  integer *lwork, integer *info,
                           char_len jobzlen, char_len uplo_len) {
-#if MADNESS_LINALG_USE_LAPACKE
     dggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info );
-#else
-    dggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info, jobzlen, uplo_len);    
-#endif
 }
+#endif
 
 STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
                           complex_real4 *a, integer *lda, complex_real4 *b, integer *ldb,

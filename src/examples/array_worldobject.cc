@@ -34,13 +34,14 @@ public:
 };
 
 int main(int argc, char** argv) {
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
+    World& world = initialize(argc, argv);
 
-    Array a(world, 10000), b(world, 10000);
+    size_t N = 10000 - (10000%world.size()); // make array size a multiple of the number of processes for simplicity
+
+    Array a(world, N), b(world, N);
 
     // Without regard to locality, initialize a and b
-    for (int i=world.rank(); i<10000; i+=world.size()) {
+    for (int i=world.rank(); i<N; i+=world.size()) {
         a.write(i, 10.0*i);
         b.write(i,  7.0*i);
     }
@@ -48,7 +49,7 @@ int main(int argc, char** argv) {
 
     // All processes verify 100 random values from each array
     for (int j=0; j<100; j++) {
-        size_t i = world.rand()%10000;
+        size_t i = world.rand()%N;
         Future<double> vala = a.read(i);
         Future<double> valb = b.read(i);
         // Could do work here until results are available

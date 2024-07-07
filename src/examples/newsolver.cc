@@ -280,12 +280,13 @@ int main(int argc, char** argv) {
         if (world.rank() == 0) 
             print("\nalpha_dynamic omega = ",omega," alpha = ",alpha_dynamic);
 
-        char fname[32];
-        sprintf(fname,"x_%6.4f.dat", omega);
+        std::size_t bufsize=32;
+        char fname[bufsize];
+        snprintf(fname, bufsize,"x_%6.4f.dat", omega);
         plot_line(fname, 1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, x);
-        sprintf(fname,"y_%6.4f.dat", omega);
+        snprintf(fname, bufsize,"y_%6.4f.dat", omega);
         plot_line(fname, 1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, y);
-        sprintf(fname,"drho_%6.4f.dat", omega);
+        snprintf(fname, bufsize,"drho_%6.4f.dat", omega);
         plot_line(fname, 1001, {0.0,0.0,-20.0}, {0.0,0.0,20.0}, drho);
     }
     

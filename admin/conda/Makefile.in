@@ -1,0 +1,33 @@
+BINARIES=moldft nemo cis oep znemo
+BINBINARIES=$(addprefix bin/,${BINARIES})
+
+
+CONDA_ROOT_DIR=@CMAKE_BINARY_DIR@/admin/conda/
+
+.PHONY: conda conda-build-madness conda-install-madness conda-package-madness clean
+
+all:  conda-build-madness conda-install-madness conda-package-madness
+
+	
+	
+conda-build-madness:
+	mkdir -p ${CONDA_ROOT_DIR}/build
+	cd ${CONDA_ROOT_DIR}/build && cmake -DCMAKE_INSTALL_PREFIX=${CONDA_ROOT_DIR}/install -DENABLE_MPI=0 -DENABLE_LIBXC=0 @CMAKE_CURRENT_SOURCE_DIR@
+	cd ${CONDA_ROOT_DIR}/build && make -j6 && make -j6 applications;
+
+conda-install-madness:
+	mkdir -p ${CONDA_ROOT_DIR}/install;
+	cd ${CONDA_ROOT_DIR}/build && make -j install;
+#	cd ${CONDA_ROOT_DIR}/install && mkdir -p bin share; 
+#	cd ${CONDA_ROOT_DIR}/install && touch ${BINBINARIES} share/somestuff
+
+conda-package-madness: 
+	cd ${CONDA_ROOT_DIR}/install && tar -cf ${CONDA_ROOT_DIR}/madness-conda.tar ${BINBINARIES} share
+	mkdir -p ${CONDA_ROOT_DIR}/conda; 
+	cd ${CONDA_ROOT_DIR}/install && cp ${CONDA_ROOT_DIR}/recipe/meta.yaml ${CONDA_ROOT_DIR}/recipe/build.sh ${CONDA_ROOT_DIR}/conda/
+	cd ${CONDA_ROOT_DIR}/conda && sed s/BINARIES/"${BINARIES}"/g build.sh> build.sh.tmp && mv build.sh.tmp build.sh
+	cd ${CONDA_ROOT_DIR}/conda && conda build .
+
+
+clean:
+	rm -r ${CONDA_ROOT_DIR}/build ${CONDA_ROOT_DIR}/install  ${CONDA_ROOT_DIR}/conda madness-conda.tar

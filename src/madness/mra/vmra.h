@@ -135,17 +135,36 @@ namespace madness {
                   bool fence=true) {
 
         PROFILE_BLOCK(Vcompress);
-        bool must_fence = false;
-        for (unsigned int i=0; i<v.size(); ++i) {
-            if (!v[i].is_compressed()) {
-                v[i].compress(false);
-                must_fence = true;
-            }
-        }
-
-        if (fence && must_fence) world.gop.fence();
+        change_tree_state(v, TreeState::compressed, fence);
+//        bool must_fence = false;
+//        for (unsigned int i=0; i<v.size(); ++i) {
+//            if (!v[i].is_compressed()) {
+//                v[i].compress(false);
+//                must_fence = true;
+//            }
+//        }
+//
+//        if (fence && must_fence) world.gop.fence();
     }
 
+
+    /// reconstruct a vector of functions
+
+    /// implies fence
+    /// return v for chaining
+    template <typename T, std::size_t NDIM>
+    const std::vector< Function<T,NDIM> >& reconstruct(const std::vector< Function<T,NDIM> >& v) {
+        return change_tree_state(v, TreeState::reconstructed, true);
+    }
+
+    /// compress a vector of functions
+
+    /// implies fence
+    /// return v for chaining
+    template <typename T, std::size_t NDIM>
+    const std::vector< Function<T,NDIM> >& compress(const std::vector< Function<T,NDIM> >& v) {
+        return change_tree_state(v, TreeState::compressed, true);
+    }
 
     /// Reconstruct a vector of functions
     template <typename T, std::size_t NDIM>
@@ -153,15 +172,16 @@ namespace madness {
                      const std::vector< Function<T,NDIM> >& v,
                      bool fence=true) {
         PROFILE_BLOCK(Vreconstruct);
-        bool must_fence = false;
-        for (unsigned int i=0; i<v.size(); ++i) {
-            if (v[i].is_compressed() or v[i].is_nonstandard()) {
-                v[i].reconstruct(false);
-                must_fence = true;
-            }
-        }
-
-        if (fence && must_fence) world.gop.fence();
+//        bool must_fence = false;
+        change_tree_state(v, TreeState::reconstructed, fence);
+//        for (unsigned int i=0; i<v.size(); ++i) {
+//            if (v[i].is_compressed() or v[i].is_nonstandard()) {
+//                v[i].reconstruct(false);
+//                must_fence = true;
+//            }
+//        }
+//
+//        if (fence && must_fence) world.gop.fence();
     }
 
     /// change tree_state of a vector of functions to redundant
@@ -171,15 +191,16 @@ namespace madness {
                   bool fence=true) {
 
         PROFILE_BLOCK(Vcompress);
-        bool must_fence = false;
-        for (unsigned int i=0; i<v.size(); ++i) {
-            if (!v[i].get_impl()->is_redundant()) {
-                v[i].get_impl()->make_redundant(false);
-                must_fence = true;
-            }
-        }
-
-        if (fence && must_fence) world.gop.fence();
+        change_tree_state(v, TreeState::redundant, fence);
+//        bool must_fence = false;
+//        for (unsigned int i=0; i<v.size(); ++i) {
+//            if (!v[i].get_impl()->is_redundant()) {
+//                v[i].get_impl()->make_redundant(false);
+//                must_fence = true;
+//            }
+//        }
+//
+//        if (fence && must_fence) world.gop.fence();
     }
 
     /// refine the functions according to the autorefine criteria
@@ -225,11 +246,12 @@ namespace madness {
                           std::vector< Function<T,NDIM> >& v,
                           bool fence= true) {
         PROFILE_BLOCK(Vnonstandard);
-        reconstruct(world, v);
-        for (unsigned int i=0; i<v.size(); ++i) {
-            v[i].make_nonstandard(false, false);
-        }
-        if (fence) world.gop.fence();
+        change_tree_state(v, TreeState::nonstandard, fence);
+//        reconstruct(world, v);
+//        for (unsigned int i=0; i<v.size(); ++i) {
+//            v[i].make_nonstandard(false, false);
+//        }
+//        if (fence) world.gop.fence();
     }
 
 
@@ -239,10 +261,72 @@ namespace madness {
                   std::vector< Function<T,NDIM> >& v,
                   bool fence=true) {
         PROFILE_BLOCK(Vstandard);
-        for (unsigned int i=0; i<v.size(); ++i) {
-            v[i].standard(false);
+        change_tree_state(v, TreeState::compressed, fence);
+//        for (unsigned int i=0; i<v.size(); ++i) {
+//            v[i].standard(false);
+//        }
+//        if (fence) world.gop.fence();
+    }
+
+
+    /// change tree state of the functions
+
+    /// will respect fence
+    /// @return v   for chaining
+    template <typename T, std::size_t NDIM>
+    const std::vector<Function<T,NDIM>>& change_tree_state(const std::vector<Function<T,NDIM>>& v,
+                                                     const TreeState finalstate,
+                                                     const bool fence=true) {
+        if (v.size()==0) return v;
+        // find initialized function with world
+        Function<T,NDIM> dummy;
+        for (const auto& f : v)
+            if (f.is_initialized()) {
+                dummy=f;
+                break;
+            }
+        if (not dummy.is_initialized()) return v;
+        World& world=dummy.world();
+
+
+        // if a tree state cannot directly be changed to finalstate, we need to go via intermediate
+        auto change_initial_to_intermediate =[](const std::vector<Function<T,NDIM>>& v,
+                                                  const TreeState initialstate,
+                                                  const TreeState intermediatestate) {
+            int must_fence=0;
+            for (auto& f : v) {
+                if (f.is_initialized() and f.get_impl()->get_tree_state()==initialstate) {
+                    f.change_tree_state(intermediatestate,false);
+                    must_fence=1;
+                }
+            }
+            return must_fence;
+        };
+
+        int do_fence=0;
+        if (finalstate==compressed) {
+            do_fence+=change_initial_to_intermediate(v,redundant,TreeState::reconstructed);
         }
+        if (finalstate==nonstandard) {
+            do_fence+=change_initial_to_intermediate(v,compressed,TreeState::reconstructed);
+            do_fence+=change_initial_to_intermediate(v,redundant,TreeState::reconstructed);
+        }
+        if (finalstate==nonstandard_with_leaves) {
+            do_fence+=change_initial_to_intermediate(v,compressed,TreeState::reconstructed);
+            do_fence+=change_initial_to_intermediate(v,nonstandard,TreeState::reconstructed);
+            do_fence+=change_initial_to_intermediate(v,redundant,TreeState::reconstructed);
+        }
+        if (finalstate==redundant) {
+            do_fence+=change_initial_to_intermediate(v,compressed,TreeState::reconstructed);
+            do_fence+=change_initial_to_intermediate(v,nonstandard,TreeState::reconstructed);
+            do_fence+=change_initial_to_intermediate(v,nonstandard_with_leaves,TreeState::reconstructed);
+        }
+        if (do_fence>0) world.gop.fence();
+
+        for (unsigned int i=0; i<v.size(); ++i) v[i].change_tree_state(finalstate,fence);
         if (fence) world.gop.fence();
+
+        return v;
     }
 
 
@@ -327,13 +411,45 @@ namespace madness {
         std::vector< Function<T,NDIM> > r(n);
         for (int i=0; i<n; ++i)
   	    r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false).compressed(true).initial_level(1));
-
-	if (n && fence) world.gop.fence();
-
+    	if (n && fence) world.gop.fence();
         return r;
     }
 
+
+    /// orthonormalize the vectors
+    template<typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM>> orthonormalize(const std::vector<Function<T,NDIM> >& vf_in) {
+        if (vf_in.size()==0) return std::vector<Function<T,NDIM>>();
+        World& world=vf_in.front().world();
+        auto vf=copy(world,vf_in);
+        normalize(world,vf);
+        if (vf.size()==1) return copy(world,vf_in);
+        double maxq;
+        double trantol=0.0;
+        auto Q2=[](const Tensor<T>& s) {
+            Tensor<T> Q = -0.5*s;
+            for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.5;
+            return Q;
+        };
+
+        do {
+            Tensor<T> Q = Q2(matrix_inner(world, vf, vf));
+            maxq=0.0;
+            for (int i=0; i<Q.dim(0); ++i)
+                for (int j=0; j<i; ++j)
+                    maxq = std::max(maxq,std::abs(Q(i,j)));
+
+            vf = transform(world, vf, Q, trantol, true);
+            truncate(world, vf);
+
+        } while (maxq>0.01);
+        normalize(world,vf);
+        return vf;
+    }
+
+
     /// symmetric orthonormalization (see e.g. Szabo/Ostlund)
+
     /// @param[in] the vector to orthonormalize
     /// @param[in] overlap matrix
     template <typename T, std::size_t NDIM>
@@ -556,6 +672,13 @@ namespace madness {
         for (std::size_t i=0; i<vimpl.size(); ++i) v[i].set_impl(vimpl[i]);
     }
 
+    template<typename T, std::size_t NDIM>
+    std::vector<Function<T,NDIM>> impl2function(const std::vector<std::shared_ptr<FunctionImpl<T,NDIM>>> vimpl) {
+        std::vector<Function<T,NDIM>> v(vimpl.size());
+        for (std::size_t i=0; i<vimpl.size(); ++i) v[i].set_impl(vimpl[i]);
+        return v;
+    }
+
 
     /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
 
@@ -585,6 +708,46 @@ namespace madness {
 
         if (fence) world.gop.fence();
         return vc;
+    }
+
+    /// Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
+
+    /// all trees are in reconstructed state, final trees have to be summed down if no fence is present
+    template <typename T, typename R, std::size_t NDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> >
+    transform_reconstructed(World& world,
+              const std::vector< Function<T,NDIM> >& v,
+              const Tensor<R>& c,
+              bool fence=true) {
+
+        PROFILE_BLOCK(Vtransformsp);
+        typedef TENSOR_RESULT_TYPE(T,R) resultT;
+        int n = v.size();  // n is the old dimension
+        int m = c.dim(1);  // m is the new dimension
+        MADNESS_CHECK(n==c.dim(0));
+
+        // if we fence set the right tree state here, otherwise it has to be correct from the start.
+        if (fence) change_tree_state(v,reconstructed);
+        for (const auto& vv : v) MADNESS_CHECK_THROW(
+            vv.get_impl()->get_tree_state()==reconstructed,"trees have to be reconstructed in transform_reconstructed");
+
+        std::vector< Function<resultT,NDIM> > result = zero_functions<resultT,NDIM>(world, m);
+
+        for (int i=0; i<m; ++i) {
+            result[i].get_impl()->set_tree_state(redundant_after_merge);
+            for (int j=0; j<n; ++j) {
+                if (c(j,i) != R(0.0)) v[j].get_impl()->accumulate_trees(*(result[i].get_impl()),resultT(c(j,i)),true);
+            }
+        }
+
+        // if we fence we can as well finish the job here. Otherwise no harm done, as the tree state is well-defined.
+        if (fence) {
+            world.gop.fence();
+            // for (auto& r : vc) r.sum_down(false);
+            for (auto& r : result) r.get_impl()->finalize_sum();
+            world.gop.fence();
+        }
+        return result;
     }
 
     /// this version of transform uses Function::vtransform and screens
@@ -777,11 +940,13 @@ namespace madness {
     Tensor< TENSOR_RESULT_TYPE(T,R) > matrix_inner(World& world,
                                                    const std::vector< Function<T,NDIM> >& f,
                                                    const std::vector< Function<R,NDIM> >& g,
-                                                   bool sym=false) 
+                                                   bool sym=false)
     {
         world.gop.fence();
         compress(world, f);
-        if ((void*)(&f) != (void*)(&g)) compress(world, g);
+//        if ((void*)(&f) != (void*)(&g)) compress(world, g);
+        compress(world, g);
+
 
         std::vector<const FunctionImpl<T,NDIM>*> left(f.size());
         std::vector<const FunctionImpl<R,NDIM>*> right(g.size());
@@ -823,7 +988,7 @@ namespace madness {
                 if (sym) r(j,i) = conj(r(i,j));
             }
          }
-        
+
 //        for (long i=n-1; i>=0; --i) {
 //            long jtop = m;
 //            if (sym) jtop = i+1;
@@ -1011,7 +1176,46 @@ namespace madness {
     }
 
 
-    /// Computes the square of a vector of functions --- q[i] = v[i]**2
+    /// multiply a high-dimensional function with a low-dimensional function
+
+    /// @param[in]  f   NDIM function of NDIM dimensions
+    /// @param[in]  g   LDIM function of LDIM
+    /// @param[in]  v   dimension indices of f to multiply
+    /// @return     h[i](0,1,2,3) = f(0,1,2,3) * g[i](1,2,3) for v={1,2,3}
+    template<typename T, std::size_t NDIM, std::size_t LDIM>
+    std::vector<Function<T,NDIM> > partial_mul(const Function<T,NDIM> f, const std::vector<Function<T,LDIM> > g,
+                                 const int particle) {
+
+        World& world=f.world();
+        std::vector<Function<T,NDIM> > result(g.size());
+        for (auto& r : result) r.set_impl(f, false);
+
+        FunctionImpl<T,NDIM>* fimpl=f.get_impl().get();
+//        fimpl->make_redundant(false);
+        fimpl->change_tree_state(redundant,false);
+        make_redundant(world,g,false);
+        world.gop.fence();
+
+        for (std::size_t i=0; i<result.size(); ++i) {
+            FunctionImpl<T,LDIM>* gimpl=g[i].get_impl().get();
+            result[i].get_impl()->multiply(fimpl,gimpl,particle);     // stupid naming inconsistency
+        }
+        world.gop.fence();
+
+        fimpl->undo_redundant(false);
+        for (auto& ig : g) ig.get_impl()->undo_redundant(false);
+        world.gop.fence();
+        return result;
+    }
+
+    template<typename T, std::size_t NDIM, std::size_t LDIM>
+    std::vector<Function<T,NDIM> > multiply(const Function<T,NDIM> f, const std::vector<Function<T,LDIM> > g,
+                              const std::tuple<int,int,int> v) {
+        return partial_mul<T,NDIM,LDIM>(f,g,std::array<int,3>({std::get<0>(v),std::get<1>(v),std::get<2>(v)}));
+    }
+
+
+/// Computes the square of a vector of functions --- q[i] = v[i]**2
     template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
     square(World& world,
@@ -1036,7 +1240,7 @@ namespace madness {
     	typedef typename Tensor<T>::scalar_type scalartype;
     	reconstruct(world,v);
     	std::vector<Function<scalartype,NDIM> > result(v.size());
-    	for (int i=0; i<v.size(); ++i) result[i]=abs_square(v[i],false);
+    	for (size_t i=0; i<v.size(); ++i) result[i]=abs_square(v[i],false);
     	if (fence) world.gop.fence();
         return result;
     }
@@ -1092,6 +1296,17 @@ namespace madness {
             r[i] = copy(v[i], false);
         }
         if (fence) world.gop.fence();
+        return r;
+    }
+
+
+    /// Returns a deep copy of a vector of functions
+    template <typename T, std::size_t NDIM>
+    std::vector< Function<T,NDIM> >
+    copy(const std::vector< Function<T,NDIM> >& v, bool fence=true) {
+        PROFILE_BLOCK(Vcopy);
+        std::vector< Function<T,NDIM> > r(v.size());
+        if (v.size()>0) r=copy(v.front().world(),v,fence);
         return r;
     }
 
@@ -1275,6 +1490,15 @@ namespace madness {
         return result;
     }
 
+
+    /// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] + beta*b[i]
+    template <typename T, typename Q, typename R, std::size_t NDIM>
+	void gaxpy(Q alpha, std::vector<Function<T,NDIM>>& a, Q beta, const std::vector<Function<R,NDIM>>& b, const bool fence) {
+	    if (a.size() == 0) return;
+    	World& world=a.front().world();
+    	gaxpy(world,alpha,a,beta,b,fence);
+    }
+
     /// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] + beta*b[i]
     template <typename T, typename Q, typename R, std::size_t NDIM>
     void gaxpy(World& world,
@@ -1285,8 +1509,12 @@ namespace madness {
                bool fence=true) {
         PROFILE_BLOCK(Vgaxpy);
         MADNESS_ASSERT(a.size() == b.size());
-        compress(world, a);
-        compress(world, b);
+    	if (fence) {
+			compress(a.front().world(), a);
+			compress(b.front().world(), b);
+    	}
+    	for (const auto& aa : a) MADNESS_CHECK_THROW(aa.is_compressed(),"vector-gaxpy requires compressed functions");
+    	for (const auto& bb : b) MADNESS_CHECK_THROW(bb.is_compressed(),"vector-gaxpy requires compressed functions");
 
         for (unsigned int i=0; i<a.size(); ++i) {
             a[i].gaxpy(alpha, b[i], beta, false);
@@ -1307,22 +1535,31 @@ namespace madness {
 
         std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
 
-        reconstruct(world, f);
+//        reconstruct(world, f);
         make_nonstandard(world, ncf);
 
         std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> > result(f.size());
         for (unsigned int i=0; i<f.size(); ++i) {
-            MADNESS_ASSERT(not op[i]->is_slaterf12);
             result[i] = apply_only(*op[i], f[i], false);
+            result[i].get_impl()->set_tree_state(nonstandard_after_apply);
         }
 
         world.gop.fence();
 
         standard(world, ncf, false);  // restores promise of logical constness
+        reconstruct(result);
         world.gop.fence();
-        reconstruct(world, result);
 
         return result;
+    }
+
+
+    /// Applies an operator to a vector of functions --- q[i] = apply(op,f[i])
+    template <typename T, typename R, std::size_t NDIM, std::size_t KDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
+    apply(const SeparatedConvolution<T,KDIM>& op,
+          const std::vector< Function<R,NDIM> > f) {
+        return apply(op.get_world(),op,f);
     }
 
 
@@ -1335,10 +1572,10 @@ namespace madness {
         PROFILE_BLOCK(Vapply);
 
         std::vector< Function<R,NDIM> >& ncf = *const_cast< std::vector< Function<R,NDIM> >* >(&f);
-        bool print_timings=(NDIM==6) and (world.rank()==0);
+        bool print_timings=(NDIM==6) and (world.rank()==0) and op.print_timings;
 
         double wall0=wall_time();
-        reconstruct(world, f);
+//        reconstruct(world, f);
         make_nonstandard(world, ncf);
         double wall1=wall_time();
         if (print_timings) printf("timer: %20.20s %8.2fs\n", "make_nonstandard", wall1-wall0);
@@ -1351,12 +1588,16 @@ namespace madness {
         world.gop.fence();
 
         // restores promise of logical constness
-        if (not op.destructive()) standard(world, ncf, false);
+        if (op.destructive()) {
+            for (auto& ff : ncf) ff.clear(false);
+            world.gop.fence();
+        } else {
+            reconstruct(world,f);
+        }
 
         // svd-tensor requires some cleanup after apply
         if (result[0].get_impl()->get_tensor_type()==TT_2D) {
-            for (auto& r : result) r.get_impl()->finalize_apply(false);
-            world.gop.fence();
+            for (auto& r : result) r.get_impl()->finalize_apply();
         }
 
         if (print_timings) {
@@ -1364,15 +1605,6 @@ namespace madness {
             op.print_timer();
         }
         reconstruct(world, result);
-
-        if (op.is_slaterf12) {
-        	MADNESS_ASSERT(not op.destructive());
-        	if (typeid(T)!=typeid(R)) MADNESS_EXCEPTION("think again!",1);
-            for (unsigned int i=0; i<f.size(); ++i) {
-            	R trace=f[i].trace();
-                result[i]=(result[i]-trace).scale(-0.5/op.mu());
-            }
-        }
 
         return result;
     }
@@ -1455,6 +1687,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator+(const std::vector<Function<T,NDIM> >& lhs,
             const std::vector<Function<T,NDIM>>& rhs) {
+        MADNESS_CHECK(lhs.size() == rhs.size());
         return gaxpy_oop(1.0,lhs,1.0,rhs);
     }
 
@@ -1462,6 +1695,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator-(const std::vector<Function<T,NDIM> >& lhs,
             const std::vector<Function<T,NDIM> >& rhs) {
+        MADNESS_CHECK(lhs.size() == rhs.size());
         return gaxpy_oop(1.0,lhs,-1.0,rhs);
     }
 
@@ -1469,6 +1703,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator+(const std::vector<Function<T,NDIM> >& lhs,
             const Function<T,NDIM>& rhs) {
+        // MADNESS_CHECK(lhs.size() == rhs.size()); // no!!
         return gaxpy_oop(1.0,lhs,1.0,rhs);
     }
 
@@ -1476,6 +1711,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator-(const std::vector<Function<T,NDIM> >& lhs,
             const Function<T,NDIM>& rhs) {
+        // MADNESS_CHECK(lhs.size() == rhs.size());  // no
         return gaxpy_oop(1.0,lhs,-1.0,rhs);
     }
 
@@ -1483,6 +1719,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator+(const Function<T,NDIM>& lhs,
             const std::vector<Function<T,NDIM> >& rhs) {
+        // MADNESS_CHECK(lhs.size() == rhs.size());   // no
         return gaxpy_oop(1.0,rhs,1.0,lhs);
     }
 
@@ -1490,6 +1727,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > operator-(const Function<T,NDIM>& lhs,
             const std::vector<Function<T,NDIM> >& rhs) {
+//         MADNESS_CHECK(lhs.size() == rhs.size());  // no
         return gaxpy_oop(-1.0,rhs,1.0,lhs);
     }
 
@@ -1535,29 +1773,19 @@ namespace madness {
 
 
     template <typename T, std::size_t NDIM>
-    std::vector<Function<T,NDIM> > operator+=(std::vector<Function<T,NDIM> >& rhs,
-            const std::vector<Function<T,NDIM> >& lhs) {
-        if (rhs.size()==0) return rhs;
-        MADNESS_CHECK(rhs.size()==lhs.size());
-        if (rhs.front().world().id()==lhs.front().world().id()) {
-            rhs=add(rhs[0].world(),rhs,lhs);
-        } else {
-            MADNESS_CHECK(rhs.front().is_compressed());
-            MADNESS_CHECK(lhs.front().is_compressed());
-            for (auto i=0; i<rhs.size(); ++i) {
-                rhs[i].gaxpy(T(1.0), lhs[i], T(1.0), false);
-            }
-        }
-        return rhs;
+    std::vector<Function<T,NDIM> > operator+=(std::vector<Function<T,NDIM> >& lhs, const std::vector<Function<T,NDIM> >& rhs) {
+        MADNESS_CHECK(lhs.size() == rhs.size());
+        if (lhs.size() > 0) gaxpy(lhs.front().world(), 1.0, lhs, 1.0, rhs);
+	return lhs;
     }
 
     template <typename T, std::size_t NDIM>
-    std::vector<Function<T,NDIM> > operator-=(std::vector<Function<T,NDIM> >& rhs,
-            const std::vector<Function<T,NDIM> >& lhs) {
-        if (rhs.size()>0) rhs=sub(rhs[0].world(),rhs,lhs);
-        return rhs;
+    std::vector<Function<T,NDIM> > operator-=(std::vector<Function<T,NDIM> >& lhs,
+            const std::vector<Function<T,NDIM> >& rhs) {
+        MADNESS_CHECK(lhs.size() == rhs.size());
+        if (lhs.size() > 0) gaxpy(lhs.front().world(), 1.0, lhs, -1.0, rhs);
+	return lhs;
     }
-
 
     /// return the real parts of the vector's function (if complex)
     template <typename T, std::size_t NDIM>
@@ -1603,7 +1831,7 @@ namespace madness {
         return result;
     }
 
-    // BLM first derivative 
+    // BLM first derivative
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > grad_ble_one(const Function<T,NDIM>& f,
             bool refine=false, bool fence=true) {
@@ -1645,7 +1873,7 @@ namespace madness {
         return result;
     }
 
-    // Bspline first derivative 
+    // Bspline first derivative
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > grad_bspline_one(const Function<T,NDIM>& f,
             bool refine=false, bool fence=true) {

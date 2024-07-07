@@ -5,8 +5,11 @@
 #include <string>
 #include <vector>
 
-#include "molresponse/density.h"
 #include "response_parameters.h"
+
+
+
+
 
 struct CalcParams {
     GroundStateCalculation ground_calculation;
@@ -45,8 +48,18 @@ CalcParams initialize_calc_params(World &world, const std::string &input_file);
 // kinetic energy operator on response vector
 response_space T(World &world, response_space &f);
 
+auto make_k (const vecfuncT &ket, const vecfuncT &bra);
+auto ground_exchange(const vecfuncT &phi0, const X_space &x, bool compute_y) -> X_space;
+auto ground_exchange_multiworld(const vecfuncT &phi0, const X_space &x, const bool& compute_y) -> X_space;
+auto response_exchange(const vecfuncT &phi0, const X_space &x, bool compute_y) -> X_space;
 vecfuncT K(vecfuncT &ket, vecfuncT &bra, vecfuncT &vf);
+auto molresponseExchange(World &world, const vecfuncT &ket_i, const vecfuncT &bra_i,
+                         const vecfuncT &fp, const int &n, const int &num_states,
+                         const int &num_orbitals) -> X_space;
+auto response_exchange_multiworld(const vecfuncT &phi0, const X_space &chi, const bool &compute_y)
+        -> X_space;
 vecfuncT newK(const vecfuncT &ket, const vecfuncT &bra, const vecfuncT &vf);
-static double rsquared(const coordT &r) { return r[0] * r[0] + r[1] * r[1] + r[2] * r[2]; }
+// compute exchange |i><i|J|p>
+static double rsquared(const coord_3d &r) { return r[0] * r[0] + r[1] * r[1] + r[2] * r[2]; }
 /// Mask function to switch from 0 to 1 smoothly at boundary
 #endif// SRC_APPS_molresponse_GLOBAL_FUNCTIONS_H_

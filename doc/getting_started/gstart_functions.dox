@@ -33,7 +33,6 @@
   \file gstart_functions.dox
   \brief Getting started with MADNESS functions.
   \addtogroup gstart_functions
-  \todo Verify that the code snippets here aren't stale. They're imported from a 2010 document.
 
 \par Defaults for functions
 
@@ -160,12 +159,12 @@ to obtain the eigenvalues and coefficients in the subspace. The eigenfunctions  
 
 Given an STL \c vector of 3D functions, `f`, and another `Hf` containing the result of applying the operator \f$\hat{H}\f$ to the vector, the above is compactly translated into MADNESS as
 \code
-real_tensor H = matrix_inner(f, Hf); 
-real_tensor S = matrix_inner(f, f); 
+real_tensor H = matrix_inner(world, f, Hf); 
+real_tensor S = matrix_inner(world, f, f); 
 real_tensor C, E; 
 
 sygv(H, S, 1, C, E); 
-vector_real_function_3d evec = transform(f, C); 
+vector_real_function_3d evec = transform(world, f, C); 
 \endcode
 
 The `matrix_inner()` routine computes the matrix of inner products (or matrix elements) of two vectors of functions, and the `sygv()` routine (in `linalg/tensor_lapack.h`) is a wrapper around the LAPACK real symmetric and complex Hermitian generalized eigenvalue routines. Finally, the `transform()` routine transforms the basis to compute the eigenfunctions.

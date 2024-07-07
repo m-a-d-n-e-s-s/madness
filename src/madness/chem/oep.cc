@@ -74,8 +74,8 @@ void OEP::analyze() {
     for (std::size_t imo = 0; imo < calc->amo.size(); ++imo) {
         save(calc->amo[imo], "oep_nemo" + stringify(imo));
     }
-    double n1=R_square.norm2();
-    double n2=norm2(world,calc->get_amo());
+    //double n1=R_square.norm2();
+    //double n2=norm2(world,calc->get_amo());
     real_function_3d Slater=compute_slater_potential(calc->get_amo());
     real_function_3d Slater_dcep_diff=Slater-Vfinal;
     save(Slater,"Slater_oepnemo");
@@ -158,8 +158,8 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 	compute_coulomb_potential(KS_nemo, Jnemo);
 	compute_exchange_potential(KS_nemo, Knemo);
 
-	Exchange<double,3> K;
-	K.set_parameters(R_square*HF_nemo,HF_nemo,param.lo());
+	Exchange<double,3> K(world,param.lo());
+    K.set_bra_and_ket(R_square * HF_nemo, HF_nemo);
 	double Ex_HF=-inner(R_square*HF_nemo,K(HF_nemo));
 
 	// compute final exchange energy using different methods and final kinetic energy
@@ -176,7 +176,7 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 
 
 	print("FINAL", model, "ENERGY Evir:");
-	double Evir = compute_energy(KS_nemo, Ex_vir)[0];
+	//double Evir = compute_energy(KS_nemo, Ex_vir)[0];
 
 	print("FINAL", model, "ENERGY Econv:");
 	double Econv = compute_energy(KS_nemo, Ex_conv)[0];
@@ -227,10 +227,11 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	}
 
 
-	typedef allocator<double, 3> allocT;
-	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
-	allocT alloc(world, KS_nemo.size());
-	solverT solver(allocT(world, KS_nemo.size()),param.print_level()>4);
+//	typedef allocator<double, 3> allocT;
+//	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
+//	allocT alloc(world, KS_nemo.size());
+//	solverT solver(allocT(world, KS_nemo.size()),param.print_level()>4);
+    auto solver= nonlinear_vector_solver<double,3>(world,KS_nemo.size());
 	solver.set_maxsub(param.maxsub());
 
 	double energy=0.0;
@@ -238,10 +239,10 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	bool converged=false;
 
 	timer timer1(world,param.print_level()>=3);
-	for (int iter = 0; iter < oep_param.maxiter(); ++iter) {
+	for (size_t iter = 0; iter < oep_param.maxiter(); ++iter) {
 
 	    if (param.do_localize()) {
-	    	for (int i=0; i<KS_nemo.size(); ++i) calc->aeps(i)=KS_Fock(i,i);
+	    	for (size_t i=0; i<KS_nemo.size(); ++i) calc->aeps(i)=KS_Fock(i,i);
 	    	KS_nemo=localize(KS_nemo,param.econv(),iter==0);
 	    	if (param.print_level()>=10) calc->analyze_vectors(world,KS_nemo,calc->aocc,tensorT(),calc->aset);
 	    }
@@ -339,7 +340,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
         Voep=p(Voep)[0];
 
         // compute new (current) energy
-        double old_energy = energy;
+        //double old_energy = energy;
         double Ex_KS = compute_exchange_energy_vir(KS_nemo, Voep);
 
 		std::vector<double> oldenergies=energies;
@@ -352,7 +353,6 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		bsh_apply.metric=R_square;
 		bsh_apply.levelshift=oep_param.levelshift();
 		bsh_apply.lo=get_calc()->param.lo();
-		bsh_apply.do_coupling=param.do_localize();
 		auto [residual,eps_update] =bsh_apply(KS_nemo,KS_Fock,Fnemo);
 		timer1.tag("apply BSH");
 
@@ -372,13 +372,13 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		KS_nemo = nemo_new;
 		timer1.tag("post-process");
 		if (oep_param.saving_amount() >= 3)
-			for (int n=0; n<KS_nemo.size(); ++n) save(KS_nemo[n], "KS_nemo"+stringify(n)+"iter"+stringify(iter));
+			for (size_t n=0; n<KS_nemo.size(); ++n) save(KS_nemo[n], "KS_nemo"+stringify(n)+"iter"+stringify(iter));
 
 		double deltadensity=0.0;
 		converged=check_convergence(energies,oldenergies,bshnorm,deltadensity,param,
 				param.econv(),param.dconv());
 		if (world.rank() == 0) {
-			printf("\nfinished %s iteration %2d at time %8.1fs with energy %12.8f; residual %12.8f\n\n",
+			printf("\nfinished %s iteration %2lu at time %8.1fs with energy %12.8f; residual %12.8f\n\n",
 					model.c_str(), iter, wall_time(), energy,bshnorm);
 		}
 
@@ -492,7 +492,7 @@ bool OEP::selftest() {
     tensorT KS_Fock=copy(HF_Fock);
 	vecfuncT KS_nemo = copy(world,calc->amo);
 	real_function_3d Voep = copy(Vs);
-    double energy=iterate("oaep",HF_nemo,HF_Fock,KS_nemo,KS_Fock,Voep,Vs);
+	//double energy=iterate("oaep",HF_nemo,HF_Fock,KS_nemo,KS_Fock,Voep,Vs);
 
 
     test_output ihf_vir("test virial ocep exchange energy");

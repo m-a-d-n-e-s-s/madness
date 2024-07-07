@@ -36,7 +36,7 @@
   \defgroup examplenonlinsc Solves a 1D nonlinear Schr&ouml;dinger equation
   \ingroup examples
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/nonlinschro.cc>here</a>.
+  The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/nonlinschro.cc>here</a>.
 
   \par Points of interest
   - Convolution with the negative energy (bound state) Helmholtz Green's function

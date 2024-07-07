@@ -230,7 +230,7 @@ int test_emul(const TensorType& tt) {
 	tensor1.fillrandom();
 	tensor2.fillrandom();
 	double error=0.0;
-	double thresh=1.e-5;
+	// double thresh=1.e-5;
 
 	GenTensor<T> lrt1(tensor1,TensorArgs(1.e-4,tt));
 	GenTensor<T> lrt2(tensor2,TensorArgs(1.e-4,tt));
@@ -360,7 +360,6 @@ int test_stuff() {
 	TensorTrain<T> tt(matrix.reshape(k,k,k,k,k,k),thresh);
 	wall1=wall_time();
 	auto ranks=tt.ranks();
-	long ttrank=*std::max_element(ranks.begin(),ranks.end());
 	double tt_error=(matrix.flat()-tt.reconstruct(true)).normf();
 	printf("%15s %12ld %12.4f %12.8f\n","TT",Q.dim(1),tt_error/thresh,wall1-wall0);
 

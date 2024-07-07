@@ -33,17 +33,15 @@
   \file gstart_think_madness.dox
   \brief Getting started with MADNESS: "thinking" in MADNESS.
   \addtogroup gstart_think_madness
-  \todo Verify that the code snippets here aren't stale. They're imported from a 2010 document.
 
 MADNESS is based on multiresolution analysis (MRA) and low-separation rank (LSR) approximations of functions and operators. It can be considered an adaptive spectral element method using a discontinuous and singular multiresolution basis. The representations of differential operators in the wavelet bases are provably similar to adaptive finite difference discretizations. Thus, the process of solving the resulting linear systems has similar behaviors to other adaptive methods. For example, the derivative operator and the Laplacian operator are unbounded operators. Thus the condition number, which often constrains how accurately the linear system can be solved, goes to infinity as the bases or the nets are refined. In order to solve these equations in practice, one has to precondition the system. Effective preconditioners are problem dependent and the theory of their construction is an area of on-going research.
 
 The integral operator, which is the formal inverse associated with the differential operator, is usually bounded. MRA and LSR have been proven to be suitable techniques for effectively applying some of the physically
 important operators and their kernel fast and with ease.
 
-Two of the most important operators that we illustrate in this manual are the Poisson operator, and the Helmholtz operator. The heat equation is ...
-\todo Complete the last sentence.
+Two of the most important operators that we illustrate in this manual are the Poisson operator, and the Helmholtz operator (also note that heat/diffusion equation kernel is just a single Gaussian).
 
-Herein we discuss techniques for "thinking in MADNESS", which will allow the best utilization of the numerical tools underlying MADNESS (in most cases).
+Herein, we discuss techniques for "thinking in MADNESS", which will allow the best utilization of the numerical tools underlying MADNESS (in most cases).
 
 \par Solve the integral equation
 
@@ -108,19 +106,12 @@ S(s) & = & \left\{ \begin{array}{ll} s_{0}, & s\le 0 \\ q(s, s_{0}, s_{1}), & 0 
 q(s, s_{0}, s_{1}) & = & s_{0} - (-2s_{1} + 3s_{0}) \left( \frac{s}{s_{1}} \right)^{2} + (2s_{0} - s_{1}) \left(\frac{s}{s_{1}}\right)^{3}.
 \f}
 The function \f$S(s)\f$ coincides with its argument for \f$s>s_{1}\f$ and, for smaller values, smoothly switches to a minimum value of \f$s_{0}\f$ with a continuous value and derivative at both end points.
-\todo Interesting... The last sentence should start "The function S(s)..." but for some reason, I'm getting the image for g(s).
-
 
 Some computations are intrinsically expensive. For instance, the function \f$ \exp(i\omega r)\f$ is oscillatory everywhere and the number of required coefficients will increase linearly with the solution volume. In a 3-D box of width \f$L\f$, the number of coefficients will be \f$\mathcal{O}\left(\left(Lk\omega \right)^{3}\right)\f$ (where \f$k\f$ is the multiwavelet or polynomial order). For \f$L=1000\f$, \f$k=12\f$ and \f$\omega=3\f$, a few hundred TB of data (i.e., too much!) will be generated. Thus, it is worth making a back of the envelope estimate about the expected cost of computation before
 getting started.
 
-\par Robustly trade precision for speed
+Choice of polynomial order (\f$k\f$) depends upon the problem and algorithm.  Smooth functions can be very accurately and efficiently represented using high-order polynomials, so it can be advantageous to use \f$k=10\f$ or higher (for some time-dependent problems we have even used \f$k=30\f$).  However, functions with fine-scale structure or cusps or discontinuities require adpative refinement so lower order polynomials (e.g., \f$k=6\f$) are more efficient.  If you are using integral operators, increasing the polynomial order as you increase the accuracy maintains sparsity in the operator, which is why in `moldft` we use the heuristic that to get an accuracy of \f$10^{-n}\f$ we use \f$k=n+2\f$.
 
-\todo "Robustly trade precision for speed" needs to be written.
-
-\par Choice of polynomial order (k)
-
-\todo "Choice of polynomial order (k)" needs to be written.
 
 Previous: \ref gstart_load_balance; Next: \ref gstart_env_var
 */

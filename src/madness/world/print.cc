@@ -67,7 +67,12 @@ namespace madness {
         print(line,"\n");
     };
 
-    void print_justified(const char* s, int column, bool underline) {
+    void printf_msg_energy_time(const std::string msg, const double energy, const double time) {
+        printf("%50s: %12.8f at time %8.1fs\n",msg.c_str(),energy,time);
+    }
+
+
+void print_justified(const char* s, int column, bool underline) {
         for (int i=0; i<column; ++i) std::cout << " ";
         std::cout << s << ENDL;
         if (underline) {

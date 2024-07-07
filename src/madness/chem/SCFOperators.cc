@@ -252,6 +252,15 @@ Nuclear<T, NDIM>::Nuclear(World &world, const NemoBase* nemo) : world(world) {
 }
 
 template<typename T, std::size_t NDIM>
+Nuclear<T, NDIM>::Nuclear(World &world, const Molecule& molecule) : world(world) {
+    auto pm_ptr=std::make_shared<PotentialManager>(molecule,"");
+    MADNESS_CHECK(molecule.parameters.pure_ae());
+    pm_ptr->make_nuclear_potential(world);
+    ncf = std::shared_ptr<NuclearCorrelationFactor>(
+            new PseudoNuclearCorrelationFactor(world, molecule, pm_ptr, 1.0));
+}
+
+template<typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM> > Nuclear<T, NDIM>::operator()(const std::vector<Function<T, NDIM> > &vket) const {
 
     typedef Function<T, NDIM> functionT;
@@ -662,6 +671,11 @@ void XCOperator<T, NDIM>::prep_xc_args_response(const real_function_3d &dens_pt,
     truncate(world, xc_args, extra_truncation);
 }
 
+/// ctor
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>::Exchange(World& world, const double lo, const double thresh) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,lo,thresh)) {};
+
+
 /// ctor with a conventional calculation
 template<typename T, std::size_t NDIM>
 Exchange<T,NDIM>::Exchange(World& world, const SCF *calc, const int ispin) : impl(new Exchange<T,NDIM>::ExchangeImpl(world,calc,ispin)) {};
@@ -682,12 +696,13 @@ std::vector<Function<T,NDIM>> Exchange<T,NDIM>::operator()(const std::vector<Fun
 };
 
 template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_parameters(const vecfuncT& bra, const vecfuncT& ket, const double lo1) {
-    if (not impl) {
-        World& world=bra.front().world();
-        impl.reset(new Exchange<T,NDIM>::ExchangeImpl(world));
-    }
-    impl->set_parameters(bra,ket,lo1);
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_bra_and_ket(const vecfuncT& bra, const vecfuncT& ket) {
+    MADNESS_CHECK(impl);
+//    if (not impl) {
+//        World& world=bra.front().world();
+//        impl.reset(new Exchange<T,NDIM>::ExchangeImpl(world,lo1,FunctionDefaults<NDIM>::get_thresh()));
+//    }
+    impl->set_bra_and_ket(bra, ket);
     return *this;
 }
 

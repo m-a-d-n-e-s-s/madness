@@ -46,7 +46,7 @@
 #include <madness/mra/mra.h>
 
 #include<madness/chem/CalculationParameters.h>
-#include<madness/chem/commandlineparser.h>
+#include"madness/mra/commandlineparser.h"
 #include<madness/chem/molecule.h>
 #include<madness/chem/molecularbasis.h>
 #include<madness/chem/corepotential.h>
@@ -218,6 +218,7 @@ public:
     std::vector<std::shared_ptr<real_derivative_3d> > gradop;
     double vtol;
     double current_energy;
+    double converged_for_thresh=1.e10;    ///< mos are converged for this threshold
     //double esol;//etot;
     //double vacuo_energy;
 
@@ -504,6 +505,10 @@ public:
     void solve(World& world);
 
     void output_calc_info_schema() const;
+
+//    void output_scf_info_schema(const std::map<std::string, double> &vals,
+//                                const tensorT &dipole_T) const;
+
 };
 
 // Computes molecular energy as a function of the geometry
@@ -674,8 +679,45 @@ public:
         gradient = calc.derivatives(world, rho);
     }
 
-    void output_calc_info_schema() const {
-        calc.output_calc_info_schema();
+    void output_calc_info_schema() {
+        nlohmann::json j = {};
+        vec_pair_ints int_vals;
+        vec_pair_T<double> double_vals;
+        vec_pair_tensor_T<double> double_tensor_vals;
+
+        CalculationParameters param = calc.param;
+
+        nlohmann::json calc_precision={ };
+        calc_precision["eprec"]=calc.molecule.parameters.eprec();
+        calc_precision["dconv"]=calc.param.dconv();
+        calc_precision["econv"]=calc.param.econv();
+        calc_precision["thresh"]=FunctionDefaults<3>::get_thresh();
+        calc_precision["k"]=FunctionDefaults<3>::get_k();
+
+        auto mol_json=this->calc.molecule.to_json();
+
+        int_vals.push_back({"calcinfo_nmo", param.nmo_alpha() + param.nmo_beta()});
+        int_vals.push_back({"calcinfo_nalpha", param.nalpha()});
+        int_vals.push_back({"calcinfo_nbeta", param.nbeta()});
+        int_vals.push_back({"calcinfo_natom", calc.molecule.natom()});
+
+
+        to_json(j, int_vals);
+        double_vals.push_back({"return_energy", value(calc.molecule.get_all_coords().flat())});
+        to_json(j, double_vals);
+        double_tensor_vals.push_back({"scf_eigenvalues_a", calc.aeps});
+        if (param.nbeta() != 0 && !param.spin_restricted()) {
+            double_tensor_vals.push_back({"scf_eigenvalues_b", calc.beps});
+        }
+
+        to_json(j, double_tensor_vals);
+        param.to_json(j);
+        calc.e_data.to_json(j);
+
+        j["precision"]=calc_precision;
+        j["molecule"]=mol_json;
+
+        output_schema(param.prefix()+".calc_info", j);
     }
 
 

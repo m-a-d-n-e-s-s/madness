@@ -64,7 +64,7 @@ public:
 		vector_real_function_3d virtuals;
 
 		MyTimer time_2 = MyTimer(world).start();
-		for (const madness::Atom atom : molecule.get_atoms()) {
+		for (const madness::Atom& atom : molecule.get_atoms()) {
 			cbfT abf = molbas.at(atomic_number_to_symbol(atom.atomic_number));
 			for(const auto& bf:abf){
 			const int type = std::get<0>(bf);
@@ -305,7 +305,7 @@ public:
 			return std::vector<coord_3d>(1,coord);
 		}
 
-		Level special_level()const{
+		Level special_level() {
 			const double width = 1.0/sqrt(2.0*exponent); //  with width of the gaussian
 			const int level = FunctionDefaults<3>::set_length_scale(width); // length scale for special points (center)
 			return level;

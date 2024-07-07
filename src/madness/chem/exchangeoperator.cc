@@ -12,12 +12,23 @@ namespace madness {
 template<typename T, std::size_t NDIM>
 Exchange<T, NDIM>::ExchangeImpl::ExchangeImpl(World& world, const SCF *calc, const int ispin)
         : world(world), symmetric_(false), lo(calc->param.lo()) {
-    if (ispin == 0) { // alpha spin
-        mo_ket = convert<double, T, NDIM>(world, calc->amo);        // deep copy necessary if T==double_complex
-    } else if (ispin == 1) {  // beta spin
-        mo_ket = convert<double, T, NDIM>(world, calc->bmo);
+
+    if constexpr (std::is_same_v<T,double_complex>) {
+        if (ispin == 0) { // alpha spin
+            mo_ket = convert<double, T, NDIM>(world, calc->amo);        // deep copy necessary if T==double_complex
+        } else if (ispin == 1) {  // beta spin
+            mo_ket = convert<double, T, NDIM>(world, calc->bmo);
+        }
+        mo_bra = conj(world, mo_ket);
+    } else {
+        if (ispin == 0) { // alpha spin
+            mo_ket = calc->amo;        // deep copy necessary if T==double_complex
+        } else if (ispin == 1) {  // beta spin
+            mo_ket = calc->bmo;
+        }
+        mo_bra = mo_ket;
     }
-    mo_bra = conj(world, mo_ket);
+
 }
 
 template<typename T, std::size_t NDIM>
@@ -67,7 +78,15 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     } else {
         MADNESS_EXCEPTION("unknown algorithm in exchangeoperator", 1);
     }
+    if (printdebug()) {
+        auto size = get_size(world, Kf);
+        if (world.rank() == 0) print("total size of Kf before truncation", size);
+    }
     truncate(world, Kf);
+    if (printdebug()) {
+        auto size=get_size(world,Kf);
+        if (world.rank()==0) print("total size of Kf after truncation",size);
+    }
     if (printlevel >= 3) print_timer(world);
     return Kf;
 }
@@ -87,7 +106,7 @@ template<typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM> >
 Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const double mul_tol) const {
 
-    if (printdebug()) print("\nentering macrotask_efficient version:");
+    if (world.rank()==0 and printdebug()) print("\nentering macrotask_efficient version:");
 
     // the result is a vector of functions living in the universe
     const long nresult = vf.size();
@@ -96,13 +115,14 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
 
     // deferred execution if a taskq is provided by the user
     if (taskq) {
+        taskq->set_printlevel(printlevel);
         MacroTask mtask(world, xtask, taskq);
         Kf = mtask(vf, mo_bra, mo_ket);
     } else {
         auto taskq_ptr = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
+        taskq_ptr->set_printlevel(printlevel);
         MacroTask mtask(world, xtask, taskq_ptr);
         Kf = mtask(vf, mo_bra, mo_ket);
-        if (printdebug()) taskq_ptr->print_taskq();
         taskq_ptr->run_all();
         if (printdebug()) taskq_ptr->cloud.print_timings(world);
         taskq_ptr->cloud.clear_timings();
@@ -246,7 +266,7 @@ Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_ba
     // some helper functions
     std::size_t nrow = bra_batch.size();
     std::size_t ncolumn = vf_batch.size();
-    auto ij = [&nrow, &ncolumn](const int i, const int j) { return i * ncolumn + j; };
+    auto ij = [&ncolumn](const int i, const int j) { return i * ncolumn + j; };
 
     auto Nslice = [&Nij, &ij, &ncolumn](const long irow, const Slice s) {
         vecfuncT result;
@@ -294,7 +314,7 @@ Exchange<T, NDIM>::ExchangeImpl::MacroTaskExchangeSimple::compute_offdiagonal_ba
 }
 
 
-template
+template 
 class Exchange<double_complex, 3>::ExchangeImpl;
 
 template
@@ -307,5 +327,6 @@ template<> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl
 template<> Spinlock WorldObject<WorldContainerImpl<long, std::vector<unsigned char>, madness::Hash<long> > >::pending_mutex(
         0);
 
+Exchange<double,3>::ExchangeImpl junkjunkjunk(World& world, const SCF *calc, const int ispin) {return Exchange<double,3>::ExchangeImpl(world, calc, ispin);}
 
 } /* namespace madness */

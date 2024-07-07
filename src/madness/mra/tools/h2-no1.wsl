@@ -1,0 +1,11 @@
+#!/usr/bin/env wolframscript -format PDF
+
+<< "./MRAMeshOrbitalPlot3D.wl"
+
+ChicagoMaroon = RGBColor[134/256, 31/256, 65/256];
+BurntOrange = RGBColor[232/256, 119/256, 34/256];
+Print[MRAMeshOrbitalPlot3D["./h2-no1", Zoom -> 2, Contours -> {-0.1, 0.1}, 
+ ContourStyle -> {{Opacity[0.5], BurntOrange}, {Opacity[0.5], 
+    ChicagoMaroon}}, Axes -> True]];
+
+

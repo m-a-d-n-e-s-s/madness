@@ -5,20 +5,20 @@
     "calcinfo_nmo": 2,
     "cis_excitations": [
         {
-            "current_error": 0.42771340146642123,
+            "current_error": 0.42522496542786087,
             "excitation": 0,
             "irrep": "a",
-            "omega": 0.8537474375326528,
-            "oscillator_strength_length": 0.18676996305232113,
-            "oscillator_strength_velocity": 0.14416397075254817
+            "omega": 0.8518027046284709,
+            "oscillator_strength_length": 0.18565920723813686,
+            "oscillator_strength_velocity": 0.14378251361198305
         },
         {
-            "current_error": 0.7899482510479806,
+            "current_error": 0.779249250264809,
             "excitation": 1,
             "irrep": "a",
-            "omega": 0.8622170407245322,
-            "oscillator_strength_length": 1.1708828224761008e-16,
-            "oscillator_strength_velocity": 8.783950329067414e-17
+            "omega": 0.8598424923875891,
+            "oscillator_strength_length": 1.1050414978687859e-16,
+            "oscillator_strength_velocity": 8.325605367685058e-17
         }
     ],
     "k": 6,
@@ -36,7 +36,8 @@
         "gtest": false,
         "gtol": 0.0001,
         "gval": 1e-05,
-        "k": -1,
+        "hessian": false,
+        "k": 6,
         "l": 50.0,
         "lo": 0.013396,
         "loadbalparts": 2,
@@ -62,7 +63,10 @@
         "print_level": 3,
         "psp_calc": false,
         "pure_ae": true,
+        "purify_hessian": false,
+        "read_cphf": false,
         "restart": false,
+        "restart_cphf": false,
         "restartao": false,
         "save": true,
         "smear": 0.0,
@@ -87,9 +91,9 @@
         ],
         "size": 1,
         "vals": [
-            -0.9223614119238546
+            -0.9223614119238532
         ]
     },
-    "time": "2023-01-13 14:06:06",
-    "wall_time": 7.2820069789886475
+    "time": "2023-07-01 23:16:05",
+    "wall_time": 7.740873098373413
 }

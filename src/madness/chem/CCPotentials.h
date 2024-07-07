@@ -33,7 +33,7 @@ public:
     ~CCPotentials() {};
 
     /// forms the regularized functions from Q and Qt Ansatz for CIS(D) where tau=0 and t=mo so that Qt=Q
-    void test_pair_consistency(const CCPairFunction& u, const size_t i, const size_t j, const CC_vecfunction& x) const;
+    void test_pair_consistency(const CCPairFunction<double,6>& u, const size_t i, const size_t j, const CC_vecfunction& x) const;
 
     bool test_compare_pairs(const CCPair& pair1, const CCPair& pair2) const;
 
@@ -102,14 +102,14 @@ public:
     /// get the corresponding mo bra vectors to a ket vector
     vector_real_function_3d get_mo_bra(const CC_vecfunction& ket) const {
         vector_real_function_3d result;
-        for (const auto ktmp:ket.functions) {
+        for (const auto& ktmp:ket.functions) {
             result.push_back(mo_bra_(ktmp.first).function);
         }
         return result;
     }
 
     /// returns a specific mo
-    CCFunction mo_ket(const size_t& i) const {
+    CCFunction<double,3> mo_ket(const size_t& i) const {
         return mo_ket_(i);
     }
 
@@ -119,7 +119,7 @@ public:
     }
 
     /// returns a specific mo multiplied with the squared nuclear correlation factor
-    CCFunction mo_bra(const size_t& i) const {
+    CCFunction<double,3> mo_bra(const size_t& i) const {
         return mo_bra_(i);
     }
 
@@ -152,7 +152,7 @@ public:
     /// makes the t intermediates
     /// t_i = mo_ket_(i) + tau
     /// i = tau.i
-    CCFunction make_t_intermediate(const CCFunction& tau) const;
+    CCFunction<double,3> make_t_intermediate(const CCFunction<double,3>& tau) const;
 
 private:
     /// Helper function to initialize the const mo_bra and ket elements adn orbital energies
@@ -259,14 +259,6 @@ public:
                               const std::vector<real_function_3d>& U1,
                               const real_function_3d& U2);
 
-    /// Function evaluates the consant part of the ground state for MP2
-    /// @param[out]The result is \f$ Q12(G(Q12(Vreg|titj>))) \f$
-    /// @param[in] ti, first particle -> should be HOLE state
-    /// @param[in] tj, second particle -> should be HOLE state
-    /// @param[in] Gscreen pointer to bsh operator (in order to screen), has to be in modified NS form
-    real_function_6d
-    make_constant_part_mp2(const CCFunction& ti, const CCFunction& tj, const real_convolution_6d *Gscreen = NULL) const;
-
     /// Static version of make_constant_part_mp2 to be called from macrotask.
     static madness::real_function_6d
     make_constant_part_mp2_macrotask(World& world, const CCPair& pair, const std::vector<real_function_3d>& mo_ket,
@@ -337,7 +329,7 @@ public:
     /// @param[in] pointer to bsh operator (in order to screen)
     /// @param[out] the regularization potential (unprojected), see equation above
     real_function_6d
-    apply_Vreg(const CCFunction& ti, const CCFunction& tj, const real_convolution_6d *Gscreen = NULL) const;
+    apply_Vreg(const CCFunction<double,3>& ti, const CCFunction<double,3>& tj, const real_convolution_6d *Gscreen = NULL) const;
 
     /// Static version of apply_Vreg to be used from a macrotask. Will eventually replace former.
     madness::real_function_6d
@@ -359,7 +351,7 @@ public:
     /// @param[in] tj, second function in the ket ...
     /// @param[in] pointer to bsh operator (in order to screen)
     real_function_6d
-    apply_reduced_F(const CCFunction& ti, const CCFunction& tj, const real_convolution_6d *Gscreen = NULL) const;
+    apply_reduced_F(const CCFunction<double,3>& ti, const CCFunction<double,3>& tj, const real_convolution_6d *Gscreen = NULL) const;
 
 
     /// Apply Ue on a tensor product of two 3d functions: Ue(1,2) |x(1)y(2)> (will be either |ij> or |\tau_i\tau_j> or mixed forms)
@@ -373,7 +365,7 @@ public:
     /// @param[in] The BSH operator to screen: Has to be in NS form, Gscreen->modified == true
     /// @return  R^-1U_eR|x,y> the transformed electronic smoothing potential applied on |x,y> :
     real_function_6d
-    apply_transformed_Ue(const CCFunction& x, const CCFunction& y, const real_convolution_6d *Gscreen = NULL) const;
+    apply_transformed_Ue(const CCFunction<double,3>& x, const CCFunction<double,3>& y, const real_convolution_6d *Gscreen = NULL) const;
 
     /// Static version of apply_transformed_Ue for the use in a macrotask.
     /// Will eventually replace the former.
@@ -396,7 +388,7 @@ public:
     /// the f12K|xy> part will be screened with the BSH while the Kf12|xy> can not be screened with the BSH operator but maybe with the coulomb
     /// @return  R^-1U_eR|x,y> the transformed electronic smoothing potential applied on |x,y> :
     real_function_6d
-    apply_exchange_commutator(const CCFunction& x, const CCFunction& y,
+    apply_exchange_commutator(const CCFunction<double,3>& x, const CCFunction<double,3>& y,
                               const real_convolution_6d *Gscreen = NULL) const;
 
    real_function_6d
@@ -408,7 +400,7 @@ public:
 
     /// This applies the exchange commutator, see apply_exchange_commutator function for information
     real_function_6d
-    apply_exchange_commutator1(const CCFunction& x, const CCFunction& y,
+    apply_exchange_commutator1(const CCFunction<double,3>& x, const CCFunction<double,3>& y,
                                const real_convolution_6d *Gscreen = NULL) const;
 
     /// Helper Function which performs the operation \f$ <xy|g12f12|ab> \f$
@@ -417,9 +409,9 @@ public:
     /// @param[in] function a,
     /// @param[in] function b,
     double
-    make_xy_gf_ab(const CCFunction& x, const CCFunction& y, const CCFunction& a, const CCFunction& b) const;
+    make_xy_gf_ab(const CCFunction<double,3>& x, const CCFunction<double,3>& y, const CCFunction<double,3>& a, const CCFunction<double,3>& b) const;
 
-    double make_xy_ff_ab(const CCFunction& x, const CCFunction& y, const CCFunction& a, const CCFunction& b) const {
+    double make_xy_ff_ab(const CCFunction<double,3>& x, const CCFunction<double,3>& y, const CCFunction<double,3>& a, const CCFunction<double,3>& b) const {
         error("xy_ff_ab not yet implemented");
         return 0.0;
     }
@@ -433,22 +425,22 @@ public:
     /// loops over every entry in the vector and accumulates results
     /// helper function for CIS(D) energy
     double
-    make_xy_op_u(const CCFunction& x, const CCFunction& y, const CCConvolutionOperator& op,
-                 const std::vector<CCPairFunction>& u) const;
+    make_xy_op_u(const CCFunction<double,3>& x, const CCFunction<double,3>& y, const CCConvolutionOperator<double,3>& op,
+                 const std::vector<CCPairFunction<double,6>>& u) const;
 
     /// returns <xy|u> for a vector of CCPairFunction
     /// the result is accumulated for every vercotr
     /// helper functions for CIS(D) energy
     double
-    make_xy_u(const CCFunction& x, const CCFunction& y, const std::vector<CCPairFunction>& u) const;
+    make_xy_u(const CCFunction<double,3>& x, const CCFunction<double,3>& y, const std::vector<CCPairFunction<double,6>>& u) const;
 
     /// Functions which operate with the CCPairFunction structure
     /// @param[in] function x, if nuclear correlation is used make sure this is the correct bra function
     /// @param[in] function y, if nuclear correlation is used make sure this is the correct bra function
     /// @param[in] CCPairFunction u,
     double
-    make_xy_op_u(const CCFunction& x, const CCFunction& y, const CCConvolutionOperator& op,
-                 const CCPairFunction& u) const;
+    make_xy_op_u(const CCFunction<double,3>& x, const CCFunction<double,3>& y, const CCConvolutionOperator<double,3>& op,
+                 const CCPairFunction<double,6>& u) const;
 
     /// Helper Function which returns
     /// @return <xy|op|ab>
@@ -457,19 +449,19 @@ public:
     /// @param[in] function a,
     /// @param[in] function b,
     double
-    make_xy_op_ab(const CCFunction& x, const CCFunction& y, const CCConvolutionOperator& op, const CCFunction& a,
-                  const CCFunction& b) const;
+    make_xy_op_ab(const CCFunction<double,3>& x, const CCFunction<double,3>& y, const CCConvolutionOperator<double,3>& op, const CCFunction<double,3>& a,
+                  const CCFunction<double,3>& b) const;
 
     /// get the correct pair function as vector of CCPairFunction functions
     /// @param[in] The pair functions
     /// @param[out] The demanded pair function as vector of CCPairFunction functions (includes regularization tails)
-    std::vector<CCPairFunction>
+    std::vector<CCPairFunction<double,6>>
     get_pair_function(const Pairs<CCPair>& pairs, const size_t i, const size_t j) const;
 
 
     /// returns <a|g12|u>_2
     real_function_3d
-    apply_s2b_operation(const CCFunction& bra, const CCPairFunction& u, const size_t particle) const;
+    apply_s2b_operation(const CCFunction<double,3>& bra, const CCPairFunction<double,6>& u, const size_t particle) const;
 
     /// dummy to avoid confusion and for convenience
     real_function_6d swap_particles(const real_function_6d& f) const {
@@ -477,8 +469,8 @@ public:
     }
 
     /// swap the particles of the CCPairFunction and return a new vector of swapped functions
-    std::vector<CCPairFunction> swap_particles(const std::vector<CCPairFunction>& f) const {
-        std::vector<CCPairFunction> swapped;
+    std::vector<CCPairFunction<double,6>> swap_particles(const std::vector<CCPairFunction<double,6>>& f) const {
+        std::vector<CCPairFunction<double,6>> swapped;
         for (size_t i = 0; i < f.size(); i++) swapped.push_back(f[i].swap_particles());
         return swapped;
     }
@@ -487,7 +479,7 @@ public:
     /// @param[in] 6D function 1
     /// @param[in] 6D function 2
     double
-    overlap(const CCPairFunction& f1, const CCPairFunction& f2) const {
+    overlap(const CCPairFunction<double,6>& f1, const CCPairFunction<double,6>& f2) const {
         return inner(f1,f2,nemo_->ncf->square());
     };
 
@@ -521,8 +513,8 @@ public:
 
     /// Apply the Qt projector on a CCPairFunction
     /// works in principle like apply_Ot
-    CCPairFunction
-    apply_Qt(const CCPairFunction& f, const CC_vecfunction& t, const size_t particle, const double c = 1.0) const;
+    CCPairFunction<double,6>
+    apply_Qt(const CCPairFunction<double,6>& f, const CC_vecfunction& t, const size_t particle, const double c = 1.0) const;
 
     /// Apply Ot projector on decomposed or op_decomposed 6D function
     /// The function does not work with type==pure right now (not needed)
@@ -533,14 +525,14 @@ public:
     /// for CCPairFunction type == op_decomposd the function si f=op|xy> and we have for particle==1
     /// \f$ a_k = t_k \f$
     /// \f$ b_k = <mo_k|op|x>*y \f$
-    CCPairFunction
-    apply_Ot(const CCPairFunction& f, const CC_vecfunction& t, const size_t particle) const;
+    CCPairFunction<double,6>
+    apply_Ot(const CCPairFunction<double,6>& f, const CC_vecfunction& t, const size_t particle) const;
 
     /// Apply the Greens Operator to a CCPairFunction
     /// For CCPairFunction only type pure and type decomposed is supported
     /// for the op_decomposed type a pure function can be constructed (not needed therefore not implemented yet)
     real_function_6d
-    apply_G(const CCPairFunction& u, const real_convolution_6d& G) const;
+    apply_G(const CCPairFunction<double,6>& u, const real_convolution_6d& G) const;
 
     /// Apply BSH Operator and count time
     real_function_6d apply_G(const real_function_6d& f, const real_convolution_6d& G) const {
@@ -637,7 +629,7 @@ public:
 
     /// the K operator runs over ALL orbitals (also the frozen ones)
     real_function_3d
-    K(const CCFunction& f) const;
+    K(const CCFunction<double,3>& f) const;
 
     /// static version of k above for access from macrotask. will eventually replace former.
     real_function_3d
@@ -675,7 +667,7 @@ public:
     /// Apply the Exchange operator on a tensor product multiplied with f12
     /// !!! Prefactor of (-1) is not inclued in K here !!!!
     real_function_6d
-    apply_Kf(const CCFunction& x, const CCFunction& y) const;
+    apply_Kf(const CCFunction<double,3>& x, const CCFunction<double,3>& y) const;
 
     /// Apply fK on a tensor product of two 3D functions
     /// fK|xy> = fK_1|xy> + fK_2|xy>
@@ -683,11 +675,11 @@ public:
     /// @param[in] y, the second 3D function in |xy>  structure holds index i and type (HOLE, PARTICLE, MIXED, UNDEFINED)
     /// @param[in] BSH operator to screen, has to be in modified NS form, Gscreen->modified()==true;
     real_function_6d
-    apply_fK(const CCFunction& x, const CCFunction& y, const real_convolution_6d *Gscreen = NULL) const;
+    apply_fK(const CCFunction<double,3>& x, const CCFunction<double,3>& y, const real_convolution_6d *Gscreen = NULL) const;
 
     /// Creates a 6D function with the correlation factor and two given CCFunctions
     real_function_6d
-    make_f_xy(const CCFunction& x, const CCFunction& y, const real_convolution_6d *Gscreen = NULL) const;
+    make_f_xy(const CCFunction<double,3>& x, const CCFunction<double,3>& y, const real_convolution_6d *Gscreen = NULL) const;
 
     real_function_6d
     static make_f_xy_macrotask( World& world, const real_function_3d& x_ket, const real_function_3d& y_ket,
@@ -794,10 +786,10 @@ public:
 
     // update the intermediates
     void update_intermediates(const CC_vecfunction& t) {
-        g12.update_elements(mo_bra_, t);
-        g12.sanity();
-        f12.update_elements(mo_bra_, t);
-        f12.sanity();
+        g12->update_elements(mo_bra_, t);
+//        g12.sanity();
+        f12->update_elements(mo_bra_, t);
+//        f12.sanity();
     }
 
     /// clear stored potentials
@@ -813,7 +805,7 @@ public:
         }
     }
 
-private:
+protected:
     // member variables
     /// MPI World
     World& world;
@@ -829,9 +821,9 @@ private:
     std::vector<double> orbital_energies_;
     /// the coulomb operator with all intermediates
 public:
-    CCConvolutionOperator g12;
+    std::shared_ptr<CCConvolutionOperator<double,3>> g12;
     /// the f12 operator with all intermediates
-    CCConvolutionOperator f12;
+    std::shared_ptr<CCConvolutionOperator<double,3>> f12;
     /// the correlation factor, holds necessary regularized potentials
     CorrelationFactor corrfac;
     /// Manager for stored intermediate potentials which are s2c, s2b and the whole singles potentials without fock-residue for GS and EX state

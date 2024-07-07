@@ -15,6 +15,10 @@ namespace madness {
 
 /// apply the BSH operator on a vector of functions with corresponding potentials
 
+/// this class
+///  - constructs the bsh operator with the appropriate exponents
+///  - performs a level shift if necessary
+///  - adds coupling terms:  ( T - fock(i,i) ) psi_i  = -V psi_i + \sum_{j\neq i} psi_j fock(j,i)
 /// TODO: adding a level shift seems to make the operation less precise, why??
 template<typename T, std::size_t NDIM>
 class BSHApply {
@@ -26,7 +30,6 @@ public:
 	double bshtol=1.e-5;
 	bool printme=false;
 	bool destroy_Vpsi=false;
-	bool do_coupling=false;
 	Function<double,NDIM> metric;
 
 public:
@@ -82,7 +85,7 @@ public:
 
 	    Tensor<T> in=inner(world,Vpsi,bra_res);	// no shift here!
 	    Tensor<double> delta_eps(psi.size());
-	    for (int i=0; i<psi.size(); ++i) delta_eps(i)=std::real(in(i))/(norms[i]*norms[i]);
+	    for (size_t i=0; i<psi.size(); ++i) delta_eps(i)=std::real(in(i))/(norms[i]*norms[i]);
 
 	    if (printme) print("orbital energy update",delta_eps);
 	    double cpu1=cpu_time();
@@ -121,16 +124,16 @@ public:
 			const Tensor<T> fock1) const {
 
 		// check dimensions
-		bool consistent=(psi.size()==fock1.dim(0));
-		if ((fock1.ndim()==2) and not (psi.size()==fock1.dim(1))) consistent=false;
-		if ((do_coupling) and not (fock1.ndim()==2)) consistent=false;
+   	        bool consistent=(psi.size()==size_t(fock1.dim(0)));
+		if ((fock1.ndim()==2) and not (psi.size()==size_t(fock1.dim(1)))) consistent=false;
 
 		if (not consistent) {
 			print("Fock matrix dimensions",fock1.ndim(), fock1.dim(0), fock1.dim(1));
 			print("number of orbitals",psi.size());
-			print("do_coupling parameter",do_coupling);
 			MADNESS_EXCEPTION("confused Fock matrix/orbital energies in BSHApply - 1",1);
 		}
+
+        bool do_coupling=(fock1.ndim()==2);
 
 		// subtract the BSH energy (aka Fock diagonal elements) from the rhs
 		// ( T - fock(i,i) ) psi_i  = -V psi_i + \sum_{j\neq i} psi_j fock(j,i)

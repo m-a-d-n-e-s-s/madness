@@ -40,9 +40,11 @@
 #include <madness/mra/key.h>
 
 // needed for the TwoElectronInterface
+#include <madness/mra/operatorinfo.h>
 #include <madness/mra/gfit.h>
 #include <madness/mra/convolution1d.h>
 #include <madness/mra/function_common_data.h>
+
 namespace madness {
 
 	// forward declaration needed for CompositeFunctorInterface
@@ -50,8 +52,15 @@ namespace madness {
 	class FunctionImpl;
 
     template<typename T, std::size_t NDIM>
+    class Function;
+
+    template<typename T, std::size_t NDIM>
     Tensor<T> fcube(const Key<NDIM>&, T (*f)(const Vector<double,NDIM>&), const Tensor<double>&);
 
+//    template <typename T, std::size_t NDIM>
+//    const std::vector<Function<T,NDIM>>& change_tree_state(const std::vector<Function<T,NDIM>>& v,
+//    const TreeState finalstate,
+//    const bool fence);
 
 
 	/// Abstract base class interface required for functors used as input to Functions
@@ -165,52 +174,70 @@ namespace madness {
 
 	public:
 		/// various MRA functions of NDIM dimensionality
-		std::shared_ptr<implT> impl_ket;	///< supposedly the pair function
+		std::vector<std::shared_ptr<implT>> impl_ket_vector;	///< supposedly the pair function
 		std::shared_ptr<implT> impl_eri;	///< supposedly 1/r12
 
 		/// various MRA functions of MDIM dimensionality (e.g. 3, if NDIM==6)
 		std::shared_ptr<implL> impl_m1;	///< supposedly 1/r1
 		std::shared_ptr<implL> impl_m2;	///< supposedly 1/r2
-		std::shared_ptr<implL> impl_p1;	///< supposedly orbital 1
-		std::shared_ptr<implL> impl_p2;	///< supposedly orbital 2
+		std::vector<std::shared_ptr<implL>> impl_p1_vector;	///< supposedly orbital 1
+		std::vector<std::shared_ptr<implL>> impl_p2_vector;	///< supposedly orbital 2
 
 	public:
 
 		/// constructor takes its Factory
-		CompositeFunctorInterface(World& world, pimplT ket, pimplT g12,
-				pimplL v1, pimplL v2, pimplL p1, pimplL p2)
-			: world(world), impl_ket(ket), impl_eri(g12)
-			, impl_m1(v1), impl_m2(v2), impl_p1(p1), impl_p2(p2)
+		CompositeFunctorInterface(World& world, std::vector<pimplT> ket, pimplT g12,
+				pimplL v1, pimplL v2, std::vector<pimplL> p1, std::vector<pimplL> p2)
+			: world(world), impl_ket_vector(ket), impl_eri(g12)
+			, impl_m1(v1), impl_m2(v2), impl_p1_vector(p1), impl_p2_vector(p2)
 		{
 
 			// some consistency checks
 			// either a pair ket is provided, or two particles (tba)
-			MADNESS_ASSERT(impl_ket or (impl_p1 and impl_p2));
+            MADNESS_CHECK_THROW(impl_p1_vector.size()==impl_p2_vector.size(), "CompositeFunctorInterface: p1 and p2 must have the same size");
+			MADNESS_CHECK_THROW(impl_ket_vector.size()>0 or (impl_p1_vector.size()>0),"CompositeFunctorInterface: either ket or p1 must be provided");
 
 		}
 
+        /// replicate low-dimensional functions over all ranks of this world
+        void replicate_low_dim_functions(const bool fence) {
+            if (impl_m1 and (not impl_m1->is_on_demand())) impl_m1->replicate(false);
+            if (impl_m2 and (not impl_m2->is_on_demand())) impl_m2->replicate(false);
+
+            for (auto& p1 : impl_p1_vector) if (p1 and (not p1->is_on_demand())) p1->replicate(false);
+            for (auto& p2 : impl_p2_vector) if (p2 and (not p2->is_on_demand())) p2->replicate(false);
+            if (fence) world.gop.fence();
+        }
+
 		void make_redundant(const bool fence) {
 			// prepare base functions that make this function
-			if (impl_ket and (not impl_ket->is_on_demand())) impl_ket->make_redundant(false);
+            for (auto& k : impl_ket_vector) if (k and (not k->is_on_demand())) k->change_tree_state(redundant,false);
 			if (impl_eri) {
-				if (not impl_eri->is_on_demand()) impl_eri->make_redundant(false);
+				if (not impl_eri->is_on_demand()) impl_eri->change_tree_state(redundant,false);
 			}
-			if (impl_m1 and (not impl_m1->is_on_demand())) impl_m1->make_redundant(false);
-			if (impl_m2 and (not impl_m2->is_on_demand())) impl_m2->make_redundant(false);
+			if (impl_m1 and (not impl_m1->is_on_demand())) impl_m1->change_tree_state(redundant,false);
+			if (impl_m2 and (not impl_m2->is_on_demand())) impl_m2->change_tree_state(redundant,false);
 
-			if (impl_p1 and (not impl_p1->is_on_demand())) impl_p1->make_redundant(false);
-			if (impl_p2 and (not impl_p2->is_on_demand())) impl_p2->make_redundant(false);
+            change_tree_state(impl2function(impl_p1_vector),redundant,false);
+            change_tree_state(impl2function(impl_p2_vector),redundant,false);
+//            for (auto& k : impl_p1_vector) if (k and (not k->is_on_demand())) k->change_tree_state(redundant,false);
+//            for (auto& k : impl_p2_vector) if (k and (not k->is_on_demand())) k->change_tree_state(redundant,false);
+//			if (impl_p1 and (not impl_p1->is_on_demand())) impl_p1->change_tree_state(redundant,false);
+//			if (impl_p2 and (not impl_p2->is_on_demand())) impl_p2->change_tree_state(redundant,false);
 			if (fence) world.gop.fence();
 		}
 
 		/// return true if all constituent functions are in redundant tree state
 		bool check_redundant() const {
-			if (impl_ket and (not impl_ket->is_redundant())) return false;
+            for (auto& k : impl_ket_vector) if (k and (not k->is_redundant())) return false;
+//			if (impl_ket and (not impl_ket->is_redundant())) return false;
 			if (impl_eri) MADNESS_ASSERT(impl_eri->is_on_demand());
 			if (impl_m1 and (not impl_m1->is_redundant())) return false;
 			if (impl_m2 and (not impl_m2->is_redundant())) return false;
-			if (impl_p1 and (not impl_p1->is_redundant())) return false;
-			if (impl_p2 and (not impl_p2->is_redundant())) return false;
+            for (auto& k : impl_p1_vector) if (k and (not k->is_redundant())) return false;
+            for (auto& k : impl_p2_vector) if (k and (not k->is_redundant())) return false;
+//            if (impl_p1 and (not impl_p1->is_redundant())) return false;
+//			if (impl_p2 and (not impl_p2->is_redundant())) return false;
 			return true;
 		}
 
@@ -297,6 +324,8 @@ namespace madness {
 	/// functions is imprecise and slow.
 	template<typename T, std::size_t NDIM>
     class TwoElectronInterface : public FunctionFunctorInterface<T,NDIM> {
+    protected:
+        static constexpr std::size_t LDIM=NDIM/2;
 	public:
 
 		typedef GenTensor<T> coeffT;
@@ -306,14 +335,14 @@ namespace madness {
 		/// @param[in]	lo		the smallest length scale to be resolved
 		/// @param[in]	eps		the accuracy threshold
 		TwoElectronInterface(double lo, double eps,
-				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
-				int kk=FunctionDefaults<6>::get_k())
+				const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
+				int kk=FunctionDefaults<NDIM>::get_k())
 				:rank(), k(kk), lo(lo), hi(1.0) {
 
 			// Presently we must have periodic or non-periodic in all dimensions.
-			for (std::size_t d=1; d<6; ++d) {MADNESS_ASSERT(bc(d,0)==bc(0,0));}
+			for (std::size_t d=1; d<NDIM; ++d) {MADNESS_ASSERT(bc(d,0)==bc(0,0));}
 
-			const Tensor<double>& width = FunctionDefaults<6>::get_cell_width();
+			const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
 			hi = width.normf(); // Diagonal width of cell
 			if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
 
@@ -326,7 +355,7 @@ namespace madness {
 		/// return the coefficients of the function in 6D (x1,y1,z1, x2,y2,z2)
 		coeffT coeff(const Key<NDIM>& key) const {
 			Tensor<double> c=make_coeff(key);
-            return coeffT(map_coeff(c),FunctionDefaults<6>::get_thresh(),TT_FULL);
+            return coeffT(map_coeff(c),FunctionDefaults<NDIM>::get_thresh(),TT_FULL);
 		}
 
 		T operator()(const Vector<double, NDIM>& x) const {
@@ -338,74 +367,113 @@ namespace madness {
 	protected:
 
 		/// make the coefficients from the 1d convolution
-		Tensor<double> make_coeff(const Key<6>& key) const {
+		Tensor<double> make_coeff(const Key<NDIM>& key) const {
 			const Level n=key.level();
-			const Vector<Translation,6> l=key.translation();
+			const Vector<Translation,NDIM> l=key.translation();
 
 			// get the displacements for all 3 dimensions: x12, y12, z12
-			const Translation l0=(l[0]-l[3]);
-			const Translation l1=(l[1]-l[4]);
-			const Translation l2=(l[2]-l[5]);
+            Translation l0, l1, l2;
+			if (NDIM==2) {
+                l0=l[0]-l[1];
+            } else if (NDIM==4) {
+                l0=(l[0]-l[2]);
+                l1=(l[1]-l[3]);
+            } else if (NDIM==6) {
+                l0=(l[0]-l[3]);
+                l1=(l[1]-l[4]);
+                l2=(l[2]-l[5]);
+            } else {
+                MADNESS_EXCEPTION("TwoElectronInterface: NDIM must be 2, 4, or 6",1);
+            }
 
-			Tensor<double> scr1(rank,k*k), scr2(rank,k*k,k*k);
+			Tensor<double> scr1(rank,k*k), scr2(rank,k*k,k*k), scr3(rank,k*k);
 
 			// lump all the terms together
 			for (long mu=0; mu<rank; mu++) {
-				const Tensor<double> r0=(ops[mu].getop(0)->rnlij(n,l0)).reshape(k*k);
-				const Tensor<double> r1=(ops[mu].getop(1)->rnlij(n,l1)).reshape(k*k);
-				const Tensor<double> r2=(ops[mu].getop(2)->rnlij(n,l2)).reshape(k*k);
+                Tensor<double> r0, r1, r2;
+				if (NDIM>=2) r0=(ops[mu].getop(0)->rnlij(n,l0)).reshape(k*k);
+				if (NDIM>=4) r1=(ops[mu].getop(1)->rnlij(n,l1)).reshape(k*k);
+				if (NDIM>=6) r2=(ops[mu].getop(2)->rnlij(n,l2)).reshape(k*k);
 
 				// include weights in first vector
 				scr1(mu,Slice(_))=r0*ops[mu].getfac();
 
-				// merge second and third vector to scr(r,k1,k2)
-				scr2(mu,Slice(_),Slice(_))=outer(r1,r2);
+                if (NDIM==2) {
+                    ;
+                } else if (NDIM==4) {
+                    scr3(mu,Slice(_))=r1;
+                } else if (NDIM==6) {
+                    // merge second and third vector to scr(r,k1,k2)
+                    scr2(mu,Slice(_),Slice(_))=outer(r1,r2);
+                } else {
+                    MADNESS_EXCEPTION("TwoElectronInterface: NDIM must be 2, 4, or 6",1);
+                }
 			}
 
-			Tensor<double> c=inner(scr1,scr2,0,0);
-			return c;
+            if (NDIM==2) {
+                // perform sum over the rank
+                Tensor<double> result(scr1.dim(1));
+                for (long mu=0; mu<rank; ++mu) result(_)+= scr1(mu,_);
+                return result;
+            }
+            else if (NDIM==4) return inner(scr1,scr3,0,0);
+            else if (NDIM==6) return inner(scr1,scr2,0,0);
+            else {
+                MADNESS_EXCEPTION("TwoElectronInterface: NDIM must be 2, 4, or 6",1);
+                return Tensor<double>();
+            }
 		}
 
 		/// the dimensions are a bit confused (x1,x2, y1,y2, z1,z2) -> (x1,y1,z1, x2,y2,z2)
 		Tensor<double> map_coeff(const Tensor<double>& c) const {
-			std::vector<long> map(6);
-			map[0]=0;	map[1]=3;	map[2]=1;
-			map[3]=4;	map[4]=2;	map[5]=5;
-			return copy(c.reshape(k,k,k,k,k,k).mapdim(map));
+			std::vector<long> map(NDIM);
+            if (NDIM==2) {
+                map[0]=0;	map[1]=1;
+                return copy(c.reshape(k,k));
+            } else if (NDIM==4) {
+                map[0]=0;	map[1]=2;
+                map[2]=1;	map[3]=3;
+                return copy(c.reshape(k,k,k,k).mapdim(map));
+            } else if (NDIM==6) {
+                map[0]=0;	map[1]=3;	map[2]=1;
+                map[3]=4;	map[4]=2;	map[5]=5;
+                return copy(c.reshape(k,k,k,k,k,k).mapdim(map));
+            }
+            return Tensor<double>();
 		}
 
 		/// initialize the Gaussian fit; uses the virtual function fit() to fit
 		void initialize(const double eps) {
-			GFit<double,3> fit=this->fit(eps);
+			GFit<double,LDIM> fit=this->fit(eps);
 			Tensor<double> coeff=fit.coeffs();
 			Tensor<double> expnt=fit.exponents();
 
 			// set some parameters
 			rank=coeff.dim(0);
 			ops.resize(rank);
-			const Tensor<double>& width = FunctionDefaults<6>::get_cell_width();
+			const Tensor<double>& width = FunctionDefaults<LDIM>::get_cell_width();
 
 			// construct all the terms
 			for (int mu=0; mu<rank; ++mu) {
 				//                double c = std::pow(sqrt(expnt(mu)/pi),static_cast<int>(NDIM)); // Normalization coeff
-				double c = std::pow(sqrt(expnt(mu)/constants::pi),3); // Normalization coeff
+				double c = std::pow(sqrt(expnt(mu)/constants::pi),LDIM); // Normalization coeff
 
 				// We cache the normalized operator so the factor is the value we must multiply
 				// by to recover the coeff we want.
 				ops[mu].setfac(coeff(mu)/c);
 
 				// only 3 dimensions here!
-				for (std::size_t d=0; d<3; ++d) {
+				for (std::size_t d=0; d<LDIM; ++d) {
 					ops[mu].setop(d,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[d]*width[d], 0, false));
 				}
 			}
 		}
 
 		/// derived classes must implement this -- cf GFit.h
-		virtual GFit<double,3> fit(const double eps) const = 0;
+		virtual GFit<double,LDIM> fit(const double eps) const = 0;
 
 		/// storing the coefficients
-		mutable std::vector< ConvolutionND<double,6> > ops;
+		mutable std::vector< ConvolutionND<double,NDIM> > ops;
 
 		/// the number of terms in the Gaussian quadrature
 		int rank;
@@ -421,8 +489,42 @@ namespace madness {
 
 	};
 
+
+    /// a function like f(x)=1/x
+    template<typename T, std::size_t NDIM>
+    class GeneralTwoElectronInterface : public TwoElectronInterface<T,NDIM> {
+    public:
+
+        /// constructor: cf the Coulomb kernel
+
+        /// @param[in]	lo		the smallest length scale to be resolved
+        /// @param[in]	eps		the accuracy threshold
+        GeneralTwoElectronInterface(OperatorInfo info,
+                                   const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
+                                   int kk=FunctionDefaults<NDIM>::get_k())
+                : TwoElectronInterface<T,NDIM>(info.lo,info.thresh,bc,kk), info(info) {
+
+            if (info.hi<0) {
+                double hi=FunctionDefaults<LDIM>::get_cell_width().normf();
+                if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+                this->info.hi=hi;
+            }
+            this->initialize(info.thresh);
+        }
+
+    private:
+        OperatorInfo info;
+        static constexpr std::size_t LDIM=NDIM/2;
+
+        GFit<double,LDIM> fit(const double eps) const {
+            return GFit<double,LDIM>(info);
+        }
+    };
+
 	/// a function like f(x)=1/x
-	class ElectronRepulsionInterface : public TwoElectronInterface<double,6> {
+	template<typename T, std::size_t NDIM>
+	class ElectronRepulsionInterface : public TwoElectronInterface<double,NDIM> {
+
 	public:
 
 		/// constructor: cf the Coulomb kernel
@@ -430,17 +532,18 @@ namespace madness {
 		/// @param[in]	lo		the smallest length scale to be resolved
 		/// @param[in]	eps		the accuracy threshold
 		ElectronRepulsionInterface(double lo,double eps,
-				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
-				int kk=FunctionDefaults<6>::get_k())
-		  : TwoElectronInterface<double,6>(lo,eps,bc,kk) {
+				const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
+				int kk=FunctionDefaults<NDIM>::get_k())
+		  : TwoElectronInterface<double,NDIM>(lo,eps,bc,kk) {
 
-			initialize(eps);
+			this->initialize(eps);
 		}
 
 	private:
+        static constexpr std::size_t LDIM=NDIM/2;
 
-		GFit<double,3> fit(const double eps) const {
-			return GFit<double,3>::CoulombFit(lo,hi,eps,false);
+		GFit<double,LDIM> fit(const double eps) const {
+			return GFit<double,LDIM>::CoulombFit(this->lo,this->hi,eps,false);
 		}
 	};
 
@@ -512,28 +615,28 @@ namespace madness {
 			initialize(eps);
 		}
 
-		/// overload the function of the base class
-		coeffT coeff(const Key<6>& key) const {
-
-			Tensor<double> c=make_coeff(key);
-
-			// subtract 1 from the (0,0,..,0) element of the tensor,
-			// which is the 0th order polynomial coefficient
-        	double one_coeff1=1.0*sqrt(FunctionDefaults<6>::get_cell_volume())
-        			*pow(0.5,0.5*6*key.level());
-            std::vector<long> v0(6,0L);
-            c(v0)-=one_coeff1;
-
-			c.scale(-0.5/mu);
-            return coeffT(map_coeff(c),FunctionDefaults<6>::get_thresh(),TT_FULL);
-		}
+//		/// overload the function of the base class
+//		coeffT coeff(const Key<6>& key) const {
+//
+//			Tensor<double> c=make_coeff(key);
+//
+//			// subtract 1 from the (0,0,..,0) element of the tensor,
+//			// which is the 0th order polynomial coefficient
+//        	double one_coeff1=1.0*sqrt(FunctionDefaults<6>::get_cell_volume())
+//        			*pow(0.5,0.5*6*key.level());
+//            std::vector<long> v0(6,0L);
+//            c(v0)-=one_coeff1;
+//
+//			c.scale(-0.5/mu);
+//            return coeffT(map_coeff(c),FunctionDefaults<6>::get_thresh(),TT_FULL);
+//		}
 
 	private:
 
 		double mu;
 
 		GFit<double,3> fit(const double eps) const {
-			return GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
+			return GFit<double,3>::F12Fit(mu,lo,hi,eps,false);
 		}
 	};
 

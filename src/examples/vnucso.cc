@@ -31,9 +31,6 @@
   $Id$
 */
 
-//// \file examples/vnucso.cc
-/// \brief Solves the spin-orbit nuclear potential problem
-
 /*!
 
   \file vnucso.cc
@@ -50,7 +47,7 @@
   - Application of the Helmholtz bound-state Green function as vector of operators and functions
   - Projection and change of representation of functions from multiwavelets of degree k to k+1
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/vnucso.cc>here</a>.
+  The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/vnucso.cc>here</a>.
 
 
   This is a more involved example than the Hydrogen and Helium.
@@ -59,7 +56,6 @@
   G. I. Fann , J. Pei, R. J. Harrison1, J. Jia, J. Hill1 , M. Ou, W. Nazarewicz, W. A. Shelton
   and N. Schunck, "Fast multiresolution methods for density functional theory in nuclear physics,"
   Journal of Physics, 180 (2009) 012080.
-
 
 */
 

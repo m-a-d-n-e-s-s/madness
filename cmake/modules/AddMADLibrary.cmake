@@ -87,13 +87,6 @@ macro(add_mad_library _name _source_files _header_files _dep_mad_comp _include_d
     endforeach(_dep ${_dep_mad_comp})
     set_target_properties(${targetname} PROPERTIES LINK_FLAGS "${LINK_FLAGS}")
     target_compile_features(${targetname} INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")
-    # if (CMAKE_CXX_STANDARD GREATER_EQUAL 20) # volatile issues now (mostly) fixed properly, so restore warnings
-    #   if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    #     target_compile_options(MAD${_name} PUBLIC "-Wno-deprecated-volatile")
-    #   elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-    #     target_compile_options(MAD${_name} PUBLIC "-Wno-volatile")
-    #   endif()
-    # endif()
 
 endmacro()
 

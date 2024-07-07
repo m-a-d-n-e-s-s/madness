@@ -31,12 +31,12 @@
   $Id$
 */
 /*!
-  \file he.cc
+  \file hehf.cc
   \brief Solves the Hartree-Fock equations for the helium atom
   \defgroup examplehehf Hartree-Fock equations for the helium atom
   \ingroup examples
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/he.cc>here</a>.
+  The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/hehf.cc>here</a>.
 
   \par Points of interest
   - application of the Coulomb and Helmholtz Green's functions

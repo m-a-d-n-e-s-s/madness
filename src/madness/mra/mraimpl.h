@@ -236,7 +236,7 @@ namespace madness {
         return (tree_state==compressed);
     }
 
-    /// Returns true if the function is compressed.
+    /// Returns true if the function is reconstructed.
     template <typename T, std::size_t NDIM>
     bool FunctionImpl<T,NDIM>::is_reconstructed() const {
         return (tree_state==reconstructed);
@@ -402,7 +402,7 @@ namespace madness {
     Tensor<double> FunctionImpl<T,NDIM>::print_plane_local(const int xaxis, const int yaxis, const coordT& el2) {
         coordT x_sim;
         user_to_sim<NDIM>(el2,x_sim);
-        x_sim[2]+=1.e-10;
+        x_sim[0]+=1.e-10;
 
         // dimensions are: (# boxes)(hue, x lo left, y lo left, x hi right, y hi right)
         Tensor<double> plotinfo(coeffs.size(),5);
@@ -1042,10 +1042,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::diff(const DerivativeBase<T,NDIM>* D, const implT* f, bool fence) {
         typedef std::pair<keyT,coeffT> argT;
-        typename dcT::const_iterator end = f->coeffs.end();
-        for (typename dcT::const_iterator it=f->coeffs.begin(); it!=end; ++it) {
-            const keyT& key = it->first;
-            const nodeT& node = it->second;
+        for (const auto& [key, node]: f->coeffs) {
             if (node.has_coeff()) {
                 Future<argT> left  = D->find_neighbor(f, key,-1);
                 argT center(key,node.coeff());
@@ -1229,7 +1226,7 @@ namespace madness {
     /// @param[in]  targs   target tensor arguments (threshold and full/low rank)
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::compute_snorm_and_dnorm(bool fence) {
-        const auto& data=FunctionCommonData<T,NDIM>::get(get_k());
+        //const auto& data=FunctionCommonData<T,NDIM>::get(get_k());
         flo_unary_op_node_inplace(
                 do_compute_snorm_and_dnorm(cdata),fence);
     }
@@ -1387,12 +1384,14 @@ namespace madness {
         }
     }
 
-    // For each local node sets value of norm tree to 0.0
+    // For each local node sets value of norm tree, snorm and dnorm to 0.0
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::zero_norm_tree() {
         typename dcT::iterator end = coeffs.end();
         for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
             it->second.set_norm_tree(0.0);
+            it->second.set_snorm(0.0);
+            it->second.set_dnorm(0.0);
         }
     }
 
@@ -1500,24 +1499,133 @@ namespace madness {
         }
     }
 
+    /// change the tree state of this function, might or might not respect fence!
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::change_tree_state(const TreeState finalstate, bool fence) {
+
+        TreeState current_state=get_tree_state();
+        if (current_state==finalstate) return;
+
+        // very special case
+        if (get_tree_state()==nonstandard_after_apply) {
+            MADNESS_CHECK(finalstate==reconstructed);
+            reconstruct(fence);
+            return;
+        }
+        MADNESS_CHECK_THROW(current_state!=TreeState::nonstandard_after_apply,"unknown tree state");
+        bool must_fence=false;
+
+        if (finalstate==reconstructed) {
+            if (current_state==reconstructed) return;
+            if (current_state==compressed) reconstruct(fence);
+            if (current_state==nonstandard) reconstruct(fence);
+            if (current_state==nonstandard_with_leaves) remove_internal_coefficients(fence);
+            if (current_state==redundant) remove_internal_coefficients(fence);
+            set_tree_state(reconstructed);
+        } else if (finalstate==compressed) {
+            if (current_state==reconstructed) compress(compressed,fence);
+            if (current_state==compressed) return;
+            if (current_state==nonstandard) standard(fence);
+            if (current_state==nonstandard_with_leaves) standard(fence);
+            if (current_state==redundant) {
+                remove_internal_coefficients(true);
+                must_fence=true;
+                set_tree_state(reconstructed);
+                compress(compressed,fence);
+            }
+            set_tree_state(compressed);
+        } else if (finalstate==nonstandard) {
+            if (current_state==reconstructed) compress(nonstandard,fence);
+            if (current_state==compressed) {
+                reconstruct(true);
+                must_fence=true;
+                compress(nonstandard,fence);
+            }
+            if (current_state==nonstandard) return;
+            if (current_state==nonstandard_with_leaves) remove_leaf_coefficients(fence);
+            if (current_state==redundant) {
+                remove_internal_coefficients(true);
+                must_fence=true;
+                set_tree_state(reconstructed);
+                compress(nonstandard,fence);
+            }
+            set_tree_state(nonstandard);
+        } else if (finalstate==nonstandard_with_leaves) {
+            if (current_state==reconstructed) compress(nonstandard_with_leaves,fence);
+            if (current_state==compressed) {
+                reconstruct(true);
+                must_fence=true;
+                compress(nonstandard_with_leaves,fence);
+            }
+            if (current_state==nonstandard) {
+                standard(true);
+                must_fence=true;
+                reconstruct(true);
+                compress(nonstandard_with_leaves,fence);
+            }
+            if (current_state==nonstandard_with_leaves) return;
+            if (current_state==redundant) {
+                remove_internal_coefficients(true);
+                must_fence=true;
+                set_tree_state(reconstructed);
+                compress(nonstandard_with_leaves,fence);
+            }
+            set_tree_state(nonstandard_with_leaves);
+        } else if (finalstate==redundant) {
+            if (current_state==reconstructed) make_redundant(fence);
+            if (current_state==compressed) {
+                reconstruct(true);
+                must_fence=true;
+                make_redundant(fence);
+            }
+            if (current_state==nonstandard) {
+                standard(true);
+                must_fence=true;
+                reconstruct(true);
+                make_redundant(fence);
+            }
+            if (current_state==nonstandard_with_leaves) {
+                remove_internal_coefficients(true);
+                must_fence=true;
+                set_tree_state(reconstructed);
+                make_redundant(fence);
+            }
+            if (current_state==redundant) return;
+            set_tree_state(redundant);
+        } else {
+            MADNESS_EXCEPTION("unknown/unsupported final tree state",1);
+        }
+        if (must_fence and world.rank()==0) {
+            print("could not respect fence in change_tree_state");
+        }
+        if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
+        return;
+    }
+
+
+
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::reconstruct(bool fence) {
 
-        if (is_reconstructed()) {
-            return;
-        } else if (is_redundant() or is_nonstandard_with_leaves()) {
-    		this->undo_redundant(fence);
-    		return;
-    	} else if (is_compressed() or is_nonstandard()) {
+        if (is_reconstructed()) return;
+
+        if (is_redundant() or is_nonstandard_with_leaves()) {
+            set_tree_state(reconstructed);
+    		this->remove_internal_coefficients(fence);
+    	} else if (is_compressed() or tree_state==nonstandard_after_apply) {
             // Must set true here so that successive calls without fence do the right thing
             set_tree_state(reconstructed);
             if (world.rank() == coeffs.owner(cdata.key0))
-                woT::task(world.rank(), &implT::reconstruct_op, cdata.key0,coeffT());
-            if (fence)
-                world.gop.fence();
+                woT::task(world.rank(), &implT::reconstruct_op, cdata.key0,coeffT(), true);
+        } else if (is_nonstandard()) {
+            // Must set true here so that successive calls without fence do the right thing
+            set_tree_state(reconstructed);
+            if (world.rank() == coeffs.owner(cdata.key0))
+                woT::task(world.rank(), &implT::reconstruct_op, cdata.key0,coeffT(), false);
     	} else {
             MADNESS_EXCEPTION("cannot reconstruct this tree",1);
         }
+        if (fence) world.gop.fence();
 
     }
 
@@ -1530,7 +1638,7 @@ namespace madness {
     /// @param[in] redundant    keep only sum coeffs at all levels, discard difference coeffs
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::compress(const TreeState newstate, bool fence) {
-        MADNESS_CHECK(is_reconstructed());
+        MADNESS_CHECK_THROW(is_reconstructed(),"impl::compress wants a reconstructe tree");
         // Must set true here so that successive calls without fence do the right thing
         set_tree_state(newstate);
         bool keepleaves1=(tree_state==nonstandard_with_leaves) or (tree_state==redundant);
@@ -1545,27 +1653,30 @@ namespace madness {
             world.gop.fence();
     }
 
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::remove_internal_coefficients(const bool fence) {
+        flo_unary_op_node_inplace(remove_internal_coeffs(),fence);
+    }
+
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::remove_leaf_coefficients(const bool fence) {
+        flo_unary_op_node_inplace(remove_leaf_coeffs(),fence);
+    }
+
     /// convert this to redundant, i.e. have sum coefficients on all levels
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::make_redundant(const bool fence) {
 
         // fast return if possible
         if (is_redundant()) return;
-
-        // NS form might have leaf sum coeffs, but we don't know
-        // change to standard compressed form
-        if (is_nonstandard()) this->standard(true);
-
-        // we need the leaf sum coeffs, so reconstruct
-        if (is_compressed()) reconstruct(true);
-
+        MADNESS_CHECK_THROW(is_reconstructed(),"impl::make_redundant() wants a reconstructed tree");
         compress(redundant,fence);
     }
 
     /// convert this from redundant to standard reconstructed form
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::undo_redundant(const bool fence) {
-        MADNESS_CHECK(is_redundant());
+        MADNESS_CHECK_THROW(is_redundant(),"impl::undo_redundant() wants a redundant tree");
         set_tree_state(reconstructed);
         flo_unary_op_node_inplace(remove_internal_coeffs(),fence);
     }
@@ -1694,8 +1805,8 @@ namespace madness {
     /// @param[in] redundant    keep only the sum coefficients, discard the wavelet coefficients
     /// @return 		the sum coefficients
     template <typename T, std::size_t NDIM>
-    typename FunctionImpl<T,NDIM>::coeffT FunctionImpl<T,NDIM>::compress_op(const keyT& key,
-    		const std::vector< Future<coeffT > >& v, bool nonstandard1) {
+    std::pair<typename FunctionImpl<T,NDIM>::coeffT,double> FunctionImpl<T,NDIM>::compress_op(const keyT& key,
+    		const std::vector< Future<std::pair<coeffT,double> > >& v, bool nonstandard1) {
         //PROFILE_MEMBER_FUNC(FunctionImpl);
 
         double cpu0=cpu_time();
@@ -1703,9 +1814,11 @@ namespace madness {
         tensorT d(cdata.v2k);
         //            coeffT d(cdata.v2k,targs);
         int i=0;
+        double norm_tree2=0.0;
         for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
             //                d(child_patch(kit.key())) += v[i].get();
-            d(child_patch(kit.key())) += v[i].get().full_tensor_copy();
+            d(child_patch(kit.key())) += v[i].get().first.full_tensor_copy();
+            norm_tree2+=v[i].get().second*v[i].get().second;
         }
 
         d = filter(d);
@@ -1716,18 +1829,7 @@ namespace madness {
         typename dcT::accessor acc;
         const auto found = coeffs.find(acc, key);
         MADNESS_CHECK(found);
-
-        if (acc->second.has_coeff()) {
-            print(" stuff in compress_op");
-            //                const coeffT& c = acc->second.coeff();
-            const tensorT c = acc->second.coeff().full_tensor_copy();
-            if (c.dim(0) == k) {
-                d(cdata.s0) += c;
-            }
-            else {
-                d += c;
-            }
-        }
+        MADNESS_CHECK_THROW(!acc->second.has_coeff(),"compress_op: existing coeffs where there should be none");
 
         // tighter thresh for internal nodes
         TensorArgs targs2=targs;
@@ -1735,33 +1837,45 @@ namespace madness {
 
         // need the deep copy for contiguity
         coeffT ss=coeffT(copy(d(cdata.s0)));
+        double snorm=ss.normf();
 
-        if (key.level()> 0 && !nonstandard1)
-            d(cdata.s0) = 0.0;
+        if (key.level()> 0 && !nonstandard1) d(cdata.s0) = 0.0;
 
-            coeffT dd=coeffT(d,targs2);
-            acc->second.set_coeff(dd);
+        coeffT dd=coeffT(d,targs2);
+        double dnorm=dd.normf();
+        double norm_tree=sqrt(norm_tree2);
+
+        acc->second.set_snorm(snorm);
+        acc->second.set_dnorm(dnorm);
+        acc->second.set_norm_tree(norm_tree);
+
+        acc->second.set_coeff(dd);
         cpu1=cpu_time();
         timer_compress_svd.accumulate(cpu1-cpu0);
 
         // return sum coefficients
-        return ss;
+        return std::make_pair(ss,snorm);
     }
 
     /// similar to compress_op, but insert only the sum coefficients in the tree
 
+    /// also sets snorm, dnorm and norm_tree for all nodes
     /// @param[in] key  this's key
     /// @param[in] v    sum coefficients of the child nodes
     /// @return         the sum coefficients
     template <typename T, std::size_t NDIM>
-    typename FunctionImpl<T,NDIM>::coeffT FunctionImpl<T,NDIM>::make_redundant_op(const keyT& key, const std::vector< Future<coeffT > >& v) {
+    std::pair<typename FunctionImpl<T,NDIM>::coeffT,double>
+            FunctionImpl<T,NDIM>::make_redundant_op(const keyT& key, const std::vector< Future<std::pair<coeffT,double> > >& v) {
 
         tensorT d(cdata.v2k);
         int i=0;
+        double norm_tree2=0.0;
         for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
-            d(child_patch(kit.key())) += v[i].get().full_tensor_copy();
+            d(child_patch(kit.key())) += v[i].get().first.full_tensor_copy();
+            norm_tree2+=v[i].get().second*v[i].get().second;
         }
         d = filter(d);
+        double norm_tree=sqrt(norm_tree2);
 
         // tighter thresh for internal nodes
         TensorArgs targs2=targs;
@@ -1771,6 +1885,7 @@ namespace madness {
         coeffT s=coeffT(copy(d(cdata.s0)),targs2);
         d(cdata.s0)=0.0;
         double dnorm=d.normf();
+        double snorm=s.normf();
 
         typename dcT::accessor acc;
         const auto found = coeffs.find(acc, key);
@@ -1778,9 +1893,11 @@ namespace madness {
 
         acc->second.set_coeff(s);
         acc->second.set_dnorm(dnorm);
+        acc->second.set_snorm(snorm);
+        acc->second.set_norm_tree(norm_tree);
 
         // return sum coefficients
-        return s;
+        return std::make_pair(s,norm_tree);
     }
 
     /// Changes non-standard compressed form to standard compressed form
@@ -1795,8 +1912,10 @@ namespace madness {
 
 
     /// after apply we need to do some cleanup;
+
+    /// forces fence
     template <typename T, std::size_t NDIM>
-    double FunctionImpl<T,NDIM>::finalize_apply(const bool fence) {
+    double FunctionImpl<T,NDIM>::finalize_apply() {
         bool print_timings=false;
         bool printme=(world.rank()==0 and print_timings);
         TensorArgs tight_args(targs);
@@ -1829,9 +1948,21 @@ namespace madness {
 
         double end=wall_time();
         double elapsed=end-begin;
-        set_tree_state(nonstandard);
-        if (fence) world.gop.fence();
+        set_tree_state(nonstandard_after_apply);
+        world.gop.fence();
         return elapsed;
+    }
+
+
+    /// after summing up we need to do some cleanup;
+
+    /// forces fence
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::finalize_sum() {
+        world.gop.fence();
+        flo_unary_op_node_inplace(do_consolidate_buffer(get_tensor_args()), true);
+        sum_down(true);
+        set_tree_state(reconstructed);
     }
 
     /// Returns the square of the local norm ... no comms
@@ -1972,8 +2103,12 @@ namespace madness {
         }
 
         if (this->world.rank()==0) {
-            printf("%40s at time %.1fs: norm/tree/#coeff/size: %7.5f %zu, %6.3f m, %6.3f GByte\n",
+
+            constexpr std::size_t bufsize=128;
+            char buf[bufsize];
+            snprintf(buf, bufsize, "%40s at time %.1fs: norm/tree/#coeff/size: %7.5f %zu, %6.3f m, %6.3f GByte",
                    (name.c_str()), wall, norm, tsize,double(ncoeff)*1.e-6,double(ncoeff)/fac*d);
+            print(std::string(buf));
         }
     }
 
@@ -2089,7 +2224,7 @@ namespace madness {
     }
 
     template <typename T, std::size_t NDIM>
-    void FunctionImpl<T,NDIM>::reconstruct_op(const keyT& key, const coeffT& s) {
+    void FunctionImpl<T,NDIM>::reconstruct_op(const keyT& key, const coeffT& s, const bool accumulate_NS) {
         //PROFILE_MEMBER_FUNC(FunctionImpl);
         // Note that after application of an integral operator not all
         // siblings may be present so it is necessary to check existence
@@ -2116,7 +2251,7 @@ namespace madness {
         if (node.has_children() || node.has_coeff()) { // Must allow for inconsistent state from transform, etc.
             coeffT d = node.coeff();
             if (!d.has_data()) d = coeffT(cdata.v2k,targs);
-            if (key.level() > 0) d(cdata.s0) += s; // -- note accumulate for NS summation
+            if (accumulate_NS and (key.level() > 0)) d(cdata.s0) += s; // -- note accumulate for NS summation
             if (d.dim(0)==2*get_k()) {              // d might be pre-truncated if it's a leaf
                 d = unfilter(d);
                 node.clear_coeff();
@@ -2126,7 +2261,7 @@ namespace madness {
                     coeffT ss = copy(d(child_patch(child)));
                     ss.reduce_rank(thresh);
                     //PROFILE_BLOCK(recon_send); // Too fine grain for routine profiling
-                    woT::task(coeffs.owner(child), &implT::reconstruct_op, child, ss);
+                    woT::task(coeffs.owner(child), &implT::reconstruct_op, child, ss, accumulate_NS);
                 }
             } else {
                 MADNESS_ASSERT(node.is_leaf());
@@ -2707,7 +2842,61 @@ namespace madness {
     }
 
     template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::print_tree_json(std::ostream& os, Level maxlevel) const {
+        std::multimap<Level, std::tuple<tranT, std::string>> data;
+        if (world.rank() == 0) do_print_tree_json(cdata.key0, data, maxlevel);
+        world.gop.fence();
+        if (world.rank() == 0) {
+            for (Level level = 0; level != maxlevel; ++level) {
+                if (data.count(level) == 0)
+                    break;
+                else {
+                    if (level > 0)
+                        os << ",";
+                    os << "\"" << level << "\":{";
+                    os << "\"level\": " << level << ",";
+                    os << "\"nodes\":{";
+                    auto range = data.equal_range(level);
+                    for (auto it = range.first; it != range.second; ++it) {
+                        os << "\"" << std::get<0>(it->second) << "\":"
+                           << std::get<1>(it->second);
+                        if (std::next(it) != range.second)
+                            os << ",";
+                    }
+                    os << "}}";
+                }
+            }
+            os.flush();
+        }
+        world.gop.fence();
+    }
+
+
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::do_print_tree_json(const keyT& key, std::multimap<Level, std::tuple<tranT, std::string>>& data, Level maxlevel) const {
+        typename dcT::const_iterator it = coeffs.find(key).get();
+        if (it == coeffs.end()) {
+            MADNESS_EXCEPTION("FunctionImpl: do_print_tree_json: null node pointer",0);
+        }
+        else {
+            const nodeT& node = it->second;
+            std::ostringstream oss;
+            oss << "{";
+            node.print_json(oss);
+            oss << ",\"owner\": " << coeffs.owner(key) << "}";
+            auto node_json_str = oss.str();
+            data.insert(std::make_pair(key.level(), std::make_tuple(key.translation(), node_json_str)));
+            if (key.level() < maxlevel  &&  node.has_children()) {
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    do_print_tree_json(kit.key(),data, maxlevel);
+                }
+            }
+        }
+    }
+
+    template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::print_tree_graphviz(std::ostream& os, Level maxlevel) const {
+        // aggregate data by level, thus collect data first, then dump
         if (world.rank() == 0) do_print_tree_graphviz(cdata.key0, os, maxlevel);
         world.gop.fence();
         if (world.rank() == 0) os.flush();
@@ -2981,13 +3170,9 @@ namespace madness {
 
 
     template <typename T, std::size_t NDIM>
-    void FunctionImpl<T,NDIM>::tnorm(const tensorT& t, double* lo, double* hi) const {
+    void FunctionImpl<T,NDIM>::tnorm(const tensorT& t, double* lo, double* hi) {
         //PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
-        // Chosen approach looks stupid but it is more accurate
-        // than the simple approach of summing everything and
-        // subtracting off the low-order stuff to get the high
-        // order (assuming the high-order stuff is small relative
-        // to the low-order)
+        auto& cdata=FunctionCommonData<T,NDIM>::get(t.dim(0));
         tensorT work = copy(t);
         tensorT tlo = work(cdata.sh);
         *lo = tlo.normf();
@@ -2996,7 +3181,8 @@ namespace madness {
     }
 
     template <typename T, std::size_t NDIM>
-    void FunctionImpl<T,NDIM>::tnorm(const GenTensor<T>& t, double* lo, double* hi) const {
+    void FunctionImpl<T,NDIM>::tnorm(const GenTensor<T>& t, double* lo, double* hi) {
+        auto& cdata=FunctionCommonData<T,NDIM>::get(t.dim(0));
 		coeffT shalf=t(cdata.sh);
 		*lo=shalf.normf();
 		coeffT sfull=copy(t);
@@ -3006,9 +3192,10 @@ namespace madness {
 
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::tnorm(const SVDTensor<T>& t, double* lo, double* hi,
-    		const int particle) const {
+    		const int particle) {
     	*lo=0.0;
     	*hi=0.0;
+        auto& cdata=FunctionCommonData<T,NDIM>::get(t.dim(0));
     	if (t.rank()==0) return;
     	const tensorT vec=t.flat_vector(particle-1);
     	for (long i=0; i<t.rank(); ++i) {
@@ -3192,16 +3379,20 @@ template <typename T, std::size_t NDIM>
     }
 
 
+    /// will insert
+    /// @return s coefficient and norm_tree for key
     template <typename T, std::size_t NDIM>
-    Future< GenTensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key,
+    Future< std::pair<GenTensor<T>,double> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key,
 				bool nonstandard1, bool keepleaves, bool redundant1) {
         if (!coeffs.probe(key)) print("missing node",key);
         MADNESS_ASSERT(coeffs.probe(key));
 
         // get fetches remote data (here actually local)
         nodeT& node = coeffs.find(key).get()->second;
+
+        // internal node -> continue recursion
         if (node.has_children()) {
-            std::vector< Future<coeffT > > v = future_vector_factory<coeffT >(1<<NDIM);
+            std::vector< Future<std::pair<coeffT,double> > > v = future_vector_factory<std::pair<coeffT,double> >(1<<NDIM);
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
                 //PROFILE_BLOCK(compress_send); // Too fine grain for routine profiling
@@ -3212,11 +3403,33 @@ template <typename T, std::size_t NDIM>
             if (redundant1) return woT::task(world.rank(),&implT::make_redundant_op, key, v);
             return woT::task(world.rank(),&implT::compress_op, key, v, nonstandard1);
         }
+
+        // leaf node -> remove coefficients here and pass them back to parent for filtering
+        // insert snorm, dnorm=0.0, normtree (=snorm)
         else {
-            Future<coeffT > result(node.coeff());
-            if (!keepleaves) node.clear_coeff();
-        	node.set_dnorm(0.0);
-            return result;
+            // special case: tree has only root node: keep sum coeffs and make zero diff coeffs
+            if (key.level()==0) {
+                coeffT result(node.coeff());
+                coeffT sdcoeff(cdata.v2k,this->get_tensor_type());
+                sdcoeff(cdata.s0)+=node.coeff();
+                node.coeff()=sdcoeff;
+                double snorm=node.coeff().normf();
+                node.set_dnorm(0.0);
+                node.set_snorm(snorm);
+                node.set_norm_tree(snorm);
+                return Future< std::pair<GenTensor<T>,double> >(std::make_pair(result,node.coeff().normf()));
+
+            } else { // this is a leaf node
+                Future<coeffT > result(node.coeff());
+                if (not keepleaves) node.clear_coeff();
+
+                auto snorm=(keepleaves) ? node.coeff().normf() : 0.0;
+                node.set_norm_tree(snorm);
+                node.set_snorm(snorm);
+                node.set_dnorm(0.0);
+
+                return Future< std::pair<GenTensor<T>,double> >(std::make_pair(result,snorm));
+            }
         }
     }
 

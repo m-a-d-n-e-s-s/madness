@@ -397,6 +397,19 @@ TYPEDEF_HIDES_STRUCT   = NO
 
 LOOKUP_CACHE_SIZE      = 0
 
+# The NUM_PROC_THREADS specifies the number of threads doxygen is allowed to use
+# during processing. When set to 0 doxygen will based this on the number of
+# cores available in the system. You can set it explicitly to a value larger
+# than 0 to get more control over the balance between CPU load and processing
+# speed. At this moment only the input processing can be done using multiple
+# threads. Since this is still an experimental feature the default is set to 1,
+# which effectively disables parallel processing. Please report any issues you
+# encounter. Generating dot graphs in parallel is controlled by the
+# DOT_NUM_THREADS setting.
+# Minimum value: 0, maximum value: 32, default value: 1.
+
+NUM_PROC_THREADS       = 10
+
 #---------------------------------------------------------------------------
 # Build related configuration options
 #---------------------------------------------------------------------------
@@ -804,7 +817,7 @@ EXCLUDE                = "@PROJECT_SOURCE_DIR@/src/madness/external" \
                          "@PROJECT_SOURCE_DIR@/src/apps/ii" \
                          "@PROJECT_SOURCE_DIR@/src/apps/jacob" \
                          "@PROJECT_SOURCE_DIR@/src/apps/nick" \
-                         "@PROJECT_SOURCE_DIR@/src/apps/polar"
+                         "@PROJECT_SOURCE_DIR@/src/apps/polar" 
 
 # The EXCLUDE_SYMLINKS tag can be used to select whether or not files or
 # directories that are symbolic links (a Unix file system feature) are excluded
@@ -822,7 +835,8 @@ EXCLUDE_SYMLINKS       = NO
 
 EXCLUDE_PATTERNS       = LIBS.h \
                          mraX.cc \
-                         mraX.h
+                         mraX.h \
+                         *.tex 
 
 # The EXCLUDE_SYMBOLS tag can be used to specify one or more symbol names
 # (namespaces, classes, functions, etc.) that should be excluded from the
@@ -2119,7 +2133,7 @@ HAVE_DOT               = @DOXYGEN_DOT_FOUND@
 # Minimum value: 0, maximum value: 32, default value: 0.
 # This tag requires that the tag HAVE_DOT is set to YES.
 
-DOT_NUM_THREADS        = 0
+DOT_NUM_THREADS        = 10
 
 # When you want a differently looking font in the dot files that doxygen
 # generates you can specify the font name using DOT_FONTNAME. You need to make

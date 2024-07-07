@@ -458,20 +458,21 @@ namespace madness {
                 this->clear();
                 hashfun = h.hashfun;
                 for (const_iterator p=h.begin(); p!=h.end(); ++p) {
-                    insert(*p);
+                    [[maybe_unused]] auto&& [it, inserted] = insert(*p);
+                    MADNESS_ASSERT(inserted);
                 }
             }
             return *this;
         }
 
-        std::pair<iterator,bool> insert(const datumT& datum) {
+        [[nodiscard]] std::pair<iterator,bool> insert(const datumT& datum) {
             int bin = hash_to_bin(datum.first);
             std::pair<entryT*,bool> result = bins[bin].insert(datum,entryT::NOLOCK);
             return std::pair<iterator,bool>(iterator(this,bin,result.first),result.second);
         }
 
         /// Returns true if new pair was inserted; false if key is already in the map and the datum was not inserted
-        bool insert(accessor& result, const datumT& datum) {
+        [[nodiscard]] bool insert(accessor& result, const datumT& datum) {
             result.release();
             int bin = hash_to_bin(datum.first);
             std::pair<entryT*,bool> r = bins[bin].insert(datum,entryT::WRITELOCK);
@@ -480,7 +481,7 @@ namespace madness {
         }
 
         /// Returns true if new pair was inserted; false if key is already in the map and the datum was not inserted
-        bool insert(const_accessor& result, const datumT& datum) {
+        [[nodiscard]] bool insert(const_accessor& result, const datumT& datum) {
             result.release();
             int bin = hash_to_bin(datum.first);
             std::pair<entryT*,bool> r = bins[bin].insert(datum,entryT::READLOCK);
@@ -489,23 +490,24 @@ namespace madness {
         }
 
         /// Returns true if new pair was inserted; false if key is already in the map
-        inline bool insert(accessor& result, const keyT& key) {
+        [[nodiscard]] inline bool insert(accessor& result, const keyT& key) {
             return insert(result, datumT(key,valueT()));
         }
 
         /// Returns true if new pair was inserted; false if key is already in the map
-        inline bool insert(const_accessor& result, const keyT& key) {
+        [[nodiscard]] inline bool insert(const_accessor& result, const keyT& key) {
             return insert(result, datumT(key,valueT()));
         }
 
-        std::size_t erase(const keyT& key) {
-            if (bins[hash_to_bin(key)].del(key,entryT::NOLOCK)) return 1;
-            else return 0;
+        [[nodiscard]] bool try_erase(const keyT& key) {
+            if (bins[hash_to_bin(key)].del(key,entryT::NOLOCK)) return true;
+            else return false;
         }
 
         void erase(const iterator& it) {
             if (it == end()) MADNESS_EXCEPTION("ConcurrentHashMap: erase(iterator): at end", true);
-            erase(it->first);
+            [[maybe_unused]] auto erased = try_erase(it->first);
+            MADNESS_ASSERT(erased);
         }
 
         void erase(accessor& item) {
@@ -519,21 +521,21 @@ namespace madness {
             item.unset();
         }
 
-        iterator find(const keyT& key) {
+        [[nodiscard]] iterator find(const keyT& key) {
             int bin = hash_to_bin(key);
             entryT* entry = bins[bin].find(key,entryT::NOLOCK);
             if (!entry) return end();
             else return iterator(this,bin,entry);
         }
 
-        const_iterator find(const keyT& key) const {
+        [[nodiscard]] const_iterator find(const keyT& key) const {
             int bin = hash_to_bin(key);
             const entryT* entry = bins[bin].find(key,entryT::NOLOCK);
             if (!entry) return end();
             else return const_iterator(this,bin,entry);
         }
 
-        bool find(accessor& result, const keyT& key) {
+        [[nodiscard]] bool find(accessor& result, const keyT& key) {
             result.release();
             int bin = hash_to_bin(key);
             entryT* entry = bins[bin].find(key,entryT::WRITELOCK);
@@ -542,7 +544,7 @@ namespace madness {
             return foundit;
         }
 
-        bool find(const_accessor& result, const keyT& key) const {
+        [[nodiscard]] bool find(const_accessor& result, const keyT& key) const {
             result.release();
             int bin = hash_to_bin(key);
             entryT* entry = bins[bin].find(key,entryT::READLOCK);
@@ -555,38 +557,38 @@ namespace madness {
             for (unsigned int i=0; i<nbins; ++i) bins[i].clear();
         }
 
-        size_t size() const {
+        [[nodiscard]] size_t size() const {
             size_t sum = 0;
             for (size_t i=0; i<nbins; ++i) sum += bins[i].size();
             return sum;
         }
 
-        valueT& operator[](const keyT& key) {
+        [[nodiscard]] valueT& operator[](const keyT& key) {
             std::pair<iterator,bool> it = insert(datumT(key,valueT()));
             return it.first->second;
         }
 
-        iterator begin() {
+        [[nodiscard]] iterator begin() {
             return iterator(this,true);
         }
 
-        const_iterator begin() const {
+        [[nodiscard]] const_iterator begin() const {
             return cbegin();
         }
 
-        const_iterator cbegin() const {
+        [[nodiscard]] const_iterator cbegin() const {
             return const_iterator(this,true);
         }
 
-        iterator end() {
+        [[nodiscard]] iterator end() {
             return iterator(this,false);
         }
 
-        const_iterator end() const {
+        [[nodiscard]] const_iterator end() const {
             return cend();
         }
 
-        const_iterator cend() const {
+        [[nodiscard]] const_iterator cend() const {
             return const_iterator(this,false);
         }
 

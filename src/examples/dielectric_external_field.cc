@@ -32,12 +32,12 @@
 */
 
 /*!
-  \file examples/dielectric.cc
+  \file dielectric_external_field.cc
   \brief Example solution of Laplace's equations for dielectric sphere in an external field
   \defgroup exampledielectricfield Laplace's equations for dielectric sphere in an external field
   \ingroup examples
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/dielectric_field.cc>here</a>.
+  The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/dielectric_external_field.cc>here</a>.
 
   \par Points of interest
   - use of iterative equation solver
@@ -147,12 +147,12 @@ int main(int argc, char **argv) {
     FunctionDefaults<3>::set_bc(BC_FREE);
 
     // The Coulomb operator (this is just 1/r ... whereas the notes are -1/4pir)
-    real_convolution_3d op = CoulombOperator(world, sigma*0.001, thresh*0.1);
+    auto op = CoulombOperator(world, sigma*0.001, thresh*0.1);
 
     // Derivative operators
-    real_derivative_3d Dx = free_space_derivative<double,3>(world, 0);
-    real_derivative_3d Dy = free_space_derivative<double,3>(world, 1);
-    real_derivative_3d Dz = free_space_derivative<double,3>(world, 2);
+    auto Dx = free_space_derivative<double,3>(world, 0);
+    auto Dy = free_space_derivative<double,3>(world, 1);
+    auto Dz = free_space_derivative<double,3>(world, 2);
 
     // We will have one sphere of radius R centered at the origin
     vector<double> atomic_radii(1,R-delta);
@@ -169,9 +169,9 @@ int main(int argc, char **argv) {
     print(MolecularVolumeExponentialSwitchLogGrad(sigma,epsilon_1,epsilon_0, atomic_radii, atomic_coords,0).special_points());
 
     // Log derivative of the dielectric function
-    real_function_3d logdx = real_factory_3d(world).functor(real_functor_3d(new MolecularVolumeExponentialSwitchLogGrad(sigma,epsilon_1,epsilon_0, atomic_radii, atomic_coords,0)));
-    real_function_3d logdy = real_factory_3d(world).functor(real_functor_3d(new MolecularVolumeExponentialSwitchLogGrad(sigma,epsilon_1,epsilon_0, atomic_radii, atomic_coords,1)));
-    real_function_3d logdz = real_factory_3d(world).functor(real_functor_3d(new MolecularVolumeExponentialSwitchLogGrad(sigma,epsilon_1,epsilon_0, atomic_radii, atomic_coords,2)));
+    std::vector<real_function_3d> logd(3);
+    for (int i = 0; i < 3; i++)
+      logd.emplace_back(real_factory_3d(world).functor(MolecularVolumeExponentialSwitchLogGrad(sigma,epsilon_1,epsilon_0, atomic_radii, atomic_coords,i)));
 
     //double area = 4*madness::constants::pi*R*R;
     //double simulation_volume = 8*L*L*L;
@@ -186,7 +186,7 @@ int main(int argc, char **argv) {
     real_function_3d surface_charge, old_surface_charge(world);
     for (int iter=0; iter<20; iter++) {
         // Scale with 1/4pi AFTER applying operator to get one more digit of accuracy
-        surface_charge = (logdx*Dx(u) + logdy*Dy(u) + logdz*(-Ez+Dz(u))).truncate();
+        surface_charge = (logd[0]*Dx(u) + logd[1]*Dy(u) + logd[2]*(-Ez+Dz(u))).truncate();
         real_function_3d r = (u - op(surface_charge).scale(rfourpi)).truncate(thresh*0.032);
         surface_charge.scale(rfourpi);
 

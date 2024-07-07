@@ -18,23 +18,22 @@ namespace madness {
 
 Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), mol(world,parser), param(world,parser),
                     cparam(world,parser) {
-//	cparam.read_input_and_commandline_options(world,parser,"dft");
+	cparam.read_input_and_commandline_options(world,parser,"dft");
 
     FunctionDefaults<3>::set_k(cparam.k());
     FunctionDefaults<3>::set_thresh(cparam.econv());
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_initial_level(5);
     FunctionDefaults<3>::set_truncate_mode(1);
-    FunctionDefaults<3>::set_cubic_cell(-cparam.L(), cparam.L());
 
     aobasis.read_file(cparam.aobasis());
 //    cparam.set_molecular_info(mol, aobasis, 0);
     cparam.set_derived_values(mol,aobasis,parser);
+
+    FunctionDefaults<3>::set_cubic_cell(-cparam.L(), cparam.L());
     cparam.set_derived_value("spin_restricted",false);
 
 	param.set_derived_values();
-
-	mol.parameters.set_derived_value("no_orient",true);
 
 	print_info=printleveler(param.printlevel());
 
@@ -211,8 +210,10 @@ void Znemo::iterate() {
 
 	// the diamagnetic box
 
-	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> > solvera(allocator<double_complex,3> (world,amo.size()));
-	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> > solverb(allocator<double_complex,3> (world,bmo.size()));
+//	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> > solvera(allocator<double_complex,3> (world,amo.size()));
+//	XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> > solverb(allocator<double_complex,3> (world,bmo.size()));
+    auto solvera= nonlinear_vector_solver<double_complex,3>(world,amo.size());
+    auto solverb= nonlinear_vector_solver<double_complex,3>(world,bmo.size());
 	solvera.set_maxsub(cparam.maxsub()); // @suppress("Method cannot be resolved")
 	solvera.do_print=(param.printlevel()>2);
 	solverb.set_maxsub(cparam.maxsub());
@@ -786,7 +787,15 @@ void Znemo::get_initial_orbitals() {
 		}
 
 //		zmos=read_complex_guess();
-//		zmos=read_real_guess();
+		if (not gotit) {
+			try {
+				zmos=read_real_guess();
+				print("successful read real guess orbitals");
+				gotit=true;
+			} catch (...) {
+				print("could not read real guess orbitals");
+			}
+		}
 		if (not gotit) {
 			try {
 				zmos=read_restartaodata();
@@ -831,14 +840,28 @@ Znemo::read_real_guess() const {
 	auto mos=MolecularOrbitals<double,3>::read_restartdata(world, "restartdata", molecule(), cparam.nalpha(), cparam.nbeta());
 	MolecularOrbitals<double,3> amo=mos.first,bmo=mos.second;
 
+	// check for correct polynomial order
+	auto k1=amo.get_mos()[0].get_impl()->get_k();
+	auto k2=FunctionDefaults<3>::get_k();
+	MADNESS_CHECK_THROW(k1==k2,"reference polynomial order is not equal to the current polynomial order");
+
+	// check if beta orbitals are present if they should be
+	if (cparam.have_beta() and bmo.size()==0) {
+		print("reading from a closed-shell reference -> replicating alpha to beta orbitals");
+		std::vector<real_function_3d> tmp;
+		for (int i=0; i<cparam.nmo_beta(); ++i) tmp.push_back(amo.get_mos()[i]);
+		bmo.set_mos(tmp);
+	}
+
     // confine the orbitals to an approximate Gaussian form corresponding to the
     // diamagnetic (harmonic) potential
     coord_3d remaining_B=B-coord_3d{0,0,param.explicit_B()};
     real_function_3d gauss=diafac->custom_factor(remaining_B,diafac->get_v(),1.0);
 
 	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
-	zmos.first.set_mos(truncate(convert<double,double_complex,3>(world,amo.get_mos()*ncf->inverse()*gauss)));		// alpha
-	zmos.second.set_mos(truncate(convert<double,double_complex,3>(world,bmo.get_mos()*ncf->inverse()*gauss)));		// beta
+	auto inv=ncf->inverse();
+	zmos.first.set_mos(truncate(convert<double,double_complex,3>(world,amo.get_mos()*inv)));		// alpha
+	zmos.second.set_mos(truncate(convert<double,double_complex,3>(world,bmo.get_mos()*inv)));		// beta
 
 	return zmos;
 }
@@ -907,7 +930,7 @@ Znemo::read_reference() const {
 	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
 
 	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
-	std::size_t namo, nbmo;
+	std::size_t namo=0, nbmo=0;
 
 	std::vector<complex_function_3d> amos,bmos;
 	Tensor<double> aeps,beps;
@@ -1034,10 +1057,10 @@ Znemo::potentials Znemo::compute_potentials(const std::vector<complex_function_3
 	std::vector<complex_function_3d> dia2mo=make_bra(mo);
 
 	// prepare exchange operator
-	Exchange<double_complex,3> K;
+	Exchange<double_complex,3> K(world,cparam.lo());
 	Tensor<double> occ(mo.size());
 	occ=1.0;
-	K.set_parameters(conj(world,dia2mo),mo,cparam.lo());
+    K.set_bra_and_ket(conj(world, dia2mo), mo);
 
 	Nuclear<double_complex,3> nuc(world,ncf);
 
@@ -1137,7 +1160,7 @@ void
 Znemo::canonicalize(std::vector<complex_function_3d>& amo,
 		std::vector<complex_function_3d>& vnemo,
 		potentials& pot,
-		XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> >& solver,
+		XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, vector_function_allocator<double_complex,3> >& solver,
 		Tensor<double_complex> fock, Tensor<double_complex> ovlp) const {
 
     Tensor<double_complex> U;

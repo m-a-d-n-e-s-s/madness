@@ -37,7 +37,7 @@
   \defgroup exampleheat Solves heat equation using the Green's function
   \ingroup examples
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/heat.cc>here</a>.
+  The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/heat.cc>here</a>.
 
   \par Points of interest
   - use of a functor to compute the solution at an arbitrary future time
@@ -130,7 +130,9 @@ int main(int argc, char** argv) {
     expnt[0] = 1.0/(4.0*c*tstep);
     coeff[0] = pow(4.0*constants::pi*c*tstep,-1.5);
 
-    operatorT G(world, coeff, expnt);
+    double lo_dummy=1.e-4;
+    double thresh_dummy=1.e-6;
+    operatorT G(world, coeff, expnt, lo_dummy, thresh_dummy);
 
     functionT ut = G(u0);
 

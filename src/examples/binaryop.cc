@@ -37,7 +37,7 @@
   \defgroup examplebinop Illustrates general composition of two functions
   \ingroup examples
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/binaryop.cc>here</a>.
+  The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/binaryop.cc>here</a>.
 
   \par Points of interest
   - use of a binary operation to apply a complex operation to two functions

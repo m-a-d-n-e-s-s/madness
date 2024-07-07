@@ -33,7 +33,7 @@ MolecularOrbitals<T, NDIM> Localizer::localize(const MolecularOrbitals<T, NDIM>&
     Tensor<T> U(nmo, nmo);
     Tensor<T> fnew(nmo, nmo);
     if (enforce_core_valence_separation) {
-        MADNESS_CHECK(Fock.dim(0) == mo_in.get_mos().size());
+        MADNESS_CHECK(size_t(Fock.dim(0)) == mo_in.get_mos().size());
 
         MolecularOrbitals<T, NDIM> mo_cv_separated = mo_in;
         Tensor<double> U1 = compute_core_valence_separation_transformation_matrix(world, mo_in, Fock);
@@ -102,7 +102,7 @@ MolecularOrbitals<T, NDIM> Localizer::separate_core_valence(const MolecularOrbit
     std::vector<Function<T, NDIM>> result = transform(world, mo_in.get_mos(), UT);
     Tensor<T> fnew = inner(UT, inner(Fock, UT, 1, 0), 0, 0);
     Tensor<double> eps(mo_in.get_mos().size());
-    for (int i = 0; i < eps.size(); ++i) eps(i) = double(fnew(i, i));
+    for (int i = 0; i < eps.size(); ++i) eps(i) = std::real(fnew(i, i));
     MolecularOrbitals<T, NDIM> mo_out(result, eps, {}, Tensor<double>(), mo_in.get_localize_sets());
     mo_out.set_all_orbitals_occupied();
     return mo_out;
@@ -550,6 +550,56 @@ DistributedMatrix<T> Localizer::localize_new(World& world, const std::vector<Fun
     return dUT;
 }
 
+template<typename T>
+std::size_t Localizer::determine_frozen_orbitals(const Tensor<T> fmat) {
+
+    // freezing based on canonical orbital energies
+    Tensor<double> eps;
+    if (fmat.ndim()==2) {
+        auto [eval, evec] = syev(fmat);
+        eps=real(eval);
+    } else {
+        MADNESS_CHECK(fmat.ndim()==1);
+        eps=real(fmat);
+    }
+
+    std::vector<Function<T,3>> vec(eps.size());
+    MolecularOrbitals<T, 3> dummy_mo(vec, eps);
+    dummy_mo.recompute_localize_sets();
+    auto s = MolecularOrbitals<double, 3>::convert_set_to_slice(dummy_mo.get_localize_sets());
+
+    long nactive = s.back().end - s.back().start + 1;
+    long nfrozen = dummy_mo.get_mos().size() - nactive;
+
+    if (not Localizer::check_frozen_consistency(nfrozen,dummy_mo.get_localize_sets())) {
+        dummy_mo.pretty_print("mos");
+        print("nfrozen", nfrozen);
+        MADNESS_EXCEPTION("inconsistent number of frozen orbitals",1);
+    };
+
+    return nfrozen;
+}
+
+bool Localizer::check_frozen_consistency(const long nfrozen, const std::vector<int>& localize_sets) {
+
+    // fast return
+    if (nfrozen==0) return true;
+
+    // check that freeze is consistent with the core/valence block-diagonal structure of the fock matrix
+    bool fine = false;
+    int ntotal = 0;
+    std::vector<Slice> slices = MolecularOrbitals<double, 3>::convert_set_to_slice(localize_sets);
+    for (std::size_t i = 0; i < slices.size(); ++i) {
+        const Slice& s = slices[i];
+        int n_in_set = s.end - s.start + 1;
+        ntotal += n_in_set;
+        if (nfrozen == ntotal) {
+            fine = true;
+            break;
+        }
+    }
+    return fine;
+}
 
 /// given a unitary transformation matrix undo mere reordering
 template<typename T>
@@ -737,6 +787,20 @@ MolecularOrbitals<double, 3> Localizer::localize(const MolecularOrbitals<double,
 template
 MolecularOrbitals<double, 3> Localizer::localize(const MolecularOrbitals<double, 3>& mo_in, const Tensor<double>& Fock,
                                                  bool randomize) const;
+
+template
+std::size_t Localizer::determine_frozen_orbitals(const Tensor<double> fmat);
+
+template
+std::size_t Localizer::determine_frozen_orbitals(const Tensor<double_complex> fmat);
+
+template
+MolecularOrbitals<double, 3> Localizer::separate_core_valence(const MolecularOrbitals<double, 3>& mo_in,
+                                                            const Tensor<double>& Fock) const;
+
+//template
+//MolecularOrbitals<double_complex, 3> Localizer::separate_core_valence(const MolecularOrbitals<double_complex, 3>& mo_in,
+//                                                              const Tensor<double_complex>& Fock) const;
 
 template
 void

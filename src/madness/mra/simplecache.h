@@ -90,7 +90,7 @@ namespace madness {
 
         /// Set value associated with key ... gives ownership of a new copy to the container
         inline void set(const Key<NDIM>& key, const Q& val) {
-            cache.insert(pairT(key,val));
+            [[maybe_unused]] auto&& [it, inserted] = cache.insert(pairT(key,val));
         }
 
         inline void set(Level n, Translation l, const Q& val) {

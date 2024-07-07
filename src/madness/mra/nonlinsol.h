@@ -160,7 +160,28 @@ namespace madness {
 	struct default_allocator {
         T operator()() {return T();}
     };
-    
+
+
+    // The default constructor for functions does not initialize
+    // them to any value, but the solver needs functions initialized
+    // to zero for which we also need the world object.
+    template<typename T, std::size_t NDIM>
+    struct vector_function_allocator {
+        World& world;
+        const int n=-1;
+
+        /// @param[in]	world	the world
+        /// @param[in]	nn		the number of functions in a given vector
+        vector_function_allocator(World& world, const int nn) : world(world), n(nn) {}
+
+        /// allocate a vector of n empty functions
+        std::vector<Function<T, NDIM> > operator()() {
+            return zero_functions<T, NDIM>(world, n);
+        }
+    };
+
+
+
     /// Generalized version of NonlinearSolver not limited to a single madness function
 
     /// \ingroup nonlinearsolve 
@@ -257,6 +278,17 @@ namespace madness {
 
     };
 
+
+    template<typename T, std::size_t NDIM>
+    static inline XNonlinearSolver<std::vector<Function<T,NDIM>>,T,vector_function_allocator<T,NDIM>>
+    nonlinear_vector_solver(World& world, const long nvec) {
+        auto alloc=vector_function_allocator<T,NDIM>(world,nvec);
+        return XNonlinearSolver<std::vector<Function<T,NDIM>>,T,vector_function_allocator<T,NDIM>>(alloc);
+    };
+
+
+    typedef XNonlinearSolver<std::vector<Function<double,3>>,double,vector_function_allocator<double,3>> NonlinearVectorSolver_3d;
+    typedef XNonlinearSolver<std::vector<Function<double,6>>,double,vector_function_allocator<double,6>> NonlinearVectorSolver_6d;
 
 
 }

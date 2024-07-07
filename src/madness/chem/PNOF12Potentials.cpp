@@ -81,8 +81,6 @@ F12Potentials::F12Potentials(World& world,const Nemo& nemo, const BasisFunctions
 	fop = std::shared_ptr < real_convolution_3d > (SlaterF12OperatorPtr(world, param.gamma(), lo, eps));
 	slaterop = std::shared_ptr < real_convolution_3d > (SlaterF12OperatorPtr(world, param.gamma(), lo, eps));
 	slaterop_sq = std::shared_ptr < real_convolution_3d > (SlaterF12OperatorPtr(world, param.gamma() * 2.0, lo, eps));
-	slaterop->is_slaterf12 = false;
-	slaterop_sq->is_slaterf12 = false;
 	fop = std::shared_ptr < real_convolution_3d > (SlaterF12OperatorPtr(world, param.gamma(), lo, eps));
 
 	//test
@@ -157,7 +155,7 @@ PairEnergies F12Potentials::compute_f12_pair_energy(const std::valarray<vector_r
 	else{
 		for(ElectronPairIterator it=pit();it;++it){
 			vector_real_function_3d tmp = pnos[it.ij()];
-			for(const auto x:cabs[it.ij()]) tmp.push_back(x);
+			for(const auto& x:cabs[it.ij()]) tmp.push_back(x);
 			abs[it.ij()]=tmp;
 			if(world.rank()==0) std::cout << "Constructing ABS for pair "
 					<< it.name() << " from " << pnos[it.ij()].size() << " PNOs and "
@@ -1035,7 +1033,7 @@ std::pair<double, double> F12Potentials::compute_fQc_integrals_ij(
 		double result1_ji = 0.0;
 		double result2_ij = 0.0;
 		double result2_ji = 0.0;
-		for (const auto x : v) {
+		for (const auto& x : v) {
 			const real_function_3d braijx = Q((*fop)(moi * x) * moj);
 			const real_function_3d ket1 = ((*fop)((K(x) * moi - x * Ki)) * moj);
 			const double ijpart = madness::inner(braijx, ket1);
@@ -1328,7 +1326,7 @@ std::vector<real_function_3d> F12Potentials::read_cabs_from_file(const std::stri
 			basis.read_basis_from_file(param.auxbas_file(),
 					nemo.get_calc()->molecule.get_atoms());
 	if(world.rank()==0) std::cout << "Exponents from file:" << param.auxbas_file() << "\n";
-	for (const auto x : exponents) {
+	for (const auto& x : exponents) {
 		if (world.rank() == 0) {
 			std::cout << x.first << " Exponents\n";
 			for (size_t l = 0; l < x.second.size(); ++l) {
@@ -1342,7 +1340,7 @@ std::vector<real_function_3d> F12Potentials::read_cabs_from_file(const std::stri
 	// make CABS virtuals
 	vector_real_function_3d cabsf;
 	MyTimer time_2 = MyTimer(world).start();
-	for (const madness::Atom atom : nemo.get_calc()->molecule.get_atoms()) {
+	for (const madness::Atom& atom : nemo.get_calc()->molecule.get_atoms()) {
 		std::vector<std::vector<double> > exp_atom = exponents.at(
 				atomic_number_to_symbol(atom.atomic_number));
 		for (size_t l = 0; l < exp_atom.size(); ++l) {

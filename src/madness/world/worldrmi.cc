@@ -34,6 +34,7 @@
 #include <madness/world/worldrmi.h>
 #include <madness/world/posixmem.h>
 #include <madness/world/timers.h>
+#include <madness/world/units.h>
 #include <iostream>
 #include <algorithm>
 #include <utility>
@@ -84,7 +85,7 @@ namespace madness {
         waiter.reset();
 #endif
 
-        if (print_debug_info)
+        if (print_debug_info && narrived > 0)
             print_error(rank, ":RMI: ", narrived, " messages just arrived\n");
 
         if (narrived) {
@@ -132,7 +133,7 @@ namespace madness {
             // Only ordered messages can end up in the queue due to
             // out-of-order receipt or order of recv buffer processing.
 
-            // Sort queued messages by ascending recv count
+            // Sort queued messages by source and ascending (modulo overflow) recv count
             std::sort(q.get(),q.get()+n_in_q);
 
             // Loop thru messages ... since we have sorted only one pass
@@ -245,24 +246,7 @@ namespace madness {
         const char* mad_buffer_size = getenv("MAD_BUFFER_SIZE");
         if(mad_buffer_size) {
             // Convert the string into bytes
-            std::stringstream ss(mad_buffer_size);
-            double memory = 0.0;
-            if(ss >> memory) {
-                if(memory > 0.0) {
-                    std::string unit;
-                    if(ss >> unit) { // Failure == assume bytes
-                        if(unit == "KB" || unit == "kB") {
-                            memory *= 1024.0;
-                        } else if(unit == "MB") {
-                            memory *= 1048576.0;
-                        } else if(unit == "GB") {
-                            memory *= 1073741824.0;
-                        }
-                    }
-                }
-            }
-
-            max_msg_len_ = memory;
+            max_msg_len_ = cstr_to_memory_size(mad_buffer_size);
             // Check that the size of the receive buffers is reasonable.
             if(max_msg_len_ < 1024) {
                 max_msg_len_ = DEFAULT_MAX_MSG_LEN; // = 3*512*1024
@@ -322,6 +306,9 @@ namespace madness {
         status.reset(new SafeMPI::Status[maxq_]);
         ind.reset(new int[maxq_]);
         q.reset(new qmsg[maxq_]);
+        MADNESS_ASSERT(maxq_ <= 1<<14);  // 16 bit task counter is sufficient to ensure that up to 2^14 tasks can be
+                                         // pending per rank .. although maxq_ controls the TOTAL queue size, do this
+                                         // purely as a reminder
 
         // Allocate receive buffers
         if(nproc > 1) {

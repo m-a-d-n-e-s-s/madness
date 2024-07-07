@@ -299,7 +299,7 @@ public:
     	return density;
     }
 
-        /// compute \Delta rho as an indicator for the result's quality
+    /// compute Delta rho as an indicator for the result's quality
     double compute_delta_rho(const real_function_3d rho_HF, const real_function_3d rho_KS) const {
     	// from Ospadov_2017, equation (26)
     	real_function_3d rho_diff = abs(rho_KS - rho_HF);
@@ -310,8 +310,8 @@ public:
      /// compute Slater potential (Kohut, 2014, equation (15))
     real_function_3d compute_slater_potential(const vecfuncT& nemo) const {
 
-        Exchange<double,3> K;
-        K.set_parameters(R_square*nemo,nemo,reference->get_calc()->param.lo());
+        Exchange<double,3> K(world,reference->get_calc()->param.lo());
+         K.set_bra_and_ket(R_square * nemo, nemo);
         const vecfuncT Knemo = K(nemo);
         // 2.0*R_square in numerator and density (rho) cancel out upon division
         real_function_3d numerator = -1.0*dot(world, nemo, Knemo);
@@ -381,7 +381,7 @@ public:
 
 	    // get \nabla nemo
 	    std::vector<vecfuncT> grad_nemo(nemo.size());
-	    for (long i = 0; i < nemo.size(); i++) {
+	    for (size_t i = 0; i < nemo.size(); i++) {
 	    	vecfuncT nemo_copy=copy(world,nemo);
 	    	refine(world,nemo_copy);
 
@@ -406,10 +406,11 @@ public:
 
     /// shift of the diagonal elements of the fock matrix results in a global shift
     /// of the potential
-    /// \[
+    /// \f[
     /// \frac{\bar \epsilon}{\rho} = \frac{1}{\rho}\sum_{ij}\phi_i(F_ij+\delta_ij s)\phi_j
     ///        = \frac{1}{\rho} ( \sum_{ij}\phi_i F_ij \phi_j + s\sum_i\phi_i\phi_i )
     ///        = s + \frac{1}{\rho} \sum_{ij}\phi_i F_ij \phi_j
+    /// \f]
     real_function_3d compute_ocep_correction(const real_function_3d& ocep_numerator_HF,
     		const vecfuncT& nemoHF, const vecfuncT& nemoKS,
 			const tensorT& fockHF, const tensorT& fockKS) const {
@@ -543,8 +544,8 @@ public:
     /// compute exchange potential (needed for Econv)
     void compute_exchange_potential(const vecfuncT& nemo, vecfuncT& Knemo) const {
 
-    	Exchange<double,3> K;
-    	K.set_parameters(R_square*nemo,nemo,this->get_calc()->param.lo());
+    	Exchange<double,3> K(world,this->get_calc()->param.lo());
+        K.set_bra_and_ket(R_square * nemo, nemo);
     	Knemo = K(nemo);
     	truncate(world, Knemo);
 

@@ -6,7 +6,7 @@
  */
 
 #include <madness/chem/TDHF.h>
-#include <madness/chem/commandlineparser.h>
+#include <madness/mra/commandlineparser.h>
 #include <madness/misc/info.h>
 #include <madness/world/worldmem.h>
 
@@ -16,7 +16,7 @@ using namespace madness;
 int main(int argc, char **argv) {
     int error = 0;
     World& world = initialize(argc, argv);
-    {
+    try {
         if (world.rank() == 0) {
             print_header1("CIS -- compute DFT and Hartree-Fock excited states in CIS/TDA approximation");
         }
@@ -60,8 +60,13 @@ int main(int argc, char **argv) {
 
             TDHF tdhf(world, parser);
 
-            tdhf.get_calcparam().print("dft");
-            tdhf.parameters.print("response");
+            print_header2("input section");
+            if (world.rank() == 0) {
+                tdhf.get_calcparam().print("dft","end");
+                print("");
+                tdhf.get_parameters().print("response","end");
+                tdhf.get_calc()->molecule.print();
+            }
 
             // solve the CIS equations
             const double time_scf_start = wall_time();
@@ -89,6 +94,11 @@ int main(int argc, char **argv) {
         world.gop.fence();
         if (world.rank() == 0) printf("finished at time %.1f\n", wall_time());
         print_stats(world);
+    } catch (std::exception& e) {
+        print("an exception occurred");
+        print(e.what());
+    } catch (...) {
+        print("an unknown exception occurred");
     }
     finalize();
     return error;

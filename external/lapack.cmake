@@ -117,6 +117,14 @@ if (USER_LAPACK_LIBRARIES)
     endif(USER_LAPACK_LIBRARIES_IS_ACML)
   endif(USER_LAPACK_LIBRARIES_IS_MKL)
 
+  # LAPACK_LIBRARIES might include IMPORTED targets that are not globally available
+  if (LAPACK_LIBRARIES MATCHES OpenMP::OpenMP_C AND NOT TARGET OpenMP::OpenMP_C)
+    find_package(OpenMP REQUIRED COMPONENTS C)
+  endif()
+  if (LAPACK_LIBRARIES MATCHES Threads::Threads AND NOT TARGET Threads::Threads)
+    find_package(Threads REQUIRED)
+  endif()
+
 endif(USER_LAPACK_LIBRARIES)
 
 cmake_pop_check_state()

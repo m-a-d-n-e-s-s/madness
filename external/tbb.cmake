@@ -3,7 +3,7 @@ if (ENABLE_TBB)
 
   if (TBB_FOUND AND TARGET TBB::tbb)
     set(HAVE_INTEL_TBB 1)
-    message(STATUS "Found TBB: ${TBB_LIBRARIES}")
+    message(STATUS "Found TBB: TBB_CONFIG=${TBB_CONFIG}")
   endif ()
 
   # if user set MADNESS_EXPLOIT_TBB_PRIORITY to ON:

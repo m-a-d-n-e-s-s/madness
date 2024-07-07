@@ -42,8 +42,8 @@
 
 #include<madness/chem/molecule.h>
 #include<madness/chem/molecularbasis.h>
-#include<madness/chem/QCCalculationParametersBase.h>
-#include<madness/chem/commandlineparser.h>
+#include<madness/mra/QCCalculationParametersBase.h>
+#include<madness/mra/commandlineparser.h>
 
 
 namespace madness {
@@ -64,6 +64,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
         initialize<std::string>("prefix","mad","prefixes your output/restart/json/plot/etc files");
 		initialize<double>("charge",0.0,"total molecular charge");
 		initialize<std::string> ("xc","hf","XC input line");
+		initialize<std::string> ("hfexalg","multiworld","hf exchange algorithm: choose from multiworld (default), smallmem, largemem");
 		initialize<double>("smear",0.0,"smearing parameter");
 		initialize<double>("econv",1.e-5,"energy convergence");
 		initialize<double>("dconv",1.e-4,"density convergence");
@@ -157,7 +158,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		return std::find(criteria.begin(),criteria.end(),"each_energy")!=criteria.end();
 	}
 
-
 	int nopen() const {return get<int>("nopen");}
 	int nalpha() const {return get<int>("nalpha");}
 	int nbeta() const {return get<int>("nbeta");}
@@ -195,6 +195,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	std::string pcm_data() const {return get<std::string>("pcm_data");}
 	std::string ac_data() const {return get<std::string>("ac_data");}
 	std::string xc() const {return get<std::string>("xc");}
+        std::string hfexalg() const {return get<std::string>("hfexalg");}
 
 	std::string aobasis() const {return get<std::string>("aobasis");}
 

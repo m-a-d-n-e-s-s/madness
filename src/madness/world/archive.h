@@ -1128,6 +1128,38 @@ namespace madness {
             }
         };
 
+        /// Serialize a \c std::allocator.
+
+        /// This is a no-op.
+        /// \tparam Archive the archive type.
+        /// \tparam T The data type allocated by the \c allocator.
+        template <class Archive, typename T>
+        struct ArchiveStoreImpl< Archive, std::allocator<T>, std::enable_if_t<!is_future<T>::value && is_serializable_v<Archive, T>> > {
+
+            /// Storing  a \c std::allocator is a no-op
+
+            /// \param[in] ar The archive.
+            /// \param[in] v The \c allocator.
+            static inline void store(const Archive& ar, const std::allocator<T>& v) {
+            }
+        };
+
+
+        /// Deserialize a \c std::allocator.
+
+        /// This is a no-op.
+        /// \tparam Archive the archive type.
+        /// \tparam T The data type alllocated by in the \c allocator.
+        template <class Archive, typename T>
+        struct ArchiveLoadImpl< Archive, std::allocator<T>, std::enable_if_t<!is_future<T>::value && is_serializable_v<Archive, T>> > {
+
+            /// Loading  a \c std::allocator is a no-op
+
+            /// \param[in] ar The archive.
+            /// \param[out] v The \c allocator.
+            static void load(const Archive& ar, std::allocator<T>& v) {
+            }
+        };
 
         /// Serialize a \c std::vector.
 
@@ -1143,6 +1175,9 @@ namespace madness {
             /// \param[in] v The \c vector.
             static inline void store(const Archive& ar, const std::vector<T, Alloc>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize std::vector of plain data" << std::endl);
+                if constexpr (!std::allocator_traits<Alloc>::is_always_equal::value) {
+                    ar & v.get_allocator();
+                }
                 ar & v.size();
                 ar & wrap(v.data(),v.size());
             }
@@ -1164,6 +1199,11 @@ namespace madness {
             /// \param[out] v The \c vector.
             static void load(const Archive& ar, std::vector<T, Alloc>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::vector of plain data" << std::endl);
+                if constexpr (!std::allocator_traits<Alloc>::is_always_equal::value) {
+                    Alloc allocator;
+                    ar & allocator;
+                    v = std::vector<T, Alloc>(allocator);
+                }
                 std::size_t n = 0ul;
                 ar & n;
                 if (n != v.size()) {
@@ -1188,6 +1228,9 @@ namespace madness {
             /// \param[in] v The \c vector.
             static inline void store(const Archive& ar, const std::vector<bool, Alloc>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize std::vector<bool>" << std::endl);
+                if constexpr (!std::allocator_traits<Alloc>::is_always_equal::value) {
+                    ar & v.get_allocator();
+                }
                 std::size_t n = v.size();
                 bool* b = new bool[n];
                 for (std::size_t i=0; i<n; ++i) b[i] = v[i];
@@ -1210,6 +1253,11 @@ namespace madness {
             /// \param[out] v The \c vector.
             static void load(const Archive& ar, std::vector<bool, Alloc>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::vector<bool>" << std::endl);
+                if constexpr (!std::allocator_traits<Alloc>::is_always_equal::value) {
+                    Alloc allocator;
+                    ar & allocator;
+                    v = std::vector<bool, Alloc>(allocator);
+                }
                 std::size_t n = 0ul;
                 ar & n;
                 if (n != v.size()) {
@@ -1403,6 +1451,9 @@ namespace madness {
             /// \param[in] t The \c map.
             static void store(const Archive& ar, const std::map<T,Q,Compare,Alloc>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize std::map" << std::endl);
+                if constexpr (!std::allocator_traits<Alloc>::is_always_equal::value) {
+                    ar & t.get_allocator();
+                }
                 ar << t.size();
                 for (auto p = t.begin();
                         p != t.end(); ++p) {
@@ -1434,12 +1485,19 @@ namespace madness {
             /// \param[out] t The \c map.
             static void load(const Archive& ar, std::map<T,Q,Compare,Alloc>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::map" << std::endl);
+                if constexpr (!std::allocator_traits<Alloc>::is_always_equal::value) {
+                    Alloc allocator;
+                    ar & allocator;
+                    t = std::map<T,Q,Compare,Alloc>(allocator);
+                }
+                else
+                    t.clear();
                 std::size_t n = 0;
                 ar & n;
                 while (n--) {
                     std::pair<T,Q> p;
                     ar & p;
-                    t[p.first] = p.second;
+                    t.emplace(std::move(p.first), std::move(p.second));
                 }
             }
         };
@@ -1460,6 +1518,9 @@ namespace madness {
             /// \param[in] s The \c set.
             static inline void store(const Archive& ar, const std::set<T, Compare, Alloc>& s) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize std::set" << std::endl);
+                if constexpr (!std::allocator_traits<Alloc>::is_always_equal::value) {
+                    ar & s.get_allocator();
+                }
                 ar << s.size();
                 for (const auto &i : s)
                   ar << i;
@@ -1481,13 +1542,18 @@ namespace madness {
             /// \param[out] s The \c set.
             static void load(const Archive& ar, std::set<T, Compare, Alloc>& s) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::set" << std::endl);
-                std::size_t size;
+                if constexpr (!std::allocator_traits<Alloc>::is_always_equal::value) {
+                  Alloc allocator;
+                  ar & allocator;
+                  s = std::set<T, Compare, Alloc>(allocator);
+                }
+                std::size_t size=0;
                 ar >> size;
                 s.clear();
                 auto hint = s.begin();
                 for (std::size_t i = 0; i < size; ++i)
                 {
-                  typename std::set<T, Compare, Alloc>::key_type key;
+                  typename std::set<T, Compare, Alloc>::key_type key=0;
                   ar >> key;
                   hint = s.emplace_hint(hint, std::move(key));
                 }
@@ -1510,6 +1576,9 @@ namespace madness {
             /// \param[in] s The \c list.
             static inline void store(const Archive& ar, const std::list<T, Alloc>& s) {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize std::list" << std::endl);
+                if constexpr (!std::allocator_traits<Alloc>::is_always_equal::value) {
+                  ar & s.get_allocator();
+                }
                 ar << s.size();
                 for (const auto &i : s)
                     ar << i;
@@ -1530,7 +1599,12 @@ namespace madness {
         /// \param[out] s The \c list.
         static void load(const Archive& ar, std::list<T, Alloc>& s) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::list" << std::endl);
-            std::size_t size;
+            if constexpr (!std::allocator_traits<Alloc>::is_always_equal::value) {
+                    Alloc allocator;
+                    ar & allocator;
+                    s = std::list<T, Alloc>(allocator);
+            }
+            std::size_t size=0;
             ar >> size;
             s.clear();
             for (std::size_t i = 0; i < size; ++i)

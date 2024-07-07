@@ -743,7 +743,8 @@ int test_op(World& world) {
     Tensor<double> coeffs(1), exponents(1);
     exponents(0L) = 10.0;
     coeffs(0L) = pow(exponents(0L)/PI, 0.5*NDIM);
-    SeparatedConvolution<T,NDIM> op(world, coeffs, exponents);
+    double lo=1.e-6, thresh1=1.e-4;
+    SeparatedConvolution<T,NDIM> op(world, coeffs, exponents, lo, thresh1);
     START_TIMER;
     Function<T,NDIM> r = madness::apply(op,f);
     END_TIMER("apply");
@@ -1417,10 +1418,10 @@ int main(int argc, char**argv) {
         print(s);
         error("caught a c-string exception");
     }
-    catch (const char* s) {
-        print(s);
-        error("caught a c-string exception");
-    }
+//    catch (const char* s) {
+//        print(s);
+//        error("caught a c-string exception");
+//    }
     catch (const std::string& s) {
         print(s);
         error("caught a string (class) exception");

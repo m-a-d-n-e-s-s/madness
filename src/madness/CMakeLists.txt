@@ -39,7 +39,7 @@ if (NOT MADNESS_BUILD_MADWORLD_ONLY)
 	add_subdirectory(tensor)
 	add_subdirectory(mra)
 	add_subdirectory(chem)
-# Create the super library that contains all MADNESS libraries
+    # Create the super library that contains all MADNESS libraries
 	add_library(madness
     	$<TARGET_OBJECTS:MADworld-obj> $<TARGET_OBJECTS:MADmisc-obj>
     	$<TARGET_OBJECTS:MADtensor-obj> ${MADTENSOR_MTXMQ_OBJ}
@@ -49,9 +49,7 @@ if (NOT MADNESS_BUILD_MADWORLD_ONLY)
 endif(NOT MADNESS_BUILD_MADWORLD_ONLY)
 
 # Set the dependencies for the super-library
-if(CXX11_COMPILE_FLAG)
-  target_compile_options(madness INTERFACE $<INSTALL_INTERFACE:${CXX11_COMPILE_FLAG}>)
-endif()
+target_compile_features(madness INTERFACE "cxx_std_${CMAKE_CXX_STANDARD}")
 # DISABLEPIE flag can break linking of dependent libraries (e.g. on Linux using gcc6)
 # instead for each dependent executable target T do:
 # target_link_libraries(T MADNESS_DISABLEPIE_LINKER_FLAGS)
@@ -94,7 +92,13 @@ if(HAVE_IBMBGQ OR HAVE_IBMBGP)
   target_link_libraries(madness PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/new_mtxmq/bests/libMADMTXM.a)
 endif()
 if (LAPACK_FOUND)
-  target_link_libraries(madness PUBLIC ${LAPACK_LIBRARIES})
+
+	# if LAPACK_LIBRARIES includes IMPORTED targets make sure they are available
+	if (LAPACK_LIBRARIES MATCHES OpenMP::OpenMP_C AND NOT TARGET OpenMP::OpenMP_C)
+		find_package(OpenMP REQUIRED COMPONENTS C)
+	endif()
+
+	target_link_libraries(madness PUBLIC ${LAPACK_LIBRARIES})
 	if (LAPACK_INCLUDE_DIRS)
 		target_include_directories(madness PUBLIC ${LAPACK_INCLUDE_DIRS})
 	endif(LAPACK_INCLUDE_DIRS)
@@ -109,6 +113,19 @@ target_link_libraries(madness PUBLIC Threads::Threads)
 if (WORLD_GET_DEFAULT_DISABLED)
   target_compile_definitions(madness PUBLIC -DMADNESS_DISABLE_WORLD_GET_DEFAULT=1)
 endif (WORLD_GET_DEFAULT_DISABLED)
+# MADchem dependencies
+if (LIBXC_FOUND)
+	target_include_directories(madness PUBLIC ${LIBXC_INCLUDE_DIRS})
+	target_link_libraries(madness PUBLIC ${LIBXC_LIBRARIES})
+endif ()
+if (PCM_FOUND)
+	target_include_directories(madness PUBLIC ${PCM_INCLUDE_DIRS})
+	target_link_libraries(madness PUBLIC ${PCM_LIBRARIES})
+endif ()
+if (BOOST_FOUND)
+	target_include_directories(madness PUBLIC ${BOOST_INCLUDE_DIRS})
+	target_link_libraries(madness PUBLIC ${BOOST_LIBRARIES})
+endif ()
 
 # Add common header files and madness library to the install list
 install(FILES constants.h fortran_ctypes.h madness_config.h ${CMAKE_CURRENT_BINARY_DIR}/config.h

@@ -10,11 +10,12 @@
 
 #include<madness/chem/CCStructures.h>
 #include<madness/chem/nemo.h>
+#include<madness/chem/MolecularOrbitals.h>
 #include<madness/chem/projector.h>
 #include<madness/chem/SCFOperators.h>
 #include <math.h>
 #include<madness/chem/GuessFactory.h>
-#include<madness/chem/commandlineparser.h>
+#include"madness/mra/commandlineparser.h"
 
 
 namespace madness {
@@ -52,8 +53,8 @@ public:
             ("response_kernel", "default", "default: corresponds to the ground state, libxc-notation otherwise");
             initialize < bool > ("triplet", false, "calculate triplet excitation energies (only works for CIS)");
             initialize < bool > ("do_oep", false, "use OEP potentials for the ground state exchange");
-            initialize < std::size_t > ("excitations", 1);
-            initialize < std::size_t > ("freeze", 0, "the number of frozen occupied orbitals");
+            initialize < std::size_t > ("nexcitations", 1,"number of excitation to be computed");
+            initialize < long > ("freeze", -1, "the number of frozen occupied orbitals (-1: automatic)");
             initialize < std::string > ("irrep", "all", "compute only irreps of the respective point group");
 
             // solver
@@ -72,14 +73,16 @@ public:
 
             initialize < bool > ("debug", false);
             initialize < bool > ("plot", false);
-            initialize < bool > ("no_compute", false);
+//            initialize < bool > ("no_compute", false);
+            initialize<int>  ("print_level",3,"0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
 
-            initialize < std::vector<size_t> >
-            ("restart", std::vector<size_t>(), "excitations which will be read from disk");
+//            initialize <std::vector<size_t>> ("restart", std::vector<size_t>(), "excitations which will be read from disk");
+            initialize <std::string> ("restart", "iterate", "restart excitations from disk", {"no_restart","iterate","no_compute"});
+            initialize <std::vector<size_t>> ("excitations", std::vector<size_t>(), "ordering of the excitations read from disk");
+
 
             initialize < std::string >
-            ("guess_excitation_operators", "quadrupole", "guess type", {"dipole+", "quadrupole",
-                                                                    "octopole", "custom"});
+            ("guess_excitation_operators", "quadrupole", "guess type", {"dipole+", "quadrupole", "octopole", "custom"});
 
             /// add center of mass functions determined by the homo-energy
             /// will add s,px,py,pz functions in the center of mass with exponent: -(e_homo/c) and c=guess_cm is the value of this parameter
@@ -129,9 +132,9 @@ public:
         void set_derived_values(const std::shared_ptr<SCF> &scf);
 
         // physical part
-        std::size_t excitations() const { return get<std::size_t>("excitations"); }
+        std::size_t nexcitations() const { return get<std::size_t>("nexcitations"); }
 
-        std::size_t freeze() const { return get<std::size_t>("freeze"); }
+        long freeze() const { return get<long>("freeze"); }
 
         std::string irrep() const { return get<std::string>("irrep"); }
 
@@ -151,9 +154,12 @@ public:
         // restart and plotting
         bool debug() const { return get<bool>("debug"); }
 
-        bool no_compute() const { return get<bool>("no_compute"); }
+        std::string restart() const { return get<std::string>("restart"); }
+        bool no_compute() const { return (restart()=="no_compute"); }
 
-        std::vector<size_t> restart() const { return get<std::vector<size_t> >("restart"); }
+        int print_level() const {return get<int>("print_level");}
+
+        std::vector<size_t> excitations() const { return get<std::vector<size_t> >("excitations"); }
 
         bool plot() const { return get<bool>("plot"); }
 
@@ -190,8 +196,8 @@ public:
         std::size_t guess_maxiter() const { return get<std::size_t>("guess_maxiter"); }
 
         /// make parameters for convolution operator
-        typename CCConvolutionOperator::Parameters get_ccc_parameters(const double lo) const {
-            typename CCConvolutionOperator::Parameters result;
+        typename CCConvolutionOperator<double,3>::Parameters get_ccc_parameters(const double lo) const {
+            typename CCConvolutionOperator<double,3>::Parameters result;
             result.freeze = freeze();
             result.lo = lo;
             result.thresh_op = thresh();
@@ -203,6 +209,8 @@ public:
     TDHF(World &world, const commandlineparser &parser);
 
     TDHF(World &world, const commandlineparser &parser, std::shared_ptr<Nemo> nemo);
+
+    virtual ~TDHF() {}
 
     void initialize();
 
@@ -223,6 +231,10 @@ public:
         print("provided you have an xyz file in your directory.");
 
     }
+
+    void print_frozen_orbitals() const;
+
+    MolecularOrbitals<double,3> enforce_core_valence_separation(const Tensor<double>& fmat) const;
 
     static void print_parameters() {
         TDHFParameters param;
@@ -281,7 +293,7 @@ public:
     std::vector<CC_vecfunction> sort_xfunctions(std::vector<CC_vecfunction> x) const;
 
     /// print information
-    void print_xfunctions(const std::vector<CC_vecfunction> &f, const bool &fullinfo = false) const;
+    void print_xfunctions(const std::vector<CC_vecfunction>& f, const std::string message) const;
 
     /// Initialize the CIS functions
 
@@ -297,6 +309,14 @@ public:
     /// on output the solution
     std::vector<CC_vecfunction> solve_cis() const;
 
+    /// analyze the root: oscillator strength and contributions from occupied orbitals
+    void analyze(const std::vector<CC_vecfunction> &x) const;
+
+    TDHFParameters get_parameters() const {return parameters;};
+
+    std::vector<CC_vecfunction> get_converged_roots() const {return converged_roots;}
+
+private:
     std::vector<CC_vecfunction> solve_cis(std::vector<CC_vecfunction> &start) const;
 
     /// Solve TDHF equations (not ready)
@@ -358,10 +378,9 @@ public:
     /// @param[in]	veps		the orbital energies of the virtuals
     Tensor<double> make_cis_matrix(const vector_real_function_3d& virtuals, const Tensor<double> &veps) const;
 
-    /// initialize the excitation functions
-    bool
-    initialize_singles(CC_vecfunction &singles, const FuncType type, const int ex) const;
-
+    std::string filename_for_roots(const int ex) const {
+        return get_calcparam().prefix()+"_root_"+std::to_string(ex);
+    }
 
     /// Make the potentials to a given vector of vecfunctions (excitations)
     /// @param[in] The vector of excitations
@@ -409,8 +428,8 @@ public:
 
 
     /// Helper function to initialize the const mo_bra and ket elements
-    CC_vecfunction make_mo_bra() const {
-        vector_real_function_3d tmp = get_reference()->get_ncf_ptr()->square()* get_calc()->amo;
+    CC_vecfunction make_mo_bra(const std::vector<Function<double,3>>& amo) const {
+        vector_real_function_3d tmp = get_reference()->get_ncf_ptr()->square()* amo;
         set_thresh(world, tmp, parameters.thresh());
         truncate(world, tmp);
         reconstruct(world, tmp);
@@ -418,8 +437,8 @@ public:
         return mo_bra;
     }
 
-    CC_vecfunction make_mo_ket() const {
-        vector_real_function_3d tmp = copy(world,get_calc()->amo);
+    CC_vecfunction make_mo_ket(const std::vector<Function<double,3>>& amo) const {
+        vector_real_function_3d tmp = copy(world,amo);
         set_thresh(world, tmp, parameters.thresh());
         truncate(world, tmp);
         reconstruct(world, tmp);
@@ -451,18 +470,6 @@ public:
         vector_real_function_3d result = mul(world, nucf, ket);
         time.info(parameters.debug());
         return result;
-    }
-
-    template<typename T, size_t NDIM>
-    bool load_function(Function<T, NDIM> &f, const std::string name) const {
-        bool exists = archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>::exists(world, name.c_str());
-        if (exists) {
-            if (world.rank() == 0) print("loading function", name);
-            archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str());
-            ar & f;
-            f.print_size(name);
-            return true;
-        } else return false;
     }
 
     const vector_real_function_3d get_active_mo_ket() const {
@@ -497,9 +504,6 @@ public:
     /// @param[in]  root    a converged root
     double oscillator_strength_velocity(const CC_vecfunction &x) const;
 
-    /// analyze the root: oscillator strength and contributions from occupied orbitals
-    void analyze(const std::vector<CC_vecfunction> &x) const;
-
     /// Fock matrix for occupied orbitals
     Tensor<double> F_occ;
     /// The MPI Communicator
@@ -510,7 +514,7 @@ public:
     TDHFParameters parameters;
     /// Operator Structure which can handle intermediates (use for exchange with GS orbitals)
     /// Can be replaced by another potential manager
-    std::shared_ptr<CCConvolutionOperator> g12;
+    std::shared_ptr<CCConvolutionOperator<double,3>> g12;
     /// MO bra and ket
     CC_vecfunction mo_ket_;
     CC_vecfunction mo_bra_;

@@ -37,7 +37,7 @@
 	\defgroup exampletdse1d Solves a 1D time-dependent Schr&ouml;dinger equation using splitting and semi-group approaches with the free-particle propagator.
   \ingroup examples
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/tdse1d.cc >here</a>.
+  The source is <a href=https://github.com/m-a-d-n-e-s-s/madness/blob/master/src/examples/tdse1d.cc >here</a>.
 
   \par Points of interest
   - convolution with the Green's function/free-particle propagator

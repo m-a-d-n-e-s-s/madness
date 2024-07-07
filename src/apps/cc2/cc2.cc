@@ -53,6 +53,8 @@ int main(int argc, char **argv) {
         printf("starting at time %.1f\n", wall_time());
     }
 
+    printf_msg_energy_time("message %8.4f %3.2fs",0.0,wall_time());
+
     startup(world, argc, argv,true);
     std::cout.precision(6);
     FunctionDefaults<3>::set_truncate_mode(1);
@@ -74,6 +76,13 @@ int main(int argc, char **argv) {
 
         std::shared_ptr<Nemo> nemo(new Nemo(world, parser));
         nemo->param.set_derived_value("print_level", 2);
+        nemo->get_calc()->param.set_derived_value("print_level", 2);
+        nemo->param.set_derived_value("k", 5);
+        nemo->get_calc()->param.set_derived_value("k", 5);
+        nemo->param.set_derived_value<std::string>("localize", "canon");
+        nemo->get_calc()->param.set_derived_value<std::string>("localize", "canon");
+        nemo->param.set_derived_values(nemo->molecule(),nemo->get_calc()->aobasis,parser);
+        nemo->get_calc()->param.set_derived_values(nemo->molecule(),nemo->get_calc()->aobasis,parser);
         CC2 cc2(world, parser, nemo);
 
         std::shared_ptr<SCF> calc = nemo->get_calc();
@@ -82,13 +91,12 @@ int main(int argc, char **argv) {
             cc2.parameters.print("cc2","end");
             print("\n");
             calc->param.print("dft","end");
+            print("\n");
+            cc2.tdhf->get_parameters().print("response","end");
+            print("\n");
+            nemo->molecule().print();
         }
         double hf_energy = nemo->value();
-        if (world.rank() == 0)
-            std::cout << "\n\n\n\n\n\n Reference Calculation Ended\n SCF Energy is: " << hf_energy
-                      << "\n current wall-time: " << wall_time()
-                      << "\n current cpu-time: " << cpu_time() << "\n\n\n";
-
         cc2.solve();
 
         if (world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());

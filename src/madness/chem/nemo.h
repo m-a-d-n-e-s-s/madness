@@ -56,7 +56,7 @@
 #include<madness/chem/pcm.h>
 #include<madness/chem/AC.h>
 #include<madness/chem/pointgroupsymmetry.h>
-#include<madness/chem/commandlineparser.h>
+#include"madness/mra/commandlineparser.h"
 #include<madness/chem/QCPropertyInterface.h>
 #include <madness/world/timing_utilities.h>
 
@@ -66,32 +66,13 @@ class PNO;
 class OEP;
 
 
-// The default constructor for functions does not initialize
-// them to any value, but the solver needs functions initialized
-// to zero for which we also need the world object.
-template<typename T, std::size_t NDIM>
-struct allocator {
-	World& world;
-	const int n;
-
-	/// @param[in]	world	the world
-	/// @param[in]	nn		the number of functions in a given vector
-	allocator(World& world, const int nn) :
-			world(world), n(nn) {
-	}
-
-	/// allocate a vector of n empty functions
-	std::vector<Function<T, NDIM> > operator()() {
-		return zero_functions<T, NDIM>(world, n);
-	}
-};
-
-
 class NemoBase : public MolecularOptimizationTargetInterface {
 
 public:
 
 	NemoBase(World& w) : world(w) {}
+
+    virtual ~NemoBase() {}
 
     virtual std::shared_ptr<Fock<double,3>> make_fock_operator() const {
 	    MADNESS_EXCEPTION("implement make_fock operator for your derived NemoBase class",1);
@@ -204,9 +185,9 @@ public:
 		// T = 0.5\sum_i \int R^2 U1.U1 F^2 - 2 R^2 U1.grad(F) F + R^2 grad(F)^2
 		//   = 0.5 (<U1.U1 | rho > + <R^2|grad(F)^2> - 2<R^2 | U1.grad(F) >)
 		// note: U1=-grad(R)/R
-		auto id=nemo.front().world().id();
-        auto id1=R_square.world().id();
-        auto worldid=world.id();
+		//auto id=nemo.front().world().id();
+		//auto id1=R_square.world().id();
+		//auto worldid=world.id();
 		world.gop.fence();
 		real_function_3d dens=dot(world,nemo,nemo)*R_square;
 	    real_function_3d U1dotU1=real_factory_3d(world)
@@ -215,10 +196,10 @@ public:
 
 	    double ke2=0.0;
 	    double ke3=0.0;
-	    double ke3_real=0.0;
-	    double ke3_imag=0.0;
+	    //double ke3_real=0.0;
+	    //double ke3_imag=0.0;
 
-	    for (int axis = 0; axis < NDIM; axis++) {
+	    for (size_t axis = 0; axis < NDIM; axis++) {
 	        real_derivative_3d D = free_space_derivative<double, NDIM>(world, axis);
 	        const std::vector<Function<T,NDIM> > dnemo = apply(world, D, nemo);
 

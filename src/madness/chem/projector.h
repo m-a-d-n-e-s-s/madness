@@ -25,10 +25,13 @@ namespace madness {
         virtual std::string type() const = 0;
     };
 
+    template<typename T, std::size_t NDIM>
     class CCPairFunction;
-    std::vector<CCPairFunction> apply(const ProjectorBase& P, const std::vector<CCPairFunction>& argument);
 
-/// simple projector class
+    template<typename T, std::size_t NDIM>
+    std::vector<CCPairFunction<T,NDIM>> apply(const ProjectorBase& P, const std::vector<CCPairFunction<T,NDIM>>& argument);
+
+    /// simple projector class
 
     /// use this class to project a function or a set of functions on
     /// another space of function. The projector can handle different sets of
@@ -108,18 +111,21 @@ namespace madness {
         /// @param[in] f the 6D function to be projected
         /// @param[in] the particle that is projected (1 or 2)
         /// @return the projected function
-        real_function_6d operator()(const real_function_6d& f, const size_t particle) const {
-            real_function_6d result = real_factory_6d(f.world());
-            MADNESS_ASSERT(particle == 1 or particle == 2);
+        template<std::size_t KDIM>
+        typename std::enable_if<KDIM==2*NDIM, Function<T,KDIM> >::type
+        operator()(const Function<T,KDIM>& f, size_t particle1=size_t(-1)) const {
+            Function<T,KDIM> result = FunctionFactory<T,KDIM>(f.world());
+            if (particle1==size_t(-1)) particle1=particle;
+            MADNESS_CHECK_THROW(particle1 == 1 or particle1 == 2, "particle must be 1 or 2");
             for (size_t i = 0; i < mo_ket_.size(); i++) {
-                real_function_3d tmp1 = mo_ket_[i];
-                real_function_3d tmp2 = f.project_out(mo_bra_[i], particle - 1);
-                real_function_6d tmp12;
-                if (particle == 1) {
-                    tmp12 = CompositeFactory<double, 6, 3>(f.world()).particle1(copy(tmp1)).particle2(copy(tmp2));
+                Function<T,NDIM> tmp1 = mo_ket_[i];
+                Function<T,NDIM> tmp2 = f.project_out(mo_bra_[i], particle1 - 1);
+                Function<T,KDIM> tmp12;
+                if (particle1 == 1) {
+                    tmp12 = CompositeFactory<T, KDIM, NDIM>(f.world()).particle1(copy(tmp1)).particle2(copy(tmp2));
                     tmp12.fill_tree();
                 } else {
-                    tmp12 = CompositeFactory<double, 6, 3>(f.world()).particle1(copy(tmp2)).particle2(copy(tmp1));
+                    tmp12 = CompositeFactory<T, KDIM, NDIM>(f.world()).particle1(copy(tmp2)).particle2(copy(tmp1));
                     tmp12.fill_tree();
                 }
                 result += tmp12;
@@ -128,7 +134,8 @@ namespace madness {
         }
 
         template<typename argT>
-        argT operator()(const argT& argument) const {
+        typename std::enable_if<!std::is_same<argT,Function<T,2*NDIM> >::value, argT>::type
+        operator()(const argT& argument) const {
             return madness::apply(*this,argument);
         }
 
@@ -177,7 +184,7 @@ namespace madness {
             return result;
         }
 
-        real_function_6d operator()(const real_function_6d& f, const size_t particle) const {
+        Function<T,2*NDIM> operator()(const Function<T,2*NDIM>& f, const size_t particle) const {
             return f-O(f,particle);
         }
 
@@ -265,88 +272,90 @@ namespace madness {
             return madness::apply(*this,argument);
         }
 
+        /// apply the projection parts of the strong orthogonality operator Q12 on a function f
+
+        /// The SO operator is defined as 1-O1-O2+O1O2, where O1 and O2 are projectors
+        /// return the term -O1-O2+O1O2 only, such that Q12 f = 1 + outer(result.first,result.second)
+        std::pair<std::vector<Function<T,NDIM>>,std::vector<Function<T,NDIM>>>
+        get_vectors_for_outer_product(const Function<T,2*NDIM>& f) const {
+            // Eq. (A9): g_kl = < k(1) l(2) | f(1,2) >
+            // note no (kl) symmetry here!
+            reconstruct(world, bra1_, false);
+            reconstruct(world, bra2_, true);
+            Tensor<double> g_kl(bra1_.size(), bra2_.size());
+            for (size_t k = 0; k < bra1_.size(); ++k) {
+                for (size_t l = 0; l < bra2_.size(); ++l) {
+                    Function<T, 2 * NDIM> kl = CompositeFactory<T, 2 * NDIM, NDIM>(world)
+                            .particle1(bra1_[k]).particle2(bra2_[l]);
+                    g_kl(k, l) = inner(f, kl);
+                }
+            }
+
+            // Eq. (A12)
+            // project out the mainly first particle: O1 (1 - 1/2 O2)
+            std::vector<Function<T, NDIM>> h2(bra1_.size());
+            std::vector<Function<T, NDIM>> h1(ket2_.size());
+            reconstruct(world, bra1_, false);
+            reconstruct(world, bra2_, true);
+            for (size_t k = 0; k < bra1_.size(); ++k) {
+
+                // project out the mainly first particle: O1 (1 - 1/2 O2): first term
+                // Eq. (A10)
+                h2[k] = f.project_out(bra1_[k], 0);
+
+                // project out the mainly second particle: O2 (1 - 1/2 O1): first term
+                // Eq. (A11)
+                std::size_t l = k;
+                h1[l] = f.project_out(bra2_[l], 1);
+
+            }
+
+            // Transforms a vector of functions according to new[i] = sum[j] old[j]*c[j,i]
+            // project out the mainly first particle: O1 (1 - 1/2 O2): second term
+            // Eq. (A12), (A13)
+            h2 -= transform(world, ket2_, 0.5 * transpose(g_kl), false);   // ordering g(k,l) is correct
+            h1 -= transform(world, ket1_, 0.5 * g_kl, true);               // ordering g(k,l) is correct
+            // aka
+            // 	for (size_t l=0; l<ket2_.size(); ++l) {
+            // 		h2[k]-=0.5*g_kl(k,l)*ket2_[l];
+            // 	}
+
+            change_tree_state(h1, reconstructed, false);
+            change_tree_state(h2, reconstructed, false);
+            change_tree_state(ket1_, reconstructed, false);
+            change_tree_state(ket2_, reconstructed, false);
+            world.gop.fence();
+
+    	    auto left=append(ket1_,h1);
+    	    auto right=append(h2,ket2_);
+    	    return std::make_pair(-1.0*left,right);
+        }
+
         /// apply the strong orthogonality operator Q12 on a function f
 
     	/// notation of the equations follows
     	/// J. Chem. Phys., vol. 139, no. 11, p. 114106, 2013.
         Function<T,2*NDIM> operator()(const Function<T,2*NDIM>& f) const {
 
-        	// simple and it works for higher accuracies, but might be
-        	// imprecise for lower accuracies
+            // simple and it works for higher accuracies, but might be
+            // imprecise for lower accuracies
 //        	return (f-O1(f)-O2(f)+O1(O2(f))).truncate().reduce_rank();
 
-        	const double thresh=FunctionDefaults<2*NDIM>::get_thresh();
-        	const double tight_thresh=FunctionDefaults<2*NDIM>::get_thresh()*0.1;
+    	    auto [left,right]=get_vectors_for_outer_product(f);
 
-        	// Eq. (A9): g_kl = < k(1) l(2) | f(1,2) >
-        	// note no (kl) symmetry here!
-        	Tensor<double> g_kl(bra1_.size(),bra2_.size());
-        	for (size_t k=0; k<bra1_.size(); ++k) {
-        		for (size_t l=0; l<bra2_.size(); ++l) {
-        			Function<T,2*NDIM> kl=CompositeFactory<T,2*NDIM,NDIM>(world)
-    	            		.particle1(copy(bra1_[k])).particle2(copy(bra2_[l]));
-        			g_kl(k,l)=inner(f,kl);
-        		}
-        	}
-//        	if (world.rank()==0) {print(g_kl);};
+    	    // temporarily tighten the threshold
+            double thresh=FunctionDefaults<2*NDIM>::get_thresh();
+            double tight_thresh=thresh*0.1;
+            FunctionDefaults<2*NDIM>::set_thresh(tight_thresh);
 
-        	// Eq. (A12)
-        	// project out the mainly first particle: O1 (1 - 1/2 O2)
-        	Function<T,2*NDIM> r1=FunctionFactory<T,2*NDIM>(world).thresh(tight_thresh);
-        	for (size_t k=0; k<bra1_.size(); ++k) {
+    	    auto tmp=hartree_product(left,right);
+    	    tmp.truncate(thresh*0.3);
 
-        		// Eq. (A10)
-        		Function<T,NDIM> h2=f.project_out(bra1_[k],0);
-
-        		// Eq. (A12)
-            	for (size_t l=0; l<ket2_.size(); ++l) {
-            		h2-=0.5*g_kl(k,l)*ket2_[l];
-            	}
-
-            	// Eq. (A7), second term rhs
-            	// the hartree product tends to be inaccurate; tighten threshold
-            	FunctionDefaults<2*NDIM>::set_thresh(tight_thresh);
-            	r1=(r1+hartree_product(ket1_[k],h2));
-            	FunctionDefaults<2*NDIM>::set_thresh(thresh);
-            	r1.set_thresh(thresh);
-            	r1.print_size("r1"+stringify(k));
-        	}
-
-        	// project out the mainly second particle: O2 (1 - 1/2 O1)
-        	Function<T,2*NDIM> r2=FunctionFactory<T,2*NDIM>(world).thresh(tight_thresh);
-        	for (size_t l=0; l<ket2_.size(); ++l) {
-
-        		// Eq. (A11)
-        		Function<T,NDIM> h1=f.project_out(bra2_[l],1);
-
-        		// Eq. (A13)
-            	for (size_t k=0; k<ket1_.size(); ++k) {
-            		h1-=0.5*g_kl(k,l)*ket1_[k];			// ordering g(k,l) is correct
-            	}
-
-            	// Eq. (A7), third term rhs
-            	// the hartree product tends to be inaccurate; tighten threshold
-            	FunctionDefaults<2*NDIM>::set_thresh(tight_thresh);
-            	r2=(r2+hartree_product(h1,ket2_[l]));
-            	r2.set_thresh(thresh);
-            	FunctionDefaults<2*NDIM>::set_thresh(thresh);
-            	r2.print_size("r2"+stringify(l));
-        	}
-        	FunctionDefaults<2*NDIM>::set_thresh(tight_thresh);
-        	Function<T,2*NDIM> result=(f-r1-r2).truncate().reduce_rank();
-        	FunctionDefaults<2*NDIM>::set_thresh(thresh);
-
-//        	// for debugging purposes only: check orthogonality
-//        	for (size_t k=0; k<hf->nocc(); ++k) {
-//        		for (size_t l=0; l<hf->nocc(); ++l) {
-//    	            real_function_6d kl=CompositeFactory<double,6,3>(world)
-//    	            		.particle1(copy(O1_mos[k])).particle2(copy(O2_mos[l]));
-//        			g_kl(k,l)=inner(result,kl);
-//        		}
-//        	}
-//        	if (world.rank()==0) {print(g_kl);};
-
-        	return result;
+            FunctionDefaults<2*NDIM>::set_thresh(thresh);
+            Function<T, 2 * NDIM> result = copy(f);
+    	    result+=tmp;
+            result.truncate(thresh).reduce_rank();
+            return result;
         }
 
     private:

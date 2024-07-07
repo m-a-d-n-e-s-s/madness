@@ -245,13 +245,14 @@ int main(int argc, char**argv) {
                     }
                 }
 
-                char fname[256];
+                std::size_t bufsize=256;
+                char fname[bufsize];
                 int lamiter = 0;
-                sprintf(fname, "c-%2.2d-%2.2d.dat", lamiter, muiter);
+                snprintf(fname, bufsize, "c-%2.2d-%2.2d.dat", lamiter, muiter);
                 plot_line(fname, npt, lo, hi, c);
-                sprintf(fname, "u-%2.2d-%2.2d.dat", lamiter, muiter);
+                snprintf(fname, bufsize, "u-%2.2d-%2.2d.dat", lamiter, muiter);
                 plot_line(fname, npt, lo, hi, u);
-                sprintf(fname, "f-%2.2d-%2.2d.dat", lamiter, muiter);
+                snprintf(fname, bufsize, "f-%2.2d-%2.2d.dat", lamiter, muiter);
                 plot_line(fname, npt, lo, hi, f);
 //                 sprintf(fname, "l-%2.2d-%2.2d.dat", lamiter, muiter);
 //                 plot_line(fname, npt, lo, hi, lambda);
@@ -285,10 +286,10 @@ int main(int argc, char**argv) {
         print(s);
         error("caught a c-string exception");
     }
-    catch (const char* s) {
-        print(s);
-        error("caught a c-string exception");
-    }
+//    catch (const char* s) {
+//        print(s);
+//        error("caught a c-string exception");
+//    }
     catch (const std::string& s) {
         print(s);
         error("caught a string (class) exception");

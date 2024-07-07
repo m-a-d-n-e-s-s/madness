@@ -38,7 +38,7 @@
 
 #include <madness/tensor/solvers.h>
 #include<madness/chem/molecule.h>
-#include<madness/chem/QCCalculationParametersBase.h>
+#include"madness/mra/QCCalculationParametersBase.h"
 
 namespace madness {
 
@@ -185,7 +185,7 @@ private:
 
             target->value_and_gradient(x, f, gradient);
 //            print("gopt: new energy",f);
-            const double rawgnorm = gradient.normf()/sqrt(gradient.size());
+//            const double rawgnorm = gradient.normf()/sqrt(gradient.size());
 //            print("gopt: raw gradient norm ",rawgnorm);
 
             // remove external degrees of freedom (translation and rotation)

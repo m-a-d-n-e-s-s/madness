@@ -152,25 +152,27 @@ double Nemo::value(const Tensor<double>& x) {
 
     // fast return if the reference is already solved at this geometry
 	double xsq = x.sumsq();
-	if (xsq == coords_sum)
-		return calc->current_energy;
+	if (xsq == coords_sum) return calc->current_energy;
+
+    if (world.rank()==0) print_header2("computing the nemo wave function");
 
     if ((xsq-calc->molecule.get_all_coords()).normf()>1.e-12) invalidate_factors_and_potentials();
 
     calc->molecule.set_all_coords(x.reshape(calc->molecule.natom(), 3));
 	coords_sum = xsq;
 
-//	if (world.rank()==0 and param.print_level()>0) {
-//	    print("\n");
-//	    calc->molecule.print();
-//	}
-
-	SCFProtocol p(world,param,"nemo_iterations",param.restart());
+	SCFProtocol p(world,param);
 
 	// read (pre-) converged wave function from disk if there is one
 	if (param.no_compute() or param.restart()) {
 	    set_protocol(param.econv());	// set thresh to current value
+        if (world.rank()==0 and param.print_level()>2) print("reading orbitals from disk");
 	    calc->load_mos(world);
+        if (world.rank()==0 and param.print_level()>2) {
+            print("orbitals are converged to ",calc->converged_for_thresh);
+        }
+        p.start_prec=calc->converged_for_thresh;
+
 	    calc->ao=calc->project_ao_basis(world,calc->aobasis);
 
 	} else {		// we need a guess
@@ -187,10 +189,15 @@ double Nemo::value(const Tensor<double>& x) {
 
 	}
 
-	if (not param.no_compute()) {
+    bool skip_solve=(param.no_compute()) or (calc->converged_for_thresh*0.9999<p.end_prec);
+    if (skip_solve) {
+        if (world.rank()==0) {
+            print("skipping the solution of the SCF equations:");
+            if (param.no_compute()) print(" -> the option no_compute =1");
+            if (calc->converged_for_thresh*0.9999<p.end_prec) print(" -> orbitals are converged to the required threshold of",p.end_prec);
+        }
 
-		p.start_prec=calc->amo[0].thresh();
-		p.current_prec=calc->amo[0].thresh();
+    } else {
 
 		for (p.initialize() ; not p.finished(); ++p) {
 
@@ -217,6 +224,7 @@ double Nemo::value(const Tensor<double>& x) {
 
     calc->output_calc_info_schema();
 
+    if (world.rank()==0) print_header2("end computing the nemo wave function");
     return calc->current_energy;
 }
 
@@ -307,7 +315,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 
 	// guess has already been performed in value()
 	vecfuncT& nemo = calc->amo;
-	long nmo = nemo.size();
+	//long nmo = nemo.size();
 
 	// NOTE that nemos are somewhat sensitive to sparse operations (why??)
 	// Therefore set all tolerance thresholds to zero, also in the mul_sparse
@@ -321,10 +329,11 @@ double Nemo::solve(const SCFProtocol& proto) {
 	bool localized=param.do_localize();
 	real_function_3d density=real_factory_3d(world); 	// for testing convergence
 
-	typedef allocator<double, 3> allocT;
-	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
-	allocT alloc(world, nemo.size());
-	solverT solver(allocT(world, nemo.size()));
+//	typedef vector_function_allocator<double, 3> allocT;
+//	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
+//	allocT alloc(world, nemo.size());
+//	solverT solver(allocT(world, nemo.size()));
+    auto solver= nonlinear_vector_solver<double,3>(world,nemo.size());
 
 
 	// iterate the residual equations
@@ -363,7 +372,7 @@ double Nemo::solve(const SCFProtocol& proto) {
             tensorT fock_offdiag=copy(fock);
             for (int i=0; i<fock.dim(0); ++i) fock_offdiag(i,i)=0.0;
             double max_fock_offidag=fock_offdiag.absmax();
-            if (world.rank()==0) print("F max off-diagonal  ",max_fock_offidag);
+            if (world.rank()==0 and param.print_level()>3) print("F max off-diagonal  ",max_fock_offidag);
 
             // canonicalize the orbitals, rotate subspace and potentials
             tensorT overlap = matrix_inner(world, R2nemo, nemo, true);
@@ -387,7 +396,6 @@ double Nemo::solve(const SCFProtocol& proto) {
 		BSHApply<double,3> bsh_apply(world);
 		bsh_apply.metric=R_square;
 		bsh_apply.lo=get_calc()->param.lo();
-		bsh_apply.do_coupling=localized;
 		bsh_apply.levelshift=param.orbitalshift();
 		auto [residual,eps_update] =bsh_apply(nemo,fock,Vnemo);
 		t_bsh.tag("BSH apply");
@@ -421,7 +429,9 @@ double Nemo::solve(const SCFProtocol& proto) {
 
 	if (converged) {
 		if (world.rank()==0) print("\nIterations converged\n");
-	} else {
+        calc->converged_for_thresh=param.econv();
+        if (param.save()) calc->save_mos(world);
+    } else {
 		if (world.rank()==0) print("\nIterations failed\n");
 		energy = 0.0;
 	}
@@ -539,8 +549,8 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
         // compute the exchange-correlation potential
         if (calc->xc.is_dft()) {
             XCOperator<double, 3> xcoperator(world, this, ispin);
-            double exc = 0.0;
-            if (ispin == 0) exc = xcoperator.compute_xc_energy();
+            //double exc = 0.0;
+            //if (ispin == 0) exc = xcoperator.compute_xc_energy();
             real_function_3d xc_pot = xcoperator.make_xc_potential();
 
             // compute the asymptotic correction of exchange-correlation potential
@@ -1107,10 +1117,10 @@ vecfuncT Nemo::make_cphf_constant_term(const size_t iatom, const int iaxis,
     // linear in the density
     vecfuncT Kconstnemo=zero_functions_compressed<double,3>(world,nmo);
     if (not is_dft()) {
-        Exchange<double,3> Kconst;
+        Exchange<double,3> Kconst(world,param.lo());
         vecfuncT kbra=2.0*RXR*nemo;
         truncate(world,kbra);
-        Kconst.set_parameters(kbra,nemo,param.lo());
+        Kconst.set_bra_and_ket(kbra, nemo);
         Kconstnemo=Kconst(nemo);
         truncate(world,Kconstnemo);
     }
@@ -1165,7 +1175,7 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
     // derivative of the (regularized) nuclear potential
 
     // construct the KAIN solver
-    typedef allocator<double, 3> allocT;
+    typedef vector_function_allocator<double, 3> allocT;
     typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
     allocT alloc(world, nemo.size());
     solverT solver(allocT(world, nemo.size()));
@@ -1206,12 +1216,12 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
             real_function_3d gamma=-1.0*xc.apply_xc_kernel(full_dens_pt);
             Kp=truncate(gamma*nemo);
         } else {
-            Exchange<double,3> Kp1;
-            Kp1.set_parameters(R2nemo,xi_complete,param.lo()).set_symmetric(true);
+            Exchange<double,3> Kp1(world,param.lo());
+            Kp1.set_bra_and_ket(R2nemo, xi_complete).set_symmetric(true);
             vecfuncT R2xi=mul(world,R_square,xi_complete);
             truncate(world,R2xi);
-            Exchange<double,3> Kp2;
-            Kp2.set_parameters(R2xi,nemo,param.lo());
+            Exchange<double,3> Kp2(world,param.lo());
+            Kp2.set_bra_and_ket(R2xi, nemo);
             Kp=truncate(Kp1(nemo) + Kp2(nemo));
         }
         vecfuncT Vpsi2=truncate(Jp(nemo)-Kp+rhsconst);
@@ -1355,8 +1365,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
         print("\ngenerating CPHF guess using the LDA functional\n");
     }
 
-    SCFProtocol preiterations(world,param,"cphf_preiterations",
-            param.restart_cphf());
+    SCFProtocol preiterations(world,param);
     preiterations.end_prec*=10.0;
     preiterations.initialize();
     for (; not preiterations.finished(); ++preiterations) {
@@ -1390,7 +1399,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
     }
 
     // solve the response equations
-    SCFProtocol p(world,param,"cphf_final_iterations",param.restart_cphf());
+    SCFProtocol p(world,param);
     p.start_prec=p.end_prec;
     p.initialize();
 

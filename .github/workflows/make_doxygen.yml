@@ -21,7 +21,7 @@ jobs:
       - name: Install prerequisites Ubuntu packages
         run: |
           sudo apt-get update
-          sudo apt-get install ninja-build g++-9 liblapack-dev openmpi-bin libopenmpi-dev libtbb-dev doxygen
+          sudo apt-get install ninja-build g++-9 liblapack-dev openmpi-bin libopenmpi-dev libtbb-dev doxygen doxygen-latex graphviz 
 
       - name: configure
         shell: bash

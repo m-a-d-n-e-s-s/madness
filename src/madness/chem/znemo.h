@@ -10,7 +10,7 @@
 
 #include <madness/chem/CalculationParameters.h>
 #include <madness/chem/MolecularOrbitals.h>
-#include <madness/chem/QCCalculationParametersBase.h>
+#include "madness/mra/QCCalculationParametersBase.h"
 #include <madness/chem/SCFOperators.h>
 #include <madness/chem/molecular_optimizer.h>
 #include <madness/chem/molecularbasis.h>
@@ -397,7 +397,7 @@ public:
 	void canonicalize(std::vector<complex_function_3d>& amo,
 			std::vector<complex_function_3d>& vnemo,
 			potentials& pot,
-			XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, allocator<double_complex,3> >& solver,
+			XNonlinearSolver<std::vector<complex_function_3d> ,double_complex, vector_function_allocator<double_complex,3> >& solver,
 			Tensor<double_complex> fock, Tensor<double_complex> ovlp) const;
 
 	std::vector<complex_function_3d> orthonormalize(const std::vector<complex_function_3d>& mo) const;

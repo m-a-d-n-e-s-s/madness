@@ -94,6 +94,63 @@ namespace madness {
     class AtomicInt;
     void error(const char *msg);
 
+    class ThreadBinder {
+      static const size_t maxncpu = 1024;
+      bool print;
+      size_t ncpu = 0;
+      bool do_bind = true;
+      size_t cpus[maxncpu];
+      std::atomic<size_t> nextcpu = 0;
+      static thread_local bool bound;
+      
+    public:
+      
+      ThreadBinder(bool print = false) : print(print) {
+#ifndef ON_A_MAC
+	ncpu = 0;
+        cpu_set_t mask;
+        sched_getaffinity(0, sizeof(mask), &mask);
+        for (size_t i=0; i<maxncpu; i++) {
+	  if (CPU_ISSET(int(i),&mask)) {
+	    MADNESS_CHECK(ncpu <= maxncpu);
+	    cpus[ncpu++] = i;
+	  }
+	}
+	if (print) {
+	  std::cout << "ncpu: " << get_ncpu() << std::endl;
+	  for (size_t i=0; i<get_ncpu(); i++) {
+	    std::cout << get_cpus()[i] << " " ;
+	  }
+	  std::cout << std::endl;
+	}
+	nextcpu = ncpu/2;
+#endif
+          if (this->print) { };
+      }
+
+      void set_do_bind(bool value) {do_bind = value;}
+      
+      const size_t* get_cpus() const { return cpus; }
+      
+      const size_t get_ncpu() const { return ncpu; }
+      
+      void bind() {
+#ifndef ON_A_MAC
+	if (do_bind && !bound) { // In TBB this is called by each task, so check do_bind first
+	  bound = true;
+	  cpu_set_t mask;
+	  CPU_ZERO(&mask);
+	  size_t cpu = cpus[nextcpu++ % ncpu];
+	  CPU_SET(cpu, &mask);
+	  sched_setaffinity(0, sizeof(mask), &mask);
+	  if (print) std::cout << "bound thread to " << cpu << std::endl;
+	}
+#endif
+      }
+    };
+
+    extern ThreadBinder binder;
+
     /// \addtogroup threads
     /// @{
 
@@ -107,9 +164,6 @@ namespace madness {
     class ThreadBase {
         friend class ThreadPool;
 
-        static bool bind[3]; ///< \todo Brief description needed.
-        static int cpulo[3]; ///< \todo Brief description needed.
-        static int cpuhi[3]; ///< \todo Brief description needed.
         static pthread_key_t thread_key; ///< Thread id key.
 
         /// \todo Brief description needed.
@@ -195,20 +249,6 @@ namespace madness {
 
         /// \return The number of hardward processors.
         static int num_hw_processors();
-
-        /// Specify the affinity pattern or how to bind threads to CPUs.
-
-        /// \todo Descriptions needed.
-        /// \param[in] bind Description needed.
-        /// \param[in] cpu Description needed.
-        static void set_affinity_pattern(const bool bind[3], const int cpu[3]);
-
-        /// \todo Brief description needed.
-
-        /// \todo Descriptions needed.
-        /// \param[in] logical_id Description needed.
-        /// \param[in] ind Description needed.
-        static void set_affinity(int logical_id, int ind=-1);
 
         /// \todo Brief description needed.
 
@@ -434,7 +474,7 @@ namespace madness {
         /// \param[in] barrier Pointer to the shared barrier.
         TaskThreadEnv(int nthread, int id, Barrier* barrier)
             : _nthread(nthread), _id(id), _barrier(barrier)
-        {}
+        {::madness::binder.bind();}
 
 #if HAVE_INTEL_TBB
         /// Constructor collecting necessary environmental information.
@@ -447,7 +487,7 @@ namespace madness {
         /// Need to figure out why.
         TaskThreadEnv(int nthread, int id)
             : _nthread(nthread), _id(id), _barrier(nullptr)
-        {};
+      {::madness::binder.bind();};
 #endif
 
         /// Get the number of threads collaborating on this task.
@@ -960,7 +1000,7 @@ namespace madness {
     	    count = 0;
     	}
 
-        /// Contructor setting the specified task attributes.
+        /// Constructor setting the specified task attributes.
 
         /// \param[in] attr The task attributes.
         explicit PoolTaskInterface(const TaskAttributes& attr)
@@ -1122,7 +1162,12 @@ namespace madness {
       void operator=(const ThreadPool&) = delete;
       void operator=(ThreadPool&&) = delete;
 
-     private:
+      /// Get the number of threads from the environment.
+
+      /// \return The number of threads.
+      static int default_nthread();
+
+    private:
         friend class WorldTaskQueue;
 
         // Thread pool data
@@ -1146,11 +1191,6 @@ namespace madness {
         /// \todo Description needed.
         /// \param[in] nthread Description needed.
         ThreadPool(int nthread=-1);
-
-        /// Get the number of threads from the environment.
-
-        /// \return The number of threads.
-        int default_nthread();
 
        /// Run the next task.
 
@@ -1398,7 +1438,8 @@ namespace madness {
         /// \param[in] dowork Do work while waiting - default is true
         /// \param[in] sleep Sleep instead of spin while waiting (e.g., to avoid pounding on MPI) - default is false
         template <typename Probe>
-	  static void await(const Probe& probe, bool dowork = true, bool sleep = false) {
+	    static void await(const Probe& probe, bool dowork = true, bool sleep = false) {
+          if (!probe()) {
             double start = cpu_time();
             const double timeout = await_timeout;
             int counter = 0;
@@ -1448,6 +1489,7 @@ namespace madness {
 		    }
                 }
             }
+          }  // if !probe()
         }
 
         /// Destructor.

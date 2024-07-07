@@ -91,7 +91,7 @@ Molecule::Molecule(std::vector<Atom> atoms, double eprec, CorePotentialManager c
   this->update_rcut_with_eprec(eprec);
 }
 
-Molecule::Molecule(World& world, const commandlineparser& parser) :parameters(world,parser), atoms(), rcut(), core_pot(), field(3L)
+  Molecule::Molecule(World& world, const commandlineparser& parser) :atoms(), rcut(), core_pot(), field(3L), parameters(world,parser)
 {
     try {
         if (world.rank()==0) get_structure();
@@ -338,7 +338,7 @@ void Molecule::read_xyz(const std::string filename) {
         add_atom(xx,yy,zz,qq,atn,psat);
         if (current_line==natom_expected+2) break;
     }
-    MADNESS_CHECK(natom_expected==natom());
+    MADNESS_CHECK(size_t(natom_expected)==natom());
     update_rcut_with_eprec(parameters.eprec());
 }
 
@@ -448,6 +448,26 @@ const Atom& Molecule::get_atom(unsigned int i) const {
     if (i>=atoms.size()) throw "trying to get coords of invalid atom";
     return atoms[i];
 }
+
+// Returns molecule in qc-schema format
+// symbols (nat,) atom symbols in title case. array[string]
+// geometry (3*nat,) vector of xyz coordinates [a0] of the atoms.  array[number]
+// There are optional parameters yet to be implemented
+// https://molssi-qc-schema.readthedocs.io/en/latest/auto_topology.html
+nlohmann::json Molecule::to_json() const {
+    nlohmann::json mol_schema;
+    mol_schema["symbols"] = {};
+    mol_schema["geometry"] = {};
+
+//    get_atomic_data(atoms[0].atomic_number).symbol;
+    for (size_t i = 0; i < natom(); ++i) {
+        mol_schema["symbols"].push_back(get_atomic_data(atoms[i].atomic_number).symbol);
+        mol_schema["geometry"].push_back({atoms[i].x, atoms[i].y, atoms[i].z});
+    }
+    return mol_schema;
+}
+
+
 
 void Molecule::print() const {
     std::string p =parameters.print_to_string();
@@ -670,7 +690,6 @@ template <typename opT>
 int Molecule::find_symmetry_equivalent_atom(int iatom, opT op, const double symtol) const  {
     double x=atoms[iatom].x, y=atoms[iatom].y, z=atoms[iatom].z;
     op(x, y, z);
-    bool found = false;
     for (unsigned int j=0; j<atoms.size(); ++j) {
         double r = distance(x, y, z, atoms[j].x, atoms[j].y, atoms[j].z);
         if (r < symtol) return j;

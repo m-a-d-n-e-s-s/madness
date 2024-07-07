@@ -34,7 +34,6 @@
   \brief Notes on installing and configuring MADNESS.
   \addtogroup configuration
 
-  \todo Write this section.
+  This section is superseded by the <a href="https://madness.readthedocs.io/en/latest/INSTALL.html">MADNESS readthedocs</a>.
 
-  In the mean time, instructions on installing and configuring MADNESS can be found in the wiki at <a href="\website">the MADNESS repository</a>.
  */

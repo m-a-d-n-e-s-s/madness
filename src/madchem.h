@@ -29,7 +29,7 @@
 #include<madness/chem/PNOParameters.h>
 #include<madness/chem/PNOStructures.h>
 #include<madness/chem/PNOTensors.h>
-#include<madness/chem/QCCalculationParametersBase.h>
+#include"madness/mra/QCCalculationParametersBase.h"
 #include<madness/chem/QCPropertyInterface.h>
 #include<madness/chem/SCF.h>
 #include<madness/chem/SCFOperators.h>
@@ -38,7 +38,7 @@
 #include<madness/chem/atomutil.h>
 #include<madness/chem/basis.h>
 #include<madness/chem/ccpairfunction.h>
-#include<madness/chem/commandlineparser.h>
+#include"madness/mra/commandlineparser.h"
 #include<madness/chem/corepotential.h>
 #include<madness/chem/correlationfactor.h>
 #include<madness/chem/diamagneticpotentialfactor.h>

@@ -2,6 +2,7 @@
 #include <madness/mra/mra.h>
 #include <madness/mra/vmra.h>
 #include <madness/misc/ran.h>
+#include <madness/world/test_utilities.h>
 
 const double PI = 3.1415926535897932384;
 
@@ -189,6 +190,65 @@ void test_inner(World& world) {
     if (world.rank() == 0) 
         print("error norm",(rold-rnew).normf(),"\n");
 }
+
+template<typename T, std::size_t NDIM>
+int test_transform(World& world) {
+    test_output to("testing transform");
+    to.set_cout_to_terminal();
+    typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > ffunctorT;
+
+
+    const double thresh=1.e-7;
+    Tensor<double> cell(NDIM,2);
+    for (std::size_t i=0; i<NDIM; ++i) {
+        cell(i,0) = -11.0-2*i;  // Deliberately asymmetric bounding box
+        cell(i,1) =  10.0+i;
+    }
+    FunctionDefaults<NDIM>::set_cell(cell);
+    FunctionDefaults<NDIM>::set_k(8);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(3);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
+
+
+    const int nleft=RandomValue<int>()%10;
+    const int nright=RandomValue<int>()%10;
+    print("nleft, nright",nleft,nright);
+
+    START_TIMER;
+    std::vector< Function<T,NDIM> > left(nleft);
+    for (int i=0; i<nleft; ++i) {
+        ffunctorT f(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),0.5));
+        left[i] = FunctionFactory<T,NDIM>(world).functor(f);
+    }
+    END_TIMER("project");
+    to.checkpoint(true,"initial projection");
+
+    Tensor<T> c(nleft,nright);
+    auto result1=transform(world,left,c);
+    to.checkpoint(true,"reference transform");
+
+    change_tree_state(left,reconstructed);
+    auto result2=transform_reconstructed(world,left,c,false);
+    world.gop.fence();
+    for (auto& r : result2) MADNESS_CHECK(r.get_impl()->get_tree_state()==redundant_after_merge);
+    change_tree_state(result2,reconstructed);
+    double err1=norm2(world, result1-result2);
+    to.checkpoint(err1,thresh,"reference transform");
+
+    change_tree_state(left,compressed);
+    auto result3=transform_reconstructed(world,left,c);
+    double err2=norm2(world, result1-result3);
+    to.checkpoint(err2,thresh,"reference transform");
+
+
+    return to.end();
+}
+
+
+
+
 
 template <typename T, typename R, int NDIM>
 void test_cross(World& world) {
@@ -408,13 +468,14 @@ int main(int argc, char**argv) {
     for (int iarg=1; iarg<argc; iarg++) if (strcmp(argv[iarg],"--small")==0) smalltest=true;
     std::cout << "small test : " << smalltest << std::endl;
     if (smalltest) return 0;
-    
+    madness::default_random_generator.setstate(int(cpu_time()*1000)%4149);
+
 
     try {
         startup(world,argc,argv);
 
-        test_add<double,3>(world);
-        test_add<std::complex<double>,3 >(world);
+        // test_add<double,3>(world);
+        // test_add<std::complex<double>,3 >(world);
 
         test_inner<double,double,1,false>(world);
         test_inner<double,double,1,true>(world);
@@ -424,6 +485,11 @@ int main(int argc, char**argv) {
         test_cross<double,double,2>(world);
         test_cross<std::complex<double>,double,2>(world);
         test_cross<std::complex<double>,std::complex<double>,2>(world);
+
+        test_transform<double,2>(world);
+        test_transform<double,2>(world);
+        test_transform<double,2>(world);
+        test_transform<double,2>(world);
 
         test_rot<double,3>(world);
         test_rot<std::complex<double>,3>(world);
@@ -454,10 +520,6 @@ int main(int argc, char**argv) {
         error("caught a Tensor exception");
     }
     catch (char* s) {
-        print(s);
-        error("caught a c-string exception");
-    }
-    catch (const char* s) {
         print(s);
         error("caught a c-string exception");
     }

@@ -150,7 +150,7 @@ namespace madness {
 
         /// Default constructor makes uninitialized function.  No communication.
 
-        /// An unitialized function can only be assigned to.  Any other operation will throw.
+        /// An uninitialized function can only be assigned to.  Any other operation will throw.
         Function() : impl() {}
 
 
@@ -594,7 +594,7 @@ namespace madness {
         /// If the function is not initialized, it just returns.
         ///
         /// Returns this for chaining.
-		/// @param[in] tol Tolerance for truncating the coefficients. Default 0.0 means use the implimentation's member value \c thresh instead.
+		/// @param[in] tol Tolerance for truncating the coefficients. Default 0.0 means use the implementation's member value \c thresh instead.
 		/// @param[in] fence Do fence
         Function<T,NDIM>& truncate(double tol = 0.0, bool fence = true) {
             PROFILE_MEMBER_FUNC(Function);
@@ -716,15 +716,7 @@ namespace madness {
         /// Since reconstruction/compression do not discard information we define them
         /// as const ... "logical constness" not "bitwise constness".
         const Function<T,NDIM>& compress(bool fence = true) const {
-            PROFILE_MEMBER_FUNC(Function);
-            if (!impl || is_compressed()) return *this;
-            if (VERIFY_TREE) verify_tree();
-            if (impl->is_nonstandard()) {
-                impl->standard(fence);
-            } else {
-                const_cast<Function<T,NDIM>*>(this)->impl->compress(TreeState::compressed, fence);
-            }
-            return *this;
+            return change_tree_state(compressed,fence);
         }
 
 
@@ -737,21 +729,12 @@ namespace madness {
         ///
         /// Noop if already compressed or if not initialized.
         void make_nonstandard(bool keepleaves, bool fence=true) const {
-            PROFILE_MEMBER_FUNC(Function);
-            verify();
-            if (impl->is_nonstandard()) return;
-            if (impl->is_nonstandard_with_leaves()) return;
-
-            if (VERIFY_TREE) verify_tree();
-            if (!is_reconstructed()) reconstruct();
             TreeState newstate=TreeState::nonstandard;
             if (keepleaves) newstate=nonstandard_with_leaves;
-//            impl->compress(true, keepleaves, false, fence);
-            const_cast<Function<T,NDIM>*>(this)->impl->compress(newstate, fence);
-
+            change_tree_state(newstate,fence);
         }
 
-        /// Converts the function from nonstandard form to standard form.  Possible non-blocking comm.
+        /// Converts the function standard compressed form.  Possible non-blocking comm.
 
         /// By default fence=true meaning that this operation completes before returning,
         /// otherwise if fence=false it returns without fencing and the user must invoke
@@ -760,11 +743,19 @@ namespace madness {
         ///
         /// Must be already compressed.
         void standard(bool fence = true) {
-            PROFILE_MEMBER_FUNC(Function);
-            verify();
-            MADNESS_ASSERT(impl->is_nonstandard() or impl->is_nonstandard_with_leaves());
-            impl->standard(fence);
-            if (fence && VERIFY_TREE) verify_tree();
+            change_tree_state(compressed,fence);
+        }
+
+        /// Converts the function to redundant form, i.e. sum coefficients on all levels
+
+        /// By default fence=true meaning that this operation completes before returning,
+        /// otherwise if fence=false it returns without fencing and the user must invoke
+        /// world.gop.fence() to assure global completion before using the function
+        /// for other purposes.
+        ///
+        /// Must be already compressed.
+        void make_redundant(bool fence = true) {
+            change_tree_state(redundant, fence);
         }
 
         /// Reconstructs the function, transforming into scaling function basis.  Possible non-blocking comm.
@@ -779,20 +770,35 @@ namespace madness {
         /// Since reconstruction/compression do not discard information we define them
         /// as const ... "logical constness" not "bitwise constness".
         const Function<T,NDIM>& reconstruct(bool fence = true) const {
-            PROFILE_MEMBER_FUNC(Function);
-            if (!impl || impl->is_reconstructed()) return *this;
-            const_cast<Function<T,NDIM>*>(this)->impl->reconstruct(fence);
-            if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
-            return *this;
+            return change_tree_state(reconstructed, fence);
         }
 
+        /// changes tree state to given state
+
+        /// Since reconstruction/compression do not discard information we define them
+        /// as const ... "logical constness" not "bitwise constness".
+        /// @param[in]  finalstate  The final state of the tree
+        /// @param[in]  fence       Fence after the operation (might not be respected!!!)
+        const Function<T,NDIM>& change_tree_state(const TreeState finalstate, bool fence = true) const {
+            PROFILE_MEMBER_FUNC(Function);
+            if (not impl) return *this;
+            TreeState current_state = impl->get_tree_state();
+            if (finalstate == current_state) return *this;
+            MADNESS_CHECK_THROW(current_state != TreeState::unknown, "unknown tree state");
+
+            impl->change_tree_state(finalstate, fence);
+            if (fence && VERIFY_TREE) verify_tree();
+            return *this;
+        }
 
         /// Sums scaling coeffs down tree restoring state with coeffs only at leaves.  Optional fence.  Possible non-blocking comm.
         void sum_down(bool fence = true) const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
-            MADNESS_ASSERT(is_reconstructed());
+            MADNESS_CHECK_THROW(impl->get_tree_state()==redundant_after_merge, "sum_down requires a redundant_after_merge state");
             const_cast<Function<T,NDIM>*>(this)->impl->sum_down(fence);
+            const_cast<Function<T,NDIM>*>(this)->impl->set_tree_state(reconstructed);
+
             if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
         }
 
@@ -857,6 +863,13 @@ namespace madness {
         void print_tree(std::ostream& os = std::cout) const {
             PROFILE_MEMBER_FUNC(Function);
             if (impl) impl->print_tree(os);
+        }
+
+        /// same as print_tree() but produces JSON-formatted string
+        /// @warning enclose the result in braces to make it a valid JSON object
+        void print_tree_json(std::ostream& os = std::cout) const {
+            PROFILE_MEMBER_FUNC(Function);
+            if (impl) impl->print_tree_json(os);
         }
 
         /// Process 0 prints a graphviz-formatted output of all nodes in the tree (collective)
@@ -976,9 +989,10 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             other.verify();
-            MADNESS_ASSERT(impl->get_tree_state() == other.get_impl()->get_tree_state());
+            MADNESS_CHECK_THROW(impl->get_tree_state() == other.get_impl()->get_tree_state(),
+                "gaxpy requires both functions to be in the same tree state");
             bool same_world=this->world().id()==other.world().id();
-            MADNESS_ASSERT(same_world or is_compressed());
+            MADNESS_CHECK(same_world or is_compressed());
 
             if (not same_world) {
                 impl->gaxpy_inplace(alpha,*other.get_impl(),beta,fence);
@@ -1210,24 +1224,28 @@ namespace madness {
 
         /// perform the hartree product of f*g, invoked by result
         template<size_t LDIM, size_t KDIM, typename opT>
-        void do_hartree_product(const FunctionImpl<T,LDIM>* left, const FunctionImpl<T,KDIM>* right,
-                const opT* op) {
+        void do_hartree_product(const std::vector<std::shared_ptr<FunctionImpl<T,LDIM>>> left,
+                                const std::vector<std::shared_ptr<FunctionImpl<T,KDIM>>> right,
+                                const opT* op) {
 
             // get the right leaf operator
             hartree_convolute_leaf_op<T,KDIM+LDIM,LDIM,opT> leaf_op(impl.get(),left,op);
             impl->hartree_product(left,right,leaf_op,true);
-            this->truncate(0.0,false);
+            impl->finalize_sum();
+//            this->truncate();
 
         }
 
         /// perform the hartree product of f*g, invoked by result
         template<size_t LDIM, size_t KDIM>
-        void do_hartree_product(const FunctionImpl<T,LDIM>* left, const FunctionImpl<T,KDIM>* right) {
+        void do_hartree_product(const std::vector<std::shared_ptr<FunctionImpl<T,LDIM>>> left,
+                                const std::vector<std::shared_ptr<FunctionImpl<T,KDIM>>> right) {
 
 //            hartree_leaf_op<T,KDIM+LDIM> leaf_op(impl.get(),cdata.s0);
             hartree_leaf_op<T,KDIM+LDIM> leaf_op(impl.get(),k());
             impl->hartree_product(left,right,leaf_op,true);
-            this->truncate(0.0,false);
+            impl->finalize_sum();
+//            this->truncate();
 
         }
 
@@ -1245,6 +1263,8 @@ namespace madness {
 
             // if this and g are the same, use norm2()
             if (this->get_impl()==g.get_impl()) {
+                TreeState state=this->get_impl()->get_tree_state();
+                if (not (state==reconstructed or state==compressed)) change_tree_state(reconstructed);
                 double norm=this->norm2();
                 return norm*norm;
             }
@@ -1257,16 +1277,18 @@ namespace madness {
             if (VERIFY_TREE) g.verify_tree();
 
             // compression is more efficient for 3D
-            if (NDIM==3) {
-            	if (!is_compressed()) compress(false);
-            	if (!g.is_compressed()) g.compress(false);
+            TreeState state=this->get_impl()->get_tree_state();
+            TreeState gstate=g.get_impl()->get_tree_state();
+            if (NDIM<=3) {
+                change_tree_state(compressed,false);
+                g.change_tree_state(compressed,false);
                 impl->world.gop.fence();
            }
 
             if (this->is_compressed() and g.is_compressed()) {
             } else {
-                if (not this->get_impl()->is_redundant()) this->get_impl()->make_redundant(false);
-                if (not g.get_impl()->is_redundant()) g.get_impl()->make_redundant(false);
+                change_tree_state(redundant,false);
+                g.change_tree_state(redundant,false);
                 impl->world.gop.fence();
             }
 
@@ -1275,8 +1297,9 @@ namespace madness {
             impl->world.gop.sum(local);
             impl->world.gop.fence();
 
-            if (this->get_impl()->is_redundant()) this->get_impl()->undo_redundant(false);
-            if (g.get_impl()->is_redundant()) g.get_impl()->undo_redundant(false);
+            // restore state
+            change_tree_state(state,false);
+            g.change_tree_state(gstate,false);
             impl->world.gop.fence();
 
             return local;
@@ -1292,9 +1315,9 @@ namespace madness {
         /// @return Returns local part of the inner product, i.e. over the domain of all function nodes on this compute node.
         T inner_ext_local(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, const bool leaf_refine=true, const bool keep_redundant=false) const {
             PROFILE_MEMBER_FUNC(Function);
-            if (not impl->is_redundant()) impl->make_redundant(true);
+            change_tree_state(redundant);
             T local = impl->inner_ext_local(f, leaf_refine);
-            if (not keep_redundant) impl->undo_redundant(true);
+            if (not keep_redundant) change_tree_state(reconstructed);
             return local;
         }
 
@@ -1308,11 +1331,11 @@ namespace madness {
         /// @return Returns the inner product
         T inner_ext(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, const bool leaf_refine=true, const bool keep_redundant=false) const {
             PROFILE_MEMBER_FUNC(Function);
-            if (not impl->is_redundant()) impl->make_redundant(true);
+            change_tree_state(redundant);
             T local = impl->inner_ext_local(f, leaf_refine);
             impl->world.gop.sum(local);
             impl->world.gop.fence();
-            if (not keep_redundant) impl->undo_redundant(true);
+            if (not keep_redundant) change_tree_state(reconstructed);
             return local;
         }
 
@@ -1352,29 +1375,24 @@ namespace madness {
         /// g is constructed with an implicit multiplication, e.g.
         ///  result = <this|g>,   with g = 1/r12 | gg>
         /// @param[in]  g	on-demand function
-        template <typename R>
-        TENSOR_RESULT_TYPE(T,R) inner_on_demand(const Function<R,NDIM>& g) const {
-          MADNESS_ASSERT(g.is_on_demand() and (not this->is_on_demand()));
+        template<typename R>
+        TENSOR_RESULT_TYPE(T, R) inner_on_demand(const Function<R, NDIM>& g) const {
+            MADNESS_ASSERT(g.is_on_demand() and (not this->is_on_demand()));
 
-          this->reconstruct();
+            constexpr std::size_t LDIM=std::max(NDIM/2,std::size_t(1));
+            auto func=dynamic_cast<CompositeFunctorInterface<T,NDIM,LDIM>* >(g.get_impl()->get_functor().get());
+            MADNESS_ASSERT(func);
+            func->make_redundant(true);
+            func->replicate_low_dim_functions(true);
+            this->reconstruct();        // if this == &g we don't need g to be redundant
 
-          // save for later, will be removed by make_Vphi
-          std::shared_ptr< FunctionFunctorInterface<T,NDIM> > func=g.get_impl()->get_functor();
-          //leaf_op<T,NDIM> fnode_is_leaf(this->get_impl().get());
-          Leaf_op_other<T,NDIM> fnode_is_leaf(this->get_impl().get());
-          g.get_impl()->make_Vphi(fnode_is_leaf,true);  // fence here
+            if (VERIFY_TREE) verify_tree();
 
-          if (VERIFY_TREE) verify_tree();
-          TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*g.get_impl());
-          impl->world.gop.sum(local);
-          impl->world.gop.fence();
+            TENSOR_RESULT_TYPE(T, R) local = impl->inner_local_on_demand(*g.get_impl());
+            impl->world.gop.sum(local);
+            impl->world.gop.fence();
 
-          // restore original state
-          g.get_impl()->set_functor(func);
-          g.get_impl()->get_coeffs().clear();
-        	g.get_impl()->set_tree_state(on_demand);
-
-          return local;
+            return local;
         }
 
         /// project this on the low-dim function g: h(x) = <f(x,y) | g(y)>
@@ -1385,7 +1403,7 @@ namespace madness {
         template <typename R, size_t LDIM>
         Function<TENSOR_RESULT_TYPE(T,R),NDIM-LDIM> project_out(const Function<R,LDIM>& g, const int dim) const {
             if (NDIM<=LDIM) MADNESS_EXCEPTION("confused dimensions in project_out?",1);
-            MADNESS_ASSERT(dim==0 or dim==1);
+            MADNESS_CHECK_THROW(dim==0 or dim==1,"dim must be 0 or 1 in project_out");
             verify();
             typedef TENSOR_RESULT_TYPE(T,R) resultT;
             static const size_t KDIM=NDIM-LDIM;
@@ -1394,20 +1412,22 @@ namespace madness {
                     .k(g.k()).thresh(g.thresh());
             Function<resultT,KDIM> result=factory;      // no empty() here!
 
-            FunctionImpl<R,LDIM>* gimpl = const_cast< FunctionImpl<R,LDIM>* >(g.get_impl().get());
-
-            this->reconstruct();
-            gimpl->make_redundant(true);
-            this->get_impl()->project_out(result.get_impl().get(),gimpl,dim,true);
+            change_tree_state(reconstructed,false);
+            g.change_tree_state(redundant,false);
+            world().gop.fence();
+            this->get_impl()->project_out(result.get_impl().get(),g.get_impl().get(),dim,true);
 //            result.get_impl()->project_out2(this->get_impl().get(),gimpl,dim);
             result.world().gop.fence();
-            result.get_impl()->trickle_down(true);
-            gimpl->undo_redundant(true);
+            g.change_tree_state(reconstructed,false);
+            result.get_impl()->trickle_down(false);
+            result.get_impl()->set_tree_state(reconstructed);
+            result.world().gop.fence();
             return result;
         }
 
-        template<std::size_t LDIM>
-        Function<T,LDIM> dirac_convolution(const bool fence=true) const {
+        Function<T,NDIM/2> dirac_convolution(const bool fence=true) const {
+            constexpr std::size_t LDIM=NDIM/2;
+            MADNESS_CHECK_THROW(NDIM==2*LDIM,"NDIM must be even");
 //        	// this will be the result function
         	FunctionFactory<T,LDIM> factory=FunctionFactory<T,LDIM>(world()).k(this->k());
         	Function<T,LDIM> f = factory;
@@ -1643,14 +1663,14 @@ namespace madness {
         /// check symmetry of a function by computing the 2nd derivative
         double check_symmetry() const {
 
-        	impl->make_redundant(true);
+            change_tree_state(redundant);
             if (VERIFY_TREE) verify_tree();
             double local = impl->check_symmetry_local();
             impl->world.gop.sum(local);
             impl->world.gop.fence();
             double asy=sqrt(local);
             if (this->world().rank()==0) print("asymmetry wrt particle",asy);
-            impl->undo_redundant(true);
+            change_tree_state(reconstructed);
             return asy;
         }
 
@@ -1665,9 +1685,9 @@ namespace madness {
         /// remove all nodes with level higher than n
         Function<T,NDIM>& chop_at_level(const int n, const bool fence=true) {
             verify();
-            impl->make_redundant(true);
+            change_tree_state(redundant);
             impl->chop_at_level(n,true);
-            impl->undo_redundant(true);
+            change_tree_state(reconstructed);
             return *this;
         }
     };
@@ -1810,37 +1830,41 @@ namespace madness {
         return mul(left,right,true);
     }
 
-    /// Performs a Hartree product on the two given low-dimensional functions
+    /// Performs a Hartree/outer product on the two given low-dimensional function vectors
+
+    /// @return   result(x,y) = \sum_i f_i(x) g_i(y)
     template<typename T, std::size_t KDIM, std::size_t LDIM>
     Function<T,KDIM+LDIM>
-    hartree_product(const Function<T,KDIM>& left2, const Function<T,LDIM>& right2) {
+    hartree_product(const std::vector<Function<T,KDIM>>& left, const std::vector<Function<T,LDIM>>& right) {
 
-        // we need both sum and difference coeffs for error estimation
-        Function<T,KDIM>& left = const_cast< Function<T,KDIM>& >(left2);
-        Function<T,LDIM>& right = const_cast< Function<T,LDIM>& >(right2);
+        MADNESS_CHECK_THROW(left.size()==right.size(), "hartree_product: left and right must have same size");
+        if (left.size()==0) return Function<T,KDIM+LDIM>();
 
         const double thresh=FunctionDefaults<KDIM+LDIM>::get_thresh();
 
-        FunctionFactory<T,KDIM+LDIM> factory=FunctionFactory<T,KDIM+LDIM>(left.world())
-                .k(left.k()).thresh(thresh);
+        FunctionFactory<T,KDIM+LDIM> factory=FunctionFactory<T,KDIM+LDIM>(left.front().world())
+                .k(left.front().k()).thresh(thresh);
         Function<T,KDIM+LDIM> result=factory.empty();
 
-        bool same=(left2.get_impl()==right2.get_impl());
-
         // some prep work
-        left.make_nonstandard(true,true);
-        right.make_nonstandard(true,true);
+        change_tree_state(left,nonstandard_with_leaves);
+        change_tree_state(right,nonstandard_with_leaves);
+        std::vector<std::shared_ptr<FunctionImpl<T,KDIM>>> vleft=get_impl(left);
+        std::vector<std::shared_ptr<FunctionImpl<T,LDIM>>> vright=get_impl(right);
 
-        result.do_hartree_product(left.get_impl().get(),right.get_impl().get());
-
-        left.standard(false);
-        if (not same) right.standard(false);
-        left2.world().gop.fence();
+        result.do_hartree_product(vleft,vright);
 
         return result;
 
     }
 
+    /// Performs a Hartree product on the two given low-dimensional functions
+    template<typename T, std::size_t KDIM, std::size_t LDIM>
+    Function<T,KDIM+LDIM>
+    hartree_product(const Function<T,KDIM>& left2, const Function<T,LDIM>& right2) {
+        typedef std::vector<Function<T,KDIM>> vector;
+        return hartree_product(vector({left2}),vector({right2}));
+    }
 
     /// Performs a Hartree product on the two given low-dimensional functions
     template<typename T, std::size_t KDIM, std::size_t LDIM, typename opT>
@@ -1868,13 +1892,29 @@ namespace madness {
         left.make_nonstandard(true, true);
         right.make_nonstandard(true, true);
 
-        result.do_hartree_product(left.get_impl().get(),right.get_impl().get(),&op);
+        std::vector<std::shared_ptr<FunctionImpl<T,KDIM>>> vleft;
+        std::vector<std::shared_ptr<FunctionImpl<T,LDIM>>> vright;
+        vleft.push_back(left.get_impl());
+        vright.push_back(right.get_impl());
+        result.do_hartree_product(vleft,right,&op);
 
         left.standard(false);
         if (not same) right.standard(false);
         left2.world().gop.fence();
 
         return result;
+    }
+
+    /// adds beta*right only left:  alpha*left + beta*right optional fence and no automatic compression
+
+    /// left and right might live in different worlds, the accumulation is non-blocking
+    template <typename L, typename R,std::size_t NDIM>
+    void
+    gaxpy(TENSOR_RESULT_TYPE(L,R) alpha, Function<L,NDIM>& left,
+              TENSOR_RESULT_TYPE(L,R) beta,  const Function<R,NDIM>& right, bool fence=true) {
+        PROFILE_FUNC;
+        Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
+        left.gaxpy(alpha, right, beta, fence);
     }
 
     /// Returns new function alpha*left + beta*right optional fence and no automatic compression
@@ -2057,19 +2097,19 @@ namespace madness {
     	op.reset_timer();
 
 		// will fence here
-        for (int i=0; i<f1.size(); ++i)
+        for (size_t i=0; i<f1.size(); ++i)
             result.get_impl()->recursive_apply(op, f1[i].get_impl().get(),f2[i].get_impl().get(),false);
         world.gop.fence();
 
         result.get_impl()->print_timer();
         op.print_timer();
 
-		result.get_impl()->finalize_apply(true);	// need fence before reconstruct
+		result.get_impl()->finalize_apply();	// need fence before reconstruct
 
         if (op.modified()) {
             result.get_impl()->trickle_down(true);
         } else {
-    		result.reconstruct();
+    		result.get_impl()->reconstruct(true);
         }
     	standard(world,ff1,false);
     	if (not same) standard(world,ff2,false);
@@ -2084,13 +2124,16 @@ namespace madness {
     apply_only(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
+        constexpr std::size_t OPDIM=opT::opdim;
+        constexpr bool low_dim=(OPDIM*2==NDIM);     // apply on some dimensions only
+
         // specialized version for 3D
-        if (NDIM <= 3) {
+        if (NDIM <= 3 and (not low_dim)) {
             result.set_impl(f, false);
             result.get_impl()->apply(op, *f.get_impl(), fence);
 
         } else {        // general version for higher dimension
-            bool print_timings=false;
+	  //bool print_timings=false;
             Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> r1;
 
             result.set_impl(f, false);
@@ -2105,16 +2148,6 @@ namespace madness {
             //result.get_impl()->recursive_apply(op, f.get_impl().get(),
             //        r1.get_impl().get(),true);          // will fence here
 
-//           	result.world().gop.fence();
-//           	result.print_size("result before finalization");
-//            double time=result.get_impl()->finalize_apply(fence);   // need fence before reconstruction
-//           	result.world().gop.fence();
-//            if (print_timings) {
-//                result.get_impl()->print_timer();
-//                op.print_timer();
-//                if (result.world().rank()==0) print("time in finlize_apply", time);
-//            }
-
         }
 
         return result;
@@ -2125,6 +2158,13 @@ namespace madness {
     /// Returns a new function with the same distribution
     ///
     /// !!! For the moment does NOT respect fence option ... always fences
+    /// if the operator acts on one particle only the result will be sorted as
+    /// g.particle=1:     g(f) = \int g(x,x') f(x',y) dx' = result(x,y)
+    /// g.particle=2:     g(f) = \int g(y,y') f(x,y') dy' = result(x,y)
+    /// for the second case it will notably *not* be as it is implemented in the partial inner product!
+    /// g.particle=2                          g(f) = result(x,y)
+    ///                 inner(g(y,y'),f(x,y'),1,1) = result(y,x)
+    /// also note the confusion with the counting of the particles/integration variables
     template <typename opT, typename R, std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
     apply(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
@@ -2134,8 +2174,7 @@ namespace madness {
     	Function<resultT, NDIM> result;
 
 		MADNESS_ASSERT(not f.is_on_demand());
-		bool print_timings=(NDIM==6);
-//        bool print_timings=false;
+		bool print_timings=op.print_timings;
 
     	if (VERIFY_TREE) ff.verify_tree();
     	ff.reconstruct();
@@ -2143,21 +2182,13 @@ namespace madness {
 
     	if (op.modified()) {
 
-    		MADNESS_ASSERT(not op.is_slaterf12);
-    	    ff.get_impl()->make_redundant(true);
+            ff.change_tree_state(redundant);
+//    	    ff.get_impl()->make_redundant(true);
             result = apply_only(op, ff, fence);
             ff.get_impl()->undo_redundant(false);
             result.get_impl()->trickle_down(true);
 
     	} else {
-
-        	// the slaterf12 function is
-        	//  1/(2 mu) \int d1 (1 - exp(- mu r12)) f(1)
-        	//       = 1/(2 mu) (f.trace() - \int d1 exp(-mu r12) f(1) )
-        	// f.trace() is just a number
-    		R ftrace=0.0;
-    		if (op.is_slaterf12) ftrace=f.trace();
-//            print("ftrace",ftrace);
 
     		// saves the standard() step, which is very expensive in 6D
 //    		Function<R,NDIM> fff=copy(ff);
@@ -2169,6 +2200,7 @@ namespace madness {
                 fff.get_impl()->timer_compress_svd.print("compress_svd");
             }
             result = apply_only(op, fff, fence);
+            result.get_impl()->set_tree_state(nonstandard_after_apply);
         	ff.world().gop.fence();
             if (print_timings) result.print_size("result after apply_only");
 
@@ -2182,7 +2214,8 @@ namespace madness {
 				op.print_timer();
 			}
 
-            result.reconstruct();
+            result.get_impl()->reconstruct(true);
+
 //            fff.clear();
             if (op.destructive()) {
             	ff.world().gop.fence();
@@ -2190,7 +2223,6 @@ namespace madness {
             } else {
             	ff.standard();
             }
-        	if (op.is_slaterf12) result=(result-ftrace).scale(-0.5/op.mu());
 
     	}
         if (print_timings) result.print_size("result after reconstruction");
@@ -2210,6 +2242,7 @@ namespace madness {
 
         result.set_impl(ff, false);
         result.get_impl()->apply_1d_realspace_push(op, ff.get_impl().get(), axis, fence);
+        result.get_impl()->set_tree_state(redundant_after_merge);
         return result;
     }
 
@@ -2268,17 +2301,23 @@ namespace madness {
 
     /// param[in]	f	a function of 2 particles f(1,2)
     /// return	the input function with particles swapped g(1,2) = f(2,1)
-    template <typename T>
-    Function<T,6>
-    swap_particles(const Function<T,6> & f){
+    template <typename T, std::size_t NDIM>
+    typename std::enable_if_t<NDIM%2==0, Function<T,NDIM>>
+    swap_particles(const Function<T,NDIM> & f){
       // this could be done more efficiently for SVD, but it works decently
-      std::vector<long> map(6);
-      map[0]=3;
-      map[1]=4;
-      map[2]=5;     // 2 -> 1
-      map[3]=0;
-      map[4]=1;
-      map[5]=2;     // 1 -> 2
+      std::vector<long> map(NDIM);
+      constexpr std::size_t LDIM=NDIM/2;
+      static_assert(LDIM*2==NDIM);
+      for (auto d=0; d<LDIM; ++d) {
+          map[d]=d+LDIM;
+          map[d+LDIM]=d;
+      }
+//      map[0]=3;
+//      map[1]=4;
+//      map[2]=5;     // 2 -> 1
+//      map[3]=0;
+//      map[4]=1;
+//      map[5]=2;     // 1 -> 2
       return mapdim(f,map);
     }
 
@@ -2336,7 +2375,7 @@ namespace madness {
     template<typename T, std::size_t NDIM, std::size_t LDIM>
     Function<T,NDIM> multiply(const Function<T,NDIM> f, const Function<T,LDIM> g, const int particle, const bool fence=true) {
 
-        MADNESS_ASSERT(LDIM+LDIM==NDIM);
+        static_assert(LDIM+LDIM==NDIM);
         MADNESS_ASSERT(particle==1 or particle==2);
 
         Function<T,NDIM> result;
@@ -2345,18 +2384,16 @@ namespace madness {
 //        Function<T,NDIM>& ff = const_cast< Function<T,NDIM>& >(f);
 //        Function<T,LDIM>& gg = const_cast< Function<T,LDIM>& >(g);
 
+        f.change_tree_state(redundant,false);
+        g.change_tree_state(redundant);
 		FunctionImpl<T,NDIM>* fimpl=f.get_impl().get();
 		FunctionImpl<T,LDIM>* gimpl=g.get_impl().get();
-		gimpl->make_redundant(false);
-        fimpl->make_redundant(false);
-        result.world().gop.fence();
 
         result.get_impl()->multiply(fimpl,gimpl,particle);
         result.world().gop.fence();
 
-        fimpl->undo_redundant(false);
-		gimpl->undo_redundant(false);
-        result.world().gop.fence();
+        f.change_tree_state(reconstructed,false);
+        g.change_tree_state(reconstructed);
         return result;
     }
 
@@ -2393,8 +2430,8 @@ namespace madness {
     /// @param[in]  task    0: everything, 1; prepare only (fence), 2: work only (no fence), 3: finalize only (fence)
     template<std::size_t NDIM, typename T, std::size_t LDIM, typename R, std::size_t KDIM,
             std::size_t CDIM = (KDIM + LDIM - NDIM) / 2>
-    Function<TENSOR_RESULT_TYPE(T, R), NDIM>
-    innerXX(const Function<T, LDIM>& f, const Function<R, KDIM>& g, const std::array<int, CDIM> v1,
+    std::vector<Function<TENSOR_RESULT_TYPE(T, R), NDIM>>
+    innerXX(const Function<T, LDIM>& f, const std::vector<Function<R, KDIM>>& vg, const std::array<int, CDIM> v1,
            const std::array<int, CDIM> v2, int task=0) {
         bool prepare = ((task==0) or (task==1));
         bool work = ((task==0) or (task==2));
@@ -2411,40 +2448,42 @@ namespace madness {
         MADNESS_CHECK((v2[0]==0) or (v2[CDIM-1]==KDIM-1));
 
         MADNESS_CHECK(f.is_initialized());
-        MADNESS_CHECK(g.is_initialized());
-        MADNESS_CHECK(f.world().id() == g.world().id());
+        MADNESS_CHECK(vg[0].is_initialized());
+        MADNESS_CHECK(f.world().id() == vg[0].world().id());
         // this needs to be run in a single world, so that all coefficients are local.
         // Use macrotasks if run on multiple processes.
         World& world=f.world();
         MADNESS_CHECK(world.size() == 1);
 
         if (prepare) {
-            f.make_nonstandard(false, false);
-            g.make_nonstandard(false, false);
+            f.change_tree_state(nonstandard);
+            change_tree_state(vg,nonstandard);
             world.gop.fence();
             f.get_impl()->compute_snorm_and_dnorm(false);
-            g.get_impl()->compute_snorm_and_dnorm(false);
+            for (auto& g : vg) g.get_impl()->compute_snorm_and_dnorm(false);
             world.gop.fence();
         }
 
         typedef TENSOR_RESULT_TYPE(T, R) resultT;
-        Function<resultT,NDIM> result;
+        std::vector<Function<resultT,NDIM>> result(vg.size());
         if (work) {
             world.gop.set_forbid_fence(true);
-            result=FunctionFactory<resultT,NDIM>(world)
-                            .k(f.k()).thresh(f.thresh()).empty().nofence();
-            result.get_impl()->partial_inner(*f.get_impl(),*g.get_impl(),v1,v2);
-            result.get_impl()->set_tree_state(nonstandard);
+            for (int i=0; i<vg.size(); ++i)  {
+                result[i]=FunctionFactory<resultT,NDIM>(world)
+                        .k(f.k()).thresh(f.thresh()).empty().nofence();
+                result[i].get_impl()->partial_inner(*f.get_impl(),*(vg[i]).get_impl(),v1,v2);
+                result[i].get_impl()->set_tree_state(nonstandard_after_apply);
+            }
             world.gop.set_forbid_fence(false);
         }
 
         if (finish) {
 
             world.gop.fence();
-            result.reconstruct();
-            FunctionImpl<T,LDIM>& f_nc=const_cast<FunctionImpl<T,LDIM>&>(*f.get_impl());
-            FunctionImpl<R,KDIM>& g_nc=const_cast<FunctionImpl<R,KDIM>&>(*g.get_impl());
+//            result.get_impl()->reconstruct(true);
 
+            change_tree_state(result,reconstructed);
+//            result.reconstruct();
             // restore initial state of g and h
             auto erase_list = [] (const auto& funcimpl) {
                 typedef typename std::decay_t<decltype(funcimpl)>::keyT keyTT;
@@ -2457,19 +2496,34 @@ namespace madness {
                 return to_be_erased;
             };
 
+            FunctionImpl<T,LDIM>& f_nc=const_cast<FunctionImpl<T,LDIM>&>(*f.get_impl());
             for (auto& key : erase_list(f_nc)) f_nc.get_coeffs().erase(key);
-            for (auto& key : erase_list(g_nc)) g_nc.get_coeffs().erase(key);
-            g_nc.standard(false);
-            f_nc.standard(false);
+            for (auto& g : vg) {
+                FunctionImpl<R,KDIM>& g_nc=const_cast<FunctionImpl<R,KDIM>&>(*g.get_impl());
+                for (auto& key : erase_list(g_nc)) g_nc.get_coeffs().erase(key);
+            }
             world.gop.fence();
-            g_nc.reconstruct(false);
+            change_tree_state(vg,reconstructed);
             f_nc.reconstruct(false);
             world.gop.fence();
-//            print("timings: get_lists, recur, contract",wall_get_lists,wall_recur,wall_contract);
 
         }
 
         return result;
+    }
+
+
+    /// Computes the partial scalar/inner product between two functions, returns a low-dim function
+
+    /// syntax similar to the inner product in tensor.h
+    /// e.g result=inner<3>(f,g),{0},{1}) : r(x,y) = int f(x1,x) g(y,x1) dx1
+    /// @param[in]  task    0: everything, 1; prepare only (fence), 2: work only (no fence), 3: finalize only (fence)
+    template<std::size_t NDIM, typename T, std::size_t LDIM, typename R, std::size_t KDIM,
+            std::size_t CDIM = (KDIM + LDIM - NDIM) / 2>
+    Function<TENSOR_RESULT_TYPE(T, R), NDIM>
+    innerXX(const Function<T, LDIM>& f, const Function<R, KDIM>& g, const std::array<int, CDIM> v1,
+            const std::array<int, CDIM> v2, int task=0) {
+        return innerXX<NDIM,T,LDIM,R,KDIM>(f,std::vector<Function<R,KDIM>>({g}),v1,v2,task)[0];
     }
 
     /// Computes the partial scalar/inner product between two functions, returns a low-dim function

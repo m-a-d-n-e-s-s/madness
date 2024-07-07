@@ -69,7 +69,7 @@
     a copy constructor, assignment, inplace addition, multiplication
     from the right by a double, and computation of the distance
     between two solutions \f$ a \f$ and \f$ b \f$ with the api
-    \f\verb+double distance(a,b)+ \f
+    \verb+double distance(a,b)+
 
   Have a look in testspectralprop.cc for example use.
 

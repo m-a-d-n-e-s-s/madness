@@ -37,8 +37,8 @@
 
 #include<madness/chem/corepotential.h>
 #include<madness/chem/atomutil.h>
-#include<madness/chem/commandlineparser.h>
-#include<madness/chem/QCCalculationParametersBase.h>
+#include"madness/mra/commandlineparser.h"
+#include"madness/mra/QCCalculationParametersBase.h"
 #include <madness/world/vector.h>
 #include <vector>
 #include <string>
@@ -107,6 +107,16 @@ public:
     void serialize(Archive& ar) {
         ar & x & y & z & q & atomic_number & mass & pseudo_atom;
     }
+    hashT hash() const {
+        hashT h=hash_value(x);
+        hash_combine(h,y);
+        hash_combine(h,z);
+        hash_combine(h,q);
+        hash_combine(h,atomic_number);
+        hash_combine(h,mass);
+        hash_combine(h,pseudo_atom);
+        return h;
+    }
 };
 
 std::ostream& operator<<(std::ostream& s, const Atom& atom);
@@ -162,6 +172,8 @@ public:
             set_derived_value("source_name",parser.value("input")); // will not override user input
             std::string src_type= derive_source_type_from_name(source_name(), parser);
             set_derived_value("source_type",src_type);
+            if (parser.key_exists("no_orient") and parser.value("no_orient")=="true")
+                set_derived_value("no_orient",true);
 
             // check for ambiguities in the derived source type
             if (not is_user_defined("source_type")) {
@@ -519,6 +531,14 @@ public:
     void serialize(Archive& ar) {
         ar & atoms & rcut & core_pot & parameters & pointgroup_ & field;
     }
+
+    hashT hash() const {
+        hashT h= hash_range(atoms.begin(),atoms.end());
+        hash_combine(h,hash_range(rcut.begin(),rcut.end()));
+        hash_combine(h,pointgroup_);
+        return h;
+    }
+    [[nodiscard]] json to_json() const;
 };
 
 }
