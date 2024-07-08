@@ -4,4 +4,4 @@ docutils==0.18.1
 markupsafe==2.1.1
 pyparsing==3.0.8
 alabaster==0.7.12
-myst_parser==0.18.0
+myst_parser==3.0.1
