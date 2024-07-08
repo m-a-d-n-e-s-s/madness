@@ -663,8 +663,8 @@ double MP3::compute_mp3_cd(World& world,
     double tmp2 = inner(bra, g12 * pair_square(j, i), Rsquare);
     double fac = (i == j) ? 0.5 : 1.0;
     double result = fac * (4.0 * tmp1 - 2.0 * tmp2);
-	std::size_t bufsize=256;
-	char buf[bufsize];
+    constexpr std::size_t bufsize=256;
+    char buf[bufsize];
     snprintf(buf,bufsize,"mp3 energy: term_CD %2ld %2ld: %12.8f\n", i, j, result);
     print(std::string(buf));
     return result;
@@ -721,8 +721,8 @@ double MP3::compute_mp3_ef(World& world,
     }
     tmp_tau=consolidate(tmp_tau,{"remove_lindep"});
     double result=inner(pair_square(i,j),tmp_tau,Rsquare);
-	std::size_t bufsize=256;
-	char buf[bufsize];
+    constexpr std::size_t bufsize=256;
+    char buf[bufsize];
     snprintf(buf, bufsize,"mp3 energy: term_EF %2ld %2ld %12.8f\n",i,j,result);
     print(std::string(buf));
 
@@ -806,8 +806,8 @@ double MP3::compute_mp3_ghij(World& world,
         auto bra_intermediate = multiply(intermediate, Rsquare, {3, 4, 5});
         t4.tag("multiply");
         double tmp = 2.0*inner(bra_intermediate, gintermediate);
-	    std::size_t bufsize=256;
-	    char buf[bufsize];
+        constexpr std::size_t bufsize=256;
+        char buf[bufsize];
         snprintf(buf, bufsize,"mp3 energy: term_GHIJ  %2ld %12.8f\n", i, tmp);
         print(std::string(buf));
         t4.tag("inner");
@@ -872,8 +872,8 @@ double MP3::compute_mp3_klmn(World& world,
     double result = -2.0*inner(lhs, rhs, Rsquare);
     inner_KLMN.interrupt();
 
-	std::size_t bufsize=256;
-	char buf[bufsize];
+    constexpr std::size_t bufsize=256;
+    char buf[bufsize];
     snprintf(buf,bufsize,"mp3 energy: term_KLMN %2ld %2ld %12.8f\n", i, j, result);
     print(std::string(buf));
 

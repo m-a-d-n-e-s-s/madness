@@ -18,18 +18,19 @@ namespace madness {
 
 Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), mol(world,parser), param(world,parser),
                     cparam(world,parser) {
-//	cparam.read_input_and_commandline_options(world,parser,"dft");
+	cparam.read_input_and_commandline_options(world,parser,"dft");
 
     FunctionDefaults<3>::set_k(cparam.k());
     FunctionDefaults<3>::set_thresh(cparam.econv());
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_initial_level(5);
     FunctionDefaults<3>::set_truncate_mode(1);
-    FunctionDefaults<3>::set_cubic_cell(-cparam.L(), cparam.L());
 
     aobasis.read_file(cparam.aobasis());
 //    cparam.set_molecular_info(mol, aobasis, 0);
     cparam.set_derived_values(mol,aobasis,parser);
+
+    FunctionDefaults<3>::set_cubic_cell(-cparam.L(), cparam.L());
     cparam.set_derived_value("spin_restricted",false);
 
 	param.set_derived_values();
@@ -786,7 +787,15 @@ void Znemo::get_initial_orbitals() {
 		}
 
 //		zmos=read_complex_guess();
-//		zmos=read_real_guess();
+		if (not gotit) {
+			try {
+				zmos=read_real_guess();
+				print("successful read real guess orbitals");
+				gotit=true;
+			} catch (...) {
+				print("could not read real guess orbitals");
+			}
+		}
 		if (not gotit) {
 			try {
 				zmos=read_restartaodata();
@@ -831,14 +840,28 @@ Znemo::read_real_guess() const {
 	auto mos=MolecularOrbitals<double,3>::read_restartdata(world, "restartdata", molecule(), cparam.nalpha(), cparam.nbeta());
 	MolecularOrbitals<double,3> amo=mos.first,bmo=mos.second;
 
+	// check for correct polynomial order
+	auto k1=amo.get_mos()[0].get_impl()->get_k();
+	auto k2=FunctionDefaults<3>::get_k();
+	MADNESS_CHECK_THROW(k1==k2,"reference polynomial order is not equal to the current polynomial order");
+
+	// check if beta orbitals are present if they should be
+	if (cparam.have_beta() and bmo.size()==0) {
+		print("reading from a closed-shell reference -> replicating alpha to beta orbitals");
+		std::vector<real_function_3d> tmp;
+		for (int i=0; i<cparam.nmo_beta(); ++i) tmp.push_back(amo.get_mos()[i]);
+		bmo.set_mos(tmp);
+	}
+
     // confine the orbitals to an approximate Gaussian form corresponding to the
     // diamagnetic (harmonic) potential
     coord_3d remaining_B=B-coord_3d{0,0,param.explicit_B()};
     real_function_3d gauss=diafac->custom_factor(remaining_B,diafac->get_v(),1.0);
 
 	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
-	zmos.first.set_mos(truncate(convert<double,double_complex,3>(world,amo.get_mos()*ncf->inverse()*gauss)));		// alpha
-	zmos.second.set_mos(truncate(convert<double,double_complex,3>(world,bmo.get_mos()*ncf->inverse()*gauss)));		// beta
+	auto inv=ncf->inverse();
+	zmos.first.set_mos(truncate(convert<double,double_complex,3>(world,amo.get_mos()*inv)));		// alpha
+	zmos.second.set_mos(truncate(convert<double,double_complex,3>(world,bmo.get_mos()*inv)));		// beta
 
 	return zmos;
 }

@@ -484,8 +484,8 @@ class MacroTask {
 		bool debug=false;
 
 		io_redirect(const long task_number, std::string filename, bool debug=false) : debug(debug) {
-	        std::size_t bufsize=256;
-	        char cfilename[bufsize];
+	                constexpr std::size_t bufsize=256;
+	                char cfilename[bufsize];
 			std::snprintf(cfilename,bufsize,"%s.%5.5ld",filename.c_str(),task_number);
 			ofile=std::ofstream(cfilename);
 			if (debug) std::cout << "redirecting to file " << cfilename << std::endl;

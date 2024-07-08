@@ -69,7 +69,7 @@ jobs:
     - name: Install prerequisite MacOS packages
       if: ${{ matrix.os == 'macos-latest' }}
       run: |
-        brew install ninja gcc@11 boost eigen open-mpi bison ccache
+        brew install ninja boost eigen open-mpi bison ccache
         if [ "X${{ matrix.task_backend }}" = "XLegacyTBB" ]; then
           brew install tbb@2020
           echo "TBBROOT=/usr/local/opt/tbb@2020" >> $GITHUB_ENV
