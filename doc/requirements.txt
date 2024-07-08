@@ -1,6 +1,6 @@
 sphinx==7.2.6
 typing-extensions==4.2.0
-docutils==0.17.1
+docutils==0.18.1
 markupsafe==2.1.1
 pyparsing==3.0.8
 alabaster==0.7.12
