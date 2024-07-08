@@ -429,6 +429,8 @@ namespace madness {
 
         OuterProjector() = default;
         OuterProjector(const projT& p0, const projQ& p1) : projector0(p0), projector1(p1) {
+            static_assert(std::is_base_of<ProjectorBase,projT>::value, "projT must be a ProjectorBase");
+            static_assert(std::is_base_of<ProjectorBase,projQ>::value, "projQ must be a ProjectorBase");
             projector0.set_particle(0);
             projector1.set_particle(1);
         }
@@ -443,8 +445,14 @@ namespace madness {
         }
     };
 
+//    template<typename projT, typename projQ>
+//    OuterProjector<projT, projQ> outer(const projT& p0 , const projQ& p1) {
+//        return OuterProjector<projT, projQ>(p0, p1);
+//    }
+
     template<typename projT, typename projQ>
-    OuterProjector<projT, projQ> outer(const projT& p0 , const projQ& p1) {
+    typename std::enable_if<std::is_base_of<ProjectorBase,projT>::value, OuterProjector<projT,projQ>>::type
+    outer(const projT& p0 , const projQ& p1) {
         return OuterProjector<projT, projQ>(p0, p1);
     }
 }
