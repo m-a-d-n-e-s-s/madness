@@ -52,7 +52,7 @@ public:
 
     void test_pairs();
 
-    void test_singles_potential() const;
+    void test_singles_potential(Info& info) const;
 
     void test();
 
@@ -506,8 +506,8 @@ public:
 
     /// apply the operator gf = 1/(2\gamma)*(Coulomb - 4\pi*BSH_\gamma)
     /// works only if f = (1-exp(-\gamma*r12))/(2\gamma)
-    real_function_3d
-    apply_gf(const real_function_3d& f) const;
+    static real_function_3d
+    apply_gf(World& world, const real_function_3d& f, const Info& info);
 
     /// returns <xy|op|u>
     /// loops over every entry in the vector and accumulates results
@@ -543,13 +543,13 @@ public:
     /// get the correct pair function as vector of CCPairFunction functions
     /// @param[in] The pair functions
     /// @param[out] The demanded pair function as vector of CCPairFunction functions (includes regularization tails)
-    std::vector<CCPairFunction<double,6>>
-    get_pair_function(const Pairs<CCPair>& pairs, const size_t i, const size_t j) const;
+    static std::vector<CCPairFunction<double,6>>
+    get_pair_function(const Pairs<CCPair>& pairs, const size_t i, const size_t j) ;
 
 
     /// returns <a|g12|u>_2
-    real_function_3d
-    apply_s2b_operation(const CCFunction<double,3>& bra, const CCPairFunction<double,6>& u, const size_t particle) const;
+    static real_function_3d
+    apply_s2b_operation(World& world, const CCFunction<double,3>& bra, const CCPairFunction<double,6>& u, const size_t particle, const Info& info);
 
     /// dummy to avoid confusion and for convenience
     real_function_6d swap_particles(const real_function_6d& f) const {
@@ -557,7 +557,7 @@ public:
     }
 
     /// swap the particles of the CCPairFunction and return a new vector of swapped functions
-    std::vector<CCPairFunction<double,6>> swap_particles(const std::vector<CCPairFunction<double,6>>& f) const {
+    static std::vector<CCPairFunction<double,6>> swap_particles(const std::vector<CCPairFunction<double,6>>& f) {
         std::vector<CCPairFunction<double,6>> swapped;
         for (size_t i = 0; i < f.size(); i++) swapped.push_back(f[i].swap_particles());
         return swapped;
@@ -636,26 +636,26 @@ public:
 
     /// Calculates the CC2 singles potential for the ground state: result = Fock_residue + V
     /// the V part is stored in the intermediate_potentials structure
-    vector_real_function_3d
-    get_CC2_singles_potential_gs(const CC_vecfunction& singles, const Pairs<CCPair>& doubles) const;
+    static vector_real_function_3d
+    get_CC2_singles_potential_gs(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, Info& info);
 
     /// Calculates the CCS/CIS singles potential for the excited state: result = Fock_residue + V
     /// the V part is stored in the intermediate_potentials structure
     /// the expectation value is calculated and updated
     vector_real_function_3d
-    get_CCS_potential_ex(CC_vecfunction& x, const bool print = false) const;
+    get_CCS_potential_ex(World& world, CC_vecfunction& x, const bool print, Info& info) const;
 
     /// Calculates the CC2 singles potential for the Excited state: result = Fock_residue + V
     /// the V part is stored in the intermediate_potentials structure
     vector_real_function_3d
-    get_CC2_singles_potential_ex(const CC_vecfunction& gs_singles, const Pairs<CCPair>& gs_doubles,
-                                 CC_vecfunction& ex_singles, const Pairs<CCPair>& response_doubles) const;
+    get_CC2_singles_potential_ex(World& world, const CC_vecfunction& gs_singles,
+                                 const Pairs<CCPair>& gs_doubles, CC_vecfunction& ex_singles, const Pairs<CCPair>& response_doubles, Info& info) const;
 
     /// Calculates the CC2 singles potential for the Excited state: result = Fock_residue + V
     /// the V part is stored in the intermediate_potentials structure
     vector_real_function_3d
-    get_ADC2_singles_potential(const Pairs<CCPair>& gs_doubles, CC_vecfunction& ex_singles,
-                               const Pairs<CCPair>& response_doubles) const;
+    get_ADC2_singles_potential(World& world, const Pairs<CCPair>& gs_doubles,
+                               CC_vecfunction& ex_singles, const Pairs<CCPair>& response_doubles, Info& info) const;
 
     /// The potential manager for the ground state potential
     /// CC2 singles potential parts of the ground state
@@ -665,9 +665,10 @@ public:
     /// @param[in] Doubles of the Ground State
     /// @param[in] Name of the potential
     /// @param[out] the potential (without Q application)
+    /// @param world
     double
-    potential_energy_gs(const CC_vecfunction& bra, const CC_vecfunction& singles, const Pairs<CCPair>& doubles,
-                        const PotentialType& name) const;
+    potential_energy_gs(World& world, const CC_vecfunction& bra, const CC_vecfunction& singles,
+                        const Pairs<CCPair>& doubles, const PotentialType& name) const;
 
     /// The potential manager for the ground state potential
     /// CC2 singles potential parts of the ground state
@@ -676,8 +677,10 @@ public:
     /// @param[in] Doubles of the Ground State
     /// @param[in] Name of the potential
     /// @param[out] the potential (without Q application)
-    vector_real_function_3d
-    potential_singles_gs(const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const PotentialType& name) const;
+    /// @param world
+    static vector_real_function_3d
+    potential_singles_gs(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles,
+                         const PotentialType& name, Info& info);
 
     /// The integra manager for the excited state potential
     /// CC2 singles potential parts of the ground state
@@ -689,10 +692,11 @@ public:
     /// @param[in] Doubles of the Excited State
     /// @param[in] Name of the potential
     /// @param[out] the potential (without Q application)
+    /// @param world
     double
-    potential_energy_ex(const CC_vecfunction& bra, const CC_vecfunction& singles_gs, const Pairs<CCPair>& doubles_gs,
-                        const CC_vecfunction& singles_ex, const Pairs<CCPair>& doubles_ex,
-                        const PotentialType& name) const;
+    potential_energy_ex(World& world, const CC_vecfunction& bra, const CC_vecfunction& singles_gs,
+                        const Pairs<CCPair>& doubles_gs, const CC_vecfunction& singles_ex,
+                        const Pairs<CCPair>& doubles_ex, const PotentialType& name) const;
 
     /// The potential manager for the excited state potential
     /// CC2 singles potential parts of the ground state
@@ -703,21 +707,22 @@ public:
     /// @param[in] Doubles of the Excited State
     /// @param[in] Name of the potential
     /// @param[out] the potential (without Q application)
+    /// @param world
     vector_real_function_3d
-    potential_singles_ex(const CC_vecfunction& singles_gs, const Pairs<CCPair>& doubles_gs,
-                         const CC_vecfunction& singles_ex, const Pairs<CCPair>& doubles_ex,
-                         const PotentialType& name) const;
+    potential_singles_ex(World& world, const CC_vecfunction& singles_gs,
+                         const Pairs<CCPair>& doubles_gs, const CC_vecfunction& singles_ex,
+                         const Pairs<CCPair>& doubles_ex, const PotentialType& name, Info& info) const;
 
     /// The Fock operator is partitioned into F = T + Vn + R
     /// the fock residue R= 2J-K+Un for closed shell is computed here
     /// J_i = \sum_k <k|r12|k> |tau_i>
     /// K_i = \sum_k <k|r12|tau_i> |k>
-    vector_real_function_3d
-    fock_residue_closed_shell(const CC_vecfunction& singles) const;
+    static vector_real_function_3d
+    fock_residue_closed_shell(World& world, const CC_vecfunction& singles, const Info& info);
 
     /// the K operator runs over ALL orbitals (also the frozen ones)
-    real_function_3d
-    K(const CCFunction<double,3>& f) const;
+    static real_function_3d
+    K(World& world, const CCFunction<double,3>& f, const Info& info);
 
     /// static version of k above for access from macrotask. will eventually replace former.
     real_function_3d
@@ -784,12 +789,9 @@ public:
     /// unprojected ccs potential
     /// returns 2kgtk|ti> - kgti|tk>
     /// the ccs potential: ti = ti and tk = tauk
-    vector_real_function_3d
-    ccs_unprojected(const CC_vecfunction& ti, const CC_vecfunction& tk) const;
+    static vector_real_function_3d
+    ccs_unprojected(World& world, const CC_vecfunction& ti, const CC_vecfunction& tk, const Info& info);
 
-
-    real_function_3d
-    make_density(const CC_vecfunction& x) const;
 
     // integrals from singles potentials
 
@@ -839,22 +841,26 @@ public:
 
     // result: \sum_k( 2<k|g|uik>_2 - <k|g|uik>_1 )
     // singles are not needed explicitly but to determine if it is response or ground state
+    ///@param world
     ///@param[in] singles:CC_vecfunction fof type response or particle (depending on this the correct intermediates will be used) the functions themselves are not needed
     ///@param[in] doubles:Pairs of CC_Pairs (GS or Response)
+    ///@param info
     ///@param[out] \f$ \sum_k( 2<k|g|uik>_2 - <k|g|uik>_1 ) \f$
     /// Q-Projector is not applied, sign is correct
     /// if the s2b potential has already been calculated it will be loaded from the intermediate_potentials structure
-    vector_real_function_3d
-    s2b(const CC_vecfunction& singles, const Pairs<CCPair>& doubles) const;
+    static vector_real_function_3d
+    s2b(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, Info& info);
 
     // result: -\sum_k( <l|kgi|ukl>_2 - <l|kgi|ukl>_1)
     // singles are not needed explicitly but to determine if it is response or ground state
+    ///@param world
     ///@param[in] singles:CC_vecfunction fof type response or particle (depending on this the correct intermediates will be used) the functions themselves are not needed
     ///@param[in] doubles:Pairs of CC_Pairs (GS or Response)
+    ///@param info
     ///@param[out] \f$ -\sum_k( <l|kgi|ukl>_2 - <l|kgi|ukl>_1) \f$
     /// Q-Projector is not applied, sign is correct
-    vector_real_function_3d
-    s2c(const CC_vecfunction& singles, const Pairs<CCPair>& doubles) const;
+    static vector_real_function_3d
+    s2c(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, Info& info);
 
     /// the S4a potential can be calcualted from the S2b potential
     /// result is \f$ s4a_i = - <l|s2b_i>*|tau_l> \f$
@@ -862,20 +868,24 @@ public:
     s4a_from_s2b(const vector_real_function_3d& s2b, const CC_vecfunction& singles) const;
 
     // result: -\sum_k( <l|kgtaui|ukl>_2 - <l|kgtaui|ukl>_1) | kgtaui = <k|g|taui>
+    ///@param world
     ///@param[in] singles:CC_vecfunction fof type response or particle (depending on this the correct intermediates will be used) the functions themselves are not needed
     ///@param[in] doubles:Pairs of CC_Pairs (GS or Response)
+    ///@param info
     ///@param[out] \f$ -( <l|kgtaui|ukl>_2 - <l|kgtaui|ukl>_1) | kgtaui = <k|g|taui> | taui=singles_i \f$
     /// Q-Projector is not applied, sign is correct
-    vector_real_function_3d
-    s4b(const CC_vecfunction& singles, const Pairs<CCPair>& doubles) const;
+    static vector_real_function_3d
+    s4b(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
 
 
+    ///@param world
     ///@param[in] singles:CC_vecfunction fof type response or particle (depending on this the correct intermediates will be used) the functions themselves are not needed
     ///@param[in] doubles:Pairs of CC_Pairs (GS or Response)
+    ///@param info
     ///@param[out] \f$ ( 4<l|kgtauk|uil>_2 - 2<l|kgtauk|uil>_1 - 2<k|lgtauk|uil>_2 + <k|lgtauk|uil>_1 ) \f$
     /// Q-Projector is not applied, sign is correct
-    vector_real_function_3d
-    s4c(const CC_vecfunction& singles, const Pairs<CCPair>& doubles) const;
+    static vector_real_function_3d
+    s4c(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
 
     // update the intermediates
     void update_intermediates(const CC_vecfunction& t) {

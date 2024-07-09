@@ -161,40 +161,55 @@ public:
     double
     solve_cc2(CC_vecfunction& tau, Pairs<CCPair>& u);
 
+    /// solve the excited state LR-CC2 equations for a given excitation
+
+    /// @param[in] gs_doubles: the ground state doubles
+    /// @param[in] gs_singles: the ground state singles
+    /// @param[in] cis: the CIS singles
+    /// @param[in] excitation: the excitation number
+    /// @return a tuple with the excited state doubles, the excited state singles and the excitation energy
+    std::tuple<Pairs<CCPair>, CC_vecfunction, double>
+    solve_lrcc2(const Pairs<CCPair>& gs_doubles, const CC_vecfunction& gs_singles, const CC_vecfunction& cis,
+        const std::size_t excitation) const;
+
     double
     solve_cispd(Pairs<CCPair>& doubles, const Pairs<CCPair>& mp2_pairs, const CC_vecfunction& cis_singles);
 
     /// convencience function to iterate the CC2 ground state singles,
     /// makes the right call on the iterate_singles functions
     bool
-    iterate_cc2_singles(CC_vecfunction& singles, Pairs<CCPair>& doubles) {
-        CCOPS.clear_potentials(singles);
+    iterate_cc2_singles(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) {
+        // CCOPS.clear_potentials(singles);
+        info.intermediate_potentials.clear_all();
         Pairs<CCPair> empty;
-        return iterate_singles(singles, CC_vecfunction(RESPONSE), doubles, empty, CT_CC2, parameters.iter_max_3D());
+        return iterate_singles(world, singles, CC_vecfunction(RESPONSE), doubles, empty, CT_CC2, parameters.iter_max_3D(), info);
     }
 
     bool
-    iterate_adc2_singles(Pairs<CCPair>& mp2, CC_vecfunction& singles, Pairs<CCPair>& x) {
+    iterate_adc2_singles(Pairs<CCPair>& mp2, CC_vecfunction& singles, Pairs<CCPair>& x, Info& info) {
         MADNESS_ASSERT(singles.type == RESPONSE);
-        CCOPS.clear_potentials(singles);
-        return iterate_singles(singles, CC_vecfunction(UNDEFINED), mp2, x, CT_ADC2, parameters.iter_max_3D());
+        // CCOPS.clear_potentials(singles);
+        info.intermediate_potentials.clear_response();
+        return iterate_singles(world, singles, CC_vecfunction(UNDEFINED), mp2, x, CT_ADC2, parameters.iter_max_3D(), info);
     }
 
     bool
-    iterate_lrcc2_singles(CC_vecfunction& cc2_s, Pairs<CCPair>& cc2_d, CC_vecfunction& lrcc2_s, Pairs<CCPair> lrcc2_d) {
+    iterate_lrcc2_singles(CC_vecfunction& cc2_s, Pairs<CCPair>& cc2_d, CC_vecfunction& lrcc2_s, Pairs<CCPair> lrcc2_d, Info& info) {
         MADNESS_ASSERT(cc2_s.type == PARTICLE);
         MADNESS_ASSERT(lrcc2_s.type == RESPONSE);
-        CCOPS.clear_potentials(lrcc2_s);
-        return iterate_singles(lrcc2_s, cc2_s, cc2_d, lrcc2_d, CT_LRCC2, parameters.iter_max_3D());
+        info.intermediate_potentials.clear_response();
+        // CCOPS.clear_potentials(lrcc2_s);
+        return iterate_singles(world, lrcc2_s, cc2_s, cc2_d, lrcc2_d, CT_LRCC2, parameters.iter_max_3D(), info);
     }
 
     /// convencience function to iterate the CCS Response singles,
     /// makes the right call on the iterate_singles functions
     bool
-    iterate_ccs_singles(CC_vecfunction& x) {
+    iterate_ccs_singles(CC_vecfunction& x, Info& info) {
         Pairs<CCPair> empty;
-        CCOPS.clear_potentials(x);
-        return iterate_singles(x, CC_vecfunction(PARTICLE), empty, empty, CT_LRCCS, 1);
+        // CCOPS.clear_potentials(x);
+        info.intermediate_potentials.clear_response();
+        return iterate_singles(world, x, CC_vecfunction(PARTICLE), empty, empty, CT_LRCCS, 1, info);
     }
 
     bool
@@ -207,8 +222,8 @@ public:
     /// @param[in] : ctype: the calculation type: CCS, CC2, CC2_response_
     /// @param[in] : maxiter: maxmial number of iterations
     /// @param[out]: true if the overall change of the singles is below 10*donv_6D
-    iterate_singles(CC_vecfunction& singles, const CC_vecfunction singles2, Pairs<CCPair>& gs_doubles,
-                    Pairs<CCPair>& ex_doubles, const CalcType ctype, const std::size_t maxiter) {
+    iterate_singles(World& world, CC_vecfunction& singles, const CC_vecfunction singles2, Pairs<CCPair>& gs_doubles,
+                    Pairs<CCPair>& ex_doubles, const CalcType ctype, const std::size_t maxiter, Info& info) {
         output.subsection("Iterate " + assign_name(ctype) + "-Singles");
         CCTimer time_all(world, "Overall Iteration of " + assign_name(ctype) + "-Singles");
         bool converged = true;
@@ -262,11 +277,11 @@ public:
             // get potentials
             CCTimer time_V(world, assign_name(ctype) + "-Singles Potential");
             vector_real_function_3d V;
-            if (ctype == CT_CC2) V = CCOPS.get_CC2_singles_potential_gs(singles, gs_doubles);
+            if (ctype == CT_CC2) V = CCPotentials::get_CC2_singles_potential_gs(world, singles, gs_doubles, info);
             else if (ctype == CT_LRCC2)
-                V = CCOPS.get_CC2_singles_potential_ex(singles2, gs_doubles, singles, ex_doubles);
-            else if (ctype == CT_LRCCS) V = CCOPS.get_CCS_potential_ex(singles);
-            else if (ctype == CT_ADC2) V = CCOPS.get_ADC2_singles_potential(gs_doubles, singles, ex_doubles);
+                V = CCOPS.get_CC2_singles_potential_ex(world, singles2, gs_doubles, singles, ex_doubles, info);
+            else if (ctype == CT_LRCCS) V = CCOPS.get_CCS_potential_ex(world,singles,false, info);
+            else if (ctype == CT_ADC2) V = CCOPS.get_ADC2_singles_potential(world, gs_doubles, singles, ex_doubles, info);
             else MADNESS_EXCEPTION("iterate singles: unknown type", 1);
             time_V.info(true, norm2(world, V));
 

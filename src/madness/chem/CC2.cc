@@ -135,7 +135,7 @@ CC2::solve() {
             CCTimer time_ex(world, "CIS(D) for Excitation " + std::to_string(int(excitation)));
 
             // check the convergence of the cis function (also needed to store the ccs potential) and to recalulate the excitation energy
-            iterate_ccs_singles(ccs);
+            iterate_ccs_singles(ccs, CCOPS.info);
 
             Pairs<CCPair> cispd;
             initialize_pairs(cispd, EXCITED_STATE, CT_CISPD, CC_vecfunction(PARTICLE), ccs, excitation);
@@ -183,7 +183,7 @@ CC2::solve() {
 
             // check the convergence of the cis function (also needed to store the ccs potential) and to recalulate the excitation energy
             CC_vecfunction dummy = ccs.copy();
-            iterate_ccs_singles(dummy);
+            iterate_ccs_singles(dummy, CCOPS.info);
             ccs.omega = dummy.omega; // will be overwritten soon
             output("Changes not stored!");
 
@@ -206,10 +206,10 @@ CC2::solve() {
                 }
             }
 
-            iterate_adc2_singles(mp2pairs, ccs, xpairs);
+            iterate_adc2_singles(mp2pairs, ccs, xpairs, CCOPS.info);
             for (size_t iter = 0; iter < 10; iter++) {
                 bool dconv = iterate_adc2_pairs(xpairs, ccs);
-                bool sconv = iterate_adc2_singles(mp2pairs, ccs, xpairs);
+                bool sconv = iterate_adc2_singles(mp2pairs, ccs, xpairs, CCOPS.info);
                 if (sconv and dconv) {
                     output("ADC(2) Converged");
                     break;
@@ -264,7 +264,7 @@ CC2::solve() {
             // needed to assign an omega
             const vector_real_function_3d backup = copy(world, lrcc2_s.get_vecfunction());
             CC_vecfunction test(backup, RESPONSE, parameters.freeze());
-            iterate_ccs_singles(test);
+            iterate_ccs_singles(test, CCOPS.info);
             lrcc2_s.omega = test.omega;
             output("CCS Iteration: Changes are not applied (just omega)!");
 
@@ -272,15 +272,15 @@ CC2::solve() {
             Pairs<CCPair> lrcc2_d;
             bool found_lrcc2d = initialize_pairs(lrcc2_d, EXCITED_STATE, CT_LRCC2, cc2singles, lrcc2_s, excitation);
 
-            if (found_lrcc2d) iterate_lrcc2_singles(cc2singles, cc2pairs, lrcc2_s, lrcc2_d);
-            else iterate_ccs_singles(lrcc2_s);
+            if (found_lrcc2d) iterate_lrcc2_singles(cc2singles, cc2pairs, lrcc2_s, lrcc2_d, CCOPS.info);
+            else iterate_ccs_singles(lrcc2_s, CCOPS.info);
             const double omega_cis = lrcc2_s.omega;
             CCOPS.info.intermediate_potentials=CCOPS.get_potentials;  // update applied singles potentials
 
             for (size_t iter = 0; iter < parameters.iter_max(); iter++) {
                 output.section("Macroiteration " + std::to_string(int(iter)) + " of LRCC2");
                 bool dconv = iterate_lrcc2_pairs(cc2singles, cc2pairs, lrcc2_s, lrcc2_d, CCOPS.info);
-                bool sconv = iterate_lrcc2_singles(cc2singles, cc2pairs, lrcc2_s, lrcc2_d);
+                bool sconv = iterate_lrcc2_singles(cc2singles, cc2pairs, lrcc2_s, lrcc2_d, CCOPS.info);
                 if (dconv and sconv) break;
             }
             const double omega_cc2 = lrcc2_s.omega;
@@ -424,7 +424,9 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
 
     } else {
 
-        if (world.rank()==0) print_header3("Starting MP2 constant part calculation");
+        if (world.rank()==0) {
+            std::cout << std::fixed << std::setprecision(1) << "\nStarting constant part at time " << wall_time() << std::endl;
+        }
         MacroTaskConstantPart t;
         MacroTask task(world, t);
         std::vector<Function<double,3>> gs_singles, ex_singles;         // dummy vectors
@@ -474,7 +476,9 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles) {
         if (parameters.debug()) print_size(world, coupling_vec, "couplingvector");
 
 
-        if (world.rank()==0) print("Start updating pairs in iteration ");
+        if (world.rank()==0) {
+            std::cout << std::fixed << std::setprecision(1) << "\nStart updating pairs part at time " << wall_time() << std::endl;
+        }
 
         MacroTaskIteratePair t;
         MacroTask task1(world, t);
@@ -712,7 +716,7 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles) {
     if (not parameters.no_compute_cc2()) {
         // first singles iteration
         output.section("Initialize Singles to the Doubles");
-        iterate_cc2_singles(singles, doubles);
+        iterate_cc2_singles(singles, doubles, info);
         // nasty hack
         info.intermediate_potentials=CCOPS.get_potentials;
         info.intermediate_potentials.parameters=parameters;
@@ -767,7 +771,7 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles) {
             bool doubles_converged=rmsrnorm<parameters.dconv_6D();
 
             // check if singles converged
-            const bool singles_converged = iterate_cc2_singles(singles, doubles);
+            const bool singles_converged = iterate_cc2_singles(singles, doubles, CCOPS.info);
             info.intermediate_potentials=CCOPS.get_potentials;
             info.intermediate_potentials.parameters=parameters;
 
@@ -798,7 +802,7 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles) {
     } else {
         output.section("Found no_compute_cc2 Key: Reiterating Singles to check convergence");
         // need the singles potential for the constant part of LRCC2 so we recompute it (also good to check if it is converged)
-        bool sconv = iterate_cc2_singles(singles, doubles);
+        bool sconv = iterate_cc2_singles(singles, doubles, CCOPS.info);
         if (not sconv) output.warning("Singles not Converged");
     }
 
@@ -809,6 +813,53 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles) {
 
 }
 
+
+/// solve the excited state LR-CC2 equations for a given excitation
+
+/// @param[in] gs_doubles: the ground state doubles
+/// @param[in] gs_singles: the ground state singles
+/// @param[in] cis: the CIS singles
+/// @param[in] excitation: the excitation number
+/// @return a tuple with the excited state doubles, the excited state singles and the excitation energy
+std::tuple<Pairs<CCPair>, CC_vecfunction, double>
+CC2::solve_lrcc2(const Pairs<CCPair>& gs_doubles, const CC_vecfunction& gs_singles, const CC_vecfunction& cis,
+    const std::size_t excitation) const
+{
+    Pairs<CCPair> ex_doubles;
+    initialize_pairs(ex_doubles, EXCITED_STATE, CT_LRCC2, gs_singles, cis, excitation);
+
+    auto all_doubles_present =[&]() {
+        for (const auto& p : ex_doubles.allpairs) {
+            if (not p.second.function().is_initialized()) return false;
+        }
+        return true;
+    };
+
+    double omega_cis=cis.omega;
+    double omega=0.0;
+    CC_vecfunction ex_singles=cis.copy();
+
+//    if (all_doubles_present()) {
+//        iterate_lrcc2_singles(gs_singles, gs_doubles, ex_singles, ex_doubles);
+//    } else {
+//        iterate_ccs_singles(ex_singles);
+//    }
+//    CCOPS.info.intermediate_potentials=CCOPS.get_potentials;  // update applied singles potentials
+//
+//    for (size_t iter = 0; iter < parameters.iter_max(); iter++) {
+//        output.section("Macroiteration " + std::to_string(int(iter)) + " of LRCC2");
+//        bool dconv = iterate_lrcc2_pairs(cc2singles, cc2pairs, lrcc2_s, lrcc2_d, CCOPS.info);
+//        bool sconv = iterate_lrcc2_singles(cc2singles, cc2pairs, lrcc2_s, lrcc2_d);
+//        if (dconv and sconv) break;
+//    }
+//    const double omega_cc2 = lrcc2_s.omega;
+//    const std::string msg = "Excitation " + std::to_string(int(excitation));
+//    results_ex.push_back(std::make_pair(msg, std::make_pair(omega_cis, omega_cc2)));
+//    timings.push_back(std::make_pair(msg, time_ex.current_time(true)));
+
+    return std::make_tuple(ex_doubles, ex_singles, omega);
+
+};
 
 bool CC2::iterate_pair(CCPair& pair, const CC_vecfunction& singles) const {
     output.section("Iterate Pair " + pair.name());
