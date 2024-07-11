@@ -72,6 +72,60 @@ CCPotentials::init_orbital_energies(const Nemo& nemo) const {
     return eps;
 }
 
+CCPair CCPotentials::make_pair_mp2(const real_function_6d& u, const size_t i, const size_t j, const Info& info) {
+    World& world=u.world();
+
+    // construct Q12 f12 |ij>
+    auto phi=info.mo_ket;
+    auto phi_bra=info.mo_bra;
+    StrongOrthogonalityProjector<double,3> Q12(world);
+    Q12.set_spaces(phi_bra,phi,phi_bra,phi);
+
+    auto f12=CCConvolutionOperatorPtr<double,3>(world,OT_F12,info.parameters);
+    CCPairFunction<double,6> fij(f12, phi[i], phi[j]);
+    std::vector<CCPairFunction<double,6>> tmp=Q12(std::vector<CCPairFunction<double,6>>(1,fij));
+
+    // first term is the 6d function u, then follows Q12 f12 |ij>
+    std::vector<CCPairFunction<double,6>> functions;
+    functions+=CCPairFunction<double,6>(u);
+    functions+=tmp;
+
+    auto pair=CCPair(i,j,GROUND_STATE,CT_MP2,functions);
+    pair.bsh_eps=get_epsilon(i,j,info);
+    return pair;
+}
+
+CCPair CCPotentials::make_pair_cc2(const real_function_6d& u, const CC_vecfunction& gs_singles, const size_t i, const size_t j,
+    const Info& info) {
+    World& world=u.world();
+
+    // construct Q12 f12 |ij>
+    auto phi=info.mo_ket;
+    auto phi_bra=info.mo_bra;
+    auto t=make_full_t_intermediate(gs_singles,info).get_vecfunction();
+    StrongOrthogonalityProjector<double,3> Q12(world);
+    Q12.set_spaces(phi_bra,t,phi_bra,t);
+
+    auto f12=CCConvolutionOperatorPtr<double,3>(world,OT_F12,info.parameters);
+    CCPairFunction<double,6> fij(f12, t[i], t[j]);
+    std::vector<CCPairFunction<double,6>> tmp=Q12(std::vector<CCPairFunction<double,6>>(1,fij));
+
+    // first term is the 6d function u, then follows Q12 f12 |ij>
+    std::vector<CCPairFunction<double,6>> functions;
+    functions+=CCPairFunction<double,6>(u);
+    functions+=tmp;
+
+    auto pair=CCPair(i,j,GROUND_STATE,CT_CC2,functions);
+    pair.bsh_eps=get_epsilon(i,j,info);
+    return pair;
+}
+
+CCPair CCPotentials::make_pair_lrcc2(const real_function_6d& u, const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
+    const size_t i, const size_t j, const Info& info) {
+    MADNESS_EXCEPTION("CCPotentials::make_pair_lrcc2 not yet implemented",1);
+    return CCPair();
+}
+
 madness::CCPair
 CCPotentials::make_pair_gs(const real_function_6d& u, const CC_vecfunction& tau, const size_t i, const size_t j) const {
     CCTimer time(world, "make pair u" + std::to_string(int(i)) + std::to_string(int(j)));
@@ -359,10 +413,11 @@ CCPotentials::compute_pair_correlation_energy(World& world, const Info& info,
 }
 
 double
-CCPotentials::compute_cc2_correlation_energy(const CC_vecfunction& singles, const Pairs<CCPair>& doubles) const {
+CCPotentials::compute_cc2_correlation_energy(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info)
+{
     MADNESS_ASSERT(singles.type == PARTICLE);
     CCTimer time(world, "Computing CC2 Correlation Energy");
-    output.section("Computing CC2 Correlation Energy");
+    // output.section("Computing CC2 Correlation Energy");
     double result = 0.0;
     for (const auto& tmp : doubles.allpairs) {
         const size_t i = tmp.second.i;
@@ -2756,7 +2811,7 @@ CCPotentials::get_CC2_singles_potential_gs(World& world, const CC_vecfunction& s
 {
     CCTimer time(world, "CC2 Singles potential");
     vector_real_function_3d fock_residue = potential_singles_gs(world, singles, doubles, POT_F3D_, info);
-    Projector<double,3> Otau(info.mo_bra, singles.get_vecfunction());
+    Projector<double,3> Otau(info.get_active_mo_bra(), singles.get_vecfunction());
     QProjector<double,3> Q(info.mo_bra, info.mo_ket);
     // CC2 Singles potential: Q(S4c) + Qt(ccs+s2b+s2c)
     vector_real_function_3d Vccs = potential_singles_gs(world, singles, doubles, POT_ccs_, info);

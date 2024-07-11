@@ -39,6 +39,7 @@ public:
         info.U1=nemo->ncf->U1vec();
         info.U2=nemo->ncf->U2();
         info.intermediate_potentials=get_potentials;
+        info.orbital_energies=orbital_energies_;
         return info;
     }
 
@@ -96,6 +97,11 @@ public:
     /// returns epsilon_i + epsilon_j (needed for bsh operator of pairs)
     double get_epsilon(const size_t i, const size_t j) const {
         return orbital_energies_[i] + orbital_energies_[j];
+    }
+
+    /// returns epsilon_i + epsilon_j (needed for bsh operator of pairs)
+    static double get_epsilon(const size_t i, const size_t j, const Info& info) {
+        return info.orbital_energies[i] + info.orbital_energies[j];
     }
 
     /// returns a vector of all active mos without nuclear correlation factor (nemos)
@@ -193,6 +199,17 @@ private:
 
 public:
 
+    /// return the regularized MP2 ansatz: |\tau_ij> = |u_ij> + Q12 f12 |ij>
+    static CCPair make_pair_mp2(const real_function_6d& u, const size_t i, const size_t j, const Info& info);
+
+    /// return the regularized CC2 ansatz: |\tau_ij> = |u_ij> + Q12t f12 |t_i t_j>
+    static CCPair make_pair_cc2(const real_function_6d& u, const CC_vecfunction& gs_singles,
+        const size_t i, const size_t j, const Info& info);
+
+    /// return the regularized CC2 ansatz: |x_ij> = |u_ij> + Q12t f12 |t_i t_j> + ?????
+    static CCPair make_pair_lrcc2(const real_function_6d& u, const CC_vecfunction& gs_singles,
+        const CC_vecfunction& ex_singles, const size_t i, const size_t j, const Info& info);
+
     // Pair functions
 
     /// creates pair functions for ground states
@@ -245,8 +262,10 @@ public:
     /// @param[out] \sum_{ij} 2*<ij|g|u> - <ji|g|u> + 2*<ij|g|\tau_i\tau_j> - <ji|g|\tau_i\tau_j> , where i and j are determined by u (see CC_Pair class)
     /// since we do not compute all pairs (symmetry reasons) the off diagonal pair energies are conted twice
     /// the cc2 pair functions are dependent on the doubles (see CC_Pair structure, and make_pair function) so make shure they are updated
-    double
-    compute_cc2_correlation_energy(const CC_vecfunction& singles, const Pairs<CCPair>& doubles) const;
+    /// @param world
+    /// @param info
+    static double
+    compute_cc2_correlation_energy(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
 
 
     double
