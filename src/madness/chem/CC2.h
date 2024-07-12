@@ -150,7 +150,7 @@ public:
 
 
     std::vector<CC_vecfunction>
-    solve_ccs();
+    solve_ccs() const;
 
     double compute_mp3(const Pairs<CCPair>& mp2pairs) const {
         MP3 mp3(CCOPS);
@@ -159,7 +159,7 @@ public:
     }
 
     double
-    solve_cc2(CC_vecfunction& tau, Pairs<CCPair>& u);
+    solve_cc2(CC_vecfunction& tau, Pairs<CCPair>& u, Info& info) const;
 
     /// solve the excited state LR-CC2 equations for a given excitation
 
@@ -169,8 +169,8 @@ public:
     /// @param[in] excitation: the excitation number
     /// @return a tuple with the excited state doubles, the excited state singles and the excitation energy
     std::tuple<Pairs<CCPair>, CC_vecfunction, double>
-    solve_lrcc2(const Pairs<CCPair>& gs_doubles, const CC_vecfunction& gs_singles, const CC_vecfunction& cis,
-        const std::size_t excitation) const;
+    solve_lrcc2(Pairs<CCPair>& gs_doubles, const CC_vecfunction& gs_singles, const CC_vecfunction& cis,
+        const std::size_t excitation, Info& info) const;
 
     double
     solve_cispd(Pairs<CCPair>& doubles, const Pairs<CCPair>& mp2_pairs, const CC_vecfunction& cis_singles);
@@ -195,7 +195,7 @@ public:
     }
 
     static bool
-    iterate_lrcc2_singles(World& world, CC_vecfunction& cc2_s, Pairs<CCPair>& cc2_d, CC_vecfunction& lrcc2_s, Pairs<CCPair> lrcc2_d, Info& info) {
+    iterate_lrcc2_singles(World& world, const CC_vecfunction& cc2_s, Pairs<CCPair>& cc2_d, CC_vecfunction& lrcc2_s, Pairs<CCPair> lrcc2_d, Info& info) {
         MADNESS_ASSERT(cc2_s.type == PARTICLE);
         MADNESS_ASSERT(lrcc2_s.type == RESPONSE);
         info.intermediate_potentials.clear_response();
@@ -207,7 +207,7 @@ public:
     /// convencience function to iterate the CCS Response singles,
     /// makes the right call on the iterate_singles functions
     bool
-    iterate_ccs_singles(CC_vecfunction& x, Info& info) {
+    iterate_ccs_singles(CC_vecfunction& x, Info& info) const {
         Pairs<CCPair> empty;
         // CCOPS.clear_potentials(x);
         info.intermediate_potentials.clear_response();
@@ -281,8 +281,8 @@ public:
             CCTimer time_V(world, assign_name(ctype) + "-Singles Potential");
             vector_real_function_3d V;
             if (ctype == CT_CC2) V = CCPotentials::get_CC2_singles_potential_gs(world, singles, gs_doubles, info);
-//            else if (ctype == CT_LRCC2)
-//                V = CCOPS.get_CC2_singles_potential_ex(world, singles2, gs_doubles, singles, ex_doubles, info);
+            else if (ctype == CT_LRCC2)
+                V = CCPotentials::get_CC2_singles_potential_ex(world, singles2, gs_doubles, singles, ex_doubles, info);
 //            else if (ctype == CT_LRCCS) V = CCOPS.get_CCS_potential_ex(world,singles,false, info);
 //            else if (ctype == CT_ADC2) V = CCOPS.get_ADC2_singles_potential(world, gs_doubles, singles, ex_doubles, info);
             else MADNESS_EXCEPTION("iterate singles: unknown type", 1);
@@ -437,8 +437,8 @@ public:
     bool
     iterate_adc2_pairs(Pairs<CCPair>& cispd, const CC_vecfunction& ccs);
 
-    bool
-    iterate_lrcc2_pairs(const CC_vecfunction& cc2_s, const Pairs<CCPair>& cc2_d, const CC_vecfunction lrcc2_s,
+    static bool
+    iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s, const CC_vecfunction lrcc2_s,
                         Pairs<CCPair>& lrcc2_d, const Info& info);
 
     bool update_constant_part_cc2_gs(const CC_vecfunction& tau, CCPair& pair) {
@@ -521,7 +521,7 @@ public:
     Pairs<real_function_6d> compute_local_coupling(const Pairs<real_function_6d>& pairs) const;
 
 
-    double solve_mp2_coupled(Pairs<CCPair> &doubles);
+    double solve_mp2_coupled(Pairs<CCPair> &doubles, Info& info);
 
     bool check_core_valence_separation(const Tensor<double>& fmat) const;
 

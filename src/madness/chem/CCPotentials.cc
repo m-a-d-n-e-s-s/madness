@@ -434,7 +434,8 @@ CCPotentials::compute_cc2_correlation_energy(World& world, const CC_vecfunction&
 }
 
 double
-CCPotentials::compute_kinetic_energy(const vector_real_function_3d& xbra, const vector_real_function_3d& xket) const {
+CCPotentials::compute_kinetic_energy(World& world, const vector_real_function_3d& xbra, const vector_real_function_3d& xket)
+{
     Kinetic<double, 3> T(world);
     double kinetic = 0.0;
     for (size_t k = 0; k < xket.size(); k++)
@@ -443,15 +444,16 @@ CCPotentials::compute_kinetic_energy(const vector_real_function_3d& xbra, const 
 }
 
 double
-CCPotentials::compute_cis_expectation_value(const CC_vecfunction& x, const vector_real_function_3d& V,
-                                            const bool print) const {
-    const vector_real_function_3d xbra = make_bra(x);
+CCPotentials::compute_cis_expectation_value(World& world, const CC_vecfunction& x,
+                                            const vector_real_function_3d& V, const bool print, const Info& info)
+{
+    const vector_real_function_3d xbra = info.R_square*(x.get_vecfunction());
     const vector_real_function_3d xket = x.get_vecfunction();
-    const double kinetic = compute_kinetic_energy(xbra, xket);
+    const double kinetic = compute_kinetic_energy(world, xbra, xket);
     const double norm = sqrt(inner(world, xbra, xket).sum());
     double eps = 0.0;
     for (size_t k = 0; k < xket.size(); k++)
-        eps -= get_orbital_energies()[k + parameters.freeze()] * xbra[k].inner(xket[k]);
+        eps -= info.orbital_energies[k + info.parameters.freeze()] * xbra[k].inner(xket[k]);
     double potential = inner(world, xbra, V).sum();
     const double result = 1.0 / (norm * norm) * (potential + kinetic + eps);
     if (world.rank() == 0 && print) {
@@ -2848,16 +2850,20 @@ CCPotentials::get_CCS_potential_ex(World& world, CC_vecfunction& x, const bool p
     get_potentials.insert(copy(world, potential), x, POT_singles_);
     vector_real_function_3d result = add(world, fock_residue, potential);
     truncate(world, result);
-    const double omega = compute_cis_expectation_value(x, result, print);
+    const double omega = compute_cis_expectation_value(world, x, result, print, info);
     x.omega = omega;
     return result;
 }
 
 madness::vector_real_function_3d
 CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& gs_singles,
-                                           const Pairs<CCPair>& gs_doubles, CC_vecfunction& ex_singles, const Pairs<CCPair>& response_doubles, Info& info) const {
+                                           const Pairs<CCPair>& gs_doubles, CC_vecfunction& ex_singles,
+                                           const Pairs<CCPair>& response_doubles, Info& info)
+{
     MADNESS_ASSERT(gs_singles.type == PARTICLE);
     MADNESS_ASSERT(ex_singles.type == RESPONSE);
+    Projector<double,3> Ox(info.get_active_mo_bra(),ex_singles.get_vecfunction());
+    Projector<double,3> Ot(info.get_active_mo_bra(),gs_singles.get_vecfunction());
     const vector_real_function_3d fock_residue = potential_singles_ex(world, gs_singles, gs_doubles,
                                                                       ex_singles, response_doubles, POT_F3D_, info);
     vector_real_function_3d Vccs = potential_singles_ex(world, gs_singles, gs_doubles, ex_singles, response_doubles,POT_ccs_, info);
@@ -2870,16 +2876,19 @@ CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& g
     // maybe store full s2b potential of gs
     // both need to be subtracted
     vector_real_function_3d s2b_gs = potential_singles_gs(world, gs_singles, gs_doubles, POT_s2b_, info);
-    vector_real_function_3d Vs4a =
-            -1.0 * add(world, apply_projector(s2b_gs, ex_singles), apply_projector(Vs2b, gs_singles));
+    // vector_real_function_3d Vs4a =
+            // -1.0 * add(world, apply_projector(s2b_gs, ex_singles), apply_projector(Vs2b, gs_singles));
+    vector_real_function_3d Vs4a = -1.0 * (Ox(s2b_gs)+ Ot(Vs2b));
     //add up
     vector_real_function_3d unprojected = add(world, Vccs, add(world, Vs2b, add(world, Vs2c, add(world, Vs4a,
                                                                                                  add(world, Vs4b,
                                                                                                      Vs4c)))));
-    vector_real_function_3d potential = apply_Qt(unprojected, mo_ket_);
-    if (parameters.debug()) {
+    QProjector<double,3> Q(info.mo_bra, info.mo_ket);
+    // vector_real_function_3d potential = apply_Qt(unprojected, mo_ket_);
+    vector_real_function_3d potential = Q(unprojected);
+    if (info.parameters.debug()) {
         // debug
-        vector_real_function_3d xbra = mul(world, nemo_->ncf->square(), ex_singles.get_vecfunction());
+        vector_real_function_3d xbra = info.R_square* ex_singles.get_vecfunction();
         const double ccs = inner(world, xbra, Vccs).sum();
         const double s2b = inner(world, xbra, Vs2b).sum();
         const double s2c = inner(world, xbra, Vs2c).sum();
@@ -2892,10 +2901,10 @@ CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& g
         // debug end
     }
     // storing potential
-    get_potentials.insert(copy(world, potential), ex_singles, POT_singles_);
+    info.intermediate_potentials.insert(copy(world, potential), ex_singles, POT_singles_);
     vector_real_function_3d result = add(world, fock_residue, potential);
     truncate(world, result);
-    const double omega = compute_cis_expectation_value(ex_singles, result);
+    const double omega = compute_cis_expectation_value(world, ex_singles, result, true, info);
     ex_singles.omega = omega;
     return result;
 }
@@ -2930,7 +2939,7 @@ CCPotentials::potential_energy_gs(World& world, const CC_vecfunction& bra,
     } else if (name == POT_s6_) {
         result = x_s6(bra, singles, singles, singles);
     } else if (name == POT_F3D_) {
-        result = x_s3a(bra, singles) - compute_kinetic_energy(bra.get_vecfunction(), singles.get_vecfunction());
+        result = x_s3a(bra, singles) - compute_kinetic_energy(world, bra.get_vecfunction(), singles.get_vecfunction());
     } else if (name == POT_ccs_) {
         result = x_s3c(bra, singles) + x_s5b(bra, singles, singles) + x_s5c(bra, singles, singles) +
                  x_s6(bra, singles, singles, singles);
@@ -3033,7 +3042,7 @@ CCPotentials::potential_energy_ex(World& world, const CC_vecfunction& bra,
         result = x_s6(bra, singles_ex, singles_gs, singles_gs) + x_s6(bra, singles_gs, singles_ex, singles_gs) +
                  x_s6(bra, singles_gs, singles_gs, singles_ex);
     } else if (name == POT_F3D_) {
-        result = x_s3a(bra, singles_ex) - compute_kinetic_energy(bra.get_vecfunction(), singles_ex.get_vecfunction());
+        result = x_s3a(bra, singles_ex) - compute_kinetic_energy(world, bra.get_vecfunction(), singles_ex.get_vecfunction());
     } else if (name == POT_ccs_) {
         result = x_s3c(bra, singles_ex) + x_s5b(bra, singles_ex, singles_gs) + x_s5c(bra, singles_ex, singles_gs) +
                  x_s6(bra, singles_ex, singles_gs, singles_gs) + x_s5b(bra, singles_gs, singles_ex)
@@ -3064,20 +3073,29 @@ CCPotentials::potential_energy_ex(World& world, const CC_vecfunction& bra,
 madness::vector_real_function_3d
 CCPotentials::potential_singles_ex(World& world, const CC_vecfunction& singles_gs,
                                    const Pairs<CCPair>& doubles_gs, const CC_vecfunction& singles_ex,
-                                   const Pairs<CCPair>& doubles_ex, const PotentialType& name, Info& info) const {
+                                   const Pairs<CCPair>& doubles_ex, const PotentialType& name, Info& info)
+{
     //if(mo_ket_.size()>1) output.warning("Potential for ExSingles is not ready for more than one orbital");
     // sanity check
     MADNESS_ASSERT(singles_gs.type == PARTICLE);
     MADNESS_ASSERT(singles_ex.type == RESPONSE);
+
+    Projector<double,3> Ox(info.get_active_mo_bra(),singles_ex.get_vecfunction());
+
     vector_real_function_3d result;
     CCTimer timer(world, "timer-ex-potential");
     if (name == POT_F3D_) {
         result = fock_residue_closed_shell(world, singles_ex, info);
     } else if (name == POT_ccs_) {
-        const CC_vecfunction t = make_t_intermediate(singles_gs,parameters);
-        vector_real_function_3d part1 = apply_Qt(ccs_unprojected(world, t, singles_ex, info), t);
-        vector_real_function_3d part2 = apply_Qt(ccs_unprojected(world, singles_ex, singles_gs, info), t);
-        vector_real_function_3d part3 = apply_projector(ccs_unprojected(world, t, singles_gs, info), singles_ex);
+        // const CC_vecfunction t = make_t_intermediate(singles_gs,info.parameters);
+        const CC_vecfunction t = make_active_t_intermediate(singles_gs,info);
+        QProjector<double,3> Qt(info.get_active_mo_bra(),t.get_vecfunction());
+        // vector_real_function_3d part1 = apply_Qt(ccs_unprojected(world, t, singles_ex, info), t);
+        // vector_real_function_3d part2 = apply_Qt(ccs_unprojected(world, singles_ex, singles_gs, info), t);
+        vector_real_function_3d part1 = Qt(ccs_unprojected(world, t, singles_ex, info));
+        vector_real_function_3d part2 = Qt(ccs_unprojected(world, singles_ex, singles_gs, info));
+        // vector_real_function_3d part3 = apply_projector(ccs_unprojected(world, t, singles_gs, info), singles_ex);
+        vector_real_function_3d part3 = Ox(ccs_unprojected(world, t, singles_gs, info));
         vector_real_function_3d tmp = add(world, part1, part2);
         result = sub(world, tmp, part3);
     } else if (name == POT_s2b_) {
@@ -3095,7 +3113,7 @@ CCPotentials::potential_singles_ex(World& world, const CC_vecfunction& singles_g
         vector_real_function_3d s4c_part2 = s4c(world, singles_ex, doubles_gs, info);
         result = add(world, s4c_part1, s4c_part2);
     } else if (name == POT_cis_) {
-        result = ccs_unprojected(world, CC_vecfunction(get_active_mo_ket(), HOLE, parameters.freeze()), singles_ex, info);
+        result = ccs_unprojected(world, CC_vecfunction(info.get_active_mo_ket(), HOLE, info.parameters.freeze()), singles_ex, info);
     } else MADNESS_EXCEPTION(("potential_singles: Unknown potential " + assign_name(name)).c_str(), 1)
 
     ;
@@ -3388,7 +3406,7 @@ CCPotentials::x_s3a(const CC_vecfunction& x, const CC_vecfunction& t) const {
             pot += (2.0 * gpart - xpart);
         }
     }
-    double kinetic = compute_kinetic_energy(x.get_vecfunction(), t.get_vecfunction());
+    double kinetic = compute_kinetic_energy(world, x.get_vecfunction(), t.get_vecfunction());
     return kinetic + pot + nuc;
 }
 

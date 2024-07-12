@@ -268,13 +268,13 @@ public:
     compute_cc2_correlation_energy(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
 
 
-    double
-    compute_kinetic_energy(const vector_real_function_3d& xbra, const vector_real_function_3d& xket) const;
+    static double
+    compute_kinetic_energy(World& world, const vector_real_function_3d& xbra, const vector_real_function_3d& xket);
 
     /// returns \f$  <x|T|x> + <x|V|x>  \f$
-    double
-    compute_cis_expectation_value(const CC_vecfunction& x, const vector_real_function_3d& V,
-                                  const bool print = true) const;
+    static double
+    compute_cis_expectation_value(World& world, const CC_vecfunction& x,
+                                  const vector_real_function_3d& V, const bool print, const Info& info);
 
     /// Something like a pair energy for CIS(D)/LRCC2 to estimate energy convergence
     /// calculates the response part of s2b and s2c which are independent of the mp2 amplitudes
@@ -666,9 +666,9 @@ public:
 
     /// Calculates the CC2 singles potential for the Excited state: result = Fock_residue + V
     /// the V part is stored in the intermediate_potentials structure
-    vector_real_function_3d
+    static vector_real_function_3d
     get_CC2_singles_potential_ex(World& world, const CC_vecfunction& gs_singles,
-                                 const Pairs<CCPair>& gs_doubles, CC_vecfunction& ex_singles, const Pairs<CCPair>& response_doubles, Info& info) const;
+                                 const Pairs<CCPair>& gs_doubles, CC_vecfunction& ex_singles, const Pairs<CCPair>& response_doubles, Info& info);
 
     /// Calculates the CC2 singles potential for the Excited state: result = Fock_residue + V
     /// the V part is stored in the intermediate_potentials structure
@@ -727,10 +727,10 @@ public:
     /// @param[in] Name of the potential
     /// @param[out] the potential (without Q application)
     /// @param world
-    vector_real_function_3d
+    static vector_real_function_3d
     potential_singles_ex(World& world, const CC_vecfunction& singles_gs,
                          const Pairs<CCPair>& doubles_gs, const CC_vecfunction& singles_ex,
-                         const Pairs<CCPair>& doubles_ex, const PotentialType& name, Info& info) const;
+                         const Pairs<CCPair>& doubles_ex, const PotentialType& name, Info& info);
 
     /// The Fock operator is partitioned into F = T + Vn + R
     /// the fock residue R= 2J-K+Un for closed shell is computed here
