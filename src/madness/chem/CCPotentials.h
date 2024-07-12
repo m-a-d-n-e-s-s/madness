@@ -207,8 +207,8 @@ public:
         const size_t i, const size_t j, const Info& info);
 
     /// return the regularized CC2 ansatz: |x_ij> = |u_ij> + Q12t f12 |t_i t_j> + ?????
-    static CCPair make_pair_lrcc2(const real_function_6d& u, const CC_vecfunction& gs_singles,
-        const CC_vecfunction& ex_singles, const size_t i, const size_t j, const Info& info);
+    static CCPair make_pair_lrcc2(World& world, const CalcType& ctype, const real_function_6d& u,
+                                  const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles, const size_t i, const size_t j, const Info& info);
 
     // Pair functions
 

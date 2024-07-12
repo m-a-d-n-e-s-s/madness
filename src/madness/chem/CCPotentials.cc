@@ -120,10 +120,83 @@ CCPair CCPotentials::make_pair_cc2(const real_function_6d& u, const CC_vecfuncti
     return pair;
 }
 
-CCPair CCPotentials::make_pair_lrcc2(const real_function_6d& u, const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
-    const size_t i, const size_t j, const Info& info) {
-    MADNESS_EXCEPTION("CCPotentials::make_pair_lrcc2 not yet implemented",1);
-    return CCPair();
+/// follow eq. (23) of Kottmann, JCTC 13, 5956 (2017)
+CCPair CCPotentials::make_pair_lrcc2(World& world, const CalcType& ctype, const real_function_6d& u,
+                                     const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles, const size_t i, const size_t j, const Info& info) {
+    MADNESS_ASSERT(gs_singles.type == PARTICLE || gs_singles.type == HOLE);
+    MADNESS_ASSERT(ex_singles.type == RESPONSE);
+    MADNESS_ASSERT(ctype == CT_CISPD || ctype == CT_LRCC2 || ctype == CT_ADC2);
+    MADNESS_ASSERT(!(i < info.parameters.freeze()));
+    MADNESS_ASSERT(!(j < info.parameters.freeze()));
+
+    // compute the t intermediates for active orbitals only -- they go into the ansatz
+    const CC_vecfunction t = info.get_active_mo_ket()+gs_singles.get_vecfunction();
+    MADNESS_ASSERT(t.size() == (info.mo_ket.size()-info.parameters.freeze()));
+
+    // compute the t intermediates for all orbitals -- they go into the projector
+    const CC_vecfunction pt = copy(make_full_t_intermediate(gs_singles,info));
+    MADNESS_ASSERT(pt.size() == info.mo_ket.size());
+
+    auto f12=CCConvolutionOperatorPtr<double,3>(world,OT_F12,info.parameters);
+
+    // set up projectors -- they project out the occupied space from the response pair function
+
+    // dQ12t = -(Qt(1) Ox(2) + Ox(1) Qt(2))      eq. (22) of the excited state paper
+    QProjector<double,3> Qt(info.mo_bra,pt.get_vecfunction());
+    Projector<double,3> Ox(info.get_active_mo_bra(),ex_singles.get_vecfunction());  // this works on active orbitals only
+    auto dQt_1 = outer(Qt,Ox);
+    auto dQt_2 = outer(Ox,Qt);
+
+    StrongOrthogonalityProjector<double,3> Q12t(world); // eq. (21) of the ground state paper
+    Q12t.set_spaces(info.mo_bra,pt.get_vecfunction(),info.mo_bra,pt.get_vecfunction());
+
+    typedef CCPairFunction<double,6> cpT;
+    auto functions=std::vector<cpT>(1,cpT(u));
+
+    auto f_xt=std::vector<cpT>(1,cpT(f12, ex_singles(i), t(j)));
+    auto f_tx=std::vector<cpT>(1,cpT(f12, t(i), ex_singles(j)));
+    functions+=Q12t(f_xt) + Q12t(f_tx) - dQt_1(f_xt) - dQt_2(f_tx);     // note the sign change in the last two terms
+
+
+//    CCPairFunction<double,6> f_xt(f12, ex_singles(i), t(j));
+//    functions.push_back(f_xt);
+//    CCPairFunction<double,6> f_tx(f12, t(i), ex_singles(j));
+//    functions.push_back(f_tx);
+//    {
+//        CCPairFunction<double,6> Ot1_xt = apply_Ot(f_xt, pt, 1);     // O1t(f|xt>)
+//        CCPairFunction<double,6> OtQt_xt = apply_Qt(Ot1_xt, pt, 2, 0.5);     // O1t(1-0.5*O2t)f|xt>
+//        functions.push_back(OtQt_xt.invert_sign());     // - "
+//    }
+//    {
+//        CCPairFunction<double,6> Ot2_xt = apply_Ot(f_xt, pt, 2);     // O2t(f|xt>)
+//        CCPairFunction<double,6> QtOt_xt = apply_Qt(Ot2_xt, pt, 1, 0.5);     // (1-0.5*O1t)O2t(f|xt>)
+//        functions.push_back(QtOt_xt.invert_sign());     // - "
+//    }
+//    {
+//        CCPairFunction<double,6> Ot1_tx = apply_Ot(f_tx, pt, 1);     // O1t(f|tx>)
+//        CCPairFunction<double,6> OtQt_tx = apply_Qt(Ot1_tx, pt, 2, 0.5);     // O1t(1-0.5*O2t)f|tx>
+//        functions.push_back(OtQt_tx.invert_sign());     // - "
+//    }
+//    {
+//        CCPairFunction<double,6> Ot2_tx = apply_Ot(f_tx, pt, 2);     // O2t(f|tx>)
+//        CCPairFunction<double,6> QtOt_tx = apply_Qt(Ot2_tx, pt, 1, 0.5);     // (1-0.5*O1t)O2t(f|tx>)
+//        functions.push_back(QtOt_tx.invert_sign());     // - "
+//    }
+//
+//    CCPairFunction<double,6> ftt(f12, t(i), t(j));     // f|tt>
+//    CCPairFunction<double,6> O1x_tt = apply_Ot(ftt, ex_singles, 1);     // O1x(f|tt>)
+//    CCPairFunction<double,6> OxQt_tt = apply_Qt(O1x_tt, pt, 2);     // O1xQt(f|tt>)
+//    functions.push_back(OxQt_tt.invert_sign());     // - "
+//    CCPairFunction<double,6> O2x_tt = apply_Ot(ftt, ex_singles, 2);     // O2x(f|tt>)
+//    CCPairFunction<double,6> QtOx_tt = apply_Qt(O2x_tt, pt, 1);     // Q1tO2x(f|tt>)
+//    functions.push_back(QtOx_tt.invert_sign());     // - "
+
+    CCPair pair(i, j, EXCITED_STATE, ctype, functions);
+    MADNESS_ASSERT(functions.size() == 9);
+    MADNESS_ASSERT(ex_singles.omega != 0.0);
+    const double bsh_eps = get_epsilon(i, j, info) + ex_singles.omega;
+    pair.bsh_eps = bsh_eps;
+    return pair;
 }
 
 madness::CCPair
@@ -276,12 +349,12 @@ CCPotentials::make_pair_ex(const real_function_6d& u, const CC_vecfunction& tau,
     MADNESS_ASSERT(!(j < parameters.freeze()));
     // for  CIS(D): tau is empty or Hole states, the function will give back mo_ket_
     // for freeze!=0 the function will give back (mo0,mo1,...,t_freeze,t_freeze+1,...)
-    const CC_vecfunction t = make_t_intermediate(tau,parameters).copy();
+    const CC_vecfunction t = copy(make_t_intermediate(tau,parameters));
     // functions for the projector
     CC_vecfunction pt;
-    if (!parameters.QtAnsatz()) pt = mo_ket_.copy();
+    if (!parameters.QtAnsatz()) pt = copy(mo_ket_);
     else {
-        pt = make_full_t_intermediate(tau).copy();
+        pt = copy(make_full_t_intermediate(tau));
     }
     MADNESS_ASSERT(pt.size() == mo_ket_.size());
     std::vector<CCPairFunction<double,6>> functions;

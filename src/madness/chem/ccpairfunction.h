@@ -41,6 +41,17 @@ public:
 
     CCFunction(const CCFunction& other) : current_error(other.current_error), function(other.function), i(other.i),
                                           type(other.type) {};
+
+    /// deep copy
+    friend CCFunction copy(const CCFunction& other) {
+        CCFunction tmp;
+        tmp.current_error=other.current_error;
+        tmp.function=madness::copy(other.function);
+        tmp.i=other.i;
+        tmp.type=other.type;
+        return tmp;
+    }
+
     double current_error;
     Function<T,NDIM> function;
 

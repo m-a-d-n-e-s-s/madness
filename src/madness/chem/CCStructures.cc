@@ -64,17 +64,6 @@ CCTimer::info(const bool debug, const double norm) {
 }
 
 
-madness::CC_vecfunction
-CC_vecfunction::copy() const {
-    std::vector<CCFunction<double,3>> vn;
-    for (auto x : functions) {
-        const CCFunction<double,3> fn(madness::copy(x.second.function), x.second.i, x.second.type);
-        vn.push_back(fn);
-    }
-    CC_vecfunction result(vn, type);
-    result.irrep = irrep;
-    return result;
-}
 
 std::string
 CC_vecfunction::name(const int ex) const {

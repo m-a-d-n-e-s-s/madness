@@ -555,7 +555,7 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
               delta(other.delta), irrep(other.irrep) {
     }
 
-    /// assignment operator
+    /// assignment operator, shallow wrt the functions
 //    CC_vecfunction& operator=(const CC_vecfunction& other) = default;
     CC_vecfunction& operator=(const CC_vecfunction& other) {
         if (this == &other) return *this;
@@ -570,8 +570,29 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
 
 
     /// returns a deep copy (void shallow copy errors)
-    CC_vecfunction
-    copy() const;
+    friend CC_vecfunction
+    copy(const CC_vecfunction& other) {
+        CC_vecfunction tmp=other;
+        tmp.functions.clear();
+        for (const auto& x : other.functions) {
+            tmp.functions.insert(std::make_pair(x.first, copy(x.second)));
+        }
+        return tmp;
+    }
+
+
+//madness::CC_vecfunction
+//CC_vecfunction::copy() const {
+//    std::vector<CCFunction<double,3>> vn;
+//    for (auto x : functions) {
+//        const CCFunction<double,3> fn(madness::copy(x.second.function), x.second.i, x.second.type);
+//        vn.push_back(fn);
+//    }
+//    CC_vecfunction result(vn, type);
+//    result.irrep = irrep;
+//    return result;
+//}
+//
 
     static CC_vecfunction load_restartdata(World& world, std::string filename) {
         archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, filename.c_str());
