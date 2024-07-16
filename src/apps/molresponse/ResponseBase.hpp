@@ -302,6 +302,10 @@ public:
         {
             k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
         }
+        else if(algorithm_ == "multiworld_row")
+        {
+            k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient_row);
+        }
         else if (algorithm_ == "largemem")
         {
             k.set_algorithm(Exchange<double, 3>::Algorithm::large_memory);
