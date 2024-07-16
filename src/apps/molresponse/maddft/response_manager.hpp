@@ -1201,6 +1201,7 @@ public:
             {
                 for (int c = (first_run ? start_c : b); c < num_freqs; c++)
                 {
+                    first_run = false;
 
                     ::print(world.rank(), "b = ", b, " c = ", c);
 
@@ -1217,7 +1218,7 @@ public:
                     quad_calculation.set_x_data(world, omegas, restarts);
                     auto [beta, beta_directions] = quad_calculation.compute_beta_v2(world, omega_b, omega_c);
 
-                    if (world.rank() == 0 && quad_parameters.print_level() > 10)
+                    if (world.rank() == 0)
                     {
                         ::print("Beta values for omega_A", " = -(omega_", b, " + omega_", c, ") = -", omega_a, " = (", omega_b, " + ", omega_c, ")");
                         {
