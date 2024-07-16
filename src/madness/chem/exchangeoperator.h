@@ -102,8 +102,11 @@ public:
 
 private:
 
-    /// exchange using macrotasks, i.e. apply K on a function in individual worlds
+    /// exchange using macrotasks, i.e. apply K on a function in individual worlds via tiles
     vecfuncT K_macrotask_efficient(const vecfuncT& vket, const double mul_tol = 0.0) const;
+
+    /// exchange using macrotasks, i.e. apply K on a function in individual worlds row-wise
+    vecfuncT K_macrotask_efficient_row(const vecfuncT& vket, const double mul_tol = 0.0) const;
 
     /// computing the full square of the double sum (over vket and the K orbitals)
     vecfuncT K_small_memory(const vecfuncT& vket, const double mul_tol = 0.0) const;
@@ -201,6 +204,7 @@ private:
         // resultT must implement operator+=(const resultT&)
         resultT allocator(World& world, const argtupleT& argtuple) const {
             std::size_t n = std::get<0>(argtuple).size();
+            print("\n allocator n XCsimple", n);
             resultT result = zero_functions_compressed<T, NDIM>(world, n);
             return result;
         }
@@ -228,17 +232,20 @@ private:
                 vecfuncT resultcolumn = compute_diagonal_batch_in_symmetric_matrix(world, ket_batch, bra_batch,
                                                                                    vf_batch);
 
-                for (int i = vf_range.begin; i < vf_range.end; ++i)
-                    Kf[i] += resultcolumn[i - vf_range.begin];
+                for (int i = vf_range.begin; i < vf_range.end; ++i){
+                    resultcolumn[i - vf_range.begin].print_size("resultcolumn diag sym " + std::to_string(i));
+                    Kf[i] += resultcolumn[i - vf_range.begin];}
 
             } else if (symmetric and not diagonal_block) {
                 auto[resultcolumn, resultrow]=compute_offdiagonal_batch_in_symmetric_matrix(world, vket, bra_batch,
                                                                                             vf_batch);
 
-                for (int i = bra_range.begin; i < bra_range.end; ++i)
-                    Kf[i] += resultcolumn[i - bra_range.begin];
-                for (int i = vf_range.begin; i < vf_range.end; ++i)
-                    Kf[i] += resultrow[i - vf_range.begin];
+                for (int i = bra_range.begin; i < bra_range.end; ++i){
+                    resultcolumn[i - bra_range.begin].print_size("resultcolum offdiag sym " + std::to_string(i));
+                    Kf[i] += resultcolumn[i - bra_range.begin];}
+                for (int i = vf_range.begin; i < vf_range.end; ++i){
+                    resultrow[i - vf_range.begin].print_size("resultrow offdiag sym " + std::to_string(i));
+                    Kf[i] += resultrow[i - vf_range.begin];}
             } else {
                 auto ket_batch = bra_range.copy_batch(vket);
                 vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(world, ket_batch, bra_batch, vf_batch);
@@ -299,6 +306,92 @@ private:
 
     };
 
+    class MacroTaskExchangeRow : public MacroTaskOperationBase {
+
+        long nresult;
+        double lo = 1.e-4;
+        double mul_tol = 1.e-7;
+        bool symmetric = false;
+
+        /// custom partitioning for the exchange operator in exchangeoperator.h
+        class MacroTaskPartitionerRow : public MacroTaskPartitioner {
+        public:
+            MacroTaskPartitionerRow() {
+              max_batch_size=1;
+            }       
+
+           // partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
+           //                            const std::string policy) const override {
+
+           //     partitionT p;
+           //     for (size_t i = 0; i < vsize1; i++) {
+           //         Batch batch(Batch_1D(i,i+1), Batch_1D(i,i+1));
+           //         p.push_back(std::make_pair(batch,1.0));
+           //     }
+           //     return p;
+           // }
+        };
+
+    public:
+        MacroTaskExchangeRow(const long nresult, const double lo, const double mul_tol)
+                : nresult(nresult), lo(lo), mul_tol(mul_tol) {
+            partitioner.reset(new MacroTaskPartitionerRow());
+            //partitioner.set_max_batch_size(1);
+        }
+
+        // you need to define the exact argument(s) of operator() as tuple
+        typedef std::tuple<const std::vector<Function<T, NDIM>>&,
+                           const std::vector<Function<T, NDIM>>&,
+                           const std::vector<Function<T, NDIM>>&> argtupleT;
+
+        using resultT = std::vector<Function<T, NDIM>>;
+
+        // you need to define an empty constructor for the result
+        // resultT must implement operator+=(const resultT&)
+        resultT allocator(World& world, const argtupleT& argtuple) const {
+            std::size_t n = std::get<0>(argtuple).size();
+            print("\n allocator n XCrow", n);
+            resultT result = zero_functions_compressed<T, NDIM>(world, n);
+            return result;
+        }
+
+        // runs on a batched part of K_small_memory loop (element of vec of func)
+        // multiplies this batch (bra) with vket, applies poisson, muls batch (ket)
+        // gaxpys (+= of operator) onto Kf -> position of result from batch.input[]
+        std::vector<Function<T, NDIM>>
+        operator()(const std::vector<Function<T, NDIM>>& vket,
+                   const std::vector<Function<T, NDIM>>& mo_bra, 
+                   const std::vector<Function<T, NDIM>>& mo_ket) {       
+
+            // print("\nentering operator:");
+            World& world = vket.front().world();
+            resultT Kf = zero_functions_compressed<T, NDIM>(world, nresult);
+            auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(world, lo);
+
+            auto& i = batch.input[0].begin;    // print i to check
+            // print("\ni:", i);
+
+            // print("\nperforming mul_sparse");
+            vecfuncT psif = mul_sparse(world, vket[i], mo_bra, mul_tol);
+            truncate(world, psif);
+
+            // print("\napplying poisson");
+            psif = apply(world, *poisson.get(), psif);
+            truncate(world, psif);
+            
+            // print("\ndot");
+            auto res = dot(world, mo_ket, psif);
+            // print("\nadding to Kf", Kf.size());
+            //Kf[i] += dot(world, mo_ket, psif);
+            //print(Kf.size());
+            
+            Kf[i] += res;
+            // Kf[i].print_size("Kf[i]");
+            truncate(world, Kf);
+
+            return Kf;
+        }
+    };
 };
 
 } /* namespace madness */
