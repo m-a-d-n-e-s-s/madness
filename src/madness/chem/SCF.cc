@@ -1324,6 +1324,10 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 	  //if (world.rank() == 0) print("selecting exchange multi world");
 	  K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient);
 	}
+	else if (param.hfexalg()=="multiworld_row") {
+	  //if (world.rank() == 0) print("selecting exchange multi world row");
+	  K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient_row);
+	}
 	else if (param.hfexalg()=="largemem") {
 	  //if (world.rank() == 0) print("selecting exchange large memory");
 	  K.set_algorithm(Exchange<double,3>::Algorithm::large_memory);

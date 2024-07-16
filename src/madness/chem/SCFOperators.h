@@ -114,7 +114,7 @@ private:
 
 public:
     enum Algorithm {
-        small_memory, large_memory, multiworld_efficient
+        small_memory, large_memory, multiworld_efficient, multiworld_efficient_row
     };
 
     /// default ctor
