@@ -204,7 +204,6 @@ private:
         // resultT must implement operator+=(const resultT&)
         resultT allocator(World& world, const argtupleT& argtuple) const {
             std::size_t n = std::get<0>(argtuple).size();
-            print("\n allocator n XCsimple", n);
             resultT result = zero_functions_compressed<T, NDIM>(world, n);
             return result;
         }
@@ -350,7 +349,6 @@ private:
         // resultT must implement operator+=(const resultT&)
         resultT allocator(World& world, const argtupleT& argtuple) const {
             std::size_t n = std::get<0>(argtuple).size();
-            print("\n allocator n XCrow", n);
             resultT result = zero_functions_compressed<T, NDIM>(world, n);
             return result;
         }
