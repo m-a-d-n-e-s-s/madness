@@ -57,6 +57,7 @@ cmake/cmake-*
 cmake/bin
 cmake/doc
 cmake/share
+_build/
 Makefile-prog.in
 compile_commands.json
 *.idx
@@ -65,3 +66,5 @@ compile_commands.json
 compile_commands
 .history/src/apps/molresponse/global_functions_20230530165227.cc
 .history/src/apps/molresponse/global_functions_20230530165428.cc
+
+src/apps/molresponse/maddft/doc/output_dir/

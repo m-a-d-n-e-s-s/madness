@@ -1,0 +1,17 @@
+{
+    "dft": {
+        "k": 7,
+        "aobasis": "sto-3g",
+        "econv": 1.0000e-05,
+        "protocol": [1e-4,1e-6,1e-8]
+    },
+    "response": {
+        "first_order": true,
+        "kain": true,
+        "dipole": true,
+        "maxsub": 10,
+        "maxiter": 10,
+        "omega": 0.0,
+        "protocol": [1e-4,1e-6,1e-8]
+    }
+}

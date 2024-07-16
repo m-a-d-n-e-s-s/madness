@@ -70,7 +70,7 @@ namespace madness {
     /// Default for max_mem_limit is unlimited.
     class WorldMemInfo {
 #ifdef WORLD_GATHER_MEM_STATS
-        friend void* ::operator new(size_t size) throw (std::bad_alloc);
+        friend void* ::operator new(size_t size) noexcept(false);
         friend void ::operator delete(void *p) throw();
 #endif
     private:
