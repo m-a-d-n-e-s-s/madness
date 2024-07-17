@@ -1050,8 +1050,8 @@ CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType 
     output("Initialize " + assign_name(ctype) + " Pairs for " + assign_name(ftype));
 
     bool restarted = false;
-    std::vector<real_function_6d> vconst_part;
-    load_function(world,vconst_part,"constant_part");
+    // std::vector<real_function_6d> vconst_part;
+    // load_function(world,vconst_part,"constant_part");
 
     for (size_t i = parameters.freeze(); i < CCOPS.mo_ket().size(); i++) {
         for (size_t j = i; j < CCOPS.mo_ket().size(); j++) {
@@ -1094,8 +1094,8 @@ CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType 
                 }
 
 //                tmp.excitation = excitation;
-                // tmp.constant_part = const_part;
-                tmp.constant_part = vconst_part[0];
+                tmp.constant_part = const_part;
+                // tmp.constant_part = vconst_part[0];
                 print_header1("loading constant part");
                 pairs.insert(i, j, tmp);
                 CCPotentials::compute_excited_pair_energy(world, pairs(i, j), x, info);
