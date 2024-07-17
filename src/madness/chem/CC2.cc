@@ -680,21 +680,29 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
 
     // make new constant part
     {
-        MacroTaskConstantPart tc;
-        MacroTask task(world, tc);
-        std::vector<real_function_6d> constant_part_vec = task(pair_vec, cc2_s.get_vecfunction(),
+        std::vector<real_function_6d> cp;
+        // try {
+            // load_function(world, cp, "constant_part");
+        // } catch (...) {
+            MacroTaskConstantPart tc;
+            MacroTask task(world, tc);
+            // std::vector<real_function_6d> constant_part_vec = task(pair_vec, cc2_s.get_vecfunction(),
+            cp = task(pair_vec, cc2_s.get_vecfunction(),
             lrcc2_s.get_vecfunction(), info) ;
+            // save_function( cp, "constant_part");
+        // }
 
         for (int i=0; i<pair_vec.size(); ++i) {
             // assign constant part
-            pair_vec[i].constant_part=constant_part_vec[i];
+            // pair_vec[i].constant_part=constant_part_vec[i];
+            pair_vec[i].constant_part=cp[i];
 
             // if no function has been computed so far use the constant part (first iteration)
             if (not pair_vec[i].function().is_initialized()) pair_vec[i].update_u(pair_vec[i].constant_part);
         }
     }
 
-
+    CCPotentials::compute_excited_pair_energy(world,pair_vec[0],lrcc2_s,info);
     // iterate the pair
     MacroTaskIteratePair t1;
     MacroTask task1(world, t1);
@@ -716,28 +724,6 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
     lrcc2_d=Pairs<CCPair>::vector2pairs(pair_vec,triangular_map);
 
     return (rmsrnorm<info.parameters.dconv_6D());
-
-
-//    bool conv = true;
-//    for (auto& tmp:lrcc2_d.allpairs) {
-//        CCPair& pair = tmp.second;
-//        const size_t i = pair.i;
-//        const size_t j = pair.j;
-//        // check if singles have significantly changed
-//        if (lrcc2_s(i).current_error < 0.1 * parameters.thresh_6D() and
-//            lrcc2_s(j).current_error < 0.1 * parameters.thresh_6D()) {
-//            ;
-//            // output("Skipping Pair Iteration, No significant Change in Singles");
-//        } else {
-//            pair.bsh_eps = CCPotentials::get_epsilon(pair.i, pair.j,info) + lrcc2_s.omega;
-//            // update_constant_part_lrcc2(pair, cc2_s, lrcc2_s);
-//            pair.constant_part=CCPotentials::make_constant_part_macrotask(world, pair,
-//                         cc2_s, lrcc2_s, info);
-//            conv = iterate_pair(pair, lrcc2_s);
-//        }
-//    }
-//    return conv;
-
 }
 
 
@@ -876,7 +862,7 @@ CC2::solve_lrcc2(Pairs<CCPair>& gs_doubles, const CC_vecfunction& gs_singles, co
     bool found_lrcc2d = initialize_pairs(ex_doubles, EXCITED_STATE, CT_LRCC2, gs_singles, ex_singles, excitation, info);
 
     if (found_lrcc2d) iterate_lrcc2_singles(world, gs_singles, gs_doubles, ex_singles, ex_doubles, info);
-    // else iterate_ccs_singles(ex_singles, info);
+    else iterate_ccs_singles(ex_singles, info);
     const double omega_cis = ex_singles.omega;
 
     for (size_t iter = 0; iter < parameters.iter_max(); iter++) {
@@ -949,7 +935,7 @@ bool CC2::iterate_pair(CCPair& pair, const CC_vecfunction& singles) const {
     info.mo_bra=CCOPS.mo_bra_.get_vecfunction();
     info.parameters=parameters;
     if (pair.type == GROUND_STATE) omega = CCOPS.compute_pair_correlation_energy(world, info,pair, singles);
-    if (pair.type == EXCITED_STATE) omega = CCOPS.compute_excited_pair_energy(pair, singles);
+    if (pair.type == EXCITED_STATE) omega = CCOPS.compute_excited_pair_energy(world, pair, singles, info);
 
     if (world.rank() == 0)
         std::cout << "Correlation Energy of Pair " << pair.name() << " =" << std::fixed << std::setprecision(10)
@@ -996,7 +982,7 @@ bool CC2::iterate_pair(CCPair& pair, const CC_vecfunction& singles) const {
         double omega_new = 0.0;
         double delta = 0.0;
         if (pair.type == GROUND_STATE) omega_new = CCOPS.compute_pair_correlation_energy(world, info, pair, singles);
-        else if (pair.type == EXCITED_STATE) omega_new = CCOPS.compute_excited_pair_energy(pair, singles);
+        else if (pair.type == EXCITED_STATE) omega_new = CCOPS.compute_excited_pair_energy(world, pair, singles, info);
         delta = omega - omega_new;
 
         const double current_norm = pair.function().norm2();
@@ -1064,6 +1050,8 @@ CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType 
     output("Initialize " + assign_name(ctype) + " Pairs for " + assign_name(ftype));
 
     bool restarted = false;
+    std::vector<real_function_6d> vconst_part;
+    load_function(world,vconst_part,"constant_part");
 
     for (size_t i = parameters.freeze(); i < CCOPS.mo_ket().size(); i++) {
         for (size_t j = i; j < CCOPS.mo_ket().size(); j++) {
@@ -1089,9 +1077,28 @@ CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType 
                 real_function_6d const_part;
                 CCOPS.load_function(const_part, name + "_const");
                 CCPair tmp = CCOPS.make_pair_ex(utmp, tau, x, i, j, ctype);
+
+                {
+                    CCPair tmp2=CCPotentials::make_pair_lrcc2(world, ctype, utmp, tau, x, i, j, info);
+                    auto doit =[](const CCPair& p) {
+                        auto functions=consolidate(p.functions);
+                        for (const auto& f : functions) f.print_size();
+                    };
+//                    print("jakob's pair");
+//                    doit(tmp);
+//                    print("Florian's pair");
+//                    doit(tmp2);
+                    std::swap(tmp,tmp2);
+                    print("going on with Florian's pair");
+                    // print("going on with Jakob's pair");
+                }
+
 //                tmp.excitation = excitation;
-                tmp.constant_part = const_part;
+                // tmp.constant_part = const_part;
+                tmp.constant_part = vconst_part[0];
+                print_header1("loading constant part");
                 pairs.insert(i, j, tmp);
+                CCPotentials::compute_excited_pair_energy(world, pairs(i, j), x, info);
             } else error("Unknown pairtype");
         }
     }

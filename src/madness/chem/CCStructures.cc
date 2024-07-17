@@ -106,12 +106,12 @@ madness::vector_real_function_3d
 CCIntermediatePotentials::operator()(const CC_vecfunction& f, const PotentialType& type) const {
     output("Getting " + assign_name(type) + " for " + f.name(0));
     vector_real_function_3d result;
-    if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED)) return current_singles_potential_gs_;
-    else if (type == POT_singles_ and f.type == RESPONSE) return current_singles_potential_ex_;
-    else if (type == POT_s2b_ and f.type == PARTICLE) return current_s2b_potential_gs_;
-    else if (type == POT_s2b_ and f.type == RESPONSE) return current_s2b_potential_ex_;
-    else if (type == POT_s2c_ and f.type == PARTICLE) return current_s2c_potential_gs_;
-    else if (type == POT_s2c_ and f.type == RESPONSE) return current_s2c_potential_ex_;
+    if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED)) result= current_singles_potential_gs_;
+    else if (type == POT_singles_ and f.type == RESPONSE) result= current_singles_potential_ex_;
+    else if (type == POT_s2b_ and f.type == PARTICLE) result= current_s2b_potential_gs_;
+    else if (type == POT_s2b_ and f.type == RESPONSE) result= current_s2b_potential_ex_;
+    else if (type == POT_s2c_ and f.type == PARTICLE) result= current_s2c_potential_gs_;
+    else if (type == POT_s2c_ and f.type == RESPONSE) result= current_s2c_potential_ex_;
     else if (f.type == HOLE) {
         output(assign_name(type) + " is zero for HOLE states");
         // result = zero_functions<double, 3>(f.size());
@@ -120,7 +120,12 @@ CCIntermediatePotentials::operator()(const CC_vecfunction& f, const PotentialTyp
         MADNESS_EXCEPTION("Potential was not supposed to be stored", 1);
     }
 
-    if (result.empty()) output("!!!WARNING: Potential is empty!!!");
+    if (result.empty()) {
+        output("!!!WARNING: Potential is empty!!!");
+    } else {
+        World& world=result.front().world();
+        if (parameters.debug()) print_size(world,result, "potential");
+    }
 
     return result;
 }
@@ -145,6 +150,10 @@ void
 CCIntermediatePotentials::insert(const vector_real_function_3d& potential, const CC_vecfunction& f,
                                  const PotentialType& type) {
     output("Storing potential: " + assign_name(type) + " for " + f.name(0));
+    if (parameters.debug()) {
+        World& world=potential.front().world();
+        print_size(world, potential, "potential");
+    }
     MADNESS_ASSERT(!potential.empty());
     if (type == POT_singles_ && (f.type == PARTICLE || f.type == MIXED)) current_singles_potential_gs_ = potential;
     else if (type == POT_singles_ && f.type == RESPONSE) current_singles_potential_ex_ = potential;
@@ -534,7 +543,7 @@ MacroTaskConstantPart::operator() (const std::vector<CCPair>& pair,
 
     World& world =info.mo_ket[0].world();
     CC_vecfunction singles(gs_singles, PARTICLE, info.parameters.freeze());
-    CC_vecfunction exsingles(gs_singles, PARTICLE, info.parameters.freeze());
+    CC_vecfunction exsingles(ex_singles, RESPONSE, info.parameters.freeze());
 
 
     resultT result = zero_functions_compressed<double, 6>(world, pair.size());
@@ -579,7 +588,8 @@ MacroTaskIteratePair::operator()(const std::vector<CCPair>& pair,
     resultT result = zero_functions_compressed<double, 6>(world, pair.size());
 
     for (size_t i = 0; i < pair.size(); i++) {
-        result[i]=  CCPotentials::iterate_pair_macrotask(world, pair[i], gs_singles, local_coupling[i], info, maxiter).function();
+        result[i]=  CCPotentials::iterate_pair_macrotask(world, pair[i], gs_singles, ex_singles,
+            local_coupling[i], info, maxiter).function();
     }
     return result;
 

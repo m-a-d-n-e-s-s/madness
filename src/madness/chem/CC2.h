@@ -283,7 +283,7 @@ public:
             if (ctype == CT_CC2) V = CCPotentials::get_CC2_singles_potential_gs(world, singles, gs_doubles, info);
             else if (ctype == CT_LRCC2)
                 V = CCPotentials::get_CC2_singles_potential_ex(world, singles2, gs_doubles, singles, ex_doubles, info);
-//            else if (ctype == CT_LRCCS) V = CCOPS.get_CCS_potential_ex(world,singles,false, info);
+            else if (ctype == CT_LRCCS) V = CCPotentials::get_CCS_potential_ex(world,singles,false, info);
 //            else if (ctype == CT_ADC2) V = CCOPS.get_ADC2_singles_potential(world, gs_doubles, singles, ex_doubles, info);
             else MADNESS_EXCEPTION("iterate singles: unknown type", 1);
             time_V.info(true, norm2(world, V));

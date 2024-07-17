@@ -441,6 +441,8 @@ namespace madness {
 
         template<typename resultT>
         resultT operator()(const resultT& argument) const {
+
+            if (projector0.type()=="PProjector") return projector1(projector0(argument));
             return projector0(projector1(argument));
         }
     };

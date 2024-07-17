@@ -277,6 +277,8 @@ CCPairFunction<T,NDIM>& CCPairFunction<T,NDIM>::multiply_with_op_inplace(const s
 template<typename T, std::size_t NDIM>
 double
 CCPairFunction<T,NDIM>::make_xy_u(const CCFunction<T,LDIM>& xx, const CCFunction<T,LDIM>& yy) const {
+    CCPairFunction<T,NDIM> bra(xx.function,yy.function);
+    return inner(bra,*this);
     T result = 0.0;
     if (is_pure()) {
         World& world=xx.function.world();

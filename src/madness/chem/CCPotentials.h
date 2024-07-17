@@ -278,8 +278,8 @@ public:
 
     /// Something like a pair energy for CIS(D)/LRCC2 to estimate energy convergence
     /// calculates the response part of s2b and s2c which are independent of the mp2 amplitudes
-    double
-    compute_excited_pair_energy(const CCPair& d, const CC_vecfunction& x) const;
+    static double
+    compute_excited_pair_energy(World& world, const CCPair& d, const CC_vecfunction& x, const Info& info);
 
     /// Compute the CIS(D) Energy Correction to CIS
     double
@@ -339,9 +339,9 @@ public:
 
     /// iterate a pair for MP2, CC2, LRCC2 on constant singles
     static CCPair iterate_pair_macrotask(World& world,
-                                         const CCPair& pair, const CC_vecfunction& singles,
-                                         const real_function_6d& coupling,
-                                         const Info& info, const long maxiter);
+                                         const CCPair& pair, const CC_vecfunction& gs_singles,
+                                         const CC_vecfunction& ex_singles,
+                                         const real_function_6d& coupling, const Info& info, const long maxiter);
 
 
     /// Function evaluates the consant part of the ground state for CC2
@@ -531,23 +531,23 @@ public:
     /// returns <xy|op|u>
     /// loops over every entry in the vector and accumulates results
     /// helper function for CIS(D) energy
-    double
+    static double
     make_xy_op_u(const CCFunction<double,3>& x, const CCFunction<double,3>& y, const CCConvolutionOperator<double,3>& op,
-                 const std::vector<CCPairFunction<double,6>>& u) const;
+                 const std::vector<CCPairFunction<double,6>>& u);
 
     /// returns <xy|u> for a vector of CCPairFunction
     /// the result is accumulated for every vercotr
     /// helper functions for CIS(D) energy
-    double
-    make_xy_u(const CCFunction<double,3>& x, const CCFunction<double,3>& y, const std::vector<CCPairFunction<double,6>>& u) const;
+    static double
+    make_xy_u(const CCFunction<double,3>& x, const CCFunction<double,3>& y, const std::vector<CCPairFunction<double,6>>& u);
 
     /// Functions which operate with the CCPairFunction structure
     /// @param[in] function x, if nuclear correlation is used make sure this is the correct bra function
     /// @param[in] function y, if nuclear correlation is used make sure this is the correct bra function
     /// @param[in] CCPairFunction u,
-    double
+    static double
     make_xy_op_u(const CCFunction<double,3>& x, const CCFunction<double,3>& y, const CCConvolutionOperator<double,3>& op,
-                 const CCPairFunction<double,6>& u) const;
+                 const CCPairFunction<double,6>& u);
 
     /// Helper Function which returns
     /// @return <xy|op|ab>
@@ -661,8 +661,8 @@ public:
     /// Calculates the CCS/CIS singles potential for the excited state: result = Fock_residue + V
     /// the V part is stored in the intermediate_potentials structure
     /// the expectation value is calculated and updated
-    vector_real_function_3d
-    get_CCS_potential_ex(World& world, CC_vecfunction& x, const bool print, Info& info) const;
+    static vector_real_function_3d
+    get_CCS_potential_ex(World& world, CC_vecfunction& x, const bool print, Info& info);
 
     /// Calculates the CC2 singles potential for the Excited state: result = Fock_residue + V
     /// the V part is stored in the intermediate_potentials structure
