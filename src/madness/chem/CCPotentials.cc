@@ -513,6 +513,8 @@ double
 CCPotentials::compute_excited_pair_energy(World& world, const CCPair& d, const CC_vecfunction& x, const Info& info) {
     // const CC_vecfunction xbra(make_bra(x), RESPONSE, info.parameters.freeze());
     // for (const auto& f: d.functions) f.print_size("doubles functions in ex pair energy");
+    MADNESS_CHECK_THROW(x.type == RESPONSE, "x must be of type RESPONSE");
+    MADNESS_CHECK_THROW(x.size()==info.get_active_mo_bra().size(), "x must have the same size as the active space");
     const CC_vecfunction xbra(info.R_square*x.get_vecfunction(), RESPONSE, info.parameters.freeze());
     const CCFunction<double,3>& xbi = xbra(d.i);
     const CCFunction<double,3>& mobj = info.mo_bra[d.j];
@@ -1118,16 +1120,11 @@ CCPair CCPotentials::iterate_pair_macrotask(World& world,
     solver.do_print = (world.rank() == 0);
 
     CCPair result=pair;
-    try {
-        real_function_6d tmp(world);
-        load(tmp,"iteration00");
-        result.update_u(tmp);
-        print("loading iteration from file");
-        tmp.print_size("iteration00 from file");
-        return result;
-    } catch (...) {}
+
     // only the u-part of omega
-    double omega_partial=CCPotentials::compute_excited_pair_energy(world, result, ex_singles, info);
+    double omega_partial=0.0;
+    if (result.ctype == CT_MP2) omega_partial = CCPotentials::compute_pair_correlation_energy(world, info, result);
+    else if (result.type == EXCITED_STATE) omega_partial = CCPotentials::compute_excited_pair_energy(world, result, ex_singles, info);
 
     for (size_t iter = 0; iter < maxiter; iter++) {
         if (world.rank()==0) print_header3(assign_name(result.ctype) + "-Microiteration");
@@ -1152,11 +1149,8 @@ CCPair CCPotentials::iterate_pair_macrotask(World& world,
 
         CCTimer timer_addup(world, "Add constant parts and update pair " + result.name());
         real_function_6d unew = Q12(GVmp2 + constant_part);
-        // unew.print_size("unew");
-        // unew = CCOPS.apply_Q12t(unew, CCOPS.mo_ket());
-        // unew.print_size("Q12unew");
-        //unew.truncate().reduce_rank(); // already done in Q12 application at the end
         if (info.parameters.debug()) unew.print_size("Q12(unew)");
+
         const real_function_6d residue =  result.function() - unew;
         const double error = residue.norm2();
         if (info.parameters.kain()) {
@@ -1167,20 +1161,17 @@ CCPair CCPotentials::iterate_pair_macrotask(World& world,
             kain_update.print_size("Kain-Update-Function not truncated");
             kain_update.truncate().reduce_rank();
             kain_update.print_size("Kain-Update-Function truncated");
-            // result.update_u(copy(kain_update));
             result.update_u(copy(kain_update));
         } else {
-            // result.update_u(unew);
             result.update_u(unew);
         }
 
         timer_addup.info(true, result.function().norm2());
 
         double omega_new = 0.0;
-        double delta = 0.0;
         if (result.ctype == CT_MP2) omega_new = CCPotentials::compute_pair_correlation_energy(world, info, result);
         else if (result.type == EXCITED_STATE) omega_new = CCPotentials::compute_excited_pair_energy(world, result, ex_singles, info);
-        delta = omega_partial - omega_new;
+        double delta = omega_partial - omega_new;
 
         const double current_norm = result.function().norm2();
 
