@@ -35,6 +35,7 @@ public:
         info.molecular_coordinates = nemo->get_calc()->molecule.get_all_coords_vec();
         info.parameters = parameters;
         info.R_square = nemo->R_square;
+        info.R = nemo->R;
         info.U1 = nemo->ncf->U1vec();
         info.U2 = nemo->ncf->U2();
         info.intermediate_potentials = get_potentials;

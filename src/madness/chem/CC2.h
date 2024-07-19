@@ -307,9 +307,10 @@ public:
 
             // Normalize Singles if it is excited state
             if (ctype == CT_LRCCS or ctype == CT_LRCC2 or ctype == CT_ADC2) {
-                output("Normalizing new singles");
-                const double norm=inner(GV,info.R_square*GV);
-                scale(world, GV, 1.0 / norm);
+                Nemo::normalize(GV, info.R);
+                // output("Normalizing new singles");
+                // const double norm=inner(GV,info.R_square*GV);
+                // scale(world, GV, 1.0 / norm);
             } else output("Singles not normalized");
 
             // residual
@@ -353,9 +354,10 @@ public:
             singles.omega = omega;
             vector_real_function_3d new_singles = truncate(GV);
             if (info.parameters.kain()) new_singles = solver.update(singles.get_vecfunction(), residual);
-            if (info.parameters.debug()) {
-                print_size(world, new_singles, "new_singles");
-            }
+            if (info.parameters.debug()) print_size(world, new_singles, "new_singles");
+            if (ctype == CT_LRCCS or ctype == CT_LRCC2 or ctype == CT_ADC2) Nemo::normalize(new_singles, info.R);
+            if (info.parameters.debug()) print_size(world, new_singles, "new_singles normalized");
+
             for (size_t i = 0; i < GV.size(); i++) {
                 singles(i + info.parameters.freeze()).function = copy(new_singles[i]);
             }

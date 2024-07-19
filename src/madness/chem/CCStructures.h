@@ -1209,7 +1209,7 @@ struct Info {
     CCParameters parameters;
     std::vector<double> orbital_energies;
     CCIntermediatePotentials intermediate_potentials;
-    Function<double,3> R_square, U2;
+    Function<double,3> R_square, U2, R;;
     std::vector<Function<double,3>> U1;
 
     vector_real_function_3d get_active_mo_ket() const {

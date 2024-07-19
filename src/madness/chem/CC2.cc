@@ -859,9 +859,9 @@ CC2::solve_lrcc2(Pairs<CCPair>& gs_doubles, const CC_vecfunction& gs_singles, co
     const double omega_cis = ex_singles.omega;
 
     for (size_t iter = 0; iter < parameters.iter_max(); iter++) {
-        print_header2("Macroiteration " + std::to_string(int(iter)) + " of LRCC2 for energy "+std::to_string(ex_singles.omega));
-        bool sconv = iterate_lrcc2_pairs(world, gs_singles, ex_singles, ex_doubles, info);
-        bool dconv = iterate_lrcc2_singles(world, gs_singles, gs_doubles, ex_singles, ex_doubles, info);
+        print_header2("Macroiteration " + std::to_string(int(iter)) + " of LRCC2 for excitation energy "+std::to_string(ex_singles.omega));
+        bool dconv = iterate_lrcc2_pairs(world, gs_singles, ex_singles, ex_doubles, info);
+        bool sconv = iterate_lrcc2_singles(world, gs_singles, gs_doubles, ex_singles, ex_doubles, info);
         // update_reg_residues_ex(world, gs_singles, ex_singles, ex_doubles, info);
         if (sconv and dconv) break;
     }
@@ -1090,7 +1090,7 @@ CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType 
 //                tmp.excitation = excitation;
                 tmp.constant_part = const_part;
                 // tmp.constant_part = vconst_part[0];
-                print_header1("loading constant part");
+                // print_header1("loading constant part");
                 pairs.insert(i, j, tmp);
                 CCPotentials::compute_excited_pair_energy(world, pairs(i, j), x, info);
             } else error("Unknown pairtype");
