@@ -1151,16 +1151,15 @@ CCPair CCPotentials::iterate_pair_macrotask(World& world,
         real_function_6d unew = Q12(GVmp2 + constant_part);
         if (info.parameters.debug()) unew.print_size("Q12(unew)");
 
-        const real_function_6d residue =  result.function() - unew;
-        const double error = residue.norm2();
+        const real_function_6d residual =  result.function() - unew;
+        double rmsresidual=residual.norm2();
+
         if (info.parameters.kain()) {
 
-            real_function_6d kain_update = copy(solver.update(result.function(), residue));
+            real_function_6d kain_update = copy(solver.update(result.function(), residual));
             // kain_update = CCOPS.apply_Q12t(kain_update, CCOPS.mo_ket());
             kain_update = Q12(kain_update);
-            kain_update.print_size("Kain-Update-Function not truncated");
-            kain_update.truncate().reduce_rank();
-            kain_update.print_size("Kain-Update-Function truncated");
+            if (info.parameters.debug()) kain_update.print_size("Kain-Update-Function");
             result.update_u(copy(kain_update));
         } else {
             result.update_u(unew);
@@ -1172,25 +1171,14 @@ CCPair CCPotentials::iterate_pair_macrotask(World& world,
         if (result.ctype == CT_MP2) omega_new = CCPotentials::compute_pair_correlation_energy(world, info, result);
         else if (result.type == EXCITED_STATE) omega_new = CCPotentials::compute_excited_pair_energy(world, result, ex_singles, info);
         double delta = omega_partial - omega_new;
-
-        const double current_norm = result.function().norm2();
-
         omega_partial = omega_new;
-        if (world.rank() == 0) {
-            std::cout << std::fixed
-                      << std::setw(50) << std::setfill('#')
-                      << "\n" << "Iteration " << iter << " of pair " << result.name()
-                      << std::setprecision(4) << "||u|| = " << current_norm
-                      << "\n" << std::setprecision(10) << "error = " << error << "\nomega(partial) = " << omega_partial << "\ndelta = "
-                      << delta << "\n"
-                      << std::setw(50) << std::setfill('#') << "\n";
-        }
 
+        print_convergence(pair.name(),rmsresidual,rmsresidual,delta,iter);
 
         // output("\n--Iteration " + stringify(iter) + " ended--");
         // save(result.function(), result.name());
         // timer_mp2.info();
-        bool converged=(fabs(error) < info.parameters.dconv_6D())  and (fabs(delta) < info.parameters.econv_pairs());
+        bool converged=(rmsresidual < info.parameters.dconv_6D())  and (fabs(delta) < info.parameters.econv_pairs());
         if (converged) {
             if (world.rank()==0) print("Iteration converged after",iter,"iterations");
             break;

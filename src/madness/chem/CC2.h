@@ -116,20 +116,6 @@ public:
         output("Plotted " + msg);
     }
 
-    /// return RMS norm and max norm of residuals
-    static std::pair<double,double> residual_stats(const std::vector<real_function_6d>& residual) {
-        if (residual.size()==0) return std::make_pair(0.0,0.0);
-        World& world=residual.front().world();
-        auto errors=norm2s(world,residual);
-        double rnorm=0.0, maxrnorm=0.0;
-        for (double& e : errors) {
-            maxrnorm=std::max(maxrnorm,e);
-            rnorm+=e*e;
-        }
-        rnorm=sqrt(rnorm/errors.size());
-        return std::make_pair(rnorm,maxrnorm);
-    }
-
     /// The World
     World& world;
     /// Structure holds all the parameters used in the CC2 calculation
@@ -234,13 +220,14 @@ public:
         CC_vecfunction old_singles(singles);
         for (auto& tmp : singles.functions)
             old_singles(tmp.first).function = copy(tmp.second.function);
+        double old_omega=0.0;
 
         // KAIN solver
         typedef vector_function_allocator<double, 3> allocT;
         typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
-        allocT alloc(world, singles.size());
         solverT solver(allocT(world, singles.size()));
         solver.do_print = (world.rank() == 0);
+
 
         for (size_t iter = 0; iter < maxiter; iter++) {
             output.subsection("Microiteration " + std::to_string(iter) + " of " + assign_name(ctype) + "-Singles");
@@ -289,6 +276,7 @@ public:
             time_V.info(true, norm2(world, V));
 
             if (ctype == CT_LRCCS or ctype == CT_LRCC2 or ctype == CT_ADC2) {
+                old_omega=omega;
                 omega = singles.omega; // computed with the potential
             }
 
@@ -333,6 +321,7 @@ public:
             const Tensor<double> R2GVinnerGV = inner(world, info.R_square*GV, GV);
             const Tensor<double> R2rinnerr = inner(world, info.R_square*residual, residual);
             const double R2vector_error = sqrt(R2rinnerr.sum());
+            auto [rmsresidual, maxresidual]=CCPotentials::residual_stats(residual);
 
             // print information
             if (world.rank() == 0) std::cout << "\n\n-----Results of current interation:-----\n";
@@ -353,43 +342,31 @@ public:
 
             // make second order update (only for response)
             if (ctype == CT_LRCC2 or ctype == CT_LRCCS) {
-                output("\nMake 2nd order energy update:");
-                // include nuclear factors
-                {
-                    // vector_real_function_3d bra_res = mul(world, nemo->ncf->square(), residual);
-                    // vector_real_function_3d bra_GV = mul(world, nemo->ncf->square(), GV);
-                    double Rtmp = inner(world, info.R_square*residual, V).sum();
-                    double Rtmp2 = inner(world, info.R_square*GV, GV).sum();
-                    const double Rdelta = (0.5 * Rtmp / Rtmp2);
-                    double old_omega = omega;
-                    output("Delta-Update is not used");
-                    if (world.rank() == 0)
-                        std::cout << "omega, old_omega, delta" << std::fixed
-                                  << std::setprecision(info.parameters.output_prec() + 2) << omega << ", " << old_omega << ", "
-                                  << Rdelta << "\n\n";
-                }
-
+                double Rtmp = inner(world, info.R_square*residual, V).sum();
+                double Rtmp2 = inner(world, info.R_square*GV, GV).sum();
+                const double Rdelta = (0.5 * Rtmp / Rtmp2);
+                if (world.rank() == 0) std::cout << "omega, second-order update (FYI): " << std::fixed
+                              << std::setprecision(info.parameters.output_prec() + 2) << omega << ", " << Rdelta << "\n\n";
             }
 
             // update singles
             singles.omega = omega;
-            vector_real_function_3d new_singles = GV;
+            vector_real_function_3d new_singles = truncate(GV);
             if (info.parameters.kain()) new_singles = solver.update(singles.get_vecfunction(), residual);
-            print_size(world, new_singles, "new_singles");
-            truncate(world, new_singles);
-            print_size(world, new_singles, "new_singles");
+            if (info.parameters.debug()) {
+                print_size(world, new_singles, "new_singles");
+            }
             for (size_t i = 0; i < GV.size(); i++) {
                 singles(i + info.parameters.freeze()).function = copy(new_singles[i]);
             }
-
-            // update intermediates
-            // CCOPS.update_intermediates(singles);
 
             // update reg_residues of doubles
             if (ctype==CT_CC2) update_reg_residues_gs(world, singles,gs_doubles, info);
             else if(ctype==CT_LRCC2) update_reg_residues_ex(world, singles2,singles,ex_doubles, info);
 
+            CCPotentials::print_convergence(singles.name(0),rmsresidual,rmsresidual,omega-old_omega,iter);
             converged = (R2vector_error < info.parameters.dconv_3D());
+
 
             time.info();
             if (converged) break;

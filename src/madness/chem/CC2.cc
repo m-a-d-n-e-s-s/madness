@@ -494,7 +494,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
         auto residual=u-unew;
 
         // some statistics
-        auto [rmsrnorm, maxrnorm]=residual_stats(residual);
+        auto [rmsrnorm, maxrnorm]=CCPotentials::residual_stats(residual);
 
         // update the pair functions
         if (parameters.kain()) {
@@ -671,53 +671,46 @@ bool
 CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
                          const CC_vecfunction lrcc2_s, Pairs<CCPair>& lrcc2_d, const Info& info) {
     // output.section("Solve LRCC2 for Excitation energy " + std::to_string(double(lrcc2_s.omega)));
-    print_header2("Solve LRCC2 for Excitation energy " + std::to_string(double(lrcc2_s.omega)));
+    if (world.rank()==0) {
+        print_header3("Solving LRCC2 doubles equations");
+        print("starting at time ",wall_time());
+        print("using macrotasks with redirected output");
+    }
     MADNESS_ASSERT(lrcc2_s.type == RESPONSE);
 
     auto triangular_map=PairVectorMap::triangular_map(info.parameters.freeze(),info.mo_ket.size());
     auto pair_vec=Pairs<CCPair>::pairs2vector(lrcc2_d,triangular_map);
 
-
     // make new constant part
-    {
-        std::vector<real_function_6d> cp;
-        // try {
-            // load_function(world, cp, "constant_part");
-        // } catch (...) {
-            MacroTaskConstantPart tc;
-            MacroTask task(world, tc);
-            // std::vector<real_function_6d> constant_part_vec = task(pair_vec, cc2_s.get_vecfunction(),
-            cp = task(pair_vec, cc2_s.get_vecfunction(),
-            lrcc2_s.get_vecfunction(), info) ;
-            // save_function( cp, "constant_part");
-        // }
+    MacroTaskConstantPart tc;
+    MacroTask task(world, tc);
+    auto cp = task(pair_vec, cc2_s.get_vecfunction(), lrcc2_s.get_vecfunction(), info) ;
 
-        for (int i=0; i<pair_vec.size(); ++i) {
-            // assign constant part
-            // pair_vec[i].constant_part=constant_part_vec[i];
-            pair_vec[i].constant_part=cp[i];
+    for (int i=0; i<pair_vec.size(); ++i) {
+        pair_vec[i].constant_part=cp[i];
 
-            // if no function has been computed so far use the constant part (first iteration)
-            if (not pair_vec[i].function().is_initialized()) pair_vec[i].update_u(pair_vec[i].constant_part);
-        }
+        // if no function has been computed so far use the constant part (first iteration)
+        if (not pair_vec[i].function().is_initialized()) pair_vec[i].update_u(pair_vec[i].constant_part);
     }
 
-    CCPotentials::compute_excited_pair_energy(world,pair_vec[0],lrcc2_s,info);
     // iterate the pair
     MacroTaskIteratePair t1;
     MacroTask task1(world, t1);
-    std::vector<real_function_3d> vdummy_3d;         // dummy vectors
     // temporary fix: create dummy functions to that the cloud is not confused
     real_function_6d tmp=real_factory_6d(world).functor([](const coord_6d& r){return 0.0;});
     std::vector<real_function_6d> vdummy_6d(pair_vec.size(),tmp);         // dummy vectors
-    const std::size_t maxiter=3;
+    const std::size_t maxiter=10;
     auto unew = task1(pair_vec, vdummy_6d, cc2_s, lrcc2_s, info, maxiter);
 
     // get some statistics
     std::vector<Function<double,6>> uold;
     for (const auto & p : pair_vec) uold.push_back(p.function());
     auto residual=uold-unew;
-    auto [rmsrnorm, rmsrmax] = residual_stats(residual);
+    double nold=norm2(world,uold);
+    double nnew=norm2(world,unew);
+    print("norm(old), norm(new) ",nold,nnew);
+    auto [rmsrnorm, rmsrmax] = CCPotentials::residual_stats(residual);
+    CCPotentials::print_convergence("LRCC2 doubles",rmsrnorm, rmsrmax,0,0);
 
     // update the pair functions
     for (int i=0; i<pair_vec.size(); ++i) pair_vec[i].update_u(unew[i]);
@@ -795,7 +788,7 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) cons
             for (int i=0; i<pair_vec.size(); ++i) pair_vec[i].update_u(unew[i]);
             doubles=Pairs<CCPair>::vector2pairs(pair_vec,triangular_map);
 
-            auto [rmsrnorm,maxrnorm]=residual_stats(residual);
+            auto [rmsrnorm,maxrnorm]=CCPotentials::residual_stats(residual);
             bool doubles_converged=rmsrnorm<parameters.dconv_6D();
 
             // check if singles converged
@@ -866,12 +859,13 @@ CC2::solve_lrcc2(Pairs<CCPair>& gs_doubles, const CC_vecfunction& gs_singles, co
     const double omega_cis = ex_singles.omega;
 
     for (size_t iter = 0; iter < parameters.iter_max(); iter++) {
-        output.section("Macroiteration " + std::to_string(int(iter)) + " of LRCC2");
-        bool dconv = iterate_lrcc2_pairs(world, gs_singles, ex_singles, ex_doubles, info);
-        bool sconv = iterate_lrcc2_singles(world, gs_singles, gs_doubles, ex_singles, ex_doubles, info);
-        update_reg_residues_ex(world, gs_singles, ex_singles, ex_doubles, info);
-        if (dconv and sconv) break;
+        print_header2("Macroiteration " + std::to_string(int(iter)) + " of LRCC2 for energy "+std::to_string(ex_singles.omega));
+        bool sconv = iterate_lrcc2_pairs(world, gs_singles, ex_singles, ex_doubles, info);
+        bool dconv = iterate_lrcc2_singles(world, gs_singles, gs_doubles, ex_singles, ex_doubles, info);
+        // update_reg_residues_ex(world, gs_singles, ex_singles, ex_doubles, info);
+        if (sconv and dconv) break;
     }
+
     const double omega_cc2 = ex_singles.omega;
     const std::string msg = "Excitation " + std::to_string(int(excitation));
     results_ex.push_back(std::make_pair(msg, std::make_pair(omega_cis, omega_cc2)));
