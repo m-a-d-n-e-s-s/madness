@@ -182,11 +182,6 @@ void FrequencyResponse::iterate(World &world)
                         molresponse::end_timer(world, "Save:");
                 }
 
-
-
-
-
-
                 break;
             }
         }
@@ -621,7 +616,6 @@ std::pair<Tensor<double>, std::vector<std::string>> QuadraticResponse::compute_b
     }
     beta *= -2.0;
     world.gop.fence();
-
 
     return {beta, beta_indices};
 }
@@ -1215,18 +1209,37 @@ X_space QuadraticResponse::compute_coulomb_term(World &world, const X_space &B, 
     return J;
 }
 
-auto Koperator(const vecfuncT &ket, const vecfuncT &bra)
-{
-    const double lo = 1.e-10;
-    auto &world = ket[0].world();
-    Exchange<double, 3> k{world, lo};
-    k.set_bra_and_ket(bra, ket);
-    k.set_algorithm(k.multiworld_efficient);
-    return k;
-};
-
 X_space QuadraticResponse::compute_exchange_term(World &world, const X_space &A, const X_space &B, const X_space &x_apply) const
 {
+
+    auto Koperator = [&](const vecfuncT &ket, const vecfuncT &bra)
+    {
+        const double lo = 1.e-10;
+        auto &world = ket[0].world();
+        Exchange<double, 3> k{world, lo};
+        k.set_bra_and_ket(bra, ket);
+
+        std::string algorithm_ = r_params.hfexalg();
+
+        if (algorithm_ == "multiworld")
+        {
+            k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
+        }
+        else if (algorithm_ == "multiworld_row")
+        {
+            k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient_row);
+        }
+        else if (algorithm_ == "largemem")
+        {
+            k.set_algorithm(Exchange<double, 3>::Algorithm::large_memory);
+        }
+        else if (algorithm_ == "smallmem")
+        {
+            k.set_algorithm(Exchange<double, 3>::Algorithm::small_memory);
+        }
+
+        return k;
+    };
 
     // if the frequecy of A is 0 we run the static case
     // else we run the dynamic case

@@ -1085,6 +1085,7 @@ public:
                 quad_parameters.set_user_defined_value("quadratic", true);
                 quad_parameters.set_user_defined_value("freq_range", molresponse_params.freq_range());
                 quad_parameters.set_user_defined_value("xc", moldft_params.xc());
+                quad_parameters.set_user_defined_value("hfexalg",molresponse_params.hfexalg());
 
                 if (op == "dipole")
                 {

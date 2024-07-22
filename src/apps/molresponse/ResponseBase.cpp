@@ -308,6 +308,11 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const -> std::pair<Tenso
             // if (world.rank() == 0) print("selecting exchange multi world");
             k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
         }
+        else if(r_params.hfexalg() =="multiworld_row")
+        {
+            // if (world.rank() == 0) print("selecting exchange multi world efficient");
+            k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient_row);
+        }
         else if (r_params.hfexalg() == "largemem")
         {
             // if (world.rank() == 0) print("selecting exchange large memory");

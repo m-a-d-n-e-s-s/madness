@@ -71,7 +71,7 @@ namespace madness
             initialize<std::string>("xc", "hf", "XC input line");
             initialize<std::string>("hfexalg", "multiworld",
                                     "hf exchange algorithm: choose from multiworld "
-                                    "(default), smallmem, largemem");
+                                    "(default), multiworld_row, smallmem, largemem");
             initialize<bool>("save", false, "if true save orbitals to disk");
             initialize<std::string>("save_file", "none", "File name to save orbitals for restart");
             initialize<bool>("save_density", false, "Flag to save density at each iteration");

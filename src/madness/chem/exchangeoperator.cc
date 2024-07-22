@@ -71,6 +71,8 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     vecfuncT Kf;
     if (algorithm_ == multiworld_efficient) {
         Kf = K_macrotask_efficient(vket, mul_tol);
+    } else if (algorithm_ == multiworld_efficient_row) {
+        Kf = K_macrotask_efficient_row(vket, mul_tol);
     } else if (algorithm_ == small_memory) {
         Kf = K_small_memory(vket, mul_tol);     // Smaller memory algorithm ... possible 2x saving using i-j sym
     } else if (algorithm_ == large_memory) {
@@ -111,6 +113,36 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     // the result is a vector of functions living in the universe
     const long nresult = vf.size();
     MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric());
+    vecfuncT Kf;
+
+    // deferred execution if a taskq is provided by the user
+    if (taskq) {
+        taskq->set_printlevel(printlevel);
+        MacroTask mtask(world, xtask, taskq);
+        Kf = mtask(vf, mo_bra, mo_ket);
+    } else {
+        auto taskq_ptr = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
+        taskq_ptr->set_printlevel(printlevel);
+        MacroTask mtask(world, xtask, taskq_ptr);
+        Kf = mtask(vf, mo_bra, mo_ket);
+        taskq_ptr->run_all();
+        if (printdebug()) taskq_ptr->cloud.print_timings(world);
+        taskq_ptr->cloud.clear_timings();
+        world.gop.fence();
+    }
+    return Kf;
+}
+
+/// compute each row of the exchange matrix in different subworlds
+template<typename T, std::size_t NDIM>
+std::vector<Function<T, NDIM> >
+Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient_row(const vecfuncT& vf, const double mul_tol) const {
+
+    if (world.rank()==0 and printdebug()) print("\nentering macrotask_efficient_row version:");
+
+    // the result is a vector of functions living in the universe
+    const long nresult = vf.size();
+    MacroTaskExchangeRow xtask(nresult, lo, mul_tol);
     vecfuncT Kf;
 
     // deferred execution if a taskq is provided by the user
