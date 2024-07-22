@@ -175,18 +175,12 @@ void CCParameters::set_derived_values() {
     set_derived_value("tight_thresh_6d",thresh_6D()*0.1);
     set_derived_value("thresh_3d",thresh_6D()*0.01);
     set_derived_value("tight_thresh_3d",thresh_3D()*0.1);
-//    if (thresh_operators == uninitialized) thresh_operators = 1.e-6;
-//    if (thresh_operators_3D == uninitialized) thresh_operators_3D = thresh_operators;
-//    if (thresh_operators_6D == uninitialized) thresh_operators_6D = thresh_operators;
-//    if (thresh_bsh_3D == uninitialized) thresh_bsh_3D = thresh_operators_3D;
-//    if (thresh_bsh_6D == uninitialized) thresh_bsh_6D = thresh_operators_6D;
-//    if (thresh_poisson == uninitialized) thresh_poisson = thresh_operators_3D;
-//    if (thresh_f12 == uninitialized) thresh_f12 = thresh_operators_3D;
     set_derived_value("thresh_ue",tight_thresh_6D());
-    set_derived_value("dconv_6d",thresh_6D());
-    set_derived_value("dconv_3d",thresh_6D());
+    set_derived_value("dconv_6d",3.0*thresh_6D());
+    set_derived_value("dconv_3d",3.0*thresh_3D());
     set_derived_value("econv",0.1*dconv_6D());
     set_derived_value("econv_pairs",econv());
+
 
     set_derived_value("no_compute_gs",no_compute());
     set_derived_value("no_compute_mp2",no_compute() and no_compute_gs());

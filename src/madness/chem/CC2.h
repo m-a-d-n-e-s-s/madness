@@ -228,6 +228,7 @@ public:
         solverT solver(allocT(world, singles.size()));
         solver.do_print = (world.rank() == 0);
 
+        print_size(world, singles.get_vecfunction(), "singles before iteration");
 
         for (size_t iter = 0; iter < maxiter; iter++) {
             output.subsection("Microiteration " + std::to_string(iter) + " of " + assign_name(ctype) + "-Singles");
@@ -375,6 +376,7 @@ public:
             if (ctype == CT_LRCCS) break; // for CCS just one iteration to check convergence
         }
         time_all.info();
+        print_size(world, singles.get_vecfunction(), "singles after iteration");
 
         // Assign the overall changes
         bool no_change = true;

@@ -230,11 +230,11 @@ struct CCParameters : public QCCalculationParametersBase {
         initialize < double > ("thresh_Ue", thresh_operators, "ue threshold");
         initialize < double > ("econv", thresh, "overal convergence threshold ");
         initialize < double > ("econv_pairs", 0.1*thresh, "convergence threshold for pairs");
-        initialize < double > ("dconv_3d", 0.01*thresh, "convergence for cc singles");
-        initialize < double > ("dconv_6d", thresh, "convergence for cc doubles");
+        initialize < double > ("dconv_3d", 0.03*thresh, "convergence for cc singles");
+        initialize < double > ("dconv_6d", 3.0*thresh, "convergence for cc doubles");
         initialize < std::size_t > ("iter_max", 10, "max iterations");
-        initialize < std::size_t > ("iter_max_3d", 10, "max iterations");
-        initialize < std::size_t > ("iter_max_6d", 10, "max iterations");
+        initialize < std::size_t > ("iter_max_3d", 10, "max iterations for singles");
+        initialize < std::size_t > ("iter_max_6d", 10, "max iterations for doubles");
         initialize < std::pair<int, int>> ("only_pair", {-1, -1}, "compute only a single pair");
         initialize < bool > ("restart", false, "restart");
         initialize < bool > ("no_compute", false, "no compute");
@@ -254,11 +254,11 @@ struct CCParameters : public QCCalculationParametersBase {
         initialize < long > ("freeze", -1, "number of frozen orbitals: -1: automatic");
         initialize < bool > ("test", false, "");
         // choose if Q for the constant part of MP2 and related calculations should be decomposed: GQV or GV - GO12V
-        initialize < bool > ("decompose_Q", true, "");
+        initialize < bool > ("decompose_Q", true, "always true",{true});
         // if true the ansatz for the CC2 ground state pairs is |tau_ij> = |u_ij> + Qtf12|titj>, with Qt = Q - |tau><phi|
         // if false the ansatz is the same with normal Q projector
         // the response ansatz is the corresponding response of the gs ansatz
-        initialize < bool > ("QtAnsatz", true, "");
+        initialize < bool > ("QtAnsatz", true, "always true",{true});
         // a vector containing the excitations which shall be optizmized later (with CIS(D) or CC2)
         initialize < std::vector<size_t>>
         ("excitations", {}, "vector containing the excitations");

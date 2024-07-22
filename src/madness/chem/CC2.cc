@@ -685,6 +685,7 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
     MacroTaskConstantPart tc;
     MacroTask task(world, tc);
     auto cp = task(pair_vec, cc2_s.get_vecfunction(), lrcc2_s.get_vecfunction(), info) ;
+    print_size(world,cp,"constant part in iter");
 
     for (int i=0; i<pair_vec.size(); ++i) {
         pair_vec[i].constant_part=cp[i];
@@ -692,6 +693,7 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
         // if no function has been computed so far use the constant part (first iteration)
         if (not pair_vec[i].function().is_initialized()) pair_vec[i].update_u(pair_vec[i].constant_part);
     }
+    for (const auto& p : pair_vec) p.function().print_size("u before iter");
 
     // iterate the pair
     MacroTaskIteratePair t1;
@@ -702,6 +704,7 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
     const std::size_t maxiter=10;
     auto unew = task1(pair_vec, vdummy_6d, cc2_s, lrcc2_s, info, maxiter);
 
+    for (const auto& u : unew) u.print_size("u after iter");
     // get some statistics
     std::vector<Function<double,6>> uold;
     for (const auto & p : pair_vec) uold.push_back(p.function());
@@ -860,6 +863,7 @@ CC2::solve_lrcc2(Pairs<CCPair>& gs_doubles, const CC_vecfunction& gs_singles, co
 
     for (size_t iter = 0; iter < parameters.iter_max(); iter++) {
         print_header2("Macroiteration " + std::to_string(int(iter)) + " of LRCC2 for excitation energy "+std::to_string(ex_singles.omega));
+        update_reg_residues_ex(world, gs_singles, ex_singles, ex_doubles, info);
         bool dconv = iterate_lrcc2_pairs(world, gs_singles, ex_singles, ex_doubles, info);
         bool sconv = iterate_lrcc2_singles(world, gs_singles, gs_doubles, ex_singles, ex_doubles, info);
         // update_reg_residues_ex(world, gs_singles, ex_singles, ex_doubles, info);
