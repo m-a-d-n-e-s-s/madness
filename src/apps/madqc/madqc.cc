@@ -30,48 +30,108 @@
 */
 
 #include "madchem.h"
+#include "parameters_manager.hpp"
 
 using namespace madness;
 
+int main(int argc, char **argv) {
 
+  World &world = initialize(argc, argv, false);
+  if (world.rank() == 0) {
+    print_header1("MADQC -- numerical quantum chemistry in MADNESS");
+  }
 
-int main(int argc, char** argv) {
+  startup(world, argc, argv, true);
+  std::cout.precision(6);
+  if (world.rank() == 0)
+    print(info::print_revision_information());
 
+  commandlineparser parser(argc, argv);
 
-    World& world=initialize(argc, argv,false);
-    if (world.rank() == 0) {
-        print_header1("MADQC -- numerical quantum chemistry in MADNESS");
+  ParameterManager params;
+
+  if (parser.key_exists("help")) {
+    ParameterManager::help();
+  } else if (parser.key_exists("print_parameters")) {
+    params.print_params();
+  } else {
+    if (parser.key_exists("dft")) {
+      print("Running DFT");
+    }
+    if (parser.key_exists("response")) {
+      print("Running Response");
+    }
+    if (parser.key_exists("quadratic")) {
+      print("Running Quadratic Response");
     }
 
-    startup(world,argc,argv,true);
-    std::cout.precision(6);
-    if (world.rank()==0) print(info::print_revision_information());
+    try {
+      // I need to write a help and a print parameters function which will be
+      // called by the commandlineparser
+      print_meminfo(world.rank(), "startup");
 
+      ParameterManager params;
+      if (argc == 1) {
+        if (world.rank() == 0) {
+          print("No input file found");
+          print("For help type: ./mad-dft --help");
+          print("For print parameters type: ./mad-dft --print_parameters");
+        }
+        return 1;
+      } else if (argc == 2) {
+        path input_file(argv[1]);
+        if (world.rank() == 0) {
+          print("Input file found");
+          print("Parsing Command Line");
+        }
+        params = ParameterManager(world, input_file);
+      } else if (argc == 3) {
+        if (world.rank() == 0) {
+          print("Input and mol file found");
+        }
+        path input_file(argv[1]);
+        path mol_input(argv[2]);
+        params = ParameterManager(world, {input_file, mol_input});
+      } else {
+        error("Too many arguments");
+      }
 
-    commandlineparser parser(argc,argv);
-
+    } catch (const SafeMPI::Exception &e) {
+      print(e.what());
+      error("caught an MPI exception");
+    } catch (const madness::MadnessException &e) {
+      print(e);
+      error("caught a MADNESS exception");
+    } catch (const madness::TensorException &e) {
+      print(e.what());
+      error("caught a Tensor exception");
+    } catch (const nlohmann::detail::exception &e) {
+      print(e.what());
+      error("Caught JSON exception");
+    } catch (const std::filesystem::filesystem_error &ex) {
+      std::cerr << ex.what() << "\n";
+    } catch (const std::exception &e) {
+      print(e.what());
+      error("caught an STL exception");
+    } catch (...) {
+      error("caught unhandled exception");
+    }
+    // Nearly all memory will be freed at this point
+    print_stats(world);
     // create parameter classes
     // 1. read in all input blocks independently
     // 2. set up parameter logic
     // 2a from the model downstream
     // 2b from the task downstream
 
-
     // read input file
     // read into parameter handler
 
-
-
-
     // create class corresponding to qc model
-
-
-
-
 
     // check for the existence of the input file
 
-
     finalize();
     return 0;
+  }
 }
