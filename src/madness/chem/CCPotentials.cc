@@ -130,7 +130,7 @@ CCPair CCPotentials::make_pair_lrcc2(World& world, const CalcType& ctype, const 
     MADNESS_ASSERT(!(j < info.parameters.freeze()));
 
     // compute the t intermediates for active orbitals only -- they go into the ansatz
-    const CC_vecfunction t = info.get_active_mo_ket()+gs_singles.get_vecfunction();
+    const auto t = CC_vecfunction(info.get_active_mo_ket()+gs_singles.get_vecfunction(),MIXED,info.parameters.freeze());
     MADNESS_ASSERT(t.size() == (info.mo_ket.size()-info.parameters.freeze()));
 
     // compute the t intermediates for all orbitals -- they go into the projector
@@ -390,7 +390,6 @@ CCPotentials::make_pair_ex(const real_function_6d& u, const CC_vecfunction& tau,
             functions.push_back(res);
         }
     }
-    functions=consolidate(functions);
     CCPair pair(i, j, EXCITED_STATE, ctype, functions);
     if (parameters.decompose_Q()) {
         if (parameters.QtAnsatz()) MADNESS_ASSERT(functions.size() == 9);
@@ -398,6 +397,8 @@ CCPotentials::make_pair_ex(const real_function_6d& u, const CC_vecfunction& tau,
             MADNESS_ASSERT(functions.size() == 7);
     } else
         MADNESS_ASSERT(functions.size() == 2);
+    functions=consolidate(functions);
+    MADNESS_ASSERT(functions.size() == 3);
 
     MADNESS_ASSERT(x.omega != 0.0);
     const double bsh_eps = get_epsilon(i, j) + x.omega;
