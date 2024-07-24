@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
   return result;
 }
 
-TEST_CASE("Path Manager", "MoldftPathStrategy") {
+TEST_CASE("MoldftStrategy", "PathStrategy") {
   World& world = World::get_default();
 
   PathManager path_manager;
@@ -32,6 +32,25 @@ TEST_CASE("Path Manager", "MoldftPathStrategy") {
   path_manager.addStrategy(std::make_unique<MoldftPathStrategy>("moldft_1"));
   path_manager.addStrategy(std::make_unique<MoldftPathStrategy>("moldft_2"));
 
+  json paths = path_manager.generateCalcPaths("root");
+  std::cout << paths.dump(4) << std::endl;
+};
+
+TEST_CASE("ResponsePathStrategy", "PathStrategy") {
+  World& world = World::get_default();
+
+  PathManager path_manager;
+
+  // a default path strategy is added
+  path_manager.addStrategy(std::make_unique<MoldftPathStrategy>());
+
+  std::vector<double> freq_range = {0.0, 0.056, 0.1};
+  std::string perturbation = "dipole";
+  std::string xc = "lda";
+  ResponseInput input = std::make_tuple(perturbation, xc, freq_range);
+
+  path_manager.addStrategy(
+      std::make_unique<ResponsePathStrategy>("response", input));
   json paths = path_manager.generateCalcPaths("root");
   // output the paths
   std::cout << paths.dump(4) << std::endl;

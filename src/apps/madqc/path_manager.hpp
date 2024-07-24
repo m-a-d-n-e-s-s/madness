@@ -11,6 +11,8 @@ using path = std::filesystem::path;
 using json = nlohmann::json;
 using commandlineparser = madness::commandlineparser;
 
+using ResponseInput = std::tuple<std::string, std::string, std::vector<double>>;
+
 using namespace madness;
 
 class PathStrategy {
@@ -31,7 +33,7 @@ class CompositePathStrategy : public PathStrategy {
   }
 
   json generateCalcPaths(const path& root) override {
-    json result ={};
+    json result = {};
     for (const auto& strategy : strategies) {
       json paths = strategy->generateCalcPaths(root);
       // I know there should only be one key in the json object.
@@ -89,4 +91,83 @@ class MoldftPathStrategy : public PathStrategy {
   explicit MoldftPathStrategy() = default;
   explicit MoldftPathStrategy(std::string calc_name)
       : calc_name(std::move(calc_name)) {}
+};
+
+class ResponsePathStrategy : public PathStrategy {
+
+  std::string calc_name = "response";
+  std::string perturbation;
+  std::string xc;
+  std::vector<double> frequencies;
+  // sets the current path to the save path
+  /**
+     * Generates the frequency save path with format
+     * /frequency_run_path/restart_[frequency_run_filename].00000
+     *
+     * @param frequency_run_path
+     * @return
+     */
+  static path restart_path(const std::filesystem::path& calc_path) {
+
+    auto save_path = std::filesystem::path(calc_path);
+    auto run_name = calc_path.filename();
+    std::string save_string = "restart_" + run_name.string();
+    save_path += "/";
+    save_path += save_string;
+    save_path += ".00000";
+
+    return save_path;
+  }
+
+  /**
+     * generates the frequency response path using the format
+     * [property]_[xc]_[1-100]
+     *
+     * where 1-100 corresponds a frequency of 1.100
+     *
+     * @param moldft_path
+     * @param property
+     * @param frequency
+     * @param xc
+     * @return
+     */
+  [[nodiscard]] auto calc_path(const path& root, const double& frequency) const
+      -> std::filesystem::path {
+    std::string s_frequency = std::to_string(frequency);
+    auto sp = s_frequency.find('.');
+    s_frequency = s_frequency.replace(sp, sp, "-");
+    std::string run_name = perturbation + "_" + xc + "_" + s_frequency;
+    return root / std::filesystem::path(run_name);
+  }
+
+ public:
+  json generateCalcPaths(const path& root) override {
+
+    json paths;
+    paths[calc_name] = {};
+    auto& response = paths[calc_name];
+    response["calculation"] = {};
+    response["output"] = {};
+    response["restart"] = {};
+
+    auto base_path = root / calc_name;
+
+    for (const auto& frequency : frequencies) {
+      auto frequency_run_path = calc_path(base_path, frequency);
+      restart_path(frequency_run_path);
+      response["calculation"].push_back(frequency_run_path);
+      response["restart"].push_back(restart_path(frequency_run_path));
+      response["output"].push_back(frequency_run_path / "response_base.json");
+    }
+    return paths;
+  }
+
+  explicit ResponsePathStrategy() = delete;
+  explicit ResponsePathStrategy(std::string calc_name, ResponseInput input)
+      : calc_name(std::move(calc_name)),
+        perturbation(std::get<0>(input)),
+        xc(std::get<1>(input)),
+        frequencies(std::get<2>(input)) {}
+  explicit ResponsePathStrategy(ResponseInput input)
+      : ResponsePathStrategy("response", std::move(input)) {}
 };
