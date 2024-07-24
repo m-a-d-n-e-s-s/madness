@@ -1,3 +1,8 @@
+#ifndef MADCHEM_PATH_MANAGER_HPP
+#define MADCHEM_PATH_MANAGER_HPP
+//
+//
+// Purpose: Contains the classes for managing the paths for the calculations.
 #include <apps/molresponse/response_parameters.h>
 #include <madchem.h>
 #include <madness/chem/CalculationParameters.h>
@@ -246,3 +251,4 @@ class MP2PathStrategy : public PathStrategy {
   explicit MP2PathStrategy(std::string calc_name)
       : calc_name(std::move(calc_name)){};
 };
+#endif  // MADCHEM_PATH_MANAGER_HPP

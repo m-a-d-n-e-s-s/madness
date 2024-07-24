@@ -16,7 +16,7 @@ install(TARGETS madqc DESTINATION "${MADNESS_INSTALL_BINDIR}")
 
 
 # The list of unit test source files
-set(RESPONSE_TEST_SOURCES test_pathmanager 
+set(RESPONSE_TEST_SOURCES test_managers 
 )
 
 foreach (EXECUTABLE ${RESPONSE_TEST_SOURCES})

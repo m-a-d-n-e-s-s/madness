@@ -4,6 +4,7 @@
 #include <filesystem>
 #include "madness/external/catch/catch.hpp"
 #include "path_manager.hpp"
+#include "calc_manager.hpp"
 
 using path = std::filesystem::path;
 
@@ -96,3 +97,26 @@ TEST_CASE("MP2PathStrategy", "PathStrategy") {
   json paths = path_manager.generateCalcPaths("root");
   std::cout << paths.dump(4) << std::endl;
 }
+
+
+TEST_CASE("MOLDFT Calculation"){
+
+  World& world = World::get_default();
+
+  CalcManager calc_manager;
+
+
+
+
+
+
+}
+
+
+
+
+
+
+
+
+
