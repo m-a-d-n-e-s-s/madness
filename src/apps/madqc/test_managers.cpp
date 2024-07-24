@@ -2,9 +2,10 @@
 #define CATCH_CONFIG_RUNNER
 
 #include <filesystem>
-#include "madness/external/catch/catch.hpp"
-#include "path_manager.hpp"
 #include "calc_manager.hpp"
+#include "madness/external/catch/catch.hpp"
+#include "parameter_manager.hpp"
+#include "path_manager.hpp"
 
 using path = std::filesystem::path;
 
@@ -98,25 +99,28 @@ TEST_CASE("MP2PathStrategy", "PathStrategy") {
   std::cout << paths.dump(4) << std::endl;
 }
 
-
-TEST_CASE("MOLDFT Calculation"){
+TEST_CASE("MOLDFT Calculation") {
 
   World& world = World::get_default();
 
+  ParameterManager param_manager;
+
+  PathManager path_manager;
+  path_manager.addStrategy(std::make_unique<MoldftPathStrategy>());
+
+  param_manager = ParameterManager(world, {"input.json"});
+  auto params = param_manager.get_moldft_params();
+  auto molecule = param_manager.get_molecule();
+
+  // this is where I we create our calculation
   CalcManager calc_manager;
+  calc_manager.addPathStrategy(std::make_unique<MoldftPathStrategy>());
+  auto moldft_calc =
+      std::make_unique<MoldftCalculationStrategy>(params, molecule);
 
+  calc_manager.setCalculationStrategy(std::move(moldft_calc));
+  // get cwd
+  path cwd = std::filesystem::current_path();
 
-
-
-
-
+  calc_manager.runCalculations(world, cwd);
 }
-
-
-
-
-
-
-
-
-

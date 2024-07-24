@@ -1,7 +1,6 @@
 #ifndef CALC_MANAGER_HPP
 #define CALC_MANAGER_HPP
 
-
 #include <apps/molresponse/response_parameters.h>
 #include <madchem.h>
 #include <madness/chem/CalculationParameters.h>
@@ -47,7 +46,10 @@ class MoldftCalculationStrategy : public CalculationStrategy {
   Molecule molecule;
 
  public:
-  void runCalculation(World& world, const json& moldft_paths) override {
+  void runCalculation(World& world, const json& paths) override {
+
+    // the first step is to look for the moldft paths
+    json moldft_paths = paths["moldft"];
 
     // Get the paths from the json object
     path moldft_path = moldft_paths["calculation"];
@@ -92,7 +94,8 @@ class MoldftCalculationStrategy : public CalculationStrategy {
       world.gop.fence();
       if (world.rank() == 0) {
 
-        auto moldft_input_json = parameters.to_json_if_precedence("defined");
+        json moldft_input_json ={};
+        moldft_input_json["dft"]= parameters.to_json_if_precedence("defined");
         moldft_input_json["molecule"] = molecule.to_json();
 
         std::ofstream ofs("moldft.in");
@@ -193,17 +196,27 @@ class CalcManager {
     strategy = std::move(newStrategy);
   }
 
-  void addPathStrategy(std::unique_ptr<PathStrategy> pathStrategy) {
-    pathManager.addStrategy(std::move(pathStrategy));
-  }
-
   void runCalculations(World& world, const path& root) {
     json paths = pathManager.generateCalcPaths(root);
+    // output the paths to disk
+    if(world.rank()==0) {
+      std::ofstream ofs("paths.json");
+      ofs << paths.dump(4);
+      ofs.close();
+    }
 
-    json allPaths;
-    allPaths.update(paths);
+    if(world.rank()==0) {
+      print(paths.dump(4));
+    }
 
-    strategy->runCalculation(world, allPaths);
+    strategy->runCalculation(world, paths);
+
   }
+
+  void addPathStrategy(std::unique_ptr<PathStrategy> strategy) {
+    pathManager.addStrategy(std::move(strategy));
+  }
+
+  CalcManager() = default;
 };
 #endif

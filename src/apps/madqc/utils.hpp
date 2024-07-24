@@ -1,3 +1,5 @@
+#ifndef UTILS_HPP
+#define UTILS_HPP
 #include <apps/molresponse/response_parameters.h>
 #include <madchem.h>
 #include <madness/chem/CalculationParameters.h>
@@ -88,3 +90,4 @@ void write_moldft_input(const json& input_json, std::ostream& out) {
 void write_response_input(const json& input_json, std::ostream& out) {
   write_json_to_input_file(input_json, {"response"}, out);
 }
+#endif

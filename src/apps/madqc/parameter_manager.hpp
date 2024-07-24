@@ -1,3 +1,5 @@
+#ifndef MADNESS_DFT_RESPONSE_PARAMETER_MANAGER_HPP
+#define MADNESS_DFT_RESPONSE_PARAMETER_MANAGER_HPP
 #include <apps/molresponse/response_parameters.h>
 #include <madchem.h>
 #include <madness/chem/CalculationParameters.h>
@@ -275,3 +277,5 @@ class ParameterManager {
 bool operator==(const ParameterManager& lhs, const ParameterManager& rhs) {
   return lhs.get_input_json() == rhs.get_input_json();
 }
+
+#endif
