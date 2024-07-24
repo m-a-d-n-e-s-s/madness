@@ -54,4 +54,45 @@ TEST_CASE("ResponsePathStrategy", "PathStrategy") {
   json paths = path_manager.generateCalcPaths("root");
   // output the paths
   std::cout << paths.dump(4) << std::endl;
+
+  ResponseInput input_2 = std::make_tuple("nuclear", "xc", freq_range);
+  PathManager response_manager2;
+  response_manager2.addStrategy(std::make_unique<MoldftPathStrategy>());
+  response_manager2.addStrategy(
+      std::make_unique<ResponsePathStrategy>("response", input));
+
+  json paths2 = response_manager2.generateCalcPaths("root");
+  // output the paths
+  std::cout << paths2.dump(4) << std::endl;
 };
+
+TEST_CASE("ExcitedStatePath", "PathStrategy") {
+  World& world = World::get_default();
+
+  PathManager path_manager;
+
+  // a default path strategy is added
+  path_manager.addStrategy(std::make_unique<MoldftPathStrategy>());
+
+  int nums_states = 5;
+  std::string xc = "lda";
+
+  path_manager.addStrategy(std::make_unique<ExcitedStatePathStrategy>(
+      "excited_states", xc, nums_states));
+
+  json paths = path_manager.generateCalcPaths("root");
+  std::cout << paths.dump(4) << std::endl;
+}
+
+TEST_CASE("MP2PathStrategy", "PathStrategy") {
+  World& world = World::get_default();
+
+  PathManager path_manager;
+
+  // a default path strategy is added
+  path_manager.addStrategy(std::make_unique<MoldftPathStrategy>());
+  path_manager.addStrategy(std::make_unique<MP2PathStrategy>());
+
+  json paths = path_manager.generateCalcPaths("root");
+  std::cout << paths.dump(4) << std::endl;
+}

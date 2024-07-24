@@ -171,3 +171,78 @@ class ResponsePathStrategy : public PathStrategy {
   explicit ResponsePathStrategy(ResponseInput input)
       : ResponsePathStrategy("response", std::move(input)) {}
 };
+
+class ExcitedStatePathStrategy : public PathStrategy {
+
+  std::string calc_name = "excited-state";
+  std::string xc;
+  int num_states;
+
+  [[nodiscard]] auto calc_path(const path& root) const
+      -> std::filesystem::path {
+    std::string s_num_states = std::to_string(num_states);
+    std::string run_name = "excited-state_" + xc + "_" + s_num_states;
+    return root / std::filesystem::path(run_name);
+  }
+
+  static path restart_path(const std::filesystem::path& calc_path) {
+
+    auto save_path = std::filesystem::path(calc_path);
+    auto run_name = calc_path.filename();
+    std::string save_string = "restart_" + run_name.string();
+    save_path += "/";
+    save_path += save_string;
+    save_path += ".00000";
+
+    return save_path;
+  }
+
+ public:
+  json generateCalcPaths(const path& root) override {
+
+    json paths;
+    paths[calc_name] = {};
+
+    auto base_path = root / calc_name;
+    auto excited_path = calc_path(base_path);
+
+    auto& excited = paths[calc_name];
+    excited["calculation"] = excited_path;
+    excited["output"] = excited_path / "response_base.json";
+    excited["restart"] = restart_path(excited_path);
+
+    return paths;
+  }
+
+  explicit ExcitedStatePathStrategy() = delete;
+  explicit ExcitedStatePathStrategy(std::string calc_name, std::string xc,
+                                    int num_states)
+      : calc_name(std::move(calc_name)),
+        xc(std::move(xc)),
+        num_states(num_states) {}
+};
+
+class MP2PathStrategy : public PathStrategy {
+
+  std::string calc_name = "mp2";
+
+ public:
+  json generateCalcPaths(const path& root) override {
+
+    json paths;
+    paths[calc_name] = {};
+    auto& mp2 = paths[calc_name];
+
+    auto base_path = root / calc_name;
+
+    mp2["calculation"] = base_path;
+    //mp2["output"] = excited_path / "response_base.json";
+    mp2["restart"] = base_path / "mp2_restartdata.00000";
+
+    return paths;
+  }
+
+  explicit MP2PathStrategy() = default;
+  explicit MP2PathStrategy(std::string calc_name)
+      : calc_name(std::move(calc_name)){};
+};
