@@ -1951,6 +1951,11 @@ void ResponseBase::solve(World &world)
         // Now actually ready to iterate...
         this->iterate(world);
     }
+
+    // At this point we know we converged so we should create alpha.json for the calculation and add it to response_base.json
+    // This way we can read it in later and add it to alpha.json on the fly
+    //
+    //
     // At this point we should know if calc converged maybe add a flag to
     // response.json which states if it has
     converged_to_json(j_molresponse);

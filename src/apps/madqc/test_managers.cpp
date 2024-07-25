@@ -63,7 +63,7 @@ TEST_CASE("ResponsePathStrategy", "PathStrategy") {
   response_manager2.addStrategy(
       std::make_unique<ResponsePathStrategy>("response", input));
 
-  json paths2 = response_manager2.generateCalcPaths("root");
+  json paths2 = response_manager2.generateCalcPaths("");
   // output the paths
   std::cout << paths2.dump(4) << std::endl;
 };
@@ -166,8 +166,6 @@ TEST_CASE("Response Calculation") {
   // get cwd
   path cwd = std::filesystem::current_path();
   calc_manager.runCalculations(world, cwd);
-
-
 
 
 

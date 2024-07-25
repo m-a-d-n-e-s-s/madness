@@ -192,6 +192,19 @@ class ResponseCalculationStrategy : public CalculationStrategy {
       alpha_json["alpha"].push_back(alpha[i]);
     }
   }
+  static void add_alpha_i_to_json(nlohmann::ordered_json& alpha_i,
+                                  nlohmann::ordered_json& alpha_json) {
+    print(alpha_json.dump(4));
+
+    alpha_json["omega"].insert(alpha_json["omega"].end(),
+                               alpha_i["omega"].begin(),
+                               alpha_i["omega"].end());
+    alpha_json["ij"].insert(alpha_json["ij"].end(), alpha_i["ij"].begin(),
+                            alpha_i["ij"].end());
+    alpha_json["alpha"].insert(alpha_json["alpha"].end(),
+                               alpha_i["alpha"].begin(),
+                               alpha_i["alpha"].end());
+  }
 
   /**
      *
@@ -205,7 +218,7 @@ class ResponseCalculationStrategy : public CalculationStrategy {
      * @return
      */
   bool runFrequency(World& world, ResponseParameters& r_params,
-                    double frequency, nlohmann::ordered_json& alpha_json) {
+                    double frequency) {
 
     op = r_params.perturbation();
 
@@ -236,67 +249,70 @@ class ResponseCalculationStrategy : public CalculationStrategy {
       }
     }
     world.gop.broadcast(converged, 0);
+    // add logic to compute alpha.json if needed
+
     if (converged) {
-
       return true;
-    }
-    world.gop.fence();
-    if (world.rank() == 0) {
-      ::print("Running response calculation for frequency: ", frequency);
-    }
-
-    GroundStateCalculation ground_calculation{world, r_params.archive()};
-    Molecule molecule = ground_calculation.molecule();
-    r_params.set_ground_state_calculation_data(ground_calculation);
-    r_params.set_derived_values(world, molecule);
-    CalcParams calc_params = {ground_calculation, molecule, r_params};
-
-    RHS_Generator rhs_generator;
-    if (op == "dipole") {
-      rhs_generator = dipole_generator;
     } else {
-      rhs_generator = nuclear_generator;
-    }
-    FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
-    FrequencyResponse calc(world, calc_params, frequency, rhs_generator);
-    if (world.rank() == 0) {
-      ::print("\n\n");
-      ::print(
-          " MADNESS Time-Dependent Density Functional Theory Response "
-          "Program");
-      ::print(" ----------------------------------------------------------\n");
-      ::print("\n");
-      calc_params.molecule.print();
-      ::print("\n");
-      calc_params.response_parameters.print("response");
-      // put the response parameters in a j_molrespone json object
-      calc_params.response_parameters.to_json(calc.j_molresponse);
-    }
-    calc.solve(world);
-    auto [omega, polar_omega] = calc.get_response_data();
-    // flatten polar_omega
-    auto alpha = polar_omega.flat();
-    std::vector<std::string> ij{"XX", "XY", "XZ", "YX", "YY",
-                                "YZ", "ZX", "ZY", "ZZ"};
 
-    append_to_alpha_json(omega, ij, alpha, alpha_json);
-    std::ofstream outfile("../alpha.json");
-    if (outfile.is_open()) {
-      outfile << alpha_json.dump(4);
-      outfile.close();
-    } else {
-      std::cerr << "Failed to open file for writing: " << "../alpha.json"
-                << std::endl;
-    }
+      world.gop.fence();
+      if (world.rank() == 0) {
+        ::print("Running response calculation for frequency: ", frequency);
+      }
 
-    world.gop.fence();
-    // set protocol to the first
-    if (world.rank() == 0) {
-      // calc.time_data.to_json(calc.j_molresponse);
-      calc.output_json();
+      GroundStateCalculation ground_calculation{world, r_params.archive()};
+      Molecule molecule = ground_calculation.molecule();
+      r_params.set_ground_state_calculation_data(ground_calculation);
+      r_params.set_derived_values(world, molecule);
+      CalcParams calc_params = {ground_calculation, molecule, r_params};
+
+      RHS_Generator rhs_generator;
+      if (op == "dipole") {
+        rhs_generator = dipole_generator;
+      } else {
+        rhs_generator = nuclear_generator;
+      }
+      FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
+      FrequencyResponse calc(world, calc_params, frequency, rhs_generator);
+      if (world.rank() == 0) {
+        ::print("\n\n");
+        ::print(
+            " MADNESS Time-Dependent Density Functional Theory Response "
+            "Program");
+        ::print(
+            " ----------------------------------------------------------\n");
+        ::print("\n");
+        calc_params.molecule.print();
+        ::print("\n");
+        calc_params.response_parameters.print("response");
+        // put the response parameters in a j_molrespone json object
+        calc_params.response_parameters.to_json(calc.j_molresponse);
+      }
+      calc.solve(world);
+      auto [omega, polar_omega] = calc.get_response_data();
+      // flatten polar_omega
+
+      auto alpha = polar_omega.flat();
+
+      std::vector<std::string> ij{"XX", "XY", "XZ", "YX", "YY",
+                                  "YZ", "ZX", "ZY", "ZZ"};
+      nlohmann::ordered_json alpha_json;
+      alpha_json["omega"] = {};
+      alpha_json["ij"] = {};
+      alpha_json["alpha"] = {};
+
+      append_to_alpha_json(omega, ij, alpha, alpha_json);
+      calc.j_molresponse["properties"] = {};
+      calc.j_molresponse["properties"]["alpha"] = alpha_json;
+
+      // set protocol to the first
+      if (world.rank() == 0) {
+        // calc.time_data.to_json(calc.j_molresponse);
+        calc.output_json();
+      }
+      // calc.time_data.print_data();
+      return calc.j_molresponse["converged"];
     }
-    // calc.time_data.print_data();
-    return calc.j_molresponse["converged"];
   }
 
   void runCalculation(World& world, const json& paths) override {
@@ -315,15 +331,17 @@ class ResponseCalculationStrategy : public CalculationStrategy {
     auto alpha_path = response_paths["properties"]["alpha"].get<std::string>();
 
     size_t num_freqs = calc_paths.size();
-    nlohmann::ordered_json alpha_json;
-    //if (std::filesystem::exists(alpha_path)) {
-    //  std::ifstream ifs(alpha_path);
-    //  alpha_json = json::parse(ifs);
-    //}
+    // I need to analyze alpha.json to see which frequencies are missing.
+    // Or I just write them to seperate files and then combine them later?
 
     auto freqs = parameters.freq_range();
 
     bool last_converged = false;
+    nlohmann::ordered_json alpha_json;
+    alpha_json["omega"] = json::array();
+    alpha_json["ij"] = json::array();
+    alpha_json["alpha"] = json::array();
+
     for (size_t i = 0; i < num_freqs; i++) {
 
       auto freq_i = freqs[i];
@@ -394,7 +412,30 @@ class ResponseCalculationStrategy : public CalculationStrategy {
         throw Response_Convergence_Error{};
       }
       world.gop.broadcast_serializable(r_params, 0);
-      last_converged = runFrequency(world, r_params, freq_i, alpha_json);
+      last_converged = runFrequency(world, r_params, freq_i);
+
+      nlohmann::ordered_json alpha_i;
+
+      if (last_converged) {
+        // read output_paths[i]
+        std::ifstream ifs(output_paths[i]);
+        json response_base_i;
+        ifs >> response_base_i;
+        alpha_i = response_base_i["properties"]["alpha"];
+      }
+      if (world.rank() == 0) {
+        print("last converged: ", last_converged);
+        print(alpha_i.dump(4));
+      }
+
+      // combine alpha_json_i with alpha_json
+      add_alpha_i_to_json(alpha_i, alpha_json);
+    }
+
+    std::ofstream out_file(alpha_path);
+
+    if (world.rank() == 0) {
+      out_file << alpha_json.dump(4);
     }
   }
 };
