@@ -308,10 +308,9 @@ public:
 
             // Normalize Singles if it is excited state
             if (ctype == CT_LRCCS or ctype == CT_LRCC2 or ctype == CT_ADC2) {
-                Nemo::normalize(GV, info.R);
-                // output("Normalizing new singles");
-                // const double norm=inner(GV,info.R_square*GV);
-                // scale(world, GV, 1.0 / norm);
+                output("Normalizing new singles");
+                const double norm=inner(GV,info.R_square*GV);
+                scale(world, GV, 1.0 / norm);
             } else output("Singles not normalized");
 
             // residual
@@ -356,8 +355,8 @@ public:
             vector_real_function_3d new_singles = truncate(GV);
             if (info.parameters.kain()) new_singles = solver.update(singles.get_vecfunction(), residual);
             if (info.parameters.debug()) print_size(world, new_singles, "new_singles");
-            if (ctype == CT_LRCCS or ctype == CT_LRCC2 or ctype == CT_ADC2) Nemo::normalize(new_singles, info.R);
-            if (info.parameters.debug()) print_size(world, new_singles, "new_singles normalized");
+            // if (ctype == CT_LRCCS or ctype == CT_LRCC2 or ctype == CT_ADC2) Nemo::normalize(new_singles, info.R);
+            // if (info.parameters.debug()) print_size(world, new_singles, "new_singles normalized");
 
             for (size_t i = 0; i < GV.size(); i++) {
                 singles(i + info.parameters.freeze()).function = copy(new_singles[i]);
@@ -369,7 +368,6 @@ public:
 
             CCPotentials::print_convergence(singles.name(0),rmsresidual,rmsresidual,omega-old_omega,iter);
             converged = (R2vector_error < info.parameters.dconv_3D());
-
 
             time.info();
             if (converged) break;

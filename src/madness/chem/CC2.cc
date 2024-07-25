@@ -761,7 +761,7 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) cons
                 ex_singles_dummy.get_vecfunction(), info) ;
             for (int i=0; i<pair_vec.size(); ++i) pair_vec[i].constant_part=constant_part_vec[i];
 
-            if (world.rank()==0 and parameters.debug()) {
+            if (parameters.debug()) {
                 for (auto& pair: pair_vec) pair.constant_part.print_size("size of constant part macrotask "+pair.name());
             }
 
