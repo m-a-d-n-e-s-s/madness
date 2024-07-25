@@ -25,8 +25,6 @@ foreach (EXECUTABLE ${RESPONSE_TEST_SOURCES})
     target_compile_features(${EXECUTABLE} PRIVATE cxx_std_17)
 endforeach ()
 
-# Copy the test resources found in resources directory
-file(COPY ${CMAKE_SRC_DIR}resources DESTINATION ${CMAKE_BINARY_DIR}/src/apps/molresponse/response_coordinator2)
 
 
 
