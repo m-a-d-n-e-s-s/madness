@@ -128,13 +128,15 @@ TEST_CASE("Response Calculation") {
   World& world = World::get_default();
 
   ParameterManager param_manager;
+  param_manager = ParameterManager(world, {"input.json"});
 
   std::string perturbation = "dipole";
   std::string xc = "hf";
-
   auto response_params = param_manager.get_molresponse_params();
+  std::vector<double> freq_range = response_params.freq_range();
+
   //auto freq_range = response_params.freq_range();
-  std::vector<double> freq_range = {0.0, 0.056, 0.1};
+  //std::vector<double> freq_range = {0.0, 0.056, 0.1};
   if (world.rank() == 0) {
     print("Running Response Calculation");
     print("Perturbation: ", perturbation);
@@ -142,7 +144,6 @@ TEST_CASE("Response Calculation") {
     print("Frequency Range: ", freq_range);
   }
 
-  param_manager = ParameterManager(world, {"input.json"});
   auto params = param_manager.get_moldft_params();
   auto molecule = param_manager.get_molecule();
 
@@ -165,4 +166,9 @@ TEST_CASE("Response Calculation") {
   // get cwd
   path cwd = std::filesystem::current_path();
   calc_manager.runCalculations(world, cwd);
+
+
+
+
+
 }

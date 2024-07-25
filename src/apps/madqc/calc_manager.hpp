@@ -244,8 +244,13 @@ class ResponseCalculationStrategy : public CalculationStrategy {
     if (world.rank() == 0) {
       ::print("Running response calculation for frequency: ", frequency);
     }
-    auto calc_params =
-        initialize_calc_params(world, std::string("response.in"));
+
+    GroundStateCalculation ground_calculation{world, r_params.archive()};
+    Molecule molecule = ground_calculation.molecule();
+    r_params.set_ground_state_calculation_data(ground_calculation);
+    r_params.set_derived_values(world, molecule);
+    CalcParams calc_params = {ground_calculation, molecule, r_params};
+
     RHS_Generator rhs_generator;
     if (op == "dipole") {
       rhs_generator = dipole_generator;
@@ -297,13 +302,17 @@ class ResponseCalculationStrategy : public CalculationStrategy {
   void runCalculation(World& world, const json& paths) override {
 
     auto& moldft_paths = paths["moldft"];
-    auto& moldft_restart = moldft_paths["restart"];
+    auto moldft_restart = moldft_paths["restart"].get<std::string>();
+    moldft_restart = std::string(path(moldft_restart).replace_extension(""));
 
     auto& response_paths = paths["response"];
     auto& calc_paths = response_paths["calculation"];
-    auto& restart_paths = response_paths["restart"];
-    auto& output_paths = response_paths["output"];
-    auto& alpha_path = response_paths["properties"]["alpha"];
+
+    auto restart_paths =
+        response_paths["restart"].get<std::vector<std::string>>();
+    auto output_paths =
+        response_paths["output"].get<std::vector<std::string>>();
+    auto alpha_path = response_paths["properties"]["alpha"].get<std::string>();
 
     size_t num_freqs = calc_paths.size();
     nlohmann::ordered_json alpha_json;
@@ -323,15 +332,20 @@ class ResponseCalculationStrategy : public CalculationStrategy {
         std::filesystem::create_directory(calc_paths[i]);
       }
       std::filesystem::current_path(calc_paths[i]);
+
+      print("current path: ", std::filesystem::current_path());
+      print("calc path: ", calc_paths[i]);
+      print("freq: ", freq_i);
       // if the last converged is true, then we can restart from the last save path
 
       bool restart = true;
       path save_path = restart_paths[i];  // current restart path aka save path
-      path restart_path = (i > 0) ? response_paths[i - 1] : restart_paths[i];
+      path restart_path = (i > 0) ? restart_paths[i - 1] : restart_paths[i];
       std::string save_string = save_path.filename().stem();
       if (world.rank() == 0) {
         ::print("-------------Running response------------ at frequency: ",
                 freq_i);
+        ::print("moldft restart path", moldft_restart);
         ::print("restart path", restart_path);
         ::print("save path", save_path);
         ::print("save string", save_string);
