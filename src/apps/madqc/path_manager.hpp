@@ -156,6 +156,15 @@ class ResponsePathStrategy : public PathStrategy {
     response["restart"] = {};
 
     auto base_path = root / calc_name;
+    // TODO: (@ahurta92) Feels hacky, should I always be creating new directories?  If I am, should I just create all of them from the start?
+    // I added this because later down the line I was getting an error that the directory didn't exist for /base/response when trying to create /base/response/frequency
+    if (!std::filesystem::exists(base_path)) {
+      std::filesystem::create_directory(base_path);
+    }
+
+    response["properties"] = {};
+    response["properties"]["alpha"] = base_path / "alpha.json";
+    response["properties"]["beta"] = base_path / "beta.json";
 
     for (const auto& frequency : frequencies) {
       auto frequency_run_path = calc_path(base_path, frequency);

@@ -105,9 +105,6 @@ TEST_CASE("MOLDFT Calculation") {
 
   ParameterManager param_manager;
 
-  PathManager path_manager;
-  path_manager.addStrategy(std::make_unique<MoldftPathStrategy>());
-
   param_manager = ParameterManager(world, {"input.json"});
   auto params = param_manager.get_moldft_params();
   auto molecule = param_manager.get_molecule();
@@ -121,6 +118,51 @@ TEST_CASE("MOLDFT Calculation") {
   calc_manager.setCalculationStrategy(std::move(moldft_calc));
   // get cwd
   path cwd = std::filesystem::current_path();
+  calc_manager.runCalculations(world, cwd);
+  //reset the current path to the original path
+  std::filesystem::current_path(cwd);
+}
 
+TEST_CASE("Response Calculation") {
+
+  World& world = World::get_default();
+
+  ParameterManager param_manager;
+
+  std::string perturbation = "dipole";
+  std::string xc = "hf";
+
+  auto response_params = param_manager.get_molresponse_params();
+  //auto freq_range = response_params.freq_range();
+  std::vector<double> freq_range = {0.0, 0.056, 0.1};
+  if (world.rank() == 0) {
+    print("Running Response Calculation");
+    print("Perturbation: ", perturbation);
+    print("XC: ", xc);
+    print("Frequency Range: ", freq_range);
+  }
+
+  param_manager = ParameterManager(world, {"input.json"});
+  auto params = param_manager.get_moldft_params();
+  auto molecule = param_manager.get_molecule();
+
+  // this is where I we create our calculation
+  CalcManager calc_manager;
+  calc_manager.addPathStrategy(std::make_unique<MoldftPathStrategy>());
+  ResponseInput r_input = std::make_tuple(perturbation, xc, freq_range);
+  calc_manager.addPathStrategy(
+      std::make_unique<ResponsePathStrategy>("response", r_input));
+
+  auto moldft_calc =
+      std::make_unique<MoldftCalculationStrategy>(params, molecule);
+
+  auto response_calc =
+      std::make_unique<ResponseCalculationStrategy>(response_params);
+
+  calc_manager.setCalculationStrategy(std::move(moldft_calc));
+  calc_manager.setCalculationStrategy(std::move(response_calc));
+
+  // get cwd
+  path cwd = std::filesystem::current_path();
   calc_manager.runCalculations(world, cwd);
 }
