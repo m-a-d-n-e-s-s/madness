@@ -177,7 +177,7 @@ void CCParameters::set_derived_values() {
     set_derived_value("tight_thresh_3d",thresh_3D()*0.1);
     set_derived_value("thresh_ue",tight_thresh_6D());
     set_derived_value("dconv_6d",3.0*thresh_6D());
-    set_derived_value("dconv_3d",3.0*thresh_3D());
+    set_derived_value("dconv_3d",0.3*thresh_6D());
     set_derived_value("econv",0.1*dconv_6D());
     set_derived_value("econv_pairs",econv());
 

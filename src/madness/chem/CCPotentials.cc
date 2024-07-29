@@ -2939,7 +2939,7 @@ CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& g
         const double s4a = inner(world, xbra, Vs4a).sum();
         const double s4b = inner(world, xbra, Vs4b).sum();
         const double s4c = inner(world, xbra, Vs4c).sum();
-        std::cout << std::fixed << std::setprecision(10) << "functional response energies:" << "\n<x|ccs>=" << ccs
+        if (world.rank()==0) std::cout << std::fixed << std::setprecision(10) << "functional response energies:" << "\n<x|ccs>=" << ccs
                   << "\n<x|S2b>=" << s2b << "\n<x|S2c>=" << s2c << "\n<x|s4a>=" << s4a << "\n<x|s4b>="
                   << s4b << "\n<x|s4c>=" << s4c << "\n";
         // debug end

@@ -474,7 +474,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
         if (world.rank()==0) print_header3("Starting iteration " + std::to_string(int(iter)) + " of MP2");
 
         // compute the coupling between the pair functions
-        Pairs<real_function_6d> coupling=compute_local_coupling(pair_vec);
+        Pairs<real_function_6d> coupling=compute_local_coupling(pair_vec, info);
         auto coupling_vec=Pairs<real_function_6d>::pairs2vector(coupling,triangular_map);
         if (parameters.debug()) print_size(world, coupling_vec, "couplingvector");
 
@@ -556,15 +556,16 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
 /// add the coupling terms for local MP2
 
 /// @return \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
-Pairs<real_function_6d> CC2::compute_local_coupling(const Pairs<real_function_6d>& pairs) const {
+Pairs<real_function_6d> CC2::compute_local_coupling(const Pairs<real_function_6d>& pairs, const Info& info) {
 
-    const int nmo = nemo->get_calc()->amo.size();
+    const int nmo = info.mo_ket.size();
+    World& world=pairs.allpairs.begin()->second.world();
 
     // temporarily make all N^2 pair functions
     typedef std::map<std::pair<int, int>, real_function_6d> pairsT;
     pairsT quadratic;
-    for (int k = parameters.freeze(); k < nmo; ++k) {
-        for (int l = parameters.freeze(); l < nmo; ++l) {
+    for (int k = info.parameters.freeze(); k < nmo; ++k) {
+        for (int l = info.parameters.freeze(); l < nmo; ++l) {
             if (l >= k) {
                 quadratic[std::make_pair(k, l)] = pairs(k, l);
             } else {
@@ -577,28 +578,29 @@ Pairs<real_function_6d> CC2::compute_local_coupling(const Pairs<real_function_6d
     world.gop.fence();
 
     // the coupling matrix is the Fock matrix, skipping diagonal elements
-    Tensor<double> fock1 = nemo->compute_fock_matrix(nemo->get_calc()->amo, nemo->get_calc()->aocc);
+    // Tensor<double> fock1 = nemo->compute_fock_matrix(nemo->get_calc()->amo, nemo->get_calc()->aocc);
+    Tensor<double> fock1 = copy(info.fock);
     for (int k = 0; k < nmo; ++k) {
         if (fock1(k, k) > 0.0) MADNESS_EXCEPTION("positive orbital energies", 1);
         fock1(k, k) = 0.0;
     }
 
     Pairs<real_function_6d> coupling;
-    for (int i = parameters.freeze(); i < nmo; ++i) {
+    for (int i = info.parameters.freeze(); i < nmo; ++i) {
         for (int j = i; j < nmo; ++j) {
             coupling.insert(i, j, real_factory_6d(world).compressed());
         }
     }
 
-    for (int i = parameters.freeze(); i < nmo; ++i) {
+    for (int i = info.parameters.freeze(); i < nmo; ++i) {
         for (int j = i; j < nmo; ++j) {
-            for (int k = parameters.freeze(); k < nmo; ++k) {
+            for (int k = info.parameters.freeze(); k < nmo; ++k) {
                 if (fock1(k, i) != 0.0) {
                     coupling(i, j).gaxpy(1.0, quadratic[std::make_pair(k, j)], fock1(k, i), false);
                 }
             }
 
-            for (int l = parameters.freeze(); l < nmo; ++l) {
+            for (int l = info.parameters.freeze(); l < nmo; ++l) {
                 if (fock1(l, j) != 0.0) {
                     coupling(i, j).gaxpy(1.0, quadratic[std::make_pair(i, l)], fock1(l, j), false);
                 }
@@ -695,14 +697,21 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
     }
     for (const auto& p : pair_vec) p.function().print_size("u before iter");
 
+            // compute the coupling between the pair functions
+            if (world.rank()==0) print("computing local coupling in the universe");
+            Pairs<real_function_6d> coupling=compute_local_coupling(pair_vec, info);
+            auto coupling_vec=Pairs<real_function_6d>::pairs2vector(coupling,triangular_map);
+        if (info.parameters.debug()) print_size(world, coupling_vec, "couplingvector");
+
+
     // iterate the pair
     MacroTaskIteratePair t1;
     MacroTask task1(world, t1);
     // temporary fix: create dummy functions to that the cloud is not confused
-    real_function_6d tmp=real_factory_6d(world).functor([](const coord_6d& r){return 0.0;});
-    std::vector<real_function_6d> vdummy_6d(pair_vec.size(),tmp);         // dummy vectors
+    // real_function_6d tmp=real_factory_6d(world).functor([](const coord_6d& r){return 0.0;});
+    // std::vector<real_function_6d> vdummy_6d(pair_vec.size(),tmp);         // dummy vectors
     const std::size_t maxiter=10;
-    auto unew = task1(pair_vec, vdummy_6d, cc2_s, lrcc2_s, info, maxiter);
+    auto unew = task1(pair_vec, coupling_vec, cc2_s, lrcc2_s, info, maxiter);
 
     for (const auto& u : unew) u.print_size("u after iter");
     // get some statistics
@@ -770,7 +779,7 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) cons
 
             // compute the coupling between the pair functions
             if (world.rank()==0) print("computing local coupling in the universe");
-            Pairs<real_function_6d> coupling=compute_local_coupling(pair_vec);
+            Pairs<real_function_6d> coupling=compute_local_coupling(pair_vec, info);
             auto coupling_vec=Pairs<real_function_6d>::pairs2vector(coupling,triangular_map);
             timer1.tag("computing local coupling");
 
@@ -862,7 +871,7 @@ CC2::solve_lrcc2(Pairs<CCPair>& gs_doubles, const CC_vecfunction& gs_singles, co
     const double omega_cis = ex_singles.omega;
 
     for (size_t iter = 0; iter < parameters.iter_max(); iter++) {
-        print_header2("Macroiteration " + std::to_string(int(iter)) + " of LRCC2 for excitation energy "+std::to_string(ex_singles.omega));
+        if (world.rank()==0) print_header2("Macroiteration " + std::to_string(int(iter)) + " of LRCC2 for excitation energy "+std::to_string(ex_singles.omega));
         update_reg_residues_ex(world, gs_singles, ex_singles, ex_doubles, info);
         bool dconv = iterate_lrcc2_pairs(world, gs_singles, ex_singles, ex_doubles, info);
         bool sconv = iterate_lrcc2_singles(world, gs_singles, gs_doubles, ex_singles, ex_doubles, info);

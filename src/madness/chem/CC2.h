@@ -366,7 +366,8 @@ public:
             if (ctype==CT_CC2) update_reg_residues_gs(world, singles,gs_doubles, info);
             else if(ctype==CT_LRCC2) update_reg_residues_ex(world, singles2,singles,ex_doubles, info);
 
-            CCPotentials::print_convergence(singles.name(0),rmsresidual,rmsresidual,omega-old_omega,iter);
+            if (world.rank()==0) CCPotentials::print_convergence(singles.name(0),rmsresidual,
+                rmsresidual,omega-old_omega,iter);
             converged = (R2vector_error < info.parameters.dconv_3D());
 
             time.info();
@@ -485,19 +486,19 @@ public:
     }
 
     /// forward to the other function (converting CCPair to real_function)
-    Pairs<real_function_6d> compute_local_coupling(const std::vector<CCPair> &vpairs) const {
+    static Pairs<real_function_6d> compute_local_coupling(const std::vector<CCPair> &vpairs, const Info& info) {
         // create new pairs structure
         Pairs<CCPair> pairs;
         for (auto& tmp_pair : vpairs) pairs.insert(tmp_pair.i, tmp_pair.j, tmp_pair);
         auto ccpair2function = [](const CCPair& a) {return a.function();};
-        return compute_local_coupling(pairs.convert<real_function_6d>(pairs,ccpair2function));
+        return compute_local_coupling(pairs.convert<real_function_6d>(pairs,ccpair2function), info);
 
     };
 
     /// add the coupling terms for local MP2
 
     /// \sum_{k\neq i} f_ki |u_kj> + \sum_{l\neq j} f_lj |u_il>
-    Pairs<real_function_6d> compute_local_coupling(const Pairs<real_function_6d>& pairs) const;
+    static Pairs<real_function_6d> compute_local_coupling(const Pairs<real_function_6d>& pairs, const Info& info);
 
 
     double solve_mp2_coupled(Pairs<CCPair> &doubles, Info& info);

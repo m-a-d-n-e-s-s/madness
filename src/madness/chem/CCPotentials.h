@@ -40,6 +40,7 @@ public:
         info.U2 = nemo->ncf->U2();
         info.intermediate_potentials = get_potentials;
         info.orbital_energies = orbital_energies_;
+        info.fock=nemo->compute_fock_matrix(nemo->get_calc()->amo, nemo->get_calc()->aocc);
         return info;
     }
 

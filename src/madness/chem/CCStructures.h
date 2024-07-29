@@ -230,7 +230,7 @@ struct CCParameters : public QCCalculationParametersBase {
         initialize < double > ("thresh_Ue", thresh_operators, "ue threshold");
         initialize < double > ("econv", thresh, "overal convergence threshold ");
         initialize < double > ("econv_pairs", 0.1*thresh, "convergence threshold for pairs");
-        initialize < double > ("dconv_3d", 0.03*thresh, "convergence for cc singles");
+        initialize < double > ("dconv_3d", 0.3*thresh, "convergence for cc singles");
         initialize < double > ("dconv_6d", 3.0*thresh, "convergence for cc doubles");
         initialize < std::size_t > ("iter_max", 10, "max iterations");
         initialize < std::size_t > ("iter_max_3d", 10, "max iterations for singles");
@@ -1208,6 +1208,7 @@ struct Info {
     std::vector<madness::Vector<double,3>> molecular_coordinates;
     CCParameters parameters;
     std::vector<double> orbital_energies;
+    Tensor<double> fock;
     CCIntermediatePotentials intermediate_potentials;
     Function<double,3> R_square, U2, R;;
     std::vector<Function<double,3>> U1;
@@ -1233,6 +1234,7 @@ struct Info {
         records+=cloud.store(world,mo_ket);
         records+=cloud.store(world,parameters);
         records+=cloud.store(world,orbital_energies);
+        records+=cloud.store(world,fock);
         records+=cloud.store(world,intermediate_potentials);
         records+=cloud.store(world,R_square);
         records+=cloud.store(world,molecular_coordinates);
@@ -1251,6 +1253,7 @@ struct Info {
         mo_ket=cloud.forward_load<std::vector<Function<double,3>>>(world,recordlist);
         parameters=cloud.forward_load<CCParameters>(world,recordlist);
         orbital_energies=cloud.forward_load<std::vector<double>>(world,recordlist);
+        fock=cloud.forward_load<Tensor<double>>(world,recordlist);
         intermediate_potentials=cloud.forward_load<CCIntermediatePotentials>(world,recordlist);
         R_square=cloud.forward_load<Function<double,3>>(world,recordlist);
         molecular_coordinates=cloud.forward_load<std::vector<madness::Vector<double,3>>>(world,recordlist);
