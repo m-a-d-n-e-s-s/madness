@@ -52,7 +52,7 @@ TEST_CASE("ResponsePathStrategy", "PathStrategy") {
   ResponseInput input = std::make_tuple(perturbation, xc, freq_range);
 
   path_manager.addStrategy(
-      std::make_unique<ResponsePathStrategy>("response", input));
+      std::make_unique<ResponsePathStrategy>(input, "response"));
   json paths = path_manager.generateCalcPaths("root");
   // output the paths
   std::cout << paths.dump(4) << std::endl;
@@ -61,7 +61,7 @@ TEST_CASE("ResponsePathStrategy", "PathStrategy") {
   PathManager response_manager2;
   response_manager2.addStrategy(std::make_unique<MoldftPathStrategy>());
   response_manager2.addStrategy(
-      std::make_unique<ResponsePathStrategy>("response", input));
+      std::make_unique<ResponsePathStrategy>(input, "response"));
 
   json paths2 = response_manager2.generateCalcPaths("");
   // output the paths
@@ -152,7 +152,7 @@ TEST_CASE("Response Calculation") {
   calc_manager.addPathStrategy(std::make_unique<MoldftPathStrategy>());
   ResponseInput r_input = std::make_tuple(perturbation, xc, freq_range);
   calc_manager.addPathStrategy(
-      std::make_unique<ResponsePathStrategy>("response", r_input));
+      std::make_unique<ResponsePathStrategy>(r_input, "response"));
 
   auto moldft_calc =
       std::make_unique<MoldftCalculationStrategy>(params, molecule);
@@ -166,7 +166,60 @@ TEST_CASE("Response Calculation") {
   // get cwd
   path cwd = std::filesystem::current_path();
   calc_manager.runCalculations(world, cwd);
+  std::filesystem::current_path(cwd);
+}
 
+TEST_CASE("Hyperpolarizability Calculation") {
 
+  World& world = World::get_default();
 
+  ParameterManager param_manager;
+  param_manager = ParameterManager(world, {"input.json"});
+
+  std::string perturbation = "dipole";
+  std::string xc = "hf";
+  auto response_params = param_manager.get_molresponse_params();
+  std::vector<double> freq_range = response_params.freq_range();
+
+  //auto freq_range = response_params.freq_range();
+  //std::vector<double> freq_range = {0.0, 0.056, 0.1};
+  if (world.rank() == 0) {
+    print("Running Response Calculation");
+    print("Perturbation: ", perturbation);
+    print("XC: ", xc);
+    print("Frequency Range: ", freq_range);
+  }
+  ResponseInput r_input = std::make_tuple(perturbation, xc, freq_range);
+  auto params = param_manager.get_moldft_params();
+  auto molecule = param_manager.get_molecule();
+
+  auto beta_path = std::make_unique<HyperPolarizabilityPathStrategy>(r_input);
+
+  PathManager path_manager;
+
+  // a default path strategy is added
+  path_manager.addStrategy(std::make_unique<MoldftPathStrategy>());
+  path_manager.addStrategy(
+      std::make_unique<HyperPolarizabilityPathStrategy>(r_input));
+
+  path_manager.generateCalcPaths("");
+
+  // this is where I we create our calculation
+  /*CalcManager calc_manager;*/
+  /*calc_manager.addPathStrategy(std::make_unique<MoldftPathStrategy>());*/
+  /*calc_manager.addPathStrategy(*/
+  /*    st#d::make_unique<ResponsePathStrategy>("response", r_input));*/
+  /**/
+  /*auto moldft_calc =*/
+  /*    std::make_unique<MoldftCalculationStrategy>(params, molecule);*/
+  /**/
+  /*auto response_calc =*/
+  /*    std::make_unique<ResponseCalculationStrategy>(response_params);*/
+  /**/
+  /*calc_manager.setCalculationStrategy(std::move(moldft_calc));*/
+  /*calc_manager.setCalculationStrategy(std::move(response_calc));*/
+  /**/
+  /*// get cwd*/
+  /*path cwd = std::filesystem::current_path();*/
+  /*calc_manager.runCalculations(world, cwd);*/
 }
