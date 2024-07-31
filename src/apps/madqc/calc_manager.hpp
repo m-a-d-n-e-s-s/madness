@@ -1,7 +1,6 @@
 #ifndef CALC_MANAGER_HPP
 #define CALC_MANAGER_HPP
 
-#include <apps/molresponse/response_parameters.h>
 #include <madchem.h>
 #include <madness/chem/CalculationParameters.h>
 #include <madness/chem/SCF.h>
