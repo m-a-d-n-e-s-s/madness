@@ -1176,7 +1176,6 @@ class ResponseCalcManager {
       beta_json["C"].push_back(std::string(1, C));
       beta_json["Beta"].push_back(beta_value);
     }
-    return;
   }
 };
 #endif  // MADNESS_RUNNERS_HPP
