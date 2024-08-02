@@ -5,7 +5,7 @@
 #include "maddft/response_manager.hpp"
 #include "madness/external/catch/catch.hpp"
 #include "molresponse/FrequencyResponse.hpp"
-
+ 
 using path = std::filesystem::path;
 
 int main(int argc, char* argv[]) {

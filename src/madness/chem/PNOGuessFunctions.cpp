@@ -8,7 +8,7 @@
 #include <PNOGuessFunctions.h>
 #include <cmath>
 #ifdef MADNESS_HAS_BOOST
-	#include <boost/math/special_functions/legendre.hpp>
+#include <boost/math/special_functions/legendre.hpp>
 #endif
 
 namespace madness {
@@ -173,7 +173,7 @@ namespace madness {
 	const auto abs_m = std::abs(m);
 	assert(size_t(l + abs_m) <= (sizeof(fac) / sizeof(int64_t) - 1));
 	// wrong sign for m < 0
-	//const auto P_l_m = boost::math::tr1::assoc_legendre(l, abs_m, cos_theta);
+	//const auto P_l_m = boost::math::assoc_legendre(l, abs_m, cos_theta);
 	const auto P_l_m = boost::math::legendre_p(l, abs_m, cos_theta);
 	// this excludes sqrt((2l+1)/4pi) since that gets cancelled by its inverse in the definition of the solid harmonics
 	// this also excludes (-1)^m since that is also included in the real spherical harmonics phase
@@ -182,7 +182,7 @@ namespace madness {
 	const auto real_azimuthal_prefactor = (m != 0) ? sqrt_2 * (m > 0 ? std::cos(m * phi) : std::sin(abs_m * phi)) : 1.0;
 	return pow(r, l) * (Y_normconst * real_azimuthal_prefactor * P_l_m) * exp(-exponent * r2);
 #else
-	MADNESS_EXCEPTION("can not create SolidHarmonicGaussian without boost math_tr1 library, compile MADNESS with boost by using cmake flag -D ENABLE_BOOST=ON ",1);
+	MADNESS_EXCEPTION("can not create SolidHarmonicGaussian without boost.math library, compile MADNESS with boost by using cmake flag -D ENABLE_BOOST=ON ",1);
 	return 0.0;
 #endif
 

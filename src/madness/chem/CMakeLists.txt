@@ -130,8 +130,7 @@ add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "madness/chem/")
   endif ()
 
   if (BOOST_FOUND)
-    target_include_directories(${targetname} PUBLIC ${BOOST_INCLUDE_DIRS})
-    target_link_libraries(${targetname} PUBLIC ${BOOST_LIBRARIES})
+    target_link_libraries(${targetname} PUBLIC Boost::headers)
   endif ()
 
 # Add executables

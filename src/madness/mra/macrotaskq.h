@@ -481,8 +481,8 @@ class MacroTask {
 		bool debug=false;
 
 		io_redirect(const long task_number, std::string filename, bool debug=false) : debug(debug) {
-	        std::size_t bufsize=256;
-	        char cfilename[bufsize];
+	                constexpr std::size_t bufsize=256;
+	                char cfilename[bufsize];
 			std::snprintf(cfilename,bufsize,"%s.%5.5ld",filename.c_str(),task_number);
 			ofile=std::ofstream(cfilename);
 			if (debug) std::cout << "redirecting to file " << cfilename << std::endl;
@@ -537,6 +537,7 @@ public:
         // partition the argument vector into batches
         auto partitioner=task.partitioner;
         if (not partitioner) partitioner.reset(new MacroTaskPartitioner);
+        //print("\nsubworld size:", world.size());
         partitioner->set_nsubworld(world.size());
         partitionT partition = partitioner->partition_tasks(argtuple);
 
@@ -645,9 +646,14 @@ private:
         			result_tmp.compress();
         			gaxpy(1.0,result,1.0, result_tmp);
         		} else if constexpr(is_madness_function_vector<resultT>::value) {
+                   // print("compress");
         			compress(subworld, result_tmp);
+                  //  print("allocate");
         			resultT tmp1=task.allocator(subworld,argtuple);
+                   // print("insert");
+                  //  print("\n tmp1, result_tmp  ", tmp1.size(), result_tmp.size());
         			tmp1=task.batch.template insert_result_batch(tmp1,result_tmp);
+                  //  print("gaxpy");
         			gaxpy(1.0,result,1.0,tmp1,false);
         			// was using operator+=, but this requires a fence, which is not allowed here..
         			// result += tmp1;

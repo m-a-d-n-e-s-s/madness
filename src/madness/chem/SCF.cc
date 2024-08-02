@@ -36,9 +36,9 @@
 
 
 #include <madness/world/worldmem.h>
-#include<madness.h>
-#include<madness/chem/SCF.h>
-#include<madchem.h>
+#include <madness.h>
+#include <madness/chem/SCF.h>
+#include <madchem.h>
 
 #if defined(__has_include)
 #  if __has_include(<filesystem>)
@@ -138,7 +138,6 @@ tensorT Q2(const tensorT& s) {
     return Q;
 }
 
-}// namespace madness
 void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
                                  const tensorT &dipole_T) const {
     nlohmann::json j = {};
@@ -212,7 +211,7 @@ scf_data::scf_data() : iter(0) {
 
 
 void scf_data::to_json(json &j) const {
-    ::print("SCF DATA TO JSON");
+    madness::print("SCF DATA TO JSON");
 
     j["scf_e_data"] = json();
     j["scf_e_data"]["iterations"] = iter;
@@ -1325,6 +1324,10 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 	  //if (world.rank() == 0) print("selecting exchange multi world");
 	  K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient);
 	}
+	else if (param.hfexalg()=="multiworld_row") {
+	  //if (world.rank() == 0) print("selecting exchange multi world row");
+	  K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient_row);
+	}
 	else if (param.hfexalg()=="largemem") {
 	  //if (world.rank() == 0) print("selecting exchange large memory");
 	  K.set_algorithm(Exchange<double,3>::Algorithm::large_memory);
@@ -2371,3 +2374,4 @@ void SCF::solve(World& world) {
 
 }        // end solve function
 
+} // namespace madness

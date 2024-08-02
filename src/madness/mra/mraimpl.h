@@ -2104,7 +2104,7 @@ namespace madness {
 
         if (this->world.rank()==0) {
 
-            std::size_t bufsize=128;
+            constexpr std::size_t bufsize=128;
             char buf[bufsize];
             snprintf(buf, bufsize, "%40s at time %.1fs: norm/tree/#coeff/size: %7.5f %zu, %6.3f m, %6.3f GByte",
                    (name.c_str()), wall, norm, tsize,double(ncoeff)*1.e-6,double(ncoeff)/fac*d);

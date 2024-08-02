@@ -14,6 +14,27 @@ Quantum chemical capabilities are:
  * PNO-MP2, `pno`
  * OEP/RKS, `oep`
 
+## What to expect from an MRA calculation
+MRA provides results to your calculation at the complete basis set limit. 
+
+
+Due to its adaptive nature MRA has a low scaling with respect to system size, but a relatively high computational prefactor. Calculations on small systems are therefore computationally (much) more expensive than calculations in a (small) Gaussian basis set, while calculations on large systems and/or calculations aiming for high accuracy are (much) cheaper than calculations in a (large) Gaussian basis set.
+
+Use MRA if you want to do
+ - large systems using DFT or HF
+ - anions or excited states
+ - high-accuracy calculations
+ - molecular properties esp magnetic properties
+
+Don't use MRA if you want to do
+ - exploratory calculations with small basis sets
+ - do a quick geometry optimization, as MRA requires tightly converged wave functions to avoid numerical noise on the PES
+  
+Don't be discouraged when you run the Ne atom and it takes 20 seconds to get the total energy, while your favorite LCAO code gives you a similar number in less than a second.
+
+MRA will give you few digits of the correct number, while LCAO will give you all digits of a (systematically) incorrect number.
+
+
 ## Quickstart
 
 All programs can read commandline options or an input file (by default this is named "input").
@@ -23,6 +44,7 @@ A full list of all available calculation parameters can be obtained by writing
  
 where `qccode` stands for any of the qc codes (e.g. moldft, cc2, nemo, ..)
 
+A number of sample input files can be found at the bottom of this page
 
 ## Calculation parameters
 All calculations require parameters, specifying the molecule, the quantum chemical model, charge etc.
@@ -82,20 +104,24 @@ The name of the input file can be changed by
 > `nemo --input=customfile`
 
 
-## Numerical parameters
+## Numerical parameters: k and L
 Numerical parameters are specified in the dft block, the most important ones that will
-also be used is subsequent calculations (e.g. mp2) are
+also be used in subsequent calculations (e.g. mp2) are
 > dft\
 >   k 5\
 >   L 20\
 > end
- 
-The polynomial order k can be chosed between 2 and 30, for SCF calculations a value of 7 to 9 is advised, for correlated
-calculations it should be chosen 5 or 6.
 
-The calculation box size L should be large enough to hold all relevant phyics. All wavefunctions should have decayed
-to practically zero at the box boundary. Note that excited states or anions can be quite large. 
+The calculation box size L should be large enough to hold all relevant physics. All wavefunctions should have decayed
+to practically zero at the box boundary. Note that excited states or anions can be quite large.
 The box size is given in atomic units (1 a.u. = 52 pm).
+
+The polynomial order k will affect the computed numbers, but mostly the performance. Due to MRA adaptive nature a higher k will induce a less refined grid and vice versa. With a changing grid the numbers will change, but the significant ones will stay.
+Remember that MRA will give you few digits of the correct number, while LCAO will give you all digits of an incorrect number.
+
+The k parameter can be chosen between 2 and 30, for SCF calculations a value of 7 to 9 is advised, for correlated calculations it should be chosen 5 or 6, as these are usually "sweet spots" for computational performance.
+If this parameters is not set it will be determined automatically.
+
 
 Generally it is advisable to use as few numerical parameters as possible, as they are usually dependent on each other
 
@@ -147,6 +173,7 @@ can be used through Madness's python wrapper. Details to follow.
 ## Other electronic structure options
 ### DFT functionals
 
+
 Madness uses [libxc](https://tddft.org/programs/libxc/) for exchange-correlation functionals. 
 The input parameters are located in the `dft` block
 > `xc func`
@@ -168,10 +195,75 @@ For more details see the [libxc](https://tddft.org/programs/libxc/) webpage.
 Madness uses the Polarizable Continuum Model from [PCMSolver](https://pcmsolver.readthedocs.io) 
 for solvation effects. Details to come.
 
-###
+## moldft vs nemo
+Madness has two SCF codes, moldft and nemo, that share most of their functionality. 
+
+Both can do
+ - HF and DFT calculations
+
+Only moldft:
+ - UHF calculations
+ - being faster than nemo
+ - nuclear gradients and optimizations
+
+Only nemo:
+ - regularized calculations with nuclear correlation factor
+ - references for subsequent OEP calculations
+ - preferred for reference calculations for MP2 and CC2
 
 ## Convenience short options
 `--optimize` optimize the geometry\
 `--geometry=file.xyz` find the geometry in the xyz file (note Angstrom units!)
 
-$ a=\frac{aa}{c}$
+## Example calculations
+### Hartree-Fock calculation of water
+Input file named "input"
+
+> geometry  
+>   O 0 0 0   
+>   H 0 1 1  
+>   H 0 1 -1  
+>end
+
+Then run
+>moldft input
+
+### DFT geometry optimization of ammonia
+input file name "input"
+> dft  
+>   xc pbe  
+>   k 7  
+>   econv 1.e-6  
+>   dconv 1.e-5
+end
+
+> end   
+>   
+> geometry   
+> n  -0.000      0.000     -0.516  
+> h  -0.887      1.536      0.172  
+> h  -0.887     -1.536      0.172  
+> h   1.774      0.000      0.172  
+>end
+
+Then run
+>moldft --optimize input
+
+### CIS calculation of LiH
+input file name "input"
+> dft  
+> k 7  
+> econv 1.e-5  
+> end  
+>   
+> geometry  
+> li  0.0      0.0     -0.529  
+> h   0.0      0.0      2.529  
+> end
+
+Then run
+> cis input
+
+### MP2 calculation of BeH2
+
+

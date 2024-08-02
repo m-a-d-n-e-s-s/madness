@@ -716,7 +716,7 @@ public:
             for (auto& b : vb) {
                 double tmp=a.inner_internal(b,R2);
                 double wall1=cpu_time();
-                std::size_t bufsize=256;
+                constexpr std::size_t bufsize=256;
                 char buf[bufsize];
                 snprintf(buf,bufsize,"result from inner %10s %10s %12.8f %4.1fs",a.name(true).c_str(),b.name().c_str(),tmp,wall1-wall0);
                 print(std::string(buf));
