@@ -51,8 +51,7 @@ TEST_CASE("ResponsePathStrategy", "PathStrategy") {
   std::string xc = "lda";
   ResponseInput input = std::make_tuple(perturbation, xc, freq_range);
 
-  path_manager.addStrategy(
-      std::make_unique<ResponsePathStrategy>(input, "response"));
+  path_manager.addStrategy(std::make_unique<ResponsePathStrategy>(input, "response"));
   json paths = path_manager.generateCalcPaths("root");
   // output the paths
   std::cout << paths.dump(4) << std::endl;
@@ -60,8 +59,7 @@ TEST_CASE("ResponsePathStrategy", "PathStrategy") {
   ResponseInput input_2 = std::make_tuple("nuclear", "xc", freq_range);
   PathManager response_manager2;
   response_manager2.addStrategy(std::make_unique<MoldftPathStrategy>());
-  response_manager2.addStrategy(
-      std::make_unique<ResponsePathStrategy>(input, "response"));
+  response_manager2.addStrategy(std::make_unique<ResponsePathStrategy>(input, "response"));
 
   json paths2 = response_manager2.generateCalcPaths("");
   // output the paths
@@ -79,8 +77,7 @@ TEST_CASE("ExcitedStatePath", "PathStrategy") {
   int nums_states = 5;
   std::string xc = "lda";
 
-  path_manager.addStrategy(std::make_unique<ExcitedStatePathStrategy>(
-      "excited_states", xc, nums_states));
+  path_manager.addStrategy(std::make_unique<ExcitedStatePathStrategy>("excited_states", xc, nums_states));
 
   json paths = path_manager.generateCalcPaths("root");
   std::cout << paths.dump(4) << std::endl;
@@ -112,8 +109,7 @@ TEST_CASE("MOLDFT Calculation") {
   // this is where I we create our calculation
   CalcManager calc_manager;
   calc_manager.addPathStrategy(std::make_unique<MoldftPathStrategy>());
-  auto moldft_calc =
-      std::make_unique<MoldftCalculationStrategy>(params, molecule);
+  auto moldft_calc = std::make_unique<MoldftCalculationStrategy>(params, molecule);
 
   calc_manager.setCalculationStrategy(std::move(moldft_calc));
   // get cwd
@@ -151,14 +147,10 @@ TEST_CASE("Response Calculation") {
   CalcManager calc_manager;
   calc_manager.addPathStrategy(std::make_unique<MoldftPathStrategy>());
   ResponseInput r_input = std::make_tuple(perturbation, xc, freq_range);
-  calc_manager.addPathStrategy(
-      std::make_unique<ResponsePathStrategy>(r_input, "response"));
+  calc_manager.addPathStrategy(std::make_unique<ResponsePathStrategy>(r_input, "response"));
 
-  auto moldft_calc =
-      std::make_unique<MoldftCalculationStrategy>(params, molecule);
-
-  auto response_calc =
-      std::make_unique<ResponseCalculationStrategy>(response_params);
+  auto moldft_calc = std::make_unique<MoldftCalculationStrategy>(params, molecule);
+  auto response_calc = std::make_unique<ResponseCalculationStrategy>(response_params);
 
   calc_manager.setCalculationStrategy(std::move(moldft_calc));
   calc_manager.setCalculationStrategy(std::move(response_calc));
@@ -199,10 +191,26 @@ TEST_CASE("Hyperpolarizability Calculation") {
 
   // a default path strategy is added
   path_manager.addStrategy(std::make_unique<MoldftPathStrategy>());
-  path_manager.addStrategy(
-      std::make_unique<HyperPolarizabilityPathStrategy>(r_input));
-
+  path_manager.addStrategy(std::make_unique<HyperPolarizabilityPathStrategy>(r_input));
   path_manager.generateCalcPaths("");
+
+  CalcManager calc_manager;
+  calc_manager.addPathStrategy(std::make_unique<MoldftPathStrategy>());
+  calc_manager.addPathStrategy(std::make_unique<ResponsePathStrategy>(r_input, "response"));
+  calc_manager.addPathStrategy(std::make_unique<HyperPolarizabilityPathStrategy>(r_input));
+
+  auto moldft_calc = std::make_unique<MoldftCalculationStrategy>(params, molecule);
+  auto response_calc = std::make_unique<ResponseCalculationStrategy>(response_params);
+  auto hyper_calc = std::make_unique<HyperPolarizabilityCalcStrategy>(response_params);
+
+  calc_manager.setCalculationStrategy(std::move(moldft_calc));
+  calc_manager.setCalculationStrategy(std::move(response_calc));
+  calc_manager.setCalculationStrategy(std::move(hyper_calc));
+
+  // get cwd
+  path cwd = std::filesystem::current_path();
+  calc_manager.runCalculations(world, cwd);
+  std::filesystem::current_path(cwd);
 
   // this is where I we create our calculation
   /*CalcManager calc_manager;*/

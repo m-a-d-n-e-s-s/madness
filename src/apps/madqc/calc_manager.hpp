@@ -423,7 +423,9 @@ class HyperPolarizabilityCalcStrategy : public CalculationStrategy {
   std::vector<double> freqs;
 
  public:
-  explicit HyperPolarizabilityCalcStrategy(const ResponseParameters& params) : parameters(params) {}
+  explicit HyperPolarizabilityCalcStrategy(const ResponseParameters& params) : parameters(params) {
+    op = parameters.perturbation();
+  }
 
   static void append_to_beta_json(const std::array<double, 3>& omega, const std::vector<std::string>& beta_directions,
                                   const Tensor<double>& beta, nlohmann::ordered_json& beta_json) {
@@ -589,9 +591,9 @@ class HyperPolarizabilityCalcStrategy : public CalculationStrategy {
 
           ::print(world.rank(), "b = ", b, " c = ", c);
 
+          auto omega_a = freqs[b + c];
           auto omega_b = freqs[b];
           auto omega_c = freqs[c];
-          auto omega_a = freqs[b + c];
 
           auto restartA = restart_paths[b + c];
           auto restartB = restart_paths[b];
