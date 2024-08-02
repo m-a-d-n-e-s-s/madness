@@ -221,8 +221,7 @@ class ParameterManager {
   // specify the molecule file and the input file separately.  The specific
   // use cases are when one wants to create a database of molecule
   // calculations all with the same basic input.
-  explicit ParameterManager(World& world,
-                            const std::pair<path, path>& input_files) {
+  explicit ParameterManager(World& world, const std::pair<path, path>& input_files) {
     auto [input_file, mol_file] = input_files;
 
     read_molecule_file(mol_file);
@@ -251,25 +250,16 @@ class ParameterManager {
 
   [[nodiscard]] json get_input_json() const { return all_input_json; }
 
-  [[nodiscard]] auto get_moldft_params() const -> const CalculationParameters& {
-    return moldft_params;
-  }
-  [[nodiscard]] auto get_molresponse_params() const
-      -> const ResponseParameters& {
-    return molresponse_params;
-  }
-  [[nodiscard]] auto get_molecule() const -> const Molecule& {
-    return molecule;
-  }
+  [[nodiscard]] auto get_moldft_params() const -> const CalculationParameters& { return moldft_params; }
+  [[nodiscard]] auto get_molresponse_params() const -> const ResponseParameters& { return molresponse_params; }
+  [[nodiscard]] auto get_molecule() const -> const Molecule& { return molecule; }
 
   void write_moldft_json(std::ostream& os) {
     os << std::setw(4) << all_input_json["dft"];
     os << std::setw(4) << all_input_json["molecule"];
   }
 
-  void write_response_json(std::ostream& os) {
-    os << std::setw(4) << all_input_json["response"];
-  }
+  void write_response_json(std::ostream& os) { os << std::setw(4) << all_input_json["response"]; }
 };
 
 // create a helper class for checking equivalence of two parameter class
