@@ -24,6 +24,7 @@ template<typename T, std::size_t NDIM>
 class BSHApply {
 
 public:
+	enum return_value {update, residual};
 	World& world;
 	double levelshift=0.0;
 	double lo=1.e-6;
@@ -31,6 +32,7 @@ public:
 	bool printme=false;
 	bool destroy_Vpsi=false;
 	Function<double,NDIM> metric;
+	return_value ret_value=residual;		// return the new orbitals/functions or the residuals
 
 public:
 	BSHApply(World& world) : world(world),
@@ -91,7 +93,11 @@ public:
 	    double cpu1=cpu_time();
 	    if (printme) printf("time in BSHApply()  %8.4fs\n",cpu1-cpu0);
 
-	    return std::make_tuple(res,delta_eps);
+		if (ret_value==update) return std::make_tuple(tmp,delta_eps);
+		else if (ret_value==residual) return std::make_tuple(res,delta_eps);
+		else {
+			MADNESS_EXCEPTION("unknown return value in BSHApply",1);
+		}
 	}
 
 

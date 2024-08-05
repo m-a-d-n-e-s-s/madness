@@ -21,6 +21,8 @@
 #include<madness/chem/TDHF.h>
 #include <madness/mra/nonlinsol.h>
 
+#include "BSHApply.h"
+
 namespace madness {
 
 class CC2 : public OptimizationTargetInterface, public QCPropertyInterface {
@@ -240,29 +242,29 @@ public:
 
             // consistency check
             switch (ctype) {
-                case CT_CC2:
-                    if (singles.type != PARTICLE)
-                        output.warning("iterate_singles: CC2 demanded but singles are not of type PARTICLE");
-                    break;
-                case CT_MP2: MADNESS_EXCEPTION("Demanded Singles Calculation for MP2 ????", 1);
-                    break;
-                case CT_LRCC2:
-                    if (singles.type != RESPONSE or singles2.type != PARTICLE)
-                        output.warning("iterate_singles: CC2_response_ singles have wrong types");
-                    break;
-                case CT_LRCCS:
-                    if (singles.type != RESPONSE)
-                        output.warning("iterate_singles: CCS_response_ singles have wrong types");
-                    break;
-                case CT_CISPD: MADNESS_EXCEPTION("Demanded Singles Calculation for CIS(D)", 1);
-                    break;
-                case CT_ADC2:
-                    MADNESS_ASSERT(singles.type == RESPONSE);
-                    break;
-                case CT_TEST: MADNESS_EXCEPTION("Iterate Singles not implemented for Experimental calculation", 1);
-                    break;
-                default: MADNESS_EXCEPTION(
-                        ("Unknown calculation type in iterate singles: " + assign_name(ctype)).c_str(), 1);
+            case CT_CC2:
+                if (singles.type != PARTICLE)
+                    output.warning("iterate_singles: CC2 demanded but singles are not of type PARTICLE");
+                break;
+            case CT_MP2: MADNESS_EXCEPTION("Demanded Singles Calculation for MP2 ????", 1);
+                break;
+            case CT_LRCC2:
+                if (singles.type != RESPONSE or singles2.type != PARTICLE)
+                    output.warning("iterate_singles: CC2_response_ singles have wrong types");
+                break;
+            case CT_LRCCS:
+                if (singles.type != RESPONSE)
+                    output.warning("iterate_singles: CCS_response_ singles have wrong types");
+                break;
+            case CT_CISPD: MADNESS_EXCEPTION("Demanded Singles Calculation for CIS(D)", 1);
+                break;
+            case CT_ADC2:
+                MADNESS_ASSERT(singles.type == RESPONSE);
+                break;
+            case CT_TEST: MADNESS_EXCEPTION("Iterate Singles not implemented for Experimental calculation", 1);
+                break;
+            default: MADNESS_EXCEPTION(
+                    ("Unknown calculation type in iterate singles: " + assign_name(ctype)).c_str(), 1);
             }
 
             // get potentials
@@ -272,7 +274,7 @@ public:
             else if (ctype == CT_LRCC2)
                 V = CCPotentials::get_CC2_singles_potential_ex(world, singles2, gs_doubles, singles, ex_doubles, info);
             else if (ctype == CT_LRCCS) V = CCPotentials::get_CCS_potential_ex(world,singles,false, info);
-//            else if (ctype == CT_ADC2) V = CCOPS.get_ADC2_singles_potential(world, gs_doubles, singles, ex_doubles, info);
+            //            else if (ctype == CT_ADC2) V = CCOPS.get_ADC2_singles_potential(world, gs_doubles, singles, ex_doubles, info);
             else MADNESS_EXCEPTION("iterate singles: unknown type", 1);
             time_V.info(true, norm2(world, V));
 
@@ -281,29 +283,44 @@ public:
                 omega = singles.omega; // computed with the potential
             }
 
-            scale(world, V, -2.0);
+            // scale(world, V, -2.0); // moved to BSHApply
             truncate(world, V);
 
-            // make bsh operators
-            CCTimer time_makebsh(world, "Make G-Operators");
-            std::vector<std::shared_ptr<SeparatedConvolution<double, 3> > > G(singles.size());
-            for (size_t i = 0; i < G.size(); i++) {
-                const double bsh_eps = info.orbital_energies[i + info.parameters.freeze()] + omega;
-                G[i] = std::shared_ptr<SeparatedConvolution<double, 3> >(
-                        BSHOperatorPtr3D(world, sqrt(-2.0 * bsh_eps), info.parameters.lo(), info.parameters.thresh_bsh_3D()));
-            }
-            world.gop.fence();
-            time_makebsh.info();
+            BSHApply<double,3> bsh_apply(world);
+            bsh_apply.ret_value=BSHApply<double,3>::update; // return the new singles functions, not the residual
+            bsh_apply.metric=info.R_square;
 
-            // apply bsh operators
+            // coupling between singles involves the active fock matrix shifted by the excitation energy
+            auto nfreeze=info.parameters.freeze();
+            Tensor<double> fock=info.fock(Slice(nfreeze,-1),Slice(nfreeze,-1));
+            for (int i=0; i<fock.dim(0); ++i) fock(i,i)+=omega;
+            if (world.rank()==0 and info.parameters.debug()) {
+                print("active Fock matrix shifted by omega=",omega);
+                print(fock);
+            }
+
+
+            // make bsh operators
+//            CCTimer time_makebsh(world, "Make G-Operators");
+//            std::vector<std::shared_ptr<SeparatedConvolution<double, 3> > > G(singles.size());
+//            for (size_t i = 0; i < G.size(); i++) {
+//                const double bsh_eps = info.orbital_energies[i + info.parameters.freeze()] + omega;
+//                G[i] = std::shared_ptr<SeparatedConvolution<double, 3> >(
+//                        BSHOperatorPtr3D(world, sqrt(-2.0 * bsh_eps), info.parameters.lo(), info.parameters.thresh_bsh_3D()));
+//            }
+//            world.gop.fence();
+//            time_makebsh.info();
+//
+//            // apply bsh operators
             CCTimer time_applyG(world, "Apply G-Operators");
-            vector_real_function_3d GV = apply<SeparatedConvolution<double, 3>, double, 3>(world, G, V);
-            world.gop.fence();
+            auto [GV, energy_update] = bsh_apply(singles.get_vecfunction(), fock, V);
+            // vector_real_function_3d GV = apply<SeparatedConvolution<double, 3>, double, 3>(world, G, V);
+//            world.gop.fence();
+            // auto GV=res-singles.get_vecfunction();
             time_applyG.info();
 
             // apply Q-Projector to result
             QProjector<double,3> Q(info.mo_bra,info.mo_ket);
-            // GV = CCOPS.apply_Qt(GV, CCOPS.mo_ket());
             GV = Q(GV);
 
             // Normalize Singles if it is excited state
