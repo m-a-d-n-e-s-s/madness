@@ -361,7 +361,8 @@ private:
         cloudtimer(World& world, std::atomic<long> &readtime) : world(world), wall0(wall_time()), rtime(readtime) {}
 
         ~cloudtimer() {
-            if (world.rank()==0) rtime += long((wall_time() - wall0) * 1000l);
+            long deltatime=long((wall_time() - wall0) * 1000l);
+            rtime += deltatime;
         }
     };
 
