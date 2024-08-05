@@ -371,21 +371,36 @@ private:
 
             // print("\nperforming mul_sparse");
             vecfuncT psif = mul_sparse(world, vket[i], mo_bra, mul_tol);
+            auto size=get_size(world,psif);
+            if (world.rank()==0) print("size of psif after mul_sparse",size);
+
             truncate(world, psif);
+
+            size=get_size(world,psif);
+            if (world.rank()==0) print("size of psif after truncating",size);
 
             // print("\napplying poisson");
             psif = apply(world, *poisson.get(), psif);
+            size=get_size(world,psif);
+            if (world.rank()==0) print("size of psif after apply",size);
+            // print size psif
             truncate(world, psif);
+            size=get_size(world,psif);
+            if (world.rank()==0) print("size of psif after truncating",size);
             
+            // TODO: tile j, switch sparse mul
+            // TODO: priority = #coeffs
             // print("\ndot");
             auto res = dot(world, mo_ket, psif);
+            res.print_size("Kf after dot");
             // print("\nadding to Kf", Kf.size());
             //Kf[i] += dot(world, mo_ket, psif);
             //print(Kf.size());
             
+            //TODO: no need for full length vector here just return single function
             Kf[i] += res;
-            // Kf[i].print_size("Kf[i]");
             truncate(world, Kf);
+            Kf[i].print_size("Kf after truncating");
 
             return Kf;
         }

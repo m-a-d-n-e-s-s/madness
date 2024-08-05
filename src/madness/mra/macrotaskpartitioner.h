@@ -113,7 +113,7 @@ public:
        // print("\n full size?");
        // print(begin, end);
       //MADNESS_CHECK(v_batch.size()==size_t(this->size()) or this->is_full_size());
-       // print("std copy batchs");
+      // check useless? offset important! correct this, adjust mw_row
         std::copy(v_batch.begin(), v_batch.end(), v.begin());//v.begin()+begin);
         return v;
     }
