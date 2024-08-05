@@ -427,35 +427,6 @@ class HyperPolarizabilityCalcStrategy : public CalculationStrategy {
     op = parameters.perturbation();
   }
 
-  static void append_to_beta_json(const std::array<double, 3>& omega, const std::vector<std::string>& beta_directions,
-                                  const Tensor<double>& beta, nlohmann::ordered_json& beta_json) {
-    auto num_unique_elements = beta_directions.size();
-    for (int i = 0; i < num_unique_elements; i++) {
-
-      auto ijk = beta_directions[i];
-      auto beta_value = beta[i];
-      auto A = ijk[0];
-      auto B = ijk[1];
-      auto C = ijk[2];
-
-      beta_json["Afreq"].push_back(omega[0]);
-      beta_json["Bfreq"].push_back(omega[1]);
-      beta_json["Cfreq"].push_back(omega[2]);
-
-      beta_json["A"].push_back(std::string(1, A));
-      beta_json["B"].push_back(std::string(1, B));
-      beta_json["C"].push_back(std::string(1, C));
-      beta_json["Beta"].push_back(beta_value);
-    }
-  }
-  static void add_beta_i_to_json(nlohmann::ordered_json& beta_i, nlohmann::ordered_json& beta_json) {
-    print(beta_json.dump(4));
-
-    for (auto& [key, value] : beta_i.items()) {
-      beta_json[key].insert(beta_json[key].end(), value.begin(), value.end());
-    }
-  }
-
   void runCalculation(World& world, const json& paths) override {
 
     auto& moldft_paths = paths["moldft"];
@@ -630,6 +601,130 @@ class HyperPolarizabilityCalcStrategy : public CalculationStrategy {
             "First order response calculations haven't been run and "
             "can't be run");
         ::print("Quadratic response calculations can't be run");
+      }
+    }
+  }
+  static void append_to_beta_json(const std::array<double, 3>& omega, const std::vector<std::string>& beta_directions,
+                                  const Tensor<double>& beta, nlohmann::ordered_json& beta_json) {
+    auto num_unique_elements = beta_directions.size();
+    for (int i = 0; i < num_unique_elements; i++) {
+
+      auto ijk = beta_directions[i];
+      auto beta_value = beta[i];
+      auto A = ijk[0];
+      auto B = ijk[1];
+      auto C = ijk[2];
+
+      beta_json["Afreq"].push_back(omega[0]);
+      beta_json["Bfreq"].push_back(omega[1]);
+      beta_json["Cfreq"].push_back(omega[2]);
+
+      beta_json["A"].push_back(std::string(1, A));
+      beta_json["B"].push_back(std::string(1, B));
+      beta_json["C"].push_back(std::string(1, C));
+      beta_json["Beta"].push_back(beta_value);
+    }
+  }
+  static void add_beta_i_to_json(nlohmann::ordered_json& beta_i, nlohmann::ordered_json& beta_json) {
+    print(beta_json.dump(4));
+
+    for (auto& [key, value] : beta_i.items()) {
+      beta_json[key].insert(beta_json[key].end(), value.begin(), value.end());
+    }
+  }
+};
+
+class WriteResponseVTKOutputStrategy : public CalculationStrategy {
+
+  ResponseParameters parameters;
+  std::string op;
+  std::string xc;
+  std::vector<double> freqs;
+  std::string name;
+
+ public:
+  explicit WriteResponseVTKOutputStrategy(const ResponseParameters& params) : parameters(params){};
+  void runCalculation(World& world, const json& paths) override {
+
+    auto& moldft_paths = paths["moldft"];
+    auto moldft_restart = moldft_paths["restart"].get<std::string>();
+    moldft_restart = std::string(path(moldft_restart).replace_extension(""));
+
+    auto& response_paths = paths["response"];
+    auto& calc_paths = response_paths["calculation"];
+
+    auto restart_paths = response_paths["restart"].get<std::vector<std::string>>();
+    auto output_paths = response_paths["output"].get<std::vector<std::string>>();
+    auto alpha_path = response_paths["properties"]["alpha"].get<std::string>();
+
+    size_t num_freqs = calc_paths.size();
+    // I need to analyze alpha.json to see which frequencies are missing.
+    // Or I just write them to seperate files and then combine them later?
+
+    auto freqs = parameters.freq_range();
+
+    for (size_t i = 0; i < num_freqs; i++) {
+      auto freq_i = freqs[i];
+
+      if (!std::filesystem::exists(calc_paths[i])) {
+        std::filesystem::create_directory(calc_paths[i]);
+      }
+      std::filesystem::current_path(calc_paths[i]);
+      print("current path: ", std::filesystem::current_path());
+      print("calc path: ", calc_paths[i]);
+      print("freq: ", freq_i);
+
+      path restart_file_i = restart_paths[i];
+      path response_base_i = output_paths[i];
+
+      double last_protocol;
+      bool converged = false;
+
+      if (world.rank() == 0) {
+        std::ifstream ifs(response_base_i);
+        json response_base;
+        ifs >> response_base;
+        last_protocol = *response_base["parameters"]["protocol"].get<std::vector<double>>().end();
+        print("Thresh of restart data: ", last_protocol);
+      }
+
+      world.gop.broadcast(converged, 0);
+      world.gop.broadcast(last_protocol, 0);
+
+      ResponseParameters r_params = parameters;
+      r_params.set_user_defined_value("omega", freq_i);
+      r_params.set_user_defined_value("archive", moldft_restart);
+      r_params.set_user_defined_value("restart", true);
+      r_params.set_user_defined_value("restart_file", restart_file_i.string());
+      if (converged) {
+
+        GroundStateCalculation ground_calculation{world, r_params.archive()};
+        Molecule molecule = ground_calculation.molecule();
+        r_params.set_ground_state_calculation_data(ground_calculation);
+        r_params.set_derived_values(world, molecule);
+        CalcParams calc_params = {ground_calculation, molecule, r_params};
+
+        RHS_Generator rhs_generator;
+        if (op == "dipole") {
+          rhs_generator = dipole_generator;
+        } else {
+          rhs_generator = nuclear_generator;
+        }
+
+        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
+        FrequencyResponse calc(world, calc_params, freq_i, rhs_generator);
+        if (world.rank() == 0) {
+          print("\n\n");
+          print(
+              " MADNESS Time-Dependent Density Functional Theory Response "
+              "Program");
+          print(" ----------------------------------------------------------\n");
+          // put the response parameters in a j_molrespone json object
+        }
+        calc.write_vtk(world);
+        world.gop.fence();
+        // Then we restart from the previous file instead
+      } else {
       }
     }
   }
