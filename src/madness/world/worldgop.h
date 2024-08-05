@@ -730,19 +730,19 @@ namespace madness {
         /// Broadcasts typed contiguous data from process root while still processing AM & tasks
 
         /// Optimizations can be added for long messages
-        template <typename T>
+        template <typename T, typename = std::enable_if_t<std::is_trivially_copyable_v<T>>>
         inline void broadcast(T* buf, size_t nelem, ProcessID root) {
             broadcast((void *) buf, nelem*sizeof(T), root);
         }
 
         /// Broadcast of a scalar from node 0 to all other nodes
-        template <typename T>
+        template <typename T, typename = std::enable_if_t<std::is_trivially_copyable_v<T>>>
         void broadcast(T& t) {
             broadcast(&t, 1, 0);
         }
 
         /// Broadcast of a scalar from node root to all other nodes
-        template <typename T>
+        template <typename T, typename = std::enable_if_t<std::is_trivially_copyable_v<T>>>
         void broadcast(T& t, ProcessID root) {
             broadcast(&t, 1, root);
         }
@@ -752,6 +752,9 @@ namespace madness {
                   typename = std::void_t<decltype(std::declval<archive::BufferInputArchive&>()&std::declval<objT&>())>,
                   typename = std::void_t<decltype(std::declval<archive::BufferOutputArchive&>()&std::declval<const objT&>())>>
         void broadcast_serializable(objT& obj, ProcessID root) {
+            MADNESS_ASSERT(root < world_.size());
+            if (world_.size() == 1) return;
+
             size_t BUFLEN;
             if (world_.rank() == root) {
                 archive::BufferOutputArchive count;
