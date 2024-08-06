@@ -41,7 +41,7 @@ namespace madness
             initialize<std::vector<int>>("plot_data", std::vector<int>{0}, "Orbitals to plot");
             initialize<std::vector<double>>("plot_cell", std::vector<double>(), "lo-hi plot cell (default is all space)");
             initialize<double>("plot_l", -1.0, "Controls the plotting box size");
-            initialize<size_t>("plot_pts", 81, "Controls number of points in plots");
+            initialize<size_t>("plot_pts", 200, "Controls number of points in plots");
             initialize<bool>("plot_all_orbitals", false, "Turn on 2D plotting of response orbitals ");
             initialize<size_t>("maxiter", 25, "maximum number of iterations");
             initialize<double>("dconv", 1.e-4, "recommended values: 1.e-4 < dconv < 1.e-8");

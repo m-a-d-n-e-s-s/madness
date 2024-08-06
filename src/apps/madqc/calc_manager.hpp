@@ -638,8 +638,6 @@ class WriteResponseVTKOutputStrategy : public CalculationStrategy {
 
   ResponseParameters parameters;
   std::string op;
-  std::string xc;
-  std::vector<double> freqs;
   std::string name;
 
  public:
@@ -656,12 +654,16 @@ class WriteResponseVTKOutputStrategy : public CalculationStrategy {
     auto restart_paths = response_paths["restart"].get<std::vector<std::string>>();
     auto output_paths = response_paths["output"].get<std::vector<std::string>>();
     auto alpha_path = response_paths["properties"]["alpha"].get<std::string>();
+    auto freqs = response_paths["frequencies"].get<std::vector<double>>();
+    auto num_freqs = freqs.size();
 
-    size_t num_freqs = calc_paths.size();
-    // I need to analyze alpha.json to see which frequencies are missing.
-    // Or I just write them to seperate files and then combine them later?
-
-    auto freqs = parameters.freq_range();
+    if (world.rank() == 0) {
+      print("Running VTK output for response calculations");
+      print("Number of frequencies: ", num_freqs);
+      print("Frequencies: ", freqs);
+      print("Output paths: ", output_paths);
+      print("Restart paths: ", restart_paths);
+    }
 
     for (size_t i = 0; i < num_freqs; i++) {
       auto freq_i = freqs[i];
@@ -685,7 +687,9 @@ class WriteResponseVTKOutputStrategy : public CalculationStrategy {
         json response_base;
         ifs >> response_base;
         last_protocol = *response_base["parameters"]["protocol"].get<std::vector<double>>().end();
+        converged = response_base["converged"].get<bool>();
         print("Thresh of restart data: ", last_protocol);
+        print("Converged: ", converged);
       }
 
       world.gop.broadcast(converged, 0);
@@ -695,7 +699,8 @@ class WriteResponseVTKOutputStrategy : public CalculationStrategy {
       r_params.set_user_defined_value("omega", freq_i);
       r_params.set_user_defined_value("archive", moldft_restart);
       r_params.set_user_defined_value("restart", true);
-      r_params.set_user_defined_value("restart_file", restart_file_i.string());
+      std::string restart_file_string = restart_file_i.filename().stem();
+      r_params.set_user_defined_value("restart_file", restart_file_string);
       if (converged) {
 
         GroundStateCalculation ground_calculation{world, r_params.archive()};
@@ -721,7 +726,9 @@ class WriteResponseVTKOutputStrategy : public CalculationStrategy {
           print(" ----------------------------------------------------------\n");
           // put the response parameters in a j_molrespone json object
         }
-        calc.write_vtk(world);
+        std::string plot_name = "response_" + std::to_string(freq_i);
+        calc.write_vtk(world, 100, parameters.L() / 20, plot_name);
+
         world.gop.fence();
         // Then we restart from the previous file instead
       } else {

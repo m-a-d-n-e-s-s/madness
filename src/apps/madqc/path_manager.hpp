@@ -157,6 +157,7 @@ class ResponsePathStrategy : public PathStrategy {
     json paths;
     paths[calc_name] = {};
     auto& response = paths[calc_name];
+    response["frequencies"] = config.frequencies;
     response["calculation"] = {};
     response["output"] = {};
     response["restart"] = {};
@@ -199,6 +200,7 @@ class HyperPolarizabilityPathStrategy : public PathStrategy {
     paths[config.calc_name] = {};
     auto& response = paths[config.calc_name];
     response["calculation"] = {};
+    response["calculation"] = {};
     response["output"] = {};
     response["restart"] = {};
 
@@ -236,6 +238,7 @@ class HyperPolarizabilityPathStrategy : public PathStrategy {
       }
 
       config.frequencies = freqs_copy;
+      response["frequencies"] = config.frequencies;
       std::sort(config.frequencies.begin(), config.frequencies.end());
       // only unique frequencies
       config.frequencies.erase(std::unique(config.frequencies.begin(), config.frequencies.end()),
