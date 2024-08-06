@@ -792,13 +792,22 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) cons
             auto unew = task1(pair_vec, coupling_vec, singles, dummy_ex_singles,
                 info, maxiter);
 
+
             std::vector<real_function_6d> u_old;
             for (auto p : pair_vec) u_old.push_back(p.function());
+
             auto residual=u_old-unew;
             timer1.tag("computing pair function update via macrotasks");
 
             for (int i=0; i<pair_vec.size(); ++i) pair_vec[i].update_u(unew[i]);
             doubles=Pairs<CCPair>::vector2pairs(pair_vec,triangular_map);
+
+            // save latest iteration
+            if (world.rank()==0) print("saving latest iteration to file");
+            for (const auto& pair : pair_vec) {
+                save(pair.constant_part, pair.name() + "_const");
+                save(pair.function(), pair.name());
+            }
 
             auto [rmsrnorm,maxrnorm]=CCPotentials::residual_stats(residual);
             bool doubles_converged=rmsrnorm<parameters.dconv_6D();
