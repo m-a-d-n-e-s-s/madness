@@ -1,3 +1,4 @@
+#include "ccpairfunction.h"
 #include "funcdefaults.h"
 #include <iostream>
 #include <madness/mra/mra.h>
@@ -149,3 +150,135 @@ public:
     return f;
   }
 };
+template <typename T, std::size_t NDIM> struct FunctionIOData {
+
+  long k = 0;
+  long npts_per_box = 0;
+  std::size_t ndim = NDIM;
+  std::array<std::pair<double, double>, NDIM> cell;
+  long num_leaf_nodes{};
+  std::vector<std::array<long, NDIM + 1>> nl;
+  std::vector<std::vector<double>> values;
+
+  FunctionIOData() = default;
+
+  explicit FunctionIOData(const Function<T, NDIM> &f) {
+
+    npts_per_box = simple_pow(f.k(), NDIM);
+
+    f.reconstruct();
+    if (f.get_impl()->world.rank() == 0) {
+      num_leaf_nodes = FunctionIO<T, NDIM>::count_leaf_nodes(f);
+      ndim = NDIM;
+      k = f.k();
+      const auto &cell_world = FunctionDefaults<NDIM>::get_cell();
+      for (int d = 0; d < NDIM; ++d) {
+        cell[d].first = cell_world(d, 0);
+        cell[d].second = cell_world(d, 1);
+      }
+
+      initialize_func_coeffs(f, Key<NDIM>(0));
+    }
+    f.get_impl()->world.gop.fence();
+  }
+
+  void initialize_func_coeffs(const Function<T, NDIM> &f,
+                              const Key<NDIM> &key) {
+    const auto &coeffs = f.get_impl()->get_coeffs();
+    auto it = coeffs.find(key).get();
+    if (it == coeffs.end()) {
+      for (int i = 0; i < key.level(); ++i)
+        std::cout << "  ";
+      std::cout << key << "  missing --> " << coeffs.owner(key) << "\n";
+    } else {
+      const auto &node = it->second;
+      if (node.has_coeff()) {
+        auto node_values = f.get_impl()->coeffs2values(key, node.coeff());
+        std::array<long, NDIM + 1> key_i;
+        key_i[0] = key.level();
+        for (int i = 0; i < NDIM; ++i)
+          key_i[i + 1] = key.translation()[i];
+        nl.push_back(key_i);
+        std::vector<double> values_i(npts_per_box);
+        std::copy(node_values.ptr(), node_values.ptr() + npts_per_box,
+                  values_i.begin());
+        values.push_back(values_i);
+      }
+      if (node.has_children()) {
+        for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+          initialize_func_coeffs(f, kit.key());
+        }
+      }
+    }
+  }
+  void set_function_coeffs(Function<T, NDIM> &f, int num_leaf_nodes) {
+    auto &coeffs = f.get_impl()->get_coeffs();
+
+    for (int i = 0; i < num_leaf_nodes; i++) {
+      Vector<Translation, NDIM> l;
+      long dims[NDIM];
+
+      for (int i = 0; i < NDIM; ++i) {
+        dims[i] = f.k();
+      }
+
+      auto n = nl[i][0];
+      for (int j = 0; j < NDIM; ++j) {
+        l[j] = nl[i][j + 1];
+      }
+      Key<NDIM> key(n, l);
+
+      Tensor<T> values(NDIM, dims);
+      std::copy(this->values[i].begin(), this->values[i].end(), values.ptr());
+      auto t = f.get_impl()->values2coeffs(key, values);
+
+      // f.get_impl()->accumulate2(t, coeffs, key);
+      coeffs.task(key, &FunctionNode<T, NDIM>::accumulate2, t, coeffs, key);
+    }
+  }
+
+  Function<T, NDIM> create_function(World &world) {
+
+    size_t ndim = this->ndim;
+    MADNESS_CHECK(ndim == NDIM);
+    Tensor <double> cell_t(NDIM, 2);
+    for (int d = 0; d < NDIM; ++d) {
+      cell_t(d, 0) = cell[d].first;
+      cell_t(d, 1) = cell[d].second;
+    }
+
+    FunctionDefaults<NDIM>::set_cell(cell_t);
+
+    FunctionFactory<T, NDIM> factory(world);
+    Function<T, NDIM> f(factory.k(k).empty());
+    world.gop.fence();
+
+    set_function_coeffs(f, num_leaf_nodes);
+
+    f.verify_tree();
+
+    return f;
+  }
+};
+
+template <typename T, std::size_t NDIM>
+void to_json(json &j, const FunctionIOData<T, NDIM> &p) {
+  j = json{{"npts_per_box", p.npts_per_box},
+           {"k", p.k},
+           {"cell", p.cell},
+           {"num_leaf_nodes", p.num_leaf_nodes},
+           {"nl", p.nl},
+           {"ndim", p.ndim},
+           {"values", p.values}};
+}
+
+template <typename T, std::size_t NDIM>
+void from_json(const json &j, FunctionIOData<T, NDIM> &p) {
+  j.at("npts_per_box").get_to(p.npts_per_box);
+  j.at("k").get_to(p.k);
+  j.at("cell").get_to(p.cell);
+  j.at("num_leaf_nodes").get_to(p.num_leaf_nodes);
+  j.at("nl").get_to(p.nl);
+  j.at("values").get_to(p.values);
+  j.at("ndim").get_to(p.ndim);
+}

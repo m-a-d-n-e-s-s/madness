@@ -29,6 +29,21 @@ void test(World &world) {
   functionT fun = factoryT(world).f(f);
   fun.truncate();
 
+  FunctionIOData<double, D> data(fun);
+
+  json j;
+  to_json(j, data);
+  auto p2 = j.template get<FunctionIOData<double, D>>();
+  json j2;
+  to_json(j2, p2);
+
+  if (world.rank() == 0) {
+    print("j", j.dump(2));
+    print("p2", j2.dump(2));
+  }
+
+  // ...
+
   auto leafnodes = FunctionIO<double, D>::count_leaf_nodes(fun);
   if (world.rank() == 0) {
     print("fun: num leaf nodes: ", leafnodes);
@@ -38,15 +53,21 @@ void test(World &world) {
     double norm = fun.norm2();
     if (world.rank() == 0)
       std::cout << "norm = " << norm << std::endl;
-    std::ofstream out("fun.dat", std::ios::out);
-    fio::write_function(fun, out);
+
+    std::ofstream out("fun.json", std::ios::out);
+    out << j.dump(2);
     out.close();
     // fun.print_tree();
   }
 
   {
-    std::ifstream in("fun.dat", std::ios::in);
-    functionT fun2 = fio::read_function(world, in);
+    std::ifstream in("fun.json", std::ios::in);
+    json j_read;
+    in >> j_read;
+
+    auto p_read = j_read.get<FunctionIOData<double, D>>();
+    auto fun2 = p_read.create_function(world);
+
     double norm = fun2.norm2();
     if (world.rank() == 0)
       std::cout << "norm = " << norm << std::endl;
