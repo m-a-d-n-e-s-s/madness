@@ -89,6 +89,26 @@ struct Node {
     ~Node() {}
 };
 
+struct LargeNode {
+    std::vector<int> k;
+
+    LargeNode() : k() {}
+
+    LargeNode(int val) {
+        k=std::vector<int>(10000,val);
+    }
+
+    int get() const {
+        return k[0];
+    }
+
+    template <typename Archive>
+    void serialize(const Archive& ar) {
+        ar & k;
+    }
+
+    ~LargeNode() {}
+};
 ostream& operator<<(ostream&s, const Node& node) {
     s << "Node(" << node.k << ")";
     return s;
@@ -249,34 +269,37 @@ void test_local(World& world) {
 }
 
 void test_florian(World& world) {
-    WorldContainer<Key,Node> c(world);
-
-    Key key1(1);
-    Node node1(1);
+    WorldContainer<Key,LargeNode> c(world);
+    long nlarge=200000;
 
     if (world.rank() == 0) {
-        for (int i=0; i<100; ++i) {
-            c.replace(Key(i),Node(i));
+        for (int i=0; i<nlarge; ++i) {
+            c.replace(Key(i),LargeNode(i));
         }
     }
     world.gop.fence();
-
+    double wall0=wall_time();
+    printf("starting at time %8.4f with %ld items\n",wall0,nlarge);
     std::vector<unsigned char> v;
     {
         archive::VectorOutputArchive var(v);
         archive::ParallelOutputArchive ar(world,var);
         ar & c;
     }
+    double wall1=wall_time();
+    printf("ending at time %8.4f after %8.4fs\n",wall1,wall1-wall0);
 
-    WorldContainer<Key,Node> c2(world);
+    WorldContainer<Key,LargeNode> c2(world);
     {
         archive::VectorInputArchive var2(v);
         archive::ParallelInputArchive ar2(world,var2);
         ar2 & c2;
     }
 
-    for (int i=0; i<100; ++i) {
-        MADNESS_CHECK(c2.find(Key(i)).get()->second.get() == i);
+    if (world.rank()==0) {
+        for (int i=0; i<nlarge; ++i) {
+            MADNESS_CHECK(c2.find(Key(i)).get()->second.get() == i);
+        }
     }
 
     world.gop.fence();
