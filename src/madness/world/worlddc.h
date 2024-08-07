@@ -1690,6 +1690,7 @@ namespace madness {
                 using const_iterator = typename dcT::const_iterator;
 
                 const size_t default_size = 100*1024*1024;
+                print("madflorian");
 
                 World* world = ar.get_world();
                 world->gop.fence();

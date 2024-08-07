@@ -2121,6 +2121,13 @@ void SCF::solve(World& world) {
 
         }
 
+        //// screen functions (amo) here
+        //// TODO: print before after
+        //for (int i = 0; i < amo.size(); ++i) {
+        //    screen(amo[i], vtol, false);
+        //}
+        //world.gop.fence();
+
         START_TIMER(world);
         arho_old = arho;
         brho_old = brho;
@@ -2136,12 +2143,6 @@ void SCF::solve(World& world) {
             vnuc = potentialmanager->vnuclear();
             vnuc = vnuc + gthpseudopotential->vlocalpot();
         }
-
-        // screen functions (amo) here
-        for (int i = 0; i < amo.size(); ++i) {
-            screen(amo[i], vtol, false);
-        }
-        world.gop.fence();
 
         double enuclear = inner(rho, vnuc);
         END_TIMER(world, "Nuclear energy");
