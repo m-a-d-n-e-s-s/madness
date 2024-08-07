@@ -2136,6 +2136,13 @@ void SCF::solve(World& world) {
             vnuc = potentialmanager->vnuclear();
             vnuc = vnuc + gthpseudopotential->vlocalpot();
         }
+
+        // screen functions (amo) here
+        for (int i = 0; i < amo.size(); ++i) {
+            screen(amo[i], vtol, false);
+        }
+        world.gop.fence();
+
         double enuclear = inner(rho, vnuc);
         END_TIMER(world, "Nuclear energy");
 

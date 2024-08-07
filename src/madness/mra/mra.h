@@ -2724,6 +2724,18 @@ namespace madness {
         return unary_op(z, detail::absop<NDIM>(), fence);
     }
 
+    // screen nodes with small coeffs to zero
+    template <typename T, size_t NDIM>
+    void screen(Function<T, NDIM>& f, const double eps, bool fence=true) {
+        double eps1=eps;
+        auto op = [&eps1](const Key<NDIM>& key, Tensor<T>& coeff) {
+            if (coeff.normf() < eps1) {
+                coeff = T(0);
+            }
+        };
+        f.get_impl()->unary_op_coeff_inplace(op, fence);
+    }
+
 }
 
 #include <madness/mra/funcplot.h>
