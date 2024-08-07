@@ -1,0 +1,10 @@
+<map id="madness::detail::DistCache&lt; keyT &gt;" name="madness::detail::DistCache&lt; keyT &gt;">
+<area shape="rect" id="node1" title="Distributed caching utility." alt="" coords="100,469,300,511"/>
+<area shape="rect" id="node2" href="$classmadness_1_1ConcurrentHashMap.html" title=" " alt="" coords="89,365,311,407"/>
+<area shape="rect" id="node3" href="$classmadness_1_1Hash__private_1_1bin.html" title=" " alt="" coords="11,261,186,303"/>
+<area shape="rect" id="node4" href="$classmadness_1_1Spinlock.html" title="Spinlock using pthread spinlock operations." alt="" coords="5,5,149,32"/>
+<area shape="rect" id="node6" href="$classmadness_1_1MutexReaderWriter.html" title=" " alt="" coords="115,81,331,108"/>
+<area shape="rect" id="node5" href="$classmadness_1_1Hash__private_1_1entry.html" title=" " alt="" coords="125,157,302,199"/>
+<area shape="rect" id="node7" href="$classNO__DEFAULTS.html" title="Disables default copy constructor and assignment operators." alt="" coords="173,5,288,32"/>
+<area shape="rect" id="node8" href="$structmadness_1_1Hash.html" title=" " alt="" coords="210,269,393,295"/>
+</map>

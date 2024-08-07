@@ -1,0 +1,5 @@
+<map id="madness::xc_kernel_apply" name="madness::xc_kernel_apply">
+<area shape="rect" id="node1" title="Class to compute terms of the kernel." alt="" coords="161,109,311,151"/>
+<area shape="rect" id="node2" href="$classmadness_1_1FunctionCommonData.html" title=" " alt="" coords="5,5,240,47"/>
+<area shape="rect" id="node3" href="$classmadness_1_1XCfunctional.html" title="Simplified interface to XC functionals." alt="" coords="264,13,435,39"/>
+</map>

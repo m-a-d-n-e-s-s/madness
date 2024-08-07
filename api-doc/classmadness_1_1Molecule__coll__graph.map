@@ -1,0 +1,9 @@
+<map id="madness::Molecule" name="madness::Molecule">
+<area shape="rect" id="node1" title=" " alt="" coords="805,79,953,105"/>
+<area shape="rect" id="node2" href="$classmadness_1_1CorePotentialManager.html" title=" " alt="" coords="443,55,677,81"/>
+<area shape="rect" id="node3" title=" " alt="" coords="119,24,178,51"/>
+<area shape="rect" id="node4" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="457,105,663,132"/>
+<area shape="rect" id="node5" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="67,105,230,132"/>
+<area shape="rect" id="node6" href="$structmadness_1_1Molecule_1_1GeometryParameters.html" title=" " alt="" coords="479,157,641,198"/>
+<area shape="rect" id="node7" href="$classmadness_1_1QCCalculationParametersBase.html" title="class for holding the parameters for calculation" alt="" coords="5,164,292,191"/>
+</map>

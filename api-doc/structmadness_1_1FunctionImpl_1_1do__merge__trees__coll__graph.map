@@ -1,0 +1,26 @@
+<map id="madness::FunctionImpl&lt; T, NDIM &gt;::do_merge_trees&lt; Q, R &gt;" name="madness::FunctionImpl&lt; T, NDIM &gt;::do_merge_trees&lt; Q, R &gt;">
+<area shape="rect" id="node1" title="merge the coefficent boxes of this into other&#39;s tree" alt="" coords="1367,199,1544,255"/>
+<area shape="rect" id="node2" href="$classmadness_1_1FunctionImpl.html" title=" " alt="" coords="1088,206,1261,247"/>
+<area shape="rect" id="node3" href="$classmadness_1_1WorldObject.html" title=" " alt="" coords="657,173,877,214"/>
+<area shape="rect" id="node4" href="$structmadness_1_1WorldObjectBase.html" title="Base class for WorldObject, useful for introspection." alt="" coords="277,180,477,207"/>
+<area shape="rect" id="node5" href="$classmadness_1_1Timer.html" title=" " alt="" coords="703,261,830,288"/>
+<area shape="rect" id="node6" href="$classmadness_1_1ConcurrentHashMap.html" title=" " alt="" coords="266,254,487,295"/>
+<area shape="rect" id="node7" href="$classmadness_1_1FunctionCommonData.html" title=" " alt="" coords="649,313,884,354"/>
+<area shape="rect" id="node8" href="$classmadness_1_1World.html" title="A parallel world class." alt="" coords="703,648,830,675"/>
+<area shape="rect" id="node12" href="$classmadness_1_1WorldTaskQueue.html" title="Multi&#45;threaded queue to manage and run tasks." alt="" coords="1076,563,1273,589"/>
+<area shape="rect" id="node16" href="$classmadness_1_1WorldGopInterface.html" title="Provides collectives that interoperate with the AM and task interfaces." alt="" coords="1069,711,1280,737"/>
+<area shape="rect" id="node9" href="$classNO__DEFAULTS.html" title="Disables default copy constructor and assignment operators." alt="" coords="319,421,434,448"/>
+<area shape="rect" id="node10" href="$classmadness_1_1WorldAmInterface.html" title="Implements AM interface." alt="" coords="273,564,480,591"/>
+<area shape="rect" id="node11" href="$classmadness_1_1Mutex.html" title="Mutex using pthread mutex operations." alt="" coords="11,560,194,587"/>
+<area shape="rect" id="node13" href="$classmadness_1_1CallbackInterface.html" title="The class used for callbacks (e.g., dependency tracking)." alt="" coords="665,559,868,585"/>
+<area shape="rect" id="node14" href="$classmadness_1_1AtomicInt.html" title="An integer with atomic set, get, read+increment, read+decrement, and decrement+test operations." alt="" coords="691,471,843,497"/>
+<area shape="rect" id="node15" href="$classmadness_1_1ConcurrentHashMap.html" title=" " alt="" coords="249,670,504,711"/>
+<area shape="rect" id="node17" href="$classmadness_1_1ConcurrentHashMap.html" title=" " alt="" coords="257,735,496,777"/>
+<area shape="rect" id="node18" href="$classmadness_1_1WorldMpiInterface.html" title="This class wraps/extends the MPI interface for World." alt="" coords="273,619,481,645"/>
+<area shape="rect" id="node19" href="$classmadness_1_1detail_1_1WorldMpiRuntime.html" title="MPI runtime reference counter." alt="" coords="5,611,200,653"/>
+<area shape="rect" id="node20" href="$classSafeMPI_1_1Intracomm.html" title="Wrapper around MPI_Comm. Has a shallow copy constructor; use Create(Get_group()) for deep copy." alt="" coords="25,677,180,704"/>
+<area shape="rect" id="node21" href="$classmadness_1_1WorldContainer.html" title=" " alt="" coords="672,107,861,149"/>
+<area shape="rect" id="node22" href="$classmadness_1_1archive_1_1ParallelSerializableObject.html" title="Objects that implement their own parallel archive interface should derive from this class." alt="" coords="280,107,473,149"/>
+<area shape="rect" id="node23" title=" " alt="" coords="737,5,796,32"/>
+<area shape="rect" id="node24" href="$structmadness_1_1TensorArgs.html" title="TensorArgs holds the arguments for creating a LowRankTensor." alt="" coords="687,56,847,83"/>
+</map>

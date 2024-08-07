@@ -1,0 +1,131 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="node1" title=" " alt="" coords="31,309,213,336"/>
+<area shape="rect" id="node2" href="$classAtomicBasisFunctor.html" title=" " alt="" coords="319,309,509,336"/>
+<area shape="rect" id="node3" href="$classmadness_1_1FunctionFunctorInterface.html" title="Abstract base class interface required for functors used as input to Functions." alt="" coords="26,5371,218,5413"/>
+<area shape="rect" id="node4" href="$classDerivativeGaussian.html" title=" " alt="" coords="339,5254,489,5295"/>
+<area shape="rect" id="node5" href="$classGaussian.html" title=" " alt="" coords="332,5007,496,5033"/>
+<area shape="rect" id="node6" href="$classGaussianGuess.html" title="an N&#45;dimensional real&#45;valued Gaussian function" alt="" coords="320,5685,508,5712"/>
+<area shape="rect" id="node7" href="$classHeElectronicChargeDensityIGuess.html" title=" " alt="" coords="314,5371,514,5413"/>
+<area shape="rect" id="node8" href="$classHeNuclearChargeDensityIGuess.html" title=" " alt="" coords="299,5437,529,5478"/>
+<area shape="rect" id="node9" href="$classParserHandler.html" title=" " alt="" coords="317,5503,511,5529"/>
+<area shape="rect" id="node10" href="$classmadness_1_1CompositeFunctorInterface.html" title="CompositeFunctorInterface implements a wrapper of holding several functions and functors." alt="" coords="310,5554,518,5595"/>
+<area shape="rect" id="node11" href="$classmadness_1_1ElementaryInterface.html" title="ElementaryInterface (formerly FunctorInterfaceWrapper) interfaces a c&#45;function." alt="" coords="303,5619,525,5661"/>
+<area shape="rect" id="node12" href="$classmadness_1_1FunctionInterface.html" title="FunctionInterface implements a wrapper around any class with the operator()()" alt="" coords="313,5058,515,5099"/>
+<area shape="rect" id="node13" href="$classmadness_1_1FunctorInterface.html" title="FunctorInterface interfaces a class or struct with an operator()()" alt="" coords="317,5123,511,5165"/>
+<area shape="rect" id="node14" href="$classmadness_1_1TwoElectronInterface.html" title="base class to compute the wavelet coefficients for an isotropic 2e&#45;operator" alt="" coords="301,5189,527,5230"/>
+<area shape="rect" id="node15" href="$classmadness_1_1GeneralTwoElectronInterface.html" title="a function like f(x)=1/x" alt="" coords="603,5189,822,5230"/>
+<area shape="rect" id="node16" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="26,6159,218,6201"/>
+<area shape="rect" id="node17" href="$classF.html" title=" " alt="" coords="395,5853,433,5880"/>
+<area shape="rect" id="node18" href="$classG.html" title=" " alt="" coords="395,6217,433,6244"/>
+<area shape="rect" id="node19" href="$classVnuclear.html" title=" " alt="" coords="375,6167,453,6193"/>
+<area shape="rect" id="node20" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="26,2715,218,2757"/>
+<area shape="rect" id="node21" href="$classAtomicOrbitalFunctor.html" title=" " alt="" coords="334,2115,494,2141"/>
+<area shape="rect" id="node22" href="$classCharge.html" title=" " alt="" coords="380,2165,448,2192"/>
+<area shape="rect" id="node23" href="$classCoreOrbitalFunctor.html" title=" " alt="" coords="342,2216,486,2243"/>
+<area shape="rect" id="node24" href="$classCorePotentialFunctor.html" title=" " alt="" coords="335,2267,493,2293"/>
+<area shape="rect" id="node25" href="$classCosPotentialFunctor.html" title=" " alt="" coords="338,2317,490,2344"/>
+<area shape="rect" id="node26" href="$classDPot.html" title=" " alt="" coords="387,2368,441,2395"/>
+<area shape="rect" id="node27" href="$classDSphere.html" title="Functor representing the log&#45;derivative of &#160;along an axis." alt="" coords="375,2419,453,2445"/>
+<area shape="rect" id="node28" href="$classDipoleFunctor.html" title="A MADNESS functor to compute either x, y, or z." alt="" coords="358,2469,470,2496"/>
+<area shape="rect" id="node29" href="$classEmbeddedDirichlet.html" title="Abstract base class for embedded Dirichlet problems." alt="" coords="341,2520,487,2547"/>
+<area shape="rect" id="node34" href="$classEwaldNuclearPotentialFunctor.html" title=" " alt="" coords="305,2571,523,2597"/>
+<area shape="rect" id="node35" href="$classFermiNucDistFunctor.html" title=" " alt="" coords="335,2621,493,2648"/>
+<area shape="rect" id="node36" href="$classFiniteNucleusPotential.html" title=" " alt="" coords="330,2672,498,2699"/>
+<area shape="rect" id="node37" href="$structFunctorInterfaceWrapper.html" title=" " alt="" coords="323,5320,505,5347"/>
+<area shape="rect" id="node38" href="$classGaussianFunctor.html" title=" " alt="" coords="349,2723,479,2749"/>
+<area shape="rect" id="node39" href="$classGaussianNucleusFunctor.html" title=" " alt="" coords="323,2773,505,2800"/>
+<area shape="rect" id="node40" href="$classGaussianPotential.html" title="Computes the electrostatic potential due to a Gaussian charge distribution." alt="" coords="344,2824,484,2851"/>
+<area shape="rect" id="node41" href="$classGuess.html" title=" " alt="" coords="383,259,445,285"/>
+<area shape="rect" id="node42" href="$classH2Potential.html" title=" " alt="" coords="365,2875,463,2901"/>
+<area shape="rect" id="node43" href="$classMolecularGuessDensityFunctor.html" title=" " alt="" coords="302,2925,526,2952"/>
+<area shape="rect" id="node44" href="$classMolecularNuclearChargeDensityFunctor.html" title=" " alt="" coords="298,2977,530,3018"/>
+<area shape="rect" id="node45" href="$classMolecularNuclearPotentialFunctor2.html" title=" " alt="" coords="317,3042,511,3083"/>
+<area shape="rect" id="node46" href="$classMolecularPotentialFunctor.html" title=" " alt="" coords="318,3108,510,3135"/>
+<area shape="rect" id="node47" href="$classMolecularSurface.html" title=" " alt="" coords="347,360,481,387"/>
+<area shape="rect" id="node48" href="$classMolecularVolumeComplementMask.html" title=" " alt="" coords="287,411,541,437"/>
+<area shape="rect" id="node49" href="$classMolecularVolumeExponentialSwitch.html" title="Switches between positive values Vint and Vext with special log derivative." alt="" coords="308,3159,520,3201"/>
+<area shape="rect" id="node50" href="$classMolecularVolumeExponentialSwitchLogGrad.html" title="Returns the requested component of the derivative of the log of MolecularVolumeExponentialSwitch." alt="" coords="308,3225,520,3266"/>
+<area shape="rect" id="node51" href="$classMolecularVolumeExponentialSwitchReciprocal.html" title="Computes the reciprocal of MolecularVolumeExponentialSwitch." alt="" coords="308,3290,520,3331"/>
+<area shape="rect" id="node52" href="$classMolecularVolumeMask.html" title=" " alt="" coords="329,461,499,488"/>
+<area shape="rect" id="node53" href="$classMolecularVolumeMaskGrad.html" title=" " alt="" coords="313,512,515,539"/>
+<area shape="rect" id="node54" href="$classNcOverR.html" title=" " alt="" coords="375,3356,453,3383"/>
+<area shape="rect" id="node55" href="$classNuclearDensityFunctor.html" title=" " alt="" coords="329,3407,499,3433"/>
+<area shape="rect" id="node56" href="$classOnesFunctor.html" title=" " alt="" coords="363,3457,465,3484"/>
+<area shape="rect" id="node57" href="$classOpFExact.html" title=" " alt="" coords="372,3508,456,3535"/>
+<area shape="rect" id="node58" href="$classPotentialBasisFunctor.html" title=" " alt="" coords="333,3559,495,3585"/>
+<area shape="rect" id="node59" href="$structQfunc.html" title="the result of the convolution" alt="" coords="384,3609,444,3636"/>
+<area shape="rect" id="node60" href="$classRadiusFunctor.html" title=" " alt="" coords="357,3660,471,3687"/>
+<area shape="rect" id="node61" href="$classRadiusSquareFunctor.html" title=" " alt="" coords="335,3711,493,3737"/>
+<area shape="rect" id="node62" href="$classSphere.html" title=" " alt="" coords="381,3761,447,3788"/>
+<area shape="rect" id="node63" href="$classSplitterFunctor.html" title=" " alt="" coords="355,3812,473,3839"/>
+<area shape="rect" id="node64" href="$classVderiv.html" title=" " alt="" coords="382,3863,446,3889"/>
+<area shape="rect" id="node65" href="$classalpha__functor.html" title=" " alt="" coords="359,3913,469,3940"/>
+<area shape="rect" id="node66" href="$classbeta__functor.html" title=" " alt="" coords="362,3964,466,3991"/>
+<area shape="rect" id="node67" href="$classmadchem_1_1AtomicAttractionFunctor.html" title=" " alt="" coords="311,4015,517,4057"/>
+<area shape="rect" id="node68" href="$classmadchem_1_1AtomicBasisFunctor.html" title=" " alt="" coords="302,4081,526,4108"/>
+<area shape="rect" id="node69" href="$classmadchem_1_1CorePotentialDerivativeFunctor.html" title=" " alt="" coords="289,4133,539,4174"/>
+<area shape="rect" id="node70" href="$classmadchem_1_1MolecularDerivativeFunctor.html" title=" " alt="" coords="301,4198,527,4239"/>
+<area shape="rect" id="node71" href="$classmadchem_1_1MolecularGuessDensityFunctor.html" title=" " alt="" coords="289,4263,539,4305"/>
+<area shape="rect" id="node72" href="$classmadchem_1_1MolecularSecondDerivativeFunctor.html" title=" " alt="" coords="311,4329,517,4370"/>
+<area shape="rect" id="node73" href="$classmadness_1_1BasisFunctions_1_1CartesianGaussian.html" title=" " alt="" coords="321,4394,507,4435"/>
+<area shape="rect" id="node74" href="$classmadness_1_1BasisFunctions_1_1SolidHarmonicGaussian.html" title=" " alt="" coords="321,4459,507,4501"/>
+<area shape="rect" id="node75" href="$classmadness_1_1CoreOrbitalDerivativeFunctor.html" title=" " alt="" coords="299,4525,529,4566"/>
+<area shape="rect" id="node76" href="$classmadness_1_1CoreOrbitalFunctor.html" title=" " alt="" coords="309,4591,519,4617"/>
+<area shape="rect" id="node77" href="$classmadness_1_1DipoleFunctor.html" title="A MADNESS functor to compute either x, y, or z." alt="" coords="325,4641,503,4668"/>
+<area shape="rect" id="node78" href="$classmadness_1_1MolecularCorePotentialFunctor.html" title=" " alt="" coords="293,4693,535,4734"/>
+<area shape="rect" id="node79" href="$classmadness_1_1MolecularPotentialFunctor.html" title=" " alt="" coords="309,4758,519,4799"/>
+<area shape="rect" id="node80" href="$classmadness_1_1MomentFunctor.html" title="A MADNESS functor to compute the cartesian moment x^i * y^j * z^k (i, j, k integer and &gt;= 0)" alt="" coords="319,4824,509,4851"/>
+<area shape="rect" id="node81" href="$classmadness_1_1NuclearCorrelationFactor_1_1RX__functor.html" title="compute the derivative of R wrt the displacement of atom A, coord axis" alt="" coords="309,4875,519,4917"/>
+<area shape="rect" id="node82" href="$classmadness_1_1NuclearCorrelationFactor_1_1R__functor.html" title=" " alt="" coords="309,4941,519,4982"/>
+<area shape="rect" id="node83" href="$classmadness_1_1NuclearCorrelationFactor_1_1U1X__functor.html" title="compute the derivative of U1 wrt the displacement of atom A, coord axis" alt="" coords="309,563,519,605"/>
+<area shape="rect" id="node84" href="$classmadness_1_1NuclearCorrelationFactor_1_1U1__atomic__functor.html" title="U1 functor for a specific atom." alt="" coords="309,629,519,670"/>
+<area shape="rect" id="node85" href="$classmadness_1_1NuclearCorrelationFactor_1_1U1__dot__U1__functor.html" title="functor for a local U1 dot U1 potential" alt="" coords="309,694,519,735"/>
+<area shape="rect" id="node86" href="$classmadness_1_1NuclearCorrelationFactor_1_1U1__functor.html" title="functor for the local part of the U1 potential – NOTE THE SIGN" alt="" coords="309,759,519,801"/>
+<area shape="rect" id="node87" href="$classmadness_1_1NuclearCorrelationFactor_1_1U2X__functor.html" title="compute the derivative of U2 wrt the displacement of atom A" alt="" coords="309,825,519,866"/>
+<area shape="rect" id="node88" href="$classmadness_1_1NuclearCorrelationFactor_1_1U2__atomic__functor.html" title="U2 functor for a specific atom." alt="" coords="309,890,519,931"/>
+<area shape="rect" id="node89" href="$classmadness_1_1NuclearCorrelationFactor_1_1U2__functor.html" title=" " alt="" coords="309,955,519,997"/>
+<area shape="rect" id="node90" href="$classmadness_1_1NuclearCorrelationFactor_1_1U3X__functor.html" title="compute the derivative of U3 wrt the displacement of atom A, coord axis" alt="" coords="309,1021,519,1062"/>
+<area shape="rect" id="node91" href="$classmadness_1_1NuclearCorrelationFactor_1_1U3__atomic__functor.html" title="U3 functor for a specific atom." alt="" coords="309,1086,519,1127"/>
+<area shape="rect" id="node92" href="$classmadness_1_1NuclearCorrelationFactor_1_1U3__functor.html" title=" " alt="" coords="309,1151,519,1193"/>
+<area shape="rect" id="node93" href="$classmadness_1_1NuclearCorrelationFactor_1_1square__times__V__derivative__functor.html" title=" " alt="" coords="291,1217,537,1273"/>
+<area shape="rect" id="node94" href="$classmadness_1_1NuclearCorrelationFactor_1_1square__times__V__functor.html" title=" " alt="" coords="301,1298,527,1339"/>
+<area shape="rect" id="node95" href="$classmadness_1_1ProjRLMFunctor.html" title=" " alt="" coords="319,1364,509,1391"/>
+<area shape="rect" id="node96" href="$structmadness_1_1Solver_1_1GuessDensity.html" title=" " alt="" coords="327,1415,501,1457"/>
+<area shape="rect" id="node97" href="$classmadness_1_1VLocalFunctor.html" title=" " alt="" coords="324,1481,504,1508"/>
+<area shape="rect" id="node98" href="$structmadness_1_1asymptotic__slater.html" title=" " alt="" coords="333,1533,495,1574"/>
+<area shape="rect" id="node99" href="$classmadness_1_1atomic__attraction.html" title=" " alt="" coords="312,1599,516,1625"/>
+<area shape="rect" id="node100" href="$classmadness_1_1guessfactory_1_1GaussFunctor.html" title=" " alt="" coords="327,1650,501,1691"/>
+<area shape="rect" id="node101" href="$classmadness_1_1guessfactory_1_1PlaneWaveFunctor.html" title="creates a plane&#45;wave: sin (or cos) with argument (npi/L*x)" alt="" coords="327,1715,501,1757"/>
+<area shape="rect" id="node102" href="$classmadness_1_1guessfactory_1_1PolynomialFunctor.html" title="Project a general 3D polynomial to the MRA Grid." alt="" coords="327,1781,501,1822"/>
+<area shape="rect" id="node104" href="$structmadness_1_1harmonic__potential__boxed.html" title="functor for the diamagnetic term in a box" alt="" coords="307,1846,521,1887"/>
+<area shape="rect" id="node105" href="$structncf.html" title=" " alt="" coords="393,1912,435,1939"/>
+<area shape="rect" id="node106" href="$classslymer_1_1Gaussian__Functor.html" title=" " alt="" coords="319,1963,509,1989"/>
+<area shape="rect" id="node107" href="$structstepfunction.html" title=" " alt="" coords="363,2013,465,2040"/>
+<area shape="rect" id="node108" href="$classuexact.html" title=" " alt="" coords="381,2064,447,2091"/>
+<area shape="rect" id="node30" href="$classConstantSphere.html" title="The constant on a sphere problem." alt="" coords="650,2495,775,2521"/>
+<area shape="rect" id="node31" href="$classCosineSphere.html" title="The cos(theta) on a sphere problem." alt="" coords="657,2545,768,2572"/>
+<area shape="rect" id="node32" href="$classInhomoConstantSphere.html" title="The constant on a sphere problem, with inhomogeneity." alt="" coords="625,2596,800,2623"/>
+<area shape="rect" id="node33" href="$classY20Sphere.html" title="The Y_2^0 on a sphere problem." alt="" coords="667,2444,758,2471"/>
+<area shape="rect" id="node103" href="$classmadness_1_1guessfactory_1_1PolynomialTrigonometricsFunctor.html" title=" " alt="" coords="589,1781,836,1822"/>
+<area shape="rect" id="node109" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="23,5850,221,5891"/>
+<area shape="rect" id="node110" href="$classmadness_1_1TwoElectronInterface.html" title=" " alt="" coords="301,6035,527,6077"/>
+<area shape="rect" id="node112" href="$classmadness_1_1TwoElectronInterface.html" title=" " alt="" coords="301,5970,527,6011"/>
+<area shape="rect" id="node116" href="$classmadness_1_1DomainMaskSDFFunctor.html" title="Framework for combining a signed distance function (sdf) with a domain mask to produce MADNESS functi..." alt="" coords="289,5905,539,5946"/>
+<area shape="rect" id="node117" href="$classmadness_1_1int__factor__functor.html" title="Functor for the correction factor, which is multiplied with the exchange correlation potential." alt="" coords="339,6101,489,6142"/>
+<area shape="rect" id="node118" href="$classmadness_1_1lr__pot__functor.html" title="Functor for the 1/r potential to induce the correct asymptotic behaviour of the exchange correlation ..." alt="" coords="325,5737,503,5778"/>
+<area shape="rect" id="node119" href="$classxc__functor.html" title="Functor for the exchange correlation potential." alt="" coords="336,5803,492,5829"/>
+<area shape="rect" id="node111" href="$classmadness_1_1ElectronRepulsionInterface.html" title="a function like f(x)=1/x" alt="" coords="609,6058,816,6099"/>
+<area shape="rect" id="node113" href="$classmadness_1_1BSHFunctionInterface.html" title="a function like f(x) = exp(&#45;mu x)/x" alt="" coords="598,5905,827,5932"/>
+<area shape="rect" id="node114" href="$classmadness_1_1SlaterF12Interface.html" title="a function like f(x) = (1 &#45; exp(&#45;mu x))/(2 gamma)" alt="" coords="608,5956,817,5983"/>
+<area shape="rect" id="node115" href="$classmadness_1_1SlaterFunctionInterface.html" title="a function like f(x)=exp(&#45;mu x)" alt="" coords="593,6007,833,6033"/>
+<area shape="rect" id="node120" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="5,150,239,191"/>
+<area shape="rect" id="node121" href="$structExactSpinor.html" title=" " alt="" coords="365,5,463,32"/>
+<area shape="rect" id="node122" href="$classPWFunctor.html" title=" " alt="" coords="369,56,459,83"/>
+<area shape="rect" id="node123" href="$classmadness_1_1WSTAtomicBasisFunctor.html" title=" " alt="" coords="291,107,537,133"/>
+<area shape="rect" id="node124" href="$structmadness_1_1Znemo_1_1p__orbital.html" title=" " alt="" coords="314,157,514,184"/>
+<area shape="rect" id="node125" href="$structmadness_1_1Znemo_1_1s__orbital.html" title=" " alt="" coords="315,208,513,235"/>
+<area shape="rect" id="node126" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="26,6261,218,6302"/>
+<area shape="rect" id="node127" href="$classExpFunctor.html" title=" " alt="" coords="347,6319,481,6345"/>
+<area shape="rect" id="node128" href="$classExpFunctor3d.html" title=" " alt="" coords="339,6268,489,6295"/>
+<area shape="rect" id="node129" href="$classMolecularMaskBase.html" title=" " alt="" coords="45,436,199,463"/>
+</map>

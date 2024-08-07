@@ -1,0 +1,6 @@
+<map id="madness::ConvolutionData1D&lt; Q &gt;" name="madness::ConvolutionData1D&lt; Q &gt;">
+<area shape="rect" id="node1" title="!!! Note that if Rnormf is zero then ALL of the tensors are empty" alt="" coords="504,59,711,101"/>
+<area shape="rect" id="node2" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="217,5,429,61"/>
+<area shape="rect" id="node3" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="5,67,168,93"/>
+<area shape="rect" id="node4" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="238,99,409,125"/>
+</map>

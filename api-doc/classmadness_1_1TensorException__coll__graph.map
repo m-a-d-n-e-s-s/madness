@@ -1,0 +1,5 @@
+<map id="madness::TensorException" name="madness::TensorException">
+<area shape="rect" id="node1" title="Tensor is intended to throw only TensorExceptions." alt="" coords="47,109,241,136"/>
+<area shape="rect" id="node2" title=" " alt="" coords="5,5,120,32"/>
+<area shape="rect" id="node3" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="144,5,307,32"/>
+</map>

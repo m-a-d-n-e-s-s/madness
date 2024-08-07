@@ -1,0 +1,5 @@
+<map id="madness::WorldDCDefaultPmap&lt; keyT, hashfunT &gt;" name="madness::WorldDCDefaultPmap&lt; keyT, hashfunT &gt;">
+<area shape="rect" id="node1" title="Default process map is &quot;random&quot; using madness::hash(key)" alt="" coords="127,109,358,151"/>
+<area shape="rect" id="node2" href="$classmadness_1_1WorldDCPmapInterface.html" title="Interface to be provided by any process map." alt="" coords="5,5,245,47"/>
+<area shape="rect" id="node3" href="$structmadness_1_1Hash.html" title=" " alt="" coords="270,13,453,39"/>
+</map>
