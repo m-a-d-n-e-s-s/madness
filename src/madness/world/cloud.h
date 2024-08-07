@@ -206,9 +206,11 @@ public:
     void print_timings(World &universe) const {
         double rtime = double(reading_time);
         double wtime = double(writing_time);
+        double wtime1 = double(writing_time1);
         double ptime = double(replication_time);
         universe.gop.max(rtime);
         universe.gop.max(wtime);
+        universe.gop.max(wtime1);
         universe.gop.max(ptime);
         long creads = long(cache_reads);
         long cstores = long(cache_stores);
@@ -218,6 +220,7 @@ public:
             auto precision = std::cout.precision();
             std::cout << std::fixed << std::setprecision(1);
             print("cloud storing wall time", wtime * 0.001);
+            print("cloud storing wall time inner loop", wtime1 * 0.001);
             print("cloud replication wall time", ptime * 0.001);
             print("cloud reading wall time", rtime * 0.001, std::defaultfloat);
             std::cout << std::setprecision(precision) << std::scientific;
@@ -234,6 +237,7 @@ public:
     void clear_timings() {
         reading_time=0l;
         writing_time=0l;
+        writing_time1=0l;
         replication_time=0l;
         cache_stores=0l;
         cache_reads=0l;
@@ -332,6 +336,7 @@ private:
 
     mutable std::atomic<long> reading_time=0l;    // in ms
     mutable std::atomic<long> writing_time=0l;    // in ms
+    mutable std::atomic<long> writing_time1=0l;    // in ms
     mutable std::atomic<long> replication_time=0l;    // in ms
     mutable std::atomic<long> cache_reads=0l;
     mutable std::atomic<long> cache_stores=0l;
@@ -423,6 +428,7 @@ private:
         if (is_already_present) {
             if (world.rank()==0) cache_stores++;
         } else {
+            cloudtimer t(world,writing_time1);
             madness::archive::ContainerRecordOutputArchive ar(world, container, record);
             madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
             par & source;

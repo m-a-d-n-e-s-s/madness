@@ -1615,6 +1615,10 @@ namespace madness {
     namespace archive {
 
         /// Write container to parallel archive
+
+        /// specialization for parallel serialization of a WorldContainer:
+        /// all threads on each process serialize some values into a buffer, which gets concatenated
+        /// and finally serialized to localarchive (aka VectorOutputArchive).
         template <class keyT, class valueT>
         struct ArchiveStoreImpl< ParallelOutputArchive<VectorOutputArchive>, WorldContainer<keyT,valueT> > {
             static void store(const ParallelOutputArchive<VectorOutputArchive>& ar, const WorldContainer<keyT,valueT>& t) {
@@ -1650,6 +1654,7 @@ namespace madness {
                         const_iterator it=t.begin();
                         size_t count = 0;
                         size_t n = 0;
+                        /// threads serialize round-robin over the container
                         while (it!=t.end()) {
                             if ((n%ntasks) == taskid) {
                                 var & *it;
@@ -1659,6 +1664,7 @@ namespace madness {
                             n++;
                         }
 
+                        // concatenate the buffers from each thread
                         if (count) {
                             mutex.lock();
                             vtotal.insert(vtotal.end(), v.begin(), v.end());
