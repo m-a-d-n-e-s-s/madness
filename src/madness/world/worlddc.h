@@ -1613,74 +1613,8 @@ namespace madness {
     }
 
     namespace archive {
-        /// Write container to parallel archive with optional fence
 
-        /// \ingroup worlddc
-        /// Each node (process) is served by a designated IO node.
-        /// The IO node has a binary local file archive to which is
-        /// first written a cookie and the number of servers.  The IO
-        /// node then loops thru all of its clients and in turn tells
-        /// each to write its data over an MPI stream, which is copied
-        /// directly to the output file.  The stream contents are then
-        /// cookie, no. of clients, foreach client (usual sequential archive).
-        ///
-        /// If ar.dofence() is true (default) fence is invoked before and
-        /// after the IO. The fence is optional but it is of course
-        /// necessary to be sure that all updates have completed
-        /// before doing IO, and that all IO has completed before
-        /// subsequent modifications. Also, there is always at least
-        /// some synchronization between a client and its IO server.
-        template <class keyT, class valueT, class localarchiveT>
-        struct ArchiveStoreImpl< ParallelOutputArchive<localarchiveT>, WorldContainer<keyT,valueT> > {
-            static void store(const ParallelOutputArchive<localarchiveT>& ar, const WorldContainer<keyT,valueT>& t) {
-                const long magic = -5881828; // Sitar Indian restaurant in Knoxville (negative to indicate parallel!)
-                typedef WorldContainer<keyT,valueT> dcT;
-                // typedef typename dcT::const_iterator iterator; // unused?
-                typedef typename dcT::pairT pairT;
-                World* world = ar.get_world();
-                Tag tag = world->mpi.unique_tag();
-                ProcessID me = world->rank();
-                if (ar.dofence()) world->gop.fence();
-                if (ar.is_io_node()) {
-                    auto& localar = ar.local_archive();
-                    localar & magic & ar.num_io_clients();
-                    for (ProcessID p=0; p<world->size(); ++p) {
-                        if (p == me) {
-                            localar & t;
-                        }
-                        else if (ar.io_node(p) == me) {
-                            world->mpi.Send(int(1),p,tag); // Tell client to start sending
-                            archive::MPIInputArchive source(*world, p);
-                            long cookie = 0l;
-                            unsigned long count = 0ul;
-
-                            ArchivePrePostImpl<localarchiveT,dcT>::preamble_store(localar);
-
-                            source & cookie & count;
-                            localar & cookie & count;
-                            while (count--) {
-                                pairT datum;
-                                source & datum;
-                                localar & datum;
-                            }
-
-                            ArchivePrePostImpl<localarchiveT,dcT>::postamble_store(localar);
-                        }
-                    }
-                }
-                else {
-                    ProcessID p = ar.my_io_node();
-                    int flag;
-                    world->mpi.Recv(flag,p,tag);
-                    MPIOutputArchive dest(*world, p);
-                    dest & t;
-                    dest.flush();
-                }
-                if (ar.dofence()) world->gop.fence();
-            }
-        };
-
-             /// Write container to parallel archive
+        /// Write container to parallel archive
         template <class keyT, class valueT>
         struct ArchiveStoreImpl< ParallelOutputArchive<VectorOutputArchive>, WorldContainer<keyT,valueT> > {
             static void store(const ParallelOutputArchive<VectorOutputArchive>& ar, const WorldContainer<keyT,valueT>& t) {
@@ -1772,6 +1706,74 @@ namespace madness {
                     delete[] all_data;
                 }
                 world->gop.fence();
+            }
+        };
+
+
+        /// Write container to parallel archive with optional fence
+
+        /// \ingroup worlddc
+        /// Each node (process) is served by a designated IO node.
+        /// The IO node has a binary local file archive to which is
+        /// first written a cookie and the number of servers.  The IO
+        /// node then loops thru all of its clients and in turn tells
+        /// each to write its data over an MPI stream, which is copied
+        /// directly to the output file.  The stream contents are then
+        /// cookie, no. of clients, foreach client (usual sequential archive).
+        ///
+        /// If ar.dofence() is true (default) fence is invoked before and
+        /// after the IO. The fence is optional but it is of course
+        /// necessary to be sure that all updates have completed
+        /// before doing IO, and that all IO has completed before
+        /// subsequent modifications. Also, there is always at least
+        /// some synchronization between a client and its IO server.
+        template <class keyT, class valueT, class localarchiveT>
+        struct ArchiveStoreImpl< ParallelOutputArchive<localarchiveT>, WorldContainer<keyT,valueT> > {
+            static void store(const ParallelOutputArchive<localarchiveT>& ar, const WorldContainer<keyT,valueT>& t) {
+                const long magic = -5881828; // Sitar Indian restaurant in Knoxville (negative to indicate parallel!)
+                typedef WorldContainer<keyT,valueT> dcT;
+                // typedef typename dcT::const_iterator iterator; // unused?
+                typedef typename dcT::pairT pairT;
+                World* world = ar.get_world();
+                Tag tag = world->mpi.unique_tag();
+                ProcessID me = world->rank();
+                if (ar.dofence()) world->gop.fence();
+                if (ar.is_io_node()) {
+                    auto& localar = ar.local_archive();
+                    localar & magic & ar.num_io_clients();
+                    for (ProcessID p=0; p<world->size(); ++p) {
+                        if (p == me) {
+                            localar & t;
+                        }
+                        else if (ar.io_node(p) == me) {
+                            world->mpi.Send(int(1),p,tag); // Tell client to start sending
+                            archive::MPIInputArchive source(*world, p);
+                            long cookie = 0l;
+                            unsigned long count = 0ul;
+
+                            ArchivePrePostImpl<localarchiveT,dcT>::preamble_store(localar);
+
+                            source & cookie & count;
+                            localar & cookie & count;
+                            while (count--) {
+                                pairT datum;
+                                source & datum;
+                                localar & datum;
+                            }
+
+                            ArchivePrePostImpl<localarchiveT,dcT>::postamble_store(localar);
+                        }
+                    }
+                }
+                else {
+                    ProcessID p = ar.my_io_node();
+                    int flag;
+                    world->mpi.Recv(flag,p,tag);
+                    MPIOutputArchive dest(*world, p);
+                    dest & t;
+                    dest.flush();
+                }
+                if (ar.dofence()) world->gop.fence();
             }
         };
 
