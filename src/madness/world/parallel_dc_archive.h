@@ -36,7 +36,10 @@ namespace madness {
             {
                 close();
             }
-            
+
+            VectorOutputArchive& get_archive() {
+                return ar;
+            }
             template <class T>
             inline
             typename std::enable_if< madness::is_trivially_serializable<T>::value, void >::type
@@ -97,7 +100,17 @@ namespace madness {
             
             void close() {}
         };
-        
+
+
+        template <class keyT, class valueT>
+        struct ArchiveStoreImpl< ParallelOutputArchive<ContainerRecordOutputArchive>, WorldContainer<keyT,valueT> > {
+            static void store(const ParallelOutputArchive<ContainerRecordOutputArchive>& ar, const WorldContainer<keyT,valueT>& t) {
+                ParallelOutputArchive<VectorOutputArchive> par(*(ar.get_world()), ar.local_archive().get_archive());
+                par & t;
+
+            }
+        };
+
     }
 
 
