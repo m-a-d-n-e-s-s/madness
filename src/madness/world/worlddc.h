@@ -1633,45 +1633,39 @@ namespace madness {
                 World* world = ar.get_world();
                 world->gop.fence();
 
-                std::vector<unsigned char> v;
-                v.reserve(default_size);
-                size_t count = 0;
-
-                class op : public TaskInterface {
+                class op_serialize : public TaskInterface {
                     const size_t ntasks;
                     const size_t taskid;
                     const dcT& t;
-                    std::vector<unsigned char>& vtotal;
-                    size_t& total_count;
-                    Mutex& mutex;
+                    std::vector<unsigned char>& v;
 
                 public:
-                    op(size_t ntasks, size_t taskid, const dcT& t, std::vector<unsigned char>& vtotal, size_t& total_count, Mutex& mutex)
-                        : ntasks(ntasks), taskid(taskid), t(t), vtotal(vtotal), total_count(total_count), mutex(mutex) {}
+                    op_serialize(size_t ntasks, size_t taskid, const dcT& t, std::vector<unsigned char>& v)
+                        : ntasks(ntasks), taskid(taskid), t(t), v(v) {}
                     void run(World& world) {
-                        std::vector<unsigned char> v;
-                        std::size_t hint_size=std::max(size_t(1024*1024),vtotal.capacity()/ntasks);
-                        VectorOutputArchive var(v,hint_size+taskid);
+                        std::size_t hint_size=(1ul<<30)/ntasks;
+                        VectorOutputArchive var(v,hint_size);
                         const_iterator it=t.begin();
-                        size_t count = 0;
                         size_t n = 0;
                         /// threads serialize round-robin over the container
                         while (it!=t.end()) {
                             if ((n%ntasks) == taskid) {
                                 var & *it;
-                                ++count;
                             }
                             ++it;
                             n++;
                         }
-                        print("count, n, ntasks, taskid, size",count,n,ntasks,taskid,var.v->capacity());
-                        // concatenate the buffers from each thread
-                        if (count) {
-                            mutex.lock();
-                            vtotal.insert(vtotal.end(), v.begin(), v.end());
-                            total_count += count;
-                            mutex.unlock();
-                        }
+                    }
+                };
+
+                class op_concat : public TaskInterface {
+                    unsigned char* all_data;
+                    const std::vector<unsigned char>& v;
+                public:
+                    op_concat(unsigned char* all_data, const std::vector<unsigned char>& v)
+                        : all_data(all_data), v(v) {}
+                    void run(World& world) {
+                        memcpy(all_data, v.data(), v.size());
                     }
                 };
 
@@ -1679,15 +1673,29 @@ namespace madness {
                 double wall0=wall_time();
                 Mutex mutex;
                 size_t ntasks = std::max(size_t(1), ThreadPool::size());
+
+                std::vector<std::vector<unsigned char>> v(ntasks);
                 for (size_t taskid=0; taskid<ntasks; taskid++)
-                    world->taskq.add(new op(ntasks, taskid, t, v, count, mutex));
+                    world->taskq.add(new op_serialize(ntasks, taskid, t, v[taskid]));
                 world->gop.fence();
+                // total size of all vectors
+                size_t total_size = 0;
+                for (size_t taskid=0; taskid<ntasks; taskid++) total_size += v[taskid].size();
+                std::vector<unsigned char> vtotal(total_size);
+                
+                size_t offset = 0;
+                for (size_t taskid=0; taskid<ntasks; taskid++) {
+                    world->taskq.add(new op_concat(&vtotal[offset], v[taskid]));
+                    offset += v[taskid].size();
+                }
+                v.clear();
 
                 double wall1=wall_time();
                 if (world->rank()==0) printf("time in the taskq: %8.4fs\n",wall1-wall0);
                 // Gather all buffers to process 0
                 // first gather all of the sizes and counts to a vector in process 0
-                int size = v.size();
+                int size = vtotal.size();
+                int count = t.size();
                 std::vector<int> sizes(world->size());
                 MPI_Gather(&size, 1, MPI_INT, sizes.data(), 1, MPI_INT, 0, world->mpi.comm().Get_mpi_comm());
                 world->gop.sum(count); // just need total number of elements
@@ -1697,7 +1705,7 @@ namespace madness {
                 std::vector<int> offsets(world->size());
                 offsets[0] = 0;
                 for (int i=1; i<world->size(); ++i) offsets[i] = offsets[i-1] + sizes[i-1];
-                int total_size = offsets.back() + sizes.back();
+                MADNESS_CHECK(offsets.back() + sizes.back() == total_size);
 
                 print("time 4",wall_time());
                 // gather the vector of data v from each process to process 0
@@ -1705,7 +1713,7 @@ namespace madness {
                 if (world->rank() == 0) {
                     all_data = new unsigned char[total_size];
                 }
-                MPI_Gatherv(v.data(), v.size(), MPI_BYTE, all_data, sizes.data(), offsets.data(), MPI_BYTE, 0, world->mpi.comm().Get_mpi_comm());
+                MPI_Gatherv(vtotal.data(), vtotal.size(), MPI_BYTE, all_data, sizes.data(), offsets.data(), MPI_BYTE, 0, world->mpi.comm().Get_mpi_comm());
 
                 print("time 5",wall_time());
                 if (world->rank() == 0) {
