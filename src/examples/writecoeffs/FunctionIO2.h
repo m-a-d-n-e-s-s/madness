@@ -1,5 +1,6 @@
 #include "ccpairfunction.h"
 #include "funcdefaults.h"
+#include "madness/mra/function_common_data.h"
 #include <iostream>
 #include <madness/mra/mra.h>
 
@@ -150,7 +151,11 @@ public:
     return f;
   }
 };
+
 template <typename T, std::size_t NDIM> struct FunctionIOData {
+
+  typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
+  typedef int Level;
 
   long k = 0;
   long npts_per_box = 0;
@@ -159,6 +164,7 @@ template <typename T, std::size_t NDIM> struct FunctionIOData {
   long num_leaf_nodes{};
   std::vector<std::array<long, NDIM + 1>> nl;
   std::vector<std::vector<double>> values;
+  std::vector<std::vector<coordT>> coords;
 
   FunctionIOData() = default;
 
@@ -184,6 +190,8 @@ template <typename T, std::size_t NDIM> struct FunctionIOData {
 
   void initialize_func_coeffs(const Function<T, NDIM> &f,
                               const Key<NDIM> &key) {
+    const Tensor<double> &cell_width = FunctionDefaults<NDIM>::get_cell_width();
+    const Tensor<double> &cell = FunctionDefaults<NDIM>::get_cell();
     const auto &coeffs = f.get_impl()->get_coeffs();
     auto it = coeffs.find(key).get();
     if (it == coeffs.end()) {
@@ -191,14 +199,43 @@ template <typename T, std::size_t NDIM> struct FunctionIOData {
         std::cout << "  ";
       std::cout << key << "  missing --> " << coeffs.owner(key) << "\n";
     } else {
+
+      auto cdata = f.get_impl()->get_cdata();
+
+      const Tensor<double> qx = cdata.quad_x;
+      const size_t npt = qx.dim(0);
       const auto &node = it->second;
       if (node.has_coeff()) {
+
+        const Level n = key.level();
+        const double h = std::pow(0.5, double(n));
+        coordT c; // will hold the point in user coordinates
+
         auto node_values = f.get_impl()->coeffs2values(key, node.coeff());
         std::array<long, NDIM + 1> key_i;
         key_i[0] = key.level();
+        auto l = key.translation();
         for (int i = 0; i < NDIM; ++i)
           key_i[i + 1] = key.translation()[i];
+
         nl.push_back(key_i);
+        coords.push_back(std::vector<coordT>());
+
+        if (NDIM == 3) {
+          for (size_t i = 0; i < k; ++i) {
+            c[0] = cell(0, 0) + h * cell_width[0] * (l[0] + qx(i)); // x
+            for (size_t j = 0; j < k; ++j) {
+              c[1] = cell(1, 0) + h * cell_width[1] * (l[1] + qx(j)); // y
+              for (size_t m = 0; m < k; ++m) {
+                c[2] = cell(2, 0) + h * cell_width[2] * (l[2] + qx(m)); // z
+                coords.back().push_back(c);
+              }
+            }
+          }
+        } else {
+          MADNESS_EXCEPTION("only NDIM=3 in print_grid", 0);
+        }
+
         std::vector<double> values_i(npts_per_box);
         std::copy(node_values.ptr(), node_values.ptr() + npts_per_box,
                   values_i.begin());
@@ -267,6 +304,7 @@ void to_json(json &j, const FunctionIOData<T, NDIM> &p) {
            {"k", p.k},
            {"cell", p.cell},
            {"num_leaf_nodes", p.num_leaf_nodes},
+           {"coords", p.coords},
            {"nl", p.nl},
            {"ndim", p.ndim},
            {"values", p.values}};
