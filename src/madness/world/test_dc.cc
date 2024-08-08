@@ -271,7 +271,7 @@ void test_local(World& world) {
 void test_florian(World& world) {
     WorldContainer<Key,LargeNode> c(world);
 
-    long nlarge=10000;
+    long nlarge=20000;
     // get nlarge variable from the environment and convert it into long
     char* nlarge_env = getenv("NLARGE");
     if (nlarge_env) {
@@ -312,7 +312,7 @@ void test_florian(World& world) {
     }
 
     world.gop.fence();
-    print("test_florian passed");
+    if (world.rank() == 0) print("test_florian passed");
 }
 
 int main(int argc, char** argv) {
