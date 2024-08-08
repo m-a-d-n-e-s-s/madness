@@ -2730,7 +2730,7 @@ namespace madness {
         double eps1=eps;
         auto op = [&eps1](const Key<NDIM>& key, Tensor<T>& coeff) {
             if (coeff.normf() < eps1) {
-                coeff = T(0);
+                coeff.fill(T(0));
             }
         };
         f.get_impl()->unary_op_coeff_inplace(op, fence);
