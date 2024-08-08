@@ -1615,6 +1615,10 @@ namespace madness {
     namespace archive {
 
         /// Write container to parallel archive
+
+        /// specialization for parallel serialization of a WorldContainer:
+        /// all threads on each process serialize some values into a buffer, which gets concatenated
+        /// and finally serialized to localarchive (aka VectorOutputArchive).
         template <class keyT, class valueT>
         struct ArchiveStoreImpl< ParallelOutputArchive<VectorOutputArchive>, WorldContainer<keyT,valueT> > {
             static void store(const ParallelOutputArchive<VectorOutputArchive>& ar, const WorldContainer<keyT,valueT>& t) {
@@ -1622,90 +1626,150 @@ namespace madness {
                 const long magic = -5881828; // Sitar Indian restaurant in Knoxville (negative to indicate parallel!)
                 typedef WorldContainer<keyT,valueT> dcT;
                 using const_iterator = typename dcT::const_iterator;
+                int count = t.size(); // Must be INT for MPI and NOT const since we'll do a global sum eventually
 
-                const size_t default_size = 100*1024*1024;
+                // const size_t default_size = 100*1024*1024;
+                // const size_t default_size = 8ul<<30;
 
                 World* world = ar.get_world();
-                world->gop.fence();
+                world->gop.fence(); // Global fence here
 
-                std::vector<unsigned char> v;
-                v.reserve(default_size);
-                size_t count = 0;
-
-                class op : public TaskInterface {
-                    const size_t ntasks;
-                    const size_t taskid;
-                    const dcT& t;
-                    std::vector<unsigned char>& vtotal;
-                    size_t& total_count;
-                    Mutex& mutex;
-
+                class op_inspector : public TaskInterface {
+                    const_iterator start, end;
+                    size_t& size;
                 public:
-                    op(size_t ntasks, size_t taskid, const dcT& t, std::vector<unsigned char>& vtotal, size_t& total_count, Mutex& mutex)
-                        : ntasks(ntasks), taskid(taskid), t(t), vtotal(vtotal), total_count(total_count), mutex(mutex) {}
+                    op_inspector(const_iterator start, const_iterator end, size_t& size)
+                        : start(start), end(end), size(size) {}
                     void run(World& world) {
-                        std::vector<unsigned char> v;
-                        v.reserve(std::max(size_t(1024*1024),vtotal.capacity()/ntasks));
-                        VectorOutputArchive var(v);
-                        const_iterator it=t.begin();
-                        size_t count = 0;
-                        size_t n = 0;
-                        while (it!=t.end()) {
-                            if ((n%ntasks) == taskid) {
-                                var & *it;
-                                ++count;
-                            }
-                            ++it;
-                            n++;
-                        }
-
-                        if (count) {
-                            mutex.lock();
-                            vtotal.insert(vtotal.end(), v.begin(), v.end());
-                            total_count += count;
-                            mutex.unlock();
-                        }
+                        BufferOutputArchive bo;
+                        for (const_iterator it=start; it!=end; ++it) bo & *it;
+                        size = bo.size();
                     }
                 };
 
-                Mutex mutex;
-                size_t ntasks = std::max(size_t(1), ThreadPool::size());
-                for (size_t taskid=0; taskid<ntasks; taskid++)
-                    world->taskq.add(new op(ntasks, taskid, t, v, count, mutex));
-                world->gop.fence();
+                class op_executor : public TaskInterface {
+                    const_iterator start, end;
+                    unsigned char* buf;
+                    const size_t size;
+                public:
+                    op_executor(const_iterator start, const_iterator end, unsigned char* buf, size_t size)
+                        : start(start), end(end), buf(buf), size(size) {}
+                    void run(World& world) {
+                        BufferOutputArchive bo(buf, size);
+                        for (const_iterator it=start; it!=end; ++it) {
+                            bo & *it;
+                        }
+                        MADNESS_CHECK(size == bo.size());
+                    }
+                };
 
+                // No need for LOCAL fence here since only master thread is busy
+                double wall0=wall_time();
+                const size_t ntasks = std::min(size_t(count), std::max(size_t(1), ThreadPool::size()));
+                const size_t max_items_per_task = (std::max(1,count)-1)/ntasks + 1;
+
+                // Compute the size of the buffer needed by each task
+                const_iterator starts[ntasks], ends[ntasks];
+                size_t local_sizes[ntasks];
+                const_iterator start = t.begin();
+                size_t nleft = count;
+                for (size_t taskid=0; taskid<ntasks; taskid++) {
+                    const_iterator end = start;
+                    if (taskid == (ntasks-1)) {
+                        end = t.end();
+                    }
+                    else {
+                        size_t nitems = std::min(max_items_per_task, nleft);
+                        std::advance(end, max_items_per_task);
+                        nleft -= nitems;
+                    }
+                    starts[taskid] = start;
+                    ends[taskid] = end;
+                    world->taskq.add(new op_inspector(start, end, local_sizes[taskid])); // Be sure to pass iterators by value!!
+                    start = end;
+                }
+                world->taskq.fence(); // just need LOCAL fence
+                double wall1=wall_time();
+                if (world->rank()==0) printf("time in op_inspector: %8.4fs\n",wall1-wall0);
+                wall0=wall1;
+
+                // total size over all threads
+                size_t local_size = 0;
+                for (size_t taskid=0; taskid<ntasks; taskid++) {
+                    local_size += local_sizes[taskid];
+                    //print("taskid",taskid,"size",local_sizes[taskid]);
+                }
+
+                // Allocate the buffer for all threads
+                unsigned char* buf = new unsigned char[local_size];
+
+                // Now execute the serialization                
+                size_t offset = 0;
+                for (size_t taskid=0; taskid<ntasks; taskid++) {
+                    world->taskq.add(new op_executor(starts[taskid], ends[taskid], buf+offset, local_sizes[taskid]));
+                    offset += local_sizes[taskid];
+                }
+                world->taskq.fence(); // just need LOCAL fence
+
+                wall1=wall_time();
+                if (world->rank()==0) printf("time in op_executor: %8.4fs\n",wall1-wall0);
+                wall0 = wall1;
+
+                // VERify that the serialization worked!!
+                // {
+                //     BufferInputArchive bi(buf, local_size);
+                //     for (int item=0; item<count; item++) {
+                //         std::pair<keyT, valueT> datum;
+                //         bi & datum;
+                //         print("deserializing",datum.first);
+                //     }
+                // }
+                
                 // Gather all buffers to process 0
                 // first gather all of the sizes and counts to a vector in process 0
-                int size = v.size();
+                const int size = local_size;
                 std::vector<int> sizes(world->size());
                 MPI_Gather(&size, 1, MPI_INT, sizes.data(), 1, MPI_INT, 0, world->mpi.comm().Get_mpi_comm());
                 world->gop.sum(count); // just need total number of elements
 
+                //print("time 3",wall_time());
                 // build the cumulative sum of sizes
                 std::vector<int> offsets(world->size());
                 offsets[0] = 0;
                 for (int i=1; i<world->size(); ++i) offsets[i] = offsets[i-1] + sizes[i-1];
-                int total_size = offsets.back() + sizes.back();
+                size_t total_size = offsets.back()+sizes.back();
+                if (world->rank() == 0) print("total_size",total_size);
 
+                // print("time 4",wall_time());
                 // gather the vector of data v from each process to process 0
                 unsigned char* all_data=0;
                 if (world->rank() == 0) {
                     all_data = new unsigned char[total_size];
                 }
-                MPI_Gatherv(v.data(), v.size(), MPI_BYTE, all_data, sizes.data(), offsets.data(), MPI_BYTE, 0, world->mpi.comm().Get_mpi_comm());
+                MPI_Gatherv(buf, local_size, MPI_BYTE, all_data, sizes.data(), offsets.data(), MPI_BYTE, 0, world->mpi.comm().Get_mpi_comm());
 
+                wall1=wall_time();
+                if (world->rank()==0) printf("time in gather+gatherv: %8.4fs\n",wall1-wall0);
+                wall0 = wall1;
+
+                delete[] buf;
+                
+                // print("time 5",wall_time());
                 if (world->rank() == 0) {
                     auto& localar = ar.local_archive();
                     localar & magic & 1; // 1 client
                     // localar & t;
                     ArchivePrePostImpl<localarchiveT,dcT>::preamble_store(localar);
-                    localar & -magic & count;
+                    localar & -magic & (unsigned long)(count);
                     localar.store(all_data, total_size);
                     ArchivePrePostImpl<localarchiveT,dcT>::postamble_store(localar);
+                    wall1=wall_time();
+                    if (world->rank()==0) printf("time in final copy on node 0: %8.4fs\n",wall1-wall0);
 
                     delete[] all_data;
                 }
                 world->gop.fence();
+                // print("time 6",wall_time());
             }
         };
 
