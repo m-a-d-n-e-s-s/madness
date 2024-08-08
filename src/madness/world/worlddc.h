@@ -1628,7 +1628,7 @@ namespace madness {
                 using const_iterator = typename dcT::const_iterator;
 
                 // const size_t default_size = 100*1024*1024;
-                const size_t default_size = 8ul<<30;
+                // const size_t default_size = 8ul<<30;
 
                 World* world = ar.get_world();
                 world->gop.fence();
@@ -1678,6 +1678,9 @@ namespace madness {
                 for (size_t taskid=0; taskid<ntasks; taskid++)
                     world->taskq.add(new op_serialize(ntasks, taskid, t, v[taskid]));
                 world->gop.fence();
+                double wall1=wall_time();
+                if (world->rank()==0) printf("time in op_serialize: %8.4fs\n",wall1-wall0);
+                wall0=wall1;
                 // total size of all vectors
                 size_t total_size = 0;
                 for (size_t taskid=0; taskid<ntasks; taskid++) total_size += v[taskid].size();
@@ -1690,8 +1693,8 @@ namespace madness {
                 }
                 v.clear();
 
-                double wall1=wall_time();
-                if (world->rank()==0) printf("time in the taskq: %8.4fs\n",wall1-wall0);
+                wall1=wall_time();
+                if (world->rank()==0) printf("time in op_concat: %8.4fs\n",wall1-wall0);
                 // Gather all buffers to process 0
                 // first gather all of the sizes and counts to a vector in process 0
                 int size = vtotal.size();
@@ -1705,6 +1708,7 @@ namespace madness {
                 std::vector<int> offsets(world->size());
                 offsets[0] = 0;
                 for (int i=1; i<world->size(); ++i) offsets[i] = offsets[i-1] + sizes[i-1];
+                print("total_size, offsets.back()+sizes.back()",total_size,offsets.back()+sizes.back());
                 MADNESS_CHECK(offsets.back() + sizes.back() == total_size);
 
                 print("time 4",wall_time());
@@ -1721,7 +1725,7 @@ namespace madness {
                     localar & magic & 1; // 1 client
                     // localar & t;
                     ArchivePrePostImpl<localarchiveT,dcT>::preamble_store(localar);
-                    localar & -magic & count;
+                    localar & -magic & (unsigned long)(count);
                     localar.store(all_data, total_size);
                     ArchivePrePostImpl<localarchiveT,dcT>::postamble_store(localar);
 

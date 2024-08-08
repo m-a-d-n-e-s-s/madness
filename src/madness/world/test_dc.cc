@@ -270,7 +270,16 @@ void test_local(World& world) {
 
 void test_florian(World& world) {
     WorldContainer<Key,LargeNode> c(world);
-    long nlarge=200000;
+
+    long nlarge=20000;
+    // get nlarge variable from the environment and convert it into long
+    char* nlarge_env = getenv("NLARGE");
+    if (nlarge_env) {
+        nlarge = atol(nlarge_env);
+    }
+    if (world.rank()==0) print("size of the container",nlarge);
+
+
 
     if (world.rank() == 0) {
         for (int i=0; i<nlarge; ++i) {
