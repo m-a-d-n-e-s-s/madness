@@ -1631,7 +1631,7 @@ namespace madness {
                 // const size_t default_size = 8ul<<30;
 
                 World* world = ar.get_world();
-                world->gop.fence();
+                world->gop.fence(); // Global fence here
 
                 class op_serialize : public TaskInterface {
                     const size_t ntasks;
@@ -1669,21 +1669,26 @@ namespace madness {
                     }
                 };
 
-                world->gop.fence();
+                // No need for LOCAL fence here since only master thread is busy
                 double wall0=wall_time();
                 Mutex mutex;
-                size_t ntasks = std::max(size_t(1), ThreadPool::size());
+                const size_t ntasks = std::max(size_t(1), ThreadPool::size());
 
                 std::vector<std::vector<unsigned char>> v(ntasks);
                 for (size_t taskid=0; taskid<ntasks; taskid++)
                     world->taskq.add(new op_serialize(ntasks, taskid, t, v[taskid]));
-                world->gop.fence();
+                world->taskq.fence(); // just need LOCAL fence
+                
                 double wall1=wall_time();
                 if (world->rank()==0) printf("time in op_serialize: %8.4fs\n",wall1-wall0);
                 wall0=wall1;
                 // total size of all vectors
                 size_t total_size = 0;
-                for (size_t taskid=0; taskid<ntasks; taskid++) total_size += v[taskid].size();
+                for (size_t taskid=0; taskid<ntasks; taskid++) {
+                    total_size += v[taskid].size();
+                    // print("taskid", taskid, v[taskid].size(), total_size);
+                }
+
                 std::vector<unsigned char> vtotal(total_size);
                 
                 size_t offset = 0;
@@ -1691,10 +1696,13 @@ namespace madness {
                     world->taskq.add(new op_concat(&vtotal[offset], v[taskid]));
                     offset += v[taskid].size();
                 }
+                world->taskq.fence(); // just need LOCAL fence
                 v.clear();
 
                 wall1=wall_time();
                 if (world->rank()==0) printf("time in op_concat: %8.4fs\n",wall1-wall0);
+                wall0 = wall1;
+                
                 // Gather all buffers to process 0
                 // first gather all of the sizes and counts to a vector in process 0
                 int size = vtotal.size();
@@ -1703,15 +1711,15 @@ namespace madness {
                 MPI_Gather(&size, 1, MPI_INT, sizes.data(), 1, MPI_INT, 0, world->mpi.comm().Get_mpi_comm());
                 world->gop.sum(count); // just need total number of elements
 
-                print("time 3",wall_time());
+                //print("time 3",wall_time());
                 // build the cumulative sum of sizes
                 std::vector<int> offsets(world->size());
                 offsets[0] = 0;
                 for (int i=1; i<world->size(); ++i) offsets[i] = offsets[i-1] + sizes[i-1];
-                print("total_size, offsets.back()+sizes.back()",total_size,offsets.back()+sizes.back());
-                MADNESS_CHECK(offsets.back() + sizes.back() == total_size);
+                total_size = offsets.back()+sizes.back();
+                if (world->rank() == 0) print("total_size",total_size);
 
-                print("time 4",wall_time());
+                // print("time 4",wall_time());
                 // gather the vector of data v from each process to process 0
                 unsigned char* all_data=0;
                 if (world->rank() == 0) {
@@ -1719,7 +1727,11 @@ namespace madness {
                 }
                 MPI_Gatherv(vtotal.data(), vtotal.size(), MPI_BYTE, all_data, sizes.data(), offsets.data(), MPI_BYTE, 0, world->mpi.comm().Get_mpi_comm());
 
-                print("time 5",wall_time());
+                wall1=wall_time();
+                if (world->rank()==0) printf("time in gather+gatherv: %8.4fs\n",wall1-wall0);
+                wall0 = wall1;
+                
+                // print("time 5",wall_time());
                 if (world->rank() == 0) {
                     auto& localar = ar.local_archive();
                     localar & magic & 1; // 1 client
@@ -1728,11 +1740,13 @@ namespace madness {
                     localar & -magic & (unsigned long)(count);
                     localar.store(all_data, total_size);
                     ArchivePrePostImpl<localarchiveT,dcT>::postamble_store(localar);
+                    wall1=wall_time();
+                    if (world->rank()==0) printf("time in final copy on node 0: %8.4fs\n",wall1-wall0);
 
                     delete[] all_data;
                 }
                 world->gop.fence();
-                print("time 6",wall_time());
+                // print("time 6",wall_time());
             }
         };
 
