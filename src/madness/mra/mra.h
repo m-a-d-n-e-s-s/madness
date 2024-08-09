@@ -2729,7 +2729,7 @@ namespace madness {
     void screen(Function<T, NDIM>& f, const double eps, bool fence=true) {
         double eps1=eps;
         auto op = [&eps1](const Key<NDIM>& key, Tensor<T>& coeff) {
-            if (coeff.normf() < eps1) {
+            if (coeff.normf() < truncate_tol(eps1, key)) {
                 coeff.fill(T(0));
             }
         };

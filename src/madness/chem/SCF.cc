@@ -2120,24 +2120,24 @@ void SCF::solve(World& world) {
                       update_residual);
 
         }
-        amo = change_tree_state(amo, reconstructed);
 
-        // screen functions (amo) 
-            if (world.rank() == 0) {
-                print("\nscreening mos");
-                print("vtol " , vtol);
-            }
-            for (int i = 0; i < amo.size(); ++i) {
-                if (world.rank() == 0) print("\nmo " , i);
-                amo[i].print_size("\nbefore screening");  
-                screen(amo[i], 0.0001, false);
-                amo[i].print_size("\nafter screening");  
-            }
-            world.gop.fence();
+        //// screen functions (amo) 
+        //amo = change_tree_state(amo, reconstructed);
+        //    if (world.rank() == 0) {
+        //        print("\nscreening mos");
+        //        print("vtol " , vtol);
+        //    }
+        //    for (int i = 0; i < amo.size(); ++i) {
+        //        if (world.rank() == 0) print("\nmo " , i);
+        //        amo[i].print_size("\nbefore screening");  
+        //        screen(amo[i], 0.0001, false);
+        //        amo[i].print_size("\nafter screening");  
+        //    }
+        //    world.gop.fence();
 
-        for (int i = 0; i < amo.size(); ++i) {
-            save(amo[i], "amo" + stringify(i));
-        }
+        //for (int i = 0; i < amo.size(); ++i) {
+        //    save(amo[i], "amo" + stringify(i));
+        //}
 
         START_TIMER(world);
         arho_old = arho;
