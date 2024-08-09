@@ -1628,8 +1628,12 @@ namespace madness {
                 using const_iterator = typename dcT::const_iterator;
                 int count = t.size(); // Must be INT for MPI and NOT const since we'll do a global sum eventually
 
-                // const size_t default_size = 100*1024*1024;
-                // const size_t default_size = 8ul<<30;
+                // Strategy:
+                // 1. Serialize local data to a buffer in parallel over threads
+                //    a) Compute the size of the buffer needed by each task
+                //    b) Sum sizes and allocate the buffer of exact sizes needed for all threads
+                //    c) Serialize the data into the buffer in parallel over threads
+                // 2. Gather all buffers to process 0
 
                 World* world = ar.get_world();
                 world->gop.fence(); // Global fence here
