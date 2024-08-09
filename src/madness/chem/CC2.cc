@@ -85,7 +85,7 @@ CC2::solve() {
 
     if (need_cc2) {
         // check if singles or/and doubles to restart are there
-        initialize_singles(cc2singles, PARTICLE);
+        initialize_singles(PARTICLE);
         const bool load_doubles = initialize_pairs(cc2pairs, GROUND_STATE, CT_CC2, cc2singles, CC_vecfunction(RESPONSE), 0, info);
 
         // nothing to restart -> make MP2
@@ -255,6 +255,10 @@ CC2::solve() {
 
        auto vccs=solve_ccs();
 
+        print_header3("solving CCS");
+        iterate_ccs_singles(vccs[0], info);
+        print_header3("end solving CCS");
+
        for (size_t iexcitation = 0; iexcitation < vccs.size(); iexcitation++) {
            print_header1("Solving LRCC2 for excitation " + std::to_string(iexcitation)
                + " with omega "+std::to_string(vccs[iexcitation].omega));
@@ -405,6 +409,8 @@ std::vector<CC_vecfunction> CC2::solve_ccs() const
                                                           1);
         result.push_back(excitations[x]);
     }
+    print_header3("Solution of the CCS equations");
+    tdhf->analyze(result);
     return result;
 }
 
@@ -525,11 +531,8 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
         }
 
 		if (world.rank()==0) {
-		    std::cout << "convergence: rms/max residual, energy change "
-				<< std::scientific << std::setprecision(1)
-				<< rmsrnorm << " " << maxrnorm << " "
-                << std::abs(old_energy - total_energy) << std::endl;
-                // << std::abs(old_norm - total_norm);
+		    double delta=old_energy - total_energy;
+		    CCPotentials::print_convergence("MP2 doubles",rmsrnorm,maxrnorm,delta,iter);
 			printf("finished MP2 iteration %2d at time %8.1fs with energy  %12.8f\n",
 					int(iter), wall_time(), total_energy);
 		}
@@ -722,11 +725,18 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
     double nnew=norm2(world,unew);
     print("norm(old), norm(new) ",nold,nnew);
     auto [rmsrnorm, rmsrmax] = CCPotentials::residual_stats(residual);
-    CCPotentials::print_convergence("LRCC2 doubles",rmsrnorm, rmsrmax,0,0);
+    if (world.rank()==0) CCPotentials::print_convergence("LRCC2 doubles",rmsrnorm, rmsrmax,0,0);
 
     // update the pair functions
     for (int i=0; i<pair_vec.size(); ++i) pair_vec[i].update_u(unew[i]);
     lrcc2_d=Pairs<CCPair>::vector2pairs(pair_vec,triangular_map);
+
+    // save latest iteration
+    if (world.rank()==0) print("saving latest iteration of LRCC2 to file");
+    for (const auto& pair : pair_vec) {
+        save(pair.constant_part, pair.name() + "_const");
+        save(pair.function(), pair.name());
+    }
 
     return (rmsrnorm<info.parameters.dconv_6D());
 }
@@ -826,13 +836,11 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) cons
             if (world.rank() == 0)
                 std::cout << std::fixed << std::setprecision(10) << "Difference                  = " << delta << "\n";
 
-		    std::cout << "convergence: rms/max residual, energy change "
-				<< std::scientific << std::setprecision(1)
-				<< rmsrnorm << " " << maxrnorm << " "
-                << std::abs(delta) << std::endl;
-                // << std::abs(old_norm - total_norm);
-			printf("finished CC2 iteration %2d at time %8.1fs with energy  %12.8f\n",
-					int(iter), wall_time(), omega);
+            if (world.rank()==0) {
+                CCPotentials::print_convergence("CC2 macro",rmsrnorm,maxrnorm,delta,iter);
+                printf("finished CC2 macro iteration %2d at time %8.1fs with energy  %12.8f\n",
+                        int(iter), wall_time(), omega);
+            }
             if (doubles_converged and singles_converged and omega_converged) break;
 
             time_miter.info();
@@ -1030,32 +1038,33 @@ bool CC2::iterate_pair(CCPair& pair, const CC_vecfunction& singles) const {
     return converged;
 }
 
-bool
-CC2::initialize_singles(CC_vecfunction& singles, const FuncType type, const int ex) const {
-    MADNESS_ASSERT(singles.size() == 0);
-    bool restarted = false;
 
-    std::vector<CCFunction<double,3>> vs;
+CC_vecfunction
+CC2::initialize_singles(const FuncType type, const int ex) const {
+    if (world.rank()==0) print("trying to read",singles.name(ex),"from file");
+    CC_vecfunction singles=CC_vecfunction::load_restartdata(singles.name(ex));
+    bool found_on_file=false;
+
     for (size_t i = parameters.freeze(); i < CCOPS.mo_ket().size(); i++) {
         CCFunction<double,3> single_i;
         single_i.type = type;
         single_i.i = i;
-        std::string name;
-        if (ex < 0) name = single_i.name();
-        else name = std::to_string(ex) + "_" + single_i.name();
+        std::string name=single_i.name();
+        if (ex>=0) name = std::to_string(ex) + "_" + single_i.name();
         real_function_3d tmpi = real_factory_3d(world);
-        const bool found = CCOPS.load_function<double, 3>(tmpi, name);
-        if (found) restarted = true;
-        else output("Initialized " + single_i.name() + " of type " + assign_name(type) + " as zero-function");
+        found_on_file = CCOPS.load_function<double, 3>(tmpi, name);
         single_i.function = copy(tmpi);
-        vs.push_back(single_i);
+        singles.insert(i,single_i);
     }
 
-    singles = CC_vecfunction(vs, type);
-//    if (type == RESPONSE) singles.excitation = ex;
+    if (world.rank()==0) {
+        if (found_on_file) print("singles found on file");
+        else print("singles not found on file");
+    }
 
-    return restarted;
+    return singles;
 }
+
 
 bool
 CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType ctype, const CC_vecfunction& tau,
@@ -1100,19 +1109,12 @@ CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType 
                         auto functions=consolidate(p.functions);
                         for (const auto& f : functions) f.print_size();
                     };
-//                    print("jakob's pair");
-//                    doit(tmp);
-//                    print("Florian's pair");
-//                    doit(tmp2);
                     std::swap(tmp,tmp2);
                     print("going on with Florian's pair");
                     // print("going on with Jakob's pair");
                 }
 
-//                tmp.excitation = excitation;
                 tmp.constant_part = const_part;
-                // tmp.constant_part = vconst_part[0];
-                // print_header1("loading constant part");
                 pairs.insert(i, j, tmp);
                 CCPotentials::compute_excited_pair_energy(world, pairs(i, j), x, info);
             } else error("Unknown pairtype");

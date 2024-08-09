@@ -1174,7 +1174,8 @@ CCPair CCPotentials::iterate_pair_macrotask(World& world,
         double delta = omega_partial - omega_new;
         omega_partial = omega_new;
 
-        print_convergence(pair.name(),rmsresidual,rmsresidual,delta,iter);
+        if (world.rank()==0)
+            print_convergence(pair.name(),rmsresidual,rmsresidual,delta,iter);
 
         // output("\n--Iteration " + stringify(iter) + " ended--");
         // save(result.function(), result.name());

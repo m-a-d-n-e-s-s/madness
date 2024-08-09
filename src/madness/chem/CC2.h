@@ -199,7 +199,7 @@ public:
         Pairs<CCPair> empty;
         // CCOPS.clear_potentials(x);
         info.intermediate_potentials.clear_response();
-        return iterate_singles(world, x, CC_vecfunction(PARTICLE), empty, empty, CT_LRCCS, 1, info);
+        return iterate_singles(world, x, CC_vecfunction(PARTICLE), empty, empty, CT_LRCCS, info.parameters.iter_max_3D(), info);
     }
 
     static bool
@@ -233,8 +233,8 @@ public:
         print_size(world, singles.get_vecfunction(), "singles before iteration");
 
         for (size_t iter = 0; iter < maxiter; iter++) {
-            output.subsection("Microiteration " + std::to_string(iter) + " of " + assign_name(ctype) + "-Singles");
-            CCTimer time(world, "Microiteration " + std::to_string(iter) + " of " + assign_name(ctype) + "-Singles");
+            // output.subsection("Microiteration " + std::to_string(iter) + " of " + assign_name(ctype) + "-Singles");
+            // CCTimer time(world, "Microiteration " + std::to_string(iter) + " of " + assign_name(ctype) + "-Singles");
             double omega = 0.0;
             if (ctype == CT_LRCC2) omega = singles.omega;
             else if (ctype == CT_LRCCS) omega = singles.omega;
@@ -283,38 +283,38 @@ public:
                 omega = singles.omega; // computed with the potential
             }
 
-            // scale(world, V, -2.0); // moved to BSHApply
+            scale(world, V, -2.0); // moved to BSHApply
             truncate(world, V);
 
-            BSHApply<double,3> bsh_apply(world);
-            bsh_apply.ret_value=BSHApply<double,3>::update; // return the new singles functions, not the residual
-            bsh_apply.metric=info.R_square;
-
-            // coupling between singles involves the active fock matrix shifted by the excitation energy
-            auto nfreeze=info.parameters.freeze();
-            Tensor<double> fock=info.fock(Slice(nfreeze,-1),Slice(nfreeze,-1));
-            for (int i=0; i<fock.dim(0); ++i) fock(i,i)+=omega;
-            if (world.rank()==0 and info.parameters.debug()) {
-                print("active Fock matrix shifted by omega=",omega);
-                print(fock);
-            }
+//            BSHApply<double,3> bsh_apply(world);
+//            bsh_apply.ret_value=BSHApply<double,3>::update; // return the new singles functions, not the residual
+//            bsh_apply.metric=info.R_square;
+//
+//            // coupling between singles involves the active fock matrix shifted by the excitation energy
+//            auto nfreeze=info.parameters.freeze();
+//            Tensor<double> fock=info.fock(Slice(nfreeze,-1),Slice(nfreeze,-1));
+//            for (int i=0; i<fock.dim(0); ++i) fock(i,i)+=omega;
+//            if (world.rank()==0 and info.parameters.debug()) {
+//                print("active Fock matrix shifted by omega=",omega);
+//                print(fock);
+//            }
 
 
             // make bsh operators
-//            CCTimer time_makebsh(world, "Make G-Operators");
-//            std::vector<std::shared_ptr<SeparatedConvolution<double, 3> > > G(singles.size());
-//            for (size_t i = 0; i < G.size(); i++) {
-//                const double bsh_eps = info.orbital_energies[i + info.parameters.freeze()] + omega;
-//                G[i] = std::shared_ptr<SeparatedConvolution<double, 3> >(
-//                        BSHOperatorPtr3D(world, sqrt(-2.0 * bsh_eps), info.parameters.lo(), info.parameters.thresh_bsh_3D()));
-//            }
-//            world.gop.fence();
-//            time_makebsh.info();
+            CCTimer time_makebsh(world, "Make G-Operators");
+            std::vector<std::shared_ptr<SeparatedConvolution<double, 3> > > G(singles.size());
+            for (size_t i = 0; i < G.size(); i++) {
+                const double bsh_eps = info.orbital_energies[i + info.parameters.freeze()] + omega;
+                G[i] = std::shared_ptr<SeparatedConvolution<double, 3> >(
+                        BSHOperatorPtr3D(world, sqrt(-2.0 * bsh_eps), info.parameters.lo(), info.parameters.thresh_bsh_3D()));
+            }
+            world.gop.fence();
+            time_makebsh.info();
 //
 //            // apply bsh operators
             CCTimer time_applyG(world, "Apply G-Operators");
-            auto [GV, energy_update] = bsh_apply(singles.get_vecfunction(), fock, V);
-            // vector_real_function_3d GV = apply<SeparatedConvolution<double, 3>, double, 3>(world, G, V);
+            // auto [GV, energy_update] = bsh_apply(singles.get_vecfunction(), fock, V);
+            vector_real_function_3d GV = apply<SeparatedConvolution<double, 3>, double, 3>(world, G, V);
 //            world.gop.fence();
             // auto GV=res-singles.get_vecfunction();
             time_applyG.info();
@@ -387,7 +387,7 @@ public:
                 rmsresidual,omega-old_omega,iter);
             converged = (R2vector_error < info.parameters.dconv_3D());
 
-            time.info();
+            // time.info();
             if (converged) break;
             if (ctype == CT_LRCCS) break; // for CCS just one iteration to check convergence
         }
@@ -397,7 +397,7 @@ public:
         // Assign the overall changes
         bool no_change = true;
         if (world.rank() == 0)
-            std::cout << "Change in Singles functions after all the CC2-Single-Microiterations" << std::endl;
+            std::cout << "Change in Singles functions after all the Microiterations" << std::endl;
         for (auto& tmp : singles.functions) {
             const double change = (tmp.second.function - old_singles(tmp.first).function).norm2();
             tmp.second.current_error = change;
@@ -414,9 +414,13 @@ public:
         return no_change;
     }
 
+    /// store singles to file
+    void store_singles(const CC_vecfunction& singles, const int ex = -1) const;
 
-    bool initialize_singles(CC_vecfunction& singles, const FuncType type, const int ex = -1) const;
+    /// read singles from file or initialize new ones
+    CC_vecfunction initialize_singles(const FuncType type, const int ex = -1) const;
 
+    /// read pairs from file or initialize new ones
     bool initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType ctype, const CC_vecfunction& tau,
                           const CC_vecfunction& x, const size_t extitation, const Info& info) const;
 
