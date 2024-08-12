@@ -2123,15 +2123,16 @@ void SCF::solve(World& world) {
 
         // screen functions (amo) 
         amo = change_tree_state(amo, reconstructed);
+        double screening_eps = vtol*100;
             if (world.rank() == 0) {
                 print("\nscreening mos");
-                print("vtol " , vtol);
+                print("screening eps " , screening_eps);
             }
             for (int i = 0; i < amo.size(); ++i) {
-                if (world.rank() == 0) print("\nmo " , i);
-                amo[i].print_size("\nbefore screening");  
-                screen(amo[i], vtol*100, false);
-                amo[i].print_size("\nafter screening");  
+                //if (world.rank() == 0) print("\nmo " , i);
+                //amo[i].print_size("\nbefore screening");  
+                screen(amo[i], screening_eps, false);
+                //amo[i].print_size("\nafter screening");  
             }
             world.gop.fence();
 

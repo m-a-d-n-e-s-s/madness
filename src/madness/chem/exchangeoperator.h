@@ -232,7 +232,6 @@ private:
                                                                                    vf_batch);
 
                 for (int i = vf_range.begin; i < vf_range.end; ++i){
-                    resultcolumn[i - vf_range.begin].print_size("resultcolumn diag sym " + std::to_string(i));
                     Kf[i] += resultcolumn[i - vf_range.begin];}
 
             } else if (symmetric and not diagonal_block) {
@@ -240,10 +239,8 @@ private:
                                                                                             vf_batch);
 
                 for (int i = bra_range.begin; i < bra_range.end; ++i){
-                    resultcolumn[i - bra_range.begin].print_size("resultcolum offdiag sym " + std::to_string(i));
                     Kf[i] += resultcolumn[i - bra_range.begin];}
                 for (int i = vf_range.begin; i < vf_range.end; ++i){
-                    resultrow[i - vf_range.begin].print_size("resultrow offdiag sym " + std::to_string(i));
                     Kf[i] += resultrow[i - vf_range.begin];}
             } else {
                 auto ket_batch = bra_range.copy_batch(vket);
@@ -318,24 +315,12 @@ private:
             MacroTaskPartitionerRow() {
               max_batch_size=1;
             }       
-
-           // partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
-           //                            const std::string policy) const override {
-
-           //     partitionT p;
-           //     for (size_t i = 0; i < vsize1; i++) {
-           //         Batch batch(Batch_1D(i,i+1), Batch_1D(i,i+1));
-           //         p.push_back(std::make_pair(batch,1.0));
-           //     }
-           //     return p;
-           // }
         };
 
     public:
         MacroTaskExchangeRow(const long nresult, const double lo, const double mul_tol)
                 : nresult(nresult), lo(lo), mul_tol(mul_tol) {
             partitioner.reset(new MacroTaskPartitionerRow());
-            //partitioner.set_max_batch_size(1);
         }
 
         // you need to define the exact argument(s) of operator() as tuple
@@ -353,54 +338,42 @@ private:
             return result;
         }
 
-        // runs on a batched part of K_small_memory loop (element of vec of func)
-        // multiplies this batch (bra) with vket, applies poisson, muls batch (ket)
-        // gaxpys (+= of operator) onto Kf -> position of result from batch.input[]
+        /// compute exchange row-wise for a fixed orbital phi_i
         std::vector<Function<T, NDIM>>
         operator()(const std::vector<Function<T, NDIM>>& vket,
                    const std::vector<Function<T, NDIM>>& mo_bra, 
                    const std::vector<Function<T, NDIM>>& mo_ket) {       
 
-            // print("\nentering operator:");
             World& world = vket.front().world();
-            resultT Kf = zero_functions_compressed<T, NDIM>(world, nresult);
+
+            resultT Kf = zero_functions_compressed<T, NDIM>(world, 1);
             auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(world, lo);
 
-            auto& i = batch.input[0].begin;    // print i to check
-            // print("\ni:", i);
+            auto& i = batch.input[0].begin;  
 
-            // print("\nperforming mul_sparse");
             vecfuncT psif = mul_sparse(world, vket[i], mo_bra, mul_tol);
             auto size=get_size(world,psif);
-            if (world.rank()==0) print("size of psif after mul_sparse",size);
+            //if (world.rank()==0 && printdebug()) print("size of psif after mul_sparse",size);
 
             truncate(world, psif);
 
             size=get_size(world,psif);
-            if (world.rank()==0) print("size of psif after truncating",size);
+            //if (world.rank()==0 && printdebug()) print("size of psif after truncating",size);
 
-            // print("\napplying poisson");
             psif = apply(world, *poisson.get(), psif);
             size=get_size(world,psif);
-            if (world.rank()==0) print("size of psif after apply",size);
-            // print size psif
+            //if (world.rank()==0 && printdebug()) print("size of psif after apply",size);
             truncate(world, psif);
             size=get_size(world,psif);
-            if (world.rank()==0) print("size of psif after truncating",size);
+            //if (world.rank()==0 && printdebug()) print("size of psif after truncating",size);
             
             // TODO: tile j, switch sparse mul
             // TODO: priority = #coeffs
-            // print("\ndot");
-            auto res = dot(world, mo_ket, psif);
-            res.print_size("Kf after dot");
-            // print("\nadding to Kf", Kf.size());
-            //Kf[i] += dot(world, mo_ket, psif);
-            //print(Kf.size());
+            Kf[0] +=dot(world, mo_ket, psif);
+            //if (world.rank()==0 && printdebug()) Kf[0].print_size("Kf after dot");
             
-            //TODO: no need for full length vector here just return single function
-            Kf[i] += res;
             truncate(world, Kf);
-            Kf[i].print_size("Kf after truncating");
+            //if (world.rank()==0 && printdebug()) Kf[i].print_size("Kf after truncating");
 
             return Kf;
         }

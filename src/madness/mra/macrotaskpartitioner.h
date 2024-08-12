@@ -105,16 +105,8 @@ public:
     /// given vector v, copy vector elements of v_batch into vector
     template<typename vecT>
     vecT insert_batch(vecT v, const vecT& v_batch) const {
-       // print("checking size");
-       // print(v_batch.size()==size_t(this->size()));
-       // print(v_batch.size());
-       // print(size_t(this->size()));
-       // print(this->is_full_size());
-       // print("\n full size?");
-       // print(begin, end);
       //MADNESS_CHECK(v_batch.size()==size_t(this->size()) or this->is_full_size());
-      // check useless? offset important! correct this, adjust mw_row
-        std::copy(v_batch.begin(), v_batch.end(), v.begin());//v.begin()+begin);
+        std::copy(v_batch.begin(), v_batch.end(), v.begin()+begin);
         return v;
     }
 
