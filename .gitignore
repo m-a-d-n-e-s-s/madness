@@ -1,6 +1,8 @@
 build*
 cmake-build-debug*
 .history*
+hdf5_examples*
+testing*
 
 # Compiled Object files
 *.slo
