@@ -2135,9 +2135,10 @@ void SCF::solve(World& world) {
             }
             world.gop.fence();
 
-        for (int i = 0; i < amo.size(); ++i) {
-            save(amo[i], "amo" + stringify(i));
-        }
+        ////save mos for plotting
+        //for (int i = 0; i < amo.size(); ++i) {
+        //    save(amo[i], "amo" + stringify(i));
+        //}
 
         START_TIMER(world);
         arho_old = arho;
