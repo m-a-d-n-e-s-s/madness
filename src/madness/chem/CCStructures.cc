@@ -65,15 +65,6 @@ CCTimer::info(const bool debug, const double norm) {
 
 
 
-std::string
-CC_vecfunction::name(const int ex) const {
-    if (type == PARTICLE) return "tau";
-    else if (type == HOLE) return "phi";
-    else if (type == MIXED) return "t";
-    else if (type == RESPONSE) return std::to_string(ex) + "_" + "x";
-    else return "UNKNOWN";
-}
-
 void
 CC_vecfunction::print_size(const std::string& msg) const {
     if (functions.size() == 0) {

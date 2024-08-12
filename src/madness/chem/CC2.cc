@@ -85,7 +85,7 @@ CC2::solve() {
 
     if (need_cc2) {
         // check if singles or/and doubles to restart are there
-        initialize_singles(PARTICLE);
+        cc2singles=initialize_singles(PARTICLE);
         const bool load_doubles = initialize_pairs(cc2pairs, GROUND_STATE, CT_CC2, cc2singles, CC_vecfunction(RESPONSE), 0, info);
 
         // nothing to restart -> make MP2
@@ -255,12 +255,12 @@ CC2::solve() {
 
        auto vccs=solve_ccs();
 
-        print_header3("solving CCS");
+        if (world.rank()==0) print_header3("reiterating CCS");
         iterate_ccs_singles(vccs[0], info);
-        print_header3("end solving CCS");
+        if (world.rank()==0) print_header3("end reiterating CCS");
 
        for (size_t iexcitation = 0; iexcitation < vccs.size(); iexcitation++) {
-           print_header1("Solving LRCC2 for excitation " + std::to_string(iexcitation)
+           if (world.rank()==0) print_header1("Solving LRCC2 for excitation " + std::to_string(iexcitation)
                + " with omega "+std::to_string(vccs[iexcitation].omega));
            solve_lrcc2(cc2pairs,cc2singles,vccs[iexcitation],iexcitation,info);
        }
@@ -694,18 +694,21 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
 
     for (int i=0; i<pair_vec.size(); ++i) {
         pair_vec[i].constant_part=cp[i];
+        save(pair_vec[i].constant_part, pair_vec[i].name() + "_const");
 
-        // if no function has been computed so far use the constant part (first iteration)
-        if (not pair_vec[i].function().is_initialized()) pair_vec[i].update_u(pair_vec[i].constant_part);
     }
+
+    // if no function has been computed so far use the constant part (first iteration)
+    for (auto& pair : pair_vec) if (not pair.function().is_initialized()) pair.update_u(pair.constant_part);
+
     for (const auto& p : pair_vec) p.function().print_size("u before iter");
 
-            // compute the coupling between the pair functions
-            if (world.rank()==0) print("computing local coupling in the universe");
-            Pairs<real_function_6d> coupling=compute_local_coupling(pair_vec, info);
-            auto coupling_vec=Pairs<real_function_6d>::pairs2vector(coupling,triangular_map);
-        if (info.parameters.debug()) print_size(world, coupling_vec, "couplingvector");
+    // compute the coupling between the pair functions
+    if (world.rank()==0) print("computing local coupling in the universe");
+    Pairs<real_function_6d> coupling=compute_local_coupling(pair_vec, info);
+    auto coupling_vec=Pairs<real_function_6d>::pairs2vector(coupling,triangular_map);
 
+    if (info.parameters.debug()) print_size(world, coupling_vec, "couplingvector");
 
     // iterate the pair
     MacroTaskIteratePair t1;
@@ -754,105 +757,105 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) cons
     double omega = CCPotentials::compute_cc2_correlation_energy(world, singles, doubles, info);
     if (world.rank() == 0)
         std::cout << std::fixed << std::setprecision(10) << "Current Correlation Energy = " << omega << "\n";
+
+    if (parameters.no_compute_cc2()) {
+        if (world.rank()==0) print("found no_compute_cc2 key -- returning without further computation");
+        return omega;
+    }
+
     CC_vecfunction ex_singles_dummy;
 
-    if (not parameters.no_compute_cc2()) {
-        // first singles iteration
-        output.section("Initialize Singles to the Doubles");
+    // first singles iteration
+    output.section("Initialize Singles to the Doubles");
 
-        // given the doubles, we can solve the singles equations
-        iterate_cc2_singles(world, singles, doubles, info);
-        // the doubles ansatz depends on the singles and must be updated: |\tau_ij> = |u_ij> + Q12 f12 |t_i t_j>
-        update_reg_residues_gs(world, singles, doubles, info);
-        omega = CCPotentials::compute_cc2_correlation_energy(world, singles, doubles, info);
+    // given the doubles, we can solve the singles equations
+    iterate_cc2_singles(world, singles, doubles, info);
+    // the doubles ansatz depends on the singles and must be updated: |\tau_ij> = |u_ij> + Q12 f12 |t_i t_j>
+    update_reg_residues_gs(world, singles, doubles, info);
+    omega = CCPotentials::compute_cc2_correlation_energy(world, singles, doubles, info);
 
-        for (size_t iter = 0; iter < parameters.iter_max(); iter++) {
-            CCTimer time_miter(world, "Macroiteration " + std::to_string(int(iter)) + " of CC2");
-            output.section("Macroiteration " + std::to_string(int(iter)) + " of CC2");
+    for (size_t iter = 0; iter < parameters.iter_max(); iter++) {
+        CCTimer time_miter(world, "Macroiteration " + std::to_string(int(iter)) + " of CC2");
+        output.section("Macroiteration " + std::to_string(int(iter)) + " of CC2");
 
-            if (world.rank()==0) print("computing the constant part via macrotasks -- output redirected");
-            timer timer1(world);
+        if (world.rank()==0) print("computing the constant part via macrotasks -- output redirected");
+        timer timer1(world);
 
-            std::vector<CCPair> pair_vec=Pairs<CCPair>::pairs2vector(doubles,triangular_map);
-            MacroTaskConstantPart t;
-            MacroTask task(world, t);
-            std::vector<real_function_6d> constant_part_vec = task(pair_vec, singles.get_vecfunction(),
-                ex_singles_dummy.get_vecfunction(), info) ;
-            for (int i=0; i<pair_vec.size(); ++i) pair_vec[i].constant_part=constant_part_vec[i];
+        std::vector<CCPair> pair_vec=Pairs<CCPair>::pairs2vector(doubles,triangular_map);
+        MacroTaskConstantPart t;
+        MacroTask task(world, t);
+        std::vector<real_function_6d> constant_part_vec = task(pair_vec, singles.get_vecfunction(),
+            ex_singles_dummy.get_vecfunction(), info) ;
+        for (int i=0; i<pair_vec.size(); ++i) pair_vec[i].constant_part=constant_part_vec[i];
 
-            if (parameters.debug()) {
-                for (auto& pair: pair_vec) pair.constant_part.print_size("size of constant part macrotask "+pair.name());
-            }
-
-            timer1.tag("computing constant part via macrotasks");
-
-
-            // compute the coupling between the pair functions
-            if (world.rank()==0) print("computing local coupling in the universe");
-            Pairs<real_function_6d> coupling=compute_local_coupling(pair_vec, info);
-            auto coupling_vec=Pairs<real_function_6d>::pairs2vector(coupling,triangular_map);
-            timer1.tag("computing local coupling");
-
-            if (world.rank()==0) print("update the pair functions via macrotasks -- output redirected");
-            MacroTaskIteratePair t1;
-            MacroTask task1(world, t1);
-            CC_vecfunction dummy_ex_singles;
-            std::vector<real_function_3d> vdummy_3d;         // dummy vectors
-            const std::size_t maxiter=3;
-            auto unew = task1(pair_vec, coupling_vec, singles, dummy_ex_singles,
-                info, maxiter);
-
-
-            std::vector<real_function_6d> u_old;
-            for (auto p : pair_vec) u_old.push_back(p.function());
-
-            auto residual=u_old-unew;
-            timer1.tag("computing pair function update via macrotasks");
-
-            for (int i=0; i<pair_vec.size(); ++i) pair_vec[i].update_u(unew[i]);
-            doubles=Pairs<CCPair>::vector2pairs(pair_vec,triangular_map);
-
-            // save latest iteration
-            if (world.rank()==0) print("saving latest iteration to file");
-            for (const auto& pair : pair_vec) {
-                save(pair.constant_part, pair.name() + "_const");
-                save(pair.function(), pair.name());
-            }
-
-            auto [rmsrnorm,maxrnorm]=CCPotentials::residual_stats(residual);
-            bool doubles_converged=rmsrnorm<parameters.dconv_6D();
-
-            // check if singles converged
-            const bool singles_converged = iterate_cc2_singles(world, singles, doubles, info);
-
-            // check if energy converged
-            const double omega_new = CCPotentials::compute_cc2_correlation_energy(world, singles, doubles, info);
-            timer1.tag("computing cc2 energy");
-            const double delta = omega_new - omega;
-            const bool omega_converged(delta < parameters.econv());
-            omega = omega_new;
-            if (world.rank() == 0)
-                std::cout << std::fixed << std::setprecision(10) << "Current Correlation Energy = " << omega << "\n";
-            if (world.rank() == 0)
-                std::cout << std::fixed << std::setprecision(10) << "Difference                  = " << delta << "\n";
-
-            if (world.rank()==0) {
-                CCPotentials::print_convergence("CC2 macro",rmsrnorm,maxrnorm,delta,iter);
-                printf("finished CC2 macro iteration %2d at time %8.1fs with energy  %12.8f\n",
-                        int(iter), wall_time(), omega);
-            }
-            if (doubles_converged and singles_converged and omega_converged) break;
-
-            time_miter.info();
+        if (parameters.debug()) {
+            for (auto& pair: pair_vec) pair.constant_part.print_size("size of constant part macrotask "+pair.name());
         }
-        omega = CCPotentials::compute_cc2_correlation_energy(world, singles, doubles, info);
-        output.section("CC2 Iterations Eneded");
-    } else {
-        output.section("Found no_compute_cc2 Key: Reiterating Singles to check convergence");
-        // need the singles potential for the constant part of LRCC2 so we recompute it (also good to check if it is converged)
-        bool sconv = iterate_cc2_singles(world, singles, doubles, info);
-        if (not sconv) output.warning("Singles not Converged");
+
+        timer1.tag("computing constant part via macrotasks");
+
+
+        // compute the coupling between the pair functions
+        if (world.rank()==0) print("computing local coupling in the universe");
+        Pairs<real_function_6d> coupling=compute_local_coupling(pair_vec, info);
+        auto coupling_vec=Pairs<real_function_6d>::pairs2vector(coupling,triangular_map);
+        timer1.tag("computing local coupling");
+
+        if (world.rank()==0) print("update the pair functions via macrotasks -- output redirected");
+        MacroTaskIteratePair t1;
+        MacroTask task1(world, t1);
+        CC_vecfunction dummy_ex_singles;
+        std::vector<real_function_3d> vdummy_3d;         // dummy vectors
+        const std::size_t maxiter=3;
+        auto unew = task1(pair_vec, coupling_vec, singles, dummy_ex_singles,
+            info, maxiter);
+
+
+        std::vector<real_function_6d> u_old;
+        for (auto p : pair_vec) u_old.push_back(p.function());
+
+        auto residual=u_old-unew;
+        timer1.tag("computing pair function update via macrotasks");
+
+        for (int i=0; i<pair_vec.size(); ++i) pair_vec[i].update_u(unew[i]);
+        doubles=Pairs<CCPair>::vector2pairs(pair_vec,triangular_map);
+
+        // save latest iteration
+        if (world.rank()==0) print("saving latest iteration to file");
+        for (const auto& pair : pair_vec) {
+            save(pair.constant_part, pair.name() + "_const");
+            save(pair.function(), pair.name());
+            singles.save_restartdata(world,madness::name(singles.type));
+        }
+
+        auto [rmsrnorm,maxrnorm]=CCPotentials::residual_stats(residual);
+        bool doubles_converged=rmsrnorm<parameters.dconv_6D();
+
+        // check if singles converged
+        const bool singles_converged = iterate_cc2_singles(world, singles, doubles, info);
+
+        // check if energy converged
+        const double omega_new = CCPotentials::compute_cc2_correlation_energy(world, singles, doubles, info);
+        timer1.tag("computing cc2 energy");
+        const double delta = omega_new - omega;
+        const bool omega_converged(delta < parameters.econv());
+        omega = omega_new;
+        if (world.rank() == 0)
+            std::cout << std::fixed << std::setprecision(10) << "Current Correlation Energy = " << omega << "\n";
+        if (world.rank() == 0)
+            std::cout << std::fixed << std::setprecision(10) << "Difference                  = " << delta << "\n";
+
+        if (world.rank()==0) {
+            CCPotentials::print_convergence("CC2 macro",rmsrnorm,maxrnorm,delta,iter);
+            printf("finished CC2 macro iteration %2d at time %8.1fs with energy  %12.8f\n",
+                    int(iter), wall_time(), omega);
+        }
+        if (doubles_converged and singles_converged and omega_converged) break;
+
+        time_miter.info();
     }
+    omega = CCPotentials::compute_cc2_correlation_energy(world, singles, doubles, info);
+    output.section("CC2 Iterations Eneded");
 
     if (world.rank() == 0)
         std::cout << std::fixed << std::setprecision(10) << "Current Correlation Energy = " << omega << "\n";
@@ -1041,27 +1044,24 @@ bool CC2::iterate_pair(CCPair& pair, const CC_vecfunction& singles) const {
 
 CC_vecfunction
 CC2::initialize_singles(const FuncType type, const int ex) const {
-    if (world.rank()==0) print("trying to read",singles.name(ex),"from file");
-    CC_vecfunction singles=CC_vecfunction::load_restartdata(singles.name(ex));
-    bool found_on_file=false;
 
+    std::string fname=madness::name(type,ex);
+    if (world.rank()==0) print("initializing singles",fname);
+    CC_vecfunction singles(type);
+    try {
+        singles=CC_vecfunction::load_restartdata(world,fname);
+        if (world.rank()==0) print(" .. singles found on file");
+        return singles;
+    } catch (...) {
+        if (world.rank()==0) print(" .. singles not found on file");
+    }
+
+    if (world.rank()==0) print(" .. initializing singles to zero functions");
     for (size_t i = parameters.freeze(); i < CCOPS.mo_ket().size(); i++) {
-        CCFunction<double,3> single_i;
-        single_i.type = type;
-        single_i.i = i;
-        std::string name=single_i.name();
-        if (ex>=0) name = std::to_string(ex) + "_" + single_i.name();
         real_function_3d tmpi = real_factory_3d(world);
-        found_on_file = CCOPS.load_function<double, 3>(tmpi, name);
-        single_i.function = copy(tmpi);
+        CCFunction<double,3> single_i(tmpi, i, type);
         singles.insert(i,single_i);
     }
-
-    if (world.rank()==0) {
-        if (found_on_file) print("singles found on file");
-        else print("singles not found on file");
-    }
-
     return singles;
 }
 
@@ -1072,7 +1072,10 @@ CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType 
     MADNESS_ASSERT(tau.type == PARTICLE);
     MADNESS_ASSERT(x.type == RESPONSE);
     MADNESS_ASSERT(pairs.empty());
-    output("Initialize " + assign_name(ctype) + " Pairs for " + assign_name(ftype));
+
+    std::string fname=assign_name(ftype);
+    if (world.rank()==0) print("initializing doubles",fname);
+    // output("Initialize " + assign_name(ctype) + " Pairs for " + assign_name(ftype));
 
     bool restarted = false;
     // std::vector<real_function_6d> vconst_part;
@@ -1105,10 +1108,6 @@ CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType 
 
                 {
                     CCPair tmp2=CCPotentials::make_pair_lrcc2(world, ctype, utmp, tau, x, i, j, info);
-                    auto doit =[](const CCPair& p) {
-                        auto functions=consolidate(p.functions);
-                        for (const auto& f : functions) f.print_size();
-                    };
                     std::swap(tmp,tmp2);
                     print("going on with Florian's pair");
                     // print("going on with Jakob's pair");

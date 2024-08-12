@@ -649,7 +649,9 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
     std::string irrep = "null";    /// excitation irrep (direct product of x function and corresponding orbital)
 
     std::string
-    name(const int ex) const;
+    name(const int ex) const {
+        return madness::name(type,ex);
+    };
 
     bool is_converged(const double econv, const double dconv) const {
         return (current_error<dconv) and (std::fabs(delta)<econv);

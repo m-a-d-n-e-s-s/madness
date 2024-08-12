@@ -25,6 +25,20 @@ class ProjectorBase;
 /// Types of Functions used by CC_function class
 enum FuncType { UNDEFINED, HOLE, PARTICLE, MIXED, RESPONSE };
 
+inline std::string name(const FuncType& type, const int ex=-1) {
+    if (type == PARTICLE) return "tau";
+    else if (type == HOLE) return "phi";
+    else if (type == MIXED) return "t";
+    else if (type == RESPONSE) {
+        MADNESS_CHECK_THROW(ex>=0,"ex must be >=0");
+        return std::to_string(ex) + "_" + "x";
+    }
+    else {
+        MADNESS_EXCEPTION("unknown FuncType",1);
+    }
+    return "undefined";
+}
+
 /// structure for a CC Function 3D which holds an index and a type
 // the type is defined by the enum FuncType (definition at the start of this file)
 template<typename T=double, std::size_t NDIM=3>
