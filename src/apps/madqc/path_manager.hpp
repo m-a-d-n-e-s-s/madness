@@ -43,6 +43,16 @@ class CompositePathStrategy : public PathStrategy {
         result[key] = value;
       }
     }
+
+    for (const auto& calc_type : result) {
+      auto calc_dirs = calc_type["calculation"];
+      for (const auto& calc_dir : calc_dirs) {
+        if (!std::filesystem::exists(calc_dir)) {
+          std::filesystem::create_directory(calc_dir);
+        }
+      }
+    }
+
     return result;
   }
 };
