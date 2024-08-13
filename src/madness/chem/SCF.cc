@@ -1373,19 +1373,44 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
     //     potentialmanager->apply_nonlocal_potential(world, amo, Vpsi);
     // }
 
+    // tiled Vpsi and truncation
     START_TIMER(world);
+    size_t min_tile = 10;
+    size_t ntile = std::min(amo.size(), min_tile);
     if (!molecule.parameters.pure_ae()) {
         gaxpy(world, 1.0, Vpsi, 1.0, gthpseudopotential->apply_potential(world, vloc, amo, occ, enl));
     } else {
-        gaxpy(world, 1.0, Vpsi, 1.0, mul_sparse(world, vloc, amo, vtol));
-    }
+        for (size_t ilo=0; ilo<amo.size(); ilo+=ntile) {
+            size_t iend = std::min(ilo+ntile,amo.size());
+            vecfuncT tmpamo(amo.begin()+ilo,amo.begin()+iend);
+            auto tmpVpsi = mul_sparse(world, vloc, tmpamo, vtol);
+            print_size(world, tmpVpsi, "tmpVpsi before truncation");
 
+            //truncate tmpVpsi
+            truncate(world, tmpVpsi);
+            print_size(world, tmpVpsi, "tmpVpsi after truncation");
+
+            //put the results into their final home;
+            for (size_t i = ilo; i<iend; ++i){
+                Vpsi[i] += tmpVpsi[i-ilo];
+            }
+        }
+    }
     END_TIMER(world, "V*psi");
 
-    START_TIMER(world);
-    truncate(world, Vpsi);
-    END_TIMER(world, "Truncate Vpsi");
-    print_meminfo(world.rank(), "Truncate Vpsi");
+    //START_TIMER(world);
+    //if (!molecule.parameters.pure_ae()) {
+    //    gaxpy(world, 1.0, Vpsi, 1.0, gthpseudopotential->apply_potential(world, vloc, amo, occ, enl));
+    //} else {
+    //    gaxpy(world, 1.0, Vpsi, 1.0, mul_sparse(world, vloc, amo, vtol));
+    //}
+
+    //END_TIMER(world, "V*psi");
+
+    //START_TIMER(world);
+    //truncate(world, Vpsi);
+    //END_TIMER(world, "Truncate Vpsi");
+    //print_meminfo(world.rank(), "Truncate Vpsi");
     world.gop.fence();
     return Vpsi;
 }
@@ -2131,7 +2156,7 @@ void SCF::solve(World& world) {
             for (int i = 0; i < amo.size(); ++i) {
                 //if (world.rank() == 0) print("\nmo " , i);
                 //amo[i].print_size("\nbefore screening");  
-                screen(amo[i], screening_eps, false);
+                //screen(amo[i], screening_eps, false);
                 //amo[i].print_size("\nafter screening");  
             }
             world.gop.fence();
