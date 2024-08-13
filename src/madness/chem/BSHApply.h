@@ -29,7 +29,7 @@ public:
 	double levelshift=0.0;
 	double lo=1.e-6;
 	double bshtol=1.e-5;
-	bool printme=false;
+	bool printme=true;
 	bool destroy_Vpsi=false;
 	Function<double,NDIM> metric;
 	return_value ret_value=residual;		// return the new orbitals/functions or the residuals
@@ -64,6 +64,7 @@ public:
 	    std::vector < std::shared_ptr<SeparatedConvolution<double,NDIM> > > ops(psi.size());
 	    for (int i=0; i<eps.dim(0); ++i) {
 	    	T e_i= (eps.ndim()==2) ? eps(i,i) : eps(i);
+	    	if (printme) print("orbital energy for the BSH operator",e_i);
 	    	ops[i]=std::shared_ptr<SeparatedConvolution<double,NDIM> >(
 	    			BSHOperatorPtr<NDIM>(world, sqrt(-2.0*eps_in_green(e_i)), lo, bshtol));
 	    	ops[i]->destructive()=true;
@@ -130,7 +131,7 @@ public:
 			const Tensor<T> fock1) const {
 
 		// check dimensions
-   	        bool consistent=(psi.size()==size_t(fock1.dim(0)));
+   	    bool consistent=(psi.size()==size_t(fock1.dim(0)));
 		if ((fock1.ndim()==2) and not (psi.size()==size_t(fock1.dim(1)))) consistent=false;
 
 		if (not consistent) {
@@ -149,6 +150,10 @@ public:
 			Tensor<T> fock=copy(fock1);
 			for (int i=0; i<fock.dim(0); ++i) {
 				fock(i,i)-=eps_in_green(fock(i,i));
+			}
+			if (printme) {
+				print("coupling fock matrix");
+				print(fock);
 			}
 			return transform(world, psi, fock);
 

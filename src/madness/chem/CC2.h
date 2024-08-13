@@ -239,6 +239,7 @@ public:
             if (ctype == CT_LRCC2) omega = singles.omega;
             else if (ctype == CT_LRCCS) omega = singles.omega;
             else if (ctype == CT_ADC2) omega = singles.omega;
+            print("omega 1" ,omega);
 
             // consistency check
             switch (ctype) {
@@ -276,32 +277,23 @@ public:
             else if (ctype == CT_LRCCS) V = CCPotentials::get_CCS_potential_ex(world,singles,false, info);
             //            else if (ctype == CT_ADC2) V = CCOPS.get_ADC2_singles_potential(world, gs_doubles, singles, ex_doubles, info);
             else MADNESS_EXCEPTION("iterate singles: unknown type", 1);
+
+            // add local coupling
+            V-=compute_local_coupling(singles.get_vecfunction(),info);
+            truncate(world, V);
             time_V.info(true, norm2(world, V));
 
-            if (ctype == CT_LRCCS or ctype == CT_LRCC2 or ctype == CT_ADC2) {
+            // update excitation energy
+            if (ctype==CT_LRCC2 or ctype==CT_LRCCS or ctype==CT_ADC2) {
                 old_omega=omega;
-                omega = singles.omega; // computed with the potential
+                omega = CCPotentials::compute_cis_expectation_value(world, singles, V, true, info);
+                singles.omega = omega;
             }
-
-            scale(world, V, -2.0); // moved to BSHApply
-            truncate(world, V);
-
-//            BSHApply<double,3> bsh_apply(world);
-//            bsh_apply.ret_value=BSHApply<double,3>::update; // return the new singles functions, not the residual
-//            bsh_apply.metric=info.R_square;
-//
-//            // coupling between singles involves the active fock matrix shifted by the excitation energy
-//            auto nfreeze=info.parameters.freeze();
-//            Tensor<double> fock=info.fock(Slice(nfreeze,-1),Slice(nfreeze,-1));
-//            for (int i=0; i<fock.dim(0); ++i) fock(i,i)+=omega;
-//            if (world.rank()==0 and info.parameters.debug()) {
-//                print("active Fock matrix shifted by omega=",omega);
-//                print(fock);
-//            }
-
+            if (world.rank()==0 and info.parameters.debug())
+                print("omega entering the update in the singles" ,omega);
 
             // make bsh operators
-            CCTimer time_makebsh(world, "Make G-Operators");
+            scale(world, V, -2.0); // moved to BSHApply
             std::vector<std::shared_ptr<SeparatedConvolution<double, 3> > > G(singles.size());
             for (size_t i = 0; i < G.size(); i++) {
                 const double bsh_eps = info.orbital_energies[i + info.parameters.freeze()] + omega;
@@ -309,14 +301,11 @@ public:
                         BSHOperatorPtr3D(world, sqrt(-2.0 * bsh_eps), info.parameters.lo(), info.parameters.thresh_bsh_3D()));
             }
             world.gop.fence();
-            time_makebsh.info();
-//
-//            // apply bsh operators
+
+            // apply bsh operators
             CCTimer time_applyG(world, "Apply G-Operators");
-            // auto [GV, energy_update] = bsh_apply(singles.get_vecfunction(), fock, V);
             vector_real_function_3d GV = apply<SeparatedConvolution<double, 3>, double, 3>(world, G, V);
-//            world.gop.fence();
-            // auto GV=res-singles.get_vecfunction();
+            world.gop.fence();
             time_applyG.info();
 
             // apply Q-Projector to result
@@ -513,8 +502,22 @@ public:
         for (auto& tmp_pair : vpairs) pairs.insert(tmp_pair.i, tmp_pair.j, tmp_pair);
         auto ccpair2function = [](const CCPair& a) {return a.function();};
         return compute_local_coupling(pairs.convert<real_function_6d>(pairs,ccpair2function), info);
-
     };
+
+    /// compute the coupling of singles function if orbitals are localized
+
+    /// @return the coupling terms c_i = -\sum_(j\neq i) f_ij |\phi_j>  (for whatever phi is)
+    static std::vector<real_function_3d> compute_local_coupling(const std::vector<real_function_3d>& singles,
+        const Info& info) {
+
+        MADNESS_CHECK_THROW(singles.size()>0,"compute_local_coupling: singles vector is empty");
+        World& world=singles.front().world();
+        auto active=Slice(info.parameters.freeze(),-1);
+        Tensor<double> Fact=info.fock(active,active);
+        for (int i=0; i<Fact.dim(0); ++i) Fact(i,i)=0.0;
+        vector_real_function_3d fock_coupling = madness::transform(world, singles, Fact);
+        return fock_coupling;
+    }
 
     /// add the coupling terms for local MP2
 

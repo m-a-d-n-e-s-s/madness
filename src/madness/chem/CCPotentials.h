@@ -276,7 +276,7 @@ public:
     static double
     compute_kinetic_energy(World& world, const vector_real_function_3d& xbra, const vector_real_function_3d& xket);
 
-    /// returns \f$  <x|T|x> + <x|V|x>  \f$
+    /// compute the expectation value excitation energy using the CIS/CCS/CC2 singles
     static double
     compute_cis_expectation_value(World& world, const CC_vecfunction& x,
                                   const vector_real_function_3d& V, const bool print, const Info& info);
@@ -681,13 +681,13 @@ public:
     /// the V part is stored in the intermediate_potentials structure
     /// the expectation value is calculated and updated
     static vector_real_function_3d
-    get_CCS_potential_ex(World& world, CC_vecfunction& x, const bool print, Info& info);
+    get_CCS_potential_ex(World& world, const CC_vecfunction& x, const bool print, Info& info);
 
     /// Calculates the CC2 singles potential for the Excited state: result = Fock_residue + V
     /// the V part is stored in the intermediate_potentials structure
     static vector_real_function_3d
     get_CC2_singles_potential_ex(World& world, const CC_vecfunction& gs_singles,
-                                 const Pairs<CCPair>& gs_doubles, CC_vecfunction& ex_singles,
+                                 const Pairs<CCPair>& gs_doubles, const CC_vecfunction& ex_singles,
                                  const Pairs<CCPair>& response_doubles, Info& info);
 
     /// Calculates the CC2 singles potential for the Excited state: result = Fock_residue + V

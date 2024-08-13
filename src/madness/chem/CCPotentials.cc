@@ -486,10 +486,16 @@ CCPotentials::compute_kinetic_energy(World& world, const vector_real_function_3d
     return kinetic;
 }
 
+
 double
 CCPotentials::compute_cis_expectation_value(World& world, const CC_vecfunction& x,
                                             const vector_real_function_3d& V, const bool print, const Info& info)
 {
+    // following eq. (34) of the CIS paper Kottmann et al, PCCP, 17, 31453, (2015)
+    // doi: https://doi.org/10.1039/C5CP00345H
+    // the expectation value of the CIS wave function is computed by projecting the
+    // CIS wave function onto eq. (22)
+    // the potential V must contain the coupling term when using localized orbitals
     const vector_real_function_3d xbra = info.R_square*(x.get_vecfunction());
     const vector_real_function_3d xket = x.get_vecfunction();
     const double kinetic = compute_kinetic_energy(world, xbra, xket);
@@ -2879,7 +2885,7 @@ CCPotentials::get_CC2_singles_potential_gs(World& world, const CC_vecfunction& s
 }
 
 madness::vector_real_function_3d
-CCPotentials::get_CCS_potential_ex(World& world, CC_vecfunction& x, const bool print, Info& info) {
+CCPotentials::get_CCS_potential_ex(World& world, const CC_vecfunction& x, const bool print, Info& info) {
     if (x.type != RESPONSE) error("get_CCS_response_potential: Wrong type of input singles");
 
     Pairs<CCPair> empty_doubles;
@@ -2895,14 +2901,12 @@ CCPotentials::get_CCS_potential_ex(World& world, CC_vecfunction& x, const bool p
     info.intermediate_potentials.insert(copy(world, potential), x, POT_singles_);
     vector_real_function_3d result = add(world, fock_residue, potential);
     truncate(world, result);
-    const double omega = compute_cis_expectation_value(world, x, result, print, info);
-    x.omega = omega;
     return result;
 }
 
 madness::vector_real_function_3d
 CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& gs_singles,
-                                           const Pairs<CCPair>& gs_doubles, CC_vecfunction& ex_singles,
+                                           const Pairs<CCPair>& gs_doubles, const CC_vecfunction& ex_singles,
                                            const Pairs<CCPair>& response_doubles, Info& info)
 {
     MADNESS_ASSERT(gs_singles.type == PARTICLE);
@@ -2949,8 +2953,6 @@ CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& g
     info.intermediate_potentials.insert(copy(world, potential), ex_singles, POT_singles_);
     vector_real_function_3d result = add(world, fock_residue, potential);
     truncate(world, result);
-    const double omega = compute_cis_expectation_value(world, ex_singles, result, true, info);
-    ex_singles.omega = omega;
     return result;
 }
 
