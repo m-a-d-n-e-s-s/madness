@@ -29,7 +29,7 @@ public:
 	double levelshift=0.0;
 	double lo=1.e-6;
 	double bshtol=1.e-5;
-	bool printme=true;
+	bool printme=false;
 	bool destroy_Vpsi=false;
 	Function<double,NDIM> metric;
 	return_value ret_value=residual;		// return the new orbitals/functions or the residuals

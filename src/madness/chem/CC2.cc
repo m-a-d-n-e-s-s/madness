@@ -759,7 +759,8 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) cons
         std::cout << std::fixed << std::setprecision(10) << "Current Correlation Energy = " << omega << "\n";
 
     if (parameters.no_compute_cc2()) {
-        if (world.rank()==0) print("found no_compute_cc2 key -- returning without further computation");
+        if (world.rank()==0) print("found no_compute_cc2 key -- recompute singles for the singles-potentials");
+        iterate_cc2_singles(world, singles, doubles, info);
         return omega;
     }
 
@@ -1099,7 +1100,7 @@ CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType 
 
             } else if (ftype == EXCITED_STATE) {
                 name = std::to_string(int(excitation)) + "_" + name;
-                real_function_6d utmp = real_factory_6d(world);
+                real_function_6d utmp;// = real_factory_6d(world);
                 const bool found = CCOPS.load_function(utmp, name);
                 if (found) restarted = true;
                 real_function_6d const_part;

@@ -124,17 +124,20 @@ CCIntermediatePotentials::operator()(const CC_vecfunction& f, const PotentialTyp
 madness::real_function_3d
 CCIntermediatePotentials::operator()(const CCFunction<double,3>& f, const PotentialType& type) const {
     output("Getting " + assign_name(type) + " for " + f.name());
-    if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED)) return current_singles_potential_gs_[f.i - parameters.freeze()];
-    else if (type == POT_singles_ and f.type == RESPONSE) return current_singles_potential_ex_[f.i - parameters.freeze()];
-    else if (type == POT_s2b_ and f.type == PARTICLE) return current_s2b_potential_gs_[f.i - parameters.freeze()];
-    else if (type == POT_s2b_ and f.type == RESPONSE) return current_s2b_potential_ex_[f.i - parameters.freeze()];
-    else if (type == POT_s2c_ and f.type == PARTICLE) return current_s2c_potential_gs_[f.i - parameters.freeze()];
-    else if (type == POT_s2c_ and f.type == RESPONSE) return current_s2c_potential_ex_[f.i - parameters.freeze()];
+    std::vector<real_function_3d> result;
+    if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED)) result= current_singles_potential_gs_;
+    else if (type == POT_singles_ and f.type == RESPONSE) result= current_singles_potential_ex_;
+    else if (type == POT_s2b_ and f.type == PARTICLE) result= current_s2b_potential_gs_;
+    else if (type == POT_s2b_ and f.type == RESPONSE) result= current_s2b_potential_ex_;
+    else if (type == POT_s2c_ and f.type == PARTICLE) result= current_s2c_potential_gs_;
+    else if (type == POT_s2c_ and f.type == RESPONSE) result= current_s2c_potential_ex_;
     else if (f.type == HOLE) output(assign_name(type) + " is zero for HOLE states");
     else MADNESS_EXCEPTION("Potential was not supposed to be stored", 1);
 
-
-    return real_function_3d();
+    std::string errmsg="CCIntermediatePotential was not computed/stored "+assign_name(type) + " " +assign_name(f.type);
+    errmsg+="\n --> you might need to iterate the corresponding singles";
+    MADNESS_CHECK_THROW(result.size()>(f.i-parameters.freeze()),errmsg.c_str());
+    return result[f.i-parameters.freeze()];
 }
 
 void
