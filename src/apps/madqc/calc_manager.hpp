@@ -36,7 +36,8 @@ class CompositeCalculationStrategy : public CalculationStrategy {
     json result = {};
     for (const auto& strategy : strategies) {
       json paths = strategy->calcPaths(root);
-      // I know there should only be one key in the json object.
+      // I know there should only be one key in the json object corresponding the calc_name.
+      // Insert json as j[calc_name]={}
       for (auto& [key, value] : paths.items()) {
         result[key] = value;
       }
@@ -55,6 +56,7 @@ class CompositeCalculationStrategy : public CalculationStrategy {
   }
 
   void runCalculation(World& world, const json& paths) override {
+
     for (const auto& strategy : strategies) {
       strategy->runCalculation(world, paths);
     }
@@ -462,7 +464,7 @@ class ResponseCalculationStrategy : public CalculationStrategy {
     // I need to analyze alpha.json to see which frequencies are missing.
     // Or I just write them to seperate files and then combine them later?
 
-    auto freqs = parameters.freq_range();
+    auto freqs = config.frequencies;
 
     bool last_converged = false;
     nlohmann::ordered_json alpha_json;
@@ -564,28 +566,19 @@ class ResponseCalculationStrategy : public CalculationStrategy {
   }
 };
 
-
-
-
 class HyperPolarizabilityCalcStrategy : public CalculationStrategy {
 
   ResponseParameters parameters;
-  std::string op;
-  std::string xc;
-  std::vector<double> freqs;
-  std::string calc_name = "response";
+  std::string calc_name = "hyper";
   ResponseConfig config;
 
  public:
   explicit HyperPolarizabilityCalcStrategy(const ResponseParameters& params, ResponseConfig config)
-      : parameters(params), config(std::move(config)) {
-    op = parameters.perturbation();
-  }
+      : parameters(params), config(std::move(config)) {}
 
   explicit HyperPolarizabilityCalcStrategy(const ResponseParameters& params, const ResponseInput& r_input,
-                                           std::string name = "response")
+                                           std::string name = "hyper")
       : parameters(params), calc_name(std::move(name)), config(calc_name, r_input) {}
-
   json calcPaths(const path& root) override {
 
     json paths;
@@ -599,57 +592,8 @@ class HyperPolarizabilityCalcStrategy : public CalculationStrategy {
     auto base_path = root / config.calc_name;
     // TODO: (@ahurta92) Feels hacky, should I always be creating new directories?  If I am, should I just create all of them from the start?
     // I added this because later down the line I was getting an error that the directory didn't exist for /base/response when trying to create /base/response/frequency
-    if (!std::filesystem::exists(base_path)) {
-      std::filesystem::create_directory(base_path);
-    }
-
-    // TODO: @ahurta92 This could include a few different stratgies dependent on what the user wants
-
-    auto set_freqs = [&]() {
-      vector<double> freqs_copy = config.frequencies;
-      auto num_freqs = config.frequencies.size();
-
-      auto compare_freqs = [](double x, double y) {
-        return std::abs(x - y) < 1e-3;
-      };
-
-      for (int i = 0; i < num_freqs; i++) {    // for i=0:n-1
-        for (int j = i; j < num_freqs; j++) {  // for j = i  omega_3=-(omega_1+omega_2)
-          auto omega_1 = config.frequencies[i];
-          auto omega_2 = config.frequencies[j];
-          auto omega_3 = omega_1 + omega_2;
-
-          if (std::find_if(freqs_copy.begin(), freqs_copy.end(), [&](double x) { return compare_freqs(x, omega_3); }) !=
-              freqs_copy.end()) {
-            continue;
-          }
-          if (omega_2 == 0.0)
-            continue;
-          freqs_copy.push_back(omega_3);
-        }
-      }
-
-      config.frequencies = freqs_copy;
-      response["frequencies"] = config.frequencies;
-      std::sort(config.frequencies.begin(), config.frequencies.end());
-      // only unique frequencies
-      config.frequencies.erase(std::unique(config.frequencies.begin(), config.frequencies.end()),
-                               config.frequencies.end());
-      return config.frequencies;
-    };
-    config.frequencies = set_freqs();
-
-    response["properties"] = {};
-    response["properties"]["alpha"] = base_path / "alpha.json";
     response["properties"]["beta"] = base_path / "beta.json";
 
-    for (const auto& frequency : config.frequencies) {
-      auto frequency_run_path = config.calc_path(base_path, frequency);
-      auto restart_path = ResponseConfig::restart_path(frequency_run_path);
-      response["calculation"].push_back(frequency_run_path);
-      response["restart"].push_back(restart_path);
-      response["output"].push_back(frequency_run_path / "response_base.json");
-    }
     return paths;
   }
 
@@ -664,16 +608,12 @@ class HyperPolarizabilityCalcStrategy : public CalculationStrategy {
     auto& calc_paths = response_paths["calculation"];
 
     std::vector<path> restart_paths = response_paths["restart"].get<std::vector<path>>();
+
+    auto freqs = response_paths["frequencies"].get<std::vector<double>>();
     auto output_paths = response_paths["output"].get<std::vector<std::string>>();
+    print("freqs: ", freqs);
 
-    auto alpha_path = response_paths["properties"]["alpha"].get<std::string>();
-    auto beta_path = response_paths["properties"]["beta"].get<std::string>();
-
-    size_t num_freqs = calc_paths.size();
-    // I need to analyze alpha.json to see which frequencies are missing.
-    // Or I just write them to seperate files and then combine them later?
-
-    auto freqs = parameters.freq_range();
+    //auto freqs = parameters.freq_range();
 
     bool last_converged = false;
     nlohmann::ordered_json beta_json;
@@ -687,45 +627,14 @@ class HyperPolarizabilityCalcStrategy : public CalculationStrategy {
     beta_json["Beta"] = json::array();
 
     try {
-
       auto num_freqs = freqs.size();
-
-      for (int i = 0; i < num_freqs; i++) {
-
-        auto response_base_path_i = output_paths[i];
-        auto response_save_i = restart_paths[i];
-
-        if (std::filesystem::exists(response_base_path_i)) {
-
-          std::ifstream ifs(response_base_path_i);
-          json response_base;
-          ifs >> response_base;
-          if (response_base["converged"] && response_base["precision"]["dconv"] == parameters.dconv()) {
-            {
-              if (world.rank() == 0) {
-                ::print("Response calculation already converged");
-              }
-            }
-            continue;
-          } else {
-            if (world.rank() == 0) {
-              ::print("Response calculation not converged");
-            }
-            break;
-          }
-        }
-        if (!std::filesystem::exists(response_save_i)) {
-          throw Response_Convergence_Error{};
-        }
-      }
-      world.gop.fence();
 
       if (world.rank() == 0) {
         ::print("Running quadratic response calculations");
       }
       std::filesystem::current_path(moldft_path);
       RHS_Generator rhs_generator;
-      if (op == "dipole") {
+      if (config.perturbation == "dipole") {
         rhs_generator = dipole_generator;
       } else {
         rhs_generator = nuclear_generator;
@@ -743,7 +652,7 @@ class HyperPolarizabilityCalcStrategy : public CalculationStrategy {
         quad_parameters.set_user_defined_value("freq_range", molresponse_params.freq_range());
         quad_parameters.set_user_defined_value("hfexalg", molresponse_params.hfexalg());
 
-        if (op == "dipole") {
+        if (config.perturbation == "dipole") {
           quad_parameters.set_user_defined_value("dipole", true);
           quad_parameters.set_derived_value<size_t>("states", 3);
         }
@@ -781,10 +690,8 @@ class HyperPolarizabilityCalcStrategy : public CalculationStrategy {
 
       num_freqs = (freqs.size() / 2) + 1;
 
-      bool first_run = true;
       for (int b = 0; b < num_freqs; b++) {
         for (int c = 0; c < num_freqs; c++) {
-          first_run = false;
 
           ::print(world.rank(), "b = ", b, " c = ", c);
 
@@ -970,13 +877,13 @@ class WriteResponseVTKOutputStrategy : public CalculationStrategy {
 // Then runs the calculations
 class CalcManager {
  private:
-  std::unique_ptr<CalculationStrategy> strategy;
+  CompositeCalculationStrategy strategies;
 
  public:
-  void addCalculationStrategy(std::unique_ptr<CalculationStrategy> newStrategy) { strategy = std::move(newStrategy); }
+  void addStrategy(std::unique_ptr<CalculationStrategy> newStrategy) { strategies.addStrategy(std::move(newStrategy)); }
 
   void runCalculations(World& world, const path& root) {
-    json paths = strategy->calcPaths(root);
+    json paths = strategies.calcPaths(root);
     // output the paths to disk
     if (world.rank() == 0) {
       std::ofstream ofs("paths.json");
@@ -988,7 +895,7 @@ class CalcManager {
       print(paths.dump(4));
     }
 
-    strategy->runCalculation(world, paths);
+    strategies.runCalculation(world, paths);
   }
 
   CalcManager() = default;
