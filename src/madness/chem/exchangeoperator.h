@@ -412,10 +412,10 @@ private:
                 //}
                 Kf[0] += tmp_Kf;
                 print_size(world, Kf, "Kf before truncation");
-                truncate(world, Kf, mul_tol);
+                truncate(world, Kf);
                 print_size(world, Kf, "Kf after truncation");
             }
-            Kf[0] +=dot(world, mo_ket, psif);
+            //Kf[0] +=dot(world, mo_ket, psif);
             //if (world.rank()==0 && printdebug()) Kf[0].print_size("Kf after dot");
             
             //truncate(world, Kf);

@@ -1549,26 +1549,57 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
     fpsi.clear();
     std::vector<double> fac(nmo, -2.0);
     scale(world, Vpsi, fac);
-    std::vector<poperatorT> ops = make_bsh_operators(world, eps);
-    set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());
+    //std::vector<poperatorT> ops = make_bsh_operators(world, eps);
+    //set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());
     END_TIMER(world, "Compute residual stuff");
 
     START_TIMER(world);
 
-    //TODO: tile apply
-    vecfuncT new_psi = apply(world, ops, Vpsi);
+    //vecfuncT new_psi = apply(world, ops, Vpsi);
+
+    // TODO: tile apply
+    size_t min_tile = 10;
+    size_t ntile = std::min(amo.size(), min_tile);
+    vecfuncT new_psi = zero_functions<double,3>(world, Vpsi.size());
+
+    for (size_t ilo=0; ilo<Vpsi.size(); ilo+=ntile) {
+        size_t iend = std::min(ilo+ntile,Vpsi.size());
+        vecfuncT tmp_Vpsi(Vpsi.begin()+ilo,Vpsi.begin()+iend);
+
+        int tmp_nmo = tmp_Vpsi.size();
+        tensorT tmp_eps(tmp_nmo);
+        for (int i = 0; i < tmp_nmo; ++i) {
+            tmp_eps(i) = std::min(-0.05, fock(i+ilo, i+ilo));
+        }
+
+        std::vector<poperatorT> ops = make_bsh_operators(world, tmp_eps);
+        set_thresh(world, tmp_Vpsi, FunctionDefaults<3>::get_thresh());
+
+        vecfuncT tmp_new_psi = apply(world, ops, tmp_Vpsi);
+        print_size(world, tmp_new_psi, "tmp_new_psi before truncation");
+
+        //truncate tmp_new_psi
+        truncate(world, tmp_new_psi);
+        print_size(world, tmp_new_psi, "tmp_new_psi after truncation");
+
+        //put the results into their final home
+        for (size_t i = ilo; i<iend; ++i){
+            new_psi[i] += tmp_new_psi[i-ilo];
+        }
+        ops.clear();
+    }
 
     END_TIMER(world, "Apply BSH");
-    ops.clear();
+    //ops.clear();
     Vpsi.clear();
     world.gop.fence();
 
     // Thought it was a bad idea to truncate *before* computing the residual
     // but simple tests suggest otherwise ... no more iterations and
     // reduced iteration time from truncating.
-    START_TIMER(world);
-    truncate(world, new_psi);
-    END_TIMER(world, "Truncate new psi");
+    //START_TIMER(world);
+    //truncate(world, new_psi);
+    //END_TIMER(world, "Truncate new psi");
 
     START_TIMER(world);
     vecfuncT r = sub(world, psi, new_psi);
