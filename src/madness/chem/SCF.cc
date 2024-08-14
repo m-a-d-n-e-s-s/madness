@@ -1373,7 +1373,7 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
     //     potentialmanager->apply_nonlocal_potential(world, amo, Vpsi);
     // }
 
-    // tiled Vpsi and truncation
+    // compute Vpsi and truncation
     START_TIMER(world);
     size_t min_tile = 10;
     size_t ntile = std::min(amo.size(), min_tile);
@@ -1390,7 +1390,7 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
             truncate(world, tmpVpsi);
             print_size(world, tmpVpsi, "tmpVpsi after truncation");
 
-            //put the results into their final home;
+            //put the results into their final home
             for (size_t i = ilo; i<iend; ++i){
                 Vpsi[i] += tmpVpsi[i-ilo];
             }
@@ -1554,7 +1554,10 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
     END_TIMER(world, "Compute residual stuff");
 
     START_TIMER(world);
+
+    //TODO: tile apply
     vecfuncT new_psi = apply(world, ops, Vpsi);
+
     END_TIMER(world, "Apply BSH");
     ops.clear();
     Vpsi.clear();
