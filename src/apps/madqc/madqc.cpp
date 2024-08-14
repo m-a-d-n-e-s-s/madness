@@ -29,96 +29,96 @@
   fax:   865-572-0680
 */
 
+#include "calc_manager.hpp"
 #include "madchem.h"
-#include "parameters_manager.hpp"
-#include "tasks.hpp"
+
+#include <madness/chem/SCF.h>
+#include <madness/chem/molopt.h>
+#include <madness/misc/info.h>
+#include <madness/world/worldmem.h>
+#include "madness/mra/commandlineparser.h"
+#include "parameter_manager.hpp"
+
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
+
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+// static inline int file_exists(const char *inpname) {
+//     struct stat buffer;
+//     int rc = stat(inpname, &buffer);
+//     return (rc == 0);
+// }
+
+#endif
 
 using namespace madness;
 
+static double ttt, sss;
+
+static void START_TIMER(World& world) {
+  world.gop.fence();
+  ttt = wall_time();
+  sss = cpu_time();
+}
+
+static void END_TIMER(World& world, const char* msg) {
+  ttt = wall_time() - ttt;
+  sss = cpu_time() - sss;
+  if (world.rank() == 0)
+    printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
+}
+
 int main(int argc, char** argv) {
 
-  World& world = initialize(argc, argv, false);
+  World& world = initialize(argc, argv);
   if (world.rank() == 0) {
-    print_header1("MADQC -- numerical quantum chemistry in MADNESS");
+    print_header1("MADQC -- Multiresolution Quantum Chemsitry Code ");
   }
 
-  startup(world, argc, argv, true);
-  std::cout.precision(6);
-  if (world.rank() == 0)
-    print(info::print_revision_information());
-  commandlineparser parser(argc, argv);
-  ParameterManager params;
+  {  // limit lifetime of world so that finalize() can execute cleanly
+    START_TIMER(world);
+    try {
+      // Load info for MADNESS numerical routines
+      startup(world, argc, argv, true);
+      if (world.rank() == 0)
+        print(info::print_revision_information());
 
-  try {
-    
-    print_meminfo(world.rank(), "startup");
-    ParameterManager params;
+      commandlineparser parser(argc, argv);
+      ParameterManager params;
 
-    if (argc == 1) {
-      if (world.rank() == 0) {
-        print("No input file found");
-        print("For help type: ./mad-dft --help");
-        print("For print parameters type: ./mad-dft --print_parameters");
+      if (parser.key_exists("help")) {
+        ParameterManager::help();
       }
-      return 1;
-    } else if (argc == 2) {
-      path input_file(argv[1]);
-      if (world.rank() == 0) {
-        print("Input file found");
-        print("Parsing Command Line");
-      }
-      params = ParameterManager(world, input_file);
-    } else if (argc == 3) {
-      if (world.rank() == 0) {
-        print("Input and mol file found");
-      }
-      path input_file(argv[1]);
-      path mol_input(argv[2]);
-      params = ParameterManager(world, {input_file, mol_input});
-    } else {
-      error("Too many arguments");
+    } catch (const SafeMPI::Exception& e) {
+      print(e);
+      error("caught an MPI exception");
+    } catch (const madness::MadnessException& e) {
+      print(e);
+      error("caught a MADNESS exception");
+    } catch (const madness::TensorException& e) {
+      print(e);
+      error("caught a Tensor exception");
+    } catch (const char* s) {
+      print(s);
+      error("caught a string exception");
+    } catch (const std::string& s) {
+      print(s);
+      error("caught a string (class) exception");
+    } catch (const std::exception& e) {
+      print(e.what());
+      error("caught an STL exception");
+    } catch (...) {
+      error("caught unhandled exception");
     }
 
-    std::ofstream out_file;
-    out_file.open("madqc_input.json");
-    params.write_input_file(out_file);
-    out_file.close();
-
-  } catch (const SafeMPI::Exception& e) {
-    print(e.what());
-    error("caught an MPI exception");
-  } catch (const madness::MadnessException& e) {
-    print(e);
-    error("caught a MADNESS exception");
-  } catch (const madness::TensorException& e) {
-    print(e.what());
-    error("caught a Tensor exception");
-  } catch (const nlohmann::detail::exception& e) {
-    print(e.what());
-    error("Caught JSON exception");
-  } catch (const std::filesystem::filesystem_error& ex) {
-    std::cerr << ex.what() << "\n";
-  } catch (const std::exception& e) {
-    print(e.what());
-    error("caught an STL exception");
-  } catch (...) {
-    error("caught unhandled exception");
-  }
-  // Nearly all memory will be freed at this point
-  print_stats(world);
-  // create parameter classes
-  // 1. read in all input blocks independently
-  // 2. set up parameter logic
-  // 2a from the model downstream
-  // 2b from the task downstream
-
-  // read input file
-  // read into parameter handler
-
-  // create class corresponding to qc model
-
-  // check for the existence of the input file
-
+    // Nearly all memory will be freed at this point
+    world.gop.fence();
+    world.gop.fence();
+    print_stats(world);
+  }  // world is dead -- ready to finalize
   finalize();
+
   return 0;
 }

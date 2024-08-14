@@ -12,14 +12,15 @@
 #include <memory>
 #include <utility>
 #include <vector>
-#include "path_manager.hpp"
 #include "utils.hpp"
 
 using json = nlohmann::json;
 using path = std::filesystem::path;
+using ResponseInput = std::tuple<std::string, std::string, std::vector<double>>;
 
 class CalculationStrategy {
  public:
+  virtual json calcPaths(const path& root) = 0;
   virtual void runCalculation(World& world, const json& paths) = 0;
   virtual ~CalculationStrategy() = default;
 };
@@ -30,6 +31,28 @@ class CompositeCalculationStrategy : public CalculationStrategy {
 
  public:
   void addStrategy(std::unique_ptr<CalculationStrategy> strategy) { strategies.push_back(std::move(strategy)); }
+
+  json calcPaths(const path& root) override {
+    json result = {};
+    for (const auto& strategy : strategies) {
+      json paths = strategy->calcPaths(root);
+      // I know there should only be one key in the json object.
+      for (auto& [key, value] : paths.items()) {
+        result[key] = value;
+      }
+    }
+
+    for (const auto& calc_type : result) {
+      auto calc_dirs = calc_type["calculation"];
+      for (const auto& calc_dir : calc_dirs) {
+        if (!std::filesystem::exists(calc_dir)) {
+          std::filesystem::create_directory(calc_dir);
+        }
+      }
+    }
+
+    return result;
+  }
 
   void runCalculation(World& world, const json& paths) override {
     for (const auto& strategy : strategies) {
@@ -43,8 +66,27 @@ class MoldftCalculationStrategy : public CalculationStrategy {
   CalculationParameters parameters;
   json input_json;
   Molecule molecule;
+  std::string calc_name;
 
  public:
+  MoldftCalculationStrategy(const CalculationParameters& params, Molecule mol, std::string name = "moldft")
+      : calc_name(std::move(name)), parameters(params), molecule(std::move(mol)){};
+  json calcPaths(const path& root) override {
+    json paths;
+
+    paths[calc_name] = {};
+    auto& moldft = paths[calc_name];
+
+    auto base_root = root / calc_name;
+
+    moldft["calculation"] = base_root;
+    moldft["restart"] = base_root / "moldft.restartdata.00000";
+    moldft["output"] = {};
+    moldft["output"]["calc_info"] = base_root / "moldft.calc_info.json";
+    moldft["output"]["scf_info"] = base_root / "moldft.scf_info.json";
+
+    return paths;
+  }
   void runCalculation(World& world, const json& paths) override {
 
     // the first step is to look for the moldft paths
@@ -126,31 +168,48 @@ class MoldftCalculationStrategy : public CalculationStrategy {
         calc.make_nuclear_potential(world);
         calc.initial_load_bal(world);
       }
-      // vama
-      calc.set_protocol<3>(world, calc.param.protocol()[0]);
-      // calc.set_protocol<3>(world, 1e-4);
-      world.gop.fence();
-      MolecularEnergy ME(world, calc);
-      world.gop.fence();
-      // double energy=ME.value(calc.molecule.get_all_coords().flat()); // ugh!
-      ME.value(calc.molecule.get_all_coords().flat());  // ugh!
-      world.gop.fence();
-      const real_function_3d rho = 2.0 * calc.make_density(world, calc.aocc, calc.amo);
-      auto dipole_t = calc.dipole(world, rho);
-      std::map<std::string, double> results;
-      results["scf_energy"] = calc.current_energy;
-      world.gop.fence();
-      if (world.rank() == 0) {
+
+      if (calc.param.gopt()) {
+
+        MolOpt opt(calc.param.gmaxiter(), 0.1, calc.param.gval(), calc.param.gtol(),
+                   1e-3,  //XTOL
+                   1e-5,  //EPREC
+                   calc.param.gprec(),
+                   (world.rank() == 0) ? 1 : 0,  //print_level
+                   calc.param.algopt());
+
+        MolecularEnergy target(world, calc);
+        opt.optimize(calc.molecule, target);
+      } else {
+        MolecularEnergy E(world, calc);
+        double energy = E.value(calc.molecule.get_all_coords().flat());  // ugh!
+        if ((world.rank() == 0) and (calc.param.print_level() > 0)) {
+          printf("final energy=%16.8f \n", energy);
+          E.output_calc_info_schema();
+        }
+
+        functionT rho = calc.make_density(world, calc.aocc, calc.amo);
+        functionT brho = rho;
+        if (calc.param.nbeta() != 0 && !calc.param.spin_restricted())
+          brho = calc.make_density(world, calc.bocc, calc.bmo);
+        rho.gaxpy(1.0, brho, 1.0);
+
+        if (calc.param.derivatives()) {
+          auto gradient = calc.derivatives(world, rho);
+          calc.e_data.add_gradient(gradient);
+        }
+        // automatically print dipole moment and output scf info
+        std::map<std::string, double> results;
+        results["scf_energy"] = calc.current_energy;
+        auto dipole_t = calc.dipole(world, rho);
         calc.output_scf_info_schema(results, dipole_t);
-        ME.output_calc_info_schema();
       }
+
+      calc.do_plots(world);
     }
 
     // Add actual calculation logic here
   }
-
-  MoldftCalculationStrategy(const CalculationParameters& params, Molecule mol)
-      : parameters(params), molecule(std::move(mol)){};
 };
 
 class MP2CalculationStrategy : public CalculationStrategy {
@@ -164,15 +223,105 @@ class MP2CalculationStrategy : public CalculationStrategy {
   }
 };
 
+class ResponseConfig {
+
+ public:
+  std::string calc_name = "response";
+  std::string perturbation;
+  std::string xc;
+  std::vector<double> frequencies;
+  // sets the current path to the save path
+  /**
+     * Generates the frequency save path with format
+     * /frequency_run_path/restart_[frequency_run_filename].00000
+     *
+     * @param frequency_run_path
+     * @return
+     */
+  static path restart_path(const std::filesystem::path& calc_path) {
+
+    auto save_path = std::filesystem::path(calc_path);
+    auto run_name = calc_path.filename();
+    std::string save_string = "restart_" + run_name.string();
+    save_path += "/";
+    save_path += save_string;
+    save_path += ".00000";
+
+    return save_path;
+  }
+
+  /**
+     * generates the frequency response path using the format
+     * [property]_[xc]_[1-100]
+     *
+     * where 1-100 corresponds a frequency of 1.100
+     *
+     * @param moldft_path
+     * @param property
+     * @param frequency
+     * @param xc
+     * @return
+     */
+  [[nodiscard]] auto calc_path(const path& root, const double& frequency) const -> std::filesystem::path {
+    std::string s_frequency = std::to_string(frequency);
+    auto sp = s_frequency.find('.');
+    s_frequency = s_frequency.replace(sp, sp, "-");
+    std::string run_name = this->perturbation + "_" + this->xc + "_" + s_frequency;
+    return root / std::filesystem::path(run_name);
+  }
+  explicit ResponseConfig(std::string calc_name, ResponseInput input)
+      : calc_name(std::move(calc_name)),
+        perturbation(std::get<0>(input)),
+        xc(std::get<1>(input)),
+        frequencies(std::get<2>(input)) {}
+  explicit ResponseConfig(ResponseInput input)
+      : perturbation(std::get<0>(input)), xc(std::get<1>(input)), frequencies(std::get<2>(input)) {}
+};
+
 class ResponseCalculationStrategy : public CalculationStrategy {
 
   ResponseParameters parameters;
   std::string op;
   std::string xc;
   std::vector<double> freqs;
+  std::string calc_name = "response";
+  ResponseConfig config;
 
  public:
-  explicit ResponseCalculationStrategy(const ResponseParameters& params) : parameters(params) {}
+  explicit ResponseCalculationStrategy(const ResponseParameters& params, const ResponseInput& r_input,
+                                       std::string name = "response")
+      : parameters(params), calc_name(std::move(name)), config(calc_name, r_input) {}
+
+  json calcPaths(const path& root) override {
+
+    json paths;
+    paths[calc_name] = {};
+    auto& response = paths[calc_name];
+    response["frequencies"] = config.frequencies;
+    response["calculation"] = {};
+    response["output"] = {};
+    response["restart"] = {};
+
+    auto base_path = root / calc_name;
+    // TODO: (@ahurta92) Feels hacky, should I always be creating new directories?  If I am, should I just create all of them from the start?
+    // I added this because later down the line I was getting an error that the directory didn't exist for /base/response when trying to create /base/response/frequency
+    if (!std::filesystem::exists(base_path)) {
+      std::filesystem::create_directory(base_path);
+    }
+
+    response["properties"] = {};
+    response["properties"]["alpha"] = base_path / "alpha.json";
+    response["properties"]["beta"] = base_path / "beta.json";
+
+    for (const auto& frequency : config.frequencies) {
+      auto frequency_run_path = config.calc_path(base_path, frequency);
+      auto restart_path = ResponseConfig::restart_path(frequency_run_path);
+      response["calculation"].push_back(frequency_run_path);
+      response["restart"].push_back(restart_path);
+      response["output"].push_back(frequency_run_path / "response_base.json");
+    }
+    return paths;
+  }
 
   static void append_to_alpha_json(const double& omega, const std::vector<std::string>& ij, const Tensor<double>& alpha,
                                    nlohmann::ordered_json& alpha_json) {
@@ -415,16 +564,93 @@ class ResponseCalculationStrategy : public CalculationStrategy {
   }
 };
 
+
+
+
 class HyperPolarizabilityCalcStrategy : public CalculationStrategy {
 
   ResponseParameters parameters;
   std::string op;
   std::string xc;
   std::vector<double> freqs;
+  std::string calc_name = "response";
+  ResponseConfig config;
 
  public:
-  explicit HyperPolarizabilityCalcStrategy(const ResponseParameters& params) : parameters(params) {
+  explicit HyperPolarizabilityCalcStrategy(const ResponseParameters& params, ResponseConfig config)
+      : parameters(params), config(std::move(config)) {
     op = parameters.perturbation();
+  }
+
+  explicit HyperPolarizabilityCalcStrategy(const ResponseParameters& params, const ResponseInput& r_input,
+                                           std::string name = "response")
+      : parameters(params), calc_name(std::move(name)), config(calc_name, r_input) {}
+
+  json calcPaths(const path& root) override {
+
+    json paths;
+    paths[config.calc_name] = {};
+    auto& response = paths[config.calc_name];
+    response["calculation"] = {};
+    response["calculation"] = {};
+    response["output"] = {};
+    response["restart"] = {};
+
+    auto base_path = root / config.calc_name;
+    // TODO: (@ahurta92) Feels hacky, should I always be creating new directories?  If I am, should I just create all of them from the start?
+    // I added this because later down the line I was getting an error that the directory didn't exist for /base/response when trying to create /base/response/frequency
+    if (!std::filesystem::exists(base_path)) {
+      std::filesystem::create_directory(base_path);
+    }
+
+    // TODO: @ahurta92 This could include a few different stratgies dependent on what the user wants
+
+    auto set_freqs = [&]() {
+      vector<double> freqs_copy = config.frequencies;
+      auto num_freqs = config.frequencies.size();
+
+      auto compare_freqs = [](double x, double y) {
+        return std::abs(x - y) < 1e-3;
+      };
+
+      for (int i = 0; i < num_freqs; i++) {    // for i=0:n-1
+        for (int j = i; j < num_freqs; j++) {  // for j = i  omega_3=-(omega_1+omega_2)
+          auto omega_1 = config.frequencies[i];
+          auto omega_2 = config.frequencies[j];
+          auto omega_3 = omega_1 + omega_2;
+
+          if (std::find_if(freqs_copy.begin(), freqs_copy.end(), [&](double x) { return compare_freqs(x, omega_3); }) !=
+              freqs_copy.end()) {
+            continue;
+          }
+          if (omega_2 == 0.0)
+            continue;
+          freqs_copy.push_back(omega_3);
+        }
+      }
+
+      config.frequencies = freqs_copy;
+      response["frequencies"] = config.frequencies;
+      std::sort(config.frequencies.begin(), config.frequencies.end());
+      // only unique frequencies
+      config.frequencies.erase(std::unique(config.frequencies.begin(), config.frequencies.end()),
+                               config.frequencies.end());
+      return config.frequencies;
+    };
+    config.frequencies = set_freqs();
+
+    response["properties"] = {};
+    response["properties"]["alpha"] = base_path / "alpha.json";
+    response["properties"]["beta"] = base_path / "beta.json";
+
+    for (const auto& frequency : config.frequencies) {
+      auto frequency_run_path = config.calc_path(base_path, frequency);
+      auto restart_path = ResponseConfig::restart_path(frequency_run_path);
+      response["calculation"].push_back(frequency_run_path);
+      response["restart"].push_back(restart_path);
+      response["output"].push_back(frequency_run_path / "response_base.json");
+    }
+    return paths;
   }
 
   void runCalculation(World& world, const json& paths) override {
@@ -642,6 +868,7 @@ class WriteResponseVTKOutputStrategy : public CalculationStrategy {
 
  public:
   explicit WriteResponseVTKOutputStrategy(const ResponseParameters& params) : parameters(params){};
+  json calcPaths(const path& root) override { return {}; }
   void runCalculation(World& world, const json& paths) override {
 
     auto& moldft_paths = paths["moldft"];
@@ -737,16 +964,19 @@ class WriteResponseVTKOutputStrategy : public CalculationStrategy {
   }
 };
 
+// CalcManager class
+// Takes path manager and creates json of paths
+// Generates the paths for the calculations in a dry run
+// Then runs the calculations
 class CalcManager {
  private:
   std::unique_ptr<CalculationStrategy> strategy;
-  PathManager pathManager;
 
  public:
-  void setCalculationStrategy(std::unique_ptr<CalculationStrategy> newStrategy) { strategy = std::move(newStrategy); }
+  void addCalculationStrategy(std::unique_ptr<CalculationStrategy> newStrategy) { strategy = std::move(newStrategy); }
 
   void runCalculations(World& world, const path& root) {
-    json paths = pathManager.generateCalcPaths(root);
+    json paths = strategy->calcPaths(root);
     // output the paths to disk
     if (world.rank() == 0) {
       std::ofstream ofs("paths.json");
@@ -760,8 +990,6 @@ class CalcManager {
 
     strategy->runCalculation(world, paths);
   }
-
-  void addPathStrategy(std::unique_ptr<PathStrategy> strategy) { pathManager.addStrategy(std::move(strategy)); }
 
   CalcManager() = default;
 };

@@ -9,7 +9,6 @@
 #include <madness/external/nlohmann_json/json.hpp>
 #include <utility>
 #include "tasks.hpp"
-//#include "utils.hpp"
 
 using path = std::filesystem::path;
 using json = nlohmann::json;
@@ -40,24 +39,10 @@ class ParameterManager {
   void print_file_paths() const {
     ::print("------------Parameter Manager---------------");
     ::print("Input File Path: ", input_file_path);
-    ::print("Final Input File Path: ", final_input_file_path);
-    ::print("Input File Json Path: ", input_file_json_path);
     ::print("-------------------------------------------");
   }
 
-  static void help() {
-    print_header2("help page for MADNESS DFT and Response Properties Code ");
-    print(
-        "This code is designed to run DFT and Response Property "
-        "calculations");
-    print(
-        "Within the input one defines both the ground and response "
-        "calculations in the input file by specifiying the dft and response "
-        "blocks");
-    print(
-        "By defining the quadratic block one can compute quadratic response "
-        "properties such as the hyperpolarizability");
-  }
+  static void help() { print_header2("help page for MADNESS DFT and Response Properties Code "); }
   void print_params() const {
     ::print("------------Parameter Manager---------------");
     ::print("Molecule: ");
