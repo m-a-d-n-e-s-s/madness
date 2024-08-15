@@ -1100,7 +1100,7 @@ CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType 
 
             } else if (ftype == EXCITED_STATE) {
                 name = std::to_string(int(excitation)) + "_" + name;
-                real_function_6d utmp;// = real_factory_6d(world);
+                real_function_6d utmp = real_factory_6d(world);
                 const bool found = CCOPS.load_function(utmp, name);
                 if (found) restarted = true;
                 real_function_6d const_part;
