@@ -636,7 +636,9 @@ private:
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug) {
 
         	io_redirect io(element,name+"_task",debug);
+            cloud.print_size(subworld);
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
+            cloud.print_size(subworld);
             const argtupleT batched_argtuple = task.batch.template copy_input_batch(argtuple);
         	try {
         		resultT result_tmp = std::apply(task, batched_argtuple);

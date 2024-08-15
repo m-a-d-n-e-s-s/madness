@@ -150,7 +150,7 @@ public:
     typedef Recordlist<keyT> recordlistT;
 
 private:
-    madness::WorldContainer<keyT, valueT> container;
+    mutable madness::WorldContainer<keyT, valueT> container;
     cacheT cached_objects;
     recordlistT local_list_of_container_keys;   // a world-local list of keys occupied in container
 
@@ -461,6 +461,9 @@ private:
         madness::archive::ContainerRecordInputArchive ar(world, container, record);
         madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(world, ar);
         par & target;
+
+        if (is_replicated) container.erase(record);
+
         cache(world, target, record);
         return target;
     }
