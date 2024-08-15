@@ -130,7 +130,7 @@ private:
     double lo = 1.e-4;
     double thresh = FunctionDefaults<NDIM>::get_thresh();
     long printlevel = 0;
-    double mul_tol = 0.0;
+    double mul_tol = FunctionDefaults<NDIM>::get_thresh()*0.1;
 
     class MacroTaskExchangeSimple : public MacroTaskOperationBase {
 
@@ -345,7 +345,9 @@ private:
                    const std::vector<Function<T, NDIM>>& mo_ket) {       
 
             World& world = vket.front().world();
+            mul_tol = 0.0;
             print("mul_tol ", mul_tol);
+            
 
             resultT Kf = zero_functions_compressed<T, NDIM>(world, 1);
             auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(world, lo);

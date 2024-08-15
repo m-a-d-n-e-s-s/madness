@@ -1375,28 +1375,38 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 
     // compute Vpsi and truncation
     START_TIMER(world);
+    const bool tile_Vpsi = true;
     size_t min_tile = 10;
     size_t ntile = std::min(amo.size(), min_tile);
     if (!molecule.parameters.pure_ae()) {
         gaxpy(world, 1.0, Vpsi, 1.0, gthpseudopotential->apply_potential(world, vloc, amo, occ, enl));
     } else {
-        for (size_t ilo=0; ilo<amo.size(); ilo+=ntile) {
-            size_t iend = std::min(ilo+ntile,amo.size());
-            vecfuncT tmpamo(amo.begin()+ilo,amo.begin()+iend);
-            auto tmpVpsi = mul_sparse(world, vloc, tmpamo, vtol);
-            print_size(world, tmpVpsi, "tmpVpsi before truncation");
+        if (tile_Vpsi){
+            for (size_t ilo=0; ilo<amo.size(); ilo+=ntile) {
+                size_t iend = std::min(ilo+ntile,amo.size());
+                vecfuncT tmpamo(amo.begin()+ilo,amo.begin()+iend);
+                auto tmpVpsi = mul_sparse(world, vloc, tmpamo, vtol);
+                print_size(world, tmpVpsi, "tmpVpsi before truncation");
 
-            //truncate tmpVpsi
-            truncate(world, tmpVpsi);
-            print_size(world, tmpVpsi, "tmpVpsi after truncation");
+                //truncate tmpVpsi
+                truncate(world, tmpVpsi);
+                print_size(world, tmpVpsi, "tmpVpsi after truncation");
 
-            //put the results into their final home
-            for (size_t i = ilo; i<iend; ++i){
-                Vpsi[i] += tmpVpsi[i-ilo];
+                //put the results into their final home
+                for (size_t i = ilo; i<iend; ++i){
+                    Vpsi[i] += tmpVpsi[i-ilo];
+                }
             }
+            END_TIMER(world, "V*psi");
+        } else {
+            gaxpy(world, 1.0, Vpsi, 1.0, mul_sparse(world, vloc, amo, vtol));
+            END_TIMER(world, "V*psi");
+            START_TIMER(world);
+            truncate(world, Vpsi);
+            END_TIMER(world, "Truncate Vpsi");
+            print_meminfo(world.rank(), "Truncate Vpsi");
         }
     }
-    END_TIMER(world, "V*psi");
 
     //START_TIMER(world);
     //if (!molecule.parameters.pure_ae()) {
@@ -1549,57 +1559,69 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
     fpsi.clear();
     std::vector<double> fac(nmo, -2.0);
     scale(world, Vpsi, fac);
-    //std::vector<poperatorT> ops = make_bsh_operators(world, eps);
-    //set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());
     END_TIMER(world, "Compute residual stuff");
 
-    START_TIMER(world);
+    const bool tile_applyBSH = true;
+    vecfuncT new_psi;
 
-    //vecfuncT new_psi = apply(world, ops, Vpsi);
+    if (tile_applyBSH) {
+        START_TIMER(world);
+        size_t min_tile = 10;
+        size_t ntile = std::min(amo.size(), min_tile);
+        new_psi = zero_functions<double,3>(world, Vpsi.size());
 
-    // TODO: tile apply
-    size_t min_tile = 10;
-    size_t ntile = std::min(amo.size(), min_tile);
-    vecfuncT new_psi = zero_functions<double,3>(world, Vpsi.size());
+        for (size_t ilo=0; ilo<Vpsi.size(); ilo+=ntile) {
+            size_t iend = std::min(ilo+ntile,Vpsi.size());
+            vecfuncT tmp_Vpsi(Vpsi.begin()+ilo,Vpsi.begin()+iend);
 
-    for (size_t ilo=0; ilo<Vpsi.size(); ilo+=ntile) {
-        size_t iend = std::min(ilo+ntile,Vpsi.size());
-        vecfuncT tmp_Vpsi(Vpsi.begin()+ilo,Vpsi.begin()+iend);
+            int tmp_nmo = tmp_Vpsi.size();
+            tensorT tmp_eps(tmp_nmo);
+            for (int i = 0; i < tmp_nmo; ++i) {
+                tmp_eps(i) = std::min(-0.05, fock(i+ilo, i+ilo));
+            }
 
-        int tmp_nmo = tmp_Vpsi.size();
-        tensorT tmp_eps(tmp_nmo);
-        for (int i = 0; i < tmp_nmo; ++i) {
-            tmp_eps(i) = std::min(-0.05, fock(i+ilo, i+ilo));
+            std::vector<poperatorT> ops = make_bsh_operators(world, tmp_eps);
+            set_thresh(world, tmp_Vpsi, FunctionDefaults<3>::get_thresh());
+
+            vecfuncT tmp_new_psi = apply(world, ops, tmp_Vpsi);
+            print_size(world, tmp_new_psi, "tmp_new_psi before truncation");
+
+            //truncate tmp_new_psi
+            truncate(world, tmp_new_psi);
+            print_size(world, tmp_new_psi, "tmp_new_psi after truncation");
+
+            //put the results into their final home
+            for (size_t i = ilo; i<iend; ++i){
+                new_psi[i] += tmp_new_psi[i-ilo];
+            }
+            ops.clear();
         }
 
-        std::vector<poperatorT> ops = make_bsh_operators(world, tmp_eps);
-        set_thresh(world, tmp_Vpsi, FunctionDefaults<3>::get_thresh());
+        Vpsi.clear();
+        world.gop.fence();
+        END_TIMER(world, "Apply BSH");
+    } else {
+        START_TIMER(world);
 
-        vecfuncT tmp_new_psi = apply(world, ops, tmp_Vpsi);
-        print_size(world, tmp_new_psi, "tmp_new_psi before truncation");
+        std::vector<poperatorT> ops = make_bsh_operators(world, eps);
+        set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());
 
-        //truncate tmp_new_psi
-        truncate(world, tmp_new_psi);
-        print_size(world, tmp_new_psi, "tmp_new_psi after truncation");
-
-        //put the results into their final home
-        for (size_t i = ilo; i<iend; ++i){
-            new_psi[i] += tmp_new_psi[i-ilo];
-        }
+        new_psi = apply(world, ops, Vpsi);
+        
         ops.clear();
-    }
+        Vpsi.clear();
+        world.gop.fence();
 
-    END_TIMER(world, "Apply BSH");
-    //ops.clear();
-    Vpsi.clear();
-    world.gop.fence();
+        END_TIMER(world, "Apply BSH");
+        
+        START_TIMER(world);
+        truncate(world, new_psi);
+        END_TIMER(world, "Truncate new psi");
+    }
 
     // Thought it was a bad idea to truncate *before* computing the residual
     // but simple tests suggest otherwise ... no more iterations and
     // reduced iteration time from truncating.
-    //START_TIMER(world);
-    //truncate(world, new_psi);
-    //END_TIMER(world, "Truncate new psi");
 
     START_TIMER(world);
     vecfuncT r = sub(world, psi, new_psi);
