@@ -1613,6 +1613,126 @@ namespace madness {
     }
 
     namespace archive {
+
+        /// Write container to parallel archive
+
+        /// specialization for parallel serialization of a WorldContainer:
+        /// all threads on each process serialize some values into a buffer, which gets concatenated
+        /// and finally serialized to localarchive (aka VectorOutputArchive).
+        template <class keyT, class valueT>
+        struct ArchiveStoreImpl< ParallelOutputArchive<VectorOutputArchive>, WorldContainer<keyT,valueT> > {
+            static void store(const ParallelOutputArchive<VectorOutputArchive>& ar, const WorldContainer<keyT,valueT>& t) {
+                using localarchiveT = VectorOutputArchive;
+                const long magic = -5881828; // Sitar Indian restaurant in Knoxville (negative to indicate parallel!)
+                typedef WorldContainer<keyT,valueT> dcT;
+                using const_iterator = typename dcT::const_iterator;
+
+                // const size_t default_size = 100*1024*1024;
+                const size_t default_size = 8ul<<30;
+
+                World* world = ar.get_world();
+                world->gop.fence();
+
+                class op_serialize : public TaskInterface {
+                    const size_t ntasks;
+                    const size_t taskid;
+                    const dcT& t;
+                    std::vector<unsigned char>& v;
+
+                public:
+                    op_serialize(size_t ntasks, size_t taskid, const dcT& t, std::vector<unsigned char>& v)
+                        : ntasks(ntasks), taskid(taskid), t(t), v(v) {}
+                    void run(World& world) {
+                        std::size_t hint_size=(1ul<<30)/ntasks;
+                        VectorOutputArchive var(v,hint_size);
+                        const_iterator it=t.begin();
+                        size_t n = 0;
+                        /// threads serialize round-robin over the container
+                        while (it!=t.end()) {
+                            if ((n%ntasks) == taskid) {
+                                var & *it;
+                            }
+                            ++it;
+                            n++;
+                        }
+                    }
+                };
+
+                class op_concat : public TaskInterface {
+                    unsigned char* all_data;
+                    const std::vector<unsigned char>& v;
+                public:
+                    op_concat(unsigned char* all_data, const std::vector<unsigned char>& v)
+                        : all_data(all_data), v(v) {}
+                    void run(World& world) {
+                        memcpy(all_data, v.data(), v.size());
+                    }
+                };
+
+                world->gop.fence();
+                double wall0=wall_time();
+                Mutex mutex;
+                size_t ntasks = std::max(size_t(1), ThreadPool::size());
+
+                std::vector<std::vector<unsigned char>> v(ntasks);
+                for (size_t taskid=0; taskid<ntasks; taskid++)
+                    world->taskq.add(new op_serialize(ntasks, taskid, t, v[taskid]));
+                world->gop.fence();
+                // total size of all vectors
+                size_t total_size = 0;
+                for (size_t taskid=0; taskid<ntasks; taskid++) total_size += v[taskid].size();
+                std::vector<unsigned char> vtotal(total_size);
+                
+                size_t offset = 0;
+                for (size_t taskid=0; taskid<ntasks; taskid++) {
+                    world->taskq.add(new op_concat(&vtotal[offset], v[taskid]));
+                    offset += v[taskid].size();
+                }
+                v.clear();
+
+                double wall1=wall_time();
+                if (world->rank()==0) printf("time in the taskq: %8.4fs\n",wall1-wall0);
+                // Gather all buffers to process 0
+                // first gather all of the sizes and counts to a vector in process 0
+                int size = vtotal.size();
+                int count = t.size();
+                std::vector<int> sizes(world->size());
+                MPI_Gather(&size, 1, MPI_INT, sizes.data(), 1, MPI_INT, 0, world->mpi.comm().Get_mpi_comm());
+                world->gop.sum(count); // just need total number of elements
+
+                print("time 3",wall_time());
+                // build the cumulative sum of sizes
+                std::vector<int> offsets(world->size());
+                offsets[0] = 0;
+                for (int i=1; i<world->size(); ++i) offsets[i] = offsets[i-1] + sizes[i-1];
+                MADNESS_CHECK(offsets.back() + sizes.back() == total_size);
+
+                print("time 4",wall_time());
+                // gather the vector of data v from each process to process 0
+                unsigned char* all_data=0;
+                if (world->rank() == 0) {
+                    all_data = new unsigned char[total_size];
+                }
+                MPI_Gatherv(vtotal.data(), vtotal.size(), MPI_BYTE, all_data, sizes.data(), offsets.data(), MPI_BYTE, 0, world->mpi.comm().Get_mpi_comm());
+
+                print("time 5",wall_time());
+                if (world->rank() == 0) {
+                    auto& localar = ar.local_archive();
+                    localar & magic & 1; // 1 client
+                    // localar & t;
+                    ArchivePrePostImpl<localarchiveT,dcT>::preamble_store(localar);
+                    localar & -magic & count;
+                    localar.store(all_data, total_size);
+                    ArchivePrePostImpl<localarchiveT,dcT>::postamble_store(localar);
+
+                    delete[] all_data;
+                }
+                world->gop.fence();
+                print("time 6",wall_time());
+            }
+        };
+
+
         /// Write container to parallel archive with optional fence
 
         /// \ingroup worlddc

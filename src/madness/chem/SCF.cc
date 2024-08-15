@@ -36,9 +36,9 @@
 
 
 #include <madness/world/worldmem.h>
-#include<madness.h>
-#include<madness/chem/SCF.h>
-#include<madchem.h>
+#include <madness.h>
+#include <madness/chem/SCF.h>
+#include <madchem.h>
 
 #if defined(__has_include)
 #  if __has_include(<filesystem>)
@@ -212,7 +212,7 @@ scf_data::scf_data() : iter(0) {
 
 
 void scf_data::to_json(json &j) const {
-    ::print("SCF DATA TO JSON");
+    madness::print("SCF DATA TO JSON");
 
     j["scf_e_data"] = json();
     j["scf_e_data"]["iterations"] = iter;
@@ -2371,3 +2371,4 @@ void SCF::solve(World& world) {
 
 }        // end solve function
 
+} // namespace madness

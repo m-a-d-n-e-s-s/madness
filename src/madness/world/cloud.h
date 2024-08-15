@@ -206,10 +206,12 @@ public:
     void print_timings(World &universe) const {
         double rtime = double(reading_time);
         double wtime = double(writing_time);
+        double wtime1 = double(writing_time1);
         double ptime = double(replication_time);
-        universe.gop.sum(rtime);
-        universe.gop.sum(wtime);
-        universe.gop.sum(ptime);
+        universe.gop.max(rtime);
+        universe.gop.max(wtime);
+        universe.gop.max(wtime1);
+        universe.gop.max(ptime);
         long creads = long(cache_reads);
         long cstores = long(cache_stores);
         universe.gop.sum(creads);
@@ -217,9 +219,10 @@ public:
         if (universe.rank() == 0) {
             auto precision = std::cout.precision();
             std::cout << std::fixed << std::setprecision(1);
-            print("cloud storing cpu time", wtime * 0.001);
-            print("cloud replication cpu time", ptime * 0.001);
-            print("cloud reading cpu time", rtime * 0.001, std::defaultfloat);
+            print("cloud storing wall time", wtime * 0.001);
+            print("cloud storing wall time inner loop", wtime1 * 0.001);
+            print("cloud replication wall time", ptime * 0.001);
+            print("cloud reading wall time", rtime * 0.001, std::defaultfloat);
             std::cout << std::setprecision(precision) << std::scientific;
             print("cloud cache stores    ", long(cstores));
             print("cloud cache loads     ", long(creads));
@@ -234,11 +237,14 @@ public:
     void clear_timings() {
         reading_time=0l;
         writing_time=0l;
+        writing_time1=0l;
         replication_time=0l;
         cache_stores=0l;
         cache_reads=0l;
     }
 
+    /// @param[in]  world the subworld the objects are loaded to
+    /// @param[in]  recordlist the list of records where the objects are stored
     template<typename T>
     T load(madness::World &world, const recordlistT recordlist) const {
         recordlistT rlist = recordlist;
@@ -250,6 +256,7 @@ public:
         }
     }
 
+    /// @param[in]  world presumably the universe
     template<typename T>
     recordlistT store(madness::World &world, const T &source) {
         if (is_replicated) {
@@ -270,6 +277,7 @@ public:
     void replicate(const std::size_t chunk_size=INT_MAX) {
 
         World& world=container.get_world();
+        world.gop.fence();
         cloudtimer t(world,replication_time);
         container.reset_pmap_to_local();
         is_replicated=true;
@@ -328,6 +336,7 @@ private:
 
     mutable std::atomic<long> reading_time=0l;    // in ms
     mutable std::atomic<long> writing_time=0l;    // in ms
+    mutable std::atomic<long> writing_time1=0l;    // in ms
     mutable std::atomic<long> replication_time=0l;    // in ms
     mutable std::atomic<long> cache_reads=0l;
     mutable std::atomic<long> cache_stores=0l;
@@ -351,13 +360,14 @@ private:
 
     struct cloudtimer {
         World& world;
-        double cpu0;
+        double wall0;
         std::atomic<long> &rtime;
 
-        cloudtimer(World& world, std::atomic<long> &readtime) : world(world), cpu0(cpu_time()), rtime(readtime) {}
+        cloudtimer(World& world, std::atomic<long> &readtime) : world(world), wall0(wall_time()), rtime(readtime) {}
 
         ~cloudtimer() {
-            if (world.rank()==0) rtime += long((cpu_time() - cpu0) * 1000l);
+            long deltatime=long((wall_time() - wall0) * 1000l);
+            rtime += deltatime;
         }
     };
 
@@ -418,6 +428,7 @@ private:
         if (is_already_present) {
             if (world.rank()==0) cache_stores++;
         } else {
+            cloudtimer t(world,writing_time1);
             madness::archive::ContainerRecordOutputArchive ar(world, container, record);
             madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
             par & source;
