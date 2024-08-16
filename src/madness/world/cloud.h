@@ -252,13 +252,14 @@ public:
     void clear_timings() {
         reading_time=0l;
         writing_time=0l;
+        writing_time1=0l;
         replication_time=0l;
         cache_stores=0l;
         cache_reads=0l;
     }
 
-
-    /// load a single object from the cloud, recordlist is kept unchanged
+    /// @param[in]  world the subworld the objects are loaded to
+    /// @param[in]  recordlist the list of records where the objects are stored
     template<typename T>
     T load(madness::World &world, const recordlistT recordlist) const {
         recordlistT rlist = recordlist;
@@ -286,6 +287,7 @@ public:
         }
     }
 
+    /// @param[in]  world presumably the universe
     template<typename T>
     recordlistT store(madness::World &world, const T &source) {
         if (is_replicated) {
@@ -313,6 +315,7 @@ public:
     void replicate(const std::size_t chunk_size=INT_MAX) {
 
         World& world=container.get_world();
+        world.gop.fence();
         cloudtimer t(world,replication_time);
         container.reset_pmap_to_local();
         is_replicated=true;
@@ -394,13 +397,14 @@ private:
 
     struct cloudtimer {
         World& world;
-        double cpu0;
+        double wall0;
         std::atomic<long> &rtime;
 
-        cloudtimer(World& world, std::atomic<long> &readtime) : world(world), cpu0(cpu_time()), rtime(readtime) {}
+        cloudtimer(World& world, std::atomic<long> &readtime) : world(world), wall0(wall_time()), rtime(readtime) {}
 
         ~cloudtimer() {
-            if (world.rank()==0) rtime += long((cpu_time() - cpu0) * 1000l);
+            long deltatime=long((wall_time() - wall0) * 1000l);
+            rtime += deltatime;
         }
     };
 
@@ -459,6 +463,7 @@ private:
         if (is_already_present) {
             if (world.rank()==0) cache_stores++;
         } else {
+            cloudtimer t(world,writing_time1);
             madness::archive::ContainerRecordOutputArchive ar(world, container, record);
             madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
             par & source;
@@ -500,7 +505,6 @@ public:
         madness::archive::ContainerRecordInputArchive ar(world, container, record);
         madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(world, ar);
         par & target;
-
         cache(world, target, record);
         return target;
     }
@@ -538,7 +542,7 @@ public:
     /// @param[inout]    world	destination world
     /// @param[inout]    recordlist	list of records to load from (reduced by the first few elements)
     template<typename T>
-    T  load_tuple(madness::World &world, recordlistT &recordlist) const {
+    T load_tuple(madness::World &world, recordlistT &recordlist) const {
         if (debug) std::cout << "loading tuple of type " << typeid(T).name() << " to world " << world.id() << std::endl;
         T target;
         std::apply([&](auto &&... args) {

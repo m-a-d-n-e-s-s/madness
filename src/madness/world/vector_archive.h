@@ -53,6 +53,7 @@ namespace madness {
 
         /// Wraps an archive around an STL \c vector for output.
         class VectorOutputArchive : public BaseOutputArchive {
+        public:
             mutable std::vector<unsigned char>* v; ///< The STL vector being wrapped.
 
         public:
