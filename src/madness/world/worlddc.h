@@ -1628,7 +1628,7 @@ namespace madness {
                 using const_iterator = typename dcT::const_iterator;
 
                 // const size_t default_size = 100*1024*1024;
-                const size_t default_size = 8ul<<30;
+                // const size_t default_size = 8ul<<30;
 
                 World* world = ar.get_world();
                 world->gop.fence();

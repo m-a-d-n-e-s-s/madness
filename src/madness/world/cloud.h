@@ -374,6 +374,7 @@ private:
 
     mutable std::atomic<long> reading_time=0l;    // in ms
     mutable std::atomic<long> writing_time=0l;    // in ms
+    mutable std::atomic<long> writing_time1=0l;    // in ms
     mutable std::atomic<long> replication_time=0l;    // in ms
     mutable std::atomic<long> cache_reads=0l;
     mutable std::atomic<long> cache_stores=0l;
