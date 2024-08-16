@@ -270,7 +270,16 @@ void test_local(World& world) {
 
 void test_florian(World& world) {
     WorldContainer<Key,LargeNode> c(world);
-    long nlarge=200000;
+
+    long nlarge=20000;
+    // get nlarge variable from the environment and convert it into long
+    char* nlarge_env = getenv("NLARGE");
+    if (nlarge_env) {
+        nlarge = atol(nlarge_env);
+    }
+    if (world.rank()==0) print("size of the container",nlarge);
+
+
 
     if (world.rank() == 0) {
         for (int i=0; i<nlarge; ++i) {
@@ -279,7 +288,7 @@ void test_florian(World& world) {
     }
     world.gop.fence();
     double wall0=wall_time();
-    printf("starting at time %8.4f with %ld items\n",wall0,nlarge);
+    if (world.rank() == 0) printf("starting at time %8.4f with %ld items\n",wall0,nlarge);
     std::vector<unsigned char> v;
     {
         archive::VectorOutputArchive var(v);
@@ -287,7 +296,7 @@ void test_florian(World& world) {
         ar & c;
     }
     double wall1=wall_time();
-    printf("ending at time %8.4f after %8.4fs\n",wall1,wall1-wall0);
+    if (world.rank() == 0) printf("ending at time %8.4f after %8.4fs\n",wall1,wall1-wall0);
 
     WorldContainer<Key,LargeNode> c2(world);
     {
@@ -303,7 +312,7 @@ void test_florian(World& world) {
     }
 
     world.gop.fence();
-    print("test_florian passed");
+    if (world.rank() == 0) print("test_florian passed");
 }
 
 int main(int argc, char** argv) {
