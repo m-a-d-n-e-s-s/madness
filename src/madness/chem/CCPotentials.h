@@ -79,8 +79,10 @@ public:
             f.truncate();
             f.print_size(name);
             return true;
+        } else {
+            if (world.rank()==0) print("could not find function",name);
         }
-        else return false;
+        return false;
     }
 
     /// Plotting (convenience)

@@ -701,12 +701,18 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
     // if no function has been computed so far use the constant part (first iteration)
     for (auto& pair : pair_vec) if (not pair.function().is_initialized()) pair.update_u(pair.constant_part);
 
+    for (const auto& p : pair_vec) p.constant_part.print_size("constant_part before iter");
     for (const auto& p : pair_vec) p.function().print_size("u before iter");
 
     // compute the coupling between the pair functions
     if (world.rank()==0) print("computing local coupling in the universe");
     Pairs<real_function_6d> coupling=compute_local_coupling(pair_vec, info);
     auto coupling_vec=Pairs<real_function_6d>::pairs2vector(coupling,triangular_map);
+    reconstruct(world,coupling_vec);
+    for (auto& p : pair_vec) {
+        p.constant_part.reconstruct();
+        p.function().reconstruct();
+    }
 
     if (info.parameters.debug()) print_size(world, coupling_vec, "couplingvector");
 
@@ -1099,7 +1105,7 @@ CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType 
                 pairs.insert(i, j, tmp);
 
             } else if (ftype == EXCITED_STATE) {
-                name = std::to_string(int(excitation)) + "_" + name;
+                // name = std::to_string(int(excitation)) + "_" + name;
                 real_function_6d utmp = real_factory_6d(world);
                 const bool found = CCOPS.load_function(utmp, name);
                 if (found) restarted = true;
@@ -1116,7 +1122,7 @@ CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType 
 
                 tmp.constant_part = const_part;
                 pairs.insert(i, j, tmp);
-                CCPotentials::compute_excited_pair_energy(world, pairs(i, j), x, info);
+                // CCPotentials::compute_excited_pair_energy(world, pairs(i, j), x, info);
             } else error("Unknown pairtype");
         }
     }

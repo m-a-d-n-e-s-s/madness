@@ -190,12 +190,17 @@ public:
     void print_size(World& universe) {
 
         std::size_t memsize=0;
-        for (auto& item : container) memsize+=item.second.size();
+        std::size_t max_record_size=0;
+        for (auto& item : container) {
+            memsize+=item.second.size();
+            max_record_size=std::max(max_record_size,item.second.size());
+        }
         std::size_t global_memsize=memsize;
         std::size_t max_memsize=memsize;
         std::size_t min_memsize=memsize;
         universe.gop.sum(global_memsize);
         universe.gop.max(max_memsize);
+        universe.gop.max(max_record_size);
         universe.gop.min(min_memsize);
 
         auto local_size=container.size();
@@ -207,13 +212,15 @@ public:
             print("Cloud memory:");
             print("  replicated:",is_replicated);
             print("size of cloud (total)");
-            print("  number of records:",global_size);
-            print("  memory in GBytes: ",global_memsize*byte2gbyte);
+            print("  number of records:        ",global_size);
+            print("  memory in GBytes:         ",global_memsize*byte2gbyte);
             print("size of cloud (average per node)");
-            print("  number of records:",double(global_size)/universe.size());
-            print("  memory in GBytes: ",global_memsize*byte2gbyte/universe.size());
+            print("  number of records:        ",double(global_size)/universe.size());
+            print("  memory in GBytes:         ",global_memsize*byte2gbyte/universe.size());
             print("min/max of node");
-            print("  memory in GBytes: ",min_memsize*byte2gbyte,max_memsize*byte2gbyte);
+            print("  memory in GBytes:         ",min_memsize*byte2gbyte,max_memsize*byte2gbyte);
+            print("  max record size in GBytes:",max_record_size*byte2gbyte);
+
         }
     }
 
