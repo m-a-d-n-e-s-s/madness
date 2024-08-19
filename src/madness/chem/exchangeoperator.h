@@ -350,7 +350,6 @@ private:
             
 
             resultT Kf = zero_functions_compressed<T, NDIM>(world, 1);
-            auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(world, lo);
 
             auto& i = batch.input[0].begin;  
 
@@ -385,10 +384,33 @@ private:
             //size=get_size(world,psif);
             //if (world.rank()==0 && printdebug()) print("size of psif after truncating",size);
 
-            psif = apply(world, *poisson.get(), psif);
+
+            //tiled apply
+            auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(world, lo);
+            vecfuncT new_psif = zero_functions_compressed<T,NDIM>(world, psif.size()); 
+
+            for (size_t ilo=0; ilo<psif.size(); ilo+=ntile){
+                size_t iend = std::min(ilo+ntile,psif.size());
+                vecfuncT tmp_psif(psif.begin()+ilo,psif.begin()+iend);
+                tmp_psif = apply(world, *poisson.get(), tmp_psif);
+                print_size(world, tmp_psif, "tmp_psif (apply) before truncation");
+
+                //truncate tmp_psif
+                truncate(world, tmp_psif);
+                print_size(world, tmp_psif, "tmp_psif (apply) after truncation");
+
+                //put the results into their final home
+                for (size_t i = ilo; i<iend; ++i){
+                    new_psif[i] += tmp_psif[i-ilo];
+                }
+
+            }
+
+            psif.clear();
+            //psif = apply(world, *poisson.get(), psif);
             //size=get_size(world,psif);
             //if (world.rank()==0 && printdebug()) print("size of psif after apply",size);
-            truncate(world, psif);
+            //truncate(world, psif);
             //size=get_size(world,psif);
             //if (world.rank()==0 && printdebug()) print("size of psif after truncating",size);
             
@@ -396,7 +418,7 @@ private:
             for (size_t ilo=0; ilo<mo_ket.size(); ilo+=ntile){
                 size_t iend = std::min(ilo+ntile,mo_ket.size());
                 vecfuncT tmp_mo_ket(mo_ket.begin()+ilo,mo_ket.begin()+iend);
-                vecfuncT tmp_psif(psif.begin()+ilo,psif.begin()+iend);
+                vecfuncT tmp_psif(new_psif.begin()+ilo,new_psif.begin()+iend);
                 // TODO: use matrix_mul_sparse instead, need to implement mul_sparse for
                 //       vecfuncT, vecfuncT
                 auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif);
