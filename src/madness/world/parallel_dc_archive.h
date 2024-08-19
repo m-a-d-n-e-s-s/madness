@@ -102,14 +102,56 @@ namespace madness {
         };
 
 
+        /// Implementation of functions for storing the pre/postamble in ContainerRecord archives.
+
+        /// \attention No type checking over Vector buffers, for efficiency.
+        /// \tparam T The data type.
+        template <class T>
+        struct ArchivePrePostImpl<ContainerRecordOutputArchive,T> {
+            /// Store the preamble.
+
+            /// \param[in] ar The archive.
+            static void preamble_store(const ContainerRecordOutputArchive& ar) {};
+
+            /// Store the postamble.
+
+            /// \param[in] ar The archive.
+            static inline void postamble_store(const ContainerRecordOutputArchive& ar) {};
+        };
+
+        /// Implementation of functions for loading the pre/postamble in ContainerRecord archives.
+
+        /// \attention No type checking over ContainerRecord buffers, for efficiency.
+        /// \tparam T The data type.
+        template <class T>
+        struct ArchivePrePostImpl<ContainerRecordInputArchive,T> {
+            /// Load the preamble.
+
+            /// \param[in] ar The archive.
+            static inline void preamble_load(const ContainerRecordInputArchive& ar) {};
+
+            /// Load the postamble.
+
+            /// \param[in] ar The archive.
+            static inline void postamble_load(const ContainerRecordInputArchive& ar) {};
+        };
+
+        // Forward storing to VectorOutputArchive
         template <class keyT, class valueT>
         struct ArchiveStoreImpl< ParallelOutputArchive<ContainerRecordOutputArchive>, WorldContainer<keyT,valueT> > {
             static void store(const ParallelOutputArchive<ContainerRecordOutputArchive>& ar, const WorldContainer<keyT,valueT>& t) {
-                ParallelOutputArchive<VectorOutputArchive> par(*(ar.get_world()), ar.local_archive().get_archive());
+                std::vector<unsigned char> v;
+                VectorOutputArchive dummyar(v,0);
+                const int me = ar.get_world()->rank();
+
+                // Need to pass local archive by reference
+                ParallelOutputArchive<VectorOutputArchive> par(*(ar.get_world()), (me==0) ? ar.local_archive().get_archive() : dummyar);
                 par & t;
 
             }
         };
+
+        
 
     }
 

@@ -37,6 +37,7 @@ namespace madness{
 
 	/// create and return a new nuclear correlation factor
 
+	/// note there is also an Ad-hoc nuclear correlation factor, which can only be created directly
 	/// @param[in]	world	the world
 	/// @param[in]	calc	the calculation as read from the input file
 	/// @return 	a nuclear correlation factor
