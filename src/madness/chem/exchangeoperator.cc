@@ -148,7 +148,7 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient_row(const vecfuncT& vf, c
     // print the size of the amos
     if (printdebug()) {
         auto size=get_size(world,vf);
-        if (world.rank()==0) print("total size of vf before Iteration",size);
+        if (world.rank()==0) print("total size of vf before iteration",size);
     }
 
     // deferred execution if a taskq is provided by the user

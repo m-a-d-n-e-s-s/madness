@@ -348,102 +348,39 @@ private:
             mul_tol = 0.0;
             print("mul_tol ", mul_tol);
             
-
             resultT Kf = zero_functions_compressed<T, NDIM>(world, 1);
+            vecfuncT psif = zero_functions_compressed<T,NDIM>(world, mo_bra.size()); 
+            auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(world, lo);
 
             auto& i = batch.input[0].begin;  
-
             size_t min_tile = 10;
             size_t ntile = std::min(mo_bra.size(), min_tile);
-            vecfuncT psif = zero_functions_compressed<T,NDIM>(world, mo_bra.size()); 
 
-            // compute psif
             for (size_t ilo=0; ilo<mo_bra.size(); ilo+=ntile){
                 size_t iend = std::min(ilo+ntile,mo_bra.size());
+
                 vecfuncT tmp_mo_bra(mo_bra.begin()+ilo,mo_bra.begin()+iend);
                 auto tmp_psif = mul_sparse(world, vket[i], tmp_mo_bra, mul_tol);
                 print_size(world, tmp_psif, "tmp_psif before truncation");
-
-                //truncate tmp_mo_bra
                 truncate(world, tmp_psif);
                 print_size(world, tmp_psif, "tmp_psi_f after truncation");
 
-                //put the results into their final home
-                for (size_t i = ilo; i<iend; ++i){
-                    psif[i] += tmp_psif[i-ilo];
-                }
-
-            }
-
-            //vecfuncT psif = mul_sparse(world, vket[i], mo_bra, mul_tol);
-            //auto size=get_size(world,psif);
-            //if (world.rank()==0 && printdebug()) print("size of psif after mul_sparse",size);
-
-            //truncate(world, psif);
-
-            //size=get_size(world,psif);
-            //if (world.rank()==0 && printdebug()) print("size of psif after truncating",size);
-
-
-            //tiled apply
-            auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(world, lo);
-            vecfuncT new_psif = zero_functions_compressed<T,NDIM>(world, psif.size()); 
-
-            for (size_t ilo=0; ilo<psif.size(); ilo+=ntile){
-                size_t iend = std::min(ilo+ntile,psif.size());
-                vecfuncT tmp_psif(psif.begin()+ilo,psif.begin()+iend);
                 tmp_psif = apply(world, *poisson.get(), tmp_psif);
                 print_size(world, tmp_psif, "tmp_psif (apply) before truncation");
-
-                //truncate tmp_psif
                 truncate(world, tmp_psif);
                 print_size(world, tmp_psif, "tmp_psif (apply) after truncation");
 
-                //put the results into their final home
-                for (size_t i = ilo; i<iend; ++i){
-                    new_psif[i] += tmp_psif[i-ilo];
-                }
-
-            }
-
-            psif.clear();
-            //psif = apply(world, *poisson.get(), psif);
-            //size=get_size(world,psif);
-            //if (world.rank()==0 && printdebug()) print("size of psif after apply",size);
-            //truncate(world, psif);
-            //size=get_size(world,psif);
-            //if (world.rank()==0 && printdebug()) print("size of psif after truncating",size);
-            
-            // TODO: priority = #coeffs
-            for (size_t ilo=0; ilo<mo_ket.size(); ilo+=ntile){
-                size_t iend = std::min(ilo+ntile,mo_ket.size());
                 vecfuncT tmp_mo_ket(mo_ket.begin()+ilo,mo_ket.begin()+iend);
-                vecfuncT tmp_psif(new_psif.begin()+ilo,new_psif.begin()+iend);
                 // TODO: use matrix_mul_sparse instead, need to implement mul_sparse for
                 //       vecfuncT, vecfuncT
                 auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif);
                 //auto tmp_Kf = mul_sparse(world, tmp_mo_ket, tmp_psif, mul_tol);
 
-                //print_size(world, tmp_Kf, "tmp_Kf before truncation");
-                //tmp_Kf.print_size("tmp_Kf before truncation");
-                //truncate
-                //truncate(world, tmp_Kf);
-                //print_size(world, tmp_Kf, "tmp_Kf after truncation");
-
-                //put the results into their final home
-                //for (size_t i = ilo; i<iend; ++i){
-                //    Kf[i] += tmp_Kf[i-ilo];
-                //}
                 Kf[0] += tmp_Kf;
                 print_size(world, Kf, "Kf before truncation");
                 truncate(world, Kf);
                 print_size(world, Kf, "Kf after truncation");
             }
-            //Kf[0] +=dot(world, mo_ket, psif);
-            //if (world.rank()==0 && printdebug()) Kf[0].print_size("Kf after dot");
-            
-            //truncate(world, Kf);
-            //if (world.rank()==0 && printdebug()) Kf[i].print_size("Kf after truncating");
 
             return Kf;
         }
