@@ -1867,8 +1867,8 @@ namespace madness
                     }
                     world->taskq.fence(); // just need LOCAL fence
                     wall1 = wall_time();
-                    if (world->rank() == 0)
-                        printf("time in op_inspector: %8.4fs\n", wall1 - wall0);
+                    //if (world->rank() == 0)
+                    //    printf("time in op_inspector: %8.4fs\n", wall1 - wall0);
                     wall0 = wall1;
 
                     // total size over all threads
@@ -1891,8 +1891,8 @@ namespace madness
                     world->taskq.fence(); // just need LOCAL fence
 
                     wall1 = wall_time();
-                    if (world->rank() == 0)
-                        printf("time in op_executor: %8.4fs\n", wall1 - wall0);
+                    //if (world->rank() == 0)
+                    //    printf("time in op_executor: %8.4fs\n", wall1 - wall0);
                     wall0 = wall1;
                 }
                 // VERify that the serialization worked!!
@@ -1919,8 +1919,8 @@ namespace madness
                 for (int i = 1; i < world->size(); ++i)
                     offsets[i] = offsets[i - 1] + sizes[i - 1];
                 size_t total_size = offsets.back() + sizes.back();
-                if (world->rank() == 0)
-                    print("total_size", total_size);
+                //if (world->rank() == 0)
+                //    print("total_size", total_size);
 
                 // print("time 4",wall_time());
                 // gather the vector of data v from each process to process 0
@@ -1932,8 +1932,8 @@ namespace madness
                 MPI_Gatherv(buf, local_size, MPI_BYTE, all_data, sizes.data(), offsets.data(), MPI_BYTE, 0, world->mpi.comm().Get_mpi_comm());
 
                 wall1 = wall_time();
-                if (world->rank() == 0)
-                    printf("time in gather+gatherv: %8.4fs\n", wall1 - wall0);
+                //if (world->rank() == 0)
+                //    printf("time in gather+gatherv: %8.4fs\n", wall1 - wall0);
                 wall0 = wall1;
 
                 delete[] buf;
@@ -1949,8 +1949,8 @@ namespace madness
                     localar.store(all_data, total_size);
                     ArchivePrePostImpl<localarchiveT, dcT>::postamble_store(localar);
                     wall1 = wall_time();
-                    if (world->rank() == 0)
-                        printf("time in final copy on node 0: %8.4fs\n", wall1 - wall0);
+                    //if (world->rank() == 0)
+                    //    printf("time in final copy on node 0: %8.4fs\n", wall1 - wall0);
 
                     delete[] all_data;
                 }
