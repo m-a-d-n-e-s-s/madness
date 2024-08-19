@@ -2147,28 +2147,71 @@ void SCF::solve(World& world) {
         //     //do_this_iter = false;
         //     param.maxsub = maxsub_save;
         // }
-
-        if (param.do_localize() && do_this_iter) {
-            START_TIMER(world);
-            Localizer localizer(world, aobasis, molecule, ao);
-            localizer.set_method(param.localize_method());
-            MolecularOrbitals<double, 3> mo(amo, aeps, {}, aocc, aset);
-            tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
-            UT.screen(trantol);
-            amo = transform(world, amo, transpose(UT));
-            truncate(world, amo);
-            normalize(world, amo);
-
-            if (!param.spin_restricted() && param.nbeta() != 0) {
-
-                MolecularOrbitals<double, 3> mo(bmo, beps, {}, bocc, bset);
+        const bool tile_localize = true;
+        if (tile_localize) {
+            if (param.do_localize() && do_this_iter) {
+                START_TIMER(world);
+                Localizer localizer(world, aobasis, molecule, ao);
+                localizer.set_method(param.localize_method());
+                MolecularOrbitals<double, 3> mo(amo, aeps, {}, aocc, aset);
                 tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
                 UT.screen(trantol);
-                bmo = transform(world, bmo, transpose(UT));
-                truncate(world, bmo);
-                normalize(world, bmo);
+
+                size_t min_tile = 10;
+                size_t ntile = std::min(amo.size(), min_tile);
+                vecfuncT new_amo = zero_functions<double,3>(world, amo.size());  
+
+                for (size_t ilo=0; ilo<amo.size(); ilo+=ntile){
+                    size_t iend = std::min(ilo+ntile,amo.size());
+                    auto U_slice = copy(transpose(UT)(_,Slice(ilo,iend-1)));
+
+                    auto tmp_amo = transform(world, amo, U_slice);
+
+                    print_size(world, tmp_amo, "tmp_amo before truncation");
+                    truncate(world, tmp_amo);
+                    print_size(world, tmp_amo, "tmp_amo after truncation");
+
+                    for (size_t i = ilo; i<iend; ++i){
+                        new_amo[i] += tmp_amo[i-ilo];
+                    }
+                }
+                normalize(world, new_amo);
+                amo = new_amo;
+
+                if (!param.spin_restricted() && param.nbeta() != 0) {
+
+                    MolecularOrbitals<double, 3> mo(bmo, beps, {}, bocc, bset);
+                    tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
+                    UT.screen(trantol);
+                    bmo = transform(world, bmo, transpose(UT));
+                    truncate(world, bmo);
+                    normalize(world, bmo);
+                }
+                END_TIMER(world, "localize");
             }
-            END_TIMER(world, "localize");
+        } else {
+            if (param.do_localize() && do_this_iter) {
+                START_TIMER(world);
+                Localizer localizer(world, aobasis, molecule, ao);
+                localizer.set_method(param.localize_method());
+                MolecularOrbitals<double, 3> mo(amo, aeps, {}, aocc, aset);
+                tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
+                UT.screen(trantol);
+                amo = transform(world, amo, transpose(UT));
+                truncate(world, amo);
+                normalize(world, amo);
+
+                if (!param.spin_restricted() && param.nbeta() != 0) {
+
+                    MolecularOrbitals<double, 3> mo(bmo, beps, {}, bocc, bset);
+                    tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
+                    UT.screen(trantol);
+                    bmo = transform(world, bmo, transpose(UT));
+                    truncate(world, bmo);
+                    normalize(world, bmo);
+                }
+                END_TIMER(world, "localize");
+            }
         }
 
         START_TIMER(world);
