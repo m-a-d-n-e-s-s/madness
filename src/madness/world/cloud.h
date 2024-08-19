@@ -106,7 +106,10 @@ struct Recordlist {
         } else if constexpr (std::is_pointer_v<T> && has_member_id<std::remove_pointer_t<T>>::value) {
             return hash_value(arg->id());
         } else {
-            return hash_value(arg);
+            // compute hash_code for fundamental types
+            std::size_t hashtype = typeid(T).hash_code();
+            hash_combine(hashtype,hash_value(arg));
+            return hashtype;
         }
     }
 
