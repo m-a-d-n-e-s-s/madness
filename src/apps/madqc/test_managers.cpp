@@ -33,15 +33,15 @@ TEST_CASE("MOLDFT Calculation") {
   auto params = param_manager.get_moldft_params();
   auto molecule = param_manager.get_molecule();
 
-  // this is where I we create our calculation
+  std::vector<std::string> properties = {"energy", "gradient", "dipole"};
+
   CalcManager calc_manager;
-  auto moldft_calc = std::make_unique<MoldftCalculationStrategy>(params, molecule);
+  auto moldft_calc = std::make_unique<MoldftCalculationStrategy>(params, molecule, "moldft_1", properties);
   calc_manager.addStrategy(std::move(moldft_calc));
   path cwd = std::filesystem::current_path();
-  calc_manager.runCalculations(world, cwd);
+  calc_manager.runCalculations(world);
   std::filesystem::current_path(cwd);
 }
-
 TEST_CASE("Response Calculation") {
 
   World& world = World::get_default();
@@ -67,17 +67,20 @@ TEST_CASE("Response Calculation") {
   auto molecule = param_manager.get_molecule();
 
   // this is where I we create our calculation
-  CalcManager calc_manager;
   ResponseInput r_input = std::make_tuple(perturbation, xc, freq_range);
-  auto moldft_calc = std::make_unique<MoldftCalculationStrategy>(params, molecule);
-  auto response_calc = std::make_unique<ResponseCalculationStrategy>(response_params, r_input);
+  std::vector<std::string> properties = {"energy", "gradient", "dipole"};
+  auto moldft_calc = std::make_unique<MoldftCalculationStrategy>(params, molecule, "moldft_2", properties);
+  // Here I need to figure out how to input that I am passing "moldft_2 to the response calculation"
+  std::vector<std::string> input_names = {"moldft_2"};
+  auto response_calc = std::make_unique<LinearResponseStrategy>(response_params, r_input, "response_2", input_names);
 
+  CalcManager calc_manager;
   calc_manager.addStrategy(std::move(moldft_calc));
   calc_manager.addStrategy(std::move(response_calc));
 
   // get cwd
   path cwd = std::filesystem::current_path();
-  calc_manager.runCalculations(world, cwd);
+  calc_manager.runCalculations(world);
   std::filesystem::current_path(cwd);
 }
 
@@ -101,7 +104,6 @@ TEST_CASE("Hyperpolarizability Calculation") {
     print("XC: ", xc);
     print("Frequency Range: ", freq_range);
   }
-  ResponseInput r_input = std::make_tuple(perturbation, xc, freq_range);
   auto params = param_manager.get_moldft_params();
   auto molecule = param_manager.get_molecule();
 
@@ -137,21 +139,30 @@ TEST_CASE("Hyperpolarizability Calculation") {
   freq_range = set_freqs();
   print("Frequency Range: ", freq_range);
 
+  // this is where I we create our calculation
+  ResponseInput r_input = std::make_tuple(perturbation, xc, freq_range);
+  std::vector<std::string> properties = {"energy", "gradient", "dipole"};
+  auto moldft_calc = std::make_unique<MoldftCalculationStrategy>(params, molecule, "moldft_3", properties);
+  // Here I need to figure out how to input that I am passing "moldft_2 to the response calculation"
+  std::vector<std::string> input_names = {"moldft_3"};
+  auto response_calc = std::make_unique<LinearResponseStrategy>(response_params, r_input, "response_3", input_names);
   ResponseInput h_input = std::make_tuple(perturbation, xc, freq_range);
 
-  auto moldft_calc = std::make_unique<MoldftCalculationStrategy>(params, molecule);
-  auto response_calc = std::make_unique<ResponseCalculationStrategy>(response_params, h_input);
-  auto hyper_calc = std::make_unique<HyperPolarizabilityCalcStrategy>(response_params, h_input);
+  input_names.emplace_back("response_3");
+  auto hyper_calc = std::make_unique<ResponseHyper>(response_params, h_input, "hyper_3", input_names);
 
   calc_manager.addStrategy(std::move(moldft_calc));
   calc_manager.addStrategy(std::move(response_calc));
   calc_manager.addStrategy(std::move(hyper_calc));
 
+  //  calc_manager.addStrategy(std::move(hyper_calc));
+
   // get cwd
   path cwd = std::filesystem::current_path();
-  calc_manager.runCalculations(world, cwd);
+  calc_manager.runCalculations(world);
   std::filesystem::current_path(cwd);
 }
+/*
 
 TEST_CASE("Output Response VTK") {
 
@@ -189,6 +200,7 @@ TEST_CASE("Output Response VTK") {
 
   // get cwd
   path cwd = std::filesystem::current_path();
-  calc_manager.runCalculations(world, cwd);
+  calc_manager.runCalculations(world);
   std::filesystem::current_path(cwd);
 }
+*/

@@ -87,6 +87,8 @@ int main(int argc, char** argv) {
 
       commandlineparser parser(argc, argv);
       ParameterManager params;
+      std::string model_type="dft";
+      std::string output_type="Hyperpolarizability";
 
       if (parser.key_exists("help")) {
         ParameterManager::help();
