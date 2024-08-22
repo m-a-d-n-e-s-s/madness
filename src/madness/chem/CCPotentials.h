@@ -720,8 +720,8 @@ public:
     /// @param[out] the potential (without Q application)
     /// @param world
     static vector_real_function_3d
-    potential_singles_gs(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles,
-                         const PotentialType& name, Info& info);
+    potential_singles_gs(World& world, const std::vector<int>& result_index, const CC_vecfunction& singles, const Pairs<CCPair>& doubles,
+                         const PotentialType& name, const Info& info);
 
     /// The integra manager for the excited state potential
     /// CC2 singles potential parts of the ground state
@@ -742,6 +742,7 @@ public:
     /// The potential manager for the excited state potential
     /// CC2 singles potential parts of the ground state
     /// Genereal function which evaluates a CC_singles potential
+    /// @param[in] result_index dummy vector for partitioning the macrotasks, must have the length of the singles vector
     /// @param[in] Singles of the Ground State
     /// @param[in] Doubles of the Ground State
     /// @param[in] Singles of the Excited State
@@ -750,9 +751,9 @@ public:
     /// @param[out] the potential (without Q application)
     /// @param world
     static vector_real_function_3d
-    potential_singles_ex(World& world, const CC_vecfunction& singles_gs,
+    potential_singles_ex(World& world, const std::vector<int> result_index, const CC_vecfunction& singles_gs,
                          const Pairs<CCPair>& doubles_gs, const CC_vecfunction& singles_ex,
-                         const Pairs<CCPair>& doubles_ex, const PotentialType& name, Info& info);
+                         const Pairs<CCPair>& doubles_ex, const PotentialType& name, const Info& info);
 
     /// The Fock operator is partitioned into F = T + Vn + R
     /// the fock residue R= 2J-K+Un for closed shell is computed here
@@ -907,8 +908,11 @@ public:
     double
     x_s4c(const CC_vecfunction& x, const CC_vecfunction& t, const Pairs<CCPair>& u) const;
 
-    // result: \sum_k( 2<k|g|uik>_2 - <k|g|uik>_1 )
-    // singles are not needed explicitly but to determine if it is response or ground state
+    /// result: \sum_k( 2<k|g|uik>_2 - <k|g|uik>_1 )
+
+    /// singles are not needed explicitly but to determine if it is response or ground state
+    /// function return a vector of size 2*singles, the first half being the s2b potential, the second half
+    /// an intermediate that will be stored by the caller in the info structure
     ///@param world
     ///@param[in] singles:CC_vecfunction fof type response or particle (depending on this the correct intermediates will be used) the functions themselves are not needed
     ///@param[in] doubles:Pairs of CC_Pairs (GS or Response)
@@ -917,10 +921,13 @@ public:
     /// Q-Projector is not applied, sign is correct
     /// if the s2b potential has already been calculated it will be loaded from the intermediate_potentials structure
     static vector_real_function_3d
-    s2b(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, Info& info);
+    s2b(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
 
-    // result: -\sum_k( <l|kgi|ukl>_2 - <l|kgi|ukl>_1)
-    // singles are not needed explicitly but to determine if it is response or ground state
+    /// result: -\sum_k( <l|kgi|ukl>_2 - <l|kgi|ukl>_1)
+
+    /// singles are not needed explicitly but to determine if it is response or ground state
+    /// function return a vector of size 2*singles, the first half being the s2c potential, the second half
+    /// an intermediate that will be stored by the caller in the info structure
     ///@param world
     ///@param[in] singles:CC_vecfunction fof type response or particle (depending on this the correct intermediates will be used) the functions themselves are not needed
     ///@param[in] doubles:Pairs of CC_Pairs (GS or Response)
@@ -928,7 +935,7 @@ public:
     ///@param[out] \f$ -\sum_k( <l|kgi|ukl>_2 - <l|kgi|ukl>_1) \f$
     /// Q-Projector is not applied, sign is correct
     static vector_real_function_3d
-    s2c(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, Info& info);
+    s2c(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
 
     /// the S4a potential can be calcualted from the S2b potential
     /// result is \f$ s4a_i = - <l|s2b_i>*|tau_l> \f$

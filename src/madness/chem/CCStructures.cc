@@ -583,6 +583,51 @@ MacroTaskIteratePair::operator()(const std::vector<CCPair>& pair,
 
 }
 
+/// convenience function
+
+
+std::vector<real_function_3d>
+MacroTaskSinglesPotentialEx::operator()(const std::vector<int>& result_index,
+                                      const CC_vecfunction& singles_gs,
+                                      const Pairs<CCPair>& doubles_gs,
+                                      const CC_vecfunction& singles_ex,
+                                      const Pairs<CCPair>& doubles_ex,
+                                      const PotentialType& name,
+                                      const Info& info) {
+    World& world=singles_gs.get_vecfunction().front().world();
+    if (ex_gs=="ex") {
+        return CCPotentials::potential_singles_ex(world,
+                result_index,
+                singles_gs,
+                doubles_gs,
+                singles_ex,
+                doubles_ex,
+                name,
+                info);
+    } else if (ex_gs=="gs") {
+        return CCPotentials::potential_singles_gs(world,
+                result_index,
+                singles_gs,
+                doubles_gs,
+                name,
+                info);
+    }
+
+}
+
+std::vector<real_function_3d>
+MacroTaskSinglesPotentialGs::operator()(const std::vector<int>& result_index,
+                                      const CC_vecfunction& singles_gs,
+                                      const Pairs<CCPair>& doubles_gs,
+                                      const PotentialType& name,
+                                      const Info& info) {
+    World& world=singles_gs.get_vecfunction().front().world();
+    return CCPotentials::potential_singles_gs(world, result_index,
+                singles_gs, doubles_gs, name, info);
+}
+
+};
+
 template class CCConvolutionOperator<double,3>;
 template class CCConvolutionOperator<double,2>;
 template class CCConvolutionOperator<double,1>;
