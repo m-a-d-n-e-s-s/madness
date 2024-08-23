@@ -1184,6 +1184,10 @@ void Znemo::save_orbitals(std::string suffix) const {
 	const real_function_3d& dia=diafac->factor();
 	for (size_t i=0; i<amo.size(); ++i) save(amo[i],"amo"+stringify(i)+suffix);
 	for (size_t i=0; i<bmo.size(); ++i) save(bmo[i],"bmo"+stringify(i)+suffix);
+	for (size_t i=0; i<amo.size(); ++i) save(real(amo[i]),"amo_real"+stringify(i)+suffix);
+	for (size_t i=0; i<amo.size(); ++i) save(imag(amo[i]),"amo_imag"+stringify(i)+suffix);
+	for (size_t i=0; i<amo.size(); ++i) save(real(bmo[i]),"bmo_real"+stringify(i)+suffix);
+	for (size_t i=0; i<amo.size(); ++i) save(imag(bmo[i]),"bmo_imag"+stringify(i)+suffix);
 	for (size_t i=0; i<amo.size(); ++i) save(madness::abs(amo[i]),"absamo"+stringify(i)+suffix);
 	for (size_t i=0; i<bmo.size(); ++i) save(madness::abs(bmo[i]),"absbmo"+stringify(i)+suffix);
 	for (size_t i=0; i<amo.size(); ++i) save(madness::abs(amo[i]*dia),"diaamo"+stringify(i)+suffix);

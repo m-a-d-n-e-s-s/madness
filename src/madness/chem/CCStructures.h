@@ -1470,10 +1470,10 @@ public:
     typedef std::tuple<
         const std::vector<int>&,    // result_index,
         const CC_vecfunction&,      // singles_gs,
-        const Pairs<CCPair>&,       // doubles_gs,
+        const std::vector<CCPair>&,       // doubles_gs,
         const CC_vecfunction&,      // singles_ex,
-        const Pairs<CCPair>&,       // doubles_ex,
-        const PotentialType&,       // name,
+        const std::vector<CCPair>&,       // doubles_ex,
+        const int&,       // name,
         const Info&                 // info
     > argtupleT;
 
@@ -1508,10 +1508,10 @@ public:
 
     resultT operator() (const std::vector<int>& result_index,
                         const CC_vecfunction& singles_gs,
-                        const Pairs<CCPair>& doubles_gs,
+                        const std::vector<CCPair>& doubles_gs,
                         const CC_vecfunction& singles_ex,
-                        const Pairs<CCPair>& doubles_ex,
-                        const PotentialType& name,
+                        const std::vector<CCPair>& doubles_ex,
+                        const int& name,
                         const Info& info);
 };
 
@@ -1524,8 +1524,8 @@ public:
     typedef std::tuple<
         const std::vector<int>&,    // result_index,
         const CC_vecfunction&,      // singles_gs,
-        const Pairs<CCPair>&,       // doubles_gs,
-        const PotentialType&,       // name,
+        const std::vector<CCPair>&,       // doubles_gs,
+        const int&,       // name,
         const Info&                 // info
     > argtupleT;
 
@@ -1542,8 +1542,8 @@ public:
 
     resultT operator() (const std::vector<int>& result_index,
                         const CC_vecfunction& singles_gs,
-                        const Pairs<CCPair>& doubles_gs,
-                        const PotentialType& name,
+                        const std::vector<CCPair>& doubles_gs,
+                        const int& name,
                         const Info& info);
 };
 

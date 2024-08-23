@@ -2847,6 +2847,8 @@ CCPotentials::get_CC2_singles_potential_gs(World& world, const CC_vecfunction& s
     Projector<double,3> Otau(info.get_active_mo_bra(), singles.get_vecfunction());
     QProjector<double,3> Q(info.mo_bra, info.mo_ket);
 
+    auto triangular_map=PairVectorMap::triangular_map(info.parameters.freeze(),info.mo_ket.size());
+    auto doubles_vec=Pairs<CCPair>::pairs2vector(doubles,triangular_map);
 
     // compute the individual diagrams
     // CC2 Singles potential: Q(S4c) + Qt(ccs+s2b+s2c)
@@ -2860,12 +2862,13 @@ CCPotentials::get_CC2_singles_potential_gs(World& world, const CC_vecfunction& s
 
     // compute applied potentials and intermediates
     std::vector<int> result_index(singles.size());
-    vector_real_function_3d fock_residue1 = mtaskgs(result_index, singles, doubles, POT_F3D_, info);
-    vector_real_function_3d Vccs1 = mtaskgs(result_index, singles, doubles, POT_ccs_, info);
-    vector_real_function_3d Vs2b1 = mtaskgs(result_index, singles, doubles, POT_s2b_, info);
-    vector_real_function_3d Vs2c1 = mtaskgs(result_index, singles, doubles, POT_s2c_, info);
-    vector_real_function_3d Vs4b1 = mtaskgs(result_index, singles, doubles, POT_s4b_, info);
-    vector_real_function_3d Vs4c1 = mtaskgs(result_index, singles, doubles, POT_s4c_, info);
+    vector_real_function_3d fock_residue1 = mtaskgs(result_index, singles, doubles_vec, int(POT_F3D_), info);
+    vector_real_function_3d Vccs1 = mtaskgs(result_index, singles, doubles_vec, int(POT_ccs_), info);
+    vector_real_function_3d Vs2b1 = mtaskgs(result_index, singles, doubles_vec, int(POT_s2b_), info);
+    vector_real_function_3d Vs2c1 = mtaskgs(result_index, singles, doubles_vec, int(POT_s2c_), info);
+    vector_real_function_3d Vs4b1 = mtaskgs(result_index, singles, doubles_vec, int(POT_s4b_), info);
+    vector_real_function_3d Vs4c1 = mtaskgs(result_index, singles, doubles_vec, int(POT_s4c_), info);
+    taskq->print_taskq();
     taskq->run_all();
     // vector_real_function_3d Vs4a = apply_projector(Vs2b, singles);     // need to subtract
 
@@ -2899,17 +2902,18 @@ madness::vector_real_function_3d
 CCPotentials::get_CCS_potential_ex(World& world, const CC_vecfunction& x, const bool print, Info& info) {
     if (x.type != RESPONSE) error("get_CCS_response_potential: Wrong type of input singles");
 
-    Pairs<CCPair> empty_doubles;
+    std::vector<CCPair> empty_doubles;
     CC_vecfunction empty_singles(PARTICLE);
 
     // set up taskq
     MacroTaskSinglesPotentialEx task;
     auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),3));
     MacroTask<MacroTaskSinglesPotentialEx> mtask(world,task,taskq);
+    std::vector<int> result_index(x.size());
 
     // run tasks
-    auto fock_residue1=mtask(empty_singles,empty_doubles,x,empty_doubles,POT_F3D_,info);
-    auto potential1=mtask(empty_singles,empty_doubles,x,empty_doubles,POT_cis_,info);
+    auto fock_residue1=mtask(result_index,empty_singles,empty_doubles,x,empty_doubles,int(POT_F3D_),info);
+    auto potential1=mtask(result_index,empty_singles,empty_doubles,x,empty_doubles,int(POT_cis_),info);
     taskq->print_taskq();
     taskq->run_all();
 
@@ -2936,11 +2940,15 @@ CCPotentials::get_CCS_potential_ex(World& world, const CC_vecfunction& x, const 
 madness::vector_real_function_3d
 CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& gs_singles,
                                            const Pairs<CCPair>& gs_doubles, const CC_vecfunction& ex_singles,
-                                           const Pairs<CCPair>& response_doubles, Info& info) {
+                                           const Pairs<CCPair>& ex_doubles, Info& info) {
     MADNESS_ASSERT(gs_singles.type == PARTICLE);
     MADNESS_ASSERT(ex_singles.type == RESPONSE);
     Projector<double,3> Ox(info.get_active_mo_bra(),ex_singles.get_vecfunction());
     Projector<double,3> Ot(info.get_active_mo_bra(),gs_singles.get_vecfunction());
+
+    auto triangular_map=PairVectorMap::triangular_map(info.parameters.freeze(),info.mo_ket.size());
+    auto gs_doubles_vec=Pairs<CCPair>::pairs2vector(gs_doubles,triangular_map);
+    auto ex_doubles_vec=Pairs<CCPair>::pairs2vector(ex_doubles,triangular_map);
 
     // set up taskq
     auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),3));
@@ -2950,19 +2958,20 @@ CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& g
     MacroTask<MacroTaskSinglesPotentialEx> mtaskex(world,taskex,taskq);
 
     std::vector<int> result_index(ex_singles.size());
-    auto fock_residue1 = mtaskex(result_index, gs_singles, gs_doubles, ex_singles, response_doubles, POT_F3D_, info);
-    auto Vccs1 = mtaskex(result_index, gs_singles, gs_doubles, ex_singles, response_doubles,POT_ccs_, info);
-    auto Vs2b1 = mtaskex(result_index, gs_singles, gs_doubles, ex_singles, response_doubles,POT_s2b_, info);
-    auto Vs2c1 = mtaskex(result_index, gs_singles, gs_doubles, ex_singles, response_doubles,POT_s2c_, info);
-    auto Vs4b1 = mtaskex(result_index, gs_singles, gs_doubles, ex_singles, response_doubles,POT_s4b_, info);
-    auto Vs4c1 = mtaskex(result_index, gs_singles, gs_doubles, ex_singles, response_doubles,POT_s4c_, info);
+    auto fock_residue1 = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_F3D_), info);
+    auto Vccs1 = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_ccs_), info);
+    auto Vs2b1 = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_s2b_), info);
+    auto Vs2c1 = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_s2c_), info);
+    auto Vs4b1 = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_s4b_), info);
+    auto Vs4c1 = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_s4c_), info);
     // make low scaling s4a potential
     // -Otau(s2b_response) + -Ox(s2b_gs)
     // maybe store full s2b potential of gs
     // both need to be subtracted
-    auto s2b_gs1 = mtaskgs(result_index, gs_singles, gs_doubles, POT_s2b_, info);
+    auto s2b_gs1 = mtaskgs(result_index, gs_singles, gs_doubles_vec, int(POT_s2b_), info);
     // vector_real_function_3d Vs4a =
             // -1.0 * add(world, apply_projector(s2b_gs, ex_singles), apply_projector(Vs2b, gs_singles));
+    taskq->print_taskq();
     taskq->run_all();
 
     // split potential and intermediates
@@ -4185,8 +4194,8 @@ void CCPotentials::test_singles_potential(Info& info) const {
         real_function_3d r = real_factory_3d(world).f(functor_y);
         const CC_vecfunction gs_singles(emptyv, PARTICLE, parameters.freeze());
         CC_vecfunction ex_singles(apply_Qt(mul(world, r, get_active_mo_ket()), mo_ket_), RESPONSE, parameters.freeze());
-        Pairs<CCPair> gs_doubles;
-        Pairs<CCPair> ex_doubles;
+        std::vector<CCPair> gs_doubles;
+        std::vector<CCPair> ex_doubles;
 
         // set up taskq
         auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),3));
@@ -4194,8 +4203,9 @@ void CCPotentials::test_singles_potential(Info& info) const {
         MacroTask<MacroTaskSinglesPotentialEx> mtaskex(world,taskex,taskq);
 
         std::vector<int> result_index(ex_singles.size());
-        auto cis_potential = mtaskex(result_index, gs_singles, gs_doubles, ex_singles, ex_doubles, POT_cis_, info);
-        auto ccs_potential = mtaskex(result_index, gs_singles, gs_doubles, ex_singles, ex_doubles, POT_ccs_, info);
+        auto cis_potential = mtaskex(result_index, gs_singles, gs_doubles, ex_singles, ex_doubles, int(POT_cis_), info);
+        auto ccs_potential = mtaskex(result_index, gs_singles, gs_doubles, ex_singles, ex_doubles, int(POT_ccs_), info);
+        taskq->print_taskq();
         taskq->run_all();
         vector_real_function_3d diff = sub(world, cis_potential, ccs_potential);
         const double d = norm2(world, diff);

@@ -589,44 +589,41 @@ MacroTaskIteratePair::operator()(const std::vector<CCPair>& pair,
 std::vector<real_function_3d>
 MacroTaskSinglesPotentialEx::operator()(const std::vector<int>& result_index,
                                       const CC_vecfunction& singles_gs,
-                                      const Pairs<CCPair>& doubles_gs,
+                                      const std::vector<CCPair>& doubles_gs,
                                       const CC_vecfunction& singles_ex,
-                                      const Pairs<CCPair>& doubles_ex,
-                                      const PotentialType& name,
+                                      const std::vector<CCPair>& doubles_ex,
+                                      const int& name,
                                       const Info& info) {
     World& world=singles_gs.get_vecfunction().front().world();
-    if (ex_gs=="ex") {
-        return CCPotentials::potential_singles_ex(world,
-                result_index,
-                singles_gs,
-                doubles_gs,
-                singles_ex,
-                doubles_ex,
-                name,
-                info);
-    } else if (ex_gs=="gs") {
-        return CCPotentials::potential_singles_gs(world,
-                result_index,
-                singles_gs,
-                doubles_gs,
-                name,
-                info);
-    }
 
+    auto triangular_map=PairVectorMap::triangular_map(info.parameters.freeze(),info.mo_ket.size());
+    auto doubles_gs1=Pairs<CCPair>::vector2pairs(doubles_gs,triangular_map);
+    auto doubles_ex1=Pairs<CCPair>::vector2pairs(doubles_ex,triangular_map);
+
+    return CCPotentials::potential_singles_ex(world,
+                result_index,
+                singles_gs,
+                doubles_gs1,
+                singles_ex,
+                doubles_ex1,
+                PotentialType(name),
+                info);
 }
 
 std::vector<real_function_3d>
 MacroTaskSinglesPotentialGs::operator()(const std::vector<int>& result_index,
                                       const CC_vecfunction& singles_gs,
-                                      const Pairs<CCPair>& doubles_gs,
-                                      const PotentialType& name,
+                                      const std::vector<CCPair>& doubles_gs,
+                                      const int& name,
                                       const Info& info) {
     World& world=singles_gs.get_vecfunction().front().world();
+    auto triangular_map=PairVectorMap::triangular_map(info.parameters.freeze(),info.mo_ket.size());
+    auto doubles_gs1=Pairs<CCPair>::vector2pairs(doubles_gs,triangular_map);
+
     return CCPotentials::potential_singles_gs(world, result_index,
-                singles_gs, doubles_gs, name, info);
+                singles_gs, doubles_gs1, PotentialType(name), info);
 }
 
-};
 
 template class CCConvolutionOperator<double,3>;
 template class CCConvolutionOperator<double,2>;
