@@ -244,7 +244,10 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 	    if (param.do_localize()) {
 	    	for (size_t i=0; i<KS_nemo.size(); ++i) calc->aeps(i)=KS_Fock(i,i);
 	    	KS_nemo=localize(KS_nemo,param.econv(),iter==0);
-	    	if (param.print_level()>=10) calc->analyze_vectors(world,KS_nemo,calc->aocc,tensorT(),calc->aset);
+	    	if (param.print_level()>=10)
+	    		SCF::analyze_vectors(world, KS_nemo, calc->ao, calc->vtol, calc->molecule, param.print_level(),
+	    			calc->aobasis, calc->aocc, tensorT(), calc->aset );
+	    	// calc->analyze_vectors(world,KS_nemo,calc->aocc,tensorT(),calc->aset);
 	    }
 	    if (do_symmetry()) {
 		    std::vector<std::string> str_irreps;
