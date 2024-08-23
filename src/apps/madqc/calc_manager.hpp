@@ -8,10 +8,12 @@
 #include <apps/molresponse/FrequencyResponse.hpp>
 #include <apps/molresponse/ResponseExceptions.hpp>
 #include <filesystem>
+#include <functional>
 #include <madness/external/nlohmann_json/json.hpp>
 #include <memory>
 #include <utility>
 #include <vector>
+#include "QCCalculationParametersBase.h"
 #include "tensor_json.hpp"
 #include "utils.hpp"
 
@@ -37,16 +39,17 @@ struct CalculationTemplate {
   void print();
 };
 
-void to_json(json& j, const CalculationTemplate& p) {
+inline void to_json(json& j, const CalculationTemplate& p) {
   j = json{{"calculations", p.calc_paths}, {"restarts", p.restarts}, {"outputs", p.outputs}};
 }
-void from_json(const json& j, CalculationTemplate& p) {
+
+inline void from_json(const json& j, CalculationTemplate& p) {
   j.at("calculations").get_to(p.calc_paths);
   j.at("restarts").get_to(p.restarts);
   j.at("outputs").get_to(p.outputs);
 }
 
-void CalculationTemplate::print() {
+inline void CalculationTemplate::print() {
   json j = *this;
   std::cout << j.dump(4);
 }
@@ -56,9 +59,9 @@ class PathManager {
   json path_data = {};
 
  public:
-  void setPath(const std::string& key, const json& value) { path_data[key] = value; }
+  void setPath(const std::string& key, const CalculationTemplate& value) { path_data[key] = value; }
 
-  json getPath(const std::string& key) { return path_data[key].get<json>(); }
+  CalculationTemplate getPath(const std::string& key) { return path_data[key].get<CalculationTemplate>(); }
 
   [[nodiscard]] json getAllPaths() const { return path_data; }
 
@@ -132,27 +135,6 @@ class CompositeCalculationStrategy : public CalculationStrategy {
   }
 };
 
-// New DynamicCalculationStrategy
-class DynamicCalculationStrategy : public CalculationStrategy {
- private:
-  std::string strategy_name;
-
- public:
-  // Constructor
-  explicit DynamicCalculationStrategy(PathManager& path_manager, std::string strategy_name,
-                                      std::vector<std::string> properties)
-      : strategy_name(std::move(strategy_name)) {}
-
-  void setPaths(PathManager& path_manager, const path& root) override { path_manager.setPath(strategy_name, root); }
-
-  void compute(World& world, PathManager& path_manager) override {
-
-    auto paths = path_manager.getAllPaths();
-    auto& strategy_paths = paths[strategy_name];
-    // Add actual calculation logic here
-  }
-};
-
 class MoldftCalculationStrategy : public CalculationStrategy {
 
   CalculationParameters parameters;
@@ -190,8 +172,7 @@ class MoldftCalculationStrategy : public CalculationStrategy {
 
   void compute(World& world, PathManager& path_manager) override {
     // the first step is to look for the moldft paths
-    auto moldft_paths = path_manager.getPath(name).get<CalculationTemplate>();
-
+    auto moldft_paths = path_manager.getPath(name);
     if (world.rank() == 0)
       moldft_paths.print();
     // Get the paths from the json object
@@ -530,8 +511,8 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
 
   void compute(World& world, PathManager& path_manager) override {
 
-    auto moldft_paths = path_manager.getPath(input_names[0]).get<CalculationTemplate>();
-    auto response_paths = path_manager.getPath(calc_name).get<CalculationTemplate>();
+    auto moldft_paths = path_manager.getPath(input_names[0]);
+    auto response_paths = path_manager.getPath(calc_name);
 
     auto moldft_restart = moldft_paths.restarts[0].string();
     auto alpha_outpath = response_paths.outputs["alpha"][0];
@@ -681,11 +662,11 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
       print("response_name: ", response_name);
     }
 
-    auto hyper_paths = path_manager.getPath(calc_name).get<CalculationTemplate>();
+    auto hyper_paths = path_manager.getPath(calc_name);
     auto calc_path = hyper_paths.calc_paths[0];
 
-    auto moldft_paths = path_manager.getPath(moldft_name).get<CalculationTemplate>();
-    auto response_paths = path_manager.getPath(response_name).get<CalculationTemplate>();
+    auto moldft_paths = path_manager.getPath(moldft_name);
+    auto response_paths = path_manager.getPath(response_name);
 
     auto moldft_restart = moldft_paths.restarts[0];
     auto beta_outpath = hyper_paths.outputs["beta"][0];
@@ -769,6 +750,22 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
 
       auto freqs = config.frequencies;
       num_freqs = (config.frequencies.size() / 2) + 1;
+
+      bool compute_beta = true;
+      // Read in beta.json if it exists
+      if (std::filesystem::exists("beta.json")) {
+        std::ifstream ifs("beta.json");
+        ifs >> beta_json;
+
+        auto total_num_freqs = num_freqs * num_freqs;
+
+        if (beta_json["Afreq"].size() == total_num_freqs) {
+          if (world.rank() == 0) {
+            ::print("Beta values have already been computed");
+          }
+          compute_beta = false;
+        }
+      }
 
       for (int b = 0; b < num_freqs; b++) {
         for (int c = 0; c < num_freqs; c++) {
@@ -994,4 +991,73 @@ class CalcManager {
   };
 };
 
+using SetupCalculationFunction = std::function<void(CalcManager&, std::string)>;
+using CheckConditionFunction = std::function<bool(World&, PathManager&, const std::string&)>;
+using FinalizeCalculationFunction = std::function<void(World&, PathManager&, const path&)>;
+//
+//
+class DynamicCalculationStrategy : public CalculationStrategy {
+ private:
+  std::string strategy_name;
+  int iteration_limit = 100;  // Example limit to prevent infinite loops
+  std::vector<std::unique_ptr<CalculationStrategy>> strategies;
+  SetupCalculationFunction setup_calculation;
+  CheckConditionFunction check_condition;
+  FinalizeCalculationFunction finalize_calculation;
+
+ public:
+  // Constructor
+  explicit DynamicCalculationStrategy(PathManager& path_manager, std::string strategy_name,
+                                      std::vector<std::unique_ptr<CalculationStrategy>> strategies,
+                                      std::vector<std::string> properties = {})
+      : strategy_name(std::move(strategy_name)),
+        strategies(std::move(strategies)),
+        CalculationStrategy(std::move(strategy_name), std::move(properties)) {}
+
+  void setPaths(PathManager& path_manager, const path& root) override {
+
+    // Set the calc paths for the base of the calculation... In this case we don't know beforehand what we are working with.
+    // All we need to communicate is that we are working a directory specified by the strategy_name
+    CalculationTemplate dynamic_paths;
+    dynamic_paths.calc_paths.push_back(root / strategy_name);
+    path_manager.setPath(strategy_name, dynamic_paths);
+  }
+
+  void compute(World& world, PathManager& path_manager) override {
+    int iteration = 0;
+    bool condition_met = false;
+
+    auto base_path = path_manager.getPath(strategy_name).calc_paths[0];  // only one base path
+    // make sure the base path is created
+    path_manager.createDirectories(strategy_name);
+
+    vector<std::string> iteration_names;
+    while (!condition_met && iteration < iteration_limit) {
+      // Create subdirectory for this iteration
+      // now we create a new calculation manager for this iteration
+      CalcManager calc_manager(base_path);  // the base path is the root for this iteration
+      auto iter_name = strategy_name + "_iter_" + std::to_string(iteration);
+      iteration_names.push_back(iter_name);
+
+      // Set up the calculation for the iteration
+      setup_calculation(calc_manager, iter_name);
+
+      // Run the calculations
+      calc_manager.runCalculations(world);
+
+      condition_met = check_condition(world, path_manager, iter_name);
+
+      // Check if the condition is met
+
+      if (!condition_met) {
+        // Prepare for the next iteration
+        iteration++;
+      } else {
+
+        // Finalize the calculation
+        finalize_calculation(world, path_manager, iter_name);
+      }
+    }
+  };
+};
 #endif
