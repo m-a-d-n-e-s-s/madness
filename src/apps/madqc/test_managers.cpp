@@ -32,13 +32,14 @@ TEST_CASE("MOLDFT Calculation") {
   param_manager = ParameterManager(world, {"input.json"});
   auto params = param_manager.get_moldft_params();
   auto molecule = param_manager.get_molecule();
-
   std::vector<std::string> properties = {"energy", "gradient", "dipole"};
 
   CalcManager calc_manager;
   auto moldft_calc = std::make_unique<MoldftCalculationStrategy>(params, molecule, "moldft_1", properties);
   calc_manager.addStrategy(std::move(moldft_calc));
+
   path cwd = std::filesystem::current_path();
+
   calc_manager.runCalculations(world);
   std::filesystem::current_path(cwd);
 }
@@ -162,6 +163,7 @@ TEST_CASE("Hyperpolarizability Calculation") {
   calc_manager.runCalculations(world);
   std::filesystem::current_path(cwd);
 }
+
 /*
 
 TEST_CASE("Output Response VTK") {

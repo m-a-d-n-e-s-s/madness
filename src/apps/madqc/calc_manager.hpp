@@ -19,6 +19,72 @@ using json = nlohmann::json;
 using path = std::filesystem::path;
 using ResponseInput = std::tuple<std::string, std::string, std::vector<double>>;
 
+// I define this path because this way I can be more explicit what I expect out of the json objects
+// Each Calculation needs to define,
+//
+// 1. The calculation paths, where the calculation will be run
+// 2. The restart paths, where the calculation will be restarted
+// 3. The output paths, where the output of the calculation will be stored,
+//
+//
+// For consistency, each of theses are vectors of paths
+struct CalculationTemplate {
+ public:
+  vector<path> calc_paths = {};
+  vector<path> restarts = {};
+  std::map<std::string, vector<path>> outputs = {};
+
+  void print();
+};
+
+void to_json(json& j, const CalculationTemplate& p) {
+  j = json{{"calculations", p.calc_paths}, {"restarts", p.restarts}, {"outputs", p.outputs}};
+}
+void from_json(const json& j, CalculationTemplate& p) {
+  j.at("calculations").get_to(p.calc_paths);
+  j.at("restarts").get_to(p.restarts);
+  j.at("outputs").get_to(p.outputs);
+}
+
+void CalculationTemplate::print() {
+  json j = *this;
+  std::cout << j.dump(4);
+}
+
+class PathManager {
+ private:
+  json path_data = {};
+
+ public:
+  void setPath(const std::string& key, const json& value) { path_data[key] = value; }
+
+  json getPath(const std::string& key) { return path_data[key].get<json>(); }
+
+  [[nodiscard]] json getAllPaths() const { return path_data; }
+
+  void createDirectories() {
+
+    for (const auto& [key, calc_paths] : path_data.items()) {
+      auto calc_path = calc_paths.get<CalculationTemplate>();
+      for (const auto& calc_dir : calc_path.calc_paths) {
+        print("Creating directory: ", calc_dir);
+        if (!std::filesystem::exists(calc_dir)) {
+          std::filesystem::create_directory(calc_dir);
+        }
+      }
+    }
+  }
+  // This function is used to set the paths for a specific calculation
+  void createDirectories(const std::string& key) {
+    auto calc_paths = path_data[key].get<CalculationTemplate>();
+    for (const auto& calc_dir : calc_paths.calc_paths) {
+      if (!std::filesystem::exists(calc_dir)) {
+        std::filesystem::create_directory(calc_dir);
+      }
+    }
+  }
+};
+
 // A word for a class which takes input from another class and
 // therefore has to define the input interface
 class InputInterface {
@@ -32,20 +98,10 @@ class InputInterface {
 
 class CalculationStrategy {
  public:
-  virtual json calcPaths(const path& root) = 0;
-  virtual void compute(World& world, const json& calc_paths) = 0;
+  virtual void setPaths(PathManager& path_manager, const path& root) = 0;
+  virtual void compute(World& world, PathManager& path_manager) = 0;
   virtual ~CalculationStrategy() = default;
-  // Virtual function that outputs the properties of the calculation// this requires that each derived class defines the SCF/Calc object as a member variable
-  // to get access to the properties of the calculation
-  //virtual json output_properites(std::vector<std::string> properties) = 0;
-  //
-  // Doesn't work because SCF does not have a default constructor... if it did, then I could hold the SCF object as a member variable
-  //
-  // For now, For each calc_strategy we need to the define the ouput_properties function that takes the properties requested and the object used to compute them...
-  //
-  //
-  //
-  // All calculations should have a name where they output their data in the json object
+
   CalculationStrategy(std::string calc_name, vector<std::string> properties)
       : name(std::move(calc_name)), requested_properties(std::move(properties)){};
   CalculationStrategy() = default;
@@ -62,44 +118,38 @@ class CompositeCalculationStrategy : public CalculationStrategy {
  public:
   void addStrategy(std::unique_ptr<CalculationStrategy> strategy) { strategies.push_back(std::move(strategy)); }
 
-  json calcPaths(const path& root) override {
-    json result = {};
+  void setPaths(PathManager& path_manager, const path& root) override {
+
     for (const auto& strategy : strategies) {
-      json paths = strategy->calcPaths(root);
-      // I know there should only be one key in the json object corresponding the calc_name.
-      // Insert json as j[calc_name]={}
-      for (auto& [key, value] : paths.items()) {
-        result[key] = value;
-      }
+      strategy->setPaths(path_manager, root);
     }
-    print(result.dump(4));
-
-    // for the keys in the json object, create the directories
-    // if they don't exist
-    //
-    for (const auto& [key, value] : result.items()) {
-      if (!std::filesystem::exists(key)) {
-        std::filesystem::create_directory(key);
-      }
-    }
-
-    for (const auto& calc_name : result) {
-      auto calc_dirs = calc_name["calculation"];
-      print(calc_dirs);
-      for (const auto& calc_dir : calc_dirs) {
-        if (!std::filesystem::exists(calc_dir)) {
-          std::filesystem::create_directory(calc_dir);
-        }
-      }
-    }
-
-    return result;
   }
 
-  void compute(World& world, const json& calc_paths) override {
+  void compute(World& world, PathManager& path_manager) override {
     for (const auto& strategy : strategies) {
-      strategy->compute(world, calc_paths);
+      strategy->compute(world, path_manager);
     }
+  }
+};
+
+// New DynamicCalculationStrategy
+class DynamicCalculationStrategy : public CalculationStrategy {
+ private:
+  std::string strategy_name;
+
+ public:
+  // Constructor
+  explicit DynamicCalculationStrategy(PathManager& path_manager, std::string strategy_name,
+                                      std::vector<std::string> properties)
+      : strategy_name(std::move(strategy_name)) {}
+
+  void setPaths(PathManager& path_manager, const path& root) override { path_manager.setPath(strategy_name, root); }
+
+  void compute(World& world, PathManager& path_manager) override {
+
+    auto paths = path_manager.getAllPaths();
+    auto& strategy_paths = paths[strategy_name];
+    // Add actual calculation logic here
   }
 };
 
@@ -112,41 +162,6 @@ class MoldftCalculationStrategy : public CalculationStrategy {
 
   std::vector<std::string> available_properties = {"energy", "gradient", "dipole"};
 
-  static json compute_property(World& world, const std::string& property, SCF& calc, double energy) {
-    json result;
-    if (property == "energy") {
-      result["energy"] = energy;
-    } else if (property == "gradient") {
-      auto gradient = calc.derivatives(world, calc.make_density(world, calc.aocc, calc.amo));
-      result["gradient"] = tensor_to_json(gradient);  // here we need to make json representation of a tensor....
-    } else if (property == "dipole") {
-      auto dipole = calc.dipole(world, calc.make_density(world, calc.aocc, calc.amo));
-      result["dipole"] = tensor_to_json(dipole);
-    } else {
-      throw std::runtime_error("Property not available");
-    }
-    return result;
-  }
-
-  void output_properites(World& world, SCF& calc, double energy) {
-
-    // This is where a property interface would be useful. for properties use the properties interface
-    // to get the properties of the calculation
-    json results;
-    paths[name]["output"]["properties"] = {};
-    auto& output = paths[name]["output"]["properties"];
-
-    for (const auto& property : requested_properties) {
-      output[property] = compute_property(world, property, calc, energy);
-    }
-    if (world.rank() == 0) {
-      print("output: ", output.dump(4));
-      std::ofstream ofs(output_path);
-      ofs << output.dump(4);
-      ofs.close();
-    }
-  }
-
  public:
   // Notice here that I am passing the parameters of the calculation as well as name
   MoldftCalculationStrategy(const CalculationParameters& params, Molecule mol, std::string calc_name = "moldft",
@@ -155,63 +170,35 @@ class MoldftCalculationStrategy : public CalculationStrategy {
         molecule(std::move(mol)),
         CalculationStrategy(std::move(calc_name), std::move(properties)){};
 
-  json calcPaths(const path& root) override {
-    // All calculations need to create a json with the top level key being the name of the calculation
-    paths[name] = {};
-    auto& moldft = paths[name];
+  void setPaths(PathManager& path_manager, const path& root) override {
+    // Build the paths for the moldf calculation
+    //
+    CalculationTemplate moldft = {};
 
-    auto base_root = root / name;
+    auto moldft_dir = root / name;
+    moldft.calc_paths.push_back(moldft_dir);
+    moldft.restarts.push_back(moldft_dir / "moldft.restartdata.00000");
+    moldft.outputs["calc_info"] = {moldft_dir / "moldft.calc_info.json"};
+    moldft.outputs["scf_info"] = {moldft_dir / "moldft.calc_info.json"};
+    moldft.outputs["properties"] = {moldft_dir / "output.json"};
 
-    // these are the possible paths that are needed for the calculation
-    // I need a way to inject the ability to compute different properties from the calculation.
-    // For example, if we are doing a finite-difference of the dipole moment, we need to inject the ability
-    // to compute the dipole moment.  This will normally be done by the parameters.
-    // Should the constructor have a paramater that indicates which properties to compute?
-    //
-    // For example, [energy, gradient,dipole,quadrupole] etc.
-    //
-    //
-    // For an optimization, we need to compute both the energy and the gradient
-    //
-    // For a finite-difference calculation, we need to compute a specific property
-    //
-    // Maybe the last stage of the calculation should be a post-processing step that computes the properties
-    //
-    // And the first step of calculation should be something that checks whether the properties can be computed
-    // given a method.
-    //
-    moldft["calculation"] = base_root;
-    moldft["restart"] = base_root / "moldft.restartdata.00000";
-    moldft["output"] = {};
-    moldft["output"]["calc_info"] = base_root / "moldft.calc_info.json";
-    moldft["output"]["scf_info"] = base_root / "moldft.scf_info.json";
-    moldft["output"]["properties"] = base_root / "output.json";
-    output_path = moldft["output"]["properties"].get<path>();
-
-    return paths;
+    // Look here! I am setting the paths for the moldft calculation (a json object),
+    // and it's automatically converted to a json object and stored in the path manager
+    // no need to convert it to a json object first and then store it
+    path_manager.setPath(name, moldft);
   }
 
-  void compute(World& world, const json& calc_paths) override {
-    paths = calc_paths;
+  void compute(World& world, PathManager& path_manager) override {
     // the first step is to look for the moldft paths
-    json moldft_paths = paths[name];
+    auto moldft_paths = path_manager.getPath(name).get<CalculationTemplate>();
+
     if (world.rank() == 0)
-      print(moldft_paths.dump(4));
-
+      moldft_paths.print();
     // Get the paths from the json object
-    path moldft_path = moldft_paths["calculation"];
-    path moldft_restart = moldft_paths["restart"];
-    path moldft_calc_info_path = moldft_paths["output"]["calc_info"];
-
-    // print the relevant paths
-    if (world.rank() == 0) {
-      std::cout << "Calculation Path: " << moldft_paths.dump(4) << std::endl;
-    }
-
-    if (!std::filesystem::exists(moldft_path)) {
-      std::filesystem::create_directory(moldft_path);
-    }
-
+    auto moldft_path = moldft_paths.calc_paths[0];  // get the first path which is the only path
+    auto restart_path = moldft_paths.restarts[0];   //
+    path calc_info_path = moldft_paths.outputs["calc_info"][0];
+    // Set the current path to the moldft path
     std::filesystem::current_path(moldft_path);
 
     json calcInfo;
@@ -222,18 +209,19 @@ class MoldftCalculationStrategy : public CalculationStrategy {
       ::print("-------------Running moldft------------");
     }
 
-    if (std::filesystem::exists(moldft_restart) && std::filesystem::exists(moldft_calc_info_path)) {
+    // if restart and calc_info exists the read the calc_info json
+    if (std::filesystem::exists(restart_path) && std::filesystem::exists(calc_info_path)) {
       // if both exist, read the calc_info json
-      std::ifstream ifs(moldft_calc_info_path);
-
+      std::ifstream ifs(calc_info_path);
       auto moldft_calc_info = json::parse(ifs);
       if (world.rank() == 0) {
         std::cout << "time: " << moldft_calc_info["time"] << std::endl;
         std::cout << "MOLDFT return energy: " << moldft_calc_info["return_energy"] << std::endl;
       }
+
     } else {
       // if params are different run and if restart exists and if im asking to
-      if (std::filesystem::exists(moldft_restart)) {
+      if (std::filesystem::exists(restart_path)) {
         param1.set_user_defined_value<bool>("restart", true);
       }
       world.gop.fence();
@@ -284,6 +272,40 @@ class MoldftCalculationStrategy : public CalculationStrategy {
     }
 
     // Add actual calculation logic here
+  }
+  static json compute_property(World& world, const std::string& property, SCF& calc, double energy) {
+    json result;
+    if (property == "energy") {
+      result["energy"] = energy;
+    } else if (property == "gradient") {
+      auto gradient = calc.derivatives(world, calc.make_density(world, calc.aocc, calc.amo));
+      result["gradient"] = tensor_to_json(gradient);  // here we need to make json representation of a tensor....
+    } else if (property == "dipole") {
+      auto dipole = calc.dipole(world, calc.make_density(world, calc.aocc, calc.amo));
+      result["dipole"] = tensor_to_json(dipole);
+    } else {
+      throw std::runtime_error("Property not available");
+    }
+    return result;
+  }
+
+  void output_properites(World& world, SCF& calc, double energy) {
+
+    // This is where a property interface would be useful. for properties use the properties interface
+    // to get the properties of the calculation
+    json results;
+    paths[name]["output"]["properties"] = {};
+    auto& output = paths[name]["output"]["properties"];
+
+    for (const auto& property : requested_properties) {
+      output[property] = compute_property(world, property, calc, energy);
+    }
+    if (world.rank() == 0) {
+      print("output: ", output.dump(4));
+      std::ofstream ofs(output_path);
+      ofs << output.dump(4);
+      ofs.close();
+    }
   }
 };
 
@@ -355,7 +377,6 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
   std::vector<double> freqs;
   std::string calc_name = "response";
   ResponseConfig config;
-  json paths;
   path output_path;
   std::vector<std::string> available_properties = {"alpha"};
 
@@ -365,29 +386,23 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
                                   const std::vector<std::string>& input_names = {"moldft"})
       : parameters(params), calc_name(std::move(name)), config(name, r_input), InputInterface(input_names) {}
 
-  json calcPaths(const path& root) override {
+  void setPaths(PathManager& path_manager, const path& root) override {
 
-    json paths = {};
-    paths[calc_name] = {};
-    auto& response = paths[calc_name];
-    response["frequencies"] = config.frequencies;
-    response["calculation"] = {};
-    response["output"] = {};
-    response["restart"] = {};
-
+    // We always start at root+calc_name
     auto base_path = root / calc_name;
+    CalculationTemplate response_paths;
 
-    response["properties"] = {};
-    response["properties"]["alpha"] = base_path / "alpha.json";
+    response_paths.outputs["response_base"] = {};
 
     for (const auto& frequency : config.frequencies) {
       auto frequency_run_path = config.calc_path(base_path, frequency);
       auto restart_path = ResponseConfig::restart_path(frequency_run_path);
-      response["calculation"].push_back(frequency_run_path);
-      response["restart"].push_back(restart_path);
-      response["output"].push_back(frequency_run_path / "response_base.json");
+      response_paths.calc_paths.push_back(frequency_run_path);
+      response_paths.restarts.push_back(restart_path);
+      response_paths.outputs["response_base"].push_back(frequency_run_path / "response_base.json");
     }
-    return paths;
+    response_paths.outputs["alpha"].push_back(base_path / "alpha.json");
+    path_manager.setPath(calc_name, response_paths);
   }
 
   static void append_to_alpha_json(const double& omega, const std::vector<std::string>& ij, const Tensor<double>& alpha,
@@ -513,30 +528,20 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
     }
   }
 
-  void compute(World& world, const json& all_paths) override {
+  void compute(World& world, PathManager& path_manager) override {
 
-    // First example of using input names
-    paths = all_paths;
-    auto moldft_name = input_names[0];
-    print("moldft_name: ", moldft_name);
-    print("all paths: ", paths.dump(4));
+    auto moldft_paths = path_manager.getPath(input_names[0]).get<CalculationTemplate>();
+    auto response_paths = path_manager.getPath(calc_name).get<CalculationTemplate>();
 
-    auto& moldft_paths = paths[moldft_name];
-    auto moldft_restart = moldft_paths["restart"].get<std::string>();
-    moldft_restart = std::string(path(moldft_restart).replace_extension(""));
+    auto moldft_restart = moldft_paths.restarts[0].string();
+    auto alpha_outpath = response_paths.outputs["alpha"][0];
 
-    auto& my_response = paths[calc_name];
-    auto& calc_paths = my_response["calculation"];
-
-    auto restart_paths = my_response["restart"].get<std::vector<std::string>>();
-    auto output_paths = my_response["output"].get<std::vector<std::string>>();
-    auto alpha_path = my_response["properties"]["alpha"].get<std::string>();
-
-    size_t num_freqs = calc_paths.size();
     // I need to analyze alpha.json to see which frequencies are missing.
     // Or I just write them to seperate files and then combine them later?
-
     auto freqs = config.frequencies;
+    auto num_freqs = freqs.size();
+
+    path_manager.createDirectories(calc_name);
 
     bool last_converged = false;
     nlohmann::ordered_json alpha_json;
@@ -547,20 +552,21 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
     for (size_t i = 0; i < num_freqs; i++) {
 
       auto freq_i = freqs[i];
+      auto calc_path_i = response_paths.calc_paths[i];
+      auto restart_path_i = response_paths.restarts[i];
+      auto response_base_i = response_paths.outputs["response_base"][i];
 
-      if (!std::filesystem::exists(calc_paths[i])) {
-        std::filesystem::create_directory(calc_paths[i]);
-      }
-      std::filesystem::current_path(calc_paths[i]);
+      std::filesystem::current_path(response_paths.calc_paths[i]);
 
       print("current path: ", std::filesystem::current_path());
-      print("calc path: ", calc_paths[i]);
+      print("calc path: ", calc_path_i);
+      print("restart path: ", restart_path_i);
       print("freq: ", freq_i);
       // if the last converged is true, then we can restart from the last save path
 
       bool restart = true;
-      path save_path = restart_paths[i];  // current restart path aka save path
-      path restart_path = (i > 0) ? restart_paths[i - 1] : restart_paths[i];
+      path save_path = restart_path_i;  // current restart path aka save path
+      path restart_path = (i > 0) ? response_paths.restarts[i - 1] : response_paths.restarts[i];
       std::string save_string = save_path.filename().stem();
       if (world.rank() == 0) {
         ::print("-------------Running response------------ at frequency: ", freq_i);
@@ -616,7 +622,7 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
 
       if (last_converged) {
         // read output_paths[i]
-        std::ifstream ifs(output_paths[i]);
+        std::ifstream ifs(response_base_i);
         json response_base_i;
         ifs >> response_base_i;
         alpha_i = response_base_i["properties"]["alpha"];
@@ -629,9 +635,7 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
       // combine alpha_json_i with alpha_json
       add_alpha_i_to_json(alpha_i, alpha_json);
     }
-
-    std::ofstream out_file(alpha_path);
-
+    std::ofstream out_file(alpha_outpath);
     if (world.rank() == 0) {
       out_file << alpha_json.dump(4);
     }
@@ -643,7 +647,6 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
   ResponseParameters parameters;
   std::string op;
   std::string xc;
-  std::vector<double> freqs;
   std::string calc_name = "hyper";
   ResponseConfig config;
   json paths;
@@ -660,24 +663,16 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
     }
   }
 
-  json calcPaths(const path& root) override {
-
-    json paths = {};
-    paths[calc_name] = {};
-    auto& response = paths[calc_name];
-    response["output"] = {};
+  void setPaths(PathManager& path_manager, const path& root) override {
 
     auto base_path = root / calc_name;
-
-    response["calculation"] = base_path;
-    response["output"]["properties"] = {};
-    response["properties"]["beta"] = base_path / "beta.json";
-    return paths;
+    CalculationTemplate hyper_paths;
+    hyper_paths.calc_paths.push_back(base_path);
+    hyper_paths.outputs["beta"] = {base_path / "beta.json"};
+    path_manager.setPath(calc_name, hyper_paths);
   }
 
-  void compute(World& world, const json& all_paths) override {
-
-    paths = all_paths;
+  void compute(World& world, PathManager& path_manager) override {
 
     auto moldft_name = input_names[0];
     auto response_name = input_names[1];
@@ -686,19 +681,17 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
       print("response_name: ", response_name);
     }
 
-    auto& moldft_paths = paths[moldft_name];
-    auto moldft_path = moldft_paths["calculation"].get<std::string>();
-    auto moldft_restart = moldft_paths["restart"].get<std::string>();
-    moldft_restart = std::string(path(moldft_restart).replace_extension(""));
+    auto hyper_paths = path_manager.getPath(calc_name).get<CalculationTemplate>();
+    auto calc_path = hyper_paths.calc_paths[0];
 
-    auto& response_paths = paths[response_name];
-    auto& calc_paths = response_paths["calculation"];
+    auto moldft_paths = path_manager.getPath(moldft_name).get<CalculationTemplate>();
+    auto response_paths = path_manager.getPath(response_name).get<CalculationTemplate>();
 
-    std::vector<path> restart_paths = response_paths["restart"].get<std::vector<path>>();
+    auto moldft_restart = moldft_paths.restarts[0];
+    auto beta_outpath = hyper_paths.outputs["beta"][0];
+    auto response_restarts = response_paths.restarts;
 
-    auto freqs = response_paths["frequencies"].get<std::vector<double>>();
-    auto output_paths = response_paths["output"].get<std::vector<std::string>>();
-    print("freqs: ", freqs);
+    print("freqs: ", config.frequencies);
     // Run the calculations
     bool last_converged = false;
     nlohmann::ordered_json beta_json;
@@ -712,12 +705,12 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
     beta_json["Beta"] = json::array();
 
     try {
-      auto num_freqs = freqs.size();
+      auto num_freqs = config.frequencies.size();
 
       if (world.rank() == 0) {
         ::print("Running quadratic response calculations");
       }
-      std::filesystem::current_path(moldft_path);
+      std::filesystem::current_path(calc_path);
       RHS_Generator rhs_generator;
       if (config.perturbation == "dipole") {
         rhs_generator = dipole_generator;
@@ -753,7 +746,8 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
       // auto calc_params = initialize_calc_params(world,
       // std::string("quad.in"));
       commandlineparser parser;
-      std::string moldft_archive = "moldft.restartdata";
+      auto moldft_archive = moldft_restart.replace_extension().string();
+
       GroundStateCalculation ground_calculation{world, moldft_archive};
       if (world.rank() == 0) {
         ground_calculation.print_params();
@@ -773,7 +767,8 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
           rhs_generator,
       };
 
-      num_freqs = (freqs.size() / 2) + 1;
+      auto freqs = config.frequencies;
+      num_freqs = (config.frequencies.size() / 2) + 1;
 
       for (int b = 0; b < num_freqs; b++) {
         for (int c = 0; c < num_freqs; c++) {
@@ -784,9 +779,9 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
           auto omega_b = freqs[b];
           auto omega_c = freqs[c];
 
-          auto restartA = restart_paths[b + c];
-          auto restartB = restart_paths[b];
-          auto restartC = restart_paths[c];
+          auto restartA = response_restarts[b + c];
+          auto restartB = response_restarts[b];
+          auto restartC = response_restarts[c];
 
           std::array<double, 3> omegas{omega_a, omega_b, omega_c};
           std::array<path, 3> restarts{restartA.replace_extension(""), restartB.replace_extension(""),
@@ -851,6 +846,15 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
       beta_json[key].insert(beta_json[key].end(), value.begin(), value.end());
     }
   }
+};
+
+// A finite difference startegy will manage it's own calc_manager
+class FiniteDifferenceStrategy : public CalculationStrategy, InputInterface {
+
+  std::string property;
+
+  FiniteDifferenceStrategy(const std::string& property, const std::vector<std::string>& inputs)
+      : property(property), InputInterface(inputs) {}
 };
 
 /**/
@@ -966,27 +970,23 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
 class CalcManager {
  private:
   CompositeCalculationStrategy strategies;
+  PathManager path_manager;
   path root;
 
  public:
   void addStrategy(std::unique_ptr<CalculationStrategy> newStrategy) { strategies.addStrategy(std::move(newStrategy)); }
-  json get_path_json() { return strategies.calcPaths(root); }
 
-  json runCalculations(World& world) {
-    json paths = strategies.calcPaths(root);
-    // output the paths to disk
-    if (world.rank() == 0) {
-      std::ofstream ofs("paths.json");
-      ofs << paths.dump(4);
-      ofs.close();
-    }
+  void runCalculations(World& world) {
 
+    strategies.setPaths(path_manager, root);
+
+    auto paths = path_manager.getAllPaths();
     if (world.rank() == 0) {
       print(paths.dump(4));
     }
 
-    strategies.compute(world, paths);
-    return paths;
+    path_manager.createDirectories();
+    strategies.compute(world, path_manager);
   }
 
   explicit CalcManager(path base_root = std::filesystem::current_path()) : root(std::move(base_root)) {
