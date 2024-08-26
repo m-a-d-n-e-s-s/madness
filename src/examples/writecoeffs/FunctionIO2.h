@@ -188,6 +188,7 @@ template <typename T, std::size_t NDIM> struct FunctionIOData {
     f.get_impl()->world.gop.fence();
   }
 
+  // write function coordinates for dim 1, 2, 3
   void initialize_func_coeffs(const Function<T, NDIM> &f,
                               const Key<NDIM> &key) {
     const Tensor<double> &cell_width = FunctionDefaults<NDIM>::get_cell_width();
@@ -221,25 +222,29 @@ template <typename T, std::size_t NDIM> struct FunctionIOData {
         nl.push_back(key_i);
         coords.push_back(std::vector<coordT>());
 
-        for (long i = 0; i < npts_per_box; i++) {
-          for (long j = 0; j < NDIM; j++) {
-            c[j]=cell(j,0)+h*cell_width[j] *(l[j]+qx)
+        if (NDIM == 1) {
+          for (long i = 0; i < k; ++i) {
+            c[0] = cell(0, 0) + h * cell_width[0] * (l[0] + qx(i)); // x
+            coords.back().push_back(c);
           }
-        }
-
-        if (NDIM == 3) {
+        } else if (NDIM == 2) {
           for (long i = 0; i < k; ++i) {
             c[0] = cell(0, 0) + h * cell_width[0] * (l[0] + qx(i)); // x
             for (long j = 0; j < k; ++j) {
               c[1] = cell(1, 0) + h * cell_width[1] * (l[1] + qx(j)); // y
-              for (long m = 0; m < k; ++m) {
-                c[2] = cell(2, 0) + h * cell_width[2] * (l[2] + qx(m)); // z
-                coords.back().push_back(c);
-              }
+              coords.back().push_back(c);
+            }
+          }
+        } else if (NDIM == 3) {
+          for (long j = 0; j < k; ++j) {
+            c[1] = cell(1, 0) + h * cell_width[1] * (l[1] + qx(j)); // y
+            for (long m = 0; m < k; ++m) {
+              c[2] = cell(2, 0) + h * cell_width[2] * (l[2] + qx(m)); // z
+              coords.back().push_back(c);
             }
           }
         } else {
-          MADNESS_EXCEPTION("only NDIM=3 in print_grid", 0);
+          MADNESS_EXCEPTION("only NDIM <= 3 in print_grid", 0);
         }
 
         std::vector<double> values_i(npts_per_box);
@@ -307,12 +312,12 @@ template <typename T, std::size_t NDIM> struct FunctionIOData {
 template <typename T, std::size_t NDIM>
 void to_json(json &j, const FunctionIOData<T, NDIM> &p) {
   j = json{{"npts_per_box", p.npts_per_box},
+           {"num_leaf_nodes", p.num_leaf_nodes},
            {"k", p.k},
            {"cell", p.cell},
-           {"num_leaf_nodes", p.num_leaf_nodes},
-           {"coords", p.coords},
            {"nl", p.nl},
            {"ndim", p.ndim},
+           {"coords", p.coords},
            {"values", p.values}};
 }
 
