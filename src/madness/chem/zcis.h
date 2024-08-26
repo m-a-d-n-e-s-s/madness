@@ -126,7 +126,7 @@ public:
 
 
 	Zcis(World& w, const commandlineparser& parser, std::shared_ptr<Znemo> n) : world(w), cis_param(world, parser), nemo(n),
-		Qa(world,nemo->amo,nemo->amo), Qb(world,nemo->bmo,nemo->bmo) {
+		Qa(nemo->amo,nemo->amo), Qb(nemo->bmo,nemo->bmo) {
 		cis_param.print("response","end");
 		print("Qa projector",Qa.get_ket_vector().size());
 		print("Qb projector",Qb.get_ket_vector().size());

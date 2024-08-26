@@ -17,11 +17,15 @@ namespace madness {
     class ProjectorBase {
     protected:
         /// a projector might work only on a subset of dimensions, e.g. P(1) | \psi(1,2) >
-        int particle=-1;
+        int particle=-1;        // must only be 0 or 1!
     public:
         virtual ~ProjectorBase() {}
-        virtual void set_particle(const int p) {particle=p;}
-        int get_particle() const {return particle;}
+        virtual void set_particle(const int p)
+        {
+            MADNESS_CHECK_THROW(p==0 or p==1, "particle must be 0 or 1");
+            particle=p;
+        }
+        virtual int get_particle() const {return particle;}
         virtual std::string type() const = 0;
     };
 
@@ -62,18 +66,35 @@ namespace madness {
 
         /// bra and ket spaces are not symmetric (e.g. |ket>^+ = <bra|R2 )
         Projector(const funcT& bra, const funcT& ket) : mo_ket_(vecfuncT(1,ket))
-                , mo_bra_(vecfuncT(1,bra)) {}
+                , mo_bra_(vecfuncT(1,bra)) {
+            MADNESS_CHECK_THROW(mo_bra_.size()==mo_ket_.size(), "bra and ket spaces must have the same size in projector");
+        }
 
         /// constructor with a set of orbitals to project out
 
         /// bra and ket spaces are symmetric
-        Projector(const vecfuncT& p) : mo_ket_(p), mo_bra_(p) {}
+        Projector(const vecfuncT& p) : mo_ket_(p), mo_bra_(p) {
+            MADNESS_CHECK_THROW(mo_bra_.size()==mo_ket_.size(), "bra and ket spaces must have the same size in projector");
+        }
 
         /// constructor with a set of orbitals to project out
 
         /// bra and ket spaces are not symmetric (e.g. |ket>^+ = <bra|R2 )
         Projector(const vecfuncT& bra, const vecfuncT& ket) : mo_ket_(ket),
-                mo_bra_(bra) {}
+                mo_bra_(bra) {
+            MADNESS_CHECK_THROW(mo_bra_.size()==mo_ket_.size(), "bra and ket spaces must have the same size in projector");
+        }
+
+    	void set_spaces(const vecfuncT& p) {
+            mo_bra_=p;
+            mo_ket_=p;
+        }
+
+        void set_spaces(const vecfuncT& bra, const vecfuncT& ket) {
+            mo_bra_=bra;
+            mo_ket_=ket;
+            MADNESS_CHECK_THROW(mo_bra_.size()==mo_ket_.size(), "bra and ket spaces must have the same size in projector");
+        }
 
         virtual std::string type() const override {return "PProjector";}
 
@@ -109,28 +130,37 @@ namespace madness {
         /// |result> = \sum_p |p(particle)> <p(particle)|f(1,2)>_{particle}
         /// \f]
         /// @param[in] f the 6D function to be projected
-        /// @param[in] the particle that is projected (1 or 2)
+        /// @param[in] the particle that is projected (0 or 1)
         /// @return the projected function
         template<std::size_t KDIM>
         typename std::enable_if<KDIM==2*NDIM, Function<T,KDIM> >::type
-        operator()(const Function<T,KDIM>& f, size_t particle1=size_t(-1)) const {
-            Function<T,KDIM> result = FunctionFactory<T,KDIM>(f.world());
-            if (particle1==size_t(-1)) particle1=particle;
-            MADNESS_CHECK_THROW(particle1 == 1 or particle1 == 2, "particle must be 1 or 2");
-            for (size_t i = 0; i < mo_ket_.size(); i++) {
-                Function<T,NDIM> tmp1 = mo_ket_[i];
-                Function<T,NDIM> tmp2 = f.project_out(mo_bra_[i], particle1 - 1);
-                Function<T,KDIM> tmp12;
-                if (particle1 == 1) {
-                    tmp12 = CompositeFactory<T, KDIM, NDIM>(f.world()).particle1(copy(tmp1)).particle2(copy(tmp2));
-                    tmp12.fill_tree();
-                } else {
-                    tmp12 = CompositeFactory<T, KDIM, NDIM>(f.world()).particle1(copy(tmp2)).particle2(copy(tmp1));
-                    tmp12.fill_tree();
-                }
-                result += tmp12;
+        operator()(const Function<T,KDIM>& f, int particle1=-1) const {
+            if (particle1==-1) particle1=get_particle();
+            MADNESS_CHECK_THROW(particle1 == 0 or particle1 == 1, "particle must be 0 or 1");
+            auto [left,right]=get_vectors_for_outer_product(f);
+            return hartree_product(left,right);
+        }
+
+        /// apply the projection parts of the operator on a function f
+
+        /// The operator applied on f(1,2) is
+        ///  O(1)f(1,2) = \sum_i |i(1) > <i(1) | f(1,2)>_1 = \sum_i |i(1) f_i(2)>
+        /// return the lo-dim vectors i and f_i only, perform no outer product
+        std::pair<std::vector<Function<T,NDIM>>,std::vector<Function<T,NDIM>>>
+        get_vectors_for_outer_product(const Function<T,2*NDIM>& f) const {
+            World& world=f.world();
+            reconstruct(world, mo_bra_, false);
+            f.reconstruct(false);
+            reconstruct(world, mo_ket_, true);
+            std::vector<Function<T,NDIM>> projected;
+            for (const auto& i : mo_bra_) {
+                projected.push_back(f.project_out(i,particle));
             }
-            return result;
+            if (particle==0) return std::make_pair(mo_ket_,projected);
+            else if (particle==1) return std::make_pair(projected,mo_ket_);
+            else {
+                MADNESS_EXCEPTION("confused particles in Projector::get_vector_for_outer_products",1);
+            }
         }
 
         template<typename argT>
@@ -162,16 +192,31 @@ namespace madness {
         QProjector() = default;
 
         /// constructor with symmetric bra and ket spaces
-        QProjector(World& world, const vecfuncT& amo) : O(amo) {};
+        [[deprecated]] QProjector(World& world, const vecfuncT& amo) : O(amo) {};
 
         /// constructor with asymmetric bra and ket spaces
-        QProjector(World& world, const vecfuncT& bra, const vecfuncT& ket)
+        [[deprecated]] QProjector(World& world, const vecfuncT& bra, const vecfuncT& ket)
+            : O(bra,ket) {};
+
+        /// constructor with symmetric bra and ket spaces
+        QProjector(const vecfuncT& amo) : O(amo) {};
+
+        /// constructor with asymmetric bra and ket spaces
+        QProjector(const vecfuncT& bra, const vecfuncT& ket)
             : O(bra,ket) {};
 
         /// copy ctor
         QProjector(const QProjector& other) = default;
 
         std::string type() const override {return "QProjector";}
+
+        void set_spaces(const vecfuncT& p) {
+            O.set_spaces(p);
+        }
+
+        void set_spaces(const vecfuncT& bra, const vecfuncT& ket) {
+            O.set_spaces(bra,ket);
+        }
 
         Function<T,NDIM> operator()(const Function<T,NDIM>& rhs) const {
             return (rhs-O(rhs)).truncate();
@@ -184,7 +229,7 @@ namespace madness {
             return result;
         }
 
-        Function<T,2*NDIM> operator()(const Function<T,2*NDIM>& f, const size_t particle) const {
+        Function<T,2*NDIM> operator()(const Function<T,2*NDIM>& f, const size_t particle=-1) const {
             return f-O(f,particle);
         }
 
@@ -200,8 +245,12 @@ namespace madness {
         Projector<T,NDIM> get_P_projector() const {return O;}
 
         void set_particle(const int p) override {
-            particle=p;
             O.set_particle(p);
+            particle=p;
+        }
+
+        int get_particle() const override {
+            return O.get_particle();
         }
 
     private:
@@ -249,6 +298,8 @@ namespace madness {
     		bra1_=bra1;
     		ket2_=ket2;
     		bra2_=bra2;
+            MADNESS_CHECK_THROW(ket1.size()==bra1.size(), "bra1 and ket1 spaces must have the same size in SOprojector");
+            MADNESS_CHECK_THROW(ket2.size()==bra2.size(), "bra2 and ket2 spaces must have the same size in SOprojector");
     	}
 
     	/// return the orbital space for the ket of particle 1
@@ -367,6 +418,45 @@ namespace madness {
         std::vector<Function<T,NDIM> > ket1_, bra1_, ket2_, bra2_;
 
     };
+
+
+    /// an outer product of two projectors
+    template<typename projT, typename projQ>
+    class OuterProjector : public ProjectorBase {
+        projT projector0;
+        projQ projector1;
+    public:
+
+        OuterProjector() = default;
+        OuterProjector(const projT& p0, const projQ& p1) : projector0(p0), projector1(p1) {
+            static_assert(std::is_base_of<ProjectorBase,projT>::value, "projT must be a ProjectorBase");
+            static_assert(std::is_base_of<ProjectorBase,projQ>::value, "projQ must be a ProjectorBase");
+            projector0.set_particle(0);
+            projector1.set_particle(1);
+        }
+
+        std::string type() const override {
+            return "OuterProjector";
+        }
+
+        template<typename resultT>
+        resultT operator()(const resultT& argument) const {
+
+            if (projector0.type()=="PProjector") return projector1(projector0(argument));
+            return projector0(projector1(argument));
+        }
+    };
+
+//    template<typename projT, typename projQ>
+//    OuterProjector<projT, projQ> outer(const projT& p0 , const projQ& p1) {
+//        return OuterProjector<projT, projQ>(p0, p1);
+//    }
+
+    template<typename projT, typename projQ>
+    typename std::enable_if<std::is_base_of<ProjectorBase,projT>::value, OuterProjector<projT,projQ>>::type
+    outer(const projT& p0 , const projQ& p1) {
+        return OuterProjector<projT, projQ>(p0, p1);
+    }
 }
 
 #endif /* PROJECTOR_H_ */

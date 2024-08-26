@@ -196,6 +196,31 @@ int test_constructor(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf
 }
 
 template<typename T, std::size_t NDIM>
+int test_norm(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, data<T,NDIM>& data,
+                     const CCParameters& parameter) {
+    test_output t1("norm of <T,"+std::to_string(NDIM)+">");
+
+    auto [p1,p2,p3,p4,p5]=data.get_ccpairfunctions();  // p2-p5 correspond to f230
+    for (const CCPairFunction<T,NDIM>& p : {p2,p3,p4,p5}) {
+        double n=p.norm2();
+        print("norm of ",p.name(),n);
+        double n1=sqrt(inner(p,p));
+        print("inner",n1);
+        t1.checkpoint(n,n1,FunctionDefaults<NDIM>::get_thresh(),"norm of p");
+    }
+
+    double n2=p2.norm2();
+    double n3=p3.norm2();
+    double n4=p4.norm2();
+    double n5=p5.norm2();
+    t1.checkpoint(n2,n4,FunctionDefaults<NDIM>::get_thresh(),"norm of p2/4");
+    t1.checkpoint(n3,n5,FunctionDefaults<NDIM>::get_thresh(),"norm of p3/5");
+
+    return t1.end();
+
+}
+
+template<typename T, std::size_t NDIM>
 int test_load_store(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, data<T,NDIM>& data,
                      const CCParameters& parameter) {
     test_output t1("load/store of <T,"+std::to_string(NDIM)+">");
@@ -1133,7 +1158,7 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
     std::vector<CCPairFunction<T,NDIM>> vp3({p3});
 
     Projector<T,LDIM> O(o,o);
-    QProjector<T,LDIM> Q(world,o,o);
+    QProjector<T,LDIM> Q(o,o);
     StrongOrthogonalityProjector<T,LDIM> Q12(world);
     Q12.set_spaces(o);
 
@@ -1151,7 +1176,10 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
         O.set_particle(0);
         {
             double ref=inner({CCPairFunction<T,NDIM>({of1},{f2})},vp[i]);
-            double result=inner({CCPairFunction<T,NDIM>({f1},{f2})},O(vp[i]));
+            auto tmp=O(vp[i]);
+            t1.checkpoint(tmp.size()==1,"vector size correct");
+            t1.checkpoint(tmp[0].is_decomposed(),"O(argument) is decomposed");
+            double result=inner({CCPairFunction<T,NDIM>({f1},{f2})},tmp);
             t1.checkpoint(result,ref,thresh,"O1 p"+std::to_string(i));
         }
 
@@ -1159,7 +1187,10 @@ int test_projector(World& world, std::shared_ptr<NuclearCorrelationFactor> ncf, 
         O.set_particle(1);
         {
             double ref=inner({CCPairFunction<T,NDIM>({f1},{of2})},vp[i]);
-            double result=inner({CCPairFunction<T,NDIM>({f1},{f2})},O(vp[i]));
+            auto tmp=O(vp[i]);
+            t1.checkpoint(tmp.size()==1,"vector size correct");
+            t1.checkpoint(tmp[0].is_decomposed(),"O(argument) is decomposed");
+            double result=inner({CCPairFunction<T,NDIM>({f1},{f2})},tmp);
             t1.checkpoint(result,ref,thresh,"O2 p"+std::to_string(i));
         }
         // Q1
@@ -1315,20 +1346,21 @@ int main(int argc, char **argv) {
         auto data4=data<double,4>(world,ccparam);
         auto data6=data<double,6>(world,ccparam);
 
-//        isuccess+=test_constructor<double,2>(world, ncf, data2, ccparam);
-//        isuccess+=test_load_store<double,2>(world,ncf,data2,ccparam);
-//        isuccess+=test_operator_apply<double,2>(world, ncf, data2, ccparam);
-//        isuccess+=test_transformations<double,2>(world, ncf, data2, ccparam);
-//        isuccess+=test_multiply_with_f12<double,2>(world, ncf, data2, ccparam);
-//        isuccess+=test_inner<double,2>(world, ncf, data2, ccparam);
-//        isuccess+=test_multiply<double,2>(world, ncf, data2, ccparam);
-//        isuccess+=test_swap_particles<double,2>(world, ncf, data2, ccparam);
-//        isuccess+=test_scalar_multiplication<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_constructor<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_load_store<double,2>(world,ncf,data2,ccparam);
+        isuccess+=test_operator_apply<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_norm<double,2>(world,ncf,data2,ccparam);
+        isuccess+=test_transformations<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_multiply_with_f12<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_inner<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_multiply<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_swap_particles<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_scalar_multiplication<double,2>(world, ncf, data2, ccparam);
         isuccess+=test_projector<double,2>(world, ncf, data2, ccparam);
-        // isuccess+=test_partial_inner_3d<double,2>(world, ncf, data2, ccparam);
-        // isuccess+=test_partial_inner_6d<double,2>(world, ncf, data2, ccparam);
-        // isuccess+=test_apply<double,2>(world, ncf, data2, ccparam);
-        // isuccess+=test_consolidate<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_partial_inner_3d<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_partial_inner_6d<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_apply<double,2>(world, ncf, data2, ccparam);
+        isuccess+=test_consolidate<double,2>(world, ncf, data2, ccparam);
 
 
 //        isuccess+=test_constructor<double,4>(world, ncf, data4, ccparam);

@@ -53,6 +53,7 @@ namespace madness {
 
         /// Wraps an archive around an STL \c vector for output.
         class VectorOutputArchive : public BaseOutputArchive {
+        public:
             mutable std::vector<unsigned char>* v; ///< The STL vector being wrapped.
 
         public:
@@ -141,6 +142,40 @@ namespace madness {
 
             /// Close the archive.
             void close() {}
+        };
+
+        /// Implementation of functions for storing the pre/postamble in Vector archives.
+
+        /// \attention No type checking over Vector buffers, for efficiency.
+        /// \tparam T The data type.
+        template <class T>
+        struct ArchivePrePostImpl<VectorOutputArchive,T> {
+            /// Store the preamble.
+
+            /// \param[in] ar The archive.
+            static void preamble_store(const VectorOutputArchive& ar) {};
+
+            /// Store the postamble.
+
+            /// \param[in] ar The archive.
+            static inline void postamble_store(const VectorOutputArchive& ar) {};
+        };
+
+        /// Implementation of functions for loading the pre/postamble in Vector archives.
+
+        /// \attention No type checking over Vector buffers, for efficiency.
+        /// \tparam T The data type.
+        template <class T>
+        struct ArchivePrePostImpl<VectorInputArchive,T> {
+            /// Load the preamble.
+
+            /// \param[in] ar The archive.
+            static inline void preamble_load(const VectorInputArchive& ar) {};
+
+            /// Load the postamble.
+
+            /// \param[in] ar The archive.
+            static inline void postamble_load(const VectorInputArchive& ar) {};
         };
 
         /// @}

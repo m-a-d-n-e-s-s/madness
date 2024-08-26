@@ -154,7 +154,7 @@ void TDHF::prepare_calculation() {
 
     mo_ket_ = make_mo_ket(get_calc()->amo);
     mo_bra_ = make_mo_bra(get_calc()->amo);
-    Q = QProjector(world, mo_bra_.get_vecfunction(), mo_ket_.get_vecfunction());
+    Q = QProjector( mo_bra_.get_vecfunction(), mo_ket_.get_vecfunction());
 
     if (not parameters.no_compute()) {
 
