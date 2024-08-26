@@ -221,12 +221,18 @@ template <typename T, std::size_t NDIM> struct FunctionIOData {
         nl.push_back(key_i);
         coords.push_back(std::vector<coordT>());
 
+        for (long i = 0; i < npts_per_box; i++) {
+          for (long j = 0; j < NDIM; j++) {
+            c[j]=cell(j,0)+h*cell_width[j] *(l[j]+qx)
+          }
+        }
+
         if (NDIM == 3) {
-          for (size_t i = 0; i < k; ++i) {
+          for (long i = 0; i < k; ++i) {
             c[0] = cell(0, 0) + h * cell_width[0] * (l[0] + qx(i)); // x
-            for (size_t j = 0; j < k; ++j) {
+            for (long j = 0; j < k; ++j) {
               c[1] = cell(1, 0) + h * cell_width[1] * (l[1] + qx(j)); // y
-              for (size_t m = 0; m < k; ++m) {
+              for (long m = 0; m < k; ++m) {
                 c[2] = cell(2, 0) + h * cell_width[2] * (l[2] + qx(m)); // z
                 coords.back().push_back(c);
               }

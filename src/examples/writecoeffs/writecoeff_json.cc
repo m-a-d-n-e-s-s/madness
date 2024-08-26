@@ -1,4 +1,4 @@
-#include <FunctionIO.h>
+#include <FunctionIO2.h>
 #include <iostream>
 #include <madness/mra/mra.h>
 #include <memory>
@@ -29,30 +29,32 @@ void test(World &world) {
   functionT fun = factoryT(world).f(f);
   fun.truncate();
 
-  auto leafnodes = FunctionIO<double, D>::count_leaf_nodes(fun);
-  if (world.rank() == 0) {
-    print("fun: num leaf nodes: ", leafnodes);
-  }
-
   {
     double norm = fun.norm2();
     if (world.rank() == 0)
       std::cout << "norm = " << norm << std::endl;
-    std::ofstream out("fun.dat", std::ios::out);
+    std::ofstream out("fun.json", std::ios::out);
+    json j_fun;
+    to_json(j_fun, FunctionIOData<double, D>(fun));
+    out << j_fun.dump(2);
+    out.close();
     fio::write_function(fun, out);
     out.close();
-    // fun.print_tree();
   }
 
   {
-    std::ifstream in("fun.dat", std::ios::in);
-    functionT fun2 = fio::read_function(world, in);
+    std::ifstream in("fun.json", std::ios::in);
+    json j_read;
+    in >> j_read;
+    auto j_read_data = j_read.get<FunctionIOData<double, D>>();
+    auto fun2 = j_read_data.create_function(world);
+
     double norm = fun2.norm2();
     if (world.rank() == 0)
       std::cout << "norm = " << norm << std::endl;
-    // write_function(fun2,std::cout);
-    // fun2.print_tree();
+
     double err = (fun - fun2).norm2();
+
     if (world.rank() == 0)
       std::cout << "error = " << err << std::endl;
   }
@@ -63,9 +65,6 @@ int main(int argc, char **argv) {
   startup(world, argc, argv);
   std::cout.precision(6);
 
-  FunctionDefaults<D>::set_k(k);
-  FunctionDefaults<D>::set_thresh(thresh);
-  FunctionDefaults<D>::set_refine(true);
   FunctionDefaults<D>::set_initial_level(2);
   FunctionDefaults<D>::set_truncate_mode(0);
   FunctionDefaults<D>::set_cubic_cell(-L / 2, L / 2);
