@@ -571,6 +571,7 @@ void SCF::make_nuclear_potential(World& world) {
     if (!molecule.parameters.psp_calc()) {
         potentialmanager->make_nuclear_potential(world);
     }
+    potentialmanager->vnuclear().print_size("vnuc");
     END_TIMER(world, "Project vnuclear");
 }
 
