@@ -30,13 +30,12 @@
 */
 
 #include "calc_manager.hpp"
-#include "madchem.h"
 
 #include <madness/chem/SCF.h>
 #include <madness/chem/molopt.h>
 #include <madness/misc/info.h>
 #include <madness/world/worldmem.h>
-#include "madness/mra/commandlineparser.h"
+#include "calc_factory.hpp"
 #include "parameter_manager.hpp"
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
@@ -87,8 +86,29 @@ int main(int argc, char** argv) {
 
       commandlineparser parser(argc, argv);
       ParameterManager params;
-      std::string model_type="dft";
-      std::string output_type="Hyperpolarizability";
+      // Initialize the necessary components
+      Molecule molecule;  // Initialize your molecule here
+      params = ParameterManager(world, {"input.json"});
+
+      // Define the properties to be calculated for each model
+      property_map properties;
+
+      // Example: Setting up properties for Moldft
+      properties["moldft"] = {{"energy", true}, {"gradient", false}, {"dipole", true}};
+
+      // Example: Setting up properties for Response
+      properties["response"] = {{"alpha", true}, {"beta", true}, {"shg", false}};
+
+      // Choose the model name
+      std::string model_name = "response";  // This could be "moldft", "MP2", "CIS", etc.
+
+      // Create the CalcManager using the factory function
+      auto calc_manager = createCalcManager(model_name, params, properties);
+
+      // Run the calculations
+      calc_manager->runCalculations(world);
+
+      std::cout << "Calculations completed successfully." << std::endl;
 
       if (parser.key_exists("help")) {
         ParameterManager::help();

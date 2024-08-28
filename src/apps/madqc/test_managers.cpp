@@ -3,6 +3,7 @@
 
 #include <filesystem>
 #include "calc_manager.hpp"
+#include "calc_strats.hpp"
 #include "madness/external/catch/catch.hpp"
 #include "parameter_manager.hpp"
 
