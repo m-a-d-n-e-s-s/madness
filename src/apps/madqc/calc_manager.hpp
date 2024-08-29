@@ -758,60 +758,78 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
       num_freqs = (config.frequencies.size() / 2) + 1;
 
       bool compute_beta = true;
+      if (world.rank() == 0) {
+        print(beta_outpath);
+      }
       // Read in beta.json if it exists
-      if (std::filesystem::exists("beta.json")) {
-        std::ifstream ifs("beta.json");
-        ifs >> beta_json;
 
-        auto total_num_freqs = num_freqs * num_freqs;
-
-        if (beta_json["Afreq"].size() == total_num_freqs) {
-          if (world.rank() == 0) {
-            ::print("Beta values have already been computed");
-          }
-          compute_beta = false;
+      if (std::filesystem::exists(beta_outpath)) {
+        compute_beta = false;
+        if (world.rank() == 0) {
+          ::print("Beta values have already been computed");
+          ::print("If you want to recompute beta values, delete the beta.json file at ", beta_outpath);
         }
       }
 
-      for (int b = 0; b < num_freqs; b++) {
-        for (int c = 0; c < num_freqs; c++) {
+      /*  std::ifstream ifs(beta_outpath);*/
+      /*  ifs >> beta_json;*/
+      /**/
+      /*  //TODO: this logic only works for dipole  need to generalize and make logic to figure out where to restart from*/
+      /*  auto num_elements = (num_freqs * (num_freqs - 1)) * 27;*/
+      /*  if (world.rank() == 0) {*/
+      /*    print("total_num_elements: ", num_elements);*/
+      /*    auto num_beta = beta_json["Afreq"].size();*/
+      /*    print("num_beta: ", num_beta);*/
+      /*  }*/
+      /**/
+      /*  if (beta_json["Afreq"].size() == num_elements) {*/
+      /*    if (world.rank() == 0) {*/
+      /*      ::print("Beta values have already been computed");*/
+      /*    }*/
+      /*    compute_beta = false;*/
+      /*  }*/
+      /*}*/
+      if (compute_beta) {
 
-          ::print(world.rank(), "b = ", b, " c = ", c);
+        for (int b = 0; b < num_freqs; b++) {
+          for (int c = 0; c < num_freqs; c++) {
 
-          auto omega_a = freqs[b + c];
-          auto omega_b = freqs[b];
-          auto omega_c = freqs[c];
+            ::print(world.rank(), "b = ", b, " c = ", c);
 
-          auto restartA = response_restarts[b + c];
-          auto restartB = response_restarts[b];
-          auto restartC = response_restarts[c];
+            auto omega_a = freqs[b + c];
+            auto omega_b = freqs[b];
+            auto omega_c = freqs[c];
 
-          std::array<double, 3> omegas{omega_a, omega_b, omega_c};
-          std::array<path, 3> restarts{restartA.replace_extension(""), restartB.replace_extension(""),
-                                       restartC.replace_extension("")};
+            auto restartA = response_restarts[b + c];
+            auto restartB = response_restarts[b];
+            auto restartC = response_restarts[c];
 
-          quad_calculation.set_x_data(world, omegas, restarts);
-          auto [beta, beta_directions] = quad_calculation.compute_beta_v2(world, omega_b, omega_c);
+            std::array<double, 3> omegas{omega_a, omega_b, omega_c};
+            std::array<path, 3> restarts{restartA.replace_extension(""), restartB.replace_extension(""),
+                                         restartC.replace_extension("")};
 
-          if (world.rank() == 0) {
-            ::print("Beta values for omega_A", " = -(omega_", b, " + omega_", c, ") = -", omega_a, " = (", omega_b,
-                    " + ", omega_c, ")");
-            {
-              for (int i = 0; i < beta_directions.size(); i++) {
-                std::cout << std::fixed << std::setprecision(5) << "i = " << i + 1 << ", beta[" << beta_directions[i]
-                          << "]" << " = " << beta[i] << std::endl;
+            quad_calculation.set_x_data(world, omegas, restarts);
+            auto [beta, beta_directions] = quad_calculation.compute_beta_v2(world, omega_b, omega_c);
+
+            if (world.rank() == 0) {
+              ::print("Beta values for omega_A", " = -(omega_", b, " + omega_", c, ") = -", omega_a, " = (", omega_b,
+                      " + ", omega_c, ")");
+              {
+                for (int i = 0; i < beta_directions.size(); i++) {
+                  std::cout << std::fixed << std::setprecision(5) << "i = " << i + 1 << ", beta[" << beta_directions[i]
+                            << "]" << " = " << beta[i] << std::endl;
+                }
+              }
+              append_to_beta_json({-1.0 * omega_a, omega_b, omega_c}, beta_directions, beta, beta_json);
+              std::ofstream outfile("beta.json");
+              if (outfile.is_open()) {
+                outfile << beta_json.dump(4);
+                outfile.close();
               }
             }
-            append_to_beta_json({-1.0 * omega_a, omega_b, omega_c}, beta_directions, beta, beta_json);
-            std::ofstream outfile("beta.json");
-            if (outfile.is_open()) {
-              outfile << beta_json.dump(4);
-              outfile.close();
-            }
           }
         }
-      }
-    } catch (Response_Convergence_Error& e) {
+      }     } catch (Response_Convergence_Error& e) {
       if (world.rank() == 0) {
         ::print(
             "First order response calculations haven't been run and "
