@@ -38,28 +38,25 @@
 #include <filesystem>
 namespace madness {
 
-    void write_molecules_to_file(const Molecule &molecule, const std::string &geo_file);
-    void do_response_orbital_vtk_plots(World &world, int npt_plot, double L, const Molecule &molecule,
-                                       const vector_real_function_3d &ground_orbs,
-                                       const response_matrix &responseMatrix);
-    void do_response_density_vtk_plots(World &world, int npt_plot, double L, const Molecule &molecule,
-                                       const real_function_3d &ground_density,
-                                       const vector_real_function_3d &response_density);
+void write_molecules_to_file(const Molecule& molecule, const std::string& geo_file, const double& scale = 1.0);
+void do_response_orbital_vtk_plots(World& world, int npt_plot, double L, const Molecule& molecule,
+                                   const vector_real_function_3d& ground_orbs, const response_matrix& responseMatrix);
+void do_response_density_vtk_plots(World& world, int npt_plot, double L, const Molecule& molecule,
+                                   const real_function_3d& ground_density,
+                                   const vector_real_function_3d& response_density);
 
-    void do_response_density_vtk_plots_new(World &world, int npt_plot, double L, const Molecule &molecule,
-                                           const real_function_3d &ground_density,
-                                           const vector_real_function_3d &response_density);
-    void do_vtk_plots(World &world, int npt_plot, double L, int lowest_orbital, int highest_orbital,
-                      const Molecule &molecule, std::vector<real_function_3d> densities, const std::string &name);
+void do_response_density_vtk_plots_new(World& world, int npt_plot, double L, const Molecule& molecule,
+                                       const real_function_3d& ground_density,
+                                       const vector_real_function_3d& response_density, const std::string& name);
+void do_vtk_plots(World& world, int npt_plot, double L, int lowest_orbital, int highest_orbital,
+                  const Molecule& molecule, std::vector<real_function_3d> densities, const std::string& name);
 
-    void do_vtk_plots(World &world, int npt_plot, double L, Molecule molecule, real_function_3d &rho_0,
-                      std::vector<real_function_3d> &rho_omega, std::vector<real_function_3d> &ground_orbitals,
-                      X_space &Chi);
+void do_vtk_plots(World& world, int npt_plot, double L, Molecule molecule, real_function_3d& rho_0,
+                  std::vector<real_function_3d>& rho_omega, std::vector<real_function_3d>& ground_orbitals,
+                  X_space& Chi);
 
-
-}// namespace madness
+}  // namespace madness
 #endif
 #endif
 #endif
-#endif// SRC_APPS_molresponse_PLOT_VTK_H_
-
+#endif  // SRC_APPS_molresponse_PLOT_VTK_H_

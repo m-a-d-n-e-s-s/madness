@@ -138,7 +138,6 @@ tensorT Q2(const tensorT& s) {
     return Q;
 }
 
-}// namespace madness
 void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
                                  const tensorT &dipole_T) const {
     nlohmann::json j = {};
@@ -1324,6 +1323,10 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 	if (param.hfexalg()=="multiworld") {
 	  //if (world.rank() == 0) print("selecting exchange multi world");
 	  K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient);
+	}
+	else if (param.hfexalg()=="multiworld_row") {
+	  //if (world.rank() == 0) print("selecting exchange multi world row");
+	  K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient_row);
 	}
 	else if (param.hfexalg()=="largemem") {
 	  //if (world.rank() == 0) print("selecting exchange large memory");
