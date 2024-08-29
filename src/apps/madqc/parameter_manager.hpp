@@ -85,7 +85,8 @@ class ParameterManager {
   void input_from_json(const json& j) {
     if (j.contains("task")) {
       all_input_json["task"] = j["task"];
-      task_params.from_json(j["task"]);
+      json& j = all_input_json["task"];
+      task_params = j.get<TaskParameters>();
     }
     if (j.contains("dft")) {
       all_input_json["dft"] = j["dft"];
@@ -112,17 +113,17 @@ class ParameterManager {
   void read_input_file(World& world, const path& input_file) {
     parser.set_keyval("input", input_file.string());
 
-    task_params = TaskParameters(world, this->parser);
-    if (world.rank() == 0) {
-      task_params.print();
-    }
-    auto task_json = task_params.to_json_if_precedence("defined");
-    if (world.rank() == 0) {
-      print("Task json: ", task_json.dump(4));
-    }
-    if (!task_json.is_null()) {
-      all_input_json["task"] = task_json;
-    }
+    /*task_params = TaskParameters(world, this->parser);*/
+    /*if (world.rank() == 0) {*/
+    /*  task_params.print();*/
+    /*}*/
+    /*auto task_json = task_params.to_json_if_precedence("defined");*/
+    /*if (world.rank() == 0) {*/
+    /*  print("Task json: ", task_json.dump(4));*/
+    /*}*/
+    /*if (!task_json.is_null()) {*/
+    /*  all_input_json["task"] = task_json;*/
+    /*}*/
 
     moldft_params = CalculationParameters(world, this->parser);
     // keeps a json version of the inputs
@@ -234,6 +235,7 @@ class ParameterManager {
   }
 
   [[nodiscard]] json get_input_json() const { return all_input_json; }
+  [[nodiscard]] auto get_task_params() const -> const TaskParameters& { return task_params; }
 
   [[nodiscard]] auto get_moldft_params() const -> const CalculationParameters& { return moldft_params; }
   [[nodiscard]] auto get_molresponse_params() const -> const ResponseParameters& { return molresponse_params; }

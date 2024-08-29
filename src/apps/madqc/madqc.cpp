@@ -90,21 +90,26 @@ int main(int argc, char** argv) {
       Molecule molecule;  // Initialize your molecule here
       params = ParameterManager(world, {"input.json"});
 
-      // Define the properties to be calculated for each model
-      property_map properties;
+      auto task_params = params.get_task_params();
 
-      // Example: Setting up properties for Moldft
-      properties["moldft"] = {{"energy", true}, {"gradient", false}, {"dipole", true}};
-
-      // Example: Setting up properties for Response
-      properties["response"] = {{"alpha", true}, {"beta", true}, {"shg", false}};
-
-      // Choose the model name
-      std::string model_name = "response";  // This could be "moldft", "MP2", "CIS", etc.
+      auto method = task_params.method;
+      auto driver = task_params.driver;
+      auto properties = task_params.properties;
 
       // Create the CalcManager using the factory function
-      auto calc_manager = createCalcManager(model_name, params, properties);
-
+      // if driver is energy use createCalcManager
+      // if driver is optimmize use createOptimizeManager
+      // if driver is custom use createCustomManager
+      std::unique_ptr<CalcManager> calc_manager;
+      if (driver == "energy") {
+        calc_manager = createCalcManager(method, params, properties);
+      } else if (driver == "optimize") {
+        throw std::runtime_error("Optimization not implemented yet");
+      } else if (driver == "custom") {
+        throw std::runtime_error("Custom driver not implemented yet");
+      } else {
+        throw std::runtime_error("Invalid driver");
+      }
       // Run the calculations
       calc_manager->runCalculations(world);
 
