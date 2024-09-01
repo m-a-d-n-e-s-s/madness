@@ -29,16 +29,8 @@
   fax:   865-572-0680
 */
 
-#include "calc_manager.hpp"
-
-#include <madness/chem/SCF.h>
-#include <madness/chem/molopt.h>
-#include <madness/misc/info.h>
-#include <madness/world/worldmem.h>
-#include "calc_factory.hpp"
-#include "parameter_manager.hpp"
-
-#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
+    defined(HAVE_UNISTD_H)
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -51,6 +43,12 @@
 // }
 
 #endif
+
+#include <madness/misc/info.h>
+#include <madness/world/worldmem.h>
+#include "madqc/calc_factory.hpp"
+#include "madqc/calc_manager.hpp"
+#include "madqc/parameter_manager.hpp"
 
 using namespace madness;
 
@@ -70,7 +68,6 @@ static void END_TIMER(World& world, const char* msg) {
 }
 
 int main(int argc, char** argv) {
-
   World& world = initialize(argc, argv);
   if (world.rank() == 0) {
     print_header1("MADQC -- Multiresolution Quantum Chemsitry Code ");

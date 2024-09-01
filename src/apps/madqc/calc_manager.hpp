@@ -1,9 +1,9 @@
 #ifndef CALC_MANAGER_HPP
 #define CALC_MANAGER_HPP
 
-#include <madchem.h>
+//#include <madchem.h>
 #include <madness/chem/CalculationParameters.h>
-#include <madness/chem/SCF.h>
+//#include <madness/chem/SCF.h>
 #include <madness/chem/molecule.h>
 #include <apps/molresponse/FrequencyResponse.hpp>
 #include <apps/molresponse/ResponseExceptions.hpp>
@@ -40,7 +40,9 @@ struct CalculationTemplate {
 };
 
 inline void to_json(json& j, const CalculationTemplate& p) {
-  j = json{{"calculations", p.calc_paths}, {"restarts", p.restarts}, {"outputs", p.outputs}};
+  j = json{{"calculations", p.calc_paths},
+           {"restarts", p.restarts},
+           {"outputs", p.outputs}};
 }
 
 inline void from_json(const json& j, CalculationTemplate& p) {
@@ -59,9 +61,13 @@ class PathManager {
   json path_data = {};
 
  public:
-  void setPath(const std::string& key, const CalculationTemplate& value) { path_data[key] = value; }
+  void setPath(const std::string& key, const CalculationTemplate& value) {
+    path_data[key] = value;
+  }
 
-  CalculationTemplate getPath(const std::string& key) { return path_data[key].get<CalculationTemplate>(); }
+  CalculationTemplate getPath(const std::string& key) {
+    return path_data[key].get<CalculationTemplate>();
+  }
 
   [[nodiscard]] json getAllPaths() const { return path_data; }
 
@@ -100,7 +106,8 @@ class InputInterface {
   vector<std::string> input_names;
 
  public:
-  explicit InputInterface(const std::vector<std::string>& names) : input_names(names) {}
+  explicit InputInterface(const std::vector<std::string>& names)
+      : input_names(names) {}
 };
 
 class CalculationStrategy {
@@ -109,8 +116,10 @@ class CalculationStrategy {
   virtual void compute(World& world, PathManager& path_manager) = 0;
   virtual ~CalculationStrategy() = default;
 
-  CalculationStrategy(std::string calc_name, std::map<std::string, bool> properties)
-      : name(std::move(calc_name)), requested_properties(std::move(properties)){};
+  CalculationStrategy(std::string calc_name,
+                      std::map<std::string, bool> properties)
+      : name(std::move(calc_name)),
+        requested_properties(std::move(properties)){};
   CalculationStrategy() = default;
 
  protected:
@@ -123,7 +132,9 @@ class CompositeCalculationStrategy : public CalculationStrategy {
   std::vector<std::unique_ptr<CalculationStrategy>> strategies;
 
  public:
-  void addStrategy(std::unique_ptr<CalculationStrategy> strategy) { strategies.push_back(std::move(strategy)); }
+  void addStrategy(std::unique_ptr<CalculationStrategy> strategy) {
+    strategies.push_back(std::move(strategy));
+  }
 
   void setPaths(PathManager& path_manager, const path& root) override {
 
@@ -146,12 +157,15 @@ class MoldftCalculationStrategy : public CalculationStrategy {
   json paths;
   path output_path;
 
-  std::vector<std::string> available_properties = {"energy", "gradient", "dipole"};
+  std::vector<std::string> available_properties = {"energy", "gradient",
+                                                   "dipole"};
 
  public:
   // Notice here that I am passing the parameters of the calculation as well as name
-  MoldftCalculationStrategy(const CalculationParameters& params, Molecule mol, std::string calc_name = "moldft",
-                            std::map<std::string, bool> properties = {{"energy", true}})
+  MoldftCalculationStrategy(const CalculationParameters& params, Molecule mol,
+                            std::string calc_name = "moldft",
+                            std::map<std::string, bool> properties = {{"energy",
+                                                                       true}})
       : parameters(params),
         molecule(std::move(mol)),
         CalculationStrategy(std::move(calc_name), std::move(properties)){};
@@ -180,8 +194,10 @@ class MoldftCalculationStrategy : public CalculationStrategy {
     if (world.rank() == 0)
       moldft_paths.print();
     // Get the paths from the json object
-    auto moldft_path = moldft_paths.calc_paths[0];  // get the first path which is the only path
-    auto restart_path = moldft_paths.restarts[0];   //
+    auto moldft_path =
+        moldft_paths
+            .calc_paths[0];  // get the first path which is the only path
+    auto restart_path = moldft_paths.restarts[0];  //
     path calc_info_path = moldft_paths.outputs["calc_info"][0];
     // Set the current path to the moldft path
     std::filesystem::current_path(moldft_path);
@@ -195,13 +211,15 @@ class MoldftCalculationStrategy : public CalculationStrategy {
     }
 
     // if restart and calc_info exists the read the calc_info json
-    if (std::filesystem::exists(restart_path) && std::filesystem::exists(calc_info_path)) {
+    if (std::filesystem::exists(restart_path) &&
+        std::filesystem::exists(calc_info_path)) {
       // if both exist, read the calc_info json
       std::ifstream ifs(calc_info_path);
       auto moldft_calc_info = json::parse(ifs);
       if (world.rank() == 0) {
         std::cout << "time: " << moldft_calc_info["time"] << std::endl;
-        std::cout << "MOLDFT return energy: " << moldft_calc_info["return_energy"] << std::endl;
+        std::cout << "MOLDFT return energy: "
+                  << moldft_calc_info["return_energy"] << std::endl;
       }
 
     } else {
@@ -258,15 +276,19 @@ class MoldftCalculationStrategy : public CalculationStrategy {
 
     // Add actual calculation logic here
   }
-  static json compute_property(World& world, const std::string& property, SCF& calc, double energy) {
+  static json compute_property(World& world, const std::string& property,
+                               SCF& calc, double energy) {
     json result;
     if (property == "energy") {
       result["energy"] = energy;
     } else if (property == "gradient") {
-      auto gradient = calc.derivatives(world, calc.make_density(world, calc.aocc, calc.amo));
-      result["gradient"] = tensor_to_json(gradient);  // here we need to make json representation of a tensor....
+      auto gradient = calc.derivatives(
+          world, calc.make_density(world, calc.aocc, calc.amo));
+      result["gradient"] = tensor_to_json(
+          gradient);  // here we need to make json representation of a tensor....
     } else if (property == "dipole") {
-      auto dipole = calc.dipole(world, calc.make_density(world, calc.aocc, calc.amo));
+      auto dipole =
+          calc.dipole(world, calc.make_density(world, calc.aocc, calc.amo));
       result["dipole"] = tensor_to_json(dipole);
     } else {
       throw std::runtime_error("Property not available");
@@ -340,11 +362,13 @@ class ResponseConfig {
      * @param xc
      * @return
      */
-  [[nodiscard]] auto calc_path(const path& root, const double& frequency) const -> std::filesystem::path {
+  [[nodiscard]] auto calc_path(const path& root, const double& frequency) const
+      -> std::filesystem::path {
     std::string s_frequency = std::to_string(frequency);
     auto sp = s_frequency.find('.');
     s_frequency = s_frequency.replace(sp, sp, "-");
-    std::string run_name = this->perturbation + "_" + this->xc + "_" + s_frequency;
+    std::string run_name =
+        this->perturbation + "_" + this->xc + "_" + s_frequency;
     return root / std::filesystem::path(run_name);
   }
   explicit ResponseConfig(std::string calc_name, ResponseInput input)
@@ -353,7 +377,9 @@ class ResponseConfig {
         xc(std::get<1>(input)),
         frequencies(std::get<2>(input)) {}
   explicit ResponseConfig(ResponseInput input)
-      : perturbation(std::get<0>(input)), xc(std::get<1>(input)), frequencies(std::get<2>(input)) {}
+      : perturbation(std::get<0>(input)),
+        xc(std::get<1>(input)),
+        frequencies(std::get<2>(input)) {}
 };
 
 class LinearResponseStrategy : public CalculationStrategy, InputInterface {
@@ -368,10 +394,14 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
   std::vector<std::string> available_properties = {"alpha"};
 
  public:
-  explicit LinearResponseStrategy(const ResponseParameters& params, const ResponseInput& r_input,
-                                  std::string name = "response",
-                                  const std::vector<std::string>& input_names = {"moldft"})
-      : parameters(params), calc_name(std::move(name)), config(name, r_input), InputInterface(input_names) {}
+  explicit LinearResponseStrategy(
+      const ResponseParameters& params, const ResponseInput& r_input,
+      std::string name = "response",
+      const std::vector<std::string>& input_names = {"moldft"})
+      : parameters(params),
+        calc_name(std::move(name)),
+        config(name, r_input),
+        InputInterface(input_names) {}
 
   void setPaths(PathManager& path_manager, const path& root) override {
 
@@ -386,13 +416,16 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
       auto restart_path = ResponseConfig::restart_path(frequency_run_path);
       response_paths.calc_paths.push_back(frequency_run_path);
       response_paths.restarts.push_back(restart_path);
-      response_paths.outputs["response_base"].push_back(frequency_run_path / "response_base.json");
+      response_paths.outputs["response_base"].push_back(frequency_run_path /
+                                                        "response_base.json");
     }
     response_paths.outputs["alpha"].push_back(base_path / "alpha.json");
     path_manager.setPath(calc_name, response_paths);
   }
 
-  static void append_to_alpha_json(const double& omega, const std::vector<std::string>& ij, const Tensor<double>& alpha,
+  static void append_to_alpha_json(const double& omega,
+                                   const std::vector<std::string>& ij,
+                                   const Tensor<double>& alpha,
                                    nlohmann::ordered_json& alpha_json) {
     auto num_unique_elements = ij.size();
     for (int i = 0; i < num_unique_elements; i++) {
@@ -401,12 +434,18 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
       alpha_json["alpha"].push_back(alpha[i]);
     }
   }
-  static void add_alpha_i_to_json(nlohmann::ordered_json& alpha_i, nlohmann::ordered_json& alpha_json) {
+  static void add_alpha_i_to_json(nlohmann::ordered_json& alpha_i,
+                                  nlohmann::ordered_json& alpha_json) {
     print(alpha_json.dump(4));
 
-    alpha_json["omega"].insert(alpha_json["omega"].end(), alpha_i["omega"].begin(), alpha_i["omega"].end());
-    alpha_json["ij"].insert(alpha_json["ij"].end(), alpha_i["ij"].begin(), alpha_i["ij"].end());
-    alpha_json["alpha"].insert(alpha_json["alpha"].end(), alpha_i["alpha"].begin(), alpha_i["alpha"].end());
+    alpha_json["omega"].insert(alpha_json["omega"].end(),
+                               alpha_i["omega"].begin(),
+                               alpha_i["omega"].end());
+    alpha_json["ij"].insert(alpha_json["ij"].end(), alpha_i["ij"].begin(),
+                            alpha_i["ij"].end());
+    alpha_json["alpha"].insert(alpha_json["alpha"].end(),
+                               alpha_i["alpha"].begin(),
+                               alpha_i["alpha"].end());
   }
 
   /**
@@ -421,7 +460,8 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
      * @return
      
      */
-  bool runFrequency(World& world, ResponseParameters& r_params, double frequency) {
+  bool runFrequency(World& world, ResponseParameters& r_params,
+                    double frequency) {
 
     auto op = r_params.perturbation();
 
@@ -444,7 +484,8 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
           std::ifstream ifs("response_base.json");
           json response_base;
           ifs >> response_base;
-          if (response_base["converged"] && response_base["precision"]["dconv"] == r_params.dconv())
+          if (response_base["converged"] &&
+              response_base["precision"]["dconv"] == r_params.dconv())
             converged = true;
           ::print("Response has converged: ", converged);
         }
@@ -481,7 +522,8 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
         ::print(
             " MADNESS Time-Dependent Density Functional Theory Response "
             "Program");
-        ::print(" ----------------------------------------------------------\n");
+        ::print(
+            " ----------------------------------------------------------\n");
         ::print("\n");
         calc_params.molecule.print();
         ::print("\n");
@@ -495,7 +537,8 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
 
       auto alpha = polar_omega.flat();
 
-      std::vector<std::string> ij{"XX", "XY", "XZ", "YX", "YY", "YZ", "ZX", "ZY", "ZZ"};
+      std::vector<std::string> ij{"XX", "XY", "XZ", "YX", "YY",
+                                  "YZ", "ZX", "ZY", "ZZ"};
       nlohmann::ordered_json alpha_json;
       alpha_json["omega"] = {};
       alpha_json["ij"] = {};
@@ -520,7 +563,8 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
     auto moldft_paths = path_manager.getPath(input_names[0]);
     auto response_paths = path_manager.getPath(calc_name);
 
-    auto moldft_restart = moldft_paths.restarts[0].replace_extension("").string();
+    auto moldft_restart =
+        moldft_paths.restarts[0].replace_extension("").string();
     auto alpha_outpath = response_paths.outputs["alpha"][0];
 
     // I need to analyze alpha.json to see which frequencies are missing.
@@ -553,10 +597,12 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
 
       bool restart = true;
       path save_path = restart_path_i;  // current restart path aka save path
-      path restart_path = (i > 0) ? response_paths.restarts[i - 1] : response_paths.restarts[i];
+      path restart_path =
+          (i > 0) ? response_paths.restarts[i - 1] : response_paths.restarts[i];
       std::string save_string = save_path.filename().stem();
       if (world.rank() == 0) {
-        ::print("-------------Running response------------ at frequency: ", freq_i);
+        ::print("-------------Running response------------ at frequency: ",
+                freq_i);
         ::print("moldft restart path", moldft_restart);
         ::print("restart path", restart_path);
         ::print("save path", save_path);
@@ -585,13 +631,16 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
               ::print(restart_path.filename().stem());
 
               // get the directory of the restart path
-              auto new_restart_path = path("../") / restart_path.parent_path().stem() / restart_path.filename().stem();
+              auto new_restart_path = path("../") /
+                                      restart_path.parent_path().stem() /
+                                      restart_path.filename().stem();
 
               // format restart path to be ../restart_path/restart_path
 
               //
               ::print("new restart file: ", restart_path);
-              r_params.set_user_defined_value("restart_file", new_restart_path.string());
+              r_params.set_user_defined_value("restart_file",
+                                              new_restart_path.string());
               // Then we restart from the previous file instead
             } else {
               r_params.set_user_defined_value("restart", false);
@@ -641,9 +690,14 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
   std::vector<std::string> available_properties = {"beta"};
 
  public:
-  explicit ResponseHyper(const ResponseParameters& params, const ResponseInput& r_input, std::string name = "hyper",
-                         const std::vector<std::string>& input_names = {"moldft", "response"})
-      : parameters(params), calc_name(std::move(name)), config(name, r_input), InputInterface(input_names) {
+  explicit ResponseHyper(
+      const ResponseParameters& params, const ResponseInput& r_input,
+      std::string name = "hyper",
+      const std::vector<std::string>& input_names = {"moldft", "response"})
+      : parameters(params),
+        calc_name(std::move(name)),
+        config(name, r_input),
+        InputInterface(input_names) {
     print("input names: ", input_names);
     if (input_names.size() != 2) {
       throw std::runtime_error("ResponseHyper requires two input names");
@@ -714,8 +768,10 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
         auto molresponse_params = parameters;
 
         quad_parameters.set_user_defined_value("quadratic", true);
-        quad_parameters.set_user_defined_value("freq_range", molresponse_params.freq_range());
-        quad_parameters.set_user_defined_value("hfexalg", molresponse_params.hfexalg());
+        quad_parameters.set_user_defined_value("freq_range",
+                                               molresponse_params.freq_range());
+        quad_parameters.set_user_defined_value("hfexalg",
+                                               molresponse_params.hfexalg());
 
         if (config.perturbation == "dipole") {
           quad_parameters.set_user_defined_value("dipole", true);
@@ -723,7 +779,8 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
         }
 
         auto final_protocol = molresponse_params.protocol().back();
-        quad_parameters.set_user_defined_value<vector<double>>("protocol", {final_protocol});
+        quad_parameters.set_user_defined_value<vector<double>>(
+            "protocol", {final_protocol});
 
         return quad_parameters;
       };
@@ -767,7 +824,10 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
         compute_beta = false;
         if (world.rank() == 0) {
           ::print("Beta values have already been computed");
-          ::print("If you want to recompute beta values, delete the beta.json file at ", beta_outpath);
+          ::print(
+              "If you want to recompute beta values, delete the beta.json file "
+              "at ",
+              beta_outpath);
         }
       }
 
@@ -805,22 +865,28 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
             auto restartC = response_restarts[c];
 
             std::array<double, 3> omegas{omega_a, omega_b, omega_c};
-            std::array<path, 3> restarts{restartA.replace_extension(""), restartB.replace_extension(""),
+            std::array<path, 3> restarts{restartA.replace_extension(""),
+                                         restartB.replace_extension(""),
                                          restartC.replace_extension("")};
 
             quad_calculation.set_x_data(world, omegas, restarts);
-            auto [beta, beta_directions] = quad_calculation.compute_beta_v2(world, omega_b, omega_c);
+            auto [beta, beta_directions] =
+                quad_calculation.compute_beta_v2(world, omega_b, omega_c);
 
             if (world.rank() == 0) {
-              ::print("Beta values for omega_A", " = -(omega_", b, " + omega_", c, ") = -", omega_a, " = (", omega_b,
-                      " + ", omega_c, ")");
+              ::print("Beta values for omega_A", " = -(omega_", b, " + omega_",
+                      c, ") = -", omega_a, " = (", omega_b, " + ", omega_c,
+                      ")");
               {
                 for (int i = 0; i < beta_directions.size(); i++) {
-                  std::cout << std::fixed << std::setprecision(5) << "i = " << i + 1 << ", beta[" << beta_directions[i]
-                            << "]" << " = " << beta[i] << std::endl;
+                  std::cout << std::fixed << std::setprecision(5)
+                            << "i = " << i + 1 << ", beta["
+                            << beta_directions[i] << "]" << " = " << beta[i]
+                            << std::endl;
                 }
               }
-              append_to_beta_json({-1.0 * omega_a, omega_b, omega_c}, beta_directions, beta, beta_json);
+              append_to_beta_json({-1.0 * omega_a, omega_b, omega_c},
+                                  beta_directions, beta, beta_json);
               std::ofstream outfile("beta.json");
               if (outfile.is_open()) {
                 outfile << beta_json.dump(4);
@@ -829,7 +895,8 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
             }
           }
         }
-      }     } catch (Response_Convergence_Error& e) {
+      }
+    } catch (Response_Convergence_Error& e) {
       if (world.rank() == 0) {
         ::print(
             "First order response calculations haven't been run and "
@@ -838,8 +905,10 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
       }
     }
   }
-  static void append_to_beta_json(const std::array<double, 3>& omega, const std::vector<std::string>& beta_directions,
-                                  const Tensor<double>& beta, nlohmann::ordered_json& beta_json) {
+  static void append_to_beta_json(
+      const std::array<double, 3>& omega,
+      const std::vector<std::string>& beta_directions,
+      const Tensor<double>& beta, nlohmann::ordered_json& beta_json) {
     auto num_unique_elements = beta_directions.size();
     for (int i = 0; i < num_unique_elements; i++) {
 
@@ -860,7 +929,8 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
     }
   }
 
-  void add_beta_i_to_json(nlohmann::ordered_json& beta_i, nlohmann::ordered_json& beta_json) {
+  void add_beta_i_to_json(nlohmann::ordered_json& beta_i,
+                          nlohmann::ordered_json& beta_json) {
     print(beta_json.dump(4));
 
     for (auto& [key, value] : beta_i.items()) {
@@ -986,7 +1056,9 @@ class CalcManager {
   path root;
 
  public:
-  void addStrategy(std::unique_ptr<CalculationStrategy> newStrategy) { strategies.addStrategy(std::move(newStrategy)); }
+  void addStrategy(std::unique_ptr<CalculationStrategy> newStrategy) {
+    strategies.addStrategy(std::move(newStrategy));
+  }
 
   void runCalculations(World& world) {
 
@@ -1001,16 +1073,21 @@ class CalcManager {
     strategies.compute(world, path_manager);
   }
 
-  explicit CalcManager(path base_root = std::filesystem::current_path()) : root(std::move(base_root)) {
+  explicit CalcManager(path base_root = std::filesystem::current_path())
+      : root(std::move(base_root)) {
     strategies = CompositeCalculationStrategy{};
   };
 };
 
 using SetupCalculationFunction = std::function<void(CalcManager&, std::string)>;
-using CheckConditionFunction = std::function<bool(World&, PathManager&, const std::string&)>;
-using FinalizeCalculationFunction = std::function<void(World&, PathManager&, const path&)>;
+using CheckConditionFunction =
+    std::function<bool(World&, PathManager&, const std::string&)>;
+using FinalizeCalculationFunction =
+    std::function<void(World&, PathManager&, const path&)>;
 
-using DynamicInput = std::tuple<SetupCalculationFunction, CheckConditionFunction, FinalizeCalculationFunction>;
+using DynamicInput =
+    std::tuple<SetupCalculationFunction, CheckConditionFunction,
+               FinalizeCalculationFunction>;
 //
 //
 // This strategy a number of calculations based on a condition evaluated at runtime
