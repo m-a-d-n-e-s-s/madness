@@ -130,7 +130,7 @@ private:
     double lo = 1.e-4;
     double thresh = FunctionDefaults<NDIM>::get_thresh();
     long printlevel = 0;
-    double mul_tol = 0.0;
+    double mul_tol = FunctionDefaults<NDIM>::get_thresh()*0.1;
 
     class MacroTaskExchangeSimple : public MacroTaskOperationBase {
 
@@ -232,7 +232,6 @@ private:
                                                                                    vf_batch);
 
                 for (int i = vf_range.begin; i < vf_range.end; ++i){
-                    resultcolumn[i - vf_range.begin].print_size("resultcolumn diag sym " + std::to_string(i));
                     Kf[i] += resultcolumn[i - vf_range.begin];}
 
             } else if (symmetric and not diagonal_block) {
@@ -240,10 +239,8 @@ private:
                                                                                             vf_batch);
 
                 for (int i = bra_range.begin; i < bra_range.end; ++i){
-                    resultcolumn[i - bra_range.begin].print_size("resultcolum offdiag sym " + std::to_string(i));
                     Kf[i] += resultcolumn[i - bra_range.begin];}
                 for (int i = vf_range.begin; i < vf_range.end; ++i){
-                    resultrow[i - vf_range.begin].print_size("resultrow offdiag sym " + std::to_string(i));
                     Kf[i] += resultrow[i - vf_range.begin];}
             } else {
                 auto ket_batch = bra_range.copy_batch(vket);
@@ -318,24 +315,12 @@ private:
             MacroTaskPartitionerRow() {
               max_batch_size=1;
             }       
-
-           // partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
-           //                            const std::string policy) const override {
-
-           //     partitionT p;
-           //     for (size_t i = 0; i < vsize1; i++) {
-           //         Batch batch(Batch_1D(i,i+1), Batch_1D(i,i+1));
-           //         p.push_back(std::make_pair(batch,1.0));
-           //     }
-           //     return p;
-           // }
         };
 
     public:
         MacroTaskExchangeRow(const long nresult, const double lo, const double mul_tol)
                 : nresult(nresult), lo(lo), mul_tol(mul_tol) {
             partitioner.reset(new MacroTaskPartitionerRow());
-            //partitioner.set_max_batch_size(1);
         }
 
         // you need to define the exact argument(s) of operator() as tuple
@@ -353,39 +338,49 @@ private:
             return result;
         }
 
-        // runs on a batched part of K_small_memory loop (element of vec of func)
-        // multiplies this batch (bra) with vket, applies poisson, muls batch (ket)
-        // gaxpys (+= of operator) onto Kf -> position of result from batch.input[]
+        /// compute exchange row-wise for a fixed orbital phi_i of vket
         std::vector<Function<T, NDIM>>
         operator()(const std::vector<Function<T, NDIM>>& vket,
                    const std::vector<Function<T, NDIM>>& mo_bra, 
                    const std::vector<Function<T, NDIM>>& mo_ket) {       
 
-            // print("\nentering operator:");
             World& world = vket.front().world();
-            resultT Kf = zero_functions_compressed<T, NDIM>(world, nresult);
+            mul_tol = 0.0;
+            print("mul_tol ", mul_tol);
+            
+            resultT Kf = zero_functions_compressed<T, NDIM>(world, 1);
+            vecfuncT psif = zero_functions_compressed<T,NDIM>(world, mo_bra.size()); 
             auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(world, lo);
 
-            auto& i = batch.input[0].begin;    // print i to check
-            // print("\ni:", i);
+            auto& i = batch.input[0].begin;  
+            size_t min_tile = 10;
+            size_t ntile = std::min(mo_bra.size(), min_tile);
 
-            // print("\nperforming mul_sparse");
-            vecfuncT psif = mul_sparse(world, vket[i], mo_bra, mul_tol);
-            truncate(world, psif);
+            for (size_t ilo=0; ilo<mo_bra.size(); ilo+=ntile){
+                size_t iend = std::min(ilo+ntile,mo_bra.size());
 
-            // print("\napplying poisson");
-            psif = apply(world, *poisson.get(), psif);
-            truncate(world, psif);
-            
-            // print("\ndot");
-            auto res = dot(world, mo_ket, psif);
-            // print("\nadding to Kf", Kf.size());
-            //Kf[i] += dot(world, mo_ket, psif);
-            //print(Kf.size());
-            
-            Kf[i] += res;
-            // Kf[i].print_size("Kf[i]");
-            truncate(world, Kf);
+                vecfuncT tmp_mo_bra(mo_bra.begin()+ilo,mo_bra.begin()+iend);
+                auto tmp_psif = mul_sparse(world, vket[i], tmp_mo_bra, mul_tol);
+                print_size(world, tmp_psif, "tmp_psif before truncation");
+                truncate(world, tmp_psif);
+                print_size(world, tmp_psif, "tmp_psi_f after truncation");
+
+                tmp_psif = apply(world, *poisson.get(), tmp_psif);
+                print_size(world, tmp_psif, "tmp_psif (apply) before truncation");
+                truncate(world, tmp_psif);
+                print_size(world, tmp_psif, "tmp_psif (apply) after truncation");
+
+                vecfuncT tmp_mo_ket(mo_ket.begin()+ilo,mo_ket.begin()+iend);
+                // TODO: use matrix_mul_sparse instead, need to implement mul_sparse for
+                //       vecfuncT, vecfuncT
+                auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif);
+                //auto tmp_Kf = mul_sparse(world, tmp_mo_ket, tmp_psif, mul_tol);
+
+                Kf[0] += tmp_Kf;
+                print_size(world, Kf, "Kf before truncation");
+                truncate(world, Kf);
+                print_size(world, Kf, "Kf after truncation");
+            }
 
             return Kf;
         }

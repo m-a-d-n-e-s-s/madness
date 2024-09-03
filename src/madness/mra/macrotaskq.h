@@ -636,7 +636,9 @@ private:
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug) {
 
         	io_redirect io(element,name+"_task",debug);
+            cloud.print_size(subworld);
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
+            cloud.print_size(subworld);
             const argtupleT batched_argtuple = task.batch.template copy_input_batch(argtuple);
         	try {
         		resultT result_tmp = std::apply(task, batched_argtuple);
@@ -646,14 +648,10 @@ private:
         			result_tmp.compress();
         			gaxpy(1.0,result,1.0, result_tmp);
         		} else if constexpr(is_madness_function_vector<resultT>::value) {
-                   // print("compress");
         			compress(subworld, result_tmp);
-                  //  print("allocate");
         			resultT tmp1=task.allocator(subworld,argtuple);
-                   // print("insert");
                   //  print("\n tmp1, result_tmp  ", tmp1.size(), result_tmp.size());
         			tmp1=task.batch.template insert_result_batch(tmp1,result_tmp);
-                  //  print("gaxpy");
         			gaxpy(1.0,result,1.0,tmp1,false);
         			// was using operator+=, but this requires a fence, which is not allowed here..
         			// result += tmp1;

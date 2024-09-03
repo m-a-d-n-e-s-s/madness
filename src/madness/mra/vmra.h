@@ -695,7 +695,7 @@ namespace madness {
         typedef TENSOR_RESULT_TYPE(T,R) resultT;
         int n = v.size();  // n is the old dimension
         int m = c.dim(1);  // m is the new dimension
-        MADNESS_ASSERT(n==c.dim(0));
+        MADNESS_CHECK(n==c.dim(0));
 
         std::vector< Function<resultT,NDIM> > vc = zero_functions_compressed<resultT,NDIM>(world, m);
         compress(world, v);
