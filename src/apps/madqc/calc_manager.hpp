@@ -1100,9 +1100,13 @@ class CalculationDriver {
     auto paths = path_manager.getAllPaths();
     if (world.rank() == 0) {
       print(paths.dump(4));
+      std::ofstream ofs("paths.json");
+      ofs << paths.dump(4);
+      ofs.close();
     }
 
     path_manager.createDirectories();
+
     strategies.compute(world, path_manager);
   }
 
