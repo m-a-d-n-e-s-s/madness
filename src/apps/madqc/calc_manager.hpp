@@ -443,7 +443,7 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
   }
 
   bool runFrequency(World& world, ResponseParameters& r_params,
-                    double frequency) {
+                    double frequency, const std::string& moldft_restart) {
     auto op = r_params.perturbation();
 
     // Set the response parameters
@@ -482,7 +482,7 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
         ::print("Running response calculation for frequency: ", frequency);
       }
 
-      GroundStateCalculation ground_calculation{world, r_params.archive()};
+      GroundStateCalculation ground_calculation{world, moldft_restart};
       Molecule molecule = ground_calculation.molecule();
       r_params.set_ground_state_calculation_data(ground_calculation);
       r_params.set_derived_values(world, molecule);
@@ -626,7 +626,7 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
         throw Response_Convergence_Error{};
       }
       world.gop.broadcast_serializable(r_params, 0);
-      last_converged = runFrequency(world, r_params, freq_i);
+      last_converged = runFrequency(world, r_params, freq_i, moldft_restart);
 
       nlohmann::ordered_json alpha_i;
 
@@ -1110,7 +1110,8 @@ class CalculationDriver {
     strategies.compute(world, path_manager);
   }
 
-  explicit CalculationDriver(path base_root = std::filesystem::current_path())
+  explicit CalculationDriver(
+      path base_root = std::filesystem::current_path())
       : root(std::move(base_root)) {
     strategies = CompositeCalculationStrategy{};
   };
