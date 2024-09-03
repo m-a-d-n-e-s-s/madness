@@ -49,6 +49,14 @@ void from_json(const nlohmann::json& j, TaskParameters& t) {
   j.at("properties").get_to(t.properties);
 }
 
+
+
+
+
+
+
+
+
 /*struct TaskParameters : public QCCalculationParametersBase {*/
 /*  TaskParameters(const TaskParameters& other) = default;*/
 /**/

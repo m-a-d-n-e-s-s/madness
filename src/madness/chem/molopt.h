@@ -5,6 +5,7 @@
 #include <concepts>
 #include <string>
 
+#include <madness/chem/molecule.h>
 #include <madness/tensor/solvers.h>
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/tensor_lapack.h>
@@ -259,14 +260,11 @@ class MolOpt {
          double gtol = 1e-3, double xtol = 1e-3, double energy_precision = 1e-5,
          double gradient_precision = 1e-4, int print_level = 1,
          std::string update = "BFGS")
-      : maxiter(maxiter),
-        maxstep(maxstep),
+      : maxiter(maxiter), maxstep(maxstep),
         etol(std::max(etol, energy_precision)),
-        gtol(std::max(gtol, gradient_precision)),
-        xtol(xtol),
+        gtol(std::max(gtol, gradient_precision)), xtol(xtol),
         energy_precision(energy_precision),
-        gradient_precision(gradient_precision),
-        print_level(print_level),
+        gradient_precision(gradient_precision), print_level(print_level),
         update(update)
 
   {
@@ -335,9 +333,8 @@ class MolOpt {
 
       if (!converged && gmax < gradient_precision) {
         if (print_level > 0)
-          print(
-              "\nInsufficient precision in gradient to proceed further -- "
-              "forcing convergence\n");
+          print("\nInsufficient precision in gradient to proceed further -- "
+                "forcing convergence\n");
         converged = true;
       }
 
@@ -346,9 +343,8 @@ class MolOpt {
         print(" ");
         printf(
             "      energy        delta-e     max-dx     max-g     e  dx   g\n");
-        printf(
-            " ----------------  ---------  ---------  ---------  --- --- "
-            "---\n");
+        printf(" ----------------  ---------  ---------  ---------  --- --- "
+               "---\n");
         printf(" %15.6f   %9.2e  %9.2e  %9.2e   %s   %s   %s\n", e, de, dxmax,
                gmax, tf[econv], tf[dxconv], tf[gconv]);
         //print(e, de, econv, dxmax, dxconv, dxnorm, gmax, gconv, gnorm, converged);
@@ -374,9 +370,8 @@ class MolOpt {
       if (iter > 0) {
         if ((g - gp).absmax() < 2.0 * gradient_precision) {
           if (print_level > 0)
-            print(
-                "  skipping hessian update due to insufficient precision in "
-                "gradient");
+            print("  skipping hessian update due to insufficient precision in "
+                  "gradient");
         } else if (update == "bfgs") {
           QuasiNewton::hessian_update_bfgs(dx, g - gp, hessian);
         } else if (update == "sr1") {

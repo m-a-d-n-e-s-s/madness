@@ -1,14 +1,14 @@
 #ifndef MADNESS_DFT_RESPONSE_PARAMETER_MANAGER_HPP
 #define MADNESS_DFT_RESPONSE_PARAMETER_MANAGER_HPP
+#include "tasks.hpp"
 #include <apps/molresponse/response_parameters.h>
+#include <filesystem>
 #include <madchem.h>
 #include <madness/chem/CalculationParameters.h>
 #include <madness/chem/SCF.h>
 #include <madness/chem/molecule.h>
-#include <filesystem>
 #include <madness/external/nlohmann_json/json.hpp>
 #include <utility>
-#include "tasks.hpp"
 
 using path = std::filesystem::path;
 using json = nlohmann::json;
@@ -16,6 +16,61 @@ using commandlineparser = madness::commandlineparser;
 
 using namespace madness;
 
+struct OptimizationParameters : public QCCalculationParametersBase {
+  OptimizationParameters(const OptimizationParameters& other) = default;
+
+  OptimizationParameters(World& world, const commandlineparser& parser)
+      : OptimizationParameters() {
+    read_input_and_commandline_options(world, parser, "optimization");
+  }
+  OptimizationParameters() {
+    initialize<std::string>("method", "dft",
+                            "Select the application to use for the calculation",
+                            {"dft"});
+    initialize<int>("maxiter", 20, "optimization maxiter");
+    initialize<bool>("initial_hessian", false,
+                     "compute inital hessian for optimization");
+    initialize<std::string>("algopt", "bfgs", "algorithm used for optimization",
+                            {"bfgs", "cg"});
+    initialize<double>("value_precision", 1.e-5, "value precision");
+    initialize<double>("gradient_precision", 1.e-4, "gradient precision");
+    initialize<bool>("geometry_tolerence", false, "geometry tolerance");
+  }
+
+  using QCCalculationParametersBase::read_input_and_commandline_options;
+
+  void print() const {
+    madness::print("------------Optimization Parameters---------------");
+    madness::print("Method: ", get<std::string>("method"));
+    madness::print("Maxiter: ", get<int>("maxiter"));
+    madness::print("Initial Hessian: ", get<bool>("initial_hessian"));
+    madness::print("Algorithm: ", get<std::string>("algopt"));
+    madness::print("Value Precision: ", get<double>("value_precision"));
+    madness::print("Gradient Precision: ", get<double>("gradient_precision"));
+    madness::print("Geometry Tolerance: ", get<bool>("geometry_tolerence"));
+    madness::print("-------------------------------------------");
+  }
+
+  [[nodiscard]] std::string get_method() const {
+    return get<std::string>("method");
+  }
+  [[nodiscard]] int get_maxiter() const { return get<int>("maxiter"); }
+  [[nodiscard]] bool get_initial_hessian() const {
+    return get<bool>("initial_hessian");
+  }
+  [[nodiscard]] std::string get_algopt() const {
+    return get<std::string>("algopt");
+  }
+  [[nodiscard]] double get_value_precision() const {
+    return get<double>("value_precision");
+  }
+  [[nodiscard]] double get_gradient_precision() const {
+    return get<double>("gradient_precision");
+  }
+  [[nodiscard]] bool get_geometry_tolerence() const {
+    return get<bool>("geometry_tolerence");
+  }
+};
 class ParameterManager {
  private:
   path input_file_path;
@@ -32,6 +87,7 @@ class ParameterManager {
   TaskParameters task_params{};
   CalculationParameters moldft_params{};
   ResponseParameters molresponse_params{};
+  OptimizationParameters optimization_params{};
 
  public:
   ParameterManager() = default;
@@ -42,7 +98,9 @@ class ParameterManager {
     ::print("-------------------------------------------");
   }
 
-  static void help() { print_header2("help page for MADNESS DFT and Response Properties Code "); }
+  static void help() {
+    print_header2("help page for MADNESS DFT and Response Properties Code ");
+  }
   void print_params() const {
     ::print("------------Parameter Manager---------------");
     ::print("Molecule: ");
@@ -207,7 +265,8 @@ class ParameterManager {
   // specify the molecule file and the input file separately.  The specific
   // use cases are when one wants to create a database of molecule
   // calculations all with the same basic input.
-  explicit ParameterManager(World& world, const std::pair<path, path>& input_files) {
+  explicit ParameterManager(World& world,
+                            const std::pair<path, path>& input_files) {
     auto [input_file, mol_file] = input_files;
 
     read_molecule_file(mol_file);
@@ -235,18 +294,33 @@ class ParameterManager {
   }
 
   [[nodiscard]] json get_input_json() const { return all_input_json; }
-  [[nodiscard]] auto get_task_params() const -> const TaskParameters& { return task_params; }
+  [[nodiscard]] auto get_task_params() const -> const TaskParameters& {
+    return task_params;
+  }
+  [[nodiscard]] auto
+  get_optimization_params() const -> const OptimizationParameters& {
+    return optimization_params;
+  }
 
-  [[nodiscard]] auto get_moldft_params() const -> const CalculationParameters& { return moldft_params; }
-  [[nodiscard]] auto get_molresponse_params() const -> const ResponseParameters& { return molresponse_params; }
-  [[nodiscard]] auto get_molecule() const -> const Molecule& { return molecule; }
+  [[nodiscard]] auto get_moldft_params() const -> const CalculationParameters& {
+    return moldft_params;
+  }
+  [[nodiscard]] auto
+  get_molresponse_params() const -> const ResponseParameters& {
+    return molresponse_params;
+  }
+  [[nodiscard]] auto get_molecule() const -> const Molecule& {
+    return molecule;
+  }
 
   void write_moldft_json(std::ostream& os) {
     os << std::setw(4) << all_input_json["dft"];
     os << std::setw(4) << all_input_json["molecule"];
   }
 
-  void write_response_json(std::ostream& os) { os << std::setw(4) << all_input_json["response"]; }
+  void write_response_json(std::ostream& os) {
+    os << std::setw(4) << all_input_json["response"];
+  }
 };
 
 // create a helper class for checking equivalence of two parameter class

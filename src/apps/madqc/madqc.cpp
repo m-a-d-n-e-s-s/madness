@@ -29,7 +29,7 @@
   fax:   865-572-0680
 */
 
-#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) &&                   \
     defined(HAVE_UNISTD_H)
 
 #include <sys/stat.h>
@@ -44,11 +44,11 @@
 
 #endif
 
-#include <madness/misc/info.h>
-#include <madness/world/worldmem.h>
 #include "madqc/calc_factory.hpp"
 #include "madqc/calc_manager.hpp"
 #include "madqc/parameter_manager.hpp"
+#include <madness/misc/info.h>
+#include <madness/world/worldmem.h>
 
 using namespace madness;
 
@@ -97,11 +97,12 @@ int main(int argc, char** argv) {
       // if driver is energy use createCalcManager
       // if driver is optimmize use createOptimizeManager
       // if driver is custom use createCustomManager
-      std::unique_ptr<CalcManager> calc_manager;
+      std::unique_ptr<CalculationDriver> calc_manager;
       if (driver == "energy") {
-        calc_manager = createCalcManager(method, params, properties);
+        calc_manager = createEnergyDriver(method, params, properties);
       } else if (driver == "optimize") {
-        throw std::runtime_error("Optimization not implemented yet");
+        calc_manager = createOptimizationDriver(method, params);
+
       } else if (driver == "custom") {
         throw std::runtime_error("Custom driver not implemented yet");
       } else {

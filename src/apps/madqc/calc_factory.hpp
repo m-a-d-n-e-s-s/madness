@@ -31,13 +31,14 @@
 #ifndef SRC_APPS_MADQC_CALC_FACTORY_HPP_
 #define SRC_APPS_MADQC_CALC_FACTORY_HPP_
 
+#include "madqc/calc_manager.hpp"
+#include "madqc/opt_strategies.hpp"
+#include "madqc/parameter_manager.hpp"
 #include <map>
 #include <memory>
 #include <string>
 #include <utility>
 #include <vector>
-#include "madqc/calc_manager.hpp"
-#include "madqc/parameter_manager.hpp"
 
 // The driver is the calculation type (e.g. energy, gradient, hessian, etc.)
 // The model is the combination of theory and basis set
@@ -83,11 +84,11 @@ using model_properties = std::map<std::string, bool>;
 //  maybe just use json for this?
 using property_map = std::map<model, model_properties>;
 
-std::unique_ptr<CalcManager> createCalcManager(const std::string& model_name,
-                                               const ParameterManager& pm,
-                                               property_map properties) {
+std::unique_ptr<CalculationDriver>
+createEnergyDriver(const std::string& model_name, const ParameterManager& pm,
+                   property_map properties) {
   // Create a new CalcManager
-  auto calc_manager = std::make_unique<CalcManager>();
+  auto calc_manager = std::make_unique<CalculationDriver>();
   auto molecule = pm.get_molecule();
   // All calculations start with a reference
   auto params = pm.get_moldft_params();
@@ -194,10 +195,33 @@ std::unique_ptr<CalcManager> createCalcManager(const std::string& model_name,
   return calc_manager;
 }
 
+std::unique_ptr<CalculationDriver>
+createOptimizationDriver(const std::string& model,
+                         const ParameterManager& params) {
+  auto calc_manager = std::make_unique<CalculationDriver>();
+  std::unique_ptr<OptimizationStrategy> opt_strategy;
+  std::string calc_name;
+
+  if (model == "moldft") {
+    opt_strategy = std::make_unique<MoldftOptStrategy>();
+    calc_name = "moldft_opt";
+  } else {
+    throw std::invalid_argument("Unknown model name: " + model);
+  }
+
+  auto opt_calc = std::make_unique<OptimizationCalculationStrategy>(
+      params, opt_strategy, calc_name);
+
+  calc_manager->addStrategy(std::move(opt_calc));
+
+
+  return calc_manager;
+}
+
 // Below here we define more complex calculation strategies
 DynamicInput example_calculation(const Molecule& molecule) {
   // Example setup calculation function
-  auto setupCalculation = [&](CalcManager& calc_manager,
+  auto setupCalculation = [&](CalculationDriver& calc_manager,
                               const std::string& iter_name) {
     // Create strategies and set them up for the current iteration
     auto params = CalculationParameters();

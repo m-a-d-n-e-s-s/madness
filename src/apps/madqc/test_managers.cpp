@@ -3,7 +3,7 @@
 
 #include <filesystem>
 #include "calc_manager.hpp"
-#include "calc_strats.hpp"
+#include "calc_factory.hpp"
 #include "madness/external/catch/catch.hpp"
 #include "parameter_manager.hpp"
 
@@ -35,7 +35,7 @@ TEST_CASE("MOLDFT Calculation") {
   auto molecule = param_manager.get_molecule();
   std::vector<std::string> properties = {"energy", "gradient", "dipole"};
 
-  CalcManager calc_manager;
+  CalculationDriver calc_manager;
   auto moldft_calc = std::make_unique<MoldftCalculationStrategy>(params, molecule, "moldft_1", properties);
   calc_manager.addStrategy(std::move(moldft_calc));
 
@@ -76,7 +76,7 @@ TEST_CASE("Response Calculation") {
   std::vector<std::string> input_names = {"moldft_2"};
   auto response_calc = std::make_unique<LinearResponseStrategy>(response_params, r_input, "response_2", input_names);
 
-  CalcManager calc_manager;
+  CalculationDriver calc_manager;
   calc_manager.addStrategy(std::move(moldft_calc));
   calc_manager.addStrategy(std::move(response_calc));
 
@@ -109,7 +109,7 @@ TEST_CASE("Hyperpolarizability Calculation") {
   auto params = param_manager.get_moldft_params();
   auto molecule = param_manager.get_molecule();
 
-  CalcManager calc_manager;
+  CalculationDriver calc_manager;
 
   auto set_freqs = [&]() {
     vector<double> freqs_copy = freq_range;
