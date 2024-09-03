@@ -85,13 +85,22 @@ int main(int argc, char** argv) {
       ParameterManager params;
       // Initialize the necessary components
       Molecule molecule;  // Initialize your molecule here
-      params = ParameterManager(world, {"input.json"});
+      path input_file(argv[1]);
+      if (world.rank() == 0) {
+        print("Input file found");
+        print("Parsing Command Line");
+      }
+      params = ParameterManager(world, input_file);
 
       auto task_params = params.get_task_params();
 
       auto method = task_params.method;
       auto driver = task_params.driver;
       auto properties = task_params.properties;
+
+      if(world.rank() == 0){
+        task_params.print();
+      }
 
       // Create the CalcManager using the factory function
       // if driver is energy use createCalcManager
