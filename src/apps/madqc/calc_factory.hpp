@@ -195,28 +195,28 @@ createEnergyDriver(const std::string& model_name, const ParameterManager& pm,
   return calc_manager;
 }
 
-std::unique_ptr<CalculationDriver>
-createOptimizationDriver(const std::string& model,
-                         const ParameterManager& params) {
-  auto calc_manager = std::make_unique<CalculationDriver>();
-  std::unique_ptr<OptimizationStrategy> opt_strategy;
-  std::string calc_name;
-
-  if (model == "moldft") {
-    opt_strategy = std::make_unique<MoldftOptStrategy>();
-    calc_name = "moldft_opt";
-  } else {
-    throw std::invalid_argument("Unknown model name: " + model);
-  }
-
-  auto opt_calc = std::make_unique<OptimizationCalculationStrategy>(
-      params, opt_strategy, calc_name);
-
-  calc_manager->addStrategy(std::move(opt_calc));
-
-
-  return calc_manager;
-}
+/*std::unique_ptr<CalculationDriver>*/
+/*createOptimizationDriver(const std::string& model,*/
+/*                         const ParameterManager& params) {*/
+/*  auto calc_manager = std::make_unique<CalculationDriver>();*/
+/*  std::unique_ptr<OptimizationStrategy> opt_strategy;*/
+/*  std::string calc_name;*/
+/**/
+/*  if (model == "moldft") {*/
+/*    opt_strategy = std::make_unique<MoldftOptStrategy>();*/
+/*    calc_name = "moldft_opt";*/
+/*  } else {*/
+/*    throw std::invalid_argument("Unknown model name: " + model);*/
+/*  }*/
+/**/
+/*  auto opt_calc = std::make_unique<OptimizationCalculationStrategy>(*/
+/*      params, opt_strategy, calc_name);*/
+/**/
+/*  calc_manager->addStrategy(std::move(opt_calc));*/
+/**/
+/**/
+/*  return calc_manager;*/
+/*}*/
 
 // Below here we define more complex calculation strategies
 DynamicInput example_calculation(const Molecule& molecule) {

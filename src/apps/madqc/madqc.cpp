@@ -110,7 +110,8 @@ int main(int argc, char** argv) {
       if (driver == "energy") {
         calc_manager = createEnergyDriver(method, params, properties);
       } else if (driver == "optimize") {
-        calc_manager = createOptimizationDriver(method, params);
+       // calc_manager = createOptimizationDriver(method, params);
+        throw std::runtime_error("Optimize driver not implemented yet");
 
       } else if (driver == "custom") {
         throw std::runtime_error("Custom driver not implemented yet");

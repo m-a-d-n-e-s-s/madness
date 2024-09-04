@@ -9,7 +9,7 @@
   (at your option) any later version.
 
   This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  but WITHO
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
 
@@ -154,6 +154,7 @@ class CalculationStrategy {
       : name(std::move(calc_name)),
         requested_properties(std::move(properties)) {}
   CalculationStrategy() = default;
+  [[nodiscard]] virtual std::unique_ptr<CalculationStrategy> clone() const = 0;
 
  protected:
   std::string name;
@@ -169,10 +170,23 @@ class CompositeCalculationStrategy : public CalculationStrategy {
     strategies.push_back(std::move(strategy));
   }
 
+  std::vector<std::unique_ptr<CalculationStrategy>>& getStrategies() {
+    return strategies;
+  }
+
   void setPaths(PathManager& path_manager, const path& root) override {
     for (const auto& strategy : strategies) {
       strategy->setPaths(path_manager, root);
     }
+  }
+
+  [[nodiscard]] std::unique_ptr<CalculationStrategy> clone() const override {
+    auto new_strategy = std::make_unique<CompositeCalculationStrategy>();
+
+    for (const auto& strategy : strategies) {
+      new_strategy->addStrategy(strategy->clone());
+    }
+    return new_strategy;
   }
 
   void compute(World& world, PathManager& path_manager) override {
@@ -192,6 +206,9 @@ class MoldftCalculationStrategy : public CalculationStrategy {
                                                    "dipole"};
 
  public:
+  [[nodiscard]] std::unique_ptr<CalculationStrategy> clone() const override {
+    return std::make_unique<MoldftCalculationStrategy>(*this);
+  }
   MoldftCalculationStrategy(const CalculationParameters& params, Molecule mol,
                             std::string calc_name = "moldft",
                             std::map<std::string, bool> properties = {{"energy",
@@ -397,7 +414,9 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
       const std::vector<std::string>& input_names = {"moldft"})
       : parameters(params), calc_name(std::move(name)), config(r_input, name),
         InputInterface(input_names) {}
-
+  [[nodiscard]] std::unique_ptr<CalculationStrategy> clone() const override {
+    return std::make_unique<LinearResponseStrategy>(*this);
+  }
   void setPaths(PathManager& path_manager, const path& root) override {
     // We always start at root+calc_name
     auto base_path = root / calc_name;
@@ -663,6 +682,9 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
   std::vector<std::string> available_properties = {"beta"};
 
  public:
+  [[nodiscard]] std::unique_ptr<CalculationStrategy> clone() const override {
+    return std::make_unique<ResponseHyper>(*this);
+  }
   explicit ResponseHyper(
       const ResponseParameters& params, const ResponseInput& r_input,
       std::string name = "hyper",
@@ -1013,89 +1035,100 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
 /*  }*/
 /*};*/
 /** /*/
-class OptimizationCalculationStrategy : public CalculationStrategy {
-  json paths;
-  path output_path;
-  ParameterManager parameters;
-  std::unique_ptr<OptimizationStrategy> optimization_strategy;
+/*class OptimizationCalculationStrategy : public CalculationStrategy {*/
+/*  json paths;*/
+/*  path output_path;*/
+/*  ParameterManager parameters;*/
+/*  std::unique_ptr<OptimizationStrategy> optimization_strategy;*/
+/**/
+/*  std::vector<std::string> available_properties = {};*/
+/**/
+/* public:*/
+/*  OptimizationCalculationStrategy(ParameterManager params,*/
+/*                                  std::unique_ptr<OptimizationStrategy>& target,*/
+/*                                  std::string calc_name = "optimization")*/
+/*      : parameters(std::move(params)), optimization_strategy(std::move(target)),*/
+/*        CalculationStrategy(std::move(calc_name),*/
+/*                            std::move(std::map<std::string, bool>{})) {}*/
+/**/
+/*  void setPaths(PathManager& path_manager, const path& root) override {*/
+/*    CalculationTemplate opt;*/
+/*    auto opt_path = root / name;*/
+/**/
+/*    opt.calc_paths.push_back(opt_path);*/
+/*    opt.restarts.push_back(opt_path / "optimization_restart.00000");*/
+/*    opt.outputs["input_molecule"] = {opt_path / "input.mol"};*/
+/*    opt.outputs["output_molecule"] = {opt_path / "output.mol"};*/
+/*    opt.outputs["properties"] = {opt_path / "output.json"};*/
+/**/
+/*    path_manager.setPath(name, opt);*/
+/*  }*/
+/**/
+/*  void compute(World& world, PathManager& path_manager) override {*/
+/*    auto opt_paths = path_manager.getPath(name);*/
+/*    auto calc_path = opt_paths.calc_paths[0];*/
+/*    auto restart_path = opt_paths.restarts[0];*/
+/*    auto output_path = opt_paths.outputs["properties"][0];*/
+/*    auto input_molecule = opt_paths.outputs["input_molecule"][0];*/
+/*    auto output_molecule = opt_paths.outputs["output_molecule"][0];*/
+/**/
+/*    if (world.rank() == 0) {*/
+/*      print("Running optimization calculations");*/
+/*      print("Calculation path: ", calc_path);*/
+/*      print("Restart path: ", restart_path);*/
+/*      print("Output path: ", output_path);*/
+/*    }*/
+/**/
+/*    path_manager.createDirectories(name);*/
+/**/
+/*    Molecule molecule = parameters.get_molecule();*/
+/**/
+/*    // write the input molecule to the input_molecule file*/
+/*    if (world.rank() == 0) {*/
+/*      std::ofstream ofs(input_molecule);*/
+/*      json j_molecule = molecule.to_json();*/
+/*      ofs << j_molecule.dump(4);*/
+/*      ofs.close();*/
+/*    }*/
+/*    auto opt_mol = optimization_strategy->optimize(world, parameters);*/
+/*    if (world.rank() == 0) {*/
+/*      std::ofstream ofs(output_molecule);*/
+/*      json j_molecule = opt_mol.to_json();*/
+/*      ofs << j_molecule.dump(4);*/
+/*      ofs.close();*/
+/*    }*/
+/*  }*/
+/*};*/
 
-  std::vector<std::string> available_properties = {};
-
- public:
-  OptimizationCalculationStrategy(ParameterManager params,
-                                  std::unique_ptr<OptimizationStrategy>& target,
-                                  std::string calc_name = "optimization")
-      : parameters(std::move(params)), optimization_strategy(std::move(target)),
-        CalculationStrategy(std::move(calc_name),
-                            std::move(std::map<std::string, bool>{})) {}
-
-  void setPaths(PathManager& path_manager, const path& root) override {
-    CalculationTemplate opt;
-    auto opt_path = root / name;
-
-    opt.calc_paths.push_back(opt_path);
-    opt.restarts.push_back(opt_path / "optimization_restart.00000");
-    opt.outputs["input_molecule"] = {opt_path / "input.mol"};
-    opt.outputs["output_molecule"] = {opt_path / "output.mol"};
-    opt.outputs["properties"] = {opt_path / "output.json"};
-
-    path_manager.setPath(name, opt);
-  }
-
-  void compute(World& world, PathManager& path_manager) override {
-    auto opt_paths = path_manager.getPath(name);
-    auto calc_path = opt_paths.calc_paths[0];
-    auto restart_path = opt_paths.restarts[0];
-    auto output_path = opt_paths.outputs["properties"][0];
-    auto input_molecule = opt_paths.outputs["input_molecule"][0];
-    auto output_molecule = opt_paths.outputs["output_molecule"][0];
-
-    if (world.rank() == 0) {
-      print("Running optimization calculations");
-      print("Calculation path: ", calc_path);
-      print("Restart path: ", restart_path);
-      print("Output path: ", output_path);
-    }
-
-    path_manager.createDirectories(name);
-
-    Molecule molecule = parameters.get_molecule();
-
-    // write the input molecule to the input_molecule file
-    if (world.rank() == 0) {
-      std::ofstream ofs(input_molecule);
-      json j_molecule = molecule.to_json();
-      ofs << j_molecule.dump(4);
-      ofs.close();
-    }
-    auto opt_mol = optimization_strategy->optimize(world, parameters);
-    if (world.rank() == 0) {
-      std::ofstream ofs(output_molecule);
-      json j_molecule = opt_mol.to_json();
-      ofs << j_molecule.dump(4);
-      ofs.close();
-    }
-  }
-};
-
-// CalcManager class
-// Takes path manager and creates json of paths
-// Generates the paths for the calculations in a dry run
-// Then runs the calculations
 class CalculationDriver {
  private:
-  CompositeCalculationStrategy strategies;
+  std::unique_ptr<CompositeCalculationStrategy> strategies;
   PathManager path_manager;
   path root;
 
  public:
+  [[nodiscard]] std::unique_ptr<CalculationDriver> clone() const {
+    auto clone = std::make_unique<CalculationDriver>();
+    clone->setRoot(root);
+    for (const auto& strategy : strategies->getStrategies()) {
+      clone->addStrategy(strategy->clone());
+    }
+    return clone;
+  }
+  void setRoot(const path& new_root) { root = new_root; }
+  [[nodiscard]] path getRoot() const { return root; }
+
   void addStrategy(std::unique_ptr<CalculationStrategy> newStrategy) {
-    strategies.addStrategy(std::move(newStrategy));
+    strategies->addStrategy(std::move(newStrategy));
+  }
+  void
+  setStrategies(std::unique_ptr<CompositeCalculationStrategy> newStrategies) {
+    strategies = std::move(newStrategies);
   }
 
   void runCalculations(World& world) {
 
-    strategies.setPaths(path_manager, root);
+    strategies->setPaths(path_manager, root);
 
     auto paths = path_manager.getAllPaths();
     if (world.rank() == 0) {
@@ -1107,14 +1140,22 @@ class CalculationDriver {
 
     path_manager.createDirectories();
 
-    strategies.compute(world, path_manager);
+    strategies->compute(world, path_manager);
   }
 
-  explicit CalculationDriver(
-      path base_root = std::filesystem::current_path())
+  explicit CalculationDriver(path base_root = std::filesystem::current_path())
       : root(std::move(base_root)) {
-    strategies = CompositeCalculationStrategy{};
+    strategies = std::make_unique<CompositeCalculationStrategy>();
   };
+  // Copy constructor with new root
+  //
+  CalculationDriver(const CalculationDriver& other, path new_root)
+      : root(std::move(new_root)) {
+
+    for (const auto& strategy : other.strategies->getStrategies()) {
+      strategies->addStrategy(strategy->clone());
+    }
+  }
 };
 
 using SetupCalculationFunction =
