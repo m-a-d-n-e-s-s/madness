@@ -146,7 +146,8 @@ class InputInterface {
 class CalculationStrategy {
  public:
   virtual void setPaths(PathManager& path_manager, const path& root) = 0;
-  virtual void compute(World& world, PathManager& path_manager) = 0;
+  virtual void compute(World& world, PathManager& path_manager,
+                       const path& root) = 0;
   virtual ~CalculationStrategy() = default;
 
   CalculationStrategy(std::string calc_name,
@@ -189,9 +190,10 @@ class CompositeCalculationStrategy : public CalculationStrategy {
     return new_strategy;
   }
 
-  void compute(World& world, PathManager& path_manager) override {
+  void compute(World& world, PathManager& path_manager,
+               const path& root) override {
     for (const auto& strategy : strategies) {
-      strategy->compute(world, path_manager);
+      strategy->compute(world, path_manager, root);
     }
   }
 };
@@ -219,21 +221,23 @@ class MoldftCalculationStrategy : public CalculationStrategy {
   void setPaths(PathManager& path_manager, const path& root) override {
     // Build the paths for the moldf calculation
     //
+
     CalculationTemplate moldft = {};
 
-    auto moldft_dir = root / name;
-    moldft.calc_paths.push_back(moldft_dir);
-    moldft.restarts.push_back(moldft_dir / "moldft.restartdata.00000");
-    moldft.outputs["calc_info"] = {moldft_dir / "moldft.calc_info.json"};
-    moldft.outputs["scf_info"] = {moldft_dir / "moldft.calc_info.json"};
-    moldft.outputs["properties"] = {moldft_dir / "output.json"};
+    auto base_path = root / name;
+    moldft.calc_paths.push_back(base_path);
+    moldft.restarts.push_back(base_path / "moldft.restartdata.00000");
+    moldft.outputs["calc_info"] = {base_path / "moldft.calc_info.json"};
+    moldft.outputs["scf_info"] = {base_path / "moldft.calc_info.json"};
+    moldft.outputs["properties"] = {base_path / "output.json"};
 
-    path_manager.setPath(name, moldft);
+    path_manager.setPath(base_path, moldft);
   }
 
-  void compute(World& world, PathManager& path_manager) override {
+  void compute(World& world, PathManager& path_manager,
+               const path& root) override {
     // Get the paths for the moldft calculation by name
-    auto moldft_paths = path_manager.getPath(name);
+    auto moldft_paths = path_manager.getPath(root / name);
     if (world.rank() == 0)
       moldft_paths.print();
     auto moldft_path = moldft_paths.calc_paths[0];
@@ -433,7 +437,7 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
                                                         "response_base.json");
     }
     response_paths.outputs["alpha"].push_back(base_path / "alpha.json");
-    path_manager.setPath(calc_name, response_paths);
+    path_manager.setPath(base_path, response_paths);
   }
 
   static void append_to_alpha_json(const double& omega,
@@ -555,9 +559,10 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
     }
   }
 
-  void compute(World& world, PathManager& path_manager) override {
+  void compute(World& world, PathManager& path_manager,
+               const path& root) override {
     auto moldft_paths = path_manager.getPath(input_names[0]);
-    auto response_paths = path_manager.getPath(calc_name);
+    auto response_paths = path_manager.getPath(root / name);
 
     auto moldft_restart =
         moldft_paths.restarts[0].replace_extension("").string();
@@ -702,10 +707,11 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
     CalculationTemplate hyper_paths;
     hyper_paths.calc_paths.push_back(base_path);
     hyper_paths.outputs["beta"] = {base_path / "beta.json"};
-    path_manager.setPath(calc_name, hyper_paths);
+    path_manager.setPath(base_path, hyper_paths);
   }
 
-  void compute(World& world, PathManager& path_manager) override {
+  void compute(World& world, PathManager& path_manager,
+               const path& root) override {
     auto moldft_name = input_names[0];
     auto response_name = input_names[1];
     if (world.rank() == 0) {
@@ -713,7 +719,7 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
       print("response_name: ", response_name);
     }
 
-    auto hyper_paths = path_manager.getPath(calc_name);
+    auto hyper_paths = path_manager.getPath(root / calc_name);
     auto calc_path = hyper_paths.calc_paths[0];
 
     auto moldft_paths = path_manager.getPath(moldft_name);
@@ -1131,7 +1137,24 @@ class CalculationDriver {
     strategies->setPaths(path_manager, root);
 
     auto paths = path_manager.getAllPaths();
+
+    // First step is to look for the paths.json file and read it in if it exists
+
     if (world.rank() == 0) {
+      if (std::filesystem::exists("paths.json")) {
+        std::ifstream ifs("paths.json");
+        json read_paths;
+        ifs >> read_paths;
+
+        paths.merge_patch(read_paths);
+      }
+    }
+
+    // TODO: world.gop.broadcast(paths, 0); // broadcast the paths to all the nodes isn't possible because of the json object
+    // Might not be a problem but I should look into it
+
+    if (world.rank() == 0) {
+
       print(paths.dump(4));
       std::ofstream ofs("paths.json");
       ofs << paths.dump(4);
@@ -1140,7 +1163,7 @@ class CalculationDriver {
 
     path_manager.createDirectories();
 
-    strategies->compute(world, path_manager);
+    strategies->compute(world, path_manager, root);
   }
 
   explicit CalculationDriver(path base_root = std::filesystem::current_path())
