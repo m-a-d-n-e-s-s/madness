@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
       auto driver = task_params.driver;
       auto properties = task_params.properties;
 
-      if(world.rank() == 0){
+      if (world.rank() == 0) {
         task_params.print();
       }
 
@@ -108,9 +108,9 @@ int main(int argc, char** argv) {
       // if driver is custom use createCustomManager
       std::unique_ptr<CalculationDriver> calc_manager;
       if (driver == "energy") {
-        calc_manager = createEnergyDriver(method, params, properties);
+        calc_manager = createEnergyDriver(world, method, params, properties);
       } else if (driver == "optimize") {
-       // calc_manager = createOptimizationDriver(method, params);
+        // calc_manager = createOptimizationDriver(method, params);
         throw std::runtime_error("Optimize driver not implemented yet");
 
       } else if (driver == "custom") {
@@ -119,7 +119,7 @@ int main(int argc, char** argv) {
         throw std::runtime_error("Invalid driver");
       }
       // Run the calculations
-      calc_manager->runCalculations(world);
+      calc_manager->runCalculations(molecule.get_all_coords().flat());
 
       std::cout << "Calculations completed successfully." << std::endl;
 

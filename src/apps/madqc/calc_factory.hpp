@@ -85,10 +85,10 @@ using model_properties = std::map<std::string, bool>;
 using property_map = std::map<model, model_properties>;
 
 std::unique_ptr<CalculationDriver>
-createEnergyDriver(const std::string& model_name, const ParameterManager& pm,
-                   property_map properties) {
+createEnergyDriver(World& world, const std::string& model_name,
+                   const ParameterManager& pm, property_map properties) {
   // Create a new CalcManager
-  auto calc_manager = std::make_unique<CalculationDriver>();
+  auto calc_manager = std::make_unique<CalculationDriver>(world);
   auto molecule = pm.get_molecule();
   // All calculations start with a reference
   auto params = pm.get_moldft_params();
@@ -217,20 +217,5 @@ createEnergyDriver(const std::string& model_name, const ParameterManager& pm,
 /**/
 /*  return calc_manager;*/
 /*}*/
-
-// Below here we define more complex calculation strategies
-DynamicInput example_calculation(const Molecule& molecule) {
-  // Example setup calculation function
-  auto setupCalculation = [&](CalculationDriver& calc_manager,
-                              const std::string& iter_name) {
-    // Create strategies and set them up for the current iteration
-    auto params = CalculationParameters();
-    auto moldft_strategy =
-        std::make_unique<MoldftCalculationStrategy>(params, molecule);
-    calc_manager.addStrategy(std::move(moldft_strategy));
-  };
-
-  return DynamicInput{};
-}
 
 #endif  //  SRC_APPS_MADQC_CALC_FACTORY_HPP_

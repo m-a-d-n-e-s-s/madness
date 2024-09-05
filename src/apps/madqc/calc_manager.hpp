@@ -147,7 +147,7 @@ class CalculationStrategy {
  public:
   virtual void setPaths(PathManager& path_manager, const path& root) = 0;
   virtual void compute(World& world, PathManager& path_manager,
-                       const path& root) = 0;
+                       const path& root, const Tensor<double>& coords) = 0;
   virtual ~CalculationStrategy() = default;
 
   CalculationStrategy(std::string calc_name,
@@ -190,10 +190,10 @@ class CompositeCalculationStrategy : public CalculationStrategy {
     return new_strategy;
   }
 
-  void compute(World& world, PathManager& path_manager,
-               const path& root) override {
+  void compute(World& world, PathManager& path_manager, const path& root,
+               const Tensor<double>& coords) override {
     for (const auto& strategy : strategies) {
-      strategy->compute(world, path_manager, root);
+      strategy->compute(world, path_manager, root, coords);
     }
   }
 };
@@ -234,8 +234,8 @@ class MoldftCalculationStrategy : public CalculationStrategy {
     path_manager.setPath(base_path, moldft);
   }
 
-  void compute(World& world, PathManager& path_manager,
-               const path& root) override {
+  void compute(World& world, PathManager& path_manager, const path& root,
+               const Tensor<double>& coords) override {
     // Get the paths for the moldft calculation by name
     auto moldft_paths = path_manager.getPath(root / name);
     if (world.rank() == 0)
@@ -308,7 +308,7 @@ class MoldftCalculationStrategy : public CalculationStrategy {
       }
       calc.set_protocol<3>(world, calc.param.protocol()[0]);
       MolecularEnergy E(world, calc);
-      double energy = E.value(calc.molecule.get_all_coords().flat());  // ugh!
+      double energy = E.value(coords);  // ugh!
       calc.output_calc_info_schema();
       properties(world, calc, energy);
     }
@@ -559,8 +559,8 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
     }
   }
 
-  void compute(World& world, PathManager& path_manager,
-               const path& root) override {
+  void compute(World& world, PathManager& path_manager, const path& root,
+               const Tensor<double>& coords) override {
     auto moldft_paths = path_manager.getPath(input_names[0]);
     auto response_paths = path_manager.getPath(root / name);
 
@@ -710,8 +710,8 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
     path_manager.setPath(base_path, hyper_paths);
   }
 
-  void compute(World& world, PathManager& path_manager,
-               const path& root) override {
+  void compute(World& world, PathManager& path_manager, const path& root,
+               const Tensor<double>& coords) override {
     auto moldft_name = input_names[0];
     auto response_name = input_names[1];
     if (world.rank() == 0) {
@@ -1111,10 +1111,17 @@ class CalculationDriver {
   std::unique_ptr<CompositeCalculationStrategy> strategies;
   PathManager path_manager;
   path root;
+  World& world;
 
  public:
+  explicit CalculationDriver(World& world,
+                             path base_root = std::filesystem::current_path())
+      : world(world), root(std::move(base_root)) {
+    strategies = std::make_unique<CompositeCalculationStrategy>();
+  };
+  // Copy constructor with new root
   [[nodiscard]] std::unique_ptr<CalculationDriver> clone() const {
-    auto clone = std::make_unique<CalculationDriver>();
+    auto clone = std::make_unique<CalculationDriver>(world);
     clone->setRoot(root);
     for (const auto& strategy : strategies->getStrategies()) {
       clone->addStrategy(strategy->clone());
@@ -1132,7 +1139,7 @@ class CalculationDriver {
     strategies = std::move(newStrategies);
   }
 
-  void runCalculations(World& world) {
+  void runCalculations(const Tensor<double>& coords) {
 
     strategies->setPaths(path_manager, root);
 
@@ -1163,112 +1170,31 @@ class CalculationDriver {
 
     path_manager.createDirectories();
 
-    strategies->compute(world, path_manager, root);
+    strategies->compute(world, path_manager, root, coords);
   }
 
-  explicit CalculationDriver(path base_root = std::filesystem::current_path())
-      : root(std::move(base_root)) {
-    strategies = std::make_unique<CompositeCalculationStrategy>();
-  };
-  // Copy constructor with new root
-  //
-  CalculationDriver(const CalculationDriver& other, path new_root)
-      : root(std::move(new_root)) {
+  // Returns the value at a molecular position
+  double value(const Tensor<double>& x) {
+    // The simplest way is to have x be some member variable
+    // of the driver and
+    this->runCalculations(x);
 
-    for (const auto& strategy : other.strategies->getStrategies()) {
-      strategies->addStrategy(strategy->clone());
-    }
+    //  target.energy_and_gradient(molecule, e, g);
+    // Compute energy at new point
+    // energy1 = target.value(x + a1 * dx);
+
+    return 0.0;
+  }
+
+  Tensor<double> gradient(const Tensor<double>& x)  {
+    // The simplest way is to have x be some member variable
+    // of the driver and
+    //  target.energy_and_gradient(molecule, e, g);
+    // Compute energy at new point
+    // energy1 = target.value(x + a1 * dx);
+
+    return Tensor<double>{};
   }
 };
 
-using SetupCalculationFunction =
-    std::function<void(CalculationDriver&, std::string)>;
-using CheckConditionFunction =
-    std::function<bool(World&, PathManager&, const std::string&)>;
-using FinalizeCalculationFunction =
-    std::function<void(World&, PathManager&, const path&)>;
-
-using DynamicInput =
-    std::tuple<SetupCalculationFunction, CheckConditionFunction,
-               FinalizeCalculationFunction>;
-//
-//
-// This strategy a number of calculations based on a condition evaluated at runtime
-//
-/*class DynamicCalculationStrategy : public CalculationStrategy {*/
-/* private:*/
-/*  std::string strategy_name;*/
-/*  int iteration_limit = 100;  // Example limit to prevent infinite loops*/
-/*  SetupCalculationFunction setup_calculation;*/
-/*  CheckConditionFunction check_condition;*/
-/*  FinalizeCalculationFunction finalize_calculation;*/
-/**/
-/* public:*/
-/*  // Constructor*/
-/*  explicit DynamicCalculationStrategy(std::string strategy_name, SetupCalculationFunction setup_calculation,*/
-/*                                      CheckConditionFunction check_condition,*/
-/*                                      FinalizeCalculationFunction finalize_calculation,*/
-/*                                      std::vector<std::string> properties = {})*/
-/*      : strategy_name(std::move(strategy_name)),*/
-/*        setup_calculation(std::move(setup_calculation)),*/
-/*        check_condition(std::move(check_condition)),*/
-/*        finalize_calculation(std::move(finalize_calculation)),*/
-/*        CalculationStrategy(std::move(strategy_name), std::move(properties)) {}*/
-/**/
-/*  explicit DynamicCalculationStrategy(std::string strategy_name, DynamicInput input,*/
-/*                                      std::vector<std::string> properties = {})*/
-/*      : strategy_name(std::move(strategy_name)),*/
-/*        setup_calculation(std::get<0>(input)),*/
-/*        check_condition(std::get<1>(input)),*/
-/*        finalize_calculation(std::get<2>(input)),*/
-/*        CalculationStrategy(std::move(strategy_name), std::move(properties)) {}*/
-/**/
-/*  void setPaths(PathManager& path_manager, const path& root) override {*/
-/*    // Set the calc paths for the base of the calculation... In this case we don't know beforehand what we are working with.*/
-/*    // All we need to communicate is that we are working a directory specified by the strategy_name*/
-/*    CalculationTemplate dynamic_paths;*/
-/*    dynamic_paths.calc_paths.push_back(root / strategy_name);*/
-/*    path_manager.setPath(strategy_name, dynamic_paths);*/
-/*  }*/
-/**/
-/*  void compute(World& world, PathManager& path_manager) override {*/
-/*    int iteration = 0;*/
-/*    bool condition_met = false;*/
-/**/
-/*    auto base_path = path_manager.getPath(strategy_name).calc_paths[0];  // only one base path*/
-/*    path_manager.createDirectories(strategy_name);*/
-/*    vector<std::string> iteration_names;*/
-/**/
-/*    // I need to be able to iterate over variable containers*/
-/*    // where the container can be either a set of numbers*/
-/*    // or a set of coordinates*/
-/**/
-/*    for (int i = 0; i < iteration_limit; i++) {*/
-/*      // Create subdirectory for this iteration*/
-/*      // now we create a new calculation manager for this iteration*/
-/*      CalcManager calc_manager(base_path);  // the base path is the root for this iteration*/
-/*      auto iter_name = strategy_name + "_iter_" + std::to_string(iteration);*/
-/*      iteration_names.push_back(iter_name);*/
-/**/
-/*      // Set up the calculation for the iteration*/
-/*      setup_calculation(calc_manager, iter_name);*/
-/**/
-/*      // Run the calculations*/
-/*      calc_manager.runCalculations(world);*/
-/**/
-/*      condition_met = check_condition(world, path_manager, iter_name);*/
-/**/
-/*      // Check if the condition is met*/
-/**/
-/*      if (!condition_met) {*/
-/*        // Prepare for the next iteration*/
-/*        iteration++;*/
-/*      } else {*/
-/**/
-/*        // Finalize the calculation*/
-/*        finalize_calculation(world, path_manager, iter_name);*/
-/*      }*/
-/*    }*/
-/*  }*/
-/*};*/
 #endif  // SRC_APPS_MADQC_CALCMANAGER_HPP_

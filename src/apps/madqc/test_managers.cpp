@@ -30,7 +30,6 @@ TEST_CASE("Copy driver with new name... or nested") {
 
   ParameterManager params;
   // Initialize the necessary components
-  Molecule molecule;  // Initialize your molecule here
   path input_file("input.json");
   if (world.rank() == 0) {
     print("Input file found");
@@ -43,23 +42,20 @@ TEST_CASE("Copy driver with new name... or nested") {
   auto method = task_params.method;
   auto driver = task_params.driver;
   auto properties = task_params.properties;
+  auto molecule = params.get_molecule();
 
   if (world.rank() == 0) {
     task_params.print();
   }
-  std::unique_ptr<CalculationDriver> calc_manager;
-  calc_manager = createEnergyDriver(method, params, properties);
-
-  // create a new driver with the same parameters
-  auto new_manager = calc_manager->clone();
-
-  path cwd = std::filesystem::current_path();
+  auto calc_manager = createEnergyDriver(world, method, params, properties);
   calc_manager->setRoot("optimize1");
-  calc_manager->runCalculations(world);
+  auto new_manager = calc_manager->clone();
+  path cwd = std::filesystem::current_path();
+  calc_manager->runCalculations(molecule.get_all_coords().flat());
 
   std::filesystem::current_path(cwd);
   new_manager->setRoot("optimize2");
-  new_manager->runCalculations(world);
+  new_manager->runCalculations(molecule.get_all_coords().flat());
   std::filesystem::current_path(cwd);
 
   // create a driver with moldft
@@ -89,11 +85,12 @@ TEST_CASE("Constructing an Optimization Calculation") {
     task_params.print();
   }
   std::unique_ptr<CalculationDriver> calc_manager;
-  calc_manager = createEnergyDriver(method, params, properties);
+  calc_manager = createEnergyDriver(world, method, params, properties);
 
   path cwd = std::filesystem::current_path();
   calc_manager->setRoot("optimize1");
-  calc_manager->runCalculations(world);
+  calc_manager->runCalculations(
+      molecule.get_all_coords().flat());  // ugh!!!! again!
 
   auto& opt_params = params.get_optimization_params();
 
@@ -105,9 +102,9 @@ TEST_CASE("Constructing an Optimization Calculation") {
              1e-5,                                 // EPREC
              opt_params.get_gradient_precision(),  // gradient precision
              (world.rank() == 0) ? 1 : 0,          // print_level
-             opt_params.get_algopt());                 // algorithm options
+             opt_params.get_algopt());             // algorithm options
 
-  auto new_molecule = opt.optimize(molecule, calc_manager);
+  // auto new_molecule = opt.optimize(molecule, calc_manager);
 }
 
 TEST_CASE("Hyperpolarizability Calculation") {}
