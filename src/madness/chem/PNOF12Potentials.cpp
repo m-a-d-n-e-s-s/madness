@@ -72,7 +72,7 @@ F12Potentials::F12Potentials(World& world,const Nemo& nemo, const BasisFunctions
 														mos(nemo.get_calc()->amo),
 														acmos(initialize_active_mos(nemo)),
 														K(ParametrizedExchange(world, nemo, pp.exchange())),
-														Q(world, nemo.get_calc()->amo) {
+														Q(nemo.get_calc()->amo) {
 	const double lo = 1.e-6;
 	const double eps = param.op_thresh();
 	coulombop = std::shared_ptr < real_convolution_3d > (CoulombOperatorPtr(world, lo, eps));
@@ -1377,7 +1377,7 @@ PairEnergies F12Potentials::compute_hylleraas_f12_energies(
 		for (ElectronPairIterator it = pit(); it; ++it) {
 			// right now this will make the same guess for all pairs
 			//const vector_real_function_3d tmp=guess_virtuals(param.abs);
-			QProjector<double, 3> Qpno(world, pnos[it.ij()]);
+			QProjector<double, 3> Qpno( pnos[it.ij()]);
 			const vector_real_function_3d tmp = Qpno(cabs);
 			abs_ij[it.ij()] = tmp;
 		}

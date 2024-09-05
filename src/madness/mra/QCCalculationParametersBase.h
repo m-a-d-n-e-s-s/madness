@@ -388,7 +388,7 @@ protected:
 		std::transform(key_lower.begin(), key_lower.end(), key_lower.begin(), ::tolower);
 		std::transform(svalue.begin(), svalue.end(), svalue.begin(), ::tolower);
 		std::vector<std::string> av_lower_vec;
-		for (auto av : allowed_values) {
+		for (const T& av : allowed_values) {
 			std::string av_lower=tostring(av);
 			std::transform(av_lower.begin(), av_lower.end(), av_lower.begin(), ::tolower);
 			av_lower_vec.push_back(av_lower);
@@ -598,6 +598,7 @@ public:
 	static std::string tostring(const T& arg) {
                 using madness::operators::operator<<;
 		std::ostringstream ss;
+		static_assert(not std::is_same<T,bool>::value, "you need to specialize tostring for this type");
 
 		ss<<std::scientific  << std::setprecision(4) << arg;
 		std::string str=ss.str();

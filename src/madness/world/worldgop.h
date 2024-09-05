@@ -788,7 +788,7 @@ namespace madness {
           auto buf0 = std::unique_ptr<T[]>(new T[nelem_per_maxmsg]);
           auto buf1 = std::unique_ptr<T[]>(new T[nelem_per_maxmsg]);
 
-          auto reduce_impl = [&,this](T* buf, int nelem) {
+          auto reduce_impl = [&,this](T* buf, size_t nelem) {
             MADNESS_ASSERT(nelem <= nelem_per_maxmsg);
             SafeMPI::Request req0, req1;
             Tag gsum_tag = world_.mpi.unique_tag();

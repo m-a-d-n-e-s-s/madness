@@ -426,6 +426,17 @@ double Znemo::analyze() {
 	save_orbitals("plot");
 	save(density,"density");
 	save(spindensity,"spindensity");
+
+	auto components=std::vector<std::vector<real_function_3d>>({real(amo),imag(amo),real(bmo),imag(bmo)});
+	auto component_names=std::vector<std::string>({"real_amo","imag_amo","real_bmo","imag_bmo"});
+	std::vector<real_function_3d> real_aos=SCF::project_ao_basis_only(world, aobasis, mol);
+	for (size_t i=0; i<components.size(); ++i) {
+		if (world.rank()==0) print("analysis of MO component ",component_names[i]);
+		if (components[i].size()>0) SCF::analyze_vectors(world, components[i], real_aos,
+			FunctionDefaults<3>::get_thresh()*0.1, molecule(), cparam.print_level(), aobasis);
+
+	}
+
     return energy;
 }
 
