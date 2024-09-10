@@ -23,6 +23,49 @@ int main(int argc, char* argv[]) {
   }
   return result;
 }
+TEST_CASE("Constructing an Optimization Calculation") {
+
+  World& world = World::get_default();
+
+  ParameterManager params;
+  // Initialize the necessary components
+  path input_file("input.json");
+  if (world.rank() == 0) {
+    print("Input file found");
+    print("Parsing Command Line");
+  }
+  params = ParameterManager(world, input_file);
+
+  auto task_params = params.get_task_params();
+
+  auto method = task_params.method;
+  auto driver = task_params.driver;
+  auto properties = task_params.properties;
+  auto molecule = params.get_molecule();
+
+  if (world.rank() == 0) {
+    task_params.print();
+  }
+  std::unique_ptr<CalculationDriver> calc_manager;
+  calc_manager = createEnergyDriver(world, method, params, properties);
+
+  path cwd = std::filesystem::current_path();
+  calc_manager->setRoot("optimize1");
+
+  auto& opt_params = params.get_optimization_params();
+
+  MolOpt opt(opt_params.get_maxiter(),             // geoometry max iter
+             0.1,                                  // geometry step size
+             opt_params.get_value_precision(),     // value precision
+             opt_params.get_geometry_tolerence(),  // geometry tolerance
+             1e-3,                                 // XTOL
+             1e-5,                                 // EPREC
+             opt_params.get_gradient_precision(),  // gradient precision
+             (world.rank() == 0) ? 1 : 0,          // print_level
+             opt_params.get_algopt());             // algorithm options
+
+  auto new_molecule = opt.optimize(molecule, *calc_manager);
+}
 
 TEST_CASE("Copy driver with new name... or nested") {
 
@@ -61,51 +104,6 @@ TEST_CASE("Copy driver with new name... or nested") {
   // create a driver with moldft
 }
 
-TEST_CASE("Constructing an Optimization Calculation") {
-
-  World& world = World::get_default();
-
-  ParameterManager params;
-  // Initialize the necessary components
-  path input_file("input.json");
-  if (world.rank() == 0) {
-    print("Input file found");
-    print("Parsing Command Line");
-  }
-  params = ParameterManager(world, input_file);
-
-  auto task_params = params.get_task_params();
-
-  auto method = task_params.method;
-  auto driver = task_params.driver;
-  auto properties = task_params.properties;
-  auto molecule = params.get_molecule();
-
-  if (world.rank() == 0) {
-    task_params.print();
-  }
-  std::unique_ptr<CalculationDriver> calc_manager;
-  calc_manager = createEnergyDriver(world, method, params, properties);
-
-  path cwd = std::filesystem::current_path();
-  calc_manager->setRoot("optimize1");
-  calc_manager->runCalculations(
-      molecule.get_all_coords().flat());  // ugh!!!! again!
-
-  auto& opt_params = params.get_optimization_params();
-
-  MolOpt opt(opt_params.get_maxiter(),             // geoometry max iter
-             0.1,                                  // geometry step size
-             opt_params.get_value_precision(),     // value precision
-             opt_params.get_geometry_tolerence(),  // geometry tolerance
-             1e-3,                                 // XTOL
-             1e-5,                                 // EPREC
-             opt_params.get_gradient_precision(),  // gradient precision
-             (world.rank() == 0) ? 1 : 0,          // print_level
-             opt_params.get_algopt());             // algorithm options
-
-  // auto new_molecule = opt.optimize(molecule, calc_manager);
-}
 
 TEST_CASE("Hyperpolarizability Calculation") {}
 
