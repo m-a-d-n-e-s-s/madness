@@ -84,7 +84,6 @@ int main(int argc, char** argv) {
       commandlineparser parser(argc, argv);
       ParameterManager params;
       // Initialize the necessary components
-      Molecule molecule;  // Initialize your molecule here
       path input_file(argv[1]);
       if (world.rank() == 0) {
         print("Input file found");
@@ -97,6 +96,7 @@ int main(int argc, char** argv) {
       auto method = task_params.method;
       auto driver = task_params.driver;
       auto properties = task_params.properties;
+      auto molecule = params.get_molecule();
 
       if (world.rank() == 0) {
         task_params.print();

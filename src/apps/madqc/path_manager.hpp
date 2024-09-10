@@ -100,6 +100,104 @@ class MoldftPathStrategy : public PathStrategy {
   explicit MoldftPathStrategy(std::string calc_name) : calc_name(std::move(calc_name)) {}
 };
 
+class ResponseConfig {
+
+ public:
+  std::string calc_name = "response";
+  std::string perturbation;
+  std::string xc;
+  std::vector<double> frequencies;
+  // sets the current path to the save path
+  /**
+     * Generates the frequency save path with format
+     * /frequency_run_path/restart_[frequency_run_filename].00000
+     *
+     * @param frequency_run_path
+     * @return
+     */
+  static path restart_path(const std::filesystem::path& calc_path) {
+
+    auto save_path = std::filesystem::path(calc_path);
+    auto run_name = calc_path.filename();
+    std::string save_string = "restart_" + run_name.string();
+    save_path += "/";
+    save_path += save_string;
+    save_path += ".00000";
+
+    return save_path;
+  }
+
+  /**
+     * generates the frequency response path using the format
+     * [property]_[xc]_[1-100]
+     *
+     * where 1-100 corresponds a frequency of 1.100
+     *
+     * @param moldft_path
+     * @param property
+     * @param frequency
+     * @param xc
+     * @return
+     */
+  [[nodiscard]] auto calc_path(const path& root, const double& frequency) const -> std::filesystem::path {
+    std::string s_frequency = std::to_string(frequency);
+    auto sp = s_frequency.find('.');
+    s_frequency = s_frequency.replace(sp, sp, "-");
+    std::string run_name = this->perturbation + "_" + this->xc + "_" + s_frequency;
+    return root / std::filesystem::path(run_name);
+  }
+  explicit ResponseConfig(std::string calc_name, ResponseInput input)
+      : calc_name(std::move(calc_name)),
+        perturbation(std::get<0>(input)),
+        xc(std::get<1>(input)),
+        frequencies(std::get<2>(input)) {}
+  explicit ResponseConfig(ResponseInput input)
+      : perturbation(std::get<0>(input)), xc(std::get<1>(input)), frequencies(std::get<2>(input)) {}
+};
+
+class ResponsePathStrategy : public PathStrategy {
+
+ private:
+  std::string calc_name = "response";
+  ResponseConfig config;
+
+ public:
+  json generateCalcPaths(const path& root) override {
+
+    json paths;
+    paths[calc_name] = {};
+    auto& response = paths[calc_name];
+    response["frequencies"] = config.frequencies;
+    response["calculation"] = {};
+    response["output"] = {};
+    response["restart"] = {};
+
+    auto base_path = root / calc_name;
+    // TODO: (@ahurta92) Feels hacky, should I always be creating new directories?  If I am, should I just create all of them from the start?
+    // I added this because later down the line I was getting an error that the directory didn't exist for /base/response when trying to create /base/response/frequency
+    if (!std::filesystem::exists(base_path)) {
+      std::filesystem::create_directory(base_path);
+    }
+
+    response["properties"] = {};
+    response["properties"]["alpha"] = base_path / "alpha.json";
+    response["properties"]["beta"] = base_path / "beta.json";
+
+    for (const auto& frequency : config.frequencies) {
+      auto frequency_run_path = config.calc_path(base_path, frequency);
+      auto restart_path = ResponseConfig::restart_path(frequency_run_path);
+      response["calculation"].push_back(frequency_run_path);
+      response["restart"].push_back(restart_path);
+      response["output"].push_back(frequency_run_path / "response_base.json");
+    }
+    return paths;
+  }
+
+  explicit ResponsePathStrategy(ResponseInput input) : config(std::move(input)) {}
+
+  explicit ResponsePathStrategy(ResponseInput input, const std::string& calc_name)
+      : config(calc_name, std::move(input)) {}
+};
 
 class HyperPolarizabilityPathStrategy : public PathStrategy {
 

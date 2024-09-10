@@ -39,7 +39,6 @@
 #include <apps/molresponse/FrequencyResponse.hpp>
 #include <apps/molresponse/ResponseExceptions.hpp>
 #include <filesystem>
-#include <functional>
 #include <madness/chem/molecule.h>
 #include <madness/external/nlohmann_json/json.hpp>
 #include <madness/tensor/solvers.h>
@@ -90,9 +89,74 @@ inline void CalculationTemplate::print() {
   std::cout << j.dump(4);
 }
 
+template <typename T>
+void to_json(json& j, const Tensor<T>& m) {
+  // auto dimensions = m.dims();
+  long size = m.size();    ///< Number of elements in the tensor
+  long n_dims = m.ndim();  ///< Number of dimensions (-1=invalid; 0=no
+  ///< supported; >0=tensor)
+  auto dims = m.dims();  // the size of each dimension
+  // long id = m.id();       ///< Id from TensorTypeData<T> in type_data.h
+  // auto strides = m.strides();
+  auto fm = m.flat();
+  auto m_vals_vector = std::vector<T>(size);
+  auto m_dims_vector = std::vector<long>(n_dims);
+  std::copy(&fm[0], &fm[0] + size, m_vals_vector.begin());
+  std::copy(dims, dims + n_dims, m_dims_vector.begin());
+
+  // This is everything we need to translate to a numpy vector...
+  j["size"] = size;
+  j["vals"] = m_vals_vector;
+  j["dims"] = m_dims_vector;
+}
+
+template <typename T>
+void from_json(const nlohmann::json& j, Tensor<T>& m) {
+  // need to be explicit here about types so we find the proper Tensor
+  // constructors
+  long size = j["size"];
+  std::vector<T> m_vals_vector = j["vals"];
+  std::vector<long> m_dims_vector = j["dims"];
+
+  Tensor<T> flat_m(size);
+  // copy the values from the vector to the flat tensor
+  std::copy(m_vals_vector.begin(), m_vals_vector.end(), &flat_m[0]);
+  // reshape the tensor using dimension vector
+  m = flat_m.reshape(m_dims_vector);
+}
+
+template <typename T>
+struct OutputTemplate {
+  double energy{};
+  Tensor<T> dipole;
+  Tensor<T> gradient;
+  OutputTemplate() = default;
+};
+
+template <typename T>
+void to_json(json& j, const OutputTemplate<T>& p) {
+
+  j = json();
+
+  j["energy"] = p.energy;
+  to_json(j["dipole"], p.dipole);
+  to_json(j["gradient"], p.gradient);
+}
+
+template <typename T>
+void from_json(const json& j, OutputTemplate<T>& p) {
+  p.energy = j.at("energy");
+  p.dipole = j.at("dipole");
+  p.gradient = j.at("gradient");
+  p.hessian = j.at("hessian");
+  p.alpha = j.at("alpha");
+  p.beta = j.at("beta");
+}
+
 class PathManager {
  private:
-  json path_data = {};
+  json path_data = {
+      {"outputs", path(std::filesystem::current_path() / "outputs.json")}};
 
  public:
   void setPath(const std::string& key, const CalculationTemplate& value) {
@@ -103,10 +167,14 @@ class PathManager {
     return path_data[key].get<CalculationTemplate>();
   }
 
+  [[nodiscard]] path get_output_path() const { return path_data["outputs"]; }
+
   [[nodiscard]] json getAllPaths() const { return path_data; }
 
   void createDirectories() {
-    for (const auto& [key, calc_paths] : path_data.items()) {
+    json temp = path_data;
+    temp.erase("outputs");
+    for (const auto& [key, calc_paths] : temp.items()) {
       auto calc_path = calc_paths.get<CalculationTemplate>();
       for (const auto& calc_dir : calc_path.calc_paths) {
         print("Creating directory: ", calc_dir);
@@ -229,7 +297,6 @@ class MoldftCalculationStrategy : public CalculationStrategy {
     moldft.restarts.push_back(base_path / "moldft.restartdata.00000");
     moldft.outputs["calc_info"] = {base_path / "moldft.calc_info.json"};
     moldft.outputs["scf_info"] = {base_path / "moldft.calc_info.json"};
-    moldft.outputs["properties"] = {base_path / "output.json"};
 
     path_manager.setPath(base_path, moldft);
   }
@@ -310,33 +377,34 @@ class MoldftCalculationStrategy : public CalculationStrategy {
       MolecularEnergy E(world, calc);
       double energy = E.value(coords);  // ugh!
       calc.output_calc_info_schema();
-      properties(world, calc, energy);
+      properties(world, calc, energy, path_manager);
     }
 
     // Add actual calculation logic here
   }
-  static json compute_property(World& world, const std::string& property,
-                               SCF& calc, double energy) {
-    json result;
+  template <typename T>
+  static void compute_property(World& world, const std::string& property,
+                               SCF& calc, double energy,
+                               OutputTemplate<T>& result) {
     if (property == "energy") {
-      result["energy"] = energy;
+      result.energy = energy;
     } else if (property == "gradient") {
       auto gradient = calc.derivatives(
           world, calc.make_density(world, calc.aocc, calc.amo));
-      result["gradient"] = tensor_to_json(
-          gradient);  // here we need to make json representation of a tensor....
+      result.gradient = gradient;
+      // we need to make json representation of a tensor....
     } else if (property == "dipole") {
       auto dipole =
           calc.dipole(world, calc.make_density(world, calc.aocc, calc.amo));
-      result["dipole"] = tensor_to_json(dipole);
+      result.dipole = dipole;
     } else {
       throw std::runtime_error("Property not available");
     }
-    return result;
   }
 
-  void properties(World& world, SCF& calc, double energy) {
+  void properties(World& world, SCF& calc, double energy, PathManager& pm) {
     // This is where a property interface would be useful. for properties use the properties interface
+    OutputTemplate<double> otemp;
     // to get the properties of the calculation
     json results;
     paths[name]["output"]["properties"] = {};
@@ -344,13 +412,26 @@ class MoldftCalculationStrategy : public CalculationStrategy {
 
     for (const auto& [property, compute] : requested_properties) {
       if (compute) {
-        output[property] = compute_property(world, property, calc, energy);
+        compute_property(world, property, calc, energy, otemp);
       }
     }
+    output = {};
+    to_json<double>(output, otemp);
+
+    // Read the output json and write it to the output path
+
     if (world.rank() == 0) {
+      json persistent_output = {};
       print("output: ", output.dump(4));
-      std::ofstream ofs(output_path);
-      ofs << output.dump(4);
+      if(std::filesystem::exists(pm.get_output_path())){
+        std::ifstream ifs(pm.get_output_path());
+        ifs >> persistent_output;
+        ifs.close();
+      }
+      persistent_output[name] = output;
+      print("output: ", output.dump(4));
+      std::ofstream ofs(pm.get_output_path());
+      ofs << persistent_output.dump(4);
       ofs.close();
     }
   }
@@ -421,6 +502,7 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
   [[nodiscard]] std::unique_ptr<CalculationStrategy> clone() const override {
     return std::make_unique<LinearResponseStrategy>(*this);
   }
+
   void setPaths(PathManager& path_manager, const path& root) override {
     // We always start at root+calc_name
     auto base_path = root / calc_name;
@@ -1108,6 +1190,7 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
 
 class CalculationDriver {
  private:
+  std::string method;
   std::unique_ptr<CompositeCalculationStrategy> strategies;
   PathManager path_manager;
   path root;
@@ -1115,13 +1198,15 @@ class CalculationDriver {
 
  public:
   explicit CalculationDriver(World& world,
-                             path base_root = std::filesystem::current_path())
-      : world(world), root(std::move(base_root)) {
+                             path base_root = std::filesystem::current_path(),
+                             const std::string& method = "moldft")
+      : world(world), root(std::move(base_root)), method(method) {
     strategies = std::make_unique<CompositeCalculationStrategy>();
   };
   // Copy constructor with new root
   [[nodiscard]] std::unique_ptr<CalculationDriver> clone() const {
     auto clone = std::make_unique<CalculationDriver>(world);
+    clone->method = method;
     clone->setRoot(root);
     for (const auto& strategy : strategies->getStrategies()) {
       clone->addStrategy(strategy->clone());
@@ -1130,6 +1215,8 @@ class CalculationDriver {
   }
   void setRoot(const path& new_root) { root = new_root; }
   [[nodiscard]] path getRoot() const { return root; }
+  void setMethod(const std::string& new_method) { method = new_method; }
+  [[nodiscard]] std::string getMethod() const { return method; }
 
   void addStrategy(std::unique_ptr<CalculationStrategy> newStrategy) {
     strategies->addStrategy(std::move(newStrategy));
@@ -1175,18 +1262,16 @@ class CalculationDriver {
 
   // Returns the value at a molecular position
   double value(const Tensor<double>& x) {
-    // The simplest way is to have x be some member variable
-    // of the driver and
-    this->runCalculations(x);
 
-    //  target.energy_and_gradient(molecule, e, g);
-    // Compute energy at new point
-    // energy1 = target.value(x + a1 * dx);
+    // In the case of optimization we need options on
+    this->runCalculations(x);
+    // get output.json
+    // read in the json file
 
     return 0.0;
   }
 
-  Tensor<double> gradient(const Tensor<double>& x)  {
+  Tensor<double> gradient(const Tensor<double>& x) {
     // The simplest way is to have x be some member variable
     // of the driver and
     //  target.energy_and_gradient(molecule, e, g);

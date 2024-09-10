@@ -88,7 +88,8 @@ std::unique_ptr<CalculationDriver>
 createEnergyDriver(World& world, const std::string& model_name,
                    const ParameterManager& pm, property_map properties) {
   // Create a new CalcManager
-  auto calc_manager = std::make_unique<CalculationDriver>(world);
+  auto calc_manager = std::make_unique<CalculationDriver>(
+      world, std::filesystem::current_path(), model_name);
   auto molecule = pm.get_molecule();
   // All calculations start with a reference
   auto params = pm.get_moldft_params();

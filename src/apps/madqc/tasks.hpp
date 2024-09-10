@@ -24,7 +24,7 @@ struct TaskParameters {
   std::string method;
   property_map properties;
 
-  void print()const  {
+  void print() const {
     madness::print("------------Task Parameters---------------");
     madness::print("Driver: ", driver);
     madness::print("Method: ", method);
@@ -40,7 +40,8 @@ struct TaskParameters {
 };
 
 void to_json(nlohmann::json& j, const TaskParameters& t) {
-  j = nlohmann::json{{"driver", t.driver}, {"method", t.method}, {"properties", t.properties}};
+  j = nlohmann::json{
+      {"driver", t.driver}, {"method", t.method}, {"properties", t.properties}};
 }
 
 void from_json(const nlohmann::json& j, TaskParameters& t) {
@@ -48,14 +49,6 @@ void from_json(const nlohmann::json& j, TaskParameters& t) {
   j.at("method").get_to(t.method);
   j.at("properties").get_to(t.properties);
 }
-
-
-
-
-
-
-
-
 
 /*struct TaskParameters : public QCCalculationParametersBase {*/
 /*  TaskParameters(const TaskParameters& other) = default;*/
