@@ -279,6 +279,18 @@ public:
         return forward_load<T>(world, rlist);
     }
 
+    /// similar to load, but will consume the recordlist
+
+    /// @param[in]  world the subworld the objects are loaded to
+    /// @param[in]  recordlist the list of records where the objects are stored
+    template<typename T>
+    T consuming_load(madness::World &world, recordlistT& recordlist) const {
+        cloudtimer t(world, reading_time);
+
+        // forward_load will consume the recordlist while loading elements
+        return forward_load<T>(world, recordlist);
+    }
+
     /// load a single object from the cloud, recordlist is consumed while loading elements
     template<typename T>
     T forward_load(madness::World &world, recordlistT& recordlist) const {

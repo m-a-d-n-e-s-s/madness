@@ -123,7 +123,7 @@ public:
 
     resultT operator()(const std::vector<real_function_3d>& f1, const double &arg2,
                        const std::vector<real_function_3d>& f2) const {
-        World &world = f1[0].world();
+        // World &world = f1[0].world();
         // // won't work because of nested loop over f1
         // if (batch.input[0]==batch.input[1]) {
         //     return arg2 * f1 * inner(f1,f2);
@@ -185,6 +185,31 @@ public:
     }
 };
 
+class TupleTask : public MacroTaskOperationBase{
+public:
+    // you need to define the result type
+    // resultT must implement gaxpy(alpha, result, beta, contribution)
+    // with resultT result, contribution;
+    typedef std::tuple<vector_real_function_3d,vector_real_function_3d> resultT;
+
+    // you need to define the exact argument(s) of operator() as tuple
+    typedef std::tuple<const std::vector<real_function_3d> &> argtupleT;
+
+    resultT allocator(World &world, const argtupleT &argtuple) const {
+        std::size_t n=std::get<0>(argtuple).size();
+        auto v1=zero_functions_compressed<double,3>(world,n);
+        auto v2=zero_functions_compressed<double,3>(world,n);
+        return std::make_tuple(v1,v2);
+    }
+
+    resultT operator()(const std::vector<real_function_3d>& f1) const {
+        World &world = f1[0].world();
+        auto result1=copy(world,f1);
+        auto result2=f1+f1;
+        auto result=std::make_tuple(result1,result2);
+        return result;
+    }
+};
 
 
 int check_vector(World& universe, const std::vector<real_function_3d> &ref, const std::vector<real_function_3d> &test,
@@ -200,6 +225,19 @@ int check_vector(World& universe, const std::vector<real_function_3d> &ref, cons
     }
     return (success) ? 0 : 1;
 };
+
+
+int check(World& universe, const double &ref, const double &test, const std::string msg) {
+    double error = (ref - test);
+    bool success = error/ref < 1.e-10;
+    if (universe.rank() == 0) {
+                print("norm ref, test, diff", ref, test, error);
+        if (success) print("test", msg, " \033[32m", "passed ", "\033[0m");
+        else print("test", msg, " \033[31m", "failed \033[0m ");
+    }
+    return (success) ? 0 : 1;
+}
+
 int check(World& universe, const real_function_3d &ref, const real_function_3d &test, const std::string msg) {
     double norm_ref = ref.norm2();
     double norm_test = test.norm2();
@@ -273,17 +311,20 @@ int test_scalar_task(World& universe, const std::vector<real_function_3d>& v3) {
     if (universe.rank()==0) print("\nstarting ScalarTask\n");
     ScalarTask t1;
     std::shared_ptr<ScalarResult<double>> result = t1(v3);
-    print("result",result->get());
+    double ref_t1=result->get();
+    print("result reference",ref_t1);
 
 
     MacroTask task1(universe, t1);
     auto result2= task1(v3);
-    print("result",result2->get());
+    double result_t1=result2->get();
+    print("result macro",result_t1);
 
-//    int success = check(universe,ref_t1, ref_t2, "task1 immediate");
-    int success=0;
+    int success = check(universe,ref_t1, result_t1, "task1 immediate");
     return success;
 }
+
+
 int test_vector_of_scalar_task(World& universe, const std::vector<real_function_3d>& v3) {
     if (universe.rank()==0) print("\nstarting VectorOfScalarTask\n");
     VectorOfScalarTask t1;
@@ -296,6 +337,26 @@ int test_vector_of_scalar_task(World& universe, const std::vector<real_function_
     for (auto& r : result2) print("result",r->get());
 
     int success=0;
+    return success;
+}
+
+/// each task accumulates into the same result
+int test_tuple_of_vectors(World& universe, const std::vector<real_function_3d>& v3) {
+    if (universe.rank()==0) print("\nstarting TupleOfVectorsTask\n");
+    TupleTask t1;
+    auto [ref1,ref2]=t1(v3);
+    double n1=norm2(universe,ref1);
+    double n2=norm2(universe,ref2);
+    print("result reference",n1,n2);
+
+
+    MacroTask task1(universe, t1);
+    auto [res1,res2] = task1(v3);
+    double m1=norm2(universe,res1);
+    double m2=norm2(universe,res2);
+    print("result macro",m1,m2);
+
+    int success = check(universe,n1,m1, "task1 immediate");
     return success;
 }
 
@@ -351,6 +412,9 @@ int main(int argc, char **argv) {
 
         success+=test_scalar_task(universe,v3);
         timer1.tag("scalar task execution");
+
+        success+=test_tuple_of_vectors(universe,v3);
+        timer1.tag("vector of tuples task execution");
 
         success+=test_deferred(universe,v3,ref);
         timer1.tag("deferred taskq execution");
