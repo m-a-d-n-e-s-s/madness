@@ -98,10 +98,9 @@ void to_json(json& j, const Tensor<T>& m) {
   auto dims = m.dims();  // the size of each dimension
   // long id = m.id();       ///< Id from TensorTypeData<T> in type_data.h
   // auto strides = m.strides();
-  auto fm = m.flat();
   auto m_vals_vector = std::vector<T>(size);
   auto m_dims_vector = std::vector<long>(n_dims);
-  std::copy(&fm[0], &fm[0] + size, m_vals_vector.begin());
+  std::copy(&m[0], &m[0] + size, m_vals_vector.begin());
   std::copy(dims, dims + n_dims, m_dims_vector.begin());
 
   // This is everything we need to translate to a numpy vector...
@@ -125,11 +124,15 @@ void from_json(const nlohmann::json& j, Tensor<T>& m) {
   m = flat_m.reshape(m_dims_vector);
 }
 
+// Defines the type of each possible output
 template <typename T>
 struct OutputTemplate {
   double energy{};
   Tensor<T> dipole;
   Tensor<T> gradient;
+  Tensor<T> hessian;
+  nlohmann::ordered_json alpha;
+  nlohmann::ordered_json betaa;
   OutputTemplate() = default;
 };
 
@@ -423,7 +426,7 @@ class MoldftCalculationStrategy : public CalculationStrategy {
     if (world.rank() == 0) {
       json persistent_output = {};
       print("output: ", output.dump(4));
-      if(std::filesystem::exists(pm.get_output_path())){
+      if (std::filesystem::exists(pm.get_output_path())) {
         std::ifstream ifs(pm.get_output_path());
         ifs >> persistent_output;
         ifs.close();
@@ -487,7 +490,6 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
   std::string op;
   std::string xc;
   std::vector<double> freqs;
-  std::string calc_name = "response";
   ResponseConfig config;
   path output_path;
   std::vector<std::string> available_properties = {"alpha"};
@@ -497,7 +499,8 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
       const ResponseParameters& params, const ResponseInput& r_input,
       std::string name = "response",
       const std::vector<std::string>& input_names = {"moldft"})
-      : parameters(params), calc_name(std::move(name)), config(r_input, name),
+      : parameters(params), config(r_input, std::move(name)),
+        CalculationStrategy(name, {{"alpha", true}}),
         InputInterface(input_names) {}
   [[nodiscard]] std::unique_ptr<CalculationStrategy> clone() const override {
     return std::make_unique<LinearResponseStrategy>(*this);
@@ -505,7 +508,7 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
 
   void setPaths(PathManager& path_manager, const path& root) override {
     // We always start at root+calc_name
-    auto base_path = root / calc_name;
+    auto base_path = root / name;
     CalculationTemplate response_paths;
 
     response_paths.outputs["response_base"] = {};
@@ -643,8 +646,10 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
 
   void compute(World& world, PathManager& path_manager, const path& root,
                const Tensor<double>& coords) override {
+
+    auto path_key = root / name;  // access from path manager
     auto moldft_paths = path_manager.getPath(input_names[0]);
-    auto response_paths = path_manager.getPath(root / name);
+    auto response_paths = path_manager.getPath(path_key);
 
     auto moldft_restart =
         moldft_paths.restarts[0].replace_extension("").string();
@@ -655,7 +660,7 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
     auto freqs = config.frequencies;
     auto num_freqs = freqs.size();
 
-    path_manager.createDirectories(calc_name);
+    path_manager.createDirectories(path_key);
 
     bool last_converged = false;
     nlohmann::ordered_json alpha_json;
@@ -755,6 +760,21 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
     if (world.rank() == 0) {
       out_file << alpha_json.dump(4);
     }
+    // Read in output json and write alpha.json to output path
+    //
+    if (world.rank() == 0) {
+      json persistent_output = {};
+      // read in the output json
+      if (std::filesystem::exists(path_manager.get_output_path())) {
+        std::ifstream ifs(path_manager.get_output_path());
+        ifs >> persistent_output;
+        ifs.close();
+      }
+      persistent_output[name] = alpha_json;
+      std::ofstream ofs(path_manager.get_output_path());
+      ofs << persistent_output.dump(4);
+      ofs.close();
+    }
   }
 };
 
@@ -762,7 +782,6 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
   ResponseParameters parameters;
   std::string op;
   std::string xc;
-  std::string calc_name = "hyper";
   ResponseConfig config;
   json paths;
   path output_path;
@@ -776,8 +795,8 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
       const ResponseParameters& params, const ResponseInput& r_input,
       std::string name = "hyper",
       const std::vector<std::string>& input_names = {"moldft", "response"})
-      : parameters(params), calc_name(std::move(name)), config(r_input, name),
-        InputInterface(input_names) {
+      : parameters(params), config(r_input, name), InputInterface(input_names),
+        CalculationStrategy(name, {{"beta", true}}) {
     print("input names: ", input_names);
     if (input_names.size() != 2) {
       throw std::runtime_error("ResponseHyper requires two input names");
@@ -785,7 +804,8 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
   }
 
   void setPaths(PathManager& path_manager, const path& root) override {
-    auto base_path = root / calc_name;
+
+    auto base_path = root / name;
     CalculationTemplate hyper_paths;
     hyper_paths.calc_paths.push_back(base_path);
     hyper_paths.outputs["beta"] = {base_path / "beta.json"};
@@ -801,7 +821,7 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
       print("response_name: ", response_name);
     }
 
-    auto hyper_paths = path_manager.getPath(root / calc_name);
+    auto hyper_paths = path_manager.getPath(root / name);
     auto calc_path = hyper_paths.calc_paths[0];
 
     auto moldft_paths = path_manager.getPath(moldft_name);
@@ -1199,8 +1219,8 @@ class CalculationDriver {
  public:
   explicit CalculationDriver(World& world,
                              path base_root = std::filesystem::current_path(),
-                             const std::string& method = "moldft")
-      : world(world), root(std::move(base_root)), method(method) {
+                             std::string method = "moldft")
+      : world(world), root(std::move(base_root)), method(std::move(method)) {
     strategies = std::make_unique<CompositeCalculationStrategy>();
   };
   // Copy constructor with new root
@@ -1263,22 +1283,31 @@ class CalculationDriver {
   // Returns the value at a molecular position
   double value(const Tensor<double>& x) {
 
-    // In the case of optimization we need options on
     this->runCalculations(x);
-    // get output.json
-    // read in the json file
 
-    return 0.0;
+    double energy = 0.0;
+    if (world.rank() == 0) {
+      std::ifstream ifs(path_manager.get_output_path());
+      json output;
+      ifs >> output;
+      energy = output[method]["energy"].get<double>();
+    }
+    world.gop.broadcast(energy, 0);
+    return energy;
   }
-
-  Tensor<double> gradient(const Tensor<double>& x) {
-    // The simplest way is to have x be some member variable
-    // of the driver and
-    //  target.energy_and_gradient(molecule, e, g);
-    // Compute energy at new point
-    // energy1 = target.value(x + a1 * dx);
-
-    return Tensor<double>{};
+  void energy_and_gradient(const Molecule& molecule, double& energy,
+                           Tensor<double>& gradient) {
+    auto x = molecule.get_all_coords().flat();
+    this->runCalculations(x);
+    if (world.rank() == 0) {
+      std::ifstream ifs(path_manager.get_output_path());
+      json output;
+      ifs >> output;
+      energy = output[method]["energy"].get<double>();
+      from_json(output[method]["gradient"], gradient);
+    }
+    world.gop.broadcast(energy, 0);
+    world.gop.broadcast_serializable(gradient, 0);
   }
 };
 

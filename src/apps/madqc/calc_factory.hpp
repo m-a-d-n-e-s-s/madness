@@ -87,6 +87,8 @@ using property_map = std::map<model, model_properties>;
 std::unique_ptr<CalculationDriver>
 createEnergyDriver(World& world, const std::string& model_name,
                    const ParameterManager& pm, property_map properties) {
+
+  path root = std::filesystem::current_path();
   // Create a new CalcManager
   auto calc_manager = std::make_unique<CalculationDriver>(
       world, std::filesystem::current_path(), model_name);
@@ -97,6 +99,13 @@ createEnergyDriver(World& world, const std::string& model_name,
   auto moldft = std::make_unique<MoldftCalculationStrategy>(
       params, molecule, "moldft", moldft_properties);
   calc_manager->addStrategy(std::move(moldft));
+
+  auto moldir_name = root.string() + "/moldft";
+  auto dipole_name = root.string() + "/response";
+  if (world.rank() == 0) {
+    print("Moldft: ", moldir_name);
+    print("Dipole: ", dipole_name);
+  }
 
   if (model_name == "moldft") {
     return calc_manager;
@@ -110,11 +119,11 @@ createEnergyDriver(World& world, const std::string& model_name,
     auto xc = response_params.xc();
     auto freq_range = response_params.freq_range();
 
-    vector<std::string> input_names = {"moldft"};
+    vector<std::string> input_names = {moldir_name};
     for (auto const& perturbation : perturbations) {
       ResponseInput r_input = std::make_tuple(perturbation, xc, freq_range);
       auto response_calc = std::make_unique<LinearResponseStrategy>(
-          response_params, r_input, perturbation, input_names);
+          response_params, r_input, "response", input_names);
       calc_manager->addStrategy(std::move(response_calc));
     }
 
@@ -153,10 +162,10 @@ createEnergyDriver(World& world, const std::string& model_name,
       print("Frequency Range: ", freq_range);
       // this is where I we create our calculation
       ResponseInput hyp_input = std::make_tuple("dipole", xc, freq_range);
-      std::vector<std::string> r_input_names = {"moldft"};
-      std::vector<std::string> h_input_names = {"moldft", "dipole"};
+      std::vector<std::string> r_input_names = {moldir_name};
+      std::vector<std::string> h_input_names = {moldir_name, dipole_name};
       auto response_hyper = std::make_unique<LinearResponseStrategy>(
-          response_params, hyp_input, "dipole", r_input_names);
+          response_params, hyp_input, "response", r_input_names);
       auto hyper_calc = std::make_unique<ResponseHyper>(
           response_params, hyp_input, "hyper", h_input_names);
       calc_manager->addStrategy(std::move(response_hyper));
