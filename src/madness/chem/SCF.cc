@@ -180,6 +180,7 @@ void SCF::output_calc_info_schema() const {
 
         to_json(j, double_tensor_vals);
         param.to_json(j);
+        j["molecule"]= molecule.to_json();
         e_data.to_json(j);
 
         //    output_schema(param.prefix()+".calc_info", j);

@@ -50,7 +50,8 @@ TEST_CASE("Constructing an Optimization Calculation") {
   calc_manager = createEnergyDriver(world, method, params, properties);
 
   path cwd = std::filesystem::current_path();
-  calc_manager->setRoot("optimize1");
+  // This should create a new path_manager with root = optimize1
+  calc_manager->setRoot(cwd / "optimize1");
 
   auto& opt_params = params.get_optimization_params();
 
@@ -103,7 +104,6 @@ TEST_CASE("Copy driver with new name... or nested") {
 
   // create a driver with moldft
 }
-
 
 TEST_CASE("Hyperpolarizability Calculation") {}
 

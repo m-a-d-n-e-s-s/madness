@@ -158,8 +158,7 @@ void from_json(const json& j, OutputTemplate<T>& p) {
 
 class PathManager {
  private:
-  json path_data = {
-      {"outputs", path(std::filesystem::current_path() / "outputs.json")}};
+  json path_data;
 
  public:
   void setPath(const std::string& key, const CalculationTemplate& value) {
@@ -199,6 +198,10 @@ class PathManager {
         std::filesystem::create_directory(calc_dir);
       }
     }
+  }
+
+  explicit PathManager(const path& root) {
+    path_data["outputs"] = root / "outputs.json";
   }
 };
 
@@ -324,6 +327,8 @@ class MoldftCalculationStrategy : public CalculationStrategy {
       ::print("-------------Running moldft------------");
     }
 
+    bool run_moldft = true;
+
     // Adjust the parameters for the calculation
     // if restart and calc_info exists the read the calc_info json
     if (std::filesystem::exists(restart_path) &&
@@ -332,55 +337,82 @@ class MoldftCalculationStrategy : public CalculationStrategy {
       std::ifstream ifs(calc_info_path);
       auto moldft_calc_info = json::parse(ifs);
       if (world.rank() == 0) {
-        std::cout << "time: " << moldft_calc_info["time"] << std::endl;
+        std::cout << "time: " << moldft_calc_info["time_tag"] << std::endl;
         std::cout << "MOLDFT return energy: "
                   << moldft_calc_info["return_energy"] << std::endl;
       }
+      // read in the molecule from the moldft_calc_info
+      Molecule read_molecule;
+      read_molecule.from_json(moldft_calc_info["molecule"]);
 
-    } else {
-      // if params are different run and if restart exists and if im asking to
-      if (std::filesystem::exists(restart_path)) {
+      auto last_coords = read_molecule.get_all_coords().flat();
+      auto molecule_changed = (last_coords - coords).normf() > 1e-6;
+      if (world.rank() == 0) {
+        print("Last molecule: ", last_coords);
+        print("Current molecule: ", coords);
+        print("Molecule changed: ", molecule_changed);
+      }
+
+      if (molecule_changed) {
+        if (world.rank() == 0) {
+          ::print("Molecule has changed, restarting calculation");
+        }
         param1.set_user_defined_value<bool>("restart", true);
+        run_moldft = true;
+      } else {
+        if (world.rank() == 0) {
+          ::print("Molecule has not changed, skipping calculation");
+        }
+        run_moldft = false;
       }
-      world.gop.fence();
-      if (world.rank() == 0) {
-        json moldft_input_json = {};
-        moldft_input_json["dft"] = parameters.to_json_if_precedence("defined");
-        moldft_input_json["molecule"] = molecule.to_json();
-        std::ofstream ofs("moldft.in");
-        write_moldft_input(moldft_input_json, ofs);
-        ofs.close();
-      }
-      world.gop.fence();
+    }
+    if (run_moldft) {
+      {
+        // if params are different run and if restart exists and if im asking to
+        if (std::filesystem::exists(restart_path)) {
+          param1.set_user_defined_value<bool>("restart", true);
+        }
+        world.gop.fence();
+        if (world.rank() == 0) {
+          json moldft_input_json = {};
+          moldft_input_json["dft"] =
+              parameters.to_json_if_precedence("defined");
+          moldft_input_json["molecule"] = molecule.to_json();
+          std::ofstream ofs("moldft.in");
+          write_moldft_input(moldft_input_json, ofs);
+          ofs.close();
+        }
+        world.gop.fence();
 
-      commandlineparser parser;
-      parser.set_keyval("input", "moldft.in");
-      if (world.rank() == 0)
-        ::print("input filename: ", parser.value("input"));
+        commandlineparser parser;
+        parser.set_keyval("input", "moldft.in");
+        if (world.rank() == 0)
+          ::print("input filename: ", parser.value("input"));
 
-      print_meminfo(world.rank(), "startup");
-      FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
+        print_meminfo(world.rank(), "startup");
+        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
 
-      std::cout.precision(6);
-      SCF calc(world, parser);
-      if (world.rank() == 0) {
-        ::print("\n\n");
-        ::print(" MADNESS Hartree-Fock and Density Functional Theory "
-                "Program");
-        ::print(" ----------------------------------------------------------"
-                "\n");
-        calc.param.print("dft");
+        std::cout.precision(6);
+        SCF calc(world, parser);
+        if (world.rank() == 0) {
+          ::print("\n\n");
+          ::print(" MADNESS Hartree-Fock and Density Functional Theory "
+                  "Program");
+          ::print(" ----------------------------------------------------------"
+                  "\n");
+          calc.param.print("dft");
+        }
+        if (world.size() > 1) {
+          calc.set_protocol<3>(world, 1e-4);
+          calc.make_nuclear_potential(world);
+          calc.initial_load_bal(world);
+        }
+        calc.set_protocol<3>(world, calc.param.protocol()[0]);
+        MolecularEnergy E(world, calc);
+        double energy = E.value(coords);  // ugh!
+        calc.output_calc_info_schema();
+        properties(world, calc, energy, path_manager);
       }
-      if (world.size() > 1) {
-        calc.set_protocol<3>(world, 1e-4);
-        calc.make_nuclear_potential(world);
-        calc.initial_load_bal(world);
-      }
-      calc.set_protocol<3>(world, calc.param.protocol()[0]);
-      MolecularEnergy E(world, calc);
-      double energy = E.value(coords);  // ugh!
-      calc.output_calc_info_schema();
-      properties(world, calc, energy, path_manager);
     }
 
     // Add actual calculation logic here
@@ -439,19 +471,6 @@ class MoldftCalculationStrategy : public CalculationStrategy {
     }
   }
 };
-
-/*
-class MP2CalculationStrategy : public CalculationStrategy {
- public:
-  void runCalculation(World& world, const json& paths) override {
-    std::cout << "Running MP2 Calculation\n";
-    std::cout << "Calc Directory: " << paths["mp2_calc_dir"] << "\n";
-    std::cout << "Restart Path: " << paths["mp2_restart"] << "\n";
-    std::cout << "Calc Info Path: " << paths["mp2_calc_info"] << "\n";
-    // Add actual calculation logic here
-  }
-};
-*/
 
 class ResponseConfig {
  public:
@@ -923,10 +942,10 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
         compute_beta = false;
         if (world.rank() == 0) {
           ::print("Beta values have already been computed");
-          ::print(
-              "If you want to recompute beta values, delete the beta.json file "
-              "at ",
-              beta_outpath);
+          ::print("If you want to recompute beta values, delete the "
+                  "beta.json file "
+                  "at ",
+                  beta_outpath);
         }
       }
 
@@ -1215,12 +1234,14 @@ class CalculationDriver {
   PathManager path_manager;
   path root;
   World& world;
+  int calculation_number = 0;
 
  public:
   explicit CalculationDriver(World& world,
                              path base_root = std::filesystem::current_path(),
                              std::string method = "moldft")
-      : world(world), root(std::move(base_root)), method(std::move(method)) {
+      : world(world), root(std::move(base_root)), method(std::move(method)),
+        path_manager(base_root) {
     strategies = std::make_unique<CompositeCalculationStrategy>();
   };
   // Copy constructor with new root
@@ -1233,7 +1254,10 @@ class CalculationDriver {
     }
     return clone;
   }
-  void setRoot(const path& new_root) { root = new_root; }
+  void setRoot(const path& new_root) {
+    root = new_root;
+    path_manager = PathManager(new_root);
+  }
   [[nodiscard]] path getRoot() const { return root; }
   void setMethod(const std::string& new_method) { method = new_method; }
   [[nodiscard]] std::string getMethod() const { return method; }
@@ -1241,6 +1265,7 @@ class CalculationDriver {
   void addStrategy(std::unique_ptr<CalculationStrategy> newStrategy) {
     strategies->addStrategy(std::move(newStrategy));
   }
+  [[nodiscard]] int getCalcNumber() const { return calculation_number; }
   void
   setStrategies(std::unique_ptr<CompositeCalculationStrategy> newStrategies) {
     strategies = std::move(newStrategies);
@@ -1283,7 +1308,27 @@ class CalculationDriver {
   // Returns the value at a molecular position
   double value(const Tensor<double>& x) {
 
+    // if opt driver setting is set to save then we copy if not we set the current directory to a new name and run
+    // set up a new location for the calculation by setting the root to the current root+1
+    std::filesystem::current_path(root.parent_path());
+
+    auto root_i =
+        root.parent_path() / ("value_" + std::to_string(calculation_number));
+    auto last_root = root;
+    if (calculation_number > 0) {
+      root_i = last_root;
+    }
+
+    // Here is where we set the new root and decide the new name
+    std::filesystem::rename(root, root_i);
+    bool copy_back_flag = false;
+    if (copy_back_flag) {
+      std::filesystem::copy(root_i, root,
+                            std::filesystem::copy_options::recursive);
+    }
+    this->setRoot(root_i);
     this->runCalculations(x);
+    this->calculation_number++;
 
     double energy = 0.0;
     if (world.rank() == 0) {
