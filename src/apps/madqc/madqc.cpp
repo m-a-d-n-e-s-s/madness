@@ -147,8 +147,8 @@ int main(int argc, char** argv) {
           ifs >> final_output;
           print(final_output.dump(4));
           ifs.close();
-          std::ofstream ofs("output.json");
-          ofs << final_output.dump(4);
+          std::ofstream ofs(root / "output.json");
+          ofs << final_output[method].dump(4);
           ofs.close();
         }
       } else if (driver == "energy") {
