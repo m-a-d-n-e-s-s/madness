@@ -463,7 +463,9 @@ class MoldftCalculationStrategy : public CalculationStrategy {
         ifs >> persistent_output;
         ifs.close();
       }
+      output["molecule"] = molecule.to_json();
       persistent_output[name] = output;
+
       print("output: ", output.dump(4));
       std::ofstream ofs(pm.get_output_path());
       ofs << persistent_output.dump(4);
@@ -1314,18 +1316,7 @@ class CalculationDriver {
 
     auto root_i =
         root.parent_path() / ("value_" + std::to_string(calculation_number));
-    auto last_root = root;
-    if (calculation_number > 0) {
-      root_i = last_root;
-    }
 
-    // Here is where we set the new root and decide the new name
-    std::filesystem::rename(root, root_i);
-    bool copy_back_flag = false;
-    if (copy_back_flag) {
-      std::filesystem::copy(root_i, root,
-                            std::filesystem::copy_options::recursive);
-    }
     this->setRoot(root_i);
     this->runCalculations(x);
     this->calculation_number++;
@@ -1342,8 +1333,8 @@ class CalculationDriver {
   }
   void energy_and_gradient(const Molecule& molecule, double& energy,
                            Tensor<double>& gradient) {
-    auto x = molecule.get_all_coords().flat();
-    this->runCalculations(x);
+
+    energy = this->value(molecule.get_all_coords().flat());
     if (world.rank() == 0) {
       std::ifstream ifs(path_manager.get_output_path());
       json output;
@@ -1351,7 +1342,6 @@ class CalculationDriver {
       energy = output[method]["energy"].get<double>();
       from_json(output[method]["gradient"], gradient);
     }
-    world.gop.broadcast(energy, 0);
     world.gop.broadcast_serializable(gradient, 0);
   }
 };
