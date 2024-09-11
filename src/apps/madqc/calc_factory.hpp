@@ -32,7 +32,6 @@
 #define SRC_APPS_MADQC_CALC_FACTORY_HPP_
 
 #include "madqc/calc_manager.hpp"
-#include "madqc/opt_strategies.hpp"
 #include "madqc/parameter_manager.hpp"
 #include <map>
 #include <memory>
@@ -86,12 +85,12 @@ using property_map = std::map<model, model_properties>;
 
 std::unique_ptr<CalculationDriver>
 createEnergyDriver(World& world, const std::string& model_name,
-                   const ParameterManager& pm, property_map properties) {
+                   const ParameterManager& pm, property_map properties,
+                   const path& root ) {
 
-  path root = std::filesystem::current_path();
   // Create a new CalcManager
-  auto calc_manager = std::make_unique<CalculationDriver>(
-      world, std::filesystem::current_path(), model_name);
+  auto calc_manager =
+      std::make_unique<CalculationDriver>(world, root, model_name);
   auto molecule = pm.get_molecule();
   // All calculations start with a reference
   auto params = pm.get_moldft_params();

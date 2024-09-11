@@ -43,7 +43,6 @@
 #include <madness/external/nlohmann_json/json.hpp>
 #include <madness/tensor/solvers.h>
 #include <madness/tensor/tensor_json.hpp>
-#include <madqc/opt_strategies.hpp>
 #include <map>
 #include <memory>
 #include <mpi.h>
@@ -1272,6 +1271,7 @@ class CalculationDriver {
   setStrategies(std::unique_ptr<CompositeCalculationStrategy> newStrategies) {
     strategies = std::move(newStrategies);
   }
+  path get_output_path() { return path_manager.get_output_path(); }
 
   void runCalculations(const Tensor<double>& coords) {
 
@@ -1311,11 +1311,17 @@ class CalculationDriver {
   double value(const Tensor<double>& x) {
 
     // if opt driver setting is set to save then we copy if not we set the current directory to a new name and run
-    // set up a new location for the calculation by setting the root to the current root+1
-    std::filesystem::current_path(root.parent_path());
-
-    auto root_i =
-        root.parent_path() / ("value_" + std::to_string(calculation_number));
+    // test_optimize/optimize
+    // test_optimize/optimize/value_0
+    // test_optimize/optimize/value_1
+    // test_optimize/optimize/value_2
+    path root_i;
+    if (calculation_number == 0) {
+      root_i = root / ("value_" + std::to_string(calculation_number));
+    } else {
+      root_i =
+          root.parent_path() / ("value_" + std::to_string(calculation_number));
+    }
 
     this->setRoot(root_i);
     this->runCalculations(x);

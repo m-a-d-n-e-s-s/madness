@@ -24,9 +24,6 @@ struct OptimizationParameters : public QCCalculationParametersBase {
     read_input_and_commandline_options(world, parser, "optimization");
   }
   OptimizationParameters() {
-    initialize<std::string>("method", "dft",
-                            "Select the application to use for the calculation",
-                            {"dft"});
     initialize<int>("maxiter", 20, "optimization maxiter");
     initialize<bool>("initial_hessian", false,
                      "compute inital hessian for optimization");
@@ -153,6 +150,10 @@ class ParameterManager {
     if (j.contains("response")) {
       all_input_json["response"] = j["response"];
       molresponse_params.from_json(j["response"]);
+    }
+    if (j.contains("optimize")) {
+      all_input_json["optimize"] = j["optimize"];
+      optimization_params.from_json(j["optimize"]);
     }
   }
 

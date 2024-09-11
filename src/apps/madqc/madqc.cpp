@@ -29,6 +29,7 @@
   fax:   865-572-0680
 */
 
+#include <fstream>
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) &&                   \
     defined(HAVE_UNISTD_H)
 
@@ -106,20 +107,56 @@ int main(int argc, char** argv) {
       // if driver is energy use createCalcManager
       // if driver is optimmize use createOptimizeManager
       // if driver is custom use createCustomManager
-      std::unique_ptr<CalculationDriver> calc_manager;
-      if (driver == "energy") {
-        calc_manager = createEnergyDriver(world, method, params, properties);
-      } else if (driver == "optimize") {
-        // calc_manager = createOptimizationDriver(method, params);
-        throw std::runtime_error("Optimize driver not implemented yet");
 
-      } else if (driver == "custom") {
-        throw std::runtime_error("Custom driver not implemented yet");
+      path cwd = std::filesystem::current_path();
+      path root;
+      if (driver == "energy") {
+        root = cwd;
+
+      } else if (driver == "optimize") {
+        root = cwd / "optimize";
+        std::filesystem::create_directory(root);
+        std::filesystem::current_path(root);
+      }
+
+      auto calc_manager =
+          createEnergyDriver(world, method, params, properties, root);
+
+      if (driver == "optimize") {
+
+        // calc_manager = createOptimizationDriver(method, params);
+        auto& opt_params = params.get_optimization_params();
+        MolOpt opt(opt_params.get_maxiter(),             // geoometry max iter
+                   0.1,                                  // geometry step size
+                   opt_params.get_value_precision(),     // value precision
+                   opt_params.get_geometry_tolerence(),  // geometry tolerance
+                   1e-3,                                 // XTOL
+                   1e-5,                                 // EPREC
+                   opt_params.get_gradient_precision(),  // gradient precision
+                   (world.rank() == 0) ? 1 : 0,          // print_level
+                   opt_params.get_algopt());             // algorithm options
+
+        auto new_molecule = opt.optimize(molecule, *calc_manager);
+        // Get output directory
+        std::filesystem::current_path(cwd);
+
+        if (world.rank() == 0) {
+          json final_output;
+          print("Optimization completed successfully.");
+          std::ifstream ifs(calc_manager->get_output_path());
+          ifs >> final_output;
+          print(final_output.dump(4));
+          ifs.close();
+          std::ofstream ofs("output.json");
+          ofs << final_output.dump(4);
+          ofs.close();
+        }
+      } else if (driver == "energy") {
+        calc_manager->runCalculations(molecule.get_all_coords().flat());
       } else {
         throw std::runtime_error("Invalid driver");
       }
       // Run the calculations
-      calc_manager->runCalculations(molecule.get_all_coords().flat());
 
       std::cout << "Calculations completed successfully." << std::endl;
 
