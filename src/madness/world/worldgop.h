@@ -785,8 +785,12 @@ namespace madness {
           world_.mpi.binary_tree_info(0, parent, child0, child1);
           const std::size_t nelem_per_maxmsg = max_reducebcast_msg_size() / sizeof(T);
 
-          auto buf0 = std::unique_ptr<T[]>(new T[nelem_per_maxmsg]);
-          auto buf1 = std::unique_ptr<T[]>(new T[nelem_per_maxmsg]);
+          std::unique_ptr<T[]> buf0 = (child0 != -1)
+                ? std::unique_ptr<T[]>(new T[std::min(nelem_per_maxmsg,nelem)])
+                : nullptr;
+          std::unique_ptr<T[]> buf1 = (child1 != -1)
+                ? std::unique_ptr<T[]>(new T[std::min(nelem_per_maxmsg,nelem)])
+                : nullptr;
 
           auto reduce_impl = [&,this](T* buf, size_t nelem) {
             MADNESS_ASSERT(nelem <= nelem_per_maxmsg);
