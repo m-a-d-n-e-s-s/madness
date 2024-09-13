@@ -172,19 +172,20 @@ int test_custom_worldobject(World& universe, World& subworld, Cloud& cloud) {
     test_output t1("testing custom worldobject");
     t1.set_cout_to_terminal();
     cloud.set_debug(false);
-    auto o1 =std::shared_ptr<ScalarResult<>>(new ScalarResult(universe));
-    auto o5 =std::shared_ptr<ScalarResult<>>(new ScalarResult(universe));
+    auto o1 =std::shared_ptr<ScalarResultImpl<double>>(new ScalarResultImpl<double>(universe));
+    auto o5 =std::shared_ptr<ScalarResultImpl<double>>(new ScalarResultImpl<double>(universe));
     *o1=1.2;
-    if (universe.rank() == 0) gaxpy(1.0,*o1,2.0,2.8);
+    // if (universe.rank() == 0) gaxpy(1.0,*o1,2.0,2.8);
+    if (universe.rank() == 0) o1->gaxpy(1.0,2.0,2.8);
 
     auto adrecords = cloud.store(universe, o1);
     MacroTaskQ::set_pmap(subworld);
-    print("world constructible",is_world_constructible<ScalarResult<>>::value);
+    print("world constructible",is_world_constructible<ScalarResultImpl<double>>::value);
 
     cloud.set_force_load_from_cache(false);
-    auto o2 = cloud.load<std::shared_ptr<ScalarResult<>>>(subworld, adrecords);
+    auto o2 = cloud.load<std::shared_ptr<ScalarResultImpl<double>>>(subworld, adrecords);
     cloud.set_force_load_from_cache(true);
-    auto o3 = cloud.load<std::shared_ptr<ScalarResult<>>>(subworld, adrecords);
+    auto o3 = cloud.load<std::shared_ptr<ScalarResultImpl<double>>>(subworld, adrecords);
     double d1=o1->get_local();
     double d2=o2->get_local();
     double d3=o3->get_local();

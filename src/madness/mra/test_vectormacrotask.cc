@@ -158,7 +158,8 @@ public:
                        const std::vector<real_function_3d>& f2) const {
         World &world = f1[0].world();
         auto result=scalar_result_vector<double>(world,f1.size());
-        for (int i=0; i<f1.size(); ++i) result[i]=double(i);
+        for (int i=0; i<f1.size(); ++i) result[i]=double(i+batch.input[0].begin);
+
         return result;
     }
 };
@@ -211,6 +212,60 @@ public:
         return result;
     }
 };
+
+/// this task won't do anything, is mostly to check if the combinations compile
+template<typename elementT, typename elementR>
+class MixedTupleTask : public MacroTaskOperationBase{
+public:
+    // you need to define the result type
+    // resultT must implement gaxpy(alpha, result, beta, contribution)
+    // with resultT result, contribution;
+    typedef std::tuple<elementT,elementR> resultT;
+
+    // you need to define the exact argument(s) of operator() as tuple
+    typedef std::tuple<const std::vector<real_function_3d> &> argtupleT;
+
+    // some allocators
+    template<typename T>
+    typename std::enable_if<std::is_same<T, Function<double,3>>::value, T>::type
+    allocator(World& world, std::size_t n) const {
+        return Function<double,3>(world);
+    }
+
+    template<typename T>
+    typename std::enable_if<std::is_same<T, std::vector<real_function_3d>>::value, T>::type
+    allocator(World& world, std::size_t n) const {
+        return zero_functions_compressed<double,3>(world,n);
+    }
+
+    template<typename T>
+    typename std::enable_if<std::is_same<T, std::vector<ScalarResult<double>>>::value, T>::type
+    allocator(World& world, std::size_t n) const {
+        return scalar_result_vector<double>(world,n);
+    }
+
+    template<typename T>
+    typename std::enable_if<std::is_same<T, ScalarResult<double>>::value, T>::type
+    allocator(World& world, std::size_t n) const {
+        return ScalarResult<double>(world);
+    }
+
+    resultT allocator(World &world, const argtupleT &argtuple) const {
+        std::size_t n=std::get<0>(argtuple).size();
+        auto v1=allocator<elementT>(world,n);
+        auto v2=allocator<elementR>(world,n);
+        return std::make_tuple(v1,v2);
+    }
+
+    resultT operator()(const std::vector<real_function_3d>& f1) const {
+        World &world = f1[0].world();
+        std::size_t n=f1.size();
+        auto v1=allocator<elementT>(world,n);
+        auto v2=allocator<elementR>(world,n);
+        return std::make_tuple(v1,v2);
+    }
+};
+
 
 
 int check_vector(World& universe, const std::vector<real_function_3d> &ref, const std::vector<real_function_3d> &test,
@@ -330,14 +385,13 @@ int test_vector_of_scalar_task(World& universe, const std::vector<real_function_
     if (universe.rank()==0) print("\nstarting VectorOfScalarTask\n");
     VectorOfScalarTask t1;
     std::vector<ScalarResult<double>> result = t1(v3, 2.0, v3);
-    for (auto& r : result) print("result",r.get());
-
 
     MacroTask task1(universe, t1);
     auto result2= task1(v3, 2.0, v3);
-    for (auto& r : result2) print("result",r.get());
 
-    int success=0;
+    double error=1.e-15;
+    for (int i=0; i<result.size(); ++i) error+=fabs(result[i].get()-result2[i].get());
+    int success = check(universe,1.e-15, error, "vector of scalar task");
     return success;
 }
 
@@ -359,6 +413,50 @@ int test_tuple_of_vectors(World& universe, const std::vector<real_function_3d>& 
 
     int success = check(universe,n1,m1, "task1 immediate");
     return success;
+}
+
+
+// this will only test compilation
+int test_mixed_tuple(World& universe, const std::vector<real_function_3d>& v3) {
+    if (universe.rank()==0) print("\nstarting MixedTupleTask\n");
+
+    typedef real_function_3d type1;
+    typedef std::vector<real_function_3d> type2;
+    typedef ScalarResult<double> type3;
+    typedef std::vector<ScalarResult<double>> type4;
+    MixedTupleTask<type1,type1> t11;
+    MixedTupleTask<type1,type2> t12;
+    MixedTupleTask<type1,type3> t13;
+    MixedTupleTask<type1,type4> t14;
+    MixedTupleTask<type2,type1> t21;
+    MixedTupleTask<type2,type2> t22;
+    MixedTupleTask<type2,type3> t23;
+    MixedTupleTask<type2,type4> t24;
+    MixedTupleTask<type3,type1> t31;
+    MixedTupleTask<type3,type2> t32;
+    MixedTupleTask<type3,type3> t33;
+    MixedTupleTask<type3,type4> t34;
+    MixedTupleTask<type4,type1> t41;
+    MixedTupleTask<type4,type2> t42;
+    MixedTupleTask<type4,type3> t43;
+    MixedTupleTask<type4,type4> t44;
+    auto result11=t11(v3);
+    auto result12=t12(v3);
+    auto result13=t13(v3);
+    auto result14=t14(v3);
+    auto result21=t21(v3);
+    auto result22=t22(v3);
+    auto result23=t23(v3);
+    auto result24=t24(v3);
+    auto result31=t31(v3);
+    auto result32=t32(v3);
+    auto result33=t33(v3);
+    auto result34=t34(v3);
+    auto result41=t41(v3);
+    auto result42=t42(v3);
+    auto result43=t43(v3);
+    auto result44=t44(v3);
+    return 0;
 }
 
 int test_2d_partitioning(World& universe, const std::vector<real_function_3d>& v3) {
@@ -416,6 +514,9 @@ int main(int argc, char **argv) {
 
         success+=test_tuple_of_vectors(universe,v3);
         timer1.tag("vector of tuples task execution");
+
+        success+=test_mixed_tuple(universe,v3);
+        timer1.tag("mixed tuple task execution");
 
         success+=test_deferred(universe,v3,ref);
         timer1.tag("deferred taskq execution");

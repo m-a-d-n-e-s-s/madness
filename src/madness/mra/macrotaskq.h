@@ -134,6 +134,10 @@ public:
 		impl=newimpl;
 	}
 
+	uniqueidT id() const {
+		return impl->id();
+	}
+
     /// accumulate, optional fence
     void gaxpy(const double a, const T& right, double b, const bool fence=true) {
         impl->gaxpy(a,right,b,fence);
