@@ -22,10 +22,10 @@
  have implemented
   - Function<T,NDIM>
   - std::vector<Function<T,NDIM>> (a vector of Function<T,NDIM>)
-  - ScalarResult<T> (a scalar value)
-  - std::vector<std::shared_ptr<ScalarResult<T>>> (a vector of scalar values), shared_ptr for technical reasons
+  - ScalarResultImpl<T> (a scalar value)
+  - std::vector<std::shared_ptr<ScalarResultImpl<T>>> (a vector of scalar values), shared_ptr for technical reasons
 
-  - std::tuple<std::vector<XXX>, std::vector<YYY>> (a tuple of n vectors of WorldObjects: XXX, YYY, .. = {Function, ScalarResult, ...})
+  - std::tuple<std::vector<XXX>, std::vector<YYY>> (a tuple of n vectors of WorldObjects: XXX, YYY, .. = {Function, ScalarResultImpl, ...})
 
 
  TODO: priority q
@@ -51,34 +51,33 @@ namespace madness {
 
 /// the result value is accumulated via gaxpy in universe rank=0, after completion of the taskq the final
 /// value can be obtained via get(), which includes a broadcast of the final value to all processes
-template<typename T=double>
-class ScalarResult : public WorldObject<ScalarResult<T>> {
+template<typename T>
+class ScalarResultImpl : public WorldObject<ScalarResultImpl<T>> {
 public:
     typedef T value_type;
-    ScalarResult(World &world) : WorldObject<ScalarResult<T>>(world) {
+    ScalarResultImpl(World &world) : WorldObject<ScalarResultImpl<T>>(world) {
         this->process_pending();
     }
 
     /// Disable the default copy constructor
-    ScalarResult<T>(const ScalarResult<T>& other) = delete;
-    ScalarResult<T>(ScalarResult<T>&& ) = default;
-    ScalarResult<T>& operator=(ScalarResult<T>&& ) = default;
+    ScalarResultImpl<T>(const ScalarResultImpl<T>& other) = delete;
+    // ScalarResultImpl<T>(ScalarResultImpl<T>&& ) = default;
 
     /// disable assignment operator
-    ScalarResult<T>& operator=(const ScalarResult<T>& other) = delete;
+    ScalarResultImpl<T>& operator=(const ScalarResultImpl<T>& other) = delete;
 
-    ~ScalarResult() {
-//        print("calling destructor of ScalarResult",this->id());
-//        std::cout << std::flush;
+    ~ScalarResultImpl() {
+        // print("calling destructor of ScalarResultImpl",this->id());
+        // std::cout << std::flush;
     }
 
     /// simple assignment of the scalar value
-    ScalarResult<T>& operator=(const T& x) {
+    ScalarResultImpl<T>& operator=(const T& x) {
         value = x;
         return *this;
     }
 
-    ScalarResult<T>& operator+= (const T& x) {
+    ScalarResultImpl<T>& operator+= (const T& x) {
         gaxpy(1.0, x, 1.0,true);
         return *this;
     }
@@ -88,7 +87,7 @@ public:
         if (this->get_world().rank()==0) {
             value =a*value + b * right;
         }
-        else this->send(0, &ScalarResult<T>::gaxpy, a, right, b, fence);
+        else this->send(0, &ScalarResultImpl<T>::gaxpy, a, right, b, fence);
     }
 
     template<typename Archive>
@@ -113,19 +112,55 @@ private:
     T value=T();
 };
 
-/// helper function to create a vector of ScalarResult, circumventing problems with the constructors
+template<typename T=double>
+class ScalarResult {
+public:
+	typedef ScalarResultImpl<T> implT;
+	std::shared_ptr<implT> impl;
+
+	ScalarResult() = default;
+	ScalarResult(World &world) : impl(new implT(world)) {}
+	ScalarResult(const std::shared_ptr<implT>& impl) : impl(impl) {}
+	ScalarResult& operator=(const T& x) {
+		*(this->impl) = x;
+		return *this;
+	}
+
+	std::shared_ptr<implT> get_impl() const {
+		return impl;
+	}
+
+	void set_impl(const std::shared_ptr<implT>& newimpl) {
+		impl=newimpl;
+	}
+
+    /// accumulate, optional fence
+    void gaxpy(const double a, const T& right, double b, const bool fence=true) {
+        impl->gaxpy(a,right,b,fence);
+    }
+
+    template<typename Archive>
+    void serialize(Archive &ar) {
+        ar & impl;
+    }
+
+    /// after completion of the taskq get the final value
+    T get() {
+    	return impl->get();
+    }
+
+    /// after completion of the taskq get the final value
+    T get_local() const {
+    	return impl->get_local();
+    }
+
+};
+
+/// helper function to create a vector of ScalarResultImpl, circumventing problems with the constructors
 template<typename T>
-std::vector<std::shared_ptr<ScalarResult<T>>> scalar_result_shared_ptr_vector(World& world, std::size_t n)  {
-    auto v=std::vector<std::shared_ptr<ScalarResult<T>>>();
-    for (std::size_t i=0; i<n; ++i) v.emplace_back(std::make_shared<ScalarResult<T>>(world));
-//    for (int i=0; i<n; ++i) print("creating vector of ScalarResult",v[i]->id());
-    std::cout << std::flush;
-    auto ptr_opt = world.ptr_from_id< WorldObject< ScalarResult<T> > >(v[0]->id());
-    if (!ptr_opt)
-    MADNESS_EXCEPTION("ScalarResult: remote operation attempting to use a locally uninitialized object",0);
-    auto ptr = static_cast< ScalarResult<T>*>(*ptr_opt);
-    if (!ptr)
-    MADNESS_EXCEPTION("ScalarResult<T> operation attempting to use an unregistered object",0);
+std::vector<ScalarResult<T>> scalar_result_vector(World& world, std::size_t n)  {
+    std::vector<ScalarResult<T>> v;
+    for (std::size_t i=0; i<n; ++i) v.emplace_back(ScalarResult<T>(world));
     return v;
 }
 
@@ -135,14 +170,35 @@ template<typename>
 struct is_scalar_result_ptr : std::false_type {};
 
 template <typename T>
-struct is_scalar_result_ptr<std::shared_ptr<madness::ScalarResult<T>>> : std::true_type {};
+struct is_scalar_result_ptr<std::shared_ptr<madness::ScalarResultImpl<T>>> : std::true_type {};
 
 template<typename>
 struct is_scalar_result_ptr_vector : std::false_type {
 };
 
 template<typename T>
-struct is_scalar_result_ptr_vector<std::vector<std::shared_ptr<typename madness::ScalarResult<T>>>> : std::true_type {
+struct is_scalar_result_ptr_vector<std::vector<std::shared_ptr<typename madness::ScalarResultImpl<T>>>> : std::true_type {
+};
+
+// type traits to check if a template parameter is a WorldContainer
+template<typename>
+struct is_scalar_result : std::false_type {};
+
+template <typename T>
+struct is_scalar_result<madness::ScalarResult<T>> : std::true_type {};
+
+template<typename>
+struct is_scalar_result_impl : std::false_type {};
+
+template <typename T>
+struct is_scalar_result<madness::ScalarResultImpl<T>> : std::true_type {};
+
+template<typename>
+struct is_scalar_result_vector : std::false_type {
+};
+
+template<typename T>
+struct is_scalar_result_vector<std::vector<typename madness::ScalarResult<T>>> : std::true_type {
 };
 
 /// check if type is a valid task result: it must be a WorldObject and must implement gaxpy
@@ -150,8 +206,10 @@ template <typename T>
 inline constexpr bool is_valid_task_result_v =
 	                  is_madness_function<T>::value				// Function<T,NDIM>
 					  || is_madness_function_vector<T>::value	// std::vector<Function<T,NDIM>>
-					  || is_scalar_result_ptr<T>::value		    // ScalarResult<T>
-					  || is_scalar_result_ptr_vector<T>::value; // std::vector<std::shared_ptr<ScalarResult<T>>>
+					  || is_scalar_result<T>::value		    // ScalarResultImpl<T>
+					  || is_scalar_result_vector<T>::value  // std::vector<std::shared_ptr<ScalarResultImpl<T>>>
+					  || is_scalar_result_ptr<T>::value		    // ScalarResultImpl<T>
+					  || is_scalar_result_ptr_vector<T>::value; // std::vector<std::shared_ptr<ScalarResultImpl<T>>>
 
 
 template<typename> struct is_tuple : std::false_type { };
@@ -186,8 +244,8 @@ void gaxpy(const double a, ScalarResult<T>& left, const double b, const T& right
 }
 
 template <class Archive, typename T>
-struct madness::archive::ArchiveStoreImpl<Archive, std::shared_ptr<ScalarResult<T>>> {
-    static void store(const Archive& ar, const std::shared_ptr<ScalarResult<T>>& ptr) {
+struct madness::archive::ArchiveStoreImpl<Archive, std::shared_ptr<ScalarResultImpl<T>>> {
+    static void store(const Archive& ar, const std::shared_ptr<ScalarResultImpl<T>>& ptr) {
         bool exists=(ptr) ? true : false;
         ar & exists;
         if (exists) ar & ptr->id();
@@ -196,8 +254,8 @@ struct madness::archive::ArchiveStoreImpl<Archive, std::shared_ptr<ScalarResult<
 
 
 template <class Archive, typename T>
-struct madness::archive::ArchiveLoadImpl<Archive, std::shared_ptr<ScalarResult<T>>> {
-    static void load(const Archive& ar, std::shared_ptr<ScalarResult<T>>& ptr) {
+struct madness::archive::ArchiveLoadImpl<Archive, std::shared_ptr<ScalarResultImpl<T>>> {
+    static void load(const Archive& ar, std::shared_ptr<ScalarResultImpl<T>>& ptr) {
         bool exists=false;
         ar & exists;
         if (exists) {
@@ -205,12 +263,12 @@ struct madness::archive::ArchiveLoadImpl<Archive, std::shared_ptr<ScalarResult<T
             ar & id;
             World* world = World::world_from_id(id.get_world_id());
             MADNESS_ASSERT(world);
-            auto ptr_opt = (world->ptr_from_id<  ScalarResult<T> >(id));
+            auto ptr_opt = (world->ptr_from_id<  ScalarResultImpl<T> >(id));
             if (!ptr_opt)
-            MADNESS_EXCEPTION("ScalarResult: remote operation attempting to use a locally uninitialized object",0);
-            ptr.reset(ptr_opt.value(), [] (ScalarResult<T> *p_) -> void {}); // disable destruction
+            MADNESS_EXCEPTION("ScalarResultImpl: remote operation attempting to use a locally uninitialized object",0);
+            ptr.reset(ptr_opt.value(), [] (ScalarResultImpl<T> *p_) -> void {}); // disable destruction
             if (!ptr)
-            MADNESS_EXCEPTION("ScalarResult<T> operation attempting to use an unregistered object",0);
+            MADNESS_EXCEPTION("ScalarResultImpl<T> operation attempting to use an unregistered object",0);
         } else {
             ptr=nullptr;
         }
@@ -600,7 +658,6 @@ public:
 
         if (immediate_execution) taskq_ptr->run_all();
 
-        // return std::move(result);
         return result;
     }
 
@@ -627,11 +684,14 @@ private:
     			outputrecords += cloud.store(world, result.get_impl().get()); // store pointer to FunctionImpl
     		} else if constexpr (is_madness_function_vector<argT>::value) {
     			outputrecords += cloud.store(world, get_impl(result));
-    		} else if constexpr (is_scalar_result_ptr<argT>::value) {
-    			outputrecords += cloud.store(world, result);               // store pointer to ScalarResult
+    		} else if constexpr (is_scalar_result<argT>::value) {
+    			outputrecords += cloud.store(world, result.get_impl());               // store pointer to ScalarResultImpl
     		} else if constexpr (is_vector<argT>::value) {
-    			if (is_scalar_result_ptr<typename argT::value_type>::value) {
-    				outputrecords+=cloud.store(world,result);
+    			if (is_scalar_result<typename argT::value_type>::value) {
+    				// argT = std::vector<ScalarResult<T>>
+    				std::vector<std::shared_ptr<typename argT::value_type::implT>> v;
+    				for (const auto& ptr : result) v.push_back(ptr.get_impl());
+    				outputrecords+=cloud.store(world,v);
     			} else {
     				MADNESS_EXCEPTION("\n\n  unknown vector result type in prepare_input ", 1);
     			}
@@ -747,14 +807,14 @@ private:
         			gaxpy(1.0,result,1.0,result_tmp,false);
         			// was using operator+=, but this requires a fence, which is not allowed here..
         			// result += tmp1;
-        		} else if constexpr (is_scalar_result_ptr<resultT1>::value) {
-        			gaxpy(1.0, *result, 1.0, result_tmp->get_local(), false);
-        		} else if constexpr (is_scalar_result_ptr_vector<resultT1>::value) {
+        		} else if constexpr (is_scalar_result<resultT1>::value) {
+        			gaxpy(1.0, result, 1.0, result_tmp.get_local(), false);
+        		} else if constexpr (is_scalar_result_vector<resultT1>::value) {
         			// resultT1 tmp1=task.allocator(subworld,argtuple);
         			// tmp1=task.batch.template insert_result_batch(tmp1,result_tmp);
         			std::size_t sz=result.size();
         			for (int i=0; i<sz; ++i) {
-        				gaxpy(1.0, *(result[i]), 1.0, result_tmp[i]->get_local(), false);
+        				gaxpy(1.0, result[i], 1.0, result_tmp[i].get_local(), false);
         			}
         		}
 
@@ -763,7 +823,7 @@ private:
 
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug) {
 
-        	// io_redirect io(element,name+"_task",debug);
+        	io_redirect io(element,name+"_task",debug);
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             const argtupleT batched_argtuple = task.batch.template copy_input_batch(argtuple);
         	try {
@@ -796,12 +856,6 @@ private:
         		resultT result_universe=get_output(subworld, cloud);       // lives in the universe
 
         		accumulate_into_final_result<resultT>(subworld, result_universe, result_subworld, argtuple);
-        		if constexpr (is_tuple<resultT>::value) {
-        			const auto& elem1=std::get<0>(result_subworld);
-        			const auto& elem2=std::get<0>(result_batch);
-        			const auto& elem3=std::get<0>(result_universe);
-        			int jj=1;
-        		}
 
         	} catch (std::exception& e) {
         		print("failing task no",element,"in subworld",subworld.id(),"at time",wall_time());
@@ -828,58 +882,17 @@ private:
     	}
 
     	template<typename T>
-    	static ScalarResult<T> pointer2WorldObject(const std::shared_ptr<ScalarResult<T>> sr_impl) {
-    		return *sr_impl;
+    	static ScalarResult<T> pointer2WorldObject(const std::shared_ptr<ScalarResultImpl<T>> sr_impl) {
+    		return ScalarResult(sr_impl);
     	}
 
     	template<typename T>
-    	static std::vector<ScalarResult<T>> pointer2WorldObject(const std::vector<std::shared_ptr<ScalarResult<T>>> v_sr_impl) {
-    		std::vector<ScalarResult<T>> vresult;
+    	static std::vector<ScalarResult<T>> pointer2WorldObject(const std::vector<std::shared_ptr<ScalarResultImpl<T>>> v_sr_impl) {
+    		std::vector<ScalarResult<T>> vresult(v_sr_impl.size());
     		for (auto i=0; i<v_sr_impl.size(); ++i) {
-				vresult.push_back(*v_sr_impl[i]);
+    			vresult[i].set_impl(v_sr_impl[i]);
 			}
     		return vresult;
-    	}
-
-    	/// load pointer to the universe object from the cloud and return corresponding object
-    	/// load: Function<T,NDIM>
-    	template<typename returnT>
-    	typename std::enable_if<is_madness_function<returnT>::value, returnT>::type
-    	get_universe_object(World &subworld, Cloud &cloud, const recordlistT &records) const {
-            typedef std::shared_ptr<typename returnT::implT> impl_ptrT;
-    		return pointer2WorldObject(cloud.load<impl_ptrT>(subworld, records));
-    	}
-
-    	/// load pointer to the universe object from the cloud and return corresponding object
-    	/// load: std::vector<Function<T,NDIM>>
-    	template<typename returnT>
-    	typename std::enable_if<is_madness_function_vector<returnT>::value && is_vector<returnT>::value, returnT>::type
-    	get_universe_object(World &subworld, Cloud &cloud, const recordlistT &records) const {
-    		std::cout << typeid(returnT).name() << std::endl;
-    		static_assert(is_vector<returnT>::value,"is a vector");
-    		static_assert(not is_tuple<returnT>::value,"is not a tuple");
-            typedef std::shared_ptr<typename returnT::value_type::implT> impl_ptrT;
-            std::vector<impl_ptrT> rimpl = cloud.load<std::vector<impl_ptrT>>(subworld, records);
-    		return pointer2WorldObject(rimpl);
-    	}
-
-    	/// load pointer to the universe object from the cloud and return corresponding object
-    	/// load: std::shared_ptr<ScalarObject<T>>
-    	template<typename returnT>
-    	typename std::enable_if<is_scalar_result_ptr<returnT>::value, returnT>::type
-    	get_universe_object(World &subworld, Cloud &cloud, const recordlistT &records) const {
-            returnT result = cloud.load<returnT>(subworld, records);
-    		return result;
-    	}
-
-    	/// load pointer to the universe object from the cloud and return corresponding object
-    	/// load std::vector<std::shared_ptr<ScalarObject<T>>>
-    	template<typename returnT>
-    	typename std::enable_if<is_scalar_result_ptr_vector<returnT>::value, returnT>::type
-    	get_universe_object(World &subworld, Cloud &cloud, const recordlistT &records) const {
-            typedef typename returnT::value_type::element_type ScalarResultT;
-            returnT result=cloud.load<std::vector<std::shared_ptr<ScalarResultT>>>(subworld, records);
-    		return result;
     	}
 
         /// return the WorldObjects or the result functions living in the universe
@@ -888,51 +901,59 @@ private:
 		/// convert them to actual WorldObjects and return them
         resultT get_output(World &subworld, Cloud &cloud) {
             resultT result;
+
+			// save outputrecords, because they will be consumed by the cloud
+            auto outputrecords1 = this->outputrecords;
+
+            // turn an element of the tuple of pointers into an element of the tuple of WorldObjects
+            auto doit = [&](auto& element) {
+	            typedef std::decay_t<decltype(element)> elementT;
+
+	            // load the elements from the cloud -- they contain pointers to WorldObjects
+	            if constexpr (is_madness_function_vector<elementT>::value) {
+		            typedef typename elementT::value_type::implT implT;
+		            auto ptr_element = cloud.consuming_load<std::vector<std::shared_ptr<implT>>>(
+			            subworld, outputrecords1);
+		            element = pointer2WorldObject(ptr_element);
+	            }
+	            else if constexpr (is_madness_function<elementT>::value) {
+		            typedef typename elementT::implT implT;
+		            auto ptr_element = cloud.consuming_load<std::shared_ptr<implT>>(subworld, outputrecords1);
+		            element = pointer2WorldObject(ptr_element);
+	            }
+	            else if constexpr (is_scalar_result_vector<elementT>::value) {	// std::vector<ScalarResult<T>>
+	            	typedef typename elementT::value_type ScalarResultT;
+	            	typedef typename ScalarResultT::implT implT;
+	            	typedef std::vector<std::shared_ptr<implT>> vptrT;
+		            auto ptr_element = cloud.consuming_load<vptrT>(subworld, outputrecords1);
+		            element = pointer2WorldObject(ptr_element);
+	            }
+	            else if constexpr (is_scalar_result<elementT>::value) {
+	            	// elementT is a ScalarResultImpl<T>
+	            	// in cloud we store a std::shared_ptr<ScalarResultImpl<T>>
+		            auto ptr_element = cloud.consuming_load<std::shared_ptr<typename elementT::implT>>(subworld, outputrecords1);
+		            element = pointer2WorldObject(ptr_element);
+	            }
+	            else {
+		            MADNESS_EXCEPTION("confused about the type of the result", 1);
+	            }
+            };
             if constexpr (is_tuple<resultT>::value) {
-	            static_assert(check_tuple_is_valid_task_result<resultT,0>(),"invalid tuple task result -- must be vectors of functions");
-            	static_assert(is_tuple<resultT>::value,"is a tuple");
+	            static_assert(check_tuple_is_valid_task_result<resultT, 0>(),
+	                          "invalid tuple task result -- must be vectors of functions");
+	            static_assert(is_tuple<resultT>::value, "is a tuple");
 
-            	// loop over all tuple elements
-            	//  1. load the pointers to the WorldObjects living in the universe
-            	//  2. create WorldObjects from the pointers and copy them into the tuple of type resultT
-
-            	// save outputrecords, because they will be consumed by the cloud
-            	auto outputrecords1 = this->outputrecords;
-
-            	// turn an element of the tuple of pointers into an element of the tuple of WorldObjects
-            	auto doit = [&](auto& element) {
-            		typedef std::decay_t<decltype(element)> elementT;
-
-            		// load the elements from the cloud -- they contain pointers to WorldObjects
-            		if constexpr (is_madness_function_vector<elementT>::value) {
-            			typedef typename elementT::value_type::implT implT;
-            			auto ptr_element=cloud.consuming_load<std::vector<std::shared_ptr<implT>>>(subworld, outputrecords1);
-            			element= pointer2WorldObject(ptr_element);
-
-					} else if constexpr (is_madness_function<elementT>::value) {
-						typedef typename elementT::implT implT;
-						auto ptr_element=cloud.consuming_load<std::shared_ptr<implT>>(subworld, outputrecords1);
-						element= pointer2WorldObject(ptr_element);
-
-					} else if constexpr (is_scalar_result_ptr_vector<elementT>::value) {
-            			auto ptr_element=cloud.consuming_load<elementT>(subworld, outputrecords1);
-            			element= pointer2WorldObject(ptr_element);
-
-					} else if constexpr (is_scalar_result_ptr<elementT>::value) {
-            			auto ptr_element=cloud.consuming_load<elementT>(subworld, outputrecords1);
-            			element= pointer2WorldObject(ptr_element);
-
-					} else {
-						MADNESS_EXCEPTION("confused about the type of the result",1);
-					}
-            	};
+	            // loop over all tuple elements
+	            //  1. load the pointers to the WorldObjects living in the universe
+	            //  2. create WorldObjects from the pointers and copy them into the tuple of type resultT
 
             	// turn the tuple of pointers into a tuple of WorldObjects
             	unary_tuple_loop(result,doit);
 
 
             } else {
-    			result=get_universe_object<resultT>(subworld,cloud,outputrecords);
+            	doit(result);
+
             }
             return result;
         }

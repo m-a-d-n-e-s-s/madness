@@ -143,7 +143,7 @@ public:
     // you need to define the result type
     // resultT must implement gaxpy(alpha, result, beta, contribution)
     // with resultT result, contribution;
-    typedef std::vector<std::shared_ptr<ScalarResult<double>>> resultT;
+    typedef std::vector<ScalarResult<double>> resultT;
 
     // you need to define the exact argument(s) of operator() as tuple
     typedef std::tuple<const std::vector<real_function_3d> &, const double &,
@@ -151,14 +151,14 @@ public:
 
     resultT allocator(World &world, const argtupleT &argtuple) const {
         std::size_t n = std::get<0>(argtuple).size();
-        return scalar_result_shared_ptr_vector<double>(world,n);
+        return scalar_result_vector<double>(world,n);
     }
 
     resultT operator()(const std::vector<real_function_3d>& f1, const double &arg2,
                        const std::vector<real_function_3d>& f2) const {
         World &world = f1[0].world();
-        auto result=scalar_result_shared_ptr_vector<double>(world,f1.size());
-        for (int i=0; i<f1.size(); ++i) *result[i]=double(i);
+        auto result=scalar_result_vector<double>(world,f1.size());
+        for (int i=0; i<f1.size(); ++i) result[i]=double(i);
         return result;
     }
 };
@@ -168,19 +168,20 @@ public:
     // you need to define the result type
     // resultT must implement gaxpy(alpha, result, beta, contribution)
     // with resultT result, contribution;
-    typedef std::shared_ptr<ScalarResult<double>> resultT;
+    // typedef std::shared_ptr<ScalarResultImpl<double>> resultT;
+    typedef ScalarResult<double> resultT;
 
     // you need to define the exact argument(s) of operator() as tuple
     typedef std::tuple<const std::vector<real_function_3d> &> argtupleT;
 
     resultT allocator(World &world, const argtupleT &argtuple) const {
-        return resultT(new ScalarResult<double>(world));
+        return resultT(world);
     }
 
     resultT operator()(const std::vector<real_function_3d>& f1) const {
         World &world = f1[0].world();
-        resultT result(new ScalarResult<double>(world));
-        *result=double(f1.size());
+        resultT result(world);
+        result=double(f1.size());
         return result;
     }
 };
@@ -310,17 +311,17 @@ int test_task1(World& universe, const std::vector<real_function_3d>& v3) {
 int test_scalar_task(World& universe, const std::vector<real_function_3d>& v3) {
     if (universe.rank()==0) print("\nstarting ScalarTask\n");
     ScalarTask t1;
-    std::shared_ptr<ScalarResult<double>> result = t1(v3);
-    double ref_t1=result->get();
+    ScalarResult<double> result = t1(v3);
+    double ref_t1=result.get();
     print("result reference",ref_t1);
 
 
     MacroTask task1(universe, t1);
     auto result2= task1(v3);
-    double result_t1=result2->get();
+    double result_t1=result2.get();
     print("result macro",result_t1);
 
-    int success = check(universe,ref_t1, result_t1, "task1 immediate");
+    int success = check(universe,ref_t1, result_t1, "ScalarTask");
     return success;
 }
 
@@ -328,13 +329,13 @@ int test_scalar_task(World& universe, const std::vector<real_function_3d>& v3) {
 int test_vector_of_scalar_task(World& universe, const std::vector<real_function_3d>& v3) {
     if (universe.rank()==0) print("\nstarting VectorOfScalarTask\n");
     VectorOfScalarTask t1;
-    std::vector<std::shared_ptr<ScalarResult<double>>> result = t1(v3, 2.0, v3);
-    for (auto& r : result) print("result",r->get());
+    std::vector<ScalarResult<double>> result = t1(v3, 2.0, v3);
+    for (auto& r : result) print("result",r.get());
 
 
     MacroTask task1(universe, t1);
     auto result2= task1(v3, 2.0, v3);
-    for (auto& r : result2) print("result",r->get());
+    for (auto& r : result2) print("result",r.get());
 
     int success=0;
     return success;
@@ -407,11 +408,11 @@ int main(int argc, char **argv) {
         success+=test_immediate(universe,v3,ref);
         timer1.tag("immediate taskq execution");
 
-        success+=test_vector_of_scalar_task(universe,v3);
-        timer1.tag("vector of scalar task execution");
-
         success+=test_scalar_task(universe,v3);
         timer1.tag("scalar task execution");
+
+        success+=test_vector_of_scalar_task(universe,v3);
+        timer1.tag("vector of scalar task execution");
 
         success+=test_tuple_of_vectors(universe,v3);
         timer1.tag("vector of tuples task execution");
