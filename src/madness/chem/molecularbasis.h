@@ -683,7 +683,7 @@ public:
     /// - basis function number
     /// - MO coeff
     template <typename T>
-    void print_anal(const Molecule& molecule, const Tensor<T>& v) {
+    void print_anal(const Molecule& molecule, const Tensor<T>& v) const {
         const double thresh = 0.2*v.normf();
         if (thresh == 0.0) {
             printf("    zero vector\n");

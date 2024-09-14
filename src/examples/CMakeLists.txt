@@ -17,3 +17,8 @@ foreach(example ${EXAMPLE_SOURCES})
   add_mad_executable(${example} ${example}.cc "MADchem")
   add_dependencies(numerical-examples-madness ${example})
 endforeach()
+
+if(NOT (MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_LIBRARIES_ONLY) AND LAPACK_FOUND)
+	add_subdirectory(periodic)
+endif()
+

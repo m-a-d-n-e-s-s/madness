@@ -426,6 +426,17 @@ double Znemo::analyze() {
 	save_orbitals("plot");
 	save(density,"density");
 	save(spindensity,"spindensity");
+
+	auto components=std::vector<std::vector<real_function_3d>>({real(amo),imag(amo),real(bmo),imag(bmo)});
+	auto component_names=std::vector<std::string>({"real_amo","imag_amo","real_bmo","imag_bmo"});
+	std::vector<real_function_3d> real_aos=SCF::project_ao_basis_only(world, aobasis, mol);
+	for (size_t i=0; i<components.size(); ++i) {
+		if (world.rank()==0) print("analysis of MO component ",component_names[i]);
+		if (components[i].size()>0) SCF::analyze_vectors(world, components[i], real_aos,
+			FunctionDefaults<3>::get_thresh()*0.1, molecule(), cparam.print_level(), aobasis);
+
+	}
+
     return energy;
 }
 
@@ -1178,21 +1189,30 @@ Znemo::canonicalize(std::vector<complex_function_3d>& amo,
 
 }
 
-
-void Znemo::save_orbitals(std::string suffix) const {
-	suffix="_"+suffix;
-	const real_function_3d& dia=diafac->factor();
-	for (size_t i=0; i<amo.size(); ++i) save(amo[i],"amo"+stringify(i)+suffix);
-	for (size_t i=0; i<bmo.size(); ++i) save(bmo[i],"bmo"+stringify(i)+suffix);
-	for (size_t i=0; i<amo.size(); ++i) save(real(amo[i]),"amo_real"+stringify(i)+suffix);
-	for (size_t i=0; i<amo.size(); ++i) save(imag(amo[i]),"amo_imag"+stringify(i)+suffix);
-	for (size_t i=0; i<amo.size(); ++i) save(real(bmo[i]),"bmo_real"+stringify(i)+suffix);
-	for (size_t i=0; i<amo.size(); ++i) save(imag(bmo[i]),"bmo_imag"+stringify(i)+suffix);
-	for (size_t i=0; i<amo.size(); ++i) save(madness::abs(amo[i]),"absamo"+stringify(i)+suffix);
-	for (size_t i=0; i<bmo.size(); ++i) save(madness::abs(bmo[i]),"absbmo"+stringify(i)+suffix);
-	for (size_t i=0; i<amo.size(); ++i) save(madness::abs(amo[i]*dia),"diaamo"+stringify(i)+suffix);
-	for (size_t i=0; i<bmo.size(); ++i) save(madness::abs(bmo[i]*dia),"diabmo"+stringify(i)+suffix);
-
+void Znemo::save_orbitals(std::string suffix) const
+{
+	suffix = "_" + suffix;
+	const real_function_3d &dia = diafac->factor();
+	for (size_t i = 0; i < amo.size(); ++i)
+		save(amo[i], "amo" + stringify(i) + suffix);
+	for (size_t i = 0; i < bmo.size(); ++i)
+		save(bmo[i], "bmo" + stringify(i) + suffix);
+	for (size_t i = 0; i < amo.size(); ++i)
+		save(real(amo[i]), "amo_real" + stringify(i) + suffix);
+	for (size_t i = 0; i < amo.size(); ++i)
+		save(imag(amo[i]), "amo_imag" + stringify(i) + suffix);
+	for (size_t i = 0; i < bmo.size(); ++i)
+		save(real(bmo[i]), "bmo_real" + stringify(i) + suffix);
+	for (size_t i = 0; i < bmo.size(); ++i)
+		save(imag(bmo[i]), "bmo_imag" + stringify(i) + suffix);
+	for (size_t i = 0; i < amo.size(); ++i)
+		save(madness::abs(amo[i]), "absamo" + stringify(i) + suffix);
+	for (size_t i = 0; i < bmo.size(); ++i)
+		save(madness::abs(bmo[i]), "absbmo" + stringify(i) + suffix);
+	for (size_t i = 0; i < amo.size(); ++i)
+		save(madness::abs(amo[i] * dia), "diaamo" + stringify(i) + suffix);
+	for (size_t i = 0; i < bmo.size(); ++i)
+		save(madness::abs(bmo[i] * dia), "diabmo" + stringify(i) + suffix);
 }
 
 } // namespace madness
