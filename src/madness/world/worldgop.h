@@ -785,28 +785,28 @@ namespace madness {
           world_.mpi.binary_tree_info(0, parent, child0, child1);
           const std::size_t nelem_per_maxmsg = max_reducebcast_msg_size() / sizeof(T);
 
-          std::unique_ptr<T[]> buf0 = (child0 != -1)
-                ? std::unique_ptr<T[]>(new T[std::min(nelem_per_maxmsg,nelem)])
-                : nullptr;
-          std::unique_ptr<T[]> buf1 = (child1 != -1)
-                ? std::unique_ptr<T[]>(new T[std::min(nelem_per_maxmsg,nelem)])
-                : nullptr;
+          auto buf0 = (child0 != -1)
+            ? static_cast<T*>(std::malloc(sizeof(T) * std::min(nelem_per_maxmsg, nelem)))
+            : nullptr;
+          auto buf1 = (child1 != -1)
+            ? static_cast<T*>(std::malloc(sizeof(T) * std::min(nelem_per_maxmsg, nelem)))
+            : nullptr;
 
           auto reduce_impl = [&,this](T* buf, size_t nelem) {
             MADNESS_ASSERT(nelem <= nelem_per_maxmsg);
             SafeMPI::Request req0, req1;
             Tag gsum_tag = world_.mpi.unique_tag();
 
-            if (child0 != -1) req0 = world_.mpi.Irecv(buf0.get(), nelem*sizeof(T), MPI_BYTE, child0, gsum_tag);
-            if (child1 != -1) req1 = world_.mpi.Irecv(buf1.get(), nelem*sizeof(T), MPI_BYTE, child1, gsum_tag);
+            if (child0 != -1) req0 = world_.mpi.Irecv(buf0, nelem*sizeof(T), MPI_BYTE, child0, gsum_tag);
+            if (child1 != -1) req1 = world_.mpi.Irecv(buf1, nelem*sizeof(T), MPI_BYTE, child1, gsum_tag);
 
             if (child0 != -1) {
               World::await(req0);
-              for (long i=0; i<(long)nelem; ++i) buf[i] = op(buf[i],buf0[i]);
+              for (long i=0; i<(long)nelem; ++i) buf[i] = op(buf[i], buf0[i]);
             }
             if (child1 != -1) {
               World::await(req1);
-              for (long i=0; i<(long)nelem; ++i) buf[i] = op(buf[i],buf1[i]);
+              for (long i=0; i<(long)nelem; ++i) buf[i] = op(buf[i], buf1[i]);
             }
 
             if (parent != -1) {
@@ -823,6 +823,9 @@ namespace madness {
             nelem -= n;
             buf += n;
           }
+
+          if (child0 != -1) std::free(buf0);
+          if (child1 != -1) std::free(buf1);
         }
 
         /// Inplace global sum while still processing AM & tasks
