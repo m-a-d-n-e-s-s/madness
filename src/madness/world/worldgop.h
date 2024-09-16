@@ -781,9 +781,6 @@ namespace madness {
         /// Optimizations can be added for long messages and to reduce the memory footprint
         template <typename T, class opT>
             void reduce(T* buf, std::size_t nelem, opT op) {
-          static_assert(std::is_trivially_constructible_v<T> &&
-                            std::is_trivially_copyable_v<T>,
-                        "T must be trivially constructible and copyable");
           ProcessID parent, child0, child1;
           world_.mpi.binary_tree_info(0, parent, child0, child1);
           const std::size_t nelem_per_maxmsg =
@@ -809,9 +806,6 @@ namespace madness {
 #ifdef HAVE_POSIX_MEMALIGN
             void *ptr;
             if (posix_memalign(&ptr, alignment, buf_size) != 0) {
-              char errmsg[1024];
-              strerror_r(errno, errmsg, sizeof(errmsg));
-              std::cerr << "posix_memalign failed: " << errmsg << std::endl;
               throw std::bad_alloc();
             }
             return static_cast<T *>(ptr);
@@ -965,15 +959,15 @@ namespace madness {
                   std::free(ptr);
               };
             };
-            using sptr_t = std::unique_ptr<T[], free_dtor>;
+            using sptr_t = std::unique_ptr<std::byte[], free_dtor>;
             sptr_t buf0;
             if (child0 != -1)
-              buf0 = sptr_t(static_cast<T *>(std::aligned_alloc(
+              buf0 = sptr_t(static_cast<std::byte *>(std::aligned_alloc(
                                 std::alignment_of_v<T>, bufsz)),
                             free_dtor{});
             sptr_t buf1;
             if (child1 != -1)
-              buf1 = sptr_t(static_cast<T *>(std::aligned_alloc(
+              buf1 = sptr_t(static_cast<std::byte *>(std::aligned_alloc(
                                 std::alignment_of_v<T>, bufsz)),
                             free_dtor{});
 
