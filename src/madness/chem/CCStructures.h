@@ -1480,12 +1480,13 @@ public:
     /// return a vector of twice the size: pot(gs) and applied singles potentials, that will go into info
 
     /// the second half will be non-zero only for s2b and s2c potentials
-    using resultT = std::vector<real_function_3d>;
+    using resultT = std::tuple<std::vector<real_function_3d>,std::vector<real_function_3d>>;
 
     resultT allocator(World& world, const argtupleT& argtuple) const {
         std::size_t n = std::get<0>(argtuple).size();
-        resultT result = zero_functions_compressed<double, 3>(world, 2*n);
-        return result;
+        std::vector<real_function_3d> result = zero_functions_compressed<double, 3>(world, n);
+        std::vector<real_function_3d> intermediate = zero_functions_compressed<double, 3>(world, n);
+        return std::make_tuple(result,intermediate);
     }
 
     /// convenience function
@@ -1493,18 +1494,18 @@ public:
     /// the operator() return a vector of double size of the singles, the second half potentially being an intermediate.
     /// if the intermediate is not assigned return an empty vector
     /// @return a pair of the singles and the intermediate
-    static
-    std::pair<resultT, resultT> split_into_result_and_intermediate(const std::vector<real_function_3d>& result) {
-        const std::size_t n=result.size()/2;
-        MADNESS_CHECK_THROW(2*n==result.size(),"funny sizes in MacroTaskSinglesPotential::split_into_result_and_intermediate");
-
-        vector_real_function_3d res, intermediate;
-        for (int i=0; i<n; ++i) res.push_back(result[i]);
-        if (result[n].is_initialized()) {
-            for (int i=n; i<result.size(); ++i) intermediate.push_back(result[i]);
-        }
-        return std::make_pair(res,intermediate);
-    };
+//    static
+//    std::pair<resultT, resultT> split_into_result_and_intermediate(const std::vector<real_function_3d>& result) {
+//        const std::size_t n=result.size()/2;
+//        MADNESS_CHECK_THROW(2*n==result.size(),"funny sizes in MacroTaskSinglesPotential::split_into_result_and_intermediate");
+//
+//        vector_real_function_3d res, intermediate;
+//        for (int i=0; i<n; ++i) res.push_back(result[i]);
+//        if (result[n].is_initialized()) {
+//            for (int i=n; i<result.size(); ++i) intermediate.push_back(result[i]);
+//        }
+//        return std::make_pair(res,intermediate);
+//    };
 
     resultT operator() (const std::vector<int>& result_index,
                         const CC_vecfunction& singles_gs,
@@ -1532,12 +1533,13 @@ public:
     /// return a vector of twice the size: pot(gs) and applied singles potentials, that will go into info
 
     /// the second half will be non-zero only for s2b and s2c potentials
-    using resultT = std::vector<real_function_3d>;
+    using resultT = std::tuple<std::vector<real_function_3d>,std::vector<real_function_3d>>;
 
     resultT allocator(World& world, const argtupleT& argtuple) const {
         std::size_t n = std::get<0>(argtuple).size();
-        resultT result = zero_functions_compressed<double, 3>(world, 2*n);
-        return result;
+        std::vector<real_function_3d> result = zero_functions_compressed<double, 3>(world, n);
+        std::vector<real_function_3d> intermediate = zero_functions_compressed<double, 3>(world, n);
+        return std::make_tuple(result,intermediate);
     }
 
     resultT operator() (const std::vector<int>& result_index,

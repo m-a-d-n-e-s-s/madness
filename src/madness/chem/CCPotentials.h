@@ -719,8 +719,9 @@ public:
     /// @param[in] Name of the potential
     /// @param[out] the potential (without Q application)
     /// @param world
-    static vector_real_function_3d
-    potential_singles_gs(World& world, const std::vector<int>& result_index, const CC_vecfunction& singles, const Pairs<CCPair>& doubles,
+    static std::tuple<madness::vector_real_function_3d, madness::vector_real_function_3d>
+    potential_singles_gs(World& world, const std::vector<int>& result_index, const CC_vecfunction& singles,
+                         const Pairs<CCPair>& doubles,
                          const PotentialType& name, const Info& info);
 
     /// The integra manager for the excited state potential
@@ -750,7 +751,7 @@ public:
     /// @param[in] Name of the potential
     /// @param[out] the potential (without Q application)
     /// @param world
-    static vector_real_function_3d
+    static std::tuple<madness::vector_real_function_3d, madness::vector_real_function_3d>
     potential_singles_ex(World& world, const std::vector<int> result_index, const CC_vecfunction& singles_gs,
                          const Pairs<CCPair>& doubles_gs, const CC_vecfunction& singles_ex,
                          const Pairs<CCPair>& doubles_ex, const PotentialType& name, const Info& info);
@@ -920,7 +921,7 @@ public:
     ///@param[out] \f$ \sum_k( 2<k|g|uik>_2 - <k|g|uik>_1 ) \f$
     /// Q-Projector is not applied, sign is correct
     /// if the s2b potential has already been calculated it will be loaded from the intermediate_potentials structure
-    static vector_real_function_3d
+    static std::tuple<madness::vector_real_function_3d, madness::vector_real_function_3d>
     s2b(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
 
     /// result: -\sum_k( <l|kgi|ukl>_2 - <l|kgi|ukl>_1)
@@ -934,7 +935,7 @@ public:
     ///@param info
     ///@param[out] \f$ -\sum_k( <l|kgi|ukl>_2 - <l|kgi|ukl>_1) \f$
     /// Q-Projector is not applied, sign is correct
-    static vector_real_function_3d
+    static std::tuple<vector<Function<double, 3>>, vector<Function<double, 3>>>
     s2c(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
 
     /// the S4a potential can be calcualted from the S2b potential

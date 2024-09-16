@@ -2862,24 +2862,24 @@ CCPotentials::get_CC2_singles_potential_gs(World& world, const CC_vecfunction& s
 
     // compute applied potentials and intermediates
     std::vector<int> result_index(singles.size());
-    vector_real_function_3d fock_residue1 = mtaskgs(result_index, singles, doubles_vec, int(POT_F3D_), info);
-    vector_real_function_3d Vccs1 = mtaskgs(result_index, singles, doubles_vec, int(POT_ccs_), info);
-    vector_real_function_3d Vs2b1 = mtaskgs(result_index, singles, doubles_vec, int(POT_s2b_), info);
-    vector_real_function_3d Vs2c1 = mtaskgs(result_index, singles, doubles_vec, int(POT_s2c_), info);
-    vector_real_function_3d Vs4b1 = mtaskgs(result_index, singles, doubles_vec, int(POT_s4b_), info);
-    vector_real_function_3d Vs4c1 = mtaskgs(result_index, singles, doubles_vec, int(POT_s4c_), info);
+    auto [fock_residue, dum1] = mtaskgs(result_index, singles, doubles_vec, int(POT_F3D_), info);
+    auto [Vccs, dum2] = mtaskgs(result_index, singles, doubles_vec, int(POT_ccs_), info);
+    auto [Vs2b, imed_s2b] = mtaskgs(result_index, singles, doubles_vec, int(POT_s2b_), info);
+    auto [Vs2c, imed_s2c] = mtaskgs(result_index, singles, doubles_vec, int(POT_s2c_), info);
+    auto [Vs4b, dum4] = mtaskgs(result_index, singles, doubles_vec, int(POT_s4b_), info);
+    auto [Vs4c, dum5] = mtaskgs(result_index, singles, doubles_vec, int(POT_s4c_), info);
     taskq->print_taskq();
     taskq->run_all();
     // vector_real_function_3d Vs4a = apply_projector(Vs2b, singles);     // need to subtract
 
-    // extract potentials
-    constexpr auto split = &MacroTaskSinglesPotentialEx::split_into_result_and_intermediate;
-    auto [fock_residue, dum1] = split(fock_residue1);
-    auto [Vccs, dum2] = split(Vccs1);
-    auto [Vs2b, imed_s2b] = split(Vs2b1);
-    auto [Vs2c, imed_s2c] = split(Vs2c1);
-    auto [Vs4b, dum4] = split(Vs4b1);
-    auto [Vs4c, dum5] = split(Vs4c1);
+//    // extract potentials
+//    constexpr auto split = &MacroTaskSinglesPotentialEx::split_into_result_and_intermediate;
+//    auto [fock_residue, dum1] = split(fock_residue1);
+//    auto [Vccs, dum2] = split(Vccs1);
+//    auto [Vs2b, imed_s2b] = split(Vs2b1);
+//    auto [Vs2c, imed_s2c] = split(Vs2c1);
+//    auto [Vs4b, dum4] = split(Vs4b1);
+//    auto [Vs4c, dum5] = split(Vs4c1);
 
     vector_real_function_3d Vs4a = Otau(Vs2b);     // need to subtract
     vector_real_function_3d unprojected = add(world, Vccs, add(world, Vs2b, add(world, Vs2c, add(world, Vs4b,
@@ -2912,16 +2912,10 @@ CCPotentials::get_CCS_potential_ex(World& world, const CC_vecfunction& x, const 
     std::vector<int> result_index(x.size());
 
     // run tasks
-    auto fock_residue1=mtask(result_index,empty_singles,empty_doubles,x,empty_doubles,int(POT_F3D_),info);
-    auto potential1=mtask(result_index,empty_singles,empty_doubles,x,empty_doubles,int(POT_cis_),info);
+    auto [fock_residue, dummy1]=mtask(result_index,empty_singles,empty_doubles,x,empty_doubles,int(POT_F3D_),info);
+    auto [potential, dummy2]=mtask(result_index,empty_singles,empty_doubles,x,empty_doubles,int(POT_cis_),info);
     taskq->print_taskq();
     taskq->run_all();
-
-    // shorthand notation
-    // split result into actual result and intermediate, and discard the latter
-    constexpr auto split = &MacroTaskSinglesPotentialEx::split_into_result_and_intermediate;
-    auto [fock_residue, imed_fock_residue] = split(fock_residue1);
-    auto [potential, imed_potential] = split(potential1);
 
     // const vector_real_function_3d fock_residue = potential_singles_ex(world, empty_singles, empty_doubles, x,
                                                                       // empty_doubles, POT_F3D_, info);
@@ -2958,31 +2952,31 @@ CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& g
     MacroTask<MacroTaskSinglesPotentialEx> mtaskex(world,taskex,taskq);
 
     std::vector<int> result_index(ex_singles.size());
-    auto fock_residue1 = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_F3D_), info);
-    auto Vccs1 = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_ccs_), info);
-    auto Vs2b1 = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_s2b_), info);
-    auto Vs2c1 = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_s2c_), info);
-    auto Vs4b1 = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_s4b_), info);
-    auto Vs4c1 = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_s4c_), info);
+    auto [fock_residue, dum1] = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_F3D_), info);
+    auto [Vccs, dum2] = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_ccs_), info);
+    auto [Vs2b, imed_s2b] = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_s2b_), info);
+    auto [Vs2c, imed_s2c] = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_s2c_), info);
+    auto [Vs4b, dum4] = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_s4b_), info);
+    auto [Vs4c, dum5] = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_s4c_), info);
     // make low scaling s4a potential
     // -Otau(s2b_response) + -Ox(s2b_gs)
     // maybe store full s2b potential of gs
     // both need to be subtracted
-    auto s2b_gs1 = mtaskgs(result_index, gs_singles, gs_doubles_vec, int(POT_s2b_), info);
+    auto [s2b_gs, dum6] = mtaskgs(result_index, gs_singles, gs_doubles_vec, int(POT_s2b_), info);
     // vector_real_function_3d Vs4a =
             // -1.0 * add(world, apply_projector(s2b_gs, ex_singles), apply_projector(Vs2b, gs_singles));
     taskq->print_taskq();
     taskq->run_all();
 
     // split potential and intermediates
-    constexpr auto split = &MacroTaskSinglesPotentialEx::split_into_result_and_intermediate;
-    auto [fock_residue, dum1] = split(fock_residue1);
-    auto [Vccs, dum2] = split(Vccs1);
-    auto [Vs2b, imed_s2b] = split(Vs2b1);
-    auto [Vs2c, imed_s2c] = split(Vs2c1);
-    auto [Vs4b, dum4] = split(Vs4b1);
-    auto [Vs4c, dum5] = split(Vs4c1);
-    auto [s2b_gs, dum6] = split(s2b_gs1);
+//    constexpr auto split = &MacroTaskSinglesPotentialEx::split_into_result_and_intermediate;
+//    auto [fock_residue, dum1] = split(fock_residue1);
+//    auto [Vccs, dum2] = split(Vccs1);
+//    auto [Vs2b, imed_s2b] = split(Vs2b1);
+//    auto [Vs2c, imed_s2c] = split(Vs2c1);
+//    auto [Vs4b, dum4] = split(Vs4b1);
+//    auto [Vs4c, dum5] = split(Vs4c1);
+//    auto [s2b_gs, dum6] = split(s2b_gs1);
 
     vector_real_function_3d Vs4a = -1.0 * (Ox(s2b_gs)+ Ot(Vs2b));
     //add up
@@ -3073,12 +3067,12 @@ CCPotentials::potential_energy_gs(World& world, const CC_vecfunction& bra,
     return result;
 }
 
-madness::vector_real_function_3d
+std::tuple<madness::vector_real_function_3d, madness::vector_real_function_3d>
 CCPotentials::potential_singles_gs(World& world, const std::vector<int>& result_index, const CC_vecfunction& singles,
                                    const Pairs<CCPair>& doubles, const PotentialType& name, const Info& info)
 {
     MADNESS_ASSERT(singles.type == PARTICLE);
-    vector_real_function_3d result;
+    vector_real_function_3d result, intermediate;
     CCTimer timer(world, "Singles-Potential:" + assign_name(name));
 
     if (name == POT_F3D_) {
@@ -3103,9 +3097,9 @@ CCPotentials::potential_singles_gs(World& world, const std::vector<int>& result_
         //	    << get_size(world,result_s4a) << " (GB), " << timer.current_time().first << "s (wall), " << timer.current_time().second << "s (cpu)\n";
         //	result = add(world,result_s2b,result_s4a);
         // returns the s2b potential (unprojected)
-        result = s2b(world, singles, doubles, info);
+        std::tie(result,intermediate) = s2b(world, singles, doubles, info);
     } else if (name == POT_s2c_) {
-        result = s2c(world, singles, doubles, info);
+        std::tie(result,intermediate) = s2c(world, singles, doubles, info);
     } else if (name == POT_s4a_) {
         error("potential_singles: Demanded s4a potential -> this is calculated along with the s2b potential");
     } else if (name == POT_s4b_) {
@@ -3124,7 +3118,7 @@ CCPotentials::potential_singles_gs(World& world, const std::vector<int>& result_
                   << "s (wall), " << time.second << "s (cpu)\n";
     }
     truncate(world, result);
-    return result;
+    return std::make_tuple(result,intermediate);
 }
 
 double
@@ -3179,7 +3173,7 @@ CCPotentials::potential_energy_ex(World& world, const CC_vecfunction& bra,
     return result;
 }
 
-madness::vector_real_function_3d
+std::tuple<madness::vector_real_function_3d, madness::vector_real_function_3d>
 CCPotentials::potential_singles_ex(World& world, const std::vector<int> result_index,
                                    const CC_vecfunction& singles_gs,
                                    const Pairs<CCPair>& doubles_gs, const CC_vecfunction& singles_ex,
@@ -3191,7 +3185,7 @@ CCPotentials::potential_singles_ex(World& world, const std::vector<int> result_i
 
     Projector<double,3> Ox(info.get_active_mo_bra(),singles_ex.get_vecfunction());
 
-    vector_real_function_3d result;
+    vector_real_function_3d result, intermediate;
     CCTimer timer(world, "timer-ex-potential");
     if (name == POT_F3D_) {
         result = fock_residue_closed_shell(world, singles_ex, info);
@@ -3208,9 +3202,9 @@ CCPotentials::potential_singles_ex(World& world, const std::vector<int> result_i
         vector_real_function_3d tmp = add(world, part1, part2);
         result = sub(world, tmp, part3);
     } else if (name == POT_s2b_) {
-        result = s2b(world, singles_ex, doubles_ex, info);
+        std::tie(result, intermediate) = s2b(world, singles_ex, doubles_ex, info);
     } else if (name == POT_s2c_) {
-        result = s2c(world, singles_ex, doubles_ex, info);
+        std::tie(result, intermediate) = s2c(world, singles_ex, doubles_ex, info);
     } else if (name == POT_s4a_) {
         error("potential_singles: Demanded s4a potential -> this is calculated from the s2b potential");
     } else if (name == POT_s4b_) {
@@ -3236,7 +3230,7 @@ CCPotentials::potential_singles_ex(World& world, const std::vector<int> result_i
     }
     if (result.empty()) MADNESS_EXCEPTION("Result is empty", 1);
     truncate(world, result);
-    return result;
+    return std::make_tuple(result, intermediate);
 }
 
 madness::vector_real_function_3d
@@ -3688,7 +3682,7 @@ CCPotentials::x_s4c(const CC_vecfunction& x, const CC_vecfunction& t, const Pair
     return result;
 }
 
-madness::vector_real_function_3d
+std::tuple<madness::vector_real_function_3d, madness::vector_real_function_3d>
 CCPotentials::s2b(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info)
 {
     vector_real_function_3d result;
@@ -3723,17 +3717,17 @@ CCPotentials::s2b(World& world, const CC_vecfunction& singles, const Pairs<CCPai
         result.push_back(resulti_r + resulti_u);
         if (recalc_u_part) result_u.push_back(resulti_u);
     }
-    if (recalc_u_part) {
-        for (const auto& ru: result_u) result.push_back(ru);
+    // if (recalc_u_part) {
+        // for (const auto& ru: result_u) result.push_back(ru);
         // info.intermediate_potentials.insert(result_u, singles, POT_s2b_);
-    }
+    // }
 
-    return result;
+    return std::make_tuple(result,result_u);;
 }
 
-madness::vector_real_function_3d
+std::tuple<madness::vector_real_function_3d, madness::vector_real_function_3d>
 CCPotentials::s2c(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info) {
-    vector_real_function_3d result;
+    vector_real_function_3d result, intermediate;
     // see if we can skip the recalculation of the pure 6D part since this does not change during the singles iteration
     vector_real_function_3d result_u = info.intermediate_potentials(singles, POT_s2c_);
     bool recalc_u_part = false;
@@ -3768,12 +3762,12 @@ CCPotentials::s2c(World& world, const CC_vecfunction& singles, const Pairs<CCPai
         result.push_back(resulti_r + resulti_u);
         if (recalc_u_part) result_u.push_back(resulti_u);
     }
-    if (recalc_u_part) {
-        for (const auto& ru: result_u) result.push_back(ru);
-        // info.intermediate_potentials.insert(result_u, singles, POT_s2c_);
-    }
+//    if (recalc_u_part) {
+//        for (const auto& ru: result_u) result.push_back(ru);
+//        // info.intermediate_potentials.insert(result_u, singles, POT_s2c_);
+//    }
 
-    return result;
+    return std::make_tuple(result,intermediate);
 }
 
 madness::vector_real_function_3d
@@ -4203,8 +4197,8 @@ void CCPotentials::test_singles_potential(Info& info) const {
         MacroTask<MacroTaskSinglesPotentialEx> mtaskex(world,taskex,taskq);
 
         std::vector<int> result_index(ex_singles.size());
-        auto cis_potential = mtaskex(result_index, gs_singles, gs_doubles, ex_singles, ex_doubles, int(POT_cis_), info);
-        auto ccs_potential = mtaskex(result_index, gs_singles, gs_doubles, ex_singles, ex_doubles, int(POT_ccs_), info);
+        auto [cis_potential, dummy1] = mtaskex(result_index, gs_singles, gs_doubles, ex_singles, ex_doubles, int(POT_cis_), info);
+        auto [ccs_potential, dummy2] = mtaskex(result_index, gs_singles, gs_doubles, ex_singles, ex_doubles, int(POT_ccs_), info);
         taskq->print_taskq();
         taskq->run_all();
         vector_real_function_3d diff = sub(world, cis_potential, ccs_potential);
@@ -4244,7 +4238,7 @@ void CCPotentials::test_singles_potential(Info& info) const {
     std::vector<int> result_index(ex_singles.size());
 
     for (const auto pot:pots) {
-        const vector_real_function_3d potential = potential_singles_gs(world, result_index, gs_singles, gs_doubles, pot, info);
+        const auto [potential, intermediate] = potential_singles_gs(world, result_index, gs_singles, gs_doubles, pot, info);
         const double xpot1 = inner(world, xbra.get_vecfunction(), potential).sum();
         const double xpot2 = potential_energy_gs(world, xbra, gs_singles, gs_doubles, pot);
         const double diff = xpot1 - xpot2;
@@ -4278,7 +4272,7 @@ void CCPotentials::test_singles_potential(Info& info) const {
     std::vector<int> result_index_ex(ex_singles.size());
 
     for (const auto pot:pots) {
-        const vector_real_function_3d potential = potential_singles_ex(world, result_index_ex, gs_singles, gs_doubles, ex_singles,
+        const auto [potential, dummy1] = potential_singles_ex(world, result_index_ex, gs_singles, gs_doubles, ex_singles,
                                                                        ex_doubles, pot, info);
         const double xpot1 = inner(world, xbra.get_vecfunction(), potential).sum();
         const double xpot2 = potential_energy_ex(world, xbra, gs_singles, gs_doubles, ex_singles, ex_doubles, pot);
@@ -4292,7 +4286,7 @@ void CCPotentials::test_singles_potential(Info& info) const {
         if (fabs(diff) > parameters.thresh_6D()) output.warning("Test Failed");
         else output("Test Passed");
         if (pot == POT_s2b_) {
-            const vector_real_function_3d potential_gs = potential_singles_gs(world, result_index, gs_singles, gs_doubles, pot, info);
+            const auto [potential_gs, dummy2] = potential_singles_gs(world, result_index, gs_singles, gs_doubles, pot, info);
             const vector_real_function_3d pot_s4a = -1.0 * add(world, apply_projector(potential, gs_singles),
                                                                apply_projector(potential_gs, ex_singles));
             const double xxpot1 = inner(world, xbra.get_vecfunction(), pot_s4a).sum();

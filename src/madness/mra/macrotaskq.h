@@ -850,6 +850,7 @@ private:
 					}
         		};
         		resultT result_subworld=task.allocator(subworld,argtuple);
+        		print("is_tuple",is_tuple<resultT>::value);
         		if constexpr (is_tuple<resultT>::value) {
         			binary_tuple_loop(result_subworld, result_batch, insert_batch);
 				} else {

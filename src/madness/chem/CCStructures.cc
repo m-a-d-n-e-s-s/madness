@@ -586,7 +586,7 @@ MacroTaskIteratePair::operator()(const std::vector<CCPair>& pair,
 /// convenience function
 
 
-std::vector<real_function_3d>
+std::tuple<std::vector<real_function_3d>, std::vector<real_function_3d>>
 MacroTaskSinglesPotentialEx::operator()(const std::vector<int>& result_index,
                                       const CC_vecfunction& singles_gs,
                                       const std::vector<CCPair>& doubles_gs,
@@ -594,13 +594,13 @@ MacroTaskSinglesPotentialEx::operator()(const std::vector<int>& result_index,
                                       const std::vector<CCPair>& doubles_ex,
                                       const int& name,
                                       const Info& info) {
-    World& world=singles_gs.get_vecfunction().front().world();
+    World& world=singles_ex.get_vecfunction().front().world();
 
     auto triangular_map=PairVectorMap::triangular_map(info.parameters.freeze(),info.mo_ket.size());
     auto doubles_gs1=Pairs<CCPair>::vector2pairs(doubles_gs,triangular_map);
     auto doubles_ex1=Pairs<CCPair>::vector2pairs(doubles_ex,triangular_map);
 
-    return CCPotentials::potential_singles_ex(world,
+    resultT result=CCPotentials::potential_singles_ex(world,
                 result_index,
                 singles_gs,
                 doubles_gs1,
@@ -608,9 +608,13 @@ MacroTaskSinglesPotentialEx::operator()(const std::vector<int>& result_index,
                 doubles_ex1,
                 PotentialType(name),
                 info);
+    // if the second element of the tuple is empty, fill it with empty functions
+    // to that "insert_batch" is not confused
+    if (std::get<1>(result).empty()) std::get<1>(result)=zero_functions<double,3>(world,result_index.size());
+    return result;
 }
 
-std::vector<real_function_3d>
+std::tuple<std::vector<real_function_3d>, std::vector<real_function_3d>>
 MacroTaskSinglesPotentialGs::operator()(const std::vector<int>& result_index,
                                       const CC_vecfunction& singles_gs,
                                       const std::vector<CCPair>& doubles_gs,
@@ -620,8 +624,13 @@ MacroTaskSinglesPotentialGs::operator()(const std::vector<int>& result_index,
     auto triangular_map=PairVectorMap::triangular_map(info.parameters.freeze(),info.mo_ket.size());
     auto doubles_gs1=Pairs<CCPair>::vector2pairs(doubles_gs,triangular_map);
 
-    return CCPotentials::potential_singles_gs(world, result_index,
+    resultT result=CCPotentials::potential_singles_gs(world, result_index,
                 singles_gs, doubles_gs1, PotentialType(name), info);
+    // if the second element of the tuple is empty, fill it with empty functions
+    // to that "insert_batch" is not confused
+    if (std::get<1>(result).empty()) std::get<1>(result)=zero_functions<double,3>(world,result_index.size());
+    return result;
+
 }
 
 
