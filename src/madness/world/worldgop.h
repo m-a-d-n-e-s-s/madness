@@ -796,6 +796,7 @@ namespace madness {
             };
           };
           using sptr_t = std::unique_ptr<T[], free_dtor>;
+
           sptr_t buf0;
           auto aligned_buf_alloc = [&]() -> T* {
             // posix_memalign requires alignment to be an integer multiple of sizeof(void*)!! so ensure that
@@ -960,6 +961,7 @@ namespace madness {
               };
             };
             using sptr_t = std::unique_ptr<std::byte[], free_dtor>;
+
             sptr_t buf0;
             if (child0 != -1)
               buf0 = sptr_t(static_cast<std::byte *>(std::aligned_alloc(
