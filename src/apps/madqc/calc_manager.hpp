@@ -342,26 +342,29 @@ class MoldftCalculationStrategy : public CalculationStrategy {
       }
       // read in the molecule from the moldft_calc_info
       Molecule read_molecule;
-      read_molecule.from_json(moldft_calc_info["molecule"]);
+      if (moldft_calc_info.contains("molecule")) {
 
-      auto last_coords = read_molecule.get_all_coords().flat();
-      auto molecule_changed = (last_coords - coords).normf() > 1e-6;
-      if (world.rank() == 0) {
-        print("Last molecule: ", last_coords);
-        print("Current molecule: ", coords);
-        print("Molecule changed: ", molecule_changed);
-      }
-
-      if (molecule_changed) {
+        read_molecule.from_json(moldft_calc_info["molecule"]);
+        auto last_coords = read_molecule.get_all_coords().flat();
+        auto molecule_changed = (last_coords - coords).normf() > 1e-6;
         if (world.rank() == 0) {
-          ::print("Molecule has changed, restarting calculation");
+          print("Last molecule: ", last_coords);
+          print("Current molecule: ", coords);
+          print("Molecule changed: ", molecule_changed);
         }
-        param1.set_user_defined_value<bool>("restart", true);
-        run_moldft = true;
+        if (molecule_changed) {
+          if (world.rank() == 0) {
+            ::print("Molecule has changed, restarting calculation");
+          }
+          param1.set_user_defined_value<bool>("restart", true);
+          run_moldft = true;
+        } else {
+          if (world.rank() == 0) {
+            ::print("Molecule has not changed, skipping calculation");
+          }
+          run_moldft = false;
+        }
       } else {
-        if (world.rank() == 0) {
-          ::print("Molecule has not changed, skipping calculation");
-        }
         run_moldft = false;
       }
     }
@@ -798,6 +801,43 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
   }
 };
 
+struct BetaData {
+  std::array<std::string, 27> ijk;
+  std::map<std::pair<int, int>,
+           std::pair<std::array<double, 3>, std::array<double, 27>>>
+      beta_data;
+
+  BetaData() {
+
+    // This is what we expect
+    auto index_B = {0, 0, 0, 1, 1, 1, 2, 2, 2};
+    auto index_C = {0, 1, 2, 0, 1, 2, 0, 1, 2};
+    std::vector<std::string> xyz = {"X", "Y", "Z"};
+    std::vector<std::string> jk = {"XX", "XY", "XZ", "YX", "YY",
+                                   "YZ", "ZX", "ZY", "ZZ"};
+    int index = 0;
+    for (const auto& a : xyz) {
+      for (const auto& bc : xyz) {
+        ijk[index++] = a + bc;
+      }
+    }
+  };
+
+  void add_data(
+      const std::pair<int, int>& bc,
+      const std::pair<std::array<double, 3>, std::array<double, 27>>& data) {
+    beta_data[bc] = data;
+  }
+  [[nodiscard]] size_t length() const { return beta_data.size(); }
+};
+
+void to_json(json& j, const BetaData& p) {
+  j = json{{"beta", p.beta_data}};
+}
+void from_json(const json& j, BetaData& p) {
+  j.at("beta").get_to(p.beta_data);
+}
+
 class ResponseHyper : public CalculationStrategy, InputInterface {
   ResponseParameters parameters;
   std::string op;
@@ -813,11 +853,10 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
   }
   explicit ResponseHyper(
       const ResponseParameters& params, const ResponseInput& r_input,
-      std::string name = "hyper",
+      const std::string& name = "hyper",
       const std::vector<std::string>& input_names = {"moldft", "response"})
       : parameters(params), config(r_input, name), InputInterface(input_names),
         CalculationStrategy(name, {{"beta", true}}) {
-    print("input names: ", input_names);
     if (input_names.size() != 2) {
       throw std::runtime_error("ResponseHyper requires two input names");
     }
@@ -828,7 +867,8 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
     auto base_path = root / name;
     CalculationTemplate hyper_paths;
     hyper_paths.calc_paths.push_back(base_path);
-    hyper_paths.outputs["beta"] = {base_path / "beta.json"};
+    hyper_paths.outputs["beta"] = {base_path / "beta.json",
+                                   base_path / "beta2.json"};
     path_manager.setPath(base_path, hyper_paths);
   }
 
@@ -849,6 +889,7 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
 
     auto moldft_restart = moldft_paths.restarts[0];
     auto beta_outpath = hyper_paths.outputs["beta"][0];
+    auto beta_2_path = hyper_paths.outputs["beta"][1];
     auto response_restarts = response_paths.restarts;
 
     print("freqs: ", config.frequencies);
@@ -861,8 +902,9 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
     beta_json["A"] = json::array();
     beta_json["B"] = json::array();
     beta_json["C"] = json::array();
-
     beta_json["Beta"] = json::array();
+
+    BetaData beta_data;
 
     try {
       auto num_freqs = config.frequencies.size();
@@ -933,47 +975,27 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
       auto freqs = config.frequencies;
       num_freqs = (config.frequencies.size() / 2) + 1;
 
-      bool compute_beta = true;
-      if (world.rank() == 0) {
-        print(beta_outpath);
-      }
-      // Read in beta.json if it exists
-
-      if (std::filesystem::exists(beta_outpath)) {
-        compute_beta = false;
+      json beta_json_2;
+      if (std::filesystem::exists(beta_2_path)) {
         if (world.rank() == 0) {
-          ::print("Beta values have already been computed");
-          ::print("If you want to recompute beta values, delete the "
-                  "beta.json file "
-                  "at ",
-                  beta_outpath);
+          std::ifstream ifs(beta_2_path);
+          ifs >> beta_json_2;
+          print("beta_json_2: ", beta_json_2.dump(4));
+
+          beta_data = beta_json_2.get<BetaData>();
         }
+        world.gop.broadcast_serializable(beta_data.beta_data, 0);
       }
 
-      /*  std::ifstream ifs(beta_outpath);*/
-      /*  ifs >> beta_json;*/
-      /**/
-      /*  //TODO: this logic only works for dipole  need to generalize and make logic to figure out where to restart from*/
-      /*  auto num_elements = (num_freqs * (num_freqs - 1)) * 27;*/
-      /*  if (world.rank() == 0) {*/
-      /*    print("total_num_elements: ", num_elements);*/
-      /*    auto num_beta = beta_json["Afreq"].size();*/
-      /*    print("num_beta: ", num_beta);*/
-      /*  }*/
-      /**/
-      /*  if (beta_json["Afreq"].size() == num_elements) {*/
-      /*    if (world.rank() == 0) {*/
-      /*      ::print("Beta values have already been computed");*/
-      /*    }*/
-      /*    compute_beta = false;*/
-      /*  }*/
-      /*}*/
-      if (compute_beta) {
+      int startb = 0;
+      int startc = 0;
 
-        for (int b = 0; b < num_freqs; b++) {
-          for (int c = 0; c < num_freqs; c++) {
+      for (int b = startb; b < num_freqs; b++) {
+        for (int c = startc; c < num_freqs; c++) {
 
-            ::print(world.rank(), "b = ", b, " c = ", c);
+          if (beta_data.beta_data.find({b, c}) == beta_data.beta_data.end()) {
+
+            std::array<int, 2> indexs = {b, c};
 
             auto omega_a = freqs[b + c];
             auto omega_b = freqs[b];
@@ -1004,13 +1026,31 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
                             << std::endl;
                 }
               }
+              std::array<double, 27> beta_i{};
+              std::copy(beta.ptr(), beta.ptr() + 27, beta_i.begin());
+
+              beta_data.add_data({b, c}, {omegas, beta_i});
+
               append_to_beta_json({-1.0 * omega_a, omega_b, omega_c},
                                   beta_directions, beta, beta_json);
-              std::ofstream outfile("beta.json");
+
+              std::ofstream outfile(beta_outpath);
               if (outfile.is_open()) {
                 outfile << beta_json.dump(4);
                 outfile.close();
               }
+
+              std::ofstream out_file(beta_2_path);
+              if (out_file.is_open()) {
+                json beta2_json = beta_data;
+                out_file << beta2_json.dump(4);
+                out_file.close();
+              }
+            }
+          } else {
+            if (world.rank() == 0) {
+              ::print("Beta data for omega_", b, " + omega_", c,
+                      " already exists");
             }
           }
         }
