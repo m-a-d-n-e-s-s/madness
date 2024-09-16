@@ -810,7 +810,7 @@ namespace madness {
             }
             return static_cast<T *>(ptr);
 #else
-            return static_cast<T*>(std::aligned_alloc(alignment, buf_size))
+            return static_cast<T*>(std::aligned_alloc(alignment, buf_size));
 #endif
           };
           if (child0 != -1)
@@ -972,7 +972,8 @@ namespace madness {
                             free_dtor{});
 
             // transfer data in chunks at most this large
-            const int batch_size = static_cast<int>(std::min(static_cast<size_t>(max_reducebcast_msg_size()),bufsz));
+            const int batch_size = static_cast<int>(
+                std::min(static_cast<size_t>(max_reducebcast_msg_size()),bufsz));
 
             // precompute max # of tags any node ... will need, and allocate them on every node to avoid tag counter divergence
             const int max_nbatch = bufsz / batch_size;
