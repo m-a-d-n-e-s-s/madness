@@ -99,8 +99,9 @@ createEnergyDriver(World& world, const std::string& model_name,
       params, molecule, "moldft", moldft_properties);
   calc_manager->addStrategy(std::move(moldft));
 
-  auto moldir_name = root.string() + "/moldft";
-  auto dipole_name = root.string() + "/response";
+  auto moldir_name = "moldft";
+  auto dipole_name = "response";
+
   if (world.rank() == 0) {
     print("Moldft: ", moldir_name);
     print("Dipole: ", dipole_name);

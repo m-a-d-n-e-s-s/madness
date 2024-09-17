@@ -3,11 +3,11 @@
 //
 //
 // Purpose: Contains the classes for managing the paths for the calculations.
+#include <filesystem>
 #include <madchem.h>
 #include <madness/chem/CalculationParameters.h>
 #include <madness/chem/SCF.h>
 #include <madness/chem/molecule.h>
-#include <filesystem>
 #include <madness/external/nlohmann_json/json.hpp>
 #include <utility>
 
@@ -32,7 +32,9 @@ class CompositePathStrategy : public PathStrategy {
   std::vector<std::unique_ptr<PathStrategy>> strategies;
 
  public:
-  void addStrategy(std::unique_ptr<PathStrategy> strategy) { strategies.push_back(std::move(strategy)); }
+  void addStrategy(std::unique_ptr<PathStrategy> strategy) {
+    strategies.push_back(std::move(strategy));
+  }
 
   json generateCalcPaths(const path& root) override {
     json result = {};
@@ -47,6 +49,7 @@ class CompositePathStrategy : public PathStrategy {
     for (const auto& calc_type : result) {
       auto calc_dirs = calc_type["calculation"];
       for (const auto& calc_dir : calc_dirs) {
+        print("Creating directory: ", calc_dir);
         if (!std::filesystem::exists(calc_dir)) {
           std::filesystem::create_directory(calc_dir);
         }
@@ -65,9 +68,13 @@ class PathManager {
  public:
   PathManager() : strategy(std::make_unique<CompositePathStrategy>()) {}
 
-  void addStrategy(std::unique_ptr<PathStrategy> newStrategy) { strategy->addStrategy(std::move(newStrategy)); }
+  void addStrategy(std::unique_ptr<PathStrategy> newStrategy) {
+    strategy->addStrategy(std::move(newStrategy));
+  }
 
-  json generateCalcPaths(const path& root) { return strategy->generateCalcPaths(root); }
+  json generateCalcPaths(const path& root) {
+    return strategy->generateCalcPaths(root);
+  }
 };
 
 class MoldftPathStrategy : public PathStrategy {
@@ -85,7 +92,7 @@ class MoldftPathStrategy : public PathStrategy {
     paths[calc_name] = {};
     auto& moldft = paths[calc_name];
 
-    auto base_root = root / calc_name;
+    auto base_root = std::filesystem::relative(root / calc_name, root);
 
     moldft["calculation"] = base_root;
     moldft["restart"] = base_root / "moldft.restartdata.00000";
@@ -97,7 +104,8 @@ class MoldftPathStrategy : public PathStrategy {
   }
 
   explicit MoldftPathStrategy() = default;
-  explicit MoldftPathStrategy(std::string calc_name) : calc_name(std::move(calc_name)) {}
+  explicit MoldftPathStrategy(std::string calc_name)
+      : calc_name(std::move(calc_name)) {}
 };
 
 class ResponseConfig {
@@ -139,20 +147,21 @@ class ResponseConfig {
      * @param xc
      * @return
      */
-  [[nodiscard]] auto calc_path(const path& root, const double& frequency) const -> std::filesystem::path {
+  [[nodiscard]] auto calc_path(const path& root, const double& frequency) const
+      -> std::filesystem::path {
     std::string s_frequency = std::to_string(frequency);
     auto sp = s_frequency.find('.');
     s_frequency = s_frequency.replace(sp, sp, "-");
-    std::string run_name = this->perturbation + "_" + this->xc + "_" + s_frequency;
+    std::string run_name =
+        this->perturbation + "_" + this->xc + "_" + s_frequency;
     return root / std::filesystem::path(run_name);
   }
   explicit ResponseConfig(std::string calc_name, ResponseInput input)
-      : calc_name(std::move(calc_name)),
-        perturbation(std::get<0>(input)),
-        xc(std::get<1>(input)),
-        frequencies(std::get<2>(input)) {}
+      : calc_name(std::move(calc_name)), perturbation(std::get<0>(input)),
+        xc(std::get<1>(input)), frequencies(std::get<2>(input)) {}
   explicit ResponseConfig(ResponseInput input)
-      : perturbation(std::get<0>(input)), xc(std::get<1>(input)), frequencies(std::get<2>(input)) {}
+      : perturbation(std::get<0>(input)), xc(std::get<1>(input)),
+        frequencies(std::get<2>(input)) {}
 };
 
 class ResponsePathStrategy : public PathStrategy {
@@ -172,9 +181,8 @@ class ResponsePathStrategy : public PathStrategy {
     response["output"] = {};
     response["restart"] = {};
 
-    auto base_path = root / calc_name;
-    // TODO: (@ahurta92) Feels hacky, should I always be creating new directories?  If I am, should I just create all of them from the start?
-    // I added this because later down the line I was getting an error that the directory didn't exist for /base/response when trying to create /base/response/frequency
+    auto base_path = std::filesystem::relative(root / calc_name, root);
+
     if (!std::filesystem::exists(base_path)) {
       std::filesystem::create_directory(base_path);
     }
@@ -193,9 +201,11 @@ class ResponsePathStrategy : public PathStrategy {
     return paths;
   }
 
-  explicit ResponsePathStrategy(ResponseInput input) : config(std::move(input)) {}
+  explicit ResponsePathStrategy(ResponseInput input)
+      : config(std::move(input)) {}
 
-  explicit ResponsePathStrategy(ResponseInput input, const std::string& calc_name)
+  explicit ResponsePathStrategy(ResponseInput input,
+                                const std::string& calc_name)
       : config(calc_name, std::move(input)) {}
 };
 
@@ -214,7 +224,7 @@ class HyperPolarizabilityPathStrategy : public PathStrategy {
     response["output"] = {};
     response["restart"] = {};
 
-    auto base_path = root / config.calc_name;
+    auto base_path = std::filesystem::relative(root / config.calc_name, root);
     // TODO: (@ahurta92) Feels hacky, should I always be creating new directories?  If I am, should I just create all of them from the start?
     // I added this because later down the line I was getting an error that the directory didn't exist for /base/response when trying to create /base/response/frequency
     if (!std::filesystem::exists(base_path)) {
@@ -231,14 +241,16 @@ class HyperPolarizabilityPathStrategy : public PathStrategy {
         return std::abs(x - y) < 1e-3;
       };
 
-      for (int i = 0; i < num_freqs; i++) {    // for i=0:n-1
-        for (int j = i; j < num_freqs; j++) {  // for j = i  omega_3=-(omega_1+omega_2)
+      for (int i = 0; i < num_freqs; i++) {  // for i=0:n-1
+        for (int j = i; j < num_freqs;
+             j++) {  // for j = i  omega_3=-(omega_1+omega_2)
           auto omega_1 = config.frequencies[i];
           auto omega_2 = config.frequencies[j];
           auto omega_3 = omega_1 + omega_2;
 
-          if (std::find_if(freqs_copy.begin(), freqs_copy.end(), [&](double x) { return compare_freqs(x, omega_3); }) !=
-              freqs_copy.end()) {
+          if (std::find_if(freqs_copy.begin(), freqs_copy.end(), [&](double x) {
+                return compare_freqs(x, omega_3);
+              }) != freqs_copy.end()) {
             continue;
           }
           if (omega_2 == 0.0)
@@ -251,8 +263,9 @@ class HyperPolarizabilityPathStrategy : public PathStrategy {
       response["frequencies"] = config.frequencies;
       std::sort(config.frequencies.begin(), config.frequencies.end());
       // only unique frequencies
-      config.frequencies.erase(std::unique(config.frequencies.begin(), config.frequencies.end()),
-                               config.frequencies.end());
+      config.frequencies.erase(
+          std::unique(config.frequencies.begin(), config.frequencies.end()),
+          config.frequencies.end());
       return config.frequencies;
     };
     config.frequencies = set_freqs();
@@ -271,8 +284,10 @@ class HyperPolarizabilityPathStrategy : public PathStrategy {
     return paths;
   }
 
-  explicit HyperPolarizabilityPathStrategy(ResponseInput input) : config(std::move(input)){};
-  explicit HyperPolarizabilityPathStrategy(ResponseInput input, const std::string& calc_name)
+  explicit HyperPolarizabilityPathStrategy(ResponseInput input)
+      : config(std::move(input)){};
+  explicit HyperPolarizabilityPathStrategy(ResponseInput input,
+                                           const std::string& calc_name)
       : config(calc_name, std::move(input)) {}
 };
 class ExcitedStatePathStrategy : public PathStrategy {
@@ -281,7 +296,8 @@ class ExcitedStatePathStrategy : public PathStrategy {
   std::string xc;
   int num_states;
 
-  [[nodiscard]] auto calc_path(const path& root) const -> std::filesystem::path {
+  [[nodiscard]] auto
+  calc_path(const path& root) const -> std::filesystem::path {
     std::string s_num_states = std::to_string(num_states);
     std::string run_name = "excited-state_" + xc + "_" + s_num_states;
     return root / std::filesystem::path(run_name);
@@ -317,8 +333,10 @@ class ExcitedStatePathStrategy : public PathStrategy {
   }
 
   explicit ExcitedStatePathStrategy() = delete;
-  explicit ExcitedStatePathStrategy(std::string calc_name, std::string xc, int num_states)
-      : calc_name(std::move(calc_name)), xc(std::move(xc)), num_states(num_states) {}
+  explicit ExcitedStatePathStrategy(std::string calc_name, std::string xc,
+                                    int num_states)
+      : calc_name(std::move(calc_name)), xc(std::move(xc)),
+        num_states(num_states) {}
 };
 
 class MP2PathStrategy : public PathStrategy {
@@ -342,6 +360,7 @@ class MP2PathStrategy : public PathStrategy {
   }
 
   explicit MP2PathStrategy() = default;
-  explicit MP2PathStrategy(std::string calc_name) : calc_name(std::move(calc_name)){};
+  explicit MP2PathStrategy(std::string calc_name)
+      : calc_name(std::move(calc_name)){};
 };
 #endif  // MADCHEM_PATH_MANAGER_HPP

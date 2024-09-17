@@ -52,6 +52,7 @@
 using json = nlohmann::json;
 using path = std::filesystem::path;
 using ResponseInput = std::tuple<std::string, std::string, std::vector<double>>;
+namespace fs = std::filesystem;
 
 // I define this path because this way I can be more explicit what I expect out of the json objects
 // Each Calculation needs to define,
@@ -175,16 +176,19 @@ class PathManager {
   void createDirectories() {
     json temp = path_data;
     temp.erase("outputs");
+    auto cwd = fs::current_path();
     for (const auto& [key, calc_paths] : temp.items()) {
       auto calc_path = calc_paths.get<CalculationTemplate>();
+
       for (const auto& calc_dir : calc_path.calc_paths) {
+        print("Current directory: ", cwd);
         print("Creating directory: ", calc_dir);
-        if (!std::filesystem::exists(calc_dir.parent_path())) {
-          std::filesystem::create_directory(calc_dir.parent_path());
+        if (!std::filesystem::exists(cwd / calc_dir.parent_path())) {
+          std::filesystem::create_directory(cwd / calc_dir.parent_path());
         }
         // if base direcotry does not exist create it
         if (!std::filesystem::exists(calc_dir)) {
-          std::filesystem::create_directory(calc_dir);
+          std::filesystem::create_directory(cwd / calc_dir);
         }
       }
     }
@@ -194,7 +198,7 @@ class PathManager {
     auto calc_paths = path_data[key].get<CalculationTemplate>();
     for (const auto& calc_dir : calc_paths.calc_paths) {
       if (!std::filesystem::exists(calc_dir)) {
-        std::filesystem::create_directory(calc_dir);
+        std::filesystem::create_directory(fs::current_path() / calc_dir);
       }
     }
   }
@@ -296,8 +300,9 @@ class MoldftCalculationStrategy : public CalculationStrategy {
     //
 
     CalculationTemplate moldft = {};
-
     auto base_path = root / name;
+    base_path = fs::relative(base_path, root);
+
     moldft.calc_paths.push_back(base_path);
     moldft.restarts.push_back(base_path / "moldft.restartdata.00000");
     moldft.outputs["calc_info"] = {base_path / "moldft.calc_info.json"};
@@ -309,7 +314,9 @@ class MoldftCalculationStrategy : public CalculationStrategy {
   void compute(World& world, PathManager& path_manager, const path& root,
                const Tensor<double>& coords) override {
     // Get the paths for the moldft calculation by name
-    auto moldft_paths = path_manager.getPath(root / name);
+    /*auto base_path = root / name;*/
+    /*base_path = fs::relative(base_path, root);*/
+    auto moldft_paths = path_manager.getPath(name);
     if (world.rank() == 0)
       moldft_paths.print();
     auto moldft_path = moldft_paths.calc_paths[0];
@@ -330,10 +337,10 @@ class MoldftCalculationStrategy : public CalculationStrategy {
 
     // Adjust the parameters for the calculation
     // if restart and calc_info exists the read the calc_info json
-    if (std::filesystem::exists(restart_path) &&
-        std::filesystem::exists(calc_info_path)) {
+    if (std::filesystem::exists(root / restart_path) &&
+        std::filesystem::exists(root / calc_info_path)) {
       // if both exist, read the calc_info json
-      std::ifstream ifs(calc_info_path);
+      std::ifstream ifs(root / calc_info_path);
       auto moldft_calc_info = json::parse(ifs);
       if (world.rank() == 0) {
         std::cout << "time: " << moldft_calc_info["time_tag"] << std::endl;
@@ -371,7 +378,7 @@ class MoldftCalculationStrategy : public CalculationStrategy {
     if (run_moldft) {
       {
         // if params are different run and if restart exists and if im asking to
-        if (std::filesystem::exists(restart_path)) {
+        if (std::filesystem::exists(root / restart_path)) {
           param1.set_user_defined_value<bool>("restart", true);
         }
         world.gop.fence();
@@ -532,6 +539,7 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
   void setPaths(PathManager& path_manager, const path& root) override {
     // We always start at root+calc_name
     auto base_path = root / name;
+    base_path = fs::relative(base_path, root);
     CalculationTemplate response_paths;
 
     response_paths.outputs["response_base"] = {};
@@ -670,20 +678,19 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
   void compute(World& world, PathManager& path_manager, const path& root,
                const Tensor<double>& coords) override {
 
-    auto path_key = root / name;  // access from path manager
+    auto path_key = name;  // access from path manager
+
     auto moldft_paths = path_manager.getPath(input_names[0]);
     auto response_paths = path_manager.getPath(path_key);
 
-    auto moldft_restart =
-        moldft_paths.restarts[0].replace_extension("").string();
+    std::string moldft_restart =
+        root / moldft_paths.restarts[0].replace_extension("").string();
     auto alpha_outpath = response_paths.outputs["alpha"][0];
 
     // I need to analyze alpha.json to see which frequencies are missing.
     // Or I just write them to seperate files and then combine them later?
     auto freqs = config.frequencies;
     auto num_freqs = freqs.size();
-
-    path_manager.createDirectories(path_key);
 
     bool last_converged = false;
     nlohmann::ordered_json alpha_json;
@@ -693,11 +700,11 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
 
     for (size_t i = 0; i < num_freqs; i++) {
       auto freq_i = freqs[i];
-      auto calc_path_i = response_paths.calc_paths[i];
-      auto restart_path_i = response_paths.restarts[i];
-      auto response_base_i = response_paths.outputs["response_base"][i];
+      auto calc_path_i = root / response_paths.calc_paths[i];
+      auto restart_path_i = root / response_paths.restarts[i];
+      auto response_base_i = root / response_paths.outputs["response_base"][i];
 
-      std::filesystem::current_path(response_paths.calc_paths[i]);
+      std::filesystem::current_path(calc_path_i);
 
       print("current path: ", std::filesystem::current_path());
       print("calc path: ", calc_path_i);
@@ -871,6 +878,7 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
   void setPaths(PathManager& path_manager, const path& root) override {
 
     auto base_path = root / name;
+    base_path = fs::relative(base_path, root);
     CalculationTemplate hyper_paths;
     hyper_paths.calc_paths.push_back(base_path);
     hyper_paths.outputs["beta"] = {base_path / "beta.json",
@@ -887,15 +895,15 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
       print("response_name: ", response_name);
     }
 
-    auto hyper_paths = path_manager.getPath(root / name);
+    auto hyper_paths = path_manager.getPath(name);
     auto calc_path = hyper_paths.calc_paths[0];
 
     auto moldft_paths = path_manager.getPath(moldft_name);
     auto response_paths = path_manager.getPath(response_name);
 
-    auto moldft_restart = moldft_paths.restarts[0];
-    auto beta_outpath = hyper_paths.outputs["beta"][0];
-    auto beta_2_path = hyper_paths.outputs["beta"][1];
+    auto moldft_restart = root / moldft_paths.restarts[0];
+    auto beta_outpath = root / hyper_paths.outputs["beta"][0];
+    auto beta_2_path = root / hyper_paths.outputs["beta"][1];
     auto response_restarts = response_paths.restarts;
 
     print("freqs: ", config.frequencies);
@@ -1027,7 +1035,7 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
             std::array<double, 27> beta_i{};
             std::copy(beta.ptr(), beta.ptr() + 27, beta_i.begin());
 
-            beta_data.add_data({a,b, c}, {omegas, beta_i});
+            beta_data.add_data({a, b, c}, {omegas, beta_i});
 
             append_to_beta_json({-1.0 * omega_a, omega_b, omega_c},
                                 beta_directions, beta, beta_json);
