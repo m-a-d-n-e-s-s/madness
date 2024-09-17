@@ -781,6 +781,8 @@ namespace madness {
         /// Optimizations can be added for long messages and to reduce the memory footprint
         template <typename T, class opT>
             void reduce(T* buf, std::size_t nelem, opT op) {
+          static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
+
           ProcessID parent, child0, child1;
           world_.mpi.binary_tree_info(0, parent, child0, child1);
           const std::size_t nelem_per_maxmsg =
