@@ -950,6 +950,7 @@ namespace madness {
         /// \return on rank 0 returns the concatenated vector, elsewhere returns an empty vector
         template <typename T>
         std::vector<T> concat0(const std::vector<T>& v, size_t bufsz=1024*1024) {
+            static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
             MADNESS_ASSERT(bufsz <= std::numeric_limits<int>::max());
 
             ProcessID parent, child0, child1;
