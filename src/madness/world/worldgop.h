@@ -781,6 +781,8 @@ namespace madness {
         /// Optimizations can be added for long messages and to reduce the memory footprint
         template <typename T, class opT>
             void reduce(T* buf, std::size_t nelem, opT op) {
+          static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
+
           ProcessID parent, child0, child1;
           world_.mpi.binary_tree_info(0, parent, child0, child1);
           const std::size_t nelem_per_maxmsg =
@@ -948,6 +950,7 @@ namespace madness {
         /// \return on rank 0 returns the concatenated vector, elsewhere returns an empty vector
         template <typename T>
         std::vector<T> concat0(const std::vector<T>& v, size_t bufsz=1024*1024) {
+            static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
             MADNESS_ASSERT(bufsz <= std::numeric_limits<int>::max());
 
             ProcessID parent, child0, child1;
