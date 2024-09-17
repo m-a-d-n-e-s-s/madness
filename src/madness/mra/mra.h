@@ -841,15 +841,6 @@ namespace madness {
         }
 
 
-        /// Get the scaling function coeffs at level n starting from NS form
-        Tensor<T> coeffs_for_jun(Level n, long mode=0) {
-            PROFILE_MEMBER_FUNC(Function);
-            make_nonstandard(true, true);
-            return impl->coeffs_for_jun(n,mode);
-            //return impl->coeffs_for_jun(n);
-        }
-
-
         /// Clears the function as if constructed uninitialized.  Optional fence.
 
         /// Any underlying data will not be freed until the next global fence.
