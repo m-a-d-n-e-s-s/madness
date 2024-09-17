@@ -131,7 +131,7 @@ struct OutputTemplate {
   Tensor<T> gradient;
   Tensor<T> hessian;
   nlohmann::ordered_json alpha;
-  nlohmann::ordered_json betaa;
+  nlohmann::ordered_json beta;
   OutputTemplate() = default;
 };
 
@@ -803,7 +803,7 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
 
 struct BetaData {
   std::array<std::string, 27> ijk;
-  std::map<std::pair<int, int>,
+  std::map<std::tuple<int, int, int>,
            std::pair<std::array<double, 3>, std::array<double, 27>>>
       beta_data;
 
@@ -824,9 +824,9 @@ struct BetaData {
   };
 
   void add_data(
-      const std::pair<int, int>& bc,
+      const std::tuple<int, int, int>& abc,
       const std::pair<std::array<double, 3>, std::array<double, 27>>& data) {
-    beta_data[bc] = data;
+    beta_data[abc] = data;
   }
   [[nodiscard]] size_t length() const { return beta_data.size(); }
 };
@@ -838,6 +838,9 @@ void from_json(const json& j, BetaData& p) {
   j.at("beta").get_to(p.beta_data);
 }
 
+using beta_indexes = std::vector<
+    std::pair<std::tuple<int, int, int>, std::tuple<double, double, double>>>;
+
 class ResponseHyper : public CalculationStrategy, InputInterface {
   ResponseParameters parameters;
   std::string op;
@@ -847,15 +850,18 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
   path output_path;
   std::vector<std::string> available_properties = {"beta"};
 
+  beta_indexes abc_freqs;
+
  public:
   [[nodiscard]] std::unique_ptr<CalculationStrategy> clone() const override {
     return std::make_unique<ResponseHyper>(*this);
   }
   explicit ResponseHyper(
       const ResponseParameters& params, const ResponseInput& r_input,
-      const std::string& name = "hyper",
+      const beta_indexes& abc_freqs = {}, const std::string& name = "hyper",
       const std::vector<std::string>& input_names = {"moldft", "response"})
-      : parameters(params), config(r_input, name), InputInterface(input_names),
+      : parameters(params), abc_freqs(abc_freqs), config(r_input, name),
+        InputInterface(input_names),
         CalculationStrategy(name, {{"beta", true}}) {
     if (input_names.size() != 2) {
       throw std::runtime_error("ResponseHyper requires two input names");
@@ -972,9 +978,6 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
           rhs_generator,
       };
 
-      auto freqs = config.frequencies;
-      num_freqs = (config.frequencies.size() / 2) + 1;
-
       json beta_json_2;
       if (std::filesystem::exists(beta_2_path)) {
         if (world.rank() == 0) {
@@ -990,70 +993,79 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
       int startb = 0;
       int startc = 0;
 
-      for (int b = startb; b < num_freqs; b++) {
-        for (int c = startc; c < num_freqs; c++) {
+      for (const auto& [index, omegas] : abc_freqs) {
 
-          if (beta_data.beta_data.find({b, c}) == beta_data.beta_data.end()) {
+        auto [a, b, c] = index;
+        auto [omega_a, omega_b, omega_c] = omegas;
+        if (beta_data.beta_data.find({a, b, c}) == beta_data.beta_data.end()) {
 
-            std::array<int, 2> indexs = {b, c};
+          std::array<int, 2> indexs = {b, c};
 
-            auto omega_a = freqs[b + c];
-            auto omega_b = freqs[b];
-            auto omega_c = freqs[c];
+          auto restartA = response_restarts[a];
+          auto restartB = response_restarts[b];
+          auto restartC = response_restarts[c];
 
-            auto restartA = response_restarts[b + c];
-            auto restartB = response_restarts[b];
-            auto restartC = response_restarts[c];
+          std::array<double, 3> omegas{omega_a, omega_b, omega_c};
+          std::array<path, 3> restarts{restartA.replace_extension(""),
+                                       restartB.replace_extension(""),
+                                       restartC.replace_extension("")};
 
-            std::array<double, 3> omegas{omega_a, omega_b, omega_c};
-            std::array<path, 3> restarts{restartA.replace_extension(""),
-                                         restartB.replace_extension(""),
-                                         restartC.replace_extension("")};
+          quad_calculation.set_x_data(world, omegas, restarts);
+          auto [beta, beta_directions] =
+              quad_calculation.compute_beta_v2(world, omega_b, omega_c);
 
-            quad_calculation.set_x_data(world, omegas, restarts);
-            auto [beta, beta_directions] =
-                quad_calculation.compute_beta_v2(world, omega_b, omega_c);
-
-            if (world.rank() == 0) {
-              ::print("Beta values for omega_A", " = -(omega_", b, " + omega_",
-                      c, ") = -", omega_a, " = (", omega_b, " + ", omega_c,
-                      ")");
-              {
-                for (int i = 0; i < beta_directions.size(); i++) {
-                  std::cout << std::fixed << std::setprecision(5)
-                            << "i = " << i + 1 << ", beta["
-                            << beta_directions[i] << "]" << " = " << beta[i]
-                            << std::endl;
-                }
-              }
-              std::array<double, 27> beta_i{};
-              std::copy(beta.ptr(), beta.ptr() + 27, beta_i.begin());
-
-              beta_data.add_data({b, c}, {omegas, beta_i});
-
-              append_to_beta_json({-1.0 * omega_a, omega_b, omega_c},
-                                  beta_directions, beta, beta_json);
-
-              std::ofstream outfile(beta_outpath);
-              if (outfile.is_open()) {
-                outfile << beta_json.dump(4);
-                outfile.close();
-              }
-
-              std::ofstream out_file(beta_2_path);
-              if (out_file.is_open()) {
-                json beta2_json = beta_data;
-                out_file << beta2_json.dump(4);
-                out_file.close();
+          if (world.rank() == 0) {
+            ::print("Beta values for omega_A", " = -(omega_", b, " + omega_", c,
+                    ") = -", omega_a, " = (", omega_b, " + ", omega_c, ")");
+            {
+              for (int i = 0; i < beta_directions.size(); i++) {
+                std::cout << std::fixed << std::setprecision(5)
+                          << "i = " << i + 1 << ", beta[" << beta_directions[i]
+                          << "]" << " = " << beta[i] << std::endl;
               }
             }
-          } else {
-            if (world.rank() == 0) {
-              ::print("Beta data for omega_", b, " + omega_", c,
-                      " already exists");
+            std::array<double, 27> beta_i{};
+            std::copy(beta.ptr(), beta.ptr() + 27, beta_i.begin());
+
+            beta_data.add_data({a,b, c}, {omegas, beta_i});
+
+            append_to_beta_json({-1.0 * omega_a, omega_b, omega_c},
+                                beta_directions, beta, beta_json);
+
+            std::ofstream outfile(beta_outpath);
+            if (outfile.is_open()) {
+              outfile << beta_json.dump(4);
+              outfile.close();
+            }
+
+            std::ofstream out_file(beta_2_path);
+            if (out_file.is_open()) {
+              json beta2_json = beta_data;
+              out_file << beta2_json.dump(4);
+              out_file.close();
             }
           }
+        } else {
+          if (world.rank() == 0) {
+            ::print("Beta data for omega_", b, " + omega_", c,
+                    " already exists");
+          }
         }
+      }
+
+      // add beta data to json
+      if (world.rank() == 0) {
+        json persistent_output = {};
+        // read in the output json
+        if (std::filesystem::exists(path_manager.get_output_path())) {
+          std::ifstream ifs(path_manager.get_output_path());
+          ifs >> persistent_output;
+          ifs.close();
+        }
+        persistent_output[name] = beta_json_2;
+        std::ofstream ofs(path_manager.get_output_path());
+        ofs << persistent_output.dump(4);
+        ofs.close();
       }
     } catch (Response_Convergence_Error& e) {
       if (world.rank() == 0) {

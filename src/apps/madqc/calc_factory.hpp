@@ -86,7 +86,7 @@ using property_map = std::map<model, model_properties>;
 std::unique_ptr<CalculationDriver>
 createEnergyDriver(World& world, const std::string& model_name,
                    const ParameterManager& pm, property_map properties,
-                   const path& root ) {
+                   const path& root) {
 
   // Create a new CalcManager
   auto calc_manager =
@@ -125,8 +125,13 @@ createEnergyDriver(World& world, const std::string& model_name,
           response_params, r_input, "response", input_names);
       calc_manager->addStrategy(std::move(response_calc));
     }
+    using beta_indexes =
+        std::vector<std::pair<std::tuple<int, int, int>,
+                              std::tuple<double, double, double>>>;
 
     if (response_properties["beta"]) {
+
+      beta_indexes abc_freqs;
       auto set_freqs = [&]() {
         vector<double> freqs_copy = freq_range;
         auto num_freqs = freq_range.size();
@@ -134,31 +139,45 @@ createEnergyDriver(World& world, const std::string& model_name,
           return std::abs(x - y) < 1e-3;
         };
 
-        for (int i = 0; i < num_freqs; i++) {  // for i=0:n-1
-          for (int j = i; j < num_freqs;
-               j++) {  // for j = i  omega_3=-(omega_1+omega_2)
-            auto omega_1 = freq_range[i];
-            auto omega_2 = freq_range[j];
-            auto omega_3 = omega_1 + omega_2;
+        for (int i = 0; i < num_freqs; i++) {
+          for (int j = i; j < num_freqs; j++) {
+            auto omega_b = freq_range[i];
+            auto omega_c = freq_range[j];
+            auto omega_a = omega_b + omega_c;
 
-            // if you can find omega_3 in freq_copy skip
-            if (omega_2 == 0.0)
-              continue;
-            if (std::find_if(freqs_copy.begin(), freqs_copy.end(),
-                             [&](double x) {
-                               return compare_freqs(x, omega_3);
-                             }) != freqs_copy.end()) {
-              continue;
-            } else {
-              freqs_copy.push_back(omega_3);
+            // look for omega_a in freqs_copy
+            auto index_a = std::find_if(
+                freqs_copy.begin(), freqs_copy.end(),
+                [&](double x) { return compare_freqs(x, omega_a); });
+
+            // If omega_a  is not in freq_copy, add it and set index_a to the
+            // end of the vector
+            // else, set index_a to the index of omega_a
+            if (index_a == freqs_copy.end()) {
+              freqs_copy.push_back(omega_a);
+              index_a = freqs_copy.end() - 1;
             }
+
+            abc_freqs.emplace_back(std::make_pair(
+                std::make_tuple(index_a - freqs_copy.begin(), i, j),
+                std::make_tuple(omega_a, omega_b, omega_c)));
           }
         }
         return freqs_copy;
       };
 
       freq_range = set_freqs();
-      print("Frequency Range: ", freq_range);
+      if (world.rank() == 0) {
+        print("Frequency Range: ", freq_range);
+
+        for (auto const& [indexes, freqs] : abc_freqs) {
+          auto [i, j, k] = indexes;
+          auto [omega_a, omega_b, omega_c] = freqs;
+          print("Index: ", i, j, k);
+          print("Freqs: ", omega_a, omega_b, omega_c);
+        }
+      }
+
       // this is where I we create our calculation
       ResponseInput hyp_input = std::make_tuple("dipole", xc, freq_range);
       std::vector<std::string> r_input_names = {moldir_name};
@@ -166,7 +185,7 @@ createEnergyDriver(World& world, const std::string& model_name,
       auto response_hyper = std::make_unique<LinearResponseStrategy>(
           response_params, hyp_input, "response", r_input_names);
       auto hyper_calc = std::make_unique<ResponseHyper>(
-          response_params, hyp_input, "hyper", h_input_names);
+          response_params, hyp_input, abc_freqs, "hyper", h_input_names);
       calc_manager->addStrategy(std::move(response_hyper));
       calc_manager->addStrategy(std::move(hyper_calc));
     }
