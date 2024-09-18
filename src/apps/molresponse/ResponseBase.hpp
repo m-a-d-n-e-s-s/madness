@@ -479,14 +479,12 @@ class response_timing {
   void add_data(std::map<std::string, std::pair<double, double>> values);
 };
 class response_data {
-  std::map<std::string, std::vector<Tensor<double>>> function_data;
   int iter;
   std::vector<double> thresh;
   std::vector<double> density_target;
   std::vector<double> bsh_target;
 
  public:
-  response_data();
 
   void to_json(json& j);
 
@@ -529,7 +527,6 @@ class ResponseBase {
   response_timing time_data;
   response_data function_data;
   mutable std::map<std::string, std::pair<double, double>> iter_timing;
-  mutable std::map<std::string, Tensor<double>> iter_function_data;
 
   Context response_context;
 

@@ -85,7 +85,6 @@ void FrequencyResponse::iterate(World& world) {
   for (iter = 0; iter < r_params.maxiter(); ++iter) {
     // if (world.rank() == 0) { print("At the start of iterate x", checkx); }
     iter_timing.clear();
-    iter_function_data.clear();
 
     if (r_params.print_level() >= 1) {
       molresponse::start_timer(world);
@@ -168,10 +167,8 @@ void FrequencyResponse::iterate(World& world) {
       }
     }
     auto x_inner = ((compute_y) ? 2 : 1) * response_context.inner(Chi, Chi);
-    inner_to_json(world, "x", x_inner, iter_function_data);
 
     auto rho_omega_norm = norm2s_T(world, rho_omega);
-    inner_to_json(world, "density_norms", rho_omega_norm, iter_function_data);
     auto [new_chi, new_res, new_rho] = update_response(
         world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega,
         kain_x_space, iter, max_rotation, rho_omega, x_residual, residuals);
@@ -188,7 +185,6 @@ void FrequencyResponse::iterate(World& world) {
     world.gop.fence();
 
     auto old_density_residual = copy(density_residuals);
-    iter_function_data["r_d"] = old_density_residual;
 
     Chi = new_chi.copy();
 
@@ -196,21 +192,14 @@ void FrequencyResponse::iterate(World& world) {
       molresponse::start_timer(world);
     }
     x_residual = copy(new_res.residual_norms);
-    iter_function_data["x_residuals"] = x_residual;
     if (r_params.print_level() >= 1) {
       molresponse::end_timer(world, "copy_response_data", "copy_response_data",
                              iter_timing);
     }
-    inner_to_json(world, "x_residual", x_residual, iter_function_data);
-
-    inner_to_json(world, "density_residuals", old_density_residual,
-                  iter_function_data);
 
     auto dnorm = norm2s_T(world, rho_omega);
-    iter_function_data["d"] = dnorm;
 
     polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
-    inner_to_json(world, "alpha", polar, iter_function_data);
     if (r_params.print_level() >= 20) {
       if (world.rank() == 0) {
         printf("\n--------Response Properties after %d-------------\n",
@@ -224,11 +213,9 @@ void FrequencyResponse::iterate(World& world) {
                              iter_timing);
     }
     time_data.add_data(iter_timing);
-    function_data.add_data(iter_function_data);
   }
   function_data.add_convergence_targets(FunctionDefaults<3>::get_thresh(),
                                         density_target, x_residual_target);
-
 
   Chi.reset_active();
   if (world.rank() == 0)
@@ -281,13 +268,8 @@ auto FrequencyResponse::update_response(
   chi_norm = new_chi.norm2s();
   // if (world.rank() == 0) { print("new_chi_norm after bsh update: ", chi_norm); }
 
-  inner_to_json(world, "x_new", response_context.inner(new_chi, new_chi),
-                iter_function_data);
-
   auto [new_res, bsh_norms] = update_residual(
       world, chi, new_chi, r_params.calc_type(), old_residuals, xres_old);
-  inner_to_json(world, "r_x", response_context.inner(new_res, new_res),
-                iter_function_data);
   if (iteration >= 0) {  // & (iteration % 3 == 0)) {
     new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
   }
@@ -295,9 +277,6 @@ auto FrequencyResponse::update_response(
   if (world.rank() == 0) {
     print("new_chi_norm after kain update: ", chi_norm);
   }
-
-  inner_to_json(world, "x_update", response_context.inner(new_chi, new_chi),
-                iter_function_data);
 
   // bool compute_y = r_params.calc_type() == "full";
   // x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation);
