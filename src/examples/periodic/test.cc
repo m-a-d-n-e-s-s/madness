@@ -50,9 +50,9 @@ int main() {
     std::cout << "norm = " << norm << std::endl;
     
     // Perform a 3D Fourier transform of F and store the result in G
-    std::vector<fftw_complex> G(n*n*nh);
+    std::unique_ptr<fftw_complex[]> G(new fftw_complex[n*n*nh]);
     {
-        fftw_plan plan = fftw_plan_dft_r2c_3d(n, n, n, F.data() , G.data(), FFTW_ESTIMATE);
+        fftw_plan plan = fftw_plan_dft_r2c_3d(n, n, n, F.data() , G.get(), FFTW_ESTIMATE);
         fftw_execute(plan);
         fftw_destroy_plan(plan);
     }
@@ -87,7 +87,7 @@ int main() {
     // Do the reverse transform into FF
     std::vector<double> FF(n*n*n);
     {
-        fftw_plan plan = fftw_plan_dft_c2r_3d(n, n, n, G.data() , FF.data(), FFTW_ESTIMATE);
+        fftw_plan plan = fftw_plan_dft_c2r_3d(n, n, n, G.get() , FF.data(), FFTW_ESTIMATE);
         fftw_execute(plan);
         fftw_destroy_plan(plan);
         const double scale = 1.0/(n*n*n); // FFTW transforms are not normalized
