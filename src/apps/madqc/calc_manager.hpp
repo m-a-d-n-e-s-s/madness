@@ -896,7 +896,7 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
     }
 
     auto hyper_paths = path_manager.getPath(name);
-    auto calc_path = hyper_paths.calc_paths[0];
+    auto calc_path = root / hyper_paths.calc_paths[0];
 
     auto moldft_paths = path_manager.getPath(moldft_name);
     auto response_paths = path_manager.getPath(response_name);
@@ -1009,9 +1009,9 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
 
           std::array<int, 2> indexs = {b, c};
 
-          auto restartA = response_restarts[a];
-          auto restartB = response_restarts[b];
-          auto restartC = response_restarts[c];
+          auto restartA = root / response_restarts[a];
+          auto restartB = root / response_restarts[b];
+          auto restartC = root / response_restarts[c];
 
           std::array<double, 3> omegas{omega_a, omega_b, omega_c};
           std::array<path, 3> restarts{restartA.replace_extension(""),
