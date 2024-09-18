@@ -57,6 +57,11 @@
 #  define cgelss_ cgelss
 #  define zgelss_ zgelss
 
+#  define sgels_ sgels
+#  define dgels_ dgels
+#  define cgels_ cgels
+#  define zgels_ zgels
+
 #  define ssyev_ ssyev
 #  define dsyev_ dsyev
 #  define cheev_ cheev
@@ -170,6 +175,28 @@ extern "C"
                  real8 *sOUT,
                  real8 *rcondIN, integer *rankOUT, complex_real8 *work,
                  integer *lwork, real8 *rwork, integer *infoOUT);
+
+extern "C"
+    void sgels_(const char *trans, integer *m, integer *n, integer *nrhs,
+            real4 *a, integer *lda, real4 *b, integer *ldb, real4 *work,
+            integer *lwork, integer *infoOUT, char_len translen);
+
+extern "C"
+    void dgels_(const char *trans, integer *m, integer *n, integer *nrhs,
+            real8 *a, integer *lda, real8 *b, integer *ldb, real8 *work,
+            integer *lwork, integer *infoOUT, char_len translen);
+
+extern "C"
+    void cgels_(const char *trans, integer *m, integer *n, integer *nrhs,
+            complex_real4 *a, integer *lda, complex_real4 *b, integer *ldb,
+            complex_real4 *work,
+            integer *lwork, real4 *rwork, integer *infoOUT, char_len translen);
+
+extern "C"
+    void zgels_(const char *trans, integer *m, integer *n, integer *nrhs,
+            complex_real8 *a, integer *lda, complex_real8 *b, integer *ldb,
+            complex_real8 *work,
+            integer *lwork, real8 *rwork, integer *infoOUT, char_len translen);
 
 extern "C"
     void ssyev_(const char* jobz, const char* uplo, integer *n,
