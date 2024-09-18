@@ -579,7 +579,6 @@ class MacroTask {
     typedef Cloud::recordlistT recordlistT;
     taskT task;
     bool debug=false;
-	std::string name="unknown_task";
 
 	/// RAII class to redirect cout to a file
 	struct io_redirect {
@@ -610,7 +609,7 @@ public:
 
     /// constructor takes the actual task
     MacroTask(World &world, taskT &task, std::shared_ptr<MacroTaskQ> taskq_ptr = 0)
-            : task(task), name(task.name), world(world), taskq_ptr(taskq_ptr) {
+            : task(task), world(world), taskq_ptr(taskq_ptr) {
         if (taskq_ptr) {
             // for the time being this condition must hold because tasks are
             // constructed as replicated objects and are not broadcast to other processes
@@ -622,10 +621,6 @@ public:
         debug=value;
     }
 
-	/// set a name for this task for debugging and output naming
-	void set_name(const std::string name1) {
-	    name=name1;
-    }
 
     /// this mimicks the original call to the task functor, called from the universe
 
@@ -656,7 +651,7 @@ public:
         MacroTaskBase::taskqT vtask;
         for (const auto& batch_prio : partition) {
             vtask.push_back(
-                    std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task, batch_prio, inputrecords, outputrecords, name)));
+                    std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task, batch_prio, inputrecords, outputrecords)));
         }
         taskq_ptr->add_tasks(vtask);
 
@@ -726,11 +721,14 @@ private:
         recordlistT outputrecords;
     public:
         taskT task;
-    	std::string name="unknown_task"; // for identification in debug output
+    	std::string get_name() const {
+    		if (task.name=="unknown_task") return typeid(task).name();
+    		return task.name;
+    	}
 
         MacroTaskInternal(const taskT &task, const std::pair<Batch,double> &batch_prio,
-                          const recordlistT &inputrecords, const recordlistT &outputrecords, std::string name)
-  	  : inputrecords(inputrecords), outputrecords(outputrecords), task(task), name(name) {
+                          const recordlistT &inputrecords, const recordlistT &outputrecords)
+  	  : inputrecords(inputrecords), outputrecords(outputrecords), task(task) {
     		if constexpr (is_tuple<resultT>::value) {
     			static_assert(check_tuple_is_valid_task_result<resultT,0>(),
     							"tuple has invalid result type in prepare_output_records");
@@ -743,12 +741,12 @@ private:
 
 
         virtual void print_me(std::string s="") const {
-            print("this is task",typeid(task).name(),"with batch", task.batch,"priority",this->get_priority());
+            print("this is task",get_name(),"with batch", task.batch,"priority",this->get_priority());
         }
 
         virtual void print_me_as_table(std::string s="") const {
             std::stringstream ss;
-            std::string name=typeid(task).name();
+            std::string name=get_name();
             std::size_t namesize=std::min(std::size_t(28),name.size());
             name += std::string(28-namesize,' ');
 
@@ -826,8 +824,7 @@ private:
 
 
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug) {
-
-        	io_redirect io(element,name+"_task",debug);
+        	// io_redirect io(element,name+"_task",debug);
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             const argtupleT batched_argtuple = task.batch.template copy_input_batch(argtuple);
         	try {

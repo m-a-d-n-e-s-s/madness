@@ -955,7 +955,7 @@ std::shared_ptr<CCConvolutionOperator<T,NDIM>> CCConvolutionOperatorPtr(World& w
 
 class CCPair : public archive::ParallelSerializableObject {
 public:
-    CCPair(){};
+    CCPair() = default;
 
     CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c) : type(t), ctype(c), i(ii), j(jj),
                                                                                   bsh_eps(12345.6789) {};
@@ -975,6 +975,7 @@ public:
     /// customized function to store this to the cloud
 
     /// functions and constant_part can be very large and we want to split them and store them in different records
+    /// *NOTE* only the 6d function and the constant part are stored in the cloud, not the 3d functions *NOTE*
     Recordlist<Cloud::keyT> cloud_store(World& world, Cloud& cloud) const {
         // save bookkeeping stuff in a vector
         std::vector<unsigned char> v;
@@ -1463,6 +1464,7 @@ public:
 
 class MacroTaskSinglesPotentialEx : public MacroTaskOperationBase {
 public:
+    std::string basename="SinglesPotentialEx";
     MacroTaskSinglesPotentialEx() {
         name="SinglesPotentialEx";
     }
@@ -1477,35 +1479,15 @@ public:
         const Info&                 // info
     > argtupleT;
 
-    /// return a vector of twice the size: pot(gs) and applied singles potentials, that will go into info
-
-    /// the second half will be non-zero only for s2b and s2c potentials
     using resultT = std::tuple<std::vector<real_function_3d>,std::vector<real_function_3d>>;
 
     resultT allocator(World& world, const argtupleT& argtuple) const {
         std::size_t n = std::get<0>(argtuple).size();
         std::vector<real_function_3d> result = zero_functions_compressed<double, 3>(world, n);
         std::vector<real_function_3d> intermediate = zero_functions_compressed<double, 3>(world, n);
+        const_cast<std::string&>(name) =basename+" "+assign_name(PotentialType(std::get<5>(argtuple)));
         return std::make_tuple(result,intermediate);
     }
-
-    /// convenience function
-
-    /// the operator() return a vector of double size of the singles, the second half potentially being an intermediate.
-    /// if the intermediate is not assigned return an empty vector
-    /// @return a pair of the singles and the intermediate
-//    static
-//    std::pair<resultT, resultT> split_into_result_and_intermediate(const std::vector<real_function_3d>& result) {
-//        const std::size_t n=result.size()/2;
-//        MADNESS_CHECK_THROW(2*n==result.size(),"funny sizes in MacroTaskSinglesPotential::split_into_result_and_intermediate");
-//
-//        vector_real_function_3d res, intermediate;
-//        for (int i=0; i<n; ++i) res.push_back(result[i]);
-//        if (result[n].is_initialized()) {
-//            for (int i=n; i<result.size(); ++i) intermediate.push_back(result[i]);
-//        }
-//        return std::make_pair(res,intermediate);
-//    };
 
     resultT operator() (const std::vector<int>& result_index,
                         const CC_vecfunction& singles_gs,
@@ -1518,6 +1500,7 @@ public:
 
 class MacroTaskSinglesPotentialGs : public MacroTaskOperationBase {
 public:
+    std::string basename="SinglesPotentialGs";
     MacroTaskSinglesPotentialGs() {
         name="SinglesPotentialGs";
     }
@@ -1530,15 +1513,15 @@ public:
         const Info&                 // info
     > argtupleT;
 
-    /// return a vector of twice the size: pot(gs) and applied singles potentials, that will go into info
-
-    /// the second half will be non-zero only for s2b and s2c potentials
+    /// first vector is the potential, second is an intermediate (if applicable, e.g. for s2b and s2c potentials)
     using resultT = std::tuple<std::vector<real_function_3d>,std::vector<real_function_3d>>;
 
+    /// allocate the result and set the name of this task
     resultT allocator(World& world, const argtupleT& argtuple) const {
         std::size_t n = std::get<0>(argtuple).size();
         std::vector<real_function_3d> result = zero_functions_compressed<double, 3>(world, n);
         std::vector<real_function_3d> intermediate = zero_functions_compressed<double, 3>(world, n);
+        const_cast<std::string&>(name) =basename+" "+assign_name(PotentialType(std::get<3>(argtuple)));
         return std::make_tuple(result,intermediate);
     }
 

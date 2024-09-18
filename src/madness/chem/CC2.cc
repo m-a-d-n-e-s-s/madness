@@ -1114,7 +1114,7 @@ CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType 
                 CCPair tmp = CCOPS.make_pair_ex(utmp, tau, x, i, j, ctype);
 
                 {
-                    CCPair tmp2=CCPotentials::make_pair_lrcc2(world, ctype, utmp, tau, x, i, j, info);
+                    CCPair tmp2=CCPotentials::make_pair_lrcc2(ctype, utmp, tau, x, i, j, info);
                     std::swap(tmp,tmp2);
                     print("going on with Florian's pair");
                     // print("going on with Jakob's pair");
@@ -1160,7 +1160,7 @@ void CC2::update_reg_residues_ex(World& world, const CC_vecfunction& singles,
         CCPair& pair = tmp.second;
         // CCPair updated_pair = CCPotentials::make_pair_ex(pair.function(), singles, response, i, j, pair.ctype);
         CCPair updated_pair =
-            CCPotentials::make_pair_lrcc2(world, ctype, pair.function(), singles, response, pair.i, pair.j, info);
+            CCPotentials::make_pair_lrcc2(ctype, pair.function(), singles, response, pair.i, pair.j, info);
         updated_pairs.insert(pair.i, pair.j, updated_pair);
     }
     doubles.swap(updated_pairs);

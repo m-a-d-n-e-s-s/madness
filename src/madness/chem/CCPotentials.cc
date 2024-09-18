@@ -121,13 +121,14 @@ CCPair CCPotentials::make_pair_cc2(const real_function_6d& u, const CC_vecfuncti
 }
 
 /// follow eq. (23) of Kottmann, JCTC 13, 5956 (2017)
-CCPair CCPotentials::make_pair_lrcc2(World& world, const CalcType& ctype, const real_function_6d& u,
+CCPair CCPotentials::make_pair_lrcc2(const CalcType& ctype, const real_function_6d& u,
                                      const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles, const size_t i, const size_t j, const Info& info) {
     MADNESS_ASSERT(gs_singles.type == PARTICLE || gs_singles.type == HOLE);
     MADNESS_ASSERT(ex_singles.type == RESPONSE);
     MADNESS_ASSERT(ctype == CT_CISPD || ctype == CT_LRCC2 || ctype == CT_ADC2);
     MADNESS_ASSERT(!(i < info.parameters.freeze()));
     MADNESS_ASSERT(!(j < info.parameters.freeze()));
+    World& world=u.world();
 
     // compute the t intermediates for active orbitals only -- they go into the ansatz
     const auto t = CC_vecfunction(info.get_active_mo_ket()+gs_singles.get_vecfunction(),MIXED,info.parameters.freeze());
@@ -3108,7 +3109,9 @@ CCPotentials::potential_singles_gs(World& world, const std::vector<int>& result_
         result = s4c(world, singles, doubles, info);
     } else MADNESS_EXCEPTION(("potential_singles: Unknown potential " + assign_name(name)).c_str(), 1)
 
-    ;
+    madness::print_size(world,result,"result of "+assign_name(name));
+    madness::print_size(world,intermediate,"intermediate of "+assign_name(name));
+
     const double size = get_size(world, result);
     const double norm = norm2(world, result);
     const std::pair<double, double> time = timer.current_time();
@@ -3721,6 +3724,8 @@ CCPotentials::s2b(World& world, const CC_vecfunction& singles, const Pairs<CCPai
         // for (const auto& ru: result_u) result.push_back(ru);
         // info.intermediate_potentials.insert(result_u, singles, POT_s2b_);
     // }
+    madness::print_size(world,result,"result in s2b");
+    madness::print_size(world,result_u,"result_u in s2b");
 
     return std::make_tuple(result,result_u);;
 }
