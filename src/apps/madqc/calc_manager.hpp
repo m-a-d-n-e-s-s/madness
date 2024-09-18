@@ -706,10 +706,12 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
 
       std::filesystem::current_path(calc_path_i);
 
-      print("current path: ", std::filesystem::current_path());
-      print("calc path: ", calc_path_i);
-      print("restart path: ", restart_path_i);
-      print("freq: ", freq_i);
+      if(world.rank()==0){
+        print("current path: ", std::filesystem::current_path());
+        print("calc path: ", calc_path_i);
+        print("restart path: ", restart_path_i);
+        print("freq: ", freq_i);
+      }
 
       bool restart = true;
       path save_path = restart_path_i;  // current restart path aka save path
