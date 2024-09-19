@@ -98,7 +98,7 @@ set(MADCHEM_SOURCES
     PNO.cpp  PNOF12Potentials.cpp  PNOGuessFunctions.cpp  PNOParameters.cpp  PNOStructures.cpp
 )
 # these source files require specific header order inclusion ... just skip them from unity build for now
-set_source_files_properties(PNO.cpp  PNOF12Potentials.cpp  PNOGuessFunctions.cpp  PNOParameters.cpp  PNOStructures.cpp SCFOperators.cc
+set_source_files_properties(CC2.cc PNO.cpp  PNOF12Potentials.cpp  PNOGuessFunctions.cpp  PNOParameters.cpp  PNOStructures.cpp SCFOperators.cc
         PROPERTIES SKIP_UNITY_BUILD_INCLUSION TRUE)
 if(LIBXC_FOUND)
   list(APPEND MADCHEM_SOURCES xcfunctional_libxc.cc)
