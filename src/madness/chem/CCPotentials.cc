@@ -3689,10 +3689,7 @@ std::tuple<madness::vector_real_function_3d, madness::vector_real_function_3d>
 CCPotentials::s2b(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info)
 {
     vector_real_function_3d result;
-    // madness::print_size(world,singles.get_vecfunction(),"singles upon entry");
-    // auto functions=doubles.allpairs.begin()->second.functions;
-    // for (const auto& f : functions) f.print_size("functions");
-    // see if we can skip the recalculation of the pure 6D part since this does not change during the singles iteration
+
     vector_real_function_3d result_u = info.intermediate_potentials(singles, POT_s2b_);
     bool recalc_u_part = false;
     if (result_u.empty()) recalc_u_part = true;
@@ -3720,19 +3717,12 @@ CCPotentials::s2b(World& world, const CC_vecfunction& singles, const Pairs<CCPai
         result.push_back(resulti_r + resulti_u);
         if (recalc_u_part) result_u.push_back(resulti_u);
     }
-    // if (recalc_u_part) {
-        // for (const auto& ru: result_u) result.push_back(ru);
-        // info.intermediate_potentials.insert(result_u, singles, POT_s2b_);
-    // }
-    madness::print_size(world,result,"result in s2b");
-    madness::print_size(world,result_u,"result_u in s2b");
-
     return std::make_tuple(result,result_u);;
 }
 
 std::tuple<madness::vector_real_function_3d, madness::vector_real_function_3d>
 CCPotentials::s2c(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info) {
-    vector_real_function_3d result, intermediate;
+    vector_real_function_3d result;
     // see if we can skip the recalculation of the pure 6D part since this does not change during the singles iteration
     vector_real_function_3d result_u = info.intermediate_potentials(singles, POT_s2c_);
     bool recalc_u_part = false;
@@ -3767,12 +3757,8 @@ CCPotentials::s2c(World& world, const CC_vecfunction& singles, const Pairs<CCPai
         result.push_back(resulti_r + resulti_u);
         if (recalc_u_part) result_u.push_back(resulti_u);
     }
-//    if (recalc_u_part) {
-//        for (const auto& ru: result_u) result.push_back(ru);
-//        // info.intermediate_potentials.insert(result_u, singles, POT_s2c_);
-//    }
 
-    return std::make_tuple(result,intermediate);
+    return std::make_tuple(result,result_u);
 }
 
 madness::vector_real_function_3d

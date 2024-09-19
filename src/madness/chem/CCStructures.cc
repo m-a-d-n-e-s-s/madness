@@ -604,18 +604,14 @@ MacroTaskSinglesPotentialEx::operator()(const std::vector<int>& result_index,
     for (auto& x : doubles_gs1.allpairs) {
         auto& tau=x.second;
         MADNESS_CHECK_THROW(tau.functions.size()==1,"doubles in MacroTaskSinglesPotentialsEx should only contain one function");
-
         tau=CCPotentials::make_pair_cc2(tau.function(),singles_gs,tau.i,tau.j,info);
     }
     // the doubles currently only contain the full 6d function -> complete it with the Q12 f12 |ti tj> part
     for (auto& x : doubles_ex1.allpairs) {
         auto& tau=x.second;
         MADNESS_CHECK_THROW(tau.functions.size()==1,"doubles in MacroTaskSinglesPotentialsEx should only contain one function");
-
         tau=CCPotentials::make_pair_lrcc2(tau.ctype,tau.function(),singles_gs,singles_ex,tau.i,tau.j,info);
     }
-    print("doubles in MacroTaskSinglesPotentialsGS",doubles_gs1.allpairs.size());
-    print("ccpairfunction in first doubles in MacroTaskSinglesPotentialsGS",doubles_gs1.allpairs.begin()->second.functions.size());
 
     resultT result=CCPotentials::potential_singles_ex(world,
                 result_index,
@@ -645,12 +641,8 @@ MacroTaskSinglesPotentialGs::operator()(const std::vector<int>& result_index,
     for (auto& x : doubles_gs1.allpairs) {
         auto& tau=x.second;
         MADNESS_CHECK_THROW(tau.functions.size()==1,"doubles in MacroTaskSinglesPotentialsGS should only contain one function");
-
         tau=CCPotentials::make_pair_cc2(tau.function(),singles_gs,tau.i,tau.j,info);
     }
-    print("doubles in MacroTaskSinglesPotentialsGS",doubles_gs1.allpairs.size());
-    print("ccpairfunction in first doubles in MacroTaskSinglesPotentialsGS",doubles_gs1.allpairs.begin()->second.functions.size());
-
 
     resultT result=CCPotentials::potential_singles_gs(world, result_index,
                 singles_gs, doubles_gs1, PotentialType(name), info);
