@@ -7,8 +7,6 @@
 #include <vector>
 #include <cmath>
 
-#include <lapacke.h>
-
 #include <madness/misc/gnuplot.h>
 
 const double pi = 3.14159265358979323846;
