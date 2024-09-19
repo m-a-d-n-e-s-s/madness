@@ -171,7 +171,7 @@ public:
         info.intermediate_potentials.clear_all();
         Pairs<CCPair> empty;
         return iterate_singles(world, singles, CC_vecfunction(RESPONSE), doubles,
-            empty, CT_CC2, info.parameters.iter_max_3D(), info);
+                               empty, CT_CC2, info.parameters.iter_max_3D(), info);
     }
 
     bool
@@ -189,7 +189,7 @@ public:
         info.intermediate_potentials.clear_response();
         // CCOPS.clear_potentials(lrcc2_s);
         return iterate_singles(world, lrcc2_s, cc2_s, cc2_d, lrcc2_d,
-            CT_LRCC2, info.parameters.iter_max_3D(), info);
+                               CT_LRCC2, info.parameters.iter_max_3D(), info);
     }
 
     /// convencience function to iterate the CCS Response singles,
@@ -212,12 +212,41 @@ public:
     /// @param[in] : ctype: the calculation type: CCS, CC2, CC2_response_
     /// @param[in] : maxiter: maxmial number of iterations
     /// @param[out]: true if the overall change of the singles is below 10*donv_6D
-    iterate_singles(World& world, CC_vecfunction& singles, const CC_vecfunction singles2, Pairs<CCPair>& gs_doubles,
-                    Pairs<CCPair>& ex_doubles, const CalcType ctype, const std::size_t maxiter, Info& info) {
+    iterate_singles(World& world, CC_vecfunction& singles, const CC_vecfunction singles2, const Pairs<CCPair>& gs_doubles,
+                    const Pairs<CCPair>& ex_doubles, const CalcType ctype, const std::size_t maxiter, Info& info) {
         CCMessenger output(world);
-        output.subsection("Iterate " + assign_name(ctype) + "-Singles");
+        print_header2("Iterating Singles for "+assign_name(ctype));
         CCTimer time_all(world, "Overall Iteration of " + assign_name(ctype) + "-Singles");
+
+        // consistency checks
+        switch (ctype) {
+        case CT_CC2:
+            if (singles.type != PARTICLE)
+                output.warning("iterate_singles: CC2 demanded but singles are not of type PARTICLE");
+            break;
+        case CT_MP2: MADNESS_EXCEPTION("Demanded Singles Calculation for MP2 ????", 1);
+            break;
+        case CT_LRCC2:
+            if (singles.type != RESPONSE or singles2.type != PARTICLE)
+                output.warning("iterate_singles: CC2_response_ singles have wrong types");
+            break;
+        case CT_LRCCS:
+            if (singles.type != RESPONSE)
+                output.warning("iterate_singles: CCS_response_ singles have wrong types");
+            break;
+        case CT_CISPD: MADNESS_EXCEPTION("Demanded Singles Calculation for CIS(D)", 1);
+            break;
+        case CT_ADC2:
+            MADNESS_ASSERT(singles.type == RESPONSE);
+            break;
+        case CT_TEST: MADNESS_EXCEPTION("Iterate Singles not implemented for Experimental calculation", 1);
+            break;
+        default: MADNESS_EXCEPTION(
+                ("Unknown calculation type in iterate singles: " + assign_name(ctype)).c_str(), 1);
+        }
+
         bool converged = true;
+
 
         CC_vecfunction old_singles(singles);
         for (auto& tmp : singles.functions)
@@ -230,58 +259,36 @@ public:
         solverT solver(allocT(world, singles.size()));
         solver.do_print = (world.rank() == 0);
 
-        print_size(world, singles.get_vecfunction(), "singles before iteration");
+        if (info.parameters.debug()) print_size(world, singles.get_vecfunction(), "singles before iteration");
 
         for (size_t iter = 0; iter < maxiter; iter++) {
-            // output.subsection("Microiteration " + std::to_string(iter) + " of " + assign_name(ctype) + "-Singles");
-            // CCTimer time(world, "Microiteration " + std::to_string(iter) + " of " + assign_name(ctype) + "-Singles");
             double omega = 0.0;
             if (ctype == CT_LRCC2) omega = singles.omega;
             else if (ctype == CT_LRCCS) omega = singles.omega;
             else if (ctype == CT_ADC2) omega = singles.omega;
-            print("omega 1" ,omega);
+            if (info.parameters.debug()) print("omega " ,omega);
 
-            // consistency check
-            switch (ctype) {
-            case CT_CC2:
-                if (singles.type != PARTICLE)
-                    output.warning("iterate_singles: CC2 demanded but singles are not of type PARTICLE");
-                break;
-            case CT_MP2: MADNESS_EXCEPTION("Demanded Singles Calculation for MP2 ????", 1);
-                break;
-            case CT_LRCC2:
-                if (singles.type != RESPONSE or singles2.type != PARTICLE)
-                    output.warning("iterate_singles: CC2_response_ singles have wrong types");
-                break;
-            case CT_LRCCS:
-                if (singles.type != RESPONSE)
-                    output.warning("iterate_singles: CCS_response_ singles have wrong types");
-                break;
-            case CT_CISPD: MADNESS_EXCEPTION("Demanded Singles Calculation for CIS(D)", 1);
-                break;
-            case CT_ADC2:
-                MADNESS_ASSERT(singles.type == RESPONSE);
-                break;
-            case CT_TEST: MADNESS_EXCEPTION("Iterate Singles not implemented for Experimental calculation", 1);
-                break;
-            default: MADNESS_EXCEPTION(
-                    ("Unknown calculation type in iterate singles: " + assign_name(ctype)).c_str(), 1);
-            }
-
-            // get potentials
+            // get potentials using macrotasks
             CCTimer time_V(world, assign_name(ctype) + "-Singles Potential");
             vector_real_function_3d V;
-            if (ctype == CT_CC2) V = CCPotentials::get_CC2_singles_potential_gs(world, singles, gs_doubles, info);
+            if (ctype == CT_CC2)
+                V = CCPotentials::get_CC2_singles_potential_gs(world, singles, gs_doubles, info);
             else if (ctype == CT_LRCC2)
                 V = CCPotentials::get_CC2_singles_potential_ex(world, singles2, gs_doubles, singles, ex_doubles, info);
-            else if (ctype == CT_LRCCS) V = CCPotentials::get_CCS_potential_ex(world,singles,false, info);
-            //            else if (ctype == CT_ADC2) V = CCOPS.get_ADC2_singles_potential(world, gs_doubles, singles, ex_doubles, info);
+            else if (ctype == CT_LRCCS)
+                V = CCPotentials::get_CCS_potential_ex(world,singles,false, info);
+            else if (ctype == CT_ADC2)
+                V = CCPotentials::get_ADC2_singles_potential(world, gs_doubles, singles, ex_doubles, info);
             else MADNESS_EXCEPTION("iterate singles: unknown type", 1);
+
+            if (info.parameters.debug()) madness::print_size(world, V, "final V in iterate_singles w/o coupling");
 
             // add local coupling
             V-=compute_local_coupling(singles.get_vecfunction(),info);
             truncate(world, V);
-            time_V.info(true, norm2(world, V));
+            time_V.info(info.parameters.debug(), norm2(world, V));
+
+            if (info.parameters.debug()) madness::print_size(world, V, "final V in iterate_singles with coupling");
 
             // update excitation energy
             if (ctype==CT_LRCC2 or ctype==CT_LRCCS or ctype==CT_ADC2) {
@@ -306,7 +313,7 @@ public:
             CCTimer time_applyG(world, "Apply G-Operators");
             vector_real_function_3d GV = apply<SeparatedConvolution<double, 3>, double, 3>(world, G, V);
             world.gop.fence();
-            time_applyG.info();
+            time_applyG.info(info.parameters.debug());
 
             // apply Q-Projector to result
             QProjector<double,3> Q(info.mo_bra,info.mo_ket);
@@ -331,28 +338,27 @@ public:
             auto [rmsresidual, maxresidual]=CCPotentials::residual_stats(residual);
 
             // print information
-            if (world.rank() == 0) std::cout << "\n\n-----Results of current interation:-----\n";
-            if (world.rank() == 0)
+            if (info.parameters.debug() and (world.rank()==0)) {
+                std::cout << "\n\n-----Results of current interation:-----\n";
                 std::cout << "\nName: ||" << singles.name(0) << "||, ||GV" << singles.name(0) << ", ||residual||" << "\n";
-            if (world.rank() == 0)
                 std::cout << singles.name(0) << ": " << std::scientific << std::setprecision(info.parameters.output_prec())
-                          << sqrt(R2xinnerx.sum()) << ", " << sqrt(R2GVinnerGV.sum()) << ", " << sqrt(R2rinnerr.sum())
-                          << "\n----------------------------------------\n";
-            for (size_t i = 0; i < GV.size(); i++) {
-                if (world.rank() == 0)
+                              << sqrt(R2xinnerx.sum()) << ", " << sqrt(R2GVinnerGV.sum()) << ", " << sqrt(R2rinnerr.sum())
+                              << "\n----------------------------------------\n";
+                for (size_t i = 0; i < GV.size(); i++) {
                     std::cout << singles(i + info.parameters.freeze()).name() << ": " << std::scientific
                               << std::setprecision(info.parameters.output_prec())
                               << sqrt(R2xinnerx(i)) << ", " << sqrt(R2GVinnerGV(i)) << ", " << sqrt(R2rinnerr(i))
                               << "\n";
+                }
+                std::cout << "\n----------------------------------------\n\n";
             }
-            if (world.rank() == 0) std::cout << "\n----------------------------------------\n\n";
 
             // make second order update (only for response)
             if (ctype == CT_LRCC2 or ctype == CT_LRCCS) {
                 double Rtmp = inner(world, info.R_square*residual, V).sum();
                 double Rtmp2 = inner(world, info.R_square*GV, GV).sum();
                 const double Rdelta = (0.5 * Rtmp / Rtmp2);
-                if (world.rank() == 0) std::cout << "omega, second-order update (FYI): " << std::fixed
+                if (info.parameters.debug() and (world.rank() == 0)) std::cout << "omega, second-order update (FYI): " << std::fixed
                               << std::setprecision(info.parameters.output_prec() + 2) << omega << ", " << Rdelta << "\n\n";
             }
 
@@ -368,9 +374,10 @@ public:
                 singles(i + info.parameters.freeze()).function = copy(new_singles[i]);
             }
 
-            // update reg_residues of doubles
-            if (ctype==CT_CC2) update_reg_residues_gs(world, singles,gs_doubles, info);
-            else if(ctype==CT_LRCC2) update_reg_residues_ex(world, singles2,singles,ex_doubles, info);
+            // update regularization terms of the doubles
+            // -- not necessary here as the regularization terms are updated in the macrotasks..
+            // if (ctype==CT_CC2) update_reg_residues_gs(world, singles,gs_doubles, info);
+            // else if(ctype==CT_LRCC2) update_reg_residues_ex(world, singles2,singles,ex_doubles, info);
 
             if (world.rank()==0) CCPotentials::print_convergence(singles.name(0),rmsresidual,
                 rmsresidual,omega-old_omega,iter);
@@ -379,26 +386,31 @@ public:
             // time.info();
             if (converged) break;
             if (ctype == CT_LRCCS) break; // for CCS just one iteration to check convergence
-        }
+        } // end of iterations
+
+        print_header2("Singles iterations ended");
         time_all.info();
         print_size(world, singles.get_vecfunction(), "singles after iteration");
 
         // Assign the overall changes
         bool no_change = true;
-        if (world.rank() == 0)
-            std::cout << "Change in Singles functions after all the Microiterations" << std::endl;
         for (auto& tmp : singles.functions) {
             const double change = (tmp.second.function - old_singles(tmp.first).function).norm2();
             tmp.second.current_error = change;
             if (change > info.parameters.dconv_3D()) no_change = false;
-            if (world.rank() == 0)
-                std::cout << "Change of " << tmp.second.name() << "=" << tmp.second.current_error << std::endl;
         }
-        // update reg_residues of doubles
-        if (ctype == CT_CC2) update_reg_residues_gs(world, singles, gs_doubles, info);
-        else if (ctype == CT_LRCC2) update_reg_residues_ex(world, singles2, singles, ex_doubles, info);
 
-        //CCOPS.plot(singles);
+        if (info.parameters.debug() and (world.rank() == 0)) {
+            std::cout << "Change in Singles functions after all the Microiterations" << std::endl;
+            for (auto& tmp : singles.functions)
+                std::cout << "Change of " << tmp.second.name() << " = " << tmp.second.current_error << std::endl;
+        }
+
+        // update regularization terms of the doubles
+        // -- not necessary here as the regularization terms are updated in the macrotasks..
+        // if (ctype == CT_CC2) update_reg_residues_gs(world, singles, gs_doubles, info);
+        // else if (ctype == CT_LRCC2) update_reg_residues_ex(world, singles2, singles, ex_doubles, info);
+
         if (no_change) output("Change of Singles was below  = " + std::to_string(info.parameters.dconv_3D()) + "!");
         return no_change;
     }

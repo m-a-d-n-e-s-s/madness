@@ -75,6 +75,11 @@ public:
             archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str());
             ar & f;
             f.print_size(name);
+            if (f.is_compressed()) {
+                print("function is compressed -- reconstructing");
+                f.change_tree_state(reconstructed);
+            f.print_size(name+" reconstructed");
+            }
             f.set_thresh(FunctionDefaults<NDIM>::get_thresh());
             f.truncate();
             f.print_size(name);
@@ -694,9 +699,9 @@ public:
 
     /// Calculates the CC2 singles potential for the Excited state: result = Fock_residue + V
     /// the V part is stored in the intermediate_potentials structure
-    vector_real_function_3d
+    static vector_real_function_3d
     get_ADC2_singles_potential(World& world, const Pairs<CCPair>& gs_doubles,
-                               CC_vecfunction& ex_singles, const Pairs<CCPair>& response_doubles, Info& info) const;
+                               CC_vecfunction& ex_singles, const Pairs<CCPair>& response_doubles, Info& info);
 
     /// The potential manager for the ground state potential
     /// CC2 singles potential parts of the ground state

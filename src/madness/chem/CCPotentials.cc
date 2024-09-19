@@ -2869,25 +2869,34 @@ CCPotentials::get_CC2_singles_potential_gs(World& world, const CC_vecfunction& s
     auto [Vs2c, imed_s2c] = mtaskgs(result_index, singles, doubles_vec, int(POT_s2c_), info);
     auto [Vs4b, dum4] = mtaskgs(result_index, singles, doubles_vec, int(POT_s4b_), info);
     auto [Vs4c, dum5] = mtaskgs(result_index, singles, doubles_vec, int(POT_s4c_), info);
-    taskq->print_taskq();
+    if (info.parameters.debug()) taskq->print_taskq();
     taskq->run_all();
-    // vector_real_function_3d Vs4a = apply_projector(Vs2b, singles);     // need to subtract
 
-//    // extract potentials
-//    constexpr auto split = &MacroTaskSinglesPotentialEx::split_into_result_and_intermediate;
-//    auto [fock_residue, dum1] = split(fock_residue1);
-//    auto [Vccs, dum2] = split(Vccs1);
-//    auto [Vs2b, imed_s2b] = split(Vs2b1);
-//    auto [Vs2c, imed_s2c] = split(Vs2c1);
-//    auto [Vs4b, dum4] = split(Vs4b1);
-//    auto [Vs4c, dum5] = split(Vs4c1);
+    // give some information about diagrams
+    if (info.parameters.debug()) {
+        print_header3("intermediate potentials in CC2 singles potential ground state");
+        madness::print_size(world,fock_residue, "Fock residue");
+        madness::print_size(world,Vccs, "ccs potential");
+        madness::print_size(world,Vs2b, "s2b potential");
+        madness::print_size(world,Vs2c, "s2c potential");
+        madness::print_size(world,Vs4b, "s4b potential");
+        madness::print_size(world,Vs4c, "s4c potential");
+        madness::print_size(world,imed_s2b, "s2b intermediate");
+        madness::print_size(world,imed_s2c, "s2c intermediate");
+    }
 
     vector_real_function_3d Vs4a = Otau(Vs2b);     // need to subtract
-    vector_real_function_3d unprojected = add(world, Vccs, add(world, Vs2b, add(world, Vs2c, add(world, Vs4b,
-                                                                                                 sub(world, Vs4c,
-                                                                                                     Vs4a)))));
+    // vector_real_function_3d unprojected = add(world, Vccs, add(world, Vs2b, add(world, Vs2c, add(world, Vs4b,
+                                                             // sub(world, Vs4c, Vs4a)))));
+    vector_real_function_3d unprojected = Vccs + Vs2b + Vs2c + Vs4b + Vs4c - Vs4a;
     // vector_real_function_3d potential = apply_Qt(unprojected, mo_ket_);
     vector_real_function_3d potential = truncate(Q(unprojected));
+
+    if (info.parameters.debug()) {
+        madness::print_size(world,Vs4a, "s4a potential");
+        madness::print_size(world,unprojected, "unprojected potential");
+        madness::print_size(world,potential, "final potential w/o fock");
+    }
 
     // store intermediates
     info.intermediate_potentials.insert(copy(world, potential), singles, POT_singles_);
@@ -2966,29 +2975,33 @@ CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& g
     auto [s2b_gs, dum6] = mtaskgs(result_index, gs_singles, gs_doubles_vec, int(POT_s2b_), info);
     // vector_real_function_3d Vs4a =
             // -1.0 * add(world, apply_projector(s2b_gs, ex_singles), apply_projector(Vs2b, gs_singles));
-    taskq->print_taskq();
+    if (info.parameters.debug()) taskq->print_taskq();
     taskq->run_all();
 
-    // split potential and intermediates
-//    constexpr auto split = &MacroTaskSinglesPotentialEx::split_into_result_and_intermediate;
-//    auto [fock_residue, dum1] = split(fock_residue1);
-//    auto [Vccs, dum2] = split(Vccs1);
-//    auto [Vs2b, imed_s2b] = split(Vs2b1);
-//    auto [Vs2c, imed_s2c] = split(Vs2c1);
-//    auto [Vs4b, dum4] = split(Vs4b1);
-//    auto [Vs4c, dum5] = split(Vs4c1);
-//    auto [s2b_gs, dum6] = split(s2b_gs1);
 
     vector_real_function_3d Vs4a = -1.0 * (Ox(s2b_gs)+ Ot(Vs2b));
-    //add up
-    vector_real_function_3d unprojected = add(world, Vccs, add(world, Vs2b, add(world, Vs2c, add(world, Vs4a,
-                                                                                                 add(world, Vs4b,
-                                                                                                     Vs4c)))));
+    vector_real_function_3d unprojected = Vccs + Vs2b + Vs2c + Vs4a + Vs4b + Vs4c;
+    // vector_real_function_3d unprojected = add(world, Vccs, add(world, Vs2b, add(world, Vs2c, add(world, Vs4a,
+                                                                                                 // add(world, Vs4b, Vs4c)))));
     QProjector<double,3> Q(info.mo_bra, info.mo_ket);
     // vector_real_function_3d potential = apply_Qt(unprojected, mo_ket_);
     vector_real_function_3d potential = Q(unprojected);
     if (info.parameters.debug()) {
-        // debug
+
+        print_header3("intermediate potentials in CC2 singles potential excited state");
+        madness::print_size(world,fock_residue,"fock_residue");
+        madness::print_size(world,Vccs,"Vccs");
+        madness::print_size(world,Vs2b,"Vs2b");
+        madness::print_size(world,Vs2c,"Vs2c");
+        madness::print_size(world,Vs4a,"Vs4a");
+        madness::print_size(world,Vs4b,"Vs4b");
+        madness::print_size(world,Vs4c,"Vs4c");
+        madness::print_size(world,s2b_gs,"s2b_gs");
+        madness::print_size(world,imed_s2b,"imed_s2b");
+        madness::print_size(world,imed_s2c,"imed_s2c");
+        madness::print_size(world,unprojected,"unprojected");
+        madness::print_size(world,potential,"potential w/o fock residue");
+
         vector_real_function_3d xbra = info.R_square* ex_singles.get_vecfunction();
         const double ccs = inner(world, xbra, Vccs).sum();
         const double s2b = inner(world, xbra, Vs2b).sum();
@@ -2997,9 +3010,7 @@ CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& g
         const double s4b = inner(world, xbra, Vs4b).sum();
         const double s4c = inner(world, xbra, Vs4c).sum();
         if (world.rank()==0) std::cout << std::fixed << std::setprecision(10) << "functional response energies:" << "\n<x|ccs>=" << ccs
-                  << "\n<x|S2b>=" << s2b << "\n<x|S2c>=" << s2c << "\n<x|s4a>=" << s4a << "\n<x|s4b>="
-                  << s4b << "\n<x|s4c>=" << s4c << "\n";
-        // debug end
+                  << "\n<x|S2b>=" << s2b << "\n<x|S2c>=" << s2c << "\n<x|s4a>=" << s4a << "\n<x|s4b>=" << s4b << "\n<x|s4c>=" << s4c << "\n";
     }
 
     // storing potentials
@@ -3007,17 +3018,17 @@ CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& g
     if (not imed_s2b.empty()) info.intermediate_potentials.insert(imed_s2b, ex_singles, POT_s2b_);
     if (not imed_s2c.empty()) info.intermediate_potentials.insert(imed_s2c, ex_singles, POT_s2c_);
 
-    vector_real_function_3d result = add(world, fock_residue, potential);
-    truncate(world, result);
+    vector_real_function_3d result = truncate(fock_residue+ potential);
     return result;
 }
 
 madness::vector_real_function_3d
 CCPotentials::get_ADC2_singles_potential(World& world, const Pairs<CCPair>& gs_doubles,
-                                         CC_vecfunction& ex_singles, const Pairs<CCPair>& response_doubles, Info& info) const {
+                                         CC_vecfunction& ex_singles, const Pairs<CCPair>& response_doubles,
+                                         Info& info) {
     MADNESS_ASSERT(ex_singles.type == RESPONSE);
-    vector_real_function_3d zero = zero_functions<double, 3>(world, get_active_mo_ket().size());
-    CC_vecfunction tau(zero, PARTICLE, parameters.freeze());
+    vector_real_function_3d zero = zero_functions<double, 3>(world, info.get_active_mo_ket().size());
+    CC_vecfunction tau(zero, PARTICLE, info.parameters.freeze());
     const vector_real_function_3d result = get_CC2_singles_potential_ex(world, tau, gs_doubles, ex_singles, response_doubles, info);
     return result;
 }

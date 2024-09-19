@@ -737,6 +737,7 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
     if (world.rank()==0) CCPotentials::print_convergence("LRCC2 doubles",rmsrnorm, rmsrmax,0,0);
 
     // update the pair functions
+    reconstruct(world,unew);        // saves a lot of memory!
     for (int i=0; i<pair_vec.size(); ++i) pair_vec[i].update_u(unew[i]);
     lrcc2_d=Pairs<CCPair>::vector2pairs(pair_vec,triangular_map);
 
@@ -899,7 +900,7 @@ CC2::solve_lrcc2(Pairs<CCPair>& gs_doubles, const CC_vecfunction& gs_singles, co
 
     for (size_t iter = 0; iter < parameters.iter_max(); iter++) {
         if (world.rank()==0) print_header2("Macroiteration " + std::to_string(int(iter)) + " of LRCC2 for excitation energy "+std::to_string(ex_singles.omega));
-        update_reg_residues_ex(world, gs_singles, ex_singles, ex_doubles, info);
+        // update_reg_residues_ex(world, gs_singles, ex_singles, ex_doubles, info);
         bool dconv = iterate_lrcc2_pairs(world, gs_singles, ex_singles, ex_doubles, info);
         bool sconv = iterate_lrcc2_singles(world, gs_singles, gs_doubles, ex_singles, ex_doubles, info);
         // update_reg_residues_ex(world, gs_singles, ex_singles, ex_doubles, info);
