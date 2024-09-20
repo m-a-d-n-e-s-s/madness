@@ -215,7 +215,7 @@ public:
     iterate_singles(World& world, CC_vecfunction& singles, const CC_vecfunction singles2, const Pairs<CCPair>& gs_doubles,
                     const Pairs<CCPair>& ex_doubles, const CalcType ctype, const std::size_t maxiter, Info& info) {
         CCMessenger output(world);
-        print_header2("Iterating Singles for "+assign_name(ctype));
+        if (world.rank()==0) print_header2("Iterating Singles for "+assign_name(ctype));
         CCTimer time_all(world, "Overall Iteration of " + assign_name(ctype) + "-Singles");
 
         // consistency checks
@@ -266,7 +266,7 @@ public:
             if (ctype == CT_LRCC2) omega = singles.omega;
             else if (ctype == CT_LRCCS) omega = singles.omega;
             else if (ctype == CT_ADC2) omega = singles.omega;
-            if (info.parameters.debug()) print("omega " ,omega);
+            if ((world.rank()==0) and info.parameters.debug()) print("omega " ,omega);
 
             // get potentials using macrotasks
             CCTimer time_V(world, assign_name(ctype) + "-Singles Potential");
@@ -388,7 +388,7 @@ public:
             if (ctype == CT_LRCCS) break; // for CCS just one iteration to check convergence
         } // end of iterations
 
-        print_header2("Singles iterations ended");
+        if (world.rank()==0) print_header2("Singles iterations ended");
         time_all.info();
         print_size(world, singles.get_vecfunction(), "singles after iteration");
 
@@ -412,14 +412,22 @@ public:
         // else if (ctype == CT_LRCC2) update_reg_residues_ex(world, singles2, singles, ex_doubles, info);
 
         if (no_change) output("Change of Singles was below  = " + std::to_string(info.parameters.dconv_3D()) + "!");
+
         return no_change;
     }
 
-    /// store singles to file
-    void store_singles(const CC_vecfunction& singles, const int ex = -1) const;
+    /// return the file name for singles
+    static std::string singles_name(const CalcType& ctype, const FuncType& type, int ex=-1) {
+        std::string fname=assign_name(ctype)+"_"+madness::name(type,ex);
+        return fname;
+    }
 
     /// read singles from file or initialize new ones
-    CC_vecfunction initialize_singles(const FuncType type, const int ex = -1) const;
+
+    /// type: PARTICLE (cc2) or RESPONSE (lrcc2)
+    /// default_to_zero: if true, initialize with zero functions, otherwise return empty vector
+    /// ex: if type is RESPONSE, the excitation number
+    CC_vecfunction initialize_singles(const CalcType& ctype, const FuncType type, const bool default_to_zero, int ex=-1) const;
 
     /// read pairs from file or initialize new ones
     bool initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType ctype, const CC_vecfunction& tau,

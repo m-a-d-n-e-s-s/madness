@@ -824,11 +824,11 @@ private:
 
 
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug) {
-        	// io_redirect io(element,name+"_task",debug);
+        	io_redirect io(element,get_name()+"_task",debug);
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             const argtupleT batched_argtuple = task.batch.template copy_input_batch(argtuple);
         	try {
-			    print("starting task no",element, "in subworld",subworld.id(),"at time",wall_time());
+			    print("starting task no",element, ", '",get_name(),"', in subworld",subworld.id(),"at time",wall_time());
         	    double cpu0=cpu_time();
         		resultT result_batch = std::apply(task, batched_argtuple);		// lives in the subworld, is a batch of the full vector (if applicable)
         	    double cpu1=cpu_time();
@@ -847,7 +847,6 @@ private:
 					}
         		};
         		resultT result_subworld=task.allocator(subworld,argtuple);
-        		print("is_tuple",is_tuple<resultT>::value);
         		if constexpr (is_tuple<resultT>::value) {
         			binary_tuple_loop(result_subworld, result_batch, insert_batch);
 				} else {

@@ -143,9 +143,9 @@ CCIntermediatePotentials::operator()(const CCFunction<double,3>& f, const Potent
 void
 CCIntermediatePotentials::insert(const vector_real_function_3d& potential, const CC_vecfunction& f,
                                  const PotentialType& type) {
-    output("Storing potential: " + assign_name(type) + " for " + f.name(0));
+    World& world=potential.front().world();
+    if (world.rank()==0) output("Storing potential: " + assign_name(type) + " for " + f.name(0));
     if (parameters.debug()) {
-        World& world=potential.front().world();
         print_size(world, potential, "potential");
     }
     MADNESS_ASSERT(!potential.empty());

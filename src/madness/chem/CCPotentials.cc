@@ -2874,7 +2874,7 @@ CCPotentials::get_CC2_singles_potential_gs(World& world, const CC_vecfunction& s
 
     // give some information about diagrams
     if (info.parameters.debug()) {
-        print_header3("intermediate potentials in CC2 singles potential ground state");
+        if (world.rank()==0) print_header3("intermediate potentials in CC2 singles potential ground state");
         madness::print_size(world,fock_residue, "Fock residue");
         madness::print_size(world,Vccs, "ccs potential");
         madness::print_size(world,Vs2b, "s2b potential");
@@ -2988,7 +2988,7 @@ CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& g
     vector_real_function_3d potential = Q(unprojected);
     if (info.parameters.debug()) {
 
-        print_header3("intermediate potentials in CC2 singles potential excited state");
+        if (world.rank()==0) print_header3("intermediate potentials in CC2 singles potential excited state");
         madness::print_size(world,fock_residue,"fock_residue");
         madness::print_size(world,Vccs,"Vccs");
         madness::print_size(world,Vs2b,"Vs2b");

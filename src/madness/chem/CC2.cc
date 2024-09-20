@@ -85,7 +85,7 @@ CC2::solve() {
 
     if (need_cc2) {
         // check if singles or/and doubles to restart are there
-        cc2singles=initialize_singles(PARTICLE);
+        cc2singles=initialize_singles(CT_CC2,PARTICLE, true);
         const bool load_doubles = initialize_pairs(cc2pairs, GROUND_STATE, CT_CC2, cc2singles, CC_vecfunction(RESPONSE), 0, info);
 
         // nothing to restart -> make MP2
@@ -264,61 +264,6 @@ CC2::solve() {
                + " with omega "+std::to_string(vccs[iexcitation].omega));
            solve_lrcc2(cc2pairs,cc2singles,vccs[iexcitation],iexcitation,info);
        }
-        //   const size_t excitation = parameters.excitations()[xxx];
-        //    CCTimer time_ex(world, "LRCC2 Calculation for Excitation " + std::to_string(int(excitation)));
-        //    CC_vecfunction lrcc2_s = vccs[xxx];
-        //    // needed to assign an omega
-        //    const vector_real_function_3d backup = copy(world, lrcc2_s.get_vecfunction());
-        //    CC_vecfunction test(backup, RESPONSE, parameters.freeze());
-        //    iterate_ccs_singles(test, info);
-        //    lrcc2_s.omega = test.omega;
-        //    output("CCS Iteration: Changes are not applied (just omega)!");
-
-
-        //    Pairs<CCPair> lrcc2_d;
-        //    bool found_lrcc2d = initialize_pairs(lrcc2_d, EXCITED_STATE, CT_LRCC2, cc2singles, lrcc2_s, excitation, info);
-
-        //    if (found_lrcc2d) iterate_lrcc2_singles(world, cc2singles, cc2pairs, lrcc2_s, lrcc2_d, info);
-        //    else iterate_ccs_singles(lrcc2_s, info);
-        //    const double omega_cis = lrcc2_s.omega;
-
-        //    for (size_t iter = 0; iter < parameters.iter_max(); iter++) {
-        //        output.section("Macroiteration " + std::to_string(int(iter)) + " of LRCC2");
-        //        bool dconv = iterate_lrcc2_pairs(world, cc2singles, lrcc2_s, lrcc2_d, info);
-        //        bool sconv = iterate_lrcc2_singles(world, cc2singles, cc2pairs, lrcc2_s, lrcc2_d, info);
-        //        update_reg_residues_ex(world, cc2singles, lrcc2_s, lrcc2_d, info);
-        //        if (dconv and sconv) break;
-        //    }
-        //    const double omega_cc2 = lrcc2_s.omega;
-        //    const std::string msg = "Excitation " + std::to_string(int(excitation));
-        //    results_ex.push_back(std::make_pair(msg, std::make_pair(omega_cis, omega_cc2)));
-        //    timings.push_back(std::make_pair(msg, time_ex.current_time(true)));
-
-        //}
-
-//        timings.push_back(std::make_pair("Whole LRCC2", time.current_time(true)));
-//        output.section("LRCC2 Finished");
-//        output("Ground State Results:");
-//        for (const auto& res:results) {
-//            if (world.rank() == 0)
-//                std::cout << std::fixed << std::setprecision(10)
-//                          << res.first << "=" << res.second << "\n";
-//        }
-//        output("Response Results:");
-//        for (const auto& res:results_ex) {
-//            if (world.rank() == 0)
-//                std::cout << std::fixed << std::setprecision(10)
-//                          << res.first << ": " << res.second.first << " (CIS)*, " << res.second.second << " (CC2)\n";
-//        }
-//        if (world.rank() == 0) std::cout << "*only if CIS vectors where given in the beginning (not for CC2 restart)\n";
-//        output("\nTimings");
-//        for (const auto& time:timings) {
-//            if (world.rank() == 0)
-//                std::cout << std::scientific << std::setprecision(2)
-//                          << std::setfill(' ') << std::setw(15) << time.first
-//                          << ": " << time.second.first << " (Wall), " << time.second.second << " (CPU)" << "\n";
-//        }
-
 
     } else MADNESS_EXCEPTION(("Unknown Calculation Type: " + assign_name(ctype)).c_str(), 1);
 
@@ -409,7 +354,7 @@ std::vector<CC_vecfunction> CC2::solve_ccs() const
                                                           1);
         result.push_back(excitations[x]);
     }
-    print_header3("Solution of the CCS equations");
+    if (world.rank()==0) print_header3("Solution of the CCS equations");
     tdhf->analyze(result);
     return result;
 }
@@ -883,64 +828,91 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) cons
 std::tuple<Pairs<CCPair>, CC_vecfunction, double>
 CC2::solve_lrcc2(Pairs<CCPair>& gs_doubles, const CC_vecfunction& gs_singles, const CC_vecfunction& cis,
     const std::size_t excitation, Info& info) const {
+
     CCTimer time(world, "Whole LRCC2 Calculation");
 
-    std::vector<std::pair<std::string, double>> results;
-    std::vector<std::pair<std::string, std::pair<double, double>>> timings;
-    std::vector<std::pair<std::string, std::pair<double, double>>> results_ex;
+    /// read LRCC2 singles from file or use the CIS vectors as guess
+    auto ex_singles=initialize_singles(CT_LRCC2,RESPONSE,false, excitation);
+    bool found_singles=(not (ex_singles.get_vecfunction().empty()));
+    if (not found_singles) {
+        if (world.rank()==0) print("using CIS vectors as guess for the LRCC2 singles");
+        ex_singles = copy(cis);
+        iterate_ccs_singles(ex_singles, info);
 
-    auto ex_singles = copy(cis);
+        std::string filename=singles_name(CT_LRCCS,ex_singles.type,excitation);
+        if (world.rank()==0) print("saving singles to disk",filename);
+        ex_singles.save_restartdata(world,filename);
+    }
 
     Pairs<CCPair> ex_doubles;
     bool found_lrcc2d = initialize_pairs(ex_doubles, EXCITED_STATE, CT_LRCC2, gs_singles, ex_singles, excitation, info);
 
-    if (found_lrcc2d) iterate_lrcc2_singles(world, gs_singles, gs_doubles, ex_singles, ex_doubles, info);
-    else iterate_ccs_singles(ex_singles, info);
-    const double omega_cis = ex_singles.omega;
+    if ((not found_singles) and found_lrcc2d) {
+        iterate_lrcc2_singles(world, gs_singles, gs_doubles, ex_singles, ex_doubles, info);
 
-    for (size_t iter = 0; iter < parameters.iter_max(); iter++) {
-        if (world.rank()==0) print_header2("Macroiteration " + std::to_string(int(iter)) + " of LRCC2 for excitation energy "+std::to_string(ex_singles.omega));
-        // update_reg_residues_ex(world, gs_singles, ex_singles, ex_doubles, info);
-        bool dconv = iterate_lrcc2_pairs(world, gs_singles, ex_singles, ex_doubles, info);
-        bool sconv = iterate_lrcc2_singles(world, gs_singles, gs_doubles, ex_singles, ex_doubles, info);
-        // update_reg_residues_ex(world, gs_singles, ex_singles, ex_doubles, info);
-        if (sconv and dconv) break;
+        std::string filename=singles_name(CT_LRCC2,ex_singles.type,excitation);
+        if (world.rank()==0) print("saving singles to disk",filename);
+        ex_singles.save_restartdata(world,filename);
     }
 
+    if (not info.parameters.no_compute_lrcc2()) {
+        for (size_t iter = 0; iter < parameters.iter_max(); iter++) {
+            if (world.rank()==0) print_header2("Macroiteration " + std::to_string(int(iter)) + " of LRCC2 for excitation energy "+std::to_string(ex_singles.omega));
+            // update_reg_residues_ex(world, gs_singles, ex_singles, ex_doubles, info);
+            bool dconv = iterate_lrcc2_pairs(world, gs_singles, ex_singles, ex_doubles, info);
+            bool sconv = iterate_lrcc2_singles(world, gs_singles, gs_doubles, ex_singles, ex_doubles, info);
+
+            // update_reg_residues_ex(world, gs_singles, ex_singles, ex_doubles, info);
+
+            std::string filename=singles_name(CT_LRCC2,ex_singles.type,excitation);
+            if (world.rank()==0) print("saving singles to disk",filename);
+            ex_singles.save_restartdata(world,filename);
+
+            if (sconv and dconv) break;
+        }
+    }
+
+    // std::tuple<Pairs<CCPair>, CC_vecfunction, double>
+
+    auto result=std::make_tuple(ex_doubles, ex_singles, ex_singles.omega);
+
     const double omega_cc2 = ex_singles.omega;
+
+    std::vector<std::pair<std::string, std::pair<double, double>>> timings;
+    std::vector<std::pair<std::string, std::pair<double, double>>> results_ex;
+
     const std::string msg = "Excitation " + std::to_string(int(excitation));
-    results_ex.push_back(std::make_pair(msg, std::make_pair(omega_cis, omega_cc2)));
-    // timings.push_back(std::make_pair(msg, time_ex.current_time(true)));
+    results_ex.push_back(std::make_pair(msg, std::make_pair(cis.omega, omega_cc2)));
 
 
     timings.push_back(std::make_pair("Whole LRCC2", time.current_time(true)));
     output.section("LRCC2 Finished");
-    output("Ground State Results:");
-    for (const auto& res : results)
-    {
-        if (world.rank() == 0)
-            std::cout << std::fixed << std::setprecision(10)
-                << res.first << "=" << res.second << "\n";
-    }
+
     output("Response Results:");
-    for (const auto& res : results_ex)
-    {
-        if (world.rank() == 0)
-            std::cout << std::fixed << std::setprecision(10)
-                << res.first << ": " << res.second.first << " (CIS)*, " << res.second.second << " (CC2)\n";
+    for (const auto& res : results_ex) {
+        output << std::scientific << std::setprecision(10) << std::setw(20);
+
+        output << assign_name(CT_LRCCS)+" excitation energy for root "
+            << std::fixed << std::setprecision(1) << excitation << ": "
+            << std::fixed << std::setprecision(10) << res.second.first << " Eh         "
+            << res.second.first * constants::hartree_electron_volt_relationship << " eV   "
+            << "\n";
+        output << assign_name(CT_LRCC2)+" excitation energy for root "
+            << std::fixed << std::setprecision(1) << excitation << ": "
+            << std::fixed << std::setprecision(10) << res.second.second << " Eh         "
+            << res.second.second * constants::hartree_electron_volt_relationship << " eV   "
+            << "\n";
+        output << std::scientific;
     }
-    if (world.rank() == 0) std::cout << "*only if CIS vectors where given in the beginning (not for CC2 restart)\n";
     output("\nTimings");
-    for (const auto& time : timings)
-    {
+    for (const auto& time : timings) {
         if (world.rank() == 0)
             std::cout << std::scientific << std::setprecision(2)
                 << std::setfill(' ') << std::setw(15) << time.first
                 << ": " << time.second.first << " (Wall), " << time.second.second << " (CPU)" << "\n";
     }
 
-    return std::make_tuple(ex_doubles, ex_singles, omega_cc2);
-
+    return result;
 };
 
 bool CC2::iterate_pair(CCPair& pair, const CC_vecfunction& singles) const {
@@ -1051,9 +1023,10 @@ bool CC2::iterate_pair(CCPair& pair, const CC_vecfunction& singles) const {
 
 
 CC_vecfunction
-CC2::initialize_singles(const FuncType type, const int ex) const {
+CC2::initialize_singles(const CalcType& ctype, const FuncType type, const bool default_to_zero, const int ex) const {
 
-    std::string fname=madness::name(type,ex);
+    MADNESS_CHECK_THROW((type==PARTICLE) or (ex>=0), "Invalid type/excitation combination in initialize_singles");
+    std::string fname=singles_name(ctype,type,ex);
     if (world.rank()==0) print("initializing singles",fname);
     CC_vecfunction singles(type);
     try {
@@ -1064,11 +1037,13 @@ CC2::initialize_singles(const FuncType type, const int ex) const {
         if (world.rank()==0) print(" .. singles not found on file");
     }
 
-    if (world.rank()==0) print(" .. initializing singles to zero functions");
-    for (size_t i = parameters.freeze(); i < CCOPS.mo_ket().size(); i++) {
-        real_function_3d tmpi = real_factory_3d(world);
-        CCFunction<double,3> single_i(tmpi, i, type);
-        singles.insert(i,single_i);
+    if (default_to_zero) {
+        if (world.rank()==0) print(" .. initializing singles to zero functions");
+        for (size_t i = parameters.freeze(); i < CCOPS.mo_ket().size(); i++) {
+            real_function_3d tmpi = real_factory_3d(world);
+            CCFunction<double,3> single_i(tmpi, i, type);
+            singles.insert(i,single_i);
+        }
     }
     return singles;
 }

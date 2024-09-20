@@ -1485,7 +1485,7 @@ public:
         std::size_t n = std::get<0>(argtuple).size();
         std::vector<real_function_3d> result = zero_functions_compressed<double, 3>(world, n);
         std::vector<real_function_3d> intermediate = zero_functions_compressed<double, 3>(world, n);
-        const_cast<std::string&>(name) =basename+" "+assign_name(PotentialType(std::get<5>(argtuple)));
+        const_cast<std::string&>(name) =basename+"_"+assign_name(PotentialType(std::get<5>(argtuple)));
         return std::make_tuple(result,intermediate);
     }
 
@@ -1521,7 +1521,7 @@ public:
         std::size_t n = std::get<0>(argtuple).size();
         std::vector<real_function_3d> result = zero_functions_compressed<double, 3>(world, n);
         std::vector<real_function_3d> intermediate = zero_functions_compressed<double, 3>(world, n);
-        const_cast<std::string&>(name) =basename+" "+assign_name(PotentialType(std::get<3>(argtuple)));
+        const_cast<std::string&>(name) =basename+"_"+assign_name(PotentialType(std::get<3>(argtuple)));
         return std::make_tuple(result,intermediate);
     }
 
