@@ -23,12 +23,11 @@ void FrequencyResponse::iterate(World& world) {
   real_function_3d v_xc;
 
   const double dconv =
-      std::max(FunctionDefaults<3>::get_thresh() * 10, r_params.dconv());
+      std::max(FunctionDefaults<3>::get_thresh(), r_params.dconv());
   auto thresh = FunctionDefaults<3>::get_thresh();
-  auto density_target = dconv * std::max(size_t(5.0), molecule.natom());
-  const double a_pow{0.70254};
-  const double b_pow{.73735};
-  const double x_residual_target = pow(thresh, a_pow) * pow(10, b_pow);
+  auto density_target =
+      dconv * static_cast<double>(std::max(size_t(5.0), molecule.natom()));
+  const double x_residual_target = density_target * 5.0;
   Tensor<double> x_residual((int(m)));
   Tensor<double> density_residuals((int(m)));
 
@@ -36,7 +35,7 @@ void FrequencyResponse::iterate(World& world) {
   bool compute_y = not static_res;
   int r_vector_size;
   all_done = false;
-  r_vector_size = (compute_y) ? 2 * n : n;
+  r_vector_size = (compute_y) ? static_cast<int>(2 * n) : static_cast<int>(n);
 
   vecfuncT rho_omega_old(m);
   // initialize DFT XC functional operator
@@ -51,7 +50,7 @@ void FrequencyResponse::iterate(World& world) {
   }
   if (r_params.kain()) {
     for (auto& kain_space_b : kain_x_space) {
-      kain_space_b.set_maxsub(r_params.maxsub());
+      kain_space_b.set_maxsub(static_cast<int>(r_params.maxsub()));
     }
   }
   // We compute with positive frequencies
@@ -135,7 +134,9 @@ void FrequencyResponse::iterate(World& world) {
       };
 
       for (const auto& b : Chi.active) {
-        converged[b] = check_convergence(x_residual[b], density_residuals[b]);
+        converged[b] =
+            check_convergence(x_residual[static_cast<int>(b)],
+                              density_residuals[static_cast<int>(b)]);
       }
       int b = 0;
       auto remove_converged = [&]() {
@@ -180,7 +181,7 @@ void FrequencyResponse::iterate(World& world) {
       auto drho_b = rho_omega[b] - old_rho[b];
       auto drho_b_norm = drho_b.norm2();
       world.gop.fence();
-      density_residuals[b] = drho_b_norm;
+      density_residuals[static_cast<int>(b)] = drho_b_norm;
     }
     world.gop.fence();
 
@@ -413,8 +414,8 @@ auto nuclear_generator(World& world, ResponseBase& calc) -> X_space {
 
   for (long atom = 0; atom < molecule.natom(); ++atom) {
     for (long axis = 0; axis < 3; ++axis) {
-      functorT func(
-          new madchem::MolecularDerivativeFunctor(molecule, atom, axis));
+      functorT func(new madchem::MolecularDerivativeFunctor(
+          molecule, static_cast<int>(atom), static_cast<int>(axis)));
       nuclear_vector.at(atom * 3 + axis) = functionT(factoryT(world)
                                                          .functor(func)
                                                          .nofence()
@@ -534,7 +535,7 @@ QuadraticResponse::compute_beta_tensor(World& world, const X_space& BC_left,
   auto dipole_vectors = create_dipole();  // x y z
   truncate(world, dipole_vectors, true);
 
-  int num_elements = XA.num_states() * BC_left.num_states();
+  int num_elements = static_cast<int>(XA.num_states() * BC_left.num_states());
   std::vector<std::string> beta_indices(num_elements);
   Tensor<double> beta(num_elements);
 
@@ -1246,14 +1247,17 @@ void PODResponse::compute_pod_modes(World& world) {
   // eigen values and eigen vectors
 
   // literally the same thing as the svd...
-  Tensor<double> e(num_states, 1);
-  Tensor<double> u(num_states, num_states);
+  Tensor<double> e(static_cast<long>(num_states), 1);
+  Tensor<double> u(static_cast<long>(num_states),
+                   static_cast<long>(num_states));
   syev(A, u, e);
   // A = U * diag(s) * VT    for A real
   // A = U * diag(s) * VH    for A complex
-  Tensor<double> VT(num_states, num_states);
-  Tensor<double> U(num_states, num_states);
-  Tensor<double> sigma(num_states);
+  Tensor<double> VT(static_cast<long>(num_states),
+                    static_cast<long>(num_states));
+  Tensor<double> U(static_cast<long>(num_states),
+                   static_cast<long>(num_states));
+  Tensor<double> sigma(static_cast<long>(num_states));
   svd(A, U, sigma, VT);
   // create a json printing out the singular values
   json j = {};
@@ -1319,8 +1323,8 @@ void PODResponse::compute_pod_modes_2(World& world) {
   vector_real_function_3d all_response_functions(total_orbitals);
   // unpack all_x into a single vector
   auto index = 0;
-  for (auto all_x_i : all_x) {
-    for (auto all_x_ij : all_x_i) {
+  for (const auto& all_x_i : all_x) {
+    for (const auto& all_x_ij : all_x_i) {
       all_response_functions[index++] = madness::copy(all_x_ij, false);
     }
   }
@@ -1335,25 +1339,29 @@ void PODResponse::compute_pod_modes_2(World& world) {
   // eigen values and eigen vectors
 
   // literally the same thing as the svd...
-  Tensor<double> e(num_states, 1);
-  Tensor<double> u(num_states, num_states);
+  Tensor<double> e(static_cast<long>(num_states), 1);
+  Tensor<double> u(static_cast<long>(num_states),
+                   static_cast<long>(num_states));
   syev(A, u, e);
 
-  Tensor<double> UU(total_orbitals, total_orbitals);
-  Tensor<double> EE(total_orbitals, 1);
+  Tensor<double> UU(static_cast<long>(total_orbitals),
+                    static_cast<long>(total_orbitals));
+  Tensor<double> EE(static_cast<long>(total_orbitals), 1);
 
   for (auto i = 0; i < total_orbitals; i++) {
     auto index_i = total_orbitals - i - 1;
     for (auto j = 0; j < total_orbitals; j++) {
-      UU(i, j) = u(index_i, j);
+      UU(i, j) = u(static_cast<long>(index_i), j);
     }
-    EE(i, 0) = e(index_i, 0);
+    EE(i, 0) = e(static_cast<long>(index_i), 0);
   }
   // A = U * diag(s) * VT    for A real
   // A = U * diag(s) * VH    for A complex
-  Tensor<double> VT(num_states, num_states);
-  Tensor<double> U(num_states, num_states);
-  Tensor<double> sigma(num_states);
+  Tensor<double> VT(static_cast<long>(num_states),
+                    static_cast<long>(num_states));
+  Tensor<double> U(static_cast<long>(num_states),
+                   static_cast<long>(num_states));
+  Tensor<double> sigma(static_cast<long>(num_states));
   svd(A, U, sigma, VT);
   // create a json printing out the singular values
   if (world.rank() == 0)
