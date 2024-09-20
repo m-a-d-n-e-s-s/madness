@@ -17,18 +17,18 @@ void FrequencyResponse::iterate(World& world) {
   size_t iter;
   // Variables needed to iterate
   madness::QProjector<double, 3> projector(world, ground_orbitals);
-  size_t n = r_params.num_orbitals();  // Number of ground state orbitals
-  size_t m = r_params.num_states();    // Number of excited states
+  size_t n = r_params.num_orbitals();  // num orbitals
+  size_t m = r_params.num_states();    // num response states
 
   real_function_3d v_xc;
-  const double dconv = std::max(FunctionDefaults<3>::get_thresh() * 10,
-                                r_params.dconv());  //.01 .0001 .1e-5
+
+  const double dconv =
+      std::max(FunctionDefaults<3>::get_thresh() * 10, r_params.dconv());
   auto thresh = FunctionDefaults<3>::get_thresh();
   auto density_target = dconv * std::max(size_t(5.0), molecule.natom());
   const double a_pow{0.70254};
   const double b_pow{.73735};
-  const double x_residual_target =
-      pow(thresh, a_pow) * pow(10, b_pow);  // thresh^a*10^b
+  const double x_residual_target = pow(thresh, a_pow) * pow(10, b_pow);
   Tensor<double> x_residual((int(m)));
   Tensor<double> density_residuals((int(m)));
 
