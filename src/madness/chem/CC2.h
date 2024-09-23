@@ -451,20 +451,6 @@ public:
     iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s, const CC_vecfunction lrcc2_s,
                         Pairs<CCPair>& lrcc2_d, const Info& info);
 
-    bool update_constant_part_cc2_gs(const CC_vecfunction& tau, CCPair& pair) {
-        MADNESS_ASSERT(pair.ctype == CT_CC2);
-        MADNESS_ASSERT(pair.type == GROUND_STATE);
-        // make screening Operator
-        real_convolution_6d Gscreen = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo(),
-                                                     parameters.thresh_bsh_6D());
-        Gscreen.modified() = true;
-
-        if (parameters.QtAnsatz())pair.constant_part = CCOPS.make_constant_part_cc2_Qt_gs(pair, tau, &Gscreen);
-        else pair.constant_part = CCOPS.make_constant_part_cc2_gs(pair, tau, &Gscreen);
-        save(pair.constant_part, pair.name() + "_const");
-        return true;
-    }
-
     bool update_constant_part_cispd(const CC_vecfunction& ccs, CCPair& pair) {
         MADNESS_ASSERT(pair.ctype == CT_CISPD);
         MADNESS_ASSERT(pair.type == EXCITED_STATE);
@@ -497,22 +483,6 @@ public:
         save(pair.constant_part, pair.name() + "_const");
         return true;
 
-    }
-
-    bool update_constant_part_lrcc2(CCPair& pair, const CC_vecfunction& tau, const CC_vecfunction& x) {
-        MADNESS_ASSERT(pair.ctype == CT_LRCC2);
-        MADNESS_ASSERT(tau.type == PARTICLE);
-        MADNESS_ASSERT(x.type == RESPONSE);
-
-        // make screening Operator
-        real_convolution_6d Gscreen = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo(),
-                                                     parameters.thresh_bsh_6D());
-        Gscreen.modified() = true;
-
-        if (parameters.QtAnsatz())pair.constant_part = CCOPS.make_constant_part_cc2_Qt_ex(pair, tau, x, &Gscreen);
-        else pair.constant_part = CCOPS.make_constant_part_cc2_ex(pair, tau, x, &Gscreen);
-        save(pair.constant_part, pair.name() + "_const");
-        return true;
     }
 
     /// forward to the other function (converting CCPair to real_function)

@@ -356,32 +356,6 @@ public:
                                          const real_function_6d& coupling, const Info& info, const long maxiter);
 
 
-    /// Function evaluates the consant part of the ground state for CC2
-    /// @param[out]The result is \f$ Q12(G(Q12((Vreg+V_{coupling})|titj>))) \f$ with \f$ |t_k> = |tau_k> + |k> \f$
-    /// @param[in] u, The Pair function
-    /// @param[in] tau, The CC2 singles of the coupling potential -> should be PARTICLE state
-    /// @param[in] Gscreen pointer to bsh operator (in order to screen), has to be in modified NS form
-    /// for the coulomb coupling potential we use:
-    /// \f$ V_{CC} = -QOtau -OtauQ + OtauOtau
-    ///            = - Otau(Qt(1/2)) - Qt(1/2)(Otau) \f$
-    /// where t(1/2) = |i> + 1/2|tau_i> , t(1/2) = th
-    real_function_6d
-    make_constant_part_cc2_gs(const CCPair& u, const CC_vecfunction& tau,
-                              const real_convolution_6d* Gscreen = NULL) const;
-
-    /// Function evaluates the consant part of the ground state for CC2 if the Qt Ansatz is used
-    /// @param[out]The result is \f$ Q12(G(Qt12((Vreg+V_{coupling})|titj> + [F,Qt]f12|titj>))) \f$ with \f$ |t_k> = |tau_k> + |k>  and Qt = Q - \sum_k |tau_k><k| \f$
-    /// @param[in] u, The Pair function
-    /// @param[in] tau, The CC2 singles of the coupling potential -> should be PARTICLE state
-    /// @param[in] Gscreen pointer to bsh operator (in order to screen), has to be in modified NS form
-    /// for the coulomb coupling potential we use:
-    /// \f$ V_{CC} = -QOtau -OtauQ + OtauOtau
-    ///            = - Otau(Qt(1/2)) - Qt(1/2)(Otau) \f$
-    /// where t(1/2) = |i> + 1/2|tau_i> , t(1/2) = th
-    real_function_6d
-    make_constant_part_cc2_Qt_gs(const CCPair& u, const CC_vecfunction& tau,
-                                 const real_convolution_6d* Gscreen = NULL) const;
-
     /// Function evaluates the consant part of the Excited state for CIS(D) if the Q Ansatz is used
     real_function_6d
     make_constant_part_cispd(const CCPair& u, const CC_vecfunction& x,
@@ -391,16 +365,6 @@ public:
     real_function_6d
     make_constant_part_cispd_Qt(const CCPair& u, const CC_vecfunction& x,
                                 const real_convolution_6d* Gscreen = NULL) const;
-
-    /// Function evaluates the consant part of the Excited state for CC2 if the Q Ansatz is used
-    real_function_6d
-    make_constant_part_cc2_ex(const CCPair& u, const CC_vecfunction& tau, const CC_vecfunction& x,
-                              const real_convolution_6d* Gscreen = NULL);
-
-    /// Function evaluates the consant part of the Excited state for CC2 if the Qt Ansatz is used
-    real_function_6d
-    make_constant_part_cc2_Qt_ex(const CCPair& u, const CC_vecfunction& tau, const CC_vecfunction& x,
-                                 const real_convolution_6d* Gscreen = NULL);
 
     /// Apply the Regularization potential
     /// \f$ V_{reg} = [ U_e - [K,f12] + f12(F12-eij) ]|titj> \f$

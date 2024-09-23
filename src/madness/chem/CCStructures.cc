@@ -543,13 +543,6 @@ MacroTaskConstantPart::operator() (const std::vector<CCPair>& pair,
 
 
 std::vector<real_function_6d>
-//MacroTaskMp2UpdatePair::operator() (const std::vector<CCPair> &pair,
-//                                    const std::vector<real_function_6d> &mp2_coupling,
-//                                    const CCParameters &parameters,
-//                                    const std::vector<madness::Vector<double, 3>> &all_coords_vec,
-//                                    const std::vector<real_function_3d> &mo_ket,
-//                                    const std::vector<real_function_3d> &mo_bra,
-//                                    const std::vector<real_function_3d> &U1, const real_function_3d &U2) const {
 MacroTaskMp2UpdatePair::operator() (const std::vector<CCPair> &pair,
                                     const std::vector<real_function_6d> &mp2_coupling,
                                     const std::vector<madness::Vector<double, 3>> &all_coords_vec,

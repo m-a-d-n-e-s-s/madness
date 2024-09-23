@@ -334,17 +334,7 @@ Tensor<double> CC2::enforce_core_valence_separation(const Tensor<double>& fmat) 
 };
 
 // Solve the CCS equations for the ground state (debug potential and check HF convergence)
-std::vector<CC_vecfunction> CC2::solve_ccs() const
-{
-//    output.section("SOLVE CCS");
-//    std::vector<CC_vecfunction> excitations;
-//    for (size_t k = 0; k < parameters.excitations().size(); k++) {
-//        CC_vecfunction tmp;
-//        const bool found = initialize_singles(tmp, RESPONSE, parameters.excitations()[k]);
-//        if (found) excitations.push_back(tmp);
-//    }
-//    tdhf->prepare_calculation();
-//    excitations = tdhf->solve_cis(excitations);
+std::vector<CC_vecfunction> CC2::solve_ccs() const {
     std::vector<CC_vecfunction> excitations=tdhf->get_converged_roots();
 
     // return only those functions which are demanded
