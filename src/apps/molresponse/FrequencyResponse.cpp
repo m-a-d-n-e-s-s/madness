@@ -29,7 +29,7 @@ void FrequencyResponse::iterate(World& world) {
       dconv * static_cast<double>(std::max(size_t(5.0), molecule.natom()));
   const double x_residual_target = density_target * 5.0;
   Tensor<double> x_residual((int(m)));
-  Tensor<double> density_residuals((int(m)));
+  Tensor<double> delta_density((int(m)));
 
   bool static_res = (omega == 0.0);
   bool compute_y = not static_res;
@@ -97,7 +97,7 @@ void FrequencyResponse::iterate(World& world) {
       load_balance_chi(world);
     }
     if (iter > 0) {
-      if (density_residuals.max() > 20 && iter > 5) {
+      if (delta_density.max() > 20 && iter > 5) {
         if (world.rank() == 0) {
           print("d-residual > 20...break");
         }
@@ -110,8 +110,8 @@ void FrequencyResponse::iterate(World& world) {
       // Todo add chi norm and chi_x
       if (world.rank() == 0) {
         function_data_to_json(j_molresponse, iter, chi_norms, x_residual,
-                              rho_norms, density_residuals);
-        frequency_to_json(j_molresponse, iter, polar, polar);
+                              rho_norms, delta_density);
+        frequency_to_json(j_molresponse, iter, polar);
       }
       if (r_params.print_level() >= 1) {
         if (world.rank() == 0) {
@@ -136,7 +136,7 @@ void FrequencyResponse::iterate(World& world) {
       for (const auto& b : Chi.active) {
         converged[b] =
             check_convergence(x_residual[static_cast<int>(b)],
-                              density_residuals[static_cast<int>(b)]);
+                              delta_density[static_cast<int>(b)]);
       }
       int b = 0;
       auto remove_converged = [&]() {
@@ -181,11 +181,11 @@ void FrequencyResponse::iterate(World& world) {
       auto drho_b = rho_omega[b] - old_rho[b];
       auto drho_b_norm = drho_b.norm2();
       world.gop.fence();
-      density_residuals[static_cast<int>(b)] = drho_b_norm;
+      delta_density[static_cast<int>(b)] = drho_b_norm;
     }
     world.gop.fence();
 
-    auto old_density_residual = copy(density_residuals);
+    auto old_density_residual = copy(delta_density);
 
     Chi = new_chi.copy();
 
@@ -201,14 +201,6 @@ void FrequencyResponse::iterate(World& world) {
     auto dnorm = norm2s_T(world, rho_omega);
 
     polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
-    if (r_params.print_level() >= 20) {
-      if (world.rank() == 0) {
-        printf("\n--------Response Properties after %d-------------\n",
-               static_cast<int>(iter));
-        print("<<X,P>> at omega =", omega);
-        print(polar);
-      }
-    }
     if (r_params.print_level() >= 1) {
       molresponse::end_timer(world, "Iteration Timing", "iter_total",
                              iter_timing);
@@ -239,8 +231,8 @@ void FrequencyResponse::iterate(World& world) {
   if (world.rank() == 0) {
     print(" Final energy residuals X:");
     print(x_residual);
-    print(" Final density residuals:");
-    print(density_residuals);
+    print(" Final density change:");
+    print(delta_density);
   }
   // compute_and_print_polarizability(world, Chi, PQ, "Converged");
 }
@@ -357,12 +349,10 @@ auto FrequencyResponse::bsh_update_response(World& world, X_space& theta_X,
 }
 
 void FrequencyResponse::frequency_to_json(json& j_mol_in, size_t iter,
-                                          const Tensor<double>& polar_ij,
-                                          const Tensor<double>& res_polar_ij) {
+                                          const Tensor<double>& polar_ij) {
   json j = {};
   j["iter"] = iter;
   j["polar"] = tensor_to_json(polar_ij);
-  j["res_polar"] = tensor_to_json(res_polar_ij);
   auto index = j_mol_in["protocol_data"].size() - 1;
   j_mol_in["protocol_data"][index]["property_data"].push_back(j);
 }

@@ -706,7 +706,7 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
 
       std::filesystem::current_path(calc_path_i);
 
-      if(world.rank()==0){
+      if (world.rank() == 0) {
         print("current path: ", std::filesystem::current_path());
         print("calc path: ", calc_path_i);
         print("restart path: ", restart_path_i);
@@ -1072,6 +1072,7 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
           ifs >> persistent_output;
           ifs.close();
         }
+        json beta_json_2 = beta_data;
         persistent_output[name] = beta_json_2;
         std::ofstream ofs(path_manager.get_output_path());
         ofs << persistent_output.dump(4);

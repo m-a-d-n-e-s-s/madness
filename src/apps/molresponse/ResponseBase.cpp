@@ -1324,6 +1324,18 @@ auto ResponseBase::update_residual(World& world, const X_space& chi,
                                    const std::string& calc_type,
                                    const Tensor<double>& old_residuals,
                                    const X_space& xres_old) -> residuals {
+
+  auto vector_stats = [](const std::vector<double>& v, double& rms,
+                         double& maxabsval) {
+    PROFILE_MEMBER_FUNC(SCF);
+    rms = 0.0;
+    maxabsval = v[0];
+    for (unsigned int i = 0; i < v.size(); ++i) {
+      rms += v[i] * v[i];
+      maxabsval = std::max<double>(maxabsval, std::abs(v[i]));
+    }
+    rms = sqrt(rms / v.size());
+  };
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
   }
@@ -1338,12 +1350,20 @@ auto ResponseBase::update_residual(World& world, const X_space& chi,
     auto rx = to_response_matrix(res);
     auto gx = to_response_matrix(g_chi);
     for (const auto& b : chi.active) {
-      residual_norms(b) = norm2(world, rx[b]);
+
+      auto rnorm = norm2s(world, rx[b]);
+      double rms, maxval;
+      vector_stats(rnorm, rms, maxval);
+      residual_norms(static_cast<long>(b)) = rms;
     }  // / norm2(world, gx[b]); }
   } else {
     res.x = chi.x - g_chi.x;
     for (const auto& b : chi.active) {
-      residual_norms(b) = norm2(world, res.x[b]);
+
+      auto rnorm = norm2s(world, res.x[b]);
+      double rms, maxval;
+      vector_stats(rnorm, rms, maxval);
+      residual_norms(static_cast<long>(b)) = rms;
     }  // / norm2(world, g_chi.x[b]); }
   }
   if (r_params.print_level() >= 1) {
@@ -2400,18 +2420,6 @@ void response_data::to_json(json& j) {
 
   j["response_data"]["data"] = json();
 
-  auto merge_tensors = [](std::vector<Tensor<double>> f) {
-    long m = f.size();
-    long n = f[0].size();
-
-    Tensor<double> new_tensor(m, n);
-    long i = 0;
-    for (const auto& ti : f) {
-      std::copy(ti.ptr(), ti.ptr() + n, new_tensor.ptr() + (i * n));
-      i++;
-    }
-    return new_tensor;
-  };
 }
 
 void inner_to_json(World& world, const std::string& name,

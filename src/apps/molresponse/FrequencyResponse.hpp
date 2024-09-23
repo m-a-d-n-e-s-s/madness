@@ -280,7 +280,8 @@ class QuadraticResponse : public ResponseBase {
   X_space compute_second_order_perturbation_terms_v2(
       World& world, const X_space& B, const X_space& C,
       const X_space& zeta_bc_left, const X_space& zeta_bc_right,
-      const X_space& zeta_cb_left, const X_space& zeta_cb_right, const X_space& phi0);
+      const X_space& zeta_cb_left, const X_space& zeta_cb_right,
+      const X_space& phi0);
   std::tuple<X_space, X_space, X_space, X_space, X_space, X_space>
   compute_beta_exchange(World& world, const X_space& B, const X_space& C,
                         const X_space& zeta_bc_left,
@@ -570,8 +571,7 @@ class FrequencyResponse : public ResponseBase {
                               QProjector<double, 3>& projector,
                               double& x_shifts);
   static void frequency_to_json(json& j_mol_in, size_t iter,
-                                const Tensor<double>& polar_ij,
-                                const Tensor<double>& res_polar_ij);
+                                const Tensor<double>& polar_ij);
   void save(World& world, const std::string& name) override;
   std::tuple<X_space, residuals, vector_real_function_3d> update_response(
       World& world, X_space& chi, XCOperator<double, 3>& xc,
