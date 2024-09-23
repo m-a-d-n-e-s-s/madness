@@ -18,9 +18,9 @@ set_source_files_properties(
 add_mad_library(misc MADMISC_SOURCES MADMISC_HEADERS "world" "madness/misc/")
 
 if(BUILD_TESTING)
-  
   # The list of unit test source files
-  set(MISC_TEST_SOURCES interp3.cc test_gnuplot.cc)
+  # test_gnuplot.cc breaks the CI since gnuplot missing so disable 
+  set(MISC_TEST_SOURCES interp3.cc )
   
   add_unittests(misc "${MISC_TEST_SOURCES}" "MADmisc;MADgtest" "unittests;short")
 
