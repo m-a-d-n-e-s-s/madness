@@ -65,27 +65,28 @@ public:
     /// Function to load a function from disc
     /// @param[in] f the function which will be loaded
     /// @param[in] name of the file in which the function was stored
+    /// @param do_print
     /// @return true or false depending on if the data was found on disc
     template <typename T, size_t NDIM>
-    bool load_function(Function<T, NDIM>& f, const std::string name) const {
+    bool load_function(Function<T, NDIM>& f, const std::string name, bool do_print) const {
         bool exists = archive::ParallelInputArchive<
             archive::BinaryFstreamInputArchive>::exists(world, name.c_str());
         if (exists) {
-            if (world.rank() == 0) print("loading function", name);
+            if ((world.rank() == 0) and do_print) print("loading function", name);
             archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str());
             ar & f;
-            f.print_size(name);
+            if (do_print) f.print_size(name);
             if (f.is_compressed()) {
-                print("function is compressed -- reconstructing");
+                if (do_print) print("function is compressed -- reconstructing");
                 f.change_tree_state(reconstructed);
-            f.print_size(name+" reconstructed");
+                if (do_print) f.print_size(name+" reconstructed");
             }
             f.set_thresh(FunctionDefaults<NDIM>::get_thresh());
             f.truncate();
             f.print_size(name);
             return true;
         } else {
-            if (world.rank()==0) print("could not find function",name);
+            if ((world.rank()==0) and do_print) print("could not find function",name);
         }
         return false;
     }

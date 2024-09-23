@@ -1042,25 +1042,20 @@ public:
     }
 
     bool load_pair(World& world) {
-        std::string name = "pair_" + stringify(i) + stringify(j);
-        bool exists = archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>::exists(world, name.c_str());
+        std::string fname=this->name();
+        bool exists = archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>::exists(world, fname.c_str());
         if (exists) {
-            if (world.rank() == 0) printf("loading matrix elements %s\n", name.c_str());
-            archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
+            archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, fname.c_str(), 1);
             ar & *this;
-            //if (world.rank() == 0) printf(" %s\n", (converged) ? " converged" : " not converged");
             if (functions[0].get_function().is_initialized()) functions[0].get_function().set_thresh(FunctionDefaults<6>::get_thresh());
             if (constant_part.is_initialized()) constant_part.set_thresh(FunctionDefaults<6>::get_thresh());
-        } else {
-            if (world.rank() == 0) print("could not find pair ", i, j, " on disk");
         }
         return exists;
     }
 
     void store_pair(World& world) {
-        std::string name = "pair_" + stringify(i) + stringify(j);
-        if (world.rank() == 0) printf("storing matrix elements %s\n", name.c_str());
-        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str(), 1);
+        std::string fname =this->name();
+        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, fname.c_str(), 1);
         ar & *this;
     }
 

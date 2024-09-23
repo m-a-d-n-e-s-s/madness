@@ -2315,7 +2315,7 @@ CCPotentials::get_CC2_singles_potential_gs(World& world, const CC_vecfunction& s
     if (not imed_s2b.empty()) info.intermediate_potentials.insert(imed_s2b, singles, POT_s2b_);
     if (not imed_s2c.empty()) info.intermediate_potentials.insert(imed_s2c, singles, POT_s2c_);
 
-    time.info(true, norm2(world, potential));
+    time.info(info.parameters.debug(), norm2(world, potential));
     const vector_real_function_3d result  = potential+ fock_residue;
     return result;
 }
@@ -2329,14 +2329,15 @@ CCPotentials::get_CCS_potential_ex(World& world, const CC_vecfunction& x, const 
 
     // set up taskq
     MacroTaskSinglesPotentialEx task;
-    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),3));
+    int printlevel=(info.parameters.debug()) ? 3 : 0;
+    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),printlevel));
     MacroTask<MacroTaskSinglesPotentialEx> mtask(world,task,taskq);
     std::vector<int> result_index(x.size());
 
     // run tasks
     auto [fock_residue, dummy1]=mtask(result_index,empty_singles,empty_doubles,x,empty_doubles,int(POT_F3D_),info);
     auto [potential, dummy2]=mtask(result_index,empty_singles,empty_doubles,x,empty_doubles,int(POT_cis_),info);
-    taskq->print_taskq();
+    if (info.parameters.debug()) taskq->print_taskq();
     taskq->run_all();
 
     // const vector_real_function_3d fock_residue = potential_singles_ex(world, empty_singles, empty_doubles, x,
@@ -2367,7 +2368,8 @@ CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& g
     auto ex_doubles_vec=Pairs<CCPair>::pairs2vector(ex_doubles,triangular_map);
 
     // set up taskq
-    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),3));
+    int printlevel=(info.parameters.debug()) ? 3 : 0;
+    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),printlevel));
     MacroTaskSinglesPotentialGs taskgs;
     MacroTask<MacroTaskSinglesPotentialGs> mtaskgs(world,taskgs,taskq);
     MacroTaskSinglesPotentialEx taskex;
