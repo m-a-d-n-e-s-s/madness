@@ -1150,11 +1150,11 @@ X_space QuadraticResponse::compute_coulomb_term(World& world, const X_space& B,
   return J;
 }
 
-X_space QuadraticResponse::compute_exchange_term(World& world, const X_space& A,
-                                                 const X_space& B,
+X_space QuadraticResponse::compute_exchange_term(World& world, const X_space& B,
+                                                 const X_space& C,
                                                  const X_space& x_apply) const {
 
-  auto Koperator = [&](const vecfuncT& ket, const vecfuncT& bra) {
+  auto make_operator = [&](const vecfuncT& ket, const vecfuncT& bra) {
     const double lo = 1.e-10;
     auto& world = ket[0].world();
     Exchange<double, 3> k{world, lo};
@@ -1177,37 +1177,28 @@ X_space QuadraticResponse::compute_exchange_term(World& world, const X_space& A,
 
   // if the frequecy of A is 0 we run the static case
   // else we run the dynamic case
-  auto K = X_space::zero_functions(world, A.num_states(), A.num_orbitals());
+  auto K = X_space::zero_functions(world, B.num_states(), B.num_orbitals());
 
   vector_real_function_3d xb;
   vector_real_function_3d yb;
+  // compute_x
+  for (int k = 0; k < B.num_states(); k++) {
 
-  auto k1 = create_response_matrix(A.num_states(), A.num_orbitals());
-  auto k2 = create_response_matrix(A.num_states(), A.num_orbitals());
-  auto k1_conjugate = create_response_matrix(A.num_states(), A.num_orbitals());
-  auto k2_conjugate = create_response_matrix(A.num_states(), A.num_orbitals());
-
-  for (int k = 0; k < A.num_states(); k++) {
-
-    auto K1 = Koperator(A.x[k], B.x[k]);
-    auto K2 = Koperator(B.y[k], A.y[k]);
-    world.gop.fence();
-    k1[k] = K1(x_apply.x[k]);
-    k2[k] = K2(x_apply.x[k]);
-
-    world.gop.fence();
-
-    auto K1_conjugate = Koperator(A.y[k], B.y[k]);
-    auto K2_conjugate = Koperator(B.x[k], A.x[k]);
-    world.gop.fence();
-
-    k1_conjugate[k] = K1_conjugate(x_apply.y[k]);
-    k2_conjugate[k] = K2_conjugate(x_apply.y[k]);
-    world.gop.fence();
-    K.x[k] = gaxpy_oop(1.0, k1[k], 1.0, k2[k], false);
-    K.y[k] = gaxpy_oop(1.0, k1_conjugate[k], 1.0, k2_conjugate[k], false);
+    auto K1 = make_operator(B.x[k], C.x[k]);
+    auto k1 = K1(x_apply.x[k]);
+    auto K2 = make_operator(C.y[k], B.y[k]);
+    auto k2 = K2(x_apply.x[k]);
+    K.x[k] = gaxpy_oop(1.0, k1, 1.0, k2, true);
   }
-  world.gop.fence();
+  //compute_y
+  for (int k = 0; k < B.num_states(); k++) {
+
+    auto K1_conjugate = make_operator(B.y[k], C.y[k]);
+    auto k1_c = K1_conjugate(x_apply.y[k]);
+    auto K2_conjugate = make_operator(C.x[k], B.x[k]);
+    auto k2_c = K2_conjugate(x_apply.y[k]);
+    K.y[k] = gaxpy_oop(1.0, k1_c, 1.0, k2_c, true);
+  }
   K.truncate();
 
   return K;
