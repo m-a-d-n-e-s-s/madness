@@ -959,6 +959,9 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
         quad_parameters.set_user_defined_value<vector<double>>(
             "protocol", {final_protocol});
 
+        quad_parameters.set_user_defined_value("dconv",
+                                               molresponse_params.dconv());
+
         return quad_parameters;
       };
 
