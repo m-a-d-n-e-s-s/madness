@@ -1120,28 +1120,36 @@ X_space QuadraticResponse::compute_coulomb_term(World& world, const X_space& B,
   for (const auto& j : B.active) {
     x_phi = mul(world, B.x[j], C.x[j], true);
     if (world.rank() == 0) {
-      print("J: mul BCx");
+      print("J[", j, "]: mul BCx");
     }
     y_phi = mul(world, B.y[j], C.y[j], true);
     if (world.rank() == 0) {
-      print("J: mul BCy");
+      print("J[", j, "]: mul BCy");
     }
 
     rhoX[j] = sum(world, x_phi, true);
     if (world.rank() == 0) {
-      print("J: sum BCx");
+      print("J[", j, "]: sum BCx");
     }
     rhoX[j] += sum(world, y_phi, true);
-
     if (world.rank() == 0) {
-      print("J: sum BCy");
+      print("J[", j, "]: sum BCy");
     }
   }
   auto temp_J = apply(world, *shared_coulomb_operator, rhoX);
+  if (world.rank() == 0) {
+    print("J: apply");
+  }
 
   for (const auto& j : B.active) {
     J.x[j] = mul(world, temp_J[j], x_apply.x[j], true);
+    if (world.rank() == 0) {
+      print("J: mul_1");
+    }
     J.y[j] = mul(world, temp_J[j], x_apply.y[j], true);
+    if (world.rank() == 0) {
+      print("J: mul_2");
+    }
   }
 
   // truncate(world, rhoX);
@@ -1185,19 +1193,48 @@ X_space QuadraticResponse::compute_exchange_term(World& world, const X_space& B,
   for (int k = 0; k < B.num_states(); k++) {
 
     auto K1 = make_operator(B.x[k], C.x[k]);
+    if (world.rank() == 0) {
+      print("k1[", k, "]: make_operator");
+    }
     auto k1 = K1(x_apply.x[k]);
+    if (world.rank() == 0) {
+      print("k1[", k, "]: apply");
+    }
     auto K2 = make_operator(C.y[k], B.y[k]);
+    if (world.rank() == 0) {
+      print("k2[", k, "]: make_operator");
+    }
     auto k2 = K2(x_apply.x[k]);
+    if (world.rank() == 0) {
+      print("k2[", k, "]: apply");
+    }
     K.x[k] = gaxpy_oop(1.0, k1, 1.0, k2, true);
+    if (world.rank() == 0) {
+      print("k[", k, "]: gaxpy");
+    }
   }
   //compute_y
   for (int k = 0; k < B.num_states(); k++) {
-
     auto K1_conjugate = make_operator(B.y[k], C.y[k]);
+    if (world.rank() == 0) {
+      print("k1_c[", k, "]: make_operator");
+    }
     auto k1_c = K1_conjugate(x_apply.y[k]);
+    if (world.rank() == 0) {
+      print("k1_c[", k, "]: apply");
+    }
     auto K2_conjugate = make_operator(C.x[k], B.x[k]);
+    if (world.rank() == 0) {
+      print("k2_c[", k, "]: make_operator");
+    }
     auto k2_c = K2_conjugate(x_apply.y[k]);
+    if (world.rank() == 0) {
+      print("k2_c[", k, "]: apply");
+    }
     K.y[k] = gaxpy_oop(1.0, k1_c, 1.0, k2_c, true);
+    if (world.rank() == 0) {
+      print("k[", k, "]: gaxpy");
+    }
   }
   K.truncate();
 
