@@ -1325,16 +1325,20 @@ auto ResponseBase::update_residual(World& world, const X_space& chi,
                                    const Tensor<double>& old_residuals,
                                    const X_space& xres_old) -> residuals {
 
-  auto vector_stats = [](const std::vector<double>& v, double& rms,
-                         double& maxabsval) {
+  auto vector_stats = [&world](const std::vector<double>& v, double& rms,
+                               double& maxabsval) {
     PROFILE_MEMBER_FUNC(SCF);
     rms = 0.0;
     maxabsval = v[0];
-    for (unsigned int i = 0; i < v.size(); ++i) {
-      rms += v[i] * v[i];
-      maxabsval = std::max<double>(maxabsval, std::abs(v[i]));
+    for (const auto& vi : v) {
+      rms += vi * vi;
+      maxabsval = std::max<double>(maxabsval, std::abs(vi));
     }
-    rms = sqrt(rms / v.size());
+    rms = sqrt(rms / static_cast<double>(v.size()));
+    if (world.rank() == 0) {
+
+      print("vector_stats: rms: ", rms, " maxabsval: ", maxabsval);
+    }
   };
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
@@ -1347,6 +1351,7 @@ auto ResponseBase::update_residual(World& world, const X_space& chi,
   X_space res(world, m, n);
   if (compute_y) {
     res = chi - g_chi;
+    res.truncate();
     auto rx = to_response_matrix(res);
     auto gx = to_response_matrix(g_chi);
     for (const auto& b : chi.active) {
@@ -1354,16 +1359,17 @@ auto ResponseBase::update_residual(World& world, const X_space& chi,
       auto rnorm = norm2s(world, rx[b]);
       double rms, maxval;
       vector_stats(rnorm, rms, maxval);
-      residual_norms(static_cast<long>(b)) = rms;
+      residual_norms(static_cast<long>(b)) = maxval;
     }  // / norm2(world, gx[b]); }
   } else {
     res.x = chi.x - g_chi.x;
+    res.x.truncate_rf();
     for (const auto& b : chi.active) {
 
       auto rnorm = norm2s(world, res.x[b]);
       double rms, maxval;
       vector_stats(rnorm, rms, maxval);
-      residual_norms(static_cast<long>(b)) = rms;
+      residual_norms(static_cast<long>(b)) = maxval;
     }  // / norm2(world, g_chi.x[b]); }
   }
   if (r_params.print_level() >= 1) {
@@ -1380,8 +1386,8 @@ auto ResponseBase::kain_x_space_update(
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
   }
-  size_t m = chi.num_states();
-  size_t n = chi.num_orbitals();
+  long m = static_cast<long>(chi.num_states());
+  long n = static_cast<long>(chi.num_orbitals());
   X_space kain_update = chi.copy();
   response_matrix update(m);
 
@@ -2419,7 +2425,6 @@ void response_data::to_json(json& j) {
   j["response_data"]["bsh_target"] = bsh_target;
 
   j["response_data"]["data"] = json();
-
 }
 
 void inner_to_json(World& world, const std::string& name,
