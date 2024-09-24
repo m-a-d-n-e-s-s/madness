@@ -134,9 +134,8 @@ void FrequencyResponse::iterate(World& world) {
       };
 
       for (const auto& b : Chi.active) {
-        converged[b] =
-            check_convergence(x_residual[static_cast<int>(b)],
-                              delta_density[static_cast<int>(b)]);
+        converged[b] = check_convergence(x_residual[static_cast<int>(b)],
+                                         delta_density[static_cast<int>(b)]);
       }
       int b = 0;
       auto remove_converged = [&]() {
@@ -906,6 +905,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(
   g_zeta_cb = -1.0 * oop_apply(g_zeta_cb, apply_projector, false);
   f_bxc = -1.0 * oop_apply(f_bxc, apply_projector, false);
   f_cxb = -1.0 * oop_apply(f_cxb, apply_projector, false);
+
   g_zeta_bc.truncate();
   g_zeta_cb.truncate();
   f_bxc.truncate();
@@ -1029,6 +1029,7 @@ QuadraticResponse::compute_zeta_response_vectors(World& world, const X_space& B,
     zeta_cb_right.y[i] = copy(world, ground_orbitals, false);
     zeta_bc_right.y[i] = copy(world, ground_orbitals, false);
   }
+  world.gop.fence();
 
   // Here contains the y components
   // construct tilde_phi_dagger(bc) and tilde_phi_dagger(cb)
@@ -1111,28 +1112,39 @@ X_space QuadraticResponse::compute_coulomb_term(World& world, const X_space& B,
 
   X_space J = X_space::zero_functions(world, B.num_states(), B.num_orbitals());
   vector_real_function_3d rhoX(B.num_states());
-  vector_real_function_3d temp_J(B.num_states());
 
   vector_real_function_3d x_phi, y_phi;
 
   // create the density for each state in B
-  for (const auto& b : B.active) {
-    x_phi = mul(world, B.x[b], C.x[b], false);
-    y_phi = mul(world, B.y[b], C.y[b], false);
-    world.gop.fence();
-    rhoX[b] = sum(world, x_phi, true);
-    rhoX[b] += sum(world, y_phi, true);
-    world.gop.fence();
+  //B.x[j] and B.y[j] are vectors fo functions
+  for (const auto& j : B.active) {
+    x_phi = mul(world, B.x[j], C.x[j], true);
+    if (world.rank() == 0) {
+      print("J: mul BCx");
+    }
+    y_phi = mul(world, B.y[j], C.y[j], true);
+    if (world.rank() == 0) {
+      print("J: mul BCy");
+    }
+
+    rhoX[j] = sum(world, x_phi, true);
+    if (world.rank() == 0) {
+      print("J: sum BCx");
+    }
+    rhoX[j] += sum(world, y_phi, true);
+
+    if (world.rank() == 0) {
+      print("J: sum BCy");
+    }
+  }
+  auto temp_J = apply(world, *shared_coulomb_operator, rhoX);
+
+  for (const auto& j : B.active) {
+    J.x[j] = mul(world, temp_J[j], x_apply.x[j], true);
+    J.y[j] = mul(world, temp_J[j], x_apply.y[j], true);
   }
 
   // truncate(world, rhoX);
-
-  for (const auto& k : B.active) {
-    temp_J[k] = apply(*shared_coulomb_operator, rhoX[k]);
-    J.x[k] = mul(world, temp_J[k], x_apply.x[k], false);
-    J.y[k] = mul(world, temp_J[k], x_apply.y[k], false);
-  }
-  world.gop.fence();
   J.truncate();
 
   return J;
