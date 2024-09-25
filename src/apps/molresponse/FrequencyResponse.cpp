@@ -533,15 +533,33 @@ QuadraticResponse::compute_beta_tensor(World& world, const X_space& BC_left,
     for (int bc = 0; bc < BC_left.num_states(); bc++) {
 
       auto one =
-          dot(world, BC_left.x[bc], BC_right.x[bc] * dipole_vectors[a], false);
+          dot(world, BC_left.x[bc], BC_right.x[bc] * dipole_vectors[a], true);
+      if (world.rank() == 0) {
+        print("a: ", a, " bc: ", bc, " dot 1: ");
+      }
       auto two =
-          dot(world, BC_left.y[bc], BC_right.y[bc] * dipole_vectors[a], false);
+          dot(world, BC_left.y[bc], BC_right.y[bc] * dipole_vectors[a], true);
+      if (world.rank() == 0) {
+        print("a: ", a, " bc: ", bc, " dot 2");
+      }
       auto three =
-          dot(world, CB_left.x[bc], CB_right.x[bc] * dipole_vectors[a], false);
+          dot(world, CB_left.x[bc], CB_right.x[bc] * dipole_vectors[a], true);
+      if (world.rank() == 0) {
+        print("a: ", a, " bc: ", bc, " dot 3");
+      }
       auto four =
-          dot(world, CB_left.y[bc], CB_right.y[bc] * dipole_vectors[a], false);
-      auto five = dot(world, XA.x[a], VBC.x[bc], false);
-      auto six = dot(world, XA.y[a], VBC.y[bc], false);
+          dot(world, CB_left.y[bc], CB_right.y[bc] * dipole_vectors[a], true);
+      if (world.rank() == 0) {
+        print("a: ", a, " bc: ", bc, " dot 4");
+      }
+      auto five = dot(world, XA.x[a], VBC.x[bc], true);
+      if (world.rank() == 0) {
+        print("a: ", a, " bc: ", bc, " dot 5");
+      }
+      auto six = dot(world, XA.y[a], VBC.y[bc], true);
+      if (world.rank() == 0) {
+        print("a: ", a, " bc: ", bc, " dot 6");
+      }
 
       // Truncation here might be a bad idea, scheisse
       // one.truncate();
@@ -550,17 +568,29 @@ QuadraticResponse::compute_beta_tensor(World& world, const X_space& BC_left,
       // four.truncate();
       // five.truncate();
       // six.truncate();
+      //
+      auto one_trace = one.trace();
+      auto two_trace = two.trace();
+      auto three_trace = three.trace();
+      auto four_trace = four.trace();
+      auto five_trace = five.trace();
+      auto six_trace = six.trace();
+      if (world.rank() == 0) {
+        print("a: ", a, " bc: ", bc, " traces: ", one_trace, two_trace,
+              three_trace, four_trace, five_trace, six_trace);
+      }
 
-      world.gop.fence();
-      beta[i] = one.trace() + two.trace() + three.trace() + four.trace() +
-                five.trace() + six.trace();
+      beta[i] = one_trace + two_trace + three_trace + four_trace + five_trace +
+                six_trace;
+      if (world.rank() == 0) {
+        print("a: ", a, " bc: ", bc, " beta: ", beta[i]);
+      }
+
       beta_indices[i] = xyz[a] + bc_directions[bc];
       i++;
-      world.gop.fence();
     }
   }
   beta *= -2.0;
-  world.gop.fence();
 
   return {beta, beta_indices};
 }
