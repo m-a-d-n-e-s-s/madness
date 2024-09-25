@@ -901,10 +901,10 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(
     return projector(xi);
   };
 
-  g_zeta_bc = -1.0 * oop_apply(g_zeta_bc, apply_projector, false);
-  g_zeta_cb = -1.0 * oop_apply(g_zeta_cb, apply_projector, false);
-  f_bxc = -1.0 * oop_apply(f_bxc, apply_projector, false);
-  f_cxb = -1.0 * oop_apply(f_cxb, apply_projector, false);
+  g_zeta_bc = -1.0 * oop_apply(g_zeta_bc, apply_projector, true);
+  g_zeta_cb = -1.0 * oop_apply(g_zeta_cb, apply_projector, true);
+  f_bxc = -1.0 * oop_apply(f_bxc, apply_projector, true);
+  f_cxb = -1.0 * oop_apply(f_cxb, apply_projector, true);
 
   g_zeta_bc.truncate();
   g_zeta_cb.truncate();
