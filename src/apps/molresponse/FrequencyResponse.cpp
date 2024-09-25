@@ -3,6 +3,8 @@
 //
 
 #include "FrequencyResponse.hpp"
+#include "funcdefaults.h"
+#include "functypedefs.h"
 #include "timer.h"
 #include "x_space.h"
 
@@ -496,6 +498,54 @@ auto QuadraticResponse::setup_XBC(World& world, const double& omega_b,
   return {new_B, new_C};
 }
 
+vector_real_function_3d QuadraticResponse::compute_vbc(
+    World& world, const response_pair& B, const response_pair& C,
+    const response_pair& phiBC, const vector_real_function_3d& phi0,
+    const real_function_3d& vb) {
+
+  madness::QProjector<double, 3> Q(world, phi0);
+
+  auto compute_g = [&](const vector_real_function_3d& x,
+                       const vector_real_function_3d& y,
+                       const vector_real_function_3d& phi) {
+    const double lo = 1.e-10;
+    Exchange<double, 3> k{world, lo};
+    k.set_bra_and_ket(x, y);
+    std::string algorithm_ = r_params.hfexalg();
+
+    if (algorithm_ == "multiworld") {
+      k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
+    } else if (algorithm_ == "multiworld_row") {
+      k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient_row);
+    } else if (algorithm_ == "largemem") {
+      k.set_algorithm(Exchange<double, 3>::Algorithm::large_memory);
+    } else if (algorithm_ == "smallmem") {
+      k.set_algorithm(Exchange<double, 3>::Algorithm::small_memory);
+    }
+
+    auto rho = sum(world, mul(world, x, y, true), true);
+    auto tempJ = apply(*shared_coulomb_operator, rho);
+    auto J = mul(world, tempJ, phi, true);
+    auto K = k(phi);
+
+    return Q(2.0 * J - K);
+  };
+
+  // Normal terms be added to
+  auto gbx_cy = -1.0 * compute_g(B.x, C.y, phi0);
+  auto gbx_phi_c = -1.0 * compute_g(B.x, phi0, C.x);
+  auto gphi_by_c = -1.0 * compute_g(phi0, B.y, C.x);
+  auto gphi_phibc = -1.0 * compute_g(phiBC.x, phiBC.y, phi0);
+
+  // Terms that be added to VB
+  auto FB = compute_g(B.x, phi0, phi0) + compute_g(phi0, B.y, phi0) +
+            mul(world, vb, B.x, true);
+  auto matrix_fb = matrix_inner(world, phi0, FB);
+  FB = transform(world, C.x, matrix_fb, true);
+
+  return truncate(gbx_cy + gbx_phi_c + gphi_by_c + gphi_phibc + FB,
+                  FunctionDefaults<3>::get_thresh(), true);
+}
 //
 //
 // <C;A,B> = <V(BC);X(A)> + <zeta(bc)_x| v(a) | zeta_(bc)_y> + < zeta(cb)_x| v(a) | zeta_(cb)_y >
@@ -522,7 +572,7 @@ QuadraticResponse::compute_beta_tensor(World& world, const X_space& BC_left,
   };
 
   auto dipole_vectors = create_dipole();  // x y z
-  truncate(world, dipole_vectors, true);
+  truncate(dipole_vectors, FunctionDefaults<3>::get_thresh(), true);
 
   int num_elements = static_cast<int>(XA.num_states() * BC_left.num_states());
   std::vector<std::string> beta_indices(num_elements);
@@ -615,10 +665,19 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
     molresponse::end_timer(world, "Zeta(BC) and Zeta(CB)");
   }
 
+  auto VBC_2 = compute_second_order_perturbation_terms_v3(
+      world, XB, XC, zeta_bc_left.y, zeta_bc_right.y, ground_orbitals);
+
   // step 1: compute all exchange terms because they are the most expensive
   auto VBC = compute_second_order_perturbation_terms_v2(
       world, XB, XC, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right,
       phi0);
+
+  auto rVBC = VBC_2 - VBC;
+  auto rVBC_norm = rVBC.norm2s();
+  if (world.rank() == 0) {
+    print("rVBC_norm: ", rVBC_norm);
+  }
 
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
@@ -954,6 +1013,44 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(
   VBC.truncate();
   return VBC;
   // the next term we need to compute are the first order fock matrix terms
+}
+
+X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
+    World& world, const X_space& B, const X_space& C,
+    const response_space& phiBC, const response_space& phiCB,
+    const vector_real_function_3d& phi0) {
+
+  auto create_dipole = [&]() {
+    vector_real_function_3d dipole_vectors(3);
+    size_t i = 0;
+    // creates a vector of x y z dipole functions
+    for (auto& d : dipole_vectors) {
+      std::vector<int> f(3, 0);
+      f[i++] = 1;
+      d = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
+    }
+    return dipole_vectors;
+  };
+
+  auto dipole_vectors = create_dipole();  // x y z
+  truncate(dipole_vectors, FunctionDefaults<3>::get_thresh(), true);
+
+  X_space VBC(world, BC_index_pairs.size(), B.num_orbitals());
+  int i = 0;
+  for (const auto& [b, c] : this->BC_index_pairs) {
+
+    VBC.x[i] = compute_vbc(world, {B.x[b], B.y[b]}, {C.x[c], C.y[c]},
+                           {phi0, phiBC[i]}, phi0, dipole_vectors[b]);
+    VBC.x[i] += compute_vbc(world, {C.x[b], C.y[b]}, {B.x[c], B.y[c]},
+                            {phi0, phiBC[i]}, phi0, dipole_vectors[c]);
+    VBC.y[i] = compute_vbc(world, {B.y[b], B.x[b]}, {C.y[c], C.x[c]},
+                           {phiCB[i], phi0}, phi0, dipole_vectors[b]);
+
+    VBC.y[i] += compute_vbc(world, {C.y[b], C.x[b]}, {B.y[c], B.x[c]},
+                            {phiCB[i], phi0}, phi0, dipole_vectors[c]);
+    i++;
+  }
+  return VBC;
 }
 
 X_space QuadraticResponse::compute_second_order_perturbation_terms(

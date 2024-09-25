@@ -5,10 +5,18 @@
 #ifndef MADNESS_FREQUENCYRESPONSE_HPP
 #define MADNESS_FREQUENCYRESPONSE_HPP
 #include "ResponseBase.hpp"
+#include "functypedefs.h"
 
 using path = std::filesystem::path;
 
 class FrequencyResponse;
+
+struct response_pair;
+
+struct response_pair {
+  vector_real_function_3d x;
+  vector_real_function_3d y;
+};
 
 using RHS_Generator = std::function<X_space(World&, ResponseBase&)>;
 
@@ -236,6 +244,10 @@ class QuadraticResponse : public ResponseBase {
   std::vector<int> index_A;
   std::vector<int> index_B;
   std::vector<int> index_C;
+
+  std::vector<std::pair<int, int>> BC_index_pairs = {
+      {0, 0}, {0, 1}, {0, 2}, {1, 0}, {1, 1}, {1, 2}, {2, 0}, {2, 1}, {2, 2}};
+
   std::vector<std::string> bc_directions;
   std::vector<std::string> a_directions{"X", "Y", "Z"};
   bool indicies_set;
@@ -273,6 +285,12 @@ class QuadraticResponse : public ResponseBase {
                       const X_space& BC_right, const X_space& CB_left,
                       const X_space& CB_right, const X_space& XA,
                       const X_space& VBC);
+
+  vector_real_function_3d compute_vbc(World& world, const response_pair& B,
+                                      const response_pair& C,
+                                      const response_pair& phiBC,
+                                      const vector_real_function_3d& phi0,
+                                      const real_function_3d& vb);
   X_space compute_second_order_perturbation_terms(
       World& world, const X_space& B, const X_space& C,
       const X_space& zeta_bc_x, const X_space& zeta_bc_y,
@@ -282,6 +300,10 @@ class QuadraticResponse : public ResponseBase {
       const X_space& zeta_bc_left, const X_space& zeta_bc_right,
       const X_space& zeta_cb_left, const X_space& zeta_cb_right,
       const X_space& phi0);
+  X_space compute_second_order_perturbation_terms_v3(
+      World& world, const X_space& B, const X_space& C,
+      const response_space& phiBC, const response_space& phiCB,
+      const vector_real_function_3d& phi0);
   std::tuple<X_space, X_space, X_space, X_space, X_space, X_space>
   compute_beta_exchange(World& world, const X_space& B, const X_space& C,
                         const X_space& zeta_bc_left,
