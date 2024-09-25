@@ -255,8 +255,8 @@ class QuadraticResponse : public ResponseBase {
                           const X_space& right, const X_space& apply) const;
   X_space compute_coulomb_term(World& world, const X_space& B, const X_space& C,
                                const X_space& x_apply) const;
-  X_space compute_exchange_term(World& world, const X_space& A,
-                                const X_space& B, const X_space& x_apply) const;
+  X_space compute_exchange_term(World& world, const X_space& B,
+                                const X_space& C, const X_space& x_apply) const;
   std::tuple<X_space, X_space, X_space, X_space>
   compute_zeta_response_vectors(World& world, const X_space& B,
                                 const X_space& C);

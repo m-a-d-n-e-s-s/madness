@@ -1165,6 +1165,9 @@ X_space QuadraticResponse::compute_coulomb_term(World& world, const X_space& B,
     if (world.rank() == 0) {
       print("J[", j, "]: sum BCy");
     }
+    if (world.rank() == 0) {
+      print("-----------------------------------");
+    }
   }
   auto temp_J = apply(world, *shared_coulomb_operator, rhoX);
   if (world.rank() == 0) {
@@ -1174,16 +1177,22 @@ X_space QuadraticResponse::compute_coulomb_term(World& world, const X_space& B,
   for (const auto& j : B.active) {
     J.x[j] = mul(world, temp_J[j], x_apply.x[j], true);
     if (world.rank() == 0) {
-      print("J: mul_1");
+      print("J:[", j, "]: mul_1");
     }
     J.y[j] = mul(world, temp_J[j], x_apply.y[j], true);
     if (world.rank() == 0) {
-      print("J: mul_2");
+      print("J[", j, "]: mul_2");
+    }
+    if (world.rank() == 0) {
+      print("-----------------------------------");
     }
   }
 
   // truncate(world, rhoX);
   J.truncate();
+  if (world.rank() == 0) {
+    print("J: truncate done");
+  }
 
   return J;
 }
@@ -1242,6 +1251,10 @@ X_space QuadraticResponse::compute_exchange_term(World& world, const X_space& B,
     if (world.rank() == 0) {
       print("k[", k, "]: gaxpy");
     }
+
+    if (world.rank() == 0) {
+      print("-----------------------------------");
+    }
   }
   //compute_y
   for (int k = 0; k < B.num_states(); k++) {
@@ -1265,8 +1278,15 @@ X_space QuadraticResponse::compute_exchange_term(World& world, const X_space& B,
     if (world.rank() == 0) {
       print("k[", k, "]: gaxpy");
     }
+    if (world.rank() == 0) {
+      print("-----------------------------------");
+    }
   }
+
   K.truncate();
+  if (world.rank() == 0) {
+    print("K: truncate done");
+  }
 
   return K;
 }
