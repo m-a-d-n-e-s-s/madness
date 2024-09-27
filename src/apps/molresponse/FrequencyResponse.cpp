@@ -652,12 +652,13 @@ QuadraticResponse::compute_beta_tensor_v2(World& world, const X_space& B,
     int bc = 0;
     for (const auto& [b, c] : this->BC_index_pairs) {
 
-      auto one = dot(world, C.y[c], B.x[b] * dipole_vectors[a], true);
-      auto two = dot(world, B.y[b], C.x[c] * dipole_vectors[a], true);
-      auto three =
-          dot(world, phiBC[bc], ground_orbitals * dipole_vectors[a], true);
-      auto four =
-          dot(world, phiCB[bc], ground_orbitals * dipole_vectors[a], true);
+      auto one = dot(world, B.x[b], C.y[c] * dipole_vectors[a]);
+      auto two = dot(world, phiBC.x[bc], ground_orbitals * dipole_vectors[a]);
+      auto three = dot(world, C.x[c], B.y[b] * dipole_vectors[a]);
+      auto four = dot(world, phiCB.x[bc], ground_orbitals * dipole_vectors[a]);
+
+
+
       auto five = dot(world, XA.x[a], VBC.x[bc], true);
       auto six = dot(world, XA.y[a], VBC.y[bc], true);
 
