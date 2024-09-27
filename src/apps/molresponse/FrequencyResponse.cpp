@@ -527,7 +527,9 @@ vector_real_function_3d QuadraticResponse::compute_vbc(
     auto J = mul(world, tempJ, phi, true);
     auto K = k(phi);
 
-    return Q(2.0 * J - K);
+    auto result = Q(2.0 * J - K);
+    world.gop.fence();
+    return result;
   };
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
@@ -535,14 +537,18 @@ vector_real_function_3d QuadraticResponse::compute_vbc(
 
   auto gzeta = -1.0 * (compute_g(BxCy.x, BxCy.y, phi0) +
                        compute_g(phiBC.x, phiBC.y, phi0));
+  world.gop.fence();
 
   auto FBX = -1.0 * (compute_g(B.x, phi0, C.x) + compute_g(phi0, B.y, C.x) +
                      Q(mul(world, vb, C.x, true)));
+  world.gop.fence();
 
   // Terms that be added to VB
   auto FB = compute_g(B.x, phi0, phi0) + compute_g(phi0, B.y, phi0) +
             Q(mul(world, vb, phi0, true));
+  world.gop.fence();
   auto matrix_fb = matrix_inner(world, phi0, FB);
+  world.gop.fence();
   FB = transform(world, C.x, matrix_fb, true);
 
   return truncate(gzeta + FBX + FB, FunctionDefaults<3>::get_thresh(), true);
@@ -1098,6 +1104,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     const auto& vc = dipole_vectors[c];
 
     std::string bc = a_directions[b] + a_directions[c];
+    world.gop.fence();
 
     if (r_params.print_level() >= 1) {
       molresponse::start_timer(world);
