@@ -643,23 +643,27 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
 
   auto B = x_data[1].first;
   auto C = x_data[2].first;
-  auto VBC_2 = compute_second_order_perturbation_terms_v3(
-      world, B, C, zeta_bc_left.y, zeta_cb_left.y, ground_orbitals);
-
-  // step 1: compute all exchange terms because they are the most expensive
-  auto VBC = compute_second_order_perturbation_terms_v2(
-      world, XB, XC, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right,
-      phi0);
-
-  auto rVBC = VBC_2 - VBC;
-  auto rVBC_norm = rVBC.norm2s();
-  if (world.rank() == 0) {
-    print("rVBC_norm: ", rVBC_norm);
-  }
 
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
   }
+  auto VBC_2 = compute_second_order_perturbation_terms_v3(
+      world, B, C, zeta_bc_left.y, zeta_cb_left.y, ground_orbitals);
+  if (r_params.print_level() >= 1) {
+    molresponse::end_timer(world, "VBC");
+  }
+
+  // step 1: compute all exchange terms because they are the most expensive
+  /*auto VBC = compute_second_order_perturbation_terms_v2(*/
+  /*    world, XB, XC, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right,*/
+  /*    phi0);*/
+  /**/
+  /*auto rVBC = VBC_2 - VBC;*/
+  /*auto rVBC_norm = rVBC.norm2s();*/
+  /*if (world.rank() == 0) {*/
+  /*  print("rVBC_norm: ", rVBC_norm);*/
+  /*}*/
+
   return compute_beta_tensor(world, zeta_bc_left, zeta_bc_right, zeta_cb_left,
                              zeta_cb_right, XA, VBC_2);
 }
@@ -1015,9 +1019,6 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
 
   X_space VBC(world, BC_index_pairs.size(), B.num_orbitals());
   int i = 0;
-  if (r_params.print_level() >= 1) {
-    molresponse::start_timer(world);
-  }
   for (const auto& [b, c] : this->BC_index_pairs) {
     const auto& bx = B.x[b];
     const auto& by = B.y[b];
@@ -1070,9 +1071,6 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
       molresponse::end_timer(world, message.c_str());
     }
     i++;
-  }
-  if (r_params.print_level() >= 1) {
-    molresponse::end_timer(world, "VBC");
   }
   return VBC;
 }
