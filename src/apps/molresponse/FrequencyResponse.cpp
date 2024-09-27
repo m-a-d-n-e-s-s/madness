@@ -622,6 +622,72 @@ QuadraticResponse::compute_beta_tensor(World& world, const X_space& BC_left,
 }
 
 std::pair<Tensor<double>, std::vector<std::string>>
+QuadraticResponse::compute_beta_tensor_v2(World& world, const X_space& B,
+                                          const X_space& C,
+                                          const response_space& phiBC,
+                                          const response_space& phiCB,
+                                          const X_space& XA,
+                                          const X_space& VBC) {
+  auto create_dipole = [&]() {
+    vector_real_function_3d dipole_vectors(3);
+    size_t i = 0;
+    // creates a vector of x y z dipole functions
+    for (auto& d : dipole_vectors) {
+      std::vector<int> f(3, 0);
+      f[i++] = 1;
+      d = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
+    }
+    return dipole_vectors;
+  };
+
+  auto dipole_vectors = create_dipole();  // x y z
+  truncate(dipole_vectors, FunctionDefaults<3>::get_thresh(), true);
+
+  int num_elements = static_cast<int>(XA.num_states() * B.num_states());
+  std::vector<std::string> beta_indices(num_elements);
+  Tensor<double> beta(num_elements);
+
+  int i = 0;
+  for (int a = 0; a < XA.num_states(); a++) {
+    int bc = 0;
+    for (const auto& [b, c] : this->BC_index_pairs) {
+
+      auto one = dot(world, C.y[c], B.x[b] * dipole_vectors[a], true);
+      auto two = dot(world, B.y[b], C.x[c] * dipole_vectors[a], true);
+      auto three =
+          dot(world, phiBC[bc], ground_orbitals * dipole_vectors[a], true);
+      auto four =
+          dot(world, phiCB[bc], ground_orbitals * dipole_vectors[a], true);
+      auto five = dot(world, XA.x[a], VBC.x[bc], true);
+      auto six = dot(world, XA.y[a], VBC.y[bc], true);
+
+      // Truncation here might be a bad idea, scheisse
+      // one.truncate();
+      // two.truncate();
+      // three.truncate();
+      // four.truncate();
+      // five.truncate();
+      // six.truncate();
+      //
+      auto one_trace = one.trace();
+      auto two_trace = two.trace();
+      auto three_trace = three.trace();
+      auto four_trace = four.trace();
+      auto five_trace = five.trace();
+      auto six_trace = six.trace();
+
+      beta[i] = one_trace + two_trace + three_trace + four_trace + five_trace +
+                six_trace;
+
+      beta_indices[i] = xyz[a] + bc_directions[bc];
+      i++;
+    }
+  }
+
+  return {beta, beta_indices};
+}
+
+std::pair<Tensor<double>, std::vector<std::string>>
 QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
                                    const double& omega_c) {
   // step 0: construct all response vectors
@@ -664,8 +730,8 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
   /*  print("rVBC_norm: ", rVBC_norm);*/
   /*}*/
 
-  return compute_beta_tensor(world, zeta_bc_left, zeta_bc_right, zeta_cb_left,
-                             zeta_cb_right, XA, VBC_2);
+  return compute_beta_tensor_v2(world, B, C, zeta_bc_left.y, zeta_cb_left.y, XA,
+                                VBC_2);
 }
 
 Tensor<double> QuadraticResponse::compute_beta(World& world) {
