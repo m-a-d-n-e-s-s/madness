@@ -500,11 +500,10 @@ auto QuadraticResponse::setup_XBC(World& world, const double& omega_b,
 
 vector_real_function_3d QuadraticResponse::compute_vbc(
     World& world, const response_pair& B, const response_pair& C,
-    const response_pair& phiBC, const vector_real_function_3d& phi0,
-    const real_function_3d& vb) {
+    const response_pair& BxCy, const response_pair& phiBC,
+    const vector_real_function_3d& phi0, const real_function_3d& vb) {
 
   madness::QProjector<double, 3> Q(world, phi0);
-
   auto compute_g = [&](const vector_real_function_3d& x,
                        const vector_real_function_3d& y,
                        const vector_real_function_3d& phi) {
@@ -530,21 +529,23 @@ vector_real_function_3d QuadraticResponse::compute_vbc(
 
     return Q(2.0 * J - K);
   };
+  if (r_params.print_level() >= 1) {
+    molresponse::start_timer(world);
+  }
 
-  // Normal terms be added to
-  auto gbx_cy = -1.0 * compute_g(B.x, C.y, phi0);
-  auto gbx_phi_c = -1.0 * compute_g(B.x, phi0, C.x);
-  auto gphi_by_c = -1.0 * compute_g(phi0, B.y, C.x);
-  auto gphi_phibc = -1.0 * compute_g(phiBC.x, phiBC.y, phi0);
+  auto gzeta = -1.0 * (compute_g(BxCy.x, BxCy.y, phi0) +
+                       compute_g(phiBC.x, phiBC.y, phi0));
+
+  auto FBX = -1.0 * (compute_g(B.x, phi0, C.x) + compute_g(phi0, B.y, C.x) +
+                     Q(mul(world, vb, C.x, true)));
 
   // Terms that be added to VB
   auto FB = compute_g(B.x, phi0, phi0) + compute_g(phi0, B.y, phi0) +
-            mul(world, vb, B.x, true);
+            Q(mul(world, vb, phi0, true));
   auto matrix_fb = matrix_inner(world, phi0, FB);
   FB = transform(world, C.x, matrix_fb, true);
 
-  return truncate(gbx_cy + gbx_phi_c + gphi_by_c + gphi_phibc + FB,
-                  FunctionDefaults<3>::get_thresh(), true);
+  return truncate(gzeta + FBX + FB, FunctionDefaults<3>::get_thresh(), true);
 }
 //
 //
@@ -584,32 +585,14 @@ QuadraticResponse::compute_beta_tensor(World& world, const X_space& BC_left,
 
       auto one =
           dot(world, BC_left.x[bc], BC_right.x[bc] * dipole_vectors[a], true);
-      if (world.rank() == 0) {
-        print("a: ", a, " bc: ", bc, " dot 1: ");
-      }
       auto two =
           dot(world, BC_left.y[bc], BC_right.y[bc] * dipole_vectors[a], true);
-      if (world.rank() == 0) {
-        print("a: ", a, " bc: ", bc, " dot 2");
-      }
       auto three =
           dot(world, CB_left.x[bc], CB_right.x[bc] * dipole_vectors[a], true);
-      if (world.rank() == 0) {
-        print("a: ", a, " bc: ", bc, " dot 3");
-      }
       auto four =
           dot(world, CB_left.y[bc], CB_right.y[bc] * dipole_vectors[a], true);
-      if (world.rank() == 0) {
-        print("a: ", a, " bc: ", bc, " dot 4");
-      }
       auto five = dot(world, XA.x[a], VBC.x[bc], true);
-      if (world.rank() == 0) {
-        print("a: ", a, " bc: ", bc, " dot 5");
-      }
       auto six = dot(world, XA.y[a], VBC.y[bc], true);
-      if (world.rank() == 0) {
-        print("a: ", a, " bc: ", bc, " dot 6");
-      }
 
       // Truncation here might be a bad idea, scheisse
       // one.truncate();
@@ -625,16 +608,9 @@ QuadraticResponse::compute_beta_tensor(World& world, const X_space& BC_left,
       auto four_trace = four.trace();
       auto five_trace = five.trace();
       auto six_trace = six.trace();
-      if (world.rank() == 0) {
-        print("a: ", a, " bc: ", bc, " traces: ", one_trace, two_trace,
-              three_trace, four_trace, five_trace, six_trace);
-      }
 
       beta[i] = one_trace + two_trace + three_trace + four_trace + five_trace +
                 six_trace;
-      if (world.rank() == 0) {
-        print("a: ", a, " bc: ", bc, " beta: ", beta[i]);
-      }
 
       beta_indices[i] = xyz[a] + bc_directions[bc];
       i++;
@@ -665,8 +641,10 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
     molresponse::end_timer(world, "Zeta(BC) and Zeta(CB)");
   }
 
+  auto B = x_data[1].first;
+  auto C = x_data[2].first;
   auto VBC_2 = compute_second_order_perturbation_terms_v3(
-      world, XB, XC, zeta_bc_left.y, zeta_bc_right.y, ground_orbitals);
+      world, B, C, zeta_bc_left.y, zeta_cb_left.y, ground_orbitals);
 
   // step 1: compute all exchange terms because they are the most expensive
   auto VBC = compute_second_order_perturbation_terms_v2(
@@ -683,7 +661,7 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
     molresponse::start_timer(world);
   }
   return compute_beta_tensor(world, zeta_bc_left, zeta_bc_right, zeta_cb_left,
-                             zeta_cb_right, XA, VBC);
+                             zeta_cb_right, XA, VBC_2);
 }
 
 Tensor<double> QuadraticResponse::compute_beta(World& world) {
@@ -1037,18 +1015,64 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
 
   X_space VBC(world, BC_index_pairs.size(), B.num_orbitals());
   int i = 0;
+  if (r_params.print_level() >= 1) {
+    molresponse::start_timer(world);
+  }
   for (const auto& [b, c] : this->BC_index_pairs) {
+    const auto& bx = B.x[b];
+    const auto& by = B.y[b];
+    const auto& cx = C.x[c];
+    const auto& cy = C.y[c];
+    const auto& phibc = phiBC[i];
+    const auto& phicb = phiCB[i];
+    const auto& vb = dipole_vectors[b];
+    const auto& vc = dipole_vectors[c];
 
-    VBC.x[i] = compute_vbc(world, {B.x[b], B.y[b]}, {C.x[c], C.y[c]},
-                           {phi0, phiBC[i]}, phi0, dipole_vectors[b]);
-    VBC.x[i] += compute_vbc(world, {C.x[b], C.y[b]}, {B.x[c], B.y[c]},
-                            {phi0, phiBC[i]}, phi0, dipole_vectors[c]);
-    VBC.y[i] = compute_vbc(world, {B.y[b], B.x[b]}, {C.y[c], C.x[c]},
-                           {phiCB[i], phi0}, phi0, dipole_vectors[b]);
+    std::string bc = a_directions[b] + a_directions[c];
 
-    VBC.y[i] += compute_vbc(world, {C.y[b], C.x[b]}, {B.y[c], B.x[c]},
-                            {phiCB[i], phi0}, phi0, dipole_vectors[c]);
+    if (r_params.print_level() >= 1) {
+      molresponse::start_timer(world);
+    }
+    VBC.x[i] = compute_vbc(world, {bx, by}, {cx, cy}, {bx, cy}, {phi0, phibc},
+                           phi0, vb);
+    if (r_params.print_level() >= 1) {
+      std::string message = "VBC.x[" + std::to_string(i) + "] BC=" + bc;
+      molresponse::end_timer(world, message.c_str());
+    }
+    if (r_params.print_level() >= 1) {
+      molresponse::start_timer(world);
+    }
+
+    VBC.x[i] += compute_vbc(world, {cx, cy}, {bx, by}, {cx, by}, {phi0, phicb},
+                            phi0, vc);
+    if (r_params.print_level() >= 1) {
+      std::string message = "VBC.x[" + std::to_string(i) + "] BC=" + bc;
+      molresponse::end_timer(world, message.c_str());
+    }
+
+    // VBC is conjugate, threefore we just swap the x and y components
+    if (r_params.print_level() >= 1) {
+      molresponse::start_timer(world);
+    }
+    VBC.y[i] = compute_vbc(world, {by, bx}, {cy, cx}, {cy, bx}, {phibc, phi0},
+                           phi0, vb);
+    if (r_params.print_level() >= 1) {
+      std::string message = "VBC.y[" + std::to_string(i) + "] BC=" + bc;
+      molresponse::end_timer(world, message.c_str());
+    }
+    if (r_params.print_level() >= 1) {
+      molresponse::start_timer(world);
+    }
+    VBC.y[i] += compute_vbc(world, {cy, cx}, {by, bx}, {by, cx}, {phicb, phi0},
+                            phi0, vc);
+    if (r_params.print_level() >= 1) {
+      std::string message = "VBC.y[" + std::to_string(i) + "] BC=" + bc;
+      molresponse::end_timer(world, message.c_str());
+    }
     i++;
+  }
+  if (r_params.print_level() >= 1) {
+    molresponse::end_timer(world, "VBC");
   }
   return VBC;
 }
@@ -1206,11 +1230,11 @@ auto QuadraticResponse::dipole_perturbation(World& world, const X_space& left,
 
   for (int i = 0; i < num_states; i++) {
 
-    VB.x[i] = mul(world, dipole_vectors[index_B[i]], right.x[i], false);
-    VB.y[i] = mul(world, dipole_vectors[index_B[i]], right.y[i], false);
+    VB.x[i] = mul(world, dipole_vectors[index_B[i]], right.x[i], true);
+    VB.y[i] = mul(world, dipole_vectors[index_B[i]], right.y[i], true);
 
-    VC.x[i] = mul(world, dipole_vectors[index_C[i]], left.x[i], false);
-    VC.y[i] = mul(world, dipole_vectors[index_C[i]], left.y[i], false);
+    VC.x[i] = mul(world, dipole_vectors[index_C[i]], left.x[i], true);
+    VC.y[i] = mul(world, dipole_vectors[index_C[i]], left.y[i], true);
   }
   world.gop.fence();
 
@@ -1246,50 +1270,20 @@ X_space QuadraticResponse::compute_coulomb_term(World& world, const X_space& B,
   //B.x[j] and B.y[j] are vectors fo functions
   for (const auto& j : B.active) {
     x_phi = mul(world, B.x[j], C.x[j], true);
-    if (world.rank() == 0) {
-      print("J[", j, "]: mul BCx");
-    }
     y_phi = mul(world, B.y[j], C.y[j], true);
-    if (world.rank() == 0) {
-      print("J[", j, "]: mul BCy");
-    }
 
     rhoX[j] = sum(world, x_phi, true);
-    if (world.rank() == 0) {
-      print("J[", j, "]: sum BCx");
-    }
     rhoX[j] += sum(world, y_phi, true);
-    if (world.rank() == 0) {
-      print("J[", j, "]: sum BCy");
-    }
-    if (world.rank() == 0) {
-      print("-----------------------------------");
-    }
   }
   auto temp_J = apply(world, *shared_coulomb_operator, rhoX);
-  if (world.rank() == 0) {
-    print("J: apply");
-  }
 
   for (const auto& j : B.active) {
     J.x[j] = mul(world, temp_J[j], x_apply.x[j], true);
-    if (world.rank() == 0) {
-      print("J:[", j, "]: mul_1");
-    }
     J.y[j] = mul(world, temp_J[j], x_apply.y[j], true);
-    if (world.rank() == 0) {
-      print("J[", j, "]: mul_2");
-    }
-    if (world.rank() == 0) {
-      print("-----------------------------------");
-    }
   }
 
   // truncate(world, rhoX);
   J.truncate();
-  if (world.rank() == 0) {
-    print("J: truncate done");
-  }
 
   return J;
 }
@@ -1329,61 +1323,21 @@ X_space QuadraticResponse::compute_exchange_term(World& world, const X_space& B,
   for (int k = 0; k < B.num_states(); k++) {
 
     auto K1 = make_operator(B.x[k], C.x[k]);
-    if (world.rank() == 0) {
-      print("k1[", k, "]: make_operator");
-    }
     auto k1 = K1(x_apply.x[k]);
-    if (world.rank() == 0) {
-      print("k1[", k, "]: apply");
-    }
     auto K2 = make_operator(C.y[k], B.y[k]);
-    if (world.rank() == 0) {
-      print("k2[", k, "]: make_operator");
-    }
     auto k2 = K2(x_apply.x[k]);
-    if (world.rank() == 0) {
-      print("k2[", k, "]: apply");
-    }
     K.x[k] = gaxpy_oop(1.0, k1, 1.0, k2, true);
-    if (world.rank() == 0) {
-      print("k[", k, "]: gaxpy");
-    }
-
-    if (world.rank() == 0) {
-      print("-----------------------------------");
-    }
   }
   //compute_y
   for (int k = 0; k < B.num_states(); k++) {
     auto K1_conjugate = make_operator(B.y[k], C.y[k]);
-    if (world.rank() == 0) {
-      print("k1_c[", k, "]: make_operator");
-    }
     auto k1_c = K1_conjugate(x_apply.y[k]);
-    if (world.rank() == 0) {
-      print("k1_c[", k, "]: apply");
-    }
     auto K2_conjugate = make_operator(C.x[k], B.x[k]);
-    if (world.rank() == 0) {
-      print("k2_c[", k, "]: make_operator");
-    }
     auto k2_c = K2_conjugate(x_apply.y[k]);
-    if (world.rank() == 0) {
-      print("k2_c[", k, "]: apply");
-    }
     K.y[k] = gaxpy_oop(1.0, k1_c, 1.0, k2_c, true);
-    if (world.rank() == 0) {
-      print("k[", k, "]: gaxpy");
-    }
-    if (world.rank() == 0) {
-      print("-----------------------------------");
-    }
   }
 
   K.truncate();
-  if (world.rank() == 0) {
-    print("K: truncate done");
-  }
 
   return K;
 }

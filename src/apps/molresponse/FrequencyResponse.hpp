@@ -286,8 +286,10 @@ class QuadraticResponse : public ResponseBase {
                       const X_space& CB_right, const X_space& XA,
                       const X_space& VBC);
 
-  vector_real_function_3d compute_vbc(World& world, const response_pair& B,
+  vector_real_function_3d compute_vbc(World& world, 
+                                      const response_pair& B,
                                       const response_pair& C,
+                                      const response_pair& BxCy,
                                       const response_pair& phiBC,
                                       const vector_real_function_3d& phi0,
                                       const real_function_3d& vb);
