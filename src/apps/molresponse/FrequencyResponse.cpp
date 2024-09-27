@@ -713,8 +713,8 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
     molresponse::end_timer(world, "Zeta(BC) and Zeta(CB)");
   }
 
-  auto B = x_data[1].first;
-  auto C = x_data[2].first;
+  auto B = x_data[1].first.copy();
+  auto C = x_data[2].first.copy();
 
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
