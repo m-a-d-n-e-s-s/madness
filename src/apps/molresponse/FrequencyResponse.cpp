@@ -616,7 +616,6 @@ QuadraticResponse::compute_beta_tensor(World& world, const X_space& BC_left,
       i++;
     }
   }
-  beta *= -2.0;
 
   return {beta, beta_indices};
 }
@@ -653,11 +652,10 @@ QuadraticResponse::compute_beta_tensor_v2(World& world, const X_space& B,
     for (const auto& [b, c] : this->BC_index_pairs) {
 
       auto one = dot(world, B.x[b], C.y[c] * dipole_vectors[a]);
-      auto two = dot(world, phiBC.x[bc], ground_orbitals * dipole_vectors[a]);
       auto three = dot(world, C.x[c], B.y[b] * dipole_vectors[a]);
+
+      auto two = dot(world, phiBC.x[bc], ground_orbitals * dipole_vectors[a]);
       auto four = dot(world, phiCB.x[bc], ground_orbitals * dipole_vectors[a]);
-
-
 
       auto five = dot(world, XA.x[a], VBC.x[bc], true);
       auto six = dot(world, XA.y[a], VBC.y[bc], true);
@@ -731,6 +729,8 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
   /*if (world.rank() == 0) {*/
   /*  print("rVBC_norm: ", rVBC_norm);*/
   /*}*/
+  return compute_beta_tensor(world, zeta_bc_left, zeta_bc_right, zeta_cb_left,
+                             zeta_cb_right, XA, VBC_2);
 
   return compute_beta_tensor_v2(world, B, C, zeta_bc_left.y, zeta_cb_left.y, XA,
                                 VBC_2);
