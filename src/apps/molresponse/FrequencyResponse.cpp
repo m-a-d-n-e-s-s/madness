@@ -643,7 +643,7 @@ QuadraticResponse::compute_beta_tensor_v2(World& world, const X_space& B,
   auto dipole_vectors = create_dipole();  // x y z
   truncate(dipole_vectors, FunctionDefaults<3>::get_thresh(), true);
 
-  int num_elements = static_cast<int>(XA.num_states() * B.num_states());
+  int num_elements = static_cast<int>(XA.num_states() * phiBC.num_states);
   std::vector<std::string> beta_indices(num_elements);
   Tensor<double> beta(num_elements);
 
@@ -679,8 +679,9 @@ QuadraticResponse::compute_beta_tensor_v2(World& world, const X_space& B,
       beta[i] = one_trace + two_trace + three_trace + four_trace + five_trace +
                 six_trace;
 
-      beta_indices[i] = xyz[a] + bc_directions[bc];
+      beta_indices[i] = xyz[a] + (xyz[b] + xyz[c]);
       i++;
+      bc++;
     }
   }
 
