@@ -716,6 +716,28 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
   auto B = x_data[1].first.copy();
   auto C = x_data[2].first.copy();
 
+  // compare
+  auto rfx = C.x[0] - XC.x[0];
+
+  for (int i = 0; i < XB.num_states(); i++) {
+
+    auto rBx = B.x[index_B[i]] - XB.x[i];
+    auto rBy = B.y[index_B[i]] - XB.y[i];
+
+    auto rCx = C.x[index_C[i]] - XC.x[i];
+    auto rCy = C.y[index_C[i]] - XC.y[i];
+
+    auto rBx_norm = norm2s(world, rBx);
+    auto rBy_norm = norm2s(world, rBy);
+    auto rCx_norm = norm2s(world, rCx);
+    auto rCy_norm = norm2s(world, rCy);
+
+    if (world.rank() == 0) {
+      print("i: ", i, " rBx_norm: ", rBx_norm, " rBy_norm: ", rBy_norm,
+            " rCx_norm: ", rCx_norm, " rCy_norm: ", rCy_norm);
+    }
+  }
+
   path vbc_archive = "vbc_archive";
 
   // if vbc archive exists load it
@@ -751,8 +773,9 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
   if (world.rank() == 0) {
 
     for (int i = 0; i < beta0.size(); i++) {
-      print("beta0: ", beta0[i], "  beta2: ", beta2[i],
-            "  diff: ", beta0[i] - beta2[i], "  dir: ", beta0_dir[i]);
+      // make a table showing direction and magnitude of beta
+      std::cout << beta0_dir[i] << " " << beta0[i] << " " << beta2[i]
+                << std::endl;
     }
   }
 
