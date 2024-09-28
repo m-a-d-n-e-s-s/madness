@@ -727,10 +727,10 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
     auto rCx = C.x[index_C[i]] - XC.x[i];
     auto rCy = C.y[index_C[i]] - XC.y[i];
 
-    auto rBx_norm = norm2s(world, rBx);
-    auto rBy_norm = norm2s(world, rBy);
-    auto rCx_norm = norm2s(world, rCx);
-    auto rCy_norm = norm2s(world, rCy);
+    auto rBx_norm = norm2(world, rBx);
+    auto rBy_norm = norm2(world, rBy);
+    auto rCx_norm = norm2(world, rCx);
+    auto rCy_norm = norm2(world, rCy);
 
     if (world.rank() == 0) {
       print("i: ", i, " rBx_norm: ", rBx_norm, " rBy_norm: ", rBy_norm,
