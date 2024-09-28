@@ -540,16 +540,13 @@ vector_real_function_3d QuadraticResponse::compute_vbc(
 
   auto gzeta = -1.0 * (compute_g(BxCy.x, BxCy.y, phi0) +
                        compute_g(phiBC.x, phiBC.y, phi0));
-  world.gop.fence();
 
   auto FBX = -1.0 * (compute_g(B.x, phi0, C.x) + compute_g(phi0, B.y, C.x) +
                      Q(mul(world, vb, C.x, true)));
-  world.gop.fence();
 
   // Terms that be added to VB
   auto FB = compute_g(B.x, phi0, phi0) + compute_g(phi0, B.y, phi0) +
             Q(mul(world, vb, phi0, true));
-  world.gop.fence();
   auto matrix_fb = matrix_inner(world, phi0, FB);
   world.gop.fence();
   FB = transform(world, C.x, matrix_fb, true);
@@ -626,7 +623,7 @@ QuadraticResponse::compute_beta_tensor(World& world, const X_space& BC_left,
     }
   }
 
-  return {beta, beta_indices};
+  return {-2.0 * beta, beta_indices};
 }
 
 std::pair<Tensor<double>, std::vector<std::string>>
@@ -693,7 +690,7 @@ QuadraticResponse::compute_beta_tensor_v2(World& world, const X_space& B,
     }
   }
 
-  return {beta, beta_indices};
+  return {-2.0 * beta, beta_indices};
 }
 
 std::pair<Tensor<double>, std::vector<std::string>>
@@ -744,10 +741,10 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
     print("rVBC_norm: ", rVBC_norm);
   }
 
-  auto [original_beta, beta0] = compute_beta_tensor(
+  auto [beta0, beta0_dir] = compute_beta_tensor(
       world, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right, XA, VBC);
 
-  auto [dir, beta2] = compute_beta_tensor_v2(world, B, C, zeta_bc_left.y,
+  auto [beta2,beta_dir ] = compute_beta_tensor_v2(world, B, C, zeta_bc_left.y,
                                              zeta_cb_left.y, XA, VBC_2);
 
   if (world.rank() == 0) {
@@ -755,7 +752,7 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
     print("beta2: ", beta2);
   }
 
-  return {original_beta, beta0};
+  return {beta0, beta0_dir};
 }
 
 Tensor<double> QuadraticResponse::compute_beta(World& world) {
