@@ -502,8 +502,8 @@ auto QuadraticResponse::setup_XBC(World& world, const double& omega_b,
 }
 
 vector_real_function_3d QuadraticResponse::compute_vbc(
-    World& world, const response_pair& B, const response_pair& C,
-    const response_pair& BxCy, const response_pair& phiBC,
+    World& world, const response_pair& BxCy, const response_pair& phiBC,
+    const response_pair& B, const vector_real_function_3d& Cx,
     const vector_real_function_3d& phi0, const real_function_3d& vb) {
 
   madness::QProjector<double, 3> Q(world, phi0);
@@ -541,15 +541,15 @@ vector_real_function_3d QuadraticResponse::compute_vbc(
   auto gzeta = -1.0 * (compute_g(BxCy.x, BxCy.y, phi0) +
                        compute_g(phiBC.x, phiBC.y, phi0));
 
-  auto FBX = -1.0 * (compute_g(B.x, phi0, C.x) + compute_g(phi0, B.y, C.x) +
-                     Q(mul(world, vb, C.x, true)));
+  auto FBX = -1.0 * (compute_g(B.x, phi0, Cx) + compute_g(phi0, B.y, Cx) +
+                     Q(mul(world, vb, Cx, true)));
 
   // Terms that be added to VB
   auto FB = compute_g(B.x, phi0, phi0) + compute_g(phi0, B.y, phi0) +
             Q(mul(world, vb, phi0, true));
   auto matrix_fb = matrix_inner(world, phi0, FB);
   world.gop.fence();
-  FB = transform(world, C.x, matrix_fb, true);
+  FB = transform(world, Cx, matrix_fb, true);
 
   return truncate(gzeta + FBX + FB, FunctionDefaults<3>::get_thresh(), true);
 }
@@ -1167,8 +1167,8 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     if (r_params.print_level() >= 1) {
       molresponse::start_timer(world);
     }
-    VBC.x[i] = compute_vbc(world, {bx, by}, {cx, cy}, {bx, cy}, {phi0, phibc},
-                           phi0, vb);
+    VBC.x[i] =
+        compute_vbc(world, {bx, cy}, {phi0, phibc}, {bx, by}, cx, phi0, vb);
     if (r_params.print_level() >= 1) {
       std::string message = "VBC.x[" + std::to_string(i) + "] BC=" + bc;
       molresponse::end_timer(world, message.c_str());
@@ -1177,8 +1177,8 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
       molresponse::start_timer(world);
     }
 
-    VBC.x[i] += compute_vbc(world, {cx, cy}, {bx, by}, {cx, by}, {phi0, phicb},
-                            phi0, vc);
+    VBC.x[i] +=
+        compute_vbc(world, {cx, by}, {phi0, phicb}, {cx, cy}, bx, phi0, vc);
     if (r_params.print_level() >= 1) {
       std::string message = "VBC.x[" + std::to_string(i) + "] BC=" + bc;
       molresponse::end_timer(world, message.c_str());
@@ -1188,8 +1188,9 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     if (r_params.print_level() >= 1) {
       molresponse::start_timer(world);
     }
-    VBC.y[i] = compute_vbc(world, {by, bx}, {cy, cx}, {cy, bx}, {phibc, phi0},
-                           phi0, vb);
+    VBC.y[i] =
+        compute_vbc(world, {cy, bx}, {phibc, phi0}, {by, bx}, cy, phi0, vb);
+
     if (r_params.print_level() >= 1) {
       std::string message = "VBC.y[" + std::to_string(i) + "] BC=" + bc;
       molresponse::end_timer(world, message.c_str());
@@ -1197,8 +1198,8 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     if (r_params.print_level() >= 1) {
       molresponse::start_timer(world);
     }
-    VBC.y[i] += compute_vbc(world, {cy, cx}, {by, bx}, {by, cx}, {phicb, phi0},
-                            phi0, vc);
+    VBC.y[i] +=
+        compute_vbc(world, {by, cx}, {phicb, phi0}, {cy, cx}, by, phi0, vc);
     if (r_params.print_level() >= 1) {
       std::string message = "VBC.y[" + std::to_string(i) + "] BC=" + bc;
       molresponse::end_timer(world, message.c_str());

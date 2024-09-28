@@ -294,10 +294,12 @@ class QuadraticResponse : public ResponseBase {
                          const response_space& phiCB, const X_space& XA,
                          const X_space& VBC);
 
-  vector_real_function_3d
-  compute_vbc(World& world, const response_pair& B, const response_pair& C,
-              const response_pair& BxCy, const response_pair& phiBC,
-              const vector_real_function_3d& phi0, const real_function_3d& vb);
+  vector_real_function_3d compute_vbc(World& world, const response_pair& BxCy,
+                                      const response_pair& phiBC,
+                                      const response_pair& B,
+                                      const vector_real_function_3d& Cx,
+                                      const vector_real_function_3d& phi0,
+                                      const real_function_3d& vb);
   X_space compute_second_order_perturbation_terms(
       World& world, const X_space& B, const X_space& C,
       const X_space& zeta_bc_x, const X_space& zeta_bc_y,
