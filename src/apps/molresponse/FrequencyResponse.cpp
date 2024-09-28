@@ -744,8 +744,8 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
   auto [beta0, beta0_dir] = compute_beta_tensor(
       world, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right, XA, VBC);
 
-  auto [beta2,beta_dir ] = compute_beta_tensor_v2(world, B, C, zeta_bc_left.y,
-                                             zeta_cb_left.y, XA, VBC_2);
+  auto [beta2, beta_dir] = compute_beta_tensor_v2(world, B, C, zeta_bc_left.y,
+                                                  zeta_cb_left.y, XA, VBC_2);
 
   if (world.rank() == 0) {
     print("beta0: ", beta0);
@@ -1108,7 +1108,12 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
 
   X_space VBC(world, BC_index_pairs.size(), B.num_orbitals());
   int i = 0;
-  for (const auto& [b, c] : this->BC_index_pairs) {
+  auto num_states = BC_index_pairs.size();
+  for (int i = 0; i < num_states; i++) {
+
+    auto b = this->index_B[i];
+    auto c = this->index_C[i];
+
     const auto& bx = B.x[b];
     const auto& by = B.y[b];
     const auto& cx = C.x[c];
@@ -1185,8 +1190,6 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
       print("VBC.y[", i, ",", b, ",", c, "] norm: ", vby_norm,
             " compare norm: ", compare_norm_y, " ryi norm: ", ryi_norm);
     }
-
-    i++;
   }
   return VBC;
 }
