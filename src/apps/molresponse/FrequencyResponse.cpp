@@ -721,18 +721,17 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
 
   path vbc_archive = "vbc_archive";
 
-  X_space VBC;
   // if vbc archive exists load it
   if (fs::exists(vbc_archive.replace_extension(".00000"))) {
     if (world.rank() == 0) {
       print("Loading VBC from archive");
     }
-    auto VBC = load_x_space(world, vbc_archive.stem().string());
+    this->VBC = load_x_space(world, vbc_archive.stem().string());
   } else {
-    VBC = compute_second_order_perturbation_terms_v2(
+    this->VBC = compute_second_order_perturbation_terms_v2(
         world, XB, XC, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right,
         phi0);
-    save_x_space(world, vbc_archive.string(), VBC);
+    save_x_space(world, vbc_archive.string(), this->VBC);
   }
   // step 1: compute all exchange terms because they are the most expensive
 
@@ -751,8 +750,6 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
 
   auto [dir, beta2] = compute_beta_tensor_v2(world, B, C, zeta_bc_left.y,
                                              zeta_cb_left.y, XA, VBC_2);
-
-
 
   return {original_beta, beta0};
 }
