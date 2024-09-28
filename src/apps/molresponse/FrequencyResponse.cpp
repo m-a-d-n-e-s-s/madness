@@ -738,6 +738,16 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
     }
   }
 
+  for (int i = 0; i < XB.num_states(); i++) {
+    auto zeta_bc_norm = norm2(world, zeta_bc_left.y[i]);
+    auto zeta_cb_norm = norm2(world, zeta_cb_left.y[i]);
+
+    if (world.rank() == 0) {
+      print("i: ", i, " zeta_bc_norm: ", zeta_bc_norm,
+            " zeta_cb_norm: ", zeta_cb_norm);
+    }
+  }
+
   path vbc_archive = "vbc_archive";
 
   // if vbc archive exists load it
@@ -752,6 +762,7 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
         phi0);
     save_x_space(world, vbc_archive.string(), this->VBC);
   }
+
   // step 1: compute all exchange terms because they are the most expensive
 
   auto VBC_2 = compute_second_order_perturbation_terms_v3(
