@@ -723,7 +723,7 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
 
   X_space VBC;
   // if vbc archive exists load it
-  if (fs::exists(vbc_archive)) {
+  if (fs::exists(vbc_archive.replace_extension(".00000"))) {
     if (world.rank() == 0) {
       print("Loading VBC from archive");
     }
