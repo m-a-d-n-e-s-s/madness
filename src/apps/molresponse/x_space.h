@@ -99,7 +99,6 @@ struct X_space {
     }
     return *this;  // NO SHALLOW COPIES
   }
-  // Zero Constructor
   X_space(World& world, size_t n_states, size_t n_orbitals)
       : n_states(n_states), n_orbitals(n_orbitals),
         x(world, n_states, n_orbitals), y(world, n_states, n_orbitals),
