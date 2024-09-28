@@ -727,7 +727,7 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
     if (world.rank() == 0) {
       print("Loading VBC from archive");
     }
-    auto VBC = load_x_space(world, vbc_archive.string());
+    auto VBC = load_x_space(world, vbc_archive.stem().string());
   } else {
     VBC = compute_second_order_perturbation_terms_v2(
         world, XB, XC, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right,
