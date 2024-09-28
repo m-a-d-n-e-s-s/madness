@@ -749,8 +749,11 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
                           zeta_cb_right, XA, VBC_2);
 
   if (world.rank() == 0) {
-    print("beta0: ", beta0);
-    print("beta2: ", beta2);
+
+    for (int i = 0; i < beta0.size(); i++) {
+      print("beta0: ", beta0[i], "  beta2: ", beta2[i],
+            "  diff: ", beta0[i] - beta2[i], "  dir: ", beta0_dir[i]);
+    }
   }
 
   return {beta0, beta0_dir};
