@@ -744,8 +744,9 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
   auto [beta0, beta0_dir] = compute_beta_tensor(
       world, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right, XA, VBC);
 
-  auto [beta2, beta_dir] = compute_beta_tensor_v2(world, B, C, zeta_bc_left.y,
-                                                  zeta_cb_left.y, XA, VBC_2);
+  auto [beta2, beta2_dir] =
+      compute_beta_tensor(world, zeta_bc_left, zeta_bc_right, zeta_cb_left,
+                          zeta_cb_right, XA, VBC_2);
 
   if (world.rank() == 0) {
     print("beta0: ", beta0);
