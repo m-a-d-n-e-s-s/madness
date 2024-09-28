@@ -7,6 +7,9 @@
 #include "functypedefs.h"
 #include "timer.h"
 #include "x_space.h"
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 void FrequencyResponse::initialize(World& world) {
   if (world.rank() == 0) {
@@ -716,30 +719,42 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
   auto B = x_data[1].first.copy();
   auto C = x_data[2].first.copy();
 
-  if (r_params.print_level() >= 1) {
-    molresponse::start_timer(world);
+  path vbc_archive = "vbc_archive";
+
+  X_space VBC;
+  // if vbc archive exists load it
+  if (fs::exists(vbc_archive)) {
+    if (world.rank() == 0) {
+      print("Loading VBC from archive");
+    }
+    auto VBC = load_x_space(world, vbc_archive.string());
+  } else {
+    VBC = compute_second_order_perturbation_terms_v2(
+        world, XB, XC, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right,
+        phi0);
+    save_x_space(world, vbc_archive.string(), VBC);
   }
+  // step 1: compute all exchange terms because they are the most expensive
+
   auto VBC_2 = compute_second_order_perturbation_terms_v3(
       world, B, C, zeta_bc_left.y, zeta_cb_left.y, ground_orbitals);
-  if (r_params.print_level() >= 1) {
-    molresponse::end_timer(world, "VBC");
+
+  auto rVBC = VBC_2 - VBC;
+  auto rVBC_norm = rVBC.norm2s();
+  if (world.rank() == 0) {
+    print("rVBC_norm: ", rVBC_norm);
   }
 
-  // step 1: compute all exchange terms because they are the most expensive
-  /*auto VBC = compute_second_order_perturbation_terms_v2(*/
-  /*    world, XB, XC, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right,*/
-  /*    phi0);*/
-  /**/
-  /*auto rVBC = VBC_2 - VBC;*/
-  /*auto rVBC_norm = rVBC.norm2s();*/
-  /*if (world.rank() == 0) {*/
-  /*  print("rVBC_norm: ", rVBC_norm);*/
-  /*}*/
-  return compute_beta_tensor(world, zeta_bc_left, zeta_bc_right, zeta_cb_left,
-                             zeta_cb_right, XA, VBC_2);
+  auto [original_beta, beta0] =
+      compute_beta_tensor(world, zeta_bc_left, zeta_bc_right, zeta_cb_left,
+                          zeta_cb_right, XA, VBC_2);
 
-  return compute_beta_tensor_v2(world, B, C, zeta_bc_left.y, zeta_cb_left.y, XA,
-                                VBC_2);
+  auto [dir, beta2] = compute_beta_tensor_v2(world, B, C, zeta_bc_left.y,
+                                             zeta_cb_left.y, XA, VBC_2);
+
+
+
+  return {original_beta, beta0};
 }
 
 Tensor<double> QuadraticResponse::compute_beta(World& world) {
@@ -1091,6 +1106,8 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
   auto dipole_vectors = create_dipole();  // x y z
   truncate(dipole_vectors, FunctionDefaults<3>::get_thresh(), true);
 
+  auto VBC_compare = this->VBC;
+
   X_space VBC(world, BC_index_pairs.size(), B.num_orbitals());
   int i = 0;
   for (const auto& [b, c] : this->BC_index_pairs) {
@@ -1144,6 +1161,16 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     if (r_params.print_level() >= 1) {
       std::string message = "VBC.y[" + std::to_string(i) + "] BC=" + bc;
       molresponse::end_timer(world, message.c_str());
+    }
+
+    auto rVBV = VBC_compare - VBC;
+    auto VBC_norm = VBC.norm2s();
+    auto VBC_compare_norm = VBC_compare.norm2s();
+    auto rVBV_norm = rVBV.norm2s();
+    if (world.rank() == 0) {
+      print("VBC_norm: ", VBC_norm);
+      print("VBC_compare_norm: ", VBC_compare_norm);
+      print("rVBV_norm: ", rVBV_norm);
     }
     i++;
   }

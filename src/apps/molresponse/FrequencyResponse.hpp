@@ -245,6 +245,8 @@ class QuadraticResponse : public ResponseBase {
   std::vector<int> index_B;
   std::vector<int> index_C;
 
+  X_space VBC;
+
   std::vector<std::pair<int, int>> BC_index_pairs = {
       {0, 0}, {0, 1}, {0, 2}, {1, 0}, {1, 1}, {1, 2}, {2, 0}, {2, 1}, {2, 2}};
 
@@ -535,7 +537,6 @@ class PODResponse : public ResponseBase {
   void iterate(World& world) override;
 
   void compute_pod_modes(World& world);
-
   void compute_pod_modes_2(World& world);
 
  private:
