@@ -1160,15 +1160,31 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
       molresponse::end_timer(world, message.c_str());
     }
 
-    auto rVBV = VBC_compare - VBC;
-    auto VBC_norm = VBC.norm2s();
-    auto VBC_compare_norm = VBC_compare.norm2s();
-    auto rVBV_norm = rVBV.norm2s();
+    // auto rVBV = VBC_compare - VBC;
+    //
+    //
+    // compare VBX.x[i] and VBX.y[i] to VBC_compare.x[i] and VBC_compare.y[i]
+    //
+    //
+    auto vbx_norm = norm2(world, VBC.x[i]);
+    auto vby_norm = norm2(world, VBC.y[i]);
+
+    auto compare_norm = norm2(world, VBC_compare.x[i]);
+    auto compare_norm_y = norm2(world, VBC_compare.y[i]);
+
+    auto rxi = VBC_compare.x[i] - VBC.x[i];
+    auto ryi = VBC_compare.y[i] - VBC.y[i];
+
+    auto rxi_norm = norm2(world, rxi);
+    auto ryi_norm = norm2(world, ryi);
+
     if (world.rank() == 0) {
-      print("VBC_norm: ", VBC_norm);
-      print("VBC_compare_norm: ", VBC_compare_norm);
-      print("rVBV_norm: ", rVBV_norm);
+      print("VBC.x[", i, "] norm: ", vbx_norm, " compare norm: ", compare_norm,
+            " rxi norm: ", rxi_norm);
+      print("VBC.y[", i, "] norm: ", vby_norm,
+            " compare norm: ", compare_norm_y, " ryi norm: ", ryi_norm);
     }
+
     i++;
   }
   return VBC;
