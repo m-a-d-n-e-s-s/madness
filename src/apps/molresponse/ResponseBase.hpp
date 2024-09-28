@@ -765,7 +765,7 @@ class ResponseBase {
     size_t num_states;
 
     ar & num_orbitals;
-    ar & r_params.num_states();
+    ar & num_states;
     auto result = X_space(world, num_states, num_orbitals);
     for (size_t i = 0; i < num_states; i++)
       for (size_t j = 0; j < num_orbitals; j++)
