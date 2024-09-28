@@ -744,12 +744,16 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
     print("rVBC_norm: ", rVBC_norm);
   }
 
-  auto [original_beta, beta0] =
-      compute_beta_tensor(world, zeta_bc_left, zeta_bc_right, zeta_cb_left,
-                          zeta_cb_right, XA, VBC_2);
+  auto [original_beta, beta0] = compute_beta_tensor(
+      world, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right, XA, VBC);
 
   auto [dir, beta2] = compute_beta_tensor_v2(world, B, C, zeta_bc_left.y,
                                              zeta_cb_left.y, XA, VBC_2);
+
+  if (world.rank() == 0) {
+    print("beta0: ", beta0);
+    print("beta2: ", beta2);
+  }
 
   return {original_beta, beta0};
 }
@@ -1179,9 +1183,9 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     auto ryi_norm = norm2(world, ryi);
 
     if (world.rank() == 0) {
-      print("VBC.x[", i, "] norm: ", vbx_norm, " compare norm: ", compare_norm,
-            " rxi norm: ", rxi_norm);
-      print("VBC.y[", i, "] norm: ", vby_norm,
+      print("VBC.x[", i, ",", b, ",", c, "] norm: ", vbx_norm,
+            " compare norm: ", compare_norm, " rxi norm: ", rxi_norm);
+      print("VBC.y[", i, ",", b, ",", c, "] norm: ", vby_norm,
             " compare norm: ", compare_norm_y, " ryi norm: ", ryi_norm);
     }
 
