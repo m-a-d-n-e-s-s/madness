@@ -1150,6 +1150,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(
 
   g_zeta_bc = -1.0 * oop_apply(g_zeta_bc, apply_projector, true);
   g_zeta_cb = -1.0 * oop_apply(g_zeta_cb, apply_projector, true);
+
   f_bxc = -1.0 * oop_apply(f_bxc, apply_projector, true);
   f_cxb = -1.0 * oop_apply(f_cxb, apply_projector, true);
 
@@ -1166,6 +1167,22 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(
   auto [VBphi0, VCphi0] = dipole_perturbation(world, phi0, phi0);
   auto [FBC, FCB] = compute_first_order_fock_matrix_terms_v2(
       world, B, C, g1b, g1c, VBphi0, VCphi0, phi0);
+
+  auto one = g_zeta_bc + g_zeta_cb;
+  auto norm_one = one.norm2s();
+  if (world.rank() == 0) {
+    print("one norm: ", norm_one);
+  }
+  auto two = f_bxc + f_cxb;
+  auto norm_two = two.norm2s();
+  if (world.rank() == 0) {
+    print("two norm: ", norm_two);
+  }
+  auto three = FBC + FCB;
+  auto norm_three = three.norm2s();
+  if (world.rank() == 0) {
+    print("three norm: ", norm_three);
+  }
 
   auto VBC = g_zeta_bc + g_zeta_cb + f_bxc + f_cxb + FBC + FCB;
   VBC.truncate();
@@ -1328,17 +1345,17 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms(
   }
 
   auto one = g1_zbc + g1_zcb;
-  auto one_norms=one.norm2s();
+  auto one_norms = one.norm2s();
 
   auto two = g1bxc + g1cxb + vbxc + vcxb;
-  auto two_norms=two.norm2s();
+  auto two_norms = two.norm2s();
 
   auto three = zFBzC + zFCzB;
-  auto three_norms=three.norm2s();
-  if(world.rank()==0){
-    print("one: ",one_norms);
-    print("two: ",two_norms);
-    print("three: ",three_norms);
+  auto three_norms = three.norm2s();
+  if (world.rank() == 0) {
+    print("one: ", one_norms);
+    print("two: ", two_norms);
+    print("three: ", three_norms);
   }
 
   return g1_zbc + g1_zcb + g1bxc + g1cxb + zFBzC + zFCzB + vbxc + vcxb;
