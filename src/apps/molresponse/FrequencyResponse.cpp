@@ -572,7 +572,6 @@ response_xy_pair QuadraticResponse::compute_vbc(
       truncate(transform(world, C.x, fbx, true), thresh, true),
       truncate(transform(world, C.y, fby, true), thresh, true)};
 
-  auto thresh = FunctionDefaults<3>::get_thresh();
   response_xy_pair results{truncate(gzeta.x + gBC.x + FB.x, thresh, true),
                            truncate(gzeta.y + gBC.y + FB.y, thresh, true)};
   return results;
