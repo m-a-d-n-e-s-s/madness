@@ -506,6 +506,7 @@ response_xy_pair QuadraticResponse::compute_vbc(
     const response_density& zeta_BC, const vector_real_function_3d& phi0,
     const real_function_3d& vb) {
   madness::QProjector<double, 3> Q(world, phi0);
+  auto thresh = FunctionDefaults<3>::get_thresh();
   auto make_operator = [&](const vecfuncT& ket, const vecfuncT& bra) {
     const double lo = 1.e-10;
     auto& world = ket[0].world();
@@ -544,7 +545,8 @@ response_xy_pair QuadraticResponse::compute_vbc(
                           mul(world, temp_J, phi.y, true)};
     response_xy_pair K = {ka(phi.x) + kb(phi.x),
                           ka_conj(phi.y) + kb_conj(phi.y)};
-    response_xy_pair results{Q(2.0 * J.x - K.y), Q(2.0 * J.x - K.y)};
+    response_xy_pair results{truncate(Q(2.0 * J.x - K.y), thresh, true),
+                             truncate(Q(2.0 * J.x - K.y), thresh, true)};
     return results;
   };
   if (r_params.print_level() >= 1) {
@@ -554,18 +556,21 @@ response_xy_pair QuadraticResponse::compute_vbc(
   gzeta.x = -1.0 * gzeta.x;
   gzeta.y = -1.0 * gzeta.y;
   auto gBC = compute_g(B.x, B.y, {C.x, C.y});
-  gBC.x = -1.0 * gBC.x - Q(mul(world, vb, C.x, true));
-  gBC.y = -1.0 * gBC.y - Q(mul(world, vb, C.y, true));
+  gBC.x = -1.0 * gBC.x - Q(truncate(mul(world, vb, C.x, true), thresh, true));
+  gBC.y = -1.0 * gBC.y - Q(truncate(mul(world, vb, C.y, true), thresh, true));
 
   auto gBphi = compute_g(B.x, B.y, {phi0, phi0});
-  gBphi.x += Q(mul(world, vb, phi0, true));
-  gBphi.y += Q(mul(world, vb, phi0, true));
+  auto vb_phi0 = truncate(Q(truncate(mul(world, vb, phi0, true), thresh, true)),
+                          thresh, true);
+  gBphi.x += vb_phi0;
+  gBphi.y += vb_phi0;
 
   auto fbx = matrix_inner(world, phi0, gBphi.x);
   auto fby = matrix_inner(world, phi0, gBphi.y);
 
-  response_xy_pair FB = {transform(world, C.x, fbx, true),
-                         transform(world, C.y, fby, true)};
+  response_xy_pair FB = {
+      truncate(transform(world, C.x, fbx, true), thresh, true),
+      truncate(transform(world, C.y, fby, true), thresh, true)};
 
   auto thresh = FunctionDefaults<3>::get_thresh();
   response_xy_pair results{truncate(gzeta.x + gBC.x + FB.x, thresh, true),
