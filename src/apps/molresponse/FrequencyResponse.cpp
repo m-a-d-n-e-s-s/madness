@@ -532,18 +532,22 @@ response_xy_pair QuadraticResponse::compute_vbc(
   // This function constructs the J and K operators with A and B and applies on x
   auto compute_g = [&](const response_lr_pair& A, const response_lr_pair& B,
                        const response_xy_pair& phi) {
-    auto x_phi = mul(world, A.left, A.right, true);
-    auto y_phi = mul(world, B.left, B.right, true);
+    auto x_phi = mul(world, A.left, A.right, false);
+    auto y_phi = mul(world, B.left, B.right, false);
+    world.gop.fence();
     auto rho = sum(world, x_phi, true);
     rho += sum(world, y_phi, true);
     auto temp_J = apply(*shared_coulomb_operator, rho);
-    response_xy_pair J = {mul(world, temp_J, phi.x, true),
-                          mul(world, temp_J, phi.y, true)};
+    response_xy_pair J = {mul(world, temp_J, phi.x, false),
+                          mul(world, temp_J, phi.y, false)};
+    world.gop.fence();
 
     auto ka = make_operator(A.left, A.right);
     auto kb = make_operator(B.left, B.right);
+
     auto ka_conj = make_operator(A.right, A.left);
     auto kb_conj = make_operator(B.right, B.left);
+
     response_xy_pair K = {ka(phi.x) + kb(phi.x),
                           ka_conj(phi.y) + kb_conj(phi.y)};
     response_xy_pair results{truncate(Q(2.0 * J.x - K.x), thresh, true),
@@ -556,6 +560,7 @@ response_xy_pair QuadraticResponse::compute_vbc(
   auto gzeta = compute_g(zeta_BC.x, zeta_BC.y, {phi0, phi0});
   gzeta.x = -1.0 * gzeta.x;
   gzeta.y = -1.0 * gzeta.y;
+
   auto gBC = compute_g(B.x, B.y, {C.x, C.y});
   gBC.x = -1.0 * gBC.x - Q(truncate(mul(world, vb, C.x, true), thresh, true));
   gBC.y = -1.0 * gBC.y - Q(truncate(mul(world, vb, C.y, true), thresh, true));
@@ -1182,8 +1187,8 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     const auto& by = B.y[b];
     const auto& cx = C.x[c];
     const auto& cy = C.y[c];
-    const auto& phibc = phiBC[i];
-    const auto& phicb = phiCB[i];
+    const auto& phibc = -1.0 * phiBC[i];
+    const auto& phicb = -1.0 * phiCB[i];
     const auto& vb = dipole_vectors[b];
     const auto& vc = dipole_vectors[c];
 
@@ -1198,7 +1203,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
       molresponse::start_timer(world);
     }
     auto [vbcx, vbcy] = compute_vbc(world, {{bx, phi0}, {phi0, by}}, {cx, cy},
-                                    {{phi0, phibc}, {bx, cy}}, phi0, vb);
+                                    {{bx, cy}, {phi0, phibc}}, phi0, vb);
 
     if (r_params.print_level() >= 1) {
       std::string message = "VBC[" + std::to_string(i) + "] BC=" + bc;
@@ -1209,7 +1214,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
       molresponse::start_timer(world);
     }
     auto [vcbx, vcby] = compute_vbc(world, {{cx, phi0}, {phi0, cy}}, {bx, by},
-                                    {{phi0, phicb}, {cx, by}}, phi0, vc);
+                                    {{cx, by}, {phi0, phicb}}, phi0, vc);
 
     if (r_params.print_level() >= 1) {
       std::string message = "VCB[" + std::to_string(i) + "] BC=" + bc;
