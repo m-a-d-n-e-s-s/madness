@@ -557,8 +557,8 @@ response_xy_pair QuadraticResponse::compute_vbc(
     molresponse::start_timer(world);
   }
   auto gzeta = compute_g(zeta_BC.x, zeta_BC.y, {phi0, phi0});
-  gzeta.x = -1.0 * gzeta.x;
-  gzeta.y = -1.0 * gzeta.y;
+  gzeta.x = -1.0 * Q(gzeta.x);
+  gzeta.y = -1.0 * Q(gzeta.y);
 
   auto norm_gzx = norm2(world, gzeta.x);
   auto norm_gzy = norm2(world, gzeta.y);
@@ -597,14 +597,10 @@ response_xy_pair QuadraticResponse::compute_vbc(
     print("norm_vbcy: 4y", norm_vbcy);
   }
 
-  gBC.x += vbcx;
-  gBC.y += vbcy;
+  response_xy_pair FBX = {-1.0 * Q(gBC.x + vbcx), -1.0 * Q(gBC.y + vbcy)};
 
-  gBC.x = -1.0 * Q(gBC.x);
-  gBC.y = -1.0 * Q(gBC.y);
-
-  auto norm_FBCx = norm2(world, gBC.x);
-  auto norm_FBCy = norm2(world, gBC.y);
+  auto norm_FBCx = norm2(world, FBX.x);
+  auto norm_FBCy = norm2(world, FBX.y);
 
   if (world.rank() == 0) {
     print("norm_Fbxc_x: 5x ", norm_FBCx);
@@ -619,15 +615,13 @@ response_xy_pair QuadraticResponse::compute_vbc(
     print("norm_vbphi0: 6y ", norm_vbphi0);
   }
 
-  gBphi.x += vb_phi0;
-  gBphi.y += vb_phi0;
+  response_xy_pair FBphi0 = {gBphi.x + vb_phi0, gBphi.y + vb_phi0};
 
-  auto fbx = matrix_inner(world, phi0, gBphi.x);
-  auto fby = matrix_inner(world, phi0, gBphi.y);
+  auto fbx = matrix_inner(world, phi0, FBphi0.x);
+  auto fby = matrix_inner(world, phi0, FBphi0.y);
 
-  response_xy_pair FB = {
-      truncate(transform(world, C.x, fbx, true), thresh, true),
-      truncate(transform(world, C.y, fby, true), thresh, true)};
+  response_xy_pair FB = {transform(world, C.x, fbx, true),
+                         transform(world, C.y, fby, true)};
 
   auto norm_FBphi0x = norm2(world, FB.x);
   auto norm_FBphi0y = norm2(world, FB.y);
@@ -638,8 +632,8 @@ response_xy_pair QuadraticResponse::compute_vbc(
     print("-------------------------------------------");
   }
 
-  response_xy_pair results{truncate(gzeta.x + gBC.x + FB.x, thresh, true),
-                           truncate(gzeta.y + gBC.y + FB.y, thresh, true)};
+  response_xy_pair results{truncate(gzeta.x + FBX.x + FB.x, thresh, true),
+                           truncate(gzeta.y + FBX.y + FB.y, thresh, true)};
   return results;
 }
 //
