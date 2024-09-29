@@ -561,9 +561,22 @@ response_xy_pair QuadraticResponse::compute_vbc(
   gzeta.x = -1.0 * gzeta.x;
   gzeta.y = -1.0 * gzeta.y;
 
+  auto norm_gzx = norm2(world, gzeta.x);
+  auto norm_gzy = norm2(world, gzeta.y);
+  if (world.rank() == 0) {
+    print("norm_gzx: ", norm_gzx);
+    print("norm_gzy: ", norm_gzy);
+  }
+
   auto gBC = compute_g(B.x, B.y, {C.x, C.y});
   gBC.x = -1.0 * gBC.x - Q(truncate(mul(world, vb, C.x, true), thresh, true));
   gBC.y = -1.0 * gBC.y - Q(truncate(mul(world, vb, C.y, true), thresh, true));
+  auto norm_FBCx = norm2(world, gBC.x);
+  auto norm_FBCy = norm2(world, gBC.y);
+  if (world.rank() == 0) {
+    print("norm_FBCx: ", norm_FBCx);
+    print("norm_FBCy: ", norm_FBCy);
+  }
 
   auto gBphi = compute_g(B.x, B.y, {phi0, phi0});
   auto vb_phi0 = truncate(Q(truncate(mul(world, vb, phi0, true), thresh, true)),
@@ -577,6 +590,13 @@ response_xy_pair QuadraticResponse::compute_vbc(
   response_xy_pair FB = {
       truncate(transform(world, C.x, fbx, true), thresh, true),
       truncate(transform(world, C.y, fby, true), thresh, true)};
+
+  auto norm_FBphi0x = norm2(world, FB.x);
+  auto norm_FBphi0y = norm2(world, FB.y);
+  if (world.rank() == 0) {
+    print("norm_FBphi0x: ", norm_FBphi0x);
+    print("norm_FBphi0y: ", norm_FBphi0y);
+  }
 
   response_xy_pair results{truncate(gzeta.x + gBC.x + FB.x, thresh, true),
                            truncate(gzeta.y + gBC.y + FB.y, thresh, true)};
@@ -1187,8 +1207,8 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     const auto& by = B.y[b];
     const auto& cx = C.x[c];
     const auto& cy = C.y[c];
-    const auto& phibc = -1.0 * phiBC[i];
-    const auto& phicb = -1.0 * phiCB[i];
+    const auto& phibc = phiBC[i];
+    const auto& phicb = phiCB[i];
     const auto& vb = dipole_vectors[b];
     const auto& vc = dipole_vectors[c];
 
@@ -1261,10 +1281,10 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms(
   }
 
   // We have 2 terms to compute because we need to compute the contributions of BC and CB terms
-  auto g1_kbc =
+  auto g1_zbc =
       -1.0 * oop_apply(compute_g1_term(world, zeta_bc_x, zeta_bc_y, phi0),
                        apply_projector);
-  auto g1_kcb =
+  auto g1_zcb =
       -1.0 * oop_apply(compute_g1_term(world, zeta_cb_x, zeta_cb_y, phi0),
                        apply_projector);
 
@@ -1307,7 +1327,21 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms(
     molresponse::end_timer(world, "FB[i,j]*C and FC[i,j]*B");
   }
 
-  return g1_kbc + g1_kcb + g1bxc + g1cxb + zFBzC + zFCzB + vbxc + vcxb;
+  auto one = g1_zbc + g1_zcb;
+  auto one_norms=one.norm2s();
+
+  auto two = g1bxc + g1cxb + vbxc + vcxb;
+  auto two_norms=two.norm2s();
+
+  auto three = zFBzC + zFCzB;
+  auto three_norms=three.norm2s();
+  if(world.rank()==0){
+    print("one: ",one_norms);
+    print("two: ",two_norms);
+    print("three: ",three_norms);
+  }
+
+  return g1_zbc + g1_zcb + g1bxc + g1cxb + zFBzC + zFCzB + vbxc + vcxb;
 
   // the next term we need to compute are the first order fock matrix terms
 }
