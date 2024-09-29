@@ -564,43 +564,45 @@ response_xy_pair QuadraticResponse::compute_vbc(
   auto norm_gzx = norm2(world, gzeta.x);
   auto norm_gzy = norm2(world, gzeta.y);
   if (world.rank() == 0) {
-    print("norm_gzx: ", norm_gzx);
-    print("norm_gzy: ", norm_gzy);
+    print("norm_gzeta_bcx: ", norm_gzx);
+    print("norm_gzeta_bcy: ", norm_gzy);
   }
 
   auto gBC = compute_g(B.x, B.y, {C.x, C.y});
   gBC.x = -1.0 * gBC.x;
-  auto vbcx = -1.0 * Q(truncate(mul(world, vb, C.x, true), thresh, true));
-
   gBC.y = -1.0 * gBC.y;
-  auto vbcy = -1.0 * Q(truncate(mul(world, vb, C.y, true), thresh, true));
-
-  gBC.x += vbcx;
-  gBC.y += vbcy;
-
-  auto norm_vbcx = norm2(world, vbcx);
-  auto norm_vbcy = norm2(world, vbcy);
-
   auto norm_gBCx = norm2(world, gBC.x);
   auto norm_gBCy = norm2(world, gBC.y);
+
+  auto vbcx = -1.0 * Q(truncate(mul(world, vb, C.x, true), thresh, true));
+  auto vbcy = -1.0 * Q(truncate(mul(world, vb, C.y, true), thresh, true));
+  auto norm_vbcx = norm2(world, vbcx);
+  auto norm_vbcy = norm2(world, vbcy);
   if (world.rank() == 0) {
     print("norm_gBCx: ", norm_gBCx);
     print("norm_gBCy: ", norm_gBCy);
     print("norm_vbcx: ", norm_vbcx);
     print("norm_vbcy: ", norm_vbcy);
   }
+  gBC.x += vbcx;
+  gBC.y += vbcy;
+
+  auto norm_FBCx = norm2(world, gBC.x);
+  auto norm_FBCy = norm2(world, gBC.y);
+  if(world.rank() == 0) {
+    print("norm_FBCx: ", norm_FBCx);
+    print("norm_FBCy: ", norm_FBCy);
+  }
 
   auto gBphi = compute_g(B.x, B.y, {phi0, phi0});
-  auto vb_phi0 = truncate(Q(truncate(mul(world, vb, phi0, true), thresh, true)),
-                          thresh, true);
   auto norm_gBphix = norm2(world, gBphi.x);
   auto norm_gBphiy = norm2(world, gBphi.y);
-
   if(world.rank() == 0) {
     print("norm_gBphix: ", norm_gBphix);
     print("norm_gBphiy: ", norm_gBphiy);
   }
-
+  auto vb_phi0 = truncate(Q(truncate(mul(world, vb, phi0, true), thresh, true)),
+                          thresh, true);
   auto norm_vbphi0 = norm2(world, vb_phi0);
   if(world.rank() == 0) {
     print("norm_vbphi0: ", norm_vbphi0);
@@ -1177,9 +1179,6 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(
     print("norms_g1c: ", norms_g1c);
     print("norms_v_bxc: ", norms_v_bxc);
     print("norms_v_cxb: ", norms_v_cxb);
-  }
-  if (r_params.print_level() >= 1) {
-    molresponse::end_timer(world, "Create dipole terms");
   }
 
   auto f_bxc = v_bxc + g_bxc;
