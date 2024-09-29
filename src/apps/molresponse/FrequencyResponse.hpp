@@ -11,9 +11,17 @@ using path = std::filesystem::path;
 
 class FrequencyResponse;
 
-struct response_pair;
+struct response_lr_pair {
+  vector_real_function_3d left;
+  vector_real_function_3d right;
+};
 
-struct response_pair {
+struct response_density {
+  response_lr_pair x;
+  response_lr_pair y;
+};
+
+struct response_xy_pair {
   vector_real_function_3d x;
   vector_real_function_3d y;
 };
@@ -294,12 +302,11 @@ class QuadraticResponse : public ResponseBase {
                          const response_space& phiCB, const X_space& XA,
                          const X_space& VBC);
 
-  vector_real_function_3d compute_vbc(World& world, const response_pair& BxCy,
-                                      const response_pair& phiBC,
-                                      const response_pair& B,
-                                      const vector_real_function_3d& Cx,
-                                      const vector_real_function_3d& phi0,
-                                      const real_function_3d& vb);
+  response_xy_pair compute_vbc(World& world, const response_density& B,
+                               const response_xy_pair& C,
+                               const response_density& zeta_BC,
+                               const vector_real_function_3d& phi0,
+                               const real_function_3d& vb);
   X_space compute_second_order_perturbation_terms(
       World& world, const X_space& B, const X_space& C,
       const X_space& zeta_bc_x, const X_space& zeta_bc_y,

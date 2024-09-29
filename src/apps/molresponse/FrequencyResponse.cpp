@@ -501,18 +501,17 @@ auto QuadraticResponse::setup_XBC(World& world, const double& omega_b,
   return {new_B, new_C};
 }
 
-vector_real_function_3d QuadraticResponse::compute_vbc(
-    World& world, const response_pair& BxCy, const response_pair& phiBC,
-    const response_pair& B, const vector_real_function_3d& Cx,
-    const vector_real_function_3d& phi0, const real_function_3d& vb) {
-
+response_xy_pair QuadraticResponse::compute_vbc(
+    World& world, const response_density& B, const response_xy_pair& C,
+    const response_density& zeta_BC, const vector_real_function_3d& phi0,
+    const real_function_3d& vb) {
   madness::QProjector<double, 3> Q(world, phi0);
-  auto compute_g = [&](const vector_real_function_3d& x,
-                       const vector_real_function_3d& y,
-                       const vector_real_function_3d& phi) {
+  auto make_operator = [&](const vecfuncT& ket, const vecfuncT& bra) {
     const double lo = 1.e-10;
+    auto& world = ket[0].world();
     Exchange<double, 3> k{world, lo};
-    k.set_bra_and_ket(x, y);
+    k.set_bra_and_ket(bra, ket);
+
     std::string algorithm_ = r_params.hfexalg();
 
     if (algorithm_ == "multiworld") {
@@ -525,33 +524,53 @@ vector_real_function_3d QuadraticResponse::compute_vbc(
       k.set_algorithm(Exchange<double, 3>::Algorithm::small_memory);
     }
 
-    auto rho = sum(world, mul(world, x, y, true), true);
-    auto tempJ = apply(*shared_coulomb_operator, rho);
-    auto J = mul(world, tempJ, phi, true);
-    auto K = k(phi);
-
-    auto result = Q(2.0 * J - K);
-    world.gop.fence();
-    return result;
+    return k;
+  };
+  // A and B are the response pairs that make up response density
+  // \gamma_{a} = |xa><phi| + |phi><ya|
+  // This function constructs the J and K operators with A and B and applies on x
+  auto compute_g = [&](const response_lr_pair& A, const response_lr_pair& B,
+                       const response_xy_pair& phi) {
+    auto ka = make_operator(A.left, A.right);
+    auto kb = make_operator(B.left, B.right);
+    auto ka_conj = make_operator(A.right, A.left);
+    auto kb_conj = make_operator(B.right, B.left);
+    auto x_phi = mul(world, A.left, A.right, true);
+    auto y_phi = mul(world, B.left, B.right, true);
+    auto rho = sum(world, x_phi, true);
+    rho += sum(world, y_phi, true);
+    auto temp_J = apply(*shared_coulomb_operator, rho);
+    response_xy_pair J = {mul(world, temp_J, phi.x, true),
+                          mul(world, temp_J, phi.y, true)};
+    response_xy_pair K = {ka(phi.x) + kb(phi.x),
+                          ka_conj(phi.y) + kb_conj(phi.y)};
+    response_xy_pair results{Q(2.0 * J.x - K.y), Q(2.0 * J.x - K.y)};
+    return results;
   };
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
   }
+  auto gzeta = compute_g(zeta_BC.x, zeta_BC.y, {phi0, phi0});
+  gzeta.x = -1.0 * gzeta.x;
+  gzeta.y = -1.0 * gzeta.y;
+  auto gBC = compute_g(B.x, B.y, {C.x, C.y});
+  gBC.x = -1.0 * gBC.x - Q(mul(world, vb, C.x, true));
+  gBC.y = -1.0 * gBC.y - Q(mul(world, vb, C.y, true));
 
-  auto gzeta = -1.0 * (compute_g(BxCy.x, BxCy.y, phi0) +
-                       compute_g(phiBC.x, phiBC.y, phi0));
+  auto gBphi = compute_g(B.x, B.y, {phi0, phi0});
+  gBphi.x += Q(mul(world, vb, phi0, true));
+  gBphi.y += Q(mul(world, vb, phi0, true));
 
-  auto FBX = -1.0 * (compute_g(B.x, phi0, Cx) + compute_g(phi0, B.y, Cx) +
-                     Q(mul(world, vb, Cx, true)));
+  auto fbx = matrix_inner(world, phi0, gBphi.x);
+  auto fby = matrix_inner(world, phi0, gBphi.y);
 
-  // Terms that be added to VB
-  auto FB = compute_g(B.x, phi0, phi0) + compute_g(phi0, B.y, phi0) +
-            Q(mul(world, vb, phi0, true));
-  auto matrix_fb = matrix_inner(world, phi0, FB);
-  world.gop.fence();
-  FB = transform(world, Cx, matrix_fb, true);
+  response_xy_pair FB = {transform(world, C.x, fbx, true),
+                         transform(world, C.y, fby, true)};
 
-  return truncate(gzeta + FBX + FB, FunctionDefaults<3>::get_thresh(), true);
+  auto thresh = FunctionDefaults<3>::get_thresh();
+  response_xy_pair results{truncate(gzeta.x + gBC.x + FB.x, thresh, true),
+                           truncate(gzeta.y + gBC.y + FB.y, thresh, true)};
+  return results;
 }
 //
 //
@@ -720,6 +739,8 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
   auto rfx = C.x[0] - XC.x[0];
 
   for (int i = 0; i < XB.num_states(); i++) {
+
+    print("i: ", i, "index_B[i]: ", index_B[i], "index_C[i]: ", index_C[i]);
 
     auto rBx = B.x[index_B[i]] - XB.x[i];
     auto rBy = B.y[index_B[i]] - XB.y[i];
@@ -1167,50 +1188,32 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     if (r_params.print_level() >= 1) {
       molresponse::start_timer(world);
     }
-    VBC.x[i] =
-        compute_vbc(world, {bx, cy}, {phi0, phibc}, {bx, by}, cx, phi0, vb);
-    if (r_params.print_level() >= 1) {
-      std::string message = "VBC.x[" + std::to_string(i) + "] BC=" + bc;
-      molresponse::end_timer(world, message.c_str());
-    }
+
     if (r_params.print_level() >= 1) {
       molresponse::start_timer(world);
     }
+    auto [vbcx, vbcy] = compute_vbc(world, {{bx, phi0}, {phi0, by}}, {cx, cy},
+                                    {{phi0, phibc}, {bx, cy}}, phi0, vb);
 
-    VBC.x[i] +=
-        compute_vbc(world, {cx, by}, {phi0, phicb}, {cx, cy}, bx, phi0, vc);
     if (r_params.print_level() >= 1) {
-      std::string message = "VBC.x[" + std::to_string(i) + "] BC=" + bc;
+      std::string message = "VBC[" + std::to_string(i) + "] BC=" + bc;
       molresponse::end_timer(world, message.c_str());
     }
 
-    // VBC is conjugate, threefore we just swap the x and y components
     if (r_params.print_level() >= 1) {
       molresponse::start_timer(world);
     }
-    VBC.y[i] =
-        compute_vbc(world, {cy, bx}, {phibc, phi0}, {by, bx}, cy, phi0, vb);
+    auto [vcbx, vcby] = compute_vbc(world, {{cx, phi0}, {phi0, cy}}, {bx, by},
+                                    {{phi0, phicb}, {cx, by}}, phi0, vc);
 
     if (r_params.print_level() >= 1) {
-      std::string message = "VBC.y[" + std::to_string(i) + "] BC=" + bc;
-      molresponse::end_timer(world, message.c_str());
-    }
-    if (r_params.print_level() >= 1) {
-      molresponse::start_timer(world);
-    }
-    VBC.y[i] +=
-        compute_vbc(world, {by, cx}, {phicb, phi0}, {cy, cx}, by, phi0, vc);
-    if (r_params.print_level() >= 1) {
-      std::string message = "VBC.y[" + std::to_string(i) + "] BC=" + bc;
+      std::string message = "VCB[" + std::to_string(i) + "] BC=" + bc;
       molresponse::end_timer(world, message.c_str());
     }
 
-    // auto rVBV = VBC_compare - VBC;
-    //
-    //
-    // compare VBX.x[i] and VBX.y[i] to VBC_compare.x[i] and VBC_compare.y[i]
-    //
-    //
+    VBC.x[i] = vbcx + vcbx;
+    VBC.y[i] = vbcy + vcby;
+
     auto vbx_norm = norm2(world, VBC.x[i]);
     auto vby_norm = norm2(world, VBC.y[i]);
 
