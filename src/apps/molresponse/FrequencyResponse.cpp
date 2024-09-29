@@ -1216,46 +1216,46 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(
   auto norm_one_x = one.x.norm2();
   auto norm_one_y = one.y.norm2();
   if (world.rank() == 0) {
-    print("one norm:bc x ", norm_one_x);
-    print("one norm:bc y ", norm_one_y);
+    print("g_zeta norm:bc x ", norm_one_x);
+    print("g_zeta norm:bc y ", norm_one_y);
   }
   one = g_zeta_cb;
   norm_one_x = one.x.norm2();
   norm_one_y = one.y.norm2();
   if (world.rank() == 0) {
-    print("one norm:cb x ", norm_one_x);
-    print("one norm:cb y ", norm_one_y);
+    print("g_zeta norm:cb x ", norm_one_x);
+    print("g_zeta norm:cb y ", norm_one_y);
   }
 
   auto two = f_bxc;
   auto norm_two_x = two.x.norm2();
   auto norm_two_y = two.y.norm2();
   if (world.rank() == 0) {
-    print("two norm:bc x", norm_two_x);
-    print("two norm:bc y", norm_two_y);
+    print("fbxc norm:bc x", norm_two_x);
+    print("fbxc norm:bc y", norm_two_y);
   }
   two = f_cxb;
   auto norm_two_x_cxb = two.x.norm2();
   auto norm_two_y_cxb = two.y.norm2();
   if (world.rank() == 0) {
-    print("two norm:cb x", norm_two_x);
-    print("two norm:cb y", norm_two_y);
+    print("fcxb norm:cb x", norm_two_x);
+    print("fcxb norm:cb y", norm_two_y);
   }
 
   auto three = FBC;
   auto norm_three_x = three.x.norm2();
   auto norm_three_y = three.y.norm2();
   if (world.rank() == 0) {
-    print("three norm:cb x ", norm_three_x);
-    print("three norm:bc y ", norm_three_y);
+    print("fbc norm:cb x ", norm_three_x);
+    print("fbc norm:bc y ", norm_three_y);
   }
 
   three = FCB;
   auto norm_three_x_fcb = three.x.norm2();
   auto norm_three_y_fcb = three.y.norm2();
   if (world.rank() == 0) {
-    print("three norm:cb x ", norm_three_x_fcb);
-    print("three norm:bc y ", norm_three_y_fcb);
+    print("fcb norm:cb x ", norm_three_x_fcb);
+    print("fcb norm:bc y ", norm_three_y_fcb);
   }
 
   auto VBC = g_zeta_bc + g_zeta_cb + f_bxc + f_cxb + FBC + FCB;
