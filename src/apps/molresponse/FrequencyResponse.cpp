@@ -532,10 +532,6 @@ response_xy_pair QuadraticResponse::compute_vbc(
   // This function constructs the J and K operators with A and B and applies on x
   auto compute_g = [&](const response_lr_pair& A, const response_lr_pair& B,
                        const response_xy_pair& phi) {
-    auto ka = make_operator(A.left, A.right);
-    auto kb = make_operator(B.left, B.right);
-    auto ka_conj = make_operator(A.right, A.left);
-    auto kb_conj = make_operator(B.right, B.left);
     auto x_phi = mul(world, A.left, A.right, true);
     auto y_phi = mul(world, B.left, B.right, true);
     auto rho = sum(world, x_phi, true);
@@ -543,10 +539,15 @@ response_xy_pair QuadraticResponse::compute_vbc(
     auto temp_J = apply(*shared_coulomb_operator, rho);
     response_xy_pair J = {mul(world, temp_J, phi.x, true),
                           mul(world, temp_J, phi.y, true)};
+
+    auto ka = make_operator(A.left, A.right);
+    auto kb = make_operator(B.left, B.right);
+    auto ka_conj = make_operator(A.right, A.left);
+    auto kb_conj = make_operator(B.right, B.left);
     response_xy_pair K = {ka(phi.x) + kb(phi.x),
                           ka_conj(phi.y) + kb_conj(phi.y)};
-    response_xy_pair results{truncate(Q(2.0 * J.x - K.y), thresh, true),
-                             truncate(Q(2.0 * J.x - K.y), thresh, true)};
+    response_xy_pair results{truncate(Q(2.0 * J.x - K.x), thresh, true),
+                             truncate(Q(2.0 * J.y - K.y), thresh, true)};
     return results;
   };
   if (r_params.print_level() >= 1) {
