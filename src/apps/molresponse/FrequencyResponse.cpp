@@ -550,8 +550,7 @@ response_xy_pair QuadraticResponse::compute_vbc(
 
     response_xy_pair K = {ka(phi.x) + kb(phi.x),
                           ka_conj(phi.y) + kb_conj(phi.y)};
-    response_xy_pair results{truncate(Q(2.0 * J.x - K.x), thresh, true),
-                             truncate(Q(2.0 * J.y - K.y), thresh, true)};
+    response_xy_pair results{2.0 * J.x - K.x, 2.0 * J.y - K.y};
     return results;
   };
   if (r_params.print_level() >= 1) {
@@ -563,6 +562,7 @@ response_xy_pair QuadraticResponse::compute_vbc(
 
   auto norm_gzx = norm2(world, gzeta.x);
   auto norm_gzy = norm2(world, gzeta.y);
+
   if (world.rank() == 0) {
     print("------------------------------------");
     print("norm_g_zeta_bcx: 1x ", norm_gzx);
@@ -570,8 +570,6 @@ response_xy_pair QuadraticResponse::compute_vbc(
   }
 
   auto gBC = compute_g(B.x, B.y, {C.x, C.y});
-  gBC.x = -1.0 * gBC.x;
-  gBC.y = -1.0 * gBC.y;
   auto norm_gBCx = norm2(world, gBC.x);
   auto norm_gBCy = norm2(world, gBC.y);
 
@@ -589,8 +587,8 @@ response_xy_pair QuadraticResponse::compute_vbc(
     print("norm_g1bphi 3y: ", norm_gBphiy);
   }
 
-  auto vbcx = -1.0 * Q(truncate(mul(world, vb, C.x, true), thresh, true));
-  auto vbcy = -1.0 * Q(truncate(mul(world, vb, C.y, true), thresh, true));
+  auto vbcx = -1.0 * truncate(mul(world, vb, C.x, true), thresh, true);
+  auto vbcy = -1.0 * truncate(mul(world, vb, C.y, true), thresh, true);
   auto norm_vbcx = norm2(world, vbcx);
   auto norm_vbcy = norm2(world, vbcy);
 
@@ -601,6 +599,10 @@ response_xy_pair QuadraticResponse::compute_vbc(
 
   gBC.x += vbcx;
   gBC.y += vbcy;
+
+  gBC.x = -1.0 * Q(gBC.x);
+  gBC.y = -1.0 * Q(gBC.y);
+
   auto norm_FBCx = norm2(world, gBC.x);
   auto norm_FBCy = norm2(world, gBC.y);
 
@@ -609,8 +611,7 @@ response_xy_pair QuadraticResponse::compute_vbc(
     print("norm_Fbxc_y: 5y", norm_FBCy);
   }
 
-  auto vb_phi0 = truncate(Q(truncate(mul(world, vb, phi0, true), thresh, true)),
-                          thresh, true);
+  auto vb_phi0 = truncate(mul(world, vb, phi0, true), thresh);
   auto norm_vbphi0 = norm2(world, vb_phi0);
 
   if (world.rank() == 0) {
