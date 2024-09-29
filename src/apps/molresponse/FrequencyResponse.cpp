@@ -564,8 +564,9 @@ response_xy_pair QuadraticResponse::compute_vbc(
   auto norm_gzx = norm2(world, gzeta.x);
   auto norm_gzy = norm2(world, gzeta.y);
   if (world.rank() == 0) {
-    print("norm_gzeta_bcx: ", norm_gzx);
-    print("norm_gzeta_bcy: ", norm_gzy);
+    print("------------------------------------");
+    print("norm_g_zeta_bcx: 1x ", norm_gzx);
+    print("norm_g_zeta_bcy: 1x", norm_gzy);
   }
 
   auto gBC = compute_g(B.x, B.y, {C.x, C.y});
@@ -574,38 +575,47 @@ response_xy_pair QuadraticResponse::compute_vbc(
   auto norm_gBCx = norm2(world, gBC.x);
   auto norm_gBCy = norm2(world, gBC.y);
 
-  auto vbcx = -1.0 * Q(truncate(mul(world, vb, C.x, true), thresh, true));
-  auto vbcy = -1.0 * Q(truncate(mul(world, vb, C.y, true), thresh, true));
-  auto norm_vbcx = norm2(world, vbcx);
-  auto norm_vbcy = norm2(world, vbcy);
   if (world.rank() == 0) {
-    print("norm_gBCx: ", norm_gBCx);
-    print("norm_gBCy: ", norm_gBCy);
-    print("norm_vbcx: ", norm_vbcx);
-    print("norm_vbcy: ", norm_vbcy);
-  }
-  gBC.x += vbcx;
-  gBC.y += vbcy;
-
-  auto norm_FBCx = norm2(world, gBC.x);
-  auto norm_FBCy = norm2(world, gBC.y);
-  if(world.rank() == 0) {
-    print("norm_FBCx: ", norm_FBCx);
-    print("norm_FBCy: ", norm_FBCy);
+    print("norm_g_bxc_x: 2x ", norm_gBCx);
+    print("norm_g_bxc_y: 2y", norm_gBCy);
   }
 
   auto gBphi = compute_g(B.x, B.y, {phi0, phi0});
   auto norm_gBphix = norm2(world, gBphi.x);
   auto norm_gBphiy = norm2(world, gBphi.y);
-  if(world.rank() == 0) {
-    print("norm_gBphix: ", norm_gBphix);
-    print("norm_gBphiy: ", norm_gBphiy);
+
+  if (world.rank() == 0) {
+    print("norm_g1bphi 3x: ", norm_gBphix);
+    print("norm_g1bphi 3y: ", norm_gBphiy);
   }
+
+  auto vbcx = -1.0 * Q(truncate(mul(world, vb, C.x, true), thresh, true));
+  auto vbcy = -1.0 * Q(truncate(mul(world, vb, C.y, true), thresh, true));
+  auto norm_vbcx = norm2(world, vbcx);
+  auto norm_vbcy = norm2(world, vbcy);
+
+  if (world.rank() == 0) {
+    print("norm_vbcx: 4x ", norm_vbcx);
+    print("norm_vbcy: 4y", norm_vbcy);
+  }
+
+  gBC.x += vbcx;
+  gBC.y += vbcy;
+  auto norm_FBCx = norm2(world, gBC.x);
+  auto norm_FBCy = norm2(world, gBC.y);
+
+  if (world.rank() == 0) {
+    print("norm_Fbxc_x: 5x ", norm_FBCx);
+    print("norm_Fbxc_y: 5y", norm_FBCy);
+  }
+
   auto vb_phi0 = truncate(Q(truncate(mul(world, vb, phi0, true), thresh, true)),
                           thresh, true);
   auto norm_vbphi0 = norm2(world, vb_phi0);
-  if(world.rank() == 0) {
-    print("norm_vbphi0: ", norm_vbphi0);
+
+  if (world.rank() == 0) {
+    print("norm_vbphi0: 6x ", norm_vbphi0);
+    print("norm_vbphi0: 6y ", norm_vbphi0);
   }
 
   gBphi.x += vb_phi0;
@@ -620,9 +630,11 @@ response_xy_pair QuadraticResponse::compute_vbc(
 
   auto norm_FBphi0x = norm2(world, FB.x);
   auto norm_FBphi0y = norm2(world, FB.y);
+
   if (world.rank() == 0) {
-    print("norm_FBphi0x: ", norm_FBphi0x);
-    print("norm_FBphi0y: ", norm_FBphi0y);
+    print("norm_FBphi0x: 7x ", norm_FBphi0x);
+    print("norm_FBphi0y: 7y ", norm_FBphi0y);
+    print("-------------------------------------------");
   }
 
   response_xy_pair results{truncate(gzeta.x + gBC.x + FB.x, thresh, true),
@@ -835,7 +847,7 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
     this->VBC = compute_second_order_perturbation_terms_v2(
         world, XB, XC, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right,
         phi0);
-    save_x_space(world, vbc_archive.string(), this->VBC);
+    save_x_space(world, vbc_archive.stem().string(), this->VBC);
   }
 
   // step 1: compute all exchange terms because they are the most expensive
@@ -1134,6 +1146,11 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(
       compute_beta_exchange(world, B, C, zeta_bc_left, zeta_bc_right,
                             zeta_cb_left, zeta_cb_right, phi0);
 
+  // The first term to compute is -Q g1[K^BC], -Q g1[K^BC_conjugate]
+  QProjector<double, 3> projector(world, ground_orbitals);
+  auto apply_projector = [&](auto& xi) {
+    return projector(xi);
+  };
   // sum k and j terms
   //
   if (r_params.print_level() >= 1) {
@@ -1142,19 +1159,29 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(
   auto g_zeta_bc = 2.0 * j_zeta_bc - k_zeta_bc;
   auto g_zeta_cb = 2.0 * j_zeta_cb - k_zeta_cb;
 
-  auto norms_g_zeta_bc = g_zeta_bc.norm2s();
-  auto norms_g_zeta_cb = g_zeta_cb.norm2s();
+  g_zeta_bc = -1.0 * oop_apply(g_zeta_bc, apply_projector, true);
+  g_zeta_cb = -1.0 * oop_apply(g_zeta_cb, apply_projector, true);
+
+  auto norms_g_zeta_bc_x = g_zeta_bc.x.norm2();
+  auto norms_g_zeta_bc_y = g_zeta_bc.y.norm2();
+  auto norms_g_zeta_cb_x = g_zeta_cb.x.norm2();
+  auto norms_g_zeta_cb_y = g_zeta_cb.y.norm2();
 
   auto g_bxc = 2.0 * j_bxc - k_bxc;
   auto g_cxb = 2.0 * j_cxb - k_cxb;
-  auto norms_g_bxc = g_bxc.norm2s();
-  auto norms_g_cxb = g_cxb.norm2s();
 
+  auto norm_gbxc_x = g_bxc.x.norm2();
+  auto norm_gbxc_y = g_bxc.y.norm2();
+  auto norm_gcxb_x = g_cxb.x.norm2();
+  auto norm_gcxb_y = g_cxb.y.norm2();
 
   auto g1b = 2.0 * j_bphi0 - k_bphi0;
   auto g1c = 2.0 * j_cphi0 - k_cphi0;
-  auto norms_g1b = g1b.norm2s();
-  auto norms_g1c = g1c.norm2s();
+
+  auto norms_g1b_x = g1b.x.norm2();
+  auto norms_g1b_y = g1b.y.norm2();
+  auto norms_g1c_x = g1c.x.norm2();
+  auto norms_g1c_y = g1c.y.norm2();
 
   if (r_params.print_level() >= 1) {
     molresponse::end_timer(world, "summing k and j terms");
@@ -1166,42 +1193,29 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(
 
   auto [v_bxc, v_cxb] = dipole_perturbation(world, B, C);
 
-
-  auto norms_v_bxc = v_bxc.norm2s();
-  auto norms_v_cxb = v_cxb.norm2s();
-
-  if(world.rank() == 0) {
-    print("norms_g_zeta_bc: ", norms_g_zeta_bc);
-    print("norms_g_zeta_cb: ", norms_g_zeta_cb);
-    print("norms_g_bxc: ", norms_g_bxc);
-    print("norms_g_cxb: ", norms_g_cxb);
-    print("norms_g1b: ", norms_g1b);
-    print("norms_g1c: ", norms_g1c);
-    print("norms_v_bxc: ", norms_v_bxc);
-    print("norms_v_cxb: ", norms_v_cxb);
-  }
+  auto norms_v_bxc_x = v_bxc.x.norm2();
+  auto norms_v_bxc_y = v_bxc.y.norm2();
+  auto norms_v_cxb_x = v_cxb.x.norm2();
+  auto norms_v_cxb_y = v_cxb.y.norm2();
 
   auto f_bxc = v_bxc + g_bxc;
   auto f_cxb = v_cxb + g_cxb;
+
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
   }
-  // The first term to compute is -Q g1[K^BC], -Q g1[K^BC_conjugate]
-  QProjector<double, 3> projector(world, ground_orbitals);
-  auto apply_projector = [&](auto& xi) {
-    return projector(xi);
-  };
-
-  g_zeta_bc = -1.0 * oop_apply(g_zeta_bc, apply_projector, true);
-  g_zeta_cb = -1.0 * oop_apply(g_zeta_cb, apply_projector, true);
 
   f_bxc = -1.0 * oop_apply(f_bxc, apply_projector, true);
   f_cxb = -1.0 * oop_apply(f_cxb, apply_projector, true);
-
   g_zeta_bc.truncate();
   g_zeta_cb.truncate();
   f_bxc.truncate();
   f_cxb.truncate();
+
+  auto norm_fbxc_x = f_bxc.x.norm2();
+  auto norm_fbxc_y = f_bxc.y.norm2();
+  auto norm_fcxb_x = f_cxb.x.norm2();
+  auto norm_fcxb_y = f_cxb.y.norm2();
 
   world.gop.fence();
   if (r_params.print_level() >= 1) {
@@ -1209,53 +1223,51 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(
   }
 
   auto [VBphi0, VCphi0] = dipole_perturbation(world, phi0, phi0);
+
+  auto norms_v_bphi0x = VBphi0.x.norm2();
+  auto norms_v_bphi0y = VBphi0.y.norm2();
+  auto norms_v_cphi0x = VCphi0.x.norm2();
+  auto norms_v_cphi0y = VCphi0.y.norm2();
+
   auto [FBC, FCB] = compute_first_order_fock_matrix_terms_v2(
       world, B, C, g1b, g1c, VBphi0, VCphi0, phi0);
 
-  auto one = g_zeta_bc;
-  auto norm_one_x = one.x.norm2();
-  auto norm_one_y = one.y.norm2();
+  auto norms_fbc_x = FBC.x.norm2();
+  auto norms_fbc_y = FBC.y.norm2();
+  auto norms_fcb_x = FCB.x.norm2();
+  auto norms_fcb_y = FCB.y.norm2();
   if (world.rank() == 0) {
-    print("g_zeta norm:bc x ", norm_one_x);
-    print("g_zeta norm:bc y ", norm_one_y);
-  }
-  one = g_zeta_cb;
-  norm_one_x = one.x.norm2();
-  norm_one_y = one.y.norm2();
-  if (world.rank() == 0) {
-    print("g_zeta norm:cb x ", norm_one_x);
-    print("g_zeta norm:cb y ", norm_one_y);
-  }
-
-  auto two = f_bxc;
-  auto norm_two_x = two.x.norm2();
-  auto norm_two_y = two.y.norm2();
-  if (world.rank() == 0) {
-    print("fbxc norm:bc x", norm_two_x);
-    print("fbxc norm:bc y", norm_two_y);
-  }
-  two = f_cxb;
-  auto norm_two_x_cxb = two.x.norm2();
-  auto norm_two_y_cxb = two.y.norm2();
-  if (world.rank() == 0) {
-    print("fcxb norm:cb x", norm_two_x);
-    print("fcxb norm:cb y", norm_two_y);
-  }
-
-  auto three = FBC;
-  auto norm_three_x = three.x.norm2();
-  auto norm_three_y = three.y.norm2();
-  if (world.rank() == 0) {
-    print("fbc norm:cb x ", norm_three_x);
-    print("fbc norm:bc y ", norm_three_y);
-  }
-
-  three = FCB;
-  auto norm_three_x_fcb = three.x.norm2();
-  auto norm_three_y_fcb = three.y.norm2();
-  if (world.rank() == 0) {
-    print("fcb norm:cb x ", norm_three_x_fcb);
-    print("fcb norm:bc y ", norm_three_y_fcb);
+    print("------------------------------------");
+    print("norms_g_zeta_bc 1ax: ", norms_g_zeta_bc_x);
+    print("norms_g_zeta_bc 1ay: ", norms_g_zeta_bc_y);
+    print("norms_g_bxc 2ax: ", norm_gbxc_x);
+    print("norms_g_bxc 2ay: ", norm_gbxc_y);
+    print("norms_g1b 3ax: ", norms_g1b_x);
+    print("norms_g1b 3ay: ", norms_g1b_y);
+    print("norms_v_bxc 4ax: ", norms_v_bxc_x);
+    print("norms_v_bxc 4ay: ", norms_v_bxc_y);
+    print("norm_fbxc 5ax: ", norm_fbxc_x);
+    print("norm_fbxc 5ay: ", norm_fbxc_y);
+    print("norms_v_bphi0 6ax: ", norms_v_bphi0x);
+    print("norms_v_bphi0 6ay: ", norms_v_bphi0y);
+    print("norms_fbc 7ax: ", norms_fbc_x);
+    print("norms_fbc 7ay: ", norms_fbc_y);
+    print("------------------------------------");
+    print("norms_g_zeta_cb 1bx: ", norms_g_zeta_cb_x);
+    print("norms_g_zeta_cb 1by: ", norms_g_zeta_cb_y);
+    print("norms_g_cxb 2bx: ", norm_gcxb_x);
+    print("norms_g_cxb 2by: ", norm_gcxb_y);
+    print("norms_g1c 3bx: ", norms_g1c_x);
+    print("norms_g1c 3by: ", norms_g1c_y);
+    print("norms_v_cxb 4bx: ", norms_v_cxb_x);
+    print("norms_v_cxb 4by: ", norms_v_cxb_y);
+    print("norm_fcxb 5bx: ", norm_fcxb_x);
+    print("norm_fcxb 5by: ", norm_fcxb_y);
+    print("norms_v_cphi0 6bx: ", norms_v_cphi0x);
+    print("norms_v_cphi0 6by: ", norms_v_cphi0y);
+    print("norms_fcb 7bx: ", norms_fcb_x);
+    print("norms_fcb 7by: ", norms_fcb_y);
+    print("------------------------------------");
   }
 
   auto VBC = g_zeta_bc + g_zeta_cb + f_bxc + f_cxb + FBC + FCB;
