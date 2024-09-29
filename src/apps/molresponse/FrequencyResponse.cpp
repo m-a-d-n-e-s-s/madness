@@ -765,9 +765,6 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
   auto B = x_data[1].first.copy();
   auto C = x_data[2].first.copy();
 
-  // compare
-  auto rfx = C.x[0] - XC.x[0];
-
   for (int i = 0; i < XB.num_states(); i++) {
 
     print("i: ", i, "index_B[i]: ", index_B[i], "index_C[i]: ", index_C[i]);
@@ -1224,21 +1221,15 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     World& world, const X_space& B, const X_space& C,
     const response_space& phiBC, const response_space& phiCB,
     const vector_real_function_3d& phi0) {
-
-  auto create_dipole = [&]() {
-    vector_real_function_3d dipole_vectors(3);
-    size_t i = 0;
-    // creates a vector of x y z dipole functions
-    for (auto& d : dipole_vectors) {
-      std::vector<int> f(3, 0);
-      f[i++] = 1;
-      d = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
-    }
-    return dipole_vectors;
-  };
-
-  auto dipole_vectors = create_dipole();  // x y z
-  truncate(dipole_vectors, FunctionDefaults<3>::get_thresh(), true);
+  vector_real_function_3d dipole_vectors(3);
+  size_t i = 0;
+  // creates a vector of x y z dipole functions
+  for (auto& d : dipole_vectors) {
+    std::vector<int> f(3, 0);
+    f[i++] = 1;
+    d = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
+  }
+  truncate(world, dipole_vectors, FunctionDefaults<3>::get_thresh(), true);
 
   auto VBC_compare = this->VBC;
 
@@ -1476,7 +1467,7 @@ auto QuadraticResponse::dipole_perturbation(World& world, const X_space& left,
     f[i++] = 1;
     d = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
   }
-  truncate(world, dipole_vectors, true);
+  truncate(world, dipole_vectors, FunctionDefaults<3>::get_thresh(), true);
 
   for (int i = 0; i < num_states; i++) {
 
