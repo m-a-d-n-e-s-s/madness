@@ -587,17 +587,17 @@ response_xy_pair QuadraticResponse::compute_vbc(
     print("norm_g1bphi 3y: ", norm_gBphiy);
   }
 
-  auto vbcx = -1.0 * truncate(mul(world, vb, C.x, true), thresh, true);
-  auto vbcy = -1.0 * truncate(mul(world, vb, C.y, true), thresh, true);
-  auto norm_vbcx = norm2(world, vbcx);
-  auto norm_vbcy = norm2(world, vbcy);
+  response_xy_pair vbx = {truncate(mul(world, vb, C.x, true), thresh, true),
+                          truncate(mul(world, vb, C.y, true), thresh, true)};
+  auto norm_vbcx = norm2(world, vbx.x);
+  auto norm_vbcy = norm2(world, vbx.y);
 
   if (world.rank() == 0) {
     print("norm_vbcx: 4x ", norm_vbcx);
     print("norm_vbcy: 4y", norm_vbcy);
   }
 
-  response_xy_pair FBX = {-1.0 * Q(gBC.x + vbcx), -1.0 * Q(gBC.y + vbcy)};
+  response_xy_pair FBX = {-1.0 * Q(gBC.x + vbx.x), -1.0 * Q(gBC.y + vbx.y)};
 
   auto norm_FBCx = norm2(world, FBX.x);
   auto norm_FBCy = norm2(world, FBX.y);
