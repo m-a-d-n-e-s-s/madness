@@ -560,60 +560,60 @@ response_xy_pair QuadraticResponse::compute_vbc(
   gzeta.x = -1.0 * Q(gzeta.x);
   gzeta.y = -1.0 * Q(gzeta.y);
 
-  auto norm_gzx = norm2(world, gzeta.x);
-  auto norm_gzy = norm2(world, gzeta.y);
+  // auto norm_gzx = norm2(world, gzeta.x);
+  // auto norm_gzy = norm2(world, gzeta.y);
 
-  if (world.rank() == 0) {
-    print("------------------------------------");
-    print("norm_g_zeta_bcx: 1x ", norm_gzx);
-    print("norm_g_zeta_bcy: 1x", norm_gzy);
-  }
+  // if (world.rank() == 0) {
+  //   print("------------------------------------");
+  //   print("norm_g_zeta_bcx: 1x ", norm_gzx);
+  //   print("norm_g_zeta_bcy: 1x", norm_gzy);
+  // }
 
   auto gBC = compute_g(B.x, B.y, {C.x, C.y});
-  auto norm_gBCx = norm2(world, gBC.x);
-  auto norm_gBCy = norm2(world, gBC.y);
+  // auto norm_gBCx = norm2(world, gBC.x);
+  // auto norm_gBCy = norm2(world, gBC.y);
 
-  if (world.rank() == 0) {
-    print("norm_g_bxc_x: 2x ", norm_gBCx);
-    print("norm_g_bxc_y: 2y", norm_gBCy);
-  }
+  // if (world.rank() == 0) {
+  //   print("norm_g_bxc_x: 2x ", norm_gBCx);
+  //   print("norm_g_bxc_y: 2y", norm_gBCy);
+  // }
 
   auto gBphi = compute_g(B.x, B.y, {phi0, phi0});
-  auto norm_gBphix = norm2(world, gBphi.x);
-  auto norm_gBphiy = norm2(world, gBphi.y);
+  // auto norm_gBphix = norm2(world, gBphi.x);
+  // auto norm_gBphiy = norm2(world, gBphi.y);
 
-  if (world.rank() == 0) {
-    print("norm_g1bphi 3x: ", norm_gBphix);
-    print("norm_g1bphi 3y: ", norm_gBphiy);
-  }
+  // if (world.rank() == 0) {
+  //   print("norm_g1bphi 3x: ", norm_gBphix);
+  //   print("norm_g1bphi 3y: ", norm_gBphiy);
+  // }
 
   response_xy_pair vbx = {truncate(mul(world, vb, C.x, true), thresh, true),
                           truncate(mul(world, vb, C.y, true), thresh, true)};
-  auto norm_vbcx = norm2(world, vbx.x);
-  auto norm_vbcy = norm2(world, vbx.y);
+  // auto norm_vbcx = norm2(world, vbx.x);
+  // auto norm_vbcy = norm2(world, vbx.y);
 
-  if (world.rank() == 0) {
-    print("norm_vbcx: 4x ", norm_vbcx);
-    print("norm_vbcy: 4y", norm_vbcy);
-  }
+  // if (world.rank() == 0) {
+  //   print("norm_vbcx: 4x ", norm_vbcx);
+  //   print("norm_vbcy: 4y", norm_vbcy);
+  // }
 
   response_xy_pair FBX = {-1.0 * Q(gBC.x + vbx.x), -1.0 * Q(gBC.y + vbx.y)};
 
-  auto norm_FBCx = norm2(world, FBX.x);
-  auto norm_FBCy = norm2(world, FBX.y);
+  // auto norm_FBCx = norm2(world, FBX.x);
+  // auto norm_FBCy = norm2(world, FBX.y);
 
-  if (world.rank() == 0) {
-    print("norm_Fbxc_x: 5x ", norm_FBCx);
-    print("norm_Fbxc_y: 5y", norm_FBCy);
-  }
+  // if (world.rank() == 0) {
+  //   print("norm_Fbxc_x: 5x ", norm_FBCx);
+  //   print("norm_Fbxc_y: 5y", norm_FBCy);
+  // }
 
   auto vb_phi0 = truncate(mul(world, vb, phi0, true), thresh);
-  auto norm_vbphi0 = norm2(world, vb_phi0);
+  // auto norm_vbphi0 = norm2(world, vb_phi0);
 
-  if (world.rank() == 0) {
-    print("norm_vbphi0: 6x ", norm_vbphi0);
-    print("norm_vbphi0: 6y ", norm_vbphi0);
-  }
+  // if (world.rank() == 0) {
+  //   print("norm_vbphi0: 6x ", norm_vbphi0);
+  //   print("norm_vbphi0: 6y ", norm_vbphi0);
+  // }
 
   response_xy_pair FBphi0 = {gBphi.x + vb_phi0, gBphi.y + vb_phi0};
 
@@ -623,14 +623,14 @@ response_xy_pair QuadraticResponse::compute_vbc(
   response_xy_pair FB = {transform(world, C.x, fbx, true),
                          transform(world, C.y, fby, true)};
 
-  auto norm_FBphi0x = norm2(world, FB.x);
-  auto norm_FBphi0y = norm2(world, FB.y);
+  // auto norm_FBphi0x = norm2(world, FB.x);
+  // auto norm_FBphi0y = norm2(world, FB.y);
 
-  if (world.rank() == 0) {
-    print("norm_FBphi0x: 7x ", norm_FBphi0x);
-    print("norm_FBphi0y: 7y ", norm_FBphi0y);
-    print("-------------------------------------------");
-  }
+  // if (world.rank() == 0) {
+  //   print("norm_FBphi0x: 7x ", norm_FBphi0x);
+  //   print("norm_FBphi0y: 7y ", norm_FBphi0y);
+  //   print("-------------------------------------------");
+  // }
 
   response_xy_pair results{truncate(gzeta.x + FBX.x + FB.x, thresh, true),
                            truncate(gzeta.y + FBX.y + FB.y, thresh, true)};
@@ -799,78 +799,67 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
   auto B = x_data[1].first.copy();
   auto C = x_data[2].first.copy();
 
-  for (int i = 0; i < XB.num_states(); i++) {
+  // for (int i = 0; i < XB.num_states(); i++) {
 
-    print("i: ", i, "index_B[i]: ", index_B[i], "index_C[i]: ", index_C[i]);
+  //   print("i: ", i, "index_B[i]: ", index_B[i], "index_C[i]: ", index_C[i]);
 
-    auto rBx = B.x[index_B[i]] - XB.x[i];
-    auto rBy = B.y[index_B[i]] - XB.y[i];
+  //   auto rBx = B.x[index_B[i]] - XB.x[i];
+  //   auto rBy = B.y[index_B[i]] - XB.y[i];
 
-    auto rCx = C.x[index_C[i]] - XC.x[i];
-    auto rCy = C.y[index_C[i]] - XC.y[i];
+  //   auto rCx = C.x[index_C[i]] - XC.x[i];
+  //   auto rCy = C.y[index_C[i]] - XC.y[i];
 
-    auto rBx_norm = norm2(world, rBx);
-    auto rBy_norm = norm2(world, rBy);
-    auto rCx_norm = norm2(world, rCx);
-    auto rCy_norm = norm2(world, rCy);
+  //   auto rBx_norm = norm2(world, rBx);
+  //   auto rBy_norm = norm2(world, rBy);
+  //   auto rCx_norm = norm2(world, rCx);
+  //   auto rCy_norm = norm2(world, rCy);
 
-    if (world.rank() == 0) {
-      print("i: ", i, " rBx_norm: ", rBx_norm, " rBy_norm: ", rBy_norm,
-            " rCx_norm: ", rCx_norm, " rCy_norm: ", rCy_norm);
+  //   if (world.rank() == 0) {
+  //     print("i: ", i, " rBx_norm: ", rBx_norm, " rBy_norm: ", rBy_norm,
+  //           " rCx_norm: ", rCx_norm, " rCy_norm: ", rCy_norm);
+  //   }
+  // }
+
+  // for (int i = 0; i < XB.num_states(); i++) {
+  //   auto zeta_bc_norm = norm2(world, zeta_bc_left.y[i]);
+  //   auto zeta_cb_norm = norm2(world, zeta_cb_left.y[i]);
+
+  //   if (world.rank() == 0) {
+  //     print("i: ", i, " zeta_bc_norm: ", zeta_bc_norm,
+  //           " zeta_cb_norm: ", zeta_cb_norm);
+  //   }
+  // }
+
+  if (false) {
+    path vbc_archive = "vbc_archive";
+    // if vbc archive exists load it
+    if (fs::exists(vbc_archive.replace_extension(".00000"))) {
+      if (world.rank() == 0) {
+        print("Loading VBC from archive");
+      }
+      this->VBC = load_x_space(world, vbc_archive.stem().string());
+    } else {
+      this->VBC = compute_second_order_perturbation_terms_v2(
+          world, XB, XC, zeta_bc_left, zeta_bc_right, zeta_cb_left,
+          zeta_cb_right, phi0);
+      save_x_space(world, vbc_archive.stem().string(), this->VBC);
     }
   }
-
-  for (int i = 0; i < XB.num_states(); i++) {
-    auto zeta_bc_norm = norm2(world, zeta_bc_left.y[i]);
-    auto zeta_cb_norm = norm2(world, zeta_cb_left.y[i]);
-
-    if (world.rank() == 0) {
-      print("i: ", i, " zeta_bc_norm: ", zeta_bc_norm,
-            " zeta_cb_norm: ", zeta_cb_norm);
-    }
-  }
-
-  path vbc_archive = "vbc_archive";
-
-  // if vbc archive exists load it
-  if (fs::exists(vbc_archive.replace_extension(".00000"))) {
-    if (world.rank() == 0) {
-      print("Loading VBC from archive");
-    }
-    this->VBC = load_x_space(world, vbc_archive.stem().string());
-  } else {
-    this->VBC = compute_second_order_perturbation_terms_v2(
-        world, XB, XC, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right,
-        phi0);
-    save_x_space(world, vbc_archive.stem().string(), this->VBC);
-  }
-
-  // step 1: compute all exchange terms because they are the most expensive
-
   auto VBC_2 = compute_second_order_perturbation_terms_v3(
       world, B, C, zeta_bc_left.y, zeta_cb_left.y, ground_orbitals);
 
-  auto rVBC = VBC_2 - VBC;
-  auto rVBC_norm = rVBC.norm2s();
-  if (world.rank() == 0) {
-    print("rVBC_norm: ", rVBC_norm);
-  }
+  // auto rVBC = VBC_2 - VBC;
+  // auto rVBC_norm = rVBC.norm2s();
+  // if (world.rank() == 0) {
+  //   print("rVBC_norm: ", rVBC_norm);
+  // }
 
-  auto [beta0, beta0_dir] = compute_beta_tensor(
-      world, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right, XA, VBC);
+  // auto [beta0, beta0_dir] = compute_beta_tensor(
+  //     world, zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right, XA, VBC);
 
-  auto [beta2, beta2_dir] =
+  auto [beta0, beta0_dir] =
       compute_beta_tensor(world, zeta_bc_left, zeta_bc_right, zeta_cb_left,
                           zeta_cb_right, XA, VBC_2);
-
-  if (world.rank() == 0) {
-
-    for (int i = 0; i < beta0.size(); i++) {
-      // make a table showing direction and magnitude of beta
-      std::cout << beta0_dir[i] << " " << beta0[i] << " " << beta2[i]
-                << std::endl;
-    }
-  }
 
   return {beta0, beta0_dir};
 }
@@ -1285,7 +1274,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
   }
   truncate(world, dipole_vectors, FunctionDefaults<3>::get_thresh(), true);
 
-  auto VBC_compare = this->VBC;
+  //auto VBC_compare = this->VBC;
 
   X_space VBC(world, BC_index_pairs.size(), B.num_orbitals());
   auto num_states = BC_index_pairs.size();
@@ -1305,10 +1294,6 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
 
     std::string bc = a_directions[b] + a_directions[c];
     world.gop.fence();
-
-    if (r_params.print_level() >= 1) {
-      molresponse::start_timer(world);
-    }
 
     if (r_params.print_level() >= 1) {
       molresponse::start_timer(world);
@@ -1335,24 +1320,24 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     VBC.x[i] = vbcx + vcbx;
     VBC.y[i] = vbcy + vcby;
 
-    auto vbx_norm = norm2(world, VBC.x[i]);
-    auto vby_norm = norm2(world, VBC.y[i]);
+    // auto vbx_norm = norm2(world, VBC.x[i]);
+    // auto vby_norm = norm2(world, VBC.y[i]);
 
-    auto compare_norm = norm2(world, VBC_compare.x[i]);
-    auto compare_norm_y = norm2(world, VBC_compare.y[i]);
+    // auto compare_norm = norm2(world, VBC_compare.x[i]);
+    // auto compare_norm_y = norm2(world, VBC_compare.y[i]);
 
-    auto rxi = VBC_compare.x[i] - VBC.x[i];
-    auto ryi = VBC_compare.y[i] - VBC.y[i];
+    // auto rxi = VBC_compare.x[i] - VBC.x[i];
+    // auto ryi = VBC_compare.y[i] - VBC.y[i];
 
-    auto rxi_norm = norm2(world, rxi);
-    auto ryi_norm = norm2(world, ryi);
+    // auto rxi_norm = norm2(world, rxi);
+    // auto ryi_norm = norm2(world, ryi);
 
-    if (world.rank() == 0) {
-      print("VBC.x[", i, ",", b, ",", c, "] norm: ", vbx_norm,
-            " compare norm: ", compare_norm, " rxi norm: ", rxi_norm);
-      print("VBC.y[", i, ",", b, ",", c, "] norm: ", vby_norm,
-            " compare norm: ", compare_norm_y, " ryi norm: ", ryi_norm);
-    }
+    // if (world.rank() == 0) {
+    //   print("VBC.x[", i, ",", b, ",", c, "] norm: ", vbx_norm,
+    //         " compare norm: ", compare_norm, " rxi norm: ", rxi_norm);
+    //   print("VBC.y[", i, ",", b, ",", c, "] norm: ", vby_norm,
+    //         " compare norm: ", compare_norm_y, " ryi norm: ", ryi_norm);
+    // }
   }
   return VBC;
 }
