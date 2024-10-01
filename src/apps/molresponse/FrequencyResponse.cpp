@@ -1279,10 +1279,14 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
 
   X_space VBC(world, BC_index_pairs.size(), B.num_orbitals());
   auto num_states = BC_index_pairs.size();
-  for (int i = 0; i < num_states; i++) {
 
-    auto b = this->index_B[i];
-    auto c = this->index_C[i];
+  int i = 0;
+  for (const auto [b, c] : BC_index_pairs) {
+
+    //for (int i = 0; i < num_states; i++) {
+
+    // auto b = this->index_B[i];
+    // auto c = this->index_C[i];
 
     const auto& bx = B.x[b];
     const auto& by = B.y[b];
@@ -1320,6 +1324,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
 
     VBC.x[i] = vbcx + vcbx;
     VBC.y[i] = vbcy + vcby;
+    i++;
 
     // auto vbx_norm = norm2(world, VBC.x[i]);
     // auto vby_norm = norm2(world, VBC.y[i]);
