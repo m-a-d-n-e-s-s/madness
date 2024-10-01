@@ -550,7 +550,6 @@ response_xy_pair QuadraticResponse::compute_vbc(
 
     response_xy_pair K = {gaxpy_oop(1.0, ka, 1.0, kb, true),
                           gaxpy_oop(1.0, ka_conj, 1.0, kb_conj, true)};
-    
 
     response_xy_pair results{gaxpy_oop(2.0, J.x, -1.0, K.x, true),
                              gaxpy_oop(2.0, J.y, -1.0, K.y, true)};
@@ -566,7 +565,6 @@ response_xy_pair QuadraticResponse::compute_vbc(
   auto gBC = compute_g(B.x, B.y, {C.x, C.y});
   auto gBphi = compute_g(B.x, B.y, {phi0, phi0});
 
-
   response_xy_pair vbx = {truncate(mul(world, vb, C.x, true), thresh, true),
                           truncate(mul(world, vb, C.y, true), thresh, true)};
   response_xy_pair FBX = {-1.0 * Q(gBC.x + vbx.x), -1.0 * Q(gBC.y + vbx.y)};
@@ -581,6 +579,8 @@ response_xy_pair QuadraticResponse::compute_vbc(
 
   response_xy_pair results{truncate(gzeta.x + FBX.x + FB.x, thresh, true),
                            truncate(gzeta.y + FBX.y + FB.y, thresh, true)};
+  return results;
+
   // auto norm_gzx = norm2(world, gzeta.x);
   // auto norm_gzy = norm2(world, gzeta.y);
 
@@ -637,8 +637,6 @@ response_xy_pair QuadraticResponse::compute_vbc(
   //   print("norm_FBphi0y: 7y ", norm_FBphi0y);
   //   print("-------------------------------------------");
   // }
-
-  return results;
 }
 //
 //
@@ -1318,7 +1316,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     VBC.y[i] = vbcy;
     i++;
   }
-  int i = 0;
+  i = 0;
   for (const auto [b, c] : BC_index_pairs) {
 
     //for (int i = 0; i < num_states; i++) {
