@@ -532,14 +532,13 @@ response_xy_pair QuadraticResponse::compute_vbc(
   // This function constructs the J and K operators with A and B and applies on x
   auto compute_g = [&](const response_lr_pair& A, const response_lr_pair& B,
                        const response_xy_pair& phi) {
-    auto x_phi = mul(world, A.left, A.right, false);
-    auto y_phi = mul(world, B.left, B.right, false);
-    world.gop.fence();
+    auto x_phi = mul(world, A.left, A.right, true);
+    auto y_phi = mul(world, B.left, B.right, true);
     auto rho = sum(world, x_phi, true);
     rho += sum(world, y_phi, true);
     auto temp_J = apply(*shared_coulomb_operator, rho);
-    response_xy_pair J = {mul(world, temp_J, phi.x, false),
-                          mul(world, temp_J, phi.y, false)};
+    response_xy_pair J = {mul(world, temp_J, phi.x, true),
+                          mul(world, temp_J, phi.y, true)};
     world.gop.fence();
 
     auto ka = make_operator(A.left, A.right);
@@ -560,6 +559,22 @@ response_xy_pair QuadraticResponse::compute_vbc(
   gzeta.x = -1.0 * Q(gzeta.x);
   gzeta.y = -1.0 * Q(gzeta.y);
 
+  auto gBC = compute_g(B.x, B.y, {C.x, C.y});
+  auto gBphi = compute_g(B.x, B.y, {phi0, phi0});
+  response_xy_pair vbx = {truncate(mul(world, vb, C.x, true), thresh, true),
+                          truncate(mul(world, vb, C.y, true), thresh, true)};
+  response_xy_pair FBX = {-1.0 * Q(gBC.x + vbx.x), -1.0 * Q(gBC.y + vbx.y)};
+  auto vb_phi0 = truncate(mul(world, vb, phi0, true), thresh);
+  response_xy_pair FBphi0 = {gBphi.x + vb_phi0, gBphi.y + vb_phi0};
+
+  auto fbx = matrix_inner(world, phi0, FBphi0.x);
+  auto fby = matrix_inner(world, phi0, FBphi0.y);
+
+  response_xy_pair FB = {transform(world, C.x, fbx, true),
+                         transform(world, C.y, fby, true)};
+
+  response_xy_pair results{truncate(gzeta.x + FBX.x + FB.x, thresh, true),
+                           truncate(gzeta.y + FBX.y + FB.y, thresh, true)};
   // auto norm_gzx = norm2(world, gzeta.x);
   // auto norm_gzy = norm2(world, gzeta.y);
 
@@ -569,7 +584,6 @@ response_xy_pair QuadraticResponse::compute_vbc(
   //   print("norm_g_zeta_bcy: 1x", norm_gzy);
   // }
 
-  auto gBC = compute_g(B.x, B.y, {C.x, C.y});
   // auto norm_gBCx = norm2(world, gBC.x);
   // auto norm_gBCy = norm2(world, gBC.y);
 
@@ -578,7 +592,6 @@ response_xy_pair QuadraticResponse::compute_vbc(
   //   print("norm_g_bxc_y: 2y", norm_gBCy);
   // }
 
-  auto gBphi = compute_g(B.x, B.y, {phi0, phi0});
   // auto norm_gBphix = norm2(world, gBphi.x);
   // auto norm_gBphiy = norm2(world, gBphi.y);
 
@@ -587,8 +600,6 @@ response_xy_pair QuadraticResponse::compute_vbc(
   //   print("norm_g1bphi 3y: ", norm_gBphiy);
   // }
 
-  response_xy_pair vbx = {truncate(mul(world, vb, C.x, true), thresh, true),
-                          truncate(mul(world, vb, C.y, true), thresh, true)};
   // auto norm_vbcx = norm2(world, vbx.x);
   // auto norm_vbcy = norm2(world, vbx.y);
 
@@ -596,8 +607,6 @@ response_xy_pair QuadraticResponse::compute_vbc(
   //   print("norm_vbcx: 4x ", norm_vbcx);
   //   print("norm_vbcy: 4y", norm_vbcy);
   // }
-
-  response_xy_pair FBX = {-1.0 * Q(gBC.x + vbx.x), -1.0 * Q(gBC.y + vbx.y)};
 
   // auto norm_FBCx = norm2(world, FBX.x);
   // auto norm_FBCy = norm2(world, FBX.y);
@@ -607,21 +616,12 @@ response_xy_pair QuadraticResponse::compute_vbc(
   //   print("norm_Fbxc_y: 5y", norm_FBCy);
   // }
 
-  auto vb_phi0 = truncate(mul(world, vb, phi0, true), thresh);
   // auto norm_vbphi0 = norm2(world, vb_phi0);
 
   // if (world.rank() == 0) {
   //   print("norm_vbphi0: 6x ", norm_vbphi0);
   //   print("norm_vbphi0: 6y ", norm_vbphi0);
   // }
-
-  response_xy_pair FBphi0 = {gBphi.x + vb_phi0, gBphi.y + vb_phi0};
-
-  auto fbx = matrix_inner(world, phi0, FBphi0.x);
-  auto fby = matrix_inner(world, phi0, FBphi0.y);
-
-  response_xy_pair FB = {transform(world, C.x, fbx, true),
-                         transform(world, C.y, fby, true)};
 
   // auto norm_FBphi0x = norm2(world, FB.x);
   // auto norm_FBphi0y = norm2(world, FB.y);
@@ -632,8 +632,6 @@ response_xy_pair QuadraticResponse::compute_vbc(
   //   print("-------------------------------------------");
   // }
 
-  response_xy_pair results{truncate(gzeta.x + FBX.x + FB.x, thresh, true),
-                           truncate(gzeta.y + FBX.y + FB.y, thresh, true)};
   return results;
 }
 //
