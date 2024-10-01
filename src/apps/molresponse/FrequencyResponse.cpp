@@ -535,24 +535,33 @@ response_xy_pair QuadraticResponse::compute_vbc(
                        const response_xy_pair& phi) {
     auto x_phi = mul(world, A.left, A.right, true);
     auto y_phi = mul(world, B.left, B.right, true);
+    world.gop.fence();
     auto rho = sum(world, x_phi, true);
+    world.gop.fence();
     rho += sum(world, y_phi, true);
+    world.gop.fence();
     auto temp_J = apply(*shared_coulomb_operator, rho);
     response_xy_pair J = {mul(world, temp_J, phi.x, true),
                           mul(world, temp_J, phi.y, true)};
     world.gop.fence();
 
     auto ka = K(A.left, A.right)(phi.x);  // what happens to k after this?
+    world.gop.fence();
     auto kb = K(B.left, B.right)(phi.x);
+    world.gop.fence();
     auto ka_conj = K(A.right, A.left)(phi.y);
+    world.gop.fence();
     auto kb_conj = K(B.right, B.left)(phi.y);
+    world.gop.fence();
     // ideally it runs and the Exchange operator is freed
 
     response_xy_pair K = {gaxpy_oop(1.0, ka, 1.0, kb, true),
                           gaxpy_oop(1.0, ka_conj, 1.0, kb_conj, true)};
+    world.gop.fence();
 
     response_xy_pair results{gaxpy_oop(2.0, J.x, -1.0, K.x, true),
                              gaxpy_oop(2.0, J.y, -1.0, K.y, true)};
+    world.gop.fence();
     return results;
   };
   if (r_params.print_level() >= 1) {
@@ -564,11 +573,10 @@ response_xy_pair QuadraticResponse::compute_vbc(
 
   auto gBC = compute_g(B.x, B.y, {C.x, C.y});
   auto gBphi = compute_g(B.x, B.y, {phi0, phi0});
-
-  response_xy_pair vbx = {truncate(mul(world, vb, C.x, true), thresh, true),
-                          truncate(mul(world, vb, C.y, true), thresh, true)};
+  response_xy_pair vbx = {mul(world, vb, C.x, true), mul(world, vb, C.y, true)};
+  world.gop.fence();
   response_xy_pair FBX = {-1.0 * Q(gBC.x + vbx.x), -1.0 * Q(gBC.y + vbx.y)};
-  auto vb_phi0 = truncate(mul(world, vb, phi0, true), thresh);
+  auto vb_phi0 = mul(world, vb, phi0, true);
   response_xy_pair FBphi0 = {gBphi.x + vb_phi0, gBphi.y + vb_phi0};
 
   auto fbx = matrix_inner(world, phi0, FBphi0.x);
