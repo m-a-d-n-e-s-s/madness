@@ -1277,7 +1277,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
 
   //auto VBC_compare = this->VBC;
 
-  X_space VBC(world, BC_index_pairs.size(), B.num_orbitals());
+  VBC = X_space(world, BC_index_pairs.size(), B.num_orbitals());
   auto num_states = BC_index_pairs.size();
 
   int i = 0;
