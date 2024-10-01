@@ -507,7 +507,8 @@ response_xy_pair QuadraticResponse::compute_vbc(
     const real_function_3d& vb) {
   madness::QProjector<double, 3> Q(world, phi0);
   auto thresh = FunctionDefaults<3>::get_thresh();
-  auto make_operator = [&](const vecfuncT& ket, const vecfuncT& bra) {
+
+  auto K = [&](const vecfuncT& ket, const vecfuncT& bra) {
     const double lo = 1.e-10;
     auto& world = ket[0].world();
     Exchange<double, 3> k{world, lo};
@@ -541,15 +542,18 @@ response_xy_pair QuadraticResponse::compute_vbc(
                           mul(world, temp_J, phi.y, true)};
     world.gop.fence();
 
-    auto ka = make_operator(A.left, A.right);
-    auto kb = make_operator(B.left, B.right);
+    auto ka = K(A.left, A.right)(phi.x);  // what happens to k after this?
+    auto kb = K(B.left, B.right)(phi.x);
+    auto ka_conj = K(A.right, A.left)(phi.y);
+    auto kb_conj = K(B.right, B.left)(phi.y);
+    // ideally it runs and the Exchange operator is freed
 
-    auto ka_conj = make_operator(A.right, A.left);
-    auto kb_conj = make_operator(B.right, B.left);
+    response_xy_pair K = {gaxpy_oop(1.0, ka, 1.0, kb, true),
+                          gaxpy_oop(1.0, ka_conj, 1.0, kb_conj, true)};
+    
 
-    response_xy_pair K = {ka(phi.x) + kb(phi.x),
-                          ka_conj(phi.y) + kb_conj(phi.y)};
-    response_xy_pair results{2.0 * J.x - K.x, 2.0 * J.y - K.y};
+    response_xy_pair results{gaxpy_oop(2.0, J.x, -1.0, K.x, true),
+                             gaxpy_oop(2.0, J.y, -1.0, K.y, true)};
     return results;
   };
   if (r_params.print_level() >= 1) {
@@ -561,6 +565,8 @@ response_xy_pair QuadraticResponse::compute_vbc(
 
   auto gBC = compute_g(B.x, B.y, {C.x, C.y});
   auto gBphi = compute_g(B.x, B.y, {phi0, phi0});
+
+
   response_xy_pair vbx = {truncate(mul(world, vb, C.x, true), thresh, true),
                           truncate(mul(world, vb, C.y, true), thresh, true)};
   response_xy_pair FBX = {-1.0 * Q(gBC.x + vbx.x), -1.0 * Q(gBC.y + vbx.y)};
@@ -1293,12 +1299,9 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     const auto& cx = C.x[c];
     const auto& cy = C.y[c];
     const auto& phibc = phiBC[i];
-    const auto& phicb = phiCB[i];
     const auto& vb = dipole_vectors[b];
-    const auto& vc = dipole_vectors[c];
 
     std::string bc = a_directions[b] + a_directions[c];
-    world.gop.fence();
 
     if (r_params.print_level() >= 1) {
       molresponse::start_timer(world);
@@ -1311,20 +1314,43 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
       molresponse::end_timer(world, message.c_str());
     }
 
+    VBC.x[i] = vbcx;
+    VBC.y[i] = vbcy;
+    i++;
+  }
+  int i = 0;
+  for (const auto [b, c] : BC_index_pairs) {
+
+    //for (int i = 0; i < num_states; i++) {
+
+    // auto b = this->index_B[i];
+    // auto c = this->index_C[i];
+
+    const auto& bx = B.x[b];
+    const auto& by = B.y[b];
+    const auto& cx = C.x[c];
+    const auto& cy = C.y[c];
+    const auto& phicb = phiCB[i];
+    const auto& vc = dipole_vectors[c];
     if (r_params.print_level() >= 1) {
       molresponse::start_timer(world);
     }
     auto [vcbx, vcby] = compute_vbc(world, {{cx, phi0}, {phi0, cy}}, {bx, by},
                                     {{cx, by}, {phi0, phicb}}, phi0, vc);
 
+    std::string bc = a_directions[b] + a_directions[c];
     if (r_params.print_level() >= 1) {
       std::string message = "VCB[" + std::to_string(i) + "] BC=" + bc;
       molresponse::end_timer(world, message.c_str());
     }
 
-    VBC.x[i] = vbcx + vcbx;
-    VBC.y[i] = vbcy + vcby;
+    VBC.x[i] += vcbx;
+    VBC.y[i] += vcby;
+
     i++;
+  }
+
+  {
 
     // auto vbx_norm = norm2(world, VBC.x[i]);
     // auto vby_norm = norm2(world, VBC.y[i]);
