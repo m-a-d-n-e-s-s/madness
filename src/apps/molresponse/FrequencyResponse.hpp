@@ -282,6 +282,9 @@ class QuadraticResponse : public ResponseBase {
   std::tuple<X_space, X_space, X_space, X_space>
   compute_zeta_response_vectors(World& world, const X_space& B,
                                 const X_space& C);
+
+  std::pair<response_space, response_space>
+  compute_phiBC_terms(World& world, const X_space& B, const X_space& C);
   std::pair<X_space, X_space>
   compute_first_order_fock_matrix_terms(World& world, const X_space& B,
                                         const X_space& phi0,

@@ -781,23 +781,25 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
                                    const double& omega_c) {
   // step 0: construct all response vectors
   auto XA = -1.0 * x_data[0].first.copy();
-  auto [XB, XC] = setup_XBC(world, omega_b, omega_c);
-  X_space phi0 = X_space(world, XB.num_states(), XC.num_orbitals());
-  for (auto i = 0; i < phi0.num_states(); i++) {
-    phi0.x[i] = copy(world, ground_orbitals);
-    phi0.y[i] = copy(world, ground_orbitals);
-  }
+  auto B = x_data[1].first.copy();
+  auto C = x_data[2].first.copy();
+  //auto [XB, XC] = setup_XBC(world, omega_b, omega_c);
+  //X_space phi0 = X_space(world, XB.num_states(), XC.num_orbitals());
+  // for (auto i = 0; i < phi0.num_states(); i++) {
+  //   phi0.x[i] = copy(world, ground_orbitals);
+  //   phi0.y[i] = copy(world, ground_orbitals);
+  // }
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
   }
-  auto [zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right] =
-      compute_zeta_response_vectors(world, XB, XC);
+  // auto [zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right] =
+  //     compute_zeta_response_vectors(world, XB, XC);
+
+  auto [phiBC, phiCB] = compute_phiBC_terms(world, B, C);
+
   if (r_params.print_level() >= 1) {
     molresponse::end_timer(world, "Zeta(BC) and Zeta(CB)");
   }
-
-  auto B = x_data[1].first.copy();
-  auto C = x_data[2].first.copy();
 
   // for (int i = 0; i < XB.num_states(); i++) {
 
@@ -839,14 +841,17 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
       }
       this->VBC = load_x_space(world, vbc_archive.stem().string());
     } else {
-      this->VBC = compute_second_order_perturbation_terms_v2(
-          world, XB, XC, zeta_bc_left, zeta_bc_right, zeta_cb_left,
-          zeta_cb_right, phi0);
+
+      this->VBC = compute_second_order_perturbation_terms_v3(
+          world, B, C, phiBC, phiCB, ground_orbitals);
+      // this->VBC = compute_second_order_perturbation_terms_v2(
+      //     world, XB, XC, zeta_bc_left, zeta_bc_right, zeta_cb_left,
+      //     zeta_cb_right, phi0);
       save_x_space(world, vbc_archive.stem().string(), this->VBC);
     }
   }
-  auto VBC_2 = compute_second_order_perturbation_terms_v3(
-      world, B, C, zeta_bc_left.y, zeta_cb_left.y, ground_orbitals);
+  this->VBC = compute_second_order_perturbation_terms_v3(
+      world, B, C, phiBC, phiCB, ground_orbitals);
 
   // auto rVBC = VBC_2 - VBC;
   // auto rVBC_norm = rVBC.norm2s();
@@ -854,8 +859,8 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
   //   print("rVBC_norm: ", rVBC_norm);
   // }
 
-  auto [beta0, beta0_dir] = compute_beta_tensor_v2(world, B, C, zeta_bc_left.y,
-                                                   zeta_cb_left.y, XA, VBC_2);
+  auto [beta0, beta0_dir] =
+      compute_beta_tensor_v2(world, B, C, phiBC, phiCB, XA, VBC);
   // compute_beta_tensor(world, zeta_bc_left, zeta_bc_right, zeta_cb_left,
   //                     zeta_cb_right, XA, VBC_2);
 
@@ -1418,6 +1423,27 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms(
   return g1_zbc + g1_zcb + g1bxc + g1cxb + zFBzC + zFCzB + vbxc + vcxb;
 
   // the next term we need to compute are the first order fock matrix terms
+}
+std::pair<response_space, response_space>
+QuadraticResponse::compute_phiBC_terms(World& world, const X_space& B,
+                                       const X_space& C) {
+
+  response_space phiBC(world, BC_index_pairs.size(), B.num_orbitals());
+  response_space phiCB(world, BC_index_pairs.size(), B.num_orbitals());
+  // Here contains the y components
+  // construct tilde_phi_dagger(bc) and tilde_phi_dagger(cb)
+  // where tilde_phi_dagger(bc)_i = \sum_j <y_i(b) | x_j(c)> * phi0_j
+
+  int i = 0;
+  for (const auto [b, c] : BC_index_pairs) {
+
+    auto matrix_bycx = matrix_inner(world, B.y[b], C.x[c]);
+    phiBC[i] - 1.0 * transform(world, ground_orbitals, 1.0 * matrix_bycx, true);
+    auto matrix_cybx = matrix_inner(world, C.y[b], B.x[c]);
+    phiBC[i] =
+        -1.0 * transform(world, ground_orbitals, 1.0 * matrix_cybx, true);
+  }
+  return {phiBC, phiCB};
 }
 
 /**
