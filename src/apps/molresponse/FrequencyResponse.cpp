@@ -1441,10 +1441,9 @@ QuadraticResponse::compute_phiBC_terms(World& world, const X_space& B,
   for (const auto [b, c] : BC_index_pairs) {
 
     auto matrix_bycx = matrix_inner(world, B.y[b], C.x[c]);
-    phiBC[i] = 1.0 * transform(world, ground_orbitals, 1.0 * matrix_bycx, true);
+    phiBC[i] = -1.0 * transform(world, ground_orbitals, matrix_bycx, true);
     auto matrix_cybx = matrix_inner(world, C.y[b], B.x[c]);
-    phiCB[i] =
-        -1.0 * transform(world, ground_orbitals, 1.0 * matrix_cybx, true);
+    phiCB[i] = -1.0 * transform(world, ground_orbitals, matrix_cybx, true);
     i++;
   }
   return {phiBC, phiCB};
