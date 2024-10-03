@@ -802,7 +802,10 @@ class LinearResponseStrategy : public CalculationStrategy, InputInterface {
         ifs >> persistent_output;
         ifs.close();
       }
-      persistent_output[name] = alpha_json;
+      json output = {};
+      output["alpha"] = alpha_json;
+
+      persistent_output[name] = output;
       std::ofstream ofs(path_manager.get_output_path());
       ofs << persistent_output.dump(4);
       ofs.close();
@@ -1075,8 +1078,11 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
           ifs >> persistent_output;
           ifs.close();
         }
-        json beta_json_2 = beta_data;
-        persistent_output[name] = beta_json_2;
+        json out_json = {};
+        out_json["beta"] = beta_data;
+
+
+        persistent_output[name]=out_json;;
         std::ofstream ofs(path_manager.get_output_path());
         ofs << persistent_output.dump(4);
         ofs.close();
