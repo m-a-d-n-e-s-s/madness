@@ -1079,7 +1079,7 @@ class ResponseHyper : public CalculationStrategy, InputInterface {
           ifs.close();
         }
         json out_json = {};
-        out_json["beta"] = beta_data;
+        out_json["beta"] = beta_json;
 
 
         persistent_output[name]=out_json;;
