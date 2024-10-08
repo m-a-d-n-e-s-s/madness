@@ -1,2 +1,0 @@
-Calculation Structure
-=====================

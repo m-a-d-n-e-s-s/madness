@@ -2,8 +2,6 @@
 
 if(CMAKE_CXX_STANDARD GREATER_EQUAL 17)
     # C++ standard is 17 or higher
-    add_subdirectory(response_coordinator)
-    add_subdirectory(maddft)
     # Add your code or configurations here
 else()
     # C++ standard is below 17
