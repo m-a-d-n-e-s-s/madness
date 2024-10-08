@@ -19,12 +19,14 @@ set(MOLRESPONSE_SOURCES
         Plot_VTK.cc
         basic_operators.cc
         response_parameters.cpp
+        response_macrotask.cpp
         x_space.cc
         )
 set(MOLRESPONSE_HEADERS
         ResponseBase.hpp
         ExcitedResponse.hpp
         FrequencyResponse.hpp
+        response_macrotask.hpp
         property.h
         x_space.h
         global_functions.h
@@ -40,7 +42,6 @@ add_dependencies(applications-madness molresponse)
 
 add_mad_executable(molresponse "molresponse.cc" "MADresponse;MADchem")
 
-# removed mcpfit since it is likely only of historic interest
 install(TARGETS molresponse DESTINATION "${MADNESS_INSTALL_BINDIR}")
 
 
@@ -48,6 +49,7 @@ set(R_BASE_SOURCES
         ResponseBase.cpp
         ExcitedResponse.cpp
         FrequencyResponse.cpp
+        response_macrotask.cpp
         property.cc
         global_functions.cc
         timer.cc
@@ -61,6 +63,7 @@ set(R_BASE_HEADERS
         ResponseBase.hpp
         ExcitedResponse.hpp
         FrequencyResponse.hpp
+        response_macrotask.hpp
         property.h
         global_functions.h
         x_space.h
@@ -80,6 +83,7 @@ set(RALL_SOURCES
         FrequencyResponse.cpp
         property.cc
         global_functions.cc
+        response_macrotask.cpp
         timer.cc
         Plot_VTK.cc
         basic_operators.cc
@@ -91,6 +95,7 @@ set(RALL_HEADERS
         ResponseBase.hpp
         ExcitedResponse.hpp
         FrequencyResponse.hpp
+        response_macrotask.hpp
         property.h
         global_functions.h
         timer.h

@@ -32,7 +32,7 @@ void FrequencyResponse::iterate(World& world) {
   auto thresh = FunctionDefaults<3>::get_thresh();
   auto density_target =
       dconv * static_cast<double>(std::max(size_t(5.0), molecule.natom()));
-  const double x_residual_target = density_target * 5.0;
+  const double x_residual_target = density_target * 10.0;
   Tensor<double> x_residual((int(m)));
   Tensor<double> delta_density((int(m)));
 
