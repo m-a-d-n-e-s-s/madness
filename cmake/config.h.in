@@ -102,6 +102,9 @@
 #cmakedefine MADNESS_ASSERTIONS_DISABLE 1
 #cmakedefine MADNESS_ASSERTIONS_THROW 1
 
+/* The default binding for threads */
+#define MADNESS_TASK_BACKEND "@MADNESS_TASK_BACKEND@"
+
 /* Thread-safety level requested from MPI by MADNESS */
 #define MADNESS_MPI_THREAD_LEVEL @MADNESS_MPI_THREAD_LEVEL@
 #cmakedefine STUBOUTMPI 1
