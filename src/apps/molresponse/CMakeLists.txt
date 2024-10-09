@@ -19,7 +19,6 @@ set(MOLRESPONSE_SOURCES
         Plot_VTK.cc
         basic_operators.cc
         response_parameters.cpp
-        response_macrotask.cpp
         x_space.cc
         )
 set(MOLRESPONSE_HEADERS
@@ -49,7 +48,6 @@ set(R_BASE_SOURCES
         ResponseBase.cpp
         ExcitedResponse.cpp
         FrequencyResponse.cpp
-        response_macrotask.cpp
         property.cc
         global_functions.cc
         timer.cc
@@ -83,7 +81,6 @@ set(RALL_SOURCES
         FrequencyResponse.cpp
         property.cc
         global_functions.cc
-        response_macrotask.cpp
         timer.cc
         Plot_VTK.cc
         basic_operators.cc

@@ -5,6 +5,7 @@
 #include "FrequencyResponse.hpp"
 #include "funcdefaults.h"
 #include "functypedefs.h"
+#include "response_macrotask.hpp"
 #include "timer.h"
 #include "x_space.h"
 #include <filesystem>
@@ -1292,6 +1293,9 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
   VBC = X_space(world, BC_index_pairs.size(), B.num_orbitals());
   auto num_states = BC_index_pairs.size();
 
+  // Only here to check if BC_index_pairs is serializable for macrotask
+  world.gop.broadcast_serializable(BC_index_pairs, 0);
+
   int i = 0;
   for (const auto [b, c] : BC_index_pairs) {
 
@@ -1356,26 +1360,49 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     i++;
   }
 
-  {
+  auto vec_b = copyToVector(B);
+  auto vec_c = copyToVector(C);
+  auto vec_zeta_bc = copyToVector(phiBC);
+  auto vec_zeta_cb = copyToVector(phiCB);
 
-    // auto vbx_norm = norm2(world, VBC.x[i]);
-    // auto vby_norm = norm2(world, VBC.y[i]);
+  VBC_task t;
+  MacroTask task_vbc(world, t);
 
-    // auto compare_norm = norm2(world, VBC_compare.x[i]);
-    // auto compare_norm_y = norm2(world, VBC_compare.y[i]);
+  std::vector<int> bidx;
+  std::vector<int> cidx;
 
-    // auto rxi = VBC_compare.x[i] - VBC.x[i];
-    // auto ryi = VBC_compare.y[i] - VBC.y[i];
+  for (const auto [b, c] : BC_index_pairs) {
+    bidx.push_back(b);
+    cidx.push_back(c);
+  }
+  auto vbc = task_vbc(bidx, cidx, vec_b, vec_c, vec_zeta_bc, vec_zeta_cb, phi0,
+                      dipole_vectors);
 
-    // auto rxi_norm = norm2(world, rxi);
-    // auto ryi_norm = norm2(world, ryi);
+  auto VBC_compare = X_space(world, VBC.num_states(), VBC.num_orbitals());
+  copyToXspace(vbc, VBC_compare);
 
-    // if (world.rank() == 0) {
-    //   print("VBC.x[", i, ",", b, ",", c, "] norm: ", vbx_norm,
-    //         " compare norm: ", compare_norm, " rxi norm: ", rxi_norm);
-    //   print("VBC.y[", i, ",", b, ",", c, "] norm: ", vby_norm,
-    //         " compare norm: ", compare_norm_y, " ryi norm: ", ryi_norm);
-    // }
+  i = 0;
+  for (const auto [b, c] : BC_index_pairs) {
+
+    auto vbx_norm = norm2(world, VBC.x[i]);
+    auto vby_norm = norm2(world, VBC.y[i]);
+
+    auto compare_norm = norm2(world, VBC_compare.x[i]);
+    auto compare_norm_y = norm2(world, VBC_compare.y[i]);
+
+    auto rxi = VBC_compare.x[i] - VBC.x[i];
+    auto ryi = VBC_compare.y[i] - VBC.y[i];
+
+    auto rxi_norm = norm2(world, rxi);
+    auto ryi_norm = norm2(world, ryi);
+
+    if (world.rank() == 0) {
+      print("VBC.x[", i, ",", b, ",", c, "] norm: ", vbx_norm,
+            " compare norm: ", compare_norm, " rxi norm: ", rxi_norm);
+      print("VBC.y[", i, ",", b, ",", c, "] norm: ", vby_norm,
+            " compare norm: ", compare_norm_y, " ryi norm: ", ryi_norm);
+    }
+    i++;
   }
   return VBC;
 }
