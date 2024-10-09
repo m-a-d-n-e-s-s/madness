@@ -1,0 +1,5 @@
+<map id="madness::PoolTaskInterface" name="madness::PoolTaskInterface">
+<area shape="rect" id="node1" title="Lowest level task interface." alt="" coords="88,109,292,136"/>
+<area shape="rect" id="node2" href="$classmadness_1_1TaskAttributes.html" title="Contains attributes of a task." alt="" coords="5,13,188,39"/>
+<area shape="rect" id="node3" href="$classmadness_1_1profiling_1_1TaskEvent.html" title="Task event class." alt="" coords="212,5,355,47"/>
+</map>

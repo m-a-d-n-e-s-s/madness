@@ -1,0 +1,12 @@
+<map id="CalcParams" name="CalcParams">
+<area shape="rect" id="node1" title=" " alt="" coords="1645,168,1744,195"/>
+<area shape="rect" id="node2" href="$classmadness_1_1Molecule.html" title=" " alt="" coords="952,115,1100,141"/>
+<area shape="rect" id="node9" href="$classGroundStateCalculation.html" title=" " alt="" coords="1293,168,1469,195"/>
+<area shape="rect" id="node3" href="$classmadness_1_1CorePotentialManager.html" title=" " alt="" coords="443,69,677,96"/>
+<area shape="rect" id="node4" title=" " alt="" coords="119,121,178,148"/>
+<area shape="rect" id="node5" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="457,8,663,35"/>
+<area shape="rect" id="node6" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="67,8,230,35"/>
+<area shape="rect" id="node7" href="$structmadness_1_1Molecule_1_1GeometryParameters.html" title=" " alt="" coords="479,237,641,278"/>
+<area shape="rect" id="node8" href="$classmadness_1_1QCCalculationParametersBase.html" title="class for holding the parameters for calculation" alt="" coords="5,280,292,307"/>
+<area shape="rect" id="node10" href="$structmadness_1_1ResponseParameters.html" title=" " alt="" coords="701,288,928,315"/>
+</map>

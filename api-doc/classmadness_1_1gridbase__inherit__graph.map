@@ -1,0 +1,6 @@
+<map id="madness::gridbase" name="madness::gridbase">
+<area shape="rect" id="node1" title=" " alt="" coords="5,64,151,91"/>
+<area shape="rect" id="node2" href="$classmadness_1_1dftgrid.html" title=" " alt="" coords="199,5,396,32"/>
+<area shape="rect" id="node3" href="$classmadness_1_1molecular__grid.html" title="given a molecule, return a suitable grid" alt="" coords="220,57,375,98"/>
+<area shape="rect" id="node4" href="$classmadness_1_1randomgrid.html" title="grid with random points around the origin, with a Gaussian distribution" alt="" coords="215,122,379,163"/>
+</map>

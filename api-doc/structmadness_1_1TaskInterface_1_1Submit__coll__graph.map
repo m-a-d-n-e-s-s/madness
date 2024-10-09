@@ -1,0 +1,7 @@
+<map id="madness::TaskInterface::Submit" name="madness::TaskInterface::Submit">
+<area shape="rect" id="node1" title=" " alt="" coords="40,199,216,240"/>
+<area shape="rect" id="node2" href="$classmadness_1_1CallbackInterface.html" title="The class used for callbacks (e.g., dependency tracking)." alt="" coords="5,109,208,136"/>
+<area shape="rect" id="node3" href="$classmadness_1_1PoolTaskInterface.html" title="Lowest level task interface." alt="" coords="233,109,437,136"/>
+<area shape="rect" id="node4" href="$classmadness_1_1TaskAttributes.html" title="Contains attributes of a task." alt="" coords="150,13,333,39"/>
+<area shape="rect" id="node5" href="$classmadness_1_1profiling_1_1TaskEvent.html" title="Task event class." alt="" coords="357,5,499,47"/>
+</map>

@@ -1,0 +1,52 @@
+<map id="distributed_matrix.h" name="distributed_matrix.h">
+<area shape="rect" id="node1" title=" " alt="" coords="3211,5,3365,32"/>
+<area shape="rect" id="node2" href="$MADworld_8h.html" title="This header should include pretty much everything needed for the parallel runtime." alt="" coords="2146,80,2350,107"/>
+<area shape="rect" id="node10" title=" " alt="" coords="2871,572,2931,599"/>
+<area shape="rect" id="node42" href="$tensor_8h.html" title="Defines and implements most of Tensor." alt="" coords="3730,401,3913,427"/>
+<area shape="rect" id="node3" href="$world_8h.html" title="Declares the World class for the parallel runtime environment." alt="" coords="2095,311,2268,338"/>
+<area shape="rect" id="node28" href="$worldam_8h.html" title="Implements active message layer for World on top of RMI layer." alt="" coords="2963,229,3157,256"/>
+<area shape="rect" id="node30" href="$world__task__queue_8h.html" title="Defines TaskInterface and implements WorldTaskQueue and associated stuff." alt="" coords="977,393,1138,435"/>
+<area shape="rect" id="node37" href="$worldgop_8h.html" title="Implements global operations." alt="" coords="1712,155,1909,181"/>
+<area shape="rect" id="node41" href="$worlddc_8h.html" title="Implements WorldContainer." alt="" coords="2219,155,2407,181"/>
+<area shape="rect" id="node4" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS." alt="" coords="3516,721,3719,748"/>
+<area shape="rect" id="node5" title=" " alt="" coords="3109,647,3179,673"/>
+<area shape="rect" id="node6" title=" " alt="" coords="280,572,347,599"/>
+<area shape="rect" id="node7" title=" " alt="" coords="2655,647,2735,673"/>
+<area shape="rect" id="node8" title=" " alt="" coords="2004,647,2047,673"/>
+<area shape="rect" id="node9" title=" " alt="" coords="2404,647,2479,673"/>
+<area shape="rect" id="node11" href="$worldinit_8h.html" title="Declares the functions that initialize the parallel runtime." alt="" coords="1848,401,2043,427"/>
+<area shape="rect" id="node12" href="$worldmpi_8h.html" title="Implements WorldMpiInterface." alt="" coords="1589,490,1787,517"/>
+<area shape="rect" id="node16" href="$worldhashmap_8h.html" title="Defines and implements a concurrent hashmap." alt="" coords="2763,401,2997,427"/>
+<area shape="rect" id="node17" href="$worldprofile_8h.html" title=" " alt="" coords="2270,401,2485,427"/>
+<area shape="rect" id="node19" href="$thread_8h.html" title="Implements Dqueue, Thread, ThreadBase and ThreadPool." alt="" coords="2215,572,2393,599"/>
+<area shape="rect" id="node26" href="$uniqueid_8h.html" title=" " alt="" coords="2955,572,3149,599"/>
+<area shape="rect" id="node27" href="$nodefaults_8h.html" title="Implements NO_DEFAULTS." alt="" coords="1257,490,1463,517"/>
+<area shape="rect" id="node13" title=" " alt="" coords="958,647,1050,673"/>
+<area shape="rect" id="node14" href="$worldtypes_8h.html" title="Defines types used by the parallel runtime." alt="" coords="1605,572,1814,599"/>
+<area shape="rect" id="node15" title=" " alt="" coords="2418,572,2483,599"/>
+<area shape="rect" id="node18" href="$worldrmi_8h.html" title="Lowest level API for sending active messages — you should probably be looking at worldam...." alt="" coords="2320,490,2515,517"/>
+<area shape="rect" id="node20" title=" " alt="" coords="2810,647,2873,673"/>
+<area shape="rect" id="node21" title=" " alt="" coords="2135,647,2219,673"/>
+<area shape="rect" id="node22" href="$archive_8h.html" title="Interface templates for the archives (serialization)." alt="" coords="2610,572,2795,599"/>
+<area shape="rect" id="node25" title=" " alt="" coords="2508,572,2585,599"/>
+<area shape="rect" id="node23" title=" " alt="" coords="4281,721,4359,748"/>
+<area shape="rect" id="node24" title=" " alt="" coords="3325,647,3381,673"/>
+<area shape="rect" id="node29" href="$buffer__archive_8h.html" title="Implements an archive wrapping a memory buffer." alt="" coords="1877,304,2040,345"/>
+<area shape="rect" id="node31" title=" " alt="" coords="145,490,303,517"/>
+<area shape="rect" id="node32" href="$meta_8h.html" title=" " alt="" coords="608,572,779,599"/>
+<area shape="rect" id="node33" href="$range_8h.html" title="Implement the Range class for parallel iteration." alt="" coords="854,572,1029,599"/>
+<area shape="rect" id="node34" href="$timers_8h.html" title="Wrappers around platform dependent timers and performance info." alt="" coords="328,490,507,517"/>
+<area shape="rect" id="node35" href="$taskfn_8h.html" title=" " alt="" coords="800,490,979,517"/>
+<area shape="rect" id="node36" href="$mem__func__wrapper_8h.html" title="Defines tools for encapsulating a pointer to a member function." alt="" coords="581,483,776,524"/>
+<area shape="rect" id="node38" title=" " alt="" coords="2245,229,2331,256"/>
+<area shape="rect" id="node39" href="$deferred__cleanup_8h.html" title=" " alt="" coords="1913,483,2093,524"/>
+<area shape="rect" id="node40" href="$group_8h.html" title=" " alt="" coords="1095,229,1270,256"/>
+<area shape="rect" id="node43" href="$ran_8h.html" title=" " alt="" coords="3630,490,3783,517"/>
+<area shape="rect" id="node44" href="$posixmem_8h.html" title="Implement dummy posix_memalign if it is missing on the system." alt="" coords="3681,647,3887,673"/>
+<area shape="rect" id="node45" title=" " alt="" coords="4427,572,4490,599"/>
+<area shape="rect" id="node46" href="$basetensor_8h.html" title="Declares BaseTensor." alt="" coords="4213,647,4427,673"/>
+<area shape="rect" id="node47" href="$aligned_8h.html" title="Provides routines for internal use optimized for aligned data." alt="" coords="3859,490,4050,517"/>
+<area shape="rect" id="node48" href="$mxm_8h.html" title="Internal use only." alt="" coords="3963,647,4139,673"/>
+<area shape="rect" id="node49" href="$tensorexcept_8h.html" title="Declares and implements TensorException." alt="" coords="4125,572,4352,599"/>
+<area shape="rect" id="node50" href="$tensoriter_8h.html" title="Declares TensorIterator." alt="" coords="4177,490,4381,517"/>
+</map>

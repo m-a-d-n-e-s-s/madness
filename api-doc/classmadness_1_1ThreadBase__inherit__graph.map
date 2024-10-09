@@ -1,0 +1,7 @@
+<map id="madness::ThreadBase" name="madness::ThreadBase">
+<area shape="rect" id="node1" title="Simplified thread wrapper to hide pthread complexity." alt="" coords="54,5,221,32"/>
+<area shape="rect" id="node2" href="$classPeasant.html" title=" " alt="" coords="5,80,80,107"/>
+<area shape="rect" id="node3" href="$classWorker.html" title=" " alt="" coords="104,80,171,107"/>
+<area shape="rect" id="node4" href="$classmadness_1_1Thread.html" title="Simplified thread wrapper to hide pthread complexity." alt="" coords="195,80,330,107"/>
+<area shape="rect" id="node5" href="$classmadness_1_1ThreadPoolThread.html" title="ThreadPool thread object." alt="" coords="159,155,366,181"/>
+</map>

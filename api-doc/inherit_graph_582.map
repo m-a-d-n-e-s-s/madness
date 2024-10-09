@@ -1,0 +1,7 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="node1" href="$classmadness_1_1ThreadBase.html" title="Simplified thread wrapper to hide pthread complexity." alt="" coords="5,56,172,83"/>
+<area shape="rect" id="node2" href="$classPeasant.html" title=" " alt="" coords="250,5,325,32"/>
+<area shape="rect" id="node3" href="$classWorker.html" title=" " alt="" coords="254,56,321,83"/>
+<area shape="rect" id="node4" href="$classmadness_1_1Thread.html" title="Simplified thread wrapper to hide pthread complexity." alt="" coords="220,107,355,133"/>
+<area shape="rect" id="node5" href="$classmadness_1_1ThreadPoolThread.html" title="ThreadPool thread object." alt="" coords="403,107,609,133"/>
+</map>
