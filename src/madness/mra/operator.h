@@ -245,8 +245,10 @@ namespace madness {
             Tensor<Q> coeff=fit.coeffs();
             Tensor<Q> expnt=fit.exponents();
 
+            // WARNING! More fine-grained control over the last argument is needed.
+            // This is a hotfix.
             if (bc(0,0) == BC_PERIODIC) {
-                fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+                fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
             }
 
             return std::make_pair(coeff,expnt);
