@@ -57,7 +57,6 @@ vector_real_function_3d copyToVector(const response_space& chi) {
   for (int i = 0; i < n; i++) {
     for (int j = 0; j < m; j++) {
       auto xindex = (2 * i * m) + j;
-      auto yindex = (2 * i * m) + j + m;
       rf[xindex] = chi.x[i][j];
     }
   }
@@ -175,7 +174,7 @@ class VBC_task : public MacroTaskOperationBase {
              const vector_real_function_3d& dipole_perturbations) const {
 
     World& world = phi0[0].world();
-    madness::QProjector<double, 3> Q(phi0);
+    madness::QProjector<double, 3> Q(world,phi0);
     auto thresh = FunctionDefaults<3>::get_thresh();
 
     auto K = [&](const vecfuncT& ket, const vecfuncT& bra) {

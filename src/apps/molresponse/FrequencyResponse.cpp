@@ -12,19 +12,19 @@
 
 namespace fs = std::filesystem;
 
-void FrequencyResponse::initialize(World& world) {
+void FrequencyResponse::initialize(World &world) {
   if (world.rank() == 0) {
     print("FrequencyResponse::initialize()");
   }
   Chi = PQ.copy();
 }
 
-void FrequencyResponse::iterate(World& world) {
+void FrequencyResponse::iterate(World &world) {
   size_t iter;
   // Variables needed to iterate
   madness::QProjector<double, 3> projector(world, ground_orbitals);
-  size_t n = r_params.num_orbitals();  // num orbitals
-  size_t m = r_params.num_states();    // num response states
+  size_t n = r_params.num_orbitals(); // num orbitals
+  size_t m = r_params.num_states();   // num response states
 
   real_function_3d v_xc;
 
@@ -55,7 +55,7 @@ void FrequencyResponse::iterate(World& world) {
                               false);
   }
   if (r_params.kain()) {
-    for (auto& kain_space_b : kain_x_space) {
+    for (auto &kain_space_b : kain_x_space) {
       kain_space_b.set_maxsub(static_cast<int>(r_params.maxsub()));
     }
   }
@@ -132,14 +132,14 @@ void FrequencyResponse::iterate(World& world) {
                 density_target);
         }
       }
-      auto check_convergence = [&](auto& ri, auto& di) {
+      auto check_convergence = [&](auto &ri, auto &di) {
         if (world.rank() == 0) {
           print("              ", ri, "    ", di);
         }
         return ((ri < x_residual_target) && (di < density_target));
       };
 
-      for (const auto& b : Chi.active) {
+      for (const auto &b : Chi.active) {
         converged[b] = check_convergence(x_residual[static_cast<int>(b)],
                                          delta_density[static_cast<int>(b)]);
       }
@@ -156,7 +156,7 @@ void FrequencyResponse::iterate(World& world) {
       }
       b = 0;
       all_done = std::all_of(converged.begin(), converged.end(),
-                             [](const auto& ci) { return ci; });
+                             [](const auto &ci) { return ci; });
       if (all_done || iter == r_params.maxiter()) {
         // if converged print converged
         if (world.rank() == 0 && all_done and (r_params.print_level() > 1)) {
@@ -182,7 +182,7 @@ void FrequencyResponse::iterate(World& world) {
     auto old_rho = copy(world, rho_omega);
     rho_omega = copy(world, new_rho);
 
-    for (const auto& b : Chi.active) {
+    for (const auto &b : Chi.active) {
       auto drho_b = rho_omega[b] - old_rho[b];
       auto drho_b_norm = drho_b.norm2();
       world.gop.fence();
@@ -243,12 +243,12 @@ void FrequencyResponse::iterate(World& world) {
 }
 
 auto FrequencyResponse::update_response(
-    World& world, X_space& chi, XCOperator<double, 3>& xc,
-    std::vector<poperatorT>& bsh_x_ops, std::vector<poperatorT>& bsh_y_ops,
-    QProjector<double, 3>& projector, double& x_shifts, double& omega_n,
-    response_solver& kain_x_space, size_t iteration, const double& max_rotation,
-    const vector_real_function_3d& rho_old, const Tensor<double>& old_residuals,
-    const X_space& xres_old)
+    World &world, X_space &chi, XCOperator<double, 3> &xc,
+    std::vector<poperatorT> &bsh_x_ops, std::vector<poperatorT> &bsh_y_ops,
+    QProjector<double, 3> &projector, double &x_shifts, double &omega_n,
+    response_solver &kain_x_space, size_t iteration, const double &max_rotation,
+    const vector_real_function_3d &rho_old, const Tensor<double> &old_residuals,
+    const X_space &xres_old)
     -> std::tuple<X_space, residuals, vector_real_function_3d> {
 
   if (r_params.print_level() >= 1) {
@@ -264,11 +264,12 @@ auto FrequencyResponse::update_response(
                                         projector, x_shifts);
 
   chi_norm = new_chi.norm2s();
-  // if (world.rank() == 0) { print("new_chi_norm after bsh update: ", chi_norm); }
+  // if (world.rank() == 0) { print("new_chi_norm after bsh update: ",
+  // chi_norm); }
 
   auto [new_res, bsh_norms] = update_residual(
       world, chi, new_chi, r_params.calc_type(), old_residuals, xres_old);
-  if (iteration >= 0) {  // & (iteration % 3 == 0)) {
+  if (iteration >= 0) { // & (iteration % 3 == 0)) {
     new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
   }
   chi_norm = new_chi.norm2s();
@@ -288,11 +289,11 @@ auto FrequencyResponse::update_response(
   return {new_chi, {new_res, bsh_norms}, new_rho};
 }
 
-auto FrequencyResponse::bsh_update_response(World& world, X_space& theta_X,
-                                            std::vector<poperatorT>& bsh_x_ops,
-                                            std::vector<poperatorT>& bsh_y_ops,
-                                            QProjector<double, 3>& projector,
-                                            double& x_shifts) -> X_space {
+auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
+                                            std::vector<poperatorT> &bsh_x_ops,
+                                            std::vector<poperatorT> &bsh_y_ops,
+                                            QProjector<double, 3> &projector,
+                                            double &x_shifts) -> X_space {
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
   }
@@ -333,13 +334,11 @@ auto FrequencyResponse::bsh_update_response(World& world, X_space& theta_X,
   if (world.rank() == 0) {
     print("In bsh after apply: ", chi_norm);
   }
-  auto apply_projector = [&](auto& xi) {
-    return projector(xi);
-  };
+  auto apply_projector = [&](auto &xi) { return projector(xi); };
   if (compute_y) {
     bsh_X = oop_apply(bsh_X, apply_projector);
   } else {
-    for (const auto& i : bsh_X.active)
+    for (const auto &i : bsh_X.active)
       bsh_X.x[i] = projector(bsh_X.x[i]);
   }
   if (r_params.print_level() >= 1) {
@@ -353,8 +352,8 @@ auto FrequencyResponse::bsh_update_response(World& world, X_space& theta_X,
   return bsh_X;
 }
 
-void FrequencyResponse::frequency_to_json(json& j_mol_in, size_t iter,
-                                          const Tensor<double>& polar_ij) {
+void FrequencyResponse::frequency_to_json(json &j_mol_in, size_t iter,
+                                          const Tensor<double> &polar_ij) {
   json j = {};
   j["iter"] = iter;
   j["polar"] = tensor_to_json(polar_ij);
@@ -362,7 +361,7 @@ void FrequencyResponse::frequency_to_json(json& j_mol_in, size_t iter,
   j_mol_in["protocol_data"][index]["property_data"].push_back(j);
 }
 
-void FrequencyResponse::save(World& world, const std::string& name) {
+void FrequencyResponse::save(World &world, const std::string &name) {
   // Archive to write everything to
   archive::ParallelOutputArchive ar(world, name.c_str(), 1);
 
@@ -380,7 +379,7 @@ void FrequencyResponse::save(World& world, const std::string& name) {
 }
 
 // Load a response calculation
-void FrequencyResponse::load(World& world, const std::string& name) {
+void FrequencyResponse::load(World &world, const std::string &name) {
   if (world.rank() == 0) {
     print("FrequencyResponse::load() -state");
   }
@@ -401,7 +400,7 @@ void FrequencyResponse::load(World& world, const std::string& name) {
   world.gop.fence();
 }
 
-auto nuclear_generator(World& world, ResponseBase& calc) -> X_space {
+auto nuclear_generator(World &world, ResponseBase &calc) -> X_space {
   auto [gc, molecule, r_params] = calc.get_parameter();
   X_space PQ(world, r_params.num_states(), r_params.num_orbitals());
   auto num_operators = size_t(molecule.natom() * 3);
@@ -423,12 +422,12 @@ auto nuclear_generator(World& world, ResponseBase& calc) -> X_space {
   return PQ;
 }
 
-auto dipole_generator(World& world, ResponseBase& calc) -> X_space {
+auto dipole_generator(World &world, ResponseBase &calc) -> X_space {
   auto [gc, molecule, r_params] = calc.get_parameter();
   X_space PQ(world, r_params.num_states(), r_params.num_orbitals());
   vector_real_function_3d dipole_vectors(3);
   size_t i = 0;
-  for (auto& d : dipole_vectors) {
+  for (auto &d : dipole_vectors) {
     std::vector<int> f(3, 0);
     f[i++] = 1;
     d = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
@@ -443,8 +442,8 @@ auto dipole_generator(World& world, ResponseBase& calc) -> X_space {
   return PQ;
 }
 
-auto vector_to_PQ(World& world, const vector_real_function_3d& rhs_operators,
-                  const vector_real_function_3d& ground_orbitals)
+auto vector_to_PQ(World &world, const vector_real_function_3d &rhs_operators,
+                  const vector_real_function_3d &ground_orbitals)
     -> response_space {
   response_space rhs(world, rhs_operators.size(), ground_orbitals.size());
   auto orbitals = copy(world, ground_orbitals);
@@ -452,7 +451,7 @@ auto vector_to_PQ(World& world, const vector_real_function_3d& rhs_operators,
   truncate(world, orbitals);
   QProjector<double, 3> Qhat(world, orbitals);
   int b = 0;
-  for (const functionT& pi : rhs_operators) {
+  for (const functionT &pi : rhs_operators) {
     auto op_phi = mul(world, pi, ground_orbitals, true);
     rhs[b] = Qhat(op_phi);
     b++;
@@ -460,15 +459,15 @@ auto vector_to_PQ(World& world, const vector_real_function_3d& rhs_operators,
   return rhs;
 }
 
-void QuadraticResponse::load(World& world, const std::string& name) {}
-void QuadraticResponse::save(World& world, const std::string& name) {}
+void QuadraticResponse::load(World &world, const std::string &name) {}
+void QuadraticResponse::save(World &world, const std::string &name) {}
 
-void QuadraticResponse::iterate(World& world) {}
-void QuadraticResponse::initialize(World& world) {}
+void QuadraticResponse::iterate(World &world) {}
+void QuadraticResponse::initialize(World &world) {}
 
 // To compute 2nd order we need rhs of xx,yy,zz and yz only.
-auto QuadraticResponse::setup_XBC(World& world, const double& omega_b,
-                                  const double& omega_c)
+auto QuadraticResponse::setup_XBC(World &world, const double &omega_b,
+                                  const double &omega_c)
     -> std::pair<X_space, X_space> {
 
   this->index_B = {0, 0, 0, 1, 1, 1, 2, 2, 2};
@@ -503,15 +502,15 @@ auto QuadraticResponse::setup_XBC(World& world, const double& omega_b,
 }
 
 response_xy_pair QuadraticResponse::compute_vbc(
-    World& world, const response_density& B, const response_xy_pair& C,
-    const response_density& zeta_BC, const vector_real_function_3d& phi0,
-    const real_function_3d& vb) {
+    World &world, const response_density &B, const response_xy_pair &C,
+    const response_density &zeta_BC, const vector_real_function_3d &phi0,
+    const real_function_3d &vb) {
   madness::QProjector<double, 3> Q(world, phi0);
   auto thresh = FunctionDefaults<3>::get_thresh();
 
-  auto K = [&](const vecfuncT& ket, const vecfuncT& bra) {
+  auto K = [&](const vecfuncT &ket, const vecfuncT &bra) {
     const double lo = 1.e-10;
-    auto& world = ket[0].world();
+    auto &world = ket[0].world();
     Exchange<double, 3> k{world, lo};
     k.set_bra_and_ket(bra, ket);
 
@@ -531,9 +530,10 @@ response_xy_pair QuadraticResponse::compute_vbc(
   };
   // A and B are the response pairs that make up response density
   // \gamma_{a} = |xa><phi| + |phi><ya|
-  // This function constructs the J and K operators with A and B and applies on x
-  auto compute_g = [&](const response_lr_pair& A, const response_lr_pair& B,
-                       const response_xy_pair& phi) {
+  // This function constructs the J and K operators with A and B and applies on
+  // x
+  auto compute_g = [&](const response_lr_pair &A, const response_lr_pair &B,
+                       const response_xy_pair &phi) {
     auto x_phi = mul(world, A.left, A.right, true);
     auto y_phi = mul(world, B.left, B.right, true);
     world.gop.fence();
@@ -546,7 +546,7 @@ response_xy_pair QuadraticResponse::compute_vbc(
                           mul(world, temp_J, phi.y, true)};
     world.gop.fence();
 
-    auto ka = K(A.left, A.right)(phi.x);  // what happens to k after this?
+    auto ka = K(A.left, A.right)(phi.x); // what happens to k after this?
     world.gop.fence();
     auto kb = K(B.left, B.right)(phi.x);
     world.gop.fence();
@@ -649,22 +649,23 @@ response_xy_pair QuadraticResponse::compute_vbc(
 }
 //
 //
-// <C;A,B> = <V(BC);X(A)> + <zeta(bc)_x| v(a) | zeta_(bc)_y> + < zeta(cb)_x| v(a) | zeta_(cb)_y >
+// <C;A,B> = <V(BC);X(A)> + <zeta(bc)_x| v(a) | zeta_(bc)_y> + < zeta(cb)_x|
+// v(a) | zeta_(cb)_y >
 //
 //
 // vc = x x x x y y y z z z
 //
 std::pair<Tensor<double>, std::vector<std::string>>
-QuadraticResponse::compute_beta_tensor(World& world, const X_space& BC_left,
-                                       const X_space& BC_right,
-                                       const X_space& CB_left,
-                                       const X_space& CB_right,
-                                       const X_space& XA, const X_space& VBC) {
+QuadraticResponse::compute_beta_tensor(World &world, const X_space &BC_left,
+                                       const X_space &BC_right,
+                                       const X_space &CB_left,
+                                       const X_space &CB_right,
+                                       const X_space &XA, const X_space &VBC) {
   auto create_dipole = [&]() {
     vector_real_function_3d dipole_vectors(3);
     size_t i = 0;
     // creates a vector of x y z dipole functions
-    for (auto& d : dipole_vectors) {
+    for (auto &d : dipole_vectors) {
       std::vector<int> f(3, 0);
       f[i++] = 1;
       d = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
@@ -672,7 +673,7 @@ QuadraticResponse::compute_beta_tensor(World& world, const X_space& BC_left,
     return dipole_vectors;
   };
 
-  auto dipole_vectors = create_dipole();  // x y z
+  auto dipole_vectors = create_dipole(); // x y z
   truncate(dipole_vectors, FunctionDefaults<3>::get_thresh(), true);
 
   int num_elements = static_cast<int>(XA.num_states() * BC_left.num_states());
@@ -721,17 +722,17 @@ QuadraticResponse::compute_beta_tensor(World& world, const X_space& BC_left,
 }
 
 std::pair<Tensor<double>, std::vector<std::string>>
-QuadraticResponse::compute_beta_tensor_v2(World& world, const X_space& B,
-                                          const X_space& C,
-                                          const response_space& phiBC,
-                                          const response_space& phiCB,
-                                          const X_space& XA,
-                                          const X_space& VBC) {
+QuadraticResponse::compute_beta_tensor_v2(World &world, const X_space &B,
+                                          const X_space &C,
+                                          const response_space &phiBC,
+                                          const response_space &phiCB,
+                                          const X_space &XA,
+                                          const X_space &VBC) {
   auto create_dipole = [&]() {
     vector_real_function_3d dipole_vectors(3);
     size_t i = 0;
     // creates a vector of x y z dipole functions
-    for (auto& d : dipole_vectors) {
+    for (auto &d : dipole_vectors) {
       std::vector<int> f(3, 0);
       f[i++] = 1;
       d = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
@@ -739,7 +740,7 @@ QuadraticResponse::compute_beta_tensor_v2(World& world, const X_space& B,
     return dipole_vectors;
   };
 
-  auto dipole_vectors = create_dipole();  // x y z
+  auto dipole_vectors = create_dipole(); // x y z
   truncate(dipole_vectors, FunctionDefaults<3>::get_thresh(), true);
 
   int num_elements = static_cast<int>(XA.num_states() * phiBC.num_states);
@@ -749,7 +750,7 @@ QuadraticResponse::compute_beta_tensor_v2(World& world, const X_space& B,
   int i = 0;
   for (int a = 0; a < XA.num_states(); a++) {
     int bc = 0;
-    for (const auto& [b, c] : this->BC_index_pairs) {
+    for (const auto &[b, c] : this->BC_index_pairs) {
 
       auto one = dot(world, B.x[b], C.y[c] * dipole_vectors[a]);
       auto three = dot(world, C.x[c], B.y[b] * dipole_vectors[a]);
@@ -788,18 +789,18 @@ QuadraticResponse::compute_beta_tensor_v2(World& world, const X_space& B,
 }
 
 std::pair<Tensor<double>, std::vector<std::string>>
-QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
-                                   const double& omega_c) {
+QuadraticResponse::compute_beta_v2(World &world, const double &omega_b,
+                                   const double &omega_c) {
   // step 0: construct all response vectors
   auto XA = -1.0 * x_data[0].first.copy();
   auto B = x_data[1].first.copy();
   auto C = x_data[2].first.copy();
-  //auto [XB, XC] = setup_XBC(world, omega_b, omega_c);
-  //X_space phi0 = X_space(world, XB.num_states(), XC.num_orbitals());
-  // for (auto i = 0; i < phi0.num_states(); i++) {
-  //   phi0.x[i] = copy(world, ground_orbitals);
-  //   phi0.y[i] = copy(world, ground_orbitals);
-  // }
+  // auto [XB, XC] = setup_XBC(world, omega_b, omega_c);
+  // X_space phi0 = X_space(world, XB.num_states(), XC.num_orbitals());
+  //  for (auto i = 0; i < phi0.num_states(); i++) {
+  //    phi0.x[i] = copy(world, ground_orbitals);
+  //    phi0.y[i] = copy(world, ground_orbitals);
+  //  }
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
   }
@@ -878,20 +879,19 @@ QuadraticResponse::compute_beta_v2(World& world, const double& omega_b,
   return {beta0, beta0_dir};
 }
 
-Tensor<double> QuadraticResponse::compute_beta(World& world) {
+Tensor<double> QuadraticResponse::compute_beta(World &world) {
 
   // construct an X_space containing phi0 copies
 
   // bsh_X = oop_apply(bsh_X, apply_projector);
   QProjector<double, 3> projector(world, ground_orbitals);
-  auto apply_projector = [&](auto& xi) {
-    return projector(xi);
-  };
+  auto apply_projector = [&](auto &xi) { return projector(xi); };
 
   auto perturbation_A = generator(world, *this);
   auto XA = -1.0 * x_data[0].first.copy();
 
-  // first step to compute beta is to construct the X_space representations of the virt/virt and occ/occ blocks of gamma
+  // first step to compute beta is to construct the X_space representations of
+  // the virt/virt and occ/occ blocks of gamma
 
   auto [XB, XC] = setup_XBC(world, 0.0, 0.0);
   X_space phi0 = X_space(world, XB.num_states(), XC.num_orbitals());
@@ -932,9 +932,9 @@ Tensor<double> QuadraticResponse::compute_beta(World& world) {
 
 std::pair<X_space, X_space>
 QuadraticResponse::compute_first_order_fock_matrix_terms_v2(
-    World& world, const X_space& B, const X_space& C, const X_space& g1b,
-    const X_space& g1c, const X_space& VB, const X_space& VC,
-    const X_space& phi0) const {
+    World &world, const X_space &B, const X_space &C, const X_space &g1b,
+    const X_space &g1c, const X_space &VB, const X_space &VC,
+    const X_space &phi0) const {
 
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
@@ -969,8 +969,8 @@ QuadraticResponse::compute_first_order_fock_matrix_terms_v2(
 // where Fa=g1[xa]+va
 std::pair<X_space, X_space>
 QuadraticResponse::compute_first_order_fock_matrix_terms(
-    World& world, const X_space& B, const X_space& phi0,
-    const X_space& C) const {
+    World &world, const X_space &B, const X_space &phi0,
+    const X_space &C) const {
 
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
@@ -1016,13 +1016,13 @@ QuadraticResponse::compute_first_order_fock_matrix_terms(
   return {FAXB, FBXA};
 }
 std::tuple<X_space, X_space, X_space, X_space, X_space, X_space>
-QuadraticResponse::compute_beta_coulomb(World& world, const X_space& B,
-                                        const X_space& C,
-                                        const X_space& zeta_bc_left,
-                                        const X_space& zeta_bc_right,
-                                        const X_space& zeta_cb_left,
-                                        const X_space& zeta_cb_right,
-                                        const X_space& phi0) {
+QuadraticResponse::compute_beta_coulomb(World &world, const X_space &B,
+                                        const X_space &C,
+                                        const X_space &zeta_bc_left,
+                                        const X_space &zeta_bc_right,
+                                        const X_space &zeta_cb_left,
+                                        const X_space &zeta_cb_right,
+                                        const X_space &phi0) {
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
   }
@@ -1073,13 +1073,13 @@ QuadraticResponse::compute_beta_coulomb(World& world, const X_space& B,
   return {zeta_bc, zeta_cb, bxc, cxb, bphi0, cphi0};
 }
 std::tuple<X_space, X_space, X_space, X_space, X_space, X_space>
-QuadraticResponse::compute_beta_exchange(World& world, const X_space& B,
-                                         const X_space& C,
-                                         const X_space& zeta_bc_left,
-                                         const X_space& zeta_bc_right,
-                                         const X_space& zeta_cb_left,
-                                         const X_space& zeta_cb_right,
-                                         const X_space& phi0) {
+QuadraticResponse::compute_beta_exchange(World &world, const X_space &B,
+                                         const X_space &C,
+                                         const X_space &zeta_bc_left,
+                                         const X_space &zeta_bc_right,
+                                         const X_space &zeta_cb_left,
+                                         const X_space &zeta_cb_right,
+                                         const X_space &phi0) {
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
   }
@@ -1132,10 +1132,10 @@ QuadraticResponse::compute_beta_exchange(World& world, const X_space& B,
 }
 
 X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(
-    World& world, const X_space& B, const X_space& C,
-    const X_space& zeta_bc_left, const X_space& zeta_bc_right,
-    const X_space& zeta_cb_left, const X_space& zeta_cb_right,
-    const X_space& phi0) {
+    World &world, const X_space &B, const X_space &C,
+    const X_space &zeta_bc_left, const X_space &zeta_bc_right,
+    const X_space &zeta_cb_left, const X_space &zeta_cb_right,
+    const X_space &phi0) {
 
   auto [j_zeta_bc, j_zeta_cb, j_bxc, j_cxb, j_bphi0, j_cphi0] =
       compute_beta_coulomb(world, B, C, zeta_bc_left, zeta_bc_right,
@@ -1146,9 +1146,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(
 
   // The first term to compute is -Q g1[K^BC], -Q g1[K^BC_conjugate]
   QProjector<double, 3> projector(world, ground_orbitals);
-  auto apply_projector = [&](auto& xi) {
-    return projector(xi);
-  };
+  auto apply_projector = [&](auto &xi) { return projector(xi); };
   // sum k and j terms
   //
   if (r_params.print_level() >= 1) {
@@ -1275,90 +1273,108 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(
 }
 
 X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
-    World& world, const X_space& B, const X_space& C,
-    const response_space& phiBC, const response_space& phiCB,
-    const vector_real_function_3d& phi0) {
+    World &world, const X_space &B, const X_space &C,
+    const response_space &phiBC, const response_space &phiCB,
+    const vector_real_function_3d &phi0) {
   vector_real_function_3d dipole_vectors(3);
   size_t k = 0;
   // creates a vector of x y z dipole functions
-  for (auto& d : dipole_vectors) {
+  for (auto &d : dipole_vectors) {
     std::vector<int> f(3, 0);
     f[k++] = 1;
     d = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
   }
   truncate(world, dipole_vectors, FunctionDefaults<3>::get_thresh(), true);
 
-  //auto VBC_compare = this->VBC;
+  // auto VBC_compare = this->VBC;
 
   VBC = X_space(world, BC_index_pairs.size(), B.num_orbitals());
   auto num_states = BC_index_pairs.size();
 
-  // Only here to check if BC_index_pairs is serializable for macrotask
-  world.gop.broadcast_serializable(BC_index_pairs, 0);
+  bool debug = true;
+  bool compute = true;
+  if (debug) {
 
-  int i = 0;
-  for (const auto [b, c] : BC_index_pairs) {
+    path vbc_archive = "vbc_archive";
 
-    //for (int i = 0; i < num_states; i++) {
-
-    // auto b = this->index_B[i];
-    // auto c = this->index_C[i];
-
-    const auto& bx = B.x[b];
-    const auto& by = B.y[b];
-    const auto& cx = C.x[c];
-    const auto& cy = C.y[c];
-    const auto& phibc = phiBC[i];
-    const auto& vb = dipole_vectors[b];
-
-    std::string bc = a_directions[b] + a_directions[c];
-
-    if (r_params.print_level() >= 1) {
-      molresponse::start_timer(world);
+    if (fs::exists(vbc_archive.replace_extension(".00000"))) {
+      if (world.rank() == 0) {
+        print("Loading VBC from archive");
+      }
+      VBC = load_x_space(world, vbc_archive.stem().string());
+      compute = false;
+    } else {
+      if (world.rank() == 0) {
+        print("Computing VBC");
+      }
     }
-    auto [vbcx, vbcy] = compute_vbc(world, {{bx, phi0}, {phi0, by}}, {cx, cy},
-                                    {{bx, cy}, {phi0, phibc}}, phi0, vb);
-
-    if (r_params.print_level() >= 1) {
-      std::string message = "VBC[" + std::to_string(i) + "] BC=" + bc;
-      molresponse::end_timer(world, message.c_str());
-    }
-
-    VBC.x[i] = vbcx;
-    VBC.y[i] = vbcy;
-    i++;
   }
-  i = 0;
-  for (const auto [b, c] : BC_index_pairs) {
 
-    //for (int i = 0; i < num_states; i++) {
+  if (compute) {
+    int i = 0;
+    for (const auto [b, c] : BC_index_pairs) {
 
-    // auto b = this->index_B[i];
-    // auto c = this->index_C[i];
+      const auto &bx = B.x[b];
+      const auto &by = B.y[b];
+      const auto &cx = C.x[c];
+      const auto &cy = C.y[c];
+      const auto &phibc = phiBC[i];
+      const auto &vb = dipole_vectors[b];
 
-    const auto& bx = B.x[b];
-    const auto& by = B.y[b];
-    const auto& cx = C.x[c];
-    const auto& cy = C.y[c];
-    const auto& phicb = phiCB[i];
-    const auto& vc = dipole_vectors[c];
-    if (r_params.print_level() >= 1) {
-      molresponse::start_timer(world);
+      std::string bc = a_directions[b] + a_directions[c];
+
+      if (r_params.print_level() >= 1) {
+        molresponse::start_timer(world);
+      }
+      auto [vbcx, vbcy] = compute_vbc(world, {{bx, phi0}, {phi0, by}}, {cx, cy},
+                                      {{bx, cy}, {phi0, phibc}}, phi0, vb);
+
+      if (r_params.print_level() >= 1) {
+        std::string message = "VBC[" + std::to_string(i) + "] BC=" + bc;
+        molresponse::end_timer(world, message.c_str());
+      }
+
+      VBC.x[i] = vbcx;
+      VBC.y[i] = vbcy;
+      i++;
     }
-    auto [vcbx, vcby] = compute_vbc(world, {{cx, phi0}, {phi0, cy}}, {bx, by},
-                                    {{cx, by}, {phi0, phicb}}, phi0, vc);
+    i = 0;
+    for (const auto [b, c] : BC_index_pairs) {
 
-    std::string bc = a_directions[b] + a_directions[c];
-    if (r_params.print_level() >= 1) {
-      std::string message = "VCB[" + std::to_string(i) + "] BC=" + bc;
-      molresponse::end_timer(world, message.c_str());
+      // for (int i = 0; i < num_states; i++) {
+
+      // auto b = this->index_B[i];
+      // auto c = this->index_C[i];
+
+      const auto &bx = B.x[b];
+      const auto &by = B.y[b];
+      const auto &cx = C.x[c];
+      const auto &cy = C.y[c];
+      const auto &phicb = phiCB[i];
+      const auto &vc = dipole_vectors[c];
+      if (r_params.print_level() >= 1) {
+        molresponse::start_timer(world);
+      }
+      auto [vcbx, vcby] = compute_vbc(world, {{cx, phi0}, {phi0, cy}}, {bx, by},
+                                      {{cx, by}, {phi0, phicb}}, phi0, vc);
+
+      std::string bc = a_directions[b] + a_directions[c];
+      if (r_params.print_level() >= 1) {
+        std::string message = "VCB[" + std::to_string(i) + "] BC=" + bc;
+        molresponse::end_timer(world, message.c_str());
+      }
+
+      VBC.x[i] += vcbx;
+      VBC.y[i] += vcby;
+
+      i++;
     }
-
-    VBC.x[i] += vcbx;
-    VBC.y[i] += vcby;
-
-    i++;
   }
+  if(debug && compute){
+    save_x_space(world, "vbc_archive", VBC);
+  }
+
+
 
   auto vec_b = copyToVector(B);
   auto vec_c = copyToVector(C);
@@ -1381,7 +1397,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
   auto VBC_compare = X_space(world, VBC.num_states(), VBC.num_orbitals());
   copyToXspace(vbc, VBC_compare);
 
-  i = 0;
+  int i = 0;
   for (const auto [b, c] : BC_index_pairs) {
 
     auto vbx_norm = norm2(world, VBC.x[i]);
@@ -1408,20 +1424,19 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
 }
 
 X_space QuadraticResponse::compute_second_order_perturbation_terms(
-    World& world, const X_space& B, const X_space& C, const X_space& zeta_bc_x,
-    const X_space& zeta_bc_y, const X_space& zeta_cb_x,
-    const X_space& zeta_cb_y, const X_space& phi0) {
+    World &world, const X_space &B, const X_space &C, const X_space &zeta_bc_x,
+    const X_space &zeta_bc_y, const X_space &zeta_cb_x,
+    const X_space &zeta_cb_y, const X_space &phi0) {
   // The first term to compute is -Q g1[K^BC], -Q g1[K^BC_conjugate]
   QProjector<double, 3> projector(world, ground_orbitals);
-  auto apply_projector = [&](auto& xi) {
-    return projector(xi);
-  };
+  auto apply_projector = [&](auto &xi) { return projector(xi); };
 
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
   }
 
-  // We have 2 terms to compute because we need to compute the contributions of BC and CB terms
+  // We have 2 terms to compute because we need to compute the contributions
+  // of BC and CB terms
   auto g1_zbc =
       -1.0 * oop_apply(compute_g1_term(world, zeta_bc_x, zeta_bc_y, phi0),
                        apply_projector);
@@ -1487,8 +1502,8 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms(
   // the next term we need to compute are the first order fock matrix terms
 }
 std::pair<response_space, response_space>
-QuadraticResponse::compute_phiBC_terms(World& world, const X_space& B,
-                                       const X_space& C) {
+QuadraticResponse::compute_phiBC_terms(World &world, const X_space &B,
+                                       const X_space &C) {
 
   response_space phiBC(world, BC_index_pairs.size(), B.num_orbitals());
   response_space phiCB(world, BC_index_pairs.size(), B.num_orbitals());
@@ -1509,8 +1524,9 @@ QuadraticResponse::compute_phiBC_terms(World& world, const X_space& B,
 }
 
 /**
- * @ brief computes the occ/occ and virt/virt blocks of second order gamma which leads to 4 space objects
- * ABX,ABY,BAX, and BAY where ABX contains A.X and phitildeab and ABY contains B.Y and phi0
+ * @ brief computes the occ/occ and virt/virt blocks of second order gamma
+ * which leads to 4 space objects ABX,ABY,BAX, and BAY where ABX contains A.X
+ * and phitildeab and ABY contains B.Y and phi0
  *
  *
  * @param world
@@ -1520,8 +1536,8 @@ QuadraticResponse::compute_phiBC_terms(World& world, const X_space& B,
  */
 
 std::tuple<X_space, X_space, X_space, X_space>
-QuadraticResponse::compute_zeta_response_vectors(World& world, const X_space& B,
-                                                 const X_space& C) {
+QuadraticResponse::compute_zeta_response_vectors(World &world, const X_space &B,
+                                                 const X_space &C) {
 
   // zeta_bc_x=[x(b),tilde_phi_dagger(bc)]
   // zeta_bc_y=[y_dagger(c),phi_0]
@@ -1573,8 +1589,8 @@ QuadraticResponse::compute_zeta_response_vectors(World& world, const X_space& B,
   return {zeta_bc_left, zeta_bc_right, zeta_cb_left, zeta_cb_right};
 }
 
-auto QuadraticResponse::dipole_perturbation(World& world, const X_space& left,
-                                            const X_space& right) const
+auto QuadraticResponse::dipole_perturbation(World &world, const X_space &left,
+                                            const X_space &right) const
     -> std::pair<X_space, X_space> {
 
   auto num_states = left.num_states();
@@ -1586,7 +1602,7 @@ auto QuadraticResponse::dipole_perturbation(World& world, const X_space& left,
   vector_real_function_3d dipole_vectors(3);
   size_t i = 0;
   // creates a vector of x y z dipole functions
-  for (auto& d : dipole_vectors) {
+  for (auto &d : dipole_vectors) {
     std::vector<int> f(3, 0);
     f[i++] = 1;
     d = real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
@@ -1612,9 +1628,9 @@ auto QuadraticResponse::dipole_perturbation(World& world, const X_space& left,
 // compute the g1 term
 // we have 3 x_space which hold x and y components of the density matrix.
 //
-X_space QuadraticResponse::compute_g1_term(World& world, const X_space& left,
-                                           const X_space& right,
-                                           const X_space& apply) const {
+X_space QuadraticResponse::compute_g1_term(World &world, const X_space &left,
+                                           const X_space &right,
+                                           const X_space &apply) const {
 
   auto JBC = compute_coulomb_term(world, left, right, apply);
   auto KBC = compute_exchange_term(world, left, right, apply);
@@ -1622,9 +1638,9 @@ X_space QuadraticResponse::compute_g1_term(World& world, const X_space& left,
   return 2 * JBC - KBC;
 }
 // compute rhoBC and apply to D
-X_space QuadraticResponse::compute_coulomb_term(World& world, const X_space& B,
-                                                const X_space& C,
-                                                const X_space& x_apply) const {
+X_space QuadraticResponse::compute_coulomb_term(World &world, const X_space &B,
+                                                const X_space &C,
+                                                const X_space &x_apply) const {
 
   X_space J = X_space::zero_functions(world, B.num_states(), B.num_orbitals());
   vector_real_function_3d rhoX(B.num_states());
@@ -1632,8 +1648,8 @@ X_space QuadraticResponse::compute_coulomb_term(World& world, const X_space& B,
   vector_real_function_3d x_phi, y_phi;
 
   // create the density for each state in B
-  //B.x[j] and B.y[j] are vectors fo functions
-  for (const auto& j : B.active) {
+  // B.x[j] and B.y[j] are vectors fo functions
+  for (const auto &j : B.active) {
     x_phi = mul(world, B.x[j], C.x[j], true);
     y_phi = mul(world, B.y[j], C.y[j], true);
 
@@ -1642,7 +1658,7 @@ X_space QuadraticResponse::compute_coulomb_term(World& world, const X_space& B,
   }
   auto temp_J = apply(world, *shared_coulomb_operator, rhoX);
 
-  for (const auto& j : B.active) {
+  for (const auto &j : B.active) {
     J.x[j] = mul(world, temp_J[j], x_apply.x[j], true);
     J.y[j] = mul(world, temp_J[j], x_apply.y[j], true);
   }
@@ -1653,13 +1669,13 @@ X_space QuadraticResponse::compute_coulomb_term(World& world, const X_space& B,
   return J;
 }
 
-X_space QuadraticResponse::compute_exchange_term(World& world, const X_space& B,
-                                                 const X_space& C,
-                                                 const X_space& x_apply) const {
+X_space QuadraticResponse::compute_exchange_term(World &world, const X_space &B,
+                                                 const X_space &C,
+                                                 const X_space &x_apply) const {
 
-  auto make_operator = [&](const vecfuncT& ket, const vecfuncT& bra) {
+  auto make_operator = [&](const vecfuncT &ket, const vecfuncT &bra) {
     const double lo = 1.e-10;
-    auto& world = ket[0].world();
+    auto &world = ket[0].world();
     Exchange<double, 3> k{world, lo};
     k.set_bra_and_ket(bra, ket);
 
@@ -1693,7 +1709,7 @@ X_space QuadraticResponse::compute_exchange_term(World& world, const X_space& B,
     auto k2 = K2(x_apply.x[k]);
     K.x[k] = gaxpy_oop(1.0, k1, 1.0, k2, true);
   }
-  //compute_y
+  // compute_y
   for (int k = 0; k < B.num_states(); k++) {
     auto K1_conjugate = make_operator(B.y[k], C.y[k]);
     auto k1_c = K1_conjugate(x_apply.y[k]);
@@ -1708,7 +1724,7 @@ X_space QuadraticResponse::compute_exchange_term(World& world, const X_space& B,
 }
 
 //
-void PODResponse::compute_pod_modes(World& world) {
+void PODResponse::compute_pod_modes(World &world) {
   //
   // 1. Convert the x_data into a response matrix
   // 2. Compute the SVD of the response matrix
@@ -1780,18 +1796,19 @@ void PODResponse::compute_pod_modes(World& world) {
     o << std::setw(4) << j << std::endl;
   }
 }
-void PODResponse::compute_pod_modes_2(World& world) {
+void PODResponse::compute_pod_modes_2(World &world) {
   //
   // 1. Convert the x_data into a response matrix
   // 2. Compute the SVD of the response matrix
   // 3. Compute the POD modes
-  // In this strategy we will unpack all x and y response functions into a single vector.
+  // In this strategy we will unpack all x and y response functions into a
+  // single vector.
 
   // num calculations
   auto num_states = x_data.size() * 3;
   auto m = x_data.size();
   auto n = x_data[0].first.num_orbitals();
-  auto total_orbitals = num_states * n * 2;  // 2 for x and y
+  auto total_orbitals = num_states * n * 2; // 2 for x and y
 
   if (world.rank() == 0)
     print("m: ", m);
@@ -1819,14 +1836,15 @@ void PODResponse::compute_pod_modes_2(World& world) {
   vector_real_function_3d all_response_functions(total_orbitals);
   // unpack all_x into a single vector
   auto index = 0;
-  for (const auto& all_x_i : all_x) {
-    for (const auto& all_x_ij : all_x_i) {
+  for (const auto &all_x_i : all_x) {
+    for (const auto &all_x_ij : all_x_i) {
       all_response_functions[index++] = madness::copy(all_x_ij, false);
     }
   }
   world.gop.fence();
 
-  // Compute the 2 pt correlation matrix between response functions  // contains both x and y components
+  // Compute the 2 pt correlation matrix between response functions  //
+  // contains both x and y components
   auto A =
       matrix_inner(world, all_response_functions, all_response_functions, true);
 
@@ -1962,7 +1980,7 @@ void PODResponse::compute_pod_modes_2(World& world) {
 
   std::vector<int> indices(etas.size());
   std::iota(indices.begin(), indices.end(),
-            0);  // Fill indices with 0, 1, ..., n
+            0); // Fill indices with 0, 1, ..., n
 
   std::sort(indices.begin(), indices.end(),
             [&](int i, int j) { return total_energy[i] > total_energy[j]; });
@@ -2014,8 +2032,8 @@ void PODResponse::compute_pod_modes_2(World& world) {
 
   world.gop.fence();
 }
-void PODResponse::load(World& world, const std::string& name) {}
-void PODResponse::save(World& world, const std::string& name) {}
+void PODResponse::load(World &world, const std::string &name) {}
+void PODResponse::save(World &world, const std::string &name) {}
 
-void PODResponse::iterate(World& world) {}
-void PODResponse::initialize(World& world) {}
+void PODResponse::iterate(World &world) {}
+void PODResponse::initialize(World &world) {}
