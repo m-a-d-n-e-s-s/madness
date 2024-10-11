@@ -650,7 +650,7 @@ private:
         		} else if constexpr(is_madness_function_vector<resultT>::value) {
         			compress(subworld, result_tmp);
         			resultT tmp1=task.allocator(subworld,argtuple);
-                  //  print("\n tmp1, result_tmp  ", tmp1.size(), result_tmp.size());
+                    print("\n tmp1, result_tmp  ", tmp1.size(), result_tmp.size());
         			tmp1=task.batch.template insert_result_batch(tmp1,result_tmp);
         			gaxpy(1.0,result,1.0,tmp1,false);
         			// was using operator+=, but this requires a fence, which is not allowed here..
