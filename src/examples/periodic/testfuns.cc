@@ -1,4 +1,6 @@
 #include "testpc.h"
+#include "madness/tensor/clapack_fortran.h"
+#include "madness/world/madness_exception.h"
 
 double (*f)(double, double, double) = nullptr;
 double (*exact)(double, double, double) = nullptr;
@@ -20,8 +22,12 @@ double erfaroverr(double a, double r) {
 std::vector<double> solve(size_t m, size_t n, const std::vector<double>& M, const std::vector<double>& f) {
     std::vector<double> c = f;
     std::vector<double> M1 = M;
-    lapack_int mm = m, nn = n, nrhs = 1, lda = n, ldb = 1;
-    LAPACKE_dgels(LAPACK_ROW_MAJOR,'N',mm,nn,nrhs,M1.data(),lda,c.data(),ldb);
+    integer lwork = 2 * std::max(m,n);
+    std::vector<double> work(lwork);
+    integer mm = m, nn = n, nrhs = 1, lda = n, ldb = n, info = 0;
+    char trans = 'T';
+    dgels_(&trans,&nn,&mm,&nrhs,M1.data(),&lda,c.data(),&ldb,work.data(),&lwork,&info,1);
+    MADNESS_ASSERT(info == 0);
     
     return std::vector<double>(c.data(), c.data()+n);
 }
