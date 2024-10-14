@@ -1472,184 +1472,183 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
       }
     }
   }
-
+  auto vec_b = copyToVector(B);
+  auto vec_c = copyToVector(C);
+  auto vec_zeta_bc = copyToVector(phiBC);
+  auto vec_zeta_cb = copyToVector(phiCB);
   if (compute)
   {
-    int i = 0;
+    // int i = 0;
+    // for (const auto [b, c] : BC_index_pairs)
+    // {
+
+    //   const auto &bx = B.x[b];
+    //   const auto &by = B.y[b];
+    //   const auto &cx = C.x[c];
+    //   const auto &cy = C.y[c];
+    //   const auto &phibc = phiBC[i];
+    //   const auto &vb = dipole_vectors[b];
+
+    //   std::string bc = a_directions[b] + a_directions[c];
+
+    //   if (r_params.print_level() >= 1)
+    //   {
+    //     molresponse::start_timer(world);
+    //   }
+    //   auto [vbcx, vbcy] = compute_vbc(world, {{bx, phi0}, {phi0, by}}, {cx, cy},
+    //                                   {{bx, cy}, {phi0, phibc}}, phi0, vb);
+
+    //   if (r_params.print_level() >= 1)
+    //   {
+    //     std::string message = "VBC[" + std::to_string(i) + "] BC=" + bc;
+    //     molresponse::end_timer(world, message.c_str());
+    //   }
+
+    //   VBC.x[i] = vbcx;
+    //   VBC.y[i] = vbcy;
+    //   i++;
+    // }
+    // i = 0;
+    // for (const auto [b, c] : BC_index_pairs)
+    // {
+
+    //   // for (int i = 0; i < num_states; i++) {
+
+    //   // auto b = this->index_B[i];
+    //   // auto c = this->index_C[i];
+
+    //   const auto &bx = B.x[b];
+    //   const auto &by = B.y[b];
+    //   const auto &cx = C.x[c];
+    //   const auto &cy = C.y[c];
+    //   const auto &phicb = phiCB[i];
+    //   const auto &vc = dipole_vectors[c];
+    //   if (r_params.print_level() >= 1)
+    //   {
+    //     molresponse::start_timer(world);
+    //   }
+    //   auto [vcbx, vcby] = compute_vbc(world, {{cx, phi0}, {phi0, cy}}, {bx, by},
+    //                                   {{cx, by}, {phi0, phicb}}, phi0, vc);
+
+    //   std::string bc = a_directions[b] + a_directions[c];
+    //   if (r_params.print_level() >= 1)
+    //   {
+    //     std::string message = "VCB[" + std::to_string(i) + "] BC=" + bc;
+    //     molresponse::end_timer(world, message.c_str());
+    //   }
+
+    //   VBC.x[i] += vcbx;
+    //   VBC.y[i] += vcby;
+
+    //   i++;
+    // }
+
+    std::vector<int> bidx;
+    std::vector<int> cidx;
+    std::vector<int> ii;
+
+    int i = 1;
     for (const auto [b, c] : BC_index_pairs)
     {
-
-      const auto &bx = B.x[b];
-      const auto &by = B.y[b];
-      const auto &cx = C.x[c];
-      const auto &cy = C.y[c];
-      const auto &phibc = phiBC[i];
-      const auto &vb = dipole_vectors[b];
-
-      std::string bc = a_directions[b] + a_directions[c];
-
-      if (r_params.print_level() >= 1)
-      {
-        molresponse::start_timer(world);
-      }
-      auto [vbcx, vbcy] = compute_vbc(world, {{bx, phi0}, {phi0, by}}, {cx, cy},
-                                      {{bx, cy}, {phi0, phibc}}, phi0, vb);
-
-      if (r_params.print_level() >= 1)
-      {
-        std::string message = "VBC[" + std::to_string(i) + "] BC=" + bc;
-        molresponse::end_timer(world, message.c_str());
-      }
-
-      VBC.x[i] = vbcx;
-      VBC.y[i] = vbcy;
-      i++;
+      ii.push_back(i);
+      bidx.push_back(b);
+      cidx.push_back(c);
     }
-    i = 0;
-    for (const auto [b, c] : BC_index_pairs)
+
+    auto stride = phi0.size() * 2;
+    if (world.rank() == 0)
     {
+      print("stride b*tch: ", stride);
+    }
 
-      // for (int i = 0; i < num_states; i++) {
+    if (r_params.print_level() >= 1)
+    {
+      molresponse::start_timer(world);
+    }
 
-      // auto b = this->index_B[i];
-      // auto c = this->index_C[i];
+    VBC_task2 t(stride);
+    MacroTask task_vbc(world, t);
+    task_vbc.set_name("VBC");
+    auto vbc = task_vbc(ii, bidx, cidx, vec_b, vec_c, vec_zeta_bc, vec_zeta_cb, phi0,
+                        dipole_vectors);
+    auto norms_vbc = norm2s(world, vbc);
+    print("norms_vbc: ", norms_vbc);
 
-      const auto &bx = B.x[b];
-      const auto &by = B.y[b];
-      const auto &cx = C.x[c];
-      const auto &cy = C.y[c];
-      const auto &phicb = phiCB[i];
-      const auto &vc = dipole_vectors[c];
-      if (r_params.print_level() >= 1)
-      {
-        molresponse::start_timer(world);
-      }
-      auto [vcbx, vcby] = compute_vbc(world, {{cx, phi0}, {phi0, cy}}, {bx, by},
-                                      {{cx, by}, {phi0, phicb}}, phi0, vc);
-
-      std::string bc = a_directions[b] + a_directions[c];
-      if (r_params.print_level() >= 1)
-      {
-        std::string message = "VCB[" + std::to_string(i) + "] BC=" + bc;
-        molresponse::end_timer(world, message.c_str());
-      }
-
-      VBC.x[i] += vcbx;
-      VBC.y[i] += vcby;
-
-      i++;
+    copyToXspace(vbc, VBC);
+    if (r_params.print_level() >= 1)
+    {
+      std::string message = "VBC[all]";
+      molresponse::end_timer(world, message.c_str());
     }
   }
   if (debug && compute)
   {
     save_x_space(world, "vbc_archive", VBC);
   }
-  auto vec_b = copyToVector(B);
-  auto vec_c = copyToVector(C);
-  auto vec_zeta_bc = copyToVector(phiBC);
-  auto vec_zeta_cb = copyToVector(phiCB);
 
-  if (debug)
-  {
+  std::vector<int> bb_idx;
+  std::vector<int> cc_idx;
+  std::vector<int> orb_indx;
+  std::vector<int> state_index;
 
-    auto normsB = B.component_norm2s();
-    auto norms_vec_b = norm2s(world, vec_b);
-    if (world.rank() == 0)
-    {
-      print("normsB: \n", normsB);
-      print("norms_vec_b: \n", norms_vec_b);
-    }
+  auto num_orbs_per_state = B.num_orbitals() * 2;
 
-    auto normsC = C.component_norm2s();
-    auto norms_vec_c = norm2s(world, vec_c);
-    if (world.rank() == 0)
-    {
-      print("normsC: \n", normsC);
-      print("norms_vec_c: \n", norms_vec_c);
-    }
-
-    for (int i = 0; i < num_states; i++)
-    {
-      auto norms_zeta_bc = norm2s(world, phiBC[i]);
-      if (world.rank() == 0)
-      {
-        print("norms_zeta_bc: i ", i, norms_zeta_bc);
-      }
-    }
-    auto norms_vec_zeta_bc = norm2s(world, vec_zeta_bc);
-    if (world.rank() == 0)
-    {
-      print("norms_vec_zeta_bc: \n", norms_vec_zeta_bc);
-    }
-    for (int i = 0; i < num_states; i++)
-    {
-      auto norms_zeta_cb = norm2s(world, phiCB[i]);
-      if (world.rank() == 0)
-      {
-        print("norms_zeta_cb: i ", i, norms_zeta_cb);
-      }
-    }
-    auto norms_vec_zeta_cb = norm2s(world, vec_zeta_cb);
-    if (world.rank() == 0)
-    {
-      print("norms_vec_zeta_cb: \n", norms_vec_zeta_cb);
-    }
-  }
-
-  std::vector<int> bidx;
-  std::vector<int> cidx;
-  std::vector<int> ii;
-
-  int i = 1;
+  int orb_num = 0;
+  int state_num = 0;
   for (const auto [b, c] : BC_index_pairs)
   {
-    ii.push_back(i);
-    bidx.push_back(b);
-    cidx.push_back(c);
+    for (int i = 0; i < num_orbs_per_state; i++)
+    {
+      bb_idx.push_back(b);
+      cc_idx.push_back(c);
+      orb_indx.push_back(orb_num++);
+      state_index.push_back(state_num);
+    }
+    state_num++;
   }
 
-  auto stride = phi0.size() * 2;
-  if (world.rank() == 0)
+  for (int i = 0; i < bb_idx.size(); i++)
   {
-    print("stride b*tch: ", stride);
+    if (world.rank() == 0)
+    {
+      print("bb_idx: ", bb_idx[i], " cc_idx: ", cc_idx[i], " orb_indx: ", orb_indx[i], " state_index: ", state_index[i]);
+    }
   }
-
   if (r_params.print_level() >= 1)
   {
     molresponse::start_timer(world);
   }
 
-  VBC_task2 t(stride);
-  MacroTask task_vbc(world, t);
-  task_vbc.set_name("VBC");
-  auto vbc = task_vbc(ii, bidx, cidx, vec_b, vec_c, vec_zeta_bc, vec_zeta_cb, phi0,
-                      dipole_vectors);
-  auto norms_vbc = norm2s(world, vbc);
-  print("norms_vbc: ", norms_vbc);
+  VBC_task_i t2;
+  MacroTask task_vbc_i(world, t2);
+  task_vbc_i.set_name("VBC_i");
 
-  auto VBC_compare = X_space(world, VBC.num_states(), VBC.num_orbitals());
-  copyToXspace(vbc, VBC_compare);
+  auto vbc_i = task_vbc_i(orb_indx, state_index, bb_idx, cc_idx, vec_b, vec_c, vec_zeta_bc,
+                          vec_zeta_cb, phi0, dipole_vectors);
+
+  auto VBC_compare_i = X_space(world, VBC.num_states(), VBC.num_orbitals());
+  copyToXspace(vbc_i, VBC_compare_i);
   if (r_params.print_level() >= 1)
   {
-    std::string message = "VBC[all]";
+    std::string message = "VBC[all]_i";
     molresponse::end_timer(world, message.c_str());
   }
 
   if (debug)
   {
 
-    i = 0;
+    int i = 0;
     for (const auto [b, c] : BC_index_pairs)
     {
 
       auto vbx_norm = norm2s(world, VBC.x[i]);
       auto vby_norm = norm2s(world, VBC.y[i]);
 
-      auto compare_norm = norm2s(world, VBC_compare.x[i]);
-      auto compare_norm_y = norm2s(world, VBC_compare.y[i]);
+      auto compare_norm = norm2s(world, VBC_compare_i.x[i]);
+      auto compare_norm_y = norm2s(world, VBC_compare_i.y[i]);
 
-      auto rxi = VBC_compare.x[i] - VBC.x[i];
-      auto ryi = VBC_compare.y[i] - VBC.y[i];
+      auto rxi = VBC.x[i] - VBC_compare_i.x[i];
+      auto ryi = VBC.y[i] - VBC_compare_i.y[i];
 
       auto rxi_norm = norm2(world, rxi);
       auto ryi_norm = norm2(world, ryi);
@@ -1670,7 +1669,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
   }
   else
   {
-    return VBC_compare;
+    return VBC_compare_i;
   }
 }
 
