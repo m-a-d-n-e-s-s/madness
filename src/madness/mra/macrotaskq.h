@@ -40,7 +40,7 @@
 #ifndef SRC_MADNESS_MRA_MACROTASKQ_H_
 #define SRC_MADNESS_MRA_MACROTASKQ_H_
 
-#include <madness/external/gtest/include/gtest/internal/gtest-port.h>
+// #include <madness/external/gtest/include/gtest/internal/gtest-port.h>
 #include <madness/world/cloud.h>
 #include <madness/world/world.h>
 #include <madness/mra/macrotaskpartitioner.h>
@@ -861,6 +861,7 @@ private:
         	} catch (std::exception& e) {
         		print("failing task no",element,"in subworld",subworld.id(),"at time",wall_time());
         		print(e.what());
+        		print_me_as_table();
         		print("\n\n");
         		MADNESS_EXCEPTION("failing task",1);
         	}
