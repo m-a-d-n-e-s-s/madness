@@ -957,24 +957,8 @@ namespace madness {
             world_.mpi.binary_tree_info(0, parent, child0, child1);
             int child0_nbatch = 0, child1_nbatch = 0;
 
-            struct free_dtor {
-              void operator()(std::byte *ptr) {
-                if (ptr != nullptr)
-                  std::free(ptr);
-              };
-            };
-            using sptr_t = std::unique_ptr<std::byte[], free_dtor>;
-
-            sptr_t buf0;
-            if (child0 != -1)
-              buf0 = sptr_t(static_cast<std::byte *>(std::aligned_alloc(
-                                std::alignment_of_v<T>, bufsz)),
-                            free_dtor{});
-            sptr_t buf1;
-            if (child1 != -1)
-              buf1 = sptr_t(static_cast<std::byte *>(std::aligned_alloc(
-                                std::alignment_of_v<T>, bufsz)),
-                            free_dtor{});
+            auto buf0 = std::make_unique<std::byte[]>(bufsz);
+            auto buf1 = std::make_unique<std::byte[]>(bufsz);
 
             // transfer data in chunks at most this large
             const int batch_size = static_cast<int>(
