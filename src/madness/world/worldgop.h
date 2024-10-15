@@ -952,13 +952,27 @@ namespace madness {
         template <typename T>
         std::vector<T> concat0(const std::vector<T>& v, size_t bufsz=1024*1024) {
             MADNESS_ASSERT(bufsz <= std::numeric_limits<int>::max());
+            // bufsz must be multiple of alignment!!! so ensure that
+            bufsz = ((bufsz + sizeof(void*) - 1) / sizeof(void*)) * sizeof(void*);
 
             ProcessID parent, child0, child1;
             world_.mpi.binary_tree_info(0, parent, child0, child1);
             int child0_nbatch = 0, child1_nbatch = 0;
 
-            auto buf0 = std::make_unique<std::byte[]>(bufsz);
-            auto buf1 = std::make_unique<std::byte[]>(bufsz);
+            struct free_dtor {
+              void operator()(std::byte *ptr) {
+                if (ptr != nullptr)
+                  std::free(ptr);
+              };
+            };
+            using sptr_t = std::unique_ptr<std::byte[], free_dtor>;
+
+            auto buf0 = sptr_t(static_cast<std::byte *>(
+                                std::aligned_alloc(sizeof(void *), bufsz)),
+                               free_dtor{});
+            auto buf1 = sptr_t(static_cast<std::byte *>(
+                                std::aligned_alloc(sizeof(void *), bufsz)),
+                               free_dtor{});
 
             // transfer data in chunks at most this large
             const int batch_size = static_cast<int>(
