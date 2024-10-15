@@ -799,7 +799,6 @@ namespace madness {
           };
           using sptr_t = std::unique_ptr<T[], free_dtor>;
 
-          sptr_t buf0;
           auto aligned_buf_alloc = [&]() -> T* {
             // posix_memalign requires alignment to be an integer multiple of sizeof(void*)!! so ensure that
             const std::size_t alignment =
@@ -813,9 +812,11 @@ namespace madness {
             }
             return static_cast<T *>(ptr);
 #else
-            return static_cast<T*>(std::aligned_alloc(alignment, buf_size));
+            return static_cast<T *>(std::aligned_alloc(alignment, buf_size));
 #endif
           };
+
+          sptr_t buf0;
           if (child0 != -1)
             buf0 = sptr_t(aligned_buf_alloc(),
                           free_dtor{});
@@ -977,7 +978,7 @@ namespace madness {
 
             // transfer data in chunks at most this large
             const int batch_size = static_cast<int>(
-                std::min(static_cast<size_t>(max_reducebcast_msg_size()),bufsz));
+                std::min(static_cast<size_t>(max_reducebcast_msg_size()), bufsz));
 
             // precompute max # of tags any node ... will need, and allocate them on every node to avoid tag counter divergence
             const int max_nbatch = bufsz / batch_size;
