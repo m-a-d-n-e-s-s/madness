@@ -1,0 +1,9 @@
+<map id="madness::PthreadConditionVariable" name="madness::PthreadConditionVariable">
+<area shape="rect" id="Node000001" title="Simple wrapper for Pthread condition variable with its own mutex." alt="" coords="123,79,324,119"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1DQueue.html" title=" " alt="" coords="5,167,220,207"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="189,129,139,169,136,164,186,125"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1DQueue.html" title="A thread safe, fast but simple doubled&#45;ended queue." alt="" coords="245,174,423,199"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="260,125,320,171,317,176,257,129"/>
+<area shape="rect" id="Node000002" href="$classNO__DEFAULTS.html" title="Disables default copy constructor and assignment operators." alt="" coords="166,5,281,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="226,44,226,79,221,79,221,44"/>
+</map>
