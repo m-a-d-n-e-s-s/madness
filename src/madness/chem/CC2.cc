@@ -417,6 +417,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
         // compute the coupling between the pair functions
         Pairs<real_function_6d> coupling=compute_local_coupling(pair_vec, info);
         auto coupling_vec=Pairs<real_function_6d>::pairs2vector(coupling,triangular_map);
+        change_tree_state(coupling_vec, reconstructed);
         if (parameters.debug()) print_size(world, coupling_vec, "couplingvector");
 
 
