@@ -11,6 +11,7 @@
 #include <numeric>
 #include <vector>
 
+#include "functypedefs.h"
 #include "molresponse/response_functions.h"
 
 namespace madness
@@ -184,6 +185,7 @@ namespace madness
       auto &world = A.x[0][0].world();
       auto result =
           X_space::zero_functions(world, A.num_states(), A.num_orbitals());
+      result.set_active(A.active);
       //    if (world.rank() == 0) { print("oop_apply"); }
       for (auto &i : result.active)
       {
@@ -205,6 +207,7 @@ namespace madness
       auto &world = A.x[0][0].world();
       X_space result =
           X_space::zero_functions(world, A.num_states(), A.num_orbitals());
+      result.set_active(A.active);
 
       for (const auto &i : result.active)
       {
@@ -272,6 +275,12 @@ namespace madness
     friend auto operator+(const X_space &A, const X_space &B) -> X_space
     {
       MADNESS_ASSERT(same_size(A, B));
+
+      auto result = X_space(A.x[0][0].world(), A.num_states(), A.num_orbitals());
+      result.set_active(A.active);
+      result.from_vector(A.to_vector() + B.to_vector());
+      return result;
+
       auto add_ab = [&](const auto &a, const auto &b)
       {
         return gaxpy_oop(1.0, a, 1.0, b, true);
@@ -282,6 +291,12 @@ namespace madness
     friend X_space operator-(const X_space &A, const X_space &B)
     {
       MADNESS_ASSERT(same_size(A, B));
+
+      auto result = X_space(A.x[0][0].world(), A.num_states(), A.num_orbitals());
+      result.set_active(A.active);
+      result.from_vector(A.to_vector() - B.to_vector());
+      return result;
+
       auto sub_ab = [&](const auto &a, const auto &b)
       {
         return gaxpy_oop(1.0, a, -1.0, b, true);
@@ -292,7 +307,12 @@ namespace madness
     friend X_space operator*(const X_space &A, const double &b)
     {
       World &world = A.x[0][0].world();
-      auto result = A.copy();
+
+      auto result = X_space(A.x[0][0].world(), A.num_states(), A.num_orbitals());
+      result.set_active(A.active);
+      result.from_vector(A.to_vector() * b);
+      return result;
+
       auto scale_a = [&](vector_real_function_3d &vec_ai)
       {
         scale(world, vec_ai, b, true);
@@ -303,7 +323,11 @@ namespace madness
     friend X_space operator*(const double &b, const X_space &A)
     {
       World &world = A.x[0][0].world();
-      auto result = A.copy();
+      auto result = X_space(A.x[0][0].world(), A.num_states(), A.num_orbitals());
+      result.set_active(A.active);
+      result.from_vector(A.to_vector() * b);
+      return result;
+
       auto scale_a = [&](vector_real_function_3d &vec_ai)
       {
         scale(world, vec_ai, b, true);
@@ -314,8 +338,12 @@ namespace madness
     friend X_space operator*(const X_space &B, const X_space &A)
     {
       World &world = A.x[0][0].world();
+      auto result = X_space(A.x[0][0].world(), A.num_states(), A.num_orbitals());
+      result.set_active(A.active);
+      vector_real_function_3d result_vec = mul(world,A.to_vector(),  B.to_vector());
+      result.from_vector(result_vec);
+      return result;
 
-      auto result = A.copy();
       auto mul_ab = [&](vector_real_function_3d &vec_ai,
                         vector_real_function_3d &vec_bi)
       {
@@ -327,6 +355,12 @@ namespace madness
     friend X_space operator*(const X_space &A, const Function<double, 3> &f)
     {
       World &world = A.x[0][0].world();
+
+      auto result = X_space(A.x[0][0].world(), A.num_states(), A.num_orbitals());
+      result.set_active(A.active);
+      result.from_vector(A.to_vector() * f);
+      return result;
+
       auto mul_f = [&](const vector_real_function_3d &vec_ai)
       {
         return mul(world, f, vec_ai, false);
@@ -337,6 +371,11 @@ namespace madness
                           const X_space &A) -> X_space
     {
       World &world = A.x[0][0].world();
+      auto result = X_space(A.x[0][0].world(), A.num_states(), A.num_orbitals());
+      result.set_active(A.active);
+      result.from_vector(f * A.to_vector());
+      return result;
+
       auto mul_f = [&](const vector_real_function_3d &vec_ai)
       {
         return mul(world, f, vec_ai, false);
@@ -415,6 +454,49 @@ namespace madness
     {
       return ((size_states(A) == size_states(B) &&
                size_orbitals(A) == size_orbitals(B)));
+    }
+
+    [[nodiscard]] auto to_vector() const -> vector_real_function_3d
+    {
+
+      int n = static_cast<int>(active.size());
+      int m = static_cast<int>(num_orbitals());
+
+      vector_real_function_3d rf(2 * n * m);
+
+      int i = 0;
+      for (const auto &ai : active)
+      {
+        for (int j = 0; j < m; j++)
+        {
+          auto xindex = (2 * i * m) + j;
+          auto yindex = (2 * i * m) + j + m;
+          rf[xindex] = x[ai][j];
+          rf[yindex] = y[ai][j];
+        }
+        i++;
+      }
+      return rf;
+    }
+
+    auto from_vector(const vector_real_function_3d &rf) -> void
+    {
+
+      int m = static_cast<int>(num_orbitals());
+
+      int i = 0;
+      for (const auto &ai : active)
+      {
+        for (int j = 0; j < m; j++)
+        {
+          auto xindex = (2 * i * m) + j;
+          auto yindex = (2 * i * m) + j + m;
+
+          x[ai][j] = rf[xindex];
+          y[ai][j] = rf[yindex];
+        }
+        i++;
+      }
     }
   };
 
@@ -533,6 +615,74 @@ namespace madness
     operator=(const response_function_allocator &other)
     {
       return response_function_allocator(world);
+    }
+  };
+
+  vector_real_function_3d copyToVector(const X_space &chi);
+
+  void copyToXspace(const vector_real_function_3d &rf, X_space &chi);
+  // In this implmentation we need to represent each x_space as a contigous block
+  // of functions.
+  vector_real_function_3d copyToVector(const response_space &chi);
+
+  void copyToResponseSpace(const vector_real_function_3d &rf,
+                           response_space &chi);
+
+  class x_space_indexer
+  {
+    int num_orbitals;
+
+  public:
+    x_space_indexer(int num_orbitals)
+        : num_orbitals(num_orbitals) {}
+
+    [[nodiscard]] vector_real_function_3d
+    get_x_state(int i, const vector_real_function_3d &rf) const
+    {
+
+      vector_real_function_3d subset(num_orbitals);
+      auto index = 2 * num_orbitals * i;
+
+      for (int j = 0; j < num_orbitals; j++)
+      {
+        subset[j] = rf[index + j];
+      }
+      return subset;
+    }
+    [[nodiscard]] vector_real_function_3d
+    get_y_state(int i, const vector_real_function_3d &rf) const
+    {
+
+      vector_real_function_3d subset(num_orbitals);
+      auto index = 2 * num_orbitals * i + num_orbitals;
+      for (int j = 0; j < num_orbitals; j++)
+      {
+        subset[j] = rf[index + j];
+      }
+      return subset;
+    }
+  };
+
+  class response_space_index
+  {
+    int num_orbitals;
+
+  public:
+    response_space_index(int num_orbitals)
+        : num_orbitals(num_orbitals) {}
+
+    [[nodiscard]] vector_real_function_3d
+    get_x_state(int i, const vector_real_function_3d &rf) const
+    {
+
+      vector_real_function_3d subset(num_orbitals);
+      auto index = num_orbitals * i;
+
+      for (int j = 0; j < num_orbitals; j++)
+      {
+        subset[j] = rf[index + j];
+      }
+      return subset;
     }
   };
 } // namespace madness

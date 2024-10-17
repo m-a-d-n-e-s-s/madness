@@ -19,6 +19,7 @@
 #include "madness/tensor/tensor_json.hpp"
 #include "timer.h"
 #include "x_space.h"
+#include "response_macrotask.hpp"
 
 using namespace madness;
 

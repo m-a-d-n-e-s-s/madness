@@ -1,3 +1,7 @@
+
+#ifndef MADNESS_APPS_MOLRESPONSE_RESPONSE_MACROTASK_HPP
+#define MADNESS_APPS_MOLRESPONSE_RESPONSE_MACROTASK_HPP
+
 // #include "functypedefs.h"
 // #include "functypedefs.h"
 #include "vmra.h"
@@ -15,138 +19,6 @@ namespace madness
 
   // In this implmentation we need to represent each x_space as a contigous block
   // of functions.
-  vector_real_function_3d copyToVector(const X_space &chi)
-  {
-
-    int n = static_cast<int>(chi.num_states());
-    int m = static_cast<int>(chi.num_orbitals());
-
-    vector_real_function_3d rf(2 * n * m);
-
-    for (int i = 0; i < n; i++)
-    {
-      for (int j = 0; j < m; j++)
-      {
-        auto xindex = (2 * i * m) + j;
-        auto yindex = (2 * i * m) + j + m;
-        rf[xindex] = chi.x[i][j];
-        rf[yindex] = chi.y[i][j];
-      }
-    }
-    return rf;
-  }
-
-  void copyToXspace(const vector_real_function_3d &rf, X_space &chi)
-  {
-
-    int n = static_cast<int>(chi.num_states());
-    int m = static_cast<int>(chi.num_orbitals());
-    for (int i = 0; i < n; i++)
-    {
-      for (int j = 0; j < m; j++)
-      {
-        auto xindex = (2 * i * m) + j;
-        auto yindex = (2 * i * m) + j + m;
-        chi.x[i][j] = rf[xindex];
-        chi.y[i][j] = rf[yindex];
-      }
-    }
-  }
-
-  // In this implmentation we need to represent each x_space as a contigous block
-  // of functions.
-  vector_real_function_3d copyToVector(const response_space &chi)
-  {
-
-    int n = static_cast<int>(chi.num_states);
-    int m = static_cast<int>(chi.num_orbitals);
-
-    vector_real_function_3d rf(n * m);
-
-    for (int i = 0; i < n; i++)
-    {
-      for (int j = 0; j < m; j++)
-      {
-        auto xindex = (i * m) + j;
-        rf[xindex] = chi.x[i][j];
-      }
-    }
-    return rf;
-  }
-
-  void copyToResponseSpace(const vector_real_function_3d &rf,
-                           response_space &chi)
-  {
-
-    int n = static_cast<int>(chi.num_states);
-    int m = static_cast<int>(chi.num_orbitals);
-    for (int i = 0; i < n; i++)
-    {
-      for (int j = 0; j < m; j++)
-      {
-        auto xindex = (i * m) + j;
-        chi.x[i][j] = rf[xindex];
-      }
-    }
-  }
-
-  class x_space_indexer
-  {
-    int num_orbitals;
-
-  public:
-    x_space_indexer(int num_orbitals)
-        : num_orbitals(num_orbitals) {}
-
-    [[nodiscard]] vector_real_function_3d
-    get_x_state(int i, const vector_real_function_3d &rf) const
-    {
-
-      vector_real_function_3d subset(num_orbitals);
-      auto index = 2 * num_orbitals * i;
-
-      for (int j = 0; j < num_orbitals; j++)
-      {
-        subset[j] = rf[index + j];
-      }
-      return subset;
-    }
-    [[nodiscard]] vector_real_function_3d
-    get_y_state(int i, const vector_real_function_3d &rf) const
-    {
-
-      vector_real_function_3d subset(num_orbitals);
-      auto index = 2 * num_orbitals * i + num_orbitals;
-      for (int j = 0; j < num_orbitals; j++)
-      {
-        subset[j] = rf[index + j];
-      }
-      return subset;
-    }
-  };
-
-  class response_space_index
-  {
-    int num_orbitals;
-
-  public:
-    response_space_index(int num_orbitals)
-        : num_orbitals(num_orbitals) {}
-
-    [[nodiscard]] vector_real_function_3d
-    get_x_state(int i, const vector_real_function_3d &rf) const
-    {
-
-      vector_real_function_3d subset(num_orbitals);
-      auto index = num_orbitals * i;
-
-      for (int j = 0; j < num_orbitals; j++)
-      {
-        subset[j] = rf[index + j];
-      }
-      return subset;
-    }
-  };
 
   class VBC_task2 : public MacroTaskOperationBase
   {
@@ -868,4 +740,315 @@ namespace madness
       return -1.0 * transform(world, phi0, mbc, true);
     }
   };
+
+  class ResponseComputeGammaX : public MacroTaskOperationBase
+  {
+
+    class Partitioner : public MacroTaskPartitioner
+    {
+    public:
+      Partitioner()
+      {
+        max_batch_size = 1;
+        //  result_stride = stride;
+        //  policy = "strided";
+      }
+    };
+
+  public:
+    ResponseComputeGammaX()
+    {
+      partitioner.reset(new Partitioner());
+    }
+    // index b,response B, phi0,
+    // perturbation
+    typedef std::tuple<
+        const std::vector<int> &,        // orb_index
+        const std::vector<int> &,        // state_index
+        const vector_real_function_3d &, // B
+        const vector_real_function_3d &, // phi0
+        const bool &>
+        argtupleT;
+
+    using resultT = vector_real_function_3d;
+
+    resultT allocator(World &world, const argtupleT &args) const
+    {
+
+      // In this example the first index is index of all orbitals we are working with
+      auto num_functions = static_cast<int>(std::get<0>(args).size());
+      return zero_functions_compressed<double, 3>(world,
+                                                  num_functions);
+    };
+
+    resultT
+    operator()(
+        const std::vector<int> &orb_index,
+        const std::vector<int> &state_index,
+        const vector_real_function_3d &B,
+        const vector_real_function_3d &phi0,
+        const bool &static_frequency) const
+    {
+
+      World &world = phi0[0].world();
+      madness::QProjector<double, 3> Q(world, phi0);
+      auto thresh = FunctionDefaults<3>::get_thresh();
+
+      auto K = [&](const vecfuncT &ket, const vecfuncT &bra)
+      {
+        const double lo = 1.e-10;
+        auto &world = ket[0].world();
+        Exchange<double, 3> k{world, lo};
+        k.set_bra_and_ket(bra, ket);
+
+        std::string algorithm_ = "smallmem";
+
+        if (algorithm_ == "multiworld")
+        {
+          k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
+        }
+        else if (algorithm_ == "multiworld_row")
+        {
+          k.set_algorithm(
+              Exchange<double, 3>::Algorithm::multiworld_efficient_row);
+        }
+        else if (algorithm_ == "largemem")
+        {
+          k.set_algorithm(Exchange<double, 3>::Algorithm::large_memory);
+        }
+        else if (algorithm_ == "smallmem")
+        {
+          k.set_algorithm(Exchange<double, 3>::Algorithm::small_memory);
+        }
+
+        return k;
+      };
+      // In this example we only apply once to either x or y orbital.  If x we just reverse left and right in the call
+      auto compute_g1_i = [&](const vector_real_function_3d &Aleft,
+                              const vector_real_function_3d &Aright,
+                              const vector_real_function_3d &Bleft,
+                              const vector_real_function_3d &Bright,
+                              const real_function_3d &phix)
+      {
+        auto x_phi = mul(world, Aleft, Aright, true);
+        auto y_phi = mul(world, Bleft, Bright, true);
+        world.gop.fence();
+        auto rho = sum(world, x_phi, true);
+        rho += sum(world, y_phi, true);
+        auto lo = 1.e-10;
+        real_convolution_3d op =
+            CoulombOperator(world, lo, FunctionDefaults<3>::get_thresh());
+        auto temp_J = apply(op, rho);
+        auto Jx = temp_J * phix;
+        auto ka = K(Aleft, Aright)(phix); // what happens to k after this?
+        auto kb = K(Bleft, Bright)(phix);
+        auto Kx = ka + kb; // gaxpy_oop(1.0, ka, 1.0, kb, true);
+        auto result_x = gaxpy_oop(2.0, Jx.compress(), -1.0, Kx.compress(), true);
+
+        return result_x;
+      };
+
+      int num_orbitals = static_cast<int>(phi0.size());
+      auto compute_result = [&](const int &i)
+      {
+        resultT result = zero_functions_compressed<double, 3>(world, 1);
+        // Now I should assume that each b and c will have all of the corresponding [00000,00000,0000,11111,11111,11111,] or I find a way to intelligently map i to bi and ci
+        auto si = state_index[i];
+
+        real_function_3d g;
+        if (static_frequency)
+        {
+          // If static then we pass a response function and only work with x
+          auto indexer = response_space_index(num_orbitals);
+          const auto &bx = indexer.get_x_state(si, B);
+          auto response_orbital_index = i % (num_orbitals);
+          // else we do g1
+          g = compute_g1_i(bx, bx, phi0, phi0, phi0[response_orbital_index]);
+        }
+        else
+        {
+
+          auto indexer = x_space_indexer(num_orbitals);
+          const auto &bx = indexer.get_x_state(si, B);
+          const auto &by = indexer.get_x_state(si, B);
+          auto response_orbital_index = i % (num_orbitals * 2);
+
+          bool type_x = true;
+          if (response_orbital_index < num_orbitals)
+          {
+            type_x = true;
+          }
+          else
+          {
+            type_x = false;
+            response_orbital_index -= num_orbitals;
+          }
+
+            if (type_x)
+            {
+              g = compute_g1_i(bx, by, phi0, phi0, phi0[response_orbital_index]);
+            }
+            else
+            {
+              g = compute_g1_i(by, bx, phi0, phi0, phi0[response_orbital_index]);
+            }
+        }
+        g = Q(g);
+        result[0] = g;
+
+        return result;
+      };
+      const long ij = batch.result.begin;
+      return compute_result(ij);
+    }
+  };
+
+  class ResponseComputeGroundExchange : public MacroTaskOperationBase
+  {
+
+    class Partitioner : public MacroTaskPartitioner
+    {
+    public:
+      Partitioner()
+      {
+        max_batch_size = 1;
+        //  result_stride = stride;
+        //  policy = "strided";
+      }
+    };
+
+  public:
+    ResponseComputeGroundExchange()
+    {
+      partitioner.reset(new Partitioner());
+    }
+    // index b,response B, phi0,
+    // perturbation
+    typedef std::tuple<
+        const std::vector<int> &,        // orb_index
+        const std::vector<int> &,        // state_index
+        const vector_real_function_3d &, // B
+        const vector_real_function_3d &, // phi0
+        const bool &>
+        argtupleT;
+
+    using resultT = vector_real_function_3d;
+
+    resultT allocator(World &world, const argtupleT &args) const
+    {
+
+      // In this example the first index is index of all orbitals we are working with
+      auto num_functions = static_cast<int>(std::get<0>(args).size());
+      return zero_functions_compressed<double, 3>(world,
+                                                  num_functions);
+    };
+
+    resultT
+    operator()(
+        const std::vector<int> &orb_index,
+        const std::vector<int> &state_index,
+        const vector_real_function_3d &B,
+        const vector_real_function_3d &phi0,
+        const bool &static_frequency) const
+    {
+
+      World &world = phi0[0].world();
+      madness::QProjector<double, 3> Q(world, phi0);
+      auto thresh = FunctionDefaults<3>::get_thresh();
+
+      auto K = [&](const vecfuncT &ket, const vecfuncT &bra)
+      {
+        const double lo = 1.e-10;
+        auto &world = ket[0].world();
+        Exchange<double, 3> k{world, lo};
+        k.set_bra_and_ket(bra, ket);
+
+        std::string algorithm_ = "smallmem";
+
+        if (algorithm_ == "multiworld")
+        {
+          k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
+        }
+        else if (algorithm_ == "multiworld_row")
+        {
+          k.set_algorithm(
+              Exchange<double, 3>::Algorithm::multiworld_efficient_row);
+        }
+        else if (algorithm_ == "largemem")
+        {
+          k.set_algorithm(Exchange<double, 3>::Algorithm::large_memory);
+        }
+        else if (algorithm_ == "smallmem")
+        {
+          k.set_algorithm(Exchange<double, 3>::Algorithm::small_memory);
+        }
+
+        return k;
+      };
+      auto compute_g0_i = [&](const vector_real_function_3d &Aleft,
+                              const vector_real_function_3d &Aright,
+                              const real_function_3d &x)
+      {
+        auto Kx = K(Aleft, Aright)(x); // what happens to k after this?
+        // ideally it runs and the Exchange operator is freed
+
+        return Kx;
+      };
+      // In this example we only apply once to either x or y orbital.  If x we just reverse left and right in the call
+
+      int num_orbitals = static_cast<int>(phi0.size());
+      auto compute_result = [&](const int &i)
+      {
+        resultT result = zero_functions_compressed<double, 3>(world, 1);
+        // Now I should assume that each b and c will have all of the corresponding [00000,00000,0000,11111,11111,11111,] or I find a way to intelligently map i to bi and ci
+        auto si = state_index[i];
+
+        real_function_3d g;
+        if (static_frequency)
+        {
+          // If static then we pass a response function and only work with x
+          auto indexer = response_space_index(num_orbitals);
+          const auto &bx = indexer.get_x_state(si, B);
+          auto response_orbital_index = i % (num_orbitals);
+          // if it's zero then we do g0
+          g = compute_g0_i(phi0, phi0, bx[response_orbital_index]);
+        }
+        else
+        {
+
+          auto indexer = x_space_indexer(num_orbitals);
+          const auto &bx = indexer.get_x_state(si, B);
+          const auto &by = indexer.get_x_state(si, B);
+          auto response_orbital_index = i % (num_orbitals * 2);
+
+          bool type_x = true;
+          if (response_orbital_index < num_orbitals)
+          {
+            type_x = true;
+          }
+          else
+          {
+            type_x = false;
+            response_orbital_index -= num_orbitals;
+          }
+
+          if (type_x)
+          {
+            g = compute_g0_i(phi0, phi0, bx[response_orbital_index]);
+          }
+          else
+          {
+            g = compute_g0_i(phi0, phi0, by[response_orbital_index]);
+          }
+        }
+//        g = Q(g);
+        result[0] = g;
+
+        return result;
+      };
+      const long ij = batch.result.begin;
+      return compute_result(ij);
+    }
+  };
 } // namespace madness
+#endif

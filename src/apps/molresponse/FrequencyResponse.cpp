@@ -5,7 +5,6 @@
 #include "FrequencyResponse.hpp"
 #include "funcdefaults.h"
 #include "functypedefs.h"
-#include "response_macrotask.hpp"
 #include "timer.h"
 #include "x_space.h"
 #include <filesystem>
@@ -14,10 +13,6 @@ namespace fs = std::filesystem;
 
 void FrequencyResponse::initialize(World &world)
 {
-  if (world.rank() == 0)
-  {
-    print("FrequencyResponse::initialize()");
-  }
   Chi = PQ.copy();
 }
 
@@ -90,6 +85,7 @@ void FrequencyResponse::iterate(World &world)
 
   vector<bool> converged(Chi.num_states(), false);
   Chi.reset_active();
+  PQ.reset_active();
   // make density for the first time
   auto rho_omega = response_context.compute_density(
       world, Chi, ground_orbitals, vector_real_function_3d(Chi.num_states()),
@@ -125,6 +121,11 @@ void FrequencyResponse::iterate(World &world)
       }
 
       auto chi_norms = (compute_y) ? Chi.norm2s() : Chi.x.norm2();
+      if (world.rank() == 0)
+      {
+        print("chi_norms: ", chi_norms);
+      }
+
       auto rho_norms = madness::norm2s_T(world, rho_omega);
 
       // Todo add chi norm and chi_x
@@ -168,7 +169,11 @@ void FrequencyResponse::iterate(World &world)
       {
         Chi.reset_active();
         Chi.active.remove_if([&](auto x)
-                             { return converged[b++]; });
+                             { return converged[b]; });
+        PQ.active.remove_if([&](auto x)
+                            { return converged[b++]; });
+
+
       };
       remove_converged();
 
@@ -199,8 +204,6 @@ void FrequencyResponse::iterate(World &world)
         break;
       }
     }
-    auto x_inner = ((compute_y) ? 2 : 1) * response_context.inner(Chi, Chi);
-
     auto rho_omega_norm = norm2s_T(world, rho_omega);
     auto [new_chi, new_res, new_rho] = update_response(
         world, Chi, xc, bsh_x_ops, bsh_y_ops, projector, x_shifts, omega,
@@ -220,7 +223,15 @@ void FrequencyResponse::iterate(World &world)
 
     auto old_density_residual = copy(delta_density);
 
-    Chi = new_chi.copy();
+    if (compute_y)
+    {
+      Chi = new_chi.copy();
+    }
+    else
+    {
+      Chi.x = new_chi.x.copy();
+     // Chi.y = new_chi.x.copy();
+    }
 
     if (r_params.print_level() >= 1)
     {
@@ -234,6 +245,14 @@ void FrequencyResponse::iterate(World &world)
     }
 
     auto dnorm = norm2s_T(world, rho_omega);
+
+    auto cn = Chi.component_norm2s();
+    auto pq = PQ.component_norm2s();
+    if (world.rank() == 0)
+    {
+      print("PQ norms: \n", pq);
+      print("Chi norms: \n", cn);
+    }
 
     polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
     if (r_params.print_level() >= 1)
@@ -290,15 +309,26 @@ auto FrequencyResponse::update_response(
     molresponse::start_timer(world);
   }
 
-  auto x = chi.copy();
-  auto chi_norm = x.norm2s();
-  // if (world.rank() == 0) { print("x before bsh update: ", chi_norm); }
+  std::string calc_type = (omega_n != 0.0) ? "full" : "static";
+
+  auto x = X_space(world, chi.num_states(), chi.num_orbitals());
+  if (calc_type == "static")
+  {
+    x.x = chi.x.copy();
+    //x.y = chi.x.copy();
+  }
+  else
+  {
+    x = chi.copy();
+  }
+  x.set_active(chi.active);
+
   X_space theta_X =
-      compute_theta_X(world, x, rho_old, xc, r_params.calc_type());
+      compute_theta_X(world, x, rho_old, xc, calc_type);
   X_space new_chi = bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops,
                                         projector, x_shifts);
 
-  chi_norm = new_chi.norm2s();
+  // chi_norm = new_chi.norm2s();
   // if (world.rank() == 0) { print("new_chi_norm after bsh update: ",
   // chi_norm); }
 
@@ -308,11 +338,11 @@ auto FrequencyResponse::update_response(
   { // & (iteration % 3 == 0)) {
     new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
   }
-  chi_norm = new_chi.norm2s();
-  if (world.rank() == 0)
-  {
-    print("new_chi_norm after kain update: ", chi_norm);
-  }
+  // chi_norm = new_chi.norm2s();
+  // if (world.rank() == 0)
+  // {
+  //   print("new_chi_norm after kain update: ", chi_norm);
+  // }
 
   // bool compute_y = r_params.calc_type() == "full";
   // x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation);
@@ -355,11 +385,6 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     theta_X.x = theta_X.x * -2;
     theta_X.x.truncate_rf();
   }
-  auto chi_norm = theta_X.norm2s();
-  if (world.rank() == 0)
-  {
-    print("In bsh after theta_X+PQ: ", chi_norm);
-  }
   // apply bsh
   X_space bsh_X = X_space::zero_functions(world, m, n);
   bsh_X.set_active(theta_X.active);
@@ -378,21 +403,13 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
     bsh_X.x.truncate_rf();
   }
 
-  chi_norm = bsh_X.norm2s();
-  if (world.rank() == 0)
-  {
-    print("In bsh after apply: ", chi_norm);
-  }
-  auto apply_projector = [&](auto &xi)
-  { return projector(xi); };
   if (compute_y)
   {
-    bsh_X = oop_apply(bsh_X, apply_projector);
+    bsh_X.from_vector(projector(bsh_X.to_vector()));
   }
   else
   {
-    for (const auto &i : bsh_X.active)
-      bsh_X.x[i] = projector(bsh_X.x[i]);
+    bsh_X.x.from_vector(projector(bsh_X.x.to_vector()));
   }
   if (r_params.print_level() >= 1)
   {
@@ -998,7 +1015,6 @@ QuadraticResponse::compute_beta_v2(World &world, const double &omega_b,
   {
     beta_tensor[i] = beta[i]->get();
   }
-
 
   return {beta_tensor, beta_indices};
 }
