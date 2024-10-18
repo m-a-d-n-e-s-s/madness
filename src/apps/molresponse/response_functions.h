@@ -165,7 +165,7 @@ namespace madness
 
         friend auto inplace_unary_apply(response_space &A, const std::function<void(vector_real_function_3d &)> &func)
         {
-            auto &world = A.x[0][0].world();
+            auto &world = A.x[A.active.front()][0].world();
             for (auto &i : A.active)
             {
                 func(A.x[i]);
@@ -178,7 +178,7 @@ namespace madness
             -> response_space
         {
             auto result = A.copy();
-            auto &world = result.x[0][0].world();
+            auto &world = result.x[A.active.front()][0].world();
             result.active = A.active;
             for (auto &i : result.active)
             {
@@ -196,7 +196,7 @@ namespace madness
             MADNESS_ASSERT(same_size(A, B));
 
             response_space result = A.copy(); // create zero_functions
-            auto &world = result.x[0][0].world();
+            auto &world = result.x[A.active.front()][0].world();
 
             for (const auto &i : result.active)
             {
@@ -212,7 +212,7 @@ namespace madness
         friend auto binary_inplace(response_space &A, const response_space &B, const T &func)
         {
             MADNESS_ASSERT(same_size(A, B));
-            auto &world = A.x[0][0].world();
+            auto &world = A.x[A.active.front()][0].world();
             for (const auto &i : A.active)
             {
                 auto ax = A.x[i];
@@ -229,7 +229,8 @@ namespace madness
 
             MADNESS_ASSERT(size() > 0);
             MADNESS_ASSERT(same_size(*this, rhs_y)); // assert that same size
-            auto result = response_space(x[0][0].world(), size(), size_orbitals());
+            World &world = x[rhs_y.active.front()][0].world();
+            auto result = response_space(world, size(), size_orbitals());
             result.active = rhs_y.active;
 
             result.from_vector(this->to_vector() + rhs_y.to_vector());
@@ -245,11 +246,11 @@ namespace madness
         {
             MADNESS_ASSERT(size() > 0);
             MADNESS_ASSERT(same_size(*this, rhs_y)); // assert that same size
-
-            auto result = response_space(x[0][0].world(), size(), size_orbitals());
+            World &world = x[rhs_y.active.front()][0].world();
+            auto result = this->copy();  
             result.active = rhs_y.active;
 
-            result.from_vector(this->to_vector() - rhs_y.to_vector());
+            result.from_vector(result.to_vector() - rhs_y.to_vector());
             return result;
 
             // auto result =
@@ -260,11 +261,13 @@ namespace madness
 
         friend response_space operator*(const response_space &y, double a)
         {
-            World &world = y.x.at(0).at(0).world();
+            // World &world = y.x.at(0).at(0).world();
+            World &world = y.x[y.active.front()][0].world();
             auto multiply_scalar = [&](vector_real_function_3d &vi)
             { madness::scale(world, vi, a, false); };
 
-            auto result = response_space(y[0][0].world(), y.size(), y.size_orbitals());
+            // auto result = response_space(world, y.size(), y.size_orbitals());
+            auto result = response_space::zero_functions(world, y.size(), y.size_orbitals());
             result.active = y.active;
             result.from_vector(y.to_vector() * a);
             return result;
@@ -277,9 +280,11 @@ namespace madness
 
         friend response_space operator*(double a, response_space &y)
         {
-            World &world = y.x.at(0).at(0).world();
+            // World &world = y.x.at(0).at(0).world();
+            World &world = y.x[y.active.front()][0].world();
 
-            auto result = response_space(y[0][0].world(), y.size(), y.size_orbitals());
+            // auto result = response_space(world, y.size(), y.size_orbitals());
+            auto result = response_space::zero_functions(world, y.size(), y.size_orbitals());
             result.active = y.active;
             result.from_vector(y.to_vector() * a);
             return result;
@@ -293,7 +298,8 @@ namespace madness
 
         response_space &operator*=(double a)
         {
-            World &world = this->x[0][0].world();
+            // World &world = this->x[0][0].world();
+            World &world = x[active.front()][0].world();
 
             this->from_vector(this->to_vector() * a);
             // auto multiply_scalar = [&](vector_real_function_3d &vi)
@@ -306,9 +312,10 @@ namespace madness
         // g[i][j] = x[i][j] * f
         friend response_space operator*(const response_space &a, const Function<double, 3> &f)
         {
-            World &world = a.x.at(0).at(0).world();
+            // World &world = a.x.at(0).at(0).world();
+            World &world = a[a.active.front()][0].world();
 
-            auto result = response_space(world, a.size(), a.size_orbitals());
+            auto result = response_space::zero_functions(world, a.size(), a.size_orbitals());
             result.active = a.active;
             result.from_vector(a.to_vector() * f);
             return result;
@@ -328,9 +335,11 @@ namespace madness
 
         response_space operator*(const Function<double, 3> &f)
         {
-            World &world = x[0][0].world();
+            // World &world = x[0][0].world();
+            World &world = x[active.front()][0].world();
 
-            auto result = response_space(world, size(), size_orbitals());
+            // auto result = response_space(world, size(), size_orbitals());
+            auto result = response_space::zero_functions(world, size(), size_orbitals());
             result.active = active;
             result.from_vector(this->to_vector() * f);
 
@@ -356,7 +365,7 @@ namespace madness
         response_space &operator+=(const response_space &b)
         {
             MADNESS_ASSERT(same_size(*this, b));
-            auto &world = x[0][0].world();
+            auto &world = b[b.active.front()][0].world();
             this->active = b.active;
 
             this->from_vector(this->to_vector() + b.to_vector());
@@ -426,14 +435,15 @@ namespace madness
             auto &world = x[0][0].world();
             for (int i = 0; i < num_states; i++)
             {
-                x[i] = zero_functions<double, 3>(world, num_orbitals, false);
+                x[i] = ::madness::zero_functions<double, 3>(world, num_orbitals, false);
             }
         }
 
         void compress_rf()
         {
             // for (size_t k = 0; k < num_states; k++) { compress(x[0][0].world(), x[k], true); }
-            auto &world = x[0][0].world();
+            // auto &world = x[0][0].world();
+            auto &world = x[active.front()][0].world();
             // compress only active states
             for (auto &i : active)
             {
@@ -445,7 +455,8 @@ namespace madness
         void reconstruct_rf()
         {
             // for (size_t k = 0; k < num_states; k++) { reconstruct(x[0][0].world(), x[k], true); }
-            auto &world = x[0][0].world();
+            // auto &world = x[0][0].world();
+            auto &world = x[active.front()][0].world();
             // reconstruct only active states
             for (auto &i : active)
             {
@@ -458,7 +469,7 @@ namespace madness
 
         void truncate_rf(double tol)
         {
-            auto &world = x[0][0].world();
+            auto &world = x[active.front()][0].world();
             // truncate only active states
             for (auto &i : active)
             {
@@ -507,6 +518,17 @@ namespace madness
                 }
             }
             return true;
+        }
+
+        static response_space zero_functions(World &world, size_t num_states, size_t num_orbitals)
+        {
+            response_space result(world, num_states, num_orbitals);
+
+            for (int i = 0; i < num_states; i++)
+            {
+                result.x[i] = ::madness::zero_functions<double, 3>(world, num_orbitals, false);
+            }
+            return result;
         }
 
         friend Tensor<double> response_space_inner(const response_space &a, const response_space &b)

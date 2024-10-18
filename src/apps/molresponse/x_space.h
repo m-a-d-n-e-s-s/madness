@@ -263,12 +263,20 @@ namespace madness
     auto operator+=(const X_space &B) -> X_space &
     {
       MADNESS_ASSERT(same_size(*this, B));
-      auto &world = this->x[0][0].world();
-      auto add_inplace = [&](auto &a, const auto &b)
-      {
-        gaxpy(world, 1.0, a, 1.0, b, true);
-      };
-      binary_inplace(*this, B, add_inplace);
+      auto &world = this->x[B.active.front()][0].world();
+      this->active = B.active;
+      this->from_vector(this->to_vector() + B.to_vector());
+
+
+
+
+
+
+      // auto add_inplace = [&](auto &a, const auto &b)
+      // {
+      //   gaxpy(world, 1.0, a, 1.0, b, true);
+      // };
+      // binary_inplace(*this, B, add_inplace);
       return *this;
     }
 
@@ -276,7 +284,7 @@ namespace madness
     {
       MADNESS_ASSERT(same_size(A, B));
 
-      auto result = X_space(A.x[0][0].world(), A.num_states(), A.num_orbitals());
+      auto result = X_space(A.x[A.active.front()][0].world(), A.num_states(), A.num_orbitals());
       result.set_active(A.active);
       result.from_vector(A.to_vector() + B.to_vector());
       return result;
@@ -292,7 +300,7 @@ namespace madness
     {
       MADNESS_ASSERT(same_size(A, B));
 
-      auto result = X_space(A.x[0][0].world(), A.num_states(), A.num_orbitals());
+      auto result = X_space(A.x[A.active.front()][0].world(), A.num_states(), A.num_orbitals());
       result.set_active(A.active);
       result.from_vector(A.to_vector() - B.to_vector());
       return result;
@@ -306,9 +314,9 @@ namespace madness
 
     friend X_space operator*(const X_space &A, const double &b)
     {
-      World &world = A.x[0][0].world();
+      World &world = A.x[A.active.front()][0].world();
 
-      auto result = X_space(A.x[0][0].world(), A.num_states(), A.num_orbitals());
+      auto result = X_space(world, A.num_states(), A.num_orbitals());
       result.set_active(A.active);
       result.from_vector(A.to_vector() * b);
       return result;
@@ -322,8 +330,8 @@ namespace madness
     }
     friend X_space operator*(const double &b, const X_space &A)
     {
-      World &world = A.x[0][0].world();
-      auto result = X_space(A.x[0][0].world(), A.num_states(), A.num_orbitals());
+      World &world = A.x[A.active.front()][0].world();
+      auto result = X_space(world, A.num_states(), A.num_orbitals());
       result.set_active(A.active);
       result.from_vector(A.to_vector() * b);
       return result;
@@ -337,10 +345,10 @@ namespace madness
     }
     friend X_space operator*(const X_space &B, const X_space &A)
     {
-      World &world = A.x[0][0].world();
+      World &world = A.x[A.active.front()][0].world();
       auto result = X_space(A.x[0][0].world(), A.num_states(), A.num_orbitals());
       result.set_active(A.active);
-      vector_real_function_3d result_vec = mul(world,A.to_vector(),  B.to_vector());
+      vector_real_function_3d result_vec = mul(world, A.to_vector(), B.to_vector());
       result.from_vector(result_vec);
       return result;
 
@@ -354,7 +362,7 @@ namespace madness
 
     friend X_space operator*(const X_space &A, const Function<double, 3> &f)
     {
-      World &world = A.x[0][0].world();
+      World &world = A.x[A.active.front()][0].world();
 
       auto result = X_space(A.x[0][0].world(), A.num_states(), A.num_orbitals());
       result.set_active(A.active);
@@ -370,7 +378,7 @@ namespace madness
     friend auto operator*(const Function<double, 3> &f,
                           const X_space &A) -> X_space
     {
-      World &world = A.x[0][0].world();
+      World &world = A.x[A.active.front()][0].world();
       auto result = X_space(A.x[0][0].world(), A.num_states(), A.num_orbitals());
       result.set_active(A.active);
       result.from_vector(f * A.to_vector());
@@ -405,24 +413,16 @@ namespace madness
 
     void truncate()
     {
-      auto rx = to_response_matrix(*this);
-      auto &world = rx[0][0].world();
-      auto truncate_i = [&](auto &fi)
-      {
-        madness::truncate(world, fi, FunctionDefaults<3>::get_thresh(), false);
-      };
-      inplace_apply(*this, truncate_i);
+
+      auto &world = this->x[x.active.front()][0].world();
+      this->from_vector(madness::truncate(this->to_vector(), FunctionDefaults<3>::get_thresh(), true));
     }
 
     void truncate(double thresh)
     {
-      auto rx = to_response_matrix(*this);
-      auto &world = rx[0][0].world();
-      auto truncate_i = [&](auto &fi)
-      {
-        madness::truncate(world, fi, thresh, false);
-      };
-      inplace_apply(*this, truncate_i);
+
+      auto &world = this->x[x.active.front()][0].world();
+      this->from_vector(madness::truncate(this->to_vector(), thresh, true));
     }
 
     auto norm2s() const -> Tensor<double>

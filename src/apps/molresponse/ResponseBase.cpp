@@ -644,6 +644,7 @@ auto ResponseBase::compute_theta_X(
     molresponse::start_timer(world);
   }
   X_space V0X = compute_V0X(world, chi, xc, compute_Y);
+
   if (r_params.print_level() >= 1)
   {
     molresponse::end_timer(world, "compute_V0X", "compute_V0X", iter_timing);
@@ -667,7 +668,6 @@ auto ResponseBase::compute_theta_X(
     else
     {
       E0X.x = chi.x * ham_no_diag;
-      //E0X.y = E0X.x;
     }
     if (r_params.print_level() >= 20)
     {
@@ -678,11 +678,11 @@ auto ResponseBase::compute_theta_X(
   {
     molresponse::end_timer(world, "compute_E0X", "compute_E0X", iter_timing);
   }
-  X_space gamma;
   if (r_params.print_level() >= 1)
   {
     molresponse::start_timer(world);
   }
+  auto gamma = X_space::zero_functions(world, chi.num_states(), chi.num_orbitals());
   if (calc_type != "tda")
   {
 
@@ -706,7 +706,6 @@ auto ResponseBase::compute_theta_X(
     MacroTask gamma_task(world, t);
     gamma_task.set_name("gamma_1");
 
-    gamma = X_space(world, chi.num_states(), chi.num_orbitals());
     gamma.set_active(chi.active);
     if (compute_Y)
     {
@@ -719,7 +718,7 @@ auto ResponseBase::compute_theta_X(
       auto vec_chi = chi.x.to_vector();
       auto gamma_vec = gamma_task(ii, state_index, vec_chi, ground_orbitals, true);
       gamma.x.from_vector(gamma_vec);
-      //gamma.y = gamma.x;
+      // gamma.y = gamma.x;
     }
 
     // gamma = compute_gamma(world, {chi, ground_orbitals, rho1}, xc);
@@ -727,6 +726,11 @@ auto ResponseBase::compute_theta_X(
   else
   {
     gamma = compute_gamma_tda(world, {chi, ground_orbitals, rho1}, xc);
+  }
+
+  if (r_params.print_level() >= 20)
+  {
+    print_inner(world, "gammaX", chi, gamma);
   }
 
   if (r_params.print_level() >= 1)
@@ -1442,7 +1446,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X,
     si++;
   }
 
-  auto gamma0 = X_space(world, X.num_states(), X.num_orbitals());
+  auto gamma0 = X_space::zero_functions(world, X.num_states(), X.num_orbitals());
   gamma0.set_active(X.active);
 
   ResponseComputeGroundExchange t;
@@ -1460,7 +1464,12 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X,
     auto vec_chi = X.x.to_vector();
     auto gamma_vec = gamma_task(ii, state_index, vec_chi, ground_orbitals, true);
     gamma0.x.from_vector(gamma_vec);
-    //gamma0.y = gamma0.x;
+    // gamma0.y = gamma0.x;
+  }
+
+  if (r_params.print_level() >= 20)
+  {
+    print_inner(world, "gamma0", X, gamma0);
   }
 
   if (r_params.print_level() >= 1)
@@ -1486,12 +1495,13 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X,
   else
   {
     V0.x = v0 * X.x;
-    V0.x= V0.x - c_xc * gamma0.x;
+    V0.x = V0.x - c_xc * gamma0.x;
     V0.x.truncate_rf(vtol);
     // V0.y = V0.x;
   }
   if (r_params.print_level() >= 20)
   {
+
     print_inner(world, "xV0x", X, V0);
   }
   if (r_params.print_level() >= 1)
@@ -2421,18 +2431,6 @@ void ResponseBase::converged_to_json(json &j)
   j["converged"] = all_done;
 }
 
-void ResponseBase::print_inner(World &world, const std::string &name,
-                               const X_space &left, const X_space &right)
-{
-  auto m_val = inner(left, right);
-  world.gop.fence();
-  if (world.rank() == 0)
-  {
-    print(name);
-    print(m_val);
-  }
-}
-
 auto transition_densityTDA(World &world,
                            const vector_real_function_3d &orbitals,
                            const response_space &x) -> vector_real_function_3d
@@ -2877,3 +2875,16 @@ void inner_to_json(World &world, const std::string &name,
   data[name] = m_val;
 }
 void K1Strategy::set_algorithm(const std::string &algo) {}
+
+void ResponseBase::print_inner(World &world, const std::string &name,
+                               const X_space &left, const X_space &right) const
+{
+  auto m_val = response_context.inner(left, right);
+  // auto m_val = inner(left, right);
+  world.gop.fence();
+  if (world.rank() == 0)
+  {
+    print(name);
+    print(m_val);
+  }
+}

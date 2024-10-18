@@ -894,8 +894,8 @@ class ResponseBase {
     return Kf;
   }
 
-  static void print_inner(World& world, const std::string& name,
-                          const X_space& left, const X_space& right);
+  void print_inner(World& world, const std::string& name,
+                          const X_space& left, const X_space& right) const;
 
   void function_data_to_json(json& j_mol_in, size_t iter,
                              const Tensor<double>& x_norms,

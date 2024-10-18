@@ -123,7 +123,7 @@ void FrequencyResponse::iterate(World &world)
       auto chi_norms = (compute_y) ? Chi.norm2s() : Chi.x.norm2();
       if (world.rank() == 0)
       {
-        print("chi_norms: ", chi_norms);
+        print("chi_norms: In the beginning ", chi_norms);
       }
 
       auto rho_norms = madness::norm2s_T(world, rho_omega);
@@ -165,17 +165,15 @@ void FrequencyResponse::iterate(World &world)
                                          delta_density[static_cast<int>(b)]);
       }
       int b = 0;
+      int pq = 0;
       auto remove_converged = [&]()
       {
         Chi.reset_active();
         Chi.active.remove_if([&](auto x)
-                             { return converged[b]; });
-        PQ.active.remove_if([&](auto x)
-                            { return converged[b++]; });
-
-
+                             { return converged[b++]; });
       };
       remove_converged();
+      PQ.set_active(Chi.active);
 
       if (world.rank() == 0)
       {
@@ -230,7 +228,7 @@ void FrequencyResponse::iterate(World &world)
     else
     {
       Chi.x = new_chi.x.copy();
-     // Chi.y = new_chi.x.copy();
+      // Chi.y = new_chi.x.copy();
     }
 
     if (r_params.print_level() >= 1)
@@ -246,13 +244,13 @@ void FrequencyResponse::iterate(World &world)
 
     auto dnorm = norm2s_T(world, rho_omega);
 
-    auto cn = Chi.component_norm2s();
-    auto pq = PQ.component_norm2s();
-    if (world.rank() == 0)
-    {
-      print("PQ norms: \n", pq);
-      print("Chi norms: \n", cn);
-    }
+    // auto cn = Chi.component_norm2s();
+    // auto pq = PQ.component_norm2s();
+    // if (world.rank() == 0)
+    // {
+    //   print("PQ norms: \n", pq);
+    //   print("Chi norms: \n", cn);
+    // }
 
     polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
     if (r_params.print_level() >= 1)
@@ -315,7 +313,6 @@ auto FrequencyResponse::update_response(
   if (calc_type == "static")
   {
     x.x = chi.x.copy();
-    //x.y = chi.x.copy();
   }
   else
   {
@@ -323,14 +320,18 @@ auto FrequencyResponse::update_response(
   }
   x.set_active(chi.active);
 
+  if (r_params.print_level() >= 20)
+  {
+    auto chi_norm = chi.norm2s();
+    if (world.rank() == 0)
+    {
+      print("chi_norm before bsh update: ", chi_norm);
+    }
+  }
   X_space theta_X =
       compute_theta_X(world, x, rho_old, xc, calc_type);
   X_space new_chi = bsh_update_response(world, theta_X, bsh_x_ops, bsh_y_ops,
                                         projector, x_shifts);
-
-  // chi_norm = new_chi.norm2s();
-  // if (world.rank() == 0) { print("new_chi_norm after bsh update: ",
-  // chi_norm); }
 
   auto [new_res, bsh_norms] = update_residual(
       world, chi, new_chi, r_params.calc_type(), old_residuals, xres_old);
@@ -338,11 +339,6 @@ auto FrequencyResponse::update_response(
   { // & (iteration % 3 == 0)) {
     new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
   }
-  // chi_norm = new_chi.norm2s();
-  // if (world.rank() == 0)
-  // {
-  //   print("new_chi_norm after kain update: ", chi_norm);
-  // }
 
   // bool compute_y = r_params.calc_type() == "full";
   // x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation);

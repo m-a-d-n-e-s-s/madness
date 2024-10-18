@@ -68,7 +68,9 @@ namespace madness
     {
         MADNESS_ASSERT(f.size() > 0);
         MADNESS_ASSERT(f[0].size() == op.size());
-        response_space result = f.copy();
+        // response_space result = f.copy();
+        response_space result = response_space(f[f.active.front()][0].world(), f.size(), f[0].size());
+        result.active = f.active;
         for (const auto &i : f.active)
         {
             result.x[i] = apply(world, op, f[i]);
@@ -83,7 +85,8 @@ namespace madness
     {
         MADNESS_ASSERT(f.size() > 0);
 
-        response_space result = f.copy();
+        response_space result = response_space(f[f.active.front()][0].world(), f.size(), f[0].size());
+        result.active = f.active;
         for (const auto &i : f.active)
         {
             result.x[i] = apply(world, op, f[i]);
