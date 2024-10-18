@@ -863,7 +863,7 @@ namespace madness
           const auto &bx = indexer.get_x_state(si, B);
           auto response_orbital_index = i % (num_orbitals);
           // else we do g1
-          g = compute_g1_i(bx, bx, phi0, phi0, phi0[response_orbital_index]);
+          g = compute_g1_i(bx, phi0, phi0, bx, phi0[response_orbital_index]);
         }
         else
         {
@@ -886,11 +886,11 @@ namespace madness
 
             if (type_x)
             {
-              g = compute_g1_i(bx, by, phi0, phi0, phi0[response_orbital_index]);
+              g = compute_g1_i(bx, phi0, phi0, by, phi0[response_orbital_index]);
             }
             else
             {
-              g = compute_g1_i(by, bx, phi0, phi0, phi0[response_orbital_index]);
+              g = compute_g1_i(by, phi0, phi0, bx, phi0[response_orbital_index]);
             }
         }
         g = Q(g);
