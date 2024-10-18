@@ -2,6 +2,7 @@
 
 set(EXAMPLE_SOURCES
     testpercoul
+    erfcr
     testfilter)
  
 # Create executables for example applications
