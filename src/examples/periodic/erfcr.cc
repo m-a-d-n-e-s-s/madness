@@ -3,7 +3,7 @@
 #include <vector>
 #include <cmath>
 
-#include "/home/rjh/Devel/madtran/madness/src/madness/misc/gnuplot.h"
+#include <madness/misc/gnuplot.h>
 
 // Gaussian expansion of erfc(a*r)/r accurate to epsilon over [rlo,inf]
 // Returns pair [coeffs,expnts]
