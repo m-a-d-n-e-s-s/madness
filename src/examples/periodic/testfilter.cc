@@ -16,8 +16,15 @@ static double rho_gaussian_func_3d(const madness::coord_3d& r) {
     return rho_electronic_3d(r) + rho_nuclear_3d(r);
 }
 
+// filter out leading order moments up to order k by zeroing out the corresponding coefficients in compressed representation
 template<typename T, std::size_t NDIM>
 void filter_moments_inplace(madness::Function<T,NDIM>& f, const int k, const bool fence=true) {
+
+    // can only filter in compressed representation
+    if (!f.is_compressed()) {
+        f.compress(fence);
+    }
+
     auto filter_op = [&](madness::Tensor<T> &coeff) {
         if constexpr (NDIM == 3) {
             if (k >= 0) {
@@ -48,15 +55,10 @@ void filter_moments_inplace(madness::Function<T,NDIM>& f, const int k, const boo
     // thus if all moments of up to k-1 vanish, k-th moment (=expectation value of x^k) of
     // scaling function k is its coefficient times Sqrt[(2 L)/ (2 k + 1)] (2 L)^k / Binomial[2 k, k]
     f.unaryop_coeff([&](const madness::Key<NDIM> &key, madness::Tensor<T> &coeff) {
-        if (f.is_reconstructed()) {
+        MADNESS_ASSERT(f.is_compressed());
+        // for compressed form only need 1 node, but public interface does not allow mutable access to the data
+        if (key == f.get_impl()->key0()) {
             filter_op(coeff);
-        } else if (f.is_compressed()) {
-            // for compressed form only need 1 node, but public interface does not allow mutable access to the data
-            if (key == f.get_impl()->key0()) {
-                filter_op(coeff);
-            }
-        } else {
-            MADNESS_EXCEPTION("filter_moments_inplace(f): f must be either compressed or reconstructed", 1);
         }
     },
                     fence);
@@ -82,10 +84,12 @@ int main(int argc, char**argv) {
       Function<double, 3> rho, rhoE, rhoN, V_periodic, V_periodicE, V_periodicN;
       
       {
-        constexpr double filter_level = 0;
+        // moments to filter out (0 = charge, 1 = dipoles, 2 = quadrupoles, >=3 not supported yet)
+        constexpr int filter_level = 0;
 	printf("building gaussian diff charge distribution ...\n\n");
 	std::vector<coord_3d> special_pt{coord_3d(std::array<double,3>{0.0, 0.0, 0.0})};
 	rho = FunctionFactory<double, 3>(world).special_points(special_pt).initial_level(4).f(rho_gaussian_func_3d);
+        // rho[E+N] is neutral, so no need to filter out the leading moment, but does not hurt
         filter_moments_inplace(rho, filter_level);
 	rho.truncate();
 	rhoE = FunctionFactory<double, 3>(world).special_points(special_pt).initial_level(4).f(rho_electronic_3d);
