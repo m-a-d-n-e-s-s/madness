@@ -1460,7 +1460,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X,
     auto vec_chi = X.x.to_vector();
     auto gamma_vec = gamma_task(ii, state_index, vec_chi, ground_orbitals, true);
     gamma0.x.from_vector(gamma_vec);
-    gamma0.y = gamma0.x;
+    //gamma0.y = gamma0.x;
   }
 
   if (r_params.print_level() >= 1)
