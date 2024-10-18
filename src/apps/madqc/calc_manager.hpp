@@ -645,7 +645,7 @@ public:
   static void add_alpha_i_to_json(nlohmann::ordered_json &alpha_i,
                                   nlohmann::ordered_json &alpha_json)
   {
-    print(alpha_json.dump(4));
+    // print(alpha_json.dump(4));
 
     alpha_json["omega"].insert(alpha_json["omega"].end(),
                                alpha_i["omega"].begin(),
@@ -816,7 +816,7 @@ public:
       bool restart = true;
       path save_path = restart_path_i; // current restart path aka save path
       path restart_path =
-          (i > 0) ? response_paths.restarts[i - 1] : response_paths.restarts[i];
+          (i > 0) ? root / response_paths.restarts[i - 1] : root / response_paths.restarts[i];
       std::string save_string = save_path.filename().stem();
       if (world.rank() == 0)
       {

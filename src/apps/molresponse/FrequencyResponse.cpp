@@ -1593,7 +1593,6 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
                         dipole_vectors);
     auto norms_vbc = norm2s(world, vbc);
     print("norms_vbc: ", norms_vbc);
-
     copyToXspace(vbc, VBC);
     if (r_params.print_level() >= 1)
     {
@@ -1627,13 +1626,13 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     state_num++;
   }
 
-  for (int i = 0; i < bb_idx.size(); i++)
-  {
-    if (world.rank() == 0)
-    {
-      print("bb_idx: ", bb_idx[i], " cc_idx: ", cc_idx[i], " orb_indx: ", orb_indx[i], " state_index: ", state_index[i]);
-    }
-  }
+  // for (int i = 0; i < bb_idx.size(); i++)
+  // {
+  //   if (world.rank() == 0)
+  //   {
+  //     print("bb_idx: ", bb_idx[i], " cc_idx: ", cc_idx[i], " orb_indx: ", orb_indx[i], " state_index: ", state_index[i]);
+  //   }
+  // }
   if (r_params.print_level() >= 1)
   {
     molresponse::start_timer(world);
