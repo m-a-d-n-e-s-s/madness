@@ -2400,6 +2400,7 @@ auto ResponseBase::project_ao_basis(World &world,
 void ResponseBase::output_json()
 {
   function_data.to_json(j_molresponse);
+
   time_data.to_json(j_molresponse);
   auto print_time = std::chrono::system_clock::now();
   auto in_time_t = std::chrono::system_clock::to_time_t(print_time);

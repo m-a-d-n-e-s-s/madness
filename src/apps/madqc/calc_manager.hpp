@@ -97,7 +97,7 @@ template <typename T>
 void to_json(json &j, const Tensor<T> &m)
 {
   // auto dimensions = m.dims();
-  long size = m.size();   ///< Number of elements in the tensor
+  long size = m.size(); ///< Number of elements in the tensor
   if (size == 0)
   {
     return;
@@ -532,7 +532,6 @@ public:
       }
     }
 
-
     output = {};
     to_json<double>(output, otemp);
 
@@ -755,28 +754,32 @@ public:
         calc_params.response_parameters.to_json(calc.j_molresponse);
       }
       calc.solve(world);
-      auto [omega, polar_omega] = calc.get_response_data();
-      // flatten polar_omega
+      world.gop.fence();
 
-      auto alpha = polar_omega.flat();
-
-      std::vector<std::string> ij{"XX", "XY", "XZ", "YX", "YY",
-                                  "YZ", "ZX", "ZY", "ZZ"};
-      nlohmann::ordered_json alpha_json;
-      alpha_json["omega"] = {};
-      alpha_json["ij"] = {};
-      alpha_json["alpha"] = {};
-
-      append_to_alpha_json(omega, ij, alpha, alpha_json);
-      calc.j_molresponse["properties"] = {};
-      calc.j_molresponse["properties"]["alpha"] = alpha_json;
-
-      // set protocol to the first
       if (world.rank() == 0)
       {
+        auto [omega, polar_omega] = calc.get_response_data();
+        // flatten polar_omega
+
+        auto alpha = polar_omega.flat();
+
+        std::vector<std::string> ij{"XX", "XY", "XZ", "YX", "YY",
+                                    "YZ", "ZX", "ZY", "ZZ"};
+        nlohmann::ordered_json alpha_json;
+        alpha_json["omega"] = {};
+        alpha_json["ij"] = {};
+        alpha_json["alpha"] = {};
+
+        append_to_alpha_json(omega, ij, alpha, alpha_json);
+        calc.j_molresponse["properties"] = {};
+        calc.j_molresponse["properties"]["alpha"] = alpha_json;
+
+        // set protocol to the first
         // calc.time_data.to_json(calc.j_molresponse);
         calc.output_json();
       }
+
+      world.gop.fence();
       // calc.time_data.print_data();
       return calc.j_molresponse["converged"];
     }
