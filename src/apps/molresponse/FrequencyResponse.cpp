@@ -60,12 +60,6 @@ void FrequencyResponse::iterate(World &world)
       kain_space_b.set_maxsub(static_cast<int>(r_params.maxsub()));
     }
   }
-  // We compute with positive frequencies
-  if (world.rank() == 0)
-  {
-    print("Warning input frequency is assumed to be positive");
-    print("Computing at positive frequency omega = ", omega);
-  }
   double x_shifts = 0.0;
   double y_shifts = 0.0;
   // if less negative orbital energy + frequency is positive or greater than 0
@@ -81,12 +75,19 @@ void FrequencyResponse::iterate(World &world)
                           : bsh_x_ops;
   auto max_rotation = .5 * x_residual_target + x_residual_target;
   PQ = generator(world, *this);
+  world.gop.fence();
   PQ.truncate();
+  
 
   vector<bool> converged(Chi.num_states(), false);
   Chi.reset_active();
   PQ.reset_active();
   // make density for the first time
+  // Hang's here so maybe just a fence will fix it.  Perhaps it has to do
+  // with the fact that I am using the ground_orbitals above to generate PQ
+  // Then we follow with a dot(x[b],ph0) to generate the density
+  // From what I've seen the code hangs in the reconstruction step.  Similar
+  world.gop.fence();
   auto rho_omega = response_context.compute_density(
       world, Chi, ground_orbitals, vector_real_function_3d(Chi.num_states()),
       false);
