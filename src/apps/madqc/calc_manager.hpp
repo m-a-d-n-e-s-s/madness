@@ -98,6 +98,10 @@ void to_json(json &j, const Tensor<T> &m)
 {
   // auto dimensions = m.dims();
   long size = m.size();   ///< Number of elements in the tensor
+  if (size == 0)
+  {
+    return;
+  }
   long n_dims = m.ndim(); ///< Number of dimensions (-1=invalid; 0=no
   ///< supported; >0=tensor)
   auto dims = m.dims(); // the size of each dimension
@@ -135,9 +139,9 @@ template <typename T>
 struct OutputTemplate
 {
   double energy{};
-  Tensor<T> dipole;
-  Tensor<T> gradient;
-  Tensor<T> hessian;
+  Tensor<T> dipole{};
+  Tensor<T> gradient{};
+  Tensor<T> hessian{};
   nlohmann::ordered_json alpha;
   nlohmann::ordered_json beta;
   OutputTemplate() = default;
@@ -196,7 +200,6 @@ public:
 
       for (const auto &calc_dir : calc_path.calc_paths)
       {
-        print("Current directory: ", cwd);
         print("Creating directory: ", calc_dir);
         if (!std::filesystem::exists(cwd / calc_dir.parent_path()))
         {
@@ -353,8 +356,6 @@ public:
     /*auto base_path = root / name;*/
     /*base_path = fs::relative(base_path, root);*/
     auto moldft_paths = path_manager.getPath(name);
-    if (world.rank() == 0)
-      moldft_paths.print();
     auto moldft_path = moldft_paths.calc_paths[0];
     auto restart_path = moldft_paths.restarts[0]; //
     path calc_info_path = moldft_paths.outputs["calc_info"][0];
@@ -364,6 +365,7 @@ public:
     json calcInfo;
     auto param1 = parameters;
     world.gop.broadcast_serializable(param1, 0);
+    world.gop.fence();
 
     if (world.rank() == 0)
     {
@@ -472,7 +474,13 @@ public:
         calc.set_protocol<3>(world, calc.param.protocol()[0]);
         MolecularEnergy E(world, calc);
         double energy = E.value(coords); // ugh!
-        calc.output_calc_info_schema();
+
+        world.gop.fence();
+        if (world.rank() == 0)
+        {
+          calc.output_calc_info_schema();
+        }
+        world.gop.fence();
         properties(world, calc, energy, path_manager);
       }
     }
@@ -523,6 +531,8 @@ public:
         compute_property(world, property, calc, energy, otemp);
       }
     }
+
+
     output = {};
     to_json<double>(output, otemp);
 
@@ -1042,8 +1052,8 @@ public:
     auto beta_2_path = root / hyper_paths.outputs["beta"][1];
     auto response_restarts = response_paths.restarts;
 
-    print("freqs: ", config.frequencies);
-    // Run the calculations
+    // print("freqs: ", config.frequencies);
+    //  Run the calculations
     bool last_converged = false;
     nlohmann::ordered_json beta_json;
     beta_json["Afreq"] = json::array();
@@ -1540,13 +1550,14 @@ public:
     if (world.rank() == 0)
     {
 
-      print(paths.dump(4));
+      // print(paths.dump(4));
       std::ofstream ofs("paths.json");
       ofs << paths.dump(4);
       ofs.close();
-    }
 
-    path_manager.createDirectories();
+      path_manager.createDirectories();
+    }
+    world.gop.fence();
 
     strategies->compute(world, path_manager, root, coords);
   }
