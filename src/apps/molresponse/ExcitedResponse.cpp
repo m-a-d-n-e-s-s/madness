@@ -54,7 +54,7 @@ void ExcitedResponse::initialize(World &world) {
     }
 
     // Project out ground state from guesses
-    QProjector<double, 3> projector(world, ground_orbitals);
+    QProjector<double, 3> projector(ground_orbitals);
     for (unsigned int i = 0; i < trial.x.size(); i++) trial.x[i] = projector(trial.x[i]);
 
     // Ensure orthogonal guesses
@@ -148,7 +148,7 @@ X_space ExcitedResponse::make_random_trial(World &world, size_t m) const {
     f = f * gaus;
 
     // Project out groundstate from guesses
-    QProjector<double, 3> projector(world, ground_orbitals);
+    QProjector<double, 3> projector(ground_orbitals);
     for (unsigned int i = 0; i < f.num_states(); i++) f.x[i] = projector(f.x[i]);
 
     // Normalize
@@ -261,7 +261,7 @@ X_space ExcitedResponse::make_nwchem_trial(World &world, size_t m) const {
     }
 
     // Project out groundstate from guesses
-    QProjector<double, 3> projector(world, ground_orbitals);
+    QProjector<double, 3> projector(ground_orbitals);
     for (unsigned int i = 0; i < f.size(); i++) f[i] = projector(f[i]);
 
     // Truncate and normalize
@@ -426,7 +426,7 @@ X_space ExcitedResponse::create_trial_functions2(World &world) const {
 void ExcitedResponse::iterate_trial(World &world, X_space &guesses) {
     // Variables needed to iterate
     size_t iteration = 0;// Iteration counter
-    QProjector<double, 3> projector(world,
+    QProjector<double, 3> projector(
                                     ground_orbitals);// Projector to project out ground state
     size_t m = r_params.num_states();                // Number of excited states
     size_t n = r_params.num_orbitals();              // Number of ground state orbitals
@@ -1795,7 +1795,7 @@ void ExcitedResponse::excited_to_json(json &j_mol_in, size_t iter, const Tensor<
 
 void ExcitedResponse::iterate(World &world) {
     size_t iter;
-    QProjector<double, 3> projector(world, ground_orbitals);
+    QProjector<double, 3> projector(ground_orbitals);
     size_t m = r_params.num_states();  // Number of excited states
     size_t n = r_params.num_orbitals();// Number of ground state orbitals
 
@@ -2500,7 +2500,7 @@ X_space ExcitedResponse::create_virtual_ao_guess(World &world) const {
     }
     world.gop.fence();
 
-    QProjector<double, 3> projector(world, phi_0);
+    QProjector<double, 3> projector(phi_0);
 
     // project ground_state from each atomic orbital basis
     std::transform(ao_vec.begin(), ao_vec.end(), ao_vec.begin(),
@@ -2652,7 +2652,7 @@ X_space ExcitedResponse::create_response_guess(World &world) const {
 
     madness::print("norm of ao basis functions: ", norm2s_T(world, ao_vec));
 
-    QProjector<double, 3> projector(world, phi_0);
+    QProjector<double, 3> projector(phi_0);
 
     // project ground_state from each atomic orbital basis
     std::transform(ao_vec.begin(), ao_vec.end(), ao_vec.begin(),
@@ -2882,7 +2882,7 @@ X_space ExcitedTester::test_ao_guess(World &world, ExcitedResponse &calc) {
 
     madness::print("norm of ao basis functions: ", norm2s_T(world, ao_vec));
 
-    QProjector<double, 3> projector(world, phi_0);
+    QProjector<double, 3> projector(phi_0);
 
     // project ground_state from each atomic orbital basis
     std::transform(ao_vec.begin(), ao_vec.end(), ao_vec.begin(),

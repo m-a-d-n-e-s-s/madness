@@ -77,7 +77,7 @@ namespace madness
     {
 
       World &world = phi0[0].world();
-      madness::QProjector<double, 3> Q(world, phi0);
+      madness::QProjector<double, 3> Q(phi0);
       auto thresh = FunctionDefaults<3>::get_thresh();
 
       auto K = [&](const vecfuncT &ket, const vecfuncT &bra)
@@ -348,7 +348,7 @@ namespace madness
     {
 
       World &world = phi0[0].world();
-      madness::QProjector<double, 3> Q(world, phi0);
+      madness::QProjector<double, 3> Q(phi0);
       auto thresh = FunctionDefaults<3>::get_thresh();
 
       auto K = [&](const vecfuncT &ket, const vecfuncT &bra)
@@ -791,7 +791,7 @@ namespace madness
     {
 
       World &world = phi0[0].world();
-      madness::QProjector<double, 3> Q(world, phi0);
+      madness::QProjector<double, 3> Q(phi0);
       auto thresh = FunctionDefaults<3>::get_thresh();
 
       auto K = [&](const vecfuncT &ket, const vecfuncT &bra)
@@ -953,7 +953,7 @@ namespace madness
     {
 
       World &world = phi0[0].world();
-      madness::QProjector<double, 3> Q(world, phi0);
+      madness::QProjector<double, 3> Q(phi0);
       auto thresh = FunctionDefaults<3>::get_thresh();
 
       auto K = [&](const vecfuncT &ket, const vecfuncT &bra)

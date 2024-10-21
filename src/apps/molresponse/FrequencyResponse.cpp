@@ -20,7 +20,7 @@ void FrequencyResponse::iterate(World &world)
 {
   size_t iter;
   // Variables needed to iterate
-  madness::QProjector<double, 3> projector(world, ground_orbitals);
+  madness::QProjector<double, 3> projector(ground_orbitals);
   size_t n = r_params.num_orbitals(); // num orbitals
   size_t m = r_params.num_states();   // num response states
 
@@ -531,7 +531,7 @@ auto vector_to_PQ(World &world, const vector_real_function_3d &rhs_operators,
   auto orbitals = copy(world, ground_orbitals);
   reconstruct(world, orbitals);
   truncate(world, orbitals);
-  QProjector<double, 3> Qhat(world, orbitals);
+  QProjector<double, 3> Qhat(orbitals);
   int b = 0;
   for (const functionT &pi : rhs_operators)
   {
@@ -593,7 +593,7 @@ response_xy_pair QuadraticResponse::compute_vbc(
     const response_density &zeta_BC, const vector_real_function_3d &phi0,
     const real_function_3d &vb)
 {
-  madness::QProjector<double, 3> Q(world, phi0);
+  madness::QProjector<double, 3> Q(phi0);
   auto thresh = FunctionDefaults<3>::get_thresh();
 
   auto K = [&](const vecfuncT &ket, const vecfuncT &bra)
@@ -917,7 +917,7 @@ QuadraticResponse::compute_beta_v2(World &world, const double &omega_b,
     bidx.push_back(b);
     cidx.push_back(c);
   }
-  auto ztask = ComputeZetaBC(ground_orbitals.size());
+  auto ztask = ComputeZetaBC(static_cast<int>(ground_orbitals.size()));
 
   MacroTask zeta_task1(world, ztask);
   MacroTask zeta_task2(world, ztask);
@@ -1022,7 +1022,7 @@ Tensor<double> QuadraticResponse::compute_beta(World &world)
   // construct an X_space containing phi0 copies
 
   // bsh_X = oop_apply(bsh_X, apply_projector);
-  QProjector<double, 3> projector(world, ground_orbitals);
+  QProjector<double, 3> projector(ground_orbitals);
   auto apply_projector = [&](auto &xi)
   { return projector(xi); };
 
@@ -1328,7 +1328,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(
                             zeta_cb_left, zeta_cb_right, phi0);
 
   // The first term to compute is -Q g1[K^BC], -Q g1[K^BC_conjugate]
-  QProjector<double, 3> projector(world, ground_orbitals);
+  QProjector<double, 3> projector(ground_orbitals);
   auto apply_projector = [&](auto &xi)
   { return projector(xi); };
   // sum k and j terms
@@ -1587,7 +1587,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
       molresponse::start_timer(world);
     }
 
-    VBC_task2 t(stride);
+    VBC_task2 t(static_cast<int>(stride));
     MacroTask task_vbc(world, t);
     task_vbc.set_name("VBC");
     auto vbc = task_vbc(ii, bidx, cidx, vec_b, vec_c, vec_zeta_bc, vec_zeta_cb, phi0,
@@ -1699,7 +1699,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms(
     const X_space &zeta_cb_y, const X_space &phi0)
 {
   // The first term to compute is -Q g1[K^BC], -Q g1[K^BC_conjugate]
-  QProjector<double, 3> projector(world, ground_orbitals);
+  QProjector<double, 3> projector(ground_orbitals);
   auto apply_projector = [&](auto &xi)
   { return projector(xi); };
 

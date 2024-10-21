@@ -558,11 +558,6 @@ namespace madness
             for (size_t p = 0; p < dim_2; p++)
             {
                 result += matrix_inner(world, aT[p], bT[p]);
-                world.gop.fence();
-                if (world.rank() == 0)
-                {
-                    print(result);
-                }
             }
             return result;
         }
