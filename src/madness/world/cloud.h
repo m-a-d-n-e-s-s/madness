@@ -68,6 +68,13 @@ struct Recordlist {
     template <typename T>
     using has_member_id = madness::meta::is_detected<member_id_t, T>;
 
+    // if type provides a hashing function use that, intrusive hashing, see worldhash.h
+    template <typename T>
+    using member_hash_t = decltype(std::declval<T>().hash());
+
+    template <typename T>
+    using has_member_hash = madness::meta::is_detected<member_hash_t, T>;
+
     template<typename T, std::size_t NDIM>
     static keyT compute_record(const Function<T,NDIM>& arg) {return hash_value(arg.get_impl()->id());}
 
@@ -99,7 +106,10 @@ struct Recordlist {
         } else if constexpr (std::is_pointer_v<T> && has_member_id<std::remove_pointer_t<T>>::value) {
             return hash_value(arg->id());
         } else {
-            return hash_value(arg);
+            // compute hash_code for fundamental types
+            std::size_t hashtype = typeid(T).hash_code();
+            hash_combine(hashtype,hash_value(arg));
+            return hashtype;
         }
     }
 
@@ -155,6 +165,13 @@ private:
     recordlistT local_list_of_container_keys;   // a world-local list of keys occupied in container
 
 public:
+    template <typename T>
+    using member_cloud_serialize_t = decltype(std::declval<T>().cloud_store(std::declval<World&>(), std::declval<Cloud&>()));
+
+    template <typename T>
+    using has_cloud_serialize = madness::meta::is_detected<member_cloud_serialize_t, T>;
+
+public:
 
     /// @param[in]	universe	the universe world
     Cloud(madness::World &universe) : container(universe), reading_time(0l), writing_time(0l),
@@ -176,12 +193,17 @@ public:
     void print_size(World& universe) {
 
         std::size_t memsize=0;
-        for (auto& item : container) memsize+=item.second.size();
+        std::size_t max_record_size=0;
+        for (auto& item : container) {
+            memsize+=item.second.size();
+            max_record_size=std::max(max_record_size,item.second.size());
+        }
         std::size_t global_memsize=memsize;
         std::size_t max_memsize=memsize;
         std::size_t min_memsize=memsize;
         universe.gop.sum(global_memsize);
         universe.gop.max(max_memsize);
+        universe.gop.max(max_record_size);
         universe.gop.min(min_memsize);
 
         auto local_size=container.size();
@@ -193,25 +215,25 @@ public:
             print("Cloud memory:");
             print("  replicated:",is_replicated);
             print("size of cloud (total)");
-            print("  number of records:",global_size);
-            print("  memory in GBytes: ",global_memsize*byte2gbyte);
+            print("  number of records:        ",global_size);
+            print("  memory in GBytes:         ",global_memsize*byte2gbyte);
             print("size of cloud (average per node)");
-            print("  number of records:",double(global_size)/universe.size());
-            print("  memory in GBytes: ",global_memsize*byte2gbyte/universe.size());
+            print("  number of records:        ",double(global_size)/universe.size());
+            print("  memory in GBytes:         ",global_memsize*byte2gbyte/universe.size());
             print("min/max of node");
-            print("  memory in GBytes: ",min_memsize*byte2gbyte,max_memsize*byte2gbyte);
+            print("  memory in GBytes:         ",min_memsize*byte2gbyte,max_memsize*byte2gbyte);
+            print("  max record size in GBytes:",max_record_size*byte2gbyte);
+
         }
     }
 
     void print_timings(World &universe) const {
         double rtime = double(reading_time);
         double wtime = double(writing_time);
-        double wtime1 = double(writing_time1);
         double ptime = double(replication_time);
-        universe.gop.max(rtime);
-        universe.gop.max(wtime);
-        universe.gop.max(wtime1);
-        universe.gop.max(ptime);
+        universe.gop.sum(rtime);
+        universe.gop.sum(wtime);
+        universe.gop.sum(ptime);
         long creads = long(cache_reads);
         long cstores = long(cache_stores);
         universe.gop.sum(creads);
@@ -219,10 +241,9 @@ public:
         if (universe.rank() == 0) {
             auto precision = std::cout.precision();
             std::cout << std::fixed << std::setprecision(1);
-            print("cloud storing wall time", wtime * 0.001);
-            print("cloud storing wall time inner loop", wtime1 * 0.001);
-            print("cloud replication wall time", ptime * 0.001);
-            print("cloud reading wall time", rtime * 0.001, std::defaultfloat);
+            print("cloud storing cpu time", wtime * 0.001);
+            print("cloud replication cpu time", ptime * 0.001);
+            print("cloud reading cpu time", rtime * 0.001, std::defaultfloat);
             std::cout << std::setprecision(precision) << std::scientific;
             print("cloud cache stores    ", long(cstores));
             print("cloud cache loads     ", long(creads));
@@ -232,6 +253,10 @@ public:
         cached_objects.clear();
         local_list_of_container_keys.list.clear();
         subworld.gop.fence();
+    }
+
+    void clear() {
+        container.clear();
     }
 
     void clear_timings() {
@@ -249,10 +274,26 @@ public:
     T load(madness::World &world, const recordlistT recordlist) const {
         recordlistT rlist = recordlist;
         cloudtimer t(world, reading_time);
+
+        // forward_load will consume the recordlist while loading elements
+        return forward_load<T>(world, rlist);
+    }
+
+    /// load a single object from the cloud, recordlist is consumed while loading elements
+    template<typename T>
+    T forward_load(madness::World &world, recordlistT& recordlist) const {
+        // different objects are stored in different ways
+        // - tuples are split up into their components
+        // - classes with their own cloud serialization are stored using that
+        // - everything else is stored using their usual serialization
         if constexpr (is_tuple<T>::value) {
-            return load_tuple<T>(world, rlist);
+            return load_tuple<T>(world, recordlist);
+        } else if constexpr (has_cloud_serialize<T>::value) {
+            T target = allocator<T>(world);
+            target.cloud_load(world, *this, recordlist);
+            return target;
         } else {
-            return load_other<T>(world, rlist);
+            return do_load<T>(world, recordlist);
         }
     }
 
@@ -264,9 +305,16 @@ public:
             MADNESS_EXCEPTION("cloud error",1);
         }
         cloudtimer t(world,writing_time);
+
+        // different objects are stored in different ways
+        // - tuples are split up into their components
+        // - classes with their own cloud serialization are stored using that
+        // - everything else is stored using their usual serialization
         recordlistT recordlist;
         if constexpr (is_tuple<T>::value) {
             recordlist+=store_tuple(world,source);
+        } else if constexpr (has_cloud_serialize<T>::value) {
+            recordlist+=source.cloud_store(world,*this);
         } else {
             recordlist+=store_other(world,source);
         }
@@ -371,17 +419,16 @@ private:
         }
     };
 
-
     template<typename T>
     void cache(madness::World &world, const T &obj, const keyT &record) const {
         const_cast<cacheT &>(cached_objects).insert({record,std::make_any<T>(obj)});
     }
 
+    /// load an object from the cache, record is unchanged
     template<typename T>
     T load_from_cache(madness::World &world, const keyT &record) const {
         if (world.rank()==0) cache_reads++;
         if (debug) print("loading", typeid(T).name(), "from cache record", record, "to world", world.id());
-//        if (auto obj = std::get_if<T>(&cached_objects.find(record)->second)) return *obj;
         if (auto obj = std::any_cast<T>(&cached_objects.find(record)->second)) return *obj;
         MADNESS_EXCEPTION("failed to load from cloud-cache", 1);
         T target = allocator<T>(world);
@@ -417,7 +464,6 @@ private:
         bool is_already_present= is_in_container(record);
         if (debug) {
             if (is_already_present) std::cout << "skipping ";
-            std::string msg;
             if constexpr (Recordlist<keyT>::has_member_id<T>::value) {
                 std::cout << "storing world object of " << typeid(T).name() << "id " << source.id() << " to record " << record << std::endl;
             }
@@ -438,20 +484,29 @@ private:
         return recordlistT{record};
     }
 
+public:
+    /// load a vector from the cloud, pop records from recordlist
+    ///
+    /// @param[inout]    world	destination world
+    /// @param[inout]    recordlist	list of records to load from (reduced by the first few elements)
     template<typename T>
     typename std::enable_if<is_vector<T>::value, T>::type
-    load_other(World &world, recordlistT &recordlist) const {
-        std::size_t sz = load_other<std::size_t>(world, recordlist);
+    do_load(World &world, recordlistT &recordlist) const {
+        std::size_t sz = do_load<std::size_t>(world, recordlist);
         T target(sz);
         for (std::size_t i = 0; i < sz; ++i) {
-            target[i] = load_other<typename T::value_type>(world, recordlist);
+            target[i] = do_load<typename T::value_type>(world, recordlist);
         }
         return target;
     }
 
+    /// load a single object from the cloud, pop record from recordlist
+    ///
+    /// @param[inout]    world	destination world
+    /// @param[inout]    recordlist	list of records to load from (reduced by the first element)
     template<typename T>
     typename std::enable_if<!is_vector<T>::value, T>::type
-    load_other(World &world, recordlistT &recordlist) const {
+    do_load(World &world, recordlistT &recordlist) const {
         keyT record = recordlist.pop_front_and_return();
         if (force_load_from_cache) MADNESS_CHECK(is_cached(record));
 
@@ -467,6 +522,8 @@ private:
         cache(world, target, record);
         return target;
     }
+
+public:
 
     // overloaded
     template<typename T>
@@ -494,12 +551,16 @@ private:
         return v;
     }
 
+    /// load a tuple from the cloud, pop records from recordlist
+    ///
+    /// @param[inout]    world	destination world
+    /// @param[inout]    recordlist	list of records to load from (reduced by the first few elements)
     template<typename T>
     T load_tuple(madness::World &world, recordlistT &recordlist) const {
         if (debug) std::cout << "loading tuple of type " << typeid(T).name() << " to world " << world.id() << std::endl;
         T target;
         std::apply([&](auto &&... args) {
-            ((args = load_other<typename std::remove_reference<decltype(args)>::type>(world, recordlist)), ...);
+            ((args = forward_load<typename std::remove_reference<decltype(args)>::type>(world, recordlist)), ...);
         }, target);
         return target;
     }

@@ -496,8 +496,11 @@ namespace madness {
 
         /// print some info about this
         void print_size(const std::string name) const {
-            if (!impl) print("function",name,"not assigned yet");
-            impl->print_size(name);
+            if (!impl) {
+                print("function",name,"not assigned yet");
+            } else {
+                impl->print_size(name);
+            }
         }
 
         /// Returns the maximum depth of the function tree ... collective global sum
@@ -835,15 +838,6 @@ namespace madness {
             verify();
             reconstruct();
             impl->broaden(bc.is_periodic(), fence);
-        }
-
-
-        /// Get the scaling function coeffs at level n starting from NS form
-        Tensor<T> coeffs_for_jun(Level n, long mode=0) {
-            PROFILE_MEMBER_FUNC(Function);
-            make_nonstandard(true, true);
-            return impl->coeffs_for_jun(n,mode);
-            //return impl->coeffs_for_jun(n);
         }
 
 
@@ -2101,8 +2095,10 @@ namespace madness {
             result.get_impl()->recursive_apply(op, f1[i].get_impl().get(),f2[i].get_impl().get(),false);
         world.gop.fence();
 
-        result.get_impl()->print_timer();
-        op.print_timer();
+        if (op.print_timings) {
+            result.get_impl()->print_timer();
+            op.print_timer();
+        }
 
 		result.get_impl()->finalize_apply();	// need fence before reconstruct
 

@@ -1709,12 +1709,6 @@ template<size_t NDIM>
         coeffT parent_to_child_NS(const keyT& child, const keyT& parent,
                                   const coeffT& coeff) const;
 
-        /// Get the scaling function coeffs at level n starting from NS form
-        // N=2^n, M=N/q, q must be power of 2
-        // q=0 return coeffs [N,k] for direct sum
-        // q>0 return coeffs [k,q,M] for fft sum
-        tensorT coeffs_for_jun(Level n, long q=0);
-
         /// Return the values when given the coeffs in scaling function basis
         /// @param[in] key the key of the function node (box)
         /// @param[in] coeff the tensor of scaling function coefficients for function node (box)

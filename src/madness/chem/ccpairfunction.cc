@@ -38,11 +38,17 @@ void CCPairFunction<T,NDIM>::convert_to_pure_no_op_inplace() {
         result= CompositeFactory<T, NDIM, LDIM>(world())
                 .g12(get_operator().get_kernel())
                 .ket(get_function());
-    } else if (is_decomposed()) {
+    } else if (is_decomposed_no_op()) {
+        result= CompositeFactory<T, NDIM, LDIM>(world())
+                .particle1(get_a())
+                .particle2(get_b());
+    } else if (is_op_decomposed()) {
         result= CompositeFactory<T, NDIM, LDIM>(world())
                 .g12(get_operator().get_kernel())
                 .particle1(get_a())
                 .particle2(get_b());
+    } else {
+        MADNESS_EXCEPTION("error in convert_to_pure_no_op_inplace",1);
     }
     result.fill_tree();
     result.truncate(FunctionDefaults<NDIM>::get_thresh()*0.1);
@@ -101,8 +107,24 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::op_dec_to_dec(const 
 
 /// turn decomposed functions with operator into pure functions
 template<typename T, std::size_t NDIM>
+std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::dec_to_pure(const std::vector<CCPairFunction<T,NDIM>>& other) {
+    std::vector<CCPairFunction<T,NDIM>> result;
+    for (const auto& c : other) {
+        if (c.is_decomposed_no_op()) {
+            CCPairFunction<T,NDIM> tmp=copy(c);
+            tmp.convert_to_pure_no_op_inplace();
+            result.push_back(tmp);
+        } else {
+            result.push_back(c);
+        }
+    }
+    return result;
+}
+
+
+/// turn decomposed functions with operator into pure functions
+template<typename T, std::size_t NDIM>
 std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::op_dec_to_pure(const std::vector<CCPairFunction<T,NDIM>>& other) {
-    LowRankFunctionParameters lrparameters;
     std::vector<CCPairFunction<T,NDIM>> result;
     for (const auto& c : other) {
         if (c.is_op_decomposed()) {
@@ -220,6 +242,8 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::consolidate(const st
     bool op_dec_to_dec=find(options.begin(),options.end(),"op_dec_to_dec")!=options.end();
     // convert op_dec functions to pure (via fill_tree)
     bool op_dec_to_pure=find(options.begin(),options.end(),"op_dec_to_pure")!=options.end();
+    // convert dec functions to pure (via hartree product)
+    bool dec_to_pure=find(options.begin(),options.end(),"dec_to_pure")!=options.end();
     // reorthogonalize decomposed functions and op_decomposed functions
     bool lindep=find(options.begin(),options.end(),"remove_lindep")!=options.end();
 
@@ -229,6 +253,7 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::consolidate(const st
 
     if (op_dec_to_dec) result=CCPairFunction<T,NDIM>::op_dec_to_dec(result,centers);
     if (op_dec_to_pure) result=CCPairFunction<T,NDIM>::op_dec_to_pure(result);
+    if (dec_to_pure) result=CCPairFunction<T,NDIM>::dec_to_pure(result);
     if (op_pure_to_pure) result=CCPairFunction<T,NDIM>::op_pure_to_pure(result);
 
     if (not is_collected(result)) result=collect_same_types(result);
@@ -252,6 +277,8 @@ CCPairFunction<T,NDIM>& CCPairFunction<T,NDIM>::multiply_with_op_inplace(const s
 template<typename T, std::size_t NDIM>
 double
 CCPairFunction<T,NDIM>::make_xy_u(const CCFunction<T,LDIM>& xx, const CCFunction<T,LDIM>& yy) const {
+    CCPairFunction<T,NDIM> bra(xx.function,yy.function);
+    return inner(bra,*this);
     T result = 0.0;
     if (is_pure()) {
         World& world=xx.function.world();
@@ -602,11 +629,9 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::apply(const Projecto
     constexpr std::size_t LDIM=CCPairFunction<T,NDIM>::LDIM;
 //    print("apply projector on argument with terms",argument.size());
     if (auto P=dynamic_cast<const Projector<double,LDIM>*>(&projector)) {
-//        print("P->get_particle()",P->get_particle());
         MADNESS_CHECK_THROW(P->get_particle()==0 or P->get_particle()==1,"P Projector particle must be 0 or 1 in CCPairFunction<T,NDIM>");
     }
     if (auto Q=dynamic_cast<const QProjector<double,LDIM>*>(&projector)) {
-//        print("Q->get_particle()",Q->get_particle());
         MADNESS_CHECK_THROW(Q->get_particle()==0 or Q->get_particle()==1,"Q Projector particle must be 0 or 1 in CCPairFunction<T,NDIM>");
     }
     std::vector<CCPairFunction<T,NDIM>> result;
@@ -618,10 +643,15 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::apply(const Projecto
                 auto tmp2=CCPairFunction<T,NDIM>(tmp);
                 result.push_back(tmp2);
             } else if (auto P=dynamic_cast<const Projector<double,LDIM>*>(&projector)) {
-                result.push_back(CCPairFunction<T,NDIM>((*P)(pf.get_function(),P->get_particle()+1)));
+                // result.push_back(CCPairFunction<T,NDIM>((*P)(pf.get_function())));
+                auto [left,right]=P->get_vectors_for_outer_product(pf.get_function());
+                result.push_back(CCPairFunction<T,NDIM>(left,right));
+
 
             } else if (auto Q=dynamic_cast<const QProjector<double,LDIM>*>(&projector)) {
-                result.push_back(CCPairFunction<T,NDIM>((*Q)(pf.get_function(),Q->get_particle()+1)));
+                // result.push_back(CCPairFunction<T,NDIM>((*Q)(pf.get_function())));
+                result.push_back(pf);
+                result.push_back(-1.0*Q->get_P_projector()(pf));
 
             } else {
                 MADNESS_EXCEPTION("CCPairFunction<T,NDIM>: unknown projector type",1);
@@ -629,8 +659,8 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::apply(const Projecto
         } else if (pf.is_decomposed_no_op()) {  // pair function is sum_i | a_i b_i >
             if (auto SO=dynamic_cast<const StrongOrthogonalityProjector<double,LDIM>*>(&projector)) {
                 // Q12 | kl > = (1-O1)(1-O2) |kl> = |(1-O1)k (1-O2)l>
-                QProjector<double,LDIM> Q1(world,SO->bra1(),SO->ket1());
-                QProjector<double,LDIM> Q2(world,SO->bra2(),SO->ket2());
+                QProjector<double,LDIM> Q1(SO->bra1(),SO->ket1());
+                QProjector<double,LDIM> Q2(SO->bra2(),SO->ket2());
                 result.push_back(CCPairFunction<T,NDIM>(Q1(pf.get_a()),Q2(pf.get_b())));
 
             } else if (auto P=dynamic_cast<const Projector<double,LDIM>*>(&projector)) {
@@ -652,9 +682,9 @@ std::vector<CCPairFunction<T,NDIM>> CCPairFunction<T,NDIM>::apply(const Projecto
 //                CCTimer t(world,"SO block");
                 // Q12 = 1 - O1 (1 - 1/2 O2) - O2 (1 - 1/2 O1)
 //                print("entering SO block");
-                QProjector<double,LDIM> Q1(world,SO->bra1(),SO->ket1());
+                QProjector<double,LDIM> Q1(SO->bra1(),SO->ket1());
                 Q1.set_particle(0);
-                QProjector<double,LDIM> Q2(world,SO->bra2(),SO->ket2());
+                QProjector<double,LDIM> Q2(SO->bra2(),SO->ket2());
                 Q2.set_particle(1);
 
                 Projector<double,LDIM> O1(SO->bra1(),SO->ket1());
