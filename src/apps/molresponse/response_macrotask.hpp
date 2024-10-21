@@ -884,14 +884,14 @@ namespace madness
             response_orbital_index -= num_orbitals;
           }
 
-            if (type_x)
-            {
-              g = compute_g1_i(bx, phi0, phi0, by, phi0[response_orbital_index]);
-            }
-            else
-            {
-              g = compute_g1_i(by, phi0, phi0, bx, phi0[response_orbital_index]);
-            }
+          if (type_x)
+          {
+            g = compute_g1_i(bx, phi0, phi0, by, phi0[response_orbital_index]);
+          }
+          else
+          {
+            g = compute_g1_i(by, phi0, phi0, bx, phi0[response_orbital_index]);
+          }
         }
         g = Q(g);
         result[0] = g;
@@ -1041,7 +1041,7 @@ namespace madness
             g = compute_g0_i(phi0, phi0, by[response_orbital_index]);
           }
         }
-//        g = Q(g);
+        //        g = Q(g);
         result[0] = g;
 
         return result;
@@ -1050,5 +1050,6 @@ namespace madness
       return compute_result(ij);
     }
   };
+
 } // namespace madness
 #endif

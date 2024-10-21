@@ -69,15 +69,25 @@ void FrequencyResponse::iterate(World &world)
     print("*** we are shifting just so you know!!!");
     x_shifts = -.05 - (omega + ground_energies[long(n) - 1]);
   }
-  auto bsh_x_ops = make_bsh_operators_response(world, x_shifts, omega);
-  std::vector<poperatorT> bsh_y_ops;
-  bsh_y_ops = (compute_y) ? make_bsh_operators_response(world, y_shifts, -omega)
-                          : bsh_x_ops;
+
+  std::vector<std::vector<poperatorT>> bsh_x_ops;
+  std::vector<std::vector<poperatorT>> bsh_y_ops;
+
+  for (int i = 0; i < m; i++)
+  {
+
+    auto bsh_x_ops_i = make_bsh_operators_response(world, x_shifts, omega);
+    auto bsh_y_ops_i = (compute_y) ? make_bsh_operators_response(world, y_shifts, -omega)
+                                   : bsh_x_ops_i;
+
+    bsh_x_ops.push_back(bsh_x_ops_i);
+    bsh_y_ops.push_back(bsh_y_ops_i);
+  }
+
   auto max_rotation = .5 * x_residual_target + x_residual_target;
   PQ = generator(world, *this);
   world.gop.fence();
   PQ.truncate();
-  
 
   vector<bool> converged(Chi.num_states(), false);
   Chi.reset_active();
@@ -295,7 +305,7 @@ void FrequencyResponse::iterate(World &world)
 
 auto FrequencyResponse::update_response(
     World &world, X_space &chi, XCOperator<double, 3> &xc,
-    std::vector<poperatorT> &bsh_x_ops, std::vector<poperatorT> &bsh_y_ops,
+    std::vector<std::vector<poperatorT>> &bsh_x_ops, std::vector<std::vector<poperatorT>> &bsh_y_ops,
     QProjector<double, 3> &projector, double &x_shifts, double &omega_n,
     response_solver &kain_x_space, size_t iteration, const double &max_rotation,
     const vector_real_function_3d &rho_old, const Tensor<double> &old_residuals,
@@ -355,8 +365,8 @@ auto FrequencyResponse::update_response(
 }
 
 auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
-                                            std::vector<poperatorT> &bsh_x_ops,
-                                            std::vector<poperatorT> &bsh_y_ops,
+                                            std::vector<std::vector<poperatorT>> &bsh_x_ops,
+                                            std::vector<std::vector<poperatorT>> &bsh_y_ops,
                                             QProjector<double, 3> &projector,
                                             double &x_shifts) -> X_space
 {
@@ -384,41 +394,47 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
   }
   // apply bsh
   X_space bsh_X = X_space::zero_functions(world, m, n);
+
   bsh_X.set_active(theta_X.active);
-  bsh_X.x = apply(world, bsh_x_ops, theta_X.x);
-  if (compute_y)
+  // bsh_X.x = apply(world, bsh_x_ops, theta_X.x);
+
+  std::vector<poperatorT> active_bsh_ops;
+
+  for (const auto &b : theta_X.active)
   {
-    bsh_X.y = apply(world, bsh_y_ops, theta_X.y);
+
+    auto bsh_x_ops_i = bsh_x_ops[b];
+    for (const auto &bsh_x_op : bsh_x_ops_i)
+    {
+      active_bsh_ops.push_back(bsh_x_op);
+    }
+    if (compute_y)
+    {
+      auto bsh_y_ops_i = bsh_y_ops[b];
+      for (const auto &bsh_y_op : bsh_y_ops_i)
+      {
+        active_bsh_ops.push_back(bsh_y_op);
+      }
+    }
   }
 
   if (compute_y)
   {
-    bsh_X.truncate();
+    auto vec_theta_X = theta_X.to_vector();
+
+    auto bsh_xy = apply(world, active_bsh_ops, vec_theta_X);
+    bsh_X.from_vector(truncate(projector(bsh_xy)));
   }
   else
   {
-    bsh_X.x.truncate_rf();
+    auto vec_theta_X = theta_X.x.to_vector();
+    auto bsh_x = apply(world, active_bsh_ops, vec_theta_X);
+    bsh_X.x.from_vector(truncate(projector(bsh_x)));
   }
 
-  if (compute_y)
-  {
-    bsh_X.from_vector(projector(bsh_X.to_vector()));
-  }
-  else
-  {
-    bsh_X.x.from_vector(projector(bsh_X.x.to_vector()));
-  }
   if (r_params.print_level() >= 1)
   {
     molresponse::end_timer(world, "bsh_update", "bsh_update", iter_timing);
-  }
-  if (compute_y)
-  {
-    bsh_X.truncate();
-  }
-  else
-  {
-    bsh_X.x.truncate_rf();
   }
   return bsh_X;
 }
@@ -999,7 +1015,7 @@ QuadraticResponse::compute_beta_v2(World &world, const double &omega_b,
     }
   }
 
-  bool debug = true;
+  bool debug = false;
   if (debug)
   {
     auto [beta0, beta0_dir] =

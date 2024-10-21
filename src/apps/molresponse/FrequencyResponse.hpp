@@ -677,8 +677,8 @@ private:
   Tensor<double> polar;
   void iterate(World &world) override;
   X_space bsh_update_response(World &world, X_space &theta_X,
-                              vector<poperatorT> &bsh_x_ops,
-                              vector<poperatorT> &bsh_y_ops,
+                              std::vector<vector<poperatorT>> &bsh_x_ops,
+                              std::vector<vector<poperatorT>> &bsh_y_ops,
                               QProjector<double, 3> &projector,
                               double &x_shifts);
   static void frequency_to_json(json &j_mol_in, size_t iter,
@@ -686,7 +686,7 @@ private:
   void save(World &world, const std::string &name) override;
   std::tuple<X_space, residuals, vector_real_function_3d> update_response(
       World &world, X_space &chi, XCOperator<double, 3> &xc,
-      std::vector<poperatorT> &bsh_x_ops, std::vector<poperatorT> &bsh_y_ops,
+      std::vector<std::vector<poperatorT>> &bsh_x_ops, std::vector<std::vector<poperatorT>> &bsh_y_ops,
       QProjector<double, 3> &projector, double &x_shifts, double &omega_n,
       response_solver &kain_x_space, size_t iteration,
       const double &max_rotation, const vector_real_function_3d &rho_old,

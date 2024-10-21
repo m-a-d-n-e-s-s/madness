@@ -518,7 +518,7 @@ auto ResponseBase::compute_gamma(World &world, const gamma_orbitals &density,
 
   auto [chi_alpha, phi0, rho1] =
       orbital_load_balance(world, density, r_params.loadbalparts());
-  QProjector<double, 3> projector(world, phi0);
+  QProjector<double, 3> projector(phi0);
 
   X_space W = X_space::zero_functions(world, chi_alpha.num_states(),
                                       chi_alpha.num_orbitals());
@@ -783,7 +783,7 @@ auto ResponseBase::compute_gamma_full(
   auto [chi_alpha, phi0, rho1] =
       orbital_load_balance(world, density, r_params.loadbalparts());
 
-  QProjector<double, 3> projector(world, phi0);
+  QProjector<double, 3> projector(phi0);
   size_t num_states = chi_alpha.num_states();
   size_t num_orbitals = chi_alpha.num_orbitals();
   if (r_params.print_level() >= 1)
@@ -916,7 +916,7 @@ auto ResponseBase::compute_gamma_static(
   auto old_pmap = FunctionDefaults<3>::get_pmap();
   auto [xy, phi0, rho1] =
       orbital_load_balance(world, gammaOrbitals, r_params.loadbalparts());
-  QProjector<double, 3> projector(world, phi0);
+  QProjector<double, 3> projector(phi0);
   size_t num_states = xy.num_states();
   size_t num_orbitals = xy.num_orbitals();
   if (r_params.print_level() >= 1)
@@ -1164,7 +1164,7 @@ auto ResponseBase::compute_gamma_tda(
   {
     molresponse::start_timer(world);
   }
-  QProjector<double, 3> projector(world, ground_orbitals);
+  QProjector<double, 3> projector(ground_orbitals);
   for (size_t i = 0; i < num_states; i++)
   {
     gamma.x[i] = projector(gamma.x[i]);
