@@ -156,8 +156,6 @@ void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
 
 void SCF::output_calc_info_schema() const {
     nlohmann::json j = {};
-    World& world=amo.front().world();
-    if (world.rank()==0) {
         vec_pair_ints int_vals;
         vec_pair_T<double> double_vals;
         vec_pair_tensor_T<double> double_tensor_vals;
@@ -185,7 +183,6 @@ void SCF::output_calc_info_schema() const {
 
         //    output_schema(param.prefix()+".calc_info", j);
         update_schema(param.prefix()+".calc_info", j);
-    }
 }
 
 void scf_data::add_data(std::map<std::string, double> values) {
@@ -216,10 +213,11 @@ void scf_data::to_json(json &j) const {
 
     j["scf_e_data"] = json();
     j["scf_e_data"]["iterations"] = iter;
+    j["scf_e_data"]["data"] = {};
 
     for (const auto &e: e_data) {
         //::print(e.second);
-        j["scf_e_data"].push_back({e.first, e.second});
+        j["scf_e_data"]["data"][e.first]= e.second;
     }
 }
 
@@ -2347,7 +2345,8 @@ void SCF::solve(World& world) {
             printf(" exchange-correlation %16.8f\n", exc);
             printf("    nuclear-repulsion %16.8f\n", enrep);
             printf("                total %16.8f\n\n", etot);
-        }
+
+        // Only rank0 needs this data
         e_data.add_data({{"e_kinetic", ekinetic},
                          {"e_local",   enonlocal},
                          {"e_nuclear", enuclear},
@@ -2356,6 +2355,7 @@ void SCF::solve(World& world) {
                          {"e_xc",      exc},
                          {"e_nrep",    enrep},
                          {"e_tot",     etot}});
+        }
 
         if (iter > 0) {
             //print("##convergence criteria: density delta=", da < dconv * molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=", (param.conv_only_dens || bsh_residual < 5.0*dconv));

@@ -60,17 +60,20 @@
 
 // define the properties that can be calculated for each model
 // This example is for the response model
-struct response_property_map {
+struct response_property_map
+{
   bool alpha;
   bool beta;
   bool shg;
 };
 
-void to_json(nlohmann::json* j, const response_property_map& r) {
+void to_json(nlohmann::json *j, const response_property_map &r)
+{
   j->push_back(
       nlohmann::json{{"alpha", r.alpha}, {"beta", r.beta}, {"shg", r.shg}});
 }
-void from_json(const nlohmann::json& j, response_property_map* r) {
+void from_json(const nlohmann::json &j, response_property_map *r)
+{
   r->alpha = j.at("alpha").get<bool>();
   r->beta = j.at("beta").get<bool>();
   r->shg = j.at("shg").get<bool>();
@@ -84,9 +87,10 @@ using model_properties = std::map<std::string, bool>;
 using property_map = std::map<model, model_properties>;
 
 std::unique_ptr<CalculationDriver>
-createEnergyDriver(World& world, const std::string& model_name,
-                   const ParameterManager& pm, property_map properties,
-                   const path& root) {
+createEnergyDriver(World &world, const std::string &model_name,
+                   const ParameterManager &pm, property_map properties,
+                   const path &root)
+{
 
   // Create a new CalcManager
   auto calc_manager =
@@ -102,25 +106,29 @@ createEnergyDriver(World& world, const std::string& model_name,
   auto moldir_name = "moldft";
   auto dipole_name = "response";
 
-  if (world.rank() == 0) {
+  if (world.rank() == 0)
+  {
     print("Moldft: ", moldir_name);
     print("Dipole: ", dipole_name);
   }
 
-  if (model_name == "moldft") {
+  if (model_name == "moldft")
+  {
     return calc_manager;
-
-  } else if (model_name == "response") {
-    auto& response_params = pm.get_molresponse_params();
+  }
+  else if (model_name == "response")
+  {
+    auto &response_params = pm.get_molresponse_params();
     auto response_properties = properties.at(
-        "response");  // map of properties to be calculated for response
+        "response"); // map of properties to be calculated for response
 
     auto perturbations = response_params.perturbations();
     auto xc = response_params.xc();
     auto freq_range = response_params.freq_range();
 
     vector<std::string> input_names = {moldir_name};
-    for (auto const& perturbation : perturbations) {
+    for (auto const &perturbation : perturbations)
+    {
       ResponseInput r_input = std::make_tuple(perturbation, xc, freq_range);
       auto response_calc = std::make_unique<LinearResponseStrategy>(
           response_params, r_input, "response", input_names);
@@ -130,18 +138,23 @@ createEnergyDriver(World& world, const std::string& model_name,
         std::vector<std::pair<std::tuple<int, int, int>,
                               std::tuple<double, double, double>>>;
 
-    if (response_properties["beta"]) {
+    if (response_properties["beta"])
+    {
 
       beta_indexes abc_freqs;
-      auto set_freqs = [&]() {
+      auto set_freqs = [&]()
+      {
         vector<double> freqs_copy = freq_range;
         auto num_freqs = freq_range.size();
-        auto compare_freqs = [](double x, double y) {
+        auto compare_freqs = [](double x, double y)
+        {
           return std::abs(x - y) < 1e-3;
         };
 
-        for (int i = 0; i < num_freqs; i++) {
-          for (int j = i; j < num_freqs; j++) {
+        for (int i = 0; i < num_freqs; i++)
+        {
+          for (int j = i; j < num_freqs; j++)
+          {
             auto omega_b = freq_range[i];
             auto omega_c = freq_range[j];
             auto omega_a = omega_b + omega_c;
@@ -149,12 +162,14 @@ createEnergyDriver(World& world, const std::string& model_name,
             // look for omega_a in freqs_copy
             auto index_a = std::find_if(
                 freqs_copy.begin(), freqs_copy.end(),
-                [&](double x) { return compare_freqs(x, omega_a); });
+                [&](double x)
+                { return compare_freqs(x, omega_a); });
 
             // If omega_a  is not in freq_copy, add it and set index_a to the
             // end of the vector
             // else, set index_a to the index of omega_a
-            if (index_a == freqs_copy.end()) {
+            if (index_a == freqs_copy.end())
+            {
               freqs_copy.push_back(omega_a);
               index_a = freqs_copy.end() - 1;
             }
@@ -168,15 +183,11 @@ createEnergyDriver(World& world, const std::string& model_name,
       };
 
       freq_range = set_freqs();
-      if (world.rank() == 0) {
-        print("Frequency Range: ", freq_range);
 
-        for (auto const& [indexes, freqs] : abc_freqs) {
-          auto [i, j, k] = indexes;
-          auto [omega_a, omega_b, omega_c] = freqs;
-          print("Index: ", i, j, k);
-          print("Freqs: ", omega_a, omega_b, omega_c);
-        }
+      for (auto const &[indexes, freqs] : abc_freqs)
+      {
+        auto [i, j, k] = indexes;
+        auto [omega_a, omega_b, omega_c] = freqs;
       }
 
       // this is where I we create our calculation
@@ -190,34 +201,45 @@ createEnergyDriver(World& world, const std::string& model_name,
       calc_manager->addStrategy(std::move(response_hyper));
       calc_manager->addStrategy(std::move(hyper_calc));
     }
-    if (response_properties["shg"]) {
+    if (response_properties["shg"])
+    {
       throw std::invalid_argument("SHG not implemented yet");
     }
-  } else if (model_name == "MP2") {
+  }
+  else if (model_name == "MP2")
+  {
     throw std::invalid_argument("MP2 not implemented yet");
     /*auto moldft_strategy = std::make_unique<MoldftCalculationStrategy>(params, molecule);*/
     /*auto mp2_strategy = std::make_unique<MP2CalculationStrategy>(params, molecule);*/
     /*calc_manager->addStrategy(std::move(moldft_strategy));*/
     /*calc_manager->addStrategy(std::move(mp2_strategy));*/
-  } else if (model_name == "CIS") {
+  }
+  else if (model_name == "CIS")
+  {
     throw std::invalid_argument("CIS not implemented yet");
     /*auto moldft_strategy = std::make_unique<MoldftCalculationStrategy>(params, molecule);*/
     /*auto cis_strategy = std::make_unique<CISCalculationStrategy>(params, molecule);*/
     /*calc_manager->addStrategy(std::move(moldft_strategy));*/
     /*calc_manager->addStrategy(std::move(cis_strategy));*/
-  } else if (model_name == "OEP") {
+  }
+  else if (model_name == "OEP")
+  {
     throw std::invalid_argument("OEP not implemented yet");
     /*auto moldft_strategy = std::make_unique<MoldftCalculationStrategy>(params, molecule);*/
     /*auto oep_strategy = std::make_unique<OEPCalculationStrategy>(params, molecule);*/
     /*calc_manager->addStrategy(std::move(moldft_strategy));*/
     /*calc_manager->addStrategy(std::move(oep_strategy));*/
-  } else if (model_name == "MP3") {
+  }
+  else if (model_name == "MP3")
+  {
     throw std::invalid_argument("MP3 not implemented yet");
     /*auto moldft_strategy = std::make_unique<MoldftCalculationStrategy>(params, molecule);*/
     /*auto mp3_strategy = std::make_unique<MP3CalculationStrategy>(params, molecule);*/
     /*calc_manager->addStrategy(std::move(moldft_strategy));*/
     /*calc_manager->addStrategy(std::move(mp3_strategy));*/
-  } else {
+  }
+  else
+  {
     throw std::invalid_argument("Unknown model name: " + model_name);
   }
   // Return the configured CalcManager
@@ -247,4 +269,4 @@ createEnergyDriver(World& world, const std::string& model_name,
 /*  return calc_manager;*/
 /*}*/
 
-#endif  //  SRC_APPS_MADQC_CALC_FACTORY_HPP_
+#endif //  SRC_APPS_MADQC_CALC_FACTORY_HPP_
