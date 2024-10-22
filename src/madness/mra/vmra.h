@@ -452,28 +452,28 @@ namespace madness {
 
     /// @param[in] the vector to orthonormalize
     /// @param[in] overlap matrix
-    template <typename T, std::size_t NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     std::vector<Function<T,NDIM> > orthonormalize_symmetric(
     		const std::vector<Function<T,NDIM> >& v,
-			  const Tensor<T>& ovlp) {
+			  const Tensor<R>& ovlp) {
     	if(v.empty()) return v;
 
-    	Tensor<T> U;
-    	Tensor< typename Tensor<T>::scalar_type > s;
+    	Tensor<R> U;
+    	Tensor< typename Tensor<R>::scalar_type > s;
     	syev(ovlp,U,s);
 
     	// transform s to s^{-1}
     	for(size_t i=0;i<v.size();++i) s(i)=1.0/(sqrt(s(i)));
 
     	// save Ut before U gets modified with s^{-1}
-    	const Tensor<T> Ut=transpose(U);
+    	const Tensor<R> Ut=transpose(U);
     	for(size_t i=0;i<v.size();++i){
     		for(size_t j=0;j<v.size();++j){
     			U(i,j)=U(i,j)*s(j);
     		}
     	}
 
-    	Tensor<T> X=inner(U,Ut,1,0);
+    	Tensor<R> X=inner(U,Ut,1,0);
 
     	World& world=v.front().world();
     	return transform(world,v,X);
@@ -497,22 +497,22 @@ namespace madness {
     /// @param[in] the vector to orthonormalize
     /// @param[in] overlap matrix
     /// @param[in]	lindep	linear dependency threshold relative to largest eigenvalue
-    template <typename T, std::size_t NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     std::vector<Function<T,NDIM> > orthonormalize_canonical(
     		const std::vector<Function<T,NDIM> >& v,
-			const Tensor<T>& ovlp,
+			const Tensor<R>& ovlp,
 			double lindep) {
 
     	if(v.empty()) return v;
 
-    	Tensor<T> U;
-    	Tensor< typename Tensor<T>::scalar_type > s;
+    	Tensor<R> U;
+    	Tensor< typename Tensor<R>::scalar_type > s;
     	syev(ovlp,U,s);
     	lindep*=s(s.size()-1);	// eigenvalues are in ascending order
 
     	// transform s to s^{-1}
     	int rank=0,lo=0;
-    	Tensor< typename Tensor<T>::scalar_type > sqrts(v.size());
+    	Tensor< typename Tensor<R>::scalar_type > sqrts(v.size());
     	for(size_t i=0;i<v.size();++i) {
     		if (s(i)>lindep) {
     			sqrts(i)=1.0/(sqrt(s(i)));
@@ -529,7 +529,7 @@ namespace madness {
     			U(i,j)=U(i,j)*(sqrts(j));
     		}
     	}
-    	Tensor<T> X=U(_,Slice(lo,-1));
+    	Tensor<R> X=U(_,Slice(lo,-1));
 
     	World& world=v.front().world();
     	return transform(world,v,X);
@@ -553,18 +553,18 @@ namespace madness {
     /// cholesky orthonormalization without pivoting
     /// @param[in] the vector to orthonormalize
     /// @param[in] overlap matrix, destroyed on return!
-    template <typename T, std::size_t NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     std::vector<Function<T,NDIM> > orthonormalize_cd(
     		const std::vector<Function<T,NDIM> >& v,
-			Tensor<T>& ovlp) {
+			Tensor<R>& ovlp) {
 
     	if (v.empty()) return v;
 
     	cholesky(ovlp); // destroys ovlp and gives back Upper ∆ Matrix from CD
 
-    	Tensor<T> L = transpose(ovlp);
-    	Tensor<T> Linv = inverse(L);
-    	Tensor<T> U = transpose(Linv);
+    	Tensor<R> L = transpose(ovlp);
+    	Tensor<R> Linv = inverse(L);
+    	Tensor<R> U = transpose(Linv);
 
     	World& world=v.front().world();
     	return transform(world, v, U);
@@ -590,10 +590,10 @@ namespace madness {
     /// @param[out] pivoting vector, no allocation on input needed
     /// @param[out] rank
     /// @return orthonrormalized vector (may or may not be truncated)
-    template <typename T, std::size_t NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     std::vector<Function<T,NDIM> > orthonormalize_rrcd(
     		const std::vector<Function<T,NDIM> >& v,
-			Tensor<T>& ovlp,
+			Tensor<R>& ovlp,
 			const double tol,
 			Tensor<integer>& piv,
 			int& rank) {
@@ -611,9 +611,9 @@ namespace madness {
     	}
     	ovlp=ovlp(Slice(0,rank-1),Slice(0,rank-1));
 
-    	Tensor<T> L = transpose(ovlp);
-    	Tensor<T> Linv = inverse(L);
-    	Tensor<T> U = transpose(Linv);
+    	Tensor<R> L = transpose(ovlp);
+    	Tensor<R> Linv = inverse(L);
+    	Tensor<R> U = transpose(Linv);
 
     	World& world=v.front().world();
     	return transform(world, pv, U);
@@ -623,8 +623,8 @@ namespace madness {
     /// @param[in] the vector to orthonormalize
     /// @param[in] overlap matrix
     /// @param[in] tolerance for numerical rank reduction
-    template <typename T, std::size_t NDIM>
-    std::vector<Function<T,NDIM> > orthonormalize_rrcd(const std::vector<Function<T,NDIM> >& v, Tensor<T> ovlp , const double tol) {
+    template <typename T, typename R, std::size_t NDIM>
+    std::vector<Function<T,NDIM> > orthonormalize_rrcd(const std::vector<Function<T,NDIM> >& v, Tensor<R> ovlp , const double tol) {
     	Tensor<integer> piv;
     	int rank;
     	return orthonormalize_rrcd(v,ovlp,tol,piv,rank);
