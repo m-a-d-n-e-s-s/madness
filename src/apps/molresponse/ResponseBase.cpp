@@ -185,8 +185,8 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
   compress(world, fx, false);
   compress(world, fy, false);
   compress(world, fz, false);
+  compress(world, phi, false);
   world.gop.fence();
-  compress(world, phi);
 
   // Construct T according to above formula
   // Note: No negative as the formula above
@@ -310,11 +310,6 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
   for (int64_t i = 0; i < new_hamiltonian.dim(0); i++)
   {
     traceOfHamiltonian += new_hamiltonian(i, i);
-  }
-  if (world.rank() == 0)
-  {
-    print("Trace of Hamiltonian");
-    print(traceOfHamiltonian);
   }
   // Save a matrix that is
   // (T+phiVphi) - Lambda * eye
@@ -458,28 +453,32 @@ void ResponseBase::load_balance_chi(World &world)
   LoadBalanceDeux<3> lb(world);
   real_function_3d v_nuclear;
   v_nuclear = potential_manager->vnuclear();
-  for (auto &b : Chi.active)
-  {
-    for (auto &xij : Chi.x[b])
-    {
-      lb.add_tree(xij, lbcost<double, 3>(1.0, 8.0), false);
-    }
-  }
+
+  lb.add_tree(v_nuclear,
+              lbcost<double, 3>(1.0, 8.0), false);
+
   if (r_params.omega() != 0)
   {
-    for (auto &b : Chi.active)
+
+    auto chi_vec = Chi.to_vector();
+    for (auto &b : chi_vec)
     {
-      for (auto &yij : Chi.y[b])
-      {
-        lb.add_tree(yij, lbcost<double, 3>(1.0, 8.0), false);
-      }
+      lb.add_tree(b, lbcost<double, 3>(1.0, 8.0), false);
+    }
+  }
+  else
+  {
+    auto chi_vec = Chi.x.to_vector();
+    for (auto &b : chi_vec)
+    {
+      lb.add_tree(b, lbcost<double, 3>(1.0, 8.0), false);
     }
   }
   world.gop.fence();
+
   FunctionDefaults<3>::redistribute(
       world,
       lb.load_balance(r_params.loadbalparts())); // 6.0 needs retuning after
-  world.gop.fence();
   molresponse::end_timer(world, "Load balancing");
 }
 
@@ -735,7 +734,7 @@ auto ResponseBase::compute_theta_X(
 
   if (r_params.print_level() >= 1)
   {
-    molresponse::end_timer(world, "gamma_compute", "gamma_compute",
+    molresponse::end_timer(world, "gammaX", "gammaX",
                            iter_timing);
   }
 
@@ -1707,6 +1706,81 @@ auto ResponseBase::update_residual(World &world, const X_space &chi,
   return {res, residual_norms};
 }
 
+auto ResponseBase::kain_rf_space_update(
+    World &world, const X_space &chi, const X_space &residual_chi,
+    response_function_solver &kain_x_space) -> X_space
+
+{
+  if (r_params.print_level() >= 1)
+  {
+    molresponse::start_timer(world);
+  }
+  long m = static_cast<long>(chi.num_states());
+  long n = static_cast<long>(chi.num_orbitals());
+
+  auto kain_update = chi.copy();
+  kain_update.set_active(chi.active);
+  bool compute_y = r_params.omega() != 0.0;
+  if (compute_y)
+  {
+    auto chi_vec = chi.to_vector();
+    auto res_vec = residual_chi.to_vector();
+    int vec_index = 0;
+    auto temp_vec = vector_real_function_3d();
+    for (const auto &active_i : chi.active)
+    {
+      for (long i = 0; i < n * 2; i++)
+      {
+        auto kain_index = 2 * active_i * n + i;
+        // if (world.rank() == 0)
+        // {
+        //   print("kain_index, vec_index ", kain_index, vec_index);
+        // }
+        temp_vec.push_back(kain_x_space[kain_index].update(chi_vec[vec_index], res_vec[vec_index]));
+        vec_index++;
+      }
+    }
+    truncate(world, temp_vec);
+    world.gop.fence();
+    kain_update.from_vector(temp_vec);
+  }
+  else
+  {
+    auto chi_vec = chi.x.to_vector();
+    auto res_vec = residual_chi.x.to_vector();
+
+    int vec_index = 0;
+    auto temp_vec = vector_real_function_3d();
+    for (const auto &active_i : chi.active)
+    {
+      for (long i = 0; i < n; i++)
+      {
+        auto kain_index = active_i * n + i;
+        // if (world.rank() == 0)
+        // {
+        //   print("kain_index, vec_index ", kain_index, vec_index);
+        // }
+        temp_vec.push_back(kain_x_space[kain_index].update(chi_vec[vec_index], res_vec[vec_index]));
+        vec_index++;
+      }
+    }
+    world.gop.fence();
+    truncate(world, temp_vec);
+    // truncate(world, temp_vec);
+    kain_update.x.from_vector(temp_vec);
+  }
+
+  return kain_update;
+
+  // print the norms of chi and chi + update
+
+  if (r_params.print_level() >= 1)
+  {
+    molresponse::end_timer(world, "kain_x_update", "kain_x_update",
+                           iter_timing);
+  }
+}
+
 auto ResponseBase::kain_x_space_update(
     World &world, const X_space &chi, const X_space &residual_chi,
     response_solver &kain_x_space) -> X_space
@@ -1717,12 +1791,9 @@ auto ResponseBase::kain_x_space_update(
   }
   long m = static_cast<long>(chi.num_states());
   long n = static_cast<long>(chi.num_orbitals());
-  X_space kain_update = chi.copy();
-  response_matrix update(m);
 
-  // compute the norm of the residuals
-
-  Tensor<double> residual_norms(m);
+  X_space kain_update(world, m, n);
+  kain_update.set_active(chi.active);
 
   bool compute_y = r_params.omega() != 0.0;
   if (compute_y)
@@ -1774,87 +1845,98 @@ void ResponseBase::x_space_step_restriction(World &world,
   {
     molresponse::start_timer(world);
   }
-  print(max_bsh_rotation);
+
   if (compute_y)
   {
-    auto diff = temp - old_Chi;
-    auto m_old = to_response_matrix(old_Chi);
-    auto m_new = to_response_matrix(temp);
-    auto m_diff = to_response_matrix(diff);
 
-    // only restrict active states
-    for (const auto &b : old_Chi.active)
+    auto temp_vecs = to_response_matrix(temp);
+    auto old_vecs = to_response_matrix(old_Chi);
+
+    for (const auto ai : old_Chi.active)
     {
-      auto step_size = norm2(world, m_diff[b]);
-      auto norm_xb = norm2(world, m_old[b]);
-      auto max_step = max_bsh_rotation; // norm;//* norm_xb;
-      if (world.rank() == 0)
+
+      auto norm_diff_ai = norm2(world, sub(world, old_vecs[ai], temp_vecs[ai]));
+
+      if (norm_diff_ai > max_bsh_rotation)
       {
-        print("---------------- step restriction :", b, " ------------------");
-        if (world.rank() == 0)
-        {
-          print("X[b]: ", norm_xb);
-        }
-        if (world.rank() == 0)
-        {
-          print("deltaX[b]: ", step_size);
-        }
-        if (world.rank() == 0)
-        {
-          print("max_step = max_rotation*norm_X: ", max_step);
-        }
-      }
-      if (step_size > max_step && step_size < 25)
-      {
-        // and if the step size is less thant 10% the vector norm
-        double s = .80 * max_step / step_size;
-        if (world.rank() == 0)
-        {
-          if (r_params.print_level() > 1)
-            print("  restricting step for response-state: ", b, " step size",
-                  s);
-        }
-        gaxpy(world, s, m_new[b], (1.0 - s), m_old[b], false);
+        double s = max_bsh_rotation / norm_diff_ai;
+        printf(" %d:%f", ai, s);
+        temp_vecs[ai] = gaxpy_oop(1.0, old_vecs[ai], 1.0 - s, temp_vecs[ai]);
       }
     }
   }
   else
   {
-    auto diff = temp.x - old_Chi.x;
-    for (size_t b = 0; b < m; b++)
+    for (const auto ai : old_Chi.active)
     {
-      auto step_size = norm2(world, diff[b]);
-      auto norm_xb = norm2(world, old_Chi.x[b]);
-      auto max_step = max_bsh_rotation; // norm;//* norm_xb;
-      if (world.rank() == 0)
+
+      auto norm_diff_ai = norm2(world, sub(world, old_Chi.x[ai], temp.x[ai]));
+
+      if (norm_diff_ai > max_bsh_rotation)
       {
-        print("---------------- step restriction :", b, " ------------------");
-        if (world.rank() == 0)
+        double s = max_bsh_rotation / norm_diff_ai;
+        printf(" %d:%f", ai, s);
+        temp.x[ai] = gaxpy_oop(1.0, old_Chi.x[ai], 1.0 - s, temp.x[ai]);
+      }
+    }
+  }
+
+  if (false)
+  {
+
+    if (compute_y)
+    {
+
+      auto vec_old = old_Chi.to_vector();
+      auto vec_new = temp.to_vector();
+      auto vec_diff = vec_old - vec_new;
+
+      std::vector<double> norms = norm2s(world, sub(world, vec_old, vec_new));
+
+      int nres = 0;
+      for (unsigned int i = 0; i < norms.size(); i++)
+      {
+        if (norms[i] > max_bsh_rotation)
         {
-          print("X[b]: ", norm_xb);
-        }
-        if (world.rank() == 0)
-        {
-          print("deltaX[b]: ", step_size);
-        }
-        if (world.rank() == 0)
-        {
-          print("max_step = max_rotation*norm_X: ", max_step);
+          double s = max_bsh_rotation / norms[i];
+          ++nres;
+          if (world.rank() == 0)
+          {
+            printf(" %d:%f", i, s);
+          }
+          vec_new[i].gaxpy(s, vec_old[i], 1.0 - s, false);
         }
       }
-      if (step_size > max_step &&
-          step_size < 10000 * FunctionDefaults<3>::get_thresh())
+
+      world.gop.fence();
+      truncate(world, vec_new);
+      temp.from_vector(vec_new);
+    }
+    else
+    {
+      auto vec_old = old_Chi.x.to_vector();
+      auto vec_new = temp.x.to_vector();
+      auto vec_diff = vec_old - vec_new;
+      std::vector<double> norms = norm2s(world, sub(world, vec_old, vec_new));
+
+      int nres = 0;
+      for (unsigned int i = 0; i < norms.size(); i++)
       {
-        // and if the step size is less thant 10% the vector norm
-        double s = .80 * max_step / step_size;
-        if (world.rank() == 0)
+        if (norms[i] > max_bsh_rotation)
         {
-          if (r_params.print_level() > 1)
-            print("  restricting step for response-state: ", b, " step size",
-                  s);
+          double s = max_bsh_rotation / norms[i];
+          ++nres;
+          if (world.rank() == 0)
+          {
+            printf(" %d", i);
+          }
+          vec_new[i].gaxpy(s, vec_old[i], 1.0 - s, false);
         }
-        gaxpy(world, s, temp.x[b], (1.0 - s), old_Chi.x[b], false);
       }
+      world.gop.fence();
+      truncate(world, vec_new);
+
+      temp.x.from_vector(vec_new);
     }
   }
   if (world.rank() == 0)
@@ -1964,11 +2046,6 @@ void ResponseBase::solve(World &world)
   {
     // We set the protocol and function defaults here for the given threshold of
     set_protocol(world, iter_thresh);
-    if (world.rank() == 0)
-    {
-      print("Successfully set protocol");
-    }
-    // protocol
     if (first_protocol)
     {
       if (r_params.restart())
@@ -1989,10 +2066,6 @@ void ResponseBase::solve(World &world)
         }
       }
       check_k(world, iter_thresh, FunctionDefaults<3>::get_k());
-      if (world.rank() == 0)
-      {
-        print("Successfully check K first initialization ");
-      }
       first_protocol = false;
     }
     else
@@ -2021,25 +2094,16 @@ void check_k(World &world, X_space &Chi,
     {
       // Project all x components into correct k
 
-      for (auto &xi : Chi.x)
+      auto vec_chi = Chi.to_vector();
+      reconstruct(world, vec_chi);
+      for (auto &x : vec_chi)
       {
-        reconstruct(world, xi);
-        for (auto &xij : xi)
-        {
-          xij = project(xij, FunctionDefaults<3>::get_k(), thresh, false);
-        }
-        world.gop.fence();
+        x = project(x, k, thresh, false);
       }
-      for (auto &yi : Chi.y)
-      {
-        reconstruct(world, yi);
-        for (auto &yij : yi)
-        {
-          yij = project(yij, FunctionDefaults<3>::get_k(), thresh, false);
-        }
-        world.gop.fence();
-      }
-      Chi.truncate();
+      world.gop.fence();
+      truncate(world, vec_chi);
+
+      Chi.from_vector(vec_chi);
     }
   }
 }

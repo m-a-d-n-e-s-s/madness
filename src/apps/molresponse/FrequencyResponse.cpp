@@ -84,7 +84,7 @@ void FrequencyResponse::iterate(World &world)
     bsh_y_ops.push_back(bsh_y_ops_i);
   }
 
-  auto max_rotation = .5 * x_residual_target + x_residual_target;
+  auto max_rotation = r_params.maxrotn(); // .5 * x_residual_target + x_residual_target;
   PQ = generator(world, *this);
   world.gop.fence();
   PQ.truncate();
@@ -185,6 +185,7 @@ void FrequencyResponse::iterate(World &world)
       };
       remove_converged();
       PQ.set_active(Chi.active);
+      Chi.set_active(Chi.active);
 
       if (world.rank() == 0)
       {
@@ -255,14 +256,6 @@ void FrequencyResponse::iterate(World &world)
 
     auto dnorm = norm2s_T(world, rho_omega);
 
-    // auto cn = Chi.component_norm2s();
-    // auto pq = PQ.component_norm2s();
-    // if (world.rank() == 0)
-    // {
-    //   print("PQ norms: \n", pq);
-    //   print("Chi norms: \n", cn);
-    // }
-
     polar = ((compute_y) ? -2 : -4) * response_context.inner(Chi, PQ);
     if (r_params.print_level() >= 1)
     {
@@ -271,6 +264,7 @@ void FrequencyResponse::iterate(World &world)
     }
     time_data.add_data(iter_timing);
   }
+
   function_data.add_convergence_targets(FunctionDefaults<3>::get_thresh(),
                                         density_target, x_residual_target);
 
@@ -287,6 +281,7 @@ void FrequencyResponse::iterate(World &world)
   // Did we converge?
   if (iter == r_params.maxiter() && not all_done)
   {
+    Chi.reset_active();
     if (world.rank() == 0)
       print("   Failed to converge. Reason:");
     if (world.rank() == 0)
@@ -351,8 +346,11 @@ auto FrequencyResponse::update_response(
     new_chi = kain_x_space_update(world, chi, new_res, kain_x_space);
   }
 
-  // bool compute_y = r_params.calc_type() == "full";
-  // x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation);
+  bool compute_y = r_params.calc_type() == "full";
+  if (iteration > 5)
+  {
+    x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation);
+  }
   if (r_params.print_level() >= 1)
   {
     molresponse::end_timer(world, "update response", "update", iter_timing);
@@ -532,10 +530,6 @@ auto dipole_generator(World &world, ResponseBase &calc) -> X_space
   world.gop.fence();
   PQ.x = vector_to_PQ(world, dipole_vectors, calc.get_orbitals());
   PQ.y = PQ.x.copy();
-  if (world.rank() == 0)
-  {
-    print("Made new PQ");
-  }
   return PQ;
 }
 

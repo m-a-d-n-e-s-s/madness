@@ -50,8 +50,18 @@ namespace madness
     void reset_active()
     {
       active.resize(n_states);
+      x.active.resize(n_states);
+      y.active.resize(n_states);
       size_t i{0};
       for (auto &ai : active)
+      {
+        ai = i++;
+      }
+      for (auto &ai : x.active)
+      {
+        ai = i++;
+      }
+      for (auto &ai : y.active)
       {
         ai = i++;
       }
@@ -266,11 +276,6 @@ namespace madness
       auto &world = this->x[B.active.front()][0].world();
       this->active = B.active;
       this->from_vector(this->to_vector() + B.to_vector());
-
-
-
-
-
 
       // auto add_inplace = [&](auto &a, const auto &b)
       // {

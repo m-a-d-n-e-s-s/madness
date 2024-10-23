@@ -847,6 +847,8 @@ protected:
                        const Tensor<double> &old_residuals,
                        const X_space &xres_old) -> residuals;
 
+  auto kain_rf_space_update(World &world, const X_space &chi, const X_space &residual_chi, response_function_solver &kain_x_space) -> X_space;
+
   auto compute_response_potentials(World &world, const X_space &chi,
                                    XCOperator<double, 3> &xc,
                                    const std::string &calc_type) const
