@@ -84,7 +84,7 @@ void FrequencyResponse::iterate(World &world)
     bsh_y_ops.push_back(bsh_y_ops_i);
   }
 
-  auto max_rotation = .5 * x_residual_target + x_residual_target; // r_params.maxrotn();
+  auto max_rotation = .1 * x_residual_target + x_residual_target; // r_params.maxrotn();
   PQ = generator(world, *this);
   world.gop.fence();
   PQ.truncate();
@@ -347,7 +347,7 @@ auto FrequencyResponse::update_response(
   }
 
   bool compute_y = r_params.calc_type() == "full";
-  if (iteration > 5)
+  if (iteration >= 2)
   {
     x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation);
   }

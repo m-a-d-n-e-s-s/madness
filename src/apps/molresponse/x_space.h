@@ -57,10 +57,12 @@ namespace madness
       {
         ai = i++;
       }
+      i = 0;
       for (auto &ai : x.active)
       {
         ai = i++;
       }
+      i = 0;
       for (auto &ai : y.active)
       {
         ai = i++;
