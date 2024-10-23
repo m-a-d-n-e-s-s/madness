@@ -84,7 +84,7 @@ void FrequencyResponse::iterate(World &world)
     bsh_y_ops.push_back(bsh_y_ops_i);
   }
 
-  auto max_rotation = r_params.maxrotn(); // .5 * x_residual_target + x_residual_target;
+  auto max_rotation = .5 * x_residual_target + x_residual_target; // r_params.maxrotn();
   PQ = generator(world, *this);
   world.gop.fence();
   PQ.truncate();
