@@ -1792,8 +1792,8 @@ auto ResponseBase::kain_x_space_update(
   long m = static_cast<long>(chi.num_states());
   long n = static_cast<long>(chi.num_orbitals());
 
-  X_space kain_update(world, m, n);
-  kain_update.set_active(chi.active);
+  X_space kain_update=chi.copy();
+  //kain_update.set_active(chi.active);
 
   bool compute_y = r_params.omega() != 0.0;
   if (compute_y)
