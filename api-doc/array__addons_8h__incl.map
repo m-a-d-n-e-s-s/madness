@@ -1,0 +1,16 @@
+<map id="array_addons.h" name="array_addons.h">
+<area shape="rect" id="node1" title="Supplements to the std::array class, such as I/O operations, for convenience." alt="" coords="497,5,619,32"/>
+<area shape="rect" id="node2" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS." alt="" coords="295,169,498,196"/>
+<area shape="rect" id="node4" href="$madness__exception_8h.html" title="Defines madness::MadnessException for exception handling." alt="" coords="135,80,319,121"/>
+<area shape="rect" id="node8" href="$worldhash_8h.html" title="Defines hash functions for use in distributed containers." alt="" coords="456,87,660,114"/>
+<area shape="rect" id="node13" title=" " alt="" coords="685,87,741,114"/>
+<area shape="rect" id="node14" title=" " alt="" coords="765,87,845,114"/>
+<area shape="rect" id="node3" title=" " alt="" coords="329,244,465,271"/>
+<area shape="rect" id="node5" title=" " alt="" coords="5,169,71,196"/>
+<area shape="rect" id="node6" title=" " alt="" coords="95,169,159,196"/>
+<area shape="rect" id="node7" title=" " alt="" coords="184,169,271,196"/>
+<area shape="rect" id="node9" title=" " alt="" coords="523,169,593,196"/>
+<area shape="rect" id="node10" title=" " alt="" coords="617,169,688,196"/>
+<area shape="rect" id="node11" title=" " alt="" coords="712,169,783,196"/>
+<area shape="rect" id="node12" title=" " alt="" coords="807,169,899,196"/>
+</map>

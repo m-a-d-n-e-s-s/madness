@@ -1,0 +1,5 @@
+<map id="madness::XNonlinearSolver&lt; T, C, Alloc &gt;" name="madness::XNonlinearSolver&lt; T, C, Alloc &gt;">
+<area shape="rect" id="node1" title="Generalized version of NonlinearSolver not limited to a single madness function." alt="" coords="7,185,209,227"/>
+<area shape="rect" id="node2" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="5,81,211,108"/>
+<area shape="rect" id="node3" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="27,5,189,32"/>
+</map>

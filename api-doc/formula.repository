@@ -1,0 +1,429 @@
+\_form#0=218x33:\[ \int_{0}^{10} \sin (x) \mathit{dx} = 1 - \cos(10) \doteq 1.8390715 \]
+\_form#1=24x14:$ f(x) $
+\_form#2=44x14:$\{\phi _{li}^{n}(x)\}$
+\_form#3=114x29:\[ s_{li}^{n} = \int \phi _{li}^{n}(x) f(x) \mathit{dx} \]
+\_form#4=33x14:$\sin(x)$
+\_form#5=8x6:$x$
+\_form#6=40x14:$(x, y, z)$
+\_form#7=39x14:$(r, \theta, \phi)$
+\_form#8=30x15:$[0,1]^{2}$
+\_form#9=54x14:$x\in [0,10]$
+\_form#10=50x14:$(0,0,0,1)$
+\_form#11=30x14:$[0,10]$
+\_form#12=50x14:$(0,1,0,2)$
+\_form#13=26x9:$10^{-n}$
+\_form#14=53x11:$k=n+2$
+\_form#15=8x9:$y$
+\_form#16=6x6:$z$
+\_form#17=211x14:\[ f(x) = 2g(x) + 3h(x) - 7g(x)h(x) + 99 \]
+\_form#18=6x10:$k$
+\_form#19=13x10:$2k$
+\_form#20=131x29:\[ \left( f \left| g \right. \right) = \int f(x)^\textrm{*} g(x) dx, \]
+\_form#21=5x6:$\textrm{*}$
+\_form#22=70x15:\[ \nabla^{2} u = -4\pi \rho \]
+\_form#23=26x14:$1/\left| r \right|$
+\_form#24=9x6:$n$
+\_form#25=119x14:$f_{i}(x),\; i=0, \ldots, n-1$
+\_form#26=11x13:$\hat{H}$
+\_form#27=13x10:$\mathbf{H}$
+\_form#28=8x10:$\mathbf{S}$
+\_form#29=114x43:\begin{eqnarray*} \mathbf{H}_{ij} & = & \left< f_i \left| \hat{H} \right| f_j \right> \\ \mathbf{S}_{ij} & = & \left< f_i \left| \right. f_j \right>, \end{eqnarray*}
+\_form#30=66x10:\[ \mathbf{HC}=\mathbf{SC}E \]
+\_form#31=29x14:$u_{i}(x)$
+\_form#32=208x29:\[ \mathbf{u}=\mathbf{fC} \qquad \mathrm{or} \qquad u_{i}(x) = \sum _{j} f_{j}(x) \mathbf{c}_{ji} \]
+\_form#33=144x15:\[ \nabla^{2} u = -4\pi\rho \to u=G \ast \rho, \]
+\_form#34=95x18:$G(r-r')=\frac{1}{|r-r'|}$
+\_form#35=10x10:$V$
+\_form#36=216x26:\[ - \frac{1}{2} \nabla^{2} \psi + V\psi = E \psi \to \psi = -2G \ast V\psi, \]
+\_form#37=131x23:$G(r-r')=\frac{e^{-\sqrt{-2E|r-r'|}}}{4\pi |r-r'|} $
+\_form#38=9x13:$\hat{L}$
+\_form#39=11x10:$N$
+\_form#40=324x33:\[ \hat{L}u + N(u,t) = \dot{u} \to u(t) = e^{\hat{L} t} u(0) + \int _{0}^{t} e^{\hat{L} (t-t')} N(u,t') \mathit{d}t'. \]
+\_form#41=109x30:\[ \frac{d^{2}}{\mathit{dx}^{2}}e^{i\omega x}=-\omega ^{2}e^{i\omega x}. \]
+\_form#42=9x6:$\omega$
+\_form#43=19x14:$1/r$
+\_form#44=159x18:\[ \exp(-r) \to \exp (-\sqrt{r^{2}+\sigma ^{2}}), \]
+\_form#45=176x26:\[ \theta(x) \to \theta(x, \lambda) = \frac{1}{2} (1 + \tanh\frac{x}{\lambda}), \]
+\_form#46=8x6:$ \sigma$
+\_form#47=186x30:\[ \frac{1}{r} \to u(r,c) = \frac{1}{r} \mathrm{erf} \frac{r}{c} + \frac{1}{c\sqrt{\pi}} e^{-\left( \frac{r}{c} \right)^{2}} \]
+\_form#48=156x31:\[ \int_{0}^{\infty} \left(u(r, c) - r^{-1}\right) r^{2} d\mathit{r} = 0. \]
+\_form#49=263x16:\[ \rho = exp(\zeta) \\ \nabla \rho = \rho \nabla \zeta \\ \sigma = |\nabla\rho|^2 = |\nabla \zeta|^2 \rho^2 = \chi \rho^2 \]
+\_form#50=6x13:$ \zeta$
+\_form#51=9x9:$ \chi $
+\_form#52=6x13:$\zeta$
+\_form#53=5x6:$c$
+\_form#54=50x15:$ \sigma/\rho^2 =\chi$
+\_form#55=23x11:$10^{12}$
+\_form#56=40x14:$g(f(x))$
+\_form#57=24x14:$f(x)$
+\_form#58=23x14:$g(s)$
+\_form#59=104x30:\[ V(\rho(x)) = \frac{C}{\rho^{1/3}(x)}, \]
+\_form#60=48x14:$\rho (x)>0$
+\_form#61=174x14:\[ \sigma_\mathrm{pt}=\nabla\rho\cdot\nabla\rho_\mathrm{pt} = \rho\left(\nabla\zeta\cdot\nabla\rho_\mathrm{pt}\right) \]
+\_form#62=344x100:\begin{eqnarray*} V(\rho) & \to & V(S(\rho)) \\ S(s) & = & \left\{ \begin{array}{ll} s_{0}, & s\le 0 \\ q(s, s_{0}, s_{1}), & 0 < s \le s_{1} \\ s, & s > s_{1} \end{array} \right. \\ q(s, s_{0}, s_{1}) & = & s_{0} - (-2s_{1} + 3s_{0}) \left( \frac{s}{s_{1}} \right)^{2} + (2s_{0} - s_{1}) \left(\frac{s}{s_{1}}\right)^{3}. \end{eqnarray*}
+\_form#63=23x14:$S(s)$
+\_form#64=33x10:$s>s_{1}$
+\_form#65=10x9:$s_{0}$
+\_form#66=48x14:$ \exp(i\omega r)$
+\_form#67=9x10:$L$
+\_form#68=64x24:$\mathcal{O}\left(\left(Lk\omega \right)^{3}\right)$
+\_form#69=50x10:$L=1000$
+\_form#70=36x10:$k=12$
+\_form#71=33x9:$\omega=3$
+\_form#72=36x10:$k=10$
+\_form#73=36x10:$k=30$
+\_form#74=30x10:$k=6$
+\_form#75=141x16:\[ \nabla^2 u - p(\varepsilon) S (u-g) = \varphi f, \]
+\_form#76=9x6:$u$
+\_form#77=6x6:$\varepsilon$
+\_form#78=23x14:$p(\varepsilon)$
+\_form#79=19x14:$2/\varepsilon$
+\_form#80=9x10:$S$
+\_form#81=8x9:$g$
+\_form#82=8x9:$\varphi$
+\_form#83=8x13:$f$
+\_form#84=10x10:$R$
+\_form#85=39x15:$g = Y_0^0$
+\_form#86=39x15:$g = Y_1^0$
+\_form#87=39x15:$g = Y_2^0$
+\_form#88=30x13:$ f = 1 $
+\_form#89=20x10:$-G$
+\_form#90=89x15:\[ z = frac{x}{1 - y^2} \]
+\_form#91=66x14:\[ c^2 = a^2 + b^2 \]
+\_form#92=168x31:\[ \left( -\frac{1}{2} \nabla^2 + V(r) \right) \psi(r) = E \psi(r) \]
+\_form#93=69x26:\[ V(r) = \frac{1}{2} |r|^2 \]
+\_form#94=184x34:\[ \psi(r) = \left( -\frac{1}{2} \nabla^2 - E \right)^{-1} V(r) \psi(r) \]
+\_form#95=181x18:\[ \left(-\nabla^2 + \mu^2 \right) G(r,r'; \mu) = \delta(r-r') \]
+\_form#96=120x34:\[ G(r,r'; \mu) = \frac{e^{-\mu |r-r'|}}{4 \pi |r-r|} \]
+\_form#97=9x9:$\mu$
+\_form#98=63x14:$\mu = \sqrt{-2 E}$
+\_form#99=10x10:$\Delta$
+\_form#100=248x34:\[ \psi(r) = \left( -\frac{1}{2} \nabla^2 - E + \Delta \right)^{-1} \left( V(r) -\Delta\right) \psi(r) \]
+\_form#101=136x16:$\psi(r)=\pi^{-1/4}\exp(-r^2 / 2)$
+\_form#102=40x9:$r=5.3$
+\_form#103=34x10:$\Delta=7$
+\_form#104=81x33:\[ U(r) = \frac{\Delta^2 (r)}{\rho^{2/3} (r)} \]
+\_form#105=10x10:$ \Delta $
+\_form#106=8x9:$ \rho $
+\_form#107=8x6:$ r $
+\_form#108=31x10:$ Delta $
+\_form#109=16x14:$ \rho() $
+\_form#110=43x13:$ rho^{-2/3} $
+\_form#111=20x10:$ rho $
+\_form#112=94x14:\[ \Delta(r) = exp(- | r | ) \]
+\_form#113=144x16:\[ \rho(r) = exp(- 2 | r | ) = \Delta^2(r) \]
+\_form#114=169x33:\[ U(r) = \frac{\Delta^2 (r)}{\rho^{2/3} (r)} = exp( - 2 | r | / 3) \]
+\_form#115=24x14:$ U(r) $
+\_form#116=101x14:\[ \nabla . \left( \epsilon(r) \nabla v(r) \right) = 0 \]
+\_form#117=140x26:\[ \nabla^2 v(r) = - \frac{1}{\epsilon} \nabla \epsilon(r) . \nabla v(r) \]
+\_form#118=48x14:$\nabla \epsilon . \nabla u / \epsilon$
+\_form#119=55x14:$-1 / |r-s|$
+\_form#120=53x14:$v(\infty)=0$
+\_form#121=93x14:$- \partial v / \partial z(\infty) = E$
+\_form#122=50x9:$v = - E z$
+\_form#123=103x14:\[ v(r) = - E z + u(r) \]
+\_form#124=169x26:\[ \nabla^2 u(r) = \frac{1}{\epsilon} \nabla \epsilon(r) . \left(E - \nabla u(r) \right) \]
+\_form#125=69x14:$-1 / 4 \pi |r-s|$
+\_form#126=98x14:$G(r,s) = 1/|r-s|$
+\_form#127=36x14:$-1/4\pi$
+\_form#128=40x10:$\sigma<0.2$
+\_form#129=119x13:$k=8, \mbox{thresh}=1e-5$
+\_form#130=141x14:\[ \nabla . \left( \epsilon(r) \nabla u(r) \right) = - 4 \pi \rho(r) \]
+\_form#131=219x30:\[ \nabla^2 u(r) = - \frac{1}{\epsilon(r)} \left( 4 \pi \rho(r) + \nabla \epsilon(r) . \nabla u(r) \right) \]
+\_form#132=19x14:$\rho / \epsilon$
+\_form#133=123x16:\[ u = G * \left(\rho_{\mbox{vol}} + \rho_{\mbox{surf}} \right) \]
+\_form#134=48x24:\[ \rho_{\mbox{vol}} = \frac{\rho}{\epsilon} \]
+\_form#135=83x28:\[ \rho_{\mbox{surf}} = \frac{\nabla \epsilon . \nabla u}{4 \pi \epsilon} \]
+\_form#136=33x10:$R=2$
+\_form#137=33x11:$\epsilon_1 = 1$
+\_form#138=40x11:$\epsilon_2 = 10$
+\_form#139=213x41:\[ u(r) = \left \lbrace \begin{array}{cc} \frac{1}{\epsilon_2 |r|} & |r| > R \\ \frac{1}{\epsilon_1 |r|} + \left( \frac{1}{\epsilon_2} - \frac{1}{\epsilon_1} \right) \frac{1}{R} & |r| < R \end{array} \right . \]
+\_form#140=153x25:\[ q_{\mbox{surface}} = -\frac{\epsilon_2 - \epsilon_1}{\epsilon_2} = -0.9 \]
+\_form#141=24x14:$C(r)$
+\_form#142=100x14:\[ C(r) = H(R-|r|) \]
+\_form#143=28x14:$H(x)$
+\_form#144=158x14:\[ \epsilon(r) = \epsilon_1 C(r) + \epsilon_2 \left( 1 - C(r) \right) \]
+\_form#145=133x26:\[ H(x,\sigma) = \frac{1}{2} \left( 1 + \mathop{\mathrm{erf}} \frac{x}{\sigma} \right) \]
+\_form#146=8x6:$\sigma$
+\_form#147=43x13:$\xi=100$
+\_form#148=121x18:\[ \rho(r) = \left(\pi \xi \right)^{-3/2} e^{-\xi |r|^2} \]
+\_form#149=23x14:$u(r)$
+\_form#150=13x6:$m$
+\_form#151=243x24:\[ u^{(m+1)} = \alpha u^{(m)} + (1-\alpha) G * \left(\rho^{(m)}_{\mbox{vol}} + \rho^{(m)}_{\mbox{surf}} \right) \]
+\_form#152=48x14:$ \alpha \in [0,1]$
+\_form#153=8x6:$\alpha$
+\_form#154=23x14:$f(r)$
+\_form#155=29x10:$d=3$
+\_form#156=25x14:$F(x)$
+\_form#157=80x14:\[ g(r) = F(f(r)) \]
+\_form#158=74x18:\[ g(\vec{x}) = e^{-|\vec{x}|^2}, \]
+\_form#159=174x29:\[ \int \mathrm{d}^3 \vec{x} \; g(\vec{x}) = \pi^{3/2} \doteq 5.5683279, \]
+\_form#160=229x35:\[ \left( \int \mathrm{d}^3 \vec{x} \; g(\vec{x})^2 \right)^{1/2} = (\pi/2)^{3/4} \doteq 1.403104, \]
+\_form#161=306x29:\[ \int \mathrm{d}^3 \vec{x} \; g(\vec{x}) \int \mathrm{d}^3 \vec{y} \; |\vec{x}-\vec{y}|^{-1} g(\vec{y}) = \pi^{5/2} 2^{1/2} \doteq 24.739429. \]
+\_form#162=133x33:\[ E = \frac{\langle \psi \mid - \frac{1}{2} \nabla^2 - \frac{1}{r} \mid \psi \rangle}{\langle \psi \mid \psi \rangle} \]
+\_form#163=60x14:\[ \psi(r) = e^{-r} \]
+\_form#164=55x14:$ \psi(\infty)=0 $
+\_form#165=146x16:\[ \langle \psi \mid \nabla^2 \mid \psi \rangle = - \langle \nabla \psi \mid \nabla \psi \rangle \]
+\_form#166=16x16:$-\frac{1}{2}$
+\_form#167=204x29:\[ \frac{\partial u(x,t)}{\partial t} = c \nabla^2 u(x,t) + V_p(x,t) u(x,t) \]
+\_form#168=36x14:$ V_p = 0 $
+\_form#169=144x31:\[ G_0(x,t) = \frac{1}{\sqrt{4 \pi c t}} \exp \frac{-x^2}{4 c t} \]
+\_form#170=13x14:$ V_p $
+\_form#171=276x16:\[ G(x,t) = G_0(x,t/2) * \exp(V_p t) * G_0(x,t/2) + O(t^3) \]
+\_form#172=103x14:$ V_p(x,t)=\mbox{constant} $
+\_form#173=86x28:\[ \frac{\partial u}{\partial t} = c \nabla^2 u(r,t) \]
+\_form#174=84x31:\[ \frac{1}{\sqrt{4 \pi c t}} \exp \frac{-x^2}{4 c t} \]
+\_form#175=164x99:\begin{eqnarray*} \hat{F} \phi(r) &=& \epsilon \phi(r) \\ \hat{F} &=& -\frac{1}{2} \nabla^2 - \frac{2}{r} + u(r) \\ u(r) &=& \int \frac{\rho(s)}{| r - s |} d^3s \\ \rho(r) &=& \phi(r)^2 \end{eqnarray*}
+\_form#176=23x14:$ u(r) $
+\_form#177=23x14:$ \rho(r) $
+\_form#178=95x14:\[ \phi = - 2 G_{\mu} * ( V \phi) \]
+\_form#179=63x14:$ \mu = \sqrt{-2E} $
+\_form#180=15x14:$G_{\mu}$
+\_form#181=158x18:\[ \left( - \nabla^2 + \mu^2 \right) G(r,r^{\prime}) = \delta(r,r^{\prime}) \]
+\_form#182=51x14:$ \exp(-2r) $
+\_form#183=74x16:$T~=~-\frac{1}{2} \nabla^2 $
+\_form#184=8x13:$ \phi $
+\_form#185=55x13:$ <T \phi, \phi > $
+\_form#186=66x13:$ < \nabla \phi, \nabla \phi > $
+\_form#187=598x31:\[ V_(r,\sigma) = \exp \left( \log V_{int} C(r,\sigma) + \log V_{ext} (1 - C(r,\sigma) \right) = V_{ext} \exp \left( \log \frac{V_{int}}{V_{ext}} C(r,\sigma) \right) = V_{int} \exp \left( \log \frac{V_{ext}}{V_{int}} \overline{C}(r,\sigma) \right) \]
+\_form#188=36x14:$ C(r,\sigma) $
+\_form#189=11x11:$ \overline{C} $
+\_form#190=161x29:\[ \nabla \log V = \frac{\nabla V}{V} = \log \frac{V_{int}}{V_{ext}} \nabla C \]
+\_form#191=20x11:$ \nabla C $
+\_form#192=70x14:$ \| V_{ext} - V_{int} \| $
+\_form#193=10x10:$ C $
+\_form#194=8x6:$ \sigma $
+\_form#195=35x13:$ \nabla \log \epsilon $
+\_form#196=169x16:\[ -\nabla^2 \psi(x) + V(x) \psi(x) = E \psi(x) \]
+\_form#197=316x28:\[ V(x) = -a \exp(-b x^2) + \frac{c}{(n(x)+\eta)^{1/3}} - d n(x)^{5/3} + V_{\mbox{shift}} \]
+\_form#198=6x6:$ a $
+\_form#199=5x10:$ b $
+\_form#200=5x6:$ c $
+\_form#201=6x10:$ d $
+\_form#202=30x15:$ V_{\mbox{shift}} $
+\_form#203=71x16:\[ n(x) = \psi(x)^2 \]
+\_form#204=98x14:\[ \psi = - 2 G_{\mu} * \left ( V \psi \right) \]
+\_form#205=15x14:$ G_{\mu}$
+\_form#206=186x31:\[ \left( - \frac{d^2}{dx^2} + \mu^2 \right) G(x,x^{\prime}) = \delta(x-x^{\prime}) \]
+\_form#207=8x9:$ \eta $
+\_form#208=174x29:\begin{eqnarray*} u_t - u \cdot \nabla u + \nabla p & = &\mu \Delta u + f \\ \nabla \cdot u & = & 0 \end{eqnarray*}
+\_form#209=8x13:$ f $
+\_form#210=9x9:$ \mu $
+\_form#211=30x10:$ n+1 $
+\_form#212=131x14:\[ \Delta p = \nabla \cdot (f - u_{n} \cdot \nabla u_{n} ) \]
+\_form#213=8x9:$p$
+\_form#214=239x30:\[ (\frac{1}{ \delta t \mu } - \Delta) u_{n+1} = \frac {f - \nabla p - u_n \cdot \nabla u_n }{ \mu } + \frac {u_n}{ \delta t \mu } \]
+\_form#215=26x10:$u_{n+1}$
+\_form#216=148x14:\[ \nabla \cdot{} \left[ \epsilon(\vec{r}) \nabla u(\vec{r}) \right] = - 4 \pi \rho(\vec{r}). \]
+\_form#217=54x14:$ \epsilon(\vec{r}) = \epsilon_\mathrm{int}$
+\_form#218=39x14:$ |\vec{r}| < R$
+\_form#219=56x14:$ \epsilon(\vec{r}) = \epsilon_\mathrm{ext}$
+\_form#220=41x14:$ |\vec{r}| > R.$
+\_form#221=5x6:$\epsilon$
+\_form#222=26x14:$\mathcal{O}(\sigma)$
+\_form#223=54x14:$s=sdf/\sigma$
+\_form#224=74x33:\[ \int_0^{10} sin(x) dx \]
+\_form#225=34x14:$ sin(x) $
+\_form#226=24x14:$ u(0) $
+\_form#227=91x28:\[ \frac{du}{dt} = \hat{L} u + N(u) \]
+\_form#228=5x9:$ t $
+\_form#229=21x14:$ u(t) $
+\_form#230=9x13:$ \hat{L} $
+\_form#231=11x10:$ N $
+\_form#232=269x33:\[ u(t) = \exp(t \hat{L} ) u(0) + \int_0^t \exp((t-\tau)\hat{L}) N(u(\tau)) d\tau \]
+\_form#233=9x6:$ n $
+\_form#234=50x16:$ O\left(t^{2n+1}\right) $
+\_form#235=119x15:$ 1+(n_{it}+1)n +n_{it}n^2 $
+\_form#236=16x9:$ n_{it} $
+\_form#237=31x11:$ t+\Delta $
+\_form#238=45x15:$ \exp{\tau \hat{L}} u $
+\_form#239=54x14:$ \tau \in (0,\Delta) $
+\_form#240=74x14:$ T \in (t,t+\Delta) $
+\_form#241=9x6:$ u $
+\_form#242=10x9:$ T $
+\_form#243=209x16:\[ -\nabla^2 \psi(x,t) + V(x,t) \psi(x,t) = i\psi_t(x,t) \]
+\_form#244=156x16:\[ V(x,t) = -8 \exp((x - v \cdot t)^2) \]
+\_form#245=8x6:$ v $
+\_form#246=339x33:\[ \psi(x,t) = \psi(x,0) * G(x,t) - \int_0^t V(x,s) \cdot \psi(x,s) * G(x,t-s) ds \]
+\_form#247=10x10:$ G $
+\_form#248=158x31:\[ \left( - \frac{d^2}{dx^2} - i \frac{d}{dt} \right) G(x) = \delta(x)). \]
+\_form#249=35x14:$ \psi(x,t) $
+\_form#250=23x14:$ [0,t] $
+\_form#251=9x13:$ \psi $
+\_form#252=424x33:\[ \psi^{m+1}(x,t) - \psi^{m}(x,t) = - \int_0^t V(x,s) \cdot ( \psi^{m}(x,s) - \psi^{m-1}(x,s)) * G(x,t-s) ds \]
+\_form#253=275x33:\[ \delta^{m+1}(x,t) = - \int_0^t V(x,s) \cdot \delta^{m}(x,s) * G(x,t-s) ds \]
+\_form#254=15x10:$ \delta^m $
+\_form#255=21x9:$ m_{th} $
+\_form#256=5x9:$t$
+\_form#257=303x16:$ U(r) = \sum_k A_k r^(n_k-2) exp(-alpha_k r^2) \sum_m |Y_lm \rangle \langle Y_lm| $
+\_form#258=84x14:$\sum_m |Y_lm \rangle \langle Y_lm|$
+\_form#259=43x14:$R^{-1} \vec\nabla R$
+\_form#260=61x31:\[ \frac{\partial S(\rho)}{\partial \rho} \frac{1}{S(\rho)} \]
+\_form#261=68x16:\[ \rho = |\vec r - \vec R_A | \]
+\_form#262=66x31:\[ \frac{\partial^2 S(\rho)}{\partial \rho^2} \frac{1}{S(\rho)} \]
+\_form#263=66x31:\[ \frac{\partial^3 S(\rho)}{\partial \rho^3} \frac{1}{S(\rho)} \]
+\_form#264=70x25:\[ \rho = \left| \vec r- \vec R_A \right| \]
+\_form#265=338x31:\[ \frac{\partial U_2}{\partial X_A} = \frac{\partial \rho}{\partial X} \left(-\frac{1}{2}\frac{S''' S - S'' S'}{S^2} + \frac{1}{\rho^2}\frac{S'}{S} - \frac{1}{\rho} \frac{S''S - S'^2}{S^2} + \frac{Z_A}{\rho^2}\right) \]
+\_form#266=89x28:\[ \vec n = \frac{\partial \rho}{\partial x} = -\frac{\partial \rho}{\partial X} \]
+\_form#267=193x39:\[ \vec n = \left\{\frac{x \mathrm{erf}\left(\frac{r}{s}\right)}{r}, \frac{y \mathrm{erf}\left(\frac{r}{s}\right)}{r}, \frac{z \mathrm{erf}\left(\frac{r}{s}\right)}{r}\right\} \]
+\_form#268=64x28:\[ \frac{\partial \vec n}{\partial x} = -\frac{\partial \vec n}{\partial X} \]
+\_form#269=485x46:\[ \frac{\partial\vec n}{\partial x} = \left\{\frac{\left(r^2-x^2\right) \mathrm{erf}\left(\frac{r}{s}\right)}{r^3} +\frac{2 x^2 e^{-\frac{r^2}{s^2}}}{\sqrt{\pi } r^2 s}, x y \left(\frac{2 e^{-\frac{r^2}{s^2}}}{\sqrt{\pi } r^2 s} -\frac{\mathrm{erf}\left(\frac{r}{s}\right)}{r^3}\right), x z \left(\frac{2 e^{-\frac{r^2}{s^2}}}{\sqrt{\pi } r^2 s} -\frac{\mathrm{erf}\left(\frac{r}{s}\right)}{r^3}\right)\right\} \]
+\_form#270=66x30:\[ -\frac{\partial \rho}{\partial X_A}\frac{\partial S}{\partial \rho}\frac{1}{S} \]
+\_form#271=134x30:\[ U1\dot U1 = \frac{\left(S^r_A S^r_B\right)}{S_A S_B} n_A \cdot n_B \]
+\_form#272=173x43:\[ U_3^{X_A} = -\sum_{B\neq A}\left(\frac{\vec S_A'}{S_A}\right)^X\cdot\left(\frac{\vec S_B'}{S_B}\right) \]
+\_form#273=290x41:\[ \left(\frac{\vec S_A'}{S_A}\right)^X = \frac{\partial \rho}{\partial X}\left(\frac{S''_A}{S_A} -\left(\frac{S'_A}{S_A}\right)^2\right)\vec n_{1A} + \left(\frac{S'_A}{S_A}\right)\frac{\partial \vec n_{1A}}{\partial X} \]
+\_form#274=114x31:\[ Sr_div_S = \frac{1}{S(r)}\frac{\partial S(r)}{\partial r} \]
+\_form#275=116x31:\[ result = \frac{1}{S(r)}\frac{\partial^2 S(r)}{\partial r^2} \]
+\_form#276=116x31:\[ result = \frac{1}{S(r)}\frac{\partial^3 S(r)}{\partial r^3} \]
+\_form#277=249x16:\[ f(x,y,z) = p(x,y,z) \exp[(x-x_0)^T \Sigma (x-x_0)], \]
+\_form#278=13x9:$x_0$
+\_form#279=9x10:$\Sigma$
+\_form#280=144x29:\[ \sum_j c_j x^{l_j} y^{m_j} z^{n_j} \exp[f_j(\vec{x})], \]
+\_form#281=28x14:$f_j(\vec{x})$
+\_form#282=6x6:$\nu$
+\_form#283=30x11:$p=1$
+\_form#284=48x14:$f(\vec{x})=0$
+\_form#285=301x14:$ V_{reg} = [ U_e - [K,f12] + f12(F12-eij) + [F,Qt] ]|titj> $
+\_form#286=204x30:\[ V(R,r_{el}) -V(r) =\frac{Z}{|R-r_{el}|} \approx Z u(r) \]
+\_form#287=260x33:\[ \frac{\partial^2 V}{\partial X_i\partial X_j} = Z \left(\frac{\partial^2 u(r)}{\partial r^2} \frac{\partial r}{\partial X_i} \frac{\partial r}{\partial X_j} + \frac{\partial u}{\partial r} \frac{\partial^2 r}{\partial X_i \partial X_j}\right) \]
+\_form#288=135x31:\[ \chi_{k{*} i}(1) = \int dr_2 \frac{k(2) i(2)}{|r_1-r_2|} \]
+\_form#289=135x31:\[ \chi_{ki{*}}(1) = \int dr_2 \frac{k(2) i(2)}{|r_1-r_2|} \]
+\_form#290=115x14:\[ \xi_{k{*}i,j}(1) = \chi_{ki}(1) j(1) \]
+\_form#291=125x14:\[ \xi_{ki{*},j{*}}(1) = \chi_{k{*}i}(1) j(1) \]
+\_form#292=598x16:\[ \sigma = \nabla\rho_1 \nabla\rho_2 = (\nabla R^2 \rho_{R,1} + R^2 \nabla \rho_{R,1}) \cdot (\nabla R^2 \rho_{R,2} + R^2 \nabla \rho_{R,2}) = 4R^4 U_1^2 \rho_{R,1}\rho_{R,2} + 2R^4 \vec U_1 \left(\rho_{R,1}\nabla \rho_{R,2} + \nabla\rho_{R,1} \rho_{R,2}\right) + R^4 \nabla \rho_{R,1}\cdot \nabla\rho_{R,2} \]
+\_form#293=420x35:\[ \frac{\bar \epsilon}{\rho} = \frac{1}{\rho}\sum_{ij}\phi_i(F_ij+\delta_ij s)\phi_j = \frac{1}{\rho} ( \sum_{ij}\phi_i F_ij \phi_j + s\sum_i\phi_i\phi_i ) = s + \frac{1}{\rho} \sum_{ij}\phi_i F_ij \phi_j \]
+\_form#294=149x16:\[ \langle i^{Y_B}|H^{X_A}|i\rangle \neq \langle i|H^{X_A}|i^{Y_B}\rangle \]
+\_form#295=83x14:\[ F^X = F^\perp + F^\parallel \]
+\_form#296=103x14:\[ i^X = R^X F + R F^X \]
+\_form#297=198x33:\[ F_i^\parallel = -\frac{1}{2}\sum_k|F_k ><F_k | (R^2)^X | F_i> \]
+\_form#298=138x14:$ \nabla\rho = 2R^X R \rho_R + R^2\nabla \rho_R $
+\_form#299=469x16:\[ \Delta \rho = \Delta (R^2 \rho_R) = \Delta (R^2) \rho_R + 2\nabla R \nabla \rho_R + R^2 \Delta \rho_R = 2 R^2 U1^2 \rho_R -4 R^2 ( U-V ) \rho_R + R^2 \Delta\rho_R \]
+\_form#300=269x16:\[ U=V + R^{-1}[T,R] -2 R (U-V) = \Delta R + 2\nabla R\dot \nabla \]
+\_form#301=211x14:$ result = <bra|Ue-[f,K]|ket1,ket2> $
+\_form#302=119x14:$ <bra|Ue|ket1,ket2> $
+\_form#303=434x14:$ <bra|[f,K]|ket1,ket2> = <bra[f,K1]|ket1,ket2> + <bra[f,K2]|ket1,ket2> $
+\_form#304=440x29:$ <bra|[f,K1]|ket1,ket2> = <bra|f|K(ket1)>*|ket2> - <K(bra)|f|ket1>*|ket2> $
+\_form#305=436x14:$ <bra|Ue|ket1,ket2>_1 = <bra|Ulocal|ket1,ket2> + <bra|Unlocal|ket1,ket2> $
+\_form#306=356x15:$ \int dr2 (1-e^{-gamma*r12})/r12 + gamma/2* e^{-\gamma*r12} *function(r2) $
+\_form#307=126x14:$ V_{slater} = \exp{(-\gamma*r_{12})} $
+\_form#308=115x15:$ \int dx2 f12*g12*f(2) $
+\_form#309=395x14:$ -1.0/2.0*<bra(1)|e^{-gamma*r_{12}}/r_{12}* \vec{r_{12}}\cdot (\nabla_1 - \nabla_2)[axis]|ket1,ket2>_1 $
+\_form#310=430x31:$ -1.0/2.0*<bra|e^{-gamma*r12}/r12* \vec{r12}\cdot (\nabla_1 - \nabla_2)[axis]|ket> = 1.0/(2.0*\gamma)*<bra|Grad(e^{-\gamma*r_{12}})\cdot (\nabla_1 - \nabla_2)[axis]|ket1,ket2>_{particle} $
+\_form#311=160x14:$ f*U = 1/(2\gamma)*(U - e^{-\gamma*r_{12}} $
+\_form#312=410x18:$ f*U^{\mbox{loc}} = 1/(2\gamma)*(U^{\mbox{loc}} - 4\pi*G(\gamma) + 4\pi*G(2\gamma) - \gamma/2 (e^{-2\gamma*r_{12}} ) nonlocal part: $
+\_form#313=85x30:\[ \sum_{i,j,k} c_{i,j,k} x^i y^j z^k, \]
+\_form#314=99x13:$0\le i+j+k\le N$
+\_form#315=5x9:$i$
+\_form#316=6x11:$j$
+\_form#317=89x14:$(n+1)(n+2)/2$
+\_form#318=151x14:$(n+1)*(n+2)*(n+3)/6$
+\_form#319=319x16:\[ (coeffs[0] + coeffs[1]*x + coeffs[2]*y + coeffs[3]*z)^j \]
+\_form#320=38x11:$x^p y^q z^r$
+\_form#321=188x29:\[ |result> = |f> - \sum_p |p><p|f> \]
+\_form#322=149x29:\[ | result > = \sum_p | p > <p|f> \]
+\_form#323=316x29:\[ |result> = \sum_p |p(particle)> <p(particle)|f(1,2)>_{particle} \]
+\_form#324=34x14:$(ij|kl)$
+\_form#325=38x11:$i>=j$
+\_form#326=36x11:$k>=l$
+\_form#327=84x14:$(ij|kl)=(kl|ij)$
+\_form#328=310x31:\[ \frac{\partial^2E_{xc}}{\partial \rho_\alpha^2}\circ\tilde\rho = second_{local} + second_{semilocal} + first_{semilocal} \]
+\_form#329=245x31:\[ second_{local} = \frac{\partial^2 f_{xc}}{\partial \rho_\alpha^2}\tilde \rho + 2\frac{\partial^2 f_{xc}}{\partial \rho_\alpha\sigma_{\alpha\alpha}} \left(\vec\nabla \rho_a\cdot \vec \nabla\tilde\rho\right) \]
+\_form#330=370x31:\[ second_{semilocal} = -\vec\nabla\cdot\left((\vec\nabla\rho) \left[2\frac{\partial^2 f_{xc}}{\partial\rho_\alpha\partial\sigma_{\alpha\alpha}}\tilde\rho + 4\frac{\partial^2 f_{xc}}{\partial\sigma_{\alpha\alpha}^2} \left(\vec\nabla\rho_\alpha\cdot\vec\nabla\tilde\rho\right)\right]\right) \]
+\_form#331=188x31:\[ first_{semilocal} = -\vec\nabla\cdot\left(2\frac{\partial f_{xc}}{\partial\sigma_{\alpha\alpha}}\vec\nabla\tilde\rho\right) \]
+\_form#332=119x29:\[ E_\mathrm{xc} = \int\epsilon_\mathrm{xc}[\rho]\rho(r) d^3r \]
+\_form#333=139x30:\[ v_\mathrm{xc} = \epsilon_\mathrm{xc} + \rho\frac{\partial \epsilon}{\partial \rho} = 4/3\epsilon_\mathrm{xc} \]
+\_form#334=149x31:\[ k_\mathrm{xc} = \frac{\partial^2\epsilon}{\partial \rho^2} = 4/3*1/3 * \epsilon_\mathrm{xc} \]
+\_form#335=153x16:\[ f = 2/3 * \omega |<x | \vec \mu | i >| ^2 * 2 \]
+\_form#336=8x6:$ x $
+\_form#337=5x9:$ i $
+\_form#338=161x16:\[ f = 2/(3 * \omega) |<x | \vec p | i >| ^2 * 2 \]
+\_form#339=6x13:$ \zeta $
+\_form#340=58x14:\[ \rho = \exp(\zeta) \]
+\_form#341=144x14:\[ \nabla_x\rho = \exp(\zeta)\nabla_x\zeta = \rho \nabla_x\zeta \]
+\_form#342=161x16:\[ \sigma = |\nabla\rho|^2 = |\rho|^2 |\nabla\zeta|^2 = |\rho|^2 \chi \]
+\_form#343=284x46:\[ f(x,x_{\mathrm{min}},x_{\mathrm{max}}) = \left\{ \begin{array}{ll} x_{\mathrm{min}} & x < x_{\mathrm{min}} \\ p(x,x_{\mathrm{min}},x_{\mathrm{max}}) & x_{\mathrm{min}} \leq x_{\mathrm{max}} \\ x & x_{\mathrm{max}} < x \end{array} \right. \]
+\_form#344=24x14:$p(x)$
+\_form#345=85x14:$p(x_{min})=x_{min}$
+\_form#346=88x14:$p(x_{max})=x_{max}$
+\_form#347=93x14:$dp(x_{max})/dx=1$
+\_form#348=285x15:$dp(x_{min})/dx=d^2p(x_{min})/dx^2=d^2p(x_{max})/dx^2=0$
+\_form#349=99x15:$ E[\rho] = \int \epsilon[\rho(x)] dx$
+\_form#350=85x14:$ \sigma_{\mu \nu} = \nabla \rho_{\mu} . \nabla \rho_{\nu} $
+\_form#351=45x9:$ \mu, \nu = \alpha$
+\_form#352=9x13:$ \beta $
+\_form#353=276x31:\[ < \phi | \hat V | \psi > = \int \left( \frac{\partial \epsilon}{\partial \rho} \phi \psi + \left( 2 \frac{\partial \epsilon}{\partial \sigma} \right) \nabla \rho \cdot \nabla \left( \phi \psi \right) \right) dx \]
+\_form#354=381x31:\[ < \phi_{\alpha} | \hat V | \psi_{\alpha} > = \int \left( \frac{\partial \epsilon}{\partial \rho_{\alpha}} \phi \psi + \left( 2 \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \nabla \rho_{\alpha} + \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \nabla \rho_{\beta} \right) . \nabla \left( \phi \psi \right) \right) dx \]
+\_form#355=251x31:\[ V_{\alpha} = \frac{\partial \epsilon}{\partial \rho_{\alpha}} - \left(\nabla . \left(2 \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \nabla \rho_{\alpha} + \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \nabla \rho_{\beta} \right) \right) \]
+\_form#356=156x60:\begin{eqnarray*} \mbox{result[0]} &:& \qquad \frac{\partial \epsilon}{\partial \rho} \\ \mbox{result[1-3]} &:& \qquad 2 \rho \frac{\partial \epsilon}{\partial \sigma} \nabla\rho \end{eqnarray*}
+\_form#357=175x96:\begin{eqnarray*} \mbox{result[0]} &:& \qquad \frac{\partial \epsilon}{\partial \rho_{\alpha}} \\ \mbox{result[1-3]} &:& \qquad \rho_\alpha \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \nabla\rho_\alpha\\ \mbox{result[4-6]} &:& \qquad \rho_\alpha \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \nabla\rho_\beta \end{eqnarray*}
+\_form#358=389x66:\begin{eqnarray*} \mbox{result[0]} &:& \qquad \frac{\partial^2 \epsilon}{\partial \rho^2} \rho_\mathrm{pt} + 2.0 * \frac{\partial^2 \epsilon}{\partial \rho\partial\sigma}\sigma_\mathrm{pt}\\ \mbox{result[1-3]} &:& \qquad 2.0 * \frac{\partial\epsilon}{\partial\sigma}\nabla\rho_\mathrm{pt} + 2.0 * \frac{\partial^2\epsilon}{\partial\rho\partial\sigma} \rho_\mathrm{pt}\nabla\rho + 4.0 * \frac{\partial^2\epsilon}{\partial^2\sigma} \sigma_\mathrm{pt}\nabla\rho \end{eqnarray*}
+\_form#359=14x9:$ \rho_\alpha $
+\_form#360=14x10:$ \rho_\beta $
+\_form#361=16x10:$ \rho_{pt} $
+\_form#362=85x13:$ \sigma_{aa} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} $
+\_form#363=84x14:$ \sigma_{ab} = \nabla \rho_{\alpha}.\nabla \rho_{\beta} $
+\_form#364=83x14:$ \sigma_{bb} = \nabla \rho_{\beta}.\nabla \rho_{\beta} $
+\_form#365=61x13:$ \sigma = \nabla \rho.\nabla \rho $
+\_form#366=41x14:$ \zeta_{\alpha}.\nabla\rho_{pt} $
+\_form#367=41x14:$ \zeta_{\beta}.\nabla\rho_{pt} $
+\_form#368=99x14:$ \zeta_{a,x}=\partial/{\partial x} \ln(\rho_a) $
+\_form#369=98x14:$ \zeta_{a,y}=\partial/{\partial y} \ln(\rho_a) $
+\_form#370=98x14:$ \zeta_{a,z}=\partial/{\partial z} \ln(\rho_a) $
+\_form#371=96x14:$ \zeta_{b,x} = \partial/{\partial x} \ln(\rho_b) $
+\_form#372=95x14:$ \zeta_{b,y} = \partial/{\partial y} \ln(\rho_b) $
+\_form#373=95x14:$ \zeta_{b,z} = \partial/{\partial z} \ln(\rho_b) $
+\_form#374=85x13:$ \chi_{aa} = \nabla \zeta_{\alpha}.\nabla \zeta_{\alpha} $
+\_form#375=84x14:$ \chi_{ab} = \nabla \zeta_{\alpha}.\nabla \zeta_{\beta} $
+\_form#376=83x14:$ \chi_{bb} = \nabla \zeta_{\beta}.\nabla \zeta_{\beta} $
+\_form#377=25x14:$ \nabla\rho_{pt}$
+\_form#378=9x6:$\pi$
+\_form#379=31x15:$ 2e^2/h $
+\_form#380=8x9:$ g $
+\_form#381=10x9:$\epsilon_0$
+\_form#382=10x11:$ \nabla $
+\_form#383=46x14:$r(u) = 0$
+\_form#384=120x14:$0 <= \mbox{mask(sdf)} <= 1$
+\_form#385=151x31:\[ \varphi(d) = \frac{1}{2}\left( 1 - \tanh\left( \frac{3d}{\varepsilon} \right) \right) \]
+\_form#386=6x10:$d$
+\_form#387=121x26:\[ B(\varphi) = \frac{36}{\varepsilon} \varphi^2 (1-\varphi)^2. \]
+\_form#388=26x14:$36/\varepsilon$
+\_form#389=89x31:\[ \int_{-\infty}^\infty B(s) \, ds = 1 \]
+\_form#390=18x14:$ |8 \epsilon| $
+\_form#391=5x6:$ \epsilon $
+\_form#392=118x35:\[ \int_{-\epsilon/2}^{\epsilon/2} B(s) \, ds \doteq 0.987 \]
+\_form#393=125x31:\[ \int_{-\epsilon}^{\epsilon} B(s) \, ds \doteq 0.999963 \]
+\_form#394=113x15:\[ \sqrt{x^2 + y^2} - c * z = 0 \]
+\_form#395=6x6:$ z $
+\_form#396=111x15:\[ x^2 + y^2 - c * z == 0 \]
+\_form#397=134x15:\[ \mathbf{C} \leftarrow \alpha \mathbf{A}^{\mathrm{OpA}} \mathbf{B}^{\mathrm{OpB}} + \beta \mathbf{C} \]
+\_form#398=11x10:$ \mathbf{A} $
+\_form#399=11x10:$ \mathbf{B} $
+\_form#400=10x10:$ \mathbf{C} $
+\_form#401=106x15:\[ \mathbf{y} \leftarrow \alpha \mathbf{A}^{\mathrm{OpA}} \mathbf{x} + \beta \mathbf{y} \]
+\_form#402=9x6:$ \mathbf{x} $
+\_form#403=9x9:$ \mathbf{y} $
+\_form#404=88x15:\[ \mathbf{A} \leftarrow \alpha \mathbf{x} \mathbf{y}^{\mathrm{T}} + \mathbf{A} \]
+\_form#405=24x14:$ \mathbf{x} \mathbf{y}^{\mathrm{T}} $
+\_form#406=59x10:\[ u \leftarrow \alpha \mathbf{x} \cdot \mathbf{y} \]
+\_form#407=44x8:\[ \mathbf{x} \leftarrow \alpha \mathbf{x} \]
+\_form#408=66x11:\[ \mathbf{y} \leftarrow \alpha \mathbf{x} + \mathbf{y} \]
+\_form#409=43x13:$ \mathbf{A} \vec{x} = \vec{b} $
+\_form#410=11x10:$\mathbf{A}$
+\_form#411=6x13:$\vec{b}$
+\_form#412=9x10:$\vec{x}$
+\_form#413=51x16:$||\mathbf{A} \vec{x} - \vec{b}||$
+\_form#414=90x14:$|| \vec{x}_{iter} - \vec{x}_{iter-1}||$
+\_form#415=40x10:\[ \vec{x} \leftarrow c \vec{x} \]
+\_form#416=70x13:\[ \vec{x} \leftarrow a \vec{x} + b \vec{y} \]
+\_form#417=48x14:$ f(x)=0 $
+\_form#418=6x11:$ j $
+\_form#419=13x6:$ m $
+\_form#420=319x51:\begin{eqnarray*} Q_{i j} & = & \langle x_i \mid f_j \rangle \\ A_{i j} & = & \langle x_i - x_m \mid f_j - f_m \rangle = Q_{i j} - Q_{m j} - Q_{i m} + Q{m m} \\ b_i & =& -\langle x_i - x_m \mid f_m \rangle = -Q_{i m} + Q_{m m} \end{eqnarray*}
+\_form#421=38x10:\[ A c = b \]
+\_form#422=84x29:\[ c_m = 1 - \sum_{i<m} c_i \]
+\_form#423=124x29:\[ x_{m+1} = \sum_{i \le m}{c_i ( x_i - f_i)} \]
+\_form#424=10x13:$ Q $
+\_form#425=11x9:$ x_i $
+\_form#426=10x14:$ f_j $
+\_form#427=130x14:$ R(*,*,\ldots) \rightarrow I(*,*,\ldots) $
+\_form#428=76x14:$ R(*) \rightarrow I(i,*) $

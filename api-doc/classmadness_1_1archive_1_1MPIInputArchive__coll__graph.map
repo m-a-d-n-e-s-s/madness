@@ -1,0 +1,19 @@
+<map id="madness::archive::MPIInputArchive" name="madness::archive::MPIInputArchive">
+<area shape="rect" id="node1" title="Archive allowing buffering, deserialization of data, and point&#45;to&#45;point communication between process..." alt="" coords="1015,39,1217,80"/>
+<area shape="rect" id="node2" href="$classmadness_1_1archive_1_1BaseInputArchive.html" title="Base class for input archive classes." alt="" coords="303,5,514,47"/>
+<area shape="rect" id="node4" href="$classmadness_1_1archive_1_1VectorInputArchive.html" title="Wraps an archive around an STL vector for input." alt="" coords="689,55,876,96"/>
+<area shape="rect" id="node3" href="$classmadness_1_1archive_1_1BaseArchive.html" title="Base class for all archive classes." alt="" coords="5,13,232,39"/>
+<area shape="rect" id="node5" href="$classmadness_1_1World.html" title="A parallel world class." alt="" coords="719,190,846,217"/>
+<area shape="rect" id="node9" href="$classmadness_1_1WorldTaskQueue.html" title="Multi&#45;threaded queue to manage and run tasks." alt="" coords="1017,318,1215,345"/>
+<area shape="rect" id="node13" href="$classmadness_1_1WorldGopInterface.html" title="Provides collectives that interoperate with the AM and task interfaces." alt="" coords="1011,159,1221,186"/>
+<area shape="rect" id="node6" href="$classNO__DEFAULTS.html" title="Disables default copy constructor and assignment operators." alt="" coords="351,337,466,363"/>
+<area shape="rect" id="node7" href="$classmadness_1_1WorldAmInterface.html" title="Implements AM interface." alt="" coords="305,266,512,293"/>
+<area shape="rect" id="node8" href="$classmadness_1_1Mutex.html" title="Mutex using pthread mutex operations." alt="" coords="27,266,210,293"/>
+<area shape="rect" id="node10" href="$classmadness_1_1CallbackInterface.html" title="The class used for callbacks (e.g., dependency tracking)." alt="" coords="681,413,884,439"/>
+<area shape="rect" id="node11" href="$classmadness_1_1AtomicInt.html" title="An integer with atomic set, get, read+increment, read+decrement, and decrement+test operations." alt="" coords="707,311,859,338"/>
+<area shape="rect" id="node12" href="$classmadness_1_1ConcurrentHashMap.html" title=" " alt="" coords="281,84,536,125"/>
+<area shape="rect" id="node14" href="$classmadness_1_1ConcurrentHashMap.html" title=" " alt="" coords="289,149,528,191"/>
+<area shape="rect" id="node15" href="$classmadness_1_1WorldMpiInterface.html" title="This class wraps/extends the MPI interface for World." alt="" coords="305,215,513,242"/>
+<area shape="rect" id="node16" href="$classmadness_1_1detail_1_1WorldMpiRuntime.html" title="MPI runtime reference counter." alt="" coords="21,149,216,191"/>
+<area shape="rect" id="node17" href="$classSafeMPI_1_1Intracomm.html" title="Wrapper around MPI_Comm. Has a shallow copy constructor; use Create(Get_group()) for deep copy." alt="" coords="41,215,196,242"/>
+</map>
