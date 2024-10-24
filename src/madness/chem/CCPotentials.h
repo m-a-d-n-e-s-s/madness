@@ -211,11 +211,12 @@ private:
 
 public:
     /// return the regularized MP2 ansatz: |\tau_ij> = |u_ij> + Q12 f12 |ij>
-    static CCPair make_pair_mp2(const real_function_6d& u, const size_t i, const size_t j, const Info& info);
+    static CCPair make_pair_mp2(const real_function_6d& u, const size_t i, const size_t j, const Info& info,
+        bool compute_Q12_f12_ij = true);
 
     /// return the regularized CC2 ansatz: |\tau_ij> = |u_ij> + Q12t f12 |t_i t_j>
     static CCPair make_pair_cc2(const real_function_6d& u, const CC_vecfunction& gs_singles,
-                                const size_t i, const size_t j, const Info& info);
+                                const size_t i, const size_t j, const Info& info, const bool compute_Q12_f12_ij=true);
 
     /// return the regularized CC2 ansatz: |x_ij> = |u_ij> + Q12t f12 |t_i t_j> + ?????
     static CCPair make_pair_lrcc2(const CalcType& ctype, const real_function_6d& u,
@@ -265,9 +266,9 @@ public:
     /// @param[out] 2*<ij|g|u> - <ji|g|u> , where i and j are determined by u (see CC_Pair class)
     static double
     compute_pair_correlation_energy(World& world,
-                                    const Info& info,
                                     const CCPair& u,
-                                    const CC_vecfunction& singles = CC_vecfunction(PARTICLE));
+                                    const CC_vecfunction& singles,
+                                    const Info& info);
 
     /// Compute CC2 correlation energy
     /// @param[in] The Pair_function
@@ -683,7 +684,8 @@ public:
 
     /// The potential manager for the ground state potential
     /// CC2 singles potential parts of the ground state
-    /// Genereal function which evaluates a CC_singles potential
+    /// General function which evaluates a CC_singles potential
+    /// @param[in] result_index corresponds to indices of external lines in the diagram
     /// @param[in] Singles of the Ground State
     /// @param[in] Doubles of the Ground State
     /// @param[in] Name of the potential
@@ -801,7 +803,7 @@ public:
                                const FuncType& x_type, const FuncType& y_type,
                                const real_convolution_6d* Gscreen = NULL);
 
-    /// unprojected ccs potential
+    /// unprojected ccs (S3c) potential
     /// returns 2kgtk|ti> - kgti|tk>
     /// the ccs potential: ti = ti and tk = tauk
     static vector_real_function_3d
@@ -885,6 +887,7 @@ public:
     /// function return a vector of size 2*singles, the first half being the s2b potential, the second half
     /// an intermediate that will be stored by the caller in the info structure
     ///@param world
+    ///@param external_indices
     ///@param[in] singles:CC_vecfunction fof type response or particle (depending on this the correct intermediates will be used) the functions themselves are not needed
     ///@param[in] doubles:Pairs of CC_Pairs (GS or Response)
     ///@param info
@@ -892,7 +895,7 @@ public:
     /// Q-Projector is not applied, sign is correct
     /// if the s2b potential has already been calculated it will be loaded from the intermediate_potentials structure
     static std::tuple<madness::vector_real_function_3d, madness::vector_real_function_3d>
-    s2b(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
+    s2b(World& world, std::vector<int> external_indices, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
 
     /// result: -\sum_k( <l|kgi|ukl>_2 - <l|kgi|ukl>_1)
 
@@ -900,13 +903,14 @@ public:
     /// function return a vector of size 2*singles, the first half being the s2c potential, the second half
     /// an intermediate that will be stored by the caller in the info structure
     ///@param world
+    ///@param external_index
     ///@param[in] singles:CC_vecfunction fof type response or particle (depending on this the correct intermediates will be used) the functions themselves are not needed
     ///@param[in] doubles:Pairs of CC_Pairs (GS or Response)
     ///@param info
     ///@param[out] \f$ -\sum_k( <l|kgi|ukl>_2 - <l|kgi|ukl>_1) \f$
     /// Q-Projector is not applied, sign is correct
     static std::tuple<vector<Function<double, 3>>, vector<Function<double, 3>>>
-    s2c(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
+    s2c(World& world, std::vector<int> external_index, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
 
     /// the S4a potential can be calcualted from the S2b potential
     /// result is \f$ s4a_i = - <l|s2b_i>*|tau_l> \f$
@@ -915,23 +919,25 @@ public:
 
     // result: -\sum_k( <l|kgtaui|ukl>_2 - <l|kgtaui|ukl>_1) | kgtaui = <k|g|taui>
     ///@param world
+    ///@param external_index
     ///@param[in] singles:CC_vecfunction fof type response or particle (depending on this the correct intermediates will be used) the functions themselves are not needed
     ///@param[in] doubles:Pairs of CC_Pairs (GS or Response)
     ///@param info
     ///@param[out] \f$ -( <l|kgtaui|ukl>_2 - <l|kgtaui|ukl>_1) | kgtaui = <k|g|taui> | taui=singles_i \f$
     /// Q-Projector is not applied, sign is correct
     static vector_real_function_3d
-    s4b(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
+    s4b(World& world, std::vector<int> external_index, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
 
 
     ///@param world
+    ///@param external_index
     ///@param[in] singles:CC_vecfunction fof type response or particle (depending on this the correct intermediates will be used) the functions themselves are not needed
     ///@param[in] doubles:Pairs of CC_Pairs (GS or Response)
     ///@param info
     ///@param[out] \f$ ( 4<l|kgtauk|uil>_2 - 2<l|kgtauk|uil>_1 - 2<k|lgtauk|uil>_2 + <k|lgtauk|uil>_1 ) \f$
     /// Q-Projector is not applied, sign is correct
     static vector_real_function_3d
-    s4c(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
+    s4c(World& world, std::vector<int> external_index, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
 
     // update the intermediates
     void update_intermediates(const CC_vecfunction& t) {

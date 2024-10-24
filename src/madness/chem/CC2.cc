@@ -352,7 +352,7 @@ std::vector<CC_vecfunction> CC2::solve_ccs() const {
 double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
 
     if (world.rank()==0) print_header2(" computing the MP1 wave function");
-    double total_energy = 0.0;
+    CC_vecfunction dummy_singles(PARTICLE);
 
     // make vector holding CCPairs for partitioner of MacroTask
     std::vector<CCPair> pair_vec=Pairs<CCPair>::pairs2vector(doubles,triangular_map);
@@ -383,28 +383,37 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
 
         // transform vector back to Pairs structure
         for (size_t i = 0; i < pair_vec.size(); i++) {
-            pair_vec[i].constant_part = result_vec[i];
-            // pair_vec[i].functions[0] = CCPairFunction<double,6>(result_vec[i]);
-            pair_vec[i].constant_part.truncate().reduce_rank();
-            pair_vec[i].constant_part.print_size("constant_part");
-            pair_vec[i].function().truncate().reduce_rank();
-            save(pair_vec[i].constant_part, pair_vec[i].name() + "_const");
-            // save(pair_vec[i].function(), pair_vec[i].name());
-            if (pair_vec[i].type == GROUND_STATE) {
-                double energy = CCOPS.compute_pair_correlation_energy(world,info,pair_vec[i]);
-                if (world.rank()==0) printf("pair energy for pair %zu %zu: %12.8f\n", pair_vec[i].i, pair_vec[i].j, energy);
-                total_energy += energy;
-            }
-        }
-        if (world.rank()==0) {
-            printf("current decoupled mp2 energy %12.8f\n", total_energy);
-            std::cout << std::fixed << std::setprecision(1) << "\nFinished saving pairs and energy calculation at time " << wall_time() << std::endl;
+            auto pair=pair_vec[i];
+            pair.constant_part = result_vec[i];
+            pair.constant_part.truncate().reduce_rank();
+            pair.constant_part.print_size("constant_part");
+            pair.function().truncate().reduce_rank();
+            save(pair.constant_part, pair.name() + "_const");
+
+            // initialize pair function to constant part
+            if (not pair.function().is_initialized()) pair.update_u(pair.constant_part);
+
         }
     }
 
+    auto compute_energy = [&](const std::vector<CCPair>& pair_vec, std::string msg="") {
+        MacroTaskComputeCorrelationEnergy t;
+        MacroTask task1(world, t);
+        CC_vecfunction dummy_singles1(PARTICLE);
+        auto pair_energies=task1(pair_vec, dummy_singles, info);
+        // pair_energies is now scattered over the universe
 
-    if (world.rank()==0) print_header3("Starting updating MP2 pairs");
+        double total_energy=0.0;
+        for ( auto& pair_energy : pair_energies) total_energy += pair_energy.get();
+        // pair_energy.get() invokes a broadcast from rank 0 to all other ranks
 
+        if (not msg.empty() and world.rank()==0) printf("%s %12.8f\n", msg.c_str(), total_energy);
+        return total_energy;
+    };
+
+    timer t1_energy(world);
+    double total_energy=compute_energy(pair_vec,"initial MP2 energy");
+    t1_energy.end("compute energy");
 
     auto solver= nonlinear_vector_solver<double,6>(world,pair_vec.size());
     solver.set_maxsub(parameters.kain_subspace());
@@ -414,22 +423,21 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
     for (size_t iter = 0; iter < parameters.iter_max_6D(); iter++) {
         if (world.rank()==0) print_header3("Starting iteration " + std::to_string(int(iter)) + " of MP2");
 
+        timer t_iter(world);
         // compute the coupling between the pair functions
         Pairs<real_function_6d> coupling=compute_local_coupling(pair_vec, info);
         auto coupling_vec=Pairs<real_function_6d>::pairs2vector(coupling,triangular_map);
-        change_tree_state(coupling_vec, reconstructed);
         if (parameters.debug()) print_size(world, coupling_vec, "couplingvector");
-
-
-        if (world.rank()==0) {
-            std::cout << std::fixed << std::setprecision(1) << "\nStart updating pairs part at time " << wall_time() << std::endl;
-        }
+        t_iter.tag("compute coupling");
 
         MacroTaskIteratePair t;
         MacroTask task1(world, t);
         CC_vecfunction dummy_singles1(PARTICLE);
-        const std::size_t maxiter=1;
+        const std::size_t maxiter=3;
+        coupling_vec=change_tree_state(coupling_vec, reconstructed);
+        for (auto& p : pair_vec) p.function().reconstruct();
         auto unew = task1(pair_vec, coupling_vec, dummy_singles1, dummy_singles1, info, maxiter);
+        t_iter.tag("compute update");
 
         std::vector<real_function_6d> u;
         for (auto p : pair_vec) u.push_back(p.function());
@@ -439,32 +447,28 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
         auto [rmsrnorm, maxrnorm]=CCPotentials::residual_stats(residual);
 
         // update the pair functions
+        std::string use_kain;
         if (parameters.kain()) {
-            if (world.rank()==0) std::cout << "Update with KAIN" << std::endl;
+            use_kain="with KAIN";
             // std::vector<real_function_6d> kain_update = copy(world,solver.update(u, u_update));
             std::vector<real_function_6d> kain_update = copy(world,solver.update(u, residual));
+            truncate(kain_update);
             for (size_t i=0; i<pair_vec.size(); ++i) {
                 kain_update[i].truncate().reduce_rank();
-                kain_update[i].print_size("Kain-Update-Function");
+                if (parameters.debug()) kain_update[i].print_size("Kain-Update-Function");
                 pair_vec[i].update_u(copy(kain_update[i]));
             }
         } else {
-            if (world.rank()==0) std::cout << "Update without KAIN" << std::endl;
-            for (size_t i=0; i<pair_vec.size(); ++i) {
-                // pair_vec[i].update_u(pair_vec[i].function() - u_update[i]);
-                pair_vec[i].update_u(unew[i]);
-            }
+            use_kain="without KAIN";
+            truncate(unew);
+            for (size_t i=0; i<pair_vec.size(); ++i)  pair_vec[i].update_u(unew[i]);
         }
+        t_iter.tag("update pairs "+use_kain);
 
         // calculate energy and error and update pairs
         double old_energy = total_energy;
-        total_energy = 0.0;
-        for (size_t i = 0; i < pair_vec.size(); i++) {
-            save(pair_vec[i].function(), pair_vec[i].name());
-            double energy = CCOPS.compute_pair_correlation_energy(world,info,pair_vec[i]);
-            total_energy += energy;
-            if (world.rank()==0) printf("pair energy for pair %zu %zu: %12.8f\n", pair_vec[i].i, pair_vec[i].j, energy);
-        }
+        total_energy=compute_energy(pair_vec);
+        t_iter.tag("compute energy");
 
 		if (world.rank()==0) {
 		    double delta=old_energy - total_energy;
@@ -932,7 +936,7 @@ bool CC2::iterate_pair(CCPair& pair, const CC_vecfunction& singles) const {
     Info info;
     info.mo_bra=CCOPS.mo_bra_.get_vecfunction();
     info.parameters=parameters;
-    if (pair.type == GROUND_STATE) omega = CCOPS.compute_pair_correlation_energy(world, info,pair, singles);
+    if (pair.type == GROUND_STATE) omega = CCOPS.compute_pair_correlation_energy(world, pair,singles, info);
     if (pair.type == EXCITED_STATE) omega = CCOPS.compute_excited_pair_energy(world, pair, singles, info);
 
     if (world.rank() == 0)
@@ -979,7 +983,7 @@ bool CC2::iterate_pair(CCPair& pair, const CC_vecfunction& singles) const {
 
         double omega_new = 0.0;
         double delta = 0.0;
-        if (pair.type == GROUND_STATE) omega_new = CCOPS.compute_pair_correlation_energy(world, info, pair, singles);
+        if (pair.type == GROUND_STATE) omega_new = CCOPS.compute_pair_correlation_energy(world, pair, singles, info);
         else if (pair.type == EXCITED_STATE) omega_new = CCOPS.compute_excited_pair_energy(world, pair, singles, info);
         delta = omega - omega_new;
 

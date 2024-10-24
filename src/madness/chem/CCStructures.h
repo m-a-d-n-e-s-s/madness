@@ -1528,6 +1528,33 @@ public:
 };
 
 
+class MacroTaskComputeCorrelationEnergy : public MacroTaskOperationBase {
+public:
+    std::string basename="CorrelationEnergy";
+    MacroTaskComputeCorrelationEnergy() {
+        name="CorrelationEnergy";
+    }
+
+    typedef std::tuple<
+        const std::vector<CCPair>&,
+        const CC_vecfunction&,
+        const Info&
+    > argtupleT;
+
+    /// first vector is the potential, second is an intermediate (if applicable, e.g. for s2b and s2c potentials)
+    typedef std::vector<ScalarResult<double>> resultT;
+
+
+    /// allocate the result and set the name of this task
+    resultT allocator(World &world, const argtupleT &argtuple) const {
+        std::size_t n = std::get<0>(argtuple).size();
+        return scalar_result_vector<double>(world,n);
+    }
+
+    resultT operator() (const std::vector<CCPair>& pairs,
+                        const CC_vecfunction& singles_gs,
+                        const Info& info) const;
+};
 
 }//namespace madness
 

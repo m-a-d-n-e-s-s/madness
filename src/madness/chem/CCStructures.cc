@@ -634,18 +634,37 @@ MacroTaskSinglesPotentialGs::operator()(const std::vector<int>& result_index,
     for (auto& x : doubles_gs1.allpairs) {
         auto& tau=x.second;
         MADNESS_CHECK_THROW(tau.functions.size()==1,"doubles in MacroTaskSinglesPotentialsGS should only contain one function");
-        tau=CCPotentials::make_pair_cc2(tau.function(),singles_gs,tau.i,tau.j,info);
+        bool compute_Q12_F12=(PotentialType(name)==POT_s2b_ or PotentialType(name)==POT_s2c_);
+        tau=CCPotentials::make_pair_cc2(tau.function(),singles_gs,tau.i,tau.j,info,compute_Q12_F12);
     }
 
     resultT result=CCPotentials::potential_singles_gs(world, result_index,
                 singles_gs, doubles_gs1, PotentialType(name), info);
+
     // if the second element of the tuple is empty, fill it with empty functions
     // to that "insert_batch" is not confused
-    if (std::get<1>(result).empty()) std::get<1>(result)=zero_functions<double,3>(world,result_index.size());
+    auto& intermediate=std::get<1>(result);
+    if (intermediate.empty()) intermediate=zero_functions<double,3>(world,result_index.size());
+    // if (intermediate.empty()) intermediate.resize(result_index.size());
+    MADNESS_CHECK_THROW(std::get<0>(result).size()==std::get<1>(result).size(),"result size mismatch 1 in MacroTaskSinglesPotentialGS");
+    MADNESS_CHECK_THROW(std::get<0>(result).size()==result_index.size(),"result size mismatch 2 in MacroTaskSinglesPotentialGS");
     return result;
 
 }
 
+std::vector<ScalarResult<double>>
+MacroTaskComputeCorrelationEnergy::operator()(const std::vector<CCPair>& pairs,
+                                                  const CC_vecfunction& singles_gs,
+                                                  const Info& info) const {
+     World &world = pairs[0].function().world();
+     auto result=scalar_result_vector<double>(world,pairs.size());
+     for (int i=0; i<pairs.size(); ++i) {
+         // when serialized the Qf12 |ij> part is not stored in the cloud, so recompute it here
+         auto pair=CCPotentials::make_pair_mp2(pairs[i].function(),pairs[i].i,pairs[i].j,info,true);
+         result[i]=CCPotentials::compute_pair_correlation_energy(world,pair,singles_gs,info);
+     }
+    return result;
+}
 
 template class CCConvolutionOperator<double,3>;
 template class CCConvolutionOperator<double,2>;
