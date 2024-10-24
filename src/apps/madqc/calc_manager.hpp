@@ -1149,6 +1149,7 @@ public:
       };
 
       json beta_json_2;
+
       if (std::filesystem::exists(beta_2_path))
       {
         if (world.rank() == 0)
@@ -1245,376 +1246,383 @@ public:
           ifs >> persistent_output;
           ifs.close();
         }
-        json out_json = {};
-        out_json["beta"] = beta_json;
 
-        persistent_output[name] = out_json;
-        ;
-        std::ofstream ofs(path_manager.get_output_path());
-        ofs << persistent_output.dump(4);
-        ofs.close();
+        if (std::filesystem::exists(beta_outpath))
+        {
+          std::ifstream ifs(beta_outpath);
+          json beta_json;
+          ifs >> beta_json;
+
+          json out_json = {};
+          out_json["beta"] = beta_json;
+
+          persistent_output[name] = out_json;
+          std::ofstream ofs(path_manager.get_output_path());
+          ofs << persistent_output.dump(4);
+          ofs.close();
+        }
+      }
+      }
+      catch (Response_Convergence_Error &e)
+      {
+        if (world.rank() == 0)
+        {
+          ::print("First order response calculations haven't been run and "
+                  "can't be run");
+          ::print("Quadratic response calculations can't be run");
+        }
       }
     }
-    catch (Response_Convergence_Error &e)
+    static void
+    append_to_beta_json(const std::array<double, 3> &omega,
+                        const std::vector<std::string> &beta_directions,
+                        const Tensor<double> &beta,
+                        nlohmann::ordered_json &beta_json)
     {
+      auto num_unique_elements = beta_directions.size();
+      for (int i = 0; i < num_unique_elements; i++)
+      {
+
+        const auto &ijk = beta_directions[i];
+        auto beta_value = beta[i];
+        auto A = ijk[0];
+        auto B = ijk[1];
+        auto C = ijk[2];
+
+        beta_json["Afreq"].push_back(omega[0]);
+        beta_json["Bfreq"].push_back(omega[1]);
+        beta_json["Cfreq"].push_back(omega[2]);
+
+        beta_json["A"].push_back(std::string(1, A));
+        beta_json["B"].push_back(std::string(1, B));
+        beta_json["C"].push_back(std::string(1, C));
+        beta_json["Beta"].push_back(beta_value);
+      }
+    }
+
+    void add_beta_i_to_json(nlohmann::ordered_json & beta_i,
+                            nlohmann::ordered_json & beta_json)
+    {
+      print(beta_json.dump(4));
+
+      for (auto &[key, value] : beta_i.items())
+      {
+        beta_json[key].insert(beta_json[key].end(), value.begin(), value.end());
+      }
+    }
+  };
+
+  /**/
+  /*class WriteResponseVTKOutputStrategy : public CalculationStrategy {*/
+  /**/
+  /*  ResponseParameters parameters;*/
+  /*  std::string op;*/
+  /*  std::string name;*/
+  /**/
+  /* public:*/
+  /*  explicit WriteResponseVTKOutputStrategy(const ResponseParameters& params) : parameters(params){};*/
+  /*  json calcPaths(const path& root) override { return {}; }*/
+  /*  void runCalculation(World& world, const json& paths) override {*/
+  /**/
+  /*    auto& moldft_paths = paths["moldft"];*/
+  /*    auto moldft_restart = moldft_paths["restart"].get<std::string>();*/
+  /*    moldft_restart = std::string(path(moldft_restart).replace_extension(""));*/
+  /**/
+  /*    auto& response_paths = paths["response"];*/
+  /*    auto& calc_paths = response_paths["calculation"];*/
+  /**/
+  /*    auto restart_paths = response_paths["restart"].get<std::vector<std::string>>();*/
+  /*    auto output_paths = response_paths["output"].get<std::vector<std::string>>();*/
+  /*    auto alpha_path = response_paths["properties"]["alpha"].get<std::string>();*/
+  /*    auto freqs = response_paths["frequencies"].get<std::vector<double>>();*/
+  /*    auto num_freqs = freqs.size();*/
+  /**/
+  /*    if (world.rank() == 0) {*/
+  /*      print("Running VTK output for response calculations");*/
+  /*      print("Number of frequencies: ", num_freqs);*/
+  /*      print("Frequencies: ", freqs);*/
+  /*      print("Output paths: ", output_paths);*/
+  /*      print("Restart paths: ", restart_paths);*/
+  /*    }*/
+  /**/
+  /*    for (size_t i = 0; i < num_freqs; i++) {*/
+  /*      auto freq_i = freqs[i];*/
+  /**/
+  /*      if (!std::filesystem::exists(calc_paths[i])) {*/
+  /*        std::filesystem::create_directory(calc_paths[i]);*/
+  /*      }*/
+  /*      std::filesystem::current_path(calc_paths[i]);*/
+  /*      print("current path: ", std::filesystem::current_path());*/
+  /*      print("calc path: ", calc_paths[i]);*/
+  /*      print("freq: ", freq_i);*/
+  /**/
+  /*      path restart_file_i = restart_paths[i];*/
+  /*      path response_base_i = output_paths[i];*/
+  /**/
+  /*      double last_protocol;*/
+  /*      bool converged = false;*/
+  /**/
+  /*      if (world.rank() == 0) {*/
+  /*        std::ifstream ifs(response_base_i);*/
+  /*        json response_base;*/
+  /*        ifs >> response_base;*/
+  /*        last_protocol = *response_base["parameters"]["protocol"].get<std::vector<double>>().end();*/
+  /*        converged = response_base["converged"].get<bool>();*/
+  /*        print("Thresh of restart data: ", last_protocol);*/
+  /*        print("Converged: ", converged);*/
+  /*      }*/
+  /**/
+  /*      world.gop.broadcast(converged, 0);*/
+  /*      world.gop.broadcast(last_protocol, 0);*/
+  /**/
+  /*      ResponseParameters r_params = parameters;*/
+  /*      r_params.set_user_defined_value("omega", freq_i);*/
+  /*      r_params.set_user_defined_value("archive", moldft_restart);*/
+  /*      r_params.set_user_defined_value("restart", true);*/
+  /*      std::string restart_file_string = restart_file_i.filename().stem();*/
+  /*      r_params.set_user_defined_value("restart_file", restart_file_string);*/
+  /*      if (converged) {*/
+  /**/
+  /*        GroundStateCalculation ground_calculation{world, r_params.archive()};*/
+  /*        Molecule molecule = ground_calculation.molecule();*/
+  /*        r_params.set_ground_state_calculation_data(ground_calculation);*/
+  /*        r_params.set_derived_values(world, molecule);*/
+  /*        CalcParams calc_params = {ground_calculation, molecule, r_params};*/
+  /**/
+  /*        RHS_Generator rhs_generator;*/
+  /*        if (op == "dipole") {*/
+  /*          rhs_generator = dipole_generator;*/
+  /*        } else {*/
+  /*          rhs_generator = nuclear_generator;*/
+  /*        }*/
+  /**/
+  /*        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));*/
+  /*        FrequencyResponse calc(world, calc_params, freq_i, rhs_generator);*/
+  /*        if (world.rank() == 0) {*/
+  /*          print("\n\n");*/
+  /*          print(*/
+  /*              " MADNESS Time-Dependent Density Functional Theory Response "*/
+  /*              "Program");*/
+  /*          print(" ----------------------------------------------------------\n");*/
+  /*          // put the response parameters in a j_molrespone json object*/
+  /*        }*/
+  /*        std::string plot_name = "response_" + std::to_string(freq_i);*/
+  /*        calc.write_vtk(world, 100, parameters.L() / 20, plot_name);*/
+  /**/
+  /*        world.gop.fence();*/
+  /*        // Then we restart from the previous file instead*/
+  /*      } else {*/
+  /*      }*/
+  /*    }*/
+  /*  }*/
+  /*};*/
+  /** /*/
+  /*class OptimizationCalculationStrategy : public CalculationStrategy {*/
+  /*  json paths;*/
+  /*  path output_path;*/
+  /*  ParameterManager parameters;*/
+  /*  std::unique_ptr<OptimizationStrategy> optimization_strategy;*/
+  /**/
+  /*  std::vector<std::string> available_properties = {};*/
+  /**/
+  /* public:*/
+  /*  OptimizationCalculationStrategy(ParameterManager params,*/
+  /*                                  std::unique_ptr<OptimizationStrategy>& target,*/
+  /*                                  std::string calc_name = "optimization")*/
+  /*      : parameters(std::move(params)), optimization_strategy(std::move(target)),*/
+  /*        CalculationStrategy(std::move(calc_name),*/
+  /*                            std::move(std::map<std::string, bool>{})) {}*/
+  /**/
+  /*  void setPaths(PathManager& path_manager, const path& root) override {*/
+  /*    CalculationTemplate opt;*/
+  /*    auto opt_path = root / name;*/
+  /**/
+  /*    opt.calc_paths.push_back(opt_path);*/
+  /*    opt.restarts.push_back(opt_path / "optimization_restart.00000");*/
+  /*    opt.outputs["input_molecule"] = {opt_path / "input.mol"};*/
+  /*    opt.outputs["output_molecule"] = {opt_path / "output.mol"};*/
+  /*    opt.outputs["properties"] = {opt_path / "output.json"};*/
+  /**/
+  /*    path_manager.setPath(name, opt);*/
+  /*  }*/
+  /**/
+  /*  void compute(World& world, PathManager& path_manager) override {*/
+  /*    auto opt_paths = path_manager.getPath(name);*/
+  /*    auto calc_path = opt_paths.calc_paths[0];*/
+  /*    auto restart_path = opt_paths.restarts[0];*/
+  /*    auto output_path = opt_paths.outputs["properties"][0];*/
+  /*    auto input_molecule = opt_paths.outputs["input_molecule"][0];*/
+  /*    auto output_molecule = opt_paths.outputs["output_molecule"][0];*/
+  /**/
+  /*    if (world.rank() == 0) {*/
+  /*      print("Running optimization calculations");*/
+  /*      print("Calculation path: ", calc_path);*/
+  /*      print("Restart path: ", restart_path);*/
+  /*      print("Output path: ", output_path);*/
+  /*    }*/
+  /**/
+  /*    path_manager.createDirectories(name);*/
+  /**/
+  /*    Molecule molecule = parameters.get_molecule();*/
+  /**/
+  /*    // write the input molecule to the input_molecule file*/
+  /*    if (world.rank() == 0) {*/
+  /*      std::ofstream ofs(input_molecule);*/
+  /*      json j_molecule = molecule.to_json();*/
+  /*      ofs << j_molecule.dump(4);*/
+  /*      ofs.close();*/
+  /*    }*/
+  /*    auto opt_mol = optimization_strategy->optimize(world, parameters);*/
+  /*    if (world.rank() == 0) {*/
+  /*      std::ofstream ofs(output_molecule);*/
+  /*      json j_molecule = opt_mol.to_json();*/
+  /*      ofs << j_molecule.dump(4);*/
+  /*      ofs.close();*/
+  /*    }*/
+  /*  }*/
+  /*};*/
+
+  class CalculationDriver
+  {
+  private:
+    std::string method;
+    std::unique_ptr<CompositeCalculationStrategy> strategies;
+    PathManager path_manager;
+    path root;
+    World &world;
+    int calculation_number = 0;
+
+  public:
+    explicit CalculationDriver(World &world,
+                               path base_root = std::filesystem::current_path(),
+                               std::string method = "moldft")
+        : world(world), root(std::move(base_root)), method(std::move(method)),
+          path_manager(base_root)
+    {
+      strategies = std::make_unique<CompositeCalculationStrategy>();
+    };
+    // Copy constructor with new root
+    [[nodiscard]] std::unique_ptr<CalculationDriver> clone() const
+    {
+      auto clone = std::make_unique<CalculationDriver>(world);
+      clone->method = method;
+      clone->setRoot(root);
+      for (const auto &strategy : strategies->getStrategies())
+      {
+        clone->addStrategy(strategy->clone());
+      }
+      return clone;
+    }
+    void setRoot(const path &new_root)
+    {
+      root = new_root;
+      path_manager = PathManager(new_root);
+    }
+    [[nodiscard]] path getRoot() const { return root; }
+    void setMethod(const std::string &new_method) { method = new_method; }
+    [[nodiscard]] std::string getMethod() const { return method; }
+
+    void addStrategy(std::unique_ptr<CalculationStrategy> newStrategy)
+    {
+      strategies->addStrategy(std::move(newStrategy));
+    }
+    [[nodiscard]] int getCalcNumber() const { return calculation_number; }
+    void
+    setStrategies(std::unique_ptr<CompositeCalculationStrategy> newStrategies)
+    {
+      strategies = std::move(newStrategies);
+    }
+    path get_output_path() { return path_manager.get_output_path(); }
+
+    void runCalculations(const Tensor<double> &coords)
+    {
+
+      strategies->setPaths(path_manager, root);
+
+      auto paths = path_manager.getAllPaths();
+
+      // First step is to look for the paths.json file and read it in if it exists
+
       if (world.rank() == 0)
       {
-        ::print("First order response calculations haven't been run and "
-                "can't be run");
-        ::print("Quadratic response calculations can't be run");
+        if (std::filesystem::exists("paths.json"))
+        {
+          std::ifstream ifs("paths.json");
+          json read_paths;
+          ifs >> read_paths;
+
+          paths.merge_patch(read_paths);
+        }
       }
-    }
-  }
-  static void
-  append_to_beta_json(const std::array<double, 3> &omega,
-                      const std::vector<std::string> &beta_directions,
-                      const Tensor<double> &beta,
-                      nlohmann::ordered_json &beta_json)
-  {
-    auto num_unique_elements = beta_directions.size();
-    for (int i = 0; i < num_unique_elements; i++)
-    {
 
-      const auto &ijk = beta_directions[i];
-      auto beta_value = beta[i];
-      auto A = ijk[0];
-      auto B = ijk[1];
-      auto C = ijk[2];
+      // TODO: world.gop.broadcast(paths, 0); // broadcast the paths to all the nodes isn't possible because of the json object
+      // Might not be a problem but I should look into it
 
-      beta_json["Afreq"].push_back(omega[0]);
-      beta_json["Bfreq"].push_back(omega[1]);
-      beta_json["Cfreq"].push_back(omega[2]);
-
-      beta_json["A"].push_back(std::string(1, A));
-      beta_json["B"].push_back(std::string(1, B));
-      beta_json["C"].push_back(std::string(1, C));
-      beta_json["Beta"].push_back(beta_value);
-    }
-  }
-
-  void add_beta_i_to_json(nlohmann::ordered_json &beta_i,
-                          nlohmann::ordered_json &beta_json)
-  {
-    print(beta_json.dump(4));
-
-    for (auto &[key, value] : beta_i.items())
-    {
-      beta_json[key].insert(beta_json[key].end(), value.begin(), value.end());
-    }
-  }
-};
-
-/**/
-/*class WriteResponseVTKOutputStrategy : public CalculationStrategy {*/
-/**/
-/*  ResponseParameters parameters;*/
-/*  std::string op;*/
-/*  std::string name;*/
-/**/
-/* public:*/
-/*  explicit WriteResponseVTKOutputStrategy(const ResponseParameters& params) : parameters(params){};*/
-/*  json calcPaths(const path& root) override { return {}; }*/
-/*  void runCalculation(World& world, const json& paths) override {*/
-/**/
-/*    auto& moldft_paths = paths["moldft"];*/
-/*    auto moldft_restart = moldft_paths["restart"].get<std::string>();*/
-/*    moldft_restart = std::string(path(moldft_restart).replace_extension(""));*/
-/**/
-/*    auto& response_paths = paths["response"];*/
-/*    auto& calc_paths = response_paths["calculation"];*/
-/**/
-/*    auto restart_paths = response_paths["restart"].get<std::vector<std::string>>();*/
-/*    auto output_paths = response_paths["output"].get<std::vector<std::string>>();*/
-/*    auto alpha_path = response_paths["properties"]["alpha"].get<std::string>();*/
-/*    auto freqs = response_paths["frequencies"].get<std::vector<double>>();*/
-/*    auto num_freqs = freqs.size();*/
-/**/
-/*    if (world.rank() == 0) {*/
-/*      print("Running VTK output for response calculations");*/
-/*      print("Number of frequencies: ", num_freqs);*/
-/*      print("Frequencies: ", freqs);*/
-/*      print("Output paths: ", output_paths);*/
-/*      print("Restart paths: ", restart_paths);*/
-/*    }*/
-/**/
-/*    for (size_t i = 0; i < num_freqs; i++) {*/
-/*      auto freq_i = freqs[i];*/
-/**/
-/*      if (!std::filesystem::exists(calc_paths[i])) {*/
-/*        std::filesystem::create_directory(calc_paths[i]);*/
-/*      }*/
-/*      std::filesystem::current_path(calc_paths[i]);*/
-/*      print("current path: ", std::filesystem::current_path());*/
-/*      print("calc path: ", calc_paths[i]);*/
-/*      print("freq: ", freq_i);*/
-/**/
-/*      path restart_file_i = restart_paths[i];*/
-/*      path response_base_i = output_paths[i];*/
-/**/
-/*      double last_protocol;*/
-/*      bool converged = false;*/
-/**/
-/*      if (world.rank() == 0) {*/
-/*        std::ifstream ifs(response_base_i);*/
-/*        json response_base;*/
-/*        ifs >> response_base;*/
-/*        last_protocol = *response_base["parameters"]["protocol"].get<std::vector<double>>().end();*/
-/*        converged = response_base["converged"].get<bool>();*/
-/*        print("Thresh of restart data: ", last_protocol);*/
-/*        print("Converged: ", converged);*/
-/*      }*/
-/**/
-/*      world.gop.broadcast(converged, 0);*/
-/*      world.gop.broadcast(last_protocol, 0);*/
-/**/
-/*      ResponseParameters r_params = parameters;*/
-/*      r_params.set_user_defined_value("omega", freq_i);*/
-/*      r_params.set_user_defined_value("archive", moldft_restart);*/
-/*      r_params.set_user_defined_value("restart", true);*/
-/*      std::string restart_file_string = restart_file_i.filename().stem();*/
-/*      r_params.set_user_defined_value("restart_file", restart_file_string);*/
-/*      if (converged) {*/
-/**/
-/*        GroundStateCalculation ground_calculation{world, r_params.archive()};*/
-/*        Molecule molecule = ground_calculation.molecule();*/
-/*        r_params.set_ground_state_calculation_data(ground_calculation);*/
-/*        r_params.set_derived_values(world, molecule);*/
-/*        CalcParams calc_params = {ground_calculation, molecule, r_params};*/
-/**/
-/*        RHS_Generator rhs_generator;*/
-/*        if (op == "dipole") {*/
-/*          rhs_generator = dipole_generator;*/
-/*        } else {*/
-/*          rhs_generator = nuclear_generator;*/
-/*        }*/
-/**/
-/*        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));*/
-/*        FrequencyResponse calc(world, calc_params, freq_i, rhs_generator);*/
-/*        if (world.rank() == 0) {*/
-/*          print("\n\n");*/
-/*          print(*/
-/*              " MADNESS Time-Dependent Density Functional Theory Response "*/
-/*              "Program");*/
-/*          print(" ----------------------------------------------------------\n");*/
-/*          // put the response parameters in a j_molrespone json object*/
-/*        }*/
-/*        std::string plot_name = "response_" + std::to_string(freq_i);*/
-/*        calc.write_vtk(world, 100, parameters.L() / 20, plot_name);*/
-/**/
-/*        world.gop.fence();*/
-/*        // Then we restart from the previous file instead*/
-/*      } else {*/
-/*      }*/
-/*    }*/
-/*  }*/
-/*};*/
-/** /*/
-/*class OptimizationCalculationStrategy : public CalculationStrategy {*/
-/*  json paths;*/
-/*  path output_path;*/
-/*  ParameterManager parameters;*/
-/*  std::unique_ptr<OptimizationStrategy> optimization_strategy;*/
-/**/
-/*  std::vector<std::string> available_properties = {};*/
-/**/
-/* public:*/
-/*  OptimizationCalculationStrategy(ParameterManager params,*/
-/*                                  std::unique_ptr<OptimizationStrategy>& target,*/
-/*                                  std::string calc_name = "optimization")*/
-/*      : parameters(std::move(params)), optimization_strategy(std::move(target)),*/
-/*        CalculationStrategy(std::move(calc_name),*/
-/*                            std::move(std::map<std::string, bool>{})) {}*/
-/**/
-/*  void setPaths(PathManager& path_manager, const path& root) override {*/
-/*    CalculationTemplate opt;*/
-/*    auto opt_path = root / name;*/
-/**/
-/*    opt.calc_paths.push_back(opt_path);*/
-/*    opt.restarts.push_back(opt_path / "optimization_restart.00000");*/
-/*    opt.outputs["input_molecule"] = {opt_path / "input.mol"};*/
-/*    opt.outputs["output_molecule"] = {opt_path / "output.mol"};*/
-/*    opt.outputs["properties"] = {opt_path / "output.json"};*/
-/**/
-/*    path_manager.setPath(name, opt);*/
-/*  }*/
-/**/
-/*  void compute(World& world, PathManager& path_manager) override {*/
-/*    auto opt_paths = path_manager.getPath(name);*/
-/*    auto calc_path = opt_paths.calc_paths[0];*/
-/*    auto restart_path = opt_paths.restarts[0];*/
-/*    auto output_path = opt_paths.outputs["properties"][0];*/
-/*    auto input_molecule = opt_paths.outputs["input_molecule"][0];*/
-/*    auto output_molecule = opt_paths.outputs["output_molecule"][0];*/
-/**/
-/*    if (world.rank() == 0) {*/
-/*      print("Running optimization calculations");*/
-/*      print("Calculation path: ", calc_path);*/
-/*      print("Restart path: ", restart_path);*/
-/*      print("Output path: ", output_path);*/
-/*    }*/
-/**/
-/*    path_manager.createDirectories(name);*/
-/**/
-/*    Molecule molecule = parameters.get_molecule();*/
-/**/
-/*    // write the input molecule to the input_molecule file*/
-/*    if (world.rank() == 0) {*/
-/*      std::ofstream ofs(input_molecule);*/
-/*      json j_molecule = molecule.to_json();*/
-/*      ofs << j_molecule.dump(4);*/
-/*      ofs.close();*/
-/*    }*/
-/*    auto opt_mol = optimization_strategy->optimize(world, parameters);*/
-/*    if (world.rank() == 0) {*/
-/*      std::ofstream ofs(output_molecule);*/
-/*      json j_molecule = opt_mol.to_json();*/
-/*      ofs << j_molecule.dump(4);*/
-/*      ofs.close();*/
-/*    }*/
-/*  }*/
-/*};*/
-
-class CalculationDriver
-{
-private:
-  std::string method;
-  std::unique_ptr<CompositeCalculationStrategy> strategies;
-  PathManager path_manager;
-  path root;
-  World &world;
-  int calculation_number = 0;
-
-public:
-  explicit CalculationDriver(World &world,
-                             path base_root = std::filesystem::current_path(),
-                             std::string method = "moldft")
-      : world(world), root(std::move(base_root)), method(std::move(method)),
-        path_manager(base_root)
-  {
-    strategies = std::make_unique<CompositeCalculationStrategy>();
-  };
-  // Copy constructor with new root
-  [[nodiscard]] std::unique_ptr<CalculationDriver> clone() const
-  {
-    auto clone = std::make_unique<CalculationDriver>(world);
-    clone->method = method;
-    clone->setRoot(root);
-    for (const auto &strategy : strategies->getStrategies())
-    {
-      clone->addStrategy(strategy->clone());
-    }
-    return clone;
-  }
-  void setRoot(const path &new_root)
-  {
-    root = new_root;
-    path_manager = PathManager(new_root);
-  }
-  [[nodiscard]] path getRoot() const { return root; }
-  void setMethod(const std::string &new_method) { method = new_method; }
-  [[nodiscard]] std::string getMethod() const { return method; }
-
-  void addStrategy(std::unique_ptr<CalculationStrategy> newStrategy)
-  {
-    strategies->addStrategy(std::move(newStrategy));
-  }
-  [[nodiscard]] int getCalcNumber() const { return calculation_number; }
-  void
-  setStrategies(std::unique_ptr<CompositeCalculationStrategy> newStrategies)
-  {
-    strategies = std::move(newStrategies);
-  }
-  path get_output_path() { return path_manager.get_output_path(); }
-
-  void runCalculations(const Tensor<double> &coords)
-  {
-
-    strategies->setPaths(path_manager, root);
-
-    auto paths = path_manager.getAllPaths();
-
-    // First step is to look for the paths.json file and read it in if it exists
-
-    if (world.rank() == 0)
-    {
-      if (std::filesystem::exists("paths.json"))
+      if (world.rank() == 0)
       {
-        std::ifstream ifs("paths.json");
-        json read_paths;
-        ifs >> read_paths;
 
-        paths.merge_patch(read_paths);
+        // print(paths.dump(4));
+        std::ofstream ofs("paths.json");
+        ofs << paths.dump(4);
+        ofs.close();
+
+        path_manager.createDirectories();
       }
+      world.gop.fence();
+
+      strategies->compute(world, path_manager, root, coords);
     }
 
-    // TODO: world.gop.broadcast(paths, 0); // broadcast the paths to all the nodes isn't possible because of the json object
-    // Might not be a problem but I should look into it
-
-    if (world.rank() == 0)
+    // Returns the value at a molecular position
+    double value(const Tensor<double> &x)
     {
 
-      // print(paths.dump(4));
-      std::ofstream ofs("paths.json");
-      ofs << paths.dump(4);
-      ofs.close();
+      // if opt driver setting is set to save then we copy if not we set the current directory to a new name and run
+      // test_optimize/optimize
+      // test_optimize/optimize/value_0
+      // test_optimize/optimize/value_1
+      // test_optimize/optimize/value_2
+      path root_i;
+      if (calculation_number == 0)
+      {
+        root_i = root / ("value_" + std::to_string(calculation_number));
+      }
+      else
+      {
+        root_i =
+            root.parent_path() / ("value_" + std::to_string(calculation_number));
+      }
 
-      path_manager.createDirectories();
+      this->setRoot(root_i);
+      this->runCalculations(x);
+      this->calculation_number++;
+
+      double energy = 0.0;
+      if (world.rank() == 0)
+      {
+        std::ifstream ifs(path_manager.get_output_path());
+        json output;
+        ifs >> output;
+        energy = output[method]["energy"].get<double>();
+      }
+      world.gop.broadcast(energy, 0);
+      return energy;
     }
-    world.gop.fence();
-
-    strategies->compute(world, path_manager, root, coords);
-  }
-
-  // Returns the value at a molecular position
-  double value(const Tensor<double> &x)
-  {
-
-    // if opt driver setting is set to save then we copy if not we set the current directory to a new name and run
-    // test_optimize/optimize
-    // test_optimize/optimize/value_0
-    // test_optimize/optimize/value_1
-    // test_optimize/optimize/value_2
-    path root_i;
-    if (calculation_number == 0)
+    void energy_and_gradient(const Molecule &molecule, double &energy,
+                             Tensor<double> &gradient)
     {
-      root_i = root / ("value_" + std::to_string(calculation_number));
-    }
-    else
-    {
-      root_i =
-          root.parent_path() / ("value_" + std::to_string(calculation_number));
-    }
 
-    this->setRoot(root_i);
-    this->runCalculations(x);
-    this->calculation_number++;
-
-    double energy = 0.0;
-    if (world.rank() == 0)
-    {
-      std::ifstream ifs(path_manager.get_output_path());
-      json output;
-      ifs >> output;
-      energy = output[method]["energy"].get<double>();
+      energy = this->value(molecule.get_all_coords().flat());
+      if (world.rank() == 0)
+      {
+        std::ifstream ifs(path_manager.get_output_path());
+        json output;
+        ifs >> output;
+        energy = output[method]["energy"].get<double>();
+        from_json(output[method]["gradient"], gradient);
+      }
+      world.gop.broadcast_serializable(gradient, 0);
     }
-    world.gop.broadcast(energy, 0);
-    return energy;
-  }
-  void energy_and_gradient(const Molecule &molecule, double &energy,
-                           Tensor<double> &gradient)
-  {
-
-    energy = this->value(molecule.get_all_coords().flat());
-    if (world.rank() == 0)
-    {
-      std::ifstream ifs(path_manager.get_output_path());
-      json output;
-      ifs >> output;
-      energy = output[method]["energy"].get<double>();
-      from_json(output[method]["gradient"], gradient);
-    }
-    world.gop.broadcast_serializable(gradient, 0);
-  }
-};
+  };
 
 #endif // SRC_APPS_MADQC_CALCMANAGER_HPP_

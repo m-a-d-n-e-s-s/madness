@@ -84,7 +84,7 @@ void FrequencyResponse::iterate(World &world)
     bsh_y_ops.push_back(bsh_y_ops_i);
   }
 
-  auto max_rotation = .1 * x_residual_target + x_residual_target; // r_params.maxrotn();
+  auto max_rotation = .5 * x_residual_target + x_residual_target; // r_params.maxrotn();
   PQ = generator(world, *this);
   world.gop.fence();
   PQ.truncate();
@@ -347,7 +347,7 @@ auto FrequencyResponse::update_response(
   }
 
   bool compute_y = r_params.calc_type() == "full";
-  if (iteration >= 2)
+  if (iteration >= r_params.maxsub()+2)
   {
     x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation);
   }
@@ -538,14 +538,20 @@ auto vector_to_PQ(World &world, const vector_real_function_3d &rhs_operators,
     -> response_space
 {
   response_space rhs(world, rhs_operators.size(), ground_orbitals.size());
-  auto orbitals = copy(world, ground_orbitals);
-  reconstruct(world, orbitals);
-  truncate(world, orbitals);
-  QProjector<double, 3> Qhat(orbitals);
+  auto project_orbitals = copy(world, ground_orbitals);
+  auto mul_orbitals = copy(world, ground_orbitals);
+
+  compress(world, project_orbitals, false);
+  reconstruct(world, mul_orbitals, false);
+  reconstruct(world, rhs_operators, false);
+  world.gop.fence();
+
+  QProjector<double, 3> Qhat(project_orbitals);
   int b = 0;
   for (const functionT &pi : rhs_operators)
   {
-    auto op_phi = mul(world, pi, ground_orbitals, true);
+    auto op_phi = mul(world, pi, mul_orbitals, true);
+    compress(world, op_phi, true);
     rhs[b] = Qhat(op_phi);
     b++;
   }

@@ -1792,8 +1792,8 @@ auto ResponseBase::kain_x_space_update(
   long m = static_cast<long>(chi.num_states());
   long n = static_cast<long>(chi.num_orbitals());
 
-  X_space kain_update=chi.copy();
-  //kain_update.set_active(chi.active);
+  X_space kain_update = chi.copy();
+  // kain_update.set_active(chi.active);
 
   bool compute_y = r_params.omega() != 0.0;
   if (compute_y)
@@ -1860,8 +1860,11 @@ void ResponseBase::x_space_step_restriction(World &world,
       if (norm_diff_ai > max_bsh_rotation)
       {
         double s = max_bsh_rotation / norm_diff_ai;
-        printf(" %d:%f", ai, s);
-        temp_vecs[ai] = gaxpy_oop(1.0, old_vecs[ai], 1.0 - s, temp_vecs[ai]);
+        if(world.rank() == 0)
+        {
+          printf(" %d:%f", ai, s);
+        }
+        temp_vecs[ai] = gaxpy_oop(s, old_vecs[ai], 1.0 - s, temp_vecs[ai]);
       }
     }
   }
@@ -1875,8 +1878,11 @@ void ResponseBase::x_space_step_restriction(World &world,
       if (norm_diff_ai > max_bsh_rotation)
       {
         double s = max_bsh_rotation / norm_diff_ai;
-        printf(" %d:%f", ai, s);
-        temp.x[ai] = gaxpy_oop(1.0, old_Chi.x[ai], 1.0 - s, temp.x[ai]);
+        if (world.rank() == 0)
+        {
+          printf(" %d:%f", ai, s);
+        }
+        temp.x[ai] = gaxpy_oop(s, temp.x[ai], 1.0 - s, old_Chi.x[ai]);
       }
     }
   }
