@@ -476,11 +476,7 @@ STATIC inline void geqrf_(integer *m, integer *n,
 STATIC inline void geqrf_(integer *m, integer *n,
                           real8 *a, integer *lda, real8 *tau,
                           real8 *work, integer *lwork, integer *infoOUT) {
-#if MADNESS_LINALG_USE_LAPACKE
-	dgeqrf_(LAPACK_ROW_MAJOR, m, n, a, lda, tau, infoOUT);
-#else
 	dgeqrf_(m, n, a, lda, tau, work, lwork, infoOUT);
-#endif
 }
 
 STATIC inline void geqrf_(integer *m, integer *n,
