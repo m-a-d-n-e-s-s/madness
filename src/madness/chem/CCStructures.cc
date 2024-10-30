@@ -597,7 +597,8 @@ MacroTaskSinglesPotentialEx::operator()(const std::vector<int>& result_index,
     for (auto& x : doubles_gs1.allpairs) {
         auto& tau=x.second;
         MADNESS_CHECK_THROW(tau.functions.size()==1,"doubles in MacroTaskSinglesPotentialsEx should only contain one function");
-        tau=CCPotentials::make_pair_cc2(tau.function(),singles_gs,tau.i,tau.j,info);
+        bool compute_Q12_F12=(PotentialType(name)==POT_s2b_ or PotentialType(name)==POT_s2c_);
+        tau=CCPotentials::make_pair_cc2(tau.function(),singles_gs,tau.i,tau.j,info, compute_Q12_F12);
     }
     // the doubles currently only contain the full 6d function -> complete it with the Q12 f12 |ti tj> part
     for (auto& x : doubles_ex1.allpairs) {
@@ -658,10 +659,18 @@ MacroTaskComputeCorrelationEnergy::operator()(const std::vector<CCPair>& pairs,
                                                   const Info& info) const {
      World &world = pairs[0].function().world();
      auto result=scalar_result_vector<double>(world,pairs.size());
+     CalcType ctype=pairs[0].ctype;
      for (int i=0; i<pairs.size(); ++i) {
-         // when serialized the Qf12 |ij> part is not stored in the cloud, so recompute it here
-         auto pair=CCPotentials::make_pair_mp2(pairs[i].function(),pairs[i].i,pairs[i].j,info,true);
-         result[i]=CCPotentials::compute_pair_correlation_energy(world,pair,singles_gs,info);
+         if (ctype==CT_MP2) {
+             // when serialized the Qf12 |ij> part is not stored in the cloud, so recompute it here
+             auto pair=CCPotentials::make_pair_mp2(pairs[i].function(),pairs[i].i,pairs[i].j,info,true);
+             result[i]=CCPotentials::compute_pair_correlation_energy(world,pair,singles_gs,info);
+        } else if (ctype==CT_CC2) {
+             auto pair=CCPotentials::make_pair_cc2(pairs[i].function(),singles_gs,pairs[i].i,pairs[i].j,info,true);
+             result[i]=CCPotentials::compute_pair_correlation_energy(world,pair,singles_gs,info);
+        } else {
+             MADNESS_EXCEPTION("MacroTaskComputeCorrelationEnergy: unknown ctype",1);
+        }
      }
     return result;
 }

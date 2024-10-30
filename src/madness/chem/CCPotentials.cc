@@ -372,24 +372,37 @@ CCPotentials::compute_pair_correlation_energy(World& world, const CCPair& u,
 }
 
 double
-CCPotentials::compute_cc2_correlation_energy(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info)
+CCPotentials::compute_cc2_correlation_energy(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info, const std::string msg)
 {
-    MADNESS_ASSERT(singles.type == PARTICLE);
-    CCTimer time(world, "Computing CC2 Correlation Energy");
-    // output.section("Computing CC2 Correlation Energy");
-    double result = 0.0;
-    for (const auto& tmp : doubles.allpairs) {
-        const size_t i = tmp.second.i;
-        const size_t j = tmp.second.j;
-        const double omega = compute_pair_correlation_energy(world, tmp.second, singles, info);
-        result += omega;
-        if (world.rank() == 0)
-            std::cout << std::fixed << "omega  " << i << j << " =" << std::setprecision(10) << omega << "\n";
-    }
-    if (world.rank() == 0) std::cout << std::fixed << "sum      " << " =" << std::setprecision(10) << result << "\n";
+    auto triangular_map=PairVectorMap::triangular_map(info.parameters.freeze(),info.mo_ket.size());
+    std::vector<CCPair> pair_vec=Pairs<CCPair>::pairs2vector(doubles,triangular_map);
+    MacroTaskComputeCorrelationEnergy t;
+    MacroTask task1(world, t);
+    auto pair_energies=task1(pair_vec, singles, info);
+    // pair_energies is now scattered over the universe
 
-    time.info();
-    return result;
+    double total_energy=0.0;
+    for ( auto& pair_energy : pair_energies) total_energy += pair_energy.get();
+    // pair_energy.get() invokes a broadcast from rank 0 to all other ranks
+
+    if (not msg.empty() and world.rank()==0) printf("%s %12.8f\n", msg.c_str(), total_energy);
+    return total_energy;
+//    MADNESS_ASSERT(singles.type == PARTICLE);
+//    CCTimer time(world, "Computing CC2 Correlation Energy");
+//    // output.section("Computing CC2 Correlation Energy");
+//    double result = 0.0;
+//    for (const auto& tmp : doubles.allpairs) {
+//        const size_t i = tmp.second.i;
+//        const size_t j = tmp.second.j;
+//        const double omega = compute_pair_correlation_energy(world, tmp.second, singles, info);
+//        result += omega;
+//        if (world.rank() == 0)
+//            std::cout << std::fixed << "omega  " << i << j << " =" << std::setprecision(10) << omega << "\n";
+//    }
+//    if (world.rank() == 0) std::cout << std::fixed << "sum      " << " =" << std::setprecision(10) << result << "\n";
+//
+//    time.info();
+//    return result;
 }
 
 double

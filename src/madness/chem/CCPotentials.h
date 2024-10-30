@@ -212,11 +212,11 @@ private:
 public:
     /// return the regularized MP2 ansatz: |\tau_ij> = |u_ij> + Q12 f12 |ij>
     static CCPair make_pair_mp2(const real_function_6d& u, const size_t i, const size_t j, const Info& info,
-        bool compute_Q12_f12_ij = true);
+        bool compute_Q12_f12_ij);
 
     /// return the regularized CC2 ansatz: |\tau_ij> = |u_ij> + Q12t f12 |t_i t_j>
     static CCPair make_pair_cc2(const real_function_6d& u, const CC_vecfunction& gs_singles,
-                                const size_t i, const size_t j, const Info& info, const bool compute_Q12_f12_ij=true);
+                                const size_t i, const size_t j, const Info& info, const bool compute_Q12_f12_ij);
 
     /// return the regularized CC2 ansatz: |x_ij> = |u_ij> + Q12t f12 |t_i t_j> + ?????
     static CCPair make_pair_lrcc2(const CalcType& ctype, const real_function_6d& u,
@@ -279,7 +279,7 @@ public:
     /// @param info
     static double
     compute_cc2_correlation_energy(World& world, const CC_vecfunction& singles, const Pairs<CCPair>& doubles,
-                                   const Info& info);
+                                   const Info& info, const std::string msg="");
 
 
     static double
