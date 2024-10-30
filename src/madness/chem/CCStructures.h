@@ -72,6 +72,18 @@ assign_name(const PotentialType& inp);
 std::string
 assign_name(const FuncType& inp);
 
+/// check memory usage using getrusage
+inline void print_memory_usage(const World& world) {
+    long mem=get_memory_usage();
+    std::string hostname=get_hostname();
+    std::stringstream ss;
+    ss << "memory usage of process "<< world.rank()<< " on "<< hostname<< ": "<< mem/1024/1024<<"MB";
+    std::string msg=ss.str();
+    auto memusage=world.gop.concat0(std::vector<std::string>(1,msg));
+    std::sort(memusage.begin(),memusage.end());
+    if (world.rank()==0) for (const auto& msg : memusage) print(msg);
+}
+
 // Little structure for formated output and to collect warnings
 // much room to improve
 struct CCMessenger {
