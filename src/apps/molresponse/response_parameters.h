@@ -74,6 +74,7 @@ namespace madness
       initialize<std::string>("hfexalg", "multiworld",
                               "hf exchange algorithm: choose from multiworld "
                               "(default), multiworld_row, smallmem, largemem");
+      initialize<bool>("step_restrict", true, "Toggles step restriction");
       initialize<bool>("save", false, "if true save orbitals to disk");
       initialize<std::string>("save_file", "none", "File name to save orbitals for restart");
       initialize<bool>("save_density", false, "Flag to save density at each iteration");
@@ -115,6 +116,7 @@ namespace madness
     [[nodiscard]] int print_level() const { return get<int>("print_level"); }
     [[nodiscard]] bool tda() const { return get<bool>("tda"); }
     [[nodiscard]] bool plot() const { return get<bool>("plot"); }
+    [[nodiscard]] bool step_restrict() const {return get<bool>("step_restrict");}
     [[nodiscard]] double plot_l() const { return get<double>("plot_l"); }
     [[nodiscard]] size_t plot_pts() const { return get<size_t>("plot_pts"); }
     [[nodiscard]] bool plot_all_orbitals() const { return get<bool>("plot_all_orbitals"); }

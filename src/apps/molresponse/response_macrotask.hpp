@@ -26,7 +26,7 @@ namespace madness
     class Partitioner : public MacroTaskPartitioner
     {
     public:
-      Partitioner(long stride)
+      explicit Partitioner(long stride)
       {
         max_batch_size = 1;
         result_stride = stride;
@@ -36,7 +36,7 @@ namespace madness
 
   public:
     long stride;
-    VBC_task2(long stride)
+    explicit VBC_task2(long stride)
         : stride(stride)
     {
       partitioner.reset(new Partitioner(stride));
@@ -240,7 +240,7 @@ namespace madness
 
         return results;
       };
-      const long ij = batch.result.begin;
+      const int ij = static_cast<int>(batch.result.begin);
       return compute_result(ij);
     }
   };
@@ -870,7 +870,7 @@ namespace madness
 
           auto indexer = x_space_indexer(num_orbitals);
           const auto &bx = indexer.get_x_state(si, B);
-          const auto &by = indexer.get_x_state(si, B);
+          const auto &by = indexer.get_y_state(si, B);
           auto response_orbital_index = i % (num_orbitals * 2);
 
           bool type_x = true;
@@ -898,7 +898,7 @@ namespace madness
 
         return result;
       };
-      const long ij = batch.result.begin;
+      const int ij =static_cast<int>(batch.result.begin);
       return compute_result(ij);
     }
   };
@@ -1018,7 +1018,7 @@ namespace madness
 
           auto indexer = x_space_indexer(num_orbitals);
           const auto &bx = indexer.get_x_state(si, B);
-          const auto &by = indexer.get_x_state(si, B);
+          const auto &by = indexer.get_y_state(si, B);
           auto response_orbital_index = i % (num_orbitals * 2);
 
           bool type_x = true;
@@ -1046,7 +1046,7 @@ namespace madness
 
         return result;
       };
-      const long ij = batch.result.begin;
+      const int ij = static_cast<int>(batch.result.begin);
       return compute_result(ij);
     }
   };

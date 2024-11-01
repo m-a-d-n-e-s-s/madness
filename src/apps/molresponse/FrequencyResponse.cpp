@@ -347,7 +347,7 @@ auto FrequencyResponse::update_response(
   }
 
   bool compute_y = r_params.calc_type() == "full";
-  if (iteration >= r_params.maxsub()+2)
+  if (iteration >= r_params.maxsub()+2 && r_params.step_restrict())
   {
     x_space_step_restriction(world, chi, new_chi, compute_y, max_rotation);
   }
