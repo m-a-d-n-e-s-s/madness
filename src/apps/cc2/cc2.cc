@@ -97,7 +97,11 @@ int main(int argc, char **argv) {
             nemo->molecule().print();
         }
         double hf_energy = nemo->value();
-        cc2.solve();
+        try {
+            cc2.solve();
+        } catch (std::exception& e) {
+            print("Caught exception: ", e.what());
+        }
 
         if (world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
         world.gop.fence();

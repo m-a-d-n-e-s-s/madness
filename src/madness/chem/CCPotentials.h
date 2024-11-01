@@ -211,17 +211,18 @@ private:
 
 public:
     /// return the regularized MP2 ansatz: |\tau_ij> = |u_ij> + Q12 f12 |ij>
-    static CCPair make_pair_mp2(const real_function_6d& u, const size_t i, const size_t j, const Info& info,
-        bool compute_Q12_f12_ij);
+    static CCPair make_pair_mp2(World& world, const real_function_6d& u, const size_t i, const size_t j,
+                                const Info& info, bool compute_Q12_f12_ij);
 
     /// return the regularized CC2 ansatz: |\tau_ij> = |u_ij> + Q12t f12 |t_i t_j>
-    static CCPair make_pair_cc2(const real_function_6d& u, const CC_vecfunction& gs_singles,
-                                const size_t i, const size_t j, const Info& info, const bool compute_Q12_f12_ij);
+    static CCPair make_pair_cc2(World& world, const real_function_6d& u,
+                                const CC_vecfunction& gs_singles, const size_t i, const size_t j, const Info& info, const bool compute_Q12_f12_ij);
 
     /// return the regularized CC2 ansatz: |x_ij> = |u_ij> + Q12t f12 |t_i t_j> + ?????
-    static CCPair make_pair_lrcc2(const CalcType& ctype, const real_function_6d& u,
-                                  const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
-                                  const size_t i, const size_t j, const Info& info);
+    static CCPair make_pair_lrcc2(World& world, const CalcType& ctype,
+                                  const real_function_6d& u, const CC_vecfunction& gs_singles,
+                                  const CC_vecfunction& ex_singles, const size_t i, const size_t j, const Info& info,
+                                  const bool compute_Q12_f12);
 
     // Pair functions
 

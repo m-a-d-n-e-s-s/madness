@@ -226,18 +226,15 @@ public:
     /// type: PARTICLE (cc2) or RESPONSE (lrcc2)
     /// default_to_zero: if true, initialize with zero functions, otherwise return empty vector
     /// ex: if type is RESPONSE, the excitation number
-    CC_vecfunction initialize_singles(const CalcType& ctype, const FuncType type, const bool default_to_zero, int ex=-1) const;
+    static CC_vecfunction
+    initialize_singles(World&, const CalcType& ctype, const FuncType type, int ex=-1);
+
+    static CC_vecfunction
+    initialize_singles_to_zero(World& world, const CalcType& ctype, const FuncType type, const Info& info);
 
     /// read pairs from file or initialize new ones
     bool initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType ctype, const CC_vecfunction& tau,
                           const CC_vecfunction& x, const size_t extitation, const Info& info) const;
-
-    static void
-    update_reg_residues_gs(World& world, const CC_vecfunction& singles, Pairs<CCPair>& doubles, const Info& info);
-
-    static void
-    update_reg_residues_ex(World& world, const CC_vecfunction& singles, const CC_vecfunction& response, Pairs<CCPair>& doubles,
-        const Info& info);
 
     /// Iterates a pair of the CC2 doubles equations
     bool

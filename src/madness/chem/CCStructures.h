@@ -1107,17 +1107,34 @@ public:
 struct CCIntermediatePotentials {
     CCIntermediatePotentials() = default;
     CCIntermediatePotentials(const CCParameters& p) : parameters(p) {};
-
     CCIntermediatePotentials(const CCIntermediatePotentials& other) = default;
     CCIntermediatePotentials& operator=(const CCIntermediatePotentials& other) = default;
 
+    /// check if the intermediate potential exists
+    bool potential_exists(const CC_vecfunction& f, const PotentialType& type) const {
+        return potential_exists(type,f.type);
+    }
+
+    /// check if the intermediate potential exists
+    bool potential_exists(const PotentialType& type,const FuncType& ftype) const {
+        bool exists=get_potential(type,ftype,false).size()>0;
+        return exists;
+    }
+
+    /// return a vector of the intermediate potentials
+
+    /// @param[in] ptype: the potential type (POT_SINGLES, POT_S2B, ..)
+    /// @param[in] ftype: the function type (HOLE, PARTICLE, RESPONSE)
+    vector_real_function_3d
+    get_potential(const PotentialType& ptype, const FuncType& ftype, const bool throw_if_empty) const;
+
     /// fetches the correct stored potential or throws an exception
     vector_real_function_3d
-    operator()(const CC_vecfunction& f, const PotentialType& type) const;
+    operator()(const CC_vecfunction& f, const PotentialType& type, const bool throw_if_empty) const;
 
     /// fetch the potential for a single function
     Function<double,3>
-    operator()(const CCFunction<double,3>& f, const PotentialType& type) const;
+    operator()(const CCFunction<double,3>& f, const PotentialType& type, const bool throw_if_empty) const;
 
     /// deltes all stored potentials
     void clear_all() {
@@ -1474,6 +1491,8 @@ public:
     std::string basename="SinglesPotentialEx";
     MacroTaskSinglesPotentialEx() {
         name="SinglesPotentialEx";
+        partitioner->max_batch_size=2;
+        partitioner->min_batch_size=2;
     }
 
     typedef std::tuple<
