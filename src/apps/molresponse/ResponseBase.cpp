@@ -24,7 +24,6 @@ ResponseBase::ResponseBase(World &world, const CalcParams &params)
                  r_params.print_level() >= 3);
   r_params.to_json(j_molresponse);
 
-  // Set the Box Size and Truncate Mode
   FunctionDefaults<3>::set_cubic_cell(-r_params.L(), r_params.L());
   FunctionDefaults<3>::set_truncate_mode(1);
 }
@@ -161,10 +160,10 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
   std::vector<real_function_3d> fx = apply(world, Dx, phi);
   std::vector<real_function_3d> fy = apply(world, Dy, phi);
   std::vector<real_function_3d> fz = apply(world, Dz, phi);
-  compress(world, fx, false);
-  compress(world, fy, false);
-  compress(world, fz, false);
-  compress(world, phi, false);
+  compress(world, fx, true);
+  compress(world, fy, true);
+  compress(world, fz, true);
+  compress(world, phi, true);
   world.gop.fence();
 
   // Construct T according to above formula
@@ -176,22 +175,15 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
        matrix_inner(world, fz, fz));
   real_function_3d v_nuc = potential_manager->vnuclear();
   v_nuc.truncate();
-
-  // V_coul next
-  // This does not include final multiplication of each orbital
-  // 2 is from integrating out spin
   real_function_3d v_coul = 2.0 * Coulomb(world);
-
   // Clear old stored potentials  Made this mutable
   stored_v_coul.clear();
   stored_v_nuc.clear();
-
   // If storing potentials, save them here
   if (r_params.store_potential()) {
     stored_v_nuc = copy(v_nuc);
     stored_v_coul = copy(v_coul);
   }
-
   // v_nuc comes out negative from potential manager, so add it
   real_function_3d v_local = v_coul + v_nuc;
   stored_potential.clear();
@@ -209,27 +201,21 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
     const double lo = 1.e-10;
     Exchange<double, 3> k{world, lo};
     if (r_params.hfexalg() == "multiworld") {
-      // if (world.rank() == 0) print("selecting exchange multi world");
       k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
     } else if (r_params.hfexalg() == "multiworld_row") {
-      // if (world.rank() == 0) print("selecting exchange multi world
-      // efficient");
       k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient_row);
     } else if (r_params.hfexalg() == "largemem") {
-      // if (world.rank() == 0) print("selecting exchange large memory");
       k.set_algorithm(Exchange<double, 3>::Algorithm::large_memory);
     } else if (r_params.hfexalg() == "smallmem") {
-      // if (world.rank() == 0) print("selecting exchange small memory");
       k.set_algorithm(Exchange<double, 3>::Algorithm::small_memory);
     }
     k.set_bra_and_ket(phi0, phi0);
     // k.set_symmetric(true).set_printlevel(r_params.print_level());
-
     auto kphi = k(phi);
     auto excv = inner(world, kphi, phi0);
     double exchf = 0.0;
-    for (unsigned long i = 0; i < phi.size(); ++i) {
-      exchf -= 0.5 * excv[i];
+    for (size_t i = 0; i < phi.size(); ++i) {
+      exchf -= 0.5 * excv[static_cast<long>(i)];
     }
     if (!xcf.is_spin_polarized())
       exchf *= 2.0;
@@ -240,20 +226,15 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
   }
   // compute the local DFT potential for the MOs
   if (xcf.is_dft() && (xcf.hf_exchange_coefficient() != 1.0)) {
-    //??RJH?? Won't this incorrectly exclude hybrid DFT with coeff=1.0?
     molresponse::start_timer(world);
     auto xcoperator = make_xc_operator(world);
-
     exc = xcoperator.compute_xc_energy();
     v_local += xcoperator.make_xc_potential();
-
     molresponse::end_timer(world, "DFT potential");
   }
   v_local.truncate();
-
   gaxpy(world, 1.0, Vpsi, 1.0, mul_sparse(world, v_local, phi0, vtol));
   truncate(world, Vpsi);
-
   if (r_params.store_potential()) {
     stored_potential.clear();
     for (int i = 0; i < r_params.num_states(); i++) {
@@ -275,8 +256,6 @@ auto ResponseBase::ComputeHamiltonianPair(World &world) const
   for (int64_t i = 0; i < new_hamiltonian.dim(0); i++) {
     traceOfHamiltonian += new_hamiltonian(i, i);
   }
-  // Save a matrix that is
-  // (T+phiVphi) - Lambda * eye
   // Copy new_hamiltonian and zero the diagonal
   auto new_hamiltonian_no_diag = copy(new_hamiltonian);
   for (size_t i = 0; i < num_orbitals; i++)
@@ -1711,9 +1690,6 @@ void ResponseBase::solve(World &world) {
         first_protocol = false;
       } else {
         this->initialize(world);
-        if (world.rank() == 0) {
-          print("Successfully initialized ");
-        }
       }
       check_k(world, iter_thresh, FunctionDefaults<3>::get_k());
       first_protocol = false;

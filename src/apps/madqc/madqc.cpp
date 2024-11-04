@@ -55,141 +55,141 @@ using namespace madness;
 
 static double ttt, sss;
 
-static void START_TIMER(World& world) {
+static void START_TIMER(World &world) {
   world.gop.fence();
   ttt = wall_time();
   sss = cpu_time();
 }
 
-static void END_TIMER(World& world, const char* msg) {
+static void END_TIMER(World &world, const char *msg) {
   ttt = wall_time() - ttt;
   sss = cpu_time() - sss;
   if (world.rank() == 0)
     printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
 }
 
-int main(int argc, char** argv) {
-  World& world = initialize(argc, argv);
+int main(int argc, char **argv) {
+  World &world = initialize(argc, argv);
   if (world.rank() == 0) {
     print_header1("MADQC -- Multiresolution Quantum Chemsitry Code ");
   }
 
-  {  // limit lifetime of world so that finalize() can execute cleanly
+  { // limit lifetime of world so that finalize() can execute cleanly
     START_TIMER(world);
-    try {
-      // Load info for MADNESS numerical routines
-      startup(world, argc, argv, true);
-      if (world.rank() == 0)
-        print(info::print_revision_information());
+    //  try {
+    // Load info for MADNESS numerical routines
+    startup(world, argc, argv, true);
+    if (world.rank() == 0)
+      print(info::print_revision_information());
 
-      commandlineparser parser(argc, argv);
-      ParameterManager params;
-      // Initialize the necessary components
-      path input_file(argv[1]);
-      if (world.rank() == 0) {
-        print("Input file found");
-        print("Parsing Command Line");
-      }
-      params = ParameterManager(world, input_file);
-
-      auto task_params = params.get_task_params();
-
-      auto method = task_params.method;
-      auto driver = task_params.driver;
-      auto properties = task_params.properties;
-      auto molecule = params.get_molecule();
-
-      if (world.rank() == 0) {
-        task_params.print();
-      }
-
-      // Create the CalcManager using the factory function
-      // if driver is energy use createCalcManager
-      // if driver is optimmize use createOptimizeManager
-      // if driver is custom use createCustomManager
-
-      path cwd = std::filesystem::current_path();
-      path root;
-      if (driver == "energy") {
-        root = cwd;
-
-      } else if (driver == "optimize") {
-        root = cwd / "optimize";
-        std::filesystem::create_directory(root);
-        std::filesystem::current_path(root);
-      }
-
-      auto calc_manager =
-          createEnergyDriver(world, method, params, properties, root);
-
-      if (driver == "optimize") {
-
-        // calc_manager = createOptimizationDriver(method, params);
-        auto& opt_params = params.get_optimization_params();
-        MolOpt opt(opt_params.get_maxiter(),             // geoometry max iter
-                   0.1,                                  // geometry step size
-                   opt_params.get_value_precision(),     // value precision
-                   opt_params.get_geometry_tolerence(),  // geometry tolerance
-                   1e-3,                                 // XTOL
-                   1e-5,                                 // EPREC
-                   opt_params.get_gradient_precision(),  // gradient precision
-                   (world.rank() == 0) ? 1 : 0,          // print_level
-                   opt_params.get_algopt());             // algorithm options
-
-        auto new_molecule = opt.optimize(molecule, *calc_manager);
-        // Get output directory
-        std::filesystem::current_path(cwd);
-
-        if (world.rank() == 0) {
-          json final_output;
-          print("Optimization completed successfully.");
-          std::ifstream ifs(calc_manager->get_output_path());
-          ifs >> final_output;
-          print(final_output.dump(4));
-          ifs.close();
-          std::ofstream ofs(root / "output.json");
-          ofs << final_output[method].dump(4);
-          ofs.close();
-        }
-      } else if (driver == "energy") {
-        calc_manager->runCalculations(molecule.get_all_coords().flat());
-      } else {
-        throw std::runtime_error("Invalid driver");
-      }
-      // Run the calculations
-
-      std::cout << "Calculations completed successfully." << std::endl;
-
-      if (parser.key_exists("help")) {
-        ParameterManager::help();
-      }
-    } catch (const SafeMPI::Exception& e) {
-      print(e);
-      error("caught an MPI exception");
-    } catch (const madness::MadnessException& e) {
-      print(e);
-      error("caught a MADNESS exception");
-    } catch (const madness::TensorException& e) {
-      print(e);
-      error("caught a Tensor exception");
-    } catch (const char* s) {
-      print(s);
-      error("caught a string exception");
-    } catch (const std::string& s) {
-      print(s);
-      error("caught a string (class) exception");
-    } catch (const std::exception& e) {
-      print(e.what());
-      error("caught an STL exception");
-    } catch (...) {
-      error("caught unhandled exception");
+    commandlineparser parser(argc, argv);
+    ParameterManager params;
+    // Initialize the necessary components
+    path input_file(argv[1]);
+    if (world.rank() == 0) {
+      print("Input file found");
+      print("Parsing Command Line");
     }
+    params = ParameterManager(world, input_file);
+
+    auto task_params = params.get_task_params();
+
+    auto method = task_params.method;
+    auto driver = task_params.driver;
+    auto properties = task_params.properties;
+    auto molecule = params.get_molecule();
+
+    if (world.rank() == 0) {
+      task_params.print();
+    }
+
+    // Create the CalcManager using the factory function
+    // if driver is energy use createCalcManager
+    // if driver is optimmize use createOptimizeManager
+    // if driver is custom use createCustomManager
+
+    path cwd = std::filesystem::current_path();
+    path root;
+    if (driver == "energy") {
+      root = cwd;
+
+    } else if (driver == "optimize") {
+      root = cwd / "optimize";
+      std::filesystem::create_directory(root);
+      std::filesystem::current_path(root);
+    }
+
+    auto calc_manager =
+        createEnergyDriver(world, method, params, properties, root);
+
+    if (driver == "optimize") {
+
+      // calc_manager = createOptimizationDriver(method, params);
+      auto &opt_params = params.get_optimization_params();
+      MolOpt opt(opt_params.get_maxiter(),            // geoometry max iter
+                 0.1,                                 // geometry step size
+                 opt_params.get_value_precision(),    // value precision
+                 opt_params.get_geometry_tolerence(), // geometry tolerance
+                 1e-3,                                // XTOL
+                 1e-5,                                // EPREC
+                 opt_params.get_gradient_precision(), // gradient precision
+                 (world.rank() == 0) ? 1 : 0,         // print_level
+                 opt_params.get_algopt());            // algorithm options
+
+      auto new_molecule = opt.optimize(molecule, *calc_manager);
+      // Get output directory
+      std::filesystem::current_path(cwd);
+
+      if (world.rank() == 0) {
+        json final_output;
+        print("Optimization completed successfully.");
+        std::ifstream ifs(calc_manager->get_output_path());
+        ifs >> final_output;
+        print(final_output.dump(4));
+        ifs.close();
+        std::ofstream ofs(root / "output.json");
+        ofs << final_output[method].dump(4);
+        ofs.close();
+      }
+    } else if (driver == "energy") {
+      calc_manager->runCalculations(molecule.get_all_coords().flat());
+    } else {
+      throw std::runtime_error("Invalid driver");
+    }
+    // Run the calculations
+
+    std::cout << "Calculations completed successfully." << std::endl;
+
+    if (parser.key_exists("help")) {
+      ParameterManager::help();
+    }
+    /*} catch (const SafeMPI::Exception& e) {*/
+    /*  print(e);*/
+    /*  error("caught an MPI exception");*/
+    /*} catch (const madness::MadnessException& e) {*/
+    /*  print(e);*/
+    /*  error("caught a MADNESS exception");*/
+    /*} catch (const madness::TensorException& e) {*/
+    /*  print(e);*/
+    /*  error("caught a Tensor exception");*/
+    /*} catch (const char* s) {*/
+    /*  print(s);*/
+    /*  error("caught a string exception");*/
+    /*} catch (const std::string& s) {*/
+    /*  print(s);*/
+    /*  error("caught a string (class) exception");*/
+    /*} catch (const std::exception& e) {*/
+    /*  print(e.what());*/
+    /*  error("caught an STL exception");*/
+    /*} catch (...) {*/
+    /*  error("caught unhandled exception");*/
+    /*}*/
 
     // Nearly all memory will be freed at this point
     world.gop.fence();
     world.gop.fence();
     print_stats(world);
-  }  // world is dead -- ready to finalize
+  } // world is dead -- ready to finalize
   finalize();
 
   return 0;

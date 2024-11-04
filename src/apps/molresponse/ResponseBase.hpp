@@ -145,16 +145,34 @@ public:
                                           bool update) const override {
 
     vector_real_function_3d rho_new;
+    int n = static_cast<int>(x.num_states());
+    int num_orbitals = static_cast<int>(x.num_orbitals());
+    //
+    auto make_density = [&](const vector_real_function_3d &x,
+                            const vector_real_function_3d &phi0) {
+      functionT rho = factoryT(world);
+      rho.compress();
+
+      vector_real_function_3d products(num_orbitals);
+      for (int i = 0; i < num_orbitals; i++) {
+        products[i] = x[i] * phi0[i % num_orbitals];
+      }
+      compress(world, products);
+      for (int i = 0; num_orbitals; i++) {
+        rho.gaxpy(1.0, products[i], 1.0, false);
+      }
+      world.gop.fence();
+      products.clear();
+      return rho;
+    };
+
     if (update) {
       rho_new = copy(world, rho1);
     } else {
       rho_new = zero_functions<double, 3>(world, x.num_states());
     }
-    vector_real_function_3d x_phi, y_phi;
-
     for (const auto &b : x.active) {
-
-      rho_new[b] = 2 * dot(world, x.x[b], phi0);
+      rho_new[b] = 2.0 * make_density(x.x[b], phi0);
     }
     world.gop.fence();
     truncate(world, rho_new);
@@ -168,6 +186,31 @@ public:
                                           const vector_real_function_3d &rho1,
                                           bool update) const override {
     vector_real_function_3d rho_new;
+
+    // compres
+    int n = static_cast<int>(x.num_states());
+    int num_orbitals = static_cast<int>(x.num_orbitals());
+    int num_xy = 2 * num_orbitals;
+    auto x_vec = to_response_matrix(x);
+
+    //
+    auto make_density = [&](vector_real_function_3d &x, auto &phi0) {
+      functionT rho = factoryT(world);
+      rho.compress();
+
+      vector_real_function_3d products(num_xy);
+      for (int i = 0; i < num_xy; i++) {
+        products[i] = x[i] * phi0[i % num_orbitals];
+      }
+      compress(world, products);
+      for (int i = 0; i < num_xy; i++) {
+        rho.gaxpy(1.0, products[i], 1.0, false);
+      }
+      world.gop.fence();
+      products.clear();
+      return rho;
+    };
+
     if (update) {
       rho_new = copy(world, rho1);
     } else {
@@ -175,12 +218,8 @@ public:
     }
     vector_real_function_3d x_phi, y_phi;
     for (const auto &b : x.active) {
-      rho_new[b] = dot(world, x.x[b], phi0, true);
+      rho_new[b] = make_density(x_vec[b], phi0);
     }
-    for (const auto &b : x.active) {
-      rho_new[b] += dot(world, x.y[b], phi0, true);
-    }
-
     truncate(world, rho_new);
 
     return rho_new;
@@ -847,7 +886,9 @@ protected:
                        const Tensor<double> &old_residuals,
                        const X_space &xres_old) -> residuals;
 
-  auto kain_rf_space_update(World &world, const X_space &chi, const X_space &residual_chi, response_function_solver &kain_x_space) -> X_space;
+  auto kain_rf_space_update(World &world, const X_space &chi,
+                            const X_space &residual_chi,
+                            response_function_solver &kain_x_space) -> X_space;
 
   auto compute_response_potentials(World &world, const X_space &chi,
                                    XCOperator<double, 3> &xc,

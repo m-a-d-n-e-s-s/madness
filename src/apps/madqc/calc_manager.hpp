@@ -585,11 +585,9 @@ public:
   }
 
   bool runFrequency(World &world, ResponseParameters &r_params,
-                    double frequency, const std::string &moldft_restart) {
+                    GroundStateCalculation &ground_calculation,
+                    const Molecule &molecule) {
     auto op = r_params.perturbation();
-
-    // Set the response parameters
-
     if (world.rank() == 0) {
       json input_json = {};
       input_json["response"] = r_params.to_json_if_precedence("defined");
@@ -599,8 +597,6 @@ public:
     bool converged = false;
     // if rbase exists and converged I just return save path and true
     if (world.rank() == 0) {
-      ::print("Checking if response has converged for frequency: ", frequency);
-
       if (std::filesystem::exists("response_base.json")) {
         {
           std::ifstream ifs("response_base.json");
@@ -613,28 +609,20 @@ public:
         }
       }
     }
+    world.gop.fence();
     world.gop.broadcast(converged, 0);
-    // add logic to compute alpha.json if needed
-
     if (converged) {
       return true;
     } else {
-      world.gop.fence();
-      if (world.rank() == 0) {
-        ::print("Running response calculation for frequency: ", frequency);
-      }
 
-      GroundStateCalculation ground_calculation{world, moldft_restart};
-      Molecule molecule = ground_calculation.molecule();
       r_params.set_ground_state_calculation_data(ground_calculation);
       r_params.set_derived_values(world, molecule);
-      if (frequency == 0) {
+      if (r_params.omega() == 0) {
         r_params.set_derived_value<std::string>("calc_type", "static");
       } else {
         r_params.set_derived_value<std::string>("calc_type", "full");
       }
       CalcParams calc_params = {ground_calculation, molecule, r_params};
-
       RHS_Generator rhs_generator;
       if (op == "dipole") {
         rhs_generator = dipole_generator;
@@ -642,18 +630,13 @@ public:
         rhs_generator = nuclear_generator;
       }
       FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
-      FrequencyResponse calc(world, calc_params, frequency, rhs_generator);
+      FrequencyResponse calc(world, calc_params, rhs_generator);
       if (world.rank() == 0) {
         ::print("\n\n");
         ::print(" MADNESS Time-Dependent Density Functional Theory Response "
                 "Program");
         ::print(
             " ----------------------------------------------------------\n");
-        ::print("\n");
-        calc_params.molecule.print();
-        ::print("\n");
-        calc_params.response_parameters.print("response");
-        // put the response parameters in a j_molrespone json object
         calc_params.response_parameters.to_json(calc.j_molresponse);
       }
       calc.solve(world);
@@ -675,15 +658,14 @@ public:
         append_to_alpha_json(omega, ij, alpha, alpha_json);
         calc.j_molresponse["properties"] = {};
         calc.j_molresponse["properties"]["alpha"] = alpha_json;
-
-        // set protocol to the first
-        // calc.time_data.to_json(calc.j_molresponse);
         calc.output_json();
-      }
 
+        converged = calc.j_molresponse["converged"];
+      }
+      world.gop.broadcast(converged, 0);
       world.gop.fence();
       // calc.time_data.print_data();
-      return calc.j_molresponse["converged"];
+      return converged;
     }
   }
 
@@ -691,7 +673,6 @@ public:
                const Tensor<double> &coords) override {
 
     auto path_key = name; // access from path manager
-
     auto moldft_paths = path_manager.getPath(input_names[0]);
     auto response_paths = path_manager.getPath(path_key);
 
@@ -710,6 +691,45 @@ public:
     alpha_json["ij"] = json::array();
     alpha_json["alpha"] = json::array();
 
+    auto set_restart_params = [&](ResponseParameters &r_params,
+                                  const vector<double> &freqs, const size_t &i,
+                                  const CalculationTemplate &response_paths) {
+      auto freq = freqs[i];
+      auto restart_path_i = root / response_paths.restarts[i];
+      bool restart = true;
+      const path &save_path =
+          restart_path_i; // current restart path aka save path
+      path restart_path = (i > 0) ? root / response_paths.restarts[i - 1]
+                                  : root / response_paths.restarts[i];
+      std::string save_string = save_path.filename().stem();
+      r_params.set_user_defined_value("omega", freq);
+      r_params.set_user_defined_value("archive", moldft_restart);
+      if (last_converged || i == 0) {
+        r_params.set_user_defined_value("save", true);
+        r_params.set_user_defined_value("save_file", save_string);
+        if (restart) { // if we are trying a restart calculation
+          if (std::filesystem::exists(save_path)) {
+            r_params.set_user_defined_value("restart", true);
+            r_params.set_user_defined_value("restart_file", save_string);
+          } else if (std::filesystem::exists(restart_path)) {
+            r_params.set_user_defined_value("restart", true);
+            auto new_restart_path = path("../") /
+                                    restart_path.parent_path().stem() /
+                                    restart_path.filename().stem();
+            r_params.set_user_defined_value("restart_file",
+                                            new_restart_path.string());
+          } else {
+            r_params.set_user_defined_value("restart", false);
+          }
+        }
+      } else {
+        throw Response_Convergence_Error{};
+      }
+    };
+
+    GroundStateCalculation ground_calculation{world, moldft_restart};
+    Molecule molecule = ground_calculation.molecule();
+
     for (size_t i = 0; i < num_freqs; i++) {
       auto freq_i = freqs[i];
       auto calc_path_i = root / response_paths.calc_paths[i];
@@ -718,71 +738,14 @@ public:
 
       std::filesystem::current_path(calc_path_i);
 
-      if (world.rank() == 0) {
-        print("current path: ", std::filesystem::current_path());
-        print("calc path: ", calc_path_i);
-        print("restart path: ", restart_path_i);
-        print("freq: ", freq_i);
-      }
-
-      bool restart = true;
-      path save_path = restart_path_i; // current restart path aka save path
-      path restart_path = (i > 0) ? root / response_paths.restarts[i - 1]
-                                  : root / response_paths.restarts[i];
-      std::string save_string = save_path.filename().stem();
-      if (world.rank() == 0) {
-        ::print("-------------Running response------------ at frequency: ",
-                freq_i);
-        /*::print("moldft restart path", moldft_restart);*/
-        /*::print("restart path", restart_path);*/
-        /*::print("save path", save_path);*/
-        /*::print("save string", save_string);*/
-      }
-
       ResponseParameters r_params = parameters;
-
-      r_params.set_user_defined_value("omega", freq_i);
-
-      r_params.set_user_defined_value("archive", moldft_restart);
-      if (last_converged || i == 0) {
-        if (world.rank() == 0) {
-          r_params.set_user_defined_value("save", true);
-          r_params.set_user_defined_value("save_file", save_string);
-          if (restart) { // if we are trying a restart calculation
-            if (std::filesystem::exists(save_path)) {
-              // if the save path exists then we know we can
-              //  restart from the previous save
-              r_params.set_user_defined_value("restart", true);
-              r_params.set_user_defined_value("restart_file", save_string);
-            } else if (std::filesystem::exists(restart_path)) {
-              ::print("restart path exists", restart_path);
-              r_params.set_user_defined_value("restart", true);
-              ::print(restart_path.parent_path().stem());
-              ::print(restart_path.filename().stem());
-
-              // get the directory of the restart path
-              auto new_restart_path = path("../") /
-                                      restart_path.parent_path().stem() /
-                                      restart_path.filename().stem();
-
-              // format restart path to be ../restart_path/restart_path
-
-              //
-              ::print("new restart file: ", restart_path);
-              r_params.set_user_defined_value("restart_file",
-                                              new_restart_path.string());
-              // Then we restart from the previous file instead
-            } else {
-              r_params.set_user_defined_value("restart", false);
-            }
-            // neither file exists therefore you need to start from fresh
-          }
-        }
-      } else {
-        throw Response_Convergence_Error{};
+      if (world.rank() == 0) {
+        set_restart_params(r_params, freqs, i, response_paths);
       }
       world.gop.broadcast_serializable(r_params, 0);
-      last_converged = runFrequency(world, r_params, freq_i, moldft_restart);
+
+      last_converged =
+          runFrequency(world, r_params, ground_calculation, molecule);
 
       nlohmann::ordered_json alpha_i;
 
@@ -797,10 +760,9 @@ public:
         print("last converged: ", last_converged);
         print(alpha_i.dump(4));
       }
-
-      // combine alpha_json_i with alpha_json
       add_alpha_i_to_json(alpha_i, alpha_json);
     }
+
     std::ofstream out_file(alpha_outpath);
     if (world.rank() == 0) {
       out_file << alpha_json.dump(4);
