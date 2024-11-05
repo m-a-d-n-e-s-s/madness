@@ -592,6 +592,9 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
         return tmp;
     }
 
+    void reconstruct() const {
+        for (auto& x : functions) x.second.function.reconstruct();
+    }
 
 //madness::CC_vecfunction
 //CC_vecfunction::copy() const {
@@ -1053,6 +1056,14 @@ public:
         if (cexist) ar & constant_part;
     }
 
+    /// reconstruct constant part and all functions
+    void reconstruct() const {
+        constant_part.reconstruct();
+        for (auto& f : functions) {
+            if (f.is_assigned() and f.is_pure()) f.get_function().reconstruct();
+        }
+    }
+
     bool load_pair(World& world) {
         std::string fname=this->name();
         bool exists = archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>::exists(world, fname.c_str());
@@ -1135,6 +1146,16 @@ struct CCIntermediatePotentials {
     /// fetch the potential for a single function
     Function<double,3>
     operator()(const CCFunction<double,3>& f, const PotentialType& type, const bool throw_if_empty) const;
+
+    void reconstruct() const {
+        madness::reconstruct(current_s2b_potential_ex_);
+        madness::reconstruct(current_s2b_potential_gs_);
+        madness::reconstruct(current_s2c_potential_ex_);
+        madness::reconstruct(current_s2c_potential_gs_);
+        madness::reconstruct(current_singles_potential_ex_);
+        madness::reconstruct(current_singles_potential_gs_);
+        madness::reconstruct(unprojected_cc2_projector_response_);
+    }
 
     /// deltes all stored potentials
     void clear_all() {
@@ -1250,6 +1271,16 @@ struct Info {
         vector_real_function_3d result;
         for (size_t i = parameters.freeze(); i < mo_bra.size(); i++) result.push_back(mo_bra[i]);
         return result;
+    }
+
+    void reconstruct() const {
+        madness::reconstruct(mo_bra);
+        madness::reconstruct(mo_ket);
+        R_square.reconstruct();
+        madness::reconstruct(U1);
+        U2.reconstruct();
+        intermediate_potentials.reconstruct();
+
     }
 
     /// customized function to store this to the cloud

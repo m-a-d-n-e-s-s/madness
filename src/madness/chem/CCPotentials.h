@@ -77,9 +77,10 @@ public:
             ar & f;
             if (do_print) f.print_size(name);
             if (f.is_compressed()) {
-                if (do_print) print("function is compressed -- reconstructing");
+                if (world.rank()==0 and do_print) print("function is compressed -- reconstructing");
                 f.change_tree_state(reconstructed);
                 if (do_print) f.print_size(name+" reconstructed");
+                save(f, name);
             }
             f.set_thresh(FunctionDefaults<NDIM>::get_thresh());
             f.truncate();

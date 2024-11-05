@@ -1380,8 +1380,8 @@ std::vector<CCPairFunction<double,6>>
     // calculate the regularized potential
     real_function_6d V=real_factory_6d(world);
     std::vector<CCPairFunction<double,6>> V_lowrank;
-    // if (exists("Ue")) V += apply_Ue(world,ti,tj,info,&Gscreen);
-    // if (exists("KffK")) V -= apply_KffK(world,ti,tj,info,&Gscreen);
+    if (exists("Ue")) V += apply_Ue(world,ti,tj,info,&Gscreen);
+    if (exists("KffK")) V -= apply_KffK(world,ti,tj,info,&Gscreen);
     if (exists("reduced_Fock")) V += apply_reduced_F(world,ti,tj,info,&Gscreen);
     if (exists("comm_F_Qt_f12")) {
         V_lowrank += apply_commutator_F_Qt_f12(world,ti,tj,gs_singles,ex_singles,info,&Gscreen);
@@ -2291,6 +2291,8 @@ CCPotentials::get_CC2_singles_potential_gs(World& world, const CC_vecfunction& s
     //
     // s2b and s2c return the potential and an intermediate which needs to be stored
 
+    for (auto& p : doubles.allpairs) p.second.reconstruct();
+
     // set up taskq
     MacroTaskSinglesPotentialGs taskgs;
     taskgs.partitioner->min_batch_size=2;
@@ -2303,7 +2305,7 @@ CCPotentials::get_CC2_singles_potential_gs(World& world, const CC_vecfunction& s
     // partition macrotasks over active orbitals
     std::vector<int> result_index(singles.size());
     for (int i=0; i<result_index.size(); ++i) result_index[i]=i+info.parameters.freeze();
-    print_header1("not clearing intermediate potentials");
+    // print_header1("not clearing intermediate potentials");
     // info.intermediate_potentials.clear_all();
 
     auto [fock_residue, dum1] = mtaskgs(result_index, singles, doubles_vec, int(POT_F3D_), info);
@@ -2412,6 +2414,7 @@ CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& g
     MacroTask<MacroTaskSinglesPotentialEx> mtaskex(world,taskex,taskq);
 
     std::vector<int> result_index(ex_singles.size());
+    for (int i=0; i<result_index.size(); ++i) result_index[i]=i+info.parameters.freeze();
     auto [fock_residue, dum1] = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_F3D_), info);
     auto [Vccs, dum2] = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_ccs_), info);
     auto [Vs2b, imed_s2b] = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_s2b_), info);
@@ -2831,12 +2834,18 @@ CCPotentials::apply_K_macrotask(World& world, const std::vector<real_function_3d
     real_convolution_3d g12 = CoulombOperator(world, parameters.lo(), parameters.thresh_poisson());
     g12.particle() = particle;
     for (size_t k = 0; k < mo_ket.size(); k++) {
+        // print("k",k);
         real_function_6d copyu = copy(u);
+        // copyu.print_size("copyu");
         real_function_6d X = (multiply(copyu, copy(mo_bra[k]), particle)).truncate();
         //      real_function_6d Y=(*poisson)(X);
+        // X.print_size("X");
         real_function_6d Y = g12(X);     // overwrite X to save space
-        result += (multiply(copy(Y), copy(mo_ket[k]),
-                            particle)).truncate();     // this will destroy X, but I d not intend to use it again so I choose here to save this copy
+        // Y.print_size("Y");
+        // Y.print_tree();
+        auto tmp=(multiply(copy(Y), copy(mo_ket[k]),particle)).truncate();     // this will destroy X, but I d not intend to use it again so I choose here to save this copy
+        // tmp.print_size("tmp");
+        result += tmp;
     }
     return result.truncate(parameters.tight_thresh_3D()*3.0).reduce_rank(parameters.tight_thresh_6D()*3.0);
 }

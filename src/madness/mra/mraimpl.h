@@ -3291,15 +3291,26 @@ template <typename T, std::size_t NDIM>
         else {
             // special case: tree has only root node: keep sum coeffs and make zero diff coeffs
             if (key.level()==0) {
-                coeffT result(node.coeff());
-                coeffT sdcoeff(cdata.v2k,this->get_tensor_type());
-                sdcoeff(cdata.s0)+=node.coeff();
-                node.coeff()=sdcoeff;
-                double snorm=node.coeff().normf();
-                node.set_dnorm(0.0);
-                node.set_snorm(snorm);
-                node.set_norm_tree(snorm);
-                return Future< std::pair<GenTensor<T>,double> >(std::make_pair(result,node.coeff().normf()));
+                if (redundant1) {
+                    // with only the root node existing redundant and reconstructed are the same
+                    coeffT result(node.coeff());
+                    double snorm=node.coeff().normf();
+                    node.set_dnorm(0.0);
+                    node.set_snorm(snorm);
+                    node.set_norm_tree(snorm);
+                    return Future< std::pair<GenTensor<T>,double> >(std::make_pair(result,snorm));
+                } else {
+                    // compress
+                    coeffT result(node.coeff());
+                    coeffT sdcoeff(cdata.v2k,this->get_tensor_type());
+                    sdcoeff(cdata.s0)+=node.coeff();
+                    node.coeff()=sdcoeff;
+                    double snorm=node.coeff().normf();
+                    node.set_dnorm(0.0);
+                    node.set_snorm(snorm);
+                    node.set_norm_tree(snorm);
+                    return Future< std::pair<GenTensor<T>,double> >(std::make_pair(result,node.coeff().normf()));
+                }
 
             } else { // this is a leaf node
                 Future<coeffT > result(node.coeff());
