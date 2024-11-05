@@ -955,9 +955,8 @@ public:
   typedef std::shared_ptr<operatorT> poperatorT;
   // index b,response B, phi0,
   // perturbation
-  typedef std::tuple<const vector_real_function_3d &,
-                     const Tensor<double> &, const double &,
-                     const double &, const bool &>
+  typedef std::tuple<const vector_real_function_3d &, const Tensor<double> &,
+                     const double &, const double &, const bool &>
       argtupleT;
 
   using resultT = vector_real_function_3d;
@@ -993,7 +992,9 @@ public:
       result[0] = apply(*bsh, x[ij]);
     } else {
 
-      if (ij % 2 * num_orbitals > num_orbitals) {
+      auto response_orbital_index = ij % (num_orbitals * 2);
+
+      if (response_orbital_index >= num_orbitals) {
         auto bsh = make_op(ij, -omega, 0);
         result[0] = apply(*bsh, x[ij]);
       } else {

@@ -157,8 +157,9 @@ public:
       for (int i = 0; i < num_orbitals; i++) {
         products[i] = x[i] * phi0[i % num_orbitals];
       }
-      compress(world, products);
-      for (int i = 0; num_orbitals; i++) {
+      compress(world, products, false);
+      world.gop.fence();
+      for (int i = 0; i < num_orbitals; i++) {
         rho.gaxpy(1.0, products[i], 1.0, false);
       }
       world.gop.fence();
@@ -171,6 +172,10 @@ public:
     } else {
       rho_new = zero_functions<double, 3>(world, x.num_states());
     }
+
+    x.reconstruct();
+    reconstruct(world, phi0, false);
+    world.gop.fence();
     for (const auto &b : x.active) {
       rho_new[b] = 2.0 * make_density(x.x[b], phi0);
     }
@@ -202,7 +207,8 @@ public:
       for (int i = 0; i < num_xy; i++) {
         products[i] = x[i] * phi0[i % num_orbitals];
       }
-      compress(world, products);
+      compress(world, products, false);
+      world.gop.fence();
       for (int i = 0; i < num_xy; i++) {
         rho.gaxpy(1.0, products[i], 1.0, false);
       }

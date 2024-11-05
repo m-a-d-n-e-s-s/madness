@@ -547,10 +547,13 @@ auto ResponseBase::compute_theta_X(
   }
   X_space E0X(world, chi.num_states(), chi.num_orbitals());
   E0X.set_active(chi.active);
+
   if (r_params.localize() != "canon") {
     if (compute_Y) {
+      chi.compress();
       E0X = chi * ham_no_diag;
     } else {
+      chi.x.compress_rf();
       E0X.x = chi.x * ham_no_diag;
     }
     if (r_params.print_level() >= 20) {
@@ -1241,13 +1244,35 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X,
   double v_tol = safety * FunctionDefaults<3>::get_thresh();
 
   if (compute_Y) {
-    V0 = X * v0;
-    V0 = V0 - c_xc * gamma0;
-    V0.truncate(v_tol);
+
+    auto v0vec = X.to_vector() * v0;
+    auto gamma0vec = gamma0.to_vector();
+
+    compress(world, gamma0vec, true);
+    compress(world, v0vec, true);
+    world.gop.fence();
+    v0vec = v0vec - c_xc * gamma0vec;
+    truncate(world, v0vec, v_tol);
+    V0.from_vector(v0vec);
+
+    /*V0 = X * v0;*/
+    /*V0 = V0 - c_xc * gamma0;*/
+    /*V0.truncate(v_tol);*/
   } else {
-    V0.x = v0 * X.x;
-    V0.x = V0.x - c_xc * gamma0.x;
-    V0.x.truncate_rf(vtol);
+
+    auto v0vec = X.x.to_vector() * v0;
+    auto gamma0vec = gamma0.x.to_vector();
+    compress(world, gamma0vec, true);
+    compress(world, v0vec, true);
+    world.gop.fence();
+    v0vec = v0vec - c_xc * gamma0vec;
+    truncate(world, v0vec, v_tol);
+    V0.x.from_vector(v0vec);
+
+    /**/
+    /*V0.x = v0 * X.x;*/
+    /*V0.x = V0.x - c_xc * gamma0.x;*/
+    /*V0.x.truncate_rf(vtol);*/
     // V0.y = V0.x;
   }
   if (r_params.print_level() >= 20) {

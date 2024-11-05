@@ -66,11 +66,11 @@ void FrequencyResponse::iterate(World &world) {
   std::vector<poperatorT> bsh_ops;
   std::vector<poperatorT> bsh_y_ops;
 
-  bsh_ops = make_bsh_operators_response(world, x_shifts, omega);
-  if (compute_y) {
-    bsh_y_ops = make_bsh_operators_response(world, y_shifts, -omega);
-    bsh_ops.insert(bsh_ops.end(), bsh_y_ops.begin(), bsh_y_ops.end());
-  }
+  /*bsh_ops = make_bsh_operators_response(world, x_shifts, omega);*/
+  /*if (compute_y) {*/
+  /*  bsh_y_ops = make_bsh_operators_response(world, y_shifts, -omega);*/
+  /*  bsh_ops.insert(bsh_ops.end(), bsh_y_ops.begin(), bsh_y_ops.end());*/
+  /*}*/
 
   auto max_rotation =
       .5 * x_residual_target + x_residual_target; // r_params.maxrotn();
