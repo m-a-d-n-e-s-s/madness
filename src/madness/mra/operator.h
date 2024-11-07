@@ -232,7 +232,7 @@ namespace madness {
         }
 
         static inline std::pair<Tensor<double>,Tensor<double>>
-        make_coeff_for_operator(World& world, OperatorInfo info,
+        make_coeff_for_operator(World& world, OperatorInfo& info,
                                 const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc()) {
 
             const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
@@ -247,8 +247,9 @@ namespace madness {
 
             // WARNING! More fine-grained control over the last argument is needed.
             // This is a hotfix.
-            if (bc(0,0) == BC_PERIODIC) {
+            if (info.truncate_lowexp_gaussians.value_or(bc(0,0) == BC_PERIODIC)) {
                 fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
+                info.truncate_lowexp_gaussians = true;
             }
 
             return std::make_pair(coeff,expnt);
@@ -1013,7 +1014,8 @@ namespace madness {
                              bool doleaves = false)
                : SeparatedConvolution(world,Tensor<double>(0l),Tensor<double>(0l),info1.lo,info1.thresh,bc,k,doleaves,info1.mu) {
             info.type=info1.type;
-            auto [coeff, expnt] =make_coeff_for_operator(world, info1, bc);
+            info.truncate_lowexp_gaussians = info1.truncate_lowexp_gaussians;
+            auto [coeff, expnt] = make_coeff_for_operator(world, info, bc);
             rank=coeff.dim(0);
             ops.resize(rank);
             initialize(coeff,expnt);
