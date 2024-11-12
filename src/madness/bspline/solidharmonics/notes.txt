@@ -1,0 +1,105 @@
+
+f(r,theta,phi) = sum(l,m) sum(mu) c[mu,l,m] * g[mu](r) *  N[l,m](r,theta,phi)
+
+               = sum(l,m) c[l,m] * R[l,m](r) *  N[l,m](r,theta,phi)
+
+In general coefficients (or R) complex
+
+
+Basic solver is
+
+phi = project(guess)
+
+norm = sqrt(<phi|phi>)
+
+phi *= (1.0/norm)
+
+while true
+
+    epsilon = (-1/2) <phi| del^2 |phi>  + <phi|V*phi>
+            = (+1/2) <grad phi|grad phi>
+
+    phinew = G(epsilon) op (V*phi)
+
+    residual = phinew - phi
+
+    rnorm = sqrt(<residual|residual>)
+
+    if (rnorm > maxstep) residual *= maxstep/rnorm
+
+    phi += residual
+
+    norm = sqrt(<phi|phi>)
+
+    phi *= (1.0/norm)
+
+    if (rnorm < tol) break
+
+
+Ops needed:
+ * project from analytic form
+   - evaluate on numerical grid lebedev * radial
+   - lebedev quadrature to represesnt f(r,theta,phi) = sum(l,m) R[l,m](r) N[l,m](r,theta,phi)
+   - least squares fit by precomputed matrix to turn R(r) --> c[mu] g[mu](r)
+   
+ * inner product of function with itself and others
+   - Diagonal in angular momenta (don't forget normalization coeffs)
+   - S = precomputed overlap matrix between gaussians (don't forget r^2 volume factor)
+   - c^dagger S c
+
+* derivative full
+   - d/dx g(r) N(theta,phi) = dg /dr * dr/dx * Nlm + g * dNlm/dx
+   - dN/dx term is simple and exact
+   - d(exp(-a* r^2))/dx = -2*a*x*exp(-a*r^2)
+   - what is product of x (and y, z) with Nlm?
+   - x,y,z are exactly N[1] ... product of N1 with Nlm given by simple angular momemntum coupling and
+     will be +/-1, same as dNlm/dx.  So can modify the rule that computes dNlm/dx to make the full derivative.
+   - thus, as long as we can handle lmax+1 the derivative can be performed exactly.
+
+* inner product of derivative of function with derivative of other function/itself, or laplacian form
+   - no need since we can do the derivative exactly 
+   
+* scale function inplace by a constant
+   - just scale coeffs or maintain an overall scaling factor
+
+* copy (deep or shallow ??)
+   - just copy coeffs
+   
+* assignment (deep or shallow ??)
+   - ditto
+   
+* function += function (in place)
+   - add coeffs
+
+* function - function (out of place)
+   - sub coeffs
+
+* multiplication of two gaussian functions
+   - nominally needs 2*lmax for exact represesntation
+   - l * l' --> l'' = |l-l'| ... |l + l'|
+   - Need the clebsch gordon coeffs, but since the Lebedev quadrature is exact we can just
+     compute them using the appropriate order quadrature.  Need to take advantage of structured sparsity.
+   - do we truncate l or permit expansion of l?
+   - Radial product operator can be pre-computed a[mu]*b[nu]*P[mu,nu,omega] but this is Nmu^3.
+   - P is likely low rank.
+   - Or tabulate onto radial grid, compute product there and fit back --- much faster
+     - (a[mu] * G[mu i]) -> A(r[i]) -- Ngauss * Nr cost.
+     - (a[mu] * G(mu i)) * (b[nu] * G[nu,i)) * M(i,omega) (M is the inverse LSQ matrix)
+
+* multiplication of gaussian function and non-gaussian function
+   - Treat like projection by evaluating on radial*angular grid
+   
+* 1/r as gaussian function
+   - Easy and will give metric for error
+   
+* convolution with G(eps) in Gaussian expansion or perhaps exactly
+  - angular part will be exact
+  - radial part involves integrals over bessel functions
+
+* want arbitrary accuracy lebedev grids and associated values
+
+
+
+
+
+

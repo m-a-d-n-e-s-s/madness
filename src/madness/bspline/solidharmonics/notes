@@ -1,0 +1,8 @@
+1) waiting thread spins instead of yielding to OS or sleeping
+
+2) replace pthread_condition_variable with MCS-style version (thread spins on volatile in local cache while waiting for its turn)
+
+3) UCX ... version dependent TLS settings
+
+
+

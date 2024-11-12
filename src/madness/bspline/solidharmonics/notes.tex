@@ -1,0 +1,244 @@
+\documentclass[12pt]{article}
+\usepackage{cite}
+\usepackage{mathtools} %% includes amsmath
+\usepackage{amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{physics}
+\usepackage{graphicx,graphics}
+\setlength{\oddsidemargin}{0.25in}
+\setlength{\evensidemargin}{-0.25in}
+\setlength{\topmargin}{-.5in}
+\setlength{\textheight}{9in}
+\setlength{\parskip}{.1in}
+\setlength{\parindent}{2em}
+\setlength{\textwidth}{6.25in}
+
+\newcommand{\N}{\mathcal{N}}
+
+\title{Notes on gaussian expansion}
+\date{\today}
+\author{Robert J. Harrison}
+ 
+\begin{document}
+
+\maketitle
+
+The functional form is
+\begin{eqnarray}
+  f(\vb{r}) & = & \sum_{l m} \N_{lm}(\hat{\vb{r}}) R_{lm}(r) \\
+  \N_{lm}(\vb{r}) & = &  r^l \N_{lm}(\hat{\vb{r}}) ~ \mbox{where} ~ |\hat{\vb{r}}| = 1 \\
+  R_{lm}(r) & = & \sum_i \sum_{l m} c_{lmi} g_{li}(r) \\
+  g_{li}(r) & = & \sqrt{\frac{2^{l + 2} (2t_i)^{l + 3/2}}{(2 l + 1)!! \pi^{1/2}}} r^l \exp(-t_i r^2) 
+\end{eqnarray}
+Comments:
+\begin{itemize}
+\item The $\N_{lm}(\vb{r}) = r^l \N_{lm}(\hat{\vb{r}})$ (see appendix) where $\hat{r}$ is the unit vector are the real solid spherical harmonics of Yang normalized so that
+\begin{eqnarray}
+  \int_0^{2 \pi} d\phi \int_0^\pi d\theta \sin \theta  \N_{lm} (\hat{r}) \N_{l^\prime m^\prime}(\hat{r})  & = & \delta_{l l^\prime} \delta_{m m^\prime}
+\end{eqnarray}
+Note that Yang does not normalize his harmonics for ease of computing various quantities.  However, we need radial and angular components to be normalized so we can perform numerical thresholding without having to keep track of normalization constants, which for Yang's harmonics (denoted $N_{lm}$)  can be truly huge ($O(10^{2l})$).  Yang's normalization also results in $N_{10}=z$ but $N_{11}=-x/2$ and $N_{1-1}=-y/2$ and so breaks symmetry.
+\item Our radial normalization is such that $\int_0^\infty r^2 g_{li}(r)^2 dr = 1$, and thus the entire basis function $g_{li}(r) \N_{lm}(\hat{\vb{r}})$ is square normalized to unity.
+\item If needed for efficiency, we can tabulate $\N_{lm}(\hat{\vb{r}})$ at the relatively few quadrature points on the unit sphere.  We will also need them at the multiwavelet quadrature points, and there's a lot more of those.
+\end{itemize}
+
+Note:
+\begin{itemize}
+\item The radial functions form a semigroup under multiplication --- i.e., the space is closed under multiplication since it results in a function of the same form, noting that the maximum order and exponent are both doubled.
+\item Similarly, derivatives of the radial functions produce results that are of similar radial form with raising/lowering of the angular components.  Thus, derivatives are also closed, noting that the radial order and angular momentum can be raised by 1.
+\end{itemize}
+
+\section{Angular quadrature}
+In double precision, the Lebedev or Beylkin rules suffice.  For higher precision, to exactly integrate angular momenta up to $L$  we employ
+\begin{itemize}
+\item $\theta$: The Gauss-Legendre rule of order $k_\theta = L/2 + 1$ scaled to $[0,\pi]$ ($k$ points can exactly integrate up to $x^{2k-1}$)
+\item $\phi$: $k_\phi = \max(1,2 L)$ equispaced points in $[0,2 \pi)$ ($\phi_i = 2 i \pi / k_\phi$) with weights $2 \pi / k_\phi$.
+ \item The total number of points $k_\theta k_\phi = (l_{\mbox{max}} + 1) \max(4 l_{\mbox{max}},1) $.
+\end{itemize}
+We choose $L = \max(1, 2 l_{\mbox{max}})$, where $l_{\mbox{max}}$ is the maximum angular momentum in the basis, so that we can exactly integrate products.
+
+\begin{table}
+  \begin{center}
+  \caption{Number of angular quadrature points employed for select angular momenta}
+  \begin{tabular}{ccc}
+    $l_{\mbox{max}}$ & Lebedev & GL  \\ \hline
+    0 & 6 & 1 \\
+    1 & 6 & 8 \\
+    2 & 14 & 24 \\
+    3 & 26 & 48 \\
+    4 & 38 & 80 \\
+    5 & 50 & 120 \\
+    6 & 74 & 168 \\ \hline
+  \end{tabular}
+  \end{center}
+\end{table}
+
+\section{Radial least squares fitting and quadrature}
+
+The success of the multiwavelet representation can be traced to the following.
+\begin{itemize}
+\item It is a basis for multiresolution and hence fast computation.
+\item It supports adaptive {\em local} refinement.
+\item It has high-order convergence.
+\item There is an associated high-accuracy quadrature rule.
+\item You can switch between an orthonormal basis (GL polyn) that is good for rapid projection into the basis with control of associated errors, and an interpolating basis (values at grid points) that is good for rapid evaluation of products (and other non-linear functions) again with controlled accuracy.
+\end{itemize}
+
+While our main perspective is that of (regularized) least-squares fitting there is a direct connection to quadrature.
+
+We wish to construct a quadrature to evaluate integrals over products of our basis functions.  Since they form a semi-group under multiplication
+\begin{eqnarray}
+  \int_0^R r^2 g(r,l,t) g(r,l',t) dt & = & c \int_0^R g(r,l+l\prime +2,t) dt .
+\end{eqnarray}
+We want this to be accurate for all possible products in the basis.  If the
+
+???????????????????????????????????
+
+Thoughts:
+\begin{itemize}
+\item LSQ with penalty
+\item Semigroup closed under products
+\item Basis has a continuous parameter
+\item Expand product in original basis and resolution of the identity
+\item Quadrature and collocation --- pick points and weights (in real space and parameter space)
+\end{itemize}
+
+
+
+\section{Projection}
+
+Projecting $f(\vb{r})$ into the representation is accomplished by first integrating over the angular variables with
+
+\begin{eqnarray}
+  \int_0^{2 \pi} d\phi \int_0^\pi d\theta \sin \theta  \N_{lm} (\hat{r}) f(\vb{r}) & = & r^l R_{lm}(r) 
+\end{eqnarray}
+With quadrature points on the unit sphere $\hat{\vb{r}}_\mu$ with
+weights $\omega_\mu$, and radial points $r_\nu$ presumably sampled
+logarithmically (except perhaps at the end points), this becomes
+\begin{eqnarray}
+  Q_{lm}(r_\nu) & = & \mathcal{\N}_{lm}^2 \sum_\mu \omega_\mu \N_{lm} (\hat{\vb{r}}_\mu) f(r_\nu \hat{\vb{r}}_\mu)
+\end{eqnarray}
+
+The inversion from the function sampled at the grid points can be performed with weighted least-squares, paying attention to the ill-conditioning near the origin for the non-zero angular momenta and also adding a penalty to make the problem overall better conditioned.  For each $(l,m)$ the LSQ problem is to minimize
+\begin{eqnarray}
+  \sum_\nu  w(r_\nu) \left( Q(r_\nu) - \sum_i c_i q_i(r_\nu) \right)^2 + \lambda \sum_i c_i^2
+\end{eqnarray}
+in which the weight is presumably to be chosen as $w(r)=r^2$, and $q_i(r) = r^l g_i(r)$.
+
+The pentalty term has little effect if $\lambda < \epsilon^2 / \sum_i c_i^2$. 
+
+Setting the variation wrt $c_i$ to zero yields
+\begin{eqnarray}
+  0 & = & - 2 \sum_\nu  w(r_\nu) q_i(r_\nu) \left( Q(r_\nu) - \sum_j c_j q_j(r_\nu) \right) + 2\lambda c_i
+\end{eqnarray}
+Tidying up yields
+\begin{eqnarray}
+  \sum_j \left( \sum_\nu w(r_\nu) q_i(r_\nu) q_j(r_\nu) \right) c_j + \lambda c_i & = & \sum_\nu  w(r_\nu) q_i(r_\nu)  Q(r_\nu) \\
+  \left( A + \lambda I \right) c & = & b ~ ~\mbox{with} \\
+  a_{ij} & = & \sum_\nu w(r_\nu) q_i(r_\nu) q_j(r_\nu) \\
+  b_i & = & \sum_\nu  w(r_\nu)  q_i(r_\nu) Q(r_\nu) 
+\end{eqnarray}
+
+\section{Picking the radial grid}
+
+Most of the functions we will be approximating will be polynomials times exponentials. Note if we are using Gaussian's to solve over all space, the grid needs to also cover all space, but we could also replace fitting on grids with exact integration.  However, if we are using Gaussian's to just solve near the nuclei, it is convenient to leave a smooth tail that will be represented by the other numerical representation.
+
+We will be using a geometric series of exponents since this provides uniform approximation of many relevant functions and operator kernels.  A pure Gaussian $\exp -t r^2$ attains the values $e^{-n}$ at $r=\sqrt{n/t}$, and also note $\log 10 \approx 2.3$.  Also, the maximum value of $r^l \exp -t r^2$ is attained at $r=\sqrt{l/2t}$.  With geometric exponents $t_j=t_0 \tau^j,~j=0,1,\ldots,N-1$ (with $t_0$ chosen as the largest, hence, $\tau < 1$), we identify a coarsest grid $r_j = \sqrt{\tau^j / t_0},~j=0,1,\ldots,N-1$.  In practice, we would use about double this number of points, with additional points extending before and after the natural end points at $\sqrt{1/t_0}$ and $\sqrt{\tau^{N-1}/t_0}$.
+\begin{eqnarray}
+   r_j & = & r_0 \rho^j, ~ j=0,1,\ldots,M-1.
+\end{eqnarray}
+
+\section{Solid harmonics}
+
+
+The functions $\N_{lm}(\vb{r})$ are normalized versions of the solid harmonics of Yang ($N_{lm}$).  The unnormalized versions are defined by the recursions (with $m\ge 0$) (the first two are used to recur up the diagonal $m=\pm l$ and the next two are then used to recur $l$ down from $l=m$ to $l=0$ (I inserted commas in the subscripts for clarity)
+\begin{eqnarray}
+  N_{0,0} & = & 1 \\
+  N_{l, l} & = & -\frac{1}{2 l} \left(x N_{l-1,l-1} - y N_{l - 1, -(l - 1)}\right) \\
+  N_{1,-l} & = & -\frac{1}{2 l} \left(y N_{l-1,l-1} + x N_{l - 1, -(l - 1)}\right) \\ 
+  N_{l, m} & = & \frac{1}{(l+m) (l-m)} \left((2 l-1) z N_{l-1, m}-r^2  N_{l-2, m} \right) \\
+  N_{l, -m}& = & \frac{1}{(l+m) (l-m)} \left((2 l-1) z N_{l-1, -m}-r^2 N_{l-2, -m} \right) 
+\end{eqnarray}
+with normalization constants
+\begin{eqnarray}
+  n_{lm} & = & \frac{\sqrt{(2 l +1) \left(l +{| m |}\right)! \left(l -{| m |}\right)!}  2^{-(1 + \delta_{0 m})/2}}{\sqrt{\pi}} .
+\end{eqnarray}
+The normalized harmonics are then
+\begin{eqnarray}
+  \N_{lm}(\vb{r}) & = & n_{lm} N_{lm}(\vb{r}).
+\end{eqnarray}
+The normalization is in the sense that an integral over the unit sphere yields
+\begin{eqnarray}
+  \int_0^{2 \pi} d\phi \int_0^\pi d\theta \sin \theta  \N_{lm} (\hat{r}) \N_{l^\prime m^\prime}(\hat{r})  & = & \delta_{l l^\prime} \delta_{m m^\prime} .
+\end{eqnarray}
+We tabluate the normalization constants and their reciprocals, so we can internally use the simple formulae of the unnormalized harmonics.
+
+Note that $\N_{lm}(\vb{r}) = r^l N_{lm}(\hat{\vb{r}})$.
+
+The first few unnormalized solid harmonics are
+\begin{eqnarray}
+N_{0, 0} & = &  1  \nonumber \\
+N_{1, -1} & = &  -\frac{y}{2}  \nonumber \\
+N_{1, 0} & = &  z  \nonumber \\
+N_{1, 1} & = &  -\frac{x}{2}  \nonumber \\
+N_{2, -2} & = &  \frac{y x}{4}  \nonumber \\
+N_{2, -1} & = &  -\frac{z y}{2}  \nonumber \\
+N_{2, 0} & = &  -\frac{r^{2}}{4}+\frac{3 z^{2}}{4}  \nonumber \\
+N_{2, 1} & = &  -\frac{z x}{2}  \nonumber \\
+N_{2, 2} & = &  \frac{x^{2}}{8}-\frac{y^{2}}{8}  \nonumber \\
+N_{3, -3} & = &  -\frac{1}{16} x^{2} y +\frac{1}{48} y^{3}  \nonumber \\
+N_{3, -2} & = &  \frac{z y x}{4}  \nonumber \\
+N_{3, -1} & = &  \frac{y \left(r^{2}-5 z^{2}\right)}{16}  \nonumber \\
+N_{3, 0} & = &  -\frac{1}{4} r^{2} z +\frac{5}{12} z^{3}  \nonumber \\
+N_{3, 1} & = &  \frac{x \left(r^{2}-5 z^{2}\right)}{16}  \nonumber \\
+N_{3, 2} & = &  \frac{1}{8} z \,x^{2}-\frac{1}{8} z \,y^{2}  \nonumber \\
+N_{3, 3} & = &  -\frac{1}{48} x^{3}+\frac{1}{16} y^{2} x  \nonumber
+\end{eqnarray}
+
+The first few normalized solid harmonics are
+\begin{eqnarray}
+\N_{0, 0} & = &  \frac{1}{2 \sqrt{\pi}}  \nonumber \\
+\N_{1, -1} & = &  -\frac{\sqrt{3} y}{2 \sqrt{\pi}} \nonumber \\
+\N_{1, 0} & = &  \frac{\sqrt{3} z}{2 \sqrt{\pi}} \nonumber \\
+\N_{1, 1} & = &  -\frac{\sqrt{3} x}{2 \sqrt{\pi}} \nonumber \\
+\N_{2, -2} & = &  \frac{\sqrt{15} y x}{2 \sqrt{\pi}} \nonumber \\
+\N_{2, -1} & = &  -\frac{\sqrt{15} z y}{2 \sqrt{\pi}} \nonumber \\
+\N_{2, 0} & = &  -\frac{\sqrt{5} \left(r^{2}-3 z^{2}\right)}{4 \sqrt{\pi}} \nonumber \\
+\N_{2, 1} & = &  -\frac{\sqrt{15} z x}{2 \sqrt{\pi}} \nonumber \\
+\N_{2, 2} & = &  \frac{\sqrt{15} \left(x^{2}-y^{2}\right)}{4 \sqrt{\pi}} \nonumber \\
+\N_{3, -3} & = &  -\frac{3 \sqrt{70} y \left(x^{2}-\frac{y^{2}}{3}\right)}{8 \sqrt{\pi}} \nonumber \\
+\N_{3, -2} & = &  \frac{\sqrt{105} z y x}{2 \sqrt{\pi}} \nonumber \\
+\N_{3, -1} & = &  \frac{y \left(r^{2}-5 z^{2}\right) \sqrt{42}}{8 \sqrt{\pi}} \nonumber \\
+\N_{3, 0} & = &  -\frac{3 \sqrt{7} z \left(r^{2}-\frac{5 z^{2}}{3}\right)}{4 \sqrt{\pi}}  \nonumber \\
+\N_{3, 1} & = &  \frac{x \left(r^{2}-5 z^{2}\right) \sqrt{42}}{8 \sqrt{\pi}} \nonumber \\
+\N_{3, 2} & = &  \frac{\sqrt{105} z \left(x^{2}-y^{2}\right)}{4 \sqrt{\pi}} \nonumber \\
+\N_{3, 3} & = &  -\frac{x \left(x^{2}-3 y^{2}\right) \sqrt{70}}{8 \sqrt{\pi}} \nonumber
+\end{eqnarray}
+
+Derivatives of the unnormalized harmonics are computed as follows with $m\ge 0$, treating as zero $N_{lm}$ with $|m|>l$, and again using commas for clarity
+\begin{eqnarray}
+  \frac{\partial}{\partial x} N_{l,m} & = & \frac{1}{2}\left( N_{l-1,\pm m+1} - N_{l-1,\pm m-1} \right) \nonumber \\
+  \frac{\partial}{\partial y} N_{l,m} & = & \pm \frac{1}{2}\left( N_{l-1,\mp m+1} + N_{l-1,\mp m-1} \right) \nonumber \\
+  \frac{\partial}{\partial z} N_{l,m} & = & N_{l-1,\pm m} . \nonumber
+\end{eqnarray}
+ 
+\section{Integrals}
+
+\subsection{Single center Gaussian over finite range}
+
+Evaluate with upward recursion starting from $n=0,1$ if $n$ is even or odd, respectively.
+\begin{eqnarray}
+  I_n & = & \int_0^R r^n \exp(-tr^2) dr \\
+  I_{n+2} & = & \frac{n+1}{2 t} I_n - \frac{R^{n+1}}{2 t} \exp(-t R^2) \\
+    I_0 & = & \frac{\sqrt{\pi}}{2\sqrt{t}} \erf(R \sqrt{t}) \\
+    I_1 & = & \frac{1}{2t} (1-\exp(-tR^2))
+\end{eqnarray}
+Infinite range forms
+\begin{eqnarray}
+  I_{2l} & = & \frac{(2l-1)!! \sqrt{\pi}}{2^{l+1} t^{(2l+1)/2}} \\
+  I_{2l+1} & = & \frac{l!}{2 t^{l+1}}  
+\end{eqnarray}
+
+
+\end{document}
