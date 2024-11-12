@@ -1,13 +1,18 @@
 //#pragma GCC optimize "-fno-associative-math"
 
+#include <typeinfo>
 #include <iostream>
 #include <fstream>
 #include <cassert>
 #include <vector>
 #include <tuple>
+#include <array>
 #include <limits>
 #include <cmath>
 #include <myqd.h>
+
+#include <algorithm>
+#include <numeric>
 
 template <typename T>
 class Matrix {
@@ -25,8 +30,8 @@ public:
 
 
 size_t ggi = 9999999;
-std::vector<double> ggr;
-Matrix<double> ggj, ggh;
+std::vector<dd_real> ggr;
+Matrix<dd_real> ggj, ggh;
 
 // print a vector
 template <typename T>
@@ -94,7 +99,7 @@ namespace std {
 template <typename T>
 struct factorial_cache {
     static constexpr size_t N = 171;   // more than 171 will overflow exponent
-    static std::array<T,N+1> f;      // +1 for 0
+    static inline std::array<T,N+1> f = {};      // +1 for 0
     factorial_cache() {
         f[0] = 1;
         for (int i=1; i<=int(N); i++) f[i] = f[i-1]*i; // int since T might be dd_real/qd_real
@@ -104,7 +109,7 @@ struct factorial_cache {
 template <typename T> 
 struct double_factorial_cache {
     static constexpr size_t N = 300; // more than 300 will overflow exponent
-    static std::array<T,N+1> f; // +1 for 0
+    static inline std::array<T,N+1> f = {}; // +1 for 0
     double_factorial_cache() {
         f[0] = 1;
         f[1] = 1;
@@ -112,8 +117,9 @@ struct double_factorial_cache {
     }
 };
 
-template <typename T> std::array<T,172> factorial_cache<T>::f = {};
-template <typename T> std::array<T,301> double_factorial_cache<T>::f = {};
+// not needed since c++ 17 inline variables
+//template <typename T> std::array<T,172> factorial_cache<T>::f = {};
+//template <typename T> std::array<T,301> double_factorial_cache<T>::f = {};
 
 // If you might overflow size_t use floating point number for T
 template <typename T>
@@ -530,7 +536,7 @@ T RsmallrX(size_t l, T r) {
 }
 
 template <typename T>
-std::vector<T> JsphericalscaledVec(size_t maxl, T r) {
+std::vector<T> JsphericalscaledVecGood(size_t maxl, T r) {
     assert(maxl == 32);
     if (r == T(0.0)) return std::vector<T>(maxl+1,T(0.0));
     const T eps = std::numeric_limits<T>::epsilon();
@@ -690,8 +696,536 @@ std::vector<T> JsphericalscaledVec(size_t maxl, T r) {
 }
 
 template <typename T>
+std::vector<T> JsphericalscaledVecXX(size_t maxl, T r) {
+    assert(maxl == 32);
+    if (r == T(0.0)) return std::vector<T>(maxl+1,T(0.0));
+    const T eps = std::numeric_limits<T>::epsilon();
+    const T min = std::numeric_limits<T>::min();
+
+    const T one = T(1.0);
+    const T two = T(2.0);
+    const T half = T(0.5);
+    
+    const T rr = one/r;
+    T R;
+
+    //bool doprint = (ggi != 9999999) && (std::abs(r - 0.00191116) < 0.00001);
+    const bool doprint = false;
+    if (doprint) {
+        std::cout << "printing " << r << " " << (ggj(33,ggi)>min) << " " << min << std::endl;
+    }
+
+    std::vector<T> j(maxl+1);
+
+    T rcut = 20.0; // So that exp(-2*rcut) is much less than epsilon including gradual underflow
+    if constexpr      (std::is_same<T,float>::value) rcut = 10.0;
+    else if constexpr (std::is_same<T,double>::value) rcut = 20.0;
+    else if constexpr (std::is_same<T,dd_real>::value) rcut = 40.0;
+    else if constexpr (std::is_same<T,qd_real>::value) rcut = 80.0;
+
+    auto RELERR = [&](const T& a, const T&b) {return (std::abs(a-b)/std::abs(b))/eps;};
+
+    if (r < std::max(rcut,T(12.5*maxl))) {
+        if (r < 0.5) { // was 2.5
+            R = Rsmallr(48,r);
+        }
+        else {
+            R = b33(r); // Very accurate guess for R_38, slight error at small r but going from 38 to 33 will fix it // was 38 now 48
+        }
+        size_t n = 48;
+        while (--n>maxl) {
+            R = T(1.0)/(R + T(2*n+1.0)*rr); // Compute R_n from R_{n+1}
+        }
+
+        if (doprint) {
+            T Rtest = ggj(33,ggi)/ggj(32,ggi);
+            T relerr = RELERR(R,Rtest);
+            if (relerr > 0) {
+                std::cout << 33 << " Rtest " << Rtest << " " << R << " " << ggi << " " << r << " " << ggr[ggi] << " " << ggj(33,ggi) << " " << ggj(32,ggi) << " " << relerr << std::endl;
+            }
+        }
+
+        T Rsave = R;
+        
+        T j1 = min * std::max(one, Rsave*r/T(2*maxl+1.0)); //was Rsave ... now trying to avoid underflow in s below
+        T j0 = j1/Rsave; // was 1
+        j[maxl] = j0;
+
+        if (doprint) {
+            T R = Rsave;
+            T Rtest = ggj(maxl+1,ggi)/ggj(maxl,ggi);
+            T relerr = RELERR(R,Rtest);
+            if (relerr > 0) {
+                std::cout << maxl+1 << " Rtest " << Rtest << " " << R << " " << ggi << " " << r << " " << ggr[ggi] << " " << ggj(maxl+1,ggi) << " " << ggj(maxl,ggi) << " " << relerr << std::endl;
+            }
+        }
+        
+        for (int l=maxl; l>0; l--) {
+            j[l-1] = j1 + (T(2*l+1.0)*rr)*j0;
+            
+            //std::cout << "NEW " << l << " " <<  j1 << " " << j0 << " " << j[l-1] << std::endl;
+            j1 = j0;
+            j0 = j[l-1];
+
+            if (doprint) {
+                T R = j1/j0;
+                T Rtest = ggj(l,ggi)/ggj(l-1,ggi);
+                T relerr = RELERR(R,Rtest);
+                if (relerr > 0) {
+                    std::cout << l << " Rtest " << Rtest << " " << R << " " << ggi << " " << r << " " << ggr[ggi] << " " << ggj(l,ggi) << " " << ggj(l-1,ggi) << " " << relerr << std::endl;
+                }
+            }
+
+            
+        }
+        //std::cout << "NEW " <<  j << std::endl;
+
+        if (doprint) {
+            T R = j[32]/j[0];
+            T Rtest = ggj(32,ggi)/ggj(0,ggi);
+            T relerr = RELERR(R,Rtest);
+            if (relerr > 0) {
+                std::cout << 99 << " Rtestall " << Rtest << " " << R << " " << ggi << " " << r << " " << ggr[ggi] << " " << ggj(0,ggi) << " " << ggj(32,ggi) << " " << relerr << std::endl;
+            }
+        }
+        
+        
+        j0 = -myexpm1(-two*r)*half*rr; // for small r use expm1 to avoid cancellation
+
+        // if (ggi != 9999999) {
+        //     T j0test = ggj(0,ggi);
+        //     T relerr = RELERR(j0,j0test);
+        //     if (relerr > 0) {
+        //         std::cout << 0 << " Rtest00 " << ggi << " " << r << " " << ggr[ggi] << " " << j0 << " " << j0test << " " << relerr <<  std::endl;
+        //     }
+        // }
+
+        T s = j0/j[0];
+        if (doprint) std::cout << "s " << s << std::endl;
+        
+        if (s < min) {
+            std::cout << "warning " << s << " " << min << std::endl;
+        }
+        j[0] = j0;
+
+        double reps = to_double(dd_real(r) - dd_real(1.0)/dd_real(rr));
+        
+        for (size_t l=1; l<=maxl; l++) {
+            j[l] *= s;
+
+            j[l] += (j[l-1]-(one+T(l+1)*rr)*j[l])*reps; // correction due to inexact computing of 1/r
+            
+            if (doprint) {
+                T R = j[l]/j[l-1];
+                T Rtest = ggj(l,ggi)/ggj(l-1,ggi);
+                T relerr = RELERR(R,Rtest);
+                if (relerr > 0) {
+                    std::cout << l << " RtestZ " << Rtest << " " << R << " " << ggi << " " << r << " " << ggr[ggi] << " " << ggj(l,ggi) << " " << ggj(l-1,ggi) << " " << relerr << std::endl;
+                }
+            }
+        }
+        //std::cout << s << std::endl;
+        //std::cout << "NEW " <<  j << std::endl;
+        //std::exit(0);
+    }
+    else {
+        // const T expm2r = std::exp(-two*r);
+        // j[0] = (one-expm2r)*half*rr;
+        // j[1] = ((one+expm2r)*half - j[0])*rr;
+        j[0] = half*rr;
+        j[1] = (half - j[0])*rr;
+        for (size_t l=1; l<maxl; l++) {
+            j[l+1] = j[l-1] - T(2*l+1.0)*j[l]*rr;
+        }
+    }
+    
+    return j;
+}
+
+template <typename T>
+std::vector<T> JsphericalscaledVecDumbBAD(size_t maxl, T r) {
+    const T zero = 0;
+    std::vector<T> j(maxl+1,zero);
+    if (r == zero) return j;
+    
+    const T eps = std::numeric_limits<T>::epsilon();
+    const T min = std::numeric_limits<T>::min();
+    const T one = 1;
+    const T two = 2;
+    const T half = T(0.5);
+    const T rr = one/r;
+    T R;
+
+    bool doprint = false; //std::abs(r-T(9.536743e-07)) < 1e-11;
+    if (doprint) std::cout << "r " << r << " eps " << eps << std::endl;
+
+    T rcut = 20.0; // So that exp(-2*rcut) is much less than epsilon including gradual underflow
+    if constexpr      (std::is_same<T,float>::value)   rcut = 10.0;
+    else if constexpr (std::is_same<T,double>::value)  rcut = 20.0;
+    else if constexpr (std::is_same<T,dd_real>::value) rcut = 40.0;
+    else if constexpr (std::is_same<T,qd_real>::value) rcut = 80.0;
+
+    if (r < std::max(rcut,T(12.5*maxl))) {
+        size_t n;
+        if constexpr      (std::is_same<T,float>::value)   n = maxl + 20;
+        else if constexpr (std::is_same<T,double>::value)  n = maxl + 80;
+        else if constexpr (std::is_same<T,dd_real>::value) n = maxl + 130;
+        else if constexpr (std::is_same<T,qd_real>::value) n = maxl + 200;
+
+
+        {
+            double s = (2*n+1)/to_double(r);
+            R = T((std::sqrt(s*s + 4) - s)*0.5);
+        }
+        
+        // while (--n>maxl) {
+        //     R = one/(R + (2*n+one)*rr); // Compute R_n from R_{n+1}
+        // }
+
+        // Reciprocal is slow so write back again in terms of function values instead of ratios
+        {
+            T j1 = min;
+            T j0 = j1/R;
+            while (--n>maxl) {
+                T j = j1 + ((2*n+one)*rr)*j0;
+                j0 = j1;
+                j1 = j;
+                if (j1 > one) {
+                    j0 = std::ldexp(j0,-30);
+                    j1 = std::ldexp(j1,-30);
+                }
+            }
+            R = j1 / j0;
+            std::cout << "TTT " << maxl << " " << r << " " << R << std::endl;
+        }
+
+        {
+            double s = (2*n+1)/to_double(r);
+            R = T((std::sqrt(s*s + 4) - s)*0.5);
+        }
+        
+        while (--n>maxl) {
+            R = one/(R + (2*n+one)*rr); // Compute R_n from R_{n+1}
+        }
+        std::cout << "YYY " << maxl << " " << r << " " << R << std::endl;
+        
+        
+        // This helps avoid underflow but loses precision when computing j1/R
+        //T j1 = min * std::max(one, R*r/T(2*maxl+one)); //was R ... now trying to avoid gradual underflow in s below
+        //T j0 = j1/R; // was 1
+
+        T j1 = R;
+        T j0 = one;
+        if constexpr (std::is_same<T,dd_real>::value || std::is_same<T,qd_real>::value) {
+            double small = std::exp2(-128.0);
+            j1 = mul_pwr2(R,small); // exact power of 2 so easy and exact to compute and apply
+            j0 = small;
+            // //double small = std::exp2(-128.0);
+            // j1 = std::ldexp(j1,-128); //mul_pwr2(R,small); // exact power of 2 so easy and exact to compute and apply
+            // j0 = std::exp2(-128); //small;
+        }
+        
+        j[maxl] = j0;
+
+        for (int l=maxl; l>0; l--) {
+            j[l-1] = j1 + ((2*l+one)*rr)*j0;
+            j1 = j0;
+            j0 = j[l-1];
+        }
+
+        j0 = -std::expm1(-two*r)*half*rr; // for small r use expm1 to avoid cancellation
+
+        T s = j0/j[0];
+        
+        if (s < min) {
+            std::cout << "warning: s has underflowed " << s << " " << min << std::endl;
+        }
+        j[0] = j0;
+
+        // Newton correction seems to help a lot for double, a little for float, but not at all for dd_real.
+        T reps = 0;
+        if constexpr      (std::is_same<T,float>::value)   reps = float(double(r) - double(1.0)/double(rr));
+        else if constexpr (std::is_same<T,double>::value)  reps = to_double(dd_real(r) - dd_real(1.0)/dd_real(rr));
+        else if constexpr (std::is_same<T,dd_real>::value) reps = to_dd_real(qd_real(r) - qd_real(1.0)/qd_real(rr));
+
+        for (size_t l=1; l<=maxl; l++) {
+            j[l] *= s;
+            if constexpr (!std::is_same<T,qd_real>::value) {
+                j[l] += (j[l-1]-(one+(l+one)*rr)*j[l])*reps; // Newton correction due to inexact computing of 1/r
+            }
+
+            // auto RELERR = [&](const T& a, const T&b) {return (std::abs(a-b)/std::abs(b))/eps;};
+
+            // if (doprint) {
+            //     T R = j[l]/j[l-1];
+            //     T Rtest = ggj(l,ggi)/ggj(l-1,ggi);
+            //     T Rrelerr = RELERR(R,Rtest);
+            //     T jrelerr = RELERR(j[l],ggj(l,ggi));
+            //     if (Rrelerr > 0) {
+            //         std::cout << l << " RtestZ " << Rtest << " " << R << " " << Rrelerr << " " << j[l] << " " << ggj(l,ggi) << " " << jrelerr << std::endl;
+            //     }
+            // }
+            
+        }
+    }
+    else {
+        j[0] = half*rr;
+        j[1] = (half - j[0])*rr;
+        for (size_t l=1; l<maxl; l++) {
+            j[l+1] = j[l-1] - (2*l+one)*j[l]*rr;
+        }
+    }
+    
+    return j;
+}
+
+// Validated for l up to 32 and r from 1e-8 to 1e8
+template <typename T>
+std::vector<T> JsphericalscaledVecDumb(size_t maxl, T r) {
+    const T zero = 0;
+    std::vector<T> j(maxl+1,zero);
+    if (r == zero) return j;
+    
+    const T eps = std::numeric_limits<T>::epsilon();
+    const T min = std::numeric_limits<T>::min();
+    const T one = 1;
+    const T two = 2;
+    const T half = T(0.5);
+    const T rr = one/r;
+    T R;
+
+    bool doprint = false; //std::abs(r-T(9.536743e-07)) < 1e-11;
+    if (doprint) std::cout << "r " << r << " eps " << eps << std::endl;
+
+    T rcut = 20.0; // So that exp(-2*rcut) is much less than epsilon including gradual underflow
+    if constexpr      (std::is_same<T,float>::value)   rcut = 10.0;
+    else if constexpr (std::is_same<T,double>::value)  rcut = 20.0;
+    else if constexpr (std::is_same<T,dd_real>::value) rcut = 40.0;
+    else if constexpr (std::is_same<T,qd_real>::value) rcut = 80.0;
+
+    if (r < std::max(rcut,T(12.5*maxl))) {
+        size_t n;
+        if constexpr      (std::is_same<T,float>::value)   n = maxl + 22;
+        else if constexpr (std::is_same<T,double>::value)  n = maxl + 80;
+        else if constexpr (std::is_same<T,dd_real>::value) n = maxl + 130;
+        else if constexpr (std::is_same<T,qd_real>::value) n = maxl + 204;
+
+        // Downward recursion to get R_n for n > maxl using ratios which is numerically stable with no overflow but slow due to reciprocals
+        // {
+        //     T s = (2*n+one)/r;
+        //     R = (std::sqrt(s*s + T(4)) - s)*half; // note fix below for small r cancellation
+        //     while (--n>maxl) {
+        //         R = one/(R + (2*n+one)*rr); // Compute R_n from R_{n+1}
+        //     }
+        // }
+
+        {
+            // Since reciprocal is slow so rewrite again in terms of function values instead of ratios but now
+            // have to manually handle possibility of overflow.  Tile the loop so that don't need to have
+            // if test in the inner lopp ... this will be important in the vectorized version of this code.
+
+            //T s = (2*n+1)*rr;
+            //T RR = (std::sqrt(s*s + T(4)) - s + eps)*half; // note the eps to avoid RR=0 if s*s > 4/eps but this is still wrong
+            T RR = (r*r + (n + 1)*r)/(r*r + (2*n + 1)*r + (2*n + 1)*(n + 1)); // initial guess that is slightly less accurate but no cancellation
+
+            //T RR = (2*r*r*r + (3*n +3)*r*r + (2*n + 3)*(n + 1)*r)/(2*r*r*r + (5*n + 3)*r*r + (6*n + 3)*(n + 1)*r + (2*n + 3)*(2*n + 1)*(n + 1)); // no better
+            
+            T j1 = min;
+            T j0 = min/RR;
+
+            int step = 30;
+            if constexpr (std::is_same<T,float>::value) step = 3;
+            for (int i=n-1; i>int(maxl); i-=step) { // use int to avoid size_t wraparound
+                size_t topl = std::max(i-step, int(maxl));
+                for (size_t m=i; m>topl; m--) {
+                    T j = j1 + ((2*m+1)*rr)*j0;
+                    j1 = j0;
+                    j0 = j;
+                }
+                if (j1 > one) {
+                    j0 *= min;
+                    j1 *= min; 
+                }
+            }
+            RR = j1 / j0;
+            //std::cout << "TTT " << maxl << " " << r << " " << R << " " << RR << " " << (R-RR)/eps << std::endl;
+            R = RR;
+        }
+        
+        // This helps avoid underflow but loses precision when computing j1/R
+        //T j1 = min * std::max(one, R*r/T(2*maxl+one)); //was R ... now trying to avoid gradual underflow in s below
+        //T j0 = j1/R; // was 1
+
+        T j1 = R;
+        T j0 = one;
+        if constexpr (std::is_same<T,dd_real>::value || std::is_same<T,qd_real>::value) {
+            j1 = std::ldexp(R,-128); 
+            j0 = std::exp2(-128);
+        }
+        
+        j[maxl] = j0;
+
+        for (int l=maxl; l>0; l--) {
+            j[l-1] = j1 + ((2*l+1)*rr)*j0;
+            j1 = j0;
+            j0 = j[l-1];
+        }
+
+        j0 = -std::expm1(-two*r)*half*rr; // for small r use expm1 to avoid cancellation
+
+        T s = j0/j[0];
+        
+        if (s < min) {
+            std::cout << "warning: s has underflowed " << s << " " << min << std::endl;
+        }
+        j[0] = j0;
+
+        // Newton correction seems to help a lot for double, a little for float, but not at all for dd_real.
+        T reps = 0;
+        if constexpr      (std::is_same<T,float>::value)   reps = float(double(r) - double(1.0)/double(rr));
+        else if constexpr (std::is_same<T,double>::value)  reps = to_double(dd_real(r) - dd_real(1.0)/dd_real(rr));
+        else if constexpr (std::is_same<T,dd_real>::value) reps = to_dd_real(qd_real(r) - qd_real(1.0)/qd_real(rr));
+
+        for (size_t l=1; l<=maxl; l++) {
+            j[l] *= s;
+            if constexpr (!std::is_same<T,qd_real>::value) {
+                j[l] += (j[l-1]-(one+(l+one)*rr)*j[l])*reps; // Newton correction due to inexact computing of 1/r
+            }
+
+            // auto RELERR = [&](const T& a, const T&b) {return (std::abs(a-b)/std::abs(b))/eps;};
+
+            // if (doprint) {
+            //     T R = j[l]/j[l-1];
+            //     T Rtest = ggj(l,ggi)/ggj(l-1,ggi);
+            //     T Rrelerr = RELERR(R,Rtest);
+            //     T jrelerr = RELERR(j[l],ggj(l,ggi));
+            //     if (Rrelerr > 0) {
+            //         std::cout << l << " RtestZ " << Rtest << " " << R << " " << Rrelerr << " " << j[l] << " " << ggj(l,ggi) << " " << jrelerr << std::endl;
+            //     }
+            // }
+            
+        }
+    }
+    else {
+        j[0] = half*rr;
+        j[1] = (half - j[0])*rr;
+        for (size_t l=1; l<maxl; l++) {
+            j[l+1] = j[l-1] - (2*l+one)*j[l]*rr;
+        }
+    }
+    
+    return j;
+}
+
+template <typename T>
+std::vector<T> JsphericalscaledVecDumbGoodReciprocal(size_t maxl, T r) {
+    const T zero = 0;
+    std::vector<T> j(maxl+1,zero);
+    if (r == zero) return j;
+    
+    const T eps = std::numeric_limits<T>::epsilon();
+    const T min = std::numeric_limits<T>::min();
+    const T one = 1;
+    const T two = 2;
+    const T half = T(0.5);
+    const T rr = one/r;
+    T R;
+
+    bool doprint = false; //std::abs(r-T(9.536743e-07)) < 1e-11;
+    if (doprint) std::cout << "r " << r << " eps " << eps << std::endl;
+
+    T rcut = 20.0; // So that exp(-2*rcut) is much less than epsilon including gradual underflow
+    if constexpr      (std::is_same<T,float>::value)   rcut = 10.0;
+    else if constexpr (std::is_same<T,double>::value)  rcut = 20.0;
+    else if constexpr (std::is_same<T,dd_real>::value) rcut = 40.0;
+    else if constexpr (std::is_same<T,qd_real>::value) rcut = 80.0;
+
+    if (r < std::max(rcut,T(12.5*maxl))) {
+        size_t n;
+        if constexpr      (std::is_same<T,float>::value)   n = maxl + 20;
+        else if constexpr (std::is_same<T,double>::value)  n = maxl + 80;
+        else if constexpr (std::is_same<T,dd_real>::value) n = maxl + 130;
+        else if constexpr (std::is_same<T,qd_real>::value) n = maxl + 200;
+
+        {
+            T s = (2*n+one)/r;
+            R = (std::sqrt(s*s + T(4)) - s)*half;
+        }
+        
+        while (--n>maxl) {
+            R = one/(R + (2*n+one)*rr); // Compute R_n from R_{n+1}
+        }
+
+        // This helps avoid underflow but loses precision when computing j1/R
+        //T j1 = min * std::max(one, R*r/T(2*maxl+one)); //was R ... now trying to avoid gradual underflow in s below
+        //T j0 = j1/R; // was 1
+
+        T j1 = R;
+        T j0 = one;
+        if constexpr (std::is_same<T,dd_real>::value || std::is_same<T,qd_real>::value) {
+            double small = std::exp2(-128.0);
+            j1 = mul_pwr2(R,small); // exact power of 2 so easy and exact to compute and apply
+            j0 = small;
+        }
+        
+        j[maxl] = j0;
+
+        for (int l=maxl; l>0; l--) {
+            j[l-1] = j1 + ((2*l+one)*rr)*j0;
+            j1 = j0;
+            j0 = j[l-1];
+        }
+
+        j0 = -std::expm1(-two*r)*half*rr; // for small r use expm1 to avoid cancellation
+
+        T s = j0/j[0];
+        
+        if (s < min) {
+            std::cout << "warning: s has underflowed " << s << " " << min << std::endl;
+        }
+        j[0] = j0;
+
+        // Newton correction seems to help a lot for double, a little for float, but not at all for dd_real.
+        T reps = 0;
+        if constexpr      (std::is_same<T,float>::value)   reps = float(double(r) - double(1.0)/double(rr));
+        else if constexpr (std::is_same<T,double>::value)  reps = to_double(dd_real(r) - dd_real(1.0)/dd_real(rr));
+        else if constexpr (std::is_same<T,dd_real>::value) reps = to_dd_real(qd_real(r) - qd_real(1.0)/qd_real(rr));
+
+        for (size_t l=1; l<=maxl; l++) {
+            j[l] *= s;
+            if constexpr (!std::is_same<T,qd_real>::value) {
+                j[l] += (j[l-1]-(one+(l+one)*rr)*j[l])*reps; // Newton correction due to inexact computing of 1/r
+            }
+
+            // auto RELERR = [&](const T& a, const T&b) {return (std::abs(a-b)/std::abs(b))/eps;};
+
+            // if (doprint) {
+            //     T R = j[l]/j[l-1];
+            //     T Rtest = ggj(l,ggi)/ggj(l-1,ggi);
+            //     T Rrelerr = RELERR(R,Rtest);
+            //     T jrelerr = RELERR(j[l],ggj(l,ggi));
+            //     if (Rrelerr > 0) {
+            //         std::cout << l << " RtestZ " << Rtest << " " << R << " " << Rrelerr << " " << j[l] << " " << ggj(l,ggi) << " " << jrelerr << std::endl;
+            //     }
+            // }
+            
+        }
+    }
+    else {
+        j[0] = half*rr;
+        j[1] = (half - j[0])*rr;
+        for (size_t l=1; l<maxl; l++) {
+            j[l+1] = j[l-1] - (2*l+one)*j[l]*rr;
+        }
+    }
+    
+    return j;
+}
+
+
+template <typename T>
 T JsphericalscaledY(size_t l, T r) {
-    return JsphericalscaledVec(32, r)[l];
+    return JsphericalscaledVecDumb(32, r)[l];
 }
 
 
@@ -876,7 +1410,25 @@ load_bessel_test_data() {
             if (l != ll) throw std::runtime_error("l mismatch");
         }
     }
-    return std::make_tuple(r, j, h);
+
+    // Perform index sort on r
+    std::vector<size_t> idx(nR);
+    std::iota(idx.begin(), idx.end(), 0);
+    std::sort(idx.begin(), idx.end(), [&](size_t i, size_t j) {return r[i] < r[j];});
+
+    // Reorder r, j, h
+    std::vector<T> r1(nR);
+    Matrix<T> j1(maxL+2, nR), h1(maxL+2, nR);
+    for (size_t i=0; i<nR; i++) {
+        r1[i] = r[idx[i]];
+        for (size_t l=0; l<=maxL+1; l++) {
+            j1(l,i) = j(l,idx[i]);
+            h1(l,i) = h(l,idx[i]);
+        }
+    }
+
+    return std::make_tuple(r1, j1, h1);
+    //return std::make_tuple(r, j, h);
 }
 
 template <typename T>
@@ -929,49 +1481,53 @@ void test_bessel2() {
     //std::cout << "r " << r;
     
     for (size_t i=0; i<nR; i+=1) {
+        bool doprint = false; //std::abs(r[i]-T(9.536743e-07)) < 1e-11;
         ggi = i;
-        std::cout << "r " << i << " " << r[i] << std::endl;
-        std::vector<T> js = JsphericalscaledVec(maxL, r[i]);
+        //std::cout << "r " << i << " " << r[i] << std::endl;
+        std::vector<T> js = JsphericalscaledVecDumb(maxL, r[i]);
         for (size_t l=0; l<=maxL; l+=1) {
             //for (size_t l=40; l<=40; l+=5) {
             //for (size_t i=300; i<=300; i+=20) {
 
-            double reps = to_double(dd_real(r[i]) - dd_real(1.0)/dd_real(1.0/r[i]));
+            //double reps = to_double(dd_real(r[i]) - dd_real(1.0)/dd_real(1.0/r[i]));
             
             T j0 = js[l];
             T err = (j0-j(l,i));
             T relerr = (err/j(l,i))/eps;
-            T estrelerr = ((l/r[i])*reps)/eps;
-            T estrelerr2 = 0.0;
-            if (l > 0) {
-                estrelerr2 = (j(l-1,i)-(1+(l+1)/r[i])*j(l,i))*reps/(j(l,i)*eps);
-            }
-            avgsgnerr += relerr;
-            err = abs(err);
-            relerr = relerr;
-            avgabserr += std::abs(relerr);
-            if (std::abs(relerr) > maxabserr) {
-                maxabserr = std::abs(relerr);
-                worstr = r[i];
-            }
-            maxabserr = std::max(maxabserr,std::abs(relerr));
-            count += 1;
-            // double gives 26eps with worst errors at short and intermediate distances ... this was due to values of r not being representable exactly in doubles
-            // qd gives 10eps
-            // dd gives 50eps nearly everywhere
-            T fudge = 10;
-            if constexpr (std::is_same_v<T, double>) fudge = 1;
-            else if constexpr (std::is_same_v<T, qd_real>) fudge = 10;
-            else if constexpr (std::is_same_v<T, dd_real>) fudge = 10;
+            //T estrelerr = ((l/r[i])*reps)/eps;
+            //T estrelerr2 = 0.0;
+            //if (l > 0) {
+            //estrelerr2 = (j(l-1,i)-(1+(l+1)/r[i])*j(l,i))*reps/(j(l,i)*eps);
+            //            }
 
-            if (j(l,i)>std::numeric_limits<T>::min()) { // really tiny values will be denormed
-                if (relerr > fudge) {
-                    std::cout << "l=" << l << " r=" << r[i] << " j=" << to_str(j(l,i)) << " j0=" << to_str(j0) << " err=" << err << " relerr=" << relerr << " " << estrelerr << " " << estrelerr2 << std::endl;
+            if (j(l,i)>std::numeric_limits<T>::min()) { // really tiny values will be denormed so ignore them
+                avgsgnerr += relerr;
+                err = abs(err);
+                avgabserr += std::abs(relerr);
+                if (std::abs(relerr) > maxabserr) {
+                    maxabserr = std::abs(relerr);
+                    worstr = r[i];
+                }
+                maxabserr = std::max(maxabserr,std::abs(relerr));
+                count += 1;
+                // double gave 26eps with worst errors at short and intermediate distances ... this was due to test values of r not being representable exactly in doubles
+                // 26 goes to 14 from using representable r, then 14 to 6 from gradient correction for err in computing 1/r, then to 4 from not doing 1/R before starting downward recursion
+                
+                // qd gives 2eps
+                // dd gives better than 20eps nearly everywhere with worst about 46
+                T fudge = 1;
+                if constexpr (std::is_same_v<T, float>) fudge = 2;
+                if constexpr (std::is_same_v<T, double>) fudge = 5;
+                else if constexpr (std::is_same_v<T, dd_real>) fudge = 47;
+                else if constexpr (std::is_same_v<T, qd_real>) fudge = 2;
+                
+                if (doprint || relerr > fudge) {
+                    std::cout << "l=" << l << " r=" << r[i] << " j=" << to_str(j(l,i)) << " j0=" << to_str(j0) << " err=" << err << " relerr=" << relerr << std::endl;
                 }
             }
         }
     }
-    std::cout << "test bessel2: " << avgsgnerr/count << " " << avgabserr/count << " " << maxabserr << " eps" << " " << worstr << std::endl;
+    std::cout << "test bessel2: " << typeid(T).name() << ": " <<  avgsgnerr/count << " " << avgabserr/count << " " << maxabserr << " eps" << " " << worstr << std::endl;
 }
 
 template <typename T>
@@ -1043,7 +1599,6 @@ int main() {
     //BarycentricX<double> b(2000, 6, L, 12.5*L, f33);
     Barycentric<double> b(1250, 12, 0.5, 12.5*L, f33);
     b33 = b;
-    std::cout << (Jsphericalscaled(32, 0.7*L) - JsphericalscaledY(32, 0.7*L))/Jsphericalscaled(32, 0.7*L) << std::endl;
 
     // std::cout << b(20.018) << std::endl;
     // std::cout << f(20.018) << std::endl;
@@ -1054,9 +1609,12 @@ int main() {
     std::cout << b.maxerr(f33) << std::endl;
 
 
-    std::tie(ggr, ggj, ggh) = load_bessel_test_data<double>();
+    std::tie(ggr, ggj, ggh) = load_bessel_test_data<dd_real>();
     
+    test_bessel2<float>();
     test_bessel2<double>();
+    test_bessel2<dd_real>();
+    test_bessel2<qd_real>();
 
     return 0;
     

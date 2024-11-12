@@ -1,0 +1,232 @@
+\documentclass[12pt]{article}
+\usepackage{cite}
+\usepackage{mathtools} %% includes amsmath
+\usepackage{amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{physics}
+\usepackage{graphicx,graphics}
+\setlength{\oddsidemargin}{0.25in}
+\setlength{\evensidemargin}{-0.25in}
+\setlength{\topmargin}{-.5in}
+\setlength{\textheight}{9in}
+\setlength{\parskip}{.1in}
+\setlength{\parindent}{2em}
+\setlength{\textwidth}{6.25in}
+
+\DeclareMathOperator{\erfc}{erfc}
+
+\title{Notes on MADNESS periodic Coulomb}
+\date{\today}
+\author{Robert J. Harrison}
+ 
+\begin{document}
+
+\maketitle
+
+\section{Gaussian representation of Coulomb kernel}
+
+We start from the identity
+\begin{eqnarray}
+  \frac{1}{r} & = & \frac{2}{\sqrt{\pi}} \int_0^\infty \! dt \, \exp(-t^2 r^2) 
+\end{eqnarray}
+change variables using $t=\exp(s)$ to obtain
+\begin{eqnarray}
+  \frac{1}{r} & = & \frac{2}{\sqrt{\pi}} \int_{-\infty}^\infty \! ds \,\exp(-r^2 \exp(2s) + s)
+\end{eqnarray}
+which has the advantage of the kernel being super-exponentially decreasing on the RHS and exponentially decreasing on the LHS which only weakly $r$ dependent.  Thus, a trapezoidal quadrature can easily give arbitrary precision over an arbitrary range (e.g., size of universe!) with a number of points that depends only logarithmically on both attributes.
+\begin{eqnarray}
+  \frac{1}{r} & \approx & \sum_{i=0}^{M-1} \omega_i \exp(-t_i r^2) \\
+  \omega_i & = & \frac{2}{\sqrt{\pi}} \exp(s_i) \\
+  t_i & = & \exp(2s_i) \\
+  s_i = s_0 + i h,
+\end{eqnarray}
+where $h$ (the spacing in the quadrature) and $s_0$ can be chosen either empirically or from a rigorous analysis of the error in the quadrature.
+
+Range separation in the periodic operator is performed by separately treating all exponenents less than some threshold.  We note that
+\begin{eqnarray}
+  \frac{\erf\left( \exp(S) r \right)}{r} & = & \frac{2}{\sqrt{\pi}} \int_{-\infty}^S \! ds \,\exp(-r^2 \exp(2s) + s) \\
+  \frac{\erfc\left( \exp(S) r \right)}{r} & = & \frac{2}{\sqrt{\pi}} \int_S^\infty \! ds \,\exp(-r^2 \exp(2s) + s) \\
+\end{eqnarray}
+These forms have been used in screened response calculations, and high accuracy can be maintained in the trapeoid integration by using high-order end-point corrections at the discontinuity.
+
+\section{Spheropoles}
+
+A spheropole is a charge distribution with all moments vanishing, and therefore the resulting potential vanishes exterior to the distribution.  Of necessity, it is spherically symmetric.  Since we can evaluate the integrals, we construct a spheropole as the difference between two normalized Gaussian distributions with different exponents.
+\begin{eqnarray}
+  \rho(r) & = & g_\alpha(r) - g_\beta(r) \\
+  g_\alpha(r) & = & \left( \frac{\alpha}{\pi} \right)^{3/2} \exp(-\alpha r^2) \\
+  1 & = & 4 \pi \int_0^\infty \! dr \, r^2 g_\alpha(r)
+\end{eqnarray}
+
+The potential due to a normalized Gaussian $g_\alpha(r)$
+\begin{eqnarray}
+  u_\alpha(r) & = & \frac{\erf(\sqrt{\alpha} r)}{r}
+\end{eqnarray}
+which can be verified by substitution into Poisson's equation
+\begin{eqnarray}
+  \nabla^2 u & = & -4 \pi \rho
+\end{eqnarray}
+Thus, the potential due to the spheropole is just $u_\alpha(r) - u_\beta(r)$.
+
+We can slightly painfully verify that using the representation of $1/r$ via the integral form reproduces the potential, meaning that we can indeed switch the order of the two infinite integrations (one to do the convolution of the Green function with the charge density, and one in the representation of $1/r$).  This is actually already apparent from Tonelli's theorem.
+
+With ``$*$'' denoting convolution, we first note that
+\begin{eqnarray}
+  g_\alpha(r) * g_\beta(r) & = & g_{\frac{\alpha \beta}{\alpha+\beta}}(r) .
+\end{eqnarray}
+Then, the potential due to a Gaussian becomes
+\begin{eqnarray}
+  \frac{1}{r} * g_\alpha(r) & = & \frac{2}{\sqrt{\pi}} \int_0^\infty \! dt \, \exp(-t^2 r2) * g_\alpha(r)\\
+  & = & \frac{2}{\sqrt{\pi}} \int_0^\infty \! dt \, \left( \frac{\pi}{t^2} \right)^{3/2}  g_{t^2}(r) * g_\alpha(r) \\
+  & = & \frac{2}{\sqrt{\pi}} \int_0^\infty \! dt \, \left( \frac{\pi}{t^2} \right)^{3/2}  g_{\frac{t^2 \alpha}{t^2 + \alpha}}(r) \\
+  & = & \frac{2}{\sqrt{\pi}} \int_0^\infty \! dt \, \left( \frac{\alpha}{t^2 + \alpha} \right)^{3/2}  \exp\left(-\frac{t^2 \alpha}{t^2 + \alpha} r^2 \right) \\
+  & = & \frac{2}{\sqrt{\pi}r} \int_0^{\sqrt{\alpha} r} \! dz \, \exp(-z^2) \\
+  & = & \frac{\erf(\sqrt{\alpha} r)}{r}
+\end{eqnarray}
+in which we made the substitution 
+\begin{eqnarray}
+  z^2 & = & \frac{t^2 \alpha}{t^2 + \alpha} r^2
+\end{eqnarray}
+
+So we are happy with the free-space situation.
+
+\section{Periodic sum of a Gaussian}
+
+In 1D, we define the familiar integral
+\begin{eqnarray}
+  I & = & \frac{1}{\sqrt{\pi}} \int_{-\infty}^\infty \! dx \, \exp(-x^2) \\
+    & = & 1
+\end{eqnarray}
+If we approximate this integral using the trapezoid rule with spacing $h$
+\begin{eqnarray}
+  I_h & = & h \sum_i \frac{1}{\sqrt{\pi}} \exp(-x_i^2) \\
+  x_i    & = & i h
+\end{eqnarray}
+then, for small $h$ the error behaves as (see Trefethen's SIAM Review article ``The exponentially convergent trapezoidal rule'' for more details)
+\begin{eqnarray}
+  | I_h - I | & \approx & 2 \exp\left( -\frac{\pi^2}{h^2} \right)
+\end{eqnarray}
+To get 17 digits, $h=0.5$ suffices.  In turn, this means that for $\alpha < 0.25$ the lattice sum
+\begin{eqnarray}
+  s_\alpha & = & \sum_i g_\alpha(x+i) 
+\end{eqnarray}
+takes on the value to machine precision of the corresponding integral (1 here due to the normalization of the Gaussian).  I.e., the lattice sum of a diffuse Gaussian is everywhere a constant to a precision that is easily made exponentially small.
+
+\section{Periodic Coulomb potential and GF}
+
+Let $\rho(r)$ be the charge density in the unit cell ($\Omega_0$) and be zero outside.  Thus,
+\begin{eqnarray}
+  \sum_R \rho(r-R) ,
+\end{eqnarray}
+where $R$ is a valid lattice translation, is the charge density periodically extended to the entire crystal.  This sum is absolutely convergent.
+
+The electrostatic potential (we are interested just in the unit cell, but it too will be periodic) due to this periodically-extended density can then be computed by convolution with usual Green function
+\begin{eqnarray}
+  u(r) & = & G(r) * \sum_R \rho(r-R) \\
+  & = & \int_{\Omega_0} \! d^3s \, \sum_S G(r-s) \rho(s-S) \\
+  & = & \int_{\Omega_0} \! d^3s \, \rho(s) \sum_R G(r-R-s) \\
+\end{eqnarray}
+in which $S$ and $R$ denote valid lattice translations, and we used $\Omega$ to denote the entire (infinite) crystal volume and $\Omega_0$ to denote the unit cell.  These improper (infinite) integrals and infinite sums are fraught with multiple issues that we will try to sidestep for present purposes.  First, if we restrict our attention to densities with sufficient vanisishing low-order multiploles (including the spheropoles), we know the resulting periodic potential is well-defined, though that does not fully mean we are free from issues.  E.g., the sum in the last line is nominally over the Green function and not constrained by the density.  Second, imagine we are using a screened-Coulomb operator that dies perhaps exponentially at some distance --- this ensures the infinite integral is convergent (or can even be truncated to be over a finite domain). Third, imagine we are computing in a finite volume (and ignoring surface effects) --- this eliminates both the infinite integral and  sum. 
+
+Returning briefly to the observation that the sum in the last line is over the bare Green function and clearly blows up.  We know that we have to constrain the density so that its first few moments vanish in order for its periodic potential to converge.  When we switch the order of summation and integration, this property should be carried over --- i.e., the contributions to the far-field components of $G$ in the last line should correspond only to those needed to represent the potential from the specific density.  So outside of some convex region containing the unit cell, $G(r)$ should decay appropriately.  Alternatively, before we take the limit of the sum going to infinity, we compute the integral with $\rho$ to achieve the similar effect.  However, with conditionally convergent sums you can easily take limits and get nearly any answer you want.
+
+We are expanding $G(r) = 1/r$ in terms of Gaussians and we saw above that the periodic sum of a Gaussian is a constant if the exponent is above some value.  Since the net charge is zero, we can just throw the diffuse Gaussians away.  We also saw above that splitting the sum over Gaussians at some exponent ($\gamma$) corresponds to the decomposition
+\begin{eqnarray}
+  \frac{1}{r} & = & \frac{\erfc(\sqrt{\gamma} r)}{r} + \frac{\erf(\sqrt{\gamma} r)}{r} 
+\end{eqnarray}
+thus, discarding the diffuse Gaussians corresponds to discarding the long-range term ($\erf$).
+
+The screened potential due to a single normalized Gaussian of exponent $\alpha$ is 
+\begin{eqnarray}
+  u_{\alpha,\gamma}(r) & = & \frac{\erfc(\sqrt{\gamma} r)}{r}  * g_\alpha(r) \\
+   & = & \frac{\erf(\sqrt{\alpha}r) - \erf(\sqrt{\tau_{\alpha,\gamma}}r)}{r}
+\end{eqnarray}
+with 
+\begin{eqnarray}
+  \tau_{\alpha,\gamma} & = & \frac{\alpha \gamma}{\alpha + \gamma}
+\end{eqnarray}
+Noting $\tau_{\alpha,\gamma}$ is symmetric in $\alpha$ and $\gamma$, and that in the expected application we will have $\alpha > \gamma$
+\begin{eqnarray}
+  0 \le \tau_{\alpha,\gamma} \le \gamma < \alpha \\
+  \lim_{\alpha \rightarrow \infty} \tau_{\alpha,\gamma} & = & \gamma
+\end{eqnarray}
+
+Thus, the screened potential due to the spheropole composed as the difference between two Gaussians is
+\begin{eqnarray}
+  u(r) & = & u_{\alpha,\gamma}(r) - u_{\beta,\gamma}(r) \\
+       & = & \frac{\erf(\sqrt{\alpha}r)-\erf(\sqrt{\beta}r)}{r} - \frac{\erf(\sqrt{\tau_{\alpha,\gamma}}r)-\erf(\sqrt{\tau_{\beta,\gamma}}r)}{r}
+\end{eqnarray}
+We are focused on the potential within the unit cell but exterior to the spheropole.  Exterior means that both $g_\alpha(r)$ and $g_\beta(r)$ are negligible, and hence the exterior potential reduces to
+\begin{eqnarray}
+  u(r) & \rightarrow & - \frac{\erf(\sqrt{\tau_{\alpha,\gamma}}r)-\erf(\sqrt{\tau_{\beta,\gamma}}r)}{r}
+\end{eqnarray}
+In the limit, $\alpha \gg \gamma$ and $\beta \gg \gamma$, this approaches zero.  Assuming a unit cell of width 1, with the spheropole in the center, $\alpha=100$, $\beta=10000$, and $\gamma=0.25$ we compute 
+\begin{eqnarray}
+  \tau_{\alpha \gamma} & = & 0.249377 \\
+  \tau_{\beta \gamma} & = & 0.249994 \\
+  u(0.5) & = & 0.000655 \\
+\end{eqnarray}
+Finally, we need the sum of this extended over neighboring cells sufficiently far that the screened potential is exponentially small.  For $\gamma=0.25$ this is about $\pm12$ in each dimension, but in the code we only do this in 1D once for each Gaussian.  This averaging makes the potential exterior to the spheropole into a constant.
+
+Let's compute this value since we can express $\erfc$ in Gaussians and can compute their periodic sum. 
+\begin{eqnarray}
+  \frac{\erfc(\sqrt{\tau}r)}{r} & = & \frac{2}{\sqrt{\pi}} \int_{\sqrt{\tau}}^\infty \! dt \,\exp(-r^2 t^2) \\
+ & = & \frac{2}{\sqrt{\pi}} \int_{\sqrt{\tau}}^\infty \! dt \, \left( \frac{\pi}{t^2} \right)^{3/2}  g_{t^2}(r)
+\end{eqnarray}
+We take the periodic sum over $r+R$, and legitimately exchange the order of summation and integration.  Thus, we seek
+\begin{eqnarray}
+  \sum_R \frac{\erfc(\sqrt{\tau}|r+R|)}{|r+R|}  & = & \frac{2}{\sqrt{\pi}} \int_{\sqrt{\tau}}^\infty \! dt \, \left( \frac{\pi}{t^2} \right)^{3/2}  \sum_R g_{t^2}(|r+R|)
+\end{eqnarray}
+Unfortunately, we only exactly know the sum for small exponents, but here the integral is over exponents larger than $\tau$ --- this was the mistake in the original set of notes.
+
+How to proceed?  We know the asymptotic form of the complementary error function is
+\begin{eqnarray}
+  \erfc(x) & = & \frac{e^{-x^2)}{x \sqrt{\pi}} \left( 1 - \frac{1}{2x^2} + \frac{3}{4 x^4} + O\left(\frac{1}{x^6}\right) \right)
+\end{eqnarray}
+with the first term giving at least 1 significant digit if $x>sqrt(5)\approx 2.3$.  So with $\tau=0.25$, the asymptotic form is suitable for $r > 4.6$.
+
+
+\section{Next steps}
+
+So what happened here?  Focusing on spheropoles:
+\begin{itemize}
+\item If we compute the sum of the potentials arising from each density we have an absolutely convergence sum, since it is zero everywhere exterior to the charge desnity.  This is what we are seeking to reproduce.
+\item And, we want this zero of potential to be independent of the specific form, magnitude, and location within the unit cell (incuding being split with a neighboring cell) of the spheropole.
+\item When we exchange the sum and integration, we now have a divergent sum over the Green function that we are attempting to wrangle to a physically meaningful answer. 
+\item We remove the long-range part of the potential to obtain an absolutely convergent result by noting that a diffuse Gaussians sums to a constant which traces against a zero net charge.  However, this constant will not be finite when summed over the entire expansion of the potential.
+\item When we convolve the screened Coulomb potential with a single spheropole, the resulting potential has a tail within the unit cell, which in the periodic sum averages into an undesired non-zero constant.
+\end{itemize}
+
+Noting we can add and subtract anything we want as long as it sums to a constant in the periodic sum, we can try to undo the damage we did to the short-range potential on the scale of the unit cell.  So, lets seek a modification so that the screened Green function agrees more accurately with the exact Coulomb potential on the range of the unit cell.  Given that computationally we can only easily handle Gaussians, let's try adding some diffuse ones back in to the mix. We can do this in a variety of ways, e.g.,
+\begin{itemize}
+\item find a different partitioning or change of variables in the integral representation used to form the Gaussian expansion, or
+\item numerically fit a small expansion.
+\end{itemize}
+
+Proceeding numerically, let's just add a single diffuse Gaussian with exponent $\gamma$ and adjust the exponent so that the average error is zero over a sphere (here chosen of radius 0.5 so that it touches the faces of the unit cell, but perhaps better is to touch the corners).  With $\gamma=0.25$ this yields the corrected potential of
+\begin{eqnarray}
+ \frac{\erfc(0.5 r)}{r} + 0.5784458587 \exp(-0.25 r^2)
+\end{eqnarray}
+Below is a plot of the uncorrected potential and $1/r$ --- the corrected potential is within the line width of $1/r$ on the plot! This is so good, that something must be going on that needs analyzing, but, \ldots
+\begin{figure}[hb]
+\includegraphics[width=.9\linewidth]{screendpot.pdf}  
+  \caption{Screened potential ($erfc(0.5r)/r$) and exact potential ($1/r$).}
+\end{figure}
+
+Let's compute the correction to the (screened free-space) potential of the spheropole. Noting,
+\begin{eqnarray}
+  0.5784458587 \exp(-0.25 r^2) & = &  25.76781018 g_{0.25}(r) 
+\end{eqnarray}
+at $r=0.5$ this gives a correction (sign??????????????????)
+\begin{eqnarray}
+  25.76781018 \left( g_{\frac{0.25\alpha}{0.25+\alpha}}(0.5) - g_{\frac{0.25\beta}{0.25+\beta}}(0.5) \right)  & = & -0.00192748693998839445
+\end{eqnarray}
+which substantially overshoots the correction (even if I got the sign right).
+
+What happened here?  We're not evaluating the Green function --- we're convolving with it, so the value at every point contributes.  We don't want to
+
+
+
+\end{document}
