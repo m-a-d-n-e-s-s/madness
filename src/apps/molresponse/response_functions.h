@@ -503,26 +503,31 @@ public:
   friend Tensor<double> response_space_inner(const response_space &a,
                                              const response_space &b) {
     MADNESS_ASSERT(a.size() > 0);
-    MADNESS_ASSERT(a.size() == b.size());
     MADNESS_ASSERT(!a[0].empty());
     MADNESS_ASSERT(a[0].size() == b[0].size());
 
+    a.compress_rf();
+    b.compress_rf();
+
     World &world = a[0][0].world();
 
-    size_t dim_1 = a.size();
-    size_t dim_2 = b[0].size();
+    auto dim_a1 = a.size();
+    auto num_orbitals = a.size_orbitals();
+    auto dim_b1 = b.size();
     // Need to take transpose of each input ResponseFunction
-    response_space aT(world, dim_2, dim_1);
-    response_space bT(world, dim_2, dim_1);
-    for (size_t i = 0; i < dim_1; i++) {
-      for (size_t j = 0; j < dim_2; j++) {
+    response_space aT(world, num_orbitals, dim_a1);
+    response_space bT(world, num_orbitals, dim_b1);
+    for (size_t j = 0; j < num_orbitals; j++) {
+      for (size_t i = 0; i < dim_a1; i++) {
         aT[j][i] = a[i][j];
+      }
+      for (size_t i = 0; i < dim_b1; i++) {
         bT[j][i] = b[i][j];
       }
     }
     // Container for result
-    Tensor<double> result(dim_1, dim_1);
-    for (size_t p = 0; p < dim_2; p++) {
+    Tensor<double> result(dim_a1, dim_b1);
+    for (size_t p = 0; p < num_orbitals; p++) {
       result += matrix_inner(world, aT[p], bT[p]);
     }
     return result;
@@ -565,7 +570,6 @@ public:
 // Final piece for KAIN
 inline double inner(response_space &a, response_space &b) {
   MADNESS_ASSERT(a.size() > 0);
-  MADNESS_ASSERT(a.size() == b.size());
   MADNESS_ASSERT(!a[0].empty());
   MADNESS_ASSERT(a[0].size() == b[0].size());
 
