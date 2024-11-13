@@ -870,39 +870,73 @@ QuadraticResponse::compute_beta_v2(World &world, const double &omega_b,
     }
   }
 
-  auto vec_vbc = copyToVector(VBC);
+  if (r_params.print_level() >= 1) {
+    molresponse::start_timer(world);
+  }
 
-  ComputeBetaTask btask;
-  MacroTask beta_task(world, btask);
-  vector<int> index_a;
-  vector<int> index_bc;
-  vector<int> index_b;
-  vector<int> index_c;
+  auto vA = response_space(world, 3, B.num_orbitals());
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < B.num_orbitals(); j++) {
+      vA.x[i][j] = dipole_vectors[i];
+    }
+  }
+  auto compute_simple_beta_terms = [&]() {
+    auto CB = response_space(world, 9, B.num_orbitals());
+    auto BC = response_space(world, 9, B.num_orbitals());
+    int i = 0;
+
+    for (auto [b, c] : BC_index_pairs) {
+      CB.x[i] = mul(world, C.y[c], B.x[b], false);
+      BC.x[i] = mul(world, B.y[b], C.x[c], false);
+      i++;
+    }
+
+    auto beta_abc = response_space_inner(vA, BC);
+    auto beta_acb = response_space_inner(vA, CB);
+    return beta_abc + beta_acb;
+  };
+
+  auto beta_xa_vbc = inner(XA, VBC);
+  auto beta_va_phibc = response_space_inner(vA, phiBC);
+  auto beta_va_phicb = response_space_inner(vA, phiCB);
+  auto beta_1 = compute_simple_beta_terms();
+  auto beta_tensor =
+      -2.0 * (beta_xa_vbc + beta_va_phibc + beta_va_phicb + beta_1);
+
+  /*if (r_params.print_level() >= 1) {*/
+  /*  molresponse::start_timer(world);*/
+  /*}*/
+  /**/
+  /*auto vec_vbc = copyToVector(VBC);*/
+  /*ComputeBetaTask btask;*/
+  /*MacroTask beta_task(world, btask);*/
+  /*vector<int> index_a;*/
+  /*vector<int> index_bc;*/
+  /*vector<int> index_b;*/
+  /*vector<int> index_c;*/
   std::vector<std::string> beta_indices;
 
   for (int a = 0; a < XA.num_states(); a++) {
     int bc = 0;
     for (const auto &[b, c] : this->BC_index_pairs) {
-      index_a.push_back(a);
-      index_b.push_back(b);
-      index_c.push_back(c);
+      /*index_a.push_back(a);*/
+      /*index_b.push_back(b);*/
+      /*index_c.push_back(c);*/
       beta_indices.push_back(xyz[a] + xyz[b] + xyz[c]);
-      index_bc.push_back(bc++);
+      //      index_bc.push_back(bc++);
     }
   }
+  /**/
+  /*auto beta = beta_task(index_bc, index_a, index_b, index_c, vec_a, vec_b,*/
+  /*                      vec_c, vec_zeta_bc, vec_zeta_cb, ground_orbitals,*/
+  /*                      dipole_vectors, vec_vbc);*/
+  /*Tensor<double> beta_tensor(static_cast<long>(beta.size()));*/
+  /*for (long i = 0; i < beta.size(); i++) {*/
+  /*  beta_tensor[i] = beta[i]->get();*/
+  /*}*/
 
-  bool debug = false;
-  if (debug) {
-    auto [beta0, beta0_dir] =
-        compute_beta_tensor_v2(world, B, C, phiBC, phiCB, XA, VBC);
-  }
-
-  auto beta = beta_task(index_bc, index_a, index_b, index_c, vec_a, vec_b,
-                        vec_c, vec_zeta_bc, vec_zeta_cb, ground_orbitals,
-                        dipole_vectors, vec_vbc);
-  Tensor<double> beta_tensor(static_cast<long>(beta.size()));
-  for (long i = 0; i < beta.size(); i++) {
-    beta_tensor[i] = beta[i]->get();
+  if (r_params.print_level() >= 1) {
+    molresponse::end_timer(world, "compute_beta_tensor");
   }
 
   return {beta_tensor, beta_indices};

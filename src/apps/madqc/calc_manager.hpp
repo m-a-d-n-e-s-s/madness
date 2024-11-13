@@ -98,13 +98,11 @@ template <typename T> void to_json(json &j, const Tensor<T> &m) {
   long n_dims = m.ndim(); ///< Number of dimensions (-1=invalid; 0=no
   ///< supported; >0=tensor)
   auto dims = m.dims(); // the size of each dimension
-  // long id = m.id();       ///< Id from TensorTypeData<T> in type_data.h
   // auto strides = m.strides();
   auto m_vals_vector = std::vector<T>(size);
   auto m_dims_vector = std::vector<long>(n_dims);
   std::copy(&m[0], &m[0] + size, m_vals_vector.begin());
   std::copy(dims, dims + n_dims, m_dims_vector.begin());
-
   // This is everything we need to translate to a numpy vector...
   j["size"] = size;
   j["vals"] = m_vals_vector;
