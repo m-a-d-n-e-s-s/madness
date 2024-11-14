@@ -950,6 +950,9 @@ CCPairFunction<T,NDIM> apply(const SeparatedConvolution<T,NDIM>& G, const std::v
 template<typename T, std::size_t NDIM>
 CCPairFunction<T,NDIM> apply(const SeparatedConvolution<T,NDIM>& G, const CCPairFunction<T,NDIM>& argument) {
     CCPairFunction result;
+    double n=argument.norm2();
+    print("applying G to ",argument.name(),"with norm",n);
+    print("G eps",G.gamma());
     timer t1(argument.world());
     if (argument.is_pure()) {
         result=CCPairFunction(G(argument.get_function()));
@@ -960,6 +963,8 @@ CCPairFunction<T,NDIM> apply(const SeparatedConvolution<T,NDIM>& G, const CCPair
     } else {
         MADNESS_EXCEPTION("unknown type in CCPairFunction::apply",1);
     }
+    double n1=result.norm2();
+    print("result norm",n1);
     t1.end("applying G to " + argument.name());
     return result;
 };

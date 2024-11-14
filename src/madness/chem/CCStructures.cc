@@ -502,6 +502,99 @@ assign_name(const FuncType& inp) {
     return "???";
 }
 
+/// make a CCPair without the 6d function and some bookkeeping information
+CCPair CCPairBuilder::make_bare_pair(const int i, const int j) const {
+    MADNESS_ASSERT(i>=info.parameters.freeze() && i < info.mo_bra.size());
+    MADNESS_ASSERT(j>=info.parameters.freeze() && j < info.mo_ket.size());
+
+    CCPair pair(i, j, cc_state(ctype), ctype);
+    pair.bsh_eps=CCPotentials::get_epsilon(i,j,info);
+    if (cc_state(ctype)==EXCITED_STATE) {
+        MADNESS_ASSERT(ex_singles.omega != 0.0);
+        pair.bsh_eps += ex_singles.omega;
+    }
+    return pair;
+}
+
+/// make a CCPair with the given function
+CCPair CCPairBuilder::make_pair(const int i, const int j, const std::vector<CCPairFunction<double,6>>& u) const {
+    CCPair pair=make_bare_pair(i,j);
+    // a lot of logic depends on the first function being the 6d function!
+    if (u.size()>0) MADNESS_CHECK_THROW(u.front().is_pure(),"missing pure 6d function in CCPairBuilder::make_pair");
+    pair.functions+=u;
+    return pair;
+}
+
+/// make a CCPair with the 6d function only and some bookkeeping information
+CCPair CCPairBuilder::make_bare_pair_from_file(const int i, const int j) const {
+    CCPair pair=make_bare_pair(i,j);
+
+    // load the 6d function u and the constant part from file
+    std::string name = pair.name();
+    real_function_6d utmp=load_function<double,6>(name, info.parameters.debug());
+    real_function_6d const_part=load_function<double,6>(name + "_const", info.parameters.debug());
+
+    // first term is the 6d function u, then follows Q12 f12 |ij>, which is added later
+    if (utmp.is_initialized()) pair.functions+=CCPairFunction<double,6>(utmp);
+    if (const_part.is_initialized()) pair.constant_part = const_part;
+
+    return pair;
+}
+
+
+CCPair CCPairBuilder::complete_pair_with_low_rank_parts(const CCPair& pair) const {
+    CCPair result=pair;
+
+    // a lot of logic depends on the first function being the 6d function!
+//    if (result.functions.size()==0) {
+//        real_function_6d f;
+//        result.functions.push_back(CCPairFunction<double,6>(f));
+//    }
+    MADNESS_CHECK_THROW(result.functions.size()==1,"missing pure 6d function in CCPairBuilder::complete_pair_with_low_rank_parts");
+    MADNESS_CHECK_THROW(result.functions.front().is_pure(),"pure 6d function not pure in CCPairBuilder::complete_pair_with_low_rank_parts");
+    long nact=info.get_active_mo_bra().size();
+    if (result.ctype==CT_MP2) {
+        // nothing to do
+    } else if (result.ctype==CT_CC2) {
+        MADNESS_CHECK_THROW(gs_singles.size()==nact,"missing gs_singles for completing the CC2 pair function");
+    } else if (result.ctype==CT_LRCC2) {
+        MADNESS_CHECK_THROW(gs_singles.size()==nact,"missing gs_singles for completing the LRCC2 pair function");
+        MADNESS_CHECK_THROW(ex_singles.size()==nact,"missing ex_singles for completing the LRCC2 pair function");
+    } else {
+        print("unknown ctype in complete_pair_with_low_rank_parts",assign_name(result.ctype));
+        MADNESS_EXCEPTION("unknown ctype",1);
+    }
+
+    timer t1(world);
+    auto phi=info.mo_ket;
+    auto phi_bra=info.mo_bra;
+    StrongOrthogonalityProjector<double,3> Q12(world);
+    auto f12=CCConvolutionOperatorPtr<double,3>(world,OT_F12,info.parameters);
+
+    if (result.ctype==CT_MP2) {
+        // ansatz is Q12 f12 |ij>
+        Q12.set_spaces(phi_bra,phi,phi_bra,phi);
+        CCPairFunction<double,6> fij(f12, phi[result.i], phi[result.j]);
+        std::vector<CCPairFunction<double,6>> tmp=Q12(std::vector<CCPairFunction<double,6>>(1,fij));
+        result.functions+=tmp;
+
+    } else if (result.ctype==CT_CC2) {
+        // ansatz is Qt12 f12 |t_i t_j>
+        auto t=CCPotentials::make_full_t_intermediate(gs_singles,info).get_vecfunction();
+        Q12.set_spaces(phi_bra,t,phi_bra,t);
+
+        CCPairFunction<double,6> fij(f12, t[result.i], t[result.j]);
+        std::vector<CCPairFunction<double,6>> tmp=Q12(std::vector<CCPairFunction<double,6>>(1,fij));
+        result.functions+=tmp;
+    } else if (result.ctype==CT_LRCC2) {
+        // ansatz is Qt12 f12 ( |t_i x_j> + |x_i t_j> ) - dQt12 f12 |t_i t_j>
+        result=CCPotentials::make_pair_lrcc2(world,result.ctype,result.function(),gs_singles,ex_singles,result.i,result.j,info, true);
+    } else {
+        MADNESS_EXCEPTION("unknown ctype",1);
+    }
+    t1.tag("make low-rank parts in make_pair_cc2 for pair("+stringify(result.i)+stringify(result.j)+")");
+    return result;
+}
 
 std::vector<real_function_6d>
 //MacroTaskMp2ConstantPart::operator() (const std::vector<CCPair>& pair, const std::vector<real_function_3d>& mo_ket,
@@ -589,19 +682,19 @@ MacroTaskSinglesPotentialEx::operator()(const std::vector<int>& result_index,
     auto doubles_gs1=Pairs<CCPair>::vector2pairs(doubles_gs,triangular_map);
     auto doubles_ex1=Pairs<CCPair>::vector2pairs(doubles_ex,triangular_map);
 
-    // the doubles currently only contain the full 6d function -> complete it with the Q12 f12 |ti tj> part
-    for (auto& x : doubles_gs1.allpairs) {
-        auto& tau=x.second;
-        MADNESS_CHECK_THROW(tau.functions.size()==1,"doubles in MacroTaskSinglesPotentialsEx should only contain one function");
-        bool compute_Q12_F12=(PotentialType(name)==POT_s2b_ or PotentialType(name)==POT_s2c_);
-        x.second=CCPotentials::make_pair_cc2(world,tau.function(),singles_gs,tau.i,tau.j, info, compute_Q12_F12);
-    }
-    // the doubles currently only contain the full 6d function -> complete it with the Q12 f12 |ti tj> part
-    for (auto& x : doubles_ex1.allpairs) {
-        auto& tau=x.second;
-        MADNESS_CHECK_THROW(tau.functions.size()==1,"doubles in MacroTaskSinglesPotentialsEx should only contain one function");
-        x.second=tau=CCPotentials::make_pair_lrcc2(world,tau.ctype,tau.function(),singles_gs,singles_ex,tau.i,tau.j, info, true);
-    }
+//    // the doubles currently only contain the full 6d function -> complete it with the Q12 f12 |ti tj> part
+//    for (auto& x : doubles_gs1.allpairs) {
+//        auto& tau=x.second;
+//        MADNESS_CHECK_THROW(tau.functions.size()==1,"doubles in MacroTaskSinglesPotentialsEx should only contain one function");
+//        bool compute_Q12_F12=(PotentialType(name)==POT_s2b_ or PotentialType(name)==POT_s2c_);
+//        x.second=CCPotentials::make_pair_cc2(world,tau.function(),singles_gs,tau.i,tau.j, info, compute_Q12_F12);
+//    }
+//    // the doubles currently only contain the full 6d function -> complete it with the Q12 f12 |ti tj> part
+//    for (auto& x : doubles_ex1.allpairs) {
+//        auto& tau=x.second;
+//        MADNESS_CHECK_THROW(tau.functions.size()==1,"doubles in MacroTaskSinglesPotentialsEx should only contain one function");
+//        x.second=tau=CCPotentials::make_pair_lrcc2(world,tau.ctype,tau.function(),singles_gs,singles_ex,tau.i,tau.j, info, true);
+//    }
 
     resultT result=CCPotentials::potential_singles_ex(world,
                 result_index,
@@ -627,13 +720,13 @@ MacroTaskSinglesPotentialGs::operator()(const std::vector<int>& result_index,
     auto triangular_map=PairVectorMap::triangular_map(info.parameters.freeze(),info.mo_ket.size());
     auto doubles_gs1=Pairs<CCPair>::vector2pairs(doubles_gs,triangular_map);
 
-    // the doubles currently only contain the full 6d function -> complete it with the Q12 f12 |ti tj> part
-    for (auto& x : doubles_gs1.allpairs) {
-        auto& tau=x.second;
-        MADNESS_CHECK_THROW(tau.functions.size()==1,"doubles in MacroTaskSinglesPotentialsGS should only contain one function");
-        bool compute_Q12_F12=(PotentialType(name)==POT_s2b_ or PotentialType(name)==POT_s2c_);
-        tau=CCPotentials::make_pair_cc2(world,tau.function(),singles_gs,tau.i,tau.j,info, compute_Q12_F12);
-    }
+//    // the doubles currently only contain the full 6d function -> complete it with the Q12 f12 |ti tj> part
+//    for (auto& x : doubles_gs1.allpairs) {
+//        auto& tau=x.second;
+//        MADNESS_CHECK_THROW(tau.functions.size()==1,"doubles in MacroTaskSinglesPotentialsGS should only contain one function");
+//        bool compute_Q12_F12=(PotentialType(name)==POT_s2b_ or PotentialType(name)==POT_s2c_);
+//        tau=CCPotentials::make_pair_cc2(world,tau.function(),singles_gs,tau.i,tau.j,info, compute_Q12_F12);
+//    }
 
     resultT result=CCPotentials::potential_singles_gs(world, result_index,
                 singles_gs, doubles_gs1, PotentialType(name), info);

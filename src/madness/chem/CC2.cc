@@ -41,6 +41,7 @@ CC2::solve() {
     // check if all pair functions have been loaded or computed
     auto all_pairs_exist = [](const Pairs<CCPair>& pairs) {
         for (const auto& p : pairs.allpairs) {
+            if (p.second.functions.size()==0) return false;
             if (not p.second.function().is_initialized()) return false;
             if (not p.second.constant_part.is_initialized()) return false;
         }
@@ -386,7 +387,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
         for (auto& c : pair_vec) {
             MADNESS_CHECK_THROW(c.constant_part.is_initialized(), "could not find constant part");
             // constant part is zero-order guess for pair.function
-            if (not c.function().is_initialized()) c.update_u(c.constant_part);
+            if (not c.function_exists()) c.update_u(c.constant_part);
         }
 
     } else {
@@ -406,15 +407,14 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
 
         // transform vector back to Pairs structure
         for (size_t i = 0; i < pair_vec.size(); i++) {
-            auto pair=pair_vec[i];
+            auto& pair=pair_vec[i];
             pair.constant_part = result_vec[i];
             pair.constant_part.truncate().reduce_rank();
             pair.constant_part.print_size("constant_part");
-            pair.function().truncate().reduce_rank();
-            save(pair.constant_part, pair.name() + "_const");
 
             // initialize pair function to constant part
-            if (not pair.function().is_initialized()) pair.update_u(pair.constant_part);
+            pair.update_u(pair.constant_part);
+            save(pair.constant_part, pair.name() + "_const");
 
         }
     }
@@ -654,6 +654,8 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
     cc2_s.reconstruct();
     lrcc2_s.reconstruct();
 
+    if (1) {
+
     // make new constant part
     MacroTaskConstantPart tc;
     MacroTask task(world, tc);
@@ -664,9 +666,17 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
         pair_vec[i].constant_part=cp[i];
         save(pair_vec[i].constant_part, pair_vec[i].name() + "_const");
     }
+    } else {
+        print("reading LRCC2 constant part from file");
+        for (int i=0; i<pair_vec.size(); ++i) {
+            real_function_6d tmp=real_factory_6d(world);
+            load(tmp, pair_vec[i].name() + "_const");
+            pair_vec[i].constant_part=tmp;
+        }
+    }
 
     // if no function has been computed so far use the constant part (first iteration)
-    for (auto& pair : pair_vec) if (not pair.function().is_initialized()) pair.update_u(pair.constant_part);
+    for (auto& pair : pair_vec) if (not pair.function_exists()) pair.update_u(pair.constant_part);
 
     for (const auto& p : pair_vec) p.constant_part.print_size("constant_part before iter");
     for (const auto& p : pair_vec) p.function().print_size("u before iter");
@@ -862,13 +872,13 @@ CC2::solve_lrcc2(Pairs<CCPair>& gs_doubles, const CC_vecfunction& gs_singles, co
     Pairs<CCPair> ex_doubles;
     bool found_lrcc2d = initialize_pairs(ex_doubles, EXCITED_STATE, CT_LRCC2, gs_singles, ex_singles, excitation, info);
 
-    // if ((not found_singles) and found_lrcc2d) {
+    if ((not found_singles) and found_lrcc2d) {
         iterate_lrcc2_singles(world, gs_singles, gs_doubles, ex_singles, ex_doubles, info);
 
         std::string filename1=singles_name(CT_LRCC2,ex_singles.type,excitation);
         if (world.rank()==0) print("saving singles to disk",filename1);
         ex_singles.save_restartdata(world,filename1);
-    // }
+    }
 
     if (not info.parameters.no_compute_lrcc2()) {
         for (size_t iter = 0; iter < parameters.iter_max(); iter++) {
@@ -1273,37 +1283,45 @@ CC2::initialize_singles_to_zero(World& world, const CalcType& ctype, const FuncT
 
 
 bool
-CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType ctype, const CC_vecfunction& tau,
-                      const CC_vecfunction& x, const size_t excitation, const Info& info) const {
-    MADNESS_ASSERT(tau.type == PARTICLE);
-    MADNESS_ASSERT(x.type == RESPONSE);
+CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType ctype,
+            const CC_vecfunction& gs_singles, const CC_vecfunction& ex_singles,
+            const size_t excitation, const Info& info) const {
+
+    MADNESS_ASSERT(gs_singles.type == PARTICLE);
+    MADNESS_ASSERT(ex_singles.type == RESPONSE);
     MADNESS_ASSERT(pairs.empty());
+
+    auto builder=CCPairBuilder(world,info);
+    builder.set_gs_singles(gs_singles).set_ex_singles(ex_singles).set_ctype(ctype);
 
     std::string name1 = CCPair(0, 0, ftype, ctype).name();
     if (world.rank()==0) print("initializing doubles",assign_name(ftype), " --- reading from file(s)",name1);
 
-    bool restarted = false;
-
     for (size_t i = parameters.freeze(); i < CCOPS.mo_ket().size(); i++) {
         for (size_t j = i; j < CCOPS.mo_ket().size(); j++) {
+            CCPair pair=builder.make_bare_pair_from_file(i,j);
 
-            std::string name = CCPair(i, j, ftype, ctype).name();
-            real_function_6d utmp;
-            const bool found = CCOPS.load_function(utmp, name, info.parameters.debug());
-            if (found) restarted = true; // if a single pair was found then the calculation is not from scratch
-            real_function_6d const_part;
-            CCOPS.load_function(const_part, name + "_const", info.parameters.debug());
-            CCPair tmp;
-            if (ctype==CT_MP2)
-                tmp=CCPotentials::make_pair_mp2(world, utmp, i, j, info, false);
-            if (ctype==CT_CC2)
-                tmp=CCPotentials::make_pair_cc2(world, utmp, tau, i, j, info, false);
-            if (ctype==CT_LRCC2 or ctype==CT_ADC2 or ctype==CT_CISPD)
-                tmp=CCPotentials::make_pair_lrcc2(world, ctype, utmp, tau, x, i, j, info, false);
-            tmp.constant_part = const_part;
-            pairs.insert(i, j, tmp);
+//            std::string name = CCPair(i, j, ftype, ctype).name();
+//            real_function_6d utmp;
+//            const bool found = CCOPS.load_function(utmp, name, info.parameters.debug());
+//            if (found) restarted = true; // if a single pair was found then the calculation is not from scratch
+//            real_function_6d const_part;
+//            CCOPS.load_function(const_part, name + "_const", info.parameters.debug());
+//            CCPair tmp;
+//            if (ctype==CT_MP2)
+//                tmp=CCPotentials::make_pair_mp2(world, utmp, i, j, info, false);
+//            if (ctype==CT_CC2)
+//                tmp=CCPotentials::make_pair_cc2(world, utmp, tau, i, j, info, false);
+//            if (ctype==CT_LRCC2 or ctype==CT_ADC2 or ctype==CT_CISPD)
+//                tmp=CCPotentials::make_pair_lrcc2(world, ctype, utmp, tau, x, i, j, info, false);
+//            tmp.constant_part = const_part;
+            pairs.insert(i, j, pair);
         }
     }
+    // it's a restarted calculation if all pairs are found on disk
+    bool restarted=std::all_of(pairs.allpairs.begin(),pairs.allpairs.end(),
+        [](const auto& datum){return datum.second.functions.size()>0 && datum.second.function().is_initialized();});
+
     return restarted;
 }
 

@@ -100,6 +100,7 @@ CCPair CCPotentials::make_pair_cc2(World& world, const real_function_6d& u, cons
 
     // construct Q12 f12 |ij>
     if (compute_Q12_f12) {
+        timer t1(world);
         auto phi=info.mo_ket;
         auto phi_bra=info.mo_bra;
         auto t=make_full_t_intermediate(gs_singles,info).get_vecfunction();
@@ -110,6 +111,7 @@ CCPair CCPotentials::make_pair_cc2(World& world, const real_function_6d& u, cons
         CCPairFunction<double,6> fij(f12, t[i], t[j]);
         std::vector<CCPairFunction<double,6>> tmp=Q12(std::vector<CCPairFunction<double,6>>(1,fij));
         functions+=tmp;
+        t1.tag("make low-rank parts in make_pair_cc2");
     } else {
         if (world.rank()==0) print("skipping the computation of Q12 f12 |ij> in make_pair_cc2");
     }
@@ -133,6 +135,7 @@ CCPair CCPotentials::make_pair_lrcc2(World& world, const CalcType& ctype, const 
     auto functions=std::vector<cpT>(1,cpT(u));
 
     if (compute_Q12_f12) {
+        timer t1(world);
         // compute the t intermediates for active orbitals only -- they go into the ansatz
         const auto t = CC_vecfunction(info.get_active_mo_ket()+gs_singles.get_vecfunction(),MIXED,info.parameters.freeze());
         MADNESS_ASSERT(t.size() == (info.mo_ket.size()-info.parameters.freeze()));
@@ -160,7 +163,9 @@ CCPair CCPotentials::make_pair_lrcc2(World& world, const CalcType& ctype, const 
         auto f_tt=std::vector<cpT>(1,cpT(f12, t(i), t(j)));
 
         functions+=(Q12t(f_xt) + Q12t(f_tx) - dQt_1(f_tt) -dQt_2(f_tt));     // note the sign change in the last two terms
+        t1.tag("make low-rank parts in make_pair_lrcc2");
         functions=consolidate(functions);
+        t1.tag("consolidate low-rank parts in make_pair_lrcc2");
     }
 
     CCPair pair(i, j, EXCITED_STATE, ctype, functions);
@@ -2413,6 +2418,12 @@ CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& g
     MacroTaskSinglesPotentialEx taskex;
     MacroTask<MacroTaskSinglesPotentialEx> mtaskex(world,taskex,taskq);
 
+    info.reconstruct();
+    for (auto& p : gs_doubles.allpairs) p.second.reconstruct();
+    for (auto& p : ex_doubles.allpairs) p.second.reconstruct();
+    gs_singles.reconstruct();
+    ex_singles.reconstruct();
+
     std::vector<int> result_index(ex_singles.size());
     for (int i=0; i<result_index.size(); ++i) result_index[i]=i+info.parameters.freeze();
     auto [fock_residue, dum1] = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_F3D_), info);
@@ -2551,6 +2562,8 @@ CCPotentials::potential_singles_gs(World& world, const std::vector<int>& result_
     const CC_vecfunction singles_external(singles_tmp);
     const CC_vecfunction t_external = make_active_t_intermediate(singles_external,info);
 
+    auto builder=CCPairBuilder(world,info).set_gs_singles(singles);
+
     if (name == POT_F3D_) {
         result = fock_residue_closed_shell(world, singles_external, info);
     } else if (name == POT_ccs_) {  // or S3c
@@ -2574,9 +2587,9 @@ CCPotentials::potential_singles_gs(World& world, const std::vector<int>& result_
         //	    << get_size(world,result_s4a) << " (GB), " << timer.current_time().first << "s (wall), " << timer.current_time().second << "s (cpu)\n";
         //	result = add(world,result_s2b,result_s4a);
         // returns the s2b potential (unprojected)
-        std::tie(result,intermediate) = s2b(world, result_index, singles, doubles, info);
+        std::tie(result,intermediate) = s2b(world, result_index, singles, doubles, builder, info);
     } else if (name == POT_s2c_) {
-        std::tie(result,intermediate) = s2c(world, result_index, singles, doubles, info);
+        std::tie(result,intermediate) = s2c(world, result_index, singles, doubles, builder, info);
     } else if (name == POT_s4a_) {
         error("potential_singles: Demanded s4a potential -> this is calculated along with the s2b potential");
     } else if (name == POT_s4b_) {
@@ -2662,6 +2675,8 @@ CCPotentials::potential_singles_ex(World& world, const std::vector<int> result_i
     MADNESS_ASSERT(singles_gs.type == PARTICLE);
     MADNESS_ASSERT(singles_ex.type == RESPONSE);
 
+    auto builder=CCPairBuilder(world,info).set_gs_singles(singles_gs).set_ex_singles(singles_ex);
+
     vector_real_function_3d result, intermediate;
 
     // collect all singles that correspond to external lines
@@ -2694,9 +2709,9 @@ CCPotentials::potential_singles_ex(World& world, const std::vector<int> result_i
         vector_real_function_3d part3 = Ox(ccs_unprojected(world, t_gs_external, singles_gs, info));
         result=part1 + part2 - part3;
     } else if (name == POT_s2b_) {
-        std::tie(result, intermediate) = s2b(world, result_index, singles_ex, doubles_ex, info);
+        std::tie(result, intermediate) = s2b(world, result_index, singles_ex, doubles_ex, builder, info);
     } else if (name == POT_s2c_) {
-        std::tie(result, intermediate) = s2c(world, result_index, singles_ex, doubles_ex, info);
+        std::tie(result, intermediate) = s2c(world, result_index, singles_ex, doubles_ex, builder, info);
     } else if (name == POT_s4a_) {
         error("potential_singles: Demanded s4a potential -> this is calculated from the s2b potential");
     } else if (name == POT_s4b_) {
@@ -3193,9 +3208,10 @@ CCPotentials::x_s4c(const CC_vecfunction& x, const CC_vecfunction& t, const Pair
 
 std::tuple<madness::vector_real_function_3d, madness::vector_real_function_3d>
 CCPotentials::s2b(World& world, const std::vector<int> external_indices, const CC_vecfunction& singles,
-    const Pairs<CCPair>& doubles, const Info& info)
+                  const Pairs<CCPair>& doubles, const CCPairBuilder& builder, const Info& info)
 {
     vector_real_function_3d result;
+    // auto builder=PairBuilder(world,info).set_gs_singles(singles);
 
     // which "external_indices" refers to a subset of the full external indices (active orbitals) only (through Macrotasks),
     // the intermediates result_u is stored as the full vector [nfreeze,nocc)
@@ -3210,7 +3226,12 @@ CCPotentials::s2b(World& world, const std::vector<int> external_indices, const C
         real_function_3d resulti_r = real_factory_3d(world);
         for (const auto& ktmp : singles.functions) {
             const size_t k = ktmp.first;
-            std::vector<CCPairFunction<double,6>> uik = get_pair_function(doubles, i, k);
+            // next line might swap particles 1 and 2
+            std::vector<CCPairFunction<double,6>> uik1 = get_pair_function(doubles, i, k);
+            // make a ful pair function using the pure 6D part uik and complete with the rest
+            CCPair pair_ik=builder.complete_pair_with_low_rank_parts(builder.make_pair(i,k,uik1));
+            std::vector<CCPairFunction<double,6>> uik = pair_ik.functions;
+
             // check if the first function in the vector is really the pure 6D part
             MADNESS_ASSERT(uik[0].is_pure());
             if (recalc_u_part) {
@@ -3235,14 +3256,24 @@ CCPotentials::s2b(World& world, const std::vector<int> external_indices, const C
 }
 
 std::tuple<madness::vector_real_function_3d, madness::vector_real_function_3d>
-CCPotentials::s2c(World& world, const std::vector<int> external_index, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info) {
+CCPotentials::s2c(World& world, const std::vector<int> external_index, const CC_vecfunction& singles,
+                  const Pairs<CCPair>& doubles1, const CCPairBuilder& builder, const Info& info) {
     vector_real_function_3d result;
+    // auto builder=PairBuilder(world,info).set_gs_singles(singles);
+
     // see if we can skip the recalculation of the pure 6D part since this does not change during the singles iteration
     vector_real_function_3d result_u = info.intermediate_potentials(singles, POT_s2c_,false);
     vector_real_function_3d result_u_return;
     bool recalc_u_part = false;
     if (result_u.empty()) recalc_u_part = true;
     auto g12=CCConvolutionOperator<double,3>(world,OT_G12,info.parameters);
+
+    // add the regularization terms Q12 f12 |xy>  to the pair
+    Pairs<CCPair> doubles=doubles1;
+    for (auto& itmp : doubles.allpairs) {
+        auto& pair=itmp.second;
+        pair=builder.complete_pair_with_low_rank_parts(pair);
+    }
 
     // for (const auto& itmp : singles.functions) {
     for (const int i : external_index) {

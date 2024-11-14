@@ -31,6 +31,7 @@ enum CalcType {
 enum CCState {
     CCSTATE_UNDEFINED, GROUND_STATE, EXCITED_STATE
 };
+
 /// CC2 Singles Potentials
 enum PotentialType {
     POT_UNDEFINED,
@@ -967,153 +968,6 @@ std::shared_ptr<CCConvolutionOperator<T,NDIM>> CCConvolutionOperatorPtr(World& w
     return std::shared_ptr<CCConvolutionOperator<T,NDIM>>(new CCConvolutionOperator<T,NDIM>(world,type,param));
 }
 
-
-class CCPair : public archive::ParallelSerializableObject {
-public:
-    CCPair() = default;
-
-    CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c) : type(t), ctype(c), i(ii), j(jj),
-                                                                                  bsh_eps(12345.6789) {};
-
-    CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c, const std::vector<CCPairFunction<double,6>>& f)
-            : type(t), ctype(c), i(ii), j(jj), functions(f), bsh_eps(12345.6789) {};
-
-    CCPair(const CCPair& other) : type(other.type), ctype(other.ctype), i(other.i), j(other.j),
-                                  functions(other.functions), constant_part(other.constant_part),
-                                  bsh_eps(other.bsh_eps) {};
-
-    CCState type;
-    CalcType ctype;
-    size_t i;
-    size_t j;
-
-    /// customized function to store this to the cloud
-
-    /// functions and constant_part can be very large and we want to split them and store them in different records
-    /// *NOTE* only the 6d function and the constant part are stored in the cloud, not the 3d functions *NOTE*
-    Recordlist<Cloud::keyT> cloud_store(World& world, Cloud& cloud) const {
-        // save bookkeeping stuff in a vector
-        std::vector<unsigned char> v;
-        archive::VectorOutputArchive arout(v);
-        bool function_is_assigned=(functions.size()>0 && functions[0].is_assigned());
-        arout & type & ctype & i & j & bsh_eps & function_is_assigned & constant_part.is_initialized();
-
-        Recordlist<Cloud::keyT> records;
-        records+=cloud.store(world,v);
-        if (function_is_assigned) records+=cloud.store(world,functions[0]);
-        if (constant_part.is_initialized()) records+=cloud.store(world,constant_part);
-        return records;
-   }
-
-    /// customized function to load this from the cloud
-
-    /// functions and constant_part can be very large and we want to split them and store them in different records
-    /// @param[inout] recordlist: containing the keys of the member variables -> will be reduced by the keys which are used
-    void cloud_load(World& world, const Cloud& cloud, Recordlist<Cloud::keyT>& recordlist) {
-        // load bookkeeping stuff in a vector
-        std::vector<unsigned char> v=cloud.forward_load<std::vector<unsigned char>>(world,recordlist);
-        archive::VectorInputArchive arin(v);
-        bool function_is_assigned = false, constant_part_is_initialized=false;
-        arin & type & ctype & i & j & bsh_eps & function_is_assigned & constant_part_is_initialized;
-        functions.clear();
-        constant_part.clear();
-
-        if (function_is_assigned) functions.emplace_back(cloud.forward_load<CCPairFunction<double,6>>(world,recordlist));
-        if (constant_part_is_initialized) constant_part=cloud.forward_load<real_function_6d>(world,recordlist);
-   }
-
-    /// gives back the pure 6D part of the pair function
-    real_function_6d function() const {
-        MADNESS_ASSERT(not functions.empty());
-        MADNESS_ASSERT(functions[0].is_pure());
-        return functions[0].get_function();
-    }
-
-    /// updates the pure 6D part of the pair function
-    void update_u(const real_function_6d& u) {
-        MADNESS_ASSERT(not functions.empty());
-        MADNESS_ASSERT(functions[0].is_pure());
-        CCPairFunction tmp(u);
-        functions[0] = tmp;
-    }
-
-    template<typename Archive>
-    void serialize(const Archive& ar) {
-        size_t f_size = functions.size();
-        bool fexist = (f_size > 0) && (functions[0].get_function().is_initialized());
-        bool cexist = constant_part.is_initialized();
-        ar & type & ctype & i & j & bsh_eps & fexist & cexist & f_size;
-        if constexpr (Archive::is_input_archive) {
-            if (fexist) {
-                real_function_6d func;
-                ar & func;
-                CCPairFunction f1(func);
-                functions.push_back(f1);
-            }
-        } else {
-            if (fexist) ar & functions[0].get_function();
-        }
-        if (cexist) ar & constant_part;
-    }
-
-    /// reconstruct constant part and all functions
-    void reconstruct() const {
-        constant_part.reconstruct();
-        for (auto& f : functions) {
-            if (f.is_assigned() and f.is_pure()) f.get_function().reconstruct();
-        }
-    }
-
-    bool load_pair(World& world) {
-        std::string fname=this->name();
-        bool exists = archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>::exists(world, fname.c_str());
-        if (exists) {
-            archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, fname.c_str(), 1);
-            ar & *this;
-            if (functions[0].get_function().is_initialized()) functions[0].get_function().set_thresh(FunctionDefaults<6>::get_thresh());
-            if (constant_part.is_initialized()) constant_part.set_thresh(FunctionDefaults<6>::get_thresh());
-        }
-        return exists;
-    }
-
-    void store_pair(World& world) {
-        std::string fname =this->name();
-        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, fname.c_str(), 1);
-        ar & *this;
-    }
-
-    hashT hash() const {
-        hashT hash_i = std::hash<std::size_t>{}(i);
-        hash_combine(hash_i, std::hash<std::size_t>{}(j));
-        if (constant_part.is_initialized()) {
-            hash_combine(hash_i, hash_value(constant_part.get_impl()->id()));
-        }
-        return hash_i;
-    }
-
-    /// the functions which belong to the pair
-    std::vector<CCPairFunction<double,6>> functions;
-
-    /// the constant part
-    real_function_6d constant_part;
-
-    /// Energy for the BSH Operator
-    /// Ground State: e_i + e_j
-    /// Excited State: e_i + e_j + omega
-    double bsh_eps;
-
-    std::string name() const {
-        std::string name = "???";
-        if (type == GROUND_STATE) name = assign_name(ctype) + "_pair_u_";
-        if (type == EXCITED_STATE) name = assign_name(ctype) + "_pair_x_";
-        return name + stringify(i) + stringify(j);
-    }
-
-    void
-    info() const;
-
-};
-
 /// little helper structure which manages the stored singles potentials
 struct CCIntermediatePotentials {
     CCIntermediatePotentials() = default;
@@ -1320,6 +1174,258 @@ struct Info {
     }
 
 };
+
+
+class CCPair : public archive::ParallelSerializableObject {
+public:
+    CCPair() = default;
+
+    CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c)
+    : type(t), ctype(c), i(ii), j(jj), bsh_eps(12345.6789) {};
+
+    CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c,
+        const std::vector<CCPairFunction<double,6>>& f)
+            : type(t), ctype(c), i(ii), j(jj), functions(f), bsh_eps(12345.6789) {};
+
+    CCPair(const CCPair& other) : type(other.type), ctype(other.ctype), i(other.i), j(other.j),
+                                  functions(other.functions), constant_part(other.constant_part),
+                                  bsh_eps(other.bsh_eps) {};
+
+    CCState type;
+    CalcType ctype;
+    size_t i;
+    size_t j;
+
+    /// customized function to store this to the cloud
+
+    /// functions and constant_part can be very large and we want to split them and store them in different records
+    /// *NOTE* only the 6d function and the constant part are stored in the cloud, not the 3d functions *NOTE*
+    Recordlist<Cloud::keyT> cloud_store(World& world, Cloud& cloud) const {
+        // save bookkeeping stuff in a vector
+        std::vector<unsigned char> v;
+        archive::VectorOutputArchive arout(v);
+        bool function_is_assigned=(functions.size()>0 && functions[0].is_assigned());
+        arout & type & ctype & i & j & bsh_eps & function_is_assigned & constant_part.is_initialized();
+
+        Recordlist<Cloud::keyT> records;
+        records+=cloud.store(world,v);
+        if (function_is_assigned) records+=cloud.store(world,functions[0]);
+        if (constant_part.is_initialized()) records+=cloud.store(world,constant_part);
+        return records;
+   }
+
+    /// customized function to load this from the cloud
+
+    /// functions and constant_part can be very large and we want to split them and store them in different records
+    /// @param[inout] recordlist: containing the keys of the member variables -> will be reduced by the keys which are used
+    void cloud_load(World& world, const Cloud& cloud, Recordlist<Cloud::keyT>& recordlist) {
+        // load bookkeeping stuff in a vector
+        std::vector<unsigned char> v=cloud.forward_load<std::vector<unsigned char>>(world,recordlist);
+        archive::VectorInputArchive arin(v);
+        bool function_is_assigned = false, constant_part_is_initialized=false;
+        arin & type & ctype & i & j & bsh_eps & function_is_assigned & constant_part_is_initialized;
+        functions.clear();
+        constant_part.clear();
+
+        if (function_is_assigned) functions.emplace_back(cloud.forward_load<CCPairFunction<double,6>>(world,recordlist));
+        if (constant_part_is_initialized) constant_part=cloud.forward_load<real_function_6d>(world,recordlist);
+   }
+
+    bool function_exists() const {
+        return (functions.size()>0 and functions[0].is_assigned() and functions[0].is_pure());
+    }
+
+    /// gives back the pure 6D part of the pair function
+    real_function_6d function() const {
+        MADNESS_CHECK_THROW(not functions.empty(), "no function assigned in CCPair::function()");
+        MADNESS_CHECK_THROW(functions[0].is_pure(),"function is not pure in CCPair::function()");
+        return functions[0].get_function();
+    }
+
+    /// updates the pure 6D part of the pair function
+    void update_u(const real_function_6d& u) {
+        print("updating u(",i,j,")");
+        CCPairFunction tmp(u);
+        if (functions.size() == 0) functions.push_back(tmp);
+        else { //(functions.size() > 1) {
+            MADNESS_CHECK_THROW(functions[0].is_pure(),"function is not pure in CCPair::update_u()");
+            functions[0]=tmp;
+        }
+    }
+
+    template<typename Archive>
+    void serialize(const Archive& ar) {
+        size_t f_size = functions.size();
+        bool fexist = (f_size > 0) && (functions[0].get_function().is_initialized());
+        bool cexist = constant_part.is_initialized();
+        ar & type & ctype & i & j & bsh_eps & fexist & cexist & f_size;
+        if constexpr (Archive::is_input_archive) {
+            if (fexist) {
+                real_function_6d func;
+                ar & func;
+                CCPairFunction f1(func);
+                functions.push_back(f1);
+            }
+        } else {
+            if (fexist) ar & functions[0].get_function();
+        }
+        if (cexist) ar & constant_part;
+    }
+
+    /// reconstruct constant part and all functions
+    void reconstruct() const {
+        constant_part.reconstruct();
+        for (auto& f : functions) {
+            if (f.is_assigned() and f.is_pure()) f.get_function().reconstruct();
+        }
+    }
+
+    bool load_pair(World& world) {
+        std::string fname=this->name();
+        bool exists = archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>::exists(world, fname.c_str());
+        if (exists) {
+            archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, fname.c_str(), 1);
+            ar & *this;
+            if (functions[0].get_function().is_initialized()) functions[0].get_function().set_thresh(FunctionDefaults<6>::get_thresh());
+            if (constant_part.is_initialized()) constant_part.set_thresh(FunctionDefaults<6>::get_thresh());
+        }
+        return exists;
+    }
+
+    void store_pair(World& world) {
+        std::string fname =this->name();
+        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, fname.c_str(), 1);
+        ar & *this;
+    }
+
+    hashT hash() const {
+        hashT hash_i = std::hash<std::size_t>{}(i);
+        hash_combine(hash_i, std::hash<std::size_t>{}(j));
+        if (constant_part.is_initialized()) {
+            hash_combine(hash_i, hash_value(constant_part.get_impl()->id()));
+        }
+        return hash_i;
+    }
+
+    /// the functions which belong to the pair
+    std::vector<CCPairFunction<double,6>> functions;
+
+    /// the constant part
+    real_function_6d constant_part;
+
+    /// Energy for the BSH Operator
+    /// Ground State: e_i + e_j
+    /// Excited State: e_i + e_j + omega
+    /// default to positive value to make sure this is set somewhere
+    double bsh_eps=1.0;
+
+    std::string name() const {
+        std::string name = "???";
+        if (type == GROUND_STATE) name = assign_name(ctype) + "_pair_u_";
+        if (type == EXCITED_STATE) name = assign_name(ctype) + "_pair_x_";
+        return name + stringify(i) + stringify(j);
+    }
+
+    void
+    info() const;
+
+};
+
+/// build an MP2 or CC2 or LRCC2 etc pair, possibly including the lo-rank parts
+class CCPairBuilder {
+public:
+    CCPairBuilder(World& world, const Info& info) : world(world), info(info) {};
+
+    /// provide ground-state singles, needed for CC2 and LRCC2 wave function ansatz
+    CCPairBuilder& set_gs_singles(const CC_vecfunction& gs) {
+        gs_singles = gs;
+        return *this;
+    }
+
+    /// provide excited state singles, needed for CC2 and LRCC2 wave function ansatz
+    CCPairBuilder& set_ex_singles(const CC_vecfunction& ex) {
+        ex_singles = ex;
+        return *this;
+    }
+
+    CCPairBuilder& set_ctype(const CalcType& type) {
+        ctype = type;
+        return *this;
+    }
+
+    /// make a CCPair without the 6d function and some bookkeeping information
+    CCPair make_bare_pair(const int i, const int j) const;
+
+    /// make a CCPair with the 6d function only and some bookkeeping information
+    CCPair make_bare_pair_from_file(const int i, const int j) const;
+
+    /// make a CCPair
+    CCPair make_pair(const int i, const int j, const std::vector<CCPairFunction<double,6>>& u) const;
+
+    inline static CCState cc_state(const CalcType& type) {
+        if (type==CT_MP2 or type==CT_CC2 or type==CT_MP3) return GROUND_STATE;
+        else if (type==CT_LRCC2 or type==CT_ADC2 or type==CT_CISPD) return EXCITED_STATE;
+        else {
+            MADNESS_EXCEPTION("unknown cc-state",1);
+        }
+    }
+
+    /// make a CCPair with the 6d function only and some bookkeeping information
+    Pairs<CCPair> make_all_bare_pairs() const {
+        Pairs<CCPair> pairs;
+        for (size_t i = info.parameters.freeze(); i < info.mo_bra.size(); i++) {
+            for (size_t j = info.parameters.freeze(); j < info.mo_ket.size(); j++) {
+                pairs.insert(i,j,make_bare_pair(i, j));
+            }
+        }
+        return pairs;
+    }
+
+    /// complete the given pair with the low-rank parts
+
+    /// will use pair's ctype, while builder's ctype is ignored
+    CCPair complete_pair_with_low_rank_parts(const CCPair& pair) const;
+
+
+    /// Function to load a function from disk
+
+    /// @param[in] name of the file in which the function was stored
+    /// @param do_print
+    /// @return the function, possibly not initialized if not found on disk
+    template <typename T, size_t NDIM>
+    Function<T,NDIM> load_function(const std::string name, bool do_print) const {
+        Function<T,NDIM> f;
+        bool exists = archive::ParallelInputArchive<
+            archive::BinaryFstreamInputArchive>::exists(world, name.c_str());
+        if (exists) {
+            if ((world.rank() == 0) and do_print) print("loading function", name);
+            archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str());
+            ar & f;
+            if (do_print) f.print_size(name);
+            if (f.is_compressed()) {
+                if (world.rank()==0 and do_print) print("function is compressed -- reconstructing");
+                f.change_tree_state(reconstructed);
+                if (do_print) f.print_size(name+" reconstructed");
+                save(f, name);
+            }
+            f.set_thresh(FunctionDefaults<NDIM>::get_thresh());
+            f.truncate();
+            f.print_size(name);
+        } else {
+            if ((world.rank()==0) and do_print) print("could not find function",name);
+        }
+        return f;
+    }
+
+    World& world;
+    const Info& info;
+    CC_vecfunction gs_singles, ex_singles;
+    CalcType ctype=CT_MP2;
+
+};
+
+
+
 
 class MacroTaskMp2ConstantPart : public MacroTaskOperationBase {
 
