@@ -1418,6 +1418,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
 
         /// @param[in] dim0 Size of new dimension 0
         /// @return New tensor (viewing same underlying data as the original but with different shape)
+/// TODO: [[nodiscard]] 
         Tensor<T> reshape(long dim0) {
             long d[1] = {dim0};
             return reshape(1,d);
