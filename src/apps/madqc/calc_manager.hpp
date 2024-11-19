@@ -999,6 +999,20 @@ public:
           quad_calculation.set_x_data(world, omegas, restarts);
           auto [beta, beta_directions] =
               quad_calculation.compute_beta_v2(world, omega_b, omega_c);
+          world.gop.fence();
+          // Need to call copy since beta_ptr belongs to all?
+
+          if (world.rank() == 0) {
+            print("Beta outside of compute_beta_v2: \n", beta);
+          }
+          std::array<double, 27> beta_i{};
+          auto beta_1D = beta.reshape(beta_i.size());
+
+          int i = 0;
+          for (auto &beta_ij : beta_i) {
+            beta_ij = beta_1D[i++];
+          }
+          world.gop.fence(); // this fence is essential
 
           if (world.rank() == 0) {
             ::print("Beta values for omega_A", " = -(omega_", b, " + omega_", c,
@@ -1007,16 +1021,12 @@ public:
               for (int i = 0; i < beta_directions.size(); i++) {
                 std::cout << std::fixed << std::setprecision(5)
                           << "i = " << i + 1 << ", beta[" << beta_directions[i]
-                          << "]" << " = " << beta[i] << std::endl;
+                          << "]" << " = " << beta_i[i] << std::endl;
               }
             }
-            std::array<double, 27> beta_i{};
-            std::copy(beta.ptr(), beta.ptr() + 27, beta_i.begin());
-
             beta_data.add_data({a, b, c}, {omegas, beta_i});
-
             append_to_beta_json({-1.0 * omega_a, omega_b, omega_c},
-                                beta_directions, beta, beta_json);
+                                beta_directions, beta_1D, beta_json);
 
             std::ofstream outfile(beta_outpath);
             if (outfile.is_open()) {
