@@ -5386,7 +5386,51 @@ template<size_t NDIM>
             }
 
             resultT operator()(resultT a, resultT b) const {
-                return (a+b);
+                return (a + b);
+            }
+
+            template <typename Archive> void serialize(const Archive& ar) {
+                MADNESS_EXCEPTION("NOT IMPLEMENTED", 1);
+            }
+        };
+
+        /// compute the dot product of this range with other
+        template<typename R>
+        struct do_dot_local {
+            const FunctionImpl<R, NDIM>* other;
+            bool leaves_only;
+            typedef TENSOR_RESULT_TYPE(T, R) resultT;
+
+            do_dot_local(const FunctionImpl<R, NDIM>* other, const bool leaves_only)
+            	: other(other), leaves_only(leaves_only) {}
+            resultT operator()(typename dcT::const_iterator& it) const {
+
+            	TENSOR_RESULT_TYPE(T, R) sum = 0.0;
+            	const keyT& key = it->first;
+                const nodeT& fnode = it->second;
+                if (fnode.has_coeff()) {
+                    if (other->coeffs.probe(it->first)) {
+                        const FunctionNode<R, NDIM>& gnode = other->coeffs.find(key).get()->second;
+                        if (gnode.has_coeff()) {
+                            if (gnode.coeff().dim(0) != fnode.coeff().dim(0)) {
+                                madness::print("DOT", it->first, gnode.coeff().dim(0), fnode.coeff().dim(0));
+                                MADNESS_EXCEPTION("functions have different k or compress/reconstruct error", 0);
+                            }
+                            if (leaves_only) {
+                                if (gnode.is_leaf() or fnode.is_leaf()) {
+                                    sum += fnode.coeff().trace(gnode.coeff());
+                                }
+                            } else {
+                                sum += fnode.coeff().trace(gnode.coeff());
+                            }
+                        }
+                    }
+                }
+                return sum;
+            }
+
+            resultT operator()(resultT a, resultT b) const {
+                return (a + b);
             }
 
             template <typename Archive> void serialize(const Archive& ar) {
@@ -5408,6 +5452,22 @@ template<size_t NDIM>
             bool leaves_only = (this->is_redundant());
             return world.taskq.reduce<resultT, rangeT, do_inner_local<R>>
                 (rangeT(coeffs.begin(), coeffs.end()), do_inner_local<R>(&g, leaves_only));
+        }
+
+        /// Returns the dot product ASSUMING same distribution
+
+        /// handles compressed and redundant form
+        template <typename R>
+        TENSOR_RESULT_TYPE(T, R) dot_local(const FunctionImpl<R, NDIM>& g) const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            typedef Range<typename dcT::const_iterator> rangeT;
+            typedef TENSOR_RESULT_TYPE(T, R) resultT;
+
+            // make sure the states of the trees are consistent
+            MADNESS_ASSERT(this->is_redundant() == g.is_redundant());
+            bool leaves_only = (this->is_redundant());
+            return world.taskq.reduce<resultT, rangeT, do_dot_local<R>>
+                (rangeT(coeffs.begin(), coeffs.end()), do_dot_local<R>(&g, leaves_only));
         }
 
 
@@ -5663,6 +5723,85 @@ template<size_t NDIM>
        }
 #endif
 
+#if HAVE_GENTENSOR
+// Original
+        template <typename R>
+        static void do_dot_localX(const typename mapT::iterator lstart,
+                                  const typename mapT::iterator lend,
+                                  typename FunctionImpl<R, NDIM>::mapT* rmap_ptr,
+                                  const bool sym,
+                                  Tensor<TENSOR_RESULT_TYPE(T, R)>* result_ptr,
+                                  Mutex* mutex) {
+            Tensor<TENSOR_RESULT_TYPE(T, R)>& result = *result_ptr;
+            Tensor<TENSOR_RESULT_TYPE(T, R)> r(result.dim(0), result.dim(1));
+            for (typename mapT::iterator lit = lstart; lit != lend; ++lit) {
+                const keyT& key = lit->first;
+                typename FunctionImpl<R, NDIM>::mapT::iterator rit = rmap_ptr->find(key);
+                if (rit != rmap_ptr->end()) {
+                    const mapvecT& leftv = lit->second;
+                    const typename FunctionImpl<R, NDIM>::mapvecT& rightv = rit->second;
+                    const int nleft = leftv.size();
+                    const int nright = rightv.size();
+
+                    for (int iv = 0; iv<nleft; iv++) {
+                        const int i = leftv[iv].first;
+                        const GenTensor<T>* iptr = leftv[iv].second;
+
+                        for (int jv = 0; jv<nright; jv++) {
+                            const int j = rightv[jv].first;
+                            const GenTensor<R>* jptr = rightv[jv].second;
+
+                            if (!sym || (sym && i <= j))
+                                r(i, j) += iptr->trace(*jptr);
+                        }
+                    }
+                }
+            }
+            mutex->lock();
+            result += r;
+            mutex->unlock();
+        }
+#else
+       template <typename R>
+       static void do_dot_localX(const typename mapT::iterator lstart,
+                                 const typename mapT::iterator lend,
+                                 typename FunctionImpl<R, NDIM>::mapT* rmap_ptr,
+                                 const bool sym,
+                                 Tensor<TENSOR_RESULT_TYPE(T, R)>* result_ptr,
+                                 Mutex* mutex) {
+           Tensor<TENSOR_RESULT_TYPE(T, R)>& result = *result_ptr;
+           // Tensor<TENSOR_RESULT_TYPE(T, R)> r(result.dim(0), result.dim(1));
+           for (typename mapT::iterator lit = lstart; lit != lend; ++lit) {
+               const keyT& key = lit->first;
+               typename FunctionImpl<R, NDIM>::mapT::iterator rit = rmap_ptr->find(key);
+               if (rit != rmap_ptr->end()) {
+                   const mapvecT& leftv = lit->second;
+                   const typename FunctionImpl<R, NDIM>::mapvecT& rightv = rit->second;
+                   const size_t nleft = leftv.size();
+                   const size_t nright= rightv.size();
+
+                   unsigned int size = leftv[0].second->size();
+                   Tensor<T> Left(nleft, size);
+                   Tensor<R> Right(nright, size);
+                   Tensor< TENSOR_RESULT_TYPE(T, R)> r(nleft, nright);
+                   for(unsigned int iv = 0; iv < nleft; ++iv) Left(iv, _) = *(leftv[iv].second);
+                   for(unsigned int jv = 0; jv < nright; ++jv) Right(jv, _) = *(rightv[jv].second);
+                   // call mxmT from mxm.h in tensor
+                   mxmT(nleft, nright, size, r.ptr(), Left.ptr(), Right.ptr());
+                   mutex->lock();
+                   for(unsigned int iv = 0; iv < nleft; ++iv) {
+                       const int i = leftv[iv].first;
+                       for(unsigned int jv = 0; jv < nright; ++jv) {
+                         const int j = rightv[jv].first;
+                         if (!sym || (sym && i <= j)) result(i, j) += r(iv, jv);
+                       }
+                   }
+                   mutex->unlock();
+               }
+           }
+       }
+#endif
+
         static double conj(float x) {
             return x;
         }
@@ -5691,7 +5830,7 @@ template<size_t NDIM>
 
             mapT lmap = make_key_vec_map(left);
             typename FunctionImpl<R, NDIM>::mapT rmap;
-            typename FunctionImpl<R, NDIM>::mapT* rmap_ptr = (typename FunctionImpl<R, NDIM>::mapT*)(&lmap);
+            auto* rmap_ptr = (typename FunctionImpl<R, NDIM>::mapT*)(&lmap);
             if ((std::vector<const FunctionImpl<R, NDIM>*>*)(&left) != &right) {
                 rmap = FunctionImpl<R, NDIM>::make_key_vec_map(right);
                 rmap_ptr = &rmap;
@@ -5717,6 +5856,58 @@ template<size_t NDIM>
                         TENSOR_RESULT_TYPE(T, R) sum = r(i, j) + conj(r(j, i));
                         r(i, j) = sum;
                         r(j, i) = conj(sum);
+                    }
+                }
+            }
+            return r;
+        }
+
+        template <typename R>
+        static Tensor<TENSOR_RESULT_TYPE(T, R)>
+        dot_local(const std::vector<const FunctionImpl<T, NDIM>*>& left,
+                  const std::vector<const FunctionImpl<R, NDIM>*>& right,
+                  bool sym) {
+
+            // This is basically a sparse matrix * matrix product
+            // Rij = sum(k) Aik * Bkj
+            // where i and j index functions and k index the wavelet coeffs
+            // eventually the goal is this structure (don't have jtile yet)
+            //
+            // do in parallel tiles of k (tensors of coeffs)
+            //    do tiles of j
+            //       do i
+            //          do j in jtile
+            //             do k in ktile
+            //                Rij += Aik*Bkj
+
+            mapT lmap = make_key_vec_map(left);
+            typename FunctionImpl<R, NDIM>::mapT rmap;
+            auto* rmap_ptr = (typename FunctionImpl<R, NDIM>::mapT*)(&lmap);
+            if ((std::vector<const FunctionImpl<R, NDIM>*>*)(&left) != &right) {
+                rmap = FunctionImpl<R, NDIM>::make_key_vec_map(right);
+                rmap_ptr = &rmap;
+            }
+
+            size_t chunk = (lmap.size() - 1) / (3 * 4 * 5) + 1;
+
+            Tensor<TENSOR_RESULT_TYPE(T, R)> r(left.size(), right.size());
+            Mutex mutex;
+
+            typename mapT::iterator lstart=lmap.begin();
+            while (lstart != lmap.end()) {
+                typename mapT::iterator lend = lstart;
+                advance(lend, chunk);
+                left[0]->world.taskq.add(&FunctionImpl<T, NDIM>::do_dot_localX<R>, lstart, lend, rmap_ptr, sym, &r, &mutex);
+                lstart = lend;
+            }
+            left[0]->world.taskq.fence();
+
+            if (sym) {
+                for (long i = 0; i < r.dim(0); i++) {
+                    for (long j = 0; j < i; j++) {
+                        TENSOR_RESULT_TYPE(T, R) sum = r(i, j) + r(j, i);
+                        r(i, j) = sum;
+                        r(j, i) = sum;
                     }
                 }
             }
