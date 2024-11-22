@@ -164,8 +164,9 @@ namespace madness {
 	        _coeffs(coeff), _norm_tree(norm_tree), _has_children(has_children), dnorm(dnorm), snorm(snorm) {
         }
 
-        FunctionNode(const FunctionNode<T, NDIM>& other) {
-            *this = other;
+        FunctionNode(const FunctionNode<T, NDIM>& other) :
+            _coeffs(other._coeffs), _norm_tree(other._norm_tree), _has_children(other._has_children),
+            dnorm(other.dnorm), snorm(other.snorm) {
         }
 
         FunctionNode<T, NDIM>&
@@ -493,7 +494,7 @@ namespace madness {
         long k;
         bool do_error_leaf_op() const { return false; }
 
-        hartree_leaf_op() {}
+        hartree_leaf_op() = default;
         hartree_leaf_op(const implT* f, const long& k) : f(f), k(k) {}
 
         /// no pre-determination
@@ -558,7 +559,7 @@ namespace madness {
         const implT* f;   ///< the source or result function, needed for truncate_tol
         bool do_error_leaf_op() const { return true; }
 
-        op_leaf_op() {}
+        op_leaf_op() = default;
         op_leaf_op(const opT* op, const implT* f) : op(op), f(f) {}
 
         /// pre-determination: we can't know if this will be a leaf node before we got the final coeffs
@@ -606,7 +607,7 @@ namespace madness {
         const opT* op;
         bool do_error_leaf_op() const { return false; }
 
-        hartree_convolute_leaf_op() {}
+        hartree_convolute_leaf_op() = default;
         hartree_convolute_leaf_op(const implT* f, const implL* g, const opT* op)
             : f(f), g(g), op(op) {}
 
@@ -1177,7 +1178,7 @@ template<size_t NDIM>
             FunctionImpl<T, NDIM>* f; ///< prefactor for current function impl
             T alpha; ///< the current function impl
             R beta; ///< prefactor for other function impl
-            do_gaxpy_inplace() {};
+            do_gaxpy_inplace() = default;
             do_gaxpy_inplace(FunctionImpl<T, NDIM>* f, T alpha, R beta) : f(f), alpha(alpha), beta(beta) {}
             bool operator()(typename rangeT::iterator& it) const {
                 const keyT& key = it->first;
@@ -1379,7 +1380,7 @@ template<size_t NDIM>
             double limit;
             bool log;
             static double lower() { return 1.e-10; };
-            do_convert_to_color() {};
+            do_convert_to_color() = default;
             do_convert_to_color(const double limit, const bool log) : limit(limit), log(log) {}
             double operator()(double val) const {
                 double color=0.0;
@@ -2056,7 +2057,7 @@ template<size_t NDIM>
 			// fast return if the node has children (not a leaf node)
 			if(node.has_children()) return;
 
-			const implT* g=this;
+			const implT* g = this;
 
 			// break the 6D key into two 3D keys (may also work for every even dimension)
 			Key<LDIM> key1, key2;
@@ -2180,7 +2181,7 @@ template<size_t NDIM>
             typedef Range<typename dcT::iterator> rangeT;
 
             /// constructor need impl for cdata
-            remove_internal_coeffs() {}
+            remove_internal_coeffs() = default;
 
             bool operator()(typename rangeT::iterator& it) const {
 
@@ -2198,7 +2199,7 @@ template<size_t NDIM>
             typedef Range<typename dcT::iterator> rangeT;
 
             /// constructor need impl for cdata
-            remove_leaf_coeffs() {}
+            remove_leaf_coeffs() = default;
 
             bool operator()(typename rangeT::iterator& it) const {
                 nodeT& node = it->second;
@@ -2238,7 +2239,7 @@ template<size_t NDIM>
             TensorArgs args;
 
             // constructor takes target precision
-            do_reduce_rank() {}
+            do_reduce_rank() = default;
             do_reduce_rank(const TensorArgs& targs) : args(targs) {}
             do_reduce_rank(const double& thresh) {
                 args.thresh = thresh;
@@ -2583,7 +2584,7 @@ template<size_t NDIM>
             implT* f;
 
             // constructor takes target precision
-            do_change_tensor_type() {}
+            do_change_tensor_type() = default;
             // do_change_tensor_type(const TensorArgs& targs) : targs(targs) {}
             do_change_tensor_type(const TensorArgs& targs, implT& g) : targs(targs), f(&g) {}
 
@@ -2607,7 +2608,7 @@ template<size_t NDIM>
             TensorArgs targs;
 
             // constructor takes target precision
-            do_consolidate_buffer() {}
+            do_consolidate_buffer() = default;
             do_consolidate_buffer(const TensorArgs& targs) : targs(targs) {}
             bool operator()(typename rangeT::iterator& it) const {
                 it->second.consolidate_buffer(targs);
@@ -3094,7 +3095,7 @@ template<size_t NDIM>
             const FunctionImpl<Q, NDIM>* impl_func;
             opT op;
 
-            coeff_value_adaptor() {};
+            coeff_value_adaptor() = default;
             coeff_value_adaptor(const FunctionImpl<Q, NDIM>* impl_func,
                                 const opT& op)
                 : impl_func(impl_func), op(op) {}
@@ -3478,7 +3479,7 @@ template<size_t NDIM>
             /// prefactor for f, g
             double alpha, beta;
 
-            add_op() {};
+            add_op() = default;
             add_op(const ctT& f, const ctT& g, const double alpha, const double beta)
                 : f(f), g(g), alpha(alpha), beta(beta){}
 
@@ -3834,7 +3835,7 @@ template<size_t NDIM>
         	double error = 0.0;
         	double lo = 0.0, hi = 0.0, lo1 = 0.0, hi1 = 0.0, lo2 = 0.0, hi2 = 0.0;
 
-    	    pointwise_multiplier() {}
+    	    pointwise_multiplier() = default;
         	pointwise_multiplier(const Key<NDIM> key, const coeffT& clhs) : coeff_lhs(clhs) {
                 const auto& fcf = FunctionCommonFunctionality<T, NDIM>(coeff_lhs.dim(0));
         		val_lhs = fcf.coeffs2values(key, coeff_lhs);
@@ -4576,7 +4577,7 @@ template<size_t NDIM>
             implT* impl;
 
             // constructor takes target precision
-            do_standard() {}
+            do_standard() = default;
             do_standard(implT* impl) : impl(impl) {}
 
             //
@@ -4610,7 +4611,7 @@ template<size_t NDIM>
             keyT dest;
             double tol, fac, cnorm;
 
-            do_op_args() {}
+            do_op_args() = default;
             do_op_args(const Key<OPDIM>& key, const Key<OPDIM>& d, const keyT& dest, double tol, double fac, double cnorm)
                 : key(key), d(d), dest(dest), tol(tol), fac(fac), cnorm(cnorm) {}
 
@@ -5039,7 +5040,7 @@ template<size_t NDIM>
             opT* apply_op;
 
             // ctor
-            recursive_apply_op() {}
+            recursive_apply_op() = default;
             recursive_apply_op(implT* result,
                                const CoeffTracker<T, LDIM>& iaf, const CoeffTracker<T, LDIM>& iag,
                                const opT* apply_op) : result(result), iaf(iaf), iag(iag), apply_op(apply_op)
@@ -5169,7 +5170,7 @@ template<size_t NDIM>
             const opT* apply_op;
 
             // ctor
-            recursive_apply_op2() {}
+            recursive_apply_op2() = default;
             recursive_apply_op2(implT* result, const ctT& iaf, const opT* apply_op)
             	: result(result), iaf(iaf), apply_op(apply_op) {}
 
@@ -5278,7 +5279,7 @@ template<size_t NDIM>
             Tensor<double> quad_phit;
             Tensor<double> quad_phiw;
         public:
-            do_err_box() {}
+            do_err_box() = default;
 
             do_err_box(const implT* impl, const opT* func, int npt, const Tensor<double>& qx,
                        const Tensor<double>& quad_phit, const Tensor<double>& quad_phiw)
@@ -5341,7 +5342,7 @@ template<size_t NDIM>
             }
 
             template <typename Archive> void serialize(const Archive& ar) {
-                throw "NOT IMPLEMENTED";
+                MADNESS_EXCEPTION("NOT IMPLEMENTED", 1);
             }
         };
 
@@ -5389,7 +5390,7 @@ template<size_t NDIM>
             }
 
             template <typename Archive> void serialize(const Archive& ar) {
-                throw "NOT IMPLEMENTED";
+                MADNESS_EXCEPTION("NOT IMPLEMENTED", 1);
             }
         };
 
@@ -5528,7 +5529,7 @@ template<size_t NDIM>
             }
 
             template <typename Archive> void serialize(const Archive& ar) {
-                throw "NOT IMPLEMENTED";
+                MADNESS_EXCEPTION("NOT IMPLEMENTED", 1);
             }
         };
 
@@ -6299,7 +6300,7 @@ template<size_t NDIM>
             }
 
             template <typename Archive> void serialize(const Archive& ar) {
-                throw "NOT IMPLEMENTED";
+                MADNESS_EXCEPTION("NOT IMPLEMENTED", 1);
             }
         };
 
@@ -6548,7 +6549,7 @@ template<size_t NDIM>
             int dim;				///< 0: project 0..LDIM-1, 1: project LDIM..NDIM-1
 
             // ctor
-            project_out_op() {}
+            project_out_op() = default;
             project_out_op(const implT* fimpl, implL1* result, const ctL& iag, const int dim)
                 : fimpl(fimpl), result(result), iag(iag), dim(dim) {}
             project_out_op(const project_out_op& other)
