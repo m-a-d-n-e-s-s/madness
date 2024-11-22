@@ -191,6 +191,64 @@ void test_inner(World& world) {
         print("error norm",(rold-rnew).normf(),"\n");
 }
 
+template <typename T, typename R, int NDIM, bool sym>
+void test_dot(World& world) {
+    typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > ffunctorT;
+    typedef std::shared_ptr< FunctionFunctorInterface<R,NDIM> > gfunctorT;
+
+    const double thresh=1.e-7;
+    Tensor<double> cell(NDIM,2);
+    for (std::size_t i=0; i<NDIM; ++i) {
+        cell(i,0) = -11.0-2*i;  // Deliberately asymmetric bounding box
+        cell(i,1) =  10.0+i;
+    }
+    FunctionDefaults<NDIM>::set_cell(cell);
+    FunctionDefaults<NDIM>::set_k(8);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(3);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
+
+    const int nleft=95, nright=sym ? nleft : 94;
+
+    if (world.rank() == 0)
+        print("testing matrix_dot<",archive::get_type_name<T>(),",",archive::get_type_name<R>(),">","sym =",sym);
+
+    START_TIMER;
+    std::vector< Function<T,NDIM> > left(nleft);
+    for (int i=0; i<nleft; ++i) {
+        ffunctorT f(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),0.5));
+        left[i] = FunctionFactory<T,NDIM>(world).functor(f);
+    }
+    std::vector< Function<R,NDIM> > right(nright);
+    std::vector< Function<R,NDIM> >* pright = &right;
+    if (sym) {
+        pright = (std::vector< Function<R,NDIM> >*)(&left);
+    }
+    else {
+        for (int i=0; i<nright; ++i) {
+            gfunctorT f(RandomGaussian<R,NDIM>(FunctionDefaults<NDIM>::get_cell(),0.5));
+            right[i] = FunctionFactory<R,NDIM>(world).functor(f);
+        }
+    }
+    END_TIMER("project");
+
+    START_TIMER;
+    compress(world,left);
+    compress(world,right);
+    END_TIMER("compress");
+
+    START_TIMER;
+    Tensor<TENSOR_RESULT_TYPE(T,R)> rnew = matrix_dot(world,left,*pright,sym);
+    END_TIMER("new");
+    START_TIMER;
+    Tensor<TENSOR_RESULT_TYPE(T,R)> rold = matrix_dot_old(world,left,*pright,sym);
+    END_TIMER("old");
+
+    if (world.rank() == 0) 
+        print("error norm",(rold-rnew).normf(),"\n");
+}
+
 template<typename T, std::size_t NDIM>
 int test_transform(World& world) {
     test_output to("testing transform");
