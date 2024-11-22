@@ -934,7 +934,7 @@ namespace madness {
                 int64_t jhi = std::min(jlo + jchunk, m);
                 std::vector<Function<T, NDIM>> jvec(g.begin() + jlo, g.begin() + jhi);
 
-               Tensor<T> P = matrix_inner(A.get_world(), ivec, jvec);
+                Tensor<T> P = matrix_inner(A.get_world(), ivec, jvec, sym);
                 A.copy_from_replicated_patch(ilo, ihi - 1, jlo, jhi - 1, P);
             }
         }
@@ -957,7 +957,6 @@ namespace madness {
         // if ((void*)(&f) != (void*)(&g)) compress(world, g);
         compress(world, g);
 
-
         std::vector<const FunctionImpl<T, NDIM>*> left(f.size());
         std::vector<const FunctionImpl<R, NDIM>*> right(g.size());
         for (unsigned int i = 0; i < f.size(); i++) left[i] = f[i].get_impl().get();
@@ -966,7 +965,7 @@ namespace madness {
         Tensor<TENSOR_RESULT_TYPE(T, R)> r = FunctionImpl<T, NDIM>::inner_local(left, right, sym);
 
         world.gop.fence();
-        world.gop.sum(r.ptr(),f.size()*g.size());
+        world.gop.sum(r.ptr(), f.size() * g.size());
 
         return r;
     }
