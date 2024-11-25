@@ -1420,7 +1420,7 @@ public:
     World& world;
     const Info& info;
     CC_vecfunction gs_singles, ex_singles;
-    CalcType ctype=CT_MP2;
+    CalcType ctype=CT_UNDEFINED;
 
 };
 

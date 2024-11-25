@@ -676,7 +676,8 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
     }
 
     // if no function has been computed so far use the constant part (first iteration)
-    for (auto& pair : pair_vec) if (not pair.function_exists()) pair.update_u(pair.constant_part);
+    // for (auto& pair : pair_vec) if (not pair.function_exists()) pair.update_u(pair.constant_part);
+    for (auto& pair : pair_vec) if (not pair.function_exists()) pair.update_u(real_factory_6d(world));
 
     for (const auto& p : pair_vec) p.constant_part.print_size("constant_part before iter");
     for (const auto& p : pair_vec) p.function().print_size("u before iter");

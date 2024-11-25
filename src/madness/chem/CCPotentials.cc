@@ -2451,6 +2451,10 @@ CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& g
     // vector_real_function_3d potential = apply_Qt(unprojected, mo_ket_);
     vector_real_function_3d potential = Q(unprojected);
     if (info.parameters.debug()) {
+        CCTimer timer(world, "potential energy of F3D");
+
+        print("fock residue");
+        timer.info(true, norm2(world, fock_residue));
 
         if (world.rank()==0) print_header3("intermediate potentials in CC2 singles potential excited state");
         madness::print_size(world,fock_residue,"fock_residue");
@@ -2562,7 +2566,8 @@ CCPotentials::potential_singles_gs(World& world, const std::vector<int>& result_
     const CC_vecfunction singles_external(singles_tmp);
     const CC_vecfunction t_external = make_active_t_intermediate(singles_external,info);
 
-    auto builder=CCPairBuilder(world,info).set_gs_singles(singles);
+    auto ctype=doubles.allpairs.begin()->second.ctype;
+    auto builder=CCPairBuilder(world,info).set_gs_singles(singles).set_ctype(ctype);
 
     if (name == POT_F3D_) {
         result = fock_residue_closed_shell(world, singles_external, info);
@@ -2593,9 +2598,9 @@ CCPotentials::potential_singles_gs(World& world, const std::vector<int>& result_
     } else if (name == POT_s4a_) {
         error("potential_singles: Demanded s4a potential -> this is calculated along with the s2b potential");
     } else if (name == POT_s4b_) {
-        result = s4b(world, result_index, singles, doubles, info);
+        result = s4b(world, result_index, singles, doubles, builder, info);
     } else if (name == POT_s4c_) {
-        result = s4c(world, result_index, singles, doubles, info);
+        result = s4c(world, result_index, singles, doubles, builder, info);
     } else MADNESS_EXCEPTION(("potential_singles: Unknown potential " + assign_name(name)).c_str(), 1)
 
     madness::print_size(world,result,"result of "+assign_name(name));
@@ -2675,7 +2680,12 @@ CCPotentials::potential_singles_ex(World& world, const std::vector<int> result_i
     MADNESS_ASSERT(singles_gs.type == PARTICLE);
     MADNESS_ASSERT(singles_ex.type == RESPONSE);
 
-    auto builder=CCPairBuilder(world,info).set_gs_singles(singles_gs).set_ex_singles(singles_ex);
+    // gs depends on es:  CC2 -> LRCC2; MP2 -> ADC(2), etc
+    auto ctype_ex=doubles_ex.allpairs.begin()->second.ctype;
+    auto builder_ex=CCPairBuilder(world,info).set_gs_singles(singles_gs).set_ex_singles(singles_ex).set_ctype(ctype_ex);
+
+    auto ctype_gs=doubles_gs.allpairs.begin()->second.ctype;
+    auto builder_gs=CCPairBuilder(world,info).set_gs_singles(singles_gs).set_ex_singles(singles_ex).set_ctype(ctype_gs);
 
     vector_real_function_3d result, intermediate;
 
@@ -2709,18 +2719,18 @@ CCPotentials::potential_singles_ex(World& world, const std::vector<int> result_i
         vector_real_function_3d part3 = Ox(ccs_unprojected(world, t_gs_external, singles_gs, info));
         result=part1 + part2 - part3;
     } else if (name == POT_s2b_) {
-        std::tie(result, intermediate) = s2b(world, result_index, singles_ex, doubles_ex, builder, info);
+        std::tie(result, intermediate) = s2b(world, result_index, singles_ex, doubles_ex, builder_ex, info);
     } else if (name == POT_s2c_) {
-        std::tie(result, intermediate) = s2c(world, result_index, singles_ex, doubles_ex, builder, info);
+        std::tie(result, intermediate) = s2c(world, result_index, singles_ex, doubles_ex, builder_ex, info);
     } else if (name == POT_s4a_) {
         error("potential_singles: Demanded s4a potential -> this is calculated from the s2b potential");
     } else if (name == POT_s4b_) {
-        vector_real_function_3d s4b_part1 = s4b(world, result_index, singles_gs, doubles_ex, info);
-        vector_real_function_3d s4b_part2 = s4b(world, result_index, singles_ex, doubles_gs, info);
+        vector_real_function_3d s4b_part1 = s4b(world, result_index, singles_gs, doubles_ex, builder_ex, info);
+        vector_real_function_3d s4b_part2 = s4b(world, result_index, singles_ex, doubles_gs, builder_gs, info);
         result = add(world, s4b_part1, s4b_part2);
     } else if (name == POT_s4c_) {
-        vector_real_function_3d s4c_part1 = s4c(world, result_index, singles_gs, doubles_ex, info);
-        vector_real_function_3d s4c_part2 = s4c(world, result_index, singles_ex, doubles_gs, info);
+        vector_real_function_3d s4c_part1 = s4c(world, result_index, singles_gs, doubles_ex, builder_ex, info);
+        vector_real_function_3d s4c_part2 = s4c(world, result_index, singles_ex, doubles_gs, builder_gs, info);
         result = add(world, s4c_part1, s4c_part2);
     } else if (name == POT_cis_) {
         CC_vecfunction orbitals(info.mo_ket,HOLE);
@@ -3341,7 +3351,7 @@ CCPotentials::s4a_from_s2b(const vector_real_function_3d& s2b, const CC_vecfunct
 }
 
 madness::vector_real_function_3d
-CCPotentials::s4b(World& world, const std::vector<int> external_index, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info)
+CCPotentials::s4b(World& world, const std::vector<int> external_index, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const CCPairBuilder& builder, const Info& info)
 {
     auto g12=CCConvolutionOperator<double,3>(world,OT_G12,info.parameters);
     vector_real_function_3d result;
@@ -3357,7 +3367,12 @@ CCPotentials::s4b(World& world, const std::vector<int> external_index, const CC_
             truncate(world, l_kgi);
             for (const auto& ltmp : singles.functions) {
                 const size_t l = ltmp.first;
-                const std::vector<CCPairFunction<double,6>> ukl = get_pair_function(doubles, k, l);
+                // const std::vector<CCPairFunction<double,6>> ukl = get_pair_function(doubles, k, l);
+            // make a ful pair function using the pure 6D part uik and complete with the rest
+            std::vector<CCPairFunction<double,6>> ukl1 = get_pair_function(doubles, k, l);
+            CCPair pair_kl=builder.complete_pair_with_low_rank_parts(builder.make_pair(i,l,ukl1));
+            std::vector<CCPairFunction<double,6>> ukl = pair_kl.functions;
+
                 for (size_t mm = 0; mm < ukl.size(); mm++) {
                     resulti += -2.0 * ukl[mm].project_out(l_kgi[l - info.parameters.freeze()], 2);
                     resulti += ukl[mm].project_out(l_kgi[l - info.parameters.freeze()], 1);
@@ -3370,7 +3385,7 @@ CCPotentials::s4b(World& world, const std::vector<int> external_index, const CC_
 }
 
 madness::vector_real_function_3d
-CCPotentials::s4c(World& world, const std::vector<int> external_index, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info)
+CCPotentials::s4c(World& world, const std::vector<int> external_index, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const CCPairBuilder& builder, const Info& info)
 {
     vector_real_function_3d result;
     auto g12=CCConvolutionOperator<double,3>(world,OT_G12,info.parameters);
@@ -3392,7 +3407,13 @@ CCPotentials::s4c(World& world, const std::vector<int> external_index, const CC_
         truncate(world, l_kgtauk);
         for (const auto& ltmp : singles.functions) {
             const size_t l = ltmp.first;
-            const std::vector<CCPairFunction<double,6>> uil = get_pair_function(doubles, i, l);
+//            const std::vector<CCPairFunction<double,6>> uil = get_pair_function(doubles, i, l);
+
+            // make a ful pair function using the pure 6D part uik and complete with the rest
+            std::vector<CCPairFunction<double,6>> uil1 = get_pair_function(doubles, i, l);
+            CCPair pair_il=builder.complete_pair_with_low_rank_parts(builder.make_pair(i,l,uil1));
+            std::vector<CCPairFunction<double,6>> uil = pair_il.functions;
+
             for (size_t mm = 0; mm < uil.size(); mm++) {
                 part1 += uil[mm].project_out(l_kgtauk[l - info.parameters.freeze()], 2);
                 part2 += uil[mm].project_out(l_kgtauk[l - info.parameters.freeze()], 1);

@@ -932,7 +932,8 @@ public:
     ///@param[out] \f$ -( <l|kgtaui|ukl>_2 - <l|kgtaui|ukl>_1) | kgtaui = <k|g|taui> | taui=singles_i \f$
     /// Q-Projector is not applied, sign is correct
     static vector_real_function_3d
-    s4b(World& world, std::vector<int> external_index, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
+    s4b(World& world, std::vector<int> external_index, const CC_vecfunction& singles, const Pairs<CCPair>& doubles,
+        const CCPairBuilder& builder, const Info& info);
 
 
     ///@param world
@@ -943,7 +944,8 @@ public:
     ///@param[out] \f$ ( 4<l|kgtauk|uil>_2 - 2<l|kgtauk|uil>_1 - 2<k|lgtauk|uil>_2 + <k|lgtauk|uil>_1 ) \f$
     /// Q-Projector is not applied, sign is correct
     static vector_real_function_3d
-    s4c(World& world, std::vector<int> external_index, const CC_vecfunction& singles, const Pairs<CCPair>& doubles, const Info& info);
+    s4c(World& world, std::vector<int> external_index, const CC_vecfunction& singles, const Pairs<CCPair>& doubles,
+        const CCPairBuilder& builder, const Info& info);
 
     // update the intermediates
     void update_intermediates(const CC_vecfunction& t) {
