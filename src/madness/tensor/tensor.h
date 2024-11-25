@@ -260,6 +260,9 @@ namespace madness {
         template <typename T> double mynorm(T t) {
             return double(t)*t;
         }
+        template <typename T=int> double mynorm(int t) {
+            return double(t)*double(t);
+        }
 
         template <typename T> double mynorm(std::complex<T> t) {
             return std::norm(t);

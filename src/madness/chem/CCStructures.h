@@ -19,23 +19,13 @@
 #include <iostream>
 #include <madness/mra/macrotaskq.h>
 
-namespace madness {
+#include "lowrankfunction.h"
 
-/// Operatortypes used by the CCConvolutionOperator Class
-enum OpType {
-    OT_UNDEFINED,
-    OT_ONE,         /// indicates the identity
-    OT_G12,         /// 1/r
-    OT_SLATER,      /// exp(r)
-    OT_F12,         /// 1-exp(r)
-    OT_FG12,        /// (1-exp(r))/r
-    OT_F212,        /// (1-exp(r))^2
-    OT_BSH          /// exp(r)/r
-};
+namespace madness {
 
 /// Calculation Types used by CC2
 enum CalcType {
-    CT_UNDEFINED, CT_MP2, CT_CC2, CT_LRCCS, CT_LRCC2, CT_CISPD, CT_ADC2, CT_TDHF, CT_TEST
+    CT_UNDEFINED, CT_MP2, CT_MP3, CT_CC2, CT_LRCCS, CT_LRCC2, CT_CISPD, CT_ADC2, CT_TDHF, CT_TEST
 };
 /// Type of Pairs used by CC_Pair2 class
 enum CCState {
@@ -64,15 +54,7 @@ enum PotentialType {
 
 /// Assigns strings to enums for formated output
 std::string
-assign_name(const PairFormat& input);
-
-/// Assigns strings to enums for formated output
-std::string
 assign_name(const CCState& input);
-
-/// Assigns strings to enums for formated output
-std::string
-assign_name(const OpType& input);
 
 /// Assigns enum to string
 CalcType
@@ -138,7 +120,7 @@ struct CCMessenger {
 
 /// Timer Structure
 struct CCTimer {
-    /// TDA_TIMER contructor
+    /// TDA_TIMER constructor
     /// @param[in] world the world
     /// @param[in] msg	a string that contains the desired printout when info function is called
     CCTimer(World& world, std::string msg) : world(world), start_wall(wall_time()), start_cpu(cpu_time()),
@@ -230,10 +212,11 @@ struct CCParameters : public QCCalculationParametersBase {
         set_derived_values();
     };
 
+
     void initialize_parameters() {
         double thresh=1.e-3;
         double thresh_operators=1.e-6;
-        initialize < std::string > ("calc_type", "mp2", "the calculation type", {"mp2", "cc2", "cis", "lrcc2", "cispd", "adc2", "test"});
+        initialize < std::string > ("calc_type", "mp2", "the calculation type", {"mp2", "mp3", "cc2", "cis", "lrcc2", "cispd", "adc2", "test"});
         initialize < double > ("lo", 1.e-7, "the finest length scale to be resolved by 6D operators");
         initialize < double > ("dmin", 1.0, "defines the depth of the special level");
         initialize < double > ("thresh_6d", thresh, "threshold for the 6D wave function");
@@ -247,11 +230,11 @@ struct CCParameters : public QCCalculationParametersBase {
         initialize < double > ("thresh_Ue", thresh_operators, "ue threshold");
         initialize < double > ("econv", thresh, "overal convergence threshold ");
         initialize < double > ("econv_pairs", 0.1*thresh, "convergence threshold for pairs");
-        initialize < double > ("dconv_3d", 0.01*thresh, "convergence for cc singles");
-        initialize < double > ("dconv_6d", thresh, "convergence for cc doubles");
+        initialize < double > ("dconv_3d", 0.3*thresh, "convergence for cc singles");
+        initialize < double > ("dconv_6d", 3.0*thresh, "convergence for cc doubles");
         initialize < std::size_t > ("iter_max", 10, "max iterations");
-        initialize < std::size_t > ("iter_max_3d", 10, "max iterations");
-        initialize < std::size_t > ("iter_max_6d", 10, "max iterations");
+        initialize < std::size_t > ("iter_max_3d", 10, "max iterations for singles");
+        initialize < std::size_t > ("iter_max_6d", 10, "max iterations for doubles");
         initialize < std::pair<int, int>> ("only_pair", {-1, -1}, "compute only a single pair");
         initialize < bool > ("restart", false, "restart");
         initialize < bool > ("no_compute", false, "no compute");
@@ -271,11 +254,11 @@ struct CCParameters : public QCCalculationParametersBase {
         initialize < long > ("freeze", -1, "number of frozen orbitals: -1: automatic");
         initialize < bool > ("test", false, "");
         // choose if Q for the constant part of MP2 and related calculations should be decomposed: GQV or GV - GO12V
-        initialize < bool > ("decompose_Q", true, "");
+        initialize < bool > ("decompose_Q", true, "always true",{true});
         // if true the ansatz for the CC2 ground state pairs is |tau_ij> = |u_ij> + Qtf12|titj>, with Qt = Q - |tau><phi|
         // if false the ansatz is the same with normal Q projector
         // the response ansatz is the corresponding response of the gs ansatz
-        initialize < bool > ("QtAnsatz", true, "");
+        initialize < bool > ("QtAnsatz", true, "always true",{true});
         // a vector containing the excitations which shall be optizmized later (with CIS(D) or CC2)
         initialize < std::vector<size_t>>
         ("excitations", {}, "vector containing the excitations");
@@ -286,6 +269,7 @@ struct CCParameters : public QCCalculationParametersBase {
     CalcType calc_type() const {
         std::string value = get<std::string>("calc_type");
         if (value == "mp2") return CT_MP2;
+        if (value == "mp3") return CT_MP3;
         if (value == "cc2") return CT_CC2;
         if (value == "cis") return CT_LRCCS;
         if (value == "lrcc2") return CT_LRCC2;
@@ -397,6 +381,7 @@ struct CCParameters : public QCCalculationParametersBase {
 struct PairVectorMap {
 
     std::vector<std::pair<int, int>> map; ///< maps pair index (i,j) to vector index k
+    PairVectorMap() = default;
     PairVectorMap(const std::vector<std::pair<int, int>> map1) : map(map1) {}
 
     static PairVectorMap triangular_map(const int nfreeze, const int nocc) {
@@ -422,7 +407,7 @@ struct PairVectorMap {
     void print(const std::string msg="PairVectorMap") const {
         madness::print(msg);
         madness::print("vector element <-> pair index");
-        for (int i=0; i<map.size(); ++i) {
+        for (size_t i=0; i<map.size(); ++i) {
             madness::print(i, " <-> ",map[i]);
         }
     }
@@ -462,7 +447,7 @@ struct Pairs {
 
     static std::vector<T> pairs2vector(const Pairs<T>& argument, const PairVectorMap map) {
         std::vector<T> vector;
-        for (int i=0; i<argument.allpairs.size(); ++i) {
+        for (size_t i=0; i<argument.allpairs.size(); ++i) {
             vector.push_back(argument(map.map[i].first,map.map[i].second));
         }
         return vector;
@@ -475,8 +460,10 @@ struct Pairs {
 
     /// getter
     // at instead of [] operator bc [] inserts new element if nothing is found while at throws out of range error
+    // back to before
     T& operator()(int i, int j) {
-        return allpairs.at(std::make_pair(i, j));
+        // return allpairs.at(std::make_pair(i, j));
+        return allpairs[std::make_pair(i, j)];
     }
 
     /// setter
@@ -498,11 +485,22 @@ struct Pairs {
 };
 
 /// f12 and g12 intermediates of the form <f1|op|f2> (with op=f12 or op=g12) will be saved using the pair structure
-typedef Pairs<real_function_3d> intermediateT;
+template <typename T, std::size_t NDIM>
+using intermediateT = Pairs<Function<T,NDIM>>;
 
 /// Returns the size of an intermediate
+//double
+//size_of(const intermediateT& im);
+/// Returns the size of an intermediate
+template<typename T, std::size_t NDIM>
 double
-size_of(const intermediateT& im);
+size_of(const intermediateT<T,NDIM>& im) {
+    double size = 0.0;
+    for (const auto& tmp : im.allpairs) {
+        size += get_size<T, NDIM>(tmp.second);
+    }
+    return size;
+}
 
 
 
@@ -516,12 +514,12 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
 
     CC_vecfunction(const vector_real_function_3d& v) : type(UNDEFINED), omega(0.0), current_error(99.9), delta(0.0) {
         for (size_t i = 0; i < v.size(); i++) {
-            CCFunction tmp(v[i], i, type);
+            CCFunction<double,3> tmp(v[i], i, type);
             functions.insert(std::make_pair(i, tmp));
         }
     }
 
-    CC_vecfunction(const std::vector<CCFunction>& v) : type(UNDEFINED), omega(0.0), current_error(99.9), delta(0.0) {
+    CC_vecfunction(const std::vector<CCFunction<double,3>>& v) : type(UNDEFINED), omega(0.0), current_error(99.9), delta(0.0) {
         for (size_t i = 0; i < v.size(); i++) {
             functions.insert(std::make_pair(v[i].i, v[i]));
         }
@@ -530,7 +528,7 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
     CC_vecfunction(const vector_real_function_3d& v, const FuncType& type) : type(type), omega(0.0),
                                                                              current_error(99.9), delta(0.0) {
         for (size_t i = 0; i < v.size(); i++) {
-            CCFunction tmp(v[i], i, type);
+            CCFunction<double,3> tmp(v[i], i, type);
             functions.insert(std::make_pair(i, tmp));
         }
     }
@@ -540,12 +538,12 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
                                                                                                    current_error(99.9),
                                                                                                    delta(0.0) {
         for (size_t i = 0; i < v.size(); i++) {
-            CCFunction tmp(v[i], freeze + i, type);
+            CCFunction<double,3> tmp(v[i], freeze + i, type);
             functions.insert(std::make_pair(freeze + i, tmp));
         }
     }
 
-    CC_vecfunction(const std::vector<CCFunction>& v, const FuncType type_)
+    CC_vecfunction(const std::vector<CCFunction<double,3>>& v, const FuncType type_)
             : type(type_), omega(0.0), current_error(99.9), delta(0.0) {
         for (auto x:v) functions.insert(std::make_pair(x.i, x));
     }
@@ -557,7 +555,7 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
               delta(other.delta), irrep(other.irrep) {
     }
 
-    /// assignment operator
+    /// assignment operator, shallow wrt the functions
 //    CC_vecfunction& operator=(const CC_vecfunction& other) = default;
     CC_vecfunction& operator=(const CC_vecfunction& other) {
         if (this == &other) return *this;
@@ -572,8 +570,29 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
 
 
     /// returns a deep copy (void shallow copy errors)
-    CC_vecfunction
-    copy() const;
+    friend CC_vecfunction
+    copy(const CC_vecfunction& other) {
+        CC_vecfunction tmp=other;
+        tmp.functions.clear();
+        for (const auto& x : other.functions) {
+            tmp.functions.insert(std::make_pair(x.first, copy(x.second)));
+        }
+        return tmp;
+    }
+
+
+//madness::CC_vecfunction
+//CC_vecfunction::copy() const {
+//    std::vector<CCFunction<double,3>> vn;
+//    for (auto x : functions) {
+//        const CCFunction<double,3> fn(madness::copy(x.second.function), x.second.i, x.second.type);
+//        vn.push_back(fn);
+//    }
+//    CC_vecfunction result(vn, type);
+//    result.irrep = irrep;
+//    return result;
+//}
+//
 
     static CC_vecfunction load_restartdata(World& world, std::string filename) {
         archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, filename.c_str());
@@ -589,7 +608,7 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
 
     template<typename Archive>
     void serialize(const Archive& ar) {
-        typedef std::vector<std::pair<std::size_t, CCFunction>> CC_functionvec;
+        typedef std::vector<std::pair<std::size_t, CCFunction<double,3>>> CC_functionvec;
 
         auto map2vector = [] (const CC_functionmap& map) {
             return CC_functionvec(map.begin(), map.end());
@@ -600,7 +619,7 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
 
         ar & type & omega & current_error & delta & irrep ;
         if (ar.is_input_archive) {
-            std::size_t size;
+	    std::size_t size=0; // set to zero to silence compiler warning
             ar & size;
             CC_functionvec tmp(size);
 
@@ -613,7 +632,14 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
         }
     }
 
-    typedef std::map<std::size_t, CCFunction> CC_functionmap;
+    hashT hash() const {
+        hashT hashval = std::hash<FuncType>{}(type);
+        for (const auto& f : functions) hash_combine(hashval, hash_value(f.second.f().get_impl()->id()));
+
+        return hashval;
+    }
+
+    typedef std::map<std::size_t, CCFunction<double,3>> CC_functionmap;
     CC_functionmap functions;
 
     FuncType type;
@@ -623,34 +649,36 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
     std::string irrep = "null";    /// excitation irrep (direct product of x function and corresponding orbital)
 
     std::string
-    name(const int ex) const;
+    name(const int ex) const {
+        return madness::name(type,ex);
+    };
 
     bool is_converged(const double econv, const double dconv) const {
         return (current_error<dconv) and (std::fabs(delta)<econv);
     }
 
     /// getter
-    const CCFunction& operator()(const CCFunction& i) const {
+    const CCFunction<double,3>& operator()(const CCFunction<double,3>& i) const {
         return functions.find(i.i)->second;
     }
 
     /// getter
-    const CCFunction& operator()(const size_t& i) const {
+    const CCFunction<double,3>& operator()(const size_t& i) const {
         return functions.find(i)->second;
     }
 
     /// getter
-    CCFunction& operator()(const CCFunction& i) {
+    CCFunction<double,3>& operator()(const CCFunction<double,3>& i) {
         return functions[i.i];
     }
 
     /// getter
-    CCFunction& operator()(const size_t& i) {
+    CCFunction<double,3>& operator()(const size_t& i) {
         return functions[i];
     }
 
     /// setter
-    void insert(const size_t& i, const CCFunction& f) {
+    void insert(const size_t& i, const CCFunction<double,3>& f) {
         functions.insert(std::make_pair(i, f));
     }
 
@@ -658,7 +686,7 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
     void set_functions(const vector_real_function_3d& v, const FuncType& type, const size_t& freeze) {
         functions.clear();
         for (size_t i = 0; i < v.size(); i++) {
-            CCFunction tmp(v[i], freeze + i, type);
+            CCFunction<double,3> tmp(v[i], freeze + i, type);
             functions.insert(std::make_pair(freeze + i, tmp));
         }
     }
@@ -711,7 +739,9 @@ public:
 /// The structure can hold intermediates for g12 and f12 of type : <mo_bra_k|op|type> with type=HOLE,PARTICLE or RESPONSE
 /// some 6D operations are also included
 /// The structure does not know if nuclear correlation facors are used, so the corresponding bra states have to be prepared beforehand
-struct CCConvolutionOperator {
+template<typename T=double, std::size_t NDIM=3>
+class CCConvolutionOperator {
+public:
 
     /// parameter class
     struct Parameters {
@@ -731,6 +761,11 @@ struct CCConvolutionOperator {
         double lo = 1.e-6;
         int freeze = 0;
         double gamma = 1.0; /// f12 exponent
+
+        template<typename archiveT>
+        void serialize(archiveT& ar) {
+            ar & thresh_op & lo & freeze & gamma;
+        }
     };
 
 
@@ -738,75 +773,40 @@ struct CCConvolutionOperator {
     /// @param[in] optype: the operatortype (can be g12_ or f12_)
     /// @param[in] param: the parameters of the current CC-Calculation (including function and operator thresholds and the exponent for f12)
     CCConvolutionOperator(World& world, const OpType type, Parameters param) : parameters(param), world(world),
-                                                                               operator_type(type),
-                                                                               op(init_op(operator_type, parameters)) {
+                                                                               op(init_op(type, parameters)) {
     }
 
     CCConvolutionOperator(const CCConvolutionOperator& other) = default;
 
-    friend bool can_combine(const CCConvolutionOperator& left, const CCConvolutionOperator& right) {
-        return (combine_OT(left,right).first!=OT_UNDEFINED);
+    static inline
+    std::shared_ptr<CCConvolutionOperator> CCConvolutionOperatorPtr(World& world, const OpType type, Parameters param) {
+        return std::shared_ptr<CCConvolutionOperator>(new CCConvolutionOperator(world, type, param));
     }
 
-    friend std::pair<OpType,Parameters> combine_OT(const CCConvolutionOperator& left, const CCConvolutionOperator& right) {
-        OpType type=OT_UNDEFINED;
-        Parameters param=left.parameters;
-        if ((left.type()==OT_F12) and (right.type()==OT_G12)) {
-            type=OT_FG12;
-        }
-        if ((left.type()==OT_G12) and (right.type()==OT_F12)) {
-            type=OT_FG12;
-            param.gamma=right.parameters.gamma;
-        }
-        if ((left.type()==OT_F12) and (right.type()==OT_F12)) {
-            type=OT_F212;
-            // keep the original gamma
-            // (f12)^2 = (1- slater12)^2  = 1/(4 gamma) (1 - 2 exp(-gamma) + exp(-2 gamma))
-            MADNESS_CHECK(right.parameters.gamma == left.parameters.gamma);
-        }
-        return std::make_pair(type,param);
+protected:
+
+    friend CCConvolutionOperator combine(const CCConvolutionOperator& a, const CCConvolutionOperator& b) {
+        auto info= SeparatedConvolution<T,NDIM>::combine_OT((*a.get_op()),(*b.get_op()));
+        Parameters param;
+        param.gamma=info.mu;
+        param.thresh_op=info.thresh;
+        param.lo=info.lo;
+        param.freeze=a.parameters.freeze;
+        return CCConvolutionOperator(a.world, info.type, param);
     }
 
-
-    /// combine 2 convolution operators to one
-
-    /// @return a vector of pairs: factor and convolution operator
-    friend std::vector<std::pair<double,CCConvolutionOperator>> combine(const CCConvolutionOperator& left, const CCConvolutionOperator& right) {
-        MADNESS_CHECK(can_combine(left,right));
-        MADNESS_CHECK(left.world.id()==right.world.id());
-        auto [type,param]=combine_OT(left,right);
-        std::vector<std::pair<double,CCConvolutionOperator>> result;
-        if (type==OT_FG12) {
-            // fg = (1 - exp(-gamma r12))  / r12 = 1/r12 - exp(-gamma r12)/r12 = coulomb - bsh
-
-            // coulombfit return 1/r
-            // we need 1/(2 gamma) 1/r
-            result.push_back(std::make_pair(1.0/(2.0*param.gamma),CCConvolutionOperator(left.world, OT_G12, param)));
-
-            // bshfit returns 1/(4 pi) exp(-gamma r)/r
-            // we need 1/(2 gamma) exp(-gamma r)/r
-            const double factor = 4.0 * constants::pi /(2.0*param.gamma);
-            result.push_back(std::make_pair(-factor,CCConvolutionOperator(left.world, OT_BSH, param)));
-        } else if (type==OT_F212) {
-//             we use the slater operator which is S = e^(-y*r12), y=gamma
-//             the f12 operator is: 1/2y*(1-e^(-y*r12)) = 1/2y*(1-S)
-//             so the squared f12 operator is: f*f = 1/(4*y*y)(1-2S+S*S), S*S = S(2y) = e(-2y*r12)
-//             we have then: <xy|f*f|xy> = 1/(4*y*y)*(<xy|xy> - 2*<xy|S|xy> + <xy|SS|xy>)
-//             we have then: <xy|f*f|xy> =(<xy|f12|xy> -  1/(4*y*y)*2*<xy|S|xy>
-            MADNESS_CHECK(left.parameters.gamma==right.parameters.gamma);
-            const double prefactor = 1.0 / (4.0 * param.gamma); // Slater has no 1/(2 gamma) per se.
-            Parameters param2=param;
-            param2.gamma*=2.0;
-            result.push_back(std::make_pair(1.0*prefactor,CCConvolutionOperator(left.world, OT_ONE, param)));
-            result.push_back(std::make_pair(-2.0*prefactor,CCConvolutionOperator(left.world, OT_SLATER, left.parameters)));
-            result.push_back(std::make_pair(1.0*prefactor,CCConvolutionOperator(left.world, OT_SLATER, param2)));
-        }
-        return result;
+    friend std::shared_ptr<CCConvolutionOperator> combine(const std::shared_ptr<CCConvolutionOperator>& a,
+                                         const std::shared_ptr<CCConvolutionOperator>& b) {
+        if (a and (not b)) return a;
+        if ((not a) and b) return b;
+        if ((not a) and (not b)) return nullptr;
+        return std::shared_ptr<CCConvolutionOperator>(new CCConvolutionOperator(combine(*a,*b)));
     }
 
+public:
     /// @param[in] f: a 3D function
     /// @param[out] the convolution op(f), no intermediates are used
-    real_function_3d operator()(const real_function_3d& f) const {
+    Function<T,NDIM> operator()(const Function<T,NDIM>& f) const {
         if (op) return ((*op)(f)).truncate();
         return f;
     }
@@ -814,46 +814,51 @@ struct CCConvolutionOperator {
     /// @param[in] bra a CC_vecfunction
     /// @param[in] ket a CC_function
     /// @param[out] vector[i] = <bra[i]|op|ket>
-    vector_real_function_3d operator()(const CC_vecfunction& bra, const CCFunction& ket) const {
+    std::vector<Function<T,NDIM>> operator()(const CC_vecfunction& bra, const CCFunction<T,NDIM>& ket) const {
         MADNESS_CHECK(op);
-        vector_real_function_3d result;
-        if (bra.type == HOLE) {
-            for (const auto& ktmp:bra.functions) {
-                const CCFunction& brai = ktmp.second;
-                const real_function_3d tmpi = this->operator()(brai, ket);
-                result.push_back(tmpi);
+        std::vector<Function<T, NDIM>> result;
+        if constexpr (NDIM == 3) {
+            if (bra.type == HOLE) {
+                for (const auto& ktmp: bra.functions) {
+                    const CCFunction<T, NDIM>& brai = ktmp.second;
+                    const Function<T, NDIM> tmpi = this->operator()(brai, ket);
+                    result.push_back(tmpi);
+                }
+            } else {
+                std::vector<Function<T, NDIM>> tmp = mul(world, ket.function, bra.get_vecfunction());
+                result = apply(world, (*op), tmp);
+                truncate(world, result);
             }
         } else {
-            vector_real_function_3d tmp = mul(world, ket.function, bra.get_vecfunction());
-            result = apply(world, (*op), tmp);
-            truncate(world, result);
+            MADNESS_EXCEPTION("not implemented", 1);
         }
+
         return result;
     }
 
     // @param[in] f: a vector of 3D functions
     // @param[out] the convolution of op with each function, no intermeditates are used
-    vector_real_function_3d operator()(const vector_real_function_3d& f) const {
-        if (op) return apply<double, double, 3>(world, (*op), f);
-        return f;
+    std::vector<Function<T,NDIM>> operator()(const std::vector<Function<T,NDIM>>& f) const {
+        MADNESS_CHECK(op);
+        return apply<T,T,NDIM,NDIM>(world, (*op), f);
     }
 
     // @param[in] bra: a 3D CC_function, if nuclear-correlation factors are used they have to be applied before
     // @param[in] ket: a 3D CC_function,
     // @param[in] use_im: default is true, if false then no intermediates are used
     // @param[out] the convolution <bra|op|ket> = op(bra*ket), if intermediates were calculated before the operator uses them
-    real_function_3d operator()(const CCFunction& bra, const CCFunction& ket, const bool use_im = true) const;
+    Function<T,NDIM> operator()(const CCFunction<T,NDIM>& bra, const CCFunction<T,NDIM>& ket, const bool use_im = true) const;
 
     // @param[in] u: a 6D-function
     // @param[out] the convolution \int g(r,r') u(r,r') dr' (if particle==2) and g(r,r') u(r',r) dr' (if particle==1)
     // @param[in] particle: specifies on which particle of u the operator will act (particle ==1 or particle==2)
-    real_function_6d operator()(const real_function_6d& u, const size_t particle) const;
+    Function<T,2*NDIM> operator()(const Function<T,2*NDIM>& u, const size_t particle) const;
 
     // @param[in] bra: a 3D-CC_function, if nuclear-correlation factors are used they have to be applied before
     // @param[in] u: a 6D-function
     // @param[in] particle: specifies on which particle of u the operator will act (particle ==1 or particle==2)
     // @param[out] the convolution <bra|g12|u>_particle
-    real_function_3d operator()(const CCFunction& bra, const real_function_6d& u, const size_t particle) const;
+    Function<T,NDIM> operator()(const CCFunction<T,NDIM>& bra, const Function<T,2*NDIM>& u, const size_t particle) const;
 
     /// @param[in] bra: a vector of CC_functions, the type has to be HOLE
     /// @param[in] ket: a vector of CC_functions, the type can be HOLE,PARTICLE,RESPONSE
@@ -861,7 +866,11 @@ struct CCConvolutionOperator {
     void update_elements(const CC_vecfunction& bra, const CC_vecfunction& ket);
 
     /// @param[out] prints the name of the operator (convenience) which is g12 or f12 or maybe other things like gf in the future
-    std::string name() const { return assign_name(operator_type); }
+    std::string name() const {
+        std::stringstream ss;
+        ss << type();
+        return ss.str();
+    }
 
     /// @param[in] the type of which intermediates will be deleted
     /// e.g if(type==HOLE) then all intermediates of type <mo_bra_k|op|HOLE> will be deleted
@@ -870,6 +879,16 @@ struct CCConvolutionOperator {
     /// prints out information (operatorname, number of stored intermediates ...)
     size_t info() const;
 
+    friend hashT hash_value(CCConvolutionOperator<T,NDIM>& op) {
+        hashT h;
+        hash_combine(h, op.parameters.thresh_op);
+        hash_combine(h, op.parameters.lo);
+        hash_combine(h, op.parameters.freeze);
+        hash_combine(h, op.parameters.gamma);
+        hash_combine(h, int(op.type()));
+        return h;
+    }
+
     /// sanity check .. doens not do so much
     void sanity() const { print_intermediate(HOLE); }
 
@@ -877,58 +896,62 @@ struct CCConvolutionOperator {
     void print_intermediate(const FuncType type) const {
         if (type == HOLE)
             for (const auto& tmp:imH.allpairs)
-                tmp.second.print_size("<H" + std::to_string(tmp.first.first) + "|" + assign_name(operator_type) + "|H" +
+                tmp.second.print_size("<H" + std::to_string(tmp.first.first) + "|" + name() + "|H" +
                                       std::to_string(tmp.first.second) + "> intermediate");
         else if (type == PARTICLE)
             for (const auto& tmp:imP.allpairs)
-                tmp.second.print_size("<H" + std::to_string(tmp.first.first) + "|" + assign_name(operator_type) + "|P" +
+                tmp.second.print_size("<H" + std::to_string(tmp.first.first) + "|" + name() + "|P" +
                                       std::to_string(tmp.first.second) + "> intermediate");
         else if (type == RESPONSE)
             for (const auto& tmp:imR.allpairs)
-                tmp.second.print_size("<H" + std::to_string(tmp.first.first) + "|" + assign_name(operator_type) + "|R" +
+                tmp.second.print_size("<H" + std::to_string(tmp.first.first) + "|" + name() + "|R" +
                                       std::to_string(tmp.first.second) + "> intermediate");
     }
 
     /// create a TwoElectronFactory with the operatorkernel
-    TwoElectronFactory get_kernel() const {
-        if (type() == OT_G12) return TwoElectronFactory(world).dcut(1.e-7);
-        else if (type() == OT_F12) return TwoElectronFactory(world).dcut(1.e-7).f12().gamma(parameters.gamma);
-        else if (type() == OT_FG12) return TwoElectronFactory(world).dcut(1.e-7).BSH().gamma(parameters.gamma);
-        else error("no kernel of type " + name() + " implemented");
-        return TwoElectronFactory(world);
+    TwoElectronFactory<T,2*NDIM> get_kernel() const {
+        auto factory=TwoElectronFactory<T,2*NDIM>(world);
+        factory.set_info(op->info);
+        return factory;
     }
 
-    OpType type() const { return operator_type; }
+    OpType type() const { return get_op()->info.type; }
 
     const Parameters parameters;
 
-    std::shared_ptr<real_convolution_3d> get_op() const {return op;};
+    std::shared_ptr<SeparatedConvolution<T,NDIM>> get_op() const {return op;};
 
 private:
     /// the world
     World& world;
-    /// the operatortype, currently this can be g12_ or f12_
-    const OpType operator_type = OT_UNDEFINED;
 
     /// @param[in] optype: can be f12_ or g12_ depending on which operator shall be intitialzied
     /// @param[in] parameters: parameters (thresholds etc)
     /// initializes the operators
-    SeparatedConvolution<double, 3> *init_op(const OpType& type, const Parameters& parameters) const;
+    SeparatedConvolution<T,NDIM> *init_op(const OpType& type, const Parameters& parameters) const;
 
-    std::shared_ptr<real_convolution_3d> op;
-    intermediateT imH;
-    intermediateT imP;
-    intermediateT imR;
+    std::shared_ptr<SeparatedConvolution<T,NDIM>> op;
+    intermediateT<T,NDIM> imH;
+    intermediateT<T,NDIM> imP;
+    intermediateT<T,NDIM> imR;
 
     /// @param[in] msg: output message
     /// the function will throw an MADNESS_EXCEPTION
     void error(const std::string& msg) const {
         if (world.rank() == 0)
-            std::cout << "\n\n!!!!ERROR in CCConvolutionOperator " << assign_name(operator_type) << ": " << msg
+            std::cout << "\n\n!!!!ERROR in CCConvolutionOperator " << name() << ": " << msg
                       << "!!!!!\n\n" << std::endl;
         MADNESS_EXCEPTION(msg.c_str(), 1);
     }
+public:
 };
+
+template<typename T, std::size_t NDIM>
+std::shared_ptr<CCConvolutionOperator<T,NDIM>> CCConvolutionOperatorPtr(World& world, const OpType type,
+                                                                       typename CCConvolutionOperator<T,NDIM>::Parameters param) {
+    return std::shared_ptr<CCConvolutionOperator<T,NDIM>>(new CCConvolutionOperator<T,NDIM>(world,type,param));
+}
+
 
 class CCPair : public archive::ParallelSerializableObject {
 public:
@@ -937,7 +960,7 @@ public:
     CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c) : type(t), ctype(c), i(ii), j(jj),
                                                                                   bsh_eps(12345.6789) {};
 
-    CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c, const std::vector<CCPairFunction>& f)
+    CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c, const std::vector<CCPairFunction<double,6>>& f)
             : type(t), ctype(c), i(ii), j(jj), functions(f), bsh_eps(12345.6789) {};
 
     CCPair(const CCPair& other) : type(other.type), ctype(other.ctype), i(other.i), j(other.j),
@@ -948,6 +971,40 @@ public:
     CalcType ctype;
     size_t i;
     size_t j;
+
+    /// customized function to store this to the cloud
+
+    /// functions and constant_part can be very large and we want to split them and store them in different records
+    Recordlist<Cloud::keyT> cloud_store(World& world, Cloud& cloud) const {
+        // save bookkeeping stuff in a vector
+        std::vector<unsigned char> v;
+        archive::VectorOutputArchive arout(v);
+        bool function_is_assigned=(functions.size()>0 && functions[0].is_assigned());
+        arout & type & ctype & i & j & bsh_eps & function_is_assigned & constant_part.is_initialized();
+
+        Recordlist<Cloud::keyT> records;
+        records+=cloud.store(world,v);
+        if (function_is_assigned) records+=cloud.store(world,functions[0]);
+        if (constant_part.is_initialized()) records+=cloud.store(world,constant_part);
+        return records;
+   }
+
+    /// customized function to load this from the cloud
+
+    /// functions and constant_part can be very large and we want to split them and store them in different records
+    /// @param[inout] recordlist: containing the keys of the member variables -> will be reduced by the keys which are used
+    void cloud_load(World& world, const Cloud& cloud, Recordlist<Cloud::keyT>& recordlist) {
+        // load bookkeeping stuff in a vector
+        std::vector<unsigned char> v=cloud.forward_load<std::vector<unsigned char>>(world,recordlist);
+        archive::VectorInputArchive arin(v);
+        bool function_is_assigned = false, constant_part_is_initialized=false;
+        arin & type & ctype & i & j & bsh_eps & function_is_assigned & constant_part_is_initialized;
+        functions.clear();
+        constant_part.clear();
+
+        if (function_is_assigned) functions.emplace_back(cloud.forward_load<CCPairFunction<double,6>>(world,recordlist));
+        if (constant_part_is_initialized) constant_part=cloud.forward_load<real_function_6d>(world,recordlist);
+   }
 
     /// gives back the pure 6D part of the pair function
     real_function_6d function() const {
@@ -1016,7 +1073,7 @@ public:
     }
 
     /// the functions which belong to the pair
-    std::vector<CCPairFunction> functions;
+    std::vector<CCPairFunction<double,6>> functions;
 
     /// the constant part
     real_function_6d constant_part;
@@ -1040,15 +1097,19 @@ public:
 
 /// little helper structure which manages the stored singles potentials
 struct CCIntermediatePotentials {
-    CCIntermediatePotentials(World& world, const CCParameters& p) : world(world), parameters(p) {};
+    CCIntermediatePotentials() = default;
+    CCIntermediatePotentials(const CCParameters& p) : parameters(p) {};
+
+    CCIntermediatePotentials(const CCIntermediatePotentials& other) = default;
+    CCIntermediatePotentials& operator=(const CCIntermediatePotentials& other) = default;
 
     /// fetches the correct stored potential or throws an exception
     vector_real_function_3d
     operator()(const CC_vecfunction& f, const PotentialType& type) const;
 
     /// fetch the potential for a single function
-    real_function_3d
-    operator()(const CCFunction& f, const PotentialType& type) const;
+    Function<double,3>
+    operator()(const CCFunction<double,3>& f, const PotentialType& type) const;
 
     /// deltes all stored potentials
     void clear_all() {
@@ -1071,9 +1132,52 @@ struct CCIntermediatePotentials {
     void
     insert(const vector_real_function_3d& potential, const CC_vecfunction& f, const PotentialType& type);
 
+    Recordlist<Cloud::keyT> cloud_store(World& world, Cloud& cloud) const {
+        Recordlist<Cloud::keyT> records;
+        records+=cloud.store(world,parameters);
+        records+=cloud.store(world,current_s2b_potential_ex_);
+        records+=cloud.store(world,current_s2b_potential_gs_);
+        records+=cloud.store(world,current_s2c_potential_ex_);
+        records+=cloud.store(world,current_s2c_potential_gs_);
+        records+=cloud.store(world,current_singles_potential_ex_);
+        records+=cloud.store(world,current_singles_potential_gs_);
+        records+=cloud.store(world,unprojected_cc2_projector_response_);
+        return records;
+    }
+
+    void cloud_load(World& world, const Cloud& cloud, Recordlist<Cloud::keyT>& recordlist) {
+        parameters=cloud.forward_load<CCParameters>(world,recordlist);
+        current_s2b_potential_ex_=cloud.forward_load<vector_real_function_3d>(world,recordlist);
+        current_s2b_potential_gs_=cloud.forward_load<vector_real_function_3d>(world,recordlist);
+        current_s2c_potential_ex_=cloud.forward_load<vector_real_function_3d>(world,recordlist);
+        current_s2c_potential_gs_=cloud.forward_load<vector_real_function_3d>(world,recordlist);
+        current_singles_potential_ex_=cloud.forward_load<vector_real_function_3d>(world,recordlist);
+        current_singles_potential_gs_=cloud.forward_load<vector_real_function_3d>(world,recordlist);
+        unprojected_cc2_projector_response_=cloud.forward_load<vector_real_function_3d>(world,recordlist);
+    }
+
+    friend hashT hash_value(const CCIntermediatePotentials& ip) {
+        auto hash_vector_of_functions =[](const vector_real_function_3d& v) {
+            hashT h;
+            for (const auto& f : v) {
+                hash_combine(h, hash_value(f.get_impl()->id()));
+            }
+            return h;
+        };
+        hashT h;
+        hash_combine(h, hash_vector_of_functions(ip.current_s2b_potential_ex_));
+        hash_combine(h, hash_vector_of_functions(ip.current_s2b_potential_gs_));
+        hash_combine(h, hash_vector_of_functions(ip.current_s2c_potential_ex_));
+        hash_combine(h, hash_vector_of_functions(ip.current_s2c_potential_gs_));
+        hash_combine(h, hash_vector_of_functions(ip.current_singles_potential_ex_));
+        hash_combine(h, hash_vector_of_functions(ip.current_singles_potential_gs_));
+        hash_combine(h, hash_vector_of_functions(ip.unprojected_cc2_projector_response_));
+        return h;
+    }
+
+    CCParameters parameters;
 private:
-    World& world;
-    const CCParameters& parameters;
+    // World& world;
     /// whole ground state singles potential without fock-residue
     vector_real_function_3d current_singles_potential_gs_;
     /// whole excited state singles potential without fock-residue
@@ -1092,9 +1196,73 @@ private:
 
     /// structured output
     void output(const std::string& msg) const {
-        if (world.rank() == 0 and parameters.debug())
+        if (parameters.debug())
             std::cout << "Intermediate Potential Manager: " << msg << "\n";
     }
+};
+
+/// POD holding some basic functions and some intermediates for the CC2 calculation
+
+/// the class is cloud-serializable and can be used in MacroTasks
+struct Info {
+    std::vector<Function<double,3>> mo_ket;
+    std::vector<Function<double,3>> mo_bra;
+    std::vector<madness::Vector<double,3>> molecular_coordinates;
+    CCParameters parameters;
+    std::vector<double> orbital_energies;
+    Tensor<double> fock;
+    CCIntermediatePotentials intermediate_potentials;
+    Function<double,3> R_square, U2, R;;
+    std::vector<Function<double,3>> U1;
+
+    vector_real_function_3d get_active_mo_ket() const {
+        vector_real_function_3d result;
+        for (size_t i = parameters.freeze(); i < mo_ket.size(); i++) result.push_back(mo_ket[i]);
+        return result;
+    }
+
+    vector_real_function_3d get_active_mo_bra() const {
+        vector_real_function_3d result;
+        for (size_t i = parameters.freeze(); i < mo_bra.size(); i++) result.push_back(mo_bra[i]);
+        return result;
+    }
+
+    /// customized function to store this to the cloud
+
+    /// functions and constant_part can be very large and we want to split them and store them in different records
+    Recordlist<Cloud::keyT> cloud_store(World& world, Cloud& cloud) const {
+        Recordlist<Cloud::keyT> records;
+        records+=cloud.store(world,mo_bra);
+        records+=cloud.store(world,mo_ket);
+        records+=cloud.store(world,parameters);
+        records+=cloud.store(world,orbital_energies);
+        records+=cloud.store(world,fock);
+        records+=cloud.store(world,intermediate_potentials);
+        records+=cloud.store(world,R_square);
+        records+=cloud.store(world,molecular_coordinates);
+        records+=cloud.store(world,U2);
+        records+=cloud.store(world,U1);
+        return records;
+    }
+
+    /// customized function to load this from the cloud
+
+    /// functions and constant_part can be very large and we want to split them and store them in different records
+    /// @param[inout] recordlist: containing the keys of the member variables -> will be reduced by the keys which are used
+    void cloud_load(World& world, const Cloud& cloud, Recordlist<Cloud::keyT>& recordlist) {
+        // load bookkeeping stuff in a vector
+        mo_bra=cloud.forward_load<std::vector<Function<double,3>>>(world,recordlist);
+        mo_ket=cloud.forward_load<std::vector<Function<double,3>>>(world,recordlist);
+        parameters=cloud.forward_load<CCParameters>(world,recordlist);
+        orbital_energies=cloud.forward_load<std::vector<double>>(world,recordlist);
+        fock=cloud.forward_load<Tensor<double>>(world,recordlist);
+        intermediate_potentials=cloud.forward_load<CCIntermediatePotentials>(world,recordlist);
+        R_square=cloud.forward_load<Function<double,3>>(world,recordlist);
+        molecular_coordinates=cloud.forward_load<std::vector<madness::Vector<double,3>>>(world,recordlist);
+        U2=cloud.forward_load<Function<double,3>>(world,recordlist);
+        U1=cloud.forward_load<std::vector<Function<double,3>>>(world,recordlist);
+    }
+
 };
 
 class MacroTaskMp2ConstantPart : public MacroTaskOperationBase {
@@ -1106,7 +1274,7 @@ class MacroTaskMp2ConstantPart : public MacroTaskOperationBase {
         partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
                                    const std::string policy) const override {
             partitionT p;
-            for (int i = 0; i < vsize1; i++) {
+            for (size_t i = 0; i < vsize1; i++) {
                 Batch batch(Batch_1D(i,i+1), Batch_1D(i,i+1));
                 p.push_back(std::make_pair(batch,1.0));
             }
@@ -1117,9 +1285,10 @@ class MacroTaskMp2ConstantPart : public MacroTaskOperationBase {
 public:
     MacroTaskMp2ConstantPart(){partitioner.reset(new ConstantPartPartitioner());}
 
-    typedef std::tuple<const std::vector<CCPair>&, const std::vector<real_function_3d>&,
-            const std::vector<real_function_3d>&, const CCParameters&, const real_function_3d&,
-            const std::vector<real_function_3d>&, const std::vector<std::string>& > argtupleT;
+    // typedef std::tuple<const std::vector<CCPair>&, const std::vector<Function<double,3>>&,
+            // const std::vector<Function<double,3>>&, const CCParameters&, const Function<double,3>&,
+            // const std::vector<Function<double,3>>&, const std::vector<std::string>& > argtupleT;
+    typedef std::tuple<const std::vector<CCPair>&, const madness::Info&, const std::vector<std::string>& > argtupleT;
 
     using resultT = std::vector<real_function_6d>;
 
@@ -1129,10 +1298,60 @@ public:
         return result;
     }
 
-    resultT operator() (const std::vector<CCPair>& pair, const std::vector<real_function_3d>& mo_ket,
-                        const std::vector<real_function_3d>& mo_bra, const CCParameters& parameters,
-                        const real_function_3d& Rsquare, const std::vector<real_function_3d>& U1,
-                        const std::vector<std::string>& argument) const;
+//    resultT operator() (const std::vector<CCPair>& pair, const std::vector<Function<double,3>>& mo_ket,
+//                        const std::vector<Function<double,3>>& mo_bra, const CCParameters& parameters,
+//                        const Function<double,3>& Rsquare, const std::vector<Function<double,3>>& U1,
+//                        const std::vector<std::string>& argument) const;
+    resultT operator() (const std::vector<CCPair>& pair, const Info& info, const std::vector<std::string>& argument) const;
+};
+
+/// compute the "constant" part of MP2, CC2, or LR-CC2
+///
+/// the constant part is
+/// result = G [F,f] |ij>  for MP2
+/// result = G [F,f] |t_i t_j>  for CC2
+/// result = G [F,f] |t_i x_j> + |x_i t_j>  for LR-CC2
+class MacroTaskConstantPart : public MacroTaskOperationBase {
+
+    class ConstantPartPartitioner : public MacroTaskPartitioner {
+    public:
+        ConstantPartPartitioner() {};
+
+        partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
+                                   const std::string policy) const override {
+            partitionT p;
+            for (size_t i = 0; i < vsize1; i++) {
+                Batch batch(Batch_1D(i,i+1), Batch_1D(i,i+1));
+                p.push_back(std::make_pair(batch,1.0));
+            }
+            return p;
+        }
+    };
+
+public:
+    MacroTaskConstantPart()  {
+        partitioner.reset(new ConstantPartPartitioner());
+        name="ConstantPart";
+    }
+
+    // typedef std::tuple<const std::vector<CCPair>&, const std::vector<Function<double,3>>&,
+    // const std::vector<Function<double,3>>&, const CCParameters&, const Function<double,3>&,
+    // const std::vector<Function<double,3>>&, const std::vector<std::string>& > argtupleT;
+    typedef std::tuple<const std::vector<CCPair>&,
+                       const std::vector<Function<double,3>>&, const std::vector<Function<double,3>>&,
+                       const madness::Info&> argtupleT;
+
+    using resultT = std::vector<real_function_6d>;
+
+    resultT allocator(World& world, const argtupleT& argtuple) const {
+        std::size_t n = std::get<0>(argtuple).size();
+        resultT result = zero_functions_compressed<double, 6>(world, n);
+        return result;
+    }
+    resultT operator() (const std::vector<CCPair>& pair,
+        const std::vector<Function<double,3>>& gs_singles,
+        const std::vector<Function<double,3>>& ex_singles,
+        const Info& info) const;
 };
 
 class MacroTaskMp2UpdatePair : public MacroTaskOperationBase {
@@ -1146,7 +1365,7 @@ class MacroTaskMp2UpdatePair : public MacroTaskOperationBase {
         partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
                                    const std::string policy) const override {
             partitionT p;
-            for (int i = 0; i < vsize1; i++) {
+            for (size_t i = 0; i < vsize1; i++) {
                 Batch batch(Batch_1D(i, i+1), Batch_1D(i, i+1), Batch_1D(i,i+1));
                 p.push_back(std::make_pair(batch, 1.0));
             }
@@ -1154,12 +1373,17 @@ class MacroTaskMp2UpdatePair : public MacroTaskOperationBase {
         }
     };
 public:
-    MacroTaskMp2UpdatePair() {partitioner.reset(new UpdatePairPartitioner());}
+    MacroTaskMp2UpdatePair() {
+        partitioner.reset(new UpdatePairPartitioner());
+        name="MP2UpdatePair";
+    }
 
-    typedef std::tuple<const std::vector<CCPair>&, const std::vector<real_function_6d>&, const CCParameters&,
-                        const std::vector< madness::Vector<double,3> >&,
-                       const std::vector<real_function_3d>&, const std::vector<real_function_3d>&,
-                       const std::vector<real_function_3d>&, const real_function_3d&> argtupleT;
+    // typedef std::tuple<const std::vector<CCPair>&, const std::vector<real_function_6d>&, const CCParameters&,
+                        // const std::vector< madness::Vector<double,3> >&,
+                       // const std::vector<Function<double,3>>&, const std::vector<Function<double,3>>&,
+                       // const std::vector<Function<double,3>>&, const Function<double,3>&> argtupleT;
+    typedef std::tuple<const std::vector<CCPair>&, const std::vector<real_function_6d>&,
+                    const std::vector<madness::Vector<double,3>>&, const Info& > argtupleT;
 
     using resultT = std::vector<real_function_6d>;
 
@@ -1169,10 +1393,71 @@ public:
         return result;
     }
 
-    resultT operator() (const std::vector<CCPair>& pair, const std::vector<real_function_6d>& mp2_coupling, const CCParameters& parameters,
-                        const std::vector< madness::Vector<double,3> >& all_coords_vec,
-                        const std::vector<real_function_3d>& mo_ket, const std::vector<real_function_3d>& mo_bra,
-                        const std::vector<real_function_3d>& U1, const real_function_3d& U2) const;
+//    resultT operator() (const std::vector<CCPair>& pair, const std::vector<real_function_6d>& mp2_coupling, const CCParameters& parameters,
+//                        const std::vector< madness::Vector<double,3> >& all_coords_vec,
+//                        const std::vector<Function<double,3>>& mo_ket, const std::vector<Function<double,3>>& mo_bra,
+//                        const std::vector<Function<double,3>>& U1, const Function<double,3>& U2) const;
+    resultT operator() (const std::vector<CCPair>& pair, const std::vector<real_function_6d>& mp2_coupling,
+                        const std::vector< madness::Vector<double,3> >& all_coords_vec, const Info& info) const;
+};
+
+
+class MacroTaskIteratePair : public MacroTaskOperationBase {
+
+    class IteratePairPartitioner : public MacroTaskPartitioner {
+    public :
+        IteratePairPartitioner() = default;
+
+        partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
+                                   const std::string policy) const override {
+            partitionT p;
+            for (size_t i = 0; i < vsize1; i++) {
+                Batch batch(Batch_1D(i, i+1), Batch_1D(i, i+1), Batch_1D(i,i+1));
+                p.push_back(std::make_pair(batch,1.0));
+            }
+            return p;
+        }
+    };
+public:
+    MacroTaskIteratePair() {
+        partitioner.reset(new IteratePairPartitioner());
+        name="IteratePair";
+    }
+
+    typedef std::tuple<
+        const std::vector<CCPair>&,      // pair
+        const std::vector<real_function_6d>&,   // local coupling
+        const CC_vecfunction&,          // gs singles
+        const CC_vecfunction&,          // ex singles
+        const Info&,
+        const std::size_t&
+        > argtupleT;
+
+    using resultT = std::vector<real_function_6d>;
+
+    resultT allocator(World& world, const argtupleT& argtuple) const {
+        std::size_t n = std::get<0>(argtuple).size();
+        resultT result = zero_functions_compressed<double, 6>(world, n);
+        return result;
+    }
+
+    /// iterate a given pair of the MP2, CC2 or LRCC2 calculation
+
+    /// will *NOT* compute the local coupling,
+    /// will apply the Fock operators (J-K+V)|pair> and use
+    /// the (excited) singles vectors to update the pair
+    /// @param[in] pair: the pair which will be updated
+    /// @param[in] gs_singles: the ground state singles, may be dummy for MP2
+    /// @param[in] ex_singles: the excited state singles, may be dummy for MP2, CC2
+    /// @param[in] all_coords_vec: the coordinates of the atoms
+    /// @param[in] info: the info structure
+    /// @param[in] maxiter: the maximal number of iterations
+    resultT operator() (const std::vector<CCPair>& pair,
+        const std::vector<real_function_6d>& local_coupling,
+        const CC_vecfunction& gs_singles,
+        const CC_vecfunction& ex_singles,
+        const Info& info,
+        const std::size_t& maxiter) const;
 };
 
 }//namespace madness

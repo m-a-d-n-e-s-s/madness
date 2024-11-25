@@ -265,7 +265,7 @@ struct G1 {
   void serialize(Archive& ar) {
     ar & i & l;
     if constexpr (madness::is_input_archive_v<Archive>) {
-      int junk;
+      int junk=0;
       ar >> junk;
       MADNESS_ASSERT(junk == 17);
     }

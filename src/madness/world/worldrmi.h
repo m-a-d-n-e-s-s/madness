@@ -105,8 +105,8 @@ namespace madness {
     typedef std::ptrdiff_t rel_fn_ptr_t;
 
     struct qmsg {
-        typedef uint16_t counterT;
-        typedef uint32_t attrT;
+        typedef uint16_t counterT;  //!< counter for ordered messages
+        typedef uint32_t attrT;  //!< attributes of the message; high 16 bits are the counter
         size_t len;
         rmi_handlerT func;
         int i;               // buffer index
@@ -117,9 +117,27 @@ namespace madness {
         qmsg(size_t len, rmi_handlerT func, int i, int src, attrT attr, counterT count)
             : len(len), func(func), i(i), src(src), attr(attr), count(count) {}
 
-        bool operator<(const qmsg& other) const {
-            return count < other.count;
-        }
+        // N.B. since msg counters in same batch might wrap around 0, need to sort buckets defined by the 2 highest
+        // bits ... basically we want 11xxx < 00xxx < 01xxx < 10xxx < 11xxx ... assume we only have messages from
+        // at most 2 adjacent buckets, thus only when comparing counters from buckets 00 and 11 reverse the order
+        // P.S. we thus assume we won't have to deal with msg sequences > 2^14 (per rank)
+        friend inline bool operator<(const qmsg& a, const qmsg& b) {
+            const auto a_src = a.src;
+            const auto b_src = b.src;
+            if (a_src == b_src) {
+              const auto a_count_bk = a.count >> 14;
+              const auto b_count_bk = b.count >> 14;
+              if (a_count_bk == 0b00 && b_count_bk == 0b11) {
+                return false;
+              } else if (a_count_bk == 0b11 && b_count_bk == 0b00) {
+                return true;
+              } else {
+                return a.count < b.count;
+              }
+            } else {
+              return a_src < b_src;
+            }
+          }
 
         qmsg() {}
     }; // struct qmsg
@@ -145,8 +163,8 @@ namespace madness {
 
     /// This class implements the communications server thread and provides the only send interface
     class RMI  {
-        typedef uint16_t counterT;
-        typedef uint32_t attrT;
+        typedef qmsg::counterT counterT;
+        typedef qmsg::attrT attrT;
 
         /// @return reference to the boolean variable indicating whether this thread is the server thread
         static bool& is_server_thread_accessor();
@@ -230,6 +248,7 @@ namespace madness {
 
 #if HAVE_INTEL_TBB
             void run() {
+  	        ::madness::binder.bind();
                 set_rmi_task_is_running(true);
                 RMI::set_this_thread_is_server(true);
 
@@ -243,6 +262,7 @@ namespace madness {
             }
 #else
             void run() {
+  	        ::madness::binder.bind();
                 RMI::set_this_thread_is_server(true);
                 try {
                     while (! finished) process_some();

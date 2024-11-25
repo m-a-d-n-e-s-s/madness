@@ -1,4 +1,4 @@
-# src/apps/moldft
+# src/apps/pno
 
 add_mad_executable(pno pno.cpp MADchem)
 add_dependencies(applications-madness pno)

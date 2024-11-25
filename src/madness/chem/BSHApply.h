@@ -24,6 +24,7 @@ template<typename T, std::size_t NDIM>
 class BSHApply {
 
 public:
+	enum return_value {update, residual};
 	World& world;
 	double levelshift=0.0;
 	double lo=1.e-6;
@@ -31,6 +32,7 @@ public:
 	bool printme=false;
 	bool destroy_Vpsi=false;
 	Function<double,NDIM> metric;
+	return_value ret_value=residual;		// return the new orbitals/functions or the residuals
 
 public:
 	BSHApply(World& world) : world(world),
@@ -62,6 +64,7 @@ public:
 	    std::vector < std::shared_ptr<SeparatedConvolution<double,NDIM> > > ops(psi.size());
 	    for (int i=0; i<eps.dim(0); ++i) {
 	    	T e_i= (eps.ndim()==2) ? eps(i,i) : eps(i);
+	    	if (printme) print("orbital energy for the BSH operator",e_i);
 	    	ops[i]=std::shared_ptr<SeparatedConvolution<double,NDIM> >(
 	    			BSHOperatorPtr<NDIM>(world, sqrt(-2.0*eps_in_green(e_i)), lo, bshtol));
 	    	ops[i]->destructive()=true;
@@ -85,13 +88,17 @@ public:
 
 	    Tensor<T> in=inner(world,Vpsi,bra_res);	// no shift here!
 	    Tensor<double> delta_eps(psi.size());
-	    for (int i=0; i<psi.size(); ++i) delta_eps(i)=std::real(in(i))/(norms[i]*norms[i]);
+	    for (size_t i=0; i<psi.size(); ++i) delta_eps(i)=std::real(in(i))/(norms[i]*norms[i]);
 
 	    if (printme) print("orbital energy update",delta_eps);
 	    double cpu1=cpu_time();
 	    if (printme) printf("time in BSHApply()  %8.4fs\n",cpu1-cpu0);
 
-	    return std::make_tuple(res,delta_eps);
+		if (ret_value==update) return std::make_tuple(tmp,delta_eps);
+		else if (ret_value==residual) return std::make_tuple(res,delta_eps);
+		else {
+			MADNESS_EXCEPTION("unknown return value in BSHApply",1);
+		}
 	}
 
 
@@ -124,8 +131,8 @@ public:
 			const Tensor<T> fock1) const {
 
 		// check dimensions
-		bool consistent=(psi.size()==fock1.dim(0));
-		if ((fock1.ndim()==2) and not (psi.size()==fock1.dim(1))) consistent=false;
+   	    bool consistent=(psi.size()==size_t(fock1.dim(0)));
+		if ((fock1.ndim()==2) and not (psi.size()==size_t(fock1.dim(1)))) consistent=false;
 
 		if (not consistent) {
 			print("Fock matrix dimensions",fock1.ndim(), fock1.dim(0), fock1.dim(1));
@@ -143,6 +150,10 @@ public:
 			Tensor<T> fock=copy(fock1);
 			for (int i=0; i<fock.dim(0); ++i) {
 				fock(i,i)-=eps_in_green(fock(i,i));
+			}
+			if (printme) {
+				print("coupling fock matrix");
+				print(fock);
 			}
 			return transform(world, psi, fock);
 

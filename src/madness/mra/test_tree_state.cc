@@ -16,7 +16,6 @@ int test_conversion(World& world) {
     f.print_size("f");
     f.reconstruct();
     double fnorm=f.norm2();
-    double f1norm=f1.norm2();
     std::vector<real_function_2d> vf={f1,f2,f1};
     std::vector<double> vfnorm=norm2s(world,vf);
     real_function_2d ref;
@@ -27,8 +26,6 @@ int test_conversion(World& world) {
                                    nonstandard, 				///< s and d coeffs in internal nodes
                                    nonstandard_with_leaves, 	///< like nonstandard, with s coeffs at the leaves
                                    redundant};//,					///< s coeffs everywhere
-//                                   on_demand,					///< no coeffs anywhere, but a functor providing if necessary
-//                                   unknown};
 
     long k=FunctionDefaults<2>::get_k();
 
@@ -196,15 +193,6 @@ int main(int argc, char **argv) {
     int success = 0;
 
     success+=test_conversion(world);
-
-    constexpr std::size_t NDIM=2;
-    int n;
-    std::vector<int> l(NDIM);
-    Vector<Translation,NDIM> v(l);
-    Key<NDIM> key(n,v);
-
-
-
 
     madness::finalize();
     return 0;

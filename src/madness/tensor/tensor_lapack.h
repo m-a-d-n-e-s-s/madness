@@ -60,6 +60,20 @@ namespace madness {
     void svd_result(Tensor<T>& a, Tensor<T>& U,
              Tensor< typename Tensor<T>::scalar_type >& s, Tensor<T>& VT, Tensor<T>& work);
 
+    /// SVD - MATLAB syntax
+
+    /// call as
+    /// auto [U,s,VT] = svd(A);
+    /// with A=U*S*VT
+    template <typename T>
+    std::tuple<Tensor<T>, Tensor< typename Tensor<T>::scalar_type >, Tensor<T>>
+    svd(const Tensor<T>& A) {
+        Tensor<T> U,VT;
+        Tensor< typename Tensor<T>::scalar_type > s;
+        svd(A,U,s,VT);
+        return std::make_tuple(U,s,VT);
+    }
+
     /// Solves linear equations
     
     /// \ingroup linalg

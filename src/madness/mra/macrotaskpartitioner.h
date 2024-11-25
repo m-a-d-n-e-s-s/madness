@@ -105,7 +105,7 @@ public:
     /// given vector v, copy vector elements of v_batch into vector
     template<typename vecT>
     vecT insert_batch(vecT v, const vecT& v_batch) const {
-        MADNESS_CHECK(v_batch.size()==this->size() or this->is_full_size());
+      MADNESS_CHECK(v_batch.size()==size_t(this->size()) or this->is_full_size());
         std::copy(v_batch.begin(), v_batch.end(), v.begin()+begin);
         return v;
     }
@@ -132,8 +132,8 @@ public:
 class Batch {
 public:
     friend class MacroTaskPartitioner;
-    Batch_1D result;
     std::vector<Batch_1D> input;
+    Batch_1D result;
 
     Batch() {}
     Batch(const Batch& other) {
@@ -200,6 +200,8 @@ public:
 
     MacroTaskPartitioner() {}
 
+    virtual ~MacroTaskPartitioner() {}
+
     MacroTaskPartitioner& set_nsubworld(const long& n) {
         nsubworld=n;
         return *this;
@@ -227,7 +229,7 @@ public:
 
         constexpr std::size_t I1 = get_index_of_first_vector_argument<tupleT, 0>();
         constexpr std::size_t I2 = get_index_of_second_vector_argument<tupleT, 1>();
-        std::size_t vsize1,vsize2;
+        std::size_t vsize1=1,vsize2=1;
         if constexpr (I2 < std::tuple_size_v<tupleT>) {     // found at least 2 vectors of madness functions
             constexpr std::size_t I2 = get_index_of_second_vector_argument<tupleT, 0>();
             vsize2 = std::get<I2>(argtuple).size();
@@ -259,7 +261,7 @@ public:
         if (policy == "guided") {
             long begin = 0;
             long end = 0;
-            while (end < vsize) {
+            while (end < long(vsize)) {
                 end += std::min(max_batch_size, std::max(min_batch_size, ((vsize - end) / nsubworld)));
                 end = std::min(end, long(vsize));
                 Batch batch(Batch_1D(begin, end),Batch_1D(begin,end));

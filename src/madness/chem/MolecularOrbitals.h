@@ -46,7 +46,7 @@ public:
         auto slices = convert_set_to_slice(localize_sets);
         auto s=slices[iset];
         MolecularOrbitals result;
-        MADNESS_CHECK(mo.size()>=s.end+1);
+        MADNESS_CHECK(mo.size()>=size_t(s.end+1));
 //        result.mo.assign(mo.begin()+s.start,mo.begin()+s.end+1);
         for (int i=s.start; i<s.end+1; ++i) result.mo.push_back(copy(mo[i]));
         if (eps.size()>0) result.eps=copy(eps(s));
@@ -121,7 +121,7 @@ public:
         set_all_orbitals_occupied();
         std::size_t nmo = mo.size();
         std::vector<int> set = std::vector<int>(static_cast<size_t>(nmo), 0);
-        for (int i = 1; i < nmo; ++i) {
+        for (size_t i = 1; i < nmo; ++i) {
             set[i] = set[i - 1];
             // Only the new/boys localizers can tolerate not separating out the core orbitals
             if (eps(i) - eps(i - 1) > bandwidth || get_occ()(i) != 1.0) ++(set[i]);
@@ -133,7 +133,7 @@ public:
     static std::vector<Slice> convert_set_to_slice(const std::vector<int>& localized_set) {
         std::vector<Slice> blocks;
         long ilo=0;
-        for (int i=1; i<localized_set.size(); ++i) {
+        for (size_t i=1; i<localized_set.size(); ++i) {
             if (not (localized_set[i]==localized_set[i-1])) {
                 blocks.push_back(Slice(ilo, i-1));
                 ilo=i;
@@ -187,7 +187,7 @@ public:
 	    print("orbital #   irrep   energy    occupation  localize_set");
         for (int i=mo.size()-1; i>=0; --i) {
 //            double n=get_mos()[i].norm2();
-            std::size_t bufsize=1024;
+            constexpr std::size_t bufsize=1024;
             char buf[bufsize];
             snprintf(buf,bufsize,"%5d %10s %12.8f  %6.2f  %8d  %15s", i, irreps[i].c_str(),get_eps()[i],
                    get_occ()[i],get_localize_sets()[i], flags[i].c_str());
@@ -265,11 +265,11 @@ public:
 
 */
 		bool spinrestricted = false;
-        double L;
-        int k1;                    // Ignored for restarting, used in response only
+        double L=0;
+        int k1=0;                    // Ignored for restarting, used in response only
         unsigned int version = 4;  // UPDATE THIS IF YOU CHANGE ANYTHING
-        unsigned int archive_version;
-		double current_energy, converged_to_thresh;
+	//        unsigned int archive_version;
+		double current_energy=0, converged_to_thresh=0;
         std::string xc, localize_method;
 
 
@@ -296,9 +296,9 @@ public:
 		bool spinrestricted = false;
         unsigned int version=4;
 		double current_energy=0.0, converged_to_thresh=1.e10;
-        double L;
+        double L=0;
         std::string xc, localize_method;
-        int k1;                    // Ignored for restarting, used in response only
+        int k1=0;                    // Ignored for restarting, used in response only
 		archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, filename.c_str());
         ar & version;
         ar & current_energy & spinrestricted;

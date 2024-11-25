@@ -47,6 +47,7 @@
 #include <madness/world/world_task_queue.h>
 #include <madness/world/group.h>
 #include <madness/world/dist_cache.h>
+#include <madness/world/units.h>
 
 namespace madness {
 
@@ -143,10 +144,11 @@ namespace madness {
     /// If native AM interoperates with MPI we probably should map these to MPI.
     class WorldGopInterface {
     private:
-        World& world_; ///< MPI interface
+        World& world_; ///< World object that this is a part of
         std::shared_ptr<detail::DeferredCleanup> deferred_; ///< Deferred cleanup object.
         bool debug_; ///< Debug mode
         bool forbid_fence_=false; ///< forbid calling fence() in case of several active worlds
+        int max_reducebcast_msg_size_ = std::numeric_limits<int>::max();  ///< maximum size of messages (in bytes) sent by reduce and broadcast
 
         friend class detail::DeferredCleanup;
 
@@ -410,9 +412,9 @@ namespace madness {
                 // Send active message to children
                 if(child1 != -1) {
                     AmArg* const args1 = copy_am_arg(*args0);
-                    world_.am.send(child1, handler, args1);
+                    world_.am.send(child1, handler, args1, RMI::ATTR_UNORDERED);
                 }
-                world_.am.send(child0, handler, args0);
+                world_.am.send(child0, handler, args0, RMI::ATTR_UNORDERED);
             }
         }
 
@@ -445,9 +447,9 @@ namespace madness {
                 // Send active message to children
                 if(child1 != -1) {
                     AmArg* const args1 = copy_am_arg(*args0);
-                    world_.am.send(child1, handler, args1);
+                    world_.am.send(child1, handler, args1, RMI::ATTR_UNORDERED);
                 }
-                world_.am.send(child0, handler, args0);
+                world_.am.send(child0, handler, args0, RMI::ATTR_UNORDERED);
             }
         }
 
@@ -624,11 +626,35 @@ namespace madness {
                         bool pause_during_epilogue = false,
                         bool debug = false);
 
+        int initial_max_reducebcast_msg_size() {
+          int result = std::numeric_limits<int>::max();
+          const auto* initial_max_reducebcast_msg_size_cstr = std::getenv("MAD_MAX_REDUCEBCAST_MSG_SIZE");
+          if (initial_max_reducebcast_msg_size_cstr) {
+            auto result_u64 = cstr_to_memory_size(initial_max_reducebcast_msg_size_cstr);
+            const auto do_print = SafeMPI::COMM_WORLD.Get_rank() == 0 && !madness::quiet();
+            if (result_u64>std::numeric_limits<int>::max()) {
+              if (do_print)
+                std::cout
+                    << "!!MADNESS WARNING: Invalid value for environment variable MAD_MAX_REDUCEBCAST_MSG_SIZE.\n"
+                    << "!!MADNESS WARNING: MAD_MAX_REDUCEBCAST_MSG_SIZE = "
+                    << result_u64 << "\n";
+              result = std::numeric_limits<int>::max();
+            }
+            result = static_cast<int>(result_u64);
+            if(do_print) {
+              std::cout
+                  << "MADNESS max msg size for GOP reduce/broadcast set to "
+                  << result << " bytes.\n";
+            }
+          }
+          return result;
+        }
+
     public:
 
         // In the World constructor can ONLY rely on MPI and MPI being initialized
         WorldGopInterface(World& world) :
-            world_(world), deferred_(new detail::DeferredCleanup()), debug_(false)
+            world_(world), deferred_(new detail::DeferredCleanup()), debug_(false), max_reducebcast_msg_size_(initial_max_reducebcast_msg_size())
         { }
 
         ~WorldGopInterface() {
@@ -650,6 +676,26 @@ namespace madness {
             forbid_fence_ = value;
             return status;
         }
+
+        /// Set the maximum size of messages (in bytes) sent by reduce and broadcast
+
+        /// \param sz the maximum size of messages (in bytes) sent by reduce and broadcast
+        /// \return the previous maximum size of messages (in bytes) sent by reduce and broadcast
+        /// \pre `sz>0`
+        int set_max_reducebcast_msg_size(int sz) {
+          MADNESS_ASSERT(sz>0);
+          std::swap(max_reducebcast_msg_size_,sz);
+          return max_reducebcast_msg_size_;
+        }
+
+
+        /// Returns the maximum size of messages (in bytes) sent by reduce and broadcast
+
+        /// \return the maximum size of messages (in bytes) sent by reduce and broadcast
+        int max_reducebcast_msg_size() const {
+          return max_reducebcast_msg_size_;
+        }
+
         /// Synchronizes all processes in communicator ... does NOT fence pending AM or tasks
         void barrier() {
             long i = world_.rank();
@@ -684,19 +730,19 @@ namespace madness {
         /// Broadcasts typed contiguous data from process root while still processing AM & tasks
 
         /// Optimizations can be added for long messages
-        template <typename T>
+        template <typename T, typename = std::enable_if_t<std::is_trivially_copyable_v<T>>>
         inline void broadcast(T* buf, size_t nelem, ProcessID root) {
             broadcast((void *) buf, nelem*sizeof(T), root);
         }
 
         /// Broadcast of a scalar from node 0 to all other nodes
-        template <typename T>
+        template <typename T, typename = std::enable_if_t<std::is_trivially_copyable_v<T>>>
         void broadcast(T& t) {
             broadcast(&t, 1, 0);
         }
 
         /// Broadcast of a scalar from node root to all other nodes
-        template <typename T>
+        template <typename T, typename = std::enable_if_t<std::is_trivially_copyable_v<T>>>
         void broadcast(T& t, ProcessID root) {
             broadcast(&t, 1, root);
         }
@@ -706,6 +752,9 @@ namespace madness {
                   typename = std::void_t<decltype(std::declval<archive::BufferInputArchive&>()&std::declval<objT&>())>,
                   typename = std::void_t<decltype(std::declval<archive::BufferOutputArchive&>()&std::declval<const objT&>())>>
         void broadcast_serializable(objT& obj, ProcessID root) {
+            MADNESS_ASSERT(root < world_.size());
+            if (world_.size() == 1) return;
+
             size_t BUFLEN;
             if (world_.rank() == root) {
                 archive::BufferOutputArchive count;
@@ -727,50 +776,90 @@ namespace madness {
             delete [] buf;
         }
 
-      private:
-        template <typename T, class opT>
-        void reduce_impl(T* buf, int nelem, opT op) {
-            SafeMPI::Request req0, req1;
-            ProcessID parent, child0, child1;
-            world_.mpi.binary_tree_info(0, parent, child0, child1);
-            Tag gsum_tag = world_.mpi.unique_tag();
-
-            T* buf0 = new T[nelem];
-            T* buf1 = new T[nelem];
-
-            if (child0 != -1) req0 = world_.mpi.Irecv(buf0, nelem*sizeof(T), MPI_BYTE, child0, gsum_tag);
-            if (child1 != -1) req1 = world_.mpi.Irecv(buf1, nelem*sizeof(T), MPI_BYTE, child1, gsum_tag);
-
-            if (child0 != -1) {
-                World::await(req0);
-                for (long i=0; i<(long)nelem; ++i) buf[i] = op(buf[i],buf0[i]);
-            }
-            if (child1 != -1) {
-                World::await(req1);
-                for (long i=0; i<(long)nelem; ++i) buf[i] = op(buf[i],buf1[i]);
-            }
-
-            delete [] buf0;
-            delete [] buf1;
-
-            if (parent != -1) {
-                req0 = world_.mpi.Isend(buf, nelem*sizeof(T), MPI_BYTE, parent, gsum_tag);
-                World::await(req0);
-            }
-
-            broadcast(buf, nelem, 0);
-        }
-
-      public:
         /// Inplace global reduction (like MPI all_reduce) while still processing AM & tasks
 
         /// Optimizations can be added for long messages and to reduce the memory footprint
         template <typename T, class opT>
             void reduce(T* buf, std::size_t nelem, opT op) {
-          const std::size_t nelem_per_intmax_nbytes = std::numeric_limits<int>::max() / sizeof(T);
+          static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
+
+          ProcessID parent, child0, child1;
+          world_.mpi.binary_tree_info(0, parent, child0, child1);
+          const std::size_t nelem_per_maxmsg =
+              max_reducebcast_msg_size() / sizeof(T);
+
+          const auto buf_size = ((sizeof(T) * std::min(nelem_per_maxmsg, nelem) +
+                                 std::alignment_of_v<T> - 1) /
+                                std::alignment_of_v<T>) * std::alignment_of_v<T>;
+          struct free_dtor {
+            void operator()(T *ptr) {
+              if (ptr != nullptr)
+                std::free(ptr);
+            };
+          };
+          using sptr_t = std::unique_ptr<T[], free_dtor>;
+
+          auto aligned_buf_alloc = [&]() -> T* {
+            // posix_memalign requires alignment to be an integer multiple of sizeof(void*)!! so ensure that
+            const std::size_t alignment =
+                ((std::alignment_of_v<T> + sizeof(void *) - 1) /
+                 sizeof(void *)) *
+                sizeof(void *);
+#ifdef HAVE_POSIX_MEMALIGN
+            void *ptr;
+            if (posix_memalign(&ptr, alignment, buf_size) != 0) {
+              throw std::bad_alloc();
+            }
+            return static_cast<T *>(ptr);
+#else
+            return static_cast<T *>(std::aligned_alloc(alignment, buf_size));
+#endif
+          };
+
+          sptr_t buf0;
+          if (child0 != -1)
+            buf0 = sptr_t(aligned_buf_alloc(),
+                          free_dtor{});
+          sptr_t buf1(nullptr);
+          if (child1 != -1)
+            buf1 = sptr_t(aligned_buf_alloc(),
+                          free_dtor{});
+
+          auto reduce_impl = [&,this](T* buf, size_t nelem) {
+            MADNESS_ASSERT(nelem <= nelem_per_maxmsg);
+            SafeMPI::Request req0, req1;
+            Tag gsum_tag = world_.mpi.unique_tag();
+
+            if (child0 != -1)
+              req0 = world_.mpi.Irecv(buf0.get(), nelem * sizeof(T), MPI_BYTE,
+                                      child0, gsum_tag);
+            if (child1 != -1)
+              req1 = world_.mpi.Irecv(buf1.get(), nelem * sizeof(T), MPI_BYTE,
+                                      child1, gsum_tag);
+
+            if (child0 != -1) {
+              World::await(req0);
+              for (long i = 0; i < (long)nelem; ++i)
+                buf[i] = op(buf[i], buf0[i]);
+            }
+            if (child1 != -1) {
+              World::await(req1);
+              for (long i = 0; i < (long)nelem; ++i)
+                buf[i] = op(buf[i], buf1[i]);
+            }
+
+            if (parent != -1) {
+              req0 = world_.mpi.Isend(buf, nelem * sizeof(T), MPI_BYTE, parent,
+                                      gsum_tag);
+              World::await(req0);
+            }
+
+            broadcast(buf, nelem, 0);
+          };
+
           while (nelem) {
-            const int n = std::min(nelem_per_intmax_nbytes, nelem);
-            reduce_impl(buf, n, op);
+            const int n = std::min(nelem_per_maxmsg, nelem);
+            reduce_impl(buf, n);
             nelem -= n;
             buf += n;
           }
@@ -858,47 +947,162 @@ namespace madness {
         /// Concatenate an STL vector of serializable stuff onto node 0
 
         /// \param[in] v input vector
-        /// \param[in] bufsz the max of the result' must be less than std::numeric_limits<int>::max()
+        /// \param[in] bufsz the max number of bytes in the result; must be less than std::numeric_limits<int>::max()
         /// \return on rank 0 returns the concatenated vector, elsewhere returns an empty vector
         template <typename T>
         std::vector<T> concat0(const std::vector<T>& v, size_t bufsz=1024*1024) {
-            SafeMPI::Request req0, req1;
+            MADNESS_ASSERT(bufsz <= std::numeric_limits<int>::max());
+            // bufsz must be multiple of alignment!!! so ensure that
+            bufsz = ((bufsz + sizeof(void*) - 1) / sizeof(void*)) * sizeof(void*);
+
             ProcessID parent, child0, child1;
             world_.mpi.binary_tree_info(0, parent, child0, child1);
-            Tag gsum_tag = world_.mpi.unique_tag();
+            int child0_nbatch = 0, child1_nbatch = 0;
 
-            MADNESS_ASSERT(bufsz <= std::numeric_limits<int>::max());
+            struct free_dtor {
+              void operator()(std::byte *ptr) {
+                if (ptr != nullptr)
+                  std::free(ptr);
+              };
+            };
+            using sptr_t = std::unique_ptr<std::byte[], free_dtor>;
 
-            unsigned char* buf0 = new unsigned char[bufsz];
-            unsigned char* buf1 = new unsigned char[bufsz];
+            auto buf0 = sptr_t(static_cast<std::byte *>(
+                                std::aligned_alloc(sizeof(void *), bufsz)),
+                               free_dtor{});
+            auto buf1 = sptr_t(static_cast<std::byte *>(
+                                std::aligned_alloc(sizeof(void *), bufsz)),
+                               free_dtor{});
 
-            if (child0 != -1) req0 = world_.mpi.Irecv(buf0, bufsz, MPI_BYTE, child0, gsum_tag);
-            if (child1 != -1) req1 = world_.mpi.Irecv(buf1, bufsz, MPI_BYTE, child1, gsum_tag);
+            // transfer data in chunks at most this large
+            const int batch_size = static_cast<int>(
+                std::min(static_cast<size_t>(max_reducebcast_msg_size()), bufsz));
+
+            // precompute max # of tags any node ... will need, and allocate them on every node to avoid tag counter divergence
+            const int max_nbatch = bufsz / batch_size;
+            // one tag is reserved for sending the number of messages to expect and the size of the last message
+            const int max_ntags = max_nbatch + 1;
+            MADNESS_ASSERT(max_nbatch < world_.mpi.unique_tag_period());
+            std::vector<Tag> tags;  // stores tags used to send each batch
+            tags.reserve(max_nbatch);
+            for(int t=0; t<max_ntags; ++t) tags.push_back(world_.mpi.unique_tag());
+
+            if (child0 != -1 || child1 != -1) {
+              // receive # of batches
+
+              auto receive_nbatch = [&,this]() {
+                if (child0 != -1) {
+                  world_.mpi.Recv(&child0_nbatch, 1, MPI_INT, child0,
+                                          tags[0]);
+                }
+                if (child1 != -1) {
+                  world_.mpi.Recv(&child1_nbatch, 1, MPI_INT, child1,
+                                          tags[0]);
+                }
+              };
+
+              receive_nbatch();
+
+              // receive data in batches
+
+              auto receive_batch = [&,this](const int batch, const size_t buf_offset) {
+                SafeMPI::Request req0, req1;
+                if (child0 != -1 && batch < child0_nbatch) {
+                  int msg_size = batch_size;
+                  // if last batch, receive # of bytes to expect
+                  if (batch + 1 == child0_nbatch) {
+                    auto req = world_.mpi.Irecv(
+                        &msg_size, 1, MPI_INT, child0, tags[0]);
+                    World::await(req);
+                  }
+
+                  req0 = world_.mpi.Irecv(buf0.get() + buf_offset,
+                                          msg_size, MPI_BYTE, child0,
+                                          tags[batch + 1]);
+                }
+                if (child1 != -1 && batch < child1_nbatch) {
+                  int msg_size = batch_size;
+                  // if last batch, receive # of bytes to expect
+                  if (batch + 1 == child1_nbatch) {
+                    auto req = world_.mpi.Irecv(
+                        &msg_size, 1, MPI_INT, child1, tags[0]);
+                    World::await(req);
+                  }
+                  req1 = world_.mpi.Irecv(buf1.get() + buf_offset,
+                                          msg_size, MPI_BYTE, child1,
+                                          tags[batch + 1]);
+                }
+
+                if (child0 != -1 && batch < child0_nbatch) {
+                  World::await(req0);
+                }
+                if (child1 != -1 && batch < child1_nbatch) {
+                  World::await(req1);
+                }
+              };
+
+              size_t buf_offset = 0;
+              int batch = 0;
+              while (buf_offset < bufsz) {
+                receive_batch(batch, buf_offset);
+                buf_offset += batch_size;
+                buf_offset = std::min(buf_offset, bufsz);
+                ++batch;
+              }
+            }
+
 
             std::vector<T> left, right;
             if (child0 != -1) {
-                World::await(req0);
-                archive::BufferInputArchive ar(buf0, bufsz);
-                ar & left;
+              archive::BufferInputArchive ar(buf0.get(), bufsz);
+              ar & left;
             }
             if (child1 != -1) {
-                World::await(req1);
-                archive::BufferInputArchive ar(buf1, bufsz);
-                ar & right;
-                for (unsigned int i=0; i<right.size(); ++i) left.push_back(right[i]);
+              archive::BufferInputArchive ar(buf1.get(), bufsz);
+              ar & right;
+              for (unsigned int i = 0; i < right.size(); ++i)
+                left.push_back(right[i]);
             }
-
             for (unsigned int i=0; i<v.size(); ++i) left.push_back(v[i]);
 
+            // send data in batches
             if (parent != -1) {
-                archive::BufferOutputArchive ar(buf0, bufsz);
-                ar & left;
-                req0 = world_.mpi.Isend(buf0, ar.size(), MPI_BYTE, parent, gsum_tag);
-                World::await(req0);
-            }
+              archive::BufferOutputArchive ar(buf0.get(), bufsz);
+              ar & left;
+              const auto total_nbytes_to_send = ar.size();
 
-            delete [] buf0;
-            delete [] buf1;
+              // send nbatches to expect
+              const int nbatch = (total_nbytes_to_send + batch_size - 1) / batch_size;
+              world_.mpi.Send(&nbatch, 1, MPI_INT, parent,
+                              tags[0]);
+
+              size_t buf_offset = 0;
+              int batch = 0;
+              while (buf_offset < bufsz) {
+
+                // send data in batches
+                auto send_batch = [&,this](const int batch, const size_t buf_offset) {
+                  const int nbytes_to_send = static_cast<int>(
+                      std::min(static_cast<size_t>(batch_size),
+                               total_nbytes_to_send - buf_offset));
+                  // if last batch, send # of bytes to expect
+                  if (batch + 1 == nbatch) {
+                    auto req = world_.mpi.Isend(
+                        &nbytes_to_send, 1, MPI_INT, parent, tags[0]);
+                    World::await(req);
+                  }
+                  auto req0 =
+                      world_.mpi.Isend(buf0.get() + buf_offset, nbytes_to_send,
+                                       MPI_BYTE, parent, tags[batch + 1]);
+                  World::await(req0);
+                };
+
+                send_batch(batch, buf_offset);
+                buf_offset += batch_size;
+                buf_offset = std::min(buf_offset, bufsz);
+                ++batch;
+              }
+            }
 
             if (parent == -1) return left;
             else return std::vector<T>();

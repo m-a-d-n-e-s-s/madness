@@ -35,20 +35,18 @@ public:
     CorrelationFactor(World& world, const double& gamma, const double dcut,
             const Molecule& molecule) : world(world), _gamma(gamma), dcut(dcut) {
         lo=1.e-6;//lo = molecule.smallest_length_scale();
-        if (world.rank()==0) {
-
-            if (gamma>0.0) print("constructed correlation factor with gamma=",gamma);
-            else if (gamma==0.0) print("constructed linear correlation factor");
-        }
+//        if (world.rank()==0) {
+//            if (gamma>0.0) print("constructed correlation factor with gamma=",gamma);
+//            else if (gamma==0.0) print("constructed linear correlation factor");
+//        }
     }
     /// ctor, use negative gamma for linear correlation factor r12
     CorrelationFactor(World& world, const double& gamma, const double dcut,
             const double lo) : world(world), _gamma(gamma), dcut(dcut), lo(lo) {
-        if (world.rank()==0) {
-
-            if (gamma>0.0) print("constructed correlation factor with gamma=",gamma);
-            else if (gamma==0.0) print("constructed linear correlation factor");
-        }
+//        if (world.rank()==0) {
+//            if (gamma>0.0) print("constructed correlation factor with gamma=",gamma);
+//            else if (gamma==0.0) print("constructed linear correlation factor");
+//        }
     }
 
     /// copy ctor

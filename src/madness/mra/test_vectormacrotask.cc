@@ -59,10 +59,12 @@ public:
     typedef std::tuple<const real_function_3d &, const double &,
             const std::vector<real_function_3d> &> argtupleT;
 
+    // you need to define the result type
+    // resultT must implement gaxpy(alpha, result, beta, contribution)
+    // with resultT result, contribution;
     using resultT = std::vector<real_function_3d>;
 
     // you need to define an empty constructor for the result
-    // resultT must implement operator+=(const resultT&)
     resultT allocator(World &world, const argtupleT &argtuple) const {
         std::size_t n = std::get<2>(argtuple).size();
         resultT result = zero_functions_compressed<double, 3>(world, n);
@@ -72,6 +74,7 @@ public:
     resultT operator()(const real_function_3d &f1, const double &arg2,
                        const std::vector<real_function_3d> &f2) const {
         World& world=f1.world();
+        if (world.rank()==0) print("in MicroTask");
         real_convolution_3d op=CoulombOperator(world,1.e-4,1.e-5);
         return arg2 * f1 * apply(world,op,f2);
     }
@@ -81,7 +84,8 @@ public:
 class MicroTask1 : public MacroTaskOperationBase{
 public:
     // you need to define the result type
-    // resultT must implement operator+=(const resultT&)
+    // resultT must implement gaxpy(alpha, result, beta, contribution)
+    // with resultT result, contribution;
     typedef real_function_3d resultT;
 
     // you need to define the exact argument(s) of operator() as tuple
@@ -95,7 +99,6 @@ public:
 
     resultT operator()(const real_function_3d &f1, const double &arg2,
                        const std::vector<real_function_3d> &f2) const {
-        World &world = f1.world();
         auto result = arg2 * f1 * inner(f2, f2);
         return result;
     }
@@ -104,7 +107,8 @@ public:
 class MicroTask2 : public MacroTaskOperationBase{
 public:
     // you need to define the result type
-    // resultT must implement operator+=(const resultT&)
+    // resultT must implement gaxpy(alpha, result, beta, contribution)
+    // with resultT result, contribution;
     typedef std::vector<real_function_3d> resultT;
 
     // you need to define the exact argument(s) of operator() as tuple
@@ -133,6 +137,55 @@ public:
 
     }
 };
+
+class VectorOfScalarTask : public MacroTaskOperationBase{
+public:
+    // you need to define the result type
+    // resultT must implement gaxpy(alpha, result, beta, contribution)
+    // with resultT result, contribution;
+    typedef std::vector<std::shared_ptr<ScalarResult<double>>> resultT;
+
+    // you need to define the exact argument(s) of operator() as tuple
+    typedef std::tuple<const std::vector<real_function_3d> &, const double &,
+            const std::vector<real_function_3d> &> argtupleT;
+
+    resultT allocator(World &world, const argtupleT &argtuple) const {
+        std::size_t n = std::get<0>(argtuple).size();
+        return scalar_result_shared_ptr_vector<double>(world,n);
+    }
+
+    resultT operator()(const std::vector<real_function_3d>& f1, const double &arg2,
+                       const std::vector<real_function_3d>& f2) const {
+        World &world = f1[0].world();
+        auto result=scalar_result_shared_ptr_vector<double>(world,f1.size());
+        for (int i=0; i<f1.size(); ++i) *result[i]=double(i);
+        return result;
+    }
+};
+
+class ScalarTask : public MacroTaskOperationBase{
+public:
+    // you need to define the result type
+    // resultT must implement gaxpy(alpha, result, beta, contribution)
+    // with resultT result, contribution;
+    typedef std::shared_ptr<ScalarResult<double>> resultT;
+
+    // you need to define the exact argument(s) of operator() as tuple
+    typedef std::tuple<const std::vector<real_function_3d> &> argtupleT;
+
+    resultT allocator(World &world, const argtupleT &argtuple) const {
+        return resultT(new ScalarResult<double>(world));
+    }
+
+    resultT operator()(const std::vector<real_function_3d>& f1) const {
+        World &world = f1[0].world();
+        resultT result(new ScalarResult<double>(world));
+        *result=double(f1.size());
+        return result;
+    }
+};
+
+
 
 int check_vector(World& universe, const std::vector<real_function_3d> &ref, const std::vector<real_function_3d> &test,
                         const std::string msg) {
@@ -209,8 +262,40 @@ int test_task1(World& universe, const std::vector<real_function_3d>& v3) {
     MicroTask1 t1;
     real_function_3d ref_t1 = t1(v3[0], 2.0, v3);
     MacroTask task1(universe, t1);
+    task1.set_debug(true);
     real_function_3d ref_t2 = task1(v3[0], 2.0, v3);
     int success = check(universe,ref_t1, ref_t2, "task1 immediate");
+    return success;
+}
+
+/// each task accumulates into the same result
+int test_scalar_task(World& universe, const std::vector<real_function_3d>& v3) {
+    if (universe.rank()==0) print("\nstarting ScalarTask\n");
+    ScalarTask t1;
+    std::shared_ptr<ScalarResult<double>> result = t1(v3);
+    print("result",result->get());
+
+
+    MacroTask task1(universe, t1);
+    auto result2= task1(v3);
+    print("result",result2->get());
+
+//    int success = check(universe,ref_t1, ref_t2, "task1 immediate");
+    int success=0;
+    return success;
+}
+int test_vector_of_scalar_task(World& universe, const std::vector<real_function_3d>& v3) {
+    if (universe.rank()==0) print("\nstarting VectorOfScalarTask\n");
+    VectorOfScalarTask t1;
+    std::vector<std::shared_ptr<ScalarResult<double>>> result = t1(v3, 2.0, v3);
+    for (auto& r : result) print("result",r->get());
+
+
+    MacroTask task1(universe, t1);
+    auto result2= task1(v3, 2.0, v3);
+    for (auto& r : result2) print("result",r->get());
+
+    int success=0;
     return success;
 }
 
@@ -261,6 +346,12 @@ int main(int argc, char **argv) {
         success+=test_immediate(universe,v3,ref);
         timer1.tag("immediate taskq execution");
 
+        success+=test_vector_of_scalar_task(universe,v3);
+        timer1.tag("vector of scalar task execution");
+
+        success+=test_scalar_task(universe,v3);
+        timer1.tag("scalar task execution");
+
         success+=test_deferred(universe,v3,ref);
         timer1.tag("deferred taskq execution");
 
@@ -280,7 +371,7 @@ int main(int argc, char **argv) {
     }
 
     madness::finalize();
-    return 0;
+    return success;
 }
 
 template<> volatile std::list<detail::PendingMsg> WorldObject<MacroTaskQ>::pending = std::list<detail::PendingMsg>();

@@ -135,14 +135,14 @@ GradBSHOperator_Joel(World& world,
      // Then need to truncate coeff and expnt into new Tensors
     int rank = coeff.dim(0);
     double Cdelta = 0.0;
-    double max_kept;
-    int max_j;
+    //double max_kept;
+    int max_j=0;
     for(int j = 0; j < rank; j++){
          if(expnt[j] > max_expnt){
                Cdelta += coeff[j]*std::pow(constants::pi/expnt[j],1.5);
          }
          else{
-               max_kept = expnt[j];
+	   //max_kept = expnt[j];
                max_j = j;
                break;
          } 
@@ -1102,7 +1102,7 @@ void apply_BSH_new(World& world, Fcwf& Vpsi, double& eps, double& small, double&
      double myc = 137.0359895; //speed of light
      double c2 = myc*myc; //speed of light squared
      std::complex<double> myi(0,1); //imaginary number i
-     std::complex<double> ic = myi*myc; //i*c
+     //std::complex<double> ic = myi*myc; //i*c
     
      //calculate exponent for equivalent BSH operator
      double mu = std::sqrt(-(2*eps*c2+eps*eps)/c2);

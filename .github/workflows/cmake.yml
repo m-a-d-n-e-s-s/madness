@@ -33,12 +33,15 @@ jobs:
       CTEST_OUTPUT_ON_FAILURE : 1
       BUILD_CONFIG : >
         -G Ninja
+        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+        -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
         -DCMAKE_PREFIX_PATH=/usr/local/opt/bison
         -DBUILD_SHARED_LIBS=OFF
         -DMPIEXEC_PREFLAGS='--bind-to;none;--allow-run-as-root'
         -DBUILD_TESTING=ON
         -DMADNESS_ENABLE_CEREAL=ON
         -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'Threads' }}
+        -DMADNESS_BUILD_LIBRARIES_ONLY=${{ matrix.build_type != 'Debug' }}
 
     steps:
     - uses: actions/checkout@v2
@@ -66,7 +69,7 @@ jobs:
     - name: Install prerequisite MacOS packages
       if: ${{ matrix.os == 'macos-latest' }}
       run: |
-        brew install ninja gcc@10 boost eigen open-mpi bison ccache
+        brew install ninja boost eigen open-mpi bison ccache
         if [ "X${{ matrix.task_backend }}" = "XLegacyTBB" ]; then
           brew install tbb@2020
           echo "TBBROOT=/usr/local/opt/tbb@2020" >> $GITHUB_ENV
@@ -129,3 +132,22 @@ jobs:
       working-directory: ${{github.workspace}}/build
       shell: bash
       run: cmake --build . --target check-short-madness
+
+    - name: Install
+      if: matrix.build_type != 'Debug'
+      working-directory: ${{github.workspace}}/build
+      shell: bash
+      run: cmake --build . --target install
+
+    - name: Test Install Tree
+      if: matrix.build_type != 'Debug'
+      working-directory: ${{github.workspace}}/build
+      shell: bash
+      run: |
+        cmake -S $GITHUB_WORKSPACE/doc/tutorial -B test_install -DCMAKE_PREFIX_PATH=${{github.workspace}}/install
+        cmake --build test_install
+        test_install/test_runtime
+        # if built more than just MADWorld run the HF test
+        if [ "X${{ matrix.task_backend }}" = "XThreads" ]; then
+           test_install/simple_hf
+        fi

@@ -104,7 +104,7 @@ namespace madness {
 
             /// \return The process doing I/O for this node.
             ProcessID my_io_node() const {
-                MADNESS_ASSERT(world);
+                MADNESS_CHECK(world);
                 return io_node(world->rank());
             }
 
@@ -112,7 +112,7 @@ namespace madness {
 
             /// \return The number of I/O clients for this node, including self (zero if not an I/O node).
             int num_io_clients() const {
-                MADNESS_ASSERT(world);
+                MADNESS_CHECK(world);
                 return nclient;
             }
 
@@ -120,7 +120,7 @@ namespace madness {
 
             /// \return True if this node is doing physical I/O.
             bool is_io_node() const {
-                MADNESS_ASSERT(world);
+                MADNESS_CHECK(world);
                 return world->rank() == my_io_node();
             }
 
@@ -128,7 +128,7 @@ namespace madness {
 
             /// \return A pointer to the world.
             World* get_world() const {
-                MADNESS_ASSERT(world);
+                MADNESS_CHECK(world);
                 return world;
             }
 
@@ -166,12 +166,12 @@ namespace madness {
                 if (nio > maxio) nio = maxio; // Sanity?
                 if (nio > world.size()) nio = world.size();
 
-                MADNESS_ASSERT(filename);
-                MADNESS_ASSERT(strlen(filename)-1<sizeof(fname));
+                MADNESS_CHECK(filename);
+                MADNESS_CHECK(strlen(filename)-1<sizeof(fname));
                 strcpy(fname,filename); // Save the filename for later
-                std::size_t bufsize=256;
+                constexpr std::size_t bufsize=512;
                 char buf[bufsize];
-                MADNESS_ASSERT(strlen(filename)+7 <= sizeof(buf));
+                MADNESS_CHECK(strlen(filename)+7 <= sizeof(buf));
                 snprintf(buf, bufsize, "%s.%5.5d", filename, world.rank());
 
                 // if file doesn't exist we have a race condition if this code is handled by a try/catch block
@@ -183,7 +183,7 @@ namespace madness {
                 if (world.rank() == 0) {
                     ar.open(buf);
                     ar & nio; // read/write nio from/to the archive
-                    MADNESS_ASSERT(nio <= world.size());
+                    MADNESS_CHECK(nio <= world.size());
                 }
 
                 // Ensure all agree on value of nio that may also have changed if reading
@@ -222,9 +222,9 @@ namespace madness {
             typename std::enable_if_t<std::is_same<X,BinaryFstreamInputArchive>::value || std::is_same<X,BinaryFstreamOutputArchive>::value,
                                       bool>
             exists(World& world, const char* filename) {
-                std::size_t bufsize=256;
+                constexpr std::size_t bufsize=512;
                 char buf[bufsize];
-                MADNESS_ASSERT(strlen(filename)+7 <= sizeof(buf));
+                MADNESS_CHECK(strlen(filename)+7 <= sizeof(buf));
                 snprintf(buf,bufsize, "%s.%5.5d", filename, world.rank());
                 bool status;
                 if (world.rank() == 0)
@@ -237,7 +237,7 @@ namespace madness {
 
             /// Closes the parallel archive.
             void close() {
-                MADNESS_ASSERT(world);
+                MADNESS_CHECK(world);
                 if (is_io_node()) ar.close();
             }
 
@@ -246,8 +246,8 @@ namespace madness {
             /// \throw MadnessException If not an I/O node.
             /// \return A reference to the local archive.
             Archive& local_archive() const {
-                MADNESS_ASSERT(world);
-                MADNESS_ASSERT(is_io_node());
+                MADNESS_CHECK(world);
+                MADNESS_CHECK(is_io_node());
                 return ar;
             }
 
@@ -273,9 +273,9 @@ namespace madness {
                                       void>
             remove(World& world, const char* filename) {
                 if (world.rank() == 0) {
-                    std::size_t bufsize=268;
+                    constexpr std::size_t bufsize=512;
                     char buf[bufsize];
-                    MADNESS_ASSERT(strlen(filename)+7 <= sizeof(buf));
+                    MADNESS_CHECK(strlen(filename)+7 <= sizeof(buf));
                     for (ProcessID p=0; p<world.size(); ++p) {
                         snprintf(buf,bufsize, "%s.%5.5d", filename, p);
                         if (::remove(buf)) break;
@@ -285,7 +285,7 @@ namespace madness {
 
             /// Removes the files associated with the current archive.
             void remove() {
-                MADNESS_ASSERT(world);
+                MADNESS_CHECK(world);
                 remove(*world, fname);
             }
 

@@ -104,6 +104,9 @@ The following CMake cache variables turn features on and off.
       otherwise the default is OFF.
 * MADNESS_BUILD_MADWORLD_ONLY --- whether to build the MADNESS runtime only; if `ON`, discovery of BLAS/LAPACK
       and building of numerical components and applications will be disabled [default=`OFF`]
+* MADNESS_BUILD_LIBRARIES_ONLY --- whether to build the MADNESS libraries only; if `ON`,
+      building of numerical components and applications will be disabled and
+      the value of `MADNESS_BUILD_MADWORLD_ONLY` ignored [default=`OFF`]
 
 ## External libraries
 
@@ -198,6 +201,17 @@ If GPERFTOOLS_ROOT_DIR is not given, it will be set to the value of the GPERFTOO
 
 If LIBUNWIND_DIR is not given, it will be set to the value of the LIBUNWIND_DIR environment variable if it is set.
 
+### IntegratorXX for numerical integration via DFT grids
+* ENABLE_INTEGRATORXX --- Enables use of IntegratorXX
+* INTEGRATORXX_ROOT_DIR --- The install prefix for IntegratorXX
+* INTEGRATORXX_INCLUDE_DIR --- The path to the IntegratorXX include directory (should be added automatically when the correct PCM_ROOT_DIR is given)
+
+IntegratorXX is a library for numerical integration via DFT grids. It is used in the MP3 code of Madness for 
+generating low-rank representations of 6D functions. 
+If IntegratorXX absent, a Gaussian-distributed random grid will be used, leading to slightly varying results in 
+different MP3 runs.
+
+
 ### Polarizable Conitinuum Solver (PCM):
 
 * ENABLE_PCM --- Enables use of PCM
@@ -211,7 +225,7 @@ madness/external/pcm.cmake
 madness/modules/FindPCM.cmake
 madness/src/apps/chem/CMakeLists.txt
 
-3## Performance Application Programming Interface (PAPI):
+### Performance Application Programming Interface (PAPI):
 
 * ENABLE_PAPI --- Enables use of PAPI [default=OFF]
 * PAPI_ROOT_DIR --- The install prefix for PAPI.

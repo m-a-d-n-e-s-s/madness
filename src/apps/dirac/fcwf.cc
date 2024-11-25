@@ -77,7 +77,7 @@ unsigned int Fcwf::size() const {
      return m_psi.size();
 }
 
-//copy contructor defaults to deep copy
+//copy constructor defaults to deep copy
 //if this ever changes, you will need to change the copy() function, as it calls this
 Fcwf::Fcwf(const Fcwf& phi){
      MADNESS_ASSERT(m_psi.size() == 0);

@@ -38,9 +38,13 @@
 #ifndef MADNESS_WORLD_WORLD_OBJECT_H__INCLUDED
 #define MADNESS_WORLD_WORLD_OBJECT_H__INCLUDED
 
-#include <type_traits>
 #include <madness/world/thread.h>
 #include <madness/world/world_task_queue.h>
+
+#include <array>
+#include <atomic>
+#include <cstddef>
+#include <type_traits>
 
 /// \addtogroup world_object
 /// @{
@@ -332,6 +336,10 @@ namespace madness {
 
     } // namespace detail
 
+    /// Base class for WorldObject, useful for introspection
+    struct WorldObjectBase {
+      virtual ~WorldObjectBase() = default;
+    };
 
     /// Implements most parts of a globally addressable object (via unique ID).
 
@@ -353,7 +361,7 @@ namespace madness {
     /// \tparam Derived The derived class. \c WorldObject is a curiously
     ///     recurring template pattern.
     template <class Derived>
-    class WorldObject {
+    class WorldObject : public WorldObjectBase {
     public:
         /// \todo Description needed.
         typedef WorldObject<Derived> objT;
@@ -401,31 +409,48 @@ namespace madness {
         /// \return Description needed.
         /// \todo Parameter/return descriptions needed.
         static bool is_ready(const uniqueidT& id, objT*& obj, const AmArg& arg, am_handlerT ptr) {
-            obj = static_cast<objT*>(arg.get_world()->template ptr_from_id<Derived>(id));
+          std::optional<Derived *> opt_obj =
+              arg.get_world()->template ptr_from_id<Derived>(id);
+          if (opt_obj) {
+            // if opt_obj == nullptr, then this ID has already been deregistered
+            MADNESS_ASSERT(*opt_obj != nullptr);
+            obj = static_cast<objT *>(*opt_obj);
+          } else
+            obj = nullptr;
 
-            if (obj) {
-                if (obj->ready || arg.is_pending()) return true;
-            }
+          if (obj) {
+            if (obj->ready || arg.is_pending())
+              return true;
+          }
 
-            MADNESS_PRAGMA_CLANG(diagnostic push)
-            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
+          MADNESS_PRAGMA_CLANG(diagnostic push)
+          MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
 
-            ScopedMutex<Spinlock> lock(pending_mutex); // BEGIN CRITICAL SECTION
+          ScopedMutex<Spinlock> lock(pending_mutex); // BEGIN CRITICAL SECTION
 
-            if (!obj) obj = static_cast<objT*>(arg.get_world()->template ptr_from_id<Derived>(id));
+          if (!obj) {
+            std::optional<Derived *> opt_obj =
+                arg.get_world()->template ptr_from_id<Derived>(id);
+            if (opt_obj) {
+              // if opt_obj == nullptr, then this ID has already been deregistered
+              MADNESS_ASSERT(*opt_obj != nullptr);
+              obj = static_cast<objT *>(*opt_obj);
+            } else
+              obj = nullptr;
+          }
 
-            if (obj) {
-                if (obj->ready || arg.is_pending())
-                    return true; // END CRITICAL SECTION
-            }
-            const_cast<AmArg&>(arg).set_pending();
-            const_cast<pendingT&>(pending).push_back(detail::PendingMsg(id, ptr, arg));
+          if (obj) {
+            if (obj->ready || arg.is_pending())
+              return true; // END CRITICAL SECTION
+          }
+          const_cast<AmArg &>(arg).set_pending();
+          const_cast<pendingT &>(pending).push_back(
+              detail::PendingMsg(id, ptr, arg));
 
-            MADNESS_PRAGMA_CLANG(diagnostic pop)
+          MADNESS_PRAGMA_CLANG(diagnostic pop)
 
-            return false; // END CRITICAL SECTION
+          return false; // END CRITICAL SECTION
         }
-
 
         /// Handler for an incoming AM.
 
@@ -460,7 +485,10 @@ namespace madness {
                 typename detail::task_arg<arg7T>::type arg7;
                 typename detail::task_arg<arg8T>::type arg8;
                 typename detail::task_arg<arg9T>::type arg9;
+		MADNESS_PRAGMA_CLANG(diagnostic push)
+                MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wuninitialized-const-reference")
                 arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6 & arg7 & arg8 & arg9;
+		MADNESS_PRAGMA_CLANG(diagnostic pop)
                 typename detail::info<memfnT>::futureT result(info.ref);
                 detail::run_function(result, task_helper::make_task_fn(obj, info.memfun()),
                         arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);
@@ -610,7 +638,7 @@ namespace madness {
             typename taskT::futureT result;
             detail::info<memfnT> info(objid, me, memfn, result.remote_ref(world), attr);
             world.am.send(dest, & objT::template spawn_remote_task_handler<taskT>,
-                    new_am_arg(info, a1, a2, a3, a4, a5, a6, a7, a8, a9));
+                    new_am_arg(info, a1, a2, a3, a4, a5, a6, a7, a8, a9), RMI::ATTR_UNORDERED);
 
             return result;
         }
@@ -1356,11 +1384,171 @@ namespace madness {
 
         virtual ~WorldObject() {
             if(initialized()) {
-              MADNESS_ASSERT_NOEXCEPT(World::exists(&world) && world.ptr_from_id<Derived>(id()));
-              world.unregister_ptr(static_cast<Derived *>(this));
+              MADNESS_ASSERT_NOEXCEPT(World::exists(&world) && world.ptr_from_id<Derived>(id()) && *world.ptr_from_id<Derived>(id()) == this);
+              world.unregister_ptr(this->id());
             }
         }
+
+#ifdef MADNESS_WORLDOBJECT_FUTURE_TRACE
+        /// "traces" future evaluation by counting their assignments in a static table
+
+        /// Counts future assignments in a a statically-sized table to make this as lightweight/lock-free as possible
+        /// with minimal effort. Can only trace objects of a single World.
+        /// \param[in,out] f the future to be traced; if ready, will be unchanged (but contribute to the trace
+        /// statistics of this object), or have a callback registered that will update the tracing statistics on
+        /// assignment
+        /// \warning this function will trace futures for WorldObjects associated with default world (id=0) only;
+        /// use CMake variable `MADNESS_WORLDOBJECT_FUTURE_TRACE_WORLD_ID` to adjust the target World ID.
+        /// \warning this function will trace futures for WorldObjects with IDs < 1000000 only;
+        /// use CMake variable `MADNESS_WORLDOBJECT_FUTURE_TRACE_MAX_NOBJECTS` to adjust the limit.
+        template <typename T>
+        std::enable_if_t<!std::is_same_v<T,void>,void> trace(Future<T>& f) const;
+
+        /// \param[in] id a WorldObject ID
+        /// \return true if futures associated with \p id are traced
+        static bool trace_futures(const uniqueidT &id);
+
+        /// \return true if futures associated with this object are traced
+        bool trace_futures() const {
+          return trace_futures(this->id());
+        }
+
+        /// \param[in] id report tracing stats for this WorldObject
+        /// \return number of futures given to trace() of the WorldObject with ID \p id
+        static std::size_t trace_status_nfuture_registered(const uniqueidT& id);
+
+        /// \return number of futures given to trace() of this object
+        std::size_t trace_status_nfuture_registered() const {
+          return trace_status_nfuture_registered(this->id());
+        }
+
+        /// \param[in] id report tracing stats for this WorldObject
+        /// \return number of assigned futures given to trace() of the WorldObject with ID \p id
+        static std::size_t trace_status_nfuture_assigned(const uniqueidT& id);
+
+        /// \return number of assigned futures registered via `this->trace()`
+        std::size_t trace_status_nfuture_assigned() const {
+          return trace_status_nfuture_assigned(this->id());
+        }
+#endif
     };
+
+#ifdef MADNESS_WORLDOBJECT_FUTURE_TRACE
+    namespace detail {
+    template <typename Derived> struct WorldObjectFutureTracer {
+      // this value is the world ID to trace
+      constexpr static std::size_t world_id =
+#ifndef MADNESS_WORLDOBJECT_FUTURE_TRACE_WORLD_ID
+          0
+#else
+          MADNESS_WORLDOBJECT_FUTURE_TRACE_WORLD_ID
+#endif
+          ;
+      // this value is 1 greater than is the highest ID of WorldObjects to trace
+      constexpr static std::size_t max_object_id =
+#ifndef MADNESS_WORLDOBJECT_FUTURE_TRACE_MAX_NOBJECTS
+          1000000
+#else
+          MADNESS_WORLDOBJECT_FUTURE_TRACE_MAX_NOBJECTS
+#endif
+          ;
+
+      static constexpr bool do_trace(const uniqueidT& id) {
+        return id.get_world_id() == world_id &&
+               id.get_obj_id() < max_object_id;
+      }
+
+      static std::array<std::atomic<std::size_t>, max_object_id>
+          nfuture_registered;
+      static std::array<std::atomic<std::size_t>, max_object_id>
+          nfuture_assigned;
+
+      struct Initializer {
+        Initializer() {
+          for (auto &&v : nfuture_registered) {
+            v.store(0);
+          }
+          for (auto &&v : nfuture_assigned) {
+            v.store(0);
+          }
+        }
+      };
+      static Initializer initializer;
+
+      struct FutureTracer : public CallbackInterface {
+        FutureTracer(const uniqueidT &id) : id_(id) {
+          if (do_trace(id_)) {
+            nfuture_registered[id_.get_obj_id()]++;
+          }
+        }
+
+        // Not allowed
+        FutureTracer(const FutureTracer &) = delete;
+        FutureTracer &operator=(const FutureTracer &) = delete;
+
+        virtual ~FutureTracer() {}
+
+        /// Notify this object that the future has been set.
+
+        /// This will set the value of the future on the remote node and delete
+        /// this callback object.
+        void notify() override {
+          if (do_trace(id_)) {
+            nfuture_assigned[id_.get_obj_id()]++;
+          }
+          delete this;
+        }
+
+      private:
+        uniqueidT id_;
+      }; // struct FutureTracer
+
+    }; // struct WorldObjectFutureTracer
+    template <typename Derived>
+    typename WorldObjectFutureTracer<Derived>::Initializer
+        WorldObjectFutureTracer<Derived>::initializer;
+    template <typename Derived>
+    std::array<std::atomic<std::size_t>, WorldObjectFutureTracer<Derived>::max_object_id>
+        WorldObjectFutureTracer<Derived>::nfuture_registered;
+    template <typename Derived>
+    std::array<std::atomic<std::size_t>, WorldObjectFutureTracer<Derived>::max_object_id>
+        WorldObjectFutureTracer<Derived>::nfuture_assigned;
+    }  // namespace detail
+
+    template <typename Derived>
+    template <typename T>
+    std::enable_if_t<!std::is_same_v<T,void>,void> WorldObject<Derived>::trace(Future<T>& f) const {
+      f.register_callback(
+          new typename detail::WorldObjectFutureTracer<Derived>::FutureTracer(
+              this->id()));
+    }
+
+    template <typename Derived>
+    bool WorldObject<Derived>::trace_futures(const uniqueidT& id) {
+      return detail::WorldObjectFutureTracer<Derived>::do_trace(id);
+    }
+
+    template <typename Derived>
+    std::size_t WorldObject<Derived>::trace_status_nfuture_registered(const uniqueidT& id) {
+      if (detail::WorldObjectFutureTracer<
+              Derived>::do_trace(id)) {
+        return detail::WorldObjectFutureTracer<
+            Derived>::nfuture_registered[id.get_obj_id()];
+      }
+      else return 0;
+    }
+
+    template <typename Derived>
+    std::size_t WorldObject<Derived>::trace_status_nfuture_assigned(const uniqueidT& id) {
+      if (detail::WorldObjectFutureTracer<
+              Derived>::do_trace(id)) {
+        return detail::WorldObjectFutureTracer<
+            Derived>::nfuture_assigned[id.get_obj_id()];
+      }
+      else return 0;
+    }
+
+#endif  // MADNESS_WORLDOBJECT_FUTURE_TRACE
 
     namespace archive {
         
@@ -1380,8 +1568,10 @@ namespace madness {
                 ar & id;
                 World* world = World::world_from_id(id.get_world_id());
                 MADNESS_ASSERT(world);
-                ptr = world->ptr_from_id< WorldObject<Derived> >(id);
-                if (!ptr) MADNESS_EXCEPTION("WorldObj: remote operation attempting to use a locally uninitialized object",0);
+                auto ptr_opt = world->ptr_from_id< WorldObject<Derived> >(id);
+                if (!ptr_opt) MADNESS_EXCEPTION("WorldObj: remote operation attempting to use a locally uninitialized object",0);
+                ptr = *ptr_opt;
+                if (!ptr) MADNESS_EXCEPTION("WorldObj: remote operation attempting to use a locally deregistered object",0);
             }
         };
 
@@ -1417,8 +1607,10 @@ namespace madness {
                 ar & id;
                 World* world = World::world_from_id(id.get_world_id());
                 MADNESS_ASSERT(world);
-                ptr = world->ptr_from_id< WorldObject<Derived> >(id);
-                if (!ptr) MADNESS_EXCEPTION("WorldObj: remote operation attempting to use a locally uninitialized object",0);
+                auto ptr_opt = world->ptr_from_id< WorldObject<Derived> >(id);
+                if (!ptr_opt) MADNESS_EXCEPTION("WorldObj: remote operation attempting to use a locally uninitialized object",0);
+                ptr = *ptr_opt;
+                if (!ptr) MADNESS_EXCEPTION("WorldObj: remote operation attempting to use a locally deregistered object",0);
             }
         };
 
@@ -1437,8 +1629,8 @@ namespace madness {
                 ar & ptr->id();
             }
         };
-    }
-}
+    }   // namespace archive
+}  // namespace madness
 
 #endif // MADNESS_WORLD_WORLD_OBJECT_H__INCLUDED
 

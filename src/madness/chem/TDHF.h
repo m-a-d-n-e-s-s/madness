@@ -196,8 +196,8 @@ public:
         std::size_t guess_maxiter() const { return get<std::size_t>("guess_maxiter"); }
 
         /// make parameters for convolution operator
-        typename CCConvolutionOperator::Parameters get_ccc_parameters(const double lo) const {
-            typename CCConvolutionOperator::Parameters result;
+        typename CCConvolutionOperator<double,3>::Parameters get_ccc_parameters(const double lo) const {
+            typename CCConvolutionOperator<double,3>::Parameters result;
             result.freeze = freeze();
             result.lo = lo;
             result.thresh_op = thresh();
@@ -209,6 +209,8 @@ public:
     TDHF(World &world, const commandlineparser &parser);
 
     TDHF(World &world, const commandlineparser &parser, std::shared_ptr<Nemo> nemo);
+
+    virtual ~TDHF() {}
 
     void initialize();
 
@@ -512,7 +514,7 @@ private:
     TDHFParameters parameters;
     /// Operator Structure which can handle intermediates (use for exchange with GS orbitals)
     /// Can be replaced by another potential manager
-    std::shared_ptr<CCConvolutionOperator> g12;
+    std::shared_ptr<CCConvolutionOperator<double,3>> g12;
     /// MO bra and ket
     CC_vecfunction mo_ket_;
     CC_vecfunction mo_bra_;

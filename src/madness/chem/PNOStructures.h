@@ -163,6 +163,7 @@ public:
 	// gives real index (if some orbtials are frozen)
 	std::string name()const {return std::to_string(i_+start_);}
 
+        size_t freeze() const {return freeze_;} // mostly to con the compiler that freeze_ is used
 };
 
 /// Iterator over pairs

@@ -18,18 +18,19 @@ namespace madness {
 
 Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), mol(world,parser), param(world,parser),
                     cparam(world,parser) {
-//	cparam.read_input_and_commandline_options(world,parser,"dft");
+	cparam.read_input_and_commandline_options(world,parser,"dft");
 
     FunctionDefaults<3>::set_k(cparam.k());
     FunctionDefaults<3>::set_thresh(cparam.econv());
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_initial_level(5);
     FunctionDefaults<3>::set_truncate_mode(1);
-    FunctionDefaults<3>::set_cubic_cell(-cparam.L(), cparam.L());
 
     aobasis.read_file(cparam.aobasis());
 //    cparam.set_molecular_info(mol, aobasis, 0);
     cparam.set_derived_values(mol,aobasis,parser);
+
+    FunctionDefaults<3>::set_cubic_cell(-cparam.L(), cparam.L());
     cparam.set_derived_value("spin_restricted",false);
 
 	param.set_derived_values();
@@ -425,6 +426,17 @@ double Znemo::analyze() {
 	save_orbitals("plot");
 	save(density,"density");
 	save(spindensity,"spindensity");
+
+	auto components=std::vector<std::vector<real_function_3d>>({real(amo),imag(amo),real(bmo),imag(bmo)});
+	auto component_names=std::vector<std::string>({"real_amo","imag_amo","real_bmo","imag_bmo"});
+	std::vector<real_function_3d> real_aos=SCF::project_ao_basis_only(world, aobasis, mol);
+	for (size_t i=0; i<components.size(); ++i) {
+		if (world.rank()==0) print("analysis of MO component ",component_names[i]);
+		if (components[i].size()>0) SCF::analyze_vectors(world, components[i], real_aos,
+			FunctionDefaults<3>::get_thresh()*0.1, molecule(), cparam.print_level(), aobasis);
+
+	}
+
     return energy;
 }
 
@@ -786,7 +798,15 @@ void Znemo::get_initial_orbitals() {
 		}
 
 //		zmos=read_complex_guess();
-//		zmos=read_real_guess();
+		if (not gotit) {
+			try {
+				zmos=read_real_guess();
+				print("successful read real guess orbitals");
+				gotit=true;
+			} catch (...) {
+				print("could not read real guess orbitals");
+			}
+		}
 		if (not gotit) {
 			try {
 				zmos=read_restartaodata();
@@ -831,14 +851,28 @@ Znemo::read_real_guess() const {
 	auto mos=MolecularOrbitals<double,3>::read_restartdata(world, "restartdata", molecule(), cparam.nalpha(), cparam.nbeta());
 	MolecularOrbitals<double,3> amo=mos.first,bmo=mos.second;
 
+	// check for correct polynomial order
+	auto k1=amo.get_mos()[0].get_impl()->get_k();
+	auto k2=FunctionDefaults<3>::get_k();
+	MADNESS_CHECK_THROW(k1==k2,"reference polynomial order is not equal to the current polynomial order");
+
+	// check if beta orbitals are present if they should be
+	if (cparam.have_beta() and bmo.size()==0) {
+		print("reading from a closed-shell reference -> replicating alpha to beta orbitals");
+		std::vector<real_function_3d> tmp;
+		for (int i=0; i<cparam.nmo_beta(); ++i) tmp.push_back(amo.get_mos()[i]);
+		bmo.set_mos(tmp);
+	}
+
     // confine the orbitals to an approximate Gaussian form corresponding to the
     // diamagnetic (harmonic) potential
     coord_3d remaining_B=B-coord_3d{0,0,param.explicit_B()};
     real_function_3d gauss=diafac->custom_factor(remaining_B,diafac->get_v(),1.0);
 
 	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
-	zmos.first.set_mos(truncate(convert<double,double_complex,3>(world,amo.get_mos()*ncf->inverse()*gauss)));		// alpha
-	zmos.second.set_mos(truncate(convert<double,double_complex,3>(world,bmo.get_mos()*ncf->inverse()*gauss)));		// beta
+	auto inv=ncf->inverse();
+	zmos.first.set_mos(truncate(convert<double,double_complex,3>(world,amo.get_mos()*inv)));		// alpha
+	zmos.second.set_mos(truncate(convert<double,double_complex,3>(world,bmo.get_mos()*inv)));		// beta
 
 	return zmos;
 }
@@ -907,7 +941,7 @@ Znemo::read_reference() const {
 	std::pair<MolecularOrbitals<double_complex,3>, MolecularOrbitals<double_complex,3> > zmos;
 
 	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
-	std::size_t namo, nbmo;
+	std::size_t namo=0, nbmo=0;
 
 	std::vector<complex_function_3d> amos,bmos;
 	Tensor<double> aeps,beps;
@@ -1155,17 +1189,30 @@ Znemo::canonicalize(std::vector<complex_function_3d>& amo,
 
 }
 
-
-void Znemo::save_orbitals(std::string suffix) const {
-	suffix="_"+suffix;
-	const real_function_3d& dia=diafac->factor();
-	for (size_t i=0; i<amo.size(); ++i) save(amo[i],"amo"+stringify(i)+suffix);
-	for (size_t i=0; i<bmo.size(); ++i) save(bmo[i],"bmo"+stringify(i)+suffix);
-	for (size_t i=0; i<amo.size(); ++i) save(madness::abs(amo[i]),"absamo"+stringify(i)+suffix);
-	for (size_t i=0; i<bmo.size(); ++i) save(madness::abs(bmo[i]),"absbmo"+stringify(i)+suffix);
-	for (size_t i=0; i<amo.size(); ++i) save(madness::abs(amo[i]*dia),"diaamo"+stringify(i)+suffix);
-	for (size_t i=0; i<bmo.size(); ++i) save(madness::abs(bmo[i]*dia),"diabmo"+stringify(i)+suffix);
-
+void Znemo::save_orbitals(std::string suffix) const
+{
+	suffix = "_" + suffix;
+	const real_function_3d &dia = diafac->factor();
+	for (size_t i = 0; i < amo.size(); ++i)
+		save(amo[i], "amo" + stringify(i) + suffix);
+	for (size_t i = 0; i < bmo.size(); ++i)
+		save(bmo[i], "bmo" + stringify(i) + suffix);
+	for (size_t i = 0; i < amo.size(); ++i)
+		save(real(amo[i]), "amo_real" + stringify(i) + suffix);
+	for (size_t i = 0; i < amo.size(); ++i)
+		save(imag(amo[i]), "amo_imag" + stringify(i) + suffix);
+	for (size_t i = 0; i < bmo.size(); ++i)
+		save(real(bmo[i]), "bmo_real" + stringify(i) + suffix);
+	for (size_t i = 0; i < bmo.size(); ++i)
+		save(imag(bmo[i]), "bmo_imag" + stringify(i) + suffix);
+	for (size_t i = 0; i < amo.size(); ++i)
+		save(madness::abs(amo[i]), "absamo" + stringify(i) + suffix);
+	for (size_t i = 0; i < bmo.size(); ++i)
+		save(madness::abs(bmo[i]), "absbmo" + stringify(i) + suffix);
+	for (size_t i = 0; i < amo.size(); ++i)
+		save(madness::abs(amo[i] * dia), "diaamo" + stringify(i) + suffix);
+	for (size_t i = 0; i < bmo.size(); ++i)
+		save(madness::abs(bmo[i] * dia), "diabmo" + stringify(i) + suffix);
 }
 
 } // namespace madness

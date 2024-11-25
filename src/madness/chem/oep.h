@@ -381,7 +381,7 @@ public:
 
 	    // get \nabla nemo
 	    std::vector<vecfuncT> grad_nemo(nemo.size());
-	    for (long i = 0; i < nemo.size(); i++) {
+	    for (size_t i = 0; i < nemo.size(); i++) {
 	    	vecfuncT nemo_copy=copy(world,nemo);
 	    	refine(world,nemo_copy);
 

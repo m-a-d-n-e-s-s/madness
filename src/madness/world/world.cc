@@ -165,27 +165,14 @@ namespace madness {
         initialize_papi();
 #endif
 
-        bool bind[3];
-        int cpulo[3];
-
         const char* sbind = getenv("MAD_BIND");
         if (!sbind) sbind = MAD_BIND_DEFAULT;
-        std::istringstream s(sbind);
-        for (int i=0; i<3; ++i) {
-            int t;
-            s >> t;
-            if (t < 0) {
-                bind[i] = false;
-                cpulo[i] = 0;
-            }
-            else {
-                bind[i] = true;
-                cpulo[i] = t;
-            }
-        }
-
-        ThreadBase::set_affinity_pattern(bind, cpulo); // Decide how to locate threads before doing anything
-        ThreadBase::set_affinity(0);         // The main thread is logical thread 0
+	if (sbind==std::string("ON") || sbind==std::string("TRUE")) {
+	  ::madness::binder.set_do_bind(true);
+	}
+	else {
+	  ::madness::binder.set_do_bind(false);
+	}
 
 #if defined(HAVE_IBMBGQ) and defined(HPM)
         // HPM Profiler

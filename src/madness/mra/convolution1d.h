@@ -862,12 +862,13 @@ namespace madness {
 
             iterator it = map.find(key);
             if (it == map.end()) {
-                map.insert(datumT(key, std::make_shared< GaussianConvolution1D<Q> >(k,
+                [[maybe_unused]] auto&& [tmpit, inserted] = map.insert(datumT(key, std::make_shared< GaussianConvolution1D<Q> >(k,
                                                                                     Q(sqrt(expnt/constants::pi)),
                                                                                     expnt,
                                                                                     m,
                                                                                     periodic
                                                                                     )));
+                MADNESS_ASSERT(inserted);
                 it = map.find(key);
                 //printf("conv1d: making  %d %.8e\n",k,expnt);
             }

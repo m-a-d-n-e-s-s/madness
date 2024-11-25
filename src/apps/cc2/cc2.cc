@@ -79,8 +79,8 @@ int main(int argc, char **argv) {
         nemo->get_calc()->param.set_derived_value("print_level", 2);
         nemo->param.set_derived_value("k", 5);
         nemo->get_calc()->param.set_derived_value("k", 5);
-        nemo->param.set_derived_value<std::string>("localize", "canon");
-        nemo->get_calc()->param.set_derived_value<std::string>("localize", "canon");
+        // nemo->param.set_derived_value<std::string>("localize", "canon");
+        // nemo->get_calc()->param.set_derived_value<std::string>("localize", "canon");
         nemo->param.set_derived_values(nemo->molecule(),nemo->get_calc()->aobasis,parser);
         nemo->get_calc()->param.set_derived_values(nemo->molecule(),nemo->get_calc()->aobasis,parser);
         CC2 cc2(world, parser, nemo);
@@ -93,13 +93,10 @@ int main(int argc, char **argv) {
             calc->param.print("dft","end");
             print("\n");
             cc2.tdhf->get_parameters().print("response","end");
+            print("\n");
+            nemo->molecule().print();
         }
         double hf_energy = nemo->value();
-        if (world.rank() == 0)
-            std::cout << "\n\n\n\n\n\n Reference Calculation Ended\n SCF Energy is: " << hf_energy
-                      << "\n current wall-time: " << wall_time()
-                      << "\n current cpu-time: " << cpu_time() << "\n\n\n";
-
         cc2.solve();
 
         if (world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());

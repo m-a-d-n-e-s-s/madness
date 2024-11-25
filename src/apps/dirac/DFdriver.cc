@@ -13,12 +13,12 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
-static inline int file_exists(const char * inpname)
-{
-     struct stat buffer;
-     int rc = stat(inpname, &buffer);
-     return (rc==0);
-}
+// static inline int file_exists(const char * inpname)
+// {
+//      struct stat buffer;
+//      int rc = stat(inpname, &buffer);
+//      return (rc==0);
+// }
 #endif
 
 int main(int argc, char **argv) {

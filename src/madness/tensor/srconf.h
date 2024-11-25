@@ -663,7 +663,7 @@ protected:
 	public:
 		/// return the number of physical dimensions
 		int dim_per_vector(int idim) const {
-			MADNESS_ASSERT(vector_.size()>idim);
+                    MADNESS_ASSERT(vector_.size()>size_t(idim));
 			return vector_[idim].ndim()-1;		// remove dimension for the rank
 		}
 
@@ -693,8 +693,15 @@ protected:
         Tensor<T> make_vector_with_weights(const int dim) const {
             Tensor<T> v=copy(vector_[dim].reshape(rank(),vector_[dim].size()/rank()));
             for (unsigned int r=0; r<rank(); r++) v(r,_)*=weights(r);
-            v=v.reshape(ndim(),vector_[dim].dims());
+            v=v.reshape(vector_[dim].ndim(),vector_[dim].dims());
             return v;
+        }
+
+        /// return flat (r,i) view of the tensor with the weights multiplied in
+
+        /// return a(r,i) = vec(dim)(r,i) * w(r)
+        Tensor<T> flat_vector_with_weights(const int dim) const {
+            return make_vector_with_weights(dim).reshape(rank(),vector_[dim].size()/rank());
         }
 
 	protected:

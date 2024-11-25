@@ -96,6 +96,8 @@ public:
             world(world), nemo_ptr(nemo), coords_sum(-1.0) {
     }
 
+    World& get_world() {return world;} // just to silence compiler about unused private variable
+
     bool provides_gradient() const { return true; }
 
     double value() {
@@ -120,7 +122,7 @@ public:
     void reset_orbitals(const MolecularOrbitals<double,3>& mos) {
         nemo_ptr->get_calc()->amo=mos.get_mos();
         nemo_ptr->get_calc()->aeps=mos.get_eps();
-        MADNESS_CHECK(nemo_ptr->get_calc()->aeps.size()==nemo_ptr->get_calc()->amo.size());
+        MADNESS_CHECK(size_t(nemo_ptr->get_calc()->aeps.size())==nemo_ptr->get_calc()->amo.size());
         orbitals_ = nemo_ptr->R*nemo_ptr->get_calc()->amo;
         R2orbitals_ = nemo_ptr->ncf->square()*nemo_ptr->get_calc()->amo;
     }
@@ -329,6 +331,7 @@ class MP2 : public OptimizationTargetInterface, public QCPropertyInterface {
             initialize < int > ("freeze", 0);
             initialize < int > ("maxsub", 2);
             initialize < bool > ("restart", true);
+            initialize < bool > ("no_compute", false);
             initialize < int > ("maxiter", 5);
         }
 
@@ -362,6 +365,7 @@ class MP2 : public OptimizationTargetInterface, public QCPropertyInterface {
         int i() const { return this->get<std::vector<int> >("pair")[0]; }    /// convenience function
         int j() const { return this->get<std::vector<int> >("pair")[1]; }    /// convenience function
         int restart() const { return this->get<bool>("restart"); }    /// convenience function
+        int no_compute() const { return this->get<bool>("no_compute"); }    /// convenience function
         int maxiter() const { return this->get<int>("maxiter"); }    /// convenience function
         int maxsub() const { return this->get<int>("maxsub"); }    /// convenience function
         bool do_oep() const { return do_oep1;}
@@ -495,15 +499,7 @@ public:
     /// param[in]		green	the Green's function
     void increment(ElectronPair& pair, real_convolution_6d& green);
 
-    /// swap particles 1 and 2
-
-    /// param[in]	f	a function of 2 particles f(1,2)
-    /// return	the input function with particles swapped g(1,2) = f(2,1)
-    real_function_6d swap_particles(const real_function_6d& f) const;
-
     double asymmetry(const real_function_6d& f, const std::string s) const;
-
-    void test(const std::string filename);
 
     /// compute the matrix element <ij | g12 Q12 f12 | phi^0>
 

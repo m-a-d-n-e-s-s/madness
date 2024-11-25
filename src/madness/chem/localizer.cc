@@ -33,7 +33,7 @@ MolecularOrbitals<T, NDIM> Localizer::localize(const MolecularOrbitals<T, NDIM>&
     Tensor<T> U(nmo, nmo);
     Tensor<T> fnew(nmo, nmo);
     if (enforce_core_valence_separation) {
-        MADNESS_CHECK(Fock.dim(0) == mo_in.get_mos().size());
+        MADNESS_CHECK(size_t(Fock.dim(0)) == mo_in.get_mos().size());
 
         MolecularOrbitals<T, NDIM> mo_cv_separated = mo_in;
         Tensor<double> U1 = compute_core_valence_separation_transformation_matrix(world, mo_in, Fock);

@@ -10,22 +10,22 @@ set(MADMRA_HEADERS
     function_interface.h gfit.h convolution1d.h simplecache.h derivative.h
     displacements.h functypedefs.h sdf_shape_3D.h sdf_domainmask.h vmra1.h
     leafop.h nonlinsol.h macrotaskq.h macrotaskpartitioner.h QCCalculationParametersBase.h
-    commandlineparser.h)
+    commandlineparser.h operatorinfo.h)
 set(MADMRA_SOURCES
     mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc startup.cc legendre.cc 
     twoscale.cc qmprop.cc QCCalculationParametersBase.cc)
 
 # Create the MADmra library
 add_mad_library(mra MADMRA_SOURCES MADMRA_HEADERS "linalg;tinyxml;muparser" "madness/mra")
-
-# Create executables
-# add_mad_executable(mraplot "mraplot.cc" "MADmra") # installation fails with gnu-8 and gnu-9
-
-# Install the MADmra library
-# install(TARGETS mraplot DESTINATION "${MADNESS_INSTALL_BINDIR}")
-install(FILES autocorr coeffs gaussleg ble-first.txt ble-second.txt b-spline-deriv1.txt b-spline-deriv2.txt b-spline-deriv3.txt 
+install(FILES autocorr coeffs gaussleg ble-first.txt ble-second.txt b-spline-deriv1.txt b-spline-deriv2.txt b-spline-deriv3.txt
     DESTINATION "${MADNESS_INSTALL_DATADIR}"
     COMPONENT mra)
+
+# Create executables
+if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
+  add_mad_executable(mraplot "mraplot.cc" "MADmra") # installation fails with gnu-8 and gnu-9
+  install(TARGETS mraplot DESTINATION "${MADNESS_INSTALL_BINDIR}")
+endif()
 
 # Add unit tests    
 if(BUILD_TESTING)
@@ -43,12 +43,14 @@ if(BUILD_TESTING)
       testper.cc)
   add_unittests(mra_sepop "${MRA_SEPOP_TEST_SOURCES}" "libtest_sepop;MADgtest" "unittests;short")
   
-  # Test executables that are not run with unit tests
-  set(MRA_OTHER_TESTS testperiodic testbc testqm test6
-      testdiff1D testdiff2D testdiff3D)
+  # Test executables that are not run with unit tests ... consider these executables (unlike unit tests)
+  if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
+    set(MRA_OTHER_TESTS testperiodic testbc testqm test6
+        testdiff1D testdiff2D testdiff3D)
   
-  foreach(_test ${MRA_OTHER_TESTS})  
-    add_mad_executable(${_test} "${_test}.cc" "MADmra")
-  endforeach()
+    foreach(_test ${MRA_OTHER_TESTS})
+      add_mad_executable(${_test} "${_test}.cc" "MADmra")
+    endforeach()
+  endif()
   
 endif()

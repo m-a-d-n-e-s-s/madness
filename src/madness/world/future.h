@@ -115,8 +115,16 @@ namespace madness {
                 if(pimpl->remote_ref) {
                     // Unarchive the value to a temporary since it is going to
                     // be forwarded to another node.
-                    T value;
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wuninitialized-const-reference"
+#endif
+  		    T value;
                     input_arch & value;
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+	
 
                     // Copy world and owner from remote_ref since sending remote_ref
                     // will invalidate it.
@@ -528,7 +536,7 @@ namespace madness {
         /// \param[in] value The value to be assigned.
         inline void set(const T& value) {
             MADNESS_CHECK(f);
-            std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
+            std::shared_ptr< FutureImpl<T> > ff = f; // manage lifetime of f
             ff->set(value);
         }
 
@@ -538,7 +546,7 @@ namespace madness {
         /// \param[in] value The value to be assigned.
         inline void set(T&& value) {
             MADNESS_CHECK(f);
-            std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
+            std::shared_ptr< FutureImpl<T> > ff = f; // manage lifetime of f
             ff->set(std::move(value));
         }
 
@@ -549,7 +557,7 @@ namespace madness {
         /// \param[in] input_arch Description needed.
         inline void set(const archive::BufferInputArchive& input_arch) {
             MADNESS_CHECK(f);
-            std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
+            std::shared_ptr< FutureImpl<T> > ff = f; // manage lifetime of f
             ff->set(input_arch);
         }
 
@@ -1044,7 +1052,11 @@ namespace madness {
     /// \return The output stream.
     template <typename T>
     inline std::ostream& operator<<(std::ostream& out, const Future<T>& f) {
-        if (f.probe()) out << f.get();
+        if (f.probe()) {
+          if constexpr (is_ostreammable_v<T>) {
+            out << f.get();
+          }
+        }
         else if (f.is_remote()) out << f.f->remote_ref;
         else if (f.f) out << "<unassigned refcnt=" << f.f.use_count() << ">";
         else out << "<unassigned>";

@@ -83,7 +83,7 @@ namespace madness {
 class NuclearCorrelationFactor {
 public:
 	enum corrfactype {None, GradientalGaussSlater, GaussSlater, LinearSlater,
-	    Polynomial, Slater, poly4erfc, Two};
+	    Polynomial, Slater, poly4erfc, Two, Adhoc};
 	typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 
 	/// ctor
@@ -213,12 +213,14 @@ private:
 	/// the molecule
 	const Molecule& molecule;
 
+protected:
 	/// the three components of the U1 potential
 	std::vector<real_function_3d> U1_function;
 
 	/// the purely local U2 potential, having absorbed the nuclear pot V_nuc
 	real_function_3d U2_function;
 
+private:
 	/// the correlation factor S wrt a given atom
 
 	/// @param[in]	r	the distance of the req'd coord to the nucleus
@@ -2029,6 +2031,65 @@ private:
         return -Z*dsmoothed_potential(r * rcut) * (rcut * rcut);
     }
 
+};
+
+
+/// this ncf has no information about itself, only U2 and U1 assigned
+class AdhocNuclearCorrelationFactor : public NuclearCorrelationFactor {
+
+public:
+	/// ctor
+
+	/// @param[in]	world	the world
+	/// @param[in]	mol molecule with the sites of the nuclei
+	AdhocNuclearCorrelationFactor(World& world, const real_function_3d U2,
+		const std::vector<real_function_3d>& U1)
+		: NuclearCorrelationFactor(world,Molecule()) {
+
+		U2_function=U2;
+		U1_function=U1;
+
+		if (world.rank()==0) {
+			print("constructed ad hoc nuclear correlation factor");
+		}
+	}
+
+	corrfactype type() const {return Adhoc;}
+
+private:
+
+    double Sr_div_S(const double& r, const double& Z) const {
+    	MADNESS_EXCEPTION("no Sr_div_S() in AdhocNuclearCorrelationFactor",0);
+	    return 0.0;
+    }
+
+    double Srr_div_S(const double& r, const double& Z) const {
+    	MADNESS_EXCEPTION("no Srr_div_S() in AdhocNuclearCorrelationFactor",0);
+	    return 0.0;
+    }
+
+    double Srrr_div_S(const double& r, const double& Z) const {
+    	MADNESS_EXCEPTION("no Srrr_div_S() in AdhocNuclearCorrelationFactor",0);
+	    return 0.0;
+    }
+
+    /// the nuclear correlation factor
+    double S(const double& r, const double& Z) const {
+    	MADNESS_EXCEPTION("no S() in AdhocNuclearCorrelationFactor",0);
+    	return 0.0;
+    }
+
+    /// radial part first derivative of the nuclear correlation factor
+    coord_3d Sp(const coord_3d& vr1A, const double& Z) const {
+    	MADNESS_EXCEPTION("no Sp() in AdhocNuclearCorrelationFactor",0);
+    	return coord_3d(0.0);
+    }
+
+    /// second derivative of the nuclear correlation factor
+    double Spp_div_S(const double& r, const double& Z) const {
+    	MADNESS_EXCEPTION("no Spp_div_S() in AdhocNuclearCorrelationFactor",0);
+    	return 0.0;
+    }
 };
 
 

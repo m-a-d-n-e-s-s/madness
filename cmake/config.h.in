@@ -49,6 +49,7 @@
 #endif
 
 /* Define MADNESS has access to the library. */
+#cmakedefine HAVE_MTXMQ 1
 #cmakedefine HAVE_ACML 1
 #cmakedefine HAVE_INTEL_TBB 1
 #cmakedefine MADNESS_CAN_USE_TBB_PRIORITY 1
@@ -57,6 +58,7 @@
 #cmakedefine HAVE_PAPI 1
 #cmakedefine MADNESS_HAS_PCM 1
 #cmakedefine MADNESS_HAS_LIBXC 1
+#cmakedefine MADNESS_HAS_INTEGRATORXX 1
 #cmakedefine MADNESS_HAS_BOOST 1
 #cmakedefine MADNESS_HAS_ELEMENTAL 1
 #cmakedefine MADNESS_HAS_ELEMENTAL_EMBEDDED 1
@@ -100,6 +102,9 @@
 #cmakedefine MADNESS_ASSERTIONS_DISABLE 1
 #cmakedefine MADNESS_ASSERTIONS_THROW 1
 
+/* The default binding for threads */
+#define MADNESS_TASK_BACKEND "@MADNESS_TASK_BACKEND@"
+
 /* Thread-safety level requested from MPI by MADNESS */
 #define MADNESS_MPI_THREAD_LEVEL @MADNESS_MPI_THREAD_LEVEL@
 #cmakedefine STUBOUTMPI 1
@@ -126,6 +131,9 @@
 #cmakedefine MADNESS_DQ_USE_PREBUF 1
 #cmakedefine MADNESS_DQ_PREBUF_SIZE @MADNESS_DQ_PREBUF_SIZE@
 #cmakedefine MADNESS_ASSUMES_ASLR_DISABLED 1
+#cmakedefine MADNESS_WORLDOBJECT_FUTURE_TRACE 1
+#cmakedefine MADNESS_WORLDOBJECT_FUTURE_TRACE_WORLD_ID @MADNESS_WORLDOBJECT_FUTURE_TRACE_WORLD_ID@
+#cmakedefine MADNESS_WORLDOBJECT_FUTURE_TRACE_MAX_NOBJECTS @MADNESS_WORLDOBJECT_FUTURE_TRACE_MAX_NOBJECTS@
 
 /* Define to the equivalent of the C99 'restrict' keyword, or to
    nothing if this is not supported.  Do not define if restrict is

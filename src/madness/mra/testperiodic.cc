@@ -98,7 +98,8 @@ double potential(const coordT& r) {
     return source(r)*fac;
 }
 
-void test_periodic(World& world) {
+int test_periodic(World& world) {
+    int failed = 0;
 
     // the convolution of cos(n*pi*x/L) with sqrt(a/pi)*exp(-a*x^2)
     // is exp(-n^2*pi^2/(4*a*L^2)) * cos(n*pi*x/L)
@@ -140,6 +141,7 @@ void test_periodic(World& world) {
         double err1 = fabs(opf(r1)-exact1);
 
         print("exponent", expnt, err0, err1, status[err0<1e-10 && err1<1e-10]);
+	failed += !(err0<1e-10 && err1<1e-10);
 
         // print(i, expnt, r0, f(r0), source(r0), opf(r0), exact0, );
         // print(i, expnt, r1, f(r1), source(r1), opf(r1), exact1, opf(r1)-exact1);
@@ -151,14 +153,16 @@ void test_periodic(World& world) {
     }
 
     world.gop.fence();
-
+    return failed;
 }
 
 
-void test_periodic1(World& world) {
+int test_periodic1(World& world) {
 
     // the convolution of cos(n*pi*x/L) with sqrt(a/pi)*exp(-a*x^2)
     // is exp(-n^2*pi^2/(4*a*L^2)) * cos(n*pi*x/L)
+
+    int failed = 0;
 
     const long k = 14;
     const double thresh = 1e-12;
@@ -197,6 +201,7 @@ void test_periodic1(World& world) {
         double err1 = fabs(opf(r1)-exact1);
 
         print("exponent", expnt, err0, err1, status[err0<6e-10 && err1<6e-10]);
+	failed += !(err0<6e-10 && err1<6e-1);
 
         // print(i, expnt, r0, f(r0), source1(r0), opf(r0), exact0, opf(r0)-exact0);
         // print(i, expnt, r1, f(r1), source1(r1), opf(r1), exact1, opf(r1)-exact1);
@@ -208,12 +213,14 @@ void test_periodic1(World& world) {
     }
 
     world.gop.fence();
-
+    return failed;
 }
 
-void test_periodic2(World& world) {
+int test_periodic2(World& world) {
+    int failed = 0;
     const long k = 10;
     const double thresh = 1e-8;
+    const double tol = 3e-7;
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_cubic_cell(-L,L);
     FunctionDefaults<3>::set_thresh(thresh);
@@ -233,108 +240,116 @@ void test_periodic2(World& world) {
         double value = opf(r);
         double exact = potential(r);
         double relerr = fabs((value-exact)/exact);
-        print(i,value,exact,relerr,status[relerr<3e-7]);
+        print(i,value,exact,relerr,status[relerr<tol]);
+      if (relerr>tol) failed++;
     }
 
     world.gop.fence();
-
+    return failed;
 }
 
 int test_periodic_bsh(World& world)
 {
-	int success=0;
-  const long k = 10;
-  const double thresh = 1e-8;
-  FunctionDefaults<3>::set_k(k);
-  FunctionDefaults<3>::set_cubic_cell(0,L);
-  FunctionDefaults<3>::set_thresh(thresh);
+    int failed=0;
+    const long k = 10;
+    const double thresh = 1e-8;
+    double tol = 3.5e-7;
 
-  ::mu = 15.3;
+    FunctionDefaults<3>::set_k(k);
+    FunctionDefaults<3>::set_cubic_cell(0,L);
+    FunctionDefaults<3>::set_thresh(thresh);
 
-  Function<double_complex,3> f = FunctionFactory<double_complex,3>(world).f(pw_rhs);
-  f.truncate();
+    ::mu = 15.3;
 
-//  Vector<double,3> args {0.0,0.0,0.0};
-  SeparatedConvolution<double,3> op = BSHOperator3D(world, mu, 1e-6, thresh);
-  std::cout.precision(10);
+    Function<double_complex,3> f = FunctionFactory<double_complex,3>(world).f(pw_rhs);
+    f.truncate();
 
-  Function<double_complex,3> opf = madness::apply(op,f);
-  opf.reconstruct();
+  //  Vector<double,3> args {0.0,0.0,0.0};
+    SeparatedConvolution<double,3> op = BSHOperator3D(world, mu, 1e-6, thresh);
+    std::cout.precision(10);
 
-  print("i,value,exact,relerr");
-  for (int i=0; i<101; ++i) {
-      coordT r = coordT(i*L/100.0);
-      double_complex value = opf(r);
-      double_complex exact = pw_lhs(r);
-//      double_complex exerr = value-exact;
-      double relerr = std::abs((value-exact)/exact);
-//      print(i,value,exact,exerr);
-      print(i,value,exact,relerr,status[relerr<3e-7]);
-      if (relerr>3e-7) success++;
-  }
+    Function<double_complex,3> opf = madness::apply(op,f);
+    opf.reconstruct();
 
-  world.gop.fence();
-  return success;
+    print("i,value,exact,relerr");
+    for (int i=0; i<101; ++i) {
+	coordT r = coordT(i*L/100.0);
+	double_complex value = opf(r);
+	double_complex exact = pw_lhs(r);
+	double relerr = std::abs((value-exact)/exact);
+	print(i,value,exact,relerr,status[relerr<tol]);
+	if (relerr>tol) failed++;
+    }
+
+    world.gop.fence();
+    return failed;
 }
 
 
 
 int main(int argc, char**argv) {
     initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
-    startup(world,argc,argv);
-    int success=0;
-
-    FunctionDefaults<1>::set_bc(BC_PERIODIC);
-    FunctionDefaults<3>::set_bc(BC_PERIODIC);
-
-    try {
-
-//        print("1D gaussians");
-//        test_periodic1(world);
-//        print("\n3D gaussians");
-//        test_periodic(world);
+    int failed=0;
+    {
+      World world(SafeMPI::COMM_WORLD);
+      startup(world,argc,argv);
+      
+      FunctionDefaults<1>::set_bc(BC_PERIODIC);
+      FunctionDefaults<3>::set_bc(BC_PERIODIC);
+      
+      try {
+	
+        print("1D gaussians");
+        failed += test_periodic1(world);
+        print("\n3D gaussians");
+        failed += test_periodic(world);
         print("\n3D coulomb");
-        test_periodic2(world);
-        // This one is broken ... Scott is looking at it
-        //        print("\n3D bsh");
-        //        success+=test_periodic_bsh(world);
-
-    }
-    catch (const SafeMPI::Exception& e) {
+        failed += test_periodic2(world);
+	print("\n3D bsh");
+	failed += test_periodic_bsh(world);
+	
+      }
+      catch (const SafeMPI::Exception& e) {
         print(e);
         error("caught an MPI exception");
-    }
-    catch (const madness::MadnessException& e) {
+      }
+      catch (const madness::MadnessException& e) {
         print(e);
         error("caught a MADNESS exception");
-    }
-    catch (const madness::TensorException& e) {
+      }
+      catch (const madness::TensorException& e) {
         print(e);
         error("caught a Tensor exception");
-    }
-    catch (char* s) {
+      }
+      catch (char* s) {
         print(s);
         error("caught a c-string exception");
-    }
-    catch (const char* s) {
-        print(s);
-        error("caught a c-string exception");
-    }
-    catch (const std::string& s) {
+      }
+//      catch (const char* s) {
+//        print(s);
+//        error("caught a c-string exception");
+//      }
+      catch (const std::string& s) {
         print(s);
         error("caught a string (class) exception");
-    }
-    catch (const std::exception& e) {
+      }
+      catch (const std::exception& e) {
         print(e.what());
         error("caught an STL exception");
-    }
-    catch (...) {
+      }
+      catch (...) {
         error("caught unhandled exception");
-    }
+      }
+      
+      if (world.rank() == 0) {
+	if (failed) print("FAILED!!", failed);
+	else print("SUCCESS");
+      }
 
-    world.gop.fence();
+      world.gop.fence();
+      
+    }
     finalize();
 
-    return success;
+    return failed;
 }

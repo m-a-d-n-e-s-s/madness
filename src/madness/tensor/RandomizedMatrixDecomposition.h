@@ -115,11 +115,11 @@ public:
 
 private:
 
-	/// oversampling parameter
-	long oversampling=10;
-
 	/// maximum rank to abort the decomposition
 	long maxrank=LONG_MAX;
+
+	/// oversampling parameter
+	long oversampling=10;
 
 	/// the range that spans the input matrix
 	Tensor<T> range=Tensor<T>(0l,0l);

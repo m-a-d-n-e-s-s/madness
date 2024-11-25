@@ -1364,7 +1364,7 @@ int main() {
     //BsplineBasis<double,KnotsChebyshev<double>>::test();
     //BsplineBasis<double,KnotsGeometricShifted<double>>::test();
     //BsplineBasis<double,KnotsRational<double>>::test();
-    //BsplineFunction<double>::test();
-    BsplineFunction<double>::test_fit();
+    BsplineFunction<double>::test();
+    //BsplineFunction<double>::test_fit();
     return 0;
 }

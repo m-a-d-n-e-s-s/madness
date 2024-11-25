@@ -1,9 +1,10 @@
 if(ENABLE_BOOST)
 
-  find_package(Boost 1.4  REQUIRED COMPONENTS math_tr1)
+    cmake_minimum_required(VERSION 3.15.0)  # for Boost::headers
+    find_package(Boost 1.35 REQUIRED)
 
   # Set the output variables
-  if(Boost_FOUND)
+  if(TARGET Boost::headers)
 	  set(MADNESS_HAS_BOOST 1)
   endif()
 

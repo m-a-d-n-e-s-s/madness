@@ -130,7 +130,9 @@ int main(int argc, char** argv) {
     expnt[0] = 1.0/(4.0*c*tstep);
     coeff[0] = pow(4.0*constants::pi*c*tstep,-1.5);
 
-    operatorT G(world, coeff, expnt);
+    double lo_dummy=1.e-4;
+    double thresh_dummy=1.e-6;
+    operatorT G(world, coeff, expnt, lo_dummy, thresh_dummy);
 
     functionT ut = G(u0);
 

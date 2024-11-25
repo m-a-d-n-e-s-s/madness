@@ -69,7 +69,7 @@ void TDHF::initialize() {
 
     msg.section("Initialize TDHF Class");
     msg.debug = parameters.debug();
-    g12=std::make_shared<CCConvolutionOperator>(world, OT_G12, parameters.get_ccc_parameters(get_calcparam().lo()));
+    g12=std::make_shared<CCConvolutionOperator<double,3>>(world, OpType::OT_G12, parameters.get_ccc_parameters(get_calcparam().lo()));
 
     const double old_thresh = FunctionDefaults<3>::get_thresh();
     if (old_thresh > parameters.thresh() * 0.1 and old_thresh > 1.e-5) {
@@ -144,7 +144,7 @@ void TDHF::prepare_calculation() {
     } else {
         std::size_t nmo=get_calc()->aeps.size();
         fmat=Tensor<double>(nmo,nmo);
-        for (int i=0; i<nmo; ++i) fmat(i,i)= get_calc()->aeps(i);
+        for (size_t i=0; i<nmo; ++i) fmat(i,i)= get_calc()->aeps(i);
     }
 
     std::size_t nfrozen=Localizer::determine_frozen_orbitals(fmat);
@@ -154,7 +154,7 @@ void TDHF::prepare_calculation() {
 
     mo_ket_ = make_mo_ket(get_calc()->amo);
     mo_bra_ = make_mo_bra(get_calc()->amo);
-    Q = QProjector(world, mo_bra_.get_vecfunction(), mo_ket_.get_vecfunction());
+    Q = QProjector( mo_bra_.get_vecfunction(), mo_ket_.get_vecfunction());
 
     if (not parameters.no_compute()) {
 
@@ -297,13 +297,12 @@ void TDHF::symmetrize(std::vector<CC_vecfunction> &v) const {
 /// on output the solution
 std::vector<CC_vecfunction> TDHF::solve_cis() const {
     if (world.rank()==0) print_header2("computing CIS excitations");
-    int i=0;
     std::vector<CC_vecfunction> ccs;
     // look for restart options
     if (parameters.restart()=="iterate" or parameters.restart()=="no_compute") {
         auto excitations_list=parameters.excitations();
         if (excitations_list.empty()) {
-            for (int i=0; i<parameters.nexcitations(); ++i) excitations_list.push_back(i);
+            for (size_t i=0; i<parameters.nexcitations(); ++i) excitations_list.push_back(i);
         }
         for (auto ex : excitations_list) {
             std::string filename= filename_for_roots(ex);
@@ -672,18 +671,18 @@ TDHF::apply_G(std::vector<CC_vecfunction> &x, std::vector<vector_real_function_3
         vector_real_function_3d residual = sub(world, x[i].get_vecfunction(), GV);
         result.push_back(residual);
 
-        // Calculate Second Order Energy Update
-        const vector_real_function_3d bra_GV = make_bra(GV);
-        {
-            // Inner product of Vpsi and the residual (Vi is scaled to -2.0 --> multiply later with 0.5)
-            double tmp = inner(world, make_bra(residual), Vi).sum();
-            // squared norm of GVpsi (Psi_tilde)
-            double tmp2 = inner(world, make_bra(GV), GV).sum();
+//         // Calculate Second Order Energy Update
+//         const vector_real_function_3d bra_GV = make_bra(GV);
+//         {
+//             // Inner product of Vpsi and the residual (Vi is scaled to -2.0 --> multiply later with 0.5)
+//             double tmp = inner(world, make_bra(residual), Vi).sum();
+//             // squared norm of GVpsi (Psi_tilde)
+//             double tmp2 = inner(world, make_bra(GV), GV).sum();
 
-            // Factor 0.5 removes the factor 2 from the scaling before
-            const double sou = (0.5 * tmp / tmp2);
-//            msg << "FYI: second order update would be: " << sou << " norm after QG is " << tmp2 << "\n";
-        }
+//             // Factor 0.5 removes the factor 2 from the scaling before
+//             //const double sou = (0.5 * tmp / tmp2);
+// //            msg << "FYI: second order update would be: " << sou << " norm after QG is " << tmp2 << "\n";
+//         }
         // clear potential
         Vi.clear();
     }
@@ -763,10 +762,10 @@ vector_real_function_3d TDHF::get_tda_potential(const CC_vecfunction &x) const {
             CCTimer timeK(world, "pK");
             vector_real_function_3d Kp;
             // summation over all active indices
-            for (const auto itmp:x.functions) {
+            for (const auto& itmp:x.functions) {
                 const size_t i = itmp.first;
                 real_function_3d Ki = real_factory_3d(world);
-                for (const auto ktmp:x.functions) {
+                for (const auto& ktmp:x.functions) {
                     const size_t k = ktmp.first;
                     Ki += ((*g12)(mo_bra_(k), mo_ket_(i)) * x(k).function).truncate();
                 }
@@ -1118,7 +1117,7 @@ TDHF::apply_excitation_operators(const vector_real_function_3d &seed, const bool
         std::vector<std::string> exop_strings = parameters.exops();
         if (parameters.guess_excitation_operators() != "custom")
             exop_strings = (guessfactory::make_predefined_exop_strings(parameters.guess_excitation_operators()));
-        for (const auto ex: exop_strings) {
+        for (const auto& ex: exop_strings) {
             vector_real_function_3d cseed = copy(world, seed, false);
             exlist.push_back(std::make_pair(cseed, ex));
         }

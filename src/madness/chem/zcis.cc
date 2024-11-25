@@ -306,7 +306,7 @@ std::vector<Zcis::root> Zcis::read_guess() const {
 	print("reading cis guess from file",name);
 
 	archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
-	std::size_t size1, size2, size3, size4;
+	std::size_t size1=0, size2=0, size3=0, size4=0; // zeroed to silence clang++ uninit warnings
 
 	for (root& g : guess) {
 		ar & g.omega & g.delta & g.energy_change ;
@@ -367,7 +367,7 @@ std::vector<Zcis::root> Zcis::make_guess() const {
 		{
 	//		std::vector<std::string> exop_strings=cis_param.exops();
 			std::vector<std::string> exop_strings=(guessfactory::make_predefined_exop_strings(cis_param.guess_excitation_operators()));
-			for(const auto ex: exop_strings){
+			for(const auto& ex: exop_strings){
 				std::vector<complex_function_3d> cseed=copy(world,mo,false);
 				exlist.push_back(std::make_pair(cseed,ex));
 			}
@@ -378,7 +378,7 @@ std::vector<Zcis::root> Zcis::make_guess() const {
 				<< " seeds and " << exlist.size() << " excitation operators"   << std::endl;
 
 		// create the virtuals by unary operations: multiply excitation operators with seeds
-		for(auto it:exlist){
+		for(auto it : exlist){
 			virtuals=append(virtuals,guessfactory::apply_trigonometric_exop(it.first,it.second,centers,false));
 		}
 		world.gop.fence();

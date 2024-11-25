@@ -92,7 +92,10 @@ void test_coverage() {
     if (a[-1] != -99) cout << "was expecting -99 " << a[-1] << endl;
     if (a.size() != 1) cout << "was expecting size to be 1" << endl;
 
-    for (int i=0; i<10000; ++i) a.insert(datumT(i,i*99));
+    for (int i=0; i<10000; ++i) {
+      [[maybe_unused]] auto&& [it, inserted] = a.insert(datumT(i,i*99));
+      MADNESS_ASSERT(inserted);
+    }
 
     for (int i=0; i<10000; ++i) {
         pair<iteratorT,bool> r = a.insert(datumT(i,i*99));
@@ -134,7 +137,8 @@ void test_coverage() {
     count = 10001;
     for (int i=0; i<2000; i+=2) {
         iteratorT it = a.find(i);
-        a.erase(i);
+        [[maybe_unused]] auto erased = a.try_erase(i);
+        MADNESS_ASSERT(erased);
         count--;
         if (a.size() != count) cout << "size should have been " << count << " " << a.size() << endl;
         it = a.find(i);
@@ -143,7 +147,7 @@ void test_coverage() {
 
     for (int i=2001; i<4000; i+=2) {
         iteratorT it = a.find(i);
-        if (a.erase(i) != 1) cout << "expected to have deleted one element " << i << endl;
+        if (!a.try_erase(i)) cout << "expected to have deleted one element " << i << endl;
         count--;
         if (a.size() != count) cout << "c. size should have been " << count << " " << a.size() << endl;
         it = a.find(i);
@@ -167,7 +171,10 @@ void test_coverage() {
     for (int nelem=1; nelem<=10000; nelem*=10) {
         cout << "nelem " << nelem << endl;
         a.clear();
-        for (int i=0; i<nelem; ++i) a.insert(datumT(i,i*99));
+        for (int i=0; i<nelem; ++i) {
+          [[maybe_unused]] auto&& [it, inserted] = a.insert(datumT(i,i*99));
+          MADNESS_ASSERT(inserted);
+        }
         //a.print_stats();
         if (a.size() != size_t(std::distance(a.begin(),a.end())))
             cout << "size not equal to end-start\n";
@@ -213,13 +220,15 @@ void test_time() {
             vector<int> v = random_perm(nentries);
             double insert_used = madness::cpu_time();
             for (int i=0; i<nentries; ++i) {
-                a.insert(datumT(i,i));
+                [[maybe_unused]] auto&& [it, inserted] = a.insert(datumT(i,i));
+                MADNESS_ASSERT(inserted);
             }
             insert_used = madness::cpu_time()-insert_used;
             v = random_perm(nentries);
             double del_used = madness::cpu_time();
             for (int i=0; i<nentries; ++i) {
-                a.erase(i);
+                [[maybe_unused]] auto erased = a.try_erase(i);
+                MADNESS_ASSERT(erased);
             }
             del_used = madness::cpu_time()-del_used;
             printf("nbin=%8d   nent=%8d   insert=%.1es/call   del=%.1es/call\n",
@@ -249,8 +258,8 @@ void do_test_random(ConcurrentHashMap<int,double>& a, size_t& count, double& sum
             }
         }
         else {
-            int ndel = a.erase(key);
-            if (ndel == 1) {
+            auto erased = a.try_erase(key);
+            if (erased) {
                 sum -= value;
                 count --;
             }

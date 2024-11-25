@@ -8,18 +8,18 @@
 #ifndef SRC_APPS_CHEM_QCCALCULATIONPARAMETERSBASE_H_
 #define SRC_APPS_CHEM_QCCALCULATIONPARAMETERSBASE_H_
 
-#include<string>
+#include <string>
 #include <algorithm>
-#include<iomanip>
+#include <iomanip>
 #include <typeindex>
 #include <map>
 #include <fstream>
 #include <typeinfo>
 #include "madness/misc/misc.h"
-#include "archive.h"
-#include "world.h"
-#include"commandlineparser.h"
-#include"madness/external/nlohmann_json/json.hpp"
+#include "madness/world/archive.h"
+#include "madness/world/world.h"
+#include "madness/mra/commandlineparser.h"
+#include "madness/external/nlohmann_json/json.hpp"
 
 
 namespace madness {
@@ -214,7 +214,7 @@ public:
         }
 
         std::string result;
-        for (int i=0; i<commentlines.size(); ++i) {
+        for (size_t i=0; i<commentlines.size(); ++i) {
             if (i==0) result=keyval+fill_right(40,commentlines[i])+allowed_val;
             else result+="\n"+empty_keyval+commentlines[i];
         }
@@ -388,7 +388,7 @@ protected:
 		std::transform(key_lower.begin(), key_lower.end(), key_lower.begin(), ::tolower);
 		std::transform(svalue.begin(), svalue.end(), svalue.begin(), ::tolower);
 		std::vector<std::string> av_lower_vec;
-		for (auto av : allowed_values) {
+		for (const T& av : allowed_values) {
 			std::string av_lower=tostring(av);
 			std::transform(av_lower.begin(), av_lower.end(), av_lower.begin(), ::tolower);
 			av_lower_vec.push_back(av_lower);
@@ -598,6 +598,7 @@ public:
 	static std::string tostring(const T& arg) {
                 using madness::operators::operator<<;
 		std::ostringstream ss;
+		static_assert(not std::is_same<T,bool>::value, "you need to specialize tostring for this type");
 
 		ss<<std::scientific  << std::setprecision(4) << arg;
 		std::string str=ss.str();

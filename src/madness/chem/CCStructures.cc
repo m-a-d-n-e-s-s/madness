@@ -63,51 +63,7 @@ CCTimer::info(const bool debug, const double norm) {
     }
 }
 
-void
-CCFunction::info(World& world, const std::string& msg) const {
-    if (world.rank() == 0) {
-        std::cout << "Information about 3D function: " << name() << " " << msg << std::endl;
-        std::cout << std::setw(10) << std::setfill(' ') << std::setw(50) << " |f|    : " << function.norm2()
-                  << std::endl;
-        std::cout << std::setw(10) << std::setfill(' ') << std::setw(50) << " |error|: " << current_error << std::endl;
-    }
-}
 
-std::string
-CCFunction::name() const {
-    if (type == HOLE) {
-        return "phi" + stringify(i);
-    } else if (type == PARTICLE) {
-        return "tau" + stringify(i);
-    } else if (type == MIXED) {
-        return "t" + stringify(i);
-    } else if (type == RESPONSE) {
-        return "x" + stringify(i);
-    } else {
-        return "function" + stringify(i);
-    }
-}
-
-madness::CC_vecfunction
-CC_vecfunction::copy() const {
-    std::vector<CCFunction> vn;
-    for (auto x : functions) {
-        const CCFunction fn(madness::copy(x.second.function), x.second.i, x.second.type);
-        vn.push_back(fn);
-    }
-    CC_vecfunction result(vn, type);
-    result.irrep = irrep;
-    return result;
-}
-
-std::string
-CC_vecfunction::name(const int ex) const {
-    if (type == PARTICLE) return "tau";
-    else if (type == HOLE) return "phi";
-    else if (type == MIXED) return "t";
-    else if (type == RESPONSE) return std::to_string(ex) + "_" + "x";
-    else return "UNKNOWN";
-}
 
 void
 CC_vecfunction::print_size(const std::string& msg) const {
@@ -141,50 +97,57 @@ madness::vector_real_function_3d
 CCIntermediatePotentials::operator()(const CC_vecfunction& f, const PotentialType& type) const {
     output("Getting " + assign_name(type) + " for " + f.name(0));
     vector_real_function_3d result;
-    if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED)) return current_singles_potential_gs_;
-    else if (type == POT_singles_ and f.type == RESPONSE) return current_singles_potential_ex_;
-    else if (type == POT_s2b_ and f.type == PARTICLE) return current_s2b_potential_gs_;
-    else if (type == POT_s2b_ and f.type == RESPONSE) return current_s2b_potential_ex_;
-    else if (type == POT_s2c_ and f.type == PARTICLE) return current_s2c_potential_gs_;
-    else if (type == POT_s2c_ and f.type == RESPONSE) return current_s2c_potential_ex_;
+    if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED)) result= current_singles_potential_gs_;
+    else if (type == POT_singles_ and f.type == RESPONSE) result= current_singles_potential_ex_;
+    else if (type == POT_s2b_ and f.type == PARTICLE) result= current_s2b_potential_gs_;
+    else if (type == POT_s2b_ and f.type == RESPONSE) result= current_s2b_potential_ex_;
+    else if (type == POT_s2c_ and f.type == PARTICLE) result= current_s2c_potential_gs_;
+    else if (type == POT_s2c_ and f.type == RESPONSE) result= current_s2c_potential_ex_;
     else if (f.type == HOLE) {
         output(assign_name(type) + " is zero for HOLE states");
-        result = zero_functions<double, 3>(world, f.size());
+        // result = zero_functions<double, 3>(f.size());
     } else {
         output("ERROR: Potential was not supposed to be stored");
         MADNESS_EXCEPTION("Potential was not supposed to be stored", 1);
     }
 
-    if (result.empty()) output("!!!WARNING: Potential is empty!!!");
+    if (result.empty()) {
+        output("!!!WARNING: Potential is empty!!!");
+    } else {
+        World& world=result.front().world();
+        if (parameters.debug()) print_size(world,result, "potential");
+    }
 
     return result;
 }
 
 madness::real_function_3d
-CCIntermediatePotentials::operator()(const CCFunction& f, const PotentialType& type) const {
+CCIntermediatePotentials::operator()(const CCFunction<double,3>& f, const PotentialType& type) const {
     output("Getting " + assign_name(type) + " for " + f.name());
-    real_function_3d result = real_factory_3d(world);
-    if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED))
-        return current_singles_potential_gs_[f.i - parameters.freeze()];
-    else if (type == POT_singles_ and f.type == RESPONSE) return current_singles_potential_ex_[f.i - parameters.freeze()];
-    else if (type == POT_s2b_ and f.type == PARTICLE) return current_s2b_potential_gs_[f.i - parameters.freeze()];
-    else if (type == POT_s2b_ and f.type == RESPONSE) return current_s2b_potential_ex_[f.i - parameters.freeze()];
-    else if (type == POT_s2c_ and f.type == PARTICLE) return current_s2c_potential_gs_[f.i - parameters.freeze()];
-    else if (type == POT_s2c_ and f.type == RESPONSE) return current_s2c_potential_ex_[f.i - parameters.freeze()];
+    std::vector<real_function_3d> result;
+    if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED)) result= current_singles_potential_gs_;
+    else if (type == POT_singles_ and f.type == RESPONSE) result= current_singles_potential_ex_;
+    else if (type == POT_s2b_ and f.type == PARTICLE) result= current_s2b_potential_gs_;
+    else if (type == POT_s2b_ and f.type == RESPONSE) result= current_s2b_potential_ex_;
+    else if (type == POT_s2c_ and f.type == PARTICLE) result= current_s2c_potential_gs_;
+    else if (type == POT_s2c_ and f.type == RESPONSE) result= current_s2c_potential_ex_;
     else if (f.type == HOLE) output(assign_name(type) + " is zero for HOLE states");
-    else MADNESS_EXCEPTION("Potential was not supposed to be stored", 1)
+    else MADNESS_EXCEPTION("Potential was not supposed to be stored", 1);
 
-    ;
-    if (result.norm2() < FunctionDefaults<3>::get_thresh())
-        output("WARNING: Potential seems to be zero ||V||=" + std::to_string(double(result.norm2())));
-
-    return result;
+    std::string errmsg="CCIntermediatePotential was not computed/stored "+assign_name(type) + " " +assign_name(f.type);
+    errmsg+="\n --> you might need to iterate the corresponding singles";
+    MADNESS_CHECK_THROW(result.size()>(f.i-parameters.freeze()),errmsg.c_str());
+    return result[f.i-parameters.freeze()];
 }
 
 void
 CCIntermediatePotentials::insert(const vector_real_function_3d& potential, const CC_vecfunction& f,
                                  const PotentialType& type) {
     output("Storing potential: " + assign_name(type) + " for " + f.name(0));
+    if (parameters.debug()) {
+        World& world=potential.front().world();
+        print_size(world, potential, "potential");
+    }
     MADNESS_ASSERT(!potential.empty());
     if (type == POT_singles_ && (f.type == PARTICLE || f.type == MIXED)) current_singles_potential_gs_ = potential;
     else if (type == POT_singles_ && f.type == RESPONSE) current_singles_potential_ex_ = potential;
@@ -206,18 +169,12 @@ void CCParameters::set_derived_values() {
     set_derived_value("tight_thresh_6d",thresh_6D()*0.1);
     set_derived_value("thresh_3d",thresh_6D()*0.01);
     set_derived_value("tight_thresh_3d",thresh_3D()*0.1);
-//    if (thresh_operators == uninitialized) thresh_operators = 1.e-6;
-//    if (thresh_operators_3D == uninitialized) thresh_operators_3D = thresh_operators;
-//    if (thresh_operators_6D == uninitialized) thresh_operators_6D = thresh_operators;
-//    if (thresh_bsh_3D == uninitialized) thresh_bsh_3D = thresh_operators_3D;
-//    if (thresh_bsh_6D == uninitialized) thresh_bsh_6D = thresh_operators_6D;
-//    if (thresh_poisson == uninitialized) thresh_poisson = thresh_operators_3D;
-//    if (thresh_f12 == uninitialized) thresh_f12 = thresh_operators_3D;
     set_derived_value("thresh_ue",tight_thresh_6D());
-    set_derived_value("dconv_6d",thresh_6D());
-    set_derived_value("dconv_3d",thresh_6D());
+    set_derived_value("dconv_6d",3.0*thresh_6D());
+    set_derived_value("dconv_3d",0.3*thresh_6D());
     set_derived_value("econv",0.1*dconv_6D());
     set_derived_value("econv_pairs",econv());
+
 
     set_derived_value("no_compute_gs",no_compute());
     set_derived_value("no_compute_mp2",no_compute() and no_compute_gs());
@@ -299,12 +256,13 @@ void CCParameters::sanity_check(World& world) const {
     }
 }
 
-real_function_3d
-CCConvolutionOperator::operator()(const CCFunction& bra, const CCFunction& ket, const bool use_im) const {
-    real_function_3d result;
+template<typename T, std::size_t NDIM>
+Function<T,NDIM>
+CCConvolutionOperator<T,NDIM>::operator()(const CCFunction<T,NDIM>& bra, const CCFunction<T,NDIM>& ket, const bool use_im) const {
+    Function<T,NDIM> result;
     if (not use_im) {
         if (world.rank() == 0)
-            std::cout << "Recalculating <" << bra.name() << "|" << assign_name(operator_type) << "|" << ket.name()
+            std::cout << "Recalculating <" << bra.name() << "|" << name() << "|" << ket.name()
                       << ">\n";
         result = ((*op)(bra.function * ket.function)).truncate();
     } else if (bra.type == HOLE and ket.type == HOLE and not imH.allpairs.empty()) result = imH(bra.i, ket.i);
@@ -320,54 +278,60 @@ CCConvolutionOperator::operator()(const CCFunction& bra, const CCFunction& ket, 
     return result;
 }
 
-real_function_6d CCConvolutionOperator::operator()(const real_function_6d& u, const size_t particle) const {
-    MADNESS_ASSERT(particle == 1 or particle == 2);
-    MADNESS_ASSERT(operator_type == OT_G12);
-    MADNESS_ASSERT(op);
+template<typename T, std::size_t NDIM>
+Function<T,2*NDIM> CCConvolutionOperator<T,NDIM>::operator()(const Function<T,2*NDIM>& u, const size_t particle) const {
+    MADNESS_CHECK(particle == 1 or particle == 2);
+    MADNESS_CHECK(op);
     op->particle() = particle;
     return (*op)(u);
 }
 
-real_function_3d
-CCConvolutionOperator::operator()(const CCFunction& bra, const real_function_6d& u, const size_t particle) const {
-    MADNESS_ASSERT(particle == 1 or particle == 2);
-    MADNESS_ASSERT(operator_type == OT_G12);
-    MADNESS_ASSERT(op);
-    const real_function_6d tmp = multiply(copy(u), copy(bra.function), particle);
+template<typename T, std::size_t NDIM>
+Function<T,NDIM>
+CCConvolutionOperator<T,NDIM>::operator()(const CCFunction<T,NDIM>& bra, const Function<T,2*NDIM>& u, const size_t particle) const {
+    MADNESS_CHECK(particle == 1 or particle == 2);
+    MADNESS_CHECK(op);
+    const Function<T,2*NDIM> tmp = multiply(copy(u), copy(bra.function), particle);
     op->particle() = particle;
-    const real_function_6d g_tmp = (*op)(tmp);
-    const real_function_3d result = g_tmp.dirac_convolution<3>();
+    const Function<T,2*NDIM> g_tmp = (*op)(tmp);
+    const Function<T,NDIM> result = g_tmp.dirac_convolution();
     return result;
 }
 
-
-void CCConvolutionOperator::update_elements(const CC_vecfunction& bra, const CC_vecfunction& ket) {
-    const std::string operation_name = "<" + assign_name(bra.type) + "|" + name() + "|" + assign_name(ket.type) + ">";
-    if (world.rank() == 0)
-        std::cout << "updating operator elements: " << operation_name << " (" << bra.size() << "x" << ket.size() << ")"
-                  << std::endl;
-    if (bra.type != HOLE)
-        error("Can not create intermediate of type " + operation_name + " , bra-element has to be of type HOLE");
-    op.reset(init_op(operator_type, parameters));
-    intermediateT xim;
-    for (auto tmpk : bra.functions) {
-        const CCFunction& k = tmpk.second;
-        for (auto tmpl : ket.functions) {
-            const CCFunction& l = tmpl.second;
-            real_function_3d kl = (bra(k).function * l.function);
-            real_function_3d result = ((*op)(kl)).truncate();
-            result.reconstruct(); // for sparse multiplication
-            xim.insert(k.i, l.i, result);
+template<typename T, std::size_t NDIM>
+void CCConvolutionOperator<T,NDIM>::update_elements(const CC_vecfunction& bra, const CC_vecfunction& ket) {
+    if constexpr (NDIM==3) {
+        const std::string operation_name = "<" + assign_name(bra.type) + "|" + name() + "|" + assign_name(ket.type) + ">";
+        if (world.rank() == 0)
+            std::cout << "updating operator elements: " << operation_name << " (" << bra.size() << "x" << ket.size() << ")"
+                      << std::endl;
+        if (bra.type != HOLE)
+            error("Can not create intermediate of type " + operation_name + " , bra-element has to be of type HOLE");
+        op.reset(init_op(type(), parameters));
+        intermediateT<T,NDIM> xim;
+        for (auto tmpk : bra.functions) {
+            const CCFunction<T,NDIM>& k = tmpk.second;
+            for (auto tmpl : ket.functions) {
+                const CCFunction<T,NDIM>& l = tmpl.second;
+                Function<T,NDIM> kl = (bra(k).function * l.function);
+                Function<T,NDIM> result = ((*op)(kl)).truncate();
+                result.reconstruct(); // for sparse multiplication
+                xim.insert(k.i, l.i, result);
+            }
         }
+        if (ket.type == HOLE) imH = xim;
+        else if (ket.type == PARTICLE) imP = xim;
+        else if (ket.type == RESPONSE) imR = xim;
+        else error("Can not create intermediate of type <" + assign_name(bra.type) + "|op|" + assign_name(ket.type) + ">");
+    } else {
+        std::string msg="update_elements not implemented for NDIM="+std::to_string(NDIM);
+        MADNESS_EXCEPTION(msg.c_str(),1);
     }
-    if (ket.type == HOLE) imH = xim;
-    else if (ket.type == PARTICLE) imP = xim;
-    else if (ket.type == RESPONSE) imR = xim;
-    else error("Can not create intermediate of type <" + assign_name(bra.type) + "|op|" + assign_name(ket.type) + ">");
 }
 
 
-void CCConvolutionOperator::clear_intermediates(const FuncType& type) {
+template<typename T, std::size_t NDIM>
+void CCConvolutionOperator<T,NDIM>::clear_intermediates(const FuncType& type) {
     if (world.rank() == 0)
         std::cout << "Deleting all <HOLE|" << name() << "|" << assign_name(type) << "> intermediates \n";
     switch (type) {
@@ -388,7 +352,8 @@ void CCConvolutionOperator::clear_intermediates(const FuncType& type) {
     }
 }
 
-size_t CCConvolutionOperator::info() const {
+template<typename T, std::size_t NDIM>
+size_t CCConvolutionOperator<T,NDIM>::info() const {
     const size_t size_imH = size_of(imH);
     const size_t size_imP = size_of(imP);
     const size_t size_imR = size_of(imR);
@@ -404,63 +369,13 @@ size_t CCConvolutionOperator::info() const {
     return size_imH + size_imP + size_imR;
 }
 
-SeparatedConvolution<double, 3> *
-CCConvolutionOperator::init_op(const OpType& type, const Parameters& parameters) const {
-    switch (type) {
-        case OT_G12 : {
-            if (world.rank() == 0)
-                std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
-                          << " and lo=" << parameters.lo << std::endl;
-            return CoulombOperatorPtr(world, parameters.lo, parameters.thresh_op);
-        }
-        case OT_F12 : {
-            if (world.rank() == 0)
-                std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
-                          << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
-            return SlaterF12OperatorPtr(world, parameters.gamma, parameters.lo, parameters.thresh_op);
-        }
-        case OT_SLATER : {
-            if (world.rank() == 0)
-                std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
-                          << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
-            return SlaterOperatorPtr(world, parameters.gamma, parameters.lo, parameters.thresh_op);
-        }
-        case OT_BSH : {
-            if (world.rank() == 0)
-                std::cout << "Creating " << assign_name(type) << " Operator with thresh=" << parameters.thresh_op
-                          << " and lo=" << parameters.lo << " and Gamma=" << parameters.gamma << std::endl;
-            return BSHOperatorPtr3D(world, parameters.gamma, parameters.lo, parameters.thresh_op);
-        }
-        case OT_ONE : {
-            if (world.rank() == 0)
-                std::cout << "Creating " << assign_name(type) << " Operator " << std::endl;
-            return nullptr;
-        }
-        default : {
-            error("Unknown operatorype " + assign_name(type));
-            MADNESS_EXCEPTION("error", 1);
-        }
-    }
-
-}
-
-/// Assigns strings to enums for formated output
-std::string
-assign_name(const PairFormat& input) {
-    switch (input) {
-        case PT_FULL:
-            return "full";
-        case PT_DECOMPOSED:
-            return "decomposed";
-        case PT_OP_DECOMPOSED:
-            return "operator-decomposed";
-        default: {
-            MADNESS_EXCEPTION("Unvalid enum assignement!", 1);
-            return "undefined";
-        }
-    }
-    MADNESS_EXCEPTION("assign_name:pairtype, should not end up here", 1);
-    return "unknown pairtype";
+template<typename T, std::size_t NDIM>
+SeparatedConvolution<T, NDIM> *
+CCConvolutionOperator<T,NDIM>::init_op(const OpType& type, const CCConvolutionOperator<T,NDIM>::Parameters& parameters) const {
+    bool debug=false;
+    bool printme=(world.rank()==0) and debug;
+    if (printme) print("init_op: creating",type,"with thresh, lo, gamma",parameters.thresh_op,parameters.lo,parameters.gamma);
+    return new SeparatedConvolution<T,NDIM>(world,OperatorInfo(parameters.gamma,parameters.lo,parameters.thresh_op,type));
 }
 
 /// Assigns strings to enums for formated output
@@ -478,31 +393,6 @@ assign_name(const CCState& input) {
     }
     MADNESS_EXCEPTION("assign_name:pairtype, should not end up here", 1);
     return "unknown pairtype";
-}
-
-/// Assigns strings to enums for formated output
-std::string
-assign_name(const OpType& input) {
-    switch (input) {
-        case OT_G12:
-            return "g12";
-        case OT_F12:
-            return "f12";
-        case OT_SLATER:
-            return "slater";
-        case OT_FG12:
-            return "fg12";
-        case OT_BSH:
-            return "bsh";
-        case OT_ONE:
-            return "identity";
-        default: {
-            MADNESS_EXCEPTION("Unvalid enum assignement!", 1);
-            return "undefined";
-        }
-    }
-    MADNESS_EXCEPTION("assign_name:optype, should not end up here", 1);
-    return "unknown operatortype";
 }
 
 /// Assigns enum to string
@@ -616,48 +506,90 @@ assign_name(const FuncType& inp) {
     return "???";
 }
 
-/// Returns the size of an intermediate
-double
-size_of(const intermediateT& im) {
-    double size = 0.0;
-    for (const auto& tmp : im.allpairs) {
-        size += get_size<double, 3>(tmp.second);
-    }
-    return size;
-}
 
 std::vector<real_function_6d>
-MacroTaskMp2ConstantPart::operator() (const std::vector<CCPair>& pair, const std::vector<real_function_3d>& mo_ket,
-                                      const std::vector<real_function_3d>& mo_bra, const CCParameters& parameters,
-                                      const real_function_3d& Rsquare, const std::vector<real_function_3d>& U1,
+//MacroTaskMp2ConstantPart::operator() (const std::vector<CCPair>& pair, const std::vector<real_function_3d>& mo_ket,
+//                                      const std::vector<real_function_3d>& mo_bra, const CCParameters& parameters,
+//                                      const real_function_3d& Rsquare, const std::vector<real_function_3d>& U1,
+//                                      const std::vector<std::string>& argument) const {
+MacroTaskMp2ConstantPart::operator() (const std::vector<CCPair>& pair, const Info& info,
                                       const std::vector<std::string>& argument) const {
-    World& world = mo_ket[0].world();
+    World& world =info.mo_ket[0].world();
     resultT result = zero_functions_compressed<double, 6>(world, pair.size());
-    for (int i = 0; i < pair.size(); i++) {
-        result[i] = CCPotentials::make_constant_part_mp2_macrotask(world, pair[i], mo_ket, mo_bra, parameters,
-                                                                   Rsquare, U1, argument);
+    for (size_t i = 0; i < pair.size(); i++) {
+        result[i] = CCPotentials::make_constant_part_mp2_macrotask(world, pair[i], info.mo_ket, info.mo_bra,
+                                    info.parameters, info.R_square, info.U1, argument);
     }
     return result;
 }
 
 std::vector<real_function_6d>
+MacroTaskConstantPart::operator() (const std::vector<CCPair>& pair,
+                                   const std::vector<Function<double,3>> & gs_singles,
+                                   const std::vector<Function<double,3>> & ex_singles,
+                                   const Info& info) const {
+
+    World& world =info.mo_ket[0].world();
+    CC_vecfunction singles(gs_singles, PARTICLE, info.parameters.freeze());
+    CC_vecfunction exsingles(ex_singles, RESPONSE, info.parameters.freeze());
+
+
+    resultT result = zero_functions_compressed<double, 6>(world, pair.size());
+    for (size_t i = 0; i < pair.size(); i++) {
+        result[i] = CCPotentials::make_constant_part_macrotask(world, pair[i], singles, exsingles, info);
+    }
+    return result;
+}
+
+
+std::vector<real_function_6d>
+//MacroTaskMp2UpdatePair::operator() (const std::vector<CCPair> &pair,
+//                                    const std::vector<real_function_6d> &mp2_coupling,
+//                                    const CCParameters &parameters,
+//                                    const std::vector<madness::Vector<double, 3>> &all_coords_vec,
+//                                    const std::vector<real_function_3d> &mo_ket,
+//                                    const std::vector<real_function_3d> &mo_bra,
+//                                    const std::vector<real_function_3d> &U1, const real_function_3d &U2) const {
 MacroTaskMp2UpdatePair::operator() (const std::vector<CCPair> &pair,
                                     const std::vector<real_function_6d> &mp2_coupling,
-                                    const CCParameters &parameters,
                                     const std::vector<madness::Vector<double, 3>> &all_coords_vec,
-                                    const std::vector<real_function_3d> &mo_ket,
-                                    const std::vector<real_function_3d> &mo_bra,
-                                    const std::vector<real_function_3d> &U1, const real_function_3d &U2) const {
-    World& world = mo_ket[0].world();
+                                    const Info& info) const {
+    World& world = info.mo_ket[0].world();
     resultT result = zero_functions_compressed<double, 6>(world, pair.size());
 
-    for (int i = 0; i < pair.size(); i++) {
+    for (size_t i = 0; i < pair.size(); i++) {
         //(i, j) -> j*(j+1) + i
-        result[i] = CCPotentials::update_pair_mp2_macrotask(world, pair[i], parameters, all_coords_vec, mo_ket,
-                                                            mo_bra, U1, U2, mp2_coupling[i]);
+        result[i] = CCPotentials::update_pair_mp2_macrotask(world, pair[i], info.parameters, all_coords_vec, info.mo_ket,
+                                                            info.mo_bra, info.U1, info.U2, mp2_coupling[i]);
     }
     return result;
 }
+
+std::vector<real_function_6d>
+MacroTaskIteratePair::operator()(const std::vector<CCPair>& pair,
+        const std::vector<real_function_6d>& local_coupling,
+        const CC_vecfunction& gs_singles,
+        const CC_vecfunction& ex_singles,
+        const Info& info,
+        const std::size_t& maxiter) const {
+    World& world = info.mo_ket[0].world();
+    resultT result = zero_functions_compressed<double, 6>(world, pair.size());
+
+    for (size_t i = 0; i < pair.size(); i++) {
+        result[i]=  CCPotentials::iterate_pair_macrotask(world, pair[i], gs_singles, ex_singles,
+            local_coupling[i], info, maxiter).function();
+    }
+    return result;
+
+}
+
+template class CCConvolutionOperator<double,3>;
+template class CCConvolutionOperator<double,2>;
+template class CCConvolutionOperator<double,1>;
+
+template class CCFunction<double,3>;
+template class CCFunction<double,2>;
+template class CCFunction<double,1>;
 
 }// end namespace madness
 

@@ -67,7 +67,7 @@ void MolecularOrbitals<T,NDIM>::print_cubefiles(const std::string name, const st
     if (get_mos().size()==0) return;
     if constexpr (std::is_same<T,double_complex>::value) return;
     World& world=get_mos().front().world();
-    for (int i=0; i<get_mos().size(); ++i) {
+    for (size_t i=0; i<get_mos().size(); ++i) {
         std::string filename=name+"_"+std::to_string(i)+".cube";
         if constexpr (std::is_same<T,double>::value)
             plot_cubefile<3>(world,get_mos()[i],filename,cubefile_header);

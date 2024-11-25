@@ -148,10 +148,10 @@ int main(int argc, char**argv) {
         print(s);
         error("caught a c-string exception");
     }
-    catch (const char* s) {
-        print(s);
-        error("caught a c-string exception");
-    }
+//    catch (const char* s) {
+//        print(s);
+//        error("caught a c-string exception");
+//    }
     catch (const std::string& s) {
         print(s);
         error("caught a string (class) exception");
