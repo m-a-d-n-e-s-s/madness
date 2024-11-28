@@ -4804,7 +4804,7 @@ template<size_t NDIM>
 
             double cnorm = c.normf();
 
-            const std::vector<opkeyT>& disp = op->get_disp(key.level()); // list of displacements sorted in orer of increasing distance
+            const std::vector<opkeyT>& disp = op->get_disp(key.level()); // list of displacements sorted in order of increasing distance
             const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
             int nvalid=1;       // Counts #valid at each distance
             int nused=1;	// Counts #used at each distance

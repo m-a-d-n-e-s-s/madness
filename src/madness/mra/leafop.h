@@ -326,7 +326,7 @@ public:
     /// pre-determination
     /// the decision if the current box  will be a leaf box is made from information of another function
     /// this is needed for on demand function
-    /// not that the on-demand function that is beeing constructed is not the function in this class
+    /// not that the on-demand function that is being constructed is not the function in this class
     virtual bool
     pre_screening(const Key<NDIM>& key) const {
         MADNESS_EXCEPTION("pre-screening was called for leaf_op != leaf_op_other", 1);
@@ -335,7 +335,7 @@ public:
 
     /// post-determination
     /// determination if the box will be a leaf box after the coefficients are made
-    /// the function that is beeing constructed is the function in this class
+    /// the function that is being constructed is the function in this class
     /// the function will use the opartor op in order to screen, if op is a NULL pointer the result is always: false
     /// @param[in] key: the key to the current box
     /// @param[in] coeff: Coefficients of the current box
