@@ -4815,7 +4815,7 @@ template<size_t NDIM>
                 if (op->particle()==1) d=it->merge_with(nullkey);
                 if (op->particle()==2) d=nullkey.merge_with(*it);
 
-		uint64_t dsq = d.distsq();
+		const uint64_t dsq = op->get_isperiodicsum() ? d.distsq_periodic() : d.distsq();
 		if (dsq != distsq) { // Moved to next shell of neighbors
 		    if (nvalid > 0 && nused == 0 && dsq > 1) {
 		        // Have at least done the input box and all first

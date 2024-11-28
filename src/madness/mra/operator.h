@@ -1133,6 +1133,8 @@ namespace madness {
             return Displacements<NDIM>().get_disp(n, isperiodicsum);
         }
 
+        bool get_isperiodicsum() const {return isperiodicsum;}
+
         /// return the operator norm for all terms, all dimensions and 1 displacement
         double norm(Level n, const Key<NDIM>& d, const Key<NDIM>& source_key) const {
             // SeparatedConvolutionData keeps data for all terms and all dimensions and 1 displacement
