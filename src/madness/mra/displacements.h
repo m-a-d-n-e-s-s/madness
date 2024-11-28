@@ -60,21 +60,7 @@ namespace madness {
         }
 
         static bool cmp_keys_periodicsum(const Key<NDIM>& a, const Key<NDIM>& b) {
-            Translation twonm1 = (Translation(1)<<a.level())>>1;
-
-            uint64_t suma=0, sumb=0;
-            for (std::size_t d=0; d<NDIM; ++d) {
-                Translation la = a.translation()[d];
-                if (la > twonm1) la -= twonm1*2;
-                if (la <-twonm1) la += twonm1*2;
-                suma += la*la;
-
-                Translation lb = b.translation()[d];
-                if (lb > twonm1) lb -= twonm1*2;
-                if (lb <-twonm1) lb += twonm1*2;
-                sumb += lb*lb;
-            }
-            return suma < sumb;
+          return a.distsq_periodic() < b.distsq_periodic();
         }
 
         static void make_disp(int bmax) {
