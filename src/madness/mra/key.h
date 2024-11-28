@@ -35,12 +35,14 @@
 /// \file key.h
 /// \brief Multidimension Key for MRA tree and associated iterators
 
-#include <vector>
+#include <madness/mra/bc.h>
 #include <madness/mra/power.h>
 #include <madness/world/vector.h>
 #include <madness/world/binary_fstream_archive.h>
 #include <madness/world/worldhash.h>
-#include <stdint.h>
+
+#include <cstdint>
+#include <vector>
 
 namespace madness {
 
@@ -172,6 +174,32 @@ namespace madness {
                 dist += l[d] * l[d];
             }
             return dist;
+        }
+
+        uint64_t
+        distsq_bc(const BoundaryConditions<NDIM>& bc) const {
+          const Translation twonm1 = (Translation(1) << level()) >> 1;
+
+          uint64_t dsq = 0;
+          for (std::size_t d = 0; d < NDIM; ++d) {
+            Translation la = translation()[d];
+            MADNESS_ASSERT(bc(d,0) == bc(d,1));
+            if (bc(d,0) == BC_PERIODIC) {
+              if (la > twonm1)
+                la -= twonm1 * 2;
+              if (la < -twonm1)
+                la += twonm1 * 2;
+            }
+            dsq += la * la;
+          }
+
+          return dsq;
+        }
+
+        uint64_t
+        distsq_periodic() const {
+          const static BoundaryConditions<NDIM> bc_periodic(BC_PERIODIC);
+          return distsq_bc(bc_periodic);
         }
 
         /// Returns the key of the parent
