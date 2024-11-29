@@ -1280,8 +1280,9 @@ public:
         }
     }
 
-    bool load_pair(World& world) {
+    bool load_pair(World& world, const bool verbose=false) {
         std::string fname=this->name();
+        if (verbose and world.rank()==0) print("loading pair from file", fname);
         bool exists = archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>::exists(world, fname.c_str());
         if (exists) {
             archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, fname.c_str(), 1);
@@ -1292,8 +1293,10 @@ public:
         return exists;
     }
 
-    void store_pair(World& world) {
+    void store_pair(World& world, const bool verbose=false) {
         std::string fname =this->name();
+        if (verbose and world.rank()==0) print("loading pair from file", fname);
+        this->reconstruct();
         archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, fname.c_str(), 1);
         ar & *this;
     }
@@ -1319,11 +1322,16 @@ public:
     /// default to positive value to make sure this is set somewhere
     double bsh_eps=1.0;
 
-    std::string name() const {
+    /// return the base name like "MP2_pair_u" or "CC2_pair_x"
+    std::string basename() const {
         std::string name = "???";
-        if (type == GROUND_STATE) name = assign_name(ctype) + "_pair_u_";
-        if (type == EXCITED_STATE) name = assign_name(ctype) + "_pair_x_";
-        return name + stringify(i) + stringify(j);
+        if (type == GROUND_STATE) name = assign_name(ctype) + "_pair_u";
+        if (type == EXCITED_STATE) name = assign_name(ctype) + "_pair_x";
+        return name;
+
+    }
+    std::string name() const {
+        return basename() +"_" + stringify(i) + stringify(j);
     }
 
     void

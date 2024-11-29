@@ -490,6 +490,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
 
         // calculate energy and error and update pairs
         double old_energy = total_energy;
+        for (auto& p : pair_vec) p.reconstruct();
         total_energy=compute_energy(pair_vec);
         t_iter.tag("compute energy");
 
@@ -503,6 +504,12 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
         bool converged = ((std::abs(old_energy - total_energy) < parameters.econv())
                           and (maxrnorm < parameters.dconv_6D()));
 
+        // save latest iteration
+        if (world.rank()==0) print("saving latest iteration of MP2 to file"+pair_vec.front().basename()+"_XX");
+        for (const auto& pair : pair_vec) {
+            save(pair.constant_part, pair.name() + "_const");
+            save(pair.function(), pair.name());
+        }
         //print pair energies if converged
         if (converged) {
             if (world.rank() == 0) std::cout << "\nPairs converged!\n";
@@ -757,6 +764,7 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) cons
         timer timer1(world);
 
         std::vector<CCPair> pair_vec=Pairs<CCPair>::pairs2vector(doubles,triangular_map);
+        for (auto& p : pair_vec) p.reconstruct();
         MacroTaskConstantPart t;
         MacroTask task(world, t);
         std::vector<real_function_6d> constant_part_vec = task(pair_vec, singles.get_vecfunction(),
@@ -782,6 +790,9 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) cons
         CC_vecfunction dummy_ex_singles;
         std::vector<real_function_3d> vdummy_3d;         // dummy vectors
         const std::size_t maxiter=3;
+        for (auto& p : pair_vec) p.reconstruct();
+        for (auto& p : coupling_vec) p.reconstruct();
+        info.reconstruct();
         auto unew = task1(pair_vec, coupling_vec, singles, dummy_ex_singles,
             info, maxiter);
 
@@ -798,9 +809,8 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) cons
         // save latest iteration
         if (world.rank()==0) print("saving latest iteration to file");
         for (const auto& pair : pair_vec) {
-            pair.constant_part.reconstruct();
+            pair.reconstruct();
             save(pair.constant_part, pair.name() + "_const");
-            pair.function().reconstruct();
             save(pair.function(), pair.name());
             singles.save_restartdata(world,CC2::singles_name(CT_CC2,singles.type));
         }
@@ -1089,6 +1099,10 @@ bool CC2::iterate_singles(World& world, CC_vecfunction& singles, const CC_vecfun
         old_singles(tmp.first).function = copy(tmp.second.function);
     double old_omega=0.0;
 
+    for (auto& p : gs_doubles.allpairs) p.second.reconstruct();
+    for (auto& p : ex_doubles.allpairs) p.second.reconstruct();
+    info.reconstruct();
+
     // KAIN solver
     typedef vector_function_allocator<double, 3> allocT;
     typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
@@ -1207,6 +1221,7 @@ bool CC2::iterate_singles(World& world, CC_vecfunction& singles, const CC_vecfun
         if (info.parameters.debug()) print_size(world, new_singles, "new_singles");
         // if (ctype == CT_LRCCS or ctype == CT_LRCC2 or ctype == CT_ADC2) Nemo::normalize(new_singles, info.R);
         // if (info.parameters.debug()) print_size(world, new_singles, "new_singles normalized");
+        reconstruct(world,new_singles);
 
         for (size_t i = 0; i < GV.size(); i++) {
             singles(i + info.parameters.freeze()).function = copy(new_singles[i]);
