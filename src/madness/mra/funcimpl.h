@@ -48,6 +48,7 @@
 #include <madness/mra/key.h>
 #include <madness/mra/funcdefaults.h>
 #include <madness/mra/function_factory.h>
+#include <madness/mra/displacements.h>
 
 #include "leafop.h"
 
@@ -3818,8 +3819,13 @@ template<size_t NDIM>
 
         /// Out of volume keys are mapped to enforce the BC as follows.
         ///   * Periodic BC map back into the volume and return the correct key
-        ///   * Zero BC - returns invalid() to indicate out of volume
+        ///   * non-periodic BC - returns invalid() to indicate out of volume
         keyT neighbor(const keyT& key, const keyT& disp, const std::vector<bool>& is_periodic) const;
+
+        /// Returns key of general neighbor that resides in-volume
+
+        /// Out of volume keys are mapped to invalid()
+        keyT neighbor_in_volume(const keyT& key, const keyT& disp) const;
 
         /// find_me. Called by diff_bdry to get coefficients of boundary function
         Future< std::pair<keyT,coeffT> > find_me(const keyT& key) const;
@@ -4778,7 +4784,7 @@ template<size_t NDIM>
 	    // becomes negligible we are in the asymptotic region.
 
             typedef typename opT::keyT opkeyT;
-            static const size_t opdim=opT::opdim;
+            constexpr auto opdim=opT::opdim;
             const opkeyT source=op->get_source_key(key);
 
             
@@ -4804,8 +4810,7 @@ template<size_t NDIM>
 
             double cnorm = c.normf();
 
-            const std::vector<opkeyT>& disp = op->get_disp(key.level()); // list of displacements sorted in order of increasing distance
-            const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
+            const std::vector<opkeyT>& disp = Displacements<opdim>().get_disp(key.level(), /* periodic = */ false); // list of displacements sorted in order of increasing distance; N.B. periodic displacements skipped since operator already includes lattice sum
             int nvalid=1;       // Counts #valid at each distance
             int nused=1;	// Counts #used at each distance
 	    uint64_t distsq = 99999999999999;
@@ -4815,7 +4820,7 @@ template<size_t NDIM>
                 if (op->particle()==1) d=it->merge_with(nullkey);
                 if (op->particle()==2) d=nullkey.merge_with(*it);
 
-		const uint64_t dsq = op->get_isperiodicsum() ? d.distsq_periodic() : d.distsq();
+		const uint64_t dsq = d.distsq();
 		if (dsq != distsq) { // Moved to next shell of neighbors
 		    if (nvalid > 0 && nused == 0 && dsq > 1) {
 		        // Have at least done the input box and all first
@@ -4827,9 +4832,9 @@ template<size_t NDIM>
 		    nused = 0;
                     nvalid = 0;
 		    distsq = dsq;
-		} 
+		}
 
-                keyT dest = neighbor(key, d, is_periodic);
+                keyT dest = neighbor_in_volume(key, d);
                 if (dest.is_valid()) {
                     nvalid++;
                     double opnorm = op->norm(key.level(), *it, source);
@@ -4898,7 +4903,7 @@ template<size_t NDIM>
             // screening: contains all displacement keys that had small result norms
             std::list<opkeyT> blacklist;
 
-            static const size_t opdim=opT::opdim;
+            constexpr auto opdim=opT::opdim;
             Key<NDIM-opdim> nullkey(key.level());
 
             // source is that part of key that corresponds to those dimensions being processed
@@ -4926,8 +4931,7 @@ template<size_t NDIM>
             coeff_SVD.get_svdtensor().orthonormalize(tol*GenTensor<T>::fac_reduce());
 #endif
 
-            const std::vector<opkeyT>& disp = op->get_disp(key.level());
-            const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
+            const std::vector<opkeyT>& disp = Displacements<opdim>().get_disp(key.level(), /* periodic = */ false); // list of displacements sorted in order of increasing distance; N.B. periodic displacements skipped since operator already includes lattice sum
 
             for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
                 const opkeyT& d = *it;
@@ -4943,7 +4947,7 @@ template<size_t NDIM>
                     MADNESS_EXCEPTION("confused particle in operato??",1);
                 }
 
-                keyT dest = neighbor(key, disp1, is_periodic);
+                keyT dest = neighbor_in_volume(key, disp1);
 
                 if (not dest.is_valid()) continue;
 

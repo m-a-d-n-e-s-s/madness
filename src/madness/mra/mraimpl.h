@@ -3233,6 +3233,11 @@ template <typename T, std::size_t NDIM>
         return true;
     }
 
+    static inline bool enforce_in_volume(Level n, Translation& l) {
+      Translation two2n = 1ul << n;
+      return l >= 0 && l < two2n;
+    }
+
     template <typename T, std::size_t NDIM>
     Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, const Key<NDIM>& disp, const std::vector<bool>& is_periodic) const {
         Vector<Translation,NDIM> l = key.translation();
@@ -3248,6 +3253,19 @@ template <typename T, std::size_t NDIM>
         return keyT(key.level(),l);
     }
 
+    template <typename T, std::size_t NDIM>
+    Key<NDIM> FunctionImpl<T,NDIM>::neighbor_in_volume(const keyT& key, const Key<NDIM>& disp) const {
+      Vector<Translation, NDIM> l = key.translation();
+
+      for (std::size_t axis = 0; axis < NDIM; ++axis) {
+        l[axis] += disp.translation()[axis];
+
+        if (!enforce_in_volume(key.level(), l[axis])) {
+          return keyT::invalid();
+        }
+      }
+      return keyT(key.level(), l);
+    }
 
     template <typename T, std::size_t NDIM>
     Future< std::pair< Key<NDIM>, GenTensor<T> > >
