@@ -947,10 +947,11 @@ namespace madness {
     ///
     /// The current parallel loop is non-optimal but functional.
     template <typename T, typename R, std::size_t NDIM>
-    Tensor<TENSOR_RESULT_TYPE(T, R)> matrix_inner(World& world,
-                                                   const std::vector<Function<T, NDIM>>& f,
-                                                   const std::vector<Function<R, NDIM>>& g,
-                                                   bool sym=false)
+    Tensor<TENSOR_RESULT_TYPE(T, R)> matrix_inner(
+            World& world,
+            const std::vector<Function<T, NDIM>>& f,
+            const std::vector<Function<R, NDIM>>& g,
+            bool sym=false)
     {
         world.gop.fence();
         compress(world, f);
@@ -960,7 +961,7 @@ namespace madness {
         std::vector<const FunctionImpl<T, NDIM>*> left(f.size());
         std::vector<const FunctionImpl<R, NDIM>*> right(g.size());
         for (unsigned int i = 0; i < f.size(); i++) left[i] = f[i].get_impl().get();
-        for (unsigned int i = 0; i < g.size(); i++) right[i]= g[i].get_impl().get();
+        for (unsigned int i = 0; i < g.size(); i++) right[i] = g[i].get_impl().get();
 
         Tensor<TENSOR_RESULT_TYPE(T, R)> r = FunctionImpl<T, NDIM>::inner_local(left, right, sym);
 
@@ -994,7 +995,7 @@ namespace madness {
             long jtop = m;
             if (sym) jtop = i + 1;
             for (long j = 0; j < jtop; ++j) {
-                r(i,j) = f[i].inner_local(g[j]);
+                r(i, j) = f[i].inner_local(g[j]);
                 if (sym) r(j, i) = conj(r(i, j));
             }
          }
@@ -1010,7 +1011,7 @@ namespace madness {
         // if (sym) {
         //     for (int i = 0; i < n; ++i) {
         //         for (int j = 0; j < i; ++j) {
-        //             r(j,i) = conj(r(i, j));
+        //             r(j, i) = conj(r(i, j));
         //         }
         //     }
         // }
@@ -1487,60 +1488,13 @@ namespace madness {
         std::vector<const FunctionImpl<T, NDIM>*> left(f.size());
         std::vector<const FunctionImpl<R, NDIM>*> right(g.size());
         for (unsigned int i = 0; i < f.size(); i++) left[i] = f[i].get_impl().get();
-        for (unsigned int i = 0; i < g.size(); i++) right[i]= g[i].get_impl().get();
+        for (unsigned int i = 0; i < g.size(); i++) right[i] = g[i].get_impl().get();
 
         Tensor<TENSOR_RESULT_TYPE(T, R)> r = FunctionImpl<T, NDIM>::dot_local(left, right, sym);
 
         world.gop.fence();
         world.gop.sum(r.ptr(), f.size() * g.size());
 
-        return r;
-    }
-
-    /// Computes the matrix dot product of two function vectors - q(i,j) = dot(f[i],g[j])
-
-    /// For complex types symmetric is interpreted as Hermitian.
-    ///
-    /// The current parallel loop is non-optimal but functional.
-    template <typename T, typename R, std::size_t NDIM>
-    Tensor<TENSOR_RESULT_TYPE(T, R)> matrix_dot_old(
-            World& world,
-            const std::vector<Function<T, NDIM>>& f,
-            const std::vector<Function<R, NDIM>>& g,
-            bool sym=false) {
-        PROFILE_BLOCK(Vmatrix_dot);
-        long n = f.size(), m = g.size();
-        Tensor<TENSOR_RESULT_TYPE(T, R)> r(n, m);
-        if (sym) MADNESS_ASSERT(n == m);
-
-        world.gop.fence();
-        compress(world, f);
-        if ((void*)(&f) != (void*)(&g)) compress(world, g);
-
-        for (long i = 0; i < n; ++i) {
-            long jtop = m;
-            if (sym) jtop = i + 1;
-            for (long j = 0; j < jtop; ++j) {
-                r(i,j) = f[i].dot_local(g[j]);
-                if (sym) r(j, i) = r(i, j);
-            }
-         }
-
-        // for (long i = n - 1; i >= 0; --i) {
-        //     long jtop = m;
-        //     if (sym) jtop = i + 1;
-        //     world.taskq.add(new MatrixInnerTask<T, R, NDIM>(r(i, _), f[i], g, jtop));
-        // }
-        world.gop.fence();
-        world.gop.sum(r.ptr(), n * m);
-
-        // if (sym) {
-        //     for (int i = 0; i < n; ++i) {
-        //         for (int j = 0; j < i; ++j) {
-        //             r(j,i) = r(i, j);
-        //         }
-        //     }
-        // }
         return r;
     }
 
