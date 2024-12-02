@@ -5394,50 +5394,6 @@ template<size_t NDIM>
             }
         };
 
-        /// compute the dot product of this range with other
-        template<typename R>
-        struct do_dot_local {
-            const FunctionImpl<R, NDIM>* other;
-            bool leaves_only;
-            typedef TENSOR_RESULT_TYPE(T, R) resultT;
-
-            do_dot_local(const FunctionImpl<R, NDIM>* other, const bool leaves_only)
-            	: other(other), leaves_only(leaves_only) {}
-            resultT operator()(typename dcT::const_iterator& it) const {
-
-            	TENSOR_RESULT_TYPE(T, R) sum = 0.0;
-            	const keyT& key = it->first;
-                const nodeT& fnode = it->second;
-                if (fnode.has_coeff()) {
-                    if (other->coeffs.probe(it->first)) {
-                        const FunctionNode<R, NDIM>& gnode = other->coeffs.find(key).get()->second;
-                        if (gnode.has_coeff()) {
-                            if (gnode.coeff().dim(0) != fnode.coeff().dim(0)) {
-                                madness::print("DOT", it->first, gnode.coeff().dim(0), fnode.coeff().dim(0));
-                                MADNESS_EXCEPTION("functions have different k or compress/reconstruct error", 0);
-                            }
-                            if (leaves_only) {
-                                if (gnode.is_leaf() or fnode.is_leaf()) {
-                                    sum += fnode.coeff().trace(gnode.coeff());
-                                }
-                            } else {
-                                sum += fnode.coeff().trace(gnode.coeff());
-                            }
-                        }
-                    }
-                }
-                return sum;
-            }
-
-            resultT operator()(resultT a, resultT b) const {
-                return (a + b);
-            }
-
-            template <typename Archive> void serialize(const Archive& ar) {
-                MADNESS_EXCEPTION("NOT IMPLEMENTED", 1);
-            }
-        };
-
         /// Returns the inner product ASSUMING same distribution
 
         /// handles compressed and redundant form
@@ -5452,22 +5408,6 @@ template<size_t NDIM>
             bool leaves_only = (this->is_redundant());
             return world.taskq.reduce<resultT, rangeT, do_inner_local<R>>
                 (rangeT(coeffs.begin(), coeffs.end()), do_inner_local<R>(&g, leaves_only));
-        }
-
-        /// Returns the dot product ASSUMING same distribution
-
-        /// handles compressed and redundant form
-        template <typename R>
-        TENSOR_RESULT_TYPE(T, R) dot_local(const FunctionImpl<R, NDIM>& g) const {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
-            typedef Range<typename dcT::const_iterator> rangeT;
-            typedef TENSOR_RESULT_TYPE(T, R) resultT;
-
-            // make sure the states of the trees are consistent
-            MADNESS_ASSERT(this->is_redundant() == g.is_redundant());
-            bool leaves_only = (this->is_redundant());
-            return world.taskq.reduce<resultT, rangeT, do_dot_local<R>>
-                (rangeT(coeffs.begin(), coeffs.end()), do_dot_local<R>(&g, leaves_only));
         }
 
 
@@ -5703,7 +5643,7 @@ template<size_t NDIM>
                    unsigned int size = leftv[0].second->size();
                    Tensor<T> Left(nleft, size);
                    Tensor<R> Right(nright, size);
-                   Tensor< TENSOR_RESULT_TYPE(T, R)> r(nleft, nright);
+                   Tensor<TENSOR_RESULT_TYPE(T, R)> r(nleft, nright);
                    for(unsigned int iv = 0; iv < nleft; ++iv) Left(iv, _) = *(leftv[iv].second);
                    for(unsigned int jv = 0; jv < nright; ++jv) Right(jv, _) = *(rightv[jv].second);
                    // call mxmT from mxm.h in tensor
@@ -5743,7 +5683,7 @@ template<size_t NDIM>
                     const int nleft = leftv.size();
                     const int nright = rightv.size();
 
-                    for (int iv = 0; iv<nleft; iv++) {
+                    for (int iv = 0; iv < nleft; iv++) {
                         const int i = leftv[iv].first;
                         const GenTensor<T>* iptr = leftv[iv].second;
 
@@ -5841,7 +5781,7 @@ template<size_t NDIM>
             Tensor<TENSOR_RESULT_TYPE(T, R)> r(left.size(), right.size());
             Mutex mutex;
 
-            typename mapT::iterator lstart=lmap.begin();
+            typename mapT::iterator lstart = lmap.begin();
             while (lstart != lmap.end()) {
                 typename mapT::iterator lend = lstart;
                 advance(lend, chunk);
@@ -5902,12 +5842,13 @@ template<size_t NDIM>
             }
             left[0]->world.taskq.fence();
 
+            // sym is for hermiticity
             if (sym) {
                 for (long i = 0; i < r.dim(0); i++) {
                     for (long j = 0; j < i; j++) {
-                        TENSOR_RESULT_TYPE(T, R) sum = r(i, j) + r(j, i);
+                        TENSOR_RESULT_TYPE(T, R) sum = r(i, j) + conj(r(j, i));
                         r(i, j) = sum;
-                        r(j, i) = sum;
+                        r(j, i) = conj(sum);
                     }
                 }
             }
