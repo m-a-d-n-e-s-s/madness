@@ -86,10 +86,6 @@ int main(int argc, char **argv) {
     ParameterManager params;
     // Initialize the necessary components
     path input_file(argv[1]);
-    if (world.rank() == 0) {
-      print("Input file found");
-      print("Parsing Command Line");
-    }
     params = ParameterManager(world, input_file);
 
     auto task_params = params.get_task_params();
@@ -158,7 +154,6 @@ int main(int argc, char **argv) {
     }
     // Run the calculations
 
-    std::cout << "Calculations completed successfully." << std::endl;
 
     if (parser.key_exists("help")) {
       ParameterManager::help();

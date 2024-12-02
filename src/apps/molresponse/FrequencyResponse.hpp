@@ -605,21 +605,20 @@ private:
   double omega;
   Tensor<double> polar;
   void iterate(World &world) override;
-  X_space bsh_update_response(World &world, X_space &theta_X,
-                              vector<poperatorT> &bsh_x_ops,
-                              QProjector<double, 3> &projector,
-                              double &x_shifts);
+  X_space bsh_update_response(
+      World &world, X_space &theta_X,
+      std::pair<vector<poperatorT>, vector<poperatorT>> &bsh_ops,
+      QProjector<double, 3> &projector, double &x_shifts);
   static void frequency_to_json(json &j_mol_in, size_t iter,
                                 const Tensor<double> &polar_ij);
   void save(World &world, const std::string &name) override;
-  std::tuple<X_space, residuals, vector_real_function_3d>
-  update_response(World &world, X_space &chi, XCOperator<double, 3> &xc,
-                  std::vector<poperatorT> &bsh_ops,
-                  QProjector<double, 3> &projector, double &x_shifts,
-                  double &omega_n, response_solver &kain_x_space,
-                  size_t iteration, const double &max_rotation,
-                  const vector_real_function_3d &rho_old,
-                  const Tensor<double> &old_residuals, const X_space &xres_old);
+  std::tuple<X_space, residuals, vector_real_function_3d> update_response(
+      World &world, X_space &chi, XCOperator<double, 3> &xc,
+      std::pair<std::vector<poperatorT>, std::vector<poperatorT>> &bsh_ops,
+      QProjector<double, 3> &projector, double &x_shifts, double &omega_n,
+      response_solver &kain_x_space, size_t iteration,
+      const double &max_rotation, const vector_real_function_3d &rho_old,
+      const Tensor<double> &old_residuals, const X_space &xres_old);
 };
 
 #endif // MADNESS_FREQUENCYRESPONSE_HPP

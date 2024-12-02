@@ -3,6 +3,7 @@
 //
 
 #include "FrequencyResponse.hpp"
+#include "SCF.h"
 #include "funcdefaults.h"
 #include "functypedefs.h"
 #include "response_macrotask.hpp"
@@ -63,14 +64,13 @@ void FrequencyResponse::iterate(World &world) {
     x_shifts = -.05 - (omega + ground_energies[long(n) - 1]);
   }
 
-  std::vector<poperatorT> bsh_ops;
+  std::pair<std::vector<poperatorT>, std::vector<poperatorT>> bsh_ops;
   std::vector<poperatorT> bsh_y_ops;
 
-  /*bsh_ops = make_bsh_operators_response(world, x_shifts, omega);*/
-  /*if (compute_y) {*/
-  /*  bsh_y_ops = make_bsh_operators_response(world, y_shifts, -omega);*/
-  /*  bsh_ops.insert(bsh_ops.end(), bsh_y_ops.begin(), bsh_y_ops.end());*/
-  /*}*/
+  bsh_ops.first = make_bsh_operators_response(world, x_shifts, omega);
+  if (compute_y) {
+    bsh_ops.second = make_bsh_operators_response(world, y_shifts, -omega);
+  }
 
   auto max_rotation =
       .5 * x_residual_target + x_residual_target; // r_params.maxrotn();
@@ -260,7 +260,7 @@ void FrequencyResponse::iterate(World &world) {
 
 auto FrequencyResponse::update_response(
     World &world, X_space &chi, XCOperator<double, 3> &xc,
-    std::vector<poperatorT> &bsh_ops, QProjector<double, 3> &projector,
+    std::pair<std::vector<poperatorT>,std::vector<poperatorT>> &bsh_ops, QProjector<double, 3> &projector,
     double &x_shifts, double &omega_n, response_solver &kain_x_space,
     size_t iteration, const double &max_rotation,
     const vector_real_function_3d &rho_old, const Tensor<double> &old_residuals,
@@ -311,10 +311,10 @@ auto FrequencyResponse::update_response(
   return {new_chi, {new_res, bsh_norms}, new_rho};
 }
 
-auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
-                                            std::vector<poperatorT> &bsh_ops,
-                                            QProjector<double, 3> &projector,
-                                            double &x_shift) -> X_space {
+auto FrequencyResponse::bsh_update_response(
+    World &world, X_space &theta_X,
+    std::pair<std::vector<poperatorT>, std::vector<poperatorT>> &bsh_ops,
+    QProjector<double, 3> &projector, double &x_shift) -> X_space {
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
   }
@@ -337,21 +337,32 @@ auto FrequencyResponse::bsh_update_response(World &world, X_space &theta_X,
   X_space bsh_X = X_space::zero_functions(world, m, n);
 
   bsh_X.set_active(theta_X.active);
-  // bsh_X.x = apply(world, bsh_x_ops, theta_X.x);
-
-  auto apply = ResponseApplyBSH();
-  MacroTask apply_task(world, apply);
+  bsh_X.x = apply(world, bsh_ops.first, theta_X.x);
+  if (compute_y) {
+    bsh_X.y = apply(world, bsh_ops.second, theta_X.y);
+  }
 
   if (compute_y) {
-    auto vec_theta_X = theta_X.to_vector();
-    auto bsh_xy =
-        apply_task(vec_theta_X, ground_energies, omega, x_shift, false);
-    bsh_X.from_vector(truncate(projector(bsh_xy)));
+    auto bsh = bsh_X.to_vector();
+    bsh_X.from_vector(truncate(projector(bsh)));
   } else {
-    auto vec_theta_X = theta_X.x.to_vector();
-    auto bsh_x = apply_task(vec_theta_X, ground_energies, omega, x_shift, true);
-    bsh_X.x.from_vector(truncate(projector(bsh_x)));
+    auto bsh = bsh_X.x.to_vector();
+    bsh_X.x.from_vector(truncate(projector(bsh)));
   }
+
+  /*auto apply = ResponseApplyBSH();*/
+  /*MacroTask apply_task(world, apply);*/
+  /*if (compute_y) {*/
+  /*  auto vec_theta_X = theta_X.to_vector();*/
+  /*  auto bsh_xy =*/
+  /*      apply_task(vec_theta_X, ground_energies, omega, x_shift, false);*/
+  /*  bsh_X.from_vector(truncate(projector(bsh_xy)));*/
+  /*} else {*/
+  /*  auto vec_theta_X = theta_X.x.to_vector();*/
+  /*  auto bsh_x = apply_task(vec_theta_X, ground_energies, omega, x_shift,
+   * true);*/
+  /*  bsh_X.x.from_vector(truncate(projector(bsh_x)));*/
+  /*}*/
 
   if (r_params.print_level() >= 1) {
     molresponse::end_timer(world, "bsh_update", "bsh_update", iter_timing);
