@@ -813,6 +813,46 @@ struct BetaData {
       const std::pair<std::array<double, 3>, std::array<double, 27>> &data) {
     beta_data[abc] = data;
   }
+
+  nlohmann::ordered_json to_json_table() {
+
+    nlohmann::ordered_json beta_json;
+
+    beta_json["Afreq"] = json::array();
+    beta_json["Bfreq"] = json::array();
+    beta_json["Cfreq"] = json::array();
+    beta_json["A"] = json::array();
+    beta_json["B"] = json::array();
+    beta_json["C"] = json::array();
+    beta_json["Beta"] = json::array();
+
+    auto num_unique_elements = ijk.size();
+
+    // loop through beta data and add to json
+    for (const auto &[abc, data] : beta_data) {
+      auto freqs = data.first;
+      auto beta_i = data.first;
+      auto Afreq = freqs[0];
+      auto Bfreq = freqs[1];
+      auto Cfreq = freqs[2];
+
+      for (int i = 0; i < num_unique_elements; i++) {
+
+        const auto &dir = ijk[i];
+        const auto &beta_ijk = beta_i[i];
+        const auto [A, B, C] = abc;
+        beta_json["Afreq"].push_back(Afreq);
+        beta_json["Bfreq"].push_back(Bfreq);
+        beta_json["Cfreq"].push_back(Cfreq);
+        beta_json["A"].push_back(A);
+        beta_json["B"].push_back(B);
+        beta_json["C"].push_back(C);
+        beta_json["Beta"].push_back(beta_ijk);
+      }
+    }
+
+    return beta_json;
+  }
   [[nodiscard]] size_t length() const { return beta_data.size(); }
 };
 
@@ -1025,14 +1065,6 @@ public:
               }
             }
             beta_data.add_data({a, b, c}, {omegas, beta_i});
-            append_to_beta_json({-1.0 * omega_a, omega_b, omega_c},
-                                beta_directions, beta_1D, beta_json);
-
-            std::ofstream outfile(beta_outpath);
-            if (outfile.is_open()) {
-              outfile << beta_json.dump(4);
-              outfile.close();
-            }
 
             std::ofstream out_file(beta_2_path);
             if (out_file.is_open()) {
@@ -1059,19 +1091,12 @@ public:
           ifs.close();
         }
 
-        if (std::filesystem::exists(beta_outpath)) {
-          std::ifstream ifs(beta_outpath);
-          json beta_json;
-          ifs >> beta_json;
-
-          json out_json = {};
-          out_json["beta"] = beta_json;
-
-          persistent_output[name] = out_json;
-          std::ofstream ofs(path_manager.get_output_path());
-          ofs << persistent_output.dump(4);
-          ofs.close();
-        }
+        json out_json = {};
+        out_json["beta"] = beta_data.to_json_table();
+        persistent_output[name] = out_json;
+        std::ofstream ofs(path_manager.get_output_path());
+        ofs << persistent_output.dump(4);
+        ofs.close();
       }
     } catch (Response_Convergence_Error &e) {
       if (world.rank() == 0) {
@@ -1079,30 +1104,6 @@ public:
                 "can't be run");
         ::print("Quadratic response calculations can't be run");
       }
-    }
-  }
-  static void
-  append_to_beta_json(const std::array<double, 3> &omega,
-                      const std::vector<std::string> &beta_directions,
-                      const Tensor<double> &beta,
-                      nlohmann::ordered_json &beta_json) {
-    auto num_unique_elements = beta_directions.size();
-    for (int i = 0; i < num_unique_elements; i++) {
-
-      const auto &ijk = beta_directions[i];
-      auto beta_value = beta[i];
-      auto A = ijk[0];
-      auto B = ijk[1];
-      auto C = ijk[2];
-
-      beta_json["Afreq"].push_back(omega[0]);
-      beta_json["Bfreq"].push_back(omega[1]);
-      beta_json["Cfreq"].push_back(omega[2]);
-
-      beta_json["A"].push_back(std::string(1, A));
-      beta_json["B"].push_back(std::string(1, B));
-      beta_json["C"].push_back(std::string(1, C));
-      beta_json["Beta"].push_back(beta_value);
     }
   }
 
