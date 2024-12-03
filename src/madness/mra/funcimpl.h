@@ -2327,7 +2327,7 @@ template<size_t NDIM>
                 return norm*norm;
 	      }
 	      else {
-		throw "ONLY FOR DIM 6!";
+		      MADNESS_EXCEPTION("ONLY FOR DIM 6!", 1);
 	      }
             }
 
@@ -5350,7 +5350,7 @@ template<size_t NDIM>
 
             template <typename Archive>
             void serialize(const Archive& ar) {
-                throw "not yet";
+                MADNESS_EXCEPTION("not yet", 1);
             }
         };
 
@@ -5660,7 +5660,7 @@ template<size_t NDIM>
                             const GenTensor<R>* jptr = rightv[jv].second;
 
                             if (!sym || (sym && i <= j))
-                                r(i, j) += iptr->trace(*jptr);
+                                r(i, j) += iptr->trace_conj(*jptr);
                         }
                     }
                 }
@@ -5695,6 +5695,7 @@ template<size_t NDIM>
                    for(unsigned int iv = 0; iv < nleft; ++iv) Left(iv,_) = *(leftv[iv].second);
                    for(unsigned int jv = 0; jv < nright; ++jv) Right(jv,_) = *(rightv[jv].second);
                    // call mxmT from mxm.h in tensor
+                   if(TensorTypeData<T>::iscomplex) Left = Left.conj();  // Should handle complex case and leave real case alone
                    mxmT(nleft, nright, size, r.ptr(), Left.ptr(), Right.ptr());
                    mutex->lock();
                    for(unsigned int iv = 0; iv < nleft; ++iv) {
@@ -5734,7 +5735,7 @@ template<size_t NDIM>
                         const int i = leftv[iv].first;
                         const GenTensor<T>* iptr = leftv[iv].second;
 
-                        for (int jv = 0; jv<nright; jv++) {
+                        for (int jv = 0; jv < nright; jv++) {
                             const int j = rightv[jv].first;
                             const GenTensor<R>* jptr = rightv[jv].second;
 
@@ -5875,9 +5876,9 @@ template<size_t NDIM>
                 rmap_ptr = &rmap;
             }
 
-            size_t chunk = (lmap.size()-1)/(3*4*5)+1;
+            size_t chunk = (lmap.size() - 1) / (3 * 4 * 5) + 1;
 
-            Tensor< TENSOR_RESULT_TYPE(T,R) > r(left.size(), right.size());
+            Tensor<TENSOR_RESULT_TYPE(T, R)> r(left.size(), right.size());
             Mutex mutex;
 
             typename mapT::iterator lstart=lmap.begin();
@@ -5891,11 +5892,11 @@ template<size_t NDIM>
 
             // sym is for hermiticity
             if (sym) {
-                for (long i=0; i<r.dim(0); i++) {
-                    for (long j=0; j<i; j++) {
-                        TENSOR_RESULT_TYPE(T,R) sum = r(i,j)+conj(r(j,i));
-                        r(i,j) = sum;
-                        r(j,i) = conj(sum);
+                for (long i = 0; i < r.dim(0); i++) {
+                    for (long j = 0; j < i; j++) {
+                        TENSOR_RESULT_TYPE(T, R) sum = r(i, j) + conj(r(j, i));
+                        r(i, j) = sum;
+                        r(j, i) = conj(sum);
                     }
                 }
             }
