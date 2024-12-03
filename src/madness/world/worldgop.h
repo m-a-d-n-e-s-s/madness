@@ -967,11 +967,22 @@ namespace madness {
             };
             using sptr_t = std::unique_ptr<std::byte[], free_dtor>;
 
-            auto buf0 = sptr_t(static_cast<std::byte *>(
-                                std::aligned_alloc(sizeof(void *), bufsz)),
+            auto aligned_buf_alloc = [&]() -> std::byte* {
+#ifdef HAVE_POSIX_MEMALIGN
+                void *ptr;
+                if (posix_memalign(&ptr, sizeof(void *), bufsz) != 0) {
+                    throw std::bad_alloc();
+                }
+                return static_cast<std::byte *>(ptr);
+#else
+                return static_cast<std::byte *>(
+                    std::aligned_alloc(sizeof(void *), bufsz));
+#endif
+            };
+
+            auto buf0 = sptr_t(aligned_buf_alloc(),
                                free_dtor{});
-            auto buf1 = sptr_t(static_cast<std::byte *>(
-                                std::aligned_alloc(sizeof(void *), bufsz)),
+            auto buf1 = sptr_t(aligned_buf_alloc(),
                                free_dtor{});
 
             // transfer data in chunks at most this large
