@@ -252,8 +252,8 @@ void test_dot(World& world) {
     END_TIMER("new");
     START_TIMER;
     Tensor<TENSOR_RESULT_TYPE(T, R)> rold = matrix_inner(world,
-                                                        conj(world, left),
-                                                        *pright, sym);
+                                                         conj(world, left),
+                                                         *pright, sym);
     END_TIMER("old");
 
     if (world.rank() == 0) 
