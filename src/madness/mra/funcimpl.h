@@ -5903,59 +5903,6 @@ template<size_t NDIM>
         }
 
         template <typename R>
-        static Tensor<TENSOR_RESULT_TYPE(T, R)>
-        dot_local(const std::vector<const FunctionImpl<T, NDIM>*>& left,
-                  const std::vector<const FunctionImpl<R, NDIM>*>& right,
-                  bool sym) {
-
-            // This is basically a sparse matrix * matrix product
-            // Rij = sum(k) Aik * Bkj
-            // where i and j index functions and k index the wavelet coeffs
-            // eventually the goal is this structure (don't have jtile yet)
-            //
-            // do in parallel tiles of k (tensors of coeffs)
-            //    do tiles of j
-            //       do i
-            //          do j in jtile
-            //             do k in ktile
-            //                Rij += Aik*Bkj
-
-            mapT lmap = make_key_vec_map(left);
-            typename FunctionImpl<R, NDIM>::mapT rmap;
-            auto* rmap_ptr = (typename FunctionImpl<R, NDIM>::mapT*)(&lmap);
-            if ((std::vector<const FunctionImpl<R, NDIM>*>*)(&left) != &right) {
-                rmap = FunctionImpl<R, NDIM>::make_key_vec_map(right);
-                rmap_ptr = &rmap;
-            }
-
-            size_t chunk = (lmap.size() - 1) / (3 * 4 * 5) + 1;
-
-            Tensor<TENSOR_RESULT_TYPE(T, R)> r(left.size(), right.size());
-            Mutex mutex;
-
-            typename mapT::iterator lstart=lmap.begin();
-            while (lstart != lmap.end()) {
-                typename mapT::iterator lend = lstart;
-                advance(lend, chunk);
-                left[0]->world.taskq.add(&FunctionImpl<T, NDIM>::do_dot_localX<R>, lstart, lend, rmap_ptr, sym, &r, &mutex);
-                lstart = lend;
-            }
-            left[0]->world.taskq.fence();
-
-            // sym is for hermiticity
-            if (sym) {
-                for (long i = 0; i < r.dim(0); i++) {
-                    for (long j = 0; j < i; j++) {
-                        TENSOR_RESULT_TYPE(T, R) sum = r(i, j) + conj(r(j, i));
-                        r(i, j) = sum;
-                        r(j, i) = conj(sum);
-                    }
-                }
-            }
-            return r;
-        }
-
-        template <typename R>
         void print_type_in_compilation_error(R&&)
         {
             static_assert(!std::is_same<R, int>::value &&
