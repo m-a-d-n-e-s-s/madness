@@ -1184,7 +1184,7 @@ template<size_t NDIM>
             T alpha; ///< the current function impl
             R beta; ///< prefactor for other function impl
             do_gaxpy_inplace() = default;
-            do_gaxpy_inplace(FunctionImpl<T, NDIM>* f, T alpha, R beta) : f(f), alpha(alpha), beta(beta) {}
+            do_gaxpy_inplace(FunctionImpl<T,NDIM>* f, T alpha, R beta) : f(f), alpha(alpha), beta(beta) {}
             bool operator()(typename rangeT::iterator& it) const {
                 const keyT& key = it->first;
                 const FunctionNode<Q,NDIM>& other_node = it->second;
@@ -1384,7 +1384,7 @@ template<size_t NDIM>
         struct do_convert_to_color {
             double limit;
             bool log;
-            static double lower() { return 1.e-10; };
+            static double lower() {return 1.e-10;};
             do_convert_to_color() = default;
             do_convert_to_color(const double limit, const bool log) : limit(limit), log(log) {}
             double operator()(double val) const {
@@ -2064,7 +2064,7 @@ template<size_t NDIM>
 			// fast return if the node has children (not a leaf node)
 			if(node.has_children()) return;
 
-			const implT* g = this;
+			const implT* g=this;
 
 			// break the 6D key into two 3D keys (may also work for every even dimension)
 			Key<LDIM> key1, key2;
@@ -3112,7 +3112,7 @@ template<size_t NDIM>
             opT op;
 
             coeff_value_adaptor() = default;
-            coeff_value_adaptor(const FunctionImpl<Q, NDIM>* impl_func,
+            coeff_value_adaptor(const FunctionImpl<Q,NDIM>* impl_func,
                                 const opT& op)
                 : impl_func(impl_func), op(op) {}
 
@@ -5433,7 +5433,7 @@ template<size_t NDIM>
             }
 
             resultT operator()(resultT a, resultT b) const {
-                return (a + b);
+                return (a+b);
             }
 
             template <typename Archive> void serialize(const Archive& ar) {
@@ -5636,7 +5636,7 @@ template<size_t NDIM>
         template <typename R>
         static void do_inner_localX(const typename mapT::iterator lstart,
                                     const typename mapT::iterator lend,
-                                    typename FunctionImpl<R, NDIM>::mapT* rmap_ptr,
+                                    typename FunctionImpl<R,NDIM>::mapT* rmap_ptr,
                                     const bool sym,
                                     Tensor< TENSOR_RESULT_TYPE(T,R) >* result_ptr,
                                     Mutex* mutex) {
@@ -5651,7 +5651,7 @@ template<size_t NDIM>
                     const int nleft = leftv.size();
                     const int nright= rightv.size();
 
-                    for (int iv = 0; iv < nleft; iv++) {
+                    for (int iv=0; iv<nleft; iv++) {
                         const int i = leftv[iv].first;
                         const GenTensor<T>* iptr = leftv[iv].second;
 
@@ -5659,8 +5659,8 @@ template<size_t NDIM>
                             const int j = rightv[jv].first;
                             const GenTensor<R>* jptr = rightv[jv].second;
 
-                            if (!sym || (sym && i <= j))
-                                r(i, j) += iptr->trace_conj(*jptr);
+                            if (!sym || (sym && i<=j))
+                                r(i,j) += iptr->trace_conj(*jptr);
                         }
                     }
                 }
@@ -5673,7 +5673,7 @@ template<size_t NDIM>
        template <typename R>
        static void do_inner_localX(const typename mapT::iterator lstart,
                                    const typename mapT::iterator lend,
-                                   typename FunctionImpl<R, NDIM>::mapT* rmap_ptr,
+                                   typename FunctionImpl<R,NDIM>::mapT* rmap_ptr,
                                    const bool sym,
                                    Tensor< TENSOR_RESULT_TYPE(T,R) >* result_ptr,
                                    Mutex* mutex) {
@@ -5817,10 +5817,10 @@ template<size_t NDIM>
             //                Rij += Aki*Bkj
 
             mapT lmap = make_key_vec_map(left);
-            typename FunctionImpl<R, NDIM>::mapT rmap;
-            auto* rmap_ptr = (typename FunctionImpl<R, NDIM>::mapT*)(&lmap);
-            if ((std::vector<const FunctionImpl<R, NDIM>*>*)(&left) != &right) {
-                rmap = FunctionImpl<R, NDIM>::make_key_vec_map(right);
+            typename FunctionImpl<R,NDIM>::mapT rmap;
+            auto* rmap_ptr = (typename FunctionImpl<R,NDIM>::mapT*)(&lmap);
+            if ((std::vector<const FunctionImpl<R,NDIM>*>*)(&left) != &right) {
+                rmap = FunctionImpl<R,NDIM>::make_key_vec_map(right);
                 rmap_ptr = &rmap;
             }
 
@@ -5829,7 +5829,7 @@ template<size_t NDIM>
             Tensor< TENSOR_RESULT_TYPE(T,R) > r(left.size(), right.size());
             Mutex mutex;
 
-            typename mapT::iterator lstart = lmap.begin();
+            typename mapT::iterator lstart=lmap.begin();
             while (lstart != lmap.end()) {
                 typename mapT::iterator lend = lstart;
                 advance(lend,chunk);
