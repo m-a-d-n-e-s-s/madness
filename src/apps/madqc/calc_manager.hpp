@@ -329,11 +329,14 @@ public:
 
     bool run_moldft = true;
 
+    OutputTemplate<double> otemp;
     // Adjust the parameters for the calculation
     // if restart and calc_info exists the read the calc_info json
     if (std::filesystem::exists(root / restart_path) &&
         std::filesystem::exists(root / calc_info_path)) {
       // if both exist, read the calc_info json
+      //
+
       std::ifstream ifs(root / calc_info_path);
       auto moldft_calc_info = json::parse(ifs);
       if (world.rank() == 0) {
@@ -364,6 +367,20 @@ public:
             ::print("Molecule has not changed, skipping calculation");
           }
           run_moldft = false;
+
+          for (const auto &[property, requested] : requested_properties) {
+            if (requested) {
+              if (property == "energy") {
+                otemp.energy = moldft_calc_info["return_energy"];
+              }
+              if (property == "gradient") {
+                otemp.gradient = moldft_calc_info["gradient"];
+              }
+              if (property == "dipole") {
+                otemp.dipole = moldft_calc_info["dipole"];
+              }
+            }
+          }
         }
       } else {
         run_moldft = false;
@@ -421,6 +438,30 @@ public:
         world.gop.fence();
         properties(world, calc, energy, path_manager);
       }
+    } else {
+      if (world.rank() == 0) {
+        ::print("Skipping moldft calculation");
+      }
+      if (world.rank() == 0) {
+        json persistent_output = {};
+        json output = {};
+        to_json<double>(output, otemp);
+        print("output: ", output.dump(4));
+        if (std::filesystem::exists(path_manager.get_output_path())) {
+          std::ifstream ifs(path_manager.get_output_path());
+          ifs >> persistent_output;
+          ifs.close();
+        }
+        output["molecule"] = molecule.to_json();
+        persistent_output[name] = output;
+
+        print("output: ", output.dump(4));
+        std::ofstream ofs(path_manager.get_output_path());
+        ofs << persistent_output.dump(4);
+        ofs.close();
+      }
+
+      // still output properites into output.json
     }
 
     // Add actual calculation logic here
@@ -452,7 +493,6 @@ public:
     // to get the properties of the calculation
     json results;
     paths[name]["output"]["properties"] = {};
-    auto &output = paths[name]["output"]["properties"];
 
     for (const auto &[property, compute] : requested_properties) {
       if (compute) {
@@ -460,7 +500,7 @@ public:
       }
     }
 
-    output = {};
+    json output = {};
     to_json<double>(output, otemp);
 
     // Read the output json and write it to the output path
@@ -802,7 +842,7 @@ struct BetaData {
                                    "YZ", "ZX", "ZY", "ZZ"};
     int index = 0;
     for (const auto &a : xyz) {
-      for (const auto &bc : xyz) {
+      for (const auto &bc : jk) {
         ijk[index++] = a + bc;
       }
     }
@@ -827,20 +867,38 @@ struct BetaData {
     beta_json["Beta"] = json::array();
 
     auto num_unique_elements = ijk.size();
+    print(num_unique_elements);
 
     // loop through beta data and add to json
-    for (const auto &[abc, data] : beta_data) {
+    for (const auto &[index, data] : beta_data) {
       auto freqs = data.first;
-      auto beta_i = data.first;
+      auto beta_i = data.second;
       auto Afreq = freqs[0];
       auto Bfreq = freqs[1];
       auto Cfreq = freqs[2];
 
       for (int i = 0; i < num_unique_elements; i++) {
 
-        const auto &dir = ijk[i];
-        const auto &beta_ijk = beta_i[i];
-        const auto [A, B, C] = abc;
+        const std::string dir = ijk[i];
+        print("Dir: ", dir);
+        const double beta_ijk = beta_i[i];
+
+        std::string A{};
+        std::string B{};
+        std::string C{};
+
+        A += dir[0];
+        B += dir[1];
+        C += dir[2];
+
+        print("A: ", A);
+        print("B: ", B);
+        print("C: ", C);
+        print("Beta: ", beta_ijk);
+        print("Afreq: ", Afreq);
+        print("Bfreq: ", Bfreq);
+        print("Cfreq: ", Cfreq);
+
         beta_json["Afreq"].push_back(Afreq);
         beta_json["Bfreq"].push_back(Bfreq);
         beta_json["Cfreq"].push_back(Cfreq);
@@ -850,7 +908,6 @@ struct BetaData {
         beta_json["Beta"].push_back(beta_ijk);
       }
     }
-
     return beta_json;
   }
   [[nodiscard]] size_t length() const { return beta_data.size(); }
@@ -923,14 +980,6 @@ public:
     // print("freqs: ", config.frequencies);
     //  Run the calculations
     bool last_converged = false;
-    nlohmann::ordered_json beta_json;
-    beta_json["Afreq"] = json::array();
-    beta_json["Bfreq"] = json::array();
-    beta_json["Cfreq"] = json::array();
-    beta_json["A"] = json::array();
-    beta_json["B"] = json::array();
-    beta_json["C"] = json::array();
-    beta_json["Beta"] = json::array();
 
     BetaData beta_data;
 
@@ -1090,9 +1139,9 @@ public:
           ifs >> persistent_output;
           ifs.close();
         }
-
         json out_json = {};
         out_json["beta"] = beta_data.to_json_table();
+        print("beta_data: ", out_json.dump(4));
         persistent_output[name] = out_json;
         std::ofstream ofs(path_manager.get_output_path());
         ofs << persistent_output.dump(4);
