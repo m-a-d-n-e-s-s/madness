@@ -33,7 +33,7 @@ int main(int argc, char** argv) {
     	std::cout << std::setw(25) << std::left << "\tsilent<bool> " << "silence output - default=false\n";
     	std::cout << "--------------------------\n";
     	std::cout << "necessary files:\n";
-    	std::cout << std::setw(25) << std::left << "\tinputfile" << "the inputfile for madnesss that should hold plot parameters.\nE\t\texample:\n";
+    	std::cout << std::setw(25) << std::left << "\tinputfile" << "the inputfile for madness that should hold plot parameters.\nE\t\texample:\n";
     	std::cout << "\n";
     	std::cout << "\t\tplot\n";
     	std::cout << "\t\tplane=x1,x2\n";

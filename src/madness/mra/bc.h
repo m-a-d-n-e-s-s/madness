@@ -159,6 +159,6 @@ static inline std::ostream &operator<<(std::ostream &s,
   return s;
 }
 
-}  // namespace madnesss
+}  // namespace madness
 
 #endif // MADNESS_MRA_BC_H__INCLUDED
