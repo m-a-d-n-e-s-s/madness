@@ -247,7 +247,7 @@ namespace madness {
 
         /// Assumes key and this are at the same level
         bool
-        is_neighbor_of(const Key& key, const std::vector<bool>& bperiodic) const {
+        is_neighbor_of(const Key& key, const std::array<bool, NDIM>& bperiodic) const {
           Translation dist = 0;
           Translation TWON1 = (Translation(1)<<n) - 1;
         	for (std::size_t i=0; i<NDIM; ++i)

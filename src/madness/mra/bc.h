@@ -39,9 +39,9 @@
 
 #include <madness/world/madness_exception.h>
 
+#include <array>
 #include <cstddef>
 #include <iostream>
-#include <vector>
 
 namespace madness {
 
@@ -126,11 +126,14 @@ public:
 
   /// Convenience for application of integral operators
 
-  /// @return Returns a vector indicating if each dimension is periodic
-  std::vector<bool> is_periodic() const {
-    std::vector<bool> v(NDIM);
-    for (std::size_t d = 0; d < NDIM; ++d)
+  /// @return Returns a vector indicating if dimensions [0, ND) are periodic
+  template <std::size_t ND = NDIM>
+  std::enable_if_t<ND <= NDIM,std::array<bool, ND>> is_periodic() const {
+    std::array<bool, ND> v;
+    for (std::size_t d = 0; d < ND; ++d) {
+      MADNESS_ASSERT(bc[2 * d + 1] == bc[2 * d]);
       v[d] = (bc[2 * d] == BC_PERIODIC);
+    }
     return v;
   }
 
@@ -138,10 +141,24 @@ public:
 
   /// @return Returns true if any dimension is periodic
   bool is_periodic_any() const {
-    for (std::size_t d = 0; d < NDIM; ++d)
+    for (std::size_t d = 0; d < NDIM; ++d) {
+      MADNESS_ASSERT(bc[2 * d + 1] == bc[2 * d]);
       if (bc[2 * d] == BC_PERIODIC)
         return true;
+    }
     return false;
+  }
+
+  /// Checks whether the boundary condition along all axes is periodic
+
+  /// @return Returns true if every dimension is periodic
+  bool is_periodic_all() const {
+    for (std::size_t d = 0; d < NDIM; ++d) {
+      MADNESS_ASSERT(bc[2 * d + 1] == bc[2 * d]);
+      if (bc[2 * d] != BC_PERIODIC)
+        return false;
+    }
+    return true;
   }
 };
 
@@ -157,6 +174,13 @@ static inline std::ostream &operator<<(std::ostream &s,
       s << ", ";
   }
   return s;
+}
+
+template <std::size_t NDIM>
+std::array<bool, NDIM> no_lattice_sum() {
+  std::array<bool, NDIM> result;
+  result.fill(false);
+  return result;
 }
 
 }  // namespace madness

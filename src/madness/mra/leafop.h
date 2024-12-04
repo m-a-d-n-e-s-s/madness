@@ -84,7 +84,7 @@ public:
         if (key.level() > 1 and box_is_at_boundary(key)) return false;
         // check for all special points if they are neighbours of the current box
         BoundaryConditions<NDIM> bc = FunctionDefaults<NDIM>::get_bc();
-        std::vector<bool> bperiodic = bc.is_periodic();
+        const auto bperiodic = bc.is_periodic();
         for (size_t i = 0; i < special_points.size(); ++i) {
             Vector<double, NDIM> simpt;
             user_to_sim(special_points[i], simpt);
@@ -151,7 +151,7 @@ public:
     std::string name() const { return "Cuspybox_op"; }
 
     /// Operator which decides if the key belongs to a special box
-    /// The key is broken appart in two lower dimensional keys (for electron cusps this is 6D -> 2x3D)
+    /// The key is broken apart in two lower dimensional keys (for electron cusps this is 6D -> 2x3D)
     /// if the keys are neighbours then refinement up to the special level is enforced (means the 6D box is close to the cusp or contains it)
     /// if the refinement level is already beyond half of the special_level then refinement is only enforded if the broken keys are the same (6D box contains cusp)
     bool operator()(const Key<NDIM>& key, const FunctionImpl<T, NDIM> *const f) const {
@@ -160,21 +160,27 @@ public:
             if (this->box_is_at_boundary(key)) return false;
         }
 
-        if (NDIM % 2 != 0) MADNESS_EXCEPTION("Cuspybox_op only valid for even dimensions",
-                                             1);     // if uneven dims are needed just make a new class with NDIM+1/2 and NDIM-LDIM
-        BoundaryConditions<NDIM> bc = FunctionDefaults<NDIM>::get_bc();
-        std::vector<bool> bperiodic = bc.is_periodic();
-        Key<NDIM / 2> key1;
-        Key<NDIM / 2> key2;
-        key.break_apart(key1, key2);
-        int ll = this->get_half_of_special_level();
-        if (ll < f->get_initial_level()) ll = f->get_initial_level();
-        if (key.level() > ll) {
-            if (key1 == key2) return true;
-            else return false;
-        } else {
-            if (key1.is_neighbor_of(key2, bperiodic)) return true;
-            else return false;
+        // Cuspybox_op only valid for even dimensions, if uneven dims are needed just make a new class with NDIM+1/2 and NDIM-LDIM
+        if constexpr (NDIM % 2 == 0) {
+          BoundaryConditions<NDIM> bc = FunctionDefaults<NDIM>::get_bc();
+          const auto bperiodic = bc.template is_periodic<NDIM / 2>();
+          Key<NDIM / 2> key1;
+          Key<NDIM / 2> key2;
+          key.break_apart(key1, key2);
+          int ll = this->get_half_of_special_level();
+          if (ll < f->get_initial_level())
+            ll = f->get_initial_level();
+          if (key.level() > ll) {
+            if (key1 == key2)
+              return true;
+            else
+              return false;
+          } else {
+            if (key1.is_neighbor_of(key2, bperiodic))
+              return true;
+            else
+              return false;
+          }
         }
         MADNESS_EXCEPTION("We should not end up here (check further of cuspy box)", 1);
         return false;
@@ -239,7 +245,7 @@ public:
 
         // now break the key appart and check if one if the results is in the neighbourhood of a special point
         BoundaryConditions<NDIM / 2> bc = FunctionDefaults<NDIM / 2>::get_bc();
-        std::vector<bool> bperiodic = bc.is_periodic();
+        const auto bperiodic = bc.is_periodic();
         Key<NDIM / 2> key1;
         Key<NDIM / 2> key2;
 
@@ -346,7 +352,7 @@ public:
         sanity();
         const double cnorm = coeff.normf();
         BoundaryConditions<NDIM> bc = FunctionDefaults<NDIM>::get_bc();
-        std::vector<bool> bperiodic = bc.is_periodic();
+        const auto bperiodic = bc.is_periodic();
 
         typedef Key<opT::opdim> opkeyT;
         const opkeyT source = op->get_source_key(key);

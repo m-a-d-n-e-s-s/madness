@@ -35,8 +35,6 @@
 /// \file funcimpl.h
 /// \brief Provides FunctionCommonData, FunctionImpl and FunctionFactory
 
-#include <iostream>
-#include <type_traits>
 #include <madness/world/MADworld.h>
 #include <madness/world/print.h>
 #include <madness/misc/misc.h>
@@ -50,7 +48,11 @@
 #include <madness/mra/function_factory.h>
 #include <madness/mra/displacements.h>
 
-#include "leafop.h"
+#include <madness/mra/leafop.h>
+
+#include <array>
+#include <iostream>
+#include <type_traits>
 
 namespace madness {
     template <typename T, std::size_t NDIM>
@@ -3820,7 +3822,7 @@ template<size_t NDIM>
         /// Out of volume keys are mapped to enforce the BC as follows.
         ///   * Periodic BC map back into the volume and return the correct key
         ///   * non-periodic BC - returns invalid() to indicate out of volume
-        keyT neighbor(const keyT& key, const keyT& disp, const std::vector<bool>& is_periodic) const;
+        keyT neighbor(const keyT& key, const keyT& disp, const std::array<bool, NDIM>& is_periodic) const;
 
         /// Returns key of general neighbor that resides in-volume
 
@@ -4524,7 +4526,7 @@ template<size_t NDIM>
         void zero_norm_tree();
 
         // Broaden tree
-        void broaden(std::vector<bool> is_periodic, bool fence);
+        void broaden(const std::array<bool, NDIM>& is_periodic, bool fence);
 
         /// sum all the contributions from all scales after applying an operator in mod-NS form
         void trickle_down(bool fence);
@@ -4810,10 +4812,25 @@ template<size_t NDIM>
 
             double cnorm = c.normf();
 
-            const std::vector<opkeyT>& disp = Displacements<opdim>().get_disp(key.level(), /* periodic = */ false); // list of displacements sorted in order of increasing distance; N.B. periodic displacements skipped since operator already includes lattice sum
+            // BC handling:
+            // - if operator is lattice-summed then treat this as nonperiodic (i.e. tell neighbor() to stay in simulation cell)
+            // - if operator is NOT lattice-summed then obey BC (i.e. tell neighbor() to go outside the simulation cell along periodic dimensions)
+            const auto bc_is_periodic = FunctionDefaults<NDIM>::get_bc().is_periodic();
+            const auto lattice_sum_in_op = op->includes_lattice_sum();
+            std::array<bool, NDIM> treat_this_as_periodic;
+            for(auto axis=0; axis!=NDIM; ++axis) {
+              treat_this_as_periodic[axis] =
+                  bc_is_periodic[axis] && !lattice_sum_in_op[axis];
+            }
+            // if this is treated as periodic in ANY direction need to use displacements that are periodic in EVERY direction
+            // because these are the only flavor of periodic displacements that we have
+            // don't worry, neighbor() will still treat nonperiodic axes as nonperiodic
+            const bool treat_this_as_periodic_in_any_direction = std::accumulate(treat_this_as_periodic.begin(), treat_this_as_periodic.end(), false, std::logical_or{});
+            const std::vector<opkeyT>& disp = Displacements<opdim>().get_disp(key.level(), /* periodic = */ treat_this_as_periodic_in_any_direction); // list of displacements sorted in order of increasing distance
+
             int nvalid=1;       // Counts #valid at each distance
             int nused=1;	// Counts #used at each distance
-	    uint64_t distsq = 99999999999999;
+            uint64_t distsq = 99999999999999;
             for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
 	        keyT d;
                 Key<NDIM-opdim> nullkey(key.level());
@@ -4834,7 +4851,7 @@ template<size_t NDIM>
 		    distsq = dsq;
 		}
 
-                keyT dest = neighbor_in_volume(key, d);
+                keyT dest = neighbor(key, d, treat_this_as_periodic);
                 if (dest.is_valid()) {
                     nvalid++;
                     double opnorm = op->norm(key.level(), *it, source);
