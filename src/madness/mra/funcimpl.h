@@ -3822,7 +3822,7 @@ template<size_t NDIM>
         /// Out of volume keys are mapped to enforce the BC as follows.
         ///   * Periodic BC map back into the volume and return the correct key
         ///   * non-periodic BC - returns invalid() to indicate out of volume
-        keyT neighbor(const keyT& key, const keyT& disp, const std::array<bool, NDIM>& is_periodic) const;
+        keyT neighbor(const keyT& key, const keyT& disp, const array_of_bools<NDIM>& is_periodic) const;
 
         /// Returns key of general neighbor that resides in-volume
 
@@ -4526,7 +4526,7 @@ template<size_t NDIM>
         void zero_norm_tree();
 
         // Broaden tree
-        void broaden(const std::array<bool, NDIM>& is_periodic, bool fence);
+        void broaden(const array_of_bools<NDIM>& is_periodic, bool fence);
 
         /// sum all the contributions from all scales after applying an operator in mod-NS form
         void trickle_down(bool fence);
@@ -4815,18 +4815,14 @@ template<size_t NDIM>
             // BC handling:
             // - if operator is lattice-summed then treat this as nonperiodic (i.e. tell neighbor() to stay in simulation cell)
             // - if operator is NOT lattice-summed then obey BC (i.e. tell neighbor() to go outside the simulation cell along periodic dimensions)
-            const auto bc_is_periodic = FunctionDefaults<NDIM>::get_bc().is_periodic();
-            const auto lattice_sum_in_op = op->includes_lattice_sum();
-            std::array<bool, NDIM> treat_this_as_periodic;
-            for(auto axis=0; axis!=NDIM; ++axis) {
-              treat_this_as_periodic[axis] =
-                  bc_is_periodic[axis] && !lattice_sum_in_op[axis];
-            }
-            // if this is treated as periodic in ANY direction need to use displacements that are periodic in EVERY direction
-            // because these are the only flavor of periodic displacements that we have
-            // don't worry, neighbor() will still treat nonperiodic axes as nonperiodic
-            const bool treat_this_as_periodic_in_any_direction = std::accumulate(treat_this_as_periodic.begin(), treat_this_as_periodic.end(), false, std::logical_or{});
-            const std::vector<opkeyT>& disp = Displacements<opdim>().get_disp(key.level(), /* periodic = */ treat_this_as_periodic_in_any_direction); // list of displacements sorted in order of increasing distance
+            // - BUT user can force operator to treat its arguments as non-[eriodic (op.domain_is_simulation_cell(true))
+            // so ... which dimensions of this function are treated as periodic by op?
+            const array_of_bools<NDIM> this_is_threated_by_op_as_periodic = (op->particle() == 1) ? FunctionDefaults<NDIM>::get_bc().is_periodic().and_front(op->domain_is_periodic()) : FunctionDefaults<NDIM>::get_bc().is_periodic().and_back(op->domain_is_periodic());
+
+            // list of displacements sorted in order of increasing distance
+            // N.B. if op is lattice-summed use periodic displacements, else use
+            // non-periodic even if op treats any modes of this as periodic
+            const std::vector<opkeyT>& disp = Displacements<opdim>().get_disp(key.level(), op->lattice_summed());
 
             int nvalid=1;       // Counts #valid at each distance
             int nused=1;	// Counts #used at each distance
@@ -4834,10 +4830,14 @@ template<size_t NDIM>
             for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
 	        keyT d;
                 Key<NDIM-opdim> nullkey(key.level());
+                MADNESS_ASSERT(op->particle()==1 || op->particle()==2);
                 if (op->particle()==1) d=it->merge_with(nullkey);
-                if (op->particle()==2) d=nullkey.merge_with(*it);
+                else d=nullkey.merge_with(*it);
 
-		const uint64_t dsq = d.distsq();
+                // shell-wise screening, assumes displacements are grouped into shells sorted so that operator decays with shell index
+                // N.B. lattice-summed decaying kernel is periodic (i.e. does decay w.r.t. r), so loop over shells of displacements
+                // sorted by distances modulated by periodicity (Key::distsq_bc)
+		const uint64_t dsq = it->distsq_bc(op->lattice_summed());
 		if (dsq != distsq) { // Moved to next shell of neighbors
 		    if (nvalid > 0 && nused == 0 && dsq > 1) {
 		        // Have at least done the input box and all first
@@ -4851,7 +4851,7 @@ template<size_t NDIM>
 		    distsq = dsq;
 		}
 
-                keyT dest = neighbor(key, d, treat_this_as_periodic);
+                keyT dest = neighbor(key, d, this_is_threated_by_op_as_periodic);
                 if (dest.is_valid()) {
                     nvalid++;
                     double opnorm = op->norm(key.level(), *it, source);
@@ -4948,12 +4948,22 @@ template<size_t NDIM>
             coeff_SVD.get_svdtensor().orthonormalize(tol*GenTensor<T>::fac_reduce());
 #endif
 
-            const std::vector<opkeyT>& disp = Displacements<opdim>().get_disp(key.level(), /* periodic = */ false); // list of displacements sorted in order of increasing distance; N.B. periodic displacements skipped since operator already includes lattice sum
+            // BC handling:
+            // - if operator is lattice-summed then treat this as nonperiodic (i.e. tell neighbor() to stay in simulation cell)
+            // - if operator is NOT lattice-summed then obey BC (i.e. tell neighbor() to go outside the simulation cell along periodic dimensions)
+            // - BUT user can force operator to treat its arguments as non-[eriodic (op.domain_is_simulation_cell(true))
+            // so ... which dimensions of this function are treated as periodic by op?
+            const array_of_bools<NDIM> this_is_threated_by_op_as_periodic = (op->particle() == 1) ? FunctionDefaults<NDIM>::get_bc().is_periodic().and_front(op->domain_is_periodic()) : FunctionDefaults<NDIM>::get_bc().is_periodic().and_back(op->domain_is_periodic());
+
+            // list of displacements sorted in order of increasing distance
+            // N.B. if op is lattice-summed use periodic displacements, else use
+            // non-periodic even if op treats any modes of this as periodic
+            const std::vector<opkeyT>& disp = Displacements<opdim>().get_disp(key.level(), op->lattice_summed());
 
             for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
                 const opkeyT& d = *it;
 
-                const int shell=d.distsq();
+                const int shell=d.distsq_bc(op->lattice_summed());
                 if (do_kernel and (shell>0)) break;
                 if ((not do_kernel) and (shell==0)) continue;
 
@@ -4961,7 +4971,7 @@ template<size_t NDIM>
                 if (op->particle()==1) disp1=it->merge_with(nullkey);
                 else if (op->particle()==2) disp1=nullkey.merge_with(*it);
                 else {
-                    MADNESS_EXCEPTION("confused particle in operato??",1);
+                    MADNESS_EXCEPTION("confused particle in operator??",1);
                 }
 
                 keyT dest = neighbor_in_volume(key, disp1);

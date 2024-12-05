@@ -1279,7 +1279,7 @@ namespace madness {
 
     // Broaden tree
     template <typename T, std::size_t NDIM>
-    void FunctionImpl<T,NDIM>::broaden(const std::array<bool, NDIM>& is_periodic, bool fence) {
+    void FunctionImpl<T,NDIM>::broaden(const array_of_bools<NDIM>& is_periodic, bool fence) {
         typename dcT::iterator end = coeffs.end();
         for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
             const keyT& key = it->first;
@@ -3242,7 +3242,7 @@ template <typename T, std::size_t NDIM>
     }
 
     template <typename T, std::size_t NDIM>
-    Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, const Key<NDIM>& disp, const std::array<bool, NDIM>& is_periodic) const {
+    Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, const Key<NDIM>& disp, const array_of_bools<NDIM>& is_periodic) const {
         Vector<Translation,NDIM> l = key.translation();
 
         for (std::size_t axis=0; axis<NDIM; ++axis) {

@@ -38,6 +38,7 @@
 /// \ingroup mrabcext
 
 #include <madness/world/madness_exception.h>
+#include <madness/misc/array_of_bools.h>
 
 #include <array>
 #include <cstddef>
@@ -128,8 +129,8 @@ public:
 
   /// @return Returns a vector indicating if dimensions [0, ND) are periodic
   template <std::size_t ND = NDIM>
-  std::enable_if_t<ND <= NDIM,std::array<bool, ND>> is_periodic() const {
-    std::array<bool, ND> v;
+  std::enable_if_t<ND <= NDIM, array_of_bools<ND>> is_periodic() const {
+    array_of_bools<ND> v(false);
     for (std::size_t d = 0; d < ND; ++d) {
       MADNESS_ASSERT(bc[2 * d + 1] == bc[2 * d]);
       v[d] = (bc[2 * d] == BC_PERIODIC);
@@ -177,10 +178,13 @@ static inline std::ostream &operator<<(std::ostream &s,
 }
 
 template <std::size_t NDIM>
-std::array<bool, NDIM> no_lattice_sum() {
-  std::array<bool, NDIM> result;
-  result.fill(false);
-  return result;
+array_of_bools<NDIM> no_lattice_sum() {
+  return array_of_bools<NDIM>{false};
+}
+
+template <std::size_t NDIM>
+array_of_bools<NDIM> lattice_sum() {
+  return array_of_bools<NDIM>{true};
 }
 
 }  // namespace madness
