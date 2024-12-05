@@ -51,12 +51,37 @@ public:
     return result;
   }
 
-  /// assigns first \p C elements
+  /// assigns \p a to the first \p C elements of this
+  /// @param a the array to assign to the front of this
   /// @return reference to this object
   template <std::size_t C, typename = std::enable_if_t<C <= N>>
-  array_of_bools& assign_front(const array_of_bools<C>& front) {
-    std::copy(front.begin(), front.end(), this->begin());
+  array_of_bools& assign_front(const array_of_bools<C>& a) {
+    std::copy(a.begin(), a.end(), this->begin());
     return *this;
+  }
+
+  /// @return array with first \p C elements obtained by logical AND between
+  /// \p a and the first \p C elements of this, the rest filled with the
+  /// remainder of this
+  template <std::size_t C, typename = std::enable_if_t<C <= N>>
+  array_of_bools and_front(const array_of_bools<C>& a) const {
+    array_of_bools result;
+    const auto it = std::transform(a.begin(), a.end(), this->begin(), result.begin(),
+                             std::logical_and{});
+    std::copy(this->begin() + C, this->end(), it);
+    return result;
+  }
+
+  /// @return array with first \p C elements obtained by logical OR between
+  /// \p a and the first \p C elements of this, the rest filled with the
+  /// remainder of this
+  template <std::size_t C, typename = std::enable_if_t<C <= N>>
+  array_of_bools or_front(const array_of_bools<C>& a) const {
+    array_of_bools result;
+    const auto it = std::transform(a.begin(), a.end(), this->begin(), result.begin(),
+                             std::logical_or{});
+    std::copy(this->begin() + C, this->end(), it);
+    return result;
   }
 
   /// @return last \p C elements
@@ -67,12 +92,39 @@ public:
     return result;
   }
 
-  /// assigns last \p C elements
+  /// assigns \p a to the last \p C elements of this
+  /// @param a the array to assign to the back of this
   /// @return reference to this object
   template <std::size_t C, typename = std::enable_if_t<C <= N>>
-  array_of_bools& assign_back(const array_of_bools<C>& back) {
-    std::copy(back.begin(), back.end(), this->begin() + (N - C));
+  array_of_bools& assign_back(const array_of_bools<C>& a) {
+    std::copy(a.begin(), a.end(), this->begin() + (N - C));
     return *this;
+  }
+
+  /// @return array with last \p C elements obtained by logical AND between
+  /// \p a and the last \p C elements of this, the rest filled with the
+  /// remainder of this
+  template <std::size_t C, typename = std::enable_if_t<C <= N>>
+  array_of_bools and_back(const array_of_bools<C>& a) const {
+    array_of_bools result;
+    const auto it =
+        std::copy(this->begin(), this->begin() + (N - C), result.begin());
+    std::transform(a.begin(), a.end(), this->begin() + (N - C), it,
+                   std::logical_and{});
+    return result;
+  }
+
+  /// @return array with last \p C elements obtained by logical OR between
+  /// \p a and the last \p C elements of this, the rest filled with the
+  /// remainder of this
+  template <std::size_t C, typename = std::enable_if_t<C <= N>>
+  array_of_bools or_back(const array_of_bools<C>& a) const {
+    array_of_bools result;
+    const auto it =
+        std::copy(this->begin(), this->begin() + (N - C), result.begin());
+    std::transform(a.begin(), a.end(), this->begin() + (N - C), it,
+                   std::logical_or{});
+    return result;
   }
 
   friend array_of_bools<N> operator&&(const array_of_bools<N>& a, const array_of_bools<N>& b) {
