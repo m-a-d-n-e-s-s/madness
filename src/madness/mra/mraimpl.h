@@ -3217,20 +3217,23 @@ template <typename T, std::size_t NDIM>
 
 
     static inline bool enforce_bc(bool is_periodic, Level n, Translation& l) {
-        Translation two2n = 1ul << n;
-        if (l < 0) {
-            if (is_periodic)
-                l += two2n; // Periodic BC
-            else
-                return false; // Zero BC
-        }
-        else if (l >= two2n) {
-            if (is_periodic)
-                l -= two2n; // Periodic BC
-            else
-                return false; // Zero BC
-        }
-        return true;
+      const Translation two2n = 1ul << n;
+      if (l < 0) {
+        if (is_periodic) {
+          do {
+            l += two2n; // Periodic BC
+          } while (l < 0);
+        } else
+          return false; // Zero BC
+      } else if (l >= two2n) {
+        if (is_periodic) {
+          do {
+            l -= two2n; // Periodic BC
+          } while (l >= two2n);
+        } else
+          return false; // Zero BC
+      }
+      return true;
     }
 
     static inline bool enforce_in_volume(Level n, Translation& l) {
