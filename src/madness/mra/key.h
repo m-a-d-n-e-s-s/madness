@@ -177,14 +177,13 @@ namespace madness {
         }
 
         uint64_t
-        distsq_bc(const BoundaryConditions<NDIM>& bc) const {
+        distsq_bc(const array_of_bools<NDIM>& is_periodic) const {
           const Translation twonm1 = (Translation(1) << level()) >> 1;
 
           uint64_t dsq = 0;
           for (std::size_t d = 0; d < NDIM; ++d) {
             Translation la = translation()[d];
-            MADNESS_ASSERT(bc(d,0) == bc(d,1));
-            if (bc(d,0) == BC_PERIODIC) {
+            if (is_periodic[d]) {
               if (la > twonm1)
                 la -= twonm1 * 2;
               if (la < -twonm1)
@@ -194,12 +193,6 @@ namespace madness {
           }
 
           return dsq;
-        }
-
-        uint64_t
-        distsq_periodic() const {
-          const static BoundaryConditions<NDIM> bc_periodic(BC_PERIODIC);
-          return distsq_bc(bc_periodic);
         }
 
         /// Returns the key of the parent
@@ -247,7 +240,7 @@ namespace madness {
 
         /// Assumes key and this are at the same level
         bool
-        is_neighbor_of(const Key& key, const std::array<bool, NDIM>& bperiodic) const {
+        is_neighbor_of(const Key& key, const array_of_bools<NDIM>& bperiodic) const {
           Translation dist = 0;
           Translation TWON1 = (Translation(1)<<n) - 1;
         	for (std::size_t i=0; i<NDIM; ++i)
