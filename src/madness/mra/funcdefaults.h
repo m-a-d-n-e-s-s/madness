@@ -42,7 +42,10 @@
 #include <madness/world/worlddc.h>
 #include <madness/tensor/tensor.h>
 #include <madness/tensor/gentensor.h>
+#include <madness/mra/bc.h>
 #include <madness/mra/key.h>
+
+#include <optional>
 
 namespace madness {
     template <typename T, std::size_t NDIM> class FunctionImpl;
@@ -52,8 +55,6 @@ namespace madness {
 
     /// The maximum depth of refinement possible
     static const int MAXLEVEL = 8*sizeof(Translation)-2;
-
-    enum BCType {BC_ZERO, BC_PERIODIC, BC_FREE, BC_DIRICHLET, BC_ZERONEUMANN, BC_NEUMANN};
 
     enum TreeState {
     	reconstructed,				///< s coeffs at the leaves only
@@ -84,111 +85,6 @@ namespace madness {
         return os;
     }
 
-    /*!
-      \brief This class is used to specify boundary conditions for all operators
-      \ingroup mrabcext
-
-      Exterior boundary conditions (i.e., on the simulation domain)
-      are associated with operators (not functions).  The types of
-      boundary conditions available are in the enum BCType.
-
-      The default boundary conditions are obtained from the FunctionDefaults.
-      For non-zero Dirichlet and Neumann conditions additional information
-      must be provided when derivative operators are constructed. For integral
-      operators, only periodic and free space are supported.
-    */
-    template<std::size_t NDIM>
-    class BoundaryConditions {
-    private:
-        // Used to use STL vector but static data on  a MAC was
-        // causing problems.
-        BCType bc[NDIM*2];
-
-    public:
-        /// Constructor. Default boundary condition set to free space
-        BoundaryConditions(BCType code=BC_FREE)
-        {
-            for (std::size_t i=0; i<NDIM*2; ++i) bc[i] = code;
-        }
-
-        /// Copy constructor is deep
-        BoundaryConditions(const BoundaryConditions<NDIM>& other)
-        {
-            *this = other;
-        }
-
-        /// Assignment makes deep copy
-        BoundaryConditions<NDIM>&
-        operator=(const BoundaryConditions<NDIM>& other) {
-            if (&other != this) {
-                for (std::size_t i=0; i<NDIM*2; ++i) bc[i] = other.bc[i];
-            }
-            return *this;
-        }
-
-        /// Returns value of boundary condition
-
-        /// @param d Dimension (0,...,NDIM-1) for boundary condition
-        /// @param i Side (0=left, 1=right) for boundary condition
-        /// @return Value of boundary condition
-        BCType operator()(std::size_t d, int i) const {
-            MADNESS_ASSERT(d<NDIM && i>=0 && i<2);
-            return bc[2*d+i];
-        }
-
-        /// Returns reference to boundary condition
-
-        /// @param d Dimension (0,...,NDIM-1) for boundary condition
-        /// @param i Side (0=left, 1=right) for boundary condition
-        /// @return Value of boundary condition
-        BCType& operator()(std::size_t d, int i) {
-            MADNESS_ASSERT(d<NDIM && i>=0 && i<2);
-            return bc[2*d+i];
-        }
-
-        template <typename Archive>
-        void serialize(const Archive& ar) {
-            ar & bc;
-        }
-
-        /// Translates code into human readable string
-
-        /// @param code Code for boundary condition
-        /// @return String describing boundary condition code
-        static const char* code_as_string(BCType code) {
-            static const char* codes[] = {"zero","periodic","free","Dirichlet","zero Neumann","Neumann"};
-            return codes[code];
-        }
-
-        /// Convenience for application of integral operators
-
-        /// @return Returns a vector indicating if each dimension is periodic
-        std::vector<bool> is_periodic() const {
-            std::vector<bool> v(NDIM);
-            for (std::size_t d=0; d<NDIM; ++d)
-                v[d] = (bc[2*d]==BC_PERIODIC);
-            return v;
-        }
-    };
-
-
-
-    template <std::size_t NDIM>
-     static
-     inline
-     std::ostream& operator << (std::ostream& s, const BoundaryConditions<NDIM>& bc) {
-         s << "BoundaryConditions(";
-         for (unsigned int d=0; d<NDIM; ++d) {
-             s << bc.code_as_string(bc(d,0)) << ":" << bc.code_as_string(bc(d,1));
-             if (d == NDIM-1)
-                 s << ")";
-             else
-                 s << ", ";
-         }
-         return s;
-     }
-
-
     /// FunctionDefaults holds default paramaters as static class members
 
     /// Declared and initialized in mra.cc and/or funcimpl::initialize.
@@ -218,7 +114,7 @@ namespace madness {
         static bool truncate_on_project; ///< If true initial projection inserts at n-1 not n
         static bool apply_randomize;   ///< If true use randomization for load balancing in apply integral operator
         static bool project_randomize; ///< If true use randomization for load balancing in project/refine
-        static BoundaryConditions<NDIM> bc; ///< Default boundary conditions
+        static std::optional<BoundaryConditions<NDIM>> bc; ///< Default boundary conditions, not initialized by default and must be set explicitly before use
         static Tensor<double> cell ;   ///< cell[NDIM][2] Simulation cell, cell(0,0)=xlo, cell(0,1)=xhi, ...
         static Tensor<double> cell_width;///< Width of simulation cell in each dimension
         static Tensor<double> rcell_width; ///< Reciprocal of width
@@ -258,6 +154,7 @@ namespace madness {
 
 
 		/// Used to set defaults to k=7, thresh=1-5, for a unit cube [0,1].
+		/// @warning does not reset the boundary conditions if they are already set
 		static void set_defaults(World& world);
 
         static void print();
@@ -411,7 +308,11 @@ namespace madness {
 
         /// Returns the default boundary conditions
         static const BoundaryConditions<NDIM>& get_bc() {
-        	return bc;
+          if (!bc.has_value()) {
+            const std::string msg = "FunctionDefaults<" + std::to_string(NDIM) + ">::get_bc: must initialize boundary conditions by set_bc or set_defaults or startup";
+            MADNESS_EXCEPTION(msg.c_str(), 1);
+          }
+          return bc.value();
         }
 
         /// Sets the default boundary conditions
