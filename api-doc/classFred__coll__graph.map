@@ -1,0 +1,6 @@
+<map id="Fred" name="Fred">
+<area shape="rect" id="node1" title="Wrapper around vector demonstrating interface necessary." alt="" coords="156,215,207,241"/>
+<area shape="rect" id="node2" href="$structmadness_1_1OptimizationTargetInterface.html" title="The interface to be provided by functions to be optimized." alt="" coords="5,81,219,123"/>
+<area shape="rect" id="node3" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="243,89,448,115"/>
+<area shape="rect" id="node4" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="264,5,427,32"/>
+</map>

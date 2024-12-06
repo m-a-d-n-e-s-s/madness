@@ -1,0 +1,15 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="node1" href="$classmadness_1_1SCFOperatorBase.html" title=" " alt="" coords="5,355,208,396"/>
+<area shape="rect" id="node2" href="$classMyDerivativeOperator.html" title=" " alt="" coords="292,5,459,47"/>
+<area shape="rect" id="node3" href="$classmadness_1_1Coulomb.html" title=" " alt="" coords="288,71,463,112"/>
+<area shape="rect" id="node4" href="$classmadness_1_1DNuclear.html" title="derivative of the (regularized) nuclear potential wrt nuclear displacements" alt="" coords="295,136,455,177"/>
+<area shape="rect" id="node5" href="$classmadness_1_1DerivativeOperator.html" title=" " alt="" coords="268,201,483,243"/>
+<area shape="rect" id="node6" href="$classmadness_1_1Exchange.html" title=" " alt="" coords="294,267,457,308"/>
+<area shape="rect" id="node7" href="$classmadness_1_1Fock.html" title="Computes matrix representation of the Fock operator." alt="" coords="275,333,476,359"/>
+<area shape="rect" id="node8" href="$classmadness_1_1Kinetic.html" title=" " alt="" coords="295,384,456,425"/>
+<area shape="rect" id="node9" href="$classmadness_1_1Laplacian.html" title="the Laplacian operator: \sum_i \nabla^2_i" alt="" coords="300,449,451,491"/>
+<area shape="rect" id="node10" href="$classmadness_1_1LocalPotentialOperator.html" title=" " alt="" coords="256,515,495,556"/>
+<area shape="rect" id="node11" href="$classmadness_1_1Lz.html" title="the z component of the angular momentum" alt="" coords="283,581,468,607"/>
+<area shape="rect" id="node12" href="$classmadness_1_1Nuclear.html" title=" " alt="" coords="292,632,459,673"/>
+<area shape="rect" id="node13" href="$classmadness_1_1XCOperator.html" title="operator class for the handling of DFT exchange&#45;correlation functionals" alt="" coords="294,697,457,739"/>
+</map>

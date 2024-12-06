@@ -1,0 +1,5 @@
+<map id="madness::SDFCircle" name="madness::SDFCircle">
+<area shape="rect" id="node1" title="A circle (2 dimensions)" alt="" coords="173,95,325,121"/>
+<area shape="rect" id="node2" href="$classmadness_1_1SignedDFInterface.html" title=" " alt="" coords="5,5,252,32"/>
+<area shape="rect" id="node3" href="$classmadness_1_1Vector.html" title="A simple, fixed dimension vector." alt="" coords="277,5,463,32"/>
+</map>

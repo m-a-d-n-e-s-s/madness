@@ -1,0 +1,7 @@
+<map id="madness::FutureImpl&lt; T &gt;" name="madness::FutureImpl&lt; T &gt;">
+<area shape="rect" id="node1" title="Implements the functionality of futures." alt="" coords="629,56,827,83"/>
+<area shape="rect" id="node2" href="$classmadness_1_1Spinlock.html" title="Spinlock using pthread spinlock operations." alt="" coords="308,5,452,32"/>
+<area shape="rect" id="node3" href="$classmadness_1_1Stack.html" title="Dynamically sized Stack with small stack size optimization." alt="" coords="289,56,471,83"/>
+<area shape="rect" id="node4" href="$classmadness_1_1detail_1_1StackBase.html" title=" " alt="" coords="5,34,217,105"/>
+<area shape="rect" id="node5" href="$classmadness_1_1RemoteReference.html" title=" " alt="" coords="267,107,493,149"/>
+</map>

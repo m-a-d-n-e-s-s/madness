@@ -1,0 +1,4 @@
+<map id="madness::WorldObject&lt; Derived &gt;" name="madness::WorldObject&lt; Derived &gt;">
+<area shape="rect" id="node1" title="Implements most parts of a globally addressable object (via unique ID)." alt="" coords="21,80,189,121"/>
+<area shape="rect" id="node2" href="$structmadness_1_1WorldObjectBase.html" title="Base class for WorldObject, useful for introspection." alt="" coords="5,5,205,32"/>
+</map>
