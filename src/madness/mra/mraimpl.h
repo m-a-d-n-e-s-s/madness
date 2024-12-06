@@ -3560,7 +3560,7 @@ template <typename T, std::size_t NDIM>
         truncate_on_project = true;
         apply_randomize = false;
         project_randomize = false;
-        bc = BoundaryConditions<NDIM>(BC_FREE);
+        if (!bc.has_value()) bc = BoundaryConditions<NDIM>(BC_FREE);
         tt = TT_FULL;
         cell = make_default_cell();
         recompute_cell_info();
@@ -3591,7 +3591,7 @@ template <typename T, std::size_t NDIM>
     		std::cout << "             truncate_on_project" <<  ": " << truncate_on_project << std::endl;
     		std::cout << "                 apply_randomize" <<  ": " << apply_randomize << std::endl;
     		std::cout << "               project_randomize" <<  ": " << project_randomize << std::endl;
-    		std::cout << "                              bc" <<  ": " << bc << std::endl;
+    		std::cout << "                              bc" <<  ": " << get_bc() << std::endl;
     		std::cout << "                              tt" <<  ": " << tt << std::endl;
     		std::cout << "                            cell" <<  ": " << cell << std::endl;
     }
@@ -3612,7 +3612,7 @@ template <typename T, std::size_t NDIM>
     template <std::size_t NDIM> bool FunctionDefaults<NDIM>::truncate_on_project = true;
     template <std::size_t NDIM> bool FunctionDefaults<NDIM>::apply_randomize = false;
     template <std::size_t NDIM> bool FunctionDefaults<NDIM>::project_randomize = false;
-    template <std::size_t NDIM> BoundaryConditions<NDIM> FunctionDefaults<NDIM>::bc = BoundaryConditions<NDIM>(BC_FREE);
+    template <std::size_t NDIM> std::optional<BoundaryConditions<NDIM>> FunctionDefaults<NDIM>::bc;
     template <std::size_t NDIM> TensorType FunctionDefaults<NDIM>::tt = TT_FULL;
     template <std::size_t NDIM> Tensor<double> FunctionDefaults<NDIM>::cell = FunctionDefaults<NDIM>::make_default_cell();
     template <std::size_t NDIM> Tensor<double> FunctionDefaults<NDIM>::cell_width = FunctionDefaults<NDIM>::make_default_cell_width();

@@ -45,6 +45,8 @@
 #include <madness/mra/bc.h>
 #include <madness/mra/key.h>
 
+#include <optional>
+
 namespace madness {
     template <typename T, std::size_t NDIM> class FunctionImpl;
 
@@ -112,7 +114,7 @@ namespace madness {
         static bool truncate_on_project; ///< If true initial projection inserts at n-1 not n
         static bool apply_randomize;   ///< If true use randomization for load balancing in apply integral operator
         static bool project_randomize; ///< If true use randomization for load balancing in project/refine
-        static BoundaryConditions<NDIM> bc; ///< Default boundary conditions
+        static std::optional<BoundaryConditions<NDIM>> bc; ///< Default boundary conditions, not initialized by default and must be set explicitly before use
         static Tensor<double> cell ;   ///< cell[NDIM][2] Simulation cell, cell(0,0)=xlo, cell(0,1)=xhi, ...
         static Tensor<double> cell_width;///< Width of simulation cell in each dimension
         static Tensor<double> rcell_width; ///< Reciprocal of width
@@ -152,6 +154,7 @@ namespace madness {
 
 
 		/// Used to set defaults to k=7, thresh=1-5, for a unit cube [0,1].
+		/// @warning does not reset the boundary conditions if they are already set
 		static void set_defaults(World& world);
 
         static void print();
@@ -305,7 +308,11 @@ namespace madness {
 
         /// Returns the default boundary conditions
         static const BoundaryConditions<NDIM>& get_bc() {
-        	return bc;
+          if (!bc.has_value()) {
+            const std::string msg = "FunctionDefaults<" + std::to_string(NDIM) + ">::get_bc: must initialize boundary conditions by set_bc or set_defaults or startup";
+            MADNESS_EXCEPTION(msg.c_str(), 1);
+          }
+          return bc.value();
         }
 
         /// Sets the default boundary conditions
