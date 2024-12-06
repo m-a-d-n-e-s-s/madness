@@ -924,8 +924,8 @@ namespace madness {
                 int64_t jhi = std::min(jlo + jchunk, m);
                 std::vector< Function<T,NDIM> > jvec(g.begin()+jlo, g.begin()+jhi);
 
-                Tensor<T> P = matrix_inner(A.get_world(),ivec,jvec);
-                A.copy_from_replicated_patch(ilo, ihi-1, jlo, jhi-1, P);
+                Tensor<T> P = matrix_inner(A.get_world(), ivec, jvec);
+                A.copy_from_replicated_patch(ilo, ihi - 1, jlo, jhi - 1, P);
             }
         }
         return A;
@@ -1429,6 +1429,63 @@ namespace madness {
         return r;
     }
 
+    template <typename T, std::size_t NDIM>
+    DistributedMatrix<T> matrix_dot(const DistributedMatrixDistribution& d,
+                                      const std::vector<Function<T, NDIM>>& f,
+                                      const std::vector<Function<T, NDIM>>& g,
+                                      bool sym=false)
+    {
+        PROFILE_FUNC;
+        DistributedMatrix<T> A(d);
+        const int64_t n = A.coldim();
+        const int64_t m = A.rowdim();
+        MADNESS_ASSERT(int64_t(f.size()) == n && int64_t(g.size()) == m);
+
+        // Assume we can always create an ichunk*jchunk matrix locally
+        const int ichunk = 1000;
+        const int jchunk = 1000; // 1000*1000*8 = 8 MBytes
+        for (int64_t ilo = 0; ilo < n; ilo += ichunk) {
+            int64_t ihi = std::min(ilo + ichunk, n);
+            std::vector<Function<T, NDIM>> ivec(f.begin() + ilo, f.begin() + ihi);
+            for (int64_t jlo = 0; jlo < m; jlo += jchunk) {
+                int64_t jhi = std::min(jlo + jchunk, m);
+                std::vector<Function<T, NDIM>> jvec(g.begin() + jlo, g.begin() + jhi);
+
+                Tensor<T> P = matrix_dot(A.get_world(), ivec, jvec, sym);
+                A.copy_from_replicated_patch(ilo, ihi - 1, jlo, jhi - 1, P);
+            }
+        }
+        return A;
+    }
+
+    /// Computes the matrix inner product of two function vectors - q(i,j) = inner(f[i],g[j])
+
+    /// For complex types symmetric is interpreted as Hermitian.
+    ///
+    /// The current parallel loop is non-optimal but functional.
+    template <typename T, typename R, std::size_t NDIM>
+    Tensor<TENSOR_RESULT_TYPE(T, R)> matrix_dot(World& world,
+                                                   const std::vector<Function<T, NDIM>>& f,
+                                                   const std::vector<Function<R, NDIM>>& g,
+                                                   bool sym=false)
+    {
+        world.gop.fence();
+        compress(world, f);
+        // if ((void*)(&f) != (void*)(&g)) compress(world, g);
+        compress(world, g);
+
+        std::vector<const FunctionImpl<T, NDIM>*> left(f.size());
+        std::vector<const FunctionImpl<R, NDIM>*> right(g.size());
+        for (unsigned int i = 0; i < f.size(); i++) left[i] = f[i].get_impl().get();
+        for (unsigned int i = 0; i < g.size(); i++) right[i] = g[i].get_impl().get();
+
+        Tensor<TENSOR_RESULT_TYPE(T, R)> r = FunctionImpl<T, NDIM>::dot_local(left, right, sym);
+
+        world.gop.fence();
+        world.gop.sum(r.ptr(), f.size() * g.size());
+
+        return r;
+    }
 
     /// Multiplies and sums two vectors of functions r = \sum_i a[i] * b[i]
     template <typename T, typename R, std::size_t NDIM>
