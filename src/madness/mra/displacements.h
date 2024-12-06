@@ -159,6 +159,11 @@ namespace madness {
 
 
     public:
+        /// first time this is called displacements are generated.
+        /// if boundary conditions are not periodic, the periodic displacements
+        /// are generated for all axes. If need to use periodic boundary conditions
+        /// for some axes only, make sure to set the boundary conditions appropriately
+        /// before the first call to this
         Displacements() {
           MADNESS_PRAGMA_CLANG(diagnostic push)
           MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
@@ -168,9 +173,11 @@ namespace madness {
           }
 
           if constexpr (NDIM <= 3) {
-            if (disp_periodic[0].empty() && FunctionDefaults<NDIM>::get_bc().is_periodic().any()) {
-              disp_periodic_axes =
-                  FunctionDefaults<NDIM>::get_bc().is_periodic();
+            if (disp_periodic[0].empty()) {
+              if (FunctionDefaults<NDIM>::get_bc().is_periodic().any())
+                disp_periodic_axes = FunctionDefaults<NDIM>::get_bc().is_periodic();
+              else
+                disp_periodic_axes = decltype(disp_periodic_axes){true};
               Level nmax = 8 * sizeof(Translation) - 2;
               for (Level n = 0; n < nmax; ++n)
                 make_disp_periodic(bmax_default(), n);
@@ -187,7 +194,7 @@ namespace madness {
                 if (is_periodic != disp_periodic_axes) {
                   std::string msg =
                       "Displacements<" + std::to_string(NDIM) +
-                      ">::get_disp(level, is_periodic): is_periodic differs from the boundary conditions FunctionDefault's had when Displacements were initialized; on-demand displacements generation is not yet supported";
+                      ">::get_disp(level, is_periodic): is_periodic differs from the boundary conditions FunctionDefault's had when Displacements were initialized; on-demand periodic displacements generation is not yet supported";
                   MADNESS_EXCEPTION(msg.c_str(), 1);
                 }
                 return disp_periodic[n];
