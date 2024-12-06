@@ -3236,7 +3236,7 @@ template <typename T, std::size_t NDIM>
       return true;
     }
 
-    static inline bool enforce_in_volume(Level n, Translation& l) {
+    static inline bool enforce_in_volume(Level n, const Translation& l) {
       Translation two2n = 1ul << n;
       return l >= 0 && l < two2n;
     }
