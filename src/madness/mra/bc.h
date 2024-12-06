@@ -81,6 +81,20 @@ public:
       bc[i] = code;
   }
 
+  /// Constructor sets boundary condition per axis
+  template <std::size_t N = NDIM, typename = std::enable_if_t<N!=0>>
+  BoundaryConditions(const std::array<BCType, N>& bc_per_axis) {
+    for (std::size_t i = 0; i < NDIM * 2; ++i)
+      bc[i] = bc_per_axis[i / 2];
+  }
+
+  /// Constructor sets boundary condition per boundary
+  template <std::size_t N = NDIM, typename = std::enable_if_t<N!=0>>
+  BoundaryConditions(const std::array<BCType, N*2>& bc_per_boundary) {
+    for (std::size_t i = 0; i < NDIM * 2; ++i)
+      bc[i] = bc_per_boundary[i];
+  }
+
   /// Copy constructor is deep
   BoundaryConditions(const BoundaryConditions<NDIM> &other) { *this = other; }
 
