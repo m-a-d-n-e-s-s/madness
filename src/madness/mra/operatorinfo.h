@@ -57,13 +57,14 @@ std::ostream& operator<<(std::ostream& os, const OpType type) {
 
 struct OperatorInfo {
     OperatorInfo() = default;
-    OperatorInfo(double mu, double lo, double thresh, OpType type) : mu(mu), lo(lo), thresh(thresh), type(type) { }
+    OperatorInfo(double mu, double lo, double thresh, OpType type, std::optional<bool> truncate = {}) : mu(mu), lo(lo), thresh(thresh), type(type), truncate_lowexp_gaussians(truncate) { }
     double mu=0.0;     ///< some introspection
     double lo=1.e-5;
     double thresh=1.e-4;
     OpType type=OT_UNDEFINED;    ///< introspection
     double hi=-1.0;
     bool debug=false;
+    std::optional<bool> truncate_lowexp_gaussians;  // if given, overrides the default for whether to truncate low-exponent gaussians
 };
 
 
