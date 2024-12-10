@@ -265,7 +265,7 @@ namespace madness {
         Tensor<double> c;
         Tensor<double> hgT, hg;
         Tensor<double> hgT2k;
-        double arg;
+        double bloch_k;  ///< k in exp(i k R) Bloch phase factor folded into lattice sum
 
         mutable SimpleCache<Tensor<Q>, 1> rnlp_cache;
         mutable SimpleCache<Tensor<Q>, 1> rnlij_cache;
@@ -274,13 +274,13 @@ namespace madness {
 
         virtual ~Convolution1D() {};
 
-        Convolution1D(int k, int npt, int maxR, double arg = 0.0)
+        Convolution1D(int k, int npt, int maxR, double bloch_k = 0.0)
                 : k(k)
                 , npt(npt)
                 , maxR(maxR)
                 , quad_x(npt)
                 , quad_w(npt)
-                , arg(arg)
+                , bloch_k(bloch_k)
         {
             auto success = autoc(k,&c);
             MADNESS_CHECK(success);
@@ -487,11 +487,10 @@ namespace madness {
         };
 
         Q phase(double R) const {
-        	return 1.0;
-        }
-
-        Q phase(double_complex R) const {
-        	return exp(double_complex(0.0,arg)*R);
+          if constexpr (std::is_arithmetic_v<Q>)
+            return 1;
+          else
+            return exp(Q(0.0,bloch_k*R));
         }
 
 
@@ -522,7 +521,7 @@ namespace madness {
                     Translation twon = Translation(1)<<n;
                     r = Tensor<Q>(2*k);
                     for (int R=-maxR; R<=maxR; ++R) {
-                        r.gaxpy(1.0, rnlp(n,R*twon+lx), phase(Q(R)));
+                        r.gaxpy(1.0, rnlp(n,R*twon+lx), phase(R));
                     }
                 }
                 else {
@@ -610,8 +609,8 @@ namespace madness {
 
         GenericConvolution1D() {}
 
-        GenericConvolution1D(int k, const opT& op, int maxR, double arg = 0.0)
-            : Convolution1D<Q>(k, 20, maxR, arg), op(op), maxl(LONG_MAX-1) {
+        GenericConvolution1D(int k, const opT& op, int maxR, double bloch_k = 0.0)
+            : Convolution1D<Q>(k, 20, maxR, bloch_k), op(op), maxl(LONG_MAX-1) {
             // PROFILE_MEMBER_FUNC(GenericConvolution1D); // Too fine grain for routine profiling
 
             // For efficiency carefully compute outwards at the "natural" level
@@ -697,8 +696,8 @@ namespace madness {
         const int m;            ///< Order of derivative (0, 1, or 2 only)
 
         explicit GaussianConvolution1D(int k, Q coeff, double expnt,
-        		int m, bool periodic, double arg = 0.0)
-            : Convolution1D<Q>(k,k+11,maxR(periodic,expnt),arg)
+        		int m, bool periodic, double bloch_k = 0.0)
+            : Convolution1D<Q>(k,k+11,maxR(periodic,expnt),bloch_k)
             , coeff(coeff)
             , expnt(expnt)
             , natlev(Level(0.5*log(expnt)/log(2.0)+1))
