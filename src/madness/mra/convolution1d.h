@@ -749,7 +749,7 @@ namespace madness {
                coeff*int(exp(-beta(x+l)**2) * z^m * phi[p](x),x=0..1);
 
                The translations internally considered are all +ve, so
-               signficant pieces will be on the left.  Finish after things
+               significant pieces will be on the left.  Finish after things
                become insignificant.
 
                The resulting coefficients are accurate to about 1e-20.
