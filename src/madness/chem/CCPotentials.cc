@@ -3370,7 +3370,7 @@ CCPotentials::s4b(World& world, const std::vector<int> external_index, const CC_
                 // const std::vector<CCPairFunction<double,6>> ukl = get_pair_function(doubles, k, l);
             // make a ful pair function using the pure 6D part uik and complete with the rest
             std::vector<CCPairFunction<double,6>> ukl1 = get_pair_function(doubles, k, l);
-            CCPair pair_kl=builder.complete_pair_with_low_rank_parts(builder.make_pair(i,l,ukl1));
+            CCPair pair_kl=builder.complete_pair_with_low_rank_parts(builder.make_pair(k,l,ukl1));
             std::vector<CCPairFunction<double,6>> ukl = pair_kl.functions;
 
                 for (size_t mm = 0; mm < ukl.size(); mm++) {
