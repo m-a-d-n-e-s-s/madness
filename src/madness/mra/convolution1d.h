@@ -927,11 +927,15 @@ namespace madness {
         typedef typename ConcurrentHashMap<hashT, std::shared_ptr< GaussianConvolution1D<Q> > >::iterator iterator;
         typedef typename ConcurrentHashMap<hashT, std::shared_ptr< GaussianConvolution1D<Q> > >::datumT datumT;
 
-        static std::shared_ptr< GaussianConvolution1D<Q> > get(int k, double expnt, int m, bool periodic) {
+        static std::shared_ptr< GaussianConvolution1D<Q> > get(int k, double expnt, int m, bool periodic,
+                                                               double bloch_k = 0.0,
+                                                               unsigned int D = Convolution1D<Q>::maxD()) {
             hashT key = hash_value(expnt);
             hash_combine(key, k);
             hash_combine(key, m);
             hash_combine(key, int(periodic));
+            hash_combine(key, bloch_k);
+            hash_combine(key, D);
 
             MADNESS_PRAGMA_CLANG(diagnostic push)
             MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
@@ -942,7 +946,9 @@ namespace madness {
                                                                                     Q(sqrt(expnt/constants::pi)),
                                                                                     expnt,
                                                                                     m,
-                                                                                    periodic
+                                                                                    periodic,
+                                                                                    bloch_k,
+                                                                                    D
                                                                                     )));
                 MADNESS_ASSERT(inserted);
                 it = map.find(key);
@@ -951,7 +957,14 @@ namespace madness {
             else {
                 //printf("conv1d: reusing %d %.8e\n",k,expnt);
             }
-            return it->second;
+            auto& result = it->second;
+            MADNESS_ASSERT(result->expnt == expnt &&
+                           result->k == k &&
+                           result->m == m &&
+                           result->lattice_summed() == periodic &&
+                           result->D == D &&
+                           result->bloch_k == bloch_k);
+            return result;
 
             MADNESS_PRAGMA_CLANG(diagnostic pop)
 
