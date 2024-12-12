@@ -4815,7 +4815,7 @@ template<size_t NDIM>
             // BC handling:
             // - if operator is lattice-summed then treat this as nonperiodic (i.e. tell neighbor() to stay in simulation cell)
             // - if operator is NOT lattice-summed then obey BC (i.e. tell neighbor() to go outside the simulation cell along periodic dimensions)
-            // - BUT user can force operator to treat its arguments as non-[eriodic (op.domain_is_simulation_cell(true))
+            // - BUT user can force operator to treat its arguments as non-periodic (`op.set_domain_periodicity({true,true,true})`)
             // so ... which dimensions of this function are treated as periodic by op?
             const array_of_bools<NDIM> this_is_threated_by_op_as_periodic = (op->particle() == 1) ? FunctionDefaults<NDIM>::get_bc().is_periodic().and_front(op->domain_is_periodic()) : FunctionDefaults<NDIM>::get_bc().is_periodic().and_back(op->domain_is_periodic());
 
