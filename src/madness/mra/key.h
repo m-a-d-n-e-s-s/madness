@@ -35,12 +35,14 @@
 /// \file key.h
 /// \brief Multidimension Key for MRA tree and associated iterators
 
-#include <vector>
+#include <madness/mra/bc.h>
 #include <madness/mra/power.h>
 #include <madness/world/vector.h>
 #include <madness/world/binary_fstream_archive.h>
 #include <madness/world/worldhash.h>
-#include <stdint.h>
+
+#include <cstdint>
+#include <vector>
 
 namespace madness {
 
@@ -174,6 +176,25 @@ namespace madness {
             return dist;
         }
 
+        uint64_t
+        distsq_bc(const array_of_bools<NDIM>& is_periodic) const {
+          const Translation twonm1 = (Translation(1) << level()) >> 1;
+
+          uint64_t dsq = 0;
+          for (std::size_t d = 0; d < NDIM; ++d) {
+            Translation la = translation()[d];
+            if (is_periodic[d]) {
+              if (la > twonm1)
+                la -= twonm1 * 2;
+              if (la < -twonm1)
+                la += twonm1 * 2;
+            }
+            dsq += la * la;
+          }
+
+          return dsq;
+        }
+
         /// Returns the key of the parent
 
         /// Default is the immediate parent (generation=1).  To get
@@ -219,7 +240,7 @@ namespace madness {
 
         /// Assumes key and this are at the same level
         bool
-        is_neighbor_of(const Key& key, const std::vector<bool>& bperiodic) const {
+        is_neighbor_of(const Key& key, const array_of_bools<NDIM>& bperiodic) const {
           Translation dist = 0;
           Translation TWON1 = (Translation(1)<<n) - 1;
         	for (std::size_t i=0; i<NDIM; ++i)

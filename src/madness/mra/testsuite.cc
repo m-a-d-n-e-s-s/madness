@@ -669,7 +669,8 @@ int test_diff(World& world) {
 
 
 namespace madness {
-    extern bool test_rnlp();
+    extern bool test_rnlp(bool log_errors);
+    extern bool test_rnlp_rangelimited(bool log_errors);
 }
 
 template <typename T, std::size_t NDIM>
@@ -680,10 +681,15 @@ int test_op(World& world) {
     }
 
     bool ok=true;
-    ok=test_rnlp();
+    ok=test_rnlp(true);
     if (world.rank()==0) {
     	if (ok) print("test_rnlp              OK");
-    	else print("test_rnlp              FAIL");
+    	else print(   "test_rnlp              FAIL");
+    }
+    ok=test_rnlp_rangelimited(true);
+    if (world.rank()==0) {
+      if (ok) print("test_rnlp_rangelimited   OK");
+      else print("test_rnlp_rangelimited   FAIL");
     }
 
     typedef Vector<double,NDIM> coordT;

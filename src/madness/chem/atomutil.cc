@@ -468,14 +468,20 @@ double d2smoothed_potential(double r) {
 }
 
 
-/// Charge density corresponding to smoothed 1/r potential
+/// Charge density corresponding to smoothed `1/r` potential
 
-/// Invoke as \c rho(r/c)/c^3 where \c c is the radius of the
+/// To obtain the desired density as a function of `r`,
+///// \f$
+/////  \frac{\exp(-\frac{r^2}{c^2}) \left(\frac{5}{2}-\frac{r^2}{c^2}\right)}{\pi ^{3/2} c^3}
+///// \f$,
+/// invoke as \c smoothed_density(r/c)/c^3 where \c c is the radius of the
 /// smoothed volume.
-double smoothed_density(double r) {
+/// \param rs effective distance, \f$ r_s \equiv r/c \f$ , from the origin of the density
+/// \return \f$ \frac{\exp(-r_s^2) \left(\frac{5}{2}- r_s^2 \right)}{\pi^{3/2}} \f$
+double smoothed_density(double rs) {
     static const double rpithreehalf = std::pow(madness::constants::pi, -1.5);
-    double rsq = r*r;
-    return exp(-rsq)*(2.5 - rsq) * rpithreehalf;
+    double rs2 = rs*rs;
+    return exp(-rs2)*(2.5 - rs2) * rpithreehalf;
 }
 
 
