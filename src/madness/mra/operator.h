@@ -1014,10 +1014,11 @@ namespace madness {
                : SeparatedConvolution(world,Tensor<double>(0l),Tensor<double>(0l),info1.lo,info1.thresh,lattice_sum,k,doleaves,info1.mu) {
             info.type=info1.type;
             info.truncate_lowexp_gaussians = info1.truncate_lowexp_gaussians;
+            info.range = info1.range;
             auto [coeff, expnt] = make_coeff_for_operator(world, info, lattice_sum);
             rank=coeff.dim(0);
             ops.resize(rank);
-            initialize(coeff,expnt);
+            initialize(coeff,expnt,info.range);
         }
 
         /// Constructor for Gaussian Convolutions (mostly for backward compatability)
@@ -1042,7 +1043,7 @@ namespace madness {
             initialize(coeff,expnt);
         }
 
-        void initialize(const Tensor<Q>& coeff, const Tensor<double>& expnt) {
+        void initialize(const Tensor<Q>& coeff, const Tensor<double>& expnt, unsigned int range = std::numeric_limits<unsigned int>::max()) {
             const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
             const double pi = constants::pi;
 
@@ -1054,7 +1055,7 @@ namespace madness {
                 ops[mu].setfac(coeff(mu)/c);
 
                 for (std::size_t d=0; d<NDIM; ++d) {
-                  ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0, lattice_sum[d]));
+                  ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0, lattice_sum[d], 0., range));
                 }
             }
         }
