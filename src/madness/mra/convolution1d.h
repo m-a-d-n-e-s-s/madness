@@ -312,10 +312,11 @@ namespace madness {
         /// Compute the projection of the operator onto the double order polynomials
         virtual Tensor<Q> rnlp(Level n, Translation lx) const = 0;
 
-        /// Returns true if the block of rnlp is expected to be small
+        /// @return true if the block of [r^n_l]_ij is expected to be small
         virtual bool issmall(Level n, Translation lx) const = 0;
 
-        /// Returns true if the block of rnlp is expected to be small including periodicity
+        /// @return true if the block of [r^n_l]_ij is expected to be small
+        /// @note unlike issmall(), this handles periodicity and range restriction
         bool get_issmall(Level n, Translation lx) const {
           if (lattice_summed()) {
             Translation twon = Translation(1) << n;
@@ -328,22 +329,25 @@ namespace madness {
             if (!range_limited())
               return issmall(n, lx);
             else {
-              return outside_the_range(n, lx) || issmall(n, lx);
+              // [r^n_l]_ij = superposition of [r^n_l]_p and [r^n_l-1]_p
+              // so rnlij is out of the range only if both rnlp contributions are
+              const auto closest_lx = lx<0 ? lx : lx==0? 0 : lx-1;
+              return rnlp_is_zero(n, closest_lx) || issmall(n, lx);
             }
           }
         }
 
-        /// @return true if \p lx is outside of the kernel range limit \p D
-        bool outside_the_range(Level n, Translation lx) const {
-          bool result;
+        /// @return true if `[r^n_l]` is zero due to range restriction \p D
+        bool rnlp_is_zero(Level n, Translation l) const {
+          bool result = false;
           if (range_limited()) {
             if (n == 0) {
-              result = lx > 0 || lx < -1;
+              result = l > 0 || l < -1;
             } else { // n > 0
-              if (lx >= 0)
-                result = (1 << (n - 1)) * Translation(D) <= lx;
+              if (l >= 0)
+                result = (1 << (n - 1)) * Translation(D) <= l;
               else
-                result = (-(1 << (n - 1)) * Translation(D)) > lx;
+                result = (-(1 << (n - 1)) * Translation(D)) > l;
             }
           }
           return result;
@@ -786,11 +790,11 @@ namespace madness {
               // early return if empty integration range (this indicates that
               // the range restriction makes the kernel zero everywhere in the box)
               if (integration_limits.first == integration_limits.second) {
-                MADNESS_ASSERT(this->outside_the_range(n, lx));
+                MADNESS_ASSERT(this->rnlp_is_zero(n, lx));
                 return v;
               }
               else {
-                MADNESS_ASSERT(!this->outside_the_range(n, lx));
+                MADNESS_ASSERT(!this->rnlp_is_zero(n, lx));
               }
             }
             // integration range lower bound, upper bound, length
@@ -905,18 +909,24 @@ namespace madness {
             return v;
         }
 
-        /// Returns true if the block is expected to be small
+        /// @return true if the block of [r^n_l]_ij is expected to be small
         bool issmall(Level n, Translation lx) const final {
-            double beta = expnt * pow(0.25,double(n));
-            Translation ll;
-            if (lx > 0)
-                ll = lx - 1;
-            else if (lx < 0)
-                ll = -1 - lx;
-            else
-                ll = 0;
-
-            return (beta*ll*ll > 49.0);      // 49 -> 5e-22     69 -> 1e-30
+            const double beta = expnt * pow(0.25,double(n));
+            const double overly_large_beta_r2 = 49.0;      // 49 -> 5e-22     69 -> 1e-30
+            // [r^n_l]_ij = superposition of [r^n_l]_p and [r^n_l-1]_ij
+            // lx>0? the nearest box is lx-1 -> the edge closest to the origin is lx - 1
+            // lx<0? the nearest box is lx -> the edge closest to the origin is lx + 1
+            // lx==0? interactions within same box  are never small
+            if (lx > 0) {
+              const auto ll = lx - 1;
+              return beta*ll*ll > overly_large_beta_r2;
+            }
+            else if (lx < 0) {
+              const auto ll = lx + 1;
+              return beta * ll * ll > overly_large_beta_r2;
+            }
+            else  // lx == 0
+              return false;
         };
     };
 
