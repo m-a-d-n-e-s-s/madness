@@ -175,6 +175,33 @@ public:
     }
     return true;
   }
+
+  /// Convenience for construction of range-restricted integral operators
+
+  /// @return Returns an array of operator ranges, with each periodic dimension set to \p r
+  template <std::size_t ND = NDIM>
+  std::enable_if_t<ND <= NDIM, std::array<unsigned int, ND>> make_range(unsigned int r) const {
+    std::array<unsigned int, ND> result;
+    for (std::size_t d = 0; d < ND; ++d) {
+      MADNESS_ASSERT(bc[2 * d + 1] == bc[2 * d]);
+      result[d] = (bc[2 * d] == BC_PERIODIC) ? r : std::numeric_limits<unsigned int>::max();
+    }
+    return result;
+  }
+
+  /// Convenience for construction of range-restricted integral operators
+
+  // same as make_range(), but makes a std::vector
+  std::vector<unsigned int> make_range_vector(unsigned int r) const {
+    std::vector<unsigned int> result;
+    result.reserve(NDIM);
+    for (std::size_t d = 0; d < NDIM; ++d) {
+      MADNESS_ASSERT(bc[2 * d + 1] == bc[2 * d]);
+      result.push_back((bc[2 * d] == BC_PERIODIC) ? r : std::numeric_limits<unsigned int>::max());
+    }
+    return result;
+  }
+
 };
 
 template <std::size_t NDIM>

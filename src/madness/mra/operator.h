@@ -951,6 +951,11 @@ namespace madness {
             return result;
         }
 
+        static std::array<unsigned int, NDIM> make_default_range() {
+          std::array<unsigned int, NDIM> result;
+          result.fill(Convolution1D<Q>::maxD());
+          return result;
+        }
 
     public:
 
@@ -1018,7 +1023,7 @@ namespace madness {
             auto [coeff, expnt] = make_coeff_for_operator(world, info, lattice_sum);
             rank=coeff.dim(0);
             ops.resize(rank);
-            initialize(coeff,expnt,info.range);
+            initialize(coeff,expnt,info.template range_as_array<NDIM>());
         }
 
         /// Constructor for Gaussian Convolutions (mostly for backward compatability)
@@ -1043,7 +1048,7 @@ namespace madness {
             initialize(coeff,expnt);
         }
 
-        void initialize(const Tensor<Q>& coeff, const Tensor<double>& expnt, unsigned int range = std::numeric_limits<unsigned int>::max()) {
+        void initialize(const Tensor<Q>& coeff, const Tensor<double>& expnt, std::array<unsigned int, NDIM> range = make_default_range()) {
             const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
             const double pi = constants::pi;
 
@@ -1055,7 +1060,7 @@ namespace madness {
                 ops[mu].setfac(coeff(mu)/c);
 
                 for (std::size_t d=0; d<NDIM; ++d) {
-                  ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0, lattice_sum[d], 0., range));
+                  ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0, lattice_sum[d], 0., range[d]));
                 }
             }
         }
