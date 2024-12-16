@@ -331,7 +331,7 @@ namespace madness {
             else {
               // [r^n_l]_ij = superposition of [r^n_l]_p and [r^n_l-1]_p
               // so rnlij is out of the range only if both rnlp contributions are
-              const auto closest_lx = lx<0 ? lx : lx==0? 0 : lx-1;
+              const auto closest_lx = lx<=0 ? lx : lx-1;
               return rnlp_is_zero(n, closest_lx) || issmall(n, lx);
             }
           }
@@ -911,22 +911,23 @@ namespace madness {
 
         /// @return true if the block of [r^n_l]_ij is expected to be small
         bool issmall(Level n, Translation lx) const final {
-            const double beta = expnt * pow(0.25,double(n));
-            const double overly_large_beta_r2 = 49.0;      // 49 -> 5e-22     69 -> 1e-30
             // [r^n_l]_ij = superposition of [r^n_l]_p and [r^n_l-1]_ij
             // lx>0? the nearest box is lx-1 -> the edge closest to the origin is lx - 1
             // lx<0? the nearest box is lx -> the edge closest to the origin is lx + 1
             // lx==0? interactions within same box  are never small
-            if (lx > 0) {
-              const auto ll = lx - 1;
-              return beta*ll*ll > overly_large_beta_r2;
-            }
-            else if (lx < 0) {
-              const auto ll = lx + 1;
-              return beta * ll * ll > overly_large_beta_r2;
-            }
-            else  // lx == 0
+            if (lx == 0)
               return false;
+            else {
+              const double beta = expnt * pow(0.25,double(n));
+              const double overly_large_beta_r2 = 49.0;      // 49 -> 5e-22     69 -> 1e-30
+              if (lx > 0) {
+                const auto ll = lx - 1;
+                return beta * ll * ll > overly_large_beta_r2;
+              } else {
+                const auto ll = lx + 1;
+                return beta * ll * ll > overly_large_beta_r2;
+              }
+            }
         };
     };
 
