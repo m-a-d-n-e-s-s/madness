@@ -1,7 +1,9 @@
 # src/examples/periodic
 
 set(EXAMPLE_SOURCES
-    testpercoul)
+    testpercoul
+    erfcr
+    testfilter)
  
 # Create executables for example applications
 foreach(example ${EXAMPLE_SOURCES})

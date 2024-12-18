@@ -213,6 +213,13 @@ namespace madness {
     template <typename T> struct is_any_function_pointer<T, std::enable_if_t<std::is_member_function_pointer<T>::value || is_function_pointer_v<T>>> : public std::true_type {};
     template <typename T> constexpr bool is_any_function_pointer_v = is_any_function_pointer<T>::value;
 
+    /// trait for trivial (=bitwise) copyability of T, defaults to std::is_trivially_copyable<T> but can be specialized as needed
+    template <typename T>
+    struct is_trivially_copyable : std::is_trivially_copyable<T> {};
+
+    template <typename T>
+    inline constexpr bool is_trivially_copyable_v = is_trivially_copyable<T>::value;
+
     /// This defines stuff that is serializable by bitwise copy.
     /// \warning This reports true for \c T that is an aggregate type
     ///          (struct or array) that includes pointers.
