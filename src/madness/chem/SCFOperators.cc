@@ -366,6 +366,19 @@ XCOperator<T, NDIM>::XCOperator(World &world, std::string xc_data, const bool sp
     xc_args = prep_xc_args(arho, brho);
 }
 
+/// custom ctor with the XC functional
+template<typename T, std::size_t NDIM>
+XCOperator<T, NDIM>::XCOperator(World& world, std::shared_ptr<XCfunctional> xc,
+           const bool spin_polarized,
+           const int ispin,
+           const int nbeta,
+           const real_function_3d& arho, const real_function_3d& brho,
+           std::string deriv)
+    : world(world), dft_deriv(deriv), xc(xc), nbeta(nbeta), ispin(ispin),
+      extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {
+  xc_args = prep_xc_args(arho, brho);
+}
+
 template<typename T, std::size_t NDIM>
 XCOperator<T, NDIM>::XCOperator(World &world, const SCF *calc, int ispin, std::string deriv)
         : world(world), dft_deriv(deriv), ispin(ispin), extra_truncation(FunctionDefaults<3>::get_thresh() * 0.01) {

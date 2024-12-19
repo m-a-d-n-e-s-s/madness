@@ -39,7 +39,8 @@ namespace madness {
     class Displacements {
 
         static std::vector< Key<NDIM> > disp;
-        static std::vector< Key<NDIM> > disp_periodicsum[64];
+        static std::vector< Key<NDIM> > disp_periodic[64];
+        static array_of_bools<NDIM> disp_periodic_axes;
 
     public:
         static int bmax_default() {
@@ -59,22 +60,8 @@ namespace madness {
             return a.distsq() < b.distsq();
         }
 
-        static bool cmp_keys_periodicsum(const Key<NDIM>& a, const Key<NDIM>& b) {
-            Translation twonm1 = (Translation(1)<<a.level())>>1;
-
-            uint64_t suma=0, sumb=0;
-            for (std::size_t d=0; d<NDIM; ++d) {
-                Translation la = a.translation()[d];
-                if (la > twonm1) la -= twonm1*2;
-                if (la <-twonm1) la += twonm1*2;
-                suma += la*la;
-
-                Translation lb = b.translation()[d];
-                if (lb > twonm1) lb -= twonm1*2;
-                if (lb <-twonm1) lb += twonm1*2;
-                sumb += lb*lb;
-            }
-            return suma < sumb;
+        static bool cmp_keys_periodic(const Key<NDIM>& a, const Key<NDIM>& b) {
+          return a.distsq_bc(disp_periodic_axes) < b.distsq_bc(disp_periodic_axes);
         }
 
         static void make_disp(int bmax) {
@@ -127,13 +114,13 @@ namespace madness {
                                         disp[num++] = Key<NDIM>(0,d);
             }
             else {
-                MADNESS_EXCEPTION("_make_disp: hard dimension loop",NDIM);
+                MADNESS_EXCEPTION("make_disp: hard dimension loop",NDIM);
             }
 
             std::sort(disp.begin(), disp.end(), cmp_keys);
         }
 
-        static void make_disp_periodicsum(int bmax, Level n) {
+        static void make_disp_periodic(int bmax, Level n) {
             Translation twon = Translation(1)<<n;
 
             if (bmax > (twon-1)) bmax=twon-1;
@@ -152,19 +139,19 @@ namespace madness {
             MADNESS_PRAGMA_CLANG(diagnostic push)
             MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
 
-            disp_periodicsum[n] = std::vector< Key<NDIM> >();
+            disp_periodic[n] = std::vector< Key<NDIM> >();
             Vector<long,NDIM> lim(numb);
             for (IndexIterator index(lim); index; ++index) {
                 Vector<Translation,NDIM> d;
                 for (std::size_t i=0; i<NDIM; ++i) {
                     d[i] = b[index[i]];
                 }
-                disp_periodicsum[n].push_back(Key<NDIM>(n,d));
+                disp_periodic[n].push_back(Key<NDIM>(n,d));
             }
 
-            std::sort(disp_periodicsum[n].begin(), disp_periodicsum[n].end(), cmp_keys_periodicsum);
+            std::sort(disp_periodic[n].begin(), disp_periodic[n].end(), cmp_keys_periodic);
 //             print("KEYS AT LEVEL", n);
-//             print(disp_periodicsum[n]);
+//             print(disp_periodic[n]);
 
             MADNESS_PRAGMA_CLANG(diagnostic pop)
 
@@ -172,26 +159,45 @@ namespace madness {
 
 
     public:
+        /// first time this is called displacements are generated.
+        /// if boundary conditions are not periodic, the periodic displacements
+        /// are generated for all axes. If need to use periodic boundary conditions
+        /// for some axes only, make sure to set the boundary conditions appropriately
+        /// before the first call to this
         Displacements() {
           MADNESS_PRAGMA_CLANG(diagnostic push)
           MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
 
-          if (disp.size() == 0) {
+          if (disp.empty()) {
                 make_disp(bmax_default());
+          }
 
-                if (NDIM <= 3) {
-                    Level nmax = 8*sizeof(Translation) - 2;
-                    for (Level n=0; n<nmax; ++n) make_disp_periodicsum(bmax_default(), n);
-                }
+          if constexpr (NDIM <= 3) {
+            if (disp_periodic[0].empty()) {
+              if (FunctionDefaults<NDIM>::get_bc().is_periodic().any())
+                disp_periodic_axes = FunctionDefaults<NDIM>::get_bc().is_periodic();
+              else
+                disp_periodic_axes = decltype(disp_periodic_axes){true};
+              Level nmax = 8 * sizeof(Translation) - 2;
+              for (Level n = 0; n < nmax; ++n)
+                make_disp_periodic(bmax_default(), n);
             }
+          }
 
           MADNESS_PRAGMA_CLANG(diagnostic pop)
         }
 
-        const std::vector< Key<NDIM> >& get_disp(Level n, bool isperiodicsum) {
-            if (isperiodicsum) {
+        const std::vector< Key<NDIM> >& get_disp(Level n, const array_of_bools<NDIM>& is_periodic) {
+            if (is_periodic.any()) {
                 MADNESS_ASSERT(NDIM <= 3);
-                return disp_periodicsum[n];
+                MADNESS_ASSERT(n < std::extent_v<decltype(disp_periodic)>);
+                if (is_periodic != disp_periodic_axes) {
+                  std::string msg =
+                      "Displacements<" + std::to_string(NDIM) +
+                      ">::get_disp(level, is_periodic): is_periodic differs from the boundary conditions FunctionDefault's had when Displacements were initialized; on-demand periodic displacements generation is not yet supported";
+                  MADNESS_EXCEPTION(msg.c_str(), 1);
+                }
+                return disp_periodic[n];
             }
             else {
                 return disp;

@@ -35,7 +35,7 @@ int main(int argc, char** argv) {
     	std::cout << std::setw(25) << std::left << "\tsilent<bool> " << "silence output - default=false\n";
     	std::cout << "--------------------------\n";
     	std::cout << "necessary files:\n";
-    	std::cout << "\tinputfile" << std::setw(25) << "the inputfile for madnesss that should hold the molecular geometry\n";
+    	std::cout << "\tinputfile" << std::setw(25) << "the inputfile for madness that should hold the molecular geometry\n";
     	std::cout << "\tname.00000" << std::setw(25) << "the madness function file - filename given by plot2cube file=name\n";
     	std::cout << "--------------------------\n";
     }
