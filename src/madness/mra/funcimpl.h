@@ -974,7 +974,7 @@ template<size_t NDIM>
         int special_level; ///< Minimium level for refinement on special points
         std::vector<Vector<double,NDIM> > special_points; ///< special points for further refinement (needed for composite functions or multiplication)
         int max_refine_level; ///< Do not refine below this level
-        int truncate_mode; ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n), 1=(|d|<thresh/4^n);
+        int truncate_mode; ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n), 2=(|d|<thresh/4^n);
         bool autorefine; ///< If true, autorefine where appropriate
         bool truncate_on_project; ///< If true projection inserts at level n-1 not n
         TensorArgs targs; ///< type of tensor to be used in the FunctionNodes
