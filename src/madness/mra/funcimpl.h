@@ -35,8 +35,6 @@
 /// \file funcimpl.h
 /// \brief Provides FunctionCommonData, FunctionImpl and FunctionFactory
 
-#include <iostream>
-#include <type_traits>
 #include <madness/world/MADworld.h>
 #include <madness/world/print.h>
 #include <madness/misc/misc.h>
@@ -48,8 +46,13 @@
 #include <madness/mra/key.h>
 #include <madness/mra/funcdefaults.h>
 #include <madness/mra/function_factory.h>
+#include <madness/mra/displacements.h>
 
-#include "leafop.h"
+#include <madness/mra/leafop.h>
+
+#include <array>
+#include <iostream>
+#include <type_traits>
 
 namespace madness {
     template <typename T, std::size_t NDIM>
@@ -972,7 +975,7 @@ template<size_t NDIM>
         int special_level; ///< Minimium level for refinement on special points
         std::vector<Vector<double,NDIM> > special_points; ///< special points for further refinement (needed for composite functions or multiplication)
         int max_refine_level; ///< Do not refine below this level
-        int truncate_mode; ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n), 1=(|d|<thresh/4^n);
+        int truncate_mode; ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n), 2=(|d|<thresh/4^n);
         bool autorefine; ///< If true, autorefine where appropriate
         bool truncate_on_project; ///< If true projection inserts at level n-1 not n
         TensorArgs targs; ///< type of tensor to be used in the FunctionNodes
@@ -3819,8 +3822,13 @@ template<size_t NDIM>
 
         /// Out of volume keys are mapped to enforce the BC as follows.
         ///   * Periodic BC map back into the volume and return the correct key
-        ///   * Zero BC - returns invalid() to indicate out of volume
-        keyT neighbor(const keyT& key, const keyT& disp, const std::vector<bool>& is_periodic) const;
+        ///   * non-periodic BC - returns invalid() to indicate out of volume
+        keyT neighbor(const keyT& key, const keyT& disp, const array_of_bools<NDIM>& is_periodic) const;
+
+        /// Returns key of general neighbor that resides in-volume
+
+        /// Out of volume keys are mapped to invalid()
+        keyT neighbor_in_volume(const keyT& key, const keyT& disp) const;
 
         /// find_me. Called by diff_bdry to get coefficients of boundary function
         Future< std::pair<keyT,coeffT> > find_me(const keyT& key) const;
@@ -4519,7 +4527,7 @@ template<size_t NDIM>
         void zero_norm_tree();
 
         // Broaden tree
-        void broaden(std::vector<bool> is_periodic, bool fence);
+        void broaden(const array_of_bools<NDIM>& is_periodic, bool fence);
 
         /// sum all the contributions from all scales after applying an operator in mod-NS form
         void trickle_down(bool fence);
@@ -4780,7 +4788,7 @@ template<size_t NDIM>
 	    // becomes negligible we are in the asymptotic region.
 
             typedef typename opT::keyT opkeyT;
-            static const size_t opdim=opT::opdim;
+            constexpr auto opdim=opT::opdim;
             const opkeyT source=op->get_source_key(key);
 
             
@@ -4806,18 +4814,32 @@ template<size_t NDIM>
 
             double cnorm = c.normf();
 
-            const std::vector<opkeyT>& disp = op->get_disp(key.level()); // list of displacements sorted in orer of increasing distance
-            const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
+            // BC handling:
+            // - if operator is lattice-summed then treat this as nonperiodic (i.e. tell neighbor() to stay in simulation cell)
+            // - if operator is NOT lattice-summed then obey BC (i.e. tell neighbor() to go outside the simulation cell along periodic dimensions)
+            // - BUT user can force operator to treat its arguments as non-periodic (`op.set_domain_periodicity({true,true,true})`)
+            // so ... which dimensions of this function are treated as periodic by op?
+            const array_of_bools<NDIM> this_is_threated_by_op_as_periodic = (op->particle() == 1) ? FunctionDefaults<NDIM>::get_bc().is_periodic().and_front(op->domain_is_periodic()) : FunctionDefaults<NDIM>::get_bc().is_periodic().and_back(op->domain_is_periodic());
+
+            // list of displacements sorted in order of increasing distance
+            // N.B. if op is lattice-summed use periodic displacements, else use
+            // non-periodic even if op treats any modes of this as periodic
+            const std::vector<opkeyT>& disp = Displacements<opdim>().get_disp(key.level(), op->lattice_summed());
+
             int nvalid=1;       // Counts #valid at each distance
             int nused=1;	// Counts #used at each distance
-	    uint64_t distsq = 99999999999999;
+            uint64_t distsq = 99999999999999;
             for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
 	        keyT d;
                 Key<NDIM-opdim> nullkey(key.level());
+                MADNESS_ASSERT(op->particle()==1 || op->particle()==2);
                 if (op->particle()==1) d=it->merge_with(nullkey);
-                if (op->particle()==2) d=nullkey.merge_with(*it);
+                else d=nullkey.merge_with(*it);
 
-		uint64_t dsq = d.distsq();
+                // shell-wise screening, assumes displacements are grouped into shells sorted so that operator decays with shell index
+                // N.B. lattice-summed decaying kernel is periodic (i.e. does decay w.r.t. r), so loop over shells of displacements
+                // sorted by distances modulated by periodicity (Key::distsq_bc)
+		const uint64_t dsq = it->distsq_bc(op->lattice_summed());
 		if (dsq != distsq) { // Moved to next shell of neighbors
 		    if (nvalid > 0 && nused == 0 && dsq > 1) {
 		        // Have at least done the input box and all first
@@ -4829,9 +4851,9 @@ template<size_t NDIM>
 		    nused = 0;
                     nvalid = 0;
 		    distsq = dsq;
-		} 
+		}
 
-                keyT dest = neighbor(key, d, is_periodic);
+                keyT dest = neighbor(key, d, this_is_threated_by_op_as_periodic);
                 if (dest.is_valid()) {
                     nvalid++;
                     double opnorm = op->norm(key.level(), *it, source);
@@ -4900,7 +4922,7 @@ template<size_t NDIM>
             // screening: contains all displacement keys that had small result norms
             std::list<opkeyT> blacklist;
 
-            static const size_t opdim=opT::opdim;
+            constexpr auto opdim=opT::opdim;
             Key<NDIM-opdim> nullkey(key.level());
 
             // source is that part of key that corresponds to those dimensions being processed
@@ -4928,13 +4950,22 @@ template<size_t NDIM>
             coeff_SVD.get_svdtensor().orthonormalize(tol*GenTensor<T>::fac_reduce());
 #endif
 
-            const std::vector<opkeyT>& disp = op->get_disp(key.level());
-            const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
+            // BC handling:
+            // - if operator is lattice-summed then treat this as nonperiodic (i.e. tell neighbor() to stay in simulation cell)
+            // - if operator is NOT lattice-summed then obey BC (i.e. tell neighbor() to go outside the simulation cell along periodic dimensions)
+            // - BUT user can force operator to treat its arguments as non-[eriodic (op.domain_is_simulation_cell(true))
+            // so ... which dimensions of this function are treated as periodic by op?
+            const array_of_bools<NDIM> this_is_threated_by_op_as_periodic = (op->particle() == 1) ? FunctionDefaults<NDIM>::get_bc().is_periodic().and_front(op->domain_is_periodic()) : FunctionDefaults<NDIM>::get_bc().is_periodic().and_back(op->domain_is_periodic());
+
+            // list of displacements sorted in order of increasing distance
+            // N.B. if op is lattice-summed use periodic displacements, else use
+            // non-periodic even if op treats any modes of this as periodic
+            const std::vector<opkeyT>& disp = Displacements<opdim>().get_disp(key.level(), op->lattice_summed());
 
             for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
                 const opkeyT& d = *it;
 
-                const int shell=d.distsq();
+                const int shell=d.distsq_bc(op->lattice_summed());
                 if (do_kernel and (shell>0)) break;
                 if ((not do_kernel) and (shell==0)) continue;
 
@@ -4942,10 +4973,10 @@ template<size_t NDIM>
                 if (op->particle()==1) disp1=it->merge_with(nullkey);
                 else if (op->particle()==2) disp1=nullkey.merge_with(*it);
                 else {
-                    MADNESS_EXCEPTION("confused particle in operato??",1);
+                    MADNESS_EXCEPTION("confused particle in operator??",1);
                 }
 
-                keyT dest = neighbor(key, disp1, is_periodic);
+                keyT dest = neighbor_in_volume(key, disp1);
 
                 if (not dest.is_valid()) continue;
 

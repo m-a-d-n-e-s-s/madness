@@ -106,6 +106,43 @@ public:
     };
 };
 
+/// Default functor for the nuclear charge density
+
+/// This assumes the default nuclear model optimized to produce potential
+/// close that of a point nucleus (smoothed Coulomb potential). The model
+/// is
+class NuclearDensityFunctor : public FunctionFunctorInterface<double,3> {
+private:
+  const Molecule& atoms;
+  BoundaryConditions<3> bc_;
+  Tensor<double> cell;
+  std::vector<coord_3d> special_points_;
+  int maxR;
+  int special_level_ = 15;
+  double rscale = 1.0;
+public:
+  /// Generic constructor, can handle open and periodic boundaries
+  /// \param molecule atoms
+  /// \param bc boundary conditions
+  /// \param cell simulation cell (unit cell, if periodic)
+  /// \param special_level the initial refinement level
+  /// \param rscale setting `rscale>1` will make a nucleus larger by a factor of \p rscale (in other words, `rcut` is multiplied by the inverse of by this)
+  NuclearDensityFunctor(const Molecule& atoms,
+                        const BoundaryConditions<3>& bc = FunctionDefaults<3>::get_bc(),
+                        const Tensor<double>& cell = FunctionDefaults<3>::get_cell(),
+                        int special_level = 15,
+                        double rscale = 1.0);
+
+  double operator()(const coord_3d& x) const;
+
+  std::vector<coord_3d> special_points() const;
+
+  Level special_level();
+
+  NuclearDensityFunctor& set_rscale(double rscale);
+
+};
+
 
 class PotentialManager {
 private:
