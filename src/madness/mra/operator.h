@@ -194,6 +194,8 @@ namespace madness {
 
         const double& gamma() const {return info.mu;}
         const double& mu() const {return info.mu;}
+        const int get_rank() const { return rank; }
+        const int get_k() const { return k; }
 
     private:
 
