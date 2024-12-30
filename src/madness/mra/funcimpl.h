@@ -4780,7 +4780,7 @@ template<size_t NDIM>
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
 	    // working assumption here WAS that the operator is
-	    // isotropic and montonically decreasing with distance
+	    // isotropic and monotonically decreasing with distance
 	    // ... however, now we are using derivative Gaussian
 	    // expansions (and also non-cubic boxes) isotropic is
 	    // violated. While not strictly monotonically decreasing,
