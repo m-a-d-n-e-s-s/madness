@@ -54,6 +54,9 @@
 namespace madness {
 
     template<typename T, std::size_t NDIM>
+    class Function;
+
+    template<typename T, std::size_t NDIM>
     class SeparatedConvolution;
 
     template<typename T, std::size_t NDIM>

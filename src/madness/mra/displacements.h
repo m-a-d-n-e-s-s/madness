@@ -33,6 +33,9 @@
 #ifndef MADNESS_MRA_DISPLACEMENTS_H__INCLUDED
 #define MADNESS_MRA_DISPLACEMENTS_H__INCLUDED
 
+#include <madness/mra/indexit.h>
+#include <madness/mra/funcdefaults.h>
+
 namespace madness {
     /// Holds displacements for applying operators to avoid replicating for all operators
     template <std::size_t NDIM>
@@ -188,6 +191,9 @@ namespace madness {
         }
 
         const std::vector< Key<NDIM> >& get_disp(Level n, const array_of_bools<NDIM>& is_periodic) {
+            MADNESS_PRAGMA_CLANG(diagnostic push)
+            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
+
             if (is_periodic.any()) {
                 MADNESS_ASSERT(NDIM <= 3);
                 MADNESS_ASSERT(n < std::extent_v<decltype(disp_periodic)>);
@@ -202,6 +208,8 @@ namespace madness {
             else {
                 return disp;
             }
+
+            MADNESS_PRAGMA_CLANG(diagnostic pop)
         }
 
     };
