@@ -147,6 +147,7 @@ namespace madness {
                                              ///< N.B. the resulting kernel can be non-zero at both ends of the simulation cell along that axis
         array_of_bools<NDIM> domain_is_periodic_{false};    ///< If domain_is_periodic_[d]==false and lattice_sum[d]==false,
                                                             ///< ignore periodicity of BC when applying this to function
+        std::array<std::optional<unsigned int>, NDIM> range;  ///< if range[d] is nonnull, kernel range is limited to [-range[d]/2,range[d]/2]
 
       public:
         bool modified_=false;     ///< use modified NS form
@@ -196,6 +197,8 @@ namespace madness {
         const double& mu() const {return info.mu;}
         const int get_rank() const { return rank; }
         const int get_k() const { return k; }
+        std::array<std::optional<unsigned int>, NDIM> get_range() const { return range; }
+        bool range_restricted() const { return std::any_of(range.begin(), range.end(), [](const auto& v) { return v.has_value(); }); }
 
     private:
 
@@ -953,10 +956,21 @@ namespace madness {
             return result;
         }
 
-        static std::array<unsigned int, NDIM> make_default_range() {
-          std::array<unsigned int, NDIM> result;
-          result.fill(Convolution1D<Q>::maxD());
-          return result;
+        static std::array<std::optional<unsigned int>, NDIM> make_default_range() {
+          return {};
+        }
+
+        /// initializes range using range of ops[0]
+        /// @pre `ops[i].range == ops[0].range`
+        void init_range() {
+          if (!ops.empty()) {
+            for (int d = 0; d != NDIM; ++d) {
+              for(const auto & op: ops) {
+                MADNESS_ASSERT(op.getop(d)->D == ops[0].getop(d)->D);
+              }
+              range[d] = ops[0].getop(d)->D;
+            }
+          }
         }
 
     public:
@@ -985,6 +999,7 @@ namespace madness {
             for (unsigned int mu=0; mu < argops.size(); ++mu) {
               this->ops.push_back(ConvolutionND<Q,NDIM>(argops[mu]));
             }
+            init_range();
 
             this->process_pending();
         }
@@ -1010,6 +1025,7 @@ namespace madness {
                 , v2k(NDIM,2*k)
                 , s0(std::max<std::size_t>(2,NDIM),Slice(0,k-1))
         {
+            init_range();
             this->process_pending();
         }
 
@@ -1024,8 +1040,9 @@ namespace madness {
             info.range = info1.range;
             auto [coeff, expnt] = make_coeff_for_operator(world, info, lattice_sum);
             rank=coeff.dim(0);
+            range = info.template range_as_array<NDIM>();
             ops.resize(rank);
-            initialize(coeff,expnt,info.template range_as_array<NDIM>());
+            initialize(coeff,expnt,range);
         }
 
         /// Constructor for Gaussian Convolutions (mostly for backward compatability)
@@ -1048,9 +1065,10 @@ namespace madness {
                 , v2k(NDIM,2*k)
                 , s0(std::max<std::size_t>(2,NDIM),Slice(0,k-1)) {
             initialize(coeff,expnt);
+            init_range();
         }
 
-        void initialize(const Tensor<Q>& coeff, const Tensor<double>& expnt, std::array<unsigned int, NDIM> range = make_default_range()) {
+        void initialize(const Tensor<Q>& coeff, const Tensor<double>& expnt, std::array<std::optional<unsigned int>, NDIM> range = make_default_range()) {
             const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
             const double pi = constants::pi;
 

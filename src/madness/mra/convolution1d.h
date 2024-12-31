@@ -262,7 +262,7 @@ namespace madness {
         int npt;        ///< Number of quadrature points (is this used?)
         int maxR;       ///< Number of lattice translations for sum
         double bloch_k;  ///< k in exp(i k R) Bloch phase factor folded into lattice sum
-        unsigned int D;  ///< kernel range limited to [-D/2,D/2] (in simulation cell units), useful for finite-range convolutions with periodic functions; for infinite-range use lattice summation (maxR > 0)
+        std::optional<unsigned int> D;  ///< if D is nonnull, kernel range limited to [-D/2,D/2] (in simulation cell units), useful for finite-range convolutions with periodic functions; for infinite-range use lattice summation (maxR > 0)
         Tensor<double> quad_x;
         Tensor<double> quad_w;
         Tensor<double> c;
@@ -274,15 +274,14 @@ namespace madness {
         mutable SimpleCache<ConvolutionData1D<Q>, 1> ns_cache;
         mutable SimpleCache<ConvolutionData1D<Q>, 2> mod_ns_cache;
 
-        static unsigned int maxD() { return std::numeric_limits<unsigned int>::max(); }
         bool lattice_summed() const { return maxR != 0; }
-        bool range_limited() const { return D != maxD(); }
+        bool range_restricted() const { return D.has_value(); }
 
         virtual ~Convolution1D() {};
 
         Convolution1D(int k, int npt, int maxR,
                       double bloch_k = 0.0,
-                      unsigned int D = maxD())
+                      std::optional<unsigned int> D = {})
                 : k(k)
                 , npt(npt)
                 , maxR(maxR)
@@ -291,7 +290,7 @@ namespace madness {
                 , bloch_k(bloch_k)
                 , D(D)
         {
-            if (range_limited()) MADNESS_CHECK(!lattice_summed());
+            if (range_restricted()) MADNESS_CHECK(!lattice_summed());
 
             auto success = autoc(k,&c);
             MADNESS_CHECK(success);
@@ -326,7 +325,7 @@ namespace madness {
             }
             return true;
           } else { // !lattice_summed
-            if (!range_limited())
+            if (!range_restricted())
               return issmall(n, lx);
             else {
               // [r^n_l]_ij = superposition of [r^n_l]_p and [r^n_l-1]_p
@@ -340,14 +339,14 @@ namespace madness {
         /// @return true if `[r^n_l]` is zero due to range restriction \p D
         bool rnlp_is_zero(Level n, Translation l) const {
           bool result = false;
-          if (range_limited()) {
+          if (range_restricted()) {
             if (n == 0) {
               result = l > 0 || l < -1;
             } else { // n > 0
               if (l >= 0)
-                result = (1 << (n - 1)) * Translation(D) <= l;
+                result = (1 << (n - 1)) * Translation(*D) <= l;
               else
-                result = (-(1 << (n - 1)) * Translation(D)) > l;
+                result = (-(1 << (n - 1)) * Translation(*D)) > l;
             }
           }
           return result;
@@ -365,7 +364,7 @@ namespace madness {
         /// This is computed from the matrix elements over the correlation
         /// function which in turn are computed from the matrix elements
         /// over the double order legendre polynomials.
-        /// \note if `this->range_limited()==true`, `θ(D/2 - |x-y|) K(x-y)` is used as the kernel
+        /// \note if `this->range_restricted()==true`, `θ(D/2 - |x-y|) K(x-y)` is used as the kernel
         const Tensor<Q>& rnlij(Level n, Translation lx, bool do_transpose=false) const {
             const Tensor<Q>* p=rnlij_cache.getptr(n,lx);
             if (p) return *p;
@@ -730,7 +729,7 @@ namespace madness {
 
         explicit GaussianConvolution1D(int k, Q coeff, double expnt,
         		int m, bool periodic, double bloch_k = 0.0,
-                        unsigned int D = Convolution1D<Q>::maxD())
+                        std::optional<unsigned int> D = {})
             : Convolution1D<Q>(k,k+11,maxR(periodic,expnt),bloch_k, D)
             , coeff(coeff)
             , expnt(expnt)
@@ -778,14 +777,14 @@ namespace madness {
 
             // if outside the range, early return, else update the integration limits
             std::pair<double, double> integration_limits{0,1};
-            if (this->range_limited()) {
+            if (this->range_restricted()) {
               const auto two_to_nm1 = (1ul << n) * 0.5;
               if (lx < 0) {
                 integration_limits = std::make_pair(
-                    std::min(std::max(-two_to_nm1 * this->D - lx, 0.), 1.), 1.);
+                    std::min(std::max(-two_to_nm1 * this->D.value() - lx, 0.), 1.), 1.);
               } else {
                 integration_limits = std::make_pair(
-                    0., std::max(std::min(two_to_nm1 * this->D - lx, 1.), 0.));
+                    0., std::max(std::min(two_to_nm1 * this->D.value() - lx, 1.), 0.));
               }
               // early return if empty integration range (this indicates that
               // the range restriction makes the kernel zero everywhere in the box)
@@ -940,13 +939,13 @@ namespace madness {
 
         static std::shared_ptr< GaussianConvolution1D<Q> > get(int k, double expnt, int m, bool periodic,
                                                                double bloch_k = 0.0,
-                                                               unsigned int D = Convolution1D<Q>::maxD()) {
+                                                               std::optional<unsigned int> D = {}) {
             hashT key = hash_value(expnt);
             hash_combine(key, k);
             hash_combine(key, m);
             hash_combine(key, int(periodic));
             hash_combine(key, bloch_k);
-            hash_combine(key, D);
+            if (D) hash_combine(key, *D);
 
             MADNESS_PRAGMA_CLANG(diagnostic push)
             MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
