@@ -473,6 +473,8 @@ namespace madness {
 
                 R = Tensor<Q>(2*k,2*k);
 
+                // this does not match Eq 18 of the MRAQC appendix .. parity off??
+                // either rnlij dox swap bra/ket or hgT include extra parity phases
 //                 R(s0,s0) = r0;
 //                 R(s1,s1) = r0;
 //                 R(s1,s0) = rp;
