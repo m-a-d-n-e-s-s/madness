@@ -4779,98 +4779,125 @@ template<size_t NDIM>
         void do_apply(const opT* op, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
-	    // working assumption here WAS that the operator is
-	    // isotropic and monotonically decreasing with distance
-	    // ... however, now we are using derivative Gaussian
-	    // expansions (and also non-cubic boxes) isotropic is
-	    // violated. While not strictly monotonically decreasing,
-	    // the derivative gaussian is still such that once it
-	    // becomes negligible we are in the asymptotic region.
+          // working assumption here WAS that the operator is
+          // isotropic and monotonically decreasing with distance
+          // ... however, now we are using derivative Gaussian
+          // expansions (and also non-cubic boxes) isotropic is
+          // violated. While not strictly monotonically decreasing,
+          // the derivative gaussian is still such that once it
+          // becomes negligible we are in the asymptotic region.
 
-            typedef typename opT::keyT opkeyT;
-            constexpr auto opdim=opT::opdim;
-            const opkeyT source=op->get_source_key(key);
+          typedef typename opT::keyT opkeyT;
+          constexpr auto opdim = opT::opdim;
+          const opkeyT source = op->get_source_key(key);
 
-            
-            // Tuning here is based on observation that with
-            // sufficiently high-order wavelet relative to the
-            // precision, that only nearest neighbor boxes contribute,
-            // whereas for low-order wavelets more neighbors will
-            // contribute.  Sufficiently high is picked as
-            // k>=2-log10(eps) which is our empirical rule for
-            // efficiency/accuracy and code instrumentation has
-            // previously indicated that (in 3D) just unit
-            // displacements are invoked.  The error decays as R^-(k+1),
-            // and the number of boxes increases as R^d.
-            //
-            // Fac is the expected number of contributions to a given
-            // box, so the error permitted per contribution will be
-            // tol/fac
+          // Tuning here is based on observation that with
+          // sufficiently high-order wavelet relative to the
+          // precision, that only nearest neighbor boxes contribute,
+          // whereas for low-order wavelets more neighbors will
+          // contribute.  Sufficiently high is picked as
+          // k>=2-log10(eps) which is our empirical rule for
+          // efficiency/accuracy and code instrumentation has
+          // previously indicated that (in 3D) just unit
+          // displacements are invoked.  The error decays as R^-(k+1),
+          // and the number of boxes increases as R^d.
+          //
+          // Fac is the expected number of contributions to a given
+          // box, so the error permitted per contribution will be
+          // tol/fac
 
-            // radius of shell (nearest neighbor is diameter of 3 boxes, so radius=1.5)
-            double radius = 1.5 + 0.33*std::max(0.0,2-std::log10(thresh)-k); // 0.33 was 0.5
-            double fac = vol_nsphere(NDIM, radius);
-            //previously fac=10.0 selected empirically constrained by qmprop
+          // radius of shell (nearest neighbor is diameter of 3 boxes, so radius=1.5)
+          double radius = 1.5 + 0.33 * std::max(0.0, 2 - std::log10(thresh) -
+                                                         k); // 0.33 was 0.5
+          double fac = vol_nsphere(NDIM, radius);
+          // previously fac=10.0 selected empirically constrained by qmprop
 
-            double cnorm = c.normf();
+          double cnorm = c.normf();
 
-            // BC handling:
-            // - if operator is lattice-summed then treat this as nonperiodic (i.e. tell neighbor() to stay in simulation cell)
-            // - if operator is NOT lattice-summed then obey BC (i.e. tell neighbor() to go outside the simulation cell along periodic dimensions)
-            // - BUT user can force operator to treat its arguments as non-periodic (`op.set_domain_periodicity({true,true,true})`)
-            // so ... which dimensions of this function are treated as periodic by op?
-            const array_of_bools<NDIM> this_is_threated_by_op_as_periodic = (op->particle() == 1) ? FunctionDefaults<NDIM>::get_bc().is_periodic().and_front(op->domain_is_periodic()) : FunctionDefaults<NDIM>::get_bc().is_periodic().and_back(op->domain_is_periodic());
+          // BC handling:
+          // - if operator is lattice-summed then treat this as nonperiodic (i.e. tell neighbor() to stay in simulation cell)
+          // - if operator is NOT lattice-summed then obey BC (i.e. tell neighbor() to go outside the simulation cell along periodic dimensions)
+          // - BUT user can force operator to treat its arguments as non-periodic (`op.set_domain_periodicity({true,true,true})`) so ... which dimensions of this function are treated as periodic by op?
+          const array_of_bools<NDIM> this_is_treated_by_op_as_periodic =
+              (op->particle() == 1)
+                  ? FunctionDefaults<NDIM>::get_bc().is_periodic().and_front(
+                        op->domain_is_periodic())
+                  : FunctionDefaults<NDIM>::get_bc().is_periodic().and_back(
+                        op->domain_is_periodic());
 
-            // list of displacements sorted in order of increasing distance
-            // N.B. if op is lattice-summed use periodic displacements, else use
-            // non-periodic even if op treats any modes of this as periodic
-            const std::vector<opkeyT>& disp = Displacements<opdim>().get_disp(key.level(), op->lattice_summed());
+          const auto default_distance_squared = [&](const auto &displacement)
+              -> std::uint64_t {
+            return displacement.distsq_bc(op->lattice_summed());
+          };
+          const auto default_skip_predicate = [&](const auto &displacement)
+              -> bool {
+            return false;
+          };
+          const auto for_each = [&](const auto &displacements,
+                                    const auto& distance_squared,
+                                    const auto& skip_predicate) {
 
-            int nvalid=1;       // Counts #valid at each distance
-            int nused=1;	// Counts #used at each distance
-            uint64_t distsq = 99999999999999;
-            for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
-	        keyT d;
-                Key<NDIM-opdim> nullkey(key.level());
-                MADNESS_ASSERT(op->particle()==1 || op->particle()==2);
-                if (op->particle()==1) d=it->merge_with(nullkey);
-                else d=nullkey.merge_with(*it);
+            int nvalid = 1; // Counts #valid at each distance
+            int nused = 1;  // Counts #used at each distance
+            std::uint64_t distsq = std::numeric_limits<std::uint64_t>::max();
 
-                // shell-wise screening, assumes displacements are grouped into shells sorted so that operator decays with shell index
-                // N.B. lattice-summed decaying kernel is periodic (i.e. does decay w.r.t. r), so loop over shells of displacements
-                // sorted by distances modulated by periodicity (Key::distsq_bc)
-		const uint64_t dsq = it->distsq_bc(op->lattice_summed());
-		if (dsq != distsq) { // Moved to next shell of neighbors
-		    if (nvalid > 0 && nused == 0 && dsq > 1) {
-		        // Have at least done the input box and all first
-		        // nearest neighbors, and for all of the last set
-		        // of neighbors had no contribution.  Thus,
-		        // assuming monotonic decrease, we are done.
-		        break;
-		    }
-		    nused = 0;
-                    nvalid = 0;
-		    distsq = dsq;
-		}
+            for (const auto &displacement : displacements) {
+              if (skip_predicate(displacement)) continue;
 
-                keyT dest = neighbor(key, d, this_is_threated_by_op_as_periodic);
-                if (dest.is_valid()) {
-                    nvalid++;
-                    double opnorm = op->norm(key.level(), *it, source);
-                    double tol = truncate_tol(thresh, key);
+              keyT d;
+              Key<NDIM - opdim> nullkey(key.level());
+              MADNESS_ASSERT(op->particle() == 1 || op->particle() == 2);
+              if (op->particle() == 1)
+                d = displacement.merge_with(nullkey);
+              else
+                d = nullkey.merge_with(displacement);
 
-                    if (cnorm*opnorm> tol/fac) {
-                        nused++;
-		        tensorT result = op->apply(source, *it, c, tol/fac/cnorm);
-			if (result.normf() > 0.3*tol/fac) {
-			  if (coeffs.is_local(dest))
-			      coeffs.send(dest, &nodeT::accumulate2, result, coeffs, dest);
-			  else
-  			      coeffs.task(dest, &nodeT::accumulate2, result, coeffs, dest);
-                        }
-                    }
+              // shell-wise screening, assumes displacements are grouped into shells sorted so that operator decays with shell index N.B. lattice-summed decaying kernel is periodic (i.e. does decay w.r.t. r), so loop over shells of displacements sorted by distances modulated by periodicity (Key::distsq_bc)
+              const uint64_t dsq = distance_squared(displacement);
+              if (dsq != distsq) { // Moved to next shell of neighbors
+                if (nvalid > 0 && nused == 0 && dsq > 1) {
+                  // Have at least done the input box and all first
+                  // nearest neighbors, and for all of the last set
+                  // of neighbors had no contribution.  Thus,
+                  // assuming monotonic decrease, we are done.
+                  break;
                 }
+                nused = 0;
+                nvalid = 0;
+                distsq = dsq;
+              }
+
+              keyT dest = neighbor(key, d, this_is_treated_by_op_as_periodic);
+              if (dest.is_valid()) {
+                nvalid++;
+                double opnorm = op->norm(key.level(), displacement, source);
+                double tol = truncate_tol(thresh, key);
+
+                if (cnorm * opnorm > tol / fac) {
+                  nused++;
+                  tensorT result =
+                      op->apply(source, displacement, c, tol / fac / cnorm);
+                  if (result.normf() > 0.3 * tol / fac) {
+                    if (coeffs.is_local(dest))
+                      coeffs.send(dest, &nodeT::accumulate2, result, coeffs,
+                                  dest);
+                    else
+                      coeffs.task(dest, &nodeT::accumulate2, result, coeffs,
+                                  dest);
+                  }
+                }
+              }
             }
+
+            return distsq;
+          };
+
+          // process "standard" displacements, screening assumes monotonic decay of the kernel
+          // list of displacements sorted in order of increasing distance
+          // N.B. if op is lattice-summed use periodic displacements, else use
+          // non-periodic even if op treats any modes of this as periodic
+          const std::vector<opkeyT> &disp = op->get_disp(key.level());
+          const auto max_distsq_reached = for_each(disp, default_distance_squared, default_skip_predicate);
         }
 
 
