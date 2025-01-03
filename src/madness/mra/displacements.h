@@ -41,9 +41,9 @@ namespace madness {
     template <std::size_t NDIM>
     class Displacements {
 
-        static std::vector< Key<NDIM> > disp;
-        static std::vector< Key<NDIM> > disp_periodic[64];
-        static array_of_bools<NDIM> disp_periodic_axes;
+        static std::vector< Key<NDIM> > disp; ///< standard displacements to be used with standard kernels (range-unrestricted, no lattice sum)
+        static array_of_bools<NDIM> periodic_axes;  ///< along which axes lattice summation is performed?
+        static std::vector< Key<NDIM> > disp_periodic[64];  ///< displacements to be used with lattice-summed kernels
 
     public:
         static int bmax_default() {
@@ -64,7 +64,7 @@ namespace madness {
         }
 
         static bool cmp_keys_periodic(const Key<NDIM>& a, const Key<NDIM>& b) {
-          return a.distsq_bc(disp_periodic_axes) < b.distsq_bc(disp_periodic_axes);
+          return a.distsq_bc(periodic_axes) < b.distsq_bc(periodic_axes);
         }
 
         static void make_disp(int bmax) {
@@ -178,9 +178,9 @@ namespace madness {
           if constexpr (NDIM <= 3) {
             if (disp_periodic[0].empty()) {
               if (FunctionDefaults<NDIM>::get_bc().is_periodic().any())
-                disp_periodic_axes = FunctionDefaults<NDIM>::get_bc().is_periodic();
+                periodic_axes = FunctionDefaults<NDIM>::get_bc().is_periodic();
               else
-                disp_periodic_axes = decltype(disp_periodic_axes){true};
+                periodic_axes = decltype(periodic_axes){true};
               Level nmax = 8 * sizeof(Translation) - 2;
               for (Level n = 0; n < nmax; ++n)
                 make_disp_periodic(bmax_default(), n);
@@ -190,17 +190,18 @@ namespace madness {
           MADNESS_PRAGMA_CLANG(diagnostic pop)
         }
 
-        const std::vector< Key<NDIM> >& get_disp(Level n, const array_of_bools<NDIM>& is_periodic) {
+        const std::vector< Key<NDIM> >& get_disp(Level n,
+                                                 const array_of_bools<NDIM>& kernel_lattice_sum_axes) {
             MADNESS_PRAGMA_CLANG(diagnostic push)
             MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
 
-            if (is_periodic.any()) {
+            if (kernel_lattice_sum_axes.any()) {
                 MADNESS_ASSERT(NDIM <= 3);
                 MADNESS_ASSERT(n < std::extent_v<decltype(disp_periodic)>);
-                if (is_periodic != disp_periodic_axes) {
+                if (kernel_lattice_sum_axes != periodic_axes) {
                   std::string msg =
                       "Displacements<" + std::to_string(NDIM) +
-                      ">::get_disp(level, is_periodic): is_periodic differs from the boundary conditions FunctionDefault's had when Displacements were initialized; on-demand periodic displacements generation is not yet supported";
+                      ">::get_disp(level, kernel_lattice_summed): kernel_lattice_summed differs from the boundary conditions FunctionDefault's had when Displacements were initialized; on-demand periodic displacements generation is not supported";
                   MADNESS_EXCEPTION(msg.c_str(), 1);
                 }
                 return disp_periodic[n];

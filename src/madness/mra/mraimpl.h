@@ -3622,8 +3622,8 @@ template <typename T, std::size_t NDIM>
     template <std::size_t NDIM> std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::pmap;
 
     template <std::size_t NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp;
+    template <std::size_t NDIM> array_of_bools<NDIM> Displacements<NDIM>::periodic_axes{false};
     template <std::size_t NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp_periodic[64];
-    template <std::size_t NDIM> array_of_bools<NDIM> Displacements<NDIM>::disp_periodic_axes{false};
 
 }
 
