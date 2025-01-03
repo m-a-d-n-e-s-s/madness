@@ -290,8 +290,6 @@ namespace madness {
                 , bloch_k(bloch_k)
                 , D(D)
         {
-            if (range_restricted()) MADNESS_CHECK(!lattice_summed());
-
             auto success = autoc(k,&c);
             MADNESS_CHECK(success);
 
@@ -725,9 +723,15 @@ namespace madness {
     template <typename Q>
     class GaussianConvolution1D : public Convolution1D<Q> {
         // Returns range of Gaussian for periodic lattice sum in simulation coords
-        static int maxR(bool periodic, double expnt) {
+        // N.B. for range-restricted kernels lattice summation range may or may not be limited by the kernel range
+        static int maxR(bool periodic, double expnt, std::optional<unsigned int> D = {}) {
             if (periodic) {
-                return std::max(1,int(sqrt(16.0*2.3/expnt)+1));
+              // kernel is zero past this many simulation cells due to range-restriction
+              const int maxR_D =
+                  D.has_value() ? (*D + 1) / 2 : std::numeric_limits<int>::max();
+              // kernel is zero past this many simulation cells due to decay of Gaussian kernel
+              const int maxR_G = std::max(1, int(sqrt(16.0 * 2.3 / expnt) + 1));
+              return std::min(maxR_D,maxR_G);
             }
             else {
                 return 0;
@@ -742,7 +746,7 @@ namespace madness {
         explicit GaussianConvolution1D(int k, Q coeff, double expnt,
         		int m, bool periodic, double bloch_k = 0.0,
                         std::optional<unsigned int> D = {})
-            : Convolution1D<Q>(k,k+11,maxR(periodic,expnt),bloch_k, D)
+            : Convolution1D<Q>(k,k+11,maxR(periodic,expnt,D),bloch_k, D)
             , coeff(coeff)
             , expnt(expnt)
             , natlev(Level(0.5*log(expnt)/log(2.0)+1))
