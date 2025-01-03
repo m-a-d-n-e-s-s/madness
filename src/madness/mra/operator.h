@@ -146,9 +146,10 @@ namespace madness {
         bool doleaves;  ///< If should be applied to leaf coefficients ... false by default
 
       private:
-        array_of_bools<NDIM> lattice_sum;  ///< If lattice_sum[d] is true, sum over lattice translations along axis d
-                                             ///< N.B. the resulting kernel can be non-zero at both ends of the simulation cell along that axis
-        array_of_bools<NDIM> domain_is_periodic_{false};    ///< If domain_is_periodic_[d]==false and lattice_sum[d]==false,
+        array_of_bools<NDIM>
+            lattice_summed_;    ///< If lattice_summed_[d] is true, sum over lattice translations along axis d
+                                ///< N.B. the resulting kernel can be non-zero at both ends of the simulation cell along that axis
+        array_of_bools<NDIM> domain_is_periodic_{false};    ///< If domain_is_periodic_[d]==false and lattice_summed_[d]==false,
                                                             ///< ignore periodicity of BC when applying this to function
         std::array<std::optional<unsigned int>, NDIM> range;  ///< if range[d] is nonnull, kernel range is limited to [-range[d]/2,range[d]/2]
 
@@ -222,10 +223,10 @@ namespace madness {
 
         static inline std::pair<Tensor<Q>,Tensor<Q>>
         make_coeff_for_operator(World& world, double mu, double lo, double eps, OpType type,
-                                const array_of_bools<NDIM>& lattice_sum) {
+                                const array_of_bools<NDIM>& lattice_summed) {
 
             OperatorInfo info(mu,lo,eps,type);
-            return make_coeff_for_operator(world, info, lattice_sum);
+            return make_coeff_for_operator(world, info, lattice_summed);
 //            const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
 //            double hi = cell_width.normf(); // Diagonal width of cell
 //            if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
@@ -246,15 +247,22 @@ namespace madness {
 
         static inline std::pair<Tensor<double>,Tensor<double>>
         make_coeff_for_operator(World& world, OperatorInfo& info,
-                                const array_of_bools<NDIM>& lattice_sum) {
+                                const array_of_bools<NDIM>& lattice_summed) {
 
           const Tensor<double> &cell_width =
               FunctionDefaults<3>::get_cell_width();
           double hi = cell_width.normf(); // Diagonal width of cell
           // Extend kernel range for lattice summation
-          const auto lattice_sum_any = lattice_sum.any();
-          if (lattice_sum_any) {
+          const auto lattice_summed_any = lattice_summed.any();
+          if (lattice_summed_any) {
             hi *= 100;
+          }
+          else if (FunctionDefaults<3>::get_bc().is_periodic_any()) {  // if have periodic boundaries, extend range just in case will be using periodic domain; use max range from info
+            unsigned int max_range = 1;
+            for(int d=0; d!=NDIM; ++d)
+              if (info.range.at(d))
+                max_range = std::max(max_range, 2*info.range.at(d).value());
+            hi *= max_range;
           }
 
           info.hi = hi;
@@ -264,7 +272,7 @@ namespace madness {
           Tensor<Q> expnt = fit.exponents();
 
           // WARNING! More fine-grained control over the last argument is needed. This is a hotfix.
-          if (info.truncate_lowexp_gaussians.value_or(lattice_sum_any)) {
+          if (info.truncate_lowexp_gaussians.value_or(lattice_summed_any)) {
             fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(),
                                             true);
             info.truncate_lowexp_gaussians = true;
@@ -976,18 +984,32 @@ namespace madness {
           }
         }
 
+        /// initializes lattice_sum using `ops[0].lattice_summed()`
+        /// @pre `ops[i].lattice_summed() == ops[0].lattice_summed()`
+        void init_lattice_summed() {
+          if (!ops.empty()) {
+            for (int d = 0; d != NDIM; ++d) {
+              for (const auto &op : ops) {
+                MADNESS_ASSERT(op.lattice_summed() ==
+                               ops[0].lattice_summed());
+              }
+              lattice_summed_ = ops[0].lattice_summed();
+            }
+          }
+        }
+
     public:
 
         // For separated convolutions with same operator in each direction (isotropic)
         SeparatedConvolution(World& world,
                              std::vector< std::shared_ptr< Convolution1D<Q> > >& argops,
-                             const array_of_bools<NDIM>& lattice_sum = FunctionDefaults<NDIM>::get_bc().is_periodic(),
+                             const array_of_bools<NDIM>& lattice_summed = FunctionDefaults<NDIM>::get_bc().is_periodic(),
                              long k = FunctionDefaults<NDIM>::get_k(),
                              bool doleaves = false)
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , info()
                 , doleaves(doleaves)
-                , lattice_sum(lattice_sum)
+                , lattice_summed_(lattice_summed)
                 , modified_(false)
                 , particle_(1)
                 , destructive_(false)
@@ -1003,6 +1025,7 @@ namespace madness {
               this->ops.push_back(ConvolutionND<Q,NDIM>(argops[mu]));
             }
             init_range();
+            init_lattice_summed();
 
             this->process_pending();
         }
@@ -1010,13 +1033,13 @@ namespace madness {
         // For general convolutions
         SeparatedConvolution(World& world,
                              std::vector< ConvolutionND<Q,NDIM> >& argops,
-                             const array_of_bools<NDIM>& lattice_sum = FunctionDefaults<NDIM>::get_bc().is_periodic(),
+                             const array_of_bools<NDIM>& lattice_summed = FunctionDefaults<NDIM>::get_bc().is_periodic(),
                              long k = FunctionDefaults<NDIM>::get_k(),
                              bool doleaves = false)
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , info()
                 , doleaves(doleaves)
-                , lattice_sum(lattice_sum)
+                , lattice_summed_(lattice_summed)
                 , modified_(false)
                 , particle_(1)
                 , destructive_(false)
@@ -1029,37 +1052,40 @@ namespace madness {
                 , s0(std::max<std::size_t>(2,NDIM),Slice(0,k-1))
         {
             init_range();
+            init_lattice_summed();
             this->process_pending();
         }
 
         /// Constructor for Gaussian Convolutions (mostly for backward compatability)
         SeparatedConvolution(World& world, const OperatorInfo info1,
-                             const array_of_bools<NDIM>& lattice_sum = FunctionDefaults<NDIM>::get_bc().is_periodic(),
+                             const array_of_bools<NDIM>& lattice_summed = FunctionDefaults<NDIM>::get_bc().is_periodic(),
                              int k=FunctionDefaults<NDIM>::get_k(),
                              bool doleaves = false)
-               : SeparatedConvolution(world,Tensor<double>(0l),Tensor<double>(0l),info1.lo,info1.thresh,lattice_sum,k,doleaves,info1.mu) {
+               : SeparatedConvolution(world,Tensor<double>(0l),Tensor<double>(0l),info1.lo,info1.thresh,lattice_summed,k,doleaves,info1.mu) {
             info.type=info1.type;
             info.truncate_lowexp_gaussians = info1.truncate_lowexp_gaussians;
             info.range = info1.range;
-            auto [coeff, expnt] = make_coeff_for_operator(world, info, lattice_sum);
+            auto [coeff, expnt] = make_coeff_for_operator(world, info, lattice_summed);
             rank=coeff.dim(0);
             range = info.template range_as_array<NDIM>();
             ops.resize(rank);
             initialize(coeff,expnt,range);
+            init_lattice_summed();
         }
 
         /// Constructor for Gaussian Convolutions (mostly for backward compatability)
         SeparatedConvolution(World& world,
                              const Tensor<Q>& coeff, const Tensor<double>& expnt,
                              double lo, double thresh,
-                             const array_of_bools<NDIM>& lattice_sum = FunctionDefaults<NDIM>::get_bc().is_periodic(),
+                             const array_of_bools<NDIM>& lattice_summed = FunctionDefaults<NDIM>::get_bc().is_periodic(),
                              int k=FunctionDefaults<NDIM>::get_k(),
                              bool doleaves = false,
                              double mu=0.0)
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , info(mu,lo,thresh,OT_UNDEFINED)
                 , doleaves(doleaves)
-                , lattice_sum(lattice_sum)
+                ,
+              lattice_summed_(lattice_summed)
                 , ops(coeff.dim(0))
                 , k(k)
                 , cdata(FunctionCommonData<Q,NDIM>::get(k))
@@ -1069,6 +1095,7 @@ namespace madness {
                 , s0(std::max<std::size_t>(2,NDIM),Slice(0,k-1)) {
             initialize(coeff,expnt);
             init_range();
+            init_lattice_summed();
         }
 
         void initialize(const Tensor<Q>& coeff, const Tensor<double>& expnt, std::array<std::optional<unsigned int>, NDIM> range = make_default_range()) {
@@ -1083,7 +1110,8 @@ namespace madness {
                 ops[mu].setfac(coeff(mu)/c);
 
                 for (std::size_t d=0; d<NDIM; ++d) {
-                  ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0, lattice_sum[d], 0., range[d]));
+                  ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0,
+                                       lattice_summed_[d], 0., range[d]));
                 }
             }
         }
@@ -1092,13 +1120,13 @@ namespace madness {
         SeparatedConvolution(World& world,
                              Vector<double,NDIM> args,
                              const Tensor<Q>& coeff, const Tensor<double>& expnt,
-                             const array_of_bools<NDIM>& lattice_sum = FunctionDefaults<NDIM>::get_bc().is_periodic(),
+                             const array_of_bools<NDIM>& lattice_summed = FunctionDefaults<NDIM>::get_bc().is_periodic(),
                              int k=FunctionDefaults<NDIM>::get_k(),
                              bool doleaves=false)
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , info(0.0,0.0,0.0,OT_UNDEFINED)
                 , doleaves(doleaves)
-                , lattice_sum(lattice_sum)
+                , lattice_summed_(lattice_summed)
                 , modified_(false)
                 , particle_(1)
                 , destructive_(false)
@@ -1119,10 +1147,11 @@ namespace madness {
                   double c2 = sqrt(expnt[mu]*width[d]*width[d]/madness::constants::pi);
                   std::shared_ptr<GaussianConvolution1D<double_complex> >
                       gcptr(new GaussianConvolution1D<double_complex>(k, c2, 
-                            expnt(mu)*width[d]*width[d], 0, lattice_sum[d], args[d]));
+                            expnt(mu)*width[d]*width[d], 0, lattice_summed[d], args[d]));
                   ops[mu].setop(d,gcptr);
                 }
             }
+            init_lattice_summed();
         }
 
         virtual ~SeparatedConvolution() { }
@@ -1148,7 +1177,7 @@ namespace madness {
         }
 
         /// @return flag for each axis indicating whether lattice summation is performed in that direction
-        const array_of_bools<NDIM>& lattice_summed() const { return lattice_sum; }
+        const array_of_bools<NDIM>& lattice_summed() const { return lattice_summed_; }
         /// @return flag for each axis indicating whether the domain is periodic in that direction (false by default)
         const array_of_bools<NDIM>& domain_is_periodic() const { return domain_is_periodic_; }
         /// changes domain periodicity

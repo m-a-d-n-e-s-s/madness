@@ -605,6 +605,16 @@ namespace madness {
         Q getfac() const {
             return fac;
         }
+
+        /// @return whether lattice sum is performed along each axis
+        array_of_bools<NDIM> lattice_summed() const {
+          array_of_bools<NDIM> result(false);
+          for (int d = 0; d != NDIM; ++d) {
+            MADNESS_ASSERT(ops[d]);
+            result[d] = ops[d]->lattice_summed();
+          }
+          return result;
+        }
     };
 
     // To test generic convolution by comparing with GaussianConvolution1D
