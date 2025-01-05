@@ -671,6 +671,7 @@ int test_diff(World& world) {
 namespace madness {
     extern bool test_rnlp(bool log_errors);
     extern bool test_rnlp_rangelimited(bool log_errors);
+    extern bool test_rnlp_rangelimited_erf(bool log_errors);
     extern bool test_rnlij_rangelimited(bool log_errors);
 }
 
@@ -691,6 +692,11 @@ int test_op(World& world) {
     if (world.rank()==0) {
       if (ok) print("test_rnlp_rangelimited   OK");
       else print("test_rnlp_rangelimited   FAIL");
+    }
+    ok=test_rnlp_rangelimited_erf(true);
+    if (world.rank()==0) {
+      if (ok) print("test_rnlp_rangelimited_erf   OK");
+      else print("test_rnlp_rangelimited_erf   FAIL");
     }
     ok=test_rnlij_rangelimited(true);
     if (world.rank()==0) {
