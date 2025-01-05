@@ -151,7 +151,7 @@ namespace madness {
                                 ///< N.B. the resulting kernel can be non-zero at both ends of the simulation cell along that axis
         array_of_bools<NDIM> domain_is_periodic_{false};    ///< If domain_is_periodic_[d]==false and lattice_summed_[d]==false,
                                                             ///< ignore periodicity of BC when applying this to function
-        std::array<std::optional<unsigned int>, NDIM> range;  ///< if range[d] is nonnull, kernel range is limited to [-range[d]/2,range[d]/2]
+        std::array<KernelRange, NDIM> range;  ///< kernel range is along axis d is limited by range[d] if it's nonnull
 
       public:
         bool modified_=false;     ///< use modified NS form
@@ -201,8 +201,8 @@ namespace madness {
         const double& mu() const {return info.mu;}
         const int get_rank() const { return rank; }
         const int get_k() const { return k; }
-        std::array<std::optional<unsigned int>, NDIM> get_range() const { return range; }
-        bool range_restricted() const { return std::any_of(range.begin(), range.end(), [](const auto& v) { return v.has_value(); }); }
+        std::array<KernelRange, NDIM> get_range() const { return range; }
+        bool range_restricted() const { return std::any_of(range.begin(), range.end(), [](const auto& v) { return v.finite(); }); }
 
     private:
 
@@ -253,16 +253,10 @@ namespace madness {
               FunctionDefaults<3>::get_cell_width();
           double hi = cell_width.normf(); // Diagonal width of cell
           // Extend kernel range for lattice summation
+          // N.B. if have periodic boundaries, extend range just in case will be using periodic domain
           const auto lattice_summed_any = lattice_summed.any();
-          if (lattice_summed_any) {
+          if (lattice_summed.any() || FunctionDefaults<NDIM>::get_bc().is_periodic_any()) {
             hi *= 100;
-          }
-          else if (FunctionDefaults<3>::get_bc().is_periodic_any()) {  // if have periodic boundaries, extend range just in case will be using periodic domain; use max range from info
-            unsigned int max_range = 1;
-            for(int d=0; d!=NDIM; ++d)
-              if (info.range.at(d))
-                max_range = std::max(max_range, 2*info.range.at(d).value());
-            hi *= max_range;
           }
 
           info.hi = hi;
@@ -967,19 +961,15 @@ namespace madness {
             return result;
         }
 
-        static std::array<std::optional<unsigned int>, NDIM> make_default_range() {
-          return {};
-        }
-
         /// initializes range using range of ops[0]
         /// @pre `ops[i].range == ops[0].range`
         void init_range() {
           if (!ops.empty()) {
             for (int d = 0; d != NDIM; ++d) {
               for(const auto & op: ops) {
-                MADNESS_ASSERT(op.getop(d)->D == ops[0].getop(d)->D);
+                MADNESS_ASSERT(op.getop(d)->range == ops[0].getop(d)->range);
               }
-              range[d] = ops[0].getop(d)->D;
+              range[d] = ops[0].getop(d)->range;
             }
           }
         }
@@ -1098,7 +1088,7 @@ namespace madness {
             init_lattice_summed();
         }
 
-        void initialize(const Tensor<Q>& coeff, const Tensor<double>& expnt, std::array<std::optional<unsigned int>, NDIM> range = make_default_range()) {
+        void initialize(const Tensor<Q>& coeff, const Tensor<double>& expnt, std::array<KernelRange, NDIM> range = {}) {
             const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
             const double pi = constants::pi;
 

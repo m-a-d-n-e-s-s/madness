@@ -262,7 +262,7 @@ namespace madness {
         int npt;        ///< Number of quadrature points (is this used?)
         int maxR;       ///< Number of lattice translations for sum
         double bloch_k;  ///< k in exp(i k R) Bloch phase factor folded into lattice sum
-        std::optional<unsigned int> D;  ///< if D is nonnull, kernel range limited to [-D/2,D/2] (in simulation cell units), useful for finite-range convolutions with periodic functions; for infinite-range use lattice summation (maxR > 0)
+        KernelRange range;  ///< if range is nonnull, kernel range limited to to range (in simulation cell units), useful for finite-range convolutions with periodic functions
         Tensor<double> quad_x;
         Tensor<double> quad_w;
         Tensor<double> c;
@@ -275,20 +275,20 @@ namespace madness {
         mutable SimpleCache<ConvolutionData1D<Q>, 2> mod_ns_cache;
 
         bool lattice_summed() const { return maxR != 0; }
-        bool range_restricted() const { return D.has_value(); }
+        bool range_restricted() const { return range; }
 
         virtual ~Convolution1D() {};
 
         Convolution1D(int k, int npt, int maxR,
                       double bloch_k = 0.0,
-                      std::optional<unsigned int> D = {})
+                      KernelRange rng = {})
                 : k(k)
                 , npt(npt)
                 , maxR(maxR)
                 , quad_x(npt)
                 , quad_w(npt)
                 , bloch_k(bloch_k)
-                , D(D)
+                , range(rng)
         {
             auto success = autoc(k,&c);
             MADNESS_CHECK(success);
@@ -315,36 +315,46 @@ namespace madness {
         /// @return true if the block of [r^n_l]_ij is expected to be small
         /// @note unlike issmall(), this handles periodicity and range restriction
         bool get_issmall(Level n, Translation lx) const {
+          // issmall modufulated by range restriction
+          auto is_small = [this,n](Translation l) {
+            if (!range_restricted())
+              return issmall(n, l);
+            else {
+              // [r^n_l]_ij = superposition of [r^n_l]_p and [r^n_l-1]_p
+              // so rnlij is out of the range only if both rnlp contributions are
+              const auto closest_l = l<=0 ? l : l-1;
+              return rnlp_is_zero(n, closest_l) || issmall(n, l);
+            }
+          };
+
+          // handle lattice summation, if needed
           if (lattice_summed()) {
-            Translation twon = Translation(1) << n;
+            const Translation twon = Translation(1) << n;
             for (int R = -maxR; R <= maxR; ++R) {
-              if (!issmall(n, R * twon + lx))
+              if (!is_small(R * twon + lx))
                 return false;
             }
             return true;
           } else { // !lattice_summed
-            if (!range_restricted())
-              return issmall(n, lx);
-            else {
-              // [r^n_l]_ij = superposition of [r^n_l]_p and [r^n_l-1]_p
-              // so rnlij is out of the range only if both rnlp contributions are
-              const auto closest_lx = lx<=0 ? lx : lx-1;
-              return rnlp_is_zero(n, closest_lx) || issmall(n, lx);
-            }
+            return is_small(lx);
           }
         }
 
-        /// @return true if `[r^n_l]` is zero due to range restriction \p D
+        /// @return true if `[r^n_l]` is zero due to range restriction
         bool rnlp_is_zero(Level n, Translation l) const {
           bool result = false;
           if (range_restricted()) {
             if (n == 0) {
-              result = l > 0 || l < -1;
+              // result = l > 0 || l < -1;
+              if (l >= 0)
+                result = Translation(range.iextent_x2()) <= 2*l;
+              else
+                result = Translation(range.iextent_x2()) <= 2*(-l-1);
             } else { // n > 0
               if (l >= 0)
-                result = (1 << (n - 1)) * Translation(*D) <= l;
+                result = (1 << (n - 1)) * Translation(range.iextent_x2()) <= l;
               else
-                result = (-(1 << (n - 1)) * Translation(*D)) > l;
+                result = ((1 << (n - 1)) * Translation(range.iextent_x2())) <= (-l-1);
             }
           }
           return result;
@@ -724,14 +734,13 @@ namespace madness {
     class GaussianConvolution1D : public Convolution1D<Q> {
         // Returns range of Gaussian for periodic lattice sum in simulation coords
         // N.B. for range-restricted kernels lattice summation range may or may not be limited by the kernel range
-        static int maxR(bool periodic, double expnt, std::optional<unsigned int> D = {}) {
+        static int maxR(bool periodic, double expnt, const KernelRange& rng = {}) {
             if (periodic) {
-              // kernel is zero past this many simulation cells due to range-restriction
-              const int maxR_D =
-                  D.has_value() ? (*D + 1) / 2 : std::numeric_limits<int>::max();
-              // kernel is zero past this many simulation cells due to decay of Gaussian kernel
+              // kernel is 1e-16 past this many simulation cells due to range-restriction
+              const int maxR_rng = rng.finite() ? (rng.iextent_x2(1e-16) + 1)/2 : std::numeric_limits<int>::max();
+              // kernel is 1e-16 past this many simulation cells due to decay of Gaussian kernel
               const int maxR_G = std::max(1, int(sqrt(16.0 * 2.3 / expnt) + 1));
-              return std::min(maxR_D,maxR_G);
+              return std::min(maxR_rng,maxR_G);
             }
             else {
                 return 0;
@@ -745,8 +754,8 @@ namespace madness {
 
         explicit GaussianConvolution1D(int k, Q coeff, double expnt,
         		int m, bool periodic, double bloch_k = 0.0,
-                        std::optional<unsigned int> D = {})
-            : Convolution1D<Q>(k,k+11,maxR(periodic,expnt,D),bloch_k, D)
+                        KernelRange rng = {})
+            : Convolution1D<Q>(k,k+11,maxR(periodic,expnt,rng),bloch_k, rng)
             , coeff(coeff)
             , expnt(expnt)
             , natlev(Level(0.5*log(expnt)/log(2.0)+1))
@@ -791,16 +800,17 @@ namespace madness {
             KahanAccumulator<Q> v_accumulator[twok];
             constexpr bool use_kahan = false;  // change to true to use Kahan accumulator
 
-            // if outside the range, early return, else update the integration limits
+            // integration range is [0,1] ...
             std::pair<double, double> integration_limits{0,1};
-            if (this->range_restricted()) {
+            // ... unless using hard (step-wise) range restriction
+            if (this->range.finite_hard()) {
               const auto two_to_nm1 = (1ul << n) * 0.5;
               if (lx < 0) {
                 integration_limits = std::make_pair(
-                    std::min(std::max(-two_to_nm1 * this->D.value() - lx, 0.), 1.), 1.);
+                    std::min(std::max(-two_to_nm1 * this->range.iextent_x2() - lx, 0.), 1.), 1.);
               } else {
                 integration_limits = std::make_pair(
-                    0., std::max(std::min(two_to_nm1 * this->D.value() - lx, 1.), 0.));
+                    0., std::max(std::min(two_to_nm1 * this->range.iextent_x2() - lx, 1.), 0.));
               }
               // early return if empty integration range (this indicates that
               // the range restriction makes the kernel zero everywhere in the box)
@@ -854,6 +864,31 @@ namespace madness {
             double h = 1.0/sqrt(beta);  // 2.0*sqrt(0.5/beta);
             long nbox = long(1.0/h);
             if (nbox < 1) nbox = 1;
+
+            // corner case: soft range restriction, range boundary within in interval
+            // since the integrand changes rapidly at x=0, 1/2, or 1, need finer
+            // integration
+            // N.B. this should have almost no impact on performance since this
+            // will produce a large number of boxes only when 2^n * sigma << 1
+            if (this->range.finite_soft()) {
+              // range boundary within in interval if 2^{n-1}*range.N() \in [l,l+1] (l>=0) or [-l,-l+1] (l<0)
+              const auto range_edge_in_interval = [&]() {
+                const auto two_to_nm1 = (1ul << n) * 0.5;
+                const auto range_boundary = two_to_nm1 * this->range.N();
+                if (lx >= 0) {
+                  return range_boundary >= lx && range_boundary <= lx+1;
+                }
+                else { // lx < 0
+                  return range_boundary <= -lx && range_boundary >= -lx-1;
+                }
+              };
+
+              // ensure that box is at least 1/sigma in size
+              if (range_edge_in_interval()) {
+                nbox = std::max(nbox, static_cast<long>(ceil(1./((1ul << n) * this->range.sigma()))));
+              }
+            }
+
             h = L/nbox;
 
             // Find argmax such that h*scaledcoeff*exp(-argmax)=1e-22 ... if
@@ -897,6 +932,10 @@ namespace madness {
 #endif
                     double xx = xlo + h*this->quad_x(i);
                     Q ee = scaledcoeff*exp(-beta*xx*xx)*this->quad_w(i)*h;
+                    if (this->range && this->range.finite()) {
+                      const auto x = xx * pow(0.5,double(n));
+                      ee *= this->range.value(x);
+                    }
 
                     // Differentiate as necessary
                     if (m == 1) {
@@ -955,13 +994,13 @@ namespace madness {
 
         static std::shared_ptr< GaussianConvolution1D<Q> > get(int k, double expnt, int m, bool periodic,
                                                                double bloch_k = 0.0,
-                                                               std::optional<unsigned int> D = {}) {
+                                                               const KernelRange& range = {}) {
             hashT key = hash_value(expnt);
             hash_combine(key, k);
             hash_combine(key, m);
             hash_combine(key, int(periodic));
             hash_combine(key, bloch_k);
-            if (D) hash_combine(key, *D);
+            if (range) hash_combine(key, range);
 
             MADNESS_PRAGMA_CLANG(diagnostic push)
             MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
@@ -974,7 +1013,7 @@ namespace madness {
                                                                                     m,
                                                                                     periodic,
                                                                                     bloch_k,
-                                                                                    D
+                                                                                    range
                                                                                     )));
                 MADNESS_ASSERT(inserted);
                 it = map.find(key);
@@ -988,7 +1027,7 @@ namespace madness {
                            result->k == k &&
                            result->m == m &&
                            result->lattice_summed() == periodic &&
-                           result->D == D &&
+                           result->range == range &&
                            result->bloch_k == bloch_k);
             return result;
 

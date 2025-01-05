@@ -39,6 +39,7 @@
 
 #include <madness/world/madness_exception.h>
 #include <madness/misc/array_of_bools.h>
+#include <madness/mra/kernelrange.h>
 
 #include <array>
 #include <cstddef>
@@ -178,26 +179,26 @@ public:
 
   /// Convenience for construction of range-restricted integral operators
 
-  /// @return Returns an array of operator ranges, with each periodic dimension set to \p r
+  /// @return Returns an array of operator ranges, with range of each periodic dimension set restricted to `{r,sigma}`
   template <std::size_t ND = NDIM>
-  std::enable_if_t<ND <= NDIM, std::array<std::optional<unsigned int>, ND>> make_range(unsigned int r) const {
-    std::array<std::optional<unsigned int>, ND> result;
+  std::enable_if_t<ND <= NDIM, std::array<KernelRange, ND>> make_range(unsigned int r, double sigma) const {
+    std::array<KernelRange, ND> result;
     for (std::size_t d = 0; d < ND; ++d) {
       MADNESS_ASSERT(bc[2 * d + 1] == bc[2 * d]);
       if (bc[2 * d] == BC_PERIODIC)
-        result[d] = r;
+        result[d] = {r, sigma};
     }
     return result;
   }
 
   /// Convenience for construction of range-restricted integral operators
 
-  // same as make_range(), but makes a std::vector
-  std::vector<std::optional<unsigned int>> make_range_vector(unsigned int r) const {
-    std::vector<std::optional<unsigned int>> result(NDIM);
+  /// same as make_range(), but makes a std::vector
+  std::vector<KernelRange> make_range_vector(unsigned int r, double sigma) const {
+    std::vector<KernelRange> result(NDIM);
     for (std::size_t d = 0; d < NDIM; ++d) {
       MADNESS_ASSERT(bc[2 * d + 1] == bc[2 * d]);
-      if (bc[2 * d] == BC_PERIODIC) result[d] = r;
+      if (bc[2 * d] == BC_PERIODIC) result[d] = {r, sigma};
     }
     return result;
   }
