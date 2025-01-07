@@ -167,6 +167,11 @@ namespace madness {
             return l;
         }
 
+        /// const accessor to elements of this->translation()
+        const Translation& operator[](std::size_t d) const {
+          return l[d];
+        }
+
         uint64_t
         distsq() const {
             uint64_t dist = 0;
