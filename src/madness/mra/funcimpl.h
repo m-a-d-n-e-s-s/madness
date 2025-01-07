@@ -4834,12 +4834,11 @@ template<size_t NDIM>
             return false;
           };
           const auto for_each = [&](const auto &displacements,
-                                    const auto& distance_squared,
-                                    const auto& skip_predicate) {
-
+                                    const auto &distance_squared,
+                                    const auto &skip_predicate) -> std::optional<std::uint64_t> {
             int nvalid = 1; // Counts #valid at each distance
             int nused = 1;  // Counts #used at each distance
-            std::uint64_t distsq = std::numeric_limits<std::uint64_t>::max();
+            std::optional<std::uint64_t> distsq;
 
             for (const auto &displacement : displacements) {
               if (skip_predicate(displacement)) continue;
@@ -4854,7 +4853,8 @@ template<size_t NDIM>
 
               // shell-wise screening, assumes displacements are grouped into shells sorted so that operator decays with shell index N.B. lattice-summed decaying kernel is periodic (i.e. does decay w.r.t. r), so loop over shells of displacements sorted by distances modulated by periodicity (Key::distsq_bc)
               const uint64_t dsq = distance_squared(displacement);
-              if (dsq != distsq) { // Moved to next shell of neighbors
+              if (!distsq ||
+                  dsq != distsq) { // Moved to next shell of neighbors
                 if (nvalid > 0 && nused == 0 && dsq > 1) {
                   // Have at least done the input box and all first
                   // nearest neighbors, and for all of the last set
