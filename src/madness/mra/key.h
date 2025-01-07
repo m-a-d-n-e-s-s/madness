@@ -62,7 +62,7 @@ namespace madness {
     /// Key is the index for a node of the 2^NDIM-tree
 
     /// See KeyChildIterator for facile generation of children,
-    /// and foreach_child(parent,op) for facile applicaiton of operators
+    /// and foreach_child(parent,op) for facile application of operators
     /// to child keys.
     template<std::size_t NDIM>
     class Key {
