@@ -266,6 +266,15 @@ namespace madness {
             return Key(this->level(),l);
         }
 
+        /// given a displacement, generate a neighbor key; ignore boundary conditions and disp's level
+
+        /// @param[in]  disp    the displacement
+        /// @return     a new key
+        Key neighbor(const Vector<Translation,NDIM>& disp) const {
+          Vector<Translation,NDIM> l = this->translation()+disp;
+          return Key(this->level(),l);
+        }
+
 
         /// check if this MultiIndex contains point x, disregarding these two dimensions
         bool thisKeyContains(const Vector<double,NDIM>& x, const unsigned int& dim0,
