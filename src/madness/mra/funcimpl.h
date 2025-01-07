@@ -4898,6 +4898,36 @@ template<size_t NDIM>
           // non-periodic even if op treats any modes of this as periodic
           const std::vector<opkeyT> &disp = op->get_disp(key.level());
           const auto max_distsq_reached = for_each(disp, default_distance_squared, default_skip_predicate);
+
+          // for range-restricted kernels ensure ALL displacements to the boundary of the kernel range are included
+          if (key.level() >= 2 && op->range_restricted()) {
+
+            std::array<std::optional<std::int64_t>, NDIM> box_radius;
+            std::array<std::optional<std::int64_t>, NDIM> surface_thickness;
+            auto &range = op->get_range();
+            for (int d = 0; d != NDIM; ++d) {
+              if (range[d]) {
+                box_radius[d] = range[d].N();
+                surface_thickness[d] = range[d].finite_soft() ? 1 : 0;
+              }
+            }
+            using filter_t = std::function<bool(const opkeyT &)>;
+            BoxSurfaceDisplacementRange<NDIM> range_boundary_displacements(
+                key, box_radius, surface_thickness,
+                // skip surface displacements there were included in regular displacements
+                max_distsq_reached
+                    ? filter_t([&](const auto &displacement) -> bool {
+                        const auto distsq =
+                            default_distance_squared(displacement);
+                        return distsq > max_distsq_reached;
+                      })
+                    : filter_t{});
+            for_each(
+                range_boundary_displacements,
+                // all surface displacements are in same shell
+                [](const auto &displacement) -> std::uint64_t { return 0; },
+                default_skip_predicate);
+          }
         }
 
 
