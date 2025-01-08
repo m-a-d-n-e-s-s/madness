@@ -321,6 +321,24 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
             key2=Key<KDIM>(n,l2);
         }
 
+        /// extract a new key consisting of first VDIM dimensions of this
+        template<std::size_t VDIM>
+        Key<VDIM> extract_front() const {
+          static_assert(VDIM <= NDIM, "VDIM must be less than or equal to NDIM");
+          Vector<Translation, VDIM> t;
+          for (int i = 0; i < VDIM; ++i) t[i] = this->translation()[i];
+          return Key<VDIM>(this->level(),t);
+        }
+
+        /// extract a new key consisting of last VDIM dimensions of this
+        template<std::size_t VDIM>
+        Key<VDIM> extract_back() const {
+          static_assert(VDIM <= NDIM, "VDIM must be less than or equal to NDIM");
+          Vector<Translation, VDIM> t;
+          for (int i = 0; i < VDIM; ++i) t[i] = this->translation()[NDIM-VDIM+i];
+          return Key<VDIM>(this->level(),t);
+        }
+
         /// extract a new key with the Translations indicated in the v array
         template<std::size_t VDIM>
         Key<VDIM> extract_key(const std::array<int,VDIM>& v) const {

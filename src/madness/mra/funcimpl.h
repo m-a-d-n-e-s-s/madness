@@ -4840,7 +4840,10 @@ template<size_t NDIM>
             int nused = 1;  // Counts #used at each distance
             std::optional<std::uint64_t> distsq;
 
-            for (const auto &displacement : displacements) {
+            const auto disp_end = displacements.end();
+            for (auto disp_it = displacements.begin(); disp_it != disp_end;
+                 ++disp_it) {
+              const auto &displacement = *disp_it;
               if (skip_predicate(displacement)) continue;
 
               keyT d;
@@ -4854,7 +4857,7 @@ template<size_t NDIM>
               // shell-wise screening, assumes displacements are grouped into shells sorted so that operator decays with shell index N.B. lattice-summed decaying kernel is periodic (i.e. does decay w.r.t. r), so loop over shells of displacements sorted by distances modulated by periodicity (Key::distsq_bc)
               const uint64_t dsq = distance_squared(displacement);
               if (!distsq ||
-                  dsq != distsq) { // Moved to next shell of neighbors
+                  dsq != *distsq) { // Moved to next shell of neighbors
                 if (nvalid > 0 && nused == 0 && dsq > 1) {
                   // Have at least done the input box and all first
                   // nearest neighbors, and for all of the last set
@@ -4900,20 +4903,21 @@ template<size_t NDIM>
           const auto max_distsq_reached = for_each(disp, default_distance_squared, default_skip_predicate);
 
           // for range-restricted kernels ensure ALL displacements to the boundary of the kernel range are included
-          if (key.level() >= 2 && op->range_restricted()) {
+          if (op->range_restricted() && key.level() >= 2 && (NDIM<=2 || key.level() <= 5)) {
 
-            std::array<std::optional<std::int64_t>, NDIM> box_radius;
-            std::array<std::optional<std::int64_t>, NDIM> surface_thickness;
+            std::array<std::optional<std::int64_t>, opdim> box_radius;
+            std::array<std::optional<std::int64_t>, opdim> surface_thickness;
             auto &range = op->get_range();
-            for (int d = 0; d != NDIM; ++d) {
+            for (int d = 0; d != opdim; ++d) {
               if (range[d]) {
                 box_radius[d] = range[d].N();
                 surface_thickness[d] = range[d].finite_soft() ? 1 : 0;
               }
             }
             using filter_t = std::function<bool(const opkeyT &)>;
-            BoxSurfaceDisplacementRange<NDIM> range_boundary_displacements(
-                key, box_radius, surface_thickness,
+            auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_front<opdim>();
+            BoxSurfaceDisplacementRange<opdim> range_boundary_displacements(
+                opkey, box_radius, surface_thickness,
                 // skip surface displacements there were included in regular displacements
                 max_distsq_reached
                     ? filter_t([&](const auto &displacement) -> bool {
