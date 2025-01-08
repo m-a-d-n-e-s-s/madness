@@ -446,7 +446,7 @@ public:
         json persistent_output = {};
         json output = {};
         to_json<double>(output, otemp);
-        print("output: ", output.dump(4));
+        // print("output: ", output.dump(4));
         if (std::filesystem::exists(path_manager.get_output_path())) {
           std::ifstream ifs(path_manager.get_output_path());
           ifs >> persistent_output;
@@ -455,7 +455,7 @@ public:
         output["molecule"] = molecule.to_json();
         persistent_output[name] = output;
 
-        print("output: ", output.dump(4));
+        // print("output: ", output.dump(4));
         std::ofstream ofs(path_manager.get_output_path());
         ofs << persistent_output.dump(4);
         ofs.close();
@@ -507,7 +507,7 @@ public:
 
     if (world.rank() == 0) {
       json persistent_output = {};
-      print("output: ", output.dump(4));
+      //print("output: ", output.dump(4));
       if (std::filesystem::exists(pm.get_output_path())) {
         std::ifstream ifs(pm.get_output_path());
         ifs >> persistent_output;
@@ -516,7 +516,7 @@ public:
       output["molecule"] = molecule.to_json();
       persistent_output[name] = output;
 
-      print("output: ", output.dump(4));
+      //print("output: ", output.dump(4));
       std::ofstream ofs(pm.get_output_path());
       ofs << persistent_output.dump(4);
       ofs.close();
@@ -796,7 +796,7 @@ public:
       }
       if (world.rank() == 0) {
         print("last converged: ", last_converged);
-        print(alpha_i.dump(4));
+        //print(alpha_i.dump(4));
       }
       add_alpha_i_to_json(alpha_i, alpha_json);
     }
@@ -867,7 +867,7 @@ struct BetaData {
     beta_json["Beta"] = json::array();
 
     auto num_unique_elements = ijk.size();
-    print(num_unique_elements);
+    //print(num_unique_elements);
 
     // loop through beta data and add to json
     for (const auto &[index, data] : beta_data) {
@@ -880,7 +880,7 @@ struct BetaData {
       for (int i = 0; i < num_unique_elements; i++) {
 
         const std::string dir = ijk[i];
-        print("Dir: ", dir);
+        //print("Dir: ", dir);
         const double beta_ijk = beta_i[i];
 
         std::string A{};
@@ -891,13 +891,13 @@ struct BetaData {
         B += dir[1];
         C += dir[2];
 
-        print("A: ", A);
-        print("B: ", B);
-        print("C: ", C);
-        print("Beta: ", beta_ijk);
-        print("Afreq: ", Afreq);
-        print("Bfreq: ", Bfreq);
-        print("Cfreq: ", Cfreq);
+        /*print("A: ", A);*/
+        /*print("B: ", B);*/
+        /*print("C: ", C);*/
+        /*print("Beta: ", beta_ijk);*/
+        /*print("Afreq: ", Afreq);*/
+        /*print("Bfreq: ", Bfreq);*/
+        /*print("Cfreq: ", Cfreq);*/
 
         beta_json["Afreq"].push_back(Afreq);
         beta_json["Bfreq"].push_back(Bfreq);
@@ -1034,14 +1034,14 @@ public:
       auto moldft_archive = moldft_restart.replace_extension().string();
 
       GroundStateCalculation ground_calculation{world, moldft_archive};
-      if (world.rank() == 0) {
-        ground_calculation.print_params();
-      }
+      /*if (world.rank() == 0) {*/
+      /*  ground_calculation.print_params();*/
+      /*}*/
       Molecule molecule = ground_calculation.molecule();
       quad_parameters.set_ground_state_calculation_data(ground_calculation);
-      if (world.rank() == 0) {
-        quad_parameters.print();
-      }
+      /*if (world.rank() == 0) {*/
+      /*  quad_parameters.print();*/
+      /*}*/
 
       world.gop.fence();
       FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
@@ -1058,7 +1058,7 @@ public:
         if (world.rank() == 0) {
           std::ifstream ifs(beta_2_path);
           ifs >> beta_json_2;
-          print("beta_json_2: ", beta_json_2.dump(4));
+          //print("beta_json_2: ", beta_json_2.dump(4));
 
           beta_data = beta_json_2.get<BetaData>();
         }
@@ -1091,9 +1091,9 @@ public:
           world.gop.fence();
           // Need to call copy since beta_ptr belongs to all?
 
-          if (world.rank() == 0) {
-            print("Beta outside of compute_beta_v2: \n", beta);
-          }
+          /*if (world.rank() == 0) {*/
+          /*  print("Beta outside of compute_beta_v2: \n", beta);*/
+          /*}*/
           std::array<double, 27> beta_i{};
           auto beta_1D = beta.reshape(beta_i.size());
 
@@ -1141,7 +1141,7 @@ public:
         }
         json out_json = {};
         out_json["beta"] = beta_data.to_json_table();
-        print("beta_data: ", out_json.dump(4));
+        //print("beta_data: ", out_json.dump(4));
         persistent_output[name] = out_json;
         std::ofstream ofs(path_manager.get_output_path());
         ofs << persistent_output.dump(4);
@@ -1158,7 +1158,7 @@ public:
 
   void add_beta_i_to_json(nlohmann::ordered_json &beta_i,
                           nlohmann::ordered_json &beta_json) {
-    print(beta_json.dump(4));
+    //print(beta_json.dump(4));
 
     for (auto &[key, value] : beta_i.items()) {
       beta_json[key].insert(beta_json[key].end(), value.begin(), value.end());

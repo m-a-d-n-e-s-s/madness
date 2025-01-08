@@ -95,9 +95,9 @@ int main(int argc, char **argv) {
     auto properties = task_params.properties;
     auto molecule = params.get_molecule();
 
-    if (world.rank() == 0) {
-      task_params.print();
-    }
+    /*if (world.rank() == 0) {*/
+    /*  task_params.print();*/
+    /*}*/
 
     // Create the CalcManager using the factory function
     // if driver is energy use createCalcManager
