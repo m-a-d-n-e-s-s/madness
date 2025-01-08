@@ -4914,16 +4914,35 @@ template<size_t NDIM>
                 surface_thickness[d] = range[d].finite_soft() ? 1 : 0;
               }
             }
-            using filter_t = std::function<bool(const opkeyT &)>;
+            using filter_t = std::function<bool(const opkeyT &, const opkeyT &)>;
             auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_front<opdim>();
+            // see this_is_treated_by_op_as_periodic above
+            const array_of_bools<opdim> op_domain_is_periodic =
+                (op->particle() == 1)
+                    ? (FunctionDefaults<NDIM>::get_bc().is_periodic().template front<opdim>() &&
+                          op->domain_is_periodic())
+                    : (FunctionDefaults<NDIM>::get_bc().is_periodic().template back<opdim>() &&
+                          op->domain_is_periodic());
             BoxSurfaceDisplacementRange<opdim> range_boundary_displacements(
                 opkey, box_radius, surface_thickness,
                 // skip surface displacements there were included in regular displacements
                 max_distsq_reached
-                    ? filter_t([&](const auto &displacement) -> bool {
-                        const auto distsq =
-                            default_distance_squared(displacement);
-                        return distsq > max_distsq_reached;
+                    ? filter_t([&](const auto &dest, const auto &displacement) -> bool {
+                        // skip displacements not in domain
+                        const bool dest_is_in_domain = [&,twon = (1 << dest.level())]() {
+                          for(auto d=0; d!=opdim; ++d) {
+                            if (op_domain_is_periodic[d]) continue;
+                            if (dest.translation()[d] < 0 || dest.translation()[d] >= twon) return false;
+                          }
+                          return true;
+                        }();
+                        if (dest_is_in_domain) {
+                          const auto distsq =
+                              default_distance_squared(displacement);
+                          return distsq > max_distsq_reached;
+                        }
+                        else
+                          return false;
                       })
                     : filter_t{});
             for_each(

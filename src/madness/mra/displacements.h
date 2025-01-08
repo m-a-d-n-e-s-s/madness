@@ -236,6 +236,7 @@ namespace madness {
       using SurfaceThickness = std::array<std::optional<Translation>, NDIM>;  // null thickness for dimensions with null radius
       using Box = std::array<std::pair<Translation, Translation>, NDIM>;
       using Hollowness = std::array<bool, NDIM>;
+      using Filter = std::function<bool(const Point&, const Displacement&)>;
 
       Point center_;                          ///< Center point of the box
       BoxRadius box_radius_;                  ///< halved size of the box in each dimension
@@ -243,7 +244,7 @@ namespace madness {
           surface_thickness_;    ///< surface thickness in each dimension
       Box box_;                  ///< box bounds in each dimension
       Hollowness hollowness_;    ///< does box contain non-surface points?
-      std::function<bool(const Displacement&)> filter_;  ///< optional filter function
+      Filter filter_;  ///< optional filter function
 
       /**
      * @brief Iterator class for lazy generation of surface points
@@ -349,7 +350,7 @@ namespace madness {
 
         void advance_till_valid() {
           if (parent->filter_) {
-            while (!done && !parent->filter_(this->displacement())) {
+            while (!done && !parent->filter_(point, this->displacement())) {
               ++(*this);
             }
           }
@@ -468,7 +469,7 @@ namespace madness {
       explicit BoxSurfaceDisplacementRange(const Key<NDIM>& center,
                                            const std::array<std::optional<std::int64_t>, NDIM>& box_radius,
                                            const std::array<std::optional<std::int64_t>, NDIM>& surface_thickness,
-                                           std::function<bool(const Displacement&)> filter = {})
+                                           Filter filter = {})
           : center_(center), box_radius_(box_radius),
             surface_thickness_(surface_thickness), filter_(std::move(filter)) {
         // initialize box bounds
