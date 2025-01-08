@@ -1908,34 +1908,21 @@ namespace madness {
         return sum;
     }
 
+    /// Returns the number of coefficients in the function for each rank
+    template <typename T, std::size_t NDIM>
+    std::size_t FunctionImpl<T,NDIM>::size_local() const {
+        std::size_t sum = 0;
+        for (const auto& [key,node] : coeffs) {
+            if (node.has_coeff()) sum+=node.size();
+        }
+        return sum;
+    }
+
     /// Returns the number of coefficients in the function ... collective global sum
     template <typename T, std::size_t NDIM>
     std::size_t FunctionImpl<T,NDIM>::size() const {
-        std::size_t sum = 0;
-#if 1
-        typename dcT::const_iterator end = coeffs.end();
-        for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
-            const nodeT& node = it->second;
-            if (node.has_coeff())
-                sum+=node.size();
-        }
-        //            print("proc",world.rank(),sum);
-#else
-        typename dcT::const_iterator end = coeffs.end();
-        for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
-            const nodeT& node = it->second;
-            if (node.has_coeff())
-                ++sum;
-        }
-        if (is_compressed())
-            for (std::size_t i=0; i<NDIM; ++i)
-                sum *= 2*cdata.k;
-        else
-            for (std::size_t i=0; i<NDIM; ++i)
-                sum *= cdata.k;
-#endif
+        std::size_t sum = size_local();
         world.gop.sum(sum);
-
         return sum;
     }
 

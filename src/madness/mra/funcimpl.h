@@ -6815,6 +6815,9 @@ template<size_t NDIM>
         /// Returns the size of the tree structure of the function ... collective global sum
         std::size_t tree_size() const;
 
+        /// Returns the number of coefficients in the function for each rank
+        std::size_t size_local() const;
+
         /// Returns the number of coefficients in the function ... collective global sum
         std::size_t size() const;
 

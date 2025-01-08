@@ -207,6 +207,7 @@ public:
     }
 };
 
+
 /// Calculation TDHFParameters for CC2 and TDA calculations
 /// Maybe merge this with calculation_parameters of SCF at some point, or split into TDA and CC
 struct CCParameters : public QCCalculationParametersBase {
@@ -1244,7 +1245,7 @@ public:
 
     /// updates the pure 6D part of the pair function
     void update_u(const real_function_6d& u) {
-        print("updating u(",i,j,")");
+        // print("updating u(",i,j,")");
         CCPairFunction tmp(u);
         if (functions.size() == 0) functions.push_back(tmp);
         else { //(functions.size() > 1) {
@@ -1433,6 +1434,40 @@ public:
 };
 
 
+/// print accumulated size of all functions
+struct CCSize {
+    double size_local=0;
+
+    CCSize() = default;
+
+    template<typename T, std::size_t NDIM>
+    void add_helper(const std::vector<Function<T,NDIM>>& v) {
+        if (v.size()>0) size_local+=get_size_local(v.front().world(),v);
+    }
+
+    void add_helper(const std::vector<CCPair>& vp) {
+        if (vp.empty()) return;
+        for (const auto& p : vp) {
+            size_local+=get_size(p.constant_part);
+            if (p.function_exists()) size_local+=get_size_local(p.function());
+        }
+    }
+
+    /// variadic template parameters to add the size of all functions and pairs
+    template<typename... Args>
+    void add(const Args&... args) {
+        (add_helper(args), ...);
+    }
+
+    void print(World& world, const std::string msg="") const {
+        double size_global=size_local;
+        world.gop.sum(size_global);
+        if (msg.size()>0 and world.rank()==0) madness::print(msg);
+        madness::print("size of all functions on rank",world.rank(),size_local);
+        if (world.rank()==0) madness::print("total size of all functions",size_global);
+
+    }
+};
 
 
 class MacroTaskMp2ConstantPart : public MacroTaskOperationBase {

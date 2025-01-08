@@ -404,6 +404,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
             std::cout << std::fixed << std::setprecision(1) << "\nFinished constant part at time " << wall_time() << std::endl;
             std::cout << std::fixed << std::setprecision(1) << "\nStarting saving pairs and energy calculation at time " << wall_time() << std::endl;
         }
+        load_balance(world, result_vec);
 
         // transform vector back to Pairs structure
         for (size_t i = 0; i < pair_vec.size(); i++) {
@@ -420,14 +421,25 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
     }
 
     auto compute_energy = [&](const std::vector<CCPair>& pair_vec, std::string msg="") {
+        for (const auto& p : pair_vec) {
+            p.function().print_size("function "+p.name());
+            p.function().print_size("constant_part "+p.name());
+            p.function().reconstruct();
+            p.constant_part.reconstruct();
+        }
         MacroTaskComputeCorrelationEnergy t;
         MacroTask task1(world, t);
         CC_vecfunction dummy_singles1(PARTICLE);
+
         auto pair_energies=task1(pair_vec, dummy_singles, info);
         // pair_energies is now scattered over the universe
 
         double total_energy=0.0;
-        for ( auto& pair_energy : pair_energies) total_energy += pair_energy.get();
+        for ( auto& pair_energy : pair_energies) {
+            double pe=pair_energy.get();
+            total_energy += pe;
+            if (world.rank()==0 and parameters.debug()) printf("pair energy for pair %12.8f\n", pe);
+        }
         // pair_energy.get() invokes a broadcast from rank 0 to all other ranks
 
         if (not msg.empty() and world.rank()==0) printf("%s %12.8f\n", msg.c_str(), total_energy);
@@ -464,22 +476,35 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
 
         std::vector<real_function_6d> u;
         for (auto p : pair_vec) u.push_back(p.function());
-        auto residual=u-unew;
+        auto residual=truncate(u-unew,parameters.tight_thresh_6D());
 
         // some statistics
         auto [rmsrnorm, maxrnorm]=CCPotentials::residual_stats(residual);
 
+        if (parameters.debug()) {
+            CCSize sz;
+            sz.add(u);
+            sz.print(world,"size of u");
+            print_size(world,u,"u");
+
+            sz.add(u,unew,residual,pair_vec,coupling_vec);
+            for (const auto& r : solver.get_rlist()) sz.add(r);
+            for (const auto& uu : solver.get_ulist()) sz.add(uu);
+            sz.print(world,"sizes before KAIN");
+            task1.taskq_ptr->cloud.print_size(world);
+        }
         // update the pair functions
         std::string use_kain;
         if (parameters.kain()) {
             use_kain="with KAIN";
-            // std::vector<real_function_6d> kain_update = copy(world,solver.update(u, u_update));
-            std::vector<real_function_6d> kain_update = copy(world,solver.update(u, residual));
+            std::vector<real_function_6d> kain_update = solver.update(u, residual);
+            MADNESS_CHECK_THROW(solver.get_rlist()[0][0].is_reconstructed(),"solver functions are not reconstructed");
+            MADNESS_CHECK_THROW(solver.get_ulist()[0][0].is_reconstructed(),"solver functions are not reconstructed");
             truncate(kain_update);
             for (size_t i=0; i<pair_vec.size(); ++i) {
-                kain_update[i].truncate().reduce_rank();
+                kain_update[i].reduce_rank();
                 if (parameters.debug()) kain_update[i].print_size("Kain-Update-Function");
-                pair_vec[i].update_u(copy(kain_update[i]));
+                pair_vec[i].update_u(kain_update[i]);
             }
         } else {
             use_kain="without KAIN";

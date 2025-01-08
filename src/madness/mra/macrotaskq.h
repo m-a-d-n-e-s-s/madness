@@ -660,10 +660,12 @@ public:
         return result;
     }
 
-private:
+//private:
 
     World &world;
     std::shared_ptr<MacroTaskQ> taskq_ptr;
+private:
+
 
     /// store *pointers* to the result WorldObject in the cloud and return the recordlist
     recordlistT prepare_output_records(Cloud &cloud, resultT& result) {
