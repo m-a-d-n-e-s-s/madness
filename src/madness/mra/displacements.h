@@ -258,7 +258,8 @@ namespace madness {
         const BoxSurfaceDisplacementRange* parent;  ///< Pointer to parent box
         Point point;                                ///< Current point
         mutable std::optional<Displacement> disp;   ///< Memoized displacement from parent->center_ to point, computed by displacement(), reset by advance()
-        size_t fixed_dim;                           ///< Current fixed dimension (i.e. faces perpendicular to this axix are being iterated over)
+        size_t fixed_dim;                           ///< Current fixed dimension (i.e. faces perpendicular to this axis are being iterated over)
+        Box box;                                    ///< updated box bounds in each dimension, used to avoid duplicate displacements by excluding the surface displacements for each processed fixed dim
         bool done;                                  ///< Flag indicating iteration completion
 
         /**
@@ -303,7 +304,7 @@ namespace madness {
           for (size_t i = NDIM - 1; i > 0; --i) {
             if (i == fixed_dim) continue;
 
-            if (point[i] < parent->box_[i].second) {
+            if (point[i] < box[i].second) {
               increment_along_dim(i);
               return;
             }
@@ -314,7 +315,27 @@ namespace madness {
           const bool have_another_surface_layer = next_surface_layer();
           if (have_another_surface_layer) return;
 
-          fixed_dim++;
+          // ready to switch to next fixed dimension with finite radius
+          // but first update box bounds to exclude the surface displacements for the current fixed dimension
+          // WARNING if box along this dimension is not hollow we are done!
+          if (!parent->hollowness_[fixed_dim]) {
+            box[fixed_dim] = {
+                parent->box_[fixed_dim].first +
+                    parent->surface_thickness_[fixed_dim].value_or(0) + 1,
+                parent->box_[fixed_dim].second -
+                    parent->surface_thickness_[fixed_dim].value_or(0) - 1};
+          }
+          else {
+            done = true;
+            return;
+          }
+          // onto next dimension
+          ++fixed_dim;
+          while (!parent->box_radius_[fixed_dim] && fixed_dim <= NDIM) {
+            ++fixed_dim;
+          }
+
+
           if (fixed_dim >= NDIM) {
             done = true;
             return;
@@ -337,7 +358,7 @@ namespace madness {
         void reset_along_dim(size_t dim) {
           Vector<Translation, NDIM> l = point.translation();
           if (dim != fixed_dim)
-            l[dim] = parent->box_[dim].first;
+            l[dim] = box[dim].first;
           else
             l[dim] = parent->box_[dim].first - parent->surface_thickness_[dim].value_or(0);
           point = Point(point.level(), l);
@@ -368,7 +389,7 @@ namespace madness {
          * @param type the type of iterator (Begin or End)
          */
         Iterator(const BoxSurfaceDisplacementRange* p, Type type)
-            : parent(p), point(parent->center_.level()), fixed_dim(type == End ? NDIM : 0), done(type == End) {
+            : parent(p), point(parent->center_.level()), fixed_dim(type == End ? NDIM : 0), box(parent->box_), done(type == End) {
           if (type != End) {
             for (size_t i = 0; i < NDIM; ++i) {
               reset_along_dim(i);
@@ -468,7 +489,7 @@ namespace madness {
         for (int d=0; d!= NDIM; ++d) {
           MADNESS_ASSERT(!(box_radius[d].has_value() ^ surface_thickness[d].has_value()));
           MADNESS_ASSERT(surface_thickness[d].value_or(0) >= 0);
-          hollowness_[d] = surface_thickness[d] ? ((box_[d].second - box_[d].first + 1) > 2*(2*surface_thickness[d].value()+1)) : false;
+          hollowness_[d] = surface_thickness[d] ? (box_[d].first + surface_thickness[d].value() < box_[d].second - surface_thickness[d].value()) : false;
         }
       }
 
