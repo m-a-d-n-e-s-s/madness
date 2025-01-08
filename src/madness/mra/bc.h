@@ -179,28 +179,31 @@ public:
 
   /// Convenience for construction of range-restricted integral operators
 
-  /// @return Returns an array of operator ranges, with range of each periodic dimension set restricted to `{r,sigma}`
+  /// constructs array of KernelRange objects for every dimension; for every periodic dimension the range is restricted according to \p r and \p sigma
+  /// @param r range extent in simulation cell units; kernel is restricted to `[-r/2, r/2]`
+  /// @param sigma optional smoothing paramter (in simulation cell units); if given, use erf-attenuated range restriction (\sa KernelRange::Type)
+  /// @return an array of kernel ranges for each dimension
   template <std::size_t ND = NDIM>
-  std::enable_if_t<ND <= NDIM, std::array<KernelRange, ND>> make_range(unsigned int r, double sigma) const {
+  std::enable_if_t<ND <= NDIM, std::array<KernelRange, ND>> make_range(unsigned int r, std::optional<double> sigma) const {
     std::array<KernelRange, ND> result;
     for (std::size_t d = 0; d < ND; ++d) {
       MADNESS_ASSERT(bc[2 * d + 1] == bc[2 * d]);
       if (bc[2 * d] == BC_PERIODIC)
-        result[d] = {r, sigma};
+        result[d] = sigma ? KernelRange{r, *sigma} : KernelRange{r};
     }
     return result;
   }
 
   /// Convenience for construction of range-restricted integral operators
 
-  /// same as make_range(), but makes a std::vector
-  std::vector<KernelRange> make_range_vector(unsigned int r, double sigma) const {
-    std::vector<KernelRange> result(NDIM);
-    for (std::size_t d = 0; d < NDIM; ++d) {
-      MADNESS_ASSERT(bc[2 * d + 1] == bc[2 * d]);
-      if (bc[2 * d] == BC_PERIODIC) result[d] = {r, sigma};
-    }
-    return result;
+  /// \note same as make_range(), but makes a std::vector
+  /// constructs vector of KernelRange objects for every dimension; for every periodic dimension the range is restricted according to \p r and \p sigma
+  /// @param r range extent in simulation cell units; kernel is restricted to `[-r/2, r/2]`
+  /// @param sigma optional smoothing paramter (in simulation cell units); if given, use erf-attenuated range restriction (\sa KernelRange::Type)
+  /// @return a vector of kernel ranges for each dimension
+  std::vector<KernelRange> make_range_vector(unsigned int r, std::optional<double> sigma = {}) const {
+    const auto result_array = make_range(r, sigma);
+    return std::vector<KernelRange>(result_array.begin(), result_array.end());
   }
 
 };
