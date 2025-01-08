@@ -6,6 +6,7 @@
 #define MADNESS_MRA_KERNELRANGE_H__INCLUDED
 
 #include <madness/world/madness_exception.h>
+#include <madness/world/worldhash.h>
 
 #include <cmath>
 #include <optional>
@@ -60,6 +61,11 @@ public:
       }
     }
 
+    /// @return true if \p r1 and \p r2 are equal
+    friend bool operator==(const Restrictor& r1, const Restrictor& r2) {
+      return r1.type_ == r2.type_ && r1.sigma_ == r2.sigma_;
+    }
+
     hashT hash() const {
       hashT result = hash_value((int)type_);
       if (sigma_)
@@ -101,7 +107,16 @@ public:
   bool infinite() const { return !finite(); }
 
   /// @return true if range is limited
-  operator bool() const { return finite(); }
+  explicit operator bool() const { return finite(); }
+
+  /// @return true if \p r1 and \p r2 are equal
+  friend bool operator==(const KernelRange& r1, const KernelRange& r2) {
+    if (r1.finite() != r2.finite())
+      return false;
+    if (r1.finite())
+      return r1.N() == r2.N() && r1.restrictor() == r2.restrictor();
+    return true;
+  }
 
   /// @return value of restrictor function at N/2 - abs(r)
   double value(double r) const {

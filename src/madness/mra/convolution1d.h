@@ -275,7 +275,7 @@ namespace madness {
         mutable SimpleCache<ConvolutionData1D<Q>, 2> mod_ns_cache;
 
         bool lattice_summed() const { return maxR != 0; }
-        bool range_restricted() const { return range; }
+        bool range_restricted() const { return range.finite(); }
 
         virtual ~Convolution1D() {};
 
