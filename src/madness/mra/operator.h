@@ -1022,7 +1022,7 @@ namespace madness {
 
         // For general convolutions
         SeparatedConvolution(World& world,
-                             std::vector< ConvolutionND<Q,NDIM> >& argops,
+                             const std::vector< ConvolutionND<Q,NDIM> >& argops,
                              const array_of_bools<NDIM>& lattice_summed = FunctionDefaults<NDIM>::get_bc().is_periodic(),
                              long k = FunctionDefaults<NDIM>::get_k(),
                              bool doleaves = false)
