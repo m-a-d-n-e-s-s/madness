@@ -1137,6 +1137,7 @@ bool CC2::iterate_singles(World& world, CC_vecfunction& singles, const CC_vecfun
     if (info.parameters.debug()) print_size(world, singles.get_vecfunction(), "singles before iteration");
 
     for (size_t iter = 0; iter < maxiter; iter++) {
+        print_header3("starting singles iteration "+std::to_string(iter));
         double omega = 0.0;
         if (ctype == CT_LRCC2) omega = singles.omega;
         else if (ctype == CT_LRCCS) omega = singles.omega;
@@ -1260,7 +1261,19 @@ bool CC2::iterate_singles(World& world, CC_vecfunction& singles, const CC_vecfun
         if (world.rank()==0) CCPotentials::print_convergence(singles.name(0),rmsresidual,
                                                              maxresidual,omega-old_omega,iter);
         converged = (R2vector_error < info.parameters.dconv_3D());
+        // print out the size of all functions in here
+        if (info.parameters.debug()) {
+            CCSize sz;
 
+            auto triangular_map=PairVectorMap::triangular_map(info.parameters.freeze(),info.mo_ket.size());
+            auto vec1=Pairs<CCPair>::pairs2vector(gs_doubles,triangular_map);
+            auto vec2=Pairs<CCPair>::pairs2vector(ex_doubles,triangular_map);
+
+            sz.add(residual,GV,new_singles,singles.get_vecfunction(),singles.get_vecfunction(),singles2.get_vecfunction(),vec1,vec2);
+            for (const auto& r : solver.get_rlist()) sz.add(r);
+            for (const auto& uu : solver.get_ulist()) sz.add(uu);
+            sz.print(world,"sizes at the end of iteration");
+        }
         // time.info();
         if (converged) break;
         if (ctype == CT_LRCCS) break; // for CCS just one iteration to check convergence

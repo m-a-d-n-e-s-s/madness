@@ -1463,7 +1463,9 @@ struct CCSize {
         double size_global=size_local;
         world.gop.sum(size_global);
         if (msg.size()>0 and world.rank()==0) madness::print(msg);
+        world.gop.fence();
         madness::print("size of all functions on rank",world.rank(),size_local);
+        world.gop.fence();
         if (world.rank()==0) madness::print("total size of all functions",size_global);
 
     }
