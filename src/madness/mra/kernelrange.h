@@ -81,13 +81,16 @@ public:
   /// constructs a null (i.e., infinite) kernel range
   /// @post `this->infinite()==true`
   KernelRange() = default;
-  /// constructs a finite (soft) kernel range
+  /// constructs a finite soft (`sigma > 0`) or hard (`sigma==0`) kernel range
   /// @param sigma regularization parameter (lengthscale in simulation [0,1] coordinate units) controls the softness of the range restrictor
-  /// @pre `sigma>0`
+  /// @pre `sigma>=0`
   /// @post `this->soft()==true`
   KernelRange(unsigned int N, double sigma) {
-    MADNESS_ASSERT(sigma > 0);
-    data.emplace(N, Restrictor{SoftErf, sigma});
+    MADNESS_ASSERT(sigma >= 0);
+    if (sigma == 0)
+      data.emplace(N, Restrictor{Hard});
+    else
+      data.emplace(N, Restrictor{SoftErf, sigma});
   }
   /// constructs a finite (hard) kernel range
   /// @post `this->hard()==true`
