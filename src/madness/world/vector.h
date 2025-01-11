@@ -84,17 +84,17 @@ namespace madness {
         using difference_type = typename arrayT::difference_type; ///< Difference type.
 
         /// The size of the \c Vector.
-        static const size_type static_size = N;
+        static inline constexpr size_type static_size = N;
 
         /// Default constructor; does not initialize vector contents.
-        Vector() = default;
+        constexpr Vector() = default;
 
         /// Initialize all elements to value \c t.
 
         /// \tparam Q The type of \c t.
         /// \param[in] t The value used to initialized the \c Vector.
         template <typename Q>
-        explicit Vector(Q t) {
+        constexpr explicit Vector(Q t) : data_{} {
             fill(t);
         }
 
@@ -103,8 +103,12 @@ namespace madness {
         /// \tparam Q The type of data in \c t.
         /// \param[in] t The C-style array.
         template <typename Q>
-        explicit Vector(const Q (&t)[N]) {
-            std::copy(t, t + N, data_.begin());
+        constexpr explicit Vector(const Q (&t)[N]) {
+#if __cplusplus >= 202002L
+          std::copy(t, t+N, data_.begin());
+#else
+          for(std::size_t i=0; i!=N; ++i) data_[i] = t[i];
+#endif
         }
 
         /// Construct from an STL vector of equal or greater length.
@@ -113,7 +117,7 @@ namespace madness {
         /// \tparam A Allocator type for the \c std::vector.
         /// \param[in] t The \c std::vector.
         template <typename Q, typename A>
-        explicit Vector(const std::vector<Q, A>& t) {
+        constexpr explicit Vector(const std::vector<Q, A>& t) {
             operator=(t);
         }
 
@@ -122,14 +126,14 @@ namespace madness {
         /// \tparam Q Type of data stored in the original \c std::array.
         /// \param[in] t The \c std::array.
         template <typename Q>
-        explicit Vector(const std::array<Q, N>& t) {
+        constexpr explicit Vector(const std::array<Q, N>& t) {
             data_ = t;
         }
 
         /// Copy constructor is deep (because \c Vector is POD).
 
         /// \param[in] other The \c Vector to copy.
-        Vector(const Vector<T,N>& other) {
+        constexpr Vector(const Vector<T,N>& other) {
 MADNESS_PRAGMA_GCC(diagnostic push)
 MADNESS_PRAGMA_GCC(diagnostic ignored "-Wuninitialized")
 MADNESS_PRAGMA_GCC(diagnostic ignored "-Wmaybe-uninitialized")
@@ -142,7 +146,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         /// \tparam Q Type of the \c Vector to copy.
         /// \param[in] other The \c Vector to copy.
         template <typename Q>
-        Vector(const Vector<Q,N>& other) {
+        constexpr Vector(const Vector<Q,N>& other) {
             data_ = other.data_;
         }
 
@@ -156,18 +160,22 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         ///    elements.
         /// \param[in] list The initializer list; elements are copied to the
         ///    \c Vector.
-        Vector(const std::initializer_list<T>& list) :
+        constexpr Vector(std::initializer_list<T> list) :
             data_()
         {
             MADNESS_ASSERT(list.size() == N);
+#if __cplusplus >= 202002L
             std::copy(list.begin(), list.end(), data_.begin());
+#else
+            for(std::size_t i=0; i!=N; ++i) data_[i] = *(list.begin()+i);
+#endif
         }
 
         /// Assignment is deep (because a \c Vector is POD).
 
         /// \param[in] other The \c Vector to copy.
         /// \return This \c Vector.
-        Vector<T,N>& operator=(const Vector<T,N>& other) {
+        constexpr Vector<T,N>& operator=(const Vector<T,N>& other) {
             data_ = other.data_;
             return *this;
         }
@@ -178,7 +186,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         /// \param[in] other The \c Vector to copy.
         /// \return This \c Vector.
         template <typename Q>
-        Vector<T,N>& operator=(const Vector<Q,N>& other) {
+        constexpr Vector<T,N>& operator=(const Vector<Q,N>& other) {
             data_ = other.data_;
             return *this;
         }
@@ -191,9 +199,13 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         /// \param[in] other The \c std::vector to copy.
         /// \return This \c Vector.
         template <typename Q, typename A>
-        Vector<T,N>& operator=(const std::vector<Q, A>& other) {
+        constexpr Vector<T,N>& operator=(const std::vector<Q, A>& other) {
             MADNESS_ASSERT(other.size() >= N);
+#if __cplusplus >= 202002L
             std::copy(other.begin(), other.begin() + N, data_.begin());
+#else
+            for(std::size_t i=0; i!=N; ++i) data_[i] = other[i];
+#endif
             return *this;
         }
 
@@ -207,9 +219,13 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         ///    elements.
         /// \param[in] list The initializer list; elements are copied to the
         ///    \c Vector.
-        Vector<T,N>& operator=(const std::initializer_list<T>& list) {
+        constexpr Vector<T,N>& operator=(std::initializer_list<T> list) {
             MADNESS_ASSERT(list.size() == N);
+#if __cplusplus >= 202002L
             std::copy(list.begin(), list.end(), data_.begin());
+#else
+            for(std::size_t i=0; i!=N; ++i) data_[i] = *(list.begin() + i);
+#endif
             return *this;
         }
 
@@ -217,7 +233,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
 
         /// \param[in] t The scalar to use for filling.
         /// \return This \c Vector.
-        Vector<T,N>& operator=(const T& t) {
+        constexpr Vector<T,N>& operator=(const T& t) {
             fill(t);
             return *this;
         }
@@ -225,66 +241,66 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         /// Type conversion to a \c std::array.
 
         /// \return The underlying \c std::array.
-        operator std::array<T,N> () { return data_; }
+        constexpr operator std::array<T,N> () { return data_; }
 
         // iterator support
         /// Iterator starting at the first element.
 
         /// \return Iterator to the starting element.
-        iterator begin() { return data_.begin(); }
+        constexpr iterator begin() { return data_.begin(); }
 
         /// Const iterator starting at the first element.
 
         /// \return Const iterator to the starting element.
-        const_iterator begin() const { return data_.begin(); }
+        constexpr const_iterator begin() const { return data_.begin(); }
 
         /// Iterator to the end (past the last element).
 
         /// \return Iterator to the end.
-        iterator end() { return data_.end(); }
+        constexpr iterator end() { return data_.end(); }
 
         /// Const iterator to the end (past the last element).
 
         /// \return Const iterator to the end.
-        const_iterator end() const { return data_.end(); }
+        constexpr const_iterator end() const { return data_.end(); }
 
         // reverse iterator support
         /// Reverse iterator starting at the last element.
 
         /// \return Reverse iterator to the last element.
-        reverse_iterator rbegin() { return data_.rbegin(); }
+        constexpr reverse_iterator rbegin() { return data_.rbegin(); }
 
         /// Const reverse iterator starting at the last element.
 
         /// \return Const reverse iterator to the last element.
-        const_reverse_iterator rbegin() const { return data_.rbegin(); }
+        constexpr const_reverse_iterator rbegin() const { return data_.rbegin(); }
 
         /// Reverse iterator to the beginning (before the first element).
 
         /// \return Reverse iterator to the beginning.
-        reverse_iterator rend() { return data_.rend(); }
+        constexpr reverse_iterator rend() { return data_.rend(); }
 
         /// Const reverse iterator to the beginning (before the first element).
 
         /// \return Const reverse iterator to the beginning.
-        const_reverse_iterator rend() const { return data_.rend(); }
+        constexpr const_reverse_iterator rend() const { return data_.rend(); }
 
         // capacity
         /// Accessor for the number of elements in the \c Vector.
 
         /// \return The number of elements.
-        size_type size() const { return data_.size(); }
+        constexpr size_type size() const { return data_.size(); }
 
         /// Check if the \c Vector is empty.
 
         /// \return True if the \c Vector is empty; false otherwise. This
         ///    should be false unless `N == 0`.
-        bool empty() const { return data_.empty(); }
+        constexpr  bool empty() const { return data_.empty(); }
 
         /// Get the maximum size of the \c Vector.
 
         /// \return The maximum size, \c N.
-        size_type max_size() const { return data_.max_size(); }
+        constexpr size_type max_size() const { return data_.max_size(); }
 
         // element access
         /// Access element \c i of the \c Vector.
@@ -292,68 +308,73 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         /// Bounds checking is not performed.
         /// \param[in] i The index.
         /// \return A reference to element \c i.
-        reference operator[](size_type i) { return data_[i]; }
+        constexpr reference operator[](size_type i) { return data_[i]; }
 
         /// Access element \c i of the \c Vector.
 
         /// Bounds checking is not performed.
         /// \param[in] i The index.
         /// \return A const reference to element \c i.
-        const_reference operator[](size_type i) const { return data_[i]; }
+        constexpr const_reference operator[](size_type i) const { return data_[i]; }
 
         /// Access element \c i of the \c Vector with bounds checking.
 
         /// \param[in] i The index.
         /// \return A reference to element \c i.
-        reference at(size_type i) { return data_.at(i); }
+        constexpr reference at(size_type i) { return data_.at(i); }
 
         /// Access element \c i of the \c Vector with bounds checking.
 
         /// \param[in] i The index.
         /// \return A const reference to element \c i.
-        const_reference at(size_type i) const { return data_.at(i); }
+        constexpr const_reference at(size_type i) const { return data_.at(i); }
 
         /// Access the first element.
 
         /// \return A reference to the first element.
-        reference front() { return data_.front(); }
+        constexpr reference front() { return data_.front(); }
 
         /// Access the first element.
 
         /// \return A const reference to the first element.
-        const_reference front() const { return data_.front(); }
+        constexpr const_reference front() const { return data_.front(); }
 
         /// Access the last element.
 
         /// \return A reference to the last element.
-        reference back() { return data_.back(); }
+        constexpr reference back() { return data_.back(); }
 
         /// Access the last element.
 
         /// \return A const reference to the last element.
-        const_reference back() const { return data_.back(); }
+        constexpr const_reference back() const { return data_.back(); }
 
         /// Direct access to the underlying array.
 
         /// \return Pointer to the underlying array.
-        T* data() { return data_.data(); }
+        constexpr T* data() { return data_.data(); }
 
         /// Direct access to the underlying array.
 
         /// \return Const pointer to the underlying array.
-        const T* data() const { return data_.data(); }
+        constexpr const T* data() const { return data_.data(); }
 
         // modifiers
         /// Swap the contents with another \c Vector.
 
         /// \param[in] other The other vector.
-        void swap(Vector<T, N>& other) { data_.swap(other.data_); }
+        constexpr void swap(Vector<T, N>& other) { data_.swap(other.data_); }
 
         /// Fill the \c Vector with the specified value.
 
         /// \param[in] t The value used to fill the \c Vector.
-        void fill(const T& t) {
+        constexpr void fill(const T& t) {
+#if __cplusplus >= 202002L
           data_.fill(t);
+#else
+          for (std::size_t i = 0; i < N; i++)
+            data_[i] = t;
+#endif
         }
 
         /// In-place, element-wise multiplcation by a scalar.
@@ -363,7 +384,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         /// \return A reference to this for chaining operations.
         /// \todo Do we want a similar division operation?
         template <typename Q>
-        Vector<T,N>& operator*=(Q q) {
+        constexpr Vector<T,N>& operator*=(Q q) {
             for(size_type i = 0; i < N; ++i)
                 data_[i] *= q;
             return *this;
@@ -375,7 +396,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         /// \param[in] q The other \c Vector.
         /// \return A reference to this for chaining operations.
         template <typename Q>
-        Vector<T,N>& operator+=(const Vector<Q,N>& q) {
+        constexpr Vector<T,N>& operator+=(const Vector<Q,N>& q) {
             for(size_type i = 0; i < N; ++i)
                 data_[i] += q[i];
             return *this;
@@ -387,7 +408,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         /// \param[in] q The other \c Vector.
         /// \returns A reference to this for chaining operations.
         template <typename Q>
-        Vector<T,N>& operator-=(const Vector<Q,N>& q) {
+        constexpr Vector<T,N>& operator-=(const Vector<Q,N>& q) {
             for(size_type i = 0; i < N; ++i)
                 data_[i] -= q[i];
             return *this;
@@ -397,7 +418,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
 
         /// \return The 2-norm.
         /// \todo Is there a reason this is "normf" and not "norm2"?
-        T normf() const {
+        constexpr T normf() const {
         	T d = 0.;
         	for(std::size_t i=0; i<N; ++i)
                 d += (data_[i])*(data_[i]);
@@ -409,14 +430,14 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         /// \tparam Archive The archive type.
         /// \param[in,out] ar The archive.
         template <typename Archive>
-        void serialize(Archive& ar) {
+        constexpr void serialize(Archive& ar) {
             ar & data_;
         }
 
         /// Support for MADNESS hashing.
 
         /// \return The hash.
-        hashT hash() const {
+        constexpr hashT hash() const {
             return hash_value(data_);
         }
 
@@ -426,7 +447,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         /// \param[in] l One \c Vector.
         /// \param[in] r The other \c Vector.
         /// \return True if each element is equal to its partner; false otherwise.
-        friend bool operator==(const Vector<T, N>& l, const Vector<T, N>& r) {
+        friend constexpr bool operator==(const Vector<T, N>& l, const Vector<T, N>& r) {
             return l.data_ == r.data_;
         }
 
@@ -435,7 +456,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         /// \param[in] l One \c Vector.
         /// \param[in] r The other \c Vector.
         /// \return True if any element is not equal to its partner; false otherwise.
-        friend bool operator!=(const Vector<T, N>& l, const Vector<T, N>& r) {
+        friend constexpr bool operator!=(const Vector<T, N>& l, const Vector<T, N>& r) {
             return l.data_ != r.data_;
         }
 
@@ -444,7 +465,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         /// \param[in] l One \c Vector.
         /// \param[in] r The other \c Vector.
         /// \return True if the contents of \c l are lexicographically less than the contents of \c r; false otherwise.
-        friend bool operator<(const Vector<T, N>& l, const Vector<T, N>& r) {
+        friend constexpr bool operator<(const Vector<T, N>& l, const Vector<T, N>& r) {
             return l.data_ < r.data_;
         }
 
@@ -453,7 +474,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         /// \param[in] l One \c Vector.
         /// \param[in] r The other \c Vector.
         /// \return True if the contents of \c l are lexicographically greater than the contents of \c r; false otherwise.
-        friend bool operator>(const Vector<T, N>& l, const Vector<T, N>& r) {
+        friend constexpr bool operator>(const Vector<T, N>& l, const Vector<T, N>& r) {
             return l.data_ > r.data_;
         }
 
@@ -462,7 +483,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         /// \param[in] l One \c Vector.
         /// \param[in] r The other \c Vector.
         /// \return True if the contents of \c l are lexicographically less than or equal to the contents of \c r; false otherwise.
-        friend bool operator<=(const Vector<T, N>& l, const Vector<T, N>& r) {
+        friend constexpr bool operator<=(const Vector<T, N>& l, const Vector<T, N>& r) {
             return l.data_ <= r.data_;
         }
 
@@ -471,7 +492,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         /// \param[in] l One \c Vector.
         /// \param[in] r The other \c Vector.
         /// \return True if the contents of \c l are lexicographically greater than or equal to the contents of \c r; false otherwise.
-        friend bool operator>=(const Vector<T, N>& l, const Vector<T, N>& r) {
+        friend constexpr bool operator>=(const Vector<T, N>& l, const Vector<T, N>& r) {
             return l.data_ >= r.data_;
         }
 
@@ -494,7 +515,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
     /// \param[in,out] l One \c Vector.
     /// \param[in,out] r The other \c Vector.
     template <typename T, std::size_t N>
-    void swap(Vector<T,N>& l, Vector<T,N>& r) {
+    constexpr void swap(Vector<T,N>& l, Vector<T,N>& r) {
         l.swap(r);
     }
 
@@ -512,7 +533,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
     ///    the \c Vector elements.
     /// \return A new \c Vector, \c c, where `c[i]==(l[i]*r)`.
     template <typename T, std::size_t N, typename U>
-    Vector<T,N> operator*(Vector<T,N> l, U r) {
+    constexpr Vector<T,N> operator*(Vector<T,N> l, U r) {
         // coordinate passed by value to allow compiler optimization
         for (std::size_t i = 0; i < N; ++i)
             l[i] *= r;
@@ -531,7 +552,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
     /// \param[in] r The right-hand \c Vector.
     /// \return A new \c Vector, \c c, where `c[i]==(l*r[i])`.
     template <typename T, typename U, std::size_t N>
-    Vector<T,N> operator*(T l, Vector<U,N> r) {
+    constexpr Vector<T,N> operator*(T l, Vector<U,N> r) {
         // coordinate passed by value to allow compiler optimization
         for (std::size_t i = 0; i < N; ++i)
             r[i] *= l;
@@ -549,11 +570,28 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
     /// \param[in] r The right-hand \c Vector.
     /// \return A new \c Vector, \c c, where `c[i]==(l[i]*r[i])`.
     template <typename T, std::size_t N, typename U>
-    Vector<T,N> operator*(Vector<T,N> l, const Vector<U,N>& r) {
+    constexpr Vector<T,N> operator*(Vector<T,N> l, const Vector<U,N>& r) {
         // coordinate r passed by value to allow compiler optimization
         for (std::size_t i = 0; i < N; ++i)
             l[i] *= r[i];
         return l;
+    }
+
+    /// Divide (element-wise) two `Vector`s.
+
+    /// Do an element-wise division of \c l by \c r and return the
+    /// result in a new \c Vector.
+    /// \tparam T The left-hand \c Vector element type.
+    /// \tparam N The \c Vector size.
+    /// \tparam U The right-hand \c Vector element type.
+    /// \param[in] l The left-hand \c Vector.
+    /// \param[in] r The right-hand \c Vector.
+    /// \return A new \c Vector, \c c, where `c[i]==(l[i]/r[i])`.
+    template <typename T, std::size_t N, typename U>
+    constexpr Vector<T,N> operator/(Vector<T,N> l, const Vector<U,N>& r) {
+      for (std::size_t i = 0; i < N; ++i)
+        l[i] /= r[i];
+      return l;
     }
 
     /// Add a scalar to a \c Vector.
@@ -566,7 +604,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
     /// \param[in] r The right-hand scalar value to be added to the \c Vector.
     /// \return A new \c Vector, \c c, where `c[i]==(l[i]+r)`.
     template <typename T, std::size_t N, typename U>
-    Vector<T,N> operator+(Vector<T,N> l, U r) {
+    constexpr Vector<T,N> operator+(Vector<T,N> l, U r) {
         // coordinate passed by value to allow compiler optimization
         for (std::size_t i = 0; i < N; ++i)
             l[i] += r;
@@ -584,7 +622,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
     /// \param[in] r The right-hand \c Vector.
     /// \return A new \c Vector, \c c, where `c[i]==(l[i]+r[i])`.
     template <typename T, std::size_t N, typename U>
-    Vector<T,N> operator+(Vector<T,N> l, const Vector<U,N>& r) {
+    constexpr Vector<T,N> operator+(Vector<T,N> l, const Vector<U,N>& r) {
         // l passed by value to allow compiler optimization
         for (std::size_t i = 0; i < N; ++i)
             l[i] += r[i];
@@ -601,7 +639,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
     /// \param[in] r The right-hand scalar value to be added to the \c Vector.
     /// \return A new \c Vector, \c c, where `c[i]==(l[i]-r)`.
     template <typename T, std::size_t N, typename U>
-    Vector<T,N> operator-(Vector<T,N> l, U r) {
+    constexpr Vector<T,N> operator-(Vector<T,N> l, U r) {
         // l passed by value to allow compiler optimization
         for (std::size_t i = 0; i < N; ++i)
             l[i] -= r;
@@ -619,7 +657,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
     /// \param[in] r The right-hand \c Vector.
     /// \return A new \c Vector, \c c, where `c[i]==(l[i]-r[i])`.
     template <typename T, std::size_t N, typename U>
-    Vector<T,N> operator-(Vector<T,N> l, const Vector<U,N>& r) {
+    constexpr Vector<T,N> operator-(Vector<T,N> l, const Vector<U,N>& r) {
         // l passed by value to allow compiler optimization
         for (std::size_t i = 0; i < N; ++i)
             l[i] -= r[i];
@@ -637,7 +675,8 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
     /// \param[in] r The right-hand \c Vector.
     /// \return the inner product, where `result==\sum_i(l[i]*r[i])`.
     template <typename T, std::size_t N>
-    T inner(const Vector<T,N>& l, const Vector<T,N>& r) {
+    constexpr T inner(const Vector<T,N>& l, const Vector<T,N>& r) {
+        static_assert(std::is_arithmetic_v<T>);  // for complex need to conjugate l
     	T result=0.0;
         for (std::size_t i = 0; i < N; ++i)
             result+=l[i]*r[i];
@@ -653,7 +692,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
     /// \param[in] r The right-hand \c Vector.
     /// \return the cross product
     template <typename T, std::size_t N>
-    typename std::enable_if<N==3, Vector<T,N> >::type
+    constexpr typename std::enable_if<N==3, Vector<T,N> >::type
 	cross(const Vector<T,N>& l, const Vector<T,N>& r) {
     	Vector<T,N> result;
     	result[0]=l[1]*r[2] - r[1]*l[2];
@@ -708,7 +747,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
     /// \param[in] ts The rest of the arguments.
     /// \return The \c Vector with the arguments put into it.
     template<typename T, typename... Ts>
-    inline Vector<T, sizeof...(Ts) + 1> vec(T t, Ts... ts) {
+    constexpr inline Vector<T, sizeof...(Ts) + 1> vec(T t, Ts... ts) {
         return Vector<T, sizeof...(Ts) + 1> {
             std::array<T, sizeof...(Ts) + 1>
                 {{ t, static_cast<T>(ts)... }}
@@ -726,7 +765,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
     /// \return The desired unit-`Vector` (unless \c r is numerically the zero
     ///    \c Vector).
     template<typename T, std::size_t N>
-	Vector<T,N> unitvec(const Vector<T,N>& r, const double eps=1.e-6) {
+    constexpr Vector<T,N> unitvec(const Vector<T,N>& r, const double eps=1.e-6) {
 		const double norm=r.normf();
 		if(norm < eps)
             return Vector<T,N>(0.0);
