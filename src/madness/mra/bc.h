@@ -184,7 +184,7 @@ public:
   /// @param sigma optional smoothing paramter (in simulation cell units); if given, use erf-attenuated range restriction (\sa KernelRange::Type)
   /// @return an array of kernel ranges for each dimension
   template <std::size_t ND = NDIM>
-  std::enable_if_t<ND <= NDIM, std::array<KernelRange, ND>> make_range(unsigned int r, std::optional<double> sigma) const {
+  std::enable_if_t<ND <= NDIM, std::array<KernelRange, ND>> make_range(unsigned int r, std::optional<double> sigma = {}) const {
     std::array<KernelRange, ND> result;
     for (std::size_t d = 0; d < ND; ++d) {
       MADNESS_ASSERT(bc[2 * d + 1] == bc[2 * d]);
