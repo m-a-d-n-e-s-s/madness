@@ -4902,8 +4902,10 @@ template<size_t NDIM>
           const std::vector<opkeyT> &disp = op->get_disp(key.level());
           const auto max_distsq_reached = for_each(disp, default_distance_squared, default_skip_predicate);
 
-          // for range-restricted kernels ensure ALL displacements to the boundary of the kernel range are included
-          if (op->range_restricted() && key.level() >= 2 && (NDIM<=2 || key.level() <= 5)) {
+          // for range-restricted kernels displacements to the boundary of the kernel range also need to be included
+          // rapid decay of the NS convolutions within the boundary ensures the number of such displacements is similar
+          // to the number of standard displacements
+          if (op->range_restricted() && key.level() >= 1) {
 
             std::array<std::optional<std::int64_t>, opdim> box_radius;
             std::array<std::optional<std::int64_t>, opdim> surface_thickness;
@@ -4923,33 +4925,59 @@ template<size_t NDIM>
                           op->domain_is_periodic())
                     : (FunctionDefaults<NDIM>::get_bc().is_periodic().template back<opdim>() &&
                           op->domain_is_periodic());
-            BoxSurfaceDisplacementRange<opdim> range_boundary_displacements(
-                opkey, box_radius, surface_thickness,
-                // skip surface displacements there were included in regular displacements
-                max_distsq_reached
-                    ? filter_t([&](const auto &dest, const auto &displacement) -> bool {
-                        // skip displacements not in domain
-                        const bool dest_is_in_domain = [&,twon = (1 << dest.level())]() {
-                          for(auto d=0; d!=opdim; ++d) {
-                            if (op_domain_is_periodic[d]) continue;
-                            if (dest.translation()[d] < 0 || dest.translation()[d] >= twon) return false;
-                          }
-                          return true;
-                        }();
-                        if (dest_is_in_domain) {
-                          const auto distsq =
-                              default_distance_squared(displacement);
-                          return distsq > max_distsq_reached;
-                        }
-                        else
-                          return false;
-                      })
-                    : filter_t{});
-            for_each(
-                range_boundary_displacements,
-                // all surface displacements are in same shell
-                [](const auto &displacement) -> std::uint64_t { return 0; },
-                default_skip_predicate);
+            // skip surface displacements that were included in regular displacements
+            filter_t filter = max_distsq_reached
+                                  ? filter_t([op_domain_is_periodic,default_distance_squared,max_distsq_reached](const auto &dest, const auto &displacement) -> bool {
+                                      // skip displacements not in domain
+                                      const bool dest_is_in_domain = [&,twon = (1 << dest.level())]() {
+                                        for(auto d=0; d!=opdim; ++d) {
+                                          if (op_domain_is_periodic[d]) continue;
+                                          if (dest.translation()[d] < 0 || dest.translation()[d] >= twon) return false;
+                                        }
+                                        return true;
+                                      }();
+                                      if (dest_is_in_domain) {
+                                        // N.B. avoid duplicates of standard displacements previously included
+                                        const auto distsq =
+                                            default_distance_squared(displacement);
+                                        return distsq > max_distsq_reached;
+                                      }
+                                      else
+                                        return false;
+                                    })
+                                  : filter_t{};
+
+            // this code iterates over only the relevant facets, one at a time and in a manner than allows screening
+            const auto process_surface_displacements = [&](const auto& surface_dimensions) {
+              constexpr std::size_t sdim = std::tuple_size_v<std::decay_t<decltype(surface_dimensions)>>;
+              const std::array<std::size_t, opdim-sdim> nonsurface_dimensions = iota_array<opdim>(surface_dimensions);
+              BoxSurfaceDisplacementRangeV2<opdim, sdim>
+                  range_boundary_face_displacements(
+                      opkey, box_radius, surface_thickness, surface_dimensions, filter);
+              for_each(
+                  range_boundary_face_displacements,
+                  // ignore surface dimensions when computing distance for screening, since the decay only occurs along the directions parallel to the surface
+                  [&op,nonsurface_dimensions](const auto &displacement) -> std::uint64_t { return displacement.distsq_bc(op->lattice_summed(), nonsurface_dimensions); },
+                  default_skip_predicate);
+            };
+            if constexpr (opdim >= 1) {
+              for(auto surface_dimensions : make_combinations<opdim,1>()) process_surface_displacements(surface_dimensions);
+            }
+            if constexpr (opdim >= 2) {
+              for(auto surface_dimensions : make_combinations<opdim,2>()) process_surface_displacements(surface_dimensions);
+            }
+            if constexpr (opdim >= 3) {
+              for(auto surface_dimensions : make_combinations<opdim,3>()) process_surface_displacements(surface_dimensions);
+            }
+            if constexpr (opdim >= 4) {
+              for(auto surface_dimensions : make_combinations<opdim,4>()) process_surface_displacements(surface_dimensions);
+            }
+            if constexpr (opdim >= 5) {
+              for(auto surface_dimensions : make_combinations<opdim,5>()) process_surface_displacements(surface_dimensions);
+            }
+            if constexpr (opdim >= 6) {
+              for(auto surface_dimensions : make_combinations<opdim,6>()) process_surface_displacements(surface_dimensions);
+            }
           }
         }
 
