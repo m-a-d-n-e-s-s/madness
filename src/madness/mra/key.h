@@ -181,6 +181,7 @@ namespace madness {
             return dist;
         }
 
+        /// like distsq() but accounts for periodicity
         uint64_t
         distsq_bc(const array_of_bools<NDIM>& is_periodic) const {
           const Translation twonm1 = (Translation(1) << level()) >> 1;
@@ -189,10 +190,41 @@ namespace madness {
           for (std::size_t d = 0; d < NDIM; ++d) {
             Translation la = translation()[d];
             if (is_periodic[d]) {
-              if (la > twonm1)
+              if (la > twonm1) {
                 la -= twonm1 * 2;
-              if (la < -twonm1)
+                MADNESS_ASSERT(la <= twonm1);
+              }
+              if (la < -twonm1) {
                 la += twonm1 * 2;
+                MADNESS_ASSERT(la >= -twonm1);
+              }
+            }
+            dsq += la * la;
+          }
+
+          return dsq;
+        }
+
+        /// like "periodic" distsq() but only selects the prescribed axes
+        template <std::size_t NDIM2>
+        std::enable_if_t<NDIM >= NDIM2, uint64_t>
+        distsq_bc(const array_of_bools<NDIM>& is_periodic, const std::array<std::size_t, NDIM2>& axes) const {
+          const Translation twonm1 = (Translation(1) << level()) >> 1;
+
+          uint64_t dsq = 0;
+          for (std::size_t a = 0; a < NDIM2; ++a) {
+            const auto d = axes[a];
+            MADNESS_ASSERT(d < NDIM);
+            Translation la = translation()[d];
+            if (is_periodic[d]) {
+              if (la > twonm1) {
+                la -= twonm1 * 2;
+                MADNESS_ASSERT(la <= twonm1);
+              }
+              if (la < -twonm1) {
+                la += twonm1 * 2;
+                MADNESS_ASSERT(la >= -twonm1);
+              }
             }
             dsq += la * la;
           }
