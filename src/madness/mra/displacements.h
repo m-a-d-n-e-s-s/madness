@@ -220,6 +220,16 @@ namespace madness {
             MADNESS_PRAGMA_CLANG(diagnostic pop)
         }
 
+        /// return the standard displacements appropriate for operators w/o lattice summation
+        const std::vector< Key<NDIM> >& get_disp() {
+          MADNESS_PRAGMA_CLANG(diagnostic push)
+          MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
+
+          return disp;
+
+          MADNESS_PRAGMA_CLANG(diagnostic pop)
+        }
+
     };
 
     /**
