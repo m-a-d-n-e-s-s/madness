@@ -432,7 +432,7 @@ namespace madness {
                          const Tensor<T>& f, const Tensor<T>& f0,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0,
-                         double tol,
+                         const double tol,
                          const Q mufac,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work1,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2) const {
@@ -446,7 +446,7 @@ namespace madness {
 
             if (at.r_term and (Rnorm > 1.e-20)) {
 
-                tol = tol/(Rnorm*NDIM);  // Errors are relative within here
+                const auto tol_Rs = tol/(Rnorm*NDIM);  // Errors are relative within here
 
                 // Determine rank of SVD to use or if to use the full matrix
                 long twok = 2*k;
@@ -461,7 +461,7 @@ namespace madness {
                 for (std::size_t d=0; d<NDIM; ++d) {
                     long r;
                     for (r=0; r<twok; ++r) {
-                        if (ops_1d[d]->Rs[r] < tol) break;
+                        if (ops_1d[d]->Rs[r] < tol_Rs) break;
                     }
                     if (r >= break_even) {
                         trans[d].r = twok;
@@ -495,7 +495,7 @@ namespace madness {
             for (std::size_t d=0; d<NDIM; ++d) Tnorm *= ops_1d[d]->Tnorm;
 
             if (at.t_term and (Tnorm>0.0)) {
-                tol = tol/(Tnorm*NDIM);  // Errors are relative within here
+                const auto tol_Ts = tol/(Tnorm*NDIM);  // Errors are relative within here
 
                 long break_even;
                 if (NDIM==1) break_even = long(0.5*k);
@@ -506,7 +506,7 @@ namespace madness {
                 for (std::size_t d=0; d<NDIM; ++d) {
                     long r;
                     for (r=0; r<k; ++r) {
-                        if (ops_1d[d]->Ts[r] < tol) break;
+                        if (ops_1d[d]->Ts[r] < tol_Ts) break;
                     }
                     if (r >= break_even) {
                         trans[d].r = k;
