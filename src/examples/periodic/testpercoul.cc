@@ -114,6 +114,7 @@ void filter_moments_inplace(madness::Function<T,NDIM>& f, const int k, const boo
 
   // on [-L,L] normalized scaling function k is Sqrt[(2 k + 1)/(2 L)] LegendreP[k, x/L]
   // the coefficient of x^k in LegendreP[k, x] is 2^(-k) Binomial[2 k, k], hence
+  // the coefficient of x^k in LegendreP[k, x] is 2^(-k) Binomial[2 k, k], hence
   // coefficient of x^k in scaling function k is Sqrt[(2 k + 1)/(2 L)] Binomial[2 k, k]/(2 L)^k
   // thus if all moments of up to k-1 vanish, k-th moment (=expectation value of x^k) of
   // scaling function k is its coefficient times Sqrt[(2 L)/ (2 k + 1)] (2 L)^k / Binomial[2 k, k]
@@ -140,11 +141,13 @@ int main(int argc, char**argv) {
   auto &world = initialize(argc, argv);
   startup(world, argc, argv, true);
 
+  int nerrors = 0;
+
   {
 
     // Function defaults
-    int k = 10;
-    double eps = 1e-8;
+    int k = 7;
+    double eps = std::pow(10., -k+2);
     FunctionDefaults<3>::set_k(k);
     Tensor<double> cell(3, 2);
     cell(0, 0) = -Lx / 2;
@@ -189,12 +192,12 @@ int main(int argc, char**argv) {
                                            .f(gdiffuse_001_func3d);
     printf("projected gdiffuse_001\n");
     Function<double, 3> gdiffuse_00m1 = FunctionFactory<double, 3>(world)
-                                            .initial_level(6).notruncate_on_project()
+                                            .initial_level(4)
                                             .special_points(r00m1)
                                             .f(gdiffuse_00m1_func3d);
     printf("projected gdiffuse_00m1\n");
     Function<double, 3> gtight_00m1 = FunctionFactory<double, 3>(world)
-                                          .initial_level(6).notruncate_on_project()
+                                          .initial_level(4)
                                           .special_points(r00m1)
                                           .f(gtight_00m1_func3d);
     printf("projected gtight_00m1\n");
@@ -215,8 +218,8 @@ int main(int argc, char**argv) {
     gdiffuse_000.truncate();
     gtight_000.truncate();
     gdiffuse_001.truncate();
-//    gdiffuse_00m1.truncate();
-//    gtight_00m1.truncate();
+    gdiffuse_00m1.truncate();
+    gtight_00m1.truncate();
     r2.truncate();
     x.truncate();
     y.truncate();
@@ -251,194 +254,138 @@ int main(int argc, char**argv) {
     // N.B. non-periodic Coulomb with range restriction to [-L/2,L/2]
     SeparatedConvolution<double, 3> op_rr(
         world,
-        madness::OperatorInfo(0.0, 1e-10, eps,
-                              madness::OT_G12, /* truncate? */ false, /* range restriction? */ bc_periodic.make_range_vector(1/*, 1./L*/)),
-        madness::no_lattice_sum<3>(),
-        madness::FunctionDefaults<3>::get_k());
+        madness::OperatorInfo(0.0, 1e-10, eps, madness::OT_G12,
+                              /* truncate? */ false,
+                              /* range restriction? */
+                              bc_periodic.make_range_vector(1 /*, 1./L*/)
+                              ),
+        madness::no_lattice_sum<3>(), madness::FunctionDefaults<3>::get_k());
     // N.B. Coulomb with range restriction to [-L/2,L/2]
     SeparatedConvolution<double, 3> pop_rr(
-                world,
-                madness::OperatorInfo(0.0, 1e-10, eps,
-                                      madness::OT_G12, /* truncate? */ false, /* range restriction? */ bc_periodic.make_range_vector(1/*, 1./L*/)),
-                madness::lattice_sum<3>(),
-                madness::FunctionDefaults<3>::get_k());
+        world,
+        madness::OperatorInfo(0.0, 1e-10, eps, madness::OT_G12,
+                              /* truncate? */ false,
+                              /* range restriction? */
+                              bc_periodic.make_range_vector(1 /*, 1./L*/)
+                              ),
+        madness::lattice_sum<3>(), madness::FunctionDefaults<3>::get_k());
 
     // print out norms vs displacement length
-//    std::cout << "RP operator norms\n";
-//    for (int n = 0; n <= 10; ++n) {
-//      for (int l = 0; l <= ((1 << n) + 5); ++l) {
-//        std::cout << "n=" << n << " l={" << l << ",0,0} ||op_{n,{l,0,0}}||="
-//                  << op_rr.norm(n, Key<3>(n, Vector<Translation, 3>({l, 0, 0})),
-//                                Key<3>(n, Vector<Translation, 3>({0,0,0})))
-//                  << "\n";
-//      }
-//    }
-//    std::cout << std::endl;
+    //    std::cout << "RP operator norms\n";
+    //    for (int n = 0; n <= 10; ++n) {
+    //      for (int l = 0; l <= ((1 << n) + 5); ++l) {
+    //        std::cout << "n=" << n << " l={" << l << ",0,0} ||op_{n,{l,0,0}}||="
+    //                  << op_rr.norm(n, Key<3>(n, Vector<Translation, 3>({l, 0, 0})),
+    //                                Key<3>(n, Vector<Translation, 3>({0,0,0})))
+    //                  << "\n";
+    //      }
+    //    }
+    //    std::cout << std::endl;
 
-    printf("applying non-periodic operator to rho ...\n");
-    Function<double, 3> V_nonperiodic = apply(op, rho);
-    V_nonperiodic.truncate();
-    printf("applying non-periodic operator to gdiffuse ...\n");
-    Function<double, 3> V_nonperiodic_d = apply(op, gdiffuse);
-    V_nonperiodic_d.truncate();
-    printf("applying non-periodic operator to gtight ...\n");
-    Function<double, 3> V_nonperiodic_t = apply(op, gtight);
-    V_nonperiodic_t.truncate();
+    const std::vector<std::reference_wrapper<const SeparatedConvolution<double, 3>>> test_operators = {op, pop, op_rr, pop_rr};
+    const std::vector<std::string> test_operator_names = {"NP", "P", "RNP", "RP"};
+    std::map<std::string, std::reference_wrapper<const SeparatedConvolution<double, 3>>> str2op;
+    for(int i=0; i!=test_operators.size(); ++i) {
+      str2op.emplace(test_operator_names[i], test_operators[i]);
+    }
+    const std::vector<Function<double, 3>> test_functions = {rho, gdiffuse, gtight};
+    const std::vector<std::string> test_function_names = {"rho", "gdiffuse", "gtight"};  // must be this order since we assume 0 = 1 - 2
 
-    printf("applying periodic operator to rho ...\n");
-    Function<double, 3> V_periodic = apply(pop, rho);
-    V_periodic.truncate();
-    printf("applying periodic operator to gdiffuse ...\n");
-    Function<double, 3> V_periodic_d = apply(pop, gdiffuse);
-    V_periodic_d.truncate();
-    printf("applying periodic operator to gtight ...\n");
-    Function<double, 3> V_periodic_t = apply(pop, gtight);
-    V_periodic_t.truncate();
+    std::vector<std::vector<Function<double, 3>>> V_op_f;
+    int oi = 0;
+    for(const auto& o: test_operators) {
+      int fi = 0;
 
-    printf("applying range-restricted periodic operator to rho ...\n");
-    Function<double, 3> V_rrperiodic = apply(pop_rr, rho);
-    V_rrperiodic.truncate();
-    printf("applying range-restricted periodic operator to gdiffuse ...\n");
-    Function<double, 3> V_rrperiodic_d = apply(pop_rr, gdiffuse);
-    V_rrperiodic_d.truncate();
-    printf("applying range-restricted periodic operator to gtight ...\n");
-    Function<double, 3> V_rrperiodic_t = apply(pop_rr, gtight);
-    V_rrperiodic_t.truncate();
+      V_op_f.push_back({});
+      V_op_f.back().reserve(test_functions.size());
 
+      for(const auto& f: test_functions) {
+
+        printf("applying operator %s to %s ... ", test_operator_names[oi].c_str(), test_function_names[fi].c_str());
+        const auto tstart = cpu_time();
+        V_op_f[oi].emplace_back(apply(o.get(), f).truncate());
+        const auto tstop = cpu_time();
+        printf("%5.2e sec\n", tstop - tstart);
+
+        printf("  <V_%s[%s]> = %.8f\n",
+               test_operator_names[oi].c_str(), test_function_names[fi].c_str(), V_op_f[oi].back().trace());
+
+        ++fi;
+      }
+
+      printf("\n");
+      ++oi;
+    }
     printf("\n");
 
-    printf("Average value of V_nonperiodic(rho) is %.8f\n",
-           V_nonperiodic.trace());
-    printf("Average value of V_periodic(rho) is %.8f\n", V_periodic.trace());
-    printf("Average value of V_periodic(gdiffuse) is %.8f\n",
-           V_periodic_d.trace());
-    printf("Average value of V_periodic(gtight) is %.8f\n",
-           V_periodic_t.trace());
-    printf("Average value of V_nonperiodic(gdiffuse) is %.8f\n",
-           V_nonperiodic_d.trace());
-    printf("Average value of V_nonperiodic(gtight) is %.8f\n",
-           V_nonperiodic_t.trace());
-    printf("1st x moment of V_nonperiodic(rho) is %.8f\n",
-           V_nonperiodic.inner(x));
-    printf("1st y moment of V_nonperiodic(rho) is %.8f\n",
-           V_nonperiodic.inner(y));
-    printf("1st z moment of V_nonperiodic(rho) is %.8f\n",
-           V_nonperiodic.inner(z));
-    printf("1st x moment of V_periodic(rho) is %.8f\n", V_periodic.inner(x));
-    printf("1st y moment of V_periodic(rho) is %.8f\n", V_periodic.inner(y));
-    printf("1st z moment of V_periodic(rho) is %.8f\n", V_periodic.inner(z));
-
-    auto V_periodic_regauged =
-        V_periodic + unit * (V_nonperiodic.trace() - V_periodic.trace());
-
-    int step = 1;
-    printf("Scan along X axis\n");
-    printf("%10s%18s%18s%18s%18s%18s%18s%18s\n", "x", "rho",
-           "V_np[gdiffuse]", "V_np[gtight]",
-           "V_p[gdiffuse]", "V_p[gtight]",
-           "V_rp[gdiffuse]", "V_rp[gtight]");
-    for (int rx = std::max(-100, -Lx / 2); rx <= std::min(100, Lx / 2);
-         rx += step) {
-      coord_3d p(std::array<double, 3>{double(rx), 0, 0});
-      printf("%10.2f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f\n", p[0],
-             rho(p), V_periodic_d(p), V_periodic_t(p),
-             V_nonperiodic_d(p), V_nonperiodic_t(p),
-             V_rrperiodic_d(p), V_rrperiodic_t(p));
-    }
-    printf("Scan along X axis\n");
-    printf("%10s%18s%18s%18s%18s%18s%18s%18s\n", "x", "rho",
-           "V_np[rho]",
-           "V_p[rho]", "V_rp[rho]",
-           "V_p[rho]-V_np[rho]",
-           "V_p[rho]-V_rp[rho]",
-           "V_rp[rho]-V_np[rho]");
-    for (int rx = std::max(-100, -Lx / 2); rx <= std::min(100, Lx / 2);
-         rx += step) {
-      coord_3d p(std::array<double, 3>{double(rx), 0, 0});
-      printf("%10.2f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f\n", p[0],
-             rho(p), V_nonperiodic(p), V_periodic(p), V_rrperiodic(p),
-             V_periodic(p) - V_nonperiodic(p), V_periodic(p) - V_rrperiodic(p), V_rrperiodic(p) - V_nonperiodic(p));
-    }
-    printf("Scan along X axis\n");
-    printf("%10s%36s%36s%36s\n", "x", "V_np([rho]-[gdiffuse]+[gtight])",
-           "V_p([rho]-[gdiffuse]+[gtight])", "V_rp([rho]-[gdiffuse]+[gtight])");
-    for (int rx = std::max(-100, -Lx / 2); rx <= std::min(100, Lx / 2);
-         rx += step) {
-      coord_3d p(std::array<double, 3>{double(rx), 0, 0});
-      printf("%10.2f%36.8f%36.8f%36.8f\n", p[0],
-             V_nonperiodic(p)-V_nonperiodic_d(p)+V_nonperiodic_t(p),
-             V_periodic(p)-V_periodic_d(p)+V_periodic_t(p),
-             V_rrperiodic(p)-V_rrperiodic_d(p)+V_rrperiodic_t(p));
-    }
-    printf("Scan along Z axis\n");
-    printf("%10s%18s%18s%18s%18s%18s%18s%18s\n", "x", "rho",
-           "V_np[gdiffuse]", "V_np[gtight]",
-           "V_p[gdiffuse]", "V_p[gtight]",
-           "V_rp[gdiffuse]", "V_rp[gtight]");
-    for (int rz = std::max(-100, -Lz / 2); rz <= std::min(100, Lz / 2);
-         rz += step) {
-      coord_3d p(std::array<double, 3>{0, 0, double(rz)});
-      printf("%10.2f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f\n", p[2],
-             rho(p), V_periodic_d(p), V_periodic_t(p),
-             V_nonperiodic_d(p), V_nonperiodic_t(p),
-             V_rrperiodic_d(p), V_rrperiodic_t(p));
-    }
-    printf("Scan along Z axis\n");
-    printf("%10s%18s%18s%18s%18s%18s%18s%18s\n", "z", "rho",
-           "V_np[rho]",
-           "V_p[rho]", "V_rp[rho]",
-           "V_p[rho]-V_np[rho]",
-           "V_p[rho]-V_rp[rho]",
-           "V_rp[rho]-V_np[rho]");
-    for (int rz = std::max(-100, -Lz / 2); rz <= std::min(100, Lz / 2);
-         rz += step) {
-      coord_3d p(std::array<double, 3>{0, 0, double(rz)});
-      printf("%10.2f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f\n", p[2],
-             rho(p), V_nonperiodic(p), V_periodic(p), V_rrperiodic(p),
-             V_periodic(p) - V_nonperiodic(p), V_periodic(p) - V_rrperiodic(p), V_rrperiodic(p) - V_nonperiodic(p));
-    }
-    printf("Scan along Z axis\n");
-    printf("%10s%36s%36s%36s\n", "x", "V_np([rho]-[gdiffuse]+[gtight])",
-           "V_p([rho]-[gdiffuse]+[gtight])", "V_rp([rho]-[gdiffuse]+[gtight])");
-    for (int rz = std::max(-100, -Lz / 2); rz <= std::min(100, Lz / 2);
-         rz += step) {
-      coord_3d p(std::array<double, 3>{0, 0, double(rz)});
-      printf("%10.2f%36.8f%36.8f%36.8f\n", p[2],
-             V_nonperiodic(p)-V_nonperiodic_d(p)+V_nonperiodic_t(p),
-             V_periodic(p)-V_periodic_d(p)+V_periodic_t(p),
-             V_rrperiodic(p)-V_rrperiodic_d(p)+V_rrperiodic_t(p));
+    std::map<std::string, std::vector<Function<double, 3>>> str2V;
+    for(int i=0; i!=test_operators.size(); ++i) {
+      str2V.emplace(test_operator_names[i], V_op_f[i]);
     }
 
-    std::cout << "||V_np(rho)-V_np(gdiffuse)+V_np(gtight)||=" << (V_nonperiodic-V_nonperiodic_d+V_nonperiodic_t).trace() << std::endl;
-    std::cout << "||V_p(rho)-V_p(gdiffuse)+V_p(gtight)||=" << (V_periodic-V_periodic_d+V_periodic_t).trace() << std::endl;
-    std::cout << "||V_rp(rho)-V_rp(gdiffuse)+V_rp(gtight)||=" << (V_rrperiodic-V_rrperiodic_d+V_rrperiodic_t).trace() << std::endl;
+    for(int oi=0; oi != test_operators.size(); ++oi) {
+      std::string ostr = test_operator_names[oi];
+      std::string vstr = "V_" + ostr;
+      const auto error =(str2V[ostr][0] - str2V[ostr][1] + str2V[ostr][2]).norm2();
+      const auto tol = k <=10 ? 1e2 * eps : 5e-7;
+      const bool success = error <= 1e2 * eps;
+      if (!success) ++nerrors;
+      std::cout << "||" << vstr << "(rho)-" << vstr << "(gdiffuse)+" << vstr
+                << "(gtight)||="
+                << error << (success ? " (PASS)" : " (FAIL)")
+                << std::endl;
+    }
+    printf("\n");
 
-    if (false) {
-      const auto rank = pop_rr.get_rank();
-      for (int mu = 0; mu != rank; ++mu) {
-        SeparatedConvolution<double, 3> pop_mu(world, std::vector<ConvolutionND<double, 3>>{1, pop.ops_mu(mu)}, madness::lattice_sum<3>(),
-                                                  madness::FunctionDefaults<3>::get_k());
-        SeparatedConvolution<double, 3> pop_rr_mu(world, std::vector<ConvolutionND<double, 3>>{1, pop_rr.ops_mu(mu)}, madness::lattice_sum<3>(),
-                                              madness::FunctionDefaults<3>::get_k());
+    const int step = 1;
+    const std::vector<std::string> axis_names = {"X", "Z"};
+    for(const auto& axis_name: axis_names) {
 
-        std::cout << "expr="
-                  << std::dynamic_pointer_cast<
-                         madness::GaussianConvolution1D<double>>(pop_rr.ops_mu(mu).getop(0))
-                         ->expnt << std::endl
-                  << "||V_p(rho)-V_p(gdiffuse)+V_p(gtight)||="
-                  << (apply(pop_mu, rho) - apply(pop_mu, gdiffuse_00m1) +
-                      apply(pop_mu, gtight_00m1))
-                         .trace()
-                  << std::endl
-                  << "||V_rp(rho)-V_rp(gdiffuse)+V_rp(gtight)||="
-                  << (apply(pop_rr_mu, rho) - apply(pop_rr_mu, gdiffuse_00m1) +
-                      apply(pop_rr_mu, gtight_00m1))
-                         .trace()
-                  << std::endl
-            ;
+      auto make_coord = [&](int r) {
+        return axis_name=="X" ? coord_3d{double(r), 0, 0} : (axis_name=="Y" ? coord_3d{0, double(r), 0} : coord_3d{0, 0, double(r)});
+      };
+
+      for(int fi=0; fi != test_functions.size(); ++fi) {
+        const auto& f = test_functions[fi];
+        const auto L = axis_name=="X" ? Lx : (axis_name=="Y" ? Ly : Lz);
+
+        printf("Scan along %s axis\n", axis_name.c_str());
+        printf("%10c%18s%18s%18s%18s%18s%18s%18s%18s\n", std::tolower(axis_name[0]),
+               test_function_names[fi].c_str(), "V_NP", "V_P", "V_RNP", "V_RP",
+               "V_P-V_NP", "V_P-V_RP",
+               "V_RP-V_NP");
+        for (int r = -L / 2; r <= L / 2;
+             r += step) {
+          auto p = make_coord(r);
+          printf("%10.2f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f\n", (double)r,
+                 f(p), str2V["NP"][fi](p), str2V["P"][fi](p), str2V["RNP"][fi](p), str2V["RP"][fi](p),
+                 str2V["P"][fi](p) - str2V["NP"][fi](p),
+                 str2V["P"][fi](p) - str2V["RP"][fi](p),
+                 str2V["RP"][fi](p) - str2V["NP"][fi](p)
+                 );
+        }
+
+        // check periodicity of potential
+        for (std::string opstr : {"P", "RP"}) {
+          const auto ptol = k <= 10 ? 1e2 * eps : 1e-5;
+          std::string result_str = "(PASS)";
+          if (std::abs(str2V[opstr][fi](make_coord(L / 2)) -
+                       str2V[opstr][fi](make_coord(-L / 2))) > ptol) {
+            ++nerrors;
+            result_str = "(FAIL)";
+          }
+          printf("check if V_%s(%s) is periodic along %s: %s\n", opstr.c_str(),
+                 test_function_names[fi].c_str(),
+                 axis_name.c_str(), result_str.c_str());
+        }
       }
     }
+
   }
 
   madness::finalize();
+
+  printf("nerrors = %d\n", nerrors);
+
+  return nerrors;
 }

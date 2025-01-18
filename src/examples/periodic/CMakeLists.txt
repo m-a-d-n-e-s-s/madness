@@ -7,7 +7,8 @@ set(EXAMPLE_SOURCES
  
 # Create executables for example applications
 foreach(example ${EXAMPLE_SOURCES})
-  add_mad_executable(${example} ${example}.cc "MADchem")
+  #add_mad_executable(${example} ${example}.cc "MADchem")
+  add_unittests(${example} "${example}.cc" "MADchem" "unittests;short")
   add_dependencies(numerical-examples-madness ${example})
 endforeach()
 
