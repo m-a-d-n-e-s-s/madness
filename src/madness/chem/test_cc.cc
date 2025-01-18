@@ -158,11 +158,18 @@ public:
         if (world.rank()==0) print("memory per host and rank");
         std::map<std::string,double> memory_per_host=memory_per_host_local();
         world.gop.fence();
-        if (world.rank()==0) print("hostname               rank   memory_GB");
+        // turn map into vector
+        std::vector<std::pair<std::string,double>> memory_per_host_vec(memory_per_host.begin(),memory_per_host.end());
+        // concatenate all vectors, lives on rank 0 of the world
+        world.gop.concat0(memory_per_host_vec);
         world.gop.fence();
-        for (const auto& [hostname,memory] : memory_per_host) {
-            snprintf(line, bufsize, "%20s %5d    %e", hostname.c_str(), world.rank(), memory);
-            print(std::string(line));
+
+        if (world.rank()==0) {
+            print("hostname               rank   memory_GB");
+            for (const auto& [hostname,memory] : memory_per_host_vec) {
+                snprintf(line, bufsize, "%20s %5d    %e", hostname.c_str(), world.rank(), memory);
+                print(std::string(line));
+            }
         }
         world.gop.fence();
 
