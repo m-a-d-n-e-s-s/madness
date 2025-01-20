@@ -993,13 +993,12 @@ namespace madness {
         // For separated convolutions with same operator in each direction (isotropic)
         SeparatedConvolution(World& world,
                              std::vector< std::shared_ptr< Convolution1D<Q> > >& argops,
-                             const array_of_bools<NDIM>& lattice_summed = FunctionDefaults<NDIM>::get_bc().is_periodic(),
                              long k = FunctionDefaults<NDIM>::get_k(),
                              bool doleaves = false)
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , info()
                 , doleaves(doleaves)
-                , lattice_summed_(lattice_summed)
+                , lattice_summed_(false)  // this will be overridden by init_lattice_summed below
                 , modified_(false)
                 , particle_(1)
                 , destructive_(false)
@@ -1023,13 +1022,12 @@ namespace madness {
         // For general convolutions
         SeparatedConvolution(World& world,
                              const std::vector< ConvolutionND<Q,NDIM> >& argops,
-                             const array_of_bools<NDIM>& lattice_summed = FunctionDefaults<NDIM>::get_bc().is_periodic(),
                              long k = FunctionDefaults<NDIM>::get_k(),
                              bool doleaves = false)
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , info()
                 , doleaves(doleaves)
-                , lattice_summed_(lattice_summed)
+                , lattice_summed_(false)  // this will be overridden by init_lattice_summed below
                 , modified_(false)
                 , particle_(1)
                 , destructive_(false)
