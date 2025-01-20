@@ -452,6 +452,8 @@ namespace madness {
 
       Filter filter_;  ///< optional filter function
 
+      bool empty_ = false;  ///< if true, begin() == end(); this is true if for any `d` `box_radius_[fixed_dimensions_[d]]` is null
+
       /**
      * @brief Iterator class for lazy generation of surface points
      *
@@ -565,7 +567,7 @@ namespace madness {
               return !parent->filter_(pt, disp);
             };
 
-            // if displacement has value filter has already been applied to it, just advance it
+            // if displacement has value, filter has already been applied to it, just advance it
             if (!done && disp) this->advance();
 
             while (!done && filtered_out()) {
@@ -702,6 +704,7 @@ namespace madness {
        * @param center Center of the box
        * @param box_radius Box radius in each dimension
        * @param surface_thickness Surface thickness in each dimension
+       * @param fixed_dimensions Indices of "fixed" dimensions, i.e. those along which displacements are to the range surface; if for any `d` `box_radius[fixed_dimensions[d]]` is null the range is empty
        * @param filter Optional filter function (if returns false, displacement is dropped; default: no filter)
        * @throws std::invalid_argument if any size is not positive
        */
@@ -744,6 +747,10 @@ namespace madness {
           const auto fixed = std::find(fixed_dimensions_.begin(), fixed_dimensions_.end(), d) != fixed_dimensions_.end();
           if (fixed) {
             has_fixed_dimensions = true;
+            // fixed dimensions only make sense for finite dimensions, otherwise the range is empty
+            if (!box_radius_[d]) {
+              empty_ = true;
+            }
           } else {
             MADNESS_ASSERT(free_dimension_count < NFREEDIM);
             free_dimensions_[free_dimension_count++] = d;
@@ -759,16 +766,19 @@ namespace madness {
       }
 
       /**
-     * @brief Returns an iterator to the beginning of the surface points
-     * @return Iterator pointing to the first surface point
+       * @brief Returns an iterator to the beginning of the surface points
+       * @return Iterator pointing to the first surface point
        */
-      auto begin() const { return Iterator(this, Iterator::Begin); }
+      auto begin() const { return Iterator(this, empty_ ? Iterator::End : Iterator::Begin); }
 
       /**
-     * @brief Returns an iterator to the end of the surface points
-     * @return Iterator indicating the end of iteration
+       * @brief Returns an iterator to the end of the surface points
+       * @return Iterator indicating the end of iteration
        */
       auto end() const { return Iterator(this, Iterator::End); }
+
+      /// @return true if the range is empty
+      bool empty() const { return empty_; }
 
       //      /**
       //     * @brief Returns a view over the surface points

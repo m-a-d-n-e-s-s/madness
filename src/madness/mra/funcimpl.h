@@ -4949,16 +4949,25 @@ template<size_t NDIM>
 
             // this code iterates over only the relevant facets, one at a time and in a manner than allows screening
             const auto process_surface_displacements = [&](const auto& surface_dimensions) {
-              constexpr std::size_t sdim = std::tuple_size_v<std::decay_t<decltype(surface_dimensions)>>;
-              const std::array<std::size_t, opdim-sdim> nonsurface_dimensions = iota_array<opdim>(surface_dimensions);
+              constexpr std::size_t sdim = std::tuple_size_v<
+                  std::decay_t<decltype(surface_dimensions)>>;
+              const std::array<std::size_t, opdim - sdim>
+                  nonsurface_dimensions =
+                      iota_array<opdim>(surface_dimensions);
               BoxSurfaceDisplacementRangeV2<opdim, sdim>
                   range_boundary_face_displacements(
-                      opkey, box_radius, surface_thickness, surface_dimensions, filter);
-              for_each(
-                  range_boundary_face_displacements,
-                  // ignore surface dimensions when computing distance for screening, since the decay only occurs along the directions parallel to the surface
-                  [&op,nonsurface_dimensions](const auto &displacement) -> std::uint64_t { return displacement.distsq_bc(op->lattice_summed(), nonsurface_dimensions); },
-                  default_skip_predicate);
+                      opkey, box_radius, surface_thickness,
+                      surface_dimensions, filter);
+              if (!range_boundary_face_displacements.empty())
+                for_each(
+                    range_boundary_face_displacements,
+                    // ignore surface dimensions when computing distance for screening, since the decay only occurs along the directions parallel to the surface
+                    [&op, nonsurface_dimensions](
+                        const auto &displacement) -> std::uint64_t {
+                      return displacement.distsq_bc(op->lattice_summed(),
+                                                    nonsurface_dimensions);
+                    },
+                    default_skip_predicate);
             };
             if constexpr (opdim >= 1) {
               for(auto surface_dimensions : make_combinations<opdim,1>()) process_surface_displacements(surface_dimensions);
