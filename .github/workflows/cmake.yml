@@ -13,11 +13,12 @@ jobs:
       fail-fast: false
       matrix:
         build_type : [ Release, Debug ]
-        os : [ macos-latest, ubuntu-20.04 ]
+        os : [ macos-latest, ubuntu-24.04 ]
         task_backend : [Threads, OneTBB, PaRSEC]  # OneTBB and LegacyTBB control which version of TBB to install
         include:
-          - os: ubuntu-20.04
-            cxx: /usr/bin/g++-9
+          - os: ubuntu-24.04
+            # gcc 14 causes build issues in code that uses RapidJSON: https://github.com/Tencent/rapidjson/issues/2277
+            cxx: /usr/bin/g++-13
           - os: macos-latest
             cxx: clang++
 
@@ -80,10 +81,10 @@ jobs:
         fi
 
     - name: Install prerequisites Ubuntu packages
-      if: ${{ matrix.os == 'ubuntu-20.04' }}
+      if: ${{ matrix.os == 'ubuntu-24.04' }}
       run: |
         sudo apt-get update
-        sudo apt-get install ninja-build g++-9 liblapack-dev libboost-dev libboost-serialization-dev libeigen3-dev openmpi-bin libopenmpi-dev ccache
+        sudo apt-get install ninja-build g++-13 liblapack-dev libboost-dev libboost-serialization-dev libeigen3-dev openmpi-bin libopenmpi-dev ccache
         if [ "X${{ matrix.task_backend }}" = "XOneTBB" ]; then
           wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB -O - | sudo apt-key add -
           sudo add-apt-repository "deb https://apt.repos.intel.com/oneapi all main"
