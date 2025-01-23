@@ -50,6 +50,7 @@
 #include <madness/mra/function_factory.h>
 
 #include "leafop.h"
+#include "type_data.h"
 
 namespace madness {
     template <typename T, std::size_t NDIM>
@@ -5720,6 +5721,7 @@ template<size_t NDIM>
                                   const bool sym,
                                   Tensor<TENSOR_RESULT_TYPE(T, R)>* result_ptr,
                                   Mutex* mutex) {
+            if (TensorTypeData<T>::iscomplex) MADNESS_EXCEPTION("no complex trace in LowRankTensor, sorry", 1);
             Tensor<TENSOR_RESULT_TYPE(T, R)>& result = *result_ptr;
             Tensor<TENSOR_RESULT_TYPE(T, R)> r(result.dim(0), result.dim(1));
             for (typename mapT::iterator lit = lstart; lit != lend; ++lit) {
