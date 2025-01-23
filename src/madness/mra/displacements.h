@@ -257,6 +257,328 @@ namespace madness {
       return result;
     }
 
+    /**
+     * Generates points at the finite-thickness surface of an N-dimensional box [C1-L1,C1+L1]x...x[CN-LN,CN+LN] centered at point {C1,...CN} in Z^N.
+     * For finite thickness T={T1,...,TN} point {x1,...,xN} is at the surface face perpendicular to axis i xi>=Ci-Li-Ti and xi<=Ci-Li+Ti OR xi>=Ci+Li-Ti and xi<=Ci+Li+Ti.
+     * For dimensions with unlimited size the point coordinates are limited to [0,2^n], with n being the level of the box.
+     */
+    template<std::size_t NDIM>
+    class BoxSurfaceDisplacementRange {
+    private:
+      using Point = Key<NDIM>;
+      using Displacement = Key<NDIM>;
+      using BoxRadius = std::array<std::optional<Translation>, NDIM>;  // null radius = unlimited size
+      using SurfaceThickness = std::array<std::optional<Translation>, NDIM>;  // null thickness for dimensions with null radius
+      using Box = std::array<std::pair<Translation, Translation>, NDIM>;
+      using Hollowness = std::array<bool, NDIM>;
+      using Filter = std::function<bool(const Point&, const Displacement&)>;
+
+      Point center_;                          ///< Center point of the box
+      BoxRadius box_radius_;                  ///< halved size of the box in each dimension
+      SurfaceThickness
+          surface_thickness_;    ///< surface thickness in each dimension
+      Box box_;                  ///< box bounds in each dimension
+      Hollowness hollowness_;    ///< does box contain non-surface points?
+      Filter filter_;  ///< optional filter function
+      Displacement probing_displacement_;  ///< displacement to a nearby point on the surface; it may not be able to pass the filter, but is sufficiently representative of the surface displacements to allow screening with isotropic kernels
+
+      /**
+     * @brief Iterator class for lazy generation of surface points
+     *
+     * This iterator generates surface points on-demand by tracking the current fixed
+     * dimension and positions in each dimension. It implements the InputIterator concept.
+       */
+      class Iterator {
+      public:
+        enum Type {Begin, End};
+      private:
+        const BoxSurfaceDisplacementRange* parent;  ///< Pointer to parent box
+        Point point;                                ///< Current point
+        mutable std::optional<Displacement> disp;   ///< Memoized displacement from parent->center_ to point, computed by displacement(), reset by advance()
+        size_t fixed_dim;                           ///< Current fixed dimension (i.e. faces perpendicular to this axis are being iterated over)
+        Box box;                                    ///< updated box bounds in each dimension, used to avoid duplicate displacements by excluding the surface displacements for each processed fixed dim
+        bool done;                                  ///< Flag indicating iteration completion
+
+        /**
+         * @brief Advances the iterator to the next surface point
+         *
+         * This function implements the logic for traversing the box surface by:
+         * 1. Incrementing displacement in non-fixed dimensions
+         * 2. Switching sides in the fixed dimension when needed
+         * 3. Moving to the next fixed dimension when current one is exhausted
+         */
+        void advance() {
+          disp.reset();
+
+          auto increment_along_dim = [this](size_t dim) {
+            MADNESS_ASSERT(dim != fixed_dim);
+            Vector<Translation, NDIM> unit_displacement(0); unit_displacement[dim] = 1;
+            point = point.neighbor(unit_displacement);
+          };
+
+          // return true if have another surface layer
+          auto next_surface_layer = [this]() -> bool {
+            Vector<Translation, NDIM> l = point.translation();
+            if (l[fixed_dim] !=
+                parent->box_[fixed_dim].second +
+                    parent->surface_thickness_[fixed_dim].value_or(0)) {
+              // if box is hollow along this dim (has 2 surface layers) and exhausted all layers on the "negative" side of the fixed dimension, move to the first layer on the "positive" side
+              if (parent->hollowness_[fixed_dim] &&
+                  l[fixed_dim] ==
+                      parent->box_[fixed_dim].first +
+                          parent->surface_thickness_[fixed_dim].value_or(0)) {
+                l[fixed_dim] =
+                    parent->box_[fixed_dim].second -
+                    parent->surface_thickness_[fixed_dim].value_or(0);
+              } else
+                ++l[fixed_dim];
+              point = Point(point.level(), l);
+              return true;
+            } else
+              return false;
+          };
+
+          for (size_t i = NDIM - 1; i > 0; --i) {
+            if (i == fixed_dim) continue;
+
+            if (point[i] < box[i].second) {
+              increment_along_dim(i);
+              return;
+            }
+            reset_along_dim(i);
+          }
+
+          // move to the face on the opposite side of the fixed dimension
+          const bool have_another_surface_layer = next_surface_layer();
+          if (have_another_surface_layer) return;
+
+          // ready to switch to next fixed dimension with finite radius
+          // but first update box bounds to exclude the surface displacements for the current fixed dimension
+          // WARNING if box along this dimension is not hollow we are done!
+          if (!parent->hollowness_[fixed_dim]) {
+            box[fixed_dim] = {
+                parent->box_[fixed_dim].first +
+                    parent->surface_thickness_[fixed_dim].value_or(0) + 1,
+                parent->box_[fixed_dim].second -
+                    parent->surface_thickness_[fixed_dim].value_or(0) - 1};
+          }
+          else {
+            done = true;
+            return;
+          }
+          // onto next dimension
+          ++fixed_dim;
+          while (!parent->box_radius_[fixed_dim] && fixed_dim <= NDIM) {
+            ++fixed_dim;
+          }
+
+
+          if (fixed_dim >= NDIM) {
+            done = true;
+            return;
+          }
+
+          // reset upon moving to the next fixed dimension
+          for (size_t i = 0; i < NDIM; ++i) {
+            reset_along_dim(i);
+          }
+        }
+
+        void advance_till_valid() {
+          if (parent->filter_) {
+            while (!done && !parent->filter_(point, this->displacement())) {
+              ++(*this);
+            }
+          }
+        }
+
+        void reset_along_dim(size_t dim) {
+          Vector<Translation, NDIM> l = point.translation();
+          if (dim != fixed_dim)
+            l[dim] = box[dim].first;
+          else
+            l[dim] = parent->box_[dim].first - parent->surface_thickness_[dim].value_or(0);
+          point = Point(point.level(), l);
+        };
+
+        /**
+         * @return displacement from the center to the current point
+         */
+        const Displacement& displacement() const {
+          if (!disp) {
+            disp = madness::displacement(parent->center_, point);
+          }
+          return *disp;
+        }
+
+      public:
+        // Iterator type definitions for STL compatibility
+        using iterator_category = std::input_iterator_tag;
+        using value_type = Point;
+        using difference_type = std::ptrdiff_t;
+        using pointer = const Point*;
+        using reference = const Point&;
+
+        /**
+         * @brief Constructs an iterator
+         *
+         * @param p Pointer to the parent BoxSurfaceDisplacementRange
+         * @param type the type of iterator (Begin or End)
+         */
+        Iterator(const BoxSurfaceDisplacementRange* p, Type type)
+            : parent(p), point(parent->center_.level()), fixed_dim(type == End ? NDIM : 0), box(parent->box_), done(type == End) {
+          if (type != End) {
+            for (size_t i = 0; i < NDIM; ++i) {
+              reset_along_dim(i);
+            }
+            advance_till_valid();
+          }
+        }
+
+        /**
+         * @brief Dereferences the iterator
+         * @return A const reference to the current displacement
+         */
+        reference operator*() const { return displacement(); }
+
+        /**
+         * @brief Arrow operator for member access
+         * @return A const pointer to the current displacement
+         */
+        pointer operator->() const { return &displacement(); }
+
+        /**
+         * @brief Pre-increment operator
+         * @return Reference to this iterator after advancement
+         */
+        Iterator& operator++() {
+          advance();
+          return *this;
+        }
+
+        /**
+         * @brief Post-increment operator
+         * @return Copy of the iterator before advancement
+         */
+        Iterator operator++(int) {
+          Iterator tmp = *this;
+          ++(*this);
+          return tmp;
+        }
+
+        /**
+         * @brief Equality comparison operator
+         * @param a First iterator
+         * @param b Second iterator
+         * @return true if iterators are equivalent
+         */
+        friend bool operator==(const Iterator& a, const Iterator& b) {
+          if (a.done && b.done) return true;
+          if (a.done || b.done) return false;
+          return a.fixed_dim == b.fixed_dim &&
+                 a.point == b.point;
+        }
+
+        /**
+         * @brief Inequality comparison operator
+         * @param a First iterator
+         * @param b Second iterator
+         * @return true if iterators are not equivalent
+         */
+        friend bool operator!=(const Iterator& a, const Iterator& b) {
+          return !(a == b);
+        }
+      };
+
+      friend class Iterator;
+
+    public:
+      /**
+       * @brief Constructs a box with different sizes for each dimension
+       *
+       * @param center Center of the box
+       * @param box_radius Box radius in each dimension
+       * @param surface_thickness Surface thickness in each dimension
+       * @param filter Optional filter function (if returns false, displacement is dropped; default: no filter)
+       * @throws std::invalid_argument if any size is not positive
+       */
+      explicit BoxSurfaceDisplacementRange(const Key<NDIM>& center,
+                                           const std::array<std::optional<std::int64_t>, NDIM>& box_radius,
+                                           const std::array<std::optional<std::int64_t>, NDIM>& surface_thickness,
+                                           Filter filter = {})
+          : center_(center), box_radius_(box_radius),
+            surface_thickness_(surface_thickness), filter_(std::move(filter)) {
+        // initialize box bounds
+        bool has_finite_dimensions = false;
+        const auto n = center_.level();
+        Vector<Translation, NDIM> probing_displacement_vec(0);
+        for (int d=0; d!= NDIM; ++d) {
+          if (box_radius_[d]) {
+            auto r = *box_radius_[d];  // in units of 2^{n-1}
+            r = (n == 0) ? (r+1)/2 : (r * Translation(1) << (n-1));
+            MADNESS_ASSERT(r > 0);
+            box_[d] = {center_[d] - r, center_[d] + r};
+            if (!has_finite_dimensions) // first finite dimension? probing displacement will be nonzero along it, zero along all others
+              probing_displacement_vec[d] = r;
+            has_finite_dimensions = true;
+          } else {
+            box_[d] = {0, (1 << center_.level()) - 1};
+          }
+        }
+        MADNESS_ASSERT(has_finite_dimensions);
+        probing_displacement_ = Displacement(n, probing_displacement_vec);
+        for (int d=0; d!= NDIM; ++d) {
+          MADNESS_ASSERT(!(box_radius[d].has_value() ^ surface_thickness[d].has_value()));
+          MADNESS_ASSERT(surface_thickness[d].value_or(0) >= 0);
+          hollowness_[d] = surface_thickness[d] ? (box_[d].first + surface_thickness[d].value() < box_[d].second - surface_thickness[d].value()) : false;
+        }
+      }
+
+      /**
+     * @brief Returns an iterator to the beginning of the surface points
+     * @return Iterator pointing to the first surface point
+       */
+      auto begin() const { return Iterator(this, Iterator::Begin); }
+
+      /**
+     * @brief Returns an iterator to the end of the surface points
+     * @return Iterator indicating the end of iteration
+       */
+      auto end() const { return Iterator(this, Iterator::End); }
+
+      //      /**
+      //     * @brief Returns a view over the surface points
+      //     *
+      //     * This operator allows the class to be used with C++20 ranges.
+      //     *
+      //     * @return A view over the surface points
+      //       */
+      //      auto operator()() const {
+      //        return std::ranges::subrange(begin(), end());
+      //      }
+
+      /* @return the center of the box
+       */
+      const Key<NDIM>& center() const { return center_; }
+
+      /**
+        * @return the radius of the box in each dimension
+       */
+      const std::array<std::optional<int64_t>, NDIM>& box_radius() const { return box_radius_; }
+
+      /**
+        * @return the surface thickness in each dimension
+       */
+      const std::array<std::optional<int64_t>, NDIM>& surface_thickness() const { return surface_thickness_; }
+
+      /**
+       * @return 'probing" displacement to a nearby point *on* the surface; it may not necessarily be in the range of iteration (e.g., it may not be able to pass the filter) but is representative of the surface displacements for the purposes of screening
+       */
+      const Displacement& probing_displacement() const {
+        return probing_displacement_;
+      }
+    };  // BoxSurfaceDisplacementRange
+
    /**
     * @brief Generates all M-sized combinations of integers from range [0, N)
     *
