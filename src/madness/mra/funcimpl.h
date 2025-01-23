@@ -4836,6 +4836,13 @@ template<size_t NDIM>
           const auto for_each = [&](const auto &displacements,
                                     const auto &distance_squared,
                                     const auto &skip_predicate) -> std::optional<std::uint64_t> {
+            // assume isotropic decaying kernel, screen in shell-wise fashion by
+            // monitoring the decay of magnitude of contribution norms with the
+            // distance ... as soon as we find a shell of displacements at least
+            // one of each in simulation domain (see neighbor()) and
+            // all in-domain shells produce negligible contributions, stop.
+            // a displacement is negligible if ||op|| * ||c|| > tol / fac
+            // where fac takes into account
             int nvalid = 1; // Counts #valid at each distance
             int nused = 1;  // Counts #used at each distance
             std::optional<std::uint64_t> distsq;
@@ -4877,7 +4884,6 @@ template<size_t NDIM>
                 double tol = truncate_tol(thresh, key);
 
                 if (cnorm * opnorm > tol / fac) {
-                  nused++;
                   tensorT result =
                       op->apply(source, displacement, c, tol / fac / cnorm);
                   if (result.normf() > 0.3 * tol / fac) {
@@ -4887,6 +4893,7 @@ template<size_t NDIM>
                     else
                       coeffs.task(dest, &nodeT::accumulate2, result, coeffs,
                                   dest);
+                    nused++;
                   }
                 }
               }
