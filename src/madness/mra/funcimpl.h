@@ -4836,6 +4836,10 @@ template<size_t NDIM>
           const auto for_each = [&](const auto &displacements,
                                     const auto &distance_squared,
                                     const auto &skip_predicate) -> std::optional<std::uint64_t> {
+
+            // used to screen estimated and actual contributions
+            const double tol = truncate_tol(thresh, key);
+
             // assume isotropic decaying kernel, screen in shell-wise fashion by
             // monitoring the decay of magnitude of contribution norms with the
             // distance ... as soon as we find a shell of displacements at least
@@ -4846,6 +4850,18 @@ template<size_t NDIM>
             int nvalid = 1; // Counts #valid at each distance
             int nused = 1;  // Counts #used at each distance
             std::optional<std::uint64_t> distsq;
+
+            // displacements to the kernel range boundary are typically same magnitude (modulo variation estimate the norm of the resulting contributions and skip all if one is too small
+            // this
+            if constexpr (std::is_same_v<std::decay_t<decltype(displacements)>,BoxSurfaceDisplacementRange<opdim>>) {
+              const auto &probing_displacement =
+                  displacements.probing_displacement();
+              const double opnorm =
+                  op->norm(key.level(), probing_displacement, source);
+              if (cnorm * opnorm <= tol / fac) {
+                return {};
+              }
+            }
 
             const auto disp_end = displacements.end();
             for (auto disp_it = displacements.begin(); disp_it != disp_end;
@@ -4880,8 +4896,7 @@ template<size_t NDIM>
               keyT dest = neighbor(key, d, this_is_treated_by_op_as_periodic);
               if (dest.is_valid()) {
                 nvalid++;
-                double opnorm = op->norm(key.level(), displacement, source);
-                double tol = truncate_tol(thresh, key);
+                const double opnorm = op->norm(key.level(), displacement, source);
 
                 if (cnorm * opnorm > tol / fac) {
                   tensorT result =
@@ -4954,46 +4969,15 @@ template<size_t NDIM>
                                     })
                                   : filter_t{};
 
-            // this code iterates over only the relevant facets, one at a time and in a manner than allows screening
-            const auto process_surface_displacements = [&](const auto& surface_dimensions) {
-              constexpr std::size_t sdim = std::tuple_size_v<
-                  std::decay_t<decltype(surface_dimensions)>>;
-              const std::array<std::size_t, opdim - sdim>
-                  nonsurface_dimensions =
-                      iota_array<opdim>(surface_dimensions);
-              BoxSurfaceDisplacementRangeV2<opdim, sdim>
-                  range_boundary_face_displacements(
-                      opkey, box_radius, surface_thickness,
-                      surface_dimensions, filter);
-              if (!range_boundary_face_displacements.empty())
-                for_each(
-                    range_boundary_face_displacements,
-                    // ignore surface dimensions when computing distance for screening, since the decay only occurs along the directions parallel to the surface
-                    [&op, nonsurface_dimensions](
-                        const auto &displacement) -> std::uint64_t {
-                      return displacement.distsq_bc(op->lattice_summed(),
-                                                    nonsurface_dimensions);
-                    },
-                    default_skip_predicate);
-            };
-            if constexpr (opdim >= 1) {
-              for(auto surface_dimensions : make_combinations<opdim,1>()) process_surface_displacements(surface_dimensions);
-            }
-            if constexpr (opdim >= 2) {
-              for(auto surface_dimensions : make_combinations<opdim,2>()) process_surface_displacements(surface_dimensions);
-            }
-            if constexpr (opdim >= 3) {
-              for(auto surface_dimensions : make_combinations<opdim,3>()) process_surface_displacements(surface_dimensions);
-            }
-            if constexpr (opdim >= 4) {
-              for(auto surface_dimensions : make_combinations<opdim,4>()) process_surface_displacements(surface_dimensions);
-            }
-            if constexpr (opdim >= 5) {
-              for(auto surface_dimensions : make_combinations<opdim,5>()) process_surface_displacements(surface_dimensions);
-            }
-            if constexpr (opdim >= 6) {
-              for(auto surface_dimensions : make_combinations<opdim,6>()) process_surface_displacements(surface_dimensions);
-            }
+            // this range iterates over the entire surface layer, and provided a probing displacement that can be used to screen out the entire surface
+            BoxSurfaceDisplacementRange<opdim>
+                range_boundary_face_displacements(opkey, box_radius,
+                                                  surface_thickness, filter);
+            for_each(
+                range_boundary_face_displacements,
+                // surface displacements are not screened, all are included
+                [](const auto &displacement) -> std::uint64_t { return 0; },
+                default_skip_predicate);
           }
         }
 
