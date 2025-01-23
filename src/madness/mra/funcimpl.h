@@ -50,7 +50,6 @@
 #include <madness/mra/function_factory.h>
 
 #include "leafop.h"
-#include "type_data.h"
 
 namespace madness {
     template <typename T, std::size_t NDIM>
