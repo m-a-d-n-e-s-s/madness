@@ -1256,16 +1256,23 @@ namespace madness {
             if (not g.is_initialized()) return 0.0;
 
             // if this and g are the same, use norm2()
-            if (this->get_impl()==g.get_impl()) {
-                TreeState state=this->get_impl()->get_tree_state();
-                if (not (state==reconstructed or state==compressed)) change_tree_state(reconstructed);
-                double norm=this->norm2();
-                return norm*norm;
+            if constexpr (std::is_same_v<T,R>) {
+              if (this->get_impl() == g.get_impl()) {
+                TreeState state = this->get_impl()->get_tree_state();
+                if (not(state == reconstructed or state == compressed))
+                  change_tree_state(reconstructed);
+                double norm = this->norm2();
+                return norm * norm;
+              }
             }
 
             // do it case-by-case
-            if (this->is_on_demand()) return g.inner_on_demand(*this);
-            if (g.is_on_demand()) return this->inner_on_demand(g);
+            if constexpr (std::is_same_v<R,T>) {
+              if (this->is_on_demand())
+                return g.inner_on_demand(*this);
+              if (g.is_on_demand())
+                return this->inner_on_demand(g);
+            }
 
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) g.verify_tree();
