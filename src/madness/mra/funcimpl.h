@@ -5713,7 +5713,7 @@ template<size_t NDIM>
 
 #if HAVE_GENTENSOR
 // Original
-        template <typename R>
+        template <typename R, typename = std::enable_if_t<std::is_floating_point_v<R>>>
         static void do_dot_localX(const typename mapT::iterator lstart,
                                   const typename mapT::iterator lend,
                                   typename FunctionImpl<R, NDIM>::mapT* rmap_ptr,
@@ -5740,7 +5740,7 @@ template<size_t NDIM>
                             const GenTensor<R>* jptr = rightv[jv].second;
 
                             if (!sym || (sym && i <= j))
-                                r(i, j) += iptr->trace(*jptr);
+                                r(i, j) += iptr->trace_conj(*jptr);
                         }
                     }
                 }
