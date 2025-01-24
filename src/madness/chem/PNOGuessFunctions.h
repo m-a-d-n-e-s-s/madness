@@ -297,7 +297,7 @@ public:
 
 		double operator ()(const coord_3d& xyz) const;
 
-		std::vector<coord_3d> special_points()const{
+		std::vector<coord_3d> special_points() const override final {
 			coord_3d coord;
 			coord[0]=x;
 			coord[1]=y;
@@ -305,7 +305,7 @@ public:
 			return std::vector<coord_3d>(1,coord);
 		}
 
-		Level special_level() {
+		Level special_level() const override final {
 			const double width = 1.0/sqrt(2.0*exponent); //  with width of the gaussian
 			const int level = FunctionDefaults<3>::set_length_scale(width); // length scale for special points (center)
 			return level;

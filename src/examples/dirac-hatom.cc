@@ -66,8 +66,8 @@ struct stepfunction : public FunctionFunctorInterface<double,3> {
     stepfunction(const int axis) : axis(axis) {
         MADNESS_CHECK(axis>=0 && axis<3);
     }
-    double operator()(const coord_3d& r) const override { return r[axis]/(r.normf()+epsilon); }
-    Level special_level() override {return 20;};
+    double operator()(const coord_3d& r) const override final { return r[axis]/(r.normf()+epsilon); }
+    Level special_level() const override final {return 20;};
     std::vector<Vector<double, 3UL>> special_points() const override {
         coord_3d o={0.0,0.0,0.0};
         return {o};
@@ -115,8 +115,8 @@ struct ncf : public FunctionFunctorInterface<double,3> {
         return std::pow(ncfs(rr) * ncfc(rr),power);
     }
 
-    Level special_level() override {return 20;};
-    std::vector<Vector<double, 3UL>> special_points() const override {
+    Level special_level() const override final {return 20;};
+    std::vector<Vector<double, 3UL>> special_points() const override final {
         coord_3d o={0.0,0.0,0.0};
         return {o};
     }
@@ -1054,8 +1054,8 @@ struct ExactSpinor : public FunctionFunctorInterface<double_complex,3> {
         return ll;
     }
 
-    Level special_level() override {return 20;};
-    std::vector<Vector<double, 3UL>> special_points() const override {
+    Level special_level() const override final {return 20;};
+    std::vector<Vector<double, 3UL>> special_points() const override final {
         coord_3d o={0.0,0.0,0.0};
         return {o};
     }

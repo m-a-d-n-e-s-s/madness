@@ -61,9 +61,9 @@ public:
           (C1 + C2*rs2 + C3*rs4 + C4*rs6);
     }
               
-    std::vector<coord_3d> special_points() const {return specialpts;}
+    std::vector<coord_3d> special_points() const override final {return specialpts;}
 
-    Level special_level() {
+    Level special_level() const override final {
       return 6;
     }
 };
@@ -343,9 +343,9 @@ public:
         delete [] rr;
     }
 
-    std::vector<coord_3d> special_points() const {return specialpts;}
+    std::vector<coord_3d> special_points() const override final {return specialpts;}
 
-    Level special_level() {
+    Level special_level() const override final {
       return 6;
     }
 };

@@ -295,11 +295,11 @@ class FermiNucDistFunctor : public FunctionFunctorInterface<double,3> {
           }
 
           //Because the distribution is only nonzero in a small window around the center, need to create a special point
-          std::vector<coord_3d> special_points() const {
+          std::vector<coord_3d> special_points() const override final {
                return m_R;
           }
 
-          madness::Level special_level() {
+          madness::Level special_level() const override final {
                return 18;
           }
 

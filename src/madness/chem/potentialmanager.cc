@@ -81,7 +81,7 @@ double NuclearDensityFunctor::operator()(const coord_3d &x) const {
 
 std::vector<coord_3d> NuclearDensityFunctor::special_points() const {return special_points_;}
 
-Level NuclearDensityFunctor::special_level() {
+Level NuclearDensityFunctor::special_level() const {
   return special_level_;
 }
 

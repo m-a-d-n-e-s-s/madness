@@ -384,11 +384,11 @@ public:
         return func(r);
     }
    
-    std::vector<madness::coord_3d> special_points() const {
+    std::vector<madness::coord_3d> special_points() const override final {
        return centers;       
     }
 
-    madness::Level special_level() {
+    madness::Level special_level() const override final {
        // From Robert: 
        // Pick initial level such that average gap between quadrature points
        // will find a significant value

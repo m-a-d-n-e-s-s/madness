@@ -87,11 +87,11 @@ public:
         return aofunc(x[0], x[1], x[2]);
     }
 
-    std::vector<coord_3d> special_points() const {
+    std::vector<coord_3d> special_points() const override final {
         return std::vector<coord_3d>(1,aofunc.get_coords_vec());
     }
 
-    Level special_level() {
+    Level special_level() const override final {
       return 8;
     }
 };
