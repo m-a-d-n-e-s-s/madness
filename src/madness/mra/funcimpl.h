@@ -4927,8 +4927,8 @@ template<size_t NDIM>
           const auto max_distsq_reached = for_each(disp, default_distance_squared, default_skip_predicate);
 
           // for range-restricted kernels displacements to the boundary of the kernel range also need to be included
-          // rapid decay of the NS convolutions within the boundary ensures the number of such displacements is similar
-          // to the number of standard displacements
+          // N.B. hard range restriction will result in slow decay of operator matrix elements for the displacements
+          // to the range boundary, should use soft restriction or sacrifice precision
           if (op->range_restricted() && key.level() >= 1) {
 
             std::array<std::optional<std::int64_t>, opdim> box_radius;
@@ -5000,7 +5000,7 @@ template<size_t NDIM>
                 const keyT& key = it->first;
                 const FunctionNode<R,NDIM>& node = it->second;
                 if (node.has_coeff()) {
-                    if (node.coeff().dim(0) != k || op.doleaves) {
+                    if (node.coeff().dim(0) != k /* i.e. not a leaf */ || op.doleaves) {
                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
 //                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff()); //.full_tensor_copy() ????? why copy ????
                         woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff().reconstruct_tensor());
