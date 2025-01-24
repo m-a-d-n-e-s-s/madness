@@ -338,7 +338,7 @@ namespace madness {
               return false;
           };
 
-          for (size_t i = NDIM - 1; i > 0; --i) {
+          for (int64_t i = NDIM - 1; i >= 0; --i) {
             if (i == fixed_dim) continue;
 
             if (point[i] < box[i].second) {
@@ -355,7 +355,7 @@ namespace madness {
           // ready to switch to next fixed dimension with finite radius
           // but first update box bounds to exclude the surface displacements for the current fixed dimension
           // WARNING if box along this dimension is not hollow we are done!
-          if (!parent->hollowness_[fixed_dim]) {
+          if (parent->hollowness_[fixed_dim]) {
             box[fixed_dim] = {
                 parent->box_[fixed_dim].first +
                     parent->surface_thickness_[fixed_dim].value_or(0) + 1,
@@ -368,7 +368,7 @@ namespace madness {
           }
           // onto next dimension
           ++fixed_dim;
-          while (!parent->box_radius_[fixed_dim] && fixed_dim <= NDIM) {
+          while (!parent->box_radius_[fixed_dim] && fixed_dim < NDIM) {
             ++fixed_dim;
           }
 
@@ -386,10 +386,20 @@ namespace madness {
 
         void advance_till_valid() {
           if (parent->filter_) {
-            while (!done && !parent->filter_(point, this->displacement())) {
-              ++(*this);
+            const auto filtered_out = [&]() -> bool {
+              const auto& disp = this->displacement();
+              return !parent->filter_(point, disp);
+            };
+
+            // if displacement has value, filter has already been applied to it, just advance it
+            if (!done && disp) this->advance();
+
+            while (!done && filtered_out()) {
+              this->advance();
             }
           }
+          else
+            this->advance();
         }
 
         void reset_along_dim(size_t dim) {
@@ -452,7 +462,7 @@ namespace madness {
          * @return Reference to this iterator after advancement
          */
         Iterator& operator++() {
-          advance();
+          advance_till_valid();
           return *this;
         }
 
@@ -884,18 +894,20 @@ namespace madness {
         void advance_till_valid() {
           if (parent->filter_) {
             const auto filtered_out = [&]() -> bool {
-              const auto& disp = this->displacement();
+              const auto &disp = this->displacement();
               const auto pt = this->parent->center_.neighbor(disp);
               return !parent->filter_(pt, disp);
             };
 
             // if displacement has value, filter has already been applied to it, just advance it
-            if (!done && disp) this->advance();
+            if (!done && disp)
+              this->advance();
 
             while (!done && filtered_out()) {
               this->advance();
             }
-          }
+          } else
+            this->advance();
         }
 
         void reset_along_dim(size_t fixed_dim) {
