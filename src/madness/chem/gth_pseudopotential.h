@@ -51,7 +51,7 @@ public:
         specialpts.push_back(center);
     }
 
-    double operator()(const coord_3d& r) const {
+    double operator()(const coord_3d& r) const final {
         const double x = r[0]-center[0]; const double y = r[1]-center[1]; const double z = r[2]-center[2];
         double rr = std::sqrt(x*x + y*y + z*z);
         double rs = rr/zi;
@@ -61,9 +61,9 @@ public:
           (C1 + C2*rs2 + C3*rs4 + C4*rs6);
     }
               
-    std::vector<coord_3d> special_points() const override final {return specialpts;}
+    std::vector<coord_3d> special_points() const final {return specialpts;}
 
-    Level special_level() const override final {
+    Level special_level() const final {
       return 6;
     }
 };
@@ -83,7 +83,7 @@ private:
     
 public:
 
-    virtual bool supports_vectorized() const {return false;}
+    virtual bool supports_vectorized() const final {return false;}
 
     static const double gamma_data[17];
     
@@ -96,7 +96,7 @@ public:
         t1 = 1./std::pow(alpha, 0.5*(double)itmp)/std::sqrt(gamma_data[itmp-1]*sqrtPI);
     }
 
-    double operator()(const coord_3d& r) const {
+    double operator()(const coord_3d& r) const final {
         double x = r[0]-center[0]; double y = r[1]-center[1]; double z = r[2]-center[2];
         double rsq = x*x + y*y + z*z;
 
@@ -170,7 +170,7 @@ public:
         return rval;
     }
    
-    virtual bool screened(const coord_3d& c1, const coord_3d& c2) const {
+    virtual bool screened(const coord_3d& c1, const coord_3d& c2) const final {
         double ftol = 1e-12;
 
         double x1 = c1[0]; double y1 = c1[1]; double z1 = c1[2];
@@ -217,7 +217,7 @@ public:
         }
     }
  
-    virtual void operator()(const Vector<double*,3>& xvals, double* MADNESS_RESTRICT fvals, int npts) const {
+    virtual void operator()(const Vector<double*,3>& xvals, double* MADNESS_RESTRICT fvals, int npts) const final {
         
         double* x = new double[npts];
         double* y = new double[npts];
@@ -343,9 +343,9 @@ public:
         delete [] rr;
     }
 
-    std::vector<coord_3d> special_points() const override final {return specialpts;}
+    std::vector<coord_3d> special_points() const final {return specialpts;}
 
-    Level special_level() const override final {
+    Level special_level() const final {
       return 6;
     }
 };

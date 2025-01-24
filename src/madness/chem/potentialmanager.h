@@ -133,11 +133,11 @@ public:
                         int special_level = 15,
                         double rscale = 1.0);
 
-  double operator()(const coord_3d& x) const;
+  double operator()(const coord_3d& x) const final;
 
-  std::vector<coord_3d> special_points() const override final;
+  std::vector<coord_3d> special_points() const final;
 
-  Level special_level() const override final;
+  Level special_level() const final;
 
   NuclearDensityFunctor& set_rscale(double rscale);
 
