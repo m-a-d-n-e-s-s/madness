@@ -5631,7 +5631,7 @@ template<size_t NDIM>
             return map;
         }
 
-#if HAVE_GENTENSOR
+#if 0
 // Original
         template <typename R>
         static void do_inner_localX(const typename mapT::iterator lstart,
@@ -5692,8 +5692,8 @@ template<size_t NDIM>
                    Tensor<T> Left(nleft, size);
                    Tensor<R> Right(nright, size);
                    Tensor< TENSOR_RESULT_TYPE(T,R)> r(nleft, nright);
-                   for(unsigned int iv = 0; iv < nleft; ++iv) Left(iv,_) = *(leftv[iv].second);
-                   for(unsigned int jv = 0; jv < nright; ++jv) Right(jv,_) = *(rightv[jv].second);
+                   for(unsigned int iv = 0; iv < nleft; ++iv) Left(iv,_) = (*(leftv[iv].second)).full_tensor();
+                   for(unsigned int jv = 0; jv < nright; ++jv) Right(jv,_) = (*(rightv[jv].second)).full_tensor();
                    // call mxmT from mxm.h in tensor
                    if(TensorTypeData<T>::iscomplex) Left = Left.conj();  // Should handle complex case and leave real case alone
                    mxmT(nleft, nright, size, r.ptr(), Left.ptr(), Right.ptr());
@@ -5711,7 +5711,7 @@ template<size_t NDIM>
        }
 #endif
 
-#if HAVE_GENTENSOR
+#if 0
 // Original
         template <typename R, typename = std::enable_if_t<std::is_floating_point_v<R>>>
         static void do_dot_localX(const typename mapT::iterator lstart,
@@ -5773,8 +5773,8 @@ template<size_t NDIM>
                    Tensor<T> Left(nleft, size);
                    Tensor<R> Right(nright, size);
                    Tensor< TENSOR_RESULT_TYPE(T, R)> r(nleft, nright);
-                   for(unsigned int iv = 0; iv < nleft; ++iv) Left(iv, _) = *(leftv[iv].second);
-                   for(unsigned int jv = 0; jv < nright; ++jv) Right(jv, _) = *(rightv[jv].second);
+                   for(unsigned int iv = 0; iv < nleft; ++iv) Left(iv, _) = (*(leftv[iv].second)).full_tensor();
+                   for(unsigned int jv = 0; jv < nright; ++jv) Right(jv, _) = (*(rightv[jv].second)).full_tensor();
                    // call mxmT from mxm.h in tensor
                    mxmT(nleft, nright, size, r.ptr(), Left.ptr(), Right.ptr());
                    mutex->lock();
