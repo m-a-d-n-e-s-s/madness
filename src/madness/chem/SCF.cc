@@ -1349,7 +1349,8 @@ functionT SCF::make_density(World& world, const tensorT& occ,
     return rho;
 }
 
-std::vector<poperatorT> SCF::make_bsh_operators(World& world, const tensorT& evals) const {
+std::vector<poperatorT> SCF::make_bsh_operators(World& world, const tensorT& evals,
+    const CalculationParameters& param) {
     PROFILE_MEMBER_FUNC(SCF);
     int nmo = evals.dim(0);
     std::vector<poperatorT> ops(nmo);
@@ -1574,6 +1575,38 @@ void SCF::vector_stats(const std::vector<double>& v, double& rms,
 vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
                                const vecfuncT& psi, vecfuncT& Vpsi, double& err) {
 
+
+    // apply the BSH operator in a Macrotask to reduce communication and possible hangs
+    class ApplyTask : public MacroTaskOperationBase {
+    public:
+        ApplyTask() {
+            name="applytask";
+        }
+        // you need to define the exact argument(s) of operator() as tuple
+        typedef std::tuple<const std::vector<real_function_3d> &, const Tensor<double>&,
+        const CalculationParameters&> argtupleT;
+
+        // you need to define the result type
+        // resultT must implement gaxpy(alpha, result, beta, contribution)
+        // with resultT result, contribution;
+        using resultT = std::vector<real_function_3d>;
+
+        // you need to define an empty constructor for the result
+        resultT allocator(World &world, const argtupleT &argtuple) const {
+            std::size_t n = std::get<0>(argtuple).size();
+            resultT result = zero_functions_compressed<double, 3>(world, n);
+            return result;
+        }
+
+        resultT operator()(const std::vector<real_function_3d> &Vpsi,
+            const Tensor<double>& eps, const CalculationParameters& param) const {
+            World& world=Vpsi.front().world();
+            std::vector<poperatorT> ops = make_bsh_operators(world, eps,param);
+            vecfuncT new_psi = apply(world, ops, Vpsi);
+            return new_psi;
+        }
+    };
+
     START_TIMER(world);
     PROFILE_MEMBER_FUNC(SCF);
     double trantol = vtol / std::min(30.0, double(psi.size()));
@@ -1594,14 +1627,20 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
     fpsi.clear();
     std::vector<double> fac(nmo, -2.0);
     scale(world, Vpsi, fac);
-    std::vector<poperatorT> ops = make_bsh_operators(world, eps);
     set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());
     END_TIMER(world, "Compute residual stuff");
 
     START_TIMER(world);
-    vecfuncT new_psi = apply(world, ops, Vpsi);
+    ApplyTask applytask;
+    MacroTask task(world,applytask);
+    auto new_psi=task(Vpsi,eps,param);
+//    std::vector<poperatorT> ops = make_bsh_operators(world, eps);
+//    END_TIMER(world, "Compute residual stuff");
+//
+//    START_TIMER(world);
+//    vecfuncT new_psi = apply(world, ops, Vpsi);
     END_TIMER(world, "Apply BSH");
-    ops.clear();
+//    ops.clear();
     Vpsi.clear();
     world.gop.fence();
 

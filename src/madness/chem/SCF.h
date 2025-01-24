@@ -372,7 +372,8 @@ public:
 
     functionT make_density(World& world, const tensorT& occ, const cvecfuncT& v);
 
-    std::vector<poperatorT> make_bsh_operators(World& world, const tensorT& evals) const;
+    static std::vector<poperatorT> make_bsh_operators(World& world, const tensorT& evals,
+        const CalculationParameters& param);
 
     // Used only for initial guess that is always spin-restricted LDA
     static functionT make_lda_potential(World& world, const functionT& arho);
