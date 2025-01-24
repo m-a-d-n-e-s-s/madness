@@ -147,7 +147,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         /// \param[in] other The \c Vector to copy.
         template <typename Q>
         constexpr Vector(const Vector<Q,N>& other) {
-            data_ = other.data_;
+            std::copy(other.data_.begin(), other.data_.end(), data_.begin());
         }
 
         /// List initialization constructor (deep copy because \c Vector is POD).
@@ -187,7 +187,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         /// \return This \c Vector.
         template <typename Q>
         constexpr Vector<T,N>& operator=(const Vector<Q,N>& other) {
-            data_ = other.data_;
+            std::copy(other.data_.begin(), other.data_.end(), data_.begin());
             return *this;
         }
 
