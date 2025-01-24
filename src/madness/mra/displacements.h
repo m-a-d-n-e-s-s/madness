@@ -266,12 +266,13 @@ namespace madness {
     class BoxSurfaceDisplacementRange {
     private:
       using Point = Key<NDIM>;
+      using PointPattern = Vector<std::optional<Translation>, NDIM>;
       using Displacement = Key<NDIM>;
       using BoxRadius = std::array<std::optional<Translation>, NDIM>;  // null radius = unlimited size
       using SurfaceThickness = std::array<std::optional<Translation>, NDIM>;  // null thickness for dimensions with null radius
       using Box = std::array<std::pair<Translation, Translation>, NDIM>;
       using Hollowness = std::array<bool, NDIM>;
-      using Filter = std::function<bool(const Point&, const Displacement&)>;
+      using Filter = std::function<bool(Level, const PointPattern&, const std::optional<Displacement>&)>;
 
       Point center_;                          ///< Center point of the box
       BoxRadius box_radius_;                  ///< halved size of the box in each dimension
@@ -299,6 +300,28 @@ namespace madness {
         Box box;                                    ///< updated box bounds in each dimension, used to avoid duplicate displacements by excluding the surface displacements for each processed fixed dim
         bool done;                                  ///< Flag indicating iteration completion
 
+        // return true if have another surface layer
+        bool next_surface_layer() {
+          Vector<Translation, NDIM> l = point.translation();
+          if (l[fixed_dim] !=
+              parent->box_[fixed_dim].second +
+                  parent->surface_thickness_[fixed_dim].value_or(0)) {
+            // if box is hollow along this dim (has 2 surface layers) and exhausted all layers on the "negative" side of the fixed dimension, move to the first layer on the "positive" side
+            if (parent->hollowness_[fixed_dim] &&
+                l[fixed_dim] ==
+                    parent->box_[fixed_dim].first +
+                        parent->surface_thickness_[fixed_dim].value_or(0)) {
+              l[fixed_dim] =
+                  parent->box_[fixed_dim].second -
+                  parent->surface_thickness_[fixed_dim].value_or(0);
+            } else
+              ++l[fixed_dim];
+            point = Point(point.level(), l);
+            return true;
+          } else
+            return false;
+        };
+
         /**
          * @brief Advances the iterator to the next surface point
          *
@@ -316,28 +339,6 @@ namespace madness {
             point = point.neighbor(unit_displacement);
           };
 
-          // return true if have another surface layer
-          auto next_surface_layer = [this]() -> bool {
-            Vector<Translation, NDIM> l = point.translation();
-            if (l[fixed_dim] !=
-                parent->box_[fixed_dim].second +
-                    parent->surface_thickness_[fixed_dim].value_or(0)) {
-              // if box is hollow along this dim (has 2 surface layers) and exhausted all layers on the "negative" side of the fixed dimension, move to the first layer on the "positive" side
-              if (parent->hollowness_[fixed_dim] &&
-                  l[fixed_dim] ==
-                      parent->box_[fixed_dim].first +
-                          parent->surface_thickness_[fixed_dim].value_or(0)) {
-                l[fixed_dim] =
-                    parent->box_[fixed_dim].second -
-                    parent->surface_thickness_[fixed_dim].value_or(0);
-              } else
-                ++l[fixed_dim];
-              point = Point(point.level(), l);
-              return true;
-            } else
-              return false;
-          };
-
           for (int64_t i = NDIM - 1; i >= 0; --i) {
             if (i == fixed_dim) continue;
 
@@ -348,9 +349,22 @@ namespace madness {
             reset_along_dim(i);
           }
 
-          // move to the face on the opposite side of the fixed dimension
-          const bool have_another_surface_layer = next_surface_layer();
-          if (have_another_surface_layer) return;
+          // move to the next surface layer normal to the fixed dimension
+          while (bool have_another_surface_layer = next_surface_layer()) {
+            const auto filtered_out = [&,this]() {
+              bool result = false;
+              const auto& filter = this->parent->filter_;
+              if (filter) {
+                PointPattern point_pattern;
+                point_pattern[fixed_dim] = point[fixed_dim];
+                result = !filter(point.level(), point_pattern, {});
+              }
+              return result;
+            };
+
+            if (!filtered_out())
+              return;
+          }
 
           // ready to switch to next fixed dimension with finite radius
           // but first update box bounds to exclude the surface displacements for the current fixed dimension
@@ -388,7 +402,7 @@ namespace madness {
           if (parent->filter_) {
             const auto filtered_out = [&]() -> bool {
               const auto& disp = this->displacement();
-              return !parent->filter_(point, disp);
+              return !parent->filter_(point.level(), point.translation(), disp);
             };
 
             // if displacement has value, filter has already been applied to it, just advance it
@@ -407,18 +421,45 @@ namespace madness {
           if (dim != fixed_dim)
             l[dim] = box[dim].first;
           else
-            l[dim] = parent->box_[dim].first - parent->surface_thickness_[dim].value_or(0);
+            l[dim] = parent->box_[dim].first -
+                     parent->surface_thickness_[dim].value_or(0);
+
           point = Point(point.level(), l);
+
+          // if the entire surface layer is filtered out, pick the next one
+          if (dim == fixed_dim) {
+
+            const auto filtered_out = [&,this]() {
+              bool result = false;
+              const auto& filter = this->parent->filter_;
+              if (filter) {
+                PointPattern point_pattern;
+                point_pattern[fixed_dim] = point[fixed_dim];
+                result = !filter(point.level(), point_pattern, {});
+              }
+              return result;
+            };
+
+            if (filtered_out()) {
+              bool have_another_surface_layer;
+              while ((have_another_surface_layer = next_surface_layer())) {
+                if (!filtered_out())
+                  break;
+              }
+              MADNESS_ASSERT(have_another_surface_layer);
+            }
+
+          }
         };
 
         /**
          * @return displacement from the center to the current point
          */
-        const Displacement& displacement() const {
+        const std::optional<Displacement>& displacement() const {
           if (!disp) {
             disp = madness::displacement(parent->center_, point);
           }
-          return *disp;
+          return disp;
         }
 
       public:
@@ -449,13 +490,13 @@ namespace madness {
          * @brief Dereferences the iterator
          * @return A const reference to the current displacement
          */
-        reference operator*() const { return displacement(); }
+        reference operator*() const { return *displacement(); }
 
         /**
          * @brief Arrow operator for member access
          * @return A const pointer to the current displacement
          */
-        pointer operator->() const { return &displacement(); }
+        pointer operator->() const { return &(*(*this)); }
 
         /**
          * @brief Pre-increment operator
