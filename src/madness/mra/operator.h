@@ -201,6 +201,7 @@ namespace madness {
         const double& mu() const {return info.mu;}
         const int get_rank() const { return rank; }
         const int get_k() const { return k; }
+        const std::vector<ConvolutionND<Q,NDIM>>& get_ops() const { return ops; }
         const std::array<KernelRange, NDIM>& get_range() const { return range; }
         bool range_restricted() const { return std::any_of(range.begin(), range.end(), [](const auto& v) { return v.finite(); }); }
 
