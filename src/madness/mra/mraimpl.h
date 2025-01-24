@@ -2489,7 +2489,7 @@ namespace madness {
 
             // Restrict special points to this box
             std::vector<Vector<double,NDIM> > newspecialpts;
-            if (key.level() < functor->special_level() && specialpts.size() > 0) {
+            if (key.level() < special_level && specialpts.size() > 0) {
                 BoundaryConditions<NDIM> bc = FunctionDefaults<NDIM>::get_bc();
                 const auto bperiodic = bc.is_periodic();
                 for (unsigned int i = 0; i < specialpts.size(); ++i) {

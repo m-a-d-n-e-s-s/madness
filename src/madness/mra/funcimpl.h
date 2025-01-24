@@ -1043,6 +1043,8 @@ template<size_t NDIM>
                 // set the union of the special points of functor and the ones explicitly given to FunctionFactory
                 std::vector<coordT> functor_special_points=functor->special_points();
                 if (!functor_special_points.empty()) special_points.insert(special_points.end(), functor_special_points.begin(), functor_special_points.end());
+                // near special points refine as deeply as requested by the factory AND the functor
+                special_level = std::max(special_level, functor->special_level());
 
                 typename dcT::const_iterator end = coeffs.end();
                 for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
