@@ -992,7 +992,7 @@ namespace madness {
 
         // For separated convolutions with same operator in each direction (isotropic)
         SeparatedConvolution(World& world,
-                             std::vector< std::shared_ptr< Convolution1D<Q> > >& argops,
+                             const std::vector< std::shared_ptr< Convolution1D<Q> > >& argops,
                              long k = FunctionDefaults<NDIM>::get_k(),
                              bool doleaves = false)
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
