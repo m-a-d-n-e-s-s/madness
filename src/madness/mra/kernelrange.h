@@ -38,44 +38,50 @@ public:
         MADNESS_ASSERT(type == Hard);
       else {
         MADNESS_ASSERT(type != Hard);
-        this->sigma_ = sigma;
+        this->sigma_w_inverse_ = {sigma, 1./sigma};
       }
     }
 
     Type type() const { return type_; }
     double sigma() const {
-      MADNESS_ASSERT(sigma_);
-      return *sigma_;
+      MADNESS_ASSERT(sigma_w_inverse_);
+      return sigma_w_inverse_->first;
+    }
+    double sigma_inverse() const {
+      MADNESS_ASSERT(sigma_w_inverse_);
+      return sigma_w_inverse_->second;
     }
 
     /// @return value of restrictor function r(x) at x
     double value(double x) const {
+      auto f = [](double x, double ooσ) {
+        return (1 + std::erf(x * ooσ)) * 0.5;
+      };
+
       switch (type_) {
       case Hard:
-        return x == 0. ? 0.5 : (x>0 ? 1. : 0.);  // value at x=0 is 1/2
+        // use regularized step function to ensure that value at x=0 is 1/2
+        return f(x, 1e8);
       case SoftErf:
-        auto f = [ooσ = 1. / sigma()](double x) {
-          return (1 + std::erf(x * ooσ)) * 0.5;
-        };
-        return f(x);
+        return f(x, this->sigma_inverse());
       }
     }
 
     /// @return true if \p r1 and \p r2 are equal
     friend bool operator==(const Restrictor& r1, const Restrictor& r2) {
-      return r1.type_ == r2.type_ && r1.sigma_ == r2.sigma_;
+      return r1.type_ == r2.type_ && r1.sigma() == r2.sigma();
     }
 
     hashT hash() const {
       hashT result = hash_value((int)type_);
-      if (sigma_)
+      if (sigma())
         hash_combine(result, sigma());
       return result;
     }
 
   private:
     Type type_ = Hard;
-    std::optional<double> sigma_;
+    std::optional<std::pair<double,double>> sigma_w_inverse_;
   };
 
   /// constructs a null (i.e., infinite) kernel range
@@ -140,7 +146,7 @@ public:
     return result;
   }
 
-  static constexpr double extent_default_epsilon = 1e-16;
+  static constexpr double extent_default_epsilon = std::numeric_limits<double>::epsilon();
 
   /// @return max value of `|x-y|` (rounded up, in units of 1/2)
   /// for which `r(N/2 - |x-y|)` is greater than @p epsilon
