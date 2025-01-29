@@ -1,6 +1,7 @@
 build*
 cmake-build-debug*
 .history*
+.vs
 
 # Compiled Object files
 *.slo
