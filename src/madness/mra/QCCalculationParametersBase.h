@@ -532,8 +532,6 @@ class QCCalculationParametersBase {
         } else if (param_type ==
                    "NSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE") {
           auto sval = get<std::string>(p.first);
-          if (!sval.empty())
-            continue;
           j_params[p.first] = sval;
           // size t
         } else if (p.second.get_type() == "m") {
@@ -568,8 +566,6 @@ class QCCalculationParametersBase {
       } else if (param_type ==
                  "NSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE") {
         auto sval = get<std::string>(p.first);
-        if (!sval.empty())
-          continue;
         j_params[p.first] = sval;
         // size t
       } else if (p.second.get_type() == "m") {
