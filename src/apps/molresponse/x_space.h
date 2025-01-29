@@ -263,11 +263,6 @@ public:
     result.set_active(A.active);
     result.from_vector(A.to_vector() + B.to_vector());
     return result;
-
-    auto add_ab = [&](const auto &a, const auto &b) {
-      return gaxpy_oop(1.0, a, 1.0, b, true);
-    };
-    return binary_apply(A, B, add_ab);
   }
 
   friend X_space operator-(const X_space &A, const X_space &B) {

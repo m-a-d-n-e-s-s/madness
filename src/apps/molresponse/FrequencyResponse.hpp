@@ -321,7 +321,6 @@ private:
       const X_space &phi0);
   X_space compute_second_order_perturbation_terms_v3(
       World &world, const X_space &B, const X_space &C,
-      const response_space &phiBC, const response_space &phiCB,
       const vector_real_function_3d &phi0,
       const vector_real_function_3d &dipole_vectors);
   std::tuple<X_space, X_space, X_space, X_space, X_space, X_space>

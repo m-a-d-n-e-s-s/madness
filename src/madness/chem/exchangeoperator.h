@@ -365,7 +365,7 @@ private:
                 truncate(world, tmp_psif);
                 print_size(world, tmp_psif, "tmp_psi_f after truncation");
 
-                tmp_psif = apply(world, *poisson.get(), tmp_psif);
+                tmp_psif = apply(world, *poisson, tmp_psif);
                 print_size(world, tmp_psif, "tmp_psif (apply) before truncation");
                 truncate(world, tmp_psif);
                 print_size(world, tmp_psif, "tmp_psif (apply) after truncation");

@@ -260,9 +260,9 @@ void FrequencyResponse::iterate(World &world) {
 
 auto FrequencyResponse::update_response(
     World &world, X_space &chi, XCOperator<double, 3> &xc,
-    std::pair<std::vector<poperatorT>,std::vector<poperatorT>> &bsh_ops, QProjector<double, 3> &projector,
-    double &x_shifts, double &omega_n, response_solver &kain_x_space,
-    size_t iteration, const double &max_rotation,
+    std::pair<std::vector<poperatorT>, std::vector<poperatorT>> &bsh_ops,
+    QProjector<double, 3> &projector, double &x_shifts, double &omega_n,
+    response_solver &kain_x_space, size_t iteration, const double &max_rotation,
     const vector_real_function_3d &rho_old, const Tensor<double> &old_residuals,
     const X_space &xres_old)
     -> std::tuple<X_space, residuals, vector_real_function_3d> {
@@ -801,42 +801,6 @@ QuadraticResponse::compute_beta_v2(World &world, const double &omega_b,
   auto vec_b = copyToVector(B);
   auto vec_c = copyToVector(C);
 
-  if (r_params.print_level() >= 1) {
-    molresponse::start_timer(world);
-  }
-
-  std::vector<int> bidx;
-  std::vector<int> cidx;
-
-  int bc = 0;
-  for (const auto [b, c] : BC_index_pairs) {
-    bidx.push_back(b);
-    cidx.push_back(c);
-  }
-
-  auto make_zeta_bc = [&](const vector_real_function_3d &by,
-                          const vector_real_function_3d &cx,
-                          const vector_real_function_3d &ground_orbitals) {
-    auto matrix_bc = matrix_inner(world, by, cx);
-    return -1.0 * transform(world, ground_orbitals, matrix_bc, true);
-  };
-
-  //  auto ztask = ComputeZetaBC(static_cast<int>(ground_orbitals.size()));
-
-  auto phiBC =
-      response_space(world, BC_index_pairs.size(), ground_orbitals.size());
-  auto phiCB =
-      response_space(world, BC_index_pairs.size(), ground_orbitals.size());
-
-  for (int i = 0; i < BC_index_pairs.size(); i++) {
-    auto [b, c] = BC_index_pairs[i];
-    phiBC.x[i] = make_zeta_bc(B.y[b], C.x[c], ground_orbitals);
-    phiCB.x[i] = make_zeta_bc(C.y[c], B.x[b], ground_orbitals);
-  }
-
-  if (r_params.print_level() >= 1) {
-    molresponse::end_timer(world, "Zeta(BC) and Zeta(CB)");
-  }
   vector_real_function_3d dipole_vectors(3);
   size_t k = 0;
   // creates a vector of x y z dipole functions
@@ -853,7 +817,7 @@ QuadraticResponse::compute_beta_v2(World &world, const double &omega_b,
 
   if (compute) {
     this->VBC = compute_second_order_perturbation_terms_v3(
-        world, B, C, phiBC, phiCB, ground_orbitals, dipole_vectors);
+        world, B, C, ground_orbitals, dipole_vectors);
     if (save) {
       save_x_space(world, vbc_archive.stem().string(), this->VBC);
     }
@@ -889,6 +853,44 @@ QuadraticResponse::compute_beta_v2(World &world, const double &omega_b,
     auto beta_xa_vbc = inner(XA, VBC);
     auto beta_abc = response_space_inner(vA, BC);
     auto beta_acb = response_space_inner(vA, CB);
+
+    if (r_params.print_level() >= 1) {
+      molresponse::start_timer(world);
+    }
+
+    std::vector<int> bidx;
+    std::vector<int> cidx;
+
+    int bc = 0;
+    for (const auto [b, c] : BC_index_pairs) {
+      bidx.push_back(b);
+      cidx.push_back(c);
+    }
+
+    auto make_zeta_bc = [&](const vector_real_function_3d &by,
+                            const vector_real_function_3d &cx,
+                            const vector_real_function_3d &ground_orbitals) {
+      auto matrix_bc = matrix_inner(world, by, cx);
+      return -1.0 * transform(world, ground_orbitals, matrix_bc, true);
+    };
+
+    //  auto ztask = ComputeZetaBC(static_cast<int>(ground_orbitals.size()));
+
+    auto phiBC =
+        response_space(world, BC_index_pairs.size(), ground_orbitals.size());
+    auto phiCB =
+        response_space(world, BC_index_pairs.size(), ground_orbitals.size());
+
+    for (int i = 0; i < BC_index_pairs.size(); i++) {
+      auto [b, c] = BC_index_pairs[i];
+      phiBC.x[i] = make_zeta_bc(B.y[b], C.x[c], ground_orbitals);
+      phiCB.x[i] = make_zeta_bc(C.y[c], B.x[b], ground_orbitals);
+    }
+
+    if (r_params.print_level() >= 1) {
+      molresponse::end_timer(world, "Zeta(BC) and Zeta(CB)");
+    }
+
     auto beta_va_phibc = response_space_inner(vAphi, phiBC);
     auto beta_va_phicb = response_space_inner(vAphi, phiCB);
     world.gop.fence();
@@ -912,56 +914,57 @@ QuadraticResponse::compute_beta_v2(World &world, const double &omega_b,
   auto beta_tensor = compute_beta();
 
   bool debug_beta = false;
-  if (debug_beta) {
-
-    if (r_params.print_level() >= 1) {
-      molresponse::end_timer(world, "compute_beta_tensor");
-    }
-    if (r_params.print_level() >= 1) {
-      molresponse::start_timer(world);
-    }
-
-    auto vec_vbc = copyToVector(VBC);
-    ComputeBetaTask btask;
-    MacroTask beta_task(world, btask);
-    vector<int> index_a;
-    vector<int> index_bc;
-    vector<int> index_b;
-    vector<int> index_c;
-    std::vector<std::string> beta_indices;
-
-    Tensor<double> beta_tensor_2 = Tensor<double>(27);
-    for (int a = 0; a < XA.num_states(); a++) {
-      int bc = 0;
-      for (const auto &[b, c] : this->BC_index_pairs) {
-        index_a.push_back(a);
-        index_b.push_back(b);
-        index_c.push_back(c);
-        beta_indices.push_back(xyz[a] + xyz[b] + xyz[c]);
-        index_bc.push_back(bc++);
-      }
-    }
-
-    auto vec_phiBC = copyToVector(phiBC);
-    auto vec_phiCB = copyToVector(phiCB);
-    auto vbc = copyToVector(VBC);
-
-    auto beta =
-        beta_task(index_bc, index_a, index_b, index_c, vec_a, vec_b, vec_c,
-                  vec_phiBC, vec_phiCB, ground_orbitals, dipole_vectors, vbc);
-
-    Tensor<double> bt(static_cast<long>(beta.size()));
-    for (long i = 0; i < beta.size(); i++) {
-      bt[i] = beta[i]->get();
-    }
-
-    if (r_params.print_level() >= 1) {
-      molresponse::end_timer(world, "compute_beta_tensor_original");
-      if (world.rank() == 0) {
-        print("beta: ", bt);
-      }
-    }
-  }
+  /*if (debug_beta) {*/
+  /**/
+  /*  if (r_params.print_level() >= 1) {*/
+  /*    molresponse::end_timer(world, "compute_beta_tensor");*/
+  /*  }*/
+  /*  if (r_params.print_level() >= 1) {*/
+  /*    molresponse::start_timer(world);*/
+  /*  }*/
+  /**/
+  /*  auto vec_vbc = copyToVector(VBC);*/
+  /*  ComputeBetaTask btask;*/
+  /*  MacroTask beta_task(world, btask);*/
+  /*  vector<int> index_a;*/
+  /*  vector<int> index_bc;*/
+  /*  vector<int> index_b;*/
+  /*  vector<int> index_c;*/
+  /*  std::vector<std::string> beta_indices;*/
+  /**/
+  /*  Tensor<double> beta_tensor_2 = Tensor<double>(27);*/
+  /*  for (int a = 0; a < XA.num_states(); a++) {*/
+  /*    int bc = 0;*/
+  /*    for (const auto &[b, c] : this->BC_index_pairs) {*/
+  /*      index_a.push_back(a);*/
+  /*      index_b.push_back(b);*/
+  /*      index_c.push_back(c);*/
+  /*      beta_indices.push_back(xyz[a] + xyz[b] + xyz[c]);*/
+  /*      index_bc.push_back(bc++);*/
+  /*    }*/
+  /*  }*/
+  /**/
+  /*  auto vec_phiBC = copyToVector(phiBC);*/
+  /*  auto vec_phiCB = copyToVector(phiCB);*/
+  /*  auto vbc = copyToVector(VBC);*/
+  /**/
+  /*  auto beta =*/
+  /*      beta_task(index_bc, index_a, index_b, index_c, vec_a, vec_b, vec_c,*/
+  /*                vec_phiBC, vec_phiCB, ground_orbitals, dipole_vectors,
+   * vbc);*/
+  /**/
+  /*  Tensor<double> bt(static_cast<long>(beta.size()));*/
+  /*  for (long i = 0; i < beta.size(); i++) {*/
+  /*    bt[i] = beta[i]->get();*/
+  /*  }*/
+  /**/
+  /*  if (r_params.print_level() >= 1) {*/
+  /*    molresponse::end_timer(world, "compute_beta_tensor_original");*/
+  /*    if (world.rank() == 0) {*/
+  /*      print("beta: ", bt);*/
+  /*    }*/
+  /*  }*/
+  /*}*/
 
   std::vector<std::string> beta_indices;
   for (int a = 0; a < XA.num_states(); a++) {
@@ -1368,7 +1371,6 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v2(
 
 X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     World &world, const X_space &B, const X_space &C,
-    const response_space &phiBC, const response_space &phiCB,
     const vector_real_function_3d &phi0,
     const vector_real_function_3d &dipole_vectors) {
 
@@ -1398,43 +1400,32 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
   }
   auto vec_b = copyToVector(B);
   auto vec_c = copyToVector(C);
-  auto vec_zeta_bc = copyToVector(phiBC);
-  auto vec_zeta_cb = copyToVector(phiCB);
-  if (compute_debug) {
-
-    std::vector<int> bidx;
-    std::vector<int> cidx;
-    std::vector<int> ii;
-
-    int i = 1;
-    for (const auto [b, c] : BC_index_pairs) {
-      ii.push_back(i);
-      bidx.push_back(b);
-      cidx.push_back(c);
-    }
-
-    auto stride = phi0.size() * 2;
-
-    if (r_params.print_level() >= 1) {
-      molresponse::start_timer(world);
-    }
-
-    VBC_task2 t(static_cast<int>(stride));
-    MacroTask task_vbc(world, t);
-    task_vbc.set_name("VBC");
-    auto vbc = task_vbc(ii, bidx, cidx, vec_b, vec_c, vec_zeta_bc, vec_zeta_cb,
-                        phi0, dipole_vectors);
-    auto norms_vbc = norm2s(world, vbc);
-    print("norms_vbc: ", norms_vbc);
-    copyToXspace(vbc, VBC_debug);
-    if (r_params.print_level() >= 1) {
-      std::string message = "VBC[all]";
-      molresponse::end_timer(world, message.c_str());
-    }
-  }
-  if (debug && compute_debug) {
-    save_x_space(world, "vbc_archive", VBC_debug);
-  }
+  /*if (compute_debug) {*/
+  /*  std::vector<int> bidx;*/
+  /*  std::vector<int> cidx;*/
+  /*  std::vector<int> ii;*/
+  /*  int i = 1;*/
+  /*  for (const auto [b, c] : BC_index_pairs) {*/
+  /*    ii.push_back(i);*/
+  /*    bidx.push_back(b);*/
+  /*    cidx.push_back(c);*/
+  /*  }*/
+  /*  auto stride = phi0.size() * 2;*/
+  /*  if (r_params.print_level() >= 1) {*/
+  /*    molresponse::start_timer(world);*/
+  /*  }*/
+  /**/
+  /*  VBC_task2 t(static_cast<int>(stride));*/
+  /*  MacroTask task_vbc(world, t);*/
+  /*  task_vbc.set_name("VBC");*/
+  /*  if (r_params.print_level() >= 1) {*/
+  /*    std::string message = "VBC[all]";*/
+  /*    molresponse::end_timer(world, message.c_str());*/
+  /*  }*/
+  /*}*/
+  /*if (debug && compute_debug) {*/
+  /*  save_x_space(world, "vbc_archive", VBC_debug);*/
+  /*}*/
 
   std::vector<int> bb_idx;
   std::vector<int> cc_idx;
@@ -1483,8 +1474,10 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     }
     VBC_task_two_i t2a;
     MacroTask task_two_a(world, t2a);
+    // The new vbc task onew will pass same data as task one and construct zeta
+    // within the task
     task_two_a.set_name("VBC_two_a");
-    vbc_two_a = task_two_a(state_index, vec_zeta_bc, phi0);
+    vbc_two_a = task_two_a(bb_idx, cc_idx, vec_b, vec_c, phi0);
     if (r_params.print_level() >= 1) {
       std::string message = "VBC_two_a";
       molresponse::end_timer(world, message.c_str());
@@ -1499,7 +1492,7 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
 
     MacroTask task_two_b(world, t2b);
     task_two_b.set_name("VBC_two_b");
-    vbc_two_b = task_two_b(state_index, vec_zeta_cb, phi0);
+    vbc_two_b = task_two_b(cc_idx, bb_idx, vec_c, vec_b, phi0);
     if (r_params.print_level() >= 1) {
       std::string message = "VBC_two_b";
       molresponse::end_timer(world, message.c_str());
