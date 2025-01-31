@@ -730,19 +730,19 @@ namespace madness {
         /// Broadcasts typed contiguous data from process root while still processing AM & tasks
 
         /// Optimizations can be added for long messages
-        template <typename T, typename = std::enable_if_t<std::is_trivially_copyable_v<T>>>
+        template <typename T, typename = std::enable_if_t<madness::is_trivially_copyable_v<T>>>
         inline void broadcast(T* buf, size_t nelem, ProcessID root) {
             broadcast((void *) buf, nelem*sizeof(T), root);
         }
 
         /// Broadcast of a scalar from node 0 to all other nodes
-        template <typename T, typename = std::enable_if_t<std::is_trivially_copyable_v<T>>>
+        template <typename T, typename = std::enable_if_t<madness::is_trivially_copyable_v<T>>>
         void broadcast(T& t) {
             broadcast(&t, 1, 0);
         }
 
         /// Broadcast of a scalar from node root to all other nodes
-        template <typename T, typename = std::enable_if_t<std::is_trivially_copyable_v<T>>>
+        template <typename T, typename = std::enable_if_t<madness::is_trivially_copyable_v<T>>>
         void broadcast(T& t, ProcessID root) {
             broadcast(&t, 1, root);
         }
@@ -781,7 +781,7 @@ namespace madness {
         /// Optimizations can be added for long messages and to reduce the memory footprint
         template <typename T, class opT>
             void reduce(T* buf, std::size_t nelem, opT op) {
-          static_assert(std::is_trivially_copyable_v<T>, "T must be trivially copyable");
+          static_assert(madness::is_trivially_copyable_v<T>, "T must be trivially copyable");
 
           ProcessID parent, child0, child1;
           world_.mpi.binary_tree_info(0, parent, child0, child1);
@@ -967,11 +967,22 @@ namespace madness {
             };
             using sptr_t = std::unique_ptr<std::byte[], free_dtor>;
 
-            auto buf0 = sptr_t(static_cast<std::byte *>(
-                                std::aligned_alloc(sizeof(void *), bufsz)),
+            auto aligned_buf_alloc = [&]() -> std::byte* {
+#ifdef HAVE_POSIX_MEMALIGN
+                void *ptr;
+                if (posix_memalign(&ptr, sizeof(void *), bufsz) != 0) {
+                    throw std::bad_alloc();
+                }
+                return static_cast<std::byte *>(ptr);
+#else
+                return static_cast<std::byte *>(
+                    std::aligned_alloc(sizeof(void *), bufsz));
+#endif
+            };
+
+            auto buf0 = sptr_t(aligned_buf_alloc(),
                                free_dtor{});
-            auto buf1 = sptr_t(static_cast<std::byte *>(
-                                std::aligned_alloc(sizeof(void *), bufsz)),
+            auto buf1 = sptr_t(aligned_buf_alloc(),
                                free_dtor{});
 
             // transfer data in chunks at most this large

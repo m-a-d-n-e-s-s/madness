@@ -72,14 +72,14 @@ double tt1, ss1;
 #  define STATIC
 #endif
 
-/// These oddly-named wrappers enable the generic svd iterface to get
-/// the correct LAPACK routine based upon the argument type.  Internal
+/// These oddly-named wrappers enable the generic svd interface to get
+/// the correct LAPACK routine based upon the argument type. Internal
 /// use only.
-STATIC inline
-void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
-             real4 *a, integer *lda, real4 *s, real4 *u, integer *ldu,
-             real4 *vt, integer *ldvt, real4 *work, integer *lwork,
-             integer *info, char_len jobulen, char_len jobvtlen) {
+
+STATIC inline void gesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
+                          real4 *a, integer *lda, real4 *s, real4 *u, integer *ldu,
+                          real4 *vt, integer *ldvt, real4 *work, integer *lwork,
+                          integer *info, char_len jobulen, char_len jobvtlen) {
     //std::cout << "n " << *n << " m " << *m << " lwork " << *lwork << std::endl;
     //std::cout << " sizeof(integer) " << sizeof(integer) << std::endl;
 #if MADNESS_LINALG_USE_LAPACKE
@@ -91,22 +91,23 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
 #endif
 }
 
+STATIC inline void gesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
+                          real8 *a, integer *lda, real8 *s, real8 *u, integer *ldu,
+                          real8 *vt, integer *ldvt, real8 *work, integer *lwork,
+                          integer *info, char_len jobulen, char_len jobvtlen){
 #if MADNESS_LINALG_USE_LAPACKE
-STATIC inline
-void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
-             real8 *a, integer *lda, real8 *s, real8 *u, integer *ldu,
-             real8 *vt, integer *ldvt, real8 *work, integer *lwork,
-             integer *info, char_len jobulen, char_len jobvtlen){
-  dgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
-          vt, ldvt, work, lwork, info);
+    dgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
+            vt, ldvt, work, lwork, info);
+#else
+    dgesvd_(jobu, jobvt, m, n, a, lda, s, u, ldu,
+            vt, ldvt, work, lwork, info, jobulen, jobvtlen);
+#endif
 }
-#endif 
 
-STATIC inline
-void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
-             complex_real4 *a, integer *lda, real4 *s, complex_real4 *u, integer *ldu,
-             complex_real4 *vt, integer *ldvt, complex_real4 *work, integer *lwork,
-             integer *info, char_len jobulen, char_len jobvtlen) {
+STATIC inline void gesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
+                          complex_real4 *a, integer *lda, real4 *s, complex_real4 *u, integer *ldu,
+                          complex_real4 *vt, integer *ldvt, complex_real4 *work, integer *lwork,
+                          integer *info, char_len jobulen, char_len jobvtlen) {
   Tensor<float> rwork(5*min(*m,*n));
 #if MADNESS_LINALG_USE_LAPACKE
     cgesvd_(jobu, jobvt, m, n, to_cptr(a), lda, s, to_cptr(u), ldu,
@@ -117,11 +118,10 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
 #endif
 }
 
-STATIC inline
-void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
-             complex_real8 *a, integer *lda, real8 *s, complex_real8 *u, integer *ldu,
-             complex_real8 *vt, integer *ldvt, complex_real8 *work, integer *lwork,
-             integer *info, char_len jobulen, char_len jobvtlen) {
+STATIC inline void gesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
+                          complex_real8 *a, integer *lda, real8 *s, complex_real8 *u, integer *ldu,
+                          complex_real8 *vt, integer *ldvt, complex_real8 *work, integer *lwork,
+                          integer *info, char_len jobulen, char_len jobvtlen) {
     Tensor<double> rwork(5*min(*m,*n));
 #if MADNESS_LINALG_USE_LAPACKE
     zgesvd_(jobu, jobvt, m, n, to_zptr(a), lda, s, to_zptr(u), ldu,
@@ -132,400 +132,124 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
 #endif
 }
 
-/// These oddly-named wrappers enable the generic cholesky iterface to get
-/// the correct LAPACK routine based upon the argument type.  Internal
+/// These oddly-named wrappers enable the generic gesv interface to get
+/// the correct LAPACK routine based upon the argument type. Internal
 /// use only.
-STATIC inline
-void potrf_(const char * UPLO,integer *n, real4 *a ,integer *lda , integer *info){
-#if MADNESS_LINALG_USE_LAPACKE
-	spotrf_(UPLO, n, a, lda, info);
-#else
-	spotrf_(UPLO, n, a, lda, info, 1);
-#endif
-}
-STATIC inline
-void potrf_(const char * UPLO,integer *n, real8 *a ,integer *lda , integer *info){
-#if MADNESS_LINALG_USE_LAPACKE
-	dpotrf_(UPLO, n, a, lda, info);
-#else
-	dpotrf_(UPLO, n, a, lda, info, 1);
-#endif
-}
-STATIC inline
-void potrf_(const char * UPLO,integer *n, complex_real4 *a ,integer *lda , integer *info){
-#if MADNESS_LINALG_USE_LAPACKE
-        cpotrf_(UPLO, n, to_cptr(a), lda, info);
-#else
-	cpotrf_(UPLO, n, a, lda, info, 1);
-#endif
-}
-STATIC inline
-void potrf_(const char * UPLO,integer *n, complex_real8 *a ,integer *lda , integer *info){
-#if MADNESS_LINALG_USE_LAPACKE
-        zpotrf_(UPLO, n, to_zptr(a), lda, info);
-#else
-	zpotrf_(UPLO, n, a, lda, info, 1);
-#endif
-}
 
-/// These oddly-named wrappers enable the generic rr_cholesky iterface to get
-/// the correct LAPACK routine based upon the argument type.  Internal
-/// use only.
-STATIC inline
-void pstrf_(const char * UPLO,integer *n, real4 *a ,integer* lda, integer *piv, integer* rank, real4* tol, real4* work , integer *info){
-#if MADNESS_LINALG_USE_LAPACKE
-	spstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
-#else
-	spstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
-#endif
-}
-STATIC inline
-void pstrf_(const char * UPLO,integer *n, real8 *a ,integer* lda, integer *piv, integer* rank, real8* tol, real8* work , integer *info){
-#if MADNESS_LINALG_USE_LAPACKE
-	dpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
-#else
-	dpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
-#endif
-}
-STATIC inline
-void pstrf_(const char * UPLO,integer *n, complex_real4 *a ,integer* lda, integer *piv, integer* rank, real4* tol, complex_real4* work , integer *info){
-#if MADNESS_LINALG_USE_LAPACKE
-        cpstrf_(UPLO, n, to_cptr(a), lda, piv, rank, tol, reinterpret_cast<float*>(work), info);
-#else
-	cpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
-#endif
-}
-STATIC inline
-void pstrf_(const char * UPLO,integer *n, complex_real8 *a ,integer* lda, integer *piv, integer* rank, real8* tol, complex_real8* work , integer *info){
-#if MADNESS_LINALG_USE_LAPACKE
-        //zpstrf_(UPLO, n, to_zptr(a), lda, piv, rank, tol, to_cptr(work), info);
-        zpstrf_(UPLO, n, to_zptr(a), lda, piv, rank, tol, reinterpret_cast<double*>(work), info);
-#else
-	zpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
-#endif
-}
-
-/// These oddly-named wrappers enable the generic geqrf iterface to get
-/// the correct LAPACK routine based upon the argument type.  Internal
-/// use only.
-STATIC inline
-void dgeqrf_(integer *m, integer *n,
-   	 real4 *a, integer *lda, real4 *tau,
-   	 real4 *work, integer *lwork, integer *infoOUT) {
-#if MADNESS_LINALG_USE_LAPACKE
-	sgeqrf_(m, n, a, lda, tau, work, lwork, infoOUT);
-#else
-	sgeqrf_(m, n, a, lda, tau, work, lwork, infoOUT);
-#endif
-}
-
-//STATIC inline
-//void dgeqrf_(integer *m, integer *n,
-//   	 real8 *a, integer *lda, real8 *tau,
-//   	 real8 *work, integer *lwork, integer *infoOUT) {
-//#if MADNESS_LINALG_USE_LAPACKE
-//	dgeqrf_(LAPACK_ROW_MAJOR, m, n, a, lda, tau);
-//#else
-//	dgeqrf_(m, n, a, lda, tau, work, lwork, infoOUT);
-//#endif
-//}
-
-STATIC inline
-void dgeqrf_(integer *m, integer *n,
-		float_complex *a, integer *lda, float_complex *tau,
-		float_complex *work, integer *lwork, integer *infoOUT) {
-#if MADNESS_LINALG_USE_LAPACKE
-	cgeqrf_(m, n, to_cptr(a), lda, to_cptr(tau), to_cptr(work), lwork, infoOUT);
-#else
-	cgeqrf_(m, n, a, lda, tau, work, lwork, infoOUT);
-#endif
-}
-
-STATIC inline
-void dgeqrf_(integer *m, integer *n,
-		double_complex *a, integer *lda, double_complex *tau,
-		double_complex *work, integer *lwork, integer *infoOUT) {
-#if MADNESS_LINALG_USE_LAPACKE
-	zgeqrf_(m, n, to_zptr(a), lda, to_zptr(tau), to_zptr(work), lwork, infoOUT);
-#else
-	zgeqrf_(m, n, a, lda, tau, work, lwork, infoOUT);
-#endif
-}
-
-
-
-/// These oddly-named wrappers enable the generic gesv iterface to get
-/// the correct LAPACK routine based upon the argument type.  Internal
-/// use only.
-STATIC inline void dgesv_(integer* n, integer* nrhs, float* AT, integer* lda,
-                          integer* piv, float* x, integer* ldx, integer* info) {
+STATIC inline void gesv_(integer* n, integer* nrhs, real4* AT, integer* lda,
+                         integer* piv, real4* x, integer* ldx, integer* info) {
     sgesv_(n, nrhs, AT, lda, piv, x, ldx, info);
 }
-STATIC inline void dgesv_(integer* n, integer* nrhs, float_complex* AT, integer* lda,
-                          integer* piv, float_complex* x, integer* ldx, integer* info) {
+
+STATIC inline void gesv_(integer* n, integer* nrhs, real8* AT, integer* lda,
+                         integer* piv, real8* x, integer* ldx, integer* info) {
+    dgesv_(n, nrhs, AT, lda, piv, x, ldx, info);
+}
+
+STATIC inline void gesv_(integer* n, integer* nrhs, float_complex* AT, integer* lda,
+                         integer* piv, float_complex* x, integer* ldx, integer* info) {
 #if MADNESS_LINALG_USE_LAPACKE
     cgesv_(n, nrhs, to_cptr(AT), lda, piv, to_cptr(x), ldx, info);
 #else
     cgesv_(n, nrhs, AT, lda, piv, x, ldx, info);
 #endif
 }
-STATIC inline void dgesv_(integer* n, integer* nrhs, double_complex* AT, integer* lda,
-                          integer* piv, double_complex* x, integer* ldx, integer* info) {
+
+STATIC inline void gesv_(integer* n, integer* nrhs, double_complex* AT, integer* lda,
+                         integer* piv, double_complex* x, integer* ldx, integer* info) {
 #if MADNESS_LINALG_USE_LAPACKE
     zgesv_(n, nrhs, to_zptr(AT), lda, piv, to_zptr(x), ldx, info);
 #else
     zgesv_(n, nrhs, AT, lda, piv, x, ldx, info);
 #endif
 }
-/// These oddly-named wrappers enable the generic gelss iterface to get
-/// the correct LAPACK routine based upon the argument type.  Internal
+
+/// These oddly-named wrappers enable the generic gelss interface to get
+/// the correct LAPACK routine based upon the argument type. Internal
 /// use only.
 
-STATIC inline void dgelss_(integer *m, integer *n, integer *nrhs,
-                           float *a, integer *lda, float *b, integer *ldb, float *sOUT,
-                           float *rcondIN, integer *rankOUT, float *work,
-                           integer *lwork, integer *infoOUT) {
+STATIC inline void gelss_(integer *m, integer *n, integer *nrhs,
+                          real4 *a, integer *lda, real4 *b, integer *ldb, real4 *sOUT,
+                          real4 *rcondIN, integer *rankOUT, real4 *work,
+                          integer *lwork, integer *infoOUT) {
     sgelss_(m, n, nrhs, a, lda, b, ldb, sOUT, rcondIN, rankOUT, work, lwork, infoOUT);
 }
 
-STATIC inline void dgelss_(integer *m, integer *n, integer *nrhs,
-                           float_complex *a, integer *lda, float_complex *b,
-                           integer *ldb, float *sOUT,
-                           float *rcondIN, integer *rankOUT, float_complex *work,
-                           integer *lwork, integer *infoOUT) {
+STATIC inline void gelss_(integer *m, integer *n, integer *nrhs,
+                          real8 *a, integer *lda, real8 *b, integer *ldb, real8 *sOUT,
+                          real8 *rcondIN, integer *rankOUT, real8 *work,
+                          integer *lwork, integer *infoOUT) {
+    dgelss_(m, n, nrhs, a, lda, b, ldb, sOUT, rcondIN, rankOUT, work, lwork, infoOUT);
+}
+
+STATIC inline void gelss_(integer *m, integer *n, integer *nrhs,
+                          float_complex *a, integer *lda, float_complex *b,
+                          integer *ldb, float *sOUT,
+                          float *rcondIN, integer *rankOUT, float_complex *work,
+                          integer *lwork, integer *infoOUT) {
     Tensor<float> rwork((5*min(*m,*n)));
 #if MADNESS_LINALG_USE_LAPACKE
-  cgelss_(m, n, nrhs, to_cptr(a), lda, to_cptr(b), ldb, sOUT,
-          rcondIN, rankOUT, to_cptr(work), lwork, rwork.ptr(),infoOUT);
+    cgelss_(m, n, nrhs, to_cptr(a), lda, to_cptr(b), ldb, sOUT,
+            rcondIN, rankOUT, to_cptr(work), lwork, rwork.ptr(), infoOUT);
 #else
     cgelss_(m, n, nrhs, a, lda, b, ldb, sOUT, rcondIN, rankOUT, work,
-            lwork, rwork.ptr(),infoOUT);
+            lwork, rwork.ptr(), infoOUT);
 #endif
 }
 
-
-STATIC inline void dgelss_(integer *m, integer *n, integer *nrhs,
-                           double_complex *a, integer *lda, double_complex *b,
-                           integer *ldb, double *sOUT,
-                           double *rcondIN, integer *rankOUT, double_complex *work,
-                           integer *lwork, integer *infoOUT) {
+STATIC inline void gelss_(integer *m, integer *n, integer *nrhs,
+                          double_complex *a, integer *lda, double_complex *b,
+                          integer *ldb, double *sOUT,
+                          double *rcondIN, integer *rankOUT, double_complex *work,
+                          integer *lwork, integer *infoOUT) {
     Tensor<double> rwork((5*min(*m,*n)));
 #if MADNESS_LINALG_USE_LAPACKE
-  zgelss_(m, n, nrhs, to_zptr(a), lda, to_zptr(b), ldb, sOUT,
-          rcondIN, rankOUT, to_zptr(work), lwork, rwork.ptr(),infoOUT);
+    zgelss_(m, n, nrhs, to_zptr(a), lda, to_zptr(b), ldb, sOUT,
+            rcondIN, rankOUT, to_zptr(work), lwork, rwork.ptr(), infoOUT);
 #else
     zgelss_(m, n, nrhs, a, lda, b, ldb, sOUT, rcondIN, rankOUT, work,
-            lwork, rwork.ptr(),infoOUT);
+            lwork, rwork.ptr(), infoOUT);
 #endif
 }
 
-/// These oddly-named wrappers enable the generic sygv/hegv iterface to get
-/// the correct LAPACK routine based upon the argument type.  Internal
+/// These oddly-named wrappers enable the generic ggev interface to get
+/// the correct LAPACK routine based upon the argument type. Internal
 /// use only.
-STATIC inline
-void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
-            real4 *a, integer *lda, real4 *b, integer *ldb,
-            real4 *w,  real4 *work,  integer *lwork,
-            integer *info, char_len jobzlen, char_len uplo_len ) {
-#if MADNESS_LINALG_USE_LAPACKE
-    ssygv(itype, jobz, uplo, n, a, lda, b, ldb, w, work, lwork, info);
-#else
-    ssygv_(itype, jobz, uplo, n,
-           a, lda, b, ldb, w,  work,  lwork, info,
-           jobzlen,uplo_len);
-#endif
-}
 
+STATIC inline void ggev_(const char* jobl, const char* jobr, integer *n,
+                         real4 *a, integer *lda, real4 *b, integer *ldb,
+                         real4 *w_real, real4 *w_imag, real4 *beta,
+                         real4 *vl, integer *ldvl, real4 *vr, integer *ldvr,
+                         real4 *work,  integer *lwork, integer *info,
+                         char_len jobzlen, char_len uplo_len) {
 #if MADNESS_LINALG_USE_LAPACKE
-STATIC inline
-void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
-            real8 *a, integer *lda, real8 *b, integer *ldb,
-            real8 *w,  real8 *work,  integer *lwork,
-            integer *info, char_len jobzlen, char_len uplo_len ) {
-  dsygv(itype, jobz, uplo, n, a, lda, b, ldb, w, work, lwork, info);
-}
-#endif
-
-STATIC inline
-void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
-            complex_real4 *a, integer *lda, complex_real4 *b, integer *ldb,
-            real4 *w,  complex_real4 *work,  integer *lwork,
-            integer *info, char_len jobzlen, char_len uplo_len ) {
-    Tensor<float> rwork(max((integer) 1, (integer) (3*(*n)-2)));
-#if MADNESS_LINALG_USE_LAPACKE
-    chegv_(itype, jobz, uplo, n, to_cptr(a), lda, to_cptr(b),
-            ldb, w, to_cptr(work), lwork, rwork.ptr(), info);
-#else
-    chegv_(itype, jobz, uplo, n,
-           a, lda, b, ldb, w,  work,  lwork, rwork.ptr(), info,
-           jobzlen, uplo_len);
-#endif
-}
-
-STATIC inline
-void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
-            complex_real8 *a, integer *lda, complex_real8 *b, integer *ldb,
-            real8 *w,  complex_real8 *work,  integer *lwork,
-            integer *info, char_len jobzlen, char_len uplo_len ) {
-    Tensor<double> rwork(max((integer) 1, (integer) (3*(*n)-2)));
-#if MADNESS_LINALG_USE_LAPACKE
-    zhegv_(itype, jobz, uplo,n, to_zptr(a), lda, to_zptr(b),
-            ldb, w, to_zptr(work), lwork, rwork.ptr(), info);
-#else
-    zhegv_(itype, jobz, uplo, n,
-           a, lda, b, ldb, w,  work,  lwork, rwork.ptr(), info,
-           jobzlen, uplo_len);
-#endif
-}
-
-/// These oddly-named wrappers enable the generic syev/heev iterface to get
-/// the correct LAPACK routine based upon the argument type.  Internal
-/// use only.
-STATIC inline void dsyev_(const char* jobz, const char* uplo, integer *n,
-                          real4 *a, integer *lda, real4 *w,  real4 *work,  integer *lwork,
-                          integer *info, char_len jobzlen, char_len uplo_len ) {
-#if MADNESS_LINALG_USE_LAPACKE
-  ssyev_(jobz, uplo, n, a, lda, w, work, lwork, info);
-#else
-  ssyev_(jobz, uplo, n, a, lda, w,  work,  lwork, info, jobzlen, uplo_len );
-#endif
-}
-
-#if MADNESS_LINALG_USE_LAPACKE
-STATIC inline void dsyev_(const char* jobz, const char* uplo, integer *n,
-                          real8 *a, integer *lda, real8 *w,  real8 *work,  integer *lwork,
-                          integer *info, char_len jobzlen, char_len uplo_len ) {
-  dsyev_(jobz, uplo, n, a, lda, w, work, lwork, info);
-}
-#endif
-
-STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
-                   complex_real4 *a, integer *lda, real4 *w,
-                   complex_real4 *work,  integer *lwork,
-                   integer *info, char_len jobzlen, char_len uplo_len ) {
-    Tensor<float> rwork(max((integer) 1, (integer) (3* (*n)-2)));
-    //std::cout << *n << " " << *lda << " " << *lwork <<std::endl;
-#if MADNESS_LINALG_USE_LAPACKE
-    cheev_(jobz, uplo, n, to_cptr(a), lda, w,
-           to_cptr(work), lwork, rwork.ptr(), info);
-#else
-    cheev_(jobz, uplo, n, a, lda, w,  work,  lwork, rwork.ptr(),
-           info, jobzlen, uplo_len );
-#endif
-}
-
-STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
-                   complex_real8 *a, integer *lda, real8 *w,
-                   complex_real8 *work,  integer *lwork,
-                   integer *info, char_len jobzlen, char_len uplo_len ) {
-    Tensor<double> rwork(max((integer) 1, (integer) (3* (*n)-2)));
-#if MADNESS_LINALG_USE_LAPACKE
-    zheev_(jobz, uplo, n, to_zptr(a), lda, w,
-           to_zptr(work), lwork, rwork.ptr(), info);
-#else
-    zheev_(jobz, uplo, n, a, lda, w,  work,  lwork, rwork.ptr(),
-           info, jobzlen, uplo_len );
-#endif
-}
-// bryan edits start
-
-/// These oddly-named wrappers enable the generic geev iterface to get
-/// the correct LAPACK routine based upon the argument type.  Internal
-/// use only.
-STATIC inline void dgeev_(const char* jobz, const char* uplo, integer *n,
-                          real4 *a, integer *lda, real4 *w_real, real4 *w_imag,
-                          real4 *v, integer *ldv, real4 *vr, integer *ldvr,
-                          real4 *work,  integer *lwork, integer *info,
-                          char_len jobzlen, char_len uplo_len) {
-#if MADNESS_LINALG_USE_LAPACKE
-    sgeev_(jobz, uplo, n, a, lda, w_real, w_imag, v, ldv, vr, ldvr, work,  lwork, info );
-#else
-    sgeev_(jobz, uplo, n, a, lda, w_real, w_imag, v, ldv, vr, ldvr, work,  lwork, info,
-           jobzlen, uplo_len );
-#endif
-}
-
-#if MADNESS_LINALG_USE_LAPACKE
-STATIC inline void dgeev_(const char* jobz, const char* uplo, integer *n,
-                          real8 *a, integer *lda, real8 *w_real, real8 *w_imag,
-                          real8 *v, integer *ldv, real8 *vr, integer *ldvr,
-                          real8 *work,  integer *lwork, integer *info,
-                          char_len jobzlen, char_len uplo_len) {
-    dgeev_(jobz, uplo, n, a, lda, w_real, w_imag, v, ldv, vr, ldvr, work,  lwork, info );
-}
-#endif
-
-STATIC inline void dgeev_(const char* jobz, const char* uplo, integer *n,
-                          complex_real4 *a, integer *lda, complex_real4 *w, complex_real4 *w_imag,
-                          complex_real4 *v, integer *ldv, complex_real4 *vr, integer *ldvr,
-                          complex_real4 *work,  integer *lwork, integer *info,
-                          char_len jobzlen, char_len uplo_len) {
-    Tensor<float> rwork(max((integer) 1, (integer) (2* (*n))));
-#if MADNESS_LINALG_USE_LAPACKE
-    cgeev_(jobz, uplo, n, reinterpret_cast<lapack_complex_float*>(a), lda,
-           reinterpret_cast<lapack_complex_float*>(w),
-           reinterpret_cast<lapack_complex_float*>(v), ldv,
-           reinterpret_cast<lapack_complex_float*>(vr), ldvr,
-           reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(), info );
-#else
-    cgeev_(jobz, uplo, n, a, lda, w, v, ldv, vr, ldvr, work, lwork, rwork.ptr(), info,
-           jobzlen, uplo_len );
-#endif
-}
-
-
-STATIC inline void dgeev_(const char* jobz, const char* uplo, integer *n,
-                          complex_real8 *a, integer *lda, complex_real8 *w, complex_real8 *w_imag,
-                          complex_real8 *v, integer *ldv, complex_real8 *vr, integer *ldvr,
-                          complex_real8 *work,  integer *lwork, integer *info,
-                          char_len jobzlen, char_len uplo_len) {
-    Tensor<double> rwork(max((integer) 1, (integer) (2* (*n))));
-#if MADNESS_LINALG_USE_LAPACKE
-    zgeev_(jobz, uplo, n, reinterpret_cast<lapack_complex_double*>(a), lda,
-           reinterpret_cast<lapack_complex_double*>(w),
-           reinterpret_cast<lapack_complex_double*>(v), ldv,
-           reinterpret_cast<lapack_complex_double*>(vr), ldvr,
-           reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(), info );
-#else
-    zgeev_(jobz, uplo, n, a, lda, w, v, ldv, vr, ldvr, work, lwork, rwork.ptr(), info,
-           jobzlen, uplo_len );
-#endif
-}
-
-/// These oddly-named wrappers enable the generic ggev iterface to get
-/// the correct LAPACK routine based upon the argument type.  Internal
-/// use only.
-STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
-                          real4 *a, integer *lda, real4 *b, integer *ldb,
-                          real4 *w_real, real4 *w_imag, real4 *beta,
-                          real4 *vl, integer *ldvl, real4 *vr, integer *ldvr,
-                          real4 *work,  integer *lwork, integer *info,
-                          char_len jobzlen, char_len uplo_len) {
-#if MADNESS_LINALG_USE_LAPACKE
-    sggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info );
+    sggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info);
 #else
     sggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info,
-           jobzlen, uplo_len );
+           jobzlen, uplo_len);
 #endif
 }
 
+STATIC inline void ggev_(const char* jobl, const char* jobr, integer *n,
+                         real8 *a, integer *lda, real8 *b, integer *ldb,
+                         real8 *w_real, real8 *w_imag, real8 *beta,
+                         real8 *vl, integer *ldvl, real8 *vr, integer *ldvr,
+                         real8 *work,  integer *lwork, integer *info,
+                         char_len jobzlen, char_len uplo_len) {
 #if MADNESS_LINALG_USE_LAPACKE
-STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
-                          real8 *a, integer *lda, real8 *b, integer *ldb,
-                          real8 *w_real, real8 *w_imag, real8 *beta,
-                          real8 *vl, integer *ldvl, real8 *vr, integer *ldvr,
-                          real8 *work,  integer *lwork, integer *info,
-                          char_len jobzlen, char_len uplo_len) {
-    dggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info );
-}
+    dggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info);
+#else
+    dggev_(jobl, jobr, n, a, lda, b, ldb, w_real, w_imag, beta, vl, ldvl, vr, ldvr, work,  lwork, info,
+           jobzlen, uplo_len);
 #endif
+}
 
-STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
-                          complex_real4 *a, integer *lda, complex_real4 *b, integer *ldb,
-                          complex_real4 *w, complex_real4 *w_imag, complex_real4 *beta,
-                          complex_real4 *vl, integer *ldvl, complex_real4 *vr, integer *ldvr,
-                          complex_real4 *work,  integer *lwork, integer *info,
-                          char_len jobzlen, char_len uplo_len) {
+STATIC inline void ggev_(const char* jobl, const char* jobr, integer *n,
+                         complex_real4 *a, integer *lda, complex_real4 *b, integer *ldb,
+                         complex_real4 *w, complex_real4 *w_imag, complex_real4 *beta,
+                         complex_real4 *vl, integer *ldvl, complex_real4 *vr, integer *ldvr,
+                         complex_real4 *work,  integer *lwork, integer *info,
+                         char_len jobzlen, char_len uplo_len) {
     Tensor<float> rwork(max((integer) 1, (integer) (2* (*n))));
 #if MADNESS_LINALG_USE_LAPACKE
     cggev_(jobl, jobr, n, reinterpret_cast<lapack_complex_float*>(a), lda,
@@ -534,21 +258,20 @@ STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
            reinterpret_cast<lapack_complex_float*>(beta),
            reinterpret_cast<lapack_complex_float*>(vl), ldvl,
            reinterpret_cast<lapack_complex_float*>(vr), ldvr,
-           reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(), info );
+           reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(), info);
 #else
     cggev_(jobl, jobr, n, a, lda, b, ldb, w, beta, vl, ldvl, vr, ldvr, work, lwork, rwork.ptr(), info,
-           jobzlen, uplo_len );
+           jobzlen, uplo_len);
 
 #endif
 }
 
-
-STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
-                          complex_real8 *a, integer *lda, complex_real8 *b, integer *ldb,
-                          complex_real8 *w, complex_real8 *w_imag, complex_real8 *beta,
-                          complex_real8 *vl, integer *ldvl, complex_real8 *vr, integer *ldvr,
-                          complex_real8 *work,  integer *lwork, integer *info,
-                          char_len jobzlen, char_len uplo_len) {
+STATIC inline void ggev_(const char* jobl, const char* jobr, integer *n,
+                         complex_real8 *a, integer *lda, complex_real8 *b, integer *ldb,
+                         complex_real8 *w, complex_real8 *w_imag, complex_real8 *beta,
+                         complex_real8 *vl, integer *ldvl, complex_real8 *vr, integer *ldvr,
+                         complex_real8 *work,  integer *lwork, integer *info,
+                         char_len jobzlen, char_len uplo_len) {
     Tensor<double> rwork(max((integer) 1, (integer) (2* (*n))));
 #if MADNESS_LINALG_USE_LAPACKE
     zggev_(jobl, jobr, n, reinterpret_cast<lapack_complex_double*>(a), lda,
@@ -557,45 +280,436 @@ STATIC inline void dggev_(const char* jobl, const char* jobr, integer *n,
            reinterpret_cast<lapack_complex_double*>(beta),
            reinterpret_cast<lapack_complex_double*>(vl), ldvl,
            reinterpret_cast<lapack_complex_double*>(vr), ldvr,
-           reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(), info );
+           reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(), info);
 #else
     zggev_(jobl, jobr, n, a, lda, b, ldb, w, beta, vl, ldvl, vr, ldvr, work, lwork, rwork.ptr(), info,
-           jobzlen, uplo_len );
+           jobzlen, uplo_len);
 #endif
 }
-// bryan edits end
 
-
-/// These oddly-named wrappers enable the generic orgqr/unggr iterface to get
-/// the correct LAPACK routine based upon the argument type.  Internal
+/// These oddly-named wrappers enable the generic geev interface to get
+/// the correct LAPACK routine based upon the argument type. Internal
 /// use only.
-STATIC inline void dorgqr_(integer *m, integer *n, integer *k,
-        real4 *a, integer *lda, real4 *tau,
-        real4 *work, integer *lwork, integer *info) {
+
+STATIC inline void geev_(const char* jobz, const char* uplo, integer *n,
+                         real4 *a, integer *lda, real4 *w_real, real4 *w_imag,
+                         real4 *v, integer *ldv, real4 *vr, integer *ldvr,
+                         real4 *work,  integer *lwork, integer *info,
+                         char_len jobzlen, char_len uplo_len) {
+#if MADNESS_LINALG_USE_LAPACKE
+    sgeev_(jobz, uplo, n, a, lda, w_real, w_imag, v, ldv, vr, ldvr, work,  lwork, info);
+#else
+    sgeev_(jobz, uplo, n, a, lda, w_real, w_imag, v, ldv, vr, ldvr, work,  lwork, info,
+           jobzlen, uplo_len);
+#endif
+}
+
+STATIC inline void geev_(const char* jobz, const char* uplo, integer *n,
+                         real8 *a, integer *lda, real8 *w_real, real8 *w_imag,
+                         real8 *v, integer *ldv, real8 *vr, integer *ldvr,
+                         real8 *work,  integer *lwork, integer *info,
+                         char_len jobzlen, char_len uplo_len) {
+#if MADNESS_LINALG_USE_LAPACKE
+    dgeev_(jobz, uplo, n, a, lda, w_real, w_imag, v, ldv, vr, ldvr, work,  lwork, info);
+#else
+    dgeev_(jobz, uplo, n, a, lda, w_real, w_imag, v, ldv, vr, ldvr, work,  lwork, info,
+           jobzlen, uplo_len);
+#endif
+}
+
+STATIC inline void geev_(const char* jobz, const char* uplo, integer *n,
+                         complex_real4 *a, integer *lda, complex_real4 *w, complex_real4 *w_imag,
+                         complex_real4 *v, integer *ldv, complex_real4 *vr, integer *ldvr,
+                         complex_real4 *work,  integer *lwork, integer *info,
+                         char_len jobzlen, char_len uplo_len) {
+    Tensor<float> rwork(max((integer) 1, (integer) (2* (*n))));
+#if MADNESS_LINALG_USE_LAPACKE
+    cgeev_(jobz, uplo, n, reinterpret_cast<lapack_complex_float*>(a), lda,
+           reinterpret_cast<lapack_complex_float*>(w),
+           reinterpret_cast<lapack_complex_float*>(v), ldv,
+           reinterpret_cast<lapack_complex_float*>(vr), ldvr,
+           reinterpret_cast<lapack_complex_float*>(work), lwork, rwork.ptr(), info);
+#else
+    cgeev_(jobz, uplo, n, a, lda, w, v, ldv, vr, ldvr, work, lwork, rwork.ptr(), info,
+           jobzlen, uplo_len);
+#endif
+}
+
+
+STATIC inline void geev_(const char* jobz, const char* uplo, integer *n,
+                         complex_real8 *a, integer *lda, complex_real8 *w, complex_real8 *w_imag,
+                         complex_real8 *v, integer *ldv, complex_real8 *vr, integer *ldvr,
+                         complex_real8 *work,  integer *lwork, integer *info,
+                         char_len jobzlen, char_len uplo_len) {
+    Tensor<double> rwork(max((integer) 1, (integer) (2* (*n))));
+#if MADNESS_LINALG_USE_LAPACKE
+    zgeev_(jobz, uplo, n, reinterpret_cast<lapack_complex_double*>(a), lda,
+           reinterpret_cast<lapack_complex_double*>(w),
+           reinterpret_cast<lapack_complex_double*>(v), ldv,
+           reinterpret_cast<lapack_complex_double*>(vr), ldvr,
+           reinterpret_cast<lapack_complex_double*>(work), lwork, rwork.ptr(), info);
+#else
+    zgeev_(jobz, uplo, n, a, lda, w, v, ldv, vr, ldvr, work, lwork, rwork.ptr(), info,
+           jobzlen, uplo_len);
+#endif
+}
+
+/// These oddly-named wrappers enable the generic sygv/hegv interface to get
+/// the correct LAPACK routine based upon the argument type. Internal
+/// use only.
+
+STATIC inline void sygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
+                         real4 *a, integer *lda, real4 *b, integer *ldb,
+                         real4 *w,  real4 *work,  integer *lwork,
+                         integer *info, char_len jobzlen, char_len uplo_len ) {
+#if MADNESS_LINALG_USE_LAPACKE
+    ssygv(itype, jobz, uplo, n, a, lda, b, ldb, w, work, lwork, info);
+#else
+    ssygv_(itype, jobz, uplo, n, a, lda, b, ldb, w,  work,  lwork, info,
+           jobzlen,uplo_len);
+#endif
+}
+
+STATIC inline void sygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
+                         real8 *a, integer *lda, real8 *b, integer *ldb,
+                         real8 *w,  real8 *work,  integer *lwork,
+                         integer *info, char_len jobzlen, char_len uplo_len ) {
+#if MADNESS_LINALG_USE_LAPACKE
+    dsygv(itype, jobz, uplo, n, a, lda, b, ldb, w, work, lwork, info);
+#else
+    dsygv_(itype, jobz, uplo, n, a, lda, b, ldb, w,  work,  lwork, info,
+           jobzlen, uplo_len);
+#endif
+}
+
+STATIC inline void sygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
+                         complex_real4 *a, integer *lda, complex_real4 *b, integer *ldb,
+                         real4 *w,  complex_real4 *work,  integer *lwork,
+                         integer *info, char_len jobzlen, char_len uplo_len ) {
+    Tensor<float> rwork(max((integer) 1, (integer) (3*(*n)-2)));
+#if MADNESS_LINALG_USE_LAPACKE
+    chegv_(itype, jobz, uplo, n, to_cptr(a), lda, to_cptr(b),
+           ldb, w, to_cptr(work), lwork, rwork.ptr(), info);
+#else
+    chegv_(itype, jobz, uplo, n, a, lda, b, ldb, w,  work,  lwork, rwork.ptr(), info,
+           jobzlen, uplo_len);
+#endif
+}
+
+STATIC inline void sygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
+                         complex_real8 *a, integer *lda, complex_real8 *b, integer *ldb,
+                         real8 *w,  complex_real8 *work,  integer *lwork,
+                         integer *info, char_len jobzlen, char_len uplo_len ) {
+    Tensor<double> rwork(max((integer) 1, (integer) (3*(*n)-2)));
+#if MADNESS_LINALG_USE_LAPACKE
+    zhegv_(itype, jobz, uplo,n, to_zptr(a), lda, to_zptr(b),
+           ldb, w, to_zptr(work), lwork, rwork.ptr(), info);
+#else
+    zhegv_(itype, jobz, uplo, n, a, lda, b, ldb, w,  work,  lwork, rwork.ptr(), info,
+           jobzlen, uplo_len);
+#endif
+}
+
+/// These oddly-named wrappers enable the generic syev/heev interface to get
+/// the correct LAPACK routine based upon the argument type. Internal
+/// use only.
+
+STATIC inline void syev_(const char* jobz, const char* uplo, integer *n,
+                         real4 *a, integer *lda, real4 *w,  real4 *work,  integer *lwork,
+                         integer *info, char_len jobzlen, char_len uplo_len ) {
+#if MADNESS_LINALG_USE_LAPACKE
+    ssyev_(jobz, uplo, n, a, lda, w, work, lwork, info);
+#else
+    ssyev_(jobz, uplo, n, a, lda, w,  work,  lwork, info, jobzlen, uplo_len);
+#endif
+}
+
+STATIC inline void syev_(const char* jobz, const char* uplo, integer *n,
+                         real8 *a, integer *lda, real8 *w,  real8 *work,  integer *lwork,
+                         integer *info, char_len jobzlen, char_len uplo_len ) {
+#if MADNESS_LINALG_USE_LAPACKE
+    dsyev_(jobz, uplo, n, a, lda, w, work, lwork, info);
+#else
+    dsyev_(jobz, uplo, n, a, lda, w,  work,  lwork, info, jobzlen, uplo_len);
+#endif
+}
+
+STATIC inline void syev_(const char* jobz, const char* uplo, integer *n,
+                  complex_real4 *a, integer *lda, real4 *w,
+                  complex_real4 *work,  integer *lwork,
+                  integer *info, char_len jobzlen, char_len uplo_len ) {
+    Tensor<float> rwork(max((integer) 1, (integer) (3* (*n)-2)));
+    //std::cout << *n << " " << *lda << " " << *lwork <<std::endl;
+#if MADNESS_LINALG_USE_LAPACKE
+    cheev_(jobz, uplo, n, to_cptr(a), lda, w,
+           to_cptr(work), lwork, rwork.ptr(), info);
+#else
+    cheev_(jobz, uplo, n, a, lda, w,  work,  lwork, rwork.ptr(),
+           info, jobzlen, uplo_len);
+#endif
+}
+
+STATIC inline void syev_(const char* jobz, const char* uplo, integer *n,
+                  complex_real8 *a, integer *lda, real8 *w,
+                  complex_real8 *work,  integer *lwork,
+                  integer *info, char_len jobzlen, char_len uplo_len ) {
+    Tensor<double> rwork(max((integer) 1, (integer) (3* (*n)-2)));
+#if MADNESS_LINALG_USE_LAPACKE
+    zheev_(jobz, uplo, n, to_zptr(a), lda, w,
+           to_zptr(work), lwork, rwork.ptr(), info);
+#else
+    zheev_(jobz, uplo, n, a, lda, w,  work,  lwork, rwork.ptr(),
+           info, jobzlen, uplo_len);
+#endif
+}
+
+/// These oddly-named wrappers enable the generic geqrf interface to get
+/// the correct LAPACK routine based upon the argument type. Internal
+/// use only.
+
+STATIC inline void geqrf_(integer *m, integer *n,
+                          real4 *a, integer *lda, real4 *tau,
+                          real4 *work, integer *lwork, integer *infoOUT) {
+	sgeqrf_(m, n, a, lda, tau, work, lwork, infoOUT);
+}
+
+STATIC inline void geqrf_(integer *m, integer *n,
+                          real8 *a, integer *lda, real8 *tau,
+                          real8 *work, integer *lwork, integer *infoOUT) {
+	dgeqrf_(m, n, a, lda, tau, work, lwork, infoOUT);
+}
+
+STATIC inline void geqrf_(integer *m, integer *n,
+                          float_complex *a, integer *lda, float_complex *tau,
+                          float_complex *work, integer *lwork, integer *infoOUT) {
+#if MADNESS_LINALG_USE_LAPACKE
+	cgeqrf_(m, n, to_cptr(a), lda, to_cptr(tau), to_cptr(work), lwork, infoOUT);
+#else
+	cgeqrf_(m, n, a, lda, tau, work, lwork, infoOUT);
+#endif
+}
+
+STATIC inline void geqrf_(integer *m, integer *n,
+                          double_complex *a, integer *lda, double_complex *tau,
+                          double_complex *work, integer *lwork, integer *infoOUT) {
+#if MADNESS_LINALG_USE_LAPACKE
+	zgeqrf_(m, n, to_zptr(a), lda, to_zptr(tau), to_zptr(work), lwork, infoOUT);
+#else
+	zgeqrf_(m, n, a, lda, tau, work, lwork, infoOUT);
+#endif
+}
+
+STATIC inline void geqp3_(integer *m, integer *n,
+                          real4 *a, integer *lda, integer *jpvt, real4 *tau,
+                          real4 *work, integer *lwork, integer *infoOUT){
+    sgeqp3_(m, n, a, lda, jpvt, tau, work, lwork, infoOUT);
+}
+
+STATIC inline void geqp3_(integer *m, integer *n,
+                          real8 *a, integer *lda, integer *jpvt, real8 *tau,
+                          real8 *work, integer *lwork, integer *infoOUT){
+    dgeqp3_(m, n, a, lda, jpvt, tau, work, lwork, infoOUT);
+}
+
+STATIC inline void geqp3_(integer *m, integer *n,
+                          complex_real4 *a, integer *lda, integer *jpvt, complex_real4 *tau,
+                          complex_real4 *work, integer *lwork, integer *infoOUT){
+    Tensor<float> rwork((integer) (2* (*n)));
+#if MADNESS_LINALG_USE_LAPACKE
+    cgeqp3_(m, n, to_cptr(a), lda, jpvt, to_cptr(tau), to_cptr(work), lwork, rwork.ptr(), infoOUT);
+#else
+    cgeqp3_(m, n, a, lda, jpvt, tau, work, lwork, rwork.ptr(), infoOUT);
+#endif
+}
+
+STATIC inline void geqp3_(integer *m, integer *n,
+                          complex_real8 *a, integer *lda, integer *jpvt, complex_real8 *tau,
+                          complex_real8 *work, integer *lwork, integer *infoOUT){
+    Tensor<double> rwork((integer) (2* (*n)));
+#if MADNESS_LINALG_USE_LAPACKE
+    zgeqp3_(m, n, to_zptr(a), lda, jpvt, to_zptr(tau), to_zptr(work), lwork, rwork.ptr(), infoOUT);
+#else
+    zgeqp3_(m, n, a, lda, jpvt, tau, work, lwork, rwork.ptr(), infoOUT);
+#endif
+}
+
+/// These oddly-named wrappers enable the generic orgqr/unggr interface to get
+/// the correct LAPACK routine based upon the argument type. Internal
+/// use only.
+
+STATIC inline void orgqr_(integer *m, integer *n, integer *k,
+                          real4 *a, integer *lda, real4 *tau,
+                          real4 *work, integer *lwork, integer *info) {
     sorgqr_(m, n, k, a, m, tau, work, lwork, info);
 }
 
-STATIC void dorgqr_(integer *m, integer *n, integer *k,
-		 complex_real4 *a, integer *lda, complex_real4 *tau,
-		 complex_real4 *work, integer *lwork, integer *info) {
+STATIC inline void orgqr_(integer *m, integer *n, integer *k,
+                          real8 *a, integer *lda, real8 *tau,
+                          real8 *work, integer *lwork, integer *info) {
+	dorgqr_(m, n, k, a, m, tau, work, lwork, info);
+}
+
+STATIC inline void orgqr_(integer *m, integer *n, integer *k,
+                          complex_real4 *a, integer *lda, complex_real4 *tau,
+                          complex_real4 *work, integer *lwork, integer *info) {
 #if MADNESS_LINALG_USE_LAPACKE
-  cungqr_(m, n, k, to_cptr(a), lda,
-          to_cptr(tau),
-          to_cptr(work), lwork, info);
+    cungqr_(m, n, k, to_cptr(a), lda,
+            to_cptr(tau),
+            to_cptr(work), lwork, info);
 #else
 	cungqr_(m, n, k, a, m, tau, work, lwork, info);
 #endif
 }
 
-STATIC void dorgqr_(integer *m, integer *n, integer *k,
-		 complex_real8 *a, integer *lda, complex_real8 *tau,
-	 	 complex_real8 *work, integer *lwork, integer *info) {
+STATIC inline void orgqr_(integer *m, integer *n, integer *k,
+                          complex_real8 *a, integer *lda, complex_real8 *tau,
+                          complex_real8 *work, integer *lwork, integer *info) {
 #if MADNESS_LINALG_USE_LAPACKE
-  zungqr_(m,n,k, to_zptr(a), m,
-          to_zptr(tau),
-          to_zptr(work), lwork, info);
+    zungqr_(m,n,k, to_zptr(a), m,
+            to_zptr(tau),
+            to_zptr(work), lwork, info);
 #else
 	zungqr_(m, n, k, a, m, tau, work, lwork, info);
+#endif
+}
+
+/// These oddly-named wrappers enable the generic cholesky interface to get
+/// the correct LAPACK routine based upon the argument type. Internal
+/// use only.
+
+STATIC inline void potrf_(const char * UPLO, integer *n,
+                          real4 *a ,integer *lda , integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+	spotrf_(UPLO, n, a, lda, info);
+#else
+	spotrf_(UPLO, n, a, lda, info, 1);
+#endif
+}
+
+STATIC inline void potrf_(const char * UPLO, integer *n,
+                          real8 *a ,integer *lda , integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+	dpotrf_(UPLO, n, a, lda, info);
+#else
+	dpotrf_(UPLO, n, a, lda, info, 1);
+#endif
+}
+
+STATIC inline void potrf_(const char * UPLO, integer *n,
+                          complex_real4 *a ,integer *lda , integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+    cpotrf_(UPLO, n, to_cptr(a), lda, info);
+#else
+	cpotrf_(UPLO, n, a, lda, info, 1);
+#endif
+}
+STATIC inline void potrf_(const char * UPLO, integer *n,
+                          complex_real8 *a ,integer *lda , integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+    zpotrf_(UPLO, n, to_zptr(a), lda, info);
+#else
+	zpotrf_(UPLO, n, a, lda, info, 1);
+#endif
+}
+
+/// These oddly-named wrappers enable the generic rr_cholesky interface to get
+/// the correct LAPACK routine based upon the argument type. Internal
+/// use only.
+
+STATIC inline void pstrf_(const char * UPLO, integer *n,
+                          real4 *a ,integer* lda, integer *piv, integer* rank,
+                          real4* tol, real4* work , integer *info){
+	spstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+}
+
+STATIC inline void pstrf_(const char * UPLO, integer *n,
+                          real8 *a ,integer* lda, integer *piv, integer* rank,
+                          real8* tol, real8* work , integer *info){
+	dpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+}
+
+STATIC inline void pstrf_(const char * UPLO, integer *n,
+                          complex_real4 *a ,integer* lda, integer *piv, integer* rank,
+                          real4* tol, complex_real4* work , integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+    cpstrf_(UPLO, n, to_cptr(a), lda, piv, rank, tol, reinterpret_cast<float*>(work), info);
+#else
+	cpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+#endif
+}
+
+STATIC inline void pstrf_(const char * UPLO, integer *n,
+                          complex_real8 *a ,integer* lda, integer *piv, integer* rank,
+                          real8* tol, complex_real8* work , integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+    //zpstrf_(UPLO, n, to_zptr(a), lda, piv, rank, tol, to_cptr(work), info);
+    zpstrf_(UPLO, n, to_zptr(a), lda, piv, rank, tol, reinterpret_cast<double*>(work), info);
+#else
+	zpstrf_(UPLO, n, a, lda, piv, rank, tol, work, info);
+#endif
+}
+
+/// These oddly-named wrappers enable the generic triangular factor to get
+/// the correct LAPACK routine based upon the argument type. Internal
+/// use only.
+
+STATIC inline void getrf_(integer* m, integer* n, real4 *a, integer *lda,
+                          integer* ipiv, integer *info){
+    sgetrf_(m, n, a, lda, ipiv, info);
+}
+
+STATIC inline void getrf_(integer* m, integer* n, real8 *a, integer *lda,
+                          integer* ipiv, integer *info){
+    dgetrf_(m, n, a, lda, ipiv, info);
+}
+
+STATIC inline void getrf_(integer* m, integer* n, complex_real4 *a, integer *lda,
+                          integer* ipiv, integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+    cgetrf_(m, n, to_cptr(a), lda, ipiv, info);
+#else
+    cgetrf_(m, n, a, lda, ipiv, info);
+#endif
+}
+
+STATIC inline void getrf_(integer* m, integer* n, complex_real8 *a, integer *lda,
+                          integer* ipiv, integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+    zgetrf_(m, n, to_zptr(a), lda, ipiv, info);
+#else
+    zgetrf_(m, n, a, lda, ipiv, info);
+#endif
+}
+
+/// These oddly-named wrappers enable the generic triangular inverse to get
+/// the correct LAPACK routine based upon the argument type. Internal
+/// use only.
+
+STATIC inline void getri_(integer* n, real4 *a, integer *lda, integer* ipiv,
+                          real4 *work, integer *lwork, integer *info){
+    sgetri_(n, a, lda, ipiv, work, lwork, info);
+}
+
+STATIC inline void getri_(integer* n, real8 *a, integer *lda, integer* ipiv,
+                          real8 *work, integer *lwork, integer *info){
+    dgetri_(n, a, lda, ipiv, work, lwork, info);
+}
+
+STATIC inline void getri_(integer* n, complex_real4 *a, integer *lda, integer* ipiv,
+                          complex_real4 *work, integer *lwork, integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+    cgetri_(n, to_cptr(a), lda, ipiv, to_cptr(work), lwork, info);
+#else
+    cgetri_(n, a, lda, ipiv, work, lwork, info);
+#endif
+}
+
+STATIC inline void getri_(integer* n, complex_real8 *a, integer *lda, integer* ipiv,
+                          complex_real8 *work, integer *lwork, integer *info){
+#if MADNESS_LINALG_USE_LAPACKE
+    zgetri_(n, to_zptr(a), lda, ipiv, to_zptr(work), lwork, info);
+#else
+    zgetri_(n, a, lda, ipiv, work, lwork, info);
 #endif
 }
 
@@ -633,7 +747,7 @@ namespace madness {
         s = Tensor< typename Tensor<T>::scalar_type >(rmax);
         U = Tensor<T>(m,rmax);
         VT = Tensor<T>(rmax,n);
-        dgesvd_("S","S", &n, &m, A.ptr(), &n, s.ptr(),
+        gesvd_("S","S", &n, &m, A.ptr(), &n, s.ptr(),
                 VT.ptr(), &n, U.ptr(), &rmax, work.ptr(), &lwork,
                 &info, (char_len) 1, (char_len) 1);
 
@@ -666,7 +780,7 @@ namespace madness {
         integer info;
 
         // calling list is swapped
-        dgesvd_("O", "S", &n, &m, a.ptr(), &n, s.ptr(),
+        gesvd_("O", "S", &n, &m, a.ptr(), &n, s.ptr(),
                 VT.ptr(), &n, U.ptr(), &rmax, work.ptr(), &lwork,
                 &info, (char_len) 1, (char_len) 1);
 
@@ -705,7 +819,7 @@ namespace madness {
         integer info;
 
         // note overriding of dgesv for other types above
-        dgesv_(&n, &nrhs, AT.ptr(), &n, piv.ptr(), x.ptr(), &n, &info);
+        gesv_(&n, &nrhs, AT.ptr(), &n, piv.ptr(), x.ptr(), &n, &info);
         mask_info(info);
 
         TENSOR_ASSERT((info == 0), "gesv failed", info, &a);
@@ -726,13 +840,13 @@ namespace madness {
 
         // DGETRF computes an LU factorization of a general M-by-N matrix A
         // using partial pivoting with row interchanges.
-        dgetrf_(&n,&n,a.ptr(),&n,ipiv.ptr(),&info);
+        getrf_(&n,&n,a.ptr(),&n,ipiv.ptr(),&info);
 
         // DGETRI computes the inverse of a matrix using the LU factorization
         // computed by DGETRF.
         integer lwork=(10*n);
         Tensor<T> work(lwork);
-        dgetri_(&n,a.ptr(),&n,ipiv.ptr(),work.ptr(),&lwork,&info);
+        getri_(&n,a.ptr(),&n,ipiv.ptr(),work.ptr(),&lwork,&info);
 
         mask_info(info);
         TENSOR_ASSERT((info == 0), "inverse failed", info, &a);
@@ -805,7 +919,7 @@ namespace madness {
         scalar_type rrcond = rcond;
         integer rrank=0;
 
-        dgelss_(&m, &n, &nrhs, AT.ptr(), &m, lapack_inout.ptr(), &maxmn,
+        gelss_(&m, &n, &nrhs, AT.ptr(), &m, lapack_inout.ptr(), &maxmn,
                 s.ptr(), &rrcond, &rrank, work.ptr(), &lwork, &info);
         mask_info(info);
         TENSOR_ASSERT(info == 0, "gelss failed", info, &a);
@@ -862,14 +976,14 @@ namespace madness {
         Tensor<T> work(lwork);
         V = transpose(A);		// For Hermitian case
         e = Tensor<typename Tensor<T>::scalar_type>(n);
-        dsyev_("V", "U", &n, V.ptr(), &n, e.ptr(), work.ptr(), &lwork, &info,
+        syev_("V", "U", &n, V.ptr(), &n, e.ptr(), work.ptr(), &lwork, &info,
                (char_len) 1, (char_len) 1);
 
         mask_info(info);
         TENSOR_ASSERT(info == 0, "(s/d)syev/(c/z)heev failed", info, &A);
         V = transpose(V);
     }
-// bryan edits
+
     /** \brief   Real non-symmetric or complex non-Hermitian eigenproblem.
 
     A is a real non-symmetric or complex non-Hermitian matrix.  Return V and e
@@ -901,7 +1015,7 @@ namespace madness {
         Tensor<T> A_copy = copy(A);
         Tensor<T> VL(n,n); // Should not be referenced
         Tensor<T> e_real(n), e_imag(n);
-        dgeev_("N", "V", &n, A_copy.ptr(), &n, e_real.ptr(), e_imag.ptr(), VL.ptr(), &n,
+        geev_("N", "V", &n, A_copy.ptr(), &n, e_real.ptr(), e_imag.ptr(), VL.ptr(), &n,
                VR.ptr(), &n,  work.ptr(), &lwork, &info, (char_len) 1, (char_len) 1);
         mask_info(info);
         TENSOR_ASSERT(info == 0, "(s/d)geev/(c/z)geev failed", info, &A);
@@ -910,7 +1024,6 @@ namespace madness {
         std::complex<double> my_i(0,1);
         e = e_real + e_imag * my_i;
     }
-// bryan edits end
 
     /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
 
@@ -950,7 +1063,7 @@ namespace madness {
         Tensor<T> b = transpose(B);	// For Hermitian case
         V = transpose(A);		// For Hermitian case
         e = Tensor<typename Tensor<T>::scalar_type>(n);
-        dsygv_(&ity, "V", "U", &n, V.ptr(), &n, b.ptr(), &n,
+        sygv_(&ity, "V", "U", &n, V.ptr(), &n, b.ptr(), &n,
                e.ptr(), work.ptr(), &lwork, &info,
                (char_len) 1, (char_len) 1);
         mask_info(info);
@@ -958,7 +1071,6 @@ namespace madness {
         V = transpose(V);
     }
 
-    // bryan edit start
     /** \brief  Generalized real-non-symmetric or complex-non-Hermitian eigenproblem.
 
     This from the LAPACK documentation
@@ -1013,7 +1125,7 @@ namespace madness {
         Tensor<T> A_copy = copy(A);
         Tensor<T> VL(n,n); // Should not be referenced
         Tensor<T> e_real(n), e_imag(n), beta(n);
-        dggev_("N", "V", &n,
+        ggev_("N", "V", &n,
                 A_copy.ptr(), &n, B.ptr(), &n,
                 e_real.ptr(), e_imag.ptr(), beta.ptr(),
                 VL.ptr(), &n, VR.ptr(), &n,
@@ -1048,7 +1160,7 @@ namespace madness {
         }
         VR = transpose(VR);
     }
-// bryan edits stop
+
     /** \brief  Compute the Cholesky factorization.
 
     Compute the Cholesky factorization of the symmetric positive definite matrix A
@@ -1143,9 +1255,9 @@ namespace madness {
     	integer lwork=work.size();
     	integer info;
 
-//    	dgeqp3(M, N, A, LDA, JPVT, TAU, WORK, LWORK, INFO );
+//    	dgeqp3(M, N, A, LDA, JPVT, TAU, WORK, LWORK, INFO);
     	std::cout << jpvt[0] << std::endl;
-    	dgeqp3_(&m, &n, A.ptr(), &m, jpvt.ptr(), tau.ptr(), work.ptr(),
+    	geqp3_(&m, &n, A.ptr(), &m, jpvt.ptr(), tau.ptr(), work.ptr(),
     			&lwork, &info);
     	std::cout << jpvt[0] << std::endl;
         mask_info(info);
@@ -1214,7 +1326,7 @@ namespace madness {
     	integer lwork=work.size();
     	integer info;
 
-    	dgeqrf_(&m, &n, A.ptr(), &m, tau.ptr(), work.ptr(),
+    	geqrf_(&m, &n, A.ptr(), &m, tau.ptr(), work.ptr(),
     			&lwork, &info);
         mask_info(info);
         TENSOR_ASSERT(info == 0, "dgeqrf_: Lapack failed", info, &A);
@@ -1246,7 +1358,7 @@ namespace madness {
     	integer k=std::min(m,n);//tau.size(); // size of tau is tau(min(m,n))
     	integer q_rows=m;
     	integer q_cols= (m>=n) ? n : m;
-    	dorgqr_(&q_rows, &q_cols, &k, A.ptr(), &q_rows, const_cast<T*>(tau.ptr()),
+    	orgqr_(&q_rows, &q_cols, &k, A.ptr(), &q_rows, const_cast<T*>(tau.ptr()),
     			work.ptr(), &lwork, &info);
     	A=A(Slice(0,q_cols-1),Slice(0,q_rows-1));	// -- use transpose(A)
         mask_info(info);
@@ -1275,7 +1387,7 @@ namespace madness {
     	integer lwork=64*n;
     	Tensor<T> work(lwork);
     	integer info;
-    	dorgqr_(&m, &n, &k, A.ptr(), &m, const_cast<T*>(tau.ptr()),
+    	orgqr_(&m, &n, &k, A.ptr(), &m, const_cast<T*>(tau.ptr()),
     			work.ptr(), &lwork, &info);
         mask_info(info);
     	A=transpose(A);
@@ -1533,7 +1645,6 @@ namespace madness {
             cout << "error in double_complex svd " << test_svd<double_complex>(37,19) << endl;
             cout << endl;
 
-
             cout << "error in float  gelss " << test_gelss<float>(20,30) << endl;
             cout << "error in double gelss " << test_gelss<double>(30,20) << endl;
             cout << "error in float_complex gelss " << test_gelss<float_complex>(23,27) << endl;
@@ -1545,7 +1656,6 @@ namespace madness {
             cout << "error in float_complex syev " << test_syev<float_complex>(21) << endl;
             cout << "error in double_complex syev " << test_syev<double_complex>(21) << endl;
             cout << endl;
-
 
             cout << "error in float sygv " << test_sygv<float>(20) << endl;
             cout << "error in double sygv " << test_sygv<double>(20) << endl;
@@ -1567,6 +1677,7 @@ namespace madness {
             cout << endl;
             cout << "error in double_complex cholesky " << test_cholesky<double_complex>(22) << endl;
             cout << endl;
+
             cout << "error in float rr_cholesky " << test_rr_cholesky<float>(22) << endl;
             cout << endl;
             cout << "error in double rr_cholesky " << test_rr_cholesky<double>(22) << endl;
@@ -1584,6 +1695,8 @@ namespace madness {
 
             cout << "error in double inverse " << test_inverse<double>(32) << endl;
             cout << "error in double inverse " << test_inverse<double>(47) << endl;
+            cout << "error in double_complex inverse " << test_inverse<double_complex>(32) << endl;
+            cout << "error in double_complex inverse " << test_inverse<double_complex>(47) << endl;
             cout << endl;
         }
 
@@ -1605,14 +1718,6 @@ namespace madness {
     // versions were happy with the instantiations caused by the test code above
 
     template
-    void svd_result(Tensor<float>& a, Tensor<float>& U,
-             Tensor<Tensor<float>::scalar_type >& s, Tensor<float>& VT, Tensor<float>& work);
-
-    template
-    void orgqr(Tensor<float>& A, const Tensor<float>& tau);
-
-
-    template
     void svd(const Tensor<float>& a, Tensor<float>& U,
              Tensor<Tensor<float>::scalar_type >& s, Tensor<float>& VT);
 
@@ -1621,8 +1726,42 @@ namespace madness {
              Tensor<Tensor<double>::scalar_type >& s, Tensor<double>& VT);
 
     template
+    void svd(const Tensor<float_complex>& a, Tensor<float_complex>& U,
+             Tensor<Tensor<float_complex>::scalar_type >& s, Tensor<float_complex>& VT);
+
+    template
+    void svd(const Tensor<double_complex>& a, Tensor<double_complex>& U,
+             Tensor<Tensor<double_complex>::scalar_type >& s, Tensor<double_complex>& VT);
+
+    template
+    void svd_result(Tensor<float>& a, Tensor<float>& U,
+             Tensor<Tensor<float>::scalar_type >& s, Tensor<float>& VT, Tensor<float>& work);
+
+    template
     void svd_result(Tensor<double>& a, Tensor<double>& U,
              Tensor<Tensor<double>::scalar_type >& s, Tensor<double>& VT, Tensor<double>& work);
+
+    template
+    void svd_result(Tensor<float_complex>& a, Tensor<float_complex>& U,
+             Tensor<Tensor<float_complex>::scalar_type >& s, Tensor<float_complex>& VT,
+             Tensor<float_complex>& work);
+
+    template
+    void svd_result(Tensor<double_complex>& a, Tensor<double_complex>& U,
+             Tensor<Tensor<double_complex>::scalar_type >& s, Tensor<double_complex>& VT,
+             Tensor<double_complex>& work);
+
+    template
+    void gesv(const Tensor<double>& a, const Tensor<double>& b, Tensor<double>& x);
+
+    template
+    void gesv(const Tensor<double_complex>& a, const Tensor<double_complex>& b, Tensor<double_complex>& x);
+
+    template
+    Tensor<double> inverse(const Tensor<double>& A);
+
+    template
+    Tensor<double_complex> inverse(const Tensor<double_complex>& A);
 
     template
     void gelss(const Tensor<double>& a, const Tensor<double>& b, double rcond,
@@ -1630,19 +1769,48 @@ namespace madness {
                long &rank, Tensor<Tensor<double>::scalar_type>& sumsq);
 
     template
+    void gelss(const Tensor<double_complex>& a, const Tensor<double_complex>& b, double rcond,
+               Tensor<double_complex>& x, Tensor<Tensor<double_complex>::scalar_type >& s,
+               long &rank, Tensor<Tensor<double_complex>::scalar_type>& sumsq);
+
+    template
     void syev(const Tensor<double>& A,
               Tensor<double>& V, Tensor<Tensor<double>::scalar_type >& e);
 
+    template
+    void syev(const Tensor<double_complex>& A,
+              Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
+
+    template
+    void geev(const Tensor<double>& A, Tensor<double>& V, Tensor<double_complex>& e);
+
+    template
+    void sygv(const Tensor<double>& A, const Tensor<double>& B, int itype,
+              Tensor<double>& V, Tensor<Tensor<double>::scalar_type >& e);
+    template
+    void sygv(const Tensor<double_complex>& A, const Tensor<double_complex>& B, int itype,
+              Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
+
+    template
+    void ggev(const Tensor<double>& A, Tensor<double>& B, Tensor<double>& V, Tensor<double_complex>& e);
 
     template
     void cholesky(Tensor<double>& A);
 
     template
-    void rr_cholesky(Tensor<double>& A, typename Tensor<double>::scalar_type tol, Tensor<integer>& piv, int& rank);
-
+    void cholesky(Tensor<double_complex>& A);
 
     template
-    Tensor<double> inverse(const Tensor<double>& A);
+    void rr_cholesky(Tensor<double>& A, typename Tensor<double>::scalar_type tol, Tensor<integer>& piv, int& rank);
+
+    template
+    void rr_cholesky(Tensor<double_complex>& A, typename Tensor<double_complex>::scalar_type tol, Tensor<integer>& piv, int& rank);
+
+    template
+    void geqp3(Tensor<double>& A, Tensor<double>& tau, Tensor<integer>& jpvt);
+
+    template
+    void geqp3(Tensor<double_complex>& A, Tensor<double_complex>& tau, Tensor<integer>& jpvt);
 
     template
     void qr(Tensor<float>& A, Tensor<float>& R);
@@ -1656,84 +1824,25 @@ namespace madness {
     template
     void qr(Tensor<double_complex>& A, Tensor<double_complex>& R);
 
-
-
     template
     void lq(Tensor<double>& A, Tensor<double>& L);
 
     template
-    void lq_result(Tensor<double>& A, Tensor<double>& R, Tensor<double>& tau, Tensor<double>& work,
-    		bool do_qr);
-
+    void lq(Tensor<double_complex>& A, Tensor<double_complex>& L);
 
     template
-    void geqp3(Tensor<double>& A, Tensor<double>& tau, Tensor<integer>& jpvt);
+    void lq_result(Tensor<double>& A, Tensor<double>& R, Tensor<double>& tau, Tensor<double>& work,
+            bool do_qr);
 
-//     template
-//     void triangular_solve(const Tensor<double>& L, Tensor<double>& B,
-//                           const char* side, const char* transa);
+    template
+    void lq_result(Tensor<double_complex>& A, Tensor<double_complex>& R, Tensor<double_complex>& tau, Tensor<double_complex>& work,
+            bool do_qr);
+
+    template
+    void orgqr(Tensor<float>& A, const Tensor<float>& tau);
 
     template
     void orgqr(Tensor<double>& A, const Tensor<double>& tau);
-
-    template
-    void svd(const Tensor<float_complex>& a, Tensor<float_complex>& U,
-             Tensor<Tensor<float_complex>::scalar_type >& s, Tensor<float_complex>& VT);
-
-
-    template
-    void svd_result(Tensor<float_complex>& a, Tensor<float_complex>& U,
-             Tensor<Tensor<float_complex>::scalar_type >& s, Tensor<float_complex>& VT,
-             Tensor<float_complex>& work);
-
-
-    template
-    void svd(const Tensor<double_complex>& a, Tensor<double_complex>& U,
-             Tensor<Tensor<double_complex>::scalar_type >& s, Tensor<double_complex>& VT);
-
-    template
-    void svd_result(Tensor<double_complex>& a, Tensor<double_complex>& U,
-             Tensor<Tensor<double_complex>::scalar_type >& s, Tensor<double_complex>& VT,
-             Tensor<double_complex>& work);
-
-    template
-    void gelss(const Tensor<double_complex>& a, const Tensor<double_complex>& b, double rcond,
-               Tensor<double_complex>& x, Tensor<Tensor<double_complex>::scalar_type >& s,
-               long &rank, Tensor<Tensor<double_complex>::scalar_type>& sumsq);
-
-    template
-    void syev(const Tensor<double_complex>& A,
-              Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
-
-// bryan edits start
-    template
-    void geev(const Tensor<double>& A, Tensor<double>& V, Tensor<std::complex<double>>& e);
-
-    template
-    void ggev(const Tensor<double>& A, Tensor<double>& B, Tensor<double>& V, Tensor<std::complex     <double>>& e);
-// bryan edits end
-
-    template
-    void cholesky(Tensor<double_complex>& A);
-
-    template
-    void rr_cholesky(Tensor<double_complex>& A, typename Tensor<double_complex>::scalar_type tol, Tensor<integer>& piv, int& rank);
-
-//     template
-//     void triangular_solve(const Tensor<double_complex>& L, Tensor<double_complex>& B,
-//                           const char* side, const char* transa);
-    template
-    void gesv(const Tensor<double>& a, const Tensor<double>& b, Tensor<double>& x);
-
-    template
-    void gesv(const Tensor<double_complex>& a, const Tensor<double_complex>& b, Tensor<double_complex>& x);
-
-    template
-    void sygv(const Tensor<double>& A, const Tensor<double>& B, int itype,
-              Tensor<double>& V, Tensor<Tensor<double>::scalar_type >& e);
-    template
-    void sygv(const Tensor<double_complex>& A, const Tensor<double_complex>& B, int itype,
-              Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
 
     template
     void orgqr(Tensor<complex_real4>& A, const Tensor<complex_real4>& tau);
