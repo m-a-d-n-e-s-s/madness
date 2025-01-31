@@ -181,7 +181,7 @@ int main(int argc, char **argv) {
                     std::map<std::string, double> results;
                     results["scf_energy"] = calc.current_energy;
                     auto dipole_t = calc.dipole(world, rho);
-                    calc.output_scf_info_schema(results, dipole_t);
+                    if (world.rank() == 0) calc.output_scf_info_schema(results, dipole_t);
                 }
 
                 //        if (calc.param.twoint) {

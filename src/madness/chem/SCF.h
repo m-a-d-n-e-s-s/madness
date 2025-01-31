@@ -356,8 +356,11 @@ public:
     std::vector<int> group_orbital_sets(World& world, const tensorT& eps,
                                         const tensorT& occ, const int nmo) const;
 
-    void analyze_vectors(World& world, const vecfuncT& mo, const tensorT& occ = tensorT(),
-                         const tensorT& energy = tensorT(), const std::vector<int>& set = std::vector<int>());
+    static void analyze_vectors(World& world, const vecfuncT& mo,
+            const vecfuncT& ao, double vtol,
+            const Molecule& molecule, const int print_level,
+            const AtomicBasisSet& aobasis, const tensorT& occ = tensorT(),
+            const tensorT& energy = tensorT(), const std::vector<int>& set = std::vector<int>());
 
     distmatT kinetic_energy_matrix(World& world, const vecfuncT& v) const;
 

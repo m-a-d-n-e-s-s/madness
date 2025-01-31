@@ -534,6 +534,7 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
             Knemo = zero_functions_compressed<double, 3>(world, nemo.size());
             if (calc->xc.hf_exchange_coefficient() > 0.0) {
                 Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin).set_symmetric(true).set_taskq(taskq);
+	            K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient_row);
                 Knemo = K(nemo);
             }
             t.tag("initialize K operator");
@@ -1094,7 +1095,7 @@ vecfuncT Nemo::make_cphf_constant_term(const size_t iatom, const int iaxis,
     const int nmo=nemo.size();
 
     const Tensor<double> occ=get_calc()->get_aocc();
-    QProjector<double,3> Q(world,R2nemo,nemo);
+    QProjector<double,3> Q(R2nemo,nemo);
 
     DNuclear<double,3> Dunuc(world,this,iatom,iaxis);
     vecfuncT Vpsi2b=Dunuc(nemo);
@@ -1162,7 +1163,7 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
 
     vecfuncT R2nemo=mul(world,R_square,nemo);
     truncate(world,R2nemo);
-    QProjector<double,3> Q(world,R2nemo,nemo);
+    QProjector<double,3> Q(R2nemo,nemo);
 
     // construct quantities that are independent of xi
 

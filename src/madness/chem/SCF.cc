@@ -156,8 +156,6 @@ void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
 
 void SCF::output_calc_info_schema() const {
     nlohmann::json j = {};
-    World& world=amo.front().world();
-    if (world.rank()==0) {
         vec_pair_ints int_vals;
         vec_pair_T<double> double_vals;
         vec_pair_tensor_T<double> double_tensor_vals;
@@ -180,11 +178,11 @@ void SCF::output_calc_info_schema() const {
 
         to_json(j, double_tensor_vals);
         param.to_json(j);
+        j["molecule"]= molecule.to_json();
         e_data.to_json(j);
 
         //    output_schema(param.prefix()+".calc_info", j);
         update_schema(param.prefix()+".calc_info", j);
-    }
 }
 
 void scf_data::add_data(std::map<std::string, double> values) {
@@ -215,10 +213,11 @@ void scf_data::to_json(json &j) const {
 
     j["scf_e_data"] = json();
     j["scf_e_data"]["iterations"] = iter;
+    j["scf_e_data"]["data"] = {};
 
     for (const auto &e: e_data) {
         //::print(e.second);
-        j["scf_e_data"].push_back({e.first, e.second});
+        j["scf_e_data"]["data"][e.first]= e.second;
     }
 }
 
@@ -571,6 +570,7 @@ void SCF::make_nuclear_potential(World& world) {
     if (!molecule.parameters.psp_calc()) {
         potentialmanager->make_nuclear_potential(world);
     }
+    potentialmanager->vnuclear().print_size("vnuc");
     END_TIMER(world, "Project vnuclear");
 }
 
@@ -596,8 +596,11 @@ vecfuncT SCF::project_ao_basis_only(World& world, const AtomicBasisSet& aobasis,
     return ao;
 }
 
-void SCF::analyze_vectors(World& world, const vecfuncT& mo, const tensorT& occ,
-                          const tensorT& energy, const std::vector<int>& set) {
+void SCF::analyze_vectors(World& world, const vecfuncT& mo,
+            const vecfuncT& ao, double vtol,
+            const Molecule& molecule, const int print_level,
+            const AtomicBasisSet& aobasis, const tensorT& occ,
+            const tensorT& energy, const std::vector<int>& set) {
     START_TIMER(world);
     PROFILE_MEMBER_FUNC(SCF);
     tensorT Saomo = matrix_inner(world, ao, mo);
@@ -628,7 +631,8 @@ void SCF::analyze_vectors(World& world, const vecfuncT& mo, const tensorT& occ,
     for (long i = 0; i < nmo; ++i) {
         size_t ncoeffi = mo[i].size();
         ncoeff += ncoeffi;
-        if (world.rank() == 0 and (param.print_level() > 1)) {
+        // if (world.rank() == 0 and (param.print_level() > 1)) {
+        if (world.rank() == 0 and (print_level > 1)) {
             printf("  MO%4ld : ", i);
             if (set.size())
                 printf("set=%d : ", set[i]);
@@ -1373,19 +1377,54 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
     //     potentialmanager->apply_nonlocal_potential(world, amo, Vpsi);
     // }
 
+    // compute Vpsi and truncation
     START_TIMER(world);
+    const bool tile_Vpsi = true;
+    size_t min_tile = 10;
+    size_t ntile = std::min(amo.size(), min_tile);
     if (!molecule.parameters.pure_ae()) {
         gaxpy(world, 1.0, Vpsi, 1.0, gthpseudopotential->apply_potential(world, vloc, amo, occ, enl));
     } else {
-        gaxpy(world, 1.0, Vpsi, 1.0, mul_sparse(world, vloc, amo, vtol));
+        if (tile_Vpsi){
+            for (size_t ilo=0; ilo<amo.size(); ilo+=ntile) {
+                size_t iend = std::min(ilo+ntile,amo.size());
+                vecfuncT tmpamo(amo.begin()+ilo,amo.begin()+iend);
+                auto tmpVpsi = mul_sparse(world, vloc, tmpamo, vtol);
+                print_size(world, tmpVpsi, "tmpVpsi before truncation");
+
+                //truncate tmpVpsi
+                truncate(world, tmpVpsi);
+                print_size(world, tmpVpsi, "tmpVpsi after truncation");
+
+                //put the results into their final home
+                for (size_t i = ilo; i<iend; ++i){
+                    Vpsi[i] += tmpVpsi[i-ilo];
+                }
+            }
+            END_TIMER(world, "V*psi");
+        } else {
+            gaxpy(world, 1.0, Vpsi, 1.0, mul_sparse(world, vloc, amo, vtol));
+            END_TIMER(world, "V*psi");
+            START_TIMER(world);
+            truncate(world, Vpsi);
+            END_TIMER(world, "Truncate Vpsi");
+            print_meminfo(world.rank(), "Truncate Vpsi");
+        }
     }
 
-    END_TIMER(world, "V*psi");
+    //START_TIMER(world);
+    //if (!molecule.parameters.pure_ae()) {
+    //    gaxpy(world, 1.0, Vpsi, 1.0, gthpseudopotential->apply_potential(world, vloc, amo, occ, enl));
+    //} else {
+    //    gaxpy(world, 1.0, Vpsi, 1.0, mul_sparse(world, vloc, amo, vtol));
+    //}
 
-    START_TIMER(world);
-    truncate(world, Vpsi);
-    END_TIMER(world, "Truncate Vpsi");
-    print_meminfo(world.rank(), "Truncate Vpsi");
+    //END_TIMER(world, "V*psi");
+
+    //START_TIMER(world);
+    //truncate(world, Vpsi);
+    //END_TIMER(world, "Truncate Vpsi");
+    //print_meminfo(world.rank(), "Truncate Vpsi");
     world.gop.fence();
     return Vpsi;
 }
@@ -1524,23 +1563,69 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
     fpsi.clear();
     std::vector<double> fac(nmo, -2.0);
     scale(world, Vpsi, fac);
-    std::vector<poperatorT> ops = make_bsh_operators(world, eps);
-    set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());
     END_TIMER(world, "Compute residual stuff");
 
-    START_TIMER(world);
-    vecfuncT new_psi = apply(world, ops, Vpsi);
-    END_TIMER(world, "Apply BSH");
-    ops.clear();
-    Vpsi.clear();
-    world.gop.fence();
+    const bool tile_applyBSH = true;
+    vecfuncT new_psi;
+
+    if (tile_applyBSH) {
+        START_TIMER(world);
+        size_t min_tile = 10;
+        size_t ntile = std::min(amo.size(), min_tile);
+        new_psi = zero_functions<double,3>(world, Vpsi.size());
+
+        for (size_t ilo=0; ilo<Vpsi.size(); ilo+=ntile) {
+            size_t iend = std::min(ilo+ntile,Vpsi.size());
+            vecfuncT tmp_Vpsi(Vpsi.begin()+ilo,Vpsi.begin()+iend);
+
+            int tmp_nmo = tmp_Vpsi.size();
+            tensorT tmp_eps(tmp_nmo);
+            for (int i = 0; i < tmp_nmo; ++i) {
+                tmp_eps(i) = std::min(-0.05, fock(i+ilo, i+ilo));
+            }
+
+            std::vector<poperatorT> ops = make_bsh_operators(world, tmp_eps);
+            set_thresh(world, tmp_Vpsi, FunctionDefaults<3>::get_thresh());
+
+            vecfuncT tmp_new_psi = apply(world, ops, tmp_Vpsi);
+            print_size(world, tmp_new_psi, "tmp_new_psi before truncation");
+
+            //truncate tmp_new_psi
+            truncate(world, tmp_new_psi);
+            print_size(world, tmp_new_psi, "tmp_new_psi after truncation");
+
+            //put the results into their final home
+            for (size_t i = ilo; i<iend; ++i){
+                new_psi[i] += tmp_new_psi[i-ilo];
+            }
+            ops.clear();
+        }
+
+        Vpsi.clear();
+        world.gop.fence();
+        END_TIMER(world, "Apply BSH");
+    } else {
+        START_TIMER(world);
+
+        std::vector<poperatorT> ops = make_bsh_operators(world, eps);
+        set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());
+
+        new_psi = apply(world, ops, Vpsi);
+        
+        ops.clear();
+        Vpsi.clear();
+        world.gop.fence();
+
+        END_TIMER(world, "Apply BSH");
+        
+        START_TIMER(world);
+        truncate(world, new_psi);
+        END_TIMER(world, "Truncate new psi");
+    }
 
     // Thought it was a bad idea to truncate *before* computing the residual
     // but simple tests suggest otherwise ... no more iterations and
     // reduced iteration time from truncating.
-    START_TIMER(world);
-    truncate(world, new_psi);
-    END_TIMER(world, "Truncate new psi");
 
     START_TIMER(world);
     vecfuncT r = sub(world, psi, new_psi);
@@ -2066,28 +2151,71 @@ void SCF::solve(World& world) {
         //     //do_this_iter = false;
         //     param.maxsub = maxsub_save;
         // }
-
-        if (param.do_localize() && do_this_iter) {
-            START_TIMER(world);
-            Localizer localizer(world, aobasis, molecule, ao);
-            localizer.set_method(param.localize_method());
-            MolecularOrbitals<double, 3> mo(amo, aeps, {}, aocc, aset);
-            tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
-            UT.screen(trantol);
-            amo = transform(world, amo, transpose(UT));
-            truncate(world, amo);
-            normalize(world, amo);
-
-            if (!param.spin_restricted() && param.nbeta() != 0) {
-
-                MolecularOrbitals<double, 3> mo(bmo, beps, {}, bocc, bset);
+        const bool tile_localize = true;
+        if (tile_localize) {
+            if (param.do_localize() && do_this_iter) {
+                START_TIMER(world);
+                Localizer localizer(world, aobasis, molecule, ao);
+                localizer.set_method(param.localize_method());
+                MolecularOrbitals<double, 3> mo(amo, aeps, {}, aocc, aset);
                 tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
                 UT.screen(trantol);
-                bmo = transform(world, bmo, transpose(UT));
-                truncate(world, bmo);
-                normalize(world, bmo);
+
+                size_t min_tile = 10;
+                size_t ntile = std::min(amo.size(), min_tile);
+                vecfuncT new_amo = zero_functions<double,3>(world, amo.size());  
+
+                for (size_t ilo=0; ilo<amo.size(); ilo+=ntile){
+                    size_t iend = std::min(ilo+ntile,amo.size());
+                    auto U_slice = copy(transpose(UT)(_,Slice(ilo,iend-1)));
+
+                    auto tmp_amo = transform(world, amo, U_slice);
+
+                    print_size(world, tmp_amo, "tmp_amo before truncation");
+                    truncate(world, tmp_amo);
+                    print_size(world, tmp_amo, "tmp_amo after truncation");
+
+                    for (size_t i = ilo; i<iend; ++i){
+                        new_amo[i] += tmp_amo[i-ilo];
+                    }
+                }
+                normalize(world, new_amo);
+                amo = new_amo;
+
+                if (!param.spin_restricted() && param.nbeta() != 0) {
+
+                    MolecularOrbitals<double, 3> mo(bmo, beps, {}, bocc, bset);
+                    tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
+                    UT.screen(trantol);
+                    bmo = transform(world, bmo, transpose(UT));
+                    truncate(world, bmo);
+                    normalize(world, bmo);
+                }
+                END_TIMER(world, "localize");
             }
-            END_TIMER(world, "localize");
+        } else {
+            if (param.do_localize() && do_this_iter) {
+                START_TIMER(world);
+                Localizer localizer(world, aobasis, molecule, ao);
+                localizer.set_method(param.localize_method());
+                MolecularOrbitals<double, 3> mo(amo, aeps, {}, aocc, aset);
+                tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
+                UT.screen(trantol);
+                amo = transform(world, amo, transpose(UT));
+                truncate(world, amo);
+                normalize(world, amo);
+
+                if (!param.spin_restricted() && param.nbeta() != 0) {
+
+                    MolecularOrbitals<double, 3> mo(bmo, beps, {}, bocc, bset);
+                    tensorT UT = localizer.compute_localization_matrix(world, mo, iter == 0);
+                    UT.screen(trantol);
+                    bmo = transform(world, bmo, transpose(UT));
+                    truncate(world, bmo);
+                    normalize(world, bmo);
+                }
+                END_TIMER(world, "localize");
+            }
         }
 
         START_TIMER(world);
@@ -2136,6 +2264,7 @@ void SCF::solve(World& world) {
             vnuc = potentialmanager->vnuclear();
             vnuc = vnuc + gthpseudopotential->vlocalpot();
         }
+
         double enuclear = inner(rho, vnuc);
         END_TIMER(world, "Nuclear energy");
 
@@ -2220,7 +2349,8 @@ void SCF::solve(World& world) {
             printf(" exchange-correlation %16.8f\n", exc);
             printf("    nuclear-repulsion %16.8f\n", enrep);
             printf("                total %16.8f\n\n", etot);
-        }
+
+        // Only rank0 needs this data
         e_data.add_data({{"e_kinetic", ekinetic},
                          {"e_local",   enonlocal},
                          {"e_nuclear", enuclear},
@@ -2229,6 +2359,7 @@ void SCF::solve(World& world) {
                          {"e_xc",      exc},
                          {"e_nrep",    enrep},
                          {"e_tot",     etot}});
+        }
 
         if (iter > 0) {
             //print("##convergence criteria: density delta=", da < dconv * molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=", (param.conv_only_dens || bsh_residual < 5.0*dconv));
@@ -2363,12 +2494,12 @@ void SCF::solve(World& world) {
     }
 
     if (param.nwfile() == "none") {
-        analyze_vectors(world, amo, aocc, aeps);
+        analyze_vectors(world, amo, ao, vtol, molecule, param.print_level(), aobasis, aocc, aeps);
         if (param.nbeta() != 0 && !param.spin_restricted()) {
             if (world.rank() == 0 and (param.print_level() > 1))
                 print("Analysis of beta MO vectors");
 
-            analyze_vectors(world, bmo, bocc, beps);
+            analyze_vectors(world, bmo, ao, vtol, molecule, param.print_level(), aobasis, bocc, beps);
         }
     }
 

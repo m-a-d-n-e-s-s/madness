@@ -971,26 +971,26 @@ double MP3::mp3_energy_contribution_macrotask_driver(const Pairs<CCPair>& mp2pai
     MacroTaskMP3 task_square("square");
     MacroTask macrotask_triangular(world,task_triangular,taskq);
     MacroTask macrotask_square(world,task_square,taskq);
-    // auto ghij_future=macrotask_triangular(std::string("ghij"), ij_triangular, dummy, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
+    auto ghij_future=macrotask_triangular(std::string("ghij"), ij_triangular, dummy, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
     auto klmn_future=macrotask_square(std::string("klmn"), nact, nact, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
-    // auto cd_future=macrotask_triangular(std::string("cd"), ij_triangular, dummy, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
-    // auto ef_future=macrotask_triangular(std::string("ef"), ij_triangular, dummy, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
-    // taskq->print_taskq();
+    auto cd_future=macrotask_triangular(std::string("cd"), ij_triangular, dummy, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
+    auto ef_future=macrotask_triangular(std::string("ef"), ij_triangular, dummy, clusterfunc_vec, ket, bra, parameters, nemo_->molecule(), nemo_->R_square, std::vector<std::string>());
+    taskq->print_taskq();
     taskq->run_all();
 
-    // double term_CD=cd_future->get();
-    // double term_EF=ef_future->get();
-    // double term_GHIJ=ghij_future->get();
-    // double term_KLMN=klmn_future->get();
-    // double mp3_energy=term_CD+term_GHIJ+term_KLMN+term_EF;
-    // if (world.rank()==0) {
-        // printf("term_CD    %12.8f\n",term_CD);
-        // printf("term_GHIJ  %12.8f\n",term_GHIJ);
-        // printf("term_KLMN  %12.8f\n",term_KLMN);
-        // printf("term_EF    %12.8f\n",term_EF);
-        // printf("MP3 energy contribution  %12.8f\n",mp3_energy);
-    // }
-    // return mp3_energy;
+    double term_CD=cd_future->get();
+    double term_EF=ef_future->get();
+    double term_GHIJ=ghij_future->get();
+    double term_KLMN=klmn_future->get();
+    double mp3_energy=term_CD+term_GHIJ+term_KLMN+term_EF;
+    if (world.rank()==0) {
+        printf("term_CD    %12.8f\n",term_CD);
+        printf("term_GHIJ  %12.8f\n",term_GHIJ);
+        printf("term_KLMN  %12.8f\n",term_KLMN);
+        printf("term_EF    %12.8f\n",term_EF);
+        printf("MP3 energy contribution  %12.8f\n",mp3_energy);
+    }
+    return mp3_energy;
     return 0.0;
 }
 }

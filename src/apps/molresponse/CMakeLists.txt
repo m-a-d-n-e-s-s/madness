@@ -2,8 +2,6 @@
 
 if(CMAKE_CXX_STANDARD GREATER_EQUAL 17)
     # C++ standard is 17 or higher
-    add_subdirectory(response_coordinator)
-    add_subdirectory(maddft)
     # Add your code or configurations here
 else()
     # C++ standard is below 17
@@ -27,6 +25,7 @@ set(MOLRESPONSE_HEADERS
         ResponseBase.hpp
         ExcitedResponse.hpp
         FrequencyResponse.hpp
+        response_macrotask.hpp
         property.h
         x_space.h
         global_functions.h
@@ -42,7 +41,6 @@ add_dependencies(applications-madness molresponse)
 
 add_mad_executable(molresponse "molresponse.cc" "MADresponse;MADchem")
 
-# removed mcpfit since it is likely only of historic interest
 install(TARGETS molresponse DESTINATION "${MADNESS_INSTALL_BINDIR}")
 
 
@@ -63,6 +61,7 @@ set(R_BASE_HEADERS
         ResponseBase.hpp
         ExcitedResponse.hpp
         FrequencyResponse.hpp
+        response_macrotask.hpp
         property.h
         global_functions.h
         x_space.h
@@ -93,6 +92,7 @@ set(RALL_HEADERS
         ResponseBase.hpp
         ExcitedResponse.hpp
         FrequencyResponse.hpp
+        response_macrotask.hpp
         property.h
         global_functions.h
         timer.h

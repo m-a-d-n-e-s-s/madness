@@ -79,8 +79,8 @@ int main(int argc, char **argv) {
         nemo->get_calc()->param.set_derived_value("print_level", 2);
         nemo->param.set_derived_value("k", 5);
         nemo->get_calc()->param.set_derived_value("k", 5);
-        nemo->param.set_derived_value<std::string>("localize", "canon");
-        nemo->get_calc()->param.set_derived_value<std::string>("localize", "canon");
+        // nemo->param.set_derived_value<std::string>("localize", "canon");
+        // nemo->get_calc()->param.set_derived_value<std::string>("localize", "canon");
         nemo->param.set_derived_values(nemo->molecule(),nemo->get_calc()->aobasis,parser);
         nemo->get_calc()->param.set_derived_values(nemo->molecule(),nemo->get_calc()->aobasis,parser);
         CC2 cc2(world, parser, nemo);

@@ -145,15 +145,23 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient_row(const vecfuncT& vf, c
     MacroTaskExchangeRow xtask(nresult, lo, mul_tol);
     vecfuncT Kf;
 
+    // print the size of the amos
+    if (printdebug()) {
+        auto size=get_size(world,vf);
+        if (world.rank()==0) print("total size of vf before iteration",size);
+    }
+
     // deferred execution if a taskq is provided by the user
     if (taskq) {
         taskq->set_printlevel(printlevel);
         MacroTask mtask(world, xtask, taskq);
+        mtask.set_name("K_macrotask_efficient_row");        
         Kf = mtask(vf, mo_bra, mo_ket);
     } else {
         auto taskq_ptr = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
         taskq_ptr->set_printlevel(printlevel);
         MacroTask mtask(world, xtask, taskq_ptr);
+        mtask.set_name("K_macrotask_efficient_row");        
         Kf = mtask(vf, mo_bra, mo_ket);
         taskq_ptr->run_all();
         if (printdebug()) taskq_ptr->cloud.print_timings(world);

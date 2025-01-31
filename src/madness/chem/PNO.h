@@ -36,7 +36,7 @@ public:
 	  T(world),
 	  V(world, nemo.ncf),
 	  F(world, &nemo),
-	  Q(world, nemo.get_calc()->amo),
+	  Q( nemo.get_calc()->amo),
 	  basis(world,nemo.get_calc()->molecule,8),
 	  f12(world,nemo,basis,paramf12),
 	  msg(world)

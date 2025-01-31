@@ -1,4 +1,7 @@
 {
     "cmake.configureOnOpen": true,
-    "C_Cpp.default.compilerPath": "/gpfs/software/gcc/11.2.0/bin/g++"
+    "C_Cpp.default.compilerPath": "/gpfs/software/gcc/11.2.0/bin/g++",
+    "files.associations": {
+        "*.tcc": "cpp"
+    }
 }
