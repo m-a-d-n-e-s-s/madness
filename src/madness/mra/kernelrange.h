@@ -69,7 +69,9 @@ public:
 
     /// @return true if \p r1 and \p r2 are equal
     friend bool operator==(const Restrictor& r1, const Restrictor& r2) {
-      return r1.type_ == r2.type_ && r1.sigma() == r2.sigma();
+      return r1.type_ == r2.type_ && (r1.type_ == KernelRange::Type::Hard ||
+                                      (r1.type_ != KernelRange::Type::Hard &&
+                                       r1.sigma() == r2.sigma()));
     }
 
     hashT hash() const {
