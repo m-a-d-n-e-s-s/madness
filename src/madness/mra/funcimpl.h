@@ -4822,9 +4822,9 @@ template<size_t NDIM>
           // - BUT user can force operator to treat its arguments as non-periodic (`op.set_domain_periodicity({true,true,true})`) so ... which dimensions of this function are treated as periodic by op?
           const array_of_bools<NDIM> this_is_treated_by_op_as_periodic =
               (op->particle() == 1)
-                  ? FunctionDefaults<NDIM>::get_bc().is_periodic().and_front(
+                  ? array_of_bools<NDIM>{false}.or_front(
                         op->domain_is_periodic())
-                  : FunctionDefaults<NDIM>::get_bc().is_periodic().and_back(
+                  : array_of_bools<NDIM>{false}.or_back(
                         op->domain_is_periodic());
 
           const auto default_distance_squared = [&](const auto &displacement)
@@ -4943,12 +4943,7 @@ template<size_t NDIM>
             using filter_t = std::function<bool(Level, const Vector<std::optional<Translation>,opdim>&, const std::optional<opkeyT> &)>;
             auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_front<opdim>();
             // see this_is_treated_by_op_as_periodic above
-            const array_of_bools<opdim> op_domain_is_periodic =
-                (op->particle() == 1)
-                    ? (FunctionDefaults<NDIM>::get_bc().is_periodic().template front<opdim>() &&
-                          op->domain_is_periodic())
-                    : (FunctionDefaults<NDIM>::get_bc().is_periodic().template back<opdim>() &&
-                          op->domain_is_periodic());
+            const array_of_bools<opdim> op_domain_is_periodic = op->domain_is_periodic();
             // skip surface displacements that were included in regular displacements
             filter_t filter = max_distsq_reached
                                   ? filter_t([op_domain_is_periodic,default_distance_squared,max_distsq_reached](const auto level, const auto &dest, const auto &displacement) -> bool {
@@ -5070,7 +5065,7 @@ template<size_t NDIM>
             // - if operator is NOT lattice-summed then obey BC (i.e. tell neighbor() to go outside the simulation cell along periodic dimensions)
             // - BUT user can force operator to treat its arguments as non-[eriodic (op.domain_is_simulation_cell(true))
             // so ... which dimensions of this function are treated as periodic by op?
-            const array_of_bools<NDIM> this_is_treated_by_op_as_periodic = (op->particle() == 1) ? FunctionDefaults<NDIM>::get_bc().is_periodic().and_front(op->domain_is_periodic()) : FunctionDefaults<NDIM>::get_bc().is_periodic().and_back(op->domain_is_periodic());
+            const array_of_bools<NDIM> this_is_treated_by_op_as_periodic = (op->particle() == 1) ? array_of_bools<NDIM>{false}.or_front(op->domain_is_periodic()) : array_of_bools<NDIM>{false}.or_back(op->domain_is_periodic());
 
             // list of displacements sorted in order of increasing distance
             // N.B. if op is lattice-summed gives periodic displacements, else uses
