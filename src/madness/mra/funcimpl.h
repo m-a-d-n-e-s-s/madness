@@ -4885,8 +4885,8 @@ template<size_t NDIM>
                   dsq != *distsq) { // Moved to next shell of neighbors
                 if (nvalid > 0 && nused == 0 && dsq > 1) {
                   // Have at least done the input box and all first
-                  // nearest neighbors, and for all of the last set
-                  // of neighbors had no contribution.  Thus,
+                  // nearest neighbors, and none of the last set
+                  // of neighbors made significant contributions.  Thus,
                   // assuming monotonic decrease, we are done.
                   break;
                 }
@@ -4943,12 +4943,14 @@ template<size_t NDIM>
             using filter_t = std::function<bool(Level, const Vector<std::optional<Translation>,opdim>&, const std::optional<opkeyT> &)>;
             auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_front<opdim>();
             // see this_is_treated_by_op_as_periodic above
-            const array_of_bools<opdim> op_domain_is_periodic = op->domain_is_periodic();
+            const array_of_bools<opdim>& op_domain_is_periodic = op->domain_is_periodic();
+            const array_of_bools<opdim>& op_lattice_summed = op->lattice_summed();
             // skip surface displacements that were included in regular displacements
             filter_t filter = max_distsq_reached
-                                  ? filter_t([op_domain_is_periodic,default_distance_squared,max_distsq_reached](const auto level, const auto &dest, const auto &displacement) -> bool {
+                                  ? filter_t([op_domain_is_periodic,op_lattice_summed,range,default_distance_squared,max_distsq_reached](const auto level, const auto &dest, const auto &displacement) -> bool {
+                                      const auto twon = (1 << level);  // number of boxes along an axis
                                       // skip displacements not in domain
-                                      const bool dest_is_in_domain = [&,twon = (1 << level)]() {
+                                      const bool dest_is_in_domain = [&]() {
                                         for(auto d=0; d!=opdim; ++d) {
                                           if (op_domain_is_periodic[d]) continue;
                                           if (dest[d].has_value() && dest[d] < 0 || dest[d] >= twon) return false;
@@ -4957,13 +4959,31 @@ template<size_t NDIM>
                                       }();
                                       if (dest_is_in_domain) {
                                         if (displacement.has_value()) {
-                                          // N.B. avoid duplicates of standard displacements previously included
-                                          const auto distsq =
-                                              default_distance_squared(
-                                                  *displacement);
-                                          return distsq > max_distsq_reached;
+                                          // N.B. avoid duplicates of standard displacements previously included:
+                                          // A displacement has been possibly considered if along EVERY the displacement fits within the box explored by the standard displacement
+                                          // If so, skip if <= max magnitude of standard displacements encountered
+                                          // Otherwise this is a new non-standard displacement, consider it
+                                          bool among_standard_displacements = true;
+                                          for(auto d=0; d!=opdim; ++d) {
+                                            const auto disp_d = (*displacement)[d];
+                                            if (std::abs(disp_d) > Displacements<NDIM>::bmax_default())
+                                              among_standard_displacements = false;
+                                            else if (op_lattice_summed[d]) {  // for axes with lattice summation also consider +- 2^n
+                                              MADNESS_ASSERT(range[d].N() <= 2);  // displacements that exceed 1 whole cell need bit more complex logic
+                                              const auto disp_d_plusminus_twonk = disp_d < 0 ? disp_d + twon : disp_d - twon;
+                                              if (std::abs(disp_d_plusminus_twonk) > Displacements<NDIM>::bmax_default()) {
+                                                among_standard_displacements = false;
+                                              }
+                                            }
+                                          }
+                                          if (among_standard_displacements) {
+                                            const auto distsq = default_distance_squared(*displacement);
+                                            return distsq > max_distsq_reached; // amond standard displacements => keep if longer than the longest standard displacement considered
+                                          }
+                                          else  // not among standard displacements => keep it
+                                            return true;
                                         }
-                                        else
+                                        else  // skip the fisplacement-based filter if not given
                                           return true;
                                       }
                                       else
