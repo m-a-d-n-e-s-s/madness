@@ -477,10 +477,15 @@ namespace madness {
          * @param type the type of iterator (Begin or End)
          */
         Iterator(const BoxSurfaceDisplacementRange* p, Type type)
-            : parent(p), point(parent->center_.level()), fixed_dim(type == End ? NDIM : 0), box(parent->box_), done(type == End) {
+            : parent(p), point(parent->center_.level()), fixed_dim(type == End ? NDIM : 0), done(type == End) {
           if (type != End) {
-            for (size_t i = 0; i < NDIM; ++i) {
-              reset_along_dim(i);
+            for (size_t d = 0; d != NDIM; ++d) {
+              // min/max displacements along this axis ... N.B. take into account surface thickness!
+              box[d] = parent->box_radius_[d] ? std::pair{parent->box_[d].first -
+                                parent->surface_thickness_[d].value_or(0),
+                         parent->box_[d].second +
+                             parent->surface_thickness_[d].value_or(0)} : parent->box_[d];
+              reset_along_dim(d);
             }
             advance_till_valid();
           }
