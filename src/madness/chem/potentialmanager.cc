@@ -90,4 +90,53 @@ NuclearDensityFunctor &NuclearDensityFunctor::set_rscale(double rscale) {
   return *this;
 }
 
+double WignerSeitzPotentialFunctor::operator()(const coord_3d &r) const {
+  enum { x = 0, y = 1, z = 2 };
+
+  const auto natoms = atoms.natom();
+  double E = 0.;
+
+  const auto eval = [&](const auto &r1, const auto &r2, const auto rcut) {
+    double restrictor_factor = 1.;
+    double r12_sq = 0.;
+    for (int d = 0; d != 3; ++d) {
+      const auto x1 = r1[d];
+      const auto x2 = r2[d];
+      const auto x12 = x1 - x2;
+      r12_sq += x12 * x12;
+      restrictor_factor *= range[d].value(std::abs(x1 - x2) * rcell_width[d]);
+    }
+    const auto r12 = std::sqrt(r12_sq);
+    return restrictor_factor * smoothed_potential(r12 * rcut) * rcut;
+  };
+
+  double result = 0.0;
+  for (int cx = -lattice_sum_range[x]; cx <= lattice_sum_range[x]; ++cx) {
+    for (int cy = -lattice_sum_range[y]; cy <= lattice_sum_range[y]; ++cy) {
+      for (int cz = -lattice_sum_range[z]; cz <= lattice_sum_range[z]; ++cz) {
+        // const auto intracell = cx==0 && cy==0 && cz==0;
+
+        // r - (A + C) = (r - C) - A
+        const std::array<double, 3> rC{r[x] - cx * cell_width[0],
+                                       r[y] - cy * cell_width[1],
+                                       r[z] - cz * cell_width[2]};
+
+        for (std::size_t a = 0; a != natoms; ++a) {
+          const auto &atom = atoms.get_atom(a);
+
+          // make sure this isn't a pseudo-atom
+          if (atom.pseudo_atom)
+            continue;
+
+          result -=
+              atom.q * eval(rC, std::array<double, 3>{atom.x, atom.y, atom.z},
+                            atoms.get_rcut()[a]);
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
 }  // namespace madness
