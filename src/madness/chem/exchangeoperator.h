@@ -105,6 +105,9 @@ private:
     /// exchange using macrotasks, i.e. apply K on a function in individual worlds
     vecfuncT K_macrotask_efficient(const vecfuncT& vket, const double mul_tol = 0.0) const;
 
+    /// exchange using macrotasks, i.e. apply K on a function in individual worlds row-wise
+    vecfuncT K_macrotask_efficient_row(const vecfuncT& vket, const double mul_tol = 0.0) const;
+
     /// computing the full square of the double sum (over vket and the K orbitals)
     vecfuncT K_small_memory(const vecfuncT& vket, const double mul_tol = 0.0) const;
 
@@ -127,7 +130,7 @@ private:
     double lo = 1.e-4;
     double thresh = FunctionDefaults<NDIM>::get_thresh();
     long printlevel = 0;
-    double mul_tol = 0.0;
+    double mul_tol = FunctionDefaults<NDIM>::get_thresh()*0.1;
 
     class MacroTaskExchangeSimple : public MacroTaskOperationBase {
 
@@ -228,17 +231,17 @@ private:
                 vecfuncT resultcolumn = compute_diagonal_batch_in_symmetric_matrix(world, ket_batch, bra_batch,
                                                                                    vf_batch);
 
-                for (int i = vf_range.begin; i < vf_range.end; ++i)
-                    Kf[i] += resultcolumn[i - vf_range.begin];
+                for (int i = vf_range.begin; i < vf_range.end; ++i){
+                    Kf[i] += resultcolumn[i - vf_range.begin];}
 
             } else if (symmetric and not diagonal_block) {
                 auto[resultcolumn, resultrow]=compute_offdiagonal_batch_in_symmetric_matrix(world, vket, bra_batch,
                                                                                             vf_batch);
 
-                for (int i = bra_range.begin; i < bra_range.end; ++i)
-                    Kf[i] += resultcolumn[i - bra_range.begin];
-                for (int i = vf_range.begin; i < vf_range.end; ++i)
-                    Kf[i] += resultrow[i - vf_range.begin];
+                for (int i = bra_range.begin; i < bra_range.end; ++i){
+                    Kf[i] += resultcolumn[i - bra_range.begin];}
+                for (int i = vf_range.begin; i < vf_range.end; ++i){
+                    Kf[i] += resultrow[i - vf_range.begin];}
             } else {
                 auto ket_batch = bra_range.copy_batch(vket);
                 vecfuncT resultcolumn = compute_batch_in_asymmetric_matrix(world, ket_batch, bra_batch, vf_batch);
@@ -299,6 +302,89 @@ private:
 
     };
 
+    class MacroTaskExchangeRow : public MacroTaskOperationBase {
+
+        long nresult;
+        double lo = 1.e-4;
+        double mul_tol = 1.e-7;
+        bool symmetric = false;
+
+        /// custom partitioning for the exchange operator in exchangeoperator.h
+        class MacroTaskPartitionerRow : public MacroTaskPartitioner {
+        public:
+            MacroTaskPartitionerRow() {
+              max_batch_size=1;
+            }       
+        };
+
+    public:
+        MacroTaskExchangeRow(const long nresult, const double lo, const double mul_tol)
+                : nresult(nresult), lo(lo), mul_tol(mul_tol) {
+            partitioner.reset(new MacroTaskPartitionerRow());
+        }
+
+        // you need to define the exact argument(s) of operator() as tuple
+        typedef std::tuple<const std::vector<Function<T, NDIM>>&,
+                           const std::vector<Function<T, NDIM>>&,
+                           const std::vector<Function<T, NDIM>>&> argtupleT;
+
+        using resultT = std::vector<Function<T, NDIM>>;
+
+        // you need to define an empty constructor for the result
+        // resultT must implement operator+=(const resultT&)
+        resultT allocator(World& world, const argtupleT& argtuple) const {
+            std::size_t n = std::get<0>(argtuple).size();
+            resultT result = zero_functions_compressed<T, NDIM>(world, n);
+            return result;
+        }
+
+        /// compute exchange row-wise for a fixed orbital phi_i of vket
+        std::vector<Function<T, NDIM>>
+        operator()(const std::vector<Function<T, NDIM>>& vket,
+                   const std::vector<Function<T, NDIM>>& mo_bra, 
+                   const std::vector<Function<T, NDIM>>& mo_ket) {       
+
+            World& world = vket.front().world();
+            mul_tol = 0.0;
+            print("mul_tol ", mul_tol);
+            
+            resultT Kf = zero_functions_compressed<T, NDIM>(world, 1);
+            vecfuncT psif = zero_functions_compressed<T,NDIM>(world, mo_bra.size()); 
+            auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(world, lo);
+
+            auto& i = batch.input[0].begin;  
+            size_t min_tile = 10;
+            size_t ntile = std::min(mo_bra.size(), min_tile);
+
+            for (size_t ilo=0; ilo<mo_bra.size(); ilo+=ntile){
+                size_t iend = std::min(ilo+ntile,mo_bra.size());
+
+                vecfuncT tmp_mo_bra(mo_bra.begin()+ilo,mo_bra.begin()+iend);
+                auto tmp_psif = mul_sparse(world, vket[i], tmp_mo_bra, mul_tol);
+                print_size(world, tmp_psif, "tmp_psif before truncation");
+                truncate(world, tmp_psif);
+                print_size(world, tmp_psif, "tmp_psi_f after truncation");
+
+                tmp_psif = apply(world, *poisson.get(), tmp_psif);
+                print_size(world, tmp_psif, "tmp_psif (apply) before truncation");
+                truncate(world, tmp_psif);
+                print_size(world, tmp_psif, "tmp_psif (apply) after truncation");
+
+                vecfuncT tmp_mo_ket(mo_ket.begin()+ilo,mo_ket.begin()+iend);
+                // TODO: use matrix_mul_sparse instead, need to implement mul_sparse for
+                //       vecfuncT, vecfuncT
+                auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif);
+                //auto tmp_Kf = mul_sparse(world, tmp_mo_ket, tmp_psif, mul_tol);
+
+                Kf[0] += tmp_Kf;
+                print_size(world, Kf, "Kf before truncation");
+                truncate(world, Kf);
+                print_size(world, Kf, "Kf after truncation");
+            }
+
+            return Kf;
+        }
+    };
 };
 
 } /* namespace madness */

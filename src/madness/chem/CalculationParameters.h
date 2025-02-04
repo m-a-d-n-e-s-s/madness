@@ -64,7 +64,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
         initialize<std::string>("prefix","mad","prefixes your output/restart/json/plot/etc files");
 		initialize<double>("charge",0.0,"total molecular charge");
 		initialize<std::string> ("xc","hf","XC input line");
-		initialize<std::string> ("hfexalg","multiworld","hf exchange algorithm: choose from multiworld (default), smallmem, largemem");
+		initialize<std::string> ("hfexalg","multiworld","hf exchange algorithm: choose from multiworld (default), multiworld_row, smallmem, largemem");
 		initialize<double>("smear",0.0,"smearing parameter");
 		initialize<double>("econv",1.e-5,"energy convergence");
 		initialize<double>("dconv",1.e-4,"density convergence");
