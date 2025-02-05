@@ -271,15 +271,18 @@ namespace madness {
       using BoxRadius = std::array<std::optional<Translation>, NDIM>;  // null radius = unlimited size
       using SurfaceThickness = std::array<std::optional<Translation>, NDIM>;  // null thickness for dimensions with null radius
       using Box = std::array<std::pair<Translation, Translation>, NDIM>;
-      using Hollowness = std::array<bool, NDIM>;
-      using Filter = std::function<bool(Level, const PointPattern&, const std::optional<Displacement>&)>;
+      using Hollowness = std::array<bool, NDIM>;  // this can be uninitialized, unlike array_of_bools
+      using Periodicity = array_of_bools<NDIM>;
+      /// this callable filters out points and/or displacements; note that the displacement is optional (this use case supports filtering based on point pattern onlu) and non-const to make it possible for the filter function to update the displacement (e.g. to map it back to the simulation cell)
+      using Filter = std::function<bool(Level, const PointPattern&, std::optional<Displacement>&)>;
 
       Point center_;                          ///< Center point of the box
       BoxRadius box_radius_;                  ///< halved size of the box in each dimension
       SurfaceThickness
           surface_thickness_;    ///< surface thickness in each dimension
       Box box_;                  ///< box bounds in each dimension
-      Hollowness hollowness_;    ///< does box contain non-surface points?
+      Hollowness hollowness_;    ///< does box contain non-surface points along each dimension?
+      Periodicity is_periodic_;  ///< which dimensions are periodic?
       Filter filter_;  ///< optional filter function
       Displacement probing_displacement_;  ///< displacement to a nearby point on the surface; it may not be able to pass the filter, but is sufficiently representative of the surface displacements to allow screening with isotropic kernels
 
@@ -300,7 +303,7 @@ namespace madness {
         Box box;                                    ///< updated box bounds in each dimension, used to avoid duplicate displacements by excluding the surface displacements for each processed fixed dim
         bool done;                                  ///< Flag indicating iteration completion
 
-        // return true if have another surface layer
+        // return true if we have another surface layer
         bool next_surface_layer() {
           Vector<Translation, NDIM> l = point.translation();
           if (l[fixed_dim] !=
@@ -357,7 +360,8 @@ namespace madness {
               if (filter) {
                 PointPattern point_pattern;
                 point_pattern[fixed_dim] = point[fixed_dim];
-                result = !filter(point.level(), point_pattern, {});
+                std::optional<Displacement> nulldisp;
+                result = !filter(point.level(), point_pattern, nulldisp);
               }
               return result;
             };
@@ -401,7 +405,7 @@ namespace madness {
         void advance_till_valid() {
           if (parent->filter_) {
             const auto filtered_out = [&]() -> bool {
-              const auto& disp = this->displacement();
+              this->displacement(); // ensure disp is up to date
               return !parent->filter_(point.level(), point.translation(), disp);
             };
 
@@ -417,12 +421,35 @@ namespace madness {
         }
 
         void reset_along_dim(size_t dim) {
+          const auto is_fixed_dim = dim == fixed_dim;
           Vector<Translation, NDIM> l = point.translation();
-          if (dim != fixed_dim)
-            l[dim] = box[dim].first;
-          else
-            l[dim] = parent->box_[dim].first -
-                     parent->surface_thickness_[dim].value_or(0);
+          // for fixed dimension start with first surface layer, else use box lower bound (N.B. it's updated as fixed dimensions change)
+          Translation l_dim_min =
+              is_fixed_dim
+                  ? parent->box_[dim].first -
+                        parent->surface_thickness_[dim].value_or(0)
+              : box[dim].first;
+          // if dimension is periodic, only include *unique* displacements (modulo period)
+          if (parent->is_periodic_[dim]) {
+            const auto period = 1 << parent->center_.level();
+            const Translation l_dim_max =
+                is_fixed_dim ? parent->box_[dim].second +
+                          parent->surface_thickness_[dim].value_or(0) :
+                 box[dim].second;
+            const Translation l_dim_min_unique = l_dim_max - period + 1;
+            l_dim_min = std::max(l_dim_min, l_dim_max - period + 1);
+            // fixed dim only: l_dim_min may not correspond to a surface layer
+            // this can only happen if l_dim_min is in the gap between the surface layers
+            if (is_fixed_dim && parent->hollowness_[dim]) {
+              if (l_dim_min > parent->box_[dim].first +
+                                  parent->surface_thickness_[dim].value_or(0)) {
+                l_dim_min = std::max(
+                    l_dim_min, parent->box_[dim].second -
+                                   parent->surface_thickness_[dim].value_or(0));
+              }
+            }
+          }
+          l[dim] = l_dim_min;
 
           point = Point(point.level(), l);
 
@@ -435,7 +462,8 @@ namespace madness {
               if (filter) {
                 PointPattern point_pattern;
                 point_pattern[fixed_dim] = point[fixed_dim];
-                result = !filter(point.level(), point_pattern, {});
+                std::optional<Displacement> nulldisp;
+                result = !filter(point.level(), point_pattern, nulldisp);
               }
               return result;
             };
@@ -555,15 +583,18 @@ namespace madness {
        * @param center Center of the box
        * @param box_radius Box radius in each dimension
        * @param surface_thickness Surface thickness in each dimension
-       * @param filter Optional filter function (if returns false, displacement is dropped; default: no filter)
-       * @throws std::invalid_argument if any size is not positive
+       * @param is_periodic whether each dimension is periodic; along periodic range-restricted dimensions only one side of the box is iterated over.
+       * @param filter Optional filter function (if returns false, displacement is dropped; default: no filter); it may update the displacement to make it valid as needed (e.g. map displacement to the simulation cell)
+       * @pre `box_radius[d]>0 && surface_thickness[d]<=box_radius[d]`
+       *
        */
       explicit BoxSurfaceDisplacementRange(const Key<NDIM>& center,
                                            const std::array<std::optional<std::int64_t>, NDIM>& box_radius,
                                            const std::array<std::optional<std::int64_t>, NDIM>& surface_thickness,
+                                           const array_of_bools<NDIM>& is_periodic,
                                            Filter filter = {})
           : center_(center), box_radius_(box_radius),
-            surface_thickness_(surface_thickness), filter_(std::move(filter)) {
+            surface_thickness_(surface_thickness), is_periodic_(is_periodic), filter_(std::move(filter)) {
         // initialize box bounds
         bool has_finite_dimensions = false;
         const auto n = center_.level();
@@ -584,9 +615,10 @@ namespace madness {
         MADNESS_ASSERT(has_finite_dimensions);
         probing_displacement_ = Displacement(n, probing_displacement_vec);
         for (int d=0; d!= NDIM; ++d) {
-          MADNESS_ASSERT(!(box_radius[d].has_value() ^ surface_thickness[d].has_value()));
-          MADNESS_ASSERT(surface_thickness[d].value_or(0) >= 0);
-          hollowness_[d] = surface_thickness[d] ? (box_[d].first + surface_thickness[d].value() < box_[d].second - surface_thickness[d].value()) : false;
+          // surface thickness should be only given for finite-radius dimensions
+          MADNESS_ASSERT(!(box_radius_[d].has_value() ^ surface_thickness_[d].has_value()));
+          MADNESS_ASSERT(surface_thickness_[d].value_or(0) >= 0);
+          hollowness_[d] = surface_thickness_[d] ? (box_[d].first + surface_thickness_[d].value() < box_[d].second - surface_thickness_[d].value()) : false;
         }
       }
 
@@ -626,6 +658,11 @@ namespace madness {
         * @return the surface thickness in each dimension
        */
       const std::array<std::optional<int64_t>, NDIM>& surface_thickness() const { return surface_thickness_; }
+
+      /**
+       * @return flags indicating whether each dimension is periodic
+       */
+      const array_of_bools<NDIM>& is_periodic() const { return is_periodic_; }
 
       /**
        * @return 'probing" displacement to a nearby point *on* the surface; it may not necessarily be in the range of iteration (e.g., it may not be able to pass the filter) but is representative of the surface displacements for the purposes of screening
