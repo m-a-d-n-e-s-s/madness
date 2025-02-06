@@ -42,7 +42,7 @@ jobs:
         -DBUILD_TESTING=ON
         -DMADNESS_ENABLE_CEREAL=ON
         -DCMAKE_CXX_STANDARD=${{ matrix.task_backend == 'Threads' && matrix.build_type == 'Debug' && '20' || '17' }}
-        -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'Threads' }}
+        -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'PaRSEC' }}
         -DMADNESS_BUILD_LIBRARIES_ONLY=${{ matrix.build_type != 'Debug' }}
 
     steps:
@@ -66,6 +66,8 @@ jobs:
         fi
         if [ "X${{ matrix.task_backend }}" = "XPaRSEC" ]; then
           echo "TASK_BACKEND=PaRSEC" >> $GITHUB_ENV
+          # do not bind threads to cores to avoid oversubscription
+          echo "PARSEC_MCA_bind_threads=0" >> $GITHUB_ENV
         fi
 
     - name: Install prerequisite MacOS packages
@@ -150,6 +152,6 @@ jobs:
         cmake --build test_install
         test_install/test_runtime
         # if built more than just MADWorld run the HF test
-        if [ "X${{ matrix.task_backend }}" = "XThreads" ]; then
+        if [ "X${{ matrix.task_backend }}" = "XPaRSEC" ]; then
            test_install/simple_hf
         fi
