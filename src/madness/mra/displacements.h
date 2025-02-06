@@ -133,30 +133,39 @@ namespace madness {
         }
 
         static void make_disp_periodic(int bmax, Level n) {
+            MADNESS_ASSERT(periodic_axes.any());  // else use make_disp
             Translation twon = Translation(1)<<n;
 
             if (bmax > (twon-1)) bmax=twon-1;
 
-            // Make permissible 1D translations
-            Translation b[4*bmax+1];
-            int i=0;
+            // Make permissible 1D translations, periodic and nonperiodic (for mixed BC)
+            Translation bp[4*bmax+1];
+            Translation bnp[2*bmax+1];
+            int ip=0;
+            int inp=0;
             for (Translation lx=-bmax; lx<=bmax; ++lx) {
-                b[i++] = lx;
-                if ((lx < 0) && (lx+twon > bmax)) b[i++] = lx + twon;
-                if ((lx > 0) && (lx-twon <-bmax)) b[i++] = lx - twon;
+                bp[ip++] = lx;
+                if ((lx < 0) && (lx+twon > bmax)) bp[ip++] = lx + twon;
+                if ((lx > 0) && (lx-twon <-bmax)) bp[ip++] = lx - twon;
+                bnp[inp++] = lx;
             }
-            MADNESS_ASSERT(i <= 4*bmax+1);
-            int numb = i;
+            MADNESS_ASSERT(ip <= 4*bmax+1);
+            MADNESS_ASSERT(inp <= 2*bmax+1);
+            const int nbp = ip;
+            const int nbnp = inp;
 
             MADNESS_PRAGMA_CLANG(diagnostic push)
             MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
 
             disp_periodic[n] = std::vector< Key<NDIM> >();
-            Vector<long,NDIM> lim(numb);
+            Vector<long,NDIM> lim;
+            for(int i=0; i!=NDIM; ++i) {
+              lim[i] = periodic_axes[i] ? nbp : nbnp;
+            }
             for (IndexIterator index(lim); index; ++index) {
                 Vector<Translation,NDIM> d;
                 for (std::size_t i=0; i<NDIM; ++i) {
-                    d[i] = b[index[i]];
+                  d[i] = periodic_axes[i] ? bp[index[i]] : bnp[index[i]];
                 }
                 disp_periodic[n].push_back(Key<NDIM>(n,d));
             }
@@ -173,7 +182,9 @@ namespace madness {
     public:
         /// first time this is called displacements are generated.
         /// if boundary conditions are not periodic, the periodic displacements
-        /// are generated for all axes. If need to use periodic boundary conditions
+        /// are generated for all axes. This allows to support application of
+        /// operators with boundary conditions periodic along any axis (including all).
+        /// If need to use periodic boundary conditions
         /// for some axes only, make sure to set the boundary conditions appropriately
         /// before the first call to this
         Displacements() {
@@ -185,14 +196,12 @@ namespace madness {
           }
 
           if constexpr (NDIM <= 3) {
-            if (disp_periodic[0].empty()) {
+            if (disp_periodic[0].empty()) {  // if not initialized yet
               if (FunctionDefaults<NDIM>::get_bc().is_periodic().any())
-                periodic_axes = FunctionDefaults<NDIM>::get_bc().is_periodic();
+                reset_periodic_axes(
+                    FunctionDefaults<NDIM>::get_bc().is_periodic());
               else
-                periodic_axes = decltype(periodic_axes){true};
-              Level nmax = 8 * sizeof(Translation) - 2;
-              for (Level n = 0; n < nmax; ++n)
-                make_disp_periodic(bmax_default(), n);
+                reset_periodic_axes(array_of_bools<NDIM>{true});
             }
           }
 
@@ -207,10 +216,10 @@ namespace madness {
             if (kernel_lattice_sum_axes.any()) {
                 MADNESS_ASSERT(NDIM <= 3);
                 MADNESS_ASSERT(n < std::extent_v<decltype(disp_periodic)>);
-                if (kernel_lattice_sum_axes != periodic_axes) {
+                if ((kernel_lattice_sum_axes && periodic_axes) != kernel_lattice_sum_axes) {
                   std::string msg =
                       "Displacements<" + std::to_string(NDIM) +
-                      ">::get_disp(level, kernel_lattice_summed): kernel_lattice_summed differs from the boundary conditions FunctionDefault's had when Displacements were initialized; on-demand periodic displacements generation is not supported";
+                      ">::get_disp(level, kernel_lattice_sum_axes): kernel_lattice_sum_axes is set for some axes that were not periodic in the FunctionDefault's boundary conditions active at the time when Displacements were initialized; invoke Displacements<NDIM>::reset_periodic_axes(kernel_lattice_sum_axes) to rebuild the periodic displacements";
                   MADNESS_EXCEPTION(msg.c_str(), 1);
                 }
                 return disp_periodic[n];
@@ -232,6 +241,25 @@ namespace madness {
           MADNESS_PRAGMA_CLANG(diagnostic pop)
         }
 
+        /// rebuilds periodic displacements so that they are optimal for the given set of periodic axes
+
+        /// this must be done while no references to prior periodic displacements are outstanding (i.e. no operator application
+        /// tasks in flight)
+        /// \param new_periodic_axes the new periodic axes
+        static void reset_periodic_axes(const array_of_bools<NDIM>& new_periodic_axes) {
+          MADNESS_PRAGMA_CLANG(diagnostic push)
+          MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
+
+          MADNESS_ASSERT(new_periodic_axes.any());  // else why call this?
+          if (new_periodic_axes != periodic_axes) {
+
+            periodic_axes = new_periodic_axes;
+            Level nmax = 8 * sizeof(Translation) - 2;
+            for (Level n = 0; n < nmax; ++n)
+              make_disp_periodic(bmax_default(), n);
+          }
+          MADNESS_PRAGMA_CLANG(diagnostic pop)
+        }
     };
 
     template <std::size_t N, std::size_t M>
