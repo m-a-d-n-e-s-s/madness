@@ -41,7 +41,7 @@ jobs:
         -DMPIEXEC_PREFLAGS='--bind-to;none;--allow-run-as-root'
         -DBUILD_TESTING=ON
         -DMADNESS_ENABLE_CEREAL=ON
-        -DCMAKE_CXX_STANDARD=${{ matrix.task_backend = 'Threads' && matrix.build_type = 'Debug' && '20' || '17' }}
+        -DCMAKE_CXX_STANDARD=${{ matrix.task_backend == 'Threads' && matrix.build_type == 'Debug' && '20' || '17' }}
         -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'Threads' }}
         -DMADNESS_BUILD_LIBRARIES_ONLY=${{ matrix.build_type != 'Debug' }}
 
