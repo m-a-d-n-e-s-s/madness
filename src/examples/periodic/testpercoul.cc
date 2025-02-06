@@ -1,7 +1,9 @@
 #include <madness/mra/mra.h>
+#include <madness/mra/mw.h>
 #include <madness/mra/operator.h>
+#include <madness/chem/potentialmanager.h>
 
-const int L = 20;
+const int L = 18;
 const int Lx = L;
 const int Ly = L;
 const int Lz = L;
@@ -146,7 +148,7 @@ int main(int argc, char**argv) {
   {
 
     // Function defaults
-    int k = 7;
+    int k = 10;
     double eps = std::pow(10., -k+2);
     FunctionDefaults<3>::set_k(k);
     Tensor<double> cell(3, 2);
@@ -156,14 +158,19 @@ int main(int argc, char**argv) {
     cell(1, 1) = Ly / 2;
     cell(2, 0) = -Lz / 2;
     cell(2, 1) = Lz / 2;
+    BoundaryConditions<3> bc_open(BC_FREE);
+    BoundaryConditions<3> bc_periodic(BC_PERIODIC);
+    BoundaryConditions<3> bc_mixed({BC_FREE, BC_FREE, BC_FREE, BC_FREE, BC_PERIODIC, BC_PERIODIC});
+    FunctionDefaults<3>::set_bc(bc_mixed);
+    const auto bc = FunctionDefaults<3>::get_bc();
+    Displacements<3>::reset_periodic_axes(bc.is_periodic());
+
     FunctionDefaults<3>::set_cell(cell);
     FunctionDefaults<3>::set_thresh(eps);
     FunctionDefaults<3>::set_refine(true);
-    FunctionDefaults<3>::set_initial_level(8);
+    FunctionDefaults<3>::set_autorefine(false);
+    FunctionDefaults<3>::set_initial_level(2);
     FunctionDefaults<3>::set_truncate_mode(0);
-    BoundaryConditions<3> bc_open(BC_FREE);
-    BoundaryConditions<3> bc_periodic(BC_PERIODIC);
-    FunctionDefaults<3>::set_bc(bc_periodic);
 
     // Create test charge density and the exact solution to Poisson's equation
     // with said charge density
@@ -250,40 +257,170 @@ int main(int argc, char**argv) {
     SeparatedConvolution<double, 3> op =
         CoulombOperator(world, 1e-10, eps, bc_open.is_periodic());
     SeparatedConvolution<double, 3> pop =
-        CoulombOperator(world, 1e-10, eps, bc_periodic.is_periodic());
+        CoulombOperator(world, 1e-10, eps, bc.is_periodic());
+
+    auto range = bc.make_range<3>(1, .5/L);
+
     // N.B. non-periodic Coulomb with range restriction to [-L/2,L/2]
     SeparatedConvolution<double, 3> op_rr(
         world,
         madness::OperatorInfo(0.0, 1e-10, eps, madness::OT_G12,
                               /* truncate? */ false,
                               /* range restriction? */
-                              bc_periodic.make_range_vector(1 /*, 1./L*/)
+                              range
                               ),
-        madness::no_lattice_sum<3>(), madness::FunctionDefaults<3>::get_k());
+        madness::no_lattice_sum<3>());
     // N.B. Coulomb with range restriction to [-L/2,L/2]
     SeparatedConvolution<double, 3> pop_rr(
         world,
         madness::OperatorInfo(0.0, 1e-10, eps, madness::OT_G12,
                               /* truncate? */ false,
                               /* range restriction? */
-                              bc_periodic.make_range_vector(1 /*, 1./L*/)
+                              range
                               ),
-        madness::lattice_sum<3>(), madness::FunctionDefaults<3>::get_k());
+        bc.is_periodic());
+    // N.B. Coulomb with range restriction to [-L/2,L/2]
+    SeparatedConvolution<double, 3> pop2_rr(
+        world,
+        madness::OperatorInfo(0.0, 1e-10, eps, madness::OT_G12,
+                              /* truncate? */ false,
+                              /* range restriction? */
+                              range
+                              ),
+        madness::no_lattice_sum<3>());
+    pop2_rr.set_domain_periodicity(bc.is_periodic());
 
-    // print out norms vs displacement length
-    //    std::cout << "RP operator norms\n";
-    //    for (int n = 0; n <= 10; ++n) {
-    //      for (int l = 0; l <= ((1 << n) + 5); ++l) {
-    //        std::cout << "n=" << n << " l={" << l << ",0,0} ||op_{n,{l,0,0}}||="
-    //                  << op_rr.norm(n, Key<3>(n, Vector<Translation, 3>({l, 0, 0})),
-    //                                Key<3>(n, Vector<Translation, 3>({0,0,0})))
-    //                  << "\n";
-    //      }
-    //    }
-    //    std::cout << std::endl;
+    // check operator norms
+    {
+      int nerrors_local = 0;
 
-    const std::vector<std::reference_wrapper<const SeparatedConvolution<double, 3>>> test_operators = {op, pop, op_rr, pop_rr};
-    const std::vector<std::string> test_operator_names = {"NP", "P", "RNP", "RP"};
+      constexpr auto ND = 3;
+      for (int n = 1; n <= 5; ++n) {
+        const auto twonm1 = 1 << (n - 1);
+        const auto twonm3 = 1 << std::max((n - 1), 0);
+        Key<ND> key(n, {twonm3, twonm1, 0});
+
+        std::size_t disp_count = 0;
+        std::array<std::optional<std::int64_t>, ND> box_radius;
+        std::array<std::optional<std::int64_t>, ND> surface_thickness;
+        auto &range = op_rr.get_range();
+        for (int d = 0; d != ND; ++d) {
+          if (range[d]) {
+            box_radius[d] = range[d].N();
+            surface_thickness[d] = range[d].finite_soft() ? 2 : 0;
+          }
+        }
+
+        // surface displacements
+        {
+          BoxSurfaceDisplacementRange<ND> range_boundary_face_displacements(
+              key, box_radius, surface_thickness, madness::no_lattice_sum<3>(),
+              [](const auto level, const auto &dest,
+                 const auto &displacement) -> bool { return true; });
+          // check that all displacements are unique:
+          {
+            std::vector disps(range_boundary_face_displacements.begin(),
+                              range_boundary_face_displacements.end());
+            std::sort(disps.begin(), disps.end());
+            auto it = std::unique(disps.begin(), disps.end());
+
+            if (it != disps.end()) {
+              std::cout << "Duplicates found!!" << std::endl;
+              abort();
+            }
+          }
+
+          auto process_displacement = [&](const Key<3>& disp) {
+
+            auto rp2 = pop2_rr.get_ops();
+            auto rp = pop_rr.get_ops();
+            auto rnp = op_rr.get_ops();
+            const auto twon = 1 << n;
+            MADNESS_ASSERT(rp2.size() == rp.size());
+            for(auto mu=0; mu != rp.size(); ++mu) {
+              for(int d=0; d!=3; ++d) {
+                const auto& rp_R = rp[mu].getop(d)->nonstandard(n, disp[d])->R;
+                const auto& rp2_R = rp2[mu].getop(d)->nonstandard(n, disp[d])->R;
+                if (!rp_R.has_data()) {
+                  MADNESS_ASSERT(!rp2_R.has_data());
+                  continue;
+                }
+
+                if (bc.is_periodic()[d]) {
+                  auto rp_mu_gau =
+                      dynamic_pointer_cast<GaussianConvolution1D<double>>(
+                          rp[mu].getop(d));
+
+                  const auto &rnp_d0_R =
+                      rnp[mu].getop(d)->nonstandard(n, disp[d])->R;
+                  const auto &rnp_d1_R =
+                      rnp[mu].getop(d)->nonstandard(n, disp[d] + twon)->R;
+                  const auto &rnp_dm1_R =
+                      rnp[mu].getop(d)->nonstandard(n, disp[d] - twon)->R;
+                  MADNESS_ASSERT(rnp_d0_R.has_data() || rnp_d1_R.has_data() ||
+                                 rnp_dm1_R.has_data());
+                  Tensor<double> rp_R_recomputed;
+                  if (rnp_d0_R.has_data())
+                    rp_R_recomputed = copy(rnp_d0_R);
+                  if (rnp_d1_R.has_data())
+                    rp_R_recomputed = rp_R_recomputed.has_data()
+                                          ? rp_R_recomputed + rnp_d1_R
+                                          : copy(rnp_d1_R);
+                  if (rnp_dm1_R.has_data())
+                    rp_R_recomputed = rp_R_recomputed.has_data()
+                                          ? rp_R_recomputed + rnp_dm1_R
+                                          : copy(rnp_dm1_R);
+                  const auto error_rp = (rp_R - rp_R_recomputed).normf();
+                  const auto error_rp2 = (rp2_R - rnp_d0_R).normf();
+
+                  if (error_rp > 1e-14 || error_rp2 > 1e-14) {
+                    if (true) {
+                      std::cout << "||RP||{n=" << n << ",l=0} -> {n=" << n
+                                << ",l=" << disp.translation()
+                                << "} = " << std::scientific
+                                << pop_rr.norm(
+                                       n, Key<3>(n, disp.translation()),
+                                       Key<3>(n, Vector<Translation, 3>{0, 0, 0}))
+                                << "\n";
+                      std::cout << "||RP2||{n=" << n << ",l=0} -> {n=" << n
+                                << ",l=" << disp.translation()
+                                << "} = " << std::scientific
+                                << pop2_rr.norm(
+                                       n, Key<3>(n, disp.translation()),
+                                       Key<3>(n, Vector<Translation, 3>{0, 0, 0}))
+                                << "\n";
+                    }
+                    ++nerrors_local;
+                  }
+                }
+              }
+            }
+          };
+
+          for (int l = 0; l != (1 << (n - 1)) + 5; ++l) {
+            process_displacement(Key<3>(n, Vector<Translation, 3>({l, 0, 0})));
+            ++disp_count;
+          }
+
+          if (n <= 3) {
+            for (auto &&disp : range_boundary_face_displacements) {
+              process_displacement(disp);
+              ++disp_count;
+            }
+          }
+
+          process_displacement(Key<3>(n, Vector<Translation, 3>({-4,0,7})));
+          process_displacement(Key<3>(n, Vector<Translation, 3>({-4,1,7})));
+
+        } // box displacements
+
+      }
+      std::cout << "RNP operator norms check ... " << (nerrors_local > 0 ? "(FAIL)" : "(PASS)") << std::endl;
+      nerrors += nerrors_local;
+    }
+
+    const std::vector<std::reference_wrapper<const SeparatedConvolution<double, 3>>> test_operators = {op, pop, op_rr, pop_rr, pop2_rr};
+    const std::vector<std::string> test_operator_names = {"NP", "P", "RNP", "RP", "RP2"};
     std::map<std::string, std::reference_wrapper<const SeparatedConvolution<double, 3>>> str2op;
     for(int i=0; i!=test_operators.size(); ++i) {
       str2op.emplace(test_operator_names[i], test_operators[i]);
@@ -327,8 +464,8 @@ int main(int argc, char**argv) {
       std::string ostr = test_operator_names[oi];
       std::string vstr = "V_" + ostr;
       const auto error =(str2V[ostr][0] - str2V[ostr][1] + str2V[ostr][2]).norm2();
-      const auto tol = k <=10 ? 1e2 * eps : 5e-7;
-      const bool success = error <= 1e2 * eps;
+      const auto tol = k <=10 ? 2e2 * eps : 5e-7;
+      const bool success = error <= tol;
       if (!success) ++nerrors;
       std::cout << "||" << vstr << "(rho)-" << vstr << "(gdiffuse)+" << vstr
                 << "(gtight)||="
@@ -379,7 +516,244 @@ int main(int argc, char**argv) {
                  axis_name.c_str(), result_str.c_str());
         }
       }
-    }
+    }  // gaussian density test
+
+    // test superfine structure
+    if (false) {  // tiny MRA box
+      const auto n=15;
+      const auto twon = (1<<n);
+      const auto one_over_twon = 1./twon;
+      const Key<3> key(15, {(1<<14) - 1, (1<<14)-1, 18932});
+      const auto ff =
+          ScalingFunctionFunctor<3>({Lx/2, Ly/2, Lz/2}, key, {0,0,0});
+      std::cout << "ff(ff.special_points()[0]) = " << ff(ff.special_points()[0]) << std::endl;
+      madness::real_function_3d f =
+          madness::real_factory_3d(world)
+              .functor(ff)
+              .truncate_mode(0)
+          //.special_points(std::vector{coord_3d{-0.5*one_over_twon,-0.5*one_over_twon,-L + (18932*2*L+0.5) * one_over_twon}})
+          ;
+      f.truncate();
+      f.print_tree(std::cout);
+
+      auto V_np = op(f);
+      auto V_rnp = op_rr(f);
+
+      std::string axis_name = "Z";
+      printf("Scan along %s axis\n", axis_name.c_str());
+      printf("%10c%18s%18s%18s\n", std::tolower(axis_name[0]),
+             "ρn", "V_NP", "V_RNP");
+      const auto step = 0.18;
+      for (double r = -L / 2; r <= L / 2;
+           r += step) {
+        coord_3d p = {-0.5*one_over_twon, -0.5*one_over_twon, (double)r};
+        printf("%10.2f%18.8f%18.8f%18.8f\n", (double)r,
+               f(p), V_np(p), V_rnp(p)
+        );
+      }
+
+    }  // superfine box test
+
+    if (true) { // sum of point charges
+      int nerrors_local = 0;
+      auto check = [&](double error, double tol) {
+        bool success = error < tol;
+        if (!success)
+          ++nerrors_local;
+      };
+      auto scheck = [&](const auto& str, double error, double tol) {
+        const bool success = error < tol;
+        if (!success)
+          ++nerrors_local;
+        std::cout << str << " = " << error
+                  << (success ? "(PASS)" : "(FAIL)") << std::endl;
+      };
+
+      constexpr auto x0 = -1.0;
+      const auto xs = {-9., -7.9, -4.7, -4.3, x0};
+
+      std::vector<madness::Atom> mad_atoms;
+      // uncomment all charges to stress test
+      for (const auto& atom : std::vector<std::array<double, 3>>{
+//               {x0, 0., 1.4},
+//               {x0, 0., -0.4},
+//               {x0, 0., 3.2},
+//               {x0, 0., -2.2},
+//               {x0, 0., 5.0},
+//               {x0, 0., -4.0},
+//               {x0, 0., 6.8},
+//               {x0, 0., -5.8},
+//               {x0, 0., 8.6},
+               {x0, 0., -7.6}
+           }) {
+        mad_atoms.emplace_back(atom[0], atom[1], atom[2], +1., 1);
+      }
+      madness::Molecule mol(std::move(mad_atoms),
+                            eps/10.);
+      auto ρn_func = std::make_shared<madness::NuclearDensityFunctor>(mol);
+      using fi3d = madness::FunctionFunctorInterface<double, 3>;
+      madness::real_function_3d ρnuc =
+          madness::real_factory_3d(world)
+              .functor(std::static_pointer_cast<fi3d>(ρn_func))
+              .truncate_mode(0)
+              .truncate_on_project();
+      ρnuc.truncate();
+
+      auto V_np = op(ρnuc);
+      auto V_np_exact_func = std::make_shared<madness::MolecularPotentialFunctor>(mol);
+      madness::real_function_3d  V_np_exact =
+          madness::real_factory_3d(world)
+              .functor(std::static_pointer_cast<fi3d>(V_np_exact_func))
+              .truncate_mode(0)
+              .truncate_on_project();
+      V_np_exact *= -1;
+      scheck("||NP - NP(exact)||", (V_np - V_np_exact).norm2(), 1e2 * eps);
+
+      {
+        for (auto x: xs) {
+          printf("Scan along {%f,0,z} ray\n", x);
+          printf("%10s%18s%18s%18s%18s%18s\n", "z", "V_NP",
+                 "V_NP(exact)", "δV_NP", "V_NP(exact,mw)",
+                 "V_NP(exact,δmw)");
+          const auto step = 0.18;
+          for (double z = -L / 2; z <= L / 2; z += step) {
+            coord_3d p = {x, 0, (double)z};
+            const auto v = V_np(p);
+            const auto v_ex = -(*V_np_exact_func)(p);
+            const auto v_ex_mw = V_np_exact(p);
+
+            printf("%10.2f%18.8f%18.8f%18.8f%18.8f%18.8f\n", (double)z, v,
+                   v_ex, v-v_ex, v_ex, v_ex_mw - v_ex);
+
+            // near the point charges the errors due to projection can be large, but operator application reduces them
+            check(v-v_ex_mw, (x == x0 ? 5e2 : 5) * eps);
+            check(v-v_ex, 5 * eps);
+          }
+        }
+      }
+
+      auto V_rp = pop_rr(ρnuc);
+      auto V_rp2 = pop2_rr(ρnuc);
+
+      scheck("||RP - RP2||", (V_rp - V_rp2).norm2(), 1e2 * eps);
+
+      auto V_rp_exact_func = std::make_shared<madness::WignerSeitzPotentialFunctor>(mol, FunctionDefaults<3>::get_cell(), FunctionDefaults<3>::get_bc(), range);
+      madness::real_function_3d  V_rp_exact =
+          madness::real_factory_3d(world)
+              .functor(std::static_pointer_cast<fi3d>(V_rp_exact_func))
+              .truncate_mode(0)
+              .truncate_on_project();
+      V_rp_exact *= -1;
+      scheck("||RP - RP(exact)||", (V_rp - V_rp_exact).norm2(), 1e2 * eps);
+      scheck("||RP2 - RP(exact)||", (V_rp2 - V_rp_exact).norm2(), 1e2 * eps);
+
+      {
+        for (auto x: xs) {
+          printf("Scan along {%f,0,z} ray\n", x);
+          printf("%10s%18s%18s%18s%18s%18s\n", "z", "V_RP",
+                 "V_RP(exact)", "δV_RP", "V_RP(exact,mw)",
+                 "V_RP(exact,δmw)");
+          const auto step = 0.18;
+          for (double z = -L / 2; z <= L / 2; z += step) {
+            coord_3d p = {x, 0, (double)z};
+            const auto v = V_rp(p);
+            const auto v_ex_mw = V_rp_exact(p);
+            const auto v_ex = -(*V_rp_exact_func)(p);
+
+            printf("%10.2f%18.8f%18.8f%18.8f%18.8f%18.8f\n", (double)z, v,
+                   v_ex, v - v_ex, v_ex_mw, v_ex_mw - v_ex);
+
+            // near the point charges the errors due to projection can be large, but operator application reduces them
+            check(v-v_ex_mw, (x == x0 ? 5e2 : 5) * eps);
+            check(v-v_ex, 5 * eps);
+          }
+        }
+      }
+
+      auto V_rnp = op_rr(ρnuc);
+      auto V_rnp_exact_func = std::make_shared<madness::WignerSeitzPotentialFunctor>(mol, FunctionDefaults<3>::get_cell(), FunctionDefaults<3>::get_bc(), range, std::array{0,0,0});
+      madness::real_function_3d  V_rnp_exact =
+          madness::real_factory_3d(world)
+              .functor(std::static_pointer_cast<fi3d>(V_rnp_exact_func))
+              .truncate_mode(1)
+              .truncate_on_project();
+      V_rnp_exact *= -1;
+      scheck("||RNP - RNP(exact)||", (V_rnp - V_rnp_exact).norm2(), 1e2 * eps);
+
+      {
+        for (auto x: xs) {
+          printf("Scan along {%f,0,z} ray\n", x);
+          printf("%10s%18s%18s%18s%18s%18s\n", "z", "V_RNP",
+                 "V_RNP(exact)", "δV_RNP", "V_RNP(exact, mw)",
+                 "V_RNP(exact,δmw)");
+          const auto step = 0.18;
+          for (double z = -L / 2; z <= L / 2; z += step) {
+            coord_3d p = {x, 0, (double)z};
+            const auto v = V_rnp(p);
+            const auto v_ex_mw = V_rnp_exact(p);
+            const auto v_ex = -(*V_rnp_exact_func)(p);
+
+            printf("%10.2f%18.8f%18.8f%18.8f%18.8f%18.8f\n", (double)z, v,
+                   v_ex, v - v_ex, v_ex_mw, v_ex_mw - v_ex);
+
+            // near the point charges the errors due to projection can be large, but operator application reduces them
+            check(v-v_ex_mw, (x == x0 ? 5e2 : 5) * eps);
+            check(v-v_ex, 5 * eps);
+          }
+        }
+      }
+
+      plot_plane(world, std::vector{V_np - V_np_exact,
+                                    V_rnp - V_rnp_exact, V_rp2 - V_rp_exact, V_rp - V_rp2}, "input");
+
+      auto V_p = pop(ρnuc);
+      {
+        std::string axis_name = "Z";
+        printf("Scan along %s axis\n", axis_name.c_str());
+        printf("%10c%18s%18s%18s%18s%18s%18s\n", std::tolower(axis_name[0]),
+               "ρn", "V_NP", "V_RNP", "V_P", "V_RP", "V_RP2");
+        const auto step = 0.18;
+        for (double r = -L / 2; r <= L / 2; r += step) {
+          coord_3d p = {x0, 0, (double)r};
+          printf("%10.2f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f\n", (double)r,
+                 ρnuc(p), V_np(p), V_rnp(p), V_p(p), V_rp(p), V_rp2(p));
+        }
+      }
+
+      // plot contributions from individual Gaussians in the separated representation
+      // do this for every 10th term in the separated representation
+      if (false) {
+        const auto rank = op.get_rank();
+        MADNESS_ASSERT(rank == op_rr.get_rank());
+        for (int mu = 0; mu < rank; mu += 10) {
+          std::cout << "=== op[mu].alpha = "
+                    << std::static_pointer_cast<GaussianConvolution1D<double>>(
+                           op.get_ops().at(mu).getop(0))
+                           ->expnt
+                    << std::endl;
+          SeparatedConvolution<double, 3> op_mu(
+              world, std::vector{op.get_ops().at(mu)});
+          SeparatedConvolution<double, 3> op_rr_mu(
+              world, std::vector{op_rr.get_ops().at(mu)});
+
+          auto V_np = op_mu(ρnuc);
+          auto V_rnp = op_rr_mu(ρnuc);
+
+          std::string axis_name = "Z";
+          printf("Scan along %s axis\n", axis_name.c_str());
+          printf("%10c%18s%18s%18s\n", std::tolower(axis_name[0]), "ρn", "V_NP",
+                 "V_RNP");
+          const auto step = 0.18;
+          for (double r = -L / 2; r <= L / 2; r += step) {
+            coord_3d p = {0, 0, (double)r};
+            printf("%10.2f%18.8f%18.8f%18.8f\n", (double)r, ρnuc(p), V_np(p),
+                   V_rnp(p));
+          }
+        }
+      }
+
+      nerrors += nerrors_local;
+    }  // point charge test
 
   }
 
