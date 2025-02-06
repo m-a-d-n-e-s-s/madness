@@ -42,7 +42,7 @@ jobs:
         -DBUILD_TESTING=ON
         -DMADNESS_ENABLE_CEREAL=ON
         -DCMAKE_CXX_STANDARD=${{ matrix.task_backend == 'Threads' && matrix.build_type == 'Debug' && '20' || '17' }}
-        -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'PaRSEC' }}
+        -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'OneTBB' }}
         -DMADNESS_BUILD_LIBRARIES_ONLY=${{ matrix.build_type != 'Debug' }}
 
     steps:
@@ -152,6 +152,6 @@ jobs:
         cmake --build test_install
         test_install/test_runtime
         # if built more than just MADWorld run the HF test
-        if [ "X${{ matrix.task_backend }}" = "XPaRSEC" ]; then
+        if [ "X${{ matrix.task_backend }}" = "XOneTBB" ]; then
            test_install/simple_hf
         fi
