@@ -299,7 +299,7 @@ namespace madness {
         return true;
     }
 
-    /// Collective routine to load and cache twoscale & autorrelation coefficients
+    /// Collective routine to load and cache twoscale & autocorrelation coefficients
 
     /// Only process rank 0 will access the files.
     void load_coeffs(World& world, const char* dir) {
