@@ -42,7 +42,8 @@
 
 using namespace madness;
 
-static const int k = 8;
+// WARNING even legacy tests prior to range-restricted op additions would not pass with k=8! Need k=10.
+static const int k = 10;
 static const double thresh = 1e-6;
 static constexpr double L = 50;
 static constexpr double Lx = L;
