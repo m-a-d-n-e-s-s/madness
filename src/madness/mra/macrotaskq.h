@@ -48,8 +48,8 @@ public:
     }
 
     /// Disable the default copy constructor
-    ScalarResult<T>(const ScalarResult<T>& other) = delete;
-    ScalarResult<T>(ScalarResult<T>&& ) = default;
+    ScalarResult(const ScalarResult<T>& other) = delete;
+    ScalarResult(ScalarResult<T>&& ) = default;
     ScalarResult<T>& operator=(ScalarResult<T>&& ) = default;
 
     /// disable assignment operator
