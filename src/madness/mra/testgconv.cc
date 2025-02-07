@@ -36,6 +36,7 @@
 /// \brief Test convolution with Gaussian * polyn
 
 #include <madness/mra/mra.h>
+#include <madness/mra/mw.h>
 #include <madness/mra/operator.h>
 #include <madness/constants.h>
 
@@ -258,53 +259,6 @@ int test_gconv(World& world) {
 
     if (world.rank() == 0) print("Test gconv operation");
 
-    {
-      constexpr auto ND = 3;
-      Key<ND> key(9, {255, 255, 511});
-
-      const auto process_surface_displacements =
-          [&](const auto &surface_dimensions) {
-            constexpr std::size_t NDS =
-                std::tuple_size_v<std::decay_t<decltype(surface_dimensions)>>;
-            const std::array<std::size_t, ND - NDS> nonsurface_dimensions =
-                iota_array<ND>(surface_dimensions);
-            std::array<std::optional<std::int64_t>, ND> box_radius;
-            std::array<std::optional<std::int64_t>, ND> surface_thickness;
-            for (int d = 0; d != ND; ++d) {
-              box_radius[d] = 1;
-              surface_thickness[d] = 0;
-            }
-            BoxSurfaceDisplacementRangeV2<ND, NDS>
-            range_boundary_face_displacements(
-                key, box_radius, surface_thickness, surface_dimensions,
-                [](const auto &dest, const auto &displacement) -> bool {
-                  // skip displacements not in domain
-                  const auto twon = (1 << dest.level());
-                  for (auto d = 0; d != ND; ++d) {
-                    if (dest.translation()[d] < 0 ||
-                        dest.translation()[d] >= twon)
-                      return false;
-                  }
-                  return true;
-                });
-            for (auto &&disp : range_boundary_face_displacements) {
-              std::cout << "disp = " << disp << std::endl;
-            }
-          };
-      if constexpr (ND >= 1) {
-        for (auto surface_dimensions : make_combinations<ND, 1>())
-          process_surface_displacements(surface_dimensions);
-      }
-      if constexpr (ND >= 2) {
-        for (auto surface_dimensions : make_combinations<ND, 2>())
-          process_surface_displacements(surface_dimensions);
-      }
-      if constexpr (ND >= 3) {
-        for (auto surface_dimensions : make_combinations<ND, 3>())
-          process_surface_displacements(surface_dimensions);
-      }
-    }
-
     real_function_t f = real_factory_t(world).f(g);
     double error=f.trace()-1.0;
     print("error in integral(g) ", error);
@@ -412,40 +366,72 @@ int test_gconv(World& world) {
       plot_line("opf.dat", npts, lo, hi, q, opq, convpg);
     }
 
+    ///////////////////////////////////////////////////
     // test convolution with range restricted Gaussians
-    if constexpr (NDIM == 1) {
-      real_function_t fd = real_factory_t(world).f(gd);
-      fd.truncate();
-      real_function_t fd1 = real_factory_t(world).f(gd1);
-      fd1.truncate();
-      real_function_t ft = real_factory_t(world)
-                               .special_points(std::vector<coord_t>{coord_t(0)})
-                               .initial_level(8)
-                               .f(gt);
-      ft.truncate();
-      real_function_t ft1 =
-          real_factory_t(world)
-              .special_points(std::vector<coord_t>{coord_t(1)})
-              .initial_level(8)
-              .f(gt1);
-      ft1.truncate();
+    ///////////////////////////////////////////////////
 
-      GConvGNP gnp(1, 1e-4, 1, L);
-      std::cout << "gnp(-L+0.9) = " << gnp(coord_1d(-L + 0.9)) << std::endl;
-      std::cout << "gnp(1) = " << gnp(coord_1d(1)) << std::endl;
-      GConvGRNP grnp(1, 1e-4, 1, L);
-      std::cout << "grnp(-L+0.9) = " << grnp(coord_1d(-L + 0.9)) << std::endl;
-      std::cout << "grnp(1) = " << grnp(coord_1d(1)) << std::endl;
+    // validate BoxSurfaceDisplacementRange by making sure
+    // - it does not produce duplicate displacements
+    {
+      constexpr auto ND = 2;
+      const int n = 4;
+      Key<ND> key(n, Vector<Translation, ND>(1<<(n-1)));
+
+      std::size_t disp_count = 0;
+      const auto process_surface_displacements =
+          [&]() {
+            std::array<std::optional<std::int64_t>, ND> box_radius;
+            std::array<std::optional<std::int64_t>, ND> surface_thickness;
+            for (int d = 0; d != ND; ++d) {
+              box_radius[d] = 1;
+              surface_thickness[d] = 1;
+            }
+            BoxSurfaceDisplacementRange<ND> range_boundary_face_displacements(
+                key, box_radius, surface_thickness, array_of_bools<ND>{false},
+                [](const auto level, const auto &dest, const auto &displacement) -> bool {
+                  // skip displacements not in domain
+                  const auto twon = (1 << level);
+                  for (auto d = 0; d != ND; ++d) {
+                    if (dest[d].has_value()) {
+                      if (dest[d] < 0 ||
+                          dest[d] >= twon)
+                        return false;
+                    }
+                  }
+                  return true;
+                });
+            std::vector<Key<ND>> disps;
+            for (auto &&disp : range_boundary_face_displacements) {
+              std::cout << "disp = " << disp << " dest = " << key.neighbor(disp)
+                        << std::endl;
+              disps.push_back(disp);
+              ++disp_count;
+            }
+            std::sort(disps.begin(), disps.end());
+            auto it = std::unique(disps.begin(), disps.end());
+
+            if (it != disps.end()) {
+              std::cout << "Duplicates found!!" << std::endl;
+              abort();
+            }
+          };
+      process_surface_displacements();
+      std::cout << "disp_count = " << disp_count << std::endl;
+    }
+
+    // now test the convolutions
+    if constexpr (NDIM == 1) {
 
       int nerrors = 0;
+
       // gaussian exponents in *user* coordinates
-      const std::vector<double> gaussian_exponents = {1 / (width * width), 1., 1e4};
+      const std::vector<double> gaussian_exponents = {1 / (width * width), 1., 1e4, 1e8};
       std::vector<std::pair<real_function_t, real_function_t>> gaussians_01;
       for (const auto gaussian_exponent : gaussian_exponents) {
         auto factory = real_factory_t(world);
         auto make_gaussian = [&](const auto O) {
           real_function_1d result =
-              factory.special_points(std::vector<coord_t>{coord_t(O)})
+              factory.special_points(std::vector<coord_t>{coord_t(O)}).initial_level(15)
                   .functor(G(gaussian_exponent, O));
           result.truncate();
           return result;
@@ -459,7 +445,6 @@ int test_gconv(World& world) {
           KernelRange range(1, sigma / (2 * L));
 
           // nonperiodic range-unlimited kernel
-          FunctionDefaults<NDIM>::set_bc(BC_FREE);
           ops[0].reset(new GaussianConvolution1D<double>(
               k, sqrt(kernel_exponent / constants::pi), kernel_exponent,
               /* deriv */ 0,
@@ -538,6 +523,7 @@ int test_gconv(World& world) {
               }
               std::cout << std::endl;
 
+              // optional plotting
               if constexpr (false) {
                 const std::string ndstr =
                     (std::string("-") + std::to_string(NDIM) + "d");
@@ -659,6 +645,14 @@ int main(int argc, char**argv) {
         	print(" threshold  ", thresh);
         	print(" polynomial ", k,"\n");
         }
+
+        FunctionDefaults<2>::set_cubic_cell(-L,L);
+        FunctionDefaults<2>::set_k(k);
+        FunctionDefaults<2>::set_thresh(thresh);
+        FunctionDefaults<2>::set_refine(true);
+        FunctionDefaults<2>::set_initial_level(5);
+        FunctionDefaults<2>::set_truncate_mode(1);
+
         success+=test_gconv(world);
 
     }
