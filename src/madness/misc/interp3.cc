@@ -52,6 +52,21 @@ int main(int argc, char* argv[]) {
   madness::CubicInterpolationTable<double> fit(world, -10.0, 30.0, 1000001, func);
   cout << "maxerr " << fit.err(func) << endl;
 
+  std::vector<double> xs{0.1, 0.25, 0.3, 0.42, 0.5, 0.7, 0.8};
+  std::vector<double> ys(xs.size());
+
+  for (size_t i = 0; i < ys.size(); i++) {
+    auto& x = xs[i];
+    ys[i] = 1 + 2 * x + 3 * x*x + 4.5 * x*x*x;
+  }
+  madness::CubicInterpolationTable<double> points(xs, ys);
+
+  for (size_t i = 0; i < ys.size(); i++) {
+    if(abs(points(xs[i]) - ys[i]) > 1E-12) {
+      throw std::runtime_error("Point based cubic table fails");
+    }
+  }
+
   madness::finalize();
   return 0;
 }
