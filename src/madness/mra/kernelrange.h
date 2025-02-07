@@ -64,6 +64,8 @@ public:
         return f(x, 1e8);
       case SoftErf:
         return f(x, this->sigma_inverse());
+      default:
+        MADNESS_EXCEPTION("KernelRange: unknown restrictor type",1);
       }
     }
 
@@ -233,6 +235,8 @@ private:
           return x;
         }
       }
+      default:
+        MADNESS_EXCEPTION("KernelRange:: unknown restrictor type",1);
       }
     }
 

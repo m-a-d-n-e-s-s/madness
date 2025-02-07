@@ -71,21 +71,17 @@ using real_convolution_t = SeparatedConvolution<double, NDIM>;
 
 /// \brief Return the size of the simulation cell in user coordinates
 constexpr dim_t cell_extent() {
-  dim_t result;
   static_assert(NDIM >= 1 && NDIM <= 3);
   if constexpr (NDIM == 1)
-    result[0] = 2*Lx;
+    return {2*Lx};
   else if constexpr (NDIM == 2) {
-    result[0] = 2*Lx;
-    result[1] = 2*Ly;
+    return {2*Lx, 2*Ly};
   }
-  else if constexpr (NDIM == 3) {
-    result[0] = 2*Lx;
-    result[1] = 2*Ly;
-    result[2] = 2*Lz;
+  else { // NDIM == 3
+    return {2*Lx, 2*Ly, 2*Lz};
   }
-  return result;
 }
+
 constexpr double cell_volume() {
   const auto size = cell_extent();
   return std::accumulate(
@@ -388,7 +384,7 @@ int test_gconv(World& world) {
             }
             BoxSurfaceDisplacementRange<ND> range_boundary_face_displacements(
                 key, box_radius, surface_thickness, array_of_bools<ND>{false},
-                [](const auto level, const auto &dest, const auto &displacement) -> bool {
+                [&](const auto level, const auto &dest, const auto &displacement) -> bool {
                   // skip displacements not in domain
                   const auto twon = (1 << level);
                   for (auto d = 0; d != ND; ++d) {
