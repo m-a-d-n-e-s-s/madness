@@ -348,7 +348,7 @@ int main(int argc, char**argv) {
 
                 if (bc.is_periodic()[d]) {
                   auto rp_mu_gau =
-                      dynamic_pointer_cast<GaussianConvolution1D<double>>(
+                      std::dynamic_pointer_cast<GaussianConvolution1D<double>>(
                           rp[mu].getop(d));
 
                   const auto &rnp_d0_R =
