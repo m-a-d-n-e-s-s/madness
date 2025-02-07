@@ -292,17 +292,19 @@ namespace madness {
      */
     template<std::size_t NDIM>
     class BoxSurfaceDisplacementRange {
-    private:
+    public:
       using Point = Key<NDIM>;
       using PointPattern = Vector<std::optional<Translation>, NDIM>;
       using Displacement = Key<NDIM>;
+      /// this callable filters out points and/or displacements; note that the displacement is optional (this use case supports filtering based on point pattern onlu) and non-const to make it possible for the filter function to update the displacement (e.g. to map it back to the simulation cell)
+      using Filter = std::function<bool(Level, const PointPattern&, std::optional<Displacement>&)>;
+
+    private:
       using BoxRadius = std::array<std::optional<Translation>, NDIM>;  // null radius = unlimited size
       using SurfaceThickness = std::array<std::optional<Translation>, NDIM>;  // null thickness for dimensions with null radius
       using Box = std::array<std::pair<Translation, Translation>, NDIM>;
       using Hollowness = std::array<bool, NDIM>;  // this can be uninitialized, unlike array_of_bools
       using Periodicity = array_of_bools<NDIM>;
-      /// this callable filters out points and/or displacements; note that the displacement is optional (this use case supports filtering based on point pattern onlu) and non-const to make it possible for the filter function to update the displacement (e.g. to map it back to the simulation cell)
-      using Filter = std::function<bool(Level, const PointPattern&, std::optional<Displacement>&)>;
 
       Point center_;                          ///< Center point of the box
       BoxRadius box_radius_;                  ///< halved size of the box in each dimension
