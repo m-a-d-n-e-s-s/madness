@@ -50,6 +50,7 @@
 #include <cmath>
 #include <madness/tensor/tensor.h>
 #include <madness/misc/misc.h>
+#include <madness/misc/interpolation_1d.h>
 #include <madness/mra/mra.h>
 
 namespace madness {
@@ -200,6 +201,28 @@ private:
   const std::array<std::int64_t, 3> lattice_sum_range;  // range of lattice summation, default is # of cells in each direction with nonzero contributions to the simulation cell
   const std::array<double, 3> cell_width;
   const std::array<double, 3> rcell_width;
+};
+
+class SAPFunctor : public FunctionFunctorInterface<double,3> {
+ private:
+  const Atom& atom;
+  BoundaryConditions<3> bc_;
+  Tensor<double> cell;
+  std::vector<coord_3d> special_points_;
+  int special_level_ = 15;
+ public:
+  /// Generic constructor, can handle open and periodic boundaries
+  /// \param molecule atoms
+  /// \param bc boundary conditions
+  /// \param cell simulation cell (unit cell, if periodic)
+  /// \param special_level the initial refinement level
+  /// \param rscale setting `rscale>1` will make a nucleus larger by a factor of \p rscale (in other words, `rcut` is multiplied by the inverse of by this)
+  SAPFunctor(const Atom& atom,
+                        const BoundaryConditions<3>& bc = FunctionDefaults<3>::get_bc(),
+                        const Tensor<double>& cell = FunctionDefaults<3>::get_cell(),
+                        int special_level = 15);
+
+  double operator()(const coord_3d& x) const;
 };
 
 class PotentialManager {
