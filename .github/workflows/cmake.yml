@@ -41,6 +41,7 @@ jobs:
         -DMPIEXEC_PREFLAGS='--bind-to;none;--allow-run-as-root'
         -DBUILD_TESTING=ON
         -DMADNESS_ENABLE_CEREAL=ON
+        -DCMAKE_CXX_STANDARD=${{ matrix.task_backend == 'Threads' && matrix.build_type == 'Debug' && '20' || '17' }}
         -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'Threads' }}
         -DMADNESS_BUILD_LIBRARIES_ONLY=${{ matrix.build_type != 'Debug' }}
 
@@ -65,6 +66,8 @@ jobs:
         fi
         if [ "X${{ matrix.task_backend }}" = "XPaRSEC" ]; then
           echo "TASK_BACKEND=PaRSEC" >> $GITHUB_ENV
+          # do not bind threads to cores to avoid oversubscription
+          echo "PARSEC_MCA_bind_threads=0" >> $GITHUB_ENV
         fi
 
     - name: Install prerequisite MacOS packages
@@ -103,15 +106,18 @@ jobs:
       shell: cmake -P {0}
       run: |
         string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
-        message("::set-output name=timestamp::${current_date}")
+        run: echo "{timestamp}=${current_date}" >> $GITHUB_OUTPUT
+#        message("::set-output name=timestamp::${current_date}")
 
     - name: Setup ccache cache files
-      uses: actions/cache@v1.1.0
+      uses: actions/cache@v4
       with:
         path: ${{github.workspace}}/build/.ccache
         key: ${{ matrix.config.name }}-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}
         restore-keys: |
           ${{ matrix.config.name }}-ccache-
+        continue-on-error: true
+        retry: 3
 
     - name: Configure CMake
       # Use a bash shell so we can use the same syntax for environment variable

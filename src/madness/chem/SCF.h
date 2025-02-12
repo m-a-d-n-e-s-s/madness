@@ -360,7 +360,11 @@ public:
 
     distmatT kinetic_energy_matrix(World& world, const vecfuncT& v) const;
 
+    void get_initial_orbitals(World& world);
+
     void initial_guess(World& world);
+
+    void initial_guess_from_nwchem(World& world);
 
     void initial_load_bal(World& world);
 
@@ -368,7 +372,8 @@ public:
 
     functionT make_density(World& world, const tensorT& occ, const cvecfuncT& v);
 
-    std::vector<poperatorT> make_bsh_operators(World& world, const tensorT& evals) const;
+    static std::vector<poperatorT> make_bsh_operators(World& world, const tensorT& evals,
+        const CalculationParameters& param);
 
     // Used only for initial guess that is always spin-restricted LDA
     static functionT make_lda_potential(World& world, const functionT& arho);
@@ -553,28 +558,12 @@ public:
             calc.pcm = PCM(world, calc.molecule, calc.param.pcm_data(), true);
         }
 
-        bool have_initial_guess = false;
-        // get initial orbitals
-        if (calc.param.restart()) {
-            calc.load_mos(world);
-            have_initial_guess = true;
-        } else if (calc.param.restartao()) {
-            calc.reset_aobasis("sto-3g");
-            calc.ao = calc.project_ao_basis(world, calc.aobasis);
-            have_initial_guess = calc.restart_aos(world);
-        }
+        calc.get_initial_orbitals(world);
 
-        if (not have_initial_guess) {
-            calc.reset_aobasis(calc.param.aobasis());
-            calc.ao = calc.project_ao_basis(world, calc.aobasis);
-            calc.make_nuclear_potential(world);
-            calc.initial_guess(world);
-        }
-
+        // AOs are needed for final analysis, and for localization
         calc.reset_aobasis("sto-3g");
         calc.ao.clear(); world.gop.fence(); 
         calc.ao = calc.project_ao_basis(world, calc.aobasis);
-                    
 
         // The below is missing convergence test logic, etc.
 
