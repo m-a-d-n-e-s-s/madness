@@ -36,7 +36,22 @@
 /// \file mra/functypedefs.h
 /// \brief Provides typedefs to hide use of templates and to increase interoperability
 
+#include <memory>
+#include <vector>
+
 namespace madness {
+
+    // forward declarations
+    template <typename T> class Tensor;
+    template <typename T, std::size_t NDIM> class Vector;
+    template <typename T, std::size_t NDIM> class Function;
+    template <typename T, std::size_t NDIM> class FunctionImpl;
+    template <std::size_t NDIM> class FunctionDefaults;
+    template <typename T, std::size_t NDIM> class FunctionFactory;
+    template <typename T, std::size_t NDIM> class FunctionFunctorInterface;
+    template <typename T, std::size_t NDIM> class SeparatedConvolution;
+    template <typename T, std::size_t NDIM> class Derivative;
+
     typedef Tensor<double> real_tensor;
     typedef Tensor<double_complex> complex_tensor;
 

@@ -650,6 +650,14 @@ public:
             const real_function_3d& arho, const real_function_3d& brho,
             std::string deriv="abgv");
 
+    /// custom ctor with the XC functional
+    XCOperator(World& world, std::shared_ptr<XCfunctional> xc,
+               const bool spin_polarized,
+               int ispin,
+               int nbeta,
+               const real_function_3d& arho, const real_function_3d& brho,
+               std::string deriv="abgv");
+
     /// ctor with an SCF calculation, will initialize the necessary intermediates
     XCOperator(World& world, const SCF* scf, int ispin=0, std::string deriv="abgv");
 

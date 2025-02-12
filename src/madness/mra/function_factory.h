@@ -206,7 +206,7 @@ public:
     }
 
     FunctionFactory&
-    special_points(std::vector<Vector<double, NDIM> >& special_points) {
+    special_points(const std::vector<Vector<double, NDIM> >& special_points) {
         _special_points = special_points;
         return self();
     }

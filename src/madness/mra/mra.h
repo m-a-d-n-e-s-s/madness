@@ -58,6 +58,23 @@ static const bool VERIFY_TREE = false; //true
 
 
 namespace madness {
+    /// @brief initialize the internal state of the MADmra library
+    ///
+    /// Reads in (and broadcasts across \p world) the twoscale and autocorrelation coefficients,
+    /// Gauss-Legendre quadrature roots/weights, function defaults and operator displacement lists.
+    /// \warning By default this generates operator displacement lists (see Displacements) for up to 6-d free
+    ///          and 3-d periodic boundary conditions. For optimal support for mixed boundary conditions
+    ///          (periodic along some axes only) assign the desired boundary conditions
+    ///          as default (e.g. `FunctionDefaults<3>::set_bc(BoundaryConditions<3>({BC_FREE, BC_FREE, BC_FREE, BC_FREE, BC_PERIODIC, BC_PERIODIC})`)
+    ///          prior to calling this. This will make operator application with such boundary conditions
+    ///          as efficient as possible, but will not allow the use of operators with
+    ///          other boundary conditions that include periodic axes until Displacements::reset_periodic_axes is invoked.
+    ///          By default efficiency is sacrificed for generality.
+    /// \param world broadcast data across this World
+    /// \param argc command-line parameter count
+    /// \param argv command-line parameters array
+    /// \param doprint if true, will log status to std::cout on rank 0 [default=false]
+    /// \param make_stdcout_nice_to_reals if true, will configure std::cout to print reals prettily, according to the MADNESS convention [default=true]
     void startup(World& world, int argc, char** argv, bool doprint=false, bool make_stdcout_nice_to_reals = true);
     std::string get_mra_data_dir();
 }
@@ -1256,16 +1273,23 @@ namespace madness {
             if (not g.is_initialized()) return 0.0;
 
             // if this and g are the same, use norm2()
-            if (this->get_impl()==g.get_impl()) {
-                TreeState state=this->get_impl()->get_tree_state();
-                if (not (state==reconstructed or state==compressed)) change_tree_state(reconstructed);
-                double norm=this->norm2();
-                return norm*norm;
+            if constexpr (std::is_same_v<T,R>) {
+              if (this->get_impl() == g.get_impl()) {
+                TreeState state = this->get_impl()->get_tree_state();
+                if (not(state == reconstructed or state == compressed))
+                  change_tree_state(reconstructed);
+                double norm = this->norm2();
+                return norm * norm;
+              }
             }
 
             // do it case-by-case
-            if (this->is_on_demand()) return g.inner_on_demand(*this);
-            if (g.is_on_demand()) return this->inner_on_demand(g);
+            if constexpr (std::is_same_v<R,T>) {
+              if (this->is_on_demand())
+                return g.inner_on_demand(*this);
+              if (g.is_on_demand())
+                return this->inner_on_demand(g);
+            }
 
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) g.verify_tree();
