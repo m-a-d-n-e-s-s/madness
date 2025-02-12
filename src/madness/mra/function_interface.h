@@ -123,8 +123,8 @@ namespace madness {
 	        return std::vector< Vector<double,NDIM> >();
 	    }
 
-	    /// Override this change level refinement for special points (default is 6)
-	    virtual Level special_level() {return special_level_;}
+	    /// Override this to change the minimum level of refinement at special points (default is 6)
+	    virtual Level special_level() const {return special_level_;}
 
 	    virtual ~FunctionFunctorInterface() {}
 

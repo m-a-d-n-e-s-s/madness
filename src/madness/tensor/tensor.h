@@ -311,7 +311,7 @@ namespace madness {
 #define TENSOR_SHARED_PTR std::shared_ptr
 #endif
 
-    /// A tensor is a multidimension array
+    /// A tensor is a multidimensional array
 
     /// \ingroup tensor
     template <class T> class Tensor : public BaseTensor {

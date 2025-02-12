@@ -3,7 +3,7 @@
 #include <vector>
 #include <cmath>
 
-#include "/home/rjh/Devel/madtran/madness/src/madness/misc/gnuplot.h"
+#include <madness/misc/gnuplot.h>
 
 // Gaussian expansion of erfc(a*r)/r accurate to epsilon over [rlo,inf]
 // Returns pair [coeffs,expnts]
@@ -62,43 +62,38 @@ make_fit(double a, double epsilon, double rlo) {
 }
 
 int main() {
-    const double a = 0.25;
-    const double epsilon = 1e-6;
-    const double rlo = 1e-8;
-    auto [c,t] = make_fit(a,epsilon,rlo);
+  const double a = 0.25;
+  const double epsilon = 1e-8;
+  const double rlo = 1e-8;
+  auto [c, t] = make_fit(a, epsilon, rlo);
 
-    auto fit = [&](double r) {
-        double sum = 0;
-        for (size_t i=0; i<c.size(); i++) {
-            sum += c[i]*std::exp(-t[i]*r*r);
-        }
-        return sum;
-    };
-
-    // Fill vector R and E with overall error data for plotting
-    std::vector<double> R,E;
-    double scale = std::pow(10.0,1.0/(5*c.size()));
-    for (double r=1e-8; r<30.0; r*=scale) {
-        double exact = std::erfc(0.25*r)/r;
-        double approx = fit(r);
-        double err = std::abs(approx-exact);
-        double relerr = err/exact;
-        double overallerr = std::min(err,relerr);
-        R.push_back(r);
-        E.push_back(overallerr);
+  auto fit = [&](double r) {
+    double sum = 0;
+    for (size_t i = 0; i < c.size(); i++) {
+      sum += c[i] * std::exp(-t[i] * r * r);
     }
-    madness::Gnuplot gp("set logscale; set style data lines; set xrange [1e-8:30]; set yrange [1e-10:1e-6]; set xlabel 'r'; set ylabel 'min(err,relerr)'; set format x '%.0e'");
-    gp.plot(R,E);
+    return sum;
+  };
 
-    // double scale = std::pow(10.0,1.0/3.0);
-    // for (double r=1e-8; r<30.0; r*=scale) {
-    //     double exact = std::erfc(0.25*r)/r;
-    //     double approx = fit(r);
-    //     double err = std::abs(approx-exact);
-    //     double relerr = err/exact;
-    //     double overallerr = std::min(err,relerr);
-    //     std::cout << r << " " << fit(r) << " " << overallerr << std::endl;
-    // }
-    
-    return 0;
+  // Fill vector R and E with overall error data for plotting
+  std::vector<double> R, E;
+  double scale = std::pow(10.0, 1.0 / (5 * c.size()));
+  double maxerr = std::numeric_limits<double>::min();
+  for (double r = 1e-8; r < 30.0; r *= scale) {
+    double exact = std::erfc(0.25 * r) / r;
+    double approx = fit(r);
+    double err = std::abs(approx - exact);
+    double relerr = err / exact;
+    double overallerr = std::min(err, relerr);
+    maxerr = std::max(overallerr, maxerr);
+    R.push_back(r);
+    E.push_back(overallerr);
+  }
+  // plot, if wanted
+  if (false) {
+    madness::Gnuplot gp("set logscale; set style data lines; set xrange [1e-8:30]; set yrange [1e-10:1e-6]; set xlabel 'r'; set ylabel 'min(err,relerr)'; set format x '%.0e'");
+    gp.plot(R, E);
+  }
+
+  return maxerr <= epsilon ? 0 : 1;
 }
