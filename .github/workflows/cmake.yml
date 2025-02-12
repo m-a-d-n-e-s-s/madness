@@ -115,8 +115,6 @@ jobs:
         key: ${{ matrix.config.name }}-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}
         restore-keys: |
           ${{ matrix.config.name }}-ccache-
-        continue-on-error: true
-        retry: 3
 
     - name: Configure CMake
       # Use a bash shell so we can use the same syntax for environment variable
