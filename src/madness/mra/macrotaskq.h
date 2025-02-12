@@ -60,7 +60,7 @@ public:
     }
 
     /// Disable the default copy constructor
-    ScalarResultImpl<T>(const ScalarResultImpl<T>& other) = delete;
+    ScalarResultImpl(const ScalarResultImpl& other) = delete;
     // ScalarResultImpl<T>(ScalarResultImpl<T>&& ) = default;
 
     /// disable assignment operator
