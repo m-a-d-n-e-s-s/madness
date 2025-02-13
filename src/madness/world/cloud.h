@@ -485,7 +485,7 @@ private:
             std::cout << "storing object of " << typeid(T).name() << " to record " << record << std::endl;
         }
         if constexpr (is_madness_function<T>::value) {
-            if (source.is_compressed()) print("WARNING: storing compressed function");
+            if (source.is_compressed() and T::dimT>3) print("WARNING: storing compressed hi-dim `function");
         }
 
         // scope is important because of destruction ordering of world objects and fence
