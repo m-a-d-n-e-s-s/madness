@@ -154,6 +154,9 @@ namespace madness {
         typedef FunctionNode<T,NDIM> nodeT;
         typedef FunctionFactory<T,NDIM> factoryT;
         typedef Vector<double,NDIM> coordT; ///< Type of vector holding coordinates
+        typedef T typeT;
+        static constexpr std::size_t dimT=NDIM;
+
 
         /// Asserts that the function is initialized
         inline void verify() const {
