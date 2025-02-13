@@ -279,6 +279,18 @@ public:
         return forward_load<T>(world, rlist);
     }
 
+    /// similar to load, but will consume the recordlist
+
+    /// @param[in]  world the subworld the objects are loaded to
+    /// @param[in]  recordlist the list of records where the objects are stored
+    template<typename T>
+    T consuming_load(madness::World &world, recordlistT& recordlist) const {
+        cloudtimer t(world, reading_time);
+
+        // forward_load will consume the recordlist while loading elements
+        return forward_load<T>(world, recordlist);
+    }
+
     /// load a single object from the cloud, recordlist is consumed while loading elements
     template<typename T>
     T forward_load(madness::World &world, recordlistT& recordlist) const {
@@ -324,6 +336,7 @@ public:
 
     void replicate(const std::size_t chunk_size=INT_MAX) {
 
+        double cpu0=cpu_time();
         World& world=container.get_world();
         world.gop.fence();
         cloudtimer t(world,replication_time);
@@ -378,6 +391,8 @@ public:
             }
         }
         world.gop.fence();
+        double cpu1=cpu_time();
+        if (world.rank()==0) print("replication ended after ",cpu1-cpu0," seconds at time",cpu1);
     }
 
 private:
@@ -468,6 +483,9 @@ private:
                 std::cout << "storing world object of " << typeid(T).name() << "id " << source.id() << " to record " << record << std::endl;
             }
             std::cout << "storing object of " << typeid(T).name() << " to record " << record << std::endl;
+        }
+        if constexpr (is_madness_function<T>::value) {
+            if (source.is_compressed()) print("WARNING: storing compressed function");
         }
 
         // scope is important because of destruction ordering of world objects and fence

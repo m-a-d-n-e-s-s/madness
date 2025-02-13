@@ -171,7 +171,7 @@ public:
         info.intermediate_potentials.clear_all();
         Pairs<CCPair> empty;
         return iterate_singles(world, singles, CC_vecfunction(RESPONSE), doubles,
-            empty, CT_CC2, info.parameters.iter_max_3D(), info);
+                               empty, CT_CC2, info.parameters.iter_max_3D(), info);
     }
 
     bool
@@ -189,10 +189,10 @@ public:
         info.intermediate_potentials.clear_response();
         // CCOPS.clear_potentials(lrcc2_s);
         return iterate_singles(world, lrcc2_s, cc2_s, cc2_d, lrcc2_d,
-            CT_LRCC2, info.parameters.iter_max_3D(), info);
+                               CT_LRCC2, info.parameters.iter_max_3D(), info);
     }
 
-    /// convencience function to iterate the CCS Response singles,
+    /// convenience function to iterate the CCS Response singles,
     /// makes the right call on the iterate_singles functions
     bool
     iterate_ccs_singles(CC_vecfunction& x, Info& info) const {
@@ -202,7 +202,6 @@ public:
         return iterate_singles(world, x, CC_vecfunction(PARTICLE), empty, empty, CT_LRCCS, info.parameters.iter_max_3D(), info);
     }
 
-    static bool
     /// Iterates the singles equations for CCS, CC2, LRCC2
     /// The corresponding regulairzation tails of the doubles are updated in every iteration (therefore doubles are not marked as const)
     /// @param[in] : singles, the singles that are iterated
@@ -212,213 +211,30 @@ public:
     /// @param[in] : ctype: the calculation type: CCS, CC2, CC2_response_
     /// @param[in] : maxiter: maxmial number of iterations
     /// @param[out]: true if the overall change of the singles is below 10*donv_6D
-    iterate_singles(World& world, CC_vecfunction& singles, const CC_vecfunction singles2, Pairs<CCPair>& gs_doubles,
-                    Pairs<CCPair>& ex_doubles, const CalcType ctype, const std::size_t maxiter, Info& info) {
-        CCMessenger output(world);
-        output.subsection("Iterate " + assign_name(ctype) + "-Singles");
-        CCTimer time_all(world, "Overall Iteration of " + assign_name(ctype) + "-Singles");
-        bool converged = true;
+    static bool
+    iterate_singles(World& world, CC_vecfunction& singles, const CC_vecfunction singles2, const Pairs<CCPair>& gs_doubles,
+                    const Pairs<CCPair>& ex_doubles, const CalcType ctype, const std::size_t maxiter, Info& info);
 
-        CC_vecfunction old_singles(singles);
-        for (auto& tmp : singles.functions)
-            old_singles(tmp.first).function = copy(tmp.second.function);
-        double old_omega=0.0;
-
-        // KAIN solver
-        typedef vector_function_allocator<double, 3> allocT;
-        typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
-        solverT solver(allocT(world, singles.size()));
-        solver.do_print = (world.rank() == 0);
-
-        print_size(world, singles.get_vecfunction(), "singles before iteration");
-
-        for (size_t iter = 0; iter < maxiter; iter++) {
-            // output.subsection("Microiteration " + std::to_string(iter) + " of " + assign_name(ctype) + "-Singles");
-            // CCTimer time(world, "Microiteration " + std::to_string(iter) + " of " + assign_name(ctype) + "-Singles");
-            double omega = 0.0;
-            if (ctype == CT_LRCC2) omega = singles.omega;
-            else if (ctype == CT_LRCCS) omega = singles.omega;
-            else if (ctype == CT_ADC2) omega = singles.omega;
-            print("omega 1" ,omega);
-
-            // consistency check
-            switch (ctype) {
-            case CT_CC2:
-                if (singles.type != PARTICLE)
-                    output.warning("iterate_singles: CC2 demanded but singles are not of type PARTICLE");
-                break;
-            case CT_MP2: MADNESS_EXCEPTION("Demanded Singles Calculation for MP2 ????", 1);
-                break;
-            case CT_LRCC2:
-                if (singles.type != RESPONSE or singles2.type != PARTICLE)
-                    output.warning("iterate_singles: CC2_response_ singles have wrong types");
-                break;
-            case CT_LRCCS:
-                if (singles.type != RESPONSE)
-                    output.warning("iterate_singles: CCS_response_ singles have wrong types");
-                break;
-            case CT_CISPD: MADNESS_EXCEPTION("Demanded Singles Calculation for CIS(D)", 1);
-                break;
-            case CT_ADC2:
-                MADNESS_ASSERT(singles.type == RESPONSE);
-                break;
-            case CT_TEST: MADNESS_EXCEPTION("Iterate Singles not implemented for Experimental calculation", 1);
-                break;
-            default: MADNESS_EXCEPTION(
-                    ("Unknown calculation type in iterate singles: " + assign_name(ctype)).c_str(), 1);
-            }
-
-            // get potentials
-            CCTimer time_V(world, assign_name(ctype) + "-Singles Potential");
-            vector_real_function_3d V;
-            if (ctype == CT_CC2) V = CCPotentials::get_CC2_singles_potential_gs(world, singles, gs_doubles, info);
-            else if (ctype == CT_LRCC2)
-                V = CCPotentials::get_CC2_singles_potential_ex(world, singles2, gs_doubles, singles, ex_doubles, info);
-            else if (ctype == CT_LRCCS) V = CCPotentials::get_CCS_potential_ex(world,singles,false, info);
-            //            else if (ctype == CT_ADC2) V = CCOPS.get_ADC2_singles_potential(world, gs_doubles, singles, ex_doubles, info);
-            else MADNESS_EXCEPTION("iterate singles: unknown type", 1);
-
-            // add local coupling
-            V-=compute_local_coupling(singles.get_vecfunction(),info);
-            truncate(world, V);
-            time_V.info(true, norm2(world, V));
-
-            // update excitation energy
-            if (ctype==CT_LRCC2 or ctype==CT_LRCCS or ctype==CT_ADC2) {
-                old_omega=omega;
-                omega = CCPotentials::compute_cis_expectation_value(world, singles, V, true, info);
-                singles.omega = omega;
-            }
-            if (world.rank()==0 and info.parameters.debug())
-                print("omega entering the update in the singles" ,omega);
-
-            // make bsh operators
-            scale(world, V, -2.0); // moved to BSHApply
-            std::vector<std::shared_ptr<SeparatedConvolution<double, 3> > > G(singles.size());
-            for (size_t i = 0; i < G.size(); i++) {
-                const double bsh_eps = info.orbital_energies[i + info.parameters.freeze()] + omega;
-                G[i] = std::shared_ptr<SeparatedConvolution<double, 3> >(
-                        BSHOperatorPtr3D(world, sqrt(-2.0 * bsh_eps), info.parameters.lo(), info.parameters.thresh_bsh_3D()));
-            }
-            world.gop.fence();
-
-            // apply bsh operators
-            CCTimer time_applyG(world, "Apply G-Operators");
-            vector_real_function_3d GV = apply<SeparatedConvolution<double, 3>, double, 3>(world, G, V);
-            world.gop.fence();
-            time_applyG.info();
-
-            // apply Q-Projector to result
-            QProjector<double,3> Q(info.mo_bra,info.mo_ket);
-            GV = Q(GV);
-
-            // Normalize Singles if it is excited state
-            if (ctype == CT_LRCCS or ctype == CT_LRCC2 or ctype == CT_ADC2) {
-                output("Normalizing new singles");
-                const double norm=inner(GV,info.R_square*GV);
-                scale(world, GV, 1.0 / norm);
-            } else output("Singles not normalized");
-
-            // residual
-            const vector_real_function_3d residual = sub(world, singles.get_vecfunction(), GV);
-
-            // information
-            const Tensor<double> R2xinnerx = inner(world, info.R_square*singles.get_vecfunction(),
-                                                   singles.get_vecfunction());
-            const Tensor<double> R2GVinnerGV = inner(world, info.R_square*GV, GV);
-            const Tensor<double> R2rinnerr = inner(world, info.R_square*residual, residual);
-            const double R2vector_error = sqrt(R2rinnerr.sum());
-            auto [rmsresidual, maxresidual]=CCPotentials::residual_stats(residual);
-
-            // print information
-            if (world.rank() == 0) std::cout << "\n\n-----Results of current interation:-----\n";
-            if (world.rank() == 0)
-                std::cout << "\nName: ||" << singles.name(0) << "||, ||GV" << singles.name(0) << ", ||residual||" << "\n";
-            if (world.rank() == 0)
-                std::cout << singles.name(0) << ": " << std::scientific << std::setprecision(info.parameters.output_prec())
-                          << sqrt(R2xinnerx.sum()) << ", " << sqrt(R2GVinnerGV.sum()) << ", " << sqrt(R2rinnerr.sum())
-                          << "\n----------------------------------------\n";
-            for (size_t i = 0; i < GV.size(); i++) {
-                if (world.rank() == 0)
-                    std::cout << singles(i + info.parameters.freeze()).name() << ": " << std::scientific
-                              << std::setprecision(info.parameters.output_prec())
-                              << sqrt(R2xinnerx(i)) << ", " << sqrt(R2GVinnerGV(i)) << ", " << sqrt(R2rinnerr(i))
-                              << "\n";
-            }
-            if (world.rank() == 0) std::cout << "\n----------------------------------------\n\n";
-
-            // make second order update (only for response)
-            if (ctype == CT_LRCC2 or ctype == CT_LRCCS) {
-                double Rtmp = inner(world, info.R_square*residual, V).sum();
-                double Rtmp2 = inner(world, info.R_square*GV, GV).sum();
-                const double Rdelta = (0.5 * Rtmp / Rtmp2);
-                if (world.rank() == 0) std::cout << "omega, second-order update (FYI): " << std::fixed
-                              << std::setprecision(info.parameters.output_prec() + 2) << omega << ", " << Rdelta << "\n\n";
-            }
-
-            // update singles
-            singles.omega = omega;
-            vector_real_function_3d new_singles = truncate(GV);
-            if (info.parameters.kain()) new_singles = solver.update(singles.get_vecfunction(), residual);
-            if (info.parameters.debug()) print_size(world, new_singles, "new_singles");
-            // if (ctype == CT_LRCCS or ctype == CT_LRCC2 or ctype == CT_ADC2) Nemo::normalize(new_singles, info.R);
-            // if (info.parameters.debug()) print_size(world, new_singles, "new_singles normalized");
-
-            for (size_t i = 0; i < GV.size(); i++) {
-                singles(i + info.parameters.freeze()).function = copy(new_singles[i]);
-            }
-
-            // update reg_residues of doubles
-            if (ctype==CT_CC2) update_reg_residues_gs(world, singles,gs_doubles, info);
-            else if(ctype==CT_LRCC2) update_reg_residues_ex(world, singles2,singles,ex_doubles, info);
-
-            if (world.rank()==0) CCPotentials::print_convergence(singles.name(0),rmsresidual,
-                rmsresidual,omega-old_omega,iter);
-            converged = (R2vector_error < info.parameters.dconv_3D());
-
-            // time.info();
-            if (converged) break;
-            if (ctype == CT_LRCCS) break; // for CCS just one iteration to check convergence
-        }
-        time_all.info();
-        print_size(world, singles.get_vecfunction(), "singles after iteration");
-
-        // Assign the overall changes
-        bool no_change = true;
-        if (world.rank() == 0)
-            std::cout << "Change in Singles functions after all the Microiterations" << std::endl;
-        for (auto& tmp : singles.functions) {
-            const double change = (tmp.second.function - old_singles(tmp.first).function).norm2();
-            tmp.second.current_error = change;
-            if (change > info.parameters.dconv_3D()) no_change = false;
-            if (world.rank() == 0)
-                std::cout << "Change of " << tmp.second.name() << "=" << tmp.second.current_error << std::endl;
-        }
-        // update reg_residues of doubles
-        if (ctype == CT_CC2) update_reg_residues_gs(world, singles, gs_doubles, info);
-        else if (ctype == CT_LRCC2) update_reg_residues_ex(world, singles2, singles, ex_doubles, info);
-
-        //CCOPS.plot(singles);
-        if (no_change) output("Change of Singles was below  = " + std::to_string(info.parameters.dconv_3D()) + "!");
-        return no_change;
+    /// return the file name for singles
+    static std::string singles_name(const CalcType& ctype, const FuncType& type, int ex=-1) {
+        std::string fname=assign_name(ctype)+"_"+madness::name(type,ex);
+        return fname;
     }
 
-    /// store singles to file
-    void store_singles(const CC_vecfunction& singles, const int ex = -1) const;
-
     /// read singles from file or initialize new ones
-    CC_vecfunction initialize_singles(const FuncType type, const int ex = -1) const;
+
+    /// type: PARTICLE (cc2) or RESPONSE (lrcc2)
+    /// default_to_zero: if true, initialize with zero functions, otherwise return empty vector
+    /// ex: if type is RESPONSE, the excitation number
+    static CC_vecfunction
+    initialize_singles(World&, const CalcType& ctype, const FuncType type, int ex=-1);
+
+    static CC_vecfunction
+    initialize_singles_to_zero(World& world, const CalcType& ctype, const FuncType type, const Info& info);
 
     /// read pairs from file or initialize new ones
     bool initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType ctype, const CC_vecfunction& tau,
                           const CC_vecfunction& x, const size_t extitation, const Info& info) const;
-
-    static void
-    update_reg_residues_gs(World& world, const CC_vecfunction& singles, Pairs<CCPair>& doubles, const Info& info);
-
-    static void
-    update_reg_residues_ex(World& world, const CC_vecfunction& singles, const CC_vecfunction& response, Pairs<CCPair>& doubles,
-        const Info& info);
 
     /// Iterates a pair of the CC2 doubles equations
     bool
@@ -430,20 +246,6 @@ public:
     static bool
     iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s, const CC_vecfunction lrcc2_s,
                         Pairs<CCPair>& lrcc2_d, const Info& info);
-
-    bool update_constant_part_cc2_gs(const CC_vecfunction& tau, CCPair& pair) {
-        MADNESS_ASSERT(pair.ctype == CT_CC2);
-        MADNESS_ASSERT(pair.type == GROUND_STATE);
-        // make screening Operator
-        real_convolution_6d Gscreen = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo(),
-                                                     parameters.thresh_bsh_6D());
-        Gscreen.modified() = true;
-
-        if (parameters.QtAnsatz())pair.constant_part = CCOPS.make_constant_part_cc2_Qt_gs(pair, tau, &Gscreen);
-        else pair.constant_part = CCOPS.make_constant_part_cc2_gs(pair, tau, &Gscreen);
-        save(pair.constant_part, pair.name() + "_const");
-        return true;
-    }
 
     bool update_constant_part_cispd(const CC_vecfunction& ccs, CCPair& pair) {
         MADNESS_ASSERT(pair.ctype == CT_CISPD);
@@ -477,22 +279,6 @@ public:
         save(pair.constant_part, pair.name() + "_const");
         return true;
 
-    }
-
-    bool update_constant_part_lrcc2(CCPair& pair, const CC_vecfunction& tau, const CC_vecfunction& x) {
-        MADNESS_ASSERT(pair.ctype == CT_LRCC2);
-        MADNESS_ASSERT(tau.type == PARTICLE);
-        MADNESS_ASSERT(x.type == RESPONSE);
-
-        // make screening Operator
-        real_convolution_6d Gscreen = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo(),
-                                                     parameters.thresh_bsh_6D());
-        Gscreen.modified() = true;
-
-        if (parameters.QtAnsatz())pair.constant_part = CCOPS.make_constant_part_cc2_Qt_ex(pair, tau, x, &Gscreen);
-        else pair.constant_part = CCOPS.make_constant_part_cc2_ex(pair, tau, x, &Gscreen);
-        save(pair.constant_part, pair.name() + "_const");
-        return true;
     }
 
     /// forward to the other function (converting CCPair to real_function)

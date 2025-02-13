@@ -978,10 +978,10 @@ double MP3::mp3_energy_contribution_macrotask_driver(const Pairs<CCPair>& mp2pai
     taskq->print_taskq();
     taskq->run_all();
 
-    double term_CD=cd_future->get();
-    double term_EF=ef_future->get();
-    double term_GHIJ=ghij_future->get();
-    double term_KLMN=klmn_future->get();
+    double term_CD=cd_future.get();
+    double term_EF=ef_future.get();
+    double term_GHIJ=ghij_future.get();
+    double term_KLMN=klmn_future.get();
     double mp3_energy=term_CD+term_GHIJ+term_KLMN+term_EF;
     if (world.rank()==0) {
         printf("term_CD    %12.8f\n",term_CD);

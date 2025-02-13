@@ -1513,12 +1513,21 @@ namespace madness {
         if (a.size()==0) return std::vector<Function<resultT,NDIM> >();
 
         World& world=a[0].world();
-        compress(world,a);
-    	compress(world,b);
     	std::vector<Function<resultT,NDIM> > result(a.size());
-        for (unsigned int i=0; i<a.size(); ++i) {
-            result[i]=gaxpy_oop(alpha, a[i], beta, b[i], false);
+        if (NDIM<=3) {
+            compress(world,a);
+    	    compress(world,b);
+            for (unsigned int i=0; i<a.size(); ++i) {
+                result[i]=gaxpy_oop(alpha, a[i], beta, b[i], false);
+            }
+        } else {
+            reconstruct(world,a);
+            reconstruct(world,b);
+            for (unsigned int i=0; i<a.size(); ++i) {
+                result[i]=gaxpy_oop_reconstructed(alpha, a[i], beta, b[i], false);
+            }
         }
+
         if (fence) world.gop.fence();
         return result;
     }
@@ -1687,6 +1696,25 @@ namespace madness {
     		}
     	}
     }
+
+    /// return the size of a vector of functions for each rank
+    template <typename T, std::size_t NDIM>
+    double get_size_local(World& world, const std::vector< Function<T,NDIM> >& v){
+    	double size=0.0;
+    	for(auto x:v){
+    		if (x.is_initialized()) size+=x.size_local();
+    	}
+    	const double d=sizeof(T);
+        const double fac=1024*1024*1024;
+    	return size/fac*d;
+    }
+
+    /// return the size of a function for each rank
+    template <typename T, std::size_t NDIM>
+    double get_size_local(const Function<T,NDIM>& f){
+    	return get_size_local(f.world(),std::vector<Function<T,NDIM> >(1,f));
+    }
+
 
     // gives back the size in GB
     template <typename T, std::size_t NDIM>
@@ -2099,6 +2127,21 @@ namespace madness {
         return d;
     }
 
+    template<typename T, std::size_t NDIM>
+    void load_balance(World& world, std::vector<Function<T,NDIM> >& vf) {
+
+        struct LBCost {
+            LBCost() = default;
+            double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
+                return node.coeff().size();
+            }
+        };
+
+        LoadBalanceDeux<6> lb(world);
+        for (const auto& f : vf) lb.add_tree(f, LBCost());
+        FunctionDefaults<6>::redistribute(world, lb.load_balance());
+
+    }
 
     /// load a vector of functions
     template<typename T, size_t NDIM>

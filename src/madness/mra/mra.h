@@ -558,7 +558,12 @@ namespace madness {
             return impl->size();
         }
 
-        /// Retunrs
+        /// Return the number of coefficients in the function on this processor
+        std::size_t size_local() const {
+            PROFILE_MEMBER_FUNC(Function);
+            if (!impl) return 0;
+            return impl->size_local();
+        }
 
 
         /// Returns value of autorefine flag.  No communication.
