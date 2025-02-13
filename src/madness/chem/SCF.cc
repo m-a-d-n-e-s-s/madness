@@ -1601,7 +1601,10 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
         resultT operator()(const std::vector<real_function_3d> &Vpsi,
             const Tensor<double>& eps, const CalculationParameters& param) const {
             World& world=Vpsi.front().world();
-            std::vector<poperatorT> ops = make_bsh_operators(world, eps,param);
+            MADNESS_CHECK_THROW(eps.ndim()==1,"need a 1D tensor for eps in ApplyTask");
+            Tensor<double> batched_eps=eps(Slice(batch.input[0].begin,batch.input[0].end-1));
+            MADNESS_CHECK_THROW(batched_eps.size()==batch.input[0].size(),"batched eps size mismatch");
+            std::vector<poperatorT> ops = make_bsh_operators(world, batched_eps,param);
             vecfuncT new_psi = apply(world, ops, Vpsi);
             return new_psi;
         }
