@@ -251,7 +251,7 @@ namespace madness {
                                 const array_of_bools<NDIM>& lattice_summed) {
 
           const Tensor<double> &cell_width =
-              FunctionDefaults<3>::get_cell_width();
+              FunctionDefaults<NDIM>::get_cell_width();
           double hi = cell_width.normf(); // Diagonal width of cell
           // Extend kernel range for lattice summation
           // N.B. if have periodic boundaries, extend range just in case will be using periodic domain
