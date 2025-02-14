@@ -2,7 +2,7 @@
 // Created by Jonathon Misiewicz on 2/10/25.
 //
 
-#include <madness/chem/SAP_interpolators.h>
+#include <madness/chem/SAP.h>
 
 namespace madness {
 

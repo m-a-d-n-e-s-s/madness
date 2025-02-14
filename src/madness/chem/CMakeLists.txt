@@ -51,7 +51,7 @@ set(MADCHEM_HEADERS
     potentialmanager.h
     projector.h
     QCPropertyInterface.h
-    SAP_interpolators.h
+    SAP.h
     SCF.h
     SCFOperators.h
     SCFProtocol.h
@@ -91,7 +91,7 @@ set(MADCHEM_SOURCES
     pointgroupsymmetry.cc
     potentialmanager.cc
     polynomial.cc
-    SAP_interpolators.cc
+    SAP.cc
     SCF.cc
     SCFOperators.cc
     TDHF.cc

@@ -206,6 +206,7 @@ private:
 class SAPFunctor : public FunctionFunctorInterface<double,3> {
  private:
   const Atom& atom;
+  double smoothing_param;
   BoundaryConditions<3> bc_;
   Tensor<double> cell;
   std::vector<coord_3d> special_points_;
@@ -213,14 +214,15 @@ class SAPFunctor : public FunctionFunctorInterface<double,3> {
  public:
   /// Generic constructor, can handle open and periodic boundaries
   /// \param molecule atoms
+  /// \param smoothing_param controls smoothness of 1/r potential.
   /// \param bc boundary conditions
   /// \param cell simulation cell (unit cell, if periodic)
   /// \param special_level the initial refinement level
-  /// \param rscale setting `rscale>1` will make a nucleus larger by a factor of \p rscale (in other words, `rcut` is multiplied by the inverse of by this)
   SAPFunctor(const Atom& atom,
-                        const BoundaryConditions<3>& bc = FunctionDefaults<3>::get_bc(),
-                        const Tensor<double>& cell = FunctionDefaults<3>::get_cell(),
-                        int special_level = 15);
+             double smoothing_param,
+             const BoundaryConditions<3>& bc = FunctionDefaults<3>::get_bc(),
+             const Tensor<double>& cell = FunctionDefaults<3>::get_cell(),
+             int special_level = 15);
 
   double operator()(const coord_3d& x) const;
 };

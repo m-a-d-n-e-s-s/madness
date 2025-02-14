@@ -253,6 +253,8 @@ public:
       return (a[i + 1] + y1 * a[i + 2]) + yy * (a[i + 3] + y1 * a[i + 4]);
   }
 
+  double get_lo() const { return lo; }
+
   double get_hi() const { return hi; }
 
   template <typename functionT> double err(const functionT &f) const {
