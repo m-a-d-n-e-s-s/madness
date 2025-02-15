@@ -345,6 +345,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 	    if (world.rank()==0 and param.print_level()>9) print("orbital irreps",str_irreps);
 	    vecfuncT R2nemo=mul(world,R_square,nemo);
 	    truncate(world,R2nemo);
+        if (iter==0) solver.initialize(nemo);
 
 		// compute potentials the Fock matrix: J - K + Vnuc
 		compute_nemo_potentials(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo);
@@ -398,11 +399,13 @@ double Nemo::solve(const SCFProtocol& proto) {
 		bsh_apply.lo=get_calc()->param.lo();
 		bsh_apply.levelshift=param.orbitalshift();
 		auto [residual,eps_update] =bsh_apply(nemo,fock,Vnemo);
+	    nemo=nemo-residual;
 		t_bsh.tag("BSH apply");
 
 		const double bsh_norm = norm2(world, residual) / sqrt(nemo.size());
 
-		vecfuncT nemo_new = truncate(solver.update(nemo, residual));
+		// vecfuncT nemo_new = truncate(solver.update(nemo, residual));
+		vecfuncT nemo_new = truncate(solver.update(nemo));
         t_bsh.tag("solver.update");
 		normalize(nemo_new,R);
 

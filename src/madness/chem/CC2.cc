@@ -468,7 +468,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
         MacroTaskIteratePair t;
         MacroTask task1(world, t);
         CC_vecfunction dummy_singles1(PARTICLE);
-        const std::size_t maxiter=3;
+        const std::size_t maxiter=1;   // this needs to be 1, why??
         coupling_vec=change_tree_state(coupling_vec, reconstructed);
         for (auto& p : pair_vec) p.function().reconstruct();
         auto unew = task1(pair_vec, coupling_vec, dummy_singles1, dummy_singles1, info, maxiter);

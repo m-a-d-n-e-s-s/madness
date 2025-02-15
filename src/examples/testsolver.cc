@@ -62,10 +62,21 @@ int main() {
     // default constructor F() sets x=99 not zero
     //XNonlinearSolver<F,double> solver;
 
+    std::cout << std::setprecision(10);
     F x = 0.5;
     for (int iter=0; iter<8; iter++) {
         std::cout << iter << " " << x.get() << std::endl;
         x = solver.update(x, residual(x));
+    }
+
+    // again without computing the residual
+    x = 0.5;
+    XNonlinearSolver<F,double,F(*)()> solver1(allocator);
+    solver1.initialize(F(0.5));
+    for (int iter=0; iter<8; iter++) {
+        std::cout << iter << " " << x.get() << std::endl;
+        auto xpreliminary=x-residual(x);
+        x = solver1.update(xpreliminary);
     }
 
     return 0;

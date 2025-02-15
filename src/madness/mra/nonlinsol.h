@@ -202,7 +202,7 @@ namespace madness {
     class XNonlinearSolver {
         unsigned int maxsub; ///< Maximum size of subspace dimension
         Alloc alloc;
-        std::vector<T> ulist, rlist; ///< Subspace information
+        std::vector<T> ulist, rlist, plist; ///< Subspace information
         Tensor<C> Q;
         Tensor<C> c;		///< coefficients for linear combination
     public:
@@ -230,6 +230,7 @@ namespace madness {
 	void clear_subspace() {
 		ulist.clear();
 		rlist.clear();
+		plist.clear();
 		Q=Tensor<C>();
 	}
 
@@ -241,8 +242,8 @@ namespace madness {
 	/// @param u Current solution vector
 	/// @param r Corresponding residual
 	/// @return Next trial solution vector
-        /// @param[in]          rcondtol rcond less than this will cause the subspace to be shrunk due to linear dependence
-        /// @param[in]          cabsmax  maximum element of c greater than this will cause the subspace to be shrunk due to li
+    /// @param[in]          rcondtol rcond less than this will cause the subspace to be shrunk due to linear dependence
+    /// @param[in]          cabsmax  maximum element of c greater than this will cause the subspace to be shrunk due to li
 	T update(const T& u, const T& r, const double rcondtol=1e-8, const double cabsmax=1000.0) {
 		if (maxsub==1) return u-r;
 		int iter = ulist.size();
@@ -275,6 +276,63 @@ namespace madness {
 		}
 		return unew;
 	}
+
+    /// Computes next trial solution vector
+
+    /// this version of update avoids using the residual by computing it on the fly
+    /// note the distinction between u_preliminary (input) and u_kain (output)
+    /// residual[i] = u_kain[i] - u_preliminary[i+1]
+    /// ulist[i] = u_kain[i]
+    /// plist[i] = u_preliminary[i]
+    /// @param[in] u_preliminary: new solution before KAIN
+    /// @param[out] u_kain: new solution after KAIN
+    T update(const T& u_preliminary, const double rcondtol=1e-8, const double cabsmax=1000.0) {
+		if (maxsub==1) return u_preliminary;
+
+
+		int iter = ulist.size()-1;
+		MADNESS_CHECK_THROW(iter>=0,"ulist must have size==1 at least -- forgot to initialize?");
+		plist.push_back(u_preliminary);
+		MADNESS_CHECK_THROW(ulist.size()+1==plist.size(),"ulist and plist have incorrect size -- forgot to initialize?");
+
+		// Solve subspace equations
+		// Q_ij = < u_kain[i] | r[j] > = < u_kain[i] | u_kain[j] - u_preliminary[j+1] >
+		Tensor<C> Qnew(iter+1,iter+1);
+		if (iter>0) Qnew(Slice(0,-2),Slice(0,-2)) = Q;
+		for (int i=0; i<=iter; i++) {
+			Qnew(i,iter) = inner(ulist[i],ulist[iter]) - inner(ulist[i],plist[iter+1]);
+			Qnew(iter,i) = inner(ulist[iter],ulist[i]) - inner(ulist[iter],plist[i+1]);
+		}
+		Q = Qnew;
+		c = KAIN(Q);
+
+		check_linear_dependence(Q,c,rcondtol,cabsmax,do_print);
+		if (do_print) print("subspace solution",c);
+
+		// Form new solution in u
+		T unew = alloc();
+		for (int i=0; i<=iter; i++) {
+//			unew += (ulist[i] - rlist[i])*c[i];
+			unew += (plist[i+1])*c[i];
+		}
+		ulist.push_back(unew);
+
+		if (ulist.size() == maxsub) {
+			ulist.erase(ulist.begin());
+			rlist.erase(rlist.begin());
+			Q = copy(Q(Slice(1,-1),Slice(1,-1)));
+		}
+		return unew;
+	}
+
+    void initialize(const T& u_initial) {
+		clear_subspace();
+		ulist.push_back(u_initial); // initial guess
+		plist.push_back(alloc());	// empty function
+	}
+
+
+
 
     };
 
