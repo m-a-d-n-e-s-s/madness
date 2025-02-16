@@ -207,13 +207,19 @@ public:
       throw std::runtime_error("Sizes of input and output arrays do not equal.");
     }
     // Out of paranoia, re-sort the data.
-    std::stable_sort(y.begin(), y.end(), [&x](int i, int j) { return x[i] < x[j]; });
+    std::vector<int> indices(x.size());
+    std::vector<T> sorted_y(x.size());
+    std::iota(indices.begin(), indices.end(), 0);
+    std::stable_sort(indices.begin(), indices.end(), [&x](int i, int j) { return x[i] < x[j]; });
+    for (size_t i = 0; i < x.size(); i++) {
+      sorted_y[i] = y[indices[i]];
+    }
     std::stable_sort(x.begin(), x.end());
     lo = x[0];
     hi = x[x.size() - 1];
     pts_ = x;
 
-    make_interpolation(x, y);
+    make_interpolation(x, sorted_y);
   }
 
   CubicInterpolationTable(double lo, double hi, int npt,
@@ -246,6 +252,10 @@ public:
       T yy = y1 * y1;
       return (a[i + 1] + y1 * a[i + 2]) + yy * (a[i + 3] + y1 * a[i + 4]);
   }
+
+  double get_lo() const { return lo; }
+
+  double get_hi() const { return hi; }
 
   template <typename functionT> double err(const functionT &f) const {
     if (! pts_.empty()) {
