@@ -730,18 +730,23 @@ void Nemo::rotate_subspace(World& world, const tensorT& U, solverT& solver,
         int lo, int nfunc) const {
     std::vector < std::vector<Function<double, 3> > > &ulist = solver.get_ulist();
     std::vector < std::vector<Function<double, 3> > > &rlist = solver.get_rlist();
+    std::vector < std::vector<Function<double, 3> > > &plist = solver.get_plist();
     for (unsigned int iter = 0; iter < ulist.size(); ++iter) {
         vecfuncT& v = ulist[iter];
         vecfuncT& r = rlist[iter];
+        vecfuncT& p = plist[iter];
         vecfuncT vnew = transform(world, vecfuncT(&v[lo], &v[lo + nfunc]), U,
                 trantol(), false);
         vecfuncT rnew = transform(world, vecfuncT(&r[lo], &r[lo + nfunc]), U,
+                trantol(), true);
+        vecfuncT pnew = transform(world, vecfuncT(&r[lo], &r[lo + nfunc]), U,
                 trantol(), true);
 
         world.gop.fence();
         for (int i=0; i<nfunc; i++) {
             v[i] = vnew[i];
             r[i] = rnew[i];
+            p[i] = pnew[i];
         }
     }
     world.gop.fence();

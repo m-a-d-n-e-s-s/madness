@@ -223,6 +223,7 @@ namespace madness {
 
 	std::vector<T>& get_ulist() {return ulist;}
 	std::vector<T>& get_rlist() {return rlist;}
+	std::vector<T>& get_plist() {return plist;}
 
 	void set_maxsub(int maxsub) {this->maxsub = maxsub;}
 	Tensor<C> get_c() const {return c;}
