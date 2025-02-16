@@ -487,7 +487,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
             sz.print(world,"size of u");
             print_size(world,u,"u");
 
-            sz.add(u,unew,residual,pair_vec,coupling_vec);
+            sz.add(unew,residual,pair_vec,coupling_vec);
             for (const auto& r : solver.get_rlist()) sz.add(r);
             for (const auto& uu : solver.get_ulist()) sz.add(uu);
             sz.print(world,"sizes before KAIN");
@@ -686,8 +686,6 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
     cc2_s.reconstruct();
     lrcc2_s.reconstruct();
 
-    if (1) {
-
     // make new constant part
     MacroTaskConstantPart tc;
     MacroTask task(world, tc);
@@ -697,14 +695,6 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
     for (int i=0; i<pair_vec.size(); ++i) {
         pair_vec[i].constant_part=cp[i];
         save(pair_vec[i].constant_part, pair_vec[i].name() + "_const");
-    }
-    } else {
-        print("reading LRCC2 constant part from file");
-        for (int i=0; i<pair_vec.size(); ++i) {
-            real_function_6d tmp=real_factory_6d(world);
-            load(tmp, pair_vec[i].name() + "_const");
-            pair_vec[i].constant_part=tmp;
-        }
     }
 
     // if no function has been computed so far use the constant part (first iteration)
@@ -723,13 +713,18 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
 
     if (info.parameters.debug()) print_size(world, coupling_vec, "couplingvector");
 
+    if (info.parameters.debug()) {
+        CCSize sz;
+        sz.add(pair_vec,coupling_vec);
+        sz.print(world,"sizes before KAIN");
+    }
     // iterate the pair
     MacroTaskIteratePair t1;
     MacroTask task1(world, t1);
     // temporary fix: create dummy functions to that the cloud is not confused
     // real_function_6d tmp=real_factory_6d(world).functor([](const coord_6d& r){return 0.0;});
     // std::vector<real_function_6d> vdummy_6d(pair_vec.size(),tmp);         // dummy vectors
-    const std::size_t maxiter=10;
+    const std::size_t maxiter=1;
     auto unew = task1(pair_vec, coupling_vec, cc2_s, lrcc2_s, info, maxiter);
 
     for (const auto& u : unew) u.print_size("u after iter");
@@ -814,7 +809,7 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) cons
         MacroTask task1(world, t1);
         CC_vecfunction dummy_ex_singles;
         std::vector<real_function_3d> vdummy_3d;         // dummy vectors
-        const std::size_t maxiter=3;
+        const std::size_t maxiter=1;
         for (auto& p : pair_vec) p.reconstruct();
         for (auto& p : coupling_vec) p.reconstruct();
         info.reconstruct();
