@@ -392,7 +392,7 @@ public:
         }
         world.gop.fence();
         double cpu1=cpu_time();
-        if (world.rank()==0) print("replication ended after ",cpu1-cpu0," seconds at time",cpu1);
+        if (debug and (world.rank()==0)) print("replication ended after ",cpu1-cpu0," seconds");
     }
 
 private:
