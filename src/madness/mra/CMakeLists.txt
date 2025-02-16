@@ -37,7 +37,7 @@ if(BUILD_TESTING)
   set(MRA_TEST_SOURCES testbsh.cc testproj.cc 
       testpdiff.cc testdiff1Db.cc testgconv.cc testopdir.cc testinnerext.cc 
       testgaxpyext.cc testvmra.cc, test_vectormacrotask.cc test_cloud.cc test_tree_state.cc
-      test_macrotaskpartitioner.cc test_QCCalculationParametersBase.cc)
+      test_macrotaskpartitioner.cc test_QCCalculationParametersBase.cc test_memory_measurement.cc)
   add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest" "unittests;short")
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
       testper.cc)
