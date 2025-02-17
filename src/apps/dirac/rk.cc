@@ -224,9 +224,9 @@ public:
         //return fac*exp(-Z*R);
     }
 
-    std::vector<coord_3d> special_points() const {return specialpt;}
+    std::vector<coord_3d> special_points() const final {return specialpt;}
 
-    Level special_level() const {return 5;}
+    Level special_level() const final {return 5;}
 };
 
 // static double V(const coord_3d& r) {

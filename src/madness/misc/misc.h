@@ -48,6 +48,10 @@ namespace madness {
     void gprofexit(int id, int nproc);
     /// creates a unique filename, using PBS ID if available
     std::string unique_fileid();
+
+    // get the memory usage of the current process in byte
+    long get_memory_usage();
+    std::string get_hostname();
 }
 
 #endif // MADNESS_MISC_MISC_H__INCLUDED

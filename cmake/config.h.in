@@ -90,6 +90,9 @@
 #ifndef HAVE_UNISTD_H
 #cmakedefine HAVE_UNISTD_H 1
 #endif
+#ifndef HAVE_RESOURCE_H
+#cmakedefine HAVE_RESOURCE_H 1
+#endif
 #cmakedefine HAVE_ELEMENTAL_H 1
 #cmakedefine HAVE_EL_H 1
 

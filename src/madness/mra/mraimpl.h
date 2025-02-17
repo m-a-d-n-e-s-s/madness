@@ -1279,7 +1279,7 @@ namespace madness {
 
     // Broaden tree
     template <typename T, std::size_t NDIM>
-    void FunctionImpl<T,NDIM>::broaden(std::vector<bool> is_periodic, bool fence) {
+    void FunctionImpl<T,NDIM>::broaden(const array_of_bools<NDIM>& is_periodic, bool fence) {
         typename dcT::iterator end = coeffs.end();
         for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
             const keyT& key = it->first;
@@ -1908,34 +1908,21 @@ namespace madness {
         return sum;
     }
 
+    /// Returns the number of coefficients in the function for each rank
+    template <typename T, std::size_t NDIM>
+    std::size_t FunctionImpl<T,NDIM>::size_local() const {
+        std::size_t sum = 0;
+        for (const auto& [key,node] : coeffs) {
+            if (node.has_coeff()) sum+=node.size();
+        }
+        return sum;
+    }
+
     /// Returns the number of coefficients in the function ... collective global sum
     template <typename T, std::size_t NDIM>
     std::size_t FunctionImpl<T,NDIM>::size() const {
-        std::size_t sum = 0;
-#if 1
-        typename dcT::const_iterator end = coeffs.end();
-        for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
-            const nodeT& node = it->second;
-            if (node.has_coeff())
-                sum+=node.size();
-        }
-        //            print("proc",world.rank(),sum);
-#else
-        typename dcT::const_iterator end = coeffs.end();
-        for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
-            const nodeT& node = it->second;
-            if (node.has_coeff())
-                ++sum;
-        }
-        if (is_compressed())
-            for (std::size_t i=0; i<NDIM; ++i)
-                sum *= 2*cdata.k;
-        else
-            for (std::size_t i=0; i<NDIM; ++i)
-                sum *= cdata.k;
-#endif
+        std::size_t sum = size_local();
         world.gop.sum(sum);
-
         return sum;
     }
 
@@ -2489,9 +2476,9 @@ namespace madness {
 
             // Restrict special points to this box
             std::vector<Vector<double,NDIM> > newspecialpts;
-            if (key.level() < functor->special_level() && specialpts.size() > 0) {
+            if (key.level() < special_level && specialpts.size() > 0) {
                 BoundaryConditions<NDIM> bc = FunctionDefaults<NDIM>::get_bc();
-                std::vector<bool> bperiodic = bc.is_periodic();
+                const auto bperiodic = bc.is_periodic();
                 for (unsigned int i = 0; i < specialpts.size(); ++i) {
                     coordT simpt;
                     user_to_sim(specialpts[i], simpt);
@@ -3217,24 +3204,32 @@ template <typename T, std::size_t NDIM>
 
 
     static inline bool enforce_bc(bool is_periodic, Level n, Translation& l) {
-        Translation two2n = 1ul << n;
-        if (l < 0) {
-            if (is_periodic)
-                l += two2n; // Periodic BC
-            else
-                return false; // Zero BC
-        }
-        else if (l >= two2n) {
-            if (is_periodic)
-                l -= two2n; // Periodic BC
-            else
-                return false; // Zero BC
-        }
-        return true;
+      const Translation two2n = 1ul << n;
+      if (l < 0) {
+        if (is_periodic) {
+          do {
+            l += two2n; // Periodic BC
+          } while (l < 0);
+        } else
+          return false; // Zero BC
+      } else if (l >= two2n) {
+        if (is_periodic) {
+          do {
+            l -= two2n; // Periodic BC
+          } while (l >= two2n);
+        } else
+          return false; // Zero BC
+      }
+      return true;
+    }
+
+    static inline bool enforce_in_volume(Level n, const Translation& l) {
+      Translation two2n = 1ul << n;
+      return l >= 0 && l < two2n;
     }
 
     template <typename T, std::size_t NDIM>
-    Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, const Key<NDIM>& disp, const std::vector<bool>& is_periodic) const {
+    Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, const Key<NDIM>& disp, const array_of_bools<NDIM>& is_periodic) const {
         Vector<Translation,NDIM> l = key.translation();
 
         for (std::size_t axis=0; axis<NDIM; ++axis) {
@@ -3248,6 +3243,19 @@ template <typename T, std::size_t NDIM>
         return keyT(key.level(),l);
     }
 
+    template <typename T, std::size_t NDIM>
+    Key<NDIM> FunctionImpl<T,NDIM>::neighbor_in_volume(const keyT& key, const Key<NDIM>& disp) const {
+      Vector<Translation, NDIM> l = key.translation();
+
+      for (std::size_t axis = 0; axis < NDIM; ++axis) {
+        l[axis] += disp.translation()[axis];
+
+        if (!enforce_in_volume(key.level(), l[axis])) {
+          return keyT::invalid();
+        }
+      }
+      return keyT(key.level(), l);
+    }
 
     template <typename T, std::size_t NDIM>
     Future< std::pair< Key<NDIM>, GenTensor<T> > >
@@ -3291,15 +3299,26 @@ template <typename T, std::size_t NDIM>
         else {
             // special case: tree has only root node: keep sum coeffs and make zero diff coeffs
             if (key.level()==0) {
-                coeffT result(node.coeff());
-                coeffT sdcoeff(cdata.v2k,this->get_tensor_type());
-                sdcoeff(cdata.s0)+=node.coeff();
-                node.coeff()=sdcoeff;
-                double snorm=node.coeff().normf();
-                node.set_dnorm(0.0);
-                node.set_snorm(snorm);
-                node.set_norm_tree(snorm);
-                return Future< std::pair<GenTensor<T>,double> >(std::make_pair(result,node.coeff().normf()));
+                if (redundant1) {
+                    // with only the root node existing redundant and reconstructed are the same
+                    coeffT result(node.coeff());
+                    double snorm=node.coeff().normf();
+                    node.set_dnorm(0.0);
+                    node.set_snorm(snorm);
+                    node.set_norm_tree(snorm);
+                    return Future< std::pair<GenTensor<T>,double> >(std::make_pair(result,snorm));
+                } else {
+                    // compress
+                    coeffT result(node.coeff());
+                    coeffT sdcoeff(cdata.v2k,this->get_tensor_type());
+                    sdcoeff(cdata.s0)+=node.coeff();
+                    node.coeff()=sdcoeff;
+                    double snorm=node.coeff().normf();
+                    node.set_dnorm(0.0);
+                    node.set_snorm(snorm);
+                    node.set_norm_tree(snorm);
+                    return Future< std::pair<GenTensor<T>,double> >(std::make_pair(result,node.coeff().normf()));
+                }
 
             } else { // this is a leaf node
                 Future<coeffT > result(node.coeff());
@@ -3539,7 +3558,7 @@ template <typename T, std::size_t NDIM>
         truncate_on_project = true;
         apply_randomize = false;
         project_randomize = false;
-        bc = BoundaryConditions<NDIM>(BC_FREE);
+        if (!bc.has_value()) bc = BoundaryConditions<NDIM>(BC_FREE);
         tt = TT_FULL;
         cell = make_default_cell();
         recompute_cell_info();
@@ -3570,7 +3589,7 @@ template <typename T, std::size_t NDIM>
     		std::cout << "             truncate_on_project" <<  ": " << truncate_on_project << std::endl;
     		std::cout << "                 apply_randomize" <<  ": " << apply_randomize << std::endl;
     		std::cout << "               project_randomize" <<  ": " << project_randomize << std::endl;
-    		std::cout << "                              bc" <<  ": " << bc << std::endl;
+    		std::cout << "                              bc" <<  ": " << get_bc() << std::endl;
     		std::cout << "                              tt" <<  ": " << tt << std::endl;
     		std::cout << "                            cell" <<  ": " << cell << std::endl;
     }
@@ -3591,7 +3610,7 @@ template <typename T, std::size_t NDIM>
     template <std::size_t NDIM> bool FunctionDefaults<NDIM>::truncate_on_project = true;
     template <std::size_t NDIM> bool FunctionDefaults<NDIM>::apply_randomize = false;
     template <std::size_t NDIM> bool FunctionDefaults<NDIM>::project_randomize = false;
-    template <std::size_t NDIM> BoundaryConditions<NDIM> FunctionDefaults<NDIM>::bc = BoundaryConditions<NDIM>(BC_FREE);
+    template <std::size_t NDIM> std::optional<BoundaryConditions<NDIM>> FunctionDefaults<NDIM>::bc;
     template <std::size_t NDIM> TensorType FunctionDefaults<NDIM>::tt = TT_FULL;
     template <std::size_t NDIM> Tensor<double> FunctionDefaults<NDIM>::cell = FunctionDefaults<NDIM>::make_default_cell();
     template <std::size_t NDIM> Tensor<double> FunctionDefaults<NDIM>::cell_width = FunctionDefaults<NDIM>::make_default_cell_width();
@@ -3601,7 +3620,8 @@ template <typename T, std::size_t NDIM>
     template <std::size_t NDIM> std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::pmap;
 
     template <std::size_t NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp;
-    template <std::size_t NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp_periodicsum[64];
+    template <std::size_t NDIM> array_of_bools<NDIM> Displacements<NDIM>::periodic_axes{false};
+    template <std::size_t NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp_periodic[64];
 
 }
 

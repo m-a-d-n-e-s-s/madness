@@ -94,58 +94,54 @@ CCPair::info() const {
 }
 
 madness::vector_real_function_3d
-CCIntermediatePotentials::operator()(const CC_vecfunction& f, const PotentialType& type) const {
-    output("Getting " + assign_name(type) + " for " + f.name(0));
+CCIntermediatePotentials::get_potential(const PotentialType& ptype, const FuncType& ftype, const bool throw_if_empty) const {
     vector_real_function_3d result;
-    if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED)) result= current_singles_potential_gs_;
-    else if (type == POT_singles_ and f.type == RESPONSE) result= current_singles_potential_ex_;
-    else if (type == POT_s2b_ and f.type == PARTICLE) result= current_s2b_potential_gs_;
-    else if (type == POT_s2b_ and f.type == RESPONSE) result= current_s2b_potential_ex_;
-    else if (type == POT_s2c_ and f.type == PARTICLE) result= current_s2c_potential_gs_;
-    else if (type == POT_s2c_ and f.type == RESPONSE) result= current_s2c_potential_ex_;
-    else if (f.type == HOLE) {
-        output(assign_name(type) + " is zero for HOLE states");
-        // result = zero_functions<double, 3>(f.size());
-    } else {
-        output("ERROR: Potential was not supposed to be stored");
-        MADNESS_EXCEPTION("Potential was not supposed to be stored", 1);
+    if (parameters.debug()) print("Getting " , assign_name(ptype) , " for " , madness::name(ftype,0));
+    if (ptype == POT_singles_ and (ftype == PARTICLE or ftype == MIXED)) result= current_singles_potential_gs_;
+    else if (ptype == POT_singles_ and ftype == RESPONSE) result= current_singles_potential_ex_;
+    else if (ptype == POT_s2b_ and ftype == PARTICLE) result= current_s2b_potential_gs_;
+    else if (ptype == POT_s2b_ and ftype == RESPONSE) result= current_s2b_potential_ex_;
+    else if (ptype == POT_s2c_ and ftype == PARTICLE) result= current_s2c_potential_gs_;
+    else if (ptype == POT_s2c_ and ftype == RESPONSE) result= current_s2c_potential_ex_;
+    else {
+        MADNESS_EXCEPTION("unknown potential in CCIntermediatePotentials::get_potential", 1);
+    }
+    if (result.empty() and throw_if_empty) {
+        std::string errmsg="CCIntermediatePotential was not computed/stored "+assign_name(ptype) + " " +assign_name(ftype);
+        errmsg+="\n --> you might need to iterate the corresponding singles";
+        print(errmsg);
+        MADNESS_EXCEPTION(errmsg.c_str(),1);
     }
 
-    if (result.empty()) {
-        output("!!!WARNING: Potential is empty!!!");
-    } else {
+    if (not result.empty() and parameters.debug()) {
         World& world=result.front().world();
         if (parameters.debug()) print_size(world,result, "potential");
     }
-
     return result;
 }
 
-madness::real_function_3d
-CCIntermediatePotentials::operator()(const CCFunction<double,3>& f, const PotentialType& type) const {
-    output("Getting " + assign_name(type) + " for " + f.name());
-    std::vector<real_function_3d> result;
-    if (type == POT_singles_ and (f.type == PARTICLE or f.type == MIXED)) result= current_singles_potential_gs_;
-    else if (type == POT_singles_ and f.type == RESPONSE) result= current_singles_potential_ex_;
-    else if (type == POT_s2b_ and f.type == PARTICLE) result= current_s2b_potential_gs_;
-    else if (type == POT_s2b_ and f.type == RESPONSE) result= current_s2b_potential_ex_;
-    else if (type == POT_s2c_ and f.type == PARTICLE) result= current_s2c_potential_gs_;
-    else if (type == POT_s2c_ and f.type == RESPONSE) result= current_s2c_potential_ex_;
-    else if (f.type == HOLE) output(assign_name(type) + " is zero for HOLE states");
-    else MADNESS_EXCEPTION("Potential was not supposed to be stored", 1);
 
-    std::string errmsg="CCIntermediatePotential was not computed/stored "+assign_name(type) + " " +assign_name(f.type);
-    errmsg+="\n --> you might need to iterate the corresponding singles";
-    MADNESS_CHECK_THROW(result.size()>(f.i-parameters.freeze()),errmsg.c_str());
-    return result[f.i-parameters.freeze()];
+madness::vector_real_function_3d
+CCIntermediatePotentials::operator()(const CC_vecfunction& f, const PotentialType& type,
+    const bool throw_if_empty) const {
+    return get_potential(type,f.type,throw_if_empty);
+}
+
+madness::real_function_3d
+CCIntermediatePotentials::operator()(const CCFunction<double,3>& f, const PotentialType& type,
+    const bool throw_if_empty) const {
+    vector_real_function_3d result=get_potential(type,f.type,throw_if_empty);
+    long iact=f.i-parameters.freeze();  // active index
+    MADNESS_CHECK_THROW(iact<result.size(),"potential not found for active occupied index iact");
+    return result[iact];
 }
 
 void
 CCIntermediatePotentials::insert(const vector_real_function_3d& potential, const CC_vecfunction& f,
                                  const PotentialType& type) {
-    output("Storing potential: " + assign_name(type) + " for " + f.name(0));
+    World& world=potential.front().world();
+    if (world.rank()==0) output("Storing potential: " + assign_name(type) + " for " + f.name(0));
     if (parameters.debug()) {
-        World& world=potential.front().world();
         print_size(world, potential, "potential");
     }
     MADNESS_ASSERT(!potential.empty());
@@ -506,6 +502,99 @@ assign_name(const FuncType& inp) {
     return "???";
 }
 
+/// make a CCPair without the 6d function and some bookkeeping information
+CCPair CCPairBuilder::make_bare_pair(const int i, const int j) const {
+    MADNESS_ASSERT(i>=info.parameters.freeze() && i < info.mo_bra.size());
+    MADNESS_ASSERT(j>=info.parameters.freeze() && j < info.mo_ket.size());
+
+    CCPair pair(i, j, cc_state(ctype), ctype);
+    pair.bsh_eps=CCPotentials::get_epsilon(i,j,info);
+    if (cc_state(ctype)==EXCITED_STATE) {
+        MADNESS_ASSERT(ex_singles.omega != 0.0);
+        pair.bsh_eps += ex_singles.omega;
+    }
+    return pair;
+}
+
+/// make a CCPair with the given function
+CCPair CCPairBuilder::make_pair(const int i, const int j, const std::vector<CCPairFunction<double,6>>& u) const {
+    CCPair pair=make_bare_pair(i,j);
+    // a lot of logic depends on the first function being the 6d function!
+    if (u.size()>0) MADNESS_CHECK_THROW(u.front().is_pure(),"missing pure 6d function in CCPairBuilder::make_pair");
+    pair.functions+=u;
+    return pair;
+}
+
+/// make a CCPair with the 6d function only and some bookkeeping information
+CCPair CCPairBuilder::make_bare_pair_from_file(const int i, const int j) const {
+    CCPair pair=make_bare_pair(i,j);
+
+    // load the 6d function u and the constant part from file
+    std::string name = pair.name();
+    real_function_6d utmp=load_function<double,6>(name, info.parameters.debug());
+    real_function_6d const_part=load_function<double,6>(name + "_const", info.parameters.debug());
+
+    // first term is the 6d function u, then follows Q12 f12 |ij>, which is added later
+    if (utmp.is_initialized()) pair.functions+=CCPairFunction<double,6>(utmp);
+    if (const_part.is_initialized()) pair.constant_part = const_part;
+
+    return pair;
+}
+
+
+CCPair CCPairBuilder::complete_pair_with_low_rank_parts(const CCPair& pair) const {
+    CCPair result=pair;
+
+    // a lot of logic depends on the first function being the 6d function!
+//    if (result.functions.size()==0) {
+//        real_function_6d f;
+//        result.functions.push_back(CCPairFunction<double,6>(f));
+//    }
+    MADNESS_CHECK_THROW(result.functions.size()==1,"missing pure 6d function in CCPairBuilder::complete_pair_with_low_rank_parts");
+    MADNESS_CHECK_THROW(result.functions.front().is_pure(),"pure 6d function not pure in CCPairBuilder::complete_pair_with_low_rank_parts");
+    long nact=info.get_active_mo_bra().size();
+    if (result.ctype==CT_MP2) {
+        // nothing to do
+    } else if (result.ctype==CT_CC2) {
+        MADNESS_CHECK_THROW(gs_singles.size()==nact,"missing gs_singles for completing the CC2 pair function");
+    } else if (result.ctype==CT_LRCC2) {
+        MADNESS_CHECK_THROW(gs_singles.size()==nact,"missing gs_singles for completing the LRCC2 pair function");
+        MADNESS_CHECK_THROW(ex_singles.size()==nact,"missing ex_singles for completing the LRCC2 pair function");
+    } else {
+        print("unknown ctype in complete_pair_with_low_rank_parts",assign_name(result.ctype));
+        MADNESS_EXCEPTION("unknown ctype",1);
+    }
+
+    timer t1(world);
+    auto phi=info.mo_ket;
+    auto phi_bra=info.mo_bra;
+    StrongOrthogonalityProjector<double,3> Q12(world);
+    auto f12=CCConvolutionOperatorPtr<double,3>(world,OT_F12,info.parameters);
+
+    if (result.ctype==CT_MP2) {
+        // ansatz is Q12 f12 |ij>
+        Q12.set_spaces(phi_bra,phi,phi_bra,phi);
+        CCPairFunction<double,6> fij(f12, phi[result.i], phi[result.j]);
+        std::vector<CCPairFunction<double,6>> tmp=Q12(std::vector<CCPairFunction<double,6>>(1,fij));
+        result.functions+=tmp;
+
+    } else if (result.ctype==CT_CC2) {
+        // ansatz is Qt12 f12 |t_i t_j>
+        auto t=CCPotentials::make_full_t_intermediate(gs_singles,info).get_vecfunction();
+        Q12.set_spaces(phi_bra,t,phi_bra,t);
+
+        CCPairFunction<double,6> fij(f12, t[result.i], t[result.j]);
+        std::vector<CCPairFunction<double,6>> tmp=Q12(std::vector<CCPairFunction<double,6>>(1,fij));
+        result.functions+=tmp;
+    } else if (result.ctype==CT_LRCC2) {
+        // ansatz is Qt12 f12 ( |t_i x_j> + |x_i t_j> ) - dQt12 f12 |t_i t_j>
+        result=CCPotentials::make_pair_lrcc2(world,result.ctype,result.function(),gs_singles,ex_singles,result.i,result.j,info, true);
+    } else {
+        MADNESS_EXCEPTION("unknown ctype",1);
+    }
+    t1.tag("make low-rank parts in make_pair_cc2 for pair("+stringify(result.i)+stringify(result.j)+")");
+    return result;
+}
 
 std::vector<real_function_6d>
 //MacroTaskMp2ConstantPart::operator() (const std::vector<CCPair>& pair, const std::vector<real_function_3d>& mo_ket,
@@ -543,13 +632,6 @@ MacroTaskConstantPart::operator() (const std::vector<CCPair>& pair,
 
 
 std::vector<real_function_6d>
-//MacroTaskMp2UpdatePair::operator() (const std::vector<CCPair> &pair,
-//                                    const std::vector<real_function_6d> &mp2_coupling,
-//                                    const CCParameters &parameters,
-//                                    const std::vector<madness::Vector<double, 3>> &all_coords_vec,
-//                                    const std::vector<real_function_3d> &mo_ket,
-//                                    const std::vector<real_function_3d> &mo_bra,
-//                                    const std::vector<real_function_3d> &U1, const real_function_3d &U2) const {
 MacroTaskMp2UpdatePair::operator() (const std::vector<CCPair> &pair,
                                     const std::vector<real_function_6d> &mp2_coupling,
                                     const std::vector<madness::Vector<double, 3>> &all_coords_vec,
@@ -581,6 +663,105 @@ MacroTaskIteratePair::operator()(const std::vector<CCPair>& pair,
     }
     return result;
 
+}
+
+/// convenience function
+
+
+std::tuple<std::vector<real_function_3d>, std::vector<real_function_3d>>
+MacroTaskSinglesPotentialEx::operator()(const std::vector<int>& result_index,
+                                      const CC_vecfunction& singles_gs,
+                                      const std::vector<CCPair>& doubles_gs,
+                                      const CC_vecfunction& singles_ex,
+                                      const std::vector<CCPair>& doubles_ex,
+                                      const int& name,
+                                      const Info& info) {
+    World& world=singles_ex.get_vecfunction().front().world();
+
+    auto triangular_map=PairVectorMap::triangular_map(info.parameters.freeze(),info.mo_ket.size());
+    auto doubles_gs1=Pairs<CCPair>::vector2pairs(doubles_gs,triangular_map);
+    auto doubles_ex1=Pairs<CCPair>::vector2pairs(doubles_ex,triangular_map);
+
+//    // the doubles currently only contain the full 6d function -> complete it with the Q12 f12 |ti tj> part
+//    for (auto& x : doubles_gs1.allpairs) {
+//        auto& tau=x.second;
+//        MADNESS_CHECK_THROW(tau.functions.size()==1,"doubles in MacroTaskSinglesPotentialsEx should only contain one function");
+//        bool compute_Q12_F12=(PotentialType(name)==POT_s2b_ or PotentialType(name)==POT_s2c_);
+//        x.second=CCPotentials::make_pair_cc2(world,tau.function(),singles_gs,tau.i,tau.j, info, compute_Q12_F12);
+//    }
+//    // the doubles currently only contain the full 6d function -> complete it with the Q12 f12 |ti tj> part
+//    for (auto& x : doubles_ex1.allpairs) {
+//        auto& tau=x.second;
+//        MADNESS_CHECK_THROW(tau.functions.size()==1,"doubles in MacroTaskSinglesPotentialsEx should only contain one function");
+//        x.second=tau=CCPotentials::make_pair_lrcc2(world,tau.ctype,tau.function(),singles_gs,singles_ex,tau.i,tau.j, info, true);
+//    }
+
+    resultT result=CCPotentials::potential_singles_ex(world,
+                result_index,
+                singles_gs,
+                doubles_gs1,
+                singles_ex,
+                doubles_ex1,
+                PotentialType(name),
+                info);
+    // if the second element of the tuple is empty, fill it with empty functions
+    // to that "insert_batch" is not confused
+    if (std::get<1>(result).empty()) std::get<1>(result)=zero_functions<double,3>(world,result_index.size());
+    return result;
+}
+
+std::tuple<std::vector<real_function_3d>, std::vector<real_function_3d>>
+MacroTaskSinglesPotentialGs::operator()(const std::vector<int>& result_index,
+                                      const CC_vecfunction& singles_gs,
+                                      const std::vector<CCPair>& doubles_gs,
+                                      const int& name,
+                                      const Info& info) {
+    World& world=singles_gs.get_vecfunction().front().world();
+    auto triangular_map=PairVectorMap::triangular_map(info.parameters.freeze(),info.mo_ket.size());
+    auto doubles_gs1=Pairs<CCPair>::vector2pairs(doubles_gs,triangular_map);
+
+//    // the doubles currently only contain the full 6d function -> complete it with the Q12 f12 |ti tj> part
+//    for (auto& x : doubles_gs1.allpairs) {
+//        auto& tau=x.second;
+//        MADNESS_CHECK_THROW(tau.functions.size()==1,"doubles in MacroTaskSinglesPotentialsGS should only contain one function");
+//        bool compute_Q12_F12=(PotentialType(name)==POT_s2b_ or PotentialType(name)==POT_s2c_);
+//        tau=CCPotentials::make_pair_cc2(world,tau.function(),singles_gs,tau.i,tau.j,info, compute_Q12_F12);
+//    }
+
+    resultT result=CCPotentials::potential_singles_gs(world, result_index,
+                singles_gs, doubles_gs1, PotentialType(name), info);
+
+    // if the second element of the tuple is empty, fill it with empty functions
+    // to that "insert_batch" is not confused
+    auto& intermediate=std::get<1>(result);
+    if (intermediate.empty()) intermediate=zero_functions<double,3>(world,result_index.size());
+    // if (intermediate.empty()) intermediate.resize(result_index.size());
+    MADNESS_CHECK_THROW(std::get<0>(result).size()==std::get<1>(result).size(),"result size mismatch 1 in MacroTaskSinglesPotentialGS");
+    MADNESS_CHECK_THROW(std::get<0>(result).size()==result_index.size(),"result size mismatch 2 in MacroTaskSinglesPotentialGS");
+    return result;
+
+}
+
+std::vector<ScalarResult<double>>
+MacroTaskComputeCorrelationEnergy::operator()(const std::vector<CCPair>& pairs,
+                                                  const CC_vecfunction& singles_gs,
+                                                  const Info& info) const {
+     World &world = pairs[0].function().world();
+     auto result=scalar_result_vector<double>(world,pairs.size());
+     CalcType ctype=pairs[0].ctype;
+     for (int i=0; i<pairs.size(); ++i) {
+         if (ctype==CT_MP2) {
+             // when serialized the Qf12 |ij> part is not stored in the cloud, so recompute it here
+             auto pair=CCPotentials::make_pair_mp2(world,pairs[i].function(),pairs[i].i,pairs[i].j,info, true);
+             result[i]=CCPotentials::compute_pair_correlation_energy(world,pair,singles_gs,info);
+        } else if (ctype==CT_CC2) {
+             auto pair=CCPotentials::make_pair_cc2(world,pairs[i].function(),singles_gs,pairs[i].i,pairs[i].j,info, true);
+             result[i]=CCPotentials::compute_pair_correlation_energy(world,pair,singles_gs,info);
+        } else {
+             MADNESS_EXCEPTION("MacroTaskComputeCorrelationEnergy: unknown ctype",1);
+        }
+     }
+    return result;
 }
 
 template class CCConvolutionOperator<double,3>;

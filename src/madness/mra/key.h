@@ -35,12 +35,14 @@
 /// \file key.h
 /// \brief Multidimension Key for MRA tree and associated iterators
 
-#include <vector>
+#include <madness/mra/bc.h>
 #include <madness/mra/power.h>
 #include <madness/world/vector.h>
 #include <madness/world/binary_fstream_archive.h>
 #include <madness/world/worldhash.h>
-#include <stdint.h>
+
+#include <cstdint>
+#include <vector>
 
 namespace madness {
 
@@ -60,7 +62,7 @@ namespace madness {
     /// Key is the index for a node of the 2^NDIM-tree
 
     /// See KeyChildIterator for facile generation of children,
-    /// and foreach_child(parent,op) for facile applicaiton of operators
+    /// and foreach_child(parent,op) for facile application of operators
     /// to child keys.
     template<std::size_t NDIM>
     class Key {
@@ -165,6 +167,11 @@ namespace madness {
             return l;
         }
 
+        /// const accessor to elements of this->translation()
+        const Translation& operator[](std::size_t d) const {
+          return l[d];
+        }
+
         uint64_t
         distsq() const {
             uint64_t dist = 0;
@@ -172,6 +179,57 @@ namespace madness {
                 dist += l[d] * l[d];
             }
             return dist;
+        }
+
+        /// like distsq() but accounts for periodicity
+        uint64_t
+        distsq_bc(const array_of_bools<NDIM>& is_periodic) const {
+          const Translation twonm1 = (Translation(1) << level()) >> 1;
+
+          uint64_t dsq = 0;
+          for (std::size_t d = 0; d < NDIM; ++d) {
+            Translation la = translation()[d];
+            if (is_periodic[d]) {
+              if (la > twonm1) {
+                la -= twonm1 * 2;
+                MADNESS_ASSERT(la <= twonm1);
+              }
+              if (la < -twonm1) {
+                la += twonm1 * 2;
+                MADNESS_ASSERT(la >= -twonm1);
+              }
+            }
+            dsq += la * la;
+          }
+
+          return dsq;
+        }
+
+        /// like "periodic" distsq() but only selects the prescribed axes
+        template <std::size_t NDIM2>
+        std::enable_if_t<NDIM >= NDIM2, uint64_t>
+        distsq_bc(const array_of_bools<NDIM>& is_periodic, const std::array<std::size_t, NDIM2>& axes) const {
+          const Translation twonm1 = (Translation(1) << level()) >> 1;
+
+          uint64_t dsq = 0;
+          for (std::size_t a = 0; a < NDIM2; ++a) {
+            const auto d = axes[a];
+            MADNESS_ASSERT(d < NDIM);
+            Translation la = translation()[d];
+            if (is_periodic[d]) {
+              if (la > twonm1) {
+                la -= twonm1 * 2;
+                MADNESS_ASSERT(la <= twonm1);
+              }
+              if (la < -twonm1) {
+                la += twonm1 * 2;
+                MADNESS_ASSERT(la >= -twonm1);
+              }
+            }
+            dsq += la * la;
+          }
+
+          return dsq;
         }
 
         /// Returns the key of the parent
@@ -219,7 +277,7 @@ namespace madness {
 
         /// Assumes key and this are at the same level
         bool
-        is_neighbor_of(const Key& key, const std::vector<bool>& bperiodic) const {
+        is_neighbor_of(const Key& key, const array_of_bools<NDIM>& bperiodic) const {
           Translation dist = 0;
           Translation TWON1 = (Translation(1)<<n) - 1;
         	for (std::size_t i=0; i<NDIM; ++i)
@@ -238,6 +296,15 @@ namespace madness {
         Key neighbor(const Key<NDIM>& disp) const {
             Vector<Translation,NDIM> l = this->translation()+disp.translation();
             return Key(this->level(),l);
+        }
+
+        /// given a displacement, generate a neighbor key; ignore boundary conditions and disp's level
+
+        /// @param[in]  disp    the displacement
+        /// @return     a new key
+        Key neighbor(const Vector<Translation,NDIM>& disp) const {
+          Vector<Translation,NDIM> l = this->translation()+disp;
+          return Key(this->level(),l);
         }
 
 
@@ -284,6 +351,24 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
 	    
             key1=Key<LDIM>(n,l1);
             key2=Key<KDIM>(n,l2);
+        }
+
+        /// extract a new key consisting of first VDIM dimensions of this
+        template<std::size_t VDIM>
+        Key<VDIM> extract_front() const {
+          static_assert(VDIM <= NDIM, "VDIM must be less than or equal to NDIM");
+          Vector<Translation, VDIM> t;
+          for (int i = 0; i < VDIM; ++i) t[i] = this->translation()[i];
+          return Key<VDIM>(this->level(),t);
+        }
+
+        /// extract a new key consisting of last VDIM dimensions of this
+        template<std::size_t VDIM>
+        Key<VDIM> extract_back() const {
+          static_assert(VDIM <= NDIM, "VDIM must be less than or equal to NDIM");
+          Vector<Translation, VDIM> t;
+          for (int i = 0; i < VDIM; ++i) t[i] = this->translation()[NDIM-VDIM+i];
+          return Key<VDIM>(this->level(),t);
         }
 
         /// extract a new key with the Translations indicated in the v array

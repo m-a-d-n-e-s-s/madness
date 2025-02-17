@@ -65,10 +65,10 @@ private:
                 const Function<double,3>&,
                 const std::vector<std::string>& > argtupleT;
 
-        using resultT =std::shared_ptr<ScalarResult<double>>;
+        using resultT =ScalarResult<double>;
 
         resultT allocator(World& world, const argtupleT& argtuple) const {
-            return std::shared_ptr<ScalarResult<double>>(new ScalarResult<double>(world));
+            return ScalarResult<double>(world);
         }
 
         resultT operator() (const std::string& diagram,                             // which diagram to calculate
@@ -131,8 +131,8 @@ private:
                 std::string msg = "Unknown MP3 diagram: " + diagram;
                 MADNESS_EXCEPTION(msg.c_str(), 1);
             }
-            auto result1=std::shared_ptr<ScalarResult<double>>(new ScalarResult<double>(world));
-            *result1=result;
+            auto result1=ScalarResult<double>(world);
+            result1=result;
             return result1;
 
         };

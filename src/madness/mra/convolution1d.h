@@ -41,10 +41,11 @@
 #include <madness/mra/twoscale.h>
 #include <madness/tensor/aligned.h>
 #include <madness/tensor/tensor_lapack.h>
+#include <madness/misc/kahan_accumulator.h>
 #include <algorithm>
 
 /// \file mra/convolution1d.h
-/// \brief Compuates most matrix elements over 1D operators (including Gaussians)
+/// \brief Computes most matrix elements over 1D operators (including Gaussians)
 
 /// \ingroup function
 
@@ -260,27 +261,34 @@ namespace madness {
         int k;          ///< Wavelet order
         int npt;        ///< Number of quadrature points (is this used?)
         int maxR;       ///< Number of lattice translations for sum
+        double bloch_k;  ///< k in exp(i k R) Bloch phase factor folded into lattice sum
+        KernelRange range;  ///< if range is nonnull, kernel range limited to to range (in simulation cell units), useful for finite-range convolutions with periodic functions
         Tensor<double> quad_x;
         Tensor<double> quad_w;
         Tensor<double> c;
         Tensor<double> hgT, hg;
         Tensor<double> hgT2k;
-        double arg;
 
         mutable SimpleCache<Tensor<Q>, 1> rnlp_cache;
         mutable SimpleCache<Tensor<Q>, 1> rnlij_cache;
         mutable SimpleCache<ConvolutionData1D<Q>, 1> ns_cache;
         mutable SimpleCache<ConvolutionData1D<Q>, 2> mod_ns_cache;
 
+        bool lattice_summed() const { return maxR != 0; }
+        bool range_restricted() const { return range.finite(); }
+
         virtual ~Convolution1D() {};
 
-        Convolution1D(int k, int npt, int maxR, double arg = 0.0)
+        Convolution1D(int k, int npt, int maxR,
+                      double bloch_k = 0.0,
+                      KernelRange rng = {})
                 : k(k)
                 , npt(npt)
                 , maxR(maxR)
                 , quad_x(npt)
                 , quad_w(npt)
-                , arg(arg)
+                , bloch_k(bloch_k)
+                , range(rng)
         {
             auto success = autoc(k,&c);
             MADNESS_CHECK(success);
@@ -301,27 +309,58 @@ namespace madness {
         /// Compute the projection of the operator onto the double order polynomials
         virtual Tensor<Q> rnlp(Level n, Translation lx) const = 0;
 
-        /// Returns true if the block of rnlp is expected to be small
+        /// @return true if the block of [r^n_l]_ij is expected to be small
         virtual bool issmall(Level n, Translation lx) const = 0;
 
-        /// Returns true if the block of rnlp is expected to be small including periodicity
+        /// @return true if the block of [r^n_l]_ij is expected to be small
+        /// @note unlike issmall(), this handles periodicity and range restriction
         bool get_issmall(Level n, Translation lx) const {
-            if (maxR == 0) {
-                return issmall(n, lx);
-            }
+          // issmall modufulated by range restriction
+          auto is_small = [this,n](Translation l) {
+            if (!range_restricted())
+              return issmall(n, l);
             else {
-                Translation twon = Translation(1)<<n;
-                for (int R=-maxR; R<=maxR; ++R) {
-                    if (!issmall(n, R*twon+lx)) return false;
-                }
-                return true;
+              // [r^n_l]_ij = superposition of [r^n_l]_p and [r^n_l-1]_p
+              // so rnlij is out of the range only if both rnlp contributions are
+              const auto closest_l = l<=0 ? l : l-1;
+              return rnlp_is_zero(n, closest_l) || issmall(n, l);
             }
+          };
+
+          // handle lattice summation, if needed
+          if (lattice_summed()) {
+            const Translation twon = Translation(1) << n;
+            for (int R = -maxR; R <= maxR; ++R) {
+              if (!is_small(R * twon + lx))
+                return false;
+            }
+            return true;
+          } else { // !lattice_summed
+            return is_small(lx);
+          }
+        }
+
+        /// @return true if `[r^n_l]` is zero due to range restriction
+        bool rnlp_is_zero(Level n, Translation l) const {
+          bool result = false;
+          if (range_restricted()) {
+            if (n == 0) {
+              // result = l > 0 || l < -1;
+              if (l >= 0)
+                result = Translation(range.iextent_x2()) <= 2*l;
+              else
+                result = Translation(range.iextent_x2()) <= 2*(-l-1);
+            } else { // n > 0
+              if (l >= 0)
+                result = (1 << (n - 1)) * Translation(range.iextent_x2()) <= l;
+              else
+                result = ((1 << (n - 1)) * Translation(range.iextent_x2())) <= (-l-1);
+            }
+          }
+          return result;
         }
 
         /// Returns the level for projection
-        //virtual Level natural_level() const {
-        //    return 13;
-        //}
         virtual Level natural_level() const {return 13;}
 
         /// Computes the transition matrix elements for the convolution for n,l
@@ -333,6 +372,7 @@ namespace madness {
         /// This is computed from the matrix elements over the correlation
         /// function which in turn are computed from the matrix elements
         /// over the double order legendre polynomials.
+        /// \note if `this->range_restricted()==true`, `θ(D/2 - |x-y|) K(x-y)` is used as the kernel
         const Tensor<Q>& rnlij(Level n, Translation lx, bool do_transpose=false) const {
             const Tensor<Q>* p=rnlij_cache.getptr(n,lx);
             if (p) return *p;
@@ -441,6 +481,8 @@ namespace madness {
 
                 R = Tensor<Q>(2*k,2*k);
 
+                // this does not match Eq 18 of the MRAQC appendix .. parity off??
+                // either rnlij dox swap bra/ket or hgT include extra parity phases
 //                 R(s0,s0) = r0;
 //                 R(s1,s1) = r0;
 //                 R(s1,s0) = rp;
@@ -487,11 +529,10 @@ namespace madness {
         };
 
         Q phase(double R) const {
-        	return 1.0;
-        }
-
-        Q phase(double_complex R) const {
-        	return exp(double_complex(0.0,arg)*R);
+          if constexpr (std::is_arithmetic_v<Q>)
+            return 1;
+          else
+            return exp(Q(0.0,bloch_k*R));
         }
 
 
@@ -518,11 +559,11 @@ namespace madness {
             else {
                 // PROFILE_BLOCK(Convolution1Drnlp); // Too fine grain for routine profiling
 
-                if (maxR > 0) {
+                if (lattice_summed()) {
                     Translation twon = Translation(1)<<n;
                     r = Tensor<Q>(2*k);
                     for (int R=-maxR; R<=maxR; ++R) {
-                        r.gaxpy(1.0, rnlp(n,R*twon+lx), phase(Q(R)));
+                        r.gaxpy(1.0, rnlp(n,R*twon+lx), phase(R));
                     }
                 }
                 else {
@@ -572,6 +613,16 @@ namespace madness {
         Q getfac() const {
             return fac;
         }
+
+        /// @return whether lattice sum is performed along each axis
+        array_of_bools<NDIM> lattice_summed() const {
+          array_of_bools<NDIM> result(false);
+          for (int d = 0; d != NDIM; ++d) {
+            MADNESS_ASSERT(ops[d]);
+            result[d] = ops[d]->lattice_summed();
+          }
+          return result;
+        }
     };
 
     // To test generic convolution by comparing with GaussianConvolution1D
@@ -610,8 +661,8 @@ namespace madness {
 
         GenericConvolution1D() {}
 
-        GenericConvolution1D(int k, const opT& op, int maxR, double arg = 0.0)
-            : Convolution1D<Q>(k, 20, maxR, arg), op(op), maxl(LONG_MAX-1) {
+        GenericConvolution1D(int k, const opT& op, int maxR, double bloch_k = 0.0)
+            : Convolution1D<Q>(k, 20, maxR, bloch_k), op(op), maxl(LONG_MAX-1) {
             // PROFILE_MEMBER_FUNC(GenericConvolution1D); // Too fine grain for routine profiling
 
             // For efficiency carefully compute outwards at the "natural" level
@@ -632,7 +683,7 @@ namespace madness {
             }
         }
 
-        virtual Level natural_level() const {return op.natural_level();}
+        virtual Level natural_level() const final {return op.natural_level();}
 
         struct Shmoo {
             typedef Tensor<Q> returnT;
@@ -655,12 +706,12 @@ namespace madness {
             }
         };
 
-        Tensor<Q> rnlp(Level n, Translation lx) const {
+        Tensor<Q> rnlp(Level n, Translation lx) const final {
             return adq1(lx, lx+1, Shmoo(n, lx, this), 1e-12,
                         this->npt, this->quad_x.ptr(), this->quad_w.ptr(), 0);
         }
 
-        bool issmall(Level n, Translation lx) const {
+        bool issmall(Level n, Translation lx) const final {
             if (lx < 0) lx = 1 - lx;
             // Always compute contributions to nearest neighbor coupling
             // ... we are two levels below so 0,1 --> 0,1,2,3 --> 0,...,7
@@ -682,9 +733,14 @@ namespace madness {
     template <typename Q>
     class GaussianConvolution1D : public Convolution1D<Q> {
         // Returns range of Gaussian for periodic lattice sum in simulation coords
-        static int maxR(bool periodic, double expnt) {
+        // N.B. for range-restricted kernels lattice summation range may or may not be limited by the kernel range
+        static int maxR(bool periodic, double expnt, const KernelRange& rng = {}) {
             if (periodic) {
-                return std::max(1,int(sqrt(16.0*2.3/expnt)+1));
+              // kernel is 1e-16 past this many simulation cells due to range-restriction
+              const int maxR_rng = rng.finite() ? (rng.iextent_x2(1e-16) + 1)/2 : std::numeric_limits<int>::max();
+              // kernel is 1e-16 past this many simulation cells due to decay of Gaussian kernel
+              const int maxR_G = std::max(1, int(sqrt(16.0 * 2.3 / expnt) + 1));
+              return std::min(maxR_rng,maxR_G);
             }
             else {
                 return 0;
@@ -697,8 +753,9 @@ namespace madness {
         const int m;            ///< Order of derivative (0, 1, or 2 only)
 
         explicit GaussianConvolution1D(int k, Q coeff, double expnt,
-        		int m, bool periodic, double arg = 0.0)
-            : Convolution1D<Q>(k,k+11,maxR(periodic,expnt),arg)
+        		int m, bool periodic, double bloch_k = 0.0,
+                        KernelRange rng = {})
+            : Convolution1D<Q>(k,k+11,maxR(periodic,expnt,rng),bloch_k, rng)
             , coeff(coeff)
             , expnt(expnt)
             , natlev(Level(0.5*log(expnt)/log(2.0)+1))
@@ -716,7 +773,7 @@ namespace madness {
 
         virtual ~GaussianConvolution1D() {}
 
-        virtual Level natural_level() const {
+        virtual Level natural_level() const final {
             return natlev;
         }
 
@@ -737,19 +794,45 @@ namespace madness {
         /// \code
         /// beta = alpha * 2^(-2*n)
         /// \endcode
-        Tensor<Q> rnlp(Level n, Translation lx) const {
+        Tensor<Q> rnlp(Level n, const Translation lx) const final {
             int twok = 2*this->k;
             Tensor<Q> v(twok);       // Can optimize this away by passing in
+            KahanAccumulator<Q> v_accumulator[twok];
+            constexpr bool use_kahan = false;  // change to true to use Kahan accumulator
 
-            Translation lkeep = lx;
-            if (lx<0) lx = -lx-1;
+            // integration range is [0,1] ...
+            std::pair<double, double> integration_limits{0,1};
+            // ... unless using hard (step-wise) range restriction
+            if (this->range.finite_hard()) {
+              const auto two_to_nm1 = (1ul << n) * 0.5;
+              if (lx < 0) {
+                integration_limits = std::make_pair(
+                    std::min(std::max(-two_to_nm1 * this->range.iextent_x2() - lx, 0.), 1.), 1.);
+              } else {
+                integration_limits = std::make_pair(
+                    0., std::max(std::min(two_to_nm1 * this->range.iextent_x2() - lx, 1.), 0.));
+              }
+              // early return if empty integration range (this indicates that
+              // the range restriction makes the kernel zero everywhere in the box)
+              if (integration_limits.first == integration_limits.second) {
+                MADNESS_ASSERT(this->rnlp_is_zero(n, lx));
+                return v;
+              }
+              else {
+                MADNESS_ASSERT(!this->rnlp_is_zero(n, lx));
+              }
+            }
+            // integration range lower bound, upper bound, length
+            const auto x0 = integration_limits.first;
+            const auto x1 = integration_limits.second;
+            const auto L = x1 - x0;
 
             /* Apply high-order Gauss Legendre onto subintervals
 
                coeff*int(exp(-beta(x+l)**2) * z^m * phi[p](x),x=0..1);
 
                The translations internally considered are all +ve, so
-               signficant pieces will be on the left.  Finish after things
+               significant pieces will be on the left.  Finish after things
                become insignificant.
 
                The resulting coefficients are accurate to about 1e-20.
@@ -781,7 +864,32 @@ namespace madness {
             double h = 1.0/sqrt(beta);  // 2.0*sqrt(0.5/beta);
             long nbox = long(1.0/h);
             if (nbox < 1) nbox = 1;
-            h = 1.0/nbox;
+
+            // corner case: soft range restriction, range boundary within in interval
+            // since the integrand changes rapidly at x=0, 1/2, or 1, need finer
+            // integration
+            // N.B. this should have almost no impact on performance since this
+            // will produce a large number of boxes only when 2^n * sigma << 1
+            if (this->range.finite_soft()) {
+              // range boundary within in interval if 2^{n-1}*range.N() \in [l,l+1] (l>=0) or [-l,-l+1] (l<0)
+              const auto range_edge_in_interval = [&]() {
+                const auto two_to_nm1 = (1ul << n) * 0.5;
+                const auto range_boundary = two_to_nm1 * this->range.N();
+                if (lx >= 0) {
+                  return range_boundary >= lx && range_boundary <= lx+1;
+                }
+                else { // lx < 0
+                  return range_boundary <= -lx && range_boundary >= -lx-1;
+                }
+              };
+
+              // ensure that box is at least 1/sigma in size
+              if (range_edge_in_interval()) {
+                nbox = std::max(nbox, static_cast<long>(ceil(1./((1ul << n) * this->range.sigma()))));
+              }
+            }
+
+            h = L/nbox;
 
             // Find argmax such that h*scaledcoeff*exp(-argmax)=1e-22 ... if
             // beta*xlo*xlo is already greater than argmax we can neglect this
@@ -794,10 +902,29 @@ namespace madness {
             else if (m == 2) sch *= expnt*expnt;
             double argmax = std::abs(log(1e-22/sch)); // perhaps should be -log(1e-22/sch) ?
 
-            for (long box=0; box<nbox; ++box) {
-                double xlo = box*h + lx;
-                if (beta*xlo*xlo > argmax) break;
-                for (long i=0; i<this->npt; ++i) {
+            // to screen need to iterate over boxes in the order of decreasing kernel values
+            const bool left_to_right = lx >= 0;
+            // if going left-to-right, start at left, else at right
+            const double xstartedge = left_to_right ? x0+lx : lx + 1;
+
+            // with oscillatory integrands the heuristic for reducing roundoff
+            // is to sum from large to small, i.e. proceed in same direction as the order of boxes
+            // WARNING: the grid points in quad_{x,w} are in order of decreasing x!
+            // hence decrement grid point indices for left_to_right, increment otherwise
+            const long first_pt = left_to_right ? this->npt-1: 0;
+            const long sentinel_pt = left_to_right ? -1 : this->npt;
+            const auto next_pt = [lx, left_to_right](auto i) { return left_to_right ? i-1 : i+1; };
+
+            double xlo = left_to_right ? xstartedge : xstartedge-h;
+            double xhi;
+            for (long box=0; box!=nbox; ++box, xlo = (left_to_right ? xhi : xlo-h)) {
+
+                // can ignore this and rest of boxes if the Gaussian has decayed enough at the side of the box closest to the origin
+                xhi=xlo+h;
+                const auto xabs_min = std::min(std::abs(xhi),std::abs(xlo));
+                if (beta*xabs_min*xabs_min > argmax) break;
+
+                for (long i=first_pt; i!=sentinel_pt; i=next_pt(i)) {
 #ifdef IBMXLC
                     double phix[80];
 #else
@@ -805,6 +932,10 @@ namespace madness {
 #endif
                     double xx = xlo + h*this->quad_x(i);
                     Q ee = scaledcoeff*exp(-beta*xx*xx)*this->quad_w(i)*h;
+                    if (this->range && this->range.finite()) {
+                      const auto x = xx * pow(0.5,double(n));
+                      ee *= this->range.value(x);
+                    }
 
                     // Differentiate as necessary
                     if (m == 1) {
@@ -815,32 +946,42 @@ namespace madness {
                     }
 
                     legendre_scaling_functions(xx-lx,twok,phix);
-                    for (long p=0; p<twok; ++p) v(p) += ee*phix[p];
+                    for (long p=0; p<twok; ++p) {
+                      if constexpr (use_kahan)
+                        v_accumulator[p] += ee * phix[p];
+                      else
+                        v(p) += ee * phix[p];
+                    }
                 }
             }
 
-            if (lkeep < 0) {
-                /* phi[p](1-z) = (-1)^p phi[p](z) */
-                if (m == 1)
-                    for (long p=0; p<twok; ++p) v(p) = -v(p);
-                for (long p=1; p<twok; p+=2) v(p) = -v(p);
+            if constexpr (use_kahan) {
+              for (long p = 0; p < twok; ++p)
+                v(p) = static_cast<Q>(v_accumulator[p]);
             }
 
             return v;
-        };
+        }
 
-        /// Returns true if the block is expected to be small
-        bool issmall(Level n, Translation lx) const {
-            double beta = expnt * pow(0.25,double(n));
-            Translation ll;
-            if (lx > 0)
-                ll = lx - 1;
-            else if (lx < 0)
-                ll = -1 - lx;
-            else
-                ll = 0;
-
-            return (beta*ll*ll > 49.0);      // 49 -> 5e-22     69 -> 1e-30
+        /// @return true if the block of [r^n_l]_ij is expected to be small
+        bool issmall(Level n, Translation lx) const final {
+            // [r^n_l]_ij = superposition of [r^n_l]_p and [r^n_l-1]_ij
+            // lx>0? the nearest box is lx-1 -> the edge closest to the origin is lx - 1
+            // lx<0? the nearest box is lx -> the edge closest to the origin is lx + 1
+            // lx==0? interactions within same box  are never small
+            if (lx == 0)
+              return false;
+            else {
+              const double beta = expnt * pow(0.25,double(n));
+              const double overly_large_beta_r2 = 49.0;      // 49 -> 5e-22     69 -> 1e-30
+              if (lx > 0) {
+                const auto ll = lx - 1;
+                return beta * ll * ll > overly_large_beta_r2;
+              } else {
+                const auto ll = lx + 1;
+                return beta * ll * ll > overly_large_beta_r2;
+              }
+            }
         };
     };
 
@@ -851,11 +992,15 @@ namespace madness {
         typedef typename ConcurrentHashMap<hashT, std::shared_ptr< GaussianConvolution1D<Q> > >::iterator iterator;
         typedef typename ConcurrentHashMap<hashT, std::shared_ptr< GaussianConvolution1D<Q> > >::datumT datumT;
 
-        static std::shared_ptr< GaussianConvolution1D<Q> > get(int k, double expnt, int m, bool periodic) {
+        static std::shared_ptr< GaussianConvolution1D<Q> > get(int k, double expnt, int m, bool periodic,
+                                                               double bloch_k = 0.0,
+                                                               const KernelRange& range = {}) {
             hashT key = hash_value(expnt);
             hash_combine(key, k);
             hash_combine(key, m);
             hash_combine(key, int(periodic));
+            hash_combine(key, bloch_k);
+            if (range) hash_combine(key, range);
 
             MADNESS_PRAGMA_CLANG(diagnostic push)
             MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wundefined-var-template")
@@ -866,7 +1011,9 @@ namespace madness {
                                                                                     Q(sqrt(expnt/constants::pi)),
                                                                                     expnt,
                                                                                     m,
-                                                                                    periodic
+                                                                                    periodic,
+                                                                                    bloch_k,
+                                                                                    range
                                                                                     )));
                 MADNESS_ASSERT(inserted);
                 it = map.find(key);
@@ -875,7 +1022,14 @@ namespace madness {
             else {
                 //printf("conv1d: reusing %d %.8e\n",k,expnt);
             }
-            return it->second;
+            auto& result = it->second;
+            MADNESS_ASSERT(result->expnt == expnt &&
+                           result->k == k &&
+                           result->m == m &&
+                           result->lattice_summed() == periodic &&
+                           result->range == range &&
+                           result->bloch_k == bloch_k);
+            return result;
 
             MADNESS_PRAGMA_CLANG(diagnostic pop)
 

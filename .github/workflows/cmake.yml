@@ -41,11 +41,12 @@ jobs:
         -DMPIEXEC_PREFLAGS='--bind-to;none;--allow-run-as-root'
         -DBUILD_TESTING=ON
         -DMADNESS_ENABLE_CEREAL=ON
+        -DCMAKE_CXX_STANDARD=${{ matrix.task_backend == 'Threads' && matrix.build_type == 'Debug' && '20' || '17' }}
         -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'Threads' }}
         -DMADNESS_BUILD_LIBRARIES_ONLY=${{ matrix.build_type != 'Debug' }}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Create Build Environment
       # Some projects don't allow in-source building, so create a separate build directory
@@ -65,6 +66,8 @@ jobs:
         fi
         if [ "X${{ matrix.task_backend }}" = "XPaRSEC" ]; then
           echo "TASK_BACKEND=PaRSEC" >> $GITHUB_ENV
+          # do not bind threads to cores to avoid oversubscription
+          echo "PARSEC_MCA_bind_threads=0" >> $GITHUB_ENV
         fi
 
     - name: Install prerequisite MacOS packages
@@ -106,7 +109,7 @@ jobs:
         message("::set-output name=timestamp::${current_date}")
 
     - name: Setup ccache cache files
-      uses: actions/cache@v1.1.0
+      uses: actions/cache@v4
       with:
         path: ${{github.workspace}}/build/.ccache
         key: ${{ matrix.config.name }}-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}
