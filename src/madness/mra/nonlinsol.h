@@ -290,11 +290,36 @@ namespace madness {
     T update(const T& u_preliminary, const double rcondtol=1e-8, const double cabsmax=1000.0) {
 		if (maxsub==1) return u_preliminary;
 
+		auto check_compressed = [](const T& v) {
+			if constexpr (is_madness_function<T>::value) {
+				if (v.is_compressed()) return true;
+			}
+			if constexpr (is_madness_function_vector<T>::value) {
+				for (auto f : v) {
+					if (f.is_compressed()) return true;
+				}
+			}
+			return false;
+		};
+		auto must_be_reconstructed = [](const T& v) {
+			if constexpr (is_madness_function<T>::value) {
+				return v.get_impl()->get_tensor_type()!=TT_FULL;
+			}
+			else if constexpr (is_madness_function_vector<T>::value) {
+				return v[0].get_impl()->get_tensor_type()!=TT_FULL;
+			} else {
+				return false;
+			}
+		};
+		if (must_be_reconstructed(u_preliminary))
+			MADNESS_CHECK_THROW(not check_compressed(u_preliminary), "u_preliminary is compressed");
+
 
 		int iter = ulist.size()-1;
 		MADNESS_CHECK_THROW(iter>=0,"ulist must have size==1 at least -- forgot to initialize?");
 		plist.push_back(u_preliminary);
 		MADNESS_CHECK_THROW(ulist.size()+1==plist.size(),"ulist and plist have incorrect size -- forgot to initialize?");
+
 
 		// Solve subspace equations
 		// Q_ij = < u_kain[i] | r[j] > = < u_kain[i] | u_kain[j] - u_preliminary[j+1] >
@@ -304,6 +329,8 @@ namespace madness {
 			Qnew(i,iter) = inner(ulist[i],ulist[iter]) - inner(ulist[i],plist[iter+1]);
 			Qnew(iter,i) = inner(ulist[iter],ulist[i]) - inner(ulist[iter],plist[i+1]);
 		}
+		if (must_be_reconstructed(ulist[iter])) MADNESS_CHECK_THROW(not check_compressed(ulist[iter]),"ulist is compressed");
+		if (must_be_reconstructed(plist[iter+1])) MADNESS_CHECK_THROW(not check_compressed(plist[iter+1]),"plist is compressed");
 		Q = Qnew;
 		c = KAIN(Q);
 
@@ -316,11 +343,14 @@ namespace madness {
 //			unew += (ulist[i] - rlist[i])*c[i];
 			unew += (plist[i+1])*c[i];
 		}
+		if constexpr (is_madness_function<T>::value) unew.reconstruct();
+		if constexpr (is_madness_function_vector<T>::value) reconstruct(unew);
 		ulist.push_back(unew);
 
 		if (ulist.size() == maxsub) {
 			ulist.erase(ulist.begin());
-			rlist.erase(rlist.begin());
+			if (not rlist.empty()) rlist.erase(rlist.begin());
+			if (not plist.empty()) plist.erase(plist.begin());
 			Q = copy(Q(Slice(1,-1),Slice(1,-1)));
 		}
 		return unew;
@@ -331,9 +361,6 @@ namespace madness {
 		ulist.push_back(u_initial); // initial guess
 		plist.push_back(alloc());	// empty function
 	}
-
-
-
 
     };
 

@@ -506,6 +506,14 @@ namespace madness {
             return impl ? impl->is_nonstandard() : false;
         }
 
+        /// Returns true if redundant, false otherwise.  No communication.
+
+        /// If the function is not initialized, returns false.
+        bool is_redundant() const {
+            PROFILE_MEMBER_FUNC(Function);
+            return impl ? impl->is_redundant() : false;
+        }
+
 
         /// Returns the number of nodes in the function tree ... collective global sum
         std::size_t tree_size() const {
@@ -703,6 +711,8 @@ namespace madness {
         double norm2sq_local() const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
+            MADNESS_CHECK_THROW(is_compressed() or is_reconstructed(),
+                "function must be compressed or reconstructed for norm2sq_local");
             return impl->norm2sq_local();
         }
 
@@ -1135,8 +1145,9 @@ namespace madness {
         template <typename R>
         TENSOR_RESULT_TYPE(T,R) inner_local(const Function<R,NDIM>& g) const {
             PROFILE_MEMBER_FUNC(Function);
-            MADNESS_ASSERT(is_compressed());
-            MADNESS_ASSERT(g.is_compressed());
+            bool compressed=is_compressed() and g.is_compressed();
+            bool redundant=is_redundant() and g.is_redundant();
+            MADNESS_CHECK_THROW(compressed or redundant,"functions must be compressed or redundant in inner");
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) g.verify_tree();
             return impl->inner_local(*(g.get_impl()));
@@ -2249,7 +2260,8 @@ namespace madness {
             	ff.world().gop.fence();
             	ff.clear();
             } else {
-            	ff.standard();
+            	// ff.standard();
+            	ff.reconstruct();
             }
 
     	}
@@ -2794,6 +2806,15 @@ namespace madness {
 
     template<typename T, std::size_t NDIM>
     struct is_madness_function<madness::Function<T, NDIM>> : std::true_type {};
+
+    template<typename>
+    struct is_madness_function_vector : std::false_type {
+    };
+
+    template<typename T, std::size_t NDIM>
+    struct is_madness_function_vector<std::vector<typename madness::Function<T, NDIM>>> : std::true_type {
+};
+
 }
 
 
