@@ -1017,8 +1017,20 @@ namespace madness {
         MADNESS_CHECK(n==m);
         Tensor< TENSOR_RESULT_TYPE(T,R) > r(n);
 
-        compress(world, f);
-        compress(world, g);
+        // compress functions for full rank tensors or keep compressed if they already are
+        if (f.front().get_impl()->get_tensor_type()==TT_FULL) {
+            compress(world, f);
+            compress(world, g);
+        } else {
+            if (not (f.front().is_compressed() and g.front().is_compressed())) {
+                make_redundant(world,f);
+                make_redundant(world,g);
+            } else {
+                // make sure everything is consistent, this should be a no-op
+                compress(world, f);
+                compress(world, g);
+            }
+        }
 
         for (long i=0; i<n; ++i) {
             r(i) = f[i].inner_local(g[i]);
@@ -1514,7 +1526,8 @@ namespace madness {
 
         World& world=a[0].world();
     	std::vector<Function<resultT,NDIM> > result(a.size());
-        if (NDIM<=3) {
+        if (a[0].get_impl()->get_tensor_type()==TT_FULL) {
+        // if (NDIM<=3) {
             compress(world,a);
     	    compress(world,b);
             for (unsigned int i=0; i<a.size(); ++i) {

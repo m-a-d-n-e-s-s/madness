@@ -378,7 +378,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 
             nemo = transform(world, nemo, U, trantol(), true);
             Vnemo = transform(world, Vnemo, U, trantol(), true);
-            rotate_subspace(world, U, solver, 0, nemo.size());
+            // rotate_subspace(world, U, solver, 0, nemo.size());
 
             truncate(world, nemo);
             normalize(nemo,R);
