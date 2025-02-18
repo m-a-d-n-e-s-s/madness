@@ -1688,7 +1688,7 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
                 tmp_eps(i) = std::min(-0.05, fock(i+ilo, i+ilo));
             }
 
-            std::vector<poperatorT> ops = make_bsh_operators(world, tmp_eps);
+            std::vector<poperatorT> ops = make_bsh_operators(world, tmp_eps, param);
             set_thresh(world, tmp_Vpsi, FunctionDefaults<3>::get_thresh());
 
             vecfuncT tmp_new_psi = apply(world, ops, tmp_Vpsi);
@@ -1709,7 +1709,7 @@ vecfuncT SCF::compute_residual(World& world, tensorT& occ, tensorT& fock,
     } else {
         START_TIMER(world);
 
-        std::vector<poperatorT> ops = make_bsh_operators(world, eps);
+        std::vector<poperatorT> ops = make_bsh_operators(world, eps, param);
         set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());
 
         new_psi = apply(world, ops, Vpsi);

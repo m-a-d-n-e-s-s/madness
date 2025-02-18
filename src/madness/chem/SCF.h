@@ -290,6 +290,7 @@ public:
         GaussianConvolution1DCache<double>::map.clear();
         double safety = 0.1;
         vtol = FunctionDefaults<NDIM>::get_thresh() * safety;
+        //coulop = poperatorT(CoulombOperatorPtr(world, param.lo(), 0.1*thresh));
         coulop = poperatorT(CoulombOperatorPtr(world, param.lo(), thresh));
         gradop = gradient_operator<double, 3>(world);
 
