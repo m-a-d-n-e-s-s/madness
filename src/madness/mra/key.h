@@ -41,6 +41,7 @@
 #include <madness/world/binary_fstream_archive.h>
 #include <madness/world/worldhash.h>
 
+#include <climits>  // CHAR_BIT
 #include <cstdint>
 #include <vector>
 
@@ -85,12 +86,14 @@ namespace madness {
         /// Constructor with given n, l
         Key(Level n, const Vector<Translation, NDIM>& l) : n(n), l(l) 
 	{
+            MADNESS_ASSERT(n >= 0 && n < sizeof(Translation)*CHAR_BIT);
             rehash();
         }
 
         /// Constructor with given n and l=0
         Key(int n) : n(n), l(0) 
         {
+            MADNESS_ASSERT(n >= 0 && n < sizeof(Translation)*CHAR_BIT);
             rehash();
         }
 
@@ -104,7 +107,11 @@ namespace madness {
 
         /// Returns an invalid key
         static Key<NDIM>  invalid() {
-            return Key<NDIM> (-1);
+          Key<NDIM> result;
+          result.n = -1;
+          result.l = 0;
+          result.rehash();
+          return result;
         }
 
         /// Checks if a key is invalid
