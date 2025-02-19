@@ -1436,7 +1436,7 @@ namespace madness {
         return A;
     }
 
-    /// Computes the matrix inner product of two function vectors - q(i,j) = inner(f[i],g[j])
+    /// Computes the matrix dot product of two function vectors - q(i,j) = dot(f[i],g[j])
 
     /// For complex types symmetric is interpreted as Hermitian.
     ///
@@ -1461,6 +1461,44 @@ namespace madness {
 
         world.gop.fence();
         world.gop.sum(r.ptr(), f.size() * g.size());
+
+        return r;
+    }
+
+    /// Computes the matrix dot product of two function vectors - q(i,j) = dot(f[i],g[j])
+
+    /// For complex types symmetric is interpreted as Hermitian.
+    ///
+    /// The current parallel loop is non-optimal but functional.
+    template <typename T, typename R, std::size_t NDIM>
+    Tensor< TENSOR_RESULT_TYPE(T,R) > matrix_dot_old(World& world,
+            const std::vector< Function<T,NDIM> >& f,
+            const std::vector< Function<R,NDIM> >& g,
+            bool sym=false) {
+        PROFILE_BLOCK(Vmatrix_dot);
+        long n=f.size(), m=g.size();
+        Tensor< TENSOR_RESULT_TYPE(T,R) > r(n,m);
+        if (sym) MADNESS_ASSERT(n==m);
+
+        world.gop.fence();
+        compress(world, f);
+        if ((void*)(&f) != (void*)(&g)) compress(world, g);
+
+        for (long i=0; i<n; ++i) {
+            long jtop = m;
+            if (sym) jtop = i+1;
+            for (long j=0; j<jtop; ++j) {
+                r(i,j) = f[i].dot_local(g[j]);
+                if (sym) {
+                    r(j,i) = r(i,j);
+                    if (i != j)
+                        r(i,j) = conj(r(i,j));
+                }
+            }
+         }
+
+        world.gop.fence();
+        world.gop.sum(r.ptr(),n*m);
 
         return r;
     }

@@ -1145,6 +1145,17 @@ namespace madness {
             return impl->inner_local(*(g.get_impl()));
         }
 
+        /// Returns local part of inner product ... throws if both not compressed
+        template <typename R>
+        TENSOR_RESULT_TYPE(T,R) dot_local(const Function<R,NDIM>& g) const {
+            PROFILE_MEMBER_FUNC(Function);
+            MADNESS_ASSERT(is_compressed());
+            MADNESS_ASSERT(g.is_compressed());
+            if (VERIFY_TREE) verify_tree();
+            if (VERIFY_TREE) g.verify_tree();
+            return impl->dot_local(*(g.get_impl()));
+        }
+
 
         /// With this being an on-demand function, fill the MRA tree according to different criteria
 
