@@ -1477,6 +1477,25 @@ namespace madness {
     }
 
 
+    /// ensure v has the requested tree state, change the tree state of v if necessary and no fence is given
+    template<typename T, std::size_t NDIM>
+    bool ensure_tree_state_respecting_fence(const std::vector<Function<T,NDIM>>& v,
+        const TreeState state, bool fence) {
+        // fast return
+        if (get_tree_state(v)==state) return true;;
+
+        // if there is a fence we can simply change the tree state, might be a no-op
+        if (fence) change_tree_state(v,state,true);
+
+        // check success, throw if not
+        bool ok=get_tree_state(v)==state;
+        if (not ok) {
+            print("ensure_tree_state_respecting_fence failed");
+            throw std::runtime_error("ensure_tree_state_respecting_fence failed");
+        }
+        return ok;
+    }
+
     /// out-of-place gaxpy for two vectors: result[i] = alpha * a[i] + beta * b[i]
     template <typename T, typename Q, typename R, std::size_t NDIM>
     std::vector<Function<TENSOR_RESULT_TYPE(Q,TENSOR_RESULT_TYPE(T,R)),NDIM> >
@@ -1490,20 +1509,29 @@ namespace madness {
         typedef TENSOR_RESULT_TYPE(Q,TENSOR_RESULT_TYPE(T,R)) resultT;
         if (a.size()==0) return std::vector<Function<resultT,NDIM> >();
 
+        auto tensor_type = [](const std::vector<Function<T,NDIM>>& v) {
+            return v.front().get_impl()->get_tensor_type();
+        };
+
+        // gaxpy can be done either in reconstructed or in compressed state
         World& world=a[0].world();
     	std::vector<Function<resultT,NDIM> > result(a.size());
-        if (NDIM<=3) {
-            compress(world,a);
-    	    compress(world,b);
-            for (unsigned int i=0; i<a.size(); ++i) {
-                result[i]=gaxpy_oop(alpha, a[i], beta, b[i], false);
-            }
+
+        bool do_in_reconstructed_state=tensor_type(a)!=TT_FULL;
+        TreeState operating_state=do_in_reconstructed_state ? reconstructed : compressed;
+        try {
+            ensure_tree_state_respecting_fence(a,operating_state,fence);
+            ensure_tree_state_respecting_fence(b,operating_state,fence);
+        } catch (...) {
+            print("could not respect fence in gaxpy");
+            change_tree_state(a,operating_state,true);
+            change_tree_state(b,operating_state,true);
+        }
+
+        if (operating_state==compressed) {
+            for (unsigned int i=0; i<a.size(); ++i) result[i]=gaxpy_oop(alpha, a[i], beta, b[i], false);
         } else {
-            reconstruct(world,a);
-            reconstruct(world,b);
-            for (unsigned int i=0; i<a.size(); ++i) {
-                result[i]=gaxpy_oop_reconstructed(alpha, a[i], beta, b[i], false);
-            }
+            for (unsigned int i=0; i<a.size(); ++i) result[i]=gaxpy_oop_reconstructed(alpha, a[i], beta, b[i], false);
         }
 
         if (fence) world.gop.fence();
@@ -1524,8 +1552,14 @@ namespace madness {
         if (a.size()==0) return std::vector<Function<resultT,NDIM> >();
 
         World& world=a[0].world();
-        compress(world,a);
-    	b.compress();
+        try {
+            ensure_tree_state_respecting_fence(a,compressed,fence);
+            ensure_tree_state_respecting_fence(b,compressed,fence);
+        } catch (...) {
+            print("could not respect fence in gaxpy_oop");
+            compress(world,a);
+        	b.compress();
+        }
     	std::vector<Function<resultT,NDIM> > result(a.size());
         for (unsigned int i=0; i<a.size(); ++i) {
             result[i]=gaxpy_oop(alpha, a[i], beta, b, false);
@@ -1562,16 +1596,15 @@ namespace madness {
 
         // gaxpy can be done either in reconstructed or in compressed state
         bool do_in_reconstructed_state=tensor_type(a)!=TT_FULL;
+        TreeState operating_state=do_in_reconstructed_state ? reconstructed : compressed;
 
-        // if there is a fence make sure everything is in a proper state
-        if (fence) {
-            if (do_in_reconstructed_state) {
-                reconstruct(world, a);
-                reconstruct(world, b);
-            } else {
-		    	compress(world, a);
-		    	compress(world, b);
-    	    }
+        try {
+            ensure_tree_state_respecting_fence(a,operating_state,fence);
+            ensure_tree_state_respecting_fence(b,operating_state,fence);
+        } catch (...) {
+            print("could not respect fence in gaxpy");
+            change_tree_state(a,operating_state,true);
+            change_tree_state(b,operating_state,true);
         }
 
         // if there is no fence everything must be right from the beginning
@@ -1580,10 +1613,6 @@ namespace madness {
             MADNESS_CHECK_THROW(get_tree_state(a)==reconstructed,"gaxpy requires reconstructed tree state for all functions");
         } else {
             MADNESS_CHECK_THROW(get_tree_state(a)==compressed,"gaxpy requires compressed tree state for all functions");
-        }
-        for (int i=0; i<a.size(); ++i) {
-            MADNESS_CHECK_THROW(a[i].get_impl()->get_tree_state()==b[i].get_impl()->get_tree_state(),
-                "gaxpy requires same tree state for all functions");
         }
 
         for (unsigned int i=0; i<a.size(); ++i) {
