@@ -2120,6 +2120,7 @@ namespace madness {
         d[2].gaxpy(1.0,dd[2],-1.0,false);
 
         world.gop.fence();
+        reconstruct(d);
         return d;
     }
 
