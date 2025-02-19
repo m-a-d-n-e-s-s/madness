@@ -1131,14 +1131,14 @@ template<size_t NDIM>
         /// @param[in]	alpha	prefactor for this
         /// @param[in]	beta	prefactor for other
         /// @param[in]	g       the other function, reconstructed
+        /// @return     *this = alpha*this + beta*other, in either reconstructed or redundant_after_merge state
         template<typename Q, typename R>
         void gaxpy_inplace_reconstructed(const T& alpha, const FunctionImpl<Q,NDIM>& g, const R& beta, const bool fence) {
             // merge g's tree into this' tree
-            this->merge_trees(beta,g,alpha,true);
-
-            // sum down the sum coeffs into the leafs
-            if (world.rank() == coeffs.owner(cdata.key0)) sum_down_spawn(cdata.key0, coeffT());
-            if (fence) world.gop.fence();
+            this->merge_trees(beta,g,alpha,fence);
+            // tree is now redundant_after_merge
+            // sum down the sum coeffs into the leafs if possible to keep the state most clean
+            if (fence) sum_down(fence);
         }
 
         /// merge the trees of this and other, while multiplying them with the alpha or beta, resp
@@ -1153,8 +1153,8 @@ template<size_t NDIM>
         template<typename Q, typename R>
         void merge_trees(const T alpha, const FunctionImpl<Q,NDIM>& other, const R beta, const bool fence=true) {
             MADNESS_ASSERT(get_pmap() == other.get_pmap());
+            this->set_tree_state(redundant_after_merge);
             other.flo_unary_op_node_inplace(do_merge_trees<Q,R>(alpha,beta,*this),fence);
-            if (fence) world.gop.fence();
         }
 
         /// merge the trees of this and other, while multiplying them with the alpha or beta, resp
