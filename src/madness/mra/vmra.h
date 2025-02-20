@@ -1488,12 +1488,12 @@ namespace madness {
             long jtop = m;
             if (sym) jtop = i+1;
             for (long j=0; j<jtop; ++j) {
-                r(i,j) = f[i].dot_local(g[j]);
                 if (sym) {
-                    r(j,i) = r(i,j);
+                    r(j,i) = f[i].dot_local(g[j]);
                     if (i != j)
-                        r(i,j) = conj(r(i,j));
-                }
+                        r(i,j) = conj(r(j,i));
+                } else
+                    r(i,j) = f[i].dot_local(g[j]);
             }
          }
 
