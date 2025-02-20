@@ -1316,31 +1316,21 @@ namespace madness {
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) g.verify_tree();
 
-            // compression is more efficient for 3D
-            TreeState state=this->get_impl()->get_tree_state();
-            TreeState gstate=g.get_impl()->get_tree_state();
-            if (NDIM<=3) {
-                change_tree_state(compressed,false);
-                g.change_tree_state(compressed,false);
-                impl->world.gop.fence();
-           }
+            // compute in compressed form if compression is fast, otherwise in redundant form
+            TreeState operating_state=get_impl()->get_tensor_type()==TT_FULL ? compressed : redundant;
 
-            if (this->is_compressed() and g.is_compressed()) {
-            } else {
-                change_tree_state(redundant,false);
-                g.change_tree_state(redundant,false);
-                impl->world.gop.fence();
-            }
-
+            change_tree_state(operating_state,false);
+            g.change_tree_state(operating_state,false);
+            impl->world.gop.fence();
 
             TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*g.get_impl());
             impl->world.gop.sum(local);
             impl->world.gop.fence();
 
-            // restore state
-            change_tree_state(state,false);
-            g.change_tree_state(gstate,false);
-            impl->world.gop.fence();
+            // restore state -- no need for this
+            // change_tree_state(state,false);
+            // g.change_tree_state(gstate,false);
+            // impl->world.gop.fence();
 
             return local;
         }

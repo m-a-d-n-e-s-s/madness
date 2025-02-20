@@ -199,7 +199,7 @@ int test_with_function(World& world) {
 template<typename T, std::size_t NDIM>
 int test_with_function_vector(World& world) {
     test_output t1("test with function vector with dim "+std::to_string(NDIM));
-    // t1.set_cout_to_terminal();
+    t1.set_cout_to_terminal();
     Function<T,NDIM> guess1=FunctionFactory<T,NDIM>(world).f([](const Vector<double,NDIM>& r){return exp(-inner(r,r));});
     Function<T,NDIM> guess2=FunctionFactory<T,NDIM>(world).f([](const Vector<double,NDIM>& r){return exp(-2.0*inner(r,r));});
     std::vector<Function<T,NDIM>> guess({guess1,guess2});

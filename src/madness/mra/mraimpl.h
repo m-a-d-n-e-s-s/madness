@@ -208,8 +208,8 @@ namespace madness {
     void FunctionImpl<T,NDIM>::gaxpy_oop_reconstructed(const double alpha, const implT& f,
                                                        const double beta, const implT& g, const bool fence) {
 
-        MADNESS_ASSERT(not f.is_compressed());
-        MADNESS_ASSERT(not g.is_compressed());
+        MADNESS_CHECK_THROW(f.is_reconstructed(), "gaxpy_oop_reconstructed: f is not reconstructed");
+        MADNESS_CHECK_THROW(g.is_reconstructed(), "gaxpy_oop_reconstructed: g is not reconstructed");
 
         ProcessID owner = coeffs.owner(cdata.key0);
         if (world.rank() == owner) {
