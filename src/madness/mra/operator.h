@@ -228,7 +228,7 @@ namespace madness {
 
             OperatorInfo info(mu,lo,eps,type);
             return make_coeff_for_operator(world, info, lattice_summed);
-//            const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
+//            const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
 //            double hi = cell_width.normf(); // Diagonal width of cell
 //            if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
 //
@@ -251,7 +251,7 @@ namespace madness {
                                 const array_of_bools<NDIM>& lattice_summed) {
 
           const Tensor<double> &cell_width =
-              FunctionDefaults<3>::get_cell_width();
+              FunctionDefaults<NDIM>::get_cell_width();
           double hi = cell_width.normf(); // Diagonal width of cell
           // Extend kernel range for lattice summation
           // N.B. if have periodic boundaries, extend range just in case will be using periodic domain
@@ -266,10 +266,19 @@ namespace madness {
           Tensor<Q> coeff = fit.coeffs();
           Tensor<Q> expnt = fit.exponents();
 
-          // WARNING! More fine-grained control over the last argument is needed. This is a hotfix.
           if (info.truncate_lowexp_gaussians.value_or(lattice_summed_any)) {
-            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(),
-                                            true);
+            // convolution with Gaussians of exponents <= 0.25/(L^2) contribute only a constant shift
+            // the largest spacing along lattice summed axes thus controls the smallest Gaussian exponent that NEEDS to be included
+            double max_lattice_spacing = 0;
+            for(int d=0; d!=NDIM; ++d) {
+              if (lattice_summed[d])
+                max_lattice_spacing =
+                    std::max(max_lattice_spacing, cell_width(d));
+            }
+            // WARNING: discardG0 = true ignores the coefficients of truncated
+            //          terms
+            fit.truncate_periodic_expansion(coeff, expnt, max_lattice_spacing,
+                                            /* discardG0 = */ true);
             info.truncate_lowexp_gaussians = true;
           }
 

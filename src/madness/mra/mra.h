@@ -1009,7 +1009,7 @@ namespace madness {
         /// If the functions are not in the wavelet basis an exception is thrown since this routine
         /// is intended to be fast and unexpected compression is assumed to be a performance bug.
         ///
-        /// Returns this for chaining.
+        /// Returns this for chaining, can be in states compressed of redundant_after_merge.
         ///
         /// this <-- this*alpha + other*beta
         template <typename Q, typename R>
@@ -1020,6 +1020,9 @@ namespace madness {
             other.verify();
             MADNESS_CHECK_THROW(impl->get_tree_state() == other.get_impl()->get_tree_state(),
                 "gaxpy requires both functions to be in the same tree state");
+            MADNESS_CHECK_THROW(impl->get_tree_state()==reconstructed or impl->get_tree_state()==compressed,
+                "gaxpy requires the tree state to be reconstructed or compressed");
+
             bool same_world=this->world().id()==other.world().id();
             MADNESS_CHECK(same_world or is_compressed());
 

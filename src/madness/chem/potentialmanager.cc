@@ -35,6 +35,7 @@
 /// \brief Definition of commonly used density/potential related classes and functions
 
 #include <madness/chem/potentialmanager.h>
+#include <madness/chem/SAP.h>
 
 namespace madness {
 
@@ -135,8 +136,42 @@ double WignerSeitzPotentialFunctor::operator()(const coord_3d &r) const {
       }
     }
   }
-
   return result;
+}
+
+SAPFunctor::SAPFunctor(
+    const Atom &atom,
+    double smoothing_param,
+    const BoundaryConditions<3> &bc,
+    const Tensor<double> &cell,
+    int special_level)
+    : atom(atom), bc_(bc), cell(cell), special_level_(special_level),
+      special_points_({atom.get_coords()}), smoothing_param(smoothing_param) {
+}
+
+double SAPFunctor::operator()(const coord_3d &x) const {
+  double sum = 0.0;
+  const auto ext_x = cell(0,1) - cell(0,0);
+  const auto ext_y = cell(1,1) - cell(1,0);
+  const auto ext_z = cell(2,1) - cell(2,0);
+  const auto& interpolator = SAPCharges[atom.q - 1];
+  auto maxX = bc_.is_periodic()[0] ? static_cast<int>(ceil(interpolator.get_hi() / ext_x)) : 0;
+  auto maxY = bc_.is_periodic()[1] ? static_cast<int>(ceil(interpolator.get_hi() / ext_y)) : 0;
+  auto maxZ = bc_.is_periodic()[2] ? static_cast<int>(ceil(interpolator.get_hi() / ext_z)) : 0;
+  for (int dx = -maxX; dx <= maxX; dx++) {
+    double xx = atom.x + dx*ext_x - x[0];
+    for (int dy = -maxY; dy <= maxY; dy++) {
+      double yy = atom.y + dy*ext_y - x[1];
+      for (int dz = -maxZ; dz <= maxZ; dz++) {
+        double zz = atom.z + dz*ext_z - x[2];
+        auto r = std::sqrt(xx * xx + yy * yy + zz * zz);
+        if (r >= interpolator.get_hi()) continue;
+        sum += interpolator(r) * smoothed_potential(r * smoothing_param);
+      }
+    }
+  }
+
+  return sum * smoothing_param;
 }
 
 }  // namespace madness
