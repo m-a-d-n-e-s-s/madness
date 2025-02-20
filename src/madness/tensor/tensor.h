@@ -1773,9 +1773,10 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
 
 
         /// Return the trace of two tensors (no complex conjugate invoked)
-        T trace(const Tensor<T>& t) const {
-            T result = 0;
-            BINARY_OPTIMIZED_ITERATOR(const T,(*this),const T,t,result += (*_p0)*(*_p1));
+        template <class Q>
+        TENSOR_RESULT_TYPE(T,Q) trace(const Tensor<Q>& t) const {
+            TENSOR_RESULT_TYPE(T,Q) result = 0;
+            BINARY_OPTIMIZED_ITERATOR(const T,(*this),const Q,t,result += (*_p0)*(*_p1));
             return result;
         }
 
