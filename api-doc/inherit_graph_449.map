@@ -1,0 +1,37 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1MacroTaskOperationBase.html" title=" " alt="" coords="5,453,260,479"/>
+<area shape="rect" id="Node000001" href="$classMicroTask.html" title=" " alt="" coords="399,5,486,31"/>
+<area shape="poly" id="edge288_Node000000_Node000001" title=" " alt="" coords="134,439,146,360,157,308,174,251,196,193,225,136,262,84,306,40,328,27,352,19,399,13,399,18,353,24,330,32,310,44,266,88,230,139,201,195,179,253,163,309,151,361,139,440"/>
+<area shape="rect" id="Node000002" href="$classMicroTask1.html" title=" " alt="" coords="395,55,490,80"/>
+<area shape="poly" id="edge289_Node000000_Node000002" title=" " alt="" coords="135,439,150,368,181,273,203,222,231,173,265,128,306,89,327,77,350,69,395,63,395,68,351,74,329,82,310,93,269,131,236,176,208,224,186,275,155,370,140,440"/>
+<area shape="rect" id="Node000003" href="$classMicroTask2.html" title=" " alt="" coords="395,104,490,129"/>
+<area shape="poly" id="edge290_Node000000_Node000003" title=" " alt="" coords="137,439,155,377,188,295,211,252,238,211,269,172,306,140,327,128,350,120,394,113,395,118,351,125,329,133,310,144,273,176,242,214,215,255,193,298,160,379,142,441"/>
+<area shape="rect" id="Node000004" href="$classMixedTupleTask.html" title="this task won&#39;t do anything, is mostly to check if the combinations compile" alt="" coords="340,154,545,194"/>
+<area shape="poly" id="edge291_Node000000_Node000004" title=" " alt="" coords="141,440,163,389,198,325,246,259,275,230,307,204,339,187,341,192,309,208,278,233,250,263,203,328,168,392,146,442"/>
+<area shape="rect" id="Node000005" href="$classScalarTask.html" title=" " alt="" coords="397,219,488,244"/>
+<area shape="poly" id="edge292_Node000000_Node000005" title=" " alt="" coords="144,440,169,398,205,347,251,295,278,272,307,253,352,236,397,229,398,234,353,241,309,258,281,277,255,299,209,350,174,401,149,442"/>
+<area shape="rect" id="Node000006" href="$classTupleTask.html" title=" " alt="" coords="400,268,485,293"/>
+<area shape="poly" id="edge293_Node000000_Node000006" title=" " alt="" coords="150,440,214,370,258,333,307,302,354,286,399,279,400,285,355,292,309,307,261,337,218,374,154,444"/>
+<area shape="rect" id="Node000007" href="$classVectorOfScalarTask.html" title=" " alt="" coords="369,317,516,343"/>
+<area shape="poly" id="edge294_Node000000_Node000007" title=" " alt="" coords="159,442,224,397,264,373,307,353,368,336,370,341,309,358,267,378,227,401,162,447"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1Coulomb_1_1MacroTaskCoulomb.html" title=" " alt="" coords="337,367,549,407"/>
+<area shape="poly" id="edge295_Node000000_Node000008" title=" " alt="" coords="192,447,307,417,356,405,357,410,309,422,194,452"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1Exchange_1_1ExchangeImpl_1_1MacroTaskExchangeSimple.html" title=" " alt="" coords="321,431,565,501"/>
+<area shape="poly" id="edge296_Node000000_Node000009" title=" " alt="" coords="274,463,320,463,320,469,274,469"/>
+<area shape="rect" id="Node000010" href="$classmadness_1_1MP3_1_1MacroTaskMP3.html" title="helper class for calculating the MP3 energy contributions" alt="" coords="331,525,554,551"/>
+<area shape="poly" id="edge297_Node000000_Node000010" title=" " alt="" coords="191,480,309,510,370,523,369,528,307,515,190,485"/>
+<area shape="rect" id="Node000011" href="$classmadness_1_1MacroTaskComputeCorrelationEnergy.html" title=" " alt="" coords="334,575,551,615"/>
+<area shape="poly" id="edge298_Node000000_Node000011" title=" " alt="" coords="166,484,230,522,309,560,349,573,347,578,307,564,228,527,163,488"/>
+<area shape="rect" id="Node000012" href="$classmadness_1_1MacroTaskConstantPart.html" title=" " alt="" coords="322,640,563,665"/>
+<area shape="poly" id="edge299_Node000000_Node000012" title=" " alt="" coords="154,488,218,558,261,594,309,625,342,637,340,642,307,630,258,599,214,561,150,492"/>
+<area shape="rect" id="Node000013" href="$classmadness_1_1MacroTaskIteratePair.html" title=" " alt="" coords="330,689,555,715"/>
+<area shape="poly" id="edge300_Node000000_Node000013" title=" " alt="" coords="149,489,174,531,209,582,255,633,281,655,309,674,337,687,335,692,307,679,278,659,251,636,205,585,169,534,145,492"/>
+<area shape="rect" id="Node000014" href="$classmadness_1_1MacroTaskMp2ConstantPart.html" title=" " alt="" coords="308,739,577,764"/>
+<area shape="poly" id="edge301_Node000000_Node000014" title=" " alt="" coords="146,491,168,541,202,605,250,670,278,699,309,724,334,736,332,741,307,728,274,703,245,674,198,608,163,544,141,493"/>
+<area shape="rect" id="Node000015" href="$classmadness_1_1MacroTaskMp2UpdatePair.html" title=" " alt="" coords="314,788,571,813"/>
+<area shape="poly" id="edge302_Node000000_Node000015" title=" " alt="" coords="143,492,162,551,195,628,217,669,244,707,274,743,310,773,332,786,330,790,306,778,271,747,240,711,213,671,190,631,157,553,138,493"/>
+<area shape="rect" id="Node000016" href="$classmadness_1_1MacroTaskSinglesPotentialEx.html" title=" " alt="" coords="340,838,545,878"/>
+<area shape="poly" id="edge303_Node000000_Node000016" title=" " alt="" coords="141,492,158,559,190,649,212,697,239,743,272,786,310,823,341,841,339,845,306,827,268,789,235,746,207,699,185,651,153,561,136,493"/>
+<area shape="rect" id="Node000017" href="$classmadness_1_1MacroTaskSinglesPotentialGs.html" title=" " alt="" coords="340,902,545,942"/>
+<area shape="poly" id="edge304_Node000000_Node000017" title=" " alt="" coords="139,492,152,570,181,677,203,735,231,791,267,843,310,888,341,906,338,911,306,892,263,846,227,794,198,737,176,679,147,571,134,493"/>
+</map>
