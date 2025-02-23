@@ -24,15 +24,12 @@ static std::shared_ptr<World> create_worlds(World& universe, const std::size_t n
 template<std::size_t NDIM>
 int test_size(World& world) {
 
-    // create a slater function
-    auto slater=[](const Vector<double,2*NDIM>& r){return exp(-r.normf());};
+    // create a slater function, slightly offset to create an uneven distribution
+    auto slater=[](const Vector<double,2*NDIM>& r){return exp(-(r-0.1).normf());};
     Function<double,2*NDIM> f2=FunctionFactory<double,2*NDIM>(world).functor(slater);
 
     if (world.rank()==0) print_header2("1 function in the universe");
-    MemoryMeasurer mm;
-    mm.measure_and_print(world);
-    double total_memory=mm.total_memory(world);
-    if (world.rank()==0) print("total memory in universe",total_memory);
+    MemoryMeasurer::measure_and_print(world);
 
 
     // create functions in all worlds
@@ -44,26 +41,8 @@ int test_size(World& world) {
             // Function<double,2*NDIM> g2_universe=FunctionFactory<double,2*NDIM>(world).functor(slater);
             FunctionDefaults<2*NDIM>::set_default_pmap(*subworld);
             Function<double,2*NDIM> g2=FunctionFactory<double,2*NDIM>(*subworld).functor(slater);
-
-            print("\n---\n");
-            MemoryMeasurer mm1;
-            mm1.search_world(*subworld);
-            mm1.print_memory_map(*subworld,"subworld"+std::to_string(subworld->id()));
-
-            if (world.rank()==0) print("\n---\n");
-            MemoryMeasurer mm2;
-            mm2.search_all_worlds();
-            mm2.print_memory_map(world,"all worlds");
+            MemoryMeasurer::measure_and_print(world);
             FunctionDefaults<2*NDIM>::set_default_pmap(world);
-
-            // print success
-            double total_memory1=mm2.total_memory(world);
-            double total_memory_ref=world.size()*total_memory+total_memory;
-            if (world.rank()==0) {
-                print("total memory in universe",total_memory1);
-                print("should be (nsubworld+1)*total_mem",total_memory_ref);
-                print("difference",total_memory1-total_memory_ref);
-            }
         }
         subworld->gop.fence();
     }
@@ -73,9 +52,8 @@ int test_size(World& world) {
 }
 
 int main(int argc, char** argv) {
-    madness::initialize(argc, argv);
+    madness::World& world=madness::initialize(argc, argv);
 
-    madness::World world(SafeMPI::COMM_WORLD);
     world.gop.fence();
     startup(world,argc,argv);
     const int k=7;

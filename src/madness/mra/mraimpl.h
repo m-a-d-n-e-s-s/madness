@@ -248,6 +248,12 @@ namespace madness {
         return (tree_state==redundant);
     }
 
+    /// Returns true if the function is redundant_after_merge.
+    template <typename T, std::size_t NDIM>
+    bool FunctionImpl<T,NDIM>::is_redundant_after_merge() const {
+        return (tree_state==redundant_after_merge);
+    }
+
     template <typename T, std::size_t NDIM>
     bool FunctionImpl<T,NDIM>::is_nonstandard() const {
     	return (tree_state==nonstandard);

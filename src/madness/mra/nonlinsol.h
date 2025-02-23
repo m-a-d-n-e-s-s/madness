@@ -129,14 +129,19 @@ namespace madness {
 				Qnew(i,iter) = inner(ulist[i],rlist[iter]);
 				Qnew(iter,i) = inner(ulist[iter],rlist[i]);
 			}
+			// ulist and rlist are now either compressed or redundant -- change back to compressed or reconstructed0
+			TreeState operating_state = u.get_impl()->get_tensor_type()==TT_FULL ? compressed : reconstructed;
+			change_tree_state(ulist,operating_state,true);
+			change_tree_state(rlist,operating_state,true);
+
 			Q = Qnew;
 			real_tensor c = KAIN(Q);
 			check_linear_dependence(Q,c,rcondtol,cabsmax);
 			if (do_print) print("subspace solution",c);
 
-			// Form new solution in u
-			Function<double,NDIM> unew = FunctionFactory<double,NDIM>(u.world());
-			if (ulist[0].is_compressed()) unew.compress();
+			// Form new solution in u, gaxpy in done in reconstructed or compressed state
+			Function<double,NDIM> unew = FunctionFactory<double,NDIM>(u.world()).treestate(operating_state);
+			// if (ulist[0].is_compressed()) unew.compress();
 			for (int i=0; i<=iter; i++) {
 				unew.gaxpy(1.0,ulist[i], c[i]);
 				unew.gaxpy(1.0,rlist[i],-c[i]);
@@ -290,30 +295,22 @@ namespace madness {
     T update(const T& u_preliminary, const double rcondtol=1e-8, const double cabsmax=1000.0) {
 		if (maxsub==1) return u_preliminary;
 
-		auto check_compressed = [](const T& v) {
-			if constexpr (is_madness_function<T>::value) {
-				if (v.is_compressed()) return true;
-			}
-			if constexpr (is_madness_function_vector<T>::value) {
-				for (auto f : v) {
-					if (f.is_compressed()) return true;
-				}
-			}
-			return false;
-		};
-		auto must_be_reconstructed = [](const T& v) {
-			if constexpr (is_madness_function<T>::value) {
-				return v.get_impl()->get_tensor_type()!=TT_FULL;
-			}
-			else if constexpr (is_madness_function_vector<T>::value) {
-				return v[0].get_impl()->get_tensor_type()!=TT_FULL;
-			} else {
-				return false;
-			}
-		};
-		if (must_be_reconstructed(u_preliminary))
-			MADNESS_CHECK_THROW(not check_compressed(u_preliminary), "u_preliminary is compressed");
+		// check if T is a madness function or madness function vector, then we need to know the tree state
+		constexpr bool do_tree_states = is_madness_function<T>::value || is_madness_function_vector<T>::value;
 
+		// works for both Function and FunctionVector
+		auto get_operating_state = [](const T& v) {
+			TreeState state=unknown;
+			if constexpr (is_madness_function<T>::value) {
+				state=v.get_impl()->get_tensor_type()==TT_FULL ? compressed : reconstructed;
+			} else if constexpr (is_madness_function_vector<T>::value) {
+				state=v[0].get_impl()->get_tensor_type()==TT_FULL ? compressed : reconstructed;
+			}
+			return state;
+		};
+
+		// do we work in compressed or reconstructed form?
+		TreeState operating_state = get_operating_state(u_preliminary);
 
 		int iter = ulist.size()-1;
 		MADNESS_CHECK_THROW(iter>=0,"ulist must have size==1 at least -- forgot to initialize?");
@@ -329,8 +326,12 @@ namespace madness {
 			Qnew(i,iter) = inner(ulist[i],ulist[iter]) - inner(ulist[i],plist[iter+1]);
 			Qnew(iter,i) = inner(ulist[iter],ulist[i]) - inner(ulist[iter],plist[i+1]);
 		}
-		if (must_be_reconstructed(ulist[iter])) MADNESS_CHECK_THROW(not check_compressed(ulist[iter]),"ulist is compressed");
-		if (must_be_reconstructed(plist[iter+1])) MADNESS_CHECK_THROW(not check_compressed(plist[iter+1]),"plist is compressed");
+		// ulist and rlist are now either compressed or redundant -- change back to compressed or reconstructed0
+		if constexpr (do_tree_states) {
+			for (auto& u : ulist) change_tree_state(u,operating_state,true);
+			for (auto& p : plist) change_tree_state(p,operating_state,true);
+		}
+
 		Q = Qnew;
 		c = KAIN(Q);
 

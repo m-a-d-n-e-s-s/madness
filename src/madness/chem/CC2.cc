@@ -12,6 +12,8 @@
 #include "localizer.h"
 #include <timing_utilities.h>
 
+#include "memory_measurement.h"
+
 namespace madness {
 
 /// solve the CC2 ground state equations, returns the correlation energy
@@ -423,7 +425,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
     auto compute_energy = [&](const std::vector<CCPair>& pair_vec, std::string msg="") {
         for (const auto& p : pair_vec) {
             p.function().print_size("function "+p.name());
-            p.function().print_size("constant_part "+p.name());
+            p.constant_part.print_size("constant_part "+p.name());
             p.function().reconstruct();
             p.constant_part.reconstruct();
         }
@@ -535,6 +537,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
             save(pair.constant_part, pair.name() + "_const");
             save(pair.function(), pair.name());
         }
+        MemoryMeasurer::measure_and_print(world);
         //print pair energies if converged
         if (converged) {
             if (world.rank() == 0) std::cout << "\nPairs converged!\n";
@@ -572,8 +575,8 @@ Pairs<real_function_6d> CC2::compute_local_coupling(const Pairs<real_function_6d
         }
     }
 
-    for (auto& q: quadratic) q.second.compress(false);
-    world.gop.fence();
+    // for (auto& q: quadratic) q.second.compress(false);
+    // world.gop.fence();
 
     // the coupling matrix is the Fock matrix, skipping diagonal elements
     // Tensor<double> fock1 = nemo->compute_fock_matrix(nemo->get_calc()->amo, nemo->get_calc()->aocc);
@@ -586,7 +589,7 @@ Pairs<real_function_6d> CC2::compute_local_coupling(const Pairs<real_function_6d
     Pairs<real_function_6d> coupling;
     for (int i = info.parameters.freeze(); i < nmo; ++i) {
         for (int j = i; j < nmo; ++j) {
-            coupling.insert(i, j, real_factory_6d(world).compressed());
+            coupling.insert(i, j, real_factory_6d(world));
         }
     }
 
@@ -608,6 +611,8 @@ Pairs<real_function_6d> CC2::compute_local_coupling(const Pairs<real_function_6d
             coupling(i, j).truncate(thresh * 0.3).reduce_rank();
         }
     }
+    world.gop.fence();
+    for (auto& q: coupling.allpairs) q.second.reconstruct(false);
     world.gop.fence();
     return coupling;
 }

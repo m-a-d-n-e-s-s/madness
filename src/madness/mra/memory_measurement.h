@@ -15,29 +15,57 @@ namespace madness {
     /// Assuming FunctionImpl are the largest objects in a calculation
     /// data is kept as key-value pairs in a map: key=world_id,rank,hostname,NDIM, value=#functions,memory_GB
     class MemoryMeasurer {
+    public:
+
+        /// measure the memory usage of all objects of all worlds
+        static void measure_and_print(World& world) {
+            MemoryMeasurer mm;
+            world.gop.fence();
+            mm.search_all_worlds();
+            world.gop.fence();
+            mm.print_memory_map(world);
+            world.gop.fence();
+            mm.clear_map();
+        }
+
+    private:
         struct MemKey {
             unsigned long world_id=1;
             unsigned long rank=0;
             std::string hostname="localhost";
             std::size_t DIM=0;
+            MemKey() = default;
             MemKey(World& world) : world_id(world.id()), rank(world.rank()) {
-                char buffer[256];
-                gethostname(buffer, 256);
-                hostname=std::string(buffer);
+                hostname=MemoryMeasurer::get_hostname();
             }
 
             template<typename T, std::size_t NDIM>
             MemKey(const FunctionImpl<T,NDIM>& fimpl) : MemKey(fimpl.world) {
                 DIM=NDIM;
             }
-            bool operator<(const MemKey& other) const {
-                return std::tie(world_id,rank,hostname,DIM) < std::tie(other.world_id,other.rank,other.hostname,other.DIM);
+            MemKey(const MemKey& other) = default;
+
+            template<typename Archive>
+            void serialize(Archive& ar) const {
+                ar & world_id & rank & hostname & DIM;
             }
         };
+        friend bool operator<(const MemKey& lhs, const MemKey& other) {
+            if (lhs.hostname!=other.hostname) return lhs.hostname<other.hostname;
+            if (lhs.world_id!=other.world_id) return lhs.world_id<other.world_id;
+            if (lhs.rank!=other.rank) return lhs.rank<other.rank;
+            return lhs.DIM<other.DIM;
+        }
 
         struct MemInfo {
+            MemInfo() =default;
+            MemInfo(const MemInfo& other) =default;
             long num_functions=0;
             double memory_GB=0.0;
+            template <typename Archive>
+            void serialize(Archive& ar) const {
+                ar & num_functions & memory_GB;
+            }
         };
 
         typedef std::map<MemKey,MemInfo> MemInfoMapT;
@@ -88,9 +116,9 @@ namespace madness {
         /// add all FunctionImpl<T,NDIM> objects **of all worlds** to the memory map
         /// the memory map is a rank-local object
         void search_all_worlds() {
-            auto all_worlds=World::get_world_ids();
-            all_worlds.push_back(World::get_default().id());
-            print("searching worlds",all_worlds);
+            auto all_worlds=World::get_world_ids(); // all worlds but the default world
+            all_worlds.push_back(World::get_default().id());  // add the default world
+            if (debug) print("searching worlds",all_worlds);
             for (auto world_id : all_worlds) {
                 if (debug) print("searching world",world_id);
                 World* thisworld=World::world_from_id(world_id);
@@ -103,29 +131,87 @@ namespace madness {
             world_memory_map.clear();
         }
 
-        /// measure the memory usage of all objects of all worlds
-        void measure_and_print(World& world) {
-            world.gop.fence();
-            search_all_worlds();
-            world.gop.fence();
-            print_memory_map(world);
-            world.gop.fence();
+        /// gather all information of the map on rank 0 of the universe
+        void reduce_map(World& universe) {
+            // turn map into vector
+            std::vector<std::pair<MemKey,MemInfo>> memory_vec(world_memory_map.begin(),world_memory_map.end());
+            // gather all data on rank 0
+            memory_vec=universe.gop.concat0(memory_vec);
+            // turn back into map
+            clear_map();
+            for (const auto& [memkey,memval] : memory_vec) {
+                world_memory_map[memkey]=memval;
+            }
         }
 
-        /// accumulate the memory usage of all objects of all worlds for this rank per host
-        std::map<std::string,double> memory_per_host_local() const {
-            std::map<std::string,double> memory_per_host;
-            for (const auto& [memkey,memval] : world_memory_map) {
-                memory_per_host[memkey.hostname]+=memval.memory_GB;
+        /// get the hostname of this machine, rank-local
+        static std::string get_hostname() {
+            char buffer[256];
+            gethostname(buffer, 256);
+            return std::string(buffer);
+        }
+
+        /// return a mapping rank to hostname, return value on rank 0 only
+        std::map<long,std::pair<std::string,double>> rank_to_host_and_rss_map(World& universe) {
+            std::vector<std::pair<long,std::pair<std::string,double>>> rank_to_host;
+            // rank-local
+            auto hostname_and_rss=std::pair<std::string,double>(get_hostname(),get_rss_usage_in_GB());
+            rank_to_host.push_back(std::pair<long,std::pair<std::string,double>>(universe.rank(),hostname_and_rss));
+            // gather on rank 0
+            rank_to_host=universe.gop.concat0(rank_to_host);
+            // turn into map
+            std::map<long,std::pair<std::string,double>> map;
+            for (const auto& [rank,hostname] : rank_to_host) {
+                map[rank]=hostname;
             }
-            return memory_per_host; // different on each rank
+            return map;
+        }
+
+        /// given the hostname, return number of ranks and total rss on that node
+        std::map<std::string,std::pair<int,double>> host_to_nrank_and_rss_map(World& universe) {
+            auto accumulate_left =[](std::pair<int,double>& a, const std::pair<int,double>& b) {
+                a.first++;
+                a.second+=b.second;
+            };
+            auto rank_to_host=rank_to_host_and_rss_map(universe);
+            std::map<std::string,std::pair<int,double>> host_to_rank;
+            for (const auto& [rank,hostname_and_rss] : rank_to_host) {
+                accumulate_left(host_to_rank[hostname_and_rss.first],std::pair<int,double>(rank,hostname_and_rss.second));
+            }
+            return host_to_rank;
+        }
+
+
+        /// accumulate the memory usage of all objects of all worlds for this rank per host
+
+        /// integrate out world and dim from MemKey, result lives on rank 0 only
+        std::vector<std::pair<std::pair<std::string,long>,double>> memory_per_host_and_rank(World& world) const {
+
+            std::map<std::pair<std::string,long>,double> memory_per_host;
+            for (const auto& [memkey,memval] : world_memory_map) {
+                memory_per_host[{memkey.hostname,memkey.rank}]+=memval.memory_GB;
+            }
+
+            // turn map into vector and sort
+            std::vector<std::pair<std::pair<std::string,long>,double>> memory_per_host_vec(memory_per_host.begin(),memory_per_host.end());
+            std::sort(memory_per_host_vec.begin(),memory_per_host_vec.end(),[](const auto& a, const auto& b){return a.first<b.first;});
+
+            return memory_per_host_vec;
         }
 
         /// accumulate the memory usage of all objects of all worlds over all ranks per host
-        std::map<std::string,double> memory_per_host(World& world) const {
-            auto memory_per_host=memory_per_host_local();
-            for (auto& [host, mem] : memory_per_host)  world.gop.sum(mem);
-            return memory_per_host; // same on each rank
+
+        /// integrate out world, dim and rank, only hostname is left
+        std::vector<std::pair<std::string,double>> memory_per_host_all_ranks(
+            const std::vector<std::pair<std::pair<std::string,long>,double>>& mem_per_host_and_rank) const {
+            std::map<std::string,double> mem_per_host;
+            for (auto& [hostname_and_rank,memory] : mem_per_host_and_rank) {
+                auto hostname=hostname_and_rank.first;
+                mem_per_host[hostname]+=memory;
+            }
+            // turn map into vector
+            std::vector<std::pair<std::string,double>> mem_per_host_vec(mem_per_host.begin(),mem_per_host.end());
+            return mem_per_host_vec;
         }
 
         /// return the total memory usage over all hosts
@@ -134,13 +220,13 @@ namespace madness {
             for (const auto& [memkey,memval] : world_memory_map) {
                 total_memory+=memval.memory_GB;
             }
-            world.gop.sum(total_memory);
             return total_memory;
         }
 
         /// @param[in] msg a message to print before the memory map
         /// @param[in] world used only for clean printing
         void print_memory_map(World& world, std::string msg="") {
+            reduce_map(world);
             world.gop.fence();
             if (world.rank()==0) {
                 print("final memory map:",msg);
@@ -151,47 +237,41 @@ namespace madness {
 
             // print all information
             world.gop.fence();
-            for (const auto& [memkey,memval] : world_memory_map) {
+            // turn into vector
+            std::vector<std::pair<MemKey,MemInfo>> memory_vec(world_memory_map.begin(),world_memory_map.end());
+            std::sort(memory_vec.begin(),memory_vec.end(),[](const std::pair<MemKey,MemInfo>& a, const std::pair<MemKey,MemInfo>& b){return a.first<b.first;});
+            for (const auto& [memkey,memval] : memory_vec) {
                 snprintf(line, bufsize, "%20s %12lu %5lu %5lu %5lu    %e", memkey.hostname.c_str(), memkey.world_id, memkey.rank, memkey.DIM, memval.num_functions, memval.memory_GB);
                 print(std::string(line));
             }
             world.gop.fence();
 
-            // print memory on each host and rank
-            if (world.rank()==0) print("memory per host and rank");
-            std::map<std::string,double> memory_per_host=memory_per_host_local();
-            world.gop.fence();
-            // turn map into vector
-            std::vector<std::pair<std::string,double>> memory_per_host_vec(memory_per_host.begin(),memory_per_host.end());
-            // concatenate all vectors, lives on rank 0 of the world
-            world.gop.concat0(memory_per_host_vec);
-            world.gop.fence();
-
+            // print memory on each host
+            auto mem_per_host_and_rank=memory_per_host_and_rank(world);
+            auto host_to_nrank_and_rss=host_to_nrank_and_rss_map(world);
             if (world.rank()==0) {
-                print("hostname               rank   memory_GB");
-                for (const auto& [hostname,memory] : memory_per_host_vec) {
-                    snprintf(line, bufsize, "%20s %5d    %e", hostname.c_str(), world.rank(), memory);
-                    print(std::string(line));
-                }
-            }
-            world.gop.fence();
-
-            // reduce memory_per_host
-            // if (world.rank()==0) print("memory per host");
-            for (auto& [host, mem] : memory_per_host)  world.gop.sum(mem);
-            world.gop.fence();
-            if (world.rank()==0) {
+                print("memory per host");
+                auto info=memory_per_host_all_ranks(mem_per_host_and_rank);
+                print("hostname                      memory_GB     nrank(universe)  rss_GB/host");
                 // print("hostname                      memory_GB");
-                for (const auto& [hostname,memory] : memory_per_host) {
-                    snprintf(line, bufsize, "%20s   all    %e", hostname.c_str(), memory);
+                for (const auto& [hostname,memory] : info) {
+                    snprintf(line, bufsize, "%20s          %e       %d           %e", hostname.c_str(), memory,
+                    host_to_nrank_and_rss[hostname].first, host_to_nrank_and_rss[hostname].second);
                     print(std::string(line));
                 }
             }
-            world.gop.fence();
-            print("RSS usage on rank ",world.rank(),"      ",get_rss_usage_in_GB());
-            world.gop.fence();
-            if (world.rank()==0) print("");
-
+            if (world.rank()==0) {
+                auto info=memory_per_host_all_ranks(mem_per_host_and_rank);
+                double total_mem=total_memory(world);
+                double total_rss=0.0;
+                for (auto& [hostname,memory] : info) {
+                    total_rss+=host_to_nrank_and_rss[hostname].second;
+                }
+                std::string word="all hosts";
+                snprintf(line, bufsize, "%20s          %e       %d           %e",
+                    word.c_str(), total_mem, world.size(), total_rss);
+                print(std::string(line));
+            }
 
         }
 

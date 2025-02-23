@@ -246,13 +246,16 @@ namespace madness {
 
     /// change tree state of the functions
 
-    /// will respect fence
+    /// might not respect fence
     /// @return v   for chaining
     template <typename T, std::size_t NDIM>
     const std::vector<Function<T,NDIM>>& change_tree_state(const std::vector<Function<T,NDIM>>& v,
                                                      const TreeState finalstate,
                                                      const bool fence=true) {
+        // fast return
         if (v.size()==0) return v;
+        if (get_tree_state(v)==finalstate) return v;
+
         // find initialized function with world
         Function<T,NDIM> dummy;
         for (const auto& f : v)
@@ -382,31 +385,49 @@ namespace madness {
         return df;
     }
 
+    /// Generates a vector of zero functions with a given tree state
+    template <typename T, std::size_t NDIM>
+    std::vector< Function<T,NDIM> >
+    zero_functions_tree_state(World& world, int n, const TreeState state, bool fence=true) {
+        std::vector< Function<T,NDIM> > r(n);
+        for (int i=0; i<n; ++i) {
+            if (state==compressed)
+                r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false).compressed(true).initial_level(1));
+            else if (state==reconstructed)
+                r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false));
+            else {
+                print("zero_functions_tree_state: unknown tree state");
+                throw std::runtime_error("zero_functions_tree_state: unknown tree state");
+            }
+        }
+
+	    if (n && fence) world.gop.fence();
+        return r;
+
+    }
+
     /// Generates a vector of zero functions (reconstructed)
     template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
     zero_functions(World& world, int n, bool fence=true) {
-        PROFILE_BLOCK(Vzero_functions);
-        std::vector< Function<T,NDIM> > r(n);
-        for (int i=0; i<n; ++i)
-  	    r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false));
-
-	if (n && fence) world.gop.fence();
-
-        return r;
+        return zero_functions_tree_state<T,NDIM>(world,n,reconstructed,fence);
     }
 
     /// Generates a vector of zero functions (compressed)
     template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
     zero_functions_compressed(World& world, int n, bool fence=true) {
-        PROFILE_BLOCK(Vzero_functions);
-        std::vector< Function<T,NDIM> > r(n);
-        for (int i=0; i<n; ++i)
-  	    r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false).compressed(true).initial_level(1));
-    	if (n && fence) world.gop.fence();
-        return r;
+        return zero_functions_tree_state<T,NDIM>(world,n,compressed,fence);
     }
+
+    /// Generates a vector of zero functions, either compressed or reconstructed, depending on tensor type
+    template <typename T, std::size_t NDIM>
+    std::vector< Function<T,NDIM> >
+    zero_functions_auto_tree_state(World& world, int n, bool fence=true) {
+        TreeState state=FunctionDefaults<NDIM>::get_tensor_type()==TT_FULL ? compressed : reconstructed;
+        return zero_functions_tree_state<T,NDIM>(world,n,state,fence);
+    }
+
 
 
     /// orthonormalize the vectors
@@ -1605,29 +1626,49 @@ namespace madness {
             return v.front().get_impl()->get_tensor_type();
         };
 
-
         // gaxpy can be done either in reconstructed or in compressed state
         bool do_in_reconstructed_state=tensor_type(a)!=TT_FULL;
         TreeState operating_state=do_in_reconstructed_state ? reconstructed : compressed;
 
-        try {
-            ensure_tree_state_respecting_fence(a,operating_state,fence);
-            ensure_tree_state_respecting_fence(b,operating_state,fence);
-        } catch (...) {
-            print("could not respect fence in gaxpy");
-            change_tree_state(a,operating_state,true);
-            change_tree_state(b,operating_state,true);
+        if (operating_state==compressed) {
+            // this is strict: both vectors have to be compressed
+            try {
+                ensure_tree_state_respecting_fence(a,operating_state,fence);
+                ensure_tree_state_respecting_fence(b,operating_state,fence);
+            } catch (...) {
+                print("could not respect fence in gaxpy");
+                change_tree_state(a,operating_state,true);
+                change_tree_state(b,operating_state,true);
+            }
+            MADNESS_CHECK_THROW(get_tree_state(a)==get_tree_state(b),"gaxpy requires same tree state for all functions");
+            MADNESS_CHECK_THROW(get_tree_state(a)==operating_state,"gaxpy requires reconstructed/compressed tree state for all functions");
+        } else {
+            // both vectors can be reconstructed or redundant_after_merge, and they don't have to be the same
+            TreeState astate=get_tree_state(a);
+            TreeState bstate=get_tree_state(b);
+            if (not (astate==reconstructed or astate==redundant_after_merge)) {
+                try {
+                    ensure_tree_state_respecting_fence(a,operating_state,fence);
+                } catch (...) {
+                    print("could not respect fence in gaxpy for a");
+                    change_tree_state(a,reconstructed,true);
+                }
+            }
+            if (not (bstate==reconstructed or bstate==redundant_after_merge)) {
+                try {
+                    ensure_tree_state_respecting_fence(b,operating_state,fence);
+                } catch (...) {
+                    print("could not respect fence in gaxpy for b");
+                    change_tree_state(b,reconstructed,true);
+                }
+            }
         }
 
-        // if there is no fence everything must be right from the beginning
-        MADNESS_CHECK_THROW(get_tree_state(a)==get_tree_state(b),"gaxpy requires same tree state for all functions");
-        MADNESS_CHECK_THROW(get_tree_state(a)==operating_state,"gaxpy requires reconstructed/compressed tree state for all functions");
-
+        // finally do the work
         for (unsigned int i=0; i<a.size(); ++i) {
             a[i].gaxpy(alpha, b[i], beta, false);
         }
         if (fence and (get_tree_state(a)==redundant_after_merge)) {
-//            for (unsigned int i=0; i<a.size(); ++i) a[i].sum_down(false);
             for (unsigned int i=0; i<a.size(); ++i) a[i].get_impl()->finalize_sum();
         }
 

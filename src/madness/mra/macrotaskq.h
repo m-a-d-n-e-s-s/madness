@@ -802,10 +802,14 @@ private:
     	typename std::enable_if<not is_tuple<resultT1>::value, void>::type
     	accumulate_into_final_result(World &subworld, resultT1 &result, const resultT1 &result_tmp, const argtupleT& argtuple) {
         		if constexpr (is_madness_function<resultT1>::value) {
-        			result_tmp.compress();
+        			// gaxpy can be done in reconstructed or compressed mode
+					TreeState operating_state=result_tmp.get_impl()->get_tensor_type()==TT_FULL ? compressed : reconstructed;
+        			result_tmp.change_tree_state(operating_state);
         			gaxpy(1.0,result,1.0, result_tmp);
         		} else if constexpr(is_madness_function_vector<resultT1>::value) {
-        			compress(subworld, result_tmp);
+					TreeState operating_state=result_tmp[0].get_impl()->get_tensor_type()==TT_FULL ? compressed : reconstructed;
+        			change_tree_state(result_tmp,operating_state);
+        			// compress(subworld, result_tmp);
         			// resultT1 tmp1=task.allocator(subworld,argtuple);
         			// tmp1=task.batch.template insert_result_batch(tmp1,result_tmp);
         			gaxpy(1.0,result,1.0,result_tmp,false);
@@ -869,6 +873,12 @@ private:
         	}
 
         };
+
+    	// this is called after all tasks have been executed and the taskq has ended
+    	void cleanup() override {
+        		// resultT result_universe=get_output(subworld, cloud);       // lives in the universe
+
+    	}
 
     	template<typename T, std::size_t NDIM>
     	static Function<T,NDIM> pointer2WorldObject(const std::shared_ptr<FunctionImpl<T,NDIM>> impl) {
