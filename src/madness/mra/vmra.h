@@ -2165,6 +2165,9 @@ namespace madness {
         dd[2]=apply(*(grad[1]),v[0],false);	// Dy x
         world.gop.fence();
 
+        compress(world,d,false);
+        compress(world,dd,false);
+        world.gop.fence();
         d[0].gaxpy(1.0,dd[0],-1.0,false);
         d[1].gaxpy(1.0,dd[1],-1.0,false);
         d[2].gaxpy(1.0,dd[2],-1.0,false);
