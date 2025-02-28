@@ -93,6 +93,7 @@ namespace madness {
     class WorldTaskQueue;
     class AtomicInt;
     void error(const char *msg);
+    inline void thread_purge();
 
     class ThreadBinder {
       static const size_t maxncpu = 1024;
@@ -1447,11 +1448,9 @@ namespace madness {
             const double timeout = await_timeout;
             int counter = 0;
 
-#if !(defined(HAVE_INTEL_TBB) || defined(HAVE_PARSEC))
-            // if dowork=false must manually flush the prebuffer before waiting
+            // if dowork=false must manually purge threal-local tasks to ensure progress
             // TODO may need something similar for PaRSEC if it does not task steal
-            if (!dowork) instance()->flush_prebuf();
-#endif
+            if (!dowork) thread_purge();
 
             MutexWaiter waiter;
             while (!probe()) {
@@ -1538,6 +1537,13 @@ namespace madness {
     inline void threadpool_wait_policy(WaitPolicy policy,
                                        int sleep_duration_in_microseconds = 0) {
       ThreadPool::set_wait_policy(policy, sleep_duration_in_microseconds);
+    }
+
+    /// purges tasks from local queue (if any) so that it's safe to make blocking calls from it
+    inline void thread_purge() {
+      MADNESS_ASSERT(is_madness_thread());
+
+      ThreadPool::instance()->flush_prebuf();
     }
 
     /// @}
