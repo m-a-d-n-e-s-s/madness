@@ -1447,6 +1447,12 @@ namespace madness {
             const double timeout = await_timeout;
             int counter = 0;
 
+#if !(defined(HAVE_INTEL_TBB) || defined(HAVE_PARSEC))
+            // if dowork=false must manually flush the prebuffer before waiting
+            // TODO may need something similar for PaRSEC if it does not task steal
+            if (!dowork) instance()->flush_prebuf();
+#endif
+
             MutexWaiter waiter;
             while (!probe()) {
 
