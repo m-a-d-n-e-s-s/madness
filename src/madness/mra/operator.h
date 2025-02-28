@@ -2090,13 +2090,14 @@ namespace madness {
                                                      double mu,
                                                      double lo,
                                                      double eps,
-                                                     const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+                                                     const array_of_bools<3>& lattice_summed = FunctionDefaults<3>::get_bc().is_periodic(),
                                                      int k=FunctionDefaults<3>::get_k()) {
       const Tensor<double> &cell_width = FunctionDefaults<3>::get_cell_width();
       double hi = cell_width.normf(); // Diagonal width of cell
       // Extend kernel range for lattice summation
-      const auto lattice_sum_any = lattice_sum.any();
-      if (lattice_sum_any) {
+      // N.B. if have periodic boundaries, extend range just in case will be using periodic domain
+      const auto lattice_summed_any = lattice_summed.any();
+      if (lattice_summed.any() || FunctionDefaults<3>::get_bc().is_periodic_any()) {
         hi *= 100;
       }
 
@@ -2104,11 +2105,22 @@ namespace madness {
       Tensor<double> coeff = fit.coeffs();
       Tensor<double> expnt = fit.exponents();
 
-      if (lattice_sum_any) {
-        fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+      if (lattice_summed_any) {
+        // convolution with Gaussians of exponents <= 0.25/(L^2) contribute only a constant shift
+        // the largest spacing along lattice summed axes thus controls the smallest Gaussian exponent that NEEDS to be included
+        double max_lattice_spacing = 0;
+        for(int d=0; d!=3; ++d) {
+          if (lattice_summed[d])
+            max_lattice_spacing =
+                std::max(max_lattice_spacing, cell_width(d));
+        }
+        // WARNING: discardG0 = true ignores the coefficients of truncated
+        //          terms
+        fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(),
+                                        /* discardG0 = */ false);
       }
       return new SeparatedConvolution<double, 3>(world, coeff, expnt, lo, eps,
-                                                 lattice_sum, k);
+                                                 lattice_summed, k);
     }
 
 
