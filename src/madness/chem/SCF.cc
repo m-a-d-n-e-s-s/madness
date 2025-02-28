@@ -1481,19 +1481,6 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         }
     }
 
-    //START_TIMER(world);
-    //if (!molecule.parameters.pure_ae()) {
-    //    gaxpy(world, 1.0, Vpsi, 1.0, gthpseudopotential->apply_potential(world, vloc, amo, occ, enl));
-    //} else {
-    //    gaxpy(world, 1.0, Vpsi, 1.0, mul_sparse(world, vloc, amo, vtol));
-    //}
-
-    //END_TIMER(world, "V*psi");
-
-    //START_TIMER(world);
-    //truncate(world, Vpsi);
-    //END_TIMER(world, "Truncate Vpsi");
-    //print_meminfo(world.rank(), "Truncate Vpsi");
     world.gop.fence();
     return Vpsi;
 }

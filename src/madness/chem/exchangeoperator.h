@@ -346,7 +346,6 @@ private:
 
             World& world = vket.front().world();
             mul_tol = 0.0;
-            //print("mul_tol ", mul_tol);
             
             resultT Kf = zero_functions_compressed<T, NDIM>(world, 1);
             vecfuncT psif = zero_functions_compressed<T,NDIM>(world, mo_bra.size()); 
@@ -361,25 +360,16 @@ private:
 
                 vecfuncT tmp_mo_bra(mo_bra.begin()+ilo,mo_bra.begin()+iend);
                 auto tmp_psif = mul_sparse(world, vket[i], tmp_mo_bra, mul_tol);
-                //print_size(world, tmp_psif, "tmp_psif before truncation");
                 truncate(world, tmp_psif);
-                //print_size(world, tmp_psif, "tmp_psi_f after truncation");
 
                 tmp_psif = apply(world, *poisson.get(), tmp_psif);
-                //print_size(world, tmp_psif, "tmp_psif (apply) before truncation");
                 truncate(world, tmp_psif);
-                //print_size(world, tmp_psif, "tmp_psif (apply) after truncation");
 
                 vecfuncT tmp_mo_ket(mo_ket.begin()+ilo,mo_ket.begin()+iend);
-                // TODO: use matrix_mul_sparse instead, need to implement mul_sparse for
-                //       vecfuncT, vecfuncT
                 auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif);
-                //auto tmp_Kf = mul_sparse(world, tmp_mo_ket, tmp_psif, mul_tol);
 
                 Kf[0] += tmp_Kf;
-                //print_size(world, Kf, "Kf before truncation");
                 truncate(world, Kf);
-                //print_size(world, Kf, "Kf after truncation");
             }
 
             return Kf;
