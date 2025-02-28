@@ -93,7 +93,9 @@ namespace madness {
     class WorldTaskQueue;
     class AtomicInt;
     void error(const char *msg);
-    inline void thread_purge();
+
+    /// purges tasks from local queue (if any) so that it's safe to make blocking calls from it
+    void thread_purge();
 
     class ThreadBinder {
       static const size_t maxncpu = 1024;
@@ -1537,13 +1539,6 @@ namespace madness {
     inline void threadpool_wait_policy(WaitPolicy policy,
                                        int sleep_duration_in_microseconds = 0) {
       ThreadPool::set_wait_policy(policy, sleep_duration_in_microseconds);
-    }
-
-    /// purges tasks from local queue (if any) so that it's safe to make blocking calls from it
-    inline void thread_purge() {
-      MADNESS_ASSERT(is_madness_thread());
-
-      ThreadPool::instance()->flush_prebuf();
     }
 
     /// @}
