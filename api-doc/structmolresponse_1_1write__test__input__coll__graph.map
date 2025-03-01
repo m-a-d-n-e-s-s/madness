@@ -1,0 +1,5 @@
+<map id="molresponse::write_test_input" name="molresponse::write_test_input">
+<area shape="rect" id="Node000001" title="will write a test input and remove it from disk upon destruction" alt="" coords="5,108,152,148"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="49,5,108,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="81,45,81,108,76,108,76,45"/>
+</map>
