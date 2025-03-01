@@ -892,8 +892,8 @@ namespace madness {
     /// After 1d push operator must sum coeffs down the tree to restore correct scaling function coefficients
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::sum_down(bool fence) {
+        tree_state=reconstructed;
         if (world.rank() == coeffs.owner(cdata.key0)) sum_down_spawn(cdata.key0, coeffT());
-
         if (fence) world.gop.fence();
     }
 
@@ -1388,10 +1388,15 @@ namespace madness {
         TreeState current_state=get_tree_state();
         if (current_state==finalstate) return;
 
-        // very special case
+        // very special cases
         if (get_tree_state()==nonstandard_after_apply) {
             MADNESS_CHECK(finalstate==reconstructed);
             reconstruct(fence);
+            return;
+        }
+        if (get_tree_state()==redundant_after_merge) {
+            MADNESS_CHECK(finalstate==reconstructed);
+            sum_down(fence);
             return;
         }
         MADNESS_CHECK_THROW(current_state!=TreeState::nonstandard_after_apply,"unknown tree state");

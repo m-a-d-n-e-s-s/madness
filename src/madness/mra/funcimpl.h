@@ -1131,14 +1131,14 @@ template<size_t NDIM>
         /// @param[in]	alpha	prefactor for this
         /// @param[in]	beta	prefactor for other
         /// @param[in]	g       the other function, reconstructed
+        /// @return     *this = alpha*this + beta*other, in either reconstructed or redundant_after_merge state
         template<typename Q, typename R>
         void gaxpy_inplace_reconstructed(const T& alpha, const FunctionImpl<Q,NDIM>& g, const R& beta, const bool fence) {
             // merge g's tree into this' tree
-            this->merge_trees(beta,g,alpha,true);
-
-            // sum down the sum coeffs into the leafs
-            if (world.rank() == coeffs.owner(cdata.key0)) sum_down_spawn(cdata.key0, coeffT());
-            if (fence) world.gop.fence();
+            this->merge_trees(beta,g,alpha,fence);
+            // tree is now redundant_after_merge
+            // sum down the sum coeffs into the leafs if possible to keep the state most clean
+            if (fence) sum_down(fence);
         }
 
         /// merge the trees of this and other, while multiplying them with the alpha or beta, resp
@@ -1153,8 +1153,8 @@ template<size_t NDIM>
         template<typename Q, typename R>
         void merge_trees(const T alpha, const FunctionImpl<Q,NDIM>& other, const R beta, const bool fence=true) {
             MADNESS_ASSERT(get_pmap() == other.get_pmap());
+            this->set_tree_state(redundant_after_merge);
             other.flo_unary_op_node_inplace(do_merge_trees<Q,R>(alpha,beta,*this),fence);
-            if (fence) world.gop.fence();
         }
 
         /// merge the trees of this and other, while multiplying them with the alpha or beta, resp
@@ -5713,6 +5713,66 @@ template<size_t NDIM>
             rangeT range(coeffs.begin(), coeffs.end());
             return world.taskq.reduce<T, rangeT, do_inner_local_on_demand<T>>(range,
                                do_inner_local_on_demand<R>(this, &gimpl));
+        }
+
+        /// compute the inner product of this range with other
+        template<typename R>
+        struct do_dot_local {
+            const FunctionImpl<R,NDIM>* other;
+            bool leaves_only;
+            typedef TENSOR_RESULT_TYPE(T,R) resultT;
+
+            do_dot_local(const FunctionImpl<R,NDIM>* other, const bool leaves_only)
+            	: other(other), leaves_only(leaves_only) {}
+            resultT operator()(typename dcT::const_iterator& it) const {
+
+            	TENSOR_RESULT_TYPE(T,R) sum=0.0;
+            	const keyT& key=it->first;
+                const nodeT& fnode = it->second;
+                if (fnode.has_coeff()) {
+                    if (other->coeffs.probe(it->first)) {
+                        const FunctionNode<R,NDIM>& gnode = other->coeffs.find(key).get()->second;
+                        if (gnode.has_coeff()) {
+                            if (gnode.coeff().dim(0) != fnode.coeff().dim(0)) {
+                                madness::print("DOT", it->first, gnode.coeff().dim(0),fnode.coeff().dim(0));
+                                MADNESS_EXCEPTION("functions have different k or compress/reconstruct error", 0);
+                            }
+                            if (leaves_only) {
+                                if (gnode.is_leaf() or fnode.is_leaf()) {
+                                    sum += fnode.coeff().full_tensor().trace(gnode.coeff().full_tensor());
+                                }
+                            } else {
+                                sum += fnode.coeff().full_tensor().trace(gnode.coeff().full_tensor());
+                            }
+                        }
+                    }
+                }
+                return sum;
+            }
+
+            resultT operator()(resultT a, resultT b) const {
+                return (a+b);
+            }
+
+            template <typename Archive> void serialize(const Archive& ar) {
+                MADNESS_EXCEPTION("NOT IMPLEMENTED", 1);
+            }
+        };
+
+        /// Returns the dot product ASSUMING same distribution
+
+        /// handles compressed and redundant form
+        template <typename R>
+        TENSOR_RESULT_TYPE(T,R) dot_local(const FunctionImpl<R,NDIM>& g) const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            typedef Range<typename dcT::const_iterator> rangeT;
+            typedef TENSOR_RESULT_TYPE(T,R) resultT;
+
+            // make sure the states of the trees are consistent
+            MADNESS_ASSERT(this->is_redundant()==g.is_redundant());
+            bool leaves_only=(this->is_redundant());
+            return world.taskq.reduce<resultT,rangeT,do_dot_local<R> >
+                (rangeT(coeffs.begin(),coeffs.end()),do_dot_local<R>(&g, leaves_only));
         }
 
         /// Type of the entry in the map returned by make_key_vec_map

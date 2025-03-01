@@ -352,7 +352,7 @@ public:
         sanity();
         const double cnorm = coeff.normf();
         BoundaryConditions<NDIM> bc = FunctionDefaults<NDIM>::get_bc();
-        const auto bperiodic = bc.is_periodic();
+        // const auto bperiodic = bc.is_periodic();
 
         typedef Key<opT::opdim> opkeyT;
         const opkeyT source = op->get_source_key(key);
