@@ -4811,6 +4811,7 @@ template<size_t NDIM>
           // radius of shell (nearest neighbor is diameter of 3 boxes, so radius=1.5)
           double radius = 1.5 + 0.33 * std::max(0.0, 2 - std::log10(thresh) -
                                                          k); // 0.33 was 0.5
+          //double radius = 2.5;
           double fac = vol_nsphere(NDIM, radius);
           // previously fac=10.0 selected empirically constrained by qmprop
 
@@ -4840,6 +4841,8 @@ template<size_t NDIM>
                                     const auto &skip_predicate) -> std::optional<std::uint64_t> {
 
             // used to screen estimated and actual contributions
+            //const double tol = truncate_tol(thresh, key);
+            //const double tol = 0.1*truncate_tol(thresh, key);
             const double tol = truncate_tol(thresh, key);
 
             // assume isotropic decaying kernel, screen in shell-wise fashion by

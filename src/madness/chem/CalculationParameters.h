@@ -64,7 +64,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
         initialize<std::string>("prefix","mad","prefixes your output/restart/json/plot/etc files");
 		initialize<double>("charge",0.0,"total molecular charge");
 		initialize<std::string> ("xc","hf","XC input line");
-		initialize<std::string> ("hfexalg","multiworld","hf exchange algorithm: choose from multiworld (default), smallmem, largemem");
+		initialize<std::string> ("hfexalg","multiworld_row","hf exchange algorithm: choose from multiworld, multiworld_row (default), smallmem, largemem");
 		initialize<double>("smear",0.0,"smearing parameter");
 		initialize<double>("econv",1.e-5,"energy convergence");
 		initialize<double>("dconv",1.e-4,"density convergence");
@@ -297,7 +297,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
         // --> need 50 a.u. either side of the molecule
         set_derived_value("l",molecule.bounding_cube() + 50.0);
 
-        set_derived_value("lo",molecule.smallest_length_scale());
+        //set_derived_value("lo",molecule.smallest_length_scale());
 
         // set highest possible point group for symmetry
         if (do_localize()) set_derived_value("pointgroup",std::string("c1"));
