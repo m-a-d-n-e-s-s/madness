@@ -753,7 +753,15 @@ namespace madness {
           const PointPattern& dest,
           std::optional<Displacement>&  displacement
       ) const {
-        const auto twon = (1 << level);  // number of boxes along an axis
+        // preliminaries
+        const auto twon = (static_cast<Translation>(1) << level);  // number of boxes along an axis
+        // map_to_range_twon(x) returns for x >= 0 ? x % 2^level : map_to_range_twon(x+2^level)
+        // idiv is generally slow, so instead use bit logic that relies on 2's complement representation of integers
+        const auto map_to_range_twon = [&, mask = ((~(static_cast<std::uint64_t>(0)) << (64-level)) >> (64-level))](std::int64_t x) -> std::int64_t {
+          const std::int64_t x_mapped = x & mask;
+          MADNESS_ASSERT(x_mapped >=0 && x_mapped < twon && (std::abs(x_mapped-x)%twon==0));
+          return x_mapped;
+        };
 
         const auto out_of_domain = [&](const Translation& t) -> bool {
           return t < 0 || t >= twon;
@@ -789,28 +797,28 @@ namespace madness {
               // compare Displacements::make_disp vs Displacements::make_disp_periodic
               auto disp_d_eff_abs = std::abs(disp_d);
               if (domain_is_periodic_[d]) {
-                // for "periodic" displacements the effective disp_d is the shortest of {disp_d, disp_d+twon, disp_d-twon} ... see make_disp_periodic
                 MADNESS_ASSERT(range_[d].N() <= 2);  // displacements that exceed 1 whole cell need bit more complex logic
-                // bmax in make_disp_periodic is wrapped around
-                if (Displacements<NDIM>::bmax_default() >= twon) bmax_standard = twon-1;
-                disp_d_eff_abs = std::min(std::abs(disp_d < 0 ? disp_d + twon : disp_d - twon), disp_d_eff_abs);
+
+                // for "periodic" displacements the effective disp_d is the shortest of {..., disp_d-twon, disp_d, disp_d+twon, ...} ... see make_disp_periodic
+                const std::int64_t disp_d_eff = map_to_range_twon(disp_d);
+                disp_d_eff_abs = std::min(disp_d_eff,std::abs(disp_d_eff-twon));
 
                 // IMPORTANT for lattice-summed axes, if the destination is out of the simulation cell map the displacement back to the cell
+                // same logic as for disp_d: dest[d] -> dest[d] % twon
                 if (dest[d].has_value()) {
-                  if (dest[d] < 0) {
-                    auto t = (*displacement).translation();
-                    t[d] += twon;
-                    displacement.emplace(displacement->level(), t);
-                    MADNESS_ASSERT(!out_of_domain(*dest[d] + twon));
-                  }
-                  else if (dest[d] >= twon) {
-                    auto t = (*displacement).translation();
-                    t[d] -= twon;
-                    displacement.emplace(displacement->level(), t);
-                    MADNESS_ASSERT(!out_of_domain(*dest[d] - twon));
-                  }
+                  const Translation dest_d = dest[d].value();
+                  const auto dest_d_in_cell = map_to_range_twon(dest_d);
+                  MADNESS_ASSERT(!out_of_domain(
+                      dest_d_in_cell));
+                  // adjust displacement[d] so that it produces dest_d_cell, not dest_d
+                  auto t = (*displacement).translation();
+                  t[d] += (dest_d_in_cell - dest_d);
+                  displacement.emplace(displacement->level(), t);
                 }
               }
+
+              // bmax in make_disp_periodic is wrapped around
+              if (Displacements<NDIM>::bmax_default() >= twon) bmax_standard = twon-1;
               if (disp_d_eff_abs > bmax_standard) {
                 among_standard_displacements = false;
               }
