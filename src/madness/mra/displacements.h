@@ -537,6 +537,11 @@ namespace madness {
         Iterator(const BoxSurfaceDisplacementRange* p, Type type)
             : parent(p), point(parent->center_.level()), fixed_dim(type == End ? NDIM : 0), done(type == End) {
           if (type != End) {
+            // skip to first dimensions with limited range
+            while (!parent->box_radius_[fixed_dim] && fixed_dim < NDIM) {
+              ++fixed_dim;
+            }
+
             for (size_t d = 0; d != NDIM; ++d) {
               // min/max displacements along this axis ... N.B. take into account surface thickness!
               box[d] = parent->box_radius_[d] ? std::pair{parent->box_[d].first -
