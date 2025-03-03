@@ -815,10 +815,11 @@ namespace madness {
                   t[d] += (dest_d_in_cell - dest_d);
                   displacement.emplace(displacement->level(), t);
                 }
+
+                // N.B. bmax in make_disp_periodic is wrapped around, adjust
+                if (Displacements<NDIM>::bmax_default() >= twon) bmax_standard = twon-1;
               }
 
-              // bmax in make_disp_periodic is wrapped around
-              if (Displacements<NDIM>::bmax_default() >= twon) bmax_standard = twon-1;
               if (disp_d_eff_abs > bmax_standard) {
                 among_standard_displacements = false;
               }
