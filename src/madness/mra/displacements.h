@@ -827,6 +827,7 @@ namespace madness {
 
               if (disp_d_eff_abs > bmax_standard) {
                 among_standard_displacements = false;
+                break;
               }
             }
             if (among_standard_displacements) {
