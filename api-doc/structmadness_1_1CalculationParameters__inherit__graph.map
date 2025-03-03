@@ -1,0 +1,9 @@
+<map id="madness::CalculationParameters" name="madness::CalculationParameters">
+<area shape="rect" id="Node000001" title=" " alt="" coords="107,79,343,104"/>
+<area shape="rect" id="Node000003" href="$classTestCalculationParameters.html" title="helper class to set up a vector of possible values for a given key" alt="" coords="5,159,200,185"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="197,114,122,161,119,157,194,109"/>
+<area shape="rect" id="Node000004" href="$structmadness_1_1Nemo_1_1NemoCalculationParameters.html" title="class holding parameters for a nemo calculation beyond the standard dft parameters from moldft" alt="" coords="224,152,472,192"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="257,109,320,150,317,154,254,114"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1QCCalculationParametersBase.html" title="class for holding the parameters for calculation" alt="" coords="82,5,369,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="228,44,228,79,223,79,223,44"/>
+</map>
