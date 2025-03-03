@@ -767,7 +767,7 @@ namespace madness {
           return t < 0 || t >= twon;
         };
 
-        // check that desp is in the domain
+        // check that dest is in the domain
         const bool dest_is_in_domain = [&]() {
           for(auto d=0; d!=NDIM; ++d) {
             // - if domain is periodic, all displacements will be mapped back to the simulation cell by for_each/neighbor
