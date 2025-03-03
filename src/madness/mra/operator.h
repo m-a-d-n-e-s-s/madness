@@ -2116,7 +2116,7 @@ namespace madness {
         }
         // WARNING: discardG0 = true ignores the coefficients of truncated
         //          terms
-        fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(),
+        fit.truncate_periodic_expansion(coeff, expnt, max_lattice_spacing,
                                         /* discardG0 = */ false);
       }
       return new SeparatedConvolution<double, 3>(world, coeff, expnt, lo, eps,
