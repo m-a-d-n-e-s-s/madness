@@ -468,11 +468,10 @@ namespace madness {
     }
 
     void thread_purge() {
-      MADNESS_ASSERT(is_madness_thread());
-
 #if defined(HAVE_PARSEC)
       __parsec_schedule_flush_private(ThreadPool::instance()->parsec_runtime->execution_stream());
 #elif !(defined(HAVE_INTEL_TBB))
+      MADNESS_ASSERT(is_madness_thread());
       ThreadPool::instance()->flush_prebuf();
 #endif
     }
