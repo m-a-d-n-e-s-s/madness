@@ -469,6 +469,9 @@ int test_gconv(World& world) {
               range)); // range restricted
           real_convolution_t oprnp(world, ops);
           oprnp.set_domain_periodicity(array_of_bools<NDIM>{false});
+          // periodic range-restricted kernel implemented by expicit lattice sum
+          real_convolution_t oprp2(world, ops);
+          oprp2.set_domain_periodicity(array_of_bools<NDIM>{true});
 
           // periodic range-restricted kernel
           ops[0].reset(new GaussianConvolution1D<double>(
@@ -498,10 +501,11 @@ int test_gconv(World& world) {
             auto check = [&](const auto &op, const auto &f,
                              const std::size_t R) {
               const auto rr = op.range_restricted();
-              const auto periodic = op.lattice_summed().any();
+              const auto lattice_summed = op.lattice_summed().any();
+              const auto periodic = lattice_summed || op.domain_is_periodic().any();
               if (!rr)
                 MADNESS_ASSERT(!periodic);
-              const std::string opstr = !rr ? "NP" : (periodic ? "RP" : "RNP");
+              const std::string opstr = !rr ? "NP" : (periodic ? (lattice_summed ? "RP" : "RP2") : "RNP");
               const auto V = op(f);
               real_function_t V_exact;
               auto factory = real_factory_t(world).special_points(
@@ -569,20 +573,47 @@ int test_gconv(World& world) {
               }
             };
 
+            auto check_rp_vs_rp2 = [&](const auto &oprp, const auto &oprp2, const auto &f,
+                                       const std::size_t R) {
+              const auto V = oprp(f);
+              const auto V2 = oprp2(f);
+
+              const auto error2 = (V - V2).norm2();
+              std::cout << "op[α=" << (kernel_exponent / (width * width));
+              if (op.range_restricted())
+                std::cout << ", σ=" << sigma;
+              std::cout << "](|x-y|) * g[" << gaussian_exponent << "](x";
+              if (R > 0)
+                std::cout << "-" << R;
+              std::cout << "): ||RP-RP2|| = " << std::scientific << error2;
+              const auto default_error2_tol = thresh * 1e2;
+              const auto error2_tol = default_error2_tol;
+              if (error2 > error2_tol) {
+                ++nerrors;
+                std::cout << " (FAIL)";
+              }
+              std::cout << std::endl;
+            };
+
             check(opnp, g, 0);
             check(opnp, g1, 1);
             check(oprnp, g, 0);
             check(oprnp, g1, 1);
             check(oprp, g, 0);
             check(oprp, g1, 1);
+            check(oprp2, g, 0);
+            check(oprp2, g1, 1);
+
+            check_rp_vs_rp2(oprp, oprp2, g, 0);
+            check_rp_vs_rp2(oprp, oprp2, g1, 1);
 
           }
 
           // linearity test
           {
             std::vector<std::reference_wrapper<const real_convolution_1d>> ops{
-                opnp, oprnp, oprp};
-            const std::vector<std::string> op_labels = {"NP", "RNP", "RP"};
+                opnp, oprnp, oprp, oprp2};
+            const std::vector<std::string> op_labels = {"NP", "RNP", "RP", "RP2"};
             for(int iop=0; iop!=ops.size(); ++iop) {
               const auto &op = ops[iop].get();
               const auto &opstr = op_labels[iop];
