@@ -1629,7 +1629,8 @@ namespace madness {
         World& world=a[0].world();
         try {
             ensure_tree_state_respecting_fence(a,compressed,fence);
-            ensure_tree_state_respecting_fence(b,compressed,fence);
+            // ensure_tree_state_respecting_fence({b},compressed,fence);
+            ensure_tree_state_respecting_fence(std::vector<Function<T,NDIM>>({b}),compressed,fence);
         } catch (...) {
             print("could not respect fence in gaxpy_oop");
             compress(world,a);
