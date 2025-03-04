@@ -94,6 +94,9 @@ namespace madness {
     class AtomicInt;
     void error(const char *msg);
 
+    /// purges tasks from local queue (if any) so that it's safe to make blocking calls from it
+    void thread_purge();
+
     class ThreadBinder {
       static const size_t maxncpu = 1024;
       bool print;
@@ -1446,6 +1449,10 @@ namespace madness {
             double start = cpu_time();
             const double timeout = await_timeout;
             int counter = 0;
+
+            // if dowork=false must manually purge threal-local tasks to ensure progress
+            // TODO may need something similar for PaRSEC if it does not task steal
+            if (!dowork) thread_purge();
 
             MutexWaiter waiter;
             while (!probe()) {

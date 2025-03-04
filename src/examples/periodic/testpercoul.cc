@@ -487,18 +487,19 @@ int main(int argc, char**argv) {
         const auto L = axis_name=="X" ? Lx : (axis_name=="Y" ? Ly : Lz);
 
         printf("Scan along %s axis\n", axis_name.c_str());
-        printf("%10c%18s%18s%18s%18s%18s%18s%18s%18s\n", std::tolower(axis_name[0]),
-               test_function_names[fi].c_str(), "V_NP", "V_P", "V_RNP", "V_RP",
+        printf("%10c%18s%18s%18s%18s%18s%18s%18s%18s%18s%18s\n", std::tolower(axis_name[0]),
+               test_function_names[fi].c_str(), "V_NP", "V_P", "V_RNP", "V_RP", "V_RP2",
                "V_P-V_NP", "V_P-V_RP",
-               "V_RP-V_NP");
+               "V_RP-V_NP", "V_RP-V_RP2");
         for (int r = -L / 2; r <= L / 2;
              r += step) {
           auto p = make_coord(r);
-          printf("%10.2f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f\n", (double)r,
-                 f(p), str2V["NP"][fi](p), str2V["P"][fi](p), str2V["RNP"][fi](p), str2V["RP"][fi](p),
+          printf("%10.2f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f%18.8f\n", (double)r,
+                 f(p), str2V["NP"][fi](p), str2V["P"][fi](p), str2V["RNP"][fi](p), str2V["RP"][fi](p), str2V["RP2"][fi](p),
                  str2V["P"][fi](p) - str2V["NP"][fi](p),
                  str2V["P"][fi](p) - str2V["RP"][fi](p),
-                 str2V["RP"][fi](p) - str2V["NP"][fi](p)
+                 str2V["RP"][fi](p) - str2V["NP"][fi](p),
+                 str2V["RP"][fi](p) - str2V["RP2"][fi](p)
                  );
         }
 

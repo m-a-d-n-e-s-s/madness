@@ -43,7 +43,7 @@ jobs:
         -DMADNESS_ENABLE_CEREAL=ON
         -DCMAKE_CXX_STANDARD=${{ matrix.task_backend == 'Threads' && matrix.build_type == 'Debug' && '20' || '17' }}
         -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'Threads' }}
-        -DMADNESS_BUILD_LIBRARIES_ONLY=${{ matrix.build_type != 'Debug' }}
+        -DMADNESS_BUILD_LIBRARIES_ONLY=${{ matrix.build_type == 'Debug' }}
 
     steps:
     - uses: actions/checkout@v4
