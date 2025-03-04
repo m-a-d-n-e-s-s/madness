@@ -854,7 +854,7 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) cons
         timer1.tag("saving cc2 singles and doubles");
 
         auto [rmsrnorm,maxrnorm]=CCPotentials::residual_stats(residual);
-        bool doubles_converged=rmsrnorm<parameters.dconv_6D();
+        bool doubles_converged=maxrnorm<parameters.dconv_6D();
 
         // check if singles converged
         const bool singles_converged = iterate_cc2_singles(world, singles, doubles, info);
@@ -1135,9 +1135,6 @@ bool CC2::iterate_singles(World& world, CC_vecfunction& singles, const CC_vecfun
             ("Unknown calculation type in iterate singles: " + assign_name(ctype)).c_str(), 1);
     }
 
-    bool converged = true;
-
-
     CC_vecfunction old_singles(singles);
     for (auto& tmp : singles.functions)
         old_singles(tmp.first).function = copy(tmp.second.function);
@@ -1153,10 +1150,9 @@ bool CC2::iterate_singles(World& world, CC_vecfunction& singles, const CC_vecfun
     solverT solver(allocT(world, singles.size()));
     solver.do_print = ((world.rank() == 0) and info.parameters.debug());
 
-    if (info.parameters.debug()) print_size(world, singles.get_vecfunction(), "singles before iteration");
+    if (info.parameters.debug()) print_size(world, singles.get_vecfunction(), "singles before iter");
 
     for (size_t iter = 0; iter < maxiter; iter++) {
-        print_header3("starting singles iteration "+std::to_string(iter));
         double omega = 0.0;
         if (ctype == CT_LRCC2) omega = singles.omega;
         else if (ctype == CT_LRCCS) omega = singles.omega;
@@ -1279,7 +1275,6 @@ bool CC2::iterate_singles(World& world, CC_vecfunction& singles, const CC_vecfun
 
         if (world.rank()==0) CCPotentials::print_convergence(singles.name(0),rmsresidual,
                                                              maxresidual,omega-old_omega,iter);
-        converged = (R2vector_error < info.parameters.dconv_3D());
         // print out the size of all functions in here
         if (info.parameters.debug()) {
             CCSize sz;
@@ -1291,16 +1286,17 @@ bool CC2::iterate_singles(World& world, CC_vecfunction& singles, const CC_vecfun
             sz.add(residual,GV,new_singles,singles.get_vecfunction(),singles.get_vecfunction(),singles2.get_vecfunction(),vec1,vec2);
             for (const auto& r : solver.get_rlist()) sz.add(r);
             for (const auto& uu : solver.get_ulist()) sz.add(uu);
-            sz.print(world,"sizes at the end of iteration");
+            sz.print(world,"sizes at the end of iter");
         }
         // time.info();
+        bool converged = ((std::abs(omega - old_omega) < info.parameters.econv())
+                          and (maxresidual < info.parameters.dconv_6D()));
         if (converged) break;
         if (ctype == CT_LRCCS) break; // for CCS just one iteration to check convergence
     } // end of iterations
 
     if (world.rank()==0) print_header2("Singles iterations ended");
     time_all.info();
-    print_size(world, singles.get_vecfunction(), "singles after iteration");
 
     // Assign the overall changes
     bool no_change = true;
