@@ -145,7 +145,7 @@ bool Localizer::check_core_valence_separation(const Tensor<T>& Fock, const std::
         print("faulty localization: core-valence separation requested but Fock matrix not block diagonal");
         print("error norm", error);
         print("max error", F.absmax());
-        print(Fock);
+        // print(Fock);
     }
     return success;
 }

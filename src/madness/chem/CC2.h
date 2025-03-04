@@ -315,6 +315,10 @@ public:
 
     bool check_core_valence_separation(const Tensor<double>& fmat) const;
 
+    /// make sure the orbitals are block diagonalized
+
+    /// changes the orbitals in member variable nemo
+    /// will throw if the fock matrix is not block diagonal
     /// @return     the new fock matrix
     Tensor<double> enforce_core_valence_separation(const Tensor<double>& fmat);
 };

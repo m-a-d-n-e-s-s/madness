@@ -21,6 +21,10 @@ void
 CC2::solve() {
     if (parameters.test()) CCOPS.test();
 
+    if (world.rank()==0) {
+        print_header1("Starting the correlated treatment");
+        std::cout << std::fixed << std::setprecision(1) << "\nstarting calculation at time " << wall_time() << std::endl;
+    }
     const CalcType ctype = parameters.calc_type();
 
     Tensor<double> fmat=nemo->compute_fock_matrix(nemo->get_calc()->amo,nemo->get_calc()->aocc);
@@ -30,6 +34,9 @@ CC2::solve() {
 
     MolecularOrbitals<double, 3> dummy_mo(nemo->get_calc()->amo, nemo->get_calc()->aeps);
     dummy_mo.print_frozen_orbitals(parameters.freeze());
+    if (world.rank()==0) {
+        std::cout << std::fixed << std::setprecision(1) << "\nenforcing core-value separation at time " << wall_time() << std::endl;
+    }
 
     CCOPS.reset_nemo(nemo);
     CCOPS.get_potentials.parameters=parameters;
@@ -324,38 +331,43 @@ Tensor<double> CC2::enforce_core_valence_separation(const Tensor<double>& fmat) 
         return fmat1;
     }
 
-    MolecularOrbitals<double, 3> mos(nemo->get_calc()->amo, nemo->get_calc()->aeps, {}, nemo->get_calc()->aocc, {});
-    mos.recompute_localize_sets();
-
     Localizer localizer(world,nemo->get_calc()->aobasis,nemo->get_calc()->molecule,nemo->get_calc()->ao);
     localizer.set_enforce_core_valence_separation(true).set_method(nemo->param.localize_method());
     localizer.set_metric(nemo->R);
 
-    const auto lmo=localizer.localize(mos,fmat,true);
+    Tensor<double> fock = copy(fmat);
+    MolecularOrbitals<double,3> lmo;
 
-    //hf->reset_orbitals(lmo);
-    nemo->get_calc()->amo=lmo.get_mos();
-    nemo->get_calc()->aeps=lmo.get_eps();
-    MADNESS_CHECK(size_t(nemo->get_calc()->aeps.size())==nemo->get_calc()->amo.size());
-    //orbitals_ = nemo->R*nemo->get_calc()->amo;
-    //R2orbitals_ = nemo->ncf->square()*nemo->get_calc()->amo;
+    // localization can be noisy -- to avoid unnecessary program crashes we try to localize the orbitals several times
+    for (int i=0; i<3; ++i) {
+        MolecularOrbitals<double, 3> mos(nemo->get_calc()->amo, nemo->get_calc()->aeps, {}, nemo->get_calc()->aocc, {});
+        mos.recompute_localize_sets();
+        lmo=localizer.localize(mos,fock,true);
 
+        // recompute fock matrix -- should be block diagonal
+        // need to write orbitals back for recalculating the Fock matrix
+        nemo->get_calc()->amo=lmo.get_mos();
+        nemo->get_calc()->aeps=lmo.get_eps();
+        MADNESS_CHECK(size_t(nemo->get_calc()->aeps.size())==nemo->get_calc()->amo.size());
+        fock = nemo->compute_fock_matrix(nemo->get_calc()->amo, nemo->get_calc()->aocc);
 
-    //fock.clear();
-
-    if (world.rank()==0) print("localized fock matrix");
-    Tensor<double> fock2;
-    const tensorT occ2 = nemo->get_calc()->aocc;
-    Tensor<double> fock_tmp2 = nemo->compute_fock_matrix(nemo->get_calc()->amo, occ2);
-    fock2 = copy(fock_tmp2);
-    if (world.rank() == 0 and nemo->get_param().nalpha() < 10) {
-        if (world.rank()==0) print("The Fock matrix");
-        if (world.rank()==0) print(fock2);
+        bool success=Localizer::check_core_valence_separation(fock,lmo.get_localize_sets());
+        if (success) {
+            if (world.rank()==0) print("localization succeeded");
+            break;
+        } else {
+            if (world.rank()==0) print("localization failed, retrying");
+        }
     }
 
-    MADNESS_CHECK(Localizer::check_core_valence_separation(fock2,lmo.get_localize_sets()));
-    // if (world.rank()==0) lmo.pretty_print("localized MOs");
-    return fock2;
+    if (world.rank() == 0  and parameters.debug() and nemo->get_param().nalpha() < 10) {
+        print("localized fock matrix");
+        print(fock);
+    }
+
+    MADNESS_CHECK(Localizer::check_core_valence_separation(fock,lmo.get_localize_sets()));
+
+    return fock;
 
 };
 
@@ -860,8 +872,8 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) cons
             std::cout << std::fixed << std::setprecision(10) << "Difference                  = " << delta << "\n";
 
         if (world.rank()==0) {
-            CCPotentials::print_convergence("CC2 macro",rmsrnorm,maxrnorm,delta,iter);
-            printf("finished CC2 macro iteration %2d at time %8.1fs with energy  %12.8f\n",
+            CCPotentials::print_convergence("CC2",rmsrnorm,maxrnorm,delta,iter);
+            printf("finished CC2 iteration %2d at time %8.1fs with energy  %12.8f\n",
                     int(iter), wall_time(), omega);
         }
         if (doubles_converged and singles_converged and omega_converged) break;
@@ -926,6 +938,13 @@ CC2::solve_lrcc2(Pairs<CCPair>& gs_doubles, const CC_vecfunction& gs_singles, co
             std::string filename=singles_name(CT_LRCC2,ex_singles.type,excitation);
             if (world.rank()==0) print("saving singles to disk",filename);
             ex_singles.save_restartdata(world,filename);
+
+		    if (world.rank()==0) {
+		        // double delta=old_energy - total_energy;
+		        // CCPotentials::print_convergence("MP2 doubles",rmsrnorm,maxrnorm,delta,iter);
+		    	printf("finished LRCC2 iteration %2d at time %8.1fs with excitation energy  %12.8f\n",
+		    			int(iter), wall_time(), ex_singles.omega);
+		    }
 
             if (sconv and dconv) break;
         }
