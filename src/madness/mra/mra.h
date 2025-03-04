@@ -1063,13 +1063,12 @@ namespace madness {
         template <typename Q>
         Function<T,NDIM>& operator+=(const Function<Q,NDIM>& other) {
             PROFILE_MEMBER_FUNC(Function);
-            if (NDIM<=3) {
-                compress();
-                other.compress();
-            } else {
-                reconstruct();
-                other.reconstruct();
-            }
+
+            // do this in reconstructed or compressed form
+            TreeState operating_state=get_impl()->get_tensor_type()==TT_FULL ? compressed : reconstructed;
+            this->change_tree_state(operating_state);
+            other.change_tree_state(operating_state);
+
             MADNESS_ASSERT(impl->get_tree_state() == other.get_impl()->get_tree_state());
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) other.verify_tree();

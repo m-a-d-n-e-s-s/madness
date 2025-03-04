@@ -133,6 +133,10 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     TreeState get_tree_state(const std::vector<Function<T,NDIM>>& v) {
         if (v.size()==0) return TreeState::unknown;
+        // return unknown if any function is not initialized
+        if (std::any_of(v.begin(), v.end(), [](const Function<T,NDIM>& f) {return not f.is_initialized();})) {
+            return TreeState::unknown;
+        }
         TreeState state=v[0].get_impl()->get_tree_state();
         for (const auto& f : v) {
             if (f.get_impl()->get_tree_state()!=state) state=TreeState::unknown;
