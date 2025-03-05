@@ -529,7 +529,7 @@ auto ResponseBase::compute_theta_X(
     molresponse::start_timer(world);
   }
   bool compute_Y = calc_type == "full";
-  X_space Theta_X = X_space(world, chi.num_states(), chi.num_orbitals());
+  X_space Theta_X = X_space::zero_functions(world, chi.num_states(), chi.num_orbitals());
   Theta_X.set_active(chi.active);
   if (r_params.print_level() >= 1) {
     molresponse::start_timer(world);
