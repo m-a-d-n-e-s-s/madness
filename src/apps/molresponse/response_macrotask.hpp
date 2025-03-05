@@ -78,7 +78,7 @@ public:
       Exchange<double, 3> k{world, lo};
       k.set_bra_and_ket(bra, ket);
 
-      std::string algorithm_ = "small_memory";
+      std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
         k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
@@ -272,7 +272,7 @@ public:
       Exchange<double, 3> k{world, lo};
       k.set_bra_and_ket(bra, ket);
 
-      std::string algorithm_ = "small_memory";
+      std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
         k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
@@ -411,7 +411,7 @@ public:
       Exchange<double, 3> k{world, lo};
       k.set_bra_and_ket(bra, ket);
 
-      std::string algorithm_ = "small_memory";
+      std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
         k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
@@ -542,7 +542,7 @@ public:
       Exchange<double, 3> k{world, lo};
       k.set_bra_and_ket(bra, ket);
 
-      std::string algorithm_ = "small_memory";
+      std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
         k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
@@ -735,7 +735,7 @@ public:
       auto &world = ket[0].world();
       Exchange<double, 3> k{world, lo};
       k.set_bra_and_ket(bra, ket);
-      std::string algorithm_ = "small_memory";
+      std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
         k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
@@ -855,7 +855,7 @@ public:
       Exchange<double, 3> k{world, lo};
       k.set_bra_and_ket(bra, ket);
 
-      std::string algorithm_ = "small_memory";
+      std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
         k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
@@ -970,7 +970,7 @@ public:
       auto &world = ket[0].world();
       Exchange<double, 3> k{world, lo};
       k.set_bra_and_ket(bra, ket);
-      std::string algorithm_ = "small_memory";
+      std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
         k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
@@ -1098,7 +1098,7 @@ public:
       Exchange<double, 3> k{world, lo};
       k.set_bra_and_ket(bra, ket);
 
-      std::string algorithm_ = "small_memory";
+      std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
         k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
@@ -1275,7 +1275,7 @@ public:
       Exchange<double, 3> k{world, lo};
       k.set_bra_and_ket(bra, ket);
 
-      std::string algorithm_ = "small_memory";
+      std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
         k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
@@ -1649,7 +1649,7 @@ public:
       Exchange<double, 3> k{world, lo};
       k.set_bra_and_ket(bra, ket);
 
-      std::string algorithm_ = "small_memory";
+      std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
         k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
@@ -1783,7 +1783,7 @@ public:
       Exchange<double, 3> k{world, lo};
       k.set_bra_and_ket(bra, ket);
 
-      std::string algorithm_ = "small_memory";
+      std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
         k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
