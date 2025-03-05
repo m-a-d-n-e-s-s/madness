@@ -179,11 +179,9 @@ public:
   // N.B. move is a cast, calling make_default_lattice_sum_range like this is OK
   WignerSeitzPotentialFunctor(atoms, std::move(c), std::move(b), std::move(r), make_default_lattice_sum_range(b,r)) {}
 
-  double operator()(const coord_3d &x) const;
+  double operator()(const coord_3d &x) const final;
 
-  std::vector<coord_3d> special_points() const {
-    return atoms.get_all_coords_vec();
-  }
+  std::vector<coord_3d> special_points() const final;
 
   static std::array<std::int64_t, 3> make_default_lattice_sum_range(const BoundaryConditions<3>& bc, const std::array<KernelRange, 3>& range) {
     std::array<std::int64_t, 3> result;
@@ -203,14 +201,14 @@ private:
   const std::array<std::int64_t, 3> lattice_sum_range;  // range of lattice summation, default is # of cells in each direction with nonzero contributions to the simulation cell
 };
 
+/// SAPFunctor = Interpolated Atomic Potential for 1 atom
 class SAPFunctor : public FunctionFunctorInterface<double,3> {
  private:
   const Atom& atom;
   double smoothing_param;
   BoundaryConditions<3> bc_;
   Tensor<double> cell;
-  // std::vector<coord_3d> special_points_;
-  // int special_level_ = 15;
+  Level special_level_;
  public:
   /// Generic constructor, can handle open and periodic boundaries
   /// \param molecule atoms
@@ -224,7 +222,11 @@ class SAPFunctor : public FunctionFunctorInterface<double,3> {
              const Tensor<double>& cell = FunctionDefaults<3>::get_cell(),
              int special_level = 15);
 
-  double operator()(const coord_3d& x) const;
+  double operator()(const coord_3d& x) const final;
+
+  Level special_level() const final;
+
+  std::vector<coord_3d> special_points() const final;
 };
 
 class PotentialManager {

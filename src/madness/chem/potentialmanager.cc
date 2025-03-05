@@ -143,6 +143,10 @@ double WignerSeitzPotentialFunctor::operator()(const coord_3d &r) const {
   return result;
 }
 
+std::vector<coord_3d> WignerSeitzPotentialFunctor::special_points() const {
+  return atoms.get_all_coords_vec();
+}
+
 SAPFunctor::SAPFunctor(
     const Atom &atom,
     double smoothing_param,
@@ -152,10 +156,8 @@ SAPFunctor::SAPFunctor(
       atom(atom),
       smoothing_param(smoothing_param),
       bc_(bc),
-      cell(cell)
-      // special_points_({atom.get_coords()}),
-      // special_level_(special_level),
-  {
+      cell(cell),
+      special_level_(special_level) {
 }
 
 double SAPFunctor::operator()(const coord_3d &x) const {
@@ -182,5 +184,12 @@ double SAPFunctor::operator()(const coord_3d &x) const {
 
   return sum * smoothing_param;
 }
+
+Level
+SAPFunctor::special_level() const { return special_level_; }
+
+std::vector<coord_3d>
+SAPFunctor::special_points() const { return {atom.get_coords()}; }
+
 
 }  // namespace madness
