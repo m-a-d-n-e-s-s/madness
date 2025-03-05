@@ -1,5 +1,8 @@
 # src/examples
 
+
+add_subdirectory(writecoeffs)
+
 set(EXAMPLE_SOURCES
     madinfo h2dft hedft hello hatom_energy h2 he tdse_example heat heat2 csqrt hatom hatom_sf_dirac
     sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio 
