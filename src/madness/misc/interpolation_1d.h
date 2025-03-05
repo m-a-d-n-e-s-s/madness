@@ -61,88 +61,42 @@ template <typename T> class CubicInterpolationTable {
 protected:
   double lo;        ///< Interpolation is in range [lo,hi]
   double hi;        ///< Interpolation is in range [lo,hi]
-  double h;         ///< Grid spacing
-  double rh;        ///< 1/h
   int npt;          ///< No. of grid points
   std::vector<T> a; ///< (1+4)*npt vector of x and polynomial coefficients
+  /// Below variables meaningful if user does specifies uniform spacing
+  double h;         ///< Grid spacing.
+  double rh;        ///< 1/h
+  /// Below variables meaningful if user provides grid points
+  std::vector<double> pts_; /// Grid points. Only stored if not evenly spaced. Empty otherwise.
 
   // Cubic interp thru 4 points ... not good for noisy data
   static void cubic_fit(const double *x, const T *f, T *a) {
-    double x0_2 = x[0] * x[0], x1_2 = x[1] * x[1], x2_2 = x[2] * x[2],
-           x3_2 = x[3] * x[3];
-    double x0_3 = x[0] * x[0] * x[0], x1_3 = x[1] * x[1] * x[1],
-           x2_3 = x[2] * x[2] * x[2], x3_3 = x[3] * x[3] * x[3];
 
-    a[0] = -(-x0_3 * x2_2 * x[3] * f[1] + x0_3 * x[2] * x3_2 * f[1] -
-             x0_3 * f[3] * x[2] * x1_2 + x0_3 * x[3] * f[2] * x1_2 +
-             x0_3 * f[3] * x2_2 * x[1] - x0_3 * x3_2 * f[2] * x[1] +
-             x0_2 * x1_3 * f[3] * x[2] - x0_2 * x1_3 * f[2] * x[3] +
-             x0_2 * x3_3 * f[2] * x[1] + x0_2 * f[1] * x2_3 * x[3] -
-             x0_2 * f[1] * x3_3 * x[2] - x0_2 * f[3] * x2_3 * x[1] +
-             x[0] * x3_2 * f[2] * x1_3 - x[0] * f[3] * x2_2 * x1_3 +
-             x[0] * x1_2 * f[3] * x2_3 - x[0] * x1_2 * f[2] * x3_3 -
-             x[0] * f[1] * x3_2 * x2_3 + x[0] * f[1] * x2_2 * x3_3 -
-             f[0] * x2_3 * x1_2 * x[3] + f[0] * x2_2 * x1_3 * x[3] +
-             f[0] * x3_2 * x2_3 * x[1] - f[0] * x3_3 * x2_2 * x[1] +
-             f[0] * x3_3 * x1_2 * x[2] - f[0] * x3_2 * x1_3 * x[2]) /
-           (-x2_2 * x[0] * x3_3 + x2_2 * x[0] * x1_3 - x0_2 * x[3] * x2_3 +
-            x0_2 * x3_3 * x[2] - x0_2 * x[1] * x3_3 + x0_2 * x[1] * x2_3 +
-            x0_2 * x1_3 * x[3] - x0_2 * x1_3 * x[2] + x3_2 * x[0] * x2_3 -
-            x3_2 * x[0] * x1_3 + x[3] * x2_3 * x1_2 - x3_2 * x2_3 * x[1] +
-            x3_3 * x2_2 * x[1] - x3_3 * x[2] * x1_2 + x[0] * x3_3 * x1_2 -
-            x[0] * x2_3 * x1_2 - x0_3 * x3_2 * x[2] - x0_3 * x[3] * x1_2 +
-            x0_3 * x3_2 * x[1] + x[2] * x3_2 * x1_3 - x2_2 * x[3] * x1_3 +
-            x0_3 * x2_2 * x[3] - x0_3 * x2_2 * x[1] + x0_3 * x[2] * x1_2);
-    a[1] = (-x2_3 * x1_2 * f[0] + x3_2 * x2_3 * f[0] + x2_3 * x0_2 * f[1] +
-            x1_2 * f[3] * x2_3 - x2_3 * x0_2 * f[3] - f[1] * x3_2 * x2_3 -
-            f[3] * x2_2 * x1_3 - x3_3 * x2_2 * f[0] + f[1] * x2_2 * x3_3 +
-            x2_2 * x1_3 * f[0] - f[1] * x2_2 * x0_3 + f[3] * x2_2 * x0_3 -
-            x1_3 * x3_2 * f[0] - x0_2 * x1_3 * f[2] - f[3] * x0_3 * x1_2 +
-            f[1] * x3_2 * x0_3 + x1_2 * f[2] * x0_3 + x3_3 * f[0] * x1_2 -
-            x3_2 * f[2] * x0_3 - f[1] * x3_3 * x0_2 + x0_2 * x3_3 * f[2] -
-            x1_2 * f[2] * x3_3 + x3_2 * f[2] * x1_3 + x0_2 * x1_3 * f[3]) /
-           (-x[3] + x[2]) /
-           (-x2_2 * x0_2 * x[3] - x2_2 * x[1] * x3_2 + x2_2 * x1_2 * x[3] +
-            x2_2 * x[0] * x3_2 - x2_2 * x[0] * x1_2 + x2_2 * x0_2 * x[1] +
-            x[2] * x[0] * x1_3 + x[2] * x0_3 * x[3] - x[2] * x0_3 * x[1] -
-            x[2] * x1_3 * x[3] - x[2] * x0_2 * x3_2 + x[2] * x1_2 * x3_2 -
-            x[2] * x[3] * x[0] * x1_2 + x[2] * x[3] * x0_2 * x[1] +
-            x0_3 * x1_2 - x0_2 * x1_3 + x[3] * x[0] * x1_3 -
-            x[3] * x0_3 * x[1] - x3_2 * x[0] * x1_2 + x3_2 * x0_2 * x[1]);
-    a[2] = -(-x1_3 * f[3] * x[2] + x1_3 * f[2] * x[3] + x1_3 * x[0] * f[3] +
-             x1_3 * f[0] * x[2] - x1_3 * x[0] * f[2] - x1_3 * f[0] * x[3] +
-             f[3] * x2_3 * x[1] - f[3] * x0_3 * x[1] - x[1] * x2_3 * f[0] +
-             x[1] * f[2] * x0_3 + x3_3 * f[0] * x[1] - x3_3 * f[2] * x[1] +
-             f[1] * x[3] * x0_3 - f[1] * x[0] * x3_3 - x3_3 * f[0] * x[2] +
-             x3_3 * x[0] * f[2] - f[2] * x0_3 * x[3] + x2_3 * f[0] * x[3] +
-             f[1] * x3_3 * x[2] - f[1] * x2_3 * x[3] + x2_3 * x[0] * f[1] -
-             x2_3 * x[0] * f[3] + f[3] * x0_3 * x[2] - x[2] * f[1] * x0_3) /
-           (x[3] * x2_2 - x3_2 * x[2] + x[1] * x3_2 - x[1] * x2_2 -
-            x1_2 * x[3] + x1_2 * x[2]) /
-           (-x[2] * x[1] * x[3] + x[1] * x[2] * x[0] - x0_2 * x[1] +
-            x[1] * x[3] * x[0] + x[2] * x[3] * x[0] + x0_3 - x0_2 * x[2] -
-            x0_2 * x[3]);
-    a[3] = (x[0] * f[3] * x1_2 - x0_2 * x[3] * f[2] + x2_2 * x[0] * f[1] +
-            x0_2 * f[3] * x[2] - x3_2 * f[2] * x[1] - f[0] * x3_2 * x[2] -
-            f[3] * x[2] * x1_2 - x2_2 * x[0] * f[3] - f[0] * x2_2 * x[1] +
-            f[3] * x2_2 * x[1] + x0_2 * f[1] * x[3] + x[2] * x3_2 * f[1] -
-            x0_2 * f[1] * x[2] + f[0] * x[2] * x1_2 + x[3] * f[2] * x1_2 +
-            f[0] * x3_2 * x[1] + x3_2 * x[0] * f[2] - x[0] * f[2] * x1_2 -
-            f[0] * x[3] * x1_2 - x0_2 * x[1] * f[3] + x0_2 * x[1] * f[2] +
-            f[0] * x2_2 * x[3] - x2_2 * x[3] * f[1] - x3_2 * x[0] * f[1]) /
-           (-x2_2 * x[0] * x3_3 + x2_2 * x[0] * x1_3 - x0_2 * x[3] * x2_3 +
-            x0_2 * x3_3 * x[2] - x0_2 * x[1] * x3_3 + x0_2 * x[1] * x2_3 +
-            x0_2 * x1_3 * x[3] - x0_2 * x1_3 * x[2] + x3_2 * x[0] * x2_3 -
-            x3_2 * x[0] * x1_3 + x[3] * x2_3 * x1_2 - x3_2 * x2_3 * x[1] +
-            x3_3 * x2_2 * x[1] - x3_3 * x[2] * x1_2 + x[0] * x3_3 * x1_2 -
-            x[0] * x2_3 * x1_2 - x0_3 * x3_2 * x[2] - x0_3 * x[3] * x1_2 +
-            x0_3 * x3_2 * x[1] + x[2] * x3_2 * x1_3 - x2_2 * x[3] * x1_3 +
-            x0_3 * x2_2 * x[3] - x0_3 * x2_2 * x[1] + x0_3 * x[2] * x1_2);
+    const auto base0 = f[0] / ((x[0] - x[1]) * (x[0] - x[2]) * (x[0] - x[3]));
+    const auto base1 = f[1] / ((x[1] - x[0]) * (x[1] - x[2]) * (x[1] - x[3]));
+    const auto base2 = f[2] / ((x[2] - x[0]) * (x[2] - x[1]) * (x[2] - x[3]));
+    const auto base3 = f[3] / ((x[3] - x[0]) * (x[3] - x[1]) * (x[3] - x[2]));
+    a[3] = base0 + base1 + base2 + base3;
+    auto temp0 = -base0 * (x[1] + x[2] + x[3]);
+    auto temp1 = -base1 * (x[0] + x[2] + x[3]);
+    auto temp2 = -base2 * (x[0] + x[1] + x[3]);
+    auto temp3 = -base3 * (x[0] + x[1] + x[2]);
+    a[2] = temp0 + temp1 + temp2 + temp3;
+    temp0 = base0 * (x[1] * x[2] + x[2] * x[3] + x[3] * x[1]);
+    temp1 = base1 * (x[0] * x[2] + x[2] * x[3] + x[3] * x[0]);
+    temp2 = base2 * (x[0] * x[1] + x[1] * x[3] + x[3] * x[0]);
+    temp3 = base3 * (x[0] * x[1] + x[1] * x[2] + x[2] * x[0]);
+    a[1] = temp0 + temp1 + temp2 + temp3;
+    temp0 = -base0 * (x[1] * x[2] * x[3]);
+    temp1 = -base1 * (x[0] * x[2] * x[3]);
+    temp2 = -base2 * (x[0] * x[1] * x[3]);
+    temp3 = -base3 * (x[0] * x[1] * x[2]);
+    a[0] = temp0 + temp1 + temp2 + temp3;
   }
 
   // Use the x- and y-points to make the interpolation
   void make_interpolation(const std::vector<double> &x, const std::vector<T> &p,
-                          const int npts_per_task = std::numeric_limits<int>::max(),
+                          const int npts_per_task = std::numeric_limits<int>::max() - 1,
                           World* world_ptr = nullptr) {
     const bool use_threads = npts_per_task < npt && world_ptr;
 
@@ -152,6 +106,7 @@ protected:
       auto task = [istart = i, this, &x, &p, npts_per_task, iend]() {
         const auto ifence = std::min(istart + npts_per_task, iend);
         for (int i = istart; i < ifence; ++i) {
+          // Center x points for numerical stability
           double mid = (x[i] + x[i + 1]) * 0.5;
           double y[4] = {x[i - 1] - mid, x[i] - mid, x[i + 1] - mid,
                          x[i + 2] - mid};
@@ -245,6 +200,28 @@ public:
       const int min_npts_per_task = min_npts_per_task_default)
       : CubicInterpolationTable(&world, lo, hi, npt, f, min_npts_per_task) {}
 
+  CubicInterpolationTable(std::vector<T> x, std::vector<T> y)
+      : npt(static_cast<int>(x.size())), a(npt * 5) {
+
+    if (x.size() != y.size()) {
+      throw std::runtime_error("Sizes of input and output arrays do not equal.");
+    }
+    // Out of paranoia, re-sort the data.
+    std::vector<int> indices(x.size());
+    std::vector<T> sorted_y(x.size());
+    std::iota(indices.begin(), indices.end(), 0);
+    std::stable_sort(indices.begin(), indices.end(), [&x](int i, int j) { return x[i] < x[j]; });
+    for (size_t i = 0; i < x.size(); i++) {
+      sorted_y[i] = y[indices[i]];
+    }
+    std::stable_sort(x.begin(), x.end());
+    lo = x[0];
+    hi = x[x.size() - 1];
+    pts_ = x;
+
+    make_interpolation(x, sorted_y);
+  }
+
   CubicInterpolationTable(double lo, double hi, int npt,
                           const std::vector<T> &y)
       : lo(lo), hi(hi), h((hi - lo) / (npt - 1)), rh(1.0 / h), npt(npt),
@@ -261,17 +238,29 @@ public:
   }
 
   T operator()(double y) const {
-    T y1;
-    int i = int((y - lo) * rh);
-    if (i < 0 || i >= npt)
-      throw "Out of range point";
-    i *= 5;
-    y1 = y - a[i];
-    T yy = y1 * y1;
-    return (a[i + 1] + y1 * a[i + 2]) + yy * (a[i + 3] + y1 * a[i + 4]);
+    int i;
+
+    if (!pts_.empty()) {
+      i = std::lower_bound(pts_.begin(), pts_.end(), y) - pts_.begin();
+      if (y < lo || y > hi) throw std::runtime_error("Out of range point");
+    } else {
+      i = static_cast<int>((y - lo) * rh);
+      if (i < 0 || i >= npt) throw std::runtime_error("Out of range point");
+    }
+      i *= 5;
+      T y1 = y - a[i];
+      T yy = y1 * y1;
+      return (a[i + 1] + y1 * a[i + 2]) + yy * (a[i + 3] + y1 * a[i + 4]);
   }
 
+  double get_lo() const { return lo; }
+
+  double get_hi() const { return hi; }
+
   template <typename functionT> double err(const functionT &f) const {
+    if (! pts_.empty()) {
+      throw "This error test is only meaningful if f generated the interpolation.";
+    }
     double maxabserr = 0.0;
     double h7 = h / 7.0;
     for (int i = 0; i < 7 * npt; ++i) {

@@ -41,7 +41,7 @@
 
 namespace madness {
 
-    /// Facilitates iteration through a multidimension index space.
+    /// Facilitates iteration through a multidimensional index space.
     /// Since there are multiple ways for navigating index space (column- vs.
     /// row-major, etc.), this class should be abstract, with an abstract ++
     /// operator.  The original IndexIterator assumed the highest dimension
@@ -63,7 +63,7 @@ namespace madness {
         bool finished;
 
     public:
-        /// Iterates dimension d from 0 to limts[d]-1 inclusive
+        /// Iterates dimension d from 0 to limits[d]-1 inclusive
         template<typename V>
         IndexIterator(const V& limits) :
                 n(limits.size()), i(limits.size(), 0l), finished(false) {
@@ -71,7 +71,7 @@ namespace madness {
                 n[d] = limits[d];
         }
 
-        /// Iterates dimension d from 0 to limts[d]-1 inclusive
+        /// Iterates dimension d from 0 to limits[d]-1 inclusive
         IndexIterator(int ndim, const long limits[]) :
                 n(ndim), i(ndim, 0l), finished(false) {
             for (unsigned int d = 0; d < n.size(); ++d)

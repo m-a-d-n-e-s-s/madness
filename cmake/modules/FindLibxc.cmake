@@ -13,7 +13,7 @@ include(FindPackageHandleStandardArgs)
 
 if(NOT LIBXC_FOUND)
 
-  # Set default sarch paths for libxc
+  # Set default search paths for libxc
   if(LIBXC_ROOT_DIR)
     set(LIBXC_INCLUDE_DIR ${LIBXC_ROOT_DIR}/include CACHE PATH "The include directory for libxc")
     if(CMAKE_SIZEOF_VOID_P EQUAL 8 AND CMAKE_SYSTEM_NAME STREQUAL "Linux")

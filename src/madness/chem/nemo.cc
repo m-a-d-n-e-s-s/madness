@@ -1170,7 +1170,7 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
     // construct the BSH operator
     tensorT eps(nmo);
     for (int i = 0; i < nmo; ++i) eps(i) = fock(i, i);
-    std::vector<poperatorT> bsh = calc->make_bsh_operators(world, eps);
+    std::vector<poperatorT> bsh = calc->make_bsh_operators(world, eps,param);
     for (poperatorT& b : bsh) b->destructive()=true;    // make it memory efficient
 
     // derivative of the (regularized) nuclear potential
@@ -1328,7 +1328,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
     const int nmo=nemo.size();
     tensorT eps(nmo);
     for (int i = 0; i < nmo; ++i) eps(i) = fock(i, i);
-    std::vector<poperatorT> bsh = calc->make_bsh_operators(world, eps);
+    std::vector<poperatorT> bsh = calc->make_bsh_operators(world, eps,param);
     t1.tag("make fock matrix");
 
     // construct the leading and constant term rhs involving the derivative

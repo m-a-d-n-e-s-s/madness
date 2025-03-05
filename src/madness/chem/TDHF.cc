@@ -174,14 +174,14 @@ void TDHF::prepare_calculation() {
     if (get_calcparam().do_localize()) {
         Fock<double,3> F(world,get_reference().get());
         F_occ = F(get_active_mo_bra(), get_active_mo_ket());
-        for (size_t i = 0; i < get_active_mo_ket().size(); ++i) {
-            msg << std::scientific << std::setprecision(10);
-            msg << "F(" << i << "," << i << ")=" << F_occ(i, i) << "\n";
-            if (std::fabs(get_orbital_energy(i + parameters.freeze()) - F_occ(i, i)) > 1.e-5) {
-                msg << "eps(" << i << ")=" << get_orbital_energy(i) << " | diff="
-                    << get_orbital_energy(i + parameters.freeze()) - F_occ(i, i) << "\n";
-            }
-        }
+//        for (size_t i = 0; i < get_active_mo_ket().size(); ++i) {
+//            msg << std::scientific << std::setprecision(10);
+//            msg << "F(" << i << "," << i << ")=" << F_occ(i, i) << "\n";
+//            if (std::fabs(get_orbital_energy(i + parameters.freeze()) - F_occ(i, i)) > 1.e-5) {
+//                msg << "eps(" << i << ")=" << get_orbital_energy(i) << " | diff="
+//                    << get_orbital_energy(i + parameters.freeze()) - F_occ(i, i) << "\n";
+//            }
+//        }
     } else {
         F_occ = Tensor<double>(get_active_mo_bra().size(), get_active_mo_ket().size());
         F_occ *= 0.0;
@@ -343,10 +343,12 @@ std::vector<CC_vecfunction> TDHF::solve_cis() const {
     bool skip_solve=(parameters.restart()=="no_compute") or (converged_roots.size()>=parameters.nexcitations());
 
     if (skip_solve) {
-        print("skipping the solution of the CIS equations");
-        if (parameters.restart()=="no_compute") print(" -> no_compute is set");
-        if (converged_roots.size()>=parameters.nexcitations())
-            print(" -> number of converged excitations from disk is sufficient:", converged_roots.size());
+        if (world.rank()==0) {
+            print("skipping the solution of the CIS equations");
+            if (parameters.restart()=="no_compute") print(" -> no_compute is set");
+            if (converged_roots.size()>=parameters.nexcitations())
+                print(" -> number of converged excitations from disk is sufficient:", converged_roots.size());
+        }
     } else {
         for (size_t macrocycle = 0; macrocycle < 1; ++macrocycle) {
             //msg.section("CIS Macroiteration " + std::to_string(macrocycle));

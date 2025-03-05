@@ -114,7 +114,7 @@ class Batch_1D {
         template <typename vecT>
         vecT insert_batch(vecT v, const vecT &v_batch) const
         {
-            // MADNESS_CHECK(v_batch.size()==size_t(this->size()) or this->is_full_size());
+            // //MADNESS_CHECK(v_batch.size()==size_t(this->size()) or this->is_full_size());
             std::copy(v_batch.begin(), v_batch.end(), v.begin() + begin * stride);
             return v;
         }

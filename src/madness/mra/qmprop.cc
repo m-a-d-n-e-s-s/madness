@@ -172,7 +172,7 @@ namespace madness {
         double width = FunctionDefaults<NDIM>::get_cell_min_width(); // Assuming cubic so all dim equal
         std::vector< std::shared_ptr< Convolution1D<double_complex> > > q(1);
         q[0].reset(qm_1d_free_particle_propagator(k, bandlimit, timestep, width));
-        return SeparatedConvolution<double_complex,NDIM>(world, q, BoundaryConditions<NDIM>(BC_FREE), k, true);
+        return SeparatedConvolution<double_complex,NDIM>(world, q, k, true);
     }
 
     template <std::size_t NDIM>
@@ -181,7 +181,7 @@ namespace madness {
         double width = FunctionDefaults<NDIM>::get_cell_min_width(); // Assuming cubic so all dim equal
         std::vector< std::shared_ptr< Convolution1D<double_complex> > > q(1);
         q[0].reset(qm_1d_free_particle_propagator(k, bandlimit, timestep, width));
-        return new SeparatedConvolution<double_complex,NDIM>(world, q, BoundaryConditions<NDIM>(BC_FREE), k, true);
+        return new SeparatedConvolution<double_complex,NDIM>(world, q, k, true);
     }
 
 #ifdef FUNCTION_INSTANTIATE_1

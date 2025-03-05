@@ -1027,64 +1027,47 @@ void Molecule::orient(bool verbose) {
 
 /// @param[in]  D   the rotation matrix
 void Molecule::rotate(const Tensor<double>& D) {
-  madness::Tensor<double> r(3L), rU;
-  for (unsigned int i = 0; i < atoms.size(); ++i) {
-    r[0] = atoms[i].x;
-    r[1] = atoms[i].y, r[2] = atoms[i].z;
-    rU = inner(r, D);
-    atoms[i].x = rU[0];
-    atoms[i].y = rU[1];
-    atoms[i].z = rU[2];
-  }
-  // field rotation
-  rU = inner(field, D);
-  field[0] = rU[0];
-  field[1] = rU[1];
-  field[2] = rU[2];
+    madness::Tensor<double> r(3L), rU;
+    for (auto& atom: atoms) {
+        r[0]=atom.x; r[1]=atom.y, r[2]= atom.z;
+        rU = inner(r,D);
+        atom.x=rU[0]; atom.y=rU[1]; atom.z=rU[2];
+    }
+    // field rotation
+    rU = inner(field,D);
+    field[0] = rU[0];
+    field[1] = rU[1];
+    field[2] = rU[2];
 }
 
 /// Returns the half width of the bounding cube
 
 /// The molecule will be contained in the cube [-L,+L].
 double Molecule::bounding_cube() const {
-  double L = 0.0;
-  for (unsigned int i = 0; i < atoms.size(); ++i) {
-    L = std::max(L, fabs(atoms[i].x));
-    L = std::max(L, fabs(atoms[i].y));
-    L = std::max(L, fabs(atoms[i].z));
-  }
-  return L;
+    double L = 0.0;
+    for (const auto& atom: atoms) {
+        L = std::max(L, fabs(atom.x));
+        L = std::max(L, fabs(atom.y));
+        L = std::max(L, fabs(atom.z));
+    }
+    return L;
 }
 
 double Molecule::total_nuclear_charge() const {
-  double sum = 0.0;
-  for (unsigned int i = 0; i < atoms.size(); ++i) {
-    sum += atoms[i].q;
-  }
-  return sum;
-}
-//Nuclear charge density of the molecule
-double Molecule::mol_nuclear_charge_density(double x, double y,
-                                            double z) const {
-  // Only one atom will contribute due to the short range of the nuclear
-  // charge density
-  for (unsigned int i = 0; i < atoms.size(); i++) {
-    double r = distance(x, y, z, atoms[i].x, atoms[i].y, atoms[i].z) * rcut[i];
-    if (r < 6.0) {
-      return atoms[i].atomic_number * smoothed_density(r) * rcut[i] * rcut[i] *
-             rcut[i];
+    double sum = 0.0;
+    for (const auto& atom: atoms) {
+        sum += atom.q;
     }
-  }
-  return 0.0;
+    return sum;
 }
-double Molecule::nuclear_attraction_potential(double x, double y,
-                                              double z) const {
-  // This is very inefficient since it scales as O(ngrid*natom)
-  // ... we can easily make an O(natom) version using
-  // the integral operator and sparse projection of an effective
-  // density ... its potential can be evaluated at the same
-  // time as the electronic Coulomb potential so it will be
-  // essentially free.
+
+double Molecule::nuclear_attraction_potential(double x, double y, double z) const {
+    // This is very inefficient since it scales as O(ngrid*natom)
+    // ... we can easily make an O(natom) version using
+    // the integral operator and sparse projection of an effective
+    // density ... its potential can be evaluated at the same
+    // time as the electronic Coulomb potential so it will be
+    // essentially free.
 
   double sum = 0.0;
   for (unsigned int i = 0; i < atoms.size(); ++i) {
@@ -1183,16 +1166,18 @@ double Molecule::nuclear_attraction_potential_second_derivative(
   return result;
 }
 
-double Molecule::nuclear_charge_density(double x, double y, double z) const {
+double Molecule::nuclear_charge_density(double x, double y, double z, double rscale) const {
   // Only one atom will contribute due to the short range of the nuclear charge density
 
-  for (unsigned int i = 0; i < atoms.size(); i++) {
-    double rsq = distance_sq(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z) *
-                 rcut[i] * rcut[i];
-    if (rsq < 36.0) {
-      double r = sqrt(rsq);
-      return atoms[i].q * smoothed_density(r) * rcut[i] * rcut[i] * rcut[i];
-    }
+  MADNESS_ASSERT(rscale > 0.0);
+  const double rscale_inv = 1.0/rscale;
+  for (unsigned int i=0; i<atoms.size(); i++) {
+      const auto rcut_i = rcut[i] * rscale_inv;
+      double rsq = distance_sq(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z)*rcut_i*rcut_i;
+      if (rsq < 36.0) {
+          double r = sqrt(rsq);
+          return atoms[i].q * smoothed_density(r)*rcut_i*rcut_i*rcut_i;
+      }
   }
   return 0.0;
 }
