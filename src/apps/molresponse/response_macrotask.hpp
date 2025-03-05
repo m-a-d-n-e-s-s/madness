@@ -1422,126 +1422,126 @@ public:
   }
 };
 
-class ComputeBetaTask : public MacroTaskOperationBase {
+// class ComputeBetaTask : public MacroTaskOperationBase {
 
-  int dummy_variable = 24;
+//   int dummy_variable = 24;
 
-  class Partitioner : public MacroTaskPartitioner {
-  public:
-    Partitioner() {
-      max_batch_size = 1;
-      //  result_stride = stride;
-      //  policy = "strided";
-    }
-  };
+//   class Partitioner : public MacroTaskPartitioner {
+//   public:
+//     Partitioner() {
+//       max_batch_size = 1;
+//       //  result_stride = stride;
+//       //  policy = "strided";
+//     }
+//   };
 
-public:
-  ComputeBetaTask() { partitioner.reset(new Partitioner()); }
+// public:
+//   ComputeBetaTask() { partitioner.reset(new Partitioner()); }
 
-  // beta_abc = -2 * <bx|cy * va> + <cx|by * va> + <zeta_bc|phi0 * va> +
-  // <zeta_cb|phi0 * va> + <ax|vbcx> + <ay|vbcy> beta[i], a, b, c, A, B, C,
-  // zeta_BC, zeta_CB, phi0, dipole_perturbations, vbc
-  typedef std::tuple<const std::vector<int> &,        // i
-                     const std::vector<int> &,        // a
-                     const std::vector<int> &,        // b
-                     const std::vector<int> &,        // c
-                     const vector_real_function_3d &, // A
-                     const vector_real_function_3d &, // B
-                     const vector_real_function_3d &, // C
-                     const vector_real_function_3d &, // zeta_BC
-                     const vector_real_function_3d &, // zeta_CB
-                     const vector_real_function_3d &, // phi0
-                     const vector_real_function_3d &, // dipole_perturbations
-                     const vector_real_function_3d &  // vbc
-                     >
-      argtupleT;
+//   // beta_abc = -2 * <bx|cy * va> + <cx|by * va> + <zeta_bc|phi0 * va> +
+//   // <zeta_cb|phi0 * va> + <ax|vbcx> + <ay|vbcy> beta[i], a, b, c, A, B, C,
+//   // zeta_BC, zeta_CB, phi0, dipole_perturbations, vbc
+//   typedef std::tuple<const std::vector<int> &,        // i
+//                      const std::vector<int> &,        // a
+//                      const std::vector<int> &,        // b
+//                      const std::vector<int> &,        // c
+//                      const vector_real_function_3d &, // A
+//                      const vector_real_function_3d &, // B
+//                      const vector_real_function_3d &, // C
+//                      const vector_real_function_3d &, // zeta_BC
+//                      const vector_real_function_3d &, // zeta_CB
+//                      const vector_real_function_3d &, // phi0
+//                      const vector_real_function_3d &, // dipole_perturbations
+//                      const vector_real_function_3d &  // vbc
+//                      >
+//       argtupleT;
 
-  typedef std::vector<std::shared_ptr<ScalarResult<double>>> resultT;
+//   typedef std::vector<std::shared_ptr<ScalarResult<double>>> resultT;
 
-  resultT allocator(World &world, const argtupleT &args) const {
-    std::size_t n = std::get<0>(args).size();
-    return scalar_result_shared_ptr_vector<double>(world, n);
-  };
+//   resultT allocator(World &world, const argtupleT &args) const {
+//     std::size_t n = std::get<0>(args).size();
+//     return scalar_result_shared_ptr_vector<double>(world, n);
+//   };
 
-  resultT operator()(const std::vector<int> &i, const std::vector<int> &a,
-                     const std::vector<int> &b, const std::vector<int> &c,
-                     const vector_real_function_3d &A,
-                     const vector_real_function_3d &B,
-                     const vector_real_function_3d &C,
-                     const vector_real_function_3d &zeta_BC,
-                     const vector_real_function_3d &zeta_CB,
-                     const vector_real_function_3d &phi0,
-                     const vector_real_function_3d &dipole_perturbations,
-                     const vector_real_function_3d &vbc) const
+//   resultT operator()(const std::vector<int> &i, const std::vector<int> &a,
+//                      const std::vector<int> &b, const std::vector<int> &c,
+//                      const vector_real_function_3d &A,
+//                      const vector_real_function_3d &B,
+//                      const vector_real_function_3d &C,
+//                      const vector_real_function_3d &zeta_BC,
+//                      const vector_real_function_3d &zeta_CB,
+//                      const vector_real_function_3d &phi0,
+//                      const vector_real_function_3d &dipole_perturbations,
+//                      const vector_real_function_3d &vbc) const
 
-  {
+//   {
 
-    World &world = B[0].world();
-    auto result = scalar_result_shared_ptr_vector<double>(world, 1);
+//     World &world = B[0].world();
+//     auto result = scalar_result_shared_ptr_vector<double>(world, 1);
 
-    auto compute_beta_i = [&](const vector_real_function_3d &ax,
-                              const vector_real_function_3d &ay,
-                              const vector_real_function_3d &bx,
-                              const vector_real_function_3d &by,
-                              const vector_real_function_3d &cx,
-                              const vector_real_function_3d &cy,
-                              const vector_real_function_3d &zeta_bc,
-                              const vector_real_function_3d &zeta_cb,
-                              const vector_real_function_3d &phi0,
-                              const real_function_3d &va,
-                              const vector_real_function_3d &vbcx,
-                              const vector_real_function_3d &vbcy) {
-      auto one = dot(world, bx, cy * va);
-      auto three = dot(world, cx, by * va);
+//     auto compute_beta_i = [&](const vector_real_function_3d &ax,
+//                               const vector_real_function_3d &ay,
+//                               const vector_real_function_3d &bx,
+//                               const vector_real_function_3d &by,
+//                               const vector_real_function_3d &cx,
+//                               const vector_real_function_3d &cy,
+//                               const vector_real_function_3d &zeta_bc,
+//                               const vector_real_function_3d &zeta_cb,
+//                               const vector_real_function_3d &phi0,
+//                               const real_function_3d &va,
+//                               const vector_real_function_3d &vbcx,
+//                               const vector_real_function_3d &vbcy) {
+//       auto one = dot(world, bx, cy * va);
+//       auto three = dot(world, cx, by * va);
 
-      auto two = dot(world, zeta_bc, phi0 * va);
-      auto four = dot(world, zeta_cb, phi0 * va);
+//       auto two = dot(world, zeta_bc, phi0 * va);
+//       auto four = dot(world, zeta_cb, phi0 * va);
 
-      auto five = dot(world, ax, vbcx, true);
-      auto six = dot(world, ay, vbcy, true);
+//       auto five = dot(world, ax, vbcx, true);
+//       auto six = dot(world, ay, vbcy, true);
 
-      auto one_trace = one.trace();
-      auto two_trace = two.trace();
-      auto three_trace = three.trace();
-      auto four_trace = four.trace();
-      auto five_trace = five.trace();
-      auto six_trace = six.trace();
+//       auto one_trace = one.trace();
+//       auto two_trace = two.trace();
+//       auto three_trace = three.trace();
+//       auto four_trace = four.trace();
+//       auto five_trace = five.trace();
+//       auto six_trace = six.trace();
 
-      auto beta = one_trace + two_trace + three_trace + four_trace +
-                  five_trace + six_trace;
-      *result[0] = -2.0 * beta;
-      return result;
-    };
+//       auto beta = one_trace + two_trace + three_trace + four_trace +
+//                   five_trace + six_trace;
+//       *result[0] = -2.0 * beta;
+//       return result;
+//     };
 
-    std::cout << "compute_beta: " << dummy_variable << std::endl;
+//     std::cout << "compute_beta: " << dummy_variable << std::endl;
 
-    const long m = batch.result.begin;
+//     const long m = batch.result.begin;
 
-    auto ak = a[m];
-    auto bk = b[m];
-    auto ck = c[m];
-    auto ik = i[m];
+//     auto ak = a[m];
+//     auto bk = b[m];
+//     auto ck = c[m];
+//     auto ik = i[m];
 
-    auto num_orbitals = static_cast<int>(phi0.size());
+//     auto num_orbitals = static_cast<int>(phi0.size());
 
-    x_space_indexer x_space_indexer(num_orbitals);
-    response_space_index response_space_index(num_orbitals);
-    auto ax = x_space_indexer.get_x_state(ak, A);
-    auto ay = x_space_indexer.get_y_state(ak, A);
-    auto bx = x_space_indexer.get_x_state(bk, B);
-    auto by = x_space_indexer.get_y_state(bk, B);
-    auto cx = x_space_indexer.get_x_state(ck, C);
-    auto cy = x_space_indexer.get_y_state(ck, C);
-    auto zeta_bc = response_space_index.get_x_state(ik, zeta_BC);
-    auto zeta_cb = response_space_index.get_x_state(ik, zeta_CB);
-    auto va = dipole_perturbations[ak];
-    auto vbcx = x_space_indexer.get_x_state(ik, vbc);
-    auto vbcy = x_space_indexer.get_y_state(ik, vbc);
+//     x_space_indexer x_space_indexer(num_orbitals);
+//     response_space_index response_space_index(num_orbitals);
+//     auto ax = x_space_indexer.get_x_state(ak, A);
+//     auto ay = x_space_indexer.get_y_state(ak, A);
+//     auto bx = x_space_indexer.get_x_state(bk, B);
+//     auto by = x_space_indexer.get_y_state(bk, B);
+//     auto cx = x_space_indexer.get_x_state(ck, C);
+//     auto cy = x_space_indexer.get_y_state(ck, C);
+//     auto zeta_bc = response_space_index.get_x_state(ik, zeta_BC);
+//     auto zeta_cb = response_space_index.get_x_state(ik, zeta_CB);
+//     auto va = dipole_perturbations[ak];
+//     auto vbcx = x_space_indexer.get_x_state(ik, vbc);
+//     auto vbcy = x_space_indexer.get_y_state(ik, vbc);
 
-    return compute_beta_i(ax, ay, bx, by, cx, cy, zeta_bc, zeta_cb, phi0, va,
-                          vbcx, vbcy);
-  }
-};
+//     return compute_beta_i(ax, ay, bx, by, cx, cy, zeta_bc, zeta_cb, phi0, va,
+//                           vbcx, vbcy);
+//   }
+// };
 class ComputeZetaBC : public MacroTaskOperationBase {
 
 private:

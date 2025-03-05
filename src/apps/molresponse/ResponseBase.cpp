@@ -587,7 +587,6 @@ auto ResponseBase::compute_theta_X(
 
     ResponseComputeGammaX t;
     MacroTask gamma_task(world, t);
-    gamma_task.set_name("gamma_1");
 
     gamma.set_active(chi.active);
     if (compute_Y) {
@@ -1212,7 +1211,6 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X,
 
   ResponseComputeGroundExchange t;
   MacroTask gamma_task(world, t);
-  gamma_task.set_name("gamma_0");
 
   if (compute_Y) {
     auto vec_chi = X.to_vector();

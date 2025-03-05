@@ -155,13 +155,11 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient_row(const vecfuncT& vf, c
     if (taskq) {
         taskq->set_printlevel(printlevel);
         MacroTask mtask(world, xtask, taskq);
-        mtask.set_name("K_macrotask_efficient_row");        
         Kf = mtask(vf, mo_bra, mo_ket);
     } else {
         auto taskq_ptr = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
         taskq_ptr->set_printlevel(printlevel);
         MacroTask mtask(world, xtask, taskq_ptr);
-        mtask.set_name("K_macrotask_efficient_row");        
         Kf = mtask(vf, mo_bra, mo_ket);
         taskq_ptr->run_all();
         if (printdebug()) taskq_ptr->cloud.print_timings(world);

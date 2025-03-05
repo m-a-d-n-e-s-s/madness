@@ -1461,7 +1461,6 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     }
     VBC_task_one_i t1;
     MacroTask task_one(world, t1);
-    task_one.set_name("VBC_one");
     vbc_one = task_one(bb_idx, cc_idx, vec_b, vec_c, phi0);
     if (r_params.print_level() >= 1) {
       std::string message = "VBC_one";
@@ -1476,7 +1475,6 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     MacroTask task_two_a(world, t2a);
     // The new vbc task onew will pass same data as task one and construct zeta
     // within the task
-    task_two_a.set_name("VBC_two_a");
     vbc_two_a = task_two_a(bb_idx, cc_idx, vec_b, vec_c, phi0);
     if (r_params.print_level() >= 1) {
       std::string message = "VBC_two_a";
@@ -1491,7 +1489,6 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     VBC_task_two_i t2b;
 
     MacroTask task_two_b(world, t2b);
-    task_two_b.set_name("VBC_two_b");
     vbc_two_b = task_two_b(cc_idx, bb_idx, vec_c, vec_b, phi0);
     if (r_params.print_level() >= 1) {
       std::string message = "VBC_two_b";
@@ -1505,7 +1502,6 @@ X_space QuadraticResponse::compute_second_order_perturbation_terms_v3(
     }
     VBC_task_three_i t3;
     MacroTask task_three(world, t3);
-    task_three.set_name("VBC_three");
     vbc_three = task_three(bb_idx, cc_idx, vec_b, vec_c, phi0, dipole_vectors);
     if (r_params.print_level() >= 1) {
       std::string message = "VBC_three";
