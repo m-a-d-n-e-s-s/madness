@@ -6,7 +6,9 @@
  */
 
 #ifndef ENABLE_GENTENSOR
+#if ENABLE_GENTENSOR==1
 #define ENABLE_GENTENSOR
+#endif
 #endif
 
 #include <madness/tensor/gentensor.h>

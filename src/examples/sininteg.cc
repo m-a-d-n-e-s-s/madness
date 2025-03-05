@@ -44,7 +44,7 @@
   basis and using the \c trace() method.
  */
 
-#warning If you changed this example, please update the "Getting started with MADNESS" documentation module.
+// #warning If you changed this example, please update the "Getting started with MADNESS" documentation module.
 
 #include <madness/mra/mra.h>
 

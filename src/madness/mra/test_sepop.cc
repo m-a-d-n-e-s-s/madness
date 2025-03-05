@@ -44,7 +44,7 @@ namespace madness {
         Tensor<double> r;
         double maxerr = 0.0;
         const double pi = 3.14159265358979323846264338328;
-        double exact, err;
+        double exact, err=0.0;
         const double err_tolerance = 1e-13;
         {
             if (log_errors && err >= err_tolerance) cout << "Testing accuracy of rnlp against results from Maple" << endl;

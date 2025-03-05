@@ -173,7 +173,7 @@ protected:
 public:
   static int min_npts_per_task_default; //!< minimum # of points per task
 
-  CubicInterpolationTable() : lo(0.0), hi(-1.0), h(0.0), rh(0.0), npt(0) {}
+  CubicInterpolationTable() : lo(0.0), hi(-1.0), npt(0), h(0.0), rh(0.0) {}
 
   /// constructs the interpolation table serially
   /// \param lo the lower bound of the interpolation interval
@@ -224,8 +224,7 @@ public:
 
   CubicInterpolationTable(double lo, double hi, int npt,
                           const std::vector<T> &y)
-      : lo(lo), hi(hi), h((hi - lo) / (npt - 1)), rh(1.0 / h), npt(npt),
-        a(npt * 5) {
+      : lo(lo), hi(hi), npt(npt), a(npt * 5) , h((hi - lo) / (npt - 1)), rh(1.0 / h) {
 
     if ((int)y.size() < npt)
       throw "Insufficient y-points";
