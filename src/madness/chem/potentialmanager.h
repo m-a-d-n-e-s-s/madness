@@ -198,9 +198,9 @@ private:
   const Tensor<double> cell;
   const BoundaryConditions<3> bc;
   const std::array<KernelRange, 3> range;
-  const std::array<std::int64_t, 3> lattice_sum_range;  // range of lattice summation, default is # of cells in each direction with nonzero contributions to the simulation cell
   const std::array<double, 3> cell_width;
   const std::array<double, 3> rcell_width;
+  const std::array<std::int64_t, 3> lattice_sum_range;  // range of lattice summation, default is # of cells in each direction with nonzero contributions to the simulation cell
 };
 
 class SAPFunctor : public FunctionFunctorInterface<double,3> {
@@ -209,8 +209,8 @@ class SAPFunctor : public FunctionFunctorInterface<double,3> {
   double smoothing_param;
   BoundaryConditions<3> bc_;
   Tensor<double> cell;
-  std::vector<coord_3d> special_points_;
-  int special_level_ = 15;
+  // std::vector<coord_3d> special_points_;
+  // int special_level_ = 15;
  public:
   /// Generic constructor, can handle open and periodic boundaries
   /// \param molecule atoms

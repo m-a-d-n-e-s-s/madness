@@ -43,9 +43,13 @@ NuclearDensityFunctor::NuclearDensityFunctor(
     const Molecule &atoms,
     const BoundaryConditions<3> &bc,
     const Tensor<double> &cell,
-    int special_level, double rscale)
-    : atoms(atoms), bc_(bc), cell(cell), special_level_(special_level),
-      special_points_(this->atoms.get_all_coords_vec()), rscale(rscale) {
+    int special_level, double rscale) :
+      atoms(atoms),
+      bc_(bc),
+      cell(cell),
+      special_points_(this->atoms.get_all_coords_vec()),
+      special_level_(special_level),
+      rscale(rscale) {
   if (bc_.is_periodic_any()) {
     MADNESS_ASSERT(cell.ndim() == 2 && cell.dim(0) == 3 && cell.dim(1) == 2);
     this->maxR = 1;
@@ -95,7 +99,7 @@ double WignerSeitzPotentialFunctor::operator()(const coord_3d &r) const {
   enum { x = 0, y = 1, z = 2 };
 
   const auto natoms = atoms.natom();
-  double E = 0.;
+  // double E = 0.;
 
   const auto eval = [&](const auto &r1, const auto &r2, const auto rcut) {
     double restrictor_factor = 1.;
@@ -144,9 +148,14 @@ SAPFunctor::SAPFunctor(
     double smoothing_param,
     const BoundaryConditions<3> &bc,
     const Tensor<double> &cell,
-    int special_level)
-    : atom(atom), bc_(bc), cell(cell), special_level_(special_level),
-      special_points_({atom.get_coords()}), smoothing_param(smoothing_param) {
+    int special_level) :
+      atom(atom),
+      smoothing_param(smoothing_param),
+      bc_(bc),
+      cell(cell)
+      // special_points_({atom.get_coords()}),
+      // special_level_(special_level),
+  {
 }
 
 double SAPFunctor::operator()(const coord_3d &x) const {

@@ -317,7 +317,7 @@ void run(World& world) {
     double energy = -0.5*Z*Z; // NR energy guess
     for (int iter=0; iter<1000; iter++) {
         char fname[256];
-        sprintf(fname,"psi-phi-%3.3d.dat", iter);
+        snprintf(fname,256,"psi-phi-%3.3d.dat", iter);
         plot_line(fname, npt, lo, hi, psi, phi);
         
         auto [psi_new, phi_new, rnorm] = iterate(world, Vnuc, gradV, mask, psi, phi, energy, iter, solver);

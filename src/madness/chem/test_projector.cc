@@ -36,7 +36,7 @@ int test_projector(World& world) {
     // P1 and P2 project onto orthogonal subspaces
     Projector<T,NDIM> P1(pspace1);
     Projector<T,NDIM> P2(pspace2);
-    QProjector<T,NDIM> Q1(world,pspace1);
+    QProjector<T,NDIM> Q1(pspace1);
 
     // set up trial function
     auto trial1=[](const Vector<double,NDIM>& r){return inner(r,r)*exp(-inner(r,r));};
@@ -89,7 +89,7 @@ int test_projector_outer(World& world) {
     StrongOrthogonalityProjector<double,LDIM> Q1(world);
     Q1.set_spaces({f1});
 
-    QProjector<double,LDIM> q(world,{f1});
+    QProjector<double,LDIM> q({f1});
     auto Q2=outer(q,q);
 
     auto Q1f=Q1(f_hidim);

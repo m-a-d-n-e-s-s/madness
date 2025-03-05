@@ -466,7 +466,7 @@ namespace madness {
                 is_fixed_dim ? parent->box_[dim].second +
                           parent->surface_thickness_[dim].value_or(0) :
                  box[dim].second;
-            const Translation l_dim_min_unique = l_dim_max - period + 1;
+            // const Translation l_dim_min_unique = l_dim_max - period + 1;
             l_dim_min = std::max(l_dim_min, l_dim_max - period + 1);
             // fixed dim only: l_dim_min may not correspond to a surface layer
             // this can only happen if l_dim_min is in the gap between the surface layers

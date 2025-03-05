@@ -592,19 +592,19 @@ void print_stats(World& world, int step, double t, const functionT& v,
 
 const char* wave_function_filename(int step) {
     static char fname[256];
-    sprintf(fname, "%s-%5.5d", param.prefix.c_str(), step);
+    snprintf(fname, 256, "%s-%5.5d", param.prefix.c_str(), step);
     return fname;
 }
 
 const char* wave_function_small_plot_filename(int step) {
     static char fname[256];
-    sprintf(fname, "%s-%5.5dS.dx", param.prefix.c_str(), step);
+    snprintf(fname,256, "%s-%5.5dS.dx", param.prefix.c_str(), step);
     return fname;
 }
 
 const char* wave_function_large_plot_filename(int step) {
     static char fname[256];
-    sprintf(fname, "%s-%5.5dL.dx", param.prefix.c_str(), step);
+    snprintf(fname,256, "%s-%5.5dL.dx", param.prefix.c_str(), step);
     return fname;
 }
 
@@ -651,7 +651,7 @@ void line_plot(World& world, int step, complex_functionT& psi) {
     world.gop.sum(v, npt);
     if (world.rank() == 0) {
         char buf[256];
-        sprintf(buf, "%s.lineplot", wave_function_filename(step));
+        snprintf(buf, 256, "%s.lineplot", wave_function_filename(step));
         std::ofstream f(buf);
         f.precision(10);
         for (int i=0; i<npt; i++) {
