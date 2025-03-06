@@ -45,6 +45,8 @@
 #include <cstddef>
 #include <cstdio>
 #include <pthread.h>
+
+#include <functional>
 #include <type_traits>
 #include <typeinfo>
 #include <new>
@@ -1542,7 +1544,6 @@ namespace madness {
     }
 
     /// @}
-}
 
     inline void thread_purge() {
 #if !(defined(HAVE_PARSEC) || defined(HAVE_INTEL_TBB))
@@ -1550,5 +1551,28 @@ namespace madness {
       ThreadPool::instance()->flush_prebuf();
 #endif
     }
+
+    template<class F, class... Args>
+    constexpr decltype(auto) blocking_invoke(F&& f, Args&&... args)
+        noexcept(std::is_nothrow_invocable_v<F, Args...>) {
+      thread_purge();
+      return std::invoke(std::forward<F>(f), std::forward<Args>(args)...);
+    }
+
+    template<class R, class F, class... Args>
+    constexpr R blocking_invoke_r(F&& f, Args&&... args)
+        noexcept(std::is_nothrow_invocable_v<F, Args...>) {
+      thread_purge();
+#if __cplusplus < 202302L
+      if constexpr (std::is_void_v<R>)
+        std::invoke(std::forward<F>(f), std::forward<Args>(args)...);
+      else
+        return std::invoke(std::forward<F>(f), std::forward<Args>(args)...);
+#else
+      return std::invoke_r<R>(std::forward<F>(f), std::forward<Args>(args)...);
+#endif
+    }
+
+}  // namespace madness
 
 #endif // MADNESS_WORLD_THREAD_H__INCLUDED
