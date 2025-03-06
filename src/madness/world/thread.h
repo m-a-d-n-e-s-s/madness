@@ -94,8 +94,9 @@ namespace madness {
     class AtomicInt;
     void error(const char *msg);
 
-    /// purges tasks from local queue (if any) so that it's safe to make blocking calls from it
-    void thread_purge();
+    /// purges tasks from this thread (if any) so that it's safe to make blocking calls from it
+    /// @note this is only needed for the Pthreads backend
+    inline void thread_purge();
 
     class ThreadBinder {
       static const size_t maxncpu = 1024;
@@ -1451,7 +1452,6 @@ namespace madness {
             int counter = 0;
 
             // if dowork=false must manually purge threal-local tasks to ensure progress
-            // TODO may need something similar for PaRSEC if it does not task steal
             if (!dowork) thread_purge();
 
             MutexWaiter waiter;
@@ -1543,5 +1543,12 @@ namespace madness {
 
     /// @}
 }
+
+    inline void thread_purge() {
+#if !(defined(HAVE_PARSEC) || defined(HAVE_INTEL_TBB))
+      MADNESS_ASSERT(is_madness_thread());
+      ThreadPool::instance()->flush_prebuf();
+#endif
+    }
 
 #endif // MADNESS_WORLD_THREAD_H__INCLUDED
