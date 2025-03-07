@@ -340,7 +340,9 @@ public:
     static std::string get_structure_library_path();
 
     /// print out a Gaussian cubefile header
-	std::vector<std::string> cubefile_header() const;
+
+    /// @param[in] offset  the offset to be subtracted from the coordinates
+	std::vector<std::string> cubefile_header(const Vector<double,3> offset=Vector<double,3>(0.0)) const;
 
     // initializes Molecule using the contents of file \c filename
     void read_file(const std::string& filename);
