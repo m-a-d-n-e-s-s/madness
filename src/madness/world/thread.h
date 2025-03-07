@@ -45,6 +45,8 @@
 #include <cstddef>
 #include <cstdio>
 #include <pthread.h>
+
+#include <functional>
 #include <type_traits>
 #include <typeinfo>
 #include <new>
@@ -94,8 +96,9 @@ namespace madness {
     class AtomicInt;
     void error(const char *msg);
 
-    /// purges tasks from local queue (if any) so that it's safe to make blocking calls from it
-    void thread_purge();
+    /// purges tasks from this thread (if any) so that it's safe to make blocking calls from it
+    /// @note this is only needed for the Pthreads backend
+    inline void thread_purge();
 
     class ThreadBinder {
       static const size_t maxncpu = 1024;
@@ -1451,7 +1454,6 @@ namespace madness {
             int counter = 0;
 
             // if dowork=false must manually purge threal-local tasks to ensure progress
-            // TODO may need something similar for PaRSEC if it does not task steal
             if (!dowork) thread_purge();
 
             MutexWaiter waiter;
@@ -1542,6 +1544,35 @@ namespace madness {
     }
 
     /// @}
-}
+
+    inline void thread_purge() {
+#if !(defined(HAVE_PARSEC) || defined(HAVE_INTEL_TBB))
+      MADNESS_ASSERT(is_madness_thread());
+      ThreadPool::instance()->flush_prebuf();
+#endif
+    }
+
+    template<class F, class... Args>
+    constexpr decltype(auto) blocking_invoke(F&& f, Args&&... args)
+        noexcept(std::is_nothrow_invocable_v<F, Args...>) {
+      thread_purge();
+      return std::invoke(std::forward<F>(f), std::forward<Args>(args)...);
+    }
+
+    template<class R, class F, class... Args>
+    constexpr R blocking_invoke_r(F&& f, Args&&... args)
+        noexcept(std::is_nothrow_invocable_v<F, Args...>) {
+      thread_purge();
+#if __cplusplus < 202302L
+      if constexpr (std::is_void_v<R>)
+        std::invoke(std::forward<F>(f), std::forward<Args>(args)...);
+      else
+        return std::invoke(std::forward<F>(f), std::forward<Args>(args)...);
+#else
+      return std::invoke_r<R>(std::forward<F>(f), std::forward<Args>(args)...);
+#endif
+    }
+
+}  // namespace madness
 
 #endif // MADNESS_WORLD_THREAD_H__INCLUDED
