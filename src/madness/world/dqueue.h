@@ -366,9 +366,9 @@ namespace madness {
              prebufhi[ninprebufhi++] = value;
              return;
         }
+        MADNESS_ASSERT(ninprebufhi <= NPREBUF && ninprebuf <= NPREBUF);
 #endif
         {
-             MADNESS_ASSERT(ninprebufhi <= NPREBUF && ninprebuf <= NPREBUF);
              madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
              push_front_with_lock(value);
              flush_prebufhi();
@@ -382,9 +382,9 @@ namespace madness {
              prebuf[ninprebuf++] = value;
              return;
         }
+        MADNESS_ASSERT(ninprebufhi <= NPREBUF && ninprebuf <= NPREBUF);
 #endif
         {
-             MADNESS_ASSERT(ninprebufhi <= NPREBUF && ninprebuf <= NPREBUF);
              madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
              flush_prebuf();
              //sanity_check();
