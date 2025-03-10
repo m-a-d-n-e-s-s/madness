@@ -1,0 +1,11 @@
+<map id="VectorOfScalarTask" name="VectorOfScalarTask">
+<area shape="rect" id="Node000001" title=" " alt="" coords="66,256,213,281"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1MacroTaskOperationBase.html" title=" " alt="" coords="12,181,267,207"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="142,221,142,256,137,256,137,221"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Batch.html" title="a batch consists of a 2D&#45;input batch and a 1D&#45;output batch: K&#45;batch &lt;&#45; (I&#45;batch, J&#45;batch)" alt="" coords="17,93,144,119"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="99,129,133,179,129,182,94,132"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Batch__1D.html" title=" " alt="" coords="5,5,156,31"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="83,45,83,93,78,93,78,45"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="169,93,227,119"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="185,132,150,182,145,179,180,129"/>
+</map>

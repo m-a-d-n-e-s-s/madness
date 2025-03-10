@@ -1,0 +1,39 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$structmadness_1_1OptimizationTargetInterface.html" title="The interface to be provided by functions to be optimized." alt="" coords="9,175,223,215"/>
+<area shape="rect" id="Node000001" href="$structCoreFittingTarget.html" title=" " alt="" coords="327,104,460,129"/>
+<area shape="poly" id="edge337_Node000000_Node000001" title=" " alt="" coords="181,168,274,138,326,126,327,131,275,143,183,173"/>
+<area shape="rect" id="Node000002" href="$classFred.html" title="Wrapper around vector demonstrating interface necessary." alt="" coords="368,153,419,179"/>
+<area shape="poly" id="edge338_Node000000_Node000002" title=" " alt="" coords="236,180,368,166,368,171,237,185"/>
+<area shape="rect" id="Node000003" href="$structTest.html" title=" " alt="" coords="369,5,417,31"/>
+<area shape="poly" id="edge339_Node000000_Node000003" title=" " alt="" coords="138,163,194,99,232,67,273,40,298,29,323,23,369,16,369,22,324,28,300,34,276,44,235,71,198,103,142,166"/>
+<area shape="rect" id="Node000004" href="$structTest2.html" title=" " alt="" coords="365,55,421,80"/>
+<area shape="poly" id="edge340_Node000000_Node000004" title=" " alt="" coords="150,165,206,125,274,89,321,75,365,67,365,73,322,80,276,94,209,130,153,169"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1CC2.html" title=" " alt="" coords="336,268,451,293"/>
+<area shape="poly" id="edge341_Node000000_Node000005" title=" " alt="" coords="178,218,275,253,336,268,335,273,274,258,176,223"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1MP2.html" title="a class for computing the first order wave function and MP2 pair energies" alt="" coords="335,317,452,343"/>
+<area shape="poly" id="edge342_Node000000_Node000007" title=" " alt="" coords="152,222,208,264,276,302,335,320,334,325,274,307,205,268,149,226"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1MolecularEnergy.html" title=" " alt="" coords="294,367,493,392"/>
+<area shape="poly" id="edge343_Node000000_Node000008" title=" " alt="" coords="141,225,197,290,235,324,276,352,306,364,304,369,273,356,231,328,194,294,137,228"/>
+<area shape="rect" id="Node000013" href="$structmadness_1_1MolecularOptimizationTargetInterface.html" title=" " alt="" coords="275,203,512,243"/>
+<area shape="poly" id="edge344_Node000000_Node000013" title=" " alt="" coords="237,205,275,209,274,214,236,210"/>
+<area shape="rect" id="Node000011" href="$classmadness_1_1NemoBase.html" title=" " alt="" coords="560,367,720,392"/>
+<area shape="poly" id="edge345_Node000013_Node000011" title=" " alt="" coords="501,246,513,253,551,280,585,311,631,365,627,368,581,315,548,284,511,258,498,251"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1Nemo.html" title="The Nemo class." alt="" coords="771,392,899,417"/>
+<area shape="poly" id="edge346_Node000011_Node000009" title=" " alt="" coords="734,389,771,394,770,399,733,394"/>
+<area shape="rect" id="Node000012" href="$classmadness_1_1Znemo.html" title=" " alt="" coords="768,492,903,517"/>
+<area shape="poly" id="edge348_Node000011_Node000012" title=" " alt="" coords="674,397,816,490,813,494,671,402"/>
+<area shape="rect" id="Node000010" href="$classmadness_1_1OEP.html" title=" " alt="" coords="951,392,1065,417"/>
+<area shape="poly" id="edge347_Node000009_Node000010" title=" " alt="" coords="913,402,950,402,950,407,913,407"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1QCPropertyInterface.html" title="class implementing properties of QC models" alt="" coords="5,443,227,468"/>
+<area shape="poly" id="edge349_Node000006_Node000005" title=" " alt="" coords="133,430,190,365,230,331,273,302,304,290,335,283,336,288,305,295,276,307,233,335,194,369,137,433"/>
+<area shape="poly" id="edge350_Node000006_Node000007" title=" " alt="" coords="142,432,200,391,236,369,274,352,334,335,335,340,276,356,239,374,203,395,145,436"/>
+<area shape="poly" id="edge351_Node000006_Node000008" title=" " alt="" coords="175,436,274,409,344,389,346,395,275,414,176,442"/>
+<area shape="poly" id="edge352_Node000006_Node000009" title=" " alt="" coords="240,444,771,406,771,412,241,449"/>
+<area shape="poly" id="edge356_Node000006_Node000012" title=" " alt="" coords="143,475,201,517,237,538,275,553,348,568,424,574,499,573,572,565,702,541,796,515,797,520,704,546,573,571,499,578,423,579,348,573,274,558,235,543,198,522,140,479"/>
+<area shape="rect" id="Node000014" href="$classmadness_1_1PNO.html" title=" " alt="" coords="335,517,452,543"/>
+<area shape="poly" id="edge353_Node000006_Node000014" title=" " alt="" coords="167,470,275,503,335,517,334,522,274,509,165,475"/>
+<area shape="rect" id="Node000015" href="$classmadness_1_1TDHF.html" title=" " alt="" coords="331,619,456,644"/>
+<area shape="poly" id="edge354_Node000006_Node000015" title=" " alt="" coords="138,477,196,537,234,570,276,597,303,609,331,618,329,623,301,614,273,602,231,574,192,541,135,481"/>
+<area shape="rect" id="Node000016" href="$classmadness_1_1Zcis.html" title=" " alt="" coords="335,468,451,493"/>
+<area shape="poly" id="edge355_Node000006_Node000016" title=" " alt="" coords="241,464,335,473,335,478,240,469"/>
+</map>

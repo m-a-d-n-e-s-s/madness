@@ -1,0 +1,9 @@
+<map id="madness::IndexIterator" name="madness::IndexIterator">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,55,179,80"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1HighDimIndexIterator.html" title=" " alt="" coords="227,5,457,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="170,49,276,28,277,33,171,55"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1LowDimIndexIterator.html" title=" " alt="" coords="229,55,455,80"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="192,65,229,65,229,70,192,70"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1NonstandardIndexIterator.html" title=" " alt="" coords="238,105,446,145"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="162,81,255,102,254,107,161,86"/>
+</map>
