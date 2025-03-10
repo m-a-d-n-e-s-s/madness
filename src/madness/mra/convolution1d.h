@@ -285,10 +285,10 @@ namespace madness {
                 : k(k)
                 , npt(npt)
                 , maxR(maxR)
-                , quad_x(npt)
-                , quad_w(npt)
                 , bloch_k(bloch_k)
                 , range(rng)
+                , quad_x(npt)
+                , quad_w(npt)
         {
             auto success = autoc(k,&c);
             MADNESS_CHECK(success);
@@ -913,7 +913,7 @@ namespace madness {
             // hence decrement grid point indices for left_to_right, increment otherwise
             const long first_pt = left_to_right ? this->npt-1: 0;
             const long sentinel_pt = left_to_right ? -1 : this->npt;
-            const auto next_pt = [lx, left_to_right](auto i) { return left_to_right ? i-1 : i+1; };
+            const auto next_pt = [left_to_right](auto i) { return left_to_right ? i-1 : i+1; };
 
             double xlo = left_to_right ? xstartedge : xstartedge-h;
             double xhi;

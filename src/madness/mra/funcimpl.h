@@ -5050,13 +5050,6 @@ template<size_t NDIM>
             coeff_SVD.get_svdtensor().orthonormalize(tol*GenTensor<T>::fac_reduce());
 #endif
 
-            // BC handling:
-            // - if operator is lattice-summed then treat this as nonperiodic (i.e. tell neighbor() to stay in simulation cell)
-            // - if operator is NOT lattice-summed then obey BC (i.e. tell neighbor() to go outside the simulation cell along periodic dimensions)
-            // - BUT user can force operator to treat its arguments as non-[eriodic (op.domain_is_simulation_cell(true))
-            // so ... which dimensions of this function are treated as periodic by op?
-            const array_of_bools<NDIM> this_is_treated_by_op_as_periodic = (op->particle() == 1) ? array_of_bools<NDIM>{false}.or_front(op->domain_is_periodic()) : array_of_bools<NDIM>{false}.or_back(op->domain_is_periodic());
-
             // list of displacements sorted in order of increasing distance
             // N.B. if op is lattice-summed gives periodic displacements, else uses
             // non-periodic even if op treats any modes of this as periodic

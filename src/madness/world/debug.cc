@@ -53,12 +53,13 @@ namespace madness {
         pid_t child;
         const char *argv[20];
         const char xterm[] = XTERM_EXECUTABLE;
-        char title[256], pid[256], geometry[256];
+        const std::size_t bufsize = 255;
+        char title[bufsize], pid[bufsize], geometry[bufsize];
         int ix=(rank/3)%3;
         int iy=rank%3;
-        sprintf(title, "Debugging process %d ", rank);
-        sprintf(pid, "%d", getpid());
-        sprintf(geometry,"%dx%d+%d+%d",80,24,ix*500,iy*280);
+        snprintf(title,bufsize,title, "Debugging process %d ", rank);
+        snprintf(pid,bufsize, "%d", getpid());
+        snprintf(geometry,bufsize,"%dx%d+%d+%d",80,24,ix*500,iy*280);
 
         if (path == 0) path = "test1";
         if (display == 0) display = getenv("DISPLAY");

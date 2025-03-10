@@ -16,7 +16,7 @@ void FrequencyResponse::initialize(World &world) {
 void FrequencyResponse::iterate(World &world) {
     size_t iter;
     // Variables needed to iterate
-    madness::QProjector<double, 3> projector(world, ground_orbitals);
+    madness::QProjector<double, 3> projector(ground_orbitals);
     size_t n = r_params.num_orbitals();// Number of ground state orbitals
     size_t m = r_params.num_states();  // Number of excited states
 
@@ -473,7 +473,7 @@ auto vector_to_PQ(World &world, const vector_real_function_3d &rhs_operators,
     auto orbitals = copy(world, ground_orbitals);
     reconstruct(world, orbitals);
     truncate(world, orbitals);
-    QProjector<double, 3> Qhat(world, orbitals);
+    QProjector<double, 3> Qhat(orbitals);
     int b = 0;
     for (const functionT &pi: rhs_operators) {
         auto op_phi = mul(world, pi, ground_orbitals, true);

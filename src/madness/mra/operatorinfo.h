@@ -57,9 +57,9 @@ std::ostream& operator<<(std::ostream& os, const OpType type) {
 
 struct OperatorInfo {
     OperatorInfo() = default;
-    OperatorInfo(double mu, double lo, double thresh, OpType type, std::optional<bool> truncate = {}, std::vector<KernelRange> range = std::vector<KernelRange>(6)) : mu(mu), lo(lo), thresh(thresh), type(type), truncate_lowexp_gaussians(truncate), range(std::move(range)) { }
+    OperatorInfo(double mu, double lo, double thresh, OpType type, std::optional<bool> truncate = {}, std::vector<KernelRange> range = std::vector<KernelRange>(6)) : mu(mu), lo(lo), thresh(thresh), type(type), range(std::move(range)), truncate_lowexp_gaussians(truncate) { }
     template <std::size_t NDIM>
-    OperatorInfo(double mu, double lo, double thresh, OpType type, std::optional<bool> truncate, const std::array<KernelRange, NDIM>& range) : mu(mu), lo(lo), thresh(thresh), type(type), truncate_lowexp_gaussians(truncate), range(range.begin(), range.end()) { }
+    OperatorInfo(double mu, double lo, double thresh, OpType type, std::optional<bool> truncate, const std::array<KernelRange, NDIM>& range) : mu(mu), lo(lo), thresh(thresh), type(type), range(range.begin(), range.end()), truncate_lowexp_gaussians(truncate) { }
     double mu=0.0;     ///< some introspection
     double lo=1.e-5;
     double thresh=1.e-4;
