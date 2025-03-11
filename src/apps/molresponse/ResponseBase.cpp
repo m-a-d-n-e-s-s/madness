@@ -704,10 +704,10 @@ auto ResponseBase::compute_theta_X(
       auto gamma_vec =
           gamma_task(ii, state_index, vec_chi, ground_orbitals, true);
       auto gnorm = norm2s_T(world, gamma_vec);
-      if (world.rank() == 0)
-      {
-        print("gamma_vec norm: ", gnorm);
-      }
+      // if (world.rank() == 0)
+      // {
+      //   print("gamma_vec norm: ", gnorm);
+      // }
       gamma.x.from_vector(gamma_vec);
       // gamma.y = gamma.x;
     }
@@ -1915,10 +1915,10 @@ void ResponseBase::x_space_step_restriction(World &world,
     }
   }
 
-  if (world.rank() == 0)
-  {
-    print("----------------End Step Restriction -----------------");
-  }
+  // if (world.rank() == 0)
+  // {
+  //   print("----------------End Step Restriction -----------------");
+  // }
   if (r_params.print_level() >= 1)
   {
     molresponse::end_timer(world, "x_space_restriction", "x_space_restriction",
