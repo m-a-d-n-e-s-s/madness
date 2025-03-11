@@ -342,7 +342,7 @@ Tensor<double> CC2::enforce_core_valence_separation(const Tensor<double>& fmat) 
     for (int i=0; i<3; ++i) {
         MolecularOrbitals<double, 3> mos(nemo->get_calc()->amo, nemo->get_calc()->aeps, {}, nemo->get_calc()->aocc, {});
         mos.recompute_localize_sets();
-        lmo=localizer.localize(mos,fock,true);
+        lmo=localizer.localize(mos,fock,i==0);
 
         // recompute fock matrix -- should be block diagonal
         // need to write orbitals back for recalculating the Fock matrix

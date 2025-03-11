@@ -308,7 +308,7 @@ tensorT Nemo::compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) cons
     fock+=T(R2nemo,nemo);
     JKUpsi.clear();
 
-	return fock;
+	return 0.5*(fock+transpose(fock));
 }
 
 /// solve the HF equations
