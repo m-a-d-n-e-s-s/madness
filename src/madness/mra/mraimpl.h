@@ -208,8 +208,8 @@ namespace madness {
     void FunctionImpl<T,NDIM>::gaxpy_oop_reconstructed(const double alpha, const implT& f,
                                                        const double beta, const implT& g, const bool fence) {
 
-        MADNESS_ASSERT(not f.is_compressed());
-        MADNESS_ASSERT(not g.is_compressed());
+        MADNESS_CHECK_THROW(f.is_reconstructed(), "gaxpy_oop_reconstructed: f is not reconstructed");
+        MADNESS_CHECK_THROW(g.is_reconstructed(), "gaxpy_oop_reconstructed: g is not reconstructed");
 
         ProcessID owner = coeffs.owner(cdata.key0);
         if (world.rank() == owner) {
@@ -246,6 +246,12 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     bool FunctionImpl<T,NDIM>::is_redundant() const {
         return (tree_state==redundant);
+    }
+
+    /// Returns true if the function is redundant_after_merge.
+    template <typename T, std::size_t NDIM>
+    bool FunctionImpl<T,NDIM>::is_redundant_after_merge() const {
+        return (tree_state==redundant_after_merge);
     }
 
     template <typename T, std::size_t NDIM>
@@ -1944,15 +1950,20 @@ namespace madness {
         return sum;
     }
 
+    /// Returns the number of coefficients in the function on this MPI rank
+    template <typename T, std::size_t NDIM>
+    std::size_t FunctionImpl<T,NDIM>::nCoeff_local() const {
+        std::size_t sum =0;
+        for (auto& [key,node] : coeffs) {
+            if (node.has_coeff()) sum+=node.coeff().nCoeff();
+        }
+        return sum;
+    }
+
     /// Returns the number of coefficients in the function ... collective global sum
     template <typename T, std::size_t NDIM>
     std::size_t FunctionImpl<T,NDIM>::nCoeff() const {
-        std::size_t sum = coeffs.size() * (sizeof(keyT) + sizeof(nodeT));
-        typename dcT::const_iterator end = coeffs.end();
-        for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
-            const nodeT& node = it->second;
-            if (node.has_coeff()) sum+=node.coeff().nCoeff();
-        }
+        std::size_t sum = nCoeff_local();
         world.gop.sum(sum);
         return sum;
     }

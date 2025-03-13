@@ -133,6 +133,10 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     TreeState get_tree_state(const std::vector<Function<T,NDIM>>& v) {
         if (v.size()==0) return TreeState::unknown;
+        // return unknown if any function is not initialized
+        if (std::any_of(v.begin(), v.end(), [](const Function<T,NDIM>& f) {return not f.is_initialized();})) {
+            return TreeState::unknown;
+        }
         TreeState state=v[0].get_impl()->get_tree_state();
         for (const auto& f : v) {
             if (f.get_impl()->get_tree_state()!=state) state=TreeState::unknown;
@@ -246,13 +250,16 @@ namespace madness {
 
     /// change tree state of the functions
 
-    /// will respect fence
+    /// might not respect fence
     /// @return v   for chaining
     template <typename T, std::size_t NDIM>
     const std::vector<Function<T,NDIM>>& change_tree_state(const std::vector<Function<T,NDIM>>& v,
                                                      const TreeState finalstate,
                                                      const bool fence=true) {
+        // fast return
         if (v.size()==0) return v;
+        if (get_tree_state(v)==finalstate) return v;
+
         // find initialized function with world
         Function<T,NDIM> dummy;
         for (const auto& f : v)
@@ -304,6 +311,24 @@ namespace madness {
         return v;
     }
 
+    /// ensure v has the requested tree state, change the tree state of v if necessary and no fence is given
+    template<typename T, std::size_t NDIM>
+    bool ensure_tree_state_respecting_fence(const std::vector<Function<T,NDIM>>& v,
+        const TreeState state, bool fence) {
+        // fast return
+        if (get_tree_state(v)==state) return true;;
+
+        // if there is a fence we can simply change the tree state, might be a no-op
+        if (fence) change_tree_state(v,state,true);
+
+        // check success, throw if not
+        bool ok=get_tree_state(v)==state;
+        if (not ok) {
+            print("ensure_tree_state_respecting_fence failed");
+            throw std::runtime_error("ensure_tree_state_respecting_fence failed");
+        }
+        return ok;
+    }
 
     /// Truncates a vector of functions
     template <typename T, std::size_t NDIM>
@@ -364,31 +389,49 @@ namespace madness {
         return df;
     }
 
+    /// Generates a vector of zero functions with a given tree state
+    template <typename T, std::size_t NDIM>
+    std::vector< Function<T,NDIM> >
+    zero_functions_tree_state(World& world, int n, const TreeState state, bool fence=true) {
+        std::vector< Function<T,NDIM> > r(n);
+        for (int i=0; i<n; ++i) {
+            if (state==compressed)
+                r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false).compressed(true).initial_level(1));
+            else if (state==reconstructed)
+                r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false));
+            else {
+                print("zero_functions_tree_state: unknown tree state");
+                throw std::runtime_error("zero_functions_tree_state: unknown tree state");
+            }
+        }
+
+	    if (n && fence) world.gop.fence();
+        return r;
+
+    }
+
     /// Generates a vector of zero functions (reconstructed)
     template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
     zero_functions(World& world, int n, bool fence=true) {
-        PROFILE_BLOCK(Vzero_functions);
-        std::vector< Function<T,NDIM> > r(n);
-        for (int i=0; i<n; ++i)
-  	    r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false));
-
-	if (n && fence) world.gop.fence();
-
-        return r;
+        return zero_functions_tree_state<T,NDIM>(world,n,reconstructed,fence);
     }
 
     /// Generates a vector of zero functions (compressed)
     template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
     zero_functions_compressed(World& world, int n, bool fence=true) {
-        PROFILE_BLOCK(Vzero_functions);
-        std::vector< Function<T,NDIM> > r(n);
-        for (int i=0; i<n; ++i)
-  	    r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world).fence(false).compressed(true).initial_level(1));
-    	if (n && fence) world.gop.fence();
-        return r;
+        return zero_functions_tree_state<T,NDIM>(world,n,compressed,fence);
     }
+
+    /// Generates a vector of zero functions, either compressed or reconstructed, depending on tensor type
+    template <typename T, std::size_t NDIM>
+    std::vector< Function<T,NDIM> >
+    zero_functions_auto_tree_state(World& world, int n, bool fence=true) {
+        TreeState state=FunctionDefaults<NDIM>::get_tensor_type()==TT_FULL ? compressed : reconstructed;
+        return zero_functions_tree_state<T,NDIM>(world,n,state,fence);
+    }
+
 
 
     /// orthonormalize the vectors
@@ -912,7 +955,7 @@ namespace madness {
     /// Computes the matrix inner product of two function vectors - q(i,j) = inner(f[i],g[j])
 
     /// For complex types symmetric is interpreted as Hermitian.
-    ///
+
     /// The current parallel loop is non-optimal but functional.
     template <typename T, typename R, std::size_t NDIM>
     Tensor< TENSOR_RESULT_TYPE(T,R) > matrix_inner(World& world,
@@ -921,10 +964,12 @@ namespace madness {
                                                    bool sym=false)
     {
         world.gop.fence();
-        compress(world, f);
-//        if ((void*)(&f) != (void*)(&g)) compress(world, g);
-        compress(world, g);
-
+        auto tensor_type = [](const std::vector<Function<T,NDIM>>& v) {
+            return v.front().get_impl()->get_tensor_type();
+        };
+        TreeState operating_state=tensor_type(f)==TT_FULL ? compressed : redundant;
+        ensure_tree_state_respecting_fence(f,operating_state,true);
+        ensure_tree_state_respecting_fence(g,operating_state,true);
 
         std::vector<const FunctionImpl<T,NDIM>*> left(f.size());
         std::vector<const FunctionImpl<R,NDIM>*> right(g.size());
@@ -986,6 +1031,8 @@ namespace madness {
     }
 
     /// Computes the element-wise inner product of two function vectors - q(i) = inner(f[i],g[i])
+
+    /// works in reconstructed or compressed state, state is chosen based on TensorType
     template <typename T, typename R, std::size_t NDIM>
     Tensor< TENSOR_RESULT_TYPE(T,R) > inner(World& world,
                                             const std::vector< Function<T,NDIM> >& f,
@@ -995,12 +1042,14 @@ namespace madness {
         MADNESS_CHECK(n==m);
         Tensor< TENSOR_RESULT_TYPE(T,R) > r(n);
 
-        compress(world, f);
-        compress(world, g);
+        auto tensor_type = [](const std::vector<Function<T,NDIM>>& v) {
+            return v.front().get_impl()->get_tensor_type();
+        };
+        TreeState operating_state=tensor_type(f)==TT_FULL ? compressed : redundant;
+        ensure_tree_state_respecting_fence(f,operating_state,true);
+        ensure_tree_state_respecting_fence(g,operating_state,true);
 
-        for (long i=0; i<n; ++i) {
-            r(i) = f[i].inner_local(g[i]);
-        }
+        for (long i=0; i<n; ++i) r(i) = f[i].inner_local(g[i]);
 
         world.taskq.fence();
         world.gop.sum(r.ptr(),n);
@@ -1010,6 +1059,8 @@ namespace madness {
 
 
     /// Computes the inner product of a function with a function vector - q(i) = inner(f,g[i])
+
+    /// works in reconstructed or compressed state, state is chosen based on TensorType
     template <typename T, typename R, std::size_t NDIM>
     Tensor< TENSOR_RESULT_TYPE(T,R) > inner(World& world,
                                             const Function<T,NDIM>& f,
@@ -1018,8 +1069,13 @@ namespace madness {
         long n=g.size();
         Tensor< TENSOR_RESULT_TYPE(T,R) > r(n);
 
-        f.compress();
-        compress(world, g);
+        auto tensor_type = [](const std::vector<Function<T,NDIM>>& v) {
+            return v.front().get_impl()->get_tensor_type();
+        };
+        TreeState operating_state=tensor_type(g)==TT_FULL ? compressed : redundant;
+        f.change_tree_state(operating_state,false);
+        ensure_tree_state_respecting_fence(g,operating_state,true);
+        world.gop.fence();
 
         for (long i=0; i<n; ++i) {
             r(i) = f.inner_local(g[i]);
@@ -1515,24 +1571,6 @@ namespace madness {
     }
 
 
-    /// ensure v has the requested tree state, change the tree state of v if necessary and no fence is given
-    template<typename T, std::size_t NDIM>
-    bool ensure_tree_state_respecting_fence(const std::vector<Function<T,NDIM>>& v,
-        const TreeState state, bool fence) {
-        // fast return
-        if (get_tree_state(v)==state) return true;;
-
-        // if there is a fence we can simply change the tree state, might be a no-op
-        if (fence) change_tree_state(v,state,true);
-
-        // check success, throw if not
-        bool ok=get_tree_state(v)==state;
-        if (not ok) {
-            print("ensure_tree_state_respecting_fence failed");
-            throw std::runtime_error("ensure_tree_state_respecting_fence failed");
-        }
-        return ok;
-    }
 
     /// out-of-place gaxpy for two vectors: result[i] = alpha * a[i] + beta * b[i]
     template <typename T, typename Q, typename R, std::size_t NDIM>
@@ -1555,8 +1593,7 @@ namespace madness {
         World& world=a[0].world();
     	std::vector<Function<resultT,NDIM> > result(a.size());
 
-        bool do_in_reconstructed_state=tensor_type(a)!=TT_FULL;
-        TreeState operating_state=do_in_reconstructed_state ? reconstructed : compressed;
+        TreeState operating_state=tensor_type(a)==TT_FULL ? compressed : reconstructed;
         try {
             ensure_tree_state_respecting_fence(a,operating_state,fence);
             ensure_tree_state_respecting_fence(b,operating_state,fence);
@@ -1592,7 +1629,8 @@ namespace madness {
         World& world=a[0].world();
         try {
             ensure_tree_state_respecting_fence(a,compressed,fence);
-            ensure_tree_state_respecting_fence(b,compressed,fence);
+            // ensure_tree_state_respecting_fence({b},compressed,fence);
+            ensure_tree_state_respecting_fence(std::vector<Function<T,NDIM>>({b}),compressed,fence);
         } catch (...) {
             print("could not respect fence in gaxpy_oop");
             compress(world,a);
@@ -1631,33 +1669,50 @@ namespace madness {
             return v.front().get_impl()->get_tensor_type();
         };
 
-
         // gaxpy can be done either in reconstructed or in compressed state
         bool do_in_reconstructed_state=tensor_type(a)!=TT_FULL;
         TreeState operating_state=do_in_reconstructed_state ? reconstructed : compressed;
 
-        try {
-            ensure_tree_state_respecting_fence(a,operating_state,fence);
-            ensure_tree_state_respecting_fence(b,operating_state,fence);
-        } catch (...) {
-            print("could not respect fence in gaxpy");
-            change_tree_state(a,operating_state,true);
-            change_tree_state(b,operating_state,true);
-        }
-
-        // if there is no fence everything must be right from the beginning
-        MADNESS_CHECK_THROW(get_tree_state(a)==get_tree_state(b),"gaxpy requires same tree state for all functions");
-        if (do_in_reconstructed_state) {
-            MADNESS_CHECK_THROW(get_tree_state(a)==reconstructed,"gaxpy requires reconstructed tree state for all functions");
+        if (operating_state==compressed) {
+            // this is strict: both vectors have to be compressed
+            try {
+                ensure_tree_state_respecting_fence(a,operating_state,fence);
+                ensure_tree_state_respecting_fence(b,operating_state,fence);
+            } catch (...) {
+                print("could not respect fence in gaxpy");
+                change_tree_state(a,operating_state,true);
+                change_tree_state(b,operating_state,true);
+            }
+            MADNESS_CHECK_THROW(get_tree_state(a)==get_tree_state(b),"gaxpy requires same tree state for all functions");
+            MADNESS_CHECK_THROW(get_tree_state(a)==operating_state,"gaxpy requires reconstructed/compressed tree state for all functions");
         } else {
-            MADNESS_CHECK_THROW(get_tree_state(a)==compressed,"gaxpy requires compressed tree state for all functions");
+            // both vectors can be reconstructed or redundant_after_merge, and they don't have to be the same
+            TreeState astate=get_tree_state(a);
+            TreeState bstate=get_tree_state(b);
+            if (not (astate==reconstructed or astate==redundant_after_merge)) {
+                try {
+                    ensure_tree_state_respecting_fence(a,operating_state,fence);
+                } catch (...) {
+                    print("could not respect fence in gaxpy for a");
+                    change_tree_state(a,reconstructed,true);
+                }
+            }
+            if (not (bstate==reconstructed or bstate==redundant_after_merge)) {
+                try {
+                    ensure_tree_state_respecting_fence(b,operating_state,fence);
+                } catch (...) {
+                    print("could not respect fence in gaxpy for b");
+                    change_tree_state(b,reconstructed,true);
+                }
+            }
         }
 
+        // finally do the work
         for (unsigned int i=0; i<a.size(); ++i) {
             a[i].gaxpy(alpha, b[i], beta, false);
         }
         if (fence and (get_tree_state(a)==redundant_after_merge)) {
-            for (unsigned int i=0; i<a.size(); ++i) a[i].sum_down(false);
+            for (unsigned int i=0; i<a.size(); ++i) a[i].get_impl()->finalize_sum();
         }
 
         if (fence) world.gop.fence();
@@ -2153,6 +2208,9 @@ namespace madness {
         dd[2]=apply(*(grad[1]),v[0],false);	// Dy x
         world.gop.fence();
 
+        compress(world,d,false);
+        compress(world,dd,false);
+        world.gop.fence();
         d[0].gaxpy(1.0,dd[0],-1.0,false);
         d[1].gaxpy(1.0,dd[1],-1.0,false);
         d[2].gaxpy(1.0,dd[2],-1.0,false);

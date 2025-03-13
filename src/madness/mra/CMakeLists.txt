@@ -10,7 +10,7 @@ set(MADMRA_HEADERS
     function_interface.h gfit.h convolution1d.h simplecache.h derivative.h
     displacements.h functypedefs.h sdf_shape_3D.h sdf_domainmask.h vmra1.h
     leafop.h nonlinsol.h macrotaskq.h macrotaskpartitioner.h QCCalculationParametersBase.h
-    commandlineparser.h operatorinfo.h bc.h kernelrange.h mw.h)
+    commandlineparser.h operatorinfo.h bc.h kernelrange.h mw.h memory_measurement.h)
 set(MADMRA_SOURCES
     mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc startup.cc legendre.cc 
     twoscale.cc qmprop.cc QCCalculationParametersBase.cc)
@@ -36,8 +36,8 @@ if(BUILD_TESTING)
   
   set(MRA_TEST_SOURCES testbsh.cc testproj.cc 
       testpdiff.cc testdiff1Db.cc testgconv.cc testopdir.cc testinnerext.cc 
-      testgaxpyext.cc testvmra.cc, test_vectormacrotask.cc test_cloud.cc test_tree_state.cc
-      test_macrotaskpartitioner.cc test_QCCalculationParametersBase.cc)
+      testgaxpyext.cc testvmra.cc, test_vectormacrotask.cc test_cloud.cc test_tree_state.cc testsolver.cc
+      test_macrotaskpartitioner.cc test_QCCalculationParametersBase.cc test_memory_measurement.cc)
   add_unittests(mra "${MRA_TEST_SOURCES}" "MADmra;MADgtest" "unittests;short")
   set(MRA_SEPOP_TEST_SOURCES testsuite.cc
       testper.cc)

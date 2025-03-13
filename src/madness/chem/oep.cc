@@ -331,7 +331,7 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 					FunctionDefaults<3>::get_thresh());
 			KS_nemo = truncate(transform(world, KS_nemo, X));
 			normalize(KS_nemo,R);
-			rotate_subspace(world, X, solver, 0, KS_nemo.size());
+			// rotate_subspace(world, X, solver, 0, KS_nemo.size());
 			Fnemo = transform(world, Fnemo, X);
 
 			timer1.tag("canonicalization");

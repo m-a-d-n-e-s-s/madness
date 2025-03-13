@@ -1501,7 +1501,7 @@ public:
 
     resultT allocator(World& world, const argtupleT& argtuple) const {
         std::size_t n = std::get<0>(argtuple).size();
-        resultT result = zero_functions_compressed<double, 6>(world, n);
+        resultT result = zero_functions_auto_tree_state<double, 6>(world, n);
         return result;
     }
 
@@ -1552,7 +1552,7 @@ public:
 
     resultT allocator(World& world, const argtupleT& argtuple) const {
         std::size_t n = std::get<0>(argtuple).size();
-        resultT result = zero_functions_compressed<double, 6>(world, n);
+        resultT result = zero_functions_auto_tree_state<double, 6>(world, n);
         return result;
     }
     resultT operator() (const std::vector<CCPair>& pair,
@@ -1596,7 +1596,7 @@ public:
 
     resultT allocator(World& world, const argtupleT& argtuple) const {
         std::size_t n = std::get<0>(argtuple).size();
-        resultT result = zero_functions_compressed<double, 6>(world, n);
+        resultT result = zero_functions_auto_tree_state<double, 6>(world, n);
         return result;
     }
 
@@ -1644,7 +1644,7 @@ public:
 
     resultT allocator(World& world, const argtupleT& argtuple) const {
         std::size_t n = std::get<0>(argtuple).size();
-        resultT result = zero_functions_compressed<double, 6>(world, n);
+        resultT result = zero_functions_auto_tree_state<double, 6>(world, n);
         return result;
     }
 
@@ -1691,8 +1691,8 @@ public:
 
     resultT allocator(World& world, const argtupleT& argtuple) const {
         std::size_t n = std::get<0>(argtuple).size();
-        std::vector<real_function_3d> result = zero_functions_compressed<double, 3>(world, n);
-        std::vector<real_function_3d> intermediate = zero_functions_compressed<double, 3>(world, n);
+        std::vector<real_function_3d> result = zero_functions_auto_tree_state<double, 3>(world, n);
+        std::vector<real_function_3d> intermediate = zero_functions_auto_tree_state<double, 3>(world, n);
         const_cast<std::string&>(name) =basename+"_"+assign_name(PotentialType(std::get<5>(argtuple)));
         return std::make_tuple(result,intermediate);
     }
@@ -1727,8 +1727,8 @@ public:
     /// allocate the result and set the name of this task
     resultT allocator(World& world, const argtupleT& argtuple) const {
         std::size_t n = std::get<0>(argtuple).size();
-        std::vector<real_function_3d> result = zero_functions_compressed<double, 3>(world, n);
-        std::vector<real_function_3d> intermediate = zero_functions_compressed<double, 3>(world, n);
+        std::vector<real_function_3d> result = zero_functions_auto_tree_state<double, 3>(world, n);
+        std::vector<real_function_3d> intermediate = zero_functions_auto_tree_state<double, 3>(world, n);
         const_cast<std::string&>(name) =basename+"_"+assign_name(PotentialType(std::get<3>(argtuple)));
         return std::make_tuple(result,intermediate);
     }

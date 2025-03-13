@@ -701,11 +701,6 @@ protected:
         return calc->vtol / std::min(30.0, double(get_calc()->amo.size()));
     }
 
-	template<typename solverT>
-	void rotate_subspace(World& world, const tensorT& U, solverT& solver,
-			int lo, int nfunc) const;
-
-
     void make_plots(const real_function_3d &f,const std::string &name="function")const{
         double width = FunctionDefaults<3>::get_cell_min_width()/2.0 - 1.e-3;
         plot_plane(world,f,name);
@@ -723,29 +718,6 @@ protected:
     void load_function(std::vector<Function<T,NDIM> >& f, const std::string name) const;
 
 };
-
-/// rotate the KAIN subspace (cf. SCF.cc)
-template<typename solverT>
-void Nemo::rotate_subspace(World& world, const tensorT& U, solverT& solver,
-        int lo, int nfunc) const {
-    std::vector < std::vector<Function<double, 3> > > &ulist = solver.get_ulist();
-    std::vector < std::vector<Function<double, 3> > > &rlist = solver.get_rlist();
-    for (unsigned int iter = 0; iter < ulist.size(); ++iter) {
-        vecfuncT& v = ulist[iter];
-        vecfuncT& r = rlist[iter];
-        vecfuncT vnew = transform(world, vecfuncT(&v[lo], &v[lo + nfunc]), U,
-                trantol(), false);
-        vecfuncT rnew = transform(world, vecfuncT(&r[lo], &r[lo + nfunc]), U,
-                trantol(), true);
-
-        world.gop.fence();
-        for (int i=0; i<nfunc; i++) {
-            v[i] = vnew[i];
-            r[i] = rnew[i];
-        }
-    }
-    world.gop.fence();
-}
 
 /// save a function
 template<typename T, size_t NDIM>

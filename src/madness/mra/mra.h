@@ -506,6 +506,21 @@ namespace madness {
             return impl ? impl->is_nonstandard() : false;
         }
 
+        /// Returns true if redundant, false otherwise.  No communication.
+
+        /// If the function is not initialized, returns false.
+        bool is_redundant() const {
+            PROFILE_MEMBER_FUNC(Function);
+            return impl ? impl->is_redundant() : false;
+        }
+
+        /// Returns true if redundant_after_merge, false otherwise.  No communication.
+
+        /// If the function is not initialized, returns false.
+        bool is_redundant_after_merge() const {
+            PROFILE_MEMBER_FUNC(Function);
+            return impl ? impl->is_redundant_after_merge() : false;
+        }
 
         /// Returns the number of nodes in the function tree ... collective global sum
         std::size_t tree_size() const {
@@ -703,6 +718,8 @@ namespace madness {
         double norm2sq_local() const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
+            MADNESS_CHECK_THROW(is_compressed() or is_reconstructed(),
+                "function must be compressed or reconstructed for norm2sq_local");
             return impl->norm2sq_local();
         }
 
@@ -1001,6 +1018,8 @@ namespace madness {
         ///
         /// Returns this for chaining, can be in states compressed of redundant_after_merge.
         ///
+        /// this and other may have different distributions and may even live in different worlds
+        ///
         /// this <-- this*alpha + other*beta
         template <typename Q, typename R>
         Function<T,NDIM>& gaxpy(const T& alpha,
@@ -1008,19 +1027,28 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             other.verify();
-            MADNESS_CHECK_THROW(impl->get_tree_state() == other.get_impl()->get_tree_state(),
-                "gaxpy requires both functions to be in the same tree state");
-            MADNESS_CHECK_THROW(impl->get_tree_state()==reconstructed or impl->get_tree_state()==compressed,
-                "gaxpy requires the tree state to be reconstructed or compressed");
 
-            bool same_world=this->world().id()==other.world().id();
-            MADNESS_CHECK(same_world or is_compressed());
+            // operation is done either in compressed or reconstructed state
+            TreeState operating_state=this->get_impl()->get_tensor_type()==TT_FULL ? compressed : reconstructed;
 
-            if (not same_world) {
-                impl->gaxpy_inplace(alpha,*other.get_impl(),beta,fence);
+            TreeState thisstate=impl->get_tree_state();
+            TreeState otherstate=other.get_impl()->get_tree_state();
+
+            if (operating_state==compressed) {
+                MADNESS_CHECK_THROW(thisstate==compressed, "gaxpy: this must be compressed");
+                MADNESS_CHECK_THROW(otherstate==compressed, "gaxpy: other must be compressed");
+                impl->gaxpy_inplace(alpha, *other.get_impl(), beta, fence);
+
+            } else if (operating_state==reconstructed) {
+                // this works both in reconstructed and redundant_after_merge states
+                MADNESS_CHECK_THROW(thisstate==reconstructed or thisstate==redundant_after_merge,
+                    "gaxpy: this must be reconstructed or redundant_after_merge");
+                MADNESS_CHECK_THROW(otherstate==reconstructed or otherstate==redundant_after_merge,
+                    "gaxpy: other must be reconstructed or redundant_after_merge");
+
+                impl->gaxpy_inplace_reconstructed(alpha,*other.get_impl(),beta,fence);
             } else {
-                if (is_compressed()) impl->gaxpy_inplace(alpha, *other.get_impl(), beta, fence);
-                if (is_reconstructed()) impl->gaxpy_inplace_reconstructed(alpha,*other.get_impl(),beta,fence);
+                MADNESS_EXCEPTION("unknown tree state",1);
             }
             return *this;
         }
@@ -1035,13 +1063,12 @@ namespace madness {
         template <typename Q>
         Function<T,NDIM>& operator+=(const Function<Q,NDIM>& other) {
             PROFILE_MEMBER_FUNC(Function);
-            if (NDIM<=3) {
-                compress();
-                other.compress();
-            } else {
-                reconstruct();
-                other.reconstruct();
-            }
+
+            // do this in reconstructed or compressed form
+            TreeState operating_state=get_impl()->get_tensor_type()==TT_FULL ? compressed : reconstructed;
+            this->change_tree_state(operating_state);
+            other.change_tree_state(operating_state);
+
             MADNESS_ASSERT(impl->get_tree_state() == other.get_impl()->get_tree_state());
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) other.verify_tree();
@@ -1138,8 +1165,9 @@ namespace madness {
         template <typename R>
         TENSOR_RESULT_TYPE(T,R) inner_local(const Function<R,NDIM>& g) const {
             PROFILE_MEMBER_FUNC(Function);
-            MADNESS_ASSERT(is_compressed());
-            MADNESS_ASSERT(g.is_compressed());
+            bool compressed=is_compressed() and g.is_compressed();
+            bool redundant=is_redundant() and g.is_redundant();
+            MADNESS_CHECK_THROW(compressed or redundant,"functions must be compressed or redundant in inner");
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) g.verify_tree();
             return impl->inner_local(*(g.get_impl()));
@@ -1316,31 +1344,21 @@ namespace madness {
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) g.verify_tree();
 
-            // compression is more efficient for 3D
-            TreeState state=this->get_impl()->get_tree_state();
-            TreeState gstate=g.get_impl()->get_tree_state();
-            if (NDIM<=3) {
-                change_tree_state(compressed,false);
-                g.change_tree_state(compressed,false);
-                impl->world.gop.fence();
-           }
+            // compute in compressed form if compression is fast, otherwise in redundant form
+            TreeState operating_state=get_impl()->get_tensor_type()==TT_FULL ? compressed : redundant;
 
-            if (this->is_compressed() and g.is_compressed()) {
-            } else {
-                change_tree_state(redundant,false);
-                g.change_tree_state(redundant,false);
-                impl->world.gop.fence();
-            }
-
+            change_tree_state(operating_state,false);
+            g.change_tree_state(operating_state,false);
+            impl->world.gop.fence();
 
             TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*g.get_impl());
             impl->world.gop.sum(local);
             impl->world.gop.fence();
 
-            // restore state
-            change_tree_state(state,false);
-            g.change_tree_state(gstate,false);
-            impl->world.gop.fence();
+            // restore state -- no need for this
+            // change_tree_state(state,false);
+            // g.change_tree_state(gstate,false);
+            // impl->world.gop.fence();
 
             return local;
         }
@@ -2263,7 +2281,8 @@ namespace madness {
             	ff.world().gop.fence();
             	ff.clear();
             } else {
-            	ff.standard();
+            	// ff.standard();
+            	ff.reconstruct();
             }
 
     	}
@@ -2766,6 +2785,31 @@ namespace madness {
         return unary_op(z, detail::absop<NDIM>(), fence);
     }
 
+    /// get tree state of a function
+
+    /// there is a corresponding function in vmra.h
+    /// @param[in]  f   function
+    /// @return TreeState::unknown if the function is not initialized
+    template <typename T, std::size_t NDIM>
+    TreeState get_tree_state(const Function<T,NDIM>& f) {
+        if (f.is_initialized()) return f.get_impl()->get_tree_state();
+        return TreeState::unknown;
+    }
+
+    /// change tree state of a function
+
+    /// there is a corresponding function in vmra.h
+    /// return this for chaining
+    /// @param[in]  f   function
+    /// @param[in]  finalstate  the new state
+    /// @return this in the requested state
+    template <typename T, std::size_t NDIM>
+    const Function<T,NDIM>& change_tree_state(const Function<T,NDIM>& f,
+            const TreeState finalstate, bool fence=true) {
+        return f.change_tree_state(finalstate,fence);
+    }
+
+
 }
 
 #include <madness/mra/funcplot.h>
@@ -2808,6 +2852,15 @@ namespace madness {
 
     template<typename T, std::size_t NDIM>
     struct is_madness_function<madness::Function<T, NDIM>> : std::true_type {};
+
+    template<typename>
+    struct is_madness_function_vector : std::false_type {
+    };
+
+    template<typename T, std::size_t NDIM>
+    struct is_madness_function_vector<std::vector<typename madness::Function<T, NDIM>>> : std::true_type {
+};
+
 }
 
 
