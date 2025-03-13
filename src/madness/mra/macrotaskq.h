@@ -829,7 +829,7 @@ private:
         }
 
 
-        void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug) {
+        void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug) override {
         	io_redirect io(element,get_name()+"_task",debug);
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             const argtupleT batched_argtuple = task.batch.template copy_input_batch(argtuple);
@@ -838,7 +838,7 @@ private:
         	    double cpu0=cpu_time();
         		resultT result_batch = std::apply(task, batched_argtuple);		// lives in the subworld, is a batch of the full vector (if applicable)
         	    double cpu1=cpu_time();
-			    std::size_t bufsize=256;
+			    constexpr std::size_t bufsize=256;
 			    char buffer[bufsize];
 		    	std::snprintf(buffer,bufsize,"completed task %3ld after %6.1fs at time %6.1fs\n",element,cpu1-cpu0,wall_time());
         		print(std::string(buffer));

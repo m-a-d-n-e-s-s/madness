@@ -7140,6 +7140,9 @@ template<size_t NDIM>
         /// Returns the number of coefficients in the function ... collective global sum
         std::size_t size() const;
 
+        /// Returns the number of coefficients in the function for this MPI rank
+        std::size_t nCoeff_local() const;
+
         /// Returns the number of coefficients in the function ... collective global sum
         std::size_t nCoeff() const;
 

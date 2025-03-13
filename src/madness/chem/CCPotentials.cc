@@ -6,6 +6,7 @@
  */
 
 #include "CCPotentials.h"
+#include "memory_measurement.h"
 
 
 namespace madness {
@@ -2867,7 +2868,7 @@ CCPotentials::apply_K_macrotask(World& world, const std::vector<real_function_3d
             auto tmp=(multiply(copy(Y), copy(mo_ket[k]),particle)).truncate();     // this will destroy X, but I d not intend to use it again so I choose here to save this copy
             result += tmp;
         }
-        result.truncate(parameters.thresh_3D()*0.3);
+        result.truncate(parameters.tight_thresh_6D()).reduce_rank(parameters.tight_thresh_6D());
     }
     return result.truncate(parameters.tight_thresh_3D()*3.0).reduce_rank(parameters.tight_thresh_6D()*3.0);
 }

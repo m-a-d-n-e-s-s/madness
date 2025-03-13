@@ -86,7 +86,7 @@ namespace madness {
         template<typename T, std::size_t NDIM>
         void add_memory_to_map(const FunctionImpl<T,NDIM>& f) {
             const double toGB=double(sizeof(T))/(1024*1024*1024); // convert to GB
-            auto sz=f.size_local();
+            auto sz=f.nCoeff_local();
             if (debug) print("funcimpl<T,",NDIM,"> id",f.id(), "rank",f.world.rank(),"size in GB",sz*toGB);
 
             // accumulate the sizes into the world_memory_map
@@ -232,7 +232,7 @@ namespace madness {
                 print("final memory map:",msg);
                 print("hostname                      world rank  DIM  #funcs  memory_GB");
             }
-            std::size_t bufsize=256;
+            constexpr std::size_t bufsize=256;
             char line[bufsize];
 
             // print all information
