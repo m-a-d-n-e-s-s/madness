@@ -19,6 +19,8 @@
 #include <iostream>
 #include <madness/mra/macrotaskq.h>
 
+#include "lowrankfunction.h"
+
 namespace madness {
 
 /// Calculation Types used by CC2
@@ -29,6 +31,7 @@ enum CalcType {
 enum CCState {
     CCSTATE_UNDEFINED, GROUND_STATE, EXCITED_STATE
 };
+
 /// CC2 Singles Potentials
 enum PotentialType {
     POT_UNDEFINED,
@@ -69,6 +72,18 @@ assign_name(const PotentialType& inp);
 /// Assigns strings to enums for formated output
 std::string
 assign_name(const FuncType& inp);
+
+/// check memory usage using getrusage
+inline void print_memory_usage(const World& world) {
+    long mem=get_memory_usage();
+    std::string hostname=get_hostname();
+    std::stringstream ss;
+    ss << "memory usage of process "<< world.rank()<< " on "<< hostname<< ": "<< mem/1024/1024<<"MB";
+    std::string msg=ss.str();
+    auto memusage=world.gop.concat0(std::vector<std::string>(1,msg));
+    std::sort(memusage.begin(),memusage.end());
+    if (world.rank()==0) for (const auto& msg : memusage) print(msg);
+}
 
 // Little structure for formated output and to collect warnings
 // much room to improve
@@ -228,11 +243,11 @@ struct CCParameters : public QCCalculationParametersBase {
         initialize < double > ("thresh_Ue", thresh_operators, "ue threshold");
         initialize < double > ("econv", thresh, "overal convergence threshold ");
         initialize < double > ("econv_pairs", 0.1*thresh, "convergence threshold for pairs");
-        initialize < double > ("dconv_3d", 0.01*thresh, "convergence for cc singles");
-        initialize < double > ("dconv_6d", thresh, "convergence for cc doubles");
+        initialize < double > ("dconv_3d", 0.3*thresh, "convergence for cc singles");
+        initialize < double > ("dconv_6d", 3.0*thresh, "convergence for cc doubles");
         initialize < std::size_t > ("iter_max", 10, "max iterations");
-        initialize < std::size_t > ("iter_max_3d", 10, "max iterations");
-        initialize < std::size_t > ("iter_max_6d", 10, "max iterations");
+        initialize < std::size_t > ("iter_max_3d", 10, "max iterations for singles");
+        initialize < std::size_t > ("iter_max_6d", 10, "max iterations for doubles");
         initialize < std::pair<int, int>> ("only_pair", {-1, -1}, "compute only a single pair");
         initialize < bool > ("restart", false, "restart");
         initialize < bool > ("no_compute", false, "no compute");
@@ -252,11 +267,11 @@ struct CCParameters : public QCCalculationParametersBase {
         initialize < long > ("freeze", -1, "number of frozen orbitals: -1: automatic");
         initialize < bool > ("test", false, "");
         // choose if Q for the constant part of MP2 and related calculations should be decomposed: GQV or GV - GO12V
-        initialize < bool > ("decompose_Q", true, "");
+        initialize < bool > ("decompose_Q", true, "always true",{true});
         // if true the ansatz for the CC2 ground state pairs is |tau_ij> = |u_ij> + Qtf12|titj>, with Qt = Q - |tau><phi|
         // if false the ansatz is the same with normal Q projector
         // the response ansatz is the corresponding response of the gs ansatz
-        initialize < bool > ("QtAnsatz", true, "");
+        initialize < bool > ("QtAnsatz", true, "always true",{true});
         // a vector containing the excitations which shall be optizmized later (with CIS(D) or CC2)
         initialize < std::vector<size_t>>
         ("excitations", {}, "vector containing the excitations");
@@ -379,6 +394,7 @@ struct CCParameters : public QCCalculationParametersBase {
 struct PairVectorMap {
 
     std::vector<std::pair<int, int>> map; ///< maps pair index (i,j) to vector index k
+    PairVectorMap() = default;
     PairVectorMap(const std::vector<std::pair<int, int>> map1) : map(map1) {}
 
     static PairVectorMap triangular_map(const int nfreeze, const int nocc) {
@@ -552,7 +568,7 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
               delta(other.delta), irrep(other.irrep) {
     }
 
-    /// assignment operator
+    /// assignment operator, shallow wrt the functions
 //    CC_vecfunction& operator=(const CC_vecfunction& other) = default;
     CC_vecfunction& operator=(const CC_vecfunction& other) {
         if (this == &other) return *this;
@@ -567,8 +583,32 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
 
 
     /// returns a deep copy (void shallow copy errors)
-    CC_vecfunction
-    copy() const;
+    friend CC_vecfunction
+    copy(const CC_vecfunction& other) {
+        CC_vecfunction tmp=other;
+        tmp.functions.clear();
+        for (const auto& x : other.functions) {
+            tmp.functions.insert(std::make_pair(x.first, copy(x.second)));
+        }
+        return tmp;
+    }
+
+    void reconstruct() const {
+        for (auto& x : functions) x.second.function.reconstruct();
+    }
+
+//madness::CC_vecfunction
+//CC_vecfunction::copy() const {
+//    std::vector<CCFunction<double,3>> vn;
+//    for (auto x : functions) {
+//        const CCFunction<double,3> fn(madness::copy(x.second.function), x.second.i, x.second.type);
+//        vn.push_back(fn);
+//    }
+//    CC_vecfunction result(vn, type);
+//    result.irrep = irrep;
+//    return result;
+//}
+//
 
     static CC_vecfunction load_restartdata(World& world, std::string filename) {
         archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, filename.c_str());
@@ -608,6 +648,13 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
         }
     }
 
+    hashT hash() const {
+        hashT hashval = std::hash<FuncType>{}(type);
+        for (const auto& f : functions) hash_combine(hashval, hash_value(f.second.f().get_impl()->id()));
+
+        return hashval;
+    }
+
     typedef std::map<std::size_t, CCFunction<double,3>> CC_functionmap;
     CC_functionmap functions;
 
@@ -618,7 +665,9 @@ struct CC_vecfunction : public archive::ParallelSerializableObject {
     std::string irrep = "null";    /// excitation irrep (direct product of x function and corresponding orbital)
 
     std::string
-    name(const int ex) const;
+    name(const int ex) const {
+        return madness::name(type,ex);
+    };
 
     bool is_converged(const double econv, const double dconv) const {
         return (current_error<dconv) and (std::fabs(delta)<econv);
@@ -744,6 +793,11 @@ public:
     }
 
     CCConvolutionOperator(const CCConvolutionOperator& other) = default;
+
+    static inline
+    std::shared_ptr<CCConvolutionOperator> CCConvolutionOperatorPtr(World& world, const OpType type, Parameters param) {
+        return std::shared_ptr<CCConvolutionOperator>(new CCConvolutionOperator(world, type, param));
+    }
 
 protected:
 
@@ -914,15 +968,223 @@ std::shared_ptr<CCConvolutionOperator<T,NDIM>> CCConvolutionOperatorPtr(World& w
     return std::shared_ptr<CCConvolutionOperator<T,NDIM>>(new CCConvolutionOperator<T,NDIM>(world,type,param));
 }
 
+/// little helper structure which manages the stored singles potentials
+struct CCIntermediatePotentials {
+    CCIntermediatePotentials() = default;
+    CCIntermediatePotentials(const CCParameters& p) : parameters(p) {};
+    CCIntermediatePotentials(const CCIntermediatePotentials& other) = default;
+    CCIntermediatePotentials& operator=(const CCIntermediatePotentials& other) = default;
+
+    /// check if the intermediate potential exists
+    bool potential_exists(const CC_vecfunction& f, const PotentialType& type) const {
+        return potential_exists(type,f.type);
+    }
+
+    /// check if the intermediate potential exists
+    bool potential_exists(const PotentialType& type,const FuncType& ftype) const {
+        bool exists=get_potential(type,ftype,false).size()>0;
+        return exists;
+    }
+
+    /// return a vector of the intermediate potentials
+
+    /// @param[in] ptype: the potential type (POT_SINGLES, POT_S2B, ..)
+    /// @param[in] ftype: the function type (HOLE, PARTICLE, RESPONSE)
+    vector_real_function_3d
+    get_potential(const PotentialType& ptype, const FuncType& ftype, const bool throw_if_empty) const;
+
+    /// fetches the correct stored potential or throws an exception
+    vector_real_function_3d
+    operator()(const CC_vecfunction& f, const PotentialType& type, const bool throw_if_empty) const;
+
+    /// fetch the potential for a single function
+    Function<double,3>
+    operator()(const CCFunction<double,3>& f, const PotentialType& type, const bool throw_if_empty) const;
+
+    void reconstruct() const {
+        madness::reconstruct(current_s2b_potential_ex_);
+        madness::reconstruct(current_s2b_potential_gs_);
+        madness::reconstruct(current_s2c_potential_ex_);
+        madness::reconstruct(current_s2c_potential_gs_);
+        madness::reconstruct(current_singles_potential_ex_);
+        madness::reconstruct(current_singles_potential_gs_);
+        madness::reconstruct(unprojected_cc2_projector_response_);
+    }
+
+    /// deltes all stored potentials
+    void clear_all() {
+        current_singles_potential_gs_.clear();
+        current_singles_potential_ex_.clear();
+        current_s2b_potential_gs_.clear();
+        current_s2b_potential_ex_.clear();
+        current_s2c_potential_gs_.clear();
+        current_s2c_potential_ex_.clear();
+    }
+
+    /// clears only potentials of the response
+    void clear_response() {
+        current_singles_potential_ex_.clear();
+        current_s2b_potential_ex_.clear();
+        current_s2c_potential_ex_.clear();
+    }
+
+    /// insert potential
+    void
+    insert(const vector_real_function_3d& potential, const CC_vecfunction& f, const PotentialType& type);
+
+    Recordlist<Cloud::keyT> cloud_store(World& world, Cloud& cloud) const {
+        Recordlist<Cloud::keyT> records;
+        records+=cloud.store(world,parameters);
+        records+=cloud.store(world,current_s2b_potential_ex_);
+        records+=cloud.store(world,current_s2b_potential_gs_);
+        records+=cloud.store(world,current_s2c_potential_ex_);
+        records+=cloud.store(world,current_s2c_potential_gs_);
+        records+=cloud.store(world,current_singles_potential_ex_);
+        records+=cloud.store(world,current_singles_potential_gs_);
+        records+=cloud.store(world,unprojected_cc2_projector_response_);
+        return records;
+    }
+
+    void cloud_load(World& world, const Cloud& cloud, Recordlist<Cloud::keyT>& recordlist) {
+        parameters=cloud.forward_load<CCParameters>(world,recordlist);
+        current_s2b_potential_ex_=cloud.forward_load<vector_real_function_3d>(world,recordlist);
+        current_s2b_potential_gs_=cloud.forward_load<vector_real_function_3d>(world,recordlist);
+        current_s2c_potential_ex_=cloud.forward_load<vector_real_function_3d>(world,recordlist);
+        current_s2c_potential_gs_=cloud.forward_load<vector_real_function_3d>(world,recordlist);
+        current_singles_potential_ex_=cloud.forward_load<vector_real_function_3d>(world,recordlist);
+        current_singles_potential_gs_=cloud.forward_load<vector_real_function_3d>(world,recordlist);
+        unprojected_cc2_projector_response_=cloud.forward_load<vector_real_function_3d>(world,recordlist);
+    }
+
+    friend hashT hash_value(const CCIntermediatePotentials& ip) {
+        auto hash_vector_of_functions =[](const vector_real_function_3d& v) {
+            hashT h;
+            for (const auto& f : v) {
+                hash_combine(h, hash_value(f.get_impl()->id()));
+            }
+            return h;
+        };
+        hashT h;
+        hash_combine(h, hash_vector_of_functions(ip.current_s2b_potential_ex_));
+        hash_combine(h, hash_vector_of_functions(ip.current_s2b_potential_gs_));
+        hash_combine(h, hash_vector_of_functions(ip.current_s2c_potential_ex_));
+        hash_combine(h, hash_vector_of_functions(ip.current_s2c_potential_gs_));
+        hash_combine(h, hash_vector_of_functions(ip.current_singles_potential_ex_));
+        hash_combine(h, hash_vector_of_functions(ip.current_singles_potential_gs_));
+        hash_combine(h, hash_vector_of_functions(ip.unprojected_cc2_projector_response_));
+        return h;
+    }
+
+    CCParameters parameters;
+private:
+    // World& world;
+    /// whole ground state singles potential without fock-residue
+    vector_real_function_3d current_singles_potential_gs_;
+    /// whole excited state singles potential without fock-residue
+    vector_real_function_3d current_singles_potential_ex_;
+    /// s2b_potential for the pure 6D-part of the ground-state (expensive and constant during singles iterations)
+    vector_real_function_3d current_s2b_potential_gs_;
+    /// s2b_potential for the pure 6D-part of the excited-state (expensive and constant during singles iterations)
+    vector_real_function_3d current_s2b_potential_ex_;
+    /// s2c_potential for the pure 6D-part of the ground-state (expensive and constant during singles iterations)
+    vector_real_function_3d current_s2c_potential_gs_;
+    /// s2c_potential for the pure 6D-part of the excited_state (expensive and constant during singles iterations)
+    vector_real_function_3d current_s2c_potential_ex_;
+    /// unprojected S3c + S5c + S2b + S2c potential of CC2 singles
+    /// for the projector response of the CC2 singles potential
+    vector_real_function_3d unprojected_cc2_projector_response_;
+
+    /// structured output
+    void output(const std::string& msg) const {
+        if (parameters.debug())
+            std::cout << "Intermediate Potential Manager: " << msg << "\n";
+    }
+};
+
+/// POD holding some basic functions and some intermediates for the CC2 calculation
+
+/// the class is cloud-serializable and can be used in MacroTasks
+struct Info {
+    std::vector<Function<double,3>> mo_ket;
+    std::vector<Function<double,3>> mo_bra;
+    std::vector<madness::Vector<double,3>> molecular_coordinates;
+    CCParameters parameters;
+    std::vector<double> orbital_energies;
+    Tensor<double> fock;
+    CCIntermediatePotentials intermediate_potentials;
+    Function<double,3> R_square, U2, R;;
+    std::vector<Function<double,3>> U1;
+
+    vector_real_function_3d get_active_mo_ket() const {
+        vector_real_function_3d result;
+        for (size_t i = parameters.freeze(); i < mo_ket.size(); i++) result.push_back(mo_ket[i]);
+        return result;
+    }
+
+    vector_real_function_3d get_active_mo_bra() const {
+        vector_real_function_3d result;
+        for (size_t i = parameters.freeze(); i < mo_bra.size(); i++) result.push_back(mo_bra[i]);
+        return result;
+    }
+
+    void reconstruct() const {
+        madness::reconstruct(mo_bra);
+        madness::reconstruct(mo_ket);
+        R_square.reconstruct();
+        madness::reconstruct(U1);
+        U2.reconstruct();
+        intermediate_potentials.reconstruct();
+
+    }
+
+    /// customized function to store this to the cloud
+
+    /// functions and constant_part can be very large and we want to split them and store them in different records
+    Recordlist<Cloud::keyT> cloud_store(World& world, Cloud& cloud) const {
+        Recordlist<Cloud::keyT> records;
+        records+=cloud.store(world,mo_bra);
+        records+=cloud.store(world,mo_ket);
+        records+=cloud.store(world,parameters);
+        records+=cloud.store(world,orbital_energies);
+        records+=cloud.store(world,fock);
+        records+=cloud.store(world,intermediate_potentials);
+        records+=cloud.store(world,R_square);
+        records+=cloud.store(world,molecular_coordinates);
+        records+=cloud.store(world,U2);
+        records+=cloud.store(world,U1);
+        return records;
+    }
+
+    /// customized function to load this from the cloud
+
+    /// functions and constant_part can be very large and we want to split them and store them in different records
+    /// @param[inout] recordlist: containing the keys of the member variables -> will be reduced by the keys which are used
+    void cloud_load(World& world, const Cloud& cloud, Recordlist<Cloud::keyT>& recordlist) {
+        // load bookkeeping stuff in a vector
+        mo_bra=cloud.forward_load<std::vector<Function<double,3>>>(world,recordlist);
+        mo_ket=cloud.forward_load<std::vector<Function<double,3>>>(world,recordlist);
+        parameters=cloud.forward_load<CCParameters>(world,recordlist);
+        orbital_energies=cloud.forward_load<std::vector<double>>(world,recordlist);
+        fock=cloud.forward_load<Tensor<double>>(world,recordlist);
+        intermediate_potentials=cloud.forward_load<CCIntermediatePotentials>(world,recordlist);
+        R_square=cloud.forward_load<Function<double,3>>(world,recordlist);
+        molecular_coordinates=cloud.forward_load<std::vector<madness::Vector<double,3>>>(world,recordlist);
+        U2=cloud.forward_load<Function<double,3>>(world,recordlist);
+        U1=cloud.forward_load<std::vector<Function<double,3>>>(world,recordlist);
+    }
+
+};
+
 
 class CCPair : public archive::ParallelSerializableObject {
 public:
-    CCPair(){};
+    CCPair() = default;
 
-    CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c) : type(t), ctype(c), i(ii), j(jj),
-                                                                                  bsh_eps(12345.6789) {};
+    CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c)
+    : type(t), ctype(c), i(ii), j(jj), bsh_eps(12345.6789) {};
 
-    CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c, const std::vector<CCPairFunction<double,6>>& f)
+    CCPair(const size_t ii, const size_t jj, const CCState t, const CalcType c,
+        const std::vector<CCPairFunction<double,6>>& f)
             : type(t), ctype(c), i(ii), j(jj), functions(f), bsh_eps(12345.6789) {};
 
     CCPair(const CCPair& other) : type(other.type), ctype(other.ctype), i(other.i), j(other.j),
@@ -937,6 +1199,7 @@ public:
     /// customized function to store this to the cloud
 
     /// functions and constant_part can be very large and we want to split them and store them in different records
+    /// *NOTE* only the 6d function and the constant part are stored in the cloud, not the 3d functions *NOTE*
     Recordlist<Cloud::keyT> cloud_store(World& world, Cloud& cloud) const {
         // save bookkeeping stuff in a vector
         std::vector<unsigned char> v;
@@ -968,19 +1231,26 @@ public:
         if (constant_part_is_initialized) constant_part=cloud.forward_load<real_function_6d>(world,recordlist);
    }
 
+    bool function_exists() const {
+        return (functions.size()>0 and functions[0].is_assigned() and functions[0].is_pure());
+    }
+
     /// gives back the pure 6D part of the pair function
     real_function_6d function() const {
-        MADNESS_ASSERT(not functions.empty());
-        MADNESS_ASSERT(functions[0].is_pure());
+        MADNESS_CHECK_THROW(not functions.empty(), "no function assigned in CCPair::function()");
+        MADNESS_CHECK_THROW(functions[0].is_pure(),"function is not pure in CCPair::function()");
         return functions[0].get_function();
     }
 
     /// updates the pure 6D part of the pair function
     void update_u(const real_function_6d& u) {
-        MADNESS_ASSERT(not functions.empty());
-        MADNESS_ASSERT(functions[0].is_pure());
+        // print("updating u(",i,j,")");
         CCPairFunction tmp(u);
-        functions[0] = tmp;
+        if (functions.size() == 0) functions.push_back(tmp);
+        else { //(functions.size() > 1) {
+            MADNESS_CHECK_THROW(functions[0].is_pure(),"function is not pure in CCPair::update_u()");
+            functions[0]=tmp;
+        }
     }
 
     template<typename Archive>
@@ -1002,26 +1272,32 @@ public:
         if (cexist) ar & constant_part;
     }
 
-    bool load_pair(World& world) {
-        std::string name = "pair_" + stringify(i) + stringify(j);
-        bool exists = archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>::exists(world, name.c_str());
+    /// reconstruct constant part and all functions
+    void reconstruct() const {
+        constant_part.reconstruct();
+        for (auto& f : functions) {
+            if (f.is_assigned() and f.is_pure()) f.get_function().reconstruct();
+        }
+    }
+
+    bool load_pair(World& world, const bool verbose=false) {
+        std::string fname=this->name();
+        if (verbose and world.rank()==0) print("loading pair from file", fname);
+        bool exists = archive::ParallelInputArchive<archive::BinaryFstreamInputArchive>::exists(world, fname.c_str());
         if (exists) {
-            if (world.rank() == 0) printf("loading matrix elements %s\n", name.c_str());
-            archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str(), 1);
+            archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, fname.c_str(), 1);
             ar & *this;
-            //if (world.rank() == 0) printf(" %s\n", (converged) ? " converged" : " not converged");
             if (functions[0].get_function().is_initialized()) functions[0].get_function().set_thresh(FunctionDefaults<6>::get_thresh());
             if (constant_part.is_initialized()) constant_part.set_thresh(FunctionDefaults<6>::get_thresh());
-        } else {
-            if (world.rank() == 0) print("could not find pair ", i, j, " on disk");
         }
         return exists;
     }
 
-    void store_pair(World& world) {
-        std::string name = "pair_" + stringify(i) + stringify(j);
-        if (world.rank() == 0) printf("storing matrix elements %s\n", name.c_str());
-        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, name.c_str(), 1);
+    void store_pair(World& world, const bool verbose=false) {
+        std::string fname =this->name();
+        if (verbose and world.rank()==0) print("loading pair from file", fname);
+        this->reconstruct();
+        archive::ParallelOutputArchive<archive::BinaryFstreamOutputArchive> ar(world, fname.c_str(), 1);
         ar & *this;
     }
 
@@ -1043,13 +1319,19 @@ public:
     /// Energy for the BSH Operator
     /// Ground State: e_i + e_j
     /// Excited State: e_i + e_j + omega
-    double bsh_eps;
+    /// default to positive value to make sure this is set somewhere
+    double bsh_eps=1.0;
 
-    std::string name() const {
+    /// return the base name like "MP2_pair_u" or "CC2_pair_x"
+    std::string basename() const {
         std::string name = "???";
-        if (type == GROUND_STATE) name = assign_name(ctype) + "_pair_u_";
-        if (type == EXCITED_STATE) name = assign_name(ctype) + "_pair_x_";
-        return name + stringify(i) + stringify(j);
+        if (type == GROUND_STATE) name = assign_name(ctype) + "_pair_u";
+        if (type == EXCITED_STATE) name = assign_name(ctype) + "_pair_x";
+        return name;
+
+    }
+    std::string name() const {
+        return basename() +"_" + stringify(i) + stringify(j);
     }
 
     void
@@ -1057,64 +1339,137 @@ public:
 
 };
 
-/// little helper structure which manages the stored singles potentials
-struct CCIntermediatePotentials {
-    CCIntermediatePotentials(World& world, const CCParameters& p) : world(world), parameters(p) {};
+/// build an MP2 or CC2 or LRCC2 etc pair, possibly including the lo-rank parts
+class CCPairBuilder {
+public:
+    CCPairBuilder(World& world, const Info& info) : world(world), info(info) {};
 
-    /// fetches the correct stored potential or throws an exception
-    vector_real_function_3d
-    operator()(const CC_vecfunction& f, const PotentialType& type) const;
-
-    /// fetch the potential for a single function
-    Function<double,3>
-    operator()(const CCFunction<double,3>& f, const PotentialType& type) const;
-
-    /// deltes all stored potentials
-    void clear_all() {
-        current_singles_potential_gs_.clear();
-        current_singles_potential_ex_.clear();
-        current_s2b_potential_gs_.clear();
-        current_s2b_potential_ex_.clear();
-        current_s2c_potential_gs_.clear();
-        current_s2c_potential_ex_.clear();
+    /// provide ground-state singles, needed for CC2 and LRCC2 wave function ansatz
+    CCPairBuilder& set_gs_singles(const CC_vecfunction& gs) {
+        gs_singles = gs;
+        return *this;
     }
 
-    /// clears only potentials of the response
-    void clear_response() {
-        current_singles_potential_ex_.clear();
-        current_s2b_potential_ex_.clear();
-        current_s2c_potential_ex_.clear();
+    /// provide excited state singles, needed for CC2 and LRCC2 wave function ansatz
+    CCPairBuilder& set_ex_singles(const CC_vecfunction& ex) {
+        ex_singles = ex;
+        return *this;
     }
 
-    /// insert potential
-    void
-    insert(const vector_real_function_3d& potential, const CC_vecfunction& f, const PotentialType& type);
+    CCPairBuilder& set_ctype(const CalcType& type) {
+        ctype = type;
+        return *this;
+    }
 
-private:
+    /// make a CCPair without the 6d function and some bookkeeping information
+    CCPair make_bare_pair(const int i, const int j) const;
+
+    /// make a CCPair with the 6d function only and some bookkeeping information
+    CCPair make_bare_pair_from_file(const int i, const int j) const;
+
+    /// make a CCPair
+    CCPair make_pair(const int i, const int j, const std::vector<CCPairFunction<double,6>>& u) const;
+
+    inline static CCState cc_state(const CalcType& type) {
+        if (type==CT_MP2 or type==CT_CC2 or type==CT_MP3) return GROUND_STATE;
+        else if (type==CT_LRCC2 or type==CT_ADC2 or type==CT_CISPD) return EXCITED_STATE;
+        else {
+            MADNESS_EXCEPTION("unknown cc-state",1);
+        }
+    }
+
+    /// make a CCPair with the 6d function only and some bookkeeping information
+    Pairs<CCPair> make_all_bare_pairs() const {
+        Pairs<CCPair> pairs;
+        for (size_t i = info.parameters.freeze(); i < info.mo_bra.size(); i++) {
+            for (size_t j = info.parameters.freeze(); j < info.mo_ket.size(); j++) {
+                pairs.insert(i,j,make_bare_pair(i, j));
+            }
+        }
+        return pairs;
+    }
+
+    /// complete the given pair with the low-rank parts
+
+    /// will use pair's ctype, while builder's ctype is ignored
+    CCPair complete_pair_with_low_rank_parts(const CCPair& pair) const;
+
+
+    /// Function to load a function from disk
+
+    /// @param[in] name of the file in which the function was stored
+    /// @param do_print
+    /// @return the function, possibly not initialized if not found on disk
+    template <typename T, size_t NDIM>
+    Function<T,NDIM> load_function(const std::string name, bool do_print) const {
+        Function<T,NDIM> f;
+        bool exists = archive::ParallelInputArchive<
+            archive::BinaryFstreamInputArchive>::exists(world, name.c_str());
+        if (exists) {
+            if ((world.rank() == 0) and do_print) print("loading function", name);
+            archive::ParallelInputArchive<archive::BinaryFstreamInputArchive> ar(world, name.c_str());
+            ar & f;
+            if (do_print) f.print_size(name);
+            if (f.is_compressed()) {
+                if (world.rank()==0 and do_print) print("function is compressed -- reconstructing");
+                f.change_tree_state(reconstructed);
+                if (do_print) f.print_size(name+" reconstructed");
+                save(f, name);
+            }
+            f.set_thresh(FunctionDefaults<NDIM>::get_thresh());
+            f.truncate();
+            f.print_size(name);
+        } else {
+            if ((world.rank()==0) and do_print) print("could not find function",name);
+        }
+        return f;
+    }
+
     World& world;
-    const CCParameters& parameters;
-    /// whole ground state singles potential without fock-residue
-    vector_real_function_3d current_singles_potential_gs_;
-    /// whole excited state singles potential without fock-residue
-    vector_real_function_3d current_singles_potential_ex_;
-    /// s2b_potential for the pure 6D-part of the ground-state (expensive and constant during singles iterations)
-    vector_real_function_3d current_s2b_potential_gs_;
-    /// s2b_potential for the pure 6D-part of the excited-state (expensive and constant during singles iterations)
-    vector_real_function_3d current_s2b_potential_ex_;
-    /// s2c_potential for the pure 6D-part of the ground-state (expensive and constant during singles iterations)
-    vector_real_function_3d current_s2c_potential_gs_;
-    /// s2c_potential for the pure 6D-part of the excited_state (expensive and constant during singles iterations)
-    vector_real_function_3d current_s2c_potential_ex_;
-    /// unprojected S3c + S5c + S2b + S2c potential of CC2 singles
-    /// for the projector response of the CC2 singles potential
-    vector_real_function_3d unprojected_cc2_projector_response_;
+    const Info& info;
+    CC_vecfunction gs_singles, ex_singles;
+    CalcType ctype=CT_UNDEFINED;
 
-    /// structured output
-    void output(const std::string& msg) const {
-        if (world.rank() == 0 and parameters.debug())
-            std::cout << "Intermediate Potential Manager: " << msg << "\n";
+};
+
+
+/// print accumulated size of all functions
+struct CCSize {
+    double size_local=0;
+
+    CCSize() = default;
+
+    template<typename T, std::size_t NDIM>
+    void add_helper(const std::vector<Function<T,NDIM>>& v) {
+        if (v.size()>0) size_local+=get_size_local(v.front().world(),v);
+    }
+
+    void add_helper(const std::vector<CCPair>& vp) {
+        if (vp.empty()) return;
+        for (const auto& p : vp) {
+            size_local+=get_size(p.constant_part);
+            if (p.function_exists()) size_local+=get_size_local(p.function());
+        }
+    }
+
+    /// variadic template parameters to add the size of all functions and pairs
+    template<typename... Args>
+    void add(const Args&... args) {
+        (add_helper(args), ...);
+    }
+
+    void print(World& world, const std::string msg="") const {
+        double size_global=size_local;
+        world.gop.sum(size_global);
+        if (msg.size()>0 and world.rank()==0) madness::print(msg);
+        world.gop.fence();
+        madness::print("size of all functions on rank",world.rank(),size_local);
+        world.gop.fence();
+        if (world.rank()==0) madness::print("total size of all functions",size_global);
+
     }
 };
+
 
 class MacroTaskMp2ConstantPart : public MacroTaskOperationBase {
 
@@ -1136,22 +1491,73 @@ class MacroTaskMp2ConstantPart : public MacroTaskOperationBase {
 public:
     MacroTaskMp2ConstantPart(){partitioner.reset(new ConstantPartPartitioner());}
 
-    typedef std::tuple<const std::vector<CCPair>&, const std::vector<Function<double,3>>&,
-            const std::vector<Function<double,3>>&, const CCParameters&, const Function<double,3>&,
-            const std::vector<Function<double,3>>&, const std::vector<std::string>& > argtupleT;
+    // typedef std::tuple<const std::vector<CCPair>&, const std::vector<Function<double,3>>&,
+            // const std::vector<Function<double,3>>&, const CCParameters&, const Function<double,3>&,
+            // const std::vector<Function<double,3>>&, const std::vector<std::string>& > argtupleT;
+    typedef std::tuple<const std::vector<CCPair>&, const madness::Info&, const std::vector<std::string>& > argtupleT;
 
     using resultT = std::vector<real_function_6d>;
 
     resultT allocator(World& world, const argtupleT& argtuple) const {
         std::size_t n = std::get<0>(argtuple).size();
-        resultT result = zero_functions_compressed<double, 6>(world, n);
+        resultT result = zero_functions_auto_tree_state<double, 6>(world, n);
         return result;
     }
 
-    resultT operator() (const std::vector<CCPair>& pair, const std::vector<Function<double,3>>& mo_ket,
-                        const std::vector<Function<double,3>>& mo_bra, const CCParameters& parameters,
-                        const Function<double,3>& Rsquare, const std::vector<Function<double,3>>& U1,
-                        const std::vector<std::string>& argument) const;
+//    resultT operator() (const std::vector<CCPair>& pair, const std::vector<Function<double,3>>& mo_ket,
+//                        const std::vector<Function<double,3>>& mo_bra, const CCParameters& parameters,
+//                        const Function<double,3>& Rsquare, const std::vector<Function<double,3>>& U1,
+//                        const std::vector<std::string>& argument) const;
+    resultT operator() (const std::vector<CCPair>& pair, const Info& info, const std::vector<std::string>& argument) const;
+};
+
+/// compute the "constant" part of MP2, CC2, or LR-CC2
+///
+/// the constant part is
+/// result = G [F,f] |ij>  for MP2
+/// result = G [F,f] |t_i t_j>  for CC2
+/// result = G [F,f] |t_i x_j> + |x_i t_j>  for LR-CC2
+class MacroTaskConstantPart : public MacroTaskOperationBase {
+
+    class ConstantPartPartitioner : public MacroTaskPartitioner {
+    public:
+        ConstantPartPartitioner() {};
+
+        partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
+                                   const std::string policy) const override {
+            partitionT p;
+            for (size_t i = 0; i < vsize1; i++) {
+                Batch batch(Batch_1D(i,i+1), Batch_1D(i,i+1));
+                p.push_back(std::make_pair(batch,1.0));
+            }
+            return p;
+        }
+    };
+
+public:
+    MacroTaskConstantPart()  {
+        partitioner.reset(new ConstantPartPartitioner());
+        name="ConstantPart";
+    }
+
+    // typedef std::tuple<const std::vector<CCPair>&, const std::vector<Function<double,3>>&,
+    // const std::vector<Function<double,3>>&, const CCParameters&, const Function<double,3>&,
+    // const std::vector<Function<double,3>>&, const std::vector<std::string>& > argtupleT;
+    typedef std::tuple<const std::vector<CCPair>&,
+                       const std::vector<Function<double,3>>&, const std::vector<Function<double,3>>&,
+                       const madness::Info&> argtupleT;
+
+    using resultT = std::vector<real_function_6d>;
+
+    resultT allocator(World& world, const argtupleT& argtuple) const {
+        std::size_t n = std::get<0>(argtuple).size();
+        resultT result = zero_functions_auto_tree_state<double, 6>(world, n);
+        return result;
+    }
+    resultT operator() (const std::vector<CCPair>& pair,
+        const std::vector<Function<double,3>>& gs_singles,
+        const std::vector<Function<double,3>>& ex_singles,
+        const Info& info) const;
 };
 
 class MacroTaskMp2UpdatePair : public MacroTaskOperationBase {
@@ -1173,25 +1579,193 @@ class MacroTaskMp2UpdatePair : public MacroTaskOperationBase {
         }
     };
 public:
-    MacroTaskMp2UpdatePair() {partitioner.reset(new UpdatePairPartitioner());}
+    MacroTaskMp2UpdatePair() {
+        partitioner.reset(new UpdatePairPartitioner());
+        name="MP2UpdatePair";
+    }
 
-    typedef std::tuple<const std::vector<CCPair>&, const std::vector<real_function_6d>&, const CCParameters&,
-                        const std::vector< madness::Vector<double,3> >&,
-                       const std::vector<Function<double,3>>&, const std::vector<Function<double,3>>&,
-                       const std::vector<Function<double,3>>&, const Function<double,3>&> argtupleT;
+    // typedef std::tuple<const std::vector<CCPair>&, const std::vector<real_function_6d>&, const CCParameters&,
+                        // const std::vector< madness::Vector<double,3> >&,
+                       // const std::vector<Function<double,3>>&, const std::vector<Function<double,3>>&,
+                       // const std::vector<Function<double,3>>&, const Function<double,3>&> argtupleT;
+    typedef std::tuple<const std::vector<CCPair>&, const std::vector<real_function_6d>&,
+                    const std::vector<madness::Vector<double,3>>&, const Info& > argtupleT;
 
     using resultT = std::vector<real_function_6d>;
 
     resultT allocator(World& world, const argtupleT& argtuple) const {
         std::size_t n = std::get<0>(argtuple).size();
-        resultT result = zero_functions_compressed<double, 6>(world, n);
+        resultT result = zero_functions_auto_tree_state<double, 6>(world, n);
         return result;
     }
 
-    resultT operator() (const std::vector<CCPair>& pair, const std::vector<real_function_6d>& mp2_coupling, const CCParameters& parameters,
-                        const std::vector< madness::Vector<double,3> >& all_coords_vec,
-                        const std::vector<Function<double,3>>& mo_ket, const std::vector<Function<double,3>>& mo_bra,
-                        const std::vector<Function<double,3>>& U1, const Function<double,3>& U2) const;
+//    resultT operator() (const std::vector<CCPair>& pair, const std::vector<real_function_6d>& mp2_coupling, const CCParameters& parameters,
+//                        const std::vector< madness::Vector<double,3> >& all_coords_vec,
+//                        const std::vector<Function<double,3>>& mo_ket, const std::vector<Function<double,3>>& mo_bra,
+//                        const std::vector<Function<double,3>>& U1, const Function<double,3>& U2) const;
+    resultT operator() (const std::vector<CCPair>& pair, const std::vector<real_function_6d>& mp2_coupling,
+                        const std::vector< madness::Vector<double,3> >& all_coords_vec, const Info& info) const;
+};
+
+
+class MacroTaskIteratePair : public MacroTaskOperationBase {
+
+    class IteratePairPartitioner : public MacroTaskPartitioner {
+    public :
+        IteratePairPartitioner() = default;
+
+        partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
+                                   const std::string policy) const override {
+            partitionT p;
+            for (size_t i = 0; i < vsize1; i++) {
+                Batch batch(Batch_1D(i, i+1), Batch_1D(i, i+1), Batch_1D(i,i+1));
+                p.push_back(std::make_pair(batch,1.0));
+            }
+            return p;
+        }
+    };
+public:
+    MacroTaskIteratePair() {
+        partitioner.reset(new IteratePairPartitioner());
+        name="IteratePair";
+    }
+
+    typedef std::tuple<
+        const std::vector<CCPair>&,      // pair
+        const std::vector<real_function_6d>&,   // local coupling
+        const CC_vecfunction&,          // gs singles
+        const CC_vecfunction&,          // ex singles
+        const Info&,
+        const std::size_t&
+        > argtupleT;
+
+    using resultT = std::vector<real_function_6d>;
+
+    resultT allocator(World& world, const argtupleT& argtuple) const {
+        std::size_t n = std::get<0>(argtuple).size();
+        resultT result = zero_functions_auto_tree_state<double, 6>(world, n);
+        return result;
+    }
+
+    /// iterate a given pair of the MP2, CC2 or LRCC2 calculation
+
+    /// will *NOT* compute the local coupling,
+    /// will apply the Fock operators (J-K+V)|pair> and use
+    /// the (excited) singles vectors to update the pair
+    /// @param[in] pair: the pair which will be updated
+    /// @param[in] gs_singles: the ground state singles, may be dummy for MP2
+    /// @param[in] ex_singles: the excited state singles, may be dummy for MP2, CC2
+    /// @param[in] all_coords_vec: the coordinates of the atoms
+    /// @param[in] info: the info structure
+    /// @param[in] maxiter: the maximal number of iterations
+    resultT operator() (const std::vector<CCPair>& pair,
+        const std::vector<real_function_6d>& local_coupling,
+        const CC_vecfunction& gs_singles,
+        const CC_vecfunction& ex_singles,
+        const Info& info,
+        const std::size_t& maxiter) const;
+};
+
+
+class MacroTaskSinglesPotentialEx : public MacroTaskOperationBase {
+public:
+    std::string basename="SinglesPotentialEx";
+    MacroTaskSinglesPotentialEx() {
+        name="SinglesPotentialEx";
+        partitioner->max_batch_size=2;
+        partitioner->min_batch_size=2;
+    }
+
+    typedef std::tuple<
+        const std::vector<int>&,    // result_index,
+        const CC_vecfunction&,      // singles_gs,
+        const std::vector<CCPair>&,       // doubles_gs,
+        const CC_vecfunction&,      // singles_ex,
+        const std::vector<CCPair>&,       // doubles_ex,
+        const int&,       // name,
+        const Info&                 // info
+    > argtupleT;
+
+    using resultT = std::tuple<std::vector<real_function_3d>,std::vector<real_function_3d>>;
+
+    resultT allocator(World& world, const argtupleT& argtuple) const {
+        std::size_t n = std::get<0>(argtuple).size();
+        std::vector<real_function_3d> result = zero_functions_auto_tree_state<double, 3>(world, n);
+        std::vector<real_function_3d> intermediate = zero_functions_auto_tree_state<double, 3>(world, n);
+        const_cast<std::string&>(name) =basename+"_"+assign_name(PotentialType(std::get<5>(argtuple)));
+        return std::make_tuple(result,intermediate);
+    }
+
+    resultT operator() (const std::vector<int>& result_index,
+                        const CC_vecfunction& singles_gs,
+                        const std::vector<CCPair>& doubles_gs,
+                        const CC_vecfunction& singles_ex,
+                        const std::vector<CCPair>& doubles_ex,
+                        const int& name,
+                        const Info& info);
+};
+
+class MacroTaskSinglesPotentialGs : public MacroTaskOperationBase {
+public:
+    std::string basename="SinglesPotentialGs";
+    MacroTaskSinglesPotentialGs() {
+        name="SinglesPotentialGs";
+    }
+
+    typedef std::tuple<
+        const std::vector<int>&,    // result_index,
+        const CC_vecfunction&,      // singles_gs,
+        const std::vector<CCPair>&,       // doubles_gs,
+        const int&,       // name,
+        const Info&                 // info
+    > argtupleT;
+
+    /// first vector is the potential, second is an intermediate (if applicable, e.g. for s2b and s2c potentials)
+    using resultT = std::tuple<std::vector<real_function_3d>,std::vector<real_function_3d>>;
+
+    /// allocate the result and set the name of this task
+    resultT allocator(World& world, const argtupleT& argtuple) const {
+        std::size_t n = std::get<0>(argtuple).size();
+        std::vector<real_function_3d> result = zero_functions_auto_tree_state<double, 3>(world, n);
+        std::vector<real_function_3d> intermediate = zero_functions_auto_tree_state<double, 3>(world, n);
+        const_cast<std::string&>(name) =basename+"_"+assign_name(PotentialType(std::get<3>(argtuple)));
+        return std::make_tuple(result,intermediate);
+    }
+
+    resultT operator() (const std::vector<int>& result_index,
+                        const CC_vecfunction& singles_gs,
+                        const std::vector<CCPair>& doubles_gs,
+                        const int& name,
+                        const Info& info);
+};
+
+
+class MacroTaskComputeCorrelationEnergy : public MacroTaskOperationBase {
+public:
+    std::string basename="CorrelationEnergy";
+    MacroTaskComputeCorrelationEnergy() {
+        name="CorrelationEnergy";
+    }
+
+    typedef std::tuple<
+        const std::vector<CCPair>&,
+        const CC_vecfunction&,
+        const Info&
+    > argtupleT;
+
+    /// first vector is the potential, second is an intermediate (if applicable, e.g. for s2b and s2c potentials)
+    typedef std::vector<ScalarResult<double>> resultT;
+
+
+    /// allocate the result and set the name of this task
+    resultT allocator(World &world, const argtupleT &argtuple) const {
+        std::size_t n = std::get<0>(argtuple).size();
+        return scalar_result_vector<double>(world,n);
+    }
+
+    resultT operator() (const std::vector<CCPair>& pairs,
+                        const CC_vecfunction& singles_gs,
+                        const Info& info) const;
 };
 
 }//namespace madness

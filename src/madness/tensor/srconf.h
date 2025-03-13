@@ -663,7 +663,7 @@ protected:
 	public:
 		/// return the number of physical dimensions
 		int dim_per_vector(int idim) const {
-			MADNESS_ASSERT(vector_.size()>idim);
+                    MADNESS_ASSERT(vector_.size()>size_t(idim));
 			return vector_[idim].ndim()-1;		// remove dimension for the rank
 		}
 

@@ -35,8 +35,6 @@
 /// \file funcimpl.h
 /// \brief Provides FunctionCommonData, FunctionImpl and FunctionFactory
 
-#include <iostream>
-#include <type_traits>
 #include <madness/world/MADworld.h>
 #include <madness/world/print.h>
 #include <madness/misc/misc.h>
@@ -48,8 +46,13 @@
 #include <madness/mra/key.h>
 #include <madness/mra/funcdefaults.h>
 #include <madness/mra/function_factory.h>
+#include <madness/mra/displacements.h>
 
-#include "leafop.h"
+#include <madness/mra/leafop.h>
+
+#include <array>
+#include <iostream>
+#include <type_traits>
 
 namespace madness {
     template <typename T, std::size_t NDIM>
@@ -164,8 +167,9 @@ namespace madness {
 	  _coeffs(coeff), _norm_tree(norm_tree), _has_children(has_children), dnorm(dnorm), snorm(snorm) {
         }
 
-        FunctionNode(const FunctionNode<T, NDIM>& other) {
-            *this = other;
+        FunctionNode(const FunctionNode<T, NDIM>& other) :
+            _coeffs(other._coeffs), _norm_tree(other._norm_tree), _has_children(other._has_children),
+            dnorm(other.dnorm), snorm(other.snorm) {
         }
 
         FunctionNode<T, NDIM>&
@@ -500,7 +504,7 @@ namespace madness {
         long k;
         bool do_error_leaf_op() const {return false;}
 
-        hartree_leaf_op() {}
+        hartree_leaf_op() = default;
         hartree_leaf_op(const implT* f, const long& k) : f(f), k(k) {}
 
         /// no pre-determination
@@ -564,7 +568,7 @@ namespace madness {
         const implT* f;   ///< the source or result function, needed for truncate_tol
         bool do_error_leaf_op() const {return true;}
 
-        op_leaf_op() {}
+        op_leaf_op() = default;
         op_leaf_op(const opT* op, const implT* f) : op(op), f(f) {}
 
         /// pre-determination: we can't know if this will be a leaf node before we got the final coeffs
@@ -613,7 +617,7 @@ namespace madness {
         const opT* op;
         bool do_error_leaf_op() const {return false;}
 
-        hartree_convolute_leaf_op() {}
+        hartree_convolute_leaf_op() = default;
         hartree_convolute_leaf_op(const implT* f, const implL* g, const opT* op)
             : f(f), g(g), op(op) {}
 
@@ -971,7 +975,7 @@ template<size_t NDIM>
         int special_level; ///< Minimium level for refinement on special points
         std::vector<Vector<double,NDIM> > special_points; ///< special points for further refinement (needed for composite functions or multiplication)
         int max_refine_level; ///< Do not refine below this level
-        int truncate_mode; ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n), 1=(|d|<thresh/4^n);
+        int truncate_mode; ///< 0=default=(|d|<thresh), 1=(|d|<thresh/2^n), 2=(|d|<thresh/4^n);
         bool autorefine; ///< If true, autorefine where appropriate
         bool truncate_on_project; ///< If true projection inserts at level n-1 not n
         TensorArgs targs; ///< type of tensor to be used in the FunctionNodes
@@ -1039,6 +1043,8 @@ template<size_t NDIM>
                 // set the union of the special points of functor and the ones explicitly given to FunctionFactory
                 std::vector<coordT> functor_special_points=functor->special_points();
                 if (!functor_special_points.empty()) special_points.insert(special_points.end(), functor_special_points.begin(), functor_special_points.end());
+                // near special points refine as deeply as requested by the factory AND the functor
+                special_level = std::max(special_level, functor->special_level());
 
                 typename dcT::const_iterator end = coeffs.end();
                 for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
@@ -1125,14 +1131,16 @@ template<size_t NDIM>
         /// @param[in]	alpha	prefactor for this
         /// @param[in]	beta	prefactor for other
         /// @param[in]	g       the other function, reconstructed
+        /// @return     *this = alpha*this + beta*other, in either reconstructed or redundant_after_merge state
         template<typename Q, typename R>
         void gaxpy_inplace_reconstructed(const T& alpha, const FunctionImpl<Q,NDIM>& g, const R& beta, const bool fence) {
             // merge g's tree into this' tree
-            this->merge_trees(beta,g,alpha,true);
-
-            // sum down the sum coeffs into the leafs
-            if (world.rank() == coeffs.owner(cdata.key0)) sum_down_spawn(cdata.key0, coeffT());
-            if (fence) world.gop.fence();
+            gaxpy_inplace(alpha,g,beta,fence);
+            tree_state=redundant_after_merge;
+            // this->merge_trees(beta,g,alpha,fence);
+            // tree is now redundant_after_merge
+            // sum down the sum coeffs into the leafs if possible to keep the state most clean
+            if (fence) sum_down(fence);
         }
 
         /// merge the trees of this and other, while multiplying them with the alpha or beta, resp
@@ -1147,8 +1155,8 @@ template<size_t NDIM>
         template<typename Q, typename R>
         void merge_trees(const T alpha, const FunctionImpl<Q,NDIM>& other, const R beta, const bool fence=true) {
             MADNESS_ASSERT(get_pmap() == other.get_pmap());
+            this->set_tree_state(redundant_after_merge);
             other.flo_unary_op_node_inplace(do_merge_trees<Q,R>(alpha,beta,*this),fence);
-            if (fence) world.gop.fence();
         }
 
         /// merge the trees of this and other, while multiplying them with the alpha or beta, resp
@@ -1182,7 +1190,7 @@ template<size_t NDIM>
             FunctionImpl<T,NDIM>* f; ///< prefactor for current function impl
             T alpha; ///< the current function impl
             R beta; ///< prefactor for other function impl
-            do_gaxpy_inplace() {};
+            do_gaxpy_inplace() = default;
             do_gaxpy_inplace(FunctionImpl<T,NDIM>* f, T alpha, R beta) : f(f), alpha(alpha), beta(beta) {}
             bool operator()(typename rangeT::iterator& it) const {
                 const keyT& key = it->first;
@@ -1198,6 +1206,9 @@ template<size_t NDIM>
         };
 
         /// Inplace general bilinear operation
+
+        /// this's world can differ from other's world
+        /// this = alpha * this + beta * other
         /// @param[in]  alpha   prefactor for the current function impl
         /// @param[in]  other   the other function impl
         /// @param[in]  beta    prefactor for other
@@ -1252,6 +1263,9 @@ template<size_t NDIM>
 
         /// Returns true if the function is redundant.
         bool is_redundant() const;
+
+        /// Returns true if the function is redundant_after_merge.
+        bool is_redundant_after_merge() const;
 
         bool is_nonstandard() const;
 
@@ -1384,7 +1398,7 @@ template<size_t NDIM>
             double limit;
             bool log;
             static double lower() {return 1.e-10;};
-            do_convert_to_color() {};
+            do_convert_to_color() = default;
             do_convert_to_color(const double limit, const bool log) : limit(limit), log(log) {}
             double operator()(double val) const {
                 double color=0.0;
@@ -1708,12 +1722,6 @@ template<size_t NDIM>
         /// @return 	coeffs in NS form
         coeffT parent_to_child_NS(const keyT& child, const keyT& parent,
                                   const coeffT& coeff) const;
-
-        /// Get the scaling function coeffs at level n starting from NS form
-        // N=2^n, M=N/q, q must be power of 2
-        // q=0 return coeffs [N,k] for direct sum
-        // q>0 return coeffs [k,q,M] for fft sum
-        tensorT coeffs_for_jun(Level n, long q=0);
 
         /// Return the values when given the coeffs in scaling function basis
         /// @param[in] key the key of the function node (box)
@@ -2194,7 +2202,7 @@ template<size_t NDIM>
             typedef Range<typename dcT::iterator> rangeT;
 
             /// constructor need impl for cdata
-            remove_internal_coeffs() {}
+            remove_internal_coeffs() = default;
 
             bool operator()(typename rangeT::iterator& it) const {
 
@@ -2211,7 +2219,7 @@ template<size_t NDIM>
             typedef Range<typename dcT::iterator> rangeT;
 
             /// constructor need impl for cdata
-            remove_leaf_coeffs() {}
+            remove_leaf_coeffs() = default;
 
             bool operator()(typename rangeT::iterator& it) const {
                 nodeT& node = it->second;
@@ -2251,7 +2259,7 @@ template<size_t NDIM>
             TensorArgs args;
 
             // constructor takes target precision
-            do_reduce_rank() {}
+            do_reduce_rank() = default;
             do_reduce_rank(const TensorArgs& targs) : args(targs) {}
             do_reduce_rank(const double& thresh) {
                 args.thresh=thresh;
@@ -2332,7 +2340,7 @@ template<size_t NDIM>
                 return norm*norm;
 	      }
 	      else {
-		throw "ONLY FOR DIM 6!";
+		      MADNESS_EXCEPTION("ONLY FOR DIM 6!", 1);
 	      }
             }
 
@@ -2377,7 +2385,7 @@ template<size_t NDIM>
         };
 
 
-        /// merge the coefficent boxes of this into other's tree
+        /// merge the coefficient boxes of this into other's tree
 
         /// no comm, and the tree should be in an consistent state by virtue
         /// of FunctionNode::gaxpy_inplace
@@ -2605,8 +2613,8 @@ template<size_t NDIM>
             implT* f;
 
             // constructor takes target precision
-            do_change_tensor_type() {}
-//            do_change_tensor_type(const TensorArgs& targs) : targs(targs) {}
+            do_change_tensor_type() = default;
+            // do_change_tensor_type(const TensorArgs& targs) : targs(targs) {}
             do_change_tensor_type(const TensorArgs& targs, implT& g) : targs(targs), f(&g) {}
 
             //
@@ -2631,7 +2639,7 @@ template<size_t NDIM>
             TensorArgs targs;
 
             // constructor takes target precision
-            do_consolidate_buffer() {}
+            do_consolidate_buffer() = default;
             do_consolidate_buffer(const TensorArgs& targs) : targs(targs) {}
             bool operator()(typename rangeT::iterator& it) const {
                 it->second.consolidate_buffer(targs);
@@ -3116,7 +3124,7 @@ template<size_t NDIM>
             const FunctionImpl<Q,NDIM>* impl_func;
             opT op;
 
-            coeff_value_adaptor() {};
+            coeff_value_adaptor() = default;
             coeff_value_adaptor(const FunctionImpl<Q,NDIM>* impl_func,
                                 const opT& op)
                 : impl_func(impl_func), op(op) {}
@@ -3508,7 +3516,7 @@ template<size_t NDIM>
             /// prefactor for f, g
             double alpha, beta;
 
-            add_op() {};
+            add_op() = default;
             add_op(const ctT& f, const ctT& g, const double alpha, const double beta)
                 : f(f), g(g), alpha(alpha), beta(beta){}
 
@@ -3824,8 +3832,13 @@ template<size_t NDIM>
 
         /// Out of volume keys are mapped to enforce the BC as follows.
         ///   * Periodic BC map back into the volume and return the correct key
-        ///   * Zero BC - returns invalid() to indicate out of volume
-        keyT neighbor(const keyT& key, const keyT& disp, const std::vector<bool>& is_periodic) const;
+        ///   * non-periodic BC - returns invalid() to indicate out of volume
+        keyT neighbor(const keyT& key, const keyT& disp, const array_of_bools<NDIM>& is_periodic) const;
+
+        /// Returns key of general neighbor that resides in-volume
+
+        /// Out of volume keys are mapped to invalid()
+        keyT neighbor_in_volume(const keyT& key, const keyT& disp) const;
 
         /// find_me. Called by diff_bdry to get coefficients of boundary function
         Future< std::pair<keyT,coeffT> > find_me(const keyT& key) const;
@@ -3866,7 +3879,7 @@ template<size_t NDIM>
         	double error=0.0;
         	double lo=0.0, hi=0.0, lo1=0.0, hi1=0.0, lo2=0.0, hi2=0.0;
 
-    	    pointwise_multiplier() {}
+    	    pointwise_multiplier() = default;
         	pointwise_multiplier(const Key<NDIM> key, const coeffT& clhs) : coeff_lhs(clhs) {
                 const auto& fcf=FunctionCommonFunctionality<T,NDIM>(coeff_lhs.dim(0));
         		val_lhs=fcf.coeffs2values(key,coeff_lhs);
@@ -4524,7 +4537,7 @@ template<size_t NDIM>
         void zero_norm_tree();
 
         // Broaden tree
-        void broaden(std::vector<bool> is_periodic, bool fence);
+        void broaden(const array_of_bools<NDIM>& is_periodic, bool fence);
 
         /// sum all the contributions from all scales after applying an operator in mod-NS form
         void trickle_down(bool fence);
@@ -4616,7 +4629,7 @@ template<size_t NDIM>
             implT* impl;
 
             // constructor takes target precision
-            do_standard() {}
+            do_standard() = default;
             do_standard(implT* impl) : impl(impl) {}
 
             //
@@ -4649,7 +4662,8 @@ template<size_t NDIM>
             Key<OPDIM> key,d;
             keyT dest;
             double tol, fac, cnorm;
-            do_op_args() {}
+
+            do_op_args() = default;
             do_op_args(const Key<OPDIM>& key, const Key<OPDIM>& d, const keyT& dest, double tol, double fac, double cnorm)
                 : key(key), d(d), dest(dest), tol(tol), fac(fac), cnorm(cnorm) {}
             template <class Archive>
@@ -4775,84 +4789,188 @@ template<size_t NDIM>
         void do_apply(const opT* op, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
-	    // working assumption here WAS that the operator is
-	    // isotropic and montonically decreasing with distance
-	    // ... however, now we are using derivative Gaussian
-	    // expansions (and also non-cubic boxes) isotropic is
-	    // violated. While not strictly monotonically decreasing,
-	    // the derivative gaussian is still such that once it
-	    // becomes negligible we are in the asymptotic region.
+          // working assumption here WAS that the operator is
+          // isotropic and monotonically decreasing with distance
+          // ... however, now we are using derivative Gaussian
+          // expansions (and also non-cubic boxes) isotropic is
+          // violated. While not strictly monotonically decreasing,
+          // the derivative gaussian is still such that once it
+          // becomes negligible we are in the asymptotic region.
 
-            typedef typename opT::keyT opkeyT;
-            static const size_t opdim=opT::opdim;
-            const opkeyT source=op->get_source_key(key);
+          typedef typename opT::keyT opkeyT;
+          constexpr auto opdim = opT::opdim;
+          const opkeyT source = op->get_source_key(key);
 
-            
-            // Tuning here is based on observation that with
-            // sufficiently high-order wavelet relative to the
-            // precision, that only nearest neighbor boxes contribute,
-            // whereas for low-order wavelets more neighbors will
-            // contribute.  Sufficiently high is picked as
-            // k>=2-log10(eps) which is our empirical rule for
-            // efficiency/accuracy and code instrumentation has
-            // previously indicated that (in 3D) just unit
-            // displacements are invoked.  The error decays as R^-(k+1),
-            // and the number of boxes increases as R^d.
-            //
-            // Fac is the expected number of contributions to a given
-            // box, so the error permitted per contribution will be
-            // tol/fac
+          // Tuning here is based on observation that with
+          // sufficiently high-order wavelet relative to the
+          // precision, that only nearest neighbor boxes contribute,
+          // whereas for low-order wavelets more neighbors will
+          // contribute.  Sufficiently high is picked as
+          // k>=2-log10(eps) which is our empirical rule for
+          // efficiency/accuracy and code instrumentation has
+          // previously indicated that (in 3D) just unit
+          // displacements are invoked.  The error decays as R^-(k+1),
+          // and the number of boxes increases as R^d.
+          //
+          // Fac is the expected number of contributions to a given
+          // box, so the error permitted per contribution will be
+          // tol/fac
 
-            // radius of shell (nearest neighbor is diameter of 3 boxes, so radius=1.5)
-            double radius = 1.5 + 0.33*std::max(0.0,2-std::log10(thresh)-k); // 0.33 was 0.5
-            double fac = vol_nsphere(NDIM, radius);
-            //previously fac=10.0 selected empirically constrained by qmprop
+          // radius of shell (nearest neighbor is diameter of 3 boxes, so radius=1.5)
+          double radius = 1.5 + 0.33 * std::max(0.0, 2 - std::log10(thresh) -
+                                                         k); // 0.33 was 0.5
+          //double radius = 2.5;
+          double fac = vol_nsphere(NDIM, radius);
+          // previously fac=10.0 selected empirically constrained by qmprop
 
-            double cnorm = c.normf();
+          double cnorm = c.normf();
 
-            const std::vector<opkeyT>& disp = op->get_disp(key.level()); // list of displacements sorted in orer of increasing distance
-            const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
-            int nvalid=1;       // Counts #valid at each distance
-            int nused=1;	// Counts #used at each distance
-	    uint64_t distsq = 99999999999999;
-            for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
-	        keyT d;
-                Key<NDIM-opdim> nullkey(key.level());
-                if (op->particle()==1) d=it->merge_with(nullkey);
-                if (op->particle()==2) d=nullkey.merge_with(*it);
+          // BC handling:
+          // - if operator is lattice-summed then treat this as nonperiodic (i.e. tell neighbor() to stay in simulation cell)
+          // - if operator is NOT lattice-summed then obey BC (i.e. tell neighbor() to go outside the simulation cell along periodic dimensions)
+          // - BUT user can force operator to treat its arguments as non-periodic (`op.set_domain_periodicity({true,true,true})`) so ... which dimensions of this function are treated as periodic by op?
+          const array_of_bools<NDIM> this_is_treated_by_op_as_periodic =
+              (op->particle() == 1)
+                  ? array_of_bools<NDIM>{false}.or_front(
+                        op->domain_is_periodic())
+                  : array_of_bools<NDIM>{false}.or_back(
+                        op->domain_is_periodic());
 
-		uint64_t dsq = d.distsq();
-		if (dsq != distsq) { // Moved to next shell of neighbors
-		    if (nvalid > 0 && nused == 0 && dsq > 1) {
-		        // Have at least done the input box and all first
-		        // nearest neighbors, and for all of the last set
-		        // of neighbors had no contribution.  Thus,
-		        // assuming monotonic decrease, we are done.
-		        break;
-		    }
-		    nused = 0;
-                    nvalid = 0;
-		    distsq = dsq;
-		} 
+          const auto default_distance_squared = [&](const auto &displacement)
+              -> std::uint64_t {
+            return displacement.distsq_bc(op->lattice_summed());
+          };
+          const auto default_skip_predicate = [&](const auto &displacement)
+              -> bool {
+            return false;
+          };
+          const auto for_each = [&](const auto &displacements,
+                                    const auto &distance_squared,
+                                    const auto &skip_predicate) -> std::optional<std::uint64_t> {
 
-                keyT dest = neighbor(key, d, is_periodic);
-                if (dest.is_valid()) {
-                    nvalid++;
-                    double opnorm = op->norm(key.level(), *it, source);
-                    double tol = truncate_tol(thresh, key);
+            // used to screen estimated and actual contributions
+            //const double tol = truncate_tol(thresh, key);
+            //const double tol = 0.1*truncate_tol(thresh, key);
+            const double tol = truncate_tol(thresh, key);
 
-                    if (cnorm*opnorm> tol/fac) {
-                        nused++;
-		        tensorT result = op->apply(source, *it, c, tol/fac/cnorm);
-			if (result.normf() > 0.3*tol/fac) {
-			  if (coeffs.is_local(dest))
-			      coeffs.send(dest, &nodeT::accumulate2, result, coeffs, dest);
-			  else
-  			      coeffs.task(dest, &nodeT::accumulate2, result, coeffs, dest);
-                        }
-                    }
-                }
+            // assume isotropic decaying kernel, screen in shell-wise fashion by
+            // monitoring the decay of magnitude of contribution norms with the
+            // distance ... as soon as we find a shell of displacements at least
+            // one of each in simulation domain (see neighbor()) and
+            // all in-domain shells produce negligible contributions, stop.
+            // a displacement is negligible if ||op|| * ||c|| > tol / fac
+            // where fac takes into account
+            int nvalid = 1; // Counts #valid at each distance
+            int nused = 1;  // Counts #used at each distance
+            std::optional<std::uint64_t> distsq;
+
+            // displacements to the kernel range boundary are typically same magnitude (modulo variation estimate the norm of the resulting contributions and skip all if one is too small
+            // this
+            if constexpr (std::is_same_v<std::decay_t<decltype(displacements)>,BoxSurfaceDisplacementRange<opdim>>) {
+              const auto &probing_displacement =
+                  displacements.probing_displacement();
+              const double opnorm =
+                  op->norm(key.level(), probing_displacement, source);
+              if (cnorm * opnorm <= tol / fac) {
+                return {};
+              }
             }
+
+            const auto disp_end = displacements.end();
+            for (auto disp_it = displacements.begin(); disp_it != disp_end;
+                 ++disp_it) {
+              const auto &displacement = *disp_it;
+              if (skip_predicate(displacement)) continue;
+
+              keyT d;
+              Key<NDIM - opdim> nullkey(key.level());
+              MADNESS_ASSERT(op->particle() == 1 || op->particle() == 2);
+              if (op->particle() == 1)
+                d = displacement.merge_with(nullkey);
+              else
+                d = nullkey.merge_with(displacement);
+
+              // shell-wise screening, assumes displacements are grouped into shells sorted so that operator decays with shell index N.B. lattice-summed decaying kernel is periodic (i.e. does decay w.r.t. r), so loop over shells of displacements sorted by distances modulated by periodicity (Key::distsq_bc)
+              const uint64_t dsq = distance_squared(displacement);
+              if (!distsq ||
+                  dsq != *distsq) { // Moved to next shell of neighbors
+                if (nvalid > 0 && nused == 0 && dsq > 1) {
+                  // Have at least done the input box and all first
+                  // nearest neighbors, and none of the last set
+                  // of neighbors made significant contributions.  Thus,
+                  // assuming monotonic decrease, we are done.
+                  break;
+                }
+                nused = 0;
+                nvalid = 0;
+                distsq = dsq;
+              }
+
+              keyT dest = neighbor(key, d, this_is_treated_by_op_as_periodic);
+              if (dest.is_valid()) {
+                nvalid++;
+                const double opnorm = op->norm(key.level(), displacement, source);
+
+                if (cnorm * opnorm > tol / fac) {
+                  tensorT result =
+                      op->apply(source, displacement, c, tol / fac / cnorm);
+                  if (result.normf() > 0.3 * tol / fac) {
+                    if (coeffs.is_local(dest))
+                      coeffs.send(dest, &nodeT::accumulate2, result, coeffs,
+                                  dest);
+                    else
+                      coeffs.task(dest, &nodeT::accumulate2, result, coeffs,
+                                  dest);
+                    nused++;
+                  }
+                }
+              }
+            }
+
+            return distsq;
+          };
+
+          // process "standard" displacements, screening assumes monotonic decay of the kernel
+          // list of displacements sorted in order of increasing distance
+          // N.B. if op is lattice-summed use periodic displacements, else use
+          // non-periodic even if op treats any modes of this as periodic
+          const std::vector<opkeyT> &disp = op->get_disp(key.level());
+          const auto max_distsq_reached = for_each(disp, default_distance_squared, default_skip_predicate);
+
+          // for range-restricted kernels displacements to the boundary of the kernel range also need to be included
+          // N.B. hard range restriction will result in slow decay of operator matrix elements for the displacements
+          // to the range boundary, should use soft restriction or sacrifice precision
+          if (op->range_restricted() && key.level() >= 1) {
+
+            std::array<std::optional<std::int64_t>, opdim> box_radius;
+            std::array<std::optional<std::int64_t>, opdim> surface_thickness;
+            auto &range = op->get_range();
+            for (int d = 0; d != opdim; ++d) {
+              if (range[d]) {
+                box_radius[d] = range[d].N();
+                surface_thickness[d] = range[d].finite_soft() ? 1 : 0;
+              }
+            }
+
+            typename BoxSurfaceDisplacementRange<opdim>::Filter filter;
+            // skip surface displacements that take us outside of the domain and/or were included in regular displacements
+            // N.B. for lattice-summed axes the "filter" also maps the displacement back into the simulation cell
+            if (max_distsq_reached)
+              filter = BoxSurfaceDisplacementFilter<opdim>(/* domain_is_infinite= */ op->domain_is_periodic(), /* domain_is_periodic= */ op->lattice_summed(), range, default_distance_squared, *max_distsq_reached);
+
+            // this range iterates over the entire surface layer(s), and provides a probing displacement that can be used to screen out the entire box
+            auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_front<opdim>();
+            BoxSurfaceDisplacementRange<opdim>
+                range_boundary_face_displacements(opkey, box_radius,
+                                                  surface_thickness,
+                                                  op->lattice_summed(),  // along lattice-summed axes treat the box as periodic, make displacements to one side of the box
+                                                  filter);
+            for_each(
+                range_boundary_face_displacements,
+                // surface displacements are not screened, all are included
+                [](const auto &displacement) -> std::uint64_t { return 0; },
+                default_skip_predicate);
+          }
         }
 
 
@@ -4867,7 +4985,7 @@ template<size_t NDIM>
                 const keyT& key = it->first;
                 const FunctionNode<R,NDIM>& node = it->second;
                 if (node.has_coeff()) {
-                    if (node.coeff().dim(0) != k || op.doleaves) {
+                    if (node.coeff().dim(0) != k /* i.e. not a leaf */ || op.doleaves) {
                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
 //                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff()); //.full_tensor_copy() ????? why copy ????
                         woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff().reconstruct_tensor());
@@ -4904,7 +5022,7 @@ template<size_t NDIM>
             // screening: contains all displacement keys that had small result norms
             std::list<opkeyT> blacklist;
 
-            static const size_t opdim=opT::opdim;
+            constexpr auto opdim=opT::opdim;
             Key<NDIM-opdim> nullkey(key.level());
 
             // source is that part of key that corresponds to those dimensions being processed
@@ -4932,13 +5050,15 @@ template<size_t NDIM>
             coeff_SVD.get_svdtensor().orthonormalize(tol*GenTensor<T>::fac_reduce());
 #endif
 
-            const std::vector<opkeyT>& disp = op->get_disp(key.level());
-            const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
+            // list of displacements sorted in order of increasing distance
+            // N.B. if op is lattice-summed gives periodic displacements, else uses
+            // non-periodic even if op treats any modes of this as periodic
+            const std::vector<opkeyT>& disp = Displacements<opdim>().get_disp(key.level(), op->lattice_summed());
 
             for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
                 const opkeyT& d = *it;
 
-                const int shell=d.distsq();
+                const int shell=d.distsq_bc(op->lattice_summed());
                 if (do_kernel and (shell>0)) break;
                 if ((not do_kernel) and (shell==0)) continue;
 
@@ -4946,10 +5066,10 @@ template<size_t NDIM>
                 if (op->particle()==1) disp1=it->merge_with(nullkey);
                 else if (op->particle()==2) disp1=nullkey.merge_with(*it);
                 else {
-                    MADNESS_EXCEPTION("confused particle in operato??",1);
+                    MADNESS_EXCEPTION("confused particle in operator??",1);
                 }
 
-                keyT dest = neighbor(key, disp1, is_periodic);
+                keyT dest = neighbor_in_volume(key, disp1);
 
                 if (not dest.is_valid()) continue;
 
@@ -5083,7 +5203,7 @@ template<size_t NDIM>
             opT* apply_op;
 
             // ctor
-            recursive_apply_op() {}
+            recursive_apply_op() = default;
             recursive_apply_op(implT* result,
                                const CoeffTracker<T,LDIM>& iaf, const CoeffTracker<T,LDIM>& iag,
                                const opT* apply_op) : result(result), iaf(iaf), iag(iag), apply_op(apply_op)
@@ -5215,7 +5335,7 @@ template<size_t NDIM>
             const opT* apply_op;
 
             // ctor
-            recursive_apply_op2() {}
+            recursive_apply_op2() = default;
             recursive_apply_op2(implT* result, const ctT& iaf, const opT* apply_op)
             	: result(result), iaf(iaf), apply_op(apply_op) {}
 
@@ -5330,7 +5450,7 @@ template<size_t NDIM>
             Tensor<double> quad_phit;
             Tensor<double> quad_phiw;
         public:
-            do_err_box() {}
+            do_err_box() = default;
 
             do_err_box(const implT* impl, const opT* func, int npt, const Tensor<double>& qx,
                        const Tensor<double>& quad_phit, const Tensor<double>& quad_phiw)
@@ -5354,7 +5474,7 @@ template<size_t NDIM>
 
             template <typename Archive>
             void serialize(const Archive& ar) {
-                throw "not yet";
+                MADNESS_EXCEPTION("not yet", 1);
             }
         };
 
@@ -5393,7 +5513,7 @@ template<size_t NDIM>
             }
 
             template <typename Archive> void serialize(const Archive& ar) {
-                throw "NOT IMPLEMENTED";
+                MADNESS_EXCEPTION("NOT IMPLEMENTED", 1);
             }
         };
 
@@ -5441,7 +5561,7 @@ template<size_t NDIM>
             }
 
             template <typename Archive> void serialize(const Archive& ar) {
-                throw "NOT IMPLEMENTED";
+                MADNESS_EXCEPTION("NOT IMPLEMENTED", 1);
             }
         };
 
@@ -5581,7 +5701,7 @@ template<size_t NDIM>
             }
 
             template <typename Archive> void serialize(const Archive& ar) {
-                throw "NOT IMPLEMENTED";
+                MADNESS_EXCEPTION("NOT IMPLEMENTED", 1);
             }
         };
 
@@ -5597,6 +5717,66 @@ template<size_t NDIM>
             rangeT range(coeffs.begin(), coeffs.end());
             return world.taskq.reduce<T, rangeT, do_inner_local_on_demand<T>>(range,
                                do_inner_local_on_demand<R>(this, &gimpl));
+        }
+
+        /// compute the inner product of this range with other
+        template<typename R>
+        struct do_dot_local {
+            const FunctionImpl<R,NDIM>* other;
+            bool leaves_only;
+            typedef TENSOR_RESULT_TYPE(T,R) resultT;
+
+            do_dot_local(const FunctionImpl<R,NDIM>* other, const bool leaves_only)
+            	: other(other), leaves_only(leaves_only) {}
+            resultT operator()(typename dcT::const_iterator& it) const {
+
+            	TENSOR_RESULT_TYPE(T,R) sum=0.0;
+            	const keyT& key=it->first;
+                const nodeT& fnode = it->second;
+                if (fnode.has_coeff()) {
+                    if (other->coeffs.probe(it->first)) {
+                        const FunctionNode<R,NDIM>& gnode = other->coeffs.find(key).get()->second;
+                        if (gnode.has_coeff()) {
+                            if (gnode.coeff().dim(0) != fnode.coeff().dim(0)) {
+                                madness::print("DOT", it->first, gnode.coeff().dim(0),fnode.coeff().dim(0));
+                                MADNESS_EXCEPTION("functions have different k or compress/reconstruct error", 0);
+                            }
+                            if (leaves_only) {
+                                if (gnode.is_leaf() or fnode.is_leaf()) {
+                                    sum += fnode.coeff().full_tensor().trace(gnode.coeff().full_tensor());
+                                }
+                            } else {
+                                sum += fnode.coeff().full_tensor().trace(gnode.coeff().full_tensor());
+                            }
+                        }
+                    }
+                }
+                return sum;
+            }
+
+            resultT operator()(resultT a, resultT b) const {
+                return (a+b);
+            }
+
+            template <typename Archive> void serialize(const Archive& ar) {
+                MADNESS_EXCEPTION("NOT IMPLEMENTED", 1);
+            }
+        };
+
+        /// Returns the dot product ASSUMING same distribution
+
+        /// handles compressed and redundant form
+        template <typename R>
+        TENSOR_RESULT_TYPE(T,R) dot_local(const FunctionImpl<R,NDIM>& g) const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            typedef Range<typename dcT::const_iterator> rangeT;
+            typedef TENSOR_RESULT_TYPE(T,R) resultT;
+
+            // make sure the states of the trees are consistent
+            MADNESS_ASSERT(this->is_redundant()==g.is_redundant());
+            bool leaves_only=(this->is_redundant());
+            return world.taskq.reduce<resultT,rangeT,do_dot_local<R> >
+                (rangeT(coeffs.begin(),coeffs.end()),do_dot_local<R>(&g, leaves_only));
         }
 
         /// Type of the entry in the map returned by make_key_vec_map
@@ -5635,7 +5815,7 @@ template<size_t NDIM>
             return map;
         }
 
-#if HAVE_GENTENSOR
+#if 0
 // Original
         template <typename R>
         static void do_inner_localX(const typename mapT::iterator lstart,
@@ -5696,10 +5876,10 @@ template<size_t NDIM>
                    Tensor<T> Left(nleft, size);
                    Tensor<R> Right(nright, size);
                    Tensor< TENSOR_RESULT_TYPE(T,R)> r(nleft, nright);
-                   for(unsigned int iv = 0; iv < nleft; ++iv) Left(iv,_) = *(leftv[iv].second);
-                   for(unsigned int jv = 0; jv < nright; ++jv) Right(jv,_) = *(rightv[jv].second);
+                   for(unsigned int iv = 0; iv < nleft; ++iv) Left(iv,_) = (*(leftv[iv].second)).full_tensor();
+                   for(unsigned int jv = 0; jv < nright; ++jv) Right(jv,_) = (*(rightv[jv].second)).full_tensor();
                    // call mxmT from mxm.h in tensor
-                   if(TensorTypeData<T>::iscomplex) Left = Left.conj();  //Should handle complex case and leave real case alone
+                   if(TensorTypeData<T>::iscomplex) Left = Left.conj();  // Should handle complex case and leave real case alone
                    mxmT(nleft, nright, size, r.ptr(), Left.ptr(), Right.ptr());
                    mutex->lock();
                    for(unsigned int iv = 0; iv < nleft; ++iv) {
@@ -5707,6 +5887,86 @@ template<size_t NDIM>
                        for(unsigned int jv = 0; jv < nright; ++jv) {
                          const int j = rightv[jv].first;
                          if (!sym || (sym && i<=j)) result(i,j) += r(iv,jv);
+                       }
+                   }
+                   mutex->unlock();
+               }
+           }
+       }
+#endif
+
+#if 0
+// Original
+        template <typename R, typename = std::enable_if_t<std::is_floating_point_v<R>>>
+        static void do_dot_localX(const typename mapT::iterator lstart,
+                                  const typename mapT::iterator lend,
+                                  typename FunctionImpl<R, NDIM>::mapT* rmap_ptr,
+                                  const bool sym,
+                                  Tensor<TENSOR_RESULT_TYPE(T, R)>* result_ptr,
+                                  Mutex* mutex) {
+            if (TensorTypeData<T>::iscomplex) MADNESS_EXCEPTION("no complex trace in LowRankTensor, sorry", 1);
+            Tensor<TENSOR_RESULT_TYPE(T, R)>& result = *result_ptr;
+            Tensor<TENSOR_RESULT_TYPE(T, R)> r(result.dim(0), result.dim(1));
+            for (typename mapT::iterator lit = lstart; lit != lend; ++lit) {
+                const keyT& key = lit->first;
+                typename FunctionImpl<R, NDIM>::mapT::iterator rit = rmap_ptr->find(key);
+                if (rit != rmap_ptr->end()) {
+                    const mapvecT& leftv = lit->second;
+                    const typename FunctionImpl<R, NDIM>::mapvecT& rightv = rit->second;
+                    const int nleft = leftv.size();
+                    const int nright = rightv.size();
+
+                    for (int iv = 0; iv < nleft; iv++) {
+                        const int i = leftv[iv].first;
+                        const GenTensor<T>* iptr = leftv[iv].second;
+
+                        for (int jv = 0; jv < nright; jv++) {
+                            const int j = rightv[jv].first;
+                            const GenTensor<R>* jptr = rightv[jv].second;
+
+                            if (!sym || (sym && i <= j))
+                                r(i, j) += iptr->trace_conj(*jptr);
+                        }
+                    }
+                }
+            }
+            mutex->lock();
+            result += r;
+            mutex->unlock();
+        }
+#else
+       template <typename R>
+       static void do_dot_localX(const typename mapT::iterator lstart,
+                                 const typename mapT::iterator lend,
+                                 typename FunctionImpl<R, NDIM>::mapT* rmap_ptr,
+                                 const bool sym,
+                                 Tensor<TENSOR_RESULT_TYPE(T, R)>* result_ptr,
+                                 Mutex* mutex) {
+           Tensor<TENSOR_RESULT_TYPE(T, R)>& result = *result_ptr;
+           // Tensor<TENSOR_RESULT_TYPE(T, R)> r(result.dim(0), result.dim(1));
+           for (typename mapT::iterator lit = lstart; lit != lend; ++lit) {
+               const keyT& key = lit->first;
+               typename FunctionImpl<R, NDIM>::mapT::iterator rit = rmap_ptr->find(key);
+               if (rit != rmap_ptr->end()) {
+                   const mapvecT& leftv = lit->second;
+                   const typename FunctionImpl<R, NDIM>::mapvecT& rightv = rit->second;
+                   const size_t nleft = leftv.size();
+                   const size_t nright= rightv.size();
+
+                   unsigned int size = leftv[0].second->size();
+                   Tensor<T> Left(nleft, size);
+                   Tensor<R> Right(nright, size);
+                   Tensor< TENSOR_RESULT_TYPE(T, R)> r(nleft, nright);
+                   for(unsigned int iv = 0; iv < nleft; ++iv) Left(iv, _) = (*(leftv[iv].second)).full_tensor();
+                   for(unsigned int jv = 0; jv < nright; ++jv) Right(jv, _) = (*(rightv[jv].second)).full_tensor();
+                   // call mxmT from mxm.h in tensor
+                   mxmT(nleft, nright, size, r.ptr(), Left.ptr(), Right.ptr());
+                   mutex->lock();
+                   for(unsigned int iv = 0; iv < nleft; ++iv) {
+                       const int i = leftv[iv].first;
+                       for(unsigned int jv = 0; jv < nright; ++jv) {
+                         const int j = rightv[jv].first;
+                         if (!sym || (sym && i <= j)) result(i, j) += r(iv, jv);
                        }
                    }
                    mutex->unlock();
@@ -5743,7 +6003,7 @@ template<size_t NDIM>
 
             mapT lmap = make_key_vec_map(left);
             typename FunctionImpl<R,NDIM>::mapT rmap;
-            typename FunctionImpl<R,NDIM>::mapT* rmap_ptr = (typename FunctionImpl<R,NDIM>::mapT*)(&lmap);
+            auto* rmap_ptr = (typename FunctionImpl<R,NDIM>::mapT*)(&lmap);
             if ((std::vector<const FunctionImpl<R,NDIM>*>*)(&left) != &right) {
                 rmap = FunctionImpl<R,NDIM>::make_key_vec_map(right);
                 rmap_ptr = &rmap;
@@ -5769,6 +6029,59 @@ template<size_t NDIM>
                         TENSOR_RESULT_TYPE(T,R) sum = r(i,j)+conj(r(j,i));
                         r(i,j) = sum;
                         r(j,i) = conj(sum);
+                    }
+                }
+            }
+            return r;
+        }
+
+        template <typename R>
+        static Tensor<TENSOR_RESULT_TYPE(T, R)>
+        dot_local(const std::vector<const FunctionImpl<T, NDIM>*>& left,
+                  const std::vector<const FunctionImpl<R, NDIM>*>& right,
+                  bool sym) {
+
+            // This is basically a sparse matrix * matrix product
+            // Rij = sum(k) Aik * Bkj
+            // where i and j index functions and k index the wavelet coeffs
+            // eventually the goal is this structure (don't have jtile yet)
+            //
+            // do in parallel tiles of k (tensors of coeffs)
+            //    do tiles of j
+            //       do i
+            //          do j in jtile
+            //             do k in ktile
+            //                Rij += Aik*Bkj
+
+            mapT lmap = make_key_vec_map(left);
+            typename FunctionImpl<R, NDIM>::mapT rmap;
+            auto* rmap_ptr = (typename FunctionImpl<R, NDIM>::mapT*)(&lmap);
+            if ((std::vector<const FunctionImpl<R, NDIM>*>*)(&left) != &right) {
+                rmap = FunctionImpl<R, NDIM>::make_key_vec_map(right);
+                rmap_ptr = &rmap;
+            }
+
+            size_t chunk = (lmap.size() - 1) / (3 * 4 * 5) + 1;
+
+            Tensor<TENSOR_RESULT_TYPE(T, R)> r(left.size(), right.size());
+            Mutex mutex;
+
+            typename mapT::iterator lstart=lmap.begin();
+            while (lstart != lmap.end()) {
+                typename mapT::iterator lend = lstart;
+                advance(lend, chunk);
+                left[0]->world.taskq.add(&FunctionImpl<T, NDIM>::do_dot_localX<R>, lstart, lend, rmap_ptr, sym, &r, &mutex);
+                lstart = lend;
+            }
+            left[0]->world.taskq.fence();
+
+            // sym is for hermiticity
+            if (sym) {
+                for (long i = 0; i < r.dim(0); i++) {
+                    for (long j = 0; j < i; j++) {
+                        TENSOR_RESULT_TYPE(T, R) sum = r(i, j) + conj(r(j, i));
+                        r(i, j) = sum;
+                        r(j, i) = conj(sum);
                     }
                 }
             }
@@ -6353,7 +6666,7 @@ template<size_t NDIM>
             }
 
             template <typename Archive> void serialize(const Archive& ar) {
-                throw "NOT IMPLEMENTED";
+                MADNESS_EXCEPTION("NOT IMPLEMENTED", 1);
             }
         };
 
@@ -6606,7 +6919,7 @@ template<size_t NDIM>
             int dim;				///< 0: project 0..LDIM-1, 1: project LDIM..NDIM-1
 
             // ctor
-            project_out_op() {}
+            project_out_op() = default;
             project_out_op(const implT* fimpl, implL1* result, const ctL& iag, const int dim)
                 : fimpl(fimpl), result(result), iag(iag), dim(dim) {}
             project_out_op(const project_out_op& other)
@@ -6821,8 +7134,14 @@ template<size_t NDIM>
         /// Returns the size of the tree structure of the function ... collective global sum
         std::size_t tree_size() const;
 
+        /// Returns the number of coefficients in the function for each rank
+        std::size_t size_local() const;
+
         /// Returns the number of coefficients in the function ... collective global sum
         std::size_t size() const;
+
+        /// Returns the number of coefficients in the function for this MPI rank
+        std::size_t nCoeff_local() const;
 
         /// Returns the number of coefficients in the function ... collective global sum
         std::size_t nCoeff() const;

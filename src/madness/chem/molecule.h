@@ -219,7 +219,7 @@ public:
 //            }
 
             if (source_type()=="xyz") set_derived_value("units",std::string("angstrom"));
-            if (units()=="bohr" or units()=="au") set_derived_value("units","atomic");
+            if (units()=="bohr" or units()=="au") set_derived_value("units",std::string("atomic"));
         }
 
         std::string source_type() const {return get<std::string>("source_type");}
@@ -340,7 +340,9 @@ public:
     static std::string get_structure_library_path();
 
     /// print out a Gaussian cubefile header
-	std::vector<std::string> cubefile_header() const;
+
+    /// @param[in] offset  the offset to be subtracted from the coordinates
+	std::vector<std::string> cubefile_header(const Vector<double,3> offset=Vector<double,3>(0.0)) const;
 
     // initializes Molecule using the contents of file \c filename
     void read_file(const std::string& filename);
@@ -467,9 +469,14 @@ public:
     /// @return     a vector which all 3 components of the dipole derivative
     Tensor<double> nuclear_dipole_derivative(const int atom, const int axis) const;
 
-    double nuclear_charge_density(double x, double y, double z) const;
-
-    double mol_nuclear_charge_density(double x, double y, double z) const;
+    /// evaluate the nuclear charge density at point `{x,y,z}` using the default
+    /// MADNESS nuclear model. See smoothed_density() for the description
+    /// of the default nuclear model.
+    /// \param x,y,z the point at which the nuclear charge density is evaluated
+    /// \param rscale setting `rscale>1` will make a nucleus larger by a factor of \p rscale (in other words, `rcut` is multiplied by the inverse of by this)
+    /// \return the nuclear charge density at point `{x,y,z}`
+    /// \sa smoothed_density()
+    double nuclear_charge_density(double x, double y, double z, double rscale = 1.) const;
 
     double smallest_length_scale() const;
 

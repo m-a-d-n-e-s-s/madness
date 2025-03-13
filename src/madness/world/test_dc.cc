@@ -29,9 +29,17 @@
   fax:   865-572-0680
 */
 
+//#define MAD_ARCHIVE_DEBUG_ENABLE
+
+#include <algorithm>
+
 #include <madness/world/MADworld.h>
 #include <madness/world/worlddc.h>
+#include <madness/world/worldmutex.h>
 #include <madness/world/atomicint.h>
+
+#include <madness/world/vector_archive.h>
+#include <madness/world/parallel_archive.h>
 
 using namespace madness;
 using namespace std;
@@ -81,6 +89,26 @@ struct Node {
     ~Node() {}
 };
 
+struct LargeNode {
+    std::vector<int> k;
+
+    LargeNode() : k() {}
+
+    LargeNode(int val) {
+        k=std::vector<int>(10000,val);
+    }
+
+    int get() const {
+        return k[0];
+    }
+
+    template <typename Archive>
+    void serialize(const Archive& ar) {
+        ar & k;
+    }
+
+    ~LargeNode() {}
+};
 ostream& operator<<(ostream&s, const Node& node) {
     s << "Node(" << node.k << ")";
     return s;
@@ -240,16 +268,63 @@ void test_local(World& world) {
 
 }
 
+void test_florian(World& world) {
+    WorldContainer<Key,LargeNode> c(world);
+
+    long nlarge=20000;
+    // get nlarge variable from the environment and convert it into long
+    char* nlarge_env = getenv("NLARGE");
+    if (nlarge_env) {
+        nlarge = atol(nlarge_env);
+    }
+    if (world.rank()==0) print("size of the container",nlarge);
+
+
+
+    if (world.rank() == 0) {
+        for (int i=0; i<nlarge; ++i) {
+            c.replace(Key(i),LargeNode(i));
+        }
+    }
+    world.gop.fence();
+    double wall0=wall_time();
+    if (world.rank() == 0) printf("starting at time %8.4f with %ld items\n",wall0,nlarge);
+    std::vector<unsigned char> v;
+    {
+        archive::VectorOutputArchive var(v);
+        archive::ParallelOutputArchive ar(world,var);
+        ar & c;
+    }
+    double wall1=wall_time();
+    if (world.rank() == 0) printf("ending at time %8.4f after %8.4fs\n",wall1,wall1-wall0);
+
+    WorldContainer<Key,LargeNode> c2(world);
+    {
+        archive::VectorInputArchive var2(v);
+        archive::ParallelInputArchive ar2(world,var2);
+        ar2 & c2;
+    }
+
+    if (world.rank()==0) {
+        for (int i=0; i<nlarge; ++i) {
+            MADNESS_CHECK(c2.find(Key(i)).get()->second.get() == i);
+        }
+    }
+
+    world.gop.fence();
+    if (world.rank() == 0) print("test_florian passed");
+}
+
 int main(int argc, char** argv) {
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
 
     try {
-        test0(world);
-        test1(world);
-        test1(world);
-        test1(world);
-        test_local(world);
+        World& world = initialize(argc, argv);
+        // test0(world);
+        // test1(world);
+        // test1(world);
+        // test1(world);
+        // test_local(world);
+        test_florian(world);
     }
     catch (const SafeMPI::Exception& e) {
         error("caught an MPI exception");

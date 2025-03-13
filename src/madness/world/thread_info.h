@@ -34,7 +34,7 @@
 
 /**
  \file thread_info.h
- \brief Implements thread introspection
+ \brief Implements thread introspection for Pthreads backend
  \ingroup threads
 */
 
@@ -66,9 +66,14 @@ namespace madness {
         detail::thread_tag_accessor() = static_cast<ThreadTag>(tag);
     }
 
-    /// @return true if this thread is managed by MADNESS
+    /// @return true if this thread is used to execute MADNESS tasks; this is true for the main thread but only true for a non-main thread if the Pthreads backend is used and the thread is part of the ThreadPool
     inline bool is_madness_thread() {
         return detail::thread_tag_accessor() & ThreadTag_MADNESS;
+    }
+
+    /// @return true if this is called from the main thread
+    inline bool is_main_thread() {
+      return detail::thread_tag_accessor() & ThreadTag_Main;
     }
 
 }  // namespace madness

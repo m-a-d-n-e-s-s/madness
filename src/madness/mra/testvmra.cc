@@ -103,11 +103,14 @@ void test_add(World& world) {
     std::vector<Function<T,NDIM> > add1(nvec), add2(nvec), sum(nvec), diff(nvec);
 
     for (int i=0; i<nvec; ++i) {
-        add1[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return r.normf();});
-        add2[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return 2.0*r.normf();});
-        sum[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return 3.0*r.normf();});
-        diff[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return -1.0*r.normf();});
+        add1[i]=FunctionFactory<T,NDIM>(world).functor([&i] (const Vector<double,3>& r) {return exp(-inner(r,r));});
+        // add2[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return 2.0*exp(-inner(r,r));});
+        // sum[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return 3.0*exp(-inner(r,r));});
+        // diff[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return -1.0*exp(-inner(r,r));});
     }
+    add2=2.0*add1;
+    sum=3.0*add1;
+    diff=-1.0*add1;
 
     std::vector<Function<T,NDIM> > r1=add1+add2;
     std::vector<Function<T,NDIM> > r3=add1+add2[0];
@@ -128,7 +131,12 @@ void test_add(World& world) {
     	error6+=(r6[i]-diff[i]).norm2();
     }
     print("errors in add", error1,error3,error5,error2,error4,error6);
-
+    MADNESS_CHECK(error1 < FunctionDefaults<NDIM>::get_thresh());
+    MADNESS_CHECK(error3 < FunctionDefaults<NDIM>::get_thresh());
+    MADNESS_CHECK(error5 < FunctionDefaults<NDIM>::get_thresh());
+    MADNESS_CHECK(error2 < FunctionDefaults<NDIM>::get_thresh());
+    MADNESS_CHECK(error4 < FunctionDefaults<NDIM>::get_thresh());
+    MADNESS_CHECK(error6 < FunctionDefaults<NDIM>::get_thresh());
 }
 
 
@@ -189,6 +197,76 @@ void test_inner(World& world) {
 
     if (world.rank() == 0) 
         print("error norm",(rold-rnew).normf(),"\n");
+
+    // With sym = true, the error is larger on the order of 2.0e-6
+    auto check_thresh = (sym) ? 50 * thresh : thresh;
+    MADNESS_CHECK((rold - rnew).normf() < check_thresh);
+}
+
+template <typename T, typename R, int NDIM, bool sym>
+void test_dot(World& world) {
+    typedef std::shared_ptr<FunctionFunctorInterface<T, NDIM>> ffunctorT;
+    typedef std::shared_ptr<FunctionFunctorInterface<R, NDIM>> gfunctorT;
+
+    const double thresh = 1.e-7;
+    Tensor<double> cell(NDIM, 2);
+    for (std::size_t i = 0; i < NDIM; ++i) {
+        cell(i, 0) = -11.0 - 2 * i;  // Deliberately asymmetric bounding box
+        cell(i, 1) =  10.0 + i;
+    }
+    FunctionDefaults<NDIM>::set_cell(cell);
+    FunctionDefaults<NDIM>::set_k(8);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(3);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
+
+    const int nleft = 95, nright = sym ? nleft : 94;
+
+    if (world.rank() == 0)
+        print("testing matrix_dot<", archive::get_type_name<T>(), ",", archive::get_type_name<R>(), ">", "sym =", sym);
+
+    START_TIMER;
+    std::vector< Function<T,NDIM> > left(nleft);
+    for (int i = 0; i < nleft; ++i) {
+        ffunctorT f(RandomGaussian<T, NDIM>(FunctionDefaults<NDIM>::get_cell(), 0.5));
+        left[i] = FunctionFactory<T, NDIM>(world).functor(f);
+    }
+    std::vector< Function<R,NDIM> > right(nright);
+    std::vector< Function<R,NDIM> >* pright = &right;
+    if (sym) {
+        pright = (std::vector< Function<R,NDIM> >*)(&left);
+    }
+    else {
+        for (int i = 0; i < nright; ++i) {
+            gfunctorT f(RandomGaussian<R,NDIM>(FunctionDefaults<NDIM>::get_cell(), 0.5));
+            right[i] = FunctionFactory<R,NDIM>(world).functor(f);
+        }
+    }
+    END_TIMER("project");
+
+    START_TIMER;
+    compress(world, left);
+    compress(world, right);
+    END_TIMER("compress");
+
+    START_TIMER;
+    Tensor<TENSOR_RESULT_TYPE(T, R)> rnew = matrix_dot(world, left, *pright, sym);
+    END_TIMER("new");
+    START_TIMER;
+    // Tests should pass using either matrix_dot_old or matrix_inner with conj
+    // Tensor<TENSOR_RESULT_TYPE(T, R)> rold = matrix_inner(world,
+    //                                                      conj(world, left),
+    //                                                      *pright, sym);
+    Tensor<TENSOR_RESULT_TYPE(T,R)> rold = matrix_dot_old(world,left,*pright,sym);
+    END_TIMER("old");
+
+    if (world.rank() == 0) 
+        print("error norm", (rold - rnew).normf(), "\n");
+
+    // With sym = true, the error is larger on the order of 2.0e-6
+    auto check_thresh = (sym) ? 50 * thresh : thresh;
+    MADNESS_CHECK((rold - rnew).normf() < check_thresh);
 }
 
 template<typename T, std::size_t NDIM>
@@ -295,11 +373,13 @@ void test_cross(World& world) {
     std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > result1=cross(left,right)+cross(right,left);
     double err1=norm2(world,result1);
     if (world.rank() == 0) print("error norm1",err1,"\n");
+    MADNESS_CHECK(err1 < FunctionDefaults<NDIM>::get_thresh());
 
     // cross product with self vanishes
     std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > result2=cross(left,left);
     double err2=norm2(world,result2);
     if (world.rank() == 0) print("error norm2",err2,"\n");
+    MADNESS_CHECK(err2 < FunctionDefaults<NDIM>::get_thresh());
 
     // cross product with self vanishes
     std::vector<Function<TENSOR_RESULT_TYPE(T,R),NDIM> > result3=cross(left,right);
@@ -307,9 +387,10 @@ void test_cross(World& world) {
 
     double err3=(reference0-result3[0]).norm2();
     if (world.rank() == 0) print("error norm3",err3,"\n");
+    MADNESS_CHECK(err3 < FunctionDefaults<NDIM>::get_thresh());
 
     double err4=(result3[0]).norm2();
-    if (world.rank() == 0) print("error norm4",err4," (should not be zero)\n");
+    if (world.rank() == 0) print("norm of i-component", err4, " (should not be zero)\n");
 
 }
 
@@ -456,29 +537,31 @@ void test_multi_to_multi_op(World& world) {
     double norm_out=norm2(world,vout);
     double error=norm2(world,result);
     if (world.rank()==0) print("error in multi_to_multi ",error,norm_in,norm_out);
+    MADNESS_CHECK(error < FunctionDefaults<NDIM>::get_thresh());
 
 }
 
 int main(int argc, char**argv) {
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
+    World& world=initialize(argc, argv);
 
     bool smalltest = false;
     if (getenv("MAD_SMALL_TESTS")) smalltest=true;
     for (int iarg=1; iarg<argc; iarg++) if (strcmp(argv[iarg],"--small")==0) smalltest=true;
     std::cout << "small test : " << smalltest << std::endl;
-    if (smalltest) return 0;
+    // if (smalltest) return 0;
     madness::default_random_generator.setstate(int(cpu_time()*1000)%4149);
 
 
     try {
         startup(world,argc,argv);
 
-        // test_add<double,3>(world);
-        // test_add<std::complex<double>,3 >(world);
+        test_add<double,3>(world);
+        test_add<std::complex<double>,3 >(world);
 
         test_inner<double,double,1,false>(world);
         test_inner<double,double,1,true>(world);
+        test_dot<double, double, 1, false>(world);
+        test_dot<double, double, 1, true>(world);
         test_multi_to_multi_op<1>(world);
         test_multi_to_multi_op<2>(world);
 
@@ -504,6 +587,12 @@ int main(int argc, char**argv) {
             test_inner<std::complex<double>,double,1,false>(world);
             test_inner<std::complex<double>,std::complex<double>,1,false>(world);
             test_inner<std::complex<double>,std::complex<double>,1,true>(world);
+        }
+        test_dot<double, std::complex<double>, 1, false>(world);
+        if (!smalltest) {
+            test_dot<std::complex<double>, double, 1, false>(world);
+            test_dot<std::complex<double>, std::complex<double>, 1, false>(world);
+            test_dot<std::complex<double>, std::complex<double>, 1, true>(world);
         }
 #endif
     }

@@ -36,9 +36,10 @@
 /// \file moldft/potentialmanager.h
 /// \brief Declaration of molecule related classes and functions
 
-#include<madness/chem/corepotential.h>
-#include<madness/chem/atomutil.h>
-#include<madness/chem/molecule.h>
+#include <madness/chem/corepotential.h>
+#include <madness/chem/atomutil.h>
+#include <madness/chem/molecule.h>
+#include <madness/mra/kernelrange.h>
 #include <vector>
 #include <string>
 #include <iostream>
@@ -49,6 +50,7 @@
 #include <cmath>
 #include <madness/tensor/tensor.h>
 #include <madness/misc/misc.h>
+#include <madness/misc/interpolation_1d.h>
 #include <madness/mra/mra.h>
 
 namespace madness {
@@ -106,6 +108,126 @@ public:
     };
 };
 
+/// Default functor for the nuclear charge density
+
+/// This assumes the default nuclear model optimized to produce potential
+/// close that of a point nucleus (smoothed Coulomb potential). The model
+/// is
+class NuclearDensityFunctor : public FunctionFunctorInterface<double,3> {
+private:
+  const Molecule& atoms;
+  BoundaryConditions<3> bc_;
+  Tensor<double> cell;
+  std::vector<coord_3d> special_points_;
+  int maxR;
+  int special_level_ = 15;
+  double rscale = 1.0;
+public:
+  /// Generic constructor, can handle open and periodic boundaries
+  /// \param molecule atoms
+  /// \param bc boundary conditions
+  /// \param cell simulation cell (unit cell, if periodic)
+  /// \param special_level the initial refinement level
+  /// \param rscale setting `rscale>1` will make a nucleus larger by a factor of \p rscale (in other words, `rcut` is multiplied by the inverse of by this)
+  NuclearDensityFunctor(const Molecule& atoms,
+                        const BoundaryConditions<3>& bc = FunctionDefaults<3>::get_bc(),
+                        const Tensor<double>& cell = FunctionDefaults<3>::get_cell(),
+                        int special_level = 15,
+                        double rscale = 1.0);
+
+  double operator()(const coord_3d& x) const final;
+
+  std::vector<coord_3d> special_points() const final;
+
+  Level special_level() const final;
+
+  NuclearDensityFunctor& set_rscale(double rscale);
+
+};
+
+/// evaluates Wigner-Seitz-truncated potential in the simulation cell, due to periodic or nonperiodic source functions
+class WignerSeitzPotentialFunctor : public FunctionFunctorInterface<double,3> {
+public:
+  /// Constructs a WignerSeitzPotentialFunctor evaluating potential
+  /// in simulation cell \p c due to point charges \p atoms optionally
+  /// periodically repeated according to boundary conditions \p b
+  /// and interaction range along each Cartesian direction limited by \p r .
+  /// Lattice summation range along each axis can be overridden by specifying
+  /// \p lattice_sum_range .
+  /// \tparam Int
+  /// \param atoms list of point charges in the simulation cell
+  /// \param c the simulation cell dimensions
+  /// \param b the boundary conditions
+  /// \param r the kernel range
+  /// \param lattice_sum_range overrides the lattice summation range that by default
+  template <typename Int>
+  WignerSeitzPotentialFunctor(const Molecule &atoms, Tensor<double> c,
+                              BoundaryConditions<3> b, std::array<KernelRange, 3> r,
+                              std::array<Int, 3> lattice_sum_range)
+      : atoms(atoms), cell(std::move(c)), bc(std::move(b)), range(std::move(r)),
+        cell_width{cell(0, 1) - cell(0, 0), cell(1, 1) - cell(1, 0),
+                   cell(2, 1) - cell(2, 0)},
+        rcell_width{1. / cell_width[0], 1. / cell_width[1],
+                    1. / cell_width[2]}, lattice_sum_range{lattice_sum_range[0], lattice_sum_range[1], lattice_sum_range[2]} {
+    for (int d = 0; d != 3; ++d)
+      MADNESS_ASSERT(lattice_sum_range[d] >= 0);
+  }
+
+  /// same as the standard ctor, but lacks the ability to override the lattice sum range
+  WignerSeitzPotentialFunctor(const Molecule &atoms, Tensor<double> c,
+                              BoundaryConditions<3> b, std::array<KernelRange, 3> r) :
+  // N.B. move is a cast, calling make_default_lattice_sum_range like this is OK
+  WignerSeitzPotentialFunctor(atoms, std::move(c), std::move(b), std::move(r), make_default_lattice_sum_range(b,r)) {}
+
+  double operator()(const coord_3d &x) const final;
+
+  std::vector<coord_3d> special_points() const final;
+
+  static std::array<std::int64_t, 3> make_default_lattice_sum_range(const BoundaryConditions<3>& bc, const std::array<KernelRange, 3>& range) {
+    std::array<std::int64_t, 3> result;
+    for (int d = 0; d != 3; ++d) {
+      result[d] = bc.is_periodic()[d] ? (range[d].iextent_x2() + 1) / 2 : 0;
+    }
+    return result;
+  }
+
+private:
+  const Molecule &atoms;
+  const Tensor<double> cell;
+  const BoundaryConditions<3> bc;
+  const std::array<KernelRange, 3> range;
+  const std::array<double, 3> cell_width;
+  const std::array<double, 3> rcell_width;
+  const std::array<std::int64_t, 3> lattice_sum_range;  // range of lattice summation, default is # of cells in each direction with nonzero contributions to the simulation cell
+};
+
+/// SAPFunctor = Interpolated Atomic Potential for 1 atom
+class SAPFunctor : public FunctionFunctorInterface<double,3> {
+ private:
+  const Atom& atom;
+  double smoothing_param;
+  BoundaryConditions<3> bc_;
+  Tensor<double> cell;
+  Level special_level_;
+ public:
+  /// Generic constructor, can handle open and periodic boundaries
+  /// \param molecule atoms
+  /// \param smoothing_param controls smoothness of 1/r potential.
+  /// \param bc boundary conditions
+  /// \param cell simulation cell (unit cell, if periodic)
+  /// \param special_level the initial refinement level
+  SAPFunctor(const Atom& atom,
+             double smoothing_param,
+             const BoundaryConditions<3>& bc = FunctionDefaults<3>::get_bc(),
+             const Tensor<double>& cell = FunctionDefaults<3>::get_cell(),
+             int special_level = 15);
+
+  double operator()(const coord_3d& x) const final;
+
+  Level special_level() const final;
+
+  std::vector<coord_3d> special_points() const final;
+};
 
 class PotentialManager {
 private:

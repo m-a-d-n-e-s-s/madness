@@ -1,6 +1,6 @@
 # src/madness/misc
 
-set(MADMISC_HEADERS misc.h ran.h phandler.h interpolation_1d.h cfft.h info.h)
+set(MADMISC_HEADERS misc.h ran.h phandler.h interpolation_1d.h cfft.h info.h gnuplot.h array_of_bools.h kahan_accumulator.h)
 set(MADMISC_SOURCES
     checksum_file.cc position_stream.cc gprofexit.cc ran.cc cfft.cc info.cc unique_filename.cc)
 # retrieve git metadata
@@ -18,9 +18,9 @@ set_source_files_properties(
 add_mad_library(misc MADMISC_SOURCES MADMISC_HEADERS "world" "madness/misc/")
 
 if(BUILD_TESTING)
-  
   # The list of unit test source files
-  set(MISC_TEST_SOURCES interp3.cc)
+  # test_gnuplot.cc breaks the CI since gnuplot missing so disable 
+  set(MISC_TEST_SOURCES interp3.cc )
   
   add_unittests(misc "${MISC_TEST_SOURCES}" "MADmisc;MADgtest" "unittests;short")
 

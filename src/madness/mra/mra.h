@@ -58,6 +58,23 @@ static const bool VERIFY_TREE = false; //true
 
 
 namespace madness {
+    /// @brief initialize the internal state of the MADmra library
+    ///
+    /// Reads in (and broadcasts across \p world) the twoscale and autocorrelation coefficients,
+    /// Gauss-Legendre quadrature roots/weights, function defaults and operator displacement lists.
+    /// \warning By default this generates operator displacement lists (see Displacements) for up to 6-d free
+    ///          and 3-d periodic boundary conditions. For optimal support for mixed boundary conditions
+    ///          (periodic along some axes only) assign the desired boundary conditions
+    ///          as default (e.g. `FunctionDefaults<3>::set_bc(BoundaryConditions<3>({BC_FREE, BC_FREE, BC_FREE, BC_FREE, BC_PERIODIC, BC_PERIODIC})`)
+    ///          prior to calling this. This will make operator application with such boundary conditions
+    ///          as efficient as possible, but will not allow the use of operators with
+    ///          other boundary conditions that include periodic axes until Displacements::reset_periodic_axes is invoked.
+    ///          By default efficiency is sacrificed for generality.
+    /// \param world broadcast data across this World
+    /// \param argc command-line parameter count
+    /// \param argv command-line parameters array
+    /// \param doprint if true, will log status to std::cout on rank 0 [default=false]
+    /// \param make_stdcout_nice_to_reals if true, will configure std::cout to print reals prettily, according to the MADNESS convention [default=true]
     void startup(World& world, int argc, char** argv, bool doprint=false, bool make_stdcout_nice_to_reals = true);
     std::string get_mra_data_dir();
 }
@@ -137,6 +154,9 @@ namespace madness {
         typedef FunctionNode<T,NDIM> nodeT;
         typedef FunctionFactory<T,NDIM> factoryT;
         typedef Vector<double,NDIM> coordT; ///< Type of vector holding coordinates
+        typedef T typeT;
+        static constexpr std::size_t dimT=NDIM;
+
 
         /// Asserts that the function is initialized
         inline void verify() const {
@@ -486,6 +506,21 @@ namespace madness {
             return impl ? impl->is_nonstandard() : false;
         }
 
+        /// Returns true if redundant, false otherwise.  No communication.
+
+        /// If the function is not initialized, returns false.
+        bool is_redundant() const {
+            PROFILE_MEMBER_FUNC(Function);
+            return impl ? impl->is_redundant() : false;
+        }
+
+        /// Returns true if redundant_after_merge, false otherwise.  No communication.
+
+        /// If the function is not initialized, returns false.
+        bool is_redundant_after_merge() const {
+            PROFILE_MEMBER_FUNC(Function);
+            return impl ? impl->is_redundant_after_merge() : false;
+        }
 
         /// Returns the number of nodes in the function tree ... collective global sum
         std::size_t tree_size() const {
@@ -496,8 +531,11 @@ namespace madness {
 
         /// print some info about this
         void print_size(const std::string name) const {
-            if (!impl) print("function",name,"not assigned yet");
-            impl->print_size(name);
+            if (!impl) {
+                print("function",name,"not assigned yet");
+            } else {
+                impl->print_size(name);
+            }
         }
 
         /// Returns the maximum depth of the function tree ... collective global sum
@@ -538,7 +576,12 @@ namespace madness {
             return impl->size();
         }
 
-        /// Retunrs
+        /// Return the number of coefficients in the function on this processor
+        std::size_t size_local() const {
+            PROFILE_MEMBER_FUNC(Function);
+            if (!impl) return 0;
+            return impl->size_local();
+        }
 
 
         /// Returns value of autorefine flag.  No communication.
@@ -675,6 +718,8 @@ namespace madness {
         double norm2sq_local() const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
+            MADNESS_CHECK_THROW(is_compressed() or is_reconstructed(),
+                "function must be compressed or reconstructed for norm2sq_local");
             return impl->norm2sq_local();
         }
 
@@ -838,15 +883,6 @@ namespace madness {
         }
 
 
-        /// Get the scaling function coeffs at level n starting from NS form
-        Tensor<T> coeffs_for_jun(Level n, long mode=0) {
-            PROFILE_MEMBER_FUNC(Function);
-            make_nonstandard(true, true);
-            return impl->coeffs_for_jun(n,mode);
-            //return impl->coeffs_for_jun(n);
-        }
-
-
         /// Clears the function as if constructed uninitialized.  Optional fence.
 
         /// Any underlying data will not be freed until the next global fence.
@@ -980,7 +1016,9 @@ namespace madness {
         /// If the functions are not in the wavelet basis an exception is thrown since this routine
         /// is intended to be fast and unexpected compression is assumed to be a performance bug.
         ///
-        /// Returns this for chaining.
+        /// Returns this for chaining, can be in states compressed of redundant_after_merge.
+        ///
+        /// this and other may have different distributions and may even live in different worlds
         ///
         /// this <-- this*alpha + other*beta
         template <typename Q, typename R>
@@ -989,16 +1027,28 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             other.verify();
-            MADNESS_CHECK_THROW(impl->get_tree_state() == other.get_impl()->get_tree_state(),
-                "gaxpy requires both functions to be in the same tree state");
-            bool same_world=this->world().id()==other.world().id();
-            MADNESS_CHECK(same_world or is_compressed());
 
-            if (not same_world) {
-                impl->gaxpy_inplace(alpha,*other.get_impl(),beta,fence);
+            // operation is done either in compressed or reconstructed state
+            TreeState operating_state=this->get_impl()->get_tensor_type()==TT_FULL ? compressed : reconstructed;
+
+            TreeState thisstate=impl->get_tree_state();
+            TreeState otherstate=other.get_impl()->get_tree_state();
+
+            if (operating_state==compressed) {
+                MADNESS_CHECK_THROW(thisstate==compressed, "gaxpy: this must be compressed");
+                MADNESS_CHECK_THROW(otherstate==compressed, "gaxpy: other must be compressed");
+                impl->gaxpy_inplace(alpha, *other.get_impl(), beta, fence);
+
+            } else if (operating_state==reconstructed) {
+                // this works both in reconstructed and redundant_after_merge states
+                MADNESS_CHECK_THROW(thisstate==reconstructed or thisstate==redundant_after_merge,
+                    "gaxpy: this must be reconstructed or redundant_after_merge");
+                MADNESS_CHECK_THROW(otherstate==reconstructed or otherstate==redundant_after_merge,
+                    "gaxpy: other must be reconstructed or redundant_after_merge");
+
+                impl->gaxpy_inplace_reconstructed(alpha,*other.get_impl(),beta,fence);
             } else {
-                if (is_compressed()) impl->gaxpy_inplace(alpha, *other.get_impl(), beta, fence);
-                if (is_reconstructed()) impl->gaxpy_inplace_reconstructed(alpha,*other.get_impl(),beta,fence);
+                MADNESS_EXCEPTION("unknown tree state",1);
             }
             return *this;
         }
@@ -1013,13 +1063,12 @@ namespace madness {
         template <typename Q>
         Function<T,NDIM>& operator+=(const Function<Q,NDIM>& other) {
             PROFILE_MEMBER_FUNC(Function);
-            if (NDIM<=3) {
-                compress();
-                other.compress();
-            } else {
-                reconstruct();
-                other.reconstruct();
-            }
+
+            // do this in reconstructed or compressed form
+            TreeState operating_state=get_impl()->get_tensor_type()==TT_FULL ? compressed : reconstructed;
+            this->change_tree_state(operating_state);
+            other.change_tree_state(operating_state);
+
             MADNESS_ASSERT(impl->get_tree_state() == other.get_impl()->get_tree_state());
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) other.verify_tree();
@@ -1116,11 +1165,23 @@ namespace madness {
         template <typename R>
         TENSOR_RESULT_TYPE(T,R) inner_local(const Function<R,NDIM>& g) const {
             PROFILE_MEMBER_FUNC(Function);
+            bool compressed=is_compressed() and g.is_compressed();
+            bool redundant=is_redundant() and g.is_redundant();
+            MADNESS_CHECK_THROW(compressed or redundant,"functions must be compressed or redundant in inner");
+            if (VERIFY_TREE) verify_tree();
+            if (VERIFY_TREE) g.verify_tree();
+            return impl->inner_local(*(g.get_impl()));
+        }
+
+        /// Returns local part of dot product ... throws if both not compressed
+        template <typename R>
+        TENSOR_RESULT_TYPE(T,R) dot_local(const Function<R,NDIM>& g) const {
+            PROFILE_MEMBER_FUNC(Function);
             MADNESS_ASSERT(is_compressed());
             MADNESS_ASSERT(g.is_compressed());
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) g.verify_tree();
-            return impl->inner_local(*(g.get_impl()));
+            return impl->dot_local(*(g.get_impl()));
         }
 
 
@@ -1262,45 +1323,42 @@ namespace madness {
             if (not g.is_initialized()) return 0.0;
 
             // if this and g are the same, use norm2()
-            if (this->get_impl()==g.get_impl()) {
-                TreeState state=this->get_impl()->get_tree_state();
-                if (not (state==reconstructed or state==compressed)) change_tree_state(reconstructed);
-                double norm=this->norm2();
-                return norm*norm;
+            if constexpr (std::is_same_v<T,R>) {
+              if (this->get_impl() == g.get_impl()) {
+                TreeState state = this->get_impl()->get_tree_state();
+                if (not(state == reconstructed or state == compressed))
+                  change_tree_state(reconstructed);
+                double norm = this->norm2();
+                return norm * norm;
+              }
             }
 
             // do it case-by-case
-            if (this->is_on_demand()) return g.inner_on_demand(*this);
-            if (g.is_on_demand()) return this->inner_on_demand(g);
+            if constexpr (std::is_same_v<R,T>) {
+              if (this->is_on_demand())
+                return g.inner_on_demand(*this);
+              if (g.is_on_demand())
+                return this->inner_on_demand(g);
+            }
 
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) g.verify_tree();
 
-            // compression is more efficient for 3D
-            TreeState state=this->get_impl()->get_tree_state();
-            TreeState gstate=g.get_impl()->get_tree_state();
-            if (NDIM<=3) {
-                change_tree_state(compressed,false);
-                g.change_tree_state(compressed,false);
-                impl->world.gop.fence();
-           }
+            // compute in compressed form if compression is fast, otherwise in redundant form
+            TreeState operating_state=get_impl()->get_tensor_type()==TT_FULL ? compressed : redundant;
 
-            if (this->is_compressed() and g.is_compressed()) {
-            } else {
-                change_tree_state(redundant,false);
-                g.change_tree_state(redundant,false);
-                impl->world.gop.fence();
-            }
-
+            change_tree_state(operating_state,false);
+            g.change_tree_state(operating_state,false);
+            impl->world.gop.fence();
 
             TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*g.get_impl());
             impl->world.gop.sum(local);
             impl->world.gop.fence();
 
-            // restore state
-            change_tree_state(state,false);
-            g.change_tree_state(gstate,false);
-            impl->world.gop.fence();
+            // restore state -- no need for this
+            // change_tree_state(state,false);
+            // g.change_tree_state(gstate,false);
+            // impl->world.gop.fence();
 
             return local;
         }
@@ -2101,8 +2159,10 @@ namespace madness {
             result.get_impl()->recursive_apply(op, f1[i].get_impl().get(),f2[i].get_impl().get(),false);
         world.gop.fence();
 
-        result.get_impl()->print_timer();
-        op.print_timer();
+        if (op.print_timings) {
+            result.get_impl()->print_timer();
+            op.print_timer();
+        }
 
 		result.get_impl()->finalize_apply();	// need fence before reconstruct
 
@@ -2221,7 +2281,8 @@ namespace madness {
             	ff.world().gop.fence();
             	ff.clear();
             } else {
-            	ff.standard();
+            	// ff.standard();
+            	ff.reconstruct();
             }
 
     	}
@@ -2724,6 +2785,31 @@ namespace madness {
         return unary_op(z, detail::absop<NDIM>(), fence);
     }
 
+    /// get tree state of a function
+
+    /// there is a corresponding function in vmra.h
+    /// @param[in]  f   function
+    /// @return TreeState::unknown if the function is not initialized
+    template <typename T, std::size_t NDIM>
+    TreeState get_tree_state(const Function<T,NDIM>& f) {
+        if (f.is_initialized()) return f.get_impl()->get_tree_state();
+        return TreeState::unknown;
+    }
+
+    /// change tree state of a function
+
+    /// there is a corresponding function in vmra.h
+    /// return this for chaining
+    /// @param[in]  f   function
+    /// @param[in]  finalstate  the new state
+    /// @return this in the requested state
+    template <typename T, std::size_t NDIM>
+    const Function<T,NDIM>& change_tree_state(const Function<T,NDIM>& f,
+            const TreeState finalstate, bool fence=true) {
+        return f.change_tree_state(finalstate,fence);
+    }
+
+
 }
 
 #include <madness/mra/funcplot.h>
@@ -2766,6 +2852,15 @@ namespace madness {
 
     template<typename T, std::size_t NDIM>
     struct is_madness_function<madness::Function<T, NDIM>> : std::true_type {};
+
+    template<typename>
+    struct is_madness_function_vector : std::false_type {
+    };
+
+    template<typename T, std::size_t NDIM>
+    struct is_madness_function_vector<std::vector<typename madness::Function<T, NDIM>>> : std::true_type {
+};
+
 }
 
 

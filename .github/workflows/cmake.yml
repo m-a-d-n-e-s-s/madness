@@ -13,11 +13,12 @@ jobs:
       fail-fast: false
       matrix:
         build_type : [ Release, Debug ]
-        os : [ macos-latest, ubuntu-20.04 ]
+        os : [ macos-latest, ubuntu-24.04 ]
         task_backend : [Threads, OneTBB, PaRSEC]  # OneTBB and LegacyTBB control which version of TBB to install
         include:
-          - os: ubuntu-20.04
-            cxx: /usr/bin/g++-9
+          - os: ubuntu-24.04
+            # gcc 14 causes build issues in code that uses RapidJSON: https://github.com/Tencent/rapidjson/issues/2277
+            cxx: /usr/bin/g++-13
           - os: macos-latest
             cxx: clang++
 
@@ -40,11 +41,12 @@ jobs:
         -DMPIEXEC_PREFLAGS='--bind-to;none;--allow-run-as-root'
         -DBUILD_TESTING=ON
         -DMADNESS_ENABLE_CEREAL=ON
+        -DCMAKE_CXX_STANDARD=${{ matrix.task_backend == 'Threads' && matrix.build_type == 'Debug' && '20' || '17' }}
         -DMADNESS_BUILD_MADWORLD_ONLY=${{ matrix.task_backend != 'Threads' }}
-        -DMADNESS_BUILD_LIBRARIES_ONLY=${{ matrix.build_type != 'Debug' }}
+        -DMADNESS_BUILD_LIBRARIES_ONLY=${{ matrix.build_type == 'Debug' }}
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
     - name: Create Build Environment
       # Some projects don't allow in-source building, so create a separate build directory
@@ -64,12 +66,14 @@ jobs:
         fi
         if [ "X${{ matrix.task_backend }}" = "XPaRSEC" ]; then
           echo "TASK_BACKEND=PaRSEC" >> $GITHUB_ENV
+          # do not bind threads to cores to avoid oversubscription
+          echo "PARSEC_MCA_bind_threads=0" >> $GITHUB_ENV
         fi
 
     - name: Install prerequisite MacOS packages
       if: ${{ matrix.os == 'macos-latest' }}
       run: |
-        brew install ninja gcc@11 boost eigen open-mpi bison ccache
+        brew install ninja boost eigen open-mpi bison ccache
         if [ "X${{ matrix.task_backend }}" = "XLegacyTBB" ]; then
           brew install tbb@2020
           echo "TBBROOT=/usr/local/opt/tbb@2020" >> $GITHUB_ENV
@@ -80,10 +84,10 @@ jobs:
         fi
 
     - name: Install prerequisites Ubuntu packages
-      if: ${{ matrix.os == 'ubuntu-20.04' }}
+      if: ${{ matrix.os == 'ubuntu-24.04' }}
       run: |
         sudo apt-get update
-        sudo apt-get install ninja-build g++-9 liblapack-dev libboost-dev libboost-serialization-dev libeigen3-dev openmpi-bin libopenmpi-dev ccache
+        sudo apt-get install ninja-build g++-13 liblapack-dev libboost-dev libboost-serialization-dev libeigen3-dev openmpi-bin libopenmpi-dev ccache
         if [ "X${{ matrix.task_backend }}" = "XOneTBB" ]; then
           wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB -O - | sudo apt-key add -
           sudo add-apt-repository "deb https://apt.repos.intel.com/oneapi all main"
@@ -105,7 +109,7 @@ jobs:
         message("::set-output name=timestamp::${current_date}")
 
     - name: Setup ccache cache files
-      uses: actions/cache@v1.1.0
+      uses: actions/cache@v4
       with:
         path: ${{github.workspace}}/build/.ccache
         key: ${{ matrix.config.name }}-ccache-${{ steps.ccache_cache_timestamp.outputs.timestamp }}

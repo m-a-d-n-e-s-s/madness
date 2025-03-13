@@ -95,6 +95,7 @@ namespace madness {
 	inline static thread_local T prebuf[NPREBUF] = {T{}}; // relies on this being a singleton class!!!!!!!!!!!!!!!!!!
 	inline static thread_local T prebufhi[NPREBUF] = {T{}}; // relies on this being a singleton class!!!!!!!!!!!!!!!!!!
 	inline static thread_local size_t ninprebuf = 0, ninprebufhi = 0;
+        static auto prebuf_info() { return std::make_tuple(ninprebuf, prebuf, ninprebufhi, prebufhi); }
 #endif
 
         void grow() {
@@ -190,18 +191,31 @@ namespace madness {
             //broadcast();
         }
 
-	void flush_prebuf() {
+	void flush_prebufhi() {
 #ifdef MADNESS_DQ_USE_PREBUF
-	  if (ninprebuf) {
-	    for (size_t i=0; i<ninprebuf; i++) push_back_with_lock(prebuf[i]);
-	    ninprebuf = 0;
-	  }
-	  if (ninprebufhi) {
-	    for (size_t i=0; i<ninprebufhi; i++) push_front_with_lock(prebufhi[i]);
-	    ninprebufhi = 0;
-	  }
+          if (ninprebufhi) {
+            // in reverse order of insertion
+            for (size_t i=ninprebufhi; i!=0;) {
+              push_front_with_lock(prebufhi[--i]);
+            }
+            ninprebufhi = 0;
+          }
 #endif
 	}
+
+        void flush_prebuflo() {
+#ifdef MADNESS_DQ_USE_PREBUF
+          if (ninprebuf) {
+            for (size_t i=0; i<ninprebuf; i++) push_back_with_lock(prebuf[i]);
+            ninprebuf = 0;
+          }
+#endif
+        }
+
+        void flush_prebuf() {
+          flush_prebufhi();
+          flush_prebuflo();
+        }
 
     public:
 
@@ -337,6 +351,7 @@ namespace madness {
     template <typename T>
     void DQueue<T>::lock_and_flush_prebuf() {
 #ifdef MADNESS_DQ_USE_PREBUF
+        MADNESS_ASSERT(ninprebufhi <= NPREBUF && ninprebuf <= NPREBUF);
         if (ninprebuf+ninprebufhi) {
              madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
              flush_prebuf();
@@ -351,10 +366,12 @@ namespace madness {
              prebufhi[ninprebufhi++] = value;
              return;
         }
+        MADNESS_ASSERT(ninprebufhi <= NPREBUF && ninprebuf <= NPREBUF);
 #endif
         {
              madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
              push_front_with_lock(value);
+             flush_prebufhi();
         }
     }
 
@@ -365,6 +382,7 @@ namespace madness {
              prebuf[ninprebuf++] = value;
              return;
         }
+        MADNESS_ASSERT(ninprebufhi <= NPREBUF && ninprebuf <= NPREBUF);
 #endif
         {
              madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);

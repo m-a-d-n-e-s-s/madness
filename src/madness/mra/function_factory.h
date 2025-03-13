@@ -170,6 +170,13 @@ public:
         return self();
     }
 
+    FunctionFactory& treestate(const TreeState state) {
+        MADNESS_CHECK_THROW(((state==reconstructed) or (state==TreeState::compressed)),
+                            "treestate must be either reconstructed or compressed in FunctionFactory");
+        _tree_state = state;
+        return self();
+    }
+
     FunctionFactory&
     no_functor() {
         _functor.reset();
@@ -206,7 +213,7 @@ public:
     }
 
     FunctionFactory&
-    special_points(std::vector<Vector<double, NDIM> >& special_points) {
+    special_points(const std::vector<Vector<double, NDIM> >& special_points) {
         _special_points = special_points;
         return self();
     }

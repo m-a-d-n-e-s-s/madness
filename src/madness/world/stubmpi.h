@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <madness/world/madness_exception.h>
 #include <madness/world/timers.h>
 
 typedef int MPI_Group;
@@ -27,6 +28,8 @@ typedef int MPI_Comm;
 typedef int MPI_Errhandler;
 
 typedef int MPI_Info;
+
+typedef std::ptrdiff_t MPI_Aint;
 
 /* MPI's error classes */
 /* these constants are consistent with MPICH2 mpi.h */
@@ -85,6 +88,48 @@ typedef int MPI_Datatype;
 #define MPI_LONG_LONG_INT      ((MPI_Datatype)0x4c000809)
 #define MPI_UNSIGNED_LONG_LONG ((MPI_Datatype)0x4c000819)
 #define MPI_LONG_LONG          ((MPI_Datatype)0x4c000809)
+
+inline int MPI_Type_get_extent(MPI_Datatype datatype, MPI_Aint *lb,
+                               MPI_Aint *extent) {
+  switch(datatype) {
+  case MPI_CHAR:
+    *extent = sizeof(char); break;
+  case MPI_SIGNED_CHAR:
+    *extent = sizeof(signed char); break;
+  case MPI_UNSIGNED_CHAR:
+    *extent = sizeof(unsigned char); break;
+  case MPI_BYTE:
+    *extent = 1; break;
+  case MPI_WCHAR:
+    *extent = sizeof(wchar_t); break;
+  case MPI_SHORT:
+    *extent = sizeof(short); break;
+  case MPI_UNSIGNED_SHORT:
+    *extent = sizeof(unsigned short); break;
+  case MPI_INT:
+    *extent = sizeof(int); break;
+  case MPI_UNSIGNED:
+    *extent = sizeof(unsigned); break;
+  case MPI_LONG:
+    *extent = sizeof(long); break;
+  case MPI_UNSIGNED_LONG:
+    *extent = sizeof(unsigned long); break;
+  case MPI_FLOAT:
+    *extent = sizeof(float); break;
+  case MPI_DOUBLE:
+    *extent = sizeof(double); break;
+  case MPI_LONG_DOUBLE:
+    *extent = sizeof(long double); break;
+  case MPI_LONG_LONG_INT: // same as MPI_LONG_LONG
+    *extent = sizeof(long long int); break;
+  case MPI_UNSIGNED_LONG_LONG:
+    *extent = sizeof(unsigned long long); break;
+  default:
+    *extent = MPI_UNDEFINED;
+  }
+  *lb = 0;
+  return MPI_SUCCESS;
+}
 
 /* MPI Reduction operation */
 /* these constants are consistent with MPICH2 mpi.h */
@@ -168,6 +213,29 @@ inline int MPI_Ssend(void*, int, MPI_Datatype, int, int, MPI_Comm) { return MPI_
 inline int MPI_Bsend(void*, int, MPI_Datatype, int, int, MPI_Comm) { return MPI_ERR_COMM; }
 inline int MPI_Irecv(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Request*) { return MPI_ERR_COMM; }
 inline int MPI_Recv(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Status*) { return MPI_ERR_COMM; }
+
+// Gather = copy
+inline int MPI_Gatherv(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
+                void *recvbuf, const int recvcounts[], const int displs[], MPI_Datatype recvtype,
+                int root, MPI_Comm) {
+  MPI_Aint recvtype_extent;
+  MPI_Aint recvtype_lb;
+  MPI_Type_get_extent(recvtype, &recvtype_lb, &recvtype_extent);
+  MADNESS_ASSERT(recvtype_lb == 0);
+  MPI_Aint sendtype_extent;
+  MPI_Aint sendtype_lb;
+  MPI_Type_get_extent(sendtype, &sendtype_lb, &sendtype_extent);
+  MADNESS_ASSERT(sendtype_lb == 0);
+  MADNESS_ASSERT(sendcount * sendtype_extent <= recvcounts[0] * recvtype_extent);
+  std::memcpy(recvbuf, sendbuf, sendcount * sendtype_extent);
+  return MPI_SUCCESS;
+}
+inline int MPI_Gather(const void *sendbuf, int sendcount, MPI_Datatype sendtype,
+               void *recvbuf, int recvcount, MPI_Datatype recvtype, int root, MPI_Comm comm) {
+  const int recvcounts[1] = {recvcount};
+  const int displs[1] = {0};
+  return MPI_Gatherv(sendbuf, sendcount, sendtype, recvbuf, recvcounts, displs, recvtype, root, comm);
+}
 
 // Bcast does nothing but return MPI_SUCCESS
 inline int MPI_Bcast(void*, int, MPI_Datatype, int, MPI_Comm) { return MPI_SUCCESS; }

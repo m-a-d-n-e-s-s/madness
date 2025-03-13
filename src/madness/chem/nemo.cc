@@ -50,6 +50,7 @@
 #include<madness/chem/BSHApply.h>
 #include<madness/chem/localizer.h>
 #include <madness/mra/macrotaskq.h>
+#include <madness/mra/memory_measurement.h>
 
 
 using namespace madchem;
@@ -307,7 +308,7 @@ tensorT Nemo::compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) cons
     fock+=T(R2nemo,nemo);
     JKUpsi.clear();
 
-	return fock;
+	return 0.5*(fock+transpose(fock));
 }
 
 /// solve the HF equations
@@ -329,12 +330,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 	bool localized=param.do_localize();
 	real_function_3d density=real_factory_3d(world); 	// for testing convergence
 
-//	typedef vector_function_allocator<double, 3> allocT;
-//	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
-//	allocT alloc(world, nemo.size());
-//	solverT solver(allocT(world, nemo.size()));
     auto solver= nonlinear_vector_solver<double,3>(world,nemo.size());
-
 
 	// iterate the residual equations
 	for (int iter = 0; iter < param.maxiter(); ++iter) {
@@ -345,6 +341,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 	    if (world.rank()==0 and param.print_level()>9) print("orbital irreps",str_irreps);
 	    vecfuncT R2nemo=mul(world,R_square,nemo);
 	    truncate(world,R2nemo);
+        if (iter==0) solver.initialize(nemo);
 
 		// compute potentials the Fock matrix: J - K + Vnuc
 		compute_nemo_potentials(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo);
@@ -381,7 +378,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 
             nemo = transform(world, nemo, U, trantol(), true);
             Vnemo = transform(world, Vnemo, U, trantol(), true);
-            rotate_subspace(world, U, solver, 0, nemo.size());
+            // rotate_subspace(world, U, solver, 0, nemo.size());
 
             truncate(world, nemo);
             normalize(nemo,R);
@@ -395,14 +392,19 @@ double Nemo::solve(const SCFProtocol& proto) {
         timer t_bsh(world,param.print_level()>2);
 		BSHApply<double,3> bsh_apply(world);
 		bsh_apply.metric=R_square;
+		bsh_apply.ret_value=BSHApply<double,3>::update;
 		bsh_apply.lo=get_calc()->param.lo();
 		bsh_apply.levelshift=param.orbitalshift();
-		auto [residual,eps_update] =bsh_apply(nemo,fock,Vnemo);
+		auto [update,eps_update] =bsh_apply(nemo,fock,Vnemo);
+	    auto residual=nemo-update;
 		t_bsh.tag("BSH apply");
 
 		const double bsh_norm = norm2(world, residual) / sqrt(nemo.size());
 
-		vecfuncT nemo_new = truncate(solver.update(nemo, residual));
+        MemoryMeasurer::measure_and_print(world);
+
+		// vecfuncT nemo_new = truncate(solver.update(nemo, residual));
+		vecfuncT nemo_new = truncate(solver.update(update));
         t_bsh.tag("solver.update");
 		normalize(nemo_new,R);
 
@@ -534,6 +536,7 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
             Knemo = zero_functions_compressed<double, 3>(world, nemo.size());
             if (calc->xc.hf_exchange_coefficient() > 0.0) {
                 Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin).set_symmetric(true).set_taskq(taskq);
+	            K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient_row);
                 Knemo = K(nemo);
             }
             t.tag("initialize K operator");
@@ -1094,7 +1097,7 @@ vecfuncT Nemo::make_cphf_constant_term(const size_t iatom, const int iaxis,
     const int nmo=nemo.size();
 
     const Tensor<double> occ=get_calc()->get_aocc();
-    QProjector<double,3> Q(world,R2nemo,nemo);
+    QProjector<double,3> Q(R2nemo,nemo);
 
     DNuclear<double,3> Dunuc(world,this,iatom,iaxis);
     vecfuncT Vpsi2b=Dunuc(nemo);
@@ -1162,14 +1165,14 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
 
     vecfuncT R2nemo=mul(world,R_square,nemo);
     truncate(world,R2nemo);
-    QProjector<double,3> Q(world,R2nemo,nemo);
+    QProjector<double,3> Q(R2nemo,nemo);
 
     // construct quantities that are independent of xi
 
     // construct the BSH operator
     tensorT eps(nmo);
     for (int i = 0; i < nmo; ++i) eps(i) = fock(i, i);
-    std::vector<poperatorT> bsh = calc->make_bsh_operators(world, eps);
+    std::vector<poperatorT> bsh = calc->make_bsh_operators(world, eps,param);
     for (poperatorT& b : bsh) b->destructive()=true;    // make it memory efficient
 
     // derivative of the (regularized) nuclear potential
@@ -1327,7 +1330,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
     const int nmo=nemo.size();
     tensorT eps(nmo);
     for (int i = 0; i < nmo; ++i) eps(i) = fock(i, i);
-    std::vector<poperatorT> bsh = calc->make_bsh_operators(world, eps);
+    std::vector<poperatorT> bsh = calc->make_bsh_operators(world, eps,param);
     t1.tag("make fock matrix");
 
     // construct the leading and constant term rhs involving the derivative

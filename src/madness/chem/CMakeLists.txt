@@ -51,6 +51,7 @@ set(MADCHEM_HEADERS
     potentialmanager.h
     projector.h
     QCPropertyInterface.h
+    SAP.h
     SCF.h
     SCFOperators.h
     SCFProtocol.h
@@ -88,7 +89,9 @@ set(MADCHEM_SOURCES
     oep.cc
     pcm.cc
     pointgroupsymmetry.cc
+    potentialmanager.cc
     polynomial.cc
+    SAP.cc
     SCF.cc
     SCFOperators.cc
     TDHF.cc
@@ -97,9 +100,6 @@ set(MADCHEM_SOURCES
     znemo.cc
     PNO.cpp  PNOF12Potentials.cpp  PNOGuessFunctions.cpp  PNOParameters.cpp  PNOStructures.cpp
 )
-# these source files require specific header order inclusion ... just skip them from unity build for now
-set_source_files_properties(PNO.cpp  PNOF12Potentials.cpp  PNOGuessFunctions.cpp  PNOParameters.cpp  PNOStructures.cpp SCFOperators.cc
-        PROPERTIES SKIP_UNITY_BUILD_INCLUSION TRUE)
 if(LIBXC_FOUND)
   list(APPEND MADCHEM_SOURCES xcfunctional_libxc.cc)
 else()
@@ -108,6 +108,9 @@ endif()
 
 # Create the MADchem library
 add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "madness/chem/")
+
+  # N.B. MADchem too flaky for unity builds
+  set_target_properties(MADchem-obj PROPERTIES UNITY_BUILD FALSE)
 
   set(targetname MADchem)
 
@@ -130,8 +133,7 @@ add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "madness/chem/")
   endif ()
 
   if (BOOST_FOUND)
-    target_include_directories(${targetname} PUBLIC ${BOOST_INCLUDE_DIRS})
-    target_link_libraries(${targetname} PUBLIC ${BOOST_LIBRARIES})
+    target_link_libraries(${targetname} PUBLIC Boost::headers)
   endif ()
 
 # Add executables

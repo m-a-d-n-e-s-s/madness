@@ -366,7 +366,7 @@ namespace madness {
     /// included in this class a value. If a future is assigned
     /// before a copy/remote-reference is taken, the shared pointer is
     /// never made. The point of this is to eliminate the two `malloc`s
-    /// that must be peformed for every new \c shared_ptr.
+    /// that must be performed for every new \c shared_ptr.
     /// \tparam T The type of future.
     /// \todo Can this detailed description be made clearer?
     template <typename T>
@@ -1052,7 +1052,11 @@ namespace madness {
     /// \return The output stream.
     template <typename T>
     inline std::ostream& operator<<(std::ostream& out, const Future<T>& f) {
-        if (f.probe()) out << f.get();
+        if (f.probe()) {
+          if constexpr (is_ostreammable_v<T>) {
+            out << f.get();
+          }
+        }
         else if (f.is_remote()) out << f.f->remote_ref;
         else if (f.f) out << "<unassigned refcnt=" << f.f.use_count() << ">";
         else out << "<unassigned>";

@@ -380,15 +380,15 @@ private:
 public:
     Gaussian_Functor(GaussianFunction func, std::vector<madness::coord_3d> centers) : func(func), centers(centers) {}
 
-    double operator()(const madness::coord_3d& r) const {
+    double operator()(const madness::coord_3d& r) const final {
         return func(r);
     }
    
-    std::vector<madness::coord_3d> special_points() const {
+    std::vector<madness::coord_3d> special_points() const final {
        return centers;       
     }
 
-    madness::Level special_level() {
+    madness::Level special_level() const final {
        // From Robert: 
        // Pick initial level such that average gap between quadrature points
        // will find a significant value

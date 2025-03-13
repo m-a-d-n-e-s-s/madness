@@ -125,8 +125,13 @@ Tensor<T> Localizer::compute_core_valence_separation_transformation_matrix(World
     Tensor<T> fnew = inner(U, inner(Fock, U, 1, 0), 0, 0);
     bool success = check_core_valence_separation(fnew, mo_in.get_localize_sets());
     if (not success) {
-        print("fnew in compute_core_valence_separation_transformation_matrix");
-        print(fnew);
+        for (int i=0; i<world.size(); ++i) {
+            if (world.rank()==i) {
+                print("fnew in compute_core_valence_separation_transformation_matrix");
+                print(fnew);
+            }
+            world.gop.fence();
+        }
     }
     MADNESS_CHECK(success);
     return U;
@@ -142,10 +147,18 @@ bool Localizer::check_core_valence_separation(const Tensor<T>& Fock, const std::
     bool success = (error < FunctionDefaults<3>::get_thresh() * 5.0);
     if (silent) return success;
     if (not success) {
-        print("faulty localization: core-valence separation requested but Fock matrix not block diagonal");
-        print("error norm", error);
-        print("max error", F.absmax());
-        print(Fock);
+        World& world=World::get_default();
+        for (int i=0; i<world.size(); ++i) {
+            if (world.rank()==i) {
+                print("faulty localization: core-valence separation requested but Fock matrix not block diagonal");
+                std::cout << std::scientific << std::setprecision(8);
+                print("error norm", error);
+                print("F, rank",world.rank());
+                print(F);
+            }
+            world.gop.fence();
+        }
+        // print(Fock);
     }
     return success;
 }

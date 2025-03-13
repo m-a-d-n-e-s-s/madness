@@ -36,7 +36,7 @@ int test_projector(World& world) {
     // P1 and P2 project onto orthogonal subspaces
     Projector<T,NDIM> P1(pspace1);
     Projector<T,NDIM> P2(pspace2);
-    QProjector<T,NDIM> Q1(world,pspace1);
+    QProjector<T,NDIM> Q1(pspace1);
 
     // set up trial function
     auto trial1=[](const Vector<double,NDIM>& r){return inner(r,r)*exp(-inner(r,r));};
@@ -69,6 +69,44 @@ int test_projector(World& world) {
 
 
 
+
+    return t1.end();
+}
+
+template<typename T, std::size_t NDIM>
+int test_projector_outer(World& world) {
+    test_output t1("testing projector_outer for dimension " + std::to_string(NDIM));
+    constexpr std::size_t LDIM=NDIM/2;
+    static_assert(2*LDIM==NDIM);
+
+    auto g1=[](const Vector<double,LDIM>& r){return exp(-inner(r,r));};
+    auto g_hidim=[](const Vector<double,NDIM>& r){return 2.0*exp(-3.0*inner(r,r));};
+    Function<double,LDIM> f1=FunctionFactory<double,LDIM>(world).f(g1);
+    Function<double,NDIM> f_hidim=FunctionFactory<double,NDIM>(world).f(g_hidim);
+
+
+    // compare explicit SO projector Q12 and outer product projector Q1Q2
+    StrongOrthogonalityProjector<double,LDIM> Q1(world);
+    Q1.set_spaces({f1});
+
+    QProjector<double,LDIM> q({f1});
+    auto Q2=outer(q,q);
+
+    auto Q1f=Q1(f_hidim);
+    auto Q2f=Q2(f_hidim);
+    double err=(Q1f-Q2f).norm2();
+    print("error",err);
+    double norm1=Q1f.norm2();
+    double norm2=Q2f.norm2();
+    print("norm1/2",norm1,norm2);
+    double trace1=Q1f.trace();
+    double trace2=Q2f.trace();
+    print("trace1/2",trace1,trace2);
+
+    t1.checkpoint(norm1-norm2,FunctionDefaults<NDIM>::get_thresh(),"Q1 direct and Q2 outer are the same");
+    t1.checkpoint(trace1-trace2,FunctionDefaults<NDIM>::get_thresh(),"Q1 direct and Q2 outer are the same");
+    // loosen threshold due to outer product
+    t1.checkpoint(err,FunctionDefaults<NDIM>::get_thresh()*3.0,"Q1 direct and Q2 outer are the same");
 
     return t1.end();
 }
@@ -128,8 +166,8 @@ int test_Q12_projector(World& world) {
     // SO(f) = f - O1(f) - O2(f) + O1O2(f)
     Projector<T,LDIM> O1(vphi);
     Projector<T,LDIM> O2(vphi);
-    O1.set_particle(1);
-    O2.set_particle(2);
+    O1.set_particle(0);
+    O2.set_particle(1);
     Function<T,NDIM> f3=f-O1(f)-O2(f)+O1(O2(f));
     double err1=(f1-f3).norm2()/f.norm2();
     print("err1",err1);
@@ -190,6 +228,8 @@ int main(int argc, char**argv) {
         error+=test_projector<double,2>(world);
         error+=test_projector<double,3>(world);
         error+=test_projector<double,4>(world);
+
+        error+=test_projector_outer<double,2>(world);
 
         if (HAVE_GENTENSOR) {
             error+=test_Q12_projector<double,2>(world);

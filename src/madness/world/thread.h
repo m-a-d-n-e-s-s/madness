@@ -45,6 +45,8 @@
 #include <cstddef>
 #include <cstdio>
 #include <pthread.h>
+
+#include <functional>
 #include <type_traits>
 #include <typeinfo>
 #include <new>
@@ -93,6 +95,10 @@ namespace madness {
     class WorldTaskQueue;
     class AtomicInt;
     void error(const char *msg);
+
+    /// purges tasks from this thread (if any) so that it's safe to make blocking calls from it
+    /// @note this is only needed for the Pthreads backend
+    inline void thread_purge();
 
     class ThreadBinder {
       static const size_t maxncpu = 1024;
@@ -369,29 +375,32 @@ namespace madness {
         /// Sets the generator attribute.
 
         /// \param[in] generator_hint The new value for the generator attribute.
-        void set_generator(bool generator_hint) {
+        TaskAttributes& set_generator(bool generator_hint) {
             if (generator_hint)
                 flags |= GENERATOR;
             else
                 flags &= ~GENERATOR;
+            return *this;
         }
 
         /// Sets the stealable attribute.
 
         /// \param[in] stealable The new value for the stealable attribute.
-        void set_stealable(bool stealable) {
+        TaskAttributes& set_stealable(bool stealable) {
             if (stealable) flags |= STEALABLE;
             else flags &= ~STEALABLE;
+            return *this;
         }
 
         /// Sets the high priority attribute.
 
         /// \param[in] hipri The new value for the high priority attribute.
-        void set_highpriority(bool hipri) {
+        TaskAttributes& set_highpriority(bool hipri) {
             if (hipri)
                 flags |= HIGHPRIORITY;
             else
                 flags &= ~HIGHPRIORITY;
+            return *this;
         }
 
         /// Set the number of threads.
@@ -1444,6 +1453,9 @@ namespace madness {
             const double timeout = await_timeout;
             int counter = 0;
 
+            // if dowork=false must manually purge threal-local tasks to ensure progress
+            if (!dowork) thread_purge();
+
             MutexWaiter waiter;
             while (!probe()) {
 
@@ -1532,6 +1544,35 @@ namespace madness {
     }
 
     /// @}
-}
+
+    inline void thread_purge() {
+#if !(defined(HAVE_PARSEC) || defined(HAVE_INTEL_TBB))
+      MADNESS_ASSERT(is_madness_thread());
+      ThreadPool::instance()->flush_prebuf();
+#endif
+    }
+
+    template<class F, class... Args>
+    constexpr decltype(auto) blocking_invoke(F&& f, Args&&... args)
+        noexcept(std::is_nothrow_invocable_v<F, Args...>) {
+      thread_purge();
+      return std::invoke(std::forward<F>(f), std::forward<Args>(args)...);
+    }
+
+    template<class R, class F, class... Args>
+    constexpr R blocking_invoke_r(F&& f, Args&&... args)
+        noexcept(std::is_nothrow_invocable_v<F, Args...>) {
+      thread_purge();
+#if __cplusplus < 202302L
+      if constexpr (std::is_void_v<R>)
+        std::invoke(std::forward<F>(f), std::forward<Args>(args)...);
+      else
+        return std::invoke(std::forward<F>(f), std::forward<Args>(args)...);
+#else
+      return std::invoke_r<R>(std::forward<F>(f), std::forward<Args>(args)...);
+#endif
+    }
+
+}  // namespace madness
 
 #endif // MADNESS_WORLD_THREAD_H__INCLUDED

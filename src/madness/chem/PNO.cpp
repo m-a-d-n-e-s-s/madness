@@ -781,7 +781,7 @@ PNOPairs PNO::initialize_pairs(PNOPairs& pairs, const GuessType& inpgt) const {
 				vector_real_function_3d& pno = pno_ij[it.ij()];
 				if (not pno.empty()) {
 					msg << it.name() << ": pnos not empty ... project out and assemble\n";
-					QProjector<double, 3> Qpno(world, pno, pno);
+					QProjector<double, 3> Qpno( pno, pno);
 					pno = append(pno, Qpno(virtuals));
 				} else
 					pno = append(pno, virtuals);
@@ -814,7 +814,7 @@ PNOPairs PNO::initialize_pairs(PNOPairs& pairs, const GuessType& inpgt) const {
 			}
 			vector_real_function_3d virtij = guess_virtuals(pair_mo, guesstype);
 			if (not pno.empty()) {
-				QProjector<double, 3> Qpno(world, pno, pno);
+				QProjector<double, 3> Qpno( pno, pno);
 				virtij = Qpno(virtij);
 			}
 
@@ -1574,7 +1574,7 @@ PNOPairs PNO::grow_rank(PNOPairs& pairs, std::string exop)const{
 				vector_real_function_3d virtij = Q(basis.guess_with_exop(pair_mo, exop,param.exop_trigo()));// guess_virtuals(pair_mo, EXOP_TYPE);
 				// project out already existing pno pairs
 				if (not pairs.pno_ij[it.ij()].empty()) {
-					QProjector<double, 3> Qpno(world, pairs.pno_ij[it.ij()], pairs.pno_ij[it.ij()]);
+					QProjector<double, 3> Qpno(pairs.pno_ij[it.ij()], pairs.pno_ij[it.ij()]);
 					virtij = Qpno(virtij);
 
 				}

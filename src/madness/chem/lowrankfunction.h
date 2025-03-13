@@ -271,8 +271,9 @@ namespace madness {
     public:
         /// ctor takes centers of the grid and the grid parameters
         molecular_grid(const std::vector<Vector<double,NDIM>> origins, const LowRankFunctionParameters& params)
-            : centers(origins) {
-            if (centers.size()==0) centers.push_back(Vector<double,NDIM>(0));
+            : centers(origins)
+        {
+            if (centers.size()==0) centers.push_back(Vector<double,NDIM>(0) );
             if (params.gridtype()=="random") grid_builder=std::make_shared<randomgrid<NDIM>>(params.volume_element(),params.radius());
             // else if (params.gridtype()=="cartesian") grid_builder=std::make_shared<cartesian_grid<NDIM>>(params.volume_element(),params.radius());
             else if (params.gridtype()=="dftgrid") {

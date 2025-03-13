@@ -106,7 +106,10 @@ struct Recordlist {
         } else if constexpr (std::is_pointer_v<T> && has_member_id<std::remove_pointer_t<T>>::value) {
             return hash_value(arg->id());
         } else {
-            return hash_value(arg);
+            // compute hash_code for fundamental types
+            std::size_t hashtype = typeid(T).hash_code();
+            hash_combine(hashtype,hash_value(arg));
+            return hashtype;
         }
     }
 
@@ -157,7 +160,7 @@ public:
     typedef Recordlist<keyT> recordlistT;
 
 private:
-    madness::WorldContainer<keyT, valueT> container;
+    mutable madness::WorldContainer<keyT, valueT> container;
     cacheT cached_objects;
     recordlistT local_list_of_container_keys;   // a world-local list of keys occupied in container
 
@@ -190,12 +193,17 @@ public:
     void print_size(World& universe) {
 
         std::size_t memsize=0;
-        for (auto& item : container) memsize+=item.second.size();
+        std::size_t max_record_size=0;
+        for (auto& item : container) {
+            memsize+=item.second.size();
+            max_record_size=std::max(max_record_size,item.second.size());
+        }
         std::size_t global_memsize=memsize;
         std::size_t max_memsize=memsize;
         std::size_t min_memsize=memsize;
         universe.gop.sum(global_memsize);
         universe.gop.max(max_memsize);
+        universe.gop.max(max_record_size);
         universe.gop.min(min_memsize);
 
         auto local_size=container.size();
@@ -207,13 +215,15 @@ public:
             print("Cloud memory:");
             print("  replicated:",is_replicated);
             print("size of cloud (total)");
-            print("  number of records:",global_size);
-            print("  memory in GBytes: ",global_memsize*byte2gbyte);
+            print("  number of records:        ",global_size);
+            print("  memory in GBytes:         ",global_memsize*byte2gbyte);
             print("size of cloud (average per node)");
-            print("  number of records:",double(global_size)/universe.size());
-            print("  memory in GBytes: ",global_memsize*byte2gbyte/universe.size());
+            print("  number of records:        ",double(global_size)/universe.size());
+            print("  memory in GBytes:         ",global_memsize*byte2gbyte/universe.size());
             print("min/max of node");
-            print("  memory in GBytes: ",min_memsize*byte2gbyte,max_memsize*byte2gbyte);
+            print("  memory in GBytes:         ",min_memsize*byte2gbyte,max_memsize*byte2gbyte);
+            print("  max record size in GBytes:",max_record_size*byte2gbyte);
+
         }
     }
 
@@ -252,11 +262,14 @@ public:
     void clear_timings() {
         reading_time=0l;
         writing_time=0l;
+        writing_time1=0l;
         replication_time=0l;
         cache_stores=0l;
         cache_reads=0l;
     }
 
+    /// @param[in]  world the subworld the objects are loaded to
+    /// @param[in]  recordlist the list of records where the objects are stored
 
     /// load a single object from the cloud, recordlist is kept unchanged
     template<typename T>
@@ -266,6 +279,18 @@ public:
 
         // forward_load will consume the recordlist while loading elements
         return forward_load<T>(world, rlist);
+    }
+
+    /// similar to load, but will consume the recordlist
+
+    /// @param[in]  world the subworld the objects are loaded to
+    /// @param[in]  recordlist the list of records where the objects are stored
+    template<typename T>
+    T consuming_load(madness::World &world, recordlistT& recordlist) const {
+        cloudtimer t(world, reading_time);
+
+        // forward_load will consume the recordlist while loading elements
+        return forward_load<T>(world, recordlist);
     }
 
     /// load a single object from the cloud, recordlist is consumed while loading elements
@@ -286,6 +311,7 @@ public:
         }
     }
 
+    /// @param[in]  world presumably the universe
     template<typename T>
     recordlistT store(madness::World &world, const T &source) {
         if (is_replicated) {
@@ -312,7 +338,9 @@ public:
 
     void replicate(const std::size_t chunk_size=INT_MAX) {
 
+        double cpu0=cpu_time();
         World& world=container.get_world();
+        world.gop.fence();
         cloudtimer t(world,replication_time);
         container.reset_pmap_to_local();
         is_replicated=true;
@@ -365,12 +393,15 @@ public:
             }
         }
         world.gop.fence();
+        double cpu1=cpu_time();
+        if (debug and (world.rank()==0)) print("replication ended after ",cpu1-cpu0," seconds");
     }
 
 private:
 
     mutable std::atomic<long> reading_time=0l;    // in ms
     mutable std::atomic<long> writing_time=0l;    // in ms
+    mutable std::atomic<long> writing_time1=0l;    // in ms
     mutable std::atomic<long> replication_time=0l;    // in ms
     mutable std::atomic<long> cache_reads=0l;
     mutable std::atomic<long> cache_stores=0l;
@@ -394,13 +425,14 @@ private:
 
     struct cloudtimer {
         World& world;
-        double cpu0;
+        double wall0;
         std::atomic<long> &rtime;
 
-        cloudtimer(World& world, std::atomic<long> &readtime) : world(world), cpu0(cpu_time()), rtime(readtime) {}
+        cloudtimer(World& world, std::atomic<long> &readtime) : world(world), wall0(wall_time()), rtime(readtime) {}
 
         ~cloudtimer() {
-            if (world.rank()==0) rtime += long((cpu_time() - cpu0) * 1000l);
+            long deltatime=long((wall_time() - wall0) * 1000l);
+            rtime += deltatime;
         }
     };
 
@@ -454,11 +486,15 @@ private:
             }
             std::cout << "storing object of " << typeid(T).name() << " to record " << record << std::endl;
         }
+        if constexpr (is_madness_function<T>::value) {
+            if (source.is_compressed() and T::dimT>3) print("WARNING: storing compressed hi-dim `function");
+        }
 
         // scope is important because of destruction ordering of world objects and fence
         if (is_already_present) {
             if (world.rank()==0) cache_stores++;
         } else {
+            cloudtimer t(world,writing_time1);
             madness::archive::ContainerRecordOutputArchive ar(world, container, record);
             madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
             par & source;
@@ -501,6 +537,8 @@ public:
         madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(world, ar);
         par & target;
 
+        if (is_replicated) container.erase(record);
+
         cache(world, target, record);
         return target;
     }
@@ -538,7 +576,7 @@ public:
     /// @param[inout]    world	destination world
     /// @param[inout]    recordlist	list of records to load from (reduced by the first few elements)
     template<typename T>
-    T  load_tuple(madness::World &world, recordlistT &recordlist) const {
+    T load_tuple(madness::World &world, recordlistT &recordlist) const {
         if (debug) std::cout << "loading tuple of type " << typeid(T).name() << " to world " << world.id() << std::endl;
         T target;
         std::apply([&](auto &&... args) {

@@ -197,6 +197,8 @@ namespace madness {
         /// \return next unique World id
         static std::uint64_t next_world_id();
 
+
+
     public:
         // !!! Order of declaration is important for correct order of initialization !!!
         WorldMpiInterface& mpi; ///< MPI interface.
@@ -462,6 +464,22 @@ namespace madness {
 
 #endif // MADNESS_DISABLE_SHARED_FROM_THIS
 
+        /// Returns a vector of all unique IDs in this \c World.
+        std::vector<uniqueidT> get_object_ids() const {
+            std::vector<uniqueidT> ids;
+            for (auto it = map_id_to_ptr.begin(); it != map_id_to_ptr.end(); ++it)
+                ids.push_back(it->first);
+            return ids;
+        }
+
+        /// return a vector containing all world ids
+        static std::vector<unsigned long> get_world_ids() {
+            std::vector<unsigned long> ids;
+            for (auto it = worlds.begin(); it != worlds.end(); ++it)
+                ids.push_back((*it)->id());
+            return ids;
+
+        }
 
         /// Convert a \c World ID to a \c World pointer.
 
