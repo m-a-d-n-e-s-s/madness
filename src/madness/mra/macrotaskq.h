@@ -742,11 +742,11 @@ private:
         }
 
 
-        virtual void print_me(std::string s="") const {
+        void print_me(std::string s="") const override {
             print("this is task",get_name(),"with batch", task.batch,"priority",this->get_priority());
         }
 
-        virtual void print_me_as_table(std::string s="") const {
+        void print_me_as_table(std::string s="") const override {
             std::stringstream ss;
             std::string name=get_name();
             std::size_t namesize=std::min(std::size_t(28),name.size());
