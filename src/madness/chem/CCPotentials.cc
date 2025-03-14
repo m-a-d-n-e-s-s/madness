@@ -345,6 +345,7 @@ CCPotentials::compute_pair_correlation_energy(World& world, const CCPair& u,
     const bool symmetric = (u.i == u.j);
 
     // bra is 2*direct - exchange or < 2 ij - ji| g | tau_{ij}>
+    auto g12=CCConvolutionOperatorPtr<double,3>(world,OpType::OT_G12,info.parameters);
     auto bra=CCPairFunction<double,6>(g12,{2.0*mobi.function,mobj.function},{mobj.function,-1.0*mobi.function});
     double fac= (symmetric) ? 1.0 : 2.0;
     result = fac* inner({bra},u.functions);
