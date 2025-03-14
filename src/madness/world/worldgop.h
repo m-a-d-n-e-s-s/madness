@@ -706,14 +706,14 @@ namespace madness {
 
         /// Synchronizes all processes in communicator AND globally ensures no pending AM or tasks
 
-        /// \internal Runs Dykstra-like termination algorithm on binary tree by
-        /// locally ensuring ntask=0 and all am sent and processed,
-        /// and then participating in a global sum of nsent and nrecv.
-        /// Then globally checks that nsent=nrecv and that both are
-        /// constant over two traversals.  We are then sure
+        /// \internal Runs Dykstra-like termination algorithm on binary tree
+        /// which stops when global sum of # of tasks in queue (`ntask`) is
+        /// zero and global sum of the # of sent/received AMs (`nsent`/`nrecv`)
+        /// are equal and unchanged over two traversals.  We are then sure
         /// that all tasks and AM are processed and there no AM in
         /// flight.
         /// \param[in] debug set to true to print progress statistics using madness::print(); the default is false.
+        /// \post `this->gop.taskq.size()==0`
         void fence(bool debug = false);
 
         /// Executes an action on single (this) thread after ensuring all other work is done
