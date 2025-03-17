@@ -985,14 +985,20 @@ double MP3::mp3_energy_contribution_macrotask_driver(const Pairs<CCPair>& mp2pai
     auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),3));
     // taskq->set_printlevel(20);
     // taskq->cloud.set_debug(true);
-    MacroTaskMP3 task_triangular("triangular");
-    MacroTaskMP3 task_square("square");
-    MacroTask macrotask_triangular(world,task_triangular,taskq);
-    MacroTask macrotask_square(world,task_square,taskq);
-    auto ghij_future=macrotask_triangular(std::string("ghij"), ij_triangular, dummy, clusterfunc_vec,info, std::vector<std::string>());
-    auto klmn_future=macrotask_square(std::string("klmn"), nact, nact, clusterfunc_vec, info, std::vector<std::string>());
-    auto cd_future=macrotask_triangular(std::string("cd"), ij_triangular, dummy, clusterfunc_vec, info, std::vector<std::string>());
-    auto ef_future=macrotask_triangular(std::string("ef"), ij_triangular, dummy, clusterfunc_vec, info, std::vector<std::string>());
+    // MacroTaskMP3 task_triangular("triangular");
+    // MacroTaskMP3 task_square("square");
+    MacroTaskMP3 ghij_task("ghij");
+    MacroTaskMP3 klmn_task("klmn");
+    MacroTaskMP3 cd_task("cd");
+    MacroTaskMP3 ef_task("ef");
+    MacroTask macrotask_ghij(world,ghij_task,taskq);
+    MacroTask macrotask_klmn(world,klmn_task,taskq);
+    MacroTask macrotask_cd(world,cd_task,taskq);
+    MacroTask macrotask_ef(world,ef_task,taskq);
+    auto ghij_future=macrotask_ghij(ij_triangular, dummy, clusterfunc_vec,info, std::vector<std::string>());
+    auto klmn_future=macrotask_klmn(nact, nact, clusterfunc_vec, info, std::vector<std::string>());
+    auto cd_future=macrotask_cd(ij_triangular, dummy, clusterfunc_vec, info, std::vector<std::string>());
+    auto ef_future=macrotask_ef(ij_triangular, dummy, clusterfunc_vec, info, std::vector<std::string>());
     taskq->print_taskq();
     taskq->run_all();
 

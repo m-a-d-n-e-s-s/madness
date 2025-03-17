@@ -52,21 +52,24 @@ private:
         };
 
     public:
-        MacroTaskMP3(const std::string shape) {
+        MacroTaskMP3(const std::string diagram) : diagram(diagram) {
+            name="MP3_"+diagram;
+            std::string shape;
+            if (diagram=="ghij" or diagram=="cd" or diagram=="ef") shape="triangular";
+            else if (diagram=="klmn") shape="square";
+            else {
+                std::string msg = "Unknown MP3 diagram: " + diagram;
+                MADNESS_EXCEPTION(msg.c_str(), 1);
+            }
             partitioner.reset(new Partitioner(shape));
         }
+        std::string diagram="unknown";
 
         typedef std::tuple<
-                const std::string&,
                 const std::vector<int>&,        // dummy vector of size npair or nocc for scheduling
                 const std::vector<int>&,        // dummy vector of size npair or nocc for scheduling
                 const std::vector<std::vector<CCPairFunction<double,6>>>& ,                 // all pairs ij
                 const Info&,
-                // const std::vector<Function<double,3>>&,
-                // const std::vector<Function<double,3>>&,
-                // const CCParameters&,
-                // const Molecule&,
-                // const Function<double,3>&,
                 const std::vector<std::string>& > argtupleT;
 
         using resultT =ScalarResult<double>;
@@ -75,16 +78,10 @@ private:
             return ScalarResult<double>(world);
         }
 
-        resultT operator() (const std::string& diagram,                             // which diagram to calculate
-                            const std::vector<int>& ij_vec,                         // dummy vector of size npair or nocc
+        resultT operator() (const std::vector<int>& ij_vec,                         // dummy vector of size npair or nocc
                             const std::vector<int>& j_vec,                          // dummy vector of size 0 or nocc
                             const std::vector<std::vector<CCPairFunction<double,6>>>& pair_square,                 // all pairs ij
                             const Info& info,
-                            // const std::vector<Function<double,3>>& mo_ket,          // the orbitals
-                            // const std::vector<Function<double,3>>& mo_bra,          // the orbitals*R2
-                            // const CCParameters& parameters,
-                            // const Molecule& molecule,
-                            // const Function<double,3>& Rsquare,
                             const std::vector<std::string>& argument) const {
 
             // the partitioner will break the input vector of pairs into single pairs
@@ -162,11 +159,6 @@ private:
                                  const long i, const long j,
                                  const Pairs<std::vector<CCPairFunction<double,6>>>& pair_square,
                                  const Info& info,
-                                 // const std::vector<Function<double,3>>& mo_ket,
-                                 // const std::vector<Function<double,3>>& mo_bra,
-                                 // const CCParameters& parameters,
-                                 // const Molecule& molecule,
-                                 // const Function<double,3>& Rsquare,
                                  const std::vector<std::string>& argument);
 
     /// compute the ef term for single pair ij
@@ -174,11 +166,6 @@ private:
                                  const long i, const long j,
                                  const Pairs<std::vector<CCPairFunction<double,6>>>& pair_square,
                                  const Info& info,
-                                 // const std::vector<Function<double,3>>& mo_ket,
-                                 // const std::vector<Function<double,3>>& mo_bra,
-                                 // const CCParameters& parameters,
-                                 // const Molecule& molecule,
-                                 // const Function<double,3>& Rsquare,
                                  const std::vector<std::string>& argument);
 
     /// compute the ghij term for single pair ij
@@ -188,11 +175,6 @@ private:
                                    const long i, const long j,
                                    const Pairs<std::vector<CCPairFunction<double,6>>>& pair_square,
                                    const Info& info,
-                                   // const std::vector<Function<double,3>>& mo_ket,
-                                   // const std::vector<Function<double,3>>& mo_bra,
-                                   // const CCParameters& parameters,
-                                   // const Molecule& molecule,
-                                   // const Function<double,3>& Rsquare,
                                    const std::vector<std::string>& argument);
 
     /// compute the klmn term for single pair ij
@@ -200,11 +182,6 @@ private:
                                    const long i, const long j,
                                    const Pairs<std::vector<CCPairFunction<double,6>>>& pair_square,
                                    const Info& info,
-                                   // const std::vector<Function<double,3>>& mo_ket,
-                                   // const std::vector<Function<double,3>>& mo_bra,
-                                   // const CCParameters& parameters,
-                                   // const Molecule& molecule,
-                                   // const Function<double,3>& Rsquare,
                                    const std::vector<std::string>& argument);
 
 };
