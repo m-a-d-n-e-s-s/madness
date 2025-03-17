@@ -140,8 +140,19 @@ public:
     std::vector<CC_vecfunction>
     solve_ccs() const;
 
-    double compute_mp3(const Pairs<CCPair>& mp2pairs) const {
-        MP3 mp3(CCOPS);
+    /// compute the MP2 correlation energy
+    static double compute_mp2_energy(const Pairs<CCPair>& pairs, const Info& info, const std::string msg="");
+    static double compute_mp2_energy(const std::vector<CCPair>& pairs, const Info& info, const std::string msg="");
+
+    /// compute the CC2 correlation energy
+    static double compute_cc2_energy(const CC_vecfunction& singles, const Pairs<CCPair>& pairs,
+        const Info& info, const std::string msg="");
+    static double compute_cc2_energy(const CC_vecfunction& singles, const std::vector<CCPair>& pairs,
+        const Info& info, const std::string msg="");
+
+    double compute_mp3(const Pairs<CCPair>& mp2pairs, const Info& info) const {
+
+        MP3 mp3(world, info);
         double mp3_contribution=mp3.mp3_energy_contribution_macrotask_driver(mp2pairs);
         return mp3_contribution;
     }

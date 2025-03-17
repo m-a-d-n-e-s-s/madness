@@ -93,12 +93,11 @@ CC2::solve() {
         } else {
             mp2_energy = solve_mp2_coupled(mp2pairs, info);
             output_calc_info_schema("mp2",mp2_energy);
+            output.section(assign_name(CT_MP2) + " Calculation Ended !");
+            if (world.rank() == 0) {
+                printf_msg_energy_time("MP2 correlation energy",mp2_energy,wall_time());
+	        }
         }
-        output.section(assign_name(CT_MP2) + " Calculation Ended !");
-        if (world.rank() == 0) {
-            printf_msg_energy_time("MP2 correlation energy",mp2_energy,wall_time());
-//            std::cout << std::fixed << std::setprecision(10) << " MP2 Correlation Energy =" << mp2_energy << "\n";
-	    }
     }
 
     if (need_cc2) {
@@ -135,7 +134,8 @@ CC2::solve() {
     } else if (ctype == CT_MP2) {
         ;   // we're good
     } else if (ctype == CT_MP3) {
-        mp3_energy=compute_mp3(mp2pairs);
+        mp2_energy=compute_mp2_energy(mp2pairs, info, "MP2 correlation energy");
+        mp3_energy=compute_mp3(mp2pairs, info);
         double hf_energy=nemo->value();
         if (world.rank()==0) {
             printf_msg_energy_time("MP3 energy contribution",mp3_energy,wall_time());
@@ -434,34 +434,9 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
         }
     }
 
-    auto compute_energy = [&](const std::vector<CCPair>& pair_vec, std::string msg="") {
-        for (const auto& p : pair_vec) {
-            p.function().print_size("function "+p.name());
-            p.constant_part.print_size("constant_part "+p.name());
-            p.function().reconstruct();
-            p.constant_part.reconstruct();
-        }
-        MacroTaskComputeCorrelationEnergy t;
-        MacroTask task1(world, t);
-        CC_vecfunction dummy_singles1(PARTICLE);
-
-        auto pair_energies=task1(pair_vec, dummy_singles, info);
-        // pair_energies is now scattered over the universe
-
-        double total_energy=0.0;
-        for ( auto& pair_energy : pair_energies) {
-            double pe=pair_energy.get();
-            total_energy += pe;
-            if (world.rank()==0 and parameters.debug()) printf("pair energy for pair %12.8f\n", pe);
-        }
-        // pair_energy.get() invokes a broadcast from rank 0 to all other ranks
-
-        if (not msg.empty() and world.rank()==0) printf("%s %12.8f\n", msg.c_str(), total_energy);
-        return total_energy;
-    };
 
     timer t1_energy(world);
-    double total_energy=compute_energy(pair_vec,"initial MP2 energy");
+    double total_energy=compute_mp2_energy(pair_vec,info,"initial MP2 energy");
     t1_energy.end("compute energy");
 
     auto solver= nonlinear_vector_solver<double,6>(world,pair_vec.size());
@@ -530,7 +505,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
         // calculate energy and error and update pairs
         double old_energy = total_energy;
         for (auto& p : pair_vec) p.reconstruct();
-        total_energy=compute_energy(pair_vec);
+        total_energy=compute_mp2_energy(pair_vec,info);
         t_iter.tag("compute energy");
 
 		if (world.rank()==0) {
@@ -770,6 +745,46 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
     return (rmsrnorm<info.parameters.dconv_6D());
 }
 
+double CC2::compute_cc2_energy(const CC_vecfunction& singles, const Pairs<CCPair>& pairs, const Info& info,
+    const std::string msg) {
+    auto triangular_map=PairVectorMap::triangular_map(info.parameters.freeze(),info.mo_ket.size());
+    const auto& pair_vec = Pairs<CCPair>::pairs2vector(pairs,triangular_map);
+    return CC2::compute_cc2_energy(singles,pair_vec,info,msg);
+}
+
+double CC2::compute_cc2_energy(const CC_vecfunction& singles, const std::vector<CCPair>& pair_vec,
+    const Info& info, const std::string msg) {
+
+    World& world=pair_vec.front().world();
+    for (const auto& p : pair_vec) p.reconstruct();
+
+    MacroTaskComputeCorrelationEnergy t;
+    MacroTask task1(world, t);
+
+    auto pair_energies=task1(pair_vec, singles, info);
+    // pair_energies is now scattered over the universe
+
+    double total_energy=0.0;
+    for ( auto& pair_energy : pair_energies) {
+        double pe=pair_energy.get();
+        total_energy += pe;
+        if (world.rank()==0 and info.parameters.debug()) printf("pair energy for pair %12.8f\n", pe);
+    }
+    // pair_energy.get() invokes a broadcast from rank 0 to all other ranks
+
+    if (not msg.empty() and world.rank()==0) printf_msg_energy_time(msg, total_energy, wall_time());
+    return total_energy;
+}
+
+double CC2::compute_mp2_energy(const Pairs<CCPair>& pairs, const Info& info, const std::string msg) {
+    CC_vecfunction dummy_singles(PARTICLE);
+    return compute_cc2_energy(dummy_singles, pairs, info, msg);
+}
+
+double CC2::compute_mp2_energy(const std::vector<CCPair>& pairs, const Info& info, const std::string msg) {
+    CC_vecfunction dummy_singles(PARTICLE);
+    return compute_cc2_energy(dummy_singles, pairs, info, msg);
+}
 
 double
 CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) const
@@ -1369,21 +1384,6 @@ CC2::initialize_pairs(Pairs<CCPair>& pairs, const CCState ftype, const CalcType 
     for (size_t i = parameters.freeze(); i < CCOPS.mo_ket().size(); i++) {
         for (size_t j = i; j < CCOPS.mo_ket().size(); j++) {
             CCPair pair=builder.make_bare_pair_from_file(i,j);
-
-//            std::string name = CCPair(i, j, ftype, ctype).name();
-//            real_function_6d utmp;
-//            const bool found = CCOPS.load_function(utmp, name, info.parameters.debug());
-//            if (found) restarted = true; // if a single pair was found then the calculation is not from scratch
-//            real_function_6d const_part;
-//            CCOPS.load_function(const_part, name + "_const", info.parameters.debug());
-//            CCPair tmp;
-//            if (ctype==CT_MP2)
-//                tmp=CCPotentials::make_pair_mp2(world, utmp, i, j, info, false);
-//            if (ctype==CT_CC2)
-//                tmp=CCPotentials::make_pair_cc2(world, utmp, tau, i, j, info, false);
-//            if (ctype==CT_LRCC2 or ctype==CT_ADC2 or ctype==CT_CISPD)
-//                tmp=CCPotentials::make_pair_lrcc2(world, ctype, utmp, tau, x, i, j, info, false);
-//            tmp.constant_part = const_part;
             pairs.insert(i, j, pair);
         }
     }
