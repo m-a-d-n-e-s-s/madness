@@ -45,6 +45,7 @@
 #include <madness/world/world.h>
 #include <iomanip>
 #include <set>
+#include "molecule.h"
 
 namespace madness {
 static inline double distance(double x1, double y1, double z1, double x2,
@@ -988,32 +989,34 @@ void Molecule::orient(bool verbose) {
   }
   madness::Tensor<double> U, e;
   madness::syev(I, U, e);
-  auto is_signed_permutation([](const madness::Tensor<double>& U, const double tol=1e-12){
-    for (long i = 0; i < 3; ++i){
-    auto sum=0;
-      for (long j = 0; j < 3; ++j){
-        auto abs_val = fabs(U(i, j));
-        if ( fabs(abs_val-0.0) <tol || fabs(abs_val-1.0) <tol){
-          sum += fabs(U(i, j));
-        }else{
-          return false;
-        }
-      }
-      if (fabs(sum) != 1.0){
-        // if u[i,:] are all zeros and 1s but note exactly 1 then it is not a signed permutation
-        return false;
-      }
-    }
-    return true;
-  });
+  // auto is_signed_permutation([](const madness::Tensor<double>& U, const double tol=1e-12){
+  //   for (long i = 0; i < 3; ++i){
+  //   auto sum=0;
+  //     for (long j = 0; j < 3; ++j){
+  //       auto abs_val = fabs(U(i, j));
+  //       if ( fabs(abs_val-0.0) <tol || fabs(abs_val-1.0) <tol){
+  //         sum += fabs(U(i, j));
+  //       }else{
+  //         return false;
+  //       }
+  //     }
+  //     if (fabs(sum) != 1.0){
+  //       // if u[i,:] are all zeros and 1s but note exactly 1 then it is not a signed permutation
+  //       return false;
+  //     }
+  //   }
+  //   return true;
+  // });
 
-  if(is_signed_permutation(U)){
-    //madness::print("Signed permutation detected");
-  }else{
-    //madness::print("Rotating molecule");
+  // if(is_signed_permutation(U)){
+  //   //madness::print("Signed permutation detected");
+  // }else{
+  //   //madness::print("Rotating molecule");
     rotate(U);
+    fix_phase();
 
-  }
+
+  // }
 
   // madness::print("Charge matrix",I);
   // madness::print("Rotation",U);
@@ -1050,6 +1053,38 @@ void Molecule::orient(bool verbose) {
 }
 
 /// rotates the molecule and the external field
+
+// find the first non-zero x and if negative rotate by 180 
+void Molecule::fix_phase(){
+
+
+  for (auto &atom:atoms){
+    //find the first non-zero x and if negative, negate all x and y (aka rotate by 180 about z)
+    if (fabs(atom.x) > 1e-12){
+      if (atom.x < 0){
+        for (auto &atoms:atoms){
+          atoms.x = -atoms.x;
+          atoms.y = -atoms.y;
+        }
+      }
+      break;
+    }
+  }
+  
+  // find the first non-zero z and if negative, negate all z and y (aka rotate by 180 about x)
+  for (auto &atom:atoms){
+    if (fabs(atom.z) > 1e-12){
+      if (atom.z < 0){
+        for (auto &atoms:atoms){
+          atoms.z = -atoms.z;
+          atoms.y = -atoms.y;
+        }
+      }
+      break;
+    }
+  }
+
+}
 
 /// @param[in]  D   the rotation matrix
 void Molecule::rotate(const Tensor<double>& D) {

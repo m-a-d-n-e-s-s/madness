@@ -485,6 +485,8 @@ public:
 
     /// rotates the molecule and the external field
 
+    void fix_phase();
+
     /// @param[in]  D   the rotation matrix
     void rotate(const Tensor<double>& D);
 
