@@ -977,7 +977,6 @@ Tensor<double> Molecule::moment_of_inertia() const {
 void Molecule::orient(bool verbose) {
 
   center();
-
   // Align molecule with axes of charge inertia
   madness::Tensor<double> I(3L, 3L);
   for (unsigned int i = 0; i < atoms.size(); ++i) {
@@ -989,13 +988,40 @@ void Molecule::orient(bool verbose) {
   }
   madness::Tensor<double> U, e;
   madness::syev(I, U, e);
-  // madness::print("Moment of inertia eigenvalues and tensor\n");
-  // madness::print(I);
-  // madness::print(U);
-  // madness::print(e);
+  auto is_signed_permutation([](const madness::Tensor<double>& U, const double tol=1e-12){
+    for (long i = 0; i < 3; ++i){
+    auto sum=0;
+      for (long j = 0; j < 3; ++j){
+        auto abs_val = fabs(U(i, j));
+        if ( fabs(abs_val-0.0) <tol || fabs(abs_val-1.0) <tol){
+          sum += fabs(U(i, j));
+        }else{
+          return false;
+        }
+      }
+      if (fabs(sum) != 1.0){
+        // if u[i,:] are all zeros and 1s but note exactly 1 then it is not a signed permutation
+        return false;
+      }
+    }
+    return true;
+  });
 
-  // rotate the molecule and the external field
-  rotate(U);
+  if(is_signed_permutation(U)){
+    //madness::print("Signed permutation detected");
+  }else{
+    //madness::print("Rotating molecule");
+    rotate(U);
+
+  }
+
+  // madness::print("Charge matrix",I);
+  // madness::print("Rotation",U);
+  // madness::print("Eigenvalues",e);
+
+  // // rotate the molecule and the external field
+  // if (do_rotate){
+  // }
 
   if (verbose) {
     // Try to resolve degenerate rotations
