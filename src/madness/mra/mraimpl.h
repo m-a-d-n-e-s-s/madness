@@ -1400,11 +1400,6 @@ namespace madness {
             reconstruct(fence);
             return;
         }
-        if (get_tree_state()==redundant_after_merge) {
-            MADNESS_CHECK(finalstate==reconstructed);
-            sum_down(fence);
-            return;
-        }
         MADNESS_CHECK_THROW(current_state!=TreeState::nonstandard_after_apply,"unknown tree state");
         bool must_fence=false;
 

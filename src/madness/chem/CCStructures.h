@@ -207,7 +207,6 @@ public:
     }
 };
 
-
 /// Calculation TDHFParameters for CC2 and TDA calculations
 /// Maybe merge this with calculation_parameters of SCF at some point, or split into TDA and CC
 struct CCParameters : public QCCalculationParametersBase {
@@ -1232,6 +1231,13 @@ public:
         if (constant_part_is_initialized) constant_part=cloud.forward_load<real_function_6d>(world,recordlist);
    }
 
+    /// return the world of the function
+    World& world() const {
+        MADNESS_CHECK_THROW(function_exists(), "no function assigned in CCPair::world()");
+        return function().world();
+    }
+
+    /// check if the pair has a function assigned
     bool function_exists() const {
         return (functions.size()>0 and functions[0].is_assigned() and functions[0].is_pure());
     }

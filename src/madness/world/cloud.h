@@ -270,6 +270,8 @@ public:
 
     /// @param[in]  world the subworld the objects are loaded to
     /// @param[in]  recordlist the list of records where the objects are stored
+
+    /// load a single object from the cloud, recordlist is kept unchanged
     template<typename T>
     T load(madness::World &world, const recordlistT recordlist) const {
         recordlistT rlist = recordlist;
@@ -477,7 +479,7 @@ private:
     recordlistT store_other(madness::World &world, const T &source) {
         auto record = Recordlist<keyT>::compute_record(source);
         bool is_already_present= is_in_container(record);
-        if (debug) {
+        if (debug and world.rank()==0) {
             if (is_already_present) std::cout << "skipping ";
             if constexpr (Recordlist<keyT>::has_member_id<T>::value) {
                 std::cout << "storing world object of " << typeid(T).name() << "id " << source.id() << " to record " << record << std::endl;
@@ -546,12 +548,12 @@ public:
     // overloaded
     template<typename T>
     recordlistT store_other(madness::World& world, const std::vector<T>& source) {
-        if (debug)
+        if (debug and world.rank()==0)
             std::cout << "storing " << typeid(source).name() << " of size " << source.size() << std::endl;
         recordlistT l = store_other(world, source.size());
         for (const auto& s : source) l += store_other(world, s);
         if (dofence) world.gop.fence();
-        if (debug) std::cout << "done with vector storing; container size " << container.size() << std::endl;
+        if (debug and world.rank()==0) std::cout << "done with vector storing; container size " << container.size() << std::endl;
         return l;
     }
 

@@ -40,7 +40,6 @@
 #ifndef SRC_MADNESS_MRA_MACROTASKQ_H_
 #define SRC_MADNESS_MRA_MACROTASKQ_H_
 
-// #include <madness/external/gtest/include/gtest/internal/gtest-port.h>
 #include <madness/world/cloud.h>
 #include <madness/world/world.h>
 #include <madness/mra/macrotaskpartitioner.h>
