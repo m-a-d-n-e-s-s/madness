@@ -20,6 +20,7 @@ namespace madness{
           // Ground state parameters that are read in from archive
           std::string inFile;                      ///< Name of input archive to read in
           double Init_total_energy;                ///< Total energy of the nonrelativistic ground state
+          double conv_thresh;                      ///< Convergence threshold for MOs
           bool spinrestricted;                     ///< Indicates if input calc. was spin-restricted
           bool closed_shell;
           unsigned int num_occupied;               ///< Number of orbitals
@@ -82,13 +83,14 @@ namespace madness{
                     std::string localize_method;
 
                     input & version;
-                    input & Init_total_energy;              // double
+                    input & Init_total_energy;   // double
                     input & spinrestricted;      // bool
                     input & L;                   // double            box size
                     input & order;               // int               wavelet order
                     input & molecule;            // Molecule   
                     input & xc;
                     input & localize_method;
+                    input & conv_thresh;         // double
 
                     input & num_occupied;        // int
                     input & temp_energies;       // Tensor<double>    orbital energies
@@ -113,7 +115,7 @@ namespace madness{
                     complex_derivative_3d Dx(world,0);
                     complex_derivative_3d Dy(world,1);
                     complex_derivative_3d Dz(world,2);
-                    //double myc = 137.0359895; //speed of light in atomic units
+                    //double myc = 137.03599917697017; //speed of light in atomic units from CODATA 2022
                     std::complex<double> myi(0,1);
                     if(spinrestricted){ 
                          //If the calculation was spin-restricted in moldft, then we only have "spin-up" orbitals
