@@ -186,7 +186,7 @@ Fcwf Fcwf::operator-=(const Fcwf& phi){
 //Returns the 2-norm of an initialized Fcwf
 double Fcwf::norm2(){
      MADNESS_ASSERT(m_initialized);
-     double c2 = 137.0359895*137.0359895; //speed of light in atomic units
+     double c2 = 137.03599917697017 * 137.03599917697017; //speed of light in atomic units from CODATA 2022
      std::complex<double> temp(0,0);
 
      temp += madness::inner(m_psi[0],m_psi[0]);
@@ -239,7 +239,7 @@ void Fcwf::truncate(){
 //Returns the inner product of two Fcwfs
 std::complex<double> Fcwf::inner(World& world, const Fcwf& phi) const{
      MADNESS_ASSERT(m_initialized && phi.getinitialize());
-     double c2 = 137.0359895*137.0359895; //speed of light in atomic units
+     double c2 = 137.03599917697017 * 137.03599917697017; //speed of light in atomic units from CODATA 2022
      std::complex<double> temp(0,0);
 
      temp += madness::inner(m_psi[0],phi.m_psi[0]);
@@ -294,7 +294,7 @@ Fcwf apply(World& world, complex_derivative_3d& D, const Fcwf& psi){
 //Returns the square modulus of an Fcwf, which is a real function
 real_function_3d squaremod(Fcwf& psi){
      MADNESS_ASSERT(psi.getinitialize());
-     double c2 = 137.0359895*137.0359895; //speed of light in atomic units
+     double c2 = 137.03599917697017 * 137.03599917697017; //speed of light in atomic units from CODATA 2022
      real_function_3d temp = abssq(psi[0]) + abssq(psi[1]) + abssq(psi[2]).scale(1.0/c2) + abssq(psi[3]).scale(1.0/c2);
      return temp;
 }
@@ -302,7 +302,7 @@ real_function_3d squaremod(Fcwf& psi){
 //Returns the square modulus of the small component of an Fcwf, which is a real function
 real_function_3d squaremod_small(Fcwf& psi){
      MADNESS_ASSERT(psi.getinitialize());
-     double c2 = 137.0359895*137.0359895; //speed of light in atomic units
+     double c2 = 137.03599917697017 * 137.03599917697017; //speed of light in atomic units from CODATA 2022
      real_function_3d temp = (abssq(psi[2]) + abssq(psi[3])).scale(1.0/c2); //don't forget the factor of c^2
      return temp;
 }
@@ -317,7 +317,7 @@ real_function_3d squaremod_large(Fcwf& psi){
 //compute the function inner product between two Fcwfs. Result is a complex function.
 complex_function_3d inner_func(World& world, Fcwf& psi, Fcwf& phi){
      MADNESS_ASSERT(psi.getinitialize() && phi.getinitialize());
-     double c = 137.0359895; //speed of light in atomic units
+     double c = 137.03599917697017; //speed of light in atomic units from CODATA 2022
      std::vector<complex_function_3d> a(4);
      std::vector<complex_function_3d> b(4);
      for(unsigned int i = 0; i < 2; i++){
@@ -433,7 +433,7 @@ Tensor<std::complex<double>> matrix_inner(World& world, std::vector<Fcwf>& a, st
      unsigned int m = b.size();
      //MADNESS_ASSERT(n==m);
 
-     double c2 = 137.0359895*137.0359895; //speed of light in atomic units
+     double c2 = 137.03599917697017 * 137.03599917697017; //speed of light in atomic units from CODATA 2022
 
      //Reassign the vectors of Fcwfs to vectors of complex functions to facilitate use of vmra functions
      std::vector<complex_function_3d> a_1(n); //all first components of Fcwfs in input a

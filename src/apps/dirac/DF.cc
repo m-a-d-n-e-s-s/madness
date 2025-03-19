@@ -465,7 +465,7 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
 
 //returns a new Fcwf that is the result of applying the Dirac free-particle hamiltonian on psi
 Fcwf apply_T(World& world, Fcwf& psi){
-     double myc = 137.0359895; //speed of light in atomic units
+     double myc = 137.03599917697017; //speed of light in atomic units from CODATA 2022
      std::complex<double> myi(0,1);
      complex_derivative_3d Dx(world,0);
      complex_derivative_3d Dy(world,1);
@@ -520,7 +520,7 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
 
      //Calculate and accumulate exchange contributions
      unsigned int n = Init_params.num_occupied;
-     double myc = 137.0359895; //speed of light in atomic units
+     double myc = 137.03599917697017; //speed of light in atomic units from CODATA 2022
 
      //Calculates exchange contributions from the orbitals that we have stored
      //Loop through orbitals phi_i, computing K(phi_i), and while we're at it, use symmetry to start calculating contributions to later orbitals
@@ -1029,7 +1029,7 @@ void DF::orthogonalize_inplace(World& world){
 void apply_BSH(World& world, Fcwf& Vpsi, double& eps, double& small, double& thresh){
 
      //necessary constants
-     double myc = 137.0359895; //speed of light
+     double myc = 137.03599917697017; //speed of light in a.u. from CODATA 2022
      double c2 = myc*myc; //speed of light squared
      std::complex<double> myi(0,1); //imaginary number i
      std::complex<double> ic = myi*myc; //i*c
@@ -1099,7 +1099,7 @@ void apply_BSH(World& world, Fcwf& Vpsi, double& eps, double& small, double& thr
 void apply_BSH_new(World& world, Fcwf& Vpsi, double& eps, double& small, double& thresh){
 
      //necessary constants
-     double myc = 137.0359895; //speed of light
+     double myc = 137.03599917697017; //speed of light in a.u. from CODATA 2022
      double c2 = myc*myc; //speed of light squared
      std::complex<double> myi(0,1); //imaginary number i
      //std::complex<double> ic = myi*myc; //i*c
@@ -1612,7 +1612,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      double exchange_energy = 0.0;
      double nuclear_attraction_energy = 0.0;
      double old_total_energy = total_energy;
-     double myc = 137.0359895; //speed of light
+     double myc = 137.03599917697017; //speed of light in a.u. from CODATA 2022
      Tensor<double> nuclear_attraction_tensor;
      Tensor<double> coulomb_tensor;
      Tensor<double> exchange_tensor;
