@@ -333,6 +333,66 @@ double myr(const coord_3d& r){
      return std::sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);
 }
 
+//Creates the (Gaussian) nuclear potential from the molecule object
+void DF::make_gaussian_potential(World& world, real_function_3d& potential){
+     if(world.rank()==0) print("\n***Making a Gaussian Potential***");
+     GaussianNucleusFunctor Vfunctor(Init_params.molecule, DFparams.bohr_rad);
+     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
+}
+
+//Creates the (Gaussian) nuclear potential from the molecule object. Also calculates the nuclear repulsion energy
+void DF::make_gaussian_potential(World& world, real_function_3d& potential, double& nuclear_repulsion_energy){
+     if(world.rank()==0) print("\n***Making a Gaussian Potential***");
+     GaussianNucleusFunctor Vfunctor(Init_params.molecule,DFparams.bohr_rad);
+     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
+     std::vector<coord_3d> Rlist = Vfunctor.get_Rlist();
+     std::vector<int> Zlist = Vfunctor.get_Zlist();
+     nuclear_repulsion_energy = 0.0;
+     double rr;
+     int num_atoms = Rlist.size();
+     for(int m = 0; m < num_atoms; m++){
+          for(int n = m+1; n < num_atoms; n++){
+               coord_3d dist = Rlist[m] - Rlist[n];
+               rr = std::sqrt(dist[0]*dist[0]+dist[1]*dist[1]+dist[2]*dist[2]);
+               nuclear_repulsion_energy += Zlist[m]*Zlist[n]/rr;
+          }
+     }
+
+}
+
+//Creates the fermi nuclear potential from the charge distribution.
+void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_function_3d& potential){
+     if(world.rank()==0) print("\n***Making a Fermi Potential***");
+     
+     //Get list of atom coordinates
+     std::vector<coord_3d> Rlist = Init_params.molecule.get_all_coords_vec();
+     std::vector<int> Zlist(Rlist.size());
+     unsigned int num_atoms = Rlist.size();
+
+     //variables for upcoming loop
+     real_function_3d temp;
+     double tempnorm;
+
+     //Go through the atoms in the molecule and construct the total charge distribution due to all nuclei
+     for(unsigned int i = 0; i < num_atoms; i++){
+          Zlist[i] = Init_params.molecule.get_atomic_number(i);
+          FermiNucDistFunctor rho(Zlist[i], Rlist[i],DFparams.bohr_rad);
+          temp = real_factory_3d(world).functor(rho).truncate_mode(0);
+          tempnorm = temp.trace();
+          temp.scale(-Zlist[i]/tempnorm);
+          if(i == 0){
+               potential = temp;
+               //rho.print_details(world);
+          }
+          else{
+               potential += temp;
+          }
+     }
+
+     //Potential is found by application of the coulomb operator to the charge distribution
+     potential = apply(op,potential);
+}
+
 //Creates the fermi nuclear potential from the charge distribution. Also calculates the nuclear repulsion energy
 void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_function_3d& potential, double& nuclear_repulsion_energy){
      if(world.rank()==0) print("\n***Making a Fermi Potential***");
@@ -372,6 +432,37 @@ void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_functi
      double rr;
      for(unsigned int m = 0; m < num_atoms; m++){
           for(unsigned int n = m+1; n < num_atoms; n++){
+               coord_3d dist = Rlist[m] - Rlist[n];
+               rr = std::sqrt(dist[0]*dist[0]+dist[1]*dist[1]+dist[2]*dist[2]);
+               nuclear_repulsion_energy += Zlist[m]*Zlist[n]/rr;
+          }
+     }
+}
+
+//Creates the point nuclear potential from the molecule object
+void DF::make_point_potential(World& world, real_function_3d& potential){
+     if(world.rank()==0) print("\n***Making a Point Potential***");
+     MolecularPotentialFunctor Vfunctor(Init_params.molecule);
+     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
+}
+
+//Creates the point nuclear potential from the molecule object. Also calculates the nuclear repulsion energy
+void DF::make_point_potential(World& world, real_function_3d& potential, double& nuclear_repulsion_energy){
+     if(world.rank()==0) print("\n***Making a Point Potential***");
+     auto molecule = Init_params.molecule;
+     MolecularPotentialFunctor Vfunctor(molecule);
+     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
+     
+     std::vector<coord_3d> Rlist = molecule.get_all_coords_vec();
+     std::vector<int> Zlist;
+     for(unsigned int i = 0; i < Rlist.size(); i++){
+          Zlist.push_back(molecule.get_atomic_number(i));
+     }
+     nuclear_repulsion_energy = 0.0;
+     double rr;
+     int num_atoms = Rlist.size();
+     for(int m = 0; m < num_atoms; m++){
+          for(int n = m+1; n < num_atoms; n++){
                coord_3d dist = Rlist[m] - Rlist[n];
                rr = std::sqrt(dist[0]*dist[0]+dist[1]*dist[1]+dist[2]*dist[2]);
                nuclear_repulsion_energy += Zlist[m]*Zlist[n]/rr;
@@ -1200,33 +1291,6 @@ void DF::saveDF(World& world){
      if(world.rank()==0) print("     ", times[0]);
 }
 
-//Creates the (Gaussian) nuclear potential from the molecule object
-void DF::make_gaussian_potential(World& world, real_function_3d& potential){
-     if(world.rank()==0) print("\n***Making a Gaussian Potential***");
-     GaussianNucleusFunctor Vfunctor(Init_params.molecule, DFparams.bohr_rad);
-     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
-}
-
-//Creates the (Gaussian) nuclear potential from the molecule object. Also calculates the nuclear repulsion energy
-void DF::make_gaussian_potential(World& world, real_function_3d& potential, double& nuclear_repulsion_energy){
-     if(world.rank()==0) print("\n***Making a Gaussian Potential***");
-     GaussianNucleusFunctor Vfunctor(Init_params.molecule,DFparams.bohr_rad);
-     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
-     std::vector<coord_3d> Rlist = Vfunctor.get_Rlist();
-     std::vector<int> Zlist = Vfunctor.get_Zlist();
-     nuclear_repulsion_energy = 0.0;
-     double rr;
-     int num_atoms = Rlist.size();
-     for(int m = 0; m < num_atoms; m++){
-          for(int n = m+1; n < num_atoms; n++){
-               coord_3d dist = Rlist[m] - Rlist[n];
-               rr = std::sqrt(dist[0]*dist[0]+dist[1]*dist[1]+dist[2]*dist[2]);
-               nuclear_repulsion_energy += Zlist[m]*Zlist[n]/rr;
-          }
-     }
-
-}
-
 //Own version of load balancing for DF. Load balance on the functions as well as the nuclear potential
 void DF::DF_load_balance(World& world, real_function_3d& Vnuc){
      if(world.rank()==0) print("\n***Load Balancing***");
@@ -1798,6 +1862,9 @@ void DF::solve_occupied(World & world)
      double nuclear_repulsion_energy;
      if(DFparams.nucleus == 1){
           make_fermi_potential(world, op, Vnuc, nuclear_repulsion_energy);
+     }
+     else if (DFparams.nucleus == 2) {
+          make_point_potential(world, Vnuc, nuclear_repulsion_energy);
      }
      else{
           make_gaussian_potential(world, Vnuc, nuclear_repulsion_energy);

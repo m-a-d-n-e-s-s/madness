@@ -110,6 +110,12 @@ class DF {
           //Creates the fermi nuclear potential from the molecule object. Also calculates the nuclear repulsion energy
           void make_fermi_potential(World& world, real_convolution_3d& op, real_function_3d& potential, double& nuclear_repulsion_energy);
 
+          //Creates the point nuclear potential from the molecule object
+          void make_point_potential(World& world, real_function_3d& potential);
+
+          //Creates the point nuclear potential from the molecule object. Also calculates the nuclear repulsion energy
+          void make_point_potential(World& world, real_function_3d& potential, double& nuclear_repulsion_energy);
+
           //Load balancing function
           void DF_load_balance(World& world, real_function_3d& Vnuc);
 

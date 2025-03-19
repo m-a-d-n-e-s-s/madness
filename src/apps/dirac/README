@@ -38,7 +38,7 @@ List of interesting input options (from DFParameters.h)
           int maxsub;                  ///< Sets maximum subspace size for KAIN
           double maxrotn;              ///< maximum step allowed by kain
           bool restart;                ///< Indicates this is a restarted DF job
-          int nucleus;                 ///< Indicates which nucleus model to use (1 for fermi, anything else for Gaussian)
+          int nucleus;                 ///< Indicates which nucleus model to use (1 for fermi, 2 for point, anything else for Gaussian)
           bool do_save;                ///< Whether or not to save after each iteration. Defaults to true. Turn off with 'no_save'
           std::string savefile;        ///< Gives the file to save the archive each iteration Default: DFrestartdata (in working directory)
           int lb_iter;                 ///< How many iterations to load balance (after the initial load balancing)

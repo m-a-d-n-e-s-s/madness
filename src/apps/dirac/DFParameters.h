@@ -175,6 +175,9 @@ namespace madness {
                if(nucleus == 1){
                     madness::print("                       Nucleus: fermi");
                }
+               else if (nucleus == 2) {
+                    madness::print("                       Nucleus: point");
+               }
                else{
                     madness::print("                       Nucleus: gaussian");
                }
