@@ -401,7 +401,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 
 		const double bsh_norm = norm2(world, residual) / sqrt(nemo.size());
 
-        MemoryMeasurer::measure_and_print(world);
+        // MemoryMeasurer::measure_and_print(world);
 
 		// vecfuncT nemo_new = truncate(solver.update(nemo, residual));
 		vecfuncT nemo_new = truncate(solver.update(update));

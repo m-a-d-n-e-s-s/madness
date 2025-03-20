@@ -597,22 +597,6 @@ CCPair CCPairBuilder::complete_pair_with_low_rank_parts(const CCPair& pair) cons
 }
 
 std::vector<real_function_6d>
-//MacroTaskMp2ConstantPart::operator() (const std::vector<CCPair>& pair, const std::vector<real_function_3d>& mo_ket,
-//                                      const std::vector<real_function_3d>& mo_bra, const CCParameters& parameters,
-//                                      const real_function_3d& Rsquare, const std::vector<real_function_3d>& U1,
-//                                      const std::vector<std::string>& argument) const {
-MacroTaskMp2ConstantPart::operator() (const std::vector<CCPair>& pair, const Info& info,
-                                      const std::vector<std::string>& argument) const {
-    World& world =info.mo_ket[0].world();
-    resultT result = zero_functions_compressed<double, 6>(world, pair.size());
-    for (size_t i = 0; i < pair.size(); i++) {
-        result[i] = CCPotentials::make_constant_part_mp2_macrotask(world, pair[i], info.mo_ket, info.mo_bra,
-                                    info.parameters, info.R_square, info.U1, argument);
-    }
-    return result;
-}
-
-std::vector<real_function_6d>
 MacroTaskConstantPart::operator() (const std::vector<CCPair>& pair,
                                    const std::vector<Function<double,3>> & gs_singles,
                                    const std::vector<Function<double,3>> & ex_singles,
@@ -631,23 +615,6 @@ MacroTaskConstantPart::operator() (const std::vector<CCPair>& pair,
 }
 
 
-std::vector<real_function_6d>
-MacroTaskMp2UpdatePair::operator() (const std::vector<CCPair> &pair,
-                                    const std::vector<real_function_6d> &mp2_coupling,
-                                    const std::vector<madness::Vector<double, 3>> &all_coords_vec,
-                                    const Info& info) const {
-    World& world = info.mo_ket[0].world();
-    resultT result = zero_functions_compressed<double, 6>(world, pair.size());
-    print("in MacroTaskMp2UpdatePair::operator()", "pair.size()=", pair.size(), "batch=", this->batch);
-
-    for (size_t i = 0; i < pair.size(); i++) {
-        print("in loop of batch",this->batch);
-        //(i, j) -> j*(j+1) + i
-        result[i] = CCPotentials::update_pair_mp2_macrotask(world, pair[i], info.parameters, all_coords_vec, info.mo_ket,
-                                                            info.mo_bra, info.U1, info.U2, mp2_coupling[i]);
-    }
-    return result;
-}
 
 std::vector<real_function_6d>
 MacroTaskIteratePair::operator()(const std::vector<CCPair>& pair,
