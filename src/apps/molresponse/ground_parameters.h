@@ -36,6 +36,7 @@ class GroundStateCalculation {
     std::vector<real_function_3d> g_orbitals{};///< The ground state orbitals
     std::string xc{};                          ///< Name of xc functional used in ground state
     std::string localize_method{};             ///< Name of xc functional used in ground state
+    double converged_for_thresh{}; ///< Convergence threshold used in ground state calculation
 
     // Default constructor
 public:
@@ -87,6 +88,7 @@ public:
         input &molecule_in;    // Molecule
         input &xc;             // std:string        xc functional
         input &localize_method;// std:string        localize  method
+        input &converged_for_thresh; // double      convergence threshold used for ground state
         input &num_orbitals;   // int
         input &energies;       // Tensor<double>    orbital energies
         input &occ;            // Tensor<double>    orbital occupations
