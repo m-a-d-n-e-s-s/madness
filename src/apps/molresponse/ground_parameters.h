@@ -25,8 +25,7 @@ using namespace madness;
 class GroundStateCalculation {
     // Ground state parameters that are read in from archive
     std::string inFile{"../moldft.restartdata"};///< Name of input archive to read in ground state
-    bool spinrestricted{true};///< Indicates if ground state calc. was open or closed
-    ///< shell
+    bool spinrestricted{true};///< Indicates if ground state calc. was open or closed shell
     unsigned int num_orbitals{};///< Number of orbitals in ground state
     Tensor<double> energies{};  ///< Energy of ground state orbitals
     Tensor<double> occ{};       ///< Occupancy of ground state orbitals
@@ -35,7 +34,7 @@ class GroundStateCalculation {
     Molecule molecule_in{};     ///< The molecule used in ground state calculation
     std::vector<real_function_3d> g_orbitals{};///< The ground state orbitals
     std::string xc{};                          ///< Name of xc functional used in ground state
-    std::string localize_method{};             ///< Name of xc functional used in ground state
+    std::string localize_method{};             ///< Name of localization method used in ground state
     double converged_for_thresh{}; ///< Convergence threshold used in ground state calculation
 
     // Default constructor
