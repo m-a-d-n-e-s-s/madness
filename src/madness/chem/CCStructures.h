@@ -1500,11 +1500,14 @@ public:
     /// compute the priority based on the sum of orbital energies:
 
     /// heuristically the lower the energy the more localized the functions are and thus the faster
+    /// diagonal elements are more important than off-diagonal elements
     double compute_priority(const Batch& batch, const argtupleT& argtuple) const {
         const std::vector<CCPair>& pairs = std::get<0>(argtuple);
         const int i=batch.input[0].begin;
-        print("computing priority for",i,pairs[i].bsh_eps);
-        return std::abs(1.0/pairs[i].bsh_eps);
+        bool diagonal=pairs[i].i==pairs[i].j;
+        double priority=std::abs(1.0/pairs[i].bsh_eps);
+        if (diagonal) priority+=10.0;
+        return priority;
     }
 
     resultT allocator(World& world, const argtupleT& argtuple) const {

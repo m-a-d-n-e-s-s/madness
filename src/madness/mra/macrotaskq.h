@@ -858,7 +858,7 @@ private:
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             const argtupleT batched_argtuple = task.batch.template copy_input_batch(argtuple);
         	try {
-			    print("starting task no",element, ", '",get_name(),"', in subworld",subworld.id(),"at time",wall_time());
+			    print("starting task no",element, ", '",get_name(),"', in subworld",subworld.id(),"with priority",this->get_priority(),"at time",wall_time());
         	    double cpu0=cpu_time();
         		resultT result_batch = std::apply(task, batched_argtuple);		// lives in the subworld, is a batch of the full vector (if applicable)
         	    double cpu1=cpu_time();
