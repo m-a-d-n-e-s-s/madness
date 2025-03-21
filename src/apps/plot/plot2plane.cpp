@@ -7,130 +7,91 @@
 using namespace madness;
 
 int main(int argc, char** argv) {
+	World& world=initialize(argc, argv);
+	startup(world,argc,argv);
+	std::cout.precision(6);
 
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
-    startup(world,argc,argv);
-    std::cout.precision(6);
+	commandlineparser parser(argc,argv);
+	bool printhelp=parser.key_exists("help");
 
+	// if no filename is given print help
+	std::vector<std::string> filenames;
+	if (parser.key_exists("file")) {
+		filenames = parser.split(parser.value("file"),",");
+	} else {
+		std::cout << "\ninvalid usage: no filename(s) given\n";
+		printhelp=true;
+	}
 
-    commandlineparser parser(argc,argv);
-    bool silent=false;
-    if (parser.key_exists("silent")){
-    	silent = (bool) std::stoi(parser.value("silent"));
-    }
-
-    if (world.rank()==0){
-    	std::cout << "--------------------------\n";
-    	std::cout << "Madness Orbital to Plane\n\n";
-    	std::cout << "usage:\n";
-    	std::cout << "plot2cube file=name\n\n";
-    	std::cout << "with e.g. name=my_mra_function.00000\n";
-    	std::cout << "\n\narguments:\n";
-    	std::cout << std::setw(25) << std::left << "\tno_orient=<bool> " <<  "orient the molecule according to madness defaults or not - default=true\n";
-    	std::cout << std::setw(25) << std::left << "\tinput<string> " <<  "madness input file - default='input'\n";
-    	std::cout << std::setw(25) << std::left << "\toutfile=<string> " << "name of outputfile\n";
-    	std::cout << std::setw(25) << std::left << "\tsilent<bool> " << "silence output - default=false\n";
-    	std::cout << "--------------------------\n";
-    	std::cout << "necessary files:\n";
-    	std::cout << std::setw(25) << std::left << "\tinputfile" << "the inputfile for madness that should hold plot parameters.\nE\t\texample:\n";
-    	std::cout << "\n";
-    	std::cout << "\t\tplot\n";
-    	std::cout << "\t\tplane=x1,x2\n";
-    	std::cout << "\t\tpoints=100\n";
-    	std::cout << "\t\tzoom=1.5\n";
-    	std::cout << "\t\toutput=gnuplot\n";
-    	std::cout << "\t\torigin=0.0 0.0 0.0\n";
-    	std::cout << "\t\tend\n\n";
-    	std::cout << std::setw(25) << std::left << "\tname.00000" << "the madness function file - filename given by plot2cube file=name\n";
-    	std::cout << "--------------------------\n";
-    }
-
-    // get names of input files
-    // input: the name of the file with the madness input (mol geometry is needed)
-    // file:  the name of the file with the MRA data of the madness orbital
-    std::string inputfile = "input";
-    std::string filename = "";
-    std::string outfile="";
-    double L=-1.0;
-    int npoints=200;
-    double zoom=2.0;
-    auto no_orient=false;
-    if (parser.key_exists("input")){
-    	inputfile = parser.value("input");
-    }
-    if (parser.key_exists("file")){
-    	filename = parser.value("file");
-    }else{
-    	throw std::invalid_argument("file=name not provided");
-    }
-    if (parser.key_exists("outfile")){
-    	outfile = parser.value("outfile");
-    }else outfile = filename;
-
-    outfile += ".plane";
+	// check if file exists using c++ filesystem
+	try {
+		for (const auto& filename : filenames) {
+			bool file_ok=std::filesystem::exists(filename+".00000");
+			// if (not file_ok) throw std::runtime_error("file not found");
+			if (not file_ok) {
+				std::cout << "\ncould not find data file: "+filename+"\n";
+				printhelp=true;
+			}
+		}
+	} catch (...) {
+		std::cout << "\ncould not find data file(s): ";
+		printhelp=true;
+	}
 
 
-    // check if files exist
-    CalculationParameters dummy;
-    auto file_ok=dummy.file_exists(world,parser.value("input"));
-    if (not file_ok){
-        std::string msg="could not find user-defined input file: "+parser.value("input")+"\n";
-        throw std::invalid_argument(msg);
-    }
-    file_ok=dummy.file_exists(world,parser.value("file")+".00000");
-    if (not file_ok){
-        std::string msg="could not find data file: "+parser.value("file")+"\n";
-        throw std::invalid_argument(msg);
-    }
+	if (printhelp) {
+		std::cout << "\nUSAGE: plot2plane file=name1[,name2][,name3] [options]\n\n";
+		std::cout << "name1,name2,..  names of the files to plot, each must contain one 3d function only \n";
+		std::cout << "                filename without extension, e.g. nemo4 instead of nemo4.00000\n\n";
+		std::cout << "OPTIONS: command line options similar to the electronic structure calculations \n";
+		std::cout << "         will read the input file if it exists, command line options will override the input file\n";
+		std::cout << std::endl;
+		std::cout << "           e.g. plot2plane file=nemo4,nemo0 --geometry=h2o\n";
+		std::cout << "           e.g. plot2plane file=nemo4 --geometry=\"no_orient=true; source_name=h2o\"\n";
+		std::cout << "           e.g. plot2plane file=nemo4 --geometry=h2o --plot=\"zoom 4;  origin=[3, 3, 3]\"\n";
+		std::cout << "           e.g. plot2plane file=nemo4 --geometry=h2o --plot=\"plane=x1x2;  origin=[3, 3, 3]\"\n\n";
+		std::cout << std::endl;
+		std::cout << "default plot options are: \n";
+		PlotParameters pparam;
+		pparam.print("plot","end");
+		finalize();
+		return 0;
+	}
 
-    // load functions
-    Function<double,3> f = FunctionFactory<double,3>(world);
-    if(world.rank()==0) std::cout << "load function " << filename << "\n";
-    load(f,filename);
-    if(world.rank()==0) std::cout << "... success\n";
 
-    // fetch defaults from f;
+	// get molecule and calculation parameters
+	Molecule molecule(world,parser);
+	CalculationParameters param(world,parser);
+	AtomicBasisSet aobasis(param.aobasis()); // not actually needed here..
+	param.set_derived_values(molecule,aobasis,parser);
+	PlotParameters pparam(world,parser);
 
-    FunctionDefaults<3>::set_k(f.k());
-    FunctionDefaults<3>::set_thresh(f.thresh());
+	if (world.rank()==0) {
+		print_header2("plotting parameters");
+		param.print("dft","end");
+		molecule.print();
+		pparam.print("plot","end");
+	}
 
-    // read in molecule
-    if(world.rank()==0) std::cout << "initializing molecule from input=" << inputfile << "\n";
-    Molecule molecule;
-    molecule.read_file(inputfile);
+	// load functions
+	FunctionDefaults<3>::set_cubic_cell(-param.L(),param.L());
 
-    if(no_orient==false){
-    	if(world.rank()) std::cout << "re-orienting\n";
-    	molecule.orient();
-    }
-    if(world.rank()==0) std::cout << "... success\n";
+	{
+		std::vector<Function<double,3>> vf;
+		for (const auto& filename : filenames) {
+			Function<double,3> f = FunctionFactory<double,3>(world);
+			if(world.rank()==0) std::cout << "load function " << filename << "\n";
+			load(f,filename);
+			if(world.rank()==0) std::cout << "... success\n";
+			vf.push_back(f);
+		}
 
-    // if L could not determined until this point
-    // guess it with the madness defaults
-    if(L<0.0){
-    	dummy = CalculationParameters(world, parser);
-    	AtomicBasisSet aobasis("sto-3g");
-    	dummy.set_derived_values(molecule, aobasis, parser);
-    	L = molecule.bounding_cube();
-    }
-    FunctionDefaults<3>::set_cubic_cell(-L,L);
+		std::string outfile=filenames[0]+".plane";
+		if(world.rank()==0) std::cout << "creating plot data in file " << outfile << "\n";
+		plot_plane(world,vf,outfile,pparam);
+		if(world.rank()==0) std::cout << "... success\n";
+	}
 
-    if(world.rank()==0){
-    	std::cout << "using madness parameters:\n";
-    	std::cout << "\tthresh=" << f.thresh() << "\n";
-    	std::cout << "\tk=" << f.k() << "\n";
-    	std::cout << "\tL=" << L << "\n";
-    }
-
-	// plot the Gaussian cube file
-
-    std::vector<Function<double,3>> vf;
-    vf.push_back(f);
-    if(world.rank()==0) std::cout << "creating plot data " << outfile << "\n";
-    plot_plane(world,vf,outfile,inputfile);
-    if(world.rank()==0) std::cout << "... success\n";
-
-    return 0;
-
+	finalize();
+	return 0;
 }
