@@ -99,8 +99,18 @@ int main(int argc, char** argv) {
 	FunctionDefaults<3>::set_cubic_cell(-param.L(),param.L());
 	FunctionDefaults<6>::set_cubic_cell(-param.L(),param.L());
 
-	do_plot<3>(world,filenames,pparam);
-	do_plot<6>(world,filenames,pparam);
+
+	try {
+		do_plot<3>(world,filenames,pparam);
+	} catch (...) {
+		std::cout << "plotting in 3d failed\n";
+	}
+
+	try {
+		do_plot<6>(world,filenames,pparam);
+	} catch (...) {
+		std::cout << "plotting in 6d failed\n";
+	}
 
 	finalize();
 	return 0;
