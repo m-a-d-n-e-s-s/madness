@@ -36,7 +36,10 @@ struct commandlineparser {
             sa >> key;
             val=a.substr(key.size());
             if (key=="input") set_keyval("user_defined_input_file","1");
-            set_keyval(key,val);
+
+            // special treatment for file names: keep captal/lower case
+            if (key=="file") set_keyval_keep_case(key,val);
+            else set_keyval(key,val);
         }
     }
 
@@ -63,6 +66,10 @@ struct commandlineparser {
 
     void set_keyval(const std::string key, const std::string value) {
         keyval[tolower(key)]= trim_blanks(tolower(value));
+    }
+
+    void set_keyval_keep_case(const std::string key, const std::string value) {
+        keyval[tolower(key)]= trim_blanks(value);
     }
 
 public:
