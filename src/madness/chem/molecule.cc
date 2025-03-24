@@ -243,19 +243,19 @@ void Molecule::read_structure_from_library(const std::string& name) {
   }
 }
 
-std::vector<std::string> Molecule::cubefile_header() const {
-  std::vector<std::string> molecular_info;
-  for (unsigned int i = 0; i < natom(); ++i) {
-    std::stringstream ss;
-    const int charge = get_atom(i).get_atomic_number();
-    ss << charge << " " << charge << " ";
-    ss << std::fixed;
-    ss.precision(8);
-    const Vector<double, 3> coord = get_atom(i).get_coords();
-    ss << coord[0] << " " << coord[1] << " " << coord[2] << " \n";
-    molecular_info.push_back(ss.str());
-  }
-  return molecular_info;
+std::vector<std::string> Molecule::cubefile_header(const Vector<double,3> offset) const {
+	std::vector<std::string> molecular_info;
+	for (unsigned int i = 0; i < natom(); ++i) {
+		std::stringstream ss;
+		const int charge = get_atom(i).get_atomic_number();
+		ss << charge << " " << charge << " ";
+		ss << std::fixed;
+		ss.precision(8);
+		const Vector<double, 3> coord = get_atom(i).get_coords()-offset;
+		ss << coord[0] << " " << coord[1] << " " << coord[2] << " \n";
+		molecular_info.push_back(ss.str());
+	}
+	return molecular_info;
 }
 
 void Molecule::read_file(const std::string& filename) {

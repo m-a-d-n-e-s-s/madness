@@ -103,11 +103,14 @@ void test_add(World& world) {
     std::vector<Function<T,NDIM> > add1(nvec), add2(nvec), sum(nvec), diff(nvec);
 
     for (int i=0; i<nvec; ++i) {
-        add1[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return r.normf();});
-        add2[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return 2.0*r.normf();});
-        sum[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return 3.0*r.normf();});
-        diff[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return -1.0*r.normf();});
+        add1[i]=FunctionFactory<T,NDIM>(world).functor([&i] (const Vector<double,3>& r) {return exp(-inner(r,r));});
+        // add2[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return 2.0*exp(-inner(r,r));});
+        // sum[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return 3.0*exp(-inner(r,r));});
+        // diff[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return -1.0*exp(-inner(r,r));});
     }
+    add2=2.0*add1;
+    sum=3.0*add1;
+    diff=-1.0*add1;
 
     std::vector<Function<T,NDIM> > r1=add1+add2;
     std::vector<Function<T,NDIM> > r3=add1+add2[0];
@@ -539,22 +542,21 @@ void test_multi_to_multi_op(World& world) {
 }
 
 int main(int argc, char**argv) {
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
+    World& world=initialize(argc, argv);
 
     bool smalltest = false;
     if (getenv("MAD_SMALL_TESTS")) smalltest=true;
     for (int iarg=1; iarg<argc; iarg++) if (strcmp(argv[iarg],"--small")==0) smalltest=true;
     std::cout << "small test : " << smalltest << std::endl;
-    if (smalltest) return 0;
+    // if (smalltest) return 0;
     madness::default_random_generator.setstate(int(cpu_time()*1000)%4149);
 
 
     try {
         startup(world,argc,argv);
 
-        // test_add<double,3>(world);
-        // test_add<std::complex<double>,3 >(world);
+        test_add<double,3>(world);
+        test_add<std::complex<double>,3 >(world);
 
         test_inner<double,double,1,false>(world);
         test_inner<double,double,1,true>(world);

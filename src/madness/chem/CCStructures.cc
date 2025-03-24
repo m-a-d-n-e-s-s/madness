@@ -638,8 +638,10 @@ MacroTaskMp2UpdatePair::operator() (const std::vector<CCPair> &pair,
                                     const Info& info) const {
     World& world = info.mo_ket[0].world();
     resultT result = zero_functions_compressed<double, 6>(world, pair.size());
+    print("in MacroTaskMp2UpdatePair::operator()", "pair.size()=", pair.size(), "batch=", this->batch);
 
     for (size_t i = 0; i < pair.size(); i++) {
+        print("in loop of batch",this->batch);
         //(i, j) -> j*(j+1) + i
         result[i] = CCPotentials::update_pair_mp2_macrotask(world, pair[i], info.parameters, all_coords_vec, info.mo_ket,
                                                             info.mo_bra, info.U1, info.U2, mp2_coupling[i]);

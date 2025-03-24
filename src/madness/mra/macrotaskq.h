@@ -40,7 +40,6 @@
 #ifndef SRC_MADNESS_MRA_MACROTASKQ_H_
 #define SRC_MADNESS_MRA_MACROTASKQ_H_
 
-// #include <madness/external/gtest/include/gtest/internal/gtest-port.h>
 #include <madness/world/cloud.h>
 #include <madness/world/world.h>
 #include <madness/mra/macrotaskpartitioner.h>
@@ -743,11 +742,11 @@ private:
         }
 
 
-        virtual void print_me(std::string s="") const {
+        void print_me(std::string s="") const override {
             print("this is task",get_name(),"with batch", task.batch,"priority",this->get_priority());
         }
 
-        virtual void print_me_as_table(std::string s="") const {
+        void print_me_as_table(std::string s="") const override {
             std::stringstream ss;
             std::string name=get_name();
             std::size_t namesize=std::min(std::size_t(28),name.size());
@@ -803,10 +802,14 @@ private:
     	typename std::enable_if<not is_tuple<resultT1>::value, void>::type
     	accumulate_into_final_result(World &subworld, resultT1 &result, const resultT1 &result_tmp, const argtupleT& argtuple) {
         		if constexpr (is_madness_function<resultT1>::value) {
-        			result_tmp.compress();
+        			// gaxpy can be done in reconstructed or compressed mode
+					TreeState operating_state=result_tmp.get_impl()->get_tensor_type()==TT_FULL ? compressed : reconstructed;
+        			result_tmp.change_tree_state(operating_state);
         			gaxpy(1.0,result,1.0, result_tmp);
         		} else if constexpr(is_madness_function_vector<resultT1>::value) {
-        			compress(subworld, result_tmp);
+					TreeState operating_state=result_tmp[0].get_impl()->get_tensor_type()==TT_FULL ? compressed : reconstructed;
+        			change_tree_state(result_tmp,operating_state);
+        			// compress(subworld, result_tmp);
         			// resultT1 tmp1=task.allocator(subworld,argtuple);
         			// tmp1=task.batch.template insert_result_batch(tmp1,result_tmp);
         			gaxpy(1.0,result,1.0,result_tmp,false);
@@ -826,7 +829,7 @@ private:
         }
 
 
-        void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug) {
+        void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug) override {
         	io_redirect io(element,get_name()+"_task",debug);
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             cloud.print_size(subworld);
@@ -836,7 +839,7 @@ private:
         	    double cpu0=cpu_time();
         		resultT result_batch = std::apply(task, batched_argtuple);		// lives in the subworld, is a batch of the full vector (if applicable)
         	    double cpu1=cpu_time();
-			    std::size_t bufsize=256;
+			    constexpr std::size_t bufsize=256;
 			    char buffer[bufsize];
 		    	std::snprintf(buffer,bufsize,"completed task %3ld after %6.1fs at time %6.1fs\n",element,cpu1-cpu0,wall_time());
         		print(std::string(buffer));
@@ -871,6 +874,12 @@ private:
         	}
 
         };
+
+    	// this is called after all tasks have been executed and the taskq has ended
+    	void cleanup() override {
+        		// resultT result_universe=get_output(subworld, cloud);       // lives in the universe
+
+    	}
 
     	template<typename T, std::size_t NDIM>
     	static Function<T,NDIM> pointer2WorldObject(const std::shared_ptr<FunctionImpl<T,NDIM>> impl) {

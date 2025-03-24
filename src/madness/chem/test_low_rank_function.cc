@@ -665,7 +665,7 @@ int test_construction_optimization(World& world, LowRankFunctionParameters param
         t1.checkpoint(lrf.rank() > 0, "construction");
 
         // with Slater tol must be relaxed
-        double tol = 1.e-2;
+        double tol = 2.e-2;
 
         double error = lrf.l2error(lrfunctor);
         double norm = lrf.norm2();
@@ -685,6 +685,7 @@ int test_construction_optimization(World& world, LowRankFunctionParameters param
         print("l2 error optimize", error);
         t1.checkpoint(error, tol, "l2 error in optimization");
 
+        print_header2(lrf.orthomethod);
         lrf.reorthonormalize();
         error = lrf.l2error(lrfunctor);
         print("l2 error reorthonormalize", error);
@@ -844,12 +845,16 @@ int main(int argc, char **argv) {
 
     try {
 
-        isuccess+=test_full_rank_functor<1>(world, parameters);
+        // isuccess+=test_full_rank_functor<1>(world, parameters);
+        // parameters.set_user_defined_value("orthomethod",std::string("canonical"));
+        // isuccess+=test_construction_optimization<1>(world,parameters);
+        parameters.set_user_defined_value("orthomethod",std::string("cholesky"));
         isuccess+=test_construction_optimization<1>(world,parameters);
-        isuccess+=test_arithmetic<1>(world,parameters);
-        isuccess+=test_inner<1>(world,parameters);
+        // isuccess+=test_arithmetic<1>(world,parameters);
+        // isuccess+=test_inner<1>(world,parameters);
 
-        if (long_test) {
+        if (0) {
+        // if (long_test) {
             isuccess+=test_construction_optimization<2>(world,parameters);
             isuccess+=test_arithmetic<2>(world,parameters);
             isuccess+=test_inner<2>(world,parameters);

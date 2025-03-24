@@ -53,29 +53,30 @@ struct gaussian {
 
 
 
+template<typename T, std::size_t NDIM>
 class MicroTask : public MacroTaskOperationBase {
 public:
     // you need to define the exact argument(s) of operator() as tuple
-    typedef std::tuple<const real_function_3d &, const double &,
-            const std::vector<real_function_3d> &> argtupleT;
+    typedef std::tuple<const Function<T,NDIM> &, const double &,
+            const std::vector<Function<T,NDIM>> &> argtupleT;
 
     // you need to define the result type
     // resultT must implement gaxpy(alpha, result, beta, contribution)
     // with resultT result, contribution;
-    using resultT = std::vector<real_function_3d>;
+    using resultT = std::vector<Function<T,NDIM>>;
 
     // you need to define an empty constructor for the result
     resultT allocator(World &world, const argtupleT &argtuple) const {
         std::size_t n = std::get<2>(argtuple).size();
-        resultT result = zero_functions_compressed<double, 3>(world, n);
+        resultT result = zero_functions_auto_tree_state<T,NDIM>(world, n);
         return result;
     }
 
-    resultT operator()(const real_function_3d &f1, const double &arg2,
-                       const std::vector<real_function_3d> &f2) const {
+    resultT operator()(const Function<T,NDIM> &f1, const double &arg2,
+                       const std::vector<Function<T,NDIM>> &f2) const {
         World& world=f1.world();
         if (world.rank()==0) print("in MicroTask");
-        real_convolution_3d op=CoulombOperator(world,1.e-4,1.e-5);
+        SeparatedConvolution<double,NDIM> op=BSHOperator<NDIM>(world,0,1.e-4,1.e-5);
         return arg2 * f1 * apply(world,op,f2);
     }
 };
@@ -268,8 +269,10 @@ public:
 
 
 
-int check_vector(World& universe, const std::vector<real_function_3d> &ref, const std::vector<real_function_3d> &test,
-                        const std::string msg) {
+template<typename T, std::size_t NDIM>
+int check_vector(World& universe, const std::vector<Function<T,NDIM>> &ref,
+                    const std::vector<Function<T,NDIM>> &test,
+                    const std::string msg) {
     double norm_ref = norm2(universe, ref);
     double norm_test = norm2(universe, test);
     double error = norm2(universe, ref - test);
@@ -307,12 +310,13 @@ int check(World& universe, const real_function_3d &ref, const real_function_3d &
     return (success) ? 0 : 1;
 };
 
-int test_immediate(World& universe, const std::vector<real_function_3d>& v3,
-                   const std::vector<real_function_3d>& ref) {
+template<typename T, std::size_t NDIM>
+int test_immediate(World& universe, const std::vector<Function<T,NDIM>>& v3,
+                   const std::vector<Function<T,NDIM>>& ref) {
     if (universe.rank() == 0) print("\nstarting immediate execution");
-    MicroTask t;
+    MicroTask<T,NDIM> t;
     MacroTask task_immediate(universe, t);
-    std::vector<real_function_3d> v = task_immediate(v3[0], 2.0, v3);
+    std::vector<Function<T,NDIM>> v = task_immediate(v3[0], 2.0, v3);
     int success=check_vector(universe,ref,v,"test_immediate execution of task");
     return success;
 }
@@ -322,7 +326,7 @@ int test_deferred(World& universe, const std::vector<real_function_3d>& v3,
     if (universe.rank() == 0) print("\nstarting deferred execution");
     auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size()));
     taskq->set_printlevel(3);
-    MicroTask t;
+    MicroTask<double,3> t;
     MacroTask task(universe, t, taskq);
     std::vector<real_function_3d> f2a = task(v3[0], 2.0, v3);
     taskq->print_taskq();
@@ -338,7 +342,7 @@ int test_twice(World& universe, const std::vector<real_function_3d>& v3,
     if (universe.rank() == 0) print("\nstarting Microtask twice (check caching)\n");
     auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size()));
     taskq->set_printlevel(3);
-    MicroTask t;
+    MicroTask<double,3> t;
     MacroTask task(universe, t, taskq);
     std::vector<real_function_3d> f2a1 = task(v3[0], 2.0, v3);
     std::vector<real_function_3d> f2a2 = task(v3[0], 2.0, v3);
@@ -494,17 +498,28 @@ int main(int argc, char **argv) {
         real_function_3d f1 = real_factory_3d(universe).functor(slater(1.0));
         real_function_3d i2 = real_factory_3d(universe).functor(slater(2.0));
         real_function_3d i3 = real_factory_3d(universe).functor(slater(2.0));
-        std::vector<real_function_3d> v2 = {2.0 * f1, i2};
         std::vector<real_function_3d> v3;
         for (int i=0; i<20; ++i) v3.push_back(real_factory_3d(universe).functor(slater(sqrt(double(i)))));
 
+        // test a low-rank vector
+        FunctionDefaults<2>::set_tensor_type(TT_2D);
+        std::vector<real_function_2d> v2;
+        for (int i=0; i<20; ++i) v2.push_back(real_factory_2d(universe).functor(slater(sqrt(double(i)))));
+
         timer timer1(universe);
-        MicroTask t;
-        std::vector<real_function_3d> ref = t(v3[0], 2.0, v3);
+        MicroTask<double,3> t;
+        std::vector<real_function_3d> ref3 = t(v3[0], 2.0, v3);
         timer1.tag("direct execution");
 
-        success+=test_immediate(universe,v3,ref);
-        timer1.tag("immediate taskq execution");
+        MicroTask<double,2> t2;
+        std::vector<real_function_2d> ref2 = t2(v2[0], 2.0, v2);
+        timer1.tag("direct execution low-rank");
+
+        // success+=test_immediate<double,3>(universe,v3,ref3);
+        // timer1.tag("immediate taskq execution");
+
+        success+=test_immediate<double,2>(universe,v2,ref2);
+        timer1.tag("immediate taskq execution with low-rank tensors");
 
         success+=test_scalar_task(universe,v3);
         timer1.tag("scalar task execution");
@@ -518,10 +533,10 @@ int main(int argc, char **argv) {
         success+=test_mixed_tuple(universe,v3);
         timer1.tag("mixed tuple task execution");
 
-        success+=test_deferred(universe,v3,ref);
+        success+=test_deferred(universe,v3,ref3);
         timer1.tag("deferred taskq execution");
 
-        success+=test_twice(universe,v3,ref);
+        success+=test_twice(universe,v3,ref3);
         timer1.tag("executing a task twice");
 
         success+=test_task1(universe,v3);

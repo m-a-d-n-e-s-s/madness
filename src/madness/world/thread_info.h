@@ -71,6 +71,11 @@ namespace madness {
         return detail::thread_tag_accessor() & ThreadTag_MADNESS;
     }
 
+    /// @return true if this is called from the main thread
+    inline bool is_main_thread() {
+      return detail::thread_tag_accessor() & ThreadTag_Main;
+    }
+
 }  // namespace madness
 
 #endif // MADNESS_WORLD_THREAD_INFO_H__INCLUDED

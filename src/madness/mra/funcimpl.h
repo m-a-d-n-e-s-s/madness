@@ -1135,7 +1135,9 @@ template<size_t NDIM>
         template<typename Q, typename R>
         void gaxpy_inplace_reconstructed(const T& alpha, const FunctionImpl<Q,NDIM>& g, const R& beta, const bool fence) {
             // merge g's tree into this' tree
-            this->merge_trees(beta,g,alpha,fence);
+            gaxpy_inplace(alpha,g,beta,fence);
+            tree_state=redundant_after_merge;
+            // this->merge_trees(beta,g,alpha,fence);
             // tree is now redundant_after_merge
             // sum down the sum coeffs into the leafs if possible to keep the state most clean
             if (fence) sum_down(fence);
@@ -1204,6 +1206,9 @@ template<size_t NDIM>
         };
 
         /// Inplace general bilinear operation
+
+        /// this's world can differ from other's world
+        /// this = alpha * this + beta * other
         /// @param[in]  alpha   prefactor for the current function impl
         /// @param[in]  other   the other function impl
         /// @param[in]  beta    prefactor for other
@@ -1258,6 +1263,9 @@ template<size_t NDIM>
 
         /// Returns true if the function is redundant.
         bool is_redundant() const;
+
+        /// Returns true if the function is redundant_after_merge.
+        bool is_redundant_after_merge() const;
 
         bool is_nonstandard() const;
 
@@ -2377,7 +2385,7 @@ template<size_t NDIM>
         };
 
 
-        /// merge the coefficent boxes of this into other's tree
+        /// merge the coefficient boxes of this into other's tree
 
         /// no comm, and the tree should be in an consistent state by virtue
         /// of FunctionNode::gaxpy_inplace
@@ -5042,13 +5050,6 @@ template<size_t NDIM>
             coeff_SVD.get_svdtensor().orthonormalize(tol*GenTensor<T>::fac_reduce());
 #endif
 
-            // BC handling:
-            // - if operator is lattice-summed then treat this as nonperiodic (i.e. tell neighbor() to stay in simulation cell)
-            // - if operator is NOT lattice-summed then obey BC (i.e. tell neighbor() to go outside the simulation cell along periodic dimensions)
-            // - BUT user can force operator to treat its arguments as non-[eriodic (op.domain_is_simulation_cell(true))
-            // so ... which dimensions of this function are treated as periodic by op?
-            const array_of_bools<NDIM> this_is_treated_by_op_as_periodic = (op->particle() == 1) ? array_of_bools<NDIM>{false}.or_front(op->domain_is_periodic()) : array_of_bools<NDIM>{false}.or_back(op->domain_is_periodic());
-
             // list of displacements sorted in order of increasing distance
             // N.B. if op is lattice-summed gives periodic displacements, else uses
             // non-periodic even if op treats any modes of this as periodic
@@ -7138,6 +7139,9 @@ template<size_t NDIM>
 
         /// Returns the number of coefficients in the function ... collective global sum
         std::size_t size() const;
+
+        /// Returns the number of coefficients in the function for this MPI rank
+        std::size_t nCoeff_local() const;
 
         /// Returns the number of coefficients in the function ... collective global sum
         std::size_t nCoeff() const;

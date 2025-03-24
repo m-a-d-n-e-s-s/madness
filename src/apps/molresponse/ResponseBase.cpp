@@ -494,9 +494,9 @@ auto ResponseBase::compute_gamma(World &world, const gamma_orbitals &density,
       FunctionDefaults<3>::get_pmap();
   auto c_xc = xcf.hf_exchange_coefficient();
 
-  auto [chi_alpha, phi0, rho1] =
-      orbital_load_balance(world, density, r_params.loadbalparts());
-  QProjector<double, 3> projector(phi0);
+    auto [chi_alpha, phi0, rho1] =
+            orbital_load_balance(world, density, r_params.loadbalparts());
+    QProjector<double, 3> projector(phi0);
 
   X_space W = X_space::zero_functions(world, chi_alpha.num_states(),
                                       chi_alpha.num_orbitals());
@@ -779,18 +779,16 @@ auto ResponseBase::compute_gamma_full(
   auto [chi_alpha, phi0, rho1] =
       orbital_load_balance(world, density, r_params.loadbalparts());
 
-  QProjector<double, 3> projector(phi0);
-  size_t num_states = chi_alpha.num_states();
-  size_t num_orbitals = chi_alpha.num_orbitals();
-  if (r_params.print_level() >= 1)
-  {
-    molresponse::start_timer(world);
-  }
-  // x functions
-  // here I create the orbital products for elctron interaction terms
-  vecfuncT phi_phi;
-  vecfuncT x_phi;
-  vecfuncT y_phi;
+    QProjector<double, 3> projector(phi0);
+    size_t num_states = chi_alpha.num_states();
+    size_t num_orbitals = chi_alpha.num_orbitals();
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    // x functions
+    // here I create the orbital products for elctron interaction terms
+    vecfuncT phi_phi;
+    vecfuncT x_phi;
+    vecfuncT y_phi;
+
 
   X_space W = X_space::zero_functions(world, num_states, num_orbitals);
   if (r_params.print_level() >= 1)
@@ -907,36 +905,29 @@ auto ResponseBase::compute_gamma_static(
     const XCOperator<double, 3> &xc) const -> X_space
 {
 
-  auto old_pmap = FunctionDefaults<3>::get_pmap();
-  auto [xy, phi0, rho1] =
-      orbital_load_balance(world, gammaOrbitals, r_params.loadbalparts());
-  QProjector<double, 3> projector(phi0);
-  size_t num_states = xy.num_states();
-  size_t num_orbitals = xy.num_orbitals();
-  if (r_params.print_level() >= 1)
-  {
-    molresponse::start_timer(world);
-  }
-  X_space gamma(world, num_states, num_orbitals);
-  // here I create the orbital products for elctron interaction terms
-  vecfuncT phi_phi;
-  vecfuncT x_phi;
-  functionT temp_J;
-  X_space W = X_space::zero_functions(world, num_states, num_orbitals);
-  X_space J(world, num_states, num_orbitals);
-  X_space K = X_space::zero_functions(world, num_states, num_orbitals);
-  X_space KX = X_space::zero_functions(world, num_states, num_orbitals);
-  X_space KY = X_space::zero_functions(world, num_states, num_orbitals);
-  if (r_params.print_level() >= 1)
-  {
-    molresponse::end_timer(world, "gamma_zero_functions",
-                           "gamma_zero_functions", iter_timing);
-  }
-  // apply the exchange kernel to rho if necessary
-  if (r_params.print_level() >= 1)
-  {
-    molresponse::start_timer(world);
-  }
+    auto old_pmap = FunctionDefaults<3>::get_pmap();
+    auto [xy, phi0, rho1] =
+            orbital_load_balance(world, gammaOrbitals, r_params.loadbalparts());
+    QProjector<double, 3> projector(phi0);
+    size_t num_states = xy.num_states();
+    size_t num_orbitals = xy.num_orbitals();
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    X_space gamma(world, num_states, num_orbitals);
+    // here I create the orbital products for elctron interaction terms
+    vecfuncT phi_phi;
+    vecfuncT x_phi;
+    functionT temp_J;
+    X_space W = X_space::zero_functions(world, num_states, num_orbitals);
+    X_space J(world, num_states, num_orbitals);
+    X_space K = X_space::zero_functions(world, num_states, num_orbitals);
+    X_space KX = X_space::zero_functions(world, num_states, num_orbitals);
+    X_space KY = X_space::zero_functions(world, num_states, num_orbitals);
+    if (r_params.print_level() >= 1) {
+        molresponse::end_timer(world, "gamma_zero_functions",
+                               "gamma_zero_functions", iter_timing);
+    }
+    // apply the exchange kernel to rho if necessary
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
 
   if (r_params.print_level() >= 1)
   {
@@ -1154,21 +1145,16 @@ auto ResponseBase::compute_gamma_tda(
                            iter_timing);
   }
 
-  if (r_params.print_level() >= 1)
-  {
-    molresponse::start_timer(world);
-  }
-  QProjector<double, 3> projector(ground_orbitals);
-  for (size_t i = 0; i < num_states; i++)
-  {
-    gamma.x[i] = projector(gamma.x[i]);
-    truncate(world, gamma.x[i]);
-  }
-  if (r_params.print_level() >= 1)
-  {
-    molresponse::end_timer(world, "gamma_project", "gamma_project",
-                           iter_timing);
-  }
+    if (r_params.print_level() >= 1) { molresponse::start_timer(world); }
+    QProjector<double, 3> projector(ground_orbitals);
+    for (size_t i = 0; i < num_states; i++) {
+        gamma.x[i] = projector(gamma.x[i]);
+        truncate(world, gamma.x[i]);
+    }
+    if (r_params.print_level() >= 1) {
+        molresponse::end_timer(world, "gamma_project", "gamma_project",
+                               iter_timing);
+    }
 
   if (r_params.print_level() >= 20)
   {

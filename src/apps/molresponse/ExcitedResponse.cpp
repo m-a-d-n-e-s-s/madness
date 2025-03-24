@@ -73,8 +73,7 @@ void ExcitedResponse::initialize(World &world)
 
     // Project out ground state from guesses
     QProjector<double, 3> projector(ground_orbitals);
-    for (unsigned int i = 0; i < trial.x.size(); i++)
-        trial.x[i] = projector(trial.x[i]);
+    for (unsigned int i = 0; i < trial.x.size(); i++) trial.x[i] = projector(trial.x[i]);
 
     // Ensure orthogonal guesses
     for (size_t i = 0; i < 2; i++)
@@ -176,8 +175,7 @@ X_space ExcitedResponse::make_random_trial(World &world, size_t m) const
 
     // Project out groundstate from guesses
     QProjector<double, 3> projector(ground_orbitals);
-    for (unsigned int i = 0; i < f.num_states(); i++)
-        f.x[i] = projector(f.x[i]);
+    for (unsigned int i = 0; i < f.num_states(); i++) f.x[i] = projector(f.x[i]);
 
     // Normalize
     normalize(world, f.x);
@@ -301,8 +299,7 @@ X_space ExcitedResponse::make_nwchem_trial(World &world, size_t m) const
 
     // Project out groundstate from guesses
     QProjector<double, 3> projector(ground_orbitals);
-    for (unsigned int i = 0; i < f.size(); i++)
-        f[i] = projector(f[i]);
+    for (unsigned int i = 0; i < f.size(); i++) f[i] = projector(f[i]);
 
     // Truncate and normalize
     f.truncate_rf();
@@ -482,17 +479,16 @@ X_space ExcitedResponse::create_trial_functions2(World &world) const
 void ExcitedResponse::iterate_trial(World &world, X_space &guesses)
 {
     // Variables needed to iterate
-    size_t iteration = 0; // Iteration counter
-    QProjector<double, 3> projector(
-        ground_orbitals);                 // Projector to project out ground state
-    size_t m = r_params.num_states();     // Number of excited states
-    size_t n = r_params.num_orbitals();   // Number of ground state orbitals
-    Tensor<double> x_shifts;              // Holds the shifted energy values
-    response_space bsh_resp(world, m, n); // Holds wave function corrections
-    response_space V;                     // Holds V^0 applied to response functions
-    response_space shifted_V;             // Holds the shifted V^0 applied to response functions
-    Tensor<double> S;                     // Overlap matrix of response components for x states
-    real_function_3d v_xc;                // For TDDFT
+    size_t iteration = 0;// Iteration counter
+    QProjector<double, 3> projector(ground_orbitals);// Projector to project out ground state
+    size_t m = r_params.num_states();                // Number of excited states
+    size_t n = r_params.num_orbitals();              // Number of ground state orbitals
+    Tensor<double> x_shifts;                         // Holds the shifted energy values
+    response_space bsh_resp(world, m, n);            // Holds wave function corrections
+    response_space V;                                // Holds V^0 applied to response functions
+    response_space shifted_V;// Holds the shifted V^0 applied to response functions
+    Tensor<double> S;        // Overlap matrix of response components for x states
+    real_function_3d v_xc;   // For TDDFT
 
     // Useful to have
     response_space zeros(world, m, n);

@@ -293,7 +293,7 @@ namespace madness {
             es = madness_comm_thread_es;
         }
 
-        __parsec_schedule_vp(es, vp_parsec_task, 0);
+        __parsec_schedule_vp(es, vp_parsec_task, is_main_thread() ? 1 : 0);
     }
 
     void ParsecRuntime::wait() {

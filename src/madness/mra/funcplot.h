@@ -921,7 +921,8 @@ void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfuncti
     template<size_t NDIM>
     typename std::enable_if<NDIM==3,void>::type
     plot_cubefile(World& world, const Function<double,NDIM>& f, std::string filename,
-            std::vector<std::string> molecular_info=std::vector<std::string>(), int npoints=100, double zoom=1.0) {
+            std::vector<std::string> molecular_info=std::vector<std::string>(), int npoints=100, double zoom=1.0,
+            const Vector<double,NDIM> origin=Vector<double,NDIM>(0.0)) {
 
         if (world.size()>1) return;
 
@@ -930,7 +931,7 @@ void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfuncti
         	molecular_info=std::vector<std::string>(1,"0 0 0.0 0.0 0.0\n");
 
         // the coordinates to be plotted
-        Vector<double,NDIM> origin(0.0);
+        // Vector<double,NDIM> origin(0.0);
 
         // number of points in each direction
         std::vector<int> npt(3,npoints);

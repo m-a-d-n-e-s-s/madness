@@ -129,14 +129,19 @@ namespace madness {
 				Qnew(i,iter) = inner(ulist[i],rlist[iter]);
 				Qnew(iter,i) = inner(ulist[iter],rlist[i]);
 			}
+			// ulist and rlist are now either compressed or redundant -- change back to compressed or reconstructed0
+			TreeState operating_state = u.get_impl()->get_tensor_type()==TT_FULL ? compressed : reconstructed;
+			change_tree_state(ulist,operating_state,true);
+			change_tree_state(rlist,operating_state,true);
+
 			Q = Qnew;
 			real_tensor c = KAIN(Q);
 			check_linear_dependence(Q,c,rcondtol,cabsmax);
 			if (do_print) print("subspace solution",c);
 
-			// Form new solution in u
-			Function<double,NDIM> unew = FunctionFactory<double,NDIM>(u.world());
-			if (ulist[0].is_compressed()) unew.compress();
+			// Form new solution in u, gaxpy in done in reconstructed or compressed state
+			Function<double,NDIM> unew = FunctionFactory<double,NDIM>(u.world()).treestate(operating_state);
+			// if (ulist[0].is_compressed()) unew.compress();
 			for (int i=0; i<=iter; i++) {
 				unew.gaxpy(1.0,ulist[i], c[i]);
 				unew.gaxpy(1.0,rlist[i],-c[i]);
@@ -202,7 +207,7 @@ namespace madness {
     class XNonlinearSolver {
         unsigned int maxsub; ///< Maximum size of subspace dimension
         Alloc alloc;
-        std::vector<T> ulist, rlist; ///< Subspace information
+        std::vector<T> ulist, rlist, plist; ///< Subspace information
         Tensor<C> Q;
         Tensor<C> c;		///< coefficients for linear combination
     public:
@@ -223,6 +228,7 @@ namespace madness {
 
 	std::vector<T>& get_ulist() {return ulist;}
 	std::vector<T>& get_rlist() {return rlist;}
+	std::vector<T>& get_plist() {return plist;}
 
 	void set_maxsub(int maxsub) {this->maxsub = maxsub;}
 	Tensor<C> get_c() const {return c;}
@@ -230,6 +236,7 @@ namespace madness {
 	void clear_subspace() {
 		ulist.clear();
 		rlist.clear();
+		plist.clear();
 		Q=Tensor<C>();
 	}
 
@@ -241,8 +248,8 @@ namespace madness {
 	/// @param u Current solution vector
 	/// @param r Corresponding residual
 	/// @return Next trial solution vector
-        /// @param[in]          rcondtol rcond less than this will cause the subspace to be shrunk due to linear dependence
-        /// @param[in]          cabsmax  maximum element of c greater than this will cause the subspace to be shrunk due to li
+    /// @param[in]          rcondtol rcond less than this will cause the subspace to be shrunk due to linear dependence
+    /// @param[in]          cabsmax  maximum element of c greater than this will cause the subspace to be shrunk due to li
 	T update(const T& u, const T& r, const double rcondtol=1e-8, const double cabsmax=1000.0) {
 		if (maxsub==1) return u-r;
 		int iter = ulist.size();
@@ -274,6 +281,86 @@ namespace madness {
 			Q = copy(Q(Slice(1,-1),Slice(1,-1)));
 		}
 		return unew;
+	}
+
+    /// Computes next trial solution vector
+
+    /// this version of update avoids using the residual by computing it on the fly
+    /// note the distinction between u_preliminary (input) and u_kain (output)
+    /// residual[i] = u_kain[i] - u_preliminary[i+1]
+    /// ulist[i] = u_kain[i]
+    /// plist[i] = u_preliminary[i]
+    /// @param[in] u_preliminary: new solution before KAIN
+    /// @param[out] u_kain: new solution after KAIN
+    T update(const T& u_preliminary, const double rcondtol=1e-8, const double cabsmax=1000.0) {
+		if (maxsub==1) return u_preliminary;
+
+		// check if T is a madness function or madness function vector, then we need to know the tree state
+		constexpr bool do_tree_states = is_madness_function<T>::value || is_madness_function_vector<T>::value;
+
+		// works for both Function and FunctionVector
+		auto get_operating_state = [](const T& v) {
+			TreeState state=unknown;
+			if constexpr (is_madness_function<T>::value) {
+				state=v.get_impl()->get_tensor_type()==TT_FULL ? compressed : reconstructed;
+			} else if constexpr (is_madness_function_vector<T>::value) {
+				state=v[0].get_impl()->get_tensor_type()==TT_FULL ? compressed : reconstructed;
+			}
+			return state;
+		};
+
+		// do we work in compressed or reconstructed form?
+		TreeState operating_state = get_operating_state(u_preliminary);
+
+		int iter = ulist.size()-1;
+		MADNESS_CHECK_THROW(iter>=0,"ulist must have size==1 at least -- forgot to initialize?");
+		plist.push_back(u_preliminary);
+		MADNESS_CHECK_THROW(ulist.size()+1==plist.size(),"ulist and plist have incorrect size -- forgot to initialize?");
+
+
+		// Solve subspace equations
+		// Q_ij = < u_kain[i] | r[j] > = < u_kain[i] | u_kain[j] - u_preliminary[j+1] >
+		Tensor<C> Qnew(iter+1,iter+1);
+		if (iter>0) Qnew(Slice(0,-2),Slice(0,-2)) = Q;
+		for (int i=0; i<=iter; i++) {
+			Qnew(i,iter) = inner(ulist[i],ulist[iter]) - inner(ulist[i],plist[iter+1]);
+			Qnew(iter,i) = inner(ulist[iter],ulist[i]) - inner(ulist[iter],plist[i+1]);
+		}
+		// ulist and rlist are now either compressed or redundant -- change back to compressed or reconstructed0
+		if constexpr (do_tree_states) {
+			for (auto& u : ulist) change_tree_state(u,operating_state,true);
+			for (auto& p : plist) change_tree_state(p,operating_state,true);
+		}
+
+		Q = Qnew;
+		c = KAIN(Q);
+
+		check_linear_dependence(Q,c,rcondtol,cabsmax,do_print);
+		if (do_print) print("subspace solution",c);
+
+		// Form new solution in u
+		T unew = alloc();
+		for (int i=0; i<=iter; i++) {
+//			unew += (ulist[i] - rlist[i])*c[i];
+			unew += (plist[i+1])*c[i];
+		}
+		if constexpr (is_madness_function<T>::value) unew.reconstruct();
+		if constexpr (is_madness_function_vector<T>::value) reconstruct(unew);
+		ulist.push_back(unew);
+
+		if (ulist.size() == maxsub) {
+			ulist.erase(ulist.begin());
+			if (not rlist.empty()) rlist.erase(rlist.begin());
+			if (not plist.empty()) plist.erase(plist.begin());
+			Q = copy(Q(Slice(1,-1),Slice(1,-1)));
+		}
+		return unew;
+	}
+
+    void initialize(const T& u_initial) {
+		clear_subspace();
+		ulist.push_back(u_initial); // initial guess
+		plist.push_back(alloc());	// empty function
 	}
 
     };

@@ -334,7 +334,7 @@ void SCF::save_mos(World& world) {
     ar & version;
     ar & current_energy & param.spin_restricted();
     ar & param.L() & FunctionDefaults<3>::get_k() & molecule & param.xc() & param.localize_method() & converged_for_thresh;
-    // Re order so it doesn't effect orbital data
+    // Reorder so it doesn't affect orbital data
 
     ar & (unsigned int) (amo.size());
     ar & aeps & aocc & aset;
@@ -380,7 +380,8 @@ void SCF::load_mos(World& world) {
       int k;
       Molecule molecule;
       std::string xc;
-    std::string localize;
+      std::string localize;
+      double converged_for_thresh
       unsigned int nmo_alpha;
       Tensor<double> aeps;
       Tensor<double> aocc;

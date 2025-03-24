@@ -50,6 +50,7 @@
 #include<madness/chem/BSHApply.h>
 #include<madness/chem/localizer.h>
 #include <madness/mra/macrotaskq.h>
+#include <madness/mra/memory_measurement.h>
 
 
 using namespace madchem;
@@ -307,7 +308,7 @@ tensorT Nemo::compute_fock_matrix(const vecfuncT& nemo, const tensorT& occ) cons
     fock+=T(R2nemo,nemo);
     JKUpsi.clear();
 
-	return fock;
+	return 0.5*(fock+transpose(fock));
 }
 
 /// solve the HF equations
@@ -329,12 +330,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 	bool localized=param.do_localize();
 	real_function_3d density=real_factory_3d(world); 	// for testing convergence
 
-//	typedef vector_function_allocator<double, 3> allocT;
-//	typedef XNonlinearSolver<std::vector<Function<double, 3> >, double, allocT> solverT;
-//	allocT alloc(world, nemo.size());
-//	solverT solver(allocT(world, nemo.size()));
     auto solver= nonlinear_vector_solver<double,3>(world,nemo.size());
-
 
 	// iterate the residual equations
 	for (int iter = 0; iter < param.maxiter(); ++iter) {
@@ -345,6 +341,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 	    if (world.rank()==0 and param.print_level()>9) print("orbital irreps",str_irreps);
 	    vecfuncT R2nemo=mul(world,R_square,nemo);
 	    truncate(world,R2nemo);
+        if (iter==0) solver.initialize(nemo);
 
 		// compute potentials the Fock matrix: J - K + Vnuc
 		compute_nemo_potentials(nemo, Jnemo, Knemo, xcnemo, pcmnemo, Unemo);
@@ -381,7 +378,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 
             nemo = transform(world, nemo, U, trantol(), true);
             Vnemo = transform(world, Vnemo, U, trantol(), true);
-            rotate_subspace(world, U, solver, 0, nemo.size());
+            // rotate_subspace(world, U, solver, 0, nemo.size());
 
             truncate(world, nemo);
             normalize(nemo,R);
@@ -395,14 +392,19 @@ double Nemo::solve(const SCFProtocol& proto) {
         timer t_bsh(world,param.print_level()>2);
 		BSHApply<double,3> bsh_apply(world);
 		bsh_apply.metric=R_square;
+		bsh_apply.ret_value=BSHApply<double,3>::update;
 		bsh_apply.lo=get_calc()->param.lo();
 		bsh_apply.levelshift=param.orbitalshift();
-		auto [residual,eps_update] =bsh_apply(nemo,fock,Vnemo);
+		auto [update,eps_update] =bsh_apply(nemo,fock,Vnemo);
+	    auto residual=nemo-update;
 		t_bsh.tag("BSH apply");
 
 		const double bsh_norm = norm2(world, residual) / sqrt(nemo.size());
 
-		vecfuncT nemo_new = truncate(solver.update(nemo, residual));
+        MemoryMeasurer::measure_and_print(world);
+
+		// vecfuncT nemo_new = truncate(solver.update(nemo, residual));
+		vecfuncT nemo_new = truncate(solver.update(update));
         t_bsh.tag("solver.update");
 		normalize(nemo_new,R);
 

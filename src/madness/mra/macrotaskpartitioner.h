@@ -28,6 +28,7 @@ struct is_madness_function_vector : std::false_type {
 template<typename T, std::size_t NDIM>
 struct is_madness_function_vector<std::vector<typename madness::Function<T, NDIM>>> : std::true_type {
     };
+using decay_tuple = decltype(decay_types(std::declval<T>()));
 
 template<typename Q> struct is_vector : std::false_type { };
 template<typename Q> struct is_vector<std::vector<Q>> : std::true_type { };

@@ -659,7 +659,7 @@ public:
             print("anorm, bnorm",anorm,bnorm);
             double norm=this->norm2();
             std::size_t fsize=get_a().size();
-            std::size_t bufsize=128;
+            constexpr std::size_t bufsize=128;
             char buf[bufsize];
             snprintf(buf, bufsize, "%40s at time %.1fs: norm/  #functions: %7.5f %zu \n",
                    ((name1+" "+name()).c_str()), wall, norm, fsize);

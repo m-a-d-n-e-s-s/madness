@@ -765,14 +765,113 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             }
         }
 
-        /// remove linear dependencies without orthonormalization
-        void remove_linear_depdencies(double thresh=-1.0) {
+        /// remove linear dependencies using rank-revealing cholesky decomposition
+        ///
+        /// @return this with g orthonormal and h orthogonal
+        void reorthonormalize_rrcd(double thresh=-1.0) {
 
-            // use rank-revealing cholesky decomposition to remove linear dependencies
+            // with g~ being the orthonormalized g and h~ the orthonormalized h (from rrcd)
+            // with
+            //    ovlp = <g_i | g_j> = L L^T
+            // we get
+            //    | g~_i(1) > = | g_j(1) > piv (L^T)^(-1)        // with piv permuting/truncating, and LT^(-1) already rank-reduced
+            //    | g_i(1) >  = | g~_j(1) >  L^T piv^T
+            //                = | g_j(1) > piv LT^(-1) LT piv^T
+            // thus:
+            // f(1,2) = sum_i | g_i(1)>< h_i(2) |
+            //        = | g_i(1)> piv_g LTg^(-1) LTg piv_g^(-1) <h_i(2)|                     (1)
+            //        = | g_i(1)> piv_g LTg^(-1) ( LTg  piv_g^(-1) <h_i(2)| )                (2)
+            //        = | g_i(1)> piv_g LTg^(-1) <h'_i(2)|                                   (3)
+            //        = | g_i(1)> piv_g LTg^(-1) piv_h Lh Lh^(-1) piv_h^T <h'_i(2)|          (4)
+            //        = (| g_i(1)> piv_g LTg^(-1) piv_h Lh ) ( Lh^(-1) piv_h^T LTg piv_g^(-1) <h_i(2)| )
+            // Notes:
+            //  piv^(-1) = piv^T since piv is a unitary permutation matrix
+            // Thus
+            //   | h~_i(2) > = |h_i(2) > piv_g Lg piv_h LTh^(-1)
+
+            double tol=rank_revealing_tol;
+
+            // no pivot_inverse is necessary..
+            auto pivot_vec = [&] (const std::vector<Function<T,LDIM>>& v, const Tensor<integer>& ipiv) {
+                std::size_t rank=ipiv.size();
+                std::vector<Function<T,LDIM> > pv(rank);
+                for(int i=0;i<ipiv.size();++i) pv[i]=v[ipiv[i]];       // all elements in [rank,v.size()) = 0 due to lindep
+                return pv;
+            };
+
+            auto pivot_mat = [&] (const Tensor<T>& t, const Tensor<integer>& ipiv) {
+                std::size_t rank=ipiv.size();
+                Tensor<T> pt(t.dim(0),t.dim(1));
+                // for(int i=0;i<ipiv.size();++i) pt(i,_)=t(ipiv[i],_);       // all elements in [rank,v.size()) = 0 due to lindep
+                for(int i=0;i<ipiv.size();++i) pt(ipiv[i],_)=t(i,_);       // all elements in [rank,v.size()) = 0 due to lindep
+                return pt;
+            };
+
+            auto pivot = [](const Tensor<integer>& ipiv) {
+                Tensor<T> piv(ipiv.size(),ipiv.size());
+                for (int i=0; i<ipiv.size(); ++i) piv(ipiv[i],i)=1.0;
+                return piv;
+            };
 
 
+            auto LT = [&](const Tensor<T>& ovlp1) {
+                Tensor<integer> piv;
+                auto ovlp=copy(ovlp1);  // copy since ovlp will be destroyed
+                // auto ovlp=matrix_inner(world,v,v);
+                int rank;
+                rr_cholesky(ovlp,tol,piv,rank); // destroys ovlp and gives back Upper ∆ Matrix from CD
+                print("initial, final rank",ovlp.dim(0),rank);
+                // piv=piv(Slice(0,rank-1));
+                Tensor<T> p=pivot(piv);
+                Tensor<T> L=inner(p,transpose(ovlp));
+
+                double err1=(ovlp1-inner(L,L,1,1)).normf();
+                L=L(_,Slice(0,rank-1));       // (new, old)
+                double err2=(ovlp1-inner(L,L,1,1)).normf();
+                print("err1, err2", err1,err2);
+                return std::make_pair(L,piv);
+            };
+
+            // orthonormalize g: g_ortho= transform(g_piv,LT_g^(-1))
+            auto ovlp_g=matrix_inner(world,g,g);
+            // ovlp_g=0.5*(ovlp_g+transpose(ovlp_g));
+            // for (int i=0; i<ovlp_g.dim(0); ++i) ovlp_g(i,i)+=1.e-12;
+            auto [L_g,piv_g]=LT(ovlp_g);              // (1)
+            L_g=pivot_mat(L_g,piv_g);
+            double zero=(ovlp_g-inner(L_g,L_g,1,1)).normf();
+            print("zero",zero);
+            // auto hpiv_g=pivot_vec(h,piv_g);         // (2) : | h_i > piv_g
+            // auto ovlp_hsmall=matrix_inner(world,hpiv_g,hpiv_g);           // (3) : < h_i | h_j >
+            // auto ovlp1=inner(LT_g,inner(ovlp_hsmall,LT_g,1,1));        // (3) : LTg piv_g <h_i | h_i> piv_g  Lg
+            // auto [LTh,piv_h]=LT(ovlp1);                // (3)
+
+            // auto gpiv_g=pivot_vec(g,piv_g);         // | g_i > piv_g
+            // auto gtrans=inner(pivot_mat(inverse(LT_g),piv_h),LTh,1,1);        // LTg^(-1) piv_g Lh
+            // auto htrans=inner(pivot_mat(transpose(LT_g),piv_h),inverse(LTh));        // LTg^(-1) piv_g Lh
+            auto gpiv_g=pivot_vec(g,piv_g);         // | g_i > piv_g
+            auto gtrans=inverse(L_g);
+            auto htrans=L_g;
+            auto hpiv_g=pivot_vec(h,piv_g);         // | h_i > piv_g
+
+            g=transform(world,gpiv_g,(gtrans));
+            h=transform(world,hpiv_g,transpose(htrans));
+            auto Gortho=matrix_inner(world,g,g);
+            for (int i=0; i<Gortho.dim(0); ++i) Gortho(i,i)-=1.0;
+            print("G_ortho.normf()",Gortho.normf(),Gortho.dim(0));
+            print("end of line");
+            // g=gpiv_g;
+            // h=hpiv_g;
         }
 
+        void reorthonormalize(double thresh=-1.0) {
+            if (orthomethod=="canonical") {
+                reorthonormalize_canonical(thresh);
+            } else if (orthomethod=="cholesky") {
+                reorthonormalize_rrcd(thresh);
+            } else {
+                MADNESS_EXCEPTION("no such orthomethod",1);
+            }
+        }
         /// after external operations g might not be orthonormal and/or optimal -- reorthonormalize
 
         /// orthonormalization similar to Bischoff, Harrison, Valeev, JCP 137 104103 (2012), Sec II C 3
@@ -780,12 +879,16 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         ///     = g X- (X+)^T (Y+)^T Y- h
         ///     = g X-  U S V^T  Y- h
         ///     = g (X- U) (S V^T Y-) h
-        /// requires 2 matrix_inner and 2 transforms. g and h are optimal, but contain all cusps etc..
+        /// requires 2 matrix_inner and 2 transforms. g and h are optimal
         /// @param[in]  thresh        SVD threshold
-        void reorthonormalize(double thresh=-1.0) {
+        void reorthonormalize_canonical(double thresh=-1.0) {
             if (thresh<0.0) thresh=rank_revealing_tol;
             Tensor<T> ovlp_g = matrix_inner(world, g, g);
             Tensor<T> ovlp_h = matrix_inner(world, h, h);
+
+            ovlp_g=0.5*(ovlp_g+transpose(ovlp_g));
+            ovlp_h=0.5*(ovlp_h+transpose(ovlp_h));
+
             auto [eval_g, evec_g] = syev(ovlp_g);
             auto [eval_h, evec_h] = syev(ovlp_h);
 
@@ -805,8 +908,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 return s;
             };
 
-            Slice gslice=get_slice(eval_g,1.e-13);
-            Slice hslice=get_slice(eval_h,1.e-13);
+            Slice gslice=get_slice(eval_g,1.e-12);
+            Slice hslice=get_slice(eval_h,1.e-12);
 
             Tensor<T> Xplus=copy(evec_g(_,gslice));
             Tensor<T> Xminus=copy(evec_g(_,gslice));
