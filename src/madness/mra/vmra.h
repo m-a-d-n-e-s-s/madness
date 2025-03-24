@@ -342,8 +342,8 @@ namespace madness {
         // compression is very expensive if low-rank tensor approximations are used
         if (NDIM<4) compress(world, v);
 
-        for (unsigned int i=0; i<v.size(); ++i) {
-            v[i].truncate(tol, false);
+        for (auto& vv: v) {
+            vv.truncate(tol, false);
         }
 
         if (fence) world.gop.fence();
