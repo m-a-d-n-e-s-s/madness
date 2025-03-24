@@ -58,7 +58,6 @@ namespace std {
 /// \brief Declaration and initialization of static data, some implementation, some instantiation
 
 namespace madness {
-
     // Definition and initialization of FunctionDefaults static members
     // It cannot be an instance of FunctionFactory since we want to
     // set the defaults independent of the data type.
@@ -104,50 +103,19 @@ namespace madness {
         quad_phit = transpose(quad_phi);
     }
 
-
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::verify_tree() const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         world.gop.fence();  // Make sure nothing is going on
+        MADNESS_CHECK_THROW(verify_tree_state_local(),"inconsistent coefficients in tree node");
+        MADNESS_CHECK_THROW(verify_parents_and_children(),"missing parents or children");
+    }
 
-        // Verify consistency of compression status, existence and size of coefficients,
-        // and has_children() flag.
-        for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
-            const keyT& key = it->first;
-            const nodeT& node = it->second;
-            bool bad;
-
-            if (is_compressed()) {
-                if (node.has_children()) {
-                    bad = (node.coeff().has_data()) and (node.coeff().dim(0) != 2*cdata.k);
-                }
-                else {
-                    //                    bad = node.coeff().size() != 0;
-                    bad = node.coeff().has_data();
-                }
-            }
-            else {
-                if (node.has_children()) {
-                    //                    bad = node.coeff().size() != 0;
-                    bad = node.coeff().has_data();
-                }
-                else {
-                    bad = (node.coeff().has_data()) and ( node.coeff().dim(0) != cdata.k);
-                }
-            }
-
-            if (bad) {
-                print(world.rank(), "FunctionImpl: verify: INCONSISTENT TREE NODE, key =", key, ", node =", node,
-                      ", dim[0] =",node.coeff().dim(0),", compressed =",is_compressed());
-                std::cout.flush();
-                MADNESS_EXCEPTION("FunctionImpl: verify: INCONSISTENT TREE NODE", 0);
-            }
-        }
+    template <typename T, std::size_t NDIM>
+    bool FunctionImpl<T,NDIM>::verify_parents_and_children() const {
 
         // Ensure that parents and children exist appropriately
-        for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
-            const keyT& key = it->first;
-            const nodeT& node = it->second;
+        for (const auto& [key, node] : coeffs) {
 
             if (key.level() > 0) {
                 const keyT parent = key.parent();
@@ -155,11 +123,13 @@ namespace madness {
                 if (pit == coeffs.end()) {
                     print(world.rank(), "FunctionImpl: verify: MISSING PARENT",key,parent);
                     std::cout.flush();
+                    return false;
                     MADNESS_EXCEPTION("FunctionImpl: verify: MISSING PARENT", 0);
                 }
                 const nodeT& pnode = pit->second;
                 if (!pnode.has_children()) {
                     print(world.rank(), "FunctionImpl: verify: PARENT THINKS IT HAS NO CHILDREN",key,parent);
+                    return false;
                     std::cout.flush();
                     MADNESS_EXCEPTION("FunctionImpl: verify: PARENT THINKS IT HAS NO CHILDREN", 0);
                 }
@@ -170,6 +140,7 @@ namespace madness {
                 if (cit == coeffs.end()) {
                     if (node.has_children()) {
                         print(world.rank(), "FunctionImpl: verify: MISSING CHILD",key,kit.key());
+                        return false;
                         std::cout.flush();
                         MADNESS_EXCEPTION("FunctionImpl: verify: MISSING CHILD", 0);
                     }
@@ -177,16 +148,56 @@ namespace madness {
                 else {
                     if (! node.has_children()) {
                         print(world.rank(), "FunctionImpl: verify: UNEXPECTED CHILD",key,kit.key());
+                        return false;
                         std::cout.flush();
                         MADNESS_EXCEPTION("FunctionImpl: verify: UNEXPECTED CHILD", 0);
                     }
                 }
             }
+            world.gop.fence();
         }
-
-        world.gop.fence();
+        return true;
     }
 
+
+
+    template<typename T, std::size_t NDIM>
+    bool FunctionImpl<T,NDIM>::verify_tree_state_local() const {
+
+        const TreeState state=get_tree_state();
+        const int k=get_k();
+
+        auto check_internal_coeff_size = [&state, &k](const coeffT& c) {
+            if (state==compressed or state==nonstandard or state==nonstandard_with_leaves)
+                return c.dim(0)==2*k;
+            if (state==redundant) return c.dim(0)==k;
+            if (state==reconstructed) return (not c.is_assigned());         // must not be assigned at all
+            if (state==redundant_after_merge or state==nonstandard_after_apply) return true;
+            MADNESS_EXCEPTION("unknown state",1);
+        };
+        auto check_leaf_coeff_size = [&state, &k](const coeffT& c) {
+        // citation from compress_spawn
+        //  if (not keepleaves) node.clear_coeff();
+            if (state==reconstructed or state==redundant or state==redundant_after_merge or state==nonstandard_with_leaves)
+                return c.dim(0)==k;
+            if (state==compressed or state==nonstandard) return (not c.is_assigned());         // must not be assigned at all
+            if (state==nonstandard_after_apply) return true;
+            MADNESS_EXCEPTION("unknown state",1);
+        };
+
+        bool good=true;
+        for (const auto& [key, node] : coeffs) {
+            const auto& c=node.coeff();
+            const bool is_internal=node.has_children();
+            const bool is_leaf=not node.has_children();
+            if (is_internal) good=good and check_internal_coeff_size(c);
+            if (is_leaf) good=good and check_leaf_coeff_size(c);
+            if (not good) {
+                print("incorrect size of coefficients for key",key,"state",state,c.dim(0));;
+            }
+        }
+        return good;
+    }
 
     template <typename T, std::size_t NDIM>
     const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& FunctionImpl<T,NDIM>::get_pmap() const {
@@ -1394,100 +1405,56 @@ namespace madness {
         TreeState current_state=get_tree_state();
         if (current_state==finalstate) return;
 
-        // very special cases
-        if (get_tree_state()==nonstandard_after_apply) {
-            MADNESS_CHECK(finalstate==reconstructed);
-            reconstruct(fence);
-            return;
-        }
-        MADNESS_CHECK_THROW(current_state!=TreeState::nonstandard_after_apply,"unknown tree state");
-        bool must_fence=false;
+        // try direct conversion if possible, otherwise change to reconstructed state,
+        // and then convert to final state
 
-        if (finalstate==reconstructed) {
-            if (current_state==reconstructed) return;
+        // try direct conversion
+        if (finalstate==reconstructed) {        // this MUST cover all cases
             if (current_state==compressed) reconstruct(fence);
-            if (current_state==nonstandard) reconstruct(fence);
-            if (current_state==nonstandard_with_leaves) remove_internal_coefficients(fence);
-            if (current_state==redundant) remove_internal_coefficients(fence);
+            else if (current_state==nonstandard) reconstruct(fence);
+            else if (current_state==nonstandard_with_leaves) {
+                remove_internal_coefficients(fence);
+                set_tree_state(reconstructed);
+            }
+            else if (current_state==redundant) {
+                remove_internal_coefficients(fence);
+                set_tree_state(reconstructed);
+            }
+            else if (current_state==redundant_after_merge) {
+                sum_down(fence);
+                set_tree_state(reconstructed);
+            }
+            else if (current_state==redundant_after_merge) sum_down(fence);
+            else MADNESS_EXCEPTION("unknown/unsupported current tree state",1);
             set_tree_state(reconstructed);
-        } else if (finalstate==compressed) {
+        } else if (finalstate==compressed) {        // cases that are not covered will be done in two steps
             if (current_state==reconstructed) compress(compressed,fence);
-            if (current_state==compressed) return;
             if (current_state==nonstandard) standard(fence);
             if (current_state==nonstandard_with_leaves) standard(fence);
-            if (current_state==redundant) {
-                remove_internal_coefficients(true);
-                must_fence=true;
-                set_tree_state(reconstructed);
-                compress(compressed,fence);
-            }
-            set_tree_state(compressed);
-        } else if (finalstate==nonstandard) {
+        } else if (finalstate==nonstandard) {        // cases that are not covered will be done in two steps
             if (current_state==reconstructed) compress(nonstandard,fence);
-            if (current_state==compressed) {
-                reconstruct(true);
-                must_fence=true;
-                compress(nonstandard,fence);
-            }
-            if (current_state==nonstandard) return;
-            if (current_state==nonstandard_with_leaves) remove_leaf_coefficients(fence);
-            if (current_state==redundant) {
-                remove_internal_coefficients(true);
-                must_fence=true;
-                set_tree_state(reconstructed);
-                compress(nonstandard,fence);
-            }
-            set_tree_state(nonstandard);
-        } else if (finalstate==nonstandard_with_leaves) {
-            if (current_state==reconstructed) compress(nonstandard_with_leaves,fence);
-            if (current_state==compressed) {
-                reconstruct(true);
-                must_fence=true;
-                compress(nonstandard_with_leaves,fence);
-            }
-            if (current_state==nonstandard) {
-                standard(true);
-                must_fence=true;
-                reconstruct(true);
-                compress(nonstandard_with_leaves,fence);
-            }
-            if (current_state==nonstandard_with_leaves) return;
-            if (current_state==redundant) {
-                remove_internal_coefficients(true);
-                must_fence=true;
-                set_tree_state(reconstructed);
-                compress(nonstandard_with_leaves,fence);
-            }
-            set_tree_state(nonstandard_with_leaves);
-        } else if (finalstate==redundant) {
-            if (current_state==reconstructed) make_redundant(fence);
-            if (current_state==compressed) {
-                reconstruct(true);
-                must_fence=true;
-                make_redundant(fence);
-            }
-            if (current_state==nonstandard) {
-                standard(true);
-                must_fence=true;
-                reconstruct(true);
-                make_redundant(fence);
-            }
             if (current_state==nonstandard_with_leaves) {
-                remove_internal_coefficients(true);
-                must_fence=true;
-                set_tree_state(reconstructed);
-                make_redundant(fence);
+                remove_leaf_coefficients(fence);
+                set_tree_state(nonstandard);
             }
-            if (current_state==redundant) return;
-            set_tree_state(redundant);
+        } else if (finalstate==nonstandard_with_leaves) {        // cases that are not covered will be done in two steps
+            if (current_state==reconstructed) compress(nonstandard_with_leaves,fence);
+        } else if (finalstate==redundant) {        // cases that are not covered will be done in two steps
+            if (current_state==reconstructed) make_redundant(fence);
         } else {
             MADNESS_EXCEPTION("unknown/unsupported final tree state",1);
         }
-        if (must_fence and world.rank()==0) {
-            print("could not respect fence in change_tree_state");
-        }
         if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
-        return;
+
+        // direct conversion worked, we're good
+        if (finalstate==get_tree_state()) return;
+
+
+        // go through reconstructed state -- requires fence!
+        change_tree_state(reconstructed,true);
+        print("could not respect  no-fence  parameter in change_tree_state");
+        change_tree_state(finalstate,fence);
+
     }
 
 
