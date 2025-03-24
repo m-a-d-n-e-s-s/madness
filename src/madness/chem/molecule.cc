@@ -1062,9 +1062,9 @@ void Molecule::fix_phase(){
     //find the first non-zero x and if negative, negate all x and y (aka rotate by 180 about z)
     if (fabs(atom.x) > 1e-12){
       if (atom.x < 0){
-        for (auto &atoms:atoms){
-          atoms.x = -atoms.x;
-          atoms.y = -atoms.y;
+        for (auto &atom:atoms){
+          atom.x = -atom.x;
+          atom.y = -atom.y;
         }
       }
       break;
@@ -1075,9 +1075,9 @@ void Molecule::fix_phase(){
   for (auto &atom:atoms){
     if (fabs(atom.z) > 1e-12){
       if (atom.z < 0){
-        for (auto &atoms:atoms){
-          atoms.z = -atoms.z;
-          atoms.y = -atoms.y;
+        for (auto &atom:atoms){
+          atom.z = -atom.z;
+          atom.y = -atom.y;
         }
       }
       break;
