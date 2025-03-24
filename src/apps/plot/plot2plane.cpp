@@ -6,6 +6,28 @@
 
 using namespace madness;
 
+template<std::size_t NDIM>
+void do_plot (World& world, const std::vector<std::string>& filenames, const PlotParameters& pparam) {
+
+	std::vector<Function<double,NDIM>> vf;
+	for (const auto& filename : filenames) {
+		Function<double,NDIM> f = FunctionFactory<double,NDIM>(world);
+		if(world.rank()==0) std::cout << "load function " << filename << "\n";
+		load(f,filename);
+		if(world.rank()==0) std::cout << "... success\n";
+		vf.push_back(f);
+	}
+
+	std::string outfile=filenames[0]+".plane";
+	if(world.rank()==0) std::cout << "creating plot data in file " << outfile << "\n";
+	plot_plane(world,vf,outfile,pparam);
+	if(world.rank()==0) std::cout << "... success\n";
+
+}
+
+
+
+
 int main(int argc, char** argv) {
 	World& world=initialize(argc, argv);
 	startup(world,argc,argv);
@@ -75,21 +97,19 @@ int main(int argc, char** argv) {
 
 	// load functions
 	FunctionDefaults<3>::set_cubic_cell(-param.L(),param.L());
+	FunctionDefaults<6>::set_cubic_cell(-param.L(),param.L());
 
-	{
-		std::vector<Function<double,3>> vf;
-		for (const auto& filename : filenames) {
-			Function<double,3> f = FunctionFactory<double,3>(world);
-			if(world.rank()==0) std::cout << "load function " << filename << "\n";
-			load(f,filename);
-			if(world.rank()==0) std::cout << "... success\n";
-			vf.push_back(f);
-		}
 
-		std::string outfile=filenames[0]+".plane";
-		if(world.rank()==0) std::cout << "creating plot data in file " << outfile << "\n";
-		plot_plane(world,vf,outfile,pparam);
-		if(world.rank()==0) std::cout << "... success\n";
+	try {
+		do_plot<3>(world,filenames,pparam);
+	} catch (...) {
+		std::cout << "plotting in 3d failed\n";
+	}
+
+	try {
+		do_plot<6>(world,filenames,pparam);
+	} catch (...) {
+		std::cout << "plotting in 6d failed\n";
 	}
 
 	finalize();
