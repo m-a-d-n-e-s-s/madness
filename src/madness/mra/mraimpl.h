@@ -1412,6 +1412,7 @@ namespace madness {
         if (finalstate==reconstructed) {        // this MUST cover all cases
             if (current_state==compressed) reconstruct(fence);
             else if (current_state==nonstandard) reconstruct(fence);
+            else if (current_state==nonstandard_after_apply) reconstruct(fence);
             else if (current_state==nonstandard_with_leaves) {
                 remove_internal_coefficients(fence);
                 set_tree_state(reconstructed);
