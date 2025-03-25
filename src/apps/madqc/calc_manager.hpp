@@ -45,7 +45,6 @@
 #include <madness/tensor/tensor_json.hpp>
 #include <map>
 #include <memory>
-#include <mpi.h>
 #include <utility>
 #include <vector>
 
