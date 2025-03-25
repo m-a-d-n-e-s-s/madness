@@ -13,9 +13,18 @@ int test_conversion(World& world) {
     real_function_2d f=real_factory_2d(world).functor([](const coord_2d& r) {return exp(-r.normf());});
     real_function_2d f1=real_factory_2d(world).functor([](const coord_2d& r) {return exp(-inner(r,r));});
     real_function_2d f2=real_factory_2d(world).functor([](const coord_2d& r) {return inner(r,r)*exp(-2.0*r.normf());});
+
+    real_function_2d f3=copy(f2);
+    f3.get_impl()->gaxpy_inplace_reconstructed(1.0,*f1.get_impl(),1.0,false);
+    real_function_2d f3ref=real_factory_2d(world).functor([](const coord_2d& r) {return inner(r,r)*exp(-2.0*r.normf()) + exp(-inner(r,r));});
+    double f3norm=f3ref.norm2();
+    MADNESS_CHECK_THROW(f3.get_impl()->verify_tree_state_local(),"tree state get_tree_state(is invalid");
+    MADNESS_CHECK_THROW(get_tree_state(f3)==redundant_after_merge,"tree state is invalid");
+
     f.print_size("f");
     f.reconstruct();
     double fnorm=f.norm2();
+    double f1norm=f1.norm2();
     std::vector<real_function_2d> vf={f1,f2,f1};
     std::vector<double> vfnorm=norm2s(world,vf);
     real_function_2d ref;
@@ -26,6 +35,7 @@ int test_conversion(World& world) {
                                    nonstandard, 				///< s and d coeffs in internal nodes
                                    nonstandard_with_leaves, 	///< like nonstandard, with s coeffs at the leaves
                                    redundant};//,					///< s coeffs everywhere
+    std::vector<TreeState> additional_states={redundant_after_merge};
 
     long k=FunctionDefaults<2>::get_k();
 
@@ -81,6 +91,7 @@ int test_conversion(World& world) {
     };
 
     auto check_tree_state = [&](const real_function_2d& arg, const TreeState state) {
+        MADNESS_CHECK_THROW(arg.get_impl()->verify_tree_state_local(),"tree state is invalid");
         if (state==reconstructed) return check_is_reconstructed(arg);
         if (state==compressed) return check_is_compressed(arg);
         if (state==nonstandard) return check_is_nonstandard(arg);
@@ -109,6 +120,22 @@ int test_conversion(World& world) {
 
     test_output t("testing tree state conversion");
     t.set_cout_to_terminal();
+
+    // convert from all redundant_after_merge state to reconstructed
+    for (const auto& ff : {f3}) {
+        ref=f3ref;
+        norm=f3norm;
+        auto fcopy=copy(ff);
+        std::stringstream ss_initial;
+        ss_initial << get_tree_state(fcopy);
+        fcopy=change_tree_state(fcopy,reconstructed);
+        world.gop.fence();
+        bool success=check_tree_state(fcopy,reconstructed);
+        t.checkpoint(success,"conversion to reconstructed from "+ss_initial.str());
+    }
+    norm=fnorm;
+
+
 
     ref=f;
     // convert to all states from reconstructed
@@ -143,6 +170,8 @@ int test_conversion(World& world) {
 
     print_header2("testing vector tree state conversion");
     // repeat for vectors of functions
+
+
 
     // convert to all states from reconstructed
     for (auto state : states) {

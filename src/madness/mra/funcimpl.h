@@ -3266,6 +3266,18 @@ template<size_t NDIM>
         /// useful for debugging and paranoia.
         void verify_tree() const;
 
+        /// check that parents and children are consistent
+
+        /// will not check proper size of coefficients
+        /// global communication
+        bool verify_parents_and_children() const;
+
+        /// check that the tree state and the coeffs are consistent
+
+        /// will not check existence of children and/or parents
+        /// no communication
+        bool verify_tree_state_local() const;
+
         /// Walk up the tree returning pair(key,node) for first node with coefficients
 
         /// Three possibilities.

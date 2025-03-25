@@ -14,6 +14,12 @@ void do_plot (World& world, const std::vector<std::string>& filenames, const Plo
 		Function<double,NDIM> f = FunctionFactory<double,NDIM>(world);
 		if(world.rank()==0) std::cout << "load function " << filename << "\n";
 		load(f,filename);
+		f.get_impl()->verify_tree_state_local();
+
+		// annoying temporary fix
+		TensorArgs targs(FunctionDefaults<NDIM>::get_tensor_type(),f.get_impl()->get_thresh());
+		f.change_tensor_type(targs);
+
 		if(world.rank()==0) std::cout << "... success\n";
 		vf.push_back(f);
 	}
