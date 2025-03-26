@@ -71,7 +71,7 @@ static void END_TIMER(World &world, const char *msg) {
 int main(int argc, char **argv) {
   World &world = initialize(argc, argv);
   if (world.rank() == 0) {
-    print_header1("MADQC -- Multiresolution Quantum Chemsitry Code ");
+    print_header1("MADQC -- Multiresolution Quantum Chemistry Code ");
   }
 
   { // limit lifetime of world so that finalize() can execute cleanly
@@ -100,9 +100,9 @@ int main(int argc, char **argv) {
     /*}*/
 
     // Create the CalcManager using the factory function
-    // if driver is energy use createCalcManager
-    // if driver is optimmize use createOptimizeManager
-    // if driver is custom use createCustomManager
+    // if driver == energy use createCalcManager
+    // if driver == optimize use createOptimizeManager
+    // if driver == custom use createCustomManager
 
     path cwd = std::filesystem::current_path();
     path root;
@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
 
       // calc_manager = createOptimizationDriver(method, params);
       auto &opt_params = params.get_optimization_params();
-      MolOpt opt(opt_params.get_maxiter(),            // geoometry max iter
+      MolOpt opt(opt_params.get_maxiter(),            // geometry max iter
                  0.1,                                 // geometry step size
                  opt_params.get_value_precision(),    // value precision
                  opt_params.get_geometry_tolerence(), // geometry tolerance
