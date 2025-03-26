@@ -5,72 +5,79 @@
 #ifndef MADNESS_MACROTASKPARTITIONER_H
 #define MADNESS_MACROTASKPARTITIONER_H
 
-#include<vector>
-#include<list>
-#include<string>
-#include<iomanip>
-#include<sstream>
-#include<madness/world/madness_exception.h>
+#include <vector>
+#include <list>
+#include <string>
+#include <iomanip>
+#include <sstream>
+#include <madness/world/madness_exception.h>
 
-
-namespace madness {
-template<typename ... Ts>
+namespace madness
+{
+    template <typename... Ts>
     constexpr auto decay_types(std::tuple<Ts...> const &)
         -> std::tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
 
-template<typename T>
+    template <typename T>
     using decay_tuple = decltype(decay_types(std::declval<T>()));
 
-template<typename>
-struct is_madness_function_vector : std::false_type {
+    template <typename Q>
+    struct is_vector : std::false_type
+    {
     };
-
-template<typename T, std::size_t NDIM>
-struct is_madness_function_vector<std::vector<typename madness::Function<T, NDIM>>> : std::true_type {
+    template <typename Q>
+    struct is_vector<std::vector<Q>> : std::true_type
+    {
     };
-using decay_tuple = decltype(decay_types(std::declval<T>()));
-
-template<typename Q> struct is_vector : std::false_type { };
-template<typename Q> struct is_vector<std::vector<Q>> : std::true_type { };
 
     /// given a tuple return the index of the first argument that is a vector of Function<T,NDIM>
-template<typename tupleT, std::size_t I>
-constexpr std::size_t get_index_of_first_vector_argument() {
+    template <typename tupleT, std::size_t I>
+    constexpr std::size_t get_index_of_first_vector_argument()
+    {
 
-    typedef decay_tuple <tupleT> argtupleT;   // removes const, &, etc
+        typedef decay_tuple<tupleT> argtupleT; // removes const, &, etc
 
-    if constexpr(I >= std::tuple_size_v<tupleT>) {
+        if constexpr (I >= std::tuple_size_v<tupleT>)
+        {
             // Last case, if nothing is left to iterate, then exit the function
             //        MADNESS_EXCEPTION("there is no madness function vector argument in the list, cannot partition the tasks", 1);
             return I;
-    } else {
-        using typeT = typename std::tuple_element<I, argtupleT>::type;// use decay types for determining a vector
-        if constexpr (is_vector<typeT>::value) {
+        }
+        else
+        {
+            using typeT = typename std::tuple_element<I, argtupleT>::type; // use decay types for determining a vector
+            if constexpr (is_vector<typeT>::value)
+            {
                 return I;
-        } else {
+            }
+            else
+            {
                 // Going for next element.
-            return get_index_of_first_vector_argument<tupleT,I+1>();
+                return get_index_of_first_vector_argument<tupleT, I + 1>();
             }
         }
     }
 
     /// given a tuple return the index of the second argument that is a vector of Function<T,NDIM>
-template<typename tupleT, std::size_t I>
-constexpr std::size_t get_index_of_second_vector_argument() {
-    constexpr std::size_t index0=get_index_of_first_vector_argument<tupleT,0>();
-    return get_index_of_first_vector_argument<tupleT,index0+1>();
+    template <typename tupleT, std::size_t I>
+    constexpr std::size_t get_index_of_second_vector_argument()
+    {
+        constexpr std::size_t index0 = get_index_of_first_vector_argument<tupleT, 0>();
+        return get_index_of_first_vector_argument<tupleT, index0 + 1>();
     }
 
-class Batch_1D {
+    class Batch_1D
+    {
         friend class MacroTaskPartitioner;
 
     public:
-    long begin=0, end=-1; ///< first and first past last index [begin,end)
-    long stride=1;// stride for the result vector
+        long begin = 0, end = -1; ///< first and first past last index [begin,end)
+        long stride = 1;          // stride for the result vector
 
         Batch_1D() {}
-    Batch_1D(const Slice& s) : begin(s.start), end(s.end) {
-        MADNESS_CHECK(s.step==1);
+        Batch_1D(const Slice &s) : begin(s.start), end(s.end)
+        {
+            MADNESS_CHECK(s.step == 1);
         }
         Batch_1D(const long &begin, const long &end) : begin(begin), end(end) {}
         Batch_1D(const long &begin, const long &end, const long &stride) : begin(begin), end(end), stride(stride) {}
