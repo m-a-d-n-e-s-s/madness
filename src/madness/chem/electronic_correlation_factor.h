@@ -121,7 +121,7 @@ public:
             real_function_6d mul=CompositeFactory<double,6,3>(world)
                                 .g12(fg3).particle1(copy(phi_i)).particle2(copy(phi_j)).thresh(thresh);;
             mul.fill_cuspy_tree(op_mod).truncate();
-           // mul.print_size("mul");
+            // mul.print_size("mul");
 
             result=(result+mul).truncate().reduce_rank();
         }
@@ -195,7 +195,16 @@ private:
         double operator()(const coord_6d& r) const {
             const double rr=r12(r);
             const double e=exp(-gamma*rr);
-            return (1.0-e)*u(rr,dcut) + 0.5*gamma*e;
+            if (rr<5.e-2) {
+                double value= 1.5*gamma - 1.*std::pow(gamma,2)*rr + 0.41666666666666663*std::pow(gamma,3)*std::pow(rr,2) -
+                    0.125*std::pow(gamma,4)*std::pow(rr,3) + 0.029166666666666667*std::pow(gamma,5)*std::pow(rr,4)
+                       + 0.005555555555555556*std::pow(gamma,6)*std::pow(rr,5) +
+                    0.0008928571428571429*std::pow(gamma,7)*std::pow(rr,6);
+                return value;
+            } else {
+                // return (1.0-e)*u(rr,dcut) + 0.5*gamma*e;
+                return (1.0-e)/rr + 0.5*gamma*e;
+            }
         }
     };
 
