@@ -1,0 +1,8 @@
+<map id="DSphere" name="DSphere">
+<area shape="rect" id="Node000001" title="Functor representing the log&#45;derivative of &#160;along an axis." alt="" coords="63,108,140,133"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="5,5,197,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="95,59,98,108,92,108,90,59"/>
+<area shape="poly" id="edge2_Node000001_Node000002" title=" " alt="" coords="113,59,110,108,105,108,107,59"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Vector.html" title="A simple, fixed dimension vector." alt="" coords="221,13,408,38"/>
+<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="277,46,129,110,127,105,275,41"/>
+</map>

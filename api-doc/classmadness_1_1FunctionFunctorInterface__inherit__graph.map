@@ -1,0 +1,44 @@
+<map id="madness::FunctionFunctorInterface&lt; T, NDIM &gt;" name="madness::FunctionFunctorInterface&lt; T, NDIM &gt;">
+<area shape="rect" id="Node000001" title="Abstract base class interface required for functors used as input to Functions." alt="" coords="5,290,197,330"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1TwoElectronInterface.html" title=" " alt="" coords="248,58,473,98"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="119,277,170,204,205,165,244,129,272,111,302,96,304,101,275,115,247,133,209,168,175,208,124,280"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1TwoElectronInterface.html" title=" " alt="" coords="248,143,473,183"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="130,278,181,234,244,193,272,181,274,186,247,198,184,239,134,282"/>
+<area shape="rect" id="Node000008" href="$classDerivativeGaussian.html" title=" " alt="" coords="285,207,436,247"/>
+<area shape="poly" id="edge7_Node000001_Node000008" title=" " alt="" coords="169,283,245,257,284,245,286,250,246,262,170,288"/>
+<area shape="rect" id="Node000009" href="$classGaussian.html" title=" " alt="" coords="279,272,443,297"/>
+<area shape="poly" id="edge8_Node000001_Node000009" title=" " alt="" coords="129,333,154,339,185,342,254,337,316,321,339,309,353,295,357,299,342,314,318,326,255,342,185,347,154,344,128,338"/>
+<area shape="poly" id="edge9_Node000001_Node000009" title=" " alt="" coords="210,323,291,313,324,305,347,295,349,300,325,310,292,318,211,329"/>
+<area shape="poly" id="edge10_Node000001_Node000009" title=" " alt="" coords="211,306,306,295,307,300,211,311"/>
+<area shape="poly" id="edge11_Node000001_Node000009" title=" " alt="" coords="211,288,278,282,279,287,212,293"/>
+<area shape="poly" id="edge12_Node000001_Node000009" title=" " alt="" coords="142,283,191,273,248,266,302,265,342,269,342,275,301,270,248,272,192,278,143,289"/>
+<area shape="poly" id="edge13_Node000001_Node000009" title=" " alt="" coords="123,279,148,268,179,258,249,248,314,251,340,258,356,269,353,274,337,263,314,256,249,254,180,263,150,273,125,284"/>
+<area shape="rect" id="Node000010" href="$classGaussianGuess.html" title="an N&#45;dimensional real&#45;valued Gaussian function" alt="" coords="267,321,455,347"/>
+<area shape="poly" id="edge14_Node000001_Node000010" title=" " alt="" coords="211,317,267,323,266,328,211,323"/>
+<area shape="rect" id="Node000011" href="$classHeElectronicChargeDensityIGuess.html" title=" " alt="" coords="261,371,461,411"/>
+<area shape="poly" id="edge15_Node000001_Node000011" title=" " alt="" coords="174,332,246,355,290,369,288,374,245,361,173,337"/>
+<area shape="rect" id="Node000012" href="$classHeNuclearChargeDensityIGuess.html" title=" " alt="" coords="245,435,476,475"/>
+<area shape="poly" id="edge16_Node000001_Node000012" title=" " alt="" coords="134,337,184,381,247,421,274,433,272,438,244,426,181,385,130,341"/>
+<area shape="rect" id="Node000013" href="$classParserHandler.html" title=" " alt="" coords="263,500,458,525"/>
+<area shape="poly" id="edge17_Node000001_Node000013" title=" " alt="" coords="122,341,143,375,171,415,206,453,247,485,273,497,271,502,244,490,203,457,167,418,138,378,117,344"/>
+<area shape="rect" id="Node000014" href="$classmadness_1_1CompositeFunctorInterface.html" title="CompositeFunctorInterface implements a wrapper of holding several functions and functors." alt="" coords="257,550,465,590"/>
+<area shape="poly" id="edge18_Node000001_Node000014" title=" " alt="" coords="117,342,136,386,164,438,201,490,247,535,269,547,266,552,244,539,197,494,160,441,131,388,112,344"/>
+<area shape="rect" id="Node000015" href="$classmadness_1_1ElementaryInterface.html" title="ElementaryInterface (formerly FunctorInterfaceWrapper) interfaces a c&#45;function." alt="" coords="249,614,472,654"/>
+<area shape="poly" id="edge19_Node000001_Node000015" title=" " alt="" coords="112,343,128,399,154,468,193,540,218,572,247,600,265,612,262,616,244,604,214,575,189,542,149,471,123,401,107,344"/>
+<area shape="rect" id="Node000016" href="$classmadness_1_1FunctionInterface.html" title="FunctionInterface implements a wrapper around any class with the operator()()" alt="" coords="259,678,462,718"/>
+<area shape="poly" id="edge20_Node000001_Node000016" title=" " alt="" coords="109,343,121,411,145,497,163,543,186,587,214,628,247,664,264,676,260,680,244,668,210,631,181,590,158,545,140,499,116,412,104,344"/>
+<area shape="rect" id="Node000017" href="$classmadness_1_1FunctorInterface.html" title="FunctorInterface interfaces a class or struct with an operator()()" alt="" coords="263,742,458,782"/>
+<area shape="poly" id="edge21_Node000001_Node000017" title=" " alt="" coords="107,343,115,422,137,525,155,580,179,634,209,684,247,728,264,741,261,745,244,732,205,687,174,637,150,582,131,527,110,423,101,344"/>
+<area shape="rect" id="Node000018" href="$classmadness_1_1TwoElectronInterface.html" title="base class to compute the wavelet coefficients for an isotropic 2e&#45;operator" alt="" coords="248,806,473,846"/>
+<area shape="poly" id="edge22_Node000001_Node000018" title=" " alt="" coords="105,344,109,433,117,491,129,554,146,618,171,682,205,740,247,792,263,804,259,808,243,796,200,743,167,684,141,620,123,555,111,492,104,434,100,344"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1BSHFunctionInterface.html" title="a function like f(x) = exp(&#45;mu x)/x" alt="" coords="529,5,759,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="464,52,523,39,578,28,579,33,525,45,465,58"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1SlaterF12Interface.html" title="a function like f(x) = (1 &#45; exp(&#45;mu x))/(2 gamma)" alt="" coords="539,55,749,80"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="487,71,539,69,539,74,488,76"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1SlaterFunctionInterface.html" title="a function like f(x)=exp(&#45;mu x)" alt="" coords="524,104,764,129"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="487,93,551,101,550,107,487,98"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1ElectronRepulsionInterface.html" title="a function like f(x)=1/x" alt="" coords="541,154,747,194"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="487,165,541,167,540,173,487,171"/>
+<area shape="rect" id="Node000019" href="$classmadness_1_1GeneralTwoElectronInterface.html" title="a function like f(x)=1/x" alt="" coords="535,806,753,846"/>
+<area shape="poly" id="edge23_Node000018_Node000019" title=" " alt="" coords="487,823,535,823,535,829,487,829"/>
+</map>

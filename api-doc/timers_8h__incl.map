@@ -1,0 +1,17 @@
+<map id="timers.h" name="timers.h">
+<area shape="rect" id="Node000001" title="Wrappers around platform dependent timers and performance info." alt="" coords="227,5,303,31"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,79,72,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="230,33,86,78,84,73,228,28"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="96,79,163,104"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="245,33,165,75,162,70,242,28"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="187,79,245,104"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="259,33,234,69,230,66,255,29"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="269,79,360,104"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="276,29,301,66,297,69,271,33"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="384,79,459,104"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="291,28,384,70,382,75,289,33"/>
+<area shape="rect" id="Node000007" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS." alt="" coords="483,79,685,104"/>
+<area shape="poly" id="edge6_Node000001_Node000007" title=" " alt="" coords="304,25,520,73,519,78,303,30"/>
+<area shape="rect" id="Node000008" title=" " alt="" coords="516,152,652,177"/>
+<area shape="poly" id="edge7_Node000007_Node000008" title=" " alt="" coords="587,104,587,138,581,138,581,104"/>
+</map>
