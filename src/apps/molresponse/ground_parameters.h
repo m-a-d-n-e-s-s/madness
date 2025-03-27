@@ -76,21 +76,6 @@ class GroundStateCalculation {
     unsigned int dummyversion;
     double dummy1;
     std::vector<int> dummy2;
-
-        archive::ParallelInputArchive input(world, inFile.c_str());
-        input &dummyversion;
-        input &dummy1;         // double
-        input &spinrestricted; // bool
-        input &L;              // double            box size
-        input &k;              // int               wavelet order
-        input &molecule_in;    // Molecule
-        input &xc;             // std:string        xc functional
-        input &localize_method;// std:string        localize  method
-        input &converged_for_thresh; // double      convergence threshold used for ground state
-        input &num_orbitals;   // int
-        input &energies;       // Tensor<double>    orbital energies
-        input &occ;            // Tensor<double>    orbital occupations
-        input &dummy2;         // std::vector<int>  sets of orbitals(?)
     archive::ParallelInputArchive input(world, inFile.c_str());
     input & dummyversion;
     input & dummy1;           // double
