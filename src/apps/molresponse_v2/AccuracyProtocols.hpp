@@ -1,9 +1,7 @@
 #ifndef ACCURACYPROTOCOLS_HPP
 #define ACCURACYPROTOCOLS_HPP
-
 #include "ResponseManager.hpp"
 #include "ResponseState.hpp"
-#inclulde <
 #include <iostream>
 #include <vector>
 

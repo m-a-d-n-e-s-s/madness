@@ -745,10 +745,8 @@ protected:
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_initial_level(2);
-
     FunctionDefaults<3>::set_autorefine(false);
     FunctionDefaults<3>::set_apply_randomize(false);
-
     FunctionDefaults<3>::set_project_randomize(false);
     GaussianConvolution1DCache<double>::map.clear();
 

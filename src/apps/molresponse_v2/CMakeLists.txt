@@ -7,13 +7,11 @@ else()
 endif()
 
 set(MOLRESPONSE_SOURCES2
-    ResponsePreliminariesCalculator.cpp
     ResponseManager.cpp
+    GroundStateData.cpp
 )
 
 set(MOLRESPONSE_HEADERS2
-    ResponsePreliminariesCalculator.hpp
-    ResponsePreliminaries.hpp
     GroundStateData.hpp
     AccuracyProtocols.hpp
     MolecularProperties.hpp

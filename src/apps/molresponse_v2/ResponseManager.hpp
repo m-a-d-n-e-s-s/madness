@@ -1,46 +1,40 @@
 #ifndef RESPONSEMANAGER_HPP
 #define RESPONSEMANAGER_HPP
-#include "GroundStateData.hpp"
+
+#include "../molresponse/response_parameters.h"
 #include "ResponseState.hpp"
-#include "molresponse_v2/ResponsePreliminaries.hpp"
+#include <madness/chem/SCF.h>
 #include <madness/mra/funcdefaults.h>
 #include <madness/mra/vmra.h>
 #include <madness/tensor/tensor.h>
 #include <madness/world/world.h>
-
 #include <vector>
 
 using namespace madness;
 
 class ResponseManager {
 public:
-  ResponseManager(World &world, const std::string &ground_state_archive,
-                  const Molecule &molecule);
-  void setProtocol(double thresh, int override_k = -1);
+  ResponseManager(World &world, const ResponseParameters &r_params);
 
-  // Prepares the orbitals for a given polynomial order (k) at an accuracy step
-  void prepareOrbitalsForAccuracyStep();
+  void setProtocol(World &world, double L, double thresh, int override_k = -1);
 
-  void computePreliminaries();
-
-  [[nodiscard]] const ResponsePreliminaries currentPreliminaries() const;
-
-  // Access the current orbitals
-  [[nodiscard]] const GroundStateData currentGroundState() const;
-
+  // Getters
+  [[nodiscard]] double getVtol() const { return vtol; }
+  [[nodiscard]] poperatorT getCoulombOp() const { return coulop; }
+  [[nodiscard]] std::vector<std::shared_ptr<real_derivative_3d>>
+  getGradOp() const {
+    return gradop;
+  }
   // Compute and store a response state
   void computeState(const ResponseState &state);
-
   // Check if a response state is already converged
-  bool isConverged(const ResponseState &state) const;
+  [[nodiscard]] bool isConverged(const ResponseState &state) const;
 
 private:
-  World &world_;
-  std::string ground_state_archive_;
-
-  GroundStateData ground_state_;
-  ResponsePreliminaries
-      response_preliminaries_; // Resuable data for response calculations
+  double vtol;
+  poperatorT coulop;
+  std::vector<std::shared_ptr<real_derivative_3d>> gradop;
+  ResponseParameters r_params;
 };
 
 #endif // RESPONSEMANAGER_HPP
