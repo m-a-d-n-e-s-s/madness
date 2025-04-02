@@ -31,6 +31,8 @@ namespace madness
     }
     ResponseParameters()
     {
+      initialize<std::string>("prefix", "response", "prefixes your output/restart/json/plot/etc files");
+      initialize<std::string>("fock_json_file", "moldft.fock.json", "data file for fock matrix");
       initialize<std::string>("archive", "../moldft.restartdata", "file to read ground parameters from");
       initialize<bool>("nwchem", false, "Using nwchem files for intelligent starting guess");
       initialize<std::string>("nwchem_dir", "none", "Root name of nwchem files for intelligent starting guess");
@@ -104,6 +106,8 @@ namespace madness
   public:
     using QCCalculationParametersBase::read_input_and_commandline_options;
 
+    [[nodiscard]] std::string prefix() const {return get<std::string>("prefix");}
+    [[nodiscard]]std::string fock_json_file() const { return get<std::string>("fock_json_file"); }
     [[nodiscard]] std::string perturbation() const { return get<std::string>("perturbation"); }
     [[nodiscard]] std::vector<std::string> perturbations() const { return get<std::vector<std::string>>("perturbations"); }
     [[nodiscard]] std::string localize() const { return get<std::string>("localize"); }
