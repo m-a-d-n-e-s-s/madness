@@ -558,18 +558,16 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
 Fcwf apply_T(World& world, Fcwf& psi){
      double myc = 137.03599917697017; //speed of light in atomic units from CODATA 2022
      std::complex<double> myi(0,1);
-     complex_derivative_3d Dx(world,0);
-     complex_derivative_3d Dy(world,1);
-     complex_derivative_3d Dz(world,2);
+     auto D = madness::gradient_operator<std::complex<double>, 3>(world);
      Fcwf Tpsi(world);
      
      //reconstruct psi
      psi.reconstruct();
 
      //take derivatives
-     Fcwf psix = apply(world,Dx,psi); 
-     Fcwf psiy = apply(world,Dy,psi);
-     Fcwf psiz = apply(world,Dz,psi); 
+     Fcwf psix = apply(world, *D[0], psi); 
+     Fcwf psiy = apply(world, *D[1], psi);
+     Fcwf psiz = apply(world, *D[2], psi); 
 
      //compress
      psix.compress();
@@ -873,7 +871,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      //calculate potential due to nuclei and mean field
      if(world.rank() == 0) print("          Adding (V+J)psi");
      real_function_3d rho = real_factory_3d(world);
-     double fac = (DFparams.Krestricted ? 2.0 : 1.0);
+     double fac = (DFparams.Krestricted || closed_shell) ? 2.0 : 1.0;
      for(unsigned int j = 0; j < np; j++){
           rho += fac*squaremod(occupieds[j]);
      }
@@ -1510,7 +1508,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
 
      //Diagonalization forces us to recompute density
      real_function_3d rho = real_factory_3d(world);
-     double fac = (DFparams.Krestricted ? 2 : 1);
+     double fac = (DFparams.Krestricted || closed_shell) ? 2 : 1;
      if(closed_shell){
           for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
                rho += fac*squaremod(occupieds[kk]);
@@ -1833,7 +1831,7 @@ void DF::solve_occupied(World & world)
 
      //State what we're doing here
      if(world.rank()==0){
-          if(DFparams.Krestricted){
+          if(DFparams.Krestricted || closed_shell){
                if(closed_shell) print("\nSolving for ", Init_params.num_occupied, " doubly-occupied orbitals\n------------------------------\n");
                else print("\nSolving for ", Init_params.num_occupied-1, " doubly-occupied, 1 singly-occupied orbitals\n------------------------------\n");
           }
@@ -1884,7 +1882,7 @@ void DF::solve_occupied(World & world)
      if(world.rank()==0) print("\n***Calculating Initial Coulomb***");
      start_timer(world);
      real_function_3d rho = real_factory_3d(world);
-     double fac = (DFparams.Krestricted ? 2 : 1);
+     double fac = (DFparams.Krestricted || closed_shell) ? 2 : 1;
      if(closed_shell){
           for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
                rho += fac*squaremod(occupieds[kk]);

@@ -129,7 +129,7 @@ namespace madness{
                          real_function_3d yfunc = real_factory_3d(world).f(myyfunc);
                          
                          //Handle Kramers-restricted and unrestricted cases differently
-                         if(Krestricted){
+                         if(Krestricted || closed_shell){
                               //Loop over the occupied orbitals and convert
                               for(unsigned int i = 0; i < num_occupied; i++){
                                    //read in orbital
