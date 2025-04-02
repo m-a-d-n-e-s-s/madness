@@ -35,6 +35,8 @@
 
 
 
+#include "funcdefaults.h"
+#include "tensor_json.hpp"
 #include <madness/world/worldmem.h>
 #include <madness.h>
 #include <madness/chem/SCF.h>
@@ -2236,6 +2238,11 @@ void SCF::solve(World& world) {
     // Shrink subspace until stop localizing/canonicalizing--- probably not a good idea
     // int maxsub_save = param.maxsub;
     // param.maxsub = 2;
+    
+
+    // Fock matrix for storing the results
+    tensorT focka_json(param.nmo_alpha(), param.nmo_alpha());
+    tensorT fockb_json(param.nmo_beta(), param.nmo_beta());
 
     for (int iter = 0; iter < param.maxiter(); ++iter) {
         if (world.rank() == 0 and (param.print_level() > 1))
@@ -2412,6 +2419,10 @@ void SCF::solve(World& world) {
                 U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, bocc,
                                      FunctionDefaults<3>::get_thresh());
                 //rotate_subspace(world, U, subspace, amo.size(), bmo.size(),trantol);
+
+
+                
+
             }
         }
 
@@ -2452,6 +2463,11 @@ void SCF::solve(World& world) {
                          {"e_nrep",    enrep},
                          {"e_tot",     etot}});
         }
+        focka_json = focka;
+        if (!param.spin_restricted() && param.nbeta() != 0) {
+            fockb_json = fockb;
+        }
+
 
         if (iter > 0) {
             //print("##convergence criteria: density delta=", da < dconv * molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=", (param.conv_only_dens || bsh_residual < 5.0*dconv));
@@ -2564,6 +2580,35 @@ void SCF::solve(World& world) {
         update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q,
                         bsh_residual, update_residual);
 
+    }
+    // save the converged fock matix
+    //
+    json fock_data;
+
+
+    // write the fock matrix to a file
+    if(world.rank() == 0) {
+        auto protocol = std::string("thresh: ") + std::to_string(FunctionDefaults<3>::get_thresh());
+    protocol += std::string(" k: ")+std::to_string(FunctionDefaults<3>::get_k());
+    fock_data[protocol] = json::object();
+    fock_data[protocol]["focka"] = tensor_to_json(focka_json);
+    if (!param.spin_restricted() && param.nbeta() != 0) {
+        fock_data[protocol]["fockb"] = tensor_to_json(fockb_json);
+    }
+        std::string name=param.prefix()+".fock.json";
+        // Read in the existing data if it exists
+        json fock_json;
+        std::ifstream fock_file(name);
+    if (fock_file) {
+        fock_file >> fock_json;
+        }
+    fock_file.close();
+    // Merge the new data with the existing data
+    fock_json.merge_patch(fock_data);
+    // Write the merged data back to the file
+    std::ofstream fock_out(name);
+    fock_out << std::setw(4) << fock_json << std::endl;
+    fock_out.close();
     }
 
     // compute the dipole moment
