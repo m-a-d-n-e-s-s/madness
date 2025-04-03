@@ -1,72 +1,125 @@
-//
-// Created by ahurtado on 3/25/25.
-//
-// main.cpp
-#include "AccuracyProtocols.hpp"
-#include "MolecularProperties.hpp"
+#include "../madqc/parameter_manager.hpp"
+#include "GroundStateData.hpp"
+#include "MolecularProperty.hpp"
 #include "ResponseManager.hpp"
-#include "ResponseState.hpp"
+#include "StateGenerator.hpp"
+#include "funcdefaults.h"
+#include "madness/world/world.h"
 #include <iostream>
+#include <memory>
 
-int main(int argc, char *argv[]) {
-  // Initial Setup
-  std::cout << "Initializing molecular response calculation...\n";
+using namespace madness;
 
-  // Calculation-wide parameters
-  CalculationSettings calcSettings(
-      /*L=*/10.0,
-      /*k=*/8,
-      /*xc=*/"PBE",
-      /*spin_restricted=*/true,
-      /*localize_method=*/"boys",
-      /*molecule=*/loadMoleculeFromFile("molecule.dat"));
+int main(int argc, char **argv) {
+  World &world = initialize(argc, argv);
+  {
+    startup(world, argc, argv, true);
 
-  // Ground-state orbitals would typically be loaded from your SCF calculation
-  OrbitalSet groundOrbitals("ground_state_orbitals.dat");
+    if (argc != 2) {
+      if (world.rank() == 0)
+        std::cerr << "Usage: molresponse2 [input_file.json]\n";
+      finalize();
+      return 1;
+    }
 
-  // Instantiate the ResponseManager
-  ResponseManager responseManager(groundOrbitals, calcSettings);
+    // Load input parameters explicitly from JSON file
+    ParameterManager params;
+    params = ParameterManager(world, path(argv[1]));
 
-  // Define frequencies and perturbations of interest
-  std::vector<double> frequencies = {0.0, 0.0656, 0.10};
-  std::vector<ResponseState::Perturbation> perturbations = {
-      ResponseState::Perturbation::X, ResponseState::Perturbation::Y,
-      ResponseState::Perturbation::Z};
+    auto molresponse_params = params.get_molresponse_params();
+    std::string fock_json_file = molresponse_params.fock_json_file();
+    Molecule molecule = params.get_molecule();
+    auto protocol = molresponse_params.protocol();
+    molresponse_params.set_user_defined_value<std::string>(
+        "archive", "moldft.restartdata");
 
-  // Define an accuracy protocol (coarse to fine thresholds)
-  IncrementalAccuracy accuracyProtocol({1e-4, 1e-6, 1e-8});
+    auto ground_state_archive = molresponse_params.archive();
+    if (world.rank() == 0) {
+      std::cout << "Ground state archive: " << ground_state_archive
+                << std::endl;
+    }
 
-  // Compute all states incrementally by accuracy
-  for (auto threshold : accuracyProtocol.thresholds()) {
-    std::cout << "Starting calculations at threshold: " << threshold << "\n";
-    for (auto perturbation : perturbations) {
-      for (auto freq : frequencies) {
-        ResponseState state{perturbation, freq, threshold, false};
+    std::vector<MolecularProperty> requested_properties = {
+        MolecularProperty(MolecularPropertyType::Polarizability, {0.0, 0.0656},
+                          {'z'}),
+        MolecularProperty(MolecularPropertyType::Raman, {0.0656})};
 
-        // Check convergence first, then compute
-        if (!responseManager.isConverged(state)) {
-          responseManager.computeState(state);
-          std::cout << "Computed state: " << state.getIdentifier() << "\n";
-        } else {
-          std::cout << "State already converged: " << state.getIdentifier()
-                    << "\n";
+    // Initialize the ResponseManager with ground-state archive
+    auto ground_state =
+        GroundStateData(world, ground_state_archive, params.get_molecule());
+    ResponseManager rm =
+        ResponseManager(world, params.get_molresponse_params());
+
+    std::vector<double> protocols = {1e-4, 1e-6};
+    StateGenerator state_generator(molecule, requested_properties, protocols);
+    auto all_states = state_generator.generateStates();
+
+    bool all_states_converged = false;
+    while (!all_states_converged) {
+      all_states_converged = true;
+
+      // Extract all unique thresholds needed for this round
+      std::set<double> active_thresholds;
+      for (const auto &state : all_states)
+        if (!state.is_converged)
+          active_thresholds.insert(state.current_threshold());
+
+      for (double thresh : active_thresholds) {
+        rm.setProtocol(world, ground_state.getL(), thresh);
+        ground_state.prepareOrbitals(world, FunctionDefaults<3>::get_k(),
+                                     thresh);
+        ground_state.computePreliminaries(world, *rm.getCoulombOp(),
+                                          rm.getVtol(), fock_json_file);
+
+        for (auto &state : all_states) {
+          if (state.is_converged)
+            continue;
+          if (state.current_threshold() != thresh)
+            continue;
+
+          madness::print("Computing:", state.description());
+
+          // Run the actual solver for this state
+          // bool converged =
+          // compute_response(state, ...);
+
+          bool converged = true; // ← for now, fake it
+
+          if (converged) {
+            if (state.at_final_accuracy()) {
+              state.is_converged = true;
+              madness::print("✓ Final convergence reached "
+                             "for",
+                             state.description());
+            } else {
+              state.advance_protocol();
+              all_states_converged = false; // need another round
+              madness::print("→ Converged at thresh", thresh, "→ advancing",
+                             state.description());
+            }
+          } else {
+            all_states_converged = false; // this one needs to retry
+            madness::print("✗ Not yet converged for", state.description());
+          }
         }
       }
     }
+
+    // Example placeholder for a future implementation
+    // ResponseState response_state(freq, thresh, "x");
+    // auto response_functions =
+    // response_manager.computeResponse(response_state);
+    // response_manager.saveResponse(response_state, response_functions);
+
+    // Currently just logging the progress explicitly
+    world.gop.fence();
+
+    if (world.rank() == 0) {
+      madness::print(
+          "\nMolecular response calculation completed successfully.");
+    }
   }
 
-  // Example calculation: Compute Polarizability at freq = 0.0656
-  std::cout << "Computing polarizability...\n";
-  Polarizability polar(0.0656);
-  polar.compute(responseManager);
-
-  // Example calculation: Compute Hyperpolarizability at freq1 = 0.0656, freq2 =
-  // 0.10
-  std::cout << "Computing hyperpolarizability...\n";
-  Hyperpolarizability hyperpolar(0.0656, 0.10);
-  hyperpolar.compute(responseManager);
-
-  std::cout << "Molecular response calculations complete!\n";
-
+  finalize();
   return 0;
 }
