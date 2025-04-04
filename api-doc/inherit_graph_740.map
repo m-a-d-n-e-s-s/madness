@@ -1,0 +1,65 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" title=" " alt="" coords="5,1082,124,1107"/>
+<area shape="rect" id="Node000001" href="$structmadness_1_1meta_1_1disjunction.html" title=" " alt="" coords="183,5,475,133"/>
+<area shape="poly" id="edge486_Node000000_Node000001" title=" " alt="" coords="63,1068,64,888,75,613,87,469,107,335,134,223,150,178,170,144,181,130,185,134,174,147,155,181,139,224,112,336,93,469,80,613,69,888,68,1068"/>
+<area shape="rect" id="Node000004" href="$structmadness_1_1meta_1_1disjunction.html" title=" " alt="" coords="172,157,487,315"/>
+<area shape="poly" id="edge489_Node000000_Node000004" title=" " alt="" coords="64,1068,70,919,87,699,100,585,118,479,141,390,155,355,170,327,180,313,184,316,174,329,160,357,146,392,123,480,105,586,92,700,75,919,69,1068"/>
+<area shape="rect" id="Node000007" href="$structmadness_1_1Cloud_1_1is__madness__function__vector.html" title=" " alt="" coords="231,339,427,394"/>
+<area shape="poly" id="edge492_Node000000_Node000007" title=" " alt="" coords="64,1068,68,930,83,732,97,629,115,535,139,458,154,428,170,405,198,384,230,371,232,376,200,388,174,409,158,431,144,460,120,537,102,630,89,732,74,931,69,1068"/>
+<area shape="rect" id="Node000008" href="$structmadness_1_1Cloud_1_1is__tuple.html" title=" " alt="" coords="250,419,409,459"/>
+<area shape="poly" id="edge493_Node000000_Node000008" title=" " alt="" coords="64,1068,70,941,86,761,100,669,118,585,141,516,155,489,170,469,187,455,207,445,249,435,250,440,209,450,190,459,174,473,159,492,146,518,123,586,105,670,92,762,75,942,69,1068"/>
+<area shape="rect" id="Node000009" href="$structmadness_1_1Cloud_1_1is__vector.html" title=" " alt="" coords="257,483,402,523"/>
+<area shape="poly" id="edge494_Node000000_Node000009" title=" " alt="" coords="65,1068,72,953,90,792,104,710,122,636,143,575,156,551,170,533,189,518,210,508,256,498,257,503,212,513,192,523,174,537,161,554,148,577,127,637,109,711,96,793,78,953,70,1068"/>
+<area shape="rect" id="Node000010" href="$structmadness_1_1MacroTask_1_1is__vector.html" title=" " alt="" coords="232,547,427,587"/>
+<area shape="poly" id="edge495_Node000000_Node000010" title=" " alt="" coords="65,1068,75,965,95,823,109,752,126,687,146,633,170,597,198,577,231,566,233,571,201,582,174,601,151,636,131,688,114,753,100,824,80,965,71,1068"/>
+<area shape="rect" id="Node000011" href="$structmadness_1_1detail_1_1callable__traits.html" title="Function traits in the spirit of boost function traits." alt="" coords="220,611,439,651"/>
+<area shape="poly" id="edge496_Node000000_Node000011" title=" " alt="" coords="66,1068,78,976,99,854,113,793,130,737,149,692,170,661,193,644,219,634,221,639,196,649,174,665,153,694,135,739,118,794,104,855,83,977,72,1068"/>
+<area shape="rect" id="Node000012" href="$structmadness_1_1detail_1_1function__traits.html" title="Function traits in the spirit of boost function traits." alt="" coords="220,675,439,715"/>
+<area shape="poly" id="edge497_Node000000_Node000012" title=" " alt="" coords="62,1068,65,999,78,906,91,857,110,808,136,764,170,725,193,709,219,698,221,703,196,713,174,729,141,767,115,811,96,858,83,907,70,999,68,1068"/>
+<area shape="rect" id="Node000013" href="$structmadness_1_1detail_1_1is__arg__holder.html" title=" " alt="" coords="257,739,402,779"/>
+<area shape="poly" id="edge498_Node000000_Node000013" title=" " alt="" coords="64,1068,70,1010,87,934,100,894,118,856,141,820,170,789,189,775,211,766,256,756,257,761,213,771,192,780,174,793,146,823,123,858,105,896,92,936,76,1011,70,1069"/>
+<area shape="rect" id="Node000014" href="$structmadness_1_1detail_1_1memfunc__traits.html" title="Member function traits in the spirit of boost function traits." alt="" coords="231,803,427,843"/>
+<area shape="poly" id="edge499_Node000000_Node000014" title=" " alt="" coords="67,1068,77,1021,96,962,126,903,146,876,170,853,199,836,230,825,232,830,201,841,174,857,150,879,131,906,101,964,82,1022,72,1069"/>
+<area shape="rect" id="Node000015" href="$structmadness_1_1is__any__function__pointer.html" title="is true type if T is a pointer to free or member function" alt="" coords="234,867,425,907"/>
+<area shape="poly" id="edge500_Node000000_Node000015" title=" " alt="" coords="72,1068,85,1033,106,992,134,951,170,917,201,900,233,891,235,896,203,905,174,921,138,954,110,995,90,1035,77,1070"/>
+<area shape="rect" id="Node000016" href="$structmadness_1_1is__cereal__archive.html" title=" " alt="" coords="251,931,407,971"/>
+<area shape="poly" id="edge501_Node000000_Node000016" title=" " alt="" coords="80,1069,118,1024,143,1001,171,982,210,965,250,955,252,960,211,970,173,986,146,1005,122,1028,84,1072"/>
+<area shape="rect" id="Node000017" href="$structmadness_1_1is__default__serializable__helper.html" title=" " alt="" coords="242,995,417,1050"/>
+<area shape="poly" id="edge502_Node000000_Node000017" title=" " alt="" coords="119,1075,171,1060,241,1042,242,1047,173,1065,120,1081"/>
+<area shape="rect" id="Node000018" href="$structmadness_1_1is__function__pointer.html" title="is true type if T is a pointer to a free function" alt="" coords="244,1075,415,1115"/>
+<area shape="poly" id="edge503_Node000000_Node000018" title=" " alt="" coords="138,1092,244,1092,244,1097,138,1097"/>
+<area shape="rect" id="Node000019" href="$structmadness_1_1is__future.html" title="test if a type is a future." alt="" coords="237,1139,421,1165"/>
+<area shape="poly" id="edge504_Node000000_Node000019" title=" " alt="" coords="117,1109,173,1124,238,1137,237,1142,171,1129,116,1114"/>
+<area shape="rect" id="Node000020" href="$structmadness_1_1is__madness__function.html" title=" " alt="" coords="240,1189,419,1229"/>
+<area shape="poly" id="edge505_Node000000_Node000020" title=" " alt="" coords="90,1115,127,1147,173,1175,206,1187,241,1196,239,1201,205,1192,171,1180,124,1151,87,1119"/>
+<area shape="rect" id="Node000021" href="$structmadness_1_1is__madness__function__vector.html" title=" " alt="" coords="216,1253,443,1293"/>
+<area shape="poly" id="edge506_Node000000_Node000021" title=" " alt="" coords="79,1119,115,1180,142,1213,173,1239,217,1258,215,1263,171,1244,138,1216,111,1183,75,1121"/>
+<area shape="rect" id="Node000022" href="$structmadness_1_1is__scalar__result.html" title=" " alt="" coords="248,1317,411,1357"/>
+<area shape="poly" id="edge507_Node000000_Node000022" title=" " alt="" coords="74,1120,86,1161,105,1211,134,1262,152,1284,174,1303,209,1322,248,1332,247,1337,207,1327,170,1308,149,1288,130,1265,100,1214,81,1163,69,1122"/>
+<area shape="rect" id="Node000023" href="$structmadness_1_1is__scalar__result__impl.html" title=" " alt="" coords="230,1381,429,1421"/>
+<area shape="poly" id="edge508_Node000000_Node000023" title=" " alt="" coords="71,1121,78,1173,96,1241,109,1276,126,1309,148,1341,174,1367,200,1384,231,1394,229,1399,198,1389,170,1371,144,1344,122,1312,104,1278,91,1242,73,1174,65,1121"/>
+<area shape="rect" id="Node000024" href="$structmadness_1_1is__scalar__result__ptr.html" title=" " alt="" coords="236,1445,423,1485"/>
+<area shape="poly" id="edge509_Node000000_Node000024" title=" " alt="" coords="68,1121,72,1185,87,1269,100,1314,119,1357,143,1397,174,1431,203,1450,237,1460,235,1465,201,1455,170,1435,139,1400,114,1359,95,1315,82,1270,67,1185,63,1121"/>
+<area shape="rect" id="Node000025" href="$structmadness_1_1is__scalar__result__ptr__vector.html" title=" " alt="" coords="254,1510,405,1565"/>
+<area shape="poly" id="edge510_Node000000_Node000025" title=" " alt="" coords="72,1121,85,1206,107,1319,137,1426,155,1468,174,1496,191,1509,211,1519,254,1532,253,1537,209,1524,188,1514,170,1499,150,1470,132,1428,102,1320,80,1207,67,1122"/>
+<area shape="rect" id="Node000026" href="$structmadness_1_1is__scalar__result__vector.html" title=" " alt="" coords="224,1589,435,1629"/>
+<area shape="poly" id="edge511_Node000000_Node000026" title=" " alt="" coords="71,1121,81,1221,101,1358,115,1428,131,1491,151,1542,174,1575,197,1592,225,1603,223,1608,195,1597,170,1579,147,1544,126,1492,109,1429,96,1359,76,1222,65,1121"/>
+<area shape="rect" id="Node000027" href="$structmadness_1_1is__text__archive.html" title="This trait types tests if Archive is a text archive." alt="" coords="235,1653,423,1693"/>
+<area shape="poly" id="edge512_Node000000_Node000027" title=" " alt="" coords="70,1121,78,1233,97,1390,110,1469,128,1541,149,1600,161,1623,174,1639,202,1659,236,1670,234,1675,200,1664,170,1643,156,1626,144,1603,123,1543,105,1470,91,1391,73,1234,65,1121"/>
+<area shape="rect" id="Node000028" href="$structmadness_1_1is__tuple.html" title=" " alt="" coords="254,1717,405,1757"/>
+<area shape="poly" id="edge513_Node000000_Node000028" title=" " alt="" coords="69,1121,76,1245,92,1420,106,1510,124,1592,146,1659,159,1684,174,1703,191,1717,211,1727,255,1737,253,1742,209,1732,188,1722,170,1707,155,1687,141,1661,119,1594,101,1511,87,1421,70,1245,64,1121"/>
+<area shape="rect" id="Node000029" href="$structmadness_1_1is__vector.html" title=" " alt="" coords="235,1782,423,1807"/>
+<area shape="poly" id="edge514_Node000000_Node000029" title=" " alt="" coords="69,1121,73,1257,87,1452,101,1552,119,1644,143,1718,158,1746,174,1767,202,1786,236,1796,234,1801,200,1791,170,1771,153,1749,138,1720,114,1645,95,1553,82,1453,68,1257,64,1121"/>
+<area shape="rect" id="Node000030" href="$structmadness_1_1meta_1_1disjunction.html" title=" " alt="" coords="228,1832,431,1872"/>
+<area shape="poly" id="edge515_Node000000_Node000030" title=" " alt="" coords="69,1121,72,1265,85,1476,98,1584,117,1683,142,1764,157,1795,174,1818,199,1836,229,1847,227,1852,196,1841,170,1822,152,1798,137,1766,112,1684,93,1585,80,1476,66,1266,63,1121"/>
+<area shape="rect" id="Node000031" href="$structmadness_1_1meta_1_1taskattr__is__last__arg_3_4.html" title=" " alt="" coords="239,1896,420,1936"/>
+<area shape="poly" id="edge516_Node000000_Node000031" title=" " alt="" coords="68,1121,69,1277,81,1507,94,1625,113,1734,139,1823,156,1857,174,1882,204,1903,239,1914,238,1919,201,1908,170,1886,151,1859,134,1825,108,1735,89,1626,76,1507,64,1277,63,1121"/>
+<area shape="rect" id="Node000002" href="$structmadness_1_1is__istreammable__ns_1_1impl.html" title=" " alt="" coords="537,49,735,89"/>
+<area shape="poly" id="edge487_Node000001_Node000002" title=" " alt="" coords="489,67,536,67,536,72,489,72"/>
+<area shape="rect" id="Node000003" href="$structmadness_1_1is__istreammable.html" title=" " alt="" coords="787,57,1023,82"/>
+<area shape="poly" id="edge488_Node000002_Node000003" title=" " alt="" coords="749,67,787,67,787,72,749,72"/>
+<area shape="rect" id="Node000005" href="$structmadness_1_1is__ostreammable__ns_1_1impl.html" title=" " alt="" coords="535,216,737,256"/>
+<area shape="poly" id="edge490_Node000004_Node000005" title=" " alt="" coords="500,233,534,233,534,239,500,239"/>
+<area shape="rect" id="Node000006" href="$structmadness_1_1is__ostreammable.html" title=" " alt="" coords="785,223,1025,249"/>
+<area shape="poly" id="edge491_Node000005_Node000006" title=" " alt="" coords="751,233,785,233,785,239,751,239"/>
+</map>
