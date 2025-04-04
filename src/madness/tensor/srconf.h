@@ -558,27 +558,27 @@ protected:
 		}
 
 	protected:
-		/// fill this SRConf with 1 flattened random configurations (tested)
-		void fillWithRandom(const long& rank=1) {
-
-
-			// assign; note that Slice(0,_) is inclusive
-			weights_=Tensor<double>(rank);
-			weights_=1.0;
-
-			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
-				vector_[idim]=Tensor<T>(rank,this->kVec());
-				vector_[idim].fillrandom();
-			}
-
-			this->normalize();
-			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
-				vector_[idim].scale(madness::RandomValue<T>()*scalar_type(10.0));
-			}
-			weights_(Slice(0,this->rank()-1)).fillrandom().scale(10.0);
-			make_slices();
-            MADNESS_ASSERT(has_structure());
-		}
+//		/// fill this SRConf with 1 flattened random configurations (tested)
+//		void fillWithRandom(const long& rank=1) {
+//
+//
+//			// assign; note that Slice(0,_) is inclusive
+//			weights_=Tensor<double>(rank);
+//			weights_=1.0;
+//
+//			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
+//				vector_[idim]=Tensor<T>(rank,this->kVec());
+//				vector_[idim].fillrandom();
+//			}
+//
+//			this->normalize();
+//			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
+//				vector_[idim].scale(madness::RandomValue<T>()*scalar_type(10.0));
+//			}
+//			weights_(Slice(0,this->rank()-1)).fillrandom().scale(10.0);
+//			make_slices();
+//            MADNESS_ASSERT(has_structure());
+//		}
 
 		/// normalize the vectors (tested)
 		void normalize() {

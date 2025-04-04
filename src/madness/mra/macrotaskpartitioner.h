@@ -161,7 +161,7 @@ public:
     /// copy v_batch into the result vector
     template<typename vecT>
     vecT insert_result_batch(vecT v, const vecT& v_batch) const {
-        return result.template insert_batch(v,v_batch);
+        return result.insert_batch(v,v_batch);
     }
 
     /// pretty print this batch
