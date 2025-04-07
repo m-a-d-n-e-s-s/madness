@@ -9,6 +9,7 @@ endif()
 set(MOLRESPONSE_SOURCES2
     ResponseManager.cpp
     GroundStateData.cpp
+    ResponseSolver.cpp
 )
 
 set(MOLRESPONSE_HEADERS2
@@ -17,7 +18,12 @@ set(MOLRESPONSE_HEADERS2
     MolecularProperty.hpp
     ResponseManager.hpp
     ResponseState.hpp
-
+    ResponseIO.hpp
+    ResponseMetaData.hpp
+    FrequencyLoop.hpp
+    ResponseSolver.hpp
+    ResponseSolverUtils.hpp
+    ResponseInitializer.hpp
 )
 
 # Create the MADresponse2 library

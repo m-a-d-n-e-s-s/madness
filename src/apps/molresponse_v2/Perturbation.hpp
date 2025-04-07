@@ -21,7 +21,6 @@ struct MagneticPerturbation {
   char direction; // X, Y, or Z
 };
 
-
-using Perturbation = std::variant<DipolePerturbation,
-                                   NuclearDisplacementPerturbation,
-                                   MagneticPerturbation>; 
+using Perturbation =
+    std::variant<DipolePerturbation, NuclearDisplacementPerturbation,
+                 MagneticPerturbation>;

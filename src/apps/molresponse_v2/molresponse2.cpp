@@ -1,4 +1,5 @@
 #include "../madqc/parameter_manager.hpp"
+#include "FrequencyLoop.hpp" // Make sure this is included
 #include "GroundStateData.hpp"
 #include "MolecularProperty.hpp"
 #include "ResponseManager.hpp"
@@ -42,7 +43,8 @@ int main(int argc, char **argv) {
     std::vector<MolecularProperty> requested_properties = {
         MolecularProperty(MolecularPropertyType::Polarizability, {0.0, 0.0656},
                           {'z'}),
-        MolecularProperty(MolecularPropertyType::Raman, {0.0656})};
+    };
+    /*MolecularProperty(MolecularPropertyType::Raman, {0.0656})};*/
 
     // Initialize the ResponseManager with ground-state archive
     auto ground_state =
@@ -72,34 +74,28 @@ int main(int argc, char **argv) {
                                           rm.getVtol(), fock_json_file);
 
         for (auto &state : all_states) {
-          if (state.is_converged)
+          if (state.is_converged || state.current_threshold() != thresh)
             continue;
-          if (state.current_threshold() != thresh)
-            continue;
-
-          madness::print("Computing:", state.description());
-
-          // Run the actual solver for this state
-          // bool converged =
-          // compute_response(state, ...);
-
-          bool converged = true; // ← for now, fake it
-
-          if (converged) {
-            if (state.at_final_accuracy()) {
-              state.is_converged = true;
-              madness::print("✓ Final convergence reached "
-                             "for",
-                             state.description());
-            } else {
-              state.advance_protocol();
-              all_states_converged = false; // need another round
-              madness::print("→ Converged at thresh", thresh, "→ advancing",
+          ResponseMetadata metadata(state.perturbationDescription());
+          metadata.load();
+          computeFrequencyLoop(world, rm, state, ground_state, metadata);
+          metadata.save();
+          // Check if we reached final protocol or should advance
+          if (state.at_final_threshold()) {
+            state.is_converged = true;
+            if (world.rank() == 0) {
+              madness::print("✓ Final convergence reached for",
                              state.description());
             }
           } else {
-            all_states_converged = false; // this one needs to retry
-            madness::print("✗ Not yet converged for", state.description());
+            state.advance_threshold();
+            all_states_converged = false;
+            if (world.rank() == 0) {
+
+              madness::print("→ Converged at thresh", thresh,
+                             "→ advancing to next protocol for",
+                             state.description());
+            }
           }
         }
       }

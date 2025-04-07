@@ -3,18 +3,9 @@
 #include "ResponseState.hpp"
 #include <molecule.h>
 #include <set>
+#include <string>
 
 using namespace madness;
-
-struct ResponseStateComparator {
-  bool operator()(const ResponseState &lhs, const ResponseState &rhs) const {
-    if (lhs.type != rhs.type)
-      return lhs.type < rhs.type;
-    if (lhs.frequency != rhs.frequency)
-      return lhs.frequency < rhs.frequency;
-    return lhs.perturbationDescription() < rhs.perturbationDescription();
-  }
-};
 
 class StateGenerator {
 public:
@@ -23,52 +14,50 @@ public:
                  const std::vector<double> &thresholds)
       : molecule_(mol), requested_properties_(requested_properties),
         thresholds_(thresholds) {}
-
   std::vector<ResponseState> generateStates() const {
-    std::set<std::string> seen_ids; // For deduplication
+    std::set<std::string> seen_ids; // Prevent duplicates
     std::vector<ResponseState> all_states;
 
     for (const auto &prop : requested_properties_) {
       switch (prop.type) {
       case MolecularPropertyType::Polarizability:
-        for (double freq : prop.frequencies) {
-          for (char dir : prop.directions) {
-            DipolePerturbation pert{dir};
-            ResponseState state(pert, PerturbationType::Dipole, freq,
-                                thresholds_);
-            if (seen_ids.insert(state.description()).second) {
-              all_states.push_back(state);
-            }
+        for (char dir : prop.directions) {
+          DipolePerturbation pert{dir};
+          ResponseState state(pert, PerturbationType::Dipole, prop.frequencies,
+                              thresholds_);
+          if (seen_ids.insert(state.description()).second) {
+            all_states.push_back(state);
           }
         }
         break;
 
       case MolecularPropertyType::Raman:
-        for (double freq : prop.frequencies) {
-          for (char dir : prop.directions) {
-            DipolePerturbation dipole{dir};
-            ResponseState state(dipole, PerturbationType::Dipole, freq,
-                                thresholds_);
-            if (seen_ids.insert(state.description()).second) {
-              all_states.push_back(state);
-            }
+        for (char dir : prop.directions) {
+          DipolePerturbation dipole{dir};
+          ResponseState dstate(dipole, PerturbationType::Dipole,
+                               prop.frequencies, thresholds_);
+          if (seen_ids.insert(dstate.description()).second) {
+            all_states.push_back(dstate);
           }
-          for (int i = 0; i < molecule_.natom(); ++i) {
-            std::string atom_id = "nuclear_" + std::to_string(i);
-            for (char dir : {'x', 'y', 'z'}) {
-              NuclearDisplacementPerturbation nd{i, dir};
-              ResponseState state(nd, PerturbationType::NuclearDisplacement,
-                                  freq, thresholds_);
-              if (seen_ids.insert(state.description()).second) {
-                all_states.push_back(state);
-              }
+        }
+
+        for (int i = 0; i < molecule_.natom(); ++i) {
+
+          std::string atom_id = "n" + std::to_string(i);
+
+          for (char dir : {'x', 'y', 'z'}) {
+            NuclearDisplacementPerturbation nuc{i, dir};
+            ResponseState nstate(nuc, PerturbationType::NuclearDisplacement,
+                                 prop.frequencies, thresholds_);
+            if (seen_ids.insert(nstate.description()).second) {
+              all_states.push_back(nstate);
             }
           }
         }
         break;
 
       case MolecularPropertyType::Hyperpolarizability:
-        // TODO: Add logic for multi-frequency perturbation sets
+        // TODO: Multi-frequency design
         break;
       }
     }

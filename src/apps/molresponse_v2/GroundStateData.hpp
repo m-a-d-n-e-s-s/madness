@@ -23,14 +23,14 @@ private:
   Tensor<double> occ;
   double L;
   int k;
+
+public:
   Molecule molecule;
   std::vector<real_function_3d> orbitals;
   std::string xc;
   std::string localize_method;
   double converged_for_thresh;
   bool fock_loaded_from_file = false;
-
-public:
   [[nodiscard]] bool isFockLoadedFromFile() const {
     return fock_loaded_from_file;
   }
@@ -70,7 +70,7 @@ public:
   [[nodiscard]] vector_real_function_3d
   computeHFExchangeEnergy(World &world) const;
   Tensor<double> tryLoadHamiltonianFromJson(World &world, const json &fock_json,
-                                  double thresh, int k);
+                                            double thresh, int k);
 };
 
 #endif // GROUNDSTATEDATA_HPP

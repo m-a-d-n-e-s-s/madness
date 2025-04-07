@@ -30,6 +30,8 @@ public:
   // Check if a response state is already converged
   [[nodiscard]] bool isConverged(const ResponseState &state) const;
 
+  [[nodiscard]] ResponseParameters params() const { return r_params; }
+
 private:
   double vtol;
   poperatorT coulop;

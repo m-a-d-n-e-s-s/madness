@@ -1,39 +1,103 @@
 #ifndef RESPONSE_STATE_HPP
 #define RESPONSE_STATE_HPP
+#include "GroundStateData.hpp"
 #include "Perturbation.hpp"
+#include <SCF.h>
+#include <filesystem>
+#include <madness/chem/projector.h>
+#include <madness/external/nlohmann_json/json.hpp>
+#include <madness/mra/mra.h>
+#include <sstream>
 #include <string>
 #include <vector>
+
+using json = nlohmann::json;
+namespace fs = std::filesystem;
 
 struct ResponseState {
   PerturbationType type;
   Perturbation perturbation;
-  double frequency;
 
-  std::vector<double> thresholds;  // Accuracy levels to loop over
+  std::vector<double> frequencies;
+  std::vector<double> thresholds; // Accuracy levels to loop over
+  //
+  size_t current_frequency_index = 0;
   size_t current_thresh_index = 0; // Track which threshold we're working on
   bool is_converged = false;
 
-  ResponseState(Perturbation pert, PerturbationType ptype, double freq,
+  ResponseState(Perturbation pert, PerturbationType ptype,
+                const std::vector<double> &freq,
                 const std::vector<double> &thresh)
-      : type(ptype), perturbation(pert), frequency(freq), thresholds(thresh) {}
+      : type(ptype), perturbation(pert), frequencies(freq), thresholds(thresh),
+        current_frequency_index(0), current_thresh_index(0),
+        is_converged(false) {}
 
-  double current_threshold() const { return thresholds[current_thresh_index]; }
+  [[nodiscard]] double current_threshold() const {
+    return thresholds[current_thresh_index];
+  }
+  [[nodiscard]] double current_frequency() const {
+    return frequencies[current_frequency_index];
+  }
 
-  bool at_final_accuracy() const {
+  [[nodiscard]] bool at_final_frequency() const {
+    return current_frequency_index == frequencies.size() - 1;
+  }
+  [[nodiscard]] bool at_final_threshold() const {
     return current_thresh_index == thresholds.size() - 1;
   }
 
-  void advance_protocol() {
-    if (!at_final_accuracy()) {
+  void advance_threshold() {
+    if (!at_final_threshold()) {
       ++current_thresh_index;
       is_converged = false; // reset convergence at new protocol
     }
   }
+  void advance_frequency() {
+    if (!at_final_frequency()) {
+      ++current_frequency_index;
+    }
+  }
+  [[nodiscard]] bool is_static() const {
+    return std::abs(current_frequency()) < 1e-8;
+  }
 
-  std::string description() const {
-    return perturbationDescription() + " at freq " + std::to_string(frequency) +
+  [[nodiscard]] std::string response_filename() const {
+    std::ostringstream oss;
+    oss << "responses/" << perturbationDescription() << "_"
+        << current_frequency() << "_" << current_threshold() << ".respsonse";
+    return oss.str();
+  }
+  [[nodiscard]] std::string response_filename(size_t freq_index,
+                                              size_t threshold_index) const {
+    std::ostringstream oss;
+    oss << "responses/" << perturbationDescription() << "_freq_"
+        << frequencies[freq_index] << "_thresh_" << thresholds[threshold_index]
+        << ".response";
+    return oss.str();
+  }
+
+  [[nodiscard]] std::string
+  response_filename_with_threshold(double threshold) const {
+    std::ostringstream oss;
+    oss << "responses/" << perturbationDescription() << "_"
+        << current_frequency() << "_" << threshold << ".respsonse";
+    return oss.str();
+  }
+
+  [[nodiscard]] std::string
+  response_filename_with_frequency(double frequency) const {
+    std::ostringstream oss;
+    oss << "responses/" << perturbationDescription() << "_" << frequency << "_"
+        << current_threshold() << ".respsonse";
+    return oss.str();
+  }
+
+  [[nodiscard]] std::string description() const {
+    return perturbationDescription() + " at freq " +
+           std::to_string(current_frequency()) +
            " (thresh=" + std::to_string(current_threshold()) + ")";
   }
+
   // Clearly named helper functions to get human-readable perturbation info
   [[nodiscard]] std::string perturbationDescription() const {
     switch (type) {
@@ -52,6 +116,31 @@ struct ResponseState {
                  1, std::get<MagneticPerturbation>(perturbation).direction);
     }
     return "Unknown";
+  }
+
+  vector_real_function_3d
+  perturbation_vector(World &world, const GroundStateData &ground_state) const {
+
+    vector_real_function_3d Vp;
+
+    switch (type) {
+    case PerturbationType::Dipole: {
+      auto dipole = std::get<DipolePerturbation>(perturbation);
+
+      std::map<char, int> dipole_map = {{'x', 0}, {'y', 1}, {'z', 2}};
+      std::vector<int> f(3, 0);
+      f[dipole_map[dipole.direction]] = 1;
+      real_function_3d d =
+          real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
+
+      QProjector<double, 3> Qhat(ground_state.orbitals);
+      Vp = mul(world, d, ground_state.orbitals, true);
+      Vp = Qhat(Vp);
+      truncate(world, Vp, true);
+      return Vp;
+    }
+    }
+    throw std::runtime_error("Unknown perturbation type");
   }
 };
 
