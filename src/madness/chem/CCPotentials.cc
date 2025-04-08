@@ -1774,9 +1774,10 @@ CCPotentials::apply_transformed_Ue_macrotask(World& world, const std::vector<rea
                   << "> =" << aa << ", diff=" << error << "\n";
         //printf("<xy| U_R |xy>  %12.8f\n",a);
         //printf("<xy|1/r12|xy>  %12.8f\n",aa);
-        if (error > FunctionDefaults<6>::get_thresh() * 10.0) std::cout << ("Ue Potential plain wrong!\n");
-        else if (error > FunctionDefaults<6>::get_thresh()) std::cout << ("Ue Potential wrong!!!!\n");
-        else std::cout << ("Ue seems to be sane, diff=" + std::to_string(diff)) << std::endl;
+        Uxy.print_size("Ue potential");
+        if (world.rank() == 0 && fabs(diff) > parameters.thresh_6D())
+            print("Ue potential wrong, diff=",std::to_string(diff));
+        else print("Ue potential seems to be sane, diff=" + std::to_string(diff));
     }
     return Uxy;
 }
@@ -1873,11 +1874,14 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
     if ((phi_i.type == phi_j.type) && (phi_i.i == phi_j.i)) symmetric_kf = true;
 
     // First make the 6D function f12|x,y>
-    real_function_6d f12xy = make_f_xy_macrotask(world, x_ket, y_ket, x_bra, y_bra, phi_i.i, phi_j.i,
-        parameters, phi_i.type, phi_j.type, Gscreen);
-    f12xy.truncate().reduce_rank();
-    // Apply the Exchange Operator
-    real_function_6d Kfxy = K_macrotask(world, info.mo_ket, info.mo_bra, f12xy, symmetric_kf, parameters);
+//    print("old KffK algorithm");
+//    real_function_6d f12xy = make_f_xy_macrotask(world, x_ket, y_ket, x_bra, y_bra, phi_i.i, phi_j.i,
+//        parameters, phi_i.type, phi_j.type, Gscreen);
+//    f12xy.truncate().reduce_rank();
+//    // Apply the Exchange Operator
+//    real_function_6d Kfxy = K_macrotask(world, info.mo_ket, info.mo_bra, f12xy, symmetric_kf, parameters);
+    print("new KffK algorithm");
+    real_function_6d Kfxy=apply_Kfxy(world,phi_i,phi_j,info,parameters);
 
     if (parameters.debug()) part1_time.info();
 
@@ -1936,6 +1940,7 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
 }
 
 
+
 madness::real_function_6d
 CCPotentials::apply_exchange_commutator_macrotask(World& world, const std::vector<real_function_3d>& mo_ket,
                                                   const std::vector<real_function_3d>& mo_bra, const real_function_3d& Rsquare,
@@ -1988,8 +1993,10 @@ CCPotentials::apply_exchange_commutator_macrotask(World& world, const std::vecto
     Kfxy.print_size("Kf" + x_name + y_name);
     Kfxy.set_thresh(parameters.thresh_6D());
     Kfxy.truncate().reduce_rank();
+    save(Kfxy, "Kf_" + x_name + y_name);
     Kfxy.print_size("Kf after truncation" + x_name + y_name);
     fKxy.print_size("fK" + x_name + y_name);
+    save(fKxy, "fK_" + x_name + y_name);
     real_function_6d result = (Kfxy - fKxy);
     result.set_thresh(parameters.thresh_6D());
     result.print_size("[K,f]" + x_name + y_name);
@@ -2008,13 +2015,65 @@ CCPotentials::apply_exchange_commutator_macrotask(World& world, const std::vecto
         std::cout << std::fixed << std::setprecision(10)
                   << "<" << x_name << y_name << "[K,f]" << x_name << y_name << "> =" << test << "\n";
     }
-    if (world.rank() == 0 && fabs(diff) > parameters.thresh_6D()) print("Exchange Commutator Plain Wrong");
+    result.print_size("[K,f] potential");
+    if (world.rank() == 0 && fabs(diff) > parameters.thresh_6D())
+        print("Exchange Commutator Plain Wrong, diff=",std::to_string(diff));
     else print("Exchange Commutator seems to be sane, diff=" + std::to_string(diff));
 
     if (parameters.debug()) sanity.info(diff);
 
     if (parameters.debug()) print("\n");
+    save(result, "KffK_" + x_name + y_name);
 
+    return result;
+}
+
+/// return Kf12|xy>
+
+/// K(1)f12|xy> = \sum_k phi_k(1) \int d3 g(1,3) k*(3) f(2,3) x(3) y(2)
+madness::real_function_6d
+CCPotentials::apply_Kfxy(World& world, const CCFunction<double,3>& x, const CCFunction<double,3>& y, const Info& info,
+     const CCParameters& parameters) {
+
+    CorrelationFactor corrfac(world, parameters.gamma(), 1.e-7, parameters.lo());
+    real_convolution_3d g12 = CoulombOperator(world, parameters.lo(), parameters.thresh_poisson());
+    g12.destructive()=true;
+
+    real_function_6d result=FunctionFactory<double,6>(world);
+
+    for (int particle : {1,2}) {
+
+        // first make the product k*(3) x(3)
+        const std::vector<real_function_3d>& kbra=info.mo_bra;
+        const std::vector<real_function_3d> k_arg=(particle==1) ? kbra*x.function : kbra*y.function;
+
+
+        std::size_t batchsize=3;
+        for (std::size_t kbatch=0; kbatch < info.mo_ket.size(); kbatch+=batchsize) {
+            for (std::size_t k = kbatch; k < std::min(kbatch+batchsize,info.mo_ket.size()); k++) {
+
+                // multiply with F12 operator: f(2,3) k*(3) x(3) y(2)
+                real_function_3d xx=(particle==1) ? k_arg[k] : x.function;
+                real_function_3d yy=(particle==2) ? k_arg[k] : y.function;
+                real_function_6d X = CompositeFactory<double, 6, 3>(world).g12(corrfac.f()).
+                                                        particle1(copy(xx)).particle2(copy(yy));
+                X.fill_cuspy_tree().truncate(parameters.tight_thresh_6D()).reduce_rank();
+
+                // apply Coulomb operator g(1,3) to f(2,3) k*(3) x(3) y(2)
+                g12.particle() = particle;
+                real_function_6d Y = g12(X);     // overwrite X to save space
+                auto tmp=(multiply(copy(Y), copy(info.mo_ket[k]),particle)).truncate(parameters.tight_thresh_6D()*3.0);
+                result += tmp;
+            }
+            result.truncate(parameters.tight_thresh_6D()).reduce_rank(parameters.tight_thresh_6D());
+        }
+
+        // shortcut for i==j
+        if (x.i==y.i) {
+            result+=madness::swap_particles(result);
+            break;
+        }
+    }
     return result;
 }
 

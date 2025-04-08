@@ -454,6 +454,11 @@ public:
                     const Info& info, const real_convolution_6d* Gscreen);
 
 
+    /// return Kf12|xy>
+    static real_function_6d
+    apply_Kfxy(World& world, const CCFunction<double,3>& x, const CCFunction<double,3>& y, const Info& info,
+        const CCParameters& param);
+
     static real_function_6d
     apply_KffK(World& world, const CCFunction<double, 3>& phi_i, const CCFunction<double, 3>& phi_j,
                const Info& info, const real_convolution_6d* Gscreen);
