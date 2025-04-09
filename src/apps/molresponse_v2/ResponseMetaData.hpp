@@ -8,6 +8,40 @@
 using json = nlohmann::json;
 namespace fs = std::filesystem;
 
+class GlobalMetadataManager {
+public:
+  GlobalMetadataManager() {
+    if (fs::exists(metadata_path)) {
+      std::ifstream in(metadata_path);
+      in >> data;
+    }
+  }
+
+  void mark_converged(const std::string &state_id, double frequency,
+                      double threshold) {
+    data[state_id][std::to_string(threshold)][std::to_string(frequency)] = true;
+  }
+
+  bool is_converged(const std::string &state_id, double frequency,
+                    double threshold) const {
+    auto t_str = std::to_string(threshold);
+    auto f_str = std::to_string(frequency);
+    return data.contains(state_id) && data[state_id].contains(t_str) &&
+           data[state_id][t_str].contains(f_str) &&
+           data[state_id][t_str][f_str].get<bool>() == true;
+  }
+
+  void write() const {
+    fs::create_directories("responses");
+    std::ofstream out(metadata_path);
+    out << std::setw(2) << data << std::endl;
+  }
+
+private:
+  std::string metadata_path = "responses/metadata.json";
+  json data;
+};
+
 class ResponseMetadata {
 public:
   explicit ResponseMetadata(const std::string &perturbation_id)

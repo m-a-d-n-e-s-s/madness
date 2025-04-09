@@ -24,6 +24,8 @@ set(MOLRESPONSE_HEADERS2
     ResponseSolver.hpp
     ResponseSolverUtils.hpp
     ResponseInitializer.hpp
+    ResponseDebugLogger.hpp
+    ResponseDebugLoggerMacros.hpp
 )
 
 # Create the MADresponse2 library

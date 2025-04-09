@@ -122,16 +122,23 @@ struct ResponseState {
   perturbation_vector(World &world, const GroundStateData &ground_state) const {
 
     vector_real_function_3d Vp;
+    if (world.rank() == 0) {
+      print("Perturbation vector for", perturbationDescription());
+    }
 
     switch (type) {
     case PerturbationType::Dipole: {
       auto dipole = std::get<DipolePerturbation>(perturbation);
-
+      ;
       std::map<char, int> dipole_map = {{'x', 0}, {'y', 1}, {'z', 2}};
       std::vector<int> f(3, 0);
       f[dipole_map[dipole.direction]] = 1;
       real_function_3d d =
           real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
+
+      if (world.rank() == 0) {
+        print("Dipole perturbation vector", dipole.direction, f);
+      }
 
       QProjector<double, 3> Qhat(ground_state.orbitals);
       Vp = mul(world, d, ground_state.orbitals, true);

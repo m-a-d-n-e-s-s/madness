@@ -2,6 +2,7 @@
 #include "FrequencyLoop.hpp" // Make sure this is included
 #include "GroundStateData.hpp"
 #include "MolecularProperty.hpp"
+#include "ResponseDebugLogger.hpp"
 #include "ResponseManager.hpp"
 #include "StateGenerator.hpp"
 #include "funcdefaults.h"
@@ -57,6 +58,8 @@ int main(int argc, char **argv) {
     auto all_states = state_generator.generateStates();
 
     bool all_states_converged = false;
+    GlobalMetadataManager metadata;
+    ResponseDebugLogger debug_logger(true);
     while (!all_states_converged) {
       all_states_converged = true;
 
@@ -76,10 +79,13 @@ int main(int argc, char **argv) {
         for (auto &state : all_states) {
           if (state.is_converged || state.current_threshold() != thresh)
             continue;
-          ResponseMetadata metadata(state.perturbationDescription());
-          metadata.load();
-          computeFrequencyLoop(world, rm, state, ground_state, metadata);
-          metadata.save();
+
+          computeFrequencyLoop(world, rm, state, ground_state, metadata,
+                               debug_logger);
+          if (debug_logger.enabled()) {
+            debug_logger.pretty_print_summary(state.description());
+            debug_logger.write_to_disk("response_log.json");
+          }
           // Check if we reached final protocol or should advance
           if (state.at_final_threshold()) {
             state.is_converged = true;

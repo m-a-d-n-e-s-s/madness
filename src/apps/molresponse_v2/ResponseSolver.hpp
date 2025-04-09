@@ -1,5 +1,6 @@
 #pragma once
 #include "GroundStateData.hpp"
+#include "ResponseDebugLogger.hpp"
 #include "ResponseManager.hpp"
 #include "ResponseSolverUtils.hpp"
 #include "ResponseState.hpp"
@@ -28,15 +29,16 @@ struct ResponseSolver {
 
   bool iterate(World &world, const ResponseManager &rm,
                const GroundStateData &gs, const ResponseState &state,
-               ResponseVector &response, size_t max_iter, double conv);
+               ResponseVector &response, ResponseDebugLogger &logger,
+               size_t max_iter, double conv);
 };
 
 class StaticRestrictedSolver : public ResponseSolver {
 public:
   static bool iterate(World &world, const ResponseManager &rm,
                       const GroundStateData &gs, const ResponseState &state,
-                      ResponseVector &response, size_t max_iter,
-                      double conv_thresh);
+                      ResponseVector &response, ResponseDebugLogger &logger,
+                      size_t max_iter, double conv_thresh);
 
   static real_function_3d compute_density(World &world,
                                           const vector_real_function_3d &x,
@@ -49,15 +51,16 @@ public:
   static vector_real_function_3d
   ComputeRSH(World &world, const GroundStateData &gs,
              const ResponseVector &vecs, const vector_real_function_3d &vp,
-             const std::vector<poperatorT> &bsh_x, const ResponseManager &rm);
+             const std::vector<poperatorT> &bsh_x, const ResponseManager &rm,
+             ResponseDebugLogger &logger);
 };
 
 class DynamicRestrictedSolver : public ResponseSolver {
 public:
   static bool iterate(World &world, const ResponseManager &rm,
                       const GroundStateData &gs, const ResponseState &state,
-                      ResponseVector &response, size_t max_iter,
-                      double conv_thresh);
+                      ResponseVector &response, ResponseDebugLogger &logger,
+                      size_t max_iter, double conv_thresh);
   static real_function_3d compute_density(World &world,
                                           const vector_real_function_3d &x,
                                           const vector_real_function_3d &phi0) {
@@ -68,15 +71,16 @@ public:
   static vector_real_function_3d
   ComputeRSH(World &world, const GroundStateData &gs,
              const ResponseVector &vecs, const vector_real_function_3d &vp,
-             const std::vector<poperatorT> &bsh_x, const ResponseManager &rm);
+             const std::vector<poperatorT> &bsh_x, const ResponseManager &rm,
+             ResponseDebugLogger &logger);
 };
 
 class StaticUnrestrictedSolver : public ResponseSolver {
 public:
   static bool iterate(World &world, const ResponseManager &rm,
                       const GroundStateData &gs, const ResponseState &state,
-                      ResponseVector &response, size_t max_iter,
-                      double conv_thresh) {
+                      ResponseVector &response, ResponseDebugLogger &logger,
+                      size_t max_iter, double conv_thresh) {
     throw std::runtime_error("StaticUnrestrictedSolver not implemented");
   }
 };
@@ -84,8 +88,8 @@ class DynamicUnrestrictedSolver : public ResponseSolver {
 public:
   static bool iterate(World &world, const ResponseManager &rm,
                       const GroundStateData &gs, const ResponseState &state,
-                      ResponseVector &response, size_t max_iter,
-                      double conv_thresh) {
+                      ResponseVector &response, ResponseDebugLogger &logger,
+                      size_t max_iter, double conv_thresh) {
     throw std::runtime_error("DynamicUnrestrictedSolver not implemented");
   }
 };

@@ -25,21 +25,28 @@ inline std::vector<poperatorT> make_bsh_operators_response(
   // End timer
 }
 
+inline double inner(World &world, const vector_real_function_3d &x,
+                             const vector_real_function_3d &y) {
+  return dot(world, x, y).trace();
+}
+
 inline double do_step_restriction(World &world, const vecfuncT &x,
                                   vecfuncT &x_new, const std::string &spin,
                                   const double &maxrotn) {
 
   double anorm = norm2(world, sub(world, x, x_new));
-  
-  int nres = 0;
-  if (anorm > maxrotn) {
-    double s = maxrotn / anorm;
-    gaxpy(s, x_new, 1.0 - s, x, true);
-  }
 
-  world.gop.fence();
-  if (world.rank() == 0)
-    print("Norm of vector changes", spin, ": ", anorm);
+  /*int nres = 0;*/
+  /*if (anorm > maxrotn) {*/
+  /*  if (world.rank() == 0)*/
+  /*    print("Doing step restriction, norm of change: ", anorm);*/
+  /*  double s = maxrotn / anorm;*/
+  /*  gaxpy(s, x_new, 1.0 - s, x, true);*/
+  /*}*/
+  /**/
+  /*world.gop.fence();*/
+  /*if (world.rank() == 0)*/
+  /*  print("Norm of vector changes", spin, ": ", anorm);*/
   return anorm;
 }
 } // namespace ResponseSolverUtils
