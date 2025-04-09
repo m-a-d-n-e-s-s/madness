@@ -91,6 +91,10 @@ void FrequencyResponse::iterate(World &world) {
       world, Chi, ground_orbitals, vector_real_function_3d(Chi.num_states()),
       false);
 
+  if (r_params.print_level() >= 20) {
+    print_inner(world, "pq", PQ, PQ);
+  }
+
   for (iter = 0; iter < r_params.maxiter(); ++iter) {
     // if (world.rank() == 0) { print("At the start of iterate x", checkx); }
     iter_timing.clear();
