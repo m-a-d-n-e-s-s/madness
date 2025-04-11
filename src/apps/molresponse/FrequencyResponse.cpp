@@ -479,6 +479,12 @@ auto vector_to_PQ(World &world, const vector_real_function_3d &rhs_operators,
     auto op_phi = mul(world, pi, mul_orbitals, true);
     compress(world, op_phi, true);
     rhs[b] = Qhat(op_phi);
+
+    auto rhs_b_norms = norm2s_T(world, rhs[b]);
+    if (world.rank() == 0) {
+      print("rhs_b_norms: b ", b, rhs_b_norms);
+    }
+
     b++;
   }
   return rhs;

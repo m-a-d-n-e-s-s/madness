@@ -26,8 +26,14 @@ inline std::vector<poperatorT> make_bsh_operators_response(
 }
 
 inline double inner(World &world, const vector_real_function_3d &x,
-                             const vector_real_function_3d &y) {
-  return dot(world, x, y).trace();
+                    const vector_real_function_3d &y) {
+
+  double result = 0.0;
+  for (size_t i = 0; i < x.size(); ++i) {
+    result += x[i].inner(y[i]);
+  }
+  return result;
+
 }
 
 inline double do_step_restriction(World &world, const vecfuncT &x,

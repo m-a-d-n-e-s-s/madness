@@ -157,12 +157,17 @@ inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
     // ground_state, state, response);
     bool converged =
         solve_response_vector(world, rm, ground_state, state, response, logger);
+    logger.finalize_state(state);
+    if(world.rank() == 0) {
+      logger.pretty_print_summary(state.description());
+    }
     iteration++;
 
     if (converged) {
       // ============================
       // ============================
       save_response_vector(world, state, response);
+
       global_metadata.mark_converged(state_id, freq, thresh);
       if (world.rank() == 0) {
         madness::print("✅ Saved and marked "

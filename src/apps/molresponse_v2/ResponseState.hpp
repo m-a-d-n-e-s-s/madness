@@ -2,6 +2,7 @@
 #define RESPONSE_STATE_HPP
 #include "GroundStateData.hpp"
 #include "Perturbation.hpp"
+#include "vmra.h"
 #include <SCF.h>
 #include <filesystem>
 #include <madness/chem/projector.h>
@@ -136,14 +137,11 @@ struct ResponseState {
       real_function_3d d =
           real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
 
-      if (world.rank() == 0) {
-        print("Dipole perturbation vector", dipole.direction, f);
-      }
-
-      QProjector<double, 3> Qhat(ground_state.orbitals);
       Vp = mul(world, d, ground_state.orbitals, true);
-      Vp = Qhat(Vp);
-      truncate(world, Vp, true);
+      Vp = ground_state.Qhat(Vp);
+      truncate(world, Vp, FunctionDefaults<3>::get_thresh(), true);
+      auto vp_norms = norm2s_T(world, Vp);
+
       return Vp;
     }
     }

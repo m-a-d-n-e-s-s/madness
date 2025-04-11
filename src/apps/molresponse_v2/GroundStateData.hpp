@@ -8,6 +8,7 @@
 #include <madness/mra/vmra.h>
 #include <madness/tensor/tensor.h>
 #include <madness/world/world.h>
+#include <madness/chem/projector.h>
 #include <vector>
 
 using namespace madness;
@@ -27,6 +28,7 @@ private:
 public:
   Molecule molecule;
   std::vector<real_function_3d> orbitals;
+  QProjector<double, 3> Qhat;
   std::string xc;
   std::string localize_method;
   double converged_for_thresh;

@@ -15,40 +15,48 @@ public:
 
   void start_state(const ResponseState &state) {
     std::string key = state.description();
-    current_entry_ = json{{"perturbation", state.perturbationDescription()},
-                          {"frequency", state.current_frequency()},
-                          {"threshold", state.current_threshold()},
-                          {"iterations", json::array()}};
+    current_entry_ = json{
+        {"perturbation", state.perturbationDescription()},
+        {"frequency", state.current_frequency()},
+        {"threshold", state.current_threshold()},
+        {"iteration_values", json::array()},
+        {"iteration_timings", json::array()},
+    };
+
     current_key_ = key;
   }
 
   // Start a new iteration
   void begin_iteration(size_t iter_index) {
-    current_iter_ = {{"iter", iter_index}, {"steps", json::object()}};
+    current_iter_timing_ = {{"iter", iter_index}, {"steps", json::object()}};
+    current_iter_values_ = {{"iter", iter_index}, {"steps", json::object()}};
   }
   // Log any key-value pairs under a specific step within the iteration
   template <typename T>
   void log_value(const std::string &step_name, const T &value) {
-    current_iter_["steps"][step_name] = value;
+    current_iter_values_["steps"][step_name]["value"] = value;
   }
 
   // Log a timing in seconds
   void log_timing(const std::string &step_name, double wall_time,
                   double cpu_time) {
-    current_iter_["steps"][step_name]["wall_time"] = wall_time;
-    current_iter_["steps"][step_name]["cpu_time"] = cpu_time;
+
+    current_iter_timing_["steps"][step_name]["wall_time"] = wall_time;
+    current_iter_timing_["steps"][step_name]["cpu_time"] = cpu_time;
   }
   template <typename T>
   void log_value_and_time(const std::string &key, const T &value,
                           double wall_time, double cpu_time) {
-    current_iter_["steps"][key]["value"] = value;
-    current_iter_["steps"][key]["wall_time"] = wall_time;
-    current_iter_["steps"][key]["cpu_time"] = cpu_time;
+
+    // Log the value
+    log_value(key, value);
+    log_timing(key, wall_time, cpu_time);
   }
 
   // Commit current iteration
   void end_iteration() {
-    current_entry_["iterations"].push_back(current_iter_);
+    current_entry_["iteration_values"].push_back(current_iter_values_);
+    current_entry_["iteration_timings"].push_back(current_iter_timing_);
   }
 
   // Finalize the state and store it in the log
@@ -60,32 +68,87 @@ public:
     std::ofstream out(filename);
     out << std::setw(2) << log_data_ << "\n";
   }
+  void write_to_disk() const {
+    std::ofstream out("response_log.json");
+    out << std::setw(2) << log_data_ << "\n";
+  }
 
   // Optional pretty printer to check high-level results quickly
-  void pretty_print_summary(const std::string &description) const {
+  void print_timing_table(const std::string &description) const {
+
     if (!log_data_.contains(description))
       return;
 
-    const auto &iter_data = log_data_.at(description)["iterations"];
-    std::cout << "\n📋 Summary for: " << description << "\n";
-    std::cout << std::setw(6) << "Iter" << std::setw(15) << "drho"
-              << std::setw(15) << "residual" << std::setw(15) << "maxrotn"
-              << std::setw(10) << "time" << "\n";
+    const auto &iter_data = log_data_.at(description)["iteration_timings"];
 
+    std::set<std::string> step_names;
     for (const auto &iter : iter_data) {
       const auto &steps = iter["steps"];
-      std::cout << std::setw(6) << iter["iter"] << std::setw(15)
-                << steps["convergence"]["drho"] << std::setw(15)
-                << steps["convergence"]["residual"] << std::setw(15)
-                << steps["convergence"]["maxrotn"] << std::setw(10)
-                << steps["convergence"]["time"] << "\n";
+      for (const auto &step : steps.items()) {
+        step_names.insert(step.key());
+      }
+    }
+    // Print header
+    std::cout << std::setw(6) << "Iter";
+    for (const auto &step_name : step_names) {
+      std::cout << std::setw(15) << step_name + "_wall";
+      std::cout << std::setw(15) << step_name + "_cpu";
+    }
+    // Print iteration data in rows
+    //
+    for (const auto &iter : iter_data) {
+      std::cout << "\n" << std::setw(6) << iter["iter"];
+      const auto &steps = iter["steps"];
+      for (const auto &step_name : step_names) {
+        if (steps.contains(step_name)) {
+          std::cout << std::setw(15) << steps[step_name]["wall_time"];
+          std::cout << std::setw(15) << steps[step_name]["cpu_time"];
+        } else {
+          std::cout << std::setw(15) << "N/A";
+          std::cout << std::setw(15) << "N/A";
+        }
+      }
+    }
+  }
+
+  void print_values_table(const std::string &description) const {
+
+    if (!log_data_.contains(description))
+      return;
+
+    const auto &iter_data = log_data_.at(description)["iteration_values"];
+    std::set<std::string> step_names;
+    for (const auto &iter : iter_data) {
+      const auto &steps = iter["steps"];
+      for (const auto &step : steps.items()) {
+        step_names.insert(step.key());
+      }
+    }
+    // Print header
+    std::cout << std::setw(6) << "Iter";
+    for (const auto &step_name : step_names) {
+      std::cout << std::setw(15) << step_name;
+    }
+
+    // Print iteration data in rows
+    for (const auto &iter : iter_data) {
+      std::cout << "\n" << std::setw(6) << iter["iter"];
+      const auto &steps = iter["steps"];
+      for (const auto &step_name : step_names) {
+        if (steps.contains(step_name)) {
+          std::cout << std::setw(15) << steps[step_name]["value"];
+        } else {
+          std::cout << std::setw(15) << "N/A";
+        }
+      }
     }
   }
 
 private:
   json log_data_;
   json current_entry_;
-  json current_iter_;
+  json current_iter_values_;
+  json current_iter_timing_;
   std::string current_key_;
   bool enabled_ = false;
 };

@@ -121,10 +121,14 @@ void GroundStateData::prepareOrbitals(World &world, int current_k,
     // Update orbital metadata
     k = current_k;
     converged_for_thresh = thresh;
+  } else {
+    truncate(world, orbitals, thresh);
   }
   if (world.rank() == 0) {
     print_info();
   }
+  Qhat = QProjector<double, 3>(orbitals);
+
 }
 // TODO: Need to add functionality for spin restricted
 Tensor<double>

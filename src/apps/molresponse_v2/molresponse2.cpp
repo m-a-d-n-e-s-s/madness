@@ -75,6 +75,9 @@ int main(int argc, char **argv) {
                                      thresh);
         ground_state.computePreliminaries(world, *rm.getCoulombOp(),
                                           rm.getVtol(), fock_json_file);
+        if (world.rank() == 0) {
+          print("hamiltonian:\n", ground_state.Hamiltonian);
+        }
 
         for (auto &state : all_states) {
           if (state.is_converged || state.current_threshold() != thresh)
