@@ -4,6 +4,7 @@
 #include "MolecularProperty.hpp"
 #include "ResponseDebugLogger.hpp"
 #include "ResponseManager.hpp"
+#include "ResponseMetaData.hpp"
 #include "StateGenerator.hpp"
 #include "funcdefaults.h"
 #include "madness/world/world.h"
@@ -58,7 +59,9 @@ int main(int argc, char **argv) {
     auto all_states = state_generator.generateStates();
 
     bool all_states_converged = false;
-    GlobalMetadataManager metadata;
+
+    std::string response_metadata_file = "response_metadata.json";
+    ResponseMetadata metadata(response_metadata_file);
     ResponseDebugLogger debug_logger(true);
     while (!all_states_converged) {
       all_states_converged = true;
@@ -86,7 +89,6 @@ int main(int argc, char **argv) {
           computeFrequencyLoop(world, rm, state, ground_state, metadata,
                                debug_logger);
           if (debug_logger.enabled()) {
-            debug_logger.pretty_print_summary(state.description());
             debug_logger.write_to_disk("response_log.json");
           }
           // Check if we reached final protocol or should advance

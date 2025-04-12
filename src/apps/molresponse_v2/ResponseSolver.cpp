@@ -190,18 +190,16 @@ bool StaticRestrictedSolver::iterate(World &world, const ResponseManager &rm,
       res_norm = ResponseSolverUtils::do_step_restriction(
           world, all_x, temp_vec, "a", rm.params().maxrotn());
     });
-
-    DEBUG_TIMED_LOG_VALUE(
-        world, &logger, "x after restriction",
-        ResponseSolverUtils::inner(world, temp_vec, temp_vec));
+    DEBUG_TIMED_LOG_VALUE(world, &logger, "res_norm", res_norm);
 
     rvec.flat = copy(world, temp_vec);
     rvec.sync();
     // 5. Compute updated response density
     drho = StaticRestrictedSolver::compute_density(world, rvec.flat, phi0);
     double drho_change = (drho - drho_old).norm2();
+    DEBUG_TIMED_LOG_VALUE(world, &logger, "drho_change", drho_change);
 
-    DEBUG_TIMED_LOG_VALUE(world, &logger, "property",
+    DEBUG_TIMED_LOG_VALUE(world, &logger, "alpha",
                           -4.0 *
                               ResponseSolverUtils::inner(world, rvec.flat, Vp));
 
@@ -222,7 +220,6 @@ bool StaticRestrictedSolver::iterate(World &world, const ResponseManager &rm,
       // 🔄 Sync flat vector back into structured view
       auto &rvec = std::get<StaticRestrictedResponse>(response);
       rvec.sync();
-      logger.finalize_state(state);
 
       return true;
     }

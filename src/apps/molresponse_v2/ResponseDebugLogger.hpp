@@ -60,9 +60,7 @@ public:
   }
 
   // Finalize the state and store it in the log
-  void finalize_state(const ResponseState &state) {
-    log_data_[current_key_] = current_entry_;
-  }
+  void finalize_state() { log_data_[current_key_] = current_entry_; }
 
   void write_to_disk(const std::string &filename) const {
     std::ofstream out(filename);
@@ -73,74 +71,95 @@ public:
     out << std::setw(2) << log_data_ << "\n";
   }
 
-  // Optional pretty printer to check high-level results quickly
   void print_timing_table(const std::string &description) const {
-
     if (!log_data_.contains(description))
       return;
 
     const auto &iter_data = log_data_.at(description)["iteration_timings"];
 
+    // Collect unique step names
     std::set<std::string> step_names;
     for (const auto &iter : iter_data) {
-      const auto &steps = iter["steps"];
-      for (const auto &step : steps.items()) {
+      for (const auto &step : iter["steps"].items()) {
         step_names.insert(step.key());
       }
     }
-    // Print header
-    std::cout << std::setw(6) << "Iter";
-    for (const auto &step_name : step_names) {
-      std::cout << std::setw(15) << step_name + "_wall";
-      std::cout << std::setw(15) << step_name + "_cpu";
+
+    // Map each step name to a 5-character short key
+    std::map<std::string, std::string> short_keys;
+    int index = 0;
+    for (const auto &name : step_names) {
+      std::ostringstream oss;
+      oss << std::setw(5) << std::left << name.substr(0, 5);
+      short_keys[name] = oss.str();
     }
-    // Print iteration data in rows
-    //
+
+    constexpr int col_width = 10;
+
+    // Print header
+    std::cout << "\n⏱️ Timing Table for: " << description << "\n";
+    std::cout << std::left << std::setw(6) << "Iter";
+    for (const auto &step : step_names) {
+      std::cout << std::setw(col_width) << (short_keys[step]);
+    }
+    std::cout << "\n"
+              << std::string(6 + step_names.size() * col_width, '-') << "\n";
+
+    // Print each iteration row
     for (const auto &iter : iter_data) {
-      std::cout << "\n" << std::setw(6) << iter["iter"];
+      std::cout << std::setw(6) << iter["iter"] << "     ";
       const auto &steps = iter["steps"];
-      for (const auto &step_name : step_names) {
-        if (steps.contains(step_name)) {
-          std::cout << std::setw(15) << steps[step_name]["wall_time"];
-          std::cout << std::setw(15) << steps[step_name]["cpu_time"];
+      for (const auto &step : step_names) {
+        if (steps.contains(step)) {
+          std::cout << std::setw(col_width) << std::fixed
+                    << std::setprecision(4)
+                    << steps[step]["wall_time"].get<double>();
         } else {
-          std::cout << std::setw(15) << "N/A";
-          std::cout << std::setw(15) << "N/A";
+          std::cout << std::setw(col_width) << "N/A" << std::setw(col_width)
+                    << "N/A";
         }
       }
+      std::cout << "\n";
     }
   }
 
   void print_values_table(const std::string &description) const {
-
     if (!log_data_.contains(description))
       return;
 
     const auto &iter_data = log_data_.at(description)["iteration_values"];
+
+    // Collect all step names
     std::set<std::string> step_names;
     for (const auto &iter : iter_data) {
-      const auto &steps = iter["steps"];
-      for (const auto &step : steps.items()) {
+      for (const auto &step : iter["steps"].items()) {
         step_names.insert(step.key());
       }
     }
-    // Print header
+
+    constexpr int col_width = 16;
+
+    std::cout << "\n📋 Value Table for: " << description << "\n";
     std::cout << std::setw(6) << "Iter";
     for (const auto &step_name : step_names) {
-      std::cout << std::setw(15) << step_name;
+      std::cout << std::setw(col_width) << step_name;
     }
+    std::cout << "\n"
+              << std::string(6 + col_width * step_names.size(), '-') << "\n";
 
-    // Print iteration data in rows
     for (const auto &iter : iter_data) {
-      std::cout << "\n" << std::setw(6) << iter["iter"];
+      std::cout << std::setw(6) << iter["iter"] << "     ";
       const auto &steps = iter["steps"];
       for (const auto &step_name : step_names) {
         if (steps.contains(step_name)) {
-          std::cout << std::setw(15) << steps[step_name]["value"];
+          std::cout << std::setw(col_width) << std::scientific
+                    << std::setprecision(5)
+                    << static_cast<double>(steps[step_name]["value"]);
         } else {
-          std::cout << std::setw(15) << "N/A";
+          std::cout << std::setw(col_width) << "N/A";
         }
       }
+      std::cout << "\n";
     }
   }
 

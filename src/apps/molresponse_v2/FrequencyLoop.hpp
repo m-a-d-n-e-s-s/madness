@@ -16,7 +16,7 @@ inline bool
 solve_response_vector(World &world, const ResponseManager &rm,
                       const GroundStateData &gs, const ResponseState &state,
                       ResponseVector &response, ResponseDebugLogger &logger,
-                      size_t max_iter = 15, double conv_thresh = 1e-6) {
+                      size_t max_iter = 5, double conv_thresh = 1e-6) {
   return std::visit(
       [&](auto &vec) -> bool {
         using T = std::decay_t<decltype(vec)>;
@@ -44,141 +44,124 @@ solve_response_vector(World &world, const ResponseManager &rm,
 inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
                                  ResponseState &state,
                                  const GroundStateData &ground_state,
-                                 GlobalMetadataManager &global_metadata,
+                                 ResponseMetadata &metadata,
                                  ResponseDebugLogger &logger) {
 
   const auto &frequencies = state.frequencies;
-  const size_t num_frequencies = frequencies.size();
   const auto state_id = state.perturbationDescription();
-  bool all_converged = true;
-
-  double thresh = state.current_threshold();
-  size_t freq_index = state.current_frequency_index;
+  double protocol = state.current_threshold();
   size_t thresh_index = state.current_thresh_index;
-  size_t num_orbitals = ground_state.getNumOrbitals();
+
   bool is_static = state.is_static();
   bool is_unrestricted = !ground_state.isSpinRestricted();
+  size_t num_orbitals = ground_state.getNumOrbitals();
 
   ResponseVector previous_response;
-  bool have_prev = false;
+  bool have_previous_freq_response = false;
 
-  if (world.rank() == 0) {
-    madness::print("🔄 Frequency loop for", state.description(),
-                   "(thresh =", thresh, ")");
+  // Early check if already computed and saved at this protocol
+  if (metadata.is_saved(state_id, protocol)) {
+    if (world.rank() == 0) {
+      madness::print("✅ Already saved state at protocol:", protocol, state_id);
+    }
+    return;
   }
 
-  int iteration = 0;
+  if (world.rank() == 0) {
+    madness::print("🚀 Starting calculation at protocol:", protocol,
+                   "for state:", state_id);
+  }
+
+  // Frequency loop
   for (; !state.at_final_frequency(); state.advance_frequency()) {
     double freq = state.current_frequency();
-    freq_index = state.current_frequency_index;
+    size_t freq_index = state.current_frequency_index;
 
-    if (global_metadata.is_converged(state_id, freq, thresh)) {
+    if (metadata.is_converged(state_id, freq, protocol)) {
       if (world.rank() == 0) {
-        madness::print("✅ Already converged:", state.description());
+        madness::print("✅ Frequency already converged:", state.description());
       }
       continue;
     }
 
     if (world.rank() == 0) {
-      madness::print("🔄 Frequency loop for", state.description(),
-                     "(thresh =", thresh, ") - iteration:", iteration);
+      madness::print("\n🔄 Processing:", state.description());
     }
 
     ResponseVector response =
         make_response_vector(num_orbitals, is_static, is_unrestricted);
 
-    // ============================
-    // 1. Try to load current state
-    // ============================
+    // 1. Attempt to load current frequency/protocol response from disk
     if (load_response_vector(world, state, freq_index, thresh_index,
                              response)) {
       if (world.rank() == 0) {
-        madness::print("📂 Loaded response "
-                       "vector from file.");
-      }
-    }
-    // ============================
-    // 2. Try previous threshold at same
-    // frequency
-    // ============================
-    else if (thresh_index > 0) {
-      size_t prev_thresh_index = thresh_index - 1;
-      if (load_response_vector(world, state, freq_index, prev_thresh_index,
-                               response)) {
-        if (world.rank() == 0) {
-          madness::print("📂 Loaded response vector "
-                         "from "
-                         "previous threshold.");
-        }
-      } else {
-        if (world.rank() == 0) {
-          madness::print("❌ Failed to load previous "
-                         "threshold response.");
-        }
-        response =
-            make_response_vector(num_orbitals, is_static, is_unrestricted);
+        madness::print("📂 Loaded response vector from current protocol.");
       }
     }
 
-    // ============================
-    // 3. Use previous frequency result as
-    // guess (dynamic only)
-    // ============================
-    else if (!is_static && freq_index > 0 && have_prev) {
+    // 2. Try loading from the previous protocol
+    else if (thresh_index > 0 &&
+             load_response_vector(world, state, freq_index, thresh_index - 1,
+                                  response)) {
       if (world.rank() == 0) {
-        madness::print("📂 Using previous frequency "
-                       "result as guess.");
+        madness::print("📂 Loaded response vector from previous protocol.");
+      }
+    }
+
+    // 3. For dynamic cases: use previous frequency's solution as guess
+    else if (!is_static && have_previous_freq_response) {
+      if (world.rank() == 0) {
+        madness::print(
+            "📂 Using previous frequency response as initial guess.");
       }
       response = previous_response;
     }
 
-    // ============================
-    // 4. No previous data → fresh
-    // ============================
+    // 4. Initialize fresh guess (no available data)
     else {
       if (world.rank() == 0) {
-        madness::print("❌ No previous data. "
-                       "Using fresh guess.");
+        madness::print(
+            "🆕 No prior data found. Initializing new guess vector.");
       }
-      // here we have to intialize a guess
-      // which is taken as the perturbation
       response = initialize_guess_vector(world, ground_state, state);
     }
 
-    // ============================
-    // Solve
-    // ============================
-    if (world.rank() == 0) {
-      madness::print("🔄 Solving for", state.description());
-    }
-
-    // TODO: Call actual solver here
-    // solve_response_vector(world,
-    // ground_state, state, response);
+    // Run the solver with logging
+    logger.start_state(state);
     bool converged =
         solve_response_vector(world, rm, ground_state, state, response, logger);
-    logger.finalize_state(state);
-    if(world.rank() == 0) {
-      logger.pretty_print_summary(state.description());
+    logger.finalize_state();
+
+    if (world.rank() == 0) {
+      madness::print("📊 Iteration summary for", state.description());
+      logger.print_timing_table(state.description());
+      logger.print_values_table(state.description());
     }
-    iteration++;
 
-    if (converged) {
-      // ============================
-      // ============================
-      save_response_vector(world, state, response);
+    // Always save results (even if not fully converged)
+    save_response_vector(world, state, response);
+    metadata.mark_saved(state_id, protocol);
 
-      global_metadata.mark_converged(state_id, freq, thresh);
+    if (world.rank() == 0) {
+      madness::print("💾 Saved response vector at protocol:", protocol,
+                     state.description());
+    }
+
+    // Explicitly mark convergence status if at final protocol
+    if (state.at_final_threshold() && converged) {
+      metadata.mark_final_converged(state_id, true);
+      metadata.mark_converged(state_id, freq, protocol);
       if (world.rank() == 0) {
-        madness::print("✅ Saved and marked "
-                       "as converged:",
+        madness::print("🎯 Final convergence achieved for",
                        state.description());
       }
-
-      previous_response = response;
-      have_prev = true;
     }
+
+    previous_response = response;
+    have_previous_freq_response = true;
   }
 
-  state.is_converged = true;
+  // If all frequencies done at this protocol, update status
+  state.is_converged =
+      state.at_final_threshold() && metadata.final_converged(state_id);
 }

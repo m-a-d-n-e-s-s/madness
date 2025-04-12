@@ -123,9 +123,6 @@ struct ResponseState {
   perturbation_vector(World &world, const GroundStateData &ground_state) const {
 
     vector_real_function_3d Vp;
-    if (world.rank() == 0) {
-      print("Perturbation vector for", perturbationDescription());
-    }
 
     switch (type) {
     case PerturbationType::Dipole: {
