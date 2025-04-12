@@ -800,7 +800,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             };
 
             auto pivot_mat = [&] (const Tensor<T>& t, const Tensor<integer>& ipiv) {
-                std::size_t rank=ipiv.size();
+                // std::size_t rank=ipiv.size();
                 Tensor<T> pt(t.dim(0),t.dim(1));
                 // for(int i=0;i<ipiv.size();++i) pt(i,_)=t(ipiv[i],_);       // all elements in [rank,v.size()) = 0 due to lindep
                 for(int i=0;i<ipiv.size();++i) pt(ipiv[i],_)=t(i,_);       // all elements in [rank,v.size()) = 0 due to lindep

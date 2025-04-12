@@ -964,60 +964,6 @@ CCPotentials::make_constant_part_mp2_macrotask(World& world, const CCPair& pair,
     return GV;
 }
 
-real_function_6d
-CCPotentials::update_pair_mp2_macrotask(World& world, const CCPair& pair, const CCParameters& parameters,
-                                             const std::vector< madness::Vector<double,3> >& all_coords_vec,
-                                             const std::vector<real_function_3d>& mo_ket,
-                                             const std::vector<real_function_3d>& mo_bra,
-                                             const std::vector<real_function_3d>& U1,
-                                             const real_function_3d& U2, const real_function_6d& mp2_coupling) {
-
-    if (world.rank()==0) print(assign_name(pair.ctype) + "-Microiteration\n");
-    CCTimer timer_mp2(world, "MP2-Microiteration of pair " + pair.name());
-
-    if (parameters.debug()) mp2_coupling.print_size("coupling in macrotask");
-
-    double bsh_eps = pair.bsh_eps;
-    real_convolution_6d G = BSHOperator<6>(world, sqrt(-2.0 * bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
-    G.destructive() = true;
-
-    CCTimer timer_mp2_potential(world, "MP2-Potential of pair " + pair.name());
-    real_function_6d mp2_potential = -2.0 * CCPotentials::fock_residue_6d_macrotask(world, pair, parameters,
-                                                                                all_coords_vec, mo_ket, mo_bra, U1, U2);
-    // add coupling, note sign and factor
-    //real_function_6d coupling = mp2_coupling(pair.i, pair.j);
-    mp2_potential += 2.0 * mp2_coupling;
-
-    if (parameters.debug()) mp2_potential.print_size(assign_name(pair.ctype) + " Potential");
-    mp2_potential.truncate().reduce_rank();
-    timer_mp2_potential.info(true, mp2_potential.norm2());
-
-    CCTimer timer_G(world, "Apply Greens Operator on MP2-Potential of pair " + pair.name());
-    const real_function_6d GVmp2 = G(mp2_potential);
-    if (parameters.debug()) GVmp2.print_size("GVmp2");
-    timer_G.info(true, GVmp2.norm2());
-
-    //CCTimer timer_addup(world, "Add constant parts and update pair " + pair.name());
-    real_function_6d unew = GVmp2 + pair.constant_part;
-    if (parameters.debug()) unew.print_size("unew");
-
-    StrongOrthogonalityProjector<double, 3> Q(world);
-    Q.set_spaces(mo_bra, mo_ket, mo_bra, mo_ket);
-    unew = Q(unew);
-
-    if (parameters.debug())unew.print_size("Q12(unew)");
-    timer_mp2.info();
-
-    real_function_6d residue = (pair.function() - unew);
-    // if (parameters.debug()) residue.print_size("bsh residual");
-    residue.truncate(FunctionDefaults<6>::get_thresh()*0.1);
-    if (parameters.debug()) residue.print_size("bsh residual, truncated");
-
-    // return residue;
-    return unew;
-}
-
-
 CCPair CCPotentials::iterate_pair_macrotask(World& world,
                                             const CCPair& pair,
                                             const CC_vecfunction& gs_singles,

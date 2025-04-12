@@ -55,7 +55,10 @@ struct gaussian {
 
 template<typename T, std::size_t NDIM>
 class MicroTask : public MacroTaskOperationBase {
+
 public:
+    MicroTask() : MacroTaskOperationBase("Microtask") {}
+
     // you need to define the exact argument(s) of operator() as tuple
     typedef std::tuple<const Function<T,NDIM> &, const double &,
             const std::vector<Function<T,NDIM>> &> argtupleT;
@@ -81,9 +84,93 @@ public:
     }
 };
 
+/// sample task with a custom partitioner
+class MicroTaskPartitioner : public MacroTaskOperationBase{
+
+    /// U can implement a custom partitioner by deriving from MacroTaskPartitioner
+    class CustomPartitioner : public MacroTaskPartitioner {
+        public :
+        CustomPartitioner() {
+            set_dimension(1);
+        }
+
+        /// reimplementation of the partitioning method
+        partitionT do_partitioning(const std::size_t& vsize1, const std::size_t& vsize2,
+                                   const std::string policy) const override {
+            partitionT p;
+            for (size_t i = 0; i < vsize1; i++) {
+                Batch batch(Batch_1D(i, i+1), Batch_1D(i, i+1), Batch_1D(i,i+1));
+                p.push_back(std::make_pair(batch, 1.0));
+            }
+            return p;
+        }
+    };
+public:
+
+    /// reset the default partitioner to the custom one
+    MicroTaskPartitioner(){partitioner.reset(new CustomPartitioner());}
+
+    // you need to define the result type
+    // resultT must implement gaxpy(alpha, result, beta, contribution)
+    // with resultT result, contribution;
+    typedef real_function_3d resultT;
+
+    // you need to define the exact argument(s) of operator() as tuple
+    typedef std::tuple<const real_function_3d &, const double &,
+            const std::vector<real_function_3d> &> argtupleT;
+
+    resultT allocator(World &world, const argtupleT &argtuple) const {
+        resultT result = real_factory_3d(world).compressed();
+        return result;
+    }
+
+    resultT operator()(const real_function_3d &f1, const double &arg2,
+                       const std::vector<real_function_3d> &f2) const {
+        auto result = arg2 * f1 * inner(f2, f2);
+        return result;
+    }
+};
+
+/// sample task with a custom priority
+class MicroTaskPriority : public MacroTaskOperationBase{
+public:
+
+    MicroTaskPriority() : MacroTaskOperationBase("MicrotaskPriority") {
+        partitioner->set_max_batch_size(3);
+    }
+
+    // you need to define the result type
+    // resultT must implement gaxpy(alpha, result, beta, contribution)
+    // with resultT result, contribution;
+    typedef real_function_3d resultT;
+
+    // you need to define the exact argument(s) of operator() as tuple
+    typedef std::tuple<const real_function_3d &, const double &,
+            const std::vector<real_function_3d> &> argtupleT;
+
+    /// compute the priority for a given batch
+    double compute_priority(const Batch& batch, const argtupleT& argtuple) const {
+        int i=batch.input[0].begin; // first element of the batch
+        double sz=std::get<2>(argtuple)[i].norm2()*(i+1);
+        return sz;
+    }
+
+    resultT allocator(World &world, const argtupleT &argtuple) const {
+        resultT result = real_factory_3d(world).compressed();
+        return result;
+    }
+
+    resultT operator()(const real_function_3d &f1, const double &arg2,
+                       const std::vector<real_function_3d> &f2) const {
+        auto result = arg2 * f1 * inner(f2, f2);
+        return result;
+    }
+};
 
 class MicroTask1 : public MacroTaskOperationBase{
 public:
+    MicroTask1() : MacroTaskOperationBase("Microtask1") {}
+
     // you need to define the result type
     // resultT must implement gaxpy(alpha, result, beta, contribution)
     // with resultT result, contribution;
@@ -357,6 +444,7 @@ int test_twice(World& universe, const std::vector<real_function_3d>& v3,
 
 int test_task1(World& universe, const std::vector<real_function_3d>& v3) {
     if (universe.rank()==0) print("\nstarting Microtask1\n");
+    print_size(universe,v3,"sizes of v3" );
     MicroTask1 t1;
     real_function_3d ref_t1 = t1(v3[0], 2.0, v3);
     MacroTask task1(universe, t1);
@@ -365,6 +453,24 @@ int test_task1(World& universe, const std::vector<real_function_3d>& v3) {
     int success = check(universe,ref_t1, ref_t2, "task1 immediate");
     return success;
 }
+
+int test_priority(World& universe, const std::vector<real_function_3d>& v3) {
+    if (universe.rank()==0) print("\nstarting MicroTaskPriority\n");
+    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size()));
+    taskq->set_printlevel(3);
+    MicroTaskPriority t1;
+    real_function_3d ref_t1 = t1(v3[0], 2.0, v3);
+    MacroTask task1(universe, t1, taskq);
+    task1.set_debug(true);
+    real_function_3d ref_t2 = task1(v3[0], 2.0, v3);
+
+    taskq->print_taskq();
+    taskq->run_all();
+
+    int success = check(universe,ref_t1, ref_t2, "task1 immediate");
+    return success;
+}
+
 
 /// each task accumulates into the same result
 int test_scalar_task(World& universe, const std::vector<real_function_3d>& v3) {
@@ -515,9 +621,6 @@ int main(int argc, char **argv) {
         std::vector<real_function_2d> ref2 = t2(v2[0], 2.0, v2);
         timer1.tag("direct execution low-rank");
 
-        // success+=test_immediate<double,3>(universe,v3,ref3);
-        // timer1.tag("immediate taskq execution");
-
         success+=test_immediate<double,2>(universe,v2,ref2);
         timer1.tag("immediate taskq execution with low-rank tensors");
 
@@ -541,6 +644,9 @@ int main(int argc, char **argv) {
 
         success+=test_task1(universe,v3);
         timer1.tag("task1 immediate execution");
+
+        success+=test_priority(universe,v3);
+        timer1.tag("priority immediate execution");
 
         success+=test_2d_partitioning(universe,v3);
         timer1.tag("2D partitioning");
