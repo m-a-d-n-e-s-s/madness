@@ -47,6 +47,14 @@ struct ResponseState {
     return current_thresh_index == thresholds.size() - 1;
   }
 
+  void set_frequency_index(size_t index) {
+    if (index < frequencies.size()) {
+      current_frequency_index = index;
+    } else {
+      throw std::out_of_range("Frequency index out of range");
+    }
+  }
+
   void advance_threshold() {
     if (!at_final_threshold()) {
       ++current_thresh_index;
@@ -65,7 +73,7 @@ struct ResponseState {
   [[nodiscard]] std::string response_filename() const {
     std::ostringstream oss;
     oss << "responses/" << perturbationDescription() << "_"
-        << current_frequency() << "_" << current_threshold() << ".respsonse";
+        << current_frequency() << "_" << current_threshold() << ".response";
     return oss.str();
   }
   [[nodiscard]] std::string response_filename(size_t freq_index,
@@ -81,7 +89,7 @@ struct ResponseState {
   response_filename_with_threshold(double threshold) const {
     std::ostringstream oss;
     oss << "responses/" << perturbationDescription() << "_"
-        << current_frequency() << "_" << threshold << ".respsonse";
+        << current_frequency() << "_" << threshold << ".response";
     return oss.str();
   }
 
@@ -89,7 +97,7 @@ struct ResponseState {
   response_filename_with_frequency(double frequency) const {
     std::ostringstream oss;
     oss << "responses/" << perturbationDescription() << "_" << frequency << "_"
-        << current_threshold() << ".respsonse";
+        << current_threshold() << ".response";
     return oss.str();
   }
 
@@ -103,16 +111,16 @@ struct ResponseState {
   [[nodiscard]] std::string perturbationDescription() const {
     switch (type) {
     case PerturbationType::Dipole:
-      return "Dipole " +
+      return "Dipole_" +
              std::string(1,
                          std::get<DipolePerturbation>(perturbation).direction);
     case PerturbationType::NuclearDisplacement: {
       auto nuc = std::get<NuclearDisplacementPerturbation>(perturbation);
-      return "NuclearDisplacement atom " + std::to_string(nuc.atom_index) +
+      return "NuclearDisplacement_atom_" + std::to_string(nuc.atom_index) +
              " direction " + nuc.direction;
     }
     case PerturbationType::Magnetic:
-      return "Magnetic " +
+      return "Magnetic_" +
              std::string(
                  1, std::get<MagneticPerturbation>(perturbation).direction);
     }

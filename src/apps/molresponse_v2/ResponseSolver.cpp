@@ -106,8 +106,7 @@ bool StaticRestrictedSolver::iterate(World &world, const ResponseManager &rm,
                                      ResponseDebugLogger &logger,
                                      size_t max_iter, double conv_thresh) {
 
-  DEBUG_TIMED_LOG_VALUE(world, &logger, "orbital norms",
-                        norm2s(world, gs.orbitals));
+  DEBUG_LOG_VALUE(world, &logger, "orbital norms", norm2s(world, gs.orbitals));
 
   auto &rvec = std::get<StaticRestrictedResponse>(response);
   auto &x = std::get<StaticRestrictedResponse>(response).x_alpha;
@@ -122,15 +121,15 @@ bool StaticRestrictedSolver::iterate(World &world, const ResponseManager &rm,
   auto freq = state.current_frequency();
   const size_t n = x.size();
 
-  DEBUG_TIMED_LOG_VALUE(world, &logger, "x_norm",
-                        ResponseSolverUtils::inner(world, x, x));
-  DEBUG_TIMED_LOG_VALUE(world, &logger, "all_x",
-                        ResponseSolverUtils::inner(world, all_x, all_x));
+  DEBUG_LOG_VALUE(world, &logger, "x_norm",
+                  ResponseSolverUtils::inner(world, x, x));
+  DEBUG_LOG_VALUE(world, &logger, "all_x",
+                  ResponseSolverUtils::inner(world, all_x, all_x));
   // Set up RHS (perturbation vector)
   vector_real_function_3d Vp = state.perturbation_vector(world, gs);
 
-  DEBUG_TIMED_LOG_VALUE(world, &logger, "Vp_norm",
-                        ResponseSolverUtils::inner(world, Vp, Vp));
+  DEBUG_LOG_VALUE(world, &logger, "Vp_norm",
+                  ResponseSolverUtils::inner(world, Vp, Vp));
   auto &phi0 = gs.orbitals;
   const auto &orbital_energies = gs.getEnergies();
   // set up the bsh operators
@@ -158,19 +157,12 @@ bool StaticRestrictedSolver::iterate(World &world, const ResponseManager &rm,
   for (size_t iter = 0; iter < max_iter; ++iter) {
     logger.begin_iteration(iter);
     drho_old = copy(drho);
-    /**/
-    /*DEBUG_TIMED_LOG_VALUE(*/
-    /*    world, &logger, "x_norm",*/
-    /*    ResponseSolverUtils::inner(world, rvec.flat, rvec.flat));*/
 
     vector_real_function_3d x_new;
     DEBUG_TIMED_BLOCK(world, &logger, "compute_rsh", {
       x_new = StaticRestrictedSolver::ComputeRSH(world, gs, rvec, Vp, bsh_x, rm,
                                                  logger);
     });
-
-    /*DEBUG_TIMED_LOG_VALUE(world, &logger, "After BSH apply",*/
-    /*                      ResponseSolverUtils::inner(world, x_new, x_new));*/
 
     // 2. Form residual r = x_new - x
     auto rx = x_new - all_x;
@@ -180,35 +172,27 @@ bool StaticRestrictedSolver::iterate(World &world, const ResponseManager &rm,
 
     DEBUG_TIMED_BLOCK(world, &logger, "KAIN step",
                       { temp_vec = solver.update(all_x, rx); });
-    /*DEBUG_TIMED_LOG_VALUE(*/
-    /*    world, &logger, "kain_value",*/
-    /*    ResponseSolverUtils::inner(world, temp_vec, temp_vec));*/
-
     // 4. Apply step restriction
     double res_norm;
     DEBUG_TIMED_BLOCK(world, &logger, "step_restriction", {
       res_norm = ResponseSolverUtils::do_step_restriction(
           world, all_x, temp_vec, "a", rm.params().maxrotn());
     });
-    DEBUG_TIMED_LOG_VALUE(world, &logger, "res_norm", res_norm);
+    DEBUG_LOG_VALUE(world, &logger, "res_norm", res_norm);
 
     rvec.flat = copy(world, temp_vec);
     rvec.sync();
     // 5. Compute updated response density
     drho = StaticRestrictedSolver::compute_density(world, rvec.flat, phi0);
     double drho_change = (drho - drho_old).norm2();
-    DEBUG_TIMED_LOG_VALUE(world, &logger, "drho_change", drho_change);
+    DEBUG_LOG_VALUE(world, &logger, "drho_change", drho_change);
 
-    DEBUG_TIMED_LOG_VALUE(world, &logger, "alpha",
-                          -4.0 *
-                              ResponseSolverUtils::inner(world, rvec.flat, Vp));
+    DEBUG_LOG_VALUE(world, &logger, "alpha",
+                    -4.0 * ResponseSolverUtils::inner(world, rvec.flat, Vp));
 
     // 6. Convergence check
     if (world.rank() == 0) {
       print("Iter", iter, "  Δρ =", drho_change, "  xres =", res_norm);
-      if (iter % 5 == 0) {
-        logger.write_to_disk();
-      }
     }
 
     if (drho_change < density_target && res_norm < conv_thresh) {
@@ -217,6 +201,7 @@ bool StaticRestrictedSolver::iterate(World &world, const ResponseManager &rm,
 
       logger.log_value("converged", true);
       logger.end_iteration();
+      logger.finalize_state();
       // 🔄 Sync flat vector back into structured view
       auto &rvec = std::get<StaticRestrictedResponse>(response);
       rvec.sync();
@@ -228,6 +213,8 @@ bool StaticRestrictedSolver::iterate(World &world, const ResponseManager &rm,
 
   if (world.rank() == 0)
     print("⚠️  Reached max iterations without convergence.");
+
+  logger.finalize_state();
   return false;
 }
 

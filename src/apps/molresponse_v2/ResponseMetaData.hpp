@@ -8,6 +8,9 @@
 using json = nlohmann::json;
 namespace fs = std::filesystem;
 
+using json = nlohmann::json;
+namespace fs = std::filesystem;
+
 class ResponseMetadata {
 public:
   explicit ResponseMetadata(const std::string &metadata_file)
@@ -16,60 +19,65 @@ public:
       std::ifstream in(metadata_path_);
       in >> data_;
     } else {
+      fs::create_directories(fs::path(metadata_path_).parent_path());
       data_["states"] = json::object();
     }
   }
 
-  bool is_converged(const std::string &state_id, double frequency,
-                    double threshold) const {
-    std::string t_str = std::to_string(threshold);
-    std::string f_str = std::to_string(frequency);
-    return data_.contains(state_id) &&
-           data_[state_id]["converged"].contains(t_str) &&
-           data_[state_id]["converged"][t_str].contains(f_str) &&
-           data_[state_id]["converged"][t_str][f_str].get<bool>();
+  // ========= Convergence =========
+  bool is_converged(const std::string &state_id, double frequency) const {
+    auto freq_str = frequency_to_string(frequency);
+    return data_["states"].contains(state_id) &&
+           data_["states"][state_id]["converged"].contains(freq_str) &&
+           data_["states"][state_id]["converged"][freq_str].get<bool>();
   }
 
-  // Check if state at given protocol is saved
-  bool is_saved(const std::string &state_id, double protocol) const {
+  void mark_converged(const std::string &state_id, double frequency) {
+    auto freq_str = frequency_to_string(frequency);
+    data_["states"][state_id]["converged"][freq_str] = true;
+    write();
+  }
+
+  // ========= Saved (intermediate or final) =========
+  bool is_saved(const std::string &state_id, double frequency,
+                double protocol) const {
+    auto freq_str = frequency_to_string(frequency);
     auto protocol_str = protocol_to_string(protocol);
     return data_["states"].contains(state_id) &&
-           data_["states"][state_id]["protocols"].contains(protocol_str) &&
-           data_["states"][state_id]["protocols"][protocol_str].get<bool>();
+           data_["states"][state_id]["saved"].contains(protocol_str) &&
+           data_["states"][state_id]["saved"][protocol_str].contains(
+               freq_str) &&
+           data_["states"][state_id]["saved"][protocol_str][freq_str]
+               .get<bool>();
   }
 
-  // Mark state as saved at protocol (not necessarily converged)
-  void mark_saved(const std::string &state_id, double protocol) {
+  void mark_saved(const std::string &state_id, double frequency,
+                  double protocol) {
+    auto freq_str = frequency_to_string(frequency);
     auto protocol_str = protocol_to_string(protocol);
-    data_["states"][state_id]["protocols"][protocol_str] = true;
+    data_["states"][state_id]["saved"][protocol_str][freq_str] = true;
 
     double highest =
         data_["states"][state_id].value("highest_protocol_reached", 0.0);
     if (protocol > highest) {
       data_["states"][state_id]["highest_protocol_reached"] = protocol;
     }
+
     write();
   }
 
+  // ========= Final flag for entire state =========
   void mark_final_converged(const std::string &state_id, bool flag = true) {
-    data_[state_id]["final_converged"] = flag;
+    data_["states"][state_id]["final_converged"] = flag;
     write();
   }
 
   bool final_converged(const std::string &state_id) const {
-    return data_.contains(state_id) &&
-           data_[state_id].contains("final_converged") &&
-           data_[state_id]["final_converged"].get<bool>();
+    return data_["states"].contains(state_id) &&
+           data_["states"][state_id].contains("final_converged") &&
+           data_["states"][state_id]["final_converged"].get<bool>();
   }
 
-  void mark_converged(const std::string &state_id, double frequency,
-                      double threshold) {
-    data_[state_id]["converged"][std::to_string(threshold)]
-         [std::to_string(frequency)] = true;
-    write();
-  }
-
-  // Quickly determine the highest protocol computed
   double highest_protocol_reached(const std::string &state_id) const {
     return data_["states"].contains(state_id)
                ? data_["states"][state_id].value("highest_protocol_reached",
@@ -82,9 +90,14 @@ private:
   std::string metadata_path_;
 
   void write() const {
-    fs::create_directories(fs::path(metadata_path_).parent_path());
     std::ofstream out(metadata_path_);
     out << std::setw(2) << data_ << "\n";
+  }
+
+  static std::string frequency_to_string(double frequency) {
+    std::ostringstream ss;
+    ss << std::scientific << frequency;
+    return ss.str();
   }
 
   static std::string protocol_to_string(double protocol) {

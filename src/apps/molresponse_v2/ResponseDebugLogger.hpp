@@ -239,6 +239,13 @@ public:
     }
   }
 
+  template <typename T> void log_value(const T &value) {
+
+    if (logger_ && world_.rank() == 0) {
+      logger_->log_value(key_, value);
+    }
+  }
+
 private:
   madness::World &world_;
   std::string key_;

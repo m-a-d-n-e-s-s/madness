@@ -12,6 +12,63 @@
 #define NOT_IMPLEMENTED_THROW                                                  \
   throw std::runtime_error("This solver is not yet implemented.");
 
+inline void promote_static_to_dynamic(const StaticRestrictedResponse &src,
+                                      DynamicRestrictedResponse &dst) {
+  assert(src.x_alpha.size() == dst.x_alpha.size());
+  assert(dst.y_alpha.size() ==
+         dst.x_alpha.size()); // Should already be initialized
+                              //
+  auto &world = src.x_alpha[0].world();
+  dst.x_alpha = copy(world, src.x_alpha);
+  dst.y_alpha =
+      copy(world, src.x_alpha); // Use the same function as initial guess
+}
+
+inline void copy_dynamic_guess(const DynamicRestrictedResponse &src,
+                               DynamicRestrictedResponse &dst) {
+
+  assert(src.x_alpha.size() == dst.x_alpha.size());
+  assert(src.y_alpha.size() == dst.y_alpha.size());
+
+  auto &world = src.x_alpha[0].world();
+  dst.x_alpha.resize(src.x_alpha.size());
+  dst.y_alpha.resize(src.y_alpha.size());
+}
+
+bool promote_from_previous_frequency(World &world,
+                                     const ResponseState &current_state,
+                                     size_t freq_index, size_t thresh_index,
+                                     size_t num_orbitals, bool is_unrestricted,
+                                     ResponseVector &response,
+                                     ResponseVector &previous_response) {
+  size_t prev_index = freq_index - 1;
+
+  // Clone current state and adjust frequency
+  ResponseState prev_state = current_state;
+  prev_state.set_frequency_index(prev_index);
+
+  // Allocate previous as static
+  previous_response = make_response_vector(num_orbitals,
+                                           /*is_static=*/true, is_unrestricted);
+
+  if (!load_response_vector(world, prev_state, prev_index, thresh_index,
+                            previous_response)) {
+    madness::print("❌ Failed to load previous frequency from disk.");
+    return false;
+  }
+
+  // Promote from static to dynamic
+  response = make_response_vector(num_orbitals,
+                                  /*is_static=*/false, is_unrestricted);
+
+  const auto &static_guess =
+      std::get<StaticRestrictedResponse>(previous_response);
+  auto &dyn_guess = std::get<DynamicRestrictedResponse>(response);
+  promote_static_to_dynamic(static_guess, dyn_guess);
+
+  return true;
+}
+
 inline bool
 solve_response_vector(World &world, const ResponseManager &rm,
                       const GroundStateData &gs, const ResponseState &state,
@@ -53,19 +110,12 @@ inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
   size_t thresh_index = state.current_thresh_index;
 
   bool is_static = state.is_static();
+  bool at_final_protocol = state.at_final_threshold();
   bool is_unrestricted = !ground_state.isSpinRestricted();
   size_t num_orbitals = ground_state.getNumOrbitals();
 
   ResponseVector previous_response;
   bool have_previous_freq_response = false;
-
-  // Early check if already computed and saved at this protocol
-  if (metadata.is_saved(state_id, protocol)) {
-    if (world.rank() == 0) {
-      madness::print("✅ Already saved state at protocol:", protocol, state_id);
-    }
-    return;
-  }
 
   if (world.rank() == 0) {
     madness::print("🚀 Starting calculation at protocol:", protocol,
@@ -73,57 +123,80 @@ inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
   }
 
   // Frequency loop
-  for (; !state.at_final_frequency(); state.advance_frequency()) {
+  for (size_t i = state.current_frequency_index; i < state.frequencies.size();
+       i++) {
+    state.set_frequency_index(i);
     double freq = state.current_frequency();
-    size_t freq_index = state.current_frequency_index;
+    auto freq_index = state.current_frequency_index;
 
-    if (metadata.is_converged(state_id, freq, protocol)) {
-      if (world.rank() == 0) {
+    // Skip if already converged at final threshold
+    if (metadata.is_converged(state_id, freq)) {
+      if (world.rank() == 0)
         madness::print("✅ Frequency already converged:", state.description());
-      }
       continue;
     }
 
+    bool is_saved =
+        metadata.is_saved(state_id, freq, protocol); // Check if already saved
+    //
+    bool should_solve = !is_saved || at_final_protocol;
+
+    if (!should_solve) {
+      if (world.rank() == 0) {
+        print("⚠️  Skipping frequency", freq, "at protocol", protocol,
+              "for state:", state_id);
+      }
+      continue;
+    }
+    ResponseVector response;
+    // If we are at the final protocol, we 1. try the current state, 2. try same
+    // freq, lower protocol, 3. use previous frquency, same protocol,4.
+    // initialize
     if (world.rank() == 0) {
-      madness::print("\n🔄 Processing:", state.description());
+      madness::print("🔄 Attempting to load response vector for",
+                     state.description());
     }
 
-    ResponseVector response =
-        make_response_vector(num_orbitals, is_static, is_unrestricted);
-
-    // 1. Attempt to load current frequency/protocol response from disk
-    if (load_response_vector(world, state, freq_index, thresh_index,
-                             response)) {
+    if (is_saved &&
+        load_response_vector(world, state, i, thresh_index, response) &&
+        !at_final_protocol) {
       if (world.rank() == 0) {
         madness::print("📂 Loaded response vector from current protocol.");
       }
-    }
-
-    // 2. Try loading from the previous protocol
-    else if (thresh_index > 0 &&
-             load_response_vector(world, state, freq_index, thresh_index - 1,
-                                  response)) {
+    } else if (thresh_index > 0 &&
+               load_response_vector(world, state, i, thresh_index - 1,
+                                    response)) {
       if (world.rank() == 0) {
         madness::print("📂 Loaded response vector from previous protocol.");
       }
-    }
+    } else if (!is_static) {
+      if (have_previous_freq_response) {
+        if (world.rank() == 0)
+          madness::print("📂 Promoting previous in-memory response as guess.");
 
-    // 3. For dynamic cases: use previous frequency's solution as guess
-    else if (!is_static && have_previous_freq_response) {
-      if (world.rank() == 0) {
-        madness::print(
-            "📂 Using previous frequency response as initial guess.");
-      }
-      response = previous_response;
-    }
+        if (std::holds_alternative<StaticRestrictedResponse>(
+                previous_response)) {
+          const auto &static_guess =
+              std::get<StaticRestrictedResponse>(previous_response);
+          auto &dyn_guess = std::get<DynamicRestrictedResponse>(response);
+          promote_static_to_dynamic(static_guess, dyn_guess);
+        } else {
+          const auto &dyn_prev =
+              std::get<DynamicRestrictedResponse>(previous_response);
+          auto &dyn_guess = std::get<DynamicRestrictedResponse>(response);
+          copy_dynamic_guess(dyn_prev, dyn_guess);
+        }
 
-    // 4. Initialize fresh guess (no available data)
-    else {
-      if (world.rank() == 0) {
-        madness::print(
-            "🆕 No prior data found. Initializing new guess vector.");
+      } else if (freq_index > 0 &&
+                 promote_from_previous_frequency(
+                     world, state, freq_index, thresh_index, num_orbitals,
+                     is_unrestricted, response, previous_response)) {
+        have_previous_freq_response = true;
+
+      } else {
+        madness::print("❌ Could not promote from previous frequency.");
+        response = initialize_guess_vector(world, ground_state, state);
       }
-      response = initialize_guess_vector(world, ground_state, state);
     }
 
     // Run the solver with logging
@@ -137,10 +210,11 @@ inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
       logger.print_timing_table(state.description());
       logger.print_values_table(state.description());
     }
+    world.gop.fence();
 
     // Always save results (even if not fully converged)
     save_response_vector(world, state, response);
-    metadata.mark_saved(state_id, protocol);
+    metadata.mark_saved(state_id, freq, protocol);
 
     if (world.rank() == 0) {
       madness::print("💾 Saved response vector at protocol:", protocol,
@@ -150,7 +224,7 @@ inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
     // Explicitly mark convergence status if at final protocol
     if (state.at_final_threshold() && converged) {
       metadata.mark_final_converged(state_id, true);
-      metadata.mark_converged(state_id, freq, protocol);
+      metadata.mark_converged(state_id, freq);
       if (world.rank() == 0) {
         madness::print("🎯 Final convergence achieved for",
                        state.description());

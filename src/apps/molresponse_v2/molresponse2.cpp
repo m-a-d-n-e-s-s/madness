@@ -57,10 +57,16 @@ int main(int argc, char **argv) {
     std::vector<double> protocols = {1e-4, 1e-6};
     StateGenerator state_generator(molecule, requested_properties, protocols);
     auto all_states = state_generator.generateStates();
+    if (world.rank() == 0) {
+      for (const auto &state : all_states) {
+        std::cout << "Generated state: " << state.description() << std::endl;
+      }
+    }
+    world.gop.fence();
 
     bool all_states_converged = false;
 
-    std::string response_metadata_file = "response_metadata.json";
+    std::string response_metadata_file = "responses/response_metadata.json";
     ResponseMetadata metadata(response_metadata_file);
     ResponseDebugLogger debug_logger(true);
     while (!all_states_converged) {
