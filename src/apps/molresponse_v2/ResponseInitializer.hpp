@@ -22,8 +22,10 @@ inline ResponseVector initialize_guess_vector(World &world,
 
   } else if (!is_static && !is_unrestricted) {
     DynamicRestrictedResponse response(num_orbitals);
-    for (size_t i = 0; i < num_orbitals; ++i)
+    for (size_t i = 0; i < num_orbitals; ++i) {
       response.x_alpha[i] = Vp[i];
+      response.y_alpha[i] = Vp[i];
+    }
     response.flatten();
     // y_alpha starts at 0 (already initialized that way)
     return response;

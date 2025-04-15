@@ -62,7 +62,7 @@ vector_real_function_3d DynamicRestrictedSolver::ComputeRSH(
 
   auto &x = std::get<DynamicRestrictedResponse>(vecs).x_alpha;
   auto &y = std::get<DynamicRestrictedResponse>(vecs).y_alpha;
-  auto &all_x = std::get<StaticRestrictedResponse>(vecs).flat;
+  auto &all_x = std::get<DynamicRestrictedResponse>(vecs).flat;
 
   auto num_orbitals = gs.orbitals.size();
 
@@ -81,9 +81,17 @@ vector_real_function_3d DynamicRestrictedSolver::ComputeRSH(
   ResponseComputeGammaX tresponse;
   MacroTask gx_task(world, tresponse);
 
+  vector_real_function_3d k0;
+  vector_real_function_3d gx;
+
+  DEBUG_TIMED_BLOCK(world, &logger, "g0_task", {
+    k0 = g0_task(ii, state_index, all_x, gs.orbitals, true);
+  });
+  DEBUG_TIMED_BLOCK(world, &logger, "gx_task", {
+    gx = gx_task(ii, state_index, all_x, gs.orbitals, true);
+  });
+
   auto c_xc = gs.xcf_.hf_exchange_coefficient();
-  auto k0 = g0_task(ii, state_index, all_x, gs.orbitals, true);
-  auto gx = gx_task(ii, state_index, all_x, gs.orbitals, true);
   auto v_local = gs.V_local * all_x;
   auto v0x = v_local - c_xc * k0;
   auto epsilonx = transform(world, x, gs.Hamiltonian_no_diag, true);
@@ -158,6 +166,9 @@ bool StaticRestrictedSolver::iterate(World &world, const ResponseManager &rm,
     logger.begin_iteration(iter);
     drho_old = copy(drho);
 
+    DEBUG_LOG_VALUE(world, &logger, "<x|x>",
+                    ResponseSolverUtils::inner(world, rvec.flat, rvec.flat));
+
     vector_real_function_3d x_new;
     DEBUG_TIMED_BLOCK(world, &logger, "compute_rsh", {
       x_new = StaticRestrictedSolver::ComputeRSH(world, gs, rvec, Vp, bsh_x, rm,
@@ -187,12 +198,13 @@ bool StaticRestrictedSolver::iterate(World &world, const ResponseManager &rm,
     double drho_change = (drho - drho_old).norm2();
     DEBUG_LOG_VALUE(world, &logger, "drho_change", drho_change);
 
-    DEBUG_LOG_VALUE(world, &logger, "alpha",
-                    -4.0 * ResponseSolverUtils::inner(world, rvec.flat, Vp));
+    auto alpha = -4.0 * ResponseSolverUtils::inner(world, rvec.flat, Vp);
+    DEBUG_LOG_VALUE(world, &logger, "alpha", alpha);
 
     // 6. Convergence check
     if (world.rank() == 0) {
-      print("Iter", iter, "  Δρ =", drho_change, "  xres =", res_norm);
+      print("Iter", iter, "  Δρ =", drho_change, "  xres =", res_norm,
+            " alpha = ", alpha);
     }
 
     if (drho_change < density_target && res_norm < conv_thresh) {
@@ -265,63 +277,72 @@ bool DynamicRestrictedSolver::iterate(World &world, const ResponseManager &rm,
 
   // Initial density and solver
   auto drho = DynamicRestrictedSolver::compute_density(world, all_x, phi0);
-  auto drho_old = copy(drho);
+  functionT drho_old;
 
   response_solver solver(
       response_vector_allocator(world, static_cast<int>(all_x.size())), false);
 
   // Main iteration loop
   for (size_t iter = 0; iter < max_iter; ++iter) {
+    logger.begin_iteration(iter);
     drho_old = copy(drho);
 
-    // 1. Compute next x/y vector
-    auto x_new = DynamicRestrictedSolver::ComputeRSH(world, gs, response, Vp,
-                                                     bsh_ops, rm, logger);
-
-    auto norm_xnew = norm2(world, x_new);
-    if (world.rank() == 0)
-      print("Norm of x_new:", norm_xnew);
-
-    // 2. Residual
+    DEBUG_LOG_VALUE(world, &logger, "<x|x>",
+                    ResponseSolverUtils::inner(world, rvec.flat, rvec.flat));
+    vector_real_function_3d x_new;
+    DEBUG_TIMED_BLOCK(world, &logger, "compute_rsh", {
+      x_new = DynamicRestrictedSolver::ComputeRSH(world, gs, rvec, Vp, bsh_ops,
+                                                  rm, logger);
+    });
+    // 2. Form residual r = x_new - x
     auto rx = x_new - all_x;
 
+    vector_real_function_3d temp_vec(2 * n);
     // 3. DIIS / KAIN step
-    auto temp_vec = solver.update(all_x, rx);
-    auto temp_norm = norm2(world, temp_vec);
-    if (world.rank() == 0)
-      print("Norm of temp_vec:", temp_norm);
 
-    // 4. Step restriction
-    auto res_norm = ResponseSolverUtils::do_step_restriction(
-        world, all_x, temp_vec, "a", rm.params().maxrotn());
-    temp_norm = norm2(world, temp_vec);
-    if (world.rank() == 0)
-      print("Norm of temp_vec after restriction:", temp_norm);
+    DEBUG_TIMED_BLOCK(world, &logger, "KAIN step",
+                      { temp_vec = solver.update(all_x, rx); });
 
+    // 4. Apply step restriction
+    double res_norm;
+    DEBUG_TIMED_BLOCK(world, &logger, "step_restriction", {
+      res_norm = ResponseSolverUtils::do_step_restriction(
+          world, all_x, temp_vec, "a", rm.params().maxrotn());
+    });
+    DEBUG_LOG_VALUE(world, &logger, "res_norm", res_norm);
+    // 5. Update response vector
     rvec.flat = copy(world, temp_vec);
     rvec.sync();
-
-    // 5. Update and compute new response density
-    drho = DynamicRestrictedSolver::compute_density(world, all_x, phi0);
+    // 6. Compute updated response density
+    drho = DynamicRestrictedSolver::compute_density(world, rvec.flat, phi0);
     double drho_change = (drho - drho_old).norm2();
-
-    // 6. Logging
+    DEBUG_LOG_VALUE(world, &logger, "drho_change", drho_change);
+    DEBUG_LOG_VALUE(world, &logger, "alpha",
+                    -2.0 * ResponseSolverUtils::inner(world, rvec.flat, Vp));
+    // 7. Convergence check
     if (world.rank() == 0) {
-      print("Iter", iter, "  Δρ =", drho_change, "  xres =", res_norm);
+      print("Iter", iter, "  Δρ =", drho_change, "  xres =", res_norm,
+            " alpha = alpha");
     }
 
-    // 7. Convergence check
     if (drho_change < density_target && res_norm < conv_thresh) {
       if (world.rank() == 0)
         print("✓ Converged in", iter, "iterations.");
 
-      // Sync flat → structured pointers
+      logger.log_value("converged", true);
+      logger.end_iteration();
+      logger.finalize_state();
+      // 🔄 Sync flat vector back into structured view
+      auto &rvec = std::get<DynamicRestrictedResponse>(response);
       rvec.sync();
+
       return true;
     }
+    logger.end_iteration();
   }
 
   if (world.rank() == 0)
     print("⚠️  Reached max iterations without convergence.");
+  logger.finalize_state();
   return false;
 }

@@ -19,6 +19,8 @@ struct ResponseState {
   PerturbationType type;
   Perturbation perturbation;
 
+  bool spin_restricted = false; // Is the system open shell?
+
   std::vector<double> frequencies;
   std::vector<double> thresholds; // Accuracy levels to loop over
   //
@@ -28,10 +30,10 @@ struct ResponseState {
 
   ResponseState(Perturbation pert, PerturbationType ptype,
                 const std::vector<double> &freq,
-                const std::vector<double> &thresh)
+                const std::vector<double> &thresh, bool spin_restricted)
       : type(ptype), perturbation(pert), frequencies(freq), thresholds(thresh),
         current_frequency_index(0), current_thresh_index(0),
-        is_converged(false) {}
+        spin_restricted(spin_restricted), is_converged(false) {}
 
   [[nodiscard]] double current_threshold() const {
     return thresholds[current_thresh_index];
@@ -69,35 +71,21 @@ struct ResponseState {
   [[nodiscard]] bool is_static() const {
     return std::abs(current_frequency()) < 1e-8;
   }
+  [[nodiscard]] bool is_dynamic() const { return !is_static(); }
+  [[nodiscard]] bool is_spin_restricted() const { return spin_restricted; }
 
   [[nodiscard]] std::string response_filename() const {
     std::ostringstream oss;
-    oss << "responses/" << perturbationDescription() << "_"
-        << current_frequency() << "_" << current_threshold() << ".response";
+    oss << "responses/" << perturbationDescription() << "_p"
+        << current_threshold() << "_f" << current_frequency() << ".response";
     return oss.str();
   }
-  [[nodiscard]] std::string response_filename(size_t freq_index,
-                                              size_t threshold_index) const {
+  [[nodiscard]] std::string response_filename(const size_t &thresh_index,
+                                              const size_t &freq_index) const {
     std::ostringstream oss;
-    oss << "responses/" << perturbationDescription() << "_freq_"
-        << frequencies[freq_index] << "_thresh_" << thresholds[threshold_index]
+    oss << "responses/" << perturbationDescription() << "_p"
+        << thresholds[thresh_index] << "_f" << frequencies[freq_index]
         << ".response";
-    return oss.str();
-  }
-
-  [[nodiscard]] std::string
-  response_filename_with_threshold(double threshold) const {
-    std::ostringstream oss;
-    oss << "responses/" << perturbationDescription() << "_"
-        << current_frequency() << "_" << threshold << ".response";
-    return oss.str();
-  }
-
-  [[nodiscard]] std::string
-  response_filename_with_frequency(double frequency) const {
-    std::ostringstream oss;
-    oss << "responses/" << perturbationDescription() << "_" << frequency << "_"
-        << current_threshold() << ".response";
     return oss.str();
   }
 

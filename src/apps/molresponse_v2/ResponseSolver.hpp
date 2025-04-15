@@ -64,7 +64,10 @@ public:
   static real_function_3d compute_density(World &world,
                                           const vector_real_function_3d &x,
                                           const vector_real_function_3d &phi0) {
-    auto xphi = mul(world, x, phi0, true);
+    auto phi_phi = phi0;
+    phi_phi.insert(phi_phi.end(), phi0.begin(), phi0.end());
+
+    auto xphi = mul(world, x, phi_phi, true);
     return 2.0 * sum(world, xphi, true);
   }
 

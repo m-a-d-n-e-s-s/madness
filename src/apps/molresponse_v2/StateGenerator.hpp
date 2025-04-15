@@ -11,9 +11,9 @@ class StateGenerator {
 public:
   StateGenerator(const Molecule &mol,
                  const std::vector<MolecularProperty> &requested_properties,
-                 const std::vector<double> &thresholds)
+                 const std::vector<double> &thresholds, bool spinrestricted)
       : molecule_(mol), requested_properties_(requested_properties),
-        thresholds_(thresholds) {}
+        thresholds_(thresholds), spin_restricted_(spinrestricted) {}
   std::vector<ResponseState> generateStates() const {
     std::set<std::string> seen_ids; // Prevent duplicates
     std::vector<ResponseState> all_states;
@@ -24,7 +24,7 @@ public:
         for (char dir : prop.directions) {
           DipolePerturbation pert{dir};
           ResponseState state(pert, PerturbationType::Dipole, prop.frequencies,
-                              thresholds_);
+                              thresholds_, spin_restricted_);
           if (seen_ids.insert(state.description()).second) {
             all_states.push_back(state);
           }
@@ -35,7 +35,7 @@ public:
         for (char dir : prop.directions) {
           DipolePerturbation dipole{dir};
           ResponseState dstate(dipole, PerturbationType::Dipole,
-                               prop.frequencies, thresholds_);
+                               prop.frequencies, thresholds_, spin_restricted_);
           if (seen_ids.insert(dstate.description()).second) {
             all_states.push_back(dstate);
           }
@@ -48,7 +48,8 @@ public:
           for (char dir : {'x', 'y', 'z'}) {
             NuclearDisplacementPerturbation nuc{i, dir};
             ResponseState nstate(nuc, PerturbationType::NuclearDisplacement,
-                                 prop.frequencies, thresholds_);
+                                 prop.frequencies, thresholds_,
+                                 spin_restricted_);
             if (seen_ids.insert(nstate.description()).second) {
               all_states.push_back(nstate);
             }
@@ -69,4 +70,5 @@ private:
   const Molecule &molecule_;
   std::vector<MolecularProperty> requested_properties_;
   std::vector<double> thresholds_;
+  bool spin_restricted_;
 };

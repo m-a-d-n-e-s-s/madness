@@ -114,7 +114,7 @@ void GroundStateData::prepareOrbitals(World &world, int current_k,
     reconstruct(world, orbitals);
 
     for (auto &orbital : orbitals) {
-      orbital = project(orbital, current_k, thresh, false);
+      orbital = project(orbital, current_k, thresh, true);
     }
     truncate(world, orbitals, thresh);
 
@@ -128,7 +128,6 @@ void GroundStateData::prepareOrbitals(World &world, int current_k,
     print_info();
   }
   Qhat = QProjector<double, 3>(orbitals);
-
 }
 // TODO: Need to add functionality for spin restricted
 Tensor<double>

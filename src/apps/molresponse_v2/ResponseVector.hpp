@@ -64,7 +64,10 @@ struct StaticUnrestrictedResponse {
       x_beta[i] = flat[i + x_alpha.size()];
     }
   }
-  void flatten() { flatten(); }
+  void flatten() {
+    flat = x_alpha;
+    flat.insert(flat.end(), x_beta.begin(), x_beta.end());
+  }
   // x_alpha + x_beta in a single vector
 };
 struct DynamicUnrestrictedResponse {

@@ -44,7 +44,7 @@ int main(int argc, char **argv) {
 
     std::vector<MolecularProperty> requested_properties = {
         MolecularProperty(MolecularPropertyType::Polarizability, {0.0, 0.0656},
-                          {'z'}),
+                          {'x', 'y', 'z'}),
     };
     /*MolecularProperty(MolecularPropertyType::Raman, {0.0656})};*/
 
@@ -55,7 +55,8 @@ int main(int argc, char **argv) {
         ResponseManager(world, params.get_molresponse_params());
 
     std::vector<double> protocols = {1e-4, 1e-6};
-    StateGenerator state_generator(molecule, requested_properties, protocols);
+    StateGenerator state_generator(molecule, requested_properties, protocols,
+                                   ground_state.isSpinRestricted());
     auto all_states = state_generator.generateStates();
     if (world.rank() == 0) {
       for (const auto &state : all_states) {
@@ -67,7 +68,12 @@ int main(int argc, char **argv) {
     bool all_states_converged = false;
 
     std::string response_metadata_file = "responses/response_metadata.json";
-    ResponseMetadata metadata(response_metadata_file);
+    ResponseMetadata metadata(world, response_metadata_file);
+    metadata.initialize_states(all_states);
+    if (world.rank() == 0) {
+      metadata.print_summary();
+    }
+    world.gop.fence();
     ResponseDebugLogger debug_logger(true);
     while (!all_states_converged) {
       all_states_converged = true;
@@ -91,6 +97,11 @@ int main(int argc, char **argv) {
         for (auto &state : all_states) {
           if (state.is_converged || state.current_threshold() != thresh)
             continue;
+
+          const auto state_id = state.perturbationDescription();
+          if (metadata.final_converged(state_id)) {
+            continue;
+          }
 
           computeFrequencyLoop(world, rm, state, ground_state, metadata,
                                debug_logger);
