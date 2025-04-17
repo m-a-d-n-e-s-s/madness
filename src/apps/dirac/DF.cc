@@ -597,19 +597,20 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
      //start timer
      start_timer(world);
 
+     //Calculate and accumulate exchange contributions
+     unsigned int n = Init_params.num_occupied;
+     double myc = 137.03599917697017; //speed of light in atomic units from CODATA 2022
+     double myc2 = myc * myc;
+
      //zero out Kpsis
-     for(unsigned int i = 0; i < Init_params.num_occupied; i++){
+     for(unsigned int i = 0; i < n; i++){
           Kpsis[i] = Fcwf(world);
      }
 
      //reconstruct
-     for(unsigned int i = 0; i < Init_params.num_occupied; i++){
+     for(unsigned int i = 0; i < n; i++){
           occupieds[i].reconstruct();
      }
-
-     //Calculate and accumulate exchange contributions
-     unsigned int n = Init_params.num_occupied;
-     double myc = 137.03599917697017; //speed of light in atomic units from CODATA 2022
 
      //Calculates exchange contributions from the orbitals that we have stored
      //Loop through orbitals phi_i, computing K(phi_i), and while we're at it, use symmetry to start calculating contributions to later orbitals
@@ -1483,7 +1484,14 @@ void DF::make_density_lineplots(World& world, const char* filename, int npt, dou
 }
 
 //One complete iteration of the Dirac-Hartree-Fock solver
-bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, real_function_3d& JandV, std::vector<Fcwf>& Kpsis, XNonlinearSolver<std::vector<Fcwf>, std::complex<double>, Fcwf_vector_allocator>& kainsolver, double& tolerance, int& iteration_number, double& nuclear_repulsion_energy){
+std::tuple<bool, double, real_function_3d>
+DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
+            real_function_3d &JandV, std::vector<Fcwf> &Kpsis,
+            XNonlinearSolver<std::vector<Fcwf>, std::complex<double>,
+                             Fcwf_vector_allocator> &kainsolver,
+            double &tolerance, int &iteration_number,
+            double &nuclear_repulsion_energy, double &prev_energy,
+            real_function_3d &prev_rho) {
 
      //Get and print the time of this iteration's start, and start a timer
      Tensor<double> times = get_times(world);
@@ -1501,7 +1509,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      Fcwf temp_function(world);
 
      //Boolean used in while loop.
-     bool iterate_again = false; //Initialize to false = assume iterations will stop
+     bool iterate_again = true; //If initialize to false = assume iterations will stop
 
      //First diagonalize the occupied orbitals in the Fock space (of occupied orbitals). Also transforms Kpsis.
      diagonalize(world, V, op, Kpsis);
@@ -1582,7 +1590,16 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
 
      //If any residual is still larger than the tolerance then we need to iterate again.
      //Can just enforce this on the max residual
-     if(maxresidual > tolerance) iterate_again = true;
+     auto drho = (prev_rho - rho).norm2();
+     const auto nelec = rho.trace();
+     if(maxresidual <= tolerance) {
+          iterate_again = false;
+          printf("\nConverge due to residuals");
+     } else if (std::abs((total_energy - prev_energy) / total_energy) <= DFparams.thresh && drho <= 10 * DFparams.thresh * nelec
+                && maxresidual <= 1e2 * tolerance) {
+          iterate_again = false;
+          printf("\nConverge due to energy, density, and residuals");
+     }
 
      //Apply the kain solver, if called for
      if(iteration_number != 1 and DFparams.kain){
@@ -1822,7 +1839,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      times = end_timer(world);
      if(world.rank()==0) print("     Iteration time:", times[0]);
  
-     return iterate_again;
+     return std::tuple<bool, double, real_function_3d>(iterate_again, total_energy, rho);
 }
 
 // Solves for the ground state Dirac Hartree Fock orbitals
@@ -1900,13 +1917,13 @@ void DF::solve_occupied(World & world)
      if(world.rank()==0) print("     ", times[0]);
 
      //Set tolerance for residuals
-     double tol = 50.0*DFparams.thresh; 
+     double tol = DFparams.thresh; 
 
      //Now time to start iterating
      bool keep_going = true;
      int iteration_number = 1;
      while((keep_going and iteration_number <= DFparams.max_iter) or iteration_number <= DFparams.min_iter){
-          keep_going = iterate(world, Vnuc, op, JandV, Kpsis, kainsolver, tol, iteration_number, nuclear_repulsion_energy);
+          std::tie(keep_going, total_energy, rho) = iterate(world, Vnuc, op, JandV, Kpsis, kainsolver, tol, iteration_number, nuclear_repulsion_energy, total_energy, rho);
           
           //Load balance and save between iterations
           if(keep_going and iteration_number <= DFparams.lb_iter) DF_load_balance(world, Vnuc);

@@ -5,6 +5,7 @@
 #include <madness/mra/operator.h>
 #include <madness/constants.h>
 #include <madness/mra/nonlinsol.h>  // The kain solver
+#include <tuple>
 #include <vector>
 #include <math.h>
 #include <stdio.h>
@@ -120,8 +121,14 @@ class DF {
           void DF_load_balance(World& world, real_function_3d& Vnuc);
 
           //Does one full SCF iteration
-          bool iterate(World& world, real_function_3d& V, real_convolution_3d& op, real_function_3d& JandV, std::vector<Fcwf>& Kpsis, XNonlinearSolver<std::vector<Fcwf>, std::complex<double>, Fcwf_vector_allocator>& kainsolver, double& tolerance, int& iteration_number, double& nuclear_repulsion_energy);
-                
+          std::tuple<bool, double, real_function_3d>
+          iterate(World &world, real_function_3d &V, real_convolution_3d &op,
+                  real_function_3d &JandV, std::vector<Fcwf> &Kpsis,
+                  XNonlinearSolver<std::vector<Fcwf>, std::complex<double>,
+                                   Fcwf_vector_allocator> &kainsolver,
+                  double &tolerance, int &iteration_number,
+                  double &nuclear_repulsion_energy, double &prev_energy,
+                  real_function_3d &prev_rho);
 
           //Runs the job specified in the input parameters
           void solve(World& world);
