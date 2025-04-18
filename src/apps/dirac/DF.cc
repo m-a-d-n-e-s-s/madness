@@ -1591,11 +1591,12 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
      //If any residual is still larger than the tolerance then we need to iterate again.
      //Can just enforce this on the max residual
      auto drho = (prev_rho - rho).norm2();
+     auto dconv = (DFparams.thresh < 5e-8) ? 10 * DFparams.thresh : DFparams.thresh;
      const auto nelec = rho.trace();
      if(maxresidual <= tolerance) {
           iterate_again = false;
           printf("\nConverge due to residuals");
-     } else if (std::abs((total_energy - prev_energy) / total_energy) <= DFparams.thresh && drho <= 10 * DFparams.thresh * nelec
+     } else if (std::abs((total_energy - prev_energy) / total_energy) <= DFparams.thresh && drho <= dconv * nelec
                 && maxresidual <= 1e2 * tolerance) {
           iterate_again = false;
           printf("\nConverge due to energy, density, and residuals");
