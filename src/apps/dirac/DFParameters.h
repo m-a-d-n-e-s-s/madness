@@ -71,7 +71,7 @@ namespace madness {
           , nwchem(false)
           , lineplot(false)
           , no_compute(false)
-          , bohr_rad(52917.7211)
+          , bohr_rad(52917.7210544)  // bohr radius in fm from CODATA 2022
           , min_iter(2)
           , Krestricted(false)
           {}
