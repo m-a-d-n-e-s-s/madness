@@ -18,3 +18,34 @@ struct MolecularProperty {
       : type(t), frequencies(freqs), directions(dirs) {}
 };
 
+
+
+
+// Helper to convert enum to string
+std::string property_type_to_string(MolecularPropertyType type) {
+  switch (type) {
+    case MolecularPropertyType::Polarizability:
+      return "Polarizability";
+    case MolecularPropertyType::Raman:
+      return "Raman";
+    case MolecularPropertyType::Hyperpolarizability:
+      return "Hyperpolarizability";
+    default:
+      return "Unknown";
+  }
+}
+
+// Function to print requested properties
+void print_requested_properties(const std::vector<MolecularProperty> &properties) {
+  std::cout << "\n📋 Requested Molecular Properties:\n";
+  for (const auto &prop : properties) {
+    std::cout << "- " << property_type_to_string(prop.type) << ":\n";
+    for (double freq : prop.frequencies) {
+      for (char dir : prop.directions) {
+        std::cout << "  • Direction: " << dir << ", Frequency: "
+                  << std::scientific << std::setprecision(3) << freq << "\n";
+      }
+    }
+  }
+}
+

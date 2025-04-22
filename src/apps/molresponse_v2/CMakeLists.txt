@@ -21,6 +21,7 @@ set(MOLRESPONSE_HEADERS2
     ResponseIO.hpp
     ResponseMetaData.hpp
     FrequencyLoop.hpp
+    PropertyManager.hpp
     ResponseSolver.hpp
     ResponseSolverUtils.hpp
     ResponseInitializer.hpp

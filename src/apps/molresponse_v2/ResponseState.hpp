@@ -27,6 +27,7 @@ struct ResponseState {
   size_t current_frequency_index = 0;
   size_t current_thresh_index = 0; // Track which threshold we're working on
   bool is_converged = false;
+  ResponseState() = default;
 
   ResponseState(Perturbation pert, PerturbationType ptype,
                 const std::vector<double> &freq,
@@ -90,9 +91,10 @@ struct ResponseState {
   }
 
   [[nodiscard]] std::string description() const {
-    return perturbationDescription() + " at freq " +
-           std::to_string(current_frequency()) +
-           " (thresh=" + std::to_string(current_threshold()) + ")";
+    std::ostringstream oss;
+    oss << perturbationDescription() << " at freq " << current_frequency()
+        << " (thresh=" << std::scientific << current_threshold() << ")";
+    return oss.str();
   }
 
   // Clearly named helper functions to get human-readable perturbation info
@@ -139,6 +141,40 @@ struct ResponseState {
     }
     }
     throw std::runtime_error("Unknown perturbation type");
+  }
+};
+
+struct SecondOrderResponseState {
+  PerturbationType type; // likely "Dipole" for VBC
+  std::pair<DipolePerturbation, DipolePerturbation> perturbations;
+  std::pair<double, double> frequencies;
+  double threshold;
+  bool spin_restricted = true;
+
+  SecondOrderResponseState(DipolePerturbation p1, DipolePerturbation p2,
+                           double f1, double f2, double thresh,
+                           bool spin_restricted)
+      : type(PerturbationType::Dipole), perturbations(p1, p2),
+        frequencies(f1, f2), threshold(thresh),
+        spin_restricted(spin_restricted) {}
+
+  [[nodiscard]] std::string perturbationDescription() const {
+    return "VBC_" + std::string(1, perturbations.first.direction) +
+           std::string(1, perturbations.second.direction);
+  }
+
+  [[nodiscard]] std::string response_filename() const {
+    std::ostringstream oss;
+    oss << "vbc/" << perturbationDescription() << "_p" << threshold << "_f"
+        << frequencies.first << "_" << frequencies.second << ".response";
+    return oss.str();
+  }
+
+  [[nodiscard]] bool is_spin_restricted() const { return spin_restricted; }
+
+  [[nodiscard]] bool is_static() const {
+    return std::abs(frequencies.first) < 1e-8 &&
+           std::abs(frequencies.second) < 1e-8;
   }
 };
 

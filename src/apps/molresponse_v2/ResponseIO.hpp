@@ -120,29 +120,62 @@ inline bool load_response_vector(World &world, const int &num_orbitals,
 
   FunctionDefaults<3>::set_k(current_k);
 
-  std::visit([&](auto &v) { 
-  auto& flat_vec= v.flat;
+  std::visit(
+      [&](auto &v) {
+        auto &flat_vec = v.flat;
 
+        if (current_k != loaded_k) {
+          if (world.rank() == 0) {
+            print("Reconstructing response vector with k=", current_k);
+          }
+          reconstruct(world, flat_vec);
+          for (auto &v : flat_vec) {
+            v = project(v, current_k, FunctionDefaults<3>::get_thresh(), true);
+          }
 
-  if (current_k != loaded_k) {
-    if (world.rank() == 0) {
-      print("Reconstructing response vector with k=", current_k);
-    }
-    reconstruct(world, flat_vec);
-    for (auto &v : flat_vec) {
-      v = project(v, current_k, FunctionDefaults<3>::get_thresh(), true);
-    }
-
-    truncate(world, flat_vec, FunctionDefaults<3>::get_thresh());
-  } else {
-    truncate(world, flat_vec, FunctionDefaults<3>::get_thresh());
-  }
-    v.sync();
-
-
-
-    }, load_response);
-  
+          truncate(world, flat_vec, FunctionDefaults<3>::get_thresh());
+        } else {
+          truncate(world, flat_vec, FunctionDefaults<3>::get_thresh());
+        }
+        v.sync();
+      },
+      load_response);
 
   return true;
+}
+
+inline void save_vbc_vector(World &world, const SecondOrderResponseState &state,
+                            const ResponseVector &response) {
+  auto filename = state.response_filename();
+  if (world.rank() == 0) {
+    std::cout << "✅ Saving VBC vector to: " << filename << std::endl;
+  }
+
+  auto ar = archive::ParallelOutputArchive(world, filename.c_str());
+  auto current_k = FunctionDefaults<3>::get_k();
+  ar & current_k;
+
+  if (state.spin_restricted && state.is_static()) {
+    for (auto &v : std::get<StaticRestrictedResponse>(response).x_alpha)
+      ar & v;
+  } else if (state.spin_restricted && !state.is_static()) {
+    for (auto &v : std::get<DynamicRestrictedResponse>(response).x_alpha)
+      ar & v;
+    for (auto &v : std::get<DynamicRestrictedResponse>(response).y_alpha)
+      ar & v;
+  } else if (!state.spin_restricted && state.is_static()) {
+    for (auto &v : std::get<StaticUnrestrictedResponse>(response).x_alpha)
+      ar & v;
+    for (auto &v : std::get<StaticUnrestrictedResponse>(response).x_beta)
+      ar & v;
+  } else {
+    for (auto &v : std::get<DynamicUnrestrictedResponse>(response).x_alpha)
+      ar & v;
+    for (auto &v : std::get<DynamicUnrestrictedResponse>(response).y_alpha)
+      ar & v;
+    for (auto &v : std::get<DynamicUnrestrictedResponse>(response).x_beta)
+      ar & v;
+    for (auto &v : std::get<DynamicUnrestrictedResponse>(response).y_beta)
+      ar & v;
+  }
 }

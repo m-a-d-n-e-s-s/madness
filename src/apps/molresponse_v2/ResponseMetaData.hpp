@@ -95,8 +95,8 @@ public:
     write();
   }
 
-  void mark_converged(const std::string &state_id, double protocol,
-                      double freq, bool converged) {
+  void mark_converged(const std::string &state_id, double protocol, double freq,
+                      bool converged) {
     set_flag(state_id, protocol, freq, "converged", converged);
     write();
   }
@@ -113,7 +113,6 @@ public:
 
   bool final_converged(const std::string &state_id) const {
     return data_["states"][state_id].value("final_converged", false);
-
   }
 
   bool final_saved(const std::string &state_id) const {

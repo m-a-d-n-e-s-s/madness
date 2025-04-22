@@ -140,8 +140,9 @@ inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
     auto freq_index = state.current_frequency_index;
     bool is_saved =
         metadata.is_saved(state_id, protocol, freq); // Check if already saved
-    bool should_solve = !is_saved || (at_final_protocol &&
-                        !metadata.is_converged(state_id, protocol, freq));
+    bool should_solve =
+        !is_saved ||
+        (at_final_protocol && !metadata.is_converged(state_id, protocol, freq));
     if (!should_solve) {
       if (world.rank() == 0) {
         print("⚠️  Skipping frequency", freq, "at protocol", protocol,
@@ -190,8 +191,12 @@ inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
 
     // Run the solver with logging
     logger.start_state(state);
-    bool converged =
-        solve_response_vector(world, rm, ground_state, state, guess, logger);
+
+    auto max_iter = rm.params().maxiter();
+    auto conv_thresh = rm.params().dconv();
+
+    bool converged = solve_response_vector(
+        world, rm, ground_state, state, guess, logger, max_iter, conv_thresh);
     logger.finalize_state();
 
     if (world.rank() == 0) {

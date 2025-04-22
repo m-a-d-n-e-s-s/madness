@@ -67,7 +67,7 @@ public:
     out << std::setw(2) << log_data_ << "\n";
   }
   void write_to_disk() const {
-    std::ofstream out("response_log.json");
+    std::ofstream out("responses/response_log.json");
     out << std::setw(2) << log_data_ << "\n";
   }
 

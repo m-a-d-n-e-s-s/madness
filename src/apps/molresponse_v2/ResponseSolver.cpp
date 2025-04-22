@@ -70,9 +70,8 @@ vector_real_function_3d DynamicRestrictedSolver::ComputeRSH(
   std::vector<int> ii;
 
   int i = 0;
-  int si = 0;
   for (int j = 0; j < 2 * num_orbitals; j++) {
-    state_index.push_back(si);
+    state_index.push_back(0);
     ii.push_back(i++);
   }
 
@@ -85,10 +84,10 @@ vector_real_function_3d DynamicRestrictedSolver::ComputeRSH(
   vector_real_function_3d gx;
 
   DEBUG_TIMED_BLOCK(world, &logger, "g0_task", {
-    k0 = g0_task(ii, state_index, all_x, gs.orbitals, true);
+    k0 = g0_task(ii, state_index, all_x, gs.orbitals, false);
   });
   DEBUG_TIMED_BLOCK(world, &logger, "gx_task", {
-    gx = gx_task(ii, state_index, all_x, gs.orbitals, true);
+    gx = gx_task(ii, state_index, all_x, gs.orbitals, false);
   });
 
   auto c_xc = gs.xcf_.hf_exchange_coefficient();
@@ -211,7 +210,7 @@ bool StaticRestrictedSolver::iterate(World &world, const ResponseManager &rm,
       if (world.rank() == 0)
         print("✓ Converged in", iter, "iterations.");
 
-      logger.log_value("converged", true);
+      // logger.log_value("converged", true);
       logger.end_iteration();
       logger.finalize_state();
       // 🔄 Sync flat vector back into structured view
@@ -269,11 +268,7 @@ bool DynamicRestrictedSolver::iterate(World &world, const ResponseManager &rm,
   auto bsh_y = ResponseSolverUtils::make_bsh_operators_response(
       world, 0.0, -freq, orbital_energies, rm.params().lo());
 
-  std::vector<poperatorT> bsh_ops(2 * n);
-  for (size_t i = 0; i < n; ++i) {
-    bsh_ops[i] = bsh_x[i];
-    bsh_ops[i + n] = bsh_y[i];
-  }
+  bsh_x.insert(bsh_x.end(), bsh_y.begin(), bsh_y.end());
 
   // Initial density and solver
   auto drho = DynamicRestrictedSolver::compute_density(world, all_x, phi0);
@@ -291,7 +286,7 @@ bool DynamicRestrictedSolver::iterate(World &world, const ResponseManager &rm,
                     ResponseSolverUtils::inner(world, rvec.flat, rvec.flat));
     vector_real_function_3d x_new;
     DEBUG_TIMED_BLOCK(world, &logger, "compute_rsh", {
-      x_new = DynamicRestrictedSolver::ComputeRSH(world, gs, rvec, Vp, bsh_ops,
+      x_new = DynamicRestrictedSolver::ComputeRSH(world, gs, rvec, Vp, bsh_x,
                                                   rm, logger);
     });
     // 2. Form residual r = x_new - x
@@ -317,19 +312,18 @@ bool DynamicRestrictedSolver::iterate(World &world, const ResponseManager &rm,
     drho = DynamicRestrictedSolver::compute_density(world, rvec.flat, phi0);
     double drho_change = (drho - drho_old).norm2();
     DEBUG_LOG_VALUE(world, &logger, "drho_change", drho_change);
-    DEBUG_LOG_VALUE(world, &logger, "alpha",
-                    -2.0 * ResponseSolverUtils::inner(world, rvec.flat, Vp));
+    auto alpha = -2.0 * ResponseSolverUtils::inner(world, rvec.flat, Vp);
+    DEBUG_LOG_VALUE(world, &logger, "alpha", alpha);
     // 7. Convergence check
     if (world.rank() == 0) {
       print("Iter", iter, "  Δρ =", drho_change, "  xres =", res_norm,
-            " alpha = alpha");
+            " alpha = ", alpha);
     }
 
     if (drho_change < density_target && res_norm < conv_thresh) {
       if (world.rank() == 0)
         print("✓ Converged in", iter, "iterations.");
 
-      logger.log_value("converged", true);
       logger.end_iteration();
       logger.finalize_state();
       // 🔄 Sync flat vector back into structured view

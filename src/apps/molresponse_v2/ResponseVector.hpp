@@ -38,6 +38,7 @@ struct DynamicRestrictedResponse {
   }
   // x_alpha + y_alpha in a single vector
   void sync() {
+
     for (size_t i = 0; i < x_alpha.size(); ++i) {
       x_alpha[i] = flat[i];
       y_alpha[i] = flat[i + x_alpha.size()];

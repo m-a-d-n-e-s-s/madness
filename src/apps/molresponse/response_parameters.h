@@ -47,7 +47,7 @@ namespace madness
       initialize<double>("plot_l", -1.0, "Controls the plotting box size");
       initialize<size_t>("plot_pts", 200, "Controls number of points in plots");
       initialize<bool>("plot_all_orbitals", false, "Turn on 2D plotting of response orbitals ");
-      initialize<size_t>("maxiter", 25, "maximum number of iterations");
+      initialize<size_t>("maxiter", 5, "maximum number of iterations");
       initialize<double>("dconv", 1.e-4, "recommended values: 1.e-4 < dconv < 1.e-8");
       initialize<bool>("conv_only_dens", false, "if true remove bsh_residual from convergence criteria (deprecated)");
       initialize<bool>("dconv_set", false, "Convergence flage for the orbtial density");
