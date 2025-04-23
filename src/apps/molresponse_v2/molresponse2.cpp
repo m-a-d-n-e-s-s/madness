@@ -7,7 +7,6 @@
 #include "ResponseManager.hpp"
 #include "ResponseMetaData.hpp"
 #include "StateGenerator.hpp"
-#include "VBCMacrotask.hpp"
 #include "funcdefaults.h"
 #include "madness/world/world.h"
 #include <iostream>
@@ -45,11 +44,11 @@ int main(int argc, char **argv) {
 
     std::vector<MolecularProperty> requested_properties = {
         MolecularProperty(MolecularPropertyType::Polarizability, input_freq,
-                          {'x', 'y', 'z'}),
+                          {'x', 'y'}),
         MolecularProperty(MolecularPropertyType::Hyperpolarizability,
-                          input_freq, {'x', 'y', 'z'}),
+                          input_freq, {'x', 'y'}),
     };
-    PropertyManager prop_manager("responses/properties.json");
+    PropertyManager prop_manager(world, "responses/properties.json");
     initialize_property_structure(prop_manager, requested_properties);
     if (world.rank() == 0) {
       prop_manager.print_alpha_table();
@@ -89,7 +88,6 @@ int main(int argc, char **argv) {
       if (world.rank() == 0) {
         print("hamiltonian:\n", ground_state.Hamiltonian);
       }
-
       for (auto &state : generated_states.states) {
         if (state.is_converged || state.current_threshold() != thresh)
           continue;
@@ -98,7 +96,6 @@ int main(int argc, char **argv) {
         if (metadata.final_converged(state_id)) {
           continue;
         }
-
         computeFrequencyLoop(world, rm, state, ground_state, metadata,
                              debug_logger);
         if (debug_logger.enabled()) {
@@ -115,7 +112,6 @@ int main(int argc, char **argv) {
           state.advance_threshold();
           all_states_converged = false;
           if (world.rank() == 0) {
-
             madness::print("→ Converged at thresh", thresh,
                            "→ advancing to next protocol for",
                            state.description());
@@ -123,27 +119,18 @@ int main(int argc, char **argv) {
         }
       }
     }
-
     compute_alpha(world, generated_states.state_map, ground_state, input_freq,
                   "xy", prop_manager);
     prop_manager.save();
     if (world.rank() == 0) {
       prop_manager.print_alpha_table();
     }
-    auto t1 = VBC_save_load(ground_state, "xyz", input_freq,
-                            ground_state.isSpinRestricted());
 
-    MacroTask task_one(world, t1);
-    task_one.set_debug(true);
-    std::vector<int> freq = {0, 1, 2, 3, 4, 5};
-    auto result_one = task_one(freq);
-
-    // Example placeholder for a future implementation
-    // ResponseState response_state(freq, thresh, "x");
-    // auto response_functions =
-    // response_manager.computeResponse(response_state);
-    // response_manager.saveResponse(response_state, response_functions);
-
+    compute_beta(world, ground_state, input_freq, "xy", prop_manager);
+    prop_manager.save();
+    if (world.rank() == 0) {
+      prop_manager.print_beta_table();
+    }
     if (world.rank() == 0) {
       madness::print(
           "\nMolecular response calculation completed successfully.");

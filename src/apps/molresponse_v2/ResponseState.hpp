@@ -15,14 +15,24 @@
 using json = nlohmann::json;
 namespace fs = std::filesystem;
 
-struct ResponseState {
+struct AbstractResponseDescriptor {
+  virtual bool is_spin_restricted() const = 0;
+  virtual bool is_static() const = 0;
+  virtual std::string response_filename() const = 0;
+  virtual std::string response_filename(const size_t &thresh_index,
+                                        const size_t &freq_index) const = 0;
+  virtual ~AbstractResponseDescriptor() = default;
+};
+
+struct ResponseState : public AbstractResponseDescriptor {
   PerturbationType type;
   Perturbation perturbation;
 
   bool spin_restricted = false; // Is the system open shell?
 
   std::vector<double> frequencies;
-  std::vector<double> thresholds; // Accuracy levels to loop over
+  std::map<double, int> frequency_map; // Frequency to index map
+  std::vector<double> thresholds;      // Accuracy levels to loop over
   //
   size_t current_frequency_index = 0;
   size_t current_thresh_index = 0; // Track which threshold we're working on
@@ -34,7 +44,12 @@ struct ResponseState {
                 const std::vector<double> &thresh, bool spin_restricted)
       : type(ptype), perturbation(pert), frequencies(freq), thresholds(thresh),
         current_frequency_index(0), current_thresh_index(0),
-        spin_restricted(spin_restricted), is_converged(false) {}
+        spin_restricted(spin_restricted), is_converged(false) {
+
+    for (size_t i = 0; i < frequencies.size(); ++i) {
+      frequency_map[frequencies[i]] = i;
+    }
+  }
 
   [[nodiscard]] double current_threshold() const {
     return thresholds[current_thresh_index];
@@ -144,7 +159,7 @@ struct ResponseState {
   }
 };
 
-struct SecondOrderResponseState {
+struct SecondOrderResponseState : public AbstractResponseDescriptor {
   PerturbationType type; // likely "Dipole" for VBC
   std::pair<DipolePerturbation, DipolePerturbation> perturbations;
   std::pair<double, double> frequencies;
@@ -164,6 +179,20 @@ struct SecondOrderResponseState {
   }
 
   [[nodiscard]] std::string response_filename() const {
+
+    auto pathname = fs::path("vbc");
+    if (!fs::exists(pathname)) {
+      fs::create_directory(pathname);
+    }
+
+    std::ostringstream oss;
+
+    oss << "vbc/" << perturbationDescription() << "_p" << threshold << "_f"
+        << frequencies.first << "_" << frequencies.second << ".response";
+    return oss.str();
+  }
+  [[nodiscard]] std::string response_filename(const size_t &thresh_index,
+                                              const size_t &freq_index) const {
     std::ostringstream oss;
     oss << "vbc/" << perturbationDescription() << "_p" << threshold << "_f"
         << frequencies.first << "_" << frequencies.second << ".response";

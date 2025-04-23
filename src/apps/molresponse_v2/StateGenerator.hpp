@@ -16,7 +16,7 @@ struct GeneratedStateData {
     std::cout << "📋 Generated Response States:\n";
     std::cout << std::setw(5) << "#" << "  " << std::setw(40) << std::left
               << "State Description" << std::setw(20) << "Type" << std::setw(10)
-              << "Static" << std::setw(10) << "Num Freqs" << "\n";
+              << "Num Freqs" << "\n";
 
     std::cout << std::string(90, '-') << "\n";
 
@@ -29,7 +29,6 @@ struct GeneratedStateData {
 
       std::cout << std::setw(5) << count++ << "  " << std::setw(40) << std::left
                 << key << std::setw(20) << type << std::setw(10)
-                << (state.is_static() ? "Yes" : "No") << std::setw(10)
                 << state.frequencies.size() << "\n";
     }
   }
@@ -54,10 +53,13 @@ public:
           ResponseState state(pert, PerturbationType::Dipole, prop.frequencies,
                               thresholds_, spin_restricted_);
           auto state_pert_description = state.perturbationDescription();
-          if (seen_ids.insert(state.description()).second) {
+          for (auto frequency : prop.frequencies) {
+            auto id = state.description() += " " + std::to_string(frequency);
+            if (seen_ids.insert(id).second) {
 
-            result.states.push_back(state);
-            result.state_map[state_pert_description] = state;
+              result.states.push_back(state);
+              result.state_map[state_pert_description] = state;
+            }
           }
         }
         break;
@@ -83,10 +85,13 @@ public:
             ResponseState nstate(nuc, PerturbationType::NuclearDisplacement,
                                  prop.frequencies, thresholds_,
                                  spin_restricted_);
-            auto state_pert_description = nstate.perturbationDescription();
-            if (seen_ids.insert(nstate.description()).second) {
-              result.states.push_back(nstate);
-              result.state_map[state_pert_description] = nstate;
+
+            for (auto frequency : prop.frequencies) {
+              nstate.description() += " " + std::to_string(frequency);
+              if (seen_ids.insert(nstate.description()).second) {
+                result.states.push_back(nstate);
+                result.state_map[nstate.description()] = nstate;
+              }
             }
           }
         }
@@ -102,21 +107,23 @@ public:
         for (int b = 0; b < input_frequencies.size(); ++b) {
           unique_frequencies.insert(input_frequencies[b]);
           for (int c = b; c < input_directions.size(); ++c) {
-            unique_frequencies.insert(input_directions[c]);
-            unique_frequencies.insert(input_directions[c] +
+            unique_frequencies.insert(input_frequencies[c] +
                                       input_frequencies[b]);
           }
         }
         auto freq_vector = std::vector<double>(unique_frequencies.begin(),
                                                unique_frequencies.end());
-
+        print("Unique frequencies: ", freq_vector);
         for (char dir : input_directions) {
           DipolePerturbation dipole{dir};
           ResponseState dstate(dipole, PerturbationType::Dipole, freq_vector,
                                thresholds_, spin_restricted_);
-          if (seen_ids.insert(dstate.description()).second) {
-            result.states.push_back(dstate);
-            result.state_map[dstate.description()] = dstate;
+          for (auto frequency : freq_vector) {
+            auto id = dstate.description() += " " + std::to_string(frequency);
+            if (seen_ids.insert(id).second) {
+              result.states.push_back(dstate);
+              result.state_map[dstate.description()] = dstate;
+            }
           }
         }
 

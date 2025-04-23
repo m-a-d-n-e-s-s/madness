@@ -3,6 +3,7 @@
 
 #include "potentialmanager.h"
 #include <madness/chem/SCF.h>
+#include "broadcast_json.hpp"
 #include <madness/chem/molecule.h>
 #include <madness/mra/funcdefaults.h>
 #include <madness/mra/vmra.h>

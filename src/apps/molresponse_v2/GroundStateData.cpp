@@ -180,24 +180,7 @@ void GroundStateData::computePreliminaries(World &world,
   bool loaded_from_file = false;
 
   if (json_exists) {
-    std::string fock_json_string;
-    if (world.rank() == 0) {
-
-      std::ifstream ifs(fock_json_file);
-      if (ifs.is_open()) {
-        std::stringstream buffer;
-        buffer << ifs.rdbuf();
-        fock_json_string = buffer.str();
-        ifs.close();
-      } else {
-        std::cerr << "Error opening file: " << fock_json_file << std::endl;
-      }
-    }
-    world.gop.fence();
-    // Broadcast the string to all ranks
-    world.gop.broadcast_serializable(fock_json_string, 0);
-    json fock_json;
-    fock_json = json::parse(fock_json_string);
+    auto fock_json = broadcast_json_file(world, fock_json_file);
     world.gop.fence();
     Hamiltonian = tryLoadHamiltonianFromJson(world, fock_json, thresh, k);
   }

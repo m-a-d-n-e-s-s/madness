@@ -2,6 +2,9 @@
 #include "MolecularProperty.hpp"
 #include "ResponseIO.hpp"
 #include "ResponseVector.hpp"
+#include "VBCMacrotask.hpp"
+#include "broadcast_json.hpp"
+#include "functypedefs.h"
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -12,13 +15,113 @@
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
+#pragma once
+#include <chrono>
+#include <fstream>
+#include <iomanip>
+#include <madness/external/nlohmann_json/json.hpp>
+#include <madness/tensor/tensor.h>
+#include <madness/world/world.h>
+
+using json = nlohmann::json;
+
+inline std::string iso_timestamp() {
+  using namespace std::chrono;
+  auto now = system_clock::now();
+  auto itt = system_clock::to_time_t(now);
+  std::ostringstream ss;
+  ss << std::put_time(std::gmtime(&itt), "%Y%m%dT%H%M%SZ");
+  return ss.str();
+}
+
+/// Helper: compute inner-product tensor, and optionally dump per-k
+/// contributions.
+inline madness::Tensor<double> compute_response_inner_product_tensor(
+    madness::World &world, const std::vector<vector_real_function_3d> &A_vecs,
+    const std::vector<vector_real_function_3d> &B_vecs,
+    bool save_contributions = false, const std::string &base_filename = "") {
+  const size_t nA = A_vecs.size();
+  const size_t nB = B_vecs.size();
+  if (nA == 0 || nB == 0)
+    throw std::runtime_error("Input vectors must not be empty.");
+
+  const size_t num_rf = A_vecs[0].size();
+  madness::Tensor<double> result(nA, nB);
+
+  json j;
+  if (save_contributions) {
+    j["num_response_functions"] = num_rf;
+    j["contributions"] = json::object();
+    j["timestamp"] = iso_timestamp();
+  }
+
+  // loop over each response-function index k
+  for (size_t k = 0; k < num_rf; ++k) {
+    vector_real_function_3d Ak(nA), Bk(nB);
+    for (size_t i = 0; i < nA; ++i)
+      Ak[i] = A_vecs[i][k];
+    for (size_t j = 0; j < nB; ++j)
+      Bk[j] = B_vecs[j][k];
+
+    world.gop.fence();
+
+    auto M_k = matrix_inner(world, Ak, Bk);
+    result += M_k;
+
+    if (save_contributions) {
+      // serialize M_k into JSON
+      j["contributions"][std::to_string(k)] =
+          madness::tensor_to_json<double>(M_k);
+    }
+  }
+
+  if (save_contributions) {
+    // build timestamped filename
+    auto ts = j["timestamp"].get<std::string>();
+    std::string fname = base_filename.empty()
+                            ? ("inner_contribs_" + ts + ".json")
+                            : (base_filename + "_" + ts + ".json");
+    std::ofstream out(fname);
+    out << std::setw(2) << j << "\n";
+    if (world.rank() == 0)
+      std::cout << "📂 Wrote per-k contributions to " << fname << "\n";
+  }
+
+  return result;
+}
+
+/*madness::Tensor<double> compute_response_inner_product_tensor(*/
+/*    World &world, const std::vector<vector_real_function_3d> &A_vecs,*/
+/*    const std::vector<vector_real_function_3d> &B_vecs) {*/
+/*  const size_t nA = A_vecs.size();*/
+/*  const size_t nB = B_vecs.size();*/
+/**/
+/*  if (nA == 0 || nB == 0)*/
+/*    throw std::runtime_error("Input vectors must not be empty.");*/
+/**/
+/*  const size_t num_rf =*/
+/*      A_vecs[0].size(); // assuming all vectors have the same response size*/
+/*  madness::Tensor<double> result(nA, nB);*/
+/**/
+/*  for (size_t k = 0; k < num_rf; ++k) {*/
+/*    vector_real_function_3d Ak(nA), Bk(nB);*/
+/*    for (size_t i = 0; i < nA; ++i)*/
+/*      Ak[i] = A_vecs[i][k];*/
+/*    for (size_t j = 0; j < nB; ++j)*/
+/*      Bk[j] = B_vecs[j][k];*/
+/**/
+/*    result += matrix_inner(world, Ak, Bk);*/
+/*  }*/
+/**/
+/*  return result;*/
+/*}*/
 
 class PropertyManager {
 public:
-  explicit PropertyManager(const std::string &filename) : filename_(filename) {
+  explicit PropertyManager(World &world, const std::string &filename)
+      : filename_(filename) {
     if (fs::exists(filename_)) {
-      std::ifstream in(filename_);
-      in >> data_;
+      data_ = broadcast_json_file(world, filename_); // Load JSON data
     } else {
       data_["polarizability"] = json::object();
       data_["hyperpolarizability"] = json::object();
@@ -39,20 +142,14 @@ public:
 
   bool has_alpha(double omega, std::string dir) const {
     // also check if they are the same size
-    auto saved_dir = data_["polarizability"][freq_str(omega)]["directions"]
-                         .get<std::string>();
-
-    if (saved_dir.size() != dir.size()) {
-      return false;
-    }
-
-    std::string omega_str = freq_str(omega);
-    return data_["polarizability"].contains(omega_str) &&
-           !data_["polarizability"][omega_str].is_null();
+    //
+    return data_.contains("polarizability") &&
+           data_["polarizability"].contains(freq_str(omega)) &&
+           data_["polarizability"][freq_str(omega)].contains(dir) &&
+           !data_["polarizability"][freq_str(omega)][dir].is_null();
   }
 
   // Store a 3-element beta result for a given BC input pair (e.g., xx) at ω1,
-  // ω2
   void set_beta(double omega1, double omega2, const std::string &bc,
                 const madness::Tensor<double> &tensor) {
     data_["hyperpolarizability"][freq_str(omega1)][freq_str(omega2)][bc] =
@@ -67,7 +164,7 @@ public:
     return beta.contains(freq_str(omega1)) &&
            beta[freq_str(omega1)].contains(freq_str(omega2)) &&
            beta[freq_str(omega1)][freq_str(omega2)].contains(bc) &&
-           !beta[freq_str(omega1)][freq_str(omega2)][bc].is_null();
+           !beta[freq_str(omega1)][freq_str(omega2)][bc].is_null() && false;
   }
 
   void print_alpha_table() const {
@@ -75,9 +172,7 @@ public:
       std::cout << "No polarizability data found.\n";
       return;
     }
-
     std::cout << "\n📐 Polarizability (α) Tensor Components:\n";
-
     // Build header based on available directions
     for (const auto &[freq_str, tensor_json] :
          data_["polarizability"].items()) {
@@ -212,222 +307,178 @@ void initialize_property_structure(
   pm.save();
 }
 
+/**
+ * @brief Computes the polarizability tensor (α) for a given set of
+ * frequencies and directions.
+ *
+ * @param world The MADNESS world object.
+ * @param state_map A map of response states computed from perturbations.
+ * @param gs The ground state data.
+ * @param frequencies A vector of frequencies for which to compute α.
+ * @param directions A string of characters representing the directions
+ * for the perturbations.
+ * @param pm The property manager to store the computed α tensor.
+ */
 void compute_alpha(World &world,
-                   const std::map<std::string, ResponseState> &state,
+                   std::map<std::string, ResponseState> &state_map,
                    const GroundStateData &gs,
                    const std::vector<double> &frequencies,
                    const std::string &directions, PropertyManager &pm) {
-
-  size_t num_directions = directions.size();
-  auto num_orbitals = gs.getNumOrbitals();
-  auto num_frequencies = frequencies.size();
-
-  if (world.rank() == 0) {
-    std::cout << "Number of orbitals: " << num_orbitals << "\n";
-    std::cout << "Number of frequencies: " << num_frequencies << "\n";
-    std::cout << "Number of directions: " << num_directions << "\n";
-  }
-
-  std::vector<ResponseState> active_states(num_directions);
-  std::vector<vector_real_function_3d> VP(num_directions);
-  std::vector<ResponseVector> active_vec(num_directions);
+  const size_t num_directions = directions.size();
+  const size_t num_orbitals = gs.getNumOrbitals();
+  const size_t num_frequencies = frequencies.size();
+  const bool is_restricted = gs.isSpinRestricted();
 
   if (world.rank() == 0) {
-    std::cout << "Computing polarizability for frequencies: ";
-    for (const auto &freq : frequencies) {
-      std::cout << freq << " ";
-    }
-    std::cout << "\n";
+    print("▶️ Computing α tensor for", num_directions, "directions and",
+          num_frequencies, "frequencies.");
   }
 
-  for (int d = 0; d < directions.size(); d++) {
-    if (world.rank() == 0) {
-      std::cout << "Computing polarizability for direction: " << directions[d]
-                << "\n";
-    }
-    DipolePerturbation pert{directions[d]};
+  std::vector<vector_real_function_3d> perturbations;
+  std::vector<ResponseVector> load_vector(num_directions);
 
-    ResponseState state(pert, PerturbationType::Dipole, frequencies,
-                        {FunctionDefaults<3>::get_thresh()},
-                        gs.isSpinRestricted());
-    if (world.rank() == 0) {
-      std::cout << "Perturbation: " << state.perturbationDescription() << "\n";
-    }
-    active_states[d] = state;
-    VP[d] = state.perturbation_vector(world, gs);
+  std::vector<std::string> direction_keys;
+  for (const char &dir : directions) {
+    direction_keys.push_back(std::string("Dipole_") + std::string(1, dir));
+  }
+  if (world.rank() == 0) {
+    print("Direction keys:", direction_keys);
   }
 
-  for (int i = 0; i < num_frequencies; i++) {
-    madness::Tensor<double> alpha(num_directions, num_directions);
-    double alpha_factor = -2.0;
-    auto omega = frequencies[i];
-    if (pm.has_alpha(frequencies[i], directions)) {
+  for (const auto &dir : direction_keys) {
+    if (state_map.find(dir) == state_map.end()) {
+      throw std::runtime_error("State not found in state_map: " + dir);
+    } else {
+      perturbations.push_back(state_map.at(dir).perturbation_vector(world, gs));
+    }
+  }
+
+  for (size_t f = 0; f < num_frequencies; ++f) {
+    double omega = frequencies[f];
+    if (pm.has_alpha(omega, directions)) {
+      if (world.rank() == 0)
+        print("✅ Skipping already computed α at ω =", omega);
       continue;
     }
-    int num_rf = 0;
-    if (omega == 0.0) {
-      num_rf = num_orbitals;
-      alpha_factor *= 2.0;
-    } else {
-      num_rf = 2 * num_orbitals;
-      for (auto &vp_dir : VP) {
-        vp_dir.insert(vp_dir.end(), vp_dir.begin(), vp_dir.end());
+
+    double alpha_factor = (omega == 0.0) ? -4.0 : -2.0;
+    if (world.rank() == 0) {
+      print("🛠️  Computing α at ω =", omega, "for directions:", directions,
+            " alpha factor = ", alpha_factor);
+    }
+
+    std::vector<vector_real_function_3d> response_vecs(num_directions);
+    std::vector<vector_real_function_3d> perturb_vecs(num_directions);
+
+    for (size_t j = 0; j < num_directions; ++j) {
+      auto &active_state = state_map.at(direction_keys[j]);
+      active_state.set_frequency_index(f);
+      load_response_vector(world, num_orbitals, active_state, load_vector[j],
+                           active_state.thresholds.size() - 1, f);
+      response_vecs[j] = get_flat(load_vector[j]);
+      perturb_vecs[j] = perturbations[j];
+
+      if (omega != 0.0) {
+        // Duplicate for dynamic response
+        perturb_vecs[j].insert(perturb_vecs[j].end(), perturb_vecs[j].begin(),
+                               perturb_vecs[j].end());
       }
     }
-    for (int j = 0; j < num_directions; j++) {
-      auto &active_state = active_states[j];
-      if (world.rank() == 0) {
-        std::cout << "Loading response vector for perturbation: "
-                  << active_state.perturbationDescription() << "\n";
-      }
-      load_response_vector(world, num_orbitals, active_states[j], 0, i,
-                           active_vec[j]);
-    }
-    world.gop.fence();
-    for (int k = 0; k < num_rf; k++) {
-      auto response_k = vector_real_function_3d(num_directions);
-      auto vp_k = vector_real_function_3d(num_directions);
-      for (int j = 0; j < num_directions; j++) {
-        response_k[j] =
-            std::visit([&](auto &v) { return v.flat[k]; }, active_vec[j]);
-        vp_k[j] = VP[j][k];
-      }
-      world.gop.fence();
-      alpha += matrix_inner(world, response_k, vp_k);
-    }
-    world.gop.fence();
+
+    // Compute α using the utility
+    madness::Tensor<double> alpha = compute_response_inner_product_tensor(
+        world, response_vecs, perturb_vecs, true,
+        "alpha_contribs_" + std::to_string(f));
+
     alpha *= alpha_factor;
-    world.gop.fence();
+    if (world.rank() == 0) {
+      print("α tensor size:", alpha.size(), "x", alpha.size());
+      print("α= ", alpha);
+    }
+
     pm.set_alpha(omega, alpha, directions);
   }
   pm.save();
 }
 
-
-void compute_beta(World &world,
-                  const std::map<std::string, ResponseState> &state,
-                  const GroundStateData &gs,
+void compute_beta(World &world, const GroundStateData &gs,
                   const std::vector<double> &frequencies,
                   const std::string &directions, PropertyManager &pm) {
+  const bool is_spin_restricted = gs.isSpinRestricted();
+  const size_t num_orbitals = gs.getNumOrbitals();
 
-  size_t num_directions = directions.size();
-  auto num_orbitals = gs.getNumOrbitals();
-  auto num_frequencies = frequencies.size();
+  auto vbc_computer =
+      VBCComputer(world, gs, frequencies, directions, is_spin_restricted);
 
-  if (world.rank() == 0) {
-    std::cout << "Number of orbitals: " << num_orbitals << "\n";
-    std::cout << "Number of frequencies: " << num_frequencies << "\n";
-    std::cout << "Number of directions: " << num_directions << "\n";
-  }
+  const auto &BC_pairs = vbc_computer.get_BC_pairs();
+  const size_t num_pairs = BC_pairs.size();
 
-  std::vector<ResponseState> active_states(num_directions);
-  std::vector<vector_real_function_3d> VP(num_directions);
-  std::vector<ResponseVector> active_vec(num_directions);
+  for (size_t i = 0; i < frequencies.size(); ++i) {
+    for (size_t j = i; j < frequencies.size(); ++j) {
+      double omega1 = frequencies[i];
+      double omega2 = frequencies[j];
+      double omegaA = omega1 + omega2;
 
-  if (world.rank() == 0) {
-    std::cout << "Computing polarizability for frequencies: ";
-    for (const auto &freq : frequencies) {
-      std::cout << freq << " ";
-    }
-    std::cout << "\n";
-  }
+      for (size_t bc_index = 0; bc_index < num_pairs; ++bc_index) {
+        auto [B, C] = BC_pairs[bc_index];
+        std::string bc = std::string() + B + C;
 
-  std::map<char, ResponseState> state_map;
-  std::map<char, vector_real_function_3d> perturbation_map;
-  for (int d = 0; d < directions.size(); d++) {
-    if (world.rank() == 0) {
-      std::cout << "Computing polarizability for direction: " << directions[d]
-                << "\n";
-    }
-    DipolePerturbation pert{directions[d]};
+        if (pm.has_beta(omega1, omega2, bc)) {
+          if (world.rank() == 0)
+            print("✅ Skipping β(", bc, ") at (ω1, ω2) =", omega1, omega2);
+          continue;
+        }
 
-    ResponseState state(pert, PerturbationType::Dipole, frequencies,
-                        {FunctionDefaults<3>::get_thresh()},
-                        gs.isSpinRestricted());
-    if (world.rank() == 0) {
-      std::cout << "Perturbation: " << state.perturbationDescription() << "\n";
-    }
-    state_map[directions[d]] = state;
-    perturbation_map[directions[d]] = state.perturbation_vector(world, gs);
-  }
+        if (world.rank() == 0)
+          print("🛠️  Computing β(", bc, ") at (ω1, ω2) =", omega1, omega2);
 
-  // all BC required during one frequency pair
-  auto BC_pairs = std::vector<std::pair<char, char>>();
-  for (int i = 0; i < num_directions; i++) {
-    for (int j = i + 1; j < num_directions; j++) {
-      BC_pairs.push_back({directions[i], directions[j]});
-    }
-  }
+        // Load or compute the VBC vector
+        auto vbc_vec = vbc_computer.compute_and_save(bc_index, i, j);
 
-  vector<int> bfreq_index;
-  vector<int> cfreq_index;
-  vector<int> bc_index;
+        // Load LHS response states (for output directions)
+        std::vector<ResponseState> lhs_states;
+        std::vector<ResponseVector> lhs_responses(directions.size());
 
-  for (int b = 0; b < num_frequencies; b++) {
-    for (int c = b; c < num_frequencies; b++) {
+        for (size_t k = 0; k < directions.size(); ++k) {
+          char A = directions[k];
+          auto state = vbc_computer.get_state(A);
+          state.set_frequency_index(state.frequency_map.at(omegaA));
+          lhs_states.push_back(state);
 
-      for (int bc = 0; bc < BC_pairs.size(); bc++) {
-        bfreq_index.push_back(b);
-        cfreq_index.push_back(c);
-        bc_index.push_back(bc);
+          load_response_vector(world, num_orbitals, state, lhs_responses[k], 0,
+                               state.current_frequency_index);
+        }
+
+        // Convert LHS responses to flat components
+        std::vector<vector_real_function_3d> lhs_flat;
+
+        for (size_t k = 0; k < directions.size(); ++k) {
+          auto &resp = lhs_responses[k];
+          auto flat = get_flat(resp);
+          if (omegaA == 0.0) {
+            flat.insert(flat.end(), flat.begin(),
+                        flat.end()); // replicate for static
+          }
+          lhs_flat.push_back(flat);
+        }
+
+        // Convert VBC to flat
+        auto vbc_flat = get_flat(vbc_vec);
+        // Compute inner product (lhs ⋅ vbc) → Tensor(3)
+        madness::Tensor<double> beta_tensor =
+            compute_response_inner_product_tensor(
+                world, lhs_flat, {vbc_flat}, true,
+                "beta_contribs" + std::to_string(i));
+        beta_tensor *= -2.0; // factor of -2 for beta
+        if (world.rank() == 0) {
+          print("β tensor size:", beta_tensor.size(), "x", beta_tensor.size());
+          print("β= ", beta_tensor);
+        }
+
+        pm.set_beta(omega1, omega2, bc, beta_tensor);
       }
     }
   }
-  // Write VBC macro task to write a vector of bools indicating if it
-  // successfully constructed it's VBC rhs and saved it to disk.
-  
 
-  // Then for each set of lhs, (X,Y,Z) load all "connecting" VBCs, and compute tensor
-  // component.... example
-  //
-  // XYZ(2) connects VBC(0,2) and VBC(1,1)
-  // XYZ(3) connects VBC(0,3) and VBC(1,2)
-  //
-  // A note, we need a map from frequency to frequency index,
-  
-
-  for (int i = 0; i < num_frequencies; i++) {
-    madness::Tensor<double> alpha(num_directions, num_directions);
-    double alpha_factor = -2.0;
-    auto omega = frequencies[i];
-    if (pm.has_alpha(frequencies[i], directions)) {
-      continue;
-    }
-    int num_rf = 0;
-    if (omega == 0.0) {
-      num_rf = num_orbitals;
-      alpha_factor *= 2.0;
-    } else {
-      num_rf = 2 * num_orbitals;
-      for (auto &vp_dir : VP) {
-        vp_dir.insert(vp_dir.end(), vp_dir.begin(), vp_dir.end());
-      }
-    }
-    for (int j = 0; j < num_directions; j++) {
-      auto &active_state = active_states[j];
-      if (world.rank() == 0) {
-        std::cout << "Loading response vector for perturbation: "
-                  << active_state.perturbationDescription() << "\n";
-      }
-      load_response_vector(world, num_orbitals, active_states[j], 0, i,
-                           active_vec[j]);
-    }
-    world.gop.fence();
-    for (int k = 0; k < num_rf; k++) {
-      auto response_k = vector_real_function_3d(num_directions);
-      auto vp_k = vector_real_function_3d(num_directions);
-      for (int j = 0; j < num_directions; j++) {
-        response_k[j] =
-            std::visit([&](auto &v) { return v.flat[k]; }, active_vec[j]);
-        vp_k[j] = VP[j][k];
-      }
-      world.gop.fence();
-      alpha += matrix_inner(world, response_k, vp_k);
-    }
-    world.gop.fence();
-    alpha *= alpha_factor;
-    world.gop.fence();
-    pm.set_alpha(omega, alpha, directions);
-  }
   pm.save();
 }

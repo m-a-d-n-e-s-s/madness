@@ -41,70 +41,61 @@ solve_response_vector(World &world, const ResponseManager &rm,
       response);
 }
 
-inline void promote_response_vector(World &world, ResponseVector &guess,
-                                    const ResponseVector &previous_response) {
-  if (std::holds_alternative<StaticRestrictedResponse>(previous_response)) {
-    if (world.rank() == 0) {
-      madness::print("Promoting static response");
-    }
+inline void promote_response_vector(World &world,
+                                    const ResponseVector &promote_from,
+                                    ResponseVector &promote_to) {
+  if (std::holds_alternative<StaticRestrictedResponse>(promote_from)) {
+    if (world.rank() == 0)
+      madness::print("🔁 Promoting static restricted → dynamic restricted");
+    const auto &prev_resp = std::get<StaticRestrictedResponse>(promote_from);
 
-    auto &prev_resp = std::get<StaticRestrictedResponse>(previous_response);
-    auto &current_resp = std::get<DynamicRestrictedResponse>(guess);
-
-    auto norm_prev = norm2s(world, prev_resp.flat);
-
-    if (world.rank() == 0) {
-      madness::print("Norm of previous response:", norm_prev);
-    }
-
-    // copy x into y
+    DynamicRestrictedResponse current_resp;
     current_resp.x_alpha = copy(world, prev_resp.x_alpha);
     current_resp.y_alpha = copy(world, prev_resp.x_alpha);
     current_resp.flatten();
+    promote_to = current_resp;
 
-    auto norm_current = norm2s(world, current_resp.flat);
-    if (world.rank() == 0) {
-      madness::print("Norm of current response:", norm_current);
-    }
+  } else if (std::holds_alternative<StaticUnrestrictedResponse>(promote_from)) {
+    if (world.rank() == 0)
+      madness::print("🔁 Promoting static unrestricted → dynamic unrestricted");
+    const auto &prev_resp = std::get<StaticUnrestrictedResponse>(promote_from);
 
-  } else if (std::holds_alternative<StaticUnrestrictedResponse>(
-                 previous_response)) {
-    if (world.rank() == 0) {
-      madness::print("Promoting static unrestricted response");
-    }
-    auto &prev_resp = std::get<StaticUnrestrictedResponse>(previous_response);
-    auto &current_resp = std::get<DynamicUnrestrictedResponse>(guess);
-    // copy x into y
+    DynamicUnrestrictedResponse current_resp;
     current_resp.x_alpha = copy(world, prev_resp.x_alpha);
     current_resp.x_beta = copy(world, prev_resp.x_beta);
     current_resp.y_alpha = copy(world, prev_resp.x_alpha);
     current_resp.y_beta = copy(world, prev_resp.x_beta);
     current_resp.flatten();
-  } else if (std::holds_alternative<DynamicRestrictedResponse>(
-                 previous_response)) {
-    if (world.rank() == 0) {
-      madness::print("Promoting dynamic response");
-    }
+    promote_to = current_resp;
 
-    auto &prev_resp = std::get<DynamicRestrictedResponse>(previous_response);
-    auto &current_resp = std::get<DynamicRestrictedResponse>(guess);
+  } else if (std::holds_alternative<DynamicRestrictedResponse>(promote_from)) {
+    if (world.rank() == 0)
+      madness::print("📥 Copying dynamic restricted response");
+    const auto &prev_resp = std::get<DynamicRestrictedResponse>(promote_from);
+
+    DynamicRestrictedResponse current_resp;
     current_resp.x_alpha = copy(world, prev_resp.x_alpha);
     current_resp.y_alpha = copy(world, prev_resp.y_alpha);
     current_resp.flatten();
-  } else {
-    if (world.rank() == 0) {
-      madness::print("Promoting dynamic unrestricted response");
-    }
-    // DynamicUnrestricted case
-    auto &prev_resp = std::get<DynamicUnrestrictedResponse>(previous_response);
-    auto &current_resp = std::get<DynamicUnrestrictedResponse>(guess);
+    promote_to = current_resp;
+
+  } else if (std::holds_alternative<DynamicUnrestrictedResponse>(
+                 promote_from)) {
+    if (world.rank() == 0)
+      madness::print("📥 Copying dynamic unrestricted response");
+    const auto &prev_resp = std::get<DynamicUnrestrictedResponse>(promote_from);
+
+    DynamicUnrestrictedResponse current_resp;
     current_resp.x_alpha = copy(world, prev_resp.x_alpha);
     current_resp.x_beta = copy(world, prev_resp.x_beta);
     current_resp.y_alpha = copy(world, prev_resp.y_alpha);
     current_resp.y_beta = copy(world, prev_resp.y_beta);
     current_resp.flatten();
+    promote_to = current_resp;
+  } else {
+    throw std::runtime_error(
+        "Unknown response variant in promote_response_vector");
   }
-  // load the previous frequency response from disk
 }
 
 inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
@@ -159,14 +150,14 @@ inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
                      state.description());
     }
     // At this point, I know that I'm either not saved or not at the final
-    if (is_saved && load_response_vector(world, num_orbitals, state,
-                                         thresh_index, freq_index, guess)) {
+    if (is_saved && load_response_vector(world, num_orbitals, state, guess,
+                                         thresh_index, freq_index)) {
       if (world.rank() == 0) {
         madness::print("📂 Loaded response vector from disk.");
       }
     } else if (thresh_index > 0 &&
-               load_response_vector(world, num_orbitals, state,
-                                    thresh_index - 1, freq_index, guess)) {
+               load_response_vector(world, num_orbitals, state, guess,
+                                    thresh_index - 1, freq_index)) {
       if (world.rank() == 0) {
         madness::print("📂 Loaded response vector from previous protocol.");
       }
@@ -178,12 +169,12 @@ inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
           madness::print("📂 Promoting previous in-memory response as guess.");
         }
       } else {
-        load_response_vector(world, num_orbitals, state, thresh_index,
-                             freq_index - 1, previous_response);
+        load_response_vector(world, num_orbitals, state, previous_response,
+                             thresh_index, freq_index - 1);
       }
 
       world.gop.fence();
-      promote_response_vector(world, guess, previous_response);
+      promote_response_vector(world, previous_response, guess);
     } else {
       // Static case: just initialize
       guess = initialize_guess_vector(world, ground_state, state);

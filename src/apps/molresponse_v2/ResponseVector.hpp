@@ -106,6 +106,15 @@ using ResponseVector =
     std::variant<StaticRestrictedResponse, DynamicRestrictedResponse,
                  StaticUnrestrictedResponse, DynamicUnrestrictedResponse>;
 
+/**
+ * @brief Create a ResponseVector based on the number of orbitals and
+ * response type.
+ *
+ * @param num_orbitals The number of orbitals.
+ * @param is_static Whether the response is static.
+ * @param is_unrestricted Whether the response is unrestricted.
+ * @return ResponseVector The created ResponseVector.
+ */
 inline ResponseVector make_response_vector(size_t num_orbitals, bool is_static,
                                            bool is_unrestricted) {
   if (!is_unrestricted && is_static) {
@@ -117,4 +126,16 @@ inline ResponseVector make_response_vector(size_t num_orbitals, bool is_static,
   } else { // unrestricted && dynamic
     return DynamicUnrestrictedResponse(num_orbitals);
   }
+}
+
+/**
+ * @brief Get the flat vector from a ResponseVector.
+ *
+ * @param vec The ResponseVector to extract the flat vector from.
+ * @return const vector_real_function_3d& The flat vector.
+ */
+inline const vector_real_function_3d &get_flat(const ResponseVector &vec) {
+  return std::visit(
+      [](const auto &v) -> const vector_real_function_3d & { return v.flat; },
+      vec);
 }

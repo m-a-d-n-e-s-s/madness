@@ -2,7 +2,6 @@
 #include "GroundStateData.hpp"
 #include "ResponseDebugLogger.hpp"
 #include "ResponseManager.hpp"
-#include "ResponseSolverUtils.hpp"
 #include "ResponseState.hpp"
 #include "ResponseVector.hpp"
 #include <madness/mra/nonlinsol.h>

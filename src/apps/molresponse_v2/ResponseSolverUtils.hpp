@@ -1,8 +1,4 @@
 #pragma once
-#include "GroundStateData.hpp"
-#include "ResponseManager.hpp"
-#include "ResponseState.hpp"
-#include "ResponseVector.hpp"
 #include <madness/mra/nonlinsol.h>
 
 namespace ResponseSolverUtils {
@@ -33,7 +29,6 @@ inline double inner(World &world, const vector_real_function_3d &x,
     result += x[i].inner(y[i]);
   }
   return result;
-
 }
 
 inline double do_step_restriction(World &world, const vecfuncT &x,
