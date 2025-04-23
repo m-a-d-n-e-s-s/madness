@@ -27,6 +27,7 @@ namespace madness {
           int max_iter;                ///< Maximum number of iterations
           double small;                ///< Minimum length scale to be resolved
           double thresh;               ///< Accuracy criterion when truncating
+          double dconv;                ///< Accuracy criterion for charge density. Defaults to thresh.
           int k;                       ///< Number of legendre polynomials in scaling basis
           bool kain;                   ///< Turns on KAIN nonlinear solver 
           int maxsub;                  ///< Sets maximum subspace size for KAIN
@@ -59,6 +60,7 @@ namespace madness {
           , max_iter(20)
           , small(1e-5)
           , thresh(1e-6)
+          , dconv(1e-6)
           , k(8)
           , kain(false)
           , maxsub(10)
@@ -105,6 +107,10 @@ namespace madness {
                     }
                     else if (s == "thresh"){
                          f >> thresh;
+                         dconv = thresh;
+                    }
+                    else if (s == "dconv"){
+                         f >> dconv;
                     }
                     else if (s == "k"){
                          f >> k;
