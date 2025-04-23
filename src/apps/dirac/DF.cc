@@ -501,10 +501,10 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
 
      // Read in archive, but first find out if we're reading an nwchem file or other archive
      if(DFparams.nwchem){
-          Init_params.readnw(world, DFparams.archive, DFparams.Krestricted);
+          Init_params.readnw(world, DFparams.archive, DFparams.speed_of_light, DFparams.Krestricted);
      }
      else{
-          Init_params.read(world, DFparams.archive, DFparams.restart, DFparams.Krestricted);
+          Init_params.read(world, DFparams.archive, DFparams.speed_of_light, DFparams.restart, DFparams.Krestricted);
      }
 
      //print initialization parameters and molecule geometry
@@ -555,11 +555,10 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
 }
 
 //returns a new Fcwf that is the result of applying the Dirac free-particle hamiltonian on psi
-Fcwf apply_T(World& world, Fcwf& psi){
-     double myc = 137.03599917697017; //speed of light in atomic units from CODATA 2022
+Fcwf apply_T(World& world, Fcwf& psi, const double& myc){
      std::complex<double> myi(0,1);
      auto D = madness::gradient_operator<std::complex<double>, 3>(world);
-     Fcwf Tpsi(world);
+     Fcwf Tpsi(world, myc);
      
      //reconstruct psi
      psi.reconstruct();
@@ -586,7 +585,7 @@ Fcwf apply_T(World& world, Fcwf& psi){
 
 //function to calculate the kinetic + rest energy expectation value using Dirac Hamiltonian c*\alpha*p+\Beta*m*c*c
 double DF::rele(World& world, Fcwf& psi){
-     Fcwf Tpsi = apply_T(world, psi);
+     Fcwf Tpsi = apply_T(world, psi, DFparams.speed_of_light);
      std::complex<double> energy  = inner(psi, Tpsi);
      return energy.real();
 }
@@ -599,12 +598,12 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
 
      //Calculate and accumulate exchange contributions
      unsigned int n = Init_params.num_occupied;
-     double myc = 137.03599917697017; //speed of light in atomic units from CODATA 2022
+     double myc = DFparams.speed_of_light;
      double myc2 = myc * myc;
 
      //zero out Kpsis
      for(unsigned int i = 0; i < n; i++){
-          Kpsis[i] = Fcwf(world);
+          Kpsis[i] = Fcwf(world, DFparams.speed_of_light);
      }
 
      //reconstruct
@@ -894,7 +893,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      //add in T_psi
      if(world.rank()==0) print("          Adding T*psi");
      for(unsigned int j = 0; j < n; j++){
-          temp_orbitals[j] += apply_T(world, occupieds[j]);  //add in "kinetic" term
+          temp_orbitals[j] += apply_T(world, occupieds[j], DFparams.speed_of_light);  //add in "kinetic" term
      }
 
      //Now that we have F*psi (temp_orbitals), we can get on with integration
@@ -1116,10 +1115,9 @@ void DF::orthogonalize_inplace(World& world){
 //Apply's Green's function to Vpsi (a Fcwf). Overwrites Vpsi with new Fcwf
 //Use of this function has largely been replaced by apply_BSH_new, but
 //this one is kept in case one wants to avoid use of the derivative operator.
-void apply_BSH(World& world, Fcwf& Vpsi, double& eps, double& small, double& thresh){
+void apply_BSH(World& world, Fcwf& Vpsi, const double& eps, const double& small, const double& thresh, const double& myc){
 
      //necessary constants
-     double myc = 137.03599917697017; //speed of light in a.u. from CODATA 2022
      double c2 = myc*myc; //speed of light squared
      std::complex<double> myi(0,1); //imaginary number i
      std::complex<double> ic = myi*myc; //i*c
@@ -1186,10 +1184,9 @@ void apply_BSH(World& world, Fcwf& Vpsi, double& eps, double& small, double& thr
 //the derivative operator is faster than application of an integral operator.
 //
 //Empirically this has resulted in no decrease in accuracy, despite reliance on the "noisier" derivative operator
-void apply_BSH_new(World& world, Fcwf& Vpsi, double& eps, double& small, double& thresh){
+void apply_BSH_new(World& world, Fcwf& Vpsi, const double& eps, const double& small, const double& thresh, const double& myc){
 
      //necessary constants
-     double myc = 137.03599917697017; //speed of light in a.u. from CODATA 2022
      double c2 = myc*myc; //speed of light squared
      std::complex<double> myi(0,1); //imaginary number i
      //std::complex<double> ic = myi*myc; //i*c
@@ -1206,7 +1203,7 @@ void apply_BSH_new(World& world, Fcwf& Vpsi, double& eps, double& small, double&
      Vpsi = apply(world, op, Vpsi);
 
      //Apply (1/c^2)(H_D + eps) to Vpsi. Using apply_T for convenience, but this requires adding 2c^2Vpsi
-     Vpsi = apply_T(world, Vpsi)*(1.0/c2) + Vpsi * ((eps+2*c2)/c2);
+     Vpsi = apply_T(world, Vpsi, myc)*(1.0/c2) + Vpsi * ((eps+2*c2)/c2);
 
 }
 
@@ -1506,7 +1503,7 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
      double residualnorm;
 
      //A working FCWF that will have multiple uses
-     Fcwf temp_function(world);
+     Fcwf temp_function(world, DFparams.speed_of_light);
 
      //Boolean used in while loop.
      bool iterate_again = true; //If initialize to false = assume iterations will stop
@@ -1547,7 +1544,7 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
           temp_function.truncate();
 
           //temp_function now holds (K-V-J)psi, so apply the BSH
-          apply_BSH_new(world,  temp_function, energies[j], DFparams.small, DFparams.thresh);
+          apply_BSH_new(world,  temp_function, energies[j], DFparams.small, DFparams.thresh, DFparams.speed_of_light);
 
           //truncate
           temp_function.truncate();
@@ -1590,10 +1587,10 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
 
      //If any residual is still larger than the tolerance then we need to iterate again.
      //Can just enforce this on the max residual
-     auto drho = (prev_rho - rho).norm2();
-     if(world.rank()==0) printf("                density norm: %.10e\n",drho);
-     if(world.rank()==0) printf("                tolerance: %.10e\n",DFparams.dconv);
      const auto nelec = rho.trace();
+     auto drho = (prev_rho - rho).norm2();
+     if(world.rank()==0) printf("\ndensity norm: %.10e\n",drho);
+     if(world.rank()==0) printf("tolerance: %.10e\n",DFparams.dconv * nelec);
      if(maxresidual <= tolerance) {
           iterate_again = false;
           if (world.rank() == 0)  printf("\nConverged due to residuals");
@@ -1693,7 +1690,7 @@ DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
      double exchange_energy = 0.0;
      double nuclear_attraction_energy = 0.0;
      double old_total_energy = total_energy;
-     double myc = 137.03599917697017; //speed of light in a.u. from CODATA 2022
+     double myc = DFparams.speed_of_light;
      Tensor<double> nuclear_attraction_tensor;
      Tensor<double> coulomb_tensor;
      Tensor<double> exchange_tensor;
@@ -1863,7 +1860,7 @@ void DF::solve_occupied(World & world)
      real_convolution_3d op = CoulombOperator(world,DFparams.small,DFparams.thresh);
 
      //allocator is useful to have, but also required for use of KAIN
-     Fcwf_vector_allocator allocator(world,Init_params.num_occupied);
+     Fcwf_vector_allocator allocator(world, Init_params.num_occupied, DFparams.speed_of_light);
 
      //initialize kain solver
      XNonlinearSolver<std::vector<Fcwf>, std::complex<double>, Fcwf_vector_allocator> kainsolver(allocator);
@@ -1955,7 +1952,7 @@ void DF::solve_occupied(World & world)
      //     complex_function_3d Lx = one*Dx(LL);
      //     complex_function_3d Ly = one*Dy(LL);
      //     complex_function_3d Lz = one*Dz(LL);
-     //     Fcwf temp(world);
+     //     Fcwf temp(world, DFparams.speed_of_light);
 
      //     temp[0] = Lz*occupieds[j][0] + (Lx - myi*Ly)*occupieds[j][1];
      //     temp[1] =  (Lx + myi*Ly)*occupieds[j][0] - Lz*occupieds[j][1];

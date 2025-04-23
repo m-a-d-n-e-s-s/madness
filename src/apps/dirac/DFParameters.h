@@ -40,7 +40,8 @@ namespace madness {
           bool nwchem;                 ///< Indicates archive given is actually an nwchem file for starting the job
           bool lineplot;               ///< Whether or not to make lineplots at the end of the job
           bool no_compute;             ///< If true, will skip all computation
-          double bohr_rad;             ///< bohr radius in fm (default: 52917.7211)
+          double bohr_rad;             ///< bohr radius in fm (default: 52917.7210544 CODATA2022) 
+          double speed_of_light;       ///< speed_of_light in au (default: 137.03599917697017 CODATA2022)
           int min_iter;                ///< minimum number of iterations (default: 2)
           bool Krestricted;            ///< Calculation should be performed in Kramers-restricted manner (default: false)
           //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -74,6 +75,7 @@ namespace madness {
           , lineplot(false)
           , no_compute(false)
           , bohr_rad(52917.7210544)  // bohr radius in fm from CODATA 2022
+          , speed_of_light(137.03599917697017) // speed of light in atomic units from CODATA 2022
           , min_iter(2)
           , Krestricted(false)
           {}
@@ -151,6 +153,9 @@ namespace madness {
                     else if (s == "bohr_rad"){
                          f >> bohr_rad;
                     }
+                    else if (s == "speed_of_light"){
+                         f >> speed_of_light;
+                    }
                     else if (s == "min_iter"){
                          f >> min_iter;
                     }
@@ -173,6 +178,8 @@ namespace madness {
                madness::print("          Refinement Threshold:", thresh);
                madness::print("                             k:", k);
                madness::print("Smallest Resolved Length Scale:", small);
+               madness::print("             Bohr radius in fm:", bohr_rad);
+               madness::print("          Speed of light in au:", speed_of_light);
                madness::print("                Max Iterations:", max_iter);
                madness::print("               Use KAIN Solver:", kain);
                if(kain) madness::print("     KAIN Solver Subspace Size:", maxsub);
