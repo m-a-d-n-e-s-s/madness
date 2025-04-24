@@ -2,6 +2,7 @@
 #define RESPONSE_STATE_HPP
 #include "GroundStateData.hpp"
 #include "Perturbation.hpp"
+#include "molecular_functors.h"
 #include "vmra.h"
 #include <SCF.h>
 #include <filesystem>
@@ -107,104 +108,103 @@ struct ResponseState : public AbstractResponseDescriptor {
 
   [[nodiscard]] std::string description() const {
     std::ostringstream oss;
-    oss << perturbationDescription() << " at freq " << current_frequency()
+    oss << describe_perturbation(pert) << " at freq " << current_frequency()
         << " (thresh=" << std::scientific << current_threshold() << ")";
     return oss.str();
   }
 
-  // Clearly named helper functions to get human-readable perturbation info
-  [[nodiscard]] std::string perturbationDescription() const {
-    switch (type) {
-    case PerturbationType::Dipole:
-      return "Dipole_" +
-             std::string(1,
-                         std::get<DipolePerturbation>(perturbation).direction);
-    case PerturbationType::NuclearDisplacement: {
-      auto nuc = std::get<NuclearDisplacementPerturbation>(perturbation);
-      return "NuclearDisplacement_atom_" + std::to_string(nuc.atom_index) +
-             " direction " + nuc.direction;
-    }
-    case PerturbationType::Magnetic:
-      return "Magnetic_" +
-             std::string(
-                 1, std::get<MagneticPerturbation>(perturbation).direction);
-    }
-    return "Unknown";
-  }
-
-  vector_real_function_3d
-  perturbation_vector(World &world, const GroundStateData &ground_state) const {
-
-    vector_real_function_3d Vp;
-
-    switch (type) {
-    case PerturbationType::Dipole: {
-      auto dipole = std::get<DipolePerturbation>(perturbation);
-      ;
-      std::map<char, int> dipole_map = {{'x', 0}, {'y', 1}, {'z', 2}};
-      std::vector<int> f(3, 0);
-      f[dipole_map[dipole.direction]] = 1;
-      real_function_3d d =
-          real_factory_3d(world).functor(real_functor_3d(new MomentFunctor(f)));
-
-      Vp = mul(world, d, ground_state.orbitals, true);
-      Vp = ground_state.Qhat(Vp);
-      truncate(world, Vp, FunctionDefaults<3>::get_thresh(), true);
-      auto vp_norms = norm2s_T(world, Vp);
-
-      return Vp;
-    }
-    }
-    throw std::runtime_error("Unknown perturbation type");
-  }
 };
 
 struct SecondOrderResponseState : public AbstractResponseDescriptor {
-  PerturbationType type; // likely "Dipole" for VBC
-  std::pair<DipolePerturbation, DipolePerturbation> perturbations;
+  std::pair<Perturbation, Perturbation> perturbations;
   std::pair<double, double> frequencies;
   double threshold;
   bool spin_restricted = true;
 
-  SecondOrderResponseState(DipolePerturbation p1, DipolePerturbation p2,
-                           double f1, double f2, double thresh,
-                           bool spin_restricted)
-      : type(PerturbationType::Dipole), perturbations(p1, p2),
-        frequencies(f1, f2), threshold(thresh),
+  SecondOrderResponseState(Perturbation p1, Perturbation p2, double f1,
+                           double f2, double thresh, bool spin_restricted)
+      : perturbations(p1, p2), frequencies(f1, f2), threshold(thresh),
         spin_restricted(spin_restricted) {}
 
   [[nodiscard]] std::string perturbationDescription() const {
-    return "VBC_" + std::string(1, perturbations.first.direction) +
-           std::string(1, perturbations.second.direction);
+
+    return describe_perturbation(perturbations.first) + "_" +
+           describe_perturbation(perturbations.second);
   }
 
   [[nodiscard]] std::string response_filename() const {
 
-    auto pathname = fs::path("vbc");
-    if (!fs::exists(pathname)) {
-      fs::create_directory(pathname);
-    }
-
     std::ostringstream oss;
 
-    oss << "vbc/" << perturbationDescription() << "_p" << threshold << "_f"
-        << frequencies.first << "_" << frequencies.second << ".response";
+    oss << "responses/VBC_" << perturbationDescription() << "_p"
+        << std::scientific << threshold << "_f" << frequencies.first << "_"
+        << frequencies.second << ".response";
     return oss.str();
   }
   [[nodiscard]] std::string response_filename(const size_t &thresh_index,
                                               const size_t &freq_index) const {
-    std::ostringstream oss;
-    oss << "vbc/" << perturbationDescription() << "_p" << threshold << "_f"
-        << frequencies.first << "_" << frequencies.second << ".response";
-    return oss.str();
+    return response_filename();
   }
 
   [[nodiscard]] bool is_spin_restricted() const { return spin_restricted; }
 
   [[nodiscard]] bool is_static() const {
-    return std::abs(frequencies.first) < 1e-8 &&
-           std::abs(frequencies.second) < 1e-8;
+    return false; // Second order response is always dynamic (x an y response
+                  // functions)
   }
 };
+
+// -----------------------------------------------------------------------------
+// 1) Raw operator in real space, before applying to orbitals:
+//
+//    e.g. for a dipole:  V(r) = x, y or z moment
+// -----------------------------------------------------------------------------
+inline real_function_3d raw_perturbation_operator(World &world,
+                                                  const GroundStateData &gs,
+                                                  const ResponseState &state) {
+  using P = PerturbationType;
+  switch (state.type) {
+  case P::Dipole: {
+    auto d = std::get<DipolePerturbation>(state.perturbation);
+    // build the moment functor f = (1,0,0) or (0,1,0) or (0,0,1)
+    std::map<char, int> dipole_map = {{'x', 0}, {'y', 1}, {'z', 2}};
+    std::vector<int> dir(3, 0);
+    dir[dipole_map.at(d.direction)] = 1;
+    real_function_3d f =
+        real_factory_3d(world).functor(real_functor_3d{new MomentFunctor(dir)});
+    f.truncate(FunctionDefaults<3>::get_thresh());
+    return f;
+  }
+  case P::NuclearDisplacement: {
+    auto n = std::get<NuclearDisplacementPerturbation>(state.perturbation);
+    // you’d have whatever MomentDisplacementFunctor exists:
+    real_function_3d f = real_factory_3d(world).functor(
+        real_functor_3d{new madchem::MolecularDerivativeFunctor(
+            gs.molecule, n.atom_index, n.direction)});
+    f.truncate(FunctionDefaults<3>::get_thresh());
+    return f;
+  }
+  case P::Magnetic: {
+    // Not implemented yet...
+    //
+    //
+    throw std::runtime_error("Magnetic perturbation not implemented yet");
+  }
+  }
+  throw std::runtime_error("Unknown perturbation type");
+}
+
+// -----------------------------------------------------------------------------
+// 2) Apply it to the ground‐state orbitals to get your Vp basis functions.
+//    (You already have this in ResponseState::perturbation_vector.)
+// -----------------------------------------------------------------------------
+inline vector_real_function_3d
+project_perturbation_onto_orbitals(World &world, const GroundStateData &gs,
+                                   const real_function_3d &raw_op) {
+  auto vp = mul(world, raw_op, gs.orbitals, /*fence=*/true);
+  vp = gs.Qhat(vp);
+  truncate(world, vp, FunctionDefaults<3>::get_thresh(), /*fence=*/true);
+  return vp;
+}
 
 #endif // RESPONSE_STATE_HPP
