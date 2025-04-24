@@ -45,89 +45,60 @@ public:
   [[nodiscard]] GeneratedStateData generateStates() const {
     std::set<std::string> seen_ids; // Prevent duplicates
     GeneratedStateData result;
+
+    // helper lambda: given a "base" state descriptor, enumerator over all freqs
+    // and insert result only if the descriptor is unique
+    auto insert_unique_state = [&](Perturbation pert, PerturbationType ptype,
+                                   const std::vector<double> &freqs) {
+      ResponseState state(pert, ptype, freqs, thresholds_, spin_restricted_);
+      for (auto frequency : freqs) {
+        auto id = state.description() += " " + std::to_string(frequency);
+        if (seen_ids.insert(id).second) {
+          result.states.push_back(state);
+          result.state_map[id] = state;
+        }
+      }
+    };
+
     for (const auto &prop : requested_properties_) {
       switch (prop.type) {
       case MolecularPropertyType::Polarizability:
         for (char dir : prop.directions) {
-          DipolePerturbation pert{dir};
-          ResponseState state(pert, PerturbationType::Dipole, prop.frequencies,
-                              thresholds_, spin_restricted_);
-          auto state_pert_description = state.perturbationDescription();
-          for (auto frequency : prop.frequencies) {
-            auto id = state.description() += " " + std::to_string(frequency);
-            if (seen_ids.insert(id).second) {
-
-              result.states.push_back(state);
-              result.state_map[state_pert_description] = state;
-            }
-          }
+          insert_unique_state(DipolePerturbation{dir}, PerturbationType::Dipole,
+                              prop.frequencies);
         }
         break;
 
       case MolecularPropertyType::Raman:
+
+        for (char dir : prop.directions)
+          insert_unique_state(Perturbation pert, PerturbationType ptype,
+                              const std::vector<double> &freqs)(
+              DipolePerturbation{dir}, PerturbationType::Dipole,
+              prop.frequencies);
+        // b) nuclear displacement bits
+        for (int i = 0; i < molecule_.natom(); ++i)
+          for (char dir : {'x', 'y', 'z'})
+            insert_unique_state(NuclearDisplacementPerturbation{i, dir},
+                                PerturbationType::NuclearDisplacement,
+                                prop.frequencies);
+        break;
+
+      case MolecularPropertyType::Hyperpolarizability: {
+
+        std::set<double> uniq(prop.frequencies.begin(), prop.frequencies.end());
+        for (size_t b = 0; b < prop.frequencies.size(); ++b) {
+          for (size_t c = b; c < prop.directions.size(); ++c) {
+            uniq.insert(prop.frequencies[b] + prop.frequencies[c]);
+          }
+        }
+        auto freq_vector = std::vector<double>(uniq.begin(), uniq.end());
         for (char dir : prop.directions) {
-          DipolePerturbation dipole{dir};
-          ResponseState dstate(dipole, PerturbationType::Dipole,
-                               prop.frequencies, thresholds_, spin_restricted_);
-          auto state_pert_description = dstate.perturbationDescription();
-          if (seen_ids.insert(dstate.description()).second) {
-            result.states.push_back(dstate);
-            result.state_map[state_pert_description] = dstate;
-          }
+          insert_unique_state(DipolePerturbation{dir}, PerturbationType::Dipole,
+                              freq_vector);
         }
 
-        for (int i = 0; i < molecule_.natom(); ++i) {
-
-          std::string atom_id = "n" + std::to_string(i);
-
-          for (char dir : {'x', 'y', 'z'}) {
-            NuclearDisplacementPerturbation nuc{i, dir};
-            ResponseState nstate(nuc, PerturbationType::NuclearDisplacement,
-                                 prop.frequencies, thresholds_,
-                                 spin_restricted_);
-
-            for (auto frequency : prop.frequencies) {
-              nstate.description() += " " + std::to_string(frequency);
-              if (seen_ids.insert(nstate.description()).second) {
-                result.states.push_back(nstate);
-                result.state_map[nstate.description()] = nstate;
-              }
-            }
-          }
-        }
-        break;
-
-      case MolecularPropertyType::Hyperpolarizability:
-        // TODO: Multi-frequency design
-        auto input_frequencies = prop.frequencies;
-        auto input_directions = prop.directions;
-
-        std::set<double> unique_frequencies;
-
-        for (int b = 0; b < input_frequencies.size(); ++b) {
-          unique_frequencies.insert(input_frequencies[b]);
-          for (int c = b; c < input_directions.size(); ++c) {
-            unique_frequencies.insert(input_frequencies[c] +
-                                      input_frequencies[b]);
-          }
-        }
-        auto freq_vector = std::vector<double>(unique_frequencies.begin(),
-                                               unique_frequencies.end());
-        print("Unique frequencies: ", freq_vector);
-        for (char dir : input_directions) {
-          DipolePerturbation dipole{dir};
-          ResponseState dstate(dipole, PerturbationType::Dipole, freq_vector,
-                               thresholds_, spin_restricted_);
-          for (auto frequency : freq_vector) {
-            auto id = dstate.description() += " " + std::to_string(frequency);
-            if (seen_ids.insert(id).second) {
-              result.states.push_back(dstate);
-              result.state_map[dstate.description()] = dstate;
-            }
-          }
-        }
-
-        break;
+      } break;
       }
     }
 
