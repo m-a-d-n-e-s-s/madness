@@ -48,12 +48,6 @@ int main(int argc, char **argv) {
         MolecularProperty(MolecularPropertyType::Hyperpolarizability,
                           input_freq, {'x', 'y'}),
     };
-    PropertyManager prop_manager(world, "responses/properties.json");
-    initialize_property_structure(prop_manager, requested_properties);
-    if (world.rank() == 0) {
-      prop_manager.print_alpha_table();
-      prop_manager.print_beta_table();
-    }
 
     // Initialize the ResponseManager with ground-state archive
     auto ground_state =
@@ -92,7 +86,7 @@ int main(int argc, char **argv) {
         if (state.is_converged || state.current_threshold() != thresh)
           continue;
 
-        const auto state_id = state.perturbationDescription();
+        const auto state_id = state.description();
         if (metadata.final_converged(state_id)) {
           continue;
         }
@@ -119,22 +113,64 @@ int main(int argc, char **argv) {
         }
       }
     }
-    compute_alpha(world, generated_states.state_map, ground_state, input_freq,
-                  "xy", prop_manager);
-    prop_manager.save();
+
+    // After all_states have converged & been saved…
+
+    // 1) Initialize PropertyManager
+    PropertyManager pm(world, "responses/properties.json");
+    initialize_property_structure(pm, requested_properties);
     if (world.rank() == 0) {
-      prop_manager.print_alpha_table();
+      pm.print_alpha_table();
+      pm.print_beta_table();
     }
 
-    compute_beta(world, ground_state, input_freq, "xy", prop_manager);
-    prop_manager.save();
-    if (world.rank() == 0) {
-      prop_manager.print_beta_table();
+    // 2) Loop over requested properties and dispatch
+    for (auto const &prop : requested_properties) {
+      switch (prop.type) {
+      case MolecularPropertyType::Polarizability:
+        if (world.rank() == 0)
+          print("▶️ Computing polarizability α for directions ",
+                std::string(prop.directions.begin(), prop.directions.end()),
+                " at freqs ", prop.frequencies);
+        compute_alpha(
+            world, generated_states.state_map, ground_state, prop.frequencies,
+            std::string(prop.directions.begin(), prop.directions.end()), pm);
+        pm.save();
+        if (world.rank() == 0)
+          pm.print_alpha_table();
+        break;
+
+      case MolecularPropertyType::Raman:
+        if (world.rank() == 0)
+          print("▶️ Computing Raman response for directions ",
+                std::string(prop.directions.begin(), prop.directions.end()),
+                " at freqs ", prop.frequencies);
+        compute_Raman(world, ground_state, {prop.frequencies, prop.frequencies},
+                      prop.directions, pm);
+        pm.save();
+        if (world.rank() == 0)
+          pm.print_beta_table();
+        break;
+
+      case MolecularPropertyType::Hyperpolarizability:
+        if (world.rank() == 0)
+          print("▶️ Computing hyperpolarizability β for directions ",
+                std::string(prop.directions.begin(), prop.directions.end()),
+                " at freqs ", prop.frequencies);
+        compute_hyperpolarizability(world, ground_state, prop.frequencies,
+                                    prop.directions, pm);
+        pm.save();
+        if (world.rank() == 0)
+          pm.print_beta_table();
+        break;
+      }
     }
-    if (world.rank() == 0) {
+
+    // 3) Final message
+    if (world.rank() == 0)
       madness::print(
-          "\nMolecular response calculation completed successfully.");
-    }
+          "\n✅ Molecular response & property calculation complete.");
+
     // Currently just logging the progress explicitly
     world.gop.fence();
     world.gop.fence();

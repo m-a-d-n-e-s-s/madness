@@ -16,7 +16,11 @@ public:
   void start_state(const ResponseState &state) {
     std::string key = state.description();
     current_entry_ = json{
-        {"perturbation", state.perturbationDescription()},
+        {"perturbation", describe_perturbation(state.perturbation)},
+        {"frequency", state.current_frequency()},
+        {"threshold", state.current_threshold()},
+        {"iteration_values", json::array()},
+        {"iteration_timings", json::array()},
         {"frequency", state.current_frequency()},
         {"threshold", state.current_threshold()},
         {"iteration_values", json::array()},

@@ -4,11 +4,75 @@
 #include "ResponseDebugLoggerMacros.hpp"
 #include "ResponseManager.hpp"
 #include "ResponseSolverUtils.hpp"
+#include "ResponseState.hpp"
 #include "ResponseVector.hpp"
 #include "functypedefs.h"
 #include "projector.h"
 
-vector_real_function_3d StaticRestrictedSolver::ComputeRSH(
+//  TODO: Seperate out the iterate function which is the same for all solver
+//
+//  Make ResponseVector and the ResponseSolver template classes
+//
+template <typename ResponseType, typename Policy>
+static bool iterate(World &world, const ResponseManager &rm,
+                    const GroundStateData &gs, const ResponseState &state,
+                    ResponseVector &response, ResponseDebugLogger &logger,
+                    size_t max_iter, double conv_thresh, Policy policy) {
+
+  auto &rvec = std::get<ResponseType>(response);
+  auto &x = rvec.x_alpha;
+  auto &all_x = rvec.flat;
+
+  const auto thresh = FunctionDefaults<3>::get_thresh();
+  const double dconv = std::max(FunctionDefaults<3>::get_thresh(), conv_thresh);
+  const auto density_target =
+      dconv * static_cast<double>(gs.orbitals.size()) * thresh;
+
+  auto vp = perturbation_vector(world, gs,
+                                state); // if state is dyanmic, 2*num_orbitals
+
+  auto &phi0 = gs.orbitals;
+  const auto &orbital_energies = gs.getEnergies();
+  // First difference, Make bsh operators is different for each solver
+};
+
+// Make bsh operators
+
+std::vector<poperatorT> StaticRestrictedSolver::make_bsh_operators(
+    World &world, const ResponseManager &rm, const double freq,
+    const Tensor<double> &orbital_energies, const int n,
+    ResponseDebugLogger &logger) {
+
+  auto bsh_x = std::vector<poperatorT>(n);
+  double x_shifts = 0.0;
+  if ((orbital_energies[long(n) - 1] + freq) >= 0.0) {
+    x_shifts = -.05 - (freq + orbital_energies[long(n) - 1]);
+  }
+  bsh_x = ResponseSolverUtils::make_bsh_operators_response(
+      world, x_shifts, freq, orbital_energies, rm.params().lo());
+  return bsh_x;
+}
+
+std::vector<poperatorT> DynamicRestrictedSolver::make_bsh_operators(
+    World &world, const ResponseManager &rm, const double freq,
+    const Tensor<double> &orbital_energies, const int n,
+    ResponseDebugLogger &logger) {
+
+  auto bsh_x = std::vector<poperatorT>(2 * n);
+  double x_shifts = 0.0;
+  if ((orbital_energies[long(n) - 1] + freq) >= 0.0) {
+    x_shifts = -.05 - (freq + orbital_energies[long(n) - 1]);
+  }
+  bsh_x = ResponseSolverUtils::make_bsh_operators_response(
+      world, x_shifts, freq, orbital_energies, rm.params().lo());
+  auto bsh_y = ResponseSolverUtils::make_bsh_operators_response(
+      world, 0.0, -freq, orbital_energies, rm.params().lo());
+
+  bsh_x.insert(bsh_x.end(), bsh_y.begin(), bsh_y.end());
+  return bsh_x;
+}
+
+vector_real_function_3d StaticRestrictedSolver::CoupledResponseEquations(
     World &world, const GroundStateData &gs, const ResponseVector &vecs,
     const vector_real_function_3d &vp, const std::vector<poperatorT> &bsh_x,
     const ResponseManager &rm, ResponseDebugLogger &logger) {
@@ -55,7 +119,7 @@ vector_real_function_3d StaticRestrictedSolver::ComputeRSH(
   return rsh;
 }
 
-vector_real_function_3d DynamicRestrictedSolver::ComputeRSH(
+vector_real_function_3d DynamicRestrictedSolver::CoupledResponseEquations(
     World &world, const GroundStateData &gs, const ResponseVector &vecs,
     const vector_real_function_3d &vp, const std::vector<poperatorT> &bsh_x,
     const ResponseManager &rm, ResponseDebugLogger &logger) {
@@ -104,8 +168,6 @@ vector_real_function_3d DynamicRestrictedSolver::ComputeRSH(
   return rsh;
 }
 
-// (v0 + g0) * x + g[x] * phi0 + vp
-
 bool StaticRestrictedSolver::iterate(World &world, const ResponseManager &rm,
                                      const GroundStateData &gs,
                                      const ResponseState &state,
@@ -113,30 +175,21 @@ bool StaticRestrictedSolver::iterate(World &world, const ResponseManager &rm,
                                      ResponseDebugLogger &logger,
                                      size_t max_iter, double conv_thresh) {
 
-  DEBUG_LOG_VALUE(world, &logger, "orbital norms", norm2s(world, gs.orbitals));
-
+  // Get vectors
   auto &rvec = std::get<StaticRestrictedResponse>(response);
   auto &x = std::get<StaticRestrictedResponse>(response).x_alpha;
   auto &all_x = std::get<StaticRestrictedResponse>(response).flat;
 
-  auto thresh = FunctionDefaults<3>::get_thresh();
+  const auto thresh = FunctionDefaults<3>::get_thresh();
   const double dconv = std::max(FunctionDefaults<3>::get_thresh(), conv_thresh);
-  auto density_target =
+  const auto density_target =
       dconv * static_cast<double>(std::max(size_t(5.0), gs.molecule.natom()));
   const double residual_target = density_target * 10.0;
-
-  auto freq = state.current_frequency();
+  const double freq = state.current_frequency();
   const size_t n = x.size();
 
-  DEBUG_LOG_VALUE(world, &logger, "x_norm",
-                  ResponseSolverUtils::inner(world, x, x));
-  DEBUG_LOG_VALUE(world, &logger, "all_x",
-                  ResponseSolverUtils::inner(world, all_x, all_x));
-  // Set up RHS (perturbation vector)
-  vector_real_function_3d Vp = state.perturbation_vector(world, gs);
+  vector_real_function_3d Vp = perturbation_vector(world, gs, state);
 
-  DEBUG_LOG_VALUE(world, &logger, "Vp_norm",
-                  ResponseSolverUtils::inner(world, Vp, Vp));
   auto &phi0 = gs.orbitals;
   const auto &orbital_energies = gs.getEnergies();
   // set up the bsh operators
@@ -170,8 +223,8 @@ bool StaticRestrictedSolver::iterate(World &world, const ResponseManager &rm,
 
     vector_real_function_3d x_new;
     DEBUG_TIMED_BLOCK(world, &logger, "compute_rsh", {
-      x_new = StaticRestrictedSolver::ComputeRSH(world, gs, rvec, Vp, bsh_x, rm,
-                                                 logger);
+      x_new = StaticRestrictedSolver::CoupledResponseEquations(
+          world, gs, rvec, Vp, bsh_x, rm, logger);
     });
 
     // 2. Form residual r = x_new - x
@@ -236,6 +289,7 @@ bool DynamicRestrictedSolver::iterate(World &world, const ResponseManager &rm,
                                       ResponseDebugLogger &logger,
                                       size_t max_iter, double conv_thresh) {
 
+  // Get vectors
   auto &rvec = std::get<DynamicRestrictedResponse>(response);
   auto &x = rvec.x_alpha;
   auto &y = rvec.y_alpha;
@@ -248,8 +302,7 @@ bool DynamicRestrictedSolver::iterate(World &world, const ResponseManager &rm,
   const double freq = state.current_frequency();
   const size_t n = x.size();
 
-  // Set up perturbation
-  auto Vp = state.perturbation_vector(world, gs);
+  auto Vp = perturbation_vector(world, gs, state);
   auto vp_copy = copy(world, Vp);
   Vp.insert(Vp.end(), vp_copy.begin(), vp_copy.end());
 
@@ -285,9 +338,10 @@ bool DynamicRestrictedSolver::iterate(World &world, const ResponseManager &rm,
     DEBUG_LOG_VALUE(world, &logger, "<x|x>",
                     ResponseSolverUtils::inner(world, rvec.flat, rvec.flat));
     vector_real_function_3d x_new;
+
     DEBUG_TIMED_BLOCK(world, &logger, "compute_rsh", {
-      x_new = DynamicRestrictedSolver::ComputeRSH(world, gs, rvec, Vp, bsh_x,
-                                                  rm, logger);
+      x_new = DynamicRestrictedSolver::CoupledResponseEquations(
+          world, gs, rvec, Vp, bsh_x, rm, logger);
     });
     // 2. Form residual r = x_new - x
     auto rx = x_new - all_x;

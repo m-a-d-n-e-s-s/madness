@@ -14,7 +14,6 @@ set(MOLRESPONSE_SOURCES2
 
 set(MOLRESPONSE_HEADERS2
     GroundStateData.hpp
-    AccuracyProtocols.hpp
     MolecularProperty.hpp
     ResponseManager.hpp
     ResponseState.hpp
@@ -27,6 +26,7 @@ set(MOLRESPONSE_HEADERS2
     ResponseInitializer.hpp
     ResponseDebugLogger.hpp
     ResponseDebugLoggerMacros.hpp
+    broadcast_json.hpp
 )
 
 # Create the MADresponse2 library

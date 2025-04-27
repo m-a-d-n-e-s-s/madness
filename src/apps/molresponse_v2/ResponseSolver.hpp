@@ -11,29 +11,43 @@ struct response_vector_allocator {
   const size_t n_orbtials;
   response_vector_allocator(World &world, size_t n_orbtials)
       : world(world), n_orbtials(n_orbtials) {}
-  // overloading the default constructor () operator
   vector_real_function_3d operator()() {
-    // print("allocator called with ", int(n_orbtials), " orbitals");
-    //  returning constructor of x_vector
-    return zero_functions<double, 3>(world, n_orbtials);
+    return zero_functions<double, 3>(world, static_cast<int>(n_orbtials));
   }
 };
 
-typedef XNonlinearSolver<vector_real_function_3d, double,
-                         response_vector_allocator>
-    response_solver;
+using response_solver = XNonlinearSolver<vector_real_function_3d, double,
+                                         response_vector_allocator>;
 
-struct ResponseSolver {
-  virtual ~ResponseSolver() = default;
+/*struct ResponseSolver {*/
+/*  virtual ~ResponseSolver() = default;*/
+/**/
+/*  bool iterate(World &world, const ResponseManager &rm,*/
+/*               const GroundStateData &gs, const ResponseState &state,*/
+/*               ResponseVector &response, ResponseDebugLogger &logger,*/
+/*               size_t max_iter, double conv);*/
+/*};*/
 
-  bool iterate(World &world, const ResponseManager &rm,
-               const GroundStateData &gs, const ResponseState &state,
-               ResponseVector &response, ResponseDebugLogger &logger,
-               size_t max_iter, double conv);
-};
+// I don't need to make a base class, just keep the same interface for each
+// specilized solver
+//
+// Each solver class will be passed to a standard iterate function,
+//
+// Each solver implements a set of specialized functions for each ResponseVector
+// variant
+//
+// Interface for each solver
+// --
+// -- compute_density
+//
 
-class StaticRestrictedSolver : public ResponseSolver {
+class StaticRestrictedSolver {
 public:
+  std::vector<poperatorT>
+  make_bsh_operators(World &world, const ResponseManager &rm, double freq,
+                     const Tensor<double> &orbital_energies, int n,
+                     ResponseDebugLogger &logger);
+
   static bool iterate(World &world, const ResponseManager &rm,
                       const GroundStateData &gs, const ResponseState &state,
                       ResponseVector &response, ResponseDebugLogger &logger,
@@ -47,15 +61,18 @@ public:
     return 2.0 * sum(world, xphi, true);
   }
 
-  static vector_real_function_3d
-  ComputeRSH(World &world, const GroundStateData &gs,
-             const ResponseVector &vecs, const vector_real_function_3d &vp,
-             const std::vector<poperatorT> &bsh_x, const ResponseManager &rm,
-             ResponseDebugLogger &logger);
+  static vector_real_function_3d CoupledResponseEquations(
+      World &world, const GroundStateData &gs, const ResponseVector &vecs,
+      const vector_real_function_3d &vp, const std::vector<poperatorT> &bsh_x,
+      const ResponseManager &rm, ResponseDebugLogger &logger);
 };
 
-class DynamicRestrictedSolver : public ResponseSolver {
+class DynamicRestrictedSolver {
 public:
+  static std::vector<poperatorT>
+  make_bsh_operators(World &world, const ResponseManager &rm, double freq,
+                     const Tensor<double> &orbital_energies, int n,
+                     ResponseDebugLogger &logger);
   static bool iterate(World &world, const ResponseManager &rm,
                       const GroundStateData &gs, const ResponseState &state,
                       ResponseVector &response, ResponseDebugLogger &logger,
@@ -70,14 +87,13 @@ public:
     return 2.0 * sum(world, xphi, true);
   }
 
-  static vector_real_function_3d
-  ComputeRSH(World &world, const GroundStateData &gs,
-             const ResponseVector &vecs, const vector_real_function_3d &vp,
-             const std::vector<poperatorT> &bsh_x, const ResponseManager &rm,
-             ResponseDebugLogger &logger);
+  static vector_real_function_3d CoupledResponseEquations(
+      World &world, const GroundStateData &gs, const ResponseVector &vecs,
+      const vector_real_function_3d &vp, const std::vector<poperatorT> &bsh_x,
+      const ResponseManager &rm, ResponseDebugLogger &logger);
 };
 
-class StaticUnrestrictedSolver : public ResponseSolver {
+class StaticUnrestrictedSolver {
 public:
   static bool iterate(World &world, const ResponseManager &rm,
                       const GroundStateData &gs, const ResponseState &state,
@@ -86,7 +102,7 @@ public:
     throw std::runtime_error("StaticUnrestrictedSolver not implemented");
   }
 };
-class DynamicUnrestrictedSolver : public ResponseSolver {
+class DynamicUnrestrictedSolver {
 public:
   static bool iterate(World &world, const ResponseManager &rm,
                       const GroundStateData &gs, const ResponseState &state,

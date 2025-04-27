@@ -1,10 +1,46 @@
 #pragma once
 #include <madness/mra/vmra.h>
 #include <madness/world/world.h>
-#include <variant>
+#include <variant> // C++ 17
 
 using namespace madness;
 
+struct StaticRestrictedResponse;
+struct DynamicRestrictedResponse;
+struct StaticUnrestrictedResponse;
+struct DynamicUnrestrictedResponse;
+
+
+using ResponseVector =
+    std::variant<StaticRestrictedResponse, DynamicRestrictedResponse,
+                 StaticUnrestrictedResponse, DynamicUnrestrictedResponse>;
+/** 
+ * @brief Holds all response functions describing
+ * a response state, one, two, or four vectors of real functions.
+ *
+ * Static/Restricted shell:    x_alpha only
+ * Dynamic/Restricted shell:   x_alpha and y_alpha
+ * Static/Unrestricted shell:  x_alpha and x_beta
+ * Dynamic/Unrestricted shell: x_alpha, y_alpha, x_beta and y_beta
+ *
+ * Each type has an allocator depending on the number of orbitals for the system.
+ *
+ * If you want to access all the response functions, use the `flat` vector.
+ *
+ * If you want to access individual vectors, use the `x_alpha`, `y_alpha`,
+ *
+ * std::get<StaticRestrictedResponse>(response).x_alpha
+ * std::get<DynamicRestrictedResponse>(response).y_alpha
+ *  
+ *  
+ *
+ *
+ *
+ *
+ * 
+ */
+
+// Definition of StaticRestrictedResponse.
 struct StaticRestrictedResponse {
   vector_real_function_3d x_alpha;
   vector_real_function_3d flat;
@@ -24,7 +60,6 @@ struct StaticRestrictedResponse {
 
   void flatten() { flat = x_alpha; }
 
-  // x_alpha is the only component
 };
 struct DynamicRestrictedResponse {
   vector_real_function_3d x_alpha;
@@ -102,9 +137,6 @@ struct DynamicUnrestrictedResponse {
   // x_alpha + y_alpha + x_beta + y_beta in a single vector
 };
 
-using ResponseVector =
-    std::variant<StaticRestrictedResponse, DynamicRestrictedResponse,
-                 StaticUnrestrictedResponse, DynamicUnrestrictedResponse>;
 
 /**
  * @brief Create a ResponseVector based on the number of orbitals and

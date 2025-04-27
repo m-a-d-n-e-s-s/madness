@@ -1,4 +1,8 @@
 #pragma once
+#include "GroundStateData.hpp"
+#include "ResponseManager.hpp"
+#include "ResponseState.hpp"
+#include "ResponseVector.hpp"
 #include <madness/mra/nonlinsol.h>
 
 namespace ResponseSolverUtils {

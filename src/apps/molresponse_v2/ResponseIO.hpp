@@ -23,12 +23,8 @@ void save_response_vector(World &world, const StateType &state,
   auto current_k = FunctionDefaults<3>::get_k();
   ar & current_k;
 
-  const bool sr = state.is_spin_restricted();
-  const bool is_static = state.is_static();
-
   std::visit(
       [&](const auto &vec) {
-        using T = std::decay_t<decltype(vec)>;
         int i = 0;
 
         for (const auto &f : vec.flat) {
@@ -56,10 +52,6 @@ load_response_vector(World &world, const int &num_orbitals, StateType &state,
   auto spin_restricted = state.is_spin_restricted();
   // start with whatever the state thinks, but override if it's second‐order
   bool is_static = state.is_static();
-  if constexpr (std::is_same_v<StateType, SecondOrderResponseState>) {
-    // never treat a second-order object as static
-    is_static = false;
-  }
 
   load_response =
       make_response_vector(num_orbitals, is_static, !spin_restricted);
@@ -80,7 +72,6 @@ load_response_vector(World &world, const int &num_orbitals, StateType &state,
 
   std::visit(
       [&](auto &v) {
-        using T = std::decay_t<decltype(v)>;
         int i = 0;
         for (auto &f : v.flat) {
           if (world.rank() == 0) {

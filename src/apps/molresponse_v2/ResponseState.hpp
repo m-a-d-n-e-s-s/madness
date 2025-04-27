@@ -5,7 +5,7 @@
 #include "molecular_functors.h"
 #include "vmra.h"
 #include <SCF.h>
-#include <filesystem>
+
 #include <madness/chem/projector.h>
 #include <madness/external/nlohmann_json/json.hpp>
 #include <madness/mra/mra.h>
@@ -17,11 +17,12 @@ using json = nlohmann::json;
 namespace fs = std::filesystem;
 
 struct AbstractResponseDescriptor {
-  virtual bool is_spin_restricted() const = 0;
-  virtual bool is_static() const = 0;
-  virtual std::string response_filename() const = 0;
-  virtual std::string response_filename(const size_t &thresh_index,
-                                        const size_t &freq_index) const = 0;
+  [[nodiscard]] virtual bool is_spin_restricted() const = 0;
+  [[nodiscard]] virtual bool is_static() const = 0;
+  [[nodiscard]] virtual std::string response_filename() const = 0;
+  [[nodiscard]] virtual std::string
+  response_filename(const size_t &thresh_index,
+                    const size_t &freq_index) const = 0;
   virtual ~AbstractResponseDescriptor() = default;
 };
 
@@ -85,22 +86,25 @@ struct ResponseState : public AbstractResponseDescriptor {
       ++current_frequency_index;
     }
   }
-  [[nodiscard]] bool is_static() const {
+  [[nodiscard]] bool is_static() const override {
     return std::abs(current_frequency()) < 1e-8;
   }
   [[nodiscard]] bool is_dynamic() const { return !is_static(); }
-  [[nodiscard]] bool is_spin_restricted() const { return spin_restricted; }
+  [[nodiscard]] bool is_spin_restricted() const override {
+    return spin_restricted;
+  }
 
-  [[nodiscard]] std::string response_filename() const {
+  [[nodiscard]] std::string response_filename() const override {
     std::ostringstream oss;
-    oss << "responses/" << perturbationDescription() << "_p"
+    oss << "responses/" << describe_perturbation(perturbation) << "_p"
         << current_threshold() << "_f" << current_frequency() << ".response";
     return oss.str();
   }
-  [[nodiscard]] std::string response_filename(const size_t &thresh_index,
-                                              const size_t &freq_index) const {
+  [[nodiscard]] std::string
+  response_filename(const size_t &thresh_index,
+                    const size_t &freq_index) const override {
     std::ostringstream oss;
-    oss << "responses/" << perturbationDescription() << "_p"
+    oss << "responses/" << describe_perturbation(perturbation) << "_p"
         << thresholds[thresh_index] << "_f" << frequencies[freq_index]
         << ".response";
     return oss.str();
@@ -108,50 +112,91 @@ struct ResponseState : public AbstractResponseDescriptor {
 
   [[nodiscard]] std::string description() const {
     std::ostringstream oss;
-    oss << describe_perturbation(pert) << " at freq " << current_frequency()
-        << " (thresh=" << std::scientific << current_threshold() << ")";
+    oss << describe_perturbation(perturbation) << " at freq "
+        << current_frequency() << " (thresh=" << std::scientific
+        << current_threshold() << ")";
     return oss.str();
   }
-
 };
 
-struct SecondOrderResponseState : public AbstractResponseDescriptor {
-  std::pair<Perturbation, Perturbation> perturbations;
-  std::pair<double, double> frequencies;
-  double threshold;
-  bool spin_restricted = true;
+struct SecondOrderResponseDescriptor : public AbstractResponseDescriptor {
+  std::pair<PerturbationType, PerturbationType> ptypes_;
+  std::pair<Perturbation, Perturbation> perturbations_;
+  std::pair<double, double> frequencies_;
 
-  SecondOrderResponseState(Perturbation p1, Perturbation p2, double f1,
-                           double f2, double thresh, bool spin_restricted)
-      : perturbations(p1, p2), frequencies(f1, f2), threshold(thresh),
-        spin_restricted(spin_restricted) {}
+  double thresh;
+  bool spin_restricted_ = false; // Is the system open shell?
 
-  [[nodiscard]] std::string perturbationDescription() const {
+  SecondOrderResponseDescriptor(PerturbationType t1, PerturbationType t2,
+                                Perturbation p1, Perturbation p2, double f1,
+                                double f2, double thresh, bool spin_restricted)
+      : ptypes_(t1, t2), perturbations_(p1, p2), frequencies_(f1, f2),
+        thresh(thresh), spin_restricted_(spin_restricted) {}
 
-    return describe_perturbation(perturbations.first) + "_" +
-           describe_perturbation(perturbations.second);
+  [[nodiscard]] ResponseState B_state() const {
+    return ResponseState(perturbations_.first, ptypes_.first,
+                         {frequencies_.first}, {thresh}, spin_restricted_);
+  }
+  [[nodiscard]] ResponseState C_state() const {
+    return ResponseState(perturbations_.second, ptypes_.second,
+                         {frequencies_.second}, {thresh}, spin_restricted_);
   }
 
-  [[nodiscard]] std::string response_filename() const {
+  [[nodiscard]] std::pair<ResponseState, ResponseState> get_states() const {
+    return {B_state(), C_state()};
+  }
+
+  [[nodiscard]] double current_threshold() const { return thresh; }
+
+  [[nodiscard]] double current_frequency() const {
+    return frequencies_.first + frequencies_.second;
+  }
+
+  [[nodiscard]] virtual const char *prefix() const = 0;
+
+  [[nodiscard]] std::string perturbationDescription() const {
+    return describe_perturbation(perturbations_.first) + "_" +
+           describe_perturbation(perturbations_.second);
+  }
+
+  [[nodiscard]] std::string response_filename() const override {
 
     std::ostringstream oss;
 
-    oss << "responses/VBC_" << perturbationDescription() << "_p"
-        << std::scientific << threshold << "_f" << frequencies.first << "_"
-        << frequencies.second << ".response";
+    oss << "responses/" << prefix() << perturbationDescription() << "_p"
+        << std::scientific << thresh << "_f" << frequencies_.first << "_"
+        << frequencies_.second << ".response";
     return oss.str();
   }
-  [[nodiscard]] std::string response_filename(const size_t &thresh_index,
-                                              const size_t &freq_index) const {
+  [[nodiscard]] std::string
+  response_filename(const size_t &thresh_index,
+                    const size_t &freq_index) const override {
     return response_filename();
   }
 
-  [[nodiscard]] bool is_spin_restricted() const { return spin_restricted; }
-
-  [[nodiscard]] bool is_static() const {
-    return false; // Second order response is always dynamic (x an y response
-                  // functions)
+  [[nodiscard]] bool is_spin_restricted() const override {
+    return spin_restricted_;
   }
+
+  [[nodiscard]] bool is_static() const override {
+    return false;
+    // Second order response is always dynamic (x an y response
+    // functions)
+  }
+};
+
+//-----------------------------------------------------------------------------
+// Now two trivial subclasses for VBC vs. XBC
+//-----------------------------------------------------------------------------
+
+struct VBCResponseState : public SecondOrderResponseDescriptor {
+  using SecondOrderResponseDescriptor::SecondOrderResponseDescriptor;
+  [[nodiscard]] const char *prefix() const override { return "VBC"; }
+};
+
+struct XBCResponseState : public SecondOrderResponseDescriptor {
+  using SecondOrderResponseDescriptor::SecondOrderResponseDescriptor;
+  [[nodiscard]] const char *prefix() const override { return "XBC"; }
 };
 
 // -----------------------------------------------------------------------------
@@ -205,6 +250,40 @@ project_perturbation_onto_orbitals(World &world, const GroundStateData &gs,
   vp = gs.Qhat(vp);
   truncate(world, vp, FunctionDefaults<3>::get_thresh(), /*fence=*/true);
   return vp;
+}
+
+// Linear (first-order) response
+inline madness::vector_real_function_3d
+perturbation_vector(madness::World &world, GroundStateData const &gs,
+                    ResponseState const &state) {
+
+  auto raw_op = raw_perturbation_operator(world, gs, state);
+  auto Vp = project_perturbation_onto_orbitals(world, gs, raw_op);
+  if (state.is_dynamic()) {
+    // duplicate for dynamic response
+    Vp.insert(Vp.end(), Vp.begin(), Vp.end());
+  }
+  return Vp;
+}
+
+// Second-order (VBC) response
+inline madness::vector_real_function_3d
+perturbation_vector(madness::World &world, GroundStateData const &gs,
+                    XBCResponseState const &sos) {
+  // build (or reuse) the VBCComputer for this ground state
+  // you’ll need to pass it the same directions & frequency list
+  // that you used to set up your ResponseStates originally:
+  /*static thread_local VBCComputer2 vbc(*/
+  /**/
+  /*// find the indices of sos.frequencies in that computer’s list:*/
+  /*size_t bi = vbc.frequency_index(sos.frequencies.first);*/
+  /*size_t ci = vbc.frequency_index(sos.frequencies.second);*/
+  /*// and the BC-pair index from its perturbation characters:*/
+  /*size_t bc = vbc.BC_pair_index(sos.perturbations.first.direction,*/
+  /*                              sos.perturbations.second.direction);*/
+  /**/
+  /*// will load from disk if already there, otherwise compute & save:*/
+  /*return get_flat(vbc.compute_and_save(bc, bi, ci));*/
 }
 
 #endif // RESPONSE_STATE_HPP

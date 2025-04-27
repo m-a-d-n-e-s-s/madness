@@ -11,7 +11,7 @@ inline ResponseVector initialize_guess_vector(World &world,
   bool is_static = state.is_static();
   bool is_unrestricted = !gs.isSpinRestricted();
 
-  vector_real_function_3d Vp = state.perturbation_vector(world, gs);
+  vector_real_function_3d Vp = perturbation_vector(world, gs, state);
 
   if (is_static && !is_unrestricted) {
     StaticRestrictedResponse response(num_orbitals);

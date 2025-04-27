@@ -12,33 +12,34 @@
 #define NOT_IMPLEMENTED_THROW                                                  \
   throw std::runtime_error("This solver is not yet implemented.");
 
+
+
+
+// Forward to response vector to solver based on it's structure.
 inline bool
 solve_response_vector(World &world, const ResponseManager &rm,
                       const GroundStateData &gs, const ResponseState &state,
                       ResponseVector &response, ResponseDebugLogger &logger,
                       size_t max_iter = 10, double conv_thresh = 1e-4) {
-  return std::visit(
-      [&](auto &vec) -> bool {
-        using T = std::decay_t<decltype(vec)>;
 
-        if constexpr (std::is_same_v<T, StaticRestrictedResponse>) {
-          return StaticRestrictedSolver::iterate(world, rm, gs, state, response,
-                                                 logger, max_iter, conv_thresh);
-        } else if constexpr (std::is_same_v<T, DynamicRestrictedResponse>) {
-          return DynamicRestrictedSolver::iterate(
-              world, rm, gs, state, response, logger, max_iter, conv_thresh);
-        } else if constexpr (std::is_same_v<T, StaticUnrestrictedResponse>) {
-          return StaticUnrestrictedSolver::iterate(
-              world, rm, gs, state, response, logger, max_iter, conv_thresh);
-        } else if constexpr (std::is_same_v<T, DynamicUnrestrictedResponse>) {
-          return DynamicUnrestrictedSolver::iterate(
-              world, rm, gs, state, response, logger, max_iter, conv_thresh);
-        } else {
-          throw std::runtime_error("Unknown ResponseVector type "
-                                   "in solver.");
-        }
-      },
-      response);
+  using T = std::decay_t<decltype(response)>;
+
+  if constexpr (std::is_same_v<T, StaticRestrictedResponse>) {
+    return StaticRestrictedSolver::iterate(world, rm, gs, state, response,
+                                           logger, max_iter, conv_thresh);
+  } else if constexpr (std::is_same_v<T, DynamicRestrictedResponse>) {
+    return DynamicRestrictedSolver::iterate(world, rm, gs, state, response,
+                                            logger, max_iter, conv_thresh);
+  } else if constexpr (std::is_same_v<T, StaticUnrestrictedResponse>) {
+    return StaticUnrestrictedSolver::iterate(world, rm, gs, state, response,
+                                             logger, max_iter, conv_thresh);
+  } else if constexpr (std::is_same_v<T, DynamicUnrestrictedResponse>) {
+    return DynamicUnrestrictedSolver::iterate(world, rm, gs, state, response,
+                                              logger, max_iter, conv_thresh);
+  } else {
+    throw std::runtime_error("Unknown ResponseVector type "
+                             "in solver.");
+  }
 }
 
 inline void promote_response_vector(World &world,
@@ -105,7 +106,9 @@ inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
                                  ResponseDebugLogger &logger) {
 
   const auto &frequencies = state.frequencies;
-  const auto state_id = state.perturbationDescription();
+
+  auto state_id = state.description();
+
   double protocol = state.current_threshold();
   size_t thresh_index = state.current_thresh_index;
 

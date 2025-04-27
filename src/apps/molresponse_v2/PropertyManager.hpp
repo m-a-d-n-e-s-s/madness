@@ -349,7 +349,8 @@ void compute_alpha(World &world,
     if (state_map.find(dir) == state_map.end()) {
       throw std::runtime_error("State not found in state_map: " + dir);
     } else {
-      perturbations.push_back(state_map.at(dir).perturbation_vector(world, gs));
+      perturbations.push_back(perturbation_vector(
+          world, gs, state_map.at(dir))); // Get the perturbation vector
     }
   }
 
@@ -401,84 +402,151 @@ void compute_alpha(World &world,
   pm.save();
 }
 
-void compute_beta(World &world, const GroundStateData &gs,
-                  const std::vector<double> &frequencies,
-                  const std::string &directions, PropertyManager &pm) {
+void compute_beta(
+    World &world, const GroundStateData &gs, const PerturbationType a_type,
+    const std::vector<Perturbation> &perturbation_A,
+    const std::pair<PerturbationType, PerturbationType> &bc_types,
+    const std::vector<std::pair<Perturbation, Perturbation>> &BC_pairs,
+    const std::pair<std::vector<double>, std::vector<double>> &frequencies,
+    PropertyManager &pm) {
   const bool is_spin_restricted = gs.isSpinRestricted();
   const size_t num_orbitals = gs.getNumOrbitals();
+  const double thresh = FunctionDefaults<3>::get_thresh();
 
-  auto vbc_computer =
-      VBCComputer(world, gs, frequencies, directions, is_spin_restricted);
+  // 1) Build a SimpleVBCComputer once
+  auto vbc_computer = SimpleVBCComputer(world, gs);
 
-  const auto &BC_pairs = vbc_computer.get_BC_pairs();
-  const size_t num_pairs = BC_pairs.size();
+  // 2) Loop over all freq
+  for (auto &freq_b : frequencies.first) {
+    for (auto &freq_c : frequencies.second) {
+      // Get all BC pairs possible out of Perturbation
+      for (auto [B, C] : BC_pairs) {
 
-  for (size_t i = 0; i < frequencies.size(); ++i) {
-    for (size_t j = i; j < frequencies.size(); ++j) {
-      double omega1 = frequencies[i];
-      double omega2 = frequencies[j];
-      double omegaA = omega1 + omega2;
+        VBCResponseState vbc_state(
+            bc_types.first, bc_types.second, B, C, freq_b, freq_c,
+            FunctionDefaults<3>::get_thresh(), is_spin_restricted);
+        auto bc = vbc_state.perturbationDescription();
 
-      for (size_t bc_index = 0; bc_index < num_pairs; ++bc_index) {
-        auto [B, C] = BC_pairs[bc_index];
-        std::string bc = std::string() + B + C;
-
-        if (pm.has_beta(omega1, omega2, bc)) {
+        if (pm.has_beta(freq_b, freq_c, bc)) {
           if (world.rank() == 0)
-            print("✅ Skipping β(", bc, ") at (ω1, ω2) =", omega1, omega2);
+            print("✅ Skipping β(", bc, ") at (ω1, ω2) =", freq_b, freq_c);
           continue;
         }
 
-        if (world.rank() == 0)
-          print("🛠️  Computing β(", bc, ") at (ω1, ω2) =", omega1, omega2);
+        auto vbc_vec = vbc_computer.compute_and_save(vbc_state);
+        auto vbc_flat = get_flat(vbc_vec);
 
-        // Load or compute the VBC vector
-        auto vbc_vec = vbc_computer.compute_and_save(bc_index, i, j);
+        auto omega_A = vbc_state.current_frequency();
+        std::vector<ResponseVector> a_vecs(perturbation_A.size());
+        std::vector<vector_real_function_3d> xa_vecs(
+            perturbation_A.size()); // for the A perturbations
 
-        // Load LHS response states (for output directions)
-        std::vector<ResponseState> lhs_states;
-        std::vector<ResponseVector> lhs_responses(directions.size());
-
-        for (size_t k = 0; k < directions.size(); ++k) {
-          char A = directions[k];
-          auto state = vbc_computer.get_state(A);
-          state.set_frequency_index(state.frequency_map.at(omegaA));
-          lhs_states.push_back(state);
-
-          load_response_vector(world, num_orbitals, state, lhs_responses[k], 0,
-                               state.current_frequency_index);
-        }
-
-        // Convert LHS responses to flat components
-        std::vector<vector_real_function_3d> lhs_flat;
-
-        for (size_t k = 0; k < directions.size(); ++k) {
-          auto &resp = lhs_responses[k];
-          auto flat = get_flat(resp);
-          if (omegaA == 0.0) {
+        for (int a = 0; a < perturbation_A.size(); ++a) {
+          auto pertA = perturbation_A[a];
+          auto state_A = ResponseState(pertA, a_type, {omega_A},
+                                       {FunctionDefaults<3>::get_thresh()},
+                                       is_spin_restricted);
+          load_response_vector(world, num_orbitals, state_A, a_vecs[a], 0, 0);
+          auto flat = get_flat(a_vecs[a]);
+          if (omega_A == 0.0) {
             flat.insert(flat.end(), flat.begin(),
                         flat.end()); // replicate for static
           }
-          lhs_flat.push_back(flat);
+          xa_vecs[a] = flat;
         }
-
-        // Convert VBC to flat
-        auto vbc_flat = get_flat(vbc_vec);
-        // Compute inner product (lhs ⋅ vbc) → Tensor(3)
         madness::Tensor<double> beta_tensor =
-            compute_response_inner_product_tensor(
-                world, lhs_flat, {vbc_flat}, true,
-                "beta_contribs" + std::to_string(i));
+            compute_response_inner_product_tensor(world, xa_vecs, {vbc_flat},
+                                                  true, "beta_contribs" + bc);
         beta_tensor *= -2.0; // factor of -2 for beta
         if (world.rank() == 0) {
           print("β tensor size:", beta_tensor.size(), "x", beta_tensor.size());
           print("β= ", beta_tensor);
         }
 
-        pm.set_beta(omega1, omega2, bc, beta_tensor);
+        pm.set_beta(freq_b, freq_c, bc, beta_tensor);
       }
     }
   }
-
   pm.save();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Compute the (frequency-dependent) hyperpolarizability β(ωA;ωB,ωC)
+//  ωB and ωC each run over the same list of input frequencies.
+//  directions = subset of {'x','y','z'} to include.
+// ─────────────────────────────────────────────────────────────────────────────
+void compute_hyperpolarizability(
+    World &world, const GroundStateData &gs,
+    const std::vector<double> &frequencies, // ωB and ωC
+    const std::vector<char> &directions,    // which Cartesian dirs
+    PropertyManager &pm) {
+  // 1) Build A-list (dipole along each dir)
+  std::vector<Perturbation> A_pert;
+  A_pert.reserve(directions.size());
+  for (char d : directions)
+    A_pert.emplace_back(DipolePerturbation{d});
+
+  // 2) Build all BC pairs of two dipoles
+  std::pair<PerturbationType, PerturbationType> bc_types = {
+      PerturbationType::Dipole, PerturbationType::Dipole};
+  std::vector<std::pair<Perturbation, Perturbation>> BC_pairs;
+  for (char b : directions)
+    for (char c : directions)
+      BC_pairs.emplace_back(DipolePerturbation{b}, DipolePerturbation{c});
+
+  auto freq_pair = std::make_pair(frequencies, frequencies);
+
+  // 3) Dispatch
+  compute_beta(world, gs,
+               PerturbationType::Dipole, // A-type
+               A_pert,
+               bc_types, // B and C types
+               BC_pairs,
+               freq_pair, // ωB and ωC = same list of freqs
+               pm);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Compute the Raman response (∂α/∂Q) via β(Dipole; Dipole, NuclearDisp).
+//  frequencies: the optical frequencies for both Dipole and Raman.
+//  dip_dirs: which dipole directions to include.
+// ─────────────────────────────────────────────────────────────────────────────
+void compute_Raman(
+    World &world, const GroundStateData &gs,
+    const std::pair<std::vector<double>, std::vector<double>> &BC_frequencies,
+    const std::vector<char> &dip_dirs, // e.g. {'x','y','z'}
+    PropertyManager &pm) {
+  // 1) A-list is still the dipole directions
+  std::vector<Perturbation> A_pert;
+  A_pert.reserve(dip_dirs.size());
+  for (char d : dip_dirs)
+    A_pert.emplace_back(DipolePerturbation{d});
+
+  // 2) Enumerate all nuclear displacements (per atom, per axis)
+  std::vector<Perturbation> nucs;
+  nucs.reserve(3 * gs.molecule.natom());
+  for (int atom = 0; atom < gs.molecule.natom(); ++atom) {
+    for (char dir : {'x', 'y', 'z'})
+      nucs.emplace_back(NuclearDisplacementPerturbation{atom, dir});
+  }
+
+  std::pair<PerturbationType, PerturbationType> bc_types = {
+      PerturbationType::Dipole, PerturbationType::NuclearDisplacement};
+
+  // 3) Build BC pairs = (Dipole, NuclearDisp)
+  std::vector<std::pair<Perturbation, Perturbation>> BC_pairs;
+  BC_pairs.reserve(dip_dirs.size() * nucs.size());
+  for (char b : dip_dirs) {
+    for (auto &n : nucs) {
+      BC_pairs.emplace_back(DipolePerturbation{b},
+                            std::get<NuclearDisplacementPerturbation>(n));
+    }
+  }
+
+  // 4) Dispatch
+  compute_beta(world, gs,
+               PerturbationType::Dipole, // the “A”-perturbation is always
+               A_pert, bc_types, BC_pairs,
+               BC_frequencies, // ωB and ωC = same list of freqs
+               pm);
 }

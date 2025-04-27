@@ -1,4 +1,5 @@
 #pragma once
+#include "Perturbation.hpp"
 #include "ResponseState.hpp"
 #include <filesystem>
 #include <fstream>
@@ -39,7 +40,8 @@ public:
 
   void initialize_states(const std::vector<ResponseState> &states) {
     for (const auto &state : states) {
-      const std::string id = state.perturbationDescription();
+      const std::string id = describe_perturbation(state.perturbation);
+
       const auto &frequencies = state.frequencies;
       const auto &protocols = state.thresholds;
 
@@ -80,13 +82,13 @@ public:
     }
   }
 
-  bool is_saved(const std::string &state_id, double protocol,
-                double freq) const {
+  [[nodiscard]] bool is_saved(const std::string &state_id, double protocol,
+                              double freq) const {
     return get_flag(state_id, protocol, freq, "saved");
   }
 
-  bool is_converged(const std::string &state_id, double protocol,
-                    double freq) const {
+  [[nodiscard]] bool is_converged(const std::string &state_id, double protocol,
+                                  double freq) const {
     return get_flag(state_id, protocol, freq, "converged");
   }
 
@@ -111,11 +113,11 @@ public:
     write();
   }
 
-  bool final_converged(const std::string &state_id) const {
+  [[nodiscard]] bool final_converged(const std::string &state_id) const {
     return data_["states"][state_id].value("final_converged", false);
   }
 
-  bool final_saved(const std::string &state_id) const {
+  [[nodiscard]] bool final_saved(const std::string &state_id) const {
     return data_["states"][state_id].value("final_saved", false);
   }
 
@@ -134,8 +136,8 @@ private:
     return oss.str();
   }
 
-  bool get_flag(const std::string &state_id, double protocol, double freq,
-                const std::string &key) const {
+  [[nodiscard]] bool get_flag(const std::string &state_id, double protocol,
+                              double freq, const std::string &key) const {
     std::string p_str = to_string(protocol);
     std::string f_str = to_string(freq);
 
