@@ -35,14 +35,14 @@ inline std::string describe_perturbation(const Perturbation &p) {
 
   auto describe = overloaded{
       [](const DipolePerturbation &d) {
-        return std::string("Dipole") + d.direction;
+        return std::string("Dipole_") + d.direction;
       },
       [](const NuclearDisplacementPerturbation &n) {
-        return "NucA" + std::to_string(n.atom_index) +
+        return "NucA_" + std::to_string(n.atom_index) +
                std::string(1, n.direction);
       },
       [](const MagneticPerturbation &m) {
-        return "Mag" + std::string(1, m.direction);
+        return "Mag_" + std::string(1, m.direction);
       },
   };
   return std::visit(describe, p);

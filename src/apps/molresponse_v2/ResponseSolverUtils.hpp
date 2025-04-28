@@ -1,11 +1,29 @@
 #pragma once
-#include "GroundStateData.hpp"
-#include "ResponseManager.hpp"
-#include "ResponseState.hpp"
-#include "ResponseVector.hpp"
+#include <madness/chem/SCF.h>
 #include <madness/mra/nonlinsol.h>
 
 namespace ResponseSolverUtils {
+
+using namespace madness;
+
+// Call once before your iteration loop to print a header:
+inline void print_iteration_header() {
+  std::cout << std::setw(6) << "Iter" << " │ " << std::setw(12) << "Residual"
+            << " │ " << std::setw(12) << "Δρ" << " │ " << std::setw(12)
+            << "<x|Vp>" << "\n"
+            << std::string(6, '-') << "─┼─" << std::string(12, '-') << "─┼─"
+            << std::string(12, '-') << "─┼─" << std::string(12, '-') << "\n";
+}
+
+// Call each iteration with the current values:
+inline void print_iteration_line(int iter, double residual, double deltaE,
+                                 double xVp) {
+  std::cout << std::setw(6) << iter << " │ " << std::setw(12) << std::scientific
+            << std::setprecision(3) << residual << " │ " << std::setw(12)
+            << std::scientific << std::setprecision(3) << deltaE << " │ "
+            << std::setw(12) << std::scientific << std::setprecision(3) << xVp
+            << "\n";
+}
 
 inline std::vector<poperatorT> make_bsh_operators_response(
     World &world, const double shift, const double omega,
@@ -35,23 +53,21 @@ inline double inner(World &world, const vector_real_function_3d &x,
   return result;
 }
 
-inline double do_step_restriction(World &world, const vecfuncT &x,
-                                  vecfuncT &x_new, const std::string &spin,
-                                  const double &maxrotn) {
+inline void do_step_restriction(World &world, const vecfuncT &x,
+                                vecfuncT &x_new, const double &anorm,
+                                const std::string &spin,
+                                const double &maxrotn) {
 
-  double anorm = norm2(world, sub(world, x, x_new));
+  int nres = 0;
+  if (anorm > maxrotn) {
+    if (world.rank() == 0)
+      print("Doing step restriction, norm of change: ", anorm);
+    double s = maxrotn / anorm;
+    gaxpy(s, x_new, 1.0 - s, x, true);
+  }
 
-  /*int nres = 0;*/
-  /*if (anorm > maxrotn) {*/
-  /*  if (world.rank() == 0)*/
-  /*    print("Doing step restriction, norm of change: ", anorm);*/
-  /*  double s = maxrotn / anorm;*/
-  /*  gaxpy(s, x_new, 1.0 - s, x, true);*/
-  /*}*/
-  /**/
-  /*world.gop.fence();*/
-  /*if (world.rank() == 0)*/
-  /*  print("Norm of vector changes", spin, ": ", anorm);*/
-  return anorm;
+  world.gop.fence();
+  if (world.rank() == 0)
+    print("Norm of vector changes", spin, ": ", anorm);
 }
 } // namespace ResponseSolverUtils

@@ -284,6 +284,7 @@ perturbation_vector(madness::World &world, GroundStateData const &gs,
   /**/
   /*// will load from disk if already there, otherwise compute & save:*/
   /*return get_flat(vbc.compute_and_save(bc, bi, ci));*/
+  return {};
 }
 
 #endif // RESPONSE_STATE_HPP

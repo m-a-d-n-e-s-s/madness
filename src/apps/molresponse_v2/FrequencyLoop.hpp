@@ -1,45 +1,144 @@
 #pragma once
 #include "GroundStateData.hpp"
 #include "ResponseDebugLogger.hpp"
+#include "ResponseDebugLoggerMacros.hpp"
 #include "ResponseIO.hpp"
 #include "ResponseInitializer.hpp"
 #include "ResponseManager.hpp"
 #include "ResponseMetaData.hpp"
 #include "ResponseSolver.hpp"
+#include "ResponseSolverUtils.hpp"
 #include "ResponseState.hpp"
 
 #include <madness/world/world.h>
 #define NOT_IMPLEMENTED_THROW                                                  \
   throw std::runtime_error("This solver is not yet implemented.");
 
+template <typename ResponseType>
+inline bool iterate(World &world, const ResponseManager &rm,
+                    const GroundStateData &gs, const ResponseState &state,
+                    ResponseType &response, ResponseDebugLogger &logger,
+                    size_t max_iter, double conv_thresh) {
 
+  using Policy = ResponseSolverPolicy<ResponseType>;
 
+  auto &rvec = response;
+  auto &all_x = rvec.flat;
 
-// Forward to response vector to solver based on it's structure.
+  const auto thresh = FunctionDefaults<3>::get_thresh();
+  const double dconv = std::max(FunctionDefaults<3>::get_thresh(), conv_thresh);
+  const auto density_target =
+      dconv * static_cast<double>(gs.orbitals.size()) * thresh;
+
+  auto vp = perturbation_vector(world, gs,
+                                state); // if state is dyanmic, 2*num_orbitals
+
+  auto &phi0 = gs.orbitals;
+  const auto &orbital_energies = gs.getEnergies();
+
+  // First difference, Make bsh operators is different for each solver
+  auto bsh_ops = Policy::make_bsh_operators(
+      world, rm, state.current_frequency(), orbital_energies,
+      static_cast<int>(gs.orbitals.size()), logger);
+
+  response_solver solver(
+      response_vector_allocator(world, static_cast<int>(all_x.size())),
+      /*do_printing*/ false);
+
+  auto drho = Policy::compute_density(world, rvec, phi0);
+  functionT drho_old;
+
+  for (size_t iter = 0; iter < max_iter; ++iter) {
+    logger.begin_iteration(iter);
+    drho_old = copy(drho);
+    // Inner product of response state
+    DEBUG_LOG_VALUE(world, &logger, "<x|x>",
+                    ResponseSolverUtils::inner(world, rvec.flat, rvec.flat));
+    // 1. Coupled-response equations
+    vector_real_function_3d x_new;
+    DEBUG_TIMED_BLOCK(world, &logger, "compute_rsh", {
+      x_new = Policy::CoupledResponseEquations(world, gs, rvec, vp, bsh_ops, rm,
+                                               logger);
+    });
+    // 2. Form residual r = x_new - x
+    auto residuals = x_new - all_x;
+    vector_real_function_3d kain_x;
+    DEBUG_TIMED_BLOCK(world, &logger, "KAIN step",
+                      { kain_x = solver.update(all_x, residuals); });
+
+    // 3. Compute norm of difference;
+    double res_norm = norm2(world, sub(world, all_x, x_new));
+    DEBUG_LOG_VALUE(world, &logger, "res_norm", res_norm);
+    // 4. Do step restriction
+    if (rm.params().step_restrict()) {
+      DEBUG_TIMED_BLOCK(world, &logger, "step_restriction", {
+        ResponseSolverUtils::do_step_restriction(world, all_x, kain_x, res_norm,
+                                                 "a", rm.params().maxrotn());
+      });
+    }
+    // 5. Update response vector
+    rvec.flat = copy(world, kain_x);
+    rvec.sync();
+    // 6. Compute updated response density
+    drho = Policy::compute_density(world, rvec, phi0);
+    double drho_change = (drho - drho_old).norm2();
+    DEBUG_LOG_VALUE(world, &logger, "drho_change", drho_change);
+    auto alpha =
+        Policy::alpha_factor * ResponseSolverUtils::inner(world, rvec.flat, vp);
+    DEBUG_LOG_VALUE(world, &logger, "alpha", alpha);
+    // 7. Convergence check
+    if (world.rank() == 0) {
+      ResponseSolverUtils::print_iteration_header();
+      ResponseSolverUtils::print_iteration_line(iter, res_norm, drho_change,
+                                                alpha);
+    }
+    if (drho_change < density_target && res_norm < conv_thresh) {
+      if (world.rank() == 0)
+        print("✓ Converged in", iter, "iterations.");
+      logger.end_iteration();
+      logger.finalize_state();
+      // Sync flat vector back into structured view
+      rvec.sync();
+      return true;
+    }
+    logger.end_iteration();
+  }
+  if (world.rank() == 0)
+    print("⚠️  Reached max iterations without convergence.");
+  logger.finalize_state();
+  return false;
+};
+
 inline bool
 solve_response_vector(World &world, const ResponseManager &rm,
                       const GroundStateData &gs, const ResponseState &state,
-                      ResponseVector &response, ResponseDebugLogger &logger,
-                      size_t max_iter = 10, double conv_thresh = 1e-4) {
-
-  using T = std::decay_t<decltype(response)>;
-
-  if constexpr (std::is_same_v<T, StaticRestrictedResponse>) {
-    return StaticRestrictedSolver::iterate(world, rm, gs, state, response,
-                                           logger, max_iter, conv_thresh);
-  } else if constexpr (std::is_same_v<T, DynamicRestrictedResponse>) {
-    return DynamicRestrictedSolver::iterate(world, rm, gs, state, response,
-                                            logger, max_iter, conv_thresh);
-  } else if constexpr (std::is_same_v<T, StaticUnrestrictedResponse>) {
-    return StaticUnrestrictedSolver::iterate(world, rm, gs, state, response,
-                                             logger, max_iter, conv_thresh);
-  } else if constexpr (std::is_same_v<T, DynamicUnrestrictedResponse>) {
-    return DynamicUnrestrictedSolver::iterate(world, rm, gs, state, response,
-                                              logger, max_iter, conv_thresh);
-  } else {
-    throw std::runtime_error("Unknown ResponseVector type "
-                             "in solver.");
-  }
+                      ResponseVector &response_variant, // the std::variant<…>
+                      ResponseDebugLogger &logger, size_t max_iter = 10,
+                      double conv_thresh = 1e-4) {
+  return std::visit(
+      overloaded{[&](StaticRestrictedResponse &r) {
+                   return iterate(world, rm, gs, state, r, logger, max_iter,
+                                  conv_thresh);
+                 },
+                 [&](DynamicRestrictedResponse &r) {
+                   return iterate(world, rm, gs, state, r, logger, max_iter,
+                                  conv_thresh);
+                 },
+                 [&](StaticUnrestrictedResponse &r) {
+                   throw std::runtime_error(
+                       "Static unrestricted response not implemented yet");
+                   return false;
+                   /*return iterate(world, rm, gs, state, r, logger, max_iter,*/
+                   /*               conv_thresh);*/
+                 },
+                 [&](DynamicUnrestrictedResponse &r) {
+                   throw std::runtime_error(
+                       "Dynamic unrestricted response not implemented yet");
+                   return false;
+                   /*iterate(world, rm, gs, state, r, logger, max_iter,*/
+                   /*                          conv_thresh);*/
+                 }},
+      response_variant);
 }
 
 inline void promote_response_vector(World &world,
@@ -114,7 +213,7 @@ inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
 
   bool at_final_protocol = state.at_final_threshold();
   bool is_unrestricted = !ground_state.isSpinRestricted();
-  size_t num_orbitals = ground_state.getNumOrbitals();
+  auto num_orbitals = static_cast<int>(ground_state.getNumOrbitals());
 
   ResponseVector previous_response =
       make_response_vector(num_orbitals, state.is_static(), is_unrestricted);
