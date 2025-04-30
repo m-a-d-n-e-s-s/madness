@@ -410,7 +410,7 @@ void compute_beta(
     const std::pair<std::vector<double>, std::vector<double>> &frequencies,
     PropertyManager &pm) {
   const bool is_spin_restricted = gs.isSpinRestricted();
-  const size_t num_orbitals = gs.getNumOrbitals();
+  const int num_orbitals = static_cast<int>(gs.getNumOrbitals());
   const double thresh = FunctionDefaults<3>::get_thresh();
 
   // 1) Build a SimpleVBCComputer once
@@ -440,27 +440,90 @@ void compute_beta(
         std::vector<ResponseVector> a_vecs(perturbation_A.size());
         std::vector<vector_real_function_3d> xa_vecs(
             perturbation_A.size()); // for the A perturbations
+        //
 
+        std::vector<real_function_3d> opAs(perturbation_A.size());
         for (int a = 0; a < perturbation_A.size(); ++a) {
           auto pertA = perturbation_A[a];
           auto state_A = ResponseState(pertA, a_type, {omega_A},
                                        {FunctionDefaults<3>::get_thresh()},
                                        is_spin_restricted);
+          opAs[a] = raw_perturbation_operator(world, gs, state_A);
           load_response_vector(world, num_orbitals, state_A, a_vecs[a], 0, 0);
           auto flat = get_flat(a_vecs[a]);
           if (omega_A == 0.0) {
             flat.insert(flat.end(), flat.begin(),
                         flat.end()); // replicate for static
           }
-          xa_vecs[a] = flat;
+          xa_vecs[a] = -1.0 * flat;
         }
+
         madness::Tensor<double> beta_tensor =
             compute_response_inner_product_tensor(world, xa_vecs, {vbc_flat},
                                                   true, "beta_contribs" + bc);
+
+        // We only need one copy of xb_phi0
+        DynamicRestrictedResponse xb_phi0(num_orbitals);
+        DynamicRestrictedResponse xc_phi0(num_orbitals);
+        DynamicRestrictedResponse y_zeta_bc(num_orbitals);
+        DynamicRestrictedResponse y_zeta_cb(num_orbitals);
+
+        auto [xb, xc] =
+            vbc_computer.get_BC_vecs(vbc_state); // get the B and C states
+
+        xb_phi0.x_alpha = std::get<DynamicRestrictedResponse>(xb).x_alpha;
+        xb_phi0.y_alpha = gs.orbitals;
+        xc_phi0.x_alpha = std::get<DynamicRestrictedResponse>(xc).x_alpha;
+        xc_phi0.y_alpha = gs.orbitals;
+        y_zeta_bc.x_alpha = std::get<DynamicRestrictedResponse>(xc).y_alpha;
+        y_zeta_cb.x_alpha = std::get<DynamicRestrictedResponse>(xb).y_alpha;
+        y_zeta_bc.y_alpha = SimpleVBCComputer::make_zeta_bc(
+            world, std::get<DynamicRestrictedResponse>(xb).y_alpha,
+            std::get<DynamicRestrictedResponse>(xc).x_alpha, gs.orbitals);
+        y_zeta_cb.y_alpha = SimpleVBCComputer::make_zeta_bc(
+            world, std::get<DynamicRestrictedResponse>(xc).y_alpha,
+            std::get<DynamicRestrictedResponse>(xb).x_alpha, gs.orbitals);
+
+        xb_phi0.flatten();
+        xc_phi0.flatten();
+        y_zeta_bc.flatten();
+        y_zeta_cb.flatten();
+
+        std::vector<vector_real_function_3d> ra_y_zeta_bc(
+            perturbation_A.size());
+        std::vector<vector_real_function_3d> ra_y_zeta_cb(
+            perturbation_A.size());
+        for (int a = 0; a < perturbation_A.size(); ++a) {
+          ra_y_zeta_bc[a] = copy(world, get_flat(y_zeta_bc)) * opAs[a];
+          ra_y_zeta_cb[a] = copy(world, get_flat(y_zeta_cb)) * opAs[a];
+        }
+        std::vector<vector_real_function_3d> xb_phi0_vec(1);
+        std::vector<vector_real_function_3d> xc_phi0_vec(1);
+        xb_phi0_vec[0] = get_flat(xb_phi0);
+        xc_phi0_vec[0] = get_flat(xc_phi0);
+
+        auto file_name = "responses/" + vbc_state.perturbationDescription() +
+                         "_beta_zeta_bc_0.json";
+        madness::Tensor<double> beta_2 = compute_response_inner_product_tensor(
+            world, ra_y_zeta_bc, xb_phi0_vec, true, "beta_zeta_bc_1");
+
+        file_name = "responses/" + vbc_state.perturbationDescription() +
+                    "_beta_zeta_bc_1.json";
+        madness::Tensor<double> beta_3 = compute_response_inner_product_tensor(
+            world, ra_y_zeta_cb, xc_phi0_vec, true, file_name);
+        if (world.rank() == 0) {
+          print("beta_3 tensor size:", beta_3.size(), "x", beta_3.size());
+          print("beta_3= \n ", beta_3);
+        }
+
+        beta_tensor += beta_2;
+        beta_tensor += beta_3;
+
         beta_tensor *= -2.0; // factor of -2 for beta
         if (world.rank() == 0) {
+          print(vbc_state.perturbationDescription());
           print("β tensor size:", beta_tensor.size(), "x", beta_tensor.size());
-          print("β= ", beta_tensor);
+          print("β= \n", beta_tensor);
         }
 
         pm.set_beta(freq_b, freq_c, bc, beta_tensor);

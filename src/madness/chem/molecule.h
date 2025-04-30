@@ -124,6 +124,8 @@ std::ostream& operator<<(std::ostream& s, const Atom& atom);
 class Molecule {
 public:
     struct GeometryParameters : public QCCalculationParametersBase {
+        static constexpr char const* tag = "geometry";
+
         GeometryParameters(const GeometryParameters& other) = default;
 
         GeometryParameters(World& world, const commandlineparser& parser) : GeometryParameters() {

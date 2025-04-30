@@ -23,6 +23,7 @@ namespace madness
 
   struct ResponseParameters : public QCCalculationParametersBase
   {
+    static constexpr char const *tag = "response";
     ResponseParameters(const ResponseParameters &other) = default;
     ResponseParameters(World &world, const commandlineparser &parser) : ResponseParameters()
     {
