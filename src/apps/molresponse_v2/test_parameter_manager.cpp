@@ -1,6 +1,8 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+// Random madness stuff
+#include <madness/misc/info.h>
 
 // Include your parameter manager and group definitions
 #include <../molresponse/response_parameters.h>
@@ -10,9 +12,8 @@
 #include <molecule.h>
 
 // Define a concrete aliased ParameterManager type
-using MyParamMgr =
-    ParameterManager<CalculationParameters, ResponseParameters,
-                     OptimizationParameters, Molecule::GeometryParameters>;
+using MyParamMgr = ParameterManager<CalculationParameters, ResponseParameters,
+                                    OptimizationParameters, Molecule>;
 
 int main(int argc, char *argv[]) {
   // Initialize MADNESS world (passes MPI args, etc.)
@@ -20,10 +21,13 @@ int main(int argc, char *argv[]) {
   {
 
     startup(world, argc, argv, true);
+    if (world.rank() == 0)
+      print(info::print_revision_information());
     if (world.rank() == 0) {
       print_header1("MOLRESPONSE -- MADNESS Time-Dependent Density Functional "
                     "Theory Excited-State Program ");
     }
+    commandlineparser parser(argc, argv);
 
     if (argc != 2) {
       std::cerr << "Usage: " << argv[0] << " <input_file>\n";

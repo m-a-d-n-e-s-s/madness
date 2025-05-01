@@ -1,6 +1,7 @@
 #include <QCCalculationParametersBase.h>
 
 using namespace madness;
+using path = std::filesystem::path;
 
 struct OptimizationParameters : public QCCalculationParametersBase {
   static constexpr char const *tag = "optimization";
@@ -68,30 +69,25 @@ class ParameterManager : public madness::QCCalculationParametersBase {
   template <typename G> void addGroupJson() {
     auto const &g = std::get<G>(groups_);
     auto j = g.to_json_if_precedence("defined");
+    if (world_.rank() == 0) {
+      madness::print("Group: ", G::tag, " JSON: ", j.dump(4));
+    }
     if (!j.is_null())
       all_input_json_[G::tag] = j;
   }
 
 public:
-  // 1) read from a plain-text “.inp” file
-  ParameterManager(World &w, std::string const &filename) : world_(w) {
+  /// "Master" ctor: takes any single intput file, JSON or plain-text
+  ParameterManager(World &w, const path &filename) : world_(w) {
     parser_.set_keyval("input", filename);
-    // invoke each group’s file+CLI parser:
-    ((void)(std::get<Groups>(groups_) = Groups(world_, parser_)), ...);
 
-    // collect JSON for any defined keys:
-    ((void)addGroupJson<Groups>(), ...);
-  }
-
-  // 2) or read from an existing JSON
-  ParameterManager(World &w, nlohmann::json const &j) : world_(w) {
-    (
-        [&] {
-          if (j.contains(Groups::tag)) {
-            std::get<Groups>(groups_).from_json(j.at(Groups::tag));
-          }
-        }(),
-        ...);
+    if (is_json_file(filename)) {
+      auto j = read_json_file(filename);
+      initFromJson(j);
+    } else {
+      // plain-text file
+      initFromText(filename);
+    }
   }
 
   /// dump out the merged JSON
@@ -102,7 +98,53 @@ public:
   /// access a particular group by type:
   template <typename G> G const &get() const { return std::get<G>(groups_); }
 
-
   /// pretty-print everything
-  void print_all() const { (std::get<Groups>(groups_).print(), ...); }
+  void print_all() const { (print_group_if_defined<Groups>(), ...); }
+
+private:
+  void initFromJson(nlohmann::json const &j) {
+    (
+        [&] {
+          if (j.contains(Groups::tag)) {
+            if (world_.rank() == 0) {
+              madness::print("Group: ", Groups::tag,
+                             " JSON: ", j.at(Groups::tag).dump(4));
+            }
+            std::get<Groups>(groups_).from_json(j.at(Groups::tag));
+          }
+        }(),
+        ...);
+    all_input_json_ = j;
+  }
+  // 1) read from a plain-text “.inp” file
+  void initFromText(const path &filename) {
+    parser_.set_keyval("input", filename);
+    // invoke each group’s file+CLI parser:
+    ((void)(std::get<Groups>(groups_) = Groups(world_, parser_)), ...);
+
+    // collect JSON for any defined keys:
+    ((void)addGroupJson<Groups>(), ...);
+  }
+
+  template <typename G> void print_group_if_defined() const {
+    auto const &g = std::get<G>(groups_);
+    // grab only the user-defined values:
+    auto j = g.to_json_if_precedence("defined");
+    // json.empty() is true if no user-defined values
+    if (!j.empty()) {
+      g.print();
+    }
+  }
+  static bool is_json_file(const path &f) {
+    std::ifstream input_file_stream(f);
+    bool is_json = json::accept(input_file_stream);
+    input_file_stream.close();
+    return is_json;
+  }
+  static json read_json_file(const path &input_file) {
+    std::ifstream input_file_stream(input_file);
+    auto j = json::parse(input_file_stream);
+    input_file_stream.close();
+    return j;
+  }
 };

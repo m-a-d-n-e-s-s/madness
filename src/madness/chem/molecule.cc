@@ -493,14 +493,19 @@ nlohmann::json Molecule::to_json() const {
 
   auto molecule_parameters = parameters.to_json();
   mol_schema["parameters"] = molecule_parameters;
-
-  //    get_atomic_data(atoms[0].atomic_number).symbol;
-  for (size_t i = 0; i < natom(); ++i) {
-    mol_schema["symbols"].push_back(
-        get_atomic_data(atoms[i].atomic_number).symbol);
-    mol_schema["geometry"].push_back({atoms[i].x, atoms[i].y, atoms[i].z});
-  }
+  insert_symbols_and_geometry(mol_schema);
   return mol_schema;
+}
+
+void Molecule::insert_symbols_and_geometry(json& mol_json) const {
+  mol_json["symbols"] = {};
+  mol_json["geometry"] = {};
+
+  for (size_t i = 0; i < natom(); ++i) {
+    mol_json["symbols"].push_back(
+        get_atomic_data(atoms[i].atomic_number).symbol);
+    mol_json["geometry"].push_back({atoms[i].x, atoms[i].y, atoms[i].z});
+  }
 }
 
 void Molecule::from_json(const json& mol_json) {
