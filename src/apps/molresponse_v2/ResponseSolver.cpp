@@ -3,12 +3,10 @@
 #include "ResponseDebugLogger.hpp"
 #include "ResponseDebugLoggerMacros.hpp"
 #include "ResponseManager.hpp"
-#include "ResponseVector.hpp"
 #include "ResponseSolverUtils.hpp"
+#include "ResponseVector.hpp"
 #include "functypedefs.h"
 #include "projector.h"
-
-
 
 std::vector<poperatorT>
 ResponseSolverPolicy<StaticRestrictedResponse>::make_bsh_operators(
@@ -146,4 +144,3 @@ ResponseSolverPolicy<DynamicRestrictedResponse>::CoupledResponseEquations(
   rsh = gs.Qhat(rsh);
   return rsh;
 }
-

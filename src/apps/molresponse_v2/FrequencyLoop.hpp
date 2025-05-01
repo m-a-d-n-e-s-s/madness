@@ -70,7 +70,7 @@ inline bool iterate(World &world, const ResponseManager &rm,
     double res_norm = norm2(world, sub(world, all_x, x_new));
     DEBUG_LOG_VALUE(world, &logger, "res_norm", res_norm);
     // 4. Do step restriction
-    if (rm.params().step_restrict()) {
+    if (rm.params().step_restrict() and false) {
       DEBUG_TIMED_BLOCK(world, &logger, "step_restriction", {
         ResponseSolverUtils::do_step_restriction(world, all_x, kain_x, res_norm,
                                                  "a", rm.params().maxrotn());
@@ -206,8 +206,7 @@ inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
 
   const auto &frequencies = state.frequencies;
 
-  auto state_id = state.description();
-
+  auto state_id = state.perturbationDescription();
   double protocol = state.current_threshold();
   size_t thresh_index = state.current_thresh_index;
 
@@ -218,11 +217,7 @@ inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
   ResponseVector previous_response =
       make_response_vector(num_orbitals, state.is_static(), is_unrestricted);
   bool have_previous_freq_response = false;
-
-  if (world.rank() == 0) {
-    madness::print("🚀 Starting calculation at protocol:", protocol,
-                   "for state:", state_id);
-  }
+  auto pertDesc = state.perturbationDescription();
 
   // Frequency loop
   for (size_t i = state.current_frequency_index; i < state.frequencies.size();
@@ -232,14 +227,14 @@ inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
     double freq = state.current_frequency();
     auto freq_index = state.current_frequency_index;
     bool is_saved =
-        metadata.is_saved(state_id, protocol, freq); // Check if already saved
+        metadata.is_saved(pertDesc, protocol, freq); // Check if already saved
     bool should_solve =
         !is_saved ||
-        (at_final_protocol && !metadata.is_converged(state_id, protocol, freq));
+        (at_final_protocol && !metadata.is_converged(pertDesc, protocol, freq));
     if (!should_solve) {
       if (world.rank() == 0) {
         print("⚠️  Skipping frequency", freq, "at protocol", protocol,
-              "for state:", state_id);
+              "for state:", pertDesc);
       }
       continue;
     }

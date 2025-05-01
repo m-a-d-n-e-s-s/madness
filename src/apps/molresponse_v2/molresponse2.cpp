@@ -43,10 +43,10 @@ int main(int argc, char **argv) {
     auto input_freq = molresponse_params.freq_range();
 
     std::vector<MolecularProperty> requested_properties = {
-        MolecularProperty(MolecularPropertyType::Polarizability, input_freq,
-                          {'x', 'y'}),
+        /*MolecularProperty(MolecularPropertyType::Polarizability, input_freq,*/
+        /*                  {'x', 'y','z'}),*/
         MolecularProperty(MolecularPropertyType::Hyperpolarizability,
-                          input_freq, {'x', 'y'}),
+                          input_freq, {'z'}),
     };
 
     // Initialize the ResponseManager with ground-state archive
@@ -86,12 +86,9 @@ int main(int argc, char **argv) {
         if (state.is_converged || state.current_threshold() != thresh)
           continue;
 
-        const auto state_id = state.description();
-        if (metadata.final_converged(state_id)) {
-          continue;
-        }
         computeFrequencyLoop(world, rm, state, ground_state, metadata,
                              debug_logger);
+
         if (debug_logger.enabled()) {
           debug_logger.write_to_disk("response_log.json");
         }

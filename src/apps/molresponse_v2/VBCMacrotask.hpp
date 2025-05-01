@@ -18,6 +18,25 @@ public:
       : world_(world), gs_(gs), num_orbitals_(gs.getNumOrbitals()),
         spin_restricted_(gs.isSpinRestricted()) {}
 
+  std::pair<ResponseVector, ResponseVector>
+  get_BC_vecs(const VBCResponseState &vbc_state) {
+    auto [stateB, stateC] = vbc_state.get_states();
+    // 2) Load their response vectors:
+    ResponseVector Bv, Cv;
+    load_response_vector(world_, num_orbitals_, stateB, Bv, /*th*/ 0, /*f*/ 0);
+    load_response_vector(world_, num_orbitals_, stateC, Cv, /*th*/ 0, /*f*/ 0);
+
+    // 3) Promote to dynamic (x/y) if needed:
+    auto Bdyn = make_response_vector(num_orbitals_, /*is_static=*/false,
+                                     spin_restricted_);
+    auto Cdyn = make_response_vector(num_orbitals_, /*is_static=*/false,
+                                     spin_restricted_);
+    promote_response_vector(world_, Bv, Bdyn);
+    promote_response_vector(world_, Cv, Cdyn);
+
+    return std::make_pair(Bdyn, Cdyn);
+  }
+
   static vector_real_function_3d
   make_zeta_bc(World &world, const vector_real_function_3d &by,
                const vector_real_function_3d &cx,
@@ -155,21 +174,10 @@ public:
       return loaded;
     }
 
+    auto [xB, xC] = get_BC_vecs(vbc_state);
     auto [stateB, stateC] = vbc_state.get_states();
 
     // 2) Load their response vectors:
-    ResponseVector Bv, Cv;
-    load_response_vector(world_, num_orbitals_, stateB, Bv, /*th*/ 0, /*f*/ 0);
-    load_response_vector(world_, num_orbitals_, stateC, Cv, /*th*/ 0, /*f*/ 0);
-
-    // 3) Promote to dynamic (x/y) if needed:
-    auto Bdyn = make_response_vector(num_orbitals_, /*is_static=*/false,
-                                     spin_restricted_);
-    auto Cdyn = make_response_vector(num_orbitals_, /*is_static=*/false,
-                                     spin_restricted_);
-    promote_response_vector(world_, Bv, Bdyn);
-    promote_response_vector(world_, Cv, Cdyn);
-
     auto VB = perturbation_vector(world_, gs_, stateB);
     auto VC = perturbation_vector(world_, gs_, stateC);
     VB.insert(VB.end(), VB.begin(), VB.end());
@@ -177,7 +185,7 @@ public:
     auto vb = raw_perturbation_operator(world_, gs_, stateB);
     auto vc = raw_perturbation_operator(world_, gs_, stateC);
 
-    auto result = compute_vbc_response(world_, gs_, Bdyn, Cdyn, VB, VC, vb, vc);
+    auto result = compute_vbc_response(world_, gs_, xB, xC, VB, VC, vb, vc);
 
     // 5) Save to disk and return:
     save_response_vector(world_, vbc_state, result);

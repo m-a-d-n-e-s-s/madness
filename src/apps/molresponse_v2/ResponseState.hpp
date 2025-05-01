@@ -4,6 +4,7 @@
 #include "Perturbation.hpp"
 #include "molecular_functors.h"
 #include "vmra.h"
+#include <ResponseVector.hpp>
 #include <SCF.h>
 
 #include <madness/chem/projector.h>
@@ -108,6 +109,10 @@ struct ResponseState : public AbstractResponseDescriptor {
         << thresholds[thresh_index] << "_f" << frequencies[freq_index]
         << ".response";
     return oss.str();
+  }
+
+  [[nodiscard]] std::string perturbationDescription() const {
+    return describe_perturbation(perturbation);
   }
 
   [[nodiscard]] std::string description() const {

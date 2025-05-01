@@ -74,9 +74,9 @@ load_response_vector(World &world, const int &num_orbitals, StateType &state,
       [&](auto &v) {
         int i = 0;
         for (auto &f : v.flat) {
-          if (world.rank() == 0) {
-            print("Loading response vector ", i++);
-          }
+          /*if (world.rank() == 0) {*/
+          /*  print("Loading response vector ", i++);*/
+          /*}*/
 
           ar & f;
         }
