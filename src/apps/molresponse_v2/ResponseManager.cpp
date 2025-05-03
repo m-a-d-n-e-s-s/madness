@@ -1,18 +1,17 @@
 #include "ResponseManager.hpp"
-#include "madness/world/world.h"
-#include "molresponse/response_parameters.h"
+
 #include <madness/chem/SCF.h>
+
+#include "CalculationParameters.h"
+#include "madness/world/world.h"
 
 using namespace madness;
 
-ResponseManager::ResponseManager(World &world,
-                                 const ResponseParameters &r_params)
-    : r_params(r_params), vtol(0.0) {}
+ResponseManager::ResponseManager(World &world, const CalculationParameters &params) : calc_params(params), vtol(0.0) {}
 
 // Initially loaded at maximum polynomial order (settings_.k)
 
-void ResponseManager::setProtocol(World &world, double L, double thresh,
-                                  int override_k) {
+void ResponseManager::setProtocol(World &world, double L, double thresh, int override_k) {
   int k;
   if (thresh >= 0.9e-2)
     k = 4;
@@ -29,7 +28,7 @@ void ResponseManager::setProtocol(World &world, double L, double thresh,
     FunctionDefaults<3>::set_k(k);
     //        	param.k=k;
   } else {
-    FunctionDefaults<3>::set_k(r_params.k());
+    FunctionDefaults<3>::set_k(calc_params.k());
   }
   FunctionDefaults<3>::set_thresh(thresh);
   FunctionDefaults<3>::set_refine(true);
@@ -41,7 +40,7 @@ void ResponseManager::setProtocol(World &world, double L, double thresh,
   GaussianConvolution1DCache<double>::map.clear();
   double safety = 0.1;
   vtol = FunctionDefaults<3>::get_thresh() * safety;
-  coulop = poperatorT(CoulombOperatorPtr(world, r_params.lo(), 0.001 * thresh));
+  coulop = poperatorT(CoulombOperatorPtr(world, calc_params.lo(), 0.001 * thresh));
   gradop = gradient_operator<double, 3>(world);
 
   if (world.rank() == 0) {
