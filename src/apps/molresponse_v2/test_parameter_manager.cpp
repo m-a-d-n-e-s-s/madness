@@ -1,31 +1,24 @@
-#include <fstream>
-#include <iostream>
-#include <string>
-// Random madness stuff
-#include <madness/misc/info.h>
-
-// Include your parameter manager and group definitions
-#include <../molresponse/response_parameters.h>
-#include <CalculationParameters.h>
-#include <ParameterManager.hpp>
 #include <QCCalculationParametersBase.h>
+#include <madness/misc/info.h>
+#include <madness/mra/mra.h>
 #include <molecule.h>
 
+#include <iostream>
+#include <string>
+
+#include "ParameterManager.hpp"
+
 // Define a concrete aliased ParameterManager type
-using MyParamMgr = ParameterManager<CalculationParameters, ResponseParameters,
-                                    OptimizationParameters, Molecule>;
+using MyParamMgr = ParameterManager<CalculationParameters, ResponseParameters, OptimizationParameters, Molecule>;
 
-int main(int argc, char *argv[]) {
-  // Initialize MADNESS world (passes MPI args, etc.)
-  World &world = madness::initialize(argc, argv);
+int main(int argc, char **argv) {
+  World &world = initialize(argc, argv);
   {
-
     startup(world, argc, argv, true);
-    if (world.rank() == 0)
-      print(info::print_revision_information());
-    if (world.rank() == 0) {
-      print_header1("MOLRESPONSE -- MADNESS Time-Dependent Density Functional "
-                    "Theory Excited-State Program ");
+    if (argc != 2) {
+      if (world.rank() == 0) std::cerr << "Usage: molresponse2 [input_file.json]\n";
+      finalize();
+      return 1;
     }
     commandlineparser parser(argc, argv);
 
@@ -44,7 +37,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Dump merged JSON to stdout
-    auto all_json = pm.getAllInputJson();
+    auto &all_json = pm.getAllInputJson();
     if (world.rank() == 0) {
       std::cout << "Merged JSON:\n";
       std::cout << all_json.dump(4) << std::endl;
