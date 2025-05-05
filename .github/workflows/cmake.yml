@@ -36,7 +36,7 @@ jobs:
         -G Ninja
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
         -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
-        -DCMAKE_PREFIX_PATH=/usr/local/opt/bison
+        -DCMAKE_PREFIX_PATH="/usr/local/opt/bison;/usr/local/opt/libxc"
         -DBUILD_SHARED_LIBS=OFF
         -DMPIEXEC_PREFLAGS='--bind-to;none;--allow-run-as-root'
         -DBUILD_TESTING=ON
@@ -73,7 +73,7 @@ jobs:
     - name: Install prerequisite MacOS packages
       if: ${{ matrix.os == 'macos-latest' }}
       run: |
-        brew install ninja boost eigen open-mpi bison ccache
+        brew install ninja boost eigen open-mpi bison ccache libxc
         if [ "X${{ matrix.task_backend }}" = "XLegacyTBB" ]; then
           brew install tbb@2020
           echo "TBBROOT=/usr/local/opt/tbb@2020" >> $GITHUB_ENV

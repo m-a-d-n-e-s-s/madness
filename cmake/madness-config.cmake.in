@@ -185,7 +185,7 @@ set(MADNESS_HAS_LIBXC @MADNESS_HAS_LIBXC@)
 if (MADNESS_HAS_LIBXC AND NOT TARGET Libxc::xc)
     include( CMakeFindDependencyMacro )
     get_filename_component(_libxc_config_dir "@Libxc_CONFIG@" DIRECTORY)
-    find_dependency(Libxc CONFIG REQUIRED COMPONENTS xc PATHS "${_libxc_config_dir}" NO_DEFAULT_PATH)
+    find_dependency(Libxc CONFIG REQUIRED PATHS "${_libxc_config_dir}" NO_DEFAULT_PATH)
 endif()
   
 ### LAPACK_LIBRARIES might include IMPORTED targets that are not globally available
