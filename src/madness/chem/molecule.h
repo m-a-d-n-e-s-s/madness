@@ -35,83 +35,72 @@
 /// \file moldft/molecule.h
 /// \brief Declaration of molecule related classes and functions
 
-#include "madness/mra/QCCalculationParametersBase.h"
-#include "madness/mra/commandlineparser.h"
-#include <algorithm>
-#include <cmath>
 #include <ctype.h>
-#include <fstream>
-#include <iostream>
 #include <madness/chem/atomutil.h>
 #include <madness/chem/corepotential.h>
 #include <madness/misc/misc.h>
 #include <madness/tensor/tensor.h>
 #include <madness/world/vector.h>
+
+#include <algorithm>
+#include <cmath>
+#include <fstream>
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
+
+#include "madness/mra/QCCalculationParametersBase.h"
+#include "madness/mra/commandlineparser.h"
 
 namespace madness {
 
 class World;
 
 class Atom {
-public:
-  double x, y, z, q;          ///< Coordinates and charge in atomic units
-  unsigned int atomic_number; ///< Atomic number
-  double mass;                ///< Mass
-  bool pseudo_atom;           ///< Indicates if this atom uses a pseudopotential
+ public:
+  double x, y, z, q;           ///< Coordinates and charge in atomic units
+  unsigned int atomic_number;  ///< Atomic number
+  double mass;                 ///< Mass
+  bool pseudo_atom;            ///< Indicates if this atom uses a pseudopotential
 
-  explicit Atom(double x, double y, double z, double q,
-                unsigned int atomic_number, bool pseudo_atom)
-      : x(x), y(y), z(z), q(q), atomic_number(atomic_number),
-        pseudo_atom(pseudo_atom) {
+  explicit Atom(double x, double y, double z, double q, unsigned int atomic_number, bool pseudo_atom)
+      : x(x), y(y), z(z), q(q), atomic_number(atomic_number), pseudo_atom(pseudo_atom) {
     mass = get_atomic_data(atomic_number).mass;
 
-    if (mass == -1.0)
-      MADNESS_EXCEPTION("faulty element in Atom", 1);
+    if (mass == -1.0) MADNESS_EXCEPTION("faulty element in Atom", 1);
 
     // unstable elements are indicated by negative masses, the mass
     // is taken from the longest-living element
-    if (mass < 0.0)
-      mass *= -1.0;
+    if (mass < 0.0) mass *= -1.0;
   }
 
-  explicit Atom(double x, double y, double z, double q,
-                unsigned int atomic_number)
-      : x(x), y(y), z(z), q(q), atomic_number(atomic_number) {
+  explicit Atom(double x, double y, double z, double q, unsigned int atomic_number) : x(x), y(y), z(z), q(q), atomic_number(atomic_number) {
     mass = get_atomic_data(atomic_number).mass;
 
-    if (mass == -1.0)
-      MADNESS_EXCEPTION("faulty element in Atom", 1);
+    if (mass == -1.0) MADNESS_EXCEPTION("faulty element in Atom", 1);
 
     // unstable elements are indicated by negative masses, the mass
     // is taken from the longest-living element
-    if (mass < 0.0)
-      mass *= -1.0;
+    if (mass < 0.0) mass *= -1.0;
 
     pseudo_atom = false;
   }
 
-  Atom(const Atom &a)
-      : x(a.x), y(a.y), z(a.z), q(a.q), atomic_number(a.atomic_number),
-        mass(a.mass), pseudo_atom(a.pseudo_atom) {}
+  Atom(const Atom &a) : x(a.x), y(a.y), z(a.z), q(a.q), atomic_number(a.atomic_number), mass(a.mass), pseudo_atom(a.pseudo_atom) {}
 
   /// Default construct makes a zero charge ghost atom at origin
-  Atom()
-      : x(0), y(0), z(0), q(0), atomic_number(0), mass(0.0),
-        pseudo_atom(false) {}
+  Atom() : x(0), y(0), z(0), q(0), atomic_number(0), mass(0.0), pseudo_atom(false) {}
 
   int get_atomic_number() const { return atomic_number; }
 
-  madness::Vector<double, 3> get_coords() const {
-    return madness::Vector<double, 3>{x, y, z};
-  }
+  madness::Vector<double, 3> get_coords() const { return madness::Vector<double, 3>{x, y, z}; }
 
   /// return the mass in atomic units (electron mass = 1 a.u.)
   double get_mass_in_au() const { return constants::atomic_mass_in_au * mass; }
 
-  template <typename Archive> void serialize(Archive &ar) {
+  template <typename Archive>
+  void serialize(Archive &ar) {
     ar & x & y & z & q & atomic_number & mass & pseudo_atom;
   }
   hashT hash() const {
@@ -129,12 +118,10 @@ public:
 std::ostream &operator<<(std::ostream &s, const Atom &atom);
 
 class Molecule {
-
-public:
+ public:
   // Needed for ParameterManager
   static constexpr char const *tag = "molecule";
-  [[nodiscard]] json
-  to_json_if_precedence(std::string const &precedence) const {
+  [[nodiscard]] json to_json_if_precedence(std::string const &precedence) const {
     json mol_schema = to_json();
     mol_schema["parameters"] = parameters.to_json();
     insert_symbols_and_geometry(mol_schema);
@@ -142,11 +129,9 @@ public:
   }
 
   struct GeometryParameters : public QCCalculationParametersBase {
-
     GeometryParameters(const GeometryParameters &other) = default;
 
-    GeometryParameters(World &world, const commandlineparser &parser)
-        : GeometryParameters() {
+    GeometryParameters(World &world, const commandlineparser &parser) : GeometryParameters() {
       try {
         set_global_convenience_options(parser);
         read_input_and_commandline_options(world, parser, tag);
@@ -167,17 +152,11 @@ public:
       //            initialize<std::vector<std::string>>("source",{"inputfile"},"where
       //            to get the coordinates from: ({inputfile}, {library,xxx},
       //            {xyz,xxx.xyz})");
-      initialize<std::string>("source_type", "inputfile",
-                              "where to get the coordinates from",
-                              {"inputfile", "xyz", "library"});
-      initialize<std::string>(
-          "source_name", "TBD",
-          "name of the geometry from the library or the input file");
+      initialize<std::string>("source_type", "inputfile", "where to get the coordinates from", {"inputfile", "xyz", "library"});
+      initialize<std::string>("source_name", "TBD", "name of the geometry from the library or the input file");
       initialize<double>("eprec", 1.e-4, "smoothing for the nuclear potential");
-      initialize<std::string>("units", "atomic", "coordinate units",
-                              {"atomic", "angstrom", "bohr", "au"});
-      initialize<std::vector<double>>("field", {0.0, 0.0, 0.0},
-                                      "external electric field");
+      initialize<std::string>("units", "atomic", "coordinate units", {"atomic", "angstrom", "bohr", "au"});
+      initialize<std::vector<double>>("field", {0.0, 0.0, 0.0}, "external electric field");
       initialize<bool>("no_orient", false,
                        "if true the molecule coordinates will not be "
                        "reoriented and/or symmetrized");
@@ -185,16 +164,12 @@ public:
                          "distance threshold for determining the "
                          "symmetry-equivalent atoms; negative: old algorithm");
 
-      initialize<std::string>("core_type", "none", "core potential type",
-                              {"none", "mcp"});
-      initialize<bool>("psp_calc", false,
-                       "pseudopotential calculation for all atoms");
-      initialize<bool>("pure_ae", true,
-                       "pure all electron calculation with no pseudo-atoms");
+      initialize<std::string>("core_type", "none", "core potential type", {"none", "mcp"});
+      initialize<bool>("psp_calc", false, "pseudopotential calculation for all atoms");
+      initialize<bool>("pure_ae", true, "pure all electron calculation with no pseudo-atoms");
     }
 
     void set_global_convenience_options(const commandlineparser &parser) {
-
       if (parser.key_exists("geometry")) {
         set_user_defined_value("source_name", parser.value("geometry"));
       }
@@ -203,13 +178,10 @@ public:
     void set_derived_values(const commandlineparser &parser) {
       // check if we use an xyz file, the structure library or the input file
       set_derived_value("source_name",
-                        parser.value("input")); // will not override user input
-      std::string src_type =
-          derive_source_type_from_name(source_name(), parser);
+                        parser.value("input"));  // will not override user input
+      std::string src_type = derive_source_type_from_name(source_name(), parser);
       set_derived_value("source_type", src_type);
-      if (parser.key_exists("no_orient") and
-          parser.value("no_orient") == "true")
-        set_derived_value("no_orient", true);
+      if (parser.key_exists("no_orient") and parser.value("no_orient") == "true") set_derived_value("no_orient", true);
 
       // check for ambiguities in the derived source type
       if (not is_user_defined("source_type")) {
@@ -219,7 +191,7 @@ public:
         //                found_geometry_file=std::filesystem::exists(source_name());
 
         bool geometry_found_in_library = true;
-        try { // check for existence of file and structure in the library
+        try {  // check for existence of file and structure in the library
           std::ifstream f;
           position_stream_in_library(f, source_name());
         } catch (...) {
@@ -228,12 +200,14 @@ public:
 
         if (found_geometry_file and geometry_found_in_library) {
           madness::print("\n\n");
-          madness::print("geometry specification ambiguous: found geometry in "
-                         "the structure library and in a file\n");
+          madness::print(
+              "geometry specification ambiguous: found geometry in "
+              "the structure library and in a file\n");
           madness::print("  ", get_structure_library_path());
           madness::print("  ", source_name());
-          madness::print("\nPlease specify the location of your geometry input "
-                         "by one of the two lines:\n");
+          madness::print(
+              "\nPlease specify the location of your geometry input "
+              "by one of the two lines:\n");
           madness::print("  source_type xyz");
           madness::print("  source_type library\n\n");
           MADNESS_EXCEPTION("faulty input\n\n", 1);
@@ -260,17 +234,13 @@ public:
       //                }
       //            }
 
-      if (source_type() == "xyz")
-        set_derived_value("units", std::string("angstrom"));
-      if (units() == "bohr" or units() == "au")
-        set_derived_value("units", std::string("atomic"));
+      if (source_type() == "xyz") set_derived_value("units", std::string("angstrom"));
+      if (units() == "bohr" or units() == "au") set_derived_value("units", std::string("atomic"));
     }
 
     std::string source_type() const { return get<std::string>("source_type"); }
     std::string source_name() const { return get<std::string>("source_name"); }
-    std::vector<double> field() const {
-      return get<std::vector<double>>("field");
-    }
+    std::vector<double> field() const { return get<std::vector<double>>("field"); }
     double eprec() const { return get<double>("eprec"); }
     std::string units() const { return get<std::string>("units"); }
     std::string core_type() const { return get<std::string>("core_type"); }
@@ -279,22 +249,18 @@ public:
     bool no_orient() const { return get<bool>("no_orient"); }
     double symtol() const { return get<double>("symtol"); }
 
-    static std::string
-    derive_source_type_from_name(const std::string name,
-                                 const commandlineparser &parser) {
-      if (name == parser.value("input"))
-        return "inputfile";
+    static std::string derive_source_type_from_name(const std::string name, const commandlineparser &parser) {
+      if (name == parser.value("input")) return "inputfile";
       std::size_t pos = name.find(".xyz");
-      if (pos != std::string::npos)
-        return "xyz";
+      if (pos != std::string::npos) return "xyz";
       return "library";
     }
   };
 
-private:
+ private:
   // If you add more fields don't forget to serialize them
   std::vector<Atom> atoms;
-  std::vector<double> rcut; // Reciprocal of the smoothing radius
+  std::vector<double> rcut;  // Reciprocal of the smoothing radius
   CorePotentialManager core_pot;
   madness::Tensor<double> field;
 
@@ -302,29 +268,28 @@ private:
   /// identify_pointgroup function
   std::string pointgroup_ = "c1";
 
-public:
+ public:
   GeometryParameters parameters;
 
   static void print_parameters();
 
   std::string get_pointgroup() const { return pointgroup_; }
 
-private:
+ private:
   void swapaxes(int ix, int iy);
 
-  template <typename opT> bool test_for_op(opT op, const double symtol) const;
-
-  template <typename opT> void symmetrize_for_op(opT op, const double symtol);
+  template <typename opT>
+  bool test_for_op(opT op, const double symtol) const;
 
   template <typename opT>
-  int find_symmetry_equivalent_atom(int iatom, opT op,
-                                    const double symtol) const;
+  void symmetrize_for_op(opT op, const double symtol);
 
-  bool test_for_c2(double xaxis, double yaxis, double zaxis,
-                   const double symtol) const;
+  template <typename opT>
+  int find_symmetry_equivalent_atom(int iatom, opT op, const double symtol) const;
 
-  bool test_for_sigma(double xaxis, double yaxis, double zaxis,
-                      const double symtol) const;
+  bool test_for_c2(double xaxis, double yaxis, double zaxis, const double symtol) const;
+
+  bool test_for_sigma(double xaxis, double yaxis, double zaxis, const double symtol) const;
 
   bool test_for_inverse(const double symtol) const;
 
@@ -332,8 +297,7 @@ private:
   /// (xaxis,yaxis,zaxis)
   struct apply_c2 {
     double xaxis, yaxis, zaxis;
-    apply_c2(double xaxis, double yaxis, double zaxis)
-        : xaxis(xaxis), yaxis(yaxis), zaxis(zaxis) {}
+    apply_c2(double xaxis, double yaxis, double zaxis) : xaxis(xaxis), yaxis(yaxis), zaxis(zaxis) {}
     void operator()(double &x, double &y, double &z) const {
       double raxissq = xaxis * xaxis + yaxis * yaxis + zaxis * zaxis;
       double dx = x * xaxis * xaxis / raxissq;
@@ -349,8 +313,7 @@ private:
   /// normal (xaxis,yaxis,zaxis)
   struct apply_sigma {
     double xaxis, yaxis, zaxis;
-    apply_sigma(double xaxis, double yaxis, double zaxis)
-        : xaxis(xaxis), yaxis(yaxis), zaxis(zaxis) {}
+    apply_sigma(double xaxis, double yaxis, double zaxis) : xaxis(xaxis), yaxis(yaxis), zaxis(zaxis) {}
     void operator()(double &x, double &y, double &z) const {
       double raxissq = xaxis * xaxis + yaxis * yaxis + zaxis * zaxis;
       double dx = x * xaxis * xaxis / raxissq;
@@ -365,8 +328,7 @@ private:
 
   struct apply_inverse {
     double xaxis, yaxis, zaxis;
-    apply_inverse(double xaxis, double yaxis, double zaxis)
-        : xaxis(xaxis), yaxis(yaxis), zaxis(zaxis) {}
+    apply_inverse(double xaxis, double yaxis, double zaxis) : xaxis(xaxis), yaxis(yaxis), zaxis(zaxis) {}
     void operator()(double &x, double &y, double &z) const {
       x = -x;
       y = -y;
@@ -374,14 +336,12 @@ private:
     }
   };
 
-public:
+ public:
   /// Makes a molecule with zero atoms
   Molecule() : atoms(), rcut(), core_pot(), field(3L){};
 
   /// makes a molecule from a list of atoms
-  Molecule(std::vector<Atom> atoms, double eprec,
-           CorePotentialManager core_pot = {},
-           madness::Tensor<double> field = madness::Tensor<double>(3L));
+  Molecule(std::vector<Atom> atoms, double eprec, CorePotentialManager core_pot = {}, madness::Tensor<double> field = madness::Tensor<double>(3L));
 
   /// makes a molecule using contents of \p parser
   Molecule(World &world, const commandlineparser &parser);
@@ -390,16 +350,14 @@ public:
 
   void read_structure_from_library(const std::string &name);
 
-  static std::istream &position_stream_in_library(std::ifstream &f,
-                                                  const std::string &name);
+  static std::istream &position_stream_in_library(std::ifstream &f, const std::string &name);
 
   static std::string get_structure_library_path();
 
   /// print out a Gaussian cubefile header
 
   /// @param[in] offset  the offset to be subtracted from the coordinates
-  std::vector<std::string> cubefile_header(
-      const Vector<double, 3> offset = Vector<double, 3>(0.0)) const;
+  std::vector<std::string> cubefile_header(const Vector<double, 3> offset = Vector<double, 3>(0.0)) const;
 
   // initializes Molecule using the contents of file \c filename
   void read_file(const std::string &filename);
@@ -424,27 +382,17 @@ public:
       return 0;
   };
 
-  unsigned int get_core_l(unsigned int atn, unsigned int c) const {
-    return core_pot.get_core_l(atn, c);
-  }
+  unsigned int get_core_l(unsigned int atn, unsigned int c) const { return core_pot.get_core_l(atn, c); }
 
-  double get_core_bc(unsigned int atn, unsigned int c) const {
-    return core_pot.get_core_bc(atn, c);
-  }
+  double get_core_bc(unsigned int atn, unsigned int c) const { return core_pot.get_core_bc(atn, c); }
 
-  double core_eval(int atom, unsigned int core, int m, double x, double y,
-                   double z) const;
+  double core_eval(int atom, unsigned int core, int m, double x, double y, double z) const;
 
-  double core_derivative(int atom, int axis, unsigned int core, int m, double x,
-                         double y, double z) const;
+  double core_derivative(int atom, int axis, unsigned int core, int m, double x, double y, double z) const;
 
-  bool is_potential_defined(unsigned int atn) const {
-    return core_pot.is_defined(atn);
-  };
+  bool is_potential_defined(unsigned int atn) const { return core_pot.is_defined(atn); };
 
-  bool is_potential_defined_atom(int i) const {
-    return core_pot.is_defined(atoms[i].atomic_number);
-  };
+  bool is_potential_defined_atom(int i) const { return core_pot.is_defined(atoms[i].atomic_number); };
 
   void add_atom(double x, double y, double z, double q, int atn);
 
@@ -505,8 +453,7 @@ public:
   /// @param[in]  iaxis   the xyz axis of the i-th atom
   /// @param[in]  jaxis   the xyz axis of the j-th atom
   /// return the (3*iatom + iaxis, 3*jatom + jaxis) matix element of the hessian
-  double nuclear_repulsion_second_derivative(int iatom, int jatom, int iaxis,
-                                             int jaxis) const;
+  double nuclear_repulsion_second_derivative(int iatom, int jatom, int iaxis, int jaxis) const;
 
   /// return the hessian matrix of the second derivatives d^2/dxdy V
 
@@ -523,8 +470,7 @@ public:
   /// @param[in]  atom    the atom which will be displaced
   /// @param[in]  axis    the axis where the atom will be displaced
   /// @return     a vector which all 3 components of the dipole derivative
-  Tensor<double> nuclear_dipole_derivative(const int atom,
-                                           const int axis) const;
+  Tensor<double> nuclear_dipole_derivative(const int atom, const int axis) const;
 
   /// evaluate the nuclear charge density at point `{x,y,z}` using the default
   /// MADNESS nuclear model. See smoothed_density() for the description
@@ -534,8 +480,7 @@ public:
   /// \p rscale (in other words, `rcut` is multiplied by the inverse of by this)
   /// \return the nuclear charge density at point `{x,y,z}`
   /// \sa smoothed_density()
-  double nuclear_charge_density(double x, double y, double z,
-                                double rscale = 1.) const;
+  double nuclear_charge_density(double x, double y, double z, double rscale = 1.) const;
 
   double smallest_length_scale() const;
 
@@ -561,7 +506,6 @@ public:
   /// use as
   /// mass_weighted_hessian=inner(massweights,inner(hessian,massweights));
   Tensor<double> massweights() const {
-
     Tensor<double> M(3 * natom(), 3 * natom());
     for (size_t i = 0; i < natom(); i++) {
       const double sqrtmass = 1.0 / sqrt(get_atom(i).get_mass_in_au());
@@ -582,23 +526,18 @@ public:
   double nuclear_attraction_potential(double x, double y, double z) const;
 
   /// nuclear attraction potential for a specific atom in the molecule
-  double atomic_attraction_potential(int iatom, double x, double y,
-                                     double z) const;
+  double atomic_attraction_potential(int iatom, double x, double y, double z) const;
 
   double molecular_core_potential(double x, double y, double z) const;
 
-  double core_potential_derivative(int atom, int axis, double x, double y,
-                                   double z) const;
+  double core_potential_derivative(int atom, int axis, double x, double y, double z) const;
 
-  double nuclear_attraction_potential_derivative(int atom, int axis, double x,
-                                                 double y, double z) const;
+  double nuclear_attraction_potential_derivative(int atom, int axis, double x, double y, double z) const;
 
-  double nuclear_attraction_potential_second_derivative(int atom, int iaxis,
-                                                        int jaxis, double x,
-                                                        double y,
-                                                        double z) const;
+  double nuclear_attraction_potential_second_derivative(int atom, int iaxis, int jaxis, double x, double y, double z) const;
 
-  template <typename Archive> void serialize(Archive &ar) {
+  template <typename Archive>
+  void serialize(Archive &ar) {
     ar & atoms & rcut & core_pot & parameters & pointgroup_ & field;
   }
 
@@ -613,6 +552,6 @@ public:
   void from_json(const json &mol_json);
 };
 
-} // namespace madness
+}  // namespace madness
 
 #endif
