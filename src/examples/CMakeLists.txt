@@ -8,7 +8,7 @@ set(EXAMPLE_SOURCES
     helium_exact density_smoothing siam_example ac_corr dirac-hatom
     derivatives array_worldobject)
  
-if(LIBXC_FOUND)
+if(TARGET Libxc::xc)
   list(APPEND EXAMPLE_SOURCES hefxc)
 endif()
 
