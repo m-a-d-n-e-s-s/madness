@@ -1,6 +1,8 @@
 #pragma once
 #include <madness/tensor/tensor.h>
+#include <madness/world/world.h>
 
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -8,24 +10,15 @@
 #include <madness/tensor/tensor_json.hpp>
 #include <string>
 
+#include "InnerContributions.hpp"
 #include "MolecularProperty.hpp"
 #include "ResponseIO.hpp"
 #include "ResponseParameters.hpp"
+#include "ResponseSolverUtils.hpp"
 #include "ResponseVector.hpp"
 #include "VBCMacrotask.hpp"
 #include "broadcast_json.hpp"
 #include "functypedefs.h"
-
-namespace fs = std::filesystem;
-using json = nlohmann::json;
-#pragma once
-#include <madness/tensor/tensor.h>
-#include <madness/world/world.h>
-
-#include <chrono>
-#include <fstream>
-#include <iomanip>
-#include <madness/external/nlohmann_json/json.hpp>
 
 using json = nlohmann::json;
 
@@ -38,11 +31,9 @@ inline std::string iso_timestamp() {
   return ss.str();
 }
 
-/// Helper: compute inner-product tensor, and optionally dump per-k
-/// contributions.
 inline madness::Tensor<double> compute_response_inner_product_tensor(madness::World &world, const std::vector<vector_real_function_3d> &A_vecs,
                                                                      const std::vector<vector_real_function_3d> &B_vecs, bool save_contributions = false,
-                                                                     const std::string &base_filename = "") {
+                                                                     const std::string &entry_name = "") {
   const size_t nA = A_vecs.size();
   const size_t nB = B_vecs.size();
   if (nA == 0 || nB == 0) throw std::runtime_error("Input vectors must not be empty.");
@@ -50,14 +41,15 @@ inline madness::Tensor<double> compute_response_inner_product_tensor(madness::Wo
   const size_t num_rf = A_vecs[0].size();
   madness::Tensor<double> result(nA, nB);
 
-  json j;
+  // if they asked us to save
+  json this_entry;
   if (save_contributions) {
-    j["num_response_functions"] = num_rf;
-    j["contributions"] = json::object();
-    j["timestamp"] = iso_timestamp();
+    this_entry["num_response_functions"] = num_rf;
+    this_entry["contributions"] = json::object();
+    this_entry["timestamp"] = iso_timestamp();
   }
 
-  // loop over each response-function index k
+  // accumulate
   for (size_t k = 0; k < num_rf; ++k) {
     vector_real_function_3d Ak(nA), Bk(nB);
     for (size_t i = 0; i < nA; ++i) Ak[i] = A_vecs[i][k];
@@ -69,18 +61,17 @@ inline madness::Tensor<double> compute_response_inner_product_tensor(madness::Wo
     result += M_k;
 
     if (save_contributions) {
-      // serialize M_k into JSON
-      j["contributions"][std::to_string(k)] = madness::tensor_to_json<double>(M_k);
+      // serialize M_k
+      this_entry["contributions"][std::to_string(k)] = madness::tensor_to_json<double>(M_k);
     }
   }
 
   if (save_contributions) {
-    // build timestamped filename
-    auto ts = j["timestamp"].get<std::string>();
-    std::string fname = base_filename.empty() ? ("inner_contribs_" + ts + ".json") : (base_filename + "_" + ts + ".json");
-    std::ofstream out(fname);
-    out << std::setw(2) << j << "\n";
-    if (world.rank() == 0) std::cout << "📂 Wrote per-k contributions to " << fname << "\n";
+    // choose a key to store under; if user gave one, use it, else timestamp
+    auto &g = global_inner_contributions();
+
+    std::string key = entry_name.empty() ? this_entry["timestamp"].get<std::string>() : entry_name;
+    g[key] = std::move(this_entry);
   }
 
   return result;
@@ -245,8 +236,6 @@ void initialize_property_structure(PropertyManager &pm, const ResponseParameters
   auto nuclear_atom_indices = rp.nuclear_atom_indices();
   auto dipole_freqs = rp.dipole_frequencies();
   auto nuclear_freqs = rp.nuclear_frequencies();
-
-
 
   for (const auto &prop : props) {
     if (prop == "polarizability") {

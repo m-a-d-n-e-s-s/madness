@@ -2,36 +2,32 @@
 #include <madness/chem/SCF.h>
 #include <madness/mra/nonlinsol.h>
 
+#include <madness/external/nlohmann_json/json.hpp>
+
+using json = nlohmann::json;
+
+
 namespace ResponseSolverUtils {
 
 using namespace madness;
 
 // Call once before your iteration loop to print a header:
 inline void print_iteration_header() {
-  std::cout << std::setw(6) << "Iter" << " │ " << std::setw(12) << "Residual"
-            << " │ " << std::setw(12) << "Δρ" << " │ " << std::setw(12)
-            << "<x|Vp>" << "\n"
-            << std::string(6, '-') << "─┼─" << std::string(12, '-') << "─┼─"
-            << std::string(12, '-') << "─┼─" << std::string(12, '-') << "\n";
+  std::cout << std::setw(6) << "Iter" << " │ " << std::setw(12) << "Residual" << " │ " << std::setw(12) << "Δρ" << " │ " << std::setw(12) << "<x|Vp>" << "\n"
+            << std::string(6, '-') << "─┼─" << std::string(12, '-') << "─┼─" << std::string(12, '-') << "─┼─" << std::string(12, '-') << "\n";
 }
 
 // Call each iteration with the current values:
-inline void print_iteration_line(int iter, double residual, double deltaE,
-                                 double xVp) {
-  std::cout << std::setw(6) << iter << " │ " << std::setw(12) << std::scientific
-            << std::setprecision(3) << residual << " │ " << std::setw(12)
-            << std::scientific << std::setprecision(3) << deltaE << " │ "
-            << std::setw(12) << std::scientific << std::setprecision(3) << xVp
-            << "\n";
+inline void print_iteration_line(int iter, double residual, double deltaE, double xVp) {
+  std::cout << std::setw(6) << iter << " │ " << std::setw(12) << std::scientific << std::setprecision(3) << residual << " │ " << std::setw(12)
+            << std::scientific << std::setprecision(3) << deltaE << " │ " << std::setw(12) << std::scientific << std::setprecision(3) << xVp << "\n";
 }
 
-inline std::vector<poperatorT> make_bsh_operators_response(
-    World &world, const double shift, const double omega,
-    const Tensor<double> &ground_energies, const double &lo) {
-
+inline std::vector<poperatorT> make_bsh_operators_response(World &world, const double shift, const double omega, const Tensor<double> &ground_energies,
+                                                           const double &lo) {
   double tol = FunctionDefaults<3>::get_thresh();
   // Sizes inferred from ground and omega
-  size_t num_orbitals = ground_energies.size(); // number of orbitals
+  size_t num_orbitals = ground_energies.size();  // number of orbitals
   std::vector<poperatorT> ops(num_orbitals);
   // Run over occupied components
   int p = 0;
@@ -43,9 +39,7 @@ inline std::vector<poperatorT> make_bsh_operators_response(
   // End timer
 }
 
-inline double inner(World &world, const vector_real_function_3d &x,
-                    const vector_real_function_3d &y) {
-
+inline double inner(World &world, const vector_real_function_3d &x, const vector_real_function_3d &y) {
   double result = 0.0;
   for (size_t i = 0; i < x.size(); ++i) {
     result += x[i].inner(y[i]);
@@ -53,21 +47,15 @@ inline double inner(World &world, const vector_real_function_3d &x,
   return result;
 }
 
-inline void do_step_restriction(World &world, const vecfuncT &x,
-                                vecfuncT &x_new, const double &anorm,
-                                const std::string &spin,
-                                const double &maxrotn) {
-
+inline void do_step_restriction(World &world, const vecfuncT &x, vecfuncT &x_new, const double &anorm, const std::string &spin, const double &maxrotn) {
   int nres = 0;
   if (anorm > maxrotn) {
-    if (world.rank() == 0)
-      print("Doing step restriction, norm of change: ", anorm);
+    if (world.rank() == 0) print("Doing step restriction, norm of change: ", anorm);
     double s = maxrotn / anorm;
     gaxpy(s, x_new, 1.0 - s, x, true);
   }
 
   world.gop.fence();
-  if (world.rank() == 0)
-    print("Norm of vector changes", spin, ": ", anorm);
+  if (world.rank() == 0) print("Norm of vector changes", spin, ": ", anorm);
 }
-} // namespace ResponseSolverUtils
+}  // namespace ResponseSolverUtils

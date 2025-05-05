@@ -2,7 +2,6 @@
 
 #include "FrequencyLoop.hpp"  // Make sure this is included
 #include "GroundStateData.hpp"
-#include "MolecularProperty.hpp"
 #include "ParameterManager.hpp"
 #include "PropertyManager.hpp"
 #include "ResponseDebugLogger.hpp"
@@ -18,6 +17,7 @@ int main(int argc, char **argv) {
   World &world = initialize(argc, argv);
   {
     startup(world, argc, argv, true);
+
     if (argc != 2) {
       if (world.rank() == 0) std::cerr << "Usage: molresponse2 [input_file.json]\n";
       finalize();
@@ -27,18 +27,19 @@ int main(int argc, char **argv) {
     // Define a concrete aliased ParameterManager type
     using MyParamMgr = ParameterManager<CalculationParameters, ResponseParameters, OptimizationParameters, Molecule>;
     commandlineparser parser(argc, argv);
-    if (argc != 2) {
-      std::cerr << "Usage: " << argv[0] << " <input_file>\n";
-      return 1;
-    }
     std::string input_file = argv[1];
     // Construct the manager, reading .inp or JSON as needed
     MyParamMgr pm(world, input_file);
 
+    const auto &tmpl = pm.getAllInputJson();
+    if (world.rank() == 0) {
+      std::cout << "Input JSON: " << input_file << "\n" << std::setw(2) << tmpl.dump(2) << std::endl;
+    }
+
     auto rp = pm.get<ResponseParameters>();
     std::string fock_json_file = rp.fock_json_file();
-    Molecule molecule = pm.get<Molecule>();
-    auto params = pm.get<CalculationParameters>();
+    const auto &molecule = pm.get<Molecule>();
+    const auto &params = pm.get<CalculationParameters>();
     auto protocol = params.protocol();
     rp.set_user_defined_value<std::string>("archive", "moldft.restartdata");
     auto ground_state_archive = rp.archive();
@@ -48,8 +49,7 @@ int main(int argc, char **argv) {
     // Initialize the ResponseManager with ground-state archive
     auto ground_state = GroundStateData(world, ground_state_archive, molecule);
     ResponseManager rm = ResponseManager(world, params);
-    std::vector<double> protocols = {1e-4, 1e-6};
-    StateGenerator state_generator(molecule, protocols, ground_state.isSpinRestricted(), rp);
+    StateGenerator state_generator(molecule, params.protocol(), ground_state.isSpinRestricted(), rp);
     auto generated_states = state_generator.generateStates();
 
     if (world.rank() == 0) {
@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
       metadata.print_summary();
     }
     world.gop.fence();
-    ResponseDebugLogger debug_logger(true);
+    ResponseDebugLogger debug_logger("responses/response_log.json", true);
     // Extract all unique thresholds needed for this round
     for (double thresh : protocol) {
       rm.setProtocol(world, ground_state.getL(), thresh);
@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
         computeFrequencyLoop(world, rm, state, ground_state, metadata, debug_logger);
 
         if (debug_logger.enabled()) {
-          debug_logger.write_to_disk("response_log.json");
+          debug_logger.write_to_disk();
         }
         // Check if we reached final protocol or should advance
         if (state.at_final_threshold()) {
@@ -133,6 +133,14 @@ int main(int argc, char **argv) {
         properties.save();
         if (world.rank() == 0) properties.print_beta_table();
       }
+    }
+
+    // after you have called compute_response_inner_product_tensor(...)
+    if (world.rank() == 0 && !global_inner_contributions().empty()) {
+      const std::string outfn = "all_inner_contributions.json";
+      std::ofstream out(outfn);
+      out << std::setw(2) << global_inner_contributions() << "\n";
+      std::cout << "📂 Wrote all inner‐product contributions to " << outfn << "\n";
     }
 
     // 3) Final message
