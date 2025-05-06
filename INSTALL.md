@@ -143,7 +143,7 @@ CMAKE_PREFIX_PATH as well as other system paths.
 ### Library of Exchange-Correlation DFT functionals (LIBXC):
 
 MADNESS can look for LibXC built/installed using CMake by default. You can help MADNESS find
-LibXC by provide hints to `find_package()`, e.g. by  adding the installation prefix of LibXC to `CMAKE_PREFIX_PATH`.
+LibXC by providing hints to `find_package()`, e.g., by adding the installation prefix of LibXC to `CMAKE_PREFIX_PATH`.
 To disable search for LibXC configure with `ENABLE_LIBXC=OFF`.
 
 E.g.,
