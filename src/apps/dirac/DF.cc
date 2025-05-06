@@ -333,6 +333,66 @@ double myr(const coord_3d& r){
      return std::sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);
 }
 
+//Creates the (Gaussian) nuclear potential from the molecule object
+void DF::make_gaussian_potential(World& world, real_function_3d& potential){
+     if(world.rank()==0) print("\n***Making a Gaussian Potential***");
+     GaussianNucleusFunctor Vfunctor(Init_params.molecule, DFparams.bohr_rad);
+     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
+}
+
+//Creates the (Gaussian) nuclear potential from the molecule object. Also calculates the nuclear repulsion energy
+void DF::make_gaussian_potential(World& world, real_function_3d& potential, double& nuclear_repulsion_energy){
+     if(world.rank()==0) print("\n***Making a Gaussian Potential***");
+     GaussianNucleusFunctor Vfunctor(Init_params.molecule,DFparams.bohr_rad);
+     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
+     std::vector<coord_3d> Rlist = Vfunctor.get_Rlist();
+     std::vector<int> Zlist = Vfunctor.get_Zlist();
+     nuclear_repulsion_energy = 0.0;
+     double rr;
+     int num_atoms = Rlist.size();
+     for(int m = 0; m < num_atoms; m++){
+          for(int n = m+1; n < num_atoms; n++){
+               coord_3d dist = Rlist[m] - Rlist[n];
+               rr = std::sqrt(dist[0]*dist[0]+dist[1]*dist[1]+dist[2]*dist[2]);
+               nuclear_repulsion_energy += Zlist[m]*Zlist[n]/rr;
+          }
+     }
+
+}
+
+//Creates the fermi nuclear potential from the charge distribution.
+void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_function_3d& potential){
+     if(world.rank()==0) print("\n***Making a Fermi Potential***");
+     
+     //Get list of atom coordinates
+     std::vector<coord_3d> Rlist = Init_params.molecule.get_all_coords_vec();
+     std::vector<int> Zlist(Rlist.size());
+     unsigned int num_atoms = Rlist.size();
+
+     //variables for upcoming loop
+     real_function_3d temp;
+     double tempnorm;
+
+     //Go through the atoms in the molecule and construct the total charge distribution due to all nuclei
+     for(unsigned int i = 0; i < num_atoms; i++){
+          Zlist[i] = Init_params.molecule.get_atomic_number(i);
+          FermiNucDistFunctor rho(Zlist[i], Rlist[i],DFparams.bohr_rad);
+          temp = real_factory_3d(world).functor(rho).truncate_mode(0);
+          tempnorm = temp.trace();
+          temp.scale(-Zlist[i]/tempnorm);
+          if(i == 0){
+               potential = temp;
+               //rho.print_details(world);
+          }
+          else{
+               potential += temp;
+          }
+     }
+
+     //Potential is found by application of the coulomb operator to the charge distribution
+     potential = apply(op,potential);
+}
+
 //Creates the fermi nuclear potential from the charge distribution. Also calculates the nuclear repulsion energy
 void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_function_3d& potential, double& nuclear_repulsion_energy){
      if(world.rank()==0) print("\n***Making a Fermi Potential***");
@@ -377,6 +437,37 @@ void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_functi
                nuclear_repulsion_energy += Zlist[m]*Zlist[n]/rr;
           }
      }
+}
+
+//Creates the point nuclear potential from the molecule object
+void DF::make_point_potential(World& world, real_function_3d& potential){
+     if(world.rank()==0) print("\n***Making a Point Potential***");
+     MolecularPotentialFunctor Vfunctor(Init_params.molecule);
+     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
+}
+
+//Creates the point nuclear potential from the molecule object. Also calculates the nuclear repulsion energy
+void DF::make_point_potential(World& world, real_function_3d& potential, double& nuclear_repulsion_energy){
+     if(world.rank()==0) print("\n***Making a Point Potential***");
+     auto molecule = Init_params.molecule;
+     MolecularPotentialFunctor Vfunctor(molecule);
+     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
+     
+     std::vector<coord_3d> Rlist = molecule.get_all_coords_vec();
+     std::vector<int> Zlist;
+     for(unsigned int i = 0; i < Rlist.size(); i++){
+          Zlist.push_back(molecule.get_atomic_number(i));
+     }
+     nuclear_repulsion_energy = 0.0;
+     double rr;
+     int num_atoms = Rlist.size();
+     for(int m = 0; m < num_atoms; m++){
+          for(int n = m+1; n < num_atoms; n++){
+               coord_3d dist = Rlist[m] - Rlist[n];
+               rr = std::sqrt(dist[0]*dist[0]+dist[1]*dist[1]+dist[2]*dist[2]);
+               nuclear_repulsion_energy += Zlist[m]*Zlist[n]/rr;
+          }
+     }
 
 }
 
@@ -410,10 +501,10 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
 
      // Read in archive, but first find out if we're reading an nwchem file or other archive
      if(DFparams.nwchem){
-          Init_params.readnw(world, DFparams.archive, DFparams.Krestricted);
+          Init_params.readnw(world, DFparams.archive, DFparams.speed_of_light, DFparams.Krestricted);
      }
      else{
-          Init_params.read(world, DFparams.archive, DFparams.restart, DFparams.Krestricted);
+          Init_params.read(world, DFparams.archive, DFparams.speed_of_light, DFparams.restart, DFparams.Krestricted);
      }
 
      //print initialization parameters and molecule geometry
@@ -464,21 +555,18 @@ DF::DF(World & world,std::shared_ptr<std::istream> input) {
 }
 
 //returns a new Fcwf that is the result of applying the Dirac free-particle hamiltonian on psi
-Fcwf apply_T(World& world, Fcwf& psi){
-     double myc = 137.0359895; //speed of light in atomic units
+Fcwf apply_T(World& world, Fcwf& psi, const double& myc){
      std::complex<double> myi(0,1);
-     complex_derivative_3d Dx(world,0);
-     complex_derivative_3d Dy(world,1);
-     complex_derivative_3d Dz(world,2);
-     Fcwf Tpsi(world);
+     auto D = madness::gradient_operator<std::complex<double>, 3>(world);
+     Fcwf Tpsi(world, myc);
      
      //reconstruct psi
      psi.reconstruct();
 
      //take derivatives
-     Fcwf psix = apply(world,Dx,psi); 
-     Fcwf psiy = apply(world,Dy,psi);
-     Fcwf psiz = apply(world,Dz,psi); 
+     Fcwf psix = apply(world, *D[0], psi); 
+     Fcwf psiy = apply(world, *D[1], psi);
+     Fcwf psiz = apply(world, *D[2], psi); 
 
      //compress
      psix.compress();
@@ -497,7 +585,7 @@ Fcwf apply_T(World& world, Fcwf& psi){
 
 //function to calculate the kinetic + rest energy expectation value using Dirac Hamiltonian c*\alpha*p+\Beta*m*c*c
 double DF::rele(World& world, Fcwf& psi){
-     Fcwf Tpsi = apply_T(world, psi);
+     Fcwf Tpsi = apply_T(world, psi, DFparams.speed_of_light);
      std::complex<double> energy  = inner(psi, Tpsi);
      return energy.real();
 }
@@ -508,19 +596,20 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
      //start timer
      start_timer(world);
 
+     //Calculate and accumulate exchange contributions
+     unsigned int n = Init_params.num_occupied;
+     double myc = DFparams.speed_of_light;
+     double myc2 = myc * myc;
+
      //zero out Kpsis
-     for(unsigned int i = 0; i < Init_params.num_occupied; i++){
-          Kpsis[i] = Fcwf(world);
+     for(unsigned int i = 0; i < n; i++){
+          Kpsis[i] = Fcwf(world, DFparams.speed_of_light);
      }
 
      //reconstruct
-     for(unsigned int i = 0; i < Init_params.num_occupied; i++){
+     for(unsigned int i = 0; i < n; i++){
           occupieds[i].reconstruct();
      }
-
-     //Calculate and accumulate exchange contributions
-     unsigned int n = Init_params.num_occupied;
-     double myc = 137.0359895; //speed of light in atomic units
 
      //Calculates exchange contributions from the orbitals that we have stored
      //Loop through orbitals phi_i, computing K(phi_i), and while we're at it, use symmetry to start calculating contributions to later orbitals
@@ -782,7 +871,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      //calculate potential due to nuclei and mean field
      if(world.rank() == 0) print("          Adding (V+J)psi");
      real_function_3d rho = real_factory_3d(world);
-     double fac = (DFparams.Krestricted ? 2.0 : 1.0);
+     double fac = (DFparams.Krestricted || closed_shell) ? 2.0 : 1.0;
      for(unsigned int j = 0; j < np; j++){
           rho += fac*squaremod(occupieds[j]);
      }
@@ -804,7 +893,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      //add in T_psi
      if(world.rank()==0) print("          Adding T*psi");
      for(unsigned int j = 0; j < n; j++){
-          temp_orbitals[j] += apply_T(world, occupieds[j]);  //add in "kinetic" term
+          temp_orbitals[j] += apply_T(world, occupieds[j], DFparams.speed_of_light);  //add in "kinetic" term
      }
 
      //Now that we have F*psi (temp_orbitals), we can get on with integration
@@ -1026,10 +1115,9 @@ void DF::orthogonalize_inplace(World& world){
 //Apply's Green's function to Vpsi (a Fcwf). Overwrites Vpsi with new Fcwf
 //Use of this function has largely been replaced by apply_BSH_new, but
 //this one is kept in case one wants to avoid use of the derivative operator.
-void apply_BSH(World& world, Fcwf& Vpsi, double& eps, double& small, double& thresh){
+void apply_BSH(World& world, Fcwf& Vpsi, const double& eps, const double& small, const double& thresh, const double& myc){
 
      //necessary constants
-     double myc = 137.0359895; //speed of light
      double c2 = myc*myc; //speed of light squared
      std::complex<double> myi(0,1); //imaginary number i
      std::complex<double> ic = myi*myc; //i*c
@@ -1096,10 +1184,9 @@ void apply_BSH(World& world, Fcwf& Vpsi, double& eps, double& small, double& thr
 //the derivative operator is faster than application of an integral operator.
 //
 //Empirically this has resulted in no decrease in accuracy, despite reliance on the "noisier" derivative operator
-void apply_BSH_new(World& world, Fcwf& Vpsi, double& eps, double& small, double& thresh){
+void apply_BSH_new(World& world, Fcwf& Vpsi, const double& eps, const double& small, const double& thresh, const double& myc){
 
      //necessary constants
-     double myc = 137.0359895; //speed of light
      double c2 = myc*myc; //speed of light squared
      std::complex<double> myi(0,1); //imaginary number i
      //std::complex<double> ic = myi*myc; //i*c
@@ -1116,7 +1203,7 @@ void apply_BSH_new(World& world, Fcwf& Vpsi, double& eps, double& small, double&
      Vpsi = apply(world, op, Vpsi);
 
      //Apply (1/c^2)(H_D + eps) to Vpsi. Using apply_T for convenience, but this requires adding 2c^2Vpsi
-     Vpsi = apply_T(world, Vpsi)*(1.0/c2) + Vpsi * ((eps+2*c2)/c2);
+     Vpsi = apply_T(world, Vpsi, myc)*(1.0/c2) + Vpsi * ((eps+2*c2)/c2);
 
 }
 
@@ -1198,33 +1285,6 @@ void DF::saveDF(World& world){
 
      times = end_timer(world);
      if(world.rank()==0) print("     ", times[0]);
-}
-
-//Creates the (Gaussian) nuclear potential from the molecule object
-void DF::make_gaussian_potential(World& world, real_function_3d& potential){
-     if(world.rank()==0) print("\n***Making a Gaussian Potential***");
-     GaussianNucleusFunctor Vfunctor(Init_params.molecule, DFparams.bohr_rad);
-     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
-}
-
-//Creates the (Gaussian) nuclear potential from the molecule object. Also calculates the nuclear repulsion energy
-void DF::make_gaussian_potential(World& world, real_function_3d& potential, double& nuclear_repulsion_energy){
-     if(world.rank()==0) print("\n***Making a Gaussian Potential***");
-     GaussianNucleusFunctor Vfunctor(Init_params.molecule,DFparams.bohr_rad);
-     potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
-     std::vector<coord_3d> Rlist = Vfunctor.get_Rlist();
-     std::vector<int> Zlist = Vfunctor.get_Zlist();
-     nuclear_repulsion_energy = 0.0;
-     double rr;
-     int num_atoms = Rlist.size();
-     for(int m = 0; m < num_atoms; m++){
-          for(int n = m+1; n < num_atoms; n++){
-               coord_3d dist = Rlist[m] - Rlist[n];
-               rr = std::sqrt(dist[0]*dist[0]+dist[1]*dist[1]+dist[2]*dist[2]);
-               nuclear_repulsion_energy += Zlist[m]*Zlist[n]/rr;
-          }
-     }
-
 }
 
 //Own version of load balancing for DF. Load balance on the functions as well as the nuclear potential
@@ -1421,7 +1481,14 @@ void DF::make_density_lineplots(World& world, const char* filename, int npt, dou
 }
 
 //One complete iteration of the Dirac-Hartree-Fock solver
-bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, real_function_3d& JandV, std::vector<Fcwf>& Kpsis, XNonlinearSolver<std::vector<Fcwf>, std::complex<double>, Fcwf_vector_allocator>& kainsolver, double& tolerance, int& iteration_number, double& nuclear_repulsion_energy){
+std::tuple<bool, double, real_function_3d>
+DF::iterate(World &world, real_function_3d &V, real_convolution_3d &op,
+            real_function_3d &JandV, std::vector<Fcwf> &Kpsis,
+            XNonlinearSolver<std::vector<Fcwf>, std::complex<double>,
+                             Fcwf_vector_allocator> &kainsolver,
+            double &tolerance, int &iteration_number,
+            double &nuclear_repulsion_energy, double &prev_energy,
+            real_function_3d &prev_rho) {
 
      //Get and print the time of this iteration's start, and start a timer
      Tensor<double> times = get_times(world);
@@ -1436,17 +1503,17 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      double residualnorm;
 
      //A working FCWF that will have multiple uses
-     Fcwf temp_function(world);
+     Fcwf temp_function(world, DFparams.speed_of_light);
 
      //Boolean used in while loop.
-     bool iterate_again = false; //Initialize to false = assume iterations will stop
+     bool iterate_again = true; //If initialize to false = assume iterations will stop
 
      //First diagonalize the occupied orbitals in the Fock space (of occupied orbitals). Also transforms Kpsis.
      diagonalize(world, V, op, Kpsis);
 
      //Diagonalization forces us to recompute density
      real_function_3d rho = real_factory_3d(world);
-     double fac = (DFparams.Krestricted ? 2 : 1);
+     double fac = (DFparams.Krestricted || closed_shell) ? 2 : 1;
      if(closed_shell){
           for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
                rho += fac*squaremod(occupieds[kk]);
@@ -1477,7 +1544,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
           temp_function.truncate();
 
           //temp_function now holds (K-V-J)psi, so apply the BSH
-          apply_BSH_new(world,  temp_function, energies[j], DFparams.small, DFparams.thresh);
+          apply_BSH_new(world,  temp_function, energies[j], DFparams.small, DFparams.thresh, DFparams.speed_of_light);
 
           //truncate
           temp_function.truncate();
@@ -1520,7 +1587,18 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
 
      //If any residual is still larger than the tolerance then we need to iterate again.
      //Can just enforce this on the max residual
-     if(maxresidual > tolerance) iterate_again = true;
+     const auto nelec = rho.trace();
+     auto drho = (prev_rho - rho).norm2();
+     if(world.rank()==0) printf("\ndensity norm: %.10e\n",drho);
+     if(world.rank()==0) printf("tolerance: %.10e\n",DFparams.dconv * nelec);
+     if(maxresidual <= tolerance) {
+          iterate_again = false;
+          if (world.rank() == 0)  printf("\nConverged due to residuals");
+     } else if (std::abs((total_energy - prev_energy) / total_energy) <= DFparams.thresh && drho <= DFparams.dconv * nelec
+                && maxresidual <= 1e2 * tolerance) {
+          iterate_again = false;
+          if (world.rank() == 0) printf("\nConverged due to energy, density, and residuals");
+     }
 
      //Apply the kain solver, if called for
      if(iteration_number != 1 and DFparams.kain){
@@ -1612,7 +1690,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      double exchange_energy = 0.0;
      double nuclear_attraction_energy = 0.0;
      double old_total_energy = total_energy;
-     double myc = 137.0359895; //speed of light
+     double myc = DFparams.speed_of_light;
      Tensor<double> nuclear_attraction_tensor;
      Tensor<double> coulomb_tensor;
      Tensor<double> exchange_tensor;
@@ -1760,7 +1838,7 @@ bool DF::iterate(World& world, real_function_3d& V, real_convolution_3d& op, rea
      times = end_timer(world);
      if(world.rank()==0) print("     Iteration time:", times[0]);
  
-     return iterate_again;
+     return std::tuple<bool, double, real_function_3d>(iterate_again, total_energy, rho);
 }
 
 // Solves for the ground state Dirac Hartree Fock orbitals
@@ -1769,7 +1847,7 @@ void DF::solve_occupied(World & world)
 
      //State what we're doing here
      if(world.rank()==0){
-          if(DFparams.Krestricted){
+          if(DFparams.Krestricted || closed_shell){
                if(closed_shell) print("\nSolving for ", Init_params.num_occupied, " doubly-occupied orbitals\n------------------------------\n");
                else print("\nSolving for ", Init_params.num_occupied-1, " doubly-occupied, 1 singly-occupied orbitals\n------------------------------\n");
           }
@@ -1782,7 +1860,7 @@ void DF::solve_occupied(World & world)
      real_convolution_3d op = CoulombOperator(world,DFparams.small,DFparams.thresh);
 
      //allocator is useful to have, but also required for use of KAIN
-     Fcwf_vector_allocator allocator(world,Init_params.num_occupied);
+     Fcwf_vector_allocator allocator(world, Init_params.num_occupied, DFparams.speed_of_light);
 
      //initialize kain solver
      XNonlinearSolver<std::vector<Fcwf>, std::complex<double>, Fcwf_vector_allocator> kainsolver(allocator);
@@ -1798,6 +1876,9 @@ void DF::solve_occupied(World & world)
      double nuclear_repulsion_energy;
      if(DFparams.nucleus == 1){
           make_fermi_potential(world, op, Vnuc, nuclear_repulsion_energy);
+     }
+     else if (DFparams.nucleus == 2) {
+          make_point_potential(world, Vnuc, nuclear_repulsion_energy);
      }
      else{
           make_gaussian_potential(world, Vnuc, nuclear_repulsion_energy);
@@ -1817,7 +1898,7 @@ void DF::solve_occupied(World & world)
      if(world.rank()==0) print("\n***Calculating Initial Coulomb***");
      start_timer(world);
      real_function_3d rho = real_factory_3d(world);
-     double fac = (DFparams.Krestricted ? 2 : 1);
+     double fac = (DFparams.Krestricted || closed_shell) ? 2 : 1;
      if(closed_shell){
           for(unsigned int kk = 0; kk < Init_params.num_occupied; kk++){
                rho += fac*squaremod(occupieds[kk]);
@@ -1835,13 +1916,13 @@ void DF::solve_occupied(World & world)
      if(world.rank()==0) print("     ", times[0]);
 
      //Set tolerance for residuals
-     double tol = 50.0*DFparams.thresh; 
+     double tol = DFparams.thresh; 
 
      //Now time to start iterating
      bool keep_going = true;
      int iteration_number = 1;
      while((keep_going and iteration_number <= DFparams.max_iter) or iteration_number <= DFparams.min_iter){
-          keep_going = iterate(world, Vnuc, op, JandV, Kpsis, kainsolver, tol, iteration_number, nuclear_repulsion_energy);
+          std::tie(keep_going, total_energy, rho) = iterate(world, Vnuc, op, JandV, Kpsis, kainsolver, tol, iteration_number, nuclear_repulsion_energy, total_energy, rho);
           
           //Load balance and save between iterations
           if(keep_going and iteration_number <= DFparams.lb_iter) DF_load_balance(world, Vnuc);
@@ -1871,7 +1952,7 @@ void DF::solve_occupied(World & world)
      //     complex_function_3d Lx = one*Dx(LL);
      //     complex_function_3d Ly = one*Dy(LL);
      //     complex_function_3d Lz = one*Dz(LL);
-     //     Fcwf temp(world);
+     //     Fcwf temp(world, DFparams.speed_of_light);
 
      //     temp[0] = Lz*occupieds[j][0] + (Lx - myi*Ly)*occupieds[j][1];
      //     temp[1] =  (Lx + myi*Ly)*occupieds[j][0] - Lz*occupieds[j][1];

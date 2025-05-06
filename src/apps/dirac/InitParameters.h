@@ -20,6 +20,7 @@ namespace madness{
           // Ground state parameters that are read in from archive
           std::string inFile;                      ///< Name of input archive to read in
           double Init_total_energy;                ///< Total energy of the nonrelativistic ground state
+          double conv_thresh;                      ///< Convergence threshold for MOs
           bool spinrestricted;                     ///< Indicates if input calc. was spin-restricted
           bool closed_shell;
           unsigned int num_occupied;               ///< Number of orbitals
@@ -34,7 +35,7 @@ namespace madness{
           InitParameters() {}
 
           // Initializes InitParameters using the contents of file \c filename
-          void read(World& world, const std::string& filename, bool restart, bool Krestricted){ 
+          void read(World& world, const std::string& filename, const double& myc, bool restart, bool Krestricted){ 
                // Save the filename
                inFile = filename;
   
@@ -62,7 +63,7 @@ namespace madness{
 
                     //Now we just have to unpack the orbitals
                     for(unsigned int i=0; i < num_occupied; i++){
-                         Fcwf reader(world);
+                         Fcwf reader(world, myc);
                          for(int j=0; j < 4; j++){
                               input & reader[j];
                          }
@@ -82,13 +83,14 @@ namespace madness{
                     std::string localize_method;
 
                     input & version;
-                    input & Init_total_energy;              // double
+                    input & Init_total_energy;   // double
                     input & spinrestricted;      // bool
                     input & L;                   // double            box size
                     input & order;               // int               wavelet order
                     input & molecule;            // Molecule   
                     input & xc;
                     input & localize_method;
+                    input & conv_thresh;         // double
 
                     input & num_occupied;        // int
                     input & temp_energies;       // Tensor<double>    orbital energies
@@ -113,7 +115,7 @@ namespace madness{
                     complex_derivative_3d Dx(world,0);
                     complex_derivative_3d Dy(world,1);
                     complex_derivative_3d Dz(world,2);
-                    //double myc = 137.0359895; //speed of light in atomic units
+                    //double myc = 137.03599917697017; //speed of light in atomic units from CODATA 2022
                     std::complex<double> myi(0,1);
                     if(spinrestricted){ 
                          //If the calculation was spin-restricted in moldft, then we only have "spin-up" orbitals
@@ -121,13 +123,13 @@ namespace madness{
                          //Initialize some functions for reading in the orbitals
                          real_function_3d reader;
                          complex_function_3d complexreader;
-                         Fcwf spinup(world);
-                         Fcwf spindown(world); //used if !Krestricted
+                         Fcwf spinup(world, myc);
+                         Fcwf spindown(world, myc); //used if !Krestricted
                          real_function_3d xfunc = real_factory_3d(world).f(myxfunc);
                          real_function_3d yfunc = real_factory_3d(world).f(myyfunc);
                          
                          //Handle Kramers-restricted and unrestricted cases differently
-                         if(Krestricted){
+                         if(Krestricted || closed_shell){
                               //Loop over the occupied orbitals and convert
                               for(unsigned int i = 0; i < num_occupied; i++){
                                    //read in orbital
@@ -194,7 +196,7 @@ namespace madness{
                          // Read in alpha ground state orbitals
                          real_function_3d reader;
                          complex_function_3d complexreader;
-                         Fcwf fcwfreader(world);
+                         Fcwf fcwfreader(world, myc);
                          for(unsigned int i = 0; i < num_occupied; i++){
                               input & reader;
                               complexreader = function_real2complex(reader);
@@ -257,7 +259,7 @@ namespace madness{
                     
                     //reorder orbitals and energies in ascending order, if necessary.
                     double tempdouble;
-                    Fcwf fcwfreader(world);
+                    Fcwf fcwfreader(world, myc);
                     for(unsigned int i = 0; i < num_occupied; i++){
                          for(unsigned int j = i+1; j < num_occupied; j++){
                               if(energies(j) < energies(i)){
@@ -276,7 +278,7 @@ namespace madness{
 
           //This function no longer works
           //TODO: Update this function before using it
-          void readnw(World& world, const std::string& filename, bool Krestricted){
+          void readnw(World& world, const std::string& filename, const double& myc, bool Krestricted){
                //Called to read in initial parameters from an nwchem output file
                
                //For now just use default values for L and order
@@ -411,8 +413,8 @@ namespace madness{
 
                //Convert and store alpha occupied MOs.
                complex_function_3d complexreader(world);
-               Fcwf spinup(world);
-               Fcwf spindown(world);
+               Fcwf spinup(world, myc);
+               Fcwf spindown(world, myc);
                complex_derivative_3d Dx(world,0);
                complex_derivative_3d Dy(world,1);
                complex_derivative_3d Dz(world,2);
