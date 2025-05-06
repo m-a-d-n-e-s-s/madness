@@ -181,13 +181,11 @@ if (TBB::tbb IN_LIST madness_MADWORLD_INTERFACE_LINK_LIBRARIES)
 endif()
 
 ########### LibXC ############
-if (@LIBXC_FOUND@)
-  #message("LIBXC_ROOT_DIR" "${LIBXC_ROOT_DIR}")
-  set(LIBXC_ROOT_DIR "@LIBXC_INCLUDE_DIRS@/..")
-  #message("LIBXC_ROOT_DIR" "${LIBXC_ROOT_DIR}")
-  set(LIBXC_INCLUDE_DIRS "${LIBXC_INCLUDE_DIRS}" ":" "@LIBXC_INCLUDE_DIRS@")
-  set(LIBXC_LIBRARIES "@LIBXC_LIBRARIES@")
-  set(LIBXC_FOUND 1)
+set(MADNESS_HAS_LIBXC @MADNESS_HAS_LIBXC@)
+if (MADNESS_HAS_LIBXC AND NOT TARGET Libxc::xc)
+    include( CMakeFindDependencyMacro )
+    get_filename_component(_libxc_config_dir "@Libxc_CONFIG@" DIRECTORY)
+    find_dependency(Libxc CONFIG REQUIRED PATHS "${_libxc_config_dir}" NO_DEFAULT_PATH)
 endif()
   
 ### LAPACK_LIBRARIES might include IMPORTED targets that are not globally available

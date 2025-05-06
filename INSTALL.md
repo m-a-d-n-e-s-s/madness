@@ -142,15 +142,13 @@ CMAKE_PREFIX_PATH as well as other system paths.
 
 ### Library of Exchange-Correlation DFT functionals (LIBXC):
 
-* ENABLE_LIBXC --- Enables use of the libxc library of density functionals.
-      [default=ON]
-* LIBXC_ROOT_DIR --- The install prefix for LIBXC.
-* LIBXC_INCLUDE_DIR --- The path to the LIBXC include directory.
-* LIBXC_LIBRARY --- The path to the LIBXC library.
+MADNESS can look for LibXC built/installed using CMake by default. You can help MADNESS find
+LibXC by providing hints to `find_package()`, e.g., by adding the installation prefix of LibXC to `CMAKE_PREFIX_PATH`.
+To disable search for LibXC configure with `ENABLE_LIBXC=OFF`.
 
 E.g.,
 ```
-cmake -DENABLE_LIBXC=ON -DLIBXC_LIBRARIES=/home/rjh/install/lib/libxc.a -DLIBXC_INCLUDE_DIRS=/home/rjh/install/include ../madness
+cmake -DENABLE_LIBXC=ON -DCMAKE_PREFIX_PATH=/home/rjh/install ../madness
 ```
 
 ### Intel Threading Building Blocks (TBB):
