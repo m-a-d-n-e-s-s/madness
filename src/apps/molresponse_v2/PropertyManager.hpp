@@ -114,6 +114,8 @@ class PropertyManager {
     }
   }
 
+  json to_json() const { return data_; }
+
   void save() const {
     std::ofstream out(filename_);
     out << std::setw(2) << data_ << "\n";

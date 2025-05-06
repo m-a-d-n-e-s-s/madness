@@ -2,6 +2,8 @@
 #include <CalculationParameters.h>
 #include <QCCalculationParametersBase.h>
 
+#include <apps/molresponse_v2/ResponseParameters.hpp>
+
 using namespace madness;
 using path = std::filesystem::path;
 
@@ -134,3 +136,4 @@ class ParameterManager : public madness::QCCalculationParametersBase {
     return j;
   }
 };
+

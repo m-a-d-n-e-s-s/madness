@@ -1,6 +1,4 @@
 #pragma once
-#include "Perturbation.hpp"
-#include "ResponseState.hpp"
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -9,13 +7,15 @@
 #include <sstream>
 #include <string>
 
+#include "Perturbation.hpp"
+#include "ResponseState.hpp"
+
 using json = nlohmann::json;
 namespace fs = std::filesystem;
 
 class ResponseMetadata {
-public:
-  explicit ResponseMetadata(World &world, const std::string &filepath)
-      : path_(filepath) {
+ public:
+  explicit ResponseMetadata(World &world, const std::string &filepath) : path_(filepath) {
     if (fs::exists(path_)) {
       std::string json_string;
       std::ifstream in(path_);
@@ -74,31 +74,23 @@ public:
       for (const auto &[protocol, proto_data] : entry["protocols"].items()) {
         std::cout << "  🔧 Protocol: " << protocol << "\n";
         for (const auto &[freq, saved] : proto_data["saved"].items()) {
-          std::cout << "    freq=" << freq << " saved=" << saved
-                    << " conv=" << proto_data["converged"][freq] << "\n";
+          std::cout << "    freq=" << freq << " saved=" << saved << " conv=" << proto_data["converged"][freq] << "\n";
         }
       }
       std::cout << "  ✅ Final converged: " << entry["final_converged"] << "\n";
     }
   }
 
-  [[nodiscard]] bool is_saved(const std::string &state_id, double protocol,
-                              double freq) const {
-    return get_flag(state_id, protocol, freq, "saved");
-  }
+  [[nodiscard]] bool is_saved(const std::string &state_id, double protocol, double freq) const { return get_flag(state_id, protocol, freq, "saved"); }
 
-  [[nodiscard]] bool is_converged(const std::string &state_id, double protocol,
-                                  double freq) const {
-    return get_flag(state_id, protocol, freq, "converged");
-  }
+  [[nodiscard]] bool is_converged(const std::string &state_id, double protocol, double freq) const { return get_flag(state_id, protocol, freq, "converged"); }
 
   void mark_saved(const std::string &state_id, double protocol, double freq) {
     set_flag(state_id, protocol, freq, "saved", true);
     write();
   }
 
-  void mark_converged(const std::string &state_id, double protocol, double freq,
-                      bool converged) {
+  void mark_converged(const std::string &state_id, double protocol, double freq, bool converged) {
     set_flag(state_id, protocol, freq, "converged", converged);
     write();
   }
@@ -113,20 +105,17 @@ public:
     write();
   }
 
-  [[nodiscard]] bool final_converged(const std::string &state_id) const {
-    return data_["states"][state_id].value("final_converged", false);
-  }
+  [[nodiscard]] bool final_converged(const std::string &state_id) const { return data_["states"][state_id].value("final_converged", false); }
 
-  [[nodiscard]] bool final_saved(const std::string &state_id) const {
-    return data_["states"][state_id].value("final_saved", false);
-  }
+  [[nodiscard]] bool final_saved(const std::string &state_id) const { return data_["states"][state_id].value("final_saved", false); }
 
   void write() const {
     std::ofstream out(path_);
     out << std::setw(2) << data_ << "\n";
   }
+  json to_json() const { return data_; }
 
-private:
+ private:
   std::string path_;
   json data_;
 
@@ -136,24 +125,18 @@ private:
     return oss.str();
   }
 
-  [[nodiscard]] bool get_flag(const std::string &state_id, double protocol,
-                              double freq, const std::string &key) const {
+  [[nodiscard]] bool get_flag(const std::string &state_id, double protocol, double freq, const std::string &key) const {
     std::string p_str = to_string(protocol);
     std::string f_str = to_string(freq);
 
-    if (!data_["states"].contains(state_id))
-      return false;
-    if (!data_["states"][state_id]["protocols"].contains(p_str))
-      return false;
-    if (!data_["states"][state_id]["protocols"][p_str][key].contains(f_str))
-      return false;
+    if (!data_["states"].contains(state_id)) return false;
+    if (!data_["states"][state_id]["protocols"].contains(p_str)) return false;
+    if (!data_["states"][state_id]["protocols"][p_str][key].contains(f_str)) return false;
 
-    return data_["states"][state_id]["protocols"][p_str][key][f_str]
-        .get<bool>();
+    return data_["states"][state_id]["protocols"][p_str][key][f_str].get<bool>();
   }
 
-  void set_flag(const std::string &state_id, double protocol, double freq,
-                const std::string &key, bool value) {
+  void set_flag(const std::string &state_id, double protocol, double freq, const std::string &key, bool value) {
     std::string p_str = to_string(protocol);
     std::string f_str = to_string(freq);
 

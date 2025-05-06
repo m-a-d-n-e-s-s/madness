@@ -1,0 +1,105 @@
+#pragma once
+#include <madness/chem/SCF.h>
+#include <madness/chem/molopt.h>
+#include <madness/misc/info.h>
+#include <madness/world/worldmem.h>
+
+#include "Utils.hpp"
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
+
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#endif
+
+namespace moldft_lib {
+
+struct Results {
+  double energy;
+  tensorT dipole;
+  std::optional<Tensor<double>> gradient;
+};
+
+Results run_scf(World& world, const Params& params, const std::filesystem::path& outdir) {
+  std::filesystem::create_directories(outdir);
+  auto moldft_params = params.get<CalculationParameters>();
+  auto& molecule = params.get<Molecule>();
+
+  auto archive_name = moldft_params.prefix() + ".restartdata";
+  auto restart_path = outdir / archive_name / ".00000";
+
+  if (std::filesystem::exists(restart_path)) {
+    moldft_params.set_user_defined_value<bool>("restart", true);
+  }
+  world.gop.fence();
+  if (world.rank() == 0) {
+    json moldft_input_json = {};
+    moldft_input_json["dft"] = moldft_params.to_json_if_precedence("defined");
+    moldft_input_json["molecule"] = molecule.to_json();
+    print("moldft_input_json: ", moldft_input_json.dump(4));
+    std::ofstream ofs("moldft.in");
+    write_moldft_input(moldft_input_json, ofs);
+    ofs.close();
+  }
+  world.gop.fence();
+  commandlineparser parser;
+  parser.set_keyval("input", "moldft.in");
+  if (world.rank() == 0) ::print("input filename: ", parser.value("input"));
+
+  FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
+
+  std::cout.precision(6);
+  SCF calc(world, parser);
+
+  // create workdir/dft
+  std::filesystem::create_directories(outdir);
+  // redirect any log files into outdir if needed…
+  // Warm and fuzzy for the user
+  if (world.rank() == 0) {
+    print("\n\n");
+    print(" MADNESS Hartree-Fock and Density Functional Theory Program");
+    print(" ----------------------------------------------------------\n");
+    print("\n");
+    calc.molecule.print();
+    print("\n");
+    calc.param.print("dft");
+  }
+  // Come up with an initial OK data map
+  if (world.size() > 1) {
+    calc.set_protocol<3>(world, 1e-4);
+    calc.make_nuclear_potential(world);
+    calc.initial_load_bal(world);
+  }
+  // vama
+  calc.set_protocol<3>(world, calc.param.protocol()[0]);
+
+  MolecularEnergy E(world, calc);
+  double energy = E.value(calc.molecule.get_all_coords().flat());
+  if (world.rank() == 0 && calc.param.print_level() > 0) E.output_calc_info_schema();
+
+  functionT rho = calc.make_density(world, calc.aocc, calc.amo);
+  functionT brho = rho;
+  if (calc.param.nbeta() != 0 && !calc.param.spin_restricted()) brho = calc.make_density(world, calc.bocc, calc.bmo);
+  rho.gaxpy(1.0, brho, 1.0);
+
+  // optionally compute gradient, dipole, etc.
+  Tensor<double> grad;
+  if (calc.param.derivatives()) {
+    auto g = calc.derivatives(world, rho);
+    calc.e_data.add_gradient(g);
+    grad = std::move(g);
+    // write gradient file into outdir if you want
+  }
+
+  tensorT dip;
+  if (calc.param.dipole()) {
+    auto d = calc.dipole(world, calc.make_density(world, calc.aocc, calc.amo));
+    dip = std::move(d);
+  }
+  calc.do_plots(world);
+
+  // return structured results
+  return {energy, dip, grad.has_data() ? std::nullopt : std::make_optional(grad)};
+}
+}  // namespace moldft_lib
