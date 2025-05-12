@@ -31,7 +31,7 @@ struct Results {
  * @param outdir     Directory where all outputs will be written
  * @return Results   Structured JSON fragments: metadata + properties
  */
-inline Results run_response(World& world, Params& params,
+inline Results run_response(World& world, const Params& params,
                             const std::filesystem::path& indir,
                             const std::filesystem::path& outdir) {
   // --- configure the ground-state archive location ---
@@ -121,7 +121,6 @@ inline Results run_response(World& world, Params& params,
 
   // compute requested properties
   PropertyManager properties(world, "properties.json");
-  initialize_property_structure(properties, rp);
   std::string dip_dirs = rp.dipole_directions();
   std::string nuc_dirs = rp.nuclear_directions();
 

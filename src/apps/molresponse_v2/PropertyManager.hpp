@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <limits>
 #include <madness/external/nlohmann_json/json.hpp>
 #include <madness/tensor/tensor_json.hpp>
 #include <string>
@@ -114,7 +115,7 @@ struct PropRow {
       component;  // x,y,z, xx,xy,xz,yy,yz,zz, xxx, xxy, xxz, yyy, yyz, zzz
   double freq1;
   std::optional<double> freq2;
-  double value;
+  std::optional<double> value;
 };
 
 struct PropKey {
@@ -143,7 +144,9 @@ inline void to_json(json &j, PropRow const &r) {
   if (r.freq2) {
     j["freqC"] = *r.freq2;
   }
-  j["value"] = r.value;
+  if (r.value) {
+    j["value"] = *r.value;
+  }
 }
 
 inline void from_json(json const &j, PropRow &r) {
@@ -153,7 +156,9 @@ inline void from_json(json const &j, PropRow &r) {
   if (j.contains("freqC")) {
     r.freq2 = j.at("freqC").get<double>();
   }
-  r.value = j.at("value").get<double>();
+  if (j.contains("value")) {
+    r.value = j.at("value").get<double>();
+  }
 }
 
 class PropertyManager {
@@ -195,11 +200,14 @@ class PropertyManager {
   // Presence checks
   [[nodiscard]] bool has_alpha(double omega, std::string comp) const {
     PropKey k{"polarizability", comp, omega, std::nullopt};
+    auto it = rows_.find(k);
+    return it != rows_.end() && it->second.value.has_value();
     return rows_.count(k) != 0;
   }
   [[nodiscard]] bool has_beta(double w1, double w2, std::string comp) const {
     PropKey k{"hyperpolarizability", comp, w1, w2};
-    return rows_.count(k) != 0;
+    auto it = rows_.find(k);
+    return it != rows_.end() && it->second.value.has_value();
   }
 
   // Insert or overwrite α entries
@@ -266,7 +274,7 @@ class PropertyManager {
       std::cout << std::left << std::setw(22) << r.property << std::setw(8)
                 << r.component << std::setw(8) << o1.str() << std::setw(8)
                 << o2.str() << std::setw(12) << std::fixed
-                << std::setprecision(6) << r.value << "\n";
+                << std::setprecision(6) << *r.value << "\n";
     }
   }
 
@@ -314,57 +322,58 @@ class PropertyManager {
   }
 };
 
-void initialize_property_structure(PropertyManager &pm,
-                                   const ResponseParameters &rp) {
-  auto props = rp.requested_properties();
-  auto dipole_dirs = rp.dipole_directions();
-  auto nuclear_dirs = rp.nuclear_directions();
-  auto nuclear_atom_indices = rp.nuclear_atom_indices();
-  auto dipole_freqs = rp.dipole_frequencies();
-  auto nuclear_freqs = rp.nuclear_frequencies();
-
-  for (const auto &prop : props) {
-    if (prop == "polarizability") {
-      auto num_dirs = dipole_dirs.size();
-
-      std::string directions_string;
-      for (char dir : dipole_dirs) {
-        directions_string += dir;
-      }
-
-      for (double omega : dipole_freqs) {
-        if (!pm.has_alpha(omega, directions_string)) {
-          madness::Tensor<double> empty_tensor(num_dirs,
-                                               num_dirs);  // 3x3 alpha
-          pm.set_alpha(omega, empty_tensor, directions_string);
-        }
-      }
-    } else if (prop == "hyperpolarizability") {
-      const auto directions_string =
-          std::string(dipole_dirs.begin(), dipole_dirs.end());
-
-      for (size_t b = 0; b < dipole_freqs.size(); ++b) {
-        for (size_t c = b; c < dipole_freqs.size(); ++c) {
-          double omega1 = dipole_freqs[b];
-          double omega2 = dipole_freqs[c];
-          for (char B : dipole_dirs) {
-            for (char C : dipole_dirs) {
-              std::string bc = std::string() + B + C;
-              for (char A : dipole_dirs) {
-                std::string abc = std::string() + A + B + C;
-                if (!pm.has_beta(omega1, omega2, abc)) {
-                  pm.set_beta(omega1, omega2, abc, 0.0);
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  pm.save();
-}
+/*void initialize_property_structure(PropertyManager &pm,*/
+/*                                   const ResponseParameters &rp) {*/
+/*  auto props = rp.requested_properties();*/
+/*  auto dipole_dirs = rp.dipole_directions();*/
+/*  auto nuclear_dirs = rp.nuclear_directions();*/
+/*  auto nuclear_atom_indices = rp.nuclear_atom_indices();*/
+/*  auto dipole_freqs = rp.dipole_frequencies();*/
+/*  auto nuclear_freqs = rp.nuclear_frequencies();*/
+/**/
+/*  for (const auto &prop : props) {*/
+/*    if (prop == "polarizability") {*/
+/*      auto num_dirs = dipole_dirs.size();*/
+/**/
+/*      std::string directions_string;*/
+/*      for (char dir : dipole_dirs) {*/
+/*        directions_string += dir;*/
+/*      }*/
+/**/
+/*      for (double omega : dipole_freqs) {*/
+/*        if (!pm.has_alpha(omega, directions_string)) {*/
+/*          madness::Tensor<double> empty_tensor(num_dirs,*/
+/*                                               num_dirs);  // 3x3 alpha*/
+/*          pm.set_alpha(omega, empty_tensor, directions_string);*/
+/*        }*/
+/*      }*/
+/*    } else if (prop == "hyperpolarizability") {*/
+/*      const auto directions_string =*/
+/*          std::string(dipole_dirs.begin(), dipole_dirs.end());*/
+/**/
+/*      for (size_t b = 0; b < dipole_freqs.size(); ++b) {*/
+/*        for (size_t c = b; c < dipole_freqs.size(); ++c) {*/
+/*          double omega1 = dipole_freqs[b];*/
+/*          double omega2 = dipole_freqs[c];*/
+/*          for (char B : dipole_dirs) {*/
+/*            for (char C : dipole_dirs) {*/
+/*              std::string bc = std::string() + B + C;*/
+/*              for (char A : dipole_dirs) {*/
+/*                std::string abc = std::string() + A + B + C;*/
+/*                if (!pm.has_beta(omega1, omega2, abc)) {*/
+/*                  pm.set_beta(omega1, omega2, abc,*/
+/*                              std::numeric_limits<double>::quiet_NaN());*/
+/*                }*/
+/*              }*/
+/*            }*/
+/*          }*/
+/*        }*/
+/*      }*/
+/*    }*/
+/*  }*/
+/**/
+/*  pm.save();*/
+/*}*/
 
 /**
  * @brief Computes the polarizability tensor (α) for a given set of
