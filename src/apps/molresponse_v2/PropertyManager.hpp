@@ -108,149 +108,209 @@ inline madness::Tensor<double> compute_response_inner_product_tensor(
 /*  return result;*/
 /*}*/
 
+struct PropRow {
+  std::string property;
+  std::string
+      component;  // x,y,z, xx,xy,xz,yy,yz,zz, xxx, xxy, xxz, yyy, yyz, zzz
+  double freq1;
+  std::optional<double> freq2;
+  double value;
+};
+
+struct PropKey {
+  std::string property;
+  std::string component;
+  double freq1;
+  std::optional<double> freq2;
+
+  bool operator<(PropKey const &other) const noexcept {
+    if (property != other.property) return property < other.property;
+    if (component != other.component) return component < other.component;
+    if (freq1 != other.freq1) return freq1 < other.freq1;
+    // for freq2
+    if (!freq2 && other.freq2) return true;
+    if (freq2 && !other.freq2) return false;
+    if (freq2 && other.freq2) return *freq2 < *other.freq2;
+    return false;
+  }
+};
+// enable Json to PropRow
+inline void to_json(json &j, PropRow const &r) {
+  j = json::object();
+  j["property"] = r.property;
+  j["component"] = r.component;
+  j["freqB"] = r.freq1;
+  if (r.freq2) {
+    j["freqC"] = *r.freq2;
+  }
+  j["value"] = r.value;
+}
+
+inline void from_json(json const &j, PropRow &r) {
+  r.property = j.at("property").get<std::string>();
+  r.component = j.at("component").get<std::string>();
+  r.freq1 = j.at("freqB").get<double>();
+  if (j.contains("freqC")) {
+    r.freq2 = j.at("freqC").get<double>();
+  }
+  r.value = j.at("value").get<double>();
+}
+
 class PropertyManager {
  public:
   explicit PropertyManager(World &world, const std::string &filename)
       : filename_(filename) {
     if (fs::exists(filename_)) {
-      data_ = broadcast_json_file(world, filename_);  // Load JSON data
-    } else {
-      data_["polarizability"] = json::object();
-      data_["hyperpolarizability"] = json::object();
+      // load JSON
+      json j = broadcast_json_file(world, filename_);
+      if (j.is_array()) {
+        for (auto const &r : j) {
+          PropRow row = r.get<PropRow>();
+          PropKey key = {row.property, row.component, row.freq1, row.freq2};
+          rows_[key] = std::move(row);
+          // flat‐format: just parse rows
+        }
+      } else {
+        // old nested format: convert to rows_
+        parse_old_format(j);
+      }
     }
   }
 
-  json to_json() const { return data_; }
+  /// Return the flat rows as a JSON array
+  json to_json() const {
+    json a = json::array();
+    for (const auto &[key, row] : rows_) {
+      a.push_back(row);
+    }
+    return a;
+  }
 
+  /// Overwrite file with flat JSON array
   void save() const {
     std::ofstream out(filename_);
-    out << std::setw(2) << data_ << "\n";
+    out << std::setw(12) << to_json() << "\n";
   }
 
-  // Store full polarizability tensor at frequency omega
+  // Presence checks
+  [[nodiscard]] bool has_alpha(double omega, std::string comp) const {
+    PropKey k{"polarizability", comp, omega, std::nullopt};
+    return rows_.count(k) != 0;
+  }
+  [[nodiscard]] bool has_beta(double w1, double w2, std::string comp) const {
+    PropKey k{"hyperpolarizability", comp, w1, w2};
+    return rows_.count(k) != 0;
+  }
+
+  // Insert or overwrite α entries
   void set_alpha(double omega, const madness::Tensor<double> &tensor,
                  const std::string &dirs) {
-    data_["polarizability"][freq_str(omega)] = tensor_to_json(tensor);
-    data_["polarizability"][freq_str(omega)]["directions"] = dirs;
-  }
-
-  bool has_alpha(double omega, std::string dir) const {
-    // also check if they are the same size
-    //
-    return data_.contains("polarizability") &&
-           data_["polarizability"].contains(freq_str(omega)) &&
-           data_["polarizability"][freq_str(omega)].contains(dir) &&
-           !data_["polarizability"][freq_str(omega)][dir].is_null();
-  }
-
-  // Store a 3-element beta result for a given BC input pair (e.g., xx) at ω1,
-  void set_beta(double omega1, double omega2, const std::string &bc,
-                const madness::Tensor<double> &tensor) {
-    data_["hyperpolarizability"][freq_str(omega1)][freq_str(omega2)][bc] =
-        tensor_to_json(tensor);
-  }
-  void set_beta_dirs(const std::string &dirs) {
-    data_["hyperpolarizability"]["directions"] = dirs;
-  }
-
-  bool has_beta(double omega1, double omega2, const std::string &bc) const {
-    auto &beta = data_["hyperpolarizability"];
-    return beta.contains(freq_str(omega1)) &&
-           beta[freq_str(omega1)].contains(freq_str(omega2)) &&
-           beta[freq_str(omega1)][freq_str(omega2)].contains(bc) &&
-           !beta[freq_str(omega1)][freq_str(omega2)][bc].is_null() && false;
-  }
-
-  void print_alpha_table() const {
-    if (!data_.contains("polarizability")) {
-      std::cout << "No polarizability data found.\n";
-      return;
-    }
-    std::cout << "\n📐 Polarizability (α) Tensor Components:\n";
-    // Build header based on available directions
-    for (const auto &[freq_str, tensor_json] :
-         data_["polarizability"].items()) {
-      if (!tensor_json.contains("directions")) continue;
-
-      const std::string dirs = tensor_json["directions"];
-      const madness::Tensor<double> alpha =
-          tensor_from_json<double>(tensor_json);
-
-      // Print header
-      std::cout << "\nω = " << freq_str << "\n";
-      std::cout << std::setw(10) << "";
-      for (char d : dirs)
-        std::cout << std::setw(12) << "α_" + std::string(1, d);
-      std::cout << "\n";
-
-      // Print values row by row
-      bool has_values = alpha.has_data();
-
-      for (size_t i = 0; i < dirs.size(); ++i) {
-        std::cout << std::setw(10) << dirs[i];
-        for (size_t j = 0; j < dirs.size(); ++j) {
-          if (i < alpha.dim(0) && j < alpha.dim(1) && has_values) {
-            std::cout << std::setw(12) << std::fixed << std::setprecision(6)
-                      << alpha(i, j);
-          } else
-            std::cout << std::setw(12) << "--";
-        }
-        std::cout << "\n";
+    size_t N = dirs.size();
+    for (size_t i = 0; i < N; ++i) {
+      for (size_t j = 0; j < N; ++j) {
+        std::string comp = std::string{dirs[i]} + dirs[j];
+        PropKey k{"polarizability", comp, omega, std::nullopt};
+        PropRow r{
+            .property = k.property,
+            .component = k.component,
+            .freq1 = k.freq1,
+            .freq2 = std::nullopt,
+            .value = tensor(i, j),
+        };
+        rows_[k] = std::move(r);
       }
     }
   }
 
-  void print_beta_table() const {
-    if (!data_.contains("hyperpolarizability")) {
-      std::cout << "No hyperpolarizability data found.\n";
-      return;
-    }
-    std::cout << "\n🔺 Hyperpolarizability (β) Components:\n";
-
-    // Get available directions
-    std::string dirs = "";
-    if (data_["hyperpolarizability"].contains("directions"))
-      dirs = data_["hyperpolarizability"]["directions"].get<std::string>();
-
-    for (const auto &[w1_str, w1_entry] :
-         data_["hyperpolarizability"].items()) {
-      if (w1_str == "directions") continue;  // skip metadata
-
-      for (const auto &[w2_str, w2_entry] : w1_entry.items()) {
-        std::cout << "\nω₁ = " << w1_str << ", ω₂ = " << w2_str << "\n";
-        std::cout << std::setw(8) << "BC";
-        for (char A : dirs)
-          std::cout << std::setw(12) << "β_" + std::string(1, A) + "BC";
-        std::cout << "\n";
-
-        for (const auto &[bc, tensor_json] : w2_entry.items()) {
-          madness::Tensor<double> beta = tensor_from_json<double>(tensor_json);
-          std::cout << std::setw(8) << bc;
-
-          for (int i = 0; i < dirs.size(); ++i) {
-            if (i < beta.size())
-              std::cout << std::setw(12) << std::fixed << std::setprecision(6)
-                        << beta(i);
-            else
-              std::cout << std::setw(12) << "--";
-          }
-
-          std::cout << "\n";
-        }
-      }
-    }
+  // Insert or overwrite β entries
+  void set_beta(double w1, double w2, const std::string &comp, double value) {
+    PropKey k{"hyperpolarizability", comp, w1, w2};
+    PropRow r{
+        .property = k.property,
+        .component = k.component,
+        .freq1 = k.freq1,
+        .freq2 = k.freq2,
+        .value = value,
+    };
+    rows_[k] = std::move(r);
   }
 
-  const json &json_data() const { return data_; }
+  // 3) Append new α rows
+
+  /// Print all PropRow entries in a fixed‐width table
+  void print_table() const {
+    if (rows_.empty()) {
+      std::cout << "No property rows to display.\n";
+      return;
+    }
+    // 1) Header
+    std::cout << "\n📊 Property Results\n";
+    std::cout << std::left << std::setw(18) << "Property" << std::setw(8)
+              << "Comp" << std::setw(8) << "ω1" << std::setw(8) << "ω2"
+              << std::setw(12) << "Value" << "\n";
+
+    // 2) Divider line
+    std::cout << std::string(18 + 8 + 8 + 8 + 12, '_') << "\n";
+
+    // 3) Rows
+    for (auto const &[k, r] : rows_) {
+      // format ω1 and ω2
+      std::ostringstream o1, o2;
+      o1 << std::fixed << std::setprecision(3) << r.freq1;
+      if (r.freq2) {
+        o2 << std::fixed << std::setprecision(3) << *r.freq2;
+      } else {
+        o2 << "-";
+      }
+
+      std::cout << std::left << std::setw(22) << r.property << std::setw(8)
+                << r.component << std::setw(8) << o1.str() << std::setw(8)
+                << o2.str() << std::setw(12) << std::fixed
+                << std::setprecision(6) << r.value << "\n";
+    }
+  }
 
  private:
   std::string filename_;
-  json data_;
-
+  std::map<PropKey, PropRow> rows_;
   static std::string freq_str(double freq) {
     std::ostringstream ss;
     ss << std::scientific << std::setprecision(3) << freq;
     return ss.str();
+  }
+
+  // Helper: convert old nested JSON into flat rows_
+  void parse_old_format(json const &old) {
+    // --- polarizability ---
+    if (old.contains("polarizability")) {
+      for (auto const &[freq_s, obj] : old["polarizability"].items()) {
+        double omega = std::stod(freq_s);
+        std::string dirs = obj.value("directions", std::string{});
+        auto tens = tensor_from_json<double>(obj);
+        set_alpha(omega, tens, dirs);
+      }
+    }
+    // --- hyperpolarizability ---
+    if (old.contains("hyperpolarizability")) {
+      for (auto const &[w1_s, sub] : old["hyperpolarizability"].items()) {
+        if (w1_s == "directions") continue;
+        double w1 = std::stod(w1_s);
+        for (auto const &[w2_s, entry] : sub.items()) {
+          double w2 = std::stod(w2_s);
+          for (auto const &[bc, tens_json] : entry.items()) {
+            auto tens = tensor_from_json<double>(tens_json);
+            // flatten each component A in the resulting vector/tensor
+            // assume tens is 1×N or N×1:
+            for (int k = 0; k < tens.size(); ++k) {
+              std::string comp =
+                  std::string{tens_json.value("directions", "")[k]} + bc;
+              double val = (tens.dim(0) == 1 ? tens(0, k) : tens(k, 0));
+              set_beta(w1, w2, comp, val);
+            }
+          }
+        }
+      }
+    }
   }
 };
 
@@ -274,15 +334,14 @@ void initialize_property_structure(PropertyManager &pm,
 
       for (double omega : dipole_freqs) {
         if (!pm.has_alpha(omega, directions_string)) {
-          madness::Tensor<double> empty_tensor(num_dirs, num_dirs,
-                                               0.0);  // 3x3 alpha
+          madness::Tensor<double> empty_tensor(num_dirs,
+                                               num_dirs);  // 3x3 alpha
           pm.set_alpha(omega, empty_tensor, directions_string);
         }
       }
     } else if (prop == "hyperpolarizability") {
       const auto directions_string =
           std::string(dipole_dirs.begin(), dipole_dirs.end());
-      pm.set_beta_dirs(directions_string);
 
       for (size_t b = 0; b < dipole_freqs.size(); ++b) {
         for (size_t c = b; c < dipole_freqs.size(); ++c) {
@@ -291,9 +350,11 @@ void initialize_property_structure(PropertyManager &pm,
           for (char B : dipole_dirs) {
             for (char C : dipole_dirs) {
               std::string bc = std::string() + B + C;
-              if (!pm.has_beta(omega1, omega2, bc)) {
-                madness::Tensor<double> empty(3, 0.0);  // x(xx), y(xx), z(xx)
-                pm.set_beta(omega1, omega2, bc, empty);
+              for (char A : dipole_dirs) {
+                std::string abc = std::string() + A + B + C;
+                if (!pm.has_beta(omega1, omega2, abc)) {
+                  pm.set_beta(omega1, omega2, abc, 0.0);
+                }
               }
             }
           }
@@ -523,7 +584,15 @@ void compute_beta(
           print("β= \n", beta_tensor);
         }
 
-        pm.set_beta(freq_b, freq_c, bc, beta_tensor);
+        int aa = 0;
+        for (auto a : perturbation_A) {
+          auto pertA = std::get<DipolePerturbation>(a);
+          auto dir = pertA.direction;
+          auto comp = std::string(1, dir) + bc;
+          if (world.rank() == 0)
+            print("Setting β(", comp, ") at (ω1, ω2) =", freq_b, freq_c);
+          pm.set_beta(freq_b, freq_c, comp, beta_tensor(aa, 0));
+        }
       }
     }
   }

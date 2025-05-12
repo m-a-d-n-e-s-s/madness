@@ -107,19 +107,16 @@ inline Results run_response(World& world, Params& params,
       computeFrequencyLoop(world, rm, state, ground, metadata, debug_logger);
 
       if (debug_logger.enabled()) debug_logger.write_to_disk();
-
-      if (state.at_final_threshold()) {
-        state.is_converged = true;
-        if (world.rank() == 0)
-          madness::print("✓ Final convergence reached for",
-                         state.description());
-      } else {
-        state.advance_threshold();
-        if (world.rank() == 0)
-          madness::print("→ advancing to next protocol for",
-                         state.description());
-      }
     }
+    /*if (state.at_final_threshold()) {*/
+    /*  state.is_converged = true;*/
+    /*  if (world.rank() == 0) madness::print("✓ Final convergence reached for",
+     * state.description());*/
+    /*} else {*/
+    /*  state.advance_threshold();*/
+    /*  if (world.rank() == 0) madness::print("→ advancing to next protocol
+     * for", state.description());*/
+    /*}*/
   }
 
   // compute requested properties
@@ -135,15 +132,11 @@ inline Results run_response(World& world, Params& params,
                     rp.dipole_frequencies(), rp.dipole_directions(),
                     properties);
       properties.save();
-      if (world.rank() == 0) properties.print_alpha_table();
 
     } else if (prop == "hyperpolarizability") {
       if (world.rank() == 0)
         madness::print("▶️ Computing hyperpolarizability β...");
-      compute_hyperpolarizability(world, ground, rp.dipole_frequencies(),
-                                  dip_dirs, properties);
       properties.save();
-      if (world.rank() == 0) properties.print_beta_table();
 
     } else if (prop == "raman") {
       auto nuclear_dirs = rp.nuclear_directions();
@@ -152,7 +145,9 @@ inline Results run_response(World& world, Params& params,
       // compute_Raman(world, ground, rp.dipole_frequencies(), dipole_dirs,
       // properties);
       properties.save();
-      if (world.rank() == 0) properties.print_beta_table();
+    }
+    if(world.rank()==0){
+      properties.print_table();
     }
   }
 
