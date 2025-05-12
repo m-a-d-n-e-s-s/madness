@@ -4,9 +4,9 @@
 #include "ResponseState.hpp"
 #include "ResponseVector.hpp"
 
-inline ResponseVector initialize_guess_vector(World &world,
-                                              const GroundStateData &gs,
-                                              const ResponseState &state) {
+inline ResponseVector initialize_guess_vector(
+    World &world, const GroundStateData &gs,
+    const LinearResponseDescriptor &state) {
   size_t num_orbitals = gs.getNumOrbitals();
   bool is_static = state.is_static();
   bool is_unrestricted = !gs.isSpinRestricted();
@@ -15,8 +15,7 @@ inline ResponseVector initialize_guess_vector(World &world,
 
   if (is_static && !is_unrestricted) {
     StaticRestrictedResponse response(num_orbitals);
-    for (size_t i = 0; i < num_orbitals; ++i)
-      response.x_alpha[i] = Vp[i];
+    for (size_t i = 0; i < num_orbitals; ++i) response.x_alpha[i] = Vp[i];
     response.flatten();
     return response;
 

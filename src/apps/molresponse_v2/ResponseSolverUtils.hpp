@@ -6,21 +6,29 @@
 
 using json = nlohmann::json;
 
-
 namespace ResponseSolverUtils {
 
 using namespace madness;
 
-// Call once before your iteration loop to print a header:
-inline void print_iteration_header() {
-  std::cout << std::setw(6) << "Iter" << " │ " << std::setw(12) << "Residual" << " │ " << std::setw(12) << "Δρ" << " │ " << std::setw(12) << "<x|Vp>" << "\n"
-            << std::string(6, '-') << "─┼─" << std::string(12, '-') << "─┼─" << std::string(12, '-') << "─┼─" << std::string(12, '-') << "\n";
-}
+inline void print_iteration_line(int iter, double residual, double deltaE, double xVp, double density_target, double x_residual_target) {
+  // 1) Print header once
+  static bool printed_header = false;
+  if (!printed_header) {
+    std::cout << std::setw(6) << "Iter" << " │ " << std::setw(12) << "Residual" << " │ " << std::setw(12) << "Δρ" << " │ " << std::setw(12) << "<x|Vp>" << " │ "
+              << "Targets\n";
+    std::cout << std::string(6, '-') << "─┼─" << std::string(12, '-') << "─┼─" << std::string(12, '-') << "─┼─" << std::string(12, '-') << "─┼─"
+              << std::string(19, '-') << "\n";
+    // printed_header = true;
+  }
 
-// Call each iteration with the current values:
-inline void print_iteration_line(int iter, double residual, double deltaE, double xVp) {
+  // 2) Compose the target string
+  std::ostringstream tgt;
+  tgt << "||x||≤" << std::scientific << std::setprecision(3) << x_residual_target << ",||Δρ||≤" << std::scientific << std::setprecision(3) << density_target;
+
+  // 3) Print the iteration line
   std::cout << std::setw(6) << iter << " │ " << std::setw(12) << std::scientific << std::setprecision(3) << residual << " │ " << std::setw(12)
-            << std::scientific << std::setprecision(3) << deltaE << " │ " << std::setw(12) << std::scientific << std::setprecision(3) << xVp << "\n";
+            << std::scientific << std::setprecision(3) << deltaE << " │ " << std::setw(12) << std::scientific << std::setprecision(3) << xVp << " │ "
+            << tgt.str() << "\n";
 }
 
 inline std::vector<poperatorT> make_bsh_operators_response(World &world, const double shift, const double omega, const Tensor<double> &ground_energies,

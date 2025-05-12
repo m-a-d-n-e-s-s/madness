@@ -36,47 +36,73 @@ class SCFApplication : public Application {
 
   void run(const std::filesystem::path& workdir) override {
     // 1) set up a namedspaced directory for this run
-    PathManager pm(workdir, "dft");
+    PathManager pm(workdir, "moldft");
     pm.create();
+    world_.gop.fence();
     {
       ScopedCWD scwd(pm.dir());
+      if (world_.rank() == 0) {
+        std::cout << "Running SCF in " << pm.dir() << std::endl;
+      }
+
+      auto scfParams = params_.get<CalculationParameters>();
+      bool needEnergy = true;
+      bool needDipole = scfParams.dipole();
+      bool needGradient = scfParams.derivatives();
 
       // 2) define the "checkpoint" file
-      auto ckpt = pm.dir() / "scf_results.json";
+      auto ckpt = "scf_results.json";
       if (std::filesystem::exists(ckpt)) {
+        if (world_.rank() == 0) {
+          std::cout << "Found checkpoint file: " << ckpt << std::endl;
+        }
         // read the checkpoint file
         std::ifstream ifs(ckpt);
         nlohmann::json j;
         ifs >> j;
         ifs.close();
-        energy_ = j["energy"];
-        dipole_ = j["dipole"];
-        gradient_ = tensor_from_json<double>(j["gradient"]);
-        return;
+
+        bool ok = true;
+        if (needEnergy && !j.contains("energy")) ok = false;
+        if (needDipole && !j.contains("dipole")) ok = false;
+        if (needGradient && !j.contains("gradient")) ok = false;
+
+        if (ok) {
+          energy_ = j["energy"];
+          if (needDipole) dipole_ = tensor_from_json<double>(j["dipole"]);
+          if (needGradient) gradient_ = tensor_from_json<double>(j["gradient"]);
+          return;
+        }
       }
 
       // we could dump params_ to JSON and pass as argv if desired…
-      auto results = moldft_lib::run_scf(world_, params_, workdir / "dft");
+      auto results = moldft_lib::run_scf(world_, params_, workdir / "moldft");
       energy_ = results.energy;
       dipole_ = results.dipole;
       gradient_ = results.gradient;
 
       // 5) write out JSON for future restarts
-      nlohmann::json outj = {{"energy", energy_}, {"dipole", tensor_to_json(dipole_)}};
-      if (gradient_) outj["gradient"] = tensor_to_json(*gradient_);
+      nlohmann::json outj = {{"energy", energy_}};
+      if (dipole_->has_data()) outj["dipole"] = tensor_to_json(*dipole_);
+      if (gradient_->has_data()) outj["gradient"] = tensor_to_json(*gradient_);
 
-      std::ofstream o(ckpt);
-      o << std::setw(2) << outj << std::endl;
+      if (world_.rank() == 0) {
+        std::cout << "Writing checkpoint file: " << ckpt << std::endl;
+        std::ofstream o(ckpt);
+        o << std::setw(2) << outj << std::endl;
+      }
     }
   }
 
   nlohmann::json results() const override {
+    auto scfParams = params_.get<CalculationParameters>();
     nlohmann::json j = {
         {"type", "scf"},
         {"energy", energy_},
-        {"dipole", {dipole_[0], dipole_[1], dipole_[2]}},
     };
-    if (gradient_) j["gradient"] = tensor_to_json(*gradient_);
+    if (dipole_ && scfParams.dipole()) j["dipole"] = tensor_to_json(*dipole_);
+    if (gradient_ && scfParams.derivatives()) j["gradient"] = tensor_to_json(*gradient_);
+
     return j;
   }
 
@@ -84,7 +110,7 @@ class SCFApplication : public Application {
   World& world_;
 
   double energy_;
-  tensorT dipole_;
+  std::optional<Tensor<double>> dipole_;
   std::optional<Tensor<double>> gradient_;
 };
 

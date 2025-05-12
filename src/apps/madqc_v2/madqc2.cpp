@@ -76,48 +76,48 @@ int main(int argc, char** argv) {
 
   {  // limit lifetime of world so that finalize() can execute cleanly
     START_TIMER(world);
-    try {
-      // Load info for MADNESS numerical routines
-      startup(world, argc, argv, true);
-      if (world.rank() == 0) print(info::print_revision_information());
+    /*try {*/
+    // Load info for MADNESS numerical routines
+    startup(world, argc, argv, true);
+    if (world.rank() == 0) print(info::print_revision_information());
 
-      commandlineparser parser(argc, argv);
-      std::string input_file = argv[1];
-      Params pm(world, input_file);
-      // Create workflow
-      qcapp::Workflow wf;
+    commandlineparser parser(argc, argv);
+    std::string input_file = argv[1];
+    Params pm(world, input_file);
+    // Create workflow
+    qcapp::Workflow wf;
 
-      // 1) Single-point DFT
-      wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(std::make_unique<SCFApplication>(world, pm)));
+    // 1) Single-point DFT
+    wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(std::make_unique<SCFApplication>(world, pm)));
 
-      // 2) molresponse, using DFT outputs from task_0/dft
-      std::filesystem::path gsDir = "MyCalc/task_0/dft";
-      wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(std::make_unique<ResponseApplication>(world, pm, gsDir)));
+    // 2) molresponse, using DFT outputs from task_0/dft
+    std::filesystem::path gsDir = "MyCalc/task_0/moldft";
+    wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(std::make_unique<ResponseApplication>(world, pm, gsDir)));
 
-      // Execute both in "MyCalc" directory
-      wf.run("MyCalc");
+    // Execute both in "MyCalc" directory
+    wf.run("MyCalc");
 
-    } catch (const SafeMPI::Exception& e) {
-      print(e);
-      error("caught an MPI exception");
-    } catch (const madness::MadnessException& e) {
-      print(e);
-      error("caught a MADNESS exception");
-    } catch (const madness::TensorException& e) {
-      print(e);
-      error("caught a Tensor exception");
-    } catch (const char* s) {
-      print(s);
-      error("caught a string exception");
-    } catch (const std::string& s) {
-      print(s);
-      error("caught a string (class) exception");
-    } catch (const std::exception& e) {
-      print(e.what());
-      error("caught an STL exception");
-    } catch (...) {
-      error("caught unhandled exception");
-    }
+    /*} catch (const SafeMPI::Exception& e) {*/
+    /*  print(e);*/
+    /*  error("caught an MPI exception");*/
+    /*} catch (const madness::MadnessException& e) {*/
+    /*  print(e);*/
+    /*  error("caught a MADNESS exception");*/
+    /*} catch (const madness::TensorException& e) {*/
+    /*  print(e);*/
+    /*  error("caught a Tensor exception");*/
+    /*} catch (const char* s) {*/
+    /*  print(s);*/
+    /*  error("caught a string exception");*/
+    /*} catch (const std::string& s) {*/
+    /*  print(s);*/
+    /*  error("caught a string (class) exception");*/
+    /*} catch (const std::exception& e) {*/
+    /*  print(e.what());*/
+    /*  error("caught an STL exception");*/
+    /*} catch (...) {*/
+    /*  error("caught unhandled exception");*/
+    /*}*/
 
     // Nearly all memory will be freed at this point
     world.gop.fence();

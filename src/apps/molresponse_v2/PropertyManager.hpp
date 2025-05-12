@@ -31,12 +31,14 @@ inline std::string iso_timestamp() {
   return ss.str();
 }
 
-inline madness::Tensor<double> compute_response_inner_product_tensor(madness::World &world, const std::vector<vector_real_function_3d> &A_vecs,
-                                                                     const std::vector<vector_real_function_3d> &B_vecs, bool save_contributions = false,
-                                                                     const std::string &entry_name = "") {
+inline madness::Tensor<double> compute_response_inner_product_tensor(
+    madness::World &world, const std::vector<vector_real_function_3d> &A_vecs,
+    const std::vector<vector_real_function_3d> &B_vecs,
+    bool save_contributions = false, const std::string &entry_name = "") {
   const size_t nA = A_vecs.size();
   const size_t nB = B_vecs.size();
-  if (nA == 0 || nB == 0) throw std::runtime_error("Input vectors must not be empty.");
+  if (nA == 0 || nB == 0)
+    throw std::runtime_error("Input vectors must not be empty.");
 
   const size_t num_rf = A_vecs[0].size();
   madness::Tensor<double> result(nA, nB);
@@ -62,7 +64,8 @@ inline madness::Tensor<double> compute_response_inner_product_tensor(madness::Wo
 
     if (save_contributions) {
       // serialize M_k
-      this_entry["contributions"][std::to_string(k)] = madness::tensor_to_json<double>(M_k);
+      this_entry["contributions"][std::to_string(k)] =
+          madness::tensor_to_json<double>(M_k);
     }
   }
 
@@ -70,7 +73,9 @@ inline madness::Tensor<double> compute_response_inner_product_tensor(madness::Wo
     // choose a key to store under; if user gave one, use it, else timestamp
     auto &g = global_inner_contributions();
 
-    std::string key = entry_name.empty() ? this_entry["timestamp"].get<std::string>() : entry_name;
+    std::string key = entry_name.empty()
+                          ? this_entry["timestamp"].get<std::string>()
+                          : entry_name;
     g[key] = std::move(this_entry);
   }
 
@@ -105,7 +110,8 @@ inline madness::Tensor<double> compute_response_inner_product_tensor(madness::Wo
 
 class PropertyManager {
  public:
-  explicit PropertyManager(World &world, const std::string &filename) : filename_(filename) {
+  explicit PropertyManager(World &world, const std::string &filename)
+      : filename_(filename) {
     if (fs::exists(filename_)) {
       data_ = broadcast_json_file(world, filename_);  // Load JSON data
     } else {
@@ -122,7 +128,8 @@ class PropertyManager {
   }
 
   // Store full polarizability tensor at frequency omega
-  void set_alpha(double omega, const madness::Tensor<double> &tensor, const std::string &dirs) {
+  void set_alpha(double omega, const madness::Tensor<double> &tensor,
+                 const std::string &dirs) {
     data_["polarizability"][freq_str(omega)] = tensor_to_json(tensor);
     data_["polarizability"][freq_str(omega)]["directions"] = dirs;
   }
@@ -130,19 +137,27 @@ class PropertyManager {
   bool has_alpha(double omega, std::string dir) const {
     // also check if they are the same size
     //
-    return data_.contains("polarizability") && data_["polarizability"].contains(freq_str(omega)) && data_["polarizability"][freq_str(omega)].contains(dir) &&
+    return data_.contains("polarizability") &&
+           data_["polarizability"].contains(freq_str(omega)) &&
+           data_["polarizability"][freq_str(omega)].contains(dir) &&
            !data_["polarizability"][freq_str(omega)][dir].is_null();
   }
 
   // Store a 3-element beta result for a given BC input pair (e.g., xx) at ω1,
-  void set_beta(double omega1, double omega2, const std::string &bc, const madness::Tensor<double> &tensor) {
-    data_["hyperpolarizability"][freq_str(omega1)][freq_str(omega2)][bc] = tensor_to_json(tensor);
+  void set_beta(double omega1, double omega2, const std::string &bc,
+                const madness::Tensor<double> &tensor) {
+    data_["hyperpolarizability"][freq_str(omega1)][freq_str(omega2)][bc] =
+        tensor_to_json(tensor);
   }
-  void set_beta_dirs(const std::string &dirs) { data_["hyperpolarizability"]["directions"] = dirs; }
+  void set_beta_dirs(const std::string &dirs) {
+    data_["hyperpolarizability"]["directions"] = dirs;
+  }
 
   bool has_beta(double omega1, double omega2, const std::string &bc) const {
     auto &beta = data_["hyperpolarizability"];
-    return beta.contains(freq_str(omega1)) && beta[freq_str(omega1)].contains(freq_str(omega2)) && beta[freq_str(omega1)][freq_str(omega2)].contains(bc) &&
+    return beta.contains(freq_str(omega1)) &&
+           beta[freq_str(omega1)].contains(freq_str(omega2)) &&
+           beta[freq_str(omega1)][freq_str(omega2)].contains(bc) &&
            !beta[freq_str(omega1)][freq_str(omega2)][bc].is_null() && false;
   }
 
@@ -153,16 +168,19 @@ class PropertyManager {
     }
     std::cout << "\n📐 Polarizability (α) Tensor Components:\n";
     // Build header based on available directions
-    for (const auto &[freq_str, tensor_json] : data_["polarizability"].items()) {
+    for (const auto &[freq_str, tensor_json] :
+         data_["polarizability"].items()) {
       if (!tensor_json.contains("directions")) continue;
 
       const std::string dirs = tensor_json["directions"];
-      const madness::Tensor<double> alpha = tensor_from_json<double>(tensor_json);
+      const madness::Tensor<double> alpha =
+          tensor_from_json<double>(tensor_json);
 
       // Print header
       std::cout << "\nω = " << freq_str << "\n";
       std::cout << std::setw(10) << "";
-      for (char d : dirs) std::cout << std::setw(12) << "α_" + std::string(1, d);
+      for (char d : dirs)
+        std::cout << std::setw(12) << "α_" + std::string(1, d);
       std::cout << "\n";
 
       // Print values row by row
@@ -172,7 +190,8 @@ class PropertyManager {
         std::cout << std::setw(10) << dirs[i];
         for (size_t j = 0; j < dirs.size(); ++j) {
           if (i < alpha.dim(0) && j < alpha.dim(1) && has_values) {
-            std::cout << std::setw(12) << std::fixed << std::setprecision(6) << alpha(i, j);
+            std::cout << std::setw(12) << std::fixed << std::setprecision(6)
+                      << alpha(i, j);
           } else
             std::cout << std::setw(12) << "--";
         }
@@ -190,15 +209,18 @@ class PropertyManager {
 
     // Get available directions
     std::string dirs = "";
-    if (data_["hyperpolarizability"].contains("directions")) dirs = data_["hyperpolarizability"]["directions"].get<std::string>();
+    if (data_["hyperpolarizability"].contains("directions"))
+      dirs = data_["hyperpolarizability"]["directions"].get<std::string>();
 
-    for (const auto &[w1_str, w1_entry] : data_["hyperpolarizability"].items()) {
+    for (const auto &[w1_str, w1_entry] :
+         data_["hyperpolarizability"].items()) {
       if (w1_str == "directions") continue;  // skip metadata
 
       for (const auto &[w2_str, w2_entry] : w1_entry.items()) {
         std::cout << "\nω₁ = " << w1_str << ", ω₂ = " << w2_str << "\n";
         std::cout << std::setw(8) << "BC";
-        for (char A : dirs) std::cout << std::setw(12) << "β_" + std::string(1, A) + "BC";
+        for (char A : dirs)
+          std::cout << std::setw(12) << "β_" + std::string(1, A) + "BC";
         std::cout << "\n";
 
         for (const auto &[bc, tensor_json] : w2_entry.items()) {
@@ -207,7 +229,8 @@ class PropertyManager {
 
           for (int i = 0; i < dirs.size(); ++i) {
             if (i < beta.size())
-              std::cout << std::setw(12) << std::fixed << std::setprecision(6) << beta(i);
+              std::cout << std::setw(12) << std::fixed << std::setprecision(6)
+                        << beta(i);
             else
               std::cout << std::setw(12) << "--";
           }
@@ -231,7 +254,8 @@ class PropertyManager {
   }
 };
 
-void initialize_property_structure(PropertyManager &pm, const ResponseParameters &rp) {
+void initialize_property_structure(PropertyManager &pm,
+                                   const ResponseParameters &rp) {
   auto props = rp.requested_properties();
   auto dipole_dirs = rp.dipole_directions();
   auto nuclear_dirs = rp.nuclear_directions();
@@ -256,7 +280,8 @@ void initialize_property_structure(PropertyManager &pm, const ResponseParameters
         }
       }
     } else if (prop == "hyperpolarizability") {
-      const auto directions_string = std::string(dipole_dirs.begin(), dipole_dirs.end());
+      const auto directions_string =
+          std::string(dipole_dirs.begin(), dipole_dirs.end());
       pm.set_beta_dirs(directions_string);
 
       for (size_t b = 0; b < dipole_freqs.size(); ++b) {
@@ -292,7 +317,10 @@ void initialize_property_structure(PropertyManager &pm, const ResponseParameters
  * for the perturbations.
  * @param pm The property manager to store the computed α tensor.
  */
-void compute_alpha(World &world, std::map<std::string, ResponseState> &state_map, const GroundStateData &gs, const std::vector<double> &frequencies,
+void compute_alpha(World &world,
+                   std::map<std::string, LinearResponseDescriptor> &state_map,
+                   const GroundStateData &gs,
+                   const std::vector<double> &frequencies,
                    const std::string &directions, PropertyManager &pm) {
   const size_t num_directions = directions.size();
   const size_t num_orbitals = gs.getNumOrbitals();
@@ -300,7 +328,8 @@ void compute_alpha(World &world, std::map<std::string, ResponseState> &state_map
   const bool is_restricted = gs.isSpinRestricted();
 
   if (world.rank() == 0) {
-    print("▶️ Computing α tensor for", num_directions, "directions and", num_frequencies, "frequencies.");
+    print("▶️ Computing α tensor for", num_directions, "directions and",
+          num_frequencies, "frequencies.");
   }
 
   std::vector<vector_real_function_3d> perturbations;
@@ -318,20 +347,23 @@ void compute_alpha(World &world, std::map<std::string, ResponseState> &state_map
     if (state_map.find(dir) == state_map.end()) {
       throw std::runtime_error("State not found in state_map: " + dir);
     } else {
-      perturbations.push_back(perturbation_vector(world, gs, state_map.at(dir)));  // Get the perturbation vector
+      perturbations.push_back(perturbation_vector(
+          world, gs, state_map.at(dir)));  // Get the perturbation vector
     }
   }
 
   for (size_t f = 0; f < num_frequencies; ++f) {
     double omega = frequencies[f];
     if (pm.has_alpha(omega, directions)) {
-      if (world.rank() == 0) print("✅ Skipping already computed α at ω =", omega);
+      if (world.rank() == 0)
+        print("✅ Skipping already computed α at ω =", omega);
       continue;
     }
 
     double alpha_factor = (omega == 0.0) ? -4.0 : -2.0;
     if (world.rank() == 0) {
-      print("🛠️  Computing α at ω =", omega, "for directions:", directions, " alpha factor = ", alpha_factor);
+      print("🛠️  Computing α at ω =", omega, "for directions:", directions,
+            " alpha factor = ", alpha_factor);
     }
 
     std::vector<vector_real_function_3d> response_vecs(num_directions);
@@ -340,18 +372,22 @@ void compute_alpha(World &world, std::map<std::string, ResponseState> &state_map
     for (size_t j = 0; j < num_directions; ++j) {
       auto &active_state = state_map.at(direction_keys[j]);
       active_state.set_frequency_index(f);
-      load_response_vector(world, num_orbitals, active_state, load_vector[j], active_state.thresholds.size() - 1, f);
+      load_response_vector(world, num_orbitals, active_state, load_vector[j],
+                           active_state.thresholds.size() - 1, f);
       response_vecs[j] = get_flat(load_vector[j]);
       perturb_vecs[j] = perturbations[j];
 
       if (omega != 0.0) {
         // Duplicate for dynamic response
-        perturb_vecs[j].insert(perturb_vecs[j].end(), perturb_vecs[j].begin(), perturb_vecs[j].end());
+        perturb_vecs[j].insert(perturb_vecs[j].end(), perturb_vecs[j].begin(),
+                               perturb_vecs[j].end());
       }
     }
 
     // Compute α using the utility
-    madness::Tensor<double> alpha = compute_response_inner_product_tensor(world, response_vecs, perturb_vecs, true, "alpha_contribs_" + std::to_string(f));
+    madness::Tensor<double> alpha = compute_response_inner_product_tensor(
+        world, response_vecs, perturb_vecs, true,
+        "alpha_contribs_" + std::to_string(f));
 
     alpha *= alpha_factor;
     if (world.rank() == 0) {
@@ -364,9 +400,13 @@ void compute_alpha(World &world, std::map<std::string, ResponseState> &state_map
   pm.save();
 }
 
-void compute_beta(World &world, const GroundStateData &gs, const PerturbationType a_type, const std::vector<Perturbation> &perturbation_A,
-                  const std::pair<PerturbationType, PerturbationType> &bc_types, const std::vector<std::pair<Perturbation, Perturbation>> &BC_pairs,
-                  const std::pair<std::vector<double>, std::vector<double>> &frequencies, PropertyManager &pm) {
+void compute_beta(
+    World &world, const GroundStateData &gs, const PerturbationType a_type,
+    const std::vector<Perturbation> &perturbation_A,
+    const std::pair<PerturbationType, PerturbationType> &bc_types,
+    const std::vector<std::pair<Perturbation, Perturbation>> &BC_pairs,
+    const std::pair<std::vector<double>, std::vector<double>> &frequencies,
+    PropertyManager &pm) {
   const bool is_spin_restricted = gs.isSpinRestricted();
   const int num_orbitals = static_cast<int>(gs.getNumOrbitals());
   const double thresh = FunctionDefaults<3>::get_thresh();
@@ -379,11 +419,14 @@ void compute_beta(World &world, const GroundStateData &gs, const PerturbationTyp
     for (auto &freq_c : frequencies.second) {
       // Get all BC pairs possible out of Perturbation
       for (auto [B, C] : BC_pairs) {
-        VBCResponseState vbc_state(bc_types.first, bc_types.second, B, C, freq_b, freq_c, FunctionDefaults<3>::get_thresh(), is_spin_restricted);
+        VBCResponseState vbc_state(
+            bc_types.first, bc_types.second, B, C, freq_b, freq_c,
+            FunctionDefaults<3>::get_thresh(), is_spin_restricted);
         auto bc = vbc_state.perturbationDescription();
 
         if (pm.has_beta(freq_b, freq_c, bc)) {
-          if (world.rank() == 0) print("✅ Skipping β(", bc, ") at (ω1, ω2) =", freq_b, freq_c);
+          if (world.rank() == 0)
+            print("✅ Skipping β(", bc, ") at (ω1, ω2) =", freq_b, freq_c);
           continue;
         }
 
@@ -392,13 +435,16 @@ void compute_beta(World &world, const GroundStateData &gs, const PerturbationTyp
 
         auto omega_A = vbc_state.current_frequency();
         std::vector<ResponseVector> a_vecs(perturbation_A.size());
-        std::vector<vector_real_function_3d> xa_vecs(perturbation_A.size());  // for the A perturbations
+        std::vector<vector_real_function_3d> xa_vecs(
+            perturbation_A.size());  // for the A perturbations
         //
 
         std::vector<real_function_3d> opAs(perturbation_A.size());
         for (int a = 0; a < perturbation_A.size(); ++a) {
           auto pertA = perturbation_A[a];
-          auto state_A = ResponseState(pertA, a_type, {omega_A}, {FunctionDefaults<3>::get_thresh()}, is_spin_restricted);
+          auto state_A = LinearResponseDescriptor(
+              pertA, a_type, {omega_A}, {FunctionDefaults<3>::get_thresh()},
+              is_spin_restricted);
           opAs[a] = raw_perturbation_operator(world, gs, state_A);
           load_response_vector(world, num_orbitals, state_A, a_vecs[a], 0, 0);
           auto flat = get_flat(a_vecs[a]);
@@ -409,7 +455,9 @@ void compute_beta(World &world, const GroundStateData &gs, const PerturbationTyp
           xa_vecs[a] = -1.0 * flat;
         }
 
-        madness::Tensor<double> beta_tensor = compute_response_inner_product_tensor(world, xa_vecs, {vbc_flat}, true, "beta_contribs" + bc);
+        madness::Tensor<double> beta_tensor =
+            compute_response_inner_product_tensor(world, xa_vecs, {vbc_flat},
+                                                  true, "beta_contribs" + bc);
 
         // We only need one copy of xb_phi0
         DynamicRestrictedResponse xb_phi0(num_orbitals);
@@ -417,7 +465,8 @@ void compute_beta(World &world, const GroundStateData &gs, const PerturbationTyp
         DynamicRestrictedResponse y_zeta_bc(num_orbitals);
         DynamicRestrictedResponse y_zeta_cb(num_orbitals);
 
-        auto [xb, xc] = vbc_computer.get_BC_vecs(vbc_state);  // get the B and C states
+        auto [xb, xc] =
+            vbc_computer.get_BC_vecs(vbc_state);  // get the B and C states
 
         xb_phi0.x_alpha = std::get<DynamicRestrictedResponse>(xb).x_alpha;
         xb_phi0.y_alpha = gs.orbitals;
@@ -425,18 +474,22 @@ void compute_beta(World &world, const GroundStateData &gs, const PerturbationTyp
         xc_phi0.y_alpha = gs.orbitals;
         y_zeta_bc.x_alpha = std::get<DynamicRestrictedResponse>(xc).y_alpha;
         y_zeta_cb.x_alpha = std::get<DynamicRestrictedResponse>(xb).y_alpha;
-        y_zeta_bc.y_alpha = SimpleVBCComputer::make_zeta_bc(world, std::get<DynamicRestrictedResponse>(xb).y_alpha,
-                                                            std::get<DynamicRestrictedResponse>(xc).x_alpha, gs.orbitals);
-        y_zeta_cb.y_alpha = SimpleVBCComputer::make_zeta_bc(world, std::get<DynamicRestrictedResponse>(xc).y_alpha,
-                                                            std::get<DynamicRestrictedResponse>(xb).x_alpha, gs.orbitals);
+        y_zeta_bc.y_alpha = SimpleVBCComputer::make_zeta_bc(
+            world, std::get<DynamicRestrictedResponse>(xb).y_alpha,
+            std::get<DynamicRestrictedResponse>(xc).x_alpha, gs.orbitals);
+        y_zeta_cb.y_alpha = SimpleVBCComputer::make_zeta_bc(
+            world, std::get<DynamicRestrictedResponse>(xc).y_alpha,
+            std::get<DynamicRestrictedResponse>(xb).x_alpha, gs.orbitals);
 
         xb_phi0.flatten();
         xc_phi0.flatten();
         y_zeta_bc.flatten();
         y_zeta_cb.flatten();
 
-        std::vector<vector_real_function_3d> ra_y_zeta_bc(perturbation_A.size());
-        std::vector<vector_real_function_3d> ra_y_zeta_cb(perturbation_A.size());
+        std::vector<vector_real_function_3d> ra_y_zeta_bc(
+            perturbation_A.size());
+        std::vector<vector_real_function_3d> ra_y_zeta_cb(
+            perturbation_A.size());
         for (int a = 0; a < perturbation_A.size(); ++a) {
           ra_y_zeta_bc[a] = copy(world, get_flat(y_zeta_bc)) * opAs[a];
           ra_y_zeta_cb[a] = copy(world, get_flat(y_zeta_cb)) * opAs[a];
@@ -446,11 +499,15 @@ void compute_beta(World &world, const GroundStateData &gs, const PerturbationTyp
         xb_phi0_vec[0] = get_flat(xb_phi0);
         xc_phi0_vec[0] = get_flat(xc_phi0);
 
-        auto file_name = "responses/" + vbc_state.perturbationDescription() + "_beta_zeta_bc_0.json";
-        madness::Tensor<double> beta_2 = compute_response_inner_product_tensor(world, ra_y_zeta_bc, xb_phi0_vec, true, "beta_zeta_bc_1");
+        auto file_name = "responses/" + vbc_state.perturbationDescription() +
+                         "_beta_zeta_bc_0.json";
+        madness::Tensor<double> beta_2 = compute_response_inner_product_tensor(
+            world, ra_y_zeta_bc, xb_phi0_vec, true, "beta_zeta_bc_1");
 
-        file_name = "responses/" + vbc_state.perturbationDescription() + "_beta_zeta_bc_1.json";
-        madness::Tensor<double> beta_3 = compute_response_inner_product_tensor(world, ra_y_zeta_cb, xc_phi0_vec, true, file_name);
+        file_name = "responses/" + vbc_state.perturbationDescription() +
+                    "_beta_zeta_bc_1.json";
+        madness::Tensor<double> beta_3 = compute_response_inner_product_tensor(
+            world, ra_y_zeta_cb, xc_phi0_vec, true, file_name);
         if (world.rank() == 0) {
           print("beta_3 tensor size:", beta_3.size(), "x", beta_3.size());
           print("beta_3= \n ", beta_3);
@@ -478,20 +535,23 @@ void compute_beta(World &world, const GroundStateData &gs, const PerturbationTyp
 //  ωB and ωC each run over the same list of input frequencies.
 //  directions = subset of {'x','y','z'} to include.
 // ─────────────────────────────────────────────────────────────────────────────
-void compute_hyperpolarizability(World &world, const GroundStateData &gs,
-                                 const std::vector<double> &frequencies,  // ωB and ωC
-                                 const std::vector<char> &directions,     // which Cartesian dirs
-                                 PropertyManager &pm) {
+void compute_hyperpolarizability(
+    World &world, const GroundStateData &gs,
+    const std::vector<double> &frequencies,  // ωB and ωC
+    const std::string &directions,           // which Cartesian dirs
+    PropertyManager &pm) {
   // 1) Build A-list (dipole along each dir)
   std::vector<Perturbation> A_pert;
   A_pert.reserve(directions.size());
   for (char d : directions) A_pert.emplace_back(DipolePerturbation{d});
 
   // 2) Build all BC pairs of two dipoles
-  std::pair<PerturbationType, PerturbationType> bc_types = {PerturbationType::Dipole, PerturbationType::Dipole};
+  std::pair<PerturbationType, PerturbationType> bc_types = {
+      PerturbationType::Dipole, PerturbationType::Dipole};
   std::vector<std::pair<Perturbation, Perturbation>> BC_pairs;
   for (char b : directions)
-    for (char c : directions) BC_pairs.emplace_back(DipolePerturbation{b}, DipolePerturbation{c});
+    for (char c : directions)
+      BC_pairs.emplace_back(DipolePerturbation{b}, DipolePerturbation{c});
 
   auto freq_pair = std::make_pair(frequencies, frequencies);
 
@@ -510,9 +570,12 @@ void compute_hyperpolarizability(World &world, const GroundStateData &gs,
 //  frequencies: the optical frequencies for both Dipole and Raman.
 //  dip_dirs: which dipole directions to include.
 // ─────────────────────────────────────────────────────────────────────────────
-void compute_Raman(World &world, const GroundStateData &gs, const std::pair<std::vector<double>, std::vector<double>> &BC_frequencies,
-                   const std::vector<char> &dip_dirs,  // e.g. {'x','y','z'}
-                   PropertyManager &pm) {
+void compute_Raman(
+    World &world, const GroundStateData &gs,
+    const std::pair<std::vector<double>, std::vector<double>> &BC_frequencies,
+    const std::string &dip_dirs,  // e.g. {'x','y','z'}
+    const std::string &nuc_dirs,  // e.g. {'x','y','z'}
+    PropertyManager &pm) {
   // 1) A-list is still the dipole directions
   std::vector<Perturbation> A_pert;
   A_pert.reserve(dip_dirs.size());
@@ -522,17 +585,20 @@ void compute_Raman(World &world, const GroundStateData &gs, const std::pair<std:
   std::vector<Perturbation> nucs;
   nucs.reserve(3 * gs.molecule.natom());
   for (int atom = 0; atom < gs.molecule.natom(); ++atom) {
-    for (char dir : {'x', 'y', 'z'}) nucs.emplace_back(NuclearDisplacementPerturbation{atom, dir});
+    for (char dir : {'x', 'y', 'z'})
+      nucs.emplace_back(NuclearDisplacementPerturbation{atom, dir});
   }
 
-  std::pair<PerturbationType, PerturbationType> bc_types = {PerturbationType::Dipole, PerturbationType::NuclearDisplacement};
+  std::pair<PerturbationType, PerturbationType> bc_types = {
+      PerturbationType::Dipole, PerturbationType::NuclearDisplacement};
 
   // 3) Build BC pairs = (Dipole, NuclearDisp)
   std::vector<std::pair<Perturbation, Perturbation>> BC_pairs;
   BC_pairs.reserve(dip_dirs.size() * nucs.size());
   for (char b : dip_dirs) {
     for (auto &n : nucs) {
-      BC_pairs.emplace_back(DipolePerturbation{b}, std::get<NuclearDisplacementPerturbation>(n));
+      BC_pairs.emplace_back(DipolePerturbation{b},
+                            std::get<NuclearDisplacementPerturbation>(n));
     }
   }
 

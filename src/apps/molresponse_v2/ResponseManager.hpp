@@ -18,9 +18,9 @@ class ResponseManager {
   [[nodiscard]] poperatorT getCoulombOp() const { return coulop; }
   [[nodiscard]] std::vector<std::shared_ptr<real_derivative_3d>> getGradOp() const { return gradop; }
   // Compute and store a response state
-  void computeState(const ResponseState &state);
+  void computeState(const AbstractResponseDescriptor &state);
   // Check if a response state is already converged
-  [[nodiscard]] bool isConverged(const ResponseState &state) const;
+  [[nodiscard]] bool isConverged(const AbstractResponseDescriptor &state) const;
 
   [[nodiscard]] CalculationParameters params() const { return calc_params; }
 

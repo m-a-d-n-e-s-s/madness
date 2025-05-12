@@ -21,13 +21,13 @@ struct Results {
   std::optional<Tensor<double>> gradient;
 };
 
-Results run_scf(World& world, const Params& params, const std::filesystem::path& outdir) {
-  std::filesystem::create_directories(outdir);
+// params get's changed by SCF constructor
+Results run_scf(World& world, Params& params, const std::filesystem::path& outdir) {
   auto moldft_params = params.get<CalculationParameters>();
-  auto& molecule = params.get<Molecule>();
+  const auto& molecule = params.get<Molecule>();
 
   auto archive_name = moldft_params.prefix() + ".restartdata";
-  auto restart_path = outdir / archive_name / ".00000";
+  auto restart_path = path(archive_name) / ".00000";
 
   if (std::filesystem::exists(restart_path)) {
     moldft_params.set_user_defined_value<bool>("restart", true);
@@ -51,9 +51,8 @@ Results run_scf(World& world, const Params& params, const std::filesystem::path&
 
   std::cout.precision(6);
   SCF calc(world, parser);
+  // read moldft.in file used
 
-  // create workdir/dft
-  std::filesystem::create_directories(outdir);
   // redirect any log files into outdir if needed…
   // Warm and fuzzy for the user
   if (world.rank() == 0) {

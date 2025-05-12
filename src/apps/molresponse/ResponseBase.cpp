@@ -1210,7 +1210,7 @@ auto ResponseBase::compute_V0X(World &world, const X_space &X,
     v_j0.scale(2.0, true);
     v_j0.truncate(FunctionDefaults<3>::get_thresh(), true);
   } else { // Already pre-computed
-    v_j0 = stored_v_coul;
+    v_j1 = stored_v_coul;
   }
   if (r_params.print_level() >= 1) {
     molresponse::end_timer(world, "J[0]", "J[0]", iter_timing);

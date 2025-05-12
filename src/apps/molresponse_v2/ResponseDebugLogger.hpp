@@ -15,8 +15,10 @@ using json = nlohmann::json;
 //==============================================================================
 class ResponseDebugLogger {
  public:
-  // constructor: pass the filename you want to write to (e.g. "responses/response_log.json")
-  ResponseDebugLogger(const std::string &filename, bool enabled = false) : filename_(filename), enabled_(enabled) {
+  // constructor: pass the filename you want to write to (e.g.
+  // "responses/response_log.json")
+  ResponseDebugLogger(const std::string &filename, bool enabled = false)
+      : filename_(filename), enabled_(enabled) {
     // if an existing log file is there, load it
     if (fs::exists(filename_)) {
       std::ifstream in(filename_);
@@ -28,7 +30,7 @@ class ResponseDebugLogger {
   void set_enabled(bool on) { enabled_ = on; }
 
   // must call at the start of each new state
-  void start_state(const ResponseState &state) {
+  void start_state(const LinearResponseDescriptor &state) {
     if (!enabled_) return;
 
     current_key_ = state.description();
@@ -37,9 +39,7 @@ class ResponseDebugLogger {
     if (log_data_.contains(current_key_)) {
       current_entry_ = log_data_[current_key_];
     } else {
-      current_entry_ = {{"perturbation", describe_perturbation(state.perturbation)},
-                        {"frequency", state.current_frequency()},
-                        {"threshold", state.current_threshold()},
+      current_entry_ = {{"description", current_key_},
                         {"iteration_values", json::array()},
                         {"iteration_timings", json::array()}};
     }
@@ -60,7 +60,8 @@ class ResponseDebugLogger {
   }
 
   // log wall + cpu times under a step name
-  void log_timing(const std::string &step_name, double wall_time, double cpu_time) {
+  void log_timing(const std::string &step_name, double wall_time,
+                  double cpu_time) {
     if (!enabled_) return;
     auto &S = current_iter_timing_["steps"][step_name];
     S["wall_time"] = wall_time;
@@ -69,7 +70,8 @@ class ResponseDebugLogger {
 
   // convenience for both in one shot
   template <typename T>
-  void log_value_and_time(const std::string &step_name, const T &value, double wall_time, double cpu_time) {
+  void log_value_and_time(const std::string &step_name, const T &value,
+                          double wall_time, double cpu_time) {
     log_value(step_name, value);
     log_timing(step_name, wall_time, cpu_time);
   }
@@ -91,7 +93,7 @@ class ResponseDebugLogger {
   void write_to_disk() const {
     if (!enabled_) return;
     // ensure directory exists
-    fs::create_directories(fs::path(filename_).parent_path());
+    // fs::create_directories(fs::path(filename_).parent_path());
     std::ofstream out(filename_);
     out << std::setw(2) << log_data_ << "\n";
   }
@@ -155,7 +157,8 @@ class ResponseDebugLogger {
       for (auto &n : step_names) {
         if (iter["steps"].contains(n)) {
           double v = iter["steps"][n]["value"].get<double>();
-          std::cout << std::setw(W) << std::scientific << std::setprecision(5) << v;
+          std::cout << std::setw(W) << std::scientific << std::setprecision(5)
+                    << v;
         } else {
           std::cout << std::setw(W) << "N/A";
         }
@@ -178,7 +181,9 @@ class ResponseDebugLogger {
 
 class TimedValueLogger {
  public:
-  TimedValueLogger(madness::World &world, const std::string &key, ResponseDebugLogger *logger = nullptr) : world_(world), key_(key), logger_(logger) {
+  TimedValueLogger(madness::World &world, const std::string &key,
+                   ResponseDebugLogger *logger = nullptr)
+      : world_(world), key_(key), logger_(logger) {
     world_.gop.fence();
     start_wall_ = madness::wall_time();
     start_cpu_ = madness::cpu_time();
@@ -193,8 +198,10 @@ class TimedValueLogger {
     }
 
     if (world_.rank() == 0) {
-      std::cout << std::left << std::setw(30) << "⏱️ [" + key_ + "]" << std::right << " | Wall: " << std::setw(7) << std::setprecision(3) << wall
-                << "s | CPU: " << std::setw(7) << std::setprecision(3) << cpu << "s |" << std::endl;
+      std::cout << std::left << std::setw(30) << "⏱️ [" + key_ + "]"
+                << std::right << " | Wall: " << std::setw(7)
+                << std::setprecision(3) << wall << "s | CPU: " << std::setw(7)
+                << std::setprecision(3) << cpu << "s |" << std::endl;
     }
   }
 
@@ -208,9 +215,12 @@ class TimedValueLogger {
     }
 
     if (world_.rank() == 0) {
-      std::cout << std::left << std::setw(30) << "⏱️ [" + key_ + "]" << std::right << " | Wall: " << std::setw(7) << std::setprecision(3) << wall
-                << "s | CPU: " << std::setw(7) << std::setprecision(3) << cpu << "s | Value: " << std::setw(10) << std::setprecision(7) << std::fixed << value
-                << " |" << std::endl;
+      std::cout << std::left << std::setw(30) << "⏱️ [" + key_ + "]"
+                << std::right << " | Wall: " << std::setw(7)
+                << std::setprecision(3) << wall << "s | CPU: " << std::setw(7)
+                << std::setprecision(3) << cpu << "s | Value: " << std::setw(10)
+                << std::setprecision(7) << std::fixed << value << " |"
+                << std::endl;
     }
   }
   template <typename T>
@@ -226,11 +236,15 @@ class TimedValueLogger {
     }
 
     if (world_.rank() == 0) {
-      std::cout << std::left << std::setw(20) << ("⏱️ [" + key_ + "]") << " | Values: ";
+      std::cout << std::left << std::setw(20) << ("⏱️ [" + key_ + "]")
+                << " | Values: ";
       for (const auto &v : values) {
-        std::cout << std::right << std::setw(10) << std::setprecision(6) << std::fixed << v << " ";
+        std::cout << std::right << std::setw(10) << std::setprecision(6)
+                  << std::fixed << v << " ";
       }
-      std::cout << "| Wall: " << std::setw(7) << std::setprecision(3) << wall << "s | CPU: " << std::setw(7) << std::setprecision(3) << cpu << "s |\n";
+      std::cout << "| Wall: " << std::setw(7) << std::setprecision(3) << wall
+                << "s | CPU: " << std::setw(7) << std::setprecision(3) << cpu
+                << "s |\n";
     }
   }
 
