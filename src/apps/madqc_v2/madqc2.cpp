@@ -32,7 +32,8 @@
 */
 
 #include <fstream>
-#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
+    defined(HAVE_UNISTD_H)
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -50,6 +51,8 @@
 #include <madness/world/worldmem.h>
 
 #include "Drivers.hpp"
+#include "MoldftLib.hpp"
+#include "MolresponseLib.hpp"
 #include "ParameterManager.hpp"
 
 using namespace madness;
@@ -65,7 +68,8 @@ static void START_TIMER(World& world) {
 static void END_TIMER(World& world, const char* msg) {
   ttt = wall_time() - ttt;
   sss = cpu_time() - sss;
-  if (world.rank() == 0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
+  if (world.rank() == 0)
+    printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
 }
 
 int main(int argc, char** argv) {
@@ -88,14 +92,29 @@ int main(int argc, char** argv) {
     qcapp::Workflow wf;
 
     // 1) Single-point DFT
-    wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(std::make_unique<SCFApplication>(world, pm)));
+    wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
+        std::make_unique<SCFApplication<moldft_lib>>(world, pm)));
 
     // 2) molresponse, using DFT outputs from task_0/dft
     std::filesystem::path gsDir = "MyCalc/task_0/moldft";
-    wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(std::make_unique<ResponseApplication>(world, pm, gsDir)));
+    wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
+        std::make_unique<ResponseApplication<molresponse_lib>>(world, pm,
+                                                               gsDir)));
 
     // Execute both in "MyCalc" directory
     wf.run("MyCalc");
+
+    if (true) {
+      qcapp::Workflow opt_wf;
+
+      std::function<std::unique_ptr<Application>(Params)> scfFactory =
+          [&](Params p) {
+            return std::make_unique<SCFApplication<moldft_lib>>(world, p);
+          };
+
+      opt_wf.addDriver(
+          std::make_unique<qcapp::OptimizeDriver>(world, scfFactory, pm));
+    }
 
     /*} catch (const SafeMPI::Exception& e) {*/
     /*  print(e);*/

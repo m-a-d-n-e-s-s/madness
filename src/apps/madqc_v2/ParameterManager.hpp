@@ -11,12 +11,17 @@ struct OptimizationParameters : public QCCalculationParametersBase {
   static constexpr char const *tag = "optimization";
   OptimizationParameters(const OptimizationParameters &other) = default;
 
-  OptimizationParameters(World &world, const commandlineparser &parser) : OptimizationParameters() { read_input_and_commandline_options(world, parser, tag); }
+  OptimizationParameters(World &world, const commandlineparser &parser)
+      : OptimizationParameters() {
+    read_input_and_commandline_options(world, parser, tag);
+  }
   OptimizationParameters() {
     initialize<int>("maxiter", 20, "optimization maxiter");
 
-    initialize<bool>("initial_hessian", false, "compute inital hessian for optimization");
-    initialize<std::string>("algopt", "bfgs", "algorithm used for optimization", {"bfgs", "cg"});
+    initialize<bool>("initial_hessian", false,
+                     "compute inital hessian for optimization");
+    initialize<std::string>("algopt", "bfgs", "algorithm used for optimization",
+                            {"bfgs", "cg"});
     initialize<double>("value_precision", 1.e-5, "value precision");
     initialize<double>("gradient_precision", 1.e-4, "gradient precision");
     initialize<bool>("geometry_tolerence", false, "geometry tolerance");
@@ -35,13 +40,25 @@ struct OptimizationParameters : public QCCalculationParametersBase {
     madness::print("-------------------------------------------");
   }
 
-  [[nodiscard]] std::string get_method() const { return get<std::string>("method"); }
+  [[nodiscard]] std::string get_method() const {
+    return get<std::string>("method");
+  }
   [[nodiscard]] int get_maxiter() const { return get<int>("maxiter"); }
-  [[nodiscard]] bool get_initial_hessian() const { return get<bool>("initial_hessian"); }
-  [[nodiscard]] std::string get_algopt() const { return get<std::string>("algopt"); }
-  [[nodiscard]] double get_value_precision() const { return get<double>("value_precision"); }
-  [[nodiscard]] double get_gradient_precision() const { return get<double>("gradient_precision"); }
-  [[nodiscard]] bool get_geometry_tolerence() const { return get<bool>("geometry_tolerence"); }
+  [[nodiscard]] bool get_initial_hessian() const {
+    return get<bool>("initial_hessian");
+  }
+  [[nodiscard]] std::string get_algopt() const {
+    return get<std::string>("algopt");
+  }
+  [[nodiscard]] double get_value_precision() const {
+    return get<double>("value_precision");
+  }
+  [[nodiscard]] double get_gradient_precision() const {
+    return get<double>("gradient_precision");
+  }
+  [[nodiscard]] bool get_geometry_tolerence() const {
+    return get<bool>("geometry_tolerence");
+  }
 };
 
 template <typename... Groups>
@@ -78,12 +95,22 @@ class ParameterManager : public madness::QCCalculationParametersBase {
   }
 
   /// dump out the merged JSON
-  [[nodiscard]] nlohmann::json const &getAllInputJson() const { return all_input_json_; }
+  [[nodiscard]] nlohmann::json const &getAllInputJson() const {
+    return all_input_json_;
+  }
 
   /// access a particular group by type:
   template <typename G>
   G const &get() const {
     return std::get<G>(groups_);
+  }
+  template <typename G>
+  G &get() {
+    return std::get<G>(groups_);
+  }
+  template <typename G>
+  void set(G const &g) {
+    std::get<G>(groups_) = g;
   }
 
   /// pretty-print everything
@@ -95,7 +122,8 @@ class ParameterManager : public madness::QCCalculationParametersBase {
         [&] {
           if (j.contains(Groups::tag)) {
             if (world_.rank() == 0) {
-              madness::print("Group: ", Groups::tag, " JSON: ", j.at(Groups::tag).dump(4));
+              madness::print("Group: ", Groups::tag,
+                             " JSON: ", j.at(Groups::tag).dump(4));
             }
             std::get<Groups>(groups_).from_json(j.at(Groups::tag));
           }
@@ -137,3 +165,6 @@ class ParameterManager : public madness::QCCalculationParametersBase {
   }
 };
 
+// Define a concrete aliased ParameterManager type
+using Params = ParameterManager<CalculationParameters, ResponseParameters,
+                                OptimizationParameters, Molecule>;

@@ -1,13 +1,14 @@
 #pragma once
 
-#include "MoldftLib.hpp"
-#include "MolresponseLib.hpp"
+#include "InputWriter.hpp"
+#include "ParameterManager.hpp"
 #include "PathManager.hpp"
-#include "Utils.hpp"
 
+// Scoped CWD: changes the current directory to the given one, and restores when
+// the object goes out of scope
 struct ScopedCWD {
   std::filesystem::path old_cwd;
-  ScopedCWD(std::filesystem::path const& new_dir) {
+  explicit ScopedCWD(std::filesystem::path const& new_dir) {
     old_cwd = std::filesystem::current_path();
     std::filesystem::current_path(new_dir);
   }
@@ -30,13 +31,15 @@ class Application {
   Params params_;
 };
 
+template <typename Library>
 class SCFApplication : public Application {
  public:
-  SCFApplication(World& w, Params p) : Application(std::move(p)), world_(w) {}
+  explicit SCFApplication(World& w, Params p)
+      : Application(std::move(p)), world_(w) {}
 
   void run(const std::filesystem::path& workdir) override {
     // 1) set up a namedspaced directory for this run
-    PathManager pm(workdir, "moldft");
+    PathManager pm(workdir, Library::label());
     pm.create();
     world_.gop.fence();
     {
@@ -76,7 +79,8 @@ class SCFApplication : public Application {
       }
 
       // we could dump params_ to JSON and pass as argv if desired…
-      auto results = moldft_lib::run_scf(world_, params_, workdir / "moldft");
+      auto results = Library::run_scf(world_, params_, pm.dir());
+
       energy_ = results.energy;
       dipole_ = results.dipole;
       gradient_ = results.gradient;
@@ -101,7 +105,8 @@ class SCFApplication : public Application {
         {"energy", energy_},
     };
     if (dipole_ && scfParams.dipole()) j["dipole"] = tensor_to_json(*dipole_);
-    if (gradient_ && scfParams.derivatives()) j["gradient"] = tensor_to_json(*gradient_);
+    if (gradient_ && scfParams.derivatives())
+      j["gradient"] = tensor_to_json(*gradient_);
 
     return j;
   }
@@ -110,14 +115,17 @@ class SCFApplication : public Application {
   World& world_;
 
   double energy_;
+
   std::optional<Tensor<double>> dipole_;
   std::optional<Tensor<double>> gradient_;
+  std::optional<real_function_3d> density_;
 };
 
 /**
  * @brief Wrapper application to run the molresponse workflow
  *        via the molresponse_lib::run_response function.
  */
+template <typename Library>
 class ResponseApplication : public Application {
  public:
   /**
@@ -125,19 +133,22 @@ class ResponseApplication : public Application {
    * @param params  Unified Params containing ResponseParameters & Molecule
    * @param indir   Directory of precomputed ground-state (SCF) outputs
    */
-  ResponseApplication(World& world, Params params, std::filesystem::path indir) : world_(world), Application(std::move(params)), indir_(std::move(indir)) {}
+  ResponseApplication(World& world, Params params, std::filesystem::path indir)
+      : world_(world),
+        Application(std::move(params)),
+        indir_(std::move(indir)) {}
 
   /**
    * @brief Execute response + property workflow, writing into workdir/response
    */
   void run(const std::filesystem::path& workdir) override {
     // create a namespaced subdirectory for response outputs
-    PathManager pm(workdir, "response");
+    PathManager pm(workdir, Library::label());
     pm.create();
     {
       ScopedCWD scwd(pm.dir());
 
-      molresponse_lib::Results res = molresponse_lib::run_response(world_, params_, indir_, pm.dir());
+      auto res = Library::run_response(world_, params_, indir_, pm.dir());
 
       metadata_ = std::move(res.metadata);
       properties_ = std::move(res.properties);
@@ -147,7 +158,11 @@ class ResponseApplication : public Application {
   /**
    * @brief Return a JSON fragment summarizing results
    */
-  [[nodiscard]] nlohmann::json results() const override { return {{"type", "response"}, {"metadata", metadata_}, {"properties", properties_}}; }
+  [[nodiscard]] nlohmann::json results() const override {
+    return {{"type", "response"},
+            {"metadata", metadata_},
+            {"properties", properties_}};
+  }
 
  private:
   World& world_;

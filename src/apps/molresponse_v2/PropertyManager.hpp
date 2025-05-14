@@ -493,10 +493,30 @@ void compute_beta(
             bc_types.first, bc_types.second, B, C, freq_b, freq_c,
             FunctionDefaults<3>::get_thresh(), is_spin_restricted);
         auto bc = vbc_state.perturbationDescription();
+        auto pertB = std::get<DipolePerturbation>(B);  // get the B perturbation
+        auto pertC = std::get<DipolePerturbation>(C);  // get the C perturbation
 
-        if (pm.has_beta(freq_b, freq_c, bc)) {
+        std::vector<std::string> abc_string;
+        for (auto a : perturbation_A) {
+          auto pertA = std::get<DipolePerturbation>(a);
+          auto dir = pertA.direction;
+          auto comp = std::string(1, dir) + pertB.direction +
+                      pertC.direction;  // get the perturbation direction
+          abc_string.push_back(comp);
+        }
+
+        bool skip = true;
+        // skip if all abc are already computed
+        for (auto &abc : abc_string) {
+          if (!pm.has_beta(freq_b, freq_c, abc)) {
+            skip = false;
+            break;
+          }
+        }
+        if (skip) {
           if (world.rank() == 0)
-            print("✅ Skipping β(", bc, ") at (ω1, ω2) =", freq_b, freq_c);
+            print("✅ Skipping already computed β at ωB =", freq_b,
+                  "ωC =", freq_c, "for directions:", abc_string);
           continue;
         }
 
@@ -594,14 +614,13 @@ void compute_beta(
         }
 
         int aa = 0;
-        for (auto a : perturbation_A) {
-          auto pertA = std::get<DipolePerturbation>(a);
-          auto dir = pertA.direction;
-          auto comp = std::string(1, dir) + bc;
-          if (world.rank() == 0)
-            print("Setting β(", comp, ") at (ω1, ω2) =", freq_b, freq_c);
-          pm.set_beta(freq_b, freq_c, comp, beta_tensor(aa, 0));
+
+        for (auto comp : abc_string) {
+          pm.set_beta(freq_b, freq_c, comp,
+                      beta_tensor(aa, 0));  // set the β value
+          aa++;
         }
+        // get perturbation direction
       }
     }
   }

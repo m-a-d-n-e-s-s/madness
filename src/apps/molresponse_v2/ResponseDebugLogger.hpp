@@ -17,7 +17,8 @@ class ResponseDebugLogger {
  public:
   // constructor: pass the filename you want to write to (e.g.
   // "responses/response_log.json")
-  ResponseDebugLogger(const std::string &filename, bool enabled = false)
+  explicit ResponseDebugLogger(const std::string &filename,
+                               bool enabled = false)
       : filename_(filename), enabled_(enabled) {
     // if an existing log file is there, load it
     if (fs::exists(filename_)) {
@@ -26,7 +27,9 @@ class ResponseDebugLogger {
     }
   }
 
-  bool enabled() const { return enabled_; }
+  [[nodiscard]] json to_json() const { return log_data_; }
+
+  [[nodiscard]] bool enabled() const { return enabled_; }
   void set_enabled(bool on) { enabled_ = on; }
 
   // must call at the start of each new state
