@@ -1042,7 +1042,7 @@ double Molecule::atomic_attraction_potential(int iatom, double x, double y,
     double r = distance(atoms[iatom].x, atoms[iatom].y, atoms[iatom].z, x, y, z);
     double sum =- atoms[iatom].q * smoothed_potential(r*rcut[iatom])*rcut[iatom];
 
-    return sum;
+  return sum;
 }
 
 
