@@ -258,11 +258,11 @@ void Molecule::read_file(const std::string& filename) {
 }
 
 void Molecule::read(std::istream& f) {
-    atoms.clear();
-    rcut.clear();
-    madness::position_stream(f, "geometry",false);		// do not rewind
-    double scale = 1.0; // Default is atomic units
-    if (parameters.units()=="angstrom") scale = 1e-10 / madness::constants::atomic_unit_of_length;
+  atoms.clear();
+  rcut.clear();
+  madness::position_stream(f, "molecule", false);  // do not rewind
+  double scale = 1.0;                              // Default is atomic units
+  if (parameters.units() == "angstrom") scale = 1e-10 / madness::constants::atomic_unit_of_length;
 
     std::string s, tag;
     while (std::getline(f,s)) {
