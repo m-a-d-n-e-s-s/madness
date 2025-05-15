@@ -49,6 +49,7 @@
 namespace madness {
 
 struct CalculationParameters : public QCCalculationParametersBase {
+  static constexpr char const* tag = "dft";
 
 	CalculationParameters(const CalculationParameters& other) = default;
 
