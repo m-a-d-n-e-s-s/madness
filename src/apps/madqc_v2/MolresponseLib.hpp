@@ -175,7 +175,7 @@ struct molresponse_lib {
     // global inner-product contributions
     auto contribs = global_inner_contributions();
     if (world.rank() == 0 && !contribs.empty()) {
-      std::ofstream out((outdir / "all_inner_contributions.json").string());
+      std::ofstream out("all_inner_contributions.json");
       out << std::setw(2) << contribs << std::endl;
       madness::print("📂 Wrote all inner‐product contributions");
     }
