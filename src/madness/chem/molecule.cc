@@ -921,6 +921,35 @@ void Molecule::orient(bool verbose) {
 
 /// rotates the molecule and the external field
 
+// find the first non-zero x and if negative rotate by 180
+void Molecule::fix_phase() {
+  for (auto& atom : atoms) {
+    // find the first non-zero x and if negative, negate all x and y (aka rotate by 180 about z)
+    if (fabs(atom.x) > 1e-12) {
+      if (atom.x < 0) {
+        for (auto& atom : atoms) {
+          atom.x = -atom.x;
+          atom.y = -atom.y;
+        }
+      }
+      break;
+    }
+  }
+
+  // find the first non-zero z and if negative, negate all z and y (aka rotate by 180 about x)
+  for (auto& atom : atoms) {
+    if (fabs(atom.z) > 1e-12) {
+      if (atom.z < 0) {
+        for (auto& atom : atoms) {
+          atom.z = -atom.z;
+          atom.y = -atom.y;
+        }
+      }
+      break;
+    }
+  }
+}
+
 /// @param[in]  D   the rotation matrix
 void Molecule::rotate(const Tensor<double>& D) {
     madness::Tensor<double> r(3L), rU;
