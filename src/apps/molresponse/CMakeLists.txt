@@ -1,14 +1,14 @@
 # src/apps/molresponse
 
-#if(CMAKE_CXX_STANDARD GREATER_EQUAL 17)
-#    # C++ standard is 17 or higher
-#    add_subdirectory(testing)
-#    # Add your code or configurations here
-#else()
-#    # C++ standard is below 17
-#    # Handle the case where the required standard is not met
-#endif()
-# Set the CHEM sources and header files
+if(CMAKE_CXX_STANDARD GREATER_EQUAL 17)
+    # C++ standard is 17 or higher
+    # Add your code or configurations here
+else()
+    # C++ standard is below 17
+    # Handle the case where the required standard is not met
+endif()
+
+
 set(MOLRESPONSE_SOURCES
         ResponseBase.cpp
         ExcitedResponse.cpp
@@ -16,6 +16,7 @@ set(MOLRESPONSE_SOURCES
         property.cc
         global_functions.cc
         timer.cc
+        Plot_VTK.cc
         basic_operators.cc
         response_parameters.cpp
         x_space.cc
@@ -24,10 +25,12 @@ set(MOLRESPONSE_HEADERS
         ResponseBase.hpp
         ExcitedResponse.hpp
         FrequencyResponse.hpp
+        response_macrotask.hpp
         property.h
         x_space.h
         global_functions.h
         timer.h
+        Plot_VTK.h
         basic_operators.h
         response_parameters.h
         )
@@ -38,7 +41,6 @@ add_dependencies(applications-madness molresponse)
 
 add_mad_executable(molresponse "molresponse.cc" "MADresponse;MADchem")
 
-# removed mcpfit since it is likely only of historic interest
 install(TARGETS molresponse DESTINATION "${MADNESS_INSTALL_BINDIR}")
 
 
@@ -59,6 +61,7 @@ set(R_BASE_HEADERS
         ResponseBase.hpp
         ExcitedResponse.hpp
         FrequencyResponse.hpp
+        response_macrotask.hpp
         property.h
         global_functions.h
         x_space.h
@@ -79,6 +82,7 @@ set(RALL_SOURCES
         property.cc
         global_functions.cc
         timer.cc
+        Plot_VTK.cc
         basic_operators.cc
         response_parameters.cpp
         x_space.cc
@@ -88,10 +92,12 @@ set(RALL_HEADERS
         ResponseBase.hpp
         ExcitedResponse.hpp
         FrequencyResponse.hpp
+        response_macrotask.hpp
         property.h
         global_functions.h
         timer.h
         basic_operators.h
+        Plot_VTK.h
         response_parameters.h
         x_space.h
         )
