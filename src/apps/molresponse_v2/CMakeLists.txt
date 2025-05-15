@@ -27,7 +27,6 @@ set(MOLRESPONSE_HEADERS2
     ResponseDebugLogger.hpp
     ResponseDebugLoggerMacros.hpp
     broadcast_json.hpp
-    ParameterManager.hpp
     ResponseParameters.hpp
 )
 
