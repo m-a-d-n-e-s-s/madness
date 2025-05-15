@@ -512,6 +512,7 @@ public:
     }
 
 
+    void fix_phase();
 
     Tensor<double> moment_of_inertia() const;
 

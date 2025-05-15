@@ -455,19 +455,52 @@ const Atom& Molecule::get_atom(unsigned int i) const {
 // There are optional parameters yet to be implemented
 // https://molssi-qc-schema.readthedocs.io/en/latest/auto_topology.html
 nlohmann::json Molecule::to_json() const {
-    nlohmann::json mol_schema;
-    mol_schema["symbols"] = {};
-    mol_schema["geometry"] = {};
+  nlohmann::json mol_schema;
+  mol_schema["symbols"] = {};
+  mol_schema["geometry"] = {};
 
-//    get_atomic_data(atoms[0].atomic_number).symbol;
-    for (size_t i = 0; i < natom(); ++i) {
-        mol_schema["symbols"].push_back(get_atomic_data(atoms[i].atomic_number).symbol);
-        mol_schema["geometry"].push_back({atoms[i].x, atoms[i].y, atoms[i].z});
-    }
-    return mol_schema;
+  auto molecule_parameters = parameters.to_json();
+  mol_schema["parameters"] = molecule_parameters;
+  insert_symbols_and_geometry(mol_schema);
+  return mol_schema;
 }
 
+void Molecule::insert_symbols_and_geometry(json& mol_json) const {
+  mol_json["symbols"] = {};
+  mol_json["geometry"] = {};
 
+  for (size_t i = 0; i < natom(); ++i) {
+    mol_json["symbols"].push_back(get_atomic_data(atoms[i].atomic_number).symbol);
+    mol_json["geometry"].push_back({atoms[i].x, atoms[i].y, atoms[i].z});
+  }
+}
+
+void Molecule::from_json(const json& mol_json) {
+  atoms.clear();
+  rcut.clear();
+
+  parameters.from_json(mol_json["parameters"]);
+
+  double scale = 1.0;
+  if (parameters.units() == "angstrom") scale = 1e-10 / madness::constants::atomic_unit_of_length;
+  auto symbols = mol_json["symbols"];
+  auto geometry = mol_json["geometry"];
+
+  for (size_t i = 0; i < symbols.size(); ++i) {
+    std::string symbol = symbols[i];
+    double x = (geometry[i][0]);
+    double y = (geometry[i][1]);
+    double z = (geometry[i][2]);
+    x *= scale;
+    y *= scale;
+    z *= scale;
+    int atomic_number = symbol_to_atomic_number(symbol);
+    double q = atomic_number;
+
+    add_atom(x, y, z, q, atomic_number);
+  }
+  if (parameters.no_orient() == false) orient();
+}
 
 void Molecule::print() const {
     std::string p =parameters.print_to_string();
@@ -867,56 +900,46 @@ Tensor<double> Molecule::moment_of_inertia() const {
 
 /// Centers and orients the molecule in a standard manner
 void Molecule::orient(bool verbose) {
+  center();
+  // Align molecule with axes of charge inertia
+  madness::Tensor<double> I(3L, 3L);
+  for (unsigned int i = 0; i < atoms.size(); ++i) {
+    double q = atoms[i].atomic_number, x[3] = {atoms[i].x, atoms[i].y, atoms[i].z};
+    for (int j = 0; j < 3; ++j)
+      for (int k = 0; k < 3; ++k) I(j, k) += q * x[j] * x[k];
+  }
+  madness::Tensor<double> U, e;
+  madness::syev(I, U, e);
 
-    center();
+  rotate(U);
+  fix_phase();
 
-    // Align molecule with axes of charge inertia
-    madness::Tensor<double> I(3L,3L);
-    for (unsigned int i=0; i<atoms.size(); ++i) {
-        double q = atoms[i].atomic_number, x[3] = {atoms[i].x, atoms[i].y, atoms[i].z};
-        for (int j=0; j<3; ++j)
-            for (int k=0; k<3; ++k)
-                I(j,k) += q*x[j]*x[k];
+
+
+  if (verbose) {
+    // Try to resolve degenerate rotations
+    double symtol = fabs(parameters.symtol());
+    if (fabs(e[0] - e[1]) < symtol && fabs(e[1] - e[2]) < symtol) {
+      madness::print("Cubic point group");
+    } else if (fabs(e[0] - e[1]) < symtol) {
+      madness::print("XY degenerate");
+    } else if (fabs(e[0] - e[2]) < symtol) {
+      madness::print("XZ degenerate");
+    } else if (fabs(e[1] - e[2]) < symtol) {
+      madness::print("YZ degenerate");
+    } else {
+      madness::print("Abelian pointgroup");
     }
-    madness::Tensor<double> U, e;
-    madness::syev(I, U, e);
-    // madness::print("Moment of inertia eigenvalues and tensor\n");
-    // madness::print(I);
-    // madness::print(U);
-    // madness::print(e);
+  }
 
-    // rotate the molecule and the external field
-    rotate(U);
-
-
-    if (verbose) {
-		// Try to resolve degenerate rotations
-		double symtol = fabs(parameters.symtol());
-		if (fabs(e[0]-e[1])<symtol && fabs(e[1]-e[2])<symtol) {
-			madness::print("Cubic point group");
-		}
-		else if (fabs(e[0]-e[1])<symtol) {
-			madness::print("XY degenerate");
-		}
-		else if (fabs(e[0]-e[2])<symtol) {
-			madness::print("XZ degenerate");
-		}
-		else if (fabs(e[1]-e[2])<symtol) {
-			madness::print("YZ degenerate");
-		}
-		else {
-			madness::print("Abelian pointgroup");
-		}
-    }
-
-    // Now hopefully have mirror planes and C2 axes correctly oriented
-    // Figure out what elements are actually present and enforce
-    // conventional ordering
-    pointgroup_= symmetrize_and_identify_point_group(parameters.symtol());
-    if (parameters.symtol()>0.0) {
-        std::string pointgroup_tight= symmetrize_and_identify_point_group(1.e-12);
-        MADNESS_CHECK(pointgroup_tight==pointgroup_);
-    }
+  // Now hopefully have mirror planes and C2 axes correctly oriented
+  // Figure out what elements are actually present and enforce
+  // conventional ordering
+  pointgroup_ = symmetrize_and_identify_point_group(parameters.symtol());
+  if (parameters.symtol() > 0.0) {
+    std::string pointgroup_tight = symmetrize_and_identify_point_group(1.e-12);
+    MADNESS_CHECK(pointgroup_tight == pointgroup_);
+  }
 }
 
 /// rotates the molecule and the external field
