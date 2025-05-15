@@ -138,26 +138,24 @@ tensorT Q2(const tensorT& s) {
     return Q;
 }
 
-// void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
-//                                  const tensorT &dipole_T) const {
-//     nlohmann::json j = {};
-//     // if it exists figure out the size.  pushback for each protocol
-//     const double thresh = FunctionDefaults<3>::get_thresh();
-//     const int k = FunctionDefaults<3>::get_k();
-//     j["scf_threshold"] = thresh;
-//     j["scf_k"] = k;
-//     for (auto const &[key, val]: vals) {
-//         j[key] = val;
-//     }
-//     j["scf_dipole_moment"] = tensor_to_json(dipole_T);
-//     int num = 0;
-//     update_schema(param.prefix()+".scf_info", j);
-// }
+void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
+                                 const tensorT &dipole_T) const {
+    nlohmann::json j = {};
+    // if it exists figure out the size.  pushback for each protocol
+    const double thresh = FunctionDefaults<3>::get_thresh();
+    const int k = FunctionDefaults<3>::get_k();
+    j["scf_threshold"] = thresh;
+    j["scf_k"] = k;
+    for (auto const &[key, val]: vals) {
+        j[key] = val;
+    }
+    j["scf_dipole_moment"] = tensor_to_json(dipole_T);
+    int num = 0;
+    update_schema(param.prefix()+".scf_info", j);
+}
 
 void SCF::output_calc_info_schema() const {
     nlohmann::json j = {};
-    World& world=amo.front().world();
-    if (world.rank()==0) {
         vec_pair_ints int_vals;
         vec_pair_T<double> double_vals;
         vec_pair_tensor_T<double> double_tensor_vals;
@@ -180,11 +178,11 @@ void SCF::output_calc_info_schema() const {
 
         to_json(j, double_tensor_vals);
         param.to_json(j);
+        j["molecule"]= molecule.to_json();
         e_data.to_json(j);
 
         //    output_schema(param.prefix()+".calc_info", j);
         update_schema(param.prefix()+".calc_info", j);
-    }
 }
 
 void scf_data::add_data(std::map<std::string, double> values) {
@@ -215,15 +213,20 @@ void scf_data::to_json(json &j) const {
 
     j["scf_e_data"] = json();
     j["scf_e_data"]["iterations"] = iter;
+    j["scf_e_data"]["data"] = {};
 
     for (const auto &e: e_data) {
         //::print(e.second);
-        j["scf_e_data"].push_back({e.first, e.second});
+        j["scf_e_data"]["data"][e.first]= e.second;
     }
 }
 
 void scf_data::print_data() {
     for (const auto &[key, value]: e_data) { print(key, " : ", value); }
+}
+
+void scf_data::add_gradient(const Tensor<double> &grad) {
+    gradient = tensor_to_json(grad);
 }
 
 
