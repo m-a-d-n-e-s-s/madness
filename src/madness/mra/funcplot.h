@@ -994,21 +994,21 @@ void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfuncti
          fclose(file);
      }
 
-     template<size_t NDIM>
-     typename std::enable_if<NDIM==3,void>::type
-     print_tree_jsonfile(World& world, const Function<double,NDIM>& f, std::string filename) {
+     template<typename T, size_t NDIM>
+     void
+     print_tree_jsonfile(World& world, const Function<T,NDIM>& f, std::string filename) {
 
          if (world.size() > 1)
              return;
 
-         Tensor<double> cell = copy(FunctionDefaults<3>::get_cell());
+         Tensor<double> cell = copy(FunctionDefaults<NDIM>::get_cell());
          std::ofstream os(filename.c_str());
 
          os << "{";
          os << "\"cell\":[";
-         for (int xyz = 0; xyz != 3; ++xyz) {
+         for (int xyz = 0; xyz != NDIM; ++xyz) {
              os << "[" << cell(xyz, 0) << "," << cell(xyz, 1) << "]";
-             if (xyz != 2)
+             if (xyz != NDIM-1)
                  os << ",";
          }
          os << "],";
