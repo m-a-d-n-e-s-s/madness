@@ -873,6 +873,7 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
     V=consolidate(V);
     MADNESS_CHECK(V.size()==2);     // term 1: 6d, hi-rank, local; term 2: 3d, low-rank, delocalized
     t1.end("finished computing potential for constant part");
+    save(V[0].get_function(),"V_fullrank_const"+pair.name());
 
     // the Green's function
     auto G = BSHOperator<6>(world, sqrt(-2.0 * pair.bsh_eps), parameters.lo(), parameters.thresh_bsh_6D());
@@ -884,6 +885,7 @@ CCPotentials::make_constant_part_macrotask(World& world, const CCPair& pair,
 
     GV.print_size("GVreg");
     t1.end("finished applying G on potential for constant part");
+    save(GV,"GV_const"+pair.name());
     return GV;
 }
 
@@ -1629,6 +1631,7 @@ CCPotentials::apply_Ue(World& world, const CCFunction<double,3>& phi_i, const CC
         else if (error > FunctionDefaults<6>::get_thresh()) std::cout << ("Ue Potential wrong!!!!\n");
         else std::cout << ("Ue seems to be sane, diff=" + std::to_string(diff)) << std::endl;
     }
+    save(Uxy, "Ue_" + x_name + y_name);
     return Uxy;
 }
 
@@ -1828,6 +1831,7 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
 //    real_function_6d Kfxy = K_macrotask(world, info.mo_ket, info.mo_bra, f12xy, symmetric_kf, parameters);
     print("new KffK algorithm");
     real_function_6d Kfxy=apply_Kfxy(world,phi_i,phi_j,info,parameters);
+    save(Kfxy, "Kf_" + x_name + y_name);
 
     if (parameters.debug()) part1_time.info();
 
@@ -1848,6 +1852,7 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
             parameters, phi_i.type, Ky_type, Gscreen);
     }
     const real_function_6d fKxy = (fKphi0a + fKphi0b);
+    save(fKxy, "fK_" + x_name + y_name);
 
     if (parameters.debug()) part2_time.info();
 
@@ -1881,6 +1886,7 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
     if (parameters.debug()) sanity.info(diff);
 
     if (parameters.debug()) print("\n");
+    save(result, "KffK_" + x_name + y_name);
 
     return result;
 }

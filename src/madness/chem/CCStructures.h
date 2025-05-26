@@ -1507,6 +1507,8 @@ public:
         bool diagonal=pairs[i].i==pairs[i].j;
         double priority=std::abs(1.0/pairs[i].bsh_eps);
         if (diagonal) priority+=10.0;
+        print("setting priority to 1");
+        return 1.0;
         return priority;
     }
 
