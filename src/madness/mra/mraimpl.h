@@ -2020,7 +2020,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     T FunctionImpl<T,NDIM>::eval_cube(Level n, coordT& x, const tensorT& c) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
-        const int k = cdata.k;
+        const int k = MAXK;  // cdata.k;
         double px[NDIM][k];
         T sum = T(0.0);
 

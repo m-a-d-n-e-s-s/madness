@@ -581,7 +581,7 @@ void SCF::do_plots(World& world) {
     }
 
     for (int i = param.get<int>("plotlo"); i <= param.get<int>("plothi"); ++i) {
-        std::size_t bufsize=256;
+        const std::size_t bufsize=256;
         char fname[bufsize];
         if (i < param.nalpha()) {
             snprintf(fname,bufsize, "amo-%5.5d.dx", i);

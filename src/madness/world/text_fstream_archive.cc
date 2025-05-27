@@ -69,7 +69,7 @@ namespace madness {
             os.open(filename, mode);
             os.setf(std::ios::scientific);
             os.precision(17);
-            std::size_t bufsize=256;
+            const std::size_t bufsize=256;
             char tag[bufsize];
             os << "<?xml version=\"1.0\" encoding=\"ISO-8859-1\"?>" << std::endl;
             snprintf(tag,bufsize,"<archive major_version=\"%d\" minor_version=\"%d\">",
@@ -140,7 +140,7 @@ namespace madness {
 
         void TextFstreamInputArchive::open(const char* filename, std::ios_base::openmode mode) {
             is.open(filename, mode);
-            std::size_t bufsize=256;
+            const std::size_t bufsize=256;
             char buf[bufsize];
             is.getline(buf,bufsize);        // skip xml header
             is.getline(buf,bufsize);
