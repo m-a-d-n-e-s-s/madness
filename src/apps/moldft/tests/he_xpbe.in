@@ -1,5 +1,5 @@
 dft
-  xc GGA_X_PBE 1.
+  xc "GGA_X_PBE 1."
   restricted 
   maxsub 5
   protocol 1e-6
