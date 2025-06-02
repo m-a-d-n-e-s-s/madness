@@ -56,8 +56,13 @@ public:
         for (int i = 0; i < NDIM; ++i)
           out << key.translation()[i] << " ";
         out << std::endl;
+#if HAVE_GENTENSOR
+        MADNESS_EXCEPTION("FunctionIO not implemented for GenTensor", 0);
+#else
         for (size_t i = 0; i < values.size(); i++)
           out << values.ptr()[i] << " ";
+#endif
+
         out << std::endl;
       }
       if (node.has_children()) {
@@ -200,8 +205,12 @@ template <typename T, std::size_t NDIM> struct FunctionIOData {
           key_i[i + 1] = key.translation()[i];
         nl.push_back(key_i);
         std::vector<double> values_i(npts_per_box);
+#if HAVE_GENTENSOR
+        MADNESS_EXCEPTION("FunctionIO coeffs not implemented for GenTensor", 0);
+#else
         std::copy(node_values.ptr(), node_values.ptr() + npts_per_box,
                   values_i.begin());
+#endif
         values.push_back(values_i);
       }
       if (node.has_children()) {

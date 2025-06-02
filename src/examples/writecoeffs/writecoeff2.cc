@@ -43,8 +43,12 @@ void write_function_coeffs(const Function<T, NDIM> &f, std::ostream &out,
       for (int i = 0; i < NDIM; ++i)
         out << key.translation()[i] << " ";
       out << std::endl;
+#if HAVE_GENTENSOR
+      MADNESS_EXCEPTION("FunctionIO not implemented for GenTensor", 0);
+#else
       for (size_t i = 0; i < values.size(); i++)
         out << values.ptr()[i] << " ";
+#endif
       out << std::endl;
     }
     if (node.has_children()) {

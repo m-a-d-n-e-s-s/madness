@@ -121,14 +121,16 @@ struct write_test_input {
 		of << "end\n";
 
 		if (mol=="lih") {
-			of << "geometry\n";
+			// of << "geometry\n";
+			of << "molecule\n";
 			of << "eprec " << eprec << std::endl;
 			of << "Li 0.0    0.0 0.0\n";
 			of << "H  1.4375 0.0 0.0\n";
 			of << "end\n";
 		} else if (mol=="hf") {
 			double eprec=1.e-5;
-			of << "geometry\n";
+			// of << "geometry\n";
+			of << "molecule\n";
 			of << "eprec " << eprec << std::endl;
 			of << "F  0.1    0.0 0.2\n";
 			of << "H  1.4375 0.0 0.0\n";

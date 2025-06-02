@@ -6,7 +6,8 @@
 #include <iostream>
 #include <string>
 
-#include "ParameterManager.hpp"
+// #include "ParameterManager.hpp"
+#include <apps/madqc_v2/ParameterManager.hpp>
 
 // Define a concrete aliased ParameterManager type
 using MyParamMgr = ParameterManager<CalculationParameters, ResponseParameters, OptimizationParameters, Molecule>;
