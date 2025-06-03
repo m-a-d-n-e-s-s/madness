@@ -2020,8 +2020,8 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     T FunctionImpl<T,NDIM>::eval_cube(Level n, coordT& x, const tensorT& c) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
-        const int k = MAXK;  // cdata.k;
-        double px[NDIM][k];
+        const int k = cdata.k;
+        double px[NDIM][MAXK];
         T sum = T(0.0);
 
         for (std::size_t i=0; i<NDIM; ++i) legendre_scaling_functions(x[i],k,px[i]);
