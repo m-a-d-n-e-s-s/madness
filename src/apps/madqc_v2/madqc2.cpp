@@ -86,8 +86,8 @@ int main(int argc, char** argv) {
     if (world.rank() == 0) print(info::print_revision_information());
 
     commandlineparser parser(argc, argv);
-    std::string input_file = argv[1];
-    Params pm(world, input_file);
+    // std::string input_file = parser.value("input_file");
+    Params pm(world, parser);
     // Create workflow
     qcapp::Workflow wf;
 

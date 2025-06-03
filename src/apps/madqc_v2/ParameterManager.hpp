@@ -82,8 +82,10 @@ class ParameterManager : public madness::QCCalculationParametersBase {
 
  public:
   /// "Master" ctor: takes any single intput file, JSON or plain-text
-  ParameterManager(World &w, const path &filename) : world_(w) {
-    parser_.set_keyval("input", filename);
+  // ParameterManager(World &w, const path &filename) : world_(w) {
+  ParameterManager(World &w, const commandlineparser& parser) : world_(w), parser_(parser) {
+    // parser_.set_keyval("input", filename);
+    const path& filename= parser_.value("input");
 
     if (is_json_file(filename)) {
       auto j = read_json_file(filename);
@@ -133,7 +135,7 @@ class ParameterManager : public madness::QCCalculationParametersBase {
   }
   // 1) read from a plain-text “.inp” file
   void initFromText(const path &filename) {
-    parser_.set_keyval("input", filename);
+    // parser_.set_keyval("input", filename);
     // invoke each group’s file+CLI parser:
     ((void)(std::get<Groups>(groups_) = Groups(world_, parser_)), ...);
 
@@ -167,4 +169,4 @@ class ParameterManager : public madness::QCCalculationParametersBase {
 
 // Define a concrete aliased ParameterManager type
 using Params = ParameterManager<CalculationParameters, ResponseParameters,
-                                OptimizationParameters, Molecule>;
+                                OptimizationParameters, CCParameters, Molecule>;

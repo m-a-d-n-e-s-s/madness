@@ -210,6 +210,8 @@ public:
 /// Calculation TDHFParameters for CC2 and TDA calculations
 /// Maybe merge this with calculation_parameters of SCF at some point, or split into TDA and CC
 struct CCParameters : public QCCalculationParametersBase {
+  static constexpr char const* tag = "cc2";
+
 
     CCParameters() {
         initialize_parameters();
