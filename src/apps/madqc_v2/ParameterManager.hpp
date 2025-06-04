@@ -1,5 +1,6 @@
 #pragma once
 #include <CalculationParameters.h>
+#include <CCParameters.h>
 #include <QCCalculationParametersBase.h>
 
 #include <apps/molresponse_v2/ResponseParameters.hpp>

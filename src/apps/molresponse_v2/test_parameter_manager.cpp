@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
     std::string input_file = argv[1];
 
     // Construct the manager, reading .inp or JSON as needed
-    MyParamMgr pm(world, input_file);
+    MyParamMgr pm(world, parser);
 
     // Print out all groups
     if (world.rank() == 0) {

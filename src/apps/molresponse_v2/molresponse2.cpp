@@ -27,13 +27,13 @@ int main(int argc, char **argv) {
     // Define a concrete aliased ParameterManager type
     using MyParamMgr = ParameterManager<CalculationParameters, ResponseParameters, OptimizationParameters, Molecule>;
     commandlineparser parser(argc, argv);
-    std::string input_file = argv[1];
+    // std::string input_file = argv[1];
     // Construct the manager, reading .inp or JSON as needed
-    MyParamMgr pm(world, input_file);
+    MyParamMgr pm(world, parser);
 
     const auto &tmpl = pm.getAllInputJson();
     if (world.rank() == 0) {
-      std::cout << "Input JSON: " << input_file << "\n" << std::setw(2) << tmpl.dump(2) << std::endl;
+      std::cout << "Input JSON: " << parser.value("input") << "\n" << std::setw(2) << tmpl.dump(2) << std::endl;
     }
 
     auto rp = pm.get<ResponseParameters>();
