@@ -1,14 +1,17 @@
 # src/examples
 
+
+add_subdirectory(writecoeffs)
+
 set(EXAMPLE_SOURCES
     madinfo h2dft hedft hello hatom_energy h2 he tdse_example heat heat2 csqrt hatom hatom_sf_dirac
     sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio 
     dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic
     testspectralprop dielectric_external_field tiny h2dynamic newsolver testcomplexfunctionsolver
     helium_exact density_smoothing siam_example ac_corr dirac-hatom
-    derivatives array_worldobject)
+    derivatives array_worldobject pcr)
  
-if(TARGET Libxc::xc)
+if(LIBXC_FOUND)
   list(APPEND EXAMPLE_SOURCES hefxc)
 endif()
 

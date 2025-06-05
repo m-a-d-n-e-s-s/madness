@@ -1,4 +1,5 @@
 /*
+static json g_inner_contributions = json::object();
   This file is part of MADNESS.
 
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
@@ -40,46 +41,42 @@
 
 #include "ExcitedResponse.hpp"
 #include "FrequencyResponse.hpp"
-#include "ResponseExceptions.hpp"
+// #include "ResponseExceptions.hpp"
 
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 
 #include <sys/stat.h>
-#include <unistd.h>
 
 static inline int file_exists(const char *inpname) {
-    struct stat buffer{};
+    struct stat buffer {};
     size_t rc = stat(inpname, &buffer);
     return (rc == 0);
 }
 
 #endif
 
-
 using namespace madness;
 
 int main(int argc, char **argv) {
-    World& world = madness::initialize(argc, argv);
+    World &world = madness::initialize(argc, argv);
     startup(world, argc, argv, true);
     if (world.rank() == 0) {
-        print_header1("MOLRESPONSE -- MADNESS Time-Dependent Density Functional Theory Excited-State Program ");
+        print_header1("MOLRESPONSE -- MADNESS Time-Dependent Density Functional "
+                      "Theory Excited-State Program ");
     }
 
-//    sleep(10);
+    //    sleep(10);
     int result = 0;
     std::cout.precision(6);
     std::string filename = "response.in";
 
-
     commandlineparser parser(argc, argv);
 
     if (parser.key_exists("help")) {
-        ExcitedResponse::help();
+        FrequencyResponse::help();
     } else if (parser.key_exists("print_parameters")) {
-        ExcitedResponse::print_parameters();
+        FrequencyResponse::print_parameters();
     } else {
-
-
 
         molresponse::start_timer(world);
         // try catch would start here
@@ -115,7 +112,8 @@ int main(int argc, char **argv) {
                 // Warm and fuzzy for the user
                 if (world.rank() == 0) {
                     print("\n\n");
-                    print(" MADNESS Time-Dependent Density Functional Theory Frequency Response "
+                    print(" MADNESS Time-Dependent Density Functional Theory Frequency "
+                          "Response "
                           "Program");
                     print(" ----------------------------------------------------------\n");
                     print("\n");
@@ -131,11 +129,11 @@ int main(int argc, char **argv) {
                 if (world.rank() == 0) { print("Response not implemented"); }
             }
 
-        } catch (const SafeMPI::Exception& e) { print(e); } catch (const madness::MadnessException& e) {
+        } catch (const SafeMPI::Exception &e) { print(e); } catch (const madness::MadnessException &e) {
             std::cout << e << std::endl;
-        } catch (const madness::TensorException& e) { print(e); } catch (const char *s) {
+        } catch (const madness::TensorException &e) { print(e); } catch (const char *s) {
             print(s);
-        } catch (const std::string& s) { print(s); } catch (const std::exception& e) {
+        } catch (const std::string &s) { print(s); } catch (const std::exception &e) {
             print(e.what());
         } catch (...) { error("caught unhandled exception"); }
     }
