@@ -193,7 +193,7 @@ double rk_v(double Z) {
   if (NONREL) return 0.0;
   if (DK1) Z *= 0.5;
 
-    static const double c = 137.0359895;
+    static const double c = 137.03599917697017; // from CODATA 2022
     double v = -2.0*Z/(constants::pi*c);
     while (true) {
         double vnew = -2.0*std::atan(Z/(c*(v+1.0)))/constants::pi;
