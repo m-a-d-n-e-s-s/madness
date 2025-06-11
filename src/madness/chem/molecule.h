@@ -123,7 +123,7 @@ class Molecule {
   static constexpr char const *tag = "molecule";
   [[nodiscard]] json to_json_if_precedence(std::string const &precedence) const {
     json mol_schema = to_json();
-    mol_schema["parameters"] = parameters.to_json();
+    mol_schema["parameters"] = parameters.to_json_if_precedence(precedence);
     insert_symbols_and_geometry(mol_schema);
     return mol_schema;
   }

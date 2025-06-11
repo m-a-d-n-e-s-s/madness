@@ -41,7 +41,7 @@ struct moldft_lib {
     if (world.rank() == 0) {
       json moldft_input_json = {};
       moldft_input_json["dft"] = moldft_params.to_json_if_precedence("defined");
-      moldft_input_json["molecule"] = molecule.to_json();
+      moldft_input_json["molecule"] = molecule.to_json_if_precedence("defined");
       print("moldft_input_json: ", moldft_input_json.dump(4));
       std::ofstream ofs("moldft.in");
       write_moldft_input(moldft_input_json, ofs);

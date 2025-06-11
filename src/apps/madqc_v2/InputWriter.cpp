@@ -8,7 +8,8 @@ void write_molecule_json_to_input_file(const json& molecule_json,
                                        std::ostream& output_stream) {
   output_stream << "molecule" << std::endl;
   // first write the parameters
-  auto parameters = molecule_json["parameters"];
+  auto parameters1 = molecule_json["parameters"];
+  auto parameters = parameters1["parameters"];
   for (auto& [key, value] : parameters.items()) {
     output_stream << "    " << key << " " << value << std::endl;
   }

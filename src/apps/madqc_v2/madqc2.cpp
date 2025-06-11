@@ -53,6 +53,7 @@
 #include "Drivers.hpp"
 #include "MoldftLib.hpp"
 #include "MolresponseLib.hpp"
+#include "CCLib.hpp"
 #include "ParameterManager.hpp"
 
 using namespace madness;
@@ -78,7 +79,8 @@ int main(int argc, char** argv) {
     print_header1("MADQC -- Multiresolution Quantum Chemistry Code ");
   }
 
-  {  // limit lifetime of world so that finalize() can execute cleanly
+  {
+    // limit lifetime of world so that finalize() can execute cleanly
     START_TIMER(world);
     /*try {*/
     // Load info for MADNESS numerical routines
@@ -86,20 +88,33 @@ int main(int argc, char** argv) {
     if (world.rank() == 0) print(info::print_revision_information());
 
     commandlineparser parser(argc, argv);
+    print("input file  :",parser.value("input"));
+    print("workflow    :",parser.value("workflow"));
+
+
     // std::string input_file = parser.value("input_file");
     Params pm(world, parser);
+
     // Create workflow
     qcapp::Workflow wf;
 
-    // 1) Single-point DFT
+    // always do single-point DFT
     wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
         std::make_unique<SCFApplication<moldft_lib>>(world, pm)));
-
-    // 2) molresponse, using DFT outputs from task_0/dft
+    // directory with the ground-state DFT outputs
     std::filesystem::path gsDir = "MyCalc/task_0/moldft";
-    wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
-        std::make_unique<ResponseApplication<molresponse_lib>>(world, pm,
-                                                               gsDir)));
+
+    std::string user_workflow = parser.value("workflow");
+
+    if (user_workflow=="response") {
+      wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
+          std::make_unique<ResponseApplication<molresponse_lib>>(world, pm,
+                                                                 gsDir)));
+    } else if (user_workflow=="mp2" or user_workflow=="cc2") {
+      wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
+          std::make_unique<CC2Application<cc_lib>>(world, pm, parser, gsDir)));
+
+    }
 
     // Execute both in "MyCalc" directory
     wf.run("MyCalc");
