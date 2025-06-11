@@ -414,7 +414,7 @@ private:
 	/// and
 	/// R. J. Harrison, G. I. Fann, T. Yanai, and G. Beylkin,
 	/// Multiresolution Quantum Chemistry in Multiwavelet Bases,
-	/// Lecture Notes in Computer Science, vol. 2660, p. 707, 2003.
+	/// Lecture Notes in Computer Science, vol. 2660, p. 103, 2003.
 	static void bsh_fit(double mu, double lo, double hi, double eps,
 			Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt, bool fix_interval) {
 
