@@ -43,8 +43,7 @@ class Driver {
  */
 class SinglePointDriver : public Driver {
  public:
-  explicit SinglePointDriver(std::unique_ptr<Application> app)
-      : app_(std::move(app)) {}
+  explicit SinglePointDriver(std::shared_ptr<Application> app) : app_(app) {}
 
   void execute(const std::filesystem::path& workdir) override {
     // Create workdir for this application
@@ -58,7 +57,7 @@ class SinglePointDriver : public Driver {
   nlohmann::json summary() const override { return result_; }
 
  private:
-  std::unique_ptr<Application> app_;
+  std::shared_ptr<Application> app_;
   nlohmann::json result_;
 };
 

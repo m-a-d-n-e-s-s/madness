@@ -92,28 +92,51 @@ int main(int argc, char** argv) {
     print("workflow    :",parser.value("workflow"));
 
 
-    // std::string input_file = parser.value("input_file");
+    // Note that the molecule is part of Params!
     Params pm(world, parser);
+    pm.get<CalculationParameters>().print("dft");
 
     // Create workflow
     qcapp::Workflow wf;
 
-    // always do single-point DFT
-    wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
-        std::make_unique<SCFApplication<moldft_lib>>(world, pm)));
-    // directory with the ground-state DFT outputs
-    std::filesystem::path gsDir = "MyCalc/task_0/moldft";
-
+    // always do single-point DFT, can be reset to SCF or Nemo
+    std::shared_ptr<Application> reference;
     std::string user_workflow = parser.value("workflow");
 
     if (user_workflow=="response") {
+      reference.reset(new SCFApplication<moldft_lib,SCF>(world, pm));
+      wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
+      // directory with the ground-state DFT outputs
+      std::filesystem::path gsDir = "MyCalc/task_0/moldft";
+
       wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
           std::make_unique<ResponseApplication<molresponse_lib>>(world, pm,
                                                                  gsDir)));
     } else if (user_workflow=="mp2" or user_workflow=="cc2") {
-      wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
-          std::make_unique<CC2Application<cc_lib>>(world, pm, parser, gsDir)));
+      pm.get<CalculationParameters>().set_derived_value("k", 5);
+      reference.reset(new SCFApplication<moldft_lib,Nemo>(world, pm));
+      wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
 
+      auto moldft_app = std::dynamic_pointer_cast<SCFApplication<moldft_lib,Nemo>>(reference);
+      if (!moldft_app) {
+        MADNESS_EXCEPTION("Could not cast reference to SCFApplication<moldft_lib>", 1);
+      }
+      wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
+          std::make_unique<CC2Application<cc_lib,SCFApplication<moldft_lib,Nemo>>>(world, pm, *moldft_app)));
+
+    } else if (user_workflow=="cis") {
+      reference.reset(new SCFApplication<moldft_lib,Nemo>(world, pm));
+      auto moldft_app = std::dynamic_pointer_cast<SCFApplication<moldft_lib,Nemo>>(reference);
+      if (!moldft_app) {
+        MADNESS_EXCEPTION("Could not cast reference to SCFApplication<moldft_lib>", 1);
+      }
+      wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
+      wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
+        std::make_unique<TDHFApplication<SCFApplication<moldft_lib,Nemo>>>(world,pm,*moldft_app)));
+    } else {
+      std::string msg= "Unknown workflow: " + user_workflow +
+          "\nAvailable workflows are: response, mp2, cc2, cis";
+      MADNESS_EXCEPTION(msg.c_str(), 1);
     }
 
     // Execute both in "MyCalc" directory

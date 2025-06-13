@@ -148,12 +148,25 @@ Nemo::Nemo(World& world, const commandlineparser &parser) :
     calc->param=param;
 };
 
+Nemo::Nemo(World& world, const CalculationParameters& param, const Molecule& molecule) :
+        NemoBase(world),
+        calc(std::make_shared<SCF>(world, param, molecule)),
+        param(calc->param),
+        coords_sum(-1.0),
+        ac(world,calc) {
+    if (do_pcm()) pcm=PCM(world,this->molecule(),param.pcm_data(),true);
+
+    symmetry_projector=projector_irrep(param.pointgroup())
+            .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
+    if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
+    calc->param=param;
+};
 
 double Nemo::value(const Tensor<double>& x) {
 
     // fast return if the reference is already solved at this geometry
+    if (check_converged(x)) return calc->current_energy;
 	double xsq = x.sumsq();
-	if (xsq == coords_sum) return calc->current_energy;
 
     if (world.rank()==0) print_header2("computing the nemo wave function");
 

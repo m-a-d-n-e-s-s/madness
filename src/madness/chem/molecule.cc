@@ -94,7 +94,12 @@ Molecule::Molecule(std::vector<Atom> atoms, double eprec, CorePotentialManager c
   Molecule::Molecule(World& world, const commandlineparser& parser) :atoms(), rcut(), core_pot(), field(3L), parameters(world,parser)
 {
     try {
-        if (world.rank()==0) get_structure();
+        if (world.rank()==0) {
+            get_structure();
+            if (parameters.core_type() != "none") {
+                read_core_file(parameters.core_type());
+            }
+        }
         world.gop.broadcast_serializable(*this, 0);
         MADNESS_CHECK(parameters.field().size()==3);
         for (int i=0; i<3; ++i) field(i)=parameters.field()[i];

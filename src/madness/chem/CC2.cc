@@ -136,7 +136,7 @@ CC2::solve() {
     } else if (ctype == CT_MP3) {
         mp2_energy=compute_mp2_energy(mp2pairs, info, "MP2 correlation energy");
         mp3_energy=compute_mp3(mp2pairs, info);
-        double hf_energy=nemo->value();
+        double hf_energy=nemo->get_calc()->current_energy;
         if (world.rank()==0) {
             printf_msg_energy_time("MP3 energy contribution",mp3_energy,wall_time());
             printf("final hf/mp2/mp3/total energy %12.8f %12.8f %12.8f %12.8f\n",

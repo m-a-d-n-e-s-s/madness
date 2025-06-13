@@ -95,6 +95,15 @@ class ParameterManager : public madness::QCCalculationParametersBase {
       // plain-text file
       initFromText(filename);
     }
+    set_derived_values();
+  }
+
+  /// here comes some logic for the calculation, e.g. the number of electrons derived from the molecule
+  void set_derived_values() {
+    this->get<CalculationParameters>().set_derived_values(this->get<Molecule>());
+
+
+
   }
 
   /// dump out the merged JSON
@@ -169,5 +178,10 @@ class ParameterManager : public madness::QCCalculationParametersBase {
 };
 
 // Define a concrete aliased ParameterManager type
-using Params = ParameterManager<CalculationParameters, ResponseParameters,
-                                OptimizationParameters, CCParameters, Molecule>;
+using Params = ParameterManager<CalculationParameters,
+                                ResponseParameters,
+                                OptimizationParameters,
+                                OEP_Parameters,
+                                TDHFParameters,
+                                CCParameters,
+                                Molecule>;

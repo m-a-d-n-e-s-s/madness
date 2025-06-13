@@ -35,41 +35,16 @@ struct cc_lib {
                                      const std::filesystem::path& indir,
                                      const std::filesystem::path& outdir) {
     // --- configure the ground-state archive location ---
-    auto rp = params.get<CCParameters>();
-    const auto& gp = params.get<CalculationParameters>();
+    const auto& ccparam = params.get<CCParameters>();
+    const auto& scfparam = params.get<CalculationParameters>();
     const auto& molecule = params.get<Molecule>();
 
-    if (world.rank() == 0) {
-      json response_input_json = {};
-      response_input_json["response"] = rp.to_json_if_precedence("defined");
-      print("response_input_json: ", response_input_json.dump(4));
-      std::ofstream ofs("response.in");
-      write_json_to_input_file(response_input_json, {"response"}, ofs);
-      ofs.close();
-    }
-    world.gop.fence();
-    commandlineparser parser;
-    parser.set_keyval("input", "response.in");
-    if (world.rank() == 0) ::print("input filename: ", parser.value("input"));
-
-
     auto rel = std::filesystem::relative(indir, outdir);
-    auto prox = std::filesystem::proximate(indir, outdir);
-    auto prefix = std::filesystem::path(indir).stem().string();
     if (world.rank() == 0) {
       std::cout << "Running cc2 calculation in: " << outdir << std::endl;
       std::cout << "Ground state archive: " << indir << std::endl;
       std::cout << "Relative path: " << rel << std::endl;
-      std::cout << "Proximate path: " << prox << std::endl;
     }
-
-    std::string archive_name = "moldft.restartdata";
-    std::string archive_file = archive_name + ".00000";
-    std::string fock_json_file = prox / "moldft.fock.json";
-    auto relative_archive = prox / archive_name;
-
-    // initialize ground-state data and response manager
-    GroundStateData ground(world, relative_archive.string(), molecule);
 
     // aggregate JSON results
     Results results;

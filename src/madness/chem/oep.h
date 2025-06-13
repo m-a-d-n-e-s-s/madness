@@ -78,6 +78,8 @@ struct divide_add_interpolate {
 ///  - think about the long-range part of the Slater potential (or medium-range)
 class OEP_Parameters : public QCCalculationParametersBase {
 public:
+	static constexpr char const *tag = "oep";
+
     OEP_Parameters() {
         initialize<std::vector<std::string> >("model",{"dcep"},"comment on this: oaep ocep dcep mrks");
         initialize<unsigned int>("maxiter",150,"maximum number of iterations in OEP algorithm");

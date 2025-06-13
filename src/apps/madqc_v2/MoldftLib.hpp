@@ -24,6 +24,13 @@ struct moldft_lib {
 
   static constexpr char const* label() { return "moldft"; }
 
+  static Results run_nemo(std::shared_ptr<Nemo> nemo) {
+    Results results;
+    nemo->get_param().print("dft");
+    results.energy = nemo->value();
+    return results;
+  }
+
   // params get's changed by SCF constructor
   inline static Results run_scf(World& world, Params& params,
                                 const std::filesystem::path& outdir) {
@@ -56,6 +63,7 @@ struct moldft_lib {
 
     std::cout.precision(6);
     SCF calc(world, parser);
+    // SCF& calc=dynamic_cast<SCF&>(*this);
     // read moldft.in file used
 
     // redirect any log files into outdir if needed…

@@ -4,22 +4,24 @@
 #include "ParameterManager.hpp"
 #include "PathManager.hpp"
 
-// Scoped CWD: changes the current directory to the given one, and restores when
-// the object goes out of scope
-struct ScopedCWD {
-  std::filesystem::path old_cwd;
-  explicit ScopedCWD(std::filesystem::path const& new_dir) {
-    old_cwd = std::filesystem::current_path();
-    std::filesystem::current_path(new_dir);
-  }
-  ~ScopedCWD() { std::filesystem::current_path(old_cwd); }
-};
+namespace madness {
+  // Scoped CWD: changes the current directory to the given one, and restores when
+  // the object goes out of scope
+  struct ScopedCWD {
+    std::filesystem::path old_cwd;
+    explicit ScopedCWD(std::filesystem::path const& new_dir) {
+      old_cwd = std::filesystem::current_path();
+      std::filesystem::current_path(new_dir);
+    }
+    ~ScopedCWD() { std::filesystem::current_path(old_cwd); }
+  };
 
-// common interface for any underlying MADNESS app
-class Application {
- public:
-  explicit Application(Params p) : params_(std::move(p)) {}
-  virtual ~Application() = default;
+
+  /// common interface for any underlying MADNESS app
+  class Application {
+  public:
+    explicit Application(const Params& p) : params_(p) {}
+    virtual ~Application() = default;
 
     // run: write all outputs under the given directory
     virtual void run(const std::filesystem::path& workdir) = 0;
@@ -27,20 +29,55 @@ class Application {
     // optional hook to return a JSON fragment of this app's main results
     [[nodiscard]] virtual nlohmann::json results() const = 0;
 
- protected:
-  Params params_;
-};
+    // get the parameters used for this application
+    [[nodiscard]] const Params& get_parameters() const {
+      return params_;
+    }
 
-  template <typename Library>
-  class SCFApplication : public Application {
+    // get the working directory for this application
+    [[nodiscard]] path get_workdir() const {
+      return workdir_;
+    }
+
+  protected:
+    Params params_;
+    path workdir_;
+    nlohmann::json results_;
+  };
+
+
+  template <typename Library, typename ScfT = SCF>
+  class SCFApplication : public Application, public ScfT, public std::enable_shared_from_this<SCFApplication<Library,ScfT>> {
   public:
+
+    std::shared_ptr<SCF> get_scf() const {
+      return std::dynamic_pointer_cast<SCF>(this->shared_from_this());
+    }
+
+    std::shared_ptr<const Nemo> get_nemo() const {
+      auto return_ptr= std::dynamic_pointer_cast<const Nemo>(this->shared_from_this());
+      if (!return_ptr) {
+        MADNESS_EXCEPTION("Could not cast SCFApplication to Nemo", 1);
+      }
+      return return_ptr;
+    }
+
+    std::shared_ptr<Nemo> get_nemo() {
+      auto return_ptr= std::dynamic_pointer_cast<Nemo>(this->shared_from_this());
+      if (!return_ptr) {
+        MADNESS_EXCEPTION("Could not cast SCFApplication to Nemo", 1);
+      }
+      return return_ptr;
+    }
+
     explicit SCFApplication(World& w, Params p)
-        : Application(std::move(p)), world_(w) {}
+        : Application(p), ScfT(w,p.get<CalculationParameters>(), p.get<Molecule>()), world_(w) {}
 
     void run(const std::filesystem::path& workdir) override {
       // 1) set up a namedspaced directory for this run
       PathManager pm(workdir, Library::label());
       pm.create();
+      workdir_=pm.dir();
       world_.gop.fence();
       {
         ScopedCWD scwd(pm.dir());
@@ -79,7 +116,15 @@ class Application {
         }
 
         // we could dump params_ to JSON and pass as argv if desired…
-        auto results = Library::run_scf(world_, params_, pm.dir());
+        typename Library::Results results;
+
+        if constexpr (std::is_same_v<ScfT, SCF>) {
+          results = Library::run_scf(world_, params_, pm.dir());
+        } else if constexpr (std::is_same_v<ScfT, Nemo>) {
+          results = Library::run_nemo(this->get_nemo());
+        } else {
+          static_assert(false);
+        }
 
         energy_ = results.energy;
         dipole_ = results.dipole;
@@ -87,8 +132,9 @@ class Application {
 
         // 5) write out JSON for future restarts
         nlohmann::json outj = {{"energy", energy_}};
-        if (dipole_->has_data()) outj["dipole"] = tensor_to_json(*dipole_);
-        if (gradient_->has_data()) outj["gradient"] = tensor_to_json(*gradient_);
+        if (dipole_.has_value() and dipole_->has_data()) outj["dipole"] = tensor_to_json(*dipole_);
+        if (gradient_.has_value() and gradient_->has_data()) outj["gradient"] = tensor_to_json(*gradient_);
+
 
         if (world_.rank() == 0) {
           std::cout << "Writing checkpoint file: " << ckpt << std::endl;
@@ -171,31 +217,23 @@ class Application {
     nlohmann::json properties_;
   };
 
-  template <typename Library>
-  class CC2Application : public Application {
+  template <typename Library, typename SCFApplicationT>
+  class CC2Application : public Application, public CC2 {
   public:
-    explicit CC2Application(World& w, Params p, const commandlineparser& parser, path& gsdir)
-        : Application(std::move(p)), world_(w), parser(parser), gsdir(gsdir) {}
+    explicit CC2Application(World& w, const Params& p, const SCFApplicationT& reference)
+        : Application(p), world_(w), reference_(reference),
+          CC2(w, p.get<CCParameters>(), p.get<TDHFParameters>(), reference.get_nemo()) {
+    }
 
     void run(const std::filesystem::path& workdir) override {
       // 1) set up a namedspaced directory for this run
-      PathManager pm_reference(workdir, Library::label());
       PathManager pm(workdir, Library::label());
-      auto scf_parameters=params_.get<CalculationParameters>();
       pm.create();
       world_.gop.fence();
       {
         ScopedCWD scwd(pm.dir());
         if (world_.rank() == 0) {
           std::cout << "Running CC2 in " << pm.dir() << std::endl;
-        }
-
-        // read reference wave function from ground-state directory
-        auto nemo=std::shared_ptr<Nemo>();
-        auto relative_gsdir= std::filesystem::relative(gsdir, pm.dir());
-        {
-          ScopedCWD gs(relative_gsdir);
-          nemo.reset(new Nemo(world_,parser));
         }
 
         // 2) define the "checkpoint" file
@@ -223,7 +261,12 @@ class Application {
         }
 
         // we could dump params_ to JSON and pass as argv if desired…
-        auto results = Library::run_cc2(world_, params_, gsdir, pm.dir());
+        auto results = Library::run_cc2(world_, params_, reference_.get_workdir(), pm.dir());
+        try {
+          this->solve();
+        } catch (std::exception& e) {
+          print("Caught exception: ", e.what());
+        }
 
         energy_ = results.energy;
         dipole_ = results.dipole;
@@ -231,8 +274,8 @@ class Application {
 
         // 5) write out JSON for future restarts
         nlohmann::json outj = {{"energy", energy_}};
-        if (dipole_->has_data()) outj["dipole"] = tensor_to_json(*dipole_);
-        if (gradient_->has_data()) outj["gradient"] = tensor_to_json(*gradient_);
+        if (dipole_.has_value()) outj["dipole"] = tensor_to_json(*dipole_);
+        if (gradient_.has_value()) outj["gradient"] = tensor_to_json(*gradient_);
 
         if (world_.rank() == 0) {
           std::cout << "Writing checkpoint file: " << ckpt << std::endl;
@@ -257,15 +300,123 @@ class Application {
 
   private:
     World& world_;
-    double energy_;
-    commandlineparser parser;
-    path gsdir;
+    const Application& reference_;
 
+    double energy_;
     std::optional<Tensor<double>> dipole_;
     std::optional<Tensor<double>> gradient_;
     std::optional<real_function_3d> density_;
   };
 
 
+
+  template<typename SCFApplicationT>
+  class TDHFApplication : public Application, public TDHF {
+  public:
+    explicit TDHFApplication(World& w, const Params& p, const SCFApplicationT& reference)
+        : Application(p), world_(w), reference_(reference),
+          TDHF(w, p.get<TDHFParameters>(), reference.get_nemo()) {
+    }
+
+    void run(const std::filesystem::path& workdir) override {
+      // 1) set up a namedspaced directory for this run
+      PathManager pm(workdir, "tdhf");
+      pm.create();
+      world_.gop.fence();
+      {
+        ScopedCWD scwd(pm.dir());
+        if (world_.rank() == 0) {
+          std::cout << "Running CIS in " << pm.dir() << std::endl;
+        }
+
+        // 2) define the "checkpoint" file
+        std::string label="tdhf";
+        auto ckpt = label + "_results.json";
+        print("cc checkpoint file",ckpt);
+        if (std::filesystem::exists(ckpt)) {
+          if (world_.rank() == 0) {
+            std::cout << "Found checkpoint file: " << ckpt << std::endl;
+          }
+          // read the checkpoint file
+          std::ifstream ifs(ckpt);
+          nlohmann::json j;
+          ifs >> j;
+          ifs.close();
+
+          bool ok = true;
+          bool needEnergy = true;
+          if (needEnergy && !j.contains("energy")) ok = false;
+
+          if (ok) {
+            energy_ = j["energy"];
+            return;
+          }
+        }
+
+        // we could dump params_ to JSON and pass as argv if desired…
+        try {
+          const double time_scf_start = wall_time();
+          this->prepare_calculation();
+          const double time_scf_end = wall_time();
+          if (world_.rank() == 0) printf(" at time %.1f\n", wall_time());
+
+          const double time_cis_start = wall_time();
+          std::vector<CC_vecfunction> roots = this->solve_cis();
+          const double time_cis_end = wall_time();
+          if (world_.rank() == 0) printf(" at time %.1f\n", wall_time());
+
+          if (world_.rank() == 0) {
+            std::cout << std::setfill(' ');
+            std::cout << "\n\n\n";
+            std::cout << "--------------------------------------------------\n";
+            std::cout << "MRA-CIS ended \n";
+            std::cout << "--------------------------------------------------\n";
+            std::cout << std::setw(25) << "time scf" << " = " << time_scf_end - time_scf_start << "\n";
+            std::cout << std::setw(25) << "time cis" << " = " << time_cis_end - time_cis_start << "\n";
+            std::cout << "--------------------------------------------------\n";
+          }
+          this->analyze(roots);
+        } catch (std::exception& e) {
+          print("Caught exception: ", e.what());
+        }
+
+
+        // 5) write out JSON for future restarts
+        nlohmann::json outj = {{"energy", energy_}};
+        if (dipole_.has_value()) outj["dipole"] = tensor_to_json(*dipole_);
+        if (gradient_.has_value()) outj["gradient"] = tensor_to_json(*gradient_);
+
+        if (world_.rank() == 0) {
+          std::cout << "Writing checkpoint file: " << ckpt << std::endl;
+          std::ofstream o(ckpt);
+          o << std::setw(2) << outj << std::endl;
+        }
+      }
+    }
+
+    nlohmann::json results() const override {
+      auto scfParams = params_.get<CalculationParameters>();
+      nlohmann::json j = {
+        {"type", "scf"},
+        {"energy", energy_},
+    };
+      if (dipole_ && scfParams.dipole()) j["dipole"] = tensor_to_json(*dipole_);
+      if (gradient_ && scfParams.derivatives())
+        j["gradient"] = tensor_to_json(*gradient_);
+
+      return j;
+    }
+
+  private:
+    World& world_;
+    const Application& reference_;
+
+    double energy_;
+    std::optional<Tensor<double>> dipole_;
+    std::optional<Tensor<double>> gradient_;
+    std::optional<real_function_3d> density_;
+  };
+
+}
 
 

@@ -223,15 +223,13 @@ public:
     double vtol;
     double current_energy;
     double converged_for_thresh=1.e10;    ///< mos are converged for this threshold
-    //double esol;//etot;
-    //double vacuo_energy;
+
+    /// forwarding constructor
+    SCF(World& world, const commandlineparser& parser)
+        : SCF(world, CalculationParameters(world, parser), Molecule(world, parser)) {}
 
     /// collective constructor for SCF uses contents of file \c filename and broadcasts to all nodes
-//	SCF(World & world, const char *filename);
-    /// collective constructor for SCF uses contents of stream \c input and broadcasts to all nodes
-//	SCF(World & world, std::shared_ptr<std::istream> input);
-//	SCF(World& world, const std::string& inputfile);
-    SCF(World& world, const commandlineparser& parser);
+    SCF(World& world, const CalculationParameters& param, const Molecule& molecule);
 
     void copy_data(World& world, const SCF& other);
 

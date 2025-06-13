@@ -231,63 +231,16 @@ void scf_data::add_gradient(const Tensor<double> &grad) {
     gradient = tensor_to_json(grad);
 }
 
-
-//    SCF::SCF(World & world, const char *filename) : SCF(world, (world.rank() == 0 ? std::make_shared<std::ifstream>(filename) : nullptr)){
-//    }
-
-/// collective constructor, reads \c input on rank 0, broadcasts to all
-SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParameters(world, parser)) {
+SCF::SCF(World& world, const CalculationParameters& param, const Molecule& molecule)
+    : param(param), molecule(molecule) {
     PROFILE_MEMBER_FUNC(SCF);
 
-    molecule=Molecule(world,parser);
-
-//    param.read(world,parser.value("input"),"dft");
     if (world.rank() == 0) {
-
-//        // read input parameters from the input file
-//        if (parser.key_exists("structure"))
-//            param.set_user_defined_value("molecular_structure", parser.value("structure"));
-//
-//        std::string molecular_structure = param.get<std::string>("molecular_structure");
-//        if (molecular_structure == "inputfile") {
-//            std::ifstream ifile(parser.value("input"));
-//            molecule.read(ifile);
-//        } else {
-//            molecule.read_structure_from_library(molecular_structure);
-//        }
-//
-//        // set derived parameters for the molecule
-//
-//        //if psp_calc is true, set all atoms to PS atoms
-//        //if not, check whether some atoms are PS atoms or if this a pure AE calculation
-//        if (param.get<bool>("psp_calc")) {
-//            for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
-//                molecule.set_pseudo_atom(iatom, true);
-//            }
-//        }
-//
-//        //modify atomic charge for complete PSP calc or individual PS atoms
-//        for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
-//            if (molecule.get_pseudo_atom(iatom)) {
-//                unsigned int an = molecule.get_atomic_number(iatom);
-//                double zeff = get_charge_from_file("gth.xml", an);
-//                molecule.set_atom_charge(iatom, zeff);
-//            }
-//        }
-
-        if (molecule.parameters.core_type() != "none") {
-            molecule.read_core_file(molecule.parameters.core_type());
-        }
-
-//        if (not molecule.parameters.no_orient()) molecule.orient();
-
         //account for nwchem aobasis generation
         if (param.nwfile() == "none") reset_aobasis(param.aobasis());
         else aobasis.read_nw_file(param.nwfile());
-        param.set_derived_values(molecule, aobasis, parser);
-
+        this->param.set_derived_values(molecule);
     }
-    world.gop.broadcast_serializable(molecule, 0);
     world.gop.broadcast_serializable(param, 0);
     world.gop.broadcast_serializable(aobasis, 0);
 
@@ -295,6 +248,12 @@ SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParam
 
     xc.initialize(param.xc(), !param.spin_restricted(), world, param.print_level() >= 10);
     //xc.plot();
+
+    // Ensure we have enough basis functions to guess the requested
+    // number of states ... a minimal basis for a closed-shell atom
+    // might not have any functions for virtuals.
+    int nbf = aobasis.nbf(molecule);
+    if ((this->param.nmo_alpha()>nbf) or (this->param.nmo_beta()>nbf)) error("too few basis functions?", nbf);
 
     FunctionDefaults<3>::set_cubic_cell(-param.L(), param.L());
     //set_protocol < 3 > (world, param.econv());

@@ -369,6 +369,8 @@ public:
 
     Nemo(World& world, const commandlineparser& parser);
 
+	Nemo(World& world, const CalculationParameters& param, const Molecule& molecule);
+
     std::string name() const {return "nemo";}
     bool selftest() {return false;}
 
@@ -395,7 +397,13 @@ public:
         Molecule::print_parameters();
     }
 
-    virtual double value() {return value(calc->molecule.get_all_coords());}
+
+	bool check_converged(const Tensor<double>& x) const {
+    	double xsq = x.sumsq();
+    	return (xsq == coords_sum);
+	}
+
+	virtual double value() {return value(calc->molecule.get_all_coords());}
 
 	virtual double value(const Tensor<double>& x);
 
