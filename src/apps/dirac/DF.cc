@@ -191,143 +191,6 @@ Tensor<std::complex<double>> Q2(const Tensor<std::complex<double>>& s) {
     return Q;
 }
 
-//Functor to make the (Gaussian) nuclear potential
-class GaussianNucleusFunctor : public FunctionFunctorInterface<double,3> {
-     private:
-          std::vector<int> m_Zlist; //list of nuclear charges
-          std::vector<coord_3d> m_Rlist; //list of nuclear coordinates
-          std::vector<int> m_Alist; //list of mass numbers
-          std::vector<double> m_xi; //list of gaussian coefficients
-     public:
-          // Constructor 
-          GaussianNucleusFunctor(Molecule& molecule, double bohr_rad){
-
-               //get atom coordinates
-               m_Rlist = molecule.get_all_coords_vec();
-               
-               //get atomic numbers
-               for(unsigned int i = 0; i < m_Rlist.size(); i++){
-                    m_Zlist.push_back(molecule.get_atomic_number(i));
-               }
-               
-               //find atomic mass numbers for each atom. This list matches that of Visccher and Dyall (1997)
-               int Alist[116] = {1,4,7,9,11,12,14,16,19,20,23,24,27,28,31,32,35,40,39,40,45,48,51,52,55,56,59,58,63,64,69,74,75,80,79,84,85,88,89,90,93,98,98,102,103,106,107,114,115,120,121,130,127,132,133,138,139,140,141,144,145,152,153,158,159,162,162,168,169,174,175,180,181,184,187,192,193,195,197,202,205,208,209,209,210,222,223,226,227,232,231,238,237,244,243,247,247,251,252,257,258,259,262,261,262,263,262,265,266,264,272,277,284,289,288,292};
-               for(unsigned int i = 0; i < m_Zlist.size(); i++){
-                    m_Alist.push_back(Alist[m_Zlist[i]-1]);
-               }
-
-               //calculate factors necessary for the potential
-               for(unsigned int i = 0; i < m_Zlist.size(); i++){
-                    m_xi.push_back(sqrt(3.0/2.0)/(0.836*pow(m_Alist[i],1.0/3.0)+0.57)*bohr_rad);
-                    //std::cout << m_xi << std::endl;
-               }
-          }
-          
-          //overload () operator 
-          double operator() (const coord_3d&r) const {
-               double result = 0.0;
-               int n = m_Zlist.size();
-               for(int i = 0; i < n; i++){
-                    double x = r[0] - m_Rlist[i][0];
-                    double y = r[1] - m_Rlist[i][1];
-                    double z = r[2] - m_Rlist[i][2];
-                    double r = sqrt(x*x+y*y+z*z);
-                    result += -m_Zlist[i]*erf(m_xi[i]*r)/r;
-               }
-               return result;
-          }
-
-          //some getters
-          std::vector<int> get_Zlist(){
-               return m_Zlist;
-          }
-          std::vector<coord_3d> get_Rlist(){
-               return m_Rlist;
-          }
-          std::vector<int> get_Alist(){
-               return m_Alist;
-          }
-          std::vector<double> get_xi(){
-               return m_xi;
-          }
-          int get_num_atoms(){
-               return m_Rlist.size();
-          }
-};
-
-
-//Functor to make the fermi nuclear charge distribution (NOT the potential, and NOT normalized) for a given center
-//This is based on Visscher and Dyall's 1997 paper on nuclear charge distributions.
-class FermiNucDistFunctor : public FunctionFunctorInterface<double,3> {
-     private:
-          int m_A;
-          double m_T;
-          double m_C;
-          std::vector<coord_3d> m_R;
-     public:
-          // Constructor 
-          FermiNucDistFunctor(int& Z, coord_3d R, double bohr_rad){
-               //m_T = 0.000043463700858425666; //2.3 fm in bohr
-               m_T = 2.3/bohr_rad;
-               m_R.push_back(R);
-               
-               //find atomic mass numbers for each atom. This list matches that of Visccher and Dyall (1997)
-               int Alist[116] = {1,4,7,9,11,12,14,16,19,20,23,24,27,28,31,32,35,40,39,40,45,48,51,52,55,56,59,58,63,64,69,74,75,80,79,84,85,88,89,90,93,98,98,102,103,106,107,114,115,120,121,130,127,132,133,138,139,140,141,144,145,152,153,158,159,162,162,168,169,174,175,180,181,184,187,192,193,195,197,202,205,208,209,209,210,222,223,226,227,232,231,238,237,244,243,247,247,251,252,257,258,259,262,261,262,263,262,265,266,264,272,277,284,289,288,292};
-               m_A = Alist[Z-1];
-
-               double PI = constants::pi;
-               if(m_A < 5){
-                    m_C = 0.000022291*pow(m_A, 1.0/3.0) - 0.0000090676;
-               }
-               else{
-                    m_C = sqrt(5.0/3.0*pow((0.836*pow(m_A,1.0/3.0)+0.570)/bohr_rad,2) - 7.0/3.0*pow(PI*m_T/4.0/log(3.0),2));
-               }
-          }
-          
-          //overload () operator 
-          double operator() (const coord_3d&r) const {
-               double x = r[0] - m_R[0][0];
-               double y = r[1] - m_R[0][1];
-               double z = r[2] - m_R[0][2];
-               double rr = sqrt(x*x+y*y+z*z);
-               double result = 1.0/(1.0+exp(4.0*log(3.0)*(rr-m_C)/m_T));
-               return result;
-          }
-
-          //Because the distribution is only nonzero in a small window around the center, need to create a special point
-          std::vector<coord_3d> special_points() const final {
-               return m_R;
-          }
-
-          madness::Level special_level() const final {
-               return 18;
-          }
-
-          //Print the parameters of the Fermi nuclear charge distribution
-          void print_details(World& world){
-
-               //Constants necessary to print the details. Technically need to use bohr_rad parameter here
-               int Alist[116] = {1,4,7,9,11,12,14,16,19,20,23,24,27,28,31,32,35,40,39,40,45,48,51,52,55,56,59,58,63,64,69,74,75,80,79,84,85,88,89,90,93,98,98,102,103,106,107,114,115,120,121,130,127,132,133,138,139,140,141,144,145,152,153,158,159,162,162,168,169,174,175,180,181,184,187,192,193,195,197,202,205,208,209,209,210,222,223,226,227,232,231,238,237,244,243,247,247,251,252,257,258,259,262,261,262,263,262,265,266,264,272,277,284,289,288,292};
-               double T = 2.3/52917.72490083583;
-               double PI = constants::pi;
-               
-               if(world.rank()==0){
-                    for(int i = 0; i < 116; i++){
-                         double RMS = (0.836*pow(Alist[i],1.0/3.0)+0.570)/52917.72490083583;
-                         double C;
-                         if(Alist[i] < 5){
-                              C = 0.000022291*pow(Alist[i], 1.0/3.0) - 0.0000090676;
-                         }
-                         else{
-                              C = sqrt(5.0/3.0*pow(RMS,2)-7.0/3.0*pow(PI*T/4.0/log(3.0),2));
-                         }
-                         double xi = 3.0/2.0/pow(RMS,2);
-                         printf("Z: %3i,  A: %3i,  RMS: %.10e,  C: %.10e,  xi: %.10e\n", i+1, Alist[i], RMS, C, xi);
-                    }
-               }
-          }
-};
-
 //generic f(r)=||r|| function for calculation of the radial expectation value
 double myr(const coord_3d& r){
      return std::sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]);
@@ -338,28 +201,22 @@ void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_functi
      if(world.rank()==0) print("\n***Making a Fermi Potential***");
      
      //Get list of atom coordinates
-     std::vector<coord_3d> Rlist = Init_params.molecule.get_all_coords_vec();
-     std::vector<int> Zlist(Rlist.size());
-     unsigned int num_atoms = Rlist.size();
+     auto molecule = Init_params.molecule;
 
      //variables for upcoming loop
      real_function_3d temp;
      double tempnorm;
+     potential = madness::real_factory_3d(world);
 
      //Go through the atoms in the molecule and construct the total charge distribution due to all nuclei
-     for(unsigned int i = 0; i < num_atoms; i++){
-          Zlist[i] = Init_params.molecule.get_atomic_number(i);
-          FermiNucDistFunctor rho(Zlist[i], Rlist[i],DFparams.bohr_rad);
-          temp = real_factory_3d(world).functor(rho).truncate_mode(0);
+     const double safety = 0.1;
+     double vtol = madness::FunctionDefaults<3>::get_thresh() * safety;
+     for(auto&& atom : molecule.get_atoms()){
+          madness::FermiPotentialFunctor rho(atom);
+          temp = real_factory_3d(world).functor(rho).thresh(vtol);
           tempnorm = temp.trace();
-          temp.scale(-Zlist[i]/tempnorm);
-          if(i == 0){
-               potential = temp;
-               //rho.print_details(world);
-          }
-          else{
-               potential += temp;
-          }
+          temp.scale(-1. * atom.atomic_number / tempnorm);
+          potential += temp;
      }
 
      //Potential is found by application of the coulomb operator to the charge distribution
@@ -370,11 +227,13 @@ void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_functi
      //We calculate it inside this function because here we already have access to the nuclear charges and coordinates
      nuclear_repulsion_energy = 0.0;
      double rr;
-     for(unsigned int m = 0; m < num_atoms; m++){
-          for(unsigned int n = m+1; n < num_atoms; n++){
-               coord_3d dist = Rlist[m] - Rlist[n];
+     for(unsigned int m = 0; m < molecule.natom(); m++){
+          auto& atom_m = molecule.get_atom(m);
+          for(unsigned int n = m+1; n < molecule.natom(); n++){
+               auto& atom_n = molecule.get_atom(n);
+               coord_3d dist = atom_m.get_coords() - atom_n.get_coords();
                rr = std::sqrt(dist[0]*dist[0]+dist[1]*dist[1]+dist[2]*dist[2]);
-               nuclear_repulsion_energy += Zlist[m]*Zlist[n]/rr;
+               nuclear_repulsion_energy += atom_m.atomic_number * atom_n.atomic_number / rr;
           }
      }
 
@@ -1203,25 +1062,27 @@ void DF::saveDF(World& world){
 //Creates the (Gaussian) nuclear potential from the molecule object
 void DF::make_gaussian_potential(World& world, real_function_3d& potential){
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
-     GaussianNucleusFunctor Vfunctor(Init_params.molecule, DFparams.bohr_rad);
+     GaussianPotentialFunctor Vfunctor(Init_params.molecule);
      potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
 }
 
 //Creates the (Gaussian) nuclear potential from the molecule object. Also calculates the nuclear repulsion energy
 void DF::make_gaussian_potential(World& world, real_function_3d& potential, double& nuclear_repulsion_energy){
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
-     GaussianNucleusFunctor Vfunctor(Init_params.molecule,DFparams.bohr_rad);
+     auto molecule = Init_params.molecule;
+
+     GaussianPotentialFunctor Vfunctor(molecule);
      potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
-     std::vector<coord_3d> Rlist = Vfunctor.get_Rlist();
-     std::vector<int> Zlist = Vfunctor.get_Zlist();
+
      nuclear_repulsion_energy = 0.0;
      double rr;
-     int num_atoms = Rlist.size();
-     for(int m = 0; m < num_atoms; m++){
-          for(int n = m+1; n < num_atoms; n++){
-               coord_3d dist = Rlist[m] - Rlist[n];
+     for(int m = 0; m < molecule.natom(); m++){
+          auto& atom_m = molecule.get_atom(m);
+          for(int n = m+1; n < molecule.natom(); n++){
+               auto& atom_n = molecule.get_atom(n);
+               coord_3d dist = atom_m.get_coords() - atom_n.get_coords();
                rr = std::sqrt(dist[0]*dist[0]+dist[1]*dist[1]+dist[2]*dist[2]);
-               nuclear_repulsion_energy += Zlist[m]*Zlist[n]/rr;
+               nuclear_repulsion_energy += atom_m.atomic_number * atom_n.atomic_number / rr;
           }
      }
 

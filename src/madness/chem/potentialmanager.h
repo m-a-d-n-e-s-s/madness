@@ -145,6 +145,34 @@ public:
 
 };
 
+// Gaussian charge distribution for nuclear potential
+class GaussianPotentialFunctor : public FunctionFunctorInterface<double, 3> {
+ private:
+  const Molecule& molecule;
+
+ public:
+  GaussianPotentialFunctor(const madness::Molecule& molecule)
+      : molecule(molecule) {}
+
+  double operator()(const madness::coord_3d& R) const final;
+};
+
+// Fermi two-parameter charge distribution for nuclear potential
+class FermiPotentialFunctor : public FunctionFunctorInterface<double, 3> {
+ private:
+  const Atom& atom;
+
+ public:
+  FermiPotentialFunctor(const Atom& atom) : atom(atom) {}
+
+  double operator()(const madness::coord_3d& R) const final;
+
+  madness::Level special_level() const final { return 18; }
+
+  // Because the distribution is only nonzero in a small window around the center, need to create a special point
+  std::vector<coord_3d> special_points() const final { return {atom.get_coords()}; }
+};
+
 /// evaluates Wigner-Seitz-truncated potential in the simulation cell, due to periodic or nonperiodic source functions
 class WignerSeitzPotentialFunctor : public FunctionFunctorInterface<double,3> {
 public:
