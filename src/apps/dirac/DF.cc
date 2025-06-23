@@ -212,7 +212,7 @@ void DF::make_fermi_potential(World& world, real_convolution_3d& op, real_functi
      const double safety = 0.1;
      double vtol = madness::FunctionDefaults<3>::get_thresh() * safety;
      for(auto&& atom : molecule.get_atoms()){
-          madness::FermiPotentialFunctor rho(atom);
+          madness::FermiNuclearDensityFunctor rho(atom);
           temp = real_factory_3d(world).functor(rho).thresh(vtol);
           tempnorm = temp.trace();
           temp.scale(-1. * atom.atomic_number / tempnorm);
@@ -1062,7 +1062,7 @@ void DF::saveDF(World& world){
 //Creates the (Gaussian) nuclear potential from the molecule object
 void DF::make_gaussian_potential(World& world, real_function_3d& potential){
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
-     GaussianPotentialFunctor Vfunctor(Init_params.molecule);
+     GaussianNuclearDensityFunctor Vfunctor(Init_params.molecule);
      potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
 }
 
@@ -1071,7 +1071,7 @@ void DF::make_gaussian_potential(World& world, real_function_3d& potential, doub
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
      auto molecule = Init_params.molecule;
 
-     GaussianPotentialFunctor Vfunctor(molecule);
+     GaussianNuclearDensityFunctor Vfunctor(molecule);
      potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
 
      nuclear_repulsion_energy = 0.0;
