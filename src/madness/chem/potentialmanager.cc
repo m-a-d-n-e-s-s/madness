@@ -34,8 +34,19 @@
 /// \file moldft/potentialmanager.cc
 /// \brief Definition of commonly used density/potential related classes and functions
 
+#include "madness/constants.h"
 #include <madness/chem/potentialmanager.h>
 #include <madness/chem/SAP.h>
+
+namespace detail {
+static inline double distance(double x1, double y1, double z1, double x2,
+                              double y2, double z2) {
+  double xx = x1 - x2;
+  double yy = y1 - y2;
+  double zz = z1 - z2;
+  return sqrt(xx * xx + yy * yy + zz * zz);
+}
+}  // namespace detail
 
 namespace madness {
 
@@ -93,6 +104,53 @@ Level NuclearDensityFunctor::special_level() const {
 NuclearDensityFunctor &NuclearDensityFunctor::set_rscale(double rscale) {
   this->rscale = rscale;
   return *this;
+}
+
+double GaussianNuclearDensityFunctor::operator()(const madness::coord_3d& R) const {
+  // eq. numbers refer to Visscher and Dyall 10.1006/adnd.1997.0751
+  const auto bohr_rad_fm = constants::Bohr_radius * 1e15;
+
+  double sum = 0.0;
+  for (auto&& atom : molecule.get_atoms()) {
+    // make sure this isn't a pseudo-atom
+    if (atom.pseudo_atom) continue;
+
+    // Eqs. 1 and 11
+    auto ξ =
+        sqrt(3.0 / 2.0) /
+        (0.836 *
+              pow(madness::get_atomic_data(atom.atomic_number).isotope_number,
+                  1.0 / 3.0) +
+          0.57) *
+        bohr_rad_fm;
+
+    // Eq. 14
+    auto r = ::detail::distance(R[0], R[1], R[2], atom.x, atom.y, atom.z);
+    sum += -1. * atom.atomic_number * erf(ξ * r) / r;
+  }
+  return sum;
+}
+
+double FermiNuclearDensityFunctor::operator()(const madness::coord_3d& R) const {
+  // eq. numbers refer to Visscher and Dyall 10.1006/adnd.1997.0751
+  const auto bohr_rad_fm = constants::Bohr_radius * 1e15;
+  const auto T = 2.3 / bohr_rad_fm;
+
+  auto A = madness::get_atomic_data(atom.atomic_number).isotope_number;
+  double C;
+  if (A < 5) {
+    // Eq. 9
+    C = 0.000022291 * pow(A, 1.0 / 3.0) - 0.0000090676;
+  } else {
+    // Eqs. 4 and 8
+    C = sqrt((5.0 / 3.0) *
+                  pow((0.836 * pow(A, 1.0 / 3.0) + 0.570) / bohr_rad_fm, 2.0) -
+              (7.0 / 3.0) * pow(M_PI * T / 4.0 / std::log(3.0), 2.0));
+  }
+
+  // Eq. 14
+  auto r = ::detail::distance(R[0], R[1], R[2], atom.x, atom.y, atom.z);
+  return 1.0 / (1.0 + exp(4.0 * std::log(3.0) * (r - C) / T));
 }
 
 double WignerSeitzPotentialFunctor::operator()(const coord_3d &r) const {
