@@ -205,12 +205,17 @@ public:
 class GaussianNuclearDensityFunctor : public FunctionFunctorInterface<double, 3> {
  private:
   const Molecule& molecule;
+  int special_level_ = 15;
 
  public:
-  GaussianNuclearDensityFunctor(const madness::Molecule& molecule)
-      : molecule(molecule) {}
+  GaussianNuclearDensityFunctor(const madness::Molecule& molecule, int special_level = 15)
+      : molecule(molecule), special_level_(special_level) {}
 
   double operator()(const madness::coord_3d& R) const final;
+
+  madness::Level special_level() const final { return special_level_; };
+
+  std::vector<coord_3d> special_points() const { return molecule.get_all_coords_vec(); }
 };
 
 /**
@@ -226,13 +231,15 @@ class GaussianNuclearDensityFunctor : public FunctionFunctorInterface<double, 3>
 class FermiNuclearDensityFunctor : public FunctionFunctorInterface<double, 3> {
  private:
   const Atom& atom;
+  int special_level_ = 18;
 
  public:
-  FermiNuclearDensityFunctor(const Atom& atom) : atom(atom) {}
+  FermiNuclearDensityFunctor(const Atom& atom, int special_level = 18)
+      : atom(atom), special_level_(special_level) {}
 
   double operator()(const madness::coord_3d& R) const final;
 
-  madness::Level special_level() const final { return 18; }
+  madness::Level special_level() const final { return special_level_; };
 
   std::vector<coord_3d> special_points() const final { return {atom.get_coords()}; }
 };
