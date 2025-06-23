@@ -106,7 +106,7 @@ NuclearDensityFunctor &NuclearDensityFunctor::set_rscale(double rscale) {
   return *this;
 }
 
-double GaussianPotentialFunctor::operator()(const madness::coord_3d& R) const {
+double GaussianNuclearDensityFunctor::operator()(const madness::coord_3d& R) const {
   // eq. numbers refer to Visscher and Dyall 10.1006/adnd.1997.0751
   const auto bohr_rad_fm = constants::Bohr_radius * 1e15;
 
@@ -131,7 +131,7 @@ double GaussianPotentialFunctor::operator()(const madness::coord_3d& R) const {
   return sum;
 }
 
-double FermiPotentialFunctor::operator()(const madness::coord_3d& R) const {
+double FermiNuclearDensityFunctor::operator()(const madness::coord_3d& R) const {
   // eq. numbers refer to Visscher and Dyall 10.1006/adnd.1997.0751
   const auto bohr_rad_fm = constants::Bohr_radius * 1e15;
   const auto T = 2.3 / bohr_rad_fm;
