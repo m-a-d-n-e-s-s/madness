@@ -34,9 +34,74 @@ namespace madness {
       return params_;
     }
 
+    // get the parameters used for this application
+    [[nodiscard]] Params& get_parameters() {
+      return params_;
+    }
+
     // get the working directory for this application
     [[nodiscard]] path get_workdir() const {
       return workdir_;
+    }
+
+    /// check if this calculation has a json with results
+    [[nodiscard]] virtual bool has_results(std::string filename) const {
+      // check if the results file exists
+      return std::filesystem::exists(workdir_ / filename);
+    }
+
+    /// read the results from a json file
+    [[nodiscard]] virtual nlohmann::json read_results(std::string filename) const {
+      if (has_results(filename)) {
+        std::cout << "Found checkpoint file: " << filename << std::endl;
+        std::ifstream ifs(workdir_ / filename);
+        nlohmann::json j;
+        ifs >> j;
+        ifs.close();
+        return j;
+      } else {
+        std::string msg= "Results file " + filename + " does not exist in " + workdir_.string();
+        MADNESS_EXCEPTION(msg.c_str(), 1);
+      }
+      return nlohmann::json();
+    }
+
+    /// check if the wavefunctions are already computed
+    [[nodiscard]] virtual bool has_wavefunctions(std::string filename) const {
+      return std::filesystem::exists(workdir_ / filename);
+    }
+
+    /// read the wavefunctions from a file
+    [[nodiscard]] virtual std::vector<double> read_wavefunctions(std::string filename) const {
+      if (has_wavefunctions(filename)) {
+        std::ifstream ifs(workdir_ / filename);
+        std::vector<double> wfs;
+        double value;
+        while (ifs >> value) {
+          wfs.push_back(value);
+        }
+        ifs.close();
+        return wfs;
+      } else {
+        std::string msg= "Wavefunction file " + filename + " does not exist in " + workdir_.string();
+        MADNESS_EXCEPTION(msg.c_str(), 1);
+      }
+      return {};
+    }
+
+    /// check if this calculation needs to be redone
+    [[nodiscard]] virtual bool needs_redo() const {
+      // read json and check if the results are already there
+      if (std::filesystem::exists(workdir_ / "results.json")) {
+        std::ifstream ifs(workdir_ / "results.json");
+        nlohmann::json j;
+        ifs >> j;
+        ifs.close();
+        // check if the results are already there
+        return !j.contains("energy") || !j["energy"].is_number();
+      }
+      // by default, we assume that the calculation needs to be redone
+      return true;
     }
 
   protected:
@@ -52,6 +117,10 @@ namespace madness {
 
     std::shared_ptr<SCF> get_scf() const {
       return std::dynamic_pointer_cast<SCF>(this->shared_from_this());
+    }
+
+    bool constexpr is_nemo() const {
+      return std::is_same_v<ScfT, Nemo>;
     }
 
     std::shared_ptr<const Nemo> get_nemo() const {
@@ -75,7 +144,8 @@ namespace madness {
 
     void run(const std::filesystem::path& workdir) override {
       // 1) set up a namedspaced directory for this run
-      PathManager pm(workdir, Library::label());
+      std::string label= is_nemo() ? "nemo" : Library::label();
+      PathManager pm(workdir, label.c_str());
       pm.create();
       workdir_=pm.dir();
       world_.gop.fence();
@@ -89,30 +159,34 @@ namespace madness {
         bool needEnergy = true;
         bool needDipole = scfParams.dipole();
         bool needGradient = scfParams.derivatives();
+        bool needWavefunctions = true;
 
         // 2) define the "checkpoint" file
         auto ckpt = "scf_results.json";
-        if (std::filesystem::exists(ckpt)) {
-          if (world_.rank() == 0) {
-            std::cout << "Found checkpoint file: " << ckpt << std::endl;
-          }
-          // read the checkpoint file
-          std::ifstream ifs(ckpt);
-          nlohmann::json j;
-          ifs >> j;
-          ifs.close();
+        nlohmann::json j;
+        if (has_results(ckpt)) j=read_results(ckpt);
 
-          bool ok = true;
-          if (needEnergy && !j.contains("energy")) ok = false;
-          if (needDipole && !j.contains("dipole")) ok = false;
-          if (needGradient && !j.contains("gradient")) ok = false;
-
-          if (ok) {
-            energy_ = j["energy"];
-            if (needDipole) dipole_ = tensor_from_json<double>(j["dipole"]);
-            if (needGradient) gradient_ = tensor_from_json<double>(j["gradient"]);
-            return;
+        bool ok = true;
+        if (needEnergy && !j.contains("energy")) ok = false;
+        if (needDipole && !j.contains("dipole")) ok = false;
+        if (needGradient && !j.contains("gradient")) ok = false;
+        if (needWavefunctions) {
+          try {
+            double thresh=scfParams.protocol().back();
+            if constexpr (std::is_same_v<ScfT, Nemo>) this->set_protocol(thresh);
+            if constexpr (std::is_same_v<ScfT, SCF>) SCF::set_protocol<3>(world_,thresh);
+            this->load_mos(world_);
+          } catch (...) {
+            // if we cannot load MOs, we need to recompute them
+            ok = false;
           }
+        }
+
+        if (ok) {
+          energy_ = j["energy"];
+          if (needDipole) dipole_ = tensor_from_json<double>(j["dipole"]);
+          if (needGradient) gradient_ = tensor_from_json<double>(j["gradient"]);
+          return;
         }
 
         // we could dump params_ to JSON and pass as argv if desired…
@@ -376,6 +450,108 @@ namespace madness {
             std::cout << "--------------------------------------------------\n";
           }
           this->analyze(roots);
+        } catch (std::exception& e) {
+          print("Caught exception: ", e.what());
+        }
+
+
+        // 5) write out JSON for future restarts
+        nlohmann::json outj = {{"energy", energy_}};
+        if (dipole_.has_value()) outj["dipole"] = tensor_to_json(*dipole_);
+        if (gradient_.has_value()) outj["gradient"] = tensor_to_json(*gradient_);
+
+        if (world_.rank() == 0) {
+          std::cout << "Writing checkpoint file: " << ckpt << std::endl;
+          std::ofstream o(ckpt);
+          o << std::setw(2) << outj << std::endl;
+        }
+      }
+    }
+
+    nlohmann::json results() const override {
+      auto scfParams = params_.get<CalculationParameters>();
+      nlohmann::json j = {
+        {"type", "scf"},
+        {"energy", energy_},
+    };
+      if (dipole_ && scfParams.dipole()) j["dipole"] = tensor_to_json(*dipole_);
+      if (gradient_ && scfParams.derivatives())
+        j["gradient"] = tensor_to_json(*gradient_);
+
+      return j;
+    }
+
+  private:
+    World& world_;
+    const Application& reference_;
+
+    double energy_;
+    std::optional<Tensor<double>> dipole_;
+    std::optional<Tensor<double>> gradient_;
+    std::optional<real_function_3d> density_;
+  };
+
+
+
+  template<typename SCFApplicationT>
+  class OEPApplication : public Application, public OEP {
+  public:
+    explicit OEPApplication(World& w, const Params& p, const SCFApplicationT& reference)
+        : Application(p), world_(w), reference_(reference),
+          OEP(w, p.get<OEP_Parameters>(), reference.get_nemo()) {
+    }
+
+    void run(const std::filesystem::path& workdir) override {
+      // 1) set up a namedspaced directory for this run
+      PathManager pm(workdir, "oep");
+      pm.create();
+      world_.gop.fence();
+      {
+        ScopedCWD scwd(pm.dir());
+        if (world_.rank() == 0) {
+          std::cout << "Running OEP in " << pm.dir() << std::endl;
+        }
+
+        // 2) define the "checkpoint" file
+        std::string label="oep";
+        auto ckpt = label + "_results.json";
+        print("cc checkpoint file",ckpt);
+        if (std::filesystem::exists(ckpt)) {
+          if (world_.rank() == 0) {
+            std::cout << "Found checkpoint file: " << ckpt << std::endl;
+          }
+          // read the checkpoint file
+          std::ifstream ifs(ckpt);
+          nlohmann::json j;
+          ifs >> j;
+          ifs.close();
+
+          bool ok = true;
+          bool needEnergy = true;
+          if (needEnergy && !j.contains("energy")) ok = false;
+
+          if (ok) {
+            energy_ = j["energy"];
+            return;
+          }
+        }
+
+        // we could dump params_ to JSON and pass as argv if desired…
+        try {
+          const double time_scf_start = wall_time();
+          this->value();
+          const double time_scf_end = wall_time();
+          if (world_.rank() == 0) printf(" at time %.1f\n", wall_time());
+
+          if (world_.rank() == 0) {
+            std::cout << std::setfill(' ');
+            std::cout << "\n\n\n";
+            std::cout << "--------------------------------------------------\n";
+            std::cout << "MRA-OEP ended \n";
+            std::cout << "--------------------------------------------------\n";
+            std::cout << std::setw(25) << "time scf" << " = " << time_scf_end - time_scf_start << "\n";
+            std::cout << "--------------------------------------------------\n";
+          }
         } catch (std::exception& e) {
           print("Caught exception: ", e.what());
         }

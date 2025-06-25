@@ -196,10 +196,13 @@ double Nemo::value(const Tensor<double>& x) {
 
 	    calc->ao=calc->project_ao_basis(world,calc->aobasis);
 
-		calc->initial_guess(world);
-		real_function_3d R_inverse = ncf->inverse();
-		calc->amo = R_inverse*calc->amo;
-		truncate(world,calc->amo);
+	    if (not (calc->converged_for_thresh*0.999<p.end_prec)) {
+	        // if the orbitals are not converged to the end precision, we need to recompute the ncf
+	        calc->initial_guess(world);
+	        real_function_3d R_inverse = ncf->inverse();
+	        calc->amo = R_inverse*calc->amo;
+	        truncate(world,calc->amo);
+	    }
 
 	}
 

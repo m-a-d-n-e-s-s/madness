@@ -133,6 +133,25 @@ int main(int argc, char** argv) {
       wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
       wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
         std::make_unique<TDHFApplication<SCFApplication<moldft_lib,Nemo>>>(world,pm,*moldft_app)));
+
+    } else if (user_workflow=="oep") {
+      // add tight convergence criteria
+      CalculationParameters& cparam=pm.get<CalculationParameters>();
+      auto convergence_crit=cparam.get<std::vector<std::string> >("convergence_criteria");
+      if (std::find(convergence_crit.begin(),convergence_crit.end(),"each_energy")==convergence_crit.end()) {
+        convergence_crit.push_back("each_energy");
+      }
+      cparam.set_derived_value("convergence_criteria",convergence_crit);
+
+      reference.reset(new SCFApplication<moldft_lib,Nemo>(world, pm));
+      auto moldft_app = std::dynamic_pointer_cast<SCFApplication<moldft_lib,Nemo>>(reference);
+      if (!moldft_app) {
+        MADNESS_EXCEPTION("Could not cast reference to SCFApplication<moldft_lib>", 1);
+      }
+
+      wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
+      wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
+        std::make_unique<OEPApplication<SCFApplication<moldft_lib,Nemo>>>(world,pm,*moldft_app)));
     } else {
       std::string msg= "Unknown workflow: " + user_workflow +
           "\nAvailable workflows are: response, mp2, cc2, cis";

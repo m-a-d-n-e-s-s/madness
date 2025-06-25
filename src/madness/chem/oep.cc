@@ -403,7 +403,8 @@ bool OEP::selftest() {
 
     printf("\n   +++ starting test of the OEP program +++\n\n");
 
-    reference->value();
+	// hack away constness for the refence here
+    const_cast<Nemo*>(reference.get())->value();
     calc->copy_data(world,*(reference->get_calc()));
 
     print("HF Fock operator ", reference->make_fock_operator()->info());

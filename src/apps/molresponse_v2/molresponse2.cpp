@@ -1,5 +1,7 @@
 #include <iostream>
 
+#include "oep.h"
+#include "TDHF.h"
 #include "FrequencyLoop.hpp"  // Make sure this is included
 #include "GroundStateData.hpp"
 #include "../madqc_v2/ParameterManager.hpp"

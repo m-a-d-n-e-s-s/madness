@@ -151,12 +151,33 @@ private:
 	OEP_Parameters oep_param;
 
 	/// the wave function reference that determines the local potential
-	std::shared_ptr<Nemo> reference;
+	std::shared_ptr<const Nemo> reference;
 
 	/// the final local potential
 	real_function_3d Vfinal;
 
 public:
+
+	OEP(World& world, const OEP_Parameters& oepparam, const std::shared_ptr<const Nemo>& reference)
+			: Nemo(world, reference->get_param(), reference->molecule()),		// OEP is a nemo calculation, ctor will set param from reference
+			  oep_param(oepparam),
+			  reference(reference) {
+
+		// add tight convergence criteria
+		std::vector<std::string> convergence_crit=param.get<std::vector<std::string> >("convergence_criteria");
+		if (std::find(convergence_crit.begin(),convergence_crit.end(),"each_energy")==convergence_crit.end()) {
+			convergence_crit.push_back("each_energy");
+		}
+		param.set_derived_value("convergence_criteria",convergence_crit);
+		calc->param.set_derived_value("convergence_criteria",convergence_crit);
+
+		oep_param.set_derived_values(param);
+
+		// check that reference is well converged
+		MADNESS_CHECK_THROW(reference->get_param().converge_each_energy(),"need tightly converged reference for OEP calculation");
+
+	}
+
 
     OEP(World& world, const commandlineparser& parser)
             : Nemo(world, parser),
@@ -171,9 +192,10 @@ public:
         calc->param.set_derived_value("convergence_criteria",convergence_crit);
 
         // set reference
-        set_reference(std::make_shared<Nemo>(world,parser));
-        reference->param.set_derived_value("convergence_criteria",convergence_crit);
-        reference->get_calc()->param.set_derived_value("convergence_criteria",convergence_crit);
+		auto ref=std::make_shared<Nemo>(world,parser);
+        ref->param.set_derived_value("convergence_criteria",convergence_crit);
+        ref->get_calc()->param.set_derived_value("convergence_criteria",convergence_crit);
+        set_reference(ref);
 
         oep_param.set_derived_values(param);
     }
@@ -202,7 +224,7 @@ public:
 	    reference=reference1;
 	}
 
-    std::shared_ptr<Nemo> get_reference() const {
+    std::shared_ptr<const Nemo> get_reference() const {
         return reference;
     }
 
@@ -228,7 +250,7 @@ public:
 
 
     virtual double value(const Tensor<double>& x) {
-	    reference->value();
+    	MADNESS_CHECK_THROW(reference->check_converged(x),"OEP reference is not converged at this geometry");
         set_protocol(param.econv());
         calc->copy_data(world,*(reference->get_calc()));
         double energy=0.0;
