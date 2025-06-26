@@ -67,6 +67,7 @@ namespace madness {
             World* world; ///< The world.
             mutable Archive ar; ///< The local archive.
             int nio; ///< Number of I/O nodes (always includes node zero).
+            int fixed_io_node=-1; ///< If set, this is the fixed I/O node for this archive. If -1, use round-robin assignment.
             bool do_fence=true; ///< If true (default), a read/write of parallel objects fences before and after I/O.
             char fname[256]; ///< Name of the archive.
             int nclient; ///< Number of clients of this node, including self. Zero if not I/O node.
@@ -90,13 +91,24 @@ namespace madness {
                 : world(nullptr), ar(), nio(nio), do_fence(true) {
             }
 
+            /// set a fixed I/O node.
+            void set_fixed_io_node(int node) {
+                MADNESS_CHECK(node >= 0);
+                MADNESS_CHECK(node < world->size());
+                fixed_io_node = node;
+            }
+
             /// Returns the process doing I/O for given node.
 
             /// Currently assigned in a round-robin fashion to the first
             /// \c nio processes, except on IBM BG/P where we use every 64th.
+            /// If \c fixed_io_node is set, it is used instead of the round-robin assignment.
             /// \param[in] rank The node to check.
             /// \return The process doing I/O for process \c rank.
             ProcessID io_node(ProcessID rank) const {
+                if (fixed_io_node >= 0) {
+                    return fixed_io_node;
+                }
                 return rank%nio;
             }
 

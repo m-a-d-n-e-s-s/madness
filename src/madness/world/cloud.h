@@ -497,6 +497,8 @@ private:
             cloudtimer t(world,writing_time1);
             madness::archive::ContainerRecordOutputArchive ar(world, container, record);
             madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
+            ProcessID ionode=container.get_pmap()->owner(record);
+            par.set_fixed_io_node(ionode);
             par & source;
             local_list_of_container_keys+=record;
         }
