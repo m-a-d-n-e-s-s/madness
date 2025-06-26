@@ -150,6 +150,8 @@ class Cloud {
     bool is_replicated=false;   ///< if contents of the container are replicated
     bool dofence = true;      ///< fences after load/store
     bool force_load_from_cache = false;       ///< forces load from cache (mainly for debugging)
+    // TODO: must be false if we replicate over nodes only @Hannes
+    bool do_cache = true;        ///< if true, objects will be cached in the local subworld after serialization
 
 public:
 
@@ -350,7 +352,8 @@ public:
             keylist.push_back(it->first);
         }
 
-        for (ProcessID rank=0; rank<world.size(); rank++) {
+        int nstep=nnode;
+        for (ProcessID rank=0; rank<world.size(); rank+=nstep) {
             if (rank == world.rank()) {
                 std::size_t keylistsize = keylist.size();
                 world.mpi.Bcast(&keylistsize,sizeof(keylistsize),MPI_BYTE,rank);
@@ -438,7 +441,7 @@ private:
 
     template<typename T>
     void cache(madness::World &world, const T &obj, const keyT &record) const {
-        const_cast<cacheT &>(cached_objects).insert({record,std::make_any<T>(obj)});
+        if (do_cache) const_cast<cacheT &>(cached_objects).insert({record,std::make_any<T>(obj)});
     }
 
     /// load an object from the cache, record is unchanged
@@ -497,6 +500,7 @@ private:
             cloudtimer t(world,writing_time1);
             madness::archive::ContainerRecordOutputArchive ar(world, container, record);
             madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
+            // serialize source on ionode, not necessarily on rank 0
             ProcessID ionode=container.get_pmap()->owner(record);
             par.set_fixed_io_node(ionode);
             par & source;
@@ -537,8 +541,10 @@ public:
         T target = allocator<T>(world);
         madness::archive::ContainerRecordInputArchive ar(world, container, record);
         madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(world, ar);
+        // no need for ionode here (cf store()), since we are now in a subworld
         par & target;
 
+        // TODO: must go if we replicate per node only @Hannes
         if (is_replicated) container.erase(record);
 
         cache(world, target, record);

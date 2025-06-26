@@ -829,9 +829,13 @@ private:
 
 
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug) override {
-        	io_redirect io(element,get_name()+"_task",debug);
-            const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
-            const argtupleT batched_argtuple = task.batch.copy_input_batch(argtuple);
+    		io_redirect io(element,get_name()+"_task",debug);
+    		argtupleT batched_argtuple;
+    		{
+    			const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
+    			batched_argtuple = task.batch.copy_input_batch(argtuple);
+    		}
+    		subworld.gop.fence();
         	try {
 			    print("starting task no",element, ", '",get_name(),"', in subworld",subworld.id(),"at time",wall_time());
         	    double cpu0=cpu_time();
