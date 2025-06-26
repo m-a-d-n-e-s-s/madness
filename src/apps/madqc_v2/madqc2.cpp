@@ -113,6 +113,11 @@ int main(int argc, char** argv) {
           std::make_unique<ResponseApplication<molresponse_lib>>(world, pm,
                                                                  gsDir)));
     } else if (user_workflow=="mp2" or user_workflow=="cc2") {
+
+      // set the tensor type
+      TensorType tt = TT_2D;
+      FunctionDefaults<6>::set_tensor_type(tt);
+
       pm.get<CalculationParameters>().set_derived_value("k", 5);
       reference.reset(new SCFApplication<moldft_lib,Nemo>(world, pm));
       wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
@@ -123,6 +128,7 @@ int main(int argc, char** argv) {
       }
       wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
           std::make_unique<CC2Application<cc_lib,SCFApplication<moldft_lib,Nemo>>>(world, pm, *moldft_app)));
+      pm.get<CCParameters>().print("cc2");
 
     } else if (user_workflow=="cis") {
       reference.reset(new SCFApplication<moldft_lib,Nemo>(world, pm));
