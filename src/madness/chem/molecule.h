@@ -134,7 +134,7 @@ class Molecule {
     GeometryParameters(World &world, const commandlineparser &parser) : GeometryParameters() {
       try {
         set_global_convenience_options(parser);
-        read_input_and_commandline_options(world, parser, tag);
+        read_input_and_commandline_options(world, parser, "geometry");
         set_derived_values(parser);
 
       } catch (std::exception &e) {

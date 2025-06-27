@@ -231,8 +231,8 @@ void scf_data::add_gradient(const Tensor<double> &grad) {
     gradient = tensor_to_json(grad);
 }
 
-SCF::SCF(World& world, const CalculationParameters& param, const Molecule& molecule)
-    : param(param), molecule(molecule) {
+SCF::SCF(World& world, const CalculationParameters& param1, const Molecule& molecule)
+    : param(param1), molecule(molecule) {
     PROFILE_MEMBER_FUNC(SCF);
 
     if (world.rank() == 0) {
