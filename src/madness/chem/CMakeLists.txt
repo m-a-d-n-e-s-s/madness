@@ -14,6 +14,7 @@ set(MADCHEM_HEADERS
     ccpairfunction.h
     CCPotentials.h
     CCStructures.h
+    CCParameters.h
     corepotential.h
     correlationfactor.h
     diamagneticpotentialfactor.h
