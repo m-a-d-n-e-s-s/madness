@@ -197,7 +197,7 @@ namespace madness {
         } else if constexpr (std::is_same_v<ScfT, Nemo>) {
           results = Library::run_nemo(this->get_nemo());
         } else {
-          static_assert(false);
+          MADNESS_CHECK_THROW("unknown SCF type", 1);
         }
 
         energy_ = results.energy;
