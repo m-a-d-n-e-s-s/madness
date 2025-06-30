@@ -2,6 +2,7 @@
 #include <CalculationParameters.h>
 #include <CCParameters.h>
 #include <QCCalculationParametersBase.h>
+#include <madness/chem/oep.h>
 
 #include <apps/molresponse_v2/ResponseParameters.hpp>
 

@@ -19,6 +19,7 @@
 #include<madness/chem/CCPotentials.h>
 #include<madness/chem/CCStructures.h>
 #include<madness/chem/CalculationParameters.h>
+#include<apps/madqc_v2/ParameterManager.hpp>
 #include<madness/chem/ESInterface.h>
 #include<madness/chem/GuessFactory.h>
 #include<madness/chem/MolecularOrbitals.h>
