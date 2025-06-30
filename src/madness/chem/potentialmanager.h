@@ -33,8 +33,10 @@
 #ifndef MADNESS_CHEM_POTENTIALMANAGER_H__INCLUDED
 #define MADNESS_CHEM_POTENTIALMANAGER_H__INCLUDED
 
-/// \file moldft/potentialmanager.h
-/// \brief Declaration of molecule related classes and functions
+/**
+ * @file potentialmanager.h
+ * @brief Declaration of molecule-related classes and functions.
+ */
 
 #include <madness/chem/corepotential.h>
 #include <madness/chem/atomutil.h>
@@ -54,6 +56,16 @@
 #include <madness/mra/mra.h>
 
 namespace madness {
+/**
+ * @class MolecularPotentialFunctor
+ * @brief Functor for evaluating the nuclear attraction potential of a molecule at a given point.
+ *
+ * This class implements the FunctionFunctorInterface for 3D coordinates and provides
+ * an interface to evaluate the nuclear attraction potential (smoothed Coulomb potential)
+ * of a molecule at a specified point in space. It also provides access to special points,
+ * the coordinates of all nuclei in the molecule.
+ *
+ */
 class MolecularPotentialFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const Molecule& molecule;
@@ -61,13 +73,22 @@ public:
     MolecularPotentialFunctor(const Molecule& molecule)
         : molecule(molecule) {}
 
-    double operator()(const coord_3d& x) const {
-        return molecule.nuclear_attraction_potential(x[0], x[1], x[2]);
+    double operator()(const coord_3d& r) const {
+        return molecule.nuclear_attraction_potential(r[0], r[1], r[2]);
     }
 
     std::vector<coord_3d> special_points() const {return molecule.get_all_coords_vec();}
 };
 
+/**
+ * @class MolecularCorePotentialFunctor
+ * @brief Functor for evaluating the molecular core potential at a given point in space.
+ *
+ * This class implements the FunctionFunctorInterface to provide a callable object
+ * that computes the molecular core potential for a given 3D coordinate using the
+ * associated Molecule instance.
+ *
+ */
 class MolecularCorePotentialFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const Molecule& molecule;
@@ -75,13 +96,22 @@ public:
     MolecularCorePotentialFunctor(const Molecule& molecule)
         : molecule(molecule) {}
 
-    double operator()(const coord_3d& x) const {
-        return molecule.molecular_core_potential(x[0], x[1], x[2]);
+    double operator()(const coord_3d& r) const {
+        return molecule.molecular_core_potential(r[0], r[1], r[2]);
     }
 
     std::vector<coord_3d> special_points() const {return molecule.get_all_coords_vec();}
 };
 
+/**
+ * @class CoreOrbitalFunctor
+ * @brief Functor for evaluating a core orbital of a specific atom in a molecule.
+ *
+ * This class implements the FunctionFunctorInterface for evaluating the value of a core orbital
+ * at a given 3D coordinate. It holds references to a molecule, the atom index, the core orbital index,
+ * and the magnetic quantum number m.
+ *
+ */
 class CoreOrbitalFunctor : public FunctionFunctorInterface<double,3> {
     const Molecule molecule;
     const int atom;
@@ -95,6 +125,15 @@ public:
     };
 };
 
+/**
+ * @class CoreOrbitalDerivativeFunctor
+ * @brief Functor for evaluating the derivative of a core orbital for a given atom in a molecule.
+ *
+ * It encapsulates the logic to compute the derivative of a specified core orbital with respect to a given axis
+ * for a particular atom in a molecule. It holds references to a molecule, the atom index, the axis index,
+ * the core orbital index, and the magnetic quantum number m.
+ *
+ */
 class CoreOrbitalDerivativeFunctor : public FunctionFunctorInterface<double,3> {
     const Molecule molecule;
     const int atom, axis;
@@ -108,11 +147,16 @@ public:
     };
 };
 
-/// Default functor for the nuclear charge density
-
-/// This assumes the default nuclear model optimized to produce potential
-/// close that of a point nucleus (smoothed Coulomb potential). The model
-/// is
+/**
+ * @class NuclearDensityFunctor
+ * @brief Default functor for evaluating nuclear density at a given point in space.
+ *
+ * This class implements a functor that computes the nuclear density for a given molecule,
+ * supporting both open and periodic boundary conditions. It can be used to evaluate the
+ * nuclear density at any point in 3D space, and provides special points and refinement
+ * level information for adaptive algorithms.
+ *
+ */
 class NuclearDensityFunctor : public FunctionFunctorInterface<double,3> {
 private:
   const Molecule& atoms;
@@ -123,12 +167,17 @@ private:
   int special_level_ = 15;
   double rscale = 1.0;
 public:
-  /// Generic constructor, can handle open and periodic boundaries
-  /// \param molecule atoms
-  /// \param bc boundary conditions
-  /// \param cell simulation cell (unit cell, if periodic)
-  /// \param special_level the initial refinement level
-  /// \param rscale setting `rscale>1` will make a nucleus larger by a factor of \p rscale (in other words, `rcut` is multiplied by the inverse of by this)
+  /**
+  * @brief Constructs a NuclearDensityFunctor for evaluating nuclear densities.
+  *
+  * This constructor can handle both open and periodic boundary conditions.
+  *
+  * @param atoms Reference to the molecule containing the atoms.
+  * @param bc Boundary conditions for the simulation (default: open boundaries).
+  * @param cell Simulation cell tensor (unit cell, if periodic; default: identity).
+  * @param special_level The initial refinement level for special points (default: 15).
+  * @param rscale Scaling factor for the nuclear radius. Setting rscale > 1 increases the effective size of a nucleus by this factor (i.e., rcut is divided by rscale).
+  */
   NuclearDensityFunctor(const Molecule& atoms,
                         const BoundaryConditions<3>& bc = FunctionDefaults<3>::get_bc(),
                         const Tensor<double>& cell = FunctionDefaults<3>::get_cell(),
@@ -145,21 +194,87 @@ public:
 
 };
 
-/// evaluates Wigner-Seitz-truncated potential in the simulation cell, due to periodic or nonperiodic source functions
+/**
+ * @class GaussianNuclearDensityFunctor
+ * @brief Functor for evaluating the Coulomb potential of all nuclei of a molecule; nuclei are represented by primitive spherical (l=0) Gaussians.
+ *
+ * It computes the Gaussian potential generated by a given molecule at a specified position.
+ *
+ * @note DOI 10.1006/adnd.1997.0751
+ */
+class GaussianNuclearDensityFunctor : public FunctionFunctorInterface<double, 3> {
+ private:
+  const Molecule& molecule;
+  int special_level_ = 15;
+
+ public:
+  GaussianNuclearDensityFunctor(const madness::Molecule& molecule, int special_level = 15)
+      : molecule(molecule), special_level_(special_level) {}
+
+  double operator()(const madness::coord_3d& R) const final;
+
+  madness::Level special_level() const final { return special_level_; };
+
+  std::vector<coord_3d> special_points() const { return molecule.get_all_coords_vec(); }
+};
+
+/**
+ * @class FermiNuclearDensityFunctor
+ * @brief Functor representing the Fermi nuclear density distribution for a given atom.
+ *
+ * This class implements a functor that evaluates the two-parameter charge distribution for
+ * the nuclear density at a given 3D coordinate. The density is significant only in a small
+ * region around the atomic center.
+ *
+ * @note DOI 10.1006/adnd.1997.0751
+ */
+class FermiNuclearDensityFunctor : public FunctionFunctorInterface<double, 3> {
+ private:
+  const Atom& atom;
+  int special_level_ = 18;
+
+ public:
+  FermiNuclearDensityFunctor(const Atom& atom, int special_level = 18)
+      : atom(atom), special_level_(special_level) {}
+
+  double operator()(const madness::coord_3d& R) const final;
+
+  madness::Level special_level() const final { return special_level_; };
+
+  std::vector<coord_3d> special_points() const final { return {atom.get_coords()}; }
+};
+
+/**
+ * @class WignerSeitzPotentialFunctor
+ * @brief Functor for evaluating the Wigner-Seitz potential in a simulation cell.
+ *
+ * This class implements a functor that evaluates the electrostatic potential
+ * in a simulation cell due to a set of point charges, with optional periodic
+ * boundary conditions and configurable lattice summation range.
+ *
+ * The potential is computed by summing contributions from point charges
+ * in the simulation cell and their periodic images, as determined by the
+ * specified boundary conditions and kernel range.
+ *
+ * @note The lattice summation range can be overridden by the user, or
+ *       determined automatically based on the boundary conditions and kernel range.
+ */
 class WignerSeitzPotentialFunctor : public FunctionFunctorInterface<double,3> {
 public:
-  /// Constructs a WignerSeitzPotentialFunctor evaluating potential
-  /// in simulation cell \p c due to point charges \p atoms optionally
-  /// periodically repeated according to boundary conditions \p b
-  /// and interaction range along each Cartesian direction limited by \p r .
-  /// Lattice summation range along each axis can be overridden by specifying
-  /// \p lattice_sum_range .
-  /// \tparam Int
-  /// \param atoms list of point charges in the simulation cell
-  /// \param c the simulation cell dimensions
-  /// \param b the boundary conditions
-  /// \param r the kernel range
-  /// \param lattice_sum_range overrides the lattice summation range that by default
+  /**
+   * @brief Constructs a WignerSeitzPotentialFunctor evaluating the potential
+   *        in a simulation cell due to point charges, optionally with periodic
+   *        boundary conditions and a specified lattice summation range.
+   *
+   * @tparam Int Integer type for the lattice summation range.
+   * @param atoms List of point charges in the simulation cell.
+   * @param c The simulation cell dimensions.
+   * @param b The boundary conditions.
+   * @param r The kernel range along each Cartesian direction.
+   * @param lattice_sum_range Overrides the default lattice summation range along each axis.
+   *        By default, this is determined by the number of cells in each direction with
+   *        nonzero contributions to the simulation cell.
+   */
   template <typename Int>
   WignerSeitzPotentialFunctor(const Molecule &atoms, Tensor<double> c,
                               BoundaryConditions<3> b, std::array<KernelRange, 3> r,
@@ -173,10 +288,23 @@ public:
       MADNESS_ASSERT(lattice_sum_range[d] >= 0);
   }
 
-  /// same as the standard ctor, but lacks the ability to override the lattice sum range
+  /**
+   * @brief Constructs a WignerSeitzPotentialFunctor with default lattice sum range.
+   *
+   * This constructor initializes the WignerSeitzPotentialFunctor using the provided molecule,
+   * coefficients tensor, boundary conditions, and kernel ranges. It automatically computes
+   * the default lattice sum range using the given boundary conditions and kernel ranges.
+   *
+   * @param atoms The molecule containing the atomic positions and properties.
+   * @param c The tensor of coefficients for the potential calculation.
+   * @param b The boundary conditions for the simulation cell.
+   * @param r The kernel ranges for each spatial dimension.
+   *
+   * @note This constructor delegates to the main constructor, passing the default lattice sum range.
+   * In this case, the move is a cast, and calling make_default_lattice_sum_range like this is OK.
+   */
   WignerSeitzPotentialFunctor(const Molecule &atoms, Tensor<double> c,
                               BoundaryConditions<3> b, std::array<KernelRange, 3> r) :
-  // N.B. move is a cast, calling make_default_lattice_sum_range like this is OK
   WignerSeitzPotentialFunctor(atoms, std::move(c), std::move(b), std::move(r), make_default_lattice_sum_range(b,r)) {}
 
   double operator()(const coord_3d &x) const final;
@@ -198,10 +326,19 @@ private:
   const std::array<KernelRange, 3> range;
   const std::array<double, 3> cell_width;
   const std::array<double, 3> rcell_width;
-  const std::array<std::int64_t, 3> lattice_sum_range;  // range of lattice summation, default is # of cells in each direction with nonzero contributions to the simulation cell
+  const std::array<std::int64_t, 3> lattice_sum_range;
 };
 
-/// SAPFunctor = Interpolated Atomic Potential for 1 atom
+/**
+ * @class SAPFunctor
+ * @brief Functor for evaluating a smoothed atomic potential, supporting open and periodic boundary conditions.
+ *
+ * This class implements the FunctionFunctorInterface for a 3D double-valued function,
+ * representing a smoothed interpolated atomic potential centered on a given atom. It supports
+ * both open and periodic boundary conditions, and allows customization of the smoothing
+ * parameter, simulation cell, and initial refinement level.
+ *
+ */
 class SAPFunctor : public FunctionFunctorInterface<double,3> {
  private:
   const Atom& atom;
@@ -210,12 +347,19 @@ class SAPFunctor : public FunctionFunctorInterface<double,3> {
   Tensor<double> cell;
   Level special_level_;
  public:
-  /// Generic constructor, can handle open and periodic boundaries
-  /// \param molecule atoms
-  /// \param smoothing_param controls smoothness of 1/r potential.
-  /// \param bc boundary conditions
-  /// \param cell simulation cell (unit cell, if periodic)
-  /// \param special_level the initial refinement level
+  /**
+   * @brief Constructs a SAPFunctor for evaluating a smoothed 1/r potential.
+   *
+   * This constructor initializes the SAPFunctor with a given atom, smoothing parameter,
+   * boundary conditions, simulation cell, and an initial refinement level. It supports
+   * both open and periodic boundary conditions.
+   *
+   * @param atom The atom for which the potential is evaluated.
+   * @param smoothing_param Controls the smoothness of the 1/r potential.
+   * @param bc Boundary conditions for the simulation (default: open or as specified by FunctionDefaults).
+   * @param cell The simulation cell tensor (default: as specified by FunctionDefaults).
+   * @param special_level The initial refinement level (default: 15).
+   */
   SAPFunctor(const Atom& atom,
              double smoothing_param,
              const BoundaryConditions<3>& bc = FunctionDefaults<3>::get_bc(),
@@ -229,6 +373,16 @@ class SAPFunctor : public FunctionFunctorInterface<double,3> {
   std::vector<coord_3d> special_points() const final;
 };
 
+/**
+ * @class PotentialManager
+ * @brief Manages molecular potentials and core projections for quantum chemistry calculations.
+ *
+ * This class encapsulates the management of nuclear and core potentials for a given molecule,
+ * including the construction of nuclear potentials, application of nonlocal core projectors,
+ * and calculation of core projector derivatives. It provides interfaces to access the molecule,
+ * core type, and nuclear potential, as well as to perform core projections and apply nonlocal potentials.
+ *
+ */
 class PotentialManager {
 private:
 Molecule mol;
@@ -251,6 +405,21 @@ public:
         return vnuc;
     }
 
+    /**
+     * @brief Projects the input wavefunctions onto the atomic core orbitals.
+     *
+     * This function computes the projection of the given set of wavefunctions (`psi`)
+     * onto the core orbitals of each atom in the molecule. The projection is performed
+     * for each atom and each of its core orbitals, accumulating the result in the
+     * returned vector of functions. Optionally, the projection can include the core
+     * boundary condition factor (`Bc`).
+     *
+     * @param world The MADNESS World object for parallel execution and data management.
+     * @param psi The input vector of real 3D functions (wavefunctions) to be projected.
+     * @param include_Bc If true, includes the core boundary condition factor in the projection (default: true).
+     * @return A vector of real 3D functions representing the projection of `psi` onto the core orbitals.
+     *
+     */
     vector_real_function_3d core_projection(World & world, const vector_real_function_3d& psi, const bool include_Bc = true)
     {
         int npsi = psi.size();
@@ -284,6 +453,24 @@ public:
         return proj;
     }
 
+    /**
+     * @brief Computes the derivative of the core projector operator with respect to a given axis for a specified atom.
+     *
+     * This function projects the core orbitals and their derivatives onto the molecular orbitals,
+     * then evaluates the sum:
+     * \f[
+     * \sum_i \mathrm{occ}_i \langle \psi_i | \left( \sum_c B_c \frac{d}{dx} | \mathrm{core} \rangle \langle \mathrm{core} | \right) | \psi_i \rangle
+     * \f]
+     * where \f$ \psi_i \f$ are molecular orbitals, \f$ \mathrm{occ}_i \f$ are their occupations,
+     * and the sum over \f$ c \f$ runs over the core orbitals of the specified atom.
+     *
+     * @param world The MADNESS World object for parallel computation.
+     * @param mo The vector of molecular orbitals as real-valued 3D functions.
+     * @param occ The occupation numbers for each molecular orbital.
+     * @param atom The index of the atom for which the core projector derivative is computed.
+     * @param axis The spatial axis (0=x, 1=y, 2=z) along which the derivative is taken.
+     * @return The computed derivative value as a double.
+     */
     double core_projector_derivative(World & world, const vector_real_function_3d& mo, const real_tensor& occ, int atom, int axis)
     {
         vector_real_function_3d cores, dcores;

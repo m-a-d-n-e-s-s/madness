@@ -148,7 +148,9 @@ if (PaRSEC::parsec IN_LIST madness_MADWORLD_INTERFACE_LINK_LIBRARIES)
    enable_language(C)
    list(APPEND _mpi_languages C)
 endif()
-find_package(MPI REQUIRED COMPONENTS "${_mpi_languages}")
+if (DEFINED _mpi_languages)
+        find_package(MPI REQUIRED COMPONENTS "${_mpi_languages}")
+endif()
 
 ########### PaRSEC ############
 if (PaRSEC::parsec IN_LIST madness_MADWORLD_INTERFACE_LINK_LIBRARIES AND NOT TARGET PaRSEC::parsec)

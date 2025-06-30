@@ -138,7 +138,7 @@ namespace madness {
       
       const size_t* get_cpus() const { return cpus; }
       
-      const size_t get_ncpu() const { return ncpu; }
+      size_t get_ncpu() const { return ncpu; }
       
       void bind() {
 #ifndef ON_A_MAC

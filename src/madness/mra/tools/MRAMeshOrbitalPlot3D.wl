@@ -5,7 +5,7 @@ BeginPackage["MRAMeshOrbitalPlot3D`"]
 
 (* ::Text:: *)
 (*{*)
-(* {Description: MRAMeshOrbitalPlot3D[fp,opts] returns a plot of the orbital stored via madness::plot_cubefile and madness::print_json_treefile in files fp . cube and fp . tree . json, respectively . MRAMeshOrbitalPlot3D accepts all options recognized by Graphics3D and ListContourPlot3D functions, as well as the following additional options:, \[SpanFromLeft], \[SpanFromLeft]},*)
+(* {Description: MRAMeshOrbitalPlot3D[fp,opts] returns a plot of the orbital stored via madness::plot_cubefile and madness::print_tree_jsonfile in files fp . cube and fp . tree . json, respectively . MRAMeshOrbitalPlot3D accepts all options recognized by Graphics3D and ListContourPlot3D functions, as well as the following additional options:, \[SpanFromLeft], \[SpanFromLeft]},*)
 (* {Option, Default, Description},*)
 (* {Zoom, 1, can be used to produce a plot in a zoomed-in section of the simulation cell . This does not need to match the zoom value given to plot_cubefile (that only affects the resolution/extent of the Gaussian Cube mesh)},*)
 (* {MRAMeshCuboidDirectives, {EdgeForm[Thick]}, Specifies how the Cuboid objects comprising the MRA mesh are drawn . All Graphics3D directives that are applicable to Cuboid (except Opacity) can be specified . },*)
