@@ -3,8 +3,17 @@
 set(library_sources
 	InputWriter.cpp
 )
+
 set(library_headers
 	InputWriter.hpp
+	ParameterManager.hpp
+		MoldftLib.hpp
+		CCLib.hpp
+		Drivers.hpp
+		MolresponseLib.hpp
+		PathManager.hpp
+		SCFTargetAdapter.hpp
+		Applications.hpp
 )
 
 set(MY_EXECUTABLES
