@@ -1,36 +1,12 @@
 # src/apps/moldft
 
-set(library_sources
-	InputWriter.cpp
-)
+add_mad_executable(madqc2 madqc2.cpp "MADchem;MADresponse2")
+add_dependencies(applications-madness madqc2)
 
-set(library_headers
-	InputWriter.hpp
-	ParameterManager.hpp
-		MoldftLib.hpp
-		CCLib.hpp
-		Drivers.hpp
-		MolresponseLib.hpp
-		PathManager.hpp
-		SCFTargetAdapter.hpp
-		Applications.hpp
-)
-
-set(MY_EXECUTABLES
-	madqc2
-)
-
-
-add_mad_library(qcapp library_sources library_headers "chem" "molresponse2/")
-set(targetname qcapp)
-
-foreach (EXECUTABLE ${MY_EXECUTABLES})
-    add_mad_executable(${EXECUTABLE} "${EXECUTABLE}.cpp" "MADresponse2;MADchem;MADqcapp")
-    target_compile_features(${EXECUTABLE} PRIVATE cxx_std_17)
-endforeach ()
-
+# if(BUILD_TESTING)
+# 	add_scripted_tests(test_callable.py cis "short;applications")
+# 	add_scripted_tests(test_energy_he.py cis "medium;applications")
+# 	add_scripted_tests(test_symmetry_h2o.py cis "long;applications")
+# endif()
 
 install(TARGETS madqc2 DESTINATION "${MADNESS_INSTALL_BINDIR}")
-# For testing script
-
-

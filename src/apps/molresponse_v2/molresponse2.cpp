@@ -4,7 +4,7 @@
 #include "TDHF.h"
 #include "FrequencyLoop.hpp"  // Make sure this is included
 #include "GroundStateData.hpp"
-#include "../madqc_v2/ParameterManager.hpp"
+#include <madness/chem/ParameterManager.hpp>
 #include "PropertyManager.hpp"
 #include "ResponseDebugLogger.hpp"
 #include "ResponseManager.hpp"

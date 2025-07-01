@@ -1,9 +1,9 @@
 #pragma once
 
 #include <filesystem>
-#include "InputWriter.hpp"
-#include "ParameterManager.hpp"
-#include <GroundStateData.hpp>
+#include <madness/chem/InputWriter.hpp>
+#include <madness/chem/ParameterManager.hpp>
+#include <apps/molresponse_v2/GroundStateData.hpp>
 
 struct cc_lib {
   // -----------------------------------------------------------------------------

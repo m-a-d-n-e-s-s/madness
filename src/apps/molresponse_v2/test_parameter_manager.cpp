@@ -1,15 +1,13 @@
 #include <QCCalculationParametersBase.h>
-#include <madness/misc/info.h>
 #include <madness/mra/mra.h>
 #include <molecule.h>
-#include <oep.h>
 #include <TDHF.h>
 
 #include <iostream>
 #include <string>
 
 // #include "ParameterManager.hpp"
-#include <apps/madqc_v2/ParameterManager.hpp>
+#include <madness/chem/ParameterManager.hpp>
 
 // Define a concrete aliased ParameterManager type
 using MyParamMgr = ParameterManager<CalculationParameters, ResponseParameters, OptimizationParameters, Molecule>;
