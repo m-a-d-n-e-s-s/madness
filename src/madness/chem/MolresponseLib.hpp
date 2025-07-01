@@ -2,14 +2,14 @@
 
 #include <filesystem>
 
-#include "../molresponse_v2/GroundStateData.hpp"
-#include "../molresponse_v2/PropertyManager.hpp"
-#include "../molresponse_v2/ResponseDebugLogger.hpp"
-#include "../molresponse_v2/ResponseManager.hpp"
-#include "../molresponse_v2/ResponseMetaData.hpp"
-#include "../molresponse_v2/StateGenerator.hpp"
-#include "InputWriter.hpp"
-#include "ParameterManager.hpp"
+#include <apps/molresponse_v2/GroundStateData.hpp>
+#include <madness/chem/InputWriter.hpp>
+#include <madness/chem/ParameterManager.hpp>
+#include <apps/molresponse_v2/PropertyManager.hpp>
+#include <apps/molresponse_v2/ResponseDebugLogger.hpp>
+#include <apps/molresponse_v2/ResponseManager.hpp>
+#include <apps/molresponse_v2/ResponseMetaData.hpp>
+#include <apps/molresponse_v2/StateGenerator.hpp>
 
 struct molresponse_lib {
   // -----------------------------------------------------------------------------

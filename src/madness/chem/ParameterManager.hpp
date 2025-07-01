@@ -1,7 +1,7 @@
 #pragma once
-#include <CalculationParameters.h>
-#include <CCParameters.h>
-#include <QCCalculationParametersBase.h>
+#include <madness/chem/CalculationParameters.h>
+#include <madness/chem/CCParameters.h>
+#include <madness/mra/QCCalculationParametersBase.h>
 #include <madness/chem/oep.h>
 
 #include <apps/molresponse_v2/ResponseParameters.hpp>

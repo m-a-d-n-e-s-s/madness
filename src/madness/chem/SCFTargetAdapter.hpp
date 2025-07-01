@@ -2,8 +2,8 @@
 #pragma once
 #include <filesystem>
 
-#include "Applications.hpp"
-#include "molecule.h"
+#include <madness/chem/Applications.hpp>
+#include <madness/chem/molecule.h>
 
 struct SCFTarget {
   World& world_;

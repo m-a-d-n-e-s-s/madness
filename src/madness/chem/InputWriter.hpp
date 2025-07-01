@@ -1,9 +1,5 @@
 #pragma once
 #include <madchem.h>
-#include <madness/chem/CalculationParameters.h>
-#include <madness/chem/SCF.h>
-#include <madness/chem/molecule.h>
-#include <apps/molresponse_v2/ResponseParameters.hpp>
 #include <madness/external/nlohmann_json/json.hpp>
 
 /// Write out the “molecule” block from a JSON object, in MADNESS .inp format

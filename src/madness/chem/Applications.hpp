@@ -1,8 +1,8 @@
 #pragma once
 
-#include "InputWriter.hpp"
-#include "ParameterManager.hpp"
-#include "PathManager.hpp"
+#include <madness/chem/InputWriter.hpp>
+#include <madness/chem/ParameterManager.hpp>
+#include <madness/chem/PathManager.hpp>
 
 namespace madness {
   // Scoped CWD: changes the current directory to the given one, and restores when

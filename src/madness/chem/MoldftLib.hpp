@@ -1,11 +1,7 @@
 #pragma once
 #include <madness/chem/SCF.h>
-#include <madness/chem/molopt.h>
-#include <madness/misc/info.h>
-#include <madness/world/worldmem.h>
-
-#include "InputWriter.hpp"
-#include "ParameterManager.hpp"
+#include <madness/chem/InputWriter.hpp>
+#include <madness/chem/ParameterManager.hpp>
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
     defined(HAVE_UNISTD_H)
 

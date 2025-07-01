@@ -12,8 +12,8 @@
 #include <memory>
 #include <vector>
 
-#include "Applications.hpp"  // Interface for SCFApplication / ResponseApplication
-#include "SCFTargetAdapter.hpp"  // SCFTarget
+#include <madness/chem/Applications.hpp>  // Interface for SCFApplication / ResponseApplication
+#include <madness/chem/SCFTargetAdapter.hpp>  // SCFTarget
 
 namespace qcapp {
 

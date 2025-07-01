@@ -1,7 +1,7 @@
 #include <iostream>
 
-#include "oep.h"
-#include "TDHF.h"
+#include <madness/chem/oep.h>
+#include <madness/chem/TDHF.h>
 #include "FrequencyLoop.hpp"  // Make sure this is included
 #include "GroundStateData.hpp"
 #include <madness/chem/ParameterManager.hpp>
@@ -10,7 +10,7 @@
 #include "ResponseManager.hpp"
 #include "ResponseMetaData.hpp"
 #include "StateGenerator.hpp"
-#include "funcdefaults.h"
+#include <madness/mra/funcdefaults.h>
 
 using namespace madness;
 

@@ -1,4 +1,4 @@
-#include "InputWriter.hpp"
+#include <madness/chem/InputWriter.hpp>
 
 using path = std::filesystem::path;
 using json = nlohmann::json;
