@@ -14,7 +14,7 @@
 #include "InnerContributions.hpp"
 #include "MolecularProperty.hpp"
 #include "ResponseIO.hpp"
-#include "ResponseParameters.hpp"
+#include "../../madness/chem/ResponseParameters.hpp"
 #include "ResponseSolverUtils.hpp"
 #include "ResponseVector.hpp"
 #include "VBCMacrotask.hpp"

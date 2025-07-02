@@ -51,6 +51,7 @@ set(MADCHEM_HEADERS
     polynomial.h
     potentialmanager.h
     ParameterManager.hpp
+    ResponseParameters.hpp
     PathManager.hpp
     MolresponseLib.hpp
     Applications.hpp

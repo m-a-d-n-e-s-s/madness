@@ -27,7 +27,7 @@ set(MOLRESPONSE_HEADERS2
     ResponseDebugLogger.hpp
     ResponseDebugLoggerMacros.hpp
     broadcast_json.hpp
-    ResponseParameters.hpp
+#    ResponseParameters.hpp
 )
 
 # Create the MADresponse2 library

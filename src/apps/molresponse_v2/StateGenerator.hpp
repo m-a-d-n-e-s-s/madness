@@ -5,7 +5,7 @@
 #include <string>
 
 #include "MolecularProperty.hpp"
-#include "ResponseParameters.hpp"
+#include "../../madness/chem/ResponseParameters.hpp"
 #include "ResponseState.hpp"
 
 using namespace madness;

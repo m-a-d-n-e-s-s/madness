@@ -4,7 +4,7 @@
 #include <madness/mra/QCCalculationParametersBase.h>
 #include <madness/chem/oep.h>
 
-#include <apps/molresponse_v2/ResponseParameters.hpp>
+#include <madness/chem/ResponseParameters.hpp>
 
 using namespace madness;
 using path = std::filesystem::path;
