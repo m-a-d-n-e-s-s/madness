@@ -92,6 +92,15 @@ class Atom {
   /// Default construct makes a zero charge ghost atom at origin
   Atom() : x(0), y(0), z(0), q(0), atomic_number(0), mass(0.0), pseudo_atom(false) {}
 
+  bool operator==(const Atom &other) const {
+    double thresh=1.e-10;
+    auto displacement=Vector<double, 3>({x, y, z})-(Vector<double, 3>({other.x, other.y, other.z}));
+    double err = displacement.normf();
+    return ((err<thresh) && q == other.q &&
+            atomic_number == other.atomic_number && mass == other.mass &&
+            pseudo_atom == other.pseudo_atom);
+  }
+
   int get_atomic_number() const { return atomic_number; }
 
   madness::Vector<double, 3> get_coords() const { return madness::Vector<double, 3>{x, y, z}; }
@@ -535,6 +544,18 @@ class Molecule {
   double nuclear_attraction_potential_derivative(int atom, int axis, double x, double y, double z) const;
 
   double nuclear_attraction_potential_second_derivative(int atom, int iaxis, int jaxis, double x, double y, double z) const;
+
+ bool operator==(const Molecule& other) const {
+    if (atoms.size() != other.atoms.size() || rcut.size() != other.rcut.size() || pointgroup_ != other.pointgroup_) return false;
+    for (size_t i = 0; i < atoms.size(); ++i) {
+      if (not (atoms[i] == other.atoms[i])) return false;
+    }
+    for (size_t i = 0; i < rcut.size(); ++i) {
+      if (rcut[i] != other.rcut[i]) return false;
+    }
+
+    return (field-other.field).normf()<1.e-13 && parameters == other.parameters;
+  }
 
   template <typename Archive>
   void serialize(Archive &ar) {

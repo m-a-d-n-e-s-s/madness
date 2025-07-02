@@ -354,6 +354,8 @@ void SCF::load_mos(World& world) {
     // Local copies for a basic check
     double L=0;
     int k1=0;                    // Ignored for restarting, used in response only
+    double converged_for_thresh1=1.e10;
+    double current_energy1=1.e10;
     unsigned int version = 4;// UPDATE THIS IF YOU CHANGE ANYTHING
     unsigned int archive_version=0;
 
@@ -369,12 +371,17 @@ void SCF::load_mos(World& world) {
 
     // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
     // EPS, SWAP, ... sigh
-    ar & current_energy & spinrest;
+    ar & current_energy1 & spinrest;
     // Reorder
-    ar & L & k1 & molecule & param.xc() & param.localize_method() & converged_for_thresh;
+    Molecule mol;
+    ar & L & k1 & mol& param.xc() & param.localize_method() & converged_for_thresh1;
+    if (not (mol == molecule)) {
+        if (world.rank() == 0) print("Warning: Molecule in archive does not match the current molecule");
+        throw "Molecule mismatch";
+    }
 
     ar & nmo;
-    MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha()));
+    MADNESS_CHECK_THROW(nmo >= unsigned(param.nmo_alpha()),"mismatch in load_mos: nmo < nmo_alpha");
     ar & aeps & aocc & aset;
     // Some basic checks
     if (L != param.L()) {
@@ -447,6 +454,10 @@ void SCF::load_mos(World& world) {
             //                normalize(world, bmo);
         }
     }
+    // if everything worked out, set convergence parameters
+    converged_for_thresh= converged_for_thresh1;
+    current_energy=current_energy1;
+    molecule=mol;
 }
 
 

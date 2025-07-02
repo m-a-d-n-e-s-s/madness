@@ -465,7 +465,7 @@ nlohmann::json Molecule::to_json() const {
   mol_schema["geometry"] = {};
 
   auto molecule_parameters = parameters.to_json();
-  mol_schema["parameters"] = molecule_parameters;
+  mol_schema["parameters"] = molecule_parameters["parameters"];
   insert_symbols_and_geometry(mol_schema);
   return mol_schema;
 }

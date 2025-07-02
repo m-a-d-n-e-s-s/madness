@@ -47,17 +47,39 @@ namespace madness {
     /// check if this calculation has a json with results
     [[nodiscard]] virtual bool has_results(std::string filename) const {
       // check if the results file exists
-      return std::filesystem::exists(workdir_ / filename);
+      // return std::filesystem::exists(workdir_ / filename);
+      return std::filesystem::exists( filename);
+    }
+
+    [[nodiscard]] virtual bool verify_results(const nlohmann::json& j) const {
+      // check if some key parameters of the calculation match:
+      // molecule, box size, nmo_alpha, nmo_beta
+      Molecule mol1 = params_.get<Molecule>();
+      Molecule mol2;
+      mol2.from_json(j["molecule"]);
+      if (not (mol1 == mol2)) {
+        print("molecule mismatch");
+        mol1.print();
+        mol2.print();
+        return false;
+      }
+      return true;
     }
 
     /// read the results from a json file
     [[nodiscard]] virtual nlohmann::json read_results(std::string filename) const {
       if (has_results(filename)) {
         std::cout << "Found checkpoint file: " << filename << std::endl;
-        std::ifstream ifs(workdir_ / filename);
+        // std::ifstream ifs(workdir_ / filename);
+        std::ifstream ifs( filename);
         nlohmann::json j;
         ifs >> j;
         ifs.close();
+        if (not verify_results(j)) {
+          std::string msg= "Results file " + filename + " does not match the parameters of the calculation";
+          print(msg);
+          return nlohmann::json(); // return empty json
+        }
         return j;
       } else {
         std::string msg= "Results file " + filename + " does not exist in " + workdir_.string();
@@ -162,7 +184,7 @@ namespace madness {
         bool needWavefunctions = true;
 
         // 2) define the "checkpoint" file
-        auto ckpt = "scf_results.json";
+        auto ckpt = params_.get<CalculationParameters>().prefix()+".calc_info.json";
         nlohmann::json j;
         if (has_results(ckpt)) j=read_results(ckpt);
 
@@ -208,13 +230,6 @@ namespace madness {
         nlohmann::json outj = {{"energy", energy_}};
         if (dipole_.has_value() and dipole_->has_data()) outj["dipole"] = tensor_to_json(*dipole_);
         if (gradient_.has_value() and gradient_->has_data()) outj["gradient"] = tensor_to_json(*gradient_);
-
-
-        if (world_.rank() == 0) {
-          std::cout << "Writing checkpoint file: " << ckpt << std::endl;
-          std::ofstream o(ckpt);
-          o << std::setw(2) << outj << std::endl;
-        }
       }
     }
 
