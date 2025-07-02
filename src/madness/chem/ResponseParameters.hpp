@@ -1,5 +1,5 @@
 #pragma once
-#include <QCCalculationParametersBase.h>
+#include <madness/mra/QCCalculationParametersBase.h>
 
 using namespace madness;
 
