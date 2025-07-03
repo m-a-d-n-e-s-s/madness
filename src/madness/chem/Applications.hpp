@@ -161,6 +161,11 @@ namespace madness {
       return return_ptr;
     }
 
+    template <typename T = ScfT, std::enable_if_t<std::is_same_v<T, Nemo>, int> = 0>
+    explicit SCFApplication(World& w, Params p)
+        : Application(p), ScfT(w,p.get<CalculationParameters>(), p.get<Nemo::NemoCalculationParameters>(), p.get<Molecule>()), world_(w) {}
+
+    template <typename T = ScfT, std::enable_if_t<std::is_same_v<T, SCF>, int> = 0>
     explicit SCFApplication(World& w, Params p)
         : Application(p), ScfT(w,p.get<CalculationParameters>(), p.get<Molecule>()), world_(w) {}
 

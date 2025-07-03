@@ -122,8 +122,9 @@ int main(int argc, char** argv) {
         }
         cparam.set_derived_value("convergence_criteria",convergence_crit);
         Molecule molecule(world,parser);
-        std::shared_ptr<Nemo> reference(new Nemo(world, cparam, molecule));
-        OEP_Parameters oep_param(world,parser);;
+        Nemo::NemoCalculationParameters nemo_param(world,parser);
+        std::shared_ptr<Nemo> reference(new Nemo(world, cparam, nemo_param, molecule));
+        OEP_Parameters oep_param(world,parser);
         std::shared_ptr<OEP> oep(new OEP(world, oep_param, reference));
         oep->print_parameters({"reference", "oep", "oep_calc"});
         if (test) oep->selftest();

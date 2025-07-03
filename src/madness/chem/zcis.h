@@ -227,7 +227,7 @@ public:
 	void normalize(std::vector<root>& roots) const;
 
 	void compare_to_file(const std::vector<complex_function_3d>& rhs, const std::string name) const {
-		if (nemo->cparam.spin_restricted()) {
+		if (nemo->get_calc_param().spin_restricted()) {
 			save_function(rhs,name);
 
 		} else {

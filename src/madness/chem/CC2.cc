@@ -309,7 +309,7 @@ void CC2::output_calc_info_schema(const std::string model, const double& energy)
         j["driver"]="energy";
         j["return_energy"]=energy;
         j[model]=energy;
-        update_schema(nemo->get_param().prefix()+".calc_info", j);
+        update_schema(nemo->get_calc_param().prefix()+".calc_info", j);
     }
 }
 
@@ -324,7 +324,7 @@ bool CC2::check_core_valence_separation(const Tensor<double>& fmat) const {
 
 Tensor<double> CC2::enforce_core_valence_separation(const Tensor<double>& fmat) {
 
-    if (nemo->get_param().localize_method()=="canon") {
+    if (nemo->get_calc_param().localize_method()=="canon") {
         auto nmo=nemo->get_calc()->amo.size();
         Tensor<double> fmat1(nmo,nmo);
         for (size_t i=0; i<nmo; ++i) fmat1(i,i)=nemo->get_calc()->aeps(i);
@@ -332,7 +332,7 @@ Tensor<double> CC2::enforce_core_valence_separation(const Tensor<double>& fmat) 
     }
 
     Localizer localizer(world,nemo->get_calc()->aobasis,nemo->get_calc()->molecule,nemo->get_calc()->ao);
-    localizer.set_enforce_core_valence_separation(true).set_method(nemo->param.localize_method());
+    localizer.set_enforce_core_valence_separation(true).set_method(nemo->get_calc_param().localize_method());
     localizer.set_metric(nemo->R);
 
     Tensor<double> fock = copy(fmat);
@@ -360,7 +360,7 @@ Tensor<double> CC2::enforce_core_valence_separation(const Tensor<double>& fmat) 
         }
     }
 
-    if (world.rank() == 0  and parameters.debug() and nemo->get_param().nalpha() < 10) {
+    if (world.rank() == 0  and parameters.debug() and nemo->get_calc_param().nalpha() < 10) {
         print("localized fock matrix");
         print(fock);
     }

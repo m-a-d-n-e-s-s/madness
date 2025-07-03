@@ -279,7 +279,7 @@ public:
     CalculationParameters get_calcparam() const {
         auto n=std::dynamic_pointer_cast<const Nemo>(reference_);
         if (not n) MADNESS_EXCEPTION("could not cast NemoBase to Nemo",1);
-        return n->param;
+        return n->get_calc_param();
     }
 
     projector_irrep get_symmetry_projector() const {

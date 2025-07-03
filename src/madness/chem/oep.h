@@ -110,8 +110,8 @@ public:
     OEP_Parameters(const OEP_Parameters& other) = default;
 
 
-    void set_derived_values(const Nemo::NemoCalculationParameters& nparam) {
-    	set_derived_value("density_threshold_high",10.0*nparam.econv());
+    void set_derived_values(const CalculationParameters& cparam) {
+    	set_derived_value("density_threshold_high",10.0*cparam.econv());
     	set_derived_value("density_threshold_low",0.01*get<double>("density_threshold_high"));
 		if (dens_thresh_hi()<dens_thresh_lo()) {
 			MADNESS_EXCEPTION("confused thresholds for the long-range transition",1);
@@ -159,22 +159,21 @@ private:
 public:
 
 	OEP(World& world, const OEP_Parameters& oepparam, const std::shared_ptr<const Nemo>& reference)
-			: Nemo(world, reference->get_param(), reference->molecule()),		// OEP is a nemo calculation, ctor will set param from reference
+			: Nemo(world, reference->get_calc_param(), reference->get_nemo_param(), reference->molecule()),		// OEP is a nemo calculation, ctor will set param from reference
 			  oep_param(oepparam),
 			  reference(reference) {
 
 		// add tight convergence criteria
-		std::vector<std::string> convergence_crit=param.get<std::vector<std::string> >("convergence_criteria");
+		std::vector<std::string> convergence_crit=get_calc_param().get<std::vector<std::string> >("convergence_criteria");
 		if (std::find(convergence_crit.begin(),convergence_crit.end(),"each_energy")==convergence_crit.end()) {
 			convergence_crit.push_back("each_energy");
 		}
-		param.set_derived_value("convergence_criteria",convergence_crit);
 		calc->param.set_derived_value("convergence_criteria",convergence_crit);
 
-		oep_param.set_derived_values(param);
+		oep_param.set_derived_values(get_calc_param());
 
 		// check that reference is well converged
-		MADNESS_CHECK_THROW(reference->get_param().converge_each_energy(),"need tightly converged reference for OEP calculation");
+		MADNESS_CHECK_THROW(reference->get_calc_param().converge_each_energy(),"need tightly converged reference for OEP calculation");
 
 	}
 
@@ -184,20 +183,18 @@ public:
               oep_param(world, parser) {
 
         // add tight convergence criteria
-        std::vector<std::string> convergence_crit=param.get<std::vector<std::string> >("convergence_criteria");
+        std::vector<std::string> convergence_crit=get_calc_param().get<std::vector<std::string> >("convergence_criteria");
         if (std::find(convergence_crit.begin(),convergence_crit.end(),"each_energy")==convergence_crit.end()) {
             convergence_crit.push_back("each_energy");
         }
-        param.set_derived_value("convergence_criteria",convergence_crit);
         calc->param.set_derived_value("convergence_criteria",convergence_crit);
 
         // set reference
 		auto ref=std::make_shared<Nemo>(world,parser);
-        ref->param.set_derived_value("convergence_criteria",convergence_crit);
         ref->get_calc()->param.set_derived_value("convergence_criteria",convergence_crit);
         set_reference(ref);
 
-        oep_param.set_derived_values(param);
+        oep_param.set_derived_values(get_calc_param());
     }
 
     std::string name() const {return "oep";}
@@ -231,8 +228,8 @@ public:
     void print_parameters(std::vector<std::string> what) const {
         for (auto w : what) {
             if (w=="oep") oep_param.print("oep");
-            else if (w=="reference") reference->param.print("dft");
-            else if (w=="oep_calc") param.print("oep_calc");
+            else if (w=="reference") reference->get_calc_param().print("dft");
+            else if (w=="oep_calc") get_calc_param().print("oep_calc");
             else {MADNESS_EXCEPTION(std::string("unknown parameter set to print "+w).c_str(),1);}
         }
     }
@@ -251,7 +248,7 @@ public:
 
     virtual double value(const Tensor<double>& x) {
     	MADNESS_CHECK_THROW(reference->check_converged(x),"OEP reference is not converged at this geometry");
-        set_protocol(param.econv());
+        set_protocol(get_calc_param().econv());
         calc->copy_data(world,*(reference->get_calc()));
         double energy=0.0;
         Tensor<double> fock;
@@ -347,7 +344,7 @@ public:
 //        J.reset_poisson_operator_ptr(param.lo(),param.econv());
 //        real_function_3d lra = -1.0*J.compute_potential(R_square*square(nemo[homo_ind]));
         Coulomb<double,3> J(world,this);
-        real_function_3d lra=-1.0/(param.nalpha()+param.nbeta())*J.compute_potential(this);
+        real_function_3d lra=-1.0/(get_calc_param().nalpha()+get_calc_param().nbeta())*J.compute_potential(this);
 //        print("compute long-range part of the Slater potential from the full molecular density");
         if (oep_param.saving_amount() >= 3) save(lra, "lra_slater");
 
@@ -383,7 +380,7 @@ public:
 
 	    for (int idim=0; idim<3; ++idim) {
 	    	real_derivative_3d D(world,idim);
-	    	if(param.dft_deriv() == "bspline") D.set_bspline1();
+	    	if(get_calc_param().dft_deriv() == "bspline") D.set_bspline1();
 	    	vecfuncT nemo_copy=copy(world,nemo);
 	    	refine(world,nemo_copy);
 	    	std::vector<real_function_3d> dnemo=apply(world,D,nemo_copy);
@@ -409,7 +406,7 @@ public:
 	    	vecfuncT nemo_copy=copy(world,nemo);
 	    	refine(world,nemo_copy);
 
-	    	if(param.dft_deriv() == "bspline") grad_nemo[i] = grad_bspline_one(nemo_copy[i]);  // gradient using b-spline
+	    	if(get_calc_param().dft_deriv() == "bspline") grad_nemo[i] = grad_bspline_one(nemo_copy[i]);  // gradient using b-spline
 	    	else grad_nemo[i] = grad(nemo_copy[i]);  // default gradient using abgv
 	    }
 

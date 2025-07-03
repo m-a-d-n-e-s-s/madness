@@ -1,5 +1,3 @@
-
-
 /*
   This file is part of MADNESS.
 
@@ -72,6 +70,14 @@ static void END_TIMER(World& world, const char* msg) {
   if (world.rank() == 0)
     printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
 }
+
+/// TODO:
+///  - restart options
+///  - error handling
+///  - parameter handling
+///  - nemo projections
+///  - output unification
+///  - numerical parameters
 
 int main(int argc, char** argv) {
   World& world = initialize(argc, argv);

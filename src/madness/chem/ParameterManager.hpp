@@ -181,6 +181,7 @@ class ParameterManager : public madness::QCCalculationParametersBase {
 // Define a concrete aliased ParameterManager type
 using Params = ParameterManager<CalculationParameters,
                                 ResponseParameters,
+                                Nemo::NemoCalculationParameters,
                                 OptimizationParameters,
                                 OEP_Parameters,
                                 TDHFParameters,

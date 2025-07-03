@@ -59,7 +59,6 @@ int main(int argc, char **argv) {
         } else {
 
             auto nemo=std::make_shared<Nemo>(world, parser);
-            nemo->get_calc()->param.set_derived_value("k",nemo->get_param().k());
             TDHF tdhf(world, parser, nemo);
 
             print_header2("input section");

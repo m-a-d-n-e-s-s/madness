@@ -224,7 +224,7 @@ public:
 
 	bool test() const;
 
-	const CalculationParameters& get_cparam() const {return cparam;};
+	const CalculationParameters& get_calc_param() const {return calc_param;};
 	Molecule& molecule() override {return mol;};
 	const Molecule& molecule() const {return mol;};
 
@@ -299,7 +299,7 @@ public:
 
 	/// are there explicit beta orbitals
 	bool have_beta() const {
-		return ((not cparam.spin_restricted()) and (cparam.nbeta()>0));
+		return ((not get_calc_param().spin_restricted()) and (get_calc_param().nbeta()>0));
 	}
 
 	void save_orbitals(std::string suffix) const;
@@ -409,14 +409,14 @@ public:
 			const std::vector<complex_function_3d>& bmo) const {
 		real_function_3d density=NemoBase::compute_density(amo);
 		if (have_beta()) density+=NemoBase::compute_density(bmo);
-		if (cparam.spin_restricted()) density=density.scale(2.0);
+		if (get_calc_param().spin_restricted()) density=density.scale(2.0);
 		return density;
 	}
 
 
 	real_function_3d compute_nemo_spin_density(const std::vector<complex_function_3d>& amo,
 			const std::vector<complex_function_3d>& bmo) const {
-		if (cparam.spin_restricted()) return real_function_3d(world);
+		if (get_calc_param().spin_restricted()) return real_function_3d(world);
 
 		real_function_3d density=NemoBase::compute_density(amo);
 		if (have_beta()) density-=NemoBase::compute_density(bmo);
@@ -442,7 +442,8 @@ protected:
     printleveler print_info=printleveler(2);
 
 	/// standard calculation parameters
-    Nemo::NemoCalculationParameters cparam;
+    Nemo::NemoCalculationParameters nemo_param;
+	CalculationParameters calc_param;
 
 	std::shared_ptr<Diamagnetic_potential_factor> diafac;
 

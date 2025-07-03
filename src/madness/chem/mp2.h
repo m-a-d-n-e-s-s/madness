@@ -144,7 +144,7 @@ public:
     /// note that nemo() and orbital() are the same if no nuclear
     /// correlation factor is used
     real_function_3d orbital(const int i) const {
-        MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
+        MADNESS_ASSERT(nemo_ptr->get_calc_param().spin_restricted());
         return orbitals_[i];
     }
 
@@ -153,7 +153,7 @@ public:
     /// note that nemo() and orbital() are the same if no nuclear
     /// correlation factor is used
     std::vector<real_function_3d> orbitals() const {
-        MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
+        MADNESS_ASSERT(nemo_ptr->get_calc_param().spin_restricted());
         return orbitals_;
     }
 
@@ -162,7 +162,7 @@ public:
     /// note that nemo() and orbital() are the same if no nuclear
     /// correlation factor is used
     std::vector<real_function_3d> R2orbitals() const {
-        MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
+        MADNESS_ASSERT(nemo_ptr->get_calc_param().spin_restricted());
         return R2orbitals_;
     }
 
@@ -171,7 +171,7 @@ public:
     /// note that nemo() and orbital() are the same if no nuclear
     /// correlation factor is used
     real_function_3d R2orbital(const int i) const {
-        MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
+        MADNESS_ASSERT(nemo_ptr->get_calc_param().spin_restricted());
         return R2orbitals_[i];
     }
 
@@ -180,7 +180,7 @@ public:
     /// note that nemo() and orbital() are the same if no nuclear
     /// correlation factor is used
     real_function_3d nemo(const int i) const {
-        MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
+        MADNESS_ASSERT(nemo_ptr->get_calc_param().spin_restricted());
         return nemo_ptr->get_calc()->amo[i];
     }
 
@@ -189,19 +189,19 @@ public:
     /// note that nemo() and orbital() are the same if no nuclear
     /// correlation factor is used
     std::vector<real_function_3d> nemos() const {
-        MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
+        MADNESS_ASSERT(nemo_ptr->get_calc_param().spin_restricted());
         return nemo_ptr->get_calc()->amo;
     }
 
     /// return orbital energy i
     double orbital_energy(const int i) const {
-        MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
+        MADNESS_ASSERT(nemo_ptr->get_calc_param().spin_restricted());
         return nemo_ptr->get_calc()->aeps[i];
     }
 
     /// return the Coulomb potential
     real_function_3d get_coulomb_potential() const {
-        MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
+        MADNESS_ASSERT(nemo_ptr->get_calc_param().spin_restricted());
         if (coulomb.is_initialized()) return copy(coulomb);
         functionT rho = 2.0*nemo_ptr->compute_density(nemos())*nemo_ptr->R_square;
         coulomb = (nemo_ptr->get_calc()->make_coulomb_potential(rho)).truncate();
@@ -215,8 +215,8 @@ public:
 
     /// return the number of occupied orbitals
     int nocc() const {
-        MADNESS_ASSERT(nemo_ptr->get_param().spin_restricted());
-        return nemo_ptr->get_param().nalpha();
+        MADNESS_ASSERT(nemo_ptr->get_calc_param().spin_restricted());
+        return nemo_ptr->get_calc_param().nalpha();
     }
 };
 

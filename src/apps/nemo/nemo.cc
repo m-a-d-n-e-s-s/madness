@@ -79,12 +79,12 @@ int main(int argc, char** argv) {
 
             print_header2("input section");
             if (world.rank() == 0) {
-                nemo->get_param().print("dft", "end");
+                nemo->get_calc_param().print("dft", "end");
                 nemo->molecule().print();
             }
 
             // optimize the geometry if requested
-            if (nemo->get_param().gopt()) {
+            if (nemo->get_calc_param().gopt()) {
                 print_header2("Geometry Optimization");
                 MolecularOptimizer geom(world, parser, nemo);
                 geom.parameters.print("geoopt", "end");
@@ -94,12 +94,12 @@ int main(int argc, char** argv) {
                 nemo->value();
 
                 // reduce print level
-                nemo->param.set_derived_value("print_level",2);
+                nemo->get_calc()->param.set_derived_value("print_level",2);
                 nemo->get_calc()->param.set_derived_value("print_level",2);
                 nemo->get_calc()->set_print_timings(false);
 
                 // compute initial hessian
-                if (nemo->get_param().ginitial_hessian()) {
+                if (nemo->get_calc_param().ginitial_hessian()) {
                     Tensor<double> hess = nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
                     geom.set_hessian(hess);
                 }
@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
             }
 
             // compute the hessian
-            if (nemo->param.hessian()) nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
+            if (nemo->get_nemo_param().hessian()) nemo->hessian(nemo->get_calc()->molecule.get_all_coords());
 
 
         } catch (const SafeMPI::Exception& e) {
