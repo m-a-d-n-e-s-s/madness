@@ -8,9 +8,6 @@ struct ResponseParameters : public QCCalculationParametersBase {
   ResponseParameters(const ResponseParameters &other) = default;
   ResponseParameters(World &world, const commandlineparser &parser)
       : ResponseParameters() {
-    if (world.rank() == 0) {
-      std::cout << "Reading response parameters from command line" << std::endl;
-    }
     read_input_and_commandline_options(world, parser, tag);
     set_derived_properties();
     validate_user_specified_properties();
@@ -68,6 +65,12 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<std::string>("localize", "canon", "localization method",
                             {"pm", "boys", "new", "canon"});
   }
+
+  std::string get_tag() const override {
+    return std::string(tag);
+  }
+
+
 
  public:
   using QCCalculationParametersBase::read_input_and_commandline_options;

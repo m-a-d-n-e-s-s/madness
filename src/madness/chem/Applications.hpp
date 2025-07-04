@@ -30,13 +30,11 @@ namespace madness {
     [[nodiscard]] virtual nlohmann::json results() const = 0;
 
     // get the parameters used for this application
-    [[nodiscard]] const Params& get_parameters() const {
-      return params_;
-    }
+    [[nodiscard]] virtual const QCCalculationParametersBase& get_parameters() const = 0;
 
-    // get the parameters used for this application
-    [[nodiscard]] Params& get_parameters() {
-      return params_;
+    void print_parameters(World& world) const {
+      std::string tag= get_parameters().get_tag();
+      if (world.rank() == 0) get_parameters().print(tag,"end");
     }
 
     // get the working directory for this application
@@ -127,7 +125,7 @@ namespace madness {
     }
 
   protected:
-    Params params_;
+    const Params params_;
     path workdir_;
     nlohmann::json results_;
   };
@@ -137,8 +135,18 @@ namespace madness {
   class SCFApplication : public Application, public ScfT, public std::enable_shared_from_this<SCFApplication<Library,ScfT>> {
   public:
 
-    std::shared_ptr<SCF> get_scf() const {
-      return std::dynamic_pointer_cast<SCF>(this->shared_from_this());
+    /// SCF ctor
+    template <typename T = ScfT, std::enable_if_t<std::is_same_v<T, Nemo>, int> = 0>
+    explicit SCFApplication(World& w, const Params& p)
+        : Application(p), ScfT(w,p.get<CalculationParameters>(), p.get<Nemo::NemoCalculationParameters>(), p.get<Molecule>()), world_(w) {}
+
+    /// Nemo ctor
+    template <typename T = ScfT, std::enable_if_t<std::is_same_v<T, SCF>, int> = 0>
+    explicit SCFApplication(World& w, const Params& p)
+        : Application(p), ScfT(w,p.get<CalculationParameters>(), p.get<Molecule>()), world_(w) {}
+
+    std::shared_ptr<const SCF> get_scf() const {
+      return std::dynamic_pointer_cast<const SCF>(this->shared_from_this());
     }
 
     bool constexpr is_nemo() const {
@@ -161,13 +169,14 @@ namespace madness {
       return return_ptr;
     }
 
-    template <typename T = ScfT, std::enable_if_t<std::is_same_v<T, Nemo>, int> = 0>
-    explicit SCFApplication(World& w, Params p)
-        : Application(p), ScfT(w,p.get<CalculationParameters>(), p.get<Nemo::NemoCalculationParameters>(), p.get<Molecule>()), world_(w) {}
 
-    template <typename T = ScfT, std::enable_if_t<std::is_same_v<T, SCF>, int> = 0>
-    explicit SCFApplication(World& w, Params p)
-        : Application(p), ScfT(w,p.get<CalculationParameters>(), p.get<Molecule>()), world_(w) {}
+    const QCCalculationParametersBase& get_parameters() const override {
+      if (is_nemo()) {
+        return get_nemo()->get_calc_param();
+      } else {
+        return get_scf()->param;
+      }
+    }
 
     void run(const std::filesystem::path& workdir) override {
       // 1) set up a namedspaced directory for this run
@@ -278,6 +287,10 @@ namespace madness {
           Application(std::move(params)),
           indir_(std::move(indir)) {}
 
+
+    const QCCalculationParametersBase& get_parameters() const override {
+      return params_.get<ResponseParameters>();
+    }
     /**
      * @brief Execute response + property workflow, writing into workdir/response
      */
@@ -317,6 +330,10 @@ namespace madness {
     explicit CC2Application(World& w, const Params& p, const SCFApplicationT& reference)
         : Application(p), world_(w), reference_(reference),
           CC2(w, p.get<CCParameters>(), p.get<TDHFParameters>(), reference.get_nemo()) {
+    }
+
+    const QCCalculationParametersBase& get_parameters() const override {
+      return parameters; // CCParameters
     }
 
     void run(const std::filesystem::path& workdir) override {
@@ -410,6 +427,11 @@ namespace madness {
     explicit TDHFApplication(World& w, const Params& p, const SCFApplicationT& reference)
         : Application(p), world_(w), reference_(reference),
           TDHF(w, p.get<TDHFParameters>(), reference.get_nemo()) {
+    }
+
+
+    const QCCalculationParametersBase& get_parameters() const override {
+      return TDHF::get_parameters(); // TDHFParameters
     }
 
     void run(const std::filesystem::path& workdir) override {
@@ -521,6 +543,10 @@ namespace madness {
           OEP(w, p.get<OEP_Parameters>(), reference.get_nemo()) {
     }
 
+
+    const QCCalculationParametersBase& get_parameters() const override {
+      return oep_param; // OEP_Parameters
+    }
     void run(const std::filesystem::path& workdir) override {
       // 1) set up a namedspaced directory for this run
       PathManager pm(workdir, "oep");

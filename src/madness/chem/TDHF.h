@@ -36,6 +36,11 @@ namespace madness {
             read_input_and_commandline_options(world, parser, "response");
         }
 
+        std::string get_tag() const override {
+            return std::string(tag);
+        }
+
+
         void initialize_all() {
 
             // MRA stuff
@@ -316,7 +321,7 @@ public:
     /// analyze the root: oscillator strength and contributions from occupied orbitals
     void analyze(const std::vector<CC_vecfunction> &x) const;
 
-    TDHFParameters get_parameters() const {return parameters;};
+    const TDHFParameters& get_parameters() const {return parameters;};
 
     std::vector<CC_vecfunction> get_converged_roots() const {return converged_roots;}
 

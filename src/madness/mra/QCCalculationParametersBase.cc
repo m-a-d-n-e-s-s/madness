@@ -74,7 +74,7 @@ void QCCalculationParametersBase::read_input(World& world, const std::string fil
             throw;
         } catch (std::exception& e) {
             std::stringstream ss;
-            ss << "could not read data group >>" << tag << "<< in file " << filename << std::endl;
+            ss << "could not read data group >>" << tag << "<< in file " << filename;
             errmsg=ss.str();
         }
     }
@@ -176,10 +176,19 @@ void QCCalculationParametersBase::read_internal(World& world, std::string& filec
 };
 
 
+bool operator==(const QCCalculationParametersBase& p1,
+			   const QCCalculationParametersBase& p2) {
+	if (p1.parameters.size() != p2.parameters.size()) return false;
+	for (const auto& [key, value] : p1.parameters) {
+		if (not p2.parameter_exists(key)) return false;
+		if (not (value.get_value() == p2.get_parameter(key).get_value())) return false;
+	}
+	return true;
+}
 
 
-    bool operator!=(const QCCalculationParametersBase& p1,
-                    const QCCalculationParametersBase& p2) {
-        return !(p1 == p2);
-    }
+bool operator!=(const QCCalculationParametersBase& p1,
+                const QCCalculationParametersBase& p2) {
+    return !(p1 == p2);
+}
 } /* namespace madness */

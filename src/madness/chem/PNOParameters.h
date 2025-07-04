@@ -30,6 +30,11 @@ std::istream& operator >> (std::istream& is, GuessType& en);
 class PNOParameters: public QCCalculationParametersBase {
 public:
 
+
+	std::string get_tag() const override {
+		return std::string("pno");
+	}
+
 	template<typename T>
 	T assign_from_string(const std::string& string)const{
 		T result;
@@ -233,6 +238,10 @@ public:
 	F12Parameters(World& world, const commandlineparser& parser, const PNOParameters& param, const std::string& TAG="pno") : PNOParameters(param){
 		initialize_f12_parameters();
 		QCCalculationParametersBase::read_input_and_commandline_options(world,parser,TAG);
+	}
+
+	std::string get_tag() const override {
+		return std::string("f12");
 	}
 
 

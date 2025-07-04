@@ -25,6 +25,8 @@ class Driver {
  public:
   virtual ~Driver() = default;
 
+  virtual void print_parameters(World& world) const =0;
+
   /**
    * @brief Execute the driver, writing outputs under the given directory.
    * @param workdir Base directory for this driver's outputs.
@@ -44,6 +46,10 @@ class Driver {
 class SinglePointDriver : public Driver {
  public:
   explicit SinglePointDriver(std::shared_ptr<Application> app) : app_(app) {}
+
+  void print_parameters(World& world) const override {
+    app_->print_parameters(world);
+  }
 
   void execute(const std::filesystem::path& workdir) override {
     // Create workdir for this application
@@ -67,6 +73,10 @@ class OptimizeDriver : public Driver {
                  std::function<std::unique_ptr<Application>(Params)> factory,
                  Params p)
       : world_(w), factory_(std::move(factory)), params_(std::move(p)) {}
+
+    void print_parameters(World& world) const override {
+      params_.print_all();
+    }
 
   void execute(const std::filesystem::path& workdir) override {
     // 1) make our single "opt" folder
@@ -134,6 +144,10 @@ class Workflow {
    */
   void addDriver(std::unique_ptr<Driver> driver) {
     drivers_.push_back(std::move(driver));
+  }
+
+  void print_parameters(World& world) const {
+      for (const auto& d : drivers_) d->print_parameters(world);
   }
 
   /**

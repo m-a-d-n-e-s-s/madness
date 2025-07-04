@@ -110,6 +110,11 @@ public:
     OEP_Parameters(const OEP_Parameters& other) = default;
 
 
+	std::string get_tag() const override {
+		return std::string("oep");
+	}
+
+
     void set_derived_values(const CalculationParameters& cparam) {
     	set_derived_value("density_threshold_high",10.0*cparam.econv());
     	set_derived_value("density_threshold_low",0.01*get<double>("density_threshold_high"));
@@ -145,11 +150,12 @@ public:
 
 class OEP : public Nemo {
 
-private:
 
+protected:
     /// parameters for this OEP calculation
 	OEP_Parameters oep_param;
 
+private:
 	/// the wave function reference that determines the local potential
 	std::shared_ptr<const Nemo> reference;
 

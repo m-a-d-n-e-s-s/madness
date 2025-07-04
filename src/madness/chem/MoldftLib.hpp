@@ -28,17 +28,14 @@ struct moldft_lib {
   }
 
   // params get's changed by SCF constructor
-  inline static Results run_scf(World& world, Params& params,
+  inline static Results run_scf(World& world, const Params& params,
                                 const std::filesystem::path& outdir) {
-    auto moldft_params = params.get<CalculationParameters>();
+    const auto moldft_params = params.get<CalculationParameters>();
     const auto& molecule = params.get<Molecule>();
 
     auto archive_name = moldft_params.prefix() + ".restartdata";
     auto restart_path = path(archive_name) / ".00000";
 
-    if (std::filesystem::exists(restart_path)) {
-      moldft_params.set_user_defined_value<bool>("restart", true);
-    }
     world.gop.fence();
     // save the input file so we can read it back in and get derived parameters
     if (world.rank() == 0) {

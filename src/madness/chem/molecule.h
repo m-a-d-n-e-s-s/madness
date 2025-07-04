@@ -137,6 +137,7 @@ class Molecule {
     return mol_schema;
   }
 
+
   struct GeometryParameters : public QCCalculationParametersBase {
     GeometryParameters(const GeometryParameters &other) = default;
 
@@ -176,6 +177,10 @@ class Molecule {
       initialize<std::string>("core_type", "none", "core potential type", {"none", "mcp"});
       initialize<bool>("psp_calc", false, "pseudopotential calculation for all atoms");
       initialize<bool>("pure_ae", true, "pure all electron calculation with no pseudo-atoms");
+    }
+
+    std::string get_tag() const override {
+      return std::string("geometry");
     }
 
     void set_global_convenience_options(const commandlineparser &parser) {

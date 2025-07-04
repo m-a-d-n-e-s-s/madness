@@ -58,6 +58,10 @@ namespace madness {
             initialize<std::vector<double>>("origin",{},"origin of the plot");
             initialize<std::vector<std::string>>("plane",{"x1","x2"},"plot plane: x1, x2, .., x6");
         }
+        std::string get_tag() const override {
+            return std::string("plot");
+        }
+
 
         PlotParameters& set_zoom(const double z) {
             set_user_defined_value("zoom",z);

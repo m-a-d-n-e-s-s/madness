@@ -342,6 +342,10 @@ class MP2 : public OptimizationTargetInterface, public QCPropertyInterface {
             // print final parameters
             if (world.rank() == 0) print("mp2", "end");
         }
+        std::string get_tag() const override {
+            return std::string("mp2");
+        }
+
 
         void read_and_set_derived_values(World& world, const commandlineparser& parser) {
             read_input_and_commandline_options(world, parser, "mp2");

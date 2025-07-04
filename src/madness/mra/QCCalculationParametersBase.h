@@ -296,6 +296,8 @@ namespace madness {
         /// print all parameters
         void print(const std::string header = "", const std::string footer = "") const;
 
+        virtual std::string get_tag() const = 0;
+
         std::string print_to_string(bool non_defaults_only = false) const;
 
         template <typename T>
@@ -515,11 +517,6 @@ namespace madness {
             return j_params;
         }
 
-
-        bool operator==(const QCCalculationParametersBase& other) const {
-            return parameters == other.parameters;
-        }
-
         template <typename T>
         void set_user_defined_value(const std::string& key, const T& value) {
             QCParameter& parameter = get_parameter(key);
@@ -529,6 +526,9 @@ namespace madness {
 
             parameter.set_user_defined_value(tostring(value));
         }
+
+        friend bool operator==(const QCCalculationParametersBase& p1,
+                        const QCCalculationParametersBase& p2);
 
     protected:
         const QCParameter& get_parameter(const std::string& key) const {

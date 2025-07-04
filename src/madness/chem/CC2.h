@@ -34,8 +34,8 @@ public:
               parameters(cc_param),
               nemo(nemo),
               CCOPS(world, nemo, parameters),
-              output(CCOPS.output),
-              tdhf(new TDHF(world, tdhf_param, nemo)) {
+              tdhf(new TDHF(world, tdhf_param, nemo)),
+              output(CCOPS.output) {
         initialize();
     }
 
@@ -44,8 +44,8 @@ public:
               parameters(world_,parser),
               nemo(nemo_),
               CCOPS(world, nemo, parameters),
-              output(CCOPS.output),
-              tdhf(new TDHF(world, parser, nemo)) {
+              tdhf(new TDHF(world, parser, nemo)),
+              output(CCOPS.output) {
         initialize();
     }
 

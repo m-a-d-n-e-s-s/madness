@@ -94,57 +94,59 @@ int main(int argc, char** argv) {
     if (world.rank() == 0) print(info::print_revision_information());
 
     commandlineparser parser(argc, argv);
-    print("input file  :",parser.value("input"));
-    print("workflow    :",parser.value("workflow"));
-
-
-    // Note that the molecule is part of Params!
-    Params pm(world, parser);
-    pm.get<CalculationParameters>().print("dft");
+    if (world.rank()==0) {
+      print("input file  :",parser.value("input"));
+      print("workflow    :",parser.value("workflow"));
+      print("");
+    }
 
     // Create workflow
     qcapp::Workflow wf;
-
-    // always do single-point DFT, can be reset to SCF or Nemo
-    std::shared_ptr<Application> reference;
     std::string user_workflow = parser.value("workflow");
 
+    // read in all parameters from the input file and the command line
+    // logic and interdependent parameter follow later
+    Params pm(world, parser);
+
+
     if (user_workflow=="response") {
-      reference.reset(new SCFApplication<moldft_lib,SCF>(world, pm));
-      wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
+      auto reference=std::shared_ptr<Application>(new SCFApplication<moldft_lib,SCF>(world, pm));
+
       // directory with the ground-state DFT outputs
       std::filesystem::path gsDir = "MyCalc/task_0/moldft";
 
+      wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
       wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
-          std::make_unique<ResponseApplication<molresponse_lib>>(world, pm,
-                                                                 gsDir)));
+          std::make_unique<ResponseApplication<molresponse_lib>>(world, pm, gsDir)));
+
     } else if (user_workflow=="mp2" or user_workflow=="cc2") {
 
       // set the tensor type
       TensorType tt = TT_2D;
       FunctionDefaults<6>::set_tensor_type(tt);
 
+      // do the parameter logic and print parameters
       pm.get<CalculationParameters>().set_derived_value("k", 5);
-      reference.reset(new SCFApplication<moldft_lib,Nemo>(world, pm));
+      pm.get<CalculationParameters>().print("dft");
+      pm.get<Nemo::NemoCalculationParameters>().print();
+      print("end");
+      pm.get<CCParameters>().print("cc2");
+      pm.get<Molecule>().print();
+
+
+      auto reference=std::shared_ptr<SCFApplication<moldft_lib,Nemo>>(new SCFApplication<moldft_lib,Nemo>(world, pm));
       wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
 
-      auto moldft_app = std::dynamic_pointer_cast<SCFApplication<moldft_lib,Nemo>>(reference);
-      if (!moldft_app) {
-        MADNESS_EXCEPTION("Could not cast reference to SCFApplication<moldft_lib>", 1);
-      }
       wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
-          std::make_unique<CC2Application<cc_lib,SCFApplication<moldft_lib,Nemo>>>(world, pm, *moldft_app)));
-      pm.get<CCParameters>().print("cc2");
+          std::make_unique<CC2Application<cc_lib,SCFApplication<moldft_lib,Nemo>>>(world, pm, *reference)));
+
 
     } else if (user_workflow=="cis") {
-      reference.reset(new SCFApplication<moldft_lib,Nemo>(world, pm));
-      auto moldft_app = std::dynamic_pointer_cast<SCFApplication<moldft_lib,Nemo>>(reference);
-      if (!moldft_app) {
-        MADNESS_EXCEPTION("Could not cast reference to SCFApplication<moldft_lib>", 1);
-      }
+      auto reference=std::shared_ptr<SCFApplication<moldft_lib,Nemo>>(new SCFApplication<moldft_lib,Nemo>(world, pm));
+
       wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
       wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
-        std::make_unique<TDHFApplication<SCFApplication<moldft_lib,Nemo>>>(world,pm,*moldft_app)));
+        std::make_unique<TDHFApplication<SCFApplication<moldft_lib,Nemo>>>(world,pm,*reference)));
 
     } else if (user_workflow=="oep") {
       // add tight convergence criteria
@@ -155,7 +157,7 @@ int main(int argc, char** argv) {
       }
       cparam.set_derived_value("convergence_criteria",convergence_crit);
 
-      reference.reset(new SCFApplication<moldft_lib,Nemo>(world, pm));
+      auto reference=std::shared_ptr<Application>(new SCFApplication<moldft_lib,Nemo>(world, pm));
       auto moldft_app = std::dynamic_pointer_cast<SCFApplication<moldft_lib,Nemo>>(reference);
       if (!moldft_app) {
         MADNESS_EXCEPTION("Could not cast reference to SCFApplication<moldft_lib>", 1);
@@ -171,6 +173,14 @@ int main(int argc, char** argv) {
     }
 
     // Execute both in "MyCalc" directory
+    if (world.rank()==0) {
+      print_header1("Calculation parameters");
+      pm.get<Molecule>().print();
+      wf.print_parameters(world);
+      print("");
+    }
+
+    if (world.rank()==0) print_header1("Starting calculations");
     wf.run("MyCalc");
 
     if (true) {

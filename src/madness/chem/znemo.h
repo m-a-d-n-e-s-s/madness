@@ -74,6 +74,10 @@ public:
         read_input_and_commandline_options(world,parser,"complex");
 	}
 
+    std::string get_tag() const override {
+		return std::string("complex");
+	}
+
 	void set_derived_values() {
 		double pb=physical_B();
 		double eb=explicit_B();

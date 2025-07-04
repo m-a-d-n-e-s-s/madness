@@ -342,6 +342,10 @@ public:
 			initialize_nemo_parameters();
 		}
 
+		std::string get_tag() const override {
+        	return std::string("dft");
+        }
+
 		void initialize_nemo_parameters() {
         	// check if parameters are initialized for a nemo calculation already
         	if (parameter_exists("ncf")) return;
@@ -581,7 +585,7 @@ protected:
 	std::shared_ptr<SCF> calc;
 
 public:
-    NemoCalculationParameters nemo_param;
+    const NemoCalculationParameters nemo_param;
 
 protected:
     projector_irrep symmetry_projector;

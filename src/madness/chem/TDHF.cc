@@ -85,7 +85,6 @@ TDHF::TDHF(World &world, const commandlineparser &parser, std::shared_ptr<const 
 
 void TDHF::initialize() {
 
-    msg.section("Initialize TDHF Class");
     msg.debug = parameters.debug();
     g12=std::make_shared<CCConvolutionOperator<double,3>>(world, OpType::OT_G12, parameters.get_ccc_parameters(get_calcparam().lo()));
 

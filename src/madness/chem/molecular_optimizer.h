@@ -75,6 +75,9 @@ public:
         read_input_and_commandline_options(world,parser,"geoopt");
         set_derived_values();
 	}
+    std::string get_tag() const override {
+        return std::string("geoopt");
+    }
 
 	void set_derived_values() {
 	}

@@ -41,7 +41,12 @@ public:
 		initialize<double>("dconv",1.e-3);
 		initialize<int>("printlevel",1);
 
-	}
+    }
+
+	std::string get_tag() const override {
+    	return std::string("response");
+    }
+
 
 	std::string guess_excitation_operators() const {return get<std::string>("guess_excitation_operators");};
 	std::vector<std::string> exops() const {return get<std::vector<std::string> >("exops");};
