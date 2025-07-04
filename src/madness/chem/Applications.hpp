@@ -32,7 +32,7 @@ namespace madness {
     // get the parameters used for this application
     [[nodiscard]] virtual const QCCalculationParametersBase& get_parameters() const = 0;
 
-    void print_parameters(World& world) const {
+    virtual void print_parameters(World& world) const {
       std::string tag= get_parameters().get_tag();
       if (world.rank() == 0) get_parameters().print(tag,"end");
     }
@@ -169,6 +169,18 @@ namespace madness {
       return return_ptr;
     }
 
+    void print_parameters(World& world) const override {
+      std::string tag= get_parameters().get_tag();
+      if (world.rank() == 0) {
+        if constexpr (std::is_same_v<ScfT, SCF>) { // SCF
+          get_parameters().print("dft","end");
+        } else {  // Nemo
+          get_parameters().print("dft");
+          get_nemo()->get_nemo_param().print();
+          print("end");
+        }
+      }
+    }
 
     const QCCalculationParametersBase& get_parameters() const override {
       if (is_nemo()) {
@@ -209,7 +221,7 @@ namespace madness {
         if (needWavefunctions) {
           try {
             double thresh=scfParams.protocol().back();
-            if constexpr (std::is_same_v<ScfT, Nemo>) this->set_protocol(thresh);
+            if constexpr (std::is_same_v<ScfT, Nemo>) this->set_protocol(scfParams.econv());
             if constexpr (std::is_same_v<ScfT, SCF>) SCF::set_protocol<3>(world_,thresh);
             this->load_mos(world_);
           } catch (...) {

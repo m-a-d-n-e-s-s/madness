@@ -139,7 +139,6 @@ Nemo::Nemo(World& world, const commandlineparser &parser) :
         ac(world,calc) {
 
     if (do_pcm()) pcm=PCM(world,this->molecule(),get_calc_param().pcm_data(),true);
-    get_calc()->param.set_derived_value("k",7);
     symmetry_projector=projector_irrep(get_calc_param().pointgroup())
             .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
     if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
@@ -154,7 +153,6 @@ Nemo::Nemo(World& world, const CalculationParameters& param, const NemoCalculati
         ac(world,calc) {
 
     if (do_pcm()) pcm=PCM(world,this->molecule(),get_calc_param().pcm_data(),true);
-    get_calc()->param.set_derived_value("k",7);
     symmetry_projector=projector_irrep(get_calc_param().pointgroup())
             .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
     if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();

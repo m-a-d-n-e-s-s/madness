@@ -22,7 +22,6 @@ struct moldft_lib {
 
   static Results run_nemo(std::shared_ptr<Nemo> nemo) {
     Results results;
-    nemo->get_calc_param().print("dft");
     results.energy = nemo->value();
     return results;
   }

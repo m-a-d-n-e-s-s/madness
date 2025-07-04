@@ -74,7 +74,6 @@ static void END_TIMER(World& world, const char* msg) {
 /// TODO:
 ///  - restart options
 ///  - error handling
-///  - parameter handling
 ///  - nemo projections
 ///  - output unification
 ///  - numerical parameters
@@ -109,7 +108,16 @@ int main(int argc, char** argv) {
     Params pm(world, parser);
 
 
-    if (user_workflow=="response") {
+    if (user_workflow=="scf") {
+      auto reference=std::shared_ptr<Application>(new SCFApplication<moldft_lib,SCF>(world, pm));
+      wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
+
+    } if (user_workflow=="nemo") {
+        pm.get<CalculationParameters>().set_derived_value("k", 8);
+        auto reference=std::shared_ptr<Application>(new SCFApplication<moldft_lib,Nemo>(world, pm));
+        wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
+
+    } else if (user_workflow=="response") {
       auto reference=std::shared_ptr<Application>(new SCFApplication<moldft_lib,SCF>(world, pm));
 
       // directory with the ground-state DFT outputs
@@ -126,13 +134,16 @@ int main(int argc, char** argv) {
       FunctionDefaults<6>::set_tensor_type(tt);
 
       // do the parameter logic and print parameters
-      pm.get<CalculationParameters>().set_derived_value("k", 5);
-      pm.get<CalculationParameters>().print("dft");
-      pm.get<Nemo::NemoCalculationParameters>().print();
-      print("end");
-      pm.get<CCParameters>().print("cc2");
-      pm.get<Molecule>().print();
+      auto& calc_param= pm.get<CalculationParameters>();
+      auto& cc_param= pm.get<CCParameters>();
+      auto& molecule=pm.get<Molecule>();
 
+      calc_param.set_derived_value("k", 5);
+      calc_param.set_derived_value("print_level", 2);
+      calc_param.set_derived_value("econv", cc_param.get<double>("thresh_6d")*0.01);
+
+      calc_param.set_derived_values(molecule);
+      cc_param.set_derived_values();
 
       auto reference=std::shared_ptr<SCFApplication<moldft_lib,Nemo>>(new SCFApplication<moldft_lib,Nemo>(world, pm));
       wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
