@@ -18,6 +18,7 @@ namespace madness {
 
 Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), mol(world,parser), param(world,parser),
                     calc_param(world,parser) {
+	calc_param.set_derived_value("k",9);
 	calc_param.read_input_and_commandline_options(world,parser,"dft");
 
     FunctionDefaults<3>::set_k(calc_param.k());
