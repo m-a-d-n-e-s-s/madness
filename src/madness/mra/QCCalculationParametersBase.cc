@@ -156,22 +156,9 @@ void QCCalculationParametersBase::read_internal(World& world, std::string& filec
 
 
 		// check which type to expect from the given key
-		// this look clumsy, maybe there are more elegant solutions?
 		bool success=false;
 		try {
-			success=try_setting_user_defined_value<double>(key,line1) or success;
-			success=try_setting_user_defined_value<int>(key,line1) or success;
-			success=try_setting_user_defined_value<unsigned int>(key,line1) or success;
-			success=try_setting_user_defined_value<long>(key,line1) or success;
-			success=try_setting_user_defined_value<std::size_t>(key,line1) or success;
-			success=try_setting_user_defined_value<bool>(key,line1) or success;
-			success=try_setting_user_defined_value<std::string>(key,line1) or success;
-			success=try_setting_user_defined_value<std::vector<double> >(key,line1) or success;
-			success=try_setting_user_defined_value<std::vector<int> >(key,line1) or success;
-            success=try_setting_user_defined_value<std::vector<std::size_t> >(key,line1) or success;
-			success=try_setting_user_defined_value<std::vector<std::string> >(key,line1) or success;
-			success=try_setting_user_defined_value<std::pair<std::string,double> >(key,line1) or success;
-
+			success = try_setting_any<all_parameter_types>(key, line1);
         } catch (std::invalid_argument& e) {
             throw;
 		} catch (std::exception& e) {

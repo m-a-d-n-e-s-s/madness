@@ -37,17 +37,35 @@ struct TDHF_allocator {
 };
 
 
+/// ctor with world and parameters, constructs Nemo object on-the-fly, and delegates further
+///
+///
+TDHF::TDHF(World &world, const TDHFParameters &parameters, std::shared_ptr<const Nemo> reference)
+        : world(world),
+            reference_(reference),
+            parameters(parameters),
+            g12(),
+            mo_ket_(),
+            mo_bra_(),
+            Q(),
+            msg(world) {
+    this->parameters.set_derived_values(get_calc());
+    initialize();
+
+}
+
+
 ///  ctor with command line parser, constructs SCF and Nemo objects on-the-fly, and delegates further
 
 /// \param world    the world
 /// \param parser   the parser
-TDHF::TDHF(World &world, const commandlineparser &parser) : TDHF(world,parser,std::make_shared<Nemo>(world,parser)) {}
+TDHF::TDHF(World &world, const commandlineparser &parser) : TDHF(world,parser,std::make_shared<const Nemo>(world,parser)) {}
 
 ///  ctor with command line parser, constructs SCF and Nemo objects on-the-fly, and delegates further
 
 /// \param world    the world
 /// \param parser   the parser
-TDHF::TDHF(World &world, const commandlineparser &parser, std::shared_ptr<Nemo> nemo)
+TDHF::TDHF(World &world, const commandlineparser &parser, std::shared_ptr<const Nemo> nemo)
         : world(world),
           reference_(nemo),
           parameters(world, parser),
@@ -131,7 +149,8 @@ MolecularOrbitals<double,3> TDHF::enforce_core_valence_separation(const Tensor<d
 
 /// compute non-trivial prerequisites for the calculation
 void TDHF::prepare_calculation() {
-    get_nemo()->value();
+    MADNESS_CHECK_THROW(get_nemo()->check_converged(get_calc()->molecule.get_all_coords()),
+        "reference calculation for TDHF is not converged");
 
     // enforce core-valence separation if localized
     Tensor<double> fmat;
@@ -1623,7 +1642,7 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
 
 /// auto assigns all parameters which where not explicitly given and which depend on other parameters of the reference calculation
 //void TDHF::TDHFParameters::complete_with_defaults(const std::shared_ptr<SCF>& scf) {
-void TDHF::TDHFParameters::set_derived_values(const std::shared_ptr<SCF> &scf) {
+void TDHFParameters::set_derived_values(const std::shared_ptr<SCF> &scf) {
     //  double thresh=FunctionDefaults<3>::get_thresh();
 
     set_derived_value("econv", scf->param.econv());
@@ -1661,7 +1680,7 @@ int TDHF::test(World &world, commandlineparser& parser) {
     std::ofstream of(input.c_str());
     CalculationParameters scfparam;
     scfparam.set_user_defined_value("econv", 1.e-3);
-    TDHF::TDHFParameters cisparam;
+    TDHFParameters cisparam;
     write_test_input::write_to_test_input("dft", &scfparam, of);
     write_test_input::write_to_test_input("response", &cisparam, of);
     write_test_input::write_molecule_to_test_input("lih", of);

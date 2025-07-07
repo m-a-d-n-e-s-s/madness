@@ -171,6 +171,8 @@ public:
     class scf_data {
 
         std::map<std::string, std::vector<double>> e_data;
+        json gradient;
+        json hessian;
         int iter;
     public:
 
@@ -181,6 +183,8 @@ public:
         void print_data();
 
         void add_data(std::map<std::string, double> values);
+
+        void add_gradient(const Tensor<double> &grad);
     };
 
 
@@ -219,15 +223,13 @@ public:
     double vtol;
     double current_energy;
     double converged_for_thresh=1.e10;    ///< mos are converged for this threshold
-    //double esol;//etot;
-    //double vacuo_energy;
+
+    /// forwarding constructor
+    SCF(World& world, const commandlineparser& parser)
+        : SCF(world, CalculationParameters(world, parser), Molecule(world, parser)) {}
 
     /// collective constructor for SCF uses contents of file \c filename and broadcasts to all nodes
-//	SCF(World & world, const char *filename);
-    /// collective constructor for SCF uses contents of stream \c input and broadcasts to all nodes
-//	SCF(World & world, std::shared_ptr<std::istream> input);
-//	SCF(World& world, const std::string& inputfile);
-    SCF(World& world, const commandlineparser& parser);
+    SCF(World& world, const CalculationParameters& param, const Molecule& molecule);
 
     void copy_data(World& world, const SCF& other);
 
@@ -514,8 +516,8 @@ public:
 
     void output_calc_info_schema() const;
 
-//    void output_scf_info_schema(const std::map<std::string, double> &vals,
-//                                const tensorT &dipole_T) const;
+    void output_scf_info_schema(const std::map<std::string, double> &vals,
+                                const tensorT &dipole_T) const;
 
 };
 
@@ -562,7 +564,7 @@ public:
 
         // AOs are needed for final analysis, and for localization
         calc.reset_aobasis("sto-3g");
-        calc.ao.clear(); world.gop.fence(); 
+        calc.ao.clear(); world.gop.fence();
         calc.ao = calc.project_ao_basis(world, calc.aobasis);
 
         // The below is missing convergence test logic, etc.
@@ -628,7 +630,7 @@ public:
                 if (calc.param.aobasis() != "sto-3g") { // was also  && calc.param.nwfile() == "none"
                     calc.reset_aobasis("sto-3g");
                 }
-                calc.ao.clear(); world.gop.fence(); 
+                calc.ao.clear(); world.gop.fence();
                 calc.ao = calc.project_ao_basis(world, calc.aobasis);
                 calc.solve(world);
 

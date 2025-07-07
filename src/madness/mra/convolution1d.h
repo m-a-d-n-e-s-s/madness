@@ -697,7 +697,7 @@ namespace madness {
             returnT operator()(double x) const {
                 int twok = q.k*2;
                 double fac = std::pow(0.5,n);
-                double phix[twok];
+                double phix[2*MAXK];
                 legendre_scaling_functions(x-lx,twok,phix);
                 Q f = q.op(fac*x)*sqrt(fac);
                 returnT v(twok);
@@ -797,7 +797,8 @@ namespace madness {
         Tensor<Q> rnlp(Level n, const Translation lx) const final {
             int twok = 2*this->k;
             Tensor<Q> v(twok);       // Can optimize this away by passing in
-            KahanAccumulator<Q> v_accumulator[twok];
+            //KahanAccumulator<Q> v_accumulator[twok];
+            std::vector<KahanAccumulator<Q>> v_accumulator(twok);
             constexpr bool use_kahan = false;  // change to true to use Kahan accumulator
 
             // integration range is [0,1] ...
@@ -928,7 +929,7 @@ namespace madness {
 #ifdef IBMXLC
                     double phix[80];
 #else
-                    double phix[twok];
+                    double phix[2*MAXK];
 #endif
                     double xx = xlo + h*this->quad_x(i);
                     Q ee = scaledcoeff*exp(-beta*xx*xx)*this->quad_w(i)*h;

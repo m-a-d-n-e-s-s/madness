@@ -38,8 +38,9 @@ namespace madness {
 
 std::ostream& operator<<(std::ostream& s, const ContractedGaussianShell& c) {
     static const char* tag[] = {"s","p","d","f","g"};
-    std::size_t bufsize=32768;
-    char buf[bufsize];
+    const std::size_t maxbufsize=32768;
+    char buf[maxbufsize];
+    std:size_t bufsize= maxbufsize;
     char* p = buf;
     const std::vector<double>& coeff = c.get_coeff();
     const std::vector<double>& expnt = c.get_expnt();

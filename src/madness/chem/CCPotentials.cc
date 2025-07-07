@@ -18,7 +18,7 @@ static double functor_y(const coord_3d& r) { return r[1]; }
 
 static double functor_r2(const coord_3d& r) { return (r[0] * r[0] + r[1] * r[1] + r[2] * r[2]); }
 
-CCPotentials::CCPotentials(World& world_,  std::shared_ptr<Nemo> nemo, const CCParameters& param)
+CCPotentials::CCPotentials(World& world_,  std::shared_ptr<const Nemo> nemo, const CCParameters& param)
         : world(world_),
           nemo_(nemo),
           parameters(param),

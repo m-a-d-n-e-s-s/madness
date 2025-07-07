@@ -9,6 +9,7 @@
 #include <madness/mra/mra.h>
 #include<madness/chem/CalculationParameters.h>
 #include<madness/chem/SCF.h>
+#include<madness/world/test_utilities.h>
 
 using namespace madness;
 
@@ -122,6 +123,7 @@ struct write_test_input {
 
 		if (mol=="lih") {
 			of << "geometry\n";
+			of << "molecule\n";
 			of << "eprec " << eprec << std::endl;
 			of << "Li 0.0    0.0 0.0\n";
 			of << "H  1.4375 0.0 0.0\n";
@@ -129,6 +131,7 @@ struct write_test_input {
 		} else if (mol=="hf") {
 			double eprec=1.e-5;
 			of << "geometry\n";
+			of << "molecule\n";
 			of << "eprec " << eprec << std::endl;
 			of << "F  0.1    0.0 0.2\n";
 			of << "H  1.4375 0.0 0.0\n";
@@ -147,9 +150,15 @@ struct write_test_input {
 int run_all_calculations(World& world, const std::vector<CalculationParameters>& all_parameters,
 		bool test_result=false) {
 	int success=0;
+	int i=0;
 	for (auto cp : all_parameters) {
+		print("\n");
+		print_header2("run test "+std::to_string(i));
+		test_output t("running test "+std::to_string(i++));
+		t.set_cout_to_terminal(); // cannot redirect to logger, will interfere with macrotaskq-redirections
 
-		print(cp.print_to_string(true));
+//		print(cp.print_to_string(true));
+		print(cp.print_to_string(false));
 
 		write_test_input test_input(cp,"lih");
         commandlineparser parser;
@@ -164,6 +173,7 @@ int run_all_calculations(World& world, const std::vector<CalculationParameters>&
 			print("energy, hard-wire, diff",energy,7.703833,energy+7.703833e+00);
 			if (std::abs(energy+7.703833e+00)>thresh) success+=1;
 		}
+		t.checkpoint(success==0, "energy(LiH) is correct");
 	}
 	return success;
 }

@@ -145,15 +145,26 @@ Nemo::Nemo(World& world, const commandlineparser &parser) :
     symmetry_projector=projector_irrep(param.pointgroup())
             .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
     if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
-    calc->param=param;
 };
 
+Nemo::Nemo(World& world, const CalculationParameters& param, const Molecule& molecule) :
+        NemoBase(world),
+        calc(std::make_shared<SCF>(world, param, molecule)),
+        param(calc->param),
+        coords_sum(-1.0),
+        ac(world,calc) {
+    if (do_pcm()) pcm=PCM(world,this->molecule(),param.pcm_data(),true);
+
+    symmetry_projector=projector_irrep(param.pointgroup())
+            .set_ordering("keep").set_verbosity(0).set_orthonormalize_irreps(true);;
+    if (symmetry_projector.get_verbosity()>1) symmetry_projector.print_character_table();
+};
 
 double Nemo::value(const Tensor<double>& x) {
 
     // fast return if the reference is already solved at this geometry
+    if (check_converged(x)) return calc->current_energy;
 	double xsq = x.sumsq();
-	if (xsq == coords_sum) return calc->current_energy;
 
     if (world.rank()==0) print_header2("computing the nemo wave function");
 
@@ -183,10 +194,13 @@ double Nemo::value(const Tensor<double>& x) {
 
 	    calc->ao=calc->project_ao_basis(world,calc->aobasis);
 
-		calc->initial_guess(world);
-		real_function_3d R_inverse = ncf->inverse();
-		calc->amo = R_inverse*calc->amo;
-		truncate(world,calc->amo);
+	    if (not (calc->converged_for_thresh*0.999<p.end_prec)) {
+	        // if the orbitals are not converged to the end precision, we need to recompute the ncf
+	        calc->initial_guess(world);
+	        real_function_3d R_inverse = ncf->inverse();
+	        calc->amo = R_inverse*calc->amo;
+	        truncate(world,calc->amo);
+	    }
 
 	}
 

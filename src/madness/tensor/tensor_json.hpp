@@ -87,8 +87,11 @@ namespace madness {
         ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X");
 
         auto j=j1;
-        j["time"] = ss.str();
-        j["wall_time"] = wall_time();
+        j["time_tag"] ={};
+
+        j["time_tag"]["time"] = ss.str();
+        j["time_tag"]["wall_time"] = wall_time();
+        j["time_tag"]["cpu_time"] =cpu_time();
         return j;
     }
 

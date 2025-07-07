@@ -81,8 +81,8 @@ int main(int argc, char **argv) {
         nemo->get_calc()->param.set_derived_value("k", 5);
         // nemo->param.set_derived_value<std::string>("localize", "canon");
         // nemo->get_calc()->param.set_derived_value<std::string>("localize", "canon");
-        nemo->param.set_derived_values(nemo->molecule(),nemo->get_calc()->aobasis,parser);
-        nemo->get_calc()->param.set_derived_values(nemo->molecule(),nemo->get_calc()->aobasis,parser);
+        nemo->param.set_derived_values(nemo->molecule());
+        nemo->get_calc()->param.set_derived_values(nemo->molecule());
         CC2 cc2(world, parser, nemo);
 
         std::shared_ptr<SCF> calc = nemo->get_calc();

@@ -14,6 +14,7 @@ set(MADCHEM_HEADERS
     ccpairfunction.h
     CCPotentials.h
     CCStructures.h
+    CCParameters.h
     corepotential.h
     correlationfactor.h
     diamagneticpotentialfactor.h
@@ -49,6 +50,16 @@ set(MADCHEM_HEADERS
     pointgroupsymmetry.h
     polynomial.h
     potentialmanager.h
+    ParameterManager.hpp
+    ResponseParameters.hpp
+    PathManager.hpp
+    MolresponseLib.hpp
+    Applications.hpp
+    Drivers.hpp
+    SCFTargetAdapter.hpp
+    InputWriter.hpp
+    CCLib.hpp
+    MoldftLib.hpp
     projector.h
     QCPropertyInterface.h
     SAP.h
@@ -86,6 +97,7 @@ set(MADCHEM_SOURCES
     mp2.cc
     nemo.cc
     NWChem.cc
+    InputWriter.cpp
     oep.cc
     pcm.cc
     pointgroupsymmetry.cc

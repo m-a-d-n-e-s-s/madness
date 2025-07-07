@@ -983,7 +983,7 @@ int main(int argc, char** argv) {
 #ifndef HAVE_GENTENSOR
     	result+=test_XCOperator<double_complex>(world);
 #endif
-//    	result+=test_nuclear(world);
+    	result+=test_nuclear(world);
     	result+=test_dnuclear(world);
 //    	result+=test_nemo(world);
 	}

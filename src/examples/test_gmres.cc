@@ -186,7 +186,7 @@ int main(int argc, char **argv) {
 	int i, passed = 0;
 
 	testptr tests[NTESTS];
-	std::size_t bufsize=80;
+	const std::size_t bufsize=80;
 	char names[NTESTS][bufsize];
 	tests[0] = realvec0;
 	snprintf(names[0],bufsize, "Testing real vectors, 0-step convergence");
