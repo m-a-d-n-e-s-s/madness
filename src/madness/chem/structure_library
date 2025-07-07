@@ -1,276 +1,331 @@
 structure=h
 geometry
+molecule
 h 0 0 0
 end
 
 structure=he
 geometry
+molecule
 he 0 0 0
 end
 
 structure=li
 geometry
+molecule
 li 0 0 0
 end
 
 structure=be
 geometry
+molecule
 be 0 0 0
 end
 
 structure=b
 geometry
+molecule
 b 0 0 0
 end
 
 structure=c
 geometry
+molecule
 c 0 0 0
 end
 
 structure=n
 geometry
+molecule
 n 0 0 0
 end
 
 structure=o
 geometry
+molecule
 o 0 0 0
 end
 
 structure=f
 geometry
+molecule
 f 0 0 0
 end
 
 structure=ne
 geometry
+molecule
 ne 0 0 0
 end
 
 structure=na
 geometry
+molecule
 na 0 0 0
 end
 
 structure=mg
 geometry
+molecule
 mg 0 0 0
 end
 
 structure=al
 geometry
+molecule
 al 0 0 0
 end
 
 structure=si
 geometry
+molecule
 si 0 0 0
 end
 
 structure=p
 geometry
+molecule
 p 0 0 0
 end
 
 structure=s
 geometry
+molecule
 s 0 0 0
 end
 
 structure=cl
 geometry
+molecule
 cl 0 0 0
 end
 
 structure=ar
 geometry
+molecule
 ar 0 0 0
 end
 
 structure=k
 geometry
+molecule
 k 0 0 0
 end
 
 structure=ca
 geometry
+molecule
 ca 0 0 0
 end
 
 structure=sc
 geometry
+molecule
 sc 0 0 0
 end
 
 structure=ti
 geometry
+molecule
 ti 0 0 0
 end
 
 structure=v
 geometry
+molecule
 v 0 0 0
 end
 
 structure=cr
 geometry
+molecule
 cr 0 0 0
 end
 
 structure=mn
 geometry
+molecule
 mn 0 0 0
 end
 
 structure=fe
 geometry
+molecule
 fe 0 0 0
 end
 
 structure=co
 geometry
+molecule
 co 0 0 0
 end
 
 structure=ni
 geometry
+molecule
 ni 0 0 0
 end
 
 structure=cu
 geometry
+molecule
 cu 0 0 0
 end
 
 structure=zn
 geometry
+molecule
 zn 0 0 0
 end
 
 structure=ga
 geometry
+molecule
 ga 0 0 0
 end
 
 structure=ge
 geometry
+molecule
 ge 0 0 0
 end
 
 structure=as
 geometry
+molecule
 as 0 0 0
 end
 
 structure=se
 geometry
+molecule
 se 0 0 0
 end
 
 structure=br
 geometry
+molecule
 br 0 0 0
 end
 
 structure=kr
 geometry
+molecule
 kr 0 0 0
 end
 
 structure=rb
 geometry
+molecule
 rb 0 0 0
 end
 
 structure=sr
 geometry
+molecule
 sr 0 0 0
 end
 
 structure=y
 geometry
+molecule
 y 0 0 0
 end
 
 structure=zr
 geometry
+molecule
 zr 0 0 0
 end
 
 structure=nb
 geometry
+molecule
 nb 0 0 0
 end
 
 structure=mo
 geometry
+molecule
 mo 0 0 0
 end
 
 structure=tc
 geometry
+molecule
 tc 0 0 0
 end
 
 structure=ru
 geometry
+molecule
 ru 0 0 0
 end
 
 structure=rh
 geometry
+molecule
 rh 0 0 0
 end
 
 structure=pd
 geometry
+molecule
 pd 0 0 0
 end
 
 structure=ag
 geometry
+molecule
 ag 0 0 0
 end
 
 structure=cd
 geometry
+molecule
 cd 0 0 0
 end
 
 structure=in
 geometry
+molecule
 in 0 0 0
 end
 
 structure=sn
 geometry
+molecule
 sn 0 0 0
 end
 
 structure=sb
 geometry
+molecule
 sb 0 0 0
 end
 
 structure=te
 geometry
+molecule
 te 0 0 0
 end
 
 structure=i
 geometry
+molecule
 i 0 0 0
 end
 
 structure=xe
 geometry
+molecule
 xe 0 0 0
 end
 
 structure=ch4
 structure=methane
 geometry
+molecule
 c   -0.00000000000000      0.00000000000000     -0.00000000000000
 h    1.19183538194102     -1.19183538194102      1.19183538194102
 h   -1.19183538194102      1.19183538194102      1.19183538194102
@@ -281,6 +336,7 @@ end
 structure=c2h4
 structure=ethylene
 geometry
+molecule
 c    1.25925675384707      0.00000000000000      0.00000000000000  
 c   -1.25925675384707      0.00000000000000      0.00000000000000  
 h    2.34326800978054      1.75410867131933      0.00000000000000  
@@ -294,6 +350,7 @@ structure=water
 structure=water1
 structure=h2o
 geometry
+molecule
 o    0.00000000000000      0.00000000000000      0.71002389091700  
 h   -1.42650808202133      0.00000000000000     -0.35501194545850  
 h    1.42650808202133      0.00000000000000     -0.35501194545850  
@@ -301,6 +358,7 @@ end
 
 structure=water2
 geometry
+molecule
  h  -3.70186011075500     -0.06059028899871      1.37109835461971
  h  -1.14798027983604      0.02070194978576      0.10614969633645
  o  -2.90821859864409      0.00859447445236     -0.22172345689761
@@ -311,6 +369,7 @@ end
 
 structure=water3
 geometry
+molecule
  o  -0.31707147865848      3.11003757018401      0.20550204777292
  h   1.15917879689952      2.08364982864237      0.21490721473629
  h  -0.17729599551346      4.17576563036006     -1.21626364392172
@@ -324,6 +383,7 @@ end
 
 structure=water4
 geometry
+molecule
  o   0.40909925160388     -3.75867472694021      0.06670166331246
  h  -1.14122639863710     -2.84455561495330     -0.06340409121058
  h   0.26205210229952     -4.79210925723138      1.51096076516684
@@ -341,6 +401,7 @@ end
 
 structure=water5
 geometry
+molecule
  o  -1.07954384793358      4.38979601217069     -0.00599799074578
  o   3.85203853626156      2.38318842823994     -0.19328307859768
  o   3.46046082536179     -2.90278752573817      0.29587442062591
@@ -360,7 +421,8 @@ end
 
 
 structure=water6
-geometry 
+geometry
+molecule 
 o    2.88546818573028     -0.77067756014409      2.77239264311680
 h    1.16273526148161     -1.31300250411641      2.96607256420238
 h    3.78317691597920     -1.34567019977560      4.20024514268546
@@ -383,6 +445,7 @@ end
 
 structure=water7
 geometry
+molecule
  o  -1.87508831426031     -3.59568206852656     -0.11905463609793
  o  -5.58028946081825      0.13937297147871     -1.30913612444852
  o  -2.15545753196589      3.36954799083480      1.18257360642464
@@ -409,6 +472,7 @@ end
 
 structure=water8
 geometry
+molecule
 o    2.83949303864330     -3.49066242841757      1.66633404781270
 h    4.00054644386664     -4.55226710617167      2.50365280003300
 h    2.96783756841050     -1.84731311955916      2.42420682368035
@@ -437,6 +501,7 @@ end
 
 structure=water9
 geometry
+molecule
 o    0.73767160350711     -2.25861012265559      4.08267016214959
 o    0.68055652086677      2.94472999725757      3.45509967232279
 o   -3.23872414038126      3.95401004811820     -0.32094919668316
@@ -468,6 +533,7 @@ end
 
 structure=water10
 geometry
+molecule
 o   -1.83399432977458      4.63801720890362      2.21888996906846
 o   -4.89339668822792      0.23868941811865      2.34852518178442
 o   -1.84495096189305     -3.93968781375706      2.75530195997098
@@ -502,6 +568,7 @@ end
 
 structure=water20
 geometry
+molecule
 o   -4.10674023381281      5.04818604549868      1.20352248042511      
 h   -3.62542698776684      5.08787029428927     -0.62422063530190      
 h   -5.42973749944605      3.72537775247872      1.47564304356064      
@@ -566,6 +633,7 @@ end
 
 structure=water47
 geometry
+molecule
 o  191.12690108005395    195.08209787618361    199.74027279374670       
 h  192.37412032775848    195.73216366589628    201.00072012438144       
 h  192.03207989770618    194.08810193028575    198.41368504846099       

@@ -35,6 +35,8 @@
 
 
 
+#include "funcdefaults.h"
+#include "tensor_json.hpp"
 #include <madness/world/worldmem.h>
 #include <madness.h>
 #include <madness/chem/SCF.h>
@@ -138,26 +140,24 @@ tensorT Q2(const tensorT& s) {
     return Q;
 }
 
-// void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
-//                                  const tensorT &dipole_T) const {
-//     nlohmann::json j = {};
-//     // if it exists figure out the size.  pushback for each protocol
-//     const double thresh = FunctionDefaults<3>::get_thresh();
-//     const int k = FunctionDefaults<3>::get_k();
-//     j["scf_threshold"] = thresh;
-//     j["scf_k"] = k;
-//     for (auto const &[key, val]: vals) {
-//         j[key] = val;
-//     }
-//     j["scf_dipole_moment"] = tensor_to_json(dipole_T);
-//     int num = 0;
-//     update_schema(param.prefix()+".scf_info", j);
-// }
+void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
+                                 const tensorT &dipole_T) const {
+    nlohmann::json j = {};
+    // if it exists figure out the size.  pushback for each protocol
+    const double thresh = FunctionDefaults<3>::get_thresh();
+    const int k = FunctionDefaults<3>::get_k();
+    j["scf_threshold"] = thresh;
+    j["scf_k"] = k;
+    for (auto const &[key, val]: vals) {
+        j[key] = val;
+    }
+    j["scf_dipole_moment"] = tensor_to_json(dipole_T);
+    int num = 0;
+    update_schema(param.prefix()+".scf_info", j);
+}
 
 void SCF::output_calc_info_schema() const {
     nlohmann::json j = {};
-    World& world=amo.front().world();
-    if (world.rank()==0) {
         vec_pair_ints int_vals;
         vec_pair_T<double> double_vals;
         vec_pair_tensor_T<double> double_tensor_vals;
@@ -180,11 +180,11 @@ void SCF::output_calc_info_schema() const {
 
         to_json(j, double_tensor_vals);
         param.to_json(j);
+        j["molecule"]= molecule.to_json();
         e_data.to_json(j);
 
         //    output_schema(param.prefix()+".calc_info", j);
         update_schema(param.prefix()+".calc_info", j);
-    }
 }
 
 void scf_data::add_data(std::map<std::string, double> values) {
@@ -215,10 +215,11 @@ void scf_data::to_json(json &j) const {
 
     j["scf_e_data"] = json();
     j["scf_e_data"]["iterations"] = iter;
+    j["scf_e_data"]["data"] = {};
 
     for (const auto &e: e_data) {
         //::print(e.second);
-        j["scf_e_data"].push_back({e.first, e.second});
+        j["scf_e_data"]["data"][e.first]= e.second;
     }
 }
 
@@ -226,63 +227,20 @@ void scf_data::print_data() {
     for (const auto &[key, value]: e_data) { print(key, " : ", value); }
 }
 
+void scf_data::add_gradient(const Tensor<double> &grad) {
+    gradient = tensor_to_json(grad);
+}
 
-//    SCF::SCF(World & world, const char *filename) : SCF(world, (world.rank() == 0 ? std::make_shared<std::ifstream>(filename) : nullptr)){
-//    }
-
-/// collective constructor, reads \c input on rank 0, broadcasts to all
-SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParameters(world, parser)) {
+SCF::SCF(World& world, const CalculationParameters& param1, const Molecule& molecule)
+    : param(param1), molecule(molecule) {
     PROFILE_MEMBER_FUNC(SCF);
 
-    molecule=Molecule(world,parser);
-
-//    param.read(world,parser.value("input"),"dft");
     if (world.rank() == 0) {
-
-//        // read input parameters from the input file
-//        if (parser.key_exists("structure"))
-//            param.set_user_defined_value("molecular_structure", parser.value("structure"));
-//
-//        std::string molecular_structure = param.get<std::string>("molecular_structure");
-//        if (molecular_structure == "inputfile") {
-//            std::ifstream ifile(parser.value("input"));
-//            molecule.read(ifile);
-//        } else {
-//            molecule.read_structure_from_library(molecular_structure);
-//        }
-//
-//        // set derived parameters for the molecule
-//
-//        //if psp_calc is true, set all atoms to PS atoms
-//        //if not, check whether some atoms are PS atoms or if this a pure AE calculation
-//        if (param.get<bool>("psp_calc")) {
-//            for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
-//                molecule.set_pseudo_atom(iatom, true);
-//            }
-//        }
-//
-//        //modify atomic charge for complete PSP calc or individual PS atoms
-//        for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
-//            if (molecule.get_pseudo_atom(iatom)) {
-//                unsigned int an = molecule.get_atomic_number(iatom);
-//                double zeff = get_charge_from_file("gth.xml", an);
-//                molecule.set_atom_charge(iatom, zeff);
-//            }
-//        }
-
-        if (molecule.parameters.core_type() != "none") {
-            molecule.read_core_file(molecule.parameters.core_type());
-        }
-
-//        if (not molecule.parameters.no_orient()) molecule.orient();
-
         //account for nwchem aobasis generation
         if (param.nwfile() == "none") reset_aobasis(param.aobasis());
         else aobasis.read_nw_file(param.nwfile());
-        param.set_derived_values(molecule, aobasis, parser);
-
+        this->param.set_derived_values(molecule);
     }
-    world.gop.broadcast_serializable(molecule, 0);
     world.gop.broadcast_serializable(param, 0);
     world.gop.broadcast_serializable(aobasis, 0);
 
@@ -290,6 +248,12 @@ SCF::SCF(World& world, const commandlineparser& parser) : param(CalculationParam
 
     xc.initialize(param.xc(), !param.spin_restricted(), world, param.print_level() >= 10);
     //xc.plot();
+
+    // Ensure we have enough basis functions to guess the requested
+    // number of states ... a minimal basis for a closed-shell atom
+    // might not have any functions for virtuals.
+    int nbf = aobasis.nbf(molecule);
+    if ((this->param.nmo_alpha()>nbf) or (this->param.nmo_beta()>nbf)) error("too few basis functions?", nbf);
 
     FunctionDefaults<3>::set_cubic_cell(-param.L(), param.L());
     //set_protocol < 3 > (world, param.econv());
@@ -390,6 +354,8 @@ void SCF::load_mos(World& world) {
     // Local copies for a basic check
     double L=0;
     int k1=0;                    // Ignored for restarting, used in response only
+    double converged_for_thresh1=1.e10;
+    double current_energy1=1.e10;
     unsigned int version = 4;// UPDATE THIS IF YOU CHANGE ANYTHING
     unsigned int archive_version=0;
 
@@ -405,12 +371,17 @@ void SCF::load_mos(World& world) {
 
     // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
     // EPS, SWAP, ... sigh
-    ar & current_energy & spinrest;
+    ar & current_energy1 & spinrest;
     // Reorder
-    ar & L & k1 & molecule & param.xc() & param.localize_method() & converged_for_thresh;
+    Molecule mol;
+    ar & L & k1 & mol& param.xc() & param.localize_method() & converged_for_thresh1;
+    if (not (mol == molecule)) {
+        if (world.rank() == 0) print("Warning: Molecule in archive does not match the current molecule");
+        throw "Molecule mismatch";
+    }
 
     ar & nmo;
-    MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha()));
+    MADNESS_CHECK_THROW(nmo >= unsigned(param.nmo_alpha()),"mismatch in load_mos: nmo < nmo_alpha");
     ar & aeps & aocc & aset;
     // Some basic checks
     if (L != param.L()) {
@@ -483,6 +454,10 @@ void SCF::load_mos(World& world) {
             //                normalize(world, bmo);
         }
     }
+    // if everything worked out, set convergence parameters
+    converged_for_thresh= converged_for_thresh1;
+    current_energy=current_energy1;
+    molecule=mol;
 }
 
 
@@ -576,7 +551,7 @@ void SCF::do_plots(World& world) {
     }
 
     for (int i = param.get<int>("plotlo"); i <= param.get<int>("plothi"); ++i) {
-        std::size_t bufsize=256;
+        const std::size_t bufsize=256;
         char fname[bufsize];
         if (i < param.nalpha()) {
             snprintf(fname,bufsize, "amo-%5.5d.dx", i);
@@ -2232,6 +2207,11 @@ void SCF::solve(World& world) {
     // Shrink subspace until stop localizing/canonicalizing--- probably not a good idea
     // int maxsub_save = param.maxsub;
     // param.maxsub = 2;
+    
+
+    // Fock matrix for storing the results
+    tensorT focka_json(param.nmo_alpha(), param.nmo_alpha());
+    tensorT fockb_json(param.nmo_beta(), param.nmo_beta());
 
     for (int iter = 0; iter < param.maxiter(); ++iter) {
         if (world.rank() == 0 and (param.print_level() > 1))
@@ -2445,6 +2425,11 @@ void SCF::solve(World& world) {
                          {"e_xc",      exc},
                          {"e_nrep",    enrep},
                          {"e_tot",     etot}});
+        focka_json = focka;
+        if (!param.spin_restricted() && param.nbeta() != 0) {
+            fockb_json = fockb;
+        }
+
 
         if (iter > 0) {
             //print("##convergence criteria: density delta=", da < dconv * molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=", (param.conv_only_dens || bsh_residual < 5.0*dconv));
@@ -2557,6 +2542,35 @@ void SCF::solve(World& world) {
         update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q,
                         bsh_residual, update_residual);
 
+    }
+    // save the converged fock matix
+    //
+    json fock_data;
+
+
+    // write the fock matrix to a file
+    if(world.rank() == 0) {
+        auto protocol = std::string("thresh: ") + std::to_string(FunctionDefaults<3>::get_thresh());
+    protocol += std::string(" k: ")+std::to_string(FunctionDefaults<3>::get_k());
+    fock_data[protocol] = json::object();
+    fock_data[protocol]["focka"] = tensor_to_json(focka_json);
+    if (!param.spin_restricted() && param.nbeta() != 0) {
+        fock_data[protocol]["fockb"] = tensor_to_json(fockb_json);
+    }
+        std::string name=param.prefix()+".fock.json";
+        // Read in the existing data if it exists
+        json fock_json;
+        std::ifstream fock_file(name);
+    if (fock_file) {
+        fock_file >> fock_json;
+        }
+    fock_file.close();
+    // Merge the new data with the existing data
+    fock_json.merge_patch(fock_data);
+    // Write the merged data back to the file
+    std::ofstream fock_out(name);
+    fock_out << std::setw(4) << fock_json << std::endl;
+    fock_out.close();
     }
 
     // compute the dipole moment

@@ -19,16 +19,16 @@ namespace madness {
 /// Class which calculates all types of CC2 Potentials
 class CCPotentials {
 public:
-    CCPotentials(World& world_, const std::shared_ptr<Nemo> nemo, const CCParameters& param);
+    CCPotentials(World& world_, const std::shared_ptr<const Nemo> nemo, const CCParameters& param);
 
-    void reset_nemo(const std::shared_ptr<Nemo> nemo) {
+    void reset_nemo(const std::shared_ptr<const Nemo> nemo) {
         nemo_ = nemo;
         mo_ket_ = (make_mo_ket(*nemo));
         mo_bra_ = (make_mo_bra(*nemo));
         orbital_energies_ = init_orbital_energies(*nemo);
     };
 
-    Info update_info(const CCParameters& parameters, const std::shared_ptr<Nemo> nemo) const {
+    Info update_info(const CCParameters& parameters, const std::shared_ptr<const Nemo> nemo) const {
         Info info;
         info.mo_bra = mo_bra().get_vecfunction();
         info.mo_ket = mo_ket().get_vecfunction();
@@ -967,7 +967,7 @@ public:
     /// MPI World
     World& world;
     /// the nemo structure which holds the nuclear correlation factor and all other functions from the reference calculation
-    std::shared_ptr<Nemo> nemo_;
+    std::shared_ptr<const Nemo> nemo_;
     /// CC_Parameters: All parameters (see class description)
     const CCParameters& parameters;
     /// ket functions of the reference determinant

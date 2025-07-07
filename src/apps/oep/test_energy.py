@@ -25,7 +25,7 @@ if __name__ == "__main__":
 
     # run test
     global_arguments=' --geometry=be'
-    dft_arguments=' --dft="maxiter=1; econv=1.e-4; dconv=1.e-3; prefix='+prefix+'"'
+    dft_arguments=' --dft="maxiter=1; econv=1.e-4; dconv=1.e-3; k=7; prefix='+prefix+'"'
     other_arguments=' --oep="model=oaep"'
     cmd='rm '+outputfile+'; ./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)

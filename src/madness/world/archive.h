@@ -47,6 +47,7 @@
 #include <cstddef>
 #include <cstring>
 #include <array>
+#include <atomic>
 #include <vector>
 #include <map>
 #include <set>
@@ -1127,6 +1128,81 @@ namespace madness {
                 c = std::complex<T>(r,i);
             }
         };
+
+        /// Serialize std::atomic.
+
+        /// \tparam Archive The archive type.
+        /// \tparam T A serializable data type
+        template <class Archive, typename T>
+        struct ArchiveStoreImpl< Archive, std::atomic<T>, std::enable_if_t<is_serializable_v<Archive, T>> > {
+          /// Store std::atomic<T> to archive
+
+          /// \param[in] ar The archive.
+          /// \param[in] v The atomic value.
+          static inline void store(const Archive& ar, const std::atomic<T>& v) {
+            MAD_ARCHIVE_DEBUG(std::cout << "serialize std::atomic value" << std::endl);
+            ar & v.value;
+          }
+        };
+
+
+        /// Deserialize std::atomic.
+
+        /// \tparam Archive the archive type.
+        /// \tparam T A serializable data type
+        template <class Archive, typename T>
+        struct ArchiveLoadImpl< Archive, std::atomic<T>, std::enable_if_t<is_serializable_v<Archive, T>> > {
+          /// Load std::atomic<T> from archive
+
+          /// \param[in] ar The archive.
+          /// \param[out] v The atomic value.
+          static inline void load(const Archive& ar, std::atomic<T>& v) {
+            MAD_ARCHIVE_DEBUG(std::cout << "deserialize std::atomic value"
+                                        << std::endl);
+            T value;
+            ar & value;
+            v.store(value);
+          }
+        };
+
+#if __cplusplus >= 202002L  // std::atomic_flag::test is only in C++20
+        /// Serialize std::atomic_flag.
+
+        /// \tparam Archive The archive type.
+        template <class Archive>
+        struct ArchiveStoreImpl< Archive, std::atomic_flag, std::enable_if_t<is_serializable_v<Archive, bool>> > {
+          /// Store std::atomic_flag to archive
+
+          /// \param[in] ar The archive.
+          /// \param[in] v The atomic flag
+          static inline void store(const Archive& ar, std::atomic_flag v) {
+            MAD_ARCHIVE_DEBUG(std::cout << "serialize atomic_flag value" << std::endl);
+            ar & v.test();
+          }
+        };
+
+
+        /// Deserialize std::atomic_flag.
+
+        /// \tparam Archive the archive type.
+        template <class Archive>
+        struct ArchiveLoadImpl< Archive, std::atomic_flag, std::enable_if_t<is_serializable_v<Archive, bool>> > {
+          /// Load std::atomic_flag from archive
+
+          /// \param[in] ar The archive.
+          /// \param[out] v The atomic_flag value.
+          static inline void load(const Archive& ar, std::atomic_flag& v) {
+            MAD_ARCHIVE_DEBUG(std::cout << "deserialize atomic value"
+                                        << std::endl);
+            bool value;
+            ar & value;
+            if (value)
+              v.test_and_set();
+            else
+              v.clear();
+          }
+        };
+#endif
 
         /// Serialize a \c std::allocator.
 

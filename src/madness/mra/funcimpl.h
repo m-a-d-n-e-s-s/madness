@@ -1675,6 +1675,8 @@ template<size_t NDIM>
         /// branch of the tree.
         double truncate_tol(double tol, const keyT& key) const;
 
+        int get_truncate_mode() const { return truncate_mode; };
+
 
         /// Returns patch referring to coeffs of child in parent box
         /// @param[in] child the key to the child function node (box)

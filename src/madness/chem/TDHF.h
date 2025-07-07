@@ -19,13 +19,10 @@
 
 
 namespace madness {
-/// The TDHF class
-/// solves CIS/TDA equations and hopefully soon the full TDHF/TDDFT equations
-class TDHF : public QCPropertyInterface {
-public:
-
     /// the TDHF parameter class
     struct TDHFParameters : public QCCalculationParametersBase {
+
+        static constexpr char const *tag = "response";
 
         TDHFParameters() {
             initialize_all();
@@ -206,9 +203,17 @@ public:
         }
     }; // end of parameter class
 
+
+/// The TDHF class
+/// solves CIS/TDA equations and hopefully soon the full TDHF/TDDFT equations
+class TDHF : public QCPropertyInterface {
+public:
+
+    TDHF(World &world, const TDHFParameters &parameters, std::shared_ptr<const Nemo> reference);
+
     TDHF(World &world, const commandlineparser &parser);
 
-    TDHF(World &world, const commandlineparser &parser, std::shared_ptr<Nemo> nemo);
+    TDHF(World &world, const commandlineparser &parser, std::shared_ptr<const Nemo> nemo);
 
     virtual ~TDHF() {}
 
@@ -253,27 +258,26 @@ public:
         reference_=reference;
     }
 
-    std::shared_ptr<NemoBase> get_reference() const {
+    std::shared_ptr<const NemoBase> get_reference() const {
         return reference_;
     }
 
     std::shared_ptr<SCF> get_calc() const {
-        auto n=std::dynamic_pointer_cast<Nemo>(reference_);
+        auto n=std::dynamic_pointer_cast<const Nemo>(reference_);
         if (not n) MADNESS_EXCEPTION("could not cast NemoBase to Nemo",1);
         return n->get_calc();
     }
 
-    std::shared_ptr<Nemo> get_nemo() const {
-        std::shared_ptr<Nemo> n;
-        n=std::dynamic_pointer_cast<Nemo>(reference_);
+    std::shared_ptr<const Nemo> get_nemo() const {
+        auto n=std::dynamic_pointer_cast<const Nemo>(reference_);
         if (not n) MADNESS_EXCEPTION("could not cast NemoBase to Nemo",1);
         return n;
     }
 
     void prepare_calculation();
 
-    CalculationParameters& get_calcparam() const {
-        auto n=std::dynamic_pointer_cast<Nemo>(reference_);
+    CalculationParameters get_calcparam() const {
+        auto n=std::dynamic_pointer_cast<const Nemo>(reference_);
         if (not n) MADNESS_EXCEPTION("could not cast NemoBase to Nemo",1);
         return n->param;
     }
@@ -447,7 +451,7 @@ private:
     }
 
     double get_orbital_energy(const size_t i) const {
-        auto n=std::dynamic_pointer_cast<Nemo>(reference_);
+        auto n=std::dynamic_pointer_cast<const Nemo>(reference_);
         if (not n) MADNESS_EXCEPTION("could not cast NemoBase to Nemo",1);
         return n->get_calc()->aeps(i);
     }
@@ -509,7 +513,7 @@ private:
     /// The MPI Communicator
     World &world;
     /// The Nemo structure (convenience)
-    std::shared_ptr<NemoBase> reference_;
+    std::shared_ptr<const NemoBase> reference_;
     /// The TDHFParameters for the Calculations
     TDHFParameters parameters;
     /// Operator Structure which can handle intermediates (use for exchange with GS orbitals)

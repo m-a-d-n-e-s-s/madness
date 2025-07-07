@@ -28,7 +28,7 @@ Znemo::Znemo(World& world, const commandlineparser& parser) : NemoBase(world), m
 
     aobasis.read_file(cparam.aobasis());
 //    cparam.set_molecular_info(mol, aobasis, 0);
-    cparam.set_derived_values(mol,aobasis,parser);
+    cparam.set_derived_values(mol);
 
     FunctionDefaults<3>::set_cubic_cell(-cparam.L(), cparam.L());
     cparam.set_derived_value("spin_restricted",false);

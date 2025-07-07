@@ -58,7 +58,9 @@ int main(int argc, char **argv) {
 
         } else {
 
-            TDHF tdhf(world, parser);
+            auto nemo=std::make_shared<Nemo>(world, parser);
+            nemo->get_calc()->param.set_derived_value("k",nemo->get_param().k());
+            TDHF tdhf(world, parser, nemo);
 
             print_header2("input section");
             if (world.rank() == 0) {
@@ -70,6 +72,7 @@ int main(int argc, char **argv) {
 
             // solve the CIS equations
             const double time_scf_start = wall_time();
+            nemo->value();
             tdhf.prepare_calculation();
             const double time_scf_end = wall_time();
             if (world.rank() == 0) printf(" at time %.1f\n", wall_time());

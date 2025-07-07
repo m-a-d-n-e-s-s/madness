@@ -14,6 +14,7 @@ set(MADCHEM_HEADERS
     ccpairfunction.h
     CCPotentials.h
     CCStructures.h
+    CCParameters.h
     corepotential.h
     correlationfactor.h
     diamagneticpotentialfactor.h
@@ -49,6 +50,16 @@ set(MADCHEM_HEADERS
     pointgroupsymmetry.h
     polynomial.h
     potentialmanager.h
+    ParameterManager.hpp
+    ResponseParameters.hpp
+    PathManager.hpp
+    MolresponseLib.hpp
+    Applications.hpp
+    Drivers.hpp
+    SCFTargetAdapter.hpp
+    InputWriter.hpp
+    CCLib.hpp
+    MoldftLib.hpp
     projector.h
     QCPropertyInterface.h
     SAP.h
@@ -86,6 +97,7 @@ set(MADCHEM_SOURCES
     mp2.cc
     nemo.cc
     NWChem.cc
+    InputWriter.cpp
     oep.cc
     pcm.cc
     pointgroupsymmetry.cc
@@ -100,7 +112,7 @@ set(MADCHEM_SOURCES
     znemo.cc
     PNO.cpp  PNOF12Potentials.cpp  PNOGuessFunctions.cpp  PNOParameters.cpp  PNOStructures.cpp
 )
-if(LIBXC_FOUND)
+if(TARGET Libxc::xc)
   list(APPEND MADCHEM_SOURCES xcfunctional_libxc.cc)
 else()
   list(APPEND MADCHEM_SOURCES xcfunctional_ldaonly.cc)
@@ -117,9 +129,8 @@ add_mad_library(chem MADCHEM_SOURCES MADCHEM_HEADERS "mra" "madness/chem/")
   # Add dependencies for MADchem
   target_include_directories(${targetname} PUBLIC
       $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/apps/>)
-  if (LIBXC_FOUND)
-    target_include_directories(${targetname} PUBLIC ${LIBXC_INCLUDE_DIRS})
-    target_link_libraries(${targetname} PUBLIC ${LIBXC_LIBRARIES})
+  if (TARGET Libxc::xc)
+    target_link_libraries(${targetname} PUBLIC Libxc::xc)
   endif ()
 
   if (PCM_FOUND)
@@ -154,10 +165,10 @@ if(BUILD_TESTING)
   set(CHEM_TEST_SOURCES_SHORT test_pointgroupsymmetry.cc test_masks_and_boxes.cc
   test_qc.cc test_MolecularOrbitals.cc test_BSHApply.cc test_projector.cc)
   set(CHEM_TEST_SOURCES_LONG test_localizer.cc test_ccpairfunction.cc test_low_rank_function.cc)
-  if (LIBXC_FOUND)
+  if (TARGET Libxc::xc)
     list(APPEND CHEM_TEST_SOURCES_SHORT test_dft.cc )
     list(APPEND CHEM_TEST_SOURCES_LONG test_SCFOperators.cc)
-  endif(LIBXC_FOUND)
+  endif(TARGET Libxc::xc)
   if (INTEGRATORXX_FOUND)
     list(APPEND CHEM_TEST_SOURCES_SHORT test_IntegratorXX.cc )
   endif(INTEGRATORXX_FOUND)

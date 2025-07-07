@@ -39,7 +39,7 @@ namespace madness {
 
     /// Invoke with id and nproc as rank and size in MPI::COMM_WORLD
     void gprofexit(int id, int nproc) {
-        std::size_t bufsize=64;
+        const std::size_t bufsize=64;
         char buf[bufsize];
         if (id == 0) {
             for (int p=nproc-1; p>0; --p) {

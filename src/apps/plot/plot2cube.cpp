@@ -63,7 +63,7 @@ int main(int argc, char** argv) {
 	Molecule molecule(world,parser);
 	CalculationParameters param(world,parser);
 	AtomicBasisSet aobasis(param.aobasis()); // not actually needed here..
-	param.set_derived_values(molecule,aobasis,parser);
+	param.set_derived_values(molecule);
 	PlotParameters pparam(world,parser);
 
 	if (world.rank()==0) {

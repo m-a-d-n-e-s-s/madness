@@ -67,7 +67,7 @@ int main() {
   const double rlo = 1e-8;
   auto [c, t] = make_fit(a, epsilon, rlo);
 
-  auto fit = [&](double r) {
+  auto fit = [&c=c, &t=t](double r) {
     double sum = 0;
     for (size_t i = 0; i < c.size(); i++) {
       sum += c[i] * std::exp(-t[i] * r * r);

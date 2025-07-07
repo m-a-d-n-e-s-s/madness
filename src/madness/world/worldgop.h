@@ -85,6 +85,7 @@ namespace madness {
     template <typename T>
     struct WorldAbsMaxOp {
         inline T operator()(const T& a, const T& b) const {
+            using std::abs;
             return abs(a)>abs(b)? abs(a) : abs(b);
         }
     };
@@ -99,6 +100,7 @@ namespace madness {
     template <typename T>
     struct WorldAbsMinOp {
         inline T operator()(const T& a, const T& b) const {
+            using std::abs;
             return abs(a)<abs(b)? abs(a) : abs(b);
         }
     };
