@@ -3,6 +3,7 @@
 #include <madness/chem/InputWriter.hpp>
 #include <madness/chem/ParameterManager.hpp>
 #include <madness/chem/PathManager.hpp>
+#include <madness/chem/Results.h>
 
 namespace madness {
   // Scoped CWD: changes the current directory to the given one, and restores when
@@ -238,28 +239,28 @@ namespace madness {
         }
 
         // we could dump params_ to JSON and pass as argv if desired…
-        typename Library::Results results;
-
+        MetaDataResults metadata(world_);
         if constexpr (std::is_same_v<ScfT, SCF>) {
-          results = Library::run_scf(world_, params_, pm.dir());
+          results_ = Library::run_scf(world_, params_, pm.dir());
         } else if constexpr (std::is_same_v<ScfT, Nemo>) {
-          results = Library::run_nemo(this->get_nemo());
+          results_ = Library::run_nemo(this->get_nemo());
+
         } else {
           MADNESS_CHECK_THROW("unknown SCF type", 1);
         }
+        results_["metadata"] = metadata.to_json();
 
-        energy_ = results.energy;
-        dipole_ = results.dipole;
-        gradient_ = results.gradient;
+        // legacy
+        PropertyResults properties= results_["properties"];
+        energy_ = properties.energy;
+        dipole_ = properties.dipole;
+        gradient_ = properties.gradient;
 
-        // 5) write out JSON for future restarts
-        nlohmann::json outj = {{"energy", energy_}};
-        if (dipole_.has_value() and dipole_->has_data()) outj["dipole"] = tensor_to_json(*dipole_);
-        if (gradient_.has_value() and gradient_->has_data()) outj["gradient"] = tensor_to_json(*gradient_);
       }
     }
 
     nlohmann::json results() const override {
+      return results_;
       auto scfParams = params_.get<CalculationParameters>();
       nlohmann::json j = {
         {"type", "scf"},
@@ -274,6 +275,7 @@ namespace madness {
 
   private:
     World& world_;
+    nlohmann::json results_;
 
     double energy_;
 

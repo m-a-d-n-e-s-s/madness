@@ -241,6 +241,30 @@ double Nemo::value(const Tensor<double>& x) {
     return calc->current_energy;
 }
 
+nlohmann::json Nemo::analyze() const {
+
+    timer t(world);;
+    // compute the density
+    const real_function_3d rhonemo = 2.0 * make_density(calc->aocc, calc->amo);
+    const real_function_3d rho = (R_square * rhonemo);
+
+    // compute the dipole moment
+    Tensor<double> dipole = calc->dipole(world, rho);
+
+    // compute the gradient
+    Tensor<double> grad = compute_gradient(rhonemo,molecule());
+
+    nlohmann::json j;
+    j["energy"] = calc->current_energy;
+    j["dipole"] = tensor_to_json(dipole);
+    j["gradient"] = tensor_to_json(grad);
+    // j["density"] = function_to_json(rho);
+    t.end("Nemo::analyze");
+
+    return j;
+
+
+}
 
 /// localize the nemo orbitals according to Pipek-Mezey or Foster-Boys
 vecfuncT Nemo::localize(const vecfuncT& nemo, const double dconv, const bool randomize) const {
@@ -442,6 +466,7 @@ double Nemo::solve(const SCFProtocol& proto) {
 	if (converged) {
 		if (world.rank()==0) print("\nIterations converged\n");
         calc->converged_for_thresh=get_calc_param().econv();
+        calc->converged_for_dconv=get_calc_param().dconv();
         if (get_calc_param().save()) calc->save_mos(world);
     } else {
 		if (world.rank()==0) print("\nIterations failed\n");

@@ -168,7 +168,7 @@ class Workflow {
 
     // Write out aggregate results
     std::ofstream ofs(topDir / "output.json");
-    ofs << std::setw(2) << all;
+    ofs << std::setw(4) << all;
     ofs.close();
   }
 

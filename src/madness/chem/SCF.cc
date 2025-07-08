@@ -2428,6 +2428,7 @@ void SCF::solve(World& world) {
                 if (world.rank() == 0 && converged and (param.print_level() > 1)) {
                     print("\nConverged!\n");
                     converged_for_thresh=param.econv();
+                    converged_for_dconv=param.dconv();
                 }
 
                 // Diagonalize to get the eigenvalues and if desired the final eigenvectors
