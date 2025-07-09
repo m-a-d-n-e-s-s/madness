@@ -167,29 +167,127 @@ namespace madness {
     };
 
     class CISResults: public ResultsBase {
-        virtual nlohmann::json to_json() const {
-            MADNESS_EXCEPTION("to_json not implemented for ConvergenceResults", 1);
+    public:
+        struct excitation_info {
+            std::string irrep; // irreducible representation
+            double omega; // excitation energy in Hartree
+            double current_error; // error in the excitation energy
+            double oscillator_strength_length; // oscillator strength
+            double oscillator_strength_velocity; // oscillator strength
+        };
+        std::vector<excitation_info> excitations;
+        long nfreeze=-1;
+
+        CISResults() = default;
+
+        /// construct from JSON
+        CISResults(const nlohmann::json& j) {
+            if (j.count("cis_excitations") > 0) {
+                for (const auto& ex : j["cis_excitations"]) {
+                    excitation_info ei;
+                    ei.irrep = ex.value("irrep", "");
+                    ei.omega = ex.value("omega", 0.0);
+                    ei.current_error = ex.value("current_error", 0.0);
+                    ei.oscillator_strength_length = ex.value("oscillator_strength_length", 0.0);
+                    ei.oscillator_strength_velocity = ex.value("oscillator_strength_velocity", 0.0);
+                    excitations.push_back(ei);
+                }
+            }
+            nfreeze = j.value("nfreeze", -1);
+        }
+
+        nlohmann::json to_json() const override {
+            nlohmann::json j;
+            for (const auto& ex : excitations) {
+                nlohmann::json ex_json;
+                ex_json["irrep"] = ex.irrep;
+                ex_json["omega"] = ex.omega;
+                ex_json["current_error"] = ex.current_error;
+                ex_json["oscillator_strength_length"] = ex.oscillator_strength_length;
+                ex_json["oscillator_strength_velocity"] = ex.oscillator_strength_velocity;
+                j["cis_excitations"].push_back(ex_json);
+            }
+            j["nfreeze"] = nfreeze;
+            return j;
         }
 
     };
 
-    class CC2Results: public ResultsBase {
-        virtual nlohmann::json to_json() const {
-            MADNESS_EXCEPTION("to_json not implemented for ConvergenceResults", 1);
+    class CC2Results: public CISResults {
+    public:
+        CC2Results() = default;
+
+        /// construct from JSON
+        CC2Results(const nlohmann::json& j) : CISResults(j) {
+            mp2_correlation_energy_ = j.value("mp2_correlation_energy", 0.0);
+            cc2_correlation_energy_ = j.value("cc2_correlation_energy", 0.0);
+        }
+
+
+        nlohmann::json to_json() const override {
+            nlohmann::json j;
+            j = CISResults::to_json();
+            j["mp2_correlation_energy"] = mp2_correlation_energy_;
+            j["cc2_correlation_energy"] = cc2_correlation_energy_;
+            return j;
+        }
+
+        double mp2_correlation_energy_;
+        double cc2_correlation_energy_;
+
+    };
+
+    class ZnemoResults: public SCFResults {
+    public:
+
+        double B=0.0; // B value for the Znemo calculation
+
+        ZnemoResults() = default;
+        /// construct from JSON
+        ZnemoResults(const nlohmann::json& j) : SCFResults(j) {
+            B = j.value("B", 0.0);
+        }
+
+        nlohmann::json to_json() const override {
+            nlohmann::json j;
+            j = SCFResults::to_json();
+            j["B"] = B;
+            return j;
         }
 
     };
 
-    class ZnemoResults: public ResultsBase {
-        virtual nlohmann::json to_json() const {
-            MADNESS_EXCEPTION("to_json not implemented for ConvergenceResults", 1);
+    class OEPResults: public SCFResults {
+    public:
+        std::string model="oaep"; // model used for the OEP calculation"
+        double drho=0.0; // delta rho =difference to reference (=HF?) density
+        double dvir14=0.0; // diagnostic parameter
+        double dvir17=0.0; // diagnostic parameter
+        double x_local=0.0; // local exchange energy
+        double x_hf=0.0; // HF exchange energy
+
+        OEPResults() = default;
+
+        /// construct from JSON
+        OEPResults(const nlohmann::json& j) : SCFResults(j) {
+            model = j.value("model", "oaep");
+            drho = j.value("drho", 0.0);
+            dvir14 = j.value("dvir14", 0.0);
+            dvir17 = j.value("dvir17", 0.0);
+            x_local = j.value("x_local", 0.0);
+            x_hf = j.value("x_hf", 0.0);
         }
 
-    };
-
-    class OEPResults: public ResultsBase {
-        virtual nlohmann::json to_json() const {
-            MADNESS_EXCEPTION("to_json not implemented for ConvergenceResults", 1);
+        nlohmann::json to_json() const override {
+            nlohmann::json j;
+            j = SCFResults::to_json();
+            j["model"] = model;
+            j["drho"] = drho;
+            j["dvir14"] = dvir14;
+            j["dvir17"] = dvir17;
+            j["x_local"] = x_local;
+            j["x_hf"] = x_hf;
+            return j;
         }
 
     };

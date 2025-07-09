@@ -275,7 +275,6 @@ namespace madness {
 
   private:
     World& world_;
-    nlohmann::json results_;
 
     double energy_;
 
@@ -371,66 +370,34 @@ namespace madness {
           }
           // read the checkpoint file
           std::ifstream ifs(ckpt);
-          nlohmann::json j;
-          ifs >> j;
+          ifs >> results_;
           ifs.close();
 
           bool ok = true;
           bool needEnergy = true;
-          if (needEnergy && !j.contains("energy")) ok = false;
+          if (needEnergy && !results_.contains("energy")) ok = false;
 
-          if (ok) {
-            energy_ = j["energy"];
-            return;
-          }
         }
 
-        // we could dump params_ to JSON and pass as argv if desired…
-        auto results = Library::run_cc2(world_, params_, reference_.get_workdir(), pm.dir());
-        try {
-          this->solve();
-        } catch (std::exception& e) {
-          print("Caught exception: ", e.what());
+        auto rel = std::filesystem::relative(reference_.get_workdir(), pm.dir());
+        if (world.rank() == 0) {
+          std::cout << "Running cc2 calculation in: " << pm.dir() << std::endl;
+          std::cout << "Ground state archive: " << reference_.get_workdir() << std::endl;
+          std::cout << "Relative path: " << rel << std::endl;
         }
 
-        energy_ = results.energy;
-        dipole_ = results.dipole;
-        gradient_ = results.gradient;
+        results_=this->solve();
 
-        // 5) write out JSON for future restarts
-        nlohmann::json outj = {{"energy", energy_}};
-        if (dipole_.has_value()) outj["dipole"] = tensor_to_json(*dipole_);
-        if (gradient_.has_value()) outj["gradient"] = tensor_to_json(*gradient_);
-
-        if (world_.rank() == 0) {
-          std::cout << "Writing checkpoint file: " << ckpt << std::endl;
-          std::ofstream o(ckpt);
-          o << std::setw(2) << outj << std::endl;
-        }
       }
     }
 
     nlohmann::json results() const override {
-      auto scfParams = params_.get<CalculationParameters>();
-      nlohmann::json j = {
-        {"type", "scf"},
-        {"energy", energy_},
-    };
-      if (dipole_ && scfParams.dipole()) j["dipole"] = tensor_to_json(*dipole_);
-      if (gradient_ && scfParams.derivatives())
-        j["gradient"] = tensor_to_json(*gradient_);
-
-      return j;
+      return results_;
     }
 
   private:
     World& world_;
     const Application& reference_;
-
-    double energy_;
-    std::optional<Tensor<double>> dipole_;
-    std::optional<Tensor<double>> gradient_;
-    std::optional<real_function_3d> density_;
   };
 
 
@@ -459,30 +426,6 @@ namespace madness {
           std::cout << "Running CIS in " << pm.dir() << std::endl;
         }
 
-        // 2) define the "checkpoint" file
-        std::string label="tdhf";
-        auto ckpt = label + "_results.json";
-        print("cc checkpoint file",ckpt);
-        if (std::filesystem::exists(ckpt)) {
-          if (world_.rank() == 0) {
-            std::cout << "Found checkpoint file: " << ckpt << std::endl;
-          }
-          // read the checkpoint file
-          std::ifstream ifs(ckpt);
-          nlohmann::json j;
-          ifs >> j;
-          ifs.close();
-
-          bool ok = true;
-          bool needEnergy = true;
-          if (needEnergy && !j.contains("energy")) ok = false;
-
-          if (ok) {
-            energy_ = j["energy"];
-            return;
-          }
-        }
-
         // we could dump params_ to JSON and pass as argv if desired…
         try {
           const double time_scf_start = wall_time();
@@ -505,46 +448,25 @@ namespace madness {
             std::cout << std::setw(25) << "time cis" << " = " << time_cis_end - time_cis_start << "\n";
             std::cout << "--------------------------------------------------\n";
           }
-          this->analyze(roots);
+          auto j=this->analyze(roots);
+          // funnel through CISResults to make sure we have the right format
+          CISResults results(j);
+          results_= results.to_json();
+
         } catch (std::exception& e) {
           print("Caught exception: ", e.what());
-        }
-
-
-        // 5) write out JSON for future restarts
-        nlohmann::json outj = {{"energy", energy_}};
-        if (dipole_.has_value()) outj["dipole"] = tensor_to_json(*dipole_);
-        if (gradient_.has_value()) outj["gradient"] = tensor_to_json(*gradient_);
-
-        if (world_.rank() == 0) {
-          std::cout << "Writing checkpoint file: " << ckpt << std::endl;
-          std::ofstream o(ckpt);
-          o << std::setw(2) << outj << std::endl;
         }
       }
     }
 
     nlohmann::json results() const override {
-      auto scfParams = params_.get<CalculationParameters>();
-      nlohmann::json j = {
-        {"type", "scf"},
-        {"energy", energy_},
-    };
-      if (dipole_ && scfParams.dipole()) j["dipole"] = tensor_to_json(*dipole_);
-      if (gradient_ && scfParams.derivatives())
-        j["gradient"] = tensor_to_json(*gradient_);
-
-      return j;
+      return results_;
     }
 
   private:
     World& world_;
     const Application& reference_;
 
-    double energy_;
-    std::optional<Tensor<double>> dipole_;
-    std::optional<Tensor<double>> gradient_;
-    std::optional<real_function_3d> density_;
   };
 
 

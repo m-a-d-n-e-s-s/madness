@@ -7,6 +7,7 @@
 
 
 #include<madness/chem/CC2.h>
+#include<madness/chem/Results.h>
 #include<madness/mra/commandlineparser.h>
 #include "MolecularOrbitals.h"
 #include "localizer.h"
@@ -17,8 +18,7 @@
 namespace madness {
 
 /// solve the CC2 ground state equations, returns the correlation energy
-void
-CC2::solve() {
+nlohmann::json CC2::solve() {
     if (parameters.test()) CCOPS.test();
 
     if (world.rank()==0) {
@@ -26,6 +26,9 @@ CC2::solve() {
         std::cout << std::fixed << std::setprecision(1) << "\nstarting calculation at time " << wall_time() << std::endl;
     }
     const CalcType ctype = parameters.calc_type();
+
+    // fill in results here
+    CC2Results results;
 
     Tensor<double> fmat=nemo->compute_fock_matrix(nemo->get_calc()->amo,nemo->get_calc()->aocc);
     long nfrozen=Localizer::determine_frozen_orbitals(fmat);
@@ -92,6 +95,7 @@ CC2::solve() {
 //            for (auto& pair : mp2pairs.allpairs) mp2_energy+=CCOPS.compute_pair_correlation_energy(pair.second);
         } else {
             mp2_energy = solve_mp2_coupled(mp2pairs, info);
+            results.mp2_correlation_energy_=mp2_energy;
             output_calc_info_schema("mp2",mp2_energy);
             output.section(assign_name(CT_MP2) + " Calculation Ended !");
             if (world.rank() == 0) {
@@ -119,6 +123,7 @@ CC2::solve() {
             if (world.rank()==0) print("found no_compute_cc2 key -- no recomputation of singles or doubles or energy");
         } else {
             cc2_energy = solve_cc2(cc2singles, cc2pairs, info);
+            results.cc2_correlation_energy_=cc2_energy;
             output_calc_info_schema("cc2",cc2_energy);
         }
 
@@ -295,10 +300,14 @@ CC2::solve() {
             if (world.rank() == 0)
                 print_header1("Solving LRCC2 for excitation " + std::to_string(iexcitation)
                     + " with omega " + std::to_string(vccs[iexcitation].omega));
-            solve_lrcc2(cc2pairs,cc2singles,vccs[iexcitation],iexcitation,info);
+            auto [a,b,c] = solve_lrcc2(cc2pairs,cc2singles,vccs[iexcitation],iexcitation,info);
+            CISResults::excitation_info exinfo;
+            exinfo.omega = c;
+            results.excitations.push_back(exinfo);
        }
 
     } else MADNESS_EXCEPTION(("Unknown Calculation Type: " + assign_name(ctype)).c_str(), 1);
+    return results.to_json();
 
 }
 

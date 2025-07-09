@@ -1579,7 +1579,7 @@ double TDHF::oscillator_strength_velocity(const CC_vecfunction &x) const {
 
 
 /// analyze the root: oscillator strength and contributions from occ
-void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
+nlohmann::json TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
 
     const size_t noct = get_active_mo_ket().size();
     nlohmann::json j;
@@ -1637,6 +1637,7 @@ void TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
         if (world.rank() == 0) print("trace over transition density", i, trace);
         save(td, "transition_density_" + std::to_string(i));
     }
+    return j1;
 }
 
 /// auto assigns all parameters which where not explicitly given and which depend on other parameters of the reference calculation

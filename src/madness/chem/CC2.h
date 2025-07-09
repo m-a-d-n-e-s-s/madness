@@ -146,7 +146,7 @@ public:
     PairVectorMap triangular_map;
 
     /// solve the CC2 ground state equations, returns the correlation energy
-    void solve();
+    nlohmann::json solve();
 
 
     std::vector<CC_vecfunction>

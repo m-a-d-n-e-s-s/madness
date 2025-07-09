@@ -319,7 +319,7 @@ public:
     std::vector<CC_vecfunction> solve_cis() const;
 
     /// analyze the root: oscillator strength and contributions from occupied orbitals
-    void analyze(const std::vector<CC_vecfunction> &x) const;
+    nlohmann::json analyze(const std::vector<CC_vecfunction> &x) const;
 
     const TDHFParameters& get_parameters() const {return parameters;};
 
