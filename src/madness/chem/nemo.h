@@ -331,11 +331,11 @@ class Nemo: public NemoBase, public QCPropertyInterface {
 public:
 	/// class holding parameters for a nemo calculation beyond the standard dft parameters from moldft
 	struct NemoCalculationParameters : public QCCalculationParametersBase {
-		static constexpr char const* tag = "dft";
+		static constexpr char const* tag = "nemo";
 
         NemoCalculationParameters(World& world, const commandlineparser& parser) {
             initialize_nemo_parameters();
-        	read_input_and_commandline_options(world,parser,"dft");
+        	read_input_and_commandline_options(world,parser,tag);
         }
 
 		NemoCalculationParameters() {
