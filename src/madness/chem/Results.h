@@ -20,6 +20,8 @@ namespace madness {
 
         /// serialize the results to a JSON object
         virtual nlohmann::json to_json() const = 0;
+
+        virtual std::string key() const = 0;
     };
 
     /// holds metadata of the calculation
@@ -27,6 +29,7 @@ namespace madness {
     /// create right before the calculation starts, stop() must be called after the calculation is finished
     class MetaDataResults : public ResultsBase {
     public:
+
         MetaDataResults(World& world) {
             time_begin=wall_time();
             mpi_size= world.size();
@@ -37,6 +40,8 @@ namespace madness {
         std::string finished_at="";
         std::string git_hash="";
         long mpi_size=-1;
+
+        std::string key() const override {return "metadata"; }
 
         void stop() {
             time_end=wall_time();
@@ -92,6 +97,8 @@ namespace madness {
             return *this;
         }
 
+        std::string key() const override {return "convergence"; }
+
         ConvergenceResults& set_converged_thresh(double thresh) {
             converged_for_thresh = thresh;
             return *this;
@@ -125,6 +132,8 @@ namespace madness {
         Tensor<double> dipole;
         Tensor<double> gradient;
 
+        std::string key() const override {return "properties"; }
+
         nlohmann::json to_json() const override {
             nlohmann::json j;
             j["energy"] = energy;
@@ -141,6 +150,8 @@ namespace madness {
         Tensor<double> beps;
         Tensor<double> afock;
         Tensor<double> bfock;
+        std::string model="scf"; // model used for the SCF calculation
+        PropertyResults properties;
 
         SCFResults() = default;
 
@@ -154,7 +165,14 @@ namespace madness {
                 bfock = tensor_from_json<double>(j["scf_fock_b"]);
             if (j.count("scf_fock_b") > 0)
                 bfock = tensor_from_json<double>(j["scf_fock_b"]);
+            if (j.count("properties") > 0) {
+                properties = PropertyResults(j["properties"]);
+            } else {
+                properties = PropertyResults();
+            }
         }
+
+        std::string key() const override {return model; }
 
         nlohmann::json to_json() const override {
             nlohmann::json j;
@@ -162,6 +180,8 @@ namespace madness {
             j["scf_fock_a"] = tensor_to_json(afock);
             if (beps.size() > 0) j["scf_eigenvalues_b"] = tensor_to_json(beps);
             if (bfock.size() > 0) j["scf_fock_b"] = tensor_to_json(bfock);
+            j["model"] = model;
+            j["properties"] = properties.to_json();
             return j;
         }
     };
@@ -177,13 +197,16 @@ namespace madness {
         };
         std::vector<excitation_info> excitations;
         long nfreeze=-1;
+        std::string model="unknown";
+
+        std::string key() const override {return model; }
 
         CISResults() = default;
 
         /// construct from JSON
         CISResults(const nlohmann::json& j) {
-            if (j.count("cis_excitations") > 0) {
-                for (const auto& ex : j["cis_excitations"]) {
+            if (j.count("excitations") > 0) {
+                for (const auto& ex : j["excitations"]) {
                     excitation_info ei;
                     ei.irrep = ex.value("irrep", "");
                     ei.omega = ex.value("omega", 0.0);
@@ -194,6 +217,7 @@ namespace madness {
                 }
             }
             nfreeze = j.value("nfreeze", -1);
+            model= j.value("model", "unknown");
         }
 
         nlohmann::json to_json() const override {
@@ -205,9 +229,10 @@ namespace madness {
                 ex_json["current_error"] = ex.current_error;
                 ex_json["oscillator_strength_length"] = ex.oscillator_strength_length;
                 ex_json["oscillator_strength_velocity"] = ex.oscillator_strength_velocity;
-                j["cis_excitations"].push_back(ex_json);
+                j["excitations"].push_back(ex_json);
             }
             j["nfreeze"] = nfreeze;
+            j["model"] = model;
             return j;
         }
 
@@ -232,8 +257,8 @@ namespace madness {
             return j;
         }
 
-        double mp2_correlation_energy_;
-        double cc2_correlation_energy_;
+        double mp2_correlation_energy_=0.0;
+        double cc2_correlation_energy_=0.0;
 
     };
 
@@ -259,23 +284,30 @@ namespace madness {
 
     class OEPResults: public SCFResults {
     public:
-        std::string model="oaep"; // model used for the OEP calculation"
         double drho=0.0; // delta rho =difference to reference (=HF?) density
-        double dvir14=0.0; // diagnostic parameter
-        double dvir17=0.0; // diagnostic parameter
-        double x_local=0.0; // local exchange energy
-        double x_hf=0.0; // HF exchange energy
+        double devir14=0.0; // diagnostic parameter
+        double devir17=0.0; // diagnostic parameter
+        double Ex_vir=0.0; // local exchange energy
+        double Ex_conv=0.0; //
+        double Ex_HF=0.0; // HF exchange energy
+        double E_kin_HF=0.0;
+        double E_kin_KS=0.0; // kinetic energy of the KS reference
+        double Econv=0.0; // final energy using conventional method
 
         OEPResults() = default;
 
         /// construct from JSON
-        OEPResults(const nlohmann::json& j) : SCFResults(j) {
+        explicit OEPResults(const nlohmann::json& j) : SCFResults(j) {
             model = j.value("model", "oaep");
             drho = j.value("drho", 0.0);
-            dvir14 = j.value("dvir14", 0.0);
-            dvir17 = j.value("dvir17", 0.0);
-            x_local = j.value("x_local", 0.0);
-            x_hf = j.value("x_hf", 0.0);
+            devir14 = j.value("dvir14", 0.0);
+            devir17 = j.value("dvir17", 0.0);
+            Ex_vir = j.value("Ex_vir", 0.0);
+            Ex_conv = j.value("Ex_conv", 0.0);
+            Ex_HF = j.value("Ex_HF", 0.0);
+            E_kin_HF = j.value("E_kin_HF", 0.0);
+            E_kin_KS = j.value("E_kin_KS", 0.0);
+            Econv = j.value("Econv", 0.0);
         }
 
         nlohmann::json to_json() const override {
@@ -283,10 +315,14 @@ namespace madness {
             j = SCFResults::to_json();
             j["model"] = model;
             j["drho"] = drho;
-            j["dvir14"] = dvir14;
-            j["dvir17"] = dvir17;
-            j["x_local"] = x_local;
-            j["x_hf"] = x_hf;
+            j["devir14"] = devir14;
+            j["devir17"] = devir17;
+            j["Ex_vir"] = Ex_vir;
+            j["Ex_conv"] = Ex_conv;
+            j["Ex_HF"] = Ex_HF;
+            j["E_kin_HF"] = E_kin_HF;
+            j["E_kin_KS"] = E_kin_KS;
+            j["Econv"] = Econv;
             return j;
         }
 

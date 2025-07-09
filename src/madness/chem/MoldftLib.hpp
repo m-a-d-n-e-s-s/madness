@@ -18,12 +18,7 @@ struct moldft_lib {
   static nlohmann::json run_nemo(std::shared_ptr<Nemo> nemo) {
 
     nemo->value();
-    auto properties=nemo->analyze();
-    PropertyResults pr;
-    pr.energy= properties["energy"];
-    pr.dipole=tensor_from_json<double>(properties["dipole"]);
-    pr.gradient=tensor_from_json<double>(properties["gradient"]);
-
+    PropertyResults pr=nemo->analyze();
 
     ConvergenceResults cr;
     cr.set_converged_thresh(nemo->get_calc()->converged_for_thresh);
@@ -32,11 +27,13 @@ struct moldft_lib {
     SCFResults sr;
     sr.aeps = nemo->get_calc()->aeps;
     sr.beps = nemo->get_calc()->beps;
+    sr.properties=pr;
 
+    // nlohmann::json results;
     nlohmann::json results;
-    results["convergence_info"]=cr.to_json();
     results["scf"]=sr.to_json();
-    results["properties"]=pr.to_json();
+    results["scf"]["convergence_info"]=cr.to_json();
+
     return results;
   }
 
@@ -116,31 +113,22 @@ struct moldft_lib {
 
     calc.do_plots(world);
 
-    // return structured results
-//    nlohmann::json j;
-//    j["energy"] = energy;
-//    j["scf_eigenvalues_a"] = tensor_to_json(calc.aeps);
-//    if (calc.param.nbeta() != 0 && !calc.param.spin_restricted())
-//      j["scf_eigenvalues_b"] = tensor_to_json(calc.beps);
-//    j["dipole"]=tensor_to_json(dip);
-//    j["gradient"]=tensor_to_json(grad);
-//    return j;
-
     ConvergenceResults cr;
     cr.set_converged_thresh(calc.converged_for_thresh);
     cr.set_converged_dconv(calc.converged_for_dconv);
-    SCFResults sr;
-    sr.aeps = calc.aeps;
-    sr.beps = calc.beps;
     PropertyResults pr;
     pr.energy = energy;
     pr.dipole = dip;
     pr.gradient = grad;
+    SCFResults sr;
+    sr.aeps = calc.aeps;
+    sr.beps = calc.beps;
+    sr.properties=pr;
 
-    nlohmann::json results;
-    results["convergence_info"]=cr.to_json();
-    results["scf"]=sr.to_json();
-    results["properties"]=pr.to_json();
+    nlohmann::json results({"scf", sr.to_json()});
+    results["scf"]["convergence_info"]=cr.to_json();
+    // results["scf"]=sr.to_json();
+    // results["scf"]["properties"]=pr.to_json();
     return results;
 
 

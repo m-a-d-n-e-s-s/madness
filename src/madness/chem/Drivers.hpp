@@ -60,7 +60,9 @@ class SinglePointDriver : public Driver {
     result_ = app_->results();
   }
 
-  nlohmann::json summary() const override { return result_; }
+  nlohmann::json summary() const override {
+    return result_;
+  }
 
  private:
   std::shared_ptr<Application> app_;
@@ -164,12 +166,13 @@ class Workflow {
       auto taskDir = topDir / ("task_" + std::to_string(i));
       drivers_[i]->execute(taskDir);
       all["tasks"].push_back(drivers_[i]->summary());
+
+      // Write out aggregate results
+      std::ofstream ofs(topDir / "output.json");
+      ofs << std::setw(4) << all;
+      ofs.close();
     }
 
-    // Write out aggregate results
-    std::ofstream ofs(topDir / "output.json");
-    ofs << std::setw(4) << all;
-    ofs.close();
   }
 
  private:

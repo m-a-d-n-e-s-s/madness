@@ -38,9 +38,8 @@ double OEP::solve(const vecfuncT& HF_nemo1) {
 	// deep copy KS_nemo MOs
 	vecfuncT KS_nemo = copy(world,calc->amo);
 
-	double energy=0.0;
 	for (std::string model : oep_param.model())
-		energy=iterate(model,HF_nemo,HF_Fock,KS_nemo,KS_Fock,Voep,Vs);
+		results=iterate(model,HF_nemo,HF_Fock,KS_nemo,KS_Fock,Voep,Vs);
 
 	print("KS_Fock after convergence");
 	print(KS_Fock);
@@ -51,8 +50,8 @@ double OEP::solve(const vecfuncT& HF_nemo1) {
 	Vfinal=copy(Voep);
     save_restartdata(KS_Fock);
 
-	printf("      +++ FINAL TOTAL %s ENERGY = %15.8f  Eh +++\n\n\n", oep_param.model().back().c_str(), energy);
-	return energy;
+	printf("      +++ FINAL TOTAL %s ENERGY = %15.8f  Eh +++\n\n\n", oep_param.model().back().c_str(), results.Econv);
+	return results.Econv;
 }
 
 void OEP::output_calc_info_schema(const double& energy) const {
@@ -64,22 +63,6 @@ void OEP::output_calc_info_schema(const double& energy) const {
     update_schema(get_calc_param().prefix()+".oep_calc_info", j);
 }
 
-void OEP::analyze() {
-    set_protocol(get_calc_param().econv());
-    Tensor<double> Fock;
-    reference->get_calc()->load_mos(world);
-    load_restartdata(Fock);
-    save(Vfinal,"OEPapprox_final");
-    // save the converged orbitals and nemos
-    for (std::size_t imo = 0; imo < calc->amo.size(); ++imo) {
-        save(calc->amo[imo], "oep_nemo" + stringify(imo));
-    }
-    //double n1=R_square.norm2();
-    //double n2=norm2(world,calc->get_amo());
-    real_function_3d Slater=compute_slater_potential(calc->get_amo());
-    real_function_3d Slater_dcep_diff=Slater-Vfinal;
-    save(Slater,"Slater_oepnemo");
-}
 
 void OEP::save_restartdata(const Tensor<double>& fock) const {
 	if (world.rank()==0) print("saving OEP orbitals to file restartdata_OEP");
@@ -137,7 +120,7 @@ std::shared_ptr<Fock<double,3>> OEP::make_fock_operator() const {
     return std::make_shared<Fock<double,3>>(fock);
 }
 
-double OEP::compute_and_print_final_energies(const std::string model, const real_function_3d& Voep,
+OEPResults OEP::compute_and_print_final_energies(const std::string model, const real_function_3d& Voep,
 		const vecfuncT& KS_nemo, const tensorT& KS_Fock,
 		const vecfuncT& HF_nemo, const tensorT& HF_Fock) const {
 
@@ -208,10 +191,22 @@ double OEP::compute_and_print_final_energies(const std::string model, const real
 //	print("KS Fock matrix elements using Voep/virial ", calc->aeps);
 	print("KS Fock matrix elements using K operator  ", f_pp);
 
-	return Econv;
+	OEPResults results;
+	results.devir14= (Ex_vir - Ex_conv); // like in Kohut_2014, equation (45)
+	results.devir17= (Ex_vir - Ex_HF - 2.0*Tc); // like in Ospadov_2017, equation (28)
+	results.drho=Drho;
+	results.Ex_conv=Econv;
+	results.Ex_vir=Ex_vir;
+	results.Ex_HF=Ex_HF;
+	results.E_kin_HF=Ekin_HF;
+	results.E_kin_KS=Ekin_KS;
+	results.model=model;
+	results.Econv=Econv;
+
+	return results;
 }
 
-double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_Fock,
+OEPResults OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_Fock,
 		vecfuncT& KS_nemo, tensorT& KS_Fock, real_function_3d& Voep, const real_function_3d Vs) const {
 
 	bool print_debug=(get_calc_param().print_level()>=10) and (world.rank()==0);
@@ -392,9 +387,9 @@ double OEP::iterate(const std::string model, const vecfuncT& HF_nemo, const tens
 		if (converged) print("\n     +++ Iterations converged +++\n");
 		else print("\n     --- Iterations failed ---\n\n");
 	}
-	energy=compute_and_print_final_energies(model,Voep,KS_nemo,KS_Fock,HF_nemo,HF_Fock);
-	if (not converged) energy=0.0;
-	return energy;
+	auto results=compute_and_print_final_energies(model,Voep,KS_nemo,KS_Fock,HF_nemo,HF_Fock);
+	if (not converged) results.Econv=0.0;
+	return results;
 }
 
 

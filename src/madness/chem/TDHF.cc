@@ -1624,7 +1624,7 @@ nlohmann::json TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
     }
 
     nlohmann::json j1;
-    j1["cis_excitations"]=j;
+    j1["excitations"]=j;
     if (world.rank()==0) update_schema(get_calc()->param.prefix()+".calc_info", j1);
 
 
@@ -1637,6 +1637,8 @@ nlohmann::json TDHF::analyze(const std::vector<CC_vecfunction> &x) const {
         if (world.rank() == 0) print("trace over transition density", i, trace);
         save(td, "transition_density_" + std::to_string(i));
     }
+    j1["model"]="cis";
+    j1["nfreeze"]= parameters.freeze();
     return j1;
 }
 

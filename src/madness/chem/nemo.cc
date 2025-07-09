@@ -43,6 +43,7 @@
 #include<madness/chem/projector.h>
 #include<madness/chem/molecular_optimizer.h>
 #include<madness/chem/SCFOperators.h>
+#include<madness/chem/Results.h>
 #include <madness/constants.h>
 #include<madness/chem/vibanal.h>
 #include<madness/chem/pcm.h>
@@ -254,16 +255,14 @@ nlohmann::json Nemo::analyze() const {
     // compute the gradient
     Tensor<double> grad = compute_gradient(rhonemo,molecule());
 
-    nlohmann::json j;
-    j["energy"] = calc->current_energy;
-    j["dipole"] = tensor_to_json(dipole);
-    j["gradient"] = tensor_to_json(grad);
-    // j["density"] = function_to_json(rho);
+    PropertyResults pr;
+    pr.energy = calc->current_energy;
+    pr.dipole = dipole;
+    pr.gradient = grad;
+
     t.end("Nemo::analyze");
 
-    return j;
-
-
+    return pr.to_json();
 }
 
 /// localize the nemo orbitals according to Pipek-Mezey or Foster-Boys

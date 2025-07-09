@@ -14,6 +14,7 @@
 #include<madness/chem/SCFOperators.h>
 #include<madness/chem/projector.h>
 #include<madness/chem/MolecularOrbitals.h>
+#include<madness/chem/Results.h>
 
 namespace madness {
 
@@ -162,6 +163,9 @@ private:
 	/// the final local potential
 	real_function_3d Vfinal;
 
+	/// collection of results
+	OEPResults results;
+
 public:
 
 	OEP(World& world, const OEP_Parameters& oepparam, const std::shared_ptr<const Nemo>& reference)
@@ -274,9 +278,17 @@ public:
 	/// converged if norm, total energy difference and orbital energy differences (if not OAEP) are converged
     double solve(const vecfuncT& HF_nemo);
 
-    void analyze();
+	/// results are computed in compute_and_print_final_energies
+    nlohmann::json analyze() const override {
+    	PropertyResults pr=Nemo::analyze();
+    	pr.energy= results.Econv;
+    	auto r=results;
+    	r.aeps=calc->aeps;
+    	r.properties=pr;
+	    return r.to_json();
+    };
 
-    double iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals,
+    OEPResults iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals,
     		vecfuncT& KS_nemo, tensorT& KS_Fock, real_function_3d& Voep,
 			const real_function_3d Vs) const;
 
@@ -316,7 +328,7 @@ public:
 		}
     }
 
-    double compute_and_print_final_energies(const std::string model, const real_function_3d& Voep,
+    OEPResults compute_and_print_final_energies(const std::string model, const real_function_3d& Voep,
     		const vecfuncT& KS_nemo, const tensorT& KS_Fock,
 			const vecfuncT& HF_nemo, const tensorT& HF_Fock) const;
 

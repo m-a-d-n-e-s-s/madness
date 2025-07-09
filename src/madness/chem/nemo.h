@@ -416,7 +416,7 @@ public:
 	}
 
 	/// compute dipole moment and gradient at the current geometry
-	nlohmann::json analyze() const;
+	virtual nlohmann::json analyze() const;
 
 	/// compute the nuclear gradients
 	Tensor<double> gradient(const Tensor<double>& x);
