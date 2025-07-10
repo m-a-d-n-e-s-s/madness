@@ -810,8 +810,8 @@ void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfuncti
     std::size_t cc1=plane2dim(c1);
     std::size_t cc2=plane2dim(c2);
 
-    MADNESS_ASSERT(cc1>=0 && cc1<NDIM);
-    MADNESS_ASSERT(cc2>=0 && cc2<NDIM);
+    MADNESS_ASSERT(cc1<NDIM);
+    MADNESS_ASSERT(cc2<NDIM);
 
     // output file name for the gnuplot data
     std::string filename="plane_"+c1+c2+"_"+name;
@@ -877,8 +877,8 @@ void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfuncti
         std::size_t cc1=plane2dim(c1);
         std::size_t cc2=plane2dim(c2);
 
-        MADNESS_ASSERT(cc1>=0 && cc1<NDIM);
-        MADNESS_ASSERT(cc2>=0 && cc2<NDIM);
+        MADNESS_ASSERT(cc1<NDIM);
+        MADNESS_ASSERT(cc2<NDIM);
 
          // output file name for the gnuplot data
          std::string filename="plane_"+c1+c2+"_"+name;
