@@ -1,0 +1,9 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1MacroTaskBase.html" title="base class" alt="" coords="5,45,196,70"/>
+<area shape="rect" id="Node000001" href="$classmadness_1_1MacroTaskIntermediate.html" title=" " alt="" coords="244,5,487,45"/>
+<area shape="poly" id="edge284_Node000000_Node000001" title=" " alt="" coords="209,42,243,37,244,43,210,47"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1MacroTaskIntermediate.html" title=" " alt="" coords="244,69,487,109"/>
+<area shape="poly" id="edge286_Node000000_Node000003" title=" " alt="" coords="210,68,244,72,243,77,209,73"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1MacroTask_1_1MacroTaskInternal.html" title=" " alt="" coords="535,5,749,45"/>
+<area shape="poly" id="edge285_Node000001_Node000002" title=" " alt="" coords="500,23,534,23,534,28,500,28"/>
+</map>
