@@ -250,7 +250,7 @@ namespace madness {
         results_["metadata"] = metadata.to_json();
 
         // legacy
-        PropertyResults properties= results_["scf"]["properties"];
+        PropertyResults properties= results_["properties"];
         energy_ = properties.energy;
         dipole_ = properties.dipole;
         gradient_ = properties.gradient;
@@ -260,21 +260,10 @@ namespace madness {
 
     nlohmann::json results() const override {
       return results_;
-      auto scfParams = params_.get<CalculationParameters>();
-      nlohmann::json j = {
-        {"type", "scf"},
-        {"energy", energy_},
-    };
-      if (dipole_ && scfParams.dipole()) j["dipole"] = tensor_to_json(*dipole_);
-      if (gradient_ && scfParams.derivatives())
-        j["gradient"] = tensor_to_json(*gradient_);
-
-      return j;
     }
 
   private:
     World& world_;
-
     double energy_;
 
     std::optional<Tensor<double>> dipole_;
@@ -450,8 +439,7 @@ namespace madness {
           auto j=this->analyze(roots);
           // funnel through CISResults to make sure we have the right format
           CISResults results(j);
-          results_.clear();
-          results_["cis"]= results.to_json();
+          results_= results.to_json();
 
         } catch (std::exception& e) {
           print("Caught exception: ", e.what());
@@ -530,8 +518,7 @@ namespace madness {
           print("Caught exception: ", e.what());
         }
         // nlohmann::json results;
-        results_.clear();
-        results_["oep"]=this->analyze();
+        results_=this->analyze();
       }
     }
 

@@ -38,8 +38,15 @@ double OEP::solve(const vecfuncT& HF_nemo1) {
 	// deep copy KS_nemo MOs
 	vecfuncT KS_nemo = copy(world,calc->amo);
 
-	for (std::string model : oep_param.model())
-		results=iterate(model,HF_nemo,HF_Fock,KS_nemo,KS_Fock,Voep,Vs);
+	for (std::string model : oep_param.model()) {
+		OEPResults r=iterate(model,HF_nemo,HF_Fock,KS_nemo,KS_Fock,Voep,Vs);
+
+		PropertyResults pr=Nemo::analyze();
+		pr.energy= r.Econv;
+		r.aeps=calc->aeps;
+		r.properties=pr;
+		results.push_back(r);
+	}
 
 	print("KS_Fock after convergence");
 	print(KS_Fock);
@@ -50,8 +57,8 @@ double OEP::solve(const vecfuncT& HF_nemo1) {
 	Vfinal=copy(Voep);
     save_restartdata(KS_Fock);
 
-	printf("      +++ FINAL TOTAL %s ENERGY = %15.8f  Eh +++\n\n\n", oep_param.model().back().c_str(), results.Econv);
-	return results.Econv;
+	printf("      +++ FINAL TOTAL %s ENERGY = %15.8f  Eh +++\n\n\n", oep_param.model().back().c_str(), results.back().Econv);
+	return results.back().Econv;
 }
 
 void OEP::output_calc_info_schema(const double& energy) const {
@@ -195,13 +202,14 @@ OEPResults OEP::compute_and_print_final_energies(const std::string model, const 
 	results.devir14= (Ex_vir - Ex_conv); // like in Kohut_2014, equation (45)
 	results.devir17= (Ex_vir - Ex_HF - 2.0*Tc); // like in Ospadov_2017, equation (28)
 	results.drho=Drho;
-	results.Ex_conv=Econv;
+	results.Ex_conv=Ex_conv;
 	results.Ex_vir=Ex_vir;
 	results.Ex_HF=Ex_HF;
 	results.E_kin_HF=Ekin_HF;
 	results.E_kin_KS=Ekin_KS;
 	results.model=model;
 	results.Econv=Econv;
+	results.scf_total_energy=Econv;
 
 	return results;
 }

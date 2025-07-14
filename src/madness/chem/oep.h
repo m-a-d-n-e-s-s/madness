@@ -164,7 +164,7 @@ private:
 	real_function_3d Vfinal;
 
 	/// collection of results
-	OEPResults results;
+	std::vector<OEPResults> results;
 
 public:
 
@@ -280,12 +280,12 @@ public:
 
 	/// results are computed in compute_and_print_final_energies
     nlohmann::json analyze() const override {
-    	PropertyResults pr=Nemo::analyze();
-    	pr.energy= results.Econv;
-    	auto r=results;
-    	r.aeps=calc->aeps;
-    	r.properties=pr;
-	    return r.to_json();
+    	// turn Results vector into a json object
+    	nlohmann::json results_json;
+    	for (const auto& r : results) {
+			results_json.push_back(r.to_json());
+		}
+    	return  results_json;
     };
 
     OEPResults iterate(const std::string model, const vecfuncT& HF_nemo, const tensorT& HF_eigvals,

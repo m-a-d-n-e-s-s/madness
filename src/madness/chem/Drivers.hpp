@@ -165,12 +165,30 @@ class Workflow {
     for (size_t i = 0; i < drivers_.size(); ++i) {
       auto taskDir = topDir / ("task_" + std::to_string(i));
       drivers_[i]->execute(taskDir);
-      all["tasks"].push_back(drivers_[i]->summary());
+      auto current_output= drivers_[i]->summary();
+
+      // write out the current output to a file
+      {
+        std::ofstream ofs(taskDir / "output.json");
+        ofs << std::setw(4) << current_output;
+        ofs.close();
+      }
+      /// append current output to all
+      if (current_output.is_array()) {
+        for (const auto& item : current_output) {
+          all["tasks"].push_back(item);
+        }
+      } else {
+        all["tasks"].push_back(current_output);
+      }
+
 
       // Write out aggregate results
-      std::ofstream ofs(topDir / "output.json");
-      ofs << std::setw(4) << all;
-      ofs.close();
+      {
+        std::ofstream ofs(topDir / "output.json");
+        ofs << std::setw(4) << all;
+        ofs.close();
+      }
     }
 
   }

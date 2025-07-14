@@ -28,11 +28,12 @@ struct moldft_lib {
     sr.aeps = nemo->get_calc()->aeps;
     sr.beps = nemo->get_calc()->beps;
     sr.properties=pr;
+    sr.scf_total_energy= nemo->get_calc()->current_energy;
 
     // nlohmann::json results;
     nlohmann::json results;
-    results["scf"]=sr.to_json();
-    results["scf"]["convergence_info"]=cr.to_json();
+    results=sr.to_json();
+    results["convergence_info"]=cr.to_json();
 
     return results;
   }
@@ -125,12 +126,8 @@ struct moldft_lib {
     sr.beps = calc.beps;
     sr.properties=pr;
 
-    nlohmann::json results({"scf", sr.to_json()});
-    results["scf"]["convergence_info"]=cr.to_json();
-    // results["scf"]=sr.to_json();
-    // results["scf"]["properties"]=pr.to_json();
+    nlohmann::json results=sr.to_json();
+    results["convergence_info"]=cr.to_json();
     return results;
-
-
   }
 };  // namespace moldft_lib

@@ -151,6 +151,7 @@ namespace madness {
         Tensor<double> afock;
         Tensor<double> bfock;
         std::string model="scf"; // model used for the SCF calculation
+        double scf_total_energy=0.0; // total energy of the SCF calculation
         PropertyResults properties;
 
         SCFResults() = default;
@@ -165,6 +166,9 @@ namespace madness {
                 bfock = tensor_from_json<double>(j["scf_fock_b"]);
             if (j.count("scf_fock_b") > 0)
                 bfock = tensor_from_json<double>(j["scf_fock_b"]);
+            if (j.count("scf_total_energy") > 0)
+                scf_total_energy = j["scf_total_energy"];
+
             if (j.count("properties") > 0) {
                 properties = PropertyResults(j["properties"]);
             } else {
@@ -181,6 +185,7 @@ namespace madness {
             if (beps.size() > 0) j["scf_eigenvalues_b"] = tensor_to_json(beps);
             if (bfock.size() > 0) j["scf_fock_b"] = tensor_to_json(bfock);
             j["model"] = model;
+            j["scf_total_energy"] = scf_total_energy;
             j["properties"] = properties.to_json();
             return j;
         }
@@ -220,6 +225,9 @@ namespace madness {
             model= j.value("model", "unknown");
         }
 
+        /// constructor with nfreeze and model
+        CISResults(long nfreeze, const std::string& model) : nfreeze(nfreeze), model(model) {}
+
         nlohmann::json to_json() const override {
             nlohmann::json j;
             for (const auto& ex : excitations) {
@@ -240,25 +248,59 @@ namespace madness {
 
     class CC2Results: public CISResults {
     public:
-        CC2Results() = default;
+        CC2Results() : CISResults() {
+            model="mp2";
+        }
 
         /// construct from JSON
         CC2Results(const nlohmann::json& j) : CISResults(j) {
-            mp2_correlation_energy_ = j.value("mp2_correlation_energy", 0.0);
-            cc2_correlation_energy_ = j.value("cc2_correlation_energy", 0.0);
+            properties = PropertyResults(j.value("properties", nlohmann::json{}));
+            model = j.value("model", "mp2");
+            correlation_energy = j.value("correlation_energy", 0.0);
+            total_energy = j.value(model+"_total_energy", 0.0);
         }
 
+        /// constructor with nfreeze and model
+        CC2Results(long nfreeze, const std::string& model) : CISResults(nfreeze,model) {}
 
         nlohmann::json to_json() const override {
             nlohmann::json j;
             j = CISResults::to_json();
-            j["mp2_correlation_energy"] = mp2_correlation_energy_;
-            j["cc2_correlation_energy"] = cc2_correlation_energy_;
+            j["properties"] = properties.to_json();
+            j["model"] = model;
+            j["correlation_energy"] = correlation_energy;
+            j[model+"_correlation_energy"] = correlation_energy;
+            j[model+"_total_energy"] = total_energy;
             return j;
         }
 
-        double mp2_correlation_energy_=0.0;
-        double cc2_correlation_energy_=0.0;
+        CC2Results& set_energies(const double scf_energy, const double corr_energy) {
+            this->correlation_energy = corr_energy;
+            this->total_energy = scf_energy + corr_energy;
+            return *this;
+        }
+
+        /// setters with chaining
+        CC2Results& set_correlation_energy(const double corr_energy) {
+            correlation_energy= corr_energy;
+            return *this;
+        }
+        CC2Results& set_total_energy(const double total_energy) {
+            this->total_energy = total_energy;
+            return *this;
+        }
+        CC2Results& set_properties(const PropertyResults& props) {
+            properties = props;
+            return *this;
+        }
+        CC2Results& set_model(const std::string& model) {
+            this->model = model;
+            return *this;
+        }
+
+        PropertyResults properties; // properties of the correlated calculation
+        double correlation_energy = 0.0; // correlation energy of the correlated calculation
+        double total_energy = 0.0; // total energy of the correlated calculation
 
     };
 

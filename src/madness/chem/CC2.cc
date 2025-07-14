@@ -28,7 +28,7 @@ nlohmann::json CC2::solve() {
     const CalcType ctype = parameters.calc_type();
 
     // fill in results here
-    CC2Results results;
+    std::map<std::string,CC2Results> results;
 
     Tensor<double> fmat=nemo->compute_fock_matrix(nemo->get_calc()->amo,nemo->get_calc()->aocc);
     long nfrozen=Localizer::determine_frozen_orbitals(fmat);
@@ -92,16 +92,18 @@ nlohmann::json CC2::solve() {
     if (need_mp2) {
         bool restarted=initialize_pairs(mp2pairs, GROUND_STATE, CT_MP2, CC_vecfunction(PARTICLE), CC_vecfunction(RESPONSE), 0, info);
         if (restarted and parameters.no_compute_mp2()) {
-//            for (auto& pair : mp2pairs.allpairs) mp2_energy+=CCOPS.compute_pair_correlation_energy(pair.second);
+            mp2_energy=compute_mp2_energy(mp2pairs,info,"MP2 correlation energy");
         } else {
             mp2_energy = solve_mp2_coupled(mp2pairs, info);
-            results.mp2_correlation_energy_=mp2_energy;
             output_calc_info_schema("mp2",mp2_energy);
             output.section(assign_name(CT_MP2) + " Calculation Ended !");
             if (world.rank() == 0) {
                 printf_msg_energy_time("MP2 correlation energy",mp2_energy,wall_time());
 	        }
         }
+        CC2Results mp2results(parameters.freeze(),"mp2");
+        mp2results.set_energies(nemo->get_calc()->current_energy, mp2_energy);
+        results["mp2"]=mp2results;
     }
 
     if (need_cc2) {
@@ -121,9 +123,9 @@ nlohmann::json CC2::solve() {
 
         if (parameters.no_compute_cc2()) {
             if (world.rank()==0) print("found no_compute_cc2 key -- no recomputation of singles or doubles or energy");
+            cc2_energy = compute_cc2_energy(cc2singles, cc2pairs, info, "CC2 correlation energy");
         } else {
             cc2_energy = solve_cc2(cc2singles, cc2pairs, info);
-            results.cc2_correlation_energy_=cc2_energy;
             output_calc_info_schema("cc2",cc2_energy);
         }
 
@@ -131,6 +133,10 @@ nlohmann::json CC2::solve() {
             printf_msg_energy_time("CC2 correlation energy",cc2_energy,wall_time());
             std::cout << std::fixed << std::setprecision(10) << " CC2 Correlation Energy =" << cc2_energy << "\n";
         }
+
+        CC2Results cc2results(parameters.freeze(),"cc2");
+        cc2results.set_energies(nemo->get_calc()->current_energy, cc2_energy);
+        results["cc2"]=cc2results;
         if (world.rank()==0) print_header2("end computing the CC2 correlation energy");
     }
 
@@ -148,6 +154,10 @@ nlohmann::json CC2::solve() {
                     hf_energy,mp2_energy,mp3_energy,hf_energy+mp2_energy+mp3_energy);
             output_calc_info_schema("mp3",mp3_energy);
         }
+        CC2Results mp3results(parameters.freeze(),"mp3");
+        mp3results.set_energies(nemo->get_calc()->current_energy+ mp2_energy,mp3_energy);
+        results["mp3"]=mp3results;
+
     } else if (ctype == CT_CC2) {
         ;   // we're good
     } else if (ctype == CT_CISPD) {
@@ -303,11 +313,21 @@ nlohmann::json CC2::solve() {
             auto [a,b,c] = solve_lrcc2(cc2pairs,cc2singles,vccs[iexcitation],iexcitation,info);
             CISResults::excitation_info exinfo;
             exinfo.omega = c;
-            results.excitations.push_back(exinfo);
+            results["cc2"].excitations.push_back(exinfo);
        }
 
     } else MADNESS_EXCEPTION(("Unknown Calculation Type: " + assign_name(ctype)).c_str(), 1);
-    return results.to_json();
+    print("results of the CC2 calculation");
+    for (auto& res:results) {
+        print(res.first,": ",res.second.to_json());
+    }
+    // turn map into json vector
+    nlohmann::json results_json;
+    results_json["tasks"] = nlohmann::json::array();
+    for (const auto& res:results) {
+        results_json["tasks"].push_back(res.second.to_json());
+    }
+    return results_json;
 
 }
 
