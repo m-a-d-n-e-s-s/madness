@@ -13,6 +13,9 @@ class madjsoncompare:
         with open(file2, 'r') as f:
             self.data2 = json.load(f)
 
+#        print("json1",self.data1)
+#        print("json2",self.data2)
+
     def exitcode(self):
         if self.success:
             return 0
@@ -23,6 +26,7 @@ class madjsoncompare:
         value1=self.data1
         value2=self.data2
         for i in subsequentkeys:
+#            print("key ", i, " in ", value1, value2)
             value1=value1[i]
             value2=value2[i]
 

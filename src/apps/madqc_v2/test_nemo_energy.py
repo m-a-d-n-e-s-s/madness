@@ -26,11 +26,13 @@ if __name__ == "__main__":
     print("finished with run")
     print(p.stdout)
     exitcode=p.returncode
-    print("exitcode ",exitcode)
+    print("program ended successfully: ",exitcode==0)
 
     # compare results
     cmp=madjsoncompare(outputfile,referencefile)
-    cmp.compare(["return_energy"],1.e-4)
+    cmp.compare(["tasks",0,"scf_total_energy"],1.e-4)
+    cmp.compare(["tasks",0,"properties","energy"],1.e-4)
+    cmp.compare(["tasks",0,"scf_eigenvalues_a","vals",0],1.e-4)
     print("final success: ",cmp.success)
 
-    sys.exit(p.returncode + exitcode)
+    sys.exit(cmp.exitcode() + exitcode)

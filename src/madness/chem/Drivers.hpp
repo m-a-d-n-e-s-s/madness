@@ -156,8 +156,10 @@ class Workflow {
    * @brief Run all added drivers under the top-level directory, then emit
    * output.json.
    * @param topDir Root directory for the entire workflow.
+   * @param outputfile Name of the output file to write the aggregated results.
    */
-  void run(const std::filesystem::path& topDir) {
+  void run(const std::string prefix) {
+    std::filesystem::path topDir=prefix;
     std::filesystem::create_directories(topDir);
     nlohmann::json all;
     all["tasks"] = nlohmann::json::array();
@@ -182,10 +184,10 @@ class Workflow {
         all["tasks"].push_back(current_output);
       }
 
-
       // Write out aggregate results
       {
-        std::ofstream ofs(topDir / "output.json");
+        std::string outputfile = prefix + ".calc_info.json";
+        std::ofstream ofs( outputfile);
         ofs << std::setw(4) << all;
         ofs.close();
       }

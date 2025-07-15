@@ -180,7 +180,8 @@ int main(int argc, char** argv) {
       }
 
       if (world.rank()==0) print_header1("Starting calculations");
-      wf.run("MyCalc");
+      std::string prefix = pm.get<CalculationParameters>().prefix();
+      wf.run(prefix);
 
       if (true) {
         qcapp::Workflow opt_wf;

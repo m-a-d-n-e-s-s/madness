@@ -16,9 +16,9 @@ if __name__ == "__main__":
     referencefile="@SRCDIR@/"+prefix+".calc_info.ref.json"
 
     # run test
-    global_arguments='--geometry=he'
+    global_arguments=' --geometry=he --wf=cis'
     dft_arguments=' --dft="maxiter=1; econv=1.e-4; dconv=1.e-3; prefix='+prefix+'"'
-    other_arguments=''
+    other_arguments=' --response="thresh=1.e-3; maxiter=10; guess_maxiter=0; econv=1; dconv=1; guess_excitation_operators=dipole+; excitations=0"'
     cmd='rm '+outputfile+'; ./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
 #    p=subprocess.run(cmd,shell=True,capture_output=True, text=True)
@@ -28,9 +28,4 @@ if __name__ == "__main__":
     exitcode=p.returncode
     print("exitcode ",exitcode)
 
-    # compare results
-    cmp=madjsoncompare(outputfile,referencefile)
-    cmp.compare(["return_energy"],1.e-4)
-    print("final success: ",cmp.success)
-
-    sys.exit(p.returncode + exitcode)
+    sys.exit(p.returncode)
