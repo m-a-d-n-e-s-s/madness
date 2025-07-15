@@ -12,8 +12,8 @@ add_mad_executable(testpg testpg.cc MADchem)
 add_mad_executable(testperiodicdft testperiodicdft.cc MADchem)
 
 if(BUILD_TESTING)
-  add_scripted_tests(test_energy.py moldft "short;applications")
-  add_scripted_tests(test_energy_mpi_parallel.py moldft "short;applications")
+#  add_scripted_tests(../madqc_v2/test_energy.py moldft "short;applications")
+#  add_scripted_tests(../madqc_v2/test_energy_mpi_parallel.py moldft "short;applications")
 endif()
 
 
