@@ -19,12 +19,12 @@ if __name__ == "__main__":
     print("Testing @BINARY@/@TESTCASE@")
     print(" reference files found in directory:",args.reference_directory)
 
-    prefix='madtest1'
+    prefix='mad_@BINARY@_@TESTCASE@'
     outputfile=prefix+'.calc_info.json'
     referencefile=args.reference_directory+"/"+prefix+".calc_info.ref.json"
 
     # run test
-    global_arguments=' --geometry=he'
+    global_arguments=' --geometry=he --wf=cc2'
     dft_arguments=' --dft="maxiter=1; econv=1.e-4; dconv=1.e-3; prefix='+prefix+'; k=5"'
     other_arguments=' --cc2="freeze 1"'
     cmd='rm '+outputfile+' reference.00000; ./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
@@ -38,11 +38,13 @@ if __name__ == "__main__":
     print("exitcode ",exitcode)
 
 
-    # # compare results
-    # cmp=madjsoncompare(outputfile,referencefile)
-    # cmp.compare(["driver"],1.e-4)
-    # cmp.compare(["model"],1.e-4)
-    # cmp.compare(["return_energy"],1.e-2)
-    # print("final success: ",cmp.success)
+    # compare results
+    cmp=madjsoncompare(outputfile,referencefile)
+    cmp.compare(["tasks",0,"model"],1.e-4)
+    cmp.compare(["tasks",0,"properties","energy"],1.e-4)
+    cmp.compare(["tasks",1,"model"],1.e-4)
+    cmp.compare(["tasks",1,"nfreeze"],1.e-2)
+    cmp.compare(["tasks",1,"mp2_correlation_energy"],1.e-2)
+    print("final success: ",cmp.success)
 
     # sys.exit(cmp.exitcode())

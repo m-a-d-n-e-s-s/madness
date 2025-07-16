@@ -327,7 +327,7 @@ nlohmann::json CC2::solve() {
     for (const auto& res:results) {
         results_json["tasks"].push_back(res.second.to_json());
     }
-    return results_json;
+    return results_json["tasks"];
 
 }
 
@@ -420,6 +420,12 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
 
     if (world.rank()==0) print_header2(" computing the MP1 wave function");
     CC_vecfunction dummy_singles(PARTICLE);
+
+    // fast return if there are no correlated electrons
+    if (doubles.allpairs.size()==0) {
+        if (world.rank()==0) print("no doubles found -- returning zero MP2 energy");
+        return 0.0;
+    }
 
     // make vector holding CCPairs for partitioner of MacroTask
     std::vector<CCPair> pair_vec=Pairs<CCPair>::pairs2vector(doubles,triangular_map);
