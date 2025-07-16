@@ -7,6 +7,13 @@ import argparse
 sys.path.append("@CMAKE_SOURCE_DIR@/bin")
 from madjsoncompare import madjsoncompare
 
+def cleanup(prefix):
+    """Remove output files and directories created during the test."""
+    cmd = f'rm -r {prefix}.calc_info.json {prefix}'
+    print("Cleaning up with command:", cmd)
+    subprocess.run(cmd, shell=True)
+
+
 if __name__ == "__main__":
 
     # get command line arguments
@@ -27,7 +34,10 @@ if __name__ == "__main__":
     global_arguments=' --geometry=be --wf=oep'
     dft_arguments=' --dft="maxiter=3; econv=1.e-4; dconv=1.e-3; k=7; prefix='+prefix+'"'
     other_arguments=' --oep="model=oaep; oep_maxiter=3"'
-    cmd='rm '+outputfile+' '+prefix+'; ./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
+
+    # cleanup previous output files
+    cleanup(prefix)
+    cmd='./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
 #    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
     p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)
