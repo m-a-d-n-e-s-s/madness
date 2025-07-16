@@ -61,6 +61,7 @@ set(MADCHEM_HEADERS
     CCLib.hpp
     MoldftLib.hpp
     projector.h
+    Results.h
     QCPropertyInterface.h
     SAP.h
     SCF.h

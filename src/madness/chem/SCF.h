@@ -222,7 +222,9 @@ public:
     std::vector<std::shared_ptr<real_derivative_3d> > gradop;
     double vtol;
     double current_energy;
-    double converged_for_thresh=1.e10;    ///< mos are converged for this threshold
+    double converged_for_thresh=1.e10;   ///< mos are converged for this threshold
+    double converged_for_dconv=1.e10;    ///< mos are converged for this density
+    double converged_for_tconv=1.e10;    ///< derivatives of mos are converged for this threshold
 
     /// forwarding constructor
     SCF(World& world, const commandlineparser& parser)

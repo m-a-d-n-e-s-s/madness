@@ -28,6 +28,10 @@ real_function_3d mask;
 
 class DiracParameters : public QCCalculationParametersBase {
 public:
+    std::string get_tag() const override {
+        return std::string("dirac");
+    }
+
     /// ctor reading out the input file
     DiracParameters() {
         initialize<double>("shift",0.0);

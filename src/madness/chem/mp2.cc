@@ -91,14 +91,14 @@ MP2::MP2(World& world, const commandlineparser& parser) : world(world),
         if (world.rank() == 0)
             print("accuracy from dft will be overriden by mp2 to 0.01*thresh");
         nemo->get_calc()->set_protocol<6>(world, param.thresh());
-        nemo->param.set_derived_value("econv", param.thresh() * 0.01);
-        nemo->get_calc()->set_protocol<3>(world, nemo->param.econv());
+        nemo->get_calc()->param.set_derived_value("econv", param.thresh() * 0.01);
+        nemo->get_calc()->set_protocol<3>(world, nemo->get_calc_param().econv());
 
         if (world.rank() == 0) nemo->get_calc()->molecule.print();
 
         hf = std::shared_ptr<HartreeFock>(new HartreeFock(world, nemo));
         poisson = std::shared_ptr<real_convolution_3d>(
-                CoulombOperatorPtr(world, 0.0001, nemo->param.econv()));
+                CoulombOperatorPtr(world, 0.0001, nemo->get_calc_param().econv()));
 
         // construct electronic correlation factor only, nuclear correlation
         // factor depends on the coordinates and must be reassigned for
@@ -110,7 +110,7 @@ MP2::MP2(World& world, const commandlineparser& parser) : world(world),
 
     // print some output for the user
     if (world.rank() == 0) {
-        hf->nemo_ptr->param.print("reference");
+        hf->nemo_ptr->get_calc_param().print("reference");
         param.print("mp2", "mp2_end");
     }
 
@@ -177,7 +177,7 @@ void MP2::enforce_core_valence_separation() {
 
     // localize the orbitals respecting core-valence separation
     Localizer localizer(world,hf->get_calc().aobasis,hf->get_calc().molecule,hf->get_calc().ao);
-    localizer.set_enforce_core_valence_separation(true).set_method(hf->nemo_ptr->param.localize_method());
+    localizer.set_enforce_core_valence_separation(true).set_method(hf->nemo_ptr->get_calc_param().localize_method());
     localizer.set_metric(hf->nemo_ptr->R);
 
     const auto lmo=localizer.localize(mos,fock1,true);

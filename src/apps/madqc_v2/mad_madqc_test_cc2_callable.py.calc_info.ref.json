@@ -1,0 +1,79 @@
+{
+    "tasks": [
+        {
+            "convergence_info": {
+                "converged_for_dconv": 10000000000.0,
+                "converged_for_thresh": 10000000000.0
+            },
+            "metadata": {
+                "elapsed_time": 3.0641329288482666,
+                "finished_at": "2025-07-16 12:55:34",
+                "git_hash": "",
+                "host": "Darwin",
+                "mpi_size": 1,
+                "nthreads": 7
+            },
+            "model": "scf",
+            "properties": {
+                "dipole": {
+                    "dims": [
+                        3
+                    ],
+                    "ndim": 1,
+                    "size": 3,
+                    "vals": [
+                        -1.0315388655166012e-10,
+                        -1.0314369322542738e-10,
+                        -1.0314703834723438e-10
+                    ]
+                },
+                "energy": 0.0,
+                "gradient": {
+                    "dims": [
+                        3
+                    ],
+                    "ndim": 1,
+                    "size": 3,
+                    "vals": [
+                        -1.0917128312470936e-11,
+                        -1.092306800565268e-11,
+                        -1.0932366123483916e-11
+                    ]
+                }
+            },
+            "scf_eigenvalues_a": {
+                "dims": [
+                    1
+                ],
+                "ndim": 1,
+                "size": 1,
+                "vals": [
+                    -0.9224762255817216
+                ]
+            },
+            "scf_fock_a": {
+                "ndim": -1,
+                "size": 0
+            },
+            "scf_total_energy": 0.0
+        },
+        {
+            "correlation_energy": 0.0,
+            "model": "mp2",
+            "mp2_correlation_energy": 0.0,
+            "mp2_total_energy": 0.0,
+            "nfreeze": 1,
+            "properties": {
+                "dipole": {
+                    "ndim": -1,
+                    "size": 0
+                },
+                "energy": 0.0,
+                "gradient": {
+                    "ndim": -1,
+                    "size": 0
+                }
+            }
+        }
+    ]
+}

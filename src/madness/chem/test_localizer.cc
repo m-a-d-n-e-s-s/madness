@@ -271,7 +271,8 @@ int main(int argc, char **argv) {
         FunctionDefaults<3>::set_k(k);
 
         std::string geometry="ethylene";
-        Nemo::NemoCalculationParameters param;
+        Nemo::NemoCalculationParameters nemo_param;
+        CalculationParameters param;
         param.set_user_defined_value<std::vector<double>>("protocol",{1.e-5});
         param.set_user_defined_value("k",8);
         param.set_user_defined_value("econv",1.e-4);
@@ -284,8 +285,9 @@ int main(int argc, char **argv) {
         parser.set_keyval("input",test_input.filename());
         parser.set_keyval("geometry","source_type=library");
         parser.set_keyval("geometry","source_name="+geometry);
-        Nemo nemo(world,parser);
-        nemo.param.print("dft","end");
+        Molecule molecule(world, parser);
+        Nemo nemo(world,param,nemo_param,molecule);
+        param.print("dft","end");
 
         test_output tout1(geometry+" prep calculation");
         nemo.value();

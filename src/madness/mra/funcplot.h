@@ -58,6 +58,10 @@ namespace madness {
             initialize<std::vector<double>>("origin",{},"origin of the plot");
             initialize<std::vector<std::string>>("plane",{"x1","x2"},"plot plane: x1, x2, .., x6");
         }
+        std::string get_tag() const override {
+            return std::string("plot");
+        }
+
 
         PlotParameters& set_zoom(const double z) {
             set_user_defined_value("zoom",z);
@@ -810,8 +814,8 @@ void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfuncti
     std::size_t cc1=plane2dim(c1);
     std::size_t cc2=plane2dim(c2);
 
-    MADNESS_ASSERT(cc1>=0 && cc1<NDIM);
-    MADNESS_ASSERT(cc2>=0 && cc2<NDIM);
+    MADNESS_ASSERT(cc1<NDIM);
+    MADNESS_ASSERT(cc2<NDIM);
 
     // output file name for the gnuplot data
     std::string filename="plane_"+c1+c2+"_"+name;
@@ -877,8 +881,8 @@ void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfuncti
         std::size_t cc1=plane2dim(c1);
         std::size_t cc2=plane2dim(c2);
 
-        MADNESS_ASSERT(cc1>=0 && cc1<NDIM);
-        MADNESS_ASSERT(cc2>=0 && cc2<NDIM);
+        MADNESS_ASSERT(cc1<NDIM);
+        MADNESS_ASSERT(cc2<NDIM);
 
          // output file name for the gnuplot data
          std::string filename="plane_"+c1+c2+"_"+name;

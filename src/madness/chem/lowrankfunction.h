@@ -33,6 +33,10 @@ namespace madness {
             initialize<std::string>("rhsfunctiontype","exponential","the type of function",{"exponential"});
             initialize<int>("optimize",1,"number of optimization iterations");
         }
+        std::string get_tag() const override {
+            return std::string("lrf");
+        }
+
 
         void read_and_set_derived_values(World& world, const commandlineparser& parser, std::string tag) {
             read_input_and_commandline_options(world,parser,tag);

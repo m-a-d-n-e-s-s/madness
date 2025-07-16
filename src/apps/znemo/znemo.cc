@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
             std::shared_ptr<Znemo> znemo(new Znemo(world,parser));
 
             // optimize the geometry if requested
-            if (znemo->get_cparam().gopt()) {
+            if (znemo->get_calc_param().gopt()) {
                 print_header2("Geometry Optimization");
 
                 Tensor<double> geomcoord = znemo->molecule().get_all_coords().flat();
@@ -92,8 +92,8 @@ int main(int argc, char** argv) {
                     energy=znemo->value();
                 } else {
                     auto zmos=znemo->read_reference();
-                    for (int i=0; i<znemo->get_cparam().nalpha(); ++i) znemo->amo.push_back(zmos.first.get_mos()[i]);
-                    for (int i=0; i<znemo->get_cparam().nbeta(); ++i) znemo->bmo.push_back(zmos.second.get_mos()[i]);
+                    for (int i=0; i<znemo->get_calc_param().nalpha(); ++i) znemo->amo.push_back(zmos.first.get_mos()[i]);
+                    for (int i=0; i<znemo->get_calc_param().nbeta(); ++i) znemo->bmo.push_back(zmos.second.get_mos()[i]);
                     energy=znemo->analyze();
                 }
 

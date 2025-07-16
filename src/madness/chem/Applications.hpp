@@ -3,6 +3,7 @@
 #include <madness/chem/InputWriter.hpp>
 #include <madness/chem/ParameterManager.hpp>
 #include <madness/chem/PathManager.hpp>
+#include <madness/chem/Results.h>
 
 namespace madness {
   // Scoped CWD: changes the current directory to the given one, and restores when
@@ -30,13 +31,11 @@ namespace madness {
     [[nodiscard]] virtual nlohmann::json results() const = 0;
 
     // get the parameters used for this application
-    [[nodiscard]] const Params& get_parameters() const {
-      return params_;
-    }
+    [[nodiscard]] virtual const QCCalculationParametersBase& get_parameters() const = 0;
 
-    // get the parameters used for this application
-    [[nodiscard]] Params& get_parameters() {
-      return params_;
+    virtual void print_parameters(World& world) const {
+      std::string tag= get_parameters().get_tag();
+      if (world.rank() == 0) get_parameters().print(tag,"end");
     }
 
     // get the working directory for this application
@@ -127,7 +126,7 @@ namespace madness {
     }
 
   protected:
-    Params params_;
+    const Params params_;
     path workdir_;
     nlohmann::json results_;
   };
@@ -137,8 +136,18 @@ namespace madness {
   class SCFApplication : public Application, public ScfT, public std::enable_shared_from_this<SCFApplication<Library,ScfT>> {
   public:
 
-    std::shared_ptr<SCF> get_scf() const {
-      return std::dynamic_pointer_cast<SCF>(this->shared_from_this());
+    /// SCF ctor
+    template <typename T = ScfT, std::enable_if_t<std::is_same_v<T, Nemo>, int> = 0>
+    explicit SCFApplication(World& w, const Params& p)
+        : Application(p), ScfT(w,p.get<CalculationParameters>(), p.get<Nemo::NemoCalculationParameters>(), p.get<Molecule>()), world_(w) {}
+
+    /// Nemo ctor
+    template <typename T = ScfT, std::enable_if_t<std::is_same_v<T, SCF>, int> = 0>
+    explicit SCFApplication(World& w, const Params& p)
+        : Application(p), ScfT(w,p.get<CalculationParameters>(), p.get<Molecule>()), world_(w) {}
+
+    std::shared_ptr<const SCF> get_scf() const {
+      return std::dynamic_pointer_cast<const SCF>(this->shared_from_this());
     }
 
     bool constexpr is_nemo() const {
@@ -161,8 +170,26 @@ namespace madness {
       return return_ptr;
     }
 
-    explicit SCFApplication(World& w, Params p)
-        : Application(p), ScfT(w,p.get<CalculationParameters>(), p.get<Molecule>()), world_(w) {}
+    void print_parameters(World& world) const override {
+      std::string tag= get_parameters().get_tag();
+      if (world.rank() == 0) {
+        if constexpr (std::is_same_v<ScfT, SCF>) { // SCF
+          get_parameters().print("dft","end");
+        } else {  // Nemo
+          get_parameters().print("dft");
+          get_nemo()->get_nemo_param().print();
+          print("end");
+        }
+      }
+    }
+
+    const QCCalculationParametersBase& get_parameters() const override {
+      if (is_nemo()) {
+        return get_nemo()->get_calc_param();
+      } else {
+        return get_scf()->param;
+      }
+    }
 
     void run(const std::filesystem::path& workdir) override {
       // 1) set up a namedspaced directory for this run
@@ -195,7 +222,7 @@ namespace madness {
         if (needWavefunctions) {
           try {
             double thresh=scfParams.protocol().back();
-            if constexpr (std::is_same_v<ScfT, Nemo>) this->set_protocol(thresh);
+            if constexpr (std::is_same_v<ScfT, Nemo>) this->set_protocol(scfParams.econv());
             if constexpr (std::is_same_v<ScfT, SCF>) SCF::set_protocol<3>(world_,thresh);
             this->load_mos(world_);
           } catch (...) {
@@ -212,43 +239,31 @@ namespace madness {
         }
 
         // we could dump params_ to JSON and pass as argv if desired…
-        typename Library::Results results;
-
+        MetaDataResults metadata(world_);
         if constexpr (std::is_same_v<ScfT, SCF>) {
-          results = Library::run_scf(world_, params_, pm.dir());
+          results_ = Library::run_scf(world_, params_, pm.dir());
         } else if constexpr (std::is_same_v<ScfT, Nemo>) {
-          results = Library::run_nemo(this->get_nemo());
+          results_ = Library::run_nemo(this->get_nemo());
         } else {
           MADNESS_CHECK_THROW("unknown SCF type", 1);
         }
+        results_["metadata"] = metadata.to_json();
 
-        energy_ = results.energy;
-        dipole_ = results.dipole;
-        gradient_ = results.gradient;
+        // legacy
+        PropertyResults properties= results_["properties"];
+        energy_ = properties.energy;
+        dipole_ = properties.dipole;
+        gradient_ = properties.gradient;
 
-        // 5) write out JSON for future restarts
-        nlohmann::json outj = {{"energy", energy_}};
-        if (dipole_.has_value() and dipole_->has_data()) outj["dipole"] = tensor_to_json(*dipole_);
-        if (gradient_.has_value() and gradient_->has_data()) outj["gradient"] = tensor_to_json(*gradient_);
       }
     }
 
     nlohmann::json results() const override {
-      auto scfParams = params_.get<CalculationParameters>();
-      nlohmann::json j = {
-        {"type", "scf"},
-        {"energy", energy_},
-    };
-      if (dipole_ && scfParams.dipole()) j["dipole"] = tensor_to_json(*dipole_);
-      if (gradient_ && scfParams.derivatives())
-        j["gradient"] = tensor_to_json(*gradient_);
-
-      return j;
+      return results_;
     }
 
   private:
     World& world_;
-
     double energy_;
 
     std::optional<Tensor<double>> dipole_;
@@ -273,6 +288,10 @@ namespace madness {
           Application(std::move(params)),
           indir_(std::move(indir)) {}
 
+
+    const QCCalculationParametersBase& get_parameters() const override {
+      return params_.get<ResponseParameters>();
+    }
     /**
      * @brief Execute response + property workflow, writing into workdir/response
      */
@@ -314,6 +333,10 @@ namespace madness {
           CC2(w, p.get<CCParameters>(), p.get<TDHFParameters>(), reference.get_nemo()) {
     }
 
+    const QCCalculationParametersBase& get_parameters() const override {
+      return parameters; // CCParameters
+    }
+
     void run(const std::filesystem::path& workdir) override {
       // 1) set up a namedspaced directory for this run
       PathManager pm(workdir, Library::label());
@@ -335,66 +358,34 @@ namespace madness {
           }
           // read the checkpoint file
           std::ifstream ifs(ckpt);
-          nlohmann::json j;
-          ifs >> j;
+          ifs >> results_;
           ifs.close();
 
           bool ok = true;
           bool needEnergy = true;
-          if (needEnergy && !j.contains("energy")) ok = false;
+          if (needEnergy && !results_.contains("energy")) ok = false;
 
-          if (ok) {
-            energy_ = j["energy"];
-            return;
-          }
         }
 
-        // we could dump params_ to JSON and pass as argv if desired…
-        auto results = Library::run_cc2(world_, params_, reference_.get_workdir(), pm.dir());
-        try {
-          this->solve();
-        } catch (std::exception& e) {
-          print("Caught exception: ", e.what());
+        auto rel = std::filesystem::relative(reference_.get_workdir(), pm.dir());
+        if (world.rank() == 0) {
+          std::cout << "Running cc2 calculation in: " << pm.dir() << std::endl;
+          std::cout << "Ground state archive: " << reference_.get_workdir() << std::endl;
+          std::cout << "Relative path: " << rel << std::endl;
         }
 
-        energy_ = results.energy;
-        dipole_ = results.dipole;
-        gradient_ = results.gradient;
+        results_=this->solve();
 
-        // 5) write out JSON for future restarts
-        nlohmann::json outj = {{"energy", energy_}};
-        if (dipole_.has_value()) outj["dipole"] = tensor_to_json(*dipole_);
-        if (gradient_.has_value()) outj["gradient"] = tensor_to_json(*gradient_);
-
-        if (world_.rank() == 0) {
-          std::cout << "Writing checkpoint file: " << ckpt << std::endl;
-          std::ofstream o(ckpt);
-          o << std::setw(2) << outj << std::endl;
-        }
       }
     }
 
     nlohmann::json results() const override {
-      auto scfParams = params_.get<CalculationParameters>();
-      nlohmann::json j = {
-        {"type", "scf"},
-        {"energy", energy_},
-    };
-      if (dipole_ && scfParams.dipole()) j["dipole"] = tensor_to_json(*dipole_);
-      if (gradient_ && scfParams.derivatives())
-        j["gradient"] = tensor_to_json(*gradient_);
-
-      return j;
+      return results_;
     }
 
   private:
     World& world_;
     const Application& reference_;
-
-    double energy_;
-    std::optional<Tensor<double>> dipole_;
-    std::optional<Tensor<double>> gradient_;
-    std::optional<real_function_3d> density_;
   };
 
 
@@ -407,6 +398,11 @@ namespace madness {
           TDHF(w, p.get<TDHFParameters>(), reference.get_nemo()) {
     }
 
+
+    const QCCalculationParametersBase& get_parameters() const override {
+      return TDHF::get_parameters(); // TDHFParameters
+    }
+
     void run(const std::filesystem::path& workdir) override {
       // 1) set up a namedspaced directory for this run
       PathManager pm(workdir, "tdhf");
@@ -416,30 +412,6 @@ namespace madness {
         ScopedCWD scwd(pm.dir());
         if (world_.rank() == 0) {
           std::cout << "Running CIS in " << pm.dir() << std::endl;
-        }
-
-        // 2) define the "checkpoint" file
-        std::string label="tdhf";
-        auto ckpt = label + "_results.json";
-        print("cc checkpoint file",ckpt);
-        if (std::filesystem::exists(ckpt)) {
-          if (world_.rank() == 0) {
-            std::cout << "Found checkpoint file: " << ckpt << std::endl;
-          }
-          // read the checkpoint file
-          std::ifstream ifs(ckpt);
-          nlohmann::json j;
-          ifs >> j;
-          ifs.close();
-
-          bool ok = true;
-          bool needEnergy = true;
-          if (needEnergy && !j.contains("energy")) ok = false;
-
-          if (ok) {
-            energy_ = j["energy"];
-            return;
-          }
         }
 
         // we could dump params_ to JSON and pass as argv if desired…
@@ -464,46 +436,25 @@ namespace madness {
             std::cout << std::setw(25) << "time cis" << " = " << time_cis_end - time_cis_start << "\n";
             std::cout << "--------------------------------------------------\n";
           }
-          this->analyze(roots);
+          auto j=this->analyze(roots);
+          // funnel through CISResults to make sure we have the right format
+          CISResults results(j);
+          results_= results.to_json();
+
         } catch (std::exception& e) {
           print("Caught exception: ", e.what());
-        }
-
-
-        // 5) write out JSON for future restarts
-        nlohmann::json outj = {{"energy", energy_}};
-        if (dipole_.has_value()) outj["dipole"] = tensor_to_json(*dipole_);
-        if (gradient_.has_value()) outj["gradient"] = tensor_to_json(*gradient_);
-
-        if (world_.rank() == 0) {
-          std::cout << "Writing checkpoint file: " << ckpt << std::endl;
-          std::ofstream o(ckpt);
-          o << std::setw(2) << outj << std::endl;
         }
       }
     }
 
     nlohmann::json results() const override {
-      auto scfParams = params_.get<CalculationParameters>();
-      nlohmann::json j = {
-        {"type", "scf"},
-        {"energy", energy_},
-    };
-      if (dipole_ && scfParams.dipole()) j["dipole"] = tensor_to_json(*dipole_);
-      if (gradient_ && scfParams.derivatives())
-        j["gradient"] = tensor_to_json(*gradient_);
-
-      return j;
+      return results_;
     }
 
   private:
     World& world_;
     const Application& reference_;
 
-    double energy_;
-    std::optional<Tensor<double>> dipole_;
-    std::optional<Tensor<double>> gradient_;
-    std::optional<real_function_3d> density_;
   };
 
 
@@ -514,6 +465,10 @@ namespace madness {
     explicit OEPApplication(World& w, const Params& p, const SCFApplicationT& reference)
         : Application(p), world_(w), reference_(reference),
           OEP(w, p.get<OEP_Parameters>(), reference.get_nemo()) {
+    }
+
+    const QCCalculationParametersBase& get_parameters() const override {
+      return oep_param; // OEP_Parameters
     }
 
     void run(const std::filesystem::path& workdir) override {
@@ -541,14 +496,6 @@ namespace madness {
           ifs >> j;
           ifs.close();
 
-          bool ok = true;
-          bool needEnergy = true;
-          if (needEnergy && !j.contains("energy")) ok = false;
-
-          if (ok) {
-            energy_ = j["energy"];
-            return;
-          }
         }
 
         // we could dump params_ to JSON and pass as argv if desired…
@@ -570,32 +517,13 @@ namespace madness {
         } catch (std::exception& e) {
           print("Caught exception: ", e.what());
         }
-
-
-        // 5) write out JSON for future restarts
-        nlohmann::json outj = {{"energy", energy_}};
-        if (dipole_.has_value()) outj["dipole"] = tensor_to_json(*dipole_);
-        if (gradient_.has_value()) outj["gradient"] = tensor_to_json(*gradient_);
-
-        if (world_.rank() == 0) {
-          std::cout << "Writing checkpoint file: " << ckpt << std::endl;
-          std::ofstream o(ckpt);
-          o << std::setw(2) << outj << std::endl;
-        }
+        // nlohmann::json results;
+        results_=this->analyze();
       }
     }
 
     nlohmann::json results() const override {
-      auto scfParams = params_.get<CalculationParameters>();
-      nlohmann::json j = {
-        {"type", "scf"},
-        {"energy", energy_},
-    };
-      if (dipole_ && scfParams.dipole()) j["dipole"] = tensor_to_json(*dipole_);
-      if (gradient_ && scfParams.derivatives())
-        j["gradient"] = tensor_to_json(*gradient_);
-
-      return j;
+      return results_;
     }
 
   private:

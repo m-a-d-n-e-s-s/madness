@@ -5,6 +5,12 @@ import subprocess
 sys.path.append("@CMAKE_SOURCE_DIR@/bin")
 from madjsoncompare import madjsoncompare
 
+def cleanup(prefix):
+    """Remove output files and directories created during the test."""
+    cmd = f'rm -r {prefix}.calc_info.json {prefix}'
+    print("Cleaning up with command:", cmd)
+    subprocess.run(cmd, shell=True)
+
 if __name__ == "__main__":
 
     # some user output
@@ -16,10 +22,11 @@ if __name__ == "__main__":
     referencefile="@SRCDIR@/"+prefix+".calc_info.ref.json"
 
     # run test
-    global_arguments=' --geometry=he'
-    dft_arguments=' --dft="maxiter=1; econv=1.e-4; dconv=1.e-3; prefix='+prefix+'"'
+    global_arguments=' --geometry="source_name=he; eprec=1.e-6"'
+    dft_arguments=' --dft="maxiter=10; econv=1.e-4; dconv=1.e-3; prefix='+prefix+'"'
     other_arguments=''
-    cmd='rm '+outputfile+'; MAD_NUM_THREADS=1 mpirun -np 2 ./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
+    cleanup(prefix)  # Clean up previous output files
+    cmd='./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
 #    p=subprocess.run(cmd,shell=True,capture_output=True, text=True)
     p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)
@@ -31,7 +38,7 @@ if __name__ == "__main__":
 
     # compare results
     cmp=madjsoncompare(outputfile,referencefile)
-    cmp.compare(["return_energy"],1.e-4)
+    cmp.compare(["tasks",0,"scf_total_energy"],1.e-4)
     print("final success: ",cmp.success)
 
     sys.exit(p.returncode + exitcode)

@@ -41,7 +41,12 @@ public:
 		initialize<double>("dconv",1.e-3);
 		initialize<int>("printlevel",1);
 
-	}
+    }
+
+	std::string get_tag() const override {
+    	return std::string("response");
+    }
+
 
 	std::string guess_excitation_operators() const {return get<std::string>("guess_excitation_operators");};
 	std::vector<std::string> exops() const {return get<std::vector<std::string> >("exops");};
@@ -227,7 +232,7 @@ public:
 	void normalize(std::vector<root>& roots) const;
 
 	void compare_to_file(const std::vector<complex_function_3d>& rhs, const std::string name) const {
-		if (nemo->cparam.spin_restricted()) {
+		if (nemo->get_calc_param().spin_restricted()) {
 			save_function(rhs,name);
 
 		} else {
