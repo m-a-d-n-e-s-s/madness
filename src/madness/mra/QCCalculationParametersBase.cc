@@ -22,7 +22,7 @@ namespace madness {
 void QCCalculationParametersBase::print(const std::string header,
 		const std::string footer) const {
 
-	std::string body=print_to_string({"defined"});
+	std::string body=print_to_string({"all"});
 	if (header.size()>0) madness::print(header);
 	::madness::print(body);
 	if (footer.size()>0) madness::print(footer);

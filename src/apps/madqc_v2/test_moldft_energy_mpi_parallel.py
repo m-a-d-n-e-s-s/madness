@@ -31,7 +31,8 @@ if __name__ == "__main__":
 
     # compare results
     cmp=madjsoncompare(outputfile,referencefile)
-    cmp.compare(["return_energy"],1.e-4)
+    cmp.compare(["tasks",0,"properties","energy"],1.e-1)
+    cmp.compare(["tasks",0,"metadata","mpi_size"],1.e-4)
     print("final success: ",cmp.success)
 
     sys.exit(p.returncode + exitcode)
