@@ -298,7 +298,7 @@ namespace madness {
 
         virtual std::string get_tag() const = 0;
 
-        std::string print_to_string(bool non_defaults_only = false) const;
+        std::string print_to_string(const std::list<std::string> precedences={"all"}) const;
 
         template <typename T>
         T get(const std::string key) const {

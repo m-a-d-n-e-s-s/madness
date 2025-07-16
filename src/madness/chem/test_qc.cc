@@ -118,7 +118,7 @@ struct write_test_input {
 	write_test_input(const TestCalculationParameters& param, const std::string& mol="lih") : filename_("test_input") {
 		std::ofstream of(filename_);
 		of << "dft\n";
-		of << param.print_to_string(true);
+		of << param.print_to_string({"defined"});
 		of << "end\n";
 
 		if (mol=="lih") {
@@ -158,7 +158,7 @@ int run_all_calculations(World& world, const std::vector<CalculationParameters>&
 		t.set_cout_to_terminal(); // cannot redirect to logger, will interfere with macrotaskq-redirections
 
 //		print(cp.print_to_string(true));
-		print(cp.print_to_string(false));
+		print(cp.print_to_string({"defined"}));
 
 		write_test_input test_input(cp,"lih");
         commandlineparser parser;

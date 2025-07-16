@@ -452,7 +452,13 @@ class Molecule {
 
   const std::vector<Atom> &get_atoms() const { return atoms; }
 
-  void print() const;
+  /// print all parameters and the molecular geometry
+  void print(std::ostream& os=std::cout, const bool defined_only=false) const;
+
+  /// print user-defined parameters and the molecular geometry
+  void print_defined_only(std::ostream& os=std::cout) const {
+      this->print(os,true);
+  };
 
   double inter_atomic_distance(unsigned int i, unsigned int j) const;
 

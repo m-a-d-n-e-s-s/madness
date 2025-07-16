@@ -22,13 +22,13 @@ namespace madness {
 void QCCalculationParametersBase::print(const std::string header,
 		const std::string footer) const {
 
-	std::string body=print_to_string();
+	std::string body=print_to_string({"defined"});
 	if (header.size()>0) madness::print(header);
 	::madness::print(body);
 	if (footer.size()>0) madness::print(footer);
 }
 
-std::string QCCalculationParametersBase::print_to_string(bool non_defaults_only) const {
+std::string QCCalculationParametersBase::print_to_string(const std::list<std::string> precedence) const {
 
 	// sort parameters according to increasing print_order
 	typedef std::tuple<int,std::string,QCParameter> keyvalT;
@@ -36,13 +36,24 @@ std::string QCCalculationParametersBase::print_to_string(bool non_defaults_only)
 	for (auto& p : parameters) list.push_back(keyvalT(p.second.get_print_order(),p.first,p.second));
 	list.sort([](const keyvalT& first, const keyvalT& second) {return std::get<0>(first) < std::get<0>(second);});
 
+	// check if we have to print only non-default parameters
+	bool print_all = std::find(precedence.begin(), precedence.end(), "all") != precedence.end();
+	bool print_default = std::find(precedence.begin(), precedence.end(), "default") != precedence.end();
+	bool print_derived = std::find(precedence.begin(), precedence.end(), "derived") != precedence.end();
+	bool print_defined = std::find(precedence.begin(), precedence.end(), "defined") != precedence.end();
+
 	std::stringstream ss;
     int counter=0;
 	for (auto& p : list) {
 		const QCParameter& param=std::get<2>(p);
-		if (non_defaults_only and (param.precedence==QCParameter::def)) continue;
+		bool skip=
+			(not print_default and param.precedence == QCParameter::def) or
+			(not print_derived and param.precedence == QCParameter::derived) or
+			(not print_defined and param.precedence == QCParameter::defined);
+		if (print_all) skip=false;
+		if (skip) continue;
+		if ((counter++)>0) ss << std::endl; // no newline at the very end
 		ss << param.print_line(std::get<1>(p));
-		if (++counter<int(list.size())) ss << std::endl; // no newline at the very end
 	}
 	return ss.str();
 }
