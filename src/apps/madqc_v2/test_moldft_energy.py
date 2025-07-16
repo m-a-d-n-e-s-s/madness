@@ -19,7 +19,7 @@ if __name__ == "__main__":
     global_arguments=' --geometry="source_name=he; eprec=1.e-6"'
     dft_arguments=' --dft="maxiter=10; econv=1.e-4; dconv=1.e-3; prefix='+prefix+'"'
     other_arguments=''
-    cmd='rm '+outputfile+'; ./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
+    cmd='rm '+outputfile+' ' + prefix+ '; ./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
 #    p=subprocess.run(cmd,shell=True,capture_output=True, text=True)
     p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)

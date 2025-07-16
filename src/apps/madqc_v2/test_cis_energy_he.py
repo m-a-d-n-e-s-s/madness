@@ -18,8 +18,8 @@ if __name__ == "__main__":
     # run test
     global_arguments=' --geometry=he --wf=cis'
     dft_arguments=' --dft="k=6; maxiter=1; econv=1.e-4; dconv=1.e-3; prefix='+prefix+'"'
-    other_arguments=' --response="thresh=1.e-3; maxiter=10; guess_maxiter=0; econv=1; dconv=1; guess_excitation_operators=dipole+; guess_excitations=2; nexcitations=2"'
-    cmd='rm '+outputfile+'; ./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
+    other_arguments=' --tdhf="thresh=1.e-3; maxiter=10; guess_maxiter=0; econv=1; dconv=1; guess_excitation_operators=dipole+; guess_excitations=2; nexcitations=2"'
+    cmd='rm '+outputfile+' ' + prefix+ '; ./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
 #    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
     p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)

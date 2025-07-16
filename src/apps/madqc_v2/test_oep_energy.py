@@ -27,7 +27,7 @@ if __name__ == "__main__":
     global_arguments=' --geometry=be --wf=oep'
     dft_arguments=' --dft="maxiter=3; econv=1.e-4; dconv=1.e-3; k=7; prefix='+prefix+'"'
     other_arguments=' --oep="model=oaep; oep_maxiter=3"'
-    cmd='rm '+outputfile+'; ./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
+    cmd='rm '+outputfile+' '+prefix+'; ./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
 #    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
     p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)

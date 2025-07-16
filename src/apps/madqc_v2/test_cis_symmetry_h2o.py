@@ -18,8 +18,8 @@ if __name__ == "__main__":
     # run test
     global_arguments=' --geometry=h2o --wf=cis'
     dft_arguments=' --dft="k=8; localize=canon; prefix='+prefix+'"'
-    other_arguments=' --response="freeze=1; thresh=1.e-3; econv=1.e-3; dconv=1.e-2"'
-    cmd='rm '+outputfile+'; ./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
+    other_arguments=' --tdhf="freeze=1; thresh=1.e-3; econv=1.e-3; dconv=1.e-2"'
+    cmd='rm '+outputfile+' ' + prefix+ '; ./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
 #    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
     p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)
@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     referencefile="@SRCDIR@/"+prefix+"_a2.calc_info.ref.json"
     dft_arguments=' --dft="k=8; localize=canon; prefix='+prefix+'; no_compute=1"'
-    other_arguments=' --response="irrep=a2; freeze=1; thresh=1.e-3; econv=1.e-3; dconv=1.e-2; restart=no_restart"'
+    other_arguments=' --tdhf="irrep=a2; freeze=1; thresh=1.e-3; econv=1.e-3; dconv=1.e-2; restart=no_restart"'
     cmd='./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
 #    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout

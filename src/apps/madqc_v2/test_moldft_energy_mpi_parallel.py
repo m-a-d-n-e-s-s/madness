@@ -19,7 +19,7 @@ if __name__ == "__main__":
     global_arguments=' --geometry=he'
     dft_arguments=' --dft="maxiter=1; econv=1.e-4; dconv=1.e-3; prefix='+prefix+'"'
     other_arguments=''
-    cmd='rm '+outputfile+'; MAD_NUM_THREADS=1 mpirun -np 2 ./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
+    cmd='rm '+outputfile+' ' + prefix+ '; MAD_NUM_THREADS=1 mpirun -np 2 ./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
 #    p=subprocess.run(cmd,shell=True,capture_output=True, text=True)
     p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)
