@@ -22,7 +22,7 @@ namespace madness {
     /// the TDHF parameter class
     struct TDHFParameters : public QCCalculationParametersBase {
 
-        static constexpr char const *tag = "response";
+        static constexpr char const *tag = "tdhf";
 
         TDHFParameters() {
             initialize_all();
@@ -33,7 +33,7 @@ namespace madness {
         /// todo: read_from_file compatible with dist. memory computation
         TDHFParameters(World &world, const commandlineparser& parser) {
             initialize_all();
-            read_input_and_commandline_options(world, parser, "response");
+            read_input_and_commandline_options(world, parser, tag);
         }
 
         std::string get_tag() const override {

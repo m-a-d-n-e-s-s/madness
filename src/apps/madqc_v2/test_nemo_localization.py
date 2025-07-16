@@ -6,6 +6,11 @@ import subprocess
 sys.path.append("@CMAKE_SOURCE_DIR@/bin")
 from madjsoncompare import madjsoncompare
 
+def cleanup(prefix, localizer=''):
+    """Remove output files and directories created during the test."""
+    cmd = f'rm -r {prefix}.calc_info.json {prefix}{localizer}'
+    print("Cleaning up with command:", cmd)
+    subprocess.run(cmd, shell=True)
 
 
 def localizer_run(localizer):
@@ -16,7 +21,8 @@ def localizer_run(localizer):
     referencefile="@SRCDIR@/"+prefix+".calc_info.ref.json"
 
 
-    cmd='rm -r ' + outputfile + ' ' + prefix+localizer+'; ./@BINARY@ --geometry=h2o --wf=nemo --dft="maxiter=10; econv=1.e-5; k=8; localize='+localizer+'; dconv=1.e-3; prefix='+prefix+localizer+'"'
+    cleanup(prefix)
+    cmd='./@BINARY@ --geometry=h2o --wf=nemo --dft="maxiter=10; econv=1.e-5; k=8; localize='+localizer+'; dconv=1.e-3; prefix='+prefix+localizer+'"'
     print("executing \n ",cmd)
 #    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
     p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)
