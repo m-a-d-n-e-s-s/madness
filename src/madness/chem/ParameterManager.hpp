@@ -29,6 +29,11 @@ struct OptimizationParameters : public QCCalculationParametersBase {
     initialize<bool>("geometry_tolerence", false, "geometry tolerance");
   }
 
+  std::string get_tag() const override {
+    return std::string(tag);
+  }
+
+
   using QCCalculationParametersBase::read_input_and_commandline_options;
 
   void print() const {
@@ -64,7 +69,7 @@ struct OptimizationParameters : public QCCalculationParametersBase {
 };
 
 template <typename... Groups>
-class ParameterManager : public madness::QCCalculationParametersBase {
+class ParameterManager {
   std::tuple<Groups...> groups_;
   commandlineparser parser_;
   nlohmann::json all_input_json_;
@@ -102,9 +107,6 @@ class ParameterManager : public madness::QCCalculationParametersBase {
   /// here comes some logic for the calculation, e.g. the number of electrons derived from the molecule
   void set_derived_values() {
     this->get<CalculationParameters>().set_derived_values(this->get<Molecule>());
-
-
-
   }
 
   /// dump out the merged JSON
@@ -181,6 +183,7 @@ class ParameterManager : public madness::QCCalculationParametersBase {
 // Define a concrete aliased ParameterManager type
 using Params = ParameterManager<CalculationParameters,
                                 ResponseParameters,
+                                Nemo::NemoCalculationParameters,
                                 OptimizationParameters,
                                 OEP_Parameters,
                                 TDHFParameters,

@@ -38,7 +38,7 @@ void Zcis::iterate(std::vector<root>& roots) const {
 	const real_function_3d adens=real(dot(world,conj(world,nemo->amo),nemo->amo)).truncate();
 	const real_function_3d bdens=real(dot(world,conj(world,nemo->bmo),nemo->bmo)).truncate();
 	real_function_3d totdens=(adens+bdens).truncate();
-	if (nemo->cparam.spin_restricted()) totdens.scale(2.0);
+	if (nemo->get_calc_param().spin_restricted()) totdens.scale(2.0);
 	double nelectron=totdens.trace();
 	print("nelectron from the total density",nelectron);
 	totdens.print_size("totdens");
@@ -170,7 +170,7 @@ void Zcis::compute_potentials(std::vector<root>& roots, const real_function_3d& 
 		// compute the perturbed density
 		complex_function_3d denspt=((dot(world,conj(world,thisroot.afunction),active_mo(nemo->amo)) +
 				dot(world,conj(world,thisroot.bfunction),active_mo(nemo->bmo))));
-		if (nemo->cparam.spin_restricted()) denspt.scale(2.0);
+		if (nemo->get_calc_param().spin_restricted()) denspt.scale(2.0);
 
 		denspt=conj(denspt);
 		denspt.truncate();
@@ -178,7 +178,7 @@ void Zcis::compute_potentials(std::vector<root>& roots, const real_function_3d& 
 		save(abs_square(denspt),"denspt_root"+stringify(iroot));
 
 		for (std::string spin : {"alpha","beta"}) {
-			if (nemo->cparam.spin_restricted() and (spin=="beta")) continue;
+			if (nemo->get_calc_param().spin_restricted() and (spin=="beta")) continue;
 
 			const std::vector<complex_function_3d>& mo=(spin=="alpha") ? nemo->amo : nemo->bmo;
 			const std::vector<complex_function_3d>& act_mo=(spin=="alpha") ? active_mo(nemo->amo) : active_mo(nemo->bmo);
@@ -205,7 +205,7 @@ void Zcis::compute_potentials(std::vector<root>& roots, const real_function_3d& 
 			Coulomb<double_complex,3> Jp(world);
 			complex_function_3d Jp_pot = Jp.compute_potential(denspt);
 
-			Exchange<double_complex,3> Kp(world,nemo->cparam.lo());
+			Exchange<double_complex,3> Kp(world,nemo->get_calc_param().lo());
             Kp.set_bra_and_ket(conj(world, act_mo), x);
 			pot+=Q(Jp_pot*act_mo - Kp(act_mo));
 			truncate(world,pot);
@@ -349,7 +349,7 @@ std::vector<Zcis::root> Zcis::make_guess() const {
 	real_function_3d adens=real(dot(world,conj(world,nemo->amo),nemo->amo)).truncate();
 	real_function_3d bdens=real(dot(world,conj(world,nemo->bmo),nemo->bmo)).truncate();
 	real_function_3d density=adens + bdens;
-	if (nemo->cparam.spin_restricted()) density.scale(2.0);
+	if (nemo->get_calc_param().spin_restricted()) density.scale(2.0);
 
 	density.print_size("density in make_guess");
 

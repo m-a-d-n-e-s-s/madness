@@ -75,13 +75,8 @@ int main(int argc, char **argv) {
     } else {
 
         std::shared_ptr<Nemo> nemo(new Nemo(world, parser));
-        nemo->param.set_derived_value("print_level", 2);
         nemo->get_calc()->param.set_derived_value("print_level", 2);
-        nemo->param.set_derived_value("k", 5);
         nemo->get_calc()->param.set_derived_value("k", 5);
-        // nemo->param.set_derived_value<std::string>("localize", "canon");
-        // nemo->get_calc()->param.set_derived_value<std::string>("localize", "canon");
-        nemo->param.set_derived_values(nemo->molecule());
         nemo->get_calc()->param.set_derived_values(nemo->molecule());
         CC2 cc2(world, parser, nemo);
 

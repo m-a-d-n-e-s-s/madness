@@ -1,0 +1,45 @@
+{
+    "tasks": [
+        {
+            "convergence_info": {
+                "converged_for_dconv": 0.001,
+                "converged_for_thresh": 0.0001
+            },
+            "metadata": {
+                "elapsed_time": 5.022059917449951,
+                "finished_at": "2025-07-16 11:21:56",
+                "git_hash": "",
+                "host": "Darwin",
+                "mpi_size": 1,
+                "nthreads": 7
+            },
+            "model": "scf",
+            "properties": {
+                "dipole": {
+                    "ndim": -1,
+                    "size": 0
+                },
+                "energy": -2.8616792499018886,
+                "gradient": {
+                    "ndim": -1,
+                    "size": 0
+                }
+            },
+            "scf_eigenvalues_a": {
+                "dims": [
+                    1
+                ],
+                "ndim": 1,
+                "size": 1,
+                "vals": [
+                    -0.9179861813061136
+                ]
+            },
+            "scf_fock_a": {
+                "ndim": -1,
+                "size": 0
+            },
+            "scf_total_energy": 0.0
+        }
+    ]
+}

@@ -26,6 +26,11 @@ public:
 		initialize<std::pair<std::string,double> >("ncf",{"slater",2.0});
 	}
 
+	std::string get_tag() const override {
+		return std::string("test");
+	}
+
+
 	void read_and_set_derived_values(World& world, const commandlineparser& parser, std::string tag) {
 		read_input_and_commandline_options(world,parser,tag);
 		set_derived_value("dconv",sqrt(get<double>("econv"))*0.1);

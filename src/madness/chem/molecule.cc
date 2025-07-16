@@ -507,14 +507,14 @@ void Molecule::from_json(const json& mol_json) {
   if (parameters.no_orient() == false) orient();
 }
 
-void Molecule::print() const {
-    std::string p =parameters.print_to_string();
-    std::cout.flush();
+void Molecule::print(std::ostream& os, const bool defined_only) const {
+    std::string p =parameters.print_to_string({"defined"});
+    os.flush();
+
     std::stringstream sstream;
     sstream << "geometry" << std::endl;
     sstream << p << std::endl;
-//    sstream << "   eprec  " << std::scientific << std::setw(1) << get_eprec()  << std::endl << std::fixed;
-//    sstream << "   units atomic" << std::endl;
+    sstream << "molecule" << std::endl;
     for (size_t i=0; i<natom(); ++i) {
         sstream << std::setw(5) << get_atomic_data(atoms[i].atomic_number).symbol << "  ";
         sstream << std::setw(20) << std::setprecision(8) << atoms[i].x
@@ -524,7 +524,8 @@ void Molecule::print() const {
         sstream << std::endl;
     }
     sstream << "end" << std::endl;
-    std::cout << sstream.str();
+    sstream << "end" << std::endl;
+    os << sstream.str();
 }
 
 double Molecule::inter_atomic_distance(unsigned int i,unsigned int j) const {

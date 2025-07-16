@@ -137,6 +137,10 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	}
 
+	std::string get_tag() const override {
+		return tag;
+	}
+
 	public:
 	using QCCalculationParametersBase::read_input_and_commandline_options;
 

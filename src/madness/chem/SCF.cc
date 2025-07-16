@@ -322,9 +322,10 @@ void SCF::save_mos(World& world) {
 void SCF::load_mos(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
     //        const double trantol = vtol / std::min(30.0, double(param.nalpha));
+
+    bool needs_redo=false; // if we need to redo the orbitals, e.g. because of a change in k or thresh
+
     const double thresh = FunctionDefaults<3>::get_thresh();
-    const int k = FunctionDefaults<3>::get_k();
-    unsigned int nmo = 0;
     bool spinrest = false;
 
     amo.clear();
@@ -361,13 +362,10 @@ void SCF::load_mos(World& world) {
 
     ar & archive_version;
 
-    if (archive_version != version) {
-        if (world.rank() == 0)
-            print(
-                    "Loading from a different version of archive. Archive version", archive_version, "MADNESS version",
-                    version);
-        throw "Invalid archive";
-    }
+    // Some basic checks
+    std::string errmsg= "incompatible archive versions: "+std::to_string(archive_version) +
+                     " vs. input parameter: "+std::to_string(version);
+    MADNESS_CHECK_THROW(archive_version ==version, errmsg.c_str());
 
     // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
     // EPS, SWAP, ... sigh
@@ -375,88 +373,73 @@ void SCF::load_mos(World& world) {
     // Reorder
     Molecule mol;
     ar & L & k1 & mol& param.xc() & param.localize_method() & converged_for_thresh1;
+
+
+    // more basic checks
+    errmsg= "inconsistent box size in restartdata file: "+ std::to_string(L) +
+                     " vs. input parameter: "+std::to_string(param.L());
+    MADNESS_CHECK_THROW(L==param.L(), errmsg.c_str());
+
     if (not (mol == molecule)) {
-        if (world.rank() == 0) print("Warning: Molecule in archive does not match the current molecule");
-        throw "Molecule mismatch";
-    }
-
-    ar & nmo;
-    MADNESS_CHECK_THROW(nmo >= unsigned(param.nmo_alpha()),"mismatch in load_mos: nmo < nmo_alpha");
-    ar & aeps & aocc & aset;
-    // Some basic checks
-    if (L != param.L()) {
-        if (world.rank() == 0)
-            print(
-                    "Warning: Box size mismatch between archive and input parameter. "
-                    "Archive value",
-                    L,
-                    "Param value",
-                    param.L());
-        throw "Mismatch in box sizes";
-    }
-    if (world.rank() == 0) {
-        print("Restarting from this molecular geometry");
-        molecule.print();
-    }
-    amo.resize(nmo);
-    for (unsigned int i = 0; i < amo.size(); ++i) ar & amo[i];
-    unsigned int n_core = molecule.n_core_orb_all();
-    if (nmo > unsigned(param.nmo_alpha())) {
-        aset = vector<int>(aset.begin() + n_core, aset.begin() + n_core + param.nmo_alpha());
-        amo = vecfuncT(amo.begin() + n_core, amo.begin() + n_core + param.nmo_alpha());
-        aeps = copy(aeps(Slice(n_core, n_core + param.nmo_alpha() - 1)));
-        aocc = copy(aocc(Slice(n_core, n_core + param.nmo_alpha() - 1)));
-    }
-
-    if (amo[0].k() != k) {
-        reconstruct(world, amo);
-        for (unsigned int i = 0; i < amo.size(); ++i) amo[i] = madness::project(amo[i], k, thresh, false);
-        world.gop.fence();
-    }
-    set_thresh(world, amo, thresh);
-
-    //        normalize(world, amo);
-    //        amo = transform(world, amo, Q3(matrix_inner(world, amo, amo)),
-    //        trantol, true); truncate(world, amo); normalize(world, amo);
-
-    if (!param.spin_restricted()) {
-        if (spinrest) {  // Only alpha spin orbitals were on disk
-            MADNESS_ASSERT(param.nmo_alpha() >= param.nmo_beta());
-            bmo.resize(param.nmo_beta());
-            bset.resize(param.nmo_beta());
-            beps = copy(aeps(Slice(0, param.nmo_beta() - 1)));
-            bocc = copy(aocc(Slice(0, param.nmo_beta() - 1)));
-            for (int i = 0; i < param.nmo_beta(); ++i) bmo[i] = copy(amo[i]);
-        } else {
-            ar & nmo;
-            ar & beps & bocc & bset;
-
-            bmo.resize(nmo);
-            for (unsigned int i = 0; i < bmo.size(); ++i) ar & bmo[i];
-
-            if (nmo > unsigned(param.nmo_beta())) {
-                bset = vector<int>(bset.begin() + n_core, bset.begin() + n_core + param.nmo_beta());
-                bmo = vecfuncT(bmo.begin() + n_core, bmo.begin() + n_core + param.nmo_beta());
-                beps = copy(beps(Slice(n_core, n_core + param.nmo_beta() - 1)));
-                bocc = copy(bocc(Slice(n_core, n_core + param.nmo_beta() - 1)));
-            }
-
-            if (bmo[0].k() != k) {
-                reconstruct(world, bmo);
-                for (unsigned int i = 0; i < bmo.size(); ++i) bmo[i] = madness::project(bmo[i], k, thresh, false);
-                world.gop.fence();
-            }
-            set_thresh(world, amo, thresh);
-
-            //                normalize(world, bmo);
-            //                bmo = transform(world, bmo, Q3(matrix_inner(world, bmo,
-            //                bmo)), trantol, true); truncate(world, bmo);
-            //                normalize(world, bmo);
+        if (world.rank() == 0) {
+            print("Warning: Molecule in archive does not match the current molecule");
+            print("Restarting from this molecular geometry");
+            molecule.print();
         }
     }
+
+    auto check_and_set_thresh = [&world, &needs_redo](std::vector<real_function_3d>& mo) {
+        if (mo[0].thresh() *0.999 > FunctionDefaults<3>::get_thresh()) {
+            if (world.rank() == 0) print("Warning: thresh in archive does not match the current thresh: ",
+                                         mo[0].thresh(), " vs. ", FunctionDefaults<3>::get_thresh());
+            set_thresh(world, mo, FunctionDefaults<3>::get_thresh());
+            needs_redo=true;
+        }
+    };
+
+    auto check_and_project_k = [&world, &needs_redo](std::vector<real_function_3d>& mo) {
+        auto k=FunctionDefaults<3>::get_k();
+        if (mo[0].k() != k) {
+            if (world.rank() == 0) print("Warning: k in archive does not match the current k");
+            for (unsigned int i = 0; i < mo.size(); ++i)
+                mo[i] = madness::project(mo[i], k, FunctionDefaults<3>::get_thresh(), false);
+            needs_redo=true;
+        }
+    };
+
+
+    // load orbitals
+    MolecularOrbitals<double,3> amos, bmos;
+    amos.load_mos(ar, molecule, param.nmo_alpha());
+    amo= amos.get_mos();
+    aocc=amos.get_occ();
+    aeps=amos.get_eps();
+    aset=amos.get_localize_sets();
+    if (world.rank()==0) {
+        print("loaded ", amo.size(), " alpha MOs from restartdata with thresh and k: ",amo[0].thresh(), amo[0].k());
+    }
+
+    check_and_project_k(amo);
+    check_and_set_thresh(amo);
+
+    if (param.have_beta()) {
+        bmos.load_mos(ar, molecule, param.nmo_beta());
+        bmo= amos.get_mos();
+        bocc=amos.get_occ();
+        beps=amos.get_eps();
+        bset=amos.get_localize_sets();
+        check_and_project_k(bmo);
+        check_and_set_thresh(bmo);
+    }
+
     // if everything worked out, set convergence parameters
-    converged_for_thresh= converged_for_thresh1;
-    current_energy=current_energy1;
+    if (needs_redo) {
+        converged_for_thresh=1.e10;
+        current_energy=1.e10;
+    } else {
+        converged_for_thresh= converged_for_thresh1;
+        current_energy=current_energy1;
+    }
     molecule=mol;
 }
 
@@ -2445,6 +2428,7 @@ void SCF::solve(World& world) {
                 if (world.rank() == 0 && converged and (param.print_level() > 1)) {
                     print("\nConverged!\n");
                     converged_for_thresh=param.econv();
+                    converged_for_dconv=param.dconv();
                 }
 
                 // Diagonalize to get the eigenvalues and if desired the final eigenvectors

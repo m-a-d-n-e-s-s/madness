@@ -653,8 +653,7 @@ int nuclear_anchor_test(World& world) {
     if (check_err(err,thresh,"Nuclear matrix element error 1")) return 1;
 
     // test ncf=slater
-    Nemo::NemoCalculationParameters nemo_param(calc.param);
-    nemo_param.read_input_and_commandline_options(world,parser,"dft");
+    Nemo::NemoCalculationParameters nemo_param(world,parser);
     std::shared_ptr<NuclearCorrelationFactor> ncf=
     create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, nemo_param.ncf());
     ncf->initialize(FunctionDefaults<3>::get_thresh());
@@ -694,10 +693,10 @@ int test_nuclear(World& world) {
 int dnuclear_anchor_test(World& world) {
     double thresh=FunctionDefaults<3>::get_thresh();
 //    NemoCalculationParameters
-    Nemo::NemoCalculationParameters param;
+    CalculationParameters param;
     param.set_user_defined_value<std::vector<double>>("protocol",{1.e-5});
     param.set_user_defined_value("k",8);
-    param.set_user_defined_value<std::pair<std::string,double>>("ncf",{"slater",2.0});
+    // param.set_user_defined_value<std::pair<std::string,double>>("ncf",{"slater",2.0});
     write_test_input test_input(param,"hf");
     commandlineparser parser;
     parser.set_keyval("input",test_input.filename());
@@ -770,8 +769,8 @@ int dnuclear_anchor_test(World& world) {
     // test ncf=slater
 
     // test U2 and U3
-    Nemo::NemoCalculationParameters nemo_param(calc.param);
-    nemo_param.read_input_and_commandline_options(world,parser,"dft");
+    Nemo::NemoCalculationParameters nemo_param(world,parser);
+    CalculationParameters calc_param(world,parser);
 
     std::shared_ptr<NuclearCorrelationFactor> ncf=
     create_nuclear_correlation_factor(world, calc.molecule, calc.potentialmanager, nemo_param.ncf());

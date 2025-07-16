@@ -330,19 +330,21 @@ class Nemo: public NemoBase, public QCPropertyInterface {
 
 public:
 	/// class holding parameters for a nemo calculation beyond the standard dft parameters from moldft
-	struct NemoCalculationParameters : public CalculationParameters {
+	struct NemoCalculationParameters : public QCCalculationParametersBase {
+		static constexpr char const* tag = "dft";
 
-        NemoCalculationParameters(World& world, const commandlineparser& parser) : CalculationParameters(world,parser) {
+        NemoCalculationParameters(World& world, const commandlineparser& parser) {
             initialize_nemo_parameters();
+        	read_input_and_commandline_options(world,parser,"dft");
         }
 
-		NemoCalculationParameters(const CalculationParameters& param) : CalculationParameters(param) {
-            initialize_nemo_parameters();
-		}
-
-		NemoCalculationParameters() : CalculationParameters() {
+		NemoCalculationParameters() {
 			initialize_nemo_parameters();
 		}
+
+		std::string get_tag() const override {
+        	return std::string("dft");
+        }
 
 		void initialize_nemo_parameters() {
         	// check if parameters are initialized for a nemo calculation already
@@ -352,7 +354,6 @@ public:
 			initialize<bool> ("read_cphf",false,"read the converged orbital response for nuclear displacements from file");
 			initialize<bool> ("restart_cphf",false,"read the guess orbital response for nuclear displacements from file");
 			initialize<bool> ("purify_hessian",false,"symmetrize the hessian matrix based on atomic charges");
-            set_derived_value("k",7);
 		}
 
 		std::pair<std::string,double> ncf() const {return get<std::pair<std::string,double> >("ncf");}
@@ -371,7 +372,8 @@ public:
 
     Nemo(World& world, const commandlineparser& parser);
 
-	Nemo(World& world, const CalculationParameters& param, const Molecule& molecule);
+	Nemo(World& world, const CalculationParameters& param, const NemoCalculationParameters& nemo_param,
+		const Molecule& molecule);
 
     std::string name() const {return "nemo";}
     bool selftest() {return false;}
@@ -412,6 +414,9 @@ public:
 	void load_mos(World& w) {
 		calc->load_mos(w);
 	}
+
+	/// compute dipole moment and gradient at the current geometry
+	virtual nlohmann::json analyze() const;
 
 	/// compute the nuclear gradients
 	Tensor<double> gradient(const Tensor<double>& x);
@@ -495,7 +500,8 @@ public:
 
 	std::shared_ptr<SCF> get_calc() const {return calc;}
 
-    const NemoCalculationParameters& get_param() const {return param;}
+    const NemoCalculationParameters& get_nemo_param() const {return nemo_param;}
+	const CalculationParameters& get_calc_param() const {return calc->param;}
 
 	PCM get_pcm()const{return pcm;}
 
@@ -582,7 +588,7 @@ protected:
 	std::shared_ptr<SCF> calc;
 
 public:
-    NemoCalculationParameters param;
+    const NemoCalculationParameters nemo_param;
 
 protected:
     projector_irrep symmetry_projector;
@@ -633,15 +639,15 @@ protected:
         calc->set_protocol<3>(world,thresh);
 
         if (need_recompute_factors_and_potentials(thresh)) {
-            timer timer1(world,param.print_level()>2);
+            timer timer1(world,get_calc_param().print_level()>2);
             get_calc()->make_nuclear_potential(world);
-            construct_nuclear_correlation_factor(calc->molecule, calc->potentialmanager, param.ncf());
+            construct_nuclear_correlation_factor(calc->molecule, calc->potentialmanager, get_nemo_param().ncf());
             timer1.end("reproject ncf");
         }
 
         // (re) construct the Poisson solver
         poisson = std::shared_ptr<real_convolution_3d>(
-                CoulombOperatorPtr(world, param.lo(), FunctionDefaults<3>::get_thresh()));
+                CoulombOperatorPtr(world, get_calc_param().lo(), FunctionDefaults<3>::get_thresh()));
 
         // set thresholds for the MOs
         set_thresh(world,calc->amo,thresh);
@@ -697,9 +703,9 @@ public:
 
 	bool is_dft() const {return calc->xc.is_dft();}
 
-	bool do_pcm() const {return param.pcm_data() != "none";}
+	bool do_pcm() const {return get_calc_param().pcm_data() != "none";}
 	
-	bool do_ac() const {return param.ac_data() != "none";}
+	bool do_ac() const {return get_calc_param().ac_data() != "none";}
 
 	AC<3> get_ac() const {return ac;}
 

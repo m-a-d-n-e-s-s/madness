@@ -35,7 +35,7 @@ struct write_test_input {
     static std::ostream&
     write_to_test_input(const std::string groupname, const QCCalculationParametersBase *param, std::ostream& of) {
         of << groupname << endl;
-        of << param->print_to_string(true);
+        of << param->print_to_string({"defined"});
         of << "end\n";
         return of;
     }

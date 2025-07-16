@@ -34,6 +34,9 @@ namespace madness {
             read_input_and_commandline_options(world,parser,"cc2");
             set_derived_values();
         };
+        std::string get_tag() const override {
+            return std::string(tag);
+        }
 
 
         void initialize_parameters() {

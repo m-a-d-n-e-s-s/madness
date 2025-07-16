@@ -1,0 +1,81 @@
+{
+    "tasks": [
+        {
+            "convergence_info": {
+                "converged_for_dconv": 10000000000.0,
+                "converged_for_thresh": 10000000000.0
+            },
+            "metadata": {
+                "elapsed_time": 1.891343116760254,
+                "finished_at": "2025-07-15 15:37:32",
+                "git_hash": "",
+                "host": "Darwin",
+                "mpi_size": 1,
+                "nthreads": 7
+            },
+            "model": "scf",
+            "properties": {
+                "dipole": {
+                    "dims": [
+                        3
+                    ],
+                    "ndim": 1,
+                    "size": 3,
+                    "vals": [
+                        -7.352528055313693e-12,
+                        -7.353584659406807e-12,
+                        -7.341483977148704e-12
+                    ]
+                },
+                "energy": 0.0,
+                "gradient": {
+                    "dims": [
+                        3
+                    ],
+                    "ndim": 1,
+                    "size": 3,
+                    "vals": [
+                        -2.6526003615856553e-12,
+                        -2.6597057889432563e-12,
+                        -2.666089571334851e-12
+                    ]
+                }
+            },
+            "scf_eigenvalues_a": {
+                "dims": [
+                    1
+                ],
+                "ndim": 1,
+                "size": 1,
+                "vals": [
+                    -0.9223609256130967
+                ]
+            },
+            "scf_fock_a": {
+                "ndim": -1,
+                "size": 0
+            },
+            "scf_total_energy": 0.0
+        },
+        {
+            "excitations": [
+                {
+                    "current_error": 0.42523104190367156,
+                    "irrep": "a",
+                    "omega": 0.8518042544116026,
+                    "oscillator_strength_length": 0.18565741630387425,
+                    "oscillator_strength_velocity": 0.14377829951962062
+                },
+                {
+                    "current_error": 0.7793123260823384,
+                    "irrep": "a",
+                    "omega": 0.8598465748594178,
+                    "oscillator_strength_length": 2.1151040336529158e-21,
+                    "oscillator_strength_velocity": 9.599893151560135e-21
+                }
+            ],
+            "model": "cis",
+            "nfreeze": 0
+        }
+    ]
+}
