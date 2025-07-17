@@ -48,20 +48,101 @@
 #include <madness/misc/info.h>
 #include <madness/world/worldmem.h>
 
-#include "Drivers.hpp"
-#include "MoldftLib.hpp"
-#include "MolresponseLib.hpp"
-#include "CCLib.hpp"
-#include "ParameterManager.hpp"
+#include <Drivers.hpp>
+#include <MoldftLib.hpp>
+#include <MolresponseLib.hpp>
+#include <CCLib.hpp>
+#include <ParameterManager.hpp>
+#include <madness_exception.h>
 
 using namespace madness;
 
 /// TODO:
 ///  - restart options
-///  - error handling
 ///  - nemo projections
-///  - output unification
 ///  - numerical parameters
+
+
+void help(std::string wf) {
+    print("Usage: madqc [options] [input_file]");
+    print("\nOptions:");
+    print("  --help=<workflow>           : show this help message");
+    print("  --print_parameters=<group>  : print all parameters and exit");
+    print("  --workflow=<name>           : specify the workflow to run (default: scf)");
+    print("\nAvailable workflows: scf, nemo, response, mp2, cc2, cis, oep");
+    print("Available groups: dft, nemo, response, cc2, cis, oep, geometry");
+    print("");
+    if (wf=="scf") {
+        print("madqc --wf=scf");
+        print("molecular Hartree-Fock and DFT code");
+        print("\nexamples: ");
+        print("madqc --wf=scf --geometry=h2o.xyz");
+        print("madqc --wf=scf --geometry=he --dft=\"k=8\",xc=lda");
+        print("madqc --wf=scf --geometry=h2o --dft=\"k=8; econv=1.e-4; L=30\"");
+    } else if (wf=="nemo") {
+        print("madqc --wf=nemo");
+        print("molecular Hartree-Fock and DFT code with regularized orbitals");
+        print("\nexamples: ");
+        print("madqc --wf=nemo --geometry=h2o ");
+    } else if (wf=="response") {
+        print("madqc --wf=response");
+        print("Response theory for DFT and Hartree-Fock");
+        print("\nexamples: ");
+    } else if (wf=="mp2" or wf=="cc2") {
+        print("madqc --wf=cc2");
+        print("MP2/CC2 code for correlated wave functions");
+        print("\nexamples: ");
+        print("madqc --wf=cc2 --geometry=h2o --dft=\"k=5; econv=1.e-4; L=30\" --cc2=\"freeze=1\"");
+    } else if (wf=="cis") {
+        print("madqc --wf=cis");
+        print("CIS code for excited states");
+    } else if (wf=="oep") {
+        print("madqc --wf=oep");
+        print("Optimized effective potential code for DFT");
+    }
+
+
+}
+
+void print_parameters(World& world, const commandlineparser& parser,
+                      const std::string group) {
+    Params pm;
+    if (group=="") {
+        print("please specify a data group to print parameters for");
+        print("\n  --print_parameters=<group>  : print all parameters and exit");
+        print("\nAvailable data groups: scf, nemo, response, cc2, cis, oep, geometry");
+    } else if (group=="dft") {
+        print("Available parameters for data group: dft");
+        pm.get<CalculationParameters>().print();
+    } else if (group=="nemo") {
+        print("Available parameters for data group: nemo");
+        pm.get<Nemo::NemoCalculationParameters>().print();
+    } else if (group=="response") {
+        print("Available parameters for data group: response");
+        pm.get<ResponseParameters>().print();
+    } else if (group=="cc2") {
+        print("Available parameters for data group: cc2");
+        pm.get<CCParameters>().print();
+    } else if (group=="cis") {
+        print("Available parameters for data group: cis");
+        pm.get<TDHFParameters>().print();
+    } else if (group=="oep") {
+        print("Available parameters for data group: oep");
+        pm.get<OEP_Parameters>().print();
+    } else if (group=="geometry") {
+        Molecule::GeometryParameters geometryparam;
+        geometryparam.print("geometry","end");
+    } else {
+        std::string msg=
+            "Unknown data group: " + group +
+            "\nAvailable data group are: dft, nemo, response, cc2, cis, oep, geometry\n";
+        print(msg);
+    }
+}
+
+
+
+
 
 int main(int argc, char** argv) {
   World& world = initialize(argc, argv);
@@ -69,14 +150,21 @@ int main(int argc, char** argv) {
     print_header1("MADQC -- Multiresolution Quantum Chemistry Code ");
   }
 
-  {
+  commandlineparser parser(argc, argv);
+
+
+  if (parser.key_exists("help")) {
+    help(parser.value("help"));
+  } else if (parser.key_exists("print_parameters")) {
+    print_parameters(world,parser,parser.value("print_parameters"));
+
+  } else {
     // limit lifetime of world so that finalize() can execute cleanly
     try {
       // Load info for MADNESS numerical routines
       startup(world, argc, argv, true);
       if (world.rank() == 0) print(info::print_revision_information());
 
-      commandlineparser parser(argc, argv);
 
       // Create workflow
       qcapp::Workflow wf;

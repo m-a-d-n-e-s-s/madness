@@ -37,14 +37,20 @@ MRA will give you few digits of the correct number, while LCAO will give you all
 
 ## Quickstart
 
-All programs can read commandline options or an input file (by default this is named "input").
+The `madqc` program can read commandline options or an input file (by default this is named "input").
 A full list of all available calculation parameters can be obtained by writing
 
-`qccode --help`
+`madqc --help`
  
-where `qccode` stands for any of the qc codes (e.g. moldft, cc2, nemo, ..)
-
 A number of sample input files can be found at the bottom of this page
+The quantum chemical calculations can be started by invoking the `madqc` program with the desired workflow, e.g. for a DFT calculation of water
+> `madqc --wf=scf input`
+
+where `input` is the name of the input file. The workflow can be changed by using the `--wf` option, e.g. for a CIS calculation.
+
+> `madqc --wf=cis input`
+
+The `--wf` option can be used to select the desired workflow, e.g. `scf`, `nemo`, `cis`, `cc2`, `pno`, `oep`, etc.
 
 ## Calculation parameters
 All calculations require parameters, specifying the molecule, the quantum chemical model, charge etc.
@@ -58,9 +64,8 @@ In the output files of the calculations the complete set of input parameters are
 together with a short description and further information.
 
 You can see the full list of parameters by typing
-> `qccode --print_parameters`
+> `madqc --print_parameters`
 
-where, again, `qccode` stands for any of the qc codes
 
 ## Input file
 The input file consists of data groups, starting with the relevant keyword, e.g. "dft" and ending with "end".
@@ -74,9 +79,11 @@ A sample input file looks like
 >end
 > 
 > geometry\
->  O 0 0 0\
->  H 0 1 1\
->  H 0 1 -1\
+>   molecule \
+>    O 0 0 0\
+>    H 0 1 1\
+>    H 0 1 -1\
+>  end \
 > end
 
 Blank lines are ignored, as is everything after a hashtag. 
@@ -84,8 +91,8 @@ The input file is case-insensitive.
 The key/value pairs can be separated by blanks or by the equal sign.
 Pairs and vectors must be encased in parantheses or brackets, their entries must be separated by commas.
 
-All programs will output the complete list of input options. You can always run 
-> `qccode --help` 
+The program will output the complete list of input options. You can always run 
+> `madqc --help` 
 
 which will output the input parameters and the copy/paste the options verbatim.
 Note the once an option appears in the input file it will be considered user-defined and will override all default or derived values.
@@ -94,14 +101,14 @@ Note the once an option appears in the input file it will be considered user-def
 The data groups in the input file can also be set or augmented through the command line, e.g. the following
 line will pass the same calculation parameters as the input file above.
 
-`nemo --dft="charge=1; ncf=(slater,2.0)"`
+`madqc --dft="charge=1; ncf=(slater,2.0)"`
 
 Different key/value pairs are separated by a semicolon to indicate a newline.
 If a given parameter is specified both in the input file and the command line, the command line parameters have 
 priority over input file parameters.
 
 The name of the input file can be changed by
-> `nemo --input=customfile`
+> `madqc --input=customfile`
 
 
 ## Numerical parameters: k and L
@@ -140,22 +147,22 @@ The following example will read an external xyz file, using angstrom by default
 > `end`
 
 or you can use the command line options using the convenience short option
-> `nemo --geometry=h2o.xyz`
+> `madqc --wf=nemo --geometry=h2o.xyz`
 
 A small number of geometries are stored in a library, accessible through
-> `nemo --geometry="source_type=library; source_name=h2o"`
+> `madqc --wf=nemo --geometry="source_type=library; source_name=h2o"`
  
 If no source type is given it will be deduced from the file name, if the source is ambiguous,
 e.g. a structure in the library has the same same as an input file, the code will stop.
 
 ## Geometry optimization
-For the following codes/methods there are gradients implemented:
+For the following workflows there are gradients implemented:
 > `nemo`, `moldft`, `znemo`
 
 ### Native optimizer
 Codes with gradients can use the built-in geometry optimizer by adding the `gopt` flag 
 in the `dft` block, geometry optimization parameters are set in the `geoopt` block.
-> `nemo --dft="k=8; econv=1.e-5; gopt=1"  --geoopt="maxiter=10" --geometry="source_type=library; source_name=h2o"`
+> `madqc --wf=nemo --dft="k=8; econv=1.e-5; gopt=1"  --geoopt="maxiter=10" --geometry="source_type=library; source_name=h2o"`
 
 ### External optimizers
 External optimizers (e.g. [pyberny](https://jan.hermann.name/pyberny/), [geometric](https://geometric.readthedocs.io/) ) 
@@ -195,21 +202,22 @@ For more details see the [libxc](https://tddft.org/programs/libxc/) webpage.
 Madness uses the Polarizable Continuum Model from [PCMSolver](https://pcmsolver.readthedocs.io) 
 for solvation effects. Details to come.
 
-## moldft vs nemo
-Madness has two SCF codes, moldft and nemo, that share most of their functionality. 
+## SCF workflows
+Madness has two SCF workflows, `scf` and `nemo`, that share most of their functionality. 
 
 Both can do
  - HF and DFT calculations
 
-Only moldft:
+Only `scf`:
  - UHF calculations
  - being faster than nemo
  - nuclear gradients and optimizations
 
-Only nemo:
+Only `nemo`:
  - regularized calculations with nuclear correlation factor
  - references for subsequent OEP calculations
  - preferred for reference calculations for MP2 and CC2
+ - analytical second nuclear derivatives
 
 ## Convenience short options
 `--optimize` optimize the geometry\
@@ -220,9 +228,11 @@ Only nemo:
 Input file named "input"
 
 > geometry  
+>  molecule
 >   O 0 0 0   
 >   H 0 1 1  
 >   H 0 1 -1  
+>  end
 >end
 
 Then run
@@ -240,14 +250,16 @@ end
 > end   
 >   
 > geometry   
+> molecule
 > n  -0.000      0.000     -0.516  
 > h  -0.887      1.536      0.172  
 > h  -0.887     -1.536      0.172  
 > h   1.774      0.000      0.172  
+> end
 >end
 
 Then run
->moldft --optimize input
+>madqc --optimize input
 
 ### CIS calculation of LiH
 input file name "input"
@@ -257,12 +269,14 @@ input file name "input"
 > end  
 >   
 > geometry  
+> molecule
 > li  0.0      0.0     -0.529  
 > h   0.0      0.0      2.529  
 > end
+> end
 
 Then run
-> cis input
+> madqc --wf=cis input
 
 ### MP2 calculation of BeH2
 
