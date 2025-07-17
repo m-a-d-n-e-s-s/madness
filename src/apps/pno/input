@@ -7,6 +7,9 @@ xc hf
 econv 1.e-4
 dconv 3.e-4
 k 7
+end
+
+nemo
 ncf (none,1.0)
 end
 
@@ -19,7 +22,7 @@ f12
 gamma 1.4
 end
 
-geometry
+molecule
 he 0.0 0.0 0.0
 end
 
