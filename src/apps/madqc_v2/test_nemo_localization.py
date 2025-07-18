@@ -4,14 +4,7 @@ import sys
 import subprocess
 
 sys.path.append("@CMAKE_SOURCE_DIR@/bin")
-from madjsoncompare import madjsoncompare
-
-def cleanup(prefix, localizer=''):
-    """Remove output files and directories created during the test."""
-    cmd = f'rm -r {prefix}.calc_info.json {prefix}{localizer}'
-    print("Cleaning up with command:", cmd)
-    subprocess.run(cmd, shell=True)
-
+from test_utilities import madjsoncompare, cleanup
 
 def localizer_run(localizer):
 #    prefix='madtest'+localizer
@@ -22,6 +15,7 @@ def localizer_run(localizer):
 
 
     cleanup(prefix)
+    cleanup(prefix+localizer)
     cmd='./@BINARY@ --geometry=h2o --wf=nemo --dft="maxiter=10; econv=1.e-5; k=8; localize='+localizer+'; dconv=1.e-3; prefix='+prefix+localizer+'"'
     print("executing \n ",cmd)
 #    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
