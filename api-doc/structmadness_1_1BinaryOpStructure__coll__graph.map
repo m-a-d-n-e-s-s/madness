@@ -1,0 +1,12 @@
+<map id="madness::BinaryOpStructure&lt; NDIM &gt;" name="madness::BinaryOpStructure&lt; NDIM &gt;">
+<area shape="rect" id="Node000001" title="computes the corrected exchange correlation potential using the hartree potential" alt="" coords="19,417,227,457"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionCommonData.html" title=" " alt="" coords="5,315,240,355"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="125,369,125,417,120,417,120,369"/>
+<area shape="poly" id="edge2_Node000002_Node000002" title=" " alt="" coords="255,326,267,334,259,342,241,346,240,340,256,337,261,335,252,331"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Slice.html" title="A slice defines a sub&#45;range or patch of a dimension." alt="" coords="5,80,125,105"/>
+<area shape="poly" id="edge3_Node000002_Node000003" title=" " alt="" coords="74,118,121,314,116,315,69,120"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="149,80,355,105"/>
+<area shape="poly" id="edge4_Node000002_Node000004" title=" " alt="" coords="241,119,135,316,131,313,237,117"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="171,5,333,31"/>
+<area shape="poly" id="edge5_Node000004_Node000005" title=" " alt="" coords="255,45,255,80,249,80,249,45"/>
+</map>

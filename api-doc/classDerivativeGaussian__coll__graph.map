@@ -1,0 +1,7 @@
+<map id="DerivativeGaussian&lt; T, NDIM &gt;" name="DerivativeGaussian&lt; T, NDIM &gt;">
+<area shape="rect" id="Node000001" title=" " alt="" coords="133,108,283,148"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title="Abstract base class interface required for functors used as input to Functions." alt="" coords="5,5,197,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="133,53,190,106,186,110,130,57"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Vector.html" title="A simple, fixed dimension vector." alt="" coords="221,13,408,38"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="294,50,230,110,226,106,290,46"/>
+</map>
