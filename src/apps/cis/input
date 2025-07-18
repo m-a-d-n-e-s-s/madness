@@ -10,12 +10,16 @@ dconv 3.e-4
 k 7
 end
 
+nemo
+ncf (none,1.0)
+end
+
 response
 freeze 0
 excitations 2
 end
 
-geometry
+molecule
 he 0.0 0.0 0.0
 end
 

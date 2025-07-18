@@ -396,7 +396,7 @@ public:
     static void print_parameters() {
         NemoCalculationParameters param;
         print("default parameters for the nemo program are");
-        param.print("dft","end");
+        param.print("nemo","end");
         print("\n\nthe molecular geometry must be specified in a separate block:");
         Molecule::print_parameters();
     }
