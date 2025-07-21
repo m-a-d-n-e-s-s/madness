@@ -5,9 +5,15 @@ import subprocess
 import argparse
 
 sys.path.append("@CMAKE_SOURCE_DIR@/bin")
-from test_utilities import madjsoncompare, cleanup
+from test_utilities import madjsoncompare, cleanup, skip_on_small_machines
 
 if __name__ == "__main__":
+
+    # skip test on small machines
+    # sys.exit(77) is used to indicate that the test was skipped, cf AddScriptedTests.cmake
+    if (skip_on_small_machines()):
+        print("Skipping this verylong test on small machines")
+        sys.exit(77)
 
     # get command line arguments
     parser=argparse.ArgumentParser(description='command line arguments for this test case')
@@ -25,16 +31,15 @@ if __name__ == "__main__":
 
     # run test
     global_arguments=' --geometry=he --wf=cc2'
-    dft_arguments=' --dft="maxiter=1; econv=1.e-4; dconv=1.e-3; prefix='+prefix+'; k=5"'
-    other_arguments=' --cc2="freeze 1"'
+    dft_arguments=' --dft="maxiter=10; econv=1.e-5; dconv=1.e-3; prefix='+prefix+'; k=5"'
+    other_arguments=' --cc2="freeze 0; calc_type=lrcc2; iter_max=2"'
     cleanup(prefix)  # Clean up previous output files
     cmd='./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
 #    p=subprocess.run(cmd,shell=True,capture_output=True, text=True)
 
-    p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)
+    p=subprocess.run(cmd,shell=True,stdout=None, stderr=subprocess.PIPE , universal_newlines=True)
     print("finished with run")
-    print(p.stdout)
     exitcode=p.returncode
     print("exitcode ",exitcode)
 
@@ -45,7 +50,9 @@ if __name__ == "__main__":
     cmp.compare(["tasks",0,"properties","energy"],1.e-4)
     cmp.compare(["tasks",1,"model"],1.e-4)
     cmp.compare(["tasks",1,"nfreeze"],1.e-2)
-    cmp.compare(["tasks",1,"mp2_correlation_energy"],1.e-2)
+    cmp.compare(["tasks",1,"cc2_correlation_energy"],1.e-2)
+    cmp.compare(["tasks",1,"excitations",0,"omega"],1.e-2)  # lrcc2 es
+    cmp.compare(["tasks",2,"mp2_correlation_energy"],1.e-2)
     print("final success: ",cmp.success)
 
     sys.exit(cmp.exitcode() + exitcode)

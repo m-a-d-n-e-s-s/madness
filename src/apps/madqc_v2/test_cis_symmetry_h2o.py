@@ -3,13 +3,17 @@
 import sys
 import subprocess
 sys.path.append("@CMAKE_SOURCE_DIR@/bin")
-from test_utilities import madjsoncompare, cleanup
+from test_utilities import madjsoncompare, cleanup, skip_on_small_machines
 
 if __name__ == "__main__":
 
     # some user output
     print("Testing @BINARY@/@TESTCASE@")
     print(" reference files found in directory: @SRCDIR@")
+
+    if (skip_on_small_machines()):
+        print("Skipping this verylong test on small machines")
+        sys.exit(77)
 
     prefix='mad_@BINARY@_@TESTCASE@'
     outputfile=prefix+'.calc_info.json'

@@ -5,7 +5,7 @@ import subprocess
 import argparse
 
 sys.path.append("@CMAKE_SOURCE_DIR@/bin")
-from madjsoncompare import madjsoncompare
+from test_utilities import madjsoncompare
 
 if __name__ == "__main__":
 

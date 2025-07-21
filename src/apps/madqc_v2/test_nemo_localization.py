@@ -4,10 +4,13 @@ import sys
 import subprocess
 
 sys.path.append("@CMAKE_SOURCE_DIR@/bin")
-from test_utilities import madjsoncompare, cleanup
+from test_utilities import madjsoncompare, cleanup, skip_on_small_machines
 
 def localizer_run(localizer):
-#    prefix='madtest'+localizer
+
+    if (skip_on_small_machines()):
+        print("Skipping this verylong test on small machines")
+        sys.exit(77)
 
     prefix='mad_@BINARY@_@TESTCASE@'
     outputfile=prefix+localizer+'.calc_info.json'

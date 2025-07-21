@@ -53,4 +53,4 @@ if __name__ == "__main__":
     cmp.compare(["tasks",1,"mp2_correlation_energy"],1.e-2)
     print("final success: ",cmp.success)
 
-    # sys.exit(cmp.exitcode())
+    sys.exit(cmp.exitcode() + exitcode)

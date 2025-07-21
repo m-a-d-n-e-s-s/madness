@@ -36,4 +36,4 @@ if __name__ == "__main__":
     cmp.compare(["tasks",0,"metadata","mpi_size"],1.e-4)
     print("final success: ",cmp.success)
 
-    sys.exit(p.returncode + exitcode)
+    sys.exit(cmp.exitcode() + exitcode)

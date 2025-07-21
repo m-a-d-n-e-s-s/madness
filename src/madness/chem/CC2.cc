@@ -407,8 +407,8 @@ std::vector<CC_vecfunction> CC2::solve_ccs() const {
     // return only those functions which are demanded
     std::vector<CC_vecfunction> result;
     for (const auto& x:parameters.excitations()) {
-        if (excitations.size() - 1 < x) MADNESS_EXCEPTION("Not Enough CIS Vectors to solve for the demanded CC2 vector",
-                                                          1);
+        if (int(excitations.size()) - 1 < int(x))
+            MADNESS_EXCEPTION("Not Enough CIS Vectors to solve for the demanded CC2 vector", 1);
         result.push_back(excitations[x]);
     }
     // if (world.rank()==0) print_header3("Solution of the CCS equations");
