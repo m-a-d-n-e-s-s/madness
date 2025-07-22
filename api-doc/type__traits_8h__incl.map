@@ -1,0 +1,14 @@
+<map id="type_traits.h" name="type_traits.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="153,5,257,31"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,79,76,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="179,33,81,76,79,71,177,28"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="101,79,167,104"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="195,33,157,71,153,67,191,29"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="264,152,356,177"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="208,30,215,64,232,103,253,125,277,143,274,147,250,129,228,105,210,66,203,31"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="242,79,306,104"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="218,29,255,67,251,71,214,33"/>
+<area shape="rect" id="Node000006" href="$meta_8h.html" title=" " alt="" coords="330,79,501,104"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="239,28,369,72,368,77,238,33"/>
+<area shape="poly" id="edge6_Node000006_Node000004" title=" " alt="" coords="400,106,340,147,337,142,397,102"/>
+</map>
