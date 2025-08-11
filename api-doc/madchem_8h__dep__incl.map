@@ -1,0 +1,9 @@
+<map id="madchem.h" name="madchem.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="102,5,201,31"/>
+<area shape="rect" id="Node000002" href="$SCF_8cc.html" title="Molecular HF and DFT code." alt="" coords="5,79,68,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="123,40,57,81,54,76,120,35"/>
+<area shape="rect" id="Node000003" href="$dirac-hatom_8cc.html" title="solve the hydrogen atom using the 4&#45;component Dirac equation" alt="" coords="92,79,211,104"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="154,44,154,79,149,79,149,44"/>
+<area shape="rect" id="Node000004" href="$simple__hf_8cpp.html" title=" " alt="" coords="234,79,346,104"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="187,34,269,76,266,81,184,39"/>
+</map>
