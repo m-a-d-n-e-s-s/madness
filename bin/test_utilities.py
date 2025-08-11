@@ -1,4 +1,5 @@
 import json
+import subprocess
 
 class madjsoncompare:
     # """takes two json output files and compares individual keys, accessed by a list of descending keys"""
@@ -65,3 +66,24 @@ class madjsoncompare:
         else:
             print("key ", subsequentkeys, " differs gt ", tolerance,": ", value1, value2, diff)
         self.success=self.success and success
+
+
+
+def cleanup(prefix):
+    """Remove output files and directories created during the test."""
+    cmd = f'rm -r {prefix}.calc_info.json {prefix}'
+    print("Cleaning up with command:", cmd)
+    subprocess.run(cmd, shell=True)
+
+
+
+def skip_on_small_machines():
+    """Check the number of threads available and skip the test if too few."""
+    try:
+        num_threads=int(subprocess.check_output("echo $MAD_NUM_THREADS", shell=True).strip())
+    except subprocess.CalledProcessError as e:
+        print("Error retrieving number of threads:", e)
+        return True
+
+    print("Number of threads found to be:", num_threads)
+    return (num_threads < 20)

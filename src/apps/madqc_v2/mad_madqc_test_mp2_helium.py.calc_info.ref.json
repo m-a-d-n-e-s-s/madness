@@ -1,0 +1,79 @@
+{
+    "tasks": [
+        {
+            "convergence_info": {
+                "converged_for_dconv": 0.001,
+                "converged_for_thresh": 1e-05
+            },
+            "metadata": {
+                "elapsed_time": 12.259512186050415,
+                "finished_at": "2025-07-18 13:15:05",
+                "git_hash": "",
+                "host": "Linux",
+                "mpi_size": 1,
+                "nthreads": 39
+            },
+            "model": "scf",
+            "properties": {
+                "dipole": {
+                    "dims": [
+                        3
+                    ],
+                    "ndim": 1,
+                    "size": 3,
+                    "vals": [
+                        -6.91670980291661e-11,
+                        -6.918002335792594e-11,
+                        -6.918302947108508e-11
+                    ]
+                },
+                "energy": -2.8616794997158976,
+                "gradient": {
+                    "dims": [
+                        3
+                    ],
+                    "ndim": 1,
+                    "size": 3,
+                    "vals": [
+                        -1.137549776597524e-11,
+                        -1.1376143083108303e-11,
+                        -1.137517857685566e-11
+                    ]
+                }
+            },
+            "scf_eigenvalues_a": {
+                "dims": [
+                    1
+                ],
+                "ndim": 1,
+                "size": 1,
+                "vals": [
+                    -0.9179516328772281
+                ]
+            },
+            "scf_fock_a": {
+                "ndim": -1,
+                "size": 0
+            },
+            "scf_total_energy": -2.8616794997158976
+        },
+        {
+            "correlation_energy": -0.037469976657759405,
+            "model": "mp2",
+            "mp2_correlation_energy": -0.037469976657759405,
+            "mp2_total_energy": -2.899149476373657,
+            "nfreeze": 0,
+            "properties": {
+                "dipole": {
+                    "ndim": -1,
+                    "size": 0
+                },
+                "energy": 0.0,
+                "gradient": {
+                    "ndim": -1,
+                    "size": 0
+                }
+            }
+        }
+    ]
+}
