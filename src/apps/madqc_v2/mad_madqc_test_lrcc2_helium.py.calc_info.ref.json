@@ -1,0 +1,106 @@
+{
+    "tasks": [
+        {
+            "convergence_info": {
+                "converged_for_dconv": 0.001,
+                "converged_for_thresh": 1e-05
+            },
+            "metadata": {
+                "elapsed_time": 12.124675989151001,
+                "finished_at": "2025-07-21 16:09:49",
+                "git_hash": "",
+                "host": "Linux",
+                "mpi_size": 1,
+                "nthreads": 39
+            },
+            "model": "scf",
+            "properties": {
+                "dipole": {
+                    "dims": [
+                        3
+                    ],
+                    "ndim": 1,
+                    "size": 3,
+                    "vals": [
+                        -6.918602865430817e-11,
+                        -6.918312619477032e-11,
+                        -6.918138033047764e-11
+                    ]
+                },
+                "energy": -2.8616794997158994,
+                "gradient": {
+                    "dims": [
+                        3
+                    ],
+                    "ndim": 1,
+                    "size": 3,
+                    "vals": [
+                        -1.136819804958833e-11,
+                        -1.1370245023289982e-11,
+                        -1.1372708330625869e-11
+                    ]
+                }
+            },
+            "scf_eigenvalues_a": {
+                "dims": [
+                    1
+                ],
+                "ndim": 1,
+                "size": 1,
+                "vals": [
+                    -0.9179516328772064
+                ]
+            },
+            "scf_fock_a": {
+                "ndim": -1,
+                "size": 0
+            },
+            "scf_total_energy": -2.8616794997158994
+        },
+        {
+            "cc2_correlation_energy": -0.03753773217275475,
+            "cc2_total_energy": -2.899217231888654,
+            "correlation_energy": -0.03753773217275475,
+            "excitations": [
+                {
+                    "current_error": 0.0,
+                    "irrep": "",
+                    "omega": 0.7652718795513992,
+                    "oscillator_strength_length": 3.0,
+                    "oscillator_strength_velocity": 0.0
+                }
+            ],
+            "model": "cc2",
+            "nfreeze": 0,
+            "properties": {
+                "dipole": {
+                    "ndim": -1,
+                    "size": 0
+                },
+                "energy": 0.0,
+                "gradient": {
+                    "ndim": -1,
+                    "size": 0
+                }
+            }
+        },
+        {
+            "correlation_energy": -0.037471871876092785,
+            "model": "mp2",
+            "mp2_correlation_energy": -0.037471871876092785,
+            "mp2_total_energy": -2.899151371591992,
+            "nfreeze": 0,
+            "properties": {
+                "dipole": {
+                    "ndim": -1,
+                    "size": 0
+                },
+                "energy": 0.0,
+                "gradient": {
+                    "ndim": -1,
+                    "size": 0
+                }
+            }
+        }
+    ]
+}

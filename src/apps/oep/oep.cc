@@ -113,11 +113,26 @@ int main(int argc, char** argv) {
         }
 
         // do approximate OEP calculation or test the program
-        std::shared_ptr<OEP> oep(new OEP(world, parser));
+        // std::shared_ptr<OEP> oep(new OEP(world, parser));
+        CalculationParameters cparam(world,parser);
+        // add tight convergence criteria
+        std::vector<std::string> convergence_crit=cparam.get<std::vector<std::string> >("convergence_criteria");
+        if (std::find(convergence_crit.begin(),convergence_crit.end(),"each_energy")==convergence_crit.end()) {
+            convergence_crit.push_back("each_energy");
+        }
+        cparam.set_derived_value("convergence_criteria",convergence_crit);
+        Molecule molecule(world,parser);
+        Nemo::NemoCalculationParameters nemo_param(world,parser);
+        std::shared_ptr<Nemo> reference(new Nemo(world, cparam, nemo_param, molecule));
+        OEP_Parameters oep_param(world,parser);
+        std::shared_ptr<OEP> oep(new OEP(world, oep_param, reference));
         oep->print_parameters({"reference", "oep", "oep_calc"});
         if (test) oep->selftest();
         else if (analyze) oep->analyze();
-        else oep->value();
+        else {
+            reference->value();
+            oep->value();
+        }
     }
 
     finalize();

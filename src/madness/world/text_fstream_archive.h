@@ -73,7 +73,7 @@ namespace madness {
             /// \tparam T The type of data to be stored between the tags.
             template <class T>
             void store_start_tag() const {
-                std::size_t bufsize=256;
+                const std::size_t bufsize=256;
                 char tag[bufsize];
                 unsigned char cookie = archive_typeinfo<T>::cookie;
                 snprintf(tag,bufsize,"<t%d>", cookie);
@@ -86,7 +86,7 @@ namespace madness {
             /// \tparam T The type of data to be stored between the tags.
             template <class T>
             void store_end_tag() const {
-                std::size_t bufsize=256;
+                const std::size_t bufsize=256;
                 char tag[bufsize];
                 unsigned char cookie = archive_typeinfo<T>::cookie;
                 snprintf(tag,bufsize,"</t%d>",cookie);
@@ -173,7 +173,7 @@ namespace madness {
             ///     expected type.
             template <class T>
             void check_start_tag(bool end=false) const {
-                std::size_t bufsize=256;
+                const std::size_t bufsize=256;
                 char tag[bufsize], ftag[bufsize];
                 is.getline(ftag,bufsize);
                 unsigned char cookie = archive_typeinfo<T>::cookie;

@@ -35,7 +35,7 @@ struct write_test_input {
     static std::ostream&
     write_to_test_input(const std::string groupname, const QCCalculationParametersBase *param, std::ostream& of) {
         of << groupname << endl;
-        of << param->print_to_string(true);
+        of << param->print_to_string({"defined"});
         of << "end\n";
         return of;
     }
@@ -44,15 +44,19 @@ struct write_test_input {
         if (mol == "lih") {
             of << "geometry\n";
             of << "no_orient true\n";
+            of << "molecule \n";
             of << "Li 0.0    0.0 0.0\n";
             of << "H  1.4375 0.0 0.0\n";
+            of << "end\n";
             of << "end\n";
         } else if (mol == "hf") {
             //double eprec=1.e-5; // trying to make test faster
             of << "geometry\n";
             of << "no_orient true\n";
+            of << "molecule \n";
             of << "F  0.1    0.0 0.2\n";
             of << "H  1.4375 0.0 0.0\n";
+            of << "end\n";
             of << "end\n";
         }
         return of;

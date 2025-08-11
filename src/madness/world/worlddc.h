@@ -1843,8 +1843,8 @@ namespace madness
                 {
                     const size_t max_items_per_task = (std::max(1, count) - 1) / ntasks + 1;
                     // Compute the size of the buffer needed by each task
-                    const_iterator starts[ntasks], ends[ntasks];
-                    size_t local_sizes[ntasks];
+                    std::vector<const_iterator> starts(ntasks), ends(ntasks);
+                    std::vector<size_t> local_sizes(ntasks);
                     const_iterator start = t.begin();
                     size_t nleft = count;
                     for (size_t taskid = 0; taskid < ntasks; taskid++)

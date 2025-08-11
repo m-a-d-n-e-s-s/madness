@@ -28,20 +28,35 @@ namespace madness {
 class CC2 : public OptimizationTargetInterface, public QCPropertyInterface {
 public:
 
+    CC2(World& world, const CCParameters& cc_param, const TDHFParameters& tdhf_param,
+        const std::shared_ptr<const Nemo> nemo)
+            : world(world),
+              parameters(cc_param),
+              nemo(nemo),
+              CCOPS(world, nemo, parameters),
+              tdhf(new TDHF(world, tdhf_param, nemo)),
+              output(CCOPS.output) {
+        initialize();
+    }
+
     CC2(World& world_, const commandlineparser& parser, const std::shared_ptr<Nemo> nemo_)
             : world(world_),
               parameters(world_,parser),
               nemo(nemo_),
               CCOPS(world, nemo, parameters),
+              tdhf(new TDHF(world, parser, nemo)),
               output(CCOPS.output) {
+        initialize();
+    }
 
+    void initialize() {
         output.section("CC2 Class has been initialized with the following parameters");
         // set the threshholds
         // Set Protocoll
         output("Set Protocol 3D");
-        nemo_->get_calc()->set_protocol<3>(world, parameters.thresh_3D());
+        nemo->get_calc()->set_protocol<3>(world, parameters.thresh_3D());
         output("Set Protocol 6D");
-        nemo_->get_calc()->set_protocol<6>(world, parameters.thresh_6D());
+        nemo->get_calc()->set_protocol<6>(world, parameters.thresh_6D());
 
         FunctionDefaults<3>::set_thresh(parameters.thresh_3D());
         FunctionDefaults<6>::set_thresh(parameters.thresh_6D());
@@ -60,9 +75,6 @@ public:
                 FunctionDefaults<3>::set_length_scale(parameters.dmin(), FunctionDefaults<3>::get_k()));
         parameters.information(world);
         parameters.sanity_check(world);
-
-        tdhf.reset(new TDHF(world,parser,nemo));
-
     }
 
     virtual ~CC2() {}
@@ -123,7 +135,7 @@ public:
     /// Structure holds all the parameters used in the CC2 calculation
     CCParameters parameters;
     /// The SCF Calculation
-    std::shared_ptr<Nemo> nemo;
+    std::shared_ptr<const Nemo> nemo;
     /// The excited state cis calculation
     std::shared_ptr<TDHF> tdhf;
     /// The CC Operator Class
@@ -134,7 +146,7 @@ public:
     PairVectorMap triangular_map;
 
     /// solve the CC2 ground state equations, returns the correlation energy
-    void solve();
+    nlohmann::json solve();
 
 
     std::vector<CC_vecfunction>

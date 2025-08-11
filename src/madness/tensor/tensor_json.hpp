@@ -25,7 +25,12 @@ namespace madness {
         // auto dimensions = m.dims();
         long size = m.size();  ///< Number of elements in the tensor
         long n_dims = m.ndim();///< Number of dimensions (-1=invalid; 0=no
+
         ///< supported; >0=tensor)
+        j["size"] = size;
+        j["ndim"] = n_dims;
+        if (n_dims<0) return j;
+
         auto dims = m.dims();// the size of each dimension
         // long id = m.id();       ///< Id from TensorTypeData<T> in type_data.h
         // auto strides = m.strides();
@@ -36,7 +41,6 @@ namespace madness {
         std::copy(dims, dims + n_dims, m_dims_vector.begin());
 
         // This is everything we need to translate to a numpy vector...
-        j["size"] = size;
         j["vals"] = m_vals_vector;
         j["dims"] = m_dims_vector;
 
@@ -49,8 +53,11 @@ namespace madness {
         // need to be explicit here about types so we find the proper Tensor
         // constructors
         long size = j["size"];
+        long n_dims=j["ndim"];
+        if (n_dims<0) return Tensor<T>();
         std::vector<T> m_vals_vector = j["vals"];
         std::vector<long> m_dims_vector = j["dims"];
+
 
         Tensor<T> flat_m(size);
         // copy the values from the vector to the flat tensor
@@ -87,8 +94,11 @@ namespace madness {
         ss << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X");
 
         auto j=j1;
-        j["time"] = ss.str();
-        j["wall_time"] = wall_time();
+        j["time_tag"] ={};
+
+        j["time_tag"]["time"] = ss.str();
+        j["time_tag"]["wall_time"] = wall_time();
+        j["time_tag"]["cpu_time"] =cpu_time();
         return j;
     }
 

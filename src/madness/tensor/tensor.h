@@ -1838,7 +1838,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
 
         /// Returns a pointer to the base class
         const BaseTensor* base() const {
-            return static_cast<BaseTensor*>(this);
+            return static_cast<const BaseTensor*>(this);
         }
 
         /// Return iterator over single tensor

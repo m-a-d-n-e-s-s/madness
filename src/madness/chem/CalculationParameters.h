@@ -49,6 +49,7 @@
 namespace madness {
 
 struct CalculationParameters : public QCCalculationParametersBase {
+  static constexpr char const* tag = "dft";
 
 	CalculationParameters(const CalculationParameters& other) = default;
 
@@ -56,6 +57,9 @@ struct CalculationParameters : public QCCalculationParametersBase {
 		read_input_and_commandline_options(world, parser, "dft");
         // convenience option -- needs to be moved to the MolecularOptimizer class
         if (parser.key_exists("optimize")) set_user_defined_value("gopt",true);
+		std::string inputfile=parser.value("input");
+		std::string prefix=commandlineparser::remove_extension(commandlineparser::base_name(inputfile));
+		if (prefix!="input") set_derived_value("prefix",prefix);
     }
 
 	/// ctor reading out the input file
@@ -131,6 +135,10 @@ struct CalculationParameters : public QCCalculationParametersBase {
           //Keyword to use nwchem output for initial guess
           initialize<std::string> ("nwfile","none","Base name of nwchem output files (.out and .movecs extensions) to read from");
 
+	}
+
+	std::string get_tag() const override {
+		return tag;
 	}
 
 	public:
@@ -239,10 +247,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	}
 
 
-	void set_derived_values(const Molecule& molecule, const AtomicBasisSet& aobasis, const commandlineparser& parser) {
-        std::string inputfile=parser.value("input");
-        std::string prefix=commandlineparser::remove_extension(commandlineparser::base_name(inputfile));
-        if (prefix!="input") set_derived_value("prefix",prefix);
+	void set_derived_values(const Molecule& molecule) {
 
         for (size_t iatom = 0; iatom < molecule.natom(); iatom++) {
             if (molecule.get_pseudo_atom(iatom)){
@@ -280,17 +285,6 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
         set_derived_value("nmo_alpha",nalpha() + nvalpha());
         set_derived_value("nmo_beta",nbeta() + nvbeta());
-
-        // Ensure we have enough basis functions to guess the requested
-        // number of states ... a minimal basis for a closed-shell atom
-        // might not have any functions for virtuals.
-        int nbf = aobasis.nbf(molecule);
-        if ((nmo_alpha()>nbf) or (nmo_beta()>nbf)) error("too few basis functions?", nbf);
-//        nmo_alpha = std::min(nbf,nmo_alpha);
-//        nmo_beta = std::min(nbf,nmo_beta);
-//        if (nalpha>nbf || nbeta>nbf) error("too few basis functions?", nbf);
-//        nvalpha = nmo_alpha - nalpha;
-//        nvbeta = nmo_beta - nbeta;
 
         // Unless overridden by the user use a cell big enough to
         // have exp(-sqrt(2*I)*r) decay to 1e-6 with I=1ev=0.037Eh

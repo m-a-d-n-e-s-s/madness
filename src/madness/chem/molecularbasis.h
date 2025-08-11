@@ -49,6 +49,10 @@
 namespace madness {
 /// Represents a single shell of contracted, Cartesian, Gaussian primitives
 class ContractedGaussianShell {
+public:
+    static const int maxtype=6; ///< Maximum angular momentum supported
+    static const int maxbf=(maxtype+1)*(maxtype+2)/2; ///< Maximum number of basis functions in a shell
+private:
     int type;  ///< Angular momentum = 0, 1, 2, ...
     std::vector<double> coeff;
     std::vector<double> expnt;
@@ -288,7 +292,7 @@ public:
         double rsq = x*x + y*y + z*z;
         if (rsq > rmaxsq) return 0.0;
 
-        double bf[numbf];
+        double bf[ContractedGaussianShell::maxbf];
         eval(x, y, z, bf);
         const double* p;
         // check if pseudo-atom
@@ -412,7 +416,7 @@ private:
 public:
     AtomicBasisFunction(double x, double y, double z,
                         const ContractedGaussianShell& shell, int ibf)
-            : xx(x), yy(y), zz(z), shell(shell), ibf(ibf), nbf(shell.nbf()) {}
+            : xx(x), yy(y), zz(z), shell(shell), ibf(ibf), nbf(shell.maxbf) {}
 
 
     AtomicBasisFunction(const AtomicBasisFunction& aofunc)
@@ -424,7 +428,7 @@ public:
             , nbf(aofunc.nbf) {}
 
     double operator()(double x, double y, double z) const {
-        double bf[nbf];
+        double bf[ContractedGaussianShell::maxbf];
         x-=xx;
         y-=yy;
         z-=zz;
@@ -690,14 +694,14 @@ public:
             return;
         }
         long nbf = int(v.dim(0));
-        long list[nbf];
+        std::vector<long> list(nbf);
         long ngot=0;
         for (long i=0; i<nbf; ++i) {
             if (std::abs(v(i)) > thresh) {
                 list[ngot++] = i;
             }
         }
-        std::sort(list,list+ngot,AnalysisSorter<T>(v));
+        std::sort(list.begin(),list.begin()+ngot,AnalysisSorter<T>(v));
 
         const char* format;
         if (molecule.natom() < 10) {

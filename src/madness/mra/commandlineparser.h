@@ -60,7 +60,8 @@ struct commandlineparser {
     }
 
     std::string value(const std::string key) const {
-        MADNESS_CHECK(key_exists(key));
+        std::string msg= "key not found: " + key;
+        MADNESS_CHECK_THROW(key_exists(key), msg.c_str());
         return keyval.find(tolower(key))->second;
     }
 

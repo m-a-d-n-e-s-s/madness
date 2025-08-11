@@ -139,8 +139,8 @@ namespace madness {
             if (bmax > (twon-1)) bmax=twon-1;
 
             // Make permissible 1D translations, periodic and nonperiodic (for mixed BC)
-            Translation bp[4*bmax+1];
-            Translation bnp[2*bmax+1];
+            std::vector<Translation> bp(4*bmax+1);
+            std::vector<Translation> bnp(2*bmax+1);
             int ip=0;
             int inp=0;
             for (Translation lx=-bmax; lx<=bmax; ++lx) {

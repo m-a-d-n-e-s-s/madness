@@ -50,4 +50,15 @@ macro(add_scripted_tests _testcase_in _binary _labels)
   set_tests_properties(madness/test/scripted_tests/${_binary}/${_testcase}/run
           PROPERTIES LABELS "${_labels}")
 
+  # if "labels" is "verylong", potentially skip the test on small machines
+    if ("${_labels}" MATCHES "verylong")
+        set_tests_properties(madness/test/scripted_tests/${_binary}/${_testcase}/run
+                PROPERTIES SKIP_RETURN_CODE 77)
+        set_tests_properties(madness/test/scripted_tests/${_binary}/${_testcase}/run
+                PROPERTIES SKIP_MESSAGE "Test skipped on small machines")
+        set_tests_properties(madness/test/scripted_tests/${_binary}/${_testcase}/run
+                PROPERTIES TIMEOUT 7200)
+    endif()
+
+
 endmacro()

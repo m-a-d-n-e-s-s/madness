@@ -245,7 +245,7 @@ int main(int argc, char**argv) {
                     }
                 }
 
-                std::size_t bufsize=256;
+                const std::size_t bufsize=256;
                 char fname[bufsize];
                 int lamiter = 0;
                 snprintf(fname, bufsize, "c-%2.2d-%2.2d.dat", lamiter, muiter);
