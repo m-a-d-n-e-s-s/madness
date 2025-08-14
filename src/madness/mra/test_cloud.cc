@@ -10,6 +10,8 @@
 #include<madness/mra/macrotaskq.h>
 #include<madness/world/test_utilities.h>
 
+#include <memory>
+
 using namespace madness;
 
 
@@ -139,6 +141,91 @@ void simple_example(World &universe) {
     }   // subworld is destroyed here
 }
 
+
+/// A simple process map
+template<typename keyT>
+class PmapHostReplicated : public WorldDCPmapInterface<keyT> {
+private:
+    const int nproc;
+    const ProcessID me;
+
+public:
+    PmapHostReplicated(World& world) : nproc(world.nproc()), me(world.rank())
+    { }
+
+    [[nodiscard]] ProcessID owner(const keyT& key) const {
+        return 0;
+    }
+};
+
+int test_copy_function_from_other_world(World& universe) {
+    test_output t1("testing copy of function from other world");
+    t1.set_cout_to_terminal();
+    double error=-1.0;
+
+
+    // create a function in the universe, all nodes on universe.rank()==0
+    auto pmap0 = std::make_shared<PmapHostReplicated<Key<3>>>(universe);
+    real_function_3d f_universe = real_factory_3d(universe).functor(gaussian(1.0));//.pmap(pmap0);
+    double norm_universe = f_universe.norm2();
+    if (universe.rank()==0) print("norm_universe", universe.id(), ":", norm_universe);
+    print("coeffs of f_universe on rank", universe.rank(), f_universe.get_impl()->get_coeffs().size());
+    universe.gop.fence();
+    if (universe.rank()==0) print("");
+    universe.gop.fence();
+
+
+
+    // create empty function in subworld
+    {
+        auto subworld_ptr = MacroTaskQ::create_worlds(universe, universe.size());
+        World& subworld = *subworld_ptr;
+        {
+            print("universe.size, universe.rank(), subworld.id", universe.size(), universe.rank(), subworld.id());
+            double norm_subworld=-1.0;
+            double norm_subworld0=-1.0;
+            MacroTaskQ::set_pmap(subworld);
+            real_function_3d f_subworld0, f_subworld1;
+            universe.gop.fence();
+            print("norm_subworld", subworld.id(), ":", norm_subworld);
+            universe.gop.fence();
+            print("");
+            universe.gop.fence();
+
+            // loop and if-statement for clearer output
+            for (ProcessID rank=0; rank<universe.size(); rank++) {
+                if (universe.rank()==rank) {
+                    print( "\nworking on rank/subworld", rank, subworld.id());
+                    auto pmap=FunctionDefaults<3>::get_pmap();
+                    auto fimpl = std::make_shared<FunctionImpl<double, 3>>(subworld, *f_universe.get_impl(), pmap, false);
+                    f_subworld1.set_impl(fimpl);
+                    norm_subworld0=f_subworld1.norm2();
+                    // f_subworld1.get_impl()->copy_remote_coeffs_from_pid(0,*f_universe.get_impl(), true);
+                    f_subworld1.get_impl()->copy_remote_coeffs_from(*f_universe.get_impl(), true);
+                    norm_subworld=f_subworld1.norm2();
+                }
+                universe.gop.fence();
+            }
+            universe.gop.fence();
+            print("norm_subworld", subworld.id(), ":", norm_subworld0, norm_subworld);
+
+            // std::cout << "norm universe: " << norm_universe << ", norm subworld: " << norm_subworld << std::endl;
+            // print("universe and subworld id", universe.id(), subworld.id());
+            // print("f_subworld0 and f_subworld1 id", f_subworld0.get_impl()->id(),f_subworld1.get_impl()->id());
+            error= norm_universe - norm_subworld;
+            universe.gop.fence();
+        }
+        subworld.gop.fence();   // f_subworld is destroyed here
+    }
+
+
+
+
+    // check if the function is the same
+    return t1.end(error<1.e-10);
+
+}
+
 /// test the cloud with message larger than chunk size set in cloud.replicate()
 int chunk_example(World &universe) {
     int test_size = 100;
@@ -172,8 +259,8 @@ int test_custom_worldobject(World& universe, World& subworld, Cloud& cloud) {
     test_output t1("testing custom worldobject");
     t1.set_cout_to_terminal();
     cloud.set_debug(false);
-    auto o1 =std::shared_ptr<ScalarResultImpl<double>>(new ScalarResultImpl<double>(universe));
-    auto o5 =std::shared_ptr<ScalarResultImpl<double>>(new ScalarResultImpl<double>(universe));
+    auto o1 =std::make_shared<ScalarResultImpl<double>>(universe);
+    auto o5 =std::make_shared<ScalarResultImpl<double>>(universe);
     *o1=1.2;
     // if (universe.rank() == 0) gaxpy(1.0,*o1,2.0,2.8);
     if (universe.rank() == 0) o1->gaxpy(1.0,2.0,2.8);
@@ -223,8 +310,6 @@ int test_custom_serialization(World& universe, Cloud& cloud) {
     }
 
     return t1.end();
-
-
 }
 
 int main(int argc, char **argv) {
@@ -232,10 +317,12 @@ int main(int argc, char **argv) {
     madness::World &universe = madness::initialize(argc, argv);
     startup(universe, argc, argv);
 
-    chunk_example(universe);
-    simple_example(universe);
     int success = 0;
-    {
+//    chunk_example(universe);
+    // simple_example(universe);
+    success+=test_copy_function_from_other_world(universe);
+
+    if (0) {
         Cloud cloud(universe);
 //        cloud.set_debug(true);
 
