@@ -1,15 +1,47 @@
+/*
+  This file is part of MADNESS.
+
+  Copyright (C) 2007,2010 Oak Ridge National Laboratory
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+  For more information please contact:
+
+  Robert J. Harrison
+  Oak Ridge National Laboratory
+  One Bethel Valley Road
+  P.O. Box 2008, MS-6367
+
+  email: harrisonrj@ornl.gov
+  tel:   865-241-3937
+  fax:   865-572-0680
+
+
+  $Id$
+ */
 #pragma once
 
-#include <filesystem>
-
 #include <apps/molresponse_v2/GroundStateData.hpp>
-#include <madness/chem/InputWriter.hpp>
-#include <madness/chem/ParameterManager.hpp>
 #include <apps/molresponse_v2/PropertyManager.hpp>
 #include <apps/molresponse_v2/ResponseDebugLogger.hpp>
 #include <apps/molresponse_v2/ResponseManager.hpp>
 #include <apps/molresponse_v2/ResponseMetaData.hpp>
 #include <apps/molresponse_v2/StateGenerator.hpp>
+#include <filesystem>
+#include <madness/chem/InputWriter.hpp>
+#include <madness/chem/ParameterManager.hpp>
 
 struct molresponse_lib {
   // -----------------------------------------------------------------------------
@@ -34,7 +66,6 @@ struct molresponse_lib {
    * @return Results   Structured JSON fragments: metadata + properties
    */
   inline static Results run_response(World& world, const Params& params,
-                                     const std::filesystem::path& indir,
                                      const std::filesystem::path& outdir) {
     // --- configure the ground-state archive location ---
     auto rp = params.get<ResponseParameters>();
@@ -57,6 +88,8 @@ struct molresponse_lib {
     auto response_params = ResponseParameters(world, parser);
     rp = response_params;
 
+    auto indir = std::filesystem::canonical(
+        params.get<CalculationParameters>().prefix());
     auto rel = std::filesystem::relative(indir, outdir);
     auto prox = std::filesystem::proximate(indir, outdir);
     auto prefix = std::filesystem::path(indir).stem().string();
