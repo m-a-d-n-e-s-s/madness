@@ -215,32 +215,35 @@ class SCFApplication
         std::cout << "Running SCF in " << pm.dir() << std::endl;
       }
 
-        auto scfParams = params_.get<CalculationParameters>();
-        bool needEnergy = true;
-        bool needDipole = scfParams.dipole();
-        bool needGradient = scfParams.derivatives();
-        bool needWavefunctions = true;
+      auto scfParams = params_.get<CalculationParameters>();
+      bool needEnergy = true;
+      bool needDipole = scfParams.dipole();
+      bool needGradient = scfParams.derivatives();
+      bool needWavefunctions = true;
 
-        // 2) define the "checkpoint" file
-        auto ckpt = params_.get<CalculationParameters>().prefix()+".calc_info.json";
-        nlohmann::json j;
-        if (has_results(ckpt)) j=read_results(ckpt);
+      // 2) define the "checkpoint" file
+      auto ckpt =
+          params_.get<CalculationParameters>().prefix() + ".calc_info.json";
+      nlohmann::json j;
+      if (has_results(ckpt)) j = read_results(ckpt);
 
-        bool ok = true;
-        if (needEnergy && !j.contains("energy")) ok = false;
-        if (needDipole && !j.contains("dipole")) ok = false;
-        if (needGradient && !j.contains("gradient")) ok = false;
-        if (needWavefunctions) {
-          try {
-            double thresh=scfParams.protocol().back();
-            if constexpr (std::is_same_v<ScfT, Nemo>) this->set_protocol(scfParams.econv());
-            if constexpr (std::is_same_v<ScfT, SCF>) SCF::set_protocol<3>(world_,thresh);
-            this->load_mos(world_);
-          } catch (...) {
-            // if we cannot load MOs, we need to recompute them
-            ok = false;
-          }
+      bool ok = true;
+      if (needEnergy && !j.contains("energy")) ok = false;
+      if (needDipole && !j.contains("dipole")) ok = false;
+      if (needGradient && !j.contains("gradient")) ok = false;
+      if (needWavefunctions) {
+        try {
+          double thresh = scfParams.protocol().back();
+          if constexpr (std::is_same_v<ScfT, Nemo>)
+            this->set_protocol(scfParams.econv());
+          if constexpr (std::is_same_v<ScfT, SCF>)
+            SCF::set_protocol<3>(world_, thresh);
+          this->load_mos(world_);
+        } catch (...) {
+          // if we cannot load MOs, we need to recompute them
+          ok = false;
         }
+      }
 
       if (ok) {
         energy_ = j["energy"];
