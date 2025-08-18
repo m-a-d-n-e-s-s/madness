@@ -1,6 +1,7 @@
 build*
 cmake-build-debug*
 .history*
+.clang-tidy
 
 # Compiled Object files
 *.slo
@@ -68,3 +69,4 @@ compile_commands
 diff.txt
 newdiff.txt
 .vscode/settings.json
+.clang-tidy
