@@ -144,7 +144,7 @@ class Molecule {
     GeometryParameters(World &world, const commandlineparser &parser) : GeometryParameters() {
       try {
         set_global_convenience_options(parser);
-        read_input_and_commandline_options(world, parser, "geometry");
+        read_input_and_commandline_options(world, parser, "molecule");
         set_derived_values(parser);
 
       } catch (std::exception &e) {
@@ -168,11 +168,9 @@ class Molecule {
       initialize<std::string>("units", "atomic", "coordinate units", {"atomic", "angstrom", "bohr", "au"});
       initialize<std::vector<double>>("field", {0.0, 0.0, 0.0}, "external electric field");
       initialize<bool>("no_orient", false,
-                       "if true the molecule coordinates will not be "
-                       "reoriented and/or symmetrized");
+                       "if true the coordinates will not be reoriented and/or symmetrized");
       initialize<double>("symtol", -1.e-2,
-                         "distance threshold for determining the "
-                         "symmetry-equivalent atoms; negative: old algorithm");
+                         "distance threshold");
 
       initialize<std::string>("core_type", "none", "core potential type", {"none", "mcp"});
       initialize<bool>("psp_calc", false, "pseudopotential calculation for all atoms");
@@ -180,12 +178,12 @@ class Molecule {
     }
 
     std::string get_tag() const override {
-      return std::string("geometry");
+      return std::string("molecule");
     }
 
     void set_global_convenience_options(const commandlineparser &parser) {
-      if (parser.key_exists("geometry")) {
-        set_user_defined_value("source_name", parser.value("geometry"));
+      if (parser.key_exists("molecule")) {
+        set_user_defined_value("source_name", parser.value("molecule"));
       }
     }
 
