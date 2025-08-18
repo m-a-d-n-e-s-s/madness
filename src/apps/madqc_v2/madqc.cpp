@@ -197,10 +197,16 @@ int main(int argc, char** argv) {
       } else if (user_workflow == "response") {
         auto reference = std::shared_ptr<Application>(
             new SCFApplication<moldft_lib, SCF>(world, pm));
+        //
+        auto prefix = pm.get<CalculationParameters>().prefix();
+        std::filesystem::path gsDir(prefix + "/task_0/moldft");
 
+        // prefix/task0/moldft
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
+        // prefix/task1/molresponse
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
-            std::make_unique<ResponseApplication<molresponse_lib>>(world, pm)));
+            std::make_unique<ResponseApplication<molresponse_lib>>(world, pm,
+                                                                   gsDir)));
 
       } else if (user_workflow == "mp2" or user_workflow == "cc2") {
         // set the tensor type
@@ -282,7 +288,7 @@ int main(int argc, char** argv) {
       std::string prefix = pm.get<CalculationParameters>().prefix();
       wf.run(prefix);
 
-      if (true) {
+      if (false) {
         qcapp::Workflow opt_wf;
 
         std::function<std::unique_ptr<Application>(Params)> scfFactory =
