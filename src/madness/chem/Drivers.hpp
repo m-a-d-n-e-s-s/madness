@@ -8,12 +8,11 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
+#include <madness/chem/Applications.hpp>  // Interface for SCFApplication / ResponseApplication
+#include <madness/chem/SCFTargetAdapter.hpp>  // SCFTarget
 #include <madness/external/nlohmann_json/json.hpp>
 #include <memory>
 #include <vector>
-
-#include <madness/chem/Applications.hpp>  // Interface for SCFApplication / ResponseApplication
-#include <madness/chem/SCFTargetAdapter.hpp>  // SCFTarget
 
 namespace qcapp {
 
@@ -25,7 +24,7 @@ class Driver {
  public:
   virtual ~Driver() = default;
 
-  virtual void print_parameters(World& world) const =0;
+  virtual void print_parameters(World& world) const = 0;
 
   /**
    * @brief Execute the driver, writing outputs under the given directory.
@@ -60,9 +59,7 @@ class SinglePointDriver : public Driver {
     result_ = app_->results();
   }
 
-  nlohmann::json summary() const override {
-    return result_;
-  }
+  nlohmann::json summary() const override { return result_; }
 
  private:
   std::shared_ptr<Application> app_;
@@ -76,9 +73,7 @@ class OptimizeDriver : public Driver {
                  Params p)
       : world_(w), factory_(std::move(factory)), params_(std::move(p)) {}
 
-    void print_parameters(World& world) const override {
-      params_.print_all();
-    }
+  void print_parameters(World& world) const override { params_.print_all(); }
 
   void execute(const std::filesystem::path& workdir) override {
     // 1) make our single "opt" folder
@@ -149,7 +144,7 @@ class Workflow {
   }
 
   void print_parameters(World& world) const {
-      for (const auto& d : drivers_) d->print_parameters(world);
+    for (const auto& d : drivers_) d->print_parameters(world);
   }
 
   /**
@@ -159,7 +154,7 @@ class Workflow {
    * @param outputfile Name of the output file to write the aggregated results.
    */
   void run(const std::string prefix) {
-    std::filesystem::path topDir=prefix;
+    std::filesystem::path topDir = prefix;
     std::filesystem::create_directories(topDir);
     nlohmann::json all;
     all["tasks"] = nlohmann::json::array();
@@ -167,14 +162,8 @@ class Workflow {
     for (size_t i = 0; i < drivers_.size(); ++i) {
       auto taskDir = topDir / ("task_" + std::to_string(i));
       drivers_[i]->execute(taskDir);
-      auto current_output= drivers_[i]->summary();
+      auto current_output = drivers_[i]->summary();
 
-      // write out the current output to a file
-      {
-        std::ofstream ofs(taskDir / "output.json");
-        ofs << std::setw(4) << current_output;
-        ofs.close();
-      }
       /// append current output to all
       if (current_output.is_array()) {
         for (const auto& item : current_output) {
@@ -187,12 +176,11 @@ class Workflow {
       // Write out aggregate results
       {
         std::string outputfile = prefix + ".calc_info.json";
-        std::ofstream ofs( outputfile);
+        std::ofstream ofs(outputfile);
         ofs << std::setw(4) << all;
         ofs.close();
       }
     }
-
   }
 
  private:
