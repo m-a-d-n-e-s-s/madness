@@ -1,5 +1,6 @@
 #pragma once
 #include <madness/chem/SCF.h>
+
 #include <madness/chem/InputWriter.hpp>
 #include <madness/chem/ParameterManager.hpp>
 #if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
@@ -12,13 +13,11 @@
 #endif
 
 struct moldft_lib {
-
   static constexpr char const* label() { return "moldft"; }
 
   static nlohmann::json run_nemo(std::shared_ptr<Nemo> nemo) {
-
     nemo->value();
-    PropertyResults pr=nemo->analyze();
+    PropertyResults pr = nemo->analyze();
 
     ConvergenceResults cr;
     cr.set_converged_thresh(nemo->get_calc()->converged_for_thresh);
@@ -27,25 +26,25 @@ struct moldft_lib {
     SCFResults sr;
     sr.aeps = nemo->get_calc()->aeps;
     sr.beps = nemo->get_calc()->beps;
-    sr.properties=pr;
-    sr.scf_total_energy= nemo->get_calc()->current_energy;
+    sr.properties = pr;
+    sr.scf_total_energy = nemo->get_calc()->current_energy;
 
     // nlohmann::json results;
     nlohmann::json results;
-    results=sr.to_json();
-    results["convergence_info"]=cr.to_json();
+    results = sr.to_json();
+    results["convergence_info"] = cr.to_json();
 
     return results;
   }
 
   // params get's changed by SCF constructor
   inline static nlohmann::json run_scf(World& world, const Params& params,
-                                const std::filesystem::path& outdir) {
+                                       const std::filesystem::path& outdir) {
     const auto moldft_params = params.get<CalculationParameters>();
     const auto& molecule = params.get<Molecule>();
 
-    auto archive_name = moldft_params.prefix() + ".restartdata";
-    auto restart_path = path(archive_name) / ".00000";
+    // auto archive_name = moldft_params.prefix() + ".restartdata";
+    // auto restart_path = path(archive_name) / ".00000";
 
     world.gop.fence();
     // save the input file so we can read it back in and get derived parameters
@@ -54,7 +53,7 @@ struct moldft_lib {
       moldft_input_json["dft"] = moldft_params.to_json_if_precedence("defined");
       moldft_input_json["molecule"] = molecule.to_json_if_precedence("defined");
       // print("moldft_input_json: ", moldft_input_json.dump(4));
-      std::ofstream ofs("moldft.in");
+      std::ofstream ofs("mad.in");
       write_json_to_input_file(moldft_input_json, {"dft"}, ofs);
       molecule.print_defined_only(ofs);
       // write_moldft_input(moldft_input_json, ofs);
@@ -62,7 +61,7 @@ struct moldft_lib {
     }
     world.gop.fence();
     commandlineparser parser;
-    parser.set_keyval("input", "moldft.in");
+    parser.set_keyval("input", "mad.in");
     if (world.rank() == 0) ::print("input filename: ", parser.value("input"));
 
     FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap<Key<3>>(world)));
@@ -126,10 +125,10 @@ struct moldft_lib {
     SCFResults sr;
     sr.aeps = calc.aeps;
     sr.beps = calc.beps;
-    sr.properties=pr;
+    sr.properties = pr;
 
-    nlohmann::json results=sr.to_json();
-    results["convergence_info"]=cr.to_json();
+    nlohmann::json results = sr.to_json();
+    results["convergence_info"] = cr.to_json();
     return results;
   }
 };  // namespace moldft_lib

@@ -1,8 +1,8 @@
 #pragma once
-#include <madness/chem/CalculationParameters.h>
 #include <madness/chem/CCParameters.h>
-#include <madness/mra/QCCalculationParametersBase.h>
+#include <madness/chem/CalculationParameters.h>
 #include <madness/chem/oep.h>
+#include <madness/mra/QCCalculationParametersBase.h>
 
 #include <madness/chem/ResponseParameters.hpp>
 
@@ -29,10 +29,7 @@ struct OptimizationParameters : public QCCalculationParametersBase {
     initialize<bool>("geometry_tolerence", false, "geometry tolerance");
   }
 
-  std::string get_tag() const override {
-    return std::string(tag);
-  }
-
+  std::string get_tag() const override { return std::string(tag); }
 
   using QCCalculationParametersBase::read_input_and_commandline_options;
 
@@ -73,6 +70,7 @@ class ParameterManager {
   std::tuple<Groups...> groups_;
   commandlineparser parser_;
   nlohmann::json all_input_json_;
+  std::string prefix_;
 
   World &world_;
 
@@ -92,13 +90,25 @@ class ParameterManager {
 
   /// "Master" ctor: takes any single intput file, JSON or plain-text
   // ParameterManager(World &w, const path &filename) : world_(w) {
-  ParameterManager(World &w, const commandlineparser& parser) : world_(w), parser_(parser) {
+  ParameterManager(World &w, const commandlineparser &parser)
+      : world_(w), parser_(parser) {
     // parser_.set_keyval("input", filename);
-    const path& filename= parser_.value("input");
+    //
+    std::string inputfile = parser.value("input");
+    std::string prefix = commandlineparser::remove_extension(
+        commandlineparser::base_name(inputfile));
+    if (prefix != "input") {
+      prefix_ = prefix;
+    } else {
+      prefix_ = "mad";
+    }
+
+    const path &filename = parser_.value("input");
 
     if (is_json_file(filename)) {
       auto j = read_json_file(filename);
       initFromJson(j);
+      // invoke each group’s JSON parser:
     } else {
       // plain-text file
       initFromText(filename);
@@ -106,9 +116,11 @@ class ParameterManager {
     set_derived_values();
   }
 
-  /// here comes some logic for the calculation, e.g. the number of electrons derived from the molecule
+  /// here comes some logic for the calculation, e.g. the number of electrons
+  /// derived from the molecule
   void set_derived_values() {
-    this->get<CalculationParameters>().set_derived_values(this->get<Molecule>());
+    this->get<CalculationParameters>().set_derived_values(
+        this->get<Molecule>());
   }
 
   /// dump out the merged JSON
@@ -129,6 +141,7 @@ class ParameterManager {
   void set(G const &g) {
     std::get<G>(groups_) = g;
   }
+  std::string prefix() const { return prefix_; }
 
   /// pretty-print everything
   void print_all() const { (print_group_if_defined<Groups>(), ...); }
@@ -146,6 +159,16 @@ class ParameterManager {
           }
         }(),
         ...);
+
+    std::string inputfile = parser_.value("input");
+    std::string prefix = commandlineparser::remove_extension(
+        commandlineparser::base_name(inputfile));
+    if (prefix != "input") {
+      prefix_ = prefix;
+    } else {
+      prefix_ = "mad";
+    }
+
     all_input_json_ = j;
   }
   // 1) read from a plain-text “.inp” file
@@ -183,11 +206,7 @@ class ParameterManager {
 };
 
 // Define a concrete aliased ParameterManager type
-using Params = ParameterManager<CalculationParameters,
-                                ResponseParameters,
-                                Nemo::NemoCalculationParameters,
-                                OptimizationParameters,
-                                OEP_Parameters,
-                                TDHFParameters,
-                                CCParameters,
-                                Molecule>;
+using Params =
+    ParameterManager<CalculationParameters, ResponseParameters,
+                     Nemo::NemoCalculationParameters, OptimizationParameters,
+                     OEP_Parameters, TDHFParameters, CCParameters, Molecule>;
