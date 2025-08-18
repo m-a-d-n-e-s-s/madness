@@ -198,8 +198,7 @@ int main(int argc, char** argv) {
         auto reference = std::shared_ptr<Application>(
             new SCFApplication<moldft_lib, SCF>(world, pm));
         //
-        auto prefix = pm.get<CalculationParameters>().prefix();
-        std::filesystem::path gsDir(prefix + "/task_0/moldft");
+        std::filesystem::path gsDir(pm.prefix() + "/task_0/moldft");
 
         // prefix/task0/moldft
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
@@ -285,7 +284,11 @@ int main(int argc, char** argv) {
       }
 
       if (world.rank() == 0) print_header1("Starting calculations");
-      std::string prefix = pm.get<CalculationParameters>().prefix();
+      // TODO: if reading from json file, then we need to set the prefix of
+      // CalculationParameter   , first attempt is to modify in ParameterManager
+      // ctor
+      std::string prefix = pm.prefix();
+
       wf.run(prefix);
 
       if (false) {
