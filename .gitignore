@@ -70,3 +70,4 @@ diff.txt
 newdiff.txt
 .vscode/settings.json
 .clang-tidy
+.vscode/c_cpp_properties.json
