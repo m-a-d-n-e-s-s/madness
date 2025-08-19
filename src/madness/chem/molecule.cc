@@ -259,10 +259,10 @@ void Molecule::read(std::istream &f) {
   rcut.clear();
   madness::position_stream(f, "geometry", false); // do not rewind
   double scale = 1.0;                             // Default is atomic units
-  if (parameters.units() == "angstrom"){
+  if (parameters.units() == "angstrom") {
     scale = 1e-10 / madness::constants::atomic_unit_of_length;
     // TODO: change the units parameter to atomic?
-    parameters.set_user_defined_value("units", std::string("atomic"));// Calculations are done in atomic units
+    parameters.set_user_defined_value("units", std::string("atomic")); // Calculations are done in atomic units
   }
 
   std::string s, tag;
@@ -497,12 +497,11 @@ void Molecule::from_json(const json &mol_json) {
     parameters.from_json(mol_json["parameters"]);
 
   double scale = 1.0;
-  if (parameters.units() == "angstrom"){
+  if (parameters.units() == "angstrom") {
     scale = 1e-10 / madness::constants::atomic_unit_of_length;
-    parameters.set_user_defined_value("units", std::string("atomic"));// Calculations are done in atomic units
-
+    parameters.set_user_defined_value("units", std::string("atomic")); // Calculations are done in atomic units
   }
-    
+
   auto symbols = mol_json["symbols"];
   auto geometry = mol_json["geometry"];
 
