@@ -30,14 +30,10 @@ public:
   // optional hook to return a JSON fragment of this app's main results
   [[nodiscard]] virtual nlohmann::json results() const = 0;
 
-  // get the parameters used for this application
-  [[nodiscard]] virtual const QCCalculationParametersBase &get_parameters() const = 0;
+  // // get the parameters used for this application
+  // [[nodiscard]] virtual const QCCalculationParametersBase &get_parameters() const = 0;
 
-  virtual void print_parameters(World &world) const {
-    std::string tag = get_parameters().get_tag();
-    if (world.rank() == 0)
-      get_parameters().print(tag, "end");
-  }
+  virtual void print_parameters(World &world) const = 0;
 
   // get the working directory for this application
   [[nodiscard]] path get_workdir() const { return workdir_; }
@@ -49,80 +45,80 @@ public:
     return std::filesystem::exists(filename);
   }
 
-  [[nodiscard]] virtual bool verify_results(const nlohmann::json &j) const {
-    // check if some key parameters of the calculation match:
-    // molecule, box size, nmo_alpha, nmo_beta
-    Molecule mol1 = params_.get<Molecule>();
-    Molecule mol2;
-    mol2.from_json(j["molecule"]);
-    if (not(mol1 == mol2)) {
-      print("molecule mismatch");
-      mol1.print();
-      mol2.print();
-      return false;
-    }
-    return true;
-  }
+  // [[nodiscard]] virtual bool verify_results(const nlohmann::json &j) const {
+  //   // check if some key parameters of the calculation match:
+  //   // molecule, box size, nmo_alpha, nmo_beta
+  //   Molecule mol1 = params_.get<Molecule>();
+  //   Molecule mol2;
+  //   mol2.from_json(j["molecule"]);
+  //   if (not(mol1 == mol2)) {
+  //     print("molecule mismatch");
+  //     mol1.print();
+  //     mol2.print();
+  //     return false;
+  //   }
+  //   return true;
+  // }
 
-  /// read the results from a json file
-  [[nodiscard]] virtual nlohmann::json read_results(std::string filename) const {
-    if (has_results(filename)) {
-      std::cout << "Found checkpoint file: " << filename << std::endl;
-      // std::ifstream ifs(workdir_ / filename);
-      std::ifstream ifs(filename);
-      nlohmann::json j;
-      ifs >> j;
-      ifs.close();
-      if (not verify_results(j)) {
-        std::string msg = "Results file " + filename + " does not match the parameters of the calculation";
-        print(msg);
-        return nlohmann::json(); // return empty json
-      }
-      return j;
-    } else {
-      std::string msg = "Results file " + filename + " does not exist in " + workdir_.string();
-      MADNESS_EXCEPTION(msg.c_str(), 1);
-    }
-    return nlohmann::json();
-  }
+  // /// read the results from a json file
+  // [[nodiscard]] virtual nlohmann::json read_results(std::string filename) const {
+  //   if (has_results(filename)) {
+  //     std::cout << "Found checkpoint file: " << filename << std::endl;
+  //     // std::ifstream ifs(workdir_ / filename);
+  //     std::ifstream ifs(filename);
+  //     nlohmann::json j;
+  //     ifs >> j;
+  //     ifs.close();
+  //     if (not verify_results(j)) {
+  //       std::string msg = "Results file " + filename + " does not match the parameters of the calculation";
+  //       print(msg);
+  //       return nlohmann::json(); // return empty json
+  //     }
+  //     return j;
+  //   } else {
+  //     std::string msg = "Results file " + filename + " does not exist in " + workdir_.string();
+  //     MADNESS_EXCEPTION(msg.c_str(), 1);
+  //   }
+  //   return nlohmann::json();
+  // }
 
-  /// check if the wavefunctions are already computed
-  [[nodiscard]] virtual bool has_wavefunctions(std::string filename) const {
-    return std::filesystem::exists(workdir_ / filename);
-  }
+  // /// check if the wavefunctions are already computed
+  // [[nodiscard]] virtual bool has_wavefunctions(std::string filename) const {
+  //   return std::filesystem::exists(workdir_ / filename);
+  // }
 
-  /// read the wavefunctions from a file
-  [[nodiscard]] virtual std::vector<double> read_wavefunctions(std::string filename) const {
-    if (has_wavefunctions(filename)) {
-      std::ifstream ifs(workdir_ / filename);
-      std::vector<double> wfs;
-      double value;
-      while (ifs >> value) {
-        wfs.push_back(value);
-      }
-      ifs.close();
-      return wfs;
-    } else {
-      std::string msg = "Wavefunction file " + filename + " does not exist in " + workdir_.string();
-      MADNESS_EXCEPTION(msg.c_str(), 1);
-    }
-    return {};
-  }
+  // /// read the wavefunctions from a file
+  // [[nodiscard]] virtual std::vector<double> read_wavefunctions(std::string filename) const {
+  //   if (has_wavefunctions(filename)) {
+  //     std::ifstream ifs(workdir_ / filename);
+  //     std::vector<double> wfs;
+  //     double value;
+  //     while (ifs >> value) {
+  //       wfs.push_back(value);
+  //     }
+  //     ifs.close();
+  //     return wfs;
+  //   } else {
+  //     std::string msg = "Wavefunction file " + filename + " does not exist in " + workdir_.string();
+  //     MADNESS_EXCEPTION(msg.c_str(), 1);
+  //   }
+  //   return {};
+  // }
 
-  /// check if this calculation needs to be redone
-  [[nodiscard]] virtual bool needs_redo() const {
-    // read json and check if the results are already there
-    if (std::filesystem::exists(workdir_ / "results.json")) {
-      std::ifstream ifs(workdir_ / "results.json");
-      nlohmann::json j;
-      ifs >> j;
-      ifs.close();
-      // check if the results are already there
-      return !j.contains("energy") || !j["energy"].is_number();
-    }
-    // by default, we assume that the calculation needs to be redone
-    return true;
-  }
+  // /// check if this calculation needs to be redone
+  // [[nodiscard]] virtual bool needs_redo() const {
+  //   // read json and check if the results are already there
+  //   if (std::filesystem::exists(workdir_ / "results.json")) {
+  //     std::ifstream ifs(workdir_ / "results.json");
+  //     nlohmann::json j;
+  //     ifs >> j;
+  //     ifs.close();
+  //     // check if the results are already there
+  //     return !j.contains("energy") || !j["energy"].is_number();
+  //   }
+  //   // by default, we assume that the calculation needs to be redone
+  //   return true;
+  // }
 
 protected:
   const Params params_;
@@ -130,133 +126,46 @@ protected:
   nlohmann::json results_;
 };
 
-template <typename Library, typename ScfT = SCF>
-class SCFApplication : public Application,
-                       public ScfT,
-                       public std::enable_shared_from_this<SCFApplication<Library, ScfT>> {
+template <typename Library> class SCFApplication : public Application {
 public:
-  /// SCF ctor
-  template <typename T = ScfT, std::enable_if_t<std::is_same_v<T, Nemo>, int> = 0>
-  explicit SCFApplication(World &w, const Params &p)
-      : Application(p),
-        ScfT(w, p.get<CalculationParameters>(), p.get<Nemo::NemoCalculationParameters>(), p.get<Molecule>()),
-        world_(w) {}
+  using Engine = typename Library::Engine;
 
-  /// Nemo ctor
-  template <typename T = ScfT, std::enable_if_t<std::is_same_v<T, SCF>, int> = 0>
-  explicit SCFApplication(World &w, const Params &p)
-      : Application(p), ScfT(w, p.get<CalculationParameters>(), p.get<Molecule>()), world_(w) {}
+  explicit SCFApplication(World &w, const Params &p) : Application(p), world_(w) {}
 
-  std::shared_ptr<const SCF> get_scf() const { return std::dynamic_pointer_cast<const SCF>(this->shared_from_this()); }
+  // Give downstream steps the live calc
+  std::shared_ptr<Engine> engine() { return lib_.engine(world_, params_); }
 
-  bool constexpr is_nemo() const { return std::is_same_v<ScfT, Nemo>; }
-
-  std::shared_ptr<const Nemo> get_nemo() const {
-    auto return_ptr = std::dynamic_pointer_cast<const Nemo>(this->shared_from_this());
-    if (!return_ptr) {
-      MADNESS_EXCEPTION("Could not cast SCFApplication to Nemo", 1);
-    }
-    return return_ptr;
-  }
-
-  std::shared_ptr<Nemo> get_nemo() {
-    auto return_ptr = std::dynamic_pointer_cast<Nemo>(this->shared_from_this());
-    if (!return_ptr) {
-      MADNESS_EXCEPTION("Could not cast SCFApplication to Nemo", 1);
-    }
-    return return_ptr;
-  }
-
+  // print parameters
   void print_parameters(World &world) const override {
-    std::string tag = get_parameters().get_tag();
     if (world.rank() == 0) {
-      if constexpr (std::is_same_v<ScfT, SCF>) { // SCF
-        get_parameters().print("dft", "end");
-      } else { // Nemo
-        get_parameters().print("dft");
-        get_nemo()->get_nemo_param().print();
-        print("end");
-      }
-    }
-  }
-
-  const QCCalculationParametersBase &get_parameters() const override {
-    if (is_nemo()) {
-      return get_nemo()->get_calc_param();
-    } else {
-      return get_scf()->param;
+      std::cout << "SCF Parameters:" << std::endl;
     }
   }
 
   void run(const std::filesystem::path &workdir) override {
     // 1) set up a namedspaced directory for this run
-    std::string label = is_nemo() ? "nemo" : Library::label();
+    std::string label = Library::label();
     PathManager pm(workdir, label.c_str());
     pm.create();
     workdir_ = pm.dir();
     world_.gop.fence();
     {
       ScopedCWD scwd(pm.dir());
-      if (world_.rank() == 0) {
+      if (world_.rank() == 0)
+        (world_, params_);
+      {
         std::cout << "Running SCF in " << pm.dir() << std::endl;
-      }
-
-      auto scfParams = params_.get<CalculationParameters>();
-      bool needEnergy = true;
-      bool needDipole = scfParams.dipole();
-      bool needGradient = scfParams.derivatives();
-      bool needWavefunctions = true;
-
-      // 2) define the "checkpoint" file
-      auto ckpt = scfParams.prefix() + ".calc_info.json";
-      nlohmann::json j;
-      if (has_results(ckpt))
-        j = read_results(ckpt); // which results are we readin
-      if (world_.rank() == 0) {
-        print("Found checkpoint file: ", ckpt);
-        print("results: ", j.dump(4));
-      }
-
-      bool ok = true;
-      if (needEnergy && !j.contains("energy"))
-        ok = false;
-      if (needDipole && !j.contains("dipole"))
-        ok = false;
-      if (needGradient && !j.contains("gradient"))
-        ok = false;
-      if (needWavefunctions) {
-        try {
-          double thresh = scfParams.protocol().back();
-          if constexpr (std::is_same_v<ScfT, Nemo>)
-            this->set_protocol(scfParams.econv());
-          if constexpr (std::is_same_v<ScfT, SCF>)
-            SCF::set_protocol<3>(world_, thresh);
-          this->load_mos(world_); // TODO: We need to make sure the CalculationParameters
-                                  // prefix is set correctly here
-        } catch (...) {
-          // if we cannot load MOs, we need to recompute them
-          ok = false;
-        }
-      }
-
-      if (ok) {
-        energy_ = j["energy"];
-        if (needDipole)
-          dipole_ = tensor_from_json<double>(j["dipole"]);
-        if (needGradient)
-          gradient_ = tensor_from_json<double>(j["gradient"]);
-        return;
       }
 
       // we could dump params_ to JSON and pass as argv if desired…
       MetaDataResults metadata(world_);
-      if constexpr (std::is_same_v<ScfT, SCF>) {
-        results_ = Library::run_scf(world_, params_, pm.dir());
-      } else if constexpr (std::is_same_v<ScfT, Nemo>) {
-        results_ = Library::run_nemo(this->get_nemo());
-      } else {
-        MADNESS_CHECK_THROW("unknown SCF type", 1);
-      }
+      results_ = lib_.run(world_, params_);
+
+      // } else if constexpr (std::is_same_v<ScfT, Nemo>) {
+      //   results_ = Library::run_nemo(this->get_nemo());
+      // } else {
+      //   MADNESS_CHECK_THROW("unknown SCF type", 1);
+      // }
       results_["metadata"] = metadata.to_json();
 
       // legacy
@@ -266,11 +175,15 @@ public:
       gradient_ = properties.gradient;
     }
   }
+  // std::shared_ptr<SCFApplicationT> scf_app =
+  // std::dynamic_pointer_cast<SCFApplicationT>(reference_.shared_from_this());
 
   nlohmann::json results() const override { return results_; }
 
 private:
   World &world_;
+  Library lib_; // owns shared_ptr<Engine>
+
   double energy_;
 
   std::optional<Tensor<double>> dipole_;
@@ -291,8 +204,14 @@ public:
    */
   ResponseApplication(World &world, Params params, std::filesystem::path ref_dir)
       : world_(world), Application(std::move(params)), ref_dir_(std::move(ref_dir)) {}
+  // print parameters
+  void print_parameters(World &world) const override {
+    if (world.rank() == 0) {
+      std::cout << "Response Parameters:" << std::endl;
+      params_.get<ResponseParameters>().print("response");
+    }
+  }
 
-  const QCCalculationParametersBase &get_parameters() const override { return params_.get<ResponseParameters>(); }
   /**
    * @brief Execute response + property workflow, writing into workdir/response
    */
@@ -324,19 +243,23 @@ private:
   std::filesystem::path ref_dir_; // directory of precomputed SCF outputs
 };
 
-template <typename Library, typename SCFApplicationT> class CC2Application : public Application, public CC2 {
+class CC2Application : public Application, public CC2 {
 public:
-  explicit CC2Application(World &w, const Params &p, const SCFApplicationT &reference)
-      : Application(p), world_(w), reference_(reference),
-        CC2(w, p.get<CCParameters>(), p.get<TDHFParameters>(), reference.get_nemo()) {}
-
-  const QCCalculationParametersBase &get_parameters() const override {
-    return parameters; // CCParameters
+  explicit CC2Application(World &w, const Params &p, const std::shared_ptr<Nemo> reference,
+                          const std::filesystem::path &ref_dir)
+      : Application(p), world_(w), reference_(reference), ref_dir_(ref_dir),
+        CC2(w, p.get<CCParameters>(), p.get<TDHFParameters>(), reference) {}
+  // print_parameters
+  void print_parameters(World &world) const override {
+    if (world.rank() == 0) {
+      std::cout << "CC2 Parameters:" << std::endl;
+    }
   }
 
   void run(const std::filesystem::path &workdir) override {
     // 1) set up a namedspaced directory for this run
-    PathManager pm(workdir, Library::label());
+    std::string label = "cc2";
+    PathManager pm(workdir, label);
     pm.create();
     world_.gop.fence();
     {
@@ -346,7 +269,6 @@ public:
       }
 
       // 2) define the "checkpoint" file
-      std::string label = Library::label();
       auto ckpt = label + "_results.json";
       print("cc checkpoint file", ckpt);
       if (std::filesystem::exists(ckpt)) {
@@ -364,10 +286,10 @@ public:
           ok = false;
       }
 
-      auto rel = std::filesystem::relative(reference_.get_workdir(), pm.dir());
-      if (world.rank() == 0) {
+      auto rel = std::filesystem::relative(ref_dir_, pm.dir());
+      if (world_.rank() == 0) {
         std::cout << "Running cc2 calculation in: " << pm.dir() << std::endl;
-        std::cout << "Ground state archive: " << reference_.get_workdir() << std::endl;
+        std::cout << "Ground state archive: " << ref_dir_ << std::endl;
         std::cout << "Relative path: " << rel << std::endl;
       }
 
@@ -379,16 +301,22 @@ public:
 
 private:
   World &world_;
-  const Application &reference_;
+  const std::shared_ptr<Nemo> reference_;
+  const std::filesystem::path ref_dir_;
 };
 
-template <typename SCFApplicationT> class TDHFApplication : public Application, public TDHF {
+class TDHFApplication : public Application, public TDHF {
 public:
-  explicit TDHFApplication(World &w, const Params &p, const SCFApplicationT &reference)
-      : Application(p), world_(w), reference_(reference), TDHF(w, p.get<TDHFParameters>(), reference.get_nemo()) {}
+  explicit TDHFApplication(World &w, const Params &p, const std::shared_ptr<Nemo> &reference,
+                           const std::filesystem::path &ref_dir)
+      : Application(p), world_(w), reference_(reference), ref_dir_(ref_dir),
+        TDHF(w, p.get<TDHFParameters>(), reference) {}
 
-  const QCCalculationParametersBase &get_parameters() const override {
-    return TDHF::get_parameters(); // TDHFParameters
+  // print_parameters
+  void print_parameters(World &world) const override {
+    if (world.rank() == 0) {
+      std::cout << "TDHF Parameters:" << std::endl;
+    }
   }
 
   void run(const std::filesystem::path &workdir) override {
@@ -441,16 +369,22 @@ public:
 
 private:
   World &world_;
-  const Application &reference_;
+  std::shared_ptr<Nemo> reference_;
+  std::filesystem::path ref_dir_;
 };
 
-template <typename SCFApplicationT> class OEPApplication : public Application, public OEP {
+class OEPApplication : public Application, public OEP {
 public:
-  explicit OEPApplication(World &w, const Params &p, const SCFApplicationT &reference)
-      : Application(p), world_(w), reference_(reference), OEP(w, p.get<OEP_Parameters>(), reference.get_nemo()) {}
+  explicit OEPApplication(World &w, const Params &p, const std::shared_ptr<Nemo> &reference,
+                          const std::filesystem::path &ref_dir)
+      : Application(p), world_(w), reference_(reference), OEP(w, p.get<OEP_Parameters>(), reference),
+        ref_dir_(ref_dir) {}
 
-  const QCCalculationParametersBase &get_parameters() const override {
-    return oep_param; // OEP_Parameters
+  // print_parameters
+  void print_parameters(World &world) const override {
+    if (world.rank() == 0) {
+      std::cout << "OEP Parameters:" << std::endl;
+    }
   }
 
   void run(const std::filesystem::path &workdir) override {
@@ -508,7 +442,8 @@ public:
 
 private:
   World &world_;
-  const Application &reference_;
+  std::shared_ptr<Nemo> reference_;
+  std::filesystem::path ref_dir_;
 
   double energy_;
   std::optional<Tensor<double>> dipole_;
