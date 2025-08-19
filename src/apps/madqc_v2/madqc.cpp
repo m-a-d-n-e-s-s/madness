@@ -30,8 +30,7 @@
 */
 
 #include <fstream>
-#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && \
-    defined(HAVE_UNISTD_H)
+#if defined(HAVE_SYS_TYPES_H) && defined(HAVE_SYS_STAT_H) && defined(HAVE_UNISTD_H)
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -67,9 +66,8 @@ void help(std::string wf) {
   print("\nOptions:");
   print("  --help=<workflow>           : show this help message");
   print("  --print_parameters=<group>  : print all parameters and exit");
-  print(
-      "  --workflow=<name>           : specify the workflow to run (default: "
-      "scf)");
+  print("  --workflow=<name>           : specify the workflow to run (default: "
+        "scf)");
   print("\nAvailable workflows: scf, nemo, response, mp2, cc2, cis, oep");
   print("Available groups: dft, nemo, response, cc2, cis, oep, geometry");
   print("");
@@ -93,9 +91,8 @@ void help(std::string wf) {
     print("madqc --wf=cc2");
     print("MP2/CC2 code for correlated wave functions");
     print("\nexamples: ");
-    print(
-        "madqc --wf=cc2 --geometry=h2o --dft=\"k=5; econv=1.e-4; L=30\" "
-        "--cc2=\"freeze=1\"");
+    print("madqc --wf=cc2 --geometry=h2o --dft=\"k=5; econv=1.e-4; L=30\" "
+          "--cc2=\"freeze=1\"");
   } else if (wf == "cis") {
     print("madqc --wf=cis");
     print("CIS code for excited states");
@@ -105,15 +102,13 @@ void help(std::string wf) {
   }
 }
 
-void print_parameters(World& world, const commandlineparser& parser,
-                      const std::string group) {
+void print_parameters(World &world, const commandlineparser &parser, const std::string group) {
   Params pm;
   if (group == "") {
     print("please specify a data group to print parameters for");
     print("\n  --print_parameters=<group>  : print all parameters and exit");
-    print(
-        "\nAvailable data groups: scf, nemo, response, cc2, cis, oep, "
-        "geometry");
+    print("\nAvailable data groups: scf, nemo, response, cc2, cis, oep, "
+          "geometry");
   } else if (group == "dft") {
     print("Available parameters for data group: dft");
     pm.get<CalculationParameters>().print();
@@ -143,8 +138,8 @@ void print_parameters(World& world, const commandlineparser& parser,
   }
 }
 
-int main(int argc, char** argv) {
-  World& world = initialize(argc, argv);
+int main(int argc, char **argv) {
+  World &world = initialize(argc, argv);
   if (world.rank() == 0) {
     print_header1("MADQC -- Multiresolution Quantum Chemistry Code ");
   }
@@ -161,7 +156,8 @@ int main(int argc, char** argv) {
     try {
       // Load info for MADNESS numerical routines
       startup(world, argc, argv, true);
-      if (world.rank() == 0) print(info::print_revision_information());
+      if (world.rank() == 0)
+        print(info::print_revision_information());
 
       // Create workflow
       qcapp::Workflow wf;
@@ -184,19 +180,16 @@ int main(int argc, char** argv) {
       Params pm(world, parser);
 
       if (user_workflow == "scf") {
-        auto reference = std::shared_ptr<Application>(
-            new SCFApplication<moldft_lib, SCF>(world, pm));
+        auto reference = std::shared_ptr<Application>(new SCFApplication<moldft_lib>(world, pm));
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
 
       } else if (user_workflow == "nemo") {
         pm.get<CalculationParameters>().set_derived_value("k", 8);
-        auto reference = std::shared_ptr<Application>(
-            new SCFApplication<moldft_lib, Nemo>(world, pm));
+        auto reference = std::shared_ptr<Application>(new SCFApplication<nemo_lib>(world, pm));
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
 
       } else if (user_workflow == "response") {
-        auto reference = std::shared_ptr<Application>(
-            new SCFApplication<moldft_lib, SCF>(world, pm));
+        auto reference = std::shared_ptr<Application>(new SCFApplication<moldft_lib>(world, pm));
         //
         std::filesystem::path gsDir(pm.prefix() + "/task_0/moldft");
 
@@ -204,8 +197,7 @@ int main(int argc, char** argv) {
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
         // prefix/task1/molresponse
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
-            std::make_unique<ResponseApplication<molresponse_lib>>(world, pm,
-                                                                   gsDir)));
+            std::make_unique<ResponseApplication<molresponse_lib>>(world, pm, gsDir)));
 
       } else if (user_workflow == "mp2" or user_workflow == "cc2") {
         // set the tensor type
@@ -213,65 +205,45 @@ int main(int argc, char** argv) {
         FunctionDefaults<6>::set_tensor_type(tt);
 
         // do the parameter logic and print parameters
-        auto& calc_param = pm.get<CalculationParameters>();
-        auto& cc_param = pm.get<CCParameters>();
-        auto& molecule = pm.get<Molecule>();
+        auto &calc_param = pm.get<CalculationParameters>();
+        auto &cc_param = pm.get<CCParameters>();
+        auto &molecule = pm.get<Molecule>();
 
         calc_param.set_derived_value("k", 5);
         calc_param.set_derived_value("print_level", 2);
-        calc_param.set_derived_value("econv",
-                                     cc_param.get<double>("thresh_6d") * 0.01);
+        calc_param.set_derived_value("econv", cc_param.get<double>("thresh_6d") * 0.01);
 
         calc_param.set_derived_values(molecule);
         cc_param.set_derived_values();
 
-        auto reference = std::shared_ptr<SCFApplication<moldft_lib, Nemo>>(
-            new SCFApplication<moldft_lib, Nemo>(world, pm));
+        auto reference = std::shared_ptr<SCFApplication<nemo_lib>>(new SCFApplication<nemo_lib>(world, pm));
+        auto ref_calc = reference->engine();
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
-
-        wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
-            std::make_unique<
-                CC2Application<cc_lib, SCFApplication<moldft_lib, Nemo>>>(
-                world, pm, *reference)));
+        wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(std::make_unique<CC2Application>(
+            world, pm, ref_calc, std::filesystem::path(pm.prefix() + "/task_0/nemo"))));
 
       } else if (user_workflow == "cis") {
-        auto reference = std::shared_ptr<SCFApplication<moldft_lib, Nemo>>(
-            new SCFApplication<moldft_lib, Nemo>(world, pm));
-
+        auto reference = std::shared_ptr<SCFApplication<nemo_lib>>(new SCFApplication<nemo_lib>(world, pm));
+        auto ref_calc = reference->engine();
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
-        wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
-            std::make_unique<TDHFApplication<SCFApplication<moldft_lib, Nemo>>>(
-                world, pm, *reference)));
+        wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(std::make_unique<TDHFApplication>(
+            world, pm, ref_calc, std::filesystem::path(pm.prefix() + "/task_0/nemo"))));
 
       } else if (user_workflow == "oep") {
         // add tight convergence criteria
-        CalculationParameters& cparam = pm.get<CalculationParameters>();
-        auto convergence_crit =
-            cparam.get<std::vector<std::string>>("convergence_criteria");
-        if (std::find(convergence_crit.begin(), convergence_crit.end(),
-                      "each_energy") == convergence_crit.end()) {
+        CalculationParameters &cparam = pm.get<CalculationParameters>();
+        auto convergence_crit = cparam.get<std::vector<std::string>>("convergence_criteria");
+        if (std::find(convergence_crit.begin(), convergence_crit.end(), "each_energy") == convergence_crit.end()) {
           convergence_crit.push_back("each_energy");
         }
         cparam.set_derived_value("convergence_criteria", convergence_crit);
-
-        auto reference = std::shared_ptr<Application>(
-            new SCFApplication<moldft_lib, Nemo>(world, pm));
-        auto moldft_app =
-            std::dynamic_pointer_cast<SCFApplication<moldft_lib, Nemo>>(
-                reference);
-        if (!moldft_app) {
-          MADNESS_EXCEPTION(
-              "Could not cast reference to SCFApplication<moldft_lib>", 1);
-        }
-
-        wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
-        wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
-            std::make_unique<OEPApplication<SCFApplication<moldft_lib, Nemo>>>(
-                world, pm, *moldft_app)));
+        auto reference = std::shared_ptr<SCFApplication<nemo_lib>>(new SCFApplication<nemo_lib>(world, pm));
+        auto ref_calc = reference->engine();
+        wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(std::make_unique<OEPApplication>(
+            world, pm, ref_calc, std::filesystem::path(pm.prefix() + "/task_0/nemo"))));
       } else {
         static std::string msg =
-            "Unknown workflow: " + user_workflow +
-            "\nAvailable workflows are: response, mp2, cc2, cis";
+            "Unknown workflow: " + user_workflow + "\nAvailable workflows are: response, mp2, cc2, cis";
         MADNESS_EXCEPTION(msg.c_str(), 1);
       }
 
@@ -283,7 +255,8 @@ int main(int argc, char** argv) {
         print("");
       }
 
-      if (world.rank() == 0) print_header1("Starting calculations");
+      if (world.rank() == 0)
+        print_header1("Starting calculations");
       // TODO: if reading from json file, then we need to set the prefix of
       // CalculationParameter   , first attempt is to modify in ParameterManager
       // ctor
@@ -294,15 +267,13 @@ int main(int argc, char** argv) {
       if (false) {
         qcapp::Workflow opt_wf;
 
-        std::function<std::unique_ptr<Application>(Params)> scfFactory =
-            [&](Params p) {
-              return std::make_unique<SCFApplication<moldft_lib>>(world, p);
-            };
+        std::function<std::unique_ptr<Application>(Params)> scfFactory = [&](Params p) {
+          return std::make_unique<SCFApplication<moldft_lib>>(world, p);
+        };
 
-        opt_wf.addDriver(
-            std::make_unique<qcapp::OptimizeDriver>(world, scfFactory, pm));
+        opt_wf.addDriver(std::make_unique<qcapp::OptimizeDriver>(world, scfFactory, pm));
       }
-    } catch (std::exception& e) {
+    } catch (std::exception &e) {
       if (world.rank() == 0) {
         print_header2("caught an exception in the main loop");
         print(e.what());
@@ -314,7 +285,7 @@ int main(int argc, char** argv) {
     world.gop.fence();
     world.gop.fence();
     print_stats(world);
-  }  // world is dead -- ready to finalize
+  } // world is dead -- ready to finalize
   finalize();
 
   return 0;
