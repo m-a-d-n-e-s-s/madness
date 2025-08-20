@@ -152,7 +152,7 @@ namespace madness {
         }
 
         /// return a mapping rank to hostname, return value on rank 0 only
-        std::map<long,std::pair<std::string,double>> rank_to_host_and_rss_map(World& universe) {
+        static std::map<long,std::pair<std::string,double>> rank_to_host_and_rss_map(World& universe) {
             std::vector<std::pair<long,std::pair<std::string,double>>> rank_to_host;
             // rank-local
             auto hostname_and_rss=std::pair<std::string,double>(get_hostname(),get_rss_usage_in_GB());
@@ -168,7 +168,7 @@ namespace madness {
         }
 
         /// given the hostname, return number of ranks and total rss on that node
-        std::map<std::string,std::pair<int,double>> host_to_nrank_and_rss_map(World& universe) {
+        static std::map<std::string,std::pair<int,double>> host_to_nrank_and_rss_map(World& universe) {
             auto accumulate_left =[](std::pair<int,double>& a, const std::pair<int,double>& b) {
                 a.first++;
                 a.second+=b.second;

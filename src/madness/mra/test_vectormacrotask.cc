@@ -324,7 +324,7 @@ int test_immediate(World& universe, const std::vector<Function<T,NDIM>>& v3,
 int test_deferred(World& universe, const std::vector<real_function_3d>& v3,
                    const std::vector<real_function_3d>& ref) {
     if (universe.rank() == 0) print("\nstarting deferred execution");
-    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size()));
+    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size(), MacroTaskInfo::StoreFunction));
     taskq->set_printlevel(3);
     MicroTask<double,3> t;
     MacroTask task(universe, t, taskq);
@@ -340,7 +340,7 @@ int test_deferred(World& universe, const std::vector<real_function_3d>& v3,
 int test_twice(World& universe, const std::vector<real_function_3d>& v3,
                   const std::vector<real_function_3d>& ref) {
     if (universe.rank() == 0) print("\nstarting Microtask twice (check caching)\n");
-    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size()));
+    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size(), MacroTaskInfo::StoreFunction));
     taskq->set_printlevel(3);
     MicroTask<double,3> t;
     MacroTask task(universe, t, taskq);
@@ -465,7 +465,7 @@ int test_mixed_tuple(World& universe, const std::vector<real_function_3d>& v3) {
 
 int test_2d_partitioning(World& universe, const std::vector<real_function_3d>& v3) {
     if (universe.rank() == 0) print("\nstarting 2d partitioning");
-    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size()));
+    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size(), MacroTaskInfo::StoreFunction));
     taskq->set_printlevel(3);
     MicroTask2 t;
     auto ref=t(v3,2.0,v3);

@@ -1127,10 +1127,23 @@ template<size_t NDIM>
         	currentmap->redistribute(world,newmap);
         }
 
+        /// Copy coeffs from other into self
+
+        /// this and other might live in different worlds
+        template <typename Q>
+        void copy_coeffs(const FunctionImpl<Q,NDIM>& other, bool fence) {
+            if (world.id()==other.world.id())
+                copy_coeffs_same_world(other,false);
+            else
+                copy_coeffs_different_world(other,false);
+            if (fence) world.gop.fence();
+        }
+
+        /// Copy coefficients from other funcimpl with possibly different world and on a different node
         template<typename Q>
-        void copy_remote_coeffs_from(const FunctionImpl<Q,NDIM>& other, bool fence) {
+        void copy_coeffs_different_world(const FunctionImpl<Q,NDIM>& other, bool fence) {
             for (ProcessID pid=0; pid<other.world.size(); ++pid) {
-                    copy_remote_coeffs_from_pid(pid, other, false);
+                copy_remote_coeffs_from_pid<Q>(pid, other, false);
             }
         }
 
@@ -1138,14 +1151,14 @@ template<size_t NDIM>
         /// to this
         template <typename Q>
         void copy_remote_coeffs_from_pid(const ProcessID pid, const FunctionImpl<Q,NDIM>& other, bool fence) {
-            auto v=other.task(pid, &implT:: template serialize_remote_coeffs<Q>).get();
+            typedef FunctionImpl<Q,NDIM> implQ; ///< Type of this class (implementation)
+            auto v=other.task(pid, &implQ::serialize_remote_coeffs).get();
             archive::VectorInputArchive ar(v);
             ar & get_coeffs();
             if (fence) world.gop.fence();
         }
 
         /// invoked by copy_remote_coeffs_from_pid to serialize *local* coeffs
-        template <typename Q>
         std::vector<unsigned char> serialize_remote_coeffs() {
             std::vector<unsigned char> v;
             archive::VectorOutputArchive ar(v);
@@ -1155,12 +1168,8 @@ template<size_t NDIM>
 
         /// Copy coeffs from other into self
         template <typename Q>
-        void copy_coeffs(const FunctionImpl<Q,NDIM>& other, bool fence) {
-            typename FunctionImpl<Q,NDIM>::dcT::const_iterator end = other.coeffs.end();
-            for (typename FunctionImpl<Q,NDIM>::dcT::const_iterator it=other.coeffs.begin();
-                 it!=end; ++it) {
-                const keyT& key = it->first;
-                const typename FunctionImpl<Q,NDIM>::nodeT& node = it->second;
+        void copy_coeffs_same_world(const FunctionImpl<Q,NDIM>& other, bool fence) {
+            for (const auto& [key, node] : other.coeffs)  {  // iterate over all entries in other
                 coeffs.replace(key,node. template convert<T>());
             }
             if (fence)

@@ -2083,6 +2083,23 @@ namespace madness {
         return copy(f, f.get_pmap(), fence);
     }
 
+    /// Create a new copy of function f living in world (might differ from f.world)
+
+    /// uses the default processor map of world
+    template <typename T, std::size_t NDIM>
+    Function<T,NDIM> copy(World& world, const Function<T,NDIM>& f, bool fence = true) {
+        PROFILE_FUNC;
+        typedef FunctionImpl<T,NDIM> implT;
+        auto pmap=FunctionDefaults<NDIM>::get_pmap();
+
+        // create a new function with pmap distribution, same parameters as f, but no coeffs
+        Function<T,NDIM> result;
+        result.set_impl(std::make_shared<implT>(world,*f.get_impl(), pmap, false));
+        // copy f's coefficients to result
+        result.get_impl()->copy_coeffs(*f.get_impl(), fence);
+        return result;
+    }
+
     /// Type conversion implies a deep copy.  No communication except for optional fence.
 
     /// Works in either basis but any loss of precision may result in different errors
