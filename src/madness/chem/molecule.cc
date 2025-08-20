@@ -101,24 +101,24 @@ Molecule::Molecule(World &world, const commandlineparser &parser)
     for (int i = 0; i < 3; ++i)
       field(i) = parameters.field()[i];
   } catch (...) {
-    std::cout << "\n\nsomething went wrong in the geometry input" << std::endl;
-    std::cout << "geometry parameters " << std::endl << std::endl;
-    parameters.print("geometry", "end");
-    throw madness::MadnessException("faulty geometry input", 0, 1, __LINE__, __FUNCTION__, __FILE__);
+    std::cout << "\n\nsomething went wrong in the molecule input" << std::endl;
+    std::cout << "molecule parameters " << std::endl << std::endl;
+    parameters.print("molecule", "end");
+    throw madness::MadnessException("faulty molecule input", 0, 1, __LINE__, __FUNCTION__, __FILE__);
   }
 }
 
 void Molecule::print_parameters() {
   GeometryParameters param;
   madness::print("default parameters for the geometry input:\n");
-  param.print("geometry", "end");
+  param.print("molecule", "end");
   madness::print("");
   madness::print("");
 
   madness::print("If the molecular geometry is provided in the input file you need to specify");
-  madness::print("the coordinates inside the geometry block\n");
+  madness::print("the coordinates inside the molecule block\n");
   madness::print("Example:\n");
-  madness::print("geometry");
+  madness::print("molecule");
   madness::print("  units  atomic ");
   madness::print("  O                     0                   0          0.21300717 ");
   madness::print("  H                     0           1.4265081         -0.85202867 ");
@@ -157,7 +157,7 @@ void Molecule::get_structure() {
     std::cout << "could not determine molecule" << std::endl;
     std::cout << " source_type " << sourcetype << std::endl;
     std::cout << " source_name " << sourcename << std::endl;
-    MADNESS_EXCEPTION("failed to get geometry", 1);
+    MADNESS_EXCEPTION("failed to get molecule", 1);
   }
 
   // set derived parameters for the molecule
@@ -257,7 +257,7 @@ void Molecule::read_file(const std::string &filename) {
 void Molecule::read(std::istream &f) {
   atoms.clear();
   rcut.clear();
-  madness::position_stream(f, "geometry", false); // do not rewind
+  madness::position_stream(f, "molecule", false); // do not rewind
   double scale = 1.0;                             // Default is atomic units
   if (parameters.units() == "angstrom") {
     scale = 1e-10 / madness::constants::atomic_unit_of_length;
@@ -529,7 +529,7 @@ void Molecule::print(std::ostream &os, const bool defined_only) const {
   std::stringstream sstream;
   sstream << "molecule" << std::endl;
   sstream << p << std::endl;
-  sstream << "geometry" << std::endl;
+  //sstream << "geometry" << std::endl;
   for (size_t i = 0; i < natom(); ++i) {
     sstream << std::setw(5) << get_atomic_data(atoms[i].atomic_number).symbol << "  ";
     sstream << std::setw(20) << std::setprecision(8) << atoms[i].x << std::setw(20) << atoms[i].y << std::setw(20)
@@ -538,7 +538,6 @@ void Molecule::print(std::ostream &os, const bool defined_only) const {
       sstream << "     " << atoms[i].q;
     sstream << std::endl;
   }
-  sstream << "end" << std::endl;
   sstream << "end" << std::endl;
   os << sstream.str();
 }

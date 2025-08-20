@@ -180,24 +180,19 @@ int main(int argc, char **argv) {
             Params pm(world, parser);
 
       if (user_workflow == "scf") {
-        auto reference = std::shared_ptr<Application>(new SCFApplication<moldft_lib>(world, pm));
+        auto reference = std::shared_ptr<SCFApplication<moldft_lib>>(new SCFApplication<moldft_lib>(world, pm));
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
 
       } else if (user_workflow == "nemo") {
         pm.get<CalculationParameters>().set_derived_value("k", 8);
-        auto reference = std::shared_ptr<Application>(new SCFApplication<nemo_lib>(world, pm));
+        auto reference = std::shared_ptr<SCFApplication<nemo_lib>>(new SCFApplication<nemo_lib>(world, pm));
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
 
       } else if (user_workflow == "response") {
-        auto reference = std::shared_ptr<Application>(new SCFApplication<moldft_lib>(world, pm));
-        //
-        std::filesystem::path gsDir(pm.prefix() + "/task_0/moldft");
-
-        // prefix/task0/moldft
+        auto reference = std::shared_ptr<SCFApplication<moldft_lib>>(new SCFApplication<moldft_lib>(world, pm));
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
-        // prefix/task1/molresponse
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
-            std::make_unique<ResponseApplication<molresponse_lib>>(world, pm, gsDir)));
+            std::make_unique<ResponseApplication<molresponse_lib>>(world, pm, reference->calc())));
 
       } else if (user_workflow == "mp2" or user_workflow == "cc2") {
         // set the tensor type
@@ -217,17 +212,16 @@ int main(int argc, char **argv) {
                 cc_param.set_derived_values();
 
         auto reference = std::shared_ptr<SCFApplication<nemo_lib>>(new SCFApplication<nemo_lib>(world, pm));
-        auto ref_calc = reference->engine();
+        auto ref_calc = reference->calc();
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
-        wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(std::make_unique<CC2Application>(
-            world, pm, ref_calc, std::filesystem::path(pm.prefix() + "/task_0/nemo"))));
+        wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(std::make_unique<CC2Application>(world, pm, ref_calc)));
 
       } else if (user_workflow == "cis") {
         auto reference = std::shared_ptr<SCFApplication<nemo_lib>>(new SCFApplication<nemo_lib>(world, pm));
-        auto ref_calc = reference->engine();
+        auto ref_calc = reference->calc();
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
-        wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(std::make_unique<TDHFApplication>(
-            world, pm, ref_calc, std::filesystem::path(pm.prefix() + "/task_0/nemo"))));
+        wf.addDriver(
+            std::make_unique<qcapp::SinglePointDriver>(std::make_unique<TDHFApplication>(world, pm, ref_calc)));
 
       } else if (user_workflow == "oep") {
         // add tight convergence criteria
@@ -238,9 +232,8 @@ int main(int argc, char **argv) {
         }
         cparam.set_derived_value("convergence_criteria", convergence_crit);
         auto reference = std::shared_ptr<SCFApplication<nemo_lib>>(new SCFApplication<nemo_lib>(world, pm));
-        auto ref_calc = reference->engine();
-        wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(std::make_unique<OEPApplication>(
-            world, pm, ref_calc, std::filesystem::path(pm.prefix() + "/task_0/nemo"))));
+        auto ref_calc = reference->calc();
+        wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(std::make_unique<OEPApplication>(world, pm, ref_calc)));
       } else {
         static std::string msg =
             "Unknown workflow: " + user_workflow + "\nAvailable workflows are: response, mp2, cc2, cis";
@@ -248,15 +241,15 @@ int main(int argc, char **argv) {
       }
 
       // Execute both in "MyCalc" directory
-      if (world.rank() == 0) {
-        print_header1("Calculation parameters");
-        pm.get<Molecule>().print();
-        wf.print_parameters(world);
-        print("");
-      }
+      // if (world.rank() == 0) {
+      //   print_header1("Calculation parameters");
+      //   pm.get<Molecule>().print();
+      //   wf.print_parameters(world);
+      //   print("");
+      // }
 
-      if (world.rank() == 0)
-        print_header1("Starting calculations");
+      // if (world.rank() == 0)
+      //   print_header1("Starting calculations");
       // TODO: if reading from json file, then we need to set the prefix of
       // CalculationParameter   , first attempt is to modify in ParameterManager
       // ctor

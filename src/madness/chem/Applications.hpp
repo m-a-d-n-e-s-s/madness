@@ -35,15 +35,15 @@ public:
 
   virtual void print_parameters(World &world) const = 0;
 
-  // get the working directory for this application
-  [[nodiscard]] path get_workdir() const { return workdir_; }
+  // // get the working directory for this application
+  // [[nodiscard]] path get_workdir() const { return workdir_; }
 
-  /// check if this calculation has a json with results
-  [[nodiscard]] virtual bool has_results(std::string filename) const {
-    // check if the results file exists
-    // return std::filesystem::exists(workdir_ / filename);
-    return std::filesystem::exists(filename);
-  }
+  // /// check if this calculation has a json with results
+  // [[nodiscard]] virtual bool has_results(std::string filename) const {
+  //   // check if the results file exists
+  //   // return std::filesystem::exists(workdir_ / filename);
+  //   return std::filesystem::exists(filename);
+  // }
 
   // [[nodiscard]] virtual bool verify_results(const nlohmann::json &j) const {
   //   // check if some key parameters of the calculation match:
@@ -122,24 +122,24 @@ public:
 
 protected:
   const Params params_;
-  path workdir_;
   nlohmann::json results_;
 };
 
 template <typename Library> class SCFApplication : public Application {
 public:
-  using Engine = typename Library::Engine;
+  using Calc = typename Library::Calc;
 
   explicit SCFApplication(World &w, const Params &p) : Application(p), world_(w) {}
 
   // Give downstream steps the live calc
-  std::shared_ptr<Engine> engine() { return lib_.engine(world_, params_); }
+  std::shared_ptr<Calc> calc() { return lib_.calc(world_, params_); }
 
   // print parameters
   void print_parameters(World &world) const override {
     if (world.rank() == 0) {
       std::cout << "SCF Parameters:" << std::endl;
     }
+    lib_.print_parameters();
   }
 
   void run(const std::filesystem::path &workdir) override {
@@ -147,13 +147,14 @@ public:
     std::string label = Library::label();
     PathManager pm(workdir, label.c_str());
     pm.create();
-    workdir_ = pm.dir();
+    if (world_.rank() == 0) {
+      print("Running SCF in " + pm.dir().string());
+    }
+
     world_.gop.fence();
     {
       ScopedCWD scwd(pm.dir());
-      if (world_.rank() == 0)
-        (world_, params_);
-      {
+      if (world_.rank() == 0) {
         std::cout << "Running SCF in " << pm.dir() << std::endl;
       }
 
@@ -202,8 +203,8 @@ public:
    * @param params  Unified Params containing ResponseParameters & Molecule
    * @param ref_dir   Directory of precomputed ground-state (SCF) outputs
    */
-  ResponseApplication(World &world, Params params, std::filesystem::path ref_dir)
-      : world_(world), Application(std::move(params)), ref_dir_(std::move(ref_dir)) {}
+  ResponseApplication(World &world, Params params, const std::shared_ptr<SCF> reference)
+      : world_(world), Application(std::move(params)), reference_(std::move(reference)) {}
   // print parameters
   void print_parameters(World &world) const override {
     if (world.rank() == 0) {
@@ -222,7 +223,7 @@ public:
     {
       ScopedCWD scwd(pm.dir());
 
-      auto res = Library::run_response(world_, params_, ref_dir_, pm.dir());
+      auto res = Library::run_response(world_, params_, reference_, pm.dir());
 
       metadata_ = std::move(res.metadata);
       properties_ = std::move(res.properties);
@@ -240,14 +241,13 @@ private:
   World &world_;
   nlohmann::json metadata_;
   nlohmann::json properties_;
-  std::filesystem::path ref_dir_; // directory of precomputed SCF outputs
+  const std::shared_ptr<SCF> reference_;
 };
 
 class CC2Application : public Application, public CC2 {
 public:
-  explicit CC2Application(World &w, const Params &p, const std::shared_ptr<Nemo> reference,
-                          const std::filesystem::path &ref_dir)
-      : Application(p), world_(w), reference_(reference), ref_dir_(ref_dir),
+  explicit CC2Application(World &w, const Params &p, const std::shared_ptr<Nemo> reference)
+      : Application(p), world_(w), reference_(reference),
         CC2(w, p.get<CCParameters>(), p.get<TDHFParameters>(), reference) {}
   // print_parameters
   void print_parameters(World &world) const override {
@@ -286,10 +286,10 @@ public:
           ok = false;
       }
 
-      auto rel = std::filesystem::relative(ref_dir_, pm.dir());
+      auto rel = std::filesystem::relative(reference_->work_dir, pm.dir());
       if (world_.rank() == 0) {
         std::cout << "Running cc2 calculation in: " << pm.dir() << std::endl;
-        std::cout << "Ground state archive: " << ref_dir_ << std::endl;
+        std::cout << "Ground state archive: " << reference_->work_dir << std::endl;
         std::cout << "Relative path: " << rel << std::endl;
       }
 
@@ -302,15 +302,12 @@ public:
 private:
   World &world_;
   const std::shared_ptr<Nemo> reference_;
-  const std::filesystem::path ref_dir_;
 };
 
 class TDHFApplication : public Application, public TDHF {
 public:
-  explicit TDHFApplication(World &w, const Params &p, const std::shared_ptr<Nemo> &reference,
-                           const std::filesystem::path &ref_dir)
-      : Application(p), world_(w), reference_(reference), ref_dir_(ref_dir),
-        TDHF(w, p.get<TDHFParameters>(), reference) {}
+  explicit TDHFApplication(World &w, const Params &p, const std::shared_ptr<Nemo> &reference)
+      : Application(p), world_(w), reference_(reference), TDHF(w, p.get<TDHFParameters>(), reference) {}
 
   // print_parameters
   void print_parameters(World &world) const override {
@@ -375,10 +372,8 @@ private:
 
 class OEPApplication : public Application, public OEP {
 public:
-  explicit OEPApplication(World &w, const Params &p, const std::shared_ptr<Nemo> &reference,
-                          const std::filesystem::path &ref_dir)
-      : Application(p), world_(w), reference_(reference), OEP(w, p.get<OEP_Parameters>(), reference),
-        ref_dir_(ref_dir) {}
+  explicit OEPApplication(World &w, const Params &p, const std::shared_ptr<Nemo> &reference)
+      : Application(p), world_(w), reference_(reference), OEP(w, p.get<OEP_Parameters>(), reference) {}
 
   // print_parameters
   void print_parameters(World &world) const override {
@@ -443,7 +438,6 @@ public:
 private:
   World &world_;
   std::shared_ptr<Nemo> reference_;
-  std::filesystem::path ref_dir_;
 
   double energy_;
   std::optional<Tensor<double>> dipole_;

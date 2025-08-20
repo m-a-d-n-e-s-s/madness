@@ -2,17 +2,28 @@
 
 using namespace madness;
 
-GroundStateData::GroundStateData(World &world, std::string archiveFile,
-                                 Molecule mol)
-    : molecule(std::move(mol)), spinrestricted(false), num_orbitals(0), L(0.0),
-      k(0), xc(), localize_method(), converged_for_thresh(0.0), original_k(0),
-      archive_File(std::move(archiveFile)) {
+GroundStateData::GroundStateData(World &world, std::string archiveFile, Molecule mol)
+    : molecule(std::move(mol)), spinrestricted(false), num_orbitals(0), L(0.0), k(0), xc(), localize_method(),
+      converged_for_thresh(0.0), original_k(0), archive_File(std::move(archiveFile)) {
 
   if (world.rank() == 0) {
     print("Constructing GroundStateData for molecule: ");
     molecule.print();
   }
   load(world);
+}
+
+GroundStateData::GroundStateData(World &world, std::shared_ptr<SCF> scf_calc)
+    : molecule(scf_calc->molecule), spinrestricted(scf_calc->is_spin_restricted()),
+      num_orbitals(scf_calc->param.nalpha()), L(scf_calc->param.L()), k(FunctionDefaults<3>::get_k()), xc(scf_calc->param.xc()),
+      localize_method(scf_calc->param.localize_method()), converged_for_thresh(FunctionDefaults<3>::get_thresh()),
+      original_k(FunctionDefaults<3>::get_k()) {
+
+  if (world.rank() == 0) {
+    print("Constructing GroundStateData from SCF calculation for molecule: ");
+    molecule.print();
+  }
+  orbitals = scf_calc->get_amo();
 }
 
 void GroundStateData::load(World &world) {
@@ -42,8 +53,7 @@ void GroundStateData::load(World &world) {
 
   if (k < 1 || k > 30) {
     if (world.rank() == 0)
-      madness::print(
-          "Invalid wavelet order read from archive, setting to default k=8.");
+      madness::print("Invalid wavelet order read from archive, setting to default k=8.");
     k = 8;
   }
 
@@ -86,14 +96,12 @@ void GroundStateData::print_info() const {
   madness::print("Orbital Energies:", energies);
 }
 
-void GroundStateData::prepareOrbitals(World &world, int current_k,
-                                      double thresh) {
+void GroundStateData::prepareOrbitals(World &world, int current_k, double thresh) {
 
   // Check if the current orbitals' polynomial order is higher (projectable)
   if (original_k < current_k) {
     if (world.rank() == 0) {
-      print("Cannot project orbitals: current k (", k,
-            ") is lower than requested k (", current_k, ").");
+      print("Cannot project orbitals: current k (", k, ") is lower than requested k (", current_k, ").");
     }
     MADNESS_EXCEPTION("Orbital polynomial order too low for projection.", k);
   }
@@ -103,8 +111,7 @@ void GroundStateData::prepareOrbitals(World &world, int current_k,
   // convergence threshold
   if (k != current_k || converged_for_thresh > thresh) {
     if (world.rank() == 0) {
-      print("Reloading orbitals: current k (", k,
-            ") is different from requested k (", current_k, ").");
+      print("Reloading orbitals: current k (", k, ") is different from requested k (", current_k, ").");
     }
     needs_reload = true;
   }
@@ -130,12 +137,9 @@ void GroundStateData::prepareOrbitals(World &world, int current_k,
   Qhat = QProjector<double, 3>(orbitals);
 }
 // TODO: Need to add functionality for spin restricted
-Tensor<double>
-GroundStateData::tryLoadHamiltonianFromJson(World &world, const json &fock_json,
-                                            double thresh, int k) {
+Tensor<double> GroundStateData::tryLoadHamiltonianFromJson(World &world, const json &fock_json, double thresh, int k) {
   std::pair<Tensor<double>, Tensor<double>> fock_data;
-  auto protocol = std::string("thresh: ") + std::to_string(thresh) +
-                  std::string(" k: ") + std::to_string(k);
+  auto protocol = std::string("thresh: ") + std::to_string(thresh) + std::string(" k: ") + std::to_string(k);
   // Check if the protocol exists in the JSON
   if (fock_json.find(protocol) == fock_json.end()) {
     std::cerr << "Protocol not found in JSON: " << protocol << std::endl;
@@ -151,8 +155,7 @@ GroundStateData::tryLoadHamiltonianFromJson(World &world, const json &fock_json,
 
 // TODO: Need to add functionality for spin restricted
 // TODO: use fock_a and fock_b
-void GroundStateData::computePreliminaries(World &world,
-                                           const operatorT &coulop, double vtol,
+void GroundStateData::computePreliminaries(World &world, const operatorT &coulop, double vtol,
                                            const std::string &fock_json_file) {
 
   auto thresh = FunctionDefaults<3>::get_thresh();
@@ -188,8 +191,7 @@ void GroundStateData::computePreliminaries(World &world,
 
   if (!loaded_from_file) {
     auto T = computeKineticEnergy(world);
-    vector_real_function_3d V_hf_phi =
-        zero_functions<double, 3>(world, orbitals.size());
+    vector_real_function_3d V_hf_phi = zero_functions<double, 3>(world, orbitals.size());
     if (xcf_.hf_exchange_coefficient() > 0.0) {
       V_hf_phi = computeHFExchangeEnergy(world);
     }
@@ -222,23 +224,19 @@ real_function_3d GroundStateData::computeNuclearPotential(double vtol) const {
   return v_nuc;
 }
 
-[[nodiscard]] real_function_3d
-GroundStateData::computeCoulombPotential(const operatorT &coulop,
-                                         double vtol) const {
+[[nodiscard]] real_function_3d GroundStateData::computeCoulombPotential(const operatorT &coulop, double vtol) const {
   auto v_coul = 2.0 * apply(coulop, density_, true);
   v_coul.truncate(vtol);
   return v_coul;
 }
 
 real_function_3d GroundStateData::computeXCPotential(World &world) const {
-  XCOperator<double, 3> xc_operator{world, xc, spinrestricted, density_,
-                                    density_};
+  XCOperator<double, 3> xc_operator{world, xc, spinrestricted, density_, density_};
   auto v_xc = xc_operator.make_xc_potential();
   return v_xc;
 }
 
-vector_real_function_3d
-GroundStateData::computeHFExchangeEnergy(World &world) const {
+vector_real_function_3d GroundStateData::computeHFExchangeEnergy(World &world) const {
   const double lo = 1.e-10;
   Exchange<double, 3> k{world, lo};
 
@@ -269,9 +267,7 @@ Tensor<double> GroundStateData::computeKineticEnergy(World &world) const {
   compress(world, phi, true);
   world.gop.fence();
 
-  Tensor<double> T =
-      0.5 * (matrix_inner(world, fx, fx) + matrix_inner(world, fy, fy) +
-             matrix_inner(world, fz, fz));
+  Tensor<double> T = 0.5 * (matrix_inner(world, fx, fx) + matrix_inner(world, fy, fy) + matrix_inner(world, fz, fz));
 
   phi.clear();
   fx.clear();
