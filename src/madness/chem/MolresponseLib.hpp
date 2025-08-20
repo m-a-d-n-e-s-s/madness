@@ -64,7 +64,7 @@ struct molresponse_lib {
    * @param outdir     Directory where all outputs will be written
    * @return Results   Structured JSON fragments: metadata + properties
    */
-  inline static Results run_response(World &world, const Params &params, const std::filesystem::path &indir,
+  inline static Results run_response(World &world, const Params &params, const std::shared_ptr<SCF> scf_calc,
                                      const std::filesystem::path &outdir) {
     // --- configure the ground-state archive location ---
     auto rp = params.get<ResponseParameters>();
@@ -87,7 +87,7 @@ struct molresponse_lib {
 
     auto response_params = ResponseParameters(world, parser);
     rp = response_params;
-
+    auto indir = scf_calc->work_dir;
     auto rel = std::filesystem::relative(indir, outdir);
     auto prox = std::filesystem::proximate(indir, outdir);
     auto prefix = std::filesystem::path(indir).stem().string();
@@ -103,7 +103,11 @@ struct molresponse_lib {
     std::string fock_json_file = prox / "moldft.fock.json";
     auto relative_archive = prox / archive_name;
 
-    // initialize ground-state data and response manager
+    // // initialize ground-state data and response manager
+    // if (scf_calc){
+    //   ground = GroundStateData(world, scf_calc);
+    // }else{
+
     GroundStateData ground(world, relative_archive.string(), molecule);
     ResponseManager rm(world, gp);
 

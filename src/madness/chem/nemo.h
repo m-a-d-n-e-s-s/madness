@@ -363,6 +363,7 @@ public:
 
 
 public:
+	std::filesystem::path work_dir;
 
 	/// ctor
 

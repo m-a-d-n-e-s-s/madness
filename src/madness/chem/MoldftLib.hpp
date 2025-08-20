@@ -14,21 +14,23 @@
 struct moldft_lib {
   static constexpr char const *label() { return "moldft"; }
 
-  using Engine = SCF;
+  using Calc = SCF;
 
   // expose the live engine
-  std::shared_ptr<Engine> engine(World &world, const Params &params) {
+  std::shared_ptr<Calc> calc(World &world, const Params &params) {
     if (!calc_)
       initialize_(world, params); // create once
     return calc_;
   }
 
+  void print_parameters() const { calc_->print_parameters(); }
   // params get's changed by SCF constructor
   inline nlohmann::json run(World &world, const Params &params) {
     const auto moldft_params = params.get<CalculationParameters>();
     const auto &molecule = params.get<Molecule>();
 
-    auto scf = engine(world, params);
+    auto scf = calc(world, params);
+    scf->work_dir = std::filesystem::current_path();
 
     // redirect any log files into outdir if needed…
     // Warm and fuzzy for the user
@@ -37,9 +39,9 @@ struct moldft_lib {
       print(" MADNESS Hartree-Fock and Density Functional Theory Program");
       print(" ----------------------------------------------------------\n");
       print("\n");
-      scf->molecule.print();
+      //   scf->molecule.print();
       print("\n");
-      scf->param.print("dft");
+      //    scf->param.print("dft");
     }
     // Come up with an initial OK data map
     if (world.size() > 1) {
@@ -120,22 +122,25 @@ private:
     calc_ = std::make_shared<SCF>(world, parser);
   }
 
-  std::shared_ptr<Engine> calc_;
+  std::shared_ptr<Calc> calc_;
 }; // namespace moldft_lib
 
 struct nemo_lib {
-  using Engine = Nemo;
+  using Calc = Nemo;
   static constexpr char const *label() { return "nemo"; }
 
-  std::shared_ptr<Engine> engine(World &world, const Params &params) {
+  std::shared_ptr<Calc> calc(World &world, const Params &params) {
     if (!nemo_)
       initialize_(world, params);
     return nemo_;
   }
 
+  void print_parameters() const { nemo_->print_parameters(); }
+
   nlohmann::json run(World &world, const Params &params) {
 
-    auto nm = engine(world, params);
+    auto nm = calc(world, params);
+    nm->get_calc()->work_dir = std::filesystem::current_path();
 
     nm->value();
     PropertyResults pr = nm->analyze();
@@ -161,5 +166,5 @@ private:
                                    params.get<Nemo::NemoCalculationParameters>(), params.get<Molecule>());
   }
 
-  std::shared_ptr<Engine> nemo_;
+  std::shared_ptr<Calc> nemo_;
 };

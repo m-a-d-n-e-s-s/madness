@@ -190,6 +190,7 @@ public:
 
 class SCF {
 public:
+    std::filesystem::path work_dir;
     std::shared_ptr<PotentialManager> potentialmanager;
     std::shared_ptr<GTHPseudopotential<double> > gthpseudopotential;
     Molecule molecule;
@@ -228,7 +229,9 @@ public:
 
     /// forwarding constructor
     SCF(World& world, const commandlineparser& parser)
-        : SCF(world, CalculationParameters(world, parser), Molecule(world, parser)) {}
+        : SCF(world, CalculationParameters(world, parser), Molecule(world, parser)) {
+            work_dir = std::filesystem::current_path();
+        }
 
     /// collective constructor for SCF uses contents of file \c filename and broadcasts to all nodes
     SCF(World& world, const CalculationParameters& param, const Molecule& molecule);
