@@ -30,7 +30,6 @@ struct moldft_lib {
     const auto &molecule = params.get<Molecule>();
 
     auto scf = calc(world, params);
-    scf->work_dir = std::filesystem::current_path();
 
     // redirect any log files into outdir if needed…
     // Warm and fuzzy for the user
