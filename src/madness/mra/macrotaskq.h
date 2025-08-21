@@ -297,8 +297,27 @@ struct MacroTaskInfo {
 		}
 	}
 
+	static MacroTaskInfo::StoragePolicy get_default() {
+		return default_storage_policy;
+	}
+
+	static void set_default(MacroTaskInfo::StoragePolicy sp) {
+		default_storage_policy = sp;
+	}
+
+	static StoragePolicy default_storage_policy;
 
 };
+
+// Outside the class definition, in the same header or in the corresponding .cpp file
+MacroTaskInfo::StoragePolicy MacroTaskInfo::default_storage_policy = MacroTaskInfo::StoreFunctionViaPointer;
+
+std::ostream& operator<<(std::ostream& os, const MacroTaskInfo::StoragePolicy sp) {
+	if (sp==MacroTaskInfo::StoreFunction) os << "StoreFunction";
+	if (sp==MacroTaskInfo::StorePointerToFunction) os << "StorePointerToFunction";
+	if (sp==MacroTaskInfo::StoreFunctionViaPointer) os << "StoreFunctionViaPointer";
+	return os;
+}
 
 /// base class
 class MacroTaskBase {
@@ -393,6 +412,10 @@ public:
 	World& get_subworld() {return *subworld_ptr;}
 	long get_nsubworld() const {return nsubworld;}
 	void set_printlevel(const long p) {printlevel=p;}
+
+	MacroTaskInfo::StoragePolicy get_storage_policy() const {
+		return storage_policy;
+	}
 
     /// create an empty taskq and initialize the subworlds
 	MacroTaskQ(World& universe, int nworld, const MacroTaskInfo::StoragePolicy sp, const long printlevel=0)
@@ -608,6 +631,7 @@ class MacroTask {
     typedef Cloud::recordlistT recordlistT;
     taskT task;
     bool debug=false;
+	bool immediate_execution=false;
 
 	/// RAII class to redirect cout to a file
 	struct io_redirect {
@@ -636,14 +660,24 @@ class MacroTask {
 
 public:
 
-    /// constructor takes the actual task
-    MacroTask(World &world, taskT &task, std::shared_ptr<MacroTaskQ> taskq_ptr = 0)
-            : task(task), world(world), taskq_ptr(taskq_ptr) {
-        if (taskq_ptr) {
-            // for the time being this condition must hold because tasks are
-            // constructed as replicated objects and are not broadcast to other processes
-            MADNESS_CHECK(world.id()==taskq_ptr->get_world().id());
-        }
+    /// constructor takes the task, but no arguments to the task
+    explicit MacroTask(World &world, taskT &task)
+            : MacroTask(world,task, std::make_shared<MacroTaskQ>(world, world.size(), MacroTaskInfo::get_default())) {
+    	immediate_execution=true;
+    }
+
+	/// constructor takes task and the storage policy, but no arguments to the task
+	explicit MacroTask(World &world, taskT& task, MacroTaskInfo::StoragePolicy storage_policy)
+        : MacroTask(world,task, std::make_shared<MacroTaskQ>(world, world.size(), storage_policy)) {
+    	immediate_execution=true;
+    }
+
+	/// constructor takes the task,
+	explicit MacroTask(World &world, taskT &task, std::shared_ptr<MacroTaskQ> taskq_ptr)
+			: task(task), world(world), taskq_ptr(taskq_ptr) {
+    	immediate_execution=false;	// will be reset by the forwarding constructors
+    	if (debug) taskq_ptr->set_printlevel(20);
+    	this->taskq_ptr->cloud.set_storing_policy(MacroTaskInfo::to_cloud_storage_policy(taskq_ptr->get_storage_policy())); // how to store madness functions: deep or shallow
     }
 
     MacroTask& set_debug(const bool value) {
@@ -658,11 +692,6 @@ public:
     template<typename ... Ts>
     resultT operator()(const Ts &... args) {
 
-        const bool immediate_execution = (not taskq_ptr);
-    	MacroTaskInfo::StoragePolicy sp=MacroTaskInfo::StoreFunction;
-        if (not taskq_ptr) taskq_ptr.reset(new MacroTaskQ(world, world.size(), sp));
-        if (debug) taskq_ptr->set_printlevel(20);
-
         auto argtuple = std::tie(args...);
         static_assert(std::is_same<decltype(argtuple), argtupleT>::value, "type or number of arguments incorrect");
 
@@ -672,8 +701,10 @@ public:
         partitioner->set_nsubworld(world.size());
         partitionT partition = partitioner->partition_tasks(argtuple);
 
-        // store input and output: output being a pointer to a universe function (vector)
-    	taskq_ptr->cloud.set_storing_policy(MacroTaskInfo::to_cloud_storage_policy(sp)); // how to store madness functions: deep or shallow
+    	if (debug and world.rank()==0) {
+    		print("MacroTask storage policy: ",taskq_ptr->get_storage_policy());
+    		print("Cloud storage policy:     ",taskq_ptr->cloud.get_storing_policy());
+    	}
 
         recordlistT inputrecords = taskq_ptr->cloud.store(world, argtuple);
         resultT result = task.allocator(world, argtuple);
@@ -863,7 +894,7 @@ private:
     	/// called by the MacroTaskQ when the task is scheduled
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug,
         	const MacroTaskInfo::StoragePolicy storage_policy) override {
-        	io_redirect io(element,get_name()+"_task",debug);
+        	// io_redirect io(element,get_name()+"_task",debug);
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             argtupleT batched_argtuple = task.batch.copy_input_batch(argtuple);
 

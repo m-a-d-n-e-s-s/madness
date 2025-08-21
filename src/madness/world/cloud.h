@@ -595,7 +595,6 @@ private:
             madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
             if (storage_policy==StoreFunctionPointer) {
                 if constexpr (is_madness_function<T>::value) {
-                    print("storing function pointer");
                     // store the pointer to the function, not the function itself
                     par & source.get_impl().get();
                 } else {
