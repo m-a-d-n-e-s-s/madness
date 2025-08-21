@@ -557,7 +557,7 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
         timer t(world,get_calc_param().print_level()>2);
         real_function_3d vcoul;
         int ispin = 0;
-        auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
+        auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size(),MacroTaskInfo::get_default()));
         Coulomb<double, 3> J = Coulomb<double, 3>(world, this).set_taskq(taskq);
         {
             t.tag("initialize Coulomb operator");

@@ -305,14 +305,15 @@ struct MacroTaskInfo {
 		default_storage_policy = sp;
 	}
 
-	static StoragePolicy default_storage_policy;
+	/// declaration here, definition in mra1.cc
+	static MacroTaskInfo::StoragePolicy default_storage_policy;
 
 };
 
-// Outside the class definition, in the same header or in the corresponding .cpp file
-MacroTaskInfo::StoragePolicy MacroTaskInfo::default_storage_policy = MacroTaskInfo::StoreFunctionViaPointer;
 
-std::ostream& operator<<(std::ostream& os, const MacroTaskInfo::StoragePolicy sp) {
+
+template<typename T=double>
+std::ostream& operator<<(std::ostream& os, const typename MacroTaskInfo::StoragePolicy sp) {
 	if (sp==MacroTaskInfo::StoreFunction) os << "StoreFunction";
 	if (sp==MacroTaskInfo::StorePointerToFunction) os << "StorePointerToFunction";
 	if (sp==MacroTaskInfo::StoreFunctionViaPointer) os << "StoreFunctionViaPointer";
