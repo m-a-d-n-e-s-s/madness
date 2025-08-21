@@ -30,95 +30,7 @@ public:
   // optional hook to return a JSON fragment of this app's main results
   [[nodiscard]] virtual nlohmann::json results() const = 0;
 
-  // // get the parameters used for this application
-  // [[nodiscard]] virtual const QCCalculationParametersBase &get_parameters() const = 0;
-
   virtual void print_parameters(World &world) const = 0;
-
-  // // get the working directory for this application
-  // [[nodiscard]] path get_workdir() const { return workdir_; }
-
-  // /// check if this calculation has a json with results
-  // [[nodiscard]] virtual bool has_results(std::string filename) const {
-  //   // check if the results file exists
-  //   // return std::filesystem::exists(workdir_ / filename);
-  //   return std::filesystem::exists(filename);
-  // }
-
-  // [[nodiscard]] virtual bool verify_results(const nlohmann::json &j) const {
-  //   // check if some key parameters of the calculation match:
-  //   // molecule, box size, nmo_alpha, nmo_beta
-  //   Molecule mol1 = params_.get<Molecule>();
-  //   Molecule mol2;
-  //   mol2.from_json(j["molecule"]);
-  //   if (not(mol1 == mol2)) {
-  //     print("molecule mismatch");
-  //     mol1.print();
-  //     mol2.print();
-  //     return false;
-  //   }
-  //   return true;
-  // }
-
-  // /// read the results from a json file
-  // [[nodiscard]] virtual nlohmann::json read_results(std::string filename) const {
-  //   if (has_results(filename)) {
-  //     std::cout << "Found checkpoint file: " << filename << std::endl;
-  //     // std::ifstream ifs(workdir_ / filename);
-  //     std::ifstream ifs(filename);
-  //     nlohmann::json j;
-  //     ifs >> j;
-  //     ifs.close();
-  //     if (not verify_results(j)) {
-  //       std::string msg = "Results file " + filename + " does not match the parameters of the calculation";
-  //       print(msg);
-  //       return nlohmann::json(); // return empty json
-  //     }
-  //     return j;
-  //   } else {
-  //     std::string msg = "Results file " + filename + " does not exist in " + workdir_.string();
-  //     MADNESS_EXCEPTION(msg.c_str(), 1);
-  //   }
-  //   return nlohmann::json();
-  // }
-
-  // /// check if the wavefunctions are already computed
-  // [[nodiscard]] virtual bool has_wavefunctions(std::string filename) const {
-  //   return std::filesystem::exists(workdir_ / filename);
-  // }
-
-  // /// read the wavefunctions from a file
-  // [[nodiscard]] virtual std::vector<double> read_wavefunctions(std::string filename) const {
-  //   if (has_wavefunctions(filename)) {
-  //     std::ifstream ifs(workdir_ / filename);
-  //     std::vector<double> wfs;
-  //     double value;
-  //     while (ifs >> value) {
-  //       wfs.push_back(value);
-  //     }
-  //     ifs.close();
-  //     return wfs;
-  //   } else {
-  //     std::string msg = "Wavefunction file " + filename + " does not exist in " + workdir_.string();
-  //     MADNESS_EXCEPTION(msg.c_str(), 1);
-  //   }
-  //   return {};
-  // }
-
-  // /// check if this calculation needs to be redone
-  // [[nodiscard]] virtual bool needs_redo() const {
-  //   // read json and check if the results are already there
-  //   if (std::filesystem::exists(workdir_ / "results.json")) {
-  //     std::ifstream ifs(workdir_ / "results.json");
-  //     nlohmann::json j;
-  //     ifs >> j;
-  //     ifs.close();
-  //     // check if the results are already there
-  //     return !j.contains("energy") || !j["energy"].is_number();
-  //   }
-  //   // by default, we assume that the calculation needs to be redone
-  //   return true;
-  // }
 
 protected:
   const Params params_;
@@ -133,6 +45,7 @@ public:
 
   // Give downstream steps the live calc
   std::shared_ptr<Calc> calc() { return lib_.calc(world_, params_); }
+  void set_calc_workdir(const std::filesystem::path &workdir) { calc()->work_dir = workdir; }
 
   // print parameters
   void print_parameters(World &world) const override {
@@ -142,6 +55,7 @@ public:
     lib_.print_parameters();
   }
 
+  // sets the calc working directory and runs the calculation
   void run(const std::filesystem::path &workdir) override {
     // 1) set up a namedspaced directory for this run
     std::string label = Library::label();
@@ -159,7 +73,8 @@ public:
       }
 
       // we could dump params_ to JSON and pass as argv if desired…
-      MetaDataResults metadata(world_);
+      metadata_(world_);
+      set_calc_workdir(pm.dir());
       results_ = lib_.run(world_, params_);
 
       // } else if constexpr (std::is_same_v<ScfT, Nemo>) {
