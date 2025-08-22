@@ -7305,10 +7305,13 @@ template<size_t NDIM>
                     MADNESS_ASSERT(world);
                     auto ptr_opt = world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id);
                     if (!ptr_opt)
-                      MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
+                        MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
                     ptr = static_cast< FunctionImpl<T,NDIM>*>(*ptr_opt);
-                    if (!ptr)
-                      MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use an unregistered object",0);
+                    if (!ptr) {
+                        auto ids=world->get_object_ids();
+                        print(world->get_world_ids());
+                        MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use an unregistered object",0);
+                    }
                 } else {
                     ptr=nullptr;
                 }

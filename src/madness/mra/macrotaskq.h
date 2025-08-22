@@ -910,12 +910,13 @@ private:
     			auto copi = [&](auto& arg) {
     				typedef std::decay_t<decltype(arg)> argT;
     				if constexpr (is_madness_function<argT>::value) {
-    					argT f=copy(subworld, arg);
-    					std::swap(arg,f);
+    					arg=copy(subworld, arg);
+    					// std::swap(arg,f);
     				} else if constexpr (is_madness_function_vector<argT>::value) {
     					for (auto& f : arg) {
-    						typename argT::value_type f1=copy(subworld, f);
-    						std::swap(f,f1);
+    						f=copy(subworld,f);
+    						// typename argT::value_type f1=copy(subworld, f);
+    						// std::swap(f,f1);
     					}
     				}
     			};

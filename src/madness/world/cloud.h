@@ -596,7 +596,8 @@ private:
             if (storage_policy==StoreFunctionPointer) {
                 if constexpr (is_madness_function<T>::value) {
                     // store the pointer to the function, not the function itself
-                    par & source.get_impl().get();
+                    print("Function id",source.get_impl()->id(),"is stored as a pointer");
+                    par & source.get_impl();
                 } else {
                     // store everything else
                     par & source;
@@ -660,9 +661,9 @@ public:
             par & target;
         }
 
+        cache(world, target, record);
         if (is_replicated) container.erase(record);
 
-        cache(world, target, record);
         return target;
     }
 
