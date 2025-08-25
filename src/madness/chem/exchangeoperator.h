@@ -321,6 +321,7 @@ private:
         MacroTaskExchangeRow(const long nresult, const double lo, const double mul_tol)
                 : nresult(nresult), lo(lo), mul_tol(mul_tol) {
             partitioner.reset(new MacroTaskPartitionerRow());
+            name="MacroTaskExchangeRow";
         }
 
         // you need to define the exact argument(s) of operator() as tuple
@@ -351,7 +352,10 @@ private:
             vecfuncT psif = zero_functions_compressed<T,NDIM>(world, mo_bra.size()); 
             auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(world, lo);
 
-            auto& i = batch.input[0].begin;  
+            // !! NO !! vket is batched, starts at batch.input[0].begin
+            // auto& i = batch.input[0].begin;
+            long i=0;
+            MADNESS_CHECK_THROW(vket.size()==1,"out-of-bounds error in Exchange::MacroTaskExchangeRow::operator()");
             size_t min_tile = 10;
             size_t ntile = std::min(mo_bra.size(), min_tile);
 

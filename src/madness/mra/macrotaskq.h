@@ -454,8 +454,10 @@ public:
 
 		if (printdebug()) print_taskq();
 		if (printtimings()) {
-			print("number of tasks in taskq",taskq.size());
-			print("redirecting output to files task.#####");
+			if (universe.rank()==0) {
+				print("number of tasks in taskq",taskq.size());
+				print("redirecting output to files task.#####");
+			}
 		}
 
 		auto replication_policy = cloud.get_replication_policy();
@@ -633,30 +635,6 @@ class MacroTask {
     taskT task;
     bool debug=false;
 	bool immediate_execution=false;
-
-	/// RAII class to redirect cout to a file
-	struct io_redirect {
-		std::streambuf* stream_buffer_cout;
-		std::ofstream ofile;
-		bool debug=false;
-
-		io_redirect(const long task_number, std::string filename, bool debug=false) : debug(debug) {
-	                constexpr std::size_t bufsize=256;
-	                char cfilename[bufsize];
-			std::snprintf(cfilename,bufsize,"%s.%5.5ld",filename.c_str(),task_number);
-			ofile=std::ofstream(cfilename);
-			if (debug) std::cout << "redirecting to file " << cfilename << std::endl;
-			stream_buffer_cout = std::cout.rdbuf(ofile.rdbuf());
-			std::cout.sync_with_stdio(true);
-		}
-
-		~io_redirect() {
-			std::cout.rdbuf(stream_buffer_cout);
-			ofile.close();
-			std::cout.sync_with_stdio(true);
-			if (debug) std::cout << "redirecting back to cout" << std::endl;
-		}
-	};
 
 
 public:
@@ -895,7 +873,7 @@ private:
     	/// called by the MacroTaskQ when the task is scheduled
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug,
         	const MacroTaskInfo::StoragePolicy storage_policy) override {
-        	// io_redirect io(element,get_name()+"_task",debug);
+        	io_redirect io(element,get_name()+"_task",debug);
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             argtupleT batched_argtuple = task.batch.copy_input_batch(argtuple);
 
@@ -911,19 +889,18 @@ private:
     				typedef std::decay_t<decltype(arg)> argT;
     				if constexpr (is_madness_function<argT>::value) {
     					arg=copy(subworld, arg);
-    					// std::swap(arg,f);
     				} else if constexpr (is_madness_function_vector<argT>::value) {
-    					for (auto& f : arg) {
-    						f=copy(subworld,f);
-    						// typename argT::value_type f1=copy(subworld, f);
-    						// std::swap(f,f1);
-    					}
+    					for (auto& f : arg) f=copy(subworld,f);
     				}
     			};
 
     			unary_tuple_loop(batched_argtuple,copi);
     			double cpu1=wall_time();
-    			if (debug) print("copied coefficients for task",get_name(),"in",cpu1-cpu0,"seconds");
+    			// if (debug)
+    			{
+    				io_redirect_cout io2;
+    				print("copied coefficients for task",get_name(),"in",cpu1-cpu0,"seconds");
+    			}
     		}
 
     		try {

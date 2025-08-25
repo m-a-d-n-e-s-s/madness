@@ -596,7 +596,6 @@ private:
             if (storage_policy==StoreFunctionPointer) {
                 if constexpr (is_madness_function<T>::value) {
                     // store the pointer to the function, not the function itself
-                    print("Function id",source.get_impl()->id(),"is stored as a pointer");
                     par & source.get_impl();
                 } else {
                     // store everything else
@@ -648,10 +647,21 @@ public:
                 // load the pointer to the function, not the function itself
                 // this is important for large functions, as they are not replicated
                 // and only copied to subworlds when needed
-                typedef madness::FunctionImpl<typename T::typeT, T::dimT> implT;
-                std::shared_ptr<implT> impl;
-                par & impl;
-                target.set_impl(impl); // target now points to a universe function impl
+                try {
+                    typedef madness::FunctionImpl<typename T::typeT, T::dimT> implT;
+                    std::shared_ptr<implT> impl;
+                    par & impl;
+                    target.set_impl(impl); // target now points to a universe function impl
+                } catch (...) {
+                    {
+                        io_redirect_cout redirect;
+                        print("failed to load function pointer from cloud, maybe the target is out of scope?");
+                        print("record:", record, "world:", world.id());
+                        print("function type:", type_name<T>::value());
+                        print("\n");
+                    }
+                    MADNESS_EXCEPTION("load/store error of pointers in cloud", 1);
+                }
             } else {
                 // load everything else
                 par & target;
