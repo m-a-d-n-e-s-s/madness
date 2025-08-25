@@ -11,10 +11,84 @@
 
 #endif
 
+inline NextAction decide_next_action(bool at_protocol, bool archive_needed, bool archive_exists,
+                                     bool all_properties_computed, bool restart_exists) {
+  // We must recompute if any of these are true:
+  const bool must_redo = !at_protocol                           // not at final protocol
+                         || (archive_needed && !archive_exists) // user wants archive but it's missing
+                         || !all_properties_computed;           // a requested prop is missing
+
+  if (!must_redo) {
+    // We’re at final protocol, have all requested props, and either
+    // the archive is present or not required.
+    // If the archive isn't there but also not required, it's just a reload.
+    if (!archive_exists && !archive_needed)
+      return NextAction::ReloadOnly;
+    return NextAction::Ok;
+  }
+
+  // We need work; decide between Restart vs Redo:
+  return restart_exists ? NextAction::Restart : NextAction::Redo;
+}
+
+template <typename SCFParams> NextAction valid(const SCFResultsTuple &results, const SCFParams &params) {
+  // Take a copy of the parameters
+  SCFParams scf_params = params;
+  auto [sr, pr, cr] = results;
+
+  // Required convergence for "final" protocol
+  const auto vthresh = scf_params.econv();
+  const auto vdconv = scf_params.dconv();
+  const bool archive_needed = scf_params.save();
+
+  // Requested outputs
+  const bool need_energy = true;
+  const bool need_dipole = scf_params.dipole();
+  const bool need_gradient = scf_params.derivatives();
+
+  // Files/paths
+  const std::string archivename = scf_params.prefix();
+  const auto restart_path = std::filesystem::path(archivename).replace_extension("restartdata.00000");
+  const bool archive_exists = std::filesystem::exists(restart_path);
+
+  // State in results
+  // TODO: It's hard to be certain what converged_for_thresh means.  I thought it was the final protocol.  Turns out
+  // it's actaully set in SCF.cc as param.econv(), which says nothing about the threshold refinement.
+  // 
+  const bool at_protocol = (cr.converged_for_thresh == vthresh && cr.converged_for_dconv == vdconv);
+
+  const auto pjson = pr.to_json();
+  const bool energy_ok = pjson.contains("energy");
+  const bool dipole_ok = pjson.contains("dipole");
+  const bool gradient_ok = pjson.contains("gradient");
+
+  // Only require props the user asked for
+  const bool all_properties_computed =
+      (need_energy ? energy_ok : true) && (need_dipole ? dipole_ok : true) && (need_gradient ? gradient_ok : true);
+
+  // Decide action
+  const bool must_redo = !at_protocol || (archive_needed && !archive_exists) || !all_properties_computed;
+
+  // if we don't need to redo, we can either reload or return ok
+  if (!must_redo)
+    return (!archive_exists && !archive_needed) ? NextAction::ReloadOnly : NextAction::Ok;
+  // with we need to redo we can restart from the exisiting archive
+  return archive_exists ? NextAction::Restart : NextAction::Redo;
+}
+
 struct moldft_lib {
   static constexpr char const *label() { return "moldft"; }
+  NextAction next_action_ = NextAction::Ok;
+
+  vector<double> protocol;
 
   using Calc = SCF;
+
+  NextAction valid(const SCFResultsTuple &results, const Params &params) {
+    // Take a copy of the parameters
+
+    return ::valid(results, params.get<CalculationParameters>());
+  }
 
   // expose the live engine
   std::shared_ptr<Calc> calc(World &world, const Params &params) {
@@ -25,9 +99,33 @@ struct moldft_lib {
 
   void print_parameters() const { calc_->print_parameters(); }
   // params get's changed by SCF constructor
-  inline nlohmann::json run(World &world, const Params &params) {
-    const auto moldft_params = params.get<CalculationParameters>();
+  SCFResultsTuple run(World &world, const Params &params, const bool restart = false,
+                      SCFResultsTuple scf_results = {}) {
+    auto moldft_params = params.get<CalculationParameters>();
     const auto &molecule = params.get<Molecule>();
+
+    if (restart) {
+      // Handle restart logic
+      auto cr = std::get<2>(scf_results);
+      moldft_params.set_user_defined_value("restart", true);
+
+      // figure out the protocol based on scf_results
+      const auto last_protocol = cr.converged_for_thresh;
+
+      auto protocol = moldft_params.protocol();
+      // figure out which protocol we are at
+      int protocol_index = -1;
+      for (size_t i = 0; i < protocol.size(); ++i) {
+        if (protocol[i] == last_protocol) {
+          // Found the protocol
+          protocol_index = i;
+          break;
+        }
+      }
+      // set protocol to start the converged result
+      protocol.erase(protocol.begin() + protocol_index);
+      moldft_params.set_user_defined_value("protocol", protocol);
+    }
 
     auto scf = calc(world, params);
 
@@ -87,9 +185,7 @@ struct moldft_lib {
     sr.beps = scf->beps;
     sr.properties = pr;
 
-    nlohmann::json results = sr.to_json();
-    results["convergence_info"] = cr.to_json();
-    return results;
+    return {sr, pr, cr};
   }
 
 private:
@@ -122,6 +218,7 @@ private:
   }
 
   std::shared_ptr<Calc> calc_;
+
 }; // namespace moldft_lib
 
 struct nemo_lib {
@@ -133,10 +230,15 @@ struct nemo_lib {
       initialize_(world, params);
     return nemo_;
   }
+  NextAction valid(const SCFResultsTuple &results, const Params &params) {
+    // Take a copy of the parameters
+    return ::valid(results, params.get<CalculationParameters>());
+  }
 
   void print_parameters() const { nemo_->print_parameters(); }
 
-  nlohmann::json run(World &world, const Params &params) {
+  SCFResultsTuple run(World &world, const Params &params, const bool restart = false,
+                      SCFResultsTuple scf_results = {}) {
 
     auto nm = calc(world, params);
     nm->get_calc()->work_dir = std::filesystem::current_path();
@@ -154,9 +256,7 @@ struct nemo_lib {
     sr.properties = pr;
     sr.scf_total_energy = nm->get_calc()->current_energy;
 
-    nlohmann::json results = sr.to_json();
-    results["convergence_info"] = cr.to_json();
-    return results;
+    return {sr, pr, cr};
   }
 
 private:
