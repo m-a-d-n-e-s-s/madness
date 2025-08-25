@@ -315,12 +315,17 @@ public:
     }
 
     void print_timings(World &universe) const {
-        double rtime = double(reading_time);
+        double rtime_max = double(reading_time);
+        double rtime_acc = double(reading_time);
+        double rtime_av = double(reading_time);
         double wtime = double(writing_time);
         double ptime = double(replication_time);
-        universe.gop.sum(rtime);
-        universe.gop.sum(wtime);
-        universe.gop.sum(ptime);
+        universe.gop.max(rtime_max);
+        universe.gop.sum(rtime_acc);
+        rtime_av = rtime_acc/universe.size();
+        universe.gop.max(wtime);
+        universe.gop.max(ptime);
+
         long creads = long(cache_reads);
         long cstores = long(cache_stores);
         universe.gop.sum(creads);
@@ -328,9 +333,11 @@ public:
         if (universe.rank() == 0) {
             auto precision = std::cout.precision();
             std::cout << std::fixed << std::setprecision(1);
-            print("cloud storing cpu time", wtime * 0.001);
-            print("cloud replication cpu time", ptime * 0.001);
-            print("cloud reading cpu time", rtime * 0.001, std::defaultfloat);
+            print("cloud storing wall time", wtime * 0.001);
+            print("cloud replication wall time", ptime * 0.001);
+            print("cloud max reading time (all procs)", rtime_max * 0.001, std::defaultfloat);
+            print("cloud average reading cpu time (all procs)", rtime_av * 0.001, std::defaultfloat);
+            print("cloud accumulated reading cpu time (all procs)", rtime_acc * 0.001, std::defaultfloat);
             std::cout << std::setprecision(precision) << std::scientific;
             print("cloud cache stores    ", long(cstores));
             print("cloud cache loads     ", long(creads));
