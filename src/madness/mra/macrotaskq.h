@@ -654,9 +654,17 @@ public:
 	/// constructor takes the task,
 	explicit MacroTask(World &world, taskT &task, std::shared_ptr<MacroTaskQ> taskq_ptr)
 			: task(task), world(world), taskq_ptr(taskq_ptr) {
+
+    	// someone might pass in a taskq nullptr
     	immediate_execution=false;	// will be reset by the forwarding constructors
-    	if (debug) taskq_ptr->set_printlevel(20);
-    	this->taskq_ptr->cloud.set_storing_policy(MacroTaskInfo::to_cloud_storage_policy(taskq_ptr->get_storage_policy())); // how to store madness functions: deep or shallow
+    	if (this->taskq_ptr==0) {
+    		this->taskq_ptr=std::make_shared<MacroTaskQ>(world, world.size(), MacroTaskInfo::get_default());
+    		immediate_execution=true;
+    	}
+
+    	if (debug) this->taskq_ptr->set_printlevel(20);
+    	this->taskq_ptr->cloud.set_storing_policy(MacroTaskInfo::to_cloud_storage_policy(this->taskq_ptr->get_storage_policy())); // how to store madness functions: deep or shallow
+
     }
 
     MacroTask& set_debug(const bool value) {
