@@ -189,6 +189,9 @@ int main(int argc, char **argv) {
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
 
       } else if (user_workflow == "response") {
+        // TODO: Idea, if we are doing a response workflow, we know we need to save the SCF restart file
+        pm.get<CalculationParameters>().set_derived_value("save", true);
+
         auto reference = std::shared_ptr<SCFApplication<moldft_lib>>(new SCFApplication<moldft_lib>(world, pm));
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(

@@ -5,6 +5,7 @@
 #include <madness/chem/InputWriter.hpp>
 #include <madness/chem/ParameterManager.hpp>
 #include <madness/chem/PathManager.hpp>
+#include <span>
 
 namespace madness {
 // Scoped CWD: changes the current directory to the given one, and restores when
@@ -18,7 +19,6 @@ struct ScopedCWD {
   ~ScopedCWD() { std::filesystem::current_path(old_cwd); }
 };
 
-/// common interface for any underlying MADNESS app
 class Application {
 public:
   explicit Application(const Params &p) : params_(p) {}
@@ -31,13 +31,56 @@ public:
   [[nodiscard]] virtual nlohmann::json results() const = 0;
 
   virtual void print_parameters(World &world) const = 0;
+  /// check if this calculation has a json with results
+  [[nodiscard]] virtual bool has_results(std::string filename) const {
+    // check if the results file exists
+    // return std::filesystem::exists(workdir_ / filename);
+    return std::filesystem::exists(filename);
+  }
+  [[nodiscard]] virtual bool verify_molecule(const nlohmann::json &j) const {
+    // check if some key parameters of the calculation match:
+    // molecule, box size, nmo_alpha, nmo_beta
+    Molecule mol1 = params_.get<Molecule>();
+    Molecule mol2;
+    mol2.from_json(j["molecule"]);
+    if (not(mol1 == mol2)) {
+      print("molecule mismatch");
+      mol1.print();
+      mol2.print();
+      return false;
+    }
+    return true;
+  }
+  /// read the results from a json file
+  [[nodiscard]] virtual nlohmann::json read_results(std::string filename) const {
+    if (has_results(filename)) {
+      std::cout << "Found checkpoint file: " << filename << std::endl;
+      // std::ifstream ifs(workdir_ / filename);
+      std::ifstream ifs(filename);
+      nlohmann::json j;
+      ifs >> j;
+      ifs.close();
+      if (not verify_molecule(j)) {
+        std::string msg = "Results file " + filename + " does not match the parameters of the calculation";
+        print(msg);
+        return nlohmann::json(); // return empty json
+      }
+      return j;
+    } else {
+      std::string msg = "Results file " + filename + " does not exist in " + std::filesystem::current_path().string();
+      MADNESS_EXCEPTION(msg.c_str(), 1);
+    }
+    return nlohmann::json();
+  }
 
 protected:
   const Params params_;
   nlohmann::json results_;
 };
+enum class NextAction { Ok, ReloadOnly, Restart, Redo };
 
 template <typename Library> class SCFApplication : public Application {
+private:
 public:
   using Calc = typename Library::Calc;
 
@@ -61,34 +104,63 @@ public:
     std::string label = Library::label();
     PathManager pm(workdir, label.c_str());
     pm.create();
-    if (world_.rank() == 0) {
-      print("Running SCF in " + pm.dir().string());
-    }
-
-    world_.gop.fence();
     {
+      world_.gop.fence();
       ScopedCWD scwd(pm.dir());
       if (world_.rank() == 0) {
         std::cout << "Running SCF in " << pm.dir() << std::endl;
       }
+      // 2) define the "checkpoint" file
+      auto ckpt = label + ".calc_info.json";
+      SCFResultsTuple empty_results;
+      nlohmann::json j;
+      if (has_results(ckpt)) {
+        j = read_results(ckpt); // which results are we readin
+        try {
+
+          auto &[scf_r, properties, convergence] = scf_results;
+          scf_r.from_json(j["scf"]);
+          properties.from_json(j["properties"]);
+          convergence.from_json(j["convergence"]);
+        } catch (...) {
+
+          print("Failed to parse checkpoint file: ", ckpt);
+          scf_results = empty_results;
+        }
+      }
+
+      if (world_.rank() == 0) {
+        print("Found checkpoint file: ", ckpt);
+        print("results: ", j.dump(4));
+      }
 
       // we could dump params_ to JSON and pass as argv if desired…
-      metadata_(world_);
+      // metadata_(world_);
       set_calc_workdir(pm.dir());
-      results_ = lib_.run(world_, params_);
 
-      // } else if constexpr (std::is_same_v<ScfT, Nemo>) {
-      //   results_ = Library::run_nemo(this->get_nemo());
-      // } else {
-      //   MADNESS_CHECK_THROW("unknown SCF type", 1);
-      // }
-      results_["metadata"] = metadata.to_json();
+      // Here we validate the results before running
 
-      // legacy
-      PropertyResults properties = results_["properties"];
-      energy_ = properties.energy;
-      dipole_ = properties.dipole;
-      gradient_ = properties.gradient;
+      auto action = lib_.valid(scf_results, params_);
+
+      if (action == madness::NextAction::Restart || action == madness::NextAction::Redo) {
+        scf_results = lib_.run(world_, params_, action == madness::NextAction::Restart);
+      }
+
+      // // Need work (Restart or Redo) — both call run()
+      // scf_results = lib_.run(world_, params_);
+
+      results_["scf"] = std::get<0>(scf_results).to_json();
+      results_["properties"] = std::get<1>(scf_results).to_json();
+      results_["convergence"] = std::get<2>(scf_results).to_json();
+      results_["molecule"] = params_.get<Molecule>().to_json();
+
+      // write the checkpoint file
+      if (world_.rank() == 0) {
+        std::ofstream ofs(ckpt);
+        ofs << results_.dump(4);
+        ofs.close();
+        print("Written checkpoint file: ", ckpt);
+      }
     }
   }
   // std::shared_ptr<SCFApplicationT> scf_app =
@@ -99,12 +171,7 @@ public:
 private:
   World &world_;
   Library lib_; // owns shared_ptr<Engine>
-
-  double energy_;
-
-  std::optional<Tensor<double>> dipole_;
-  std::optional<Tensor<double>> gradient_;
-  std::optional<real_function_3d> density_;
+  SCFResultsTuple scf_results;
 };
 
 /**
