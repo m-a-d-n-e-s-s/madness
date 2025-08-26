@@ -46,6 +46,7 @@ struct commandlineparser {
     /// set default values from the command line
     void set_defaults() {
         keyval["input"]="input";
+        keyval["prefix"]="mad";
 //        keyval["geometry"]="input_file";
     }
 
