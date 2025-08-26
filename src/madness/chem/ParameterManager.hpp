@@ -100,7 +100,7 @@ class ParameterManager {
     if (prefix != "input") {
       prefix_ = prefix;
     } else {
-      prefix_ = "mad";
+      prefix_ = parser_.value("prefix");
     }
 
     const path &filename = parser_.value("input");
