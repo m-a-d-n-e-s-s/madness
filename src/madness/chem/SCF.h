@@ -204,6 +204,8 @@ public:
     /// alpha and beta molecular orbitals
     vecfuncT amo, bmo;
 
+    real_function_3d sdens;
+
     /// sets of orbitals grouped by their orbital energies (for localization?)
     /// only orbitals within the same set will be mixed to localize
     std::vector<int> aset, bset;
@@ -336,6 +338,10 @@ public:
     void project(World& world);
 
     void make_nuclear_potential(World& world);
+
+    void make_smoothed_nuclear_potential(World& world);
+
+    void make_smoothed_nuclear_charge_density(World& world);
 
     vecfuncT project_ao_basis(World& world, const AtomicBasisSet& aobasis);
 
@@ -603,6 +609,8 @@ public:
 
                 calc.set_protocol<3>(world, calc.param.protocol()[proto]);
                 calc.make_nuclear_potential(world);
+                calc.make_smoothed_nuclear_charge_density(world);
+                calc.make_smoothed_nuclear_potential(world);
 
                 if (nv != nv_old) {
                     calc.amo.resize(calc.param.nmo_alpha());

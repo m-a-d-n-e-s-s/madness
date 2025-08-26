@@ -1015,6 +1015,51 @@ double Molecule::total_nuclear_charge() const {
     return sum;
 }
 
+double Molecule::smoothed_nuclear_charge_density(double x, double y,
+                                            double z) const {
+
+  for (unsigned int i = 0; i < atoms.size(); i++) {
+    double r = distance(x, y, z, atoms[i].x, atoms[i].y, atoms[i].z);
+    static const double a = 42.0;
+    static const double apithreehalf = std::pow(a/madness::constants::pi, 1.5);
+    if (r < 1.0) {
+      double rsq = r*r;
+      return atoms[i].atomic_number * apithreehalf * exp(-a*rsq);
+    }
+  }
+  return 0.0;
+}
+
+double Molecule::smoothed_nuclear_charge_potential(double x, double y,
+                                            double z) const {
+
+  double sum = 0.0;
+  for (unsigned int i = 0; i < atoms.size(); i++) {
+    double r = distance(x, y, z, atoms[i].x, atoms[i].y, atoms[i].z);
+    static const double a = 42.0;
+    static const double asqrt = std::sqrt(a);
+    if (r != 0.0) {
+      sum += atoms[i].atomic_number * erf(asqrt*r)/r;
+    } else if (r == 0.0) {
+      sum += atoms[i].atomic_number *2.0 * asqrt / std::sqrt(madness::constants::pi);
+    }
+  }
+  return sum;
+
+}
+
+double Molecule::nuclear_repulsion_correction() const {
+                                            
+  double correction = 0.0;                                          
+  static const double a = 42.0;
+  static const double atwopisqrt = std::sqrt(a/(2.0*madness::constants::pi));
+  for (unsigned int i = 0; i < atoms.size(); i++) {
+    correction += atoms[i].atomic_number * atoms[i].atomic_number;
+  }
+  return correction * atwopisqrt;
+
+}
+
 double Molecule::nuclear_attraction_potential(double x, double y, double z) const {
     // This is very inefficient since it scales as O(ngrid*natom)
     // ... we can easily make an O(natom) version using

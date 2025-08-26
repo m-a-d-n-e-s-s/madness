@@ -103,6 +103,34 @@ public:
     std::vector<coord_3d> special_points() const {return molecule.get_all_coords_vec();}
 };
 
+class SmoothedMolecularPotentialFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    const Molecule& molecule;
+public:
+    SmoothedMolecularPotentialFunctor(const Molecule& molecule)
+        : molecule(molecule) {}
+
+    double operator()(const coord_3d& x) const {
+        return molecule.smoothed_nuclear_charge_potential(x[0], x[1], x[2]);
+    }
+
+    std::vector<coord_3d> special_points() const {return molecule.get_all_coords_vec();}
+};
+
+class SmoothedNuclearChargeDensityFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    const Molecule& molecule;
+public:
+    SmoothedNuclearChargeDensityFunctor(const Molecule& molecule)
+        : molecule(molecule) {}
+
+    double operator()(const coord_3d& x) const {
+        return molecule.smoothed_nuclear_charge_density(x[0], x[1], x[2]);
+    }
+
+    std::vector<coord_3d> special_points() const {return molecule.get_all_coords_vec();}
+};
+
 /**
  * @class CoreOrbitalFunctor
  * @brief Functor for evaluating a core orbital of a specific atom in a molecule.
@@ -387,6 +415,8 @@ class PotentialManager {
 private:
 Molecule mol;
 real_function_3d vnuc;
+real_function_3d unuc;
+real_function_3d sdens;
 std::string core_type_;
 
 public:
@@ -403,6 +433,14 @@ public:
 
     const real_function_3d& vnuclear() {
         return vnuc;
+    }
+
+    const real_function_3d& unuclear() {
+        return unuc;
+    }
+
+    const real_function_3d& smooth_density() {
+        return sdens;
     }
 
     /**
@@ -529,6 +567,23 @@ public:
             vnuc += c_pot;
             vnuc.truncate();
         }
+    }
+
+    void make_smoothed_nuclear_potential(World& world) {
+        double safety = 0.1;
+        double utol = FunctionDefaults<3>::get_thresh() * safety;
+        unuc = real_factory_3d(world).functor(real_functor_3d(new SmoothedMolecularPotentialFunctor(mol))).thresh(utol).truncate_on_project();
+        unuc.set_thresh(FunctionDefaults<3>::get_thresh());
+        unuc.reconstruct();
+    }
+
+    void make_smoothed_nuclear_charge_density(World& world) {
+        double safety = 0.1;
+        double utol = FunctionDefaults<3>::get_thresh() * safety;
+        sdens = real_factory_3d(world).functor(real_functor_3d(new SmoothedNuclearChargeDensityFunctor(mol))).thresh(utol).truncate_on_project();
+        sdens.set_thresh(FunctionDefaults<3>::get_thresh());
+        sdens.reconstruct();
+        //if (world.rank() == 0) print("smooth density trace",sdens.trace());
     }
 };
 }

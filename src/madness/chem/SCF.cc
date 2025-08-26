@@ -587,6 +587,22 @@ void SCF::make_nuclear_potential(World& world) {
     END_TIMER(world, "Project vnuclear");
 }
 
+void SCF::make_smoothed_nuclear_potential(World& world) {
+    PROFILE_MEMBER_FUNC(SCF);
+    START_TIMER(world);
+    potentialmanager->make_smoothed_nuclear_potential(world);
+    potentialmanager->unuclear().print_size("unuc");
+    END_TIMER(world, "Project unuclear");
+}
+
+void SCF::make_smoothed_nuclear_charge_density(World& world) {
+    PROFILE_MEMBER_FUNC(SCF);
+    START_TIMER(world);
+    potentialmanager->make_smoothed_nuclear_charge_density(world);
+    potentialmanager->smooth_density().print_size("sdens");
+    END_TIMER(world, "Make sdens");
+}
+
 vecfuncT SCF::project_ao_basis(World& world, const AtomicBasisSet& aobasis) {
     PROFILE_MEMBER_FUNC(SCF);
     // Make at_to_bf, at_nbf ... map from atom to first bf on atom, and nbf/atom
@@ -2318,6 +2334,39 @@ void SCF::solve(World& world) {
         double enuclear = inner(rho, vnuc);
         END_TIMER(world, "Nuclear energy");
 
+        // compute Eapprox
+        START_TIMER(world);
+        functionT unuc = potentialmanager->unuclear();
+        functionT sdens = potentialmanager->smooth_density();
+        auto poisson = CoulombOperator(world, param.lo(),param.econv());
+        auto Gspe = poisson(sdens+rho);
+        
+        // compute approximate total energy from electronic density and smoothed nuclear charge density
+        double e_approx = 0.5 * inner(sdens+rho,Gspe);
+        // electron-nuclear attraction correction
+        double e_n_corr = inner(vnuc-unuc,rho);
+        // nuclear repulsion self-interaction correction
+        double nrep_corr = molecule.nuclear_repulsion_correction();
+
+        double e_total = e_approx + e_n_corr - nrep_corr;
+
+        // sanity check
+        double strace = sdens.trace();
+        double u_s = inner(sdens,unuc);
+        double s_s = inner(sdens,unuc);
+        END_TIMER(world, "E_approx");
+
+        if (world.rank() == 0 and (param.print_level() > 1)) {
+            //printf("\n             new E_coul %16.8f\n", e_total);
+            printf("\n                 e approx %16.8f\n", e_approx);
+            printf("    el-nuc rep correction %16.8f\n", e_n_corr);
+            printf("       nuc rep correction %16.8f\n", nrep_corr);
+            printf("\n               inner(u,s) %16.8f\n", u_s);
+            printf("               inner(s,s) %16.8f\n", s_s);
+            printf("                En-n (19) %16.8f\n", 0.5 * s_s - nrep_corr);
+            printf("                   strace %16.8f\n\n", strace);
+        }
+
         START_TIMER(world);
         functionT vcoul = apply(*coulop, rho);
         functionT vlocal;
@@ -2398,7 +2447,12 @@ void SCF::solve(World& world) {
             printf("                  PCM %16.8f\n", epcm);
             printf(" exchange-correlation %16.8f\n", exc);
             printf("    nuclear-repulsion %16.8f\n", enrep);
-            printf("                total %16.8f\n\n", etot);
+            printf("        total coulomb %16.8f\n", enrep+enuclear+ecoulomb);
+            printf("    new total coulomb %16.8f\n", e_total);
+            printf("       error(old-new) %16.8f\n", enrep+enuclear+ecoulomb-e_total);
+            printf("                total %16.8f\n", etot);
+            printf("            new total %16.8f\n", e_total+ekinetic+exc);
+            printf("       error(old-new) %16.8f\n\n", etot-(e_total+ekinetic+exc));
         }
         e_data.add_data({{"e_kinetic", ekinetic},
                          {"e_local",   enonlocal},

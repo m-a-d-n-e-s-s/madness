@@ -502,6 +502,12 @@ class Molecule {
   /// \sa smoothed_density()
   double nuclear_charge_density(double x, double y, double z, double rscale = 1.) const;
 
+  double smoothed_nuclear_charge_density(double x, double y, double z) const;
+
+  double smoothed_nuclear_charge_potential(double x, double y, double z) const;
+
+  double nuclear_repulsion_correction() const;
+
   double smallest_length_scale() const;
 
   std::string symmetrize_and_identify_point_group(const double symtol);
