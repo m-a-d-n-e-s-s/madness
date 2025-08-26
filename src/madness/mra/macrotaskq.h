@@ -43,6 +43,7 @@
 #include <madness/world/cloud.h>
 #include <madness/world/world.h>
 #include <madness/mra/macrotaskpartitioner.h>
+#include <madness/mra/memory_measurement.h>
 
 namespace madness {
 
@@ -522,6 +523,8 @@ public:
             printf("completed taskqueue after    %4.1fs at time %4.1fs\n", cpu11 - cpu00, wall_time());
             printf(" total cpu time / per world  %4.1fs %4.1fs\n", tasktime, tasktime / universe.size());
         }
+		if (universe.rank()==0) print("all tasks complete");
+		MemoryMeasurer::measure_and_print(universe);
 
 		// cleanup task-persistent input data
 		for (auto& task : taskq) task->cleanup();
