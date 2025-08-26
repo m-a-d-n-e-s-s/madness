@@ -2338,8 +2338,9 @@ void SCF::solve(World& world) {
         START_TIMER(world);
         functionT unuc = potentialmanager->unuclear();
         functionT sdens = potentialmanager->smooth_density();
-        auto poisson = CoulombOperator(world, param.lo(),param.econv());
-        auto Gspe = poisson(sdens+rho);
+        //auto poisson = CoulombOperator(world, param.lo(),param.econv());
+        //auto Gspe = poisson(sdens+rho);
+        auto Gspe = apply(*coulop,sdens+rho);
         
         // compute approximate total energy from electronic density and smoothed nuclear charge density
         double e_approx = 0.5 * inner(sdens+rho,Gspe);
