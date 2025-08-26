@@ -17,9 +17,9 @@ if __name__ == "__main__":
 
     # run test
     global_arguments=' --geometry="source_name=h2o; eprec=1.e-6"'
-    dft_arguments=' --dft="maxiter=10; econv=1.e-4; dconv=1.e-3; prefix='+prefix+'"'
+    dft_arguments=' --dft="maxiter=10; econv=1.e-4; dconv=1.e-3;"'
     response_arguments=' --response="kain=true; dipole.frequencies=0.0; dipole.directions=z; quadratic=true;'
-    other_arguments='--wf=response'
+    other_arguments='--wf=response --prefix='+prefix
     cleanup(prefix)  # Clean up previous output files
     cmd='./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     print("executing \n ",cmd)
