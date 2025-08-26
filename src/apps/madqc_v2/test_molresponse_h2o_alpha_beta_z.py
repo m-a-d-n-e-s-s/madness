@@ -16,7 +16,7 @@ if __name__ == "__main__":
     referencefile="@SRCDIR@/"+prefix+".calc_info.ref.json"
 
     # run test
-    global_arguments=' --geometry="source_name=h2o; eprec=1.e-6"'
+    global_arguments=' --molecule="source_name=h2o; eprec=1.e-6"'
     dft_arguments=' --dft="maxiter=10; econv=1.e-4; dconv=1.e-3;"'
     response_arguments=' --response="kain=true; dipole.frequencies=0.0; dipole.directions=z; quadratic=true;'
     other_arguments='--wf=response --prefix='+prefix

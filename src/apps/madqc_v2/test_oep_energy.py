@@ -24,8 +24,8 @@ if __name__ == "__main__":
     referencefile=args.reference_directory+"/"+prefix+".calc_info.ref.json"
 
     # run test
-    global_arguments=' --geometry=be --wf=oep'
-    dft_arguments=' --dft="maxiter=3; econv=1.e-4; dconv=1.e-3; k=7; prefix='+prefix+'"'
+    global_arguments=' --molecule=be --wf=oep --prefix='+prefix
+    dft_arguments=' --dft="maxiter=3; econv=1.e-4; dconv=1.e-3; k=7;"'
     other_arguments=' --oep="model=oaep; oep_maxiter=3"'
 
     # cleanup previous output files

@@ -16,8 +16,8 @@ if __name__ == "__main__":
     referencefile="@SRCDIR@/"+prefix+".calc_info.ref.json"
 
     # run test
-    global_arguments='--geometry=he --wf=nemo'
-    dft_arguments=' --dft="maxiter=10; econv=1.e-5; dconv=1.e-3; prefix='+prefix+'"'
+    global_arguments='--molecule=he --wf=nemo --prefix='+prefix
+    dft_arguments=' --dft="maxiter=10; econv=1.e-5; dconv=1.e-3;"'
     other_arguments=''
     cmd='./@BINARY@ '+global_arguments + dft_arguments  + other_arguments
     cleanup(prefix)
