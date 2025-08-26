@@ -7,7 +7,6 @@
 #include <madness/tensor/tensor_lapack.h>
 
 #include <algorithm>
-#include <concepts>
 #include <string>
 
 namespace madness {
