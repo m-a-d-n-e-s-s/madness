@@ -19,7 +19,7 @@ def localizer_run(localizer):
 
     cleanup(prefix)
     cleanup(prefix+localizer)
-    cmd='./@BINARY@ --geometry=h2o --wf=nemo --dft="maxiter=10; econv=1.e-5; k=8; localize='+localizer+'; dconv=1.e-3; prefix='+prefix+localizer+'"'
+    cmd='./@BINARY@ --molecule=h2o --wf=nemo --dft="maxiter=10; econv=1.e-5; k=8; localize='+localizer+'; dconv=1.e-3;" --prefix='+prefix+localizer+'"'
     print("executing \n ",cmd)
 #    output=subprocess.run(cmd,shell=True,capture_output=True, text=True).stdout
     p=subprocess.run(cmd,shell=True,stdout=subprocess.PIPE, stderr=subprocess.PIPE , universal_newlines=True)
