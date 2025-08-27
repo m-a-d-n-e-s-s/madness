@@ -283,10 +283,12 @@ inline real_function_3d raw_perturbation_operator(
     }
     case P::NuclearDisplacement: {
       auto n = std::get<NuclearDisplacementPerturbation>(state.perturbation);
+
+      std::map<char, int> dipole_map = {{'x', 0}, {'y', 1}, {'z', 2}};
       // you’d have whatever MomentDisplacementFunctor exists:
       real_function_3d f = real_factory_3d(world).functor(
           real_functor_3d{new madchem::MolecularDerivativeFunctor(
-              gs.molecule, n.atom_index, n.direction)});
+              gs.molecule, n.atom_index, dipole_map.at(n.direction))});
       f.truncate(FunctionDefaults<3>::get_thresh());
       return f;
     }

@@ -48,7 +48,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
 
   std::string get_tag() const override { return std::string(tag); }
 
- public:
+public:
   using QCCalculationParametersBase::read_input_and_commandline_options;
 
   [[nodiscard]] std::string prefix() const { return get<std::string>("prefix"); }
@@ -88,7 +88,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
   [[nodiscard]] bool second_order() const { return get<bool>("second_order"); }
   [[nodiscard]] bool third_order() const { return get<bool>("third_order"); }
 
- private:
+private:
   void validate_user_specified_properties() {
     // only validate if the user explicitly set requested_properties
     if (property()) {
@@ -104,9 +104,8 @@ struct ResponseParameters : public QCCalculationParametersBase {
           if (!is_user_defined("dipole.frequencies") || !is_user_defined("dipole.directions") ||
               !is_user_defined("nuclear.frequencies") || !is_user_defined("nuclear.directions") ||
               !is_user_defined("nuclear.atom_indices"))
-            throw std::runtime_error(
-                "When requesting 'raman', you must set both dipole.* and "
-                "nuclear.* parameters.");
+            throw std::runtime_error("When requesting 'raman', you must set both dipole.* and "
+                                     "nuclear.* parameters.");
         }
       }
     }
@@ -123,9 +122,9 @@ struct ResponseParameters : public QCCalculationParametersBase {
 
       if (quad) {
         // quadratic response
-        if (dip && nuc) {
+        if (dip and nuc) {
           // both nuclear & dipole kicks → Raman
-          props = {"raman"};
+          props = {"polarizability", "hyperpolarizability", "raman"};
         } else {
           // any pure quadratic dipole perturbations → α & β
           props = {"polarizability", "hyperpolarizability"};

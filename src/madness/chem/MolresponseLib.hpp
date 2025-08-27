@@ -173,29 +173,43 @@ struct molresponse_lib {
     PropertyManager properties(world, "properties.json");
     std::string dip_dirs = rp.dipole_directions();
     std::string nuc_dirs = rp.nuclear_directions();
+    enum class PropertyType { Alpha, Beta, Raman };
 
+    PropertyType prop_type;
     for (auto const &prop : rp.requested_properties()) {
-      if (prop == "polarizability") {
+      auto prop_string = std::string(prop);
+      // get rid of first and last characters
+      prop_string = prop_string.substr(1, prop_string.size() - 2);
+      if (prop_string == "polarizability") {
+        prop_type = PropertyType::Alpha;
+      } else if (prop_string == "hyperpolarizability") {
+        prop_type = PropertyType::Beta;
+      } else if (prop_string == "raman") {
+        prop_type = PropertyType::Raman;
+      } else {
+        throw std::runtime_error("Unknown property requested: " + prop);
+      }
+      if (prop_type == PropertyType::Alpha) {
         if (world.rank() == 0)
           madness::print("▶️ Computing polarizability α...");
         compute_alpha(world, generated_states.state_map, ground, rp.dipole_frequencies(), rp.dipole_directions(),
                       properties);
         properties.save();
 
-      } else if (prop == "hyperpolarizability") {
+      } else if (prop_type == PropertyType::Beta) {
         if (world.rank() == 0)
           madness::print("▶️ Computing hyperpolarizability β...");
 
         compute_hyperpolarizability(world, ground, rp.dipole_frequencies(), dip_dirs, properties);
         properties.save();
 
-      } else if (prop == "raman") {
+      } else if (prop_type == PropertyType::Raman) {
         auto nuclear_dirs = rp.nuclear_directions();
         auto dipole_dirs = rp.dipole_directions();
         if (world.rank() == 0)
           madness::print("▶️ Computing Raman response...");
-        // compute_Raman(world, ground, rp.dipole_frequencies(), dipole_dirs,
-        // properties);
+        compute_Raman(world, ground, rp.dipole_frequencies(), rp.nuclear_atom_indices(), rp.dipole_directions(),
+                      rp.nuclear_directions(), properties);
         properties.save();
       }
       if (world.rank() == 0) {
