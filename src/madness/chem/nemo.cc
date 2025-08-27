@@ -558,9 +558,9 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
         real_function_3d vcoul;
         int ispin = 0;
         auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size(),MacroTaskInfo::get_default()));
-        taskq->set_printlevel(20);
+        taskq->set_printlevel(get_calc_param().print_level());
         // taskq->cloud.set_debug(true);
-        if (world.rank()==0) {
+        if (world.rank()==0 and get_calc_param().print_level()>4) {
             print("taskq storing policy", taskq->get_storage_policy());
             print("cloud storing policy", taskq->cloud.get_storing_policy());
         }
@@ -572,7 +572,6 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
 
             // compute the density and the coulomb potential
             Jnemo = J(nemo);
-            print_header3("next: K");
             // compute the exchange potential
             int ispin = 0;
             Knemo = zero_functions_compressed<double, 3>(world, nemo.size());
