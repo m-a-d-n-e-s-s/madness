@@ -236,7 +236,7 @@ double Nemo::value(const Tensor<double>& x) {
 
 	if(world.rank()==0) std::cout << "Nemo Orbital Energies: " << calc->aeps << "\n";
 
-    calc->output_calc_info_schema();
+   // calc->output_calc_info_schema();
 
     if (world.rank()==0) print_header2("end computing the nemo wave function");
     return calc->current_energy;
@@ -1127,14 +1127,14 @@ Tensor<double> Nemo::make_incomplete_hessian_response_part(
 vecfuncT Nemo::make_cphf_constant_term(const size_t iatom, const int iaxis,
         const vecfuncT& R2nemo, const real_function_3d& rhonemo) const {
     // guess for the perturbed MOs
-    const vecfuncT nemo=calc->amo;
-    const int nmo=nemo.size();
+    const vecfuncT nemo_vec=calc->amo;
+    const int nmo=nemo_vec.size();
 
     const Tensor<double> occ=get_calc()->get_aocc();
-    QProjector<double,3> Q(R2nemo,nemo);
+    QProjector<double,3> Q(R2nemo,nemo_vec);
 
     DNuclear<double,3> Dunuc(world,this,iatom,iaxis);
-    vecfuncT Vpsi2b=Dunuc(nemo);
+    vecfuncT Vpsi2b=Dunuc(nemo_vec);
     truncate(world,Vpsi2b);
 
     // construct some intermediates
@@ -1143,9 +1143,9 @@ vecfuncT Nemo::make_cphf_constant_term(const size_t iatom, const int iaxis,
 
     // part of the Coulomb operator with the derivative of the NCF
     // J <- \int dr' 1/|r-r'| \sum_i R^XR F_iF_i
-    Coulomb<double,3> Jconst(world);
+    Coulomb<double,3> Jconst(world,this);
     Jconst.potential()=Jconst.compute_potential(2.0*RXR*rhonemo);        // factor 2 for cphf
-    vecfuncT Jconstnemo=Jconst(nemo);
+    vecfuncT Jconstnemo=Jconst(nemo_vec);
     truncate(world,Jconstnemo);
 
     // part of the exchange operator with the derivative of the NCF
@@ -1155,10 +1155,10 @@ vecfuncT Nemo::make_cphf_constant_term(const size_t iatom, const int iaxis,
     vecfuncT Kconstnemo=zero_functions_compressed<double,3>(world,nmo);
     if (not is_dft()) {
         Exchange<double,3> Kconst(world,get_calc_param().lo());
-        vecfuncT kbra=2.0*RXR*nemo;
+        vecfuncT kbra=2.0*RXR*nemo_vec;
         truncate(world,kbra);
-        Kconst.set_bra_and_ket(kbra, nemo);
-        Kconstnemo=Kconst(nemo);
+        Kconst.set_bra_and_ket(kbra, nemo_vec);
+        Kconstnemo=Kconst(nemo_vec);
         truncate(world,Kconstnemo);
     }
 
@@ -1240,7 +1240,7 @@ vecfuncT Nemo::solve_cphf(const size_t iatom, const int iaxis, const Tensor<doub
 
 
         // construct perturbed operators
-        Coulomb<double,3> Jp(world);
+        Coulomb<double,3> Jp(world,this);
         const vecfuncT xi_complete=xi-parallel;
 
         // factor 4 from: closed shell (2) and cphf (2)
@@ -1336,7 +1336,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
     const vecfuncT& nemo=calc->amo;
 
     // read CPHF vectors from file if possible
-    if (get_calc()->param.get<bool>("read_cphf")) {
+    if (get_nemo_param().get<bool>("read_cphf")) {
         for (int i=0; i<3*natom; ++i) {
             load_function(xi[i],"xi_"+stringify(i));
             real_function_3d dens_pt=dot(world,xi[i],nemo);
@@ -1382,7 +1382,7 @@ std::vector<vecfuncT> Nemo::compute_all_cphf() {
 
 
     // initial guess from the constant rhs or from restart
-    if (get_calc()->param.restart_cphf()) {
+    if (get_nemo_param().get<bool>("restart_cphf")) {
         for (int i=0; i<3*natom; ++i) {
             load_function(xi[i],"xi_guess"+stringify(i));
         }
