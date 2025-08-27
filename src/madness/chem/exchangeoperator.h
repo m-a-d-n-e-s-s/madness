@@ -119,9 +119,10 @@ private:
                                    const vecfuncT& vket, std::shared_ptr<real_convolution_3d> poisson,
                                    const bool symmetric, const double mul_tol = 0.0);
 
-    inline bool do_print_timings() const { return (world.rank() == 0) and (printlevel >= 3); }
-
     inline bool printdebug() const {return printlevel >= 10; }
+    inline bool printprogress() const {return (printlevel>=4) and (not (printdebug()));}
+    inline bool printtimings() const {return printlevel>=3;}
+    inline bool printtimings_detail() const {return printlevel>=4;}
 
     World& world;
     std::shared_ptr<MacroTaskQ> taskq;

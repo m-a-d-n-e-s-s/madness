@@ -89,7 +89,7 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
         auto size=get_size(world,Kf);
         if (world.rank()==0) print("total size of Kf after truncation",size);
     }
-    if (printlevel >= 3) print_timer(world);
+    if (printtimings()) print_timer(world);
     return Kf;
 }
 

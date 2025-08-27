@@ -405,8 +405,9 @@ class MacroTaskQ : public WorldObject< MacroTaskQ> {
     std::shared_ptr< WorldDCPmapInterface< Key<6> > > pmap6;
 
 	bool printdebug() const {return printlevel>=10;}
-	bool printprogress() const {return (printlevel>=3) and (not (printdebug()));}
+	bool printprogress() const {return (printlevel>=4) and (not (printdebug()));}
     bool printtimings() const {return universe.rank()==0 and printlevel>=3;}
+	bool printtimings_detail() const {return universe.rank()==0 and printlevel>=3;}
 
 public:
 
@@ -454,7 +455,7 @@ public:
 	void run_all() {
 
 		if (printdebug()) print_taskq();
-		if (printtimings()) {
+		if (printtimings_detail()) {
 			if (universe.rank()==0) {
 				print("number of tasks in taskq",taskq.size());
 				print("redirecting output to files task.#####");
@@ -468,7 +469,7 @@ public:
 			if (replication_policy==Cloud::NodeReplicated) cloud.replicate_per_node(); // replicate to all hosts
 			universe.gop.fence();
 			double cpu1=cpu_time();
-			if (printtimings()) print("cloud replication wall time",cpu1-cpu0);
+			if (printtimings_detail()) print("cloud replication wall time",cpu1-cpu0);
 		}
         if (printdebug()) cloud.print_size(universe);
         universe.gop.set_forbid_fence(true); // make sure there are no hidden universe fences
@@ -518,13 +519,15 @@ public:
 		universe.gop.sum(tasktime);
 		if (printprogress() and universe.rank()==0) std::cout << std::endl;
         double cpu11=cpu_time();
-        if (printlevel>=3) cloud.print_timings(universe);
-        if (printtimings()) {
+        if (printlevel>=4) {
+	        cloud.print_timings(universe);
+        	if (universe.rank()==0) print("all tasks complete");
+        	MemoryMeasurer::measure_and_print(universe);
+        }
+        if (printtimings_detail()) {
             printf("completed taskqueue after    %4.1fs at time %4.1fs\n", cpu11 - cpu00, wall_time());
             printf(" total cpu time / per world  %4.1fs %4.1fs\n", tasktime, tasktime / universe.size());
         }
-		if (universe.rank()==0) print("all tasks complete");
-		MemoryMeasurer::measure_and_print(universe);
 
 		// cleanup task-persistent input data
 		for (auto& task : taskq) task->cleanup();
@@ -907,8 +910,7 @@ private:
 
     			unary_tuple_loop(batched_argtuple,copi);
     			double cpu1=wall_time();
-    			// if (debug)
-    			{
+    			if (debug) {
     				io_redirect_cout io2;
     				print("copied coefficients for task",get_name(),"in",cpu1-cpu0,"seconds");
     			}
