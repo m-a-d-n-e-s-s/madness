@@ -82,7 +82,6 @@ public:
       // get rid of first and last characters
       prop_string = prop_string.substr(1, prop_string.size() - 2);
 
-
       if (prop_string == "polarizability") {
         prop_type = PropertyType::Alpha;
       } else if (prop_string == "hyperpolarizability") {
@@ -114,12 +113,11 @@ public:
         for (char d : dipole_dirs) {
           addPerturbation(PerturbationType::Dipole, DipolePerturbation{d}, nuclear_freqs);
         }
-        auto nuclear_atom_indices = rp.nuclear_atom_indices();
-        auto nuclear_directions = rp.nuclear_directions();
-        for (size_t i = 0; i < nuclear_atom_indices.size(); ++i) {
-          addPerturbation(PerturbationType::NuclearDisplacement,
-                          NuclearDisplacementPerturbation{nuclear_atom_indices[i], nuclear_directions[i]},
-                          nuclear_freqs);
+        for (auto atom_index : nuclear_atom_indices) {
+          for (char d : nuclear_directions) {
+            addPerturbation(PerturbationType::NuclearDisplacement, NuclearDisplacementPerturbation{atom_index, d},
+                            dipole_freqs);
+          }
         }
       }
     }
