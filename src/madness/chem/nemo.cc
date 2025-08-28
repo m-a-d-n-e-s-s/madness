@@ -39,17 +39,17 @@
 
  */
 
-#include <madness/chem/BSHApply.h>
-#include <madness/chem/Results.h>
-#include <madness/chem/SCFOperators.h>
-#include <madness/chem/localizer.h>
-#include <madness/chem/molecular_optimizer.h>
-#include <madness/chem/nemo.h>
-#include <madness/chem/pcm.h>
-#include <madness/chem/pointgroupsymmetry.h>
-#include <madness/chem/projector.h>
-#include <madness/chem/vibanal.h>
+#include<madness/chem/nemo.h>
+#include<madness/chem/projector.h>
+#include<madness/chem/molecular_optimizer.h>
+#include<madness/chem/SCFOperators.h>
+#include<madness/chem/Results.h>
 #include <madness/constants.h>
+#include<madness/chem/vibanal.h>
+#include<madness/chem/pcm.h>
+#include<madness/chem/pointgroupsymmetry.h>
+#include<madness/chem/BSHApply.h>
+#include<madness/chem/localizer.h>
 #include <madness/mra/macrotaskq.h>
 #include <madness/mra/memory_measurement.h>
 
@@ -839,7 +839,7 @@ Tensor<double> Nemo::gradient(const Tensor<double> &x) {
 }
 
 /// compute the nuclear hessian
-Tensor<double> Nemo::hessian(const Tensor<double> &x) {
+VibrationalResults Nemo::hessian(const Tensor<double> &x) {
 
   const bool hessdebug = (false and (world.rank() == 0));
 
@@ -970,6 +970,8 @@ Tensor<double> Nemo::hessian(const Tensor<double> &x) {
     print(constants::au2invcm * frequencies);
   }
 
+  VibrationalResults results;
+
   frequencies = compute_frequencies(molecule(), hessian, normalmodes, true, hessdebug);
   Tensor<double> intensities = compute_IR_intensities(normalmodes, dens_pt);
   Tensor<double> reducedmass = compute_reduced_mass(molecule(), normalmodes);
@@ -994,8 +996,12 @@ Tensor<double> Nemo::hessian(const Tensor<double> &x) {
     printf("done with computing the hessian matrix at time %8.1fs \n", wall_time());
     printf("final energy %16.8f", calc->current_energy);
   }
-
-  return hessian;
+  results.hessian = hessian;
+  results.frequencies = frequencies;
+  results.intensities = intensities;
+  results.reducedmass = reducedmass;
+  results.normalmodes = normalmodes;
+  return results;
 }
 
 /// purify and symmetrize the hessian
