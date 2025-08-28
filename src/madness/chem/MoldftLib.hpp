@@ -11,6 +11,7 @@
 
 #endif
 
+
 inline NextAction decide_next_action(bool at_protocol, bool archive_needed, bool archive_exists,
                                      bool all_properties_computed, bool restart_exists) {
   // We must recompute if any of these are true:
@@ -33,28 +34,27 @@ inline NextAction decide_next_action(bool at_protocol, bool archive_needed, bool
 
 template <typename SCFParams> NextAction valid(const SCFResultsTuple &results, const SCFParams &params) {
   // Take a copy of the parameters
-  SCFParams scf_params = params;
   auto [sr, pr, cr] = results;
 
   // Required convergence for "final" protocol
-  const auto vthresh = scf_params.econv();
-  const auto vdconv = scf_params.dconv();
-  const bool archive_needed = scf_params.save();
+  const auto vthresh = params.econv();
+  const auto vdconv = params.dconv();
+  const bool archive_needed = params.save();
 
   // Requested outputs
   const bool need_energy = true;
-  const bool need_dipole = scf_params.dipole();
-  const bool need_gradient = scf_params.derivatives();
+  const bool need_dipole = params.dipole();
+  const bool need_gradient = params.derivatives();
 
   // Files/paths
-  const std::string archivename = scf_params.prefix();
+  const std::string archivename = params.prefix();
   const auto restart_path = std::filesystem::path(archivename).replace_extension("restartdata.00000");
   const bool archive_exists = std::filesystem::exists(restart_path);
 
   // State in results
   // TODO: It's hard to be certain what converged_for_thresh means.  I thought it was the final protocol.  Turns out
   // it's actaully set in SCF.cc as param.econv(), which says nothing about the threshold refinement.
-  // 
+  //
   const bool at_protocol = (cr.converged_for_thresh == vthresh && cr.converged_for_dconv == vdconv);
 
   const auto pjson = pr.to_json();
@@ -81,12 +81,12 @@ struct moldft_lib {
   NextAction next_action_ = NextAction::Ok;
 
   vector<double> protocol;
+  SCFResultsTuple last_results_;
 
   using Calc = SCF;
 
   NextAction valid(const SCFResultsTuple &results, const Params &params) {
-    // Take a copy of the parameters
-
+    last_results_ = results;
     return ::valid(results, params.get<CalculationParameters>());
   }
 
@@ -99,14 +99,13 @@ struct moldft_lib {
 
   void print_parameters() const { calc_->print_parameters(); }
   // params get's changed by SCF constructor
-  SCFResultsTuple run(World &world, const Params &params, const bool restart = false,
-                      SCFResultsTuple scf_results = {}) {
+  SCFResultsTuple run(World &world, const Params &params, const bool restart = false) {
     auto moldft_params = params.get<CalculationParameters>();
     const auto &molecule = params.get<Molecule>();
 
     if (restart) {
       // Handle restart logic
-      auto cr = std::get<2>(scf_results);
+      auto cr = std::get<2>(last_results_);
       moldft_params.set_user_defined_value("restart", true);
 
       // figure out the protocol based on scf_results
@@ -123,7 +122,9 @@ struct moldft_lib {
         }
       }
       // set protocol to start the converged result
-      protocol.erase(protocol.begin() + protocol_index);
+      protocol.erase(protocol.begin() + protocol_index - 1);
+      if (world.rank() == 0)
+        print("Restarting from protocol index ", protocol_index, " with protocol values ", protocol);
       moldft_params.set_user_defined_value("protocol", protocol);
     }
 
@@ -237,14 +238,14 @@ struct nemo_lib {
 
   void print_parameters() const { nemo_->print_parameters(); }
 
-  SCFResultsTuple run(World &world, const Params &params, const bool restart = false,
-                      SCFResultsTuple scf_results = {}) {
+  SCFResultsTuple run(World &world, const Params &params, const bool restart = false) {
 
     auto nm = calc(world, params);
     nm->get_calc()->work_dir = std::filesystem::current_path();
 
     nm->value();
     PropertyResults pr = nm->analyze();
+    // compute the hessian
 
     ConvergenceResults cr;
     cr.set_converged_thresh(nm->get_calc()->converged_for_thresh);
@@ -255,6 +256,9 @@ struct nemo_lib {
     sr.beps = nm->get_calc()->beps;
     sr.properties = pr;
     sr.scf_total_energy = nm->get_calc()->current_energy;
+
+    if (nm->get_nemo_param().hessian())
+      sr.properties->vibrations = nm->hessian(nm->get_calc()->molecule.get_all_coords());
 
     return {sr, pr, cr};
   }
