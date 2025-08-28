@@ -2306,7 +2306,7 @@ CCPotentials::get_CC2_singles_potential_gs(World& world, const CC_vecfunction& s
     taskgs.partitioner->min_batch_size=2;
     taskgs.partitioner->max_batch_size=2;
     int printlevel=(info.parameters.debug()) ? 3 : 0;
-    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),printlevel));
+    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),MacroTaskInfo::get_default(),printlevel));
     MacroTask<MacroTaskSinglesPotentialGs> mtaskgs(world,taskgs,taskq);
 
     // compute applied potentials and intermediates
@@ -2375,7 +2375,7 @@ CCPotentials::get_CCS_potential_ex(World& world, const CC_vecfunction& x, const 
     // set up taskq
     MacroTaskSinglesPotentialEx task;
     int printlevel=(info.parameters.debug()) ? 3 : 0;
-    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),printlevel));
+    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),MacroTaskInfo::get_default(),printlevel));
     MacroTask<MacroTaskSinglesPotentialEx> mtask(world,task,taskq);
     std::vector<int> result_index(x.size());
     for (int i=0; i<result_index.size(); ++i) result_index[i]=i+info.parameters.freeze();
@@ -2415,7 +2415,7 @@ CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& g
 
     // set up taskq
     int printlevel=(info.parameters.debug()) ? 3 : 0;
-    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),printlevel));
+    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),MacroTaskInfo::get_default(),printlevel));
     MacroTaskSinglesPotentialGs taskgs;
     MacroTask<MacroTaskSinglesPotentialGs> mtaskgs(world,taskgs,taskq);
     MacroTaskSinglesPotentialEx taskex;
@@ -3759,7 +3759,7 @@ void CCPotentials::test_singles_potential(Info& info) const {
         std::vector<CCPair> ex_doubles;
 
         // set up taskq
-        auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),3));
+        auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),MacroTaskInfo::get_default(),3));
         MacroTaskSinglesPotentialEx taskex;
         MacroTask<MacroTaskSinglesPotentialEx> mtaskex(world,taskex,taskq);
 

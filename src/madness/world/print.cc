@@ -82,8 +82,11 @@ void print_justified(const char* s, int column, bool underline) {
         }
     }
 
-    void print_centered(const char* s, int column, bool underline) {
-        print_justified(s, column-std::strlen(s)/2, underline);
-    }
+void print_centered(const char* s, int column, bool underline) {
+    print_justified(s, column-std::strlen(s)/2, underline);
+}
+
+// Used to restore cout after redirection (cf io_redirect and io_redirect_cout)
+std::streambuf* madness::io_redirect::stream_buffer_cout_default = nullptr;
 
 } // namespace madness

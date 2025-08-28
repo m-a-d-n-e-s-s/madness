@@ -40,6 +40,7 @@
 
 #include <type_traits>
 #include <iostream>
+#include <fstream>
 #include <complex>
 #include <list>
 #include <vector>
@@ -245,7 +246,47 @@ operator<<(std::ostream &s, const T (&v)[N]) {
         print_helper(std::cerr, ts...) << ENDL;
     }
 
-    /// @}
+
+    /// RAII class to redirect cout to a file
+    struct io_redirect {
+        std::streambuf* stream_buffer_cout;
+        static std::streambuf* stream_buffer_cout_default; ///< default stream buffer for cout, used to restore cout
+        std::ofstream ofile;
+        bool debug = false;
+
+        io_redirect(const long task_number, std::string filename, bool debug = false) : debug(debug) {
+            stream_buffer_cout_default = std::cout.rdbuf();
+            constexpr std::size_t bufsize = 256;
+            char cfilename[bufsize];
+            std::snprintf(cfilename, bufsize, "%s.%5.5ld", filename.c_str(), task_number);
+            ofile = std::ofstream(cfilename);
+            if (debug) std::cout << "redirecting to file " << cfilename << std::endl;
+            stream_buffer_cout = std::cout.rdbuf(ofile.rdbuf());
+            std::cout.sync_with_stdio(true);
+        }
+
+        ~io_redirect() {
+            std::cout.rdbuf(stream_buffer_cout);
+            ofile.close();
+            std::cout.sync_with_stdio(true);
+            if (debug) std::cout << "redirecting back to cout" << std::endl;
+        }
+    };
+
+    /// class to temporarily redirect output to cout
+    struct io_redirect_cout {
+        std::streambuf* stream_buffer_cout;
+
+        io_redirect_cout() {
+            stream_buffer_cout = std::cout.rdbuf(io_redirect::stream_buffer_cout_default);
+            std::cout.sync_with_stdio(true);
+        }
+
+        ~io_redirect_cout() {
+            std::cout.rdbuf(stream_buffer_cout);
+            std::cout.sync_with_stdio(true);
+        }
+    };
 
 }
 #endif // MADNESS_WORLD_PRINT_H__INCLUDED

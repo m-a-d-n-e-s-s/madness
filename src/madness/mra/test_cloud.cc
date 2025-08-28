@@ -10,8 +10,21 @@
 #include<madness/mra/macrotaskq.h>
 #include<madness/world/test_utilities.h>
 
+#include <memory>
+
+#include "memory_measurement.h"
+
 using namespace madness;
 
+template<typename T, typename... Ts>
+    void print0(const World& world, const T& t, const Ts&... ts) {
+    if (world.rank()==0) {
+        using madness::operators::operator<<;
+        ScopedMutex<Mutex> safe(detail::printmutex);
+        std::cout << t;
+        print_helper(std::cout, ts...) << ENDL;
+    }
+}
 
 struct gaussian {
     double a;
@@ -139,6 +152,135 @@ void simple_example(World &universe) {
     }   // subworld is destroyed here
 }
 
+
+/// A simple process map
+template<typename keyT>
+class PmapHostReplicated : public WorldDCPmapInterface<keyT> {
+private:
+    const int nproc;
+    const ProcessID me;
+
+public:
+    PmapHostReplicated(World& world) : nproc(world.nproc()), me(world.rank())
+    { }
+
+    [[nodiscard]] ProcessID owner(const keyT& key) const {
+        return 0;
+    }
+};
+
+/// given a function in the universe, this function will copy it to a subworld
+int test_copy_function_from_other_world(World& universe) {
+    test_output t1("testing copy of function from other world",universe.rank()==0);
+    // t1.set_cout_to_terminal();
+
+    // create a function in the universe
+    real_function_3d f_universe = real_factory_3d(universe).functor(gaussian(1.0));
+    double norm_universe = f_universe.norm2();
+    if (universe.rank()==0) print("norm_universe", universe.id(), ":", norm_universe);
+    print("number of coeffs of f_universe on rank", universe.rank(), f_universe.get_impl()->get_coeffs().size());
+    universe.gop.fence();
+    print0(universe,"");
+    universe.gop.fence();
+
+    // create empty function in subworld
+    {
+        auto subworld_ptr = MacroTaskQ::create_worlds(universe, universe.size());
+        World& subworld = *subworld_ptr;
+        {
+            print("universe.size, universe.rank(), subworld.id", universe.size(), universe.rank(), subworld.id());
+            double norm_subworld=-1.0;
+            MacroTaskQ::set_pmap(subworld);
+
+            // loop and if-statement for clearer output
+            for (ProcessID rank=0; rank<universe.size(); rank++) {
+                if (universe.rank()==rank) {
+                    print( "\nworking on rank/subworld", rank, subworld.id());
+                    real_function_3d f_subworld = copy(subworld, f_universe); // copy the function to the subworld
+                    norm_subworld=f_subworld.norm2();
+                    t1.checkpoint(f_universe.world().id()!=f_subworld.world().id(),"f_universe and f_subworld live in different worlds");
+                    t1.checkpoint(norm_universe,norm_subworld,1.e-10,"norms");
+                }
+                universe.gop.fence();
+            }
+            print("norm_subworld, diff", subworld.id(), ":", norm_subworld, norm_subworld-norm_universe);
+            universe.gop.fence();
+        } // subworld objects are formally destroyed here, but destructor is deferred
+        subworld.gop.fence();   // f_subworld is destroyed here
+    }
+    MacroTaskQ::set_pmap(universe);
+
+    // check if the function is the same
+    return t1.end();
+}
+
+int test_copy_function_from_other_world_through_cloud(World& universe) {
+    universe.gop.fence();
+    test_output t1("testing copy of function from other world thru cloud",universe.rank()==0);
+    // t1.set_cout_to_terminal();
+
+    // create a function in the universe
+    real_function_3d f_universe = real_factory_3d(universe).functor(gaussian(1.0));
+    double norm_universe = f_universe.norm2();
+    print0(universe,"norm_universe", universe.id(), ":", norm_universe);
+    f_universe.get_impl()->print_size("f_universe");
+
+    // store the universe function or its pointer to the cloud
+    for (auto policy : {Cloud::StoreFunctionPointer, Cloud::StoreFunction}) {
+
+        Cloud cloud(universe);
+        cloud.set_storing_policy(policy);
+
+        // test storing into the cloud
+        auto recordlist = cloud.store(universe,f_universe);
+        print0(universe,"the cloud size should be at 10e-8, as it is only a pointer to the function impl");
+        auto [nrecords, nbyte] = cloud.print_size(universe);
+        print("nrecord, bytes in cloud", nrecords, nbyte);
+        t1.checkpoint(nrecords==1, "cloud: nrecord==1");
+        if (policy==Cloud::StoreFunctionPointer)
+            t1.checkpoint(nbyte<1.e2, "cloud size is small, only a pointer to the function impl");
+        else
+            t1.checkpoint(nbyte>1.e4, "cloud size is large, full function impl stored");
+
+
+        // test loading from the cloud into subworlds
+        {
+            auto subworld_ptr = MacroTaskQ::create_worlds(universe, universe.size());
+            World& subworld = *subworld_ptr;
+            MacroTaskQ::set_pmap(subworld);
+            {
+
+                // loop and if-statement for clearer output
+                for (ProcessID rank = 0; rank < universe.size(); rank++) {
+                    if (universe.rank() == rank) {
+                        print("hello from rank/subworld", rank, subworld.id());
+                        real_function_3d f_subworld=cloud.load<real_function_3d>(subworld, recordlist);
+                        double norm_subworld=f_subworld.norm2();
+                        t1.checkpoint(norm_subworld,norm_universe,1.e-10,"norms");
+                        bool same_id=f_universe.get_impl()->id()==f_subworld.get_impl()->id();
+                        if (policy==Cloud::StoreFunctionPointer)
+                            t1.checkpoint(same_id,"f_universe.id ==  f_subworld.id for StoreFunctionPointer");
+                        else
+                            t1.checkpoint(!same_id,"f_universe.id != f_subworld.id for StoreFunction");
+                    }
+                }
+            }
+            cloud.clear_cache(subworld);
+            subworld.gop.fence();   // f_subworld is destroyed here
+        }   // subworld is destroyed here
+        universe.gop.fence();
+    }
+
+    universe.gop.fence();
+
+    auto map = MemoryMeasurer::rank_to_host_and_rss_map(universe);
+    for (auto& [rank, pair] : map) {
+        print("rank", rank, "hostname", pair.first, "rss", pair.second);
+    }
+
+    return t1.end();
+}
+
 /// test the cloud with message larger than chunk size set in cloud.replicate()
 int chunk_example(World &universe) {
     int test_size = 100;
@@ -172,8 +314,8 @@ int test_custom_worldobject(World& universe, World& subworld, Cloud& cloud) {
     test_output t1("testing custom worldobject");
     t1.set_cout_to_terminal();
     cloud.set_debug(false);
-    auto o1 =std::shared_ptr<ScalarResultImpl<double>>(new ScalarResultImpl<double>(universe));
-    auto o5 =std::shared_ptr<ScalarResultImpl<double>>(new ScalarResultImpl<double>(universe));
+    auto o1 =std::make_shared<ScalarResultImpl<double>>(universe);
+    auto o5 =std::make_shared<ScalarResultImpl<double>>(universe);
     *o1=1.2;
     // if (universe.rank() == 0) gaxpy(1.0,*o1,2.0,2.8);
     if (universe.rank() == 0) o1->gaxpy(1.0,2.0,2.8);
@@ -223,19 +365,21 @@ int test_custom_serialization(World& universe, Cloud& cloud) {
     }
 
     return t1.end();
-
-
 }
 
 int main(int argc, char **argv) {
 
     madness::World &universe = madness::initialize(argc, argv);
     startup(universe, argc, argv);
+    FunctionDefaults<3>::set_thresh(1.e-8);
 
-    chunk_example(universe);
-    simple_example(universe);
     int success = 0;
-    {
+//    chunk_example(universe);
+    // simple_example(universe);
+    success+=test_copy_function_from_other_world(universe);
+    success+=test_copy_function_from_other_world_through_cloud(universe);
+
+    if (1) {
         Cloud cloud(universe);
 //        cloud.set_debug(true);
 

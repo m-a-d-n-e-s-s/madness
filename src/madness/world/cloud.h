@@ -8,7 +8,6 @@
 
 /**
  * TODO:  - delete container record upon caching if container is replicated
- *        - set read-only option upon replicating
  */
 
 #ifndef SRC_MADNESS_WORLD_CLOUD_H_
@@ -29,6 +28,38 @@
 */
 
 namespace madness {
+
+    /// \brief A utility to get the name of a type as a string from chatGPT
+    template<typename T>
+    struct type_name {
+        static const char* value() { return typeid(T).name();}
+    };
+
+    template<>
+    struct type_name<Function<double,1>> { static const char* value() { return "Function<double,1>"; } };
+    template<>
+    struct type_name<Function<double,2>> { static const char* value() { return "Function<double,2>"; } };
+    template<>
+    struct type_name<Function<double,3>> { static const char* value() { return "Function<double,3>"; } };
+    template<>
+    struct type_name<Function<double,4>> { static const char* value() { return "Function<double,4>"; } };
+    template<>
+    struct type_name<Function<double,5>> { static const char* value() { return "Function<double,5>"; } };
+    template<>
+    struct type_name<Function<double,6>> { static const char* value() { return "Function<double,6>"; } };
+
+    template<>
+    struct type_name<std::vector<Function<double,1>>> { static const char* value() { return "std::vector<Function<double,1>>"; } };
+    template<>
+    struct type_name<std::vector<Function<double,2>>> { static const char* value() { return "std::vector<Function<double,2>>"; } };
+    template<>
+    struct type_name<std::vector<Function<double,3>>> { static const char* value() { return "std::vector<Function<double,3>>"; } };
+    template<>
+    struct type_name<std::vector<Function<double,4>>> { static const char* value() { return "std::vector<Function<double,4>>"; } };
+    template<>
+    struct type_name<std::vector<Function<double,5>>> { static const char* value() { return "std::vector<Function<double,5>>"; } };
+    template<>
+    struct type_name<std::vector<Function<double,6>>> { static const char* value() { return "std::vector<Function<double,6>>"; } };
 
 template<typename keyT>
 struct Recordlist {
@@ -152,6 +183,45 @@ class Cloud {
     bool force_load_from_cache = false;       ///< forces load from cache (mainly for debugging)
 
 public:
+    /// These policies determine how the data is stored in the cloud and how it is replicated
+    /// There are six possible combinations of storing and replication policies:
+    ///  StoreFunction + Distributed :           Functions are stored in the cloud, subworlds need to
+    ///                                          communicate with all universe ranks to access them
+    ///  StoreFunction + RankReplicated :        Functions are stored in the cloud, but subworlds can
+    ///                                          access them locally -- high memory impact
+    ///  StoreFunction + NodeReplicated :        Functions are stored in the cloud, but subworlds can
+    ///                                          access them through intra-node communication -- low memory impact
+    ///  StoreFunctionPointer + Distributed :    Pointers to functions are stored in the cloud,
+    ///                                          subworlds need to communicate with the universe to access function data
+    ///  StoreFunctionPointer + RankReplicated : Pointers to functions are stored in the cloud,
+    ///                                          subworlds need to communicate with the universe to access function data
+    ///  StoreFunctionPointer + NodeReplicated : Pointers to functions are stored in the cloud,
+    ///                                          subworlds need to communicate with the universe to access function data
+    /// of the last three policies only (StoreFunctionPointer + RankReplicated) is recommended, as the function
+    /// pointers do not have a memory impact.
+    /// on large-memory machines the policy (StoreFunctionPointer + RankReplicated) is recommended, as everything is local
+    /// after the initial replication step
+    enum StoragePolicy {
+        StoreFunction,          ///< store a madness function in the cloud  -- can have a large memory impact
+                                ///< equivalent to a deep copy
+        StoreFunctionPointer,   ///< store the pointer to the function in the cloud.
+                                ///< Return type still is a Function<T,NDIM> with a pointer to the universe function impl.
+                                ///< equivalent to a shallow copy
+        };
+    enum ReplicationPolicy {
+        Distributed,            ///< no replication of the container, the container is distributed over the universe
+                                ///< inter-node communication is required for subworlds to access the data
+        RankReplicated,         ///< replicate the container over all universe ranks, such that subworlds can access the data locally
+                                ///< will lead to increased memory footprint if there are many subworlds on a node
+        NodeReplicated,         ///< replicate the container over all compute nodes, once per node, even if there are several ranks
+                                ///< only intra-node communication is required to access the data
+        };
+
+private:
+    StoragePolicy storage_policy = StoreFunctionPointer; ///< current policy for loading/storing/replicating
+    ReplicationPolicy replication_policy = RankReplicated;
+
+public:
 
     typedef std::any cached_objT;
     using keyT = madness::archive::ContainerRecordOutputArchive::keyT;
@@ -190,7 +260,23 @@ public:
         force_load_from_cache = value;
     }
 
-    void print_size(World& universe) {
+    void set_replication_policy(const ReplicationPolicy value) {
+        replication_policy = value;
+    }
+
+    ReplicationPolicy get_replication_policy() const {
+        return replication_policy;
+    }
+
+    void set_storing_policy(const StoragePolicy value) {
+        storage_policy = value;
+    }
+
+    StoragePolicy get_storing_policy() const {
+        return storage_policy;
+    }
+
+    std::tuple<size_t,double> print_size(World& universe) {
 
         std::size_t memsize=0;
         std::size_t max_record_size=0;
@@ -225,15 +311,21 @@ public:
             print("  max record size in GBytes:",max_record_size*byte2gbyte);
 
         }
+        return std::tie(global_size,global_memsize);
     }
 
     void print_timings(World &universe) const {
-        double rtime = double(reading_time);
+        double rtime_max = double(reading_time);
+        double rtime_acc = double(reading_time);
+        double rtime_av = double(reading_time);
         double wtime = double(writing_time);
         double ptime = double(replication_time);
-        universe.gop.sum(rtime);
-        universe.gop.sum(wtime);
-        universe.gop.sum(ptime);
+        universe.gop.max(rtime_max);
+        universe.gop.sum(rtime_acc);
+        rtime_av = rtime_acc/universe.size();
+        universe.gop.max(wtime);
+        universe.gop.max(ptime);
+
         long creads = long(cache_reads);
         long cstores = long(cache_stores);
         universe.gop.sum(creads);
@@ -241,9 +333,11 @@ public:
         if (universe.rank() == 0) {
             auto precision = std::cout.precision();
             std::cout << std::fixed << std::setprecision(1);
-            print("cloud storing cpu time", wtime * 0.001);
-            print("cloud replication cpu time", ptime * 0.001);
-            print("cloud reading cpu time", rtime * 0.001, std::defaultfloat);
+            print("cloud storing wall time", wtime * 0.001);
+            print("cloud replication wall time", ptime * 0.001);
+            print("cloud max reading time (all procs)", rtime_max * 0.001, std::defaultfloat);
+            print("cloud average reading cpu time (all procs)", rtime_av * 0.001, std::defaultfloat);
+            print("cloud accumulated reading cpu time (all procs)", rtime_acc * 0.001, std::defaultfloat);
             std::cout << std::setprecision(precision) << std::scientific;
             print("cloud cache stores    ", long(cstores));
             print("cloud cache loads     ", long(creads));
@@ -334,6 +428,14 @@ public:
         }
         if (dofence) world.gop.fence();
         return recordlist;
+    }
+
+    void replicate_per_node(const std::size_t chunk_size=INT_MAX) {
+        if (replication_policy != NodeReplicated) {
+            MADNESS_EXCEPTION("replication policy is not NodeReplicated",1);
+        }
+        if (debug and (container.size() > 0)) print("replicating container per node");
+        MADNESS_EXCEPTION("Cloud::replicate_per_node not yet implemented",1);
     }
 
     void replicate(const std::size_t chunk_size=INT_MAX) {
@@ -445,7 +547,7 @@ private:
     template<typename T>
     T load_from_cache(madness::World &world, const keyT &record) const {
         if (world.rank()==0) cache_reads++;
-        if (debug) print("loading", typeid(T).name(), "from cache record", record, "to world", world.id());
+        if (debug) print("loading", type_name<T>::value(), "from cache record", record, "to world", world.id());
         if (auto obj = std::any_cast<T>(&cached_objects.find(record)->second)) return *obj;
         MADNESS_EXCEPTION("failed to load from cloud-cache", 1);
         T target = allocator<T>(world);
@@ -482,9 +584,10 @@ private:
         if (debug and world.rank()==0) {
             if (is_already_present) std::cout << "skipping ";
             if constexpr (Recordlist<keyT>::has_member_id<T>::value) {
-                std::cout << "storing world object of " << typeid(T).name() << "id " << source.id() << " to record " << record << std::endl;
+                std::cout << "storing world object of " << type_name<T>::value() << "id " << source.id()
+                << " to record " << record << std::endl;
             }
-            std::cout << "storing object of " << typeid(T).name() << " to record " << record << std::endl;
+            std::cout << "storing object of " << type_name<T>::value() << " to record " << record << std::endl;
         }
         if constexpr (is_madness_function<T>::value) {
             if (source.is_compressed() and T::dimT>3) print("WARNING: storing compressed hi-dim `function");
@@ -497,7 +600,18 @@ private:
             cloudtimer t(world,writing_time1);
             madness::archive::ContainerRecordOutputArchive ar(world, container, record);
             madness::archive::ParallelOutputArchive<madness::archive::ContainerRecordOutputArchive> par(world, ar);
-            par & source;
+            if (storage_policy==StoreFunctionPointer) {
+                if constexpr (is_madness_function<T>::value) {
+                    // store the pointer to the function, not the function itself
+                    par & source.get_impl();
+                } else {
+                    // store everything else
+                    par & source;
+                }
+            } else {
+                // store everything else
+                par & source;
+            }
             local_list_of_container_keys+=record;
         }
         if (dofence) world.gop.fence();
@@ -531,15 +645,42 @@ public:
         if (force_load_from_cache) MADNESS_CHECK(is_cached(record));
 
         if (is_cached(record)) return load_from_cache<T>(world, record);
-        if (debug) print("loading", typeid(T).name(), "from container record", record, "to world", world.id());
+        if (debug) print("loading", type_name<T>::value(), "from container record", record, "to world", world.id());
         T target = allocator<T>(world);
         madness::archive::ContainerRecordInputArchive ar(world, container, record);
         madness::archive::ParallelInputArchive<madness::archive::ContainerRecordInputArchive> par(world, ar);
-        par & target;
-
-        if (is_replicated) container.erase(record);
+        if constexpr (is_madness_function<T>::value) {
+            if (storage_policy==StoreFunctionPointer) {
+                // load the pointer to the function, not the function itself
+                // this is important for large functions, as they are not replicated
+                // and only copied to subworlds when needed
+                try {
+                    typedef madness::FunctionImpl<typename T::typeT, T::dimT> implT;
+                    std::shared_ptr<implT> impl;
+                    par & impl;
+                    target.set_impl(impl); // target now points to a universe function impl
+                } catch (...) {
+                    {
+                        io_redirect_cout redirect;
+                        print("failed to load function pointer from cloud, maybe the target is out of scope?");
+                        print("record:", record, "world:", world.id());
+                        print("function type:", type_name<T>::value());
+                        print("\n");
+                    }
+                    MADNESS_EXCEPTION("load/store error of pointers in cloud", 1);
+                }
+            } else {
+                // load everything else
+                par & target;
+            }
+        } else {
+            // load everything else
+            par & target;
+        }
 
         cache(world, target, record);
+        if (is_replicated) container.erase(record);
+
         return target;
     }
 
@@ -549,11 +690,12 @@ public:
     template<typename T>
     recordlistT store_other(madness::World& world, const std::vector<T>& source) {
         if (debug and world.rank()==0)
-            std::cout << "storing " << typeid(source).name() << " of size " << source.size() << std::endl;
+            std::cout << "storing vector of " << type_name<T>::value() << " of size " << source.size() << std::endl;
         recordlistT l = store_other(world, source.size());
         for (const auto& s : source) l += store_other(world, s);
         if (dofence) world.gop.fence();
-        if (debug and world.rank()==0) std::cout << "done with vector storing; container size " << container.size() << std::endl;
+        if (debug and world.rank()==0) std::cout << "done with vector storing; container size "
+                << container.size() << std::endl;
         return l;
     }
 

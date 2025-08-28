@@ -557,24 +557,31 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
         timer t(world,get_calc_param().print_level()>2);
         real_function_3d vcoul;
         int ispin = 0;
-        auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
+        auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size(),MacroTaskInfo::get_default()));
+        taskq->set_printlevel(get_calc_param().print_level());
+        // taskq->cloud.set_debug(true);
+        if (world.rank()==0 and get_calc_param().print_level()>4) {
+            print("taskq storing policy", taskq->get_storage_policy());
+            print("cloud storing policy", taskq->cloud.get_storing_policy());
+        }
+
+
         Coulomb<double, 3> J = Coulomb<double, 3>(world, this).set_taskq(taskq);
         {
             t.tag("initialize Coulomb operator");
 
             // compute the density and the coulomb potential
             Jnemo = J(nemo);
-
             // compute the exchange potential
             int ispin = 0;
             Knemo = zero_functions_compressed<double, 3>(world, nemo.size());
-            if (calc->xc.hf_exchange_coefficient() > 0.0) {
-                Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin).set_symmetric(true).set_taskq(taskq);
-	            K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient_row);
-                Knemo = K(nemo);
-            }
+            // construction must happen outside the if-block to avoid pointers to arguments going out of scope in the macrotaskq
+            Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin).set_symmetric(true).set_taskq(taskq);
+	        K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient_row);
+            if (calc->xc.hf_exchange_coefficient() > 0.0) Knemo = K(nemo);
+
             t.tag("initialize K operator");
-            taskq->set_printlevel(get_calc_param().print_level());
+            // taskq->set_printlevel(get_calc_param().print_level());
             if (get_calc_param().print_level()>9) taskq->print_taskq();
             taskq->run_all();
 
