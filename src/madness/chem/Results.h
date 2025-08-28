@@ -2,10 +2,10 @@
 // Created by Florian Bischoff on 08.07.25.
 //
 
-#pragma once
 #ifndef RESULTS_H
 #define RESULTS_H
 
+#include "madness/constants.h"
 #include <madness/external/nlohmann_json/json.hpp>
 #include <madness/tensor/tensor_json.hpp>
 #include <string>
@@ -17,13 +17,28 @@ class ResultsBase {
 
 public:
   ResultsBase() = default;
-  virtual ~ResultsBase() = default;
 
+  virtual ~ResultsBase() = default;
   /// serialize the results to a JSON object
   virtual nlohmann::json to_json() const = 0;
-
+  virtual void from_json(const nlohmann::json &j) = 0;
   virtual std::string key() const = 0;
 };
+
+//--tiny helpers
+template <class T, class F>
+inline void set_if_exists(nlohmann::json &j, const std::string &key, const std::optional<T> &opt, F &&to_json_fn) {
+  if (opt)
+    j[key] = to_json_fn(*opt);
+}
+template <class T, class F>
+inline void get_if_exists(const nlohmann::json &j, const std::string &key, std::optional<T> &opt, F &&from_json_fn) {
+  if (j.contains(key))
+    opt = from_json_fn(j[key]);
+}
+
+template <class T> inline nlohmann::json tensor_out(const Tensor<T> &t) { return tensor_to_json(t); }
+template <class T> inline Tensor<T> tensor_in(const nlohmann::json &j) { return tensor_from_json<T>(j); }
 
 /// holds metadata of the calculation
 
@@ -122,8 +137,53 @@ public:
   }
 };
 
+class VibrationalResults : public ResultsBase {
+public:
+  std::optional<Tensor<double>> hessian;
+  std::optional<Tensor<double>> frequencies;             // (vibrational frequencies in a.u.)
+  std::optional<Tensor<double>> intensities;             //(IR intensities in km/mol)
+  std::optional<Tensor<double>> reducedmass;             //(reduced
+  std::optional<Tensor<double>> normalmodes;             //(normal modes)
+                                                         //
+  static constexpr double au2invm = constants::au2invcm; // conversion factor from Hartree to cm^-1
+  VibrationalResults() = default;
+  VibrationalResults(const nlohmann::json &j) {}
+
+  [[nodiscard]] bool has_data() const { return hessian || frequencies || intensities || reducedmass || normalmodes; }
+
+  [[nodiscard]] std::string key() const override { return "vibrations"; }
+
+  nlohmann::json to_json() const override {
+    nlohmann::json j;
+
+    set_if_exists(j, "hessian", hessian, tensor_out<double>);
+    set_if_exists(j, "frequencies", frequencies, tensor_out<double>);
+    set_if_exists(j, "intensities", intensities, tensor_out<double>);
+    set_if_exists(j, "reducedmass", reducedmass, tensor_out<double>);
+    set_if_exists(j, "normalmodes", normalmodes, tensor_out<double>);
+
+    j["au2invcm"] = constants::au2invcm;
+
+    return j;
+  }
+
+  void from_json(const nlohmann::json &j) override {
+    get_if_exists(j, "hessian", hessian, tensor_in<double>);
+    get_if_exists(j, "frequencies", frequencies, tensor_in<double>);
+    get_if_exists(j, "intensities", intensities, tensor_in<double>);
+    get_if_exists(j, "reducedmass", reducedmass, tensor_in<double>);
+    get_if_exists(j, "normalmodes", normalmodes, tensor_in<double>);
+  }
+};
+
 class PropertyResults : public ResultsBase {
 public:
+  double energy = 0.0;
+
+  std::optional<Tensor<double>> dipole;
+  std::optional<Tensor<double>> gradient;
+  std::optional<VibrationalResults> vibrations;
+
   PropertyResults() = default;
 
   /// construct from JSON
@@ -135,41 +195,53 @@ public:
       gradient = tensor_from_json<double>(j["gradient"]);
   }
 
-  double energy = 0.0;
-  Tensor<double> dipole;
-  Tensor<double> gradient;
-
   std::string key() const override { return "properties"; }
 
   nlohmann::json to_json() const override {
     nlohmann::json j;
     j["energy"] = energy;
-    if (dipole.size() > 0)
-      j["dipole"] = tensor_to_json(dipole);
-    if (gradient.size() > 0)
-      j["gradient"] = tensor_to_json(gradient);
+    set_if_exists(j, "dipole", dipole, tensor_out<double>);
+    set_if_exists(j, "gradient", gradient, tensor_out<double>);
+    if (vibrations && vibrations->has_data())
+      j["vibrations"] = vibrations->to_json();
     return j;
-  }
-  void from_json(const nlohmann::json &j) {
+  } // from json PropertyResults
 
+  void from_json(const nlohmann::json &j) override {
+    // robust reads (won’t throw if missing)
     if (j.contains("energy"))
       energy = j.value("energy", 0.0);
-    if (j.contains("dipole"))
-      dipole = tensor_from_json<double>(j["dipole"]);
-    if (j.contains("gradient"))
-      gradient = tensor_from_json<double>(j["gradient"]);
+    get_if_exists(j, "dipole", dipole, tensor_in<double>);
+    get_if_exists(j, "gradient", gradient, tensor_in<double>);
+
+    // nested section
+    if (j.contains("vibrations")) {
+      VibrationalResults vib;
+      vib.from_json(j.at("vibrations"));
+      if (vib.has_data())
+        vibrations = std::move(vib);
+    }
   }
 };
+
+// If you keep PropertyResults from earlier, give it:
+inline bool has_data(const PropertyResults &p) {
+  return p.energy != 0.0 || p.dipole || p.gradient || (p.vibrations && p.vibrations->has_data());
+}
+
 class SCFResults : public ResultsBase {
 public:
+  // Required alpha (for RHF/ ROHF/ UHF UKS we alsways expect alpha)
   Tensor<double> aeps;
-  Tensor<double> beps;
   Tensor<double> afock;
-  Tensor<double> bfock;
+  // optional beta (only for UHF/ UKS)
+  std::optional<Tensor<double>> beps;
+  std::optional<Tensor<double>> bfock;
+
   std::string model = "scf";     // model used for the SCF calculation
   double scf_total_energy = 0.0; // total energy of the SCF calculation
-  PropertyResults properties;
-
+  //
+  std::optional<PropertyResults> properties;
   SCFResults() = default;
 
   /// construct from JSON
@@ -179,38 +251,67 @@ public:
 
   nlohmann::json to_json() const override {
     nlohmann::json j;
-    j["scf_eigenvalues_a"] = tensor_to_json(aeps);
-    j["scf_fock_a"] = tensor_to_json(afock);
-    if (beps.size() > 0)
-      j["scf_eigenvalues_b"] = tensor_to_json(beps);
-    if (bfock.size() > 0)
-      j["scf_fock_b"] = tensor_to_json(bfock);
+
+    // Required alpha pieces
+    j["scf_eigenvalues_a"] = tensor_out<double>(aeps);
+    j["scf_fock_a"] = tensor_out<double>(afock);
+
+    // Optional beta pieces
+    set_if_exists(j, "scf_eigenvalues_b", beps, tensor_out<double>);
+    set_if_exists(j, "scf_fock_b", bfock, tensor_out<double>);
+
+    // Scalars / metadata
     j["model"] = model;
     j["scf_total_energy"] = scf_total_energy;
-    j["properties"] = properties.to_json();
-    return j;
-  } // from json SCFResults
-  void from_json(const nlohmann::json &j) {
 
-    if (j.count("scf_eigenvalues_a") > 0)
-      aeps = tensor_from_json<double>(j["scf_eigenvalues_a"]);
-    if (j.contains("scf_eigenvalues_b"))
-      beps = tensor_from_json<double>(j["scf_eigenvalues_b"]);
-    if (j.contains("scf_fock_a"))
-      afock = tensor_from_json<double>(j["scf_fock_a"]);
-    if (j.contains("scf_fock_b"))
-      bfock = tensor_from_json<double>(j["scf_fock_b"]);
-    if (j.contains("scf_total_energy"))
-      scf_total_energy = j["scf_total_energy"];
-
-    if (j.contains("properties")) {
-      properties = PropertyResults(j["properties"]);
-    } else {
-      properties = PropertyResults();
+    // Optional nested block
+    if (properties && has_data(*properties)) {
+      j["properties"] = properties->to_json();
     }
-  };
-};
+    return j;
+  }
 
+  void from_json(const nlohmann::json &j) override {
+    // Alpha: treat as required but read defensively
+    if (j.contains("scf_eigenvalues_a"))
+      aeps = tensor_in<double>(j.at("scf_eigenvalues_a"));
+    else
+      aeps = {}; // or throw if truly required
+
+    if (j.contains("scf_fock_a"))
+      afock = tensor_in<double>(j.at("scf_fock_a"));
+    else
+      afock = {}; // or throw if truly required
+
+    // Beta: optional
+    get_if_exists(j, "scf_eigenvalues_b", beps, tensor_in<double>);
+    get_if_exists(j, "scf_fock_b", bfock, tensor_in<double>);
+
+    // Scalars / metadata
+    if (j.contains("model"))
+      model = j.value("model", std::string("scf"));
+    if (j.contains("scf_total_energy"))
+      scf_total_energy = j.value("scf_total_energy", 0.0);
+
+    // Nested properties: optional
+    if (j.contains("properties")) {
+      PropertyResults p;
+      p.from_json(j.at("properties"));
+      if (has_data(p))
+        properties = std::move(p);
+      else
+        properties.reset();
+    } else {
+      properties.reset();
+    }
+  }
+};
+// Todo: Upgrade to new JSON style using optional everything below here --
+//
+// ---------------------------------------------------------------------------------
+//
+//
+// ---------------------------------------------------------------------------------
 class CISResults : public ResultsBase {
 public:
   struct excitation_info {
@@ -248,6 +349,23 @@ public:
   /// constructor with nfreeze and model
   CISResults(long nfreeze, const std::string &model) : nfreeze(nfreeze), model(model) {}
 
+  void from_json(const nlohmann::json &j) override {
+    excitations.clear();
+    if (j.count("excitations") > 0) {
+      for (const auto &ex : j["excitations"]) {
+        excitation_info ei;
+        ei.irrep = ex.value("irrep", "");
+        ei.omega = ex.value("omega", 0.0);
+        ei.current_error = ex.value("current_error", 0.0);
+        ei.oscillator_strength_length = ex.value("oscillator_strength_length", 0.0);
+        ei.oscillator_strength_velocity = ex.value("oscillator_strength_velocity", 0.0);
+        excitations.push_back(ei);
+      }
+    }
+    nfreeze = j.value("nfreeze", -1);
+    model = j.value("model", "unknown");
+  }
+
   nlohmann::json to_json() const override {
     nlohmann::json j;
     for (const auto &ex : excitations) {
@@ -269,6 +387,9 @@ class CC2Results : public CISResults {
 public:
   CC2Results() : CISResults() { model = "mp2"; }
 
+  PropertyResults properties;      // properties of the correlated calculation
+  double correlation_energy = 0.0; // correlation energy of the correlated calculation
+  double total_energy = 0.0;       // total energy of the correlated calculation
   /// construct from JSON
   CC2Results(const nlohmann::json &j) : CISResults(j) {
     properties = PropertyResults(j.value("properties", nlohmann::json{}));
@@ -279,6 +400,14 @@ public:
 
   /// constructor with nfreeze and model
   CC2Results(long nfreeze, const std::string &model) : CISResults(nfreeze, model) {}
+
+  void from_json(const nlohmann::json &j) override {
+    CISResults::from_json(j);
+    properties = PropertyResults(j.value("properties", nlohmann::json{}));
+    model = j.value("model", "mp2");
+    correlation_energy = j.value("correlation_energy", 0.0);
+    total_energy = j.value(model + "_total_energy", 0.0);
+  }
 
   nlohmann::json to_json() const override {
     nlohmann::json j;
@@ -314,10 +443,6 @@ public:
     this->model = model;
     return *this;
   }
-
-  PropertyResults properties;      // properties of the correlated calculation
-  double correlation_energy = 0.0; // correlation energy of the correlated calculation
-  double total_energy = 0.0;       // total energy of the correlated calculation
 };
 
 class ZnemoResults : public SCFResults {
@@ -327,6 +452,11 @@ public:
   ZnemoResults() = default;
   /// construct from JSON
   ZnemoResults(const nlohmann::json &j) : SCFResults(j) { B = j.value("B", 0.0); }
+
+  void from_json(const nlohmann::json &j) override {
+    SCFResults::from_json(j);
+    B = j.value("B", 0.0);
+  }
 
   nlohmann::json to_json() const override {
     nlohmann::json j;
@@ -349,6 +479,20 @@ public:
   double Econv = 0.0;    // final energy using conventional method
 
   OEPResults() = default;
+
+  void from_json(const nlohmann::json &j) override {
+    SCFResults::from_json(j);
+    model = j.value("model", "oaep");
+    drho = j.value("drho", 0.0);
+    devir14 = j.value("devir14", 0.0);
+    devir17 = j.value("devir17", 0.0);
+    Ex_vir = j.value("Ex_vir", 0.0);
+    Ex_conv = j.value("Ex_conv", 0.0);
+    Ex_HF = j.value("Ex_HF", 0.0);
+    E_kin_HF = j.value("E_kin_HF", 0.0);
+    E_kin_KS = j.value("E_kin_KS", 0.0);
+    Econv = j.value("Econv", 0.0);
+  }
 
   /// construct from JSON
   explicit OEPResults(const nlohmann::json &j) : SCFResults(j) {
