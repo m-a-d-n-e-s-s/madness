@@ -1135,27 +1135,26 @@ template<size_t NDIM>
             if (world.id()==other.world.id())
                 copy_coeffs_same_world(other,false);
             else
-                copy_coeffs_different_world(other,false);
+                copy_coeffs_different_world(other);
             if (fence) world.gop.fence();
         }
 
         /// Copy coefficients from other funcimpl with possibly different world and on a different node
         template<typename Q>
-        void copy_coeffs_different_world(const FunctionImpl<Q,NDIM>& other, bool fence) {
+        void copy_coeffs_different_world(const FunctionImpl<Q,NDIM>& other) {
             for (ProcessID pid=0; pid<other.world.size(); ++pid) {
-                copy_remote_coeffs_from_pid<Q>(pid, other, false);
+                copy_remote_coeffs_from_pid<Q>(pid, other);
             }
         }
 
         /// Copy coefficients from other funcimpl with possibly different world and on a different node
         /// to this
         template <typename Q>
-        void copy_remote_coeffs_from_pid(const ProcessID pid, const FunctionImpl<Q,NDIM>& other, bool fence) {
+        void copy_remote_coeffs_from_pid(const ProcessID pid, const FunctionImpl<Q,NDIM>& other) {
             typedef FunctionImpl<Q,NDIM> implQ; ///< Type of this class (implementation)
-            auto v=other.task(pid, &implQ::serialize_remote_coeffs).get();
-            archive::VectorInputArchive ar(v);
-            ar & get_coeffs();
-            if (fence) world.gop.fence();
+            // std::vector<unsigned char> v=other.task(pid, &implQ::serialize_remote_coeffs).get();
+            auto v=other.task(pid, &implQ::serialize_remote_coeffs);
+            world.taskq.add(*this, &implT::insert_serialized_coeffs,v);
         }
 
         /// invoked by copy_remote_coeffs_from_pid to serialize *local* coeffs
@@ -1164,6 +1163,12 @@ template<size_t NDIM>
             archive::VectorOutputArchive ar(v);
             ar & get_coeffs();
             return v;
+        }
+
+        /// insert coeffs from vector archive into this
+        void insert_serialized_coeffs(std::vector<unsigned char>& v) {
+            archive::VectorInputArchive ar(v);
+            ar & get_coeffs();
         }
 
         /// Copy coeffs from other into self

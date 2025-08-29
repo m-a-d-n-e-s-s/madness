@@ -197,6 +197,11 @@ namespace madness {
         /// Destruction of any underlying implementation is deferred to next global fence.
         ~Function() {}
 
+        /// implements swap algorithm
+        template <typename R, std::size_t MDIM>
+        friend void swap(Function<R,MDIM>& f1, Function<R,MDIM>& f2);
+
+
         /// Evaluates the function at a point in user coordinates.  Possible non-blocking comm.
 
         /// Only the invoking process will receive the result via the future
@@ -2826,6 +2831,10 @@ namespace madness {
         return f.change_tree_state(finalstate,fence);
     }
 
+    template <typename R, std::size_t MDIM>
+    void swap(Function<R,MDIM>& f1, Function<R,MDIM>& f2) {
+        f1.get_impl()->swap(*f2.get_impl());
+    }
 
 }
 

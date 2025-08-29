@@ -341,50 +341,166 @@ private:
         }
 
         /// compute exchange row-wise for a fixed orbital phi_i of vket
+
+        /// create 2 worlds: one fetches the function coefficients from the universe, the other
+        /// does the computation, then swap. The result is copied back to the universe
         std::vector<Function<T, NDIM>>
         operator()(const std::vector<Function<T, NDIM>>& vket,
                    const std::vector<Function<T, NDIM>>& mo_bra, 
                    const std::vector<Function<T, NDIM>>& mo_ket) {       
 
-            double cpu0, cpu1;
-            World& world = vket.front().world();
-            mul_tol = 0.0;
-            
-            resultT Kf = zero_functions_compressed<T, NDIM>(world, 1);
-            vecfuncT psif = zero_functions_compressed<T,NDIM>(world, mo_bra.size()); 
-            auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(world, lo);
+            io_redirect_cout();
+            double total_execution_time=0.0;
+            double total_fetch_time=0.0;
+            double total_fetch_spawn_time=0.0;
 
-            // !! NO !! vket is batched, starts at batch.input[0].begin
-            // auto& i = batch.input[0].begin;
-            long i=0;
-            MADNESS_CHECK_THROW(vket.size()==1,"out-of-bounds error in Exchange::MacroTaskExchangeRow::operator()");
-            size_t min_tile = 10;
-            size_t ntile = std::min(mo_bra.size(), min_tile);
+            resultT Kf = zero_functions_compressed<T, NDIM>(*subworld_ptr, 1);
+            {
+                // create the two worlds that will be used for fetching and computing
+                // std::shared_ptr<World> executing_world(subworld_ptr);
+                double cpu0=cpu_time();
+                SafeMPI::Intracomm comm = subworld_ptr->mpi.comm();
+                std::shared_ptr<World> fetching_world(new World(comm.Clone()));
+                std::shared_ptr<World> executing_world(new World(comm.Clone()));
+                double cpu1=cpu_time();
+                print("time to create two worlds:",cpu1-cpu0,"seconds");
 
-            for (size_t ilo=0; ilo<mo_bra.size(); ilo+=ntile){
-                cpu0 = cpu_time();
-                size_t iend = std::min(ilo+ntile,mo_bra.size());
-                vecfuncT tmp_mo_bra(mo_bra.begin()+ilo,mo_bra.begin()+iend);
-                auto tmp_psif = mul_sparse(world, vket[i], tmp_mo_bra, mul_tol);
-                truncate(world, tmp_psif);
-                cpu1 = cpu_time();
-                mul1_timer += long((cpu1 - cpu0) * 1000l);
+                print("executing_world.id()",executing_world->id(),"fetching_world.id()",fetching_world->id(),"in MacroTaskExchangeRow");
 
-                cpu0 = cpu_time();
-                tmp_psif = apply(world, *poisson.get(), tmp_psif);
-                truncate(world, tmp_psif);
-                cpu1 = cpu_time();
-                apply_timer += long((cpu1 - cpu0) * 1000l);
+                {
+                    auto poisson1 = Exchange<double, 3>::ExchangeImpl::set_poisson(*executing_world, lo);
+                    auto poisson2 = Exchange<double, 3>::ExchangeImpl::set_poisson(*fetching_world, lo);
 
-                cpu0 = cpu_time();
-                vecfuncT tmp_mo_ket(mo_ket.begin()+ilo,mo_ket.begin()+iend);
-                auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif);
-                cpu1 = cpu_time();
-                mul2_timer += long((cpu1 - cpu0) * 1000l);
+                    functionT phi1=copy(*executing_world,vket[0]);
+                    functionT phi2=copy(*fetching_world,vket[0]);
 
-                Kf[0] += tmp_Kf;
-                truncate(world, Kf);
-            }
+                    // !! NO !! vket is batched, starts at batch.input[0].begin
+                    // auto& i = batch.input[0].begin;
+                    MADNESS_CHECK_THROW(vket.size()==1,"out-of-bounds error in Exchange::MacroTaskExchangeRow::operator()");
+                    size_t min_tile = 2;
+                    size_t ntile = std::min(mo_bra.size(), min_tile);
+
+                    struct Tile {
+                        size_t ilo;
+                        size_t iend;
+                    };
+
+                    // copy the data from the universe bra and ket to subworld bra and ket
+                    // returns a pair of vectors in the subworld which are still awaiting the function coefficients
+                    auto fetch_data = [&](World& world, const Tile& tile) {
+                        MADNESS_CHECK_THROW(mo_bra.size()==mo_ket.size(),
+                                            "bra and ket size mismatch in Exchange::MacroTaskExchangeRow::execute()");
+                        vecfuncT subworld_bra;
+                        vecfuncT subworld_ket;
+                        for (int i=tile.ilo; i<tile.iend; ++i) {
+                            subworld_bra.push_back(copy(world, mo_bra[i],false));
+                            subworld_ket.push_back(copy(world, mo_ket[i],false));
+                        }
+                        return std::make_pair(subworld_bra,subworld_ket);
+                    };
+
+                    // apply the exchange operator on phi for a a tile of mo_bra and mo_ket
+                    auto execute = [&](World& world, auto poisson, const functionT& phi, const vecfuncT& mo_bra, const vecfuncT& mo_ket) {
+                        MADNESS_CHECK_THROW(mo_bra.size()==mo_ket.size(),
+                                            "bra and ket size mismatch in Exchange::MacroTaskExchangeRow::execute()");
+
+                        auto world_id=world.id();
+                        auto phi_id=phi.world().id();
+                        auto bra_id=mo_bra.front().world().id();
+                        auto ket_id=mo_ket.front().world().id();
+                        std::string msg="world mismatch in Exchange::MacroTaskExchangeRow::execute(): ";
+                        msg+="world.id()="+std::to_string(world_id)+", ";
+                        msg+="phi.world().id()="+std::to_string(phi_id)+", ";
+                        msg+="bra.world().id()="+std::to_string(bra_id)+", ";
+                        msg+="ket.world().id()="+std::to_string(ket_id);
+                        if (not (world_id==phi_id && world_id==bra_id && world_id==ket_id)) {
+                            print(msg);
+                        }
+                        MADNESS_CHECK_THROW(world_id==phi_id && world_id==bra_id && world_id==ket_id,msg.c_str());
+
+                        double cpu0 = cpu_time();
+                        auto tmp_psif = mul_sparse(world, phi, mo_bra, mul_tol);
+                        truncate(world, tmp_psif);
+                        double cpu1 = cpu_time();
+                        mul1_timer += long((cpu1 - cpu0) * 1000l);
+
+                        cpu0 = cpu_time();
+                        tmp_psif = apply(world, *poisson.get(), tmp_psif);
+                        truncate(world, tmp_psif);
+                        cpu1 = cpu_time();
+                        apply_timer += long((cpu1 - cpu0) * 1000l);
+
+                        cpu0 = cpu_time();
+                        auto tmp_Kf = dot(world, mo_ket, tmp_psif);
+                        cpu1 = cpu_time();
+                        mul2_timer += long((cpu1 - cpu0) * 1000l);
+
+                        return tmp_Kf.truncate();
+
+                    };
+
+                    std::vector<Tile> tiles;
+                    for (size_t ilo=0; ilo<mo_bra.size(); ilo+=ntile) {
+                        tiles.push_back(Tile{ilo,std::min(ilo+ntile,mo_bra.size())});
+                    }
+
+                    vecfuncT tmp_mo_bra1,tmp_mo_ket1;
+                    vecfuncT tmp_mo_bra2,tmp_mo_ket2;
+
+                    for (int itile=0; itile<tiles.size(); ++itile) {
+                        Tile& tile = tiles[itile];
+
+                        if (itile==0) {
+                            print("fetching tile",tile.ilo,"into world",executing_world->id());
+                            std::tie(tmp_mo_bra1,tmp_mo_ket1)=fetch_data(*executing_world,tiles[itile]);
+                            executing_world->gop.fence();
+                        }
+
+                        if (itile>=0) {
+                            double t0=cpu_time();
+                            fetching_world->gop.set_forbid_fence(true);
+                            if (itile<tiles.size()) {
+                                // fetch data into fetching_world while computing in executing_world
+                                print("fetching tile",tiles[itile+1].ilo,"into world",fetching_world->id());
+                                std::tie(tmp_mo_bra2,tmp_mo_ket2)=fetch_data(*fetching_world,tiles[itile+1]);
+                            }
+                            fetching_world->gop.set_forbid_fence(false);
+                            double t2=cpu_time();
+                            // uncomment the next line to enforce that fetching is finished before executing
+                            // fetching_world->gop.fence();
+                            double t1=cpu_time();
+                            total_fetch_time += (t1 - t0);
+                            total_fetch_spawn_time += (t2 - t0);
+
+                            print("executing tile",tile.ilo,"in world",executing_world->id());
+                            double dpu0=cpu_time();
+                            Kf[0]+=execute(*executing_world,poisson1,phi1,tmp_mo_bra1,tmp_mo_ket1);
+                            double dpu1=cpu_time();
+                            print("time to execute tile",tile.ilo,"in world",executing_world->id(),dpu1-dpu0,"seconds");
+                            total_execution_time += dpu1-dpu0;
+
+                            print("fencing fetch world",fetching_world->id());
+                            fetching_world->gop.fence();
+
+                            // change roles of the two worlds
+                            std::swap(poisson1,poisson2);
+                            std::swap(phi1,phi2);
+                            std::swap(tmp_mo_bra2,tmp_mo_bra1);
+                            std::swap(tmp_mo_ket2,tmp_mo_ket1);
+                            std::swap(executing_world,fetching_world);
+                        }
+                    }
+                } // objects living in the two worlds must be destroyed before the worlds are freed
+
+                // deferred destruction of WorldObjects happens here
+                fetching_world->gop.fence();
+                executing_world->gop.fence();
+                double cpu2=cpu_time();
+                print("overall time: ",cpu2-cpu0,"seconds");
+                print("total execution time:",total_execution_time,"seconds");
+                print("total fetch time:",total_fetch_time,"seconds");
+                print("total fetch spawn time:",total_fetch_spawn_time,"seconds");
+            } // worlds are destroyed here
 
             return Kf;
         }

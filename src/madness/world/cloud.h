@@ -525,6 +525,7 @@ private:
 
     template<typename T> using is_world_constructible = std::is_constructible<T, World &>;
 
+public:
     struct cloudtimer {
         World& world;
         double wall0;
@@ -537,6 +538,7 @@ private:
             rtime += deltatime;
         }
     };
+private:
 
     template<typename T>
     void cache(madness::World &world, const T &obj, const keyT &record) const {
