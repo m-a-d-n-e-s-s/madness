@@ -182,8 +182,8 @@ public:
     auto VC = perturbation_vector(world_, gs_, stateC);
     VB.insert(VB.end(), VB.begin(), VB.end());
     VC.insert(VC.end(), VC.begin(), VC.end());
-    auto vb = raw_perturbation_operator(world_, gs_, stateB);
-    auto vc = raw_perturbation_operator(world_, gs_, stateC);
+    auto vb = raw_perturbation_operator(world_, gs_, stateB.perturbation);
+    auto vc = raw_perturbation_operator(world_, gs_, stateC.perturbation);
 
     auto result = compute_vbc_response(world_, gs_, xB, xC, VB, VC, vb, vc);
 

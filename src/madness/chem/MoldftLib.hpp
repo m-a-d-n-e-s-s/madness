@@ -11,7 +11,6 @@
 
 #endif
 
-
 inline NextAction decide_next_action(bool at_protocol, bool archive_needed, bool archive_exists,
                                      bool all_properties_computed, bool restart_exists) {
   // We must recompute if any of these are true:
@@ -102,6 +101,7 @@ struct moldft_lib {
   SCFResultsTuple run(World &world, const Params &params, const bool restart = false) {
     auto moldft_params = params.get<CalculationParameters>();
     const auto &molecule = params.get<Molecule>();
+    auto params_copy = params;
 
     if (restart) {
       // Handle restart logic
@@ -125,10 +125,10 @@ struct moldft_lib {
       protocol.erase(protocol.begin() + protocol_index - 1);
       if (world.rank() == 0)
         print("Restarting from protocol index ", protocol_index, " with protocol values ", protocol);
-      moldft_params.set_user_defined_value("protocol", protocol);
+      params_copy.get<CalculationParameters>().set_user_defined_value("protocol", protocol);
     }
 
-    auto scf = calc(world, params);
+    auto scf = calc(world, params_copy);
 
     // redirect any log files into outdir if needed…
     // Warm and fuzzy for the user
@@ -175,7 +175,7 @@ struct moldft_lib {
     scf->do_plots(world);
 
     ConvergenceResults cr;
-    cr.set_converged_thresh(scf->converged_for_thresh);
+    cr.set_converged_thresh(FunctionDefaults<3>::get_thresh());
     cr.set_converged_dconv(scf->converged_for_dconv);
     PropertyResults pr;
     pr.energy = energy;

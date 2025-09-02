@@ -1,4 +1,5 @@
 #pragma once
+#include <Results.h>
 #include <madness/tensor/tensor.h>
 #include <madness/world/world.h>
 
@@ -14,16 +15,18 @@
 #include "../../madness/chem/ResponseParameters.hpp"
 #include "InnerContributions.hpp"
 #include "MolecularProperty.hpp"
+#include "Perturbation.hpp"
 #include "ResponseIO.hpp"
 #include "ResponseSolverUtils.hpp"
 #include "ResponseVector.hpp"
+#include "Results.h"
 #include "VBCMacrotask.hpp"
 #include "broadcast_json.hpp"
 #include "functypedefs.h"
 
 using json = nlohmann::json;
 
-enum class PropertyType { Alpha, Beta, Raman };
+enum class PropertyType { Alpha, Hessian, Beta, Raman };
 
 inline std::string iso_timestamp() {
   using namespace std::chrono;
@@ -342,59 +345,6 @@ private:
   }
 };
 
-/*void initialize_property_structure(PropertyManager &pm,*/
-/*                                   const ResponseParameters &rp) {*/
-/*  auto props = rp.requested_properties();*/
-/*  auto dipole_dirs = rp.dipole_directions();*/
-/*  auto nuclear_dirs = rp.nuclear_directions();*/
-/*  auto nuclear_atom_indices = rp.nuclear_atom_indices();*/
-/*  auto dipole_freqs = rp.dipole_frequencies();*/
-/*  auto nuclear_freqs = rp.nuclear_frequencies();*/
-/**/
-/*  for (const auto &prop : props) {*/
-/*    if (prop == "polarizability") {*/
-/*      auto num_dirs = dipole_dirs.size();*/
-/**/
-/*      std::string directions_string;*/
-/*      for (char dir : dipole_dirs) {*/
-/*        directions_string += dir;*/
-/*      }*/
-/**/
-/*      for (double omega : dipole_freqs) {*/
-/*        if (!pm.has_alpha(omega, directions_string)) {*/
-/*          madness::Tensor<double> empty_tensor(num_dirs,*/
-/*                                               num_dirs);  // 3x3 alpha*/
-/*          pm.set_alpha(omega, empty_tensor, directions_string);*/
-/*        }*/
-/*      }*/
-/*    } else if (prop == "hyperpolarizability") {*/
-/*      const auto directions_string =*/
-/*          std::string(dipole_dirs.begin(), dipole_dirs.end());*/
-/**/
-/*      for (size_t b = 0; b < dipole_freqs.size(); ++b) {*/
-/*        for (size_t c = b; c < dipole_freqs.size(); ++c) {*/
-/*          double omega1 = dipole_freqs[b];*/
-/*          double omega2 = dipole_freqs[c];*/
-/*          for (char B : dipole_dirs) {*/
-/*            for (char C : dipole_dirs) {*/
-/*              std::string bc = std::string() + B + C;*/
-/*              for (char A : dipole_dirs) {*/
-/*                std::string abc = std::string() + A + B + C;*/
-/*                if (!pm.has_beta(omega1, omega2, abc)) {*/
-/*                  pm.set_beta(omega1, omega2, abc,*/
-/*                              std::numeric_limits<double>::quiet_NaN());*/
-/*                }*/
-/*              }*/
-/*            }*/
-/*          }*/
-/*        }*/
-/*      }*/
-/*    }*/
-/*  }*/
-/**/
-/*  pm.save();*/
-/*}*/
-
 /**
  * @brief Computes the polarizability tensor (α) for a given set of
  * frequencies and directions.
@@ -481,6 +431,106 @@ void compute_alpha(World &world, std::map<std::string, LinearResponseDescriptor>
   pm.save();
 }
 
+/**
+ * @brief Computes the polarizability tensor (α) for a given set of
+ * frequencies and directions.
+ *
+ * @param world The MADNESS world object.
+ * @param state_map A map of response states computed from perturbations.
+ * @param gs The ground state data.
+ * @param frequencies A vector of frequencies for which to compute α.
+ * @param directions A string of characters representing the directions
+ * for the perturbations.
+ * @param pm The property manager to store the computed α tensor.
+ */
+[[nodiscard]] VibrationalResults compute_hessian(World &world,
+                                                 std::map<std::string, LinearResponseDescriptor> &state_map,
+                                                 const GroundStateData &gs, const std::vector<double> &frequencies,
+                                                 const std::string &directions, const std::shared_ptr<SCF> &scf_calc) {
+  const size_t num_directions = directions.size();
+  const size_t num_orbitals = gs.getNumOrbitals();
+  const size_t num_frequencies = frequencies.size();
+  const bool is_restricted = gs.isSpinRestricted();
+
+  auto mol = gs.getMolecule();
+  auto natom = mol.natom();
+  std::vector<std::string> atom_derivative_keys;
+  for (int i = 0; i < natom; ++i) {
+    for (const char &dir : directions) {
+      NuclearDisplacementPerturbation n{i, dir};
+      atom_derivative_keys.push_back(describe_perturbation(n));
+    }
+  }
+
+  std::vector<vector_real_function_3d> perturbations;
+  for (const auto &adx : atom_derivative_keys) {
+    if (state_map.find(adx) == state_map.end()) {
+      throw std::runtime_error("State not found in state_map: " + adx);
+    } else {
+      perturbations.push_back(perturbation_vector(world, gs, state_map.at(adx))); // Get the perturbation vector
+    }
+  }
+
+  const auto &phi0 = gs.getOrbitals();
+  const auto &occ = gs.getOcc();
+
+  auto rho0 = scf_calc->make_density(world, occ, phi0);
+  auto drhoX = vector_real_function_3d(3);
+  for (int axis = 0; axis < 3; ++axis) {
+    real_derivative_3d D = free_space_derivative<double, 3>(world, axis);
+    real_function_3d rho_copy = copy(rho0).refine();
+    drhoX[axis] = D(rho_copy);
+  } //{dx,dy,dz}
+    //
+
+  for (size_t f = 0; f < num_frequencies; ++f) {
+    double omega = frequencies[f];
+
+    Tensor<double> hessian(natom * 3, natom * 3);
+    // double alpha_factor = (omega == 0.0) ? -4.0 : -2.0;
+    for (size_t iatom = 0; iatom < natom; ++iatom) {
+      for (int iaxis = 0; iaxis < 3; ++iaxis) {
+        int i = iatom * 3 + iaxis;
+
+        auto &active_state = state_map.at(atom_derivative_keys[i]);
+        if (world.rank() == 0) {
+
+          print("Loading response vector for ", atom_derivative_keys[i]);
+        }
+
+        ResponseVector load_vector;
+        active_state.set_frequency_index(f);
+        load_response_vector(world, num_orbitals, active_state, load_vector, active_state.thresholds.size() - 1, f);
+        auto xi = get_flat(load_vector);
+        auto xphi = mul(world, xi, phi0, true);
+        auto rho_xi = 2.0 * sum(world, xphi, true);
+
+        for (size_t jatom = 0; jatom < natom; ++jatom) {
+          for (int jaxis = 0; jaxis < 3; ++jaxis) {
+            int j = jatom * 3 + jaxis;
+
+            // skip diagonal elements because they are extremely noisy!
+            // use translational symmetry to reconstruct them from other
+            // hessian matrix elements (see below)
+            if (i == j)
+              continue;
+
+            madchem::MolecularDerivativeFunctor mdf(mol, jatom, jaxis);
+            hessian(i, j) = inner(rho_xi, mdf);
+
+            // integration by parts < 0 | H^{YX} | 0 >
+            if (iatom == jatom)
+              hessian(i, j) += inner(drhoX[iaxis], mdf);
+          }
+        }
+      }
+    }
+    //    if (hessdebug) {
+    print("\n raw electronic Hessian (a.u.)\n");
+    print(hessian);
+  }
+}
+
 /// @brief
 /// @param world
 /// @param gs
@@ -491,9 +541,7 @@ void compute_alpha(World &world, std::map<std::string, LinearResponseDescriptor>
 /// @param frequencies
 /// @param pm
 template <typename BType, typename CType>
-void compute_beta(World &world, const GroundStateData &gs, const PerturbationType a_type,
-                  const std::vector<Perturbation> &perturbation_A,
-                  const std::pair<PerturbationType, PerturbationType> &bc_types,
+void compute_beta(World &world, const GroundStateData &gs, const std::vector<Perturbation> &perturbation_A,
                   const std::vector<std::pair<Perturbation, Perturbation>> &BC_pairs,
                   const std::pair<std::vector<double>, std::vector<double>> &frequencies, PropertyManager &pm,
                   const PropertyType &prop_type) {
@@ -509,8 +557,7 @@ void compute_beta(World &world, const GroundStateData &gs, const PerturbationTyp
     for (auto &freq_c : frequencies.second) {
       // Get all BC pairs possible out of Perturbation
       for (auto [B, C] : BC_pairs) {
-        VBCResponseState vbc_state(bc_types.first, bc_types.second, B, C, freq_b, freq_c,
-                                   FunctionDefaults<3>::get_thresh(), is_spin_restricted);
+        VBCResponseState vbc_state(B, C, freq_b, freq_c, FunctionDefaults<3>::get_thresh(), is_spin_restricted);
         auto bc = vbc_state.perturbationDescription();
         auto pertB = std::get<BType>(B); // get the B perturbation
         auto pertC = std::get<CType>(C); // get the C perturbation
@@ -557,9 +604,9 @@ void compute_beta(World &world, const GroundStateData &gs, const PerturbationTyp
         std::vector<real_function_3d> opAs(perturbation_A.size());
         for (int a = 0; a < perturbation_A.size(); ++a) {
           auto pertA = perturbation_A[a];
-          auto state_A = LinearResponseDescriptor(pertA, a_type, {omega_A}, {FunctionDefaults<3>::get_thresh()},
-                                                  is_spin_restricted);
-          opAs[a] = raw_perturbation_operator(world, gs, state_A);
+          auto state_A =
+              LinearResponseDescriptor(pertA, {omega_A}, {FunctionDefaults<3>::get_thresh()}, is_spin_restricted);
+          opAs[a] = raw_perturbation_operator(world, gs, state_A.perturbation);
           load_response_vector(world, num_orbitals, state_A, a_vecs[a], 0, 0);
           auto flat = get_flat(a_vecs[a]);
           if (omega_A == 0.0) {
@@ -663,7 +710,6 @@ void compute_hyperpolarizability(World &world, const GroundStateData &gs,
     A_pert.emplace_back(DipolePerturbation{d});
 
   // 2) Build all BC pairs of two dipoles
-  std::pair<PerturbationType, PerturbationType> bc_types = {PerturbationType::Dipole, PerturbationType::Dipole};
   std::vector<std::pair<Perturbation, Perturbation>> BC_pairs;
   for (char b : directions)
     for (char c : directions)
@@ -672,11 +718,7 @@ void compute_hyperpolarizability(World &world, const GroundStateData &gs,
   auto freq_pair = std::make_pair(frequencies, frequencies);
 
   // 3) Dispatch
-  compute_beta<DipolePerturbation, DipolePerturbation>(world, gs,
-                                                       PerturbationType::Dipole, // A-type
-                                                       A_pert,
-                                                       bc_types, // B and C types
-                                                       BC_pairs,
+  compute_beta<DipolePerturbation, DipolePerturbation>(world, gs, A_pert, BC_pairs,
                                                        freq_pair, // ωB and ωC = same list of freqs
                                                        pm, PropertyType::Beta);
 }
@@ -698,9 +740,6 @@ void compute_Raman(World &world, const GroundStateData &gs,
   for (char d : dip_dirs)
     A_pert.emplace_back(DipolePerturbation{d});
 
-  std::pair<PerturbationType, PerturbationType> bc_types = {PerturbationType::Dipole,
-                                                            PerturbationType::NuclearDisplacement};
-
   // 3) Build BC pairs = (Dipole, NuclearDisp)
   std::vector<std::pair<Perturbation, Perturbation>> BC_pairs;
 
@@ -718,10 +757,7 @@ void compute_Raman(World &world, const GroundStateData &gs,
   BC_frequencies.second = std::vector<double>(frequencies.size(), 0.0);
 
   // 4) Dispatch
-  compute_beta<DipolePerturbation, NuclearDisplacementPerturbation>(
-      world, gs,
-      PerturbationType::Dipole, // the “A”-perturbation is always
-      A_pert, bc_types, BC_pairs,
-      BC_frequencies, // ωB and ωC = same list of freqs
-      pm, PropertyType::Raman);
+  compute_beta<DipolePerturbation, NuclearDisplacementPerturbation>(world, gs, A_pert, BC_pairs,
+                                                                    BC_frequencies, // ωB and ωC = same list of freqs
+                                                                    pm, PropertyType::Raman);
 }
