@@ -30,7 +30,7 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<double>("dconv", 1e-6, "density convergence");
     initialize<bool>("step_restrict", true, "Toggles step restriction");
     initialize<std::vector<std::string>>("requested_properties", {"polarizability"},
-                                         "properties to calculate (polarizability, hyperpolarizability, "
+                                         "properties to calculate (polarizability,hessian, hyperpolarizability, "
                                          "Raman.)");
     //** if properites are requested, then one should specify directions,
     // frequencies, and atom_indices(for nuclear response) */

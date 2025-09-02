@@ -107,29 +107,8 @@ struct moldft_lib {
       // Handle restart logic
       auto cr = std::get<2>(last_results_);
       moldft_params.set_user_defined_value("restart", true);
-
-      // figure out the protocol based on scf_results
-      const auto last_protocol = cr.converged_for_thresh;
-
-      auto protocol = moldft_params.protocol();
-      // figure out which protocol we are at
-      int protocol_index = -1;
-      for (size_t i = 0; i < protocol.size(); ++i) {
-        if (protocol[i] == last_protocol) {
-          // Found the protocol
-          protocol_index = i;
-          break;
-        }
-      }
-      // set protocol to start the converged result
-      protocol.erase(protocol.begin() + protocol_index - 1);
-      if (world.rank() == 0)
-        print("Restarting from protocol index ", protocol_index, " with protocol values ", protocol);
-      params_copy.get<CalculationParameters>().set_user_defined_value("protocol", protocol);
     }
-
     auto scf = calc(world, params_copy);
-
     // redirect any log files into outdir if needed…
     // Warm and fuzzy for the user
     if (world.rank() == 0) {

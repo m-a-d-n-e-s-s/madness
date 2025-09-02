@@ -48,8 +48,9 @@ struct molresponse_lib {
   // Container for structured JSON fragments produced by the workflow
   // -----------------------------------------------------------------------------
   struct Results {
-    nlohmann::json metadata;   // convergence metadata per state
-    nlohmann::json properties; // computed α, β, Raman property tables
+    nlohmann::json metadata;                            // convergence metadata per state
+    nlohmann::json properties;                          // computed α, β, Raman property tables
+    std::optional<nlohmann::json> vibrational_analysis; //
 
     std::optional<nlohmann::json> debug_log; // debug log of response calculations
   };
@@ -166,6 +167,7 @@ struct molresponse_lib {
     std::string nuc_dirs = rp.nuclear_directions();
     enum class PropertyType { Alpha, Hessian, Beta, Raman };
 
+    std::optional<VibrationalResults> vibrational_results = std::nullopt;
     PropertyType prop_type;
     for (auto const &prop : rp.requested_properties()) {
       auto prop_string = std::string(prop);
@@ -175,6 +177,8 @@ struct molresponse_lib {
         prop_type = PropertyType::Alpha;
       } else if (prop_string == "hyperpolarizability") {
         prop_type = PropertyType::Beta;
+      } else if (prop_string == "hessian") {
+        prop_type = PropertyType::Hessian;
       } else if (prop_string == "raman") {
         prop_type = PropertyType::Raman;
       } else {
@@ -190,8 +194,9 @@ struct molresponse_lib {
       } else if (prop_type == PropertyType::Hessian) {
         if (world.rank() == 0)
           madness::print("▶️ Computing Hessian...");
-        auto vibrational_results = compute_hessian(world, generated_states.state_map, ground, rp.dipole_frequencies(),
-                                                   rp.dipole_directions(), scf_calc);
+        vibrational_results =
+            compute_hessian(world, generated_states.state_map, ground, rp.dipole_directions(), scf_calc);
+
       } else if (prop_type == PropertyType::Beta) {
         if (world.rank() == 0)
           madness::print("▶️ Computing hyperpolarizability β...");
@@ -233,6 +238,7 @@ struct molresponse_lib {
     results.metadata = metadata.to_json();
     results.properties = properties.to_json();
     results.debug_log = debug_logger.to_json();
+    results.vibrational_analysis = vibrational_results->to_json();
     return results;
   }
 
