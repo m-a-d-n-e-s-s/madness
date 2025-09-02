@@ -69,7 +69,7 @@ public:
     auto num_freqs = freqs.size();
     auto num_nuclear_freqs = nuclear_freqs.size();
 
-    enum class PropertyType { Alpha, Beta, Raman };
+    enum class PropertyType { Alpha, Hessian, Beta, Raman };
 
     PropertyType prop_type;
     for (const auto &prop : requested_properties_) {
@@ -80,6 +80,8 @@ public:
 
       if (prop_string == "polarizability") {
         prop_type = PropertyType::Alpha;
+      } else if (prop_string == "hessian") {
+        prop_type = PropertyType::Hessian;
       } else if (prop_string == "hyperpolarizability") {
         prop_type = PropertyType::Beta;
       } else if (prop_string == "raman") {
@@ -99,6 +101,15 @@ public:
         std::sort(augmented_dipole_freqs.begin(), augmented_dipole_freqs.end());
         augmented_dipole_freqs.erase(std::unique(augmented_dipole_freqs.begin(), augmented_dipole_freqs.end()),
                                      augmented_dipole_freqs.end());
+      }
+
+      if (prop_type == PropertyType::Hessian) {
+        // Hessian = all nuclear displacements at all nuclear frequencies
+        for (auto atom_index : nuclear_atom_indices) {
+          for (char d : nuclear_directions) {
+            addPerturbation(NuclearDisplacementPerturbation{atom_index, d}, nuclear_freqs);
+          }
+        }
       }
 
       if (prop_type == PropertyType::Alpha) {

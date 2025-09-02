@@ -1,5 +1,6 @@
 #pragma once
 #include <Results.h>
+#include <madness/chem/vibanal.h>
 #include <madness/tensor/tensor.h>
 #include <madness/world/world.h>
 
@@ -445,11 +446,10 @@ void compute_alpha(World &world, std::map<std::string, LinearResponseDescriptor>
  */
 [[nodiscard]] VibrationalResults compute_hessian(World &world,
                                                  std::map<std::string, LinearResponseDescriptor> &state_map,
-                                                 const GroundStateData &gs, const std::vector<double> &frequencies,
-                                                 const std::string &directions, const std::shared_ptr<SCF> &scf_calc) {
+                                                 const GroundStateData &gs, const std::string &directions,
+                                                 const std::shared_ptr<SCF> &scf_calc) {
   const size_t num_directions = directions.size();
   const size_t num_orbitals = gs.getNumOrbitals();
-  const size_t num_frequencies = frequencies.size();
   const bool is_restricted = gs.isSpinRestricted();
 
   auto mol = gs.getMolecule();
@@ -481,54 +481,163 @@ void compute_alpha(World &world, std::map<std::string, LinearResponseDescriptor>
     real_function_3d rho_copy = copy(rho0).refine();
     drhoX[axis] = D(rho_copy);
   } //{dx,dy,dz}
-    //
+  //
 
-  for (size_t f = 0; f < num_frequencies; ++f) {
-    double omega = frequencies[f];
+  Tensor<double> hessian(natom * 3, natom * 3);
+  // double alpha_factor = (omega == 0.0) ? -4.0 : -2.0;
+  for (size_t iatom = 0; iatom < natom; ++iatom) {
+    for (int iaxis = 0; iaxis < 3; ++iaxis) {
+      int i = iatom * 3 + iaxis;
 
-    Tensor<double> hessian(natom * 3, natom * 3);
-    // double alpha_factor = (omega == 0.0) ? -4.0 : -2.0;
+      auto &active_state = state_map.at(atom_derivative_keys[i]);
+      if (world.rank() == 0) {
+
+        print("Loading response vector for ", atom_derivative_keys[i]);
+      }
+
+      ResponseVector load_vector;
+      active_state.set_frequency_index(0);
+      load_response_vector(world, num_orbitals, active_state, load_vector, active_state.thresholds.size() - 1, 0);
+      auto xi = get_flat(load_vector);
+      auto xphi = mul(world, xi, phi0, true);
+      auto rho_xi = 2.0 * sum(world, xphi, true);
+
+      for (size_t jatom = 0; jatom < natom; ++jatom) {
+        for (int jaxis = 0; jaxis < 3; ++jaxis) {
+          int j = jatom * 3 + jaxis;
+
+          // skip diagonal elements because they are extremely noisy!
+          // use translational symmetry to reconstruct them from other
+          // hessian matrix elements (see below)
+          if (i == j)
+            continue;
+
+          madchem::MolecularDerivativeFunctor mdf(mol, jatom, jaxis);
+          hessian(i, j) = inner(rho_xi, mdf);
+
+          // integration by parts < 0 | H^{YX} | 0 >
+          if (iatom == jatom)
+            hessian(i, j) += inner(drhoX[iaxis], mdf);
+        }
+      }
+    }
+  }
+  VibrationalResults results;
+  //    if (hessdebug) {
+  print("\n raw electronic Hessian (a.u.)\n");
+  print(hessian);
+  auto purify_hessian = [&](const Tensor<double> &H) {
+    Tensor<double> purified = copy(H);
+    double maxasymmetric = 0.0;
+
+    const size_t natom = mol.natom();
+
     for (size_t iatom = 0; iatom < natom; ++iatom) {
       for (int iaxis = 0; iaxis < 3; ++iaxis) {
         int i = iatom * 3 + iaxis;
-
-        auto &active_state = state_map.at(atom_derivative_keys[i]);
-        if (world.rank() == 0) {
-
-          print("Loading response vector for ", atom_derivative_keys[i]);
-        }
-
-        ResponseVector load_vector;
-        active_state.set_frequency_index(f);
-        load_response_vector(world, num_orbitals, active_state, load_vector, active_state.thresholds.size() - 1, f);
-        auto xi = get_flat(load_vector);
-        auto xphi = mul(world, xi, phi0, true);
-        auto rho_xi = 2.0 * sum(world, xphi, true);
 
         for (size_t jatom = 0; jatom < natom; ++jatom) {
           for (int jaxis = 0; jaxis < 3; ++jaxis) {
             int j = jatom * 3 + jaxis;
 
-            // skip diagonal elements because they are extremely noisy!
-            // use translational symmetry to reconstruct them from other
-            // hessian matrix elements (see below)
-            if (i == j)
-              continue;
+            double mean = (purified(i, j) + purified(j, i)) * 0.5;
+            double diff = 0.5 * fabs(purified(i, j) - purified(j, i));
+            maxasymmetric = std::max(maxasymmetric, diff);
 
-            madchem::MolecularDerivativeFunctor mdf(mol, jatom, jaxis);
-            hessian(i, j) = inner(rho_xi, mdf);
-
-            // integration by parts < 0 | H^{YX} | 0 >
-            if (iatom == jatom)
-              hessian(i, j) += inner(drhoX[iaxis], mdf);
+            unsigned int ZA = mol.get_atomic_number(iatom);
+            unsigned int ZB = mol.get_atomic_number(jatom);
+            if (ZA < ZB)
+              purified(i, j) = purified(j, i);
+            if (ZA > ZB)
+              purified(j, i) = purified(i, j);
+            if (ZA == ZB) {
+              purified(i, j) = mean;
+              purified(j, i) = mean;
+            }
           }
         }
       }
     }
-    //    if (hessdebug) {
-    print("\n raw electronic Hessian (a.u.)\n");
+    print("purify: max asymmetric element ", maxasymmetric);
+    print("purify: raw hessian ");
     print(hessian);
+    print("purify: purified hessian ");
+    print(purified);
+
+    return purified;
+  };
+
+  for (size_t i = 0; i < 3 * natom; ++i)
+    hessian(i, i) = 0.0;
+
+  hessian = purify_hessian(hessian);
+  Tensor<double> asymmetric = 0.5 * (hessian - transpose(hessian));
+  const double max_asymmetric = asymmetric.absmax();
+  // symmetrize hessian
+  hessian += transpose(hessian);
+  hessian.scale(0.5);
+  // exploit translational symmetry to compute the diagonal elements:
+  // translating all atoms in the same direction will make no energy change,
+  // therefore the respective sum of hessian matrix elements will be zero:
+  for (size_t i = 0; i < 3 * natom; ++i) {
+    double sum = 0.0;
+    for (size_t j = 0; j < 3 * natom; j += 3)
+      sum += hessian(i, j + (i % 3));
+    hessian(i, i) = -sum;
   }
+
+  //    if (hessdebug) {
+  print("\n electronic Hessian (a.u.)\n");
+  print(hessian);
+  //    }
+
+  // add the nuclear-nuclear contribution
+  hessian += mol.nuclear_repulsion_hessian();
+
+  //    if (hessdebug) {
+  print("\n Hessian (a.u.)\n");
+  print(hessian);
+
+  Tensor<double> normalmodes;
+  Tensor<double> vib_freq = compute_frequencies(mol, hessian, normalmodes, false, true);
+
+  if (true) {
+    print("\n vibrational frequencies (unprojected) (a.u.)\n");
+    print(vib_freq);
+    print("\n vibrational frequencies (unprojected) (cm-1)\n");
+    print(constants::au2invcm * vib_freq);
+  }
+
+  vib_freq = compute_frequencies(mol, hessian, normalmodes, true, true);
+  //  Tensor<double> intensities = compute_IR_intensities(normalmodes, dens_pt);
+  Tensor<double> reducedmass = compute_reduced_mass(mol, normalmodes);
+
+  if (world.rank() == 0) {
+    print("\nprojected vibrational frequencies (cm-1)\n");
+    printf("frequency in cm-1   ");
+    for (int i = 0; i < vib_freq.size(); ++i) {
+      printf("%10.3f", constants::au2invcm * vib_freq(i));
+    }
+    // printf("\n");
+    // printf("intensity in km/mol ");
+    // for (int i = 0; i < intensities.size(); ++i) {
+    //   printf("%10.3f", intensities(i));
+    // }
+    // printf("\n");
+    // printf("reduced mass in amu ");
+    // for (int i = 0; i < intensities.size(); ++i) {
+    //   printf("%10.3f", reducedmass(i));
+    // }
+    // printf("\n\n");
+    // printf("done with computing the hessian matrix at time %8.1fs \n", wall_time());
+    // printf("final energy %16.8f", calc->current_energy);
+  }
+  results.hessian = hessian;
+  results.frequencies = vib_freq;
+  // results.intensities = intensities;
+  results.reducedmass = reducedmass;
+  results.normalmodes = normalmodes;
+  return results;
 }
 
 /// @brief
