@@ -8,6 +8,7 @@
 #include <span>
 
 namespace madness {
+enum class NextAction { Ok, ReloadOnly, Restart, Redo };
 // Scoped CWD: changes the current directory to the given one, and restores when
 // the object goes out of scope
 struct ScopedCWD {
@@ -77,7 +78,6 @@ protected:
   const Params params_;
   nlohmann::json results_;
 };
-enum class NextAction { Ok, ReloadOnly, Restart, Redo };
 
 template <typename Library> class SCFApplication : public Application {
 private:

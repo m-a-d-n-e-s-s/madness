@@ -158,22 +158,13 @@ struct molresponse_lib {
           }
         }
       }
-      /*if (state.at_final_threshold()) {*/
-      /*  state.is_converged = true;*/
-      /*  if (world.rank() == 0) madness::print("✓ Final convergence reached
-       * for", state.description());*/
-      /*} else {*/
-      /*  state.advance_threshold();*/
-      /*  if (world.rank() == 0) madness::print("→ advancing to next protocol
-       * for", state.description());*/
-      /*}*/
     }
 
     // compute requested properties
     PropertyManager properties(world, "properties.json");
     std::string dip_dirs = rp.dipole_directions();
     std::string nuc_dirs = rp.nuclear_directions();
-    enum class PropertyType { Alpha, Beta, Raman };
+    enum class PropertyType { Alpha, Hessian, Beta, Raman };
 
     PropertyType prop_type;
     for (auto const &prop : rp.requested_properties()) {
@@ -196,6 +187,11 @@ struct molresponse_lib {
                       properties);
         properties.save();
 
+      } else if (prop_type == PropertyType::Hessian) {
+        if (world.rank() == 0)
+          madness::print("▶️ Computing Hessian...");
+        auto vibrational_results = compute_hessian(world, generated_states.state_map, ground, rp.dipole_frequencies(),
+                                                   rp.dipole_directions(), scf_calc);
       } else if (prop_type == PropertyType::Beta) {
         if (world.rank() == 0)
           madness::print("▶️ Computing hyperpolarizability β...");

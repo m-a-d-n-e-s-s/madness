@@ -6,6 +6,7 @@
 
 #include "../../madness/chem/ResponseParameters.hpp"
 #include "MolecularProperty.hpp"
+#include "Perturbation.hpp"
 #include "ResponseState.hpp"
 
 using namespace madness;
@@ -23,10 +24,7 @@ struct GeneratedStateData {
 
     size_t count = 0;
     for (const auto &[key, state] : state_map) {
-      std::string type = (state.type == PerturbationType::Dipole)                ? "Dipole"
-                         : (state.type == PerturbationType::NuclearDisplacement) ? "Nuclear"
-                                                                                 : "Other";
-
+      std::string type = perturbation_type_string(state.perturbation);
       std::cout << std::setw(5) << count++ << "  " << std::setw(40) << std::left << key << std::setw(20) << type
                 << std::setw(10) << state.frequencies.size() << "\n";
     }
@@ -43,21 +41,19 @@ public:
 
   [[nodiscard]] GeneratedStateData generateStates() const {
     struct Entry {
-      PerturbationType type;
       Perturbation pert;
       std::set<double> freqs;
     };
     std::map<std::string, Entry> table;
 
     // helper to insert/merge one perturbation+freqs into table
-    auto addPerturbation = [&](PerturbationType t, const Perturbation &p, const std::vector<double> &f) {
+    auto addPerturbation = [&](const Perturbation &p, const std::vector<double> &f) {
       // build a throwaway ResponseState so we get the exact key
-      LinearResponseDescriptor tmp{p, t, f, thresholds_, spin_restricted_};
+      LinearResponseDescriptor tmp{p, f, thresholds_, spin_restricted_};
       std::string key = describe_perturbation(p);
       auto &e = table[key];
       // on first visit fill in type+pert
       if (e.freqs.empty()) {
-        e.type = t;
         e.pert = p;
       }
       // merge in all f into the set
@@ -107,16 +103,15 @@ public:
 
       if (prop_type == PropertyType::Alpha) {
         for (char d : dipole_dirs) {
-          addPerturbation(PerturbationType::Dipole, DipolePerturbation{d}, augmented_dipole_freqs);
+          addPerturbation(DipolePerturbation{d}, augmented_dipole_freqs);
         }
       } else if (prop_type == PropertyType::Raman) {
         for (char d : dipole_dirs) {
-          addPerturbation(PerturbationType::Dipole, DipolePerturbation{d}, nuclear_freqs);
+          addPerturbation(DipolePerturbation{d}, nuclear_freqs);
         }
         for (auto atom_index : nuclear_atom_indices) {
           for (char d : nuclear_directions) {
-            addPerturbation(PerturbationType::NuclearDisplacement, NuclearDisplacementPerturbation{atom_index, d},
-                            dipole_freqs);
+            addPerturbation(NuclearDisplacementPerturbation{atom_index, d}, nuclear_freqs);
           }
         }
       }
@@ -125,7 +120,7 @@ public:
     GeneratedStateData out;
     for (auto const &[key, e] : table) {
       std::vector<double> freqs(e.freqs.begin(), e.freqs.end());
-      LinearResponseDescriptor st{e.pert, e.type, freqs, thresholds_, spin_restricted_};
+      LinearResponseDescriptor st{e.pert, freqs, thresholds_, spin_restricted_};
       out.states.push_back(st);
       out.state_map[key] = st;
     }

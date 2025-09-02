@@ -246,12 +246,6 @@ inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
     world.gop.fence();
     ResponseVector guess =
         make_response_vector(num_orbitals, is_static, is_unrestricted);
-
-    /*if (world.rank() == 0) {*/
-    /*  madness::print("🔄 Attempting to load response vector for",
-     * state.description());*/
-    /*}*/
-    // At this point, I know that I'm either not saved or not at the final
     if (is_saved && load_response_vector(world, num_orbitals, state, guess,
                                          thresh_index, freq_index)) {
       if (world.rank() == 0) {
