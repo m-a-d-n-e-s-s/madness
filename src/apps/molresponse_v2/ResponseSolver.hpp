@@ -26,6 +26,61 @@ template <typename ResponseType> class ResponseSolverPolicy {
   // nothing here
 };
 
+
+// alpha factor as a constexpr function (nice for inlining/constants)
+constexpr double alpha_factor(const StaticRestrictedResponse&)     { return -4.0; }
+constexpr double alpha_factor(const DynamicRestrictedResponse&)    { return -2.0; }
+constexpr double alpha_factor(const StaticUnrestrictedResponse&)   { return -2.0; }
+constexpr double alpha_factor(const DynamicUnrestrictedResponse&)  { return -2.0; }
+
+// compute_density
+real_function_3d compute_density(World&, const StaticRestrictedResponse&,
+                                 const vector_real_function_3d&);
+
+real_function_3d compute_density(World&, const DynamicRestrictedResponse&,
+                                 const vector_real_function_3d&);
+
+real_function_3d compute_density(World&, const StaticUnrestrictedResponse&,
+                                 const vector_real_function_3d&);
+
+real_function_3d compute_density(World&, const DynamicUnrestrictedResponse&,
+                                 const vector_real_function_3d&);
+
+// make_bsh_operators
+std::vector<poperatorT> make_bsh_operators(World&, const ResponseManager&, double freq,
+                                           const Tensor<double>& orbital_energies, int n,
+                                           ResponseDebugLogger&, const StaticRestrictedResponse&);
+
+std::vector<poperatorT> make_bsh_operators(World&, const ResponseManager&, double freq,
+                                           const Tensor<double>& orbital_energies, int n,
+                                           ResponseDebugLogger&, const DynamicRestrictedResponse&);
+
+std::vector<poperatorT> make_bsh_operators(World&, const ResponseManager&, double freq,
+                                           const Tensor<double>& orbital_energies, int n,
+                                           ResponseDebugLogger&, const StaticUnrestrictedResponse&);
+
+std::vector<poperatorT> make_bsh_operators(World&, const ResponseManager&, double freq,
+                                           const Tensor<double>& orbital_energies, int n,
+                                           ResponseDebugLogger&, const DynamicUnrestrictedResponse&);
+
+// CoupledResponseEquations (one per variant)
+vector_real_function_3d CoupledResponseEquations(World&, const GroundStateData&,
+  const StaticRestrictedResponse&, const vector_real_function_3d& vp,
+  const std::vector<poperatorT>& bsh_x, const ResponseManager&, ResponseDebugLogger&);
+
+vector_real_function_3d CoupledResponseEquations(World&, const GroundStateData&,
+  const DynamicRestrictedResponse&, const vector_real_function_3d& vp,
+  const std::vector<poperatorT>& bsh_x, const ResponseManager&, ResponseDebugLogger&);
+
+vector_real_function_3d CoupledResponseEquations(World&, const GroundStateData&,
+  const StaticUnrestrictedResponse&, const vector_real_function_3d& vp,
+  const std::vector<poperatorT>& bsh_x, const ResponseManager&, ResponseDebugLogger&);
+
+vector_real_function_3d CoupledResponseEquations(World&, const GroundStateData&,
+  const DynamicUnrestrictedResponse&, const vector_real_function_3d& vp,
+  const std::vector<poperatorT>& bsh_x, const ResponseManager&, ResponseDebugLogger&);
+
+
 template <> class ResponseSolverPolicy<StaticRestrictedResponse> {
 public:
   static constexpr double alpha_factor = -4.0;
@@ -50,6 +105,9 @@ public:
                      const Tensor<double> &orbital_energies, int n,
                      ResponseDebugLogger &logger);
 };
+
+
+
 template <> class ResponseSolverPolicy<DynamicRestrictedResponse> {
 public:
   static constexpr double alpha_factor = -2.0;
