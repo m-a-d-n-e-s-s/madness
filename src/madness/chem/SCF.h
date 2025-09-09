@@ -549,6 +549,14 @@ public:
         if (xsq == coords_sum) {
             return calc.current_energy;
         }
+	    // if not at protocol[0] and thresh changed, reset to protocol[0]
+	    auto proto0 = calc.param.protocol()[0];
+	    if(FunctionDefaults<3>::get_thresh() != proto0){
+	    	if(world.rank()==0){
+	    		print("thresh changed from protocol[0], resetting to protocol[0]");
+	    	}
+	    calc.set_protocol<3>(world, proto0);
+	    }
         calc.molecule.set_all_coords(x.reshape(calc.molecule.natom(), 3));
         coords_sum = xsq;
 
