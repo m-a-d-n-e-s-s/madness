@@ -237,38 +237,25 @@ int main(int argc, char **argv) {
         auto reference = std::shared_ptr<SCFApplication<nemo_lib>>(new SCFApplication<nemo_lib>(world, pm));
         auto ref_calc = reference->calc();
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(std::make_unique<OEPApplication>(world, pm, ref_calc)));
+      } else if (user_workflow == "optimize") {
+
+        std::string msg = "The optimize workflow is currently disabled. Please use the dft + gopt() application instead.\n";
+        MADNESS_EXCEPTION(msg.c_str(), 1);
+        // std::function<std::unique_ptr<Application>(Params)> scfFactory = [&](Params p) {
+        //   return std::make_unique<SCFApplication<moldft_lib>>(world, p);
+        // };
+        //
+        // pm.get<CalculationParameters>().set_derived_value("derivatives", true);
+        // wf.addDriver(std::make_unique<qcapp::OptimizeDriver>(world, scfFactory, pm));
+
       } else {
         static std::string msg =
             "Unknown workflow: " + user_workflow + "\nAvailable workflows are: response, mp2, cc2, cis";
         MADNESS_EXCEPTION(msg.c_str(), 1);
       }
-
-      // Execute both in "MyCalc" directory
-      // if (world.rank() == 0) {
-      //   print_header1("Calculation parameters");
-      //   pm.get<Molecule>().print();
-      //   wf.print_parameters(world);
-      //   print("");
-      // }
-
-      // if (world.rank() == 0)
-      //   print_header1("Starting calculations");
-      // TODO: if reading from json file, then we need to set the prefix of
-      // CalculationParameter   , first attempt is to modify in ParameterManager
-      // ctor
       std::string prefix = pm.prefix();
-
       wf.run(prefix);
 
-      if (false) {
-        qcapp::Workflow opt_wf;
-
-        std::function<std::unique_ptr<Application>(Params)> scfFactory = [&](Params p) {
-          return std::make_unique<SCFApplication<moldft_lib>>(world, p);
-        };
-
-        opt_wf.addDriver(std::make_unique<qcapp::OptimizeDriver>(world, scfFactory, pm));
-      }
     } catch (std::exception &e) {
       if (world.rank() == 0) {
         print_header2("caught an exception in the main loop");

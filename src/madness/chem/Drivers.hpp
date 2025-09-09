@@ -8,8 +8,8 @@
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
-#include <madness/chem/Applications.hpp>  // Interface for SCFApplication / ResponseApplication
-#include <madness/chem/SCFTargetAdapter.hpp>  // SCFTarget
+#include <madness/chem/Applications.hpp>     // Interface for SCFApplication / ResponseApplication
+#include <madness/chem/SCFTargetAdapter.hpp> // SCFTarget
 #include <madness/external/nlohmann_json/json.hpp>
 #include <memory>
 #include <vector>
@@ -21,16 +21,16 @@ namespace qcapp {
  * Applications.
  */
 class Driver {
- public:
+public:
   virtual ~Driver() = default;
 
-  virtual void print_parameters(World& world) const = 0;
+  virtual void print_parameters(World &world) const = 0;
 
   /**
    * @brief Execute the driver, writing outputs under the given directory.
    * @param workdir Base directory for this driver's outputs.
    */
-  virtual void execute(const std::filesystem::path& workdir) = 0;
+  virtual void execute(const std::filesystem::path &workdir) = 0;
 
   /**
    * @brief Return a JSON summary of results produced by this driver.
@@ -43,14 +43,12 @@ class Driver {
  * subdirectory.
  */
 class SinglePointDriver : public Driver {
- public:
+public:
   explicit SinglePointDriver(std::shared_ptr<Application> app) : app_(app) {}
 
-  void print_parameters(World& world) const override {
-    app_->print_parameters(world);
-  }
+  void print_parameters(World &world) const override { app_->print_parameters(world); }
 
-  void execute(const std::filesystem::path& workdir) override {
+  void execute(const std::filesystem::path &workdir) override {
     // Create workdir for this application
     std::filesystem::create_directories(workdir);
 
@@ -61,21 +59,23 @@ class SinglePointDriver : public Driver {
 
   nlohmann::json summary() const override { return result_; }
 
- private:
+private:
   std::shared_ptr<Application> app_;
   nlohmann::json result_;
 };
 
 class OptimizeDriver : public Driver {
- public:
-  OptimizeDriver(World& w,
-                 std::function<std::unique_ptr<Application>(Params)> factory,
-                 Params p)
+public:
+  OptimizeDriver(World &w, std::function<std::unique_ptr<Application>(Params)> factory, Params p)
       : world_(w), factory_(std::move(factory)), params_(std::move(p)) {}
 
-  void print_parameters(World& world) const override { params_.print_all(); }
+  void print_parameters(World &world) const override {
+    if (world.rank() == 0) {
+      params_.print_all();
+    }
+  }
 
-  void execute(const std::filesystem::path& workdir) override {
+  void execute(const std::filesystem::path &workdir) override {
     // 1) make our single "opt" folder
     std::filesystem::create_directories(workdir);
     PathManager pm(workdir, "opt");
@@ -87,9 +87,8 @@ class OptimizeDriver : public Driver {
       std::cout << "Running geometry optimization in " << pm.dir() << "\n";
 
     // 3) build MolOpt from Params
-    auto& op = params_.get<OptimizationParameters>();
-    MolOpt optimizer(op.get_maxiter(), 0.1, op.get_value_precision(),
-                     op.get_geometry_tolerence(), 1e-3, 1e-5,
+    auto &op = params_.get<OptimizationParameters>();
+    MolOpt optimizer(op.get_maxiter(), 0.1, op.get_value_precision(), op.get_geometry_tolerence(), 1e-3, 1e-5,
                      op.get_gradient_precision(), 1, op.get_algopt());
     // seed the Hessian
     optimizer.initialize_hessian(params_.get<Molecule>());
@@ -99,10 +98,13 @@ class OptimizeDriver : public Driver {
 
     // 5) run the optimization
     auto mol0 = params_.get<Molecule>();
-    auto mol_opt = optimizer.optimize(mol0, target);
+    Molecule optimized_mol = optimizer.optimize(mol0, target);
 
+    OptimizationResults results;
+    results.final_geometry = optimized_mol;
+    results.final_energy = target.last_energy;
     // 6) update params (if you plan further drivers)
-    params_.set(mol_opt);
+    params_.set(optimized_mol);
 
     // 7) record final results
     summary_ = {
@@ -112,16 +114,16 @@ class OptimizeDriver : public Driver {
 
     // 8) optionally dump optimized geometry
     if (world_.rank() == 0) {
-      auto geom_j = mol_opt.to_json();
+      auto geom_j = optimized_mol.to_json();
       std::ofstream f("optimized_geometry.json");
       f << std::setw(2) << geom_j << "\n";
     }
   }
 
-  nlohmann::json summary() const override { return summary_; }
+  [[nodiscard]] nlohmann::json summary() const override { return summary_; }
 
- private:
-  World& world_;
+private:
+  World &world_;
   std::function<std::unique_ptr<Application>(Params)> factory_;
   Params params_;
   nlohmann::json summary_;
@@ -132,19 +134,18 @@ class OptimizeDriver : public Driver {
  * output.json.
  */
 class Workflow {
- public:
+public:
   Workflow() = default;
 
   /**
    * @brief Add a driver to the workflow.
    * @param driver Unique pointer to a Driver instance.
    */
-  void addDriver(std::unique_ptr<Driver> driver) {
-    drivers_.push_back(std::move(driver));
-  }
+  void addDriver(std::unique_ptr<Driver> driver) { drivers_.push_back(std::move(driver)); }
 
-  void print_parameters(World& world) const {
-    for (const auto& d : drivers_) d->print_parameters(world);
+  void print_parameters(World &world) const {
+    for (const auto &d : drivers_)
+      d->print_parameters(world);
   }
 
   /**
@@ -166,7 +167,7 @@ class Workflow {
 
       /// append current output to all
       if (current_output.is_array()) {
-        for (const auto& item : current_output) {
+        for (const auto &item : current_output) {
           all["tasks"].push_back(item);
         }
       } else {
@@ -183,8 +184,8 @@ class Workflow {
     }
   }
 
- private:
+private:
   std::vector<std::unique_ptr<Driver>> drivers_;
 };
 
-}  // namespace qcapp
+} // namespace qcapp
