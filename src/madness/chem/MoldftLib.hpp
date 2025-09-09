@@ -128,11 +128,50 @@ struct moldft_lib {
     }
     // vama
     scf->set_protocol<3>(world, scf->param.protocol()[0]);
+    double energy = 0.0;
 
-    MolecularEnergy E(world, *scf);
-    double energy = E.value(scf->molecule.get_all_coords().flat());
-    if (world.rank() == 0 && scf->param.print_level() > 0)
-      E.output_calc_info_schema();
+    if (scf->param.gopt()) {
+      // print("\n\n Geometry Optimization                      ");
+      // print(" ----------------------------------------------------------\n");
+      // calc.param.gprint(world);
+
+      // Tensor<double> geomcoord = calc.molecule.get_all_coords().flat();
+      // QuasiNewton geom(std::shared_ptr<OptimizationTargetInterface>(new MolecularEnergy(world, calc)),
+      //                  calc.param.gmaxiter,
+      //                  calc.param.gtol,  //tol
+      //                  calc.param.gval,  //value prec
+      //                  calc.param.gprec); // grad prec
+      // geom.set_update(calc.param.algopt);
+      // geom.set_test(calc.param.gtest);
+      // long ncoord = calc.molecule.natom()*3;
+      // Tensor<double> h(ncoord,ncoord);
+      // for (int i=0; i<ncoord; ++i) h(i,i) = 0.5;
+      // geom.set_hessian(h);
+      // geom.optimize(geomcoord);
+
+      MolOpt opt(scf->param.gmaxiter(),
+		 0.1,
+		 scf->param.gval(),
+		 scf->param.gtol(),
+                 1e-3,                  // XTOL
+		 1e-5,
+                 scf->param.gprec(),
+                 (world.rank() == 0) ? 1 : 0, // print_level
+                 scf->param.algopt());
+
+      MolecularEnergy target(world, *scf);
+      auto new_mol = opt.optimize(scf->molecule, target);
+      energy = scf->current_energy;
+      // MolecularEnergy E(world, *scf);
+      // energy = E.value(new_mol.get_all_coords().flat());
+
+    } else {
+      MolecularEnergy E(world, *scf);
+
+      energy = E.value(scf->molecule.get_all_coords().flat());
+      if (world.rank() == 0 && scf->param.print_level() > 0)
+        E.output_calc_info_schema();
+    }
 
     functionT rho = scf->make_density(world, scf->aocc, scf->amo);
     functionT brho = rho;
