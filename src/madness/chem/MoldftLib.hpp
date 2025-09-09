@@ -176,7 +176,8 @@ private:
 
     world.gop.fence();
     if (world.rank() == 0) {
-      if (!std::filesystem::exists("mad.in")) {
+      if (true) { // should always overwrite for now
+
         json in;
         in["dft"] = cp.to_json_if_precedence("defined");
         in["molecule"] = mol.to_json_if_precedence("defined");
