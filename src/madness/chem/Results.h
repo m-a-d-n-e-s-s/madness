@@ -6,6 +6,7 @@
 #define RESULTS_H
 
 #include "madness/constants.h"
+#include <madness/chem/molecule.h>
 #include <madness/external/nlohmann_json/json.hpp>
 #include <madness/tensor/tensor_json.hpp>
 #include <string>
@@ -134,6 +135,57 @@ public:
   void from_json(const nlohmann::json &j) {
     converged_for_thresh = j.value("converged_for_thresh", 1.e10);
     converged_for_dconv = j.value("converged_for_dconv", 1.e10);
+  }
+};
+
+class OptimizationResults : public ResultsBase {
+public:
+  int nsteps = 0;
+  double final_energy = 0.0;
+  double max_gradient = 0.0;
+  double rms_gradient = 0.0;
+  double max_step = 0.0;
+  double rms_step = 0.0;
+  madness::Molecule final_geometry;
+
+  OptimizationResults() = default;
+
+  /// construct from JSON
+  OptimizationResults(const nlohmann::json &j) {
+    nsteps = j.value("nsteps", 0);
+    final_energy = j.value("final_energy", 0.0);
+    max_gradient = j.value("max_gradient", 0.0);
+    rms_gradient = j.value("rms_gradient", 0.0);
+    max_step = j.value("max_step", 0.0);
+    rms_step = j.value("rms_step", 0.0);
+    if (j.contains("final_geometry"))
+      final_geometry.from_json(j.at("final_geometry"));
+  }
+
+  std::string key() const override { return "optimization"; }
+
+  [[nodiscard]] nlohmann::json to_json() const override {
+    nlohmann::json j;
+    j["nsteps"] = nsteps;
+    j["final_energy"] = final_energy;
+    j["max_gradient"] = max_gradient;
+    j["rms_gradient"] = rms_gradient;
+    j["max_step"] = max_step;
+    j["rms_step"] = rms_step;
+    j["final_geometry"] = final_geometry.to_json();
+    return j;
+  } // from json OptimizationResults
+
+  void from_json(const nlohmann::json &j) override {
+    // robust reads (won’t throw if missing)
+    nsteps = j.value("nsteps", 0);
+    final_energy = j.value("final_energy", 0.0);
+    max_gradient = j.value("max_gradient", 0.0);
+    rms_gradient = j.value("rms_gradient", 0.0);
+    max_step = j.value("max_step", 0.0);
+    rms_step = j.value("rms_step", 0.0);
+    if (j.contains("final_geometry"))
+      final_geometry.from_json(j.at("final_geometry"));
   }
 };
 
