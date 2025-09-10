@@ -27,6 +27,63 @@
 
 using json = nlohmann::json;
 
+struct PropRow {
+  std::string property;
+  std::string component; // x,y,z, xx,xy,xz,yy,yz,zz, xxx, xxy, xxz, yyy, yyz, zzz
+  double freq1;
+  std::optional<double> freq2;
+  std::optional<double> value;
+};
+
+struct PropKey {
+  std::string property;
+  std::string component;
+  double freq1;
+  std::optional<double> freq2;
+
+  bool operator<(PropKey const &other) const noexcept {
+    if (property != other.property)
+      return property < other.property;
+    if (component != other.component)
+      return component < other.component;
+    if (freq1 != other.freq1)
+      return freq1 < other.freq1;
+    // for freq2
+    if (!freq2 && other.freq2)
+      return true;
+    if (freq2 && !other.freq2)
+      return false;
+    if (freq2 && other.freq2)
+      return *freq2 < *other.freq2;
+    return false;
+  }
+};
+// enable Json to PropRow
+inline void to_json(json &j, PropRow const &r) {
+  j = json::object();
+  j["property"] = r.property;
+  j["component"] = r.component;
+  j["freqB"] = r.freq1;
+  if (r.freq2) {
+    j["freqC"] = *r.freq2;
+  }
+  if (r.value) {
+    j["value"] = *r.value;
+  }
+}
+
+inline void from_json(json const &j, PropRow &r) {
+  r.property = j.at("property").get<std::string>();
+  r.component = j.at("component").get<std::string>();
+  r.freq1 = j.at("freqB").get<double>();
+  if (j.contains("freqC")) {
+    r.freq2 = j.at("freqC").get<double>();
+  }
+  if (j.contains("value")) {
+    r.value = j.at("value").get<double>();
+  }
+}
+
 enum class PropertyType { Alpha, Hessian, Beta, Raman };
 
 inline std::string iso_timestamp() {
@@ -114,63 +171,6 @@ inline madness::Tensor<double> compute_response_inner_product_tensor(madness::Wo
 /**/
 /*  return result;*/
 /*}*/
-
-struct PropRow {
-  std::string property;
-  std::string component; // x,y,z, xx,xy,xz,yy,yz,zz, xxx, xxy, xxz, yyy, yyz, zzz
-  double freq1;
-  std::optional<double> freq2;
-  std::optional<double> value;
-};
-
-struct PropKey {
-  std::string property;
-  std::string component;
-  double freq1;
-  std::optional<double> freq2;
-
-  bool operator<(PropKey const &other) const noexcept {
-    if (property != other.property)
-      return property < other.property;
-    if (component != other.component)
-      return component < other.component;
-    if (freq1 != other.freq1)
-      return freq1 < other.freq1;
-    // for freq2
-    if (!freq2 && other.freq2)
-      return true;
-    if (freq2 && !other.freq2)
-      return false;
-    if (freq2 && other.freq2)
-      return *freq2 < *other.freq2;
-    return false;
-  }
-};
-// enable Json to PropRow
-inline void to_json(json &j, PropRow const &r) {
-  j = json::object();
-  j["property"] = r.property;
-  j["component"] = r.component;
-  j["freqB"] = r.freq1;
-  if (r.freq2) {
-    j["freqC"] = *r.freq2;
-  }
-  if (r.value) {
-    j["value"] = *r.value;
-  }
-}
-
-inline void from_json(json const &j, PropRow &r) {
-  r.property = j.at("property").get<std::string>();
-  r.component = j.at("component").get<std::string>();
-  r.freq1 = j.at("freqB").get<double>();
-  if (j.contains("freqC")) {
-    r.freq2 = j.at("freqC").get<double>();
-  }
-  if (j.contains("value")) {
-    r.value = j.at("value").get<double>();
-  }
-}
 
 class PropertyManager {
 public:
@@ -870,3 +870,4 @@ void compute_Raman(World &world, const GroundStateData &gs,
                                                                     BC_frequencies, // ωB and ωC = same list of freqs
                                                                     pm, PropertyType::Raman);
 }
+
