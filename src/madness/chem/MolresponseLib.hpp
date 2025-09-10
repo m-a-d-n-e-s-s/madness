@@ -42,6 +42,7 @@
 #include <filesystem>
 #include <madness/chem/InputWriter.hpp>
 #include <madness/chem/ParameterManager.hpp>
+#include <madness/chem/Results.h>
 
 struct molresponse_lib {
   // -----------------------------------------------------------------------------
@@ -51,7 +52,6 @@ struct molresponse_lib {
     nlohmann::json metadata;                            // convergence metadata per state
     nlohmann::json properties;                          // computed α, β, Raman property tables
     std::optional<nlohmann::json> vibrational_analysis; //
-
     std::optional<nlohmann::json> debug_log; // debug log of response calculations
   };
   static constexpr char const *label() { return "molresponse"; }
@@ -165,7 +165,7 @@ struct molresponse_lib {
     PropertyManager properties(world, "properties.json");
     std::string dip_dirs = rp.dipole_directions();
     std::string nuc_dirs = rp.nuclear_directions();
-    enum class PropertyType { Alpha, Hessian, Beta, Raman };
+    enum class PropertyType { Alpha, Beta, Raman };
 
     std::optional<VibrationalResults> vibrational_results = std::nullopt;
     PropertyType prop_type;
@@ -177,8 +177,6 @@ struct molresponse_lib {
         prop_type = PropertyType::Alpha;
       } else if (prop_string == "hyperpolarizability") {
         prop_type = PropertyType::Beta;
-      } else if (prop_string == "hessian") {
-        prop_type = PropertyType::Hessian;
       } else if (prop_string == "raman") {
         prop_type = PropertyType::Raman;
       } else {
@@ -190,13 +188,6 @@ struct molresponse_lib {
         compute_alpha(world, generated_states.state_map, ground, rp.dipole_frequencies(), rp.dipole_directions(),
                       properties);
         properties.save();
-
-      } else if (prop_type == PropertyType::Hessian) {
-        if (world.rank() == 0)
-          madness::print("▶️ Computing Hessian...");
-        vibrational_results =
-            compute_hessian(world, generated_states.state_map, ground, rp.dipole_directions(), scf_calc);
-
       } else if (prop_type == PropertyType::Beta) {
         if (world.rank() == 0)
           madness::print("▶️ Computing hyperpolarizability β...");
@@ -205,6 +196,13 @@ struct molresponse_lib {
         properties.save();
 
       } else if (prop_type == PropertyType::Raman) {
+
+        // vibrational analysis (Hessian + frequencies + intensities)
+        if (world.rank() == 0)
+          madness::print("▶️ Computing Hessian...");
+        vibrational_results =
+            compute_hessian(world, generated_states.state_map, ground, rp.dipole_directions(), scf_calc);
+
         auto nuclear_dirs = rp.nuclear_directions();
         auto dipole_dirs = rp.dipole_directions();
         if (world.rank() == 0)

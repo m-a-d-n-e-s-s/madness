@@ -6,6 +6,7 @@
 #define RESULTS_H
 
 #include "madness/constants.h"
+#include "madness_exception.h"
 #include <madness/chem/molecule.h>
 #include <madness/external/nlohmann_json/json.hpp>
 #include <madness/tensor/tensor_json.hpp>
@@ -286,9 +287,11 @@ public:
   // Required alpha (for RHF/ ROHF/ UHF UKS we alsways expect alpha)
   Tensor<double> aeps;
   Tensor<double> afock;
+  Molecule scf_molecule;
   // optional beta (only for UHF/ UKS)
   std::optional<Tensor<double>> beps;
   std::optional<Tensor<double>> bfock;
+  bool is_opt = false;
 
   std::string model = "scf";     // model used for the SCF calculation
   double scf_total_energy = 0.0; // total energy of the SCF calculation
@@ -320,6 +323,9 @@ public:
     if (properties && has_data(*properties)) {
       j["properties"] = properties->to_json();
     }
+
+    j["molecule"] = scf_molecule.to_json();
+    j["is_opt"] = is_opt;
     return j;
   }
 
@@ -356,6 +362,11 @@ public:
     } else {
       properties.reset();
     }
+    if (j.contains("molecule"))
+      scf_molecule.from_json(j.at("molecule"));
+    else
+      MADNESS_EXCEPTION("Missing molecule data", j);
+    is_opt = j.value("is_opt", false);
   }
 };
 // Todo: Upgrade to new JSON style using optional everything below here --
@@ -577,9 +588,9 @@ public:
   }
 };
 
-class ResponseResults : public ResultsBase {
-  virtual nlohmann::json to_json() const { MADNESS_EXCEPTION("to_json not implemented for ConvergenceResults", 1); }
-};
+
+
+
 
 using SCFResultsTuple = std::tuple<SCFResults, PropertyResults, ConvergenceResults>;
 

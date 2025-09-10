@@ -209,6 +209,7 @@ public:
 
       metadata_ = std::move(res.metadata);
       properties_ = std::move(res.properties);
+      vibrational_analysis_ = std::move(res.vibrational_analysis);
     }
   }
 
@@ -223,6 +224,7 @@ private:
   World &world_;
   nlohmann::json metadata_;
   nlohmann::json properties_;
+  std::optional<nlohmann::json> vibrational_analysis_;
   const std::shared_ptr<SCF> reference_;
 };
 

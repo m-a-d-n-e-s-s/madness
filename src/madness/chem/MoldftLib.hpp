@@ -103,6 +103,7 @@ struct moldft_lib {
     const auto &molecule = params.get<Molecule>();
     auto params_copy = params;
 
+    SCFResults sr;
     if (restart) {
       // Handle restart logic
       auto cr = std::get<2>(last_results_);
@@ -131,23 +132,6 @@ struct moldft_lib {
     double energy = 0.0;
 
     if (scf->param.gopt()) {
-      // print("\n\n Geometry Optimization                      ");
-      // print(" ----------------------------------------------------------\n");
-      // calc.param.gprint(world);
-
-      // Tensor<double> geomcoord = calc.molecule.get_all_coords().flat();
-      // QuasiNewton geom(std::shared_ptr<OptimizationTargetInterface>(new MolecularEnergy(world, calc)),
-      //                  calc.param.gmaxiter,
-      //                  calc.param.gtol,  //tol
-      //                  calc.param.gval,  //value prec
-      //                  calc.param.gprec); // grad prec
-      // geom.set_update(calc.param.algopt);
-      // geom.set_test(calc.param.gtest);
-      // long ncoord = calc.molecule.natom()*3;
-      // Tensor<double> h(ncoord,ncoord);
-      // for (int i=0; i<ncoord; ++i) h(i,i) = 0.5;
-      // geom.set_hessian(h);
-      // geom.optimize(geomcoord);
 
       MolOpt opt(scf->param.gmaxiter(),
 		 0.1,
@@ -162,11 +146,26 @@ struct moldft_lib {
       MolecularEnergy target(world, *scf);
       auto new_mol = opt.optimize(scf->molecule, target);
       energy = scf->current_energy;
+      sr.scf_molecule = new_mol;
+      sr.is_opt = true;
+
+      // write out the optimized geometry
+      if (world.rank() == 0) {
+        std::string geomfile = scf->param.prefix() + "_opt.xyz";
+        std::ofstream ofs(geomfile);
+        new_mol.print(ofs);
+        ofs.close();
+        print("optimized geometry written to ", geomfile);
+        // write out mad.in with optimized geometry
+      }
+
       // MolecularEnergy E(world, *scf);
       // energy = E.value(new_mol.get_all_coords().flat());
 
     } else {
       MolecularEnergy E(world, *scf);
+      sr.scf_molecule = molecule;
+      sr.is_opt = false;
 
       energy = E.value(scf->molecule.get_all_coords().flat());
       if (world.rank() == 0 && scf->param.print_level() > 0)
@@ -199,7 +198,6 @@ struct moldft_lib {
     pr.energy = energy;
     pr.dipole = dip;
     pr.gradient = grad;
-    SCFResults sr;
     sr.aeps = scf->aeps;
     sr.beps = scf->beps;
     sr.properties = pr;
