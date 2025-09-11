@@ -59,7 +59,6 @@ set(MADCHEM_HEADERS
     SCFTargetAdapter.hpp
     InputWriter.hpp
     CCLib.hpp
-    MoldftLib.hpp
     projector.h
     Results.h
     QCPropertyInterface.h
