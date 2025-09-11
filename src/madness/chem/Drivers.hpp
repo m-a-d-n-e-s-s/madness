@@ -64,70 +64,70 @@ private:
   nlohmann::json result_;
 };
 
-class OptimizeDriver : public Driver {
-public:
-  OptimizeDriver(World &w, std::function<std::unique_ptr<Application>(Params)> factory, Params p)
-      : world_(w), factory_(std::move(factory)), params_(std::move(p)) {}
+// class OptimizeDriver : public Driver {
+// public:
+//   OptimizeDriver(World &w, std::function<std::unique_ptr<Application>(Params)> factory, Params p)
+//       : world_(w), factory_(std::move(factory)), params_(std::move(p)) {}
 
-  void print_parameters(World &world) const override {
-    if (world.rank() == 0) {
-      params_.print_all();
-    }
-  }
+//   void print_parameters(World &world) const override {
+//     if (world.rank() == 0) {
+//       params_.print_all();
+//     }
+//   }
 
-  void execute(const std::filesystem::path &workdir) override {
-    // 1) make our single "opt" folder
-    std::filesystem::create_directories(workdir);
-    PathManager pm(workdir, "opt");
-    pm.create();
+//   void execute(const std::filesystem::path &workdir) override {
+//     // 1) make our single "opt" folder
+//     std::filesystem::create_directories(workdir);
+//     PathManager pm(workdir, "opt");
+//     pm.create();
 
-    // 2) switch into it
-    ScopedCWD guard(pm.dir());
-    if (world_.rank() == 0)
-      std::cout << "Running geometry optimization in " << pm.dir() << "\n";
+//     // 2) switch into it
+//     ScopedCWD guard(pm.dir());
+//     if (world_.rank() == 0)
+//       std::cout << "Running geometry optimization in " << pm.dir() << "\n";
 
-    // 3) build MolOpt from Params
-    auto &op = params_.get<OptimizationParameters>();
-    MolOpt optimizer(op.get_maxiter(), 0.1, op.get_value_precision(), op.get_geometry_tolerence(), 1e-3, 1e-5,
-                     op.get_gradient_precision(), 1, op.get_algopt());
-    // seed the Hessian
-    optimizer.initialize_hessian(params_.get<Molecule>());
+//     // 3) build MolOpt from Params
+//     auto &op = params_.get<OptimizationParameters>();
+//     MolOpt optimizer(op.get_maxiter(), 0.1, op.get_value_precision(), op.get_geometry_tolerence(), 1e-3, 1e-5,
+//                      op.get_gradient_precision(), 1, op.get_algopt());
+//     // seed the Hessian
+//     optimizer.initialize_hessian(params_.get<Molecule>());
 
-    // 4) build our target adaptor
-    SCFTarget target(world_, factory_, params_);
+//     // 4) build our target adaptor
+//     SCFTarget target(world_, factory_, params_);
 
-    // 5) run the optimization
-    auto mol0 = params_.get<Molecule>();
-    Molecule optimized_mol = optimizer.optimize(mol0, target);
+//     // 5) run the optimization
+//     auto mol0 = params_.get<Molecule>();
+//     Molecule optimized_mol = optimizer.optimize(mol0, target);
 
-    OptimizationResults results;
-    results.final_geometry = optimized_mol;
-    results.final_energy = target.last_energy;
-    // 6) update params (if you plan further drivers)
-    params_.set(optimized_mol);
+//     OptimizationResults results;
+//     results.final_geometry = optimized_mol;
+//     results.final_energy = target.last_energy;
+//     // 6) update params (if you plan further drivers)
+//     params_.set(optimized_mol);
 
-    // 7) record final results
-    summary_ = {
-        {"type", "optimization"}, {"final_energy", target.last_energy}
-        // you could add geometry, gradient norms, etc.
-    };
+//     // 7) record final results
+//     summary_ = {
+//         {"type", "optimization"}, {"final_energy", target.last_energy}
+//         // you could add geometry, gradient norms, etc.
+//     };
 
-    // 8) optionally dump optimized geometry
-    if (world_.rank() == 0) {
-      auto geom_j = optimized_mol.to_json();
-      std::ofstream f("optimized_geometry.json");
-      f << std::setw(2) << geom_j << "\n";
-    }
-  }
+//     // 8) optionally dump optimized geometry
+//     if (world_.rank() == 0) {
+//       auto geom_j = optimized_mol.to_json();
+//       std::ofstream f("optimized_geometry.json");
+//       f << std::setw(2) << geom_j << "\n";
+//     }
+//   }
 
-  [[nodiscard]] nlohmann::json summary() const override { return summary_; }
+//   [[nodiscard]] nlohmann::json summary() const override { return summary_; }
 
-private:
-  World &world_;
-  std::function<std::unique_ptr<Application>(Params)> factory_;
-  Params params_;
-  nlohmann::json summary_;
-};
+// private:
+//   World &world_;
+//   std::function<std::unique_ptr<Application>(Params)> factory_;
+//   Params params_;
+//   nlohmann::json summary_;
+// };
 
 /**
  * @brief Orchestrates multiple drivers in sequence and writes a global
