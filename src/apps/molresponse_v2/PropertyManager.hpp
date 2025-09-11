@@ -84,7 +84,7 @@ inline void from_json(json const &j, PropRow &r) {
   }
 }
 
-enum class PropertyType { Alpha, Hessian, Beta, Raman };
+enum class PropertyType { Alpha, Beta, Raman };
 
 inline std::string iso_timestamp() {
   using namespace std::chrono;
@@ -601,7 +601,7 @@ void compute_alpha(World &world, std::map<std::string, LinearResponseDescriptor>
   Tensor<double> normalmodes;
   Tensor<double> vib_freq = compute_frequencies(mol, hessian, normalmodes, false, true);
 
-  if (true) {
+  if (true and world.rank() == 0) {
     print("\n vibrational frequencies (unprojected) (a.u.)\n");
     print(vib_freq);
     print("\n vibrational frequencies (unprojected) (cm-1)\n");
@@ -870,4 +870,3 @@ void compute_Raman(World &world, const GroundStateData &gs,
                                                                     BC_frequencies, // ωB and ωC = same list of freqs
                                                                     pm, PropertyType::Raman);
 }
-
