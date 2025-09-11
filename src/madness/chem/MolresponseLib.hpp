@@ -52,7 +52,7 @@ struct molresponse_lib {
     nlohmann::json metadata;                            // convergence metadata per state
     nlohmann::json properties;                          // computed α, β, Raman property tables
     std::optional<nlohmann::json> vibrational_analysis; //
-    std::optional<nlohmann::json> debug_log; // debug log of response calculations
+    std::optional<nlohmann::json> debug_log;            // debug log of response calculations
   };
   static constexpr char const *label() { return "molresponse"; }
 
@@ -200,8 +200,8 @@ struct molresponse_lib {
         // vibrational analysis (Hessian + frequencies + intensities)
         if (world.rank() == 0)
           madness::print("▶️ Computing Hessian...");
-        vibrational_results =
-            compute_hessian(world, generated_states.state_map, ground, rp.dipole_directions(), scf_calc);
+        auto vib = compute_hessian(world, generated_states.state_map, ground, rp.dipole_directions(), scf_calc);
+        vibrational_results = vib;
 
         auto nuclear_dirs = rp.nuclear_directions();
         auto dipole_dirs = rp.dipole_directions();
@@ -236,7 +236,7 @@ struct molresponse_lib {
     results.metadata = metadata.to_json();
     results.properties = properties.to_json();
     results.debug_log = debug_logger.to_json();
-    results.vibrational_analysis = vibrational_results->to_json();
+    results.vibrational_analysis = vibrational_results ? std::make_optional(vibrational_results->to_json()) : std::nullopt;  
     return results;
   }
 
