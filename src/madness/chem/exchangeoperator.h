@@ -377,7 +377,7 @@ private:
                     // !! NO !! vket is batched, starts at batch.input[0].begin
                     // auto& i = batch.input[0].begin;
                     MADNESS_CHECK_THROW(vket.size()==1,"out-of-bounds error in Exchange::MacroTaskExchangeRow::operator()");
-                    size_t min_tile = 2;
+                    size_t min_tile = 10;
                     size_t ntile = std::min(mo_bra.size(), min_tile);
 
                     struct Tile {
@@ -385,17 +385,32 @@ private:
                         size_t iend;
                     };
 
+
                     // copy the data from the universe bra and ket to subworld bra and ket
                     // returns a pair of vectors in the subworld which are still awaiting the function coefficients
                     auto fetch_data = [&](World& world, const Tile& tile) {
                         MADNESS_CHECK_THROW(mo_bra.size()==mo_ket.size(),
                                             "bra and ket size mismatch in Exchange::MacroTaskExchangeRow::execute()");
-                        vecfuncT subworld_bra;
+
+                        std::size_t sz=tile.iend-tile.ilo;
+                        vecfuncT subworld_bra(sz);
                         vecfuncT subworld_ket;
+                        double wall0=wall_time();
                         for (int i=tile.ilo; i<tile.iend; ++i) {
-                            subworld_bra.push_back(copy(world, mo_bra[i],false));
+                            print("0 in fetch_data, iteration ",i,"at time ",wall_time()-wall0);
+                            auto f=copy(world,mo_bra[i],false);
+                            print("1 in fetch_data, iteration ",i,"at time ",wall_time()-wall0);
+                            subworld_bra[i-tile.ilo]=f;
+                            print("2 in fetch_data, iteration ",i,"at time ",wall_time()-wall0);
+
+
+                            // subworld_bra.push_back(copy(world, mo_bra[i],false));
                             subworld_ket.push_back(copy(world, mo_ket[i],false));
+                            print("3 in fetch_data, iteration ",i,"at time ",wall_time()-wall0);
+                            print("");
                         }
+                        print("ending fetch_data at time ",wall_time()-wall0);
+                        print("sizes",subworld_bra.size(),subworld_ket.size(),"sizes");
                         return std::make_pair(subworld_bra,subworld_ket);
                     };
 
@@ -451,17 +466,23 @@ private:
                         Tile& tile = tiles[itile];
 
                         if (itile==0) {
+                            double t0=cpu_time();
                             print("fetching tile",tile.ilo,"into world",executing_world->id());
                             std::tie(tmp_mo_bra1,tmp_mo_ket1)=fetch_data(*executing_world,tiles[itile]);
+                            fetching_world->gop.set_forbid_fence(false);
+                            double t2=cpu_time();
                             executing_world->gop.fence();
+                            double t1=cpu_time();
+                            total_fetch_time += (t1 - t0);
+                            total_fetch_spawn_time += (t2 - t0);
                         }
 
                         if (itile>=0) {
                             double t0=cpu_time();
                             fetching_world->gop.set_forbid_fence(true);
-                            if (itile<tiles.size()) {
+                            if (itile<tiles.size()-1) {
                                 // fetch data into fetching_world while computing in executing_world
-                                print("fetching tile",tiles[itile+1].ilo,"into world",fetching_world->id());
+                                print("fetching tile",tiles[itile+1].ilo,"into world",fetching_world->id()," at time ",wall_time());
                                 std::tie(tmp_mo_bra2,tmp_mo_ket2)=fetch_data(*fetching_world,tiles[itile+1]);
                             }
                             fetching_world->gop.set_forbid_fence(false);

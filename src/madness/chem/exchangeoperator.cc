@@ -68,6 +68,8 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     // Truncation and addition doesn't commute, so truncation is done after the final accumulation.
     // Other truncations are elementwise and are not affected.
     reset_timer();
+    MacroTaskInfo::set_default(MacroTaskInfo::StorePointerToFunction);
+    print("set storage policy to StorePointerToFunction");
     vecfuncT Kf;
     if (algorithm_ == multiworld_efficient) {
         Kf = K_macrotask_efficient(vket, mul_tol);
@@ -80,6 +82,7 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     } else {
         MADNESS_EXCEPTION("unknown algorithm in exchangeoperator", 1);
     }
+    MacroTaskInfo::set_default(MacroTaskInfo::StoreFunction);
     if (printdebug()) {
         auto size = get_size(world, Kf);
         if (world.rank() == 0) print("total size of Kf before truncation", size);
