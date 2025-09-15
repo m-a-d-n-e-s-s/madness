@@ -35,6 +35,7 @@
 #include <madness/world/world_object.h>
 #include <madness/world/worldmutex.h>
 #include <madness/world/worlddc.h>
+#include <madness/mra/macrotaskq.h>
 #include <list>
 
 namespace madness {
@@ -48,6 +49,8 @@ namespace madness {
     GaussianConvolution1DCache<double_complex>::map = {};
 
 #ifdef FUNCTION_INSTANTIATE_1
+
+    MacroTaskInfo::StoragePolicy MacroTaskInfo::default_storage_policy = MacroTaskInfo::StoreFunction;
 
     template void fcube<double,1>(const Key<1>&, const FunctionFunctorInterface<double,1>&, const Tensor<double>&, Tensor<double>&);
     template Tensor<double> fcube<double, 1>(Key<1> const&, double (*)(Vector<double, 1> const&), Tensor<double> const&);

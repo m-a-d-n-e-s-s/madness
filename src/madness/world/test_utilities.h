@@ -13,8 +13,9 @@ namespace madness {
 
 /// small class for pretty printing of test output
 struct test_output {
-	test_output(std::string line) {
-        std::cout << ltrim_to_length(line,70);
+    /// @param[in]  use as if (world.rank()==0) to avoid printing on all ranks
+	test_output(std::string line, bool print=true) {
+        if (print) std::cout << ltrim_to_length(line,70);
 		logger << std::scientific << std::setprecision(8) ;
         time_begin=cpu_time();
         time_last_checkpoint=time_begin;

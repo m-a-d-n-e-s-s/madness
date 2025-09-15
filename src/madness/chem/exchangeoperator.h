@@ -119,9 +119,10 @@ private:
                                    const vecfuncT& vket, std::shared_ptr<real_convolution_3d> poisson,
                                    const bool symmetric, const double mul_tol = 0.0);
 
-    inline bool do_print_timings() const { return (world.rank() == 0) and (printlevel >= 3); }
-
     inline bool printdebug() const {return printlevel >= 10; }
+    inline bool printprogress() const {return (printlevel>=4) and (not (printdebug()));}
+    inline bool printtimings() const {return printlevel>=3;}
+    inline bool printtimings_detail() const {return printlevel>=4;}
 
     World& world;
     std::shared_ptr<MacroTaskQ> taskq;
@@ -321,6 +322,7 @@ private:
         MacroTaskExchangeRow(const long nresult, const double lo, const double mul_tol)
                 : nresult(nresult), lo(lo), mul_tol(mul_tol) {
             partitioner.reset(new MacroTaskPartitionerRow());
+            name="MacroTaskExchangeRow";
         }
 
         // you need to define the exact argument(s) of operator() as tuple
@@ -344,6 +346,7 @@ private:
                    const std::vector<Function<T, NDIM>>& mo_bra, 
                    const std::vector<Function<T, NDIM>>& mo_ket) {       
 
+            double cpu0, cpu1;
             World& world = vket.front().world();
             mul_tol = 0.0;
             
@@ -351,22 +354,33 @@ private:
             vecfuncT psif = zero_functions_compressed<T,NDIM>(world, mo_bra.size()); 
             auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(world, lo);
 
-            auto& i = batch.input[0].begin;  
+            // !! NO !! vket is batched, starts at batch.input[0].begin
+            // auto& i = batch.input[0].begin;
+            long i=0;
+            MADNESS_CHECK_THROW(vket.size()==1,"out-of-bounds error in Exchange::MacroTaskExchangeRow::operator()");
             size_t min_tile = 10;
             size_t ntile = std::min(mo_bra.size(), min_tile);
 
             for (size_t ilo=0; ilo<mo_bra.size(); ilo+=ntile){
+                cpu0 = cpu_time();
                 size_t iend = std::min(ilo+ntile,mo_bra.size());
-
                 vecfuncT tmp_mo_bra(mo_bra.begin()+ilo,mo_bra.begin()+iend);
                 auto tmp_psif = mul_sparse(world, vket[i], tmp_mo_bra, mul_tol);
                 truncate(world, tmp_psif);
+                cpu1 = cpu_time();
+                mul1_timer += long((cpu1 - cpu0) * 1000l);
 
+                cpu0 = cpu_time();
                 tmp_psif = apply(world, *poisson.get(), tmp_psif);
                 truncate(world, tmp_psif);
+                cpu1 = cpu_time();
+                apply_timer += long((cpu1 - cpu0) * 1000l);
 
+                cpu0 = cpu_time();
                 vecfuncT tmp_mo_ket(mo_ket.begin()+ilo,mo_ket.begin()+iend);
                 auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif);
+                cpu1 = cpu_time();
+                mul2_timer += long((cpu1 - cpu0) * 1000l);
 
                 Kf[0] += tmp_Kf;
                 truncate(world, Kf);

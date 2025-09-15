@@ -21,6 +21,8 @@
 #include <madness/world/timing_utilities.h>
 #include <madness/mra/macrotaskpartitioner.h>
 
+#include "test_utilities.h"
+
 
 using namespace madness;
 using namespace archive;
@@ -400,34 +402,55 @@ int check(World& universe, const real_function_3d &ref, const real_function_3d &
 template<typename T, std::size_t NDIM>
 int test_immediate(World& universe, const std::vector<Function<T,NDIM>>& v3,
                    const std::vector<Function<T,NDIM>>& ref) {
-    if (universe.rank() == 0) print("\nstarting immediate execution");
-    MicroTask<T,NDIM> t;
-    MacroTask task_immediate(universe, t);
-    std::vector<Function<T,NDIM>> v = task_immediate(v3[0], 2.0, v3);
-    int success=check_vector(universe,ref,v,"test_immediate execution of task");
-    return success;
+    test_output t1("testing immediate execution",universe.rank()==0);
+    // t1.set_cout_to_terminal();
+    for (auto sp : {MacroTaskInfo::StoreFunction, MacroTaskInfo::StoreFunctionViaPointer}) {
+        MicroTask<T,NDIM> t;
+        MacroTask task_immediate(universe, t, sp);
+        task_immediate.set_debug(true);
+        std::vector<Function<T,NDIM>> v = task_immediate(v3[0], 2.0, v3);
+        double error=norm2(universe, v-ref);
+        std::stringstream ss;
+        ss << "immediate execution -- storage policy " << sp;
+        t1.checkpoint(error,1.e-10,ss.str());
+    }
+    return t1.end();
 }
 
 int test_deferred(World& universe, const std::vector<real_function_3d>& v3,
                    const std::vector<real_function_3d>& ref) {
-    if (universe.rank() == 0) print("\nstarting deferred execution");
-    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size()));
-    taskq->set_printlevel(3);
-    MicroTask<double,3> t;
-    MacroTask task(universe, t, taskq);
-    std::vector<real_function_3d> f2a = task(v3[0], 2.0, v3);
-    taskq->print_taskq();
-    taskq->run_all();
-    taskq->cloud.print_timings(universe);
-    taskq->cloud.clear_timings();
-    int success=check_vector(universe,ref,f2a,"test_deferred execution of task");
-    return success;
+    test_output t1("testing deferred execution",universe.rank()==0);
+    t1.set_cout_to_terminal();
+    for (auto sp : {MacroTaskInfo::StoreFunction, MacroTaskInfo::StoreFunctionViaPointer}) {
+        auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size(), sp));
+        taskq->set_printlevel(20);
+        MicroTask<double,3> t;
+        MacroTask task(universe, t, taskq);
+        task.set_debug(true);
+        std::vector<real_function_3d> f2a = task(v3[0], 2.0, v3);
+        taskq->print_taskq();
+        auto [global_size,global_memsize]=taskq->cloud.print_size(universe);
+
+        if (sp==MacroTaskInfo::StoreFunction) {
+            t1.checkpoint(global_memsize>1.e3,"cloud global memory size > 1 kB");
+        } else if (sp==MacroTaskInfo::StoreFunctionViaPointer) {
+            t1.checkpoint(global_memsize<1.e3,"cloud global memory size < 1 kB");
+        }
+        taskq->run_all();
+        taskq->cloud.print_timings(universe);
+        taskq->cloud.clear_timings();
+        double error=norm2(universe, f2a-ref);
+        std::stringstream ss;
+        ss << "deferred execution -- storage policy " << sp;
+        t1.checkpoint(error,1.e-9,ss.str());
+    }
+    return t1.end();
 }
 
 int test_twice(World& universe, const std::vector<real_function_3d>& v3,
                   const std::vector<real_function_3d>& ref) {
     if (universe.rank() == 0) print("\nstarting Microtask twice (check caching)\n");
-    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size()));
+    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size(), MacroTaskInfo::StoreFunction));
     taskq->set_printlevel(3);
     MicroTask<double,3> t;
     MacroTask task(universe, t, taskq);
@@ -479,7 +502,6 @@ int test_scalar_task(World& universe, const std::vector<real_function_3d>& v3) {
     ScalarResult<double> result = t1(v3);
     double ref_t1=result.get();
     print("result reference",ref_t1);
-
 
     MacroTask task1(universe, t1);
     auto result2= task1(v3);
@@ -571,7 +593,7 @@ int test_mixed_tuple(World& universe, const std::vector<real_function_3d>& v3) {
 
 int test_2d_partitioning(World& universe, const std::vector<real_function_3d>& v3) {
     if (universe.rank() == 0) print("\nstarting 2d partitioning");
-    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size()));
+    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size(), MacroTaskInfo::StoreFunction));
     taskq->set_printlevel(3);
     MicroTask2 t;
     auto ref=t(v3,2.0,v3);

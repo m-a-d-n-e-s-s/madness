@@ -1007,8 +1007,8 @@ template<size_t NDIM>
             , k(factory._k)
             , thresh(factory._thresh)
             , initial_level(factory._initial_level)
-	    , special_level(factory._special_level)
-	    , special_points(factory._special_points)
+        , special_level(factory._special_level)
+        , special_points(factory._special_points)
             , max_refine_level(factory._max_refine_level)
             , truncate_mode(factory._truncate_mode)
             , autorefine(factory._autorefine)
@@ -1020,7 +1020,7 @@ template<size_t NDIM>
 //		  , on_demand(factory._is_on_demand)
 //		  , compressed(factory._compressed)
 //		  , redundant(false)
-		  , tree_state(factory._tree_state)
+          , tree_state(factory._tree_state)
             , coeffs(world,factory._pmap,false)
             //, bc(factory._bc)
         {
@@ -1071,10 +1071,25 @@ template<size_t NDIM>
         /// Does \em not copy the coefficients ... creates an empty container.
         template <typename Q>
         FunctionImpl(const FunctionImpl<Q,NDIM>& other,
+             const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& pmap,
+             bool dozero) : FunctionImpl(other.world, other, pmap, dozero) {
+        }
+
+        /// Copy constructor
+
+        /// Allocates a \em new function in preparation for a deep copy
+        ///
+        /// By default takes pmap from other but can also specify a different pmap.
+        /// Does \em not copy the coefficients ... creates an empty container.
+        ///
+        /// uses a different world for the new function
+        template <typename Q>
+        FunctionImpl(World& world,
+                    const FunctionImpl<Q,NDIM>& other,
                      const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& pmap,
                      bool dozero)
-                : WorldObject<implT>(other.world)
-                , world(other.world)
+                : WorldObject<implT>(world)
+                , world(world)
                 , k(other.k)
                 , thresh(other.thresh)
                 , initial_level(other.initial_level)
@@ -1112,15 +1127,49 @@ template<size_t NDIM>
         	currentmap->redistribute(world,newmap);
         }
 
+        /// Copy coeffs from other into self
+
+        /// this and other might live in different worlds
+        template <typename Q>
+        void copy_coeffs(const FunctionImpl<Q,NDIM>& other, bool fence) {
+            if (world.id()==other.world.id())
+                copy_coeffs_same_world(other,false);
+            else
+                copy_coeffs_different_world(other,false);
+            if (fence) world.gop.fence();
+        }
+
+        /// Copy coefficients from other funcimpl with possibly different world and on a different node
+        template<typename Q>
+        void copy_coeffs_different_world(const FunctionImpl<Q,NDIM>& other, bool fence) {
+            for (ProcessID pid=0; pid<other.world.size(); ++pid) {
+                copy_remote_coeffs_from_pid<Q>(pid, other, false);
+            }
+        }
+
+        /// Copy coefficients from other funcimpl with possibly different world and on a different node
+        /// to this
+        template <typename Q>
+        void copy_remote_coeffs_from_pid(const ProcessID pid, const FunctionImpl<Q,NDIM>& other, bool fence) {
+            typedef FunctionImpl<Q,NDIM> implQ; ///< Type of this class (implementation)
+            auto v=other.task(pid, &implQ::serialize_remote_coeffs).get();
+            archive::VectorInputArchive ar(v);
+            ar & get_coeffs();
+            if (fence) world.gop.fence();
+        }
+
+        /// invoked by copy_remote_coeffs_from_pid to serialize *local* coeffs
+        std::vector<unsigned char> serialize_remote_coeffs() {
+            std::vector<unsigned char> v;
+            archive::VectorOutputArchive ar(v);
+            ar & get_coeffs();
+            return v;
+        }
 
         /// Copy coeffs from other into self
         template <typename Q>
-        void copy_coeffs(const FunctionImpl<Q,NDIM>& other, bool fence) {
-            typename FunctionImpl<Q,NDIM>::dcT::const_iterator end = other.coeffs.end();
-            for (typename FunctionImpl<Q,NDIM>::dcT::const_iterator it=other.coeffs.begin();
-                 it!=end; ++it) {
-                const keyT& key = it->first;
-                const typename FunctionImpl<Q,NDIM>::nodeT& node = it->second;
+        void copy_coeffs_same_world(const FunctionImpl<Q,NDIM>& other, bool fence) {
+            for (const auto& [key, node] : other.coeffs)  {  // iterate over all entries in other
                 coeffs.replace(key,node. template convert<T>());
             }
             if (fence)
@@ -7256,10 +7305,13 @@ template<size_t NDIM>
                     MADNESS_ASSERT(world);
                     auto ptr_opt = world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id);
                     if (!ptr_opt)
-                      MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
+                        MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
                     ptr = static_cast< FunctionImpl<T,NDIM>*>(*ptr_opt);
-                    if (!ptr)
-                      MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use an unregistered object",0);
+                    if (!ptr) {
+                        auto ids=world->get_object_ids();
+                        print(world->get_world_ids());
+                        MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use an unregistered object",0);
+                    }
                 } else {
                     ptr=nullptr;
                 }

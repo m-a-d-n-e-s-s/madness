@@ -207,7 +207,7 @@ public:
         oep_param.set_derived_values(get_calc_param());
     }
 
-    std::string name() const {return "oep";}
+    std::string name() const override {return "oep";}
 
     static void help() {
         print_header2("help page for oep");
@@ -248,7 +248,7 @@ public:
         return Vfinal;
     }
 
-    virtual double value() {
+    double value() override {
         return value(calc->molecule.get_all_coords());
     }
 
@@ -256,7 +256,7 @@ public:
     void output_calc_info_schema(const double& energy) const;
 
 
-    virtual double value(const Tensor<double>& x) {
+    virtual double value(const Tensor<double>& x) override {
     	MADNESS_CHECK_THROW(reference->check_converged(x),"OEP reference is not converged at this geometry");
         set_protocol(get_calc_param().econv());
         calc->copy_data(world,*(reference->get_calc()));
@@ -292,7 +292,7 @@ public:
     		vecfuncT& KS_nemo, tensorT& KS_Fock, real_function_3d& Voep,
 			const real_function_3d Vs) const;
 
-    virtual std::shared_ptr<Fock<double,3>> make_fock_operator() const;
+    std::shared_ptr<Fock<double,3>> make_fock_operator() const override;
 
 //    MolecularOrbitals<double,3> to_MO() const {
 //    	std::vector<std::string> str_irreps;
@@ -307,7 +307,7 @@ public:
     std::tuple<Tensor<double>, vecfuncT> recompute_HF(const vecfuncT& HF_nemo) const;
 
     /// The following function tests all essential parts of the OEP program qualitatively and some also quantitatively
-    bool selftest();
+    bool selftest() override;
 
     bool need_ocep_correction(const std::string& model) const {
     	return (model=="ocep") or (model=="dcep") or (model=="mrks");

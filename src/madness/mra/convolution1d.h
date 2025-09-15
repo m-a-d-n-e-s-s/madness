@@ -39,6 +39,7 @@
 #include <madness/mra/simplecache.h>
 #include <madness/mra/adquad.h>
 #include <madness/mra/twoscale.h>
+#include <madness/mra/funcdefaults.h>
 #include <madness/tensor/aligned.h>
 #include <madness/tensor/tensor_lapack.h>
 #include <madness/misc/kahan_accumulator.h>

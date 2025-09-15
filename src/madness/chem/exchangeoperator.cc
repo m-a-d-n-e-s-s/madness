@@ -89,7 +89,7 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
         auto size=get_size(world,Kf);
         if (world.rank()==0) print("total size of Kf after truncation",size);
     }
-    if (printlevel >= 3) print_timer(world);
+    if (printtimings()) print_timer(world);
     return Kf;
 }
 
@@ -121,7 +121,7 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
         MacroTask mtask(world, xtask, taskq);
         Kf = mtask(vf, mo_bra, mo_ket);
     } else {
-        auto taskq_ptr = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
+        auto taskq_ptr = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size(),MacroTaskInfo::get_default()));
         taskq_ptr->set_printlevel(printlevel);
         MacroTask mtask(world, xtask, taskq_ptr);
         Kf = mtask(vf, mo_bra, mo_ket);
@@ -157,7 +157,7 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient_row(const vecfuncT& vf, c
         MacroTask mtask(world, xtask, taskq);
         Kf = mtask(vf, mo_bra, mo_ket);
     } else {
-        auto taskq_ptr = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size()));
+        auto taskq_ptr = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size(),MacroTaskInfo::get_default()));
         taskq_ptr->set_printlevel(printlevel);
         MacroTask mtask(world, xtask, taskq_ptr);
         Kf = mtask(vf, mo_bra, mo_ket);
