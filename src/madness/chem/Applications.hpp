@@ -1,9 +1,9 @@
 #pragma once
 
-#include <madness/chem/Results.h>
 #include <madness/chem/InputWriter.hpp>
 #include <madness/chem/ParameterManager.hpp>
 #include <madness/chem/PathManager.hpp>
+#include <madness/chem/Results.h>
 
 namespace madness {
 enum class NextAction { Ok, ReloadOnly, Restart, Redo };
@@ -23,8 +23,10 @@ public:
   explicit Application(const Params &p) : params_(p) {}
   virtual ~Application() = default;
 
+
   // run: write all outputs under the given directory
   virtual void run(const std::filesystem::path &workdir) = 0;
+
 
   // optional hook to return a JSON fragment of this app's main results
   [[nodiscard]] virtual nlohmann::json results() const = 0;
@@ -138,7 +140,13 @@ public:
 
       // Here we validate the results before running
 
-      auto action = lib_.valid(scf_results, params_);
+      NextAction action;
+      if (world_.rank() == 0)
+        action = lib_.valid(scf_results, params_);
+      world_.gop.broadcast(action, 0);
+
+      if (world_.rank() == 0)
+        print("Next action is ", static_cast<int>(action), " (0=Ok,1=ReloadOnly,2=Restart,3=Redo)");
 
       if (action == madness::NextAction::Restart || action == madness::NextAction::Redo) {
         scf_results = lib_.run(world_, params_, action == madness::NextAction::Restart);
@@ -206,8 +214,8 @@ public:
       auto res = Library::run_response(world_, params_, reference_, pm.dir());
 
       metadata_ = std::move(res.metadata);
-      properties_ = std::move(res.properties);
-      vibrational_analysis_ = std::move(res.vibrational_analysis);
+      properties_["response_properties"] = std::move(res.properties);
+      properties_["vibrational_analysis"] = std::move(res.vibrational_analysis);
     }
   }
 
@@ -215,11 +223,8 @@ public:
    * @brief Return a JSON fragment summarizing results
    */
   [[nodiscard]] nlohmann::json results() const override {
-    return {{"type", "response"},
-            {"metadata", metadata_},
-            {"properties", properties_},
-            {"vibrational_analysis", *vibrational_analysis_}};
-  };
+    return {{"type", "response"}, {"metadata", metadata_}, {"properties", properties_}};
+  }
 
 private:
   World &world_;
@@ -455,7 +460,7 @@ template <typename SCFParams> NextAction valid(const SCFResultsTuple &results, c
   auto [sr, pr, cr] = results;
 
   // Required convergence for "final" protocol
-  const auto vthresh = params.econv();
+  const auto vthresh = params.protocol().back();// final protocol
   const auto vdconv = params.dconv();
   const bool archive_needed = params.save();
 
@@ -490,6 +495,11 @@ template <typename SCFParams> NextAction valid(const SCFResultsTuple &results, c
   // if we don't need to redo, we can either reload or return ok
   if (!must_redo)
     return (!archive_exists && !archive_needed) ? NextAction::ReloadOnly : NextAction::Ok;
+
+  print("at_protocol: ", at_protocol);
+  print("archive_needed: ", archive_needed);
+  print("archive_exists: ", archive_exists);
+  print("all_properties_computed: ", all_properties_computed);
   // with we need to redo we can restart from the exisiting archive
   return archive_exists ? NextAction::Restart : NextAction::Redo;
 }
@@ -523,6 +533,11 @@ struct moldft_lib {
     auto params_copy = params;
 
     SCFResults sr;
+
+    if (next_action_ == NextAction::Ok || next_action_ == NextAction::ReloadOnly) { // nothing to do
+      return last_results_;
+    }
+
     if (restart) {
       // Handle restart logic
       auto cr = std::get<2>(last_results_);
