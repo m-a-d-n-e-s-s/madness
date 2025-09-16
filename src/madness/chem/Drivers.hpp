@@ -64,6 +64,66 @@ private:
   nlohmann::json result_;
 };
 
+/**
+ * @brief Orchestrates multiple drivers in sequence and writes a global
+ * output.json.
+ */
+class Workflow {
+public:
+  Workflow() = default;
+
+  /**
+   * @brief Add a driver to the workflow.
+   * @param driver Unique pointer to a Driver instance.
+   */
+  void addDriver(std::unique_ptr<Driver> driver) { drivers_.push_back(std::move(driver)); }
+
+  void print_parameters(World &world) const {
+    for (const auto &d : drivers_)
+      d->print_parameters(world);
+  }
+
+  /**
+   * @brief Run all added drivers under the top-level directory, then emit
+   * output.json.
+   * @param topDir Root directory for the entire workflow.
+   * @param outputfile Name of the output file to write the aggregated results.
+   */
+  void run(const std::string prefix) {
+    std::filesystem::path topDir = prefix;
+    std::filesystem::create_directories(topDir);
+    nlohmann::json all;
+    all["tasks"] = nlohmann::json::array();
+
+    for (size_t i = 0; i < drivers_.size(); ++i) {
+      auto taskDir = topDir / ("task_" + std::to_string(i));
+      drivers_[i]->execute(taskDir);
+      auto current_output = drivers_[i]->summary();
+
+      /// append current output to all
+      if (current_output.is_array()) {
+        for (const auto &item : current_output) {
+          all["tasks"].push_back(item);
+        }
+      } else {
+        all["tasks"].push_back(current_output);
+      }
+
+      // Write out aggregate results
+      {
+        std::string outputfile = prefix + ".calc_info.json";
+        std::ofstream ofs(outputfile);
+        ofs << std::setw(4) << all;
+        ofs.close();
+      }
+    }
+  }
+
+private:
+  std::vector<std::unique_ptr<Driver>> drivers_;
+};
+
+} // namespace qcapp
 // class OptimizeDriver : public Driver {
 // public:
 //   OptimizeDriver(World &w, std::function<std::unique_ptr<Application>(Params)> factory, Params p)
@@ -128,64 +188,3 @@ private:
 //   Params params_;
 //   nlohmann::json summary_;
 // };
-
-/**
- * @brief Orchestrates multiple drivers in sequence and writes a global
- * output.json.
- */
-class Workflow {
-public:
-  Workflow() = default;
-
-  /**
-   * @brief Add a driver to the workflow.
-   * @param driver Unique pointer to a Driver instance.
-   */
-  void addDriver(std::unique_ptr<Driver> driver) { drivers_.push_back(std::move(driver)); }
-
-  void print_parameters(World &world) const {
-    for (const auto &d : drivers_)
-      d->print_parameters(world);
-  }
-
-  /**
-   * @brief Run all added drivers under the top-level directory, then emit
-   * output.json.
-   * @param topDir Root directory for the entire workflow.
-   * @param outputfile Name of the output file to write the aggregated results.
-   */
-  void run(const std::string prefix) {
-    std::filesystem::path topDir = prefix;
-    std::filesystem::create_directories(topDir);
-    nlohmann::json all;
-    all["tasks"] = nlohmann::json::array();
-
-    for (size_t i = 0; i < drivers_.size(); ++i) {
-      auto taskDir = topDir / ("task_" + std::to_string(i));
-      drivers_[i]->execute(taskDir);
-      auto current_output = drivers_[i]->summary();
-
-      /// append current output to all
-      if (current_output.is_array()) {
-        for (const auto &item : current_output) {
-          all["tasks"].push_back(item);
-        }
-      } else {
-        all["tasks"].push_back(current_output);
-      }
-
-      // Write out aggregate results
-      {
-        std::string outputfile = prefix + ".calc_info.json";
-        std::ofstream ofs(outputfile);
-        ofs << std::setw(4) << all;
-        ofs.close();
-      }
-    }
-  }
-
-private:
-  std::vector<std::unique_ptr<Driver>> drivers_;
-};
-
-} // namespace qcapp
