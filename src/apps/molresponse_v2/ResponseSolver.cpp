@@ -164,88 +164,88 @@ vector_real_function_3d CoupledResponseEquations(World &world, const GroundState
   return rsh;
 }
 
-vector_real_function_3d ResponseSolverPolicy<StaticRestrictedResponse>::CoupledResponseEquations(
-    World &world, const GroundStateData &gs, const StaticRestrictedResponse &vecs, const vector_real_function_3d &vp,
-    const std::vector<poperatorT> &bsh_x, const ResponseManager &rm, ResponseDebugLogger &logger) {
-
-  auto &x = vecs.x_alpha;
-  auto &all_x = vecs.flat;
-
-  auto num_orbitals = gs.orbitals.size();
-
-  std::vector<int> state_index;
-  std::vector<int> ii;
-
-  int i = 0;
-  int si = 0;
-  for (int j = 0; j < num_orbitals; j++) {
-    state_index.push_back(si);
-    ii.push_back(i++);
-  }
-
-  ResponseComputeGroundExchange t0;
-  MacroTask g0_task(world, t0);
-  ResponseComputeGammaX tresponse;
-  MacroTask gx_task(world, tresponse);
-
-  auto c_xc = gs.xcf_.hf_exchange_coefficient();
-  vector_real_function_3d k0;
-  vector_real_function_3d gx;
-
-  DEBUG_TIMED_BLOCK(world, &logger, "g0_task", { k0 = g0_task(ii, state_index, all_x, gs.orbitals, true); });
-  DEBUG_TIMED_BLOCK(world, &logger, "gx_task", { gx = gx_task(ii, state_index, all_x, gs.orbitals, true); });
-
-  auto v_local = gs.V_local * x;
-  auto v0x = v_local - c_xc * k0;
-  auto epsilonx = transform(world, x, gs.Hamiltonian_no_diag, true);
-
-  auto thetax = -2.0 * (v0x - epsilonx + gx + vp);
-  truncate(world, thetax);
-  auto rsh = apply(world, bsh_x, thetax);
-  rsh = gs.Qhat(rsh); // project out the ground state density from the response
-  return rsh;
-}
-
-vector_real_function_3d ResponseSolverPolicy<DynamicRestrictedResponse>::CoupledResponseEquations(
-    World &world, const GroundStateData &gs, const DynamicRestrictedResponse &vecs, const vector_real_function_3d &vp,
-    const std::vector<poperatorT> &bsh_x, const ResponseManager &rm, ResponseDebugLogger &logger) {
-
-  auto &x = vecs.x_alpha;
-  auto &y = vecs.y_alpha;
-  auto &all_x = vecs.flat;
-
-  auto num_orbitals = gs.orbitals.size();
-
-  std::vector<int> state_index;
-  std::vector<int> ii;
-
-  int i = 0;
-  for (int j = 0; j < 2 * num_orbitals; j++) {
-    state_index.push_back(0);
-    ii.push_back(i++);
-  }
-
-  ResponseComputeGroundExchange t0;
-  MacroTask g0_task(world, t0);
-  ResponseComputeGammaX tresponse;
-  MacroTask gx_task(world, tresponse);
-
-  vector_real_function_3d k0;
-  vector_real_function_3d gx;
-
-  DEBUG_TIMED_BLOCK(world, &logger, "g0_task", { k0 = g0_task(ii, state_index, all_x, gs.orbitals, false); });
-  DEBUG_TIMED_BLOCK(world, &logger, "gx_task", { gx = gx_task(ii, state_index, all_x, gs.orbitals, false); });
-
-  auto c_xc = gs.xcf_.hf_exchange_coefficient();
-  auto v_local = gs.V_local * all_x;
-  auto v0x = v_local - c_xc * k0;
-  auto epsilonx = transform(world, x, gs.Hamiltonian_no_diag, true);
-  auto epsilony = transform(world, y, gs.Hamiltonian_no_diag, true);
-  epsilonx.insert(epsilonx.end(), epsilony.begin(), epsilony.end());
-  auto thetax = -2.0 * (v0x - epsilonx + gx + vp);
-  truncate(world, thetax);
-  auto rsh = apply(world, bsh_x, thetax);
-  truncate(world, thetax);
-  rsh = gs.Qhat(rsh);
-  return rsh;
-}
+// vector_real_function_3d ResponseSolverPolicy<StaticRestrictedResponse>::CoupledResponseEquations(
+//     World &world, const GroundStateData &gs, const StaticRestrictedResponse &vecs, const vector_real_function_3d &vp,
+//     const std::vector<poperatorT> &bsh_x, const ResponseManager &rm, ResponseDebugLogger &logger) {
+//
+//   auto &x = vecs.x_alpha;
+//   auto &all_x = vecs.flat;
+//
+//   auto num_orbitals = gs.orbitals.size();
+//
+//   std::vector<int> state_index;
+//   std::vector<int> ii;
+//
+//   int i = 0;
+//   int si = 0;
+//   for (int j = 0; j < num_orbitals; j++) {
+//     state_index.push_back(si);
+//     ii.push_back(i++);
+//   }
+//
+//   ResponseComputeGroundExchange t0;
+//   MacroTask g0_task(world, t0);
+//   ResponseComputeGammaX tresponse;
+//   MacroTask gx_task(world, tresponse);
+//
+//   auto c_xc = gs.xcf_.hf_exchange_coefficient();
+//   vector_real_function_3d k0;
+//   vector_real_function_3d gx;
+//
+//   DEBUG_TIMED_BLOCK(world, &logger, "g0_task", { k0 = g0_task(ii, state_index, all_x, gs.orbitals, true); });
+//   DEBUG_TIMED_BLOCK(world, &logger, "gx_task", { gx = gx_task(ii, state_index, all_x, gs.orbitals, true); });
+//
+//   auto v_local = gs.V_local * x;
+//   auto v0x = v_local - c_xc * k0;
+//   auto epsilonx = transform(world, x, gs.Hamiltonian_no_diag, true);
+//
+//   auto thetax = -2.0 * (v0x - epsilonx + gx + vp);
+//   truncate(world, thetax);
+//   auto rsh = apply(world, bsh_x, thetax);
+//   rsh = gs.Qhat(rsh); // project out the ground state density from the response
+//   return rsh;
+// }
+//
+// vector_real_function_3d ResponseSolverPolicy<DynamicRestrictedResponse>::CoupledResponseEquations(
+//     World &world, const GroundStateData &gs, const DynamicRestrictedResponse &vecs, const vector_real_function_3d &vp,
+//     const std::vector<poperatorT> &bsh_x, const ResponseManager &rm, ResponseDebugLogger &logger) {
+//
+//   auto &x = vecs.x_alpha;
+//   auto &y = vecs.y_alpha;
+//   auto &all_x = vecs.flat;
+//
+//   auto num_orbitals = gs.orbitals.size();
+//
+//   std::vector<int> state_index;
+//   std::vector<int> ii;
+//
+//   int i = 0;
+//   for (int j = 0; j < 2 * num_orbitals; j++) {
+//     state_index.push_back(0);
+//     ii.push_back(i++);
+//   }
+//
+//   ResponseComputeGroundExchange t0;
+//   MacroTask g0_task(world, t0);
+//   ResponseComputeGammaX tresponse;
+//   MacroTask gx_task(world, tresponse);
+//
+//   vector_real_function_3d k0;
+//   vector_real_function_3d gx;
+//
+//   DEBUG_TIMED_BLOCK(world, &logger, "g0_task", { k0 = g0_task(ii, state_index, all_x, gs.orbitals, false); });
+//   DEBUG_TIMED_BLOCK(world, &logger, "gx_task", { gx = gx_task(ii, state_index, all_x, gs.orbitals, false); });
+//
+//   auto c_xc = gs.xcf_.hf_exchange_coefficient();
+//   auto v_local = gs.V_local * all_x;
+//   auto v0x = v_local - c_xc * k0;
+//   auto epsilonx = transform(world, x, gs.Hamiltonian_no_diag, true);
+//   auto epsilony = transform(world, y, gs.Hamiltonian_no_diag, true);
+//   epsilonx.insert(epsilonx.end(), epsilony.begin(), epsilony.end());
+//   auto thetax = -2.0 * (v0x - epsilonx + gx + vp);
+//   truncate(world, thetax);
+//   auto rsh = apply(world, bsh_x, thetax);
+//   truncate(world, thetax);
+//   rsh = gs.Qhat(rsh);
+//   return rsh;
+// }
