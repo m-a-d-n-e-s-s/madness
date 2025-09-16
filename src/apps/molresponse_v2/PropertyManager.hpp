@@ -675,7 +675,10 @@ void compute_beta(World &world, const GroundStateData &gs, const std::vector<Per
         for (auto a : perturbation_A) {
           auto pertA = std::get<DipolePerturbation>(a);
           auto dir = pertA.direction;
-          auto comp = std::string(1, dir) + pertB.direction + pertC.direction; // get the perturbation direction
+
+          auto comp=(describe_perturbation(a)+describe_perturbation(B)+describe_perturbation(C)); // get the perturbation direction
+          if(world.rank()==0)
+            print("Considering component ",comp);
           abc_string.push_back(comp);
         }
 
