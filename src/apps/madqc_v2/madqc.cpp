@@ -61,7 +61,7 @@ using namespace madness;
 ///  - nemo projections
 ///  - numerical parameters
 
-void help(std::string wf) {
+void help(const std::string & wf) {
   print("Usage: madqc [options] [input_file]");
   print("\nOptions:");
   print("  --help=<workflow>           : show this help message");
@@ -102,9 +102,9 @@ void help(std::string wf) {
   }
 }
 
-void print_parameters(World &world, const commandlineparser &parser, const std::string group) {
+void print_parameters(World &world, const commandlineparser &parser, const std::string& group) {
   Params pm;
-  if (group == "") {
+  if (group.empty()) {
     print("please specify a data group to print parameters for");
     print("\n  --print_parameters=<group>  : print all parameters and exit");
     print("\nAvailable data groups: scf, nemo, response, cc2, cis, oep, "
@@ -180,19 +180,19 @@ int main(int argc, char **argv) {
             Params pm(world, parser);
 
       if (user_workflow == "scf") {
-        auto reference = std::shared_ptr<SCFApplication<moldft_lib>>(new SCFApplication<moldft_lib>(world, pm));
+        auto reference = std::make_shared<SCFApplication<moldft_lib>>(world, pm);
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
 
       } else if (user_workflow == "nemo") {
         pm.get<CalculationParameters>().set_derived_value("k", 8);
-        auto reference = std::shared_ptr<SCFApplication<nemo_lib>>(new SCFApplication<nemo_lib>(world, pm));
+        auto reference = std::make_shared<SCFApplication<nemo_lib>>(world, pm);
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
 
       } else if (user_workflow == "response") {
         // TODO: Idea, if we are doing a response workflow, we know we need to save the SCF restart file
         pm.get<CalculationParameters>().set_derived_value("save", true);
 
-        auto reference = std::shared_ptr<SCFApplication<moldft_lib>>(new SCFApplication<moldft_lib>(world, pm));
+        auto reference = std::make_shared<SCFApplication<moldft_lib>>(world, pm);
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(
             std::make_unique<ResponseApplication<molresponse_lib>>(world, pm, reference->calc())));
@@ -214,13 +214,13 @@ int main(int argc, char **argv) {
                 calc_param.set_derived_values(molecule);
                 cc_param.set_derived_values();
 
-        auto reference = std::shared_ptr<SCFApplication<nemo_lib>>(new SCFApplication<nemo_lib>(world, pm));
+        auto reference = std::make_shared<SCFApplication<nemo_lib>>(world, pm);
         auto ref_calc = reference->calc();
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(std::make_unique<CC2Application>(world, pm, ref_calc)));
 
       } else if (user_workflow == "cis") {
-        auto reference = std::shared_ptr<SCFApplication<nemo_lib>>(new SCFApplication<nemo_lib>(world, pm));
+        auto reference = std::make_shared<SCFApplication<nemo_lib>>(world, pm);
         auto ref_calc = reference->calc();
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
         wf.addDriver(
@@ -228,13 +228,13 @@ int main(int argc, char **argv) {
 
       } else if (user_workflow == "oep") {
         // add tight convergence criteria
-        CalculationParameters &cparam = pm.get<CalculationParameters>();
+        auto &cparam = pm.get<CalculationParameters>();
         auto convergence_crit = cparam.get<std::vector<std::string>>("convergence_criteria");
         if (std::find(convergence_crit.begin(), convergence_crit.end(), "each_energy") == convergence_crit.end()) {
-          convergence_crit.push_back("each_energy");
+          convergence_crit.emplace_back("each_energy");
         }
         cparam.set_derived_value("convergence_criteria", convergence_crit);
-        auto reference = std::shared_ptr<SCFApplication<nemo_lib>>(new SCFApplication<nemo_lib>(world, pm));
+        auto reference = std::make_shared<SCFApplication<nemo_lib>>(world, pm);
         auto ref_calc = reference->calc();
         wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(std::make_unique<OEPApplication>(world, pm, ref_calc)));
       } else if (user_workflow == "optimize") {
