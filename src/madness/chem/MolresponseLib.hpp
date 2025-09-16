@@ -51,8 +51,8 @@ struct molresponse_lib {
   struct Results {
     nlohmann::json metadata;                            // convergence metadata per state
     nlohmann::json properties;                          // computed α, β, Raman property tables
-    std::optional<nlohmann::json> vibrational_analysis; //
-    std::optional<nlohmann::json> debug_log;            // debug log of response calculations
+    nlohmann::json vibrational_analysis;                 // vibrational analysis results
+    nlohmann::json debug_log;                           // debug log of response calculations
   };
   static constexpr char const *label() { return "molresponse"; }
 
@@ -70,7 +70,7 @@ struct molresponse_lib {
     // --- configure the ground-state archive location ---
     auto rp = params.get<ResponseParameters>();
     const auto &gp = params.get<CalculationParameters>();
-    const auto &molecule = params.get<Molecule>();
+    const auto &molecule = scf_calc->molecule;
 
     if (world.rank() == 0) {
       json response_input_json = {};
@@ -167,7 +167,7 @@ struct molresponse_lib {
     std::string nuc_dirs = rp.nuclear_directions();
     enum class PropertyType { Alpha, Beta, Raman };
 
-    std::optional<VibrationalResults> vibrational_results = std::nullopt;
+    VibrationalResults vibrational_results;
     PropertyType prop_type;
     for (auto const &prop : rp.requested_properties()) {
       auto prop_string = std::string(prop);
@@ -236,7 +236,7 @@ struct molresponse_lib {
     results.metadata = metadata.to_json();
     results.properties = properties.to_json();
     results.debug_log = debug_logger.to_json();
-    results.vibrational_analysis = vibrational_results ? std::make_optional(vibrational_results->to_json()) : std::nullopt;  
+    results.vibrational_analysis = vibrational_results.to_json();
     return results;
   }
 
