@@ -37,7 +37,7 @@
 #include <apps/molresponse_v2/PropertyManager.hpp>
 #include <apps/molresponse_v2/ResponseDebugLogger.hpp>
 #include <apps/molresponse_v2/ResponseManager.hpp>
-#include <apps/molresponse_v2/ResponseMetaData.hpp>
+#include <apps/molresponse_v2/ResponseRecord.hpp>
 #include <apps/molresponse_v2/StateGenerator.hpp>
 #include <filesystem>
 #include <madness/chem/InputWriter.hpp>
@@ -61,11 +61,10 @@ struct molresponse_lib {
    *
    * @param world      The MADNESS world communicator
    * @param params     Unified parameters containing response and molecule info
-   * @param indir      Path to ground-state calculation directory
    * @param outdir     Directory where all outputs will be written
    * @return Results   Structured JSON fragments: metadata + properties
    */
-  inline static Results run_response(World &world, const Params &params, const std::shared_ptr<SCF> scf_calc,
+  inline static Results run_response(World &world, const Params &params, const std::shared_ptr<SCF>& scf_calc,
                                      const std::filesystem::path &outdir) {
     // --- configure the ground-state archive location ---
     auto rp = params.get<ResponseParameters>();
@@ -122,7 +121,7 @@ struct molresponse_lib {
     // initialize metadata
     std::string meta_file = "response_metadata.json";
 
-    ResponseMetadata metadata(world, meta_file);
+    ResponseRecord metadata(world, meta_file);
     metadata.initialize_states(generated_states.states);
     if (world.rank() == 0)
       metadata.print_summary();
@@ -136,8 +135,8 @@ struct molresponse_lib {
       rm.setProtocol(world, ground.getL(), thresh);
       ground.prepareOrbitals(world, FunctionDefaults<3>::get_k(), thresh);
       ground.computePreliminaries(world, *rm.getCoulombOp(), rm.getVtol(), fock_json_file);
-      if (world.rank() == 0)
-        madness::print("hamiltonian:\n", ground.Hamiltonian);
+      // if (world.rank() == 0)
+      //   madness::print("hamiltonian:\n", ground.Hamiltonian);
 
       for (auto &state : generated_states.states) {
         //     if (state.is_converged || state.current_threshold() != thresh)

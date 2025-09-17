@@ -64,10 +64,7 @@ public:
     auto dipole_freqs = rp.dipole_frequencies();
     auto nuclear_atom_indices = rp.nuclear_atom_indices();
     auto nuclear_directions = rp.nuclear_directions();
-    auto freqs = rp.dipole_frequencies();
     auto nuclear_freqs = rp.nuclear_frequencies();
-    auto num_freqs = freqs.size();
-    auto num_nuclear_freqs = nuclear_freqs.size();
 
     enum class PropertyType { Alpha, Hessian, Beta, Raman };
 
@@ -93,11 +90,10 @@ public:
       auto augmented_dipole_freqs = dipole_freqs;
       // check if we need to augment dipole frequencies
       if (prop_type == PropertyType::Beta) {
-        auto num_freqs = freqs.size();
 
-        for (size_t b = 0; b < num_freqs; ++b)
-          for (size_t c = b; c < num_freqs; ++c)
-            augmented_dipole_freqs.push_back(freqs[b] + freqs[c]);
+        for (size_t b = 0; b < dipole_freqs.size(); ++b)
+          for (size_t c = b; c < dipole_freqs.size(); ++c)
+            augmented_dipole_freqs.push_back(dipole_freqs[b] + dipole_freqs[c]);
         std::sort(augmented_dipole_freqs.begin(), augmented_dipole_freqs.end());
         augmented_dipole_freqs.erase(std::unique(augmented_dipole_freqs.begin(), augmented_dipole_freqs.end()),
                                      augmented_dipole_freqs.end());

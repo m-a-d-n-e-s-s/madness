@@ -8,7 +8,7 @@
 #include "PropertyManager.hpp"
 #include "ResponseDebugLogger.hpp"
 #include "ResponseManager.hpp"
-#include "ResponseMetaData.hpp"
+#include "ResponseRecord.hpp"
 #include "StateGenerator.hpp"
 #include <madness/mra/funcdefaults.h>
 
@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
     world.gop.fence();
     bool all_states_converged = false;
     std::string response_metadata_file = "responses/response_metadata.json";
-    ResponseMetadata metadata(world, response_metadata_file);
+    ResponseRecord metadata(world, response_metadata_file);
     metadata.initialize_states(generated_states.states);
     if (world.rank() == 0) {
       metadata.print_summary();
