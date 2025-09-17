@@ -12,9 +12,9 @@
 using json = nlohmann::json;
 namespace fs = std::filesystem;
 
-class ResponseMetadata {
+class ResponseRecord {
  public:
-  explicit ResponseMetadata(World &world, const std::string &filepath)
+  explicit ResponseRecord(World &world, const std::string &filepath)
       : path_(filepath) {
     if (fs::exists(path_)) {
       std::string json_string;
@@ -60,9 +60,6 @@ class ResponseMetadata {
       }
 
       // Final convergence flag (if not present)
-      if (!state_entry.contains("final_converged")) {
-        state_entry["final_converged"] = false;
-      }
     }
     write();
   }
@@ -77,43 +74,53 @@ class ResponseMetadata {
                     << " conv=" << proto_data["converged"][freq] << "\n";
         }
       }
-      std::cout << "  ✅ Final converged: " << entry["final_converged"] << "\n";
     }
   }
 
-  [[nodiscard]] bool is_saved(const std::string &state_id, double protocol,
-                              double freq) const {
+  [[nodiscard]] bool is_saved(const std::string &state_id, const double & protocol,
+                              const double& freq) const {
     return get_flag(state_id, protocol, freq, "saved");
   }
 
-  [[nodiscard]] bool is_converged(const std::string &state_id, double protocol,
-                                  double freq) const {
+  [[nodiscard]] bool is_saved(const LinearResponseDescriptor& state) const {
+    return get_flag(state.perturbationDescription(), state.current_threshold(), state.current_frequency(), "saved");
+  }
+
+  [[nodiscard]] bool is_converged(const std::string &state_id, const double& protocol,
+                                  const double freq) const {
     return get_flag(state_id, protocol, freq, "converged");
   }
 
-  void mark_saved(const std::string &state_id, double protocol, double freq) {
+  [[nodiscard]] bool is_converged(const LinearResponseDescriptor&state) const {
+    return get_flag(state.perturbationDescription(), state.current_threshold(), state.current_frequency(), "converged");
+  }
+
+  void mark_saved(const std::string &state_id, const double protocol, const double freq) {
     set_flag(state_id, protocol, freq, "saved", true);
     write();
   }
 
-  void mark_converged(const std::string &state_id, double protocol, double freq,
-                      bool converged) {
+  void mark_converged(const std::string &state_id, const double protocol, const double freq,
+                      const bool converged) {
     set_flag(state_id, protocol, freq, "converged", converged);
     write();
   }
-
-  void mark_final_converged(const std::string &state_id, bool flag = true) {
-    data_["states"][state_id]["final_converged"] = flag;
+  void record_status(const std::string &state_id, const double protocol,
+                     const double freq, const bool converged) {
+    set_flag(state_id, protocol, freq, "saved", true);
+    set_flag(state_id, protocol, freq, "converged", converged);
     write();
   }
+  void record_status(const LinearResponseDescriptor& state, const bool converged) {
+    set_flag(state.perturbationDescription(), state.current_threshold(), state.current_frequency(), "saved", true);
+    set_flag(state.perturbationDescription(), state.current_threshold(), state.current_frequency(), "converged", converged);
+    write();
+  }
+
 
   void mark_final_saved(const std::string &state_id, bool flag = true) {
     data_["states"][state_id]["final_saved"] = flag;
     write();
-  }
-
-  [[nodiscard]] bool final_converged(const std::string &state_id) const {
-    return data_["states"][state_id].value("final_converged", false);
   }
 
   [[nodiscard]] bool final_saved(const std::string &state_id) const {
