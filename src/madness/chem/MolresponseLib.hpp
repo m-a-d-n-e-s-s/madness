@@ -121,10 +121,10 @@ struct molresponse_lib {
     // initialize metadata
     std::string meta_file = "response_metadata.json";
 
-    ResponseRecord metadata(world, meta_file);
-    metadata.initialize_states(generated_states.states);
+    ResponseRecord response_record(world, meta_file);
+    response_record.initialize_states(generated_states.states);
     if (world.rank() == 0)
-      metadata.print_summary();
+      response_record.print_summary();
     world.gop.fence();
 
     // debug logger
@@ -142,7 +142,7 @@ struct molresponse_lib {
         //     if (state.is_converged || state.current_threshold() != thresh)
         //     continue;
 
-        computeFrequencyLoop(world, rm, state, ground, metadata, debug_logger);
+        computeFrequencyLoop(world, rm, state, ground, response_record, debug_logger);
 
         if (debug_logger.enabled())
           debug_logger.write_to_disk();
@@ -232,7 +232,7 @@ struct molresponse_lib {
 
     // aggregate JSON results
     Results results;
-    results.metadata = metadata.to_json();
+    results.metadata = response_record.to_json();
     results.properties = properties.to_json();
     results.debug_log = debug_logger.to_json();
     results.vibrational_analysis = vibrational_results.to_json();
