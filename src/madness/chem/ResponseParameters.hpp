@@ -18,7 +18,6 @@ struct ResponseParameters : public QCCalculationParametersBase {
     initialize<bool>("nwchem", false, "Using nwchem files for intelligent starting guess");
     initialize<std::string>("nwchem_dir", "none", "Root name of nwchem files for intelligent starting guess");
     initialize<int>("print_level", 3, "0: no output; 1: final energy; 2: iterations; 3: timings; 10: debug");
-    initialize<size_t>("maxiter", 5, "maximum number of iterations");
     initialize<bool>("kain", false, "Turn on Krylov Accelarated Inexact Newton Solver");
     initialize<double>("maxrotn", .50, "Max orbital rotation per iteration");
     initialize<double>("maxbsh", 10, "Max bsh residual");
