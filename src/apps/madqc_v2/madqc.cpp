@@ -189,7 +189,6 @@ int main(int argc, char **argv) {
                 auto reference = std::make_shared<SCFApplication<nemo_lib> >(world, pm);
                 wf.addDriver(std::make_unique<qcapp::SinglePointDriver>(reference));
             } else if (user_workflow == "response") {
-                // TODO: Idea, if we are doing a response workflow, we know we need to save the SCF restart file
                 pm.get<CalculationParameters>().set_derived_value("save", true);
 
                 auto reference = std::make_shared<SCFApplication<moldft_lib> >(world, pm);
