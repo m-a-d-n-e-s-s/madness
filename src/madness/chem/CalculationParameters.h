@@ -58,8 +58,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
         // convenience option -- needs to be moved to the MolecularOptimizer class
         if (parser.key_exists("optimize")) set_user_defined_value("gopt",true);
 		std::string inputfile=parser.value("input");
-		std::string prefix=commandlineparser::remove_extension(commandlineparser::base_name(inputfile));
-		if (prefix!="input") set_derived_value("prefix",prefix);
+		// std::string prefix=commandlineparser::remove_extension(commandlineparser::base_name(inputfile));
+		// if (prefix!="input") set_derived_value("prefix",prefix);
     }
 
 	/// ctor reading out the input file
