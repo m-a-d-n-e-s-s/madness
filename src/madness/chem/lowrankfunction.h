@@ -774,25 +774,52 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         /// @return this with g orthonormal and h orthogonal
         void reorthonormalize_rrcd(double thresh=-1.0) {
 
-            // with g~ being the orthonormalized g and h~ the orthonormalized h (from rrcd)
-            // with
-            //    ovlp = <g_i | g_j> = L L^T
-            // we get
-            //    | g~_i(1) > = | g_j(1) > piv (L^T)^(-1)        // with piv permuting/truncating, and LT^(-1) already rank-reduced
-            //    | g_i(1) >  = | g~_j(1) >  L^T piv^T
-            //                = | g_j(1) > piv LT^(-1) LT piv^T
-            // thus:
-            // f(1,2) = sum_i | g_i(1)>< h_i(2) |
-            //        = | g_i(1)> piv_g LTg^(-1) LTg piv_g^(-1) <h_i(2)|                     (1)
-            //        = | g_i(1)> piv_g LTg^(-1) ( LTg  piv_g^(-1) <h_i(2)| )                (2)
-            //        = | g_i(1)> piv_g LTg^(-1) <h'_i(2)|                                   (3)
-            //        = | g_i(1)> piv_g LTg^(-1) piv_h Lh Lh^(-1) piv_h^T <h'_i(2)|          (4)
-            //        = (| g_i(1)> piv_g LTg^(-1) piv_h Lh ) ( Lh^(-1) piv_h^T LTg piv_g^(-1) <h_i(2)| )
-            // Notes:
-            //  piv^(-1) = piv^T since piv is a unitary permutation matrix
-            // Thus
-            //   | h~_i(2) > = |h_i(2) > piv_g Lg piv_h LTh^(-1)
-
+            // using the following terms from the CD of the overlap matrix (see rr_cholesky)
+            //    PT A P = U^T U    // P permutation matrix, U upper triangular
+            // for this case:
+            //    ovlp = <g_i | g_j> = P UT U PT
+            //    (UT)^-1 = U^(-1)T         // pseudo inversion and transposition commute
+            //    PT = P^(-1)               // P is a unitary permutation matrix
+            //    U^(-1) = UT (U UT)^(-1)
+            // the last line assumes U is of the form (r,n) with r the rank, and n the original number of functions
+            //
+            //    f(1,2) = sum_i  g_i(1) h_i(2)
+            //
+            // start with h
+            //   Sh = <h_i | h_j> = Ph UhT Uh PhT
+            //   h_ortho_i = h_j Ph_jk Uh^(-1)_ki
+            // as <h_ortho_i | h_ortho_j> = UhT^(-1) PhT <h_i | h_j> Ph (Uh^(-1)) = UhT^(-1) PhT Ph UhT Uh PhT Ph Uh^(-1) = 1
+            //   thus
+            //   f(1,2) = g_i(1) h_i(2)
+            //          = g_i(1) h_j(2) Ph_jk Uh^(-1)_kl Uh_lm PhT_mi
+            //          = ( g_i(1) Ph_im Uh_lm) ( h_j(2) Ph_jk Uh^(-1)_kl)
+            //          = g'_l(1) h'_l(2)
+            // yields orthogonalized h'(2).
+            // now orthonormalize g'
+            //   g'_i = g'_j Ph_jk Uh_ki
+            //   Sg' = <g'_i | g'_j> =  UhT_ik Ph_lk <g_l | g_m> Ph_mn Uh_nj
+            // as <g'_ortho_i | g'_ortho_j> = .. see above .. = 1
+            // thus
+            //   f(1,2) = g'_i(1) h'_i(2)
+            //          = g'_i(1) h'_j(2) Pg'_jk Ug'^(-1)_kl Ug'_lm Pg'T_mi
+            //          = ( g'_i(1) Pg'T_mi Ug'lm ) ( h'_j(2) Pg'_jk Ug'^(-1)_kl )
+            //          = g''_l(1) h''_l(2)
+            // yields orthonormal g''(1) and orthogonal h''(2)
+            //
+            // collecting everything:
+            //   Sh = <h_i | h_j> = Ph UhT Uh PhT
+            //   Uh^(-1) = UhT (Uh UhT)^(-1)
+            //   Sg = <g_i | g_j> = Pg UgT Ug PgT
+            //   g'_i = g'_j Ph_jk Uh_ik
+            //   h'_i = h_j Ph_jk Uh^(-1)_ki
+            //   Sg' = <g'_i | g'_j> =  UhT_ki Ph_kl <g_l | g_m> Ph_mn Uh_jn = Pg' Ug'T Ug' Pg'T
+            //   Ug'^(-1) = Ug'T (Ug' Ug'T)^(-1)
+            //   g''_i(1) = g'_j(1) Pg'T_mj Ug'im
+            //            = g_k(1) Ph_kj Uh_mj Pg'T_nm Ug'in
+            //            = g_k(1) Ph_kj Tg_ji
+            //   h''_i(2) = h'_j(2) Pg'_jk Ug'^(-1)_ki )
+            //            = h_l(2) Ph_lj Uh^(-1)_jk Pg'_kn Ug'^(-1)_ni
+            //            = h_l(2) Ph_lj Th_ji
             double tol=rank_revealing_tol;
 
             // no pivot_inverse is necessary..
@@ -803,13 +830,13 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 return pv;
             };
 
-            auto pivot_mat = [&] (const Tensor<T>& t, const Tensor<integer>& ipiv) {
-                // std::size_t rank=ipiv.size();
-                Tensor<T> pt(t.dim(0),t.dim(1));
-                // for(int i=0;i<ipiv.size();++i) pt(i,_)=t(ipiv[i],_);       // all elements in [rank,v.size()) = 0 due to lindep
-                for(int i=0;i<ipiv.size();++i) pt(ipiv[i],_)=t(i,_);       // all elements in [rank,v.size()) = 0 due to lindep
-                return pt;
-            };
+//            auto pivot_mat = [&] (const Tensor<T>& t, const Tensor<integer>& ipiv) {
+//                // std::size_t rank=ipiv.size();
+//                Tensor<T> pt(t.dim(0),t.dim(1));
+//                // for(int i=0;i<ipiv.size();++i) pt(i,_)=t(ipiv[i],_);       // all elements in [rank,v.size()) = 0 due to lindep
+//                for(int i=0;i<ipiv.size();++i) pt(ipiv[i],_)=t(i,_);       // all elements in [rank,v.size()) = 0 due to lindep
+//                return pt;
+//            };
 
             auto pivot = [](const Tensor<integer>& ipiv) {
                 Tensor<T> piv(ipiv.size(),ipiv.size());
@@ -817,54 +844,74 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 return piv;
             };
 
-
-            auto LT = [&](const Tensor<T>& ovlp1) {
+            auto U = [&](Tensor<T> ovlp) {
                 Tensor<integer> piv;
-                auto ovlp=copy(ovlp1);  // copy since ovlp will be destroyed
-                // auto ovlp=matrix_inner(world,v,v);
+                auto A=copy(ovlp);
                 int rank;
-                rr_cholesky(ovlp,tol,piv,rank); // destroys ovlp and gives back Upper ∆ Matrix from CD
-                print("initial, final rank",ovlp.dim(0),rank);
-                // piv=piv(Slice(0,rank-1));
-                Tensor<T> p=pivot(piv);
-                Tensor<T> L=inner(p,transpose(ovlp));
-
-                double err1=(ovlp1-inner(L,L,1,1)).normf();
-                L=L(_,Slice(0,rank-1));       // (new, old)
-                double err2=(ovlp1-inner(L,L,1,1)).normf();
-                print("err1, err2", err1,err2);
-                return std::make_pair(L,piv);
+                rr_cholesky(A,tol,piv,rank); // destroys ovlp and gives back Upper ∆ Matrix from CD
+                auto U1=copy(A(Slice(0,rank-1),_));
+                // test
+                {
+                    auto P = pivot(piv);
+                    auto PAP = inner(P,inner(ovlp,P),0,0);; // Pt A P
+                    auto test=madness::inner(U1,U1,0,0);    // UT U
+                    double err=(PAP-test).normf()/PAP.normf();
+                    // print("A",ovlp);
+                    // print("P",P);
+                    // print("PAP",PAP);
+                    // print("test",test);
+                    print("error in rr_cholesky",err,"rank/tot",rank,ovlp.dim(0));
+                    print("dim(U1)",U1.dim(0),U1.dim(1));
+                    MADNESS_CHECK_THROW(err<1.e-10,"rr_cholesky failed");
+                }
+                return std::make_pair(U1,piv);
             };
 
-            // orthonormalize g: g_ortho= transform(g_piv,LT_g^(-1))
-            auto ovlp_g=matrix_inner(world,g,g);
-            // ovlp_g=0.5*(ovlp_g+transpose(ovlp_g));
-            // for (int i=0; i<ovlp_g.dim(0); ++i) ovlp_g(i,i)+=1.e-12;
-            auto [L_g,piv_g]=LT(ovlp_g);              // (1)
-            L_g=pivot_mat(L_g,piv_g);
-            double zero=(ovlp_g-inner(L_g,L_g,1,1)).normf();
-            print("zero",zero);
-            // auto hpiv_g=pivot_vec(h,piv_g);         // (2) : | h_i > piv_g
-            // auto ovlp_hsmall=matrix_inner(world,hpiv_g,hpiv_g);           // (3) : < h_i | h_j >
-            // auto ovlp1=inner(LT_g,inner(ovlp_hsmall,LT_g,1,1));        // (3) : LTg piv_g <h_i | h_i> piv_g  Lg
-            // auto [LTh,piv_h]=LT(ovlp1);                // (3)
+            // inverse is U^(-1) = U^T (U U^T)^(-1)
+            auto pseudo_invert = [&](Tensor<T>& U) {
+                // print("U",U);
+                Tensor<T> tmp=madness::inner(U,U,1,1);      // U U^T
+                Tensor<T> tmp_inv=inverse(tmp);
+                auto Uinv=madness::inner(U,tmp_inv,0,0);      // U^T (U U^T)^(-1)
+                // test
+                if (0) {            // this is a left inverse, and not applicable here
+                    auto test1=madness::inner(Uinv,U,1,0);   // U^(-1) U
+                    for (int i=0; i<test1.dim(0); ++i) test1(i,i)-=1.0;
+                    print("dimensions in pseudo_invert U-1 U",U.dim(0),U.dim(1),test1.dim(0),test1.dim(1));
+                    print("err in pseudo_invert",test1.normf());
+                }
+                {               // this is the right inverse, and applicable here
+                    auto test1=madness::inner(U,Uinv,1,0);   // U U^(-1)
+                    for (int i=0; i<test1.dim(0); ++i) test1(i,i)-=1.0;
+                    print("dimensions in pseudo_invert U U-1",U.dim(0),U.dim(1),test1.dim(0),test1.dim(1));
+                    print("err in pseudo_invert",test1.normf());
+                }
 
-            // auto gpiv_g=pivot_vec(g,piv_g);         // | g_i > piv_g
-            // auto gtrans=inner(pivot_mat(inverse(LT_g),piv_h),LTh,1,1);        // LTg^(-1) piv_g Lh
-            // auto htrans=inner(pivot_mat(transpose(LT_g),piv_h),inverse(LTh));        // LTg^(-1) piv_g Lh
-            auto gpiv_g=pivot_vec(g,piv_g);         // | g_i > piv_g
-            auto gtrans=inverse(L_g);
-            auto htrans=L_g;
-            auto hpiv_g=pivot_vec(h,piv_g);         // | h_i > piv_g
+                return Uinv;
+            };
 
-            g=transform(world,gpiv_g,(gtrans));
-            h=transform(world,hpiv_g,transpose(htrans));
-            auto Gortho=matrix_inner(world,g,g);
-            for (int i=0; i<Gortho.dim(0); ++i) Gortho(i,i)-=1.0;
-            print("G_ortho.normf()",Gortho.normf(),Gortho.dim(0));
-            print("end of line");
-            // g=gpiv_g;
-            // h=hpiv_g;
+            auto Sh=matrix_inner(world,h,h);
+            auto [Uh,ph]=U(Sh);              // Uh(r,n), Ph(n,n);
+            auto Uh_inv=pseudo_invert(Uh);
+
+            auto Sg=matrix_inner(world,g,g);
+            auto PhUhT=madness::inner(pivot( ph),Uh,1,1);   // Ph_jk Uh_ik
+            auto Sgprime=madness::inner(PhUhT,madness::inner(Sg,PhUhT,1,0),0,0); // UP Sg PU
+            auto [Ugprime,pgprime]=U(Sgprime);
+            auto Ugprime_inv=pseudo_invert(Ugprime);
+            auto Tg=madness::inner(Uh, inner(pivot(pgprime),Ugprime,0,1),0,0);  // UhT Pg'T Ug'^(-1)T
+            auto Th=madness::inner(Uh_inv, inner(pivot(pgprime),Ugprime_inv,1,0),1,0);  // Uh Pg' Ug'^(-1)
+            print("dim(Tg)",Tg.dim(0),Tg.dim(1));
+            print("dim(Th)",Th.dim(0),Th.dim(1));
+            print("g.size()",g.size());
+            print("h.size()",h.size());
+
+            g=pivot_vec(g,ph);
+            h=pivot_vec(h,ph);
+            g=transform(world,g,Tg);
+            h=transform(world,h,Th);
+
+
         }
 
         void reorthonormalize(double thresh=-1.0) {

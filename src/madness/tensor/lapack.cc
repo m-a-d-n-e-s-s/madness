@@ -1207,6 +1207,7 @@ namespace madness {
     	Tensor<T> work(2*n);
 
     	integer irank = static_cast<integer>(rank);
+    	// note: will return U, not L, due to lapack convention
     	pstrf_("L", &n, A.ptr(), &n, piv.ptr(), &irank, &tol, work.ptr(), &info);
     	rank = static_cast<int>(irank);
 
@@ -1217,6 +1218,7 @@ namespace madness {
     	mask_info(info);
     	TENSOR_ASSERT(info >= 0, "rr_cholesky: Lapack failed", info, &A);
 
+    	// zero out lower triangular matrix
     	for (int i=0; i<n; ++i)
     		for (int j=0; j<i; ++j)
     			A(i,j) = 0.0;

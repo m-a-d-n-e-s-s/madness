@@ -2006,6 +2006,16 @@ namespace madness {
         return new SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F12),lattice_sum,k);
     }
 
+    /// Factory function generating separated kernel for convolution with (1 - exp(-mu*r))/(2 mu) in ND
+
+    /// includes the factor 1/(2 mu)
+    template<std::size_t NDIM>
+    static inline SeparatedConvolution<double,NDIM>* SlaterF12OperatorPtr_ND(World& world,
+            double mu, double lo, double eps,
+                const array_of_bools<NDIM>& lattice_sum = FunctionDefaults<NDIM>::get_bc().is_periodic(),
+            int k=FunctionDefaults<NDIM>::get_k()) {
+        return new SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_F12),lattice_sum,k);
+    }
 
     /// Factory function generating separated kernel for convolution with 1/(2 mu)*(1 - exp(-mu*r))/r in 3D
 

@@ -19,11 +19,13 @@ using namespace madness;
 int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
     test_output t1("CCPairFunction::low rank function");
     t1.set_cout_to_terminal();
+    print("testing the representation of the function:   phi(1) phi(2) f(1,2)");
+    print("by computing the norm of the projection : r(1) =  phi(1) int one(1) phi(2) f(1,2) d2");
     madness::default_random_generator.setstate(int(cpu_time())%4149);
     madness::default_random_generator.setstate(int(cpu_time())%4149);
     std::string id=unique_fileid();
 
-    constexpr std::size_t LDIM=3;
+    constexpr std::size_t LDIM=2;
     constexpr std::size_t NDIM=2*LDIM;
     print("eps, k, NDIM, id",FunctionDefaults<NDIM>::get_thresh(),FunctionDefaults<NDIM>::get_k(),NDIM,id);
 
@@ -69,19 +71,21 @@ int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
             .functor([](const Vector<double,LDIM>& r) { return 1.0;});
 
 
-    std::shared_ptr<real_convolution_3d> f12;
-    if (f12type=="slaterf12") f12.reset(SlaterF12OperatorPtr(world,parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
-    else if (f12type=="slater") f12.reset(SlaterOperatorPtr(world,parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
+    std::shared_ptr<SeparatedConvolution<double,LDIM>> f12;
+    if (f12type=="slaterf12") f12.reset(SlaterF12OperatorPtr_ND<LDIM>(world,parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
+    else if (f12type=="slater") f12.reset(SlaterOperatorPtr_ND<LDIM>(world,parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
     else {
         MADNESS_EXCEPTION(std::string("unknown f12type"+f12type).c_str(),1);
     }
 
-
+    // reconstruct the result from the low-rank representation
     auto compute_result = [&world, &one](const auto& lrf) {
-        real_function_3d result=real_factory_3d(world);
+        Function<double,LDIM> result=FunctionFactory<double,LDIM>(world);
         for (int r=0; r<lrf.rank(); ++r) result+=lrf.g[r]*inner(one,lrf.h[r]);
         return result;
     };
+
+    // compute relative l2 error between reference and result
     auto compute_relative_error = [](const auto reference, const auto result, const auto lrf) {
         auto diff=reference-result;
         double refnorm=reference.norm2();
@@ -98,16 +102,16 @@ int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
               optimized_error,optimized_rank,optimized_time);
     };
 
-    // \phi(1) \bar \phi(1) = \intn phi(1) \phi(2) f(1,2) d2
+    // \phi(1) \bar \phi(1) = \int phi(1) \phi(2) f(1,2) d2
     auto reference = phi1* (*f12)(phi2);
-//    plot_plane<3>(world,reference,"reference."+id,PlotParameters(world).set_plane({"x1","x2"}));
+    plot_plane<LDIM>(world,reference,"reference."+id,PlotParameters(world).set_plane({"x1","x2"}));
     double n2=reference.norm2();
     print("reference.norm2() = int f12 phi2 d2",n2);
     output(0.0,0.0,0.0,0.0,0.0,0.0);
 
-    LRFunctorF12<double,6> lrfunctor(f12,phi1,phi1);
+    LRFunctorF12<double,2*LDIM> lrfunctor(f12,phi1,phi2);
     double cpu0=cpu_time();
-    auto lrf=LowRankFunctionFactory<double,6>(parameters).project(lrfunctor);
+    auto lrf=LowRankFunctionFactory<double,2*LDIM>(parameters).project(lrfunctor);
     lrf.do_print=true;
 //    plot_plane<6>(world,lrfunctor,"plot_original."+id,PlotParameters(world).set_plane({"x1","x4"}));
     double cpu1=cpu_time();
@@ -119,7 +123,7 @@ int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
     // \phi(1) \bar \phi(1) = \int phi(1) \phi(2) f(1,2) d2
     //       = \int \sum_r g_r(1) h_r(2)  d2
     //       = \sum_r g_r(1) <\phi|h_r>
-    real_function_3d result=compute_result(lrf);
+    Function<double,LDIM> result=compute_result(lrf);
     double projection_error=compute_relative_error(reference,result,lrf);
     auto diff=reference-result;
 //    plot_plane<3>(world,diff,"plot_diff_int_projection."+id,PlotParameters(world).set_plane({"x1","x2"}));
@@ -139,8 +143,8 @@ int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
     double cpu3=cpu_time();
     result=compute_result(lrf);
     diff=reference-result;
-    plot_plane<3>(world,diff,"plot_diff_int_optimization."+id,PlotParameters(world).set_plane({"x1","x2"}));
-    plot_plane<3>(world,result,"plot_lrf_int_optimization."+id,PlotParameters(world).set_plane({"x1","x2"}));
+    plot_plane<LDIM>(world,diff,"plot_diff_int_optimization."+id,PlotParameters(world).set_plane({"x1","x2"}));
+    plot_plane<LDIM>(world,result,"plot_lrf_int_optimization."+id,PlotParameters(world).set_plane({"x1","x2"}));
     double optimization_error=compute_relative_error(reference,result,lrf);
     output(projection_error,lrf.rank(),cpu1-cpu0,optimization_error,lrf.rank(),cpu3-cpu2);
     bool success=(projection_error<5.e-2) and (optimization_error<1.e-2);
@@ -685,18 +689,21 @@ int test_construction_optimization(World& world, LowRankFunctionParameters param
         print("l2 error optimize", error);
         t1.checkpoint(error, tol, "l2 error in optimization");
 
-        print_header2(lrf.orthomethod);
-        lrf.reorthonormalize();
-        error = lrf.l2error(lrfunctor);
-        print("l2 error reorthonormalize", error);
-        t1.checkpoint(error, tol, "l2 error in reorthonormalization");
+        for (auto method : {"canonical","cholesky"}) {
+            lrf.orthomethod=method;
+            print_header2(lrf.orthomethod);
+            lrf.reorthonormalize();
+            error = lrf.l2error(lrfunctor);
+            print("l2 error reorthonormalize", error);
+            t1.checkpoint(error, tol, "l2 error in reorthonormalization");
 
-        lrf+=lrf;
-        lrf*=0.5;
-        lrf.reorthonormalize();
-        error = lrf.l2error(lrfunctor);
-        print("l2 error reorthonormalize with lindep", error);
-        t1.checkpoint(error, tol, "l2 error in reorthonormalization with lindep");
+            lrf+=lrf;
+            lrf*=0.5;
+            lrf.reorthonormalize();
+            error = lrf.l2error(lrfunctor);
+            print("l2 error reorthonormalize with lindep", error);
+            t1.checkpoint(error, tol, "l2 error in reorthonormalization with lindep");
+        }
 
     }
     return t1.end();
@@ -785,8 +792,6 @@ int test_molecular_grid(World& world, LowRankFunctionParameters parameters) {
     return t1.end();
 }
 
-
-
 int main(int argc, char **argv) {
 
     madness::World& world = madness::initialize(argc, argv);
@@ -845,13 +850,13 @@ int main(int argc, char **argv) {
 
     try {
 
-        // isuccess+=test_full_rank_functor<1>(world, parameters);
-        // parameters.set_user_defined_value("orthomethod",std::string("canonical"));
-        // isuccess+=test_construction_optimization<1>(world,parameters);
+        isuccess+=test_full_rank_functor<1>(world, parameters);
+        parameters.set_user_defined_value("orthomethod",std::string("canonical"));
+        isuccess+=test_construction_optimization<1>(world,parameters);
         parameters.set_user_defined_value("orthomethod",std::string("cholesky"));
         isuccess+=test_construction_optimization<1>(world,parameters);
-        // isuccess+=test_arithmetic<1>(world,parameters);
-        // isuccess+=test_inner<1>(world,parameters);
+        isuccess+=test_arithmetic<1>(world,parameters);
+        isuccess+=test_inner<1>(world,parameters);
 
         if (0) {
         // if (long_test) {
@@ -861,12 +866,13 @@ int main(int argc, char **argv) {
             isuccess+=test_molecular_grid<2>(world,parameters);
         }
 
-//        parameters.set_user_defined_value("volume_element",1.e-1);
-//        isuccess+=test_lowrank_function(world,parameters);
-//        isuccess+=test_Kcommutator(world,parameters);
+        parameters.set_user_defined_value("volume_element",1.e-1);
+        isuccess+=test_lowrank_function(world,parameters);
+        isuccess+=test_Kcommutator(world,parameters);
     } catch (std::exception& e) {
         madness::print("an error occured");
         madness::print(e.what());
+        isuccess+=1;
     }
 #else
     print("could not run test_ccpairfunction: U need to compile with ENABLE_GENTENSOR=1");

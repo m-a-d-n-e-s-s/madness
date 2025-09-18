@@ -627,11 +627,20 @@ namespace madness {
     	for(integer i=0;i<rank;++i){
     		pv[i]=v[piv[i]];
     	}
+        // no need to invert all of ovlp, only the upper left rank x rank block
+        // ex. with a (3,3) matrix ovlp with rank=2
+        //  | i >  L_{ir}
+        // (1 2 3) (a b // 0 c // 0 0) = ( a + 2b )
     	ovlp=ovlp(Slice(0,rank-1),Slice(0,rank-1));
 
-    	Tensor<T> L = transpose(ovlp);
+        // result = |i~> = sum_r |i> U_{ir}^(-1)
+        // with <i~|j~> = sum_{r} U_{ir}^(-1) <i|j> U_{jp}^(-1)
+        //              = sum_{r} U_{ir}^(-1) (U^T U)_{ij} U_{jr}^(-1)
+        //              = sum_{r} U_{ir}^(-1) U_{ip} U_{jp} U_{jp}^(-1)
+        //              = delta_{ij}        // has matrix dimension (r,r)
+    	Tensor<T> L = transpose(ovlp);      // fbischoff thinks the transpose is not necessary here
     	Tensor<T> Linv = inverse(L);
-    	Tensor<T> U = transpose(Linv);
+    	Tensor<T> U = transpose(Linv);      // fbischoff thinks the transpose is not necessary here
 
     	World& world=v.front().world();
     	return transform(world, pv, U);
