@@ -29,6 +29,13 @@ namespace madness {
         }
 
     private:
+        /// get the hostname of this machine, rank-local
+        static std::string get_hostname() {
+            char buffer[256];
+            gethostname(buffer, 256);
+            return std::string(buffer);
+        }
+
         struct MemKey {
             unsigned long world_id=1;
             unsigned long rank=0;
@@ -36,7 +43,7 @@ namespace madness {
             std::size_t DIM=0;
             MemKey() = default;
             MemKey(World& world) : world_id(world.id()), rank(world.rank()) {
-                hostname=get_hostname();
+                hostname=MemoryMeasurer::get_hostname();
             }
 
             template<typename T, std::size_t NDIM>

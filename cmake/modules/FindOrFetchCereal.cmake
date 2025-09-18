@@ -38,7 +38,7 @@ if (NOT TARGET cereal)
             FetchContent_Declare(
                     cereal
                     GIT_REPOSITORY https://github.com/USCiLab/cereal.git
-                    GIT_TAG v1.3.2)
+                    GIT_TAG v1.3.0)
 
             # configure cereal
             set(JUST_INSTALL_CEREAL ON CACHE BOOL "")
