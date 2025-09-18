@@ -96,7 +96,7 @@ if(BUILD_TESTING)
       test_worldref.cc test_stack.cc test_googletest.cc test_tree.cc
           )
 
-  add_unittests(world "${WORLD_TEST_SOURCES}" "MADworld;MADgtest" "unittests;short")
+  add_unittests(world "${WORLD_TEST_SOURCES}" "MADworld;MADgtest;MADmisc" "unittests;short")
 
   if (TARGET PaRSEC::parsec AND PARSEC_HAVE_CUDA)
     include(CheckLanguage)
