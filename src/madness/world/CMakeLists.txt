@@ -12,7 +12,7 @@ set(MADWORLD_HEADERS
     text_fstream_archive.h worlddc.h mem_func_wrapper.h taskfn.h group.h 
     dist_cache.h distributed_id.h type_traits.h function_traits.h stubmpi.h 
     bgq_atomics.h binsorter.h parsec.h meta.h worldinit.h thread_info.h
-    cloud.h test_utilities.h timing_utilities.h units.h)
+    cloud.h test_utilities.h timing_utilities.h units.h ranks_and_hosts.h)
 set(MADWORLD_SOURCES
     madness_exception.cc world.cc timers.cc future.cc redirectio.cc
     archive_type_names.cc debug.cc print.cc worldmem.cc worldrmi.cc

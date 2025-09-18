@@ -47,6 +47,7 @@
 #include <madness/world/worldhashmap.h>
 #include <madness/world/mpi_archive.h>
 #include <madness/world/world_object.h>
+#include <madness/world/ranks_and_hosts.h>
 
 namespace madness
 {
@@ -235,6 +236,31 @@ namespace madness
             return me;
         }
     };
+
+    /// node-replicated map will return the lowest rank on the node as owner
+    ///
+    /// \ingroup worlddc
+    template <typename keyT, typename hashfunT = Hash<keyT>>
+    class WorldDCNodeReplicatedPmap : public WorldDCPmapInterface<keyT> {
+        ProcessID me, myowner;
+
+    public:
+        /// ctor makes a map of all ranks to their owners (lowest rank on the host)
+        /// calls a fence
+        /// @param[in] world the associated world
+        explicit WorldDCNodeReplicatedPmap(World& world) : me(world.rank()) {
+            auto ranks_per_host1=ranks_per_host(world);
+            myowner=lowest_rank_on_host_of_rank(ranks_per_host1,me);
+        }
+
+        /// owner is the lowest rank on the node, same for all keys
+        ProcessID owner(const keyT &key) const override {
+            return myowner;
+        }
+
+    };
+
+
 
     /// Iterator for distributed container wraps the local iterator
 

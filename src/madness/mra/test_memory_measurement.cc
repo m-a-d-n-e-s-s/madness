@@ -51,6 +51,28 @@ int test_size(World& world) {
     return 0;
 }
 
+int test_host_rank_map(World& world) {
+    // print a list: hostname, rank, lowest rank
+    if (world.rank()==0) print_header2("ranks per host");
+    auto ranks_per_host1=ranks_per_host(world);
+    auto rank=world.rank();
+    world.gop.fence();
+    // print unique ranks per host
+    if (world.rank()==0) {
+        print("unique ranks per host (the lowest rank on each host):");
+        auto unique_ranks=unique_ranks_per_host(world,ranks_per_host1);
+        for (const auto& r : unique_ranks) print("rank",r);
+    }
+    // ordered printing
+    for (int r=0; r<world.size(); r++, world.gop.fence()) {
+        if (world.rank()==r) print("lowest rank on host of rank",rank,
+            lowest_rank_on_host_of_rank(ranks_per_host1,rank));
+    }
+    world.gop.fence();
+    return 0;
+
+}
+
 int main(int argc, char** argv) {
     madness::World& world=madness::initialize(argc, argv);
 
@@ -71,6 +93,7 @@ int main(int argc, char** argv) {
     int result=0;
 
     result+=test_size<2>(world);
+    result+=test_host_rank_map(world);
 
     print("result",result);
     madness::finalize();

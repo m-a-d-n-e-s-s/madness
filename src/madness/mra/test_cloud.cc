@@ -273,7 +273,7 @@ int test_copy_function_from_other_world_through_cloud(World& universe) {
 
     universe.gop.fence();
 
-    auto map = MemoryMeasurer::rank_to_host_and_rss_map(universe);
+    auto map = rank_to_host_and_rss_map(universe);
     for (auto& [rank, pair] : map) {
         print("rank", rank, "hostname", pair.first, "rss", pair.second);
     }

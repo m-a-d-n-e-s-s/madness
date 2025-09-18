@@ -6,7 +6,7 @@
 #define MEMORY_MEASUREMENT_H
 
 
-#include<madness/mra/memory_measurement.h>
+#include<madness/world/ranks_and_hosts.h>
 #include<madness/mra/mra.h>
 
 namespace madness {
@@ -36,7 +36,7 @@ namespace madness {
             std::size_t DIM=0;
             MemKey() = default;
             MemKey(World& world) : world_id(world.id()), rank(world.rank()) {
-                hostname=MemoryMeasurer::get_hostname();
+                hostname=get_hostname();
             }
 
             template<typename T, std::size_t NDIM>
@@ -144,28 +144,6 @@ namespace madness {
             }
         }
 
-        /// get the hostname of this machine, rank-local
-        static std::string get_hostname() {
-            char buffer[256];
-            gethostname(buffer, 256);
-            return std::string(buffer);
-        }
-
-        /// return a mapping rank to hostname, return value on rank 0 only
-        static std::map<long,std::pair<std::string,double>> rank_to_host_and_rss_map(World& universe) {
-            std::vector<std::pair<long,std::pair<std::string,double>>> rank_to_host;
-            // rank-local
-            auto hostname_and_rss=std::pair<std::string,double>(get_hostname(),get_rss_usage_in_GB());
-            rank_to_host.push_back(std::pair<long,std::pair<std::string,double>>(universe.rank(),hostname_and_rss));
-            // gather on rank 0
-            rank_to_host=universe.gop.concat0(rank_to_host);
-            // turn into map
-            std::map<long,std::pair<std::string,double>> map;
-            for (const auto& [rank,hostname] : rank_to_host) {
-                map[rank]=hostname;
-            }
-            return map;
-        }
 
         /// given the hostname, return number of ranks and total rss on that node
         static std::map<std::string,std::pair<int,double>> host_to_nrank_and_rss_map(World& universe) {
@@ -273,31 +251,6 @@ namespace madness {
                 print(std::string(line));
             }
 
-        }
-
-        static double get_rss_usage_in_GB() {
-            double kb_to_GB=1.0/(1024*1024);
-            double b_to_GB=kb_to_GB/1024;
-#ifdef __APPLE__
-            struct rusage usage;
-            if (getrusage(RUSAGE_SELF, &usage) == -1) {
-                std::cerr << "Unable to get RSS usage" << std::endl;
-                return -1;
-            }
-            return usage.ru_maxrss*b_to_GB;
-#else
-            std::ifstream statm_file("/proc/self/statm");
-            unsigned long size, resident;
-            if (statm_file.is_open()) {
-                statm_file >> size >> resident;
-                statm_file.close();
-            } else {
-                std::cerr << "Unable to open /proc/self/statm" << std::endl;
-                return -1;
-            }
-            long page_size_kb = sysconf(_SC_PAGE_SIZE) / 1024;
-            return resident * page_size_kb*kb_to_GB;
-#endif
         }
 
     };
