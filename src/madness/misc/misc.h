@@ -51,7 +51,6 @@ namespace madness {
 
     // get the memory usage of the current process in byte
     long get_memory_usage();
-    std::string get_hostname();
 }
 
 #endif // MADNESS_MISC_MISC_H__INCLUDED

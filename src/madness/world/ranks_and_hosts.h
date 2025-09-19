@@ -17,6 +17,7 @@ namespace madness {
     std::map<std::string,std::vector<long>> ranks_per_host(World& universe);
     long lowest_rank_on_host_of_rank(const std::map<std::string,std::vector<long>> ranks_per_host1, int rank);
     std::vector<long> unique_ranks_per_host(World& world, const std::map<std::string,std::vector<long>> ranks_per_host1);
+    std::string get_hostname();
 
 }
 

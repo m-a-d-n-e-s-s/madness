@@ -93,4 +93,13 @@ namespace madness {
         std::sort(result.begin(), result.end());
         return result;
     }
+
+
+    std::string get_hostname() {
+        char hostname[256];
+#if defined(HAVE_UNISTD_H)
+        gethostname(hostname, 256);
+#endif
+        return std::string(hostname);
+    }
 }
