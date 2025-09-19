@@ -19,7 +19,7 @@ set(MADWORLD_SOURCES
     safempi.cc worldpapi.cc worldref.cc worldam.cc worldprofile.cc thread.cc 
     world_task_queue.cc worldgop.cc deferred_cleanup.cc worldmutex.cc
     binary_fstream_archive.cc text_fstream_archive.cc lookup3.c worldmpi.cc 
-    group.cc parsec.cc archive.cc units.cc)
+    group.cc parsec.cc archive.cc units.cc ranks_and_hosts.cpp)
 
 if(MADNESS_ENABLE_CEREAL)
     set(MADWORLD_HEADERS ${MADWORLD_HEADERS} "cereal_archive.h")
