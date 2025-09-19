@@ -242,15 +242,14 @@ namespace madness
     /// \ingroup worlddc
     template <typename keyT, typename hashfunT = Hash<keyT>>
     class WorldDCNodeReplicatedPmap : public WorldDCPmapInterface<keyT> {
-        ProcessID me, myowner;
+        ProcessID myowner;
 
     public:
         /// ctor makes a map of all ranks to their owners (lowest rank on the host)
         /// calls a fence
         /// @param[in] world the associated world
-        explicit WorldDCNodeReplicatedPmap(World& world) : me(world.rank()) {
-            auto ranks_per_host1=ranks_per_host(world);
-            myowner=lowest_rank_on_host_of_rank(ranks_per_host1,me);
+        explicit WorldDCNodeReplicatedPmap(World& world, const std::map<std::string,std::vector<long>> ranks_per_host) {
+            myowner=lowest_rank_on_host_of_rank(ranks_per_host,world.rank());
         }
 
         /// owner is the lowest rank on the node, same for all keys
@@ -524,14 +523,100 @@ namespace madness
 
         /// replicates this WorldContainer on all ProcessIDs and generates a
         /// ProcessMap where all nodes are local
-        void replicate(bool fence)
-        {
-
+        void replicate(bool fence) {
             World &world = this->get_world();
             pmap->deregister_callback(this);
             pmap.reset(new WorldDCLocalPmap<keyT>(world));
             pmap->register_callback(this);
 
+            do_replicate(world);
+            if (fence) world.gop.fence();
+        }
+
+        /// replicates this WorldContainer on all hosts and generates a
+        /// ProcessMap where all nodes are host-local (not rank-local)
+        void replicate_on_hosts(bool fence) {
+
+            /// print in rank-order
+            auto oprint = [&](World& world, auto &&... args) {
+                world.gop.fence();
+                for (int r=0; r<world.size(); ++r) {
+                    if (r==world.rank()) {
+                        std::cout << "rank " << world.rank() << ": ";
+                        print(std::forward<decltype(args)>(args)...);
+                    }
+                    world.gop.fence();
+                }
+            };
+
+            World &world = this->get_world();
+            if (world.size()==1) return; // nothing to do
+
+            // find primary ranks per host (lowest rank on each host)
+            auto ranks_per_host1=ranks_per_host(world);
+            std::vector<int> primary_ranks=primary_ranks_per_host(world,ranks_per_host1);
+            world.gop.broadcast_serializable(primary_ranks,0);
+            world.gop.fence();
+            // oprint(world,"primary_ranks: ", primary_ranks);
+            // get a list of all other ranks that are not primary
+            std::vector<int> secondary_ranks;
+            for (int r=0; r<world.size(); ++r) {
+                if (std::find(primary_ranks.begin(),primary_ranks.end(),r)==primary_ranks.end())
+                    secondary_ranks.push_back(r);
+            }
+            // oprint(world,"secondary_ranks: ", secondary_ranks);
+
+
+            // phase 1: for all ranks send data to lowest rank on host
+
+            // step 1-1: switch to local pmap so that "insert" will work
+            pmap->deregister_callback(this);
+            pmap.reset(new WorldDCLocalPmap<keyT>(world));
+            pmap->register_callback(this);
+
+            // step 1-2: send data to lowest rank on host (which will become the owner)
+            long myowner = lowest_rank_on_host_of_rank(ranks_per_host1, world.rank());
+            if (world.rank() != myowner) {
+                // send data to myowner
+                for (auto it = begin(); it != end(); ++it) {
+                    keyT key = it->first;
+                    valueT value = it->second;
+                    this->send(myowner,&implT::insert,pairT(key,value));
+                    erase(key);
+                }
+            }
+
+            // phase 2: replicate all data among the primary ranks
+            pmap->deregister_callback(this);
+            pmap.reset(new WorldDCNodeReplicatedPmap<keyT>(world,ranks_per_host1));
+            pmap->register_callback(this);
+
+            // check if this rank is in the primary list
+            bool i_am_in_primary_list=world.rank()==myowner;
+            if (i_am_in_primary_list) {
+
+                // step 2-1: create a world with only the primary ranks and replicate there (see test_world.cc)
+
+                SafeMPI::Group primary_group = world.mpi.comm().Get_group().Incl(primary_ranks.size(), &primary_ranks[0]);
+                SafeMPI::Intracomm comm_primary = world.mpi.comm().Create(primary_group);
+                // step 2-2: replicate in the primary world
+                {
+                    World world_primary(comm_primary);
+                    world_primary.gop.fence();              // this fence seems necessary, why??
+                    do_replicate(world_primary);
+                    world_primary.gop.fence();
+                }
+            } else {
+                // need this to avoid deadlock in MPI_Comm_create (why??)
+                SafeMPI::Group secondary_group = world.mpi.comm().Get_group().Incl(secondary_ranks.size(), &secondary_ranks[0]);
+                SafeMPI::Intracomm comm_secondary = world.mpi.comm().Create(secondary_group);
+            }
+
+            // phase 3: done
+            if (fence) world.gop.fence();
+        }
+
+        void do_replicate(World& world) {
             for (ProcessID rank = 0; rank < world.size(); rank++)
             {
                 if (rank == world.rank())
@@ -561,8 +646,6 @@ namespace madness
                     }
                 }
             }
-            if (fence)
-                world.gop.fence();
         }
 
         hashfunT &get_hash() const { return local.get_hash(); }
@@ -994,6 +1077,12 @@ namespace madness
         void replicate(bool fence = true)
         {
             p->replicate(fence);
+        }
+
+        /// replicates this WorldContainer on all hosts (one PID per host)
+        void replicate_on_hosts(bool fence = true)
+        {
+            p->replicate_on_hosts(fence);
         }
 
         /// Inserts/replaces key+value pair (non-blocking communication if key not local)

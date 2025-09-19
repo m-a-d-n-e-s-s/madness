@@ -710,6 +710,15 @@ namespace madness {
             impl->replicate(fence);
         }
 
+        /// replicate this function, one copy per host
+
+        /// map will refer the to first rank on each host to avoid inter-node communication
+        void replicate_on_hosts(bool fence=true) const {
+            verify();
+            impl->replicate_on_hosts(fence);
+        }
+
+
         /// distribute this function according to newmap
         void distribute(std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > newmap) const {
             verify();

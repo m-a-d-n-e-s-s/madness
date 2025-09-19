@@ -1122,6 +1122,10 @@ template<size_t NDIM>
         	coeffs.replicate(fence);
         }
 
+        void replicate_on_hosts(bool fence=true) {
+            coeffs.replicate_on_hosts(fence);
+        }
+
         void distribute(std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > newmap) const {
         	auto currentmap=coeffs.get_pmap();
         	currentmap->redistribute(world,newmap);

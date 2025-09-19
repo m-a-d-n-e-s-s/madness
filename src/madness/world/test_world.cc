@@ -1375,13 +1375,14 @@ int main(int argc, char** argv) {
 #endif
     World& world = initialize(argc,argv);
 
-    redirectio(world);
+    // redirectio(world);
     print("The processor frequency is",cpu_frequency());
     print("There are",world.size(),"processes and I am process",world.rank(),"with",ThreadPool::size(),"threads");
 
     world.args(argc,argv);
 
     world.gop.fence();
+    test_multi_world(world);
 
     try {
         PROFILE_BLOCK(main_program);

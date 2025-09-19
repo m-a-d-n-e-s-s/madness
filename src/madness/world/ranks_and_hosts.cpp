@@ -83,11 +83,11 @@ namespace madness {
      * Returns a vector of ranks such that exactly one rank is chosen per host (the lowest rank on each host).
      * Only valid on rank 0. If called on other ranks, returns an empty vector.
      */
-    std::vector<long> unique_ranks_per_host(World& world, const std::map<std::string,std::vector<long>> ranks_per_host1) {
-        std::vector<long> result;
+    std::vector<int> primary_ranks_per_host(World& world, const std::map<std::string,std::vector<long>> ranks_per_host1) {
+        std::vector<int> result;
         // loop over all ranks, but only keep the lowest rank on each host
         for (int rank = 0; rank < world.size(); ++rank) {
-            long lowest_rank = lowest_rank_on_host_of_rank(ranks_per_host1, rank);
+            int lowest_rank = lowest_rank_on_host_of_rank(ranks_per_host1, rank);
             if (lowest_rank == rank) result.push_back(rank);
         }
         std::sort(result.begin(), result.end());
