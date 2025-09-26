@@ -1,0 +1,15 @@
+<map id="exchangeoperator.h" name="exchangeoperator.h">
+<area shape="rect" id="Node000001" title=" " alt="" coords="163,5,313,31"/>
+<area shape="rect" id="Node000002" href="$SCFOperators_8cc.html" title="Operators for the molecular HF and DFT code." alt="" coords="5,79,135,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="200,38,99,81,96,76,197,34"/>
+<area shape="rect" id="Node000003" href="$exchangeoperator_8cc.html" title=" " alt="" coords="159,79,317,104"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="241,44,241,79,235,79,235,44"/>
+<area shape="rect" id="Node000004" href="$madchem_8h.html" title=" " alt="" coords="341,79,439,104"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="276,34,366,76,364,81,273,39"/>
+<area shape="rect" id="Node000005" href="$SCF_8cc.html" title="Molecular HF and DFT code." alt="" coords="244,152,307,177"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="362,113,295,154,293,150,359,109"/>
+<area shape="rect" id="Node000006" href="$dirac-hatom_8cc.html" title="solve the hydrogen atom using the 4&#45;component Dirac equation" alt="" coords="331,152,449,177"/>
+<area shape="poly" id="edge5_Node000004_Node000006" title=" " alt="" coords="393,118,393,152,387,152,387,118"/>
+<area shape="rect" id="Node000007" href="$simple__hf_8cpp.html" title=" " alt="" coords="473,152,585,177"/>
+<area shape="poly" id="edge6_Node000004_Node000007" title=" " alt="" coords="426,108,507,149,505,154,423,113"/>
+</map>
