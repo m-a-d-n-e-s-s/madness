@@ -43,6 +43,22 @@ if(BUILD_TESTING)
       testper.cc)
   add_unittests(mra_sepop "${MRA_SEPOP_TEST_SOURCES}" "libtest_sepop;MADgtest" "unittests;short")
   
+  # Add MPI-specific tests for test_memory_measurement
+  if(ENABLE_MPI AND MPIEXEC_EXECUTABLE)
+    # Add MPI tests for different process counts and configurations
+    set(MPI_PROCESS_COUNTS 2 4 8)
+    foreach(NPROC ${MPI_PROCESS_COUNTS})
+      add_test(NAME madness/test/mra/test_memory_measurement_mpi${NPROC}/run
+               COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NPROC} ${MPIEXEC_PREFLAGS} --oversubscribe 
+                       $<TARGET_FILE:test_memory_measurement> ${MPIEXEC_POSTFLAGS})
+      set_tests_properties(madness/test/mra/test_memory_measurement_mpi${NPROC}/run
+                           PROPERTIES DEPENDS madness/test/mra/build LABELS "unittests;mpi;short")
+      
+      # Add dependency to build step
+      add_dependencies(mra_unittests-madness test_memory_measurement)
+    endforeach()
+  endif()
+
   # Test executables that are not run with unit tests ... consider these executables (unlike unit tests)
   if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
     set(MRA_OTHER_TESTS testperiodic testbc testqm test6
