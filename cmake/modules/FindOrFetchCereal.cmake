@@ -43,14 +43,13 @@ if (NOT TARGET cereal)
             # configure cereal
             set(JUST_INSTALL_CEREAL ON CACHE BOOL "")
             set(THREAD_SAFE ON CACHE BOOL "")
+            set(CEREAL_INSTALL ON CACHE BOOL "")
 
             FetchContent_MakeAvailable(cereal)
 
-            # Export cereal target so it can be part of madness exports
-            # This is needed because MADNESS exports MADworld which depends on cereal
-            if(TARGET cereal)
-                install(TARGETS cereal EXPORT madness)
-            endif()
+            # Export cereal target for build tree so MADNESS can export targets that depend on it
+            # Note: cereal v1.3.2 has its own install exports, but we need build tree export for MADNESS
+            export(TARGETS cereal FILE "${PROJECT_BINARY_DIR}/cereal-targets.cmake")
 
             # set cereal_CONFIG to the install location so that we know where to find it
             set(cereal_CONFIG ${CMAKE_INSTALL_PREFIX}/share/cmake/cereal/cereal-config.cmake)
