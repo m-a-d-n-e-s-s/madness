@@ -38,19 +38,21 @@ if (NOT TARGET cereal)
             FetchContent_Declare(
                     cereal
                     GIT_REPOSITORY https://github.com/USCiLab/cereal.git
-                    GIT_TAG v1.3.0)
+                    GIT_TAG v1.3.2)
 
             # configure cereal
             set(JUST_INSTALL_CEREAL ON CACHE BOOL "")
             set(THREAD_SAFE ON CACHE BOOL "")
+            set(CEREAL_INSTALL ON CACHE BOOL "")
 
             FetchContent_MakeAvailable(cereal)
 
+            # Export cereal target for build tree so MADNESS can export targets that depend on it
+            # Note: cereal v1.3.2 has its own install exports, but we need build tree export for MADNESS
+            export(TARGETS cereal FILE "${PROJECT_BINARY_DIR}/cereal-targets.cmake")
+
             # set cereal_CONFIG to the install location so that we know where to find it
             set(cereal_CONFIG ${CMAKE_INSTALL_PREFIX}/share/cmake/cereal/cereal-config.cmake)
-
-            export(EXPORT cereal
-                   FILE "${PROJECT_BINARY_DIR}/cereal-targets.cmake")
         endif (NOT TARGET cereal)
 
     endif (TARGET cereal)
