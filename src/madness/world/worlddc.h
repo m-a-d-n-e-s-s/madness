@@ -567,7 +567,7 @@ namespace madness
             // oprint(world,"secondary_ranks: ", secondary_ranks);
 
 
-            // phase 1: for all ranks send data to lowest rank on host
+            // phase 1: for all ranks send data to the lowest rank on host
 
             // step 1-1: switch to local pmap so that "insert" will work
             pmap->deregister_callback(this);

@@ -25,6 +25,8 @@ static std::shared_ptr<World> create_worlds(World& universe, const std::size_t n
 template<std::size_t NDIM>
 int test_size(World& world) {
 
+    test_output t1("test_size");
+    t1.set_cout_to_terminal();
     // create a slater function, slightly offset to create an uneven distribution
     auto slater=[](const Vector<double,2*NDIM>& r){return exp(-(r-0.1).normf());};
     Function<double,2*NDIM> f2=FunctionFactory<double,2*NDIM>(world).functor(slater);
@@ -49,10 +51,14 @@ int test_size(World& world) {
     }
 
 
-    return 0;
+    return t1.end();
 }
 
+/// test functions to get a map of ranks to hosts
+/// and to get the lowest rank on each host
 int test_host_rank_map(World& world) {
+    test_output t1("testing host-rank map");
+    t1.set_cout_to_terminal();
     // print a list: hostname, rank, lowest rank
     if (world.rank()==0) print_header2("ranks per host");
     auto ranks_per_host1=ranks_per_host(world);
@@ -63,7 +69,6 @@ int test_host_rank_map(World& world) {
     for (int r=0; r<world.size(); r++, world.gop.fence()) {
         if (world.rank()==r) print("rank",rank,"hostname",rank_host_map[rank].first);
     }
-
 
     world.gop.fence();
     // print unique ranks per host
@@ -78,11 +83,13 @@ int test_host_rank_map(World& world) {
             lowest_rank_on_host_of_rank(ranks_per_host1,rank));
     }
     world.gop.fence();
-    return 0;
+    return t1.end();
 }
 
 
 /// replicate a function on all nodes (not ranks)
+/// check that all keys are on the expected rank
+/// check that the norm of a specific key is the same as in the distributed function
 int test_node_replicated_function(World& world) {
     test_output t1("testing node-replicated function");
     t1.set_cout_to_terminal();
@@ -92,6 +99,8 @@ int test_node_replicated_function(World& world) {
         print("world.size()",world.size());
         print("ranks and hosts");
     }
+
+    // which ranks are on which host
     auto rank_host_map=rank_to_host_and_rss_map(world);
     world.gop.broadcast_serializable(rank_host_map,0);
     // ordered printing
@@ -99,13 +108,16 @@ int test_node_replicated_function(World& world) {
         if (world.rank()==r) print("rank",r,"hostname",rank_host_map[r].first);
     }
 
-    // a 2d Gaussian
+    // a 2d Gaussian -- reasonably small
     real_function_2d f=real_factory_2d(world).f([](const coord_2d& r){return exp(-r.normf());});
-    long sz_distributed=f.tree_size();
+
+    // print out the tree size of the distributed function, global sum over all ranks
+    std::size_t sz_distributed=f.tree_size();
+    print("tree size of the distributed function",sz_distributed);
+
     // compute the norm of a specific key
     Key<2> key(4, {8,9});
     double n=f.get_impl()->get_coeffs().find(key).get()->second.coeff().normf();
-    print("tree size of the distributed function",sz_distributed);
 
     // check if all keys of functimpl are on a given rank
     auto check_keys_are_on_rank=[&](const FunctionImpl<double,2>* fimpl, const ProcessID rank) {
@@ -123,15 +135,15 @@ int test_node_replicated_function(World& world) {
     {
         auto f1=copy(f);
         f1.replicate();
-        long sz_replicated=f1.tree_size();
-        t1.checkpoint(sz_replicated==sz_distributed*world.size(),"tree size replicated = size distributed * nproc = "
-            +std::to_string(sz_replicated));
+        std::size_t sz_replicated=f1.tree_size();
+        t1.checkpoint(sz_replicated==sz_distributed*world.size(),"rank "+std::to_string(world.rank())+
+            ": tree size replicated = size distributed * nproc = "+std::to_string(sz_replicated));
 
         // check that all keys are on the expected rank, ie. the local rank
         for (int r=0; r<world.size(); r++, world.gop.fence()) {
             if (world.rank()==r) {
                 print("rank ",r,"hostname",rank_host_map[r].first);
-                f1.get_impl()->do_print_tree(f1.get_impl()->get_cdata().key0,std::cout,4);
+                // f1.get_impl()->do_print_tree(f1.get_impl()->get_cdata().key0,std::cout,4);
                 t1.checkpoint(check_keys_are_on_rank(f1.get_impl().get(),r),"all keys on rank "+std::to_string(r));
             }
             world.gop.fence();
@@ -143,7 +155,7 @@ int test_node_replicated_function(World& world) {
         auto f1=copy(f);
         f1.replicate_on_hosts();
         // f1.replicate_on_nodes();
-        long sz_replicated=f1.tree_size();
+        std::size_t sz_replicated=f1.tree_size();
         auto ranks_per_host1=ranks_per_host(world);
         auto primary_ranks=primary_ranks_per_host(world,ranks_per_host1);
 
@@ -159,7 +171,7 @@ int test_node_replicated_function(World& world) {
         for (int r=0; r<world.size(); r++, world.gop.fence()) {
             if (world.rank()==r) {
                 print("rank ",r,"hostname",rank_host_map[r].first);
-                f1.get_impl()->do_print_tree(f1.get_impl()->get_cdata().key0,std::cout,4);
+                // f1.get_impl()->do_print_tree(f1.get_impl()->get_cdata().key0,std::cout,4);
                 t1.checkpoint(check_keys_are_on_rank(f1.get_impl().get(),myowner),"all keys on rank "+std::to_string(myowner));
             }
             world.gop.fence();
@@ -181,6 +193,7 @@ int test_node_replicated_function(World& world) {
 /// then create a world on each communicator and do some work there
 int test_mpi_group(World& world) {
     test_output t1("testing MPI groups",world.rank()==0);
+    t1.set_cout_to_terminal();
 
     /// print in rank-order
     auto oprint = [&](World& world, auto &&... args) {
@@ -274,8 +287,8 @@ int main(int argc, char** argv) {
 
     result+=test_size<2>(world);
     result+=test_host_rank_map(world);
-    result+=test_node_replicated_function(world);
     result+=test_mpi_group(world);
+    result+=test_node_replicated_function(world);
 
 
     print("result",result);
