@@ -105,7 +105,7 @@ namespace madness {
         constexpr double atomic_unit_of_force = 8.23872206e-8 ; //     0.00000041e-8      N
 
         /// Length in atomic units.
-        constexpr double atomic_unit_of_length = 0.52917720859e-10 ; // 0.00000000036e-10 m
+        constexpr double atomic_unit_of_length = 0.529177210544e-10 ; // 0.00000000036e-10 m
 
         /// Magnetic dipole moment in atomic units.
         constexpr double atomic_unit_of_magnetic_dipole_moment = 1.854801830e-23 ; //   0.000000046e-23    J T^-1
