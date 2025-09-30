@@ -1,0 +1,13 @@
+<map id="info.cc" name="info.cc">
+<area shape="rect" id="Node000001" title=" " alt="" coords="282,5,347,31"/>
+<area shape="rect" id="Node000002" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS." alt="" coords="5,79,208,104"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="283,33,154,77,152,72,281,28"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="232,79,307,104"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="309,32,286,69,282,66,305,30"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="331,79,389,104"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="324,30,348,66,343,69,320,32"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="413,79,493,104"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="338,28,420,70,417,75,336,33"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="39,152,175,177"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="109,104,109,138,104,138,104,104"/>
+</map>

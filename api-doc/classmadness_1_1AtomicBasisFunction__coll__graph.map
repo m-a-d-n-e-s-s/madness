@@ -1,0 +1,5 @@
+<map id="madness::AtomicBasisFunction" name="madness::AtomicBasisFunction">
+<area shape="rect" id="Node000001" title="Used to represent one basis function from a shell on a specific center." alt="" coords="5,108,231,133"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1ContractedGaussianShell.html" title="Represents a single shell of contracted, Cartesian, Gaussian primitives." alt="" coords="8,5,228,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="121,59,121,108,115,108,115,59"/>
+</map>
