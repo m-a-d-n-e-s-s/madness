@@ -77,12 +77,21 @@ namespace madness
 
     /// Interface to be provided by any process map
 
+    /// NOTE: if the map is not distributed, but replicated, you must override the distribution_type() method.
     /// \ingroup worlddc
     template <typename keyT>
     class WorldDCPmapInterface
     {
     public:
         typedef WorldDCRedistributeInterface<keyT> *ptrT;
+
+        /// some introspection of how data is distributed
+        enum DistributionType {
+            Distributed,            ///< no replication of the container, the container is distributed over the world
+            RankReplicated,         ///< replicate the container over all world ranks
+            NodeReplicated          ///< replicate the container over all hosts (compute nodes), once per node,
+                                    ///< even if there are several ranks per node
+        };
 
     private:
         std::set<ptrT> ptrs;
@@ -97,6 +106,12 @@ namespace madness
         virtual ~WorldDCPmapInterface() {}
 
         virtual void print() const {}
+
+        /// by default the map is distributed
+        virtual DistributionType distribution_type() const
+        {
+            return Distributed;
+        }
 
         /// Registers object for receipt of redistribute callbacks
 
@@ -231,9 +246,14 @@ namespace madness
 
     public:
         WorldDCLocalPmap(World &world) : me(world.rank()) {}
-        ProcessID owner(const keyT &key) const
+        ProcessID owner(const keyT &key) const override
         {
             return me;
+        }
+
+        typename WorldDCPmapInterface<keyT>::DistributionType distribution_type() const override
+        {
+            return WorldDCPmapInterface<keyT>::RankReplicated;
         }
     };
 
@@ -257,6 +277,10 @@ namespace madness
             return myowner;
         }
 
+        typename WorldDCPmapInterface<keyT>::DistributionType distribution_type() const override
+        {
+            return WorldDCPmapInterface<keyT>::NodeReplicated;
+        }
     };
 
 
@@ -537,17 +561,17 @@ namespace madness
         /// ProcessMap where all nodes are host-local (not rank-local)
         void replicate_on_hosts(bool fence) {
 
-            /// print in rank-order
-            auto oprint = [&](World& world, auto &&... args) {
-                world.gop.fence();
-                for (int r=0; r<world.size(); ++r) {
-                    if (r==world.rank()) {
-                        std::cout << "rank " << world.rank() << ": ";
-                        print(std::forward<decltype(args)>(args)...);
-                    }
-                    world.gop.fence();
-                }
-            };
+//            /// print in rank-order
+//            auto oprint = [&](World& world, auto &&... args) {
+//                world.gop.fence();
+//                for (int r=0; r<world.size(); ++r) {
+//                    if (r==world.rank()) {
+//                        std::cout << "rank " << world.rank() << ": ";
+//                        print(std::forward<decltype(args)>(args)...);
+//                    }
+//                    world.gop.fence();
+//                }
+//            };
 
             World &world = this->get_world();
             if (world.size()==1) return; // nothing to do
@@ -582,8 +606,10 @@ namespace madness
                     keyT key = it->first;
                     valueT value = it->second;
                     this->send(myowner,&implT::insert,pairT(key,value));
-                    erase(key);
+                    // insert(pairT(key,value));        // this won't work with LocalPmap
                 }
+                // remove all local data after sending
+                clear();
             }
 
             // phase 2: replicate all data among the primary ranks
@@ -1058,6 +1084,24 @@ namespace madness
                 p = other.p;
             }
             return *this;
+        }
+
+        /// return the way data is distributed
+        typename WorldDCPmapInterface<keyT>::DistributionType get_distribution_type() const {
+            if (!p) MADNESS_EXCEPTION("Uninitialized container", false);
+            return p->get_pmap()->distribution_type();
+        }
+
+        bool is_distributed() const {
+            return get_distribution_type()==WorldDCPmapInterface<keyT>::Distributed;
+        }
+
+        bool is_replicated() const {
+            return get_distribution_type()==WorldDCPmapInterface<keyT>::RankReplicated;
+        }
+
+        bool is_host_replicated() const {
+            return get_distribution_type()==WorldDCPmapInterface<keyT>::NodeReplicated;
         }
 
         /// Returns the world associated with this container

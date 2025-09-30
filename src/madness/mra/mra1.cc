@@ -50,8 +50,6 @@ namespace madness {
 
 #ifdef FUNCTION_INSTANTIATE_1
 
-    MacroTaskInfo::StoragePolicy MacroTaskInfo::default_storage_policy = MacroTaskInfo::StoreFunction;
-
     template void fcube<double,1>(const Key<1>&, const FunctionFunctorInterface<double,1>&, const Tensor<double>&, Tensor<double>&);
     template Tensor<double> fcube<double, 1>(Key<1> const&, double (*)(Vector<double, 1> const&), Tensor<double> const&);
     template void fcube<std::complex<double>,1>(const Key<1>&, const FunctionFunctorInterface<std::complex<double>,1>&, const Tensor<double>&, Tensor<std::complex<double> >&);

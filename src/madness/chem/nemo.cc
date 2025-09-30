@@ -557,13 +557,11 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
         timer t(world,get_calc_param().print_level()>2);
         real_function_3d vcoul;
         int ispin = 0;
-        auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size(),MacroTaskInfo::get_default()));
+        auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(world)));
         taskq->set_printlevel(get_calc_param().print_level());
         // taskq->cloud.set_debug(true);
-        if (world.rank()==0 and get_calc_param().print_level()>4) {
-            print("taskq storing policy", taskq->get_storage_policy());
-            print("cloud storing policy", taskq->cloud.get_storing_policy());
-        }
+        if (world.rank()==0 and get_calc_param().print_level()>4) print(taskq->get_policy());
+
 
 
         Coulomb<double, 3> J = Coulomb<double, 3>(world, this).set_taskq(taskq);

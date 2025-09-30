@@ -1,5 +1,5 @@
 /**
- \file test_vectormacrotask.h
+ \file test_vectormacrotask.cc
  \brief Tests the \c MacroTaskQ and MacroTask classes
  \ingroup mra
 
@@ -317,14 +317,14 @@ int test_immediate(World& universe, const std::vector<Function<T,NDIM>>& v3,
                    const std::vector<Function<T,NDIM>>& ref) {
     test_output t1("testing immediate execution",universe.rank()==0);
     // t1.set_cout_to_terminal();
-    for (auto sp : {MacroTaskInfo::StoreFunction, MacroTaskInfo::StoreFunctionViaPointer}) {
+    for (std::string preset : {"default","small_memory","large_memory"}) {
         MicroTask<T,NDIM> t;
-        MacroTask task_immediate(universe, t, sp);
+        MacroTask task_immediate(universe, t, MacroTaskQFactory(universe).preset(preset));
         task_immediate.set_debug(true);
         std::vector<Function<T,NDIM>> v = task_immediate(v3[0], 2.0, v3);
         double error=norm2(universe, v-ref);
         std::stringstream ss;
-        ss << "immediate execution -- storage policy " << sp;
+        ss << "immediate execution -- storage policy " << preset;
         t1.checkpoint(error,1.e-10,ss.str());
     }
     return t1.end();
@@ -334,19 +334,21 @@ int test_deferred(World& universe, const std::vector<real_function_3d>& v3,
                    const std::vector<real_function_3d>& ref) {
     test_output t1("testing deferred execution",universe.rank()==0);
     t1.set_cout_to_terminal();
-    for (auto sp : {MacroTaskInfo::StoreFunction, MacroTaskInfo::StoreFunctionViaPointer}) {
-        auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size(), sp));
+    for (auto policy_name : MacroTaskInfo::preset_names()) {
+        auto policy=MacroTaskInfo::preset(policy_name);
+        auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(universe).set_policy(policy)));
         taskq->set_printlevel(20);
         MicroTask<double,3> t;
         MacroTask task(universe, t, taskq);
         task.set_debug(true);
         std::vector<real_function_3d> f2a = task(v3[0], 2.0, v3);
         taskq->print_taskq();
-        auto [global_size,global_memsize]=taskq->cloud.print_size(universe);
+        auto [global_size,global_memsize,min_memsize,max_memsize,max_record_size]=taskq->cloud.get_size(universe);
 
-        if (sp==MacroTaskInfo::StoreFunction) {
+
+        if (policy.storage_policy==MacroTaskInfo::StoreFunction) {
             t1.checkpoint(global_memsize>1.e3,"cloud global memory size > 1 kB");
-        } else if (sp==MacroTaskInfo::StoreFunctionViaPointer) {
+        } else if (policy.storage_policy==MacroTaskInfo::StoreFunctionViaPointer) {
             t1.checkpoint(global_memsize<1.e3,"cloud global memory size < 1 kB");
         }
         taskq->run_all();
@@ -354,7 +356,7 @@ int test_deferred(World& universe, const std::vector<real_function_3d>& v3,
         taskq->cloud.clear_timings();
         double error=norm2(universe, f2a-ref);
         std::stringstream ss;
-        ss << "deferred execution -- storage policy " << sp;
+        ss << "deferred execution -- storage policy " << policy.storage_policy;
         t1.checkpoint(error,1.e-9,ss.str());
     }
     return t1.end();
@@ -363,7 +365,8 @@ int test_deferred(World& universe, const std::vector<real_function_3d>& v3,
 int test_twice(World& universe, const std::vector<real_function_3d>& v3,
                   const std::vector<real_function_3d>& ref) {
     if (universe.rank() == 0) print("\nstarting Microtask twice (check caching)\n");
-    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size(), MacroTaskInfo::StoreFunction));
+    MacroTaskInfo largemem=MacroTaskInfo::preset("large_memory");
+    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(universe).set_policy(largemem)));
     taskq->set_printlevel(3);
     MicroTask<double,3> t;
     MacroTask task(universe, t, taskq);
@@ -487,7 +490,8 @@ int test_mixed_tuple(World& universe, const std::vector<real_function_3d>& v3) {
 
 int test_2d_partitioning(World& universe, const std::vector<real_function_3d>& v3) {
     if (universe.rank() == 0) print("\nstarting 2d partitioning");
-    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size(), MacroTaskInfo::StoreFunction));
+    auto policy=MacroTaskInfo::preset("large_memory");
+    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(universe).set_policy(policy)));
     taskq->set_printlevel(3);
     MicroTask2 t;
     auto ref=t(v3,2.0,v3);

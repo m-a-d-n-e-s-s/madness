@@ -234,13 +234,14 @@ int test_copy_function_from_other_world_through_cloud(World& universe) {
         // test storing into the cloud
         auto recordlist = cloud.store(universe,f_universe);
         print0(universe,"the cloud size should be at 10e-8, as it is only a pointer to the function impl");
-        auto [nrecords, nbyte] = cloud.print_size(universe);
-        print("nrecord, bytes in cloud", nrecords, nbyte);
+        auto [nrecords,global_memsize,min_memsize,max_memsize,max_record_size]=cloud.get_size(universe);
+
+        print("nrecord, bytes in cloud", nrecords, global_memsize);
         t1.checkpoint(nrecords==1, "cloud: nrecord==1");
         if (policy==Cloud::StoreFunctionPointer)
-            t1.checkpoint(nbyte<1.e2, "cloud size is small, only a pointer to the function impl");
+            t1.checkpoint(global_memsize<1.e2, "cloud size is small, only a pointer to the function impl");
         else
-            t1.checkpoint(nbyte>1.e4, "cloud size is large, full function impl stored");
+            t1.checkpoint(global_memsize>1.e4, "cloud size is large, full function impl stored");
 
 
         // test loading from the cloud into subworlds
@@ -276,6 +277,95 @@ int test_copy_function_from_other_world_through_cloud(World& universe) {
     auto map = rank_to_host_and_rss_map(universe);
     for (auto& [rank, pair] : map) {
         print("rank", rank, "hostname", pair.first, "rss", pair.second);
+    }
+    MacroTaskQ::set_pmap(universe);
+
+    return t1.end();
+}
+
+
+/// test replication of a *function* over all nodes -- not ranks
+
+/// test various combinations of storing and replication policies; Cases
+///  1-a :  StoreFunction + Cloud Distributed
+///  1-b :  StoreFunction + Cloud RankReplicated
+///  1-c :  StoreFunction + Cloud NodeReplicated
+///  2-a :  StoreFunctionPointer + Function Distributed
+///  2-b :  StoreFunctionPointer + Function RankReplicated
+///  2-c :  StoreFunctionPointer + Function NodeReplicated
+int test_replication_policy(World& universe) {
+    test_output t1("testing node replication of function",universe.rank()==0);
+    t1.set_cout_to_terminal();
+
+    // create a function in the universe
+    real_function_3d f_universe = real_factory_3d(universe).functor(gaussian(1.0));
+    double norm_universe = f_universe.norm2();
+    if (universe.rank()==0) print("norm_universe", universe.id(), ":", norm_universe);
+    print("number of coeffs of f_universe on rank", universe.rank(), f_universe.get_impl()->get_coeffs().size());
+    universe.gop.fence();
+
+    using DistributionType = Cloud::DistributionType;
+    // go through all combinations of storing and replication policies
+    for (auto storing_policy : {Cloud::StoreFunctionPointer, Cloud::StoreFunction}) {
+        for (auto replication_policy : {DistributionType::NodeReplicated, DistributionType::Distributed, DistributionType::RankReplicated}) {
+
+            print("storing_policy", storing_policy, "replication_policy", replication_policy);
+            auto f=copy(f_universe);
+            MADNESS_CHECK_THROW(f.get_impl()->get_coeffs().is_distributed(),"function must be distributed");
+
+            Cloud cloud(universe);
+            cloud.set_storing_policy(storing_policy);
+            if (storing_policy==Cloud::StoreFunction) {
+                cloud.set_replication_policy(replication_policy);                   // cases 1-a, 1-b, 1-c
+            } else if (storing_policy==Cloud::StoreFunctionPointer) {
+                if (replication_policy==DistributionType::NodeReplicated) {         // case 2-a
+                    f.replicate_on_hosts();
+                } else if (replication_policy==DistributionType::RankReplicated) {  // case 2-b
+                    f.replicate();
+                } else {                                                            // case 2-c
+                    MADNESS_CHECK_THROW(f.get_impl()->get_coeffs().is_distributed(),"function must be distributed");
+                }
+            }
+
+            // store the universe function or its pointer to the cloud
+            auto recordlist = cloud.store(universe, f_universe);
+            auto [nrecords,global_memsize,min_memsize,max_memsize,max_record_size]=cloud.get_size(universe);
+            print("nrecord, bytes in cloud", nrecords, global_memsize);
+            t1.checkpoint(nrecords==1, "cloud: nrecord==1");
+            if (storing_policy==Cloud::StoreFunctionPointer)
+                t1.checkpoint(global_memsize<1.e2, "cloud size is small, pointer to funcimpl stored and replicated");
+            else
+                t1.checkpoint(global_memsize>1.e4, "cloud size is large, full funcimpl stored or replicated");
+
+            {
+                // create subworlds
+                auto subworld_ptr=MacroTaskQ::create_worlds(universe, universe.size());
+                World& subworld = *subworld_ptr;
+                // print host and rank
+                print("universe.rank(), subworld.id, hostname", universe.rank(), subworld.id(), get_hostname());
+
+                MacroTaskQ::set_pmap(subworld);
+                {
+                    real_function_3d f_subworld=cloud.load<real_function_3d>(subworld,recordlist);
+
+                    // some basic checks
+                    double norm_subworld= f_subworld.norm2();
+                    print("norm_subworld, diff",get_hostname(),": ", subworld.id(), ":", norm_subworld, norm_subworld-norm_universe);
+                    if (storing_policy==Cloud::StoreFunctionPointer) {
+                        t1.checkpoint(f_universe.get_impl()->id()==f_subworld.get_impl()->id(),"f_universe and f_subworld share the same function impl");
+                    } else {
+                        t1.checkpoint(f_universe.get_impl()->id()!=f_subworld.get_impl()->id(),"f_universe and f_subworld have different function impls");
+                    }
+                    t1.checkpoint(norm_universe,norm_subworld,1.e-10,"norms");
+
+
+                    subworld.gop.fence();   // f_subworld is destroyed here
+                } // subworld objects are formally destroyed here, but destructor is deferred
+                subworld.gop.fence();   // f_subworld is destroyed here
+                MacroTaskQ::set_pmap(universe);
+                cloud.clear_cache(subworld);        // call this while subworld still exists
+            }
+        }
     }
 
     return t1.end();
@@ -378,6 +468,7 @@ int main(int argc, char **argv) {
     // simple_example(universe);
     success+=test_copy_function_from_other_world(universe);
     success+=test_copy_function_from_other_world_through_cloud(universe);
+    success+=test_replication_policy(universe);
 
     if (1) {
         Cloud cloud(universe);

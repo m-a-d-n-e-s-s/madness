@@ -68,8 +68,6 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     // Truncation and addition doesn't commute, so truncation is done after the final accumulation.
     // Other truncations are elementwise and are not affected.
     reset_timer();
-    MacroTaskInfo::set_default(MacroTaskInfo::StorePointerToFunction);
-    print("set storage policy to StorePointerToFunction");
     vecfuncT Kf;
     if (algorithm_ == multiworld_efficient) {
         Kf = K_macrotask_efficient(vket, mul_tol);
@@ -82,7 +80,6 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     } else {
         MADNESS_EXCEPTION("unknown algorithm in exchangeoperator", 1);
     }
-    MacroTaskInfo::set_default(MacroTaskInfo::StoreFunction);
     if (printdebug()) {
         auto size = get_size(world, Kf);
         if (world.rank() == 0) print("total size of Kf before truncation", size);
@@ -124,7 +121,7 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
         MacroTask mtask(world, xtask, taskq);
         Kf = mtask(vf, mo_bra, mo_ket);
     } else {
-        auto taskq_ptr = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size(),MacroTaskInfo::get_default()));
+        auto taskq_ptr = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(world)));
         taskq_ptr->set_printlevel(printlevel);
         MacroTask mtask(world, xtask, taskq_ptr);
         Kf = mtask(vf, mo_bra, mo_ket);
@@ -160,7 +157,7 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient_row(const vecfuncT& vf, c
         MacroTask mtask(world, xtask, taskq);
         Kf = mtask(vf, mo_bra, mo_ket);
     } else {
-        auto taskq_ptr = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size(),MacroTaskInfo::get_default()));
+        auto taskq_ptr = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(world)));
         taskq_ptr->set_printlevel(printlevel);
         MacroTask mtask(world, xtask, taskq_ptr);
         Kf = mtask(vf, mo_bra, mo_ket);

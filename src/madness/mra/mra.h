@@ -705,6 +705,9 @@ namespace madness {
         }
 
         /// replicate this function, generating a unique pmap
+
+        /// ** note that global operations will return unexpected results **
+        /// Be sure you know what you are doing!
         void replicate(bool fence=true) const {
             verify();
             impl->replicate(fence);
@@ -713,6 +716,8 @@ namespace madness {
         /// replicate this function, one copy per host
 
         /// map will refer the to first rank on each host to avoid inter-node communication
+        /// ** note that global operations will return unexpected results **
+        /// Be sure you know what you are doing!
         void replicate_on_hosts(bool fence=true) const {
             verify();
             impl->replicate_on_hosts(fence);

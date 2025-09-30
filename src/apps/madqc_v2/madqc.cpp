@@ -160,26 +160,6 @@ int main(int argc, char** argv) {
 
     commandlineparser parser(argc, argv);
 
-    if (parser.key_exists("storage_policy")) {
-        MacroTaskInfo::StoragePolicy sp;
-        if (parser.value("storage_policy")=="storefunction") sp = MacroTaskInfo::StoreFunction;
-        // else if (parser.value("storage_policy")=="storepointertofunction") sp = MacroTaskInfo::StorePointerToFunction;
-        else if (parser.value("storage_policy")=="storefunctionviapointer") sp = MacroTaskInfo::StoreFunctionViaPointer;
-        else {
-            if (world.rank() == 0) {
-                print("Unknown storage policy: ", parser.value("storage_policy"));
-                print("Available options: storefunction, storepointertofunction, storefunctionviapointer");
-            }
-            finalize();
-            return 1;
-        }
-        MacroTaskInfo::set_default(sp);
-    }
-
-    if (world.rank()==0) {
-        print("Using MacroTask storage policy: ", MacroTaskInfo::get_default());
-    }
-
     if (parser.key_exists("help")) {
         help(parser.value("help"));
     }
