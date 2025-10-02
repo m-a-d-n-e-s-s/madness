@@ -666,7 +666,14 @@ namespace madness
             pmap.reset(new WorldDCLocalPmap<keyT>(world));
             pmap->register_callback(this);
 
-            if (world.size()==1) return; // nothing to do
+            // shortcut: replace pmap and return
+            if (world.size()==1) {
+                // change pmap to node replicated
+                pmap->deregister_callback(this);
+                pmap.reset(new WorldDCNodeReplicatedPmap<keyT>(world,ranks_per_host1));
+                pmap->register_callback(this);
+                return;
+            }
 
             // oprint(world,"primary_ranks: ", primary_ranks);
             // get a list of all other ranks that are not primary
