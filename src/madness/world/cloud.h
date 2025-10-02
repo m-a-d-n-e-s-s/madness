@@ -181,6 +181,7 @@ class Cloud {
     bool is_replicated=false;   ///< if contents of the container are replicated
     bool dofence = true;      ///< fences after load/store
     bool force_load_from_cache = false;       ///< forces load from cache (mainly for debugging)
+    bool use_cache=true;
 
 public:
 
@@ -189,35 +190,15 @@ public:
     using valueT = std::vector<unsigned char>;
     typedef std::map<keyT, cached_objT> cacheT;
     typedef Recordlist<keyT> recordlistT;
-    typedef WorldDCPmapInterface<keyT>::DistributionType DistributionType;
 
-
-
-    /// These policies determine how the data is stored in the cloud and how it is replicated
-    /// There are six possible combinations of storing and replication policies:
-    ///  StoreFunction + Distributed :           Functions are stored in the cloud, subworlds need to
-    ///                                          communicate with all universe ranks to access them
-    ///  StoreFunction + RankReplicated :        Functions are stored in the cloud, but subworlds can
-    ///                                          access them locally -- high memory impact
-    ///  StoreFunction + NodeReplicated :        Functions are stored in the cloud, but subworlds can
-    ///                                          access them through intra-node communication -- low memory impact
-    ///  StoreFunctionPointer + Distributed :    Pointers to functions are stored in the cloud,
-    ///                                          subworlds need to communicate with the universe to access function data
-    ///  StoreFunctionPointer + RankReplicated : Pointers to functions are stored in the cloud,
-    ///                                          subworlds need to communicate with the universe to access function data
-    ///  StoreFunctionPointer + NodeReplicated : Pointers to functions are stored in the cloud,
-    ///                                          subworlds need to communicate with the universe to access function data
-    /// of the last three policies only (StoreFunctionPointer + RankReplicated) is recommended, as the function
-    /// pointers do not have a memory impact.
-    /// on large-memory machines the policy (StoreFunctionPointer + RankReplicated) is recommended, as everything is local
-    /// after the initial replication step
     enum StoragePolicy {
         StoreFunction,          ///< store a madness function in the cloud  -- can have a large memory impact
                                 ///< equivalent to a deep copy
         StoreFunctionPointer,   ///< store the pointer to the function in the cloud.
                                 ///< Return type still is a Function<T,NDIM> with a pointer to the universe function impl.
                                 ///< equivalent to a shallow copy
-        };
+    };
+
 
     friend std::ostream& operator<<(std::ostream& os, const StoragePolicy& sp) {
         switch(sp) {
@@ -227,22 +208,13 @@ public:
         }
         return os;
     }
-    friend std::ostream& operator<<(std::ostream& os, const DistributionType& type) {
-        switch(type) {
-            case WorldDCPmapInterface<keyT>::Distributed: os << "Distributed"; break;
-            case WorldDCPmapInterface<keyT>::RankReplicated: os << "RankReplicated"; break;
-            case WorldDCPmapInterface<keyT>::NodeReplicated: os << "NodeReplicated"; break;
-            default: os << "UnknownReplicationPolicy"; break;
-        }
-        return os;
-    }
 
 private:
     /// are the functions (WorldObjects) stored in the cloud or only pointers to them
     StoragePolicy storage_policy = StoreFunctionPointer;
 
-    /// cloud is a container: replication policy for the cloud container
-    DistributionType cloud_replication_policy = WorldDCPmapInterface<keyT>::Distributed;
+    /// cloud is a container: replication policy for the cloud container: distributed, node-replicated, rank-replicated
+    DistributionType cloud_replication_policy = Distributed;
 
     mutable madness::WorldContainer<keyT, valueT> container;
     cacheT cached_objects;
@@ -284,18 +256,35 @@ public:
         force_load_from_cache = value;
     }
 
+    /// is the cloud container replicated: per rank, per node, or distributed
     void set_replication_policy(const DistributionType value) {
         cloud_replication_policy = value;
+        use_cache=false;
+        if (value == RankReplicated) use_cache=true;
     }
 
+    /// is the cloud container replicated: per rank, per node, or distributed
     DistributionType get_replication_policy() const {
         return cloud_replication_policy;
     }
 
+    bool validate_replication_policy() const {
+        auto disttype=validate_distribution_type(container);
+        if (disttype!=cloud_replication_policy) {
+            std::cout << "Cloud::validate_distribution(): distribution type mismatch, container is " << disttype
+                      << " but cloud_replication_policy is " << cloud_replication_policy << std::endl;
+            return false;
+        }
+        return true;
+    }
+
+
+    /// storing policy refers to storing functions or pointers to functions
     void set_storing_policy(const StoragePolicy value) {
         storage_policy = value;
     }
 
+    /// storing policy refers to storing functions or pointers to functions
     StoragePolicy get_storing_policy() const {
         return storage_policy;
     }
@@ -458,29 +447,38 @@ public:
         return recordlist;
     }
 
-//    void replicate(const std::size_t chunk_size=INT_MAX) {
-//        if (replication_policy == Distributed) {
-//            if (debug and (container.size() > 0)) print("no replication of container");
-//            return;
-//        }
-//        else if (replication_policy == RankReplicated) {
-//            replicate_per_rank(chunk_size);
-//        }
-//        else if (replication_policy == NodeReplicated) {
-//            replicate_per_node(chunk_size);
-//        }
-//        else {
-//            MADNESS_EXCEPTION("unknown replication policy",1);
-//        }
-//    }
+    void replicate_according_to_policy(const std::size_t chunk_size=INT_MAX) {
+        if (cloud_replication_policy == Distributed) {
+            // if (debug and (container.size() > 0)) print("no replication of container");
+            return;
+        }
+        else if (cloud_replication_policy == RankReplicated) {
+            replicate(chunk_size);
+        }
+        else if (cloud_replication_policy == NodeReplicated) {
+            replicate_per_node(chunk_size);
+        }
+        else {
+            MADNESS_EXCEPTION("unknown replication policy",1);
+        }
+        container.get_world().gop.fence();
+    }
 
     void replicate_per_node(const std::size_t chunk_size=INT_MAX) {
-        MADNESS_EXCEPTION("cloud won't replicate_per_node",1);
-        MADNESS_EXCEPTION("Cloud::replicate_per_node not yet implemented",1);
+        // this will fail if the container values are larger that 2GB
+        // need to reimplement that at some point
+        try {
+            MADNESS_CHECK_THROW(not is_replicated,"cloud::replicate_per_node: container is already replicated");
+            container.replicate_on_hosts(true);
+            is_replicated=true;
+        } catch (...) {
+            MADNESS_EXCEPTION("cloud replication_per_node failed, presumably because some data is larger than 2GB",1);
+        }
     }
 
     // replicates the contents of the container
     void replicate(const std::size_t chunk_size=INT_MAX) {
+        MADNESS_CHECK_THROW(not is_replicated,"cloud::replicate_per_node: container is already replicated");
 
         double cpu0=cpu_time();
         World& world=container.get_world();
@@ -722,8 +720,10 @@ public:
             par & target;
         }
 
-        cache(world, target, record);
-        if (is_replicated) container.erase(record);
+        if (use_cache) {
+            cache(world, target, record);
+            if (is_replicated) container.erase(record);
+        }
 
         return target;
     }

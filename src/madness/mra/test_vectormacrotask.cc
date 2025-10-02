@@ -317,7 +317,7 @@ int test_immediate(World& universe, const std::vector<Function<T,NDIM>>& v3,
                    const std::vector<Function<T,NDIM>>& ref) {
     test_output t1("testing immediate execution",universe.rank()==0);
     // t1.set_cout_to_terminal();
-    for (std::string preset : {"default","small_memory","large_memory"}) {
+    for (std::string preset : MacroTaskInfo::get_all_preset_names()) {
         MicroTask<T,NDIM> t;
         MacroTask task_immediate(universe, t, MacroTaskQFactory(universe).preset(preset));
         task_immediate.set_debug(true);
@@ -334,9 +334,10 @@ int test_deferred(World& universe, const std::vector<real_function_3d>& v3,
                    const std::vector<real_function_3d>& ref) {
     test_output t1("testing deferred execution",universe.rank()==0);
     t1.set_cout_to_terminal();
-    for (auto policy_name : MacroTaskInfo::preset_names()) {
+    for (const auto& policy_name : MacroTaskInfo::get_all_preset_names()) {
         auto policy=MacroTaskInfo::preset(policy_name);
-        auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(universe).set_policy(policy)));
+        print(policy);
+        auto taskq = std::make_shared<MacroTaskQ>(MacroTaskQFactory(universe).set_policy(policy));
         taskq->set_printlevel(20);
         MicroTask<double,3> t;
         MacroTask task(universe, t, taskq);
@@ -356,7 +357,7 @@ int test_deferred(World& universe, const std::vector<real_function_3d>& v3,
         taskq->cloud.clear_timings();
         double error=norm2(universe, f2a-ref);
         std::stringstream ss;
-        ss << "deferred execution -- storage policy " << policy.storage_policy;
+        ss << "deferred execution -- storage policy " << policy_name;
         t1.checkpoint(error,1.e-9,ss.str());
     }
     return t1.end();

@@ -16,7 +16,7 @@ namespace madness {
     std::map<long,std::pair<std::string,double>> rank_to_host_and_rss_map(World& universe);
     std::map<std::string,std::vector<long>> ranks_per_host(World& universe);
     long lowest_rank_on_host_of_rank(const std::map<std::string,std::vector<long>> ranks_per_host1, int rank);
-    std::vector<int> primary_ranks_per_host(World& world, const std::map<std::string,std::vector<long>> ranks_per_host1);
+    std::vector<int> primary_ranks_per_host(World& world, const std::map<std::string,std::vector<long>>& ranks_per_host1);
     std::string get_hostname();
 
 }

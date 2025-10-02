@@ -1146,8 +1146,19 @@ template<size_t NDIM>
         /// Copy coefficients from other funcimpl with possibly different world and on a different node
         template<typename Q>
         void copy_coeffs_different_world(const FunctionImpl<Q,NDIM>& other) {
-            for (ProcessID pid=0; pid<other.world.size(); ++pid) {
-                copy_remote_coeffs_from_pid<Q>(pid, other);
+
+            // copy coeffs from (a subset of) other's world
+
+            // if other's data is distributed, we need to fetch from all ranks
+            if (other.get_coeffs().is_distributed()) {
+                for (ProcessID pid=0; pid<other.world.size(); ++pid) {
+                    copy_remote_coeffs_from_pid<Q>(pid, other);
+                }
+
+            // if other's data is replicated, all coeffs are on the rank that owns key0
+            } else if (other.get_coeffs().is_replicated() or other.get_coeffs().is_host_replicated()) {
+                auto key0=other.cdata.key0;
+                copy_remote_coeffs_from_pid<Q>(other.get_pmap()->owner(key0), other);
             }
         }
 

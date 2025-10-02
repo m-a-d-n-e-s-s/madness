@@ -288,6 +288,14 @@ struct MacroTaskInfo {
 		StoreFunctionViaPointer   ///< store a pointer to the function in the cloud, but macrotaskq will move the
 		///< coefficients to the subworlds when the task is started. This is the default policy.
 	};
+
+	friend std::ostream& operator<<(std::ostream& os, const StoragePolicy sp) {
+		if (sp==StoreFunction) os << "StoreFunction";
+		if (sp==StorePointerToFunction) os << "StorePointerToFunction";
+		if (sp==StoreFunctionViaPointer) os << "StoreFunctionViaPointer";
+		return os;
+	}
+
 	/// given the MacroTask's storage policy return the corresponding Cloud storage policy
 	static Cloud::StoragePolicy to_cloud_storage_policy(MacroTaskInfo::StoragePolicy policy) {
 		switch (policy) {
@@ -308,16 +316,16 @@ struct MacroTaskInfo {
 		MacroTaskInfo info;
 		if (name=="default") {
 			info.storage_policy=MacroTaskInfo::StoreFunctionViaPointer;
-			info.cloud_distribution_policy=Cloud::DistributionType::RankReplicated;
-			info.ptr_target_distribution_policy=Cloud::DistributionType::NodeReplicated;
+			info.cloud_distribution_policy=DistributionType::RankReplicated;
+			info.ptr_target_distribution_policy=DistributionType::NodeReplicated;
 		} else if (name=="small_memory") {
 			info.storage_policy=MacroTaskInfo::StoreFunctionViaPointer;
-			info.cloud_distribution_policy=Cloud::DistributionType::RankReplicated;
-			info.ptr_target_distribution_policy=Cloud::DistributionType::Distributed;
+			info.cloud_distribution_policy=DistributionType::RankReplicated;
+			info.ptr_target_distribution_policy=DistributionType::Distributed;
 		} else if (name=="large_memory") {
 			info.storage_policy=MacroTaskInfo::StoreFunction;
-			info.cloud_distribution_policy=Cloud::DistributionType::RankReplicated;
-			info.ptr_target_distribution_policy=Cloud::DistributionType::Distributed;
+			info.cloud_distribution_policy=DistributionType::RankReplicated;
+			info.ptr_target_distribution_policy=DistributionType::Distributed;
 		} else {
 			std::string msg="MacroTaskQFactory::preset: unknown preset "+name;
 			MADNESS_EXCEPTION(msg.c_str(),0);
@@ -325,9 +333,17 @@ struct MacroTaskInfo {
 		return info;
 	}
 
-	/// helper function to return all presets
-	static std::vector<std::string> preset_names() {
+	static std::vector<std::string> get_all_preset_names() {
 		return {"default","small_memory","large_memory"};
+	}
+
+	/// helper function to return all presets
+	static std::vector<MacroTaskInfo> get_all_presets() {
+		std::vector<MacroTaskInfo> result;
+		for (const auto& name : get_all_preset_names()) {
+			result.push_back(preset(name));
+		}
+		return result;
 	}
 
 	/// make sure the policies are consistent
@@ -338,12 +354,12 @@ struct MacroTaskInfo {
 
 		if (storage_policy==MacroTaskInfo::StoreFunction) {
 			// if functions are stored in the cloud, the initial functions should be distributed
-			good=ptr_target_distribution_policy==Cloud::DistributionType::Distributed;
+			good=ptr_target_distribution_policy==DistributionType::Distributed;
 
 		} else if (store_pointer_in_cloud) {
 			// if pointers are stored in the cloud, the initial functions can be distributed or replicated,
 			// the cloud should be rank-replicated
-			good=(cloud_distribution_policy==Cloud::DistributionType::RankReplicated);
+			good=(cloud_distribution_policy==DistributionType::RankReplicated);
 
 		}
 		if (not good) std::cout << *this ;
@@ -352,8 +368,8 @@ struct MacroTaskInfo {
 	}
 
 	StoragePolicy storage_policy=StoreFunctionViaPointer;
-	Cloud::DistributionType cloud_distribution_policy=Cloud::DistributionType::RankReplicated;
-	Cloud::DistributionType ptr_target_distribution_policy=Cloud::DistributionType::NodeReplicated;
+	DistributionType cloud_distribution_policy=DistributionType::RankReplicated;
+	DistributionType ptr_target_distribution_policy=DistributionType::NodeReplicated;
 
 	friend std::ostream& operator<<(std::ostream& os, const MacroTaskInfo policy) {
 		os << "StoragePolicy:                  " << policy.storage_policy << std::endl;
@@ -364,8 +380,6 @@ struct MacroTaskInfo {
 	}
 
 };
-
-
 
 template<typename T=double>
 std::ostream& operator<<(std::ostream& os, const typename MacroTaskInfo::StoragePolicy sp) {
@@ -472,12 +486,12 @@ public:
 			return *this;
 		}
 
-		MacroTaskQFactory& set_cloud_distribution_policy(const Cloud::DistributionType dp) {
+		MacroTaskQFactory& set_cloud_distribution_policy(const DistributionType dp) {
 			policy.cloud_distribution_policy = dp;
 			return *this;
 		}
 
-		MacroTaskQFactory& set_ptr_target_distribution_policy(const Cloud::DistributionType dp) {
+		MacroTaskQFactory& set_ptr_target_distribution_policy(const DistributionType dp) {
 			policy.ptr_target_distribution_policy = dp;
 			return *this;
 		}
@@ -568,10 +582,10 @@ public:
 		}
 
 		auto replication_policy = cloud.get_replication_policy();
-		if (replication_policy!=Cloud::DistributionType::Distributed) {
+		if (replication_policy!=DistributionType::Distributed) {
 			double cpu0=cpu_time();
-			if (replication_policy==Cloud::DistributionType::RankReplicated) cloud.replicate();
-			if (replication_policy==Cloud::DistributionType::NodeReplicated) cloud.replicate_per_node(); // replicate to all hosts
+			if (replication_policy==DistributionType::RankReplicated) cloud.replicate();
+			if (replication_policy==DistributionType::NodeReplicated) cloud.replicate_per_node(); // replicate to all hosts
 			universe.gop.fence();
 			double cpu1=cpu_time();
 			if (printtimings_detail()) print("cloud replication wall time",cpu1-cpu0);
