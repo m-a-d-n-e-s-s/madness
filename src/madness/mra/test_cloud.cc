@@ -109,13 +109,18 @@ double norm(const std::vector<T>& v) {
 ///    -- store/lood pointers to these universe-wide world objects
 /// - when the subworld is destroyed all subworld objects must have been destroyed
 /// - subworld objects will be destroyed only at subworld fences
-void simple_example(World& universe) {
+int simple_example(World& universe) {
+    test_output test_simple("simple test");
+    // test_simple.set_cout_to_terminal();
+
     // this function lives in the universe
     real_function_3d f_universe = real_factory_3d(universe).functor(gaussian(1.0));
+    double norm_universe = f_universe.norm2();
 
     // create the cloud
     {
         Cloud cloud(universe);
+        cloud.set_storing_policy(Cloud::StoreFunction); // important
 
         // store f_universal into the cloud, the return value holds the record to find the function again.
         auto recordlist = cloud.store(universe, f_universe);
@@ -138,17 +143,23 @@ void simple_example(World& universe) {
             if (universe.rank() == 0) {
                 f_subworld = cloud.load<real_function_3d>(subworld, recordlist); // has a subworld fence, that's ok
             }
+
             double norm = f_subworld.norm2();
             // this will print 0 often and the actual norm once
             print("norm of f in subworld", subworld.id(), ":", norm);
 
+            // check if the function is the same
+            if (universe.rank()==0) test_simple.checkpoint(norm, norm_universe, 1.e-10, "norms");
+            else test_simple.checkpoint(norm, 0.0, 1.e-10, "norms on other ranks");
+
             // end subworld section
-            MacroTaskQ::set_pmap(universe);
             cloud.clear_cache(subworld); // includes subworld fence
         } // f_subworld goes out of scope here
         subworld.gop.fence(); // f_subworld is destroyed here
         universe.gop.fence();
+        MacroTaskQ::set_pmap(universe);
     } // subworld is destroyed here
+    return test_simple.end();
 }
 
 
@@ -266,17 +277,9 @@ int test_copy_function_from_other_world_through_cloud(World& universe) {
 }
 
 
-/// test replication of a *function* over all nodes -- not ranks
-
-/// test various combinations of storing and replication policies; Cases
-///  1-a :  StoreFunction + Cloud Distributed
-///  1-b :  StoreFunction + Cloud RankReplicated
-///  1-c :  StoreFunction + Cloud NodeReplicated
-///  2-a :  StoreFunctionPointer + Function Distributed
-///  2-b :  StoreFunctionPointer + Function RankReplicated
-///  2-c :  StoreFunctionPointer + Function NodeReplicated
+/// test replication of a function and/or cloud over nodes and ranks
 int test_replication_policy(World& universe) {
-    test_output t1("testing node replication of function", universe.rank() == 0);
+    test_output t1("testing node replication of function and cloud", universe.rank() == 0);
     t1.set_cout_to_terminal();
 
     // some bookkeeping information: the number of hosts
@@ -340,7 +343,7 @@ int test_replication_policy(World& universe) {
                 if (cloud_replication_policy==DistributionType::NodeReplicated) fac=nhost;
                 if (cloud_replication_policy==DistributionType::RankReplicated) fac=universe.size();
                 print("nrecord, bytes in cloud", nrecords, global_memsize);
-                t1.checkpoint(nrecords == fac, "cloud: nrecord==1");
+                t1.checkpoint(nrecords == fac, "cloud: nrecord==n_replica");
                 if (storing_policy == MacroTaskInfo::StorePointerToFunction)
                     t1.checkpoint(global_memsize < 1.e2, "cloud size is small");
                 else
@@ -405,26 +408,25 @@ int test_replication_policy(World& universe) {
 
 /// test the cloud with message larger than chunk size set in cloud.replicate()
 int chunk_example(World& universe) {
+    test_output bla("testing replication with chunking", universe.rank() == 0);
+
     int test_size = 100;
-    std::vector<int> testvec;
-    for (int i = 0; i < test_size; i++) {
-        testvec.push_back(i);
-    }
+    std::vector<int> testvec(test_size);
+    for (int i = 0; i < test_size; i++) testvec[i]=i;
+    int sum=0;
 
     {
-        test_output bla("testing replication");
         Cloud cloud(universe);
         auto recordlist = cloud.store(universe, testvec);
         cloud.replicate(50);
 
-        std::vector<int> cloud_vector = cloud.load<std::vector<int>>(universe, recordlist);
-        int sum = 0;
+        auto cloud_vector = cloud.load<std::vector<int>>(universe, recordlist);
         for (int i = 0; i < testvec.size(); i++) {
             sum += std::abs(testvec[i] - cloud_vector[i]);
         }
-        bla.end((sum == 0));
-        return sum;
+        cloud.clear_cache(universe);
     }
+    return bla.end((sum == 0));
 }
 
 
@@ -462,9 +464,10 @@ int test_custom_worldobject(World& universe, World& subworld, Cloud& cloud) {
     return t1.end(error < 1.e-10);
 }
 
-int test_custom_serialization(World& universe, Cloud& cloud) {
+int test_custom_serialization(World& universe) {
     test_output t1("testing custom serialization");
-    // t1.set_cout_to_terminal();
+    Cloud cloud(universe);
+    t1.set_cout_to_terminal();
     cloud.set_debug(true);
     custom_serialize_tester cst;
     cst.i = 1;
@@ -483,12 +486,122 @@ int test_custom_serialization(World& universe, Cloud& cloud) {
     cloud.clear();
     {
         auto records = cloud.store(universe, tuple1);
+        universe.gop.fence();
         auto tuple2 = cloud.load<tupleT>(universe, records);
 
         t1.checkpoint(tuple1 == tuple2, "custom serialization with tuple");
+        universe.gop.fence();
     }
 
     return t1.end();
+}
+
+int test_pointer_to_funcimpl(World& universe, World& subworld) {
+    test_output test_ptr("testing cloud/shared_ptr<Function> numerics in universe");
+    Cloud cloud(universe);
+    // test pointer to FunctionImpl
+    typedef std::shared_ptr<Function<double, 3>::implT> impl_ptrT;
+    Function<double, 3> ff = real_factory_3d(universe).functor(gaussian(1.5));
+    impl_ptrT p1 = ff.get_impl();
+    auto precords = cloud.store(universe, p1);
+
+    {
+        test_output test_ptr("testing cloud/shared_ptr<Function> in world " + std::to_string(subworld.id()));
+        MacroTaskQ::set_pmap(subworld);
+
+        auto p3 = cloud.load<impl_ptrT>(subworld, precords);
+        auto p4 = cloud.load<impl_ptrT>(subworld, precords);
+        auto p5 = cloud.load<impl_ptrT>(subworld, precords);
+        test_ptr.logger << "p1/p2/p3/p4" << " " << p1.get() << " " << p3.get() << " " << p4.get() << " " << p5.get()
+            << std::endl;
+        test_ptr.end(p1 == p3 && p1 == p4 && p1 == p5
+            && p1->get_world().id() == p3->get_world().id()
+            && p1->get_world().id() == p4->get_world().id()
+            && p1->get_world().id() == p5->get_world().id());
+        Function<double, 3> fff;
+        fff.set_impl(p3);
+        Function<double, 3> ffsub = real_factory_3d(subworld).functor(gaussian(1.5));
+        fff -= ffsub * (1.0 / universe.size());
+        MacroTaskQ::set_pmap(universe);
+        cloud.clear_cache(subworld);
+    }
+    subworld.gop.fence();
+    universe.gop.fence();
+    double ffnorm = ff.norm2();
+    universe.gop.fence();
+    test_ptr.checkpoint((ffnorm < 1.e-10), "numerics of pointer to FunctionImpl");
+    return test_ptr.end();
+}
+
+// test storing a tuple
+int test_tuple(World& universe, World& subworld, const real_function_3d& f1, const real_function_3d& f2) {
+    test_output test_tuple("testing tuple");
+    Cloud cloud(universe);
+    cloud.set_debug(false);
+
+    typedef std::shared_ptr<Function<double, 3>::implT> impl_ptrT;
+    typedef std::tuple<double, int, Function<double, 3>, impl_ptrT> tupleT;
+    tupleT t1{1.0, 2, f1, f2.get_impl()};
+    std::vector<double> norm1{1.0, 2.0, f1.norm2()};
+    auto turecords = cloud.store(universe, t1);
+    {
+        MacroTaskQ::set_pmap(subworld);
+
+        cloud.set_force_load_from_cache(false);
+        auto t2 = cloud.load<tupleT>(subworld, turecords);
+        cloud.set_force_load_from_cache(true);
+        auto t3 = cloud.load<tupleT>(subworld, turecords);
+        std::vector<double> norm2{1.0, 2.0, std::get<2>(t2).norm2()};
+        test_tuple.logger << "error double, int, Function " << norm1[0] - norm2[0] << "  "
+            << norm1[1] - norm2[1] << " " << norm1[2] - norm2[2];
+        std::vector<double> norm3{1.0, 2.0, std::get<2>(t3).norm2()};
+        test_tuple.logger << "error double, int, Function " << norm1[0] - norm3[0] << " "
+            << norm1[1] - norm3[1] << " " << norm1[2] - norm3[2];
+        double error = std::max({
+            norm1[0] - norm2[0], norm1[1] - norm2[1], norm1[2] - norm2[2], norm1[0] - norm3[0],
+            norm1[1] - norm3[1], norm1[2] - norm3[2]
+        });
+        double error1 = std::min(
+            {
+                norm1[0] - norm2[0], norm1[1] - norm2[1], norm1[2] - norm2[2], norm1[0] - norm3[0],
+                norm1[1] - norm3[1], norm1[2] - norm3[2]
+            });
+
+        test_tuple.checkpoint(error < 1.e-10 && error1 > -1.e-10, "tuple error");
+        test_tuple.checkpoint(error < 1.e-10 && error1 > -1.e-10, "tuple error1");
+        cloud.set_force_load_from_cache(false);
+        cloud.clear_cache(subworld);
+    }
+    return test_tuple.end();
+}
+
+int test_twice(World& universe, World& subworld, const std::vector<double>& vd) {
+    test_output test_twice("testing twice");
+    Cloud cloud(universe);
+    {
+        cloud.clear_timings();
+        cloud.store(universe, vd);
+        auto recordlist = cloud.store(universe, vd);
+        auto vd1 = cloud.load<std::vector<double>>(universe, recordlist);
+        vd1 = cloud.load<std::vector<double>>(universe, recordlist);
+        auto [cache_reads,cache_stores,reading,writing,replication] =cloud.get_statistics();
+        print("cache reads, stores", cache_reads, cache_stores);
+
+        // storing a vector of size 2 will have 3 records: size and data
+        if (universe.rank()==0) {
+            test_twice.checkpoint(cache_reads==vd.size()+1,"cache reads on rank 0");
+            test_twice.checkpoint(cache_stores==vd.size()+1,"cache stores on rank 0");
+        } else {
+            test_twice.checkpoint(cache_reads==0,"cache reads on other ranks");
+            test_twice.checkpoint(cache_stores==0,"cache stores on other ranks");
+
+        }
+
+        cloud.print_timings(universe);
+        cloud.clear_cache(subworld);
+
+    }
+    return test_twice.end();
 }
 
 int main(int argc, char** argv) {
@@ -497,8 +610,8 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_thresh(1.e-8);
 
     int success = 0;
-    //    chunk_example(universe);
-    // simple_example(universe);
+    success += chunk_example(universe);
+    success += simple_example(universe);
     success += test_copy_function_from_other_world(universe);
     success += test_copy_function_from_other_world_through_cloud(universe);
     success += test_replication_policy(universe);
@@ -512,7 +625,7 @@ int main(int argc, char** argv) {
 
         // test storing custom WorldObject
         success += test_custom_worldobject(universe, subworld, cloud);
-        success += test_custom_serialization(universe, cloud);
+        success += test_custom_serialization(universe);
 
         if (universe.rank() == 0) print("entering test_cloud");
         print("my world: universe_rank, subworld_id", universe.rank(), subworld.id());
@@ -571,83 +684,13 @@ int main(int argc, char** argv) {
         universe.gop.fence();
         universe.gop.fence();
 
-        // test pointer to FunctionImpl
-        typedef std::shared_ptr<Function<double, 3>::implT> impl_ptrT;
-        Function<double, 3> ff = real_factory_3d(universe).functor(gaussian(1.5));
-        impl_ptrT p1 = ff.get_impl();
-        auto precords = cloud.store(universe, p1);
+        success+=test_pointer_to_funcimpl(universe,subworld);
+        success+=test_tuple(universe, subworld, f1, f2);
+        success+=test_twice(universe,subworld,vd);
 
-        {
-            test_output test_ptr("testing cloud/shared_ptr<Function> in world " + std::to_string(subworld.id()));
-            MacroTaskQ::set_pmap(subworld);
-
-            auto p3 = cloud.load<impl_ptrT>(subworld, precords);
-            auto p4 = cloud.load<impl_ptrT>(subworld, precords);
-            auto p5 = cloud.load<impl_ptrT>(subworld, precords);
-            test_ptr.logger << "p1/p2/p3/p4" << " " << p1.get() << " " << p3.get() << " " << p4.get() << " " << p5.get()
-                << std::endl;
-            test_ptr.end(p1 == p3 && p1 == p4 && p1 == p5
-                && p1->get_world().id() == p3->get_world().id()
-                && p1->get_world().id() == p4->get_world().id()
-                && p1->get_world().id() == p5->get_world().id());
-            Function<double, 3> fff;
-            fff.set_impl(p3);
-            Function<double, 3> ffsub = real_factory_3d(subworld).functor(gaussian(1.5));
-            fff -= ffsub * (1.0 / universe.size());
-            MacroTaskQ::set_pmap(universe);
-            cloud.clear_cache(subworld);
-        }
+        cloud.clear_cache(subworld);
         subworld.gop.fence();
-        universe.gop.fence();
-        test_output test_ptr("testing cloud/shared_ptr<Function> numerics in universe");
-        double ffnorm = ff.norm2();
-        test_ptr.end((ffnorm < 1.e-10));
-        universe.gop.fence();
 
-
-        // test storing tuple
-        test_output test_tuple("testing tuple");
-        cloud.set_debug(false);
-        typedef std::tuple<double, int, Function<double, 3>, impl_ptrT> tupleT;
-        tupleT t1{1.0, 2, f1, f2.get_impl()};
-        std::vector<double> norm1{1.0, 2.0, f1.norm2()};
-        auto turecords = cloud.store(universe, t1);
-        {
-            MacroTaskQ::set_pmap(subworld);
-
-            cloud.set_force_load_from_cache(false);
-            auto t2 = cloud.load<tupleT>(subworld, turecords);
-            cloud.set_force_load_from_cache(true);
-            auto t3 = cloud.load<tupleT>(subworld, turecords);
-            std::vector<double> norm2{1.0, 2.0, std::get<2>(t2).norm2()};
-            test_tuple.logger << "error double, int, Function " << norm1[0] - norm2[0] << "  "
-                << norm1[1] - norm2[1] << " " << norm1[2] - norm2[2];
-            std::vector<double> norm3{1.0, 2.0, std::get<2>(t3).norm2()};
-            test_tuple.logger << "error double, int, Function " << norm1[0] - norm3[0] << " "
-                << norm1[1] - norm3[1] << " " << norm1[2] - norm3[2];
-            double error = std::max({
-                norm1[0] - norm2[0], norm1[1] - norm2[1], norm1[2] - norm2[2], norm1[0] - norm3[0],
-                norm1[1] - norm3[1], norm1[2] - norm3[2]
-            });
-            double error1 = std::min(
-                {
-                    norm1[0] - norm2[0], norm1[1] - norm2[1], norm1[2] - norm2[2], norm1[0] - norm3[0],
-                    norm1[1] - norm3[1], norm1[2] - norm3[2]
-                });
-            success += test_tuple.end(error < 1.e-10 && error1 > -1.e-10);
-            cloud.set_force_load_from_cache(false);
-        }
-
-        // test storing twice (using cache)
-        {
-            cloud.clear_timings();
-            cloud.store(universe, vd);
-            auto recordlist = cloud.store(universe, vd);
-            auto vd1 = cloud.load<std::vector<double>>(universe, recordlist);
-            vd1 = cloud.load<std::vector<double>>(universe, recordlist);
-            cloud.print_timings(universe);
-            cloud.clear_cache(subworld);
-        }
     }
     universe.gop.fence();
     madness::finalize();

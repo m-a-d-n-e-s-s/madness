@@ -309,6 +309,17 @@ public:
         }
     }
 
+    /// get some statistics
+    std::tuple<long,long,double,double,double> get_statistics() const {
+        double rtime=1000.0*double(reading_time);
+        double wtime=1000.0*double(writing_time);
+        double ptime=1000.0*double(replication_time);
+        long creads=long(cache_reads);
+        long cstores=long(cache_stores);
+        return std::tie(creads,cstores,rtime,wtime,ptime);
+    }
+
+    /// get size of the cloud container
     std::tuple<size_t,double,double,double,double> get_size(World& universe) {
 
         std::size_t memsize=0;
