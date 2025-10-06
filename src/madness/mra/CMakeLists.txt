@@ -43,16 +43,10 @@ if(BUILD_TESTING)
       testper.cc)
   add_unittests(mra_sepop "${MRA_SEPOP_TEST_SOURCES}" "libtest_sepop;MADgtest" "unittests;short")
   
-  # Add MPI-specific tests for test_memory_measurement
-  #
-  # Single-node MPI tests with different process counts:
+  # Add MPI tests for test_memory_measurement
+  # MPI options can be set at runtime via MADNESS_MPI_NODE_OPTIONS environment variable
+  # Example: MADNESS_MPI_NODE_OPTIONS="--hostfile /path/to/hostfile --map-by node" ctest -R mpi
   add_mpi_tests(mra test_memory_measurement "2;4;8" "MADmra;MADgtest" "unittests;short")
-  
-  # Multi-node MPI tests (only created if hostfile is available):
-  # Config format: "name:nprocs:procs_per_node"
-  add_multinode_tests(mra test_memory_measurement 
-                      "2nodes_4procs:4:2;4nodes_8procs:8:2" 
-                      "MADmra;MADgtest" "unittests;long")
 
   # Test executables that are not run with unit tests ... consider these executables (unlike unit tests)
   if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
