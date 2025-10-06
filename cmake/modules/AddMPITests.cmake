@@ -12,14 +12,20 @@
 #   - Tests run across multiple nodes using a hostfile
 #   - Only created if MADNESS_HOSTFILE or HOSTFILE environment variable is set
 #
-# Environment Variables:
-#   MADNESS_MPI_NODE_OPTIONS - Override default node mapping options for multi-node tests
-#                              Example: "--map-by node -N 2" or "--bind-to none"
+# Environment Variables (configure-time):
 #   MADNESS_HOSTFILE or HOSTFILE - Path to MPI hostfile for multi-node tests
+#
+# Environment Variables (runtime - can be set when running ctest):
+#   MADNESS_MPI_NODE_OPTIONS - Override default node mapping options for multi-node tests
+#                              Example: MADNESS_MPI_NODE_OPTIONS="--bind-to none" ctest -R multinode
+#                              Default: "--map-by node -N {procs_per_node}"
 
 # Add multi-rank MPI tests for a single test
 # Usage: add_mpi_tests(component test_name "2;4;8" "libs" "labels")
 macro(add_mpi_tests _component _test_name _nprocs _libs _labels)
+  
+  # Track that MPI tests have been added
+  set(MADNESS_HAS_MPI_TESTS TRUE CACHE INTERNAL "MPI tests have been configured")
   
   if(NOT ENABLE_MPI OR NOT MPIEXEC_EXECUTABLE)
     message(STATUS "MPI not enabled or MPIEXEC not found, skipping MPI tests for ${_test_name}")
@@ -68,6 +74,9 @@ endmacro()
 # Each config should be in format "name:nprocs:procs_per_node"
 # Example: "2nodes_4procs:4:2" means 4 total procs, 2 per node
 macro(add_multinode_tests _component _test_name _configs _libs _labels)
+  
+  # Track that multi-node tests have been added
+  set(MADNESS_HAS_MULTINODE_TESTS TRUE CACHE INTERNAL "Multi-node tests have been configured")
   
   if(NOT ENABLE_MPI OR NOT MPIEXEC_EXECUTABLE)
     message(STATUS "MPI not enabled or MPIEXEC not found, skipping multi-node tests for ${_test_name}")
@@ -122,16 +131,6 @@ macro(add_multinode_tests _component _test_name _configs _libs _labels)
     return()
   endif()
   
-  # Check for custom node options from environment variable
-  if(DEFINED ENV{MADNESS_MPI_NODE_OPTIONS})
-    # Parse the environment variable into a list
-    string(REPLACE " " ";" NODE_OPTIONS_LIST "$ENV{MADNESS_MPI_NODE_OPTIONS}")
-    message(STATUS "Using custom MPI node options from MADNESS_MPI_NODE_OPTIONS: $ENV{MADNESS_MPI_NODE_OPTIONS}")
-  else()
-    # Use default node options (empty list - will be set per config)
-    set(NODE_OPTIONS_LIST "")
-  endif()
-  
   foreach(CONFIG ${_configs})
     # Parse config string: "name:nprocs:procs_per_node"
     string(REPLACE ":" ";" CONFIG_LIST ${CONFIG})
@@ -145,19 +144,40 @@ macro(add_multinode_tests _component _test_name _configs _libs _labels)
       # Create test name
       set(_multinode_test_name "${_test_name}_${CONFIG_NAME}")
       
-      # Set node mapping options - use custom if provided, otherwise use defaults
-      if(NODE_OPTIONS_LIST)
-        set(NODE_OPTIONS ${NODE_OPTIONS_LIST})
-      else()
-        # Default OpenMPI node mapping options
-        set(NODE_OPTIONS "--map-by" "node" "-N" "${PROCS_PER_NODE}")
-      endif()
+      # Create a CMake wrapper script that will check for MADNESS_MPI_NODE_OPTIONS at runtime
+      set(_wrapper_script_template "${CMAKE_CURRENT_BINARY_DIR}/run_${_multinode_test_name}.cmake.in")
+      set(_wrapper_script "${CMAKE_CURRENT_BINARY_DIR}/run_${_multinode_test_name}.cmake")
       
-      # Add the multi-node test
+      # Convert HOSTFILE_OPTION list to space-separated strings for command
+      string(REPLACE ";" " " HOSTFILE_OPTION_STR "${HOSTFILE_OPTION}")
+      string(REPLACE ";" " " MPIEXEC_PREFLAGS_STR "${MPIEXEC_PREFLAGS}")
+      string(REPLACE ";" " " MPIEXEC_POSTFLAGS_STR "${MPIEXEC_POSTFLAGS}")
+      
+      # Write CMake script template with placeholder for target file
+      file(WRITE ${_wrapper_script_template} "# Auto-generated wrapper script for MPI test\n")
+      file(APPEND ${_wrapper_script_template} "# Check if MADNESS_MPI_NODE_OPTIONS is set in environment\n")
+      file(APPEND ${_wrapper_script_template} "if(DEFINED ENV{MADNESS_MPI_NODE_OPTIONS})\n")
+      file(APPEND ${_wrapper_script_template} "  set(NODE_OPTIONS \"\$ENV{MADNESS_MPI_NODE_OPTIONS}\")\n")
+      file(APPEND ${_wrapper_script_template} "else()\n")
+      file(APPEND ${_wrapper_script_template} "  set(NODE_OPTIONS \"--map-by node -N ${PROCS_PER_NODE}\")\n")
+      file(APPEND ${_wrapper_script_template} "endif()\n")
+      file(APPEND ${_wrapper_script_template} "# Convert NODE_OPTIONS to list\n")
+      file(APPEND ${_wrapper_script_template} "separate_arguments(NODE_OPTIONS_LIST UNIX_COMMAND \"\${NODE_OPTIONS}\")\n")
+      file(APPEND ${_wrapper_script_template} "# Execute MPI command\n")
+      file(APPEND ${_wrapper_script_template} "execute_process(\n")
+      file(APPEND ${_wrapper_script_template} "  COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NPROC} ${HOSTFILE_OPTION_STR} \${NODE_OPTIONS_LIST} ${MPIEXEC_PREFLAGS_STR} \"$<TARGET_FILE:${_test_name}>\" ${MPIEXEC_POSTFLAGS_STR}\n")
+      file(APPEND ${_wrapper_script_template} "  RESULT_VARIABLE _result\n")
+      file(APPEND ${_wrapper_script_template} ")\n")
+      file(APPEND ${_wrapper_script_template} "if(NOT _result EQUAL 0)\n")
+      file(APPEND ${_wrapper_script_template} "  message(FATAL_ERROR \"Test failed with exit code \${_result}\")\n")
+      file(APPEND ${_wrapper_script_template} "endif()\n")
+      
+      # Use file(GENERATE) to resolve generator expressions at build time
+      file(GENERATE OUTPUT ${_wrapper_script} INPUT ${_wrapper_script_template})
+      
+      # Add the multi-node test using the wrapper script
       add_test(NAME madness/test/${_component}/${_multinode_test_name}/run
-               COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NPROC} 
-                       ${HOSTFILE_OPTION} ${NODE_OPTIONS} ${MPIEXEC_PREFLAGS}
-                       $<TARGET_FILE:${_test_name}> ${MPIEXEC_POSTFLAGS})
+               COMMAND ${CMAKE_COMMAND} -P ${_wrapper_script})
       
       # Set test properties
       set_tests_properties(madness/test/${_component}/${_multinode_test_name}/run

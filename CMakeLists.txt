@@ -790,6 +790,14 @@ add_custom_target(install-madness-config
      COMMENT "Installing MADNESS config components"
      USES_TERMINAL)
 
+# Add feature info for MPI tests
+if(MADNESS_HAS_MPI_TESTS)
+  add_feature_info("MPI multi-rank tests" MADNESS_HAS_MPI_TESTS "MPI tests with multiple processes on single node are configured")
+endif()
+if(MADNESS_HAS_MULTINODE_TESTS)
+  add_feature_info("MPI multi-node tests" MADNESS_HAS_MULTINODE_TESTS "MPI tests across multiple nodes are configured")
+endif()
+
 feature_summary(WHAT ALL
                 DESCRIPTION "=== MADNESS Package/Feature Info ===")
 
