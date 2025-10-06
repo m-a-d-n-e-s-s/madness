@@ -11,6 +11,11 @@
 #   - Adds multi-node MPI tests for a single test executable
 #   - Tests run across multiple nodes using a hostfile
 #   - Only created if MADNESS_HOSTFILE or HOSTFILE environment variable is set
+#
+# Environment Variables:
+#   MADNESS_MPI_NODE_OPTIONS - Override default node mapping options for multi-node tests
+#                              Example: "--map-by node -N 2" or "--bind-to none"
+#   MADNESS_HOSTFILE or HOSTFILE - Path to MPI hostfile for multi-node tests
 
 # Add multi-rank MPI tests for a single test
 # Usage: add_mpi_tests(component test_name "2;4;8" "libs" "labels")
@@ -18,6 +23,15 @@ macro(add_mpi_tests _component _test_name _nprocs _libs _labels)
   
   if(NOT ENABLE_MPI OR NOT MPIEXEC_EXECUTABLE)
     message(STATUS "MPI not enabled or MPIEXEC not found, skipping MPI tests for ${_test_name}")
+    # Create placeholder tests that will skip at runtime with explanation
+    foreach(NPROC ${_nprocs})
+      set(_mpi_test_name "${_test_name}_mpi${NPROC}")
+      add_test(NAME madness/test/${_component}/${_mpi_test_name}/run
+               COMMAND ${CMAKE_COMMAND} -E echo "SKIPPED: MPI not enabled or mpiexec not found for ${_test_name}_mpi${NPROC}")
+      set_tests_properties(madness/test/${_component}/${_mpi_test_name}/run
+                           PROPERTIES SKIP_RETURN_CODE 0
+                           LABELS "${_labels};mpi")
+    endforeach()
     return()
   endif()
   
@@ -57,6 +71,20 @@ macro(add_multinode_tests _component _test_name _configs _libs _labels)
   
   if(NOT ENABLE_MPI OR NOT MPIEXEC_EXECUTABLE)
     message(STATUS "MPI not enabled or MPIEXEC not found, skipping multi-node tests for ${_test_name}")
+    # Create placeholder tests that will skip at runtime with explanation
+    foreach(CONFIG ${_configs})
+      string(REPLACE ":" ";" CONFIG_LIST ${CONFIG})
+      list(LENGTH CONFIG_LIST CONFIG_LENGTH)
+      if(CONFIG_LENGTH EQUAL 3)
+        list(GET CONFIG_LIST 0 CONFIG_NAME)
+        set(_multinode_test_name "${_test_name}_${CONFIG_NAME}")
+        add_test(NAME madness/test/${_component}/${_multinode_test_name}/run
+                 COMMAND ${CMAKE_COMMAND} -E echo "SKIPPED: MPI not enabled or mpiexec not found for ${_test_name}_${CONFIG_NAME}")
+        set_tests_properties(madness/test/${_component}/${_multinode_test_name}/run
+                             PROPERTIES SKIP_RETURN_CODE 0
+                             LABELS "${_labels};mpi;multinode")
+      endif()
+    endforeach()
     return()
   endif()
   
@@ -77,7 +105,31 @@ macro(add_multinode_tests _component _test_name _configs _libs _labels)
   # Only create tests if hostfile is available
   if(NOT HOSTFILE_OPTION)
     message(STATUS "No hostfile found (MADNESS_HOSTFILE or HOSTFILE), skipping multi-node tests for ${_test_name}")
+    # Create placeholder tests that will skip at runtime with explanation
+    foreach(CONFIG ${_configs})
+      string(REPLACE ":" ";" CONFIG_LIST ${CONFIG})
+      list(LENGTH CONFIG_LIST CONFIG_LENGTH)
+      if(CONFIG_LENGTH EQUAL 3)
+        list(GET CONFIG_LIST 0 CONFIG_NAME)
+        set(_multinode_test_name "${_test_name}_${CONFIG_NAME}")
+        add_test(NAME madness/test/${_component}/${_multinode_test_name}/run
+                 COMMAND ${CMAKE_COMMAND} -E echo "SKIPPED: No hostfile specified (set MADNESS_HOSTFILE or HOSTFILE) for ${_test_name}_${CONFIG_NAME}")
+        set_tests_properties(madness/test/${_component}/${_multinode_test_name}/run
+                             PROPERTIES SKIP_RETURN_CODE 0
+                             LABELS "${_labels};mpi;multinode")
+      endif()
+    endforeach()
     return()
+  endif()
+  
+  # Check for custom node options from environment variable
+  if(DEFINED ENV{MADNESS_MPI_NODE_OPTIONS})
+    # Parse the environment variable into a list
+    string(REPLACE " " ";" NODE_OPTIONS_LIST "$ENV{MADNESS_MPI_NODE_OPTIONS}")
+    message(STATUS "Using custom MPI node options from MADNESS_MPI_NODE_OPTIONS: $ENV{MADNESS_MPI_NODE_OPTIONS}")
+  else()
+    # Use default node options (empty list - will be set per config)
+    set(NODE_OPTIONS_LIST "")
   endif()
   
   foreach(CONFIG ${_configs})
@@ -93,8 +145,13 @@ macro(add_multinode_tests _component _test_name _configs _libs _labels)
       # Create test name
       set(_multinode_test_name "${_test_name}_${CONFIG_NAME}")
       
-      # Set node mapping options
-      set(NODE_OPTIONS "--map-by" "node" "-N" "${PROCS_PER_NODE}")
+      # Set node mapping options - use custom if provided, otherwise use defaults
+      if(NODE_OPTIONS_LIST)
+        set(NODE_OPTIONS ${NODE_OPTIONS_LIST})
+      else()
+        # Default OpenMPI node mapping options
+        set(NODE_OPTIONS "--map-by" "node" "-N" "${PROCS_PER_NODE}")
+      endif()
       
       # Add the multi-node test
       add_test(NAME madness/test/${_component}/${_multinode_test_name}/run
