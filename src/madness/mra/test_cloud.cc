@@ -484,6 +484,7 @@ int test_custom_serialization(World& universe) {
     typedef std::tuple<int, double, custom_serialize_tester> tupleT;
     tupleT tuple1 = std::make_tuple(1, 2.0, cst);
     cloud.clear();
+    universe.gop.fence();
     {
         auto records = cloud.store(universe, tuple1);
         universe.gop.fence();
