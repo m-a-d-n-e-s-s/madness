@@ -509,7 +509,7 @@ int test_2d_partitioning(World& universe, const std::vector<real_function_3d>& v
 
 int main(int argc, char **argv) {
     madness::World &universe = madness::initialize(argc, argv);
-    startup(universe, argc, argv);
+    startup(universe, argc, argv, true);
     FunctionDefaults<3>::set_thresh(1.e-5);
     FunctionDefaults<3>::set_k(9);
     FunctionDefaults<3>::set_cubic_cell(-20,20);

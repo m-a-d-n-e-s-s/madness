@@ -43,6 +43,15 @@ if(BUILD_TESTING)
       testper.cc)
   add_unittests(mra_sepop "${MRA_SEPOP_TEST_SOURCES}" "libtest_sepop;MADgtest" "unittests;short")
   
+  # Add MPI tests for test_memory_measurement
+  # MPI options can be set at runtime via MADNESS_MPI_NODE_OPTIONS environment variable
+  # Example: MADNESS_MPI_NODE_OPTIONS="--hostfile /path/to/hostfile --map-by node" ctest -R mpi
+  # use with more processes as:
+  # add_mpi_tests(mra test_memory_measurement "2;4;8" "MADmra;MADgtest" "unittests;short")
+  add_mpi_tests(mra test_memory_measurement "2" "MADmra;MADgtest" "unittests;short")
+  add_mpi_tests(mra test_cloud "2" "MADmra;MADgtest" "unittests;short")
+  add_mpi_tests(mra test_vectormacrotask "2" "MADmra;MADgtest" "unittests;short")
+
   # Test executables that are not run with unit tests ... consider these executables (unlike unit tests)
   if (NOT MADNESS_BUILD_LIBRARIES_ONLY)
     set(MRA_OTHER_TESTS testperiodic testbc testqm test6
