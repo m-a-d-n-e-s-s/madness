@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
     madness::World& world=madness::initialize(argc, argv);
 
     world.gop.fence();
-    startup(world,argc,argv);
+    startup(world,argc,argv,true);
     const int k=7;
     const double thresh=1.e-5;
     const double L=24.0;
