@@ -46,7 +46,9 @@ if(BUILD_TESTING)
   # Add MPI tests for test_memory_measurement
   # MPI options can be set at runtime via MADNESS_MPI_NODE_OPTIONS environment variable
   # Example: MADNESS_MPI_NODE_OPTIONS="--hostfile /path/to/hostfile --map-by node" ctest -R mpi
-  add_mpi_tests(mra test_memory_measurement "2;4;8" "MADmra;MADgtest" "unittests;short")
+  add_mpi_tests(mra test_memory_measurement "2;4" "MADmra;MADgtest" "unittests;short")
+  add_mpi_tests(mra test_cloud "2;4" "MADmra;MADgtest" "unittests;short")
+  add_mpi_tests(mra test_vectormacrotask "2;4" "MADmra;MADgtest" "unittests;short")
 
   # Test executables that are not run with unit tests ... consider these executables (unlike unit tests)
   if (NOT MADNESS_BUILD_LIBRARIES_ONLY)

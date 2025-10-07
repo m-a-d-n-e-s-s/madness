@@ -62,6 +62,7 @@ macro(add_mpi_tests _component _test_name _nprocs _libs _labels)
     file(APPEND ${_wrapper_script_template} "  set(MPI_OPTIONS_LIST \"\")\n")
     file(APPEND ${_wrapper_script_template} "endif()\n")
     file(APPEND ${_wrapper_script_template} "# Execute MPI command\n")
+    file(APPEND ${_wrapper_script_template} "message(STATUS \"Running: ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NPROC} \${MPI_OPTIONS_LIST} ${MPIEXEC_PREFLAGS_STR} \\\"\$<TARGET_FILE:${_test_name}>\\\" ${MPIEXEC_POSTFLAGS_STR}\")\n")
     file(APPEND ${_wrapper_script_template} "execute_process(\n")
     file(APPEND ${_wrapper_script_template} "  COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${NPROC} \${MPI_OPTIONS_LIST} ${MPIEXEC_PREFLAGS_STR} \"$<TARGET_FILE:${_test_name}>\" ${MPIEXEC_POSTFLAGS_STR}\n")
     file(APPEND ${_wrapper_script_template} "  RESULT_VARIABLE _result\n")
@@ -69,7 +70,7 @@ macro(add_mpi_tests _component _test_name _nprocs _libs _labels)
     file(APPEND ${_wrapper_script_template} "if(NOT _result EQUAL 0)\n")
     file(APPEND ${_wrapper_script_template} "  message(FATAL_ERROR \"Test failed with exit code \${_result}\")\n")
     file(APPEND ${_wrapper_script_template} "endif()\n")
-    
+
     # Use file(GENERATE) to resolve generator expressions at build time
     file(GENERATE OUTPUT ${_wrapper_script} INPUT ${_wrapper_script_template})
     
