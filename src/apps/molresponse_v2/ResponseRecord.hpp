@@ -1,4 +1,6 @@
 #pragma once
+#include "ResponseState.hpp"
+
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -7,282 +9,453 @@
 #include <sstream>
 #include <string>
 
-#include "ResponseState.hpp"
-
 using json = nlohmann::json;
 namespace fs = std::filesystem;
 
-class ResponseRecord {
- public:
-  explicit ResponseRecord(World &world, const std::string &filepath)
-      : path_(filepath) {
-    if (fs::exists(path_)) {
-      std::string json_string;
-      std::ifstream in(path_);
-      if (in.is_open()) {
-        std::stringstream buffer;
-        buffer << in.rdbuf();
-        json_string = buffer.str();
-        in.close();
-      } else {
-        std::cerr << "Error opening file: " << path_ << std::endl;
-      }
-      world.gop.fence();
-      world.gop.broadcast_serializable(json_string, 0);
+class ResponseRecord2 {
+public:
+  using json = nlohmann::json;
 
-      data_ = json::parse(json_string);
-      world.gop.fence();
-    } else {
-      data_["states"] = json::object();
+  struct MissingItem {
+    std::string state;    // perturbationDescription()
+    std::string freq;     // canonical "0.500"
+    std::string protocol; // canonical "1e-06"
+    bool saved_found = false;
+    bool converged_found = false;
+  };
+
+  ResponseRecord2(World &world, const std::string &filepath)
+      : world_(world), path_(filepath) {
+    std::string json_string;
+    if (world_.rank() == 0) {
+      if (fs::exists(path_)) {
+        std::ifstream in(path_);
+        if (in) {
+          std::stringstream buf;
+          buf << in.rdbuf();
+          json_string = buf.str();
+        } else {
+          std::cerr << "Error opening file: " << path_ << std::endl;
+          json_string = "{}";
+        }
+      } else {
+        json_string = "{}";
+      }
     }
+    world_.gop.fence();
+    world_.gop.broadcast_serializable(json_string, 0);
+    world_.gop.fence();
+
+    if (json_string.empty())
+      data_ = json::object();
+    else
+      data_ = json::parse(json_string, nullptr, /*allow_exceptions=*/true);
+
+    ensure_root(data_);
   }
 
+  // --- Initialization for a generated set of states ---
   void initialize_states(const std::vector<LinearResponseDescriptor> &states) {
-    for (const auto &state : states) {
-      const std::string id = describe_perturbation(state.perturbation);
+    for (const auto &st : states) {
+      const std::string state_id = st.perturbationDescription();
+      ensure_state(data_, state_id);
 
-      const auto &frequencies = state.frequencies;
-      const auto &protocols = state.thresholds;
+      // NB: canonicalize keys up front
+      for (double thr : st.thresholds) {
+        const std::string pkey = protocol_key(thr);
+        ensure_protocol(data_, state_id, pkey);
 
-      auto &state_entry = data_["states"][id];
-
-      for (const auto &protocol : protocols) {
-        std::string pstr = protocol_to_string(protocol);
-
-        // Initialize protocol if missing
-        if (!state_entry["protocols"].contains(pstr)) {
-          for (const auto &freq : frequencies) {
-            std::string fstr = frequency_to_string(freq);
-            state_entry["protocols"][pstr]["saved"][fstr] = false;
-            state_entry["protocols"][pstr]["converged"][fstr] = false;
-          }
+        for (double f : st.frequencies) {
+          const std::string fkey = freq_key(f);
+          auto &node = data_["states"][state_id]["protocols"][pkey];
+          if (!node["saved"].contains(fkey))
+            node["saved"][fkey] = false;
+          if (!node["converged"].contains(fkey))
+            node["converged"][fkey] = false;
         }
       }
-
-      // Final convergence flag (if not present)
     }
-    write();
+    write(); // sync to disk + broadcast
   }
 
+  // --- Pretty table ---
+  void print_summary(int proto_digits = 0, int freq_decimals = 3) const {
+    using std::cout;
+    using std::left;
+    using std::setw;
+    constexpr int W_ROW = 5, W_STATE = 32, W_PROTO = 12, W_FREQ = 10,
+                  W_SAVED = 7, W_CONV = 10;
 
+    cout << "📋 Response State Summary\n";
+    cout << setw(W_ROW) << "#" << "  " << setw(W_STATE) << left << "State"
+         << setw(W_PROTO) << "Protocol" << setw(W_FREQ) << "Freq"
+         << setw(W_SAVED) << "Saved" << setw(W_CONV) << "Converged" << "\n";
+    cout << std::string(
+                W_ROW + 2 + W_STATE + W_PROTO + W_FREQ + W_SAVED + W_CONV, '-')
+         << "\n";
 
-// ---- helpers ----
-static inline const char* yn_icon(bool v) { return v ? "✔" : "✘"; }
-
-// Protocols like 1e-4 → scientific. `digits_after_decimal = 0` prints "1e-04".
-static inline std::string fmt_sci(double x, int digits_after_decimal = 0) {
-  std::ostringstream os;
-  os << std::scientific << std::setprecision(digits_after_decimal) << x;
-  return os.str(); // e.g., "1e-04"
-}
-
-// Frequencies: exactly N decimals, keep trailing zeros.
-static inline std::string fmt_fixed(double x, int decimals = 3) {
-  std::ostringstream os;
-  os << std::fixed << std::setprecision(decimals) << x;
-  return os.str(); // e.g., "1.250"
-}
-
-// Parse JSON object keys (strings) into numeric keys, keep original for lookup.
-static inline std::vector<std::pair<double, std::string>>
-numeric_keys(const nlohmann::json& obj) {
-  std::vector<std::pair<double, std::string>> out;
-  out.reserve(obj.size());
-  for (const auto& kv : obj.items()) {
-    out.emplace_back(std::stod(kv.key()), kv.key());
-  }
-  std::sort(out.begin(), out.end(),
-            [](const auto& a, const auto& b) { return a.first < b.first; });
-  return out;
-}
-
-// ---- pretty table ----
-// proto_digits = 0 → "1e-04"; freq_decimals = 3 → "0.000"
-void print_summary(int proto_digits = 0, int freq_decimals = 3) const {
-  using std::cout;
-  using std::left;
-  using std::setw;
-
-  // widths tuned for neat columns
-  constexpr int W_ROW   = 5;
-  constexpr int W_STATE = 32;
-  constexpr int W_PROTO = 12; // "1e-04"
-  constexpr int W_FREQ  = 10; // "0.000"
-  constexpr int W_SAVED = 7;
-  constexpr int W_CONV  = 10;
-
-  cout << "📋 Response State Summary\n";
-  cout << setw(W_ROW) << "#" << "  "
-       << setw(W_STATE) << left << "State"
-       << setw(W_PROTO) << "Protocol"
-       << setw(W_FREQ)  << "Freq"
-       << setw(W_SAVED) << "Saved"
-       << setw(W_CONV)  << "Converged"
-       << "\n";
-
-  cout << std::string(W_ROW + 2 + W_STATE + W_PROTO + W_FREQ + W_SAVED + W_CONV, '-') << "\n";
-
-  size_t row = 0;
-
-  if (!data_.contains("states") || !data_["states"].is_object()) {
-    cout << "(no states)\n";
-    return;
-  }
-
-  for (const auto& [state_id, entry] : data_["states"].items()) {
-    const auto& protos = (entry.contains("protocols") && entry["protocols"].is_object())
-                           ? entry["protocols"]
-                           : nlohmann::json::object();
-
-    if (protos.empty()) {
-      cout << setw(W_ROW) << row++ << "  "
-           << setw(W_STATE) << left << state_id
-           << setw(W_PROTO) << "-"
-           << setw(W_FREQ)  << "-"
-           << setw(W_SAVED) << "-"
-           << setw(W_CONV)  << "-"
-           << "\n";
-      continue;
+    size_t row = 0;
+    if (!data_.contains("states") || !data_["states"].is_object()) {
+      cout << "(no states)\n";
+      return;
     }
 
-    // numeric sort of protocols
-    auto proto_keys = numeric_keys(protos);
-    for (const auto& [proto_val, proto_key] : proto_keys) {
-      const auto& pd = protos.at(proto_key);
-
-      const auto& saved_map     = (pd.contains("saved")     && pd["saved"].is_object())     ? pd["saved"]     : nlohmann::json::object();
-      const auto& converged_map = (pd.contains("converged") && pd["converged"].is_object()) ? pd["converged"] : nlohmann::json::object();
-
-      // union of frequency keys (some may appear only under converged)
-      nlohmann::json union_obj = nlohmann::json::object();
-      for (const auto& kv : saved_map.items())     union_obj[kv.key()] = true;
-      for (const auto& kv : converged_map.items()) union_obj[kv.key()] = true;
-
-      auto freq_keys = numeric_keys(union_obj); // numeric, ascending
-
-      if (freq_keys.empty()) {
-        cout << setw(W_ROW) << row++ << "  "
-             << setw(W_STATE) << left << state_id
-             << setw(W_PROTO) << fmt_sci(proto_val, proto_digits)
-             << setw(W_FREQ)  << "-"
-             << setw(W_SAVED) << "-"
-             << setw(W_CONV)  << "-"
-             << "\n";
+    for (const auto &kv : data_["states"].items()) {
+      const std::string &state_id = kv.key();
+      const auto &entry = kv.value();
+      const auto &protos =
+          (entry.contains("protocols") && entry["protocols"].is_object())
+              ? entry["protocols"]
+              : json::object();
+      if (protos.empty()) {
+        cout << setw(W_ROW) << row++ << "  " << setw(W_STATE) << left
+             << state_id << setw(W_PROTO) << "-" << setw(W_FREQ) << "-"
+             << setw(W_SAVED) << "-" << setw(W_CONV) << "-" << "\n";
         continue;
       }
 
-      for (const auto& [freq_val, freq_key] : freq_keys) {
-        const bool saved     = saved_map.contains(freq_key)     ? saved_map.at(freq_key).get<bool>()     : false;
-        const bool converged = converged_map.contains(freq_key) ? converged_map.at(freq_key).get<bool>() : false;
+      auto proto_keys = numeric_keys(protos); // (double, string) sorted asc
+      for (const auto &[pnum, pkey] : proto_keys) {
+        const auto &node = protos.at(pkey);
+        const auto &saved =
+            (node.contains("saved") && node["saved"].is_object())
+                ? node["saved"]
+                : json::object();
+        const auto &conv =
+            (node.contains("converged") && node["converged"].is_object())
+                ? node["converged"]
+                : json::object();
 
-        cout << setw(W_ROW) << row++ << "  "
-             << setw(W_STATE) << left << state_id
-             << setw(W_PROTO) << fmt_sci(proto_val, proto_digits)
-             << setw(W_FREQ)  << fmt_fixed(freq_val, freq_decimals)
-             << setw(W_SAVED) << yn_icon(saved)
-             << setw(W_CONV)  << yn_icon(converged)
-             << "\n";
+        json union_obj = json::object();
+        for (const auto &it : saved.items())
+          union_obj[it.key()] = true;
+        for (const auto &it : conv.items())
+          union_obj[it.key()] = true;
+
+        auto freq_keys = numeric_keys(union_obj); // numeric sort
+        if (freq_keys.empty()) {
+          cout << setw(W_ROW) << row++ << "  " << setw(W_STATE) << left
+               << state_id << setw(W_PROTO) << fmt_sci(pnum, proto_digits)
+               << setw(W_FREQ) << "-" << setw(W_SAVED) << "-" << setw(W_CONV)
+               << "-" << "\n";
+          continue;
+        }
+
+        for (const auto &[fnum, fkey] : freq_keys) {
+          const bool s =
+              saved.contains(fkey) ? saved.at(fkey).get<bool>() : false;
+          const bool c =
+              conv.contains(fkey) ? conv.at(fkey).get<bool>() : false;
+          cout << setw(W_ROW) << row++ << "  " << setw(W_STATE) << left
+               << state_id << setw(W_PROTO) << fmt_sci(pnum, proto_digits)
+               << setw(W_FREQ) << fmt_fixed(fnum, freq_decimals)
+               << setw(W_SAVED) << (s ? "✔" : "✘") << setw(W_CONV)
+               << (c ? "✔" : "✘") << "\n";
+        }
       }
     }
   }
-}
-  [[nodiscard]] bool is_saved(const std::string &state_id, const double & protocol,
-                              const double& freq) const {
-    return get_flag(state_id, protocol, freq, "saved");
+
+  // --- Queries (overloads take doubles; we canonicalize to keys) ---
+  bool is_saved(const std::string &state_id, double protocol,
+                double freq) const {
+    return get_flag(state_id, protocol_key(protocol), freq_key(freq), "saved");
+  }
+  bool is_converged(const std::string &state_id, double protocol,
+                    double freq) const {
+    return get_flag(state_id, protocol_key(protocol), freq_key(freq),
+                    "converged");
+  }
+  bool is_saved(const LinearResponseDescriptor &st) const {
+    return get_flag(st.perturbationDescription(),
+                    protocol_key(st.current_threshold()),
+                    freq_key(st.current_frequency()), "saved");
+  }
+  bool is_converged(const LinearResponseDescriptor &st) const {
+    return get_flag(st.perturbationDescription(),
+                    protocol_key(st.current_threshold()),
+                    freq_key(st.current_frequency()), "converged");
   }
 
-  [[nodiscard]] bool is_saved(const LinearResponseDescriptor& state) const {
-    return get_flag(state.perturbationDescription(), state.current_threshold(), state.current_frequency(), "saved");
+  // --- Mutations ---
+  void mark_saved(const std::string &state_id, double protocol, double freq) {
+    set_flag(state_id, protocol_key(protocol), freq_key(freq), "saved", true);
   }
-
-  [[nodiscard]] bool is_converged(const std::string &state_id, const double& protocol,
-                                  const double freq) const {
-    return get_flag(state_id, protocol, freq, "converged");
+  void mark_converged(const std::string &state_id, double protocol, double freq,
+                      bool c) {
+    set_flag(state_id, protocol_key(protocol), freq_key(freq), "converged", c);
   }
-
-  [[nodiscard]] bool is_converged(const LinearResponseDescriptor&state) const {
-    return get_flag(state.perturbationDescription(), state.current_threshold(), state.current_frequency(), "converged");
-  }
-
-  void mark_saved(const std::string &state_id, const double protocol, const double freq) {
-    set_flag(state_id, protocol, freq, "saved", true);
+  void record_status(const LinearResponseDescriptor &st, bool c) {
+    const std::string sid = st.perturbationDescription();
+    const std::string p = protocol_key(st.current_threshold());
+    const std::string f = freq_key(st.current_frequency());
+    ensure_protocol(data_, sid, p);
+    data_["states"][sid]["protocols"][p]["saved"][f] = true;
+    data_["states"][sid]["protocols"][p]["converged"][f] = c;
     write();
   }
 
-  void mark_converged(const std::string &state_id, const double protocol, const double freq,
-                      const bool converged) {
-    set_flag(state_id, protocol, freq, "converged", converged);
-    write();
-  }
-  void record_status(const std::string &state_id, const double protocol,
-                     const double freq, const bool converged) {
-    set_flag(state_id, protocol, freq, "saved", true);
-    set_flag(state_id, protocol, freq, "converged", converged);
-    write();
-  }
-  void record_status(const LinearResponseDescriptor& state, const bool converged) {
-    set_flag(state.perturbationDescription(), state.current_threshold(), state.current_frequency(), "saved", true);
-    set_flag(state.perturbationDescription(), state.current_threshold(), state.current_frequency(), "converged", converged);
-    write();
+  // --- Property gating helpers ---
+  static std::string
+  final_protocol_key_from(const std::vector<double> &protos) {
+    if (protos.empty())
+      return "inf"; // sentinel; will never match
+    return protocol_key(*std::min_element(protos.begin(), protos.end()));
   }
 
+  // If converged at multiple protocols, return the most accurate (smallest
+  // numeric) protocol key.
+  std::optional<std::string>
+  best_converged_protocol(const std::string &state_id, double freq) const {
+    if (!data_.contains("states"))
+      return std::nullopt;
+    const auto sit = data_["states"].find(state_id);
+    if (sit == data_["states"].end())
+      return std::nullopt;
 
+    const auto &protos = (*sit)["protocols"];
+    std::vector<std::string> pkeys;
+    pkeys.reserve(protos.size());
+    for (auto it = protos.begin(); it != protos.end(); ++it)
+      pkeys.push_back(it.key());
+    std::sort(pkeys.begin(), pkeys.end(),
+              [](const std::string &a, const std::string &b) {
+                return protocol_numeric(a) < protocol_numeric(b);
+              });
+
+    const std::string fk = freq_key(freq);
+    for (const auto &p : pkeys) {
+      const auto &node = protos.at(p);
+      if (node.contains("converged")) {
+        const auto &conv = node["converged"];
+        if (conv.contains(fk) && conv.at(fk).get<bool>())
+          return p;
+      }
+    }
+    return std::nullopt;
+  }
+
+  // Check saved && converged at *final* protocol for each (state, freq)
+  std::vector<MissingItem>
+  missing_at_final_protocol(const std::vector<std::string> &state_ids,
+                            const std::vector<double> &freqs,
+                            const std::string &final_proto_key) const {
+    std::vector<MissingItem> out;
+    for (const auto &sid : state_ids) {
+      for (double f : freqs) {
+        const std::string fk = freq_key(f);
+        bool s = false, c = false;
+        if (data_.contains("states")) {
+          auto sit = data_["states"].find(sid);
+          if (sit != data_["states"].end()) {
+            auto pit = (*sit)["protocols"].find(final_proto_key);
+            if (pit != (*sit)["protocols"].end()) {
+              const auto &node = (*sit)["protocols"].at(final_proto_key);
+              if (node.contains("saved") && node["saved"].contains(fk))
+                s = node["saved"].at(fk).get<bool>();
+              if (node.contains("converged") && node["converged"].contains(fk))
+                c = node["converged"].at(fk).get<bool>();
+            }
+          }
+        }
+        if (!(s && c))
+          out.push_back({sid, fk, final_proto_key, s, c});
+      }
+    }
+    return out;
+  }
+
+  // Throw if not ready; call this right before property computations.
+  void enforce_ready_for_properties(const std::vector<std::string> &state_ids,
+                                    const std::vector<double> &freqs,
+                                    const std::string &final_proto_key) const {
+    auto missing = missing_at_final_protocol(state_ids, freqs, final_proto_key);
+    if (!missing.empty()) {
+      if (world_.rank() == 0) {
+        std::ostringstream msg;
+        msg << "Property gate failed at final protocol " << final_proto_key
+            << ":\n";
+        for (const auto &m : missing) {
+          msg << "  - " << m.state << " @ " << m.freq
+              << " (saved=" << (m.saved_found ? "true" : "false")
+              << ", converged=" << (m.converged_found ? "true" : "false")
+              << ")\n";
+        }
+        std::cerr << msg.str();
+      }
+      throw std::runtime_error(
+          "Required states/frequencies not ready at final protocol.");
+    }
+  }
+
+  // --- File I/O (rank 0 writes; all ranks sync) ---
+  void write() {
+    std::string json_string;
+    if (world_.rank() == 0) {
+      std::ofstream out(path_);
+      if (!out)
+        throw std::runtime_error("Cannot open " + path_ + " for writing");
+      out << std::setw(2) << data_ << "\n";
+      json_string = data_.dump();
+    }
+    world_.gop.fence();
+    world_.gop.broadcast_serializable(json_string, 0);
+    world_.gop.fence();
+    if (world_.rank() != 0) {
+      data_ = json::parse(json_string);
+    }
+  }
+
+  json to_json() const { return data_; }
+
+  // --- Optional: “final_saved” compatibility flag you had ---
   void mark_final_saved(const std::string &state_id, bool flag = true) {
+    ensure_state(data_, state_id);
     data_["states"][state_id]["final_saved"] = flag;
     write();
   }
 
-  [[nodiscard]] bool final_saved(const std::string &state_id) const {
-    return data_["states"][state_id].value("final_saved", false);
+  // --- Flat rows (useful for CSV/logs) ---
+  struct Row {
+    std::string state, freq, protocol;
+    bool saved = false, converged = false;
+  };
+  std::vector<Row> to_rows() const {
+    std::vector<Row> rows;
+    if (!data_.contains("states"))
+      return rows;
+    for (auto sit = data_["states"].begin(); sit != data_["states"].end();
+         ++sit) {
+      const std::string sid = sit.key();
+      if (!(*sit).contains("protocols"))
+        continue;
+      const auto &protos = (*sit)["protocols"];
+      for (auto pit = protos.begin(); pit != protos.end(); ++pit) {
+        const std::string pkey = pit.key();
+        const auto &node = pit.value();
+        const auto &saved = node.value("saved", json::object());
+        const auto &conv = node.value("converged", json::object());
+        std::map<std::string, bool> k;
+        for (auto it = saved.begin(); it != saved.end(); ++it)
+          k[it.key()] = true;
+        for (auto it = conv.begin(); it != conv.end(); ++it)
+          k[it.key()] = true;
+        for (const auto &kv : k) {
+          const auto &fk = kv.first;
+          bool s = saved.contains(fk) ? saved.at(fk).get<bool>() : false;
+          bool c = conv.contains(fk) ? conv.at(fk).get<bool>() : false;
+          rows.push_back({sid, fk, pkey, s, c});
+        }
+      }
+    }
+    std::sort(rows.begin(), rows.end(), [](const Row &a, const Row &b) {
+      if (a.state != b.state)
+        return a.state < b.state;
+      double af = std::stod(a.freq), bf = std::stod(b.freq);
+      if (af != bf)
+        return af < bf;
+      return protocol_numeric(a.protocol) < protocol_numeric(b.protocol);
+    });
+    return rows;
+  }
+  // -------- Canonicalization & shape --------
+  static std::string freq_key(double f) {
+    std::ostringstream os;
+    os << std::fixed << std::setprecision(3) << f;
+    return os.str();
+  }
+  static std::string protocol_key(double thr) {
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "%.0e", thr); // "1e-06"
+    std::string s(buf);
+    // normalize "+": "1e+00" -> "1e+00" (keep plus; stod handles it)
+    return s;
+  }
+  static double protocol_numeric(const std::string &p) {
+    try {
+      return std::stod(p);
+    } catch (...) {
+      return std::numeric_limits<double>::infinity();
+    }
   }
 
-  void write() const {
-    std::ofstream out(path_);
-    out << std::setw(2) << data_ << "\n";
-  }
-  json to_json() const { return data_; }
-
- private:
+private:
+  World &world_;
   std::string path_;
   json data_;
 
-  static std::string to_string(double val) {
-    std::ostringstream oss;
-    oss << std::scientific << val;
-    return oss.str();
+  static void ensure_root(json &root) {
+    if (!root.is_object())
+      root = json::object();
+    if (!root.contains("states"))
+      root["states"] = json::object();
+  }
+  static void ensure_state(json &root, const std::string &sid) {
+    ensure_root(root);
+    auto &states = root["states"];
+    if (!states.contains(sid)) {
+      states[sid] = json::object();
+      states[sid]["protocols"] = json::object();
+    } else if (!states[sid].contains("protocols")) {
+      states[sid]["protocols"] = json::object();
+    }
+  }
+  static void ensure_protocol(json &root, const std::string &sid,
+                              const std::string &pkey) {
+    ensure_state(root, sid);
+    auto &protos = root["states"][sid]["protocols"];
+    if (!protos.contains(pkey)) {
+      protos[pkey] = json::object(
+          {{"saved", json::object()}, {"converged", json::object()}});
+    }
   }
 
-  [[nodiscard]] bool get_flag(const std::string &state_id, double protocol,
-                              double freq, const std::string &key) const {
-    std::string p_str = to_string(protocol);
-    std::string f_str = to_string(freq);
+  // -------- Printing helpers / sorting --------
+  static std::string fmt_sci(double x, int digits_after_decimal = 0) {
+    std::ostringstream os;
+    os << std::scientific << std::setprecision(digits_after_decimal) << x;
+    return os.str();
+  }
+  static std::string fmt_fixed(double x, int decimals = 3) {
+    std::ostringstream os;
+    os << std::fixed << std::setprecision(decimals) << x;
+    return os.str();
+  }
+  static std::vector<std::pair<double, std::string>>
+  numeric_keys(const json &obj) {
+    std::vector<std::pair<double, std::string>> out;
+    out.reserve(obj.size());
+    for (const auto &kv : obj.items())
+      out.emplace_back(std::stod(kv.key()), kv.key());
+    std::sort(out.begin(), out.end(),
+              [](const auto &a, const auto &b) { return a.first < b.first; });
+    return out;
+  }
 
-    if (!data_["states"].contains(state_id)) return false;
-    if (!data_["states"][state_id]["protocols"].contains(p_str)) return false;
-    if (!data_["states"][state_id]["protocols"][p_str][key].contains(f_str))
+  // -------- core flag ops (with canonical keys precomputed) --------
+  bool get_flag(const std::string &sid, const std::string &pkey,
+                const std::string &fkey, const std::string &which) const {
+    if (!data_.contains("states"))
       return false;
-
-    return data_["states"][state_id]["protocols"][p_str][key][f_str]
-        .get<bool>();
+    const auto sit = data_["states"].find(sid);
+    if (sit == data_["states"].end())
+      return false;
+    const auto pit = (*sit)["protocols"].find(pkey);
+    if (pit == (*sit)["protocols"].end())
+      return false;
+    const auto &node = (*pit);
+    if (!node.contains(which) || !node[which].is_object())
+      return false;
+    const auto &sub = node[which];
+    if (!sub.contains(fkey))
+      return false;
+    return sub.at(fkey).get<bool>();
   }
 
-  void set_flag(const std::string &state_id, double protocol, double freq,
-                const std::string &key, bool value) {
-    std::string p_str = to_string(protocol);
-    std::string f_str = to_string(freq);
-
-    data_["states"][state_id]["protocols"][p_str][key][f_str] = value;
+  void set_flag(const std::string &sid, const std::string &pkey,
+                const std::string &fkey, const std::string &which, bool value) {
+    ensure_protocol(data_, sid, pkey);
+    data_["states"][sid]["protocols"][pkey][which][fkey] = value;
     write();
-  }
-  static std::string frequency_to_string(double frequency) {
-    std::ostringstream ss;
-    ss << std::scientific << frequency;
-    return ss.str();
-  }
-
-  static std::string protocol_to_string(double protocol) {
-    std::ostringstream ss;
-    ss << std::scientific << protocol;
-    return ss.str();
   }
 };

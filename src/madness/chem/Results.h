@@ -29,22 +29,29 @@ public:
 
 //--tiny helpers
 template <class T, class F>
-inline void set_if_exists(nlohmann::json &j, const std::string &key, const std::optional<T> &opt, F &&to_json_fn) {
+inline void set_if_exists(nlohmann::json &j, const std::string &key,
+                          const std::optional<T> &opt, F &&to_json_fn) {
   if (opt)
     j[key] = to_json_fn(*opt);
 }
 template <class T, class F>
-inline void get_if_exists(const nlohmann::json &j, const std::string &key, std::optional<T> &opt, F &&from_json_fn) {
+inline void get_if_exists(const nlohmann::json &j, const std::string &key,
+                          std::optional<T> &opt, F &&from_json_fn) {
   if (j.contains(key))
     opt = from_json_fn(j[key]);
 }
 
-template <class T> inline nlohmann::json tensor_out(const Tensor<T> &t) { return tensor_to_json(t); }
-template <class T> inline Tensor<T> tensor_in(const nlohmann::json &j) { return tensor_from_json<T>(j); }
+template <class T> inline nlohmann::json tensor_out(const Tensor<T> &t) {
+  return tensor_to_json(t);
+}
+template <class T> inline Tensor<T> tensor_in(const nlohmann::json &j) {
+  return tensor_from_json<T>(j);
+}
 
 /// holds metadata of the calculation
 
-/// create right before the calculation starts, stop() must be called after the calculation is finished
+/// create right before the calculation starts, stop() must be called after the
+/// calculation is finished
 class MetaDataResults : public ResultsBase {
 public:
   MetaDataResults(World &world) {
@@ -193,16 +200,20 @@ public:
 class VibrationalResults : public ResultsBase {
 public:
   std::optional<Tensor<double>> hessian;
-  std::optional<Tensor<double>> frequencies;             // (vibrational frequencies in a.u.)
-  std::optional<Tensor<double>> intensities;             //(IR intensities in km/mol)
-  std::optional<Tensor<double>> reducedmass;             //(reduced
-  std::optional<Tensor<double>> normalmodes;             //(normal modes)
-                                                         //
-  static constexpr double au2invm = constants::au2invcm; // conversion factor from Hartree to cm^-1
+  std::optional<Tensor<double>>
+      frequencies; // (vibrational frequencies in a.u.)
+  std::optional<Tensor<double>> intensities; //(IR intensities in km/mol)
+  std::optional<Tensor<double>> reducedmass; //(reduced
+  std::optional<Tensor<double>> normalmodes; //(normal modes)
+                                             //
+  static constexpr double au2invm =
+      constants::au2invcm; // conversion factor from Hartree to cm^-1
   VibrationalResults() = default;
   VibrationalResults(const nlohmann::json &j) {}
 
-  [[nodiscard]] bool has_data() const { return hessian || frequencies || intensities || reducedmass || normalmodes; }
+  [[nodiscard]] bool has_data() const {
+    return hessian || frequencies || intensities || reducedmass || normalmodes;
+  }
 
   [[nodiscard]] std::string key() const override { return "vibrations"; }
 
@@ -229,6 +240,82 @@ public:
   }
 };
 
+// A Raman calculation results in Raman Intensities for each normal mode
+// computed at a given polarization frequency
+//
+class RamanResults : public ResultsBase {
+public:
+  std::string key() const override { return "raman"; }
+  RamanResults() = default;
+
+  std::vector<double> polarization_frequencies; // Polarization frequencies
+  std::vector<double> vibrational_frequencies;  // Vibrational frequencies cm^-1
+  Tensor<double> normal_modes;                  // Deriv. of alpha
+  std::vector<Tensor<double>> polarizability_derivatives;
+  std::vector<Tensor<double>> polarizability_derivatives_normal_modes;
+  std::vector<Tensor<double>> frequencies;        // Vibrational frequencies
+  // square of the isotropic polarizability derivative
+  std::vector<double> alpha2; 
+  // square of the anisotropic polarizability derivative
+  std::vector<double> beta2;  
+  std::vector<double> intensities_raman;          // Raman intensities per mode
+  std::vector<double> intensities_depolarization; // Raman intensities per mode
+  std::vector<double> depolarization_ratios;      // Raman intensities per mode
+  //
+  void from_json(const nlohmann::json &j) override {
+    if (j.contains("polarization_frequencies"))
+      polarization_frequencies =
+          j.at("polarization_frequencies").get<std::vector<double>>();
+    if (j.contains("vibrational_frequencies"))
+      vibrational_frequencies =
+          j.at("vibrational_frequencies").get<std::vector<double>>();
+    if (j.contains("polarizability_derivatives")) {
+      polarizability_derivatives.clear();
+      for (const auto &pd : j["polarizability_derivatives"])
+        polarizability_derivatives.push_back(tensor_in<double>(pd));
+    }
+    if (j.contains("polarizability_derivatives_normal_modes")) {
+      polarizability_derivatives_normal_modes.clear();
+      for (const auto &pd : j["polarizability_derivatives_normal_modes"])
+        polarizability_derivatives_normal_modes.push_back(
+            tensor_in<double>(pd));
+    }
+    if (j.contains("frequencies")) {
+      frequencies.clear();
+      for (const auto &f : j["frequencies"])
+        frequencies.push_back(tensor_in<double>(f));
+    }
+    if (j.contains("intensities_raman"))
+      intensities_raman = j.at("intensities_raman").get<std::vector<double>>();
+    if (j.contains("intensities_depolarization"))
+      intensities_depolarization =
+          j.at("intensities_depolarization").get<std::vector<double>>();
+    if (j.contains("depolarization_ratios"))
+      depolarization_ratios =
+          j.at("depolarization_ratios").get<std::vector<double>>();
+  }
+
+  nlohmann::json to_json() const override {
+    nlohmann::json j;
+    j["polarization_frequencies"] = polarization_frequencies;
+    j["vibrational_frequencies"] = vibrational_frequencies;
+    j["polarizability_derivatives"] = nlohmann::json::array();
+    for (const auto &pd : polarizability_derivatives)
+      j["polarizability_derivatives"].push_back(tensor_out<double>(pd));
+    j["polarizability_derivatives_normal_modes"] = nlohmann::json::array();
+    for (const auto &pd : polarizability_derivatives_normal_modes)
+      j["polarizability_derivatives_normal_modes"].push_back(
+          tensor_out<double>(pd));
+    j["frequencies"] = nlohmann::json::array();
+    for (const auto &f : frequencies)
+      j["frequencies"].push_back(tensor_out<double>(f));
+    j["intensities_raman"] = intensities_raman;
+    j["intensities_depolarization"] = intensities_depolarization;
+    j["depolarization_ratios"] = depolarization_ratios;
+    return j;
+  }
+};
+
 class PropertyResults : public ResultsBase {
 public:
   double energy = 0.0;
@@ -236,6 +323,7 @@ public:
   std::optional<Tensor<double>> dipole;
   std::optional<Tensor<double>> gradient;
   std::optional<VibrationalResults> vibrations;
+  std::optional<RamanResults> raman;
 
   PropertyResults() = default;
 
@@ -279,7 +367,8 @@ public:
 
 // If you keep PropertyResults from earlier, give it:
 inline bool has_data(const PropertyResults &p) {
-  return p.energy != 0.0 || p.dipole || p.gradient || (p.vibrations && p.vibrations->has_data());
+  return p.energy != 0.0 || p.dipole || p.gradient ||
+         (p.vibrations && p.vibrations->has_data());
 }
 
 class SCFResults : public ResultsBase {
@@ -400,8 +489,10 @@ public:
         ei.irrep = ex.value("irrep", "");
         ei.omega = ex.value("omega", 0.0);
         ei.current_error = ex.value("current_error", 0.0);
-        ei.oscillator_strength_length = ex.value("oscillator_strength_length", 0.0);
-        ei.oscillator_strength_velocity = ex.value("oscillator_strength_velocity", 0.0);
+        ei.oscillator_strength_length =
+            ex.value("oscillator_strength_length", 0.0);
+        ei.oscillator_strength_velocity =
+            ex.value("oscillator_strength_velocity", 0.0);
         excitations.push_back(ei);
       }
     }
@@ -410,7 +501,8 @@ public:
   }
 
   /// constructor with nfreeze and model
-  CISResults(long nfreeze, const std::string &model) : nfreeze(nfreeze), model(model) {}
+  CISResults(long nfreeze, const std::string &model)
+      : nfreeze(nfreeze), model(model) {}
 
   void from_json(const nlohmann::json &j) override {
     excitations.clear();
@@ -420,8 +512,10 @@ public:
         ei.irrep = ex.value("irrep", "");
         ei.omega = ex.value("omega", 0.0);
         ei.current_error = ex.value("current_error", 0.0);
-        ei.oscillator_strength_length = ex.value("oscillator_strength_length", 0.0);
-        ei.oscillator_strength_velocity = ex.value("oscillator_strength_velocity", 0.0);
+        ei.oscillator_strength_length =
+            ex.value("oscillator_strength_length", 0.0);
+        ei.oscillator_strength_velocity =
+            ex.value("oscillator_strength_velocity", 0.0);
         excitations.push_back(ei);
       }
     }
@@ -450,9 +544,10 @@ class CC2Results : public CISResults {
 public:
   CC2Results() : CISResults() { model = "mp2"; }
 
-  PropertyResults properties;      // properties of the correlated calculation
-  double correlation_energy = 0.0; // correlation energy of the correlated calculation
-  double total_energy = 0.0;       // total energy of the correlated calculation
+  PropertyResults properties; // properties of the correlated calculation
+  double correlation_energy =
+      0.0;                   // correlation energy of the correlated calculation
+  double total_energy = 0.0; // total energy of the correlated calculation
   /// construct from JSON
   CC2Results(const nlohmann::json &j) : CISResults(j) {
     properties = PropertyResults(j.value("properties", nlohmann::json{}));
@@ -462,7 +557,8 @@ public:
   }
 
   /// constructor with nfreeze and model
-  CC2Results(long nfreeze, const std::string &model) : CISResults(nfreeze, model) {}
+  CC2Results(long nfreeze, const std::string &model)
+      : CISResults(nfreeze, model) {}
 
   void from_json(const nlohmann::json &j) override {
     CISResults::from_json(j);
@@ -514,7 +610,9 @@ public:
 
   ZnemoResults() = default;
   /// construct from JSON
-  ZnemoResults(const nlohmann::json &j) : SCFResults(j) { B = j.value("B", 0.0); }
+  ZnemoResults(const nlohmann::json &j) : SCFResults(j) {
+    B = j.value("B", 0.0);
+  }
 
   void from_json(const nlohmann::json &j) override {
     SCFResults::from_json(j);
@@ -588,11 +686,8 @@ public:
   }
 };
 
-
-
-
-
-using SCFResultsTuple = std::tuple<SCFResults, PropertyResults, ConvergenceResults>;
+using SCFResultsTuple =
+    std::tuple<SCFResults, PropertyResults, ConvergenceResults>;
 
 } // namespace madness
 #endif // RESULTS_H
