@@ -15,27 +15,32 @@ struct GeneratedStateData {
   std::vector<LinearResponseDescriptor> states;
   std::map<std::string, LinearResponseDescriptor> state_map;
 
-  static void print_generated_state_map(const std::map<std::string, LinearResponseDescriptor> &state_map) {
+  static void print_generated_state_map(
+      const std::map<std::string, LinearResponseDescriptor> &state_map) {
     std::cout << "📋 Generated Response States:\n";
-    std::cout << std::setw(5) << "#" << "  " << std::setw(40) << std::left << "State Description" << std::setw(20)
-              << "Type" << std::setw(10) << "Num Freqs" << "\n";
+    std::cout << std::setw(5) << "#" << "  " << std::setw(40) << std::left
+              << "State Description" << std::setw(20) << "Type" << std::setw(10)
+              << "Num Freqs" << "\n";
 
     std::cout << std::string(90, '-') << "\n";
 
     size_t count = 0;
     for (const auto &[key, state] : state_map) {
       std::string type = perturbation_type_string(state.perturbation);
-      std::cout << std::setw(5) << count++ << "  " << std::setw(40) << std::left << key << std::setw(20) << type
-                << std::setw(10) << state.frequencies.size() << "\n";
+      std::cout << std::setw(5) << count++ << "  " << std::setw(40) << std::left
+                << key << std::setw(20) << type << std::setw(10)
+                << state.frequencies.size() << "\n";
     }
   }
 };
 
 class StateGenerator {
 public:
-  StateGenerator(const Molecule &mol, const std::vector<double> &thresholds, bool spinrestricted,
+  StateGenerator(const Molecule &mol, const std::vector<double> &thresholds,
+                 bool spinrestricted,
                  const ResponseParameters &response_parameters)
-      : molecule_(mol), thresholds_(thresholds), spin_restricted_(spinrestricted), rp(response_parameters) {
+      : molecule_(mol), thresholds_(thresholds),
+        spin_restricted_(spinrestricted), rp(response_parameters) {
     requested_properties_ = response_parameters.requested_properties();
   }
 
@@ -47,7 +52,8 @@ public:
     std::map<std::string, Entry> table;
 
     // helper to insert/merge one perturbation+freqs into table
-    auto addPerturbation = [&](const Perturbation &p, const std::vector<double> &f) {
+    auto addPerturbation = [&](const Perturbation &p,
+                               const std::vector<double> &f) {
       // build a throwaway ResponseState so we get the exact key
       LinearResponseDescriptor tmp{p, f, thresholds_, spin_restricted_};
       std::string key = describe_perturbation(p);
@@ -62,7 +68,10 @@ public:
 
     auto dipole_dirs = rp.dipole_directions();
     auto dipole_freqs = rp.dipole_frequencies();
-    auto nuclear_atom_indices = rp.nuclear_atom_indices();
+    auto natoms = molecule_.natom();
+
+    vector<int> nuclear_atom_indices(natoms);
+    std::iota(nuclear_atom_indices.begin(), nuclear_atom_indices.end(), 0);
     auto nuclear_directions = rp.nuclear_directions();
     auto nuclear_freqs = rp.nuclear_frequencies();
 
@@ -77,8 +86,6 @@ public:
 
       if (prop_string == "polarizability") {
         prop_type = PropertyType::Alpha;
-      } else if (prop_string == "hessian") {
-        prop_type = PropertyType::Hessian;
       } else if (prop_string == "hyperpolarizability") {
         prop_type = PropertyType::Beta;
       } else if (prop_string == "raman") {
@@ -95,7 +102,8 @@ public:
           for (size_t c = b; c < dipole_freqs.size(); ++c)
             augmented_dipole_freqs.push_back(dipole_freqs[b] + dipole_freqs[c]);
         std::sort(augmented_dipole_freqs.begin(), augmented_dipole_freqs.end());
-        augmented_dipole_freqs.erase(std::unique(augmented_dipole_freqs.begin(), augmented_dipole_freqs.end()),
+        augmented_dipole_freqs.erase(std::unique(augmented_dipole_freqs.begin(),
+                                                 augmented_dipole_freqs.end()),
                                      augmented_dipole_freqs.end());
       }
 
@@ -103,7 +111,8 @@ public:
         // Hessian = all nuclear displacements at all nuclear frequencies
         for (auto atom_index : nuclear_atom_indices) {
           for (char d : nuclear_directions) {
-            addPerturbation(NuclearDisplacementPerturbation{atom_index, d}, nuclear_freqs);
+            addPerturbation(NuclearDisplacementPerturbation{atom_index, d},
+                            nuclear_freqs);
           }
         }
       }
@@ -118,7 +127,8 @@ public:
         }
         for (auto atom_index : nuclear_atom_indices) {
           for (char d : nuclear_directions) {
-            addPerturbation(NuclearDisplacementPerturbation{atom_index, d}, nuclear_freqs);
+            addPerturbation(NuclearDisplacementPerturbation{atom_index, d},
+                            nuclear_freqs);
           }
         }
       }
@@ -148,8 +158,9 @@ struct PropertyComponentPlan {
   PropertyTensorType type;
   std::string description; // e.g., "alpha_xx", "beta_xyz"
 
-  std::vector<std::string> required_perturbation_ids; // "dipole_x", "dipole_y", etc.
-  std::vector<double> input_frequencies;              // ω or [ω₁, ω₂]
+  std::vector<std::string>
+      required_perturbation_ids;         // "dipole_x", "dipole_y", etc.
+  std::vector<double> input_frequencies; // ω or [ω₁, ω₂]
   double output_frequency = 0.0;
 
   std::vector<std::string> output_component_ids; // e.g., {"X_x", "X_y"}

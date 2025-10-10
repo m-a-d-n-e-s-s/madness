@@ -7,8 +7,15 @@
 
 using namespace madness;
 
+//**
+// Manages operators and parameters for response calculations
+// The numerical parameters are set by the CalculationParameters struct
+// For example max iterations, convergence thresholds, etc.
+//
+// Also provides the coulomb and gradient operators needed for the response
+// calculations
 class ResponseManager {
- public:
+public:
   ResponseManager(World &world, const CalculationParameters &r_params);
 
   void setProtocol(World &world, double L, double thresh, int override_k = -1);
@@ -16,7 +23,10 @@ class ResponseManager {
   // Getters
   [[nodiscard]] double getVtol() const { return vtol; }
   [[nodiscard]] poperatorT getCoulombOp() const { return coulop; }
-  [[nodiscard]] std::vector<std::shared_ptr<real_derivative_3d>> getGradOp() const { return gradop; }
+  [[nodiscard]] std::vector<std::shared_ptr<real_derivative_3d>>
+  getGradOp() const {
+    return gradop;
+  }
   // Compute and store a response state
   void computeState(const AbstractResponseDescriptor &state);
   // Check if a response state is already converged
@@ -24,11 +34,11 @@ class ResponseManager {
 
   [[nodiscard]] CalculationParameters params() const { return calc_params; }
 
- private:
+private:
   double vtol;
   poperatorT coulop;
   std::vector<std::shared_ptr<real_derivative_3d>> gradop;
   CalculationParameters calc_params;
 };
 
-#endif  // RESPONSEMANAGER_HPP
+#endif // RESPONSEMANAGER_HPP
