@@ -21,31 +21,45 @@ class Exchange<T,NDIM>::ExchangeImpl {
     static inline std::atomic<long> apply_timer;
     static inline std::atomic<long> mul2_timer;
     static inline std::atomic<long> mul1_timer; ///< timing
+    static inline double elapsed_time;
 
     static void reset_timer() {
         mul1_timer = 0l;
         mul2_timer = 0l;
         apply_timer = 0l;
+        elapsed_time = 0.0;
     }
 
-    static void print_timer(World& world) {
+public:
+    nlohmann::json gather_timings(World& world) const {
         double t1 = double(mul1_timer) * 0.001;
         double t2 = double(apply_timer) * 0.001;
         double t3 = double(mul2_timer) * 0.001;
         world.gop.sum(t1);
         world.gop.sum(t2);
         world.gop.sum(t3);
+        nlohmann::json j;
+        j["multiply1"] = t1;
+        j["apply"] = t2;
+        j["multiply2"] = t3;
+        j["total"] = elapsed_time;
+        return j;
+    }
+
+    void print_timer(World& world) const {
+        auto timings= gather_timings(world);
         if (world.rank() == 0) {
-            printf(" cpu time spent in multiply1   %8.2fs\n", t1);
-            printf(" cpu time spent in apply       %8.2fs\n", t2);
-            printf(" cpu time spent in multiply2   %8.2fs\n", t3);
+            printf(" cpu time spent in multiply1   %8.2fs\n", timings["multiply1"].template get<double>());
+            printf(" cpu time spent in apply       %8.2fs\n", timings["apply"].template get<double>());
+            printf(" cpu time spent in multiply2   %8.2fs\n", timings["multiply2"].template get<double>());
+            printf(" total wall time               %8.2fs\n", timings["total"].template get<double>());
         }
     }
 
-public:
 
     typedef Exchange<T,NDIM>::Algorithm Algorithm;
     Algorithm algorithm_ = multiworld_efficient_row;
+    MacroTaskInfo macro_task_info = MacroTaskInfo::preset("default");
 
     /// default ctor
     ExchangeImpl(World& world, const double lo, const double thresh) : world(world), lo(lo), thresh(thresh) {}
@@ -90,6 +104,11 @@ public:
         return *this;
     }
 
+    ExchangeImpl& set_macro_task_info(const MacroTaskInfo& info) {
+        macro_task_info = info;
+        return *this;
+    }
+
     ExchangeImpl& set_algorithm(const Algorithm& alg) {
         algorithm_ = alg;
         return *this;
@@ -98,6 +117,27 @@ public:
     ExchangeImpl& set_printlevel(const long& level) {
         printlevel=level;
         return *this;
+    }
+
+    std::shared_ptr<MacroTaskQ> get_taskq() const {return taskq;}
+
+    World& get_world() const {return world;}
+
+    nlohmann::json get_statistics() const {return statistics;}
+
+    /// return some statistics about the current settings
+    nlohmann::json gather_statistics() const {
+        nlohmann::json j;
+        j["symmetric"] = symmetric_;
+        j["lo"] = lo;
+        j["thresh"] = thresh;
+        j["mul_tol"] = mul_tol;
+        j["printlevel"] = printlevel;
+        j["algorithm"] = algorithm_;
+        j["macro_task_info"] = macro_task_info.to_json();
+        auto timings = gather_timings(world);
+        j.update(timings);
+        return j;
     }
 
 private:
@@ -132,6 +172,8 @@ private:
     double thresh = FunctionDefaults<NDIM>::get_thresh();
     long printlevel = 0;
     double mul_tol = FunctionDefaults<NDIM>::get_thresh()*0.1;
+
+    mutable nlohmann::json statistics;  ///< statistics of the Cloud (timings, memory)  and of the parameters of this run
 
     class MacroTaskExchangeSimple : public MacroTaskOperationBase {
 
@@ -488,7 +530,13 @@ private:
                             fetching_world->gop.set_forbid_fence(false);
                             double t2=cpu_time();
                             // uncomment the next line to enforce that fetching is finished before executing
-                            // fetching_world->gop.fence();
+                            print("before fence in fetching data");
+                            for (auto& f : tmp_mo_bra1) print(f.get_impl().get(),f.get_impl()->tree_size());
+                            for (auto& f : tmp_mo_ket1) print(f.get_impl().get(),f.get_impl()->tree_size());
+                            fetching_world->gop.fence();
+                            print("after fence in fetching data");
+                            for (auto& f : tmp_mo_bra1) print(f.get_impl().get(),f.get_impl()->tree_size());
+                            for (auto& f : tmp_mo_ket1) print(f.get_impl().get(),f.get_impl()->tree_size());
                             double t1=cpu_time();
                             total_fetch_time += (t1 - t0);
                             total_fetch_spawn_time += (t2 - t0);

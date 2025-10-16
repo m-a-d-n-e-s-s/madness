@@ -1126,6 +1126,14 @@ template<size_t NDIM>
             coeffs.replicate_on_hosts(fence);
         }
 
+        // remove all coeffs that are not local according to pmap
+        void undo_replicate(bool fence=true) {
+            std::list<keyT> keys;
+            for (const auto& [key, node] : coeffs) if (not coeffs.is_local(key)) keys.push_back(key);
+            for (const auto& key : keys) coeffs.erase(key);
+            if (fence) world.gop.fence();
+        }
+
         void distribute(std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > newmap) const {
         	auto currentmap=coeffs.get_pmap();
         	currentmap->redistribute(world,newmap);

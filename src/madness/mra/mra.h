@@ -704,6 +704,17 @@ namespace madness {
             return impl->get_pmap();
         }
 
+        /// replicate this function according to type
+        ///
+        /// ** note that global operations will return unexpected results **
+        /// Be sure you know what you are doing!
+        void replicate(const DistributionType type, bool fence=true) const {
+            verify();
+            if (type==DistributionType::RankReplicated) impl->replicate(fence);
+            else if (type==DistributionType::NodeReplicated) impl->replicate_on_hosts(fence);
+            else MADNESS_EXCEPTION("Function::replicate: unknown DistributionType",type);
+        }
+
         /// replicate this function, generating a unique pmap
 
         /// ** note that global operations will return unexpected results **
@@ -2892,14 +2903,6 @@ namespace madness {
 
     template<typename T, std::size_t NDIM>
     struct is_madness_function<madness::Function<T, NDIM>> : std::true_type {};
-
-    template<typename>
-    struct is_madness_function_vector : std::false_type {
-    };
-
-    template<typename T, std::size_t NDIM>
-    struct is_madness_function_vector<std::vector<typename madness::Function<T, NDIM>>> : std::true_type {
-};
 
 }
 

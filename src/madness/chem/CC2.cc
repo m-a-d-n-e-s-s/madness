@@ -515,7 +515,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
             for (const auto& r : solver.get_rlist()) sz.add(r);
             for (const auto& uu : solver.get_ulist()) sz.add(uu);
             sz.print(world,"sizes before KAIN");
-            task1.taskq_ptr->cloud.print_size(world);
+            task1.get_taskq()->cloud.print_size(world);
         }
         // update the pair functions
         std::string use_kain;

@@ -3,6 +3,7 @@
 #include <madness/chem/CCParameters.h>
 #include <madness/mra/QCCalculationParametersBase.h>
 #include <madness/chem/oep.h>
+#include <madness/chem/TDHF.h>
 
 #include <madness/chem/ResponseParameters.hpp>
 
@@ -70,11 +71,11 @@ struct OptimizationParameters : public QCCalculationParametersBase {
 
 template <typename... Groups>
 class ParameterManager {
+  World &world_;
   std::tuple<Groups...> groups_;
   commandlineparser parser_;
   nlohmann::json all_input_json_;
 
-  World &world_;
 
   // helper to invoke each group’s JSON export:
   template <typename G>

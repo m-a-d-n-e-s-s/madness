@@ -93,6 +93,14 @@ namespace madness
         return os;
     }
 
+    template<typename T=long>
+    std::string to_string(const DistributionType type) {
+        std::stringstream ss; ss << type;
+        return ss.str();
+    }
+
+
+
 
     /// Interface to be provided by any process map
 
@@ -324,7 +332,7 @@ namespace madness
         all_hashes=world.gop.concat0(all_hashes);
         std::size_t ndup=number_of_duplicates(all_hashes);
         world.gop.broadcast(ndup,0);
-        // print("rank, local, global, duplicates", world.rank(),local_size,global_size,ndup);
+        print("rank, local, global, duplicates", world.rank(),local_size,global_size,ndup);
 
         // consistency checks
         if (result==Distributed) {
@@ -343,6 +351,7 @@ namespace madness
             std::vector<int> primary_ranks=primary_ranks_per_host(world,ranks_per_host1);
             world.gop.broadcast_serializable(primary_ranks,0);
             world.gop.fence();
+            print("primary_rank_per_host",primary_ranks);
 
             std::size_t nnodes=primary_ranks.size();
             bool is_primary=(std::find(primary_ranks.begin(),primary_ranks.end(),world.rank())!=primary_ranks.end());
@@ -737,7 +746,7 @@ namespace madness
 
             // phase 3: done
             if (fence) world.gop.fence();
-            // validate_distribution_type(*this);
+            validate_distribution_type(*this);
         }
 
         void do_replicate(World& world) {

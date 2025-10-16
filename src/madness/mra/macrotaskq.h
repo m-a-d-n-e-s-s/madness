@@ -315,6 +315,10 @@ struct MacroTaskInfo {
 	static MacroTaskInfo preset(const std::string name) {
 		MacroTaskInfo info;
 		if (name=="default") {
+			info.storage_policy=MacroTaskInfo::StoreFunction;
+			info.cloud_distribution_policy=DistributionType::NodeReplicated;
+			info.ptr_target_distribution_policy=DistributionType::Distributed;
+		} else if (name=="node_replicated_target") {
 			info.storage_policy=MacroTaskInfo::StoreFunctionViaPointer;
 			info.cloud_distribution_policy=DistributionType::RankReplicated;
 			info.ptr_target_distribution_policy=DistributionType::NodeReplicated;
@@ -334,7 +338,7 @@ struct MacroTaskInfo {
 	}
 
 	static std::vector<std::string> get_all_preset_names() {
-		return {"default","small_memory","large_memory"};
+		return {"default","node_replicated_target","small_memory","large_memory"};
 	}
 
 	/// helper function to return all presets
@@ -378,6 +382,21 @@ struct MacroTaskInfo {
 		os << "ptr_target_distribution_policy: " << policy.ptr_target_distribution_policy << std::endl;
 		return os;
 	}
+
+	friend std::string to_string(const MacroTaskInfo::StoragePolicy sp) {
+		std::ostringstream os;
+		os << sp;
+		return os.str();
+	}
+
+	nlohmann::json to_json() const {
+		nlohmann::json j;
+		j["storage_policy"]=to_string(storage_policy);
+		j["cloud_distribution_policy"]=to_string(cloud_distribution_policy);
+		j["ptr_target_distribution_policy"]=to_string(ptr_target_distribution_policy);
+		return j;
+	}
+
 
 };
 
@@ -508,6 +527,8 @@ class MacroTaskQ : public WorldObject< MacroTaskQ> {
 	std::mutex taskq_mutex;
 	long printlevel=0;
 	long nsubworld=1;
+	nlohmann::json cloud_statistics;	///< save cloud statistics after run_all()
+	nlohmann::json taskq_statistics;	///< save taskq statistics after run_all()
 
 	const MacroTaskInfo policy;			///< storage and distribution policy
 
@@ -533,6 +554,14 @@ public:
 
 	MacroTaskInfo get_policy() const {
 		return policy;
+	}
+
+	nlohmann::json get_cloud_statistics() const {
+		return cloud_statistics;
+	}
+
+	nlohmann::json get_taskq_statistics() const {
+		return taskq_statistics;
 	}
 
     /// create an empty taskq and initialize the subworlds
@@ -580,7 +609,10 @@ public:
 				print("redirecting output to files task.#####");
 			}
 		}
+		taskq_statistics["number_tasks"]=taskq.size();
 
+		print("debug 0", universe.rank());
+		// replicate the cloud (not necessarily the target if pointers are stored)
 		auto replication_policy = cloud.get_replication_policy();
 		if (replication_policy!=DistributionType::Distributed) {
 			double cpu0=cpu_time();
@@ -590,7 +622,32 @@ public:
 			double cpu1=cpu_time();
 			if (printtimings_detail()) print("cloud replication wall time",cpu1-cpu0);
 		}
+		print("debug 1", universe.rank());
+
+		// replicate the targets (not the cloud) if needed
+		{
+			double cpu0=cpu_time();
+			const bool need_replication_of_target=(policy.ptr_target_distribution_policy!=DistributionType::Distributed)
+					and (policy.storage_policy!=MacroTaskInfo::StoreFunction);
+			Cloud::cloudtimer timer(universe,cloud.target_replication_time);
+
+
+			if (need_replication_of_target) {
+				auto dt=policy.ptr_target_distribution_policy;
+				for (auto wo : cloud.world_object_base_list) {
+					loop_types<Cloud::DistributeFunctor, double, float, double_complex, float_complex>(std::tuple<DistributionType>(dt),wo);
+				}
+			}
+
+			// if (need_replication_of_target) cloud.distribute_targets(policy.ptr_target_distribution_policy);
+			double cpu1=cpu_time();
+			if (printtimings_detail()) print("target replication wall time to ",policy.ptr_target_distribution_policy,cpu1-cpu0);
+		}
+		print("debug 2", universe.rank());
+
         if (printdebug()) cloud.print_size(universe);
+		cloud_statistics=cloud.get_statistics(universe);	// get stats before clearing the cloud
+        universe.gop.fence();
         universe.gop.set_forbid_fence(true); // make sure there are no hidden universe fences
         pmap1=FunctionDefaults<1>::get_pmap();
         pmap2=FunctionDefaults<2>::get_pmap();
@@ -599,6 +656,7 @@ public:
         pmap5=FunctionDefaults<5>::get_pmap();
         pmap6=FunctionDefaults<6>::get_pmap();
         set_pmap(get_subworld());
+		print("debug 3", universe.rank());
 
         double cpu00=cpu_time();
 
@@ -637,21 +695,27 @@ public:
 		universe.gop.fence();
 		universe.gop.sum(tasktime);
 		if (printprogress() and universe.rank()==0) std::cout << std::endl;
+		cloud_statistics.update(cloud.gather_timings(universe));	// get stats before clearing the cloud
         double cpu11=cpu_time();
         if (printlevel>=4) {
-	        cloud.print_timings(universe);
-        	if (universe.rank()==0) print("all tasks complete");
+        	if (universe.rank()==0) {
+        		Cloud::print_timings(cloud_statistics);
+        		Cloud::print_memory_statistics(cloud_statistics);
+        		print("all tasks complete");
+        	}
         	MemoryMeasurer::measure_and_print(universe);
         }
         if (printtimings_detail()) {
             printf("completed taskqueue after    %4.1fs at time %4.1fs\n", cpu11 - cpu00, wall_time());
             printf(" total cpu time / per world  %4.1fs %4.1fs\n", tasktime, tasktime / universe.size());
         }
+		taskq_statistics["elapsed_time"]=cpu11-cpu00;
+		taskq_statistics["cpu_time_per_world"]=tasktime/universe.size();
+		taskq_statistics["total_cpu_time"]=tasktime;
 
 		// cleanup task-persistent input data
 		for (auto& task : taskq) task->cleanup();
 		cloud.clear_cache(subworld);
-		cloud.clear();
 		subworld.gop.fence();
         subworld.gop.fence();
         universe.gop.fence();
@@ -662,6 +726,14 @@ public:
         FunctionDefaults<5>::set_pmap(pmap5);
         FunctionDefaults<6>::set_pmap(pmap6);
         universe.gop.fence();
+		// restore targets to their original state
+		if (policy.ptr_target_distribution_policy!=Distributed) cloud.distribute_targets();
+		universe.gop.fence();
+		subworld.gop.fence();
+		cloud.clear();
+		universe.gop.fence();
+		subworld.gop.fence();
+		universe.gop.fence();
 	}
 
 	void add_tasks(MacroTaskBase::taskqT& vtask) {
@@ -757,10 +829,12 @@ class MacroTask {
     typedef typename taskT::resultT resultT;
     typedef typename taskT::argtupleT argtupleT;
     typedef Cloud::recordlistT recordlistT;
+
     taskT task;
     bool debug=false;
 	bool immediate_execution=false;
-
+	World &world;
+	std::shared_ptr<MacroTaskQ> taskq_ptr;
 
 public:
 
@@ -800,6 +874,10 @@ public:
     	return *this;
     }
 
+	std::shared_ptr<MacroTaskQ> get_taskq() const {
+    	return taskq_ptr;
+    }
+
     /// this mimicks the original call to the task functor, called from the universe
 
     /// store all input to the cloud, create output Function<T,NDIM> in the universe,
@@ -834,11 +912,6 @@ public:
 
         return result;
     }
-
-//private:
-
-    World &world;
-    std::shared_ptr<MacroTaskQ> taskq_ptr;
 private:
 
 
@@ -941,7 +1014,7 @@ private:
 
     	/// loop over the tuple elements of both tuples and execute the operation op on each element pair
     	template<typename tupleT, typename tupleR, typename opT, std::size_t I=0>
-    	void binary_tuple_loop(tupleT& tuple1, tupleR& tuple2, opT& op) const {
+    	static void binary_tuple_loop(tupleT& tuple1, tupleR& tuple2, opT& op) {
         	if constexpr(I < std::tuple_size_v<tupleT>) {
         		auto& element1=std::get<I>(tuple1);
         		auto& element2=std::get<I>(tuple2);
@@ -951,7 +1024,7 @@ private:
         }
 
     	template<typename tupleT, typename opT, std::size_t I=0>
-    	void unary_tuple_loop(tupleT& tuple, opT& op) const {
+    	static void unary_tuple_loop(tupleT& tuple, opT& op) {
         	if constexpr(I < std::tuple_size_v<tupleT>) {
         		auto& element1=std::get<I>(tuple);
         		op(element1);
@@ -1010,8 +1083,11 @@ private:
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             argtupleT batched_argtuple = task.batch.copy_input_batch(argtuple);
 
+    		std::string msg="";
+			// maybe move this block to the cloud?
     		if (policy.storage_policy==MacroTaskInfo::StoreFunctionViaPointer) {
     			double cpu0=wall_time();
+    			Cloud::cloudtimer timer(subworld,cloud.copy_time);
     			// the functions loaded from the cloud are pointers to the universe functions,
     			// retrieve the function coefficients from the universe
     			// aka: turn the current shallow copy into a deep copy
@@ -1027,7 +1103,17 @@ private:
     				}
     			};
 
+    			auto doprint = [&](auto& arg) {
+    				typedef std::decay_t<decltype(arg)> argT;
+    				if constexpr (is_madness_function_vector<argT>::value) {
+    					print_size(subworld,arg,msg);
+    				}
+    			};
+
+
     			unary_tuple_loop(batched_argtuple,copi);
+    			msg="in run(), after copy";
+    			unary_tuple_loop(batched_argtuple,doprint);
     			double cpu1=wall_time();
     			if (debug) {
     				io_redirect_cout io2;

@@ -344,7 +344,9 @@ int test_deferred(World& universe, const std::vector<real_function_3d>& v3,
         task.set_debug(true);
         std::vector<real_function_3d> f2a = task(v3[0], 2.0, v3);
         taskq->print_taskq();
-        auto [global_size,global_memsize,min_memsize,max_memsize,max_record_size]=taskq->cloud.get_size(universe);
+        // auto [global_size,global_memsize,min_memsize,max_memsize,max_record_size]=taskq->cloud.get_size(universe);
+        nlohmann::json stats=taskq->cloud.gather_memory_statistics(universe);
+        double global_memsize=stats["memory_global"].template get<double>();
 
 
         if (policy.storage_policy==MacroTaskInfo::StoreFunction) {
@@ -353,7 +355,7 @@ int test_deferred(World& universe, const std::vector<real_function_3d>& v3,
             t1.checkpoint(global_memsize<1.e3,"cloud global memory size < 1 kB");
         }
         taskq->run_all();
-        taskq->cloud.print_timings(universe);
+        taskq->cloud.print_timings(taskq->cloud.gather_timings(universe));
         taskq->cloud.clear_timings();
         double error=norm2(universe, f2a-ref);
         std::stringstream ss;
@@ -375,7 +377,7 @@ int test_twice(World& universe, const std::vector<real_function_3d>& v3,
     std::vector<real_function_3d> f2a2 = task(v3[0], 2.0, v3);
     taskq->print_taskq();
     taskq->run_all();
-    taskq->cloud.print_timings(universe);
+    taskq->cloud.print_timings(taskq->cloud.gather_timings(universe));
     int success=0;
     success += check_vector(universe, ref, f2a1, "taske twice a");
     success += check_vector(universe, ref, f2a2, "taske twice b");
@@ -501,7 +503,7 @@ int test_2d_partitioning(World& universe, const std::vector<real_function_3d>& v
     std::vector<real_function_3d> f2a = task(v3, 2.0, v3);
     taskq->print_taskq();
     taskq->run_all();
-    taskq->cloud.print_timings(universe);
+    taskq->cloud.print_timings(taskq->cloud.gather_timings(universe));
     taskq->cloud.clear_timings();
     int success=check_vector(universe,ref,f2a,"test 2d partitioning");
     return success;

@@ -152,7 +152,6 @@ void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
         j[key] = val;
     }
     j["scf_dipole_moment"] = tensor_to_json(dipole_T);
-    int num = 0;
     update_schema(param.prefix()+".scf_info", j);
 }
 
@@ -232,7 +231,7 @@ void scf_data::add_gradient(const Tensor<double> &grad) {
 }
 
 SCF::SCF(World& world, const CalculationParameters& param1, const Molecule& molecule)
-    : param(param1), molecule(molecule) {
+    : molecule(molecule), param(param1) {
     PROFILE_MEMBER_FUNC(SCF);
 
     if (world.rank() == 0) {
@@ -325,7 +324,7 @@ void SCF::load_mos(World& world) {
 
     bool needs_redo=false; // if we need to redo the orbitals, e.g. because of a change in k or thresh
 
-    const double thresh = FunctionDefaults<3>::get_thresh();
+    // const double thresh = FunctionDefaults<3>::get_thresh();
     bool spinrest = false;
 
     amo.clear();

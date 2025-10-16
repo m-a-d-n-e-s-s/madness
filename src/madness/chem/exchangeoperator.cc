@@ -68,6 +68,8 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     // Truncation and addition doesn't commute, so truncation is done after the final accumulation.
     // Other truncations are elementwise and are not affected.
     reset_timer();
+    statistics=gather_statistics();
+    double cpu0=wall_time();
     vecfuncT Kf;
     if (algorithm_ == multiworld_efficient) {
         Kf = K_macrotask_efficient(vket, mul_tol);
@@ -89,6 +91,9 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
         auto size=get_size(world,Kf);
         if (world.rank()==0) print("total size of Kf after truncation",size);
     }
+    double cpu1=wall_time();
+    elapsed_time=cpu1-cpu0;
+
     if (printtimings()) print_timer(world);
     return Kf;
 }
@@ -113,23 +118,19 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient(const vecfuncT& vf, const
     // the result is a vector of functions living in the universe
     const long nresult = vf.size();
     MacroTaskExchangeSimple xtask(nresult, lo, mul_tol, is_symmetric());
-    vecfuncT Kf;
+    if (taskq) taskq->set_printlevel(printlevel);
+
+    // construct MacroTask with or without user-provided taskq -> deferred execution or immediate execution
+    auto mtask = (taskq) ? MacroTask(world, xtask, taskq)
+                 : MacroTask(world, xtask, MacroTaskQFactory(world).set_printlevel(printlevel).set_policy(macro_task_info));
 
     // deferred execution if a taskq is provided by the user
-    if (taskq) {
-        taskq->set_printlevel(printlevel);
-        MacroTask mtask(world, xtask, taskq);
-        Kf = mtask(vf, mo_bra, mo_ket);
-    } else {
-        auto taskq_ptr = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(world)));
-        taskq_ptr->set_printlevel(printlevel);
-        MacroTask mtask(world, xtask, taskq_ptr);
-        Kf = mtask(vf, mo_bra, mo_ket);
-        taskq_ptr->run_all();
-        if (printdebug()) taskq_ptr->cloud.print_timings(world);
-        taskq_ptr->cloud.clear_timings();
-        world.gop.fence();
-    }
+    vecfuncT Kf = mtask(vf, mo_bra, mo_ket);
+    world.gop.fence();
+    statistics=gather_statistics();
+    statistics["cloud"]=mtask.get_taskq()->get_cloud_statistics();
+    statistics["macrotaskq"]=mtask.get_taskq()->get_taskq_statistics();
+
     return Kf;
 }
 
@@ -143,7 +144,6 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient_row(const vecfuncT& vf, c
     // the result is a vector of functions living in the universe
     const long nresult = vf.size();
     MacroTaskExchangeRow xtask(nresult, lo, mul_tol);
-    vecfuncT Kf;
 
     // print the size of the amos
     if (printdebug()) {
@@ -151,22 +151,22 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient_row(const vecfuncT& vf, c
         if (world.rank()==0) print("total size of vf before iteration",size);
     }
 
+    if (taskq) taskq->set_printlevel(printlevel);
+
+    // construct MacroTask with or without user-provided taskq -> deferred execution or immediate execution
+    auto mtask = (taskq) ? MacroTask(world, xtask, taskq)
+                 : MacroTask(world, xtask, MacroTaskQFactory(world).set_printlevel(printlevel)
+                     .set_policy(macro_task_info));
+
     // deferred execution if a taskq is provided by the user
-    if (taskq) {
-        taskq->set_printlevel(printlevel);
-        MacroTask mtask(world, xtask, taskq);
-        Kf = mtask(vf, mo_bra, mo_ket);
-    } else {
-        auto taskq_ptr = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(world)));
-        taskq_ptr->set_printlevel(printlevel);
-        MacroTask mtask(world, xtask, taskq_ptr);
-        Kf = mtask(vf, mo_bra, mo_ket);
-        taskq_ptr->run_all();
-        if (printdebug()) taskq_ptr->cloud.print_timings(world);
-        taskq_ptr->cloud.clear_timings();
-        world.gop.fence();
-    }
+    vecfuncT Kf = mtask(vf, mo_bra, mo_ket);
+    world.gop.fence();
+    statistics=gather_statistics();
+    statistics["cloud"]=mtask.get_taskq()->get_cloud_statistics();
+    statistics["macrotaskq"]=mtask.get_taskq()->get_taskq_statistics();
+
     return Kf;
+
 }
 
 

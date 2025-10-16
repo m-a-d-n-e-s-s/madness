@@ -228,7 +228,9 @@ int test_copy_function_from_other_world_through_cloud(World& universe) {
         // test storing into the cloud
         auto recordlist = cloud.store(universe, f_universe);
         print0(universe, "the cloud size should be at 10e-8, as it is only a pointer to the function impl");
-        auto [nrecords,global_memsize,min_memsize,max_memsize,max_record_size] = cloud.get_size(universe);
+        auto stats=cloud.gather_memory_statistics(universe);
+        auto nrecords=stats["container_size_global"].template get<std::size_t>();
+        auto global_memsize=stats["memory_global"].template get<std::size_t>();
 
         print("nrecord, bytes in cloud", nrecords, global_memsize);
         t1.checkpoint(nrecords == 1, "cloud: nrecord==1");
@@ -338,7 +340,10 @@ int test_replication_policy(World& universe) {
                 bool cloud_ok=cloud.validate_replication_policy();
                 t1.checkpoint(cloud_ok, "cloud distribution is correct");
 
-                auto [nrecords,global_memsize,min_memsize,max_memsize,max_record_size] = cloud.get_size(universe);
+                // auto [nrecords,global_memsize,min_memsize,max_memsize,max_record_size] = cloud.get_size(universe);
+                auto stats=cloud.gather_memory_statistics(universe);
+                auto nrecords=stats["container_size_global"].template get<std::size_t>();
+                auto global_memsize=stats["memory_global"].template get<std::size_t>();
                 int fac=1;
                 if (cloud_replication_policy==DistributionType::NodeReplicated) fac=nhost;
                 if (cloud_replication_policy==DistributionType::RankReplicated) fac=universe.size();
@@ -585,8 +590,9 @@ int test_twice(World& universe, World& subworld, const std::vector<double>& vd) 
         auto recordlist = cloud.store(universe, vd);
         auto vd1 = cloud.load<std::vector<double>>(universe, recordlist);
         vd1 = cloud.load<std::vector<double>>(universe, recordlist);
-        auto [cache_reads,cache_stores,reading,writing,replication] =cloud.get_statistics();
-        print("cache reads, stores", cache_reads, cache_stores);
+        auto stats=cloud.gather_timings(universe);
+        auto cache_reads=stats["cache_reads"].template get<std::size_t>();
+        auto cache_stores=stats["cache_stores"].template get<std::size_t>();
 
         // storing a vector of size 2 will have 3 records: size and data
         if (universe.rank()==0) {

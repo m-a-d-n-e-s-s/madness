@@ -61,6 +61,7 @@ public:
     typedef Function<T,NDIM> functionT;
     typedef std::vector<functionT> vecfuncT;
     typedef Tensor<T> tensorT;
+    mutable nlohmann::json statistics;
 
     SCFOperatorBase() = default;
     SCFOperatorBase(std::shared_ptr<MacroTaskQ> taskq) : taskq(taskq) {}
@@ -116,13 +117,29 @@ public:
     enum Algorithm {
         small_memory, large_memory, multiworld_efficient, multiworld_efficient_row
     };
-
-    /// default ctor
-//    Exchange() = default;
+    // print out algorithm
+    friend std::ostream& operator<<(std::ostream& os, const Algorithm& alg) {
+        switch (alg) {
+            case small_memory:
+                os << "small_memory";
+                break;
+            case large_memory:
+                os << "large_memory";
+                break;
+            case multiworld_efficient:
+                os << "multiworld_efficient";
+                break;
+            case multiworld_efficient_row:
+                os << "multiworld_efficient_row";
+                break;
+            default:
+                os << "unknown algorithm";
+        }
+        return os;
+    }
+    MacroTaskInfo macro_task_info = MacroTaskInfo::preset("default");
 
     Exchange(World& world, const double lo, const double thresh=FunctionDefaults<NDIM>::get_thresh());
-
-//    Exchange(std::shared_ptr<MacroTaskQ> taskq) : SCFOperatorBase<T, NDIM>(taskq) {}
 
     /// ctor with a conventional calculation
     Exchange(World& world, const SCF *calc, const int ispin);
@@ -137,6 +154,9 @@ public:
     Exchange& set_symmetric(const bool flag);
 
     Exchange& set_algorithm(const Algorithm& alg);
+
+    /// how the cloud will handle the data
+    Exchange& set_macro_task_info(const MacroTaskInfo& info);
 
     Exchange& set_printlevel(const long& level);
 

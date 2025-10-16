@@ -320,7 +320,13 @@ namespace madness {
             }
 
             pointer operator->() const {
-                MADNESS_ASSERT(entry);
+                // MADNESS_ASSERT(entry);
+                if (!entry) {
+                    do {
+                        std::cout << "in HashIterator::operator->(), bin=" << bin << " entry=" << entry << std::endl;
+                        myusleep(1.e6);
+                    } while (1);
+                }
                 //if (!entry) throw "Hash iterator: operator->: at end";
                 return &entry->datum;
             }
