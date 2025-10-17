@@ -125,6 +125,7 @@ public:
       auto ckpt = label + ".calc_info.json";
       SCFResultsTuple empty_results;
       nlohmann::json j;
+      NextAction action;
       if (has_results(ckpt)) {
         j = read_results(ckpt); // which results are we readin
         try {
@@ -132,27 +133,19 @@ public:
           scf_r.from_json(j["scf"]);
           properties.from_json(j["properties"]);
           convergence.from_json(j["convergence"]);
+          action = lib_.valid(world_, scf_results, params_);
+
         } catch (...) {
           print("Failed to parse checkpoint file: ", ckpt);
           scf_results = empty_results;
+          action = madness::NextAction::Redo;
         }
+      } else {
+        scf_results = empty_results;
+        action = madness::NextAction::Redo;
       }
       world_.gop.fence();
-
-      if (world_.rank() == 0) {
-        print("Found checkpoint file: ", ckpt);
-        print("results: ", j.dump(4));
-      }
-
-      // we could dump params_ to JSON and pass as argv if desired…
-      // metadata_(world_);
       set_calc_workdir(pm.dir());
-
-      // Here we validate the results before running
-
-      world_.gop.fence();
-      NextAction action;
-      action = lib_.valid(world_, scf_results, params_);
       auto params_copy = params_;
 
       // if okay and optimize we have to set Molecule to new geometry
@@ -161,7 +154,9 @@ public:
         print("Molecule from params:");
         params_.get<Molecule>().print();
       }
-      if (action == madness::NextAction::Ok) {
+      if (action == madness::NextAction::Ok ||
+          action == madness::NextAction::ReloadOnly ||
+          action == madness::NextAction::Restart) {
         if (world_.rank() == 0) {
           print("SCF results are valid, no need to rerun");
           print("Ensure we are running on the correct molecule geometry");
@@ -182,8 +177,7 @@ public:
 
       if (action == madness::NextAction::Restart ||
           action == madness::NextAction::Redo) {
-        scf_results =
-            lib_.run(world_, params_, action == madness::NextAction::Restart);
+        scf_results = lib_.run(world_, params_, madness::NextAction::Restart);
       } else {
         lib_.calc(world_, params_); // just set up the calc without running
       }
@@ -558,11 +552,21 @@ NextAction valid(World &world, const SCFResultsTuple &results,
   }
   if (is_gopt) {
     // check if the optimized geometry is available
-    Tensor<double> grad = *sr.properties->gradient;
-    double gmax = grad.absmax();
-    double gtol = params.gtol();
-    bool gconv = gmax < gtol;
-    if (!gconv) {
+    try {
+
+      if (!sr.properties.gradient.has_value()) {
+        gopt_ok = false;
+      } else {
+        Tensor<double> grad = *sr.properties.gradient;
+        double gmax = grad.absmax();
+        double gtol = params.gtol();
+        bool gconv = gmax < gtol;
+        // check gradient convergence
+        if (!gconv) {
+          gopt_ok = false;
+        }
+      }
+    } catch (...) {
       gopt_ok = false;
     }
   }
@@ -588,7 +592,6 @@ NextAction valid(World &world, const SCFResultsTuple &results,
 
 struct moldft_lib {
   static constexpr const char *label() { return "moldft"; }
-  NextAction next_action_ = NextAction::Ok;
 
   vector<double> protocol;
   SCFResultsTuple last_results_;
@@ -598,8 +601,7 @@ struct moldft_lib {
   NextAction valid(World &world, const SCFResultsTuple &results,
                    const Params &params) {
     last_results_ = results;
-    next_action_ = ::valid(world, results, params.get<CalculationParameters>());
-    return next_action_;
+    return ::valid(world, results, params.get<CalculationParameters>());
   }
 
   // expose the live engine
@@ -612,7 +614,7 @@ struct moldft_lib {
   void print_parameters() const { calc_->print_parameters(); }
   // params get's changed by SCF constructor
   SCFResultsTuple run(World &world, const Params &params,
-                      const bool restart = false) {
+                      const NextAction next_action_) {
     auto moldft_params = params.get<CalculationParameters>();
     const auto &molecule = params.get<Molecule>();
     auto params_copy = params;
@@ -625,7 +627,7 @@ struct moldft_lib {
       return last_results_;
     }
 
-    if (restart) {
+    if (NextAction::Restart == next_action_) {
       // Handle restart logic
       auto cr = std::get<2>(last_results_);
       moldft_params.set_user_defined_value("restart", true);
@@ -668,8 +670,8 @@ struct moldft_lib {
       target.energy_and_gradient(new_mol, energy, gradient);
       sr.scf_molecule = new_mol;
 
-      sr.properties->energy = energy;
-      sr.properties->gradient = gradient;
+      sr.properties.energy = energy;
+      sr.properties.gradient = gradient;
 
       // write out the optimized geometry
       if (world.rank() == 0) {
@@ -778,7 +780,7 @@ struct nemo_lib {
   void print_parameters() const { nemo_->print_parameters(); }
 
   SCFResultsTuple run(World &world, const Params &params,
-                      const bool restart = false) {
+                      NextAction action = NextAction::Redo) {
     auto nm = calc(world, params);
     nm->get_calc()->work_dir = std::filesystem::current_path();
 
@@ -797,7 +799,7 @@ struct nemo_lib {
     sr.scf_total_energy = nm->get_calc()->current_energy;
 
     if (nm->get_nemo_param().hessian())
-      sr.properties->vibrations =
+      sr.properties.vibrations =
           nm->hessian(nm->get_calc()->molecule.get_all_coords());
 
     return {sr, pr, cr};

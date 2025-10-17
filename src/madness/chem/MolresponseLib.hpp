@@ -136,7 +136,6 @@ struct molresponse_lib {
       print("dipole.frequencies: ", response_params.dipole_frequencies());
       print("dipole.directions: ", response_params.dipole_directions());
       print("nuclear.frequencies: ", response_params.nuclear_frequencies());
-      print("nuclear.atom_indices: ", response_params.nuclear_atom_indices());
       print("nuclear.directions: ", response_params.nuclear_directions());
       print("requested_properties: ", response_params.requested_properties());
     }
@@ -257,7 +256,6 @@ struct molresponse_lib {
         }
         auto alpha_derivatives =
             compute_Raman(world, ground, response_params.dipole_frequencies(),
-                          response_params.nuclear_atom_indices(),
                           response_params.dipole_directions(),
                           response_params.nuclear_directions(), properties);
         raman.polarization_frequencies = response_params.dipole_frequencies();
@@ -296,7 +294,6 @@ struct molresponse_lib {
 
         for (const auto &tensor : alpha_derivatives) {
           if (world.rank() == 0) {
-
             print("Vibrational mode frequency (cm-1): ", vib_freq);
             print("Alpha derivative tensor size: ", tensor.dims(), "x");
             print("Alpha derivative tensor: \n", tensor);
