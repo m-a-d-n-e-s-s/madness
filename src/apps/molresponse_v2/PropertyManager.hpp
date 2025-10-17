@@ -900,9 +900,8 @@ void compute_hyperpolarizability(
 std::vector<Tensor<double>>
 compute_Raman(World &world, const GroundStateData &gs,
               const std::vector<double> &frequencies, // ωB and ωC
-              const std::vector<int> &nuc_indices,
-              const std::string &dip_dirs, // e.g. {'x','y','z'}
-              const std::string &nuc_dirs, // e.g. {'x','y','z'}
+              const std::string &dip_dirs,            // e.g. {'x','y','z'}
+              const std::string &nuc_dirs,            // e.g. {'x','y','z'}
               PropertyManager &pm) {
   // 1) A-list is still the dipole directions
   std::vector<Perturbation> A_pert;
@@ -912,6 +911,9 @@ compute_Raman(World &world, const GroundStateData &gs,
 
   // 3) Build BC pairs = (Dipole, NuclearDisp)
   std::vector<std::pair<Perturbation, Perturbation>> BC_pairs;
+  auto natoms = gs.molecule.natom();
+  vector<int> nuc_indices(natoms);
+  std::iota(nuc_indices.begin(), nuc_indices.end(), 0);
 
   BC_pairs.reserve(dip_dirs.size() * nuc_indices.size() * nuc_dirs.size());
   for (char b : dip_dirs) {

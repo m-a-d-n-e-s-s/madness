@@ -253,11 +253,11 @@ public:
   Tensor<double> normal_modes;                  // Deriv. of alpha
   std::vector<Tensor<double>> polarizability_derivatives;
   std::vector<Tensor<double>> polarizability_derivatives_normal_modes;
-  std::vector<Tensor<double>> frequencies;        // Vibrational frequencies
+  std::vector<Tensor<double>> frequencies; // Vibrational frequencies
   // square of the isotropic polarizability derivative
-  std::vector<double> alpha2; 
+  std::vector<double> alpha2;
   // square of the anisotropic polarizability derivative
-  std::vector<double> beta2;  
+  std::vector<double> beta2;
   std::vector<double> intensities_raman;          // Raman intensities per mode
   std::vector<double> intensities_depolarization; // Raman intensities per mode
   std::vector<double> depolarization_ratios;      // Raman intensities per mode
@@ -385,7 +385,7 @@ public:
   std::string model = "scf";     // model used for the SCF calculation
   double scf_total_energy = 0.0; // total energy of the SCF calculation
   //
-  std::optional<PropertyResults> properties;
+  PropertyResults properties;
   SCFResults() = default;
 
   /// construct from JSON
@@ -409,8 +409,8 @@ public:
     j["scf_total_energy"] = scf_total_energy;
 
     // Optional nested block
-    if (properties && has_data(*properties)) {
-      j["properties"] = properties->to_json();
+    if (has_data(properties)) {
+      j["properties"] = properties.to_json();
     }
 
     j["molecule"] = scf_molecule.to_json();
@@ -446,10 +446,8 @@ public:
       p.from_json(j.at("properties"));
       if (has_data(p))
         properties = std::move(p);
-      else
-        properties.reset();
     } else {
-      properties.reset();
+      properties = PropertyResults();
     }
     if (j.contains("molecule"))
       scf_molecule.from_json(j.at("molecule"));
