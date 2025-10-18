@@ -59,6 +59,11 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     norm_tree(world, mo_ket, false);
     world.gop.fence();
 
+    print("in ExchangeImpl::operator()");
+    for (int i=0; i<mo_bra.size(); ++i) {
+        print("mo_bra[i] tree size ",i,mo_bra[i].get_impl()->tree_size());
+        print("mo_ket[i] tree size ",i,mo_ket[i].get_impl()->tree_size());
+    }
     reconstruct(world, vket);
     norm_tree(world, vket);
 
@@ -153,6 +158,11 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient_row(const vecfuncT& vf, c
 
     if (taskq) taskq->set_printlevel(printlevel);
 
+    print("in ExchangeImpl::K_macrotask_efficient_row()");
+    for (int i=0; i<mo_bra.size(); ++i) {
+        print("mo_bra[i] tree size ",i,mo_bra[i].get_impl()->tree_size());
+        print("mo_ket[i] tree size ",i,mo_ket[i].get_impl()->tree_size());
+    }
     // construct MacroTask with or without user-provided taskq -> deferred execution or immediate execution
     auto mtask = (taskq) ? MacroTask(world, xtask, taskq)
                  : MacroTask(world, xtask, MacroTaskQFactory(world).set_printlevel(printlevel)

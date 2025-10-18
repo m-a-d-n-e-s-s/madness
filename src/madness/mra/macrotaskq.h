@@ -878,6 +878,15 @@ public:
     	return taskq_ptr;
     }
 
+	template<typename tupleT, typename opT, std::size_t I=0>
+	static void unary_tuple_loop(tupleT& tuple, opT& op) {
+    	if constexpr(I < std::tuple_size_v<tupleT>) {
+    		auto& element1=std::get<I>(tuple);
+    		op(element1);
+    		unary_tuple_loop<tupleT,opT, I+1>(tuple,op);
+    	}
+    }
+
     /// this mimicks the original call to the task functor, called from the universe
 
     /// store all input to the cloud, create output Function<T,NDIM> in the universe,
@@ -895,6 +904,17 @@ public:
         partitionT partition = partitioner->partition_tasks(argtuple);
 
     	if (debug and world.rank()==0) print(taskq_ptr->get_policy());
+    	// print out argtuple
+    	auto doprint = [&](auto& arg) {
+    		typedef std::decay_t<decltype(arg)> argT;
+    		if constexpr (is_madness_function_vector<argT>::value) {
+    			for (int i=0; i<arg.size(); ++i) {
+    				print("mo_bra[i] tree size ",i,arg[i].get_impl()->tree_size());
+    			}
+    		}
+    	};
+    	print("in MacroTask::operator, before cloud.store");
+    	unary_tuple_loop(argtuple, doprint);
 
         recordlistT inputrecords = taskq_ptr->cloud.store(world, argtuple);
         resultT result = task.allocator(world, argtuple);
@@ -907,6 +927,9 @@ public:
                     std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task, batch_prio, inputrecords, outputrecords)));
         }
         taskq_ptr->add_tasks(vtask);
+    	print("in MacroTask::operator, before run_all");
+    	unary_tuple_loop(argtuple, doprint);
+    	// ok
 
         if (immediate_execution) taskq_ptr->run_all();
 

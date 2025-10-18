@@ -1123,7 +1123,20 @@ template<size_t NDIM>
         }
 
         void replicate_on_hosts(bool fence=true) {
+            if (world.rank()==0) print("relicate on hosts before");
+            for (ProcessID pid=0; pid<world.size(); ++pid) {
+                if (world.rank()==pid) print("impl, rank, coeffs.size()",this, world.rank(),coeffs.size());
+            world.gop.fence();
+            }
+            world.gop.fence();
             coeffs.replicate_on_hosts(fence);
+            world.gop.fence();
+            if (world.rank()==0) print("relicate on hosts after");
+            for (ProcessID pid=0; pid<world.size(); ++pid) {
+                if (world.rank()==pid) print("impl, rank, coeffs.size()",this, world.rank(),coeffs.size());
+            world.gop.fence();
+            }
+            world.gop.fence();
         }
 
         // remove all coeffs that are not local according to pmap

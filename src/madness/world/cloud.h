@@ -510,10 +510,11 @@ public:
     void distribute_targets(const DistributionType dt= Distributed) {
         if (world_object_base_list.empty()) return;
 
+        World& world=world_object_base_list.front()->get_world();
         for (auto wo : world_object_base_list) {
             loop_types<DistributeFunctor, double, float, double_complex, float_complex>(std::tuple<DistributionType>(dt),wo);
+            world.gop.fence();
         }
-        World& world=world_object_base_list.front()->get_world();
         world.gop.fence();
 
     }

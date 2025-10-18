@@ -332,7 +332,7 @@ namespace madness
         all_hashes=world.gop.concat0(all_hashes);
         std::size_t ndup=number_of_duplicates(all_hashes);
         world.gop.broadcast(ndup,0);
-        print("rank, local, global, duplicates", world.rank(),local_size,global_size,ndup);
+        // print("rank, local, global, duplicates", world.rank(),local_size,global_size,ndup);
 
         // consistency checks
         if (result==Distributed) {
@@ -645,17 +645,17 @@ namespace madness
         void replicate_on_hosts(bool fence) {
             MADNESS_CHECK(fence);
 
-//            /// print in rank-order
-//            auto oprint = [&](World& world, auto &&... args) {
-//                world.gop.fence();
-//                for (int r=0; r<world.size(); ++r) {
-//                    if (r==world.rank()) {
-//                        std::cout << "rank " << world.rank() << ": ";
-//                        print(std::forward<decltype(args)>(args)...);
-//                    }
-//                    world.gop.fence();
-//                }
-//            };
+            /// print in rank-order
+            auto oprint = [&](World& world, auto &&... args) {
+                world.gop.fence();
+                for (int r=0; r<world.size(); ++r) {
+                    if (r==world.rank()) {
+                        std::cout << "rank " << world.rank() << ": ";
+                        print(std::forward<decltype(args)>(args)...);
+                    }
+                    world.gop.fence();
+                }
+            };
 
             World &world = this->get_world();
 
@@ -665,10 +665,15 @@ namespace madness
             world.gop.broadcast_serializable(primary_ranks,0);
             world.gop.fence();
 
-            auto local_size=size();
-            auto global_size=local_size;
-            world.gop.sum(global_size);
-            // print("rank, local, global", world.rank(),local_size,global_size);
+            auto sizes =[&](std::string msg) {
+                world.gop.fence();
+                auto local_size=size();
+                auto global_size=local_size;
+                world.gop.sum(global_size);
+                oprint(world,"rank, local, global",msg, world.rank(),local_size,global_size);
+                world.gop.fence();
+            };
+            sizes("before step 1");
 
             // change pmap to replicated
             pmap->deregister_callback(this);
@@ -698,19 +703,28 @@ namespace madness
 
             // step 1-2: send data to lowest rank on host (which will become the owner)
             long myowner = lowest_rank_on_host_of_rank(ranks_per_host1, world.rank());
+            oprint(world,"my owner, size:", myowner,size());
             if (world.rank() != myowner) {
                 // send data to myowner
+                int i=0;
                 for (auto it = begin(); it != end(); ++it) {
                     keyT key = it->first;
                     valueT value = it->second;
                     this->send(myowner,&implT::insert,pairT(key,value));
                     // insert(pairT(key,value));        // this won't work with LocalPmap
+                    ++i;
                 }
+                print(world.rank(),"sent",i,"items to owner",myowner);
                 // remove all local data after sending
-                clear();
+                // clear();
             }
             // need a fence here to make sure send is finished
             world.gop.fence();
+            sizes("after step 1, before clear");
+            world.gop.fence();
+            if (world.rank()!=myowner) clear();
+            world.gop.fence();
+            sizes("after step 1");
 
             // change pmap to replicated
             pmap->deregister_callback(this);
@@ -746,6 +760,7 @@ namespace madness
 
             // phase 3: done
             if (fence) world.gop.fence();
+            sizes("after step 2");
             validate_distribution_type(*this);
         }
 

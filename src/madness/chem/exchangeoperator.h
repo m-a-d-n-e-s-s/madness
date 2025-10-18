@@ -396,6 +396,11 @@ private:
             double total_fetch_time=0.0;
             double total_fetch_spawn_time=0.0;
 
+            for (int i=0; i<mo_bra.size(); ++i) {
+                print("mo_bra[i] local tree size ",i,mo_bra[i].get_impl()->tree_size());
+                print("mo_ket[i] local tree size ",i,mo_bra[i].get_impl()->tree_size());
+            }
+
             resultT Kf = zero_functions_compressed<T, NDIM>(*subworld_ptr, 1);
             {
                 // create the two worlds that will be used for fetching and computing
@@ -439,10 +444,12 @@ private:
                         vecfuncT subworld_ket;
                         double wall0=wall_time();
                         for (int i=tile.ilo; i<tile.iend; ++i) {
+                            print("in fetch, mo_bra[i] tree size ",i,mo_bra[i].get_impl()->tree_size());
                             print("0 in fetch_data, iteration ",i,"at time ",wall_time()-wall0);
                             auto f=copy(world,mo_bra[i],false);
                             print("1 in fetch_data, iteration ",i,"at time ",wall_time()-wall0);
                             subworld_bra[i-tile.ilo]=f;
+                            print("in fetch, subworld mo_bra[i] tree size ",i,mo_bra[i].get_impl()->tree_size());
                             print("2 in fetch_data, iteration ",i,"at time ",wall_time()-wall0);
 
 
