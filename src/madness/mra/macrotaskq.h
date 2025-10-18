@@ -67,8 +67,6 @@ public:
     ScalarResultImpl<T>& operator=(const ScalarResultImpl<T>& other) = delete;
 
     ~ScalarResultImpl() {
-        // print("calling destructor of ScalarResultImpl",this->id());
-        // std::cout << std::flush;
     }
 
     /// simple assignment of the scalar value
@@ -611,7 +609,6 @@ public:
 		}
 		taskq_statistics["number_tasks"]=taskq.size();
 
-		print("debug 0", universe.rank());
 		// replicate the cloud (not necessarily the target if pointers are stored)
 		auto replication_policy = cloud.get_replication_policy();
 		if (replication_policy!=DistributionType::Distributed) {
@@ -622,7 +619,6 @@ public:
 			double cpu1=cpu_time();
 			if (printtimings_detail()) print("cloud replication wall time",cpu1-cpu0);
 		}
-		print("debug 1", universe.rank());
 
 		// replicate the targets (not the cloud) if needed
 		{
@@ -643,7 +639,6 @@ public:
 			double cpu1=cpu_time();
 			if (printtimings_detail()) print("target replication wall time to ",policy.ptr_target_distribution_policy,cpu1-cpu0);
 		}
-		print("debug 2", universe.rank());
 
         if (printdebug()) cloud.print_size(universe);
 		cloud_statistics=cloud.get_statistics(universe);	// get stats before clearing the cloud
@@ -656,7 +651,6 @@ public:
         pmap5=FunctionDefaults<5>::get_pmap();
         pmap6=FunctionDefaults<6>::get_pmap();
         set_pmap(get_subworld());
-		print("debug 3", universe.rank());
 
         double cpu00=cpu_time();
 
@@ -878,14 +872,6 @@ public:
     	return taskq_ptr;
     }
 
-	template<typename tupleT, typename opT, std::size_t I=0>
-	static void unary_tuple_loop(tupleT& tuple, opT& op) {
-    	if constexpr(I < std::tuple_size_v<tupleT>) {
-    		auto& element1=std::get<I>(tuple);
-    		op(element1);
-    		unary_tuple_loop<tupleT,opT, I+1>(tuple,op);
-    	}
-    }
 
     /// this mimicks the original call to the task functor, called from the universe
 
@@ -904,17 +890,6 @@ public:
         partitionT partition = partitioner->partition_tasks(argtuple);
 
     	if (debug and world.rank()==0) print(taskq_ptr->get_policy());
-    	// print out argtuple
-    	auto doprint = [&](auto& arg) {
-    		typedef std::decay_t<decltype(arg)> argT;
-    		if constexpr (is_madness_function_vector<argT>::value) {
-    			for (int i=0; i<arg.size(); ++i) {
-    				print("mo_bra[i] tree size ",i,arg[i].get_impl()->tree_size());
-    			}
-    		}
-    	};
-    	print("in MacroTask::operator, before cloud.store");
-    	unary_tuple_loop(argtuple, doprint);
 
         recordlistT inputrecords = taskq_ptr->cloud.store(world, argtuple);
         resultT result = task.allocator(world, argtuple);
@@ -927,10 +902,6 @@ public:
                     std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task, batch_prio, inputrecords, outputrecords)));
         }
         taskq_ptr->add_tasks(vtask);
-    	print("in MacroTask::operator, before run_all");
-    	unary_tuple_loop(argtuple, doprint);
-    	// ok
-
         if (immediate_execution) taskq_ptr->run_all();
 
         return result;
@@ -1035,26 +1006,6 @@ private:
             print(ss.str());
         }
 
-    	/// loop over the tuple elements of both tuples and execute the operation op on each element pair
-    	template<typename tupleT, typename tupleR, typename opT, std::size_t I=0>
-    	static void binary_tuple_loop(tupleT& tuple1, tupleR& tuple2, opT& op) {
-        	if constexpr(I < std::tuple_size_v<tupleT>) {
-        		auto& element1=std::get<I>(tuple1);
-        		auto& element2=std::get<I>(tuple2);
-        		op(element1,element2);
-        		binary_tuple_loop<tupleT, tupleR, opT, I+1>(tuple1,tuple2,op);
-        	}
-        }
-
-    	template<typename tupleT, typename opT, std::size_t I=0>
-    	static void unary_tuple_loop(tupleT& tuple, opT& op) {
-        	if constexpr(I < std::tuple_size_v<tupleT>) {
-        		auto& element1=std::get<I>(tuple);
-        		op(element1);
-        		unary_tuple_loop<tupleT,opT, I+1>(tuple,op);
-        	}
-        }
-
     	/// accumulate the result of the task into the final result living in the universe
     	template<typename resultT1, std::size_t I=0>
     	typename std::enable_if<is_tuple<resultT1>::value, void>::type
@@ -1126,17 +1077,7 @@ private:
     				}
     			};
 
-    			auto doprint = [&](auto& arg) {
-    				typedef std::decay_t<decltype(arg)> argT;
-    				if constexpr (is_madness_function_vector<argT>::value) {
-    					print_size(subworld,arg,msg);
-    				}
-    			};
-
-
     			unary_tuple_loop(batched_argtuple,copi);
-    			msg="in run(), after copy";
-    			unary_tuple_loop(batched_argtuple,doprint);
     			double cpu1=wall_time();
     			if (debug) {
     				io_redirect_cout io2;
@@ -1188,8 +1129,6 @@ private:
 
     	// this is called after all tasks have been executed and the taskq has ended
     	void cleanup() override {
-        		// resultT result_universe=get_output(subworld, cloud);       // lives in the universe
-
     	}
 
     	template<typename T, std::size_t NDIM>

@@ -646,16 +646,16 @@ namespace madness
             MADNESS_CHECK(fence);
 
             /// print in rank-order
-            auto oprint = [&](World& world, auto &&... args) {
-                world.gop.fence();
-                for (int r=0; r<world.size(); ++r) {
-                    if (r==world.rank()) {
-                        std::cout << "rank " << world.rank() << ": ";
-                        print(std::forward<decltype(args)>(args)...);
-                    }
-                    world.gop.fence();
-                }
-            };
+//            auto oprint = [&](World& world, auto &&... args) {
+//                world.gop.fence();
+//                for (int r=0; r<world.size(); ++r) {
+//                    if (r==world.rank()) {
+//                        std::cout << "rank " << world.rank() << ": ";
+//                        print(std::forward<decltype(args)>(args)...);
+//                    }
+//                    world.gop.fence();
+//                }
+//            };
 
             World &world = this->get_world();
 
@@ -665,15 +665,14 @@ namespace madness
             world.gop.broadcast_serializable(primary_ranks,0);
             world.gop.fence();
 
-            auto sizes =[&](std::string msg) {
-                world.gop.fence();
-                auto local_size=size();
-                auto global_size=local_size;
-                world.gop.sum(global_size);
-                oprint(world,"rank, local, global",msg, world.rank(),local_size,global_size);
-                world.gop.fence();
-            };
-            sizes("before step 1");
+//            auto sizes =[&](std::string msg) {
+//                world.gop.fence();
+//                auto local_size=size();
+//                auto global_size=local_size;
+//                world.gop.sum(global_size);
+//                oprint(world,"rank, local, global",msg, world.rank(),local_size,global_size);
+//                world.gop.fence();
+//            };
 
             // change pmap to replicated
             pmap->deregister_callback(this);
@@ -688,43 +687,38 @@ namespace madness
                 pmap->register_callback(this);
                 return;
             }
+            world.gop.fence();
 
-            // oprint(world,"primary_ranks: ", primary_ranks);
             // get a list of all other ranks that are not primary
             std::vector<int> secondary_ranks;
             for (int r=0; r<world.size(); ++r) {
                 if (std::find(primary_ranks.begin(),primary_ranks.end(),r)==primary_ranks.end())
                     secondary_ranks.push_back(r);
             }
-            // oprint(world,"secondary_ranks: ", secondary_ranks);
-
 
             // phase 1: for all ranks send data to the lowest rank on host
 
             // step 1-2: send data to lowest rank on host (which will become the owner)
             long myowner = lowest_rank_on_host_of_rank(ranks_per_host1, world.rank());
-            oprint(world,"my owner, size:", myowner,size());
+            // oprint(world,"my owner, size:", myowner,size());
             if (world.rank() != myowner) {
                 // send data to myowner
-                int i=0;
                 for (auto it = begin(); it != end(); ++it) {
                     keyT key = it->first;
                     valueT value = it->second;
                     this->send(myowner,&implT::insert,pairT(key,value));
                     // insert(pairT(key,value));        // this won't work with LocalPmap
-                    ++i;
                 }
-                print(world.rank(),"sent",i,"items to owner",myowner);
                 // remove all local data after sending
                 // clear();
             }
             // need a fence here to make sure send is finished
             world.gop.fence();
-            sizes("after step 1, before clear");
-            world.gop.fence();
+            // sizes("after step 1, before clear");
+            // world.gop.fence();
             if (world.rank()!=myowner) clear();
             world.gop.fence();
-            sizes("after step 1");
+            // sizes("after step 1");
 
             // change pmap to replicated
             pmap->deregister_callback(this);
@@ -760,8 +754,7 @@ namespace madness
 
             // phase 3: done
             if (fence) world.gop.fence();
-            sizes("after step 2");
-            validate_distribution_type(*this);
+            // validate_distribution_type(*this);
         }
 
         void do_replicate(World& world) {

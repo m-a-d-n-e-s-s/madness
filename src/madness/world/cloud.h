@@ -492,8 +492,7 @@ public:
                 if (dt==RankReplicated) {
                     fimpl->replicate(false);
                 } else if (dt==NodeReplicated) {
-                    print("replicating function per node",fimpl);;
-                    // fimpl->print_size("fimpl");
+                    // print("replicating function per node",fimpl);;
                     fimpl->replicate_on_hosts(true);
                 } else if (dt==Distributed) {
                     fimpl->undo_replicate(false);
@@ -509,11 +508,11 @@ public:
     /// distribute/node/rank replicate the targets of all world objects stored in the cloud
     void distribute_targets(const DistributionType dt= Distributed) {
         if (world_object_base_list.empty()) return;
-
         World& world=world_object_base_list.front()->get_world();
+
         for (auto wo : world_object_base_list) {
             loop_types<DistributeFunctor, double, float, double_complex, float_complex>(std::tuple<DistributionType>(dt),wo);
-            world.gop.fence();
+            // world.gop.fence();
         }
         world.gop.fence();
 

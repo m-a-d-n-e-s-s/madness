@@ -727,6 +727,27 @@ namespace madness {
         return std::make_tuple(loop_N<Functor, Ts>(std::make_index_sequence<6>{}, std::move(functor_args), std::forward<CallArgs>(call_args)...)...);
     }
 
+    /// loop over a tuple and apply unary operator op to each element
+    template<typename tupleT, typename opT, std::size_t I=0>
+    static void unary_tuple_loop(tupleT& tuple, opT& op) {
+        if constexpr(I < std::tuple_size_v<tupleT>) {
+            auto& element1=std::get<I>(tuple);
+            op(element1);
+            unary_tuple_loop<tupleT,opT, I+1>(tuple,op);
+        }
+    }
+
+    /// loop over the tuple elements of both tuples and execute the operation op on each element pair
+    template<typename tupleT, typename tupleR, typename opT, std::size_t I=0>
+    static void binary_tuple_loop(tupleT& tuple1, tupleR& tuple2, opT& op) {
+        if constexpr(I < std::tuple_size_v<tupleT>) {
+            auto& element1=std::get<I>(tuple1);
+            auto& element2=std::get<I>(tuple2);
+            op(element1,element2);
+            binary_tuple_loop<tupleT, tupleR, opT, I+1>(tuple1,tuple2,op);
+        }
+    }
+
     /// check if objT is a std::vector of Function<T,NDIM>
     /// forward declaration of Function
     /// usage: is_madness_function_vector<objT>::value

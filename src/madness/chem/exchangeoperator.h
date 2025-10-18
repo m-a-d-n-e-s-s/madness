@@ -396,11 +396,6 @@ private:
             double total_fetch_time=0.0;
             double total_fetch_spawn_time=0.0;
 
-            for (int i=0; i<mo_bra.size(); ++i) {
-                print("mo_bra[i] local tree size ",i,mo_bra[i].get_impl()->tree_size());
-                print("mo_ket[i] local tree size ",i,mo_bra[i].get_impl()->tree_size());
-            }
-
             resultT Kf = zero_functions_compressed<T, NDIM>(*subworld_ptr, 1);
             {
                 // create the two worlds that will be used for fetching and computing
@@ -411,7 +406,6 @@ private:
                 std::shared_ptr<World> executing_world(new World(comm.Clone()));
                 double cpu1=cpu_time();
                 print("time to create two worlds:",cpu1-cpu0,"seconds");
-
                 print("executing_world.id()",executing_world->id(),"fetching_world.id()",fetching_world->id(),"in MacroTaskExchangeRow");
 
                 {
@@ -444,22 +438,10 @@ private:
                         vecfuncT subworld_ket;
                         double wall0=wall_time();
                         for (int i=tile.ilo; i<tile.iend; ++i) {
-                            print("in fetch, mo_bra[i] tree size ",i,mo_bra[i].get_impl()->tree_size());
-                            print("0 in fetch_data, iteration ",i,"at time ",wall_time()-wall0);
                             auto f=copy(world,mo_bra[i],false);
-                            print("1 in fetch_data, iteration ",i,"at time ",wall_time()-wall0);
                             subworld_bra[i-tile.ilo]=f;
-                            print("in fetch, subworld mo_bra[i] tree size ",i,mo_bra[i].get_impl()->tree_size());
-                            print("2 in fetch_data, iteration ",i,"at time ",wall_time()-wall0);
-
-
-                            // subworld_bra.push_back(copy(world, mo_bra[i],false));
                             subworld_ket.push_back(copy(world, mo_ket[i],false));
-                            print("3 in fetch_data, iteration ",i,"at time ",wall_time()-wall0);
-                            print("");
                         }
-                        print("ending fetch_data at time ",wall_time()-wall0);
-                        print("sizes",subworld_bra.size(),subworld_ket.size(),"sizes");
                         return std::make_pair(subworld_bra,subworld_ket);
                     };
 
@@ -537,13 +519,7 @@ private:
                             fetching_world->gop.set_forbid_fence(false);
                             double t2=cpu_time();
                             // uncomment the next line to enforce that fetching is finished before executing
-                            print("before fence in fetching data");
-                            for (auto& f : tmp_mo_bra1) print(f.get_impl().get(),f.get_impl()->tree_size());
-                            for (auto& f : tmp_mo_ket1) print(f.get_impl().get(),f.get_impl()->tree_size());
                             fetching_world->gop.fence();
-                            print("after fence in fetching data");
-                            for (auto& f : tmp_mo_bra1) print(f.get_impl().get(),f.get_impl()->tree_size());
-                            for (auto& f : tmp_mo_ket1) print(f.get_impl().get(),f.get_impl()->tree_size());
                             double t1=cpu_time();
                             total_fetch_time += (t1 - t0);
                             total_fetch_spawn_time += (t2 - t0);
@@ -555,7 +531,6 @@ private:
                             print("time to execute tile",tile.ilo,"in world",executing_world->id(),dpu1-dpu0,"seconds");
                             total_execution_time += dpu1-dpu0;
 
-                            print("fencing fetch world",fetching_world->id());
                             fetching_world->gop.fence();
 
                             // change roles of the two worlds

@@ -595,14 +595,8 @@ int test_twice(World& universe, World& subworld, const std::vector<double>& vd) 
         auto cache_stores=stats["cache_stores"].template get<std::size_t>();
 
         // storing a vector of size 2 will have 3 records: size and data
-        if (universe.rank()==0) {
-            test_twice.checkpoint(cache_reads==vd.size()+1,"cache reads on rank 0");
-            test_twice.checkpoint(cache_stores==vd.size()+1,"cache stores on rank 0");
-        } else {
-            test_twice.checkpoint(cache_reads==0,"cache reads on other ranks");
-            test_twice.checkpoint(cache_stores==0,"cache stores on other ranks");
-
-        }
+        test_twice.checkpoint(cache_reads==vd.size()+1,"cache reads (global sum)");
+        test_twice.checkpoint(cache_stores==vd.size()+1,"cache stores (global sum)");
 
         cloud.print_timings(universe);
         cloud.clear_cache(subworld);
