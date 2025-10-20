@@ -15,9 +15,10 @@
   throw std::runtime_error("This solver is not yet implemented.");
 
 template <typename ResponseType>
-bool iterate(World &world, const ResponseManager &rm, const GroundStateData &gs,
-             const LinearResponseDescriptor &state, ResponseType &response,
-             ResponseDebugLogger &logger, size_t max_iter, double conv_thresh) {
+bool iterate(World &world, const ResponseManager &response_manager,
+             const GroundStateData &g_s, const LinearResponseDescriptor &state,
+             ResponseType &response, ResponseDebugLogger &logger,
+             size_t max_iter, double conv_thresh) {
   // using Policy = ResponseSolverPolicy<ResponseType>;
 
   auto &rvec = response;
@@ -26,18 +27,18 @@ bool iterate(World &world, const ResponseManager &rm, const GroundStateData &gs,
   const double dconv =
       std::max(FunctionDefaults<3>::get_thresh() * 10, conv_thresh);
   auto density_target =
-      dconv * static_cast<double>(std::max(size_t(5.0), gs.molecule.natom()));
+      dconv * static_cast<double>(std::max(size_t(5.0), g_s.molecule.natom()));
   const auto x_residual_target = density_target * 10.0;
 
-  auto vp = perturbation_vector(world, gs, state);
+  auto vp = perturbation_vector(world, g_s, state);
 
-  auto &phi0 = gs.orbitals;
-  const auto &orbital_energies = gs.getEnergies();
+  auto &phi0 = g_s.orbitals;
+  const auto &orbital_energies = g_s.getEnergies();
 
   // First difference, Make bsh operators is different for each solver
-  auto bsh_ops =
-      make_bsh_operators(world, rm, state.current_frequency(), orbital_energies,
-                         static_cast<int>(gs.orbitals.size()), logger, rvec);
+  auto bsh_ops = make_bsh_operators(
+      world, response_manager, state.current_frequency(), orbital_energies,
+      static_cast<int>(g_s.orbitals.size()), logger, rvec);
 
   response_solver solver(
       response_vector_allocator(world, static_cast<int>(all_x.size())),
@@ -56,8 +57,8 @@ bool iterate(World &world, const ResponseManager &rm, const GroundStateData &gs,
     // 1. Coupled-response equations
     vector_real_function_3d x_new;
     DEBUG_TIMED_BLOCK(world, &logger, "compute_rsh", {
-      x_new =
-          CoupledResponseEquations(world, gs, rvec, vp, bsh_ops, rm, logger);
+      x_new = CoupledResponseEquations(world, g_s, rvec, vp, bsh_ops,
+                                       response_manager, logger);
     });
     // 2. Form residual r = x_new - x
     auto residuals = x_new - all_x;
@@ -69,10 +70,11 @@ bool iterate(World &world, const ResponseManager &rm, const GroundStateData &gs,
     double res_norm = norm2(world, sub(world, all_x, x_new));
     DEBUG_LOG_VALUE(world, &logger, "res_norm", res_norm);
     // 4. Do step restriction
-    if (res_norm > rm.params().maxrotn() && false) {
+    if (res_norm > response_manager.params().maxrotn() && false) {
       DEBUG_TIMED_BLOCK(world, &logger, "step_restriction", {
-        ResponseSolverUtils::do_step_restriction(world, all_x, kain_x, res_norm,
-                                                 "a", rm.params().maxrotn());
+        ResponseSolverUtils::do_step_restriction(
+            world, all_x, kain_x, res_norm, "a",
+            response_manager.params().maxrotn());
       });
     }
     // 5. Update response vector
@@ -101,21 +103,21 @@ bool iterate(World &world, const ResponseManager &rm, const GroundStateData &gs,
 };
 
 inline bool
-solve_response_vector(World &world, const ResponseManager &rm,
-                      const GroundStateData &gs,
+solve_response_vector(World &world, const ResponseManager &response_manager,
+                      const GroundStateData &g_s,
                       const LinearResponseDescriptor &state,
                       ResponseVector &response_variant, // the std::variant<…>
                       ResponseDebugLogger &logger, size_t max_iter = 10,
                       double conv_thresh = 1e-4) {
   return std::visit(
       overloaded{// Only wire types that are READY:
-                 [&](StaticRestrictedResponse &r) {
-                   return iterate(world, rm, gs, state, r, logger, max_iter,
-                                  conv_thresh);
+                 [&](StaticRestrictedResponse &vector) {
+                   return iterate(world, response_manager, g_s, state, vector,
+                                  logger, max_iter, conv_thresh);
                  },
-                 [&](DynamicRestrictedResponse &r) {
-                   return iterate(world, rm, gs, state, r, logger, max_iter,
-                                  conv_thresh);
+                 [&](DynamicRestrictedResponse &vector) {
+                   return iterate(world, response_manager, g_s, state, vector,
+                                  logger, max_iter, conv_thresh);
                  },
                  [&](auto &) -> bool {
                    throw std::logic_error(
@@ -218,18 +220,9 @@ inline void computeFrequencyLoop(World &world,
   ResponseVector previous_response = make_response_vector(
       num_orbitals, state_desc.is_static(), is_unrestricted);
   bool have_previous_freq_response = false;
-  auto pertDesc = state_desc.perturbationDescription();
   auto thresh_index = state_desc.current_thresh_index;
-  // if (world.rank() == 0) {
-  //   print("Entering frequency loop for state:", pertDesc,
-  //         "at protocol:", ResponseRecord2::protocol_key(protocol),
-  //         "threshold index:", thresh_index);
-  //
-  //   print("Frequencies:", state_desc.frequencies);
-  // }
-
-  ResponseVector x_0 = make_response_vector(num_orbitals, state_desc.is_static(),
-                                           is_unrestricted);
+  ResponseVector x_0 = make_response_vector(
+      num_orbitals, state_desc.is_static(), is_unrestricted);
   for (size_t i = state_desc.current_frequency_index;
        i < state_desc.frequencies.size(); i++) {
     state_desc.set_frequency_index(i);
@@ -240,35 +233,17 @@ inline void computeFrequencyLoop(World &world,
         !is_saved ||
         (at_final_protocol && !response_record.is_converged(state_desc));
     if (!should_solve) {
-      // if (world.rank() == 0) {
-      //   print("⚠️  Skipping frequency",
-      //         ResponseRecord2::freq_key(state_desc.current_frequency()),
-      //         "at protocol", ResponseRecord2::protocol_key(protocol),
-      //         "for state:", pertDesc);
-      // }
       continue;
     }
     world.gop.fence();
 
     if (is_saved && load_response_vector(world, num_orbitals, state_desc,
                                          thresh_index, freq_index, x_0)) {
-      // if (world.rank() == 0) {
-      //   madness::print("📂 Loaded response vector from disk.");
-      // }
     } else if (thresh_index > 0 &&
                load_response_vector(world, num_orbitals, state_desc,
                                     thresh_index - 1, freq_index, x_0)) {
-      // if (world.rank() == 0) {
-      //   madness::print("📂 Loaded response vector from previous protocol.");
-      // }
     } else if (!state_desc.is_static()) {
-      // Now i try to load the previous frequency response
-      // if it's in memory, I can use it
       if (have_previous_freq_response) {
-        // if (world.rank() == 0) {
-        //   madness::print("📂 Promoting previous in-memory response as
-        //   guess.");
-        // }
       } else {
         load_response_vector(world, num_orbitals, state_desc, thresh_index,
                              freq_index - 1, x_0);
@@ -278,31 +253,15 @@ inline void computeFrequencyLoop(World &world,
         promote_response_vector(world, x_0, x_0);
       }
     } else {
-      // Static case: just initialize
       x_0 = initialize_guess_vector(world, ground_state, state_desc);
-      // if (world.rank() == 0) {
-      //   madness::print("📂 Initialized guess vector.");
-      // }
     }
-
     // Run the solver with logging
     logger.start_state(state_desc);
-
     auto max_iter = response_manager.params().maxiter();
     auto conv_thresh = response_manager.params().dconv();
-
     bool converged =
         solve_response_vector(world, response_manager, ground_state, state_desc,
                               x_0, logger, max_iter, conv_thresh);
-
-    // if (world.rank() == 0) {
-    //   // Print final convergence status
-    //   print("State:", pertDesc, "Frequency:",
-    //         ResponseRecord2::freq_key(state_desc.current_frequency()),
-    //         "at protocol:", ResponseRecord2::protocol_key(protocol),
-    //         "threshold index:", thresh_index,
-    //         converged ? "✅ Converged" : "❌ Not Converged");
-    // }
     if (world.rank() == 0) {
       logger.print_timing_table(state_desc);
       logger.print_values_table(state_desc);
