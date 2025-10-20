@@ -142,8 +142,8 @@ struct DynamicUnrestrictedResponse {
         for (size_t i = 0; i < x_alpha.size(); ++i) {
             x_alpha[i] = flat[i];
             y_alpha[i] = flat[i + x_alpha.size()];
-            x_beta[i] = flat[i + 2 * x_alpha.size()];
-            y_beta[i] = flat[i + 3 * x_alpha.size()];
+            x_beta[i] = flat[ (2 * x_alpha.size()) + i];
+            y_beta[i] = flat[i + (3 * x_alpha.size())];
         }
     }
 
