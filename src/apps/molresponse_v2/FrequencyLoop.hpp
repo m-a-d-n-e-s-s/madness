@@ -151,18 +151,20 @@ solve_response_vector(World &world, const ResponseManager &rm,
 inline void promote_response_vector(World &world, const ResponseVector &x_in,
                                     ResponseVector &x_out) {
   if (std::holds_alternative<StaticRestrictedResponse>(x_in)) {
-    if (world.rank() == 0)
+    if (world.rank() == 0) {
       madness::print("🔁 Promoting static restricted → dynamic restricted");
+    }
     const auto &prev_resp = std::get<StaticRestrictedResponse>(x_in);
-
     DynamicRestrictedResponse current_resp;
     current_resp.x_alpha = copy(world, prev_resp.x_alpha);
     current_resp.y_alpha = copy(world, prev_resp.x_alpha);
     current_resp.flatten();
     x_out = current_resp;
   } else if (std::holds_alternative<StaticUnrestrictedResponse>(x_in)) {
-    if (world.rank() == 0)
+    if (world.rank() == 0) {
+
       madness::print("🔁 Promoting static unrestricted → dynamic unrestricted");
+    }
     const auto &prev_resp = std::get<StaticUnrestrictedResponse>(x_in);
 
     DynamicUnrestrictedResponse current_resp;
@@ -173,8 +175,9 @@ inline void promote_response_vector(World &world, const ResponseVector &x_in,
     current_resp.flatten();
     x_out = current_resp;
   } else if (std::holds_alternative<DynamicRestrictedResponse>(x_in)) {
-    if (world.rank() == 0)
+    if (world.rank() == 0) {
       madness::print("📥 Copying dynamic restricted response");
+    }
     const auto &prev_resp = std::get<DynamicRestrictedResponse>(x_in);
 
     DynamicRestrictedResponse current_resp;
@@ -183,8 +186,9 @@ inline void promote_response_vector(World &world, const ResponseVector &x_in,
     current_resp.flatten();
     x_out = current_resp;
   } else if (std::holds_alternative<DynamicUnrestrictedResponse>(x_in)) {
-    if (world.rank() == 0)
+    if (world.rank() == 0) {
       madness::print("📥 Copying dynamic unrestricted response");
+    }
     const auto &prev_resp = std::get<DynamicUnrestrictedResponse>(x_in);
 
     DynamicUnrestrictedResponse current_resp;
@@ -206,8 +210,6 @@ inline void computeFrequencyLoop(World &world,
                                  const GroundStateData &ground_state,
                                  ResponseRecord2 &response_record,
                                  ResponseDebugLogger &logger) {
-  auto state_id = state_desc.perturbationDescription();
-  double protocol = state_desc.current_threshold();
 
   bool at_final_protocol = state_desc.at_final_threshold();
   bool is_unrestricted = !ground_state.isSpinRestricted();
@@ -226,7 +228,7 @@ inline void computeFrequencyLoop(World &world,
   //   print("Frequencies:", state_desc.frequencies);
   // }
 
-  ResponseVector x0 = make_response_vector(num_orbitals, state_desc.is_static(),
+  ResponseVector x_0 = make_response_vector(num_orbitals, state_desc.is_static(),
                                            is_unrestricted);
   for (size_t i = state_desc.current_frequency_index;
        i < state_desc.frequencies.size(); i++) {
@@ -249,13 +251,13 @@ inline void computeFrequencyLoop(World &world,
     world.gop.fence();
 
     if (is_saved && load_response_vector(world, num_orbitals, state_desc,
-                                         thresh_index, freq_index, x0)) {
+                                         thresh_index, freq_index, x_0)) {
       // if (world.rank() == 0) {
       //   madness::print("📂 Loaded response vector from disk.");
       // }
     } else if (thresh_index > 0 &&
                load_response_vector(world, num_orbitals, state_desc,
-                                    thresh_index - 1, freq_index, x0)) {
+                                    thresh_index - 1, freq_index, x_0)) {
       // if (world.rank() == 0) {
       //   madness::print("📂 Loaded response vector from previous protocol.");
       // }
@@ -269,15 +271,15 @@ inline void computeFrequencyLoop(World &world,
         // }
       } else {
         load_response_vector(world, num_orbitals, state_desc, thresh_index,
-                             freq_index - 1, x0);
+                             freq_index - 1, x_0);
       }
       world.gop.fence();
       if (state_desc.is_static(freq_index - 1)) {
-        promote_response_vector(world, x0, x0);
+        promote_response_vector(world, x_0, x_0);
       }
     } else {
       // Static case: just initialize
-      x0 = initialize_guess_vector(world, ground_state, state_desc);
+      x_0 = initialize_guess_vector(world, ground_state, state_desc);
       // if (world.rank() == 0) {
       //   madness::print("📂 Initialized guess vector.");
       // }
@@ -291,7 +293,7 @@ inline void computeFrequencyLoop(World &world,
 
     bool converged =
         solve_response_vector(world, response_manager, ground_state, state_desc,
-                              x0, logger, max_iter, conv_thresh);
+                              x_0, logger, max_iter, conv_thresh);
 
     // if (world.rank() == 0) {
     //   // Print final convergence status
@@ -307,11 +309,11 @@ inline void computeFrequencyLoop(World &world,
     }
     world.gop.fence();
     // save and record the response vector
-    save_response_vector(world, state_desc, x0);
+    save_response_vector(world, state_desc, x_0);
     world.gop.fence();
     response_record.record_status(state_desc, converged);
 
-    previous_response = x0;
+    previous_response = x_0;
     have_previous_freq_response = true;
   }
   state_desc.set_frequency_index(0);
