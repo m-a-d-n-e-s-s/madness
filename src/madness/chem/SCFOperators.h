@@ -115,7 +115,7 @@ private:
 
 public:
     enum Algorithm {
-        small_memory, large_memory, multiworld_efficient, multiworld_efficient_row
+        small_memory, large_memory, multiworld_efficient, multiworld_efficient_row, fetch_compute
     };
     // print out algorithm
     friend std::ostream& operator<<(std::ostream& os, const Algorithm& alg) {
@@ -131,6 +131,9 @@ public:
                 break;
             case multiworld_efficient_row:
                 os << "multiworld_efficient_row";
+                break;
+            case fetch_compute:
+                os << "fetch_compute";
                 break;
             default:
                 os << "unknown algorithm";

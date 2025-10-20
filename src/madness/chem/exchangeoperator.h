@@ -351,6 +351,7 @@ private:
         double lo = 1.e-4;
         double mul_tol = 1.e-7;
         bool symmetric = false;
+        Algorithm algorithm_;
 
         /// custom partitioning for the exchange operator in exchangeoperator.h
         class MacroTaskPartitionerRow : public MacroTaskPartitioner {
@@ -361,8 +362,8 @@ private:
         };
 
     public:
-        MacroTaskExchangeRow(const long nresult, const double lo, const double mul_tol)
-                : nresult(nresult), lo(lo), mul_tol(mul_tol) {
+        MacroTaskExchangeRow(const long nresult, const double lo, const double mul_tol, const Algorithm algorithm)
+                : nresult(nresult), lo(lo), mul_tol(mul_tol),  algorithm_(algorithm) {
             partitioner.reset(new MacroTaskPartitionerRow());
             name="MacroTaskExchangeRow";
         }
@@ -389,7 +390,70 @@ private:
         std::vector<Function<T, NDIM>>
         operator()(const std::vector<Function<T, NDIM>>& vket,
                    const std::vector<Function<T, NDIM>>& mo_bra, 
-                   const std::vector<Function<T, NDIM>>& mo_ket) {       
+                   const std::vector<Function<T, NDIM>>& mo_ket) {
+            std::vector<Function<T,NDIM>> result;
+            if (algorithm_==fetch_compute) {
+                result=row_fetch_compute(vket,mo_bra,mo_ket);
+            } else if (algorithm_==multiworld_efficient_row) {
+                result=row(vket,mo_bra,mo_ket);
+            } else {
+                MADNESS_EXCEPTION("unknown algorithm in Exchange::MacroTaskExchangeRow::operator()",1);
+            }
+            return result;
+        }
+
+        std::vector<Function<T,NDIM>>
+        row(const std::vector<Function<T, NDIM>>& vket,
+            const std::vector<Function<T, NDIM>>& mo_bra,
+            const std::vector<Function<T, NDIM>>& mo_ket) {
+
+            double cpu0, cpu1;
+            World& world = vket.front().world();
+            mul_tol = 0.0;
+
+            resultT Kf = zero_functions_compressed<T, NDIM>(world, 1);
+            vecfuncT psif = zero_functions_compressed<T,NDIM>(world, mo_bra.size());
+            auto poisson = Exchange<double, 3>::ExchangeImpl::set_poisson(world, lo);
+
+            // !! NO !! vket is batched, starts at batch.input[0].begin
+            // auto& i = batch.input[0].begin;
+            long i=0;
+            MADNESS_CHECK_THROW(vket.size()==1,"out-of-bounds error in Exchange::MacroTaskExchangeRow::operator()");
+            size_t min_tile = 10;
+            size_t ntile = std::min(mo_bra.size(), min_tile);
+
+            for (size_t ilo=0; ilo<mo_bra.size(); ilo+=ntile){
+                cpu0 = cpu_time();
+                size_t iend = std::min(ilo+ntile,mo_bra.size());
+                vecfuncT tmp_mo_bra(mo_bra.begin()+ilo,mo_bra.begin()+iend);
+                auto tmp_psif = mul_sparse(world, vket[i], tmp_mo_bra, mul_tol);
+                truncate(world, tmp_psif);
+                cpu1 = cpu_time();
+                mul1_timer += long((cpu1 - cpu0) * 1000l);
+
+                cpu0 = cpu_time();
+                tmp_psif = apply(world, *poisson.get(), tmp_psif);
+                truncate(world, tmp_psif);
+                cpu1 = cpu_time();
+                apply_timer += long((cpu1 - cpu0) * 1000l);
+
+                cpu0 = cpu_time();
+                vecfuncT tmp_mo_ket(mo_ket.begin()+ilo,mo_ket.begin()+iend);
+                auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif);
+                cpu1 = cpu_time();
+                mul2_timer += long((cpu1 - cpu0) * 1000l);
+
+                Kf[0] += tmp_Kf;
+                truncate(world, Kf);
+            }
+
+            return Kf;
+        }
+
+        std::vector<Function<T,NDIM>>
+        row_fetch_compute(const std::vector<Function<T, NDIM>>& vket,
+            const std::vector<Function<T, NDIM>>& mo_bra,
+            const std::vector<Function<T, NDIM>>& mo_ket) {
 
             io_redirect_cout();
             double total_execution_time=0.0;
@@ -436,7 +500,6 @@ private:
                         std::size_t sz=tile.iend-tile.ilo;
                         vecfuncT subworld_bra(sz);
                         vecfuncT subworld_ket;
-                        double wall0=wall_time();
                         for (int i=tile.ilo; i<tile.iend; ++i) {
                             auto f=copy(world,mo_bra[i],false);
                             subworld_bra[i-tile.ilo]=f;
@@ -519,7 +582,7 @@ private:
                             fetching_world->gop.set_forbid_fence(false);
                             double t2=cpu_time();
                             // uncomment the next line to enforce that fetching is finished before executing
-                            fetching_world->gop.fence();
+                            // fetching_world->gop.fence();
                             double t1=cpu_time();
                             total_fetch_time += (t1 - t0);
                             total_fetch_spawn_time += (t2 - t0);

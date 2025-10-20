@@ -59,11 +59,6 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     norm_tree(world, mo_ket, false);
     world.gop.fence();
 
-    print("in ExchangeImpl::operator()");
-    for (int i=0; i<mo_bra.size(); ++i) {
-        print("mo_bra[i] tree size ",i,mo_bra[i].get_impl()->tree_size());
-        print("mo_ket[i] tree size ",i,mo_ket[i].get_impl()->tree_size());
-    }
     reconstruct(world, vket);
     norm_tree(world, vket);
 
@@ -78,7 +73,7 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     vecfuncT Kf;
     if (algorithm_ == multiworld_efficient) {
         Kf = K_macrotask_efficient(vket, mul_tol);
-    } else if (algorithm_ == multiworld_efficient_row) {
+    } else if (algorithm_ == multiworld_efficient_row or algorithm_ == fetch_compute) {
         Kf = K_macrotask_efficient_row(vket, mul_tol);
     } else if (algorithm_ == small_memory) {
         Kf = K_small_memory(vket, mul_tol);     // Smaller memory algorithm ... possible 2x saving using i-j sym
@@ -99,7 +94,7 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
     double cpu1=wall_time();
     elapsed_time=cpu1-cpu0;
 
-    if (printtimings()) print_timer(world);
+    if (printtimings_detail()) print_timer(world);
     return Kf;
 }
 
@@ -148,7 +143,7 @@ Exchange<T, NDIM>::ExchangeImpl::K_macrotask_efficient_row(const vecfuncT& vf, c
 
     // the result is a vector of functions living in the universe
     const long nresult = vf.size();
-    MacroTaskExchangeRow xtask(nresult, lo, mul_tol);
+    MacroTaskExchangeRow xtask(nresult, lo, mul_tol, algorithm_);
 
     // print the size of the amos
     if (printdebug()) {

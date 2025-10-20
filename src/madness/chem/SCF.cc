@@ -1365,6 +1365,10 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
 	  //if (world.rank() == 0) print("selecting exchange large memory");
 	  K.set_algorithm(Exchange<double,3>::Algorithm::large_memory);
 	}
+	else if (param.hfexalg()=="fetch_compute") {
+	    //if (world.rank() == 0) print("selecting exchange small memory");
+	    K.set_algorithm(Exchange<double,3>::Algorithm::fetch_compute);
+	}
 	else if (param.hfexalg()=="smallmem") {
 	  //if (world.rank() == 0) print("selecting exchange small memory");
 	  K.set_algorithm(Exchange<double,3>::Algorithm::small_memory);

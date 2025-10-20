@@ -541,7 +541,7 @@ class MacroTaskQ : public WorldObject< MacroTaskQ> {
 	bool printdebug() const {return printlevel>=10;}
 	bool printprogress() const {return (printlevel>=4) and (not (printdebug()));}
     bool printtimings() const {return universe.rank()==0 and printlevel>=3;}
-	bool printtimings_detail() const {return universe.rank()==0 and printlevel>=3;}
+	bool printtimings_detail() const {return universe.rank()==0 and printlevel>=5;}
 
 public:
 
