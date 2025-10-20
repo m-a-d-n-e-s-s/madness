@@ -267,7 +267,7 @@ inline int dir_index(char c) {
 }
 
 inline real_function_3d
-make_perturbation_operator(World &world, const GroundStateData &gs,
+make_perturbation_operator(World &world, const GroundStateData &g_s,
                            const DipolePerturbation &d) {
   std::map<char, int> dipole_map = {{'x', 0}, {'y', 1}, {'z', 2}};
   std::vector<int> dir(3, 0);
@@ -282,12 +282,17 @@ inline real_function_3d
 make_perturbation_operator(World &world, const GroundStateData &gs,
                            const NuclearDisplacementPerturbation &n) {
   std::map<char, int> dipole_map = {{'x', 0}, {'y', 1}, {'z', 2}};
+
+  madchem::MolecularDerivativeFunctor mdfunctor(gs.molecule, n.atom_index,
+                                                dipole_map.at(n.direction));
   // you’d have whatever MomentDisplacementFunctor exists:
-  real_function_3d f = real_factory_3d(world).functor(
-      real_functor_3d{new madchem::MolecularDerivativeFunctor(
-          gs.molecule, n.atom_index, dipole_map.at(n.direction))});
-  f.truncate(FunctionDefaults<3>::get_thresh());
-  return f;
+  real_function_3d dvdx = real_factory_3d(world)
+                              .functor(mdfunctor)
+                              .nofence()
+                              .truncate_on_project()
+                              .truncate_mode(0);
+  dvdx.truncate();
+  return dvdx;
 }
 
 inline real_function_3d
@@ -345,20 +350,6 @@ perturbation_vector(madness::World &world, GroundStateData const &gs,
 inline madness::vector_real_function_3d
 perturbation_vector(madness::World &world, GroundStateData const &gs,
                     XBCResponseState const &sos) {
-  // build (or reuse) the VBCComputer for this ground state
-  // you’ll need to pass it the same directions & frequency list
-  // that you used to set up your ResponseStates originally:
-  /*static thread_local VBCComputer2 vbc(*/
-  /**/
-  /*// find the indices of sos.frequencies in that computer’s list:*/
-  /*size_t bi = vbc.frequency_index(sos.frequencies.first);*/
-  /*size_t ci = vbc.frequency_index(sos.frequencies.second);*/
-  /*// and the BC-pair index from its perturbation characters:*/
-  /*size_t bc = vbc.BC_pair_index(sos.perturbations.first.direction,*/
-  /*                              sos.perturbations.second.direction);*/
-  /**/
-  /*// will load from disk if already there, otherwise compute & save:*/
-  /*return get_flat(vbc.compute_and_save(bc, bi, ci));*/
   return {};
 }
 
