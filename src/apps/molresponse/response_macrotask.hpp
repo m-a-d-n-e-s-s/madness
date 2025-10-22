@@ -737,14 +737,14 @@ public:
       k.set_bra_and_ket(bra, ket);
       std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
         k.set_algorithm(
-            Exchange<double, 3>::Algorithm::multiworld_efficient_row);
+            Exchange<double, 3>::ExchangeAlgorithm::multiworld_efficient_row);
       } else if (algorithm_ == "largemem") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::large_memory);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::large_memory);
       } else if (algorithm_ == "smallmem") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::small_memory);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::small_memory);
       }
 
       return k;
@@ -857,14 +857,14 @@ public:
 
       std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
         k.set_algorithm(
-            Exchange<double, 3>::Algorithm::multiworld_efficient_row);
+            Exchange<double, 3>::ExchangeAlgorithm::multiworld_efficient_row);
       } else if (algorithm_ == "largemem") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::large_memory);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::large_memory);
       } else if (algorithm_ == "smallmem") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::small_memory);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::small_memory);
       }
 
       return k;
@@ -972,14 +972,14 @@ public:
       k.set_bra_and_ket(bra, ket);
       std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
         k.set_algorithm(
-            Exchange<double, 3>::Algorithm::multiworld_efficient_row);
+            Exchange<double, 3>::ExchangeAlgorithm::multiworld_efficient_row);
       } else if (algorithm_ == "largemem") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::large_memory);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::large_memory);
       } else if (algorithm_ == "smallmem") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::small_memory);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::small_memory);
       }
 
       return k;
@@ -1100,14 +1100,14 @@ public:
 
       std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
         k.set_algorithm(
-            Exchange<double, 3>::Algorithm::multiworld_efficient_row);
+            Exchange<double, 3>::ExchangeAlgorithm::multiworld_efficient_row);
       } else if (algorithm_ == "largemem") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::large_memory);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::large_memory);
       } else if (algorithm_ == "smallmem") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::small_memory);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::small_memory);
       }
 
       return k;
@@ -1277,14 +1277,14 @@ public:
 
       std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
         k.set_algorithm(
-            Exchange<double, 3>::Algorithm::multiworld_efficient_row);
+            Exchange<double, 3>::ExchangeAlgorithm::multiworld_efficient_row);
       } else if (algorithm_ == "largemem") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::large_memory);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::large_memory);
       } else if (algorithm_ == "smallmem") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::small_memory);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::small_memory);
       }
 
       return k;
@@ -1651,14 +1651,14 @@ public:
 
       std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
         k.set_algorithm(
-            Exchange<double, 3>::Algorithm::multiworld_efficient_row);
+            Exchange<double, 3>::ExchangeAlgorithm::multiworld_efficient_row);
       } else if (algorithm_ == "largemem") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::large_memory);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::large_memory);
       } else if (algorithm_ == "smallmem") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::small_memory);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::small_memory);
       }
 
       return k;
@@ -1785,14 +1785,14 @@ public:
 
       std::string algorithm_ = "multiworld_row";
       if (algorithm_ == "multiworld") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::multiworld_efficient);
       } else if (algorithm_ == "multiworld_row") {
         k.set_algorithm(
-            Exchange<double, 3>::Algorithm::multiworld_efficient_row);
+            Exchange<double, 3>::ExchangeAlgorithm::multiworld_efficient_row);
       } else if (algorithm_ == "largemem") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::large_memory);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::large_memory);
       } else if (algorithm_ == "smallmem") {
-        k.set_algorithm(Exchange<double, 3>::Algorithm::small_memory);
+        k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::small_memory);
       }
 
       return k;

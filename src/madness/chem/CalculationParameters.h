@@ -203,7 +203,7 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	std::string pcm_data() const {return get<std::string>("pcm_data");}
 	std::string ac_data() const {return get<std::string>("ac_data");}
 	std::string xc() const {return get<std::string>("xc");}
-        std::string hfexalg() const {return get<std::string>("hfexalg");}
+    std::string hfexalg() const {return get<std::string>("hfexalg");}
 
 	std::string aobasis() const {return get<std::string>("aobasis");}
 

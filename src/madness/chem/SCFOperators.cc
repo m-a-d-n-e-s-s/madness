@@ -729,7 +729,7 @@ Exchange<T,NDIM>& Exchange<T,NDIM>::set_symmetric(const bool flag) {
 }
 
 template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_algorithm(const Algorithm& alg) {
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_algorithm(const ExchangeAlgorithm& alg) {
     impl->set_algorithm(alg);
     return *this;
 }

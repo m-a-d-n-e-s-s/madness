@@ -387,6 +387,16 @@ struct MacroTaskInfo {
 		return os.str();
 	}
 
+	static StoragePolicy policy_to_string(const std::string policy) {
+		std::string policy_lc=commandlineparser::tolower(policy);
+		if (policy=="storefunction") return MacroTaskInfo::StoreFunction;
+		if (policy=="storepointer") return MacroTaskInfo::StorePointerToFunction;
+		if (policy=="storefunctionviapointer") return MacroTaskInfo::StoreFunctionViaPointer;
+		std::string msg="unknown policy: "+policy;
+		MADNESS_EXCEPTION(msg.c_str(),1);
+		return MacroTaskInfo::StorePointerToFunction;
+	}
+
 	nlohmann::json to_json() const {
 		nlohmann::json j;
 		j["storage_policy"]=to_string(storage_policy);

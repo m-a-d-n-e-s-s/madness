@@ -99,6 +99,17 @@ namespace madness
         return ss.str();
     }
 
+    template<typename T=long>
+    DistributionType from_string(std::string type) {
+        // to lower case
+        std::transform(type.begin(), type.end(), type.begin(), [](unsigned char c){ return std::tolower(c); });
+        if (type=="distributed") return Distributed;
+        if (type=="rankreplicated") return RankReplicated;
+        if (type=="nodereplicated") return NodeReplicated;
+        std::string msg="unknown distribution type:"+type;
+        MADNESS_EXCEPTION(msg.c_str(),1)
+        return Distributed;
+    }
 
 
 

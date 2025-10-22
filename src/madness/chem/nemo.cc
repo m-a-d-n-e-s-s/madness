@@ -575,7 +575,7 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
             Knemo = zero_functions_compressed<double, 3>(world, nemo.size());
             // construction must happen outside the if-block to avoid pointers to arguments going out of scope in the macrotaskq
             Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin).set_symmetric(true).set_taskq(taskq);
-	        K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient_row);
+	        K.set_algorithm(Exchange<double,3>::ExchangeAlgorithm::multiworld_efficient_row);
             if (calc->xc.hf_exchange_coefficient() > 0.0) Knemo = K(nemo);
 
             t.tag("initialize K operator");

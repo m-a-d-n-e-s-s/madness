@@ -114,23 +114,23 @@ private:
     implT impl;
 
 public:
-    enum Algorithm {
+    enum ExchangeAlgorithm {
         small_memory, large_memory, multiworld_efficient, multiworld_efficient_row, fetch_compute
     };
     // print out algorithm
-    friend std::ostream& operator<<(std::ostream& os, const Algorithm& alg) {
+    friend std::ostream& operator<<(std::ostream& os, const ExchangeAlgorithm& alg) {
         switch (alg) {
             case small_memory:
-                os << "small_memory";
+                os << "smallmem";
                 break;
             case large_memory:
-                os << "large_memory";
+                os << "largemem";
                 break;
             case multiworld_efficient:
-                os << "multiworld_efficient";
+                os << "multiworld";
                 break;
             case multiworld_efficient_row:
-                os << "multiworld_efficient_row";
+                os << "multiworld_row";
                 break;
             case fetch_compute:
                 os << "fetch_compute";
@@ -140,6 +140,28 @@ public:
         }
         return os;
     }
+
+    static std::string to_string(const ExchangeAlgorithm alg) {
+        std::stringstream ss;
+        ss << alg;
+        return ss.str();
+    }
+
+    static ExchangeAlgorithm string2algorithm(const std::string& alg_string) {
+        ExchangeAlgorithm alg;
+        std::string alg_lc=commandlineparser::tolower(alg_string);
+        if (alg_lc=="smallmem") alg=small_memory;
+        else if (alg_lc=="largemem") alg=large_memory;
+        else if (alg_lc=="multiworld") alg=multiworld_efficient;
+        else if (alg_lc=="multiworld_row") alg=multiworld_efficient_row;
+        else if (alg_lc=="fetch_compute") alg=fetch_compute;
+        else {
+            std::string msg="unknown Exchange algorithm: "+alg_string;
+            MADNESS_EXCEPTION(msg.c_str(),1);
+        }
+        return alg;
+    }
+
     MacroTaskInfo macro_task_info = MacroTaskInfo::preset("default");
 
     Exchange(World& world, const double lo, const double thresh=FunctionDefaults<NDIM>::get_thresh());
@@ -156,7 +178,7 @@ public:
 
     Exchange& set_symmetric(const bool flag);
 
-    Exchange& set_algorithm(const Algorithm& alg);
+    Exchange& set_algorithm(const ExchangeAlgorithm& alg);
 
     /// how the cloud will handle the data
     Exchange& set_macro_task_info(const MacroTaskInfo& info);

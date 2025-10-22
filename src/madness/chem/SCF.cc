@@ -1355,23 +1355,23 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         Exchange<double, 3> K(world, this, ispin);
 	if (param.hfexalg()=="multiworld") {
 	  //if (world.rank() == 0) print("selecting exchange multi world");
-	  K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient);
+	  K.set_algorithm(Exchange<double,3>::ExchangeAlgorithm::multiworld_efficient);
 	}
 	else if (param.hfexalg()=="multiworld_row") {
 	  //if (world.rank() == 0) print("selecting exchange multi world row");
-	  K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient_row);
+	  K.set_algorithm(Exchange<double,3>::ExchangeAlgorithm::multiworld_efficient_row);
 	}
 	else if (param.hfexalg()=="largemem") {
 	  //if (world.rank() == 0) print("selecting exchange large memory");
-	  K.set_algorithm(Exchange<double,3>::Algorithm::large_memory);
+	  K.set_algorithm(Exchange<double,3>::ExchangeAlgorithm::large_memory);
 	}
 	else if (param.hfexalg()=="fetch_compute") {
 	    //if (world.rank() == 0) print("selecting exchange small memory");
-	    K.set_algorithm(Exchange<double,3>::Algorithm::fetch_compute);
+	    K.set_algorithm(Exchange<double,3>::ExchangeAlgorithm::fetch_compute);
 	}
 	else if (param.hfexalg()=="smallmem") {
 	  //if (world.rank() == 0) print("selecting exchange small memory");
-	  K.set_algorithm(Exchange<double,3>::Algorithm::small_memory);
+	  K.set_algorithm(Exchange<double,3>::ExchangeAlgorithm::small_memory);
 	}
 	
         K.set_symmetric(true).set_printlevel(param.print_level());

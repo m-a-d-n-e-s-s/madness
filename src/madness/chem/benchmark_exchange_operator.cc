@@ -7,6 +7,59 @@
 #include <madness/world/test_utilities.h>
 #include <ParameterManager.hpp>
 
+class MemoryParameters : public QCCalculationParametersBase {
+public:
+    static constexpr char const* tag = "memory";
+
+    MemoryParameters(World& world, const commandlineparser& parser) : MemoryParameters() {
+        QCCalculationParametersBase::read_input_and_commandline_options(world, parser, "memory");
+        set_derived_values();
+    }
+
+    MemoryParameters(const MemoryParameters& mp) = default;
+
+    MemoryParameters() {
+        initialize<std::string>("memory_algorithm", "default",
+                                "preset for memory algorithm to use", {
+                                    "default", "node_replicated_target", "small_memory", "large_memory"
+                                });
+        initialize<std::string>("cloud_storage", "StoreFunction",
+                                "Store function or pointer to target function in exchange operator", {
+                                    "StoreFunction", "StoreFunctionPointer", "StoreFunctionViaPointer"
+                                });
+        initialize<std::string>("cloud_distribution", "RankReplicated", "distribution of cloud container",
+                                {"Distributed", "NodeReplicated", "RankReplicated"});
+        initialize<std::string>("target_distribution", "NodeReplicated", "distribution of target functions",
+                                {"Distributed", "NodeReplicated", "RankReplicated"});
+    }
+
+    std::string memory_algorithm() const { return get<std::string>("memory_algorithm"); }
+    MacroTaskInfo::StoragePolicy cloud_storage() const { return MacroTaskInfo::policy_to_string(get<std::string>("cloud_storage"));}
+    DistributionType cloud_distribution() const { return from_string(get<std::string>("cloud_distribution")); }
+    DistributionType target_distribution() const { return from_string(get<std::string>("target_distribution")); }
+
+    std::string get_tag() const override { return tag; }
+
+    void set_derived_values() {
+        if (memory_algorithm()=="default") {
+            set_derived_value("cloud_storage",std::string("StoreFunction"));
+            set_derived_value("cloud_distribution",std::string("NodeReplicated"));
+            set_derived_value("target_distribution",std::string("Distributed"));
+        } else if (memory_algorithm()=="node_replicated_target") {
+            set_derived_value("cloud_storage",std::string("StoreFunctionPointer"));
+            set_derived_value("cloud_distribution",std::string("RankReplicated"));
+            set_derived_value("target_distribution",std::string("NodeReplicated"));
+        } else if (memory_algorithm()=="small_memory") {
+            set_derived_value("cloud_storage",std::string("StoreFunctionViaPointer"));
+            set_derived_value("cloud_distribution",std::string("RankReplicated"));
+            set_derived_value("target_distribution",std::string("Distributed"));
+        } else if (memory_algorithm()=="large_memory") {
+            set_derived_value("cloud_storage",std::string("StoreFunction"));
+            set_derived_value("cloud_distribution",std::string("RankReplicated"));
+            set_derived_value("target_distribution",std::string("Distributed"));
+        }
+    }
+};
 
 using namespace madness;
 
@@ -20,36 +73,49 @@ int main(int argc, char** argv) {
         if (world.rank() == 0) print(info::print_revision_information());
 
         if (not parser.key_exists("geometry")) parser.set_keyval("geometry", "water2");
+        MemoryParameters memparam(world, parser);
 
-        Exchange<double,3>::Algorithm alg;
+        Params pm(world, parser);
+        pm.get<CalculationParameters>().set_derived_value<int>("maxiter", 1);
+        memparam.print("memory","end");
+
+        auto exchange_alg=Exchange<double,3>::string2algorithm(pm.get<CalculationParameters>().hfexalg());
         if (not parser.key_exists("algorithm")) {
             print("no algorithm specified, using multiworld_efficient_row");
             parser.set_keyval("algorithm", "multiworld_efficient_row");
-        } else {
-            if (parser.value("algorithm")=="small") alg=Exchange<double,3>::small_memory;
-            else if (parser.value("algorithm")=="large") alg=Exchange<double,3>::large_memory;
-            else if (parser.value("algorithm")=="multiworld_efficient") alg=Exchange<double,3>::multiworld_efficient;
-            else if (parser.value("algorithm")=="multiworld_efficient_row") alg=Exchange<double,3>::multiworld_efficient_row;
+        }
+        else {
+            if (parser.value("algorithm") == "small") exchange_alg = Exchange<double, 3>::small_memory;
+            else if (parser.value("algorithm") == "large") exchange_alg = Exchange<double, 3>::large_memory;
+            else if (parser.value("algorithm") == "multiworld_efficient") exchange_alg = Exchange<
+                double, 3>::multiworld_efficient;
+            else if (parser.value("algorithm") == "multiworld_efficient_row") exchange_alg = Exchange<
+                double, 3>::multiworld_efficient_row;
             else {
-                MADNESS_EXCEPTION("no valid algorithm specified, use small, large, multiworld_efficient, multiworld_efficient_row",1);
+                MADNESS_EXCEPTION(
+                    "no valid algorithm specified, use small, large, multiworld_efficient, multiworld_efficient_row",
+                    1);
             }
         }
-        MacroTaskInfo info=MacroTaskInfo::preset("default");
+        MacroTaskInfo info;
+        info.storage_policy=memparam.cloud_storage();
+        info.ptr_target_distribution_policy=memparam.target_distribution();
+        info.cloud_distribution_policy=memparam.cloud_distribution();
         if (not parser.key_exists("cloud_preset")) {
             print("no cloud_preset specified, using default");
             parser.set_keyval("cloud_preset", "default");
-        } else {
-            if (parser.value("cloud_preset")=="default") info=MacroTaskInfo::preset("default");
-            else if (parser.value("cloud_preset")=="small_memory") info=MacroTaskInfo::preset("small_memory");
-            else if (parser.value("cloud_preset")=="large_memory") info=MacroTaskInfo::preset("large_memory");
-            else if (parser.value("cloud_preset")=="node_replicated_target") info=MacroTaskInfo::preset("node_replicated_target");
+        }
+        else {
+            if (parser.value("cloud_preset") == "default") info = MacroTaskInfo::preset("default");
+            else if (parser.value("cloud_preset") == "small_memory") info = MacroTaskInfo::preset("small_memory");
+            else if (parser.value("cloud_preset") == "large_memory") info = MacroTaskInfo::preset("large_memory");
+            else if (parser.value("cloud_preset") == "node_replicated_target") info = MacroTaskInfo::preset(
+                "node_replicated_target");
             else {
-                MADNESS_EXCEPTION("no valid cloud preset specified, use default, small_memory, large_memory",1);
+                MADNESS_EXCEPTION("no valid cloud preset specified, use default, small_memory, large_memory", 1);
             }
         }
 
-        Params pm(world, parser);
-        pm.get<CalculationParameters>().set_derived_value<int>("maxiter",1);
 
         double cpu0 = cpu_time();
 
@@ -81,48 +147,48 @@ int main(int argc, char** argv) {
         double cpu1 = cpu_time();
         if (world.rank() == 0) printf("\ntimings for preparation   %8.2fs\n", cpu1 - cpu0);
 
-        auto amo=calc.amo;
-        print_size(world,amo,"amo");
+        auto amo = calc.amo;
+        print_size(world, amo, "amo");
 
         // compute reference number
         cpu0 = cpu1;
         K.set_algorithm(Exchange<double, 3>::large_memory);
         K.set_symmetric(true);
         K.set_printlevel(20);
-//        const vecfuncT reference = K(calc.amo);
-//        cpu1 = cpu_time();
-//        double norm = norm2(world, reference);
-//        if (world.rank() == 0)
-//            printf("timings exchange operator no multiworld largemem   %8.2fs, norm %.15e\n", cpu1 - cpu0, norm);
+        //        const vecfuncT reference = K(calc.amo);
+        //        cpu1 = cpu_time();
+        //        double norm = norm2(world, reference);
+        //        if (world.rank() == 0)
+        //            printf("timings exchange operator no multiworld largemem   %8.2fs, norm %.15e\n", cpu1 - cpu0, norm);
 
         // gather all results in a vector
         nlohmann::json all_results = nlohmann::json::array();
 
 
-//        for (auto alg : {
-//                 Exchange<double, 3>::multiworld_efficient_row,
-//                 Exchange<double, 3>::multiworld_efficient,
-//                 Exchange<double, 3>::large_memory,
-//                 Exchange<double, 3>::small_memory
-//             }) {
-//            for (auto info : MacroTaskInfo::get_all_presets()) {
+        //        for (auto exchange_alg : {
+        //                 Exchange<double, 3>::multiworld_efficient_row,
+        //                 Exchange<double, 3>::multiworld_efficient,
+        //                 Exchange<double, 3>::large_memory,
+        //                 Exchange<double, 3>::small_memory
+        //             }) {
+        //            for (auto info : MacroTaskInfo::get_all_presets()) {
         {
             {
                 K.set_macro_task_info(info);
-                if (world.rank()==0) {
+                if (world.rank() == 0) {
                     print("MacroTaskInfo:");
                     print(info);
-                    print("Algorithm:", alg);
+                    print("Algorithm:", exchange_alg);
                 }
 
 
                 cpu0 = cpu_time();
-                K.set_algorithm(alg);
+                K.set_algorithm(exchange_alg);
                 tmp = K(calc.amo);
                 cpu1 = cpu_time();
-                nlohmann::json result=K.statistics;
+                nlohmann::json result = K.statistics;
                 result["time"] = cpu1 - cpu0;
-                double err=0.0;
+                double err = 0.0;
                 // err= norm2(world, reference - tmp);
                 result["error"] = err;
                 all_results.push_back(result);
@@ -135,9 +201,9 @@ int main(int argc, char** argv) {
         }
 
         // print out all_results into a file
-        if (world.rank()==0) {
-            std::string prefix=pm.get<CalculationParameters>().prefix();
-            std::ofstream file(prefix+".benchmark_exchange_operator_results.json");
+        if (world.rank() == 0) {
+            std::string prefix = pm.get<CalculationParameters>().prefix();
+            std::ofstream file(prefix + ".benchmark_exchange_operator_results.json");
             file << std::setw(4) << all_results << std::endl;
             file.close();
         }

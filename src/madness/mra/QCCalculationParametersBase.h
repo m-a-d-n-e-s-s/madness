@@ -327,7 +327,7 @@ namespace madness {
         typedef std::map<std::string, QCParameter> ParameterContainerT;
         ParameterContainerT parameters;
 
-        virtual void read_input_and_commandline_options(World& world,
+        void read_input_and_commandline_options(World& world,
                                                         const commandlineparser& parser,
                                                         const std::string tag) {
             try {

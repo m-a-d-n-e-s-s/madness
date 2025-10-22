@@ -57,7 +57,7 @@ public:
     }
 
 
-    typedef Exchange<T,NDIM>::Algorithm Algorithm;
+    typedef Exchange<T,NDIM>::ExchangeAlgorithm Algorithm;
     Algorithm algorithm_ = multiworld_efficient_row;
     MacroTaskInfo macro_task_info = MacroTaskInfo::preset("default");
 
@@ -133,7 +133,7 @@ public:
         j["thresh"] = thresh;
         j["mul_tol"] = mul_tol;
         j["printlevel"] = printlevel;
-        j["algorithm"] = algorithm_;
+        j["algorithm"] = to_string(algorithm_);
         j["macro_task_info"] = macro_task_info.to_json();
         auto timings = gather_timings(world);
         j.update(timings);
