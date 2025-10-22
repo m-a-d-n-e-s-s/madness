@@ -99,6 +99,29 @@ namespace madness
         return ss.str();
     }
 
+    /// Convert string to DistributionType with case/separator normalization
+    inline DistributionType distribution_type_from_string(std::string s) {
+        // Normalize: lowercase and replace spaces/dashes with underscores
+        std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::tolower(c); });
+        std::replace(s.begin(), s.end(), ' ', '_');
+        std::replace(s.begin(), s.end(), '-', '_');
+
+        if (s == "distributed") return Distributed;
+        if (s == "rank_replicated" || s == "rankreplicated" || s == "rank") return RankReplicated;
+        if (s == "node_replicated" || s == "nodereplicated" || s == "node" || 
+            s == "host_replicated" || s == "hostreplicated" || s == "host") return NodeReplicated;
+
+        throw std::invalid_argument("Unknown DistributionType: " + s);
+    }
+
+    /// Wrapper for implicit conversion from string to DistributionType
+    struct DistributionTypeFromString {
+        DistributionType value;
+        DistributionTypeFromString(const std::string& s) : value(distribution_type_from_string(s)) {}
+        DistributionTypeFromString(const char* s) : value(distribution_type_from_string(std::string(s))) {}
+        operator DistributionType() const noexcept { return value; }
+    };
+
 
 
 
@@ -627,8 +650,8 @@ namespace madness
             pmap->register_callback(this);
         }
 
-        /// replicates this WorldContainer on all ProcessIDs and generates a
-        /// ProcessMap where all nodes are local
+        /// replicates this WorldContainer on all ranks (ProcessIDs) and generates a
+        /// ProcessMap where all ranks are local
         void replicate(bool fence) {
             World &world = this->get_world();
             pmap->deregister_callback(this);
@@ -639,8 +662,8 @@ namespace madness
             if (fence) world.gop.fence();
         }
 
-        /// replicates this WorldContainer on all hosts and generates a
-        /// ProcessMap where all nodes are host-local (not rank-local)
+        /// replicates this WorldContainer on all nodes (hosts) and generates a
+        /// ProcessMap where all nodes are node-local (not rank-local)
         /// will always fence
         void replicate_on_hosts(bool fence) {
             MADNESS_CHECK(fence);
@@ -1213,12 +1236,24 @@ namespace madness
             return get_distribution_type()==Distributed;
         }
 
-        bool is_replicated() const {
+        // Canonical naming with "rank_replication" and "node_replication"
+        bool rank_replication() const {
             return get_distribution_type()==RankReplicated;
         }
 
-        bool is_host_replicated() const {
+        bool node_replication() const {
             return get_distribution_type()==NodeReplicated;
+        }
+
+        // Deprecated aliases for backward compatibility
+        [[deprecated("Use rank_replication() instead")]]
+        bool is_replicated() const {
+            return rank_replication();
+        }
+
+        [[deprecated("Use node_replication() instead")]]
+        bool is_host_replicated() const {
+            return node_replication();
         }
 
         /// Returns the world associated with this container
@@ -1234,16 +1269,30 @@ namespace madness
             return p;
         }
 
-        /// replicates this WorldContainer on all ProcessIDs
-        void replicate(bool fence = true)
+        // Canonical naming: replicate_on_ranks and replicate_on_nodes
+        /// replicates this WorldContainer on all ProcessIDs (ranks)
+        void replicate_on_ranks(bool fence = true)
         {
             p->replicate(fence);
         }
 
-        /// replicates this WorldContainer on all hosts (one PID per host)
-        void replicate_on_hosts(bool fence = true)
+        /// replicates this WorldContainer on all nodes (one PID per node/host)
+        void replicate_on_nodes(bool fence = true)
         {
             p->replicate_on_hosts(fence);
+        }
+
+        // Deprecated aliases for backward compatibility
+        [[deprecated("Use replicate_on_ranks() instead")]]
+        void replicate(bool fence = true)
+        {
+            replicate_on_ranks(fence);
+        }
+
+        [[deprecated("Use replicate_on_nodes() instead")]]
+        void replicate_on_hosts(bool fence = true)
+        {
+            replicate_on_nodes(fence);
         }
 
         /// Inserts/replaces key+value pair (non-blocking communication if key not local)
