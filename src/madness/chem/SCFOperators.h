@@ -117,6 +117,7 @@ public:
     enum Algorithm {
         small_memory, large_memory, multiworld_efficient, multiworld_efficient_row, fetch_compute
     };
+    
     // print out algorithm
     friend std::ostream& operator<<(std::ostream& os, const Algorithm& alg) {
         switch (alg) {
@@ -140,6 +141,31 @@ public:
         }
         return os;
     }
+    
+    /// Distinct converter to avoid name collisions with other enums' from_string
+    static Algorithm from_string_algorithm(std::string s) {
+        // Normalize: lowercase and replace spaces/dashes with underscores
+        std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c){ return std::tolower(c); });
+        std::replace(s.begin(), s.end(), ' ', '_');
+        std::replace(s.begin(), s.end(), '-', '_');
+
+        if (s == "small_memory" || s == "smallmemory" || s == "small") return small_memory;
+        if (s == "large_memory" || s == "largememory" || s == "large") return large_memory;
+        
+        if (s == "multiworld_efficient_row" || s == "multiworld_efficientrow") return multiworld_efficient_row;
+        if (s == "multiworld_efficient" || s == "multiworldefficient" || s == "multiworld") return multiworld_efficient;
+        
+        if (s == "fetch_compute" || s == "fetchcompute" || s == "fetch") return fetch_compute;
+
+        throw std::invalid_argument("Unknown Exchange::Algorithm: " + s);
+    }
+
+    /// Deprecated compatibility wrapper: forwards to the explicit converter
+    [[deprecated("Use Exchange::from_string_algorithm to avoid collisions with other enums")]]
+    static Algorithm from_string(std::string s) {
+        return from_string_algorithm(std::move(s));
+    }
+    
     MacroTaskInfo macro_task_info = MacroTaskInfo::preset("default");
 
     Exchange(World& world, const double lo, const double thresh=FunctionDefaults<NDIM>::get_thresh());
@@ -205,6 +231,26 @@ public:
 
 
 };
+
+// Free function converter for Exchange::Algorithm
+template<typename T, std::size_t NDIM>
+inline typename Exchange<T,NDIM>::Algorithm algorithm_from_string(std::string s) {
+    return Exchange<T,NDIM>::from_string_algorithm(std::move(s));
+}
+
+// Wrapper for implicit conversion from string to Exchange::Algorithm
+template<typename T, std::size_t NDIM>
+struct AlgorithmFromString {
+    typename Exchange<T,NDIM>::Algorithm value;
+    AlgorithmFromString(const std::string& s) : value(algorithm_from_string<T,NDIM>(s)) {}
+    AlgorithmFromString(const char* s) : value(algorithm_from_string<T,NDIM>(std::string(s))) {}
+    operator typename Exchange<T,NDIM>::Algorithm() const noexcept { return value; }
+};
+
+// User-defined literal for Exchange::Algorithm (example for double,3D)
+inline Exchange<double,3>::Algorithm operator"" _alg(const char* s, std::size_t) {
+    return algorithm_from_string<double,3>(std::string(s));
+}
 
 
 template<typename T, std::size_t NDIM>

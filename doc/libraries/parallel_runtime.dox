@@ -205,4 +205,18 @@ and other resources necessary to build new distributed capabilities.
 The distributed container class (madness::WorldContainer) actually inherits
 most of its functionality from madness::WorldObject.
 
+\par Replication API Updates
+
+The WorldContainer replication APIs have been updated to use consistent "node" and "rank" 
+terminology. The new canonical method names are:
+- \c rank_replication() - Check if container is replicated across all ranks
+- \c node_replication() - Check if container is replicated across all nodes/hosts
+- \c replicate_on_ranks() - Replicate container to all ranks
+- \c replicate_on_nodes() - Replicate container to all nodes/hosts
+
+The old method names (\c is_replicated(), \c is_host_replicated(), \c replicate(), 
+\c replicate_on_hosts()) are deprecated but still supported for backward compatibility.
+
+For a complete migration guide, see doc/REPLICATION_API_MIGRATION.md.
+
  */
