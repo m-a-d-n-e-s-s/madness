@@ -314,7 +314,7 @@ struct MacroTaskInfo {
 		MacroTaskInfo info;
 		if (name=="default") {
 			info.storage_policy=MacroTaskInfo::StoreFunction;
-			info.cloud_distribution_policy=DistributionType::NodeReplicated;
+			info.cloud_distribution_policy=DistributionType::RankReplicated;
 			info.ptr_target_distribution_policy=DistributionType::Distributed;
 		} else if (name=="node_replicated_target") {
 			info.storage_policy=MacroTaskInfo::StoreFunctionViaPointer;

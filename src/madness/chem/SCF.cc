@@ -1351,30 +1351,12 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
     print_meminfo(world.rank(), "V*psi");
     if (xc.hf_exchange_coefficient()) {
         START_TIMER(world);
-        //            vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
         Exchange<double, 3> K(world, this, ispin);
-	if (param.hfexalg()=="multiworld") {
-	  //if (world.rank() == 0) print("selecting exchange multi world");
-	  K.set_algorithm(Exchange<double,3>::ExchangeAlgorithm::multiworld_efficient);
-	}
-	else if (param.hfexalg()=="multiworld_row") {
-	  //if (world.rank() == 0) print("selecting exchange multi world row");
-	  K.set_algorithm(Exchange<double,3>::ExchangeAlgorithm::multiworld_efficient_row);
-	}
-	else if (param.hfexalg()=="largemem") {
-	  //if (world.rank() == 0) print("selecting exchange large memory");
-	  K.set_algorithm(Exchange<double,3>::ExchangeAlgorithm::large_memory);
-	}
-	else if (param.hfexalg()=="fetch_compute") {
-	    //if (world.rank() == 0) print("selecting exchange small memory");
-	    K.set_algorithm(Exchange<double,3>::ExchangeAlgorithm::fetch_compute);
-	}
-	else if (param.hfexalg()=="smallmem") {
-	  //if (world.rank() == 0) print("selecting exchange small memory");
-	  K.set_algorithm(Exchange<double,3>::ExchangeAlgorithm::small_memory);
-	}
-	
+
+        K.set_algorithm(Exchange<double,3>::string2algorithm(param.hfexalg()));
         K.set_symmetric(true).set_printlevel(param.print_level());
+        K.set_macro_task_info(MacroTaskInfo::preset("default"));
+
         vecfuncT Kamo = K(amo);
         tensorT excv = inner(world, Kamo, amo);
         double exchf = 0.0;
