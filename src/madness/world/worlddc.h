@@ -42,11 +42,14 @@
 
 #include <functional>
 #include <set>
+#include <unordered_set>
+
 
 #include <madness/world/parallel_archive.h>
 #include <madness/world/worldhashmap.h>
 #include <madness/world/mpi_archive.h>
 #include <madness/world/world_object.h>
+#include <madness/world/ranks_and_hosts.h>
 
 namespace madness
 {
@@ -74,14 +77,52 @@ namespace madness
         virtual ~WorldDCRedistributeInterface() {};
     };
 
+    /// some introspection of how data is distributed
+    enum DistributionType {
+        Distributed,            ///< no replication of the container, the container is distributed over the world
+        RankReplicated,         ///< replicate the container over all world ranks
+        NodeReplicated          ///< replicate the container over all hosts (compute nodes), once per node,
+    ///< even if there are several ranks per node
+    };
+
+    template<typename T=long>
+    std::ostream& operator<<(std::ostream& os, const DistributionType type) {
+        if (type==DistributionType::Distributed) os << "Distributed";
+        if (type==DistributionType::RankReplicated) os << "RankReplicated";
+        if (type==DistributionType::NodeReplicated) os << "NodeReplicated";
+        return os;
+    }
+
+    template<typename T=long>
+    std::string to_string(const DistributionType type) {
+        std::stringstream ss; ss << type;
+        return ss.str();
+    }
+
+    template<typename T=long>
+    DistributionType from_string(std::string type) {
+        // to lower case
+        std::transform(type.begin(), type.end(), type.begin(), [](unsigned char c){ return std::tolower(c); });
+        if (type=="distributed") return Distributed;
+        if (type=="rankreplicated") return RankReplicated;
+        if (type=="nodereplicated") return NodeReplicated;
+        std::string msg="unknown distribution type:"+type;
+        MADNESS_EXCEPTION(msg.c_str(),1)
+        return Distributed;
+    }
+
+
+
     /// Interface to be provided by any process map
 
+    /// NOTE: if the map is not distributed, but replicated, you must override the distribution_type() method.
     /// \ingroup worlddc
     template <typename keyT>
     class WorldDCPmapInterface
     {
     public:
         typedef WorldDCRedistributeInterface<keyT> *ptrT;
+
 
     private:
         std::set<ptrT> ptrs;
@@ -96,6 +137,12 @@ namespace madness
         virtual ~WorldDCPmapInterface() {}
 
         virtual void print() const {}
+
+        /// by default the map is distributed
+        virtual DistributionType distribution_type() const
+        {
+            return Distributed;
+        }
 
         /// Registers object for receipt of redistribute callbacks
 
@@ -230,11 +277,106 @@ namespace madness
 
     public:
         WorldDCLocalPmap(World &world) : me(world.rank()) {}
-        ProcessID owner(const keyT &key) const
+        ProcessID owner(const keyT &key) const override
         {
             return me;
         }
+
+        DistributionType distribution_type() const override
+        {
+            return RankReplicated;
+        }
     };
+
+    /// node-replicated map will return the lowest rank on the node as owner
+    ///
+    /// \ingroup worlddc
+    template <typename keyT, typename hashfunT = Hash<keyT>>
+    class WorldDCNodeReplicatedPmap : public WorldDCPmapInterface<keyT> {
+        ProcessID myowner;
+
+    public:
+        /// ctor makes a map of all ranks to their owners (lowest rank on the host)
+        /// calls a fence
+        /// @param[in] world the associated world
+        explicit WorldDCNodeReplicatedPmap(World& world, const std::map<std::string,std::vector<long>> ranks_per_host) {
+            myowner=lowest_rank_on_host_of_rank(ranks_per_host,world.rank());
+        }
+
+        /// owner is the lowest rank on the node, same for all keys
+        ProcessID owner(const keyT &key) const override {
+            return myowner;
+        }
+
+        DistributionType distribution_type() const override
+        {
+            return NodeReplicated;
+        }
+    };
+
+    /// check distribution type of WorldContainer -- global communication
+    template <typename dcT>
+    DistributionType validate_distribution_type(const dcT& dc)
+    {
+        // assume pmap distribution type is the correct result
+        World& world=dc.get_world();
+        auto result= dc.get_pmap()->distribution_type();
+
+        auto local_size=dc.size();
+        auto global_size=local_size;
+        world.gop.sum(global_size);
+
+        auto number_of_duplicates = [](const std::vector<hashT>& v) {
+            std::unordered_map<hashT, size_t> counts;
+            size_t duplicates = 0;
+            for (const auto& elem : v) {
+                if (++counts[elem] > 1) duplicates++;
+            }
+            return duplicates;
+        };
+
+        // collect all hash vales and determine the number of duplicates
+        std::vector<hashT> all_hashes(local_size);
+        const auto& hashfun=dc.get_hash();
+        int i=0;
+        for (auto it=dc.begin();it!=dc.end();++it,++i) all_hashes[i]=hashfun(it->first);
+        all_hashes=world.gop.concat0(all_hashes);
+        std::size_t ndup=number_of_duplicates(all_hashes);
+        world.gop.broadcast(ndup,0);
+        // print("rank, local, global, duplicates", world.rank(),local_size,global_size,ndup);
+
+        // consistency checks
+        if (result==Distributed) {
+            // all keys should exist only on one process
+            MADNESS_CHECK_THROW(ndup==0,"WorldDC inconsistent -- distributed has duplicates");
+        }
+        else if (result==RankReplicated) {
+            // all keys should exist on all processes
+            std::size_t nrank=world.size();
+            MADNESS_CHECK_THROW(global_size==nrank*local_size,"WorldDC inconsistent");
+            MADNESS_CHECK_THROW(ndup==local_size*(nrank-1),"WorldDC inconsistent - duplicates");
+        }
+        else if (result==NodeReplicated) {
+            // all keys should exist on all nodes, not on all ranks
+            auto ranks_per_host1=ranks_per_host(world);
+            std::vector<int> primary_ranks=primary_ranks_per_host(world,ranks_per_host1);
+            world.gop.broadcast_serializable(primary_ranks,0);
+            world.gop.fence();
+            print("primary_rank_per_host",primary_ranks);
+
+            std::size_t nnodes=primary_ranks.size();
+            bool is_primary=(std::find(primary_ranks.begin(),primary_ranks.end(),world.rank())!=primary_ranks.end());
+
+            if (is_primary) {
+                MADNESS_CHECK_THROW(global_size==(nnodes*local_size),"WorldDC inconsistent - global size");
+                MADNESS_CHECK_THROW(ndup==local_size*(nnodes-1),"WorldDC inconsistent - duplicates");
+            } else {
+                MADNESS_CHECK_THROW(local_size==0,"WorldDC inconsistent -- secondary");
+            }
+        }
+        return result;
+    }
+
 
     /// Iterator for distributed container wraps the local iterator
 
@@ -498,14 +640,135 @@ namespace madness
 
         /// replicates this WorldContainer on all ProcessIDs and generates a
         /// ProcessMap where all nodes are local
-        void replicate(bool fence)
-        {
-
+        void replicate(bool fence) {
             World &world = this->get_world();
             pmap->deregister_callback(this);
             pmap.reset(new WorldDCLocalPmap<keyT>(world));
             pmap->register_callback(this);
 
+            do_replicate(world);
+            if (fence) world.gop.fence();
+        }
+
+        /// replicates this WorldContainer on all hosts and generates a
+        /// ProcessMap where all nodes are host-local (not rank-local)
+        /// will always fence
+        void replicate_on_hosts(bool fence) {
+            MADNESS_CHECK(fence);
+
+            /// print in rank-order
+//            auto oprint = [&](World& world, auto &&... args) {
+//                world.gop.fence();
+//                for (int r=0; r<world.size(); ++r) {
+//                    if (r==world.rank()) {
+//                        std::cout << "rank " << world.rank() << ": ";
+//                        print(std::forward<decltype(args)>(args)...);
+//                    }
+//                    world.gop.fence();
+//                }
+//            };
+
+            World &world = this->get_world();
+
+            // find primary ranks per host (lowest rank on each host)
+            auto ranks_per_host1=ranks_per_host(world);
+            std::vector<int> primary_ranks=primary_ranks_per_host(world,ranks_per_host1);
+            world.gop.broadcast_serializable(primary_ranks,0);
+            world.gop.fence();
+
+//            auto sizes =[&](std::string msg) {
+//                world.gop.fence();
+//                auto local_size=size();
+//                auto global_size=local_size;
+//                world.gop.sum(global_size);
+//                oprint(world,"rank, local, global",msg, world.rank(),local_size,global_size);
+//                world.gop.fence();
+//            };
+
+            // change pmap to replicated
+            pmap->deregister_callback(this);
+            pmap.reset(new WorldDCLocalPmap<keyT>(world));
+            pmap->register_callback(this);
+
+            // shortcut: replace pmap and return
+            if (world.size()==1) {
+                // change pmap to node replicated
+                pmap->deregister_callback(this);
+                pmap.reset(new WorldDCNodeReplicatedPmap<keyT>(world,ranks_per_host1));
+                pmap->register_callback(this);
+                return;
+            }
+            world.gop.fence();
+
+            // get a list of all other ranks that are not primary
+            std::vector<int> secondary_ranks;
+            for (int r=0; r<world.size(); ++r) {
+                if (std::find(primary_ranks.begin(),primary_ranks.end(),r)==primary_ranks.end())
+                    secondary_ranks.push_back(r);
+            }
+
+            // phase 1: for all ranks send data to the lowest rank on host
+
+            // step 1-2: send data to lowest rank on host (which will become the owner)
+            long myowner = lowest_rank_on_host_of_rank(ranks_per_host1, world.rank());
+            // oprint(world,"my owner, size:", myowner,size());
+            if (world.rank() != myowner) {
+                // send data to myowner
+                for (auto it = begin(); it != end(); ++it) {
+                    keyT key = it->first;
+                    valueT value = it->second;
+                    this->send(myowner,&implT::insert,pairT(key,value));
+                    // insert(pairT(key,value));        // this won't work with LocalPmap
+                }
+                // remove all local data after sending
+                // clear();
+            }
+            // need a fence here to make sure send is finished
+            world.gop.fence();
+            // sizes("after step 1, before clear");
+            // world.gop.fence();
+            if (world.rank()!=myowner) clear();
+            world.gop.fence();
+            // sizes("after step 1");
+
+            // change pmap to replicated
+            pmap->deregister_callback(this);
+            pmap.reset(new WorldDCNodeReplicatedPmap<keyT>(world,ranks_per_host1));
+            pmap->register_callback(this);
+
+            // check if this rank is in the primary list
+            bool i_am_in_primary_list=world.rank()==myowner;
+            if (i_am_in_primary_list) {
+
+                // step 2-1: create a world with only the primary ranks and replicate there (see test_world.cc)
+
+                SafeMPI::Group primary_group = world.mpi.comm().Get_group().Incl(primary_ranks.size(), &primary_ranks[0]);
+                SafeMPI::Intracomm comm_primary = world.mpi.comm().Create(primary_group);
+                // step 2-2: replicate in the primary world
+                {
+                    World world_primary(comm_primary);
+                    // auto ranks_per_host1=ranks_per_host(world_primary);
+                    // if (world_primary.rank()==0) {
+                    //     print("host/rank map in primary world:");
+                    //     for (auto& p : ranks_per_host1) print(p.first, p.second);
+                    // }
+
+                    world_primary.gop.fence();              // this fence seems necessary, why??
+                    do_replicate(world_primary);
+                    world_primary.gop.fence();
+                }
+            } else {
+                // need this to avoid deadlock in MPI_Comm_create (why??)
+                SafeMPI::Group secondary_group = world.mpi.comm().Get_group().Incl(secondary_ranks.size(), &secondary_ranks[0]);
+                SafeMPI::Intracomm comm_secondary = world.mpi.comm().Create(secondary_group);
+            }
+
+            // phase 3: done
+            if (fence) world.gop.fence();
+            // validate_distribution_type(*this);
+        }
+
+        void do_replicate(World& world) {
             for (ProcessID rank = 0; rank < world.size(); rank++)
             {
                 if (rank == world.rank())
@@ -535,11 +798,9 @@ namespace madness
                     }
                 }
             }
-            if (fence)
-                world.gop.fence();
         }
 
-        hashfunT &get_hash() const { return local.get_hash(); }
+        const hashfunT &get_hash() const { return local.get_hash(); }
 
         bool is_local(const keyT &key) const
         {
@@ -865,6 +1126,8 @@ namespace madness
     class WorldContainer : public archive::ParallelSerializableObject
     {
     public:
+        // access keyT and valueT types for serialization
+        typedef keyT key_type;
         typedef WorldContainer<keyT, valueT, hashfunT> containerT;
         typedef WorldContainerImpl<keyT, valueT, hashfunT> implT;
         typedef typename implT::pairT pairT;
@@ -951,6 +1214,24 @@ namespace madness
             return *this;
         }
 
+        /// return the way data is distributed
+        DistributionType get_distribution_type() const {
+            if (!p) MADNESS_EXCEPTION("Uninitialized container", false);
+            return p->get_pmap()->distribution_type();
+        }
+
+        bool is_distributed() const {
+            return get_distribution_type()==Distributed;
+        }
+
+        bool is_replicated() const {
+            return get_distribution_type()==RankReplicated;
+        }
+
+        bool is_host_replicated() const {
+            return get_distribution_type()==NodeReplicated;
+        }
+
         /// Returns the world associated with this container
         World &get_world() const
         {
@@ -968,6 +1249,12 @@ namespace madness
         void replicate(bool fence = true)
         {
             p->replicate(fence);
+        }
+
+        /// replicates this WorldContainer on all hosts (one PID per host)
+        void replicate_on_hosts(bool fence = true)
+        {
+            p->replicate_on_hosts(fence);
         }
 
         /// Inserts/replaces key+value pair (non-blocking communication if key not local)
@@ -1152,7 +1439,7 @@ namespace madness
         }
 
         /// Returns a reference to the hashing functor
-        hashfunT &get_hash() const
+        const hashfunT &get_hash() const
         {
             check_initialized();
             return p->get_hash();
@@ -1766,6 +2053,7 @@ namespace madness
     {
         std::swap(dc0.p, dc1.p);
     }
+
 
     namespace archive
     {

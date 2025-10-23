@@ -181,45 +181,7 @@ class Cloud {
     bool is_replicated=false;   ///< if contents of the container are replicated
     bool dofence = true;      ///< fences after load/store
     bool force_load_from_cache = false;       ///< forces load from cache (mainly for debugging)
-
-public:
-    /// These policies determine how the data is stored in the cloud and how it is replicated
-    /// There are six possible combinations of storing and replication policies:
-    ///  StoreFunction + Distributed :           Functions are stored in the cloud, subworlds need to
-    ///                                          communicate with all universe ranks to access them
-    ///  StoreFunction + RankReplicated :        Functions are stored in the cloud, but subworlds can
-    ///                                          access them locally -- high memory impact
-    ///  StoreFunction + NodeReplicated :        Functions are stored in the cloud, but subworlds can
-    ///                                          access them through intra-node communication -- low memory impact
-    ///  StoreFunctionPointer + Distributed :    Pointers to functions are stored in the cloud,
-    ///                                          subworlds need to communicate with the universe to access function data
-    ///  StoreFunctionPointer + RankReplicated : Pointers to functions are stored in the cloud,
-    ///                                          subworlds need to communicate with the universe to access function data
-    ///  StoreFunctionPointer + NodeReplicated : Pointers to functions are stored in the cloud,
-    ///                                          subworlds need to communicate with the universe to access function data
-    /// of the last three policies only (StoreFunctionPointer + RankReplicated) is recommended, as the function
-    /// pointers do not have a memory impact.
-    /// on large-memory machines the policy (StoreFunctionPointer + RankReplicated) is recommended, as everything is local
-    /// after the initial replication step
-    enum StoragePolicy {
-        StoreFunction,          ///< store a madness function in the cloud  -- can have a large memory impact
-                                ///< equivalent to a deep copy
-        StoreFunctionPointer,   ///< store the pointer to the function in the cloud.
-                                ///< Return type still is a Function<T,NDIM> with a pointer to the universe function impl.
-                                ///< equivalent to a shallow copy
-        };
-    enum ReplicationPolicy {
-        Distributed,            ///< no replication of the container, the container is distributed over the universe
-                                ///< inter-node communication is required for subworlds to access the data
-        RankReplicated,         ///< replicate the container over all universe ranks, such that subworlds can access the data locally
-                                ///< will lead to increased memory footprint if there are many subworlds on a node
-        NodeReplicated,         ///< replicate the container over all compute nodes, once per node, even if there are several ranks
-                                ///< only intra-node communication is required to access the data
-        };
-
-private:
-    StoragePolicy storage_policy = StoreFunctionPointer; ///< current policy for loading/storing/replicating
-    ReplicationPolicy replication_policy = RankReplicated;
+    bool use_cache=true;
 
 public:
 
@@ -229,12 +191,44 @@ public:
     typedef std::map<keyT, cached_objT> cacheT;
     typedef Recordlist<keyT> recordlistT;
 
+    enum StoragePolicy {
+        StoreFunction,          ///< store a madness function in the cloud  -- can have a large memory impact
+                                ///< equivalent to a deep copy
+        StoreFunctionPointer,   ///< store the pointer to the function in the cloud.
+                                ///< Return type still is a Function<T,NDIM> with a pointer to the universe function impl.
+                                ///< equivalent to a shallow copy
+    };
+
+
+    friend std::ostream& operator<<(std::ostream& os, const StoragePolicy& sp) {
+        switch(sp) {
+            case StoreFunction: os << "Function"; break;
+            case StoreFunctionPointer: os << "FunctionPointer"; break;
+            default: os << "UnknownStoragePolicy"; break;
+        }
+        return os;
+    }
+
+    friend std::string to_string(const StoragePolicy sp) {
+        std::ostringstream os;
+        os << sp;
+        return os.str();
+    }
+
 private:
+    /// are the functions (WorldObjects) stored in the cloud or only pointers to them
+    StoragePolicy storage_policy = StoreFunctionPointer;
+
+    /// cloud is a container: replication policy for the cloud container: distributed, node-replicated, rank-replicated
+    DistributionType cloud_replication_policy = Distributed;
+
     mutable madness::WorldContainer<keyT, valueT> container;
     cacheT cached_objects;
     recordlistT local_list_of_container_keys;   // a world-local list of keys occupied in container
 
 public:
+    std::list<WorldObjectBase*> world_object_base_list; // list of world objects stored in the cloud
+
     template <typename T>
     using member_cloud_serialize_t = decltype(std::declval<T>().cloud_store(std::declval<World&>(), std::declval<Cloud&>()));
 
@@ -244,8 +238,18 @@ public:
 public:
 
     /// @param[in]	universe	the universe world
-    Cloud(madness::World &universe) : container(universe), reading_time(0l), writing_time(0l),
+    Cloud(madness::World &universe) : container(universe), reading_time(0l), copy_time(0l), writing_time(0l),
         cache_reads(0l), cache_stores(0l) {
+    }
+
+    ~Cloud() {
+        if ((not cached_objects.empty()) or (not local_list_of_container_keys.list.empty())) {
+            print("\nCloud::~Cloud(): cached_objects not empty, size=", cached_objects.size());
+            print("You need to call clear_cache(subworld) before destroying the cloud");
+            print("\n------------------------------\n");
+            std::string msg="deferred destruction of cloud with non-empty cache";
+            std::cerr << msg << std::endl;
+        }
     }
 
     void set_debug(bool value) {
@@ -260,42 +264,47 @@ public:
         force_load_from_cache = value;
     }
 
-    void set_replication_policy(const ReplicationPolicy value) {
-        replication_policy = value;
+    /// is the cloud container replicated: per rank, per node, or distributed
+    void set_replication_policy(const DistributionType value) {
+        cloud_replication_policy = value;
+        use_cache=false;
+        if (value == RankReplicated) use_cache=true;
     }
 
-    ReplicationPolicy get_replication_policy() const {
-        return replication_policy;
+    /// is the cloud container replicated: per rank, per node, or distributed
+    DistributionType get_replication_policy() const {
+        return cloud_replication_policy;
     }
 
+    bool validate_replication_policy() const {
+        auto disttype=validate_distribution_type(container);
+        if (disttype!=cloud_replication_policy) {
+            std::cout << "Cloud::validate_distribution(): distribution type mismatch, container is " << disttype
+                      << " but cloud_replication_policy is " << cloud_replication_policy << std::endl;
+            return false;
+        }
+        return true;
+    }
+
+
+    /// storing policy refers to storing functions or pointers to functions
     void set_storing_policy(const StoragePolicy value) {
         storage_policy = value;
     }
 
+    /// storing policy refers to storing functions or pointers to functions
     StoragePolicy get_storing_policy() const {
         return storage_policy;
     }
 
-    std::tuple<size_t,double> print_size(World& universe) {
-
-        std::size_t memsize=0;
-        std::size_t max_record_size=0;
-        for (auto& item : container) {
-            memsize+=item.second.size();
-            max_record_size=std::max(max_record_size,item.second.size());
-        }
-        std::size_t global_memsize=memsize;
-        std::size_t max_memsize=memsize;
-        std::size_t min_memsize=memsize;
-        universe.gop.sum(global_memsize);
-        universe.gop.max(max_memsize);
-        universe.gop.max(max_record_size);
-        universe.gop.min(min_memsize);
-
-        auto local_size=container.size();
-        auto global_size=local_size;
-        universe.gop.sum(global_size);
+    void print_size(World& universe) {
+        nlohmann::json stats=gather_memory_statistics(universe);
         double byte2gbyte=1.0/(1024*1024*1024);
+        double global_memsize=stats["memory_global"].template get<double>();
+        double max_record_size=stats["max_record_size"].template get<double>();
+        double min_memsize=stats["memory_min"].template get<double>();
+        double max_memsize=stats["memory_max"].template get<double>();
+        double global_size=stats["container_size_global"].template get<double>();
 
         if (universe.rank()==0) {
             print("Cloud memory:");
@@ -311,38 +320,145 @@ public:
             print("  max record size in GBytes:",max_record_size*byte2gbyte);
 
         }
-        return std::tie(global_size,global_memsize);
     }
 
-    void print_timings(World &universe) const {
-        double rtime_max = double(reading_time);
-        double rtime_acc = double(reading_time);
-        double rtime_av = double(reading_time);
-        double wtime = double(writing_time);
-        double ptime = double(replication_time);
+    /// return a json object with the cloud settings and statistics
+    nlohmann::json get_statistics(World& world) const {
+        nlohmann::json j;
+        {   // settings
+            j["storage_policy"]=to_string(storage_policy);
+            j["cloud_replication_policy"]=to_string(cloud_replication_policy);
+            j["is_replicated"]=is_replicated;
+            j["local_cached_objects_size"]=cached_objects.size();
+        }
+        // timings
+        j.update(gather_timings(world));
+        j.update(gather_memory_statistics(world));
+        return j;
+
+    }
+
+    /// get size of the cloud container
+    nlohmann::json gather_memory_statistics(World &universe) const {
+
+        std::size_t memsize=0;
+        std::size_t max_record_size=0;
+        for (auto& item : container) {
+            memsize+=item.second.size();
+            max_record_size=std::max(max_record_size,item.second.size());
+        }
+        std::size_t global_memsize=memsize;
+        std::size_t max_memsize=memsize;
+        std::size_t min_memsize=memsize;
+        double rss=madness::get_rss_usage_in_GB();
+        universe.gop.sum(global_memsize);
+        universe.gop.max(max_memsize);
+        universe.gop.max(max_record_size);
+        universe.gop.min(min_memsize);
+        universe.gop.max(rss);
+
+        auto local_size=container.size();
+        auto global_size=local_size;
+        universe.gop.sum(global_size);
+        nlohmann::json j;
+        j["container_size_global"] = global_size;
+        j["memory_global"] = global_memsize;
+        j["memory_min"] = min_memsize;
+        j["memory_max"] = max_memsize;
+        j["memory_rss_GB_max"] = rss;
+        j["max_record_size"] = max_record_size;
+        return j;
+    }
+
+    nlohmann::json gather_timings(World &universe) const {
+        double rtime_max = double(reading_time)*1.e-6;
+        double rtime_acc = double(reading_time)*1.e-6;
+        double rtime_av = double(reading_time)*1.e-6;
+        double ctime_max = double(copy_time)*1.e-6;
+        double ctime_acc = double(copy_time)*1.e-6;
+        double ctime_av = double(copy_time)*1.e-6;
+        double wtime = double(writing_time)*1.e-6;
+        double ptime = double(replication_time)*1.e-6;
+        double tptime = double(target_replication_time)*1.e-6;
         universe.gop.max(rtime_max);
         universe.gop.sum(rtime_acc);
         rtime_av = rtime_acc/universe.size();
+        universe.gop.max(ctime_max);
+        universe.gop.sum(ctime_acc);
+        ctime_av = ctime_acc/universe.size();
         universe.gop.max(wtime);
         universe.gop.max(ptime);
-
+        universe.gop.max(tptime);
         long creads = long(cache_reads);
         long cstores = long(cache_stores);
         universe.gop.sum(creads);
         universe.gop.sum(cstores);
-        if (universe.rank() == 0) {
-            auto precision = std::cout.precision();
-            std::cout << std::fixed << std::setprecision(1);
-            print("cloud storing wall time", wtime * 0.001);
-            print("cloud replication wall time", ptime * 0.001);
-            print("cloud max reading time (all procs)", rtime_max * 0.001, std::defaultfloat);
-            print("cloud average reading cpu time (all procs)", rtime_av * 0.001, std::defaultfloat);
-            print("cloud accumulated reading cpu time (all procs)", rtime_acc * 0.001, std::defaultfloat);
-            std::cout << std::setprecision(precision) << std::scientific;
-            print("cloud cache stores    ", long(cstores));
-            print("cloud cache loads     ", long(creads));
-        }
+        nlohmann::json j;
+        j["reading_time_max_s"] = rtime_max;
+        j["reading_time_acc_s"] = rtime_acc;
+        j["reading_time_av_s"] = rtime_av;
+        j["copy_time_max_s"] = ctime_max;
+        j["copy_time_acc_s"] = ctime_acc;
+        j["copy_time_av_s"] = ctime_av;
+        j["writing_time_s"] = wtime;
+        j["replication_time_s"] = ptime;
+        j["target_replication_time_s"] = tptime;
+        j["cache_reads"] = creads;
+        j["cache_stores"] = cstores;
+        return j;
     }
+
+    /// backwards compatibility
+    void print_timings(World& universe) const {
+        print_timings(gather_timings(universe));
+    }
+
+    static void print_timings(const nlohmann::json timings) {
+        double rtime_max=timings["reading_time_max_s"].template get<double>();
+        double rtime_av=timings["reading_time_av_s"].template get<double>();
+        double rtime_acc=timings["reading_time_acc_s"].template get<double>();
+        // double ctime_max=timings["copy_time_max_s"].template get<double>();
+        // double ctime_av=timings["copy_time_av_s"].template get<double>();
+        // double ctime_acc=timings["copy_time_acc_s"].template get<double>();
+        double wtime=timings["writing_time_s"].template get<double>();
+        double ptime=timings["replication_time_s"].template get<double>();
+        double tptime=timings["target_replication_time_s"].template get<double>();
+        long creads=timings["cache_reads"].template get<long>();
+        long cstores=timings["cache_stores"].template get<long>();
+
+        auto precision = std::cout.precision();
+        std::cout << std::fixed << std::setprecision(1);
+        print("cloud storing wall time                        ", wtime);
+        print("cloud replication wall time                    ", ptime);
+        print("target replication wall time                   ", tptime);
+        print("cloud max reading time (all procs)             ", rtime_max, std::defaultfloat);
+        print("cloud average reading cpu time (all procs)     ", rtime_av, std::defaultfloat);
+        print("cloud accumulated reading cpu time (all procs) ", rtime_acc, std::defaultfloat);
+        std::cout << std::setprecision(precision) << std::scientific;
+        print("cloud cache stores                             ", long(cstores));
+        print("cloud cache loads                              ", long(creads));
+    }
+
+    static void print_memory_statistics(const nlohmann::json stats) {
+        double byte2gbyte=1.0/(1024*1024*1024);
+        double global_memsize=stats["memory_global"].template get<double>();
+        double max_record_size=stats["max_record_size"].template get<double>();
+        double min_memsize=stats["memory_min"].template get<double>();
+        double max_memsize=stats["memory_max"].template get<double>();
+        double global_size=stats["container_size_global"].template get<double>();
+
+        print("Cloud memory:");
+        print("  size of cloud (total)");
+        print("    number of records:        ",global_size);
+        print("    memory in GBytes:         ",global_memsize*byte2gbyte);
+        // print("  size of cloud (average per node)");
+        // print("    number of records:        ",double(global_size)/madness::world().size());
+        // print("    memory in GBytes:         ",global_memsize*byte2gbyte/madness::world().size());
+        print("  min/max of node");
+        print("    memory in GBytes:         ",min_memsize*byte2gbyte,max_memsize*byte2gbyte);
+        print("    max record size in GBytes:",max_record_size*byte2gbyte);
+    }
+
     void clear_cache(World &subworld) {
         cached_objects.clear();
         local_list_of_container_keys.list.clear();
@@ -355,11 +471,51 @@ public:
 
     void clear_timings() {
         reading_time=0l;
+        copy_time=0l;
         writing_time=0l;
         writing_time1=0l;
         replication_time=0l;
+        target_replication_time=0l;
         cache_stores=0l;
         cache_reads=0l;
+    }
+
+    /// functor to distribute/rank/node-replicate a function, passed in as a pointer to WorldObjectBase
+    template<typename T, std::size_t NDIM>
+    struct DistributeFunctor {
+        DistributionType dt= Distributed;
+        explicit DistributeFunctor(const DistributionType dt) : dt(dt) {}
+        int operator()(WorldObjectBase* wo) const {
+            // figure out if wo is a FunctionImpl and do the distribution
+            if (auto fimpl=dynamic_cast<FunctionImpl<T, NDIM>*>(wo)) {
+                // fimpl->get_pmap()->print_data_sizes(world,"before distribution of function in cloud");
+                if (dt==RankReplicated) {
+                    fimpl->replicate(false);
+                } else if (dt==NodeReplicated) {
+                    // print("replicating function per node",fimpl);;
+                    fimpl->replicate_on_hosts(true);
+                } else if (dt==Distributed) {
+                    fimpl->undo_replicate(false);
+                } else {
+                    MADNESS_EXCEPTION("unknown distribution type",1);
+                }
+                // fimpl->get_pmap()->print_data_sizes(world,"after distribution of function in cloud");
+            }
+            return 0;
+        }
+    };
+
+    /// distribute/node/rank replicate the targets of all world objects stored in the cloud
+    void distribute_targets(const DistributionType dt= Distributed) {
+        if (world_object_base_list.empty()) return;
+        World& world=world_object_base_list.front()->get_world();
+
+        for (auto wo : world_object_base_list) {
+            loop_types<DistributeFunctor, double, float, double_complex, float_complex>(std::tuple<DistributionType>(dt),wo);
+            // world.gop.fence();
+        }
+        world.gop.fence();
+
     }
 
     /// @param[in]  world the subworld the objects are loaded to
@@ -430,15 +586,45 @@ public:
         return recordlist;
     }
 
-    void replicate_per_node(const std::size_t chunk_size=INT_MAX) {
-        if (replication_policy != NodeReplicated) {
-            MADNESS_EXCEPTION("replication policy is not NodeReplicated",1);
+    void replicate_according_to_policy(const std::size_t chunk_size=INT_MAX) {
+        if (cloud_replication_policy == Distributed) {
+            // if (debug and (container.size() > 0)) print("no replication of container");
+            return;
         }
-        if (debug and (container.size() > 0)) print("replicating container per node");
-        MADNESS_EXCEPTION("Cloud::replicate_per_node not yet implemented",1);
+        else if (cloud_replication_policy == RankReplicated) {
+            replicate(chunk_size);
+        }
+        else if (cloud_replication_policy == NodeReplicated) {
+            replicate_per_node(chunk_size);
+        }
+        else {
+            MADNESS_EXCEPTION("unknown replication policy",1);
+        }
+        container.get_world().gop.fence();
     }
 
+    void replicate_per_node(const std::size_t chunk_size=INT_MAX) {
+        // this will fail if the container values are larger that 2GB
+        // need to reimplement that at some point
+        try {
+            double cpu0=cpu_time();
+            World& world=container.get_world();
+            world.gop.fence();
+            cloudtimer t(world,replication_time);
+            MADNESS_CHECK_THROW(not is_replicated,"cloud::replicate_per_node: container is already replicated");
+            container.replicate_on_hosts(true);
+            is_replicated=true;
+            world.gop.fence();
+            double cpu1=cpu_time();
+            if (debug and (world.rank()==0)) print("replication_per_node ended after ",cpu1-cpu0," seconds");
+        } catch (...) {
+            MADNESS_EXCEPTION("cloud replication_per_node failed, presumably because some data is larger than 2GB",1);
+        }
+    }
+
+    // replicates the contents of the container
     void replicate(const std::size_t chunk_size=INT_MAX) {
+        MADNESS_CHECK_THROW(not is_replicated,"cloud::replicate_per_node: container is already replicated");
 
         double cpu0=cpu_time();
         World& world=container.get_world();
@@ -501,10 +687,14 @@ public:
 
 private:
 
-    mutable std::atomic<long> reading_time=0l;    // in ms
-    mutable std::atomic<long> writing_time=0l;    // in ms
-    mutable std::atomic<long> writing_time1=0l;    // in ms
-    mutable std::atomic<long> replication_time=0l;    // in ms
+    mutable std::atomic<long> reading_time=0l;     // in microseconds
+public:
+    mutable std::atomic<long> copy_time=0l;        // if pointers are stored in cloud, time to copy from universe to subworld
+    mutable std::atomic<long> target_replication_time=0l;     // if pointers are stored in cloud, time to replicate targets
+private:
+    mutable std::atomic<long> writing_time=0l;     // in microseconds
+    mutable std::atomic<long> writing_time1=0l;    // in microseconds
+    mutable std::atomic<long> replication_time=0l;    // in microseconds
     mutable std::atomic<long> cache_reads=0l;
     mutable std::atomic<long> cache_stores=0l;
 
@@ -514,17 +704,11 @@ private:
     template<typename Q> struct is_vector : std::false_type { };
     template<typename Q> struct is_vector<std::vector<Q>> : std::true_type { };
 
-    template<typename>
-    struct is_madness_function_vector : std::false_type {
-    };
-    template<typename T, std::size_t NDIM>
-    struct is_madness_function_vector<std::vector<Function<T, NDIM>>> : std::true_type {
-    };
-
     template<typename T> using is_parallel_serializable_object = std::is_base_of<archive::ParallelSerializableObject,T>;
 
     template<typename T> using is_world_constructible = std::is_constructible<T, World &>;
 
+public:
     struct cloudtimer {
         World& world;
         double wall0;
@@ -533,10 +717,11 @@ private:
         cloudtimer(World& world, std::atomic<long> &readtime) : world(world), wall0(wall_time()), rtime(readtime) {}
 
         ~cloudtimer() {
-            long deltatime=long((wall_time() - wall0) * 1000l);
+            long deltatime=long((wall_time() - wall0) * 1000000l);
             rtime += deltatime;
         }
     };
+private:
 
     template<typename T>
     void cache(madness::World &world, const T &obj, const keyT &record) const {
@@ -604,6 +789,9 @@ private:
                 if constexpr (is_madness_function<T>::value) {
                     // store the pointer to the function, not the function itself
                     par & source.get_impl();
+                    // store the pointer to the WorldObject in a list for later reference (replication/redistribution)
+                    WorldObjectBase* wobj=source.get_impl().get();
+                    world_object_base_list.push_back(wobj);
                 } else {
                     // store everything else
                     par & source;
@@ -678,8 +866,10 @@ public:
             par & target;
         }
 
-        cache(world, target, record);
-        if (is_replicated) container.erase(record);
+        if (use_cache) {
+            cache(world, target, record);
+            if (is_replicated) container.erase(record);
+        }
 
         return target;
     }

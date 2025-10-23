@@ -197,6 +197,11 @@ namespace madness {
         /// Destruction of any underlying implementation is deferred to next global fence.
         ~Function() {}
 
+        /// implements swap algorithm
+        template <typename R, std::size_t MDIM>
+        friend void swap(Function<R,MDIM>& f1, Function<R,MDIM>& f2);
+
+
         /// Evaluates the function at a point in user coordinates.  Possible non-blocking comm.
 
         /// Only the invoking process will receive the result via the future
@@ -699,11 +704,36 @@ namespace madness {
             return impl->get_pmap();
         }
 
+        /// replicate this function according to type
+        ///
+        /// ** note that global operations will return unexpected results **
+        /// Be sure you know what you are doing!
+        void replicate(const DistributionType type, bool fence=true) const {
+            verify();
+            if (type==DistributionType::RankReplicated) impl->replicate(fence);
+            else if (type==DistributionType::NodeReplicated) impl->replicate_on_hosts(fence);
+            else MADNESS_EXCEPTION("Function::replicate: unknown DistributionType",type);
+        }
+
         /// replicate this function, generating a unique pmap
+
+        /// ** note that global operations will return unexpected results **
+        /// Be sure you know what you are doing!
         void replicate(bool fence=true) const {
             verify();
             impl->replicate(fence);
         }
+
+        /// replicate this function, one copy per host
+
+        /// map will refer the to first rank on each host to avoid inter-node communication
+        /// ** note that global operations will return unexpected results **
+        /// Be sure you know what you are doing!
+        void replicate_on_hosts(bool fence=true) const {
+            verify();
+            impl->replicate_on_hosts(fence);
+        }
+
 
         /// distribute this function according to newmap
         void distribute(std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > newmap) const {
@@ -2826,6 +2856,10 @@ namespace madness {
         return f.change_tree_state(finalstate,fence);
     }
 
+    template <typename R, std::size_t MDIM>
+    void swap(Function<R,MDIM>& f1, Function<R,MDIM>& f2) {
+        f1.get_impl()->swap(*f2.get_impl());
+    }
 
 }
 
@@ -2869,14 +2903,6 @@ namespace madness {
 
     template<typename T, std::size_t NDIM>
     struct is_madness_function<madness::Function<T, NDIM>> : std::true_type {};
-
-    template<typename>
-    struct is_madness_function_vector : std::false_type {
-    };
-
-    template<typename T, std::size_t NDIM>
-    struct is_madness_function_vector<std::vector<typename madness::Function<T, NDIM>>> : std::true_type {
-};
 
 }
 

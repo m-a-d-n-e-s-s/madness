@@ -67,8 +67,6 @@ public:
     ScalarResultImpl<T>& operator=(const ScalarResultImpl<T>& other) = delete;
 
     ~ScalarResultImpl() {
-        // print("calling destructor of ScalarResultImpl",this->id());
-        // std::cout << std::flush;
     }
 
     /// simple assignment of the scalar value
@@ -288,6 +286,14 @@ struct MacroTaskInfo {
 		StoreFunctionViaPointer   ///< store a pointer to the function in the cloud, but macrotaskq will move the
 		///< coefficients to the subworlds when the task is started. This is the default policy.
 	};
+
+	friend std::ostream& operator<<(std::ostream& os, const StoragePolicy sp) {
+		if (sp==StoreFunction) os << "StoreFunction";
+		if (sp==StorePointerToFunction) os << "StorePointerToFunction";
+		if (sp==StoreFunctionViaPointer) os << "StoreFunctionViaPointer";
+		return os;
+	}
+
 	/// given the MacroTask's storage policy return the corresponding Cloud storage policy
 	static Cloud::StoragePolicy to_cloud_storage_policy(MacroTaskInfo::StoragePolicy policy) {
 		switch (policy) {
@@ -298,26 +304,115 @@ struct MacroTaskInfo {
 		}
 	}
 
-	static MacroTaskInfo::StoragePolicy get_default() {
-		return default_storage_policy;
+	/// return some preset policies
+	/// - "default": StoreFunctionViaPointer, cloud rank-replicated, initial functions node-replicated
+	/// - "small_memory": StoreFunctionViaPointer, cloud rank-replicated, initial functions distributed
+	/// - "large_memory": StoreFunction, cloud rank-replicated, initial functions distributed
+	/// the user can also set the policies manually
+	/// note: the policies are checked for consistency when the MacroTaskQ is created
+	static MacroTaskInfo preset(const std::string name) {
+		MacroTaskInfo info;
+		if (name=="default") {
+			info.storage_policy=MacroTaskInfo::StoreFunction;
+			info.cloud_distribution_policy=DistributionType::RankReplicated;
+			info.ptr_target_distribution_policy=DistributionType::Distributed;
+		} else if (name=="node_replicated_target") {
+			info.storage_policy=MacroTaskInfo::StoreFunctionViaPointer;
+			info.cloud_distribution_policy=DistributionType::RankReplicated;
+			info.ptr_target_distribution_policy=DistributionType::NodeReplicated;
+		} else if (name=="small_memory") {
+			info.storage_policy=MacroTaskInfo::StoreFunctionViaPointer;
+			info.cloud_distribution_policy=DistributionType::RankReplicated;
+			info.ptr_target_distribution_policy=DistributionType::Distributed;
+		} else if (name=="large_memory") {
+			info.storage_policy=MacroTaskInfo::StoreFunction;
+			info.cloud_distribution_policy=DistributionType::RankReplicated;
+			info.ptr_target_distribution_policy=DistributionType::Distributed;
+		} else {
+			std::string msg="MacroTaskQFactory::preset: unknown preset "+name;
+			MADNESS_EXCEPTION(msg.c_str(),0);
+		}
+		return info;
 	}
 
-	static void set_default(MacroTaskInfo::StoragePolicy sp) {
-		default_storage_policy = sp;
+	static std::vector<std::string> get_all_preset_names() {
+		return {"default","node_replicated_target","small_memory","large_memory"};
 	}
 
-	/// declaration here, definition in mra1.cc
-	static MacroTaskInfo::StoragePolicy default_storage_policy;
+	/// helper function to return all presets
+	static std::vector<MacroTaskInfo> get_all_presets() {
+		std::vector<MacroTaskInfo> result;
+		for (const auto& name : get_all_preset_names()) {
+			result.push_back(preset(name));
+		}
+		return result;
+	}
+
+	/// make sure the policies are consistent
+	bool check_consistency() const {
+		bool store_pointer_in_cloud = (storage_policy==MacroTaskInfo::StorePointerToFunction
+			or storage_policy==MacroTaskInfo::StoreFunctionViaPointer);
+		bool good=true;
+
+		if (storage_policy==MacroTaskInfo::StoreFunction) {
+			// if functions are stored in the cloud, the initial functions should be distributed
+			good=ptr_target_distribution_policy==DistributionType::Distributed;
+
+		} else if (store_pointer_in_cloud) {
+			// if pointers are stored in the cloud, the initial functions can be distributed or replicated,
+			// the cloud should be rank-replicated
+			good=(cloud_distribution_policy==DistributionType::RankReplicated);
+
+		}
+		if (not good) std::cout << *this ;
+
+		return good;
+	}
+
+	StoragePolicy storage_policy=StoreFunctionViaPointer;
+	DistributionType cloud_distribution_policy=DistributionType::RankReplicated;
+	DistributionType ptr_target_distribution_policy=DistributionType::NodeReplicated;
+
+	friend std::ostream& operator<<(std::ostream& os, const MacroTaskInfo policy) {
+		os << "StoragePolicy:                  " << policy.storage_policy << std::endl;
+		os << "cloud_storage_policy:           " << to_cloud_storage_policy(policy.storage_policy) << std::endl;
+		os << "cloud_distribution_policy:      " << policy.cloud_distribution_policy << std::endl;
+		os << "ptr_target_distribution_policy: " << policy.ptr_target_distribution_policy << std::endl;
+		return os;
+	}
+
+	friend std::string to_string(const MacroTaskInfo::StoragePolicy sp) {
+		std::ostringstream os;
+		os << sp;
+		return os.str();
+	}
+
+	static StoragePolicy policy_to_string(const std::string policy) {
+		std::string policy_lc=commandlineparser::tolower(policy);
+		if (policy=="function") return MacroTaskInfo::StoreFunction;
+		if (policy=="pointer") return MacroTaskInfo::StorePointerToFunction;
+		if (policy=="functionviapointer") return MacroTaskInfo::StoreFunctionViaPointer;
+		std::string msg="unknown policy: "+policy;
+		MADNESS_EXCEPTION(msg.c_str(),1);
+		return MacroTaskInfo::StorePointerToFunction;
+	}
+
+	nlohmann::json to_json() const {
+		nlohmann::json j;
+		j["storage_policy"]=to_string(storage_policy);
+		j["cloud_distribution_policy"]=to_string(cloud_distribution_policy);
+		j["ptr_target_distribution_policy"]=to_string(ptr_target_distribution_policy);
+		return j;
+	}
+
 
 };
 
-
-
 template<typename T=double>
 std::ostream& operator<<(std::ostream& os, const typename MacroTaskInfo::StoragePolicy sp) {
-	if (sp==MacroTaskInfo::StoreFunction) os << "StoreFunction";
-	if (sp==MacroTaskInfo::StorePointerToFunction) os << "StorePointerToFunction";
-	if (sp==MacroTaskInfo::StoreFunctionViaPointer) os << "StoreFunctionViaPointer";
+	if (sp==MacroTaskInfo::StoreFunction) os << "Function";
+	if (sp==MacroTaskInfo::StorePointerToFunction) os << "PointerToFunction";
+	if (sp==MacroTaskInfo::StoreFunctionViaPointer) os << "FunctionViaPointer";
 	return os;
 }
 
@@ -342,7 +437,7 @@ public:
 	bool is_waiting() const {return stat==Waiting;}
 
 	virtual void run(World& world, Cloud& cloud, taskqT& taskq, const long element,
-		const bool debug, const MacroTaskInfo::StoragePolicy storage_policy) = 0;
+		const bool debug, const MacroTaskInfo policy) = 0;
 	virtual void cleanup() = 0;		// clear static data (presumably persistent input data)
 
     virtual void print_me(std::string s="") const {
@@ -383,6 +478,54 @@ public:
 };
 
 
+	/// Factory for the MacroTaskQ
+	class MacroTaskQFactory {
+	public:
+		long printlevel=0;
+		World& world;
+		long nworld=1;
+
+		MacroTaskInfo policy=MacroTaskInfo::preset("default");
+
+		MacroTaskQFactory(World& universe) : world(universe), nworld(universe.size()) {}
+
+		MacroTaskQFactory& set_nworld(const long n) {
+			nworld = n;
+			return *this;
+		}
+
+		MacroTaskQFactory& set_printlevel(const long p) {
+			printlevel = p;
+			return *this;
+		}
+
+		MacroTaskQFactory& preset(const std::string name) {
+			return *this;
+		}
+
+		MacroTaskQFactory& set_policy(const MacroTaskInfo p) {
+			policy = p;
+			return *this;
+		}
+
+		MacroTaskQFactory& set_storage_policy(const MacroTaskInfo::StoragePolicy sp) {
+			policy.storage_policy = sp;
+			return *this;
+		}
+
+		MacroTaskQFactory& set_cloud_distribution_policy(const DistributionType dp) {
+			policy.cloud_distribution_policy = dp;
+			return *this;
+		}
+
+		MacroTaskQFactory& set_ptr_target_distribution_policy(const DistributionType dp) {
+			policy.ptr_target_distribution_policy = dp;
+			return *this;
+		}
+
+	};
+
+
 
 class MacroTaskQ : public WorldObject< MacroTaskQ> {
 
@@ -392,9 +535,10 @@ class MacroTaskQ : public WorldObject< MacroTaskQ> {
 	std::mutex taskq_mutex;
 	long printlevel=0;
 	long nsubworld=1;
+	nlohmann::json cloud_statistics;	///< save cloud statistics after run_all()
+	nlohmann::json taskq_statistics;	///< save taskq statistics after run_all()
 
-	/// storage policy for the taskq can be set only once at construction
-	const MacroTaskInfo::StoragePolicy storage_policy;
+	const MacroTaskInfo policy;			///< storage and distribution policy
 
 	/// set the process map for the subworld
     std::shared_ptr< WorldDCPmapInterface< Key<1> > > pmap1;
@@ -407,7 +551,7 @@ class MacroTaskQ : public WorldObject< MacroTaskQ> {
 	bool printdebug() const {return printlevel>=10;}
 	bool printprogress() const {return (printlevel>=4) and (not (printdebug()));}
     bool printtimings() const {return universe.rank()==0 and printlevel>=3;}
-	bool printtimings_detail() const {return universe.rank()==0 and printlevel>=3;}
+	bool printtimings_detail() const {return universe.rank()==0 and printlevel>=5;}
 
 public:
 
@@ -416,22 +560,34 @@ public:
 	long get_nsubworld() const {return nsubworld;}
 	void set_printlevel(const long p) {printlevel=p;}
 
-	MacroTaskInfo::StoragePolicy get_storage_policy() const {
-		return storage_policy;
+	MacroTaskInfo get_policy() const {
+		return policy;
+	}
+
+	nlohmann::json get_cloud_statistics() const {
+		return cloud_statistics;
+	}
+
+	nlohmann::json get_taskq_statistics() const {
+		return taskq_statistics;
 	}
 
     /// create an empty taskq and initialize the subworlds
-	MacroTaskQ(World& universe, int nworld, const MacroTaskInfo::StoragePolicy sp, const long printlevel=0)
-	  : WorldObject<MacroTaskQ>(universe)
-	  , universe(universe)
+	explicit MacroTaskQ(const MacroTaskQFactory factory)
+	  : WorldObject<MacroTaskQ>(factory.world)
+	  , universe(factory.world)
 	  , taskq()
-	  , printlevel(printlevel)
-	  , nsubworld(nworld)
-	  , storage_policy(sp)
-	  , cloud(universe)
-        {
+	  , printlevel(factory.printlevel)
+	  , nsubworld(factory.nworld)
+	  , policy(factory.policy)
+	  , cloud(factory.world)
+    {
+		subworld_ptr=create_worlds(universe,nsubworld);
+		MADNESS_CHECK_THROW(policy.check_consistency(),"MacroTaskQ: inconsistent storage policy");
+		cloud.set_replication_policy(policy.cloud_distribution_policy);
+		cloud.set_storing_policy(MacroTaskInfo::to_cloud_storage_policy(policy.storage_policy));
 
-		subworld_ptr=create_worlds(universe,nworld);
+		if (printdebug()) print(policy);
 		this->process_pending();
 	}
 
@@ -461,17 +617,42 @@ public:
 				print("redirecting output to files task.#####");
 			}
 		}
+		taskq_statistics["number_tasks"]=taskq.size();
 
+		// replicate the cloud (not necessarily the target if pointers are stored)
 		auto replication_policy = cloud.get_replication_policy();
-		if (replication_policy!=Cloud::Distributed) {
+		if (replication_policy!=DistributionType::Distributed) {
 			double cpu0=cpu_time();
-			if (replication_policy==Cloud::RankReplicated) cloud.replicate();
-			if (replication_policy==Cloud::NodeReplicated) cloud.replicate_per_node(); // replicate to all hosts
+			if (replication_policy==DistributionType::RankReplicated) cloud.replicate();
+			if (replication_policy==DistributionType::NodeReplicated) cloud.replicate_per_node(); // replicate to all hosts
 			universe.gop.fence();
 			double cpu1=cpu_time();
 			if (printtimings_detail()) print("cloud replication wall time",cpu1-cpu0);
 		}
+
+		// replicate the targets (not the cloud) if needed
+		{
+			double cpu0=cpu_time();
+			const bool need_replication_of_target=(policy.ptr_target_distribution_policy!=DistributionType::Distributed)
+					and (policy.storage_policy!=MacroTaskInfo::StoreFunction);
+			Cloud::cloudtimer timer(universe,cloud.target_replication_time);
+
+
+			if (need_replication_of_target) {
+				auto dt=policy.ptr_target_distribution_policy;
+				for (auto wo : cloud.world_object_base_list) {
+					loop_types<Cloud::DistributeFunctor, double, float, double_complex, float_complex>(std::tuple<DistributionType>(dt),wo);
+				}
+			}
+
+			// if (need_replication_of_target) cloud.distribute_targets(policy.ptr_target_distribution_policy);
+			double cpu1=cpu_time();
+			if (printtimings_detail()) print("target replication wall time to ",policy.ptr_target_distribution_policy,cpu1-cpu0);
+		}
+
         if (printdebug()) cloud.print_size(universe);
+		cloud_statistics=cloud.get_statistics(universe);	// get stats before clearing the cloud
+        universe.gop.fence();
         universe.gop.set_forbid_fence(true); // make sure there are no hidden universe fences
         pmap1=FunctionDefaults<1>::get_pmap();
         pmap2=FunctionDefaults<2>::get_pmap();
@@ -494,7 +675,7 @@ public:
 			std::shared_ptr<MacroTaskBase> task=taskq[element];
 			if (printdebug()) print("starting task no",element, "in subworld",subworld.id(),"at time",wall_time());
 
-			task->run(subworld,cloud, taskq, element, printdebug(), storage_policy);
+			task->run(subworld,cloud, taskq, element, printdebug(), policy);
 
 			double cpu1=cpu_time();
 			set_complete(element);
@@ -518,21 +699,27 @@ public:
 		universe.gop.fence();
 		universe.gop.sum(tasktime);
 		if (printprogress() and universe.rank()==0) std::cout << std::endl;
+		cloud_statistics.update(cloud.gather_timings(universe));	// get stats before clearing the cloud
         double cpu11=cpu_time();
         if (printlevel>=4) {
-	        cloud.print_timings(universe);
-        	if (universe.rank()==0) print("all tasks complete");
+        	if (universe.rank()==0) {
+        		Cloud::print_timings(cloud_statistics);
+        		Cloud::print_memory_statistics(cloud_statistics);
+        		print("all tasks complete");
+        	}
         	MemoryMeasurer::measure_and_print(universe);
         }
         if (printtimings_detail()) {
             printf("completed taskqueue after    %4.1fs at time %4.1fs\n", cpu11 - cpu00, wall_time());
             printf(" total cpu time / per world  %4.1fs %4.1fs\n", tasktime, tasktime / universe.size());
         }
+		taskq_statistics["elapsed_time"]=cpu11-cpu00;
+		taskq_statistics["cpu_time_per_world"]=tasktime/universe.size();
+		taskq_statistics["total_cpu_time"]=tasktime;
 
 		// cleanup task-persistent input data
 		for (auto& task : taskq) task->cleanup();
 		cloud.clear_cache(subworld);
-		cloud.clear();
 		subworld.gop.fence();
         subworld.gop.fence();
         universe.gop.fence();
@@ -543,6 +730,14 @@ public:
         FunctionDefaults<5>::set_pmap(pmap5);
         FunctionDefaults<6>::set_pmap(pmap6);
         universe.gop.fence();
+		// restore targets to their original state
+		if (policy.ptr_target_distribution_policy!=Distributed) cloud.distribute_targets();
+		universe.gop.fence();
+		subworld.gop.fence();
+		cloud.clear();
+		universe.gop.fence();
+		subworld.gop.fence();
+		universe.gop.fence();
 	}
 
 	void add_tasks(MacroTaskBase::taskqT& vtask) {
@@ -638,38 +833,43 @@ class MacroTask {
     typedef typename taskT::resultT resultT;
     typedef typename taskT::argtupleT argtupleT;
     typedef Cloud::recordlistT recordlistT;
+
     taskT task;
     bool debug=false;
 	bool immediate_execution=false;
-
+	World &world;
+	std::shared_ptr<MacroTaskQ> taskq_ptr;
 
 public:
 
     /// constructor takes the task, but no arguments to the task
     explicit MacroTask(World &world, taskT &task)
-            : MacroTask(world,task, std::make_shared<MacroTaskQ>(world, world.size(), MacroTaskInfo::get_default())) {
+            : MacroTask(world,task, std::make_shared<MacroTaskQ>(MacroTaskQFactory(world))) {
     	immediate_execution=true;
     }
 
-	/// constructor takes task and the storage policy, but no arguments to the task
-	explicit MacroTask(World &world, taskT& task, MacroTaskInfo::StoragePolicy storage_policy)
-        : MacroTask(world,task, std::make_shared<MacroTaskQ>(world, world.size(), storage_policy)) {
+	/// constructor takes task and a taskq factory for customization, immediate execution
+	explicit MacroTask(World &world, taskT& task, const MacroTaskQFactory factory)
+        : MacroTask(world,task, std::shared_ptr<MacroTaskQ>(new MacroTaskQ(factory))) {
     	immediate_execution=true;
     }
 
-	/// constructor takes the task,
+	/// constructor takes the task, and a taskq, execution is not immediate
 	explicit MacroTask(World &world, taskT &task, std::shared_ptr<MacroTaskQ> taskq_ptr)
 			: task(task), world(world), taskq_ptr(taskq_ptr) {
 
     	// someone might pass in a taskq nullptr
     	immediate_execution=false;	// will be reset by the forwarding constructors
     	if (this->taskq_ptr==0) {
-    		this->taskq_ptr=std::make_shared<MacroTaskQ>(world, world.size(), MacroTaskInfo::get_default());
+    		this->taskq_ptr=std::make_shared<MacroTaskQ>(MacroTaskQFactory(world));
     		immediate_execution=true;
     	}
 
     	if (debug) this->taskq_ptr->set_printlevel(20);
-    	this->taskq_ptr->cloud.set_storing_policy(MacroTaskInfo::to_cloud_storage_policy(this->taskq_ptr->get_storage_policy())); // how to store madness functions: deep or shallow
+    	// set the cloud policies
+    	auto cloud_storage_policy = MacroTaskInfo::to_cloud_storage_policy(this->taskq_ptr->get_policy().storage_policy);
+    	this->taskq_ptr->cloud.set_storing_policy(cloud_storage_policy);
+    	this->taskq_ptr->cloud.set_replication_policy(this->taskq_ptr->get_policy().cloud_distribution_policy);
 
     }
 
@@ -677,6 +877,11 @@ public:
         debug=value;
     	return *this;
     }
+
+	std::shared_ptr<MacroTaskQ> get_taskq() const {
+    	return taskq_ptr;
+    }
+
 
     /// this mimicks the original call to the task functor, called from the universe
 
@@ -694,10 +899,7 @@ public:
         partitioner->set_nsubworld(world.size());
         partitionT partition = partitioner->partition_tasks(argtuple);
 
-    	if (debug and world.rank()==0) {
-    		print("MacroTask storage policy: ",taskq_ptr->get_storage_policy());
-    		print("Cloud storage policy:     ",taskq_ptr->cloud.get_storing_policy());
-    	}
+    	if (debug and world.rank()==0) print(taskq_ptr->get_policy());
 
         recordlistT inputrecords = taskq_ptr->cloud.store(world, argtuple);
         resultT result = task.allocator(world, argtuple);
@@ -710,16 +912,10 @@ public:
                     std::shared_ptr<MacroTaskBase>(new MacroTaskInternal(task, batch_prio, inputrecords, outputrecords)));
         }
         taskq_ptr->add_tasks(vtask);
-
         if (immediate_execution) taskq_ptr->run_all();
 
         return result;
     }
-
-//private:
-
-    World &world;
-    std::shared_ptr<MacroTaskQ> taskq_ptr;
 private:
 
 
@@ -820,26 +1016,6 @@ private:
             print(ss.str());
         }
 
-    	/// loop over the tuple elements of both tuples and execute the operation op on each element pair
-    	template<typename tupleT, typename tupleR, typename opT, std::size_t I=0>
-    	void binary_tuple_loop(tupleT& tuple1, tupleR& tuple2, opT& op) const {
-        	if constexpr(I < std::tuple_size_v<tupleT>) {
-        		auto& element1=std::get<I>(tuple1);
-        		auto& element2=std::get<I>(tuple2);
-        		op(element1,element2);
-        		binary_tuple_loop<tupleT, tupleR, opT, I+1>(tuple1,tuple2,op);
-        	}
-        }
-
-    	template<typename tupleT, typename opT, std::size_t I=0>
-    	void unary_tuple_loop(tupleT& tuple, opT& op) const {
-        	if constexpr(I < std::tuple_size_v<tupleT>) {
-        		auto& element1=std::get<I>(tuple);
-        		op(element1);
-        		unary_tuple_loop<tupleT,opT, I+1>(tuple,op);
-        	}
-        }
-
     	/// accumulate the result of the task into the final result living in the universe
     	template<typename resultT1, std::size_t I=0>
     	typename std::enable_if<is_tuple<resultT1>::value, void>::type
@@ -886,13 +1062,16 @@ private:
 
     	/// called by the MacroTaskQ when the task is scheduled
         void run(World &subworld, Cloud &cloud, MacroTaskBase::taskqT &taskq, const long element, const bool debug,
-        	const MacroTaskInfo::StoragePolicy storage_policy) override {
+        	const MacroTaskInfo policy) override {
         	io_redirect io(element,get_name()+"_task",debug);
             const argtupleT argtuple = cloud.load<argtupleT>(subworld, inputrecords);
             argtupleT batched_argtuple = task.batch.copy_input_batch(argtuple);
 
-    		if (storage_policy==MacroTaskInfo::StoreFunctionViaPointer) {
+    		std::string msg="";
+			// maybe move this block to the cloud?
+    		if (policy.storage_policy==MacroTaskInfo::StoreFunctionViaPointer) {
     			double cpu0=wall_time();
+    			Cloud::cloudtimer timer(subworld,cloud.copy_time);
     			// the functions loaded from the cloud are pointers to the universe functions,
     			// retrieve the function coefficients from the universe
     			// aka: turn the current shallow copy into a deep copy
@@ -919,6 +1098,7 @@ private:
     		try {
 			    print("starting task no",element, ", '",get_name(),"', in subworld",subworld.id(),"at time",wall_time());
         	    double cpu0=cpu_time();
+    			task.subworld_ptr=&subworld;	// give the task access to the subworld
         		resultT result_batch = std::apply(task, batched_argtuple);		// lives in the subworld, is a batch of the full vector (if applicable)
         	    double cpu1=cpu_time();
 			    constexpr std::size_t bufsize=256;
@@ -959,8 +1139,6 @@ private:
 
     	// this is called after all tasks have been executed and the taskq has ended
     	void cleanup() override {
-        		// resultT result_universe=get_output(subworld, cloud);       // lives in the universe
-
     	}
 
     	template<typename T, std::size_t NDIM>
@@ -1062,6 +1240,7 @@ private:
 class MacroTaskOperationBase {
 public:
     Batch batch;
+	World* subworld_ptr=0;
 	std::string name="unknown_task";
     std::shared_ptr<MacroTaskPartitioner> partitioner=0;
     MacroTaskOperationBase() : batch(Batch(_, _, _)), partitioner(new MacroTaskPartitioner) {}

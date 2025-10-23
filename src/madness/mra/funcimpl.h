@@ -1122,6 +1122,18 @@ template<size_t NDIM>
         	coeffs.replicate(fence);
         }
 
+        void replicate_on_hosts(bool fence=true) {
+            coeffs.replicate_on_hosts(fence);
+        }
+
+        // remove all coeffs that are not local according to pmap
+        void undo_replicate(bool fence=true) {
+            std::list<keyT> keys;
+            for (const auto& [key, node] : coeffs) if (not coeffs.is_local(key)) keys.push_back(key);
+            for (const auto& key : keys) coeffs.erase(key);
+            if (fence) world.gop.fence();
+        }
+
         void distribute(std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > newmap) const {
         	auto currentmap=coeffs.get_pmap();
         	currentmap->redistribute(world,newmap);
@@ -1135,27 +1147,37 @@ template<size_t NDIM>
             if (world.id()==other.world.id())
                 copy_coeffs_same_world(other,false);
             else
-                copy_coeffs_different_world(other,false);
+                copy_coeffs_different_world(other);
             if (fence) world.gop.fence();
         }
 
         /// Copy coefficients from other funcimpl with possibly different world and on a different node
         template<typename Q>
-        void copy_coeffs_different_world(const FunctionImpl<Q,NDIM>& other, bool fence) {
-            for (ProcessID pid=0; pid<other.world.size(); ++pid) {
-                copy_remote_coeffs_from_pid<Q>(pid, other, false);
+        void copy_coeffs_different_world(const FunctionImpl<Q,NDIM>& other) {
+
+            // copy coeffs from (a subset of) other's world
+
+            // if other's data is distributed, we need to fetch from all ranks
+            if (other.get_coeffs().is_distributed()) {
+                for (ProcessID pid=0; pid<other.world.size(); ++pid) {
+                    copy_remote_coeffs_from_pid<Q>(pid, other);
+                }
+
+            // if other's data is replicated, all coeffs are on the rank that owns key0
+            } else if (other.get_coeffs().is_replicated() or other.get_coeffs().is_host_replicated()) {
+                auto key0=other.cdata.key0;
+                copy_remote_coeffs_from_pid<Q>(other.get_pmap()->owner(key0), other);
             }
         }
 
         /// Copy coefficients from other funcimpl with possibly different world and on a different node
         /// to this
         template <typename Q>
-        void copy_remote_coeffs_from_pid(const ProcessID pid, const FunctionImpl<Q,NDIM>& other, bool fence) {
+        void copy_remote_coeffs_from_pid(const ProcessID pid, const FunctionImpl<Q,NDIM>& other) {
             typedef FunctionImpl<Q,NDIM> implQ; ///< Type of this class (implementation)
-            auto v=other.task(pid, &implQ::serialize_remote_coeffs).get();
-            archive::VectorInputArchive ar(v);
-            ar & get_coeffs();
-            if (fence) world.gop.fence();
+            // std::vector<unsigned char> v=other.task(pid, &implQ::serialize_remote_coeffs).get();
+            auto v=other.task(pid, &implQ::serialize_remote_coeffs);
+            world.taskq.add(*this, &implT::insert_serialized_coeffs,v);
         }
 
         /// invoked by copy_remote_coeffs_from_pid to serialize *local* coeffs
@@ -1164,6 +1186,12 @@ template<size_t NDIM>
             archive::VectorOutputArchive ar(v);
             ar & get_coeffs();
             return v;
+        }
+
+        /// insert coeffs from vector archive into this
+        void insert_serialized_coeffs(std::vector<unsigned char>& v) {
+            archive::VectorInputArchive ar(v);
+            ar & get_coeffs();
         }
 
         /// Copy coeffs from other into self

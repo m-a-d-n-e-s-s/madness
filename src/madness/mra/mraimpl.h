@@ -50,7 +50,10 @@
 namespace std {
     template <typename T>
     bool isnan(const std::complex<T>& v) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
         return ::std::isnan(v.real()) || ::std::isnan(v.imag());
+#pragma GCC diagnostic pop
     }
 }
 
@@ -2335,11 +2338,15 @@ namespace madness {
             }
         }
         else {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
+            auto isnan = [](T v) { return std::isnan(v); };
+#pragma GCC diagnostic pop
             if (NDIM == 1) {
                 for (int i=0; i<npt; ++i) {
                     c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
                     fval(i) = f(c);
-                    MADNESS_ASSERT(!std::isnan(fval(i)));
+                    MADNESS_ASSERT(!isnan(fval(i)));
                 }
             }
             else if (NDIM == 2) {
@@ -2348,7 +2355,7 @@ namespace madness {
                     for (int j=0; j<npt; ++j) {
                         c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
                         fval(i,j) = f(c);
-                        MADNESS_ASSERT(!std::isnan(fval(i,j)));
+                        MADNESS_ASSERT(!isnan(fval(i,j)));
                     }
                 }
             }
@@ -2360,7 +2367,7 @@ namespace madness {
                         for (int k=0; k<npt; ++k) {
                             c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
                             fval(i,j,k) = f(c);
-                            MADNESS_ASSERT(!std::isnan(fval(i,j,k)));
+                            MADNESS_ASSERT(!isnan(fval(i,j,k)));
                         }
                     }
                 }
@@ -2375,7 +2382,7 @@ namespace madness {
                             for (int m=0; m<npt; ++m) {
                                 c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
                                 fval(i,j,k,m) = f(c);
-                                MADNESS_ASSERT(!std::isnan(fval(i,j,k,m)));
+                                MADNESS_ASSERT(!isnan(fval(i,j,k,m)));
                             }
                         }
                     }
@@ -2393,7 +2400,7 @@ namespace madness {
                                 for (int n=0; n<npt; ++n) {
                                     c[4] = cell(4,0) + h*cell_width[4]*(l[4] + qx(n)); // yy
                                     fval(i,j,k,m,n) = f(c);
-                                    MADNESS_ASSERT(!std::isnan(fval(i,j,k,m,n)));
+                                    MADNESS_ASSERT(!isnan(fval(i,j,k,m,n)));
                                 }
                             }
                         }
@@ -2414,7 +2421,7 @@ namespace madness {
                                     for (int p=0; p<npt; ++p) {
                                         c[5] = cell(5,0) + h*cell_width[5]*(l[5] + qx(p)); // zz
                                         fval(i,j,k,m,n,p) = f(c);
-                                        MADNESS_ASSERT(!std::isnan(fval(i,j,k,m,n,p)));
+                                        MADNESS_ASSERT(!isnan(fval(i,j,k,m,n,p)));
                                     }
                                 }
                             }

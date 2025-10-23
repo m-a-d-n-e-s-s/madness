@@ -982,7 +982,7 @@ double MP3::mp3_energy_contribution_macrotask_driver(const Pairs<CCPair>& mp2pai
     const std::vector<real_function_3d>& ket=info.mo_ket;
     const std::vector<real_function_3d>& bra=info.mo_bra;
 
-    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),MacroTaskInfo::get_default()));
+    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(world)));
     // taskq->set_printlevel(20);
     // taskq->cloud.set_debug(true);
     // MacroTaskMP3 task_triangular("triangular");

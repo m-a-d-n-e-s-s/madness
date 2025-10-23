@@ -339,6 +339,8 @@ namespace madness {
     /// Base class for WorldObject, useful for introspection
     struct WorldObjectBase {
       virtual ~WorldObjectBase() = default;
+    public:
+        virtual World& get_world() const = 0;
     };
 
     /// Implements most parts of a globally addressable object (via unique ID).

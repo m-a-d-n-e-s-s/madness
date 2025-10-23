@@ -14,8 +14,8 @@ namespace madness {
 /// small class for pretty printing of test output
 struct test_output {
     /// @param[in]  use as if (world.rank()==0) to avoid printing on all ranks
-	test_output(std::string line, bool print=true) {
-        if (print) std::cout << ltrim_to_length(line,70);
+	test_output(std::string line, bool print=true) : do_print(print) {
+        if (do_print) std::cout << ltrim_to_length(line,70);
 		logger << std::scientific << std::setprecision(8) ;
         time_begin=cpu_time();
         time_last_checkpoint=time_begin;
@@ -32,6 +32,10 @@ struct test_output {
         set_cout_to_terminal(false);
     }
 
+    void set_do_print(bool print) {
+        do_print=print;
+    }
+
 	void print_and_clear_log() {
         set_cout_to_terminal();
 		std::cout << logger.str() << std::endl;
@@ -44,9 +48,9 @@ struct test_output {
         set_cout_to_terminal(false);
         bool success=error<tol;
         final_success = success and final_success;
-        if (not have_checkpoints) print("");    // first checkpoint
+        if (not have_checkpoints) if (do_print) print("");    // first checkpoint
         have_checkpoints=true;
-        std::cout << "  " << ltrim_to_length(message,66);
+        if (do_print) std::cout << "  " << ltrim_to_length(message,66);
         double time1=cpu_time()-time_last_checkpoint;
         time_last_checkpoint=cpu_time();
         print_success_fail(std::cout,success,time1,error);
@@ -63,9 +67,9 @@ struct test_output {
         double error=fabs(value-reference);
         bool success=error<tol;
         final_success = success and final_success;
-        if (not have_checkpoints) print("");    // first checkpoint
+        if (not have_checkpoints and do_print) print("");    // first checkpoint
         have_checkpoints=true;
-        std::cout << "  " << ltrim_to_length(message,66);
+        if (do_print) std::cout << "  " << ltrim_to_length(message,66);
         double time1=cpu_time()-time_last_checkpoint;
         time_last_checkpoint=cpu_time();
         print_success_fail(std::cout,success,time1,error);
@@ -79,9 +83,9 @@ struct test_output {
         bool use_logger=cout_set_to_logger;
         set_cout_to_terminal(false);
         final_success = success and final_success;
-        if (not have_checkpoints) print("");    // first checkpoint
+        if (not have_checkpoints and do_print) print("");    // first checkpoint
         have_checkpoints=true;
-        std::cout << "  " << ltrim_to_length(message,66);
+	    if (do_print) std::cout << "  " << ltrim_to_length(message,66);
         double time1=cpu_time()-time_last_checkpoint;
         time_last_checkpoint=cpu_time();
         print_success_fail(std::cout,success,time1,-1.0);
@@ -91,22 +95,24 @@ struct test_output {
         if (use_logger) set_cout_to_logger();
     }
 
-    void print_success_fail(std::ostream& os, bool success, double time, double error) {
+    void print_success_fail(std::ostream& os, bool success, double time, double error) const {
 
-        if (success) os << "\033[32m"   << "passed " << "\033[0m";
-        else os << "\033[31m"   << "failed " << "\033[0m";
-        if (time>0) {
-            std::stringstream ss;
-            ss<< " in " << std::fixed << std::setprecision(1) << time << "s";
-            os << ss.str();
-        }
-        if (error>=0.0) os << " error " << error;
-        os << std::endl;
+	    if (do_print) {
+	        if (success) os << "\033[32m"   << "passed " << "\033[0m";
+	        else os << "\033[31m"   << "failed " << "\033[0m";
+	        if (time>0) {
+	            std::stringstream ss;
+	            ss<< " in " << std::fixed << std::setprecision(1) << time << "s";
+	            os << ss.str();
+	        }
+	        if (error>=0.0) os << " error " << error;
+	        os << std::endl;
+	    }
     }
 
 	int end(bool success=true) {
         set_cout_to_terminal(false);
-        if (have_checkpoints) std::cout << ltrim_to_length("--> final result -->",70);
+        if (do_print and have_checkpoints) std::cout << ltrim_to_length("--> final result -->",70);
         success = success and final_success;
         double time_end=cpu_time();
         print_success_fail(std::cout,success,time_end-time_begin,-1.0);
@@ -142,6 +148,7 @@ private:
     std::streambuf* stream_buffer_cout;
     double time_begin=0.0;
     double time_last_checkpoint=0.0;
+    bool do_print=true;                        // if run on several ranks
 };
 
 
