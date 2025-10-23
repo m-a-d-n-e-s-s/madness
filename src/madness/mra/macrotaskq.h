@@ -389,9 +389,9 @@ struct MacroTaskInfo {
 
 	static StoragePolicy policy_to_string(const std::string policy) {
 		std::string policy_lc=commandlineparser::tolower(policy);
-		if (policy=="storefunction") return MacroTaskInfo::StoreFunction;
-		if (policy=="storepointer") return MacroTaskInfo::StorePointerToFunction;
-		if (policy=="storefunctionviapointer") return MacroTaskInfo::StoreFunctionViaPointer;
+		if (policy=="function") return MacroTaskInfo::StoreFunction;
+		if (policy=="pointer") return MacroTaskInfo::StorePointerToFunction;
+		if (policy=="functionviapointer") return MacroTaskInfo::StoreFunctionViaPointer;
 		std::string msg="unknown policy: "+policy;
 		MADNESS_EXCEPTION(msg.c_str(),1);
 		return MacroTaskInfo::StorePointerToFunction;
@@ -410,9 +410,9 @@ struct MacroTaskInfo {
 
 template<typename T=double>
 std::ostream& operator<<(std::ostream& os, const typename MacroTaskInfo::StoragePolicy sp) {
-	if (sp==MacroTaskInfo::StoreFunction) os << "StoreFunction";
-	if (sp==MacroTaskInfo::StorePointerToFunction) os << "StorePointerToFunction";
-	if (sp==MacroTaskInfo::StoreFunctionViaPointer) os << "StoreFunctionViaPointer";
+	if (sp==MacroTaskInfo::StoreFunction) os << "Function";
+	if (sp==MacroTaskInfo::StorePointerToFunction) os << "PointerToFunction";
+	if (sp==MacroTaskInfo::StoreFunctionViaPointer) os << "FunctionViaPointer";
 	return os;
 }
 

@@ -202,8 +202,8 @@ public:
 
     friend std::ostream& operator<<(std::ostream& os, const StoragePolicy& sp) {
         switch(sp) {
-            case StoreFunction: os << "StoreFunction"; break;
-            case StoreFunctionPointer: os << "StoreFunctionPointer"; break;
+            case StoreFunction: os << "Function"; break;
+            case StoreFunctionPointer: os << "FunctionPointer"; break;
             default: os << "UnknownStoragePolicy"; break;
         }
         return os;

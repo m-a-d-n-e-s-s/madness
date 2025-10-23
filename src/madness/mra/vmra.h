@@ -1822,7 +1822,7 @@ namespace madness {
     		v.front().print_size(msg);
     	}else{
     		for(auto x:v){
-    		    print("impl",x.get_impl().get());
+    		    // print("impl",x.get_impl().get());
     			x.print_size(msg);
     		}
     	}
