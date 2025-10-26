@@ -2858,7 +2858,7 @@ namespace madness {
 
     template <typename R, std::size_t MDIM>
     void swap(Function<R,MDIM>& f1, Function<R,MDIM>& f2) {
-        f1.get_impl()->swap(*f2.get_impl());
+        f1.impl.swap(f2.impl);
     }
 
 }
