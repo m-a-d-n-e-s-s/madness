@@ -1,4 +1,4 @@
-#pragma once
+#pragma onceque
 #include "GroundStateData.hpp"
 #include "ResponseDebugLogger.hpp"
 #include "ResponseDebugLoggerMacros.hpp"
@@ -48,6 +48,9 @@ bool iterate(World &world, const ResponseManager &response_manager,
   functionT drho_old;
 
   logger.start_state(state);
+  if (world.rank() == 0) {
+    print("Starting state:", state.description(), "\n");
+  }
   for (size_t iter = 0; iter < max_iter; ++iter) {
     logger.begin_iteration(iter);
     drho_old = copy(drho);
