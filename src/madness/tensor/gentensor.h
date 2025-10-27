@@ -196,15 +196,15 @@ namespace madness {
         }
 
         GenTensor convert(const TensorArgs& targs) const {return copy(*this);}
-        GenTensor reconstruct_tensor() const {return *this;}
-        GenTensor full_tensor() const {return *this;}
-        GenTensor& full_tensor() {return *this;}
+        Tensor<T> reconstruct_tensor() const {return *this;}
+        const Tensor<T>& full_tensor() const {return *this;}
+        Tensor<T>& full_tensor() {return *this;}
 
-        GenTensor get_tensor() const {return *this;}
-        GenTensor& get_tensor() {return *this;}
+        const Tensor<T>& get_tensor() const {return *this;}
+        Tensor<T>& get_tensor() {return *this;}
 
-        Tensor<T> full_tensor_copy() const {return copy(*this);}
-        Tensor<T> full_tensor_copy() {return copy(*this);}
+		Tensor<T> full_tensor_copy() const {return copy(*this);}
+		Tensor<T> full_tensor_copy() {return copy(*this);}
 
         bool is_assigned() const {return this->size()>0;};
         bool has_data() const {return this->size()>0;};
