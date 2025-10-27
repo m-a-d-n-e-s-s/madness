@@ -122,6 +122,7 @@ namespace madness {
         static double cell_min_width;   ///< Size of smallest dimension
         static TensorType tt;			///< structure of the tensor in FunctionNode
         static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > pmap; ///< Default mapping of keys to processes
+    	static int pmap_nproc; ///< Number of processes assumed by pmap, -1 indicates uninitialized pmap
 
         static Tensor<double> make_default_cell() {
           if (NDIM) {
@@ -397,6 +398,11 @@ namespace madness {
             else
               return pmap; // null ptr if uninitialized
           }
+        }
+
+    	/// Returns number of the default processes returned by get_pmap()
+    	static int get_pmap_nproc() {
+        	return pmap_nproc;
         }
 
         /// Sets the default process map (does \em not redistribute existing functions)
