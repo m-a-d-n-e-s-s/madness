@@ -386,7 +386,7 @@ namespace madness {
         	return cell_volume;
         }
 
-        /// Returns the default process map
+        /// Returns the default process map that was last initialized via set_default_pmap()
         static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() {
           if (pmap)
             return pmap;
@@ -405,6 +405,16 @@ namespace madness {
         	return pmap_nproc;
         }
 
+    	/// Returns the default process map that can be used with the given world
+    	static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > get_pmap(World& world) {
+        	if (World::get_default().id() == world.id()) {
+        		return get_pmap();
+        	}
+        	else {
+        		return make_default_pmap(world);
+        	}
+        }
+
         /// Sets the default process map (does \em not redistribute existing functions)
 
         /// Existing functions are probably rendered useless
@@ -412,9 +422,12 @@ namespace madness {
         	pmap = value;
         }
 
-        /// Sets the default process map
-        static void set_default_pmap(World& world);
+    	/// Makes a default process map for the given \p world
+    	static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > make_default_pmap(World& world);
 
+    	/// Sets the default process map for the use with WorldObjects in \p world
+    	/// @note sets default pmap to `make_default_pmap(world)`
+    	static void set_default_pmap(World& world);
 
         /// Sets the default process map and redistributes all functions using the old map
         static void redistribute(World& world, const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& newpmap) {

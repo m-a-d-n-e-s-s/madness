@@ -3552,10 +3552,15 @@ template <typename T, std::size_t NDIM>
     }
 
     template <std::size_t NDIM>
+    std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::make_default_pmap(World& world) {
+        // return std::make_shared<WorldDCDefaultPmap< Key<NDIM> >>(world);
+        return std::make_shared<LevelPmap< Key<NDIM> >>(world);
+        // return std::make_shared<SimplePmap< Key<NDIM> >>(world);
+    }
+
+    template <std::size_t NDIM>
     void FunctionDefaults<NDIM>::set_default_pmap(World& world) {
-        //pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new WorldDCDefaultPmap< Key<NDIM> >(world));
-        pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new madness::LevelPmap< Key<NDIM> >(world));
-        //pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new SimplePmap< Key<NDIM> >(world));
+        pmap = make_default_pmap(world);
         pmap_nproc = world.nproc();
     }
 
