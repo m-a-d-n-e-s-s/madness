@@ -162,8 +162,50 @@ struct molresponse_lib {
     // debug logger
     ResponseDebugLogger debug_logger("response_log.json", true);
 
+    // if any state and at any frequency needs solving at this protocol return
+    // true
+    auto needs_solving_at_protocol = [&](double protocol_thresh) {
+      bool at_final_protocol =
+          protocol_thresh ==
+          calc_params.protocol().back(); // are we at the final protocol?
+      for (const auto &state : generated_states.states) {
+        for (size_t freq_idx = 0; freq_idx < state.frequencies.size();
+             ++freq_idx) {
+          bool is_saved = response_record.is_saved(state);
+          bool should_solve =
+              !is_saved ||
+              (at_final_protocol && !response_record.is_converged(state));
+
+          if (world.rank() == 0) {
+            print("Checking state ", state.description(), " at thresh ",
+                  protocol_thresh, " freq ", state.frequencies[freq_idx],
+                  " is_saved=", is_saved,
+                  " at_final_protocol=", at_final_protocol,
+                  " should_solve=", should_solve);
+          }
+          if (should_solve) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
     // loop over thresholds
     for (double thresh : calc_params.protocol()) {
+
+      if (!needs_solving_at_protocol(thresh)) {
+        if (world.rank() == 0) {
+          madness::print("✓ All states converged at thresh", thresh,
+                         "skipping to next protocol.");
+        }
+        // advanced threshold for all states
+        for (auto &state : generated_states.states) {
+          state.advance_threshold();
+        }
+        continue;
+      }
+
       response_manager.setProtocol(world, ground.getL(), thresh);
       ground.prepareOrbitals(world, FunctionDefaults<3>::get_k(), thresh);
       ground.computePreliminaries(world, *response_manager.getCoulombOp(),
@@ -181,20 +223,7 @@ struct molresponse_lib {
         if (debug_logger.enabled() && world.rank() == 0) {
           debug_logger.write_to_disk();
         }
-        // Check if we reached final protocol or should advance
-        if (state.at_final_threshold()) {
-          if (world.rank() == 0) {
-            madness::print("✓ Final convergence reached for",
-                           state.description());
-          }
-        } else {
-          state.advance_threshold();
-          if (world.rank() == 0) {
-            madness::print("→ Converged at thresh", thresh,
-                           "→ advancing to next protocol for",
-                           state.description());
-          }
-        }
+        state.advance_threshold();
       }
     }
 
