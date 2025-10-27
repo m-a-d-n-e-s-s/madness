@@ -1347,7 +1347,7 @@ namespace madness {
     /// Returns a vector of `n` deep copies of a function
     template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
-    copy(World& world,
+    copy_n(World& world,
          const Function<T,NDIM>& v,
          const unsigned int n,
          bool fence=true) {
