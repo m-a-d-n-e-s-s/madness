@@ -407,7 +407,7 @@ namespace madness {
 
     	/// Returns the default process map that can be used with the given world
     	static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > get_pmap(World& world) {
-        	if (World::get_default().id() == world.id()) {
+        	if (get_pmap_nproc() == world.nproc()) {
         		return get_pmap();
         	}
         	else {
