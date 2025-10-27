@@ -1753,6 +1753,7 @@ template<size_t NDIM>
         double truncate_tol(double tol, const keyT& key) const;
 
         int get_truncate_mode() const { return truncate_mode; };
+        void set_truncate_mode(int mode) { truncate_mode = mode; };
 
 
         /// Returns patch referring to coeffs of child in parent box
