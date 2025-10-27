@@ -288,10 +288,15 @@ make_perturbation_operator(World &world, const GroundStateData &gs,
   // you’d have whatever MomentDisplacementFunctor exists:
   real_function_3d dvdx = real_factory_3d(world)
                               .functor(mdfunctor)
-                              .nofence()
                               .truncate_on_project()
                               .truncate_mode(0);
-  dvdx.truncate();
+                              //.nofence()
+  
+
+  
+  dvdx.get_impl()->set_truncate_mode(1);
+
+  //dvdx.truncate();
   return dvdx;
 }
 
