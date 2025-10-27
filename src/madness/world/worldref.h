@@ -617,15 +617,15 @@ namespace madness {
         // Remote counter serialization
 
         template <typename Archive>
-        struct ArchiveLoadImpl<Archive, detail::RemoteCounter > {
-            static inline void load(const Archive& ar, detail::RemoteCounter& c) {
+        struct ArchiveLoadImpl<Archive, madness::detail::RemoteCounter > {
+            static inline void load(const Archive& ar, madness::detail::RemoteCounter& c) {
                 c.load_(ar);
             }
         };
 
         template <typename Archive>
-        struct ArchiveStoreImpl<Archive, detail::RemoteCounter > {
-            static inline void store(const Archive& ar, const detail::RemoteCounter& c) {
+        struct ArchiveStoreImpl<Archive, madness::detail::RemoteCounter > {
+            static inline void store(const Archive& ar, const madness::detail::RemoteCounter& c) {
                 c.store_(ar);
             }
         };

@@ -3552,10 +3552,16 @@ template <typename T, std::size_t NDIM>
     }
 
     template <std::size_t NDIM>
+    std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::make_default_pmap(World& world) {
+        // return std::make_shared<WorldDCDefaultPmap< Key<NDIM> >>(world);
+        return std::make_shared<LevelPmap< Key<NDIM> >>(world);
+        // return std::make_shared<SimplePmap< Key<NDIM> >>(world);
+    }
+
+    template <std::size_t NDIM>
     void FunctionDefaults<NDIM>::set_default_pmap(World& world) {
-        //pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new WorldDCDefaultPmap< Key<NDIM> >(world));
-        pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new madness::LevelPmap< Key<NDIM> >(world));
-        //pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new SimplePmap< Key<NDIM> >(world));
+        pmap = make_default_pmap(world);
+        pmap_nproc = world.nproc();
     }
 
 
@@ -3604,6 +3610,7 @@ template <typename T, std::size_t NDIM>
     template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_volume = 1.;
     template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_min_width = 1.;
     template <std::size_t NDIM> std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::pmap;
+    template <std::size_t NDIM> int FunctionDefaults<NDIM>::pmap_nproc{-1};
 
     template <std::size_t NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp;
     template <std::size_t NDIM> array_of_bools<NDIM> Displacements<NDIM>::periodic_axes{false};

@@ -2120,7 +2120,7 @@ namespace madness {
     Function<T,NDIM> copy(World& world, const Function<T,NDIM>& f, bool fence = true) {
         PROFILE_FUNC;
         typedef FunctionImpl<T,NDIM> implT;
-        auto pmap=FunctionDefaults<NDIM>::get_pmap();
+        auto pmap = FunctionDefaults<NDIM>::get_pmap(world);
 
         // create a new function with pmap distribution, same parameters as f, but no coeffs
         Function<T,NDIM> result;

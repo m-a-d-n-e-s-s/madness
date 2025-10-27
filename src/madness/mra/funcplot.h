@@ -928,8 +928,6 @@ void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfuncti
             std::vector<std::string> molecular_info=std::vector<std::string>(), int npoints=100, double zoom=1.0,
             const Vector<double,NDIM> origin=Vector<double,NDIM>(0.0)) {
 
-        if (world.size()>1) return;
-
         // dummy atom in the center
         if (molecular_info.size()==0)
         	molecular_info=std::vector<std::string>(1,"0 0 0.0 0.0 0.0\n");
@@ -1001,9 +999,6 @@ void plot_plane(World& world, const std::vector<Function<double,NDIM> >& vfuncti
      template<typename T, size_t NDIM>
      void
      print_tree_jsonfile(World& world, const Function<T,NDIM>& f, std::string filename) {
-
-         if (world.size() > 1)
-             return;
 
          Tensor<double> cell = copy(FunctionDefaults<NDIM>::get_cell());
          std::ofstream os(filename.c_str());
