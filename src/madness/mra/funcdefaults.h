@@ -122,7 +122,7 @@ namespace madness {
         static double cell_min_width;   ///< Size of smallest dimension
         static TensorType tt;			///< structure of the tensor in FunctionNode
         static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > pmap; ///< Default mapping of keys to processes
-    	static int pmap_nproc; ///< Number of processes assumed by pmap, -1 indicates uninitialized pmap
+        static int pmap_nproc; ///< Number of processes assumed by pmap, -1 indicates uninitialized pmap
 
         static Tensor<double> make_default_cell() {
           if (NDIM) {
@@ -400,20 +400,20 @@ namespace madness {
           }
         }
 
-    	/// Returns number of the default processes returned by get_pmap()
-    	static int get_pmap_nproc() {
-        	return pmap_nproc;
-        }
+    /// Returns number of the default processes returned by get_pmap()
+    static int get_pmap_nproc() {
+        return pmap_nproc;
+    }
 
-    	/// Returns the default process map that can be used with the given world
-    	static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > get_pmap(World& world) {
-        	if (get_pmap_nproc() == world.nproc()) {
-        		return get_pmap();
-        	}
-        	else {
-        		return make_default_pmap(world);
-        	}
+    /// Returns the default process map that can be used with the given world
+    static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > get_pmap(World& world) {
+        if (get_pmap_nproc() == world.nproc()) {
+            return get_pmap();
         }
+        else {
+            return make_default_pmap(world);
+        }
+    }
 
         /// Sets the default process map (does \em not redistribute existing functions)
 
@@ -422,12 +422,12 @@ namespace madness {
         	pmap = value;
         }
 
-    	/// Makes a default process map for the given \p world
-    	static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > make_default_pmap(World& world);
+        /// Makes a default process map for the given \p world
+        static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > make_default_pmap(World& world);
 
     	/// Sets the default process map for the use with WorldObjects in \p world
     	/// @note sets default pmap to `make_default_pmap(world)`
-    	static void set_default_pmap(World& world);
+        static void set_default_pmap(World& world);
 
         /// Sets the default process map and redistributes all functions using the old map
         static void redistribute(World& world, const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& newpmap) {
