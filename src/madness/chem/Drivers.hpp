@@ -176,6 +176,9 @@ class Workflow {
         ofs << std::setw(4) << current_output;
         ofs.close();
       }
+      // Ensure all ranks are synchronized after task output write
+      world_.gop.fence();
+      
       /// append current output to all
       if (current_output.is_array()) {
         for (const auto& item : current_output) {
@@ -192,7 +195,7 @@ class Workflow {
         ofs << std::setw(4) << all;
         ofs.close();
       }
-      // Ensure all ranks are synchronized after JSON write
+      // Ensure all ranks are synchronized after aggregate JSON write
       world_.gop.fence();
     }
 
