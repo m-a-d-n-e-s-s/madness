@@ -178,7 +178,7 @@ class Workflow {
       }
       // Ensure all ranks are synchronized after task output write
       world_.gop.fence();
-      
+
       /// append current output to all
       if (current_output.is_array()) {
         for (const auto& item : current_output) {
