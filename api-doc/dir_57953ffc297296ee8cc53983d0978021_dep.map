@@ -1,0 +1,14 @@
+<map id="mra" name="mra">
+<area shape="rect" id="node1" href="dir_01714a46c9f36a1c2cd4877d8c2cd124.html" title="tensor" alt="" coords="27,136,90,161"/>
+<area shape="rect" id="node2" href="dir_bf7b7b866ad5c6f7c56fd633a07b64c1.html" title="misc" alt="" coords="115,136,168,161"/>
+<area shape="rect" id="node3" href="dir_ebcabeda34d3add93755f32a35bbc572.html" title="world" alt="" coords="192,136,251,161"/>
+<area shape="poly" id="edge1" href="dir_000023_000035.html" alt="" coords="147,90,89,130,86,126,144,86"/>
+<area shape="rect" id="edge1-headlabel" href="dir_000023_000035.html" title="29" alt="" coords="87,125,104,140"/>
+<area shape="poly" id="edge2" href="dir_000023_000018.html" alt="" coords="162,89,151,124,146,122,157,88"/>
+<area shape="rect" id="edge2-headlabel" href="dir_000023_000018.html" title="12" alt="" coords="149,114,167,128"/>
+<area shape="poly" id="edge3" href="dir_000023_000038.html" alt="" coords="174,87,205,124,201,127,170,90"/>
+<area shape="rect" id="edge3-headlabel" href="dir_000023_000038.html" title="66" alt="" coords="198,109,215,124"/>
+<area shape="rect" id="node5" href="dir_c28d25cb5fab577d85ce7edf98598f84.html" title="minmax" alt="" coords="38,63,114,88"/>
+<area shape="rect" id="clust2" href="dir_57953ffc297296ee8cc53983d0978021.html" alt="" coords="27,52,197,99"/>
+<area shape="rect" id="clust1" href="dir_6b18f4c94988b4c3175a7db89843d784.html" title="madness" alt="" coords="16,16,261,172"/>
+</map>
