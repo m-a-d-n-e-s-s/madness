@@ -36,6 +36,7 @@
 #error "mraimpl.h should ONLY be included in one of the mraX.cc files (x=1..6)"
 #endif
 
+#include <madness/madness_config.h>
 #include <memory>
 #include <math.h>
 #include <cmath>
@@ -50,14 +51,10 @@
 namespace std {
     template <typename T>
     bool isnan(const std::complex<T>& v) {
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wtautological-constant-compare"
-#endif
+        MADNESS_PRAGMA_CLANG(diagnostic push)
+        MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wtautological-constant-compare")
         return ::std::isnan(v.real()) || ::std::isnan(v.imag());
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
+        MADNESS_PRAGMA_CLANG(diagnostic pop)
     }
 }
 
@@ -2342,14 +2339,10 @@ namespace madness {
             }
         }
         else {
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wtautological-constant-compare"
-#endif
+            MADNESS_PRAGMA_CLANG(diagnostic push)
+            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wtautological-constant-compare")
             auto isnan = [](T v) { return std::isnan(v); };
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
+            MADNESS_PRAGMA_CLANG(diagnostic pop)
             if (NDIM == 1) {
                 for (int i=0; i<npt; ++i) {
                     c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
