@@ -3995,7 +3995,7 @@ template<size_t NDIM>
 					implT::tnorm(coeff_rhs,&rlo,&rhi);
 					error = hi*rlo + rhi*lo + rhi*hi;
 					tensorT val_rhs=fcf.coeffs2values(key, coeff_rhs);
-					val_rhs.emul(val_lhs.full_tensor_copy());
+					val_rhs.emul(val_lhs.full_tensor());
 					return fcf.values2coeffs(key,val_rhs);
         		} else {	// use quadrature of order k+1
 
@@ -4010,7 +4010,7 @@ template<size_t NDIM>
 
 		            // coeffs2values for lhs: k -> npt=k+1
 		            tensorT coeff_lhs_k1(cdata_npt.vk);
-		            coeff_lhs_k1(cdata.s0)=coeff_lhs.full_tensor_copy();
+		            coeff_lhs_k1(cdata.s0)=coeff_lhs.full_tensor();
 		            tensorT val_lhs_k1=fcf_hi_npt.coeffs2values(key,coeff_lhs_k1);
 
 		            // multiply
@@ -5523,7 +5523,7 @@ template<size_t NDIM>
             // Subtract to get the error ... the original coeffs are in the order k
             // basis but we just computed the coeffs in the order npt(=k+1) basis
             // so we can either use slices or an iterator macro.
-            const tensorT coeff = node.coeff().full_tensor_copy();
+            const tensorT coeff = node.coeff().full_tensor();
             ITERATOR(coeff,fval(IND)-=coeff(IND););
             // flo note: we do want to keep a full tensor here!
 
