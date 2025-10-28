@@ -175,7 +175,7 @@ int main(int argc, char** argv) {
 
 
             // Create workflow
-            qcapp::Workflow wf;
+            qcapp::Workflow wf(world);
             std::string user_workflow = "scf";
             if (parser.key_exists("workflow")) user_workflow = parser.value("workflow");
             else if (parser.key_exists("wf")) user_workflow = parser.value("wf");
@@ -282,7 +282,7 @@ int main(int argc, char** argv) {
             wf.run(prefix);
 
             if (true) {
-                qcapp::Workflow opt_wf;
+                qcapp::Workflow opt_wf(world);
 
                 std::function<std::unique_ptr<Application>(Params)> scfFactory =
                     [&](Params p) {
