@@ -798,7 +798,7 @@ namespace madness {
                 if (acc[i]->second.has_coeff()) {
                     tensorT s(cdata.v2k);
                     //                        s(cdata.s0) = acc[i]->second.coeff()(___);
-                    s(cdata.s0) = acc[i]->second.coeff().full_tensor_copy();
+                    s(cdata.s0) = acc[i]->second.coeff().full_tensor();
                     acc[i]->second.clear_coeff();
                     d[i] = unfilter(s);
                     acc[i]->second.set_has_children(true);
@@ -863,7 +863,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     bool FunctionImpl<T,NDIM>::autorefine_square_test(const keyT& key, const nodeT& t) const {
         double lo, hi;
-        tnorm(t.coeff().full_tensor_copy(), &lo, &hi);
+        tnorm(t.coeff().full_tensor(), &lo, &hi);
         double test = 2*lo*hi + hi*hi;
         //print("autoreftest",key,thresh,truncate_tol(thresh, key),lo,hi,test);
         return test> truncate_tol(thresh, key);
@@ -1034,7 +1034,7 @@ namespace madness {
         // values for eri: this must be done in full rank...
         if (veri.has_data()) {
             tensorT val_ket2=val_ket.full_tensor_copy().emul(veri);
-            if (val_result.has_data()) val_ket2+=val_result.full_tensor_copy();
+            if (val_result.has_data()) val_ket2+=val_result.full_tensor();
             // values2coeffs expensive (30%), coeffT() (relatively) cheap (8%)
             coeff_result=coeffT(values2coeffs(key,val_ket2),this->get_tensor_args());
 
@@ -1213,7 +1213,7 @@ namespace madness {
             for (size_t ii=0; ii<NDIM; ++ii) matrices[ii]=h[kit.key().translation()[ii]%2];
 
             // transform and accumulate on the result
-            result+=general_transform(v[i].get(),matrices).full_tensor_copy();
+            result+=general_transform(v[i].get(),matrices).full_tensor();
 
         }
         return result;
@@ -1632,7 +1632,7 @@ namespace madness {
         tensorT d(cdata.v2k);
         for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
             //                d(child_patch(kit.key())) += v[i].get();
-            d(child_patch(kit.key())) += v[i].get().full_tensor_copy();
+            d(child_patch(kit.key())) += v[i].get().full_tensor();
         }
 
         d = filter(d);
@@ -1676,7 +1676,7 @@ namespace madness {
         double norm_tree2=0.0;
         for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
             //                d(child_patch(kit.key())) += v[i].get();
-            d(child_patch(kit.key())) += v[i].get().first.full_tensor_copy();
+            d(child_patch(kit.key())) += v[i].get().first.full_tensor();
             norm_tree2+=v[i].get().second*v[i].get().second;
         }
 
@@ -1730,7 +1730,7 @@ namespace madness {
         int i=0;
         double norm_tree2=0.0;
         for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
-            d(child_patch(kit.key())) += v[i].get().first.full_tensor_copy();
+            d(child_patch(kit.key())) += v[i].get().first.full_tensor();
             norm_tree2+=v[i].get().second*v[i].get().second;
         }
         d = filter(d);
@@ -3174,7 +3174,7 @@ template <typename T, std::size_t NDIM>
                 typename dcT::const_iterator it = coeffs.find(cdata.key0).get();
                 if (it != coeffs.end()) {
                     const nodeT& node = it->second;
-                    if (node.has_coeff()) sum = node.coeff().full_tensor_copy()(v0);
+                    if (node.has_coeff()) sum = node.coeff().full_tensor()(v0);
                 }
             }
         }
@@ -3182,7 +3182,7 @@ template <typename T, std::size_t NDIM>
             for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
-                if (node.has_coeff()) sum += node.coeff().full_tensor_copy()(v0)*pow(0.5,NDIM*key.level()*0.5);
+                if (node.has_coeff()) sum += node.coeff().full_tensor()(v0)*pow(0.5,NDIM*key.level()*0.5);
             }
         }
         return sum*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
@@ -3342,8 +3342,7 @@ template <typename T, std::size_t NDIM>
         const Level n = key.level();
         const Vector<Translation,NDIM>& l = key.translation();
         const double twon = pow(2.0,double(n));
-        const tensorT& coeff = coeffs.find(key).get()->second.coeff().full_tensor_copy(); // Ugh!
-        //        const tensorT coeff = coeffs.find(key).get()->second.full_tensor_copy(); // Ugh!
+        const tensorT& coeff = coeffs.find(key).get()->second.coeff().full_tensor(); // Ugh!
         long ind[NDIM];
         coordT x;
 
