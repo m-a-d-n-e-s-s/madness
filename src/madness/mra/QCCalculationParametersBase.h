@@ -602,14 +602,18 @@ namespace madness {
         template <typename T>
         static typename std::enable_if<std::is_floating_point<T>::value, void>::type
         overwrite_if_inf(std::string& str, const T& arg) {
+#ifdef __clang__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wtautological-constant-compare"
+#endif
             if (std::isinf(arg)) {
                 std::stringstream ss;
                 ss << std::numeric_limits<T>::infinity();
                 str = ss.str();
             }
+#ifdef __clang__
 #pragma GCC diagnostic pop
+#endif
         }
 
         template <typename T>
