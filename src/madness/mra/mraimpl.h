@@ -2890,7 +2890,7 @@ namespace madness {
                 typename dcT::iterator it = fut.get();
                 nodeT& node = it->second;
                 if (node.has_coeff()) {
-                    Future<T>(ref).set(eval_cube(key.level(), x, node.coeff().full_tensor_copy()));
+                    Future<T>(ref).set(eval_cube(key.level(), x, node.coeff().full_tensor()));
                     return;
                 }
                 else {
@@ -2923,7 +2923,7 @@ namespace madness {
                 if (it != coeffs.end()) {
                     nodeT& node = it->second;
                     if (node.has_coeff()) {
-                        return std::pair<bool,T>(true,eval_cube(key.level(), x, node.coeff().full_tensor_copy()));
+                        return std::pair<bool,T>(true,eval_cube(key.level(), x, node.coeff().full_tensor()));
                     }
                 }
             }
