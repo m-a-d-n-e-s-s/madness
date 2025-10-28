@@ -62,12 +62,14 @@ double OEP::solve(const vecfuncT& HF_nemo1) {
 }
 
 void OEP::output_calc_info_schema(const double& energy) const {
-    nlohmann::json j;
-    j["scf_eigenvalues_a"]=tensor_to_json(calc->aeps);
-    j["model"]=oep_param.model().back();
-    j["driver"]="energy";
-    j["return_energy"]=energy;
-    update_schema(get_calc_param().prefix()+".oep_calc_info", j);
+    if (world.rank() == 0) {
+        nlohmann::json j;
+        j["scf_eigenvalues_a"]=tensor_to_json(calc->aeps);
+        j["model"]=oep_param.model().back();
+        j["driver"]="energy";
+        j["return_energy"]=energy;
+        update_schema(get_calc_param().prefix()+".oep_calc_info", j);
+    }
 }
 
 

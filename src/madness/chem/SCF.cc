@@ -142,21 +142,24 @@ tensorT Q2(const tensorT& s) {
 
 void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
                                  const tensorT &dipole_T) const {
-    nlohmann::json j = {};
-    // if it exists figure out the size.  pushback for each protocol
-    const double thresh = FunctionDefaults<3>::get_thresh();
-    const int k = FunctionDefaults<3>::get_k();
-    j["scf_threshold"] = thresh;
-    j["scf_k"] = k;
-    for (auto const &[key, val]: vals) {
-        j[key] = val;
+    if (world.rank() == 0) {
+        nlohmann::json j = {};
+        // if it exists figure out the size.  pushback for each protocol
+        const double thresh = FunctionDefaults<3>::get_thresh();
+        const int k = FunctionDefaults<3>::get_k();
+        j["scf_threshold"] = thresh;
+        j["scf_k"] = k;
+        for (auto const &[key, val]: vals) {
+            j[key] = val;
+        }
+        j["scf_dipole_moment"] = tensor_to_json(dipole_T);
+        update_schema(param.prefix()+".scf_info", j);
     }
-    j["scf_dipole_moment"] = tensor_to_json(dipole_T);
-    update_schema(param.prefix()+".scf_info", j);
 }
 
 void SCF::output_calc_info_schema() const {
-    nlohmann::json j = {};
+    if (world.rank() == 0) {
+        nlohmann::json j = {};
         vec_pair_ints int_vals;
         vec_pair_T<double> double_vals;
         vec_pair_tensor_T<double> double_tensor_vals;
@@ -184,6 +187,7 @@ void SCF::output_calc_info_schema() const {
 
         //    output_schema(param.prefix()+".calc_info", j);
         update_schema(param.prefix()+".calc_info", j);
+    }
 }
 
 void scf_data::add_data(std::map<std::string, double> values) {
