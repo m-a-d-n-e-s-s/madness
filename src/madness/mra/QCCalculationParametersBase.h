@@ -603,8 +603,8 @@ namespace madness {
         static typename std::enable_if<std::is_floating_point<T>::value, void>::type
         overwrite_if_inf(std::string& str, const T& arg) {
 #ifdef __clang__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wtautological-constant-compare"
 #endif
             if (std::isinf(arg)) {
                 std::stringstream ss;
@@ -612,7 +612,7 @@ namespace madness {
                 str = ss.str();
             }
 #ifdef __clang__
-#pragma GCC diagnostic pop
+#pragma clang diagnostic pop
 #endif
         }
 

@@ -84,12 +84,12 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
     madness::Tensor<double> result(3L, t[0].dims(), false);
     double* f = result.ptr();
 #ifdef __clang__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wtautological-constant-compare"
 #endif
     auto isnan = [](double v) { return std::isnan(v); };
 #ifdef __clang__
-#pragma GCC diagnostic pop
+#pragma clang diagnostic pop
 #endif
     if (spin_polarized) {
         const double* brho = t[1].ptr();
@@ -133,12 +133,12 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(const std::vector< madne
     result[0]=madness::Tensor<double>(3L, t[0].dims(), false);
     double* f = result[0].ptr();
 #ifdef __clang__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wtautological-constant-compare"
 #endif
     auto isnan = [](double v) { return std::isnan(v); };
 #ifdef __clang__
-#pragma GCC diagnostic pop
+#pragma clang diagnostic pop
 #endif
 
     if (spin_polarized) {

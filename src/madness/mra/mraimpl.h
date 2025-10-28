@@ -51,12 +51,12 @@ namespace std {
     template <typename T>
     bool isnan(const std::complex<T>& v) {
 #ifdef __clang__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wtautological-constant-compare"
 #endif
         return ::std::isnan(v.real()) || ::std::isnan(v.imag());
 #ifdef __clang__
-#pragma GCC diagnostic pop
+#pragma clang diagnostic pop
 #endif
     }
 }
@@ -2343,12 +2343,12 @@ namespace madness {
         }
         else {
 #ifdef __clang__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wtautological-constant-compare"
 #endif
             auto isnan = [](T v) { return std::isnan(v); };
 #ifdef __clang__
-#pragma GCC diagnostic pop
+#pragma clang diagnostic pop
 #endif
             if (NDIM == 1) {
                 for (int i=0; i<npt; ++i) {
