@@ -343,7 +343,7 @@ namespace madness {
 
         /// Evaluates a cube/slice of points (probably for plotting) ... collective but no fence necessary
 
-        /// All processes recieve the entire result (which is a rather severe limit
+        /// All processes receive the entire result (which is a rather severe limit
         /// on the size of the cube that is possible).
 
         /// Set eval_refine=true to return the refinment levels of
