@@ -8,6 +8,7 @@
 #ifndef SRC_APPS_CHEM_QCCALCULATIONPARAMETERSBASE_H_
 #define SRC_APPS_CHEM_QCCALCULATIONPARAMETERSBASE_H_
 
+#include <madness/madness_config.h>
 #include <string>
 #include <algorithm>
 #include <iomanip>
@@ -602,14 +603,14 @@ namespace madness {
         template <typename T>
         static typename std::enable_if<std::is_floating_point<T>::value, void>::type
         overwrite_if_inf(std::string& str, const T& arg) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wtautological-constant-compare"
+            MADNESS_PRAGMA_CLANG(diagnostic push)
+            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wtautological-constant-compare")
             if (std::isinf(arg)) {
                 std::stringstream ss;
                 ss << std::numeric_limits<T>::infinity();
                 str = ss.str();
             }
-#pragma GCC diagnostic pop
+            MADNESS_PRAGMA_CLANG(diagnostic pop)
         }
 
         template <typename T>
