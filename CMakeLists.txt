@@ -464,7 +464,7 @@ endif(NOT CMAKE_SYSTEM_PROCESSOR)
 if(processor_name MATCHES "^(aarch64.*|AARCH64.*|arm64.*|ARM64.*)" OR processor_name MATCHES "^(arm.*|ARM.*)" OR processor_name MATCHES "^(mips.*|MIPS.*)")
   # on ARM everything, including Windows, targets ARM C++ ABI
   set(MADNESS_CXX_ABI ${MADNESS_CXX_ABI_GenericARM})
-elseif(processor_name MATCHES "amd64.*|x86_64.*|AMD64.*" OR processor_name MATCHES "i686.*|i386.*|x86.*" OR processor_name MATCHES "^(powerpc|ppc)64le" OR processor_name MATCHES "^(powerpc|ppc)64")
+elseif(processor_name MATCHES "amd64.*|x86_64.*|AMD64.*" OR processor_name MATCHES "i686.*|i386.*|x86.*" OR processor_name MATCHES "^(powerpc|ppc)64le" OR processor_name MATCHES "^(powerpc|ppc)64" OR processor_name MATCHES "^(powerpc|ppc)")
   if (CMAKE_SYSTEM_NAME STREQUAL Windows) # on x86 Windows all compilers (clang, intel) target Windows C++ ABI
     set(MADNESS_CXX_ABI ${MADNESS_CXX_ABI_Microsoft})
   else (CMAKE_SYSTEM_NAME STREQUAL Windows)  # everyone else uses Itanium C++ ABI
