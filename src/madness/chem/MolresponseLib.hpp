@@ -232,6 +232,11 @@ struct molresponse_lib {
         [response_record](const LinearResponseDescriptor &s) {
           return response_record.is_converged(s);
         });
+    double thresh = calc_params.protocol().back();
+    response_manager.setProtocol(world, ground.getL(), thresh);
+    ground.prepareOrbitals(world, FunctionDefaults<3>::get_k(), thresh);
+    ground.computePreliminaries(world, *response_manager.getCoulombOp(),
+                                response_manager.getVtol(), fock_json_file);
 
     MADNESS_ASSERT(all_are_converged);
     VibrationalResults vib;
@@ -283,12 +288,6 @@ struct molresponse_lib {
 
           madness::print("▶️ Computing Raman response...");
         }
-        auto alpha_derivatives =
-            compute_Raman(world, ground, response_params.dipole_frequencies(),
-                          response_params.dipole_directions(),
-                          response_params.nuclear_directions(), properties);
-        raman.polarization_frequencies = response_params.dipole_frequencies();
-        properties.save();
 
         auto unit_amu_toau = std::sqrt(constants::atomic_mass_in_au);
         Tensor<double> normal_modes = *vib.normalmodes / unit_amu_toau;
@@ -307,6 +306,12 @@ struct molresponse_lib {
           print(mode);
           print(mode[0], mode[mode.size() - 1]);
         }
+        auto alpha_derivatives =
+            compute_Raman(world, ground, response_params.dipole_frequencies(),
+                          response_params.dipole_directions(),
+                          response_params.nuclear_directions(), properties);
+        raman.polarization_frequencies = response_params.dipole_frequencies();
+        properties.save();
 
         auto nnmodes =
             normal_modes(_, Slice(mode[0], mode[mode.size() - 1], 1));
