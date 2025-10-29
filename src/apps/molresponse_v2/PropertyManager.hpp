@@ -854,6 +854,7 @@ void compute_beta(
           }
           aa++;
         }
+        pm.save();
         // get perturbation direction
       }
     }
