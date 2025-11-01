@@ -9,8 +9,8 @@ namespace madness {
 
     double get_rss_usage_in_GB() {
         double kb_to_GB=1.0/(1024*1024);
-        double b_to_GB=kb_to_GB/1024;
 #ifdef __APPLE__
+        double b_to_GB=kb_to_GB/1024;
         struct rusage usage;
         if (getrusage(RUSAGE_SELF, &usage) == -1) {
             std::cerr << "Unable to get RSS usage" << std::endl;
@@ -71,7 +71,8 @@ namespace madness {
     /// for a given rank return the lowest rank on its host
     /// @param[in]  ranks_per_host1 from ranks_per_host()
     long lowest_rank_on_host_of_rank(const std::map<std::string,std::vector<long>> ranks_per_host1, int rank) {
-        for (const auto& [hostname,ranks] : ranks_per_host1) {
+        for (const auto& [hostname, ranks] : ranks_per_host1) {
+            (void)hostname;
             for (const auto& r : ranks) {
                 if (r==rank) return ranks.front();
             }

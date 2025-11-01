@@ -350,8 +350,7 @@ public:
         if (op == NULL) return false;
         if (key.level() < this->f->get_initial_level()) return false;
         sanity();
-        const double cnorm = coeff.normf();
-        BoundaryConditions<NDIM> bc = FunctionDefaults<NDIM>::get_bc();
+        //BoundaryConditions<NDIM> bc = FunctionDefaults<NDIM>::get_bc();
         // const auto bperiodic = bc.is_periodic();
 
         typedef Key<opT::opdim> opkeyT;
@@ -361,7 +360,7 @@ public:
         const std::vector<opkeyT>& disp = op->get_disp(key.level());
         const opkeyT& d = *disp.begin();         // use the zero-displacement for screening
         const double opnorm = op->norm(key.level(), d, source);
-        const double norm = opnorm * cnorm;
+        const double norm = opnorm * coeff.normf();
 
         return norm < thresh;
     }
