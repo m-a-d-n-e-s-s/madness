@@ -69,7 +69,7 @@ ElectronPairIterator& ElectronPairIterator::operator ++() {
 	++ij_;
 	// check consistency with pno-mp2.cc code
 	if (!finished_)
-		MADNESS_ASSERT(ij_ = tridx(i_, j_)); //-offset_);
+		MADNESS_ASSERT((ij_ = tridx(i_, j_))); //-offset_);
 
 	return *this;
 }

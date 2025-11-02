@@ -2416,7 +2416,7 @@ namespace madness {
       std::vector<long> map(NDIM);
       constexpr std::size_t LDIM=NDIM/2;
       static_assert(LDIM*2==NDIM);
-      for (auto d=0; d<LDIM; ++d) {
+      for (std::size_t d=0; d<LDIM; ++d) {
           map[d]=d+LDIM;
           map[d+LDIM]=d;
       }

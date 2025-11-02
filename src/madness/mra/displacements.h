@@ -159,7 +159,7 @@ namespace madness {
 
             disp_periodic[n] = std::vector< Key<NDIM> >();
             Vector<long,NDIM> lim;
-            for(size_t i=0; i!=NDIM; ++i) {
+            for(int i=0; i!=NDIM; ++i) {
               lim[i] = periodic_axes[i] ? nbp : nbnp;
             }
             for (IndexIterator index(lim); index; ++index) {
@@ -215,7 +215,7 @@ namespace madness {
 
             if (kernel_lattice_sum_axes.any()) {
                 MADNESS_ASSERT(NDIM <= 3);
-                MADNESS_ASSERT((std::size_t) n < std::extent_v<decltype(disp_periodic)>);
+                MADNESS_ASSERT(n < std::extent_v<decltype(disp_periodic)>);
                 if ((kernel_lattice_sum_axes && periodic_axes) != kernel_lattice_sum_axes) {
                   std::string msg =
                       "Displacements<" + std::to_string(NDIM) +
@@ -372,15 +372,14 @@ namespace madness {
             point = point.neighbor(unit_displacement);
           };
 
-          for (size_t i = NDIM; i > 0; --i) {
-            const size_t cur_dim = i - 1;
-            if (cur_dim == fixed_dim) continue;
+          for (int64_t i = NDIM - 1; i >= 0; --i) {
+            if (i == fixed_dim) continue;
 
-            if (point[cur_dim] < box[cur_dim].second) {
-              increment_along_dim(cur_dim);
+            if (point[i] < box[i].second) {
+              increment_along_dim(i);
               return;
             }
-            reset_along_dim(cur_dim);
+            reset_along_dim(i);
           }
 
           // move to the next surface layer normal to the fixed dimension
@@ -634,7 +633,7 @@ namespace madness {
         bool has_finite_dimensions = false;
         const auto n = center_.level();
         Vector<Translation, NDIM> probing_displacement_vec(0);
-        for (size_t d=0; d!= NDIM; ++d) {
+        for (int d=0; d!= NDIM; ++d) {
           if (box_radius_[d]) {
             auto r = *box_radius_[d];  // in units of 2^{n-1}
             r = (n == 0) ? (r+1)/2 : (r * Translation(1) << (n-1));
@@ -649,7 +648,7 @@ namespace madness {
         }
         MADNESS_ASSERT(has_finite_dimensions);
         probing_displacement_ = Displacement(n, probing_displacement_vec);
-        for (size_t d=0; d!= NDIM; ++d) {
+        for (int d=0; d!= NDIM; ++d) {
           // surface thickness should be only given for finite-radius dimensions
           MADNESS_ASSERT(!(box_radius_[d].has_value() ^ surface_thickness_[d].has_value()));
           MADNESS_ASSERT(surface_thickness_[d].value_or(0) >= 0);

@@ -264,7 +264,7 @@ struct Pairs {
 
     static Pairs vector2pairs(const std::vector<T>& argument, const PairVectorMap map) {
         Pairs<T> pairs;
-        for (int i=0; i<argument.size(); ++i) {
+        for (size_t i=0; i<argument.size(); ++i) {
             pairs.insert(map.map[i].first,map.map[i].second,argument[i]);
         }
         return pairs;

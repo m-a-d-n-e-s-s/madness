@@ -359,9 +359,8 @@ namespace madness {
     void RMI::assert_aslr_off(const SafeMPI::Intracomm& comm) {
       static_assert(sizeof(long) >= sizeof(std::ptrdiff_t), "std::ptrdiff_t must not exceed the width of long");
       long my_address = reinterpret_cast<long>(&assert_aslr_off);
-      MPI_Op compare_fn_addresses_op = MPI_OP_NULL;
-      MPI_Op_create(reinterpret_cast<MPI_User_function*>(&detail::compare_fn_addresses), 1, &compare_fn_addresses_op);
-      long zero_if_addresses_differ = 0;
+      MPI_Op compare_fn_addresses_op = SafeMPI::Op_create(&detail::compare_fn_addresses, 1);
+      long zero_if_addresses_differ;
       comm.Reduce(&my_address, &zero_if_addresses_differ, 1, MPI_LONG, compare_fn_addresses_op, 0);
       if (comm.Get_rank() == 0) {
         if (zero_if_addresses_differ == 0) {

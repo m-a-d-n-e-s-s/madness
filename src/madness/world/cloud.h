@@ -662,12 +662,12 @@ public:
                 }
             }
             else {
-                std::size_t keylistsize;
+                std::size_t keylistsize = 0;
                 world.mpi.Bcast(&keylistsize,sizeof(keylistsize),MPI_BYTE,rank);
                 for (size_t i=0; i<keylistsize; i++) {
                     keyT key;
                     world.mpi.Bcast(&key,sizeof(key),MPI_BYTE,rank);
-                    std::size_t sz;
+                    std::size_t sz = 0;
                     world.mpi.Bcast(&sz,sizeof(sz),MPI_BYTE,rank);
                     valueT data(sz);
 //                    world.mpi.Bcast(&data[0],sz,MPI_BYTE,rank);
