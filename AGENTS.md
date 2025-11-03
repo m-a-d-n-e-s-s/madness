@@ -13,10 +13,13 @@ The following packages are required to build and test the project. They should b
 - `cmake`
 - `git`
 - `ninja-build`
+- `openmpi-bin`
+- `openmpi-common`
+- `libopenmpi-dev`
 
 Example installation command:
 ```
-sudo apt-get update && sudo apt-get install -y build-essential gcc gfortran libopenblas-serial-dev cmake git ninja-build
+sudo apt-get update && sudo apt-get install -y build-essential gcc gfortran libopenblas-serial-dev cmake git ninja-build openmpi-bin openmpi-common libopenmpi-dev
 ```
 
 ## Configuration
@@ -25,7 +28,7 @@ To configure the project for fast builds and debugging, create a `build` directo
 ```
 mkdir build
 cd build
-cmake .. -G ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS_DEBUG="-Og -Wall" -DENABLE_NEVER_SPIN=ON -DENABLE_MPI=OFF -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=ON -DLAPACK_LIBRARIES="-L/usr/lib/x86_64-linux-gnu/openblas-serial -lopenblas -llapack"
+cmake .. -G ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS_DEBUG="-Og -Wall" -DENABLE_NEVER_SPIN=ON -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=ON -DLAPACK_LIBRARIES="-L/usr/lib/x86_64-linux-gnu/openblas-serial -lopenblas -llapack"
 ```
 
 ## Building
@@ -52,6 +55,12 @@ After a successful build, run these tests with
 ```
 Success will print the message "testsuite passed:  true" at the end and will have exit code zero.
 
+To run the same tests in parallel using MPI and two processes with two threads each, use the following command
+```
+MAD_NUM_THREADS=2 mpiexc -np 2 ./src/madness/src/testsuite
+```
+Success will print the message "testsuite passed:  true" at the end and will have exit code zero.
+
 To build the molecular density functional (DFT) code, from the build directory execute
 ```
 ninja moldft
@@ -61,3 +70,4 @@ After a successful build, from the build directory test the DFT code with the co
 ./src/apps/moldft/moldft --geometry=water --dft="xc=lda"
 ```
 Success will have exit code zero.
+
