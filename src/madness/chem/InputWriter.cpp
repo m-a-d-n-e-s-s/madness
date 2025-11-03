@@ -24,12 +24,12 @@ void write_molecule_json_to_input_file(const json& molecule_json,
   auto n = symbols_json.size();
   std::vector<std::pair<std::string, std::vector<double>>> lines(n);
 
-  for (int i = 0; i < n; i++) {
+  for (size_t i = 0; i < n; i++) {
     symbols.push_back(symbols_json[i]);
     geometry.push_back(coords[i]);
   }
 
-  for (int i = 0; i < n; i++) {
+  for (size_t i = 0; i < n; i++) {
     output_stream << "    " << symbols[i] << " " << geometry[i][0] << " "
                   << geometry[i][1] << " " << geometry[i][2] << std::endl;
   }

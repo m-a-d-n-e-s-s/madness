@@ -137,7 +137,7 @@ namespace madness {
 
             auto cell = FunctionDefaults<NDIM>::get_cell();
             auto is_in_cell = [&cell](const Vector<double, NDIM>& r) {
-                for (int d = 0; d < NDIM; ++d) if (r[d] < cell(d, 0) or r[d] > cell(d, 1)) return false;
+                for (size_t d = 0; d < NDIM; ++d) if (r[d] < cell(d, 0) or r[d] > cell(d, 1)) return false;
                 return true;
             };
             double rad=radius;
@@ -187,7 +187,7 @@ namespace madness {
             std::random_device rd{};
             std::mt19937 gen{rd()};
             Vector<double,NDIM> result;
-            for (int i = 0; i < NDIM; ++i) {
+            for (size_t i = 0; i < NDIM; ++i) {
                 std::normal_distribution<> d{origin[i], variance};
                 result[i]=d(gen);
             }
@@ -342,13 +342,13 @@ struct particle {
     /// convenience for particle 1 (the left/first particle)
     static particle particle1() {
         particle p;
-        for (int i=0; i<PDIM; ++i) p.dims[i]=i;
+        for (size_t i=0; i<PDIM; ++i) p.dims[i]=i;
         return p;
     }
     /// convenience for particle 2 (the right/second particle)
     static particle particle2() {
         particle p;
-        for (int i=0; i<PDIM; ++i) p.dims[i]=i+PDIM;
+        for (size_t i=0; i<PDIM; ++i) p.dims[i]=i+PDIM;
         return p;
     }
 
@@ -475,16 +475,16 @@ public:
         World& world=rhs.front().world();
 
         const int nbatch=30;
-        for (int i=0; i<rhs.size(); i+=nbatch) {
+        for (size_t i=0; i<rhs.size(); i+=nbatch) {
             std::vector<Function<T,LDIM>> rhs_batch;
             auto begin= rhs.begin()+i;
-            auto end= (i+nbatch)<rhs.size() ? rhs.begin()+i+nbatch : rhs.end();
+            auto end= size_t(i+nbatch)<rhs.size() ? rhs.begin()+i+nbatch : rhs.end();
             std::copy(begin,end, std::back_inserter(rhs_batch));
             auto tmp2= zero_functions_compressed<T,LDIM>(world,rhs_batch.size());
 
             if (a.size()==0) tmp2=apply(world,*(f12),rhs_batch);
 
-            for (int ia=0; ia<a.size(); ia++) {
+            for (size_t ia=0; ia<a.size(); ia++) {
                 auto premultiply= p1.is_first() ? a[ia] : b[ia];
                 auto postmultiply= p1.is_first() ? b[ia] : a[ia];
 
@@ -534,7 +534,7 @@ public:
         if (a.size()==0) return 0.0;
         auto split = [](const Vector<double,NDIM>& r) {
             Vector<double,LDIM> first, second;
-            for (int i=0; i<LDIM; ++i) {
+            for (size_t i=0; i<LDIM; ++i) {
                 first[i]=r[i];
                 second[i]=r[i+LDIM];
             }
@@ -1235,7 +1235,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             auto norms=norm2s(world,Y);
             std::vector<Function<double,LDIM>> Ynormalized;
 
-            for (int i=0; i<Y.size(); ++i) if (norms[i]>parameters.tol()) Ynormalized.push_back(Y[i]);
+            for (size_t i=0; i<Y.size(); ++i) if (norms[i]>parameters.tol()) Ynormalized.push_back(Y[i]);
             normalize(world,Ynormalized);
             return Ynormalized;
         }

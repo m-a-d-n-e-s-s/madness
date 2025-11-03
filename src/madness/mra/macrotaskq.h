@@ -1053,7 +1053,7 @@ private:
         			// resultT1 tmp1=task.allocator(subworld,argtuple);
         			// tmp1=task.batch.template insert_result_batch(tmp1,result_tmp);
         			std::size_t sz=result.size();
-        			for (int i=0; i<sz; ++i) {
+        			for (size_t i=0; i<sz; ++i) {
         				gaxpy(1.0, result[i], 1.0, result_tmp[i].get_local(), false);
         			}
         		}
@@ -1164,7 +1164,7 @@ private:
     	template<typename T>
     	static std::vector<ScalarResult<T>> pointer2WorldObject(const std::vector<std::shared_ptr<ScalarResultImpl<T>>> v_sr_impl) {
     		std::vector<ScalarResult<T>> vresult(v_sr_impl.size());
-    		for (auto i=0; i<v_sr_impl.size(); ++i) {
+    		for (size_t i=0; i<v_sr_impl.size(); ++i) {
     			vresult[i].set_impl(v_sr_impl[i]);
 			}
     		return vresult;

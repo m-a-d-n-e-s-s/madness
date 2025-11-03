@@ -202,7 +202,7 @@ double MP3::compute_mp3_ef_with_permutational_symmetry(const Pairs<CCPair>& mp2p
     /// <ij | kl >  = (ik | jl)
     std::vector<permutation> all_tau_permutations;
     // loop over unique pairs (ij)
-    for (int ij=0; ij<npair(); ++ij) {
+    for (size_t ij=0; ij<npair(); ++ij) {
         auto [i,j]=ij_to_i_and_j(ij);
         double tmp=0;
         std::vector<CCPairFunction<double,6>> tmp_tau;
@@ -326,7 +326,7 @@ double MP3::compute_mp3_ghij(const Pairs<CCPair>& mp2pairs,
     double result=0.0;
 
     const auto& R2=info.R_square;
-    const std::vector<real_function_3d>& nemo_orbital=info.mo_ket;
+    //const std::vector<real_function_3d>& nemo_orbital=info.mo_ket;
     const std::vector<real_function_3d>& R2_orbital=info.mo_bra;
 
     CCConvolutionOperator<double,3>::Parameters cparam;
@@ -411,7 +411,7 @@ double MP3::compute_mp3_ghij_fast(const Pairs<CCPair>& mp2pairs, const Pairs<std
     double result=0.0;
 
     const auto& R2=info.R_square;
-    const std::vector<real_function_3d>& nemo_orbital=info.mo_ket;
+    //const std::vector<real_function_3d>& nemo_orbital=info.mo_ket;
     const std::vector<real_function_3d>& R2_orbital=info.mo_bra;
 
     CCConvolutionOperator<double,3>::Parameters cparam;
@@ -979,8 +979,8 @@ double MP3::mp3_energy_contribution_macrotask_driver(const Pairs<CCPair>& mp2pai
 
 
     // get mos
-    const std::vector<real_function_3d>& ket=info.mo_ket;
-    const std::vector<real_function_3d>& bra=info.mo_bra;
+    //const std::vector<real_function_3d>& ket=info.mo_ket;
+    //const std::vector<real_function_3d>& bra=info.mo_bra;
 
     auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(world)));
     // taskq->set_printlevel(20);

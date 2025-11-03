@@ -86,14 +86,14 @@ namespace madness {
         /// Constructor with given n, l
         Key(Level n, const Vector<Translation, NDIM>& l) : n(n), l(l) 
 	{
-            MADNESS_ASSERT(n >= 0 && n < sizeof(Translation)*CHAR_BIT);
+            MADNESS_ASSERT(n >= 0 && size_t(n) < sizeof(Translation)*CHAR_BIT);
             rehash();
         }
 
         /// Constructor with given n and l=0
         Key(int n) : n(n), l(0) 
         {
-            MADNESS_ASSERT(n >= 0 && n < sizeof(Translation)*CHAR_BIT);
+            MADNESS_ASSERT(n >= 0 && size_t(n) < sizeof(Translation)*CHAR_BIT);
             rehash();
         }
 
@@ -289,7 +289,7 @@ namespace madness {
           Translation TWON1 = (Translation(1)<<n) - 1;
         	for (std::size_t i=0; i<NDIM; ++i)
         	{
-		  Translation ll = std::abs(l[i] - key.l[i]);
+        	  Translation ll = std::abs(l[i] - key.l[i]);
         	  if (bperiodic[i] && ll==TWON1) ll=1;
         	  dist = std::max(dist, ll);
         	}
@@ -346,7 +346,7 @@ namespace madness {
             MADNESS_ASSERT((LDIM+KDIM==NDIM) or (LDIM==NDIM));
             Vector<Translation, LDIM> l1;
             Vector<Translation, KDIM> l2;
-            for (int i=0; i<static_cast<int>(LDIM); ++i) {
+            for (size_t i=0; i<LDIM; ++i) {
                 l1[i]=l[i];
             }
 MADNESS_PRAGMA_GCC(diagnostic push)
@@ -365,7 +365,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         Key<VDIM> extract_front() const {
           static_assert(VDIM <= NDIM, "VDIM must be less than or equal to NDIM");
           Vector<Translation, VDIM> t;
-          for (int i = 0; i < VDIM; ++i) t[i] = this->translation()[i];
+          for (size_t i = 0; i < VDIM; ++i) t[i] = this->translation()[i];
           return Key<VDIM>(this->level(),t);
         }
 
@@ -374,7 +374,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         Key<VDIM> extract_back() const {
           static_assert(VDIM <= NDIM, "VDIM must be less than or equal to NDIM");
           Vector<Translation, VDIM> t;
-          for (int i = 0; i < VDIM; ++i) t[i] = this->translation()[NDIM-VDIM+i];
+          for (size_t i = 0; i < VDIM; ++i) t[i] = this->translation()[NDIM-VDIM+i];
           return Key<VDIM>(this->level(),t);
         }
 
@@ -382,7 +382,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         template<std::size_t VDIM>
         Key<VDIM> extract_key(const std::array<int,VDIM>& v) const {
             Vector<Translation, VDIM> t;
-            for (int i = 0; i < VDIM; ++i) t[i] = this->translation()[v[i]];
+            for (size_t i = 0; i < VDIM; ++i) t[i] = this->translation()[v[i]];
             return Key<VDIM>(this->level(),t);
         };
 
@@ -404,8 +404,8 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         template<std::size_t LDIM>
         Key<NDIM+LDIM> merge_with(const Key<LDIM>& rhs) const {
             Vector<Translation,NDIM+LDIM> t;
-            for (int i=0; i<static_cast<int>(NDIM); ++i) t[i]     =this->l[i];
-            for (int i=0; i<static_cast<int>(LDIM); ++i) t[NDIM+i]=rhs.translation()[i];
+            for (size_t i=0; i<NDIM; ++i) t[i]     =this->l[i];
+            for (size_t i=0; i<LDIM; ++i) t[NDIM+i]=rhs.translation()[i];
             return Key<NDIM+LDIM>(rhs.level(),t);
         }
 

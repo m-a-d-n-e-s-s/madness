@@ -6313,7 +6313,7 @@ template<size_t NDIM>
             for (auto it=get_coeffs().begin(); it!=get_coeffs().end(); ++it) {
                 const Key<NDIM>& key=it->first;
                 const FunctionNode<T,NDIM>& node=it->second;
-                if ((key.level()==n) and (has_d_coeffs(node.coeff()))) {
+                if ((key.level()==int(n)) and (has_d_coeffs(node.coeff()))) {
                     ij_list.insert(key);
                     Vector<Translation,CDIM> j_trans;
                     for (std::size_t i=0; i<CDIM; ++i) j_trans[i]=key.translation()[v[i]];

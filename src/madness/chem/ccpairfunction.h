@@ -699,7 +699,7 @@ public:
                                            const std::array<int, LDIM>& v1) {
         auto a012=std::array<int,LDIM>();
         auto a345=std::array<int,LDIM>();
-        for (int i=0; i<LDIM; ++i) {
+        for (size_t i=0; i<LDIM; ++i) {
             a012[i]=i;
             a345[i]=i+LDIM;
         }
