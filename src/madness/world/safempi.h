@@ -77,9 +77,16 @@
 #include <sstream>
 
 #define MADNESS_MPI_TEST(condition) \
-    { \
-        int mpi_error_code = condition; \
-        if(mpi_error_code != MPI_SUCCESS) throw ::SafeMPI::Exception(mpi_error_code); \
+    {                                       \
+        int mpi_error_code = condition;     \
+        if(mpi_error_code != MPI_SUCCESS) { \
+            char s[MPI_MAX_ERROR_STRING];                             \
+            s[0] = '\0';                                                \
+            int len = 0;                                                \
+            MPI_Error_string(mpi_error_code, s, &len);       \
+            std::cout<< "MPI ERROR in " << __FUNCTION__ << " in " << __FILE__ << " at line " << __LINE__ << " code " << mpi_error_code << " err string " << s << "\n"; \
+            throw ::SafeMPI::Exception(mpi_error_code);                 \
+        }                                                               \
     }
 
 namespace SafeMPI {

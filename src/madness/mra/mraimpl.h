@@ -158,8 +158,8 @@ namespace madness {
                     }
                 }
             }
-            world.gop.fence();
         }
+        world.gop.fence();
         return true;
     }
 
