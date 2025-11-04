@@ -38,6 +38,11 @@ After configuring the project, you can build the targets using `ninja`. For exam
 ninja testsuite
 ```
 
+To build all targets, run `ninja` with no additional options as follows
+```
+ninja
+```
+
 ## Testing
 
 To build and run the short test suite, from the build directory execute
