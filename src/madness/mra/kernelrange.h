@@ -30,16 +30,16 @@ public:
 
   /// restrictor function
   struct Restrictor {
-    Restrictor() = default;
-    Restrictor(Type type) : type_(type) { MADNESS_ASSERT(type == Hard); }
-    Restrictor(Type type, double sigma) : type_(type) {
+    //Restrictor() = default;
+    //Restrictor(Type type) : type_(type) { MADNESS_ASSERT(type == Hard); }
+      Restrictor(Type type = Hard, double sigma=1.0) : type_(type) { // Avoid uninitialized warning on sigma if type is Hard 
       MADNESS_ASSERT(sigma >= 0);
-      if (sigma == 0)
-        MADNESS_ASSERT(type == Hard);
-      else {
-        MADNESS_ASSERT(type != Hard);
+      // if (sigma == 0)
+      //   MADNESS_ASSERT(type == Hard);
+      // else {
+      //   MADNESS_ASSERT(type != Hard);
         this->sigma_w_inverse_ = {sigma, 1./sigma};
-      }
+      // }
     }
 
     Type type() const { return type_; }

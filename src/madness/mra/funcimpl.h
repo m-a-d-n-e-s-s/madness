@@ -810,10 +810,10 @@ template<size_t NDIM>
     public:
 
     	/// default ctor
-    	CoeffTracker() : impl(), key_(), is_leaf_(unknown), coeff_() {}
+    	CoeffTracker() : impl(), key_(0), is_leaf_(unknown), coeff_() {} // Initialize key to avoid warnings of possible unititialied use
 
     	/// the initial ctor making the root key
-    	CoeffTracker(const implT* impl) : impl(impl), key_(), is_leaf_(no) {
+    	CoeffTracker(const implT* impl) : impl(impl), key_(0), is_leaf_(no), coeff_() {
             if (impl) key_=impl->get_cdata().key0;
     	}
 

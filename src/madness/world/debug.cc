@@ -55,6 +55,7 @@ namespace madness {
         const char xterm[] = XTERM_EXECUTABLE;
         const std::size_t bufsize = 255;
         char title[bufsize], pid[bufsize], geometry[bufsize];
+        title[0] = '\0'; pid[0] = '\0'; geometry[0] = '\0';
         int ix=(rank/3)%3;
         int iy=rank%3;
         snprintf(title,bufsize,title, "Debugging process %d ", rank);
