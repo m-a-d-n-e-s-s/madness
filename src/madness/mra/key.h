@@ -343,21 +343,22 @@ namespace madness {
         void break_apart(Key<LDIM>& key1, Key<KDIM>& key2) const {
 
             // if LDIM==NDIM the 2nd key will be constructed empty
-            MADNESS_ASSERT((LDIM+KDIM==NDIM) or (LDIM==NDIM));
+            // static_assert((LDIM+KDIM==NDIM) or (LDIM==NDIM));
             Vector<Translation, LDIM> l1;
             Vector<Translation, KDIM> l2;
-            for (size_t i=0; i<LDIM; ++i) {
-                l1[i]=l[i];
+            if constexpr((LDIM+KDIM==NDIM) or (LDIM==NDIM)) {
+                for (size_t i=0; i<LDIM; ++i) {
+                    l1[i]=l[i];
+                }
+                for (size_t i=LDIM; i<NDIM; ++i) {
+                    l2[i-LDIM]=l[i];
+                }
+
+                key1=Key<LDIM>(n,l1);
+                key2=Key<KDIM>(n,l2);
+            } else {
+                MADNESS_EXCEPTION("Key::break_apart: LDIM+KDIM must equal NDIM or LDIM==NDIM",1);
             }
-MADNESS_PRAGMA_GCC(diagnostic push)
-MADNESS_PRAGMA_GCC(diagnostic ignored "-Waggressive-loop-optimizations")
-            for (size_t i=LDIM; i<NDIM; ++i) {
-                l2[i-LDIM]=l[i];
-            }
-MADNESS_PRAGMA_GCC(diagnostic pop)
-	    
-            key1=Key<LDIM>(n,l1);
-            key2=Key<KDIM>(n,l2);
         }
 
         /// extract a new key consisting of first VDIM dimensions of this
