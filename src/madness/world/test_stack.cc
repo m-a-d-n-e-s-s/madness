@@ -139,7 +139,7 @@ namespace {
         for(; i < cap; ++i) {
             EXPECT_EQ(i, s.size());
             EXPECT_NO_THROW(s.push(make(i)));
-            EXPECT_EQ(i, value(s.top()));
+            EXPECT_EQ(i, size_t(value(s.top())));
             EXPECT_EQ(i + 1u, s.size());
             EXPECT_EQ(cap, s.capacity());
             EXPECT_FALSE(s.empty());

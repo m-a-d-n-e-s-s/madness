@@ -708,7 +708,7 @@ public:
     size_t info() const;
 
     friend hashT hash_value(CCConvolutionOperator<T,NDIM>& op) {
-        hashT h;
+        hashT h = 0;
         hash_combine(h, op.parameters.thresh_op);
         hash_combine(h, op.parameters.lo);
         hash_combine(h, op.parameters.freeze);
