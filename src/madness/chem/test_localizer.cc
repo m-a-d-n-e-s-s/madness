@@ -90,7 +90,7 @@ bool test_ne_boys(World& world, const Nemo& nemo) {
     lmo.pretty_print("cv-localized MOs");
     print(fock2);
     std::vector<Vector<double,3>> center=lmo.compute_center(nemo.get_ncf_ptr()->square());
-    for (int i=0; i<lmo.get_mos().size(); ++i) {
+    for (size_t i=0; i<lmo.get_mos().size(); ++i) {
         print("center of mo",i,center[i][0],center[i][1],center[i][2]);
     }
     print("distances ne tetrahedron",dist(center[1],center[2]),

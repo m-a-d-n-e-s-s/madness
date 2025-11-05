@@ -395,7 +395,7 @@ void compute_alpha(World &world,
   const size_t num_directions = directions.size();
   const size_t num_orbitals = gs.getNumOrbitals();
   const size_t num_frequencies = frequencies.size();
-  const bool is_restricted = gs.isSpinRestricted();
+  // const bool is_restricted = gs.isSpinRestricted();
 
   if (world.rank() == 0) {
     print("▶️ Computing α tensor for", num_directions, "directions and",
@@ -479,7 +479,7 @@ void compute_beta(
     PropertyManager &pm) {
   const bool is_spin_restricted = gs.isSpinRestricted();
   const int num_orbitals = static_cast<int>(gs.getNumOrbitals());
-  const double thresh = FunctionDefaults<3>::get_thresh();
+  // const double thresh = FunctionDefaults<3>::get_thresh();
 
   // 1) Build a SimpleVBCComputer once
   auto vbc_computer = SimpleVBCComputer(world, gs);
@@ -530,7 +530,7 @@ void compute_beta(
         //
 
         std::vector<real_function_3d> opAs(perturbation_A.size());
-        for (int a = 0; a < perturbation_A.size(); ++a) {
+        for (size_t a = 0; a < perturbation_A.size(); ++a) {
           auto pertA = perturbation_A[a];
           auto state_A = LinearResponseDescriptor(
               pertA, a_type, {omega_A}, {FunctionDefaults<3>::get_thresh()},
@@ -580,7 +580,7 @@ void compute_beta(
             perturbation_A.size());
         std::vector<vector_real_function_3d> ra_y_zeta_cb(
             perturbation_A.size());
-        for (int a = 0; a < perturbation_A.size(); ++a) {
+        for (size_t a = 0; a < perturbation_A.size(); ++a) {
           ra_y_zeta_bc[a] = copy(world, get_flat(y_zeta_bc)) * opAs[a];
           ra_y_zeta_cb[a] = copy(world, get_flat(y_zeta_cb)) * opAs[a];
         }
@@ -681,9 +681,9 @@ void compute_Raman(
   // 2) Enumerate all nuclear displacements (per atom, per axis)
   std::vector<Perturbation> nucs;
   nucs.reserve(3 * gs.molecule.natom());
-  for (int atom = 0; atom < gs.molecule.natom(); ++atom) {
+  for (size_t atom = 0; atom < gs.molecule.natom(); ++atom) {
     for (char dir : {'x', 'y', 'z'})
-      nucs.emplace_back(NuclearDisplacementPerturbation{atom, dir});
+      nucs.emplace_back(NuclearDisplacementPerturbation{static_cast<int>(atom), dir});
   }
 
   std::pair<PerturbationType, PerturbationType> bc_types = {

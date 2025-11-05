@@ -348,7 +348,7 @@ int test_replication_policy(World& universe) {
                 if (cloud_replication_policy==DistributionType::NodeReplicated) fac=nhost;
                 if (cloud_replication_policy==DistributionType::RankReplicated) fac=universe.size();
                 print("nrecord, bytes in cloud", nrecords, global_memsize);
-                t1.checkpoint(nrecords == fac, "cloud: nrecord==n_replica");
+                t1.checkpoint(nrecords == static_cast<size_t>(fac), "cloud: nrecord==n_replica");
                 if (storing_policy == MacroTaskInfo::StorePointerToFunction)
                     t1.checkpoint(global_memsize < 1.e2, "cloud size is small");
                 else
@@ -426,7 +426,7 @@ int chunk_example(World& universe) {
         cloud.replicate(50);
 
         auto cloud_vector = cloud.load<std::vector<int>>(universe, recordlist);
-        for (int i = 0; i < testvec.size(); i++) {
+        for (size_t i = 0; i < testvec.size(); i++) {
             sum += std::abs(testvec[i] - cloud_vector[i]);
         }
         cloud.clear_cache(universe);

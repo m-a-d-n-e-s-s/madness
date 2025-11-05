@@ -337,7 +337,7 @@ int main(int argc, char**argv) {
             auto rnp = op_rr.get_ops();
             const auto twon = 1 << n;
             MADNESS_ASSERT(rp2.size() == rp.size());
-            for(auto mu=0; mu != rp.size(); ++mu) {
+            for(size_t mu=0; mu != rp.size(); ++mu) {
               for(int d=0; d!=3; ++d) {
                 const auto& rp_R = rp[mu].getop(d)->nonstandard(n, disp[d])->R;
                 const auto& rp2_R = rp2[mu].getop(d)->nonstandard(n, disp[d])->R;
@@ -422,7 +422,7 @@ int main(int argc, char**argv) {
     const std::vector<std::reference_wrapper<const SeparatedConvolution<double, 3>>> test_operators = {op, pop, op_rr, pop_rr, pop2_rr};
     const std::vector<std::string> test_operator_names = {"NP", "P", "RNP", "RP", "RP2"};
     std::map<std::string, std::reference_wrapper<const SeparatedConvolution<double, 3>>> str2op;
-    for(int i=0; i!=test_operators.size(); ++i) {
+    for(size_t i=0; i!=test_operators.size(); ++i) {
       str2op.emplace(test_operator_names[i], test_operators[i]);
     }
     const std::vector<Function<double, 3>> test_functions = {rho, gdiffuse, gtight};
@@ -456,11 +456,11 @@ int main(int argc, char**argv) {
     printf("\n");
 
     std::map<std::string, std::vector<Function<double, 3>>> str2V;
-    for(int i=0; i!=test_operators.size(); ++i) {
+    for(size_t i=0; i!=test_operators.size(); ++i) {
       str2V.emplace(test_operator_names[i], V_op_f[i]);
     }
 
-    for(int oi=0; oi != test_operators.size(); ++oi) {
+    for(size_t oi=0; oi != test_operators.size(); ++oi) {
       std::string ostr = test_operator_names[oi];
       std::string vstr = "V_" + ostr;
       const auto error =(str2V[ostr][0] - str2V[ostr][1] + str2V[ostr][2]).norm2();
@@ -482,7 +482,7 @@ int main(int argc, char**argv) {
         return axis_name=="X" ? coord_3d{double(r), 0, 0} : (axis_name=="Y" ? coord_3d{0, double(r), 0} : coord_3d{0, 0, double(r)});
       };
 
-      for(int fi=0; fi != test_functions.size(); ++fi) {
+      for(size_t fi=0; fi != test_functions.size(); ++fi) {
         const auto& f = test_functions[fi];
         const auto L = axis_name=="X" ? Lx : (axis_name=="Y" ? Ly : Lz);
 

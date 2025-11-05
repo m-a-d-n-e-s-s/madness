@@ -347,8 +347,7 @@ int test_orthogonalization(World& world) {
 		// create a set of symmetry-adapted functions from one function
 		std::vector<std::string> sirrep1;
 		vector_real_function_3d sym_adapt1=proj.create_symmetry_adapted_basis(f,sirrep1);
-		if (sym_adapt1.size()!=table.order_) result++;
-
+		                if (sym_adapt1.size()!= (size_t) table.order_) result++;
 		// create a set of symmetry-equivalent functions
 		vector_real_function_3d sym_equiv;
 		for (auto& syop : table.operators_) sym_equiv.push_back(syop(f));

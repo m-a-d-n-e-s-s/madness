@@ -116,7 +116,7 @@ namespace {
         Stack_ s;
 
         EXPECT_EQ(0u, s.size());
-        EXPECT_EQ(4, s.capacity());
+        EXPECT_EQ(4u, s.capacity());
         EXPECT_TRUE(s.empty());
 #ifdef MADNESS_ASSERTIONS_THROW
         EXPECT_THROW(s.top(), madness::MadnessException);

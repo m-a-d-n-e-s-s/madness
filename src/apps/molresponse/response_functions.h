@@ -254,7 +254,7 @@ namespace madness
     {
       MADNESS_ASSERT(size() > 0);
       MADNESS_ASSERT(same_size(*this, rhs_y)); // assert that same size
-      World &world = x[rhs_y.active.front()][0].world();
+      //World &world = x[rhs_y.active.front()][0].world();
       auto result = this->copy();
       result.active = rhs_y.active;
 
@@ -264,17 +264,13 @@ namespace madness
       // auto result =
       //     binary_apply(*this, rhs_y, [&](auto xi, auto vi)
       //                  { return gaxpy_oop(1.0, xi, -1.0, vi, false); });
-      return result;
+      //return result;
     }
 
     friend response_space operator*(const response_space &y, double a)
     {
       // World &world = y.x.at(0).at(0).world();
       World &world = y.x[y.active.front()][0].world();
-      auto multiply_scalar = [&](vector_real_function_3d &vi)
-      {
-        madness::scale(world, vi, a, false);
-      };
 
       // auto result = response_space(world, y.size(), y.size_orbitals());
       auto result =
@@ -284,9 +280,12 @@ namespace madness
       return result;
 
       // auto result = y.copy();
-
-      inplace_unary_apply(result, multiply_scalar);
-      return result;
+      //      auto multiply_scalar = [&](vector_real_function_3d &vi)
+      //      {
+      //madness::scale(world, vi, a, false);
+      //};
+      //inplace_unary_apply(result, multiply_scalar);
+      //return result;
     }
 
     friend response_space operator*(double a, response_space &y)
@@ -311,7 +310,7 @@ namespace madness
     response_space &operator*=(double a)
     {
       // World &world = this->x[0][0].world();
-      World &world = x[active.front()][0].world();
+        //World &world = x[active.front()][0].world();
 
       this->from_vector(this->to_vector() * a);
       // auto multiply_scalar = [&](vector_real_function_3d &vi)
@@ -334,11 +333,11 @@ namespace madness
       result.from_vector(a.to_vector() * f);
       return result;
 
-      auto multiply_scalar_function = [&](const vector_real_function_3d &vi)
-      {
-        return mul(world, f, vi, false);
-      };
-      return oop_unary_apply(a, multiply_scalar_function);
+      // auto multiply_scalar_function = [&](const vector_real_function_3d &vi)
+      // {
+      //   return mul(world, f, vi, false);
+      // };
+      // return oop_unary_apply(a, multiply_scalar_function);
     }
 
     // Scaling all internal functions by an external function
@@ -363,12 +362,12 @@ namespace madness
 
       return result;
 
-      auto multiply_scalar_function = [&](const vector_real_function_3d &vi)
-      {
-        return mul(world, f, vi, false);
-      };
+      // auto multiply_scalar_function = [&](const vector_real_function_3d &vi)
+      // {
+      //   return mul(world, f, vi, false);
+      // };
 
-      return oop_unary_apply(*this, multiply_scalar_function);
+      // return oop_unary_apply(*this, multiply_scalar_function);
     }
 
     friend response_space operator*(const response_space &a,
@@ -388,21 +387,21 @@ namespace madness
     response_space &operator+=(const response_space &b)
     {
       MADNESS_ASSERT(same_size(*this, b));
-      auto &world = b[b.active.front()][0].world();
+      // auto &world = b[b.active.front()][0].world();
       this->active = b.active;
 
       this->from_vector(this->to_vector() + b.to_vector());
       return *this;
 
-      auto a_plus_equal_b = [&](vector_real_function_3d &a,
-                                const vector_real_function_3d &g)
-      {
-        gaxpy(world, 1.0, a, 1.0, g, false);
-      };
-      binary_inplace(*this, b, a_plus_equal_b);
-      return *this;
+      // auto a_plus_equal_b = [&](vector_real_function_3d &a,
+      //                           const vector_real_function_3d &g)
+      // {
+      //   gaxpy(world, 1.0, a, 1.0, g, false);
+      // };
+      // binary_inplace(*this, b, a_plus_equal_b);
+      // return *this;
 
-      return *this;
+      // return *this;
     }
 
     // Mimicking std::vector with these 4
@@ -457,7 +456,7 @@ namespace madness
     void zero()
     {
       auto &world = x[0][0].world();
-      for (int i = 0; i < num_states; i++)
+      for (size_t i = 0; i < num_states; i++)
       {
         x[i] = ::madness::zero_functions<double, 3>(world, num_orbitals, false);
       }
@@ -549,7 +548,7 @@ namespace madness
     {
       response_space result(world, num_states, num_orbitals);
 
-      for (int i = 0; i < num_states; i++)
+      for (size_t i = 0; i < num_states; i++)
       {
         result.x[i] =
             ::madness::zero_functions<double, 3>(world, num_orbitals, false);

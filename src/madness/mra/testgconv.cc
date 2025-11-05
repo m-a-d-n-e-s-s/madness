@@ -83,7 +83,7 @@ constexpr dim_t cell_extent() {
   }
 }
 
-constexpr double cell_volume() {
+double cell_volume() {
   const auto size = cell_extent();
   return std::accumulate(
       size.begin(), size.end(), 1.,
@@ -91,7 +91,7 @@ constexpr double cell_volume() {
 }
 
 // normalized identity function = 1/volume
-constexpr double unit(const coord_t& r) {
+double unit(const coord_t& r) {
   const double fac = 1/cell_volume();
   return fac;
 }
@@ -494,7 +494,7 @@ int test_gconv(World& world) {
           //      }
           //      std::cout << std::endl;
 
-          for (int ig = 0; ig != gaussians_01.size(); ++ig) {
+          for (size_t ig = 0; ig != gaussians_01.size(); ++ig) {
             const auto &[g, g1] = gaussians_01[ig];
             const auto gaussian_exponent = gaussian_exponents[ig];
 
@@ -614,13 +614,13 @@ int test_gconv(World& world) {
             std::vector<std::reference_wrapper<const real_convolution_1d>> ops{
                 opnp, oprnp, oprp, oprp2};
             const std::vector<std::string> op_labels = {"NP", "RNP", "RP", "RP2"};
-            for(int iop=0; iop!=ops.size(); ++iop) {
+            for(size_t iop=0; iop!=ops.size(); ++iop) {
               const auto &op = ops[iop].get();
               const auto &opstr = op_labels[iop];
               // evaluate op(f1+ f2 + ...) - op(f1) - op(f2) - ...
               real_function_1d error_0, fsum_0;
               real_function_1d error_1, fsum_1;
-              for (int i = 0; i != gaussians_01.size(); ++i) {
+              for (size_t i = 0; i != gaussians_01.size(); ++i) {
                 const auto &[g, g1] = gaussians_01[i];
                 if (i == 0) {
                   fsum_0 = copy(g);

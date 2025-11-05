@@ -102,7 +102,7 @@ void test_add(World& world) {
     std::size_t nvec=5;
     std::vector<Function<T,NDIM> > add1(nvec), add2(nvec), sum(nvec), diff(nvec);
 
-    for (int i=0; i<nvec; ++i) {
+    for (size_t i=0; i<nvec; ++i) {
         add1[i]=FunctionFactory<T,NDIM>(world).functor([&i] (const Vector<double,3>& r) {return exp(-inner(r,r));});
         // add2[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return 2.0*exp(-inner(r,r));});
         // sum[i]=FunctionFactory<T,NDIM>(world).functor([] (const Vector<double,3>& r) {return 3.0*exp(-inner(r,r));});
@@ -121,7 +121,7 @@ void test_add(World& world) {
     std::vector<Function<T,NDIM> > r6=add1[0]-add2;
 
     double error1=0.0,error2=0.0,error3=0.0,error4=0.0,error5=0.0,error6=0.0;
-    for (int i=0; i<nvec; ++i) {
+    for (size_t i=0; i<nvec; ++i) {
     	error1+=(r1[i]-sum[i]).norm2();
     	error3+=(r3[i]-sum[i]).norm2();
     	error5+=(r5[i]-sum[i]).norm2();

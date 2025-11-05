@@ -38,7 +38,7 @@ static double test_1d_functor(const coord_1d& x) {
     return exp(-fabs(x[0])) + 0.1 * sin(30.0 * x[0]);
 }
 
-static double xf(const coord_3d& x) {
+[[maybe_unused]] static double xf(const coord_3d& x) {
     return x[1];
 }
 
@@ -46,21 +46,21 @@ static double r2(const coord_3d& x) {
     return x[0] * x[0] + x[1] * x[1] + x[2] * x[2];
 }
 
-static double slater_functor(const coord_3d& x) {
+[[maybe_unused]] static double slater_functor(const coord_3d& x) {
     double rsq = r2(x);
     double r = sqrt(rsq);
     return exp(-r);
 }
 
-static double mask_factor = 5.0;
-static double cutoff_radius = 5.0;
+[[maybe_unused]] static double mask_factor = 5.0;
+[[maybe_unused]] static double cutoff_radius = 5.0;
 
 //static double mask_functor(const coord_3d &x){
 //	double r = sqrt(r2(x));
 //	//return 1-erf(mask_factor*r);
 //	return 0.5*(1.0 - tanh(mask_factor*(r-cutoff_radius)));
 //}
-static double mask_functor_box(const coord_3d& x) {
+[[maybe_unused]] static double mask_functor_box(const coord_3d& x) {
     double r = sqrt(r2(x));
     //return 1-erf(mask_factor*r);
     return 0.5 * (1.0 - tanh(1.0 * (r - 15)));
@@ -160,13 +160,13 @@ struct slater_kernel {
     double pre = 1.0 / M_PI;
 };
 
-static double analytical_slater_functor(double rho) {
-    double tmp;
-    if (rho < 0.0) tmp = 0.0;
-    else tmp = pow(rho, 1.0 / 3.0);
-    double prefactor = 1.0 / M_PI;
-    return prefactor * tmp;
-}
+// static double analytical_slater_functor(double rho) {
+//     double tmp;
+//     if (rho < 0.0) tmp = 0.0;
+//     else tmp = pow(rho, 1.0 / 3.0);
+//     double prefactor = 1.0 / M_PI;
+//     return prefactor * tmp;
+// }
 
 struct asymptotic_slater : public FunctionFunctorInterface<double, 3> {
 public:

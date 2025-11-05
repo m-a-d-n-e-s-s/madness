@@ -25,7 +25,7 @@ inline bool iterate(World &world, const ResponseManager &rm,
   auto &rvec = response;
   auto &all_x = rvec.flat;
 
-  const auto thresh = FunctionDefaults<3>::get_thresh();
+  // const auto thresh = FunctionDefaults<3>::get_thresh();
   const double dconv =
       std::max(FunctionDefaults<3>::get_thresh() * 10, conv_thresh);
   auto density_target =
@@ -209,7 +209,7 @@ inline void computeFrequencyLoop(World &world, const ResponseManager &rm,
                                  const GroundStateData &ground_state,
                                  ResponseMetadata &metadata,
                                  ResponseDebugLogger &logger) {
-  const auto &frequencies = state.frequencies;
+  // const auto &frequencies = state.frequencies;
 
   auto state_id = state.perturbationDescription();
   double protocol = state.current_threshold();

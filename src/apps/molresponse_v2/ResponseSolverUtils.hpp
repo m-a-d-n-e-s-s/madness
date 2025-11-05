@@ -56,7 +56,7 @@ inline double inner(World &world, const vector_real_function_3d &x, const vector
 }
 
 inline void do_step_restriction(World &world, const vecfuncT &x, vecfuncT &x_new, const double &anorm, const std::string &spin, const double &maxrotn) {
-  int nres = 0;
+  // int nres = 0;
   if (anorm > maxrotn) {
     if (world.rank() == 0) print("Doing step restriction, norm of change: ", anorm);
     double s = maxrotn / anorm;

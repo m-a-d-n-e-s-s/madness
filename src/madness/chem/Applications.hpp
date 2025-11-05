@@ -215,7 +215,7 @@ namespace madness {
         nlohmann::json j;
         if (has_results(ckpt)) j=read_results(ckpt);
 
-        bool ok = true;
+        [[maybe_unused]] bool ok = true;
         if (needEnergy && !j.contains("energy")) ok = false;
         if (needDipole && !j.contains("dipole")) ok = false;
         if (needGradient && !j.contains("gradient")) ok = false;
@@ -284,8 +284,8 @@ namespace madness {
      * @param indir   Directory of precomputed ground-state (SCF) outputs
      */
     ResponseApplication(World& world, Params params, std::filesystem::path indir)
-        : world_(world),
-          Application(std::move(params)),
+        : Application(std::move(params)),
+          world_(world),
           indir_(std::move(indir)) {}
 
 
@@ -329,8 +329,9 @@ namespace madness {
   class CC2Application : public Application, public CC2 {
   public:
     explicit CC2Application(World& w, const Params& p, const SCFApplicationT& reference)
-        : Application(p), world_(w), reference_(reference),
-          CC2(w, p.get<CCParameters>(), p.get<TDHFParameters>(), reference.get_nemo()) {
+        : Application(p), 
+          CC2(w, p.get<CCParameters>(), p.get<TDHFParameters>(), reference.get_nemo()),
+          world_(w), reference_(reference) {
     }
 
     const QCCalculationParametersBase& get_parameters() const override {
@@ -361,9 +362,9 @@ namespace madness {
           ifs >> results_;
           ifs.close();
 
-          bool ok = true;
-          bool needEnergy = true;
-          if (needEnergy && !results_.contains("energy")) ok = false;
+          // bool ok = true;
+          // bool needEnergy = true;
+          // if (needEnergy && !results_.contains("energy")) ok = false;
 
         }
 
@@ -394,8 +395,9 @@ namespace madness {
   class TDHFApplication : public Application, public TDHF {
   public:
     explicit TDHFApplication(World& w, const Params& p, const SCFApplicationT& reference)
-        : Application(p), world_(w), reference_(reference),
-          TDHF(w, p.get<TDHFParameters>(), reference.get_nemo()) {
+        : Application(p), 
+          TDHF(w, p.get<TDHFParameters>(), reference.get_nemo()),
+          world_(w), reference_(reference) {
     }
 
 
@@ -463,8 +465,9 @@ namespace madness {
   class OEPApplication : public Application, public OEP {
   public:
     explicit OEPApplication(World& w, const Params& p, const SCFApplicationT& reference)
-        : Application(p), world_(w), reference_(reference),
-          OEP(w, p.get<OEP_Parameters>(), reference.get_nemo()) {
+        : Application(p), 
+          OEP(w, p.get<OEP_Parameters>(), reference.get_nemo()),
+          world_(w), reference_(reference) {
     }
 
     const QCCalculationParametersBase& get_parameters() const override {

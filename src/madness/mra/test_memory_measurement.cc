@@ -221,7 +221,7 @@ int test_mpi_group(World& world) {
             secondary_ranks.push_back(r);
     }
     oprint(world,"secondary_ranks: ", secondary_ranks);
-    t1.checkpoint(secondary_ranks.size()+primary_ranks.size() == world.size(),"total number of ranks");
+    t1.checkpoint(secondary_ranks.size()+primary_ranks.size() == static_cast<size_t>(world.size()),"total number of ranks");
 
 
     long myowner = lowest_rank_on_host_of_rank(ranks_per_host1, world.rank());

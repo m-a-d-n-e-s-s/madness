@@ -92,7 +92,7 @@ public:
        bool fence = false) const -> X_space {
     auto &world = x[0][0].world();
     auto new_x = X_space(*this); // copy
-    for (int i = 0; i < new_x.num_states(); i++) {
+    for (size_t i = 0; i < new_x.num_states(); i++) {
       new_x.x[i] = madness::copy(world, x[i], p_map, false);
       new_x.y[i] = madness::copy(world, y[i], p_map, false);
     }
@@ -231,7 +231,7 @@ public:
   static X_space zero_functions(World &world, size_t n_states,
                                 size_t n_orbitals) {
     auto zeros = X_space(world, n_states, n_orbitals);
-    for (int i = 0; i < zeros.num_states(); i++) {
+    for (size_t i = 0; i < zeros.num_states(); i++) {
       zeros.x[i] =
           ::madness::zero_functions<double, 3>(world, n_orbitals, true);
       zeros.y[i] =
@@ -243,7 +243,7 @@ public:
 
   auto operator+=(const X_space &B) -> X_space & {
     MADNESS_ASSERT(same_size(*this, B));
-    auto &world = this->x[B.active.front()][0].world();
+    // auto &world = this->x[B.active.front()][0].world();
     this->active = B.active;
     this->from_vector(this->to_vector() + B.to_vector());
 
@@ -288,11 +288,11 @@ public:
     result.from_vector(A.to_vector() * b);
     return result;
 
-    auto scale_a = [&](vector_real_function_3d &vec_ai) {
-      scale(world, vec_ai, b, true);
-    };
-    inplace_apply(result, scale_a);
-    return result;
+    //auto scale_a = [&](vector_real_function_3d &vec_ai) {
+    //  scale(world, vec_ai, b, true);
+    //};
+    //inplace_apply(result, scale_a);
+    //return result;
   }
   friend X_space operator*(const double &b, const X_space &A) {
     World &world = A.x[A.active.front()][0].world();
@@ -316,11 +316,11 @@ public:
     result.from_vector(result_vec);
     return result;
 
-    auto mul_ab = [&](vector_real_function_3d &vec_ai,
-                      vector_real_function_3d &vec_bi) {
-      return mul(world, vec_ai, vec_bi, false);
-    };
-    return binary_apply(A, B, mul_ab);
+    //auto mul_ab = [&](vector_real_function_3d &vec_ai,
+    //                  vector_real_function_3d &vec_bi) {
+    //  return mul(world, vec_ai, vec_bi, false);
+    //};
+    //return binary_apply(A, B, mul_ab);
   }
 
   friend X_space operator*(const X_space &A, const Function<double, 3> &f) {
@@ -338,16 +338,16 @@ public:
   }
   friend auto operator*(const Function<double, 3> &f,
                         const X_space &A) -> X_space {
-    World &world = A.x[A.active.front()][0].world();
+    // World &world = A.x[A.active.front()][0].world();
     auto result = X_space(A.x[0][0].world(), A.num_states(), A.num_orbitals());
     result.set_active(A.active);
     result.from_vector(f * A.to_vector());
     return result;
 
-    auto mul_f = [&](const vector_real_function_3d &vec_ai) {
-      return mul(world, f, vec_ai, false);
-    };
-    return oop_apply(A, mul_f);
+    //auto mul_f = [&](const vector_real_function_3d &vec_ai) {
+    //  return mul(world, f, vec_ai, false);
+    //};
+    //return oop_apply(A, mul_f);
   }
 
   friend auto operator*(const X_space &A, const Tensor<double> &b) -> X_space {
@@ -367,8 +367,8 @@ public:
   friend auto inner(const X_space &A, const X_space &B) -> Tensor<double>;
 
   void truncate() {
-
-    auto &world = this->x[x.active.front()][0].world();
+      
+    // auto &world = this->x[x.active.front()][0].world();
     this->from_vector(madness::truncate(
         this->to_vector(), FunctionDefaults<3>::get_thresh(), true));
   }
@@ -388,7 +388,7 @@ public:
 
   void truncate(double thresh) {
 
-    auto &world = this->x[x.active.front()][0].world();
+    // auto &world = this->x[x.active.front()][0].world();
     this->from_vector(madness::truncate(this->to_vector(), thresh, true));
   }
 
