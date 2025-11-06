@@ -28,7 +28,7 @@ To configure the project for fast builds and debugging, create a `build` directo
 ```
 mkdir build
 cd build
-cmake .. -G ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS_DEBUG="-Og -g -Wall" -DENABLE_NEVER_SPIN=ON -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=ON -DLAPACK_LIBRARIES="-L/usr/lib/x86_64-linux-gnu/openblas-serial -lopenblas -llapack"
+cmake .. -G ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS_DEBUG="-O0 -g -Wall" -DENABLE_NEVER_SPIN=ON -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTING=ON -DLAPACK_LIBRARIES="-L/usr/lib/x86_64-linux-gnu/openblas-serial -lopenblas -llapack"
 ```
 
 ## Building
@@ -36,6 +36,11 @@ cmake .. -G ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS_DEBUG="-Og -g -Wall
 After configuring the project, you can build the targets using `ninja`. For example, to build the `testsuite` target:
 ```
 ninja testsuite
+```
+
+To build all targets, run `ninja` with no additional options as follows
+```
+ninja
 ```
 
 ## Testing

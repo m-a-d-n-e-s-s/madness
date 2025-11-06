@@ -264,7 +264,7 @@ struct Pairs {
 
     static Pairs vector2pairs(const std::vector<T>& argument, const PairVectorMap map) {
         Pairs<T> pairs;
-        for (int i=0; i<argument.size(); ++i) {
+        for (size_t i=0; i<argument.size(); ++i) {
             pairs.insert(map.map[i].first,map.map[i].second,argument[i]);
         }
         return pairs;
@@ -708,7 +708,7 @@ public:
     size_t info() const;
 
     friend hashT hash_value(CCConvolutionOperator<T,NDIM>& op) {
-        hashT h;
+        hashT h = 0;
         hash_combine(h, op.parameters.thresh_op);
         hash_combine(h, op.parameters.lo);
         hash_combine(h, op.parameters.freeze);

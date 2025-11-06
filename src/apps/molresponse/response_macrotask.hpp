@@ -728,7 +728,7 @@ public:
 
     World &world = phi0[0].world();
     madness::QProjector<double, 3> Q(phi0);
-    auto thresh = FunctionDefaults<3>::get_thresh();
+    // auto thresh = FunctionDefaults<3>::get_thresh();
 
     auto K = [&](const vecfuncT &ket, const vecfuncT &bra) {
       const double lo = 1.e-10;
@@ -847,7 +847,7 @@ public:
 
     World &world = phi0[0].world();
     madness::QProjector<double, 3> Q(phi0);
-    auto thresh = FunctionDefaults<3>::get_thresh();
+    // auto thresh = FunctionDefaults<3>::get_thresh();
 
     auto K = [&](const vecfuncT &ket, const vecfuncT &bra) {
       const double lo = 1.e-10;
@@ -963,7 +963,7 @@ public:
 
     World &world = phi0[0].world();
     madness::QProjector<double, 3> Q(phi0);
-    auto thresh = FunctionDefaults<3>::get_thresh();
+    // auto thresh = FunctionDefaults<3>::get_thresh();
 
     auto K = [&](const vecfuncT &ket, const vecfuncT &bra) {
       const double lo = 1.e-10;
@@ -1090,7 +1090,7 @@ public:
 
     World &world = phi0[0].world();
     madness::QProjector<double, 3> Q(phi0);
-    auto thresh = FunctionDefaults<3>::get_thresh();
+    // auto thresh = FunctionDefaults<3>::get_thresh();
 
     auto K = [&](const vecfuncT &ket, const vecfuncT &bra) {
       const double lo = 1.e-10;
@@ -1169,7 +1169,7 @@ public:
       // this phi*(gbc + vb)_p is a vector of functions
 
       Tensor<double> m_fbi_row = Tensor<double>(fb_phi_x.size());
-      for (int i = 0; i < fb_phi_x.size(); i++) {
+      for (size_t i = 0; i < fb_phi_x.size(); i++) {
         m_fbi_row[i] = fb_phi_x[i].trace();
       }
       auto num_orbitals = static_cast<int>(phi0.size());
@@ -1181,7 +1181,7 @@ public:
     };
     int num_orbitals = static_cast<int>(phi0.size());
     auto bc_indexer = x_space_indexer(num_orbitals);
-    auto zeta_indexer = response_space_index(num_orbitals);
+    // auto zeta_indexer = response_space_index(num_orbitals);
 
     auto compute_result = [&](const int &i) {
       resultT result = zero_functions_compressed<double, 3>(world, 1);
@@ -1267,7 +1267,7 @@ public:
 
     World &world = phi0[0].world();
     madness::QProjector<double, 3> Q(phi0);
-    auto thresh = FunctionDefaults<3>::get_thresh();
+    // auto thresh = FunctionDefaults<3>::get_thresh();
 
     auto K = [&](const vecfuncT &ket, const vecfuncT &bra) {
       const double lo = 1.e-10;
@@ -1348,11 +1348,8 @@ public:
       auto gbc_phi_x = compute_g_i(bx, phi0, phi0, by, phi0[j]);
       auto fb_phi_x = mul(world, gbc_phi_x + vb_phi, phi);
       // this phi*(gbc + vb)_p is a vector of functions
-      // We next need trace of each function to form the 1D tensor of
-      // coefficients
-
       Tensor<double> m_fbi_row = Tensor<double>(fb_phi_x.size());
-      for (int i = 0; i < fb_phi_x.size(); i++) {
+      for (size_t i = 0; i < fb_phi_x.size(); i++) {
         m_fbi_row[i] = fb_phi_x[i].trace();
       }
 
@@ -1641,7 +1638,7 @@ public:
 
     World &world = phi0[0].world();
     madness::QProjector<double, 3> Q(phi0);
-    auto thresh = FunctionDefaults<3>::get_thresh();
+    // auto thresh = FunctionDefaults<3>::get_thresh();
 
     auto K = [&](const vecfuncT &ket, const vecfuncT &bra) {
       const double lo = 1.e-10;
@@ -1775,7 +1772,7 @@ public:
 
     World &world = phi0[0].world();
     madness::QProjector<double, 3> Q(phi0);
-    auto thresh = FunctionDefaults<3>::get_thresh();
+    // auto thresh = FunctionDefaults<3>::get_thresh();
 
     auto K = [&](const vecfuncT &ket, const vecfuncT &bra) {
       const double lo = 1.e-10;

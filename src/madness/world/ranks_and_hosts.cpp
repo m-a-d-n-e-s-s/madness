@@ -9,8 +9,8 @@ namespace madness {
 
     double get_rss_usage_in_GB() {
         double kb_to_GB=1.0/(1024*1024);
-        double b_to_GB=kb_to_GB/1024;
 #ifdef __APPLE__
+        double b_to_GB=kb_to_GB/1024;
         struct rusage usage;
         if (getrusage(RUSAGE_SELF, &usage) == -1) {
             std::cerr << "Unable to get RSS usage" << std::endl;

@@ -40,13 +40,13 @@ void write_function_coeffs(const Function<T, NDIM> &f, std::ostream &out,
       for (int i = 0; i < key.level(); ++i)
         out << "  ";
       out << key.level() << " ";
-      for (int i = 0; i < NDIM; ++i)
+      for (size_t i = 0; i < NDIM; ++i)
         out << key.translation()[i] << " ";
       out << std::endl;
 #if HAVE_GENTENSOR
       MADNESS_EXCEPTION("FunctionIO not implemented for GenTensor", 0);
 #else
-      for (size_t i = 0; i < values.size(); i++)
+      for (size_t i = 0; i < (size_t)values.size(); i++)
         out << values.ptr()[i] << " ";
 #endif
       out << std::endl;
@@ -64,7 +64,7 @@ size_t count_leaf_nodes(const Function<T, NDIM> &f) {
   const auto &coeffs = f.get_impl()->get_coeffs();
   size_t count = 0;
   for (auto it = coeffs.begin(); it != coeffs.end(); ++it) {
-    const auto &key = it->first;
+    // const auto &key = it->first;
     const auto &node = it->second;
     if (node.has_coeff()) {
       count++;
@@ -87,7 +87,7 @@ void write_function(const Function<T, NDIM> &f, std::ostream &out) {
   if (f.get_impl()->world.rank() == 0) {
     out << NDIM << std::endl;
     const auto &cell = FunctionDefaults<NDIM>::get_cell();
-    for (int d = 0; d < NDIM; ++d) {
+    for (size_t d = 0; d < NDIM; ++d) {
       for (int i = 0; i < 2; ++i)
         out << cell(d, i) << " ";
       out << std::endl;
@@ -116,14 +116,14 @@ void read_function_coeffs(Function<T, NDIM> &f, std::istream &in,
     if (in.eof())
       break;
 
-    for (int i = 0; i < NDIM; ++i) {
+    for (size_t i = 0; i < NDIM; ++i) {
       in >> l[i];
       dims[i] = f.k();
     }
     Key<NDIM> key(n, l);
 
     Tensor<T> values(NDIM, dims);
-    for (size_t i = 0; i < values.size(); i++)
+    for (size_t i = 0; i < (size_t)values.size(); i++)
       in >> values.ptr()[i];
     auto t = f.get_impl()->values2coeffs(key, values);
 
@@ -139,7 +139,7 @@ Function<T, NDIM> read_function(World &world, std::istream &in) {
   MADNESS_CHECK(ndim == NDIM);
 
   Tensor<double> cell(NDIM, 2);
-  for (int d = 0; d < NDIM; ++d) {
+  for (size_t d = 0; d < NDIM; ++d) {
     for (int i = 0; i < 2; ++i)
       in >> cell(d, i);
   }

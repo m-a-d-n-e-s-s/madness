@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
     Array a(world, N), b(world, N);
 
     // Without regard to locality, initialize a and b
-    for (int i=world.rank(); i<N; i+=world.size()) {
+    for (size_t i=world.rank(); i<N; i+=world.size()) {
         a.write(i, 10.0*i);
         b.write(i,  7.0*i);
     }

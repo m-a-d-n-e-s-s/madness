@@ -159,7 +159,7 @@ namespace madness {
 
             disp_periodic[n] = std::vector< Key<NDIM> >();
             Vector<long,NDIM> lim;
-            for(int i=0; i!=NDIM; ++i) {
+            for(size_t i=0; i!=NDIM; ++i) {
               lim[i] = periodic_axes[i] ? nbp : nbnp;
             }
             for (IndexIterator index(lim); index; ++index) {
@@ -215,7 +215,7 @@ namespace madness {
 
             if (kernel_lattice_sum_axes.any()) {
                 MADNESS_ASSERT(NDIM <= 3);
-                MADNESS_ASSERT(n < std::extent_v<decltype(disp_periodic)>);
+                MADNESS_ASSERT((std::size_t)n < std::extent_v<decltype(disp_periodic)>);
                 if ((kernel_lattice_sum_axes && periodic_axes) != kernel_lattice_sum_axes) {
                   std::string msg =
                       "Displacements<" + std::to_string(NDIM) +
@@ -372,14 +372,15 @@ namespace madness {
             point = point.neighbor(unit_displacement);
           };
 
-          for (int64_t i = NDIM - 1; i >= 0; --i) {
-            if (i == fixed_dim) continue;
+          for (size_t i = NDIM; i > 0; --i) {
+            const size_t cur_dim = i - 1;
+            if (cur_dim == fixed_dim) continue;
 
-            if (point[i] < box[i].second) {
-              increment_along_dim(i);
+            if (point[cur_dim] < box[cur_dim].second) {
+              increment_along_dim(cur_dim);
               return;
             }
-            reset_along_dim(i);
+            reset_along_dim(cur_dim);
           }
 
           // move to the next surface layer normal to the fixed dimension
@@ -633,7 +634,7 @@ namespace madness {
         bool has_finite_dimensions = false;
         const auto n = center_.level();
         Vector<Translation, NDIM> probing_displacement_vec(0);
-        for (int d=0; d!= NDIM; ++d) {
+        for (size_t d=0; d!= NDIM; ++d) {
           if (box_radius_[d]) {
             auto r = *box_radius_[d];  // in units of 2^{n-1}
             r = (n == 0) ? (r+1)/2 : (r * Translation(1) << (n-1));
@@ -648,7 +649,7 @@ namespace madness {
         }
         MADNESS_ASSERT(has_finite_dimensions);
         probing_displacement_ = Displacement(n, probing_displacement_vec);
-        for (int d=0; d!= NDIM; ++d) {
+        for (size_t d=0; d!= NDIM; ++d) {
           // surface thickness should be only given for finite-radius dimensions
           MADNESS_ASSERT(!(box_radius_[d].has_value() ^ surface_thickness_[d].has_value()));
           MADNESS_ASSERT(surface_thickness_[d].value_or(0) >= 0);
@@ -773,7 +774,7 @@ namespace madness {
 
         // check that dest is in the domain
         const bool dest_is_in_domain = [&]() {
-          for(auto d=0; d!=NDIM; ++d) {
+          for(size_t d=0; d!=NDIM; ++d) {
             // - if domain is periodic, all displacements will be mapped back to the simulation cell by for_each/neighbor
             // - if kernel is lattice summed mapping back to the simulation cell for standard displacements
             //   is done during their construction, and for boundary displacements manually (see IMPORTANT below in this function)
@@ -793,7 +794,7 @@ namespace madness {
             // If so, skip if <= max magnitude of standard displacements encountered
             // Otherwise this is a new non-standard displacement, consider it
             bool among_standard_displacements = true;
-            for(auto d=0; d!=NDIM; ++d) {
+            for(size_t d=0; d!=NDIM; ++d) {
               const auto disp_d = (*displacement)[d];
               auto bmax_standard = Displacements<NDIM>::bmax_default();
 

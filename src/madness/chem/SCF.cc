@@ -466,7 +466,7 @@ void SCF::get_initial_orbitals(World& world) {
                 }
                 return false;
             }
-            MADNESS_CHECK_THROW(amo.size()==param.nalpha(),"inconsistent restart data");
+            MADNESS_CHECK_THROW(amo.size()==size_t(param.nalpha()),"inconsistent restart data");
 
         } else if (fromwhere=="restartao") {
             reset_aobasis("sto-3g");
@@ -777,7 +777,7 @@ void SCF::initial_guess_from_nwchem(World& world) {
         print("\nAligning atoms by moving MADNESS atoms to match NWChem atoms.");
 
     // Verify at least same number of atoms first
-    MADNESS_ASSERT(int(nwchem.atoms.size()) == molecule.natom());
+    MADNESS_ASSERT(nwchem.atoms.size() == size_t(molecule.natom()));
 
     // Get center of charge for nwchem
     std::vector<double> nw_coc(3, 0);

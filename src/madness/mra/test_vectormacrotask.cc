@@ -161,7 +161,7 @@ public:
                        const std::vector<real_function_3d>& f2) const {
         World &world = f1[0].world();
         auto result=scalar_result_vector<double>(world,f1.size());
-        for (int i=0; i<f1.size(); ++i) result[i]=double(i+batch.input[0].begin);
+        for (std::size_t i=0; i<f1.size(); ++i) result[i]=double(i+batch.input[0].begin);
 
         return result;
     }
@@ -422,7 +422,7 @@ int test_vector_of_scalar_task(World& universe, const std::vector<real_function_
     auto result2= task1(v3, 2.0, v3);
 
     double error=1.e-15;
-    for (int i=0; i<result.size(); ++i) error+=fabs(result[i].get()-result2[i].get());
+    for (std::size_t i=0; i<result.size(); ++i) error+=fabs(result[i].get()-result2[i].get());
     int success = check(universe,1.e-15, error, "vector of scalar task");
     return success;
 }

@@ -2416,7 +2416,7 @@ namespace madness {
       std::vector<long> map(NDIM);
       constexpr std::size_t LDIM=NDIM/2;
       static_assert(LDIM*2==NDIM);
-      for (auto d=0; d<LDIM; ++d) {
+      for (std::size_t d=0; d<LDIM; ++d) {
           map[d]=d+LDIM;
           map[d+LDIM]=d;
       }
@@ -2549,10 +2549,10 @@ namespace madness {
         static_assert(KDIM + LDIM - 2 * CDIM == NDIM, "faulty dimensions in inner (partial version)");
 
         // contraction indices must be contiguous and either in the beginning or at the end
-        for (int i=0; i<CDIM-1; ++i) MADNESS_CHECK((v1[i]+1)==v1[i+1]);
+        for (size_t i=0; i<CDIM-1; ++i) MADNESS_CHECK((v1[i]+1)==v1[i+1]);
         MADNESS_CHECK((v1[0]==0) or (v1[CDIM-1]==LDIM-1));
 
-        for (int i=0; i<CDIM-1; ++i) MADNESS_CHECK((v2[i]+1)==v2[i+1]);
+        for (size_t i=0; i<CDIM-1; ++i) MADNESS_CHECK((v2[i]+1)==v2[i+1]);
         MADNESS_CHECK((v2[0]==0) or (v2[CDIM-1]==KDIM-1));
 
         MADNESS_CHECK(f.is_initialized());
@@ -2576,7 +2576,7 @@ namespace madness {
         std::vector<Function<resultT,NDIM>> result(vg.size());
         if (work) {
             world.gop.set_forbid_fence(true);
-            for (int i=0; i<vg.size(); ++i)  {
+            for (size_t i=0; i<vg.size(); ++i)  {
                 result[i]=FunctionFactory<resultT,NDIM>(world)
                         .k(f.k()).thresh(f.thresh()).empty().nofence();
                 result[i].get_impl()->partial_inner(*f.get_impl(),*(vg[i]).get_impl(),v1,v2);

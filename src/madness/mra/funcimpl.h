@@ -810,10 +810,10 @@ template<size_t NDIM>
     public:
 
     	/// default ctor
-    	CoeffTracker() : impl(), key_(), is_leaf_(unknown), coeff_() {}
+    	CoeffTracker() : impl(), key_(0), is_leaf_(unknown), coeff_() {} // Initialize key to avoid warnings of possible unititialied use
 
     	/// the initial ctor making the root key
-    	CoeffTracker(const implT* impl) : impl(impl), key_(), is_leaf_(no) {
+    	CoeffTracker(const implT* impl) : impl(impl), key_(0), is_leaf_(no), coeff_() {
             if (impl) key_=impl->get_cdata().key0;
     	}
 
@@ -6313,7 +6313,7 @@ template<size_t NDIM>
             for (auto it=get_coeffs().begin(); it!=get_coeffs().end(); ++it) {
                 const Key<NDIM>& key=it->first;
                 const FunctionNode<T,NDIM>& node=it->second;
-                if ((key.level()==n) and (has_d_coeffs(node.coeff()))) {
+                if ((key.level()==int(n)) and (has_d_coeffs(node.coeff()))) {
                     ij_list.insert(key);
                     Vector<Translation,CDIM> j_trans;
                     for (std::size_t i=0; i<CDIM; ++i) j_trans[i]=key.translation()[v[i]];

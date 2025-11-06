@@ -38,7 +38,7 @@
 
 namespace {
     TEST(VectorTest, SizeWorks) {
-        madness::Vector<double,3> v;
+        madness::Vector<double,3> v{};
         EXPECT_EQ(3u, v.size());
     }
 

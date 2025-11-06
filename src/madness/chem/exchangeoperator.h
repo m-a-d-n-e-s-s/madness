@@ -500,7 +500,7 @@ private:
                         std::size_t sz=tile.iend-tile.ilo;
                         vecfuncT subworld_bra(sz);
                         vecfuncT subworld_ket;
-                        for (int i=tile.ilo; i<tile.iend; ++i) {
+                        for (size_t i=tile.ilo; i<tile.iend; ++i) {
                             auto f=copy(world,mo_bra[i],false);
                             subworld_bra[i-tile.ilo]=f;
                             subworld_ket.push_back(copy(world, mo_ket[i],false));
@@ -556,7 +556,7 @@ private:
                     vecfuncT tmp_mo_bra1,tmp_mo_ket1;
                     vecfuncT tmp_mo_bra2,tmp_mo_ket2;
 
-                    for (int itile=0; itile<tiles.size(); ++itile) {
+                    for (size_t itile=0; itile<tiles.size(); ++itile) {
                         Tile& tile = tiles[itile];
 
                         if (itile==0) {

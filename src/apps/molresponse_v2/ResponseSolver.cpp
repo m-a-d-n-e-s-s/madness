@@ -62,7 +62,7 @@ ResponseSolverPolicy<StaticRestrictedResponse>::CoupledResponseEquations(
 
   int i = 0;
   int si = 0;
-  for (int j = 0; j < num_orbitals; j++) {
+  for (size_t j = 0; j < num_orbitals; j++) {
     state_index.push_back(si);
     ii.push_back(i++);
   }
@@ -111,7 +111,7 @@ ResponseSolverPolicy<DynamicRestrictedResponse>::CoupledResponseEquations(
   std::vector<int> ii;
 
   int i = 0;
-  for (int j = 0; j < 2 * num_orbitals; j++) {
+  for (size_t j = 0; j < 2 * num_orbitals; j++) {
     state_index.push_back(0);
     ii.push_back(i++);
   }

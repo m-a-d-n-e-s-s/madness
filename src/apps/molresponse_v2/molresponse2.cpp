@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
       GeneratedStateData::print_generated_state_map(generated_states.state_map);
     }
     world.gop.fence();
-    bool all_states_converged = false;
+    // bool all_states_converged = false;
     std::string response_metadata_file = "responses/response_metadata.json";
     ResponseMetadata metadata(world, response_metadata_file);
     metadata.initialize_states(generated_states.states);
@@ -91,7 +91,7 @@ int main(int argc, char **argv) {
           }
         } else {
           state.advance_threshold();
-          all_states_converged = false;
+          // all_states_converged = false;
           if (world.rank() == 0) {
             madness::print("→ Converged at thresh", thresh, "→ advancing to next protocol for", state.description());
           }

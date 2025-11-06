@@ -1206,7 +1206,7 @@ namespace madness {
     	piv=Tensor<integer>(n);
     	Tensor<T> work(2*n);
 
-    	integer irank = static_cast<integer>(rank);
+    	integer irank = 0;
     	pstrf_("L", &n, A.ptr(), &n, piv.ptr(), &irank, &tol, work.ptr(), &info);
     	rank = static_cast<int>(irank);
 

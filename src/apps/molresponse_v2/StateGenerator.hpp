@@ -79,8 +79,8 @@ class StateGenerator {
     auto nuclear_directions = rp.nuclear_directions();
     auto freqs = rp.dipole_frequencies();
     auto nuclear_freqs = rp.nuclear_frequencies();
-    auto num_freqs = freqs.size();
-    auto num_nuclear_freqs = nuclear_freqs.size();
+    // auto num_freqs = freqs.size();
+    // auto num_nuclear_freqs = nuclear_freqs.size();
 
     for (const auto &prop : requested_properties_) {
       auto myfreqs = dipole_freqs;

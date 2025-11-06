@@ -19,7 +19,7 @@ class ResponseDebugLogger {
   // "responses/response_log.json")
   explicit ResponseDebugLogger(const std::string &filename,
                                bool enabled = false)
-      : filename_(filename), enabled_(enabled) {
+      : enabled_(enabled), filename_(filename) {
     // if an existing log file is there, load it
     if (fs::exists(filename_)) {
       std::ifstream in(filename_);

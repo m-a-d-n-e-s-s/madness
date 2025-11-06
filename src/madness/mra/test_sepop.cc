@@ -4118,6 +4118,10 @@ namespace madness {
       return (maxerr < err_tolerance);
     }
 
+MADNESS_PRAGMA_GCC(diagnostic push)
+MADNESS_PRAGMA_GCC(diagnostic ignored "-Wmaybe-uninitialized")
+MADNESS_PRAGMA_CLANG(diagnostic push)
+MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wmaybe-uninitialized")
     bool test_rnlij_rangelimited(const bool log_errors) {
       double maxerr = 0.0;
       const double pi = 3.14159265358979323846264338328;
@@ -4402,6 +4406,9 @@ namespace madness {
       }
 
       return (maxerr < err_tolerance);
-    }
+  }
+
+MADNESS_PRAGMA_CLANG(diagnostic pop)
+MADNESS_PRAGMA_GCC(diagnostic pop)
 
 }  // namespace madness
