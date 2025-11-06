@@ -650,8 +650,8 @@ void line_plot(World& world, int step, complex_functionT& psi) {
     world.gop.fence();
     world.gop.sum(v, npt);
     if (world.rank() == 0) {
-        char buf[256];
-        snprintf(buf, 256, "%s.lineplot", wave_function_filename(step));
+        char buf[280];
+        snprintf(buf, 280, "%s.lineplot", wave_function_filename(step));
         std::ofstream f(buf);
         f.precision(10);
         for (int i=0; i<npt; i++) {
