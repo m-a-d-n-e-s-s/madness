@@ -1803,20 +1803,13 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
 
         /// Inplace generalized saxpy ... this = this*alpha + other*beta
         Tensor<T>& gaxpy(T alpha, const Tensor<T>& t, T beta) {
-            if (iscontiguous() && t.iscontiguous()) {
-                T* MADNESS_RESTRICT a = ptr();
-                const T* MADNESS_RESTRICT b = t.ptr();
-                if (alpha == T(1.0)) {
-                    for (long i=0; i<_size; ++i) a[i] += b[i]*beta;
-                }
-                else {
-                    for (long i=0; i<_size; ++i) a[i] = a[i]*alpha + b[i]*beta;
-                }
+            if (alpha == T(1.0)) {
+                BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, t, (*_p0) += beta * (*_p1));
             }
             else {
-                //BINARYITERATOR(T,(*this),T,t, (*_p0) = alpha*(*_p0) + beta*(*_p1));
-                BINARY_OPTIMIZED_ITERATOR(T,(*this),const T,t, (*_p0) = alpha*(*_p0) + beta*(*_p1));
-                //ITERATOR((*this),(*this)(IND) = alpha*(*this)(IND) + beta*t(IND));
+                //BINARYITERATOR(T, (*this), T, t, (*_p0) = alpha * (*_p0) + beta * (*_p1));
+                BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, t, (*_p0) = alpha * (*_p0) + beta * (*_p1));
+                //ITERATOR((*this), (*this)(IND) = alpha * (*this)(IND) + beta * t(IND));
             }
             return *this;
         }
