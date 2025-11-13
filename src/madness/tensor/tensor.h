@@ -2221,7 +2221,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
     /// accumulate into result, no allocation is performed
     template<class T>
     void outer_result(const Tensor<T>& left, const Tensor<T>& right, Tensor<T>& result) {
-        TENSOR_ASSERT(left.ndim() + right.ndim() == result.ndim(),"inconsisten dimension in outer_resultn",
+        TENSOR_ASSERT(left.ndim() + right.ndim() == result.ndim(),"inconsistent dimension in outer_result",
                       result.ndim(),0);
         T *ptr = result.ptr();
         TensorIterator<T> iter=right.unary_iterator(1,false,true);
