@@ -1802,14 +1802,36 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         }
 
         /// Inplace generalized saxpy ... this = this*alpha + other*beta
-        Tensor<T>& gaxpy(T alpha, const Tensor<T>& t, T beta) {
-            if (alpha == T(1.0)) {
-                BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, t, (*_p0) += beta * (*_p1));
+        Tensor<T>& gaxpy(T alpha, const Tensor<T>& other, T beta) {
+            if (alpha == T(1)) {
+                if (beta == T(1)) {
+                    BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, other, (*_p0) += (*_p1));
+                }
+                else if (beta == T(0)) {
+                    // noop
+                }
+                else {
+                    BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, other, (*_p0) += beta * (*_p1));
+                }
             }
-            else {
-                //BINARYITERATOR(T, (*this), T, t, (*_p0) = alpha * (*_p0) + beta * (*_p1));
-                BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, t, (*_p0) = alpha * (*_p0) + beta * (*_p1));
-                //ITERATOR((*this), (*this)(IND) = alpha * (*this)(IND) + beta * t(IND));
+            else if (alpha == T(0)) {
+                if (beta == T(1)) {
+                    BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, other, (*_p0) = (*_p1));
+                }
+                else if (beta == T(0)) {
+                    *this = T(0);
+                }
+                else {
+                    BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, other, (*_p0) = beta * (*_p1));
+                }
+            } else {
+                if (beta == T(1)) {
+                    BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, other, (*_p0) = alpha * (*_p0) + (*_p1));
+                } else if (beta == T(0)) {
+                    BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, other, (*_p0) = alpha * (*_p0));
+                } else {
+                    BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, other, (*_p0) = alpha * (*_p0) + beta * (*_p1));
+                }
             }
             return *this;
         }
