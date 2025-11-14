@@ -1802,21 +1802,36 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         }
 
         /// Inplace generalized saxpy ... this = this*alpha + other*beta
-        Tensor<T>& gaxpy(T alpha, const Tensor<T>& t, T beta) {
-            if (iscontiguous() && t.iscontiguous()) {
-                T* MADNESS_RESTRICT a = ptr();
-                const T* MADNESS_RESTRICT b = t.ptr();
-                if (alpha == T(1.0)) {
-                    for (long i=0; i<_size; ++i) a[i] += b[i]*beta;
+        Tensor<T>& gaxpy(T alpha, const Tensor<T>& other, T beta) {
+            if (alpha == T(1)) {
+                if (beta == T(1)) {
+                    BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, other, (*_p0) += (*_p1));
+                }
+                else if (beta == T(0)) {
+                    // noop
                 }
                 else {
-                    for (long i=0; i<_size; ++i) a[i] = a[i]*alpha + b[i]*beta;
+                    BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, other, (*_p0) += beta * (*_p1));
                 }
             }
-            else {
-                //BINARYITERATOR(T,(*this),T,t, (*_p0) = alpha*(*_p0) + beta*(*_p1));
-                BINARY_OPTIMIZED_ITERATOR(T,(*this),const T,t, (*_p0) = alpha*(*_p0) + beta*(*_p1));
-                //ITERATOR((*this),(*this)(IND) = alpha*(*this)(IND) + beta*t(IND));
+            else if (alpha == T(0)) {
+                if (beta == T(1)) {
+                    BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, other, (*_p0) = (*_p1));
+                }
+                else if (beta == T(0)) {
+                    *this = T(0);
+                }
+                else {
+                    BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, other, (*_p0) = beta * (*_p1));
+                }
+            } else {
+                if (beta == T(1)) {
+                    BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, other, (*_p0) = alpha * (*_p0) + (*_p1));
+                } else if (beta == T(0)) {
+                    BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, other, (*_p0) = alpha * (*_p0));
+                } else {
+                    BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, other, (*_p0) = alpha * (*_p0) + beta * (*_p1));
+                }
             }
             return *this;
         }
@@ -2221,7 +2236,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
     /// accumulate into result, no allocation is performed
     template<class T>
     void outer_result(const Tensor<T>& left, const Tensor<T>& right, Tensor<T>& result) {
-        TENSOR_ASSERT(left.ndim() + right.ndim() == result.ndim(),"inconsisten dimension in outer_resultn",
+        TENSOR_ASSERT(left.ndim() + right.ndim() == result.ndim(),"inconsistent dimension in outer_result",
                       result.ndim(),0);
         T *ptr = result.ptr();
         TensorIterator<T> iter=right.unary_iterator(1,false,true);
