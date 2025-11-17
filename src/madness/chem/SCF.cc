@@ -2135,29 +2135,6 @@ void SCF::orthonormalize(World& world, vecfuncT& amo_new) const {
 }
 
 
-complex_functionT APPLY(const complex_operatorT *q1d,
-                        const complex_functionT& psi) {
-    complex_functionT r = psi; // Shallow copy violates constness !!!!!!!!!!!!!!!!!
-    coordT lo, hi;
-    lo[2] = -10;
-    hi[2] = +10;
-
-    r.reconstruct();
-    r.broaden();
-    r.broaden();
-    r.broaden();
-    r.broaden();
-    r = apply_1d_realspace_push(*q1d, r, 2);
-    r.sum_down();
-    r = apply_1d_realspace_push(*q1d, r, 1);
-    r.sum_down();
-    r = apply_1d_realspace_push(*q1d, r, 0);
-    r.sum_down();
-
-    return r;
-}
-
-
 // For given protocol, solve the DFT/HF/response equations
 void SCF::solve(World& world) {
     PROFILE_MEMBER_FUNC(SCF);
