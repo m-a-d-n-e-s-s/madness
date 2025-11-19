@@ -1116,7 +1116,7 @@ namespace madness {
 
         /// WSTHORNTON Constructor for Gaussian Convolutions (mostly for backward compatability)
         SeparatedConvolution(World& world,
-                             Vector<double,NDIM> args,
+                             Vector<double,NDIM> bloch_k,
                              const Tensor<Q>& coeff, const Tensor<double>& expnt,
                              const array_of_bools<NDIM>& lattice_summed = FunctionDefaults<NDIM>::get_bc().is_periodic(),
                              int k=FunctionDefaults<NDIM>::get_k(),
@@ -1145,7 +1145,7 @@ namespace madness {
                   double c2 = sqrt(expnt[mu]*width[d]*width[d]/madness::constants::pi);
                   std::shared_ptr<GaussianConvolution1D<double_complex> >
                       gcptr(new GaussianConvolution1D<double_complex>(k, c2, 
-                            expnt(mu)*width[d]*width[d], 0, lattice_summed[d], args[d]));
+                            expnt(mu)*width[d]*width[d], 0, lattice_summed[d], bloch_k[d]));
                   ops[mu].setop(d,gcptr);
                 }
             }
@@ -1773,7 +1773,7 @@ namespace madness {
     static
     inline
     SeparatedConvolution<double_complex,3> PeriodicHFExchangeOperator(World& world,
-                                                   Vector<double,3> args,
+                                                   Vector<double,3> bloch_k,
                                                    double lo,
                                                    double eps,
                                                    const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
@@ -1795,7 +1795,7 @@ namespace madness {
         fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
       }
 
-      return SeparatedConvolution<double_complex, 3>(world, args, coeff, expnt,
+      return SeparatedConvolution<double_complex, 3>(world, bloch_k, coeff, expnt,
                                                      lattice_sum, k, false);
     }
 
@@ -1866,7 +1866,7 @@ namespace madness {
     static
     inline
     SeparatedConvolution<double_complex,3> PeriodicBSHOperator3D(World& world,
-                                                         Vector<double,3> args,
+                                                         Vector<double,3> bloch_k,
                                                          double mu,
                                                          double lo,
                                                          double eps,
@@ -1889,14 +1889,14 @@ namespace madness {
       if (lattice_sum_any) {
         fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
       }
-      return SeparatedConvolution<double_complex, 3>(world, args, coeff, expnt,
+      return SeparatedConvolution<double_complex, 3>(world, bloch_k, coeff, expnt,
                                                      lattice_sum, k);
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
     static inline
     SeparatedConvolution<double_complex,3>* PeriodicBSHOperatorPtr3D(World& world,
-                                                         Vector<double,3> args,
+                                                         Vector<double,3> bloch_k,
                                                          double mu,
                                                          double lo,
                                                          double eps,
@@ -1919,7 +1919,7 @@ namespace madness {
       if (lattice_sum_any) {
         fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
       }
-      return new SeparatedConvolution<double_complex, 3>(world, args, coeff,
+      return new SeparatedConvolution<double_complex, 3>(world, bloch_k, coeff,
                                                          expnt, lattice_sum, k);
     }
 
