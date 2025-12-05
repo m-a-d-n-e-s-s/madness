@@ -409,7 +409,7 @@ private:
 
             double cpu0, cpu1;
             World& world = vket.front().world();
-            mul_tol = 0.0;
+            // mul_tol = 0.0;
 
             resultT Kf = zero_functions_compressed<T, NDIM>(world, 1);
             vecfuncT psif = zero_functions_compressed<T,NDIM>(world, mo_bra.size());
@@ -422,29 +422,85 @@ private:
             size_t min_tile = 10;
             size_t ntile = std::min(mo_bra.size(), min_tile);
 
+            std::vector<std::size_t> in;
+            std::vector<std::size_t> out;
+            std::vector<std::size_t> trunc;
             for (size_t ilo=0; ilo<mo_bra.size(); ilo+=ntile){
-                cpu0 = cpu_time();
                 size_t iend = std::min(ilo+ntile,mo_bra.size());
                 vecfuncT tmp_mo_bra(mo_bra.begin()+ilo,mo_bra.begin()+iend);
-                auto tmp_psif = mul_sparse(world, vket[i], tmp_mo_bra, mul_tol);
-                truncate(world, tmp_psif);
-                cpu1 = cpu_time();
-                mul1_timer += long((cpu1 - cpu0) * 1000l);
+
+                for (unsigned int i=0; i<tmp_mo_bra.size(); ++i){
+                    in.push_back(tmp_mo_bra[i].tree_size());
+                }
+
+                //auto tmp_psif = mul_sparse(world, vket[i], tmp_mo_bra, mul_tol);
+                // skip mul_sparse interface so we don't unnecesarily recompute the norms
+                // instead reconstruct and call norm tree before tasks are distributed
 
                 cpu0 = cpu_time();
-                tmp_psif = apply(world, *poisson.get(), tmp_psif);
+                auto tmp_psif = vmulXX(vket[i], tmp_mo_bra, mul_tol, true);
+                cpu1 = cpu_time();
+
+                for (unsigned int i=0; i<tmp_psif.size(); ++i){
+                    out.push_back(tmp_psif[i].tree_size());
+                }
+
+                mul1_timer += long((cpu1 - cpu0) * 1000l);
                 truncate(world, tmp_psif);
+
+                for (unsigned int i=0; i<tmp_psif.size(); ++i){
+                    trunc.push_back(tmp_psif[i].tree_size());
+                }
+                
+                cpu0 = cpu_time();
+                tmp_psif = apply(world, *poisson.get(), tmp_psif);
                 cpu1 = cpu_time();
                 apply_timer += long((cpu1 - cpu0) * 1000l);
+                truncate(world, tmp_psif);
 
                 cpu0 = cpu_time();
                 vecfuncT tmp_mo_ket(mo_ket.begin()+ilo,mo_ket.begin()+iend);
-                auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif);
+
+                //auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif);
+                //reconstruct(world, tmp_mo_ket, true);
+                //reconstruct(world, tmp_psif, true);
+
+                MADNESS_CHECK(tmp_mo_ket.size()==tmp_psif.size());
+                norm_tree(world, tmp_psif, true);
+                //norm_tree(world, tmp_mo_ket, true);
+                vecfuncT q(tmp_mo_ket.size());
+                for (unsigned int i=0; i<tmp_mo_ket.size(); ++i) {
+                    q[i] = mul_sparse(tmp_mo_ket[i], tmp_psif[i], mul_tol*0.01, false);
+                }
+                world.gop.fence();
+                auto tmp_Kf = sum(world,q,true);
+                
                 cpu1 = cpu_time();
                 mul2_timer += long((cpu1 - cpu0) * 1000l);
 
                 Kf[0] += tmp_Kf;
                 truncate(world, Kf);
+            }
+
+            print("\ntree size input function");
+            for (unsigned int i=0; i<in.size(); ++i){
+                print(in[i]);
+            }
+            print("\ntree size output function");
+            for (unsigned int i=0; i<out.size(); ++i){
+                print(out[i]);
+            }
+            print("\ntree size diff (in-out) function");
+            for (unsigned int i=0; i<in.size(); ++i){
+                print((int)(in[i]-out[i]));
+            }
+            print("\ntree size after truncate");
+            for (unsigned int i=0; i<trunc.size(); ++i){
+                print(trunc[i]);
+            }
+            print("\ntree size diff (trunc-out) function after truncate");
+            for (unsigned int i=0; i<trunc.size(); ++i){
+                print((int)(trunc[i]-out[i]));
             }
 
             return Kf;
