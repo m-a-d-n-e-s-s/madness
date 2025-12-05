@@ -135,6 +135,7 @@ namespace madness {
 
         coeffT _coeffs; ///< The coefficients, if any
         double _norm_tree; ///< After norm_tree will contain norm of coefficients summed up tree
+        double _norm_tree_inf; ///< After norm_tree will contain infinity norm of function values at quadrature points
         bool _has_children; ///< True if there are children
         coeffT buffer; ///< The coefficients, if any
         double dnorm=-1.0;	///< norm of the d coefficients, also defined if there are no d coefficients
@@ -144,7 +145,7 @@ namespace madness {
         typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT; ///< Type of container holding the nodes
         /// Default constructor makes node without coeff or children
         FunctionNode() :
-            _coeffs(), _norm_tree(1e300), _has_children(false) {
+            _coeffs(), _norm_tree(1e300), _norm_tree_inf(1e300), _has_children(false) {
         }
 
         /// Constructor from given coefficients with optional children
@@ -154,7 +155,7 @@ namespace madness {
         /// take ownership.
         explicit
         FunctionNode(const coeffT& coeff, bool has_children = false) :
-            _coeffs(coeff), _norm_tree(1e300), _has_children(has_children) {
+            _coeffs(coeff), _norm_tree(1e300), _norm_tree_inf(1e300), _has_children(has_children) {
         }
 
         explicit
@@ -168,7 +169,7 @@ namespace madness {
         }
 
         FunctionNode(const FunctionNode<T, NDIM>& other) :
-            _coeffs(other._coeffs), _norm_tree(other._norm_tree), _has_children(other._has_children),
+            _coeffs(other._coeffs), _norm_tree(other._norm_tree), _norm_tree_inf(other._norm_tree_inf), _has_children(other._has_children),
             dnorm(other.dnorm), snorm(other.snorm) {
         }
 
@@ -180,6 +181,8 @@ namespace madness {
                 _has_children = other._has_children;
                 dnorm=other.dnorm;
                 snorm=other.snorm;
+                _norm_tree_inf = other._norm_tree_inf;
+                //why twice?
                 _norm_tree=other._norm_tree;
             }
             return *this;
@@ -307,9 +310,19 @@ namespace madness {
             _norm_tree = norm_tree;
         }
 
+        /// Sets the value of norm_tree_inf
+        void set_norm_tree_inf(double norm_tree_inf) {
+            _norm_tree_inf = norm_tree_inf;
+        }
+
         /// Gets the value of norm_tree
         double get_norm_tree() const {
             return _norm_tree;
+        }
+
+        /// Gets the value of norm_tree_inf
+        double get_norm_tree_inf() const {
+            return _norm_tree_inf;
         }
 
         /// return the precomputed norm of the (virtual) d coefficients
@@ -456,7 +469,7 @@ namespace madness {
 
         template <typename Archive>
         void serialize(Archive& ar) {
-            ar & coeff() & _has_children & _norm_tree & dnorm & snorm;
+            ar & coeff() & _has_children & _norm_tree & _norm_tree_inf & dnorm & snorm;
         }
 
         /// like operator<<(ostream&, const FunctionNode<T,NDIM>&) but
@@ -488,9 +501,14 @@ namespace madness {
         if (norm < 1e-12)
             norm = 0.0;
         double nt = node.get_norm_tree();
+        double nt_inf = node.get_norm_tree_inf();
         if (nt == 1e300) nt = 0.0;
-        s << norm << ", norm_tree, s/dnorm =" << nt << ", " << node.get_snorm() << " " << node.get_dnorm() << "), rank="<< node.coeff().rank()<<")";
+        s << norm << ", norm_tree =" << nt << ", inf_norm_tree =" << nt_inf << ", snorm =" << node.get_snorm() << ", dnorm= " << node.get_dnorm() << "), rank="<< node.coeff().rank()<<")";
         if (node.coeff().is_assigned()) s << " dim " << node.coeff().dim(0) << " ";
+
+        //if (nt == 1e300) nt = 0.0;
+        //s << norm << ", norm_tree, s/dnorm =" << nt << ", " << node.get_snorm() << " " << node.get_dnorm() << "), rank="<< node.coeff().rank()<<")";
+        //if (node.coeff().is_assigned()) s << " dim " << node.coeff().dim(0) << " ";
         return s;
     }
 
@@ -957,6 +975,7 @@ template<size_t NDIM>
         typedef WorldContainer<keyT,nodeT> dcT; ///< Type of container holding the coefficients
         typedef std::pair<const keyT,nodeT> datumT; ///< Type of entry in container
         typedef Vector<double,NDIM> coordT; ///< Type of vector holding coordinates
+        //typedef std::pair<double,double> NormPair; ///< Pair holding the L2 and Linf norm
 
         //template <typename Q, int D> friend class Function;
         template <typename Q, std::size_t D> friend class FunctionImpl;
@@ -1355,6 +1374,11 @@ template<size_t NDIM>
         void set_tree_state(const TreeState& state) {
         	tree_state=state;
         }
+
+        void set_truncate_mode(int value) {
+        	truncate_mode=value;
+        	MADNESS_ASSERT(value>=0 && value<4);
+        };
 
         TreeState get_tree_state() const {return tree_state;}
 
@@ -2959,13 +2983,19 @@ template<size_t NDIM>
             typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator riterT;
 
             double lnorm = 1e99;
+            double lnorm_inf = 1e99;
             Tensor<L> lc = lcin;
             if (lc.size() == 0) {
                 literT it = left->coeffs.find(key).get();
                 MADNESS_ASSERT(it != left->coeffs.end());
                 lnorm = it->second.get_norm_tree();
+                lnorm_inf = it->second.get_norm_tree_inf();
                 if (it->second.has_coeff())
                     lc = it->second.coeff().full_tensor_copy();
+            }
+            else {
+                lnorm = lc.normf();
+                lnorm_inf = coeffs2values(key,lc).absmax();
             }
 
             // Loop thru RHS functions seeing if anything can be multiplied
@@ -2981,21 +3011,24 @@ template<size_t NDIM>
                 const FunctionImpl<R,NDIM>* right = vrightin[i];
                 Tensor<R> rc = vrcin[i];
                 double rnorm;
+                double rnorm_inf;
                 if (rc.size() == 0) {
                     riterT it = right->coeffs.find(key).get();
                     MADNESS_ASSERT(it != right->coeffs.end());
                     rnorm = it->second.get_norm_tree();
+                    rnorm_inf = it->second.get_norm_tree_inf();
                     if (it->second.has_coeff())
                         rc = it->second.coeff().full_tensor_copy();
                 }
                 else {
                     rnorm = rc.normf();
+                    rnorm_inf = coeffs2values(key,vrcin[i]).absmax();
                 }
 
                 if (rc.size() && lc.size()) { // Yipee!
                     result->task(world.rank(), &implT:: template do_mul<L,R>, key, lc, std::make_pair(key,rc));
                 }
-                else if (tol && lnorm*rnorm < truncate_tol(tol, key)) {
+                else if (tol && std::min(rnorm*lnorm_inf, rnorm_inf*lnorm) < truncate_tol(tol, key)) {
                     result->coeffs.replace(key, nodeT(coeffT(cdata.vk,targs),false)); // Zero leaf
                 }
                 else {  // Interior node
@@ -4673,12 +4706,13 @@ template<size_t NDIM>
         void remove_leaf_coefficients(const bool fence);
 
 
+        using NormPair = std::pair<double, double>;
         /// compute for each FunctionNode the norm of the function inside that node
         void norm_tree(bool fence);
 
-        double norm_tree_op(const keyT& key, const std::vector< Future<double> >& v);
-
-        Future<double> norm_tree_spawn(const keyT& key);
+        NormPair norm_tree_op(const keyT& key, const std::vector< Future<NormPair> >& v);
+        
+        Future<NormPair> norm_tree_spawn(const keyT& key);
 
         /// truncate using a tree in reconstructed form
 
