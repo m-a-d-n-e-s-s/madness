@@ -122,7 +122,11 @@
 #include <madness/mra/mra.h>
 #include <madness/mra/derivative.h>
 #include <madness/tensor/distributed_matrix.h>
+#include <madness/world/worldmem.h>
 #include <cstdio>
+#if __has_include(<malloc.h>)
+#  include <malloc.h>
+#endif
 
 namespace madness {
 
@@ -340,7 +344,18 @@ namespace madness {
 
         // truncate in compressed form only for low-dimensional functions
         // compression is very expensive if low-rank tensor approximations are used
-        if (NDIM<4) compress(world, v);
+       world.gop.fence();
+       static auto comm_world_rank = madness::World::find_instance(SafeMPI::COMM_WORLD)->rank();
+#if __has_include(<malloc.h>)
+       malloc_trim(0);
+#endif
+       print_meminfo(comm_world_rank, "truncate before compress", "input.meminfo");
+       if (NDIM<4) compress(world, v);
+       world.gop.fence();
+#if __has_include(<malloc.h>)
+       malloc_trim(0);
+#endif
+       print_meminfo(comm_world_rank, "truncate after compress", "input.meminfo");
 
         for (auto& vv: v) {
             vv.truncate(tol, false);
