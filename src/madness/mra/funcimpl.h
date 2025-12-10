@@ -4985,7 +4985,7 @@ template<size_t NDIM>
               const uint64_t dsq = distance_squared(displacement);
               if (!distsq ||
                   dsq != *distsq) { // Moved to next shell of neighbors
-                if (nvalid > 0 && nused == 0 && dsq > 1) {
+                if (nvalid > 0 && nused == 0 && dsq > 1 && false) {
                   // Have at least done the input box and all first
                   // nearest neighbors, and none of the last set
                   // of neighbors made significant contributions.  Thus,

@@ -228,8 +228,21 @@ array_of_bools<NDIM> no_lattice_sum() {
 }
 
 template <std::size_t NDIM>
+std::array<LatticeRange, NDIM> no_lattice_sum_range() {
+  std::array<LatticeRange, NDIM> result;
+  return result;
+}
+
+template <std::size_t NDIM>
 array_of_bools<NDIM> lattice_sum() {
   return array_of_bools<NDIM>{true};
+}
+
+template <std::size_t NDIM>
+std::array<LatticeRange, NDIM> lattice_sum_range() {
+  std::array<LatticeRange, NDIM> result;
+  for (const auto& range: result) range.set_range_inf();
+  return result;
 }
 
 }  // namespace madness

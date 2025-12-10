@@ -52,6 +52,18 @@
 
 namespace madness {
 
+template <size_t NDIM>
+std::array<LatticeRange, NDIM> bc_lattice_ranges(const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc()) {
+  std::array<LatticeRange, NDIM> result;
+  const auto lattice_summed = bc.is_periodic();
+  for (size_t k = 0; k < NDIM; ++k) {
+    if (lattice_summed[k]) {
+      result[k].set_range_inf();
+    }
+  }
+  return result;
+}
+
     void aligned_add(long n, double* MADNESS_RESTRICT a, const double* MADNESS_RESTRICT b);
     void aligned_sub(long n, double* MADNESS_RESTRICT a, const double* MADNESS_RESTRICT b);
     void aligned_add(long n, double_complex* MADNESS_RESTRICT a, const double_complex* MADNESS_RESTRICT b);
@@ -735,17 +747,14 @@ namespace madness {
     class GaussianConvolution1D : public Convolution1D<Q> {
         // Returns range of Gaussian for periodic lattice sum in simulation coords
         // N.B. for range-restricted kernels lattice summation range may or may not be limited by the kernel range
-        static int maxR(bool periodic, double expnt, const KernelRange& rng = {}) {
-            if (periodic) {
-              // kernel is 1e-16 past this many simulation cells due to range-restriction
-              const int maxR_rng = rng.finite() ? (rng.iextent_x2(1e-16) + 1)/2 : std::numeric_limits<int>::max();
-              // kernel is 1e-16 past this many simulation cells due to decay of Gaussian kernel
-              const int maxR_G = std::max(1, int(sqrt(16.0 * 2.3 / expnt) + 1));
-              return std::min(maxR_rng,maxR_G);
-            }
-            else {
-                return 0;
-            }
+        static int maxR(const LatticeRange& lattice_range, double expnt, const KernelRange& rng = {}) {
+          const int maxR_lattice = lattice_range.get_range();
+          if (!maxR_lattice) { return 0; } // Early exit for non-periodic
+          // kernel is 1e-16 past this many simulation cells due to range-restriction
+          const int maxR_rng = rng.finite() ? (rng.iextent_x2(1e-16) + 1)/2 : std::numeric_limits<int>::max();
+          // kernel is 1e-16 past this many simulation cells due to decay of Gaussian kernel
+          const int maxR_G = std::max(1, int(sqrt(16.0 * 2.3 / expnt) + 1));
+          return std::min({maxR_lattice, maxR_rng,maxR_G});
         }
     public:
         const Q coeff;          ///< Coefficient
@@ -754,9 +763,9 @@ namespace madness {
         const int m;            ///< Order of derivative (0, 1, or 2 only)
 
         explicit GaussianConvolution1D(int k, Q coeff, double expnt,
-        		int m, bool periodic, double bloch_k = 0.0,
+        		int m, const LatticeRange& lattice_range, double bloch_k = 0.0,
                         KernelRange rng = {})
-            : Convolution1D<Q>(k,k+11,maxR(periodic,expnt,rng),bloch_k, rng)
+            : Convolution1D<Q>(k,k+11,maxR(lattice_range,expnt,rng),bloch_k, rng)
             , coeff(coeff)
             , expnt(expnt)
             , natlev(Level(0.5*log(expnt)/log(2.0)+1))
@@ -994,13 +1003,13 @@ namespace madness {
         typedef typename ConcurrentHashMap<hashT, std::shared_ptr< GaussianConvolution1D<Q> > >::iterator iterator;
         typedef typename ConcurrentHashMap<hashT, std::shared_ptr< GaussianConvolution1D<Q> > >::datumT datumT;
 
-        static std::shared_ptr< GaussianConvolution1D<Q> > get(int k, double expnt, int m, bool periodic,
+        static std::shared_ptr< GaussianConvolution1D<Q> > get(int k, double expnt, int m, const LatticeRange& lattice_range,
                                                                double bloch_k = 0.0,
                                                                const KernelRange& range = {}) {
             hashT key = hash_value(expnt);
             hash_combine(key, k);
             hash_combine(key, m);
-            hash_combine(key, int(periodic));
+            hash_combine(key, lattice_range.get_range());
             hash_combine(key, bloch_k);
             if (range) hash_combine(key, range);
 
@@ -1013,7 +1022,7 @@ namespace madness {
                                                                                     Q(sqrt(expnt/constants::pi)),
                                                                                     expnt,
                                                                                     m,
-                                                                                    periodic,
+                                                                                    lattice_range,
                                                                                     bloch_k,
                                                                                     range
                                                                                     )));
@@ -1028,7 +1037,7 @@ namespace madness {
             MADNESS_ASSERT(result->expnt == expnt &&
                            result->k == k &&
                            result->m == m &&
-                           result->lattice_summed() == periodic &&
+                           result->lattice_summed() == static_cast<bool>(lattice_range.get_range()) &&
                            result->range == range &&
                            result->bloch_k == bloch_k);
             return result;

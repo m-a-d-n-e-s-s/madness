@@ -13,6 +13,37 @@
 
 namespace madness {
 
+/// Class to control the maximum range of lattice summation.
+/// Only a single integer is needed.
+class LatticeRange {
+  int range_ = 0; // Initialize to OBC
+public:
+  LatticeRange() = default;
+  explicit LatticeRange(int range) {
+    set_range(range);
+  }
+
+  void set_range(int range) {
+    if (range == std::numeric_limits<int>::max()) range_ = range;
+    else {
+      MADNESS_ASSERT(range_ >= 0 && range % 2 == 1);
+      range_ = (range - 1) / 2;
+    }
+  }
+
+  // Convenience function to make lattice range inactive.
+  void set_range_inf() {
+    set_range(std::numeric_limits<int>::max());
+  }
+
+  [[nodiscard]] int get_range() const {return range_;}
+
+  [[nodiscard]] bool infinite() const {return range_ == std::numeric_limits<int>::max();}
+
+  /// @return true if range is limited
+  explicit operator bool() const { return static_cast<bool>(range_); }
+};
+
 /// To limit the range of kernel K(x-y) it is multiplied (in user coordinates) by a restrictor function
 /// \f$ r(N/2 - |x-y|) \f$, where \f$ r(x) \f$ is identity for unrestricted kernel or one of the choices
 /// encoded by KernelRange::Type

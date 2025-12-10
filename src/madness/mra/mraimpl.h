@@ -3190,6 +3190,9 @@ template <typename T, std::size_t NDIM>
     }
 
 
+    // Return whether l is in the interval [0, 2n).
+    // If is_periodic, then this is checked modulo 2n. The function always
+    // returns true, but l is *modified* to be in the interval.
     static inline bool enforce_bc(bool is_periodic, Level n, Translation& l) {
       const Translation two2n = 1ul << n;
       if (l < 0) {
@@ -3215,6 +3218,9 @@ template <typename T, std::size_t NDIM>
       return l >= 0 && l < two2n;
     }
 
+    // Return the key corresponding to `key` + `disp`.
+    // If is_periodic, then translations in the key are taken modulo the box
+    // dimensions. Otherwise, displacements outside the box are invalid.
     template <typename T, std::size_t NDIM>
     Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, const Key<NDIM>& disp, const array_of_bools<NDIM>& is_periodic) const {
         Vector<Translation,NDIM> l = key.translation();

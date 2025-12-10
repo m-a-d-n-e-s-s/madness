@@ -224,7 +224,7 @@ namespace madness {
 
         static inline std::pair<Tensor<Q>,Tensor<Q>>
         make_coeff_for_operator(World& world, double mu, double lo, double eps, OpType type,
-                                const array_of_bools<NDIM>& lattice_summed) {
+                                const std::array<LatticeRange,NDIM>& lattice_summed) {
 
             OperatorInfo info(mu,lo,eps,type);
             return make_coeff_for_operator(world, info, lattice_summed);
@@ -248,15 +248,20 @@ namespace madness {
 
         static inline std::pair<Tensor<double>,Tensor<double>>
         make_coeff_for_operator(World& world, OperatorInfo& info,
-                                const array_of_bools<NDIM>& lattice_summed) {
+                                const std::array<LatticeRange, NDIM>& lattice_ranges) {
 
           const Tensor<double> &cell_width =
               FunctionDefaults<NDIM>::get_cell_width();
           double hi = cell_width.normf(); // Diagonal width of cell
           // Extend kernel range for lattice summation
           // N.B. if have periodic boundaries, extend range just in case will be using periodic domain
-          const auto lattice_summed_any = lattice_summed.any();
-          if (lattice_summed.any() || FunctionDefaults<NDIM>::get_bc().is_periodic_any()) {
+          auto lattice_summed_any = false;
+          array_of_bools<NDIM> lattice_summed_infinite = array_of_bools<NDIM>(false);
+          for (int d=0; d<NDIM; ++d) {
+            lattice_summed_infinite[d] = lattice_ranges[d].infinite();
+            if (lattice_ranges[d]) lattice_summed_any = true;
+          }
+          if (lattice_summed_any || FunctionDefaults<NDIM>::get_bc().is_periodic_any()) {
             hi *= 100;
           }
 
@@ -266,12 +271,12 @@ namespace madness {
           Tensor<Q> coeff = fit.coeffs();
           Tensor<Q> expnt = fit.exponents();
 
-          if (info.truncate_lowexp_gaussians.value_or(lattice_summed_any)) {
+          if (info.truncate_lowexp_gaussians.value_or(lattice_summed_infinite.any())) {
             // convolution with Gaussians of exponents <= 0.25/(L^2) contribute only a constant shift
             // the largest spacing along lattice summed axes thus controls the smallest Gaussian exponent that NEEDS to be included
             double max_lattice_spacing = 0;
             for(int d=0; d!=NDIM; ++d) {
-              if (lattice_summed[d])
+              if (lattice_ranges[d])
                 max_lattice_spacing =
                     std::max(max_lattice_spacing, cell_width(d));
             }
@@ -1056,18 +1061,18 @@ namespace madness {
 
         /// Constructor for Gaussian Convolutions (mostly for backward compatability)
         SeparatedConvolution(World& world, const OperatorInfo info1,
-                             const array_of_bools<NDIM>& lattice_summed = FunctionDefaults<NDIM>::get_bc().is_periodic(),
+                             const std::array<LatticeRange, NDIM>& lattice_ranges = bc_lattice_ranges<NDIM>(),
                              int k=FunctionDefaults<NDIM>::get_k(),
                              bool doleaves = false)
-               : SeparatedConvolution(world,Tensor<double>(0l),Tensor<double>(0l),info1.lo,info1.thresh,lattice_summed,k,doleaves,info1.mu) {
+               : SeparatedConvolution(world,Tensor<double>(0l),Tensor<double>(0l),info1.lo,info1.thresh,lattice_ranges,k,doleaves,info1.mu) {
             info.type=info1.type;
             info.truncate_lowexp_gaussians = info1.truncate_lowexp_gaussians;
             info.range = info1.range;
-            auto [coeff, expnt] = make_coeff_for_operator(world, info, lattice_summed);
+            auto [coeff, expnt] = make_coeff_for_operator(world, info, lattice_ranges);
             rank=coeff.dim(0);
             range = info.template range_as_array<NDIM>();
             ops.resize(rank);
-            initialize(coeff,expnt,range);
+            initialize(coeff,expnt,lattice_ranges,range);
             init_lattice_summed();
         }
 
@@ -1075,7 +1080,7 @@ namespace madness {
         SeparatedConvolution(World& world,
                              const Tensor<Q>& coeff, const Tensor<double>& expnt,
                              double lo, double thresh,
-                             const array_of_bools<NDIM>& lattice_summed = FunctionDefaults<NDIM>::get_bc().is_periodic(),
+                             const std::array<LatticeRange, NDIM>& lattice_ranges = bc_lattice_ranges<NDIM>(),
                              int k=FunctionDefaults<NDIM>::get_k(),
                              bool doleaves = false,
                              double mu=0.0)
@@ -1083,7 +1088,7 @@ namespace madness {
                 , info(mu,lo,thresh,OT_UNDEFINED)
                 , doleaves(doleaves)
                 ,
-              lattice_summed_(lattice_summed)
+              lattice_summed_(false) // will be updated by init_lattice_summed
                 , ops(coeff.dim(0))
                 , k(k)
                 , cdata(FunctionCommonData<Q,NDIM>::get(k))
@@ -1091,12 +1096,12 @@ namespace madness {
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
                 , s0(std::max<std::size_t>(2,NDIM),Slice(0,k-1)) {
-            initialize(coeff,expnt);
+            initialize(coeff,expnt,lattice_ranges);
             init_range();
             init_lattice_summed();
         }
 
-        void initialize(const Tensor<Q>& coeff, const Tensor<double>& expnt, std::array<KernelRange, NDIM> range = {}) {
+        void initialize(const Tensor<Q>& coeff, const Tensor<double>& expnt, std::array<LatticeRange, NDIM> lattice_range, std::array<KernelRange, NDIM> range = {}) {
             const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
             const double pi = constants::pi;
 
@@ -1109,7 +1114,7 @@ namespace madness {
 
                 for (std::size_t d=0; d<NDIM; ++d) {
                   ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0,
-                                       lattice_summed_[d], 0., range[d]));
+                                       lattice_range[d], 0., range[d]));
                 }
             }
         }
@@ -1118,13 +1123,13 @@ namespace madness {
         SeparatedConvolution(World& world,
                              Vector<double,NDIM> bloch_k,
                              const Tensor<Q>& coeff, const Tensor<double>& expnt,
-                             const array_of_bools<NDIM>& lattice_summed = FunctionDefaults<NDIM>::get_bc().is_periodic(),
+                             const std::array<LatticeRange, NDIM>& lattice_ranges = bc_lattice_ranges<NDIM>(),
                              int k=FunctionDefaults<NDIM>::get_k(),
                              bool doleaves=false)
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , info(0.0,0.0,0.0,OT_UNDEFINED)
                 , doleaves(doleaves)
-                , lattice_summed_(lattice_summed)
+                , lattice_summed_(false) // will be set by init_lattice_summed
                 , modified_(false)
                 , particle_(1)
                 , destructive_(false)
@@ -1145,7 +1150,7 @@ namespace madness {
                   double c2 = sqrt(expnt[mu]*width[d]*width[d]/madness::constants::pi);
                   std::shared_ptr<GaussianConvolution1D<double_complex> >
                       gcptr(new GaussianConvolution1D<double_complex>(k, c2, 
-                            expnt(mu)*width[d]*width[d], 0, lattice_summed[d], bloch_k[d]));
+                            expnt(mu)*width[d]*width[d], 0, lattice_ranges[d], bloch_k[d]));
                   ops[mu].setop(d,gcptr);
                 }
             }
@@ -1740,14 +1745,19 @@ namespace madness {
 
 
         /// combine 2 convolution operators to one
+        /// There's some information loss with this constructor - not recommended
         static SeparatedConvolution<Q,NDIM> combine(const SeparatedConvolution<Q,NDIM>& left,
                                                     const SeparatedConvolution<Q,NDIM>& right) {
             MADNESS_CHECK(can_combine(left,right));
             MADNESS_CHECK(left.get_world().id()==right.get_world().id());
             MADNESS_CHECK(left.lattice_summed() == right.lattice_summed());
+            std::array<LatticeRange, NDIM> lattice_summed;
+            for (std::size_t i = 0; i < NDIM; ++i) {
+              if (left.lattice_summed()[i]) lattice_summed[i].set_range_inf();
+            }
 
             auto info=combine_OT(left,right);
-            return SeparatedConvolution<Q,NDIM>(left.get_world(),info,left.lattice_summed(),left.k);
+            return SeparatedConvolution<Q,NDIM>(left.get_world(),info,lattice_summed,left.k);
         }
 
         /// combine 2 convolution operators to one
@@ -1776,27 +1786,30 @@ namespace madness {
                                                    Vector<double,3> bloch_k,
                                                    double lo,
                                                    double eps,
-                                                   const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+                                                   const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
                                                    int k=FunctionDefaults<3>::get_k()) {
       const Tensor<double> &cell_width = FunctionDefaults<3>::get_cell_width();
       double hi = cell_width.normf(); // Diagonal width of cell
 
       // Extend kernel range for lattice summation
-      const auto lattice_sum_any = lattice_sum.any();
+      bool lattice_sum_any = std::ranges::any_of(
+      lattice_ranges, [](const LatticeRange& b){ return b.get_range(); });
+      bool lattice_sum_infinite_any = std::ranges::any_of(
+          lattice_ranges, [](const LatticeRange& b){ return b.infinite(); });
       if (lattice_sum_any) {
-        hi *= 100;
+        hi *= 10;
       }
 
       GFit<double, 3> fit = GFit<double, 3>::CoulombFit(lo, hi, eps, false);
       Tensor<double> coeff = fit.coeffs();
       Tensor<double> expnt = fit.exponents();
 
-      if (lattice_sum_any) {
+      if (lattice_sum_infinite_any) {
         fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
       }
 
       return SeparatedConvolution<double_complex, 3>(world, bloch_k, coeff, expnt,
-                                                     lattice_sum, k, false);
+                                                     lattice_ranges, k, false);
     }
 
     /// Factory function generating separated kernel for convolution with 1/r in 3D.
@@ -1805,10 +1818,10 @@ namespace madness {
     SeparatedConvolution<double,3> CoulombOperator(World& world,
                                                    double lo,
                                                    double eps,
-                                                   const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+                                                   const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
 						   int k=FunctionDefaults<3>::get_k())
     {
-        return SeparatedConvolution<double,3>(world,OperatorInfo(0.0,lo,eps,OT_G12),lattice_sum,k);
+        return SeparatedConvolution<double,3>(world,OperatorInfo(0.0,lo,eps,OT_G12),lattice_ranges,k);
     }
 
 
@@ -1818,10 +1831,10 @@ namespace madness {
     SeparatedConvolution<double,3>* CoulombOperatorPtr(World& world,
                                                        double lo,
                                                        double eps,
-                                                       const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+                                                       const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
                                                        int k=FunctionDefaults<3>::get_k())
     {
-        return new SeparatedConvolution<double,3>(world,OperatorInfo(0.0,lo,eps,OT_G12),lattice_sum,k);
+        return new SeparatedConvolution<double,3>(world,OperatorInfo(0.0,lo,eps,OT_G12),lattice_ranges,k);
     }
 
 
@@ -1830,13 +1843,13 @@ namespace madness {
     static inline
     SeparatedConvolution<double,NDIM>
     BSHOperator(World& world, double mu, double lo, double eps,
-                const array_of_bools<NDIM>& lattice_sum = FunctionDefaults<NDIM>::get_bc().is_periodic(),
+    const std::array<LatticeRange, NDIM>& lattice_ranges = bc_lattice_ranges<NDIM>(),
                 int k=FunctionDefaults<NDIM>::get_k()) {
     	if (eps>1.e-4) {
     		if (world.rank()==0) print("the accuracy in BSHOperator is too small, tighten the threshold",eps);
     		MADNESS_EXCEPTION("0",1);
     	}
-        return SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_BSH),lattice_sum,k);
+        return SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_BSH),lattice_ranges,k);
     }
 
     /// Factory function generating separated kernel for convolution with BSH kernel in general NDIM
@@ -1844,22 +1857,22 @@ namespace madness {
     static inline
     SeparatedConvolution<double,NDIM>*
     BSHOperatorPtr(World& world, double mu, double lo, double eps,
-                   const array_of_bools<NDIM>& lattice_sum = FunctionDefaults<NDIM>::get_bc().is_periodic(),
+      const std::array<LatticeRange, NDIM>& lattice_ranges = bc_lattice_ranges<NDIM>(),
                    int k=FunctionDefaults<NDIM>::get_k()) {
         if (eps>1.e-4) {
             if (world.rank()==0) print("the accuracy in BSHOperator is too small, tighten the threshold",eps);
             MADNESS_EXCEPTION("0",1);
         }
-        return new SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_BSH),lattice_sum,k);
+        return new SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_BSH),lattice_ranges,k);
     }
 
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
     static inline SeparatedConvolution<double,3>
     BSHOperator3D(World& world, double mu, double lo, double eps,
-                  const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+                  const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
                   int k=FunctionDefaults<3>::get_k()) {
-        return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_BSH),lattice_sum,k);
+        return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_BSH),lattice_ranges,k);
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
@@ -1870,14 +1883,15 @@ namespace madness {
                                                          double mu,
                                                          double lo,
                                                          double eps,
-                                                         const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+                                                         const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
                                                          int k=FunctionDefaults<3>::get_k())
 
     {
       const Tensor<double> &cell_width = FunctionDefaults<3>::get_cell_width();
       double hi = cell_width.normf(); // Diagonal width of cell
       // Extend kernel range for lattice summation
-      const auto lattice_sum_any = lattice_sum.any();
+      bool lattice_sum_any = std::ranges::any_of(
+    lattice_ranges, [](const LatticeRange& b){ return b.get_range(); });
       if (lattice_sum_any) {
         hi *= 100;
       }
@@ -1890,7 +1904,7 @@ namespace madness {
         fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
       }
       return SeparatedConvolution<double_complex, 3>(world, bloch_k, coeff, expnt,
-                                                     lattice_sum, k);
+                                                     lattice_ranges, k);
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
@@ -1900,14 +1914,15 @@ namespace madness {
                                                          double mu,
                                                          double lo,
                                                          double eps,
-                                                         const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+                                                         const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
                                                          int k=FunctionDefaults<3>::get_k())
 
     {
       const Tensor<double> &cell_width = FunctionDefaults<3>::get_cell_width();
       double hi = cell_width.normf(); // Diagonal width of cell
       // Extend kernel range for lattice summation
-      const auto lattice_sum_any = lattice_sum.any();
+      bool lattice_sum_any = std::ranges::any_of(
+    lattice_ranges, [](const LatticeRange& b){ return b.get_range(); });
       if (lattice_sum_any) {
         hi *= 100;
       }
@@ -1920,38 +1935,38 @@ namespace madness {
         fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
       }
       return new SeparatedConvolution<double_complex, 3>(world, bloch_k, coeff,
-                                                         expnt, lattice_sum, k);
+                                                         expnt, lattice_ranges, k);
     }
 
 
     static inline SeparatedConvolution<double,3>
     SlaterF12Operator(World& world, double mu, double lo, double eps,
-                      const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+                      const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
                       int k=FunctionDefaults<3>::get_k()) {
-        return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F12),lattice_sum,k);
+        return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F12),lattice_ranges,k);
     }
 
     static inline SeparatedConvolution<double,3> SlaterF12sqOperator(World& world,
                                                                    double mu, double lo, double eps,
-                                                                   const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+                                                                   const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
                                                                    int k=FunctionDefaults<3>::get_k()) {
-        return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F212),lattice_sum,k);
+        return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F212),lattice_ranges,k);
     }
 
     static inline SeparatedConvolution<double,3>* SlaterF12sqOperatorPtr(World& world,
                                                                        double mu, double lo, double eps,
-                                                                       const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+                                                                       const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
                                                                        int k=FunctionDefaults<3>::get_k()) {
-        return new SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F212),lattice_sum,k);
+        return new SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F212),lattice_ranges,k);
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r) in 3D
     template<std::size_t NDIM=3>
     static inline SeparatedConvolution<double,NDIM> SlaterOperator(World& world,
     		double mu, double lo, double eps,
-                const array_of_bools<NDIM>& lattice_sum = FunctionDefaults<NDIM>::get_bc().is_periodic(),
+    		const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
     		int k=FunctionDefaults<NDIM>::get_k()) {
-        return SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_SLATER),lattice_sum,k);
+        return SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_SLATER),lattice_ranges,k);
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r*r)
@@ -1991,9 +2006,9 @@ namespace madness {
     /// Note that the 1/(2mu) factor of SlaterF12Operator is not included, this is just the exponential function
     static inline SeparatedConvolution<double, 3>* SlaterOperatorPtr(World& world,
                                                                  double mu, double lo, double eps,
-                                                                 const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+                                                                 const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
                                                                  int k = FunctionDefaults<3>::get_k()) {
-        return new SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_SLATER),lattice_sum,k);
+        return new SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_SLATER),lattice_ranges,k);
     }
 
     /// Factory function generating separated kernel for convolution with (1 - exp(-mu*r))/(2 mu) in 3D
@@ -2001,9 +2016,9 @@ namespace madness {
     /// includes the factor 1/(2 mu)
     static inline SeparatedConvolution<double,3>* SlaterF12OperatorPtr(World& world,
     		double mu, double lo, double eps,
-                const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+    		const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
     		int k=FunctionDefaults<3>::get_k()) {
-        return new SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F12),lattice_sum,k);
+        return new SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F12),lattice_ranges,k);
     }
 
 
@@ -2013,9 +2028,9 @@ namespace madness {
     /// includes the factor 1/(2 mu)
     static inline SeparatedConvolution<double,3>
     FGOperator(World& world, double mu, double lo, double eps,
-               const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+    const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
                int k=FunctionDefaults<3>::get_k()) {
-        return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_FG12),lattice_sum,k);
+        return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_FG12),lattice_ranges,k);
     }
 
     /// Factory function generating separated kernel for convolution with 1/(2 mu)*(1 - exp(-mu*r))/r in 3D
@@ -2024,9 +2039,9 @@ namespace madness {
     /// includes the factor 1/(2 mu)
     static inline SeparatedConvolution<double,3>*
     FGOperatorPtr(World& world, double mu, double lo, double eps,
-                  const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+    const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
                   int k=FunctionDefaults<3>::get_k()) {
-        return new SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_FG12),lattice_sum,k);
+        return new SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_FG12),lattice_ranges,k);
     }
 
     /// Factory function generating separated kernel for convolution with (1/(2 mu)*(1 - exp(-mu*r)))^2/r in 3D
@@ -2036,9 +2051,9 @@ namespace madness {
     /// includes the factor 1/(2 mu)^2
     static inline SeparatedConvolution<double,3>*
     F2GOperatorPtr(World& world, double mu, double lo, double eps,
-                   const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+    const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
                    int k=FunctionDefaults<3>::get_k()) {
-        return new SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F2G12),lattice_sum,k);
+        return new SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F2G12),lattice_ranges,k);
     }
 
     /// Factory function generating separated kernel for convolution with (1/(2 mu)*(1 - exp(-mu*r)))^2/r in 3D
@@ -2048,9 +2063,9 @@ namespace madness {
     /// includes the factor 1/(2 mu)^2
     static inline SeparatedConvolution<double,3>
     F2GOperator(World& world, double mu, double lo, double eps,
-                const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+    const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
                 int k=FunctionDefaults<3>::get_k()) {
-        return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F2G12),lattice_sum,k);
+        return SeparatedConvolution<double,3>(world,OperatorInfo(mu,lo,eps,OT_F2G12),lattice_ranges,k);
     }
 
 
@@ -2058,14 +2073,14 @@ namespace madness {
     /// Gaussian (aka a widened delta function)
     static inline SeparatedConvolution<double,3> SmoothingOperator3D(World& world,
             double eps,
-            const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+            const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
             int k=FunctionDefaults<3>::get_k()) {
 
         double exponent = 1.0/(2.0*eps);
         Tensor<double> coeffs(1), exponents(1);
         exponents(0L) =  exponent;
         coeffs(0L)=pow(exponent/M_PI,0.5*3.0);  // norm of the gaussian
-        return SeparatedConvolution<double,3>(world, coeffs, exponents, 1.e-8, eps, lattice_sum, k);
+        return SeparatedConvolution<double,3>(world, coeffs, exponents, 1.e-8, eps, lattice_ranges, k);
     }
 
     /// Factory function generating separated kernel for convolution a normalized
@@ -2073,14 +2088,14 @@ namespace madness {
     template<std::size_t NDIM>
     static inline SeparatedConvolution<double,NDIM> SmoothingOperator(World& world,
             double eps,
-            const array_of_bools<NDIM>& lattice_sum = FunctionDefaults<NDIM>::get_bc().is_periodic(),
+            const std::array<LatticeRange, NDIM>& lattice_ranges = bc_lattice_ranges<NDIM>(),
             int k=FunctionDefaults<NDIM>::get_k()) {
 
         double exponent = 1.0/(2.0*eps);
         Tensor<double> coeffs(1), exponents(1);
         exponents(0L) =  exponent;
         coeffs(0L)=pow(exponent/M_PI,0.5*NDIM);  // norm of the gaussian
-        return SeparatedConvolution<double,NDIM>(world, coeffs, exponents, 1.e-8, eps, lattice_sum, k);
+        return SeparatedConvolution<double,NDIM>(world, coeffs, exponents, 1.e-8, eps, lattice_ranges, k);
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
@@ -2090,14 +2105,15 @@ namespace madness {
                                                      double mu,
                                                      double lo,
                                                      double eps,
-                                                     const array_of_bools<3>& lattice_summed = FunctionDefaults<3>::get_bc().is_periodic(),
+                                                     const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
                                                      int k=FunctionDefaults<3>::get_k()) {
       const Tensor<double> &cell_width = FunctionDefaults<3>::get_cell_width();
       double hi = cell_width.normf(); // Diagonal width of cell
       // Extend kernel range for lattice summation
       // N.B. if have periodic boundaries, extend range just in case will be using periodic domain
-      const auto lattice_summed_any = lattice_summed.any();
-      if (lattice_summed.any() || FunctionDefaults<3>::get_bc().is_periodic_any()) {
+      const auto lattice_summed_any = std::ranges::any_of(lattice_ranges, [](const auto& b) { return b.get_range();});
+      const auto infinite_any = std::ranges::any_of(lattice_ranges, [](const auto& b) { return b.infinite();});
+      if (lattice_summed_any) {
         hi *= 100;
       }
 
@@ -2105,12 +2121,12 @@ namespace madness {
       Tensor<double> coeff = fit.coeffs();
       Tensor<double> expnt = fit.exponents();
 
-      if (lattice_summed_any) {
+      if (infinite_any) {
         // convolution with Gaussians of exponents <= 0.25/(L^2) contribute only a constant shift
         // the largest spacing along lattice summed axes thus controls the smallest Gaussian exponent that NEEDS to be included
         double max_lattice_spacing = 0;
         for(int d=0; d!=3; ++d) {
-          if (lattice_summed[d])
+          if (lattice_ranges[d])
             max_lattice_spacing =
                 std::max(max_lattice_spacing, cell_width(d));
         }
@@ -2120,7 +2136,7 @@ namespace madness {
                                         /* discardG0 = */ false);
       }
       return new SeparatedConvolution<double, 3>(world, coeff, expnt, lo, eps,
-                                                 lattice_summed, k);
+                                                 lattice_ranges, k);
     }
 
 
@@ -2134,7 +2150,7 @@ namespace madness {
     GradCoulombOperator(World& world,
                         double lo,
                         double eps,
-                        const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+                        const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
                         int k=FunctionDefaults<3>::get_k()) {
       typedef SeparatedConvolution<double, 3> real_convolution_3d;
       typedef std::shared_ptr<real_convolution_3d> real_convolution_3d_ptr;
@@ -2142,7 +2158,7 @@ namespace madness {
       const Tensor<double> width = FunctionDefaults<3>::get_cell_width();
       double hi = width.normf(); // Diagonal width of cell
       // Extend kernel range for lattice summation
-      const auto lattice_sum_any = lattice_sum.any();
+      const auto lattice_sum_any = std::ranges::any_of(lattice_ranges, [](const LatticeRange& b){ return b.get_range(); });
       if (lattice_sum_any) {
         hi *= 100;
       }
@@ -2170,11 +2186,11 @@ namespace madness {
             if (d != dir)
               ops[mu].setop(d, GaussianConvolution1DCache<double>::get(
                                    k, expnt(mu) * width[d] * width[d], 0,
-                                   lattice_sum[d]));
+                                   lattice_ranges[d]));
           }
           ops[mu].setop(dir, GaussianConvolution1DCache<double>::get(
                                  k, expnt(mu) * width[dir] * width[dir], 1,
-                                 lattice_sum[dir]));
+                                 lattice_ranges[dir]));
         }
         gradG[dir] = real_convolution_3d_ptr(
             new SeparatedConvolution<double, 3>(world, ops));
@@ -2194,7 +2210,7 @@ namespace madness {
                         double mu,
                         double lo,
                         double eps,
-                        const array_of_bools<3>& lattice_sum = FunctionDefaults<3>::get_bc().is_periodic(),
+                        const std::array<LatticeRange, 3>& lattice_ranges = bc_lattice_ranges<3>(),
                         int k=FunctionDefaults<3>::get_k()) {
       typedef SeparatedConvolution<double, 3> real_convolution_3d;
       typedef std::shared_ptr<real_convolution_3d> real_convolution_3d_ptr;
@@ -2202,7 +2218,7 @@ namespace madness {
       const Tensor<double> width = FunctionDefaults<3>::get_cell_width();
       double hi = width.normf(); // Diagonal width of cell
       // Extend kernel range for lattice summation
-      const auto lattice_sum_any = lattice_sum.any();
+      bool lattice_sum_any = std::ranges::any_of(lattice_ranges, [](const LatticeRange& b){ return b.get_range(); });
       if (lattice_sum_any) {
         hi *= 100;
       }
@@ -2230,11 +2246,11 @@ namespace madness {
             if (d != dir)
               ops[mu].setop(d, GaussianConvolution1DCache<double>::get(
                                    k, expnt(mu) * width[d] * width[d], 0,
-                                   lattice_sum[d]));
+                                   lattice_ranges[d]));
           }
           ops[mu].setop(dir, GaussianConvolution1DCache<double>::get(
                                  k, expnt(mu) * width[dir] * width[dir], 1,
-                                 lattice_sum[dir]));
+                                 lattice_ranges[dir]));
         }
         gradG[dir] = real_convolution_3d_ptr(
             new SeparatedConvolution<double, 3>(world, ops));

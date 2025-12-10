@@ -59,7 +59,7 @@ namespace madness {
             int bmax;
             if      (NDIM == 1) bmax = 7;
             else if (NDIM == 2) bmax = 5;
-            else if (NDIM == 3) bmax = 3;
+            else if (NDIM == 3) bmax = 4;
             else if (NDIM == 4) bmax = 3;
             else if (NDIM == 5) bmax = 3;
             else if (NDIM == 6) bmax = 3;
@@ -296,14 +296,14 @@ namespace madness {
       using Point = Key<NDIM>;
       using PointPattern = Vector<std::optional<Translation>, NDIM>;
       using Displacement = Key<NDIM>;
-      /// this callable filters out points and/or displacements; note that the displacement is optional (this use case supports filtering based on point pattern onlu) and non-const to make it possible for the filter function to update the displacement (e.g. to map it back to the simulation cell)
+      /// this callable filters out points and/or displacements; note that the displacement is optional (this use case supports filtering based on point pattern only) and non-const to make it possible for the filter function to update the displacement (e.g. to map it back to the simulation cell)
       using Filter = std::function<bool(Level, const PointPattern&, std::optional<Displacement>&)>;
 
     private:
       using BoxRadius = std::array<std::optional<Translation>, NDIM>;  // null radius = unlimited size
       using SurfaceThickness = std::array<std::optional<Translation>, NDIM>;  // null thickness for dimensions with null radius
       using Box = std::array<std::pair<Translation, Translation>, NDIM>;
-      using Hollowness = std::array<bool, NDIM>;  // this can be uninitialized, unlike array_of_bools
+      using Hollowness = std::array<bool, NDIM>;  // this can be uninitialized, unlike array_of_bools ... hollow = gap between -radius+thickness and +radius-thickness.
       using Periodicity = array_of_bools<NDIM>;
 
       Point center_;                          ///< Center point of the box
@@ -330,16 +330,19 @@ namespace madness {
         Point point;                                ///< Current point
         mutable std::optional<Displacement> disp;   ///< Memoized displacement from parent->center_ to point, computed by displacement(), reset by advance()
         size_t fixed_dim;                           ///< Current fixed dimension (i.e. faces perpendicular to this axis are being iterated over)
-        Box box;                                    ///< updated box bounds in each dimension, used to avoid duplicate displacements by excluding the surface displacements for each processed fixed dim
+        Box box;                                    ///< shrunken box bounds in each dimension, used to avoid duplicate displacements by excluding the surface displacements for each processed fixed dim
+                                                    ///  e.g., if radius is [5, 5] and thickness is [1, 1], the point [4, 5] would be on two surfaces
+                                                    ///  let the first dimension process it, and afterwards restrict the box to [-3, 3] for the first dimension
         bool done;                                  ///< Flag indicating iteration completion
 
-        // return true if we have another surface layer
+        // return true if we have another surface layer for the fixed_dim
+        // if we do, translate point onto that next surface layer
         bool next_surface_layer() {
           Vector<Translation, NDIM> l = point.translation();
           if (l[fixed_dim] !=
               parent->box_[fixed_dim].second +
                   parent->surface_thickness_[fixed_dim].value_or(0)) {
-            // if box is hollow along this dim (has 2 surface layers) and exhausted all layers on the "negative" side of the fixed dimension, move to the first layer on the "positive" side
+            // if box is hollow along this dim and exhausted all layers on the "negative" side of the fixed dimension, move to the first layer on the "positive" side
             if (parent->hollowness_[fixed_dim] &&
                 l[fixed_dim] ==
                     parent->box_[fixed_dim].first +
@@ -350,6 +353,7 @@ namespace madness {
             } else
               ++l[fixed_dim];
             point = Point(point.level(), l);
+            disp.reset();
             return true;
           } else
             return false;
@@ -359,9 +363,11 @@ namespace madness {
          * @brief Advances the iterator to the next surface point
          *
          * This function implements the logic for traversing the box surface by:
-         * 1. Incrementing displacement in non-fixed dimensions
-         * 2. Switching sides in the fixed dimension when needed
-         * 3. Moving to the next fixed dimension when current one is exhausted
+         * (1) Incrementing displacement in non-fixed dimensions
+         * (2) Switching sides in the fixed dimension when needed
+         * (3) Moving to the next fixed dimension when current one is exhausted
+         *
+         * We filter out layers in (2) but not points within a layer in (1).
          */
         void advance() {
           disp.reset();
@@ -372,6 +378,7 @@ namespace madness {
             point = point.neighbor(unit_displacement);
           };
 
+          // (1) try all displacements on current layer
           for (size_t i = NDIM; i > 0; --i) {
             const size_t cur_dim = i - 1;
             if (cur_dim == fixed_dim) continue;
@@ -383,7 +390,8 @@ namespace madness {
             reset_along_dim(cur_dim);
           }
 
-          // move to the next surface layer normal to the fixed dimension
+          // (2) move to the next surface layer normal to the fixed dimension
+          // if we can filter out the entire layer, do so.
           while (bool have_another_surface_layer = next_surface_layer()) {
             const auto filtered_out = [&,this]() {
               bool result = false;
@@ -401,9 +409,8 @@ namespace madness {
               return;
           }
 
-          // ready to switch to next fixed dimension with finite radius
-          // but first update box bounds to exclude the surface displacements for the current fixed dimension
-          // WARNING if box along this dimension is not hollow we are done!
+          // we finished the current dimension, so update box bounds to exclude the surface displacements for the current fixed dimension
+          // if box along this dimension is not hollow, the new box would be [0, 0] - we are done!
           if (parent->hollowness_[fixed_dim]) {
             box[fixed_dim] = {
                 parent->box_[fixed_dim].first +
@@ -415,24 +422,26 @@ namespace madness {
             done = true;
             return;
           }
-          // onto next dimension
+          // (3) switch to next fixed dimension with finite radius
           ++fixed_dim;
           while (!parent->box_radius_[fixed_dim] && fixed_dim < NDIM) {
             ++fixed_dim;
           }
 
-
+          // Exit if we've displaced along all dimensions of finite radius
           if (fixed_dim >= NDIM) {
             done = true;
             return;
           }
 
-          // reset upon moving to the next fixed dimension
+          // reset our search along all non-fixed dimensions
+          // the reset along the fixed_dim returns silently
           for (size_t i = 0; i < NDIM; ++i) {
             reset_along_dim(i);
           }
         }
 
+        /// Perform advance, repeating if you are at a filtered point
         void advance_till_valid() {
           if (parent->filter_) {
             const auto filtered_out = [&]() -> bool {
@@ -451,6 +460,9 @@ namespace madness {
             this->advance();
         }
 
+        // Initialize the dimension. If non-fixed, initialize it to the first
+        // displacement in box. If fixed, initialize it to the first non-filtered layer.
+        // TODO: Double-check the manipulations with periodic wraparound. I think they're silent right now.
         void reset_along_dim(size_t dim) {
           const auto is_fixed_dim = dim == fixed_dim;
           Vector<Translation, NDIM> l = point.translation();
@@ -467,6 +479,8 @@ namespace madness {
                 is_fixed_dim ? parent->box_[dim].second +
                           parent->surface_thickness_[dim].value_or(0) :
                  box[dim].second;
+            // WARNING!!! I suspect that AS OF RIGHT NOW, the left is always smaller... in which case, yes, l_dim_min always corresponds
+            //            to a surface layer. So this whole clause probably doesn't do anything. Check later.
             l_dim_min = std::max(l_dim_min, l_dim_max - period + 1);
             // fixed dim only: l_dim_min may not correspond to a surface layer
             // this can only happen if l_dim_min is in the gap between the surface layers
@@ -482,6 +496,7 @@ namespace madness {
           l[dim] = l_dim_min;
 
           point = Point(point.level(), l);
+          disp.reset();
 
           // if the entire surface layer is filtered out, pick the next one
           if (dim == fixed_dim) {
