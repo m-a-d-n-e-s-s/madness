@@ -68,7 +68,7 @@ namespace madness {
 
     // World static member variables
     std::list<World*> World::worlds; ///< List of \c World pointers in the parallel runtime EXCEPT the default World
-    World* World::default_world = nullptr; ///< The default \c World.
+    World* World::default_world = nullptr; ///< The default \c World ; it's ID is always 0
     std::pair<std::uint64_t, std::uint64_t> World::world_id__next_last{};
 
     bool initialized() {
@@ -203,6 +203,7 @@ namespace madness {
 
         // Construct the default world before starting RMI so that incoming active messages can find this world
         World::default_world = new World(comm);
+        MADNESS_ASSERT(World::default_world->id() == 0);
 
         start_cpu_time = cpu_time();
         start_wall_time = wall_time();
