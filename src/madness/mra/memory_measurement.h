@@ -124,7 +124,7 @@ namespace madness {
         /// the memory map is a rank-local object
         void search_all_worlds() {
             auto all_worlds=World::get_world_ids(); // all worlds but the default world
-            all_worlds.push_back(World::get_default().id());  // add the default world
+            all_worlds.push_back(0);  // the default world's ID
             if (debug) print("searching worlds",all_worlds);
             for (auto world_id : all_worlds) {
                 if (debug) print("searching world",world_id);
