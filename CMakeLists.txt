@@ -131,7 +131,7 @@ check_cxx_source_compiles(
     int main() { double a[1], b[1], c[1]; madness::mTxmq(1,1,1,c,a,b,1); return 0; }
     " HAVE_MTXMQ)
 
-  ####### preferred task backend
+####### preferred task backend
 set(MADNESS_TASK_VALID_BACKENDS Pthreads TBB PaRSEC)
 set(MADNESS_TASK_BACKEND Pthreads CACHE STRING "The backend to use for dispatching tasks")
 set_property(CACHE MADNESS_TASK_BACKEND PROPERTY STRINGS ${MADNESS_TASK_VALID_BACKENDS})
@@ -340,6 +340,13 @@ redefaultable_option(CMAKE_POSITION_INDEPENDENT_CODE "Default value for POSITION
 if(BUILD_SHARED_LIBS)
   set(BLA_STATIC_DEFAULT FALSE)
   set(CMAKE_MACOSX_RPATH TRUE)
+  # Ensure C++ template symbols (including RTTI typeinfo) have default visibility
+  # when building shared libraries. This is critical for proper dynamic_cast across
+  # shared library boundaries. Without this, each dylib may have its own hidden copy of typeinfo for
+  # the same template instantiation, causing dynamic_cast to fail pointer-based
+  # comparison and fall back to slower string-based comparison.
+  set(CMAKE_CXX_VISIBILITY_PRESET default CACHE STRING "Visibility preset for C++ symbols")
+  set(CMAKE_VISIBILITY_INLINES_HIDDEN OFF CACHE BOOL "Whether to hide inline function symbols")
 else(BUILD_SHARED_LIBS)
   set(BLA_STATIC_DEFAULT TRUE)
   set(CMAKE_MACOSX_RPATH FALSE)
