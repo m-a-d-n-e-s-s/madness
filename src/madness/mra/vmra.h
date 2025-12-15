@@ -1119,15 +1119,21 @@ namespace madness {
                const Function<T,NDIM>& a,
                const std::vector< Function<R,NDIM> >& v,
                double tol,
-               bool fence=true) {
+               bool fence=true,
+               bool do_reconstruct=true,
+               bool do_norm_tree=true) {
         PROFILE_BLOCK(Vmulsp);
-        a.reconstruct(false);
-        reconstruct(world, v, false);
-        world.gop.fence();
-        for (unsigned int i=0; i<v.size(); ++i) {
-            v[i].norm_tree(false);
+        if (do_reconstruct) {
+            a.reconstruct(false);
+            reconstruct(world, v, false);
+            world.gop.fence();
         }
-        a.norm_tree();
+        if (do_norm_tree) {
+            for (unsigned int i=0; i<v.size(); ++i) {
+                v[i].norm_tree(false);
+            }
+            a.norm_tree();
+        }
         return vmulXX(a, v, tol, fence);
     }
 
@@ -1195,7 +1201,8 @@ namespace madness {
     mul(World& world,
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
-        bool fence=true) {
+        bool fence=true,
+        double tol=0.0) {
         PROFILE_BLOCK(Vmulvv);
         reconstruct(world, a, true);
         reconstruct(world, b, true);
@@ -1203,7 +1210,7 @@ namespace madness {
 
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
         for (unsigned int i=0; i<a.size(); ++i) {
-            q[i] = mul(a[i], b[i], false);
+            q[i] = mul(a[i], b[i], false, tol);
         }
         if (fence) world.gop.fence();
         return q;
@@ -1565,9 +1572,10 @@ namespace madness {
     dot(World& world,
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
-        bool fence=true) {
+        bool fence=true,
+        double tol=0.0) {
         MADNESS_CHECK(a.size()==b.size());
-        return sum(world,mul(world,a,b,true),fence);
+        return sum(world,mul(world,a,b,true,tol),fence);
     }
 
 

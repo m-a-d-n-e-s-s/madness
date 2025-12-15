@@ -433,12 +433,8 @@ private:
                     in.push_back(tmp_mo_bra[i].tree_size());
                 }
 
-                //auto tmp_psif = mul_sparse(world, vket[i], tmp_mo_bra, mul_tol);
-                // skip mul_sparse interface so we don't unnecesarily recompute the norms
-                // instead reconstruct and call norm tree before tasks are distributed
-
                 cpu0 = cpu_time();
-                auto tmp_psif = vmulXX(vket[i], tmp_mo_bra, mul_tol, true);
+                auto tmp_psif = mul_sparse(world, vket[i], tmp_mo_bra, mul_tol*0.1, true, false, false);
                 cpu1 = cpu_time();
 
                 for (unsigned int i=0; i<tmp_psif.size(); ++i){
@@ -460,21 +456,9 @@ private:
 
                 cpu0 = cpu_time();
                 vecfuncT tmp_mo_ket(mo_ket.begin()+ilo,mo_ket.begin()+iend);
-
-                //auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif);
-                //reconstruct(world, tmp_mo_ket, true);
-                //reconstruct(world, tmp_psif, true);
-
-                MADNESS_CHECK(tmp_mo_ket.size()==tmp_psif.size());
                 norm_tree(world, tmp_psif, true);
                 //norm_tree(world, tmp_mo_ket, true);
-                vecfuncT q(tmp_mo_ket.size());
-                for (unsigned int i=0; i<tmp_mo_ket.size(); ++i) {
-                    q[i] = mul_sparse(tmp_mo_ket[i], tmp_psif[i], mul_tol*0.01, false);
-                }
-                world.gop.fence();
-                auto tmp_Kf = sum(world,q,true);
-                
+                auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif, mul_tol*0.01);
                 cpu1 = cpu_time();
                 mul2_timer += long((cpu1 - cpu0) * 1000l);
 
