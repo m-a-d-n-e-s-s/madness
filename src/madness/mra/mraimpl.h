@@ -1542,9 +1542,6 @@ namespace madness {
     }
 
 
-    // Pair holding both norms (L2 = first, Linf = second)
-    using NormPair = std::pair<double, double>;
-
     /// compute for each FunctionNode the norm of the function inside that node
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::norm_tree(bool fence) {
@@ -1555,29 +1552,25 @@ namespace madness {
     }
 
     template <typename T, std::size_t NDIM>
-    typename FunctionImpl<T,NDIM>::NormPair
-    FunctionImpl<T,NDIM>::norm_tree_op(const keyT& key, const std::vector< Future<NormPair> >& v) {
+    double FunctionImpl<T,NDIM>::norm_tree_op(const keyT& key, const std::vector< Future<double> >& v) {
         //PROFILE_MEMBER_FUNC(FunctionImpl);
-        NormPair parent(0.0, 0.0); 
+        double sum = 0.0;
         int i=0;
         for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
-            NormPair child = v[i].get();
-            parent.first += child.first * child.first;
-            if (child.second > parent.second) parent.second = child.second;
+            double value = v[i].get();
+            sum += value*value;
         }
-        parent.first = std::sqrt(parent.first);
-        // why a task? because send is deprecated to keep comm thread free
-        coeffs.task(key, &nodeT::set_norm_tree,     parent.first);
-        coeffs.task(key, &nodeT::set_inf_norm_tree, parent.second);
+        sum = sqrt(sum);
+        coeffs.task(key, &nodeT::set_norm_tree, sum); // why a task? because send is deprecated to keep comm thread free
         //if (key.level() == 0) std::cout << "NORM_TREE_TOP " << sum << "\n";
-        return parent;
+        return sum;
     }
 
     template <typename T, std::size_t NDIM>
-    Future<NormPair> FunctionImpl<T,NDIM>::norm_tree_spawn(const keyT& key) {
+    Future<double> FunctionImpl<T,NDIM>::norm_tree_spawn(const keyT& key) {
         nodeT& node = coeffs.find(key).get()->second;
         if (node.has_children()) {
-            std::vector< Future<NormPair> > v = future_vector_factory<NormPair>(1 << NDIM);
+            std::vector< Future<double> > v = future_vector_factory<double>(1<<NDIM);
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
                 v[i] = woT::task(coeffs.owner(kit.key()), &implT::norm_tree_spawn, kit.key());
@@ -1585,12 +1578,11 @@ namespace madness {
             return woT::task(world.rank(),&implT::norm_tree_op, key, v);
         }
         else {
-            double l2   = node.coeff().normf();
-            double linf = coeffs2values(key, node.coeff()).absmax();
-            NormPair result(l2, linf);
-            node.set_norm_tree(result.first);
-            node.set_inf_norm_tree(result.second);
-            return Future<NormPair>(result);
+            //                return Future<double>(node.coeff().normf());
+            const double norm=node.coeff().normf();
+            // invoked locally anyways
+            node.set_norm_tree(norm);
+            return Future<double>(norm);
         }
     }
 

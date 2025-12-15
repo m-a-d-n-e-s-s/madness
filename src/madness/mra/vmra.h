@@ -1202,10 +1202,13 @@ namespace madness {
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
         bool fence=true,
+        bool do_reconstruct=true,
         double tol=0.0) {
         PROFILE_BLOCK(Vmulvv);
-        reconstruct(world, a, true);
-        reconstruct(world, b, true);
+        if (do_reconstruct){
+            reconstruct(world, a, true);
+            reconstruct(world, b, true);
+        }
 //        if (&a != &b) reconstruct(world, b, true); // fails if type(a) != type(b)
 
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
@@ -1573,9 +1576,10 @@ namespace madness {
         const std::vector< Function<T,NDIM> >& a,
         const std::vector< Function<R,NDIM> >& b,
         bool fence=true,
+        bool do_reconstruct=true,
         double tol=0.0) {
         MADNESS_CHECK(a.size()==b.size());
-        return sum(world,mul(world,a,b,true,tol),fence);
+        return sum(world,mul(world,a,b,true,do_reconstruct,tol),fence);
     }
 
 

@@ -458,7 +458,7 @@ private:
                 vecfuncT tmp_mo_ket(mo_ket.begin()+ilo,mo_ket.begin()+iend);
                 norm_tree(world, tmp_psif, true);
                 //norm_tree(world, tmp_mo_ket, true);
-                auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif, mul_tol*0.01);
+                auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif, true, false, mul_tol*0.01);
                 cpu1 = cpu_time();
                 mul2_timer += long((cpu1 - cpu0) * 1000l);
 
