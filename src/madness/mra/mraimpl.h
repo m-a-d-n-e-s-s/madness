@@ -1568,7 +1568,7 @@ namespace madness {
         parent.first = std::sqrt(parent.first);
         // why a task? because send is deprecated to keep comm thread free
         coeffs.task(key, &nodeT::set_norm_tree,     parent.first);
-        coeffs.task(key, &nodeT::set_norm_tree_inf, parent.second);
+        coeffs.task(key, &nodeT::set_inf_norm_tree, parent.second);
         //if (key.level() == 0) std::cout << "NORM_TREE_TOP " << sum << "\n";
         return parent;
     }
@@ -1589,7 +1589,7 @@ namespace madness {
             double linf = coeffs2values(key, node.coeff()).absmax();
             NormPair result(l2, linf);
             node.set_norm_tree(result.first);
-            node.set_norm_tree_inf(result.second);
+            node.set_inf_norm_tree(result.second);
             return Future<NormPair>(result);
         }
     }
