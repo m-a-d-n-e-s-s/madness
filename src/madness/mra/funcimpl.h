@@ -489,12 +489,9 @@ namespace madness {
             norm = 0.0;
         double nt = node.get_norm_tree();
         if (nt == 1e300) nt = 0.0;
-        s << norm << ", norm_tree =" << nt << ", snorm =" << node.get_snorm() << ", dnorm= " << node.get_dnorm() << "), rank="<< node.coeff().rank()<<")";
+        s << norm << ", norm_tree, s/dnorm =" << nt << ", " << node.get_snorm() << " " << node.get_dnorm() << "), rank="<< node.coeff().rank()<<")";
         if (node.coeff().is_assigned()) s << " dim " << node.coeff().dim(0) << " ";
 
-        //if (nt == 1e300) nt = 0.0;
-        //s << norm << ", norm_tree, s/dnorm =" << nt << ", " << node.get_snorm() << " " << node.get_dnorm() << "), rank="<< node.coeff().rank()<<")";
-        //if (node.coeff().is_assigned()) s << " dim " << node.coeff().dim(0) << " ";
         return s;
     }
 
