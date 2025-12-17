@@ -266,6 +266,71 @@ int test_mpi_group(World& world) {
     return t1.end();
 }
 
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+
+// Separate non-inline functions to create distinct call sites
+__attribute__((noinline))
+Function<double,2> create_slater_function(World& world) {
+    auto slater = [](const Vector<double,2>& r) { return exp(-r.normf()); };
+    return FunctionFactory<double,2>(world).functor(slater);
+}
+
+__attribute__((noinline))
+Function<double,2> create_gaussian_function(World& world) {
+    auto gaussian = [](const Vector<double,2>& r) { return exp(-r.normf() * r.normf()); };
+    return FunctionFactory<double,2>(world).functor(gaussian);
+}
+
+__attribute__((noinline))
+Function<double,2> create_polynomial_function(World& world) {
+    auto polynomial = [](const Vector<double,2>& r) { return r[0] * r[0] + r[1] * r[1]; };
+    return FunctionFactory<double,2>(world).functor(polynomial);
+}
+
+/// Test stacktrace profiling functionality
+int test_stacktrace_profiling(World& world) {
+    test_output t1("testing stacktrace profiling");
+    t1.set_cout_to_terminal();
+
+    if (world.rank() == 0) print_header2("Creating functions at different call sites");
+
+    // Create multiple functions from each call site
+    Function<double,2> f1 = create_slater_function(world);
+    Function<double,2> f2 = create_slater_function(world);  // Same call site as f1
+    Function<double,2> f3 = create_gaussian_function(world);
+    Function<double,2> f4 = create_gaussian_function(world);  // Same call site as f3
+    Function<double,2> f5 = create_polynomial_function(world);
+
+    // Verify that stacktraces are captured
+    const auto& trace1 = f1.get_impl()->get_creation_stacktrace();
+    const auto& trace2 = f2.get_impl()->get_creation_stacktrace();
+    const auto& trace3 = f3.get_impl()->get_creation_stacktrace();
+    const auto& trace4 = f4.get_impl()->get_creation_stacktrace();
+    const auto& trace5 = f5.get_impl()->get_creation_stacktrace();
+
+    // Check that stacktraces are not empty
+    t1.checkpoint(!trace1.empty(), "stacktrace 1 is not empty");
+    t1.checkpoint(!trace3.empty(), "stacktrace 3 is not empty");
+    t1.checkpoint(!trace5.empty(), "stacktrace 5 is not empty");
+
+    // Check that same call site yields same stacktrace
+    t1.checkpoint(trace1 == trace2, "functions from same call site have same stacktrace (slater)");
+    t1.checkpoint(trace3 == trace4, "functions from same call site have same stacktrace (gaussian)");
+
+    // Check that different call sites yield different stacktraces
+    t1.checkpoint(trace1 != trace3, "functions from different call sites have different stacktraces");
+    t1.checkpoint(trace1 != trace5, "functions from different call sites have different stacktraces");
+    t1.checkpoint(trace3 != trace5, "functions from different call sites have different stacktraces");
+
+    if (world.rank() == 0) print_header2("Memory profiling with stacktrace breakdown");
+
+    // Call MemoryMeasurer to test reporting
+    MemoryMeasurer::measure_and_print(world);
+
+    return t1.end();
+}
+#endif
+
 int main(int argc, char** argv) {
     madness::World& world=madness::initialize(argc, argv);
 
@@ -289,7 +354,9 @@ int main(int argc, char** argv) {
     result+=test_host_rank_map(world);
     result+=test_mpi_group(world);
     result+=test_node_replicated_function(world);
-
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+    result+=test_stacktrace_profiling(world);
+#endif
 
     print("result",result);
     madness::finalize();

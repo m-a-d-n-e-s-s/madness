@@ -17,6 +17,22 @@ set(MADMRA_SOURCES
 
 # Create the MADmra library
 add_mad_library(mra MADMRA_SOURCES MADMRA_HEADERS "linalg;tinyxml;muparser" "madness/mra")
+
+# Link Boost headers if stacktrace profiling is enabled
+if(MADNESS_HAS_MEM_PROFILE_STACKTRACE)
+  if(TARGET Boost::headers)
+    target_link_libraries(MADmra PUBLIC Boost::headers)
+  elseif(TARGET Boost::boost)
+    target_link_libraries(MADmra PUBLIC Boost::boost)
+  endif()
+
+  # Boost.Stacktrace with addr2line backend requires libdl on POSIX systems
+  # (for dladdr() function to get symbol information)
+  if(NOT WIN32)
+    target_link_libraries(MADmra PUBLIC ${CMAKE_DL_LIBS})
+  endif()
+endif()
+
 install(FILES autocorr coeffs gaussleg ble-first.txt ble-second.txt b-spline-deriv1.txt b-spline-deriv2.txt b-spline-deriv3.txt
     DESTINATION "${MADNESS_INSTALL_DATADIR}"
     COMPONENT mra)

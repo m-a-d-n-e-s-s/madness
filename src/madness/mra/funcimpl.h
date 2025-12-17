@@ -49,6 +49,9 @@
 #include <madness/mra/displacements.h>
 
 #include <madness/mra/leafop.h>
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+#include <madness/mra/stacktrace_util.h>
+#endif
 
 #include <array>
 #include <iostream>
@@ -999,6 +1002,9 @@ template<size_t NDIM>
         Timer timer_target_driven;
         AtomicInt small;
         AtomicInt large;
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+        std::string creation_stacktrace_;  ///< Stacktrace at construction (for memory profiling)
+#endif
 
         /// Initialize function impl from data in factory
         FunctionImpl(const FunctionFactory<T,NDIM>& factory)
@@ -1029,6 +1035,10 @@ template<size_t NDIM>
             // before invoking process_pending for the coeffs and
             // for this.  Otherwise, there is a race condition.
             MADNESS_ASSERT(k>0 && k<=MAXK);
+
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+            creation_stacktrace_ = StacktraceCapture::capture();
+#endif
 
             bool empty = (factory._empty or is_on_demand());
             bool do_refine = factory._refine;
@@ -1105,6 +1115,9 @@ template<size_t NDIM>
                 , tree_state(other.tree_state)
                 , coeffs(world, pmap ? pmap : other.coeffs.get_pmap())
         {
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+            creation_stacktrace_ = StacktraceCapture::capture();
+#endif
             if (dozero) {
                 initial_level = 1;
                 insert_zero_down_to_initial_level(cdata.key0);
@@ -7244,6 +7257,13 @@ template<size_t NDIM>
 
         /// print tree size and size
         void print_size(const std::string name) const;
+
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+        /// Returns the creation stacktrace for memory profiling
+        const std::string& get_creation_stacktrace() const {
+            return creation_stacktrace_;
+        }
+#endif
 
         /// print the number of configurations per node
         void print_stats() const;

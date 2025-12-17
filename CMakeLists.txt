@@ -214,6 +214,16 @@ option(ENABLE_MEM_PROFILE "Turn on instrumented aggregate memory profiling (prin
 add_feature_info(MEM_PROFILE ENABLE_MEM_PROFILE "instrumented aggregate memory profiling")
 set(WORLD_MEM_PROFILE_ENABLE ${ENABLE_MEM_PROFILE} CACHE BOOL "Turn on instrumented aggregate memory profiling (print_meminfo)")
 
+option(MADNESS_ENABLE_MEM_PROFILE_STACKTRACE "Enable stacktrace tracking in FunctionImpl for detailed memory profiling" OFF)
+add_feature_info(MEM_PROFILE_STACKTRACE MADNESS_ENABLE_MEM_PROFILE_STACKTRACE
+    "stacktrace tracking in FunctionImpl for memory profiling")
+
+# Stacktrace depth for memory profiling (0 = unlimited, number of frames to capture)
+set(MADNESS_MEM_PROFILE_STACKTRACE_DEPTH "0" CACHE STRING
+    "Number of stacktrace frames to capture for memory profiling (0 = unlimited)")
+
+# Note: Actual Boost.Stacktrace detection happens after external/boost.cmake is included (see below)
+
 option(ENABLE_TENSOR_BOUNDS_CHECKING
     "Enable checking of bounds in tensors ... slow but useful for debugging" OFF)
 add_feature_info(TENSOR_BOUNDS_CHECKING ENABLE_TENSOR_BOUNDS_CHECKING
@@ -676,6 +686,53 @@ include(external/gperftools.cmake)
 include(external/tbb.cmake)
 include(external/parsec.cmake)
 include(external/boost.cmake)
+
+# Check for Boost.Stacktrace if stacktrace profiling is enabled
+if(MADNESS_ENABLE_MEM_PROFILE_STACKTRACE)
+  # Check for Boost.Stacktrace (requires Boost >= 1.65)
+  # Use target-based detection to work when MADNESS is a subproject
+  if(TARGET Boost::headers OR TARGET Boost::boost)
+    # Boost targets exist - check version
+    if(Boost_VERSION_STRING)
+      if(Boost_VERSION_STRING VERSION_GREATER_EQUAL "1.65.0")
+        set(MADNESS_HAS_MEM_PROFILE_STACKTRACE 1)
+        message(STATUS "Boost.Stacktrace available (Boost ${Boost_VERSION_STRING})")
+      else()
+        message(WARNING "Boost version ${Boost_VERSION_STRING} < 1.65.0 - Boost.Stacktrace not available, disabling stacktrace memory profiling")
+        set(MADNESS_ENABLE_MEM_PROFILE_STACKTRACE OFF)
+      endif()
+    else()
+      # No version info but target exists - assume it's recent enough
+      set(MADNESS_HAS_MEM_PROFILE_STACKTRACE 1)
+      message(STATUS "Boost targets found - enabling stacktrace memory profiling")
+    endif()
+
+    # Find addr2line tool for line information
+    # Note: Boost.Stacktrace's addr2line backend specifically requires the addr2line tool
+    # On macOS, this typically requires: brew install binutils
+    if(MADNESS_HAS_MEM_PROFILE_STACKTRACE)
+      find_program(STACKTRACE_ADDR2LINE_TOOL
+        NAMES addr2line
+        PATHS /usr/bin /usr/local/bin /opt/homebrew/bin /opt/homebrew/opt/binutils/bin
+        DOC "addr2line tool for resolving addresses to file:line")
+
+      if(STACKTRACE_ADDR2LINE_TOOL)
+        set(MADNESS_STACKTRACE_ADDR2LINE_LOCATION "${STACKTRACE_ADDR2LINE_TOOL}")
+        message(STATUS "Found addr2line: ${STACKTRACE_ADDR2LINE_TOOL} - stacktraces will include file:line information")
+      else()
+        message(STATUS "addr2line not found - stacktraces will show function names but not file:line information")
+        if(APPLE)
+          message(STATUS "  On macOS, install with: brew install binutils")
+        endif()
+        set(MADNESS_STACKTRACE_ADDR2LINE_LOCATION "")
+      endif()
+    endif()
+  else()
+    message(WARNING "Boost not found - disabling stacktrace memory profiling. Enable with ENABLE_BOOST=ON")
+    set(MADNESS_ENABLE_MEM_PROFILE_STACKTRACE OFF)
+  endif()
+endif()
+
 if (NOT MADNESS_BUILD_MADWORLD_ONLY OR MADNESS_BUILD_LIBRARIES_ONLY)
   include(external/lapack.cmake)
   include(external/libxc.cmake)

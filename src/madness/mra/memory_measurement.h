@@ -8,6 +8,9 @@
 
 #include<madness/world/ranks_and_hosts.h>
 #include<madness/mra/mra.h>
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+#include <madness/mra/stacktrace_util.h>
+#endif
 
 namespace madness {
     /// measure the memory usage of all FunctionImpl objects of all worlds
@@ -41,6 +44,9 @@ namespace madness {
             unsigned long rank=0;
             std::string hostname="localhost";
             std::size_t DIM=0;
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+            uniqueidT func_id;  ///< Unique ID of the FunctionImpl (avoids hash collisions)
+#endif
             MemKey() = default;
             MemKey(World& world) : world_id(world.id()), rank(world.rank()) {
                 hostname=MemoryMeasurer::get_hostname();
@@ -49,19 +55,30 @@ namespace madness {
             template<typename T, std::size_t NDIM>
             MemKey(const FunctionImpl<T,NDIM>& fimpl) : MemKey(fimpl.world) {
                 DIM=NDIM;
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+                func_id = fimpl.id();
+#endif
             }
             MemKey(const MemKey& other) = default;
 
             template<typename Archive>
             void serialize(Archive& ar) const {
                 ar & world_id & rank & hostname & DIM;
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+                ar & func_id;
+#endif
             }
         };
         friend bool operator<(const MemKey& lhs, const MemKey& other) {
             if (lhs.hostname!=other.hostname) return lhs.hostname<other.hostname;
             if (lhs.world_id!=other.world_id) return lhs.world_id<other.world_id;
             if (lhs.rank!=other.rank) return lhs.rank<other.rank;
-            return lhs.DIM<other.DIM;
+            if (lhs.DIM!=other.DIM) return lhs.DIM<other.DIM;
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+            return lhs.func_id<other.func_id;
+#else
+            return false;
+#endif
         }
 
         struct MemInfo {
@@ -89,6 +106,10 @@ namespace madness {
         /// keeps track of the memory usage of all objects of one or many worlds **on this rank**
         MemInfoMapT world_memory_map;
         bool debug=false;
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+        /// Map from unique FunctionImpl ID to stacktrace string (no hash collisions)
+        std::map<uniqueidT, std::string> stacktrace_strings_;
+#endif
 
         template<typename T, std::size_t NDIM>
         void add_memory_to_map(const FunctionImpl<T,NDIM>& f) {
@@ -97,8 +118,15 @@ namespace madness {
             if (debug) print("funcimpl<T,",NDIM,"> id",f.id(), "rank",f.world.rank(),"size in GB",sz*toGB);
 
             // accumulate the sizes into the world_memory_map
-            world_memory_map[MemKey(f)].num_functions++;
-            world_memory_map[MemKey(f)].memory_GB+=sz*toGB;
+            MemKey key(f);
+            world_memory_map[key].num_functions++;
+            world_memory_map[key].memory_GB+=sz*toGB;
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+            // Store stacktrace string indexed by unique ID (no collisions)
+            if (key.func_id) {
+                stacktrace_strings_[key.func_id] = f.get_creation_stacktrace();
+            }
+#endif
         }
 
     public:
@@ -136,19 +164,34 @@ namespace madness {
         /// reset the memory map
         void clear_map() {
             world_memory_map.clear();
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+            stacktrace_strings_.clear();
+#endif
         }
 
         /// gather all information of the map on rank 0 of the universe
         void reduce_map(World& universe) {
             // turn map into vector
             std::vector<std::pair<MemKey,MemInfo>> memory_vec(world_memory_map.begin(),world_memory_map.end());
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+            // Gather stacktrace strings across ranks (BEFORE clear_map!)
+            std::vector<std::pair<uniqueidT, std::string>> stacktrace_vec(stacktrace_strings_.begin(), stacktrace_strings_.end());
+#endif
             // gather all data on rank 0
             memory_vec=universe.gop.concat0(memory_vec);
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+            stacktrace_vec = universe.gop.concat0(stacktrace_vec);
+#endif
             // turn back into map
             clear_map();
             for (const auto& [memkey,memval] : memory_vec) {
                 world_memory_map[memkey]=memval;
             }
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+            for (const auto& [func_id, trace] : stacktrace_vec) {
+                stacktrace_strings_[func_id] = trace;
+            }
+#endif
         }
 
 
@@ -215,9 +258,13 @@ namespace madness {
             world.gop.fence();
             if (world.rank()==0) {
                 print("final memory map:",msg);
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+                print("hostname                      world rank  DIM  #funcs  memory_GB  func_id");
+#else
                 print("hostname                      world rank  DIM  #funcs  memory_GB");
+#endif
             }
-            constexpr std::size_t bufsize=256;
+            constexpr std::size_t bufsize=512;
             char line[bufsize];
 
             // print all information
@@ -226,7 +273,11 @@ namespace madness {
             std::vector<std::pair<MemKey,MemInfo>> memory_vec(world_memory_map.begin(),world_memory_map.end());
             std::sort(memory_vec.begin(),memory_vec.end(),[](const std::pair<MemKey,MemInfo>& a, const std::pair<MemKey,MemInfo>& b){return a.first<b.first;});
             for (const auto& [memkey,memval] : memory_vec) {
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+                snprintf(line, bufsize, "%20s %12lu %5lu %5lu %5lu    %e  {%lu,%lu}", memkey.hostname.c_str(), memkey.world_id, memkey.rank, memkey.DIM, memval.num_functions, memval.memory_GB, memkey.func_id.get_world_id(), memkey.func_id.get_obj_id());
+#else
                 snprintf(line, bufsize, "%20s %12lu %5lu %5lu %5lu    %e", memkey.hostname.c_str(), memkey.world_id, memkey.rank, memkey.DIM, memval.num_functions, memval.memory_GB);
+#endif
                 print(std::string(line));
             }
             world.gop.fence();
@@ -258,7 +309,68 @@ namespace madness {
                 print(std::string(line));
             }
 
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+            // Print detailed stacktrace breakdown
+            print_stacktrace_details(world);
+#endif
         }
+
+#ifdef MADNESS_HAS_MEM_PROFILE_STACKTRACE
+        /// Print top allocation sites grouped by stacktrace (aggregated by string, no hash collisions)
+        void print_stacktrace_details(World& world) {
+            if (world.rank() != 0) return;
+
+            // Group memory by stacktrace string (eliminates hash collision issue)
+            std::map<std::string, double> stacktrace_memory;
+            std::map<std::string, long> stacktrace_count;
+
+            for (const auto& [memkey, memval] : world_memory_map) {
+                if (memkey.func_id) {
+                    // Look up the stacktrace for this function's unique ID
+                    auto it = stacktrace_strings_.find(memkey.func_id);
+                    if (it != stacktrace_strings_.end()) {
+                        const std::string& trace = it->second;
+                        stacktrace_memory[trace] += memval.memory_GB;
+                        stacktrace_count[trace] += memval.num_functions;
+                    }
+                }
+            }
+
+            if (stacktrace_memory.empty()) {
+                print("\nNo stacktrace information available");
+                return;
+            }
+
+            // Convert to vector and sort by memory (descending)
+            std::vector<std::pair<std::string, double>> sorted_traces;
+            for (const auto& [trace, memory] : stacktrace_memory) {
+                sorted_traces.push_back({trace, memory});
+            }
+            std::sort(sorted_traces.begin(), sorted_traces.end(),
+                     [](const auto& a, const auto& b) { return a.second > b.second; });
+
+            // Print top 20 allocation sites
+            print("\n========================================");
+            print("Top allocation sites by stacktrace:");
+            print("========================================");
+
+            const int max_sites = 20;
+            int count = 0;
+            for (const auto& [trace, memory] : sorted_traces) {
+                if (count >= max_sites) break;
+
+                print("\n----------------------------------------");
+                print("Rank:", count + 1);
+                print("Total memory:", memory, "GB");
+                print("Number of functions:", stacktrace_count[trace]);
+                print("\nStacktrace:");
+                print(trace);
+
+                count++;
+            }
+            print("\n========================================");
+        }
+#endif
 
     };
 }
