@@ -1833,17 +1833,27 @@ namespace madness {
     /// Sparse multiplication --- left and right must be reconstructed and if tol!=0 have tree of norms already created
     template <typename L, typename R,std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
-    mul_sparse(const Function<L,NDIM>& left, const Function<R,NDIM>& right, double tol, bool fence=true, bool do_reconstruct=true, bool do_norm_tree=true) {
+    mul_sparse(const Function<L,NDIM>& left,
+               const Function<R,NDIM>& right,
+               double tol, bool fence=true,
+               bool do_reconstruct=true,
+               bool do_norm_tree=true) {
         std::vector< Function<R,NDIM> > vright;
         vright.push_back(right);
-        std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> > result = mul_sparse(left.get_impl()->world, left, vright, tol, fence, do_reconstruct, do_norm_tree); 
+        std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> > result = 
+            mul_sparse(left.get_impl()->world, left, vright, tol, fence, do_reconstruct, do_norm_tree); 
         return result[0];
     }
 
     /// Same as \c operator* but with optional fence and no automatic reconstruction
     template <typename L, typename R,std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
-    mul(const Function<L,NDIM>& left, const Function<R,NDIM>& right, bool fence=true, bool do_reconstruct=true, bool do_norm_tree=true, double tol=0.0) {
+    mul(const Function<L,NDIM>& left,
+        const Function<R,NDIM>& right,
+        bool fence=true,
+        bool do_reconstruct=true,
+        bool do_norm_tree=true,
+        double tol=0.0) {
         return mul_sparse(left,right,tol,fence,do_reconstruct,do_norm_tree);
     }
 
