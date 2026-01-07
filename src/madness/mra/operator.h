@@ -149,7 +149,7 @@ namespace madness {
         array_of_bools<NDIM>
             lattice_summed_;    ///< If lattice_summed_[d] is true, sum over lattice translations along axis d
                                 ///< N.B. the resulting kernel can be non-zero at both ends of the simulation cell along that axis
-        array_of_bools<NDIM> domain_is_periodic_{false};    ///< If domain_is_periodic_[d]==false and lattice_summed_[d]==false,
+        array_of_bools<NDIM> func_domain_is_periodic_{false};    ///< If domain_is_periodic_[d]==false and lattice_summed_[d]==false,
                                                             ///< ignore periodicity of BC when applying this to function
         std::array<KernelRange, NDIM> range;  ///< kernel range is along axis d is limited by range[d] if it's nonnull
 
@@ -1181,11 +1181,12 @@ namespace madness {
 
         /// @return flag for each axis indicating whether lattice summation is performed in that direction
         const array_of_bools<NDIM>& lattice_summed() const { return lattice_summed_; }
-        /// @return flag for each axis indicating whether the domain is periodic in that direction (false by default)
-        const array_of_bools<NDIM>& domain_is_periodic() const { return domain_is_periodic_; }
+        /// @return flag for each axis indicating whether functions that this op acts on are periodic on the box in that direction (false by default)
+        ///         it is normally preferred to lattice sum, obtaining an equivalent problem with a lattice-summed operator on a non-periodic function
+        const array_of_bools<NDIM>& func_domain_is_periodic() const { return func_domain_is_periodic_; }
         /// changes domain periodicity
         /// \param domain_is_periodic
-        void set_domain_periodicity(const array_of_bools<NDIM>& domain_is_periodic) { domain_is_periodic_ = domain_is_periodic;}
+        void set_domain_periodicity(const array_of_bools<NDIM>& domain_is_periodic) { func_domain_is_periodic_ = domain_is_periodic;}
 
         /// return the operator norm for all terms, all dimensions and 1 displacement
         double norm(Level n, const Key<NDIM>& d, const Key<NDIM>& source_key) const {
@@ -1780,6 +1781,9 @@ namespace madness {
 
 
     /// Factory function generating separated kernel for convolution with 1/r in 3D.
+    /// N.B. bloch_k species how the function's phase changes as the **operator** translates,
+    /// which (by translational invariance) is the additive inverse of how the function's
+    /// phase changes as the **cell** shifts
     static
     inline
     SeparatedConvolution<double_complex,3> PeriodicHFExchangeOperator(World& world,

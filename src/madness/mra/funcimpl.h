@@ -4920,12 +4920,12 @@ template<size_t NDIM>
           // - if operator is lattice-summed then treat this as nonperiodic (i.e. tell neighbor() to stay in simulation cell)
           // - if operator is NOT lattice-summed then obey BC (i.e. tell neighbor() to go outside the simulation cell along periodic dimensions)
           // - BUT user can force operator to treat its arguments as non-periodic (`op.set_domain_periodicity({true,true,true})`) so ... which dimensions of this function are treated as periodic by op?
-          const array_of_bools<NDIM> this_is_treated_by_op_as_periodic =
+          const array_of_bools<NDIM> func_is_treated_by_op_as_periodic =
               (op->particle() == 1)
                   ? array_of_bools<NDIM>{false}.or_front(
-                        op->domain_is_periodic())
+                        op->func_domain_is_periodic())
                   : array_of_bools<NDIM>{false}.or_back(
-                        op->domain_is_periodic());
+                        op->func_domain_is_periodic());
 
           const auto default_distance_squared = [&](const auto &displacement)
               -> std::uint64_t {
@@ -4955,8 +4955,8 @@ template<size_t NDIM>
             int nused = 1;  // Counts #used at each distance
             std::optional<std::uint64_t> distsq;
 
-            // displacements to the kernel range boundary are typically same magnitude (modulo variation estimate the norm of the resulting contributions and skip all if one is too small
-            // this
+            // displacements to the kernel range boundary are typically same magnitude (modulo variation)
+            // estimate the norm of the resulting contributions and skip all if one is too small
             if constexpr (std::is_same_v<std::decay_t<decltype(displacements)>,BoxSurfaceDisplacementRange<opdim>>) {
               const auto &probing_displacement =
                   displacements.probing_displacement();
@@ -4997,7 +4997,7 @@ template<size_t NDIM>
                 distsq = dsq;
               }
 
-              keyT dest = neighbor(key, d, this_is_treated_by_op_as_periodic);
+              keyT dest = neighbor(key, d, func_is_treated_by_op_as_periodic);
               if (dest.is_valid()) {
                 nvalid++;
                 const double opnorm = op->norm(key.level(), displacement, source);
@@ -5047,7 +5047,7 @@ template<size_t NDIM>
             // skip surface displacements that take us outside of the domain and/or were included in regular displacements
             // N.B. for lattice-summed axes the "filter" also maps the displacement back into the simulation cell
             if (max_distsq_reached)
-              filter = BoxSurfaceDisplacementFilter<opdim>(/* domain_is_infinite= */ op->domain_is_periodic(), /* domain_is_periodic= */ op->lattice_summed(), range, default_distance_squared, *max_distsq_reached);
+              filter = BoxSurfaceDisplacementFilter<opdim>(/* domain_is_infinite= */ op->func_domain_is_periodic(), /* domain_is_periodic= */ op->lattice_summed(), range, default_distance_squared, *max_distsq_reached);
 
             // this range iterates over the entire surface layer(s), and provides a probing displacement that can be used to screen out the entire box
             auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_front<opdim>();

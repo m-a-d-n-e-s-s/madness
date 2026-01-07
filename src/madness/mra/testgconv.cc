@@ -502,7 +502,7 @@ int test_gconv(World& world) {
                              const std::size_t R) {
               const auto rr = op.range_restricted();
               const auto lattice_summed = op.lattice_summed().any();
-              const auto periodic = lattice_summed || op.domain_is_periodic().any();
+              const auto periodic = lattice_summed || op.func_domain_is_periodic().any();
               if (!rr)
                 MADNESS_ASSERT(!periodic);
               const std::string opstr = !rr ? "NP" : (periodic ? (lattice_summed ? "RP" : "RP2") : "RNP");
