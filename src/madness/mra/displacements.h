@@ -827,7 +827,8 @@ namespace madness {
 
               if (disp_d_eff_abs > bmax_standard) {
                 among_standard_displacements = false;
-                break;
+                // Do not break - this loop needs not only to determine among_standard_displacements but to shift the displacement if domain_is_periodic_
+                // Therefore, looping over all dim is strictly necessary.
               }
             }
             if (among_standard_displacements) {
