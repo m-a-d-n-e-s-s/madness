@@ -323,7 +323,7 @@ namespace madness {
       using Periodicity = array_of_bools<NDIM>;
 
       Point center_;                          ///< Center point of the surface's box
-      SurfaceRadius surface_radius_;                  ///< halved size of the surface's box in each dimension
+      SurfaceRadius surface_radius_;          ///< halved size of the surface's box in each dimension, in half-SimulationCells.
       SurfaceThickness
           surface_thickness_;    ///< surface thickness in each dimension
       SurfaceBounds bounds_;                  ///< surface bounds in each dimension. Does not include thickness.
@@ -345,7 +345,7 @@ namespace madness {
         enum Type {Begin, End};
       private:
         const BoxSurfaceDisplacementRange* parent;  ///< Pointer to parent surface.
-        Point point;                                ///< Current point / box.
+        Point point;                                ///< Current point / box. This is always free to leave the simulation cell.
         mutable std::optional<Displacement> disp;   ///< Memoized displacement from parent->center_ to point, computed by displacement(), reset by advance()
         size_t fixed_dim;                           ///< Current fixed dimension (i.e. faces perpendicular to this axis are being iterated over)
         SurfaceBounds unprocessed_bounds;           ///< The bounds for all *unprocessed* displacements in the finite-thickness surface. Updated as displacements are processed.
@@ -487,38 +487,36 @@ namespace madness {
 
         // Recall that the surface is a union of hyperfaces, i.e., direct products of intervals.
         // Reset state on dimension `dim` to initialize for the start of interval `dim` in the the current direct product
-        // If `dim` is not the fixed dimension, initialize it to the first displacement in the product.
-        // Else, initialize it to the first non-filtered layer in the thickness.
-        // TODO: Double-check the manipulations with periodic wraparound. I think they're silent right now.
         void reset_along_dim(size_t dim) {
           const auto is_fixed_dim = dim == fixed_dim;
           Vector<Translation, NDIM> l = point.translation();
-          // for fixed dimension start with first surface layer, else use box lower bound (N.B. it's updated as fixed dimensions change)
-          Translation l_dim_min =
-              is_fixed_dim
-                  ? parent->bounds_[dim].first -
-                        parent->surface_thickness_[dim].value_or(0)
-              : unprocessed_bounds[dim].first;
-          // if dimension is periodic, only include *unique* displacements (modulo period)
+          Translation l_dim_min;
+          if (!is_fixed_dim) {
+            // This dimension is contiguous boxes on the hyperface.
+            // Initialize to the start.
+            l_dim_min = unprocessed_bounds[dim].first;
+          } else if (!parent->is_periodic_[dim]) {
+            // This dimension consists of two finite-thickness hyperfaces, not lattice summed.
+            // Initialize to the start of the - hyperface. We trust next_surface_layer()
+            // to move to the + hyperface when ready.
+            l_dim_min = parent->bounds_[dim].first -
+                        parent->surface_thickness_[dim].value_or(0);
+          } else {
+            // This dimension consists of two finite-thickness hyperfaces, lattice summed.
+            // The two hyperfaces are the same interval shifted by parent->surface_radius_[dim]
+            // periods. So by lattice summation, the - hyperface is included. Initialize
+            // to the start of the + hyperface.
+            l_dim_min = parent->bounds_[dim].second -
+                        parent->surface_thickness_[dim].value_or(0);
+          }
           if (parent->is_periodic_[dim]) {
+            // By lattice summation, boxes that differ by a SimulationCell are equivalent.
+            // Therefore, we need to sum over equivalence classes and not displacements.
             const auto period = 1 << parent->center_.level();
-            const Translation l_dim_max =
-                is_fixed_dim ? parent->bounds_[dim].second +
-                          parent->surface_thickness_[dim].value_or(0) :
-                 unprocessed_bounds[dim].second;
-            // WARNING!!! I suspect that AS OF RIGHT NOW, the left is always smaller... in which case, yes, l_dim_min always corresponds
-            //            to a surface layer. So this whole clause probably doesn't do anything. Check later.
-            l_dim_min = std::max(l_dim_min, l_dim_max - period + 1);
-            // fixed dim only: l_dim_min may not correspond to a surface layer
-            // this can only happen if l_dim_min is in the gap between the surface layers
-            if (is_fixed_dim && parent->hollowness_[dim]) {
-              if (l_dim_min > parent->bounds_[dim].first +
-                                  parent->surface_thickness_[dim].value_or(0)) {
-                l_dim_min = std::max(
-                    l_dim_min, parent->bounds_[dim].second -
-                                   parent->surface_thickness_[dim].value_or(0));
-              }
-            }
+            const Translation last_equiv_class = is_fixed_dim ? parent->bounds_[dim].second +
+              parent->surface_thickness_[dim].value_or(0) : unprocessed_bounds[dim].second;
+            const Translation first_equiv_class = last_equiv_class - period + 1;
+            l_dim_min = std::max(first_equiv_class, l_dim_min);
           }
           l[dim] = l_dim_min;
 
