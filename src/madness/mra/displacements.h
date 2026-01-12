@@ -298,13 +298,11 @@ namespace madness {
       return result;
     }
 
-     // TODO: Rename "box" to be "surface". Too confusing.
     /**
      * Generates points at the finite-thickness surface of an N-dimensional box [C1-L1,C1+L1]x...x[CN-LN,CN+LN] centered at point {C1,...CN} in Z^N.
      * For finite thickness T={T1,...,TN} point {x1,...,xN} is at the surface face perpendicular to axis i xi>=Ci-Li-Ti and xi<=Ci-Li+Ti OR xi>=Ci+Li-Ti and xi<=Ci+Li+Ti.
      * For dimensions with unlimited size the point coordinates are limited to [0,2^n], with n being the level of the box.
-     * N.B. "points" are really boxes in the standard MADNESS sense, but it's convenient to blur that distinction, and we need the word
-     *      "box" to refer to the surface-of-MADNESS-boxes anyways.
+     * N.B. "points" are really boxes in the standard MADNESS sense, which we'll call "primitive boxes" to disambiguate from box as the product of intervals mentioned above,
      */
     template<std::size_t NDIM>
     class BoxSurfaceDisplacementRange {
@@ -312,24 +310,25 @@ namespace madness {
       using Point = Key<NDIM>;
       using PointPattern = Vector<std::optional<Translation>, NDIM>;
       using Displacement = Key<NDIM>;
-      /// this callable filters out points and/or displacements; note that the displacement is optional (this use case supports filtering based on point pattern only) and non-const to make it possible for the filter function to update the displacement (e.g. to map it back to the simulation cell)
-      using Filter = std::function<bool(Level, const PointPattern&, std::optional<Displacement>&)>;
+      /// this callable returns whether a given primitive box (or hyperface if only one coordinate is provided) can be filtered out. if screening a primitive box, the corresponding displacement should be provided both for further screening and for the displacement to be updated, if displacements are translated to connect two cells in the box.
+      /// the validator should normally be a BoxSurfaceDisplacementFilter object. anything else is probably a hack.
+      using Validator = std::function<bool(Level, const PointPattern&, std::optional<Displacement>&)>;
 
     private:
       using SurfaceRadius = std::array<std::optional<Translation>, NDIM>;  // null radius = unlimited size
       using SurfaceThickness = std::array<std::optional<Translation>, NDIM>;  // null thickness for dimensions with null radius
-      using SurfaceBounds = std::array<std::pair<Translation, Translation>, NDIM>;
+      using Box = std::array<std::pair<Translation, Translation>, NDIM>;
       using Hollowness = std::array<bool, NDIM>;  // this can be uninitialized, unlike array_of_bools ... hollow = gap between -radius+thickness and +radius-thickness.
       using Periodicity = array_of_bools<NDIM>;
 
       Point center_;                          ///< Center point of the surface's box
       SurfaceRadius surface_radius_;          ///< halved size of the surface's box in each dimension, in half-SimulationCells.
       SurfaceThickness
-          surface_thickness_;    ///< surface thickness in each dimension
-      SurfaceBounds bounds_;                  ///< surface bounds in each dimension. Does not include thickness.
+          surface_thickness_;    ///< surface thickness in each dimension, measured in boxes. Real-space surface size is thus n-dependent.
+      Box bounds_;               ///< box bounds in each dimension. Does not include thickness.
       Hollowness hollowness_;    ///< does box contain non-surface points along each dimension?
-      Periodicity is_periodic_;  ///< which dimensions are periodic?
-      Filter filter_;  ///< optional filter function
+      Periodicity is_lattice_summed_;  ///< which dimensions are lattice summed?
+      Validator validator_;      ///< optional validator function
       // TODO: Double-check legitimacy of choosing probing displacement arbitrarily. For isotropic kernels, wouldn't you want it on the face where the boundary is closest (in real-space)?
       //       That depends on both the surface thickness and the side lengths of the simulation cell.
       Displacement probing_displacement_;  ///< displacement to a nearby point on the surface; it may not be able to pass the filter, but is sufficiently representative of the surface displacements to allow screening with isotropic kernels
@@ -348,10 +347,10 @@ namespace madness {
         Point point;                                ///< Current point / box. This is always free to leave the simulation cell.
         mutable std::optional<Displacement> disp;   ///< Memoized displacement from parent->center_ to point, computed by displacement(), reset by advance()
         size_t fixed_dim;                           ///< Current fixed dimension (i.e. faces perpendicular to this axis are being iterated over)
-        SurfaceBounds unprocessed_bounds;           ///< The bounds for all *unprocessed* displacements in the finite-thickness surface. Updated as displacements are processed.
+        Box unprocessed_bounds;                     ///< The bounds for all *unprocessed* displacements in the finite-thickness surface. Updated as displacements are processed.
                                                     ///  For the dimensions of the parent box, without thickness or regard for displacement processing, use parent->bounds_.
                                                     ///  Tracking `unprocessed_bounds` allows us to avoid double-counting 'edge' boxes that are on multiple hyperfaces.
-                                                    ///  e.g., if radius is [5, 5] and thickness is [1, 1], the bounds are [-6, 6] x [-6, 6].
+                                                    ///  e.g., if radius is [5, 5], center is [0, 0] and thickness is [1, 1], the bounds are [-6, 6] x [-6, 6].
                                                     ///  We first evaluate the hyperfaces [-6, -4] x [-5, 5] and then [4, 6] x [-5, 5].
                                                     ///  It remains to evaluate hyperfaces [-5, 5] x [-6, -4] and [-5, 5] x [4, 6], *excluding*
                                                     ///  the edge points shared with the processed hyperfaces. So, we need to evaluate effective hyperfaces
@@ -365,7 +364,8 @@ namespace madness {
           if (l[fixed_dim] !=
               parent->bounds_[fixed_dim].second +
                   parent->surface_thickness_[fixed_dim].value_or(0)) {
-            // if box is hollow along this dim and exhausted all layers on the "negative" side of the fixed dimension, move to the first layer on the "positive" side
+            // if exhausted all layers on the "negative" side of the fixed dimension and there's a gap to the "positive" side,
+            // jump to the positive side. otherwise, just take the next layer.
             if (parent->hollowness_[fixed_dim] &&
                 l[fixed_dim] ==
                     parent->bounds_[fixed_dim].first +
@@ -420,12 +420,12 @@ namespace madness {
           while (next_surface_layer()) {
             const auto filtered_out = [&,this]() {
               bool result = false;
-              const auto& filter = this->parent->filter_;
-              if (filter) {
+              const auto& validator = this->parent->validator_;
+              if (validator) {
                 PointPattern point_pattern;
                 point_pattern[fixed_dim] = point[fixed_dim];
                 std::optional<Displacement> nulldisp;
-                result = !filter(point.level(), point_pattern, nulldisp);
+                result = !validator(point.level(), point_pattern, nulldisp);
               }
               return result;
             };
@@ -468,10 +468,10 @@ namespace madness {
 
         /// Perform advance, repeating if you are at a filtered point
         void advance_till_valid() {
-          if (parent->filter_) {
+          if (parent->validator_) {
             const auto filtered_out = [&]() -> bool {
               this->displacement(); // ensure disp is up to date
-              return !parent->filter_(point.level(), point.translation(), disp);
+              return !parent->validator_(point.level(), point.translation(), disp);
             };
 
             // if displacement has value, filter has already been applied to it, just advance it
@@ -495,7 +495,7 @@ namespace madness {
             // This dimension is contiguous boxes on the hyperface.
             // Initialize to the start.
             l_dim_min = unprocessed_bounds[dim].first;
-          } else if (!parent->is_periodic_[dim]) {
+          } else if (!parent->is_lattice_summed_[dim]) {
             // This dimension consists of two finite-thickness hyperfaces, not lattice summed.
             // Initialize to the start of the - hyperface. We trust next_surface_layer()
             // to move to the + hyperface when ready.
@@ -509,7 +509,7 @@ namespace madness {
             l_dim_min = parent->bounds_[dim].second -
                         parent->surface_thickness_[dim].value_or(0);
           }
-          if (parent->is_periodic_[dim]) {
+          if (parent->is_lattice_summed_[dim]) {
             // By lattice summation, boxes that differ by a SimulationCell are equivalent.
             // Therefore, we need to sum over equivalence classes and not displacements.
             const auto period = 1 << parent->center_.level();
@@ -528,12 +528,12 @@ namespace madness {
 
             const auto filtered_out = [&,this]() {
               bool result = false;
-              const auto& filter = this->parent->filter_;
-              if (filter) {
+              const auto& validator = this->parent->validator_;
+              if (validator) {
                 PointPattern point_pattern;
                 point_pattern[fixed_dim] = point[fixed_dim];
                 std::optional<Displacement> nulldisp;
-                result = !filter(point.level(), point_pattern, nulldisp);
+                result = !validator(point.level(), point_pattern, nulldisp);
               }
               return result;
             };
@@ -655,21 +655,21 @@ namespace madness {
       /**
        * @brief Constructs a box with different radii and thicknesses for each dimension
        *
-       * @param center Center of the box. All displacements will share the `n` of this arg.
-       * @param surface_radius Surface radius in each dimension, in half-SimulationCells. Omit for dim `i` to signal that the dim `i` of `center` should not be centered.
-       * @param surface_thickness Surface thickness in each dimension, measured in number of addl. boxes *on each half* of the surface box proper. Omit for dim `i` iff omitted in `surface_radius`
-       * @param is_periodic whether each dimension is periodic; along periodic range-restricted dimensions only one side of the box is iterated over.
-       * @param filter Optional filter function (if returns false, displacement is dropped; default: no filter); it may update the displacement to make it valid as needed (e.g. map displacement to the simulation cell)
+       * @param center Center primitive box of the box. All displacements will share the `n` of this arg.
+       * @param surface_radius Surface radius in each dimension, in half-SimulationCells. Omit for dim `i` to signal that the bound for dim `i` is simply the simulation cell.
+       * @param surface_thickness Surface thickness in each dimension, measured in number of addl. boxes *on each half* of the surface box proper. Omit for dim `i` if and only if omitted in `surface_radius`
+       * @param is_lattice_summed whether each dimension is periodic; along periodic range-restricted dimensions only one side of the box is iterated over.
+       * @param validator Optional filter function (if returns false, displacement is dropped; default: no filter); it may update the displacement to make it valid as needed (e.g. map displacement to the simulation cell)
        * @pre `surface_radius[d]>0 && surface_thickness[d]<=surface_radius[d]`
        *
        */
       explicit BoxSurfaceDisplacementRange(const Key<NDIM>& center,
                                            const std::array<std::optional<std::int64_t>, NDIM>& surface_radius,
                                            const std::array<std::optional<std::int64_t>, NDIM>& surface_thickness,
-                                           const array_of_bools<NDIM>& is_periodic,
-                                           Filter filter = {})
+                                           const array_of_bools<NDIM>& is_lattice_summed,
+                                           Validator validator = {})
           : center_(center), surface_radius_(surface_radius),
-            surface_thickness_(surface_thickness), is_periodic_(is_periodic), filter_(std::move(filter)) {
+            surface_thickness_(surface_thickness), is_lattice_summed_(is_lattice_summed), validator_(std::move(validator)) {
         // initialize bounds
         bool has_finite_dimensions = false;
         const auto n = center_.level();
@@ -736,9 +736,9 @@ namespace madness {
       const std::array<std::optional<int64_t>, NDIM>& surface_thickness() const { return surface_thickness_; }
 
       /**
-       * @return flags indicating whether each dimension is periodic
+       * @return flags indicating whether each dimension is lattice summed
        */
-      const array_of_bools<NDIM>& is_periodic() const { return is_periodic_; }
+      const array_of_bools<NDIM>& is_lattice_summed() const { return is_lattice_summed_; }
 
       /**
        * @return 'probing" displacement to a nearby point *on* the surface; it may not necessarily be in the range of iteration (e.g., it may not be able to pass the filter) but is representative of the surface displacements for the purposes of screening
@@ -756,7 +756,7 @@ namespace madness {
     /// can adjusts the displacement to make sure that we end up in
     /// the simulation cell.
     template <size_t NDIM>
-    class BoxSurfaceDisplacementFilter {
+    class BoxSurfaceDisplacementValidator {
     public:
       using Point = Key<NDIM>;
       using PointPattern = Vector<std::optional<Translation>, NDIM>;
@@ -764,14 +764,14 @@ namespace madness {
       using Periodicity = array_of_bools<NDIM>;
       using DistanceSquaredFunc = std::function<Translation(const Displacement&)>;
 
-      /// \param domain_is_infinite whether the domain along each axis is finite (simulation cell) or infinite (the entire axis); if true for a given axis then any destination coordinate is valid, else only values in [0,2^n) are valid
-      /// \param domain_is_periodic if true for a given axis, displacement to x and x+2^n are equivalent, hence will be canonicalized to end up in the simulation cell. Periodic axes imply infinite domain, whatever was passed to `domain_is_infinite`.
+      /// \param is_infinite_domain whether the domain along each axis is finite (simulation cell) or infinite (the entire axis); if true for a given axis then any destination coordinate is valid, else only values in [0,2^n) are valid
+      /// \param is_lattice_summed if true for a given axis, displacement to x and x+2^n are equivalent, hence will be canonicalized to end up in the simulation cell. Periodic axes imply infinite domain, whatever was passed to `domain_is_infinite`.
       /// \param range the kernel range for each axis
       /// \param default_distance_squared function that converts a displacement to its effective distance squared (effective may be different from the real distance squared due to periodicity)
       /// \param max_distsq_reached max effective distance squared reached by standard displacements
-      BoxSurfaceDisplacementFilter(
-          const array_of_bools<NDIM>& domain_is_infinite,
-          const array_of_bools<NDIM>& domain_is_periodic,
+      BoxSurfaceDisplacementValidator(
+          const array_of_bools<NDIM>& is_infinite_domain,
+          const array_of_bools<NDIM>& is_lattice_summed,
           const std::array<KernelRange, NDIM>& range,
           DistanceSquaredFunc default_distance_squared,
           Translation max_distsq_reached
@@ -780,9 +780,9 @@ namespace madness {
               default_distance_squared_(default_distance_squared),
               max_distsq_reached_(max_distsq_reached) {
         for (size_t i = 0; i < NDIM; i++) {
-          if (domain_is_periodic[i]) {
+          if (is_lattice_summed[i]) {
             domain_policies_[i] = ExtraDomainPolicy::Translate;
-          } else if (domain_is_infinite[i]) {
+          } else if (is_infinite_domain[i]) {
             domain_policies_[i] = ExtraDomainPolicy::Keep;
           } else {
             domain_policies_[i] = ExtraDomainPolicy::Discard;
@@ -825,12 +825,6 @@ namespace madness {
         // check that dest is in the domain
         const bool dest_is_in_domain = [&]() {
           for(size_t d=0; d!=NDIM; ++d) {
-            // - if domain is periodic, all displacements will be mapped back to the simulation cell by for_each/neighbor
-            // - if kernel is lattice summed mapping back to the simulation cell for standard displacements
-            //   is done during their construction, and for boundary displacements manually (see IMPORTANT below in this function)
-            //   N.B. due to this mapping back into the cell half of the surface displacements generated by BoxSurfaceDisplacementRange
-            //   are filtered out.
-            //   TODO: wait, this seems like there's some double counting here
             if (domain_policies_[d] == ExtraDomainPolicy::Discard && dest[d].has_value() && out_of_domain(*dest[d])) return false;
           }
           return true;

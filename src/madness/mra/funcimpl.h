@@ -5043,19 +5043,19 @@ template<size_t NDIM>
               }
             }
 
-            typename BoxSurfaceDisplacementRange<opdim>::Filter filter;
+            typename BoxSurfaceDisplacementRange<opdim>::Validator validator;
             // skip surface displacements that take us outside of the domain and/or were included in regular displacements
             // N.B. for lattice-summed axes the "filter" also maps the displacement back into the simulation cell
             if (max_distsq_reached)
-              filter = BoxSurfaceDisplacementFilter<opdim>(/* domain_is_infinite= */ op->func_domain_is_periodic(), /* domain_is_periodic= */ op->lattice_summed(), range, default_distance_squared, *max_distsq_reached);
+              validator = BoxSurfaceDisplacementValidator<opdim>(/* is_infinite_domain= */ op->func_domain_is_periodic(), /* is_lattice_summed= */ op->lattice_summed(), range, default_distance_squared, *max_distsq_reached);
 
             // this range iterates over the entire surface layer(s), and provides a probing displacement that can be used to screen out the entire box
             auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_front<opdim>();
             BoxSurfaceDisplacementRange<opdim>
                 range_boundary_face_displacements(opkey, box_radius,
                                                   surface_thickness,
-                                                  op->lattice_summed(),  // along lattice-summed axes treat the box as periodic, make displacements to one side of the box
-                                                  filter);
+                                                  op->lattice_summed(),
+                                                  validator);
             for_each(
                 range_boundary_face_displacements,
                 // surface displacements are not screened, all are included
