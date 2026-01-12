@@ -271,7 +271,7 @@ int test_gconv(World& world) {
     // convolve with a normalized Gaussian kernel
     std::vector< std::shared_ptr< Convolution1D<double> > > ops(1);
     ops[0].reset(new GaussianConvolution1D<double>(k, width/sqrt(constants::pi),
-            width*width, 0, false));
+            width*width, 0, LatticeRange(false)));
     real_convolution_t op(world, ops);
 
     real_function_t opf = op(f);
@@ -334,7 +334,7 @@ int test_gconv(World& world) {
       // note the scaling of the coeffs because the derivative operator brings
       // down the scaling factor of the exponent
       ops[0].reset(new GaussianConvolution1D<double>(
-          k, 1.0 / sqrt(constants::pi), width * width, 1, false));
+          k, 1.0 / sqrt(constants::pi), width * width, 1, LatticeRange(false)));
 
       real_convolution_1d oph(world, ops);
 
@@ -457,7 +457,7 @@ int test_gconv(World& world) {
           ops[0].reset(new GaussianConvolution1D<double>(
               k, sqrt(kernel_exponent / constants::pi), kernel_exponent,
               /* deriv */ 0,
-              /* lattice summed? */ false,
+              /* lattice summed? */ LatticeRange(false),
               /* bloch_k */ 0.)); // range unrestricted
           real_convolution_t opnp(world, ops);
 
@@ -465,7 +465,7 @@ int test_gconv(World& world) {
           ops[0].reset(new GaussianConvolution1D<double>(
               k, sqrt(kernel_exponent / constants::pi), kernel_exponent,
               /* deriv */ 0,
-              /* lattice summed? */ false, /* bloch_k */ 0.,
+              /* lattice summed? */ LatticeRange(false), /* bloch_k */ 0.,
               range)); // range restricted
           real_convolution_t oprnp(world, ops);
           oprnp.set_domain_periodicity(array_of_bools<NDIM>{false});
@@ -477,7 +477,7 @@ int test_gconv(World& world) {
           ops[0].reset(new GaussianConvolution1D<double>(
               k, sqrt(kernel_exponent / constants::pi), kernel_exponent,
               /* deriv */ 0,
-              /* lattice summed? */ true, /* bloch_k */ 0.,
+              /* lattice summed? */ LatticeRange(true), /* bloch_k */ 0.,
               range)); // range restricted
           real_convolution_t oprp(world, ops);
           FunctionDefaults<NDIM>::set_bc(BC_PERIODIC);

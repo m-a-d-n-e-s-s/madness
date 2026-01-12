@@ -22,6 +22,9 @@ public:
   explicit LatticeRange(int range) {
     set_range(range);
   }
+  explicit LatticeRange(bool lattice_sum) {
+    if (lattice_sum) set_range_inf();
+  }
 
   void set_range(int range) {
     if (range == std::numeric_limits<int>::max()) range_ = range;
