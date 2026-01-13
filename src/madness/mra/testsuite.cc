@@ -1285,7 +1285,7 @@ int test_apply_push_1d(World& world) {
     coordT lo(-L), hi(L);
     plot_line("fplot.dat", 201, lo, hi, f);
 
-    GaussianConvolution1D<double> op(6, coeff*2.0*L, expnt*L*L*4.0, 0, false);
+    GaussianConvolution1D<double> op(6, coeff*2.0*L, expnt*L*L*4.0, 0, LatticeRange(false));
     Function<T,NDIM> opf = apply_1d_realspace_push(op, f, 0);
 
     opf.sum_down();
@@ -1365,7 +1365,7 @@ int main(int argc, char**argv) {
 
         // stupid location for this test
         GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0),0);
-        GaussianConvolution1D<double> gau(10, 100.0, 100.0, 0, false);
+        GaussianConvolution1D<double> gau(10, 100.0, 100.0, 0, LatticeRange(false));
         Tensor<double> gg = gen.rnlp(4,0);
         Tensor<double> hh = gau.rnlp(4,0);
         MADNESS_CHECK((gg-hh).normf() < 1e-13);

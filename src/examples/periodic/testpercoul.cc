@@ -135,6 +135,17 @@ void filter_moments_inplace(madness::Function<T,NDIM>& f, const int k, const boo
                   fence);
 }
 
+template<std::size_t NDIM>
+std::array<madness::LatticeRange, NDIM> to_lattice_range(const madness::array_of_bools<NDIM>& is_periodic) {
+  std::array<madness::LatticeRange, NDIM> return_val;
+  for (size_t i = 0; i < NDIM; i++) {
+    if (is_periodic[i]) {
+      return_val[i].set_range_inf();
+    }
+  }
+  return return_val;
+}
+
 // This function test both the periodic and non-periodic versions of the Coulomb
 // operator. In order to make this test valid set L to a high value so that
 // charge distribution should not be able to see its neighbor.
@@ -255,9 +266,9 @@ int main(int argc, char**argv) {
 
     // Create operators and apply
     SeparatedConvolution<double, 3> op =
-        CoulombOperator(world, 1e-10, eps, bc_open.is_periodic());
+        CoulombOperator(world, 1e-10, eps, to_lattice_range(bc_open.is_periodic()));
     SeparatedConvolution<double, 3> pop =
-        CoulombOperator(world, 1e-10, eps, bc.is_periodic());
+        CoulombOperator(world, 1e-10, eps, to_lattice_range(bc.is_periodic()));
 
     auto range = bc.make_range<3>(1, .5/L);
 
@@ -269,7 +280,7 @@ int main(int argc, char**argv) {
                               /* range restriction? */
                               range
                               ),
-        madness::no_lattice_sum<3>());
+        madness::no_lattice_sum_range<3>());
     // N.B. Coulomb with range restriction to [-L/2,L/2]
     SeparatedConvolution<double, 3> pop_rr(
         world,
@@ -278,7 +289,7 @@ int main(int argc, char**argv) {
                               /* range restriction? */
                               range
                               ),
-        bc.is_periodic());
+        to_lattice_range(bc.is_periodic()));
     // N.B. Coulomb with range restriction to [-L/2,L/2]
     SeparatedConvolution<double, 3> pop2_rr(
         world,
@@ -287,7 +298,7 @@ int main(int argc, char**argv) {
                               /* range restriction? */
                               range
                               ),
-        madness::no_lattice_sum<3>());
+        madness::no_lattice_sum_range<3>());
     pop2_rr.set_domain_periodicity(bc.is_periodic());
 
     // check operator norms

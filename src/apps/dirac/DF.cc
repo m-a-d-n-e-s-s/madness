@@ -173,9 +173,9 @@ GradBSHOperator_Joel(World& world,
 
             for (int d=0; d<3; d++) {
                 if (d != dir)
-                    ops[mu].setop(d,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum));
+                    ops[mu].setop(d,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[d]*width[d], 0, LatticeRange(isperiodicsum)));
             }
-            ops[mu].setop(dir,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[dir]*width[dir], 1, isperiodicsum));
+            ops[mu].setop(dir,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[dir]*width[dir], 1, LatticeRange(isperiodicsum)));
         }
         gradG[dir] = real_convolution_3d_ptr(new SeparatedConvolution<double,3>(world, ops));
     }

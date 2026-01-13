@@ -1796,10 +1796,10 @@ namespace madness {
       double hi = cell_width.normf(); // Diagonal width of cell
 
       // Extend kernel range for lattice summation
-      bool lattice_sum_any = std::ranges::any_of(
-      lattice_ranges, [](const LatticeRange& b){ return b.get_range(); });
-      bool lattice_sum_infinite_any = std::ranges::any_of(
-          lattice_ranges, [](const LatticeRange& b){ return b.infinite(); });
+      bool lattice_sum_any = std::any_of(
+      lattice_ranges.begin(), lattice_ranges.end(), [](const LatticeRange& b){ return b.get_range(); });
+      bool lattice_sum_infinite_any = std::any_of(
+          lattice_ranges.begin(), lattice_ranges.end(), [](const LatticeRange& b){ return b.infinite(); });
       if (lattice_sum_any) {
         hi *= 10;
       }
@@ -1894,8 +1894,8 @@ namespace madness {
       const Tensor<double> &cell_width = FunctionDefaults<3>::get_cell_width();
       double hi = cell_width.normf(); // Diagonal width of cell
       // Extend kernel range for lattice summation
-      bool lattice_sum_any = std::ranges::any_of(
-    lattice_ranges, [](const LatticeRange& b){ return b.get_range(); });
+      bool lattice_sum_any = std::any_of(
+    lattice_ranges.begin(), lattice_ranges.end(), [](const LatticeRange& b){ return b.get_range(); });
       if (lattice_sum_any) {
         hi *= 100;
       }
@@ -1925,8 +1925,8 @@ namespace madness {
       const Tensor<double> &cell_width = FunctionDefaults<3>::get_cell_width();
       double hi = cell_width.normf(); // Diagonal width of cell
       // Extend kernel range for lattice summation
-      bool lattice_sum_any = std::ranges::any_of(
-    lattice_ranges, [](const LatticeRange& b){ return b.get_range(); });
+      bool lattice_sum_any = std::any_of(
+    lattice_ranges.begin(), lattice_ranges.end(), [](const LatticeRange& b){ return b.get_range(); });
       if (lattice_sum_any) {
         hi *= 100;
       }
@@ -2115,8 +2115,8 @@ namespace madness {
       double hi = cell_width.normf(); // Diagonal width of cell
       // Extend kernel range for lattice summation
       // N.B. if have periodic boundaries, extend range just in case will be using periodic domain
-      const auto lattice_summed_any = std::ranges::any_of(lattice_ranges, [](const auto& b) { return b.get_range();});
-      const auto infinite_any = std::ranges::any_of(lattice_ranges, [](const auto& b) { return b.infinite();});
+      const auto lattice_summed_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return b.get_range();});
+      const auto infinite_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const auto& b) { return b.infinite();});
       if (lattice_summed_any) {
         hi *= 100;
       }
@@ -2162,7 +2162,7 @@ namespace madness {
       const Tensor<double> width = FunctionDefaults<3>::get_cell_width();
       double hi = width.normf(); // Diagonal width of cell
       // Extend kernel range for lattice summation
-      const auto lattice_sum_any = std::ranges::any_of(lattice_ranges, [](const LatticeRange& b){ return b.get_range(); });
+      const auto lattice_sum_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const LatticeRange& b){ return b.get_range(); });
       if (lattice_sum_any) {
         hi *= 100;
       }
@@ -2222,7 +2222,7 @@ namespace madness {
       const Tensor<double> width = FunctionDefaults<3>::get_cell_width();
       double hi = width.normf(); // Diagonal width of cell
       // Extend kernel range for lattice summation
-      bool lattice_sum_any = std::ranges::any_of(lattice_ranges, [](const LatticeRange& b){ return b.get_range(); });
+      bool lattice_sum_any = std::any_of(lattice_ranges.begin(), lattice_ranges.end(), [](const LatticeRange& b){ return b.get_range(); });
       if (lattice_sum_any) {
         hi *= 100;
       }
