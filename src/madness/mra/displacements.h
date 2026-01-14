@@ -841,8 +841,7 @@ namespace madness {
             bool among_standard_displacements = true;
             for(size_t d=0; d!=NDIM; ++d) {
               const auto disp_d = (*displacement)[d];
-              // N.B. bmax in make_disp_periodic is clipped in the same way
-              const auto bmax_standard = std::min(Displacements<NDIM>::bmax_default(), static_cast<int>(twon-1));
+              auto bmax_standard = Displacements<NDIM>::bmax_default();
 
               // the effective displacement length depends on whether lattice summation is performed along it
               // compare Displacements::make_disp vs Displacements::make_disp_periodic
@@ -866,6 +865,9 @@ namespace madness {
                   t[d] += (dest_d_in_cell - dest_d);
                   displacement.emplace(displacement->level(), t);
                 }
+
+                // N.B. bmax in make_disp_periodic is clipped in the same way
+                if (Displacements<NDIM>::bmax_default() >= twon) bmax_standard = twon-1;
               }
 
               if (disp_d_eff_abs > bmax_standard) {
