@@ -64,17 +64,6 @@ void filter_moments_inplace(madness::Function<T,NDIM>& f, const int k, const boo
                     fence);
 }
 
-template<std::size_t NDIM>
-std::array<madness::LatticeRange, NDIM> to_lattice_range(const madness::array_of_bools<NDIM>& is_periodic) {
-  std::array<madness::LatticeRange, NDIM> return_val;
-  for (size_t i = 0; i < NDIM; i++) {
-    if (is_periodic[i]) {
-      return_val[i].set_range_inf();
-    }
-  }
-  return return_val;
-}
-
 int main(int argc, char**argv) {
     using namespace madness;
     {
@@ -111,7 +100,7 @@ int main(int argc, char**argv) {
 	rhoN.truncate();
 	
 	BoundaryConditions<3> bc_periodic(BC_PERIODIC);
-	SeparatedConvolution<double, 3> pop = CoulombOperator(world, 1e-4, eps, to_lattice_range(bc_periodic.is_periodic()));
+	SeparatedConvolution<double, 3> pop = CoulombOperator(world, 1e-4, eps, bc_periodic.lattice_range());
 	printf("applying periodic operator ...\n\n");
 	V_periodic = apply(pop, rho);
 	V_periodic.truncate();

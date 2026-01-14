@@ -43,7 +43,7 @@ GradSlaterOperator(World& world,
 	int rank = coeff.dim(0);
 
 	std::vector<real_convolution_3d_ptr> gradG(3);
-  const auto lattice_ranges = bc_lattice_ranges<3>(bc);
+  const auto lattice_ranges = bc.lattice_range();
 
 	for (int dir=0; dir<3; dir++) {
 		std::vector< ConvolutionND<double,3> > ops(rank);

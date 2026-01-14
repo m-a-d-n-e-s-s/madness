@@ -52,18 +52,6 @@
 
 namespace madness {
 
-template <size_t NDIM>
-std::array<LatticeRange, NDIM> bc_lattice_ranges(const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc()) {
-  std::array<LatticeRange, NDIM> result;
-  const auto lattice_summed = bc.is_periodic();
-  for (size_t k = 0; k < NDIM; ++k) {
-    if (lattice_summed[k]) {
-      result[k].set_range_inf();
-    }
-  }
-  return result;
-}
-
     void aligned_add(long n, double* MADNESS_RESTRICT a, const double* MADNESS_RESTRICT b);
     void aligned_sub(long n, double* MADNESS_RESTRICT a, const double* MADNESS_RESTRICT b);
     void aligned_add(long n, double_complex* MADNESS_RESTRICT a, const double_complex* MADNESS_RESTRICT b);
@@ -1037,7 +1025,7 @@ std::array<LatticeRange, NDIM> bc_lattice_ranges(const BoundaryConditions<NDIM>&
             MADNESS_ASSERT(result->expnt == expnt &&
                            result->k == k &&
                            result->m == m &&
-                           result->lattice_summed() == static_cast<bool>(lattice_range.get_range()) &&
+                           result->lattice_summed() == static_cast<bool>(lattice_range) &&
                            result->range == range &&
                            result->bloch_k == bloch_k);
             return result;

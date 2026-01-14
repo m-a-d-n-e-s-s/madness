@@ -206,6 +206,17 @@ public:
     return std::vector<KernelRange>(result_array.begin(), result_array.end());
   }
 
+  std::array<LatticeRange, NDIM> lattice_range() const {
+    std::array<LatticeRange, NDIM> result;
+    const auto periodic = is_periodic();
+    for (size_t i = 0; i < NDIM; i++) {
+      if (periodic[i]) {
+        result[i].set_range_inf();
+      }
+    }
+    return result;
+  }
+
 };
 
 template <std::size_t NDIM>
