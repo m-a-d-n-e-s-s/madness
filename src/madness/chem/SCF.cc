@@ -1359,13 +1359,13 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         K.set_macro_task_info(param.memory());
 
         // change truncate mode for sparse multiplication inside xc macrotask
-        for (unsigned int i=0; i<amo.size(); ++i){
-            amo[i].get_impl()->set_truncate_mode(0);
-        }
+        //for (unsigned int i=0; i<amo.size(); ++i){
+        //    amo[i].get_impl()->set_truncate_mode(0);
+        //}
         vecfuncT Kamo = K(amo);
-        for (unsigned int i=0; i<amo.size(); ++i){
-            amo[i].get_impl()->set_truncate_mode(1);
-        }
+        //for (unsigned int i=0; i<amo.size(); ++i){
+        //    amo[i].get_impl()->set_truncate_mode(1);
+        //}
 
         tensorT excv = inner(world, Kamo, amo);
         double exchf = 0.0;
