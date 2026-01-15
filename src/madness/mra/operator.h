@@ -1752,7 +1752,7 @@ namespace madness {
             MADNESS_CHECK(left.lattice_summed() == right.lattice_summed());
             std::array<LatticeRange, NDIM> lattice_summed;
             for (std::size_t i = 0; i < NDIM; ++i) {
-              if (left.lattice_summed()[i]) lattice_summed[i].set_range_inf();
+              if (left.lattice_summed()[i]) lattice_summed[i].set_infinite();
             }
 
             auto info=combine_OT(left,right);

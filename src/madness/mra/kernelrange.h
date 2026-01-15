@@ -13,38 +13,45 @@
 
 namespace madness {
 
-/// Class to control the maximum range of lattice summation.
-/// Only a single integer is needed.
+/// Denotes lattice summation over range [-N, N]; N=0 is equivalent to including the simulation cell only
 class LatticeRange {
-  int range_ = 0; // Initialize to OBC
+  /// lattice sum over [-N, N]; total # of cells = 2N + 1
+  int N = 0;
 public:
+  /// constructs [0,0]
   LatticeRange() = default;
-  explicit LatticeRange(int range) {
-    set_range(range);
+  /// constructs [-n,n]
+  explicit LatticeRange(int n) {
+    set_range(n);
   }
+  /// @param lattice_sum if true, constructs [-∞,∞], else constructs [0,0]
   explicit LatticeRange(bool lattice_sum) {
-    if (lattice_sum) set_range_inf();
+    if (lattice_sum) set_infinite();
   }
 
-  void set_range(int range) {
-    if (range == std::numeric_limits<int>::max()) range_ = range;
-    else {
-      MADNESS_ASSERT(range_ >= 0 && range % 2 == 1);
-      range_ = (range - 1) / 2;
-    }
+  /// @param n the lattice summation range in each direction
+  /// @return reference to this
+  LatticeRange& set_range(int n) {
+    MADNESS_ASSERT(n >= 0);
+    this->N = n;
+    return *this;
   }
 
-  // Convenience function to make lattice range inactive.
-  void set_range_inf() {
-    set_range(std::numeric_limits<int>::max());
+  /// @return the lattice summation range in each direction
+  [[nodiscard]] int get_range() const { return N; }
+
+  /// sets this to [-∞,∞]
+  /// @return reference to this
+  LatticeRange& set_infinite() {
+    N = std::numeric_limits<int>::max();
+    return *this;
   }
 
-  [[nodiscard]] int get_range() const {return range_;}
+  /// @return true if this is [-∞,∞]
+  [[nodiscard]] bool infinite() const {return N == std::numeric_limits<int>::max();}
 
-  [[nodiscard]] bool infinite() const {return range_ == std::numeric_limits<int>::max();}
-
-  /// @return true if range is limited
-  explicit operator bool() const { return static_cast<bool>(range_); }
+  /// @return true if N > 0
+  explicit operator bool() const { return static_cast<bool>(N); }
 };
 
 /// To limit the range of kernel K(x-y) it is multiplied (in user coordinates) by a restrictor function

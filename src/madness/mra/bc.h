@@ -211,7 +211,7 @@ public:
     const auto periodic = is_periodic();
     for (size_t i = 0; i < NDIM; i++) {
       if (periodic[i]) {
-        result[i].set_range_inf();
+        result[i].set_infinite();
       }
     }
     return result;
@@ -252,7 +252,7 @@ array_of_bools<NDIM> lattice_sum() {
 template <std::size_t NDIM>
 std::array<LatticeRange, NDIM> lattice_sum_range() {
   std::array<LatticeRange, NDIM> result;
-  for (auto& range: result) range.set_range_inf();
+  for (auto& range: result) range.set_infinite();
   return result;
 }
 
