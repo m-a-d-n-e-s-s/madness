@@ -252,7 +252,7 @@ array_of_bools<NDIM> lattice_sum() {
 template <std::size_t NDIM>
 std::array<LatticeRange, NDIM> lattice_sum_range() {
   std::array<LatticeRange, NDIM> result;
-  for (const auto& range: result) range.set_range_inf();
+  for (auto& range: result) range.set_range_inf();
   return result;
 }
 
