@@ -897,7 +897,7 @@ namespace madness {
       }
 
     private:
-      std::array<ExtraDomainPolicy, 3> domain_policies_;
+      std::array<ExtraDomainPolicy, NDIM> domain_policies_;
       std::array<KernelRange, NDIM> range_;
       DistanceSquaredFunc default_distance_squared_;
       Translation max_distsq_reached_;
