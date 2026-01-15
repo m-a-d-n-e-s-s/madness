@@ -134,8 +134,9 @@ namespace madness {
         // stores the entire entry as volatile
 
         coeffT _coeffs; ///< The coefficients, if any
-        double _norm_tree; ///< After norm_tree will contain norm of coefficients summed up tree
-        double _inf_norm_tree; ///< After norm_tree will contain infinity norm of function values at quadrature points
+        double _norm_tree; ///< After norm_tree will contain norm of sum coefficients summed up tree
+        double _dnorm_tree; ///< After norm_tree will contain norm of difference coefficients summed up tree
+        //double _inf_norm_tree; ///< After norm_tree will contain infinity norm of function values at quadrature points
         bool _has_children; ///< True if there are children
         coeffT buffer; ///< The coefficients, if any
         double dnorm=-1.0;	///< norm of the d coefficients, also defined if there are no d coefficients
@@ -145,7 +146,7 @@ namespace madness {
         typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT; ///< Type of container holding the nodes
         /// Default constructor makes node without coeff or children
         FunctionNode() :
-            _coeffs(), _norm_tree(1e300), _has_children(false) {
+            _coeffs(), _norm_tree(1e300), _dnorm_tree(1e300), _has_children(false) {
         }
 
         /// Constructor from given coefficients with optional children
@@ -155,7 +156,7 @@ namespace madness {
         /// take ownership.
         explicit
         FunctionNode(const coeffT& coeff, bool has_children = false) :
-            _coeffs(coeff), _norm_tree(1e300), _has_children(has_children) {
+            _coeffs(coeff), _norm_tree(1e300), _dnorm_tree(1e300), _has_children(has_children) {
         }
 
         explicit
@@ -169,7 +170,7 @@ namespace madness {
         }
 
         FunctionNode(const FunctionNode<T, NDIM>& other) :
-            _coeffs(other._coeffs), _norm_tree(other._norm_tree), _has_children(other._has_children),
+            _coeffs(other._coeffs), _norm_tree(other._norm_tree), _dnorm_tree(other._dnorm_tree), _has_children(other._has_children),
             dnorm(other.dnorm), snorm(other.snorm) {
         }
 
@@ -178,6 +179,7 @@ namespace madness {
             if (this != &other) {
                 coeff() = copy(other.coeff());
                 _norm_tree = other._norm_tree;
+                _dnorm_tree = other._dnorm_tree;
                 _has_children = other._has_children;
                 dnorm=other.dnorm;
                 snorm=other.snorm;
@@ -307,9 +309,19 @@ namespace madness {
             _norm_tree = norm_tree;
         }
 
+        /// Sets the value of dnorm_tree
+        void set_dnorm_tree(double dnorm_tree) {
+            _dnorm_tree = dnorm_tree;
+        }
+
         /// Gets the value of norm_tree
         double get_norm_tree() const {
             return _norm_tree;
+        }
+
+        /// Gets the value of dnorm_tree
+        double get_dnorm_tree() const {
+            return _dnorm_tree;
         }
 
         /// return the precomputed norm of the (virtual) d coefficients
@@ -456,7 +468,7 @@ namespace madness {
 
         template <typename Archive>
         void serialize(Archive& ar) {
-            ar & coeff() & _has_children & _norm_tree & dnorm & snorm;
+            ar & coeff() & _has_children & _norm_tree & _dnorm_tree & dnorm & snorm;
         }
 
         /// like operator<<(ostream&, const FunctionNode<T,NDIM>&) but
@@ -488,8 +500,10 @@ namespace madness {
         if (norm < 1e-12)
             norm = 0.0;
         double nt = node.get_norm_tree();
+        double dnt = node.get_dnorm_tree();
         if (nt == 1e300) nt = 0.0;
-        s << norm << ", norm_tree, s/dnorm =" << nt << ", " << node.get_snorm() << " " << node.get_dnorm() << "), rank="<< node.coeff().rank()<<")";
+        if (dnt == 1e300) dnt = 0.0;
+        s << norm << ", norm_tree = " << nt << ", dnorm_tree = " << dnt << ", s/dnorm =" << node.get_snorm() << " " << node.get_dnorm() << "), rank="<< node.coeff().rank()<<")";
         if (node.coeff().is_assigned()) s << " dim " << node.coeff().dim(0) << " ";
 
         return s;
@@ -2018,19 +2032,26 @@ template<size_t NDIM>
         /// Functor for the mul method
         template <typename L, typename R>
         void do_mul(const keyT& key, const Tensor<L>& left, const std::pair< keyT, Tensor<R> >& arg) {
+            //print("enter mul", key);
             // PROFILE_MEMBER_FUNC(FunctionImpl); // Too fine grain for routine profiling
             const keyT& rkey = arg.first;
             const Tensor<R>& rcoeff = arg.second;
             //madness::print("do_mul: r", rkey, rcoeff.size());
+            //print("fcube r", key);
             Tensor<R> rcube = fcube_for_mul(key, rkey, rcoeff);
             //madness::print("do_mul: l", key, left.size());
+            //print("fcube l", key);
             Tensor<L> lcube = fcube_for_mul(key, key, left);
 
             Tensor<T> tcube(cdata.vk,false);
             TERNARY_OPTIMIZED_ITERATOR(T, tcube, L, lcube, R, rcube, *_p0 = *_p1 * *_p2;);
+            //print("scale", key);
             double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+            //print("transform", key);
             tcube = transform(tcube,cdata.quad_phiw).scale(scale);
+            //print("replace", key);
             coeffs.replace(key, nodeT(coeffT(tcube,targs),false));
+            //print("finished mul", key);
         }
 
 
@@ -2941,6 +2962,184 @@ template<size_t NDIM>
             world.taskq.for_each<rangeT,xopT>(rangeT(coeffs.begin(), coeffs.end()), xopT(this,op));
             if (fence)
                 world.gop.fence();
+        }
+
+        template <typename L, typename R>
+        void mulXXvec2(const FunctionImpl<L,NDIM>* left,
+                      const std::vector<const FunctionImpl<R,NDIM>*>& vright,
+                      const std::vector<FunctionImpl<T,NDIM>*>& vresult,
+                      double tol,
+                      bool fence) {
+            std::vector< Tensor<R> > vr(vright.size());
+            if (world.rank() == coeffs.owner(cdata.key0))
+                mulXXveca2(cdata.key0, left, Tensor<L>(), vright, vr, vresult, tol);
+            if (fence)
+                world.gop.fence();
+        }
+
+        template <typename L, typename R>
+        void mulXXveca2(const keyT& key,
+                       const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
+                       const std::vector<const FunctionImpl<R,NDIM>*> vrightin,
+                       const std::vector< Tensor<R> >& vrcin,
+                       const std::vector<FunctionImpl<T,NDIM>*> vresultin,
+                       double tol) {
+            typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
+            typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator riterT;
+
+            double lnorm = 1e99;
+            double ldnorm = 1e99;
+            bool r_is_leaf = false;
+            bool l_is_leaf = false;
+            Tensor<L> lc = lcin;
+            if (lc.size() == 0) {
+                literT it = left->coeffs.find(key).get();
+                MADNESS_ASSERT(it != left->coeffs.end());
+                lnorm = it->second.get_norm_tree();
+                ldnorm = it->second.get_dnorm_tree();
+                l_is_leaf = !it->second.has_children();
+                //print("l leaf ", l_is_leaf, ldnorm, key);
+                // not needed - tree is redundant
+            }
+            else {
+                lnorm = lc.normf();
+                ldnorm = 0.0; // node created to match trees - dnorm at leaf nodes will always be zero
+                l_is_leaf = true; // only reached if unfilter in previous step
+                //print("ld 0 l leaf ", l_is_leaf, key);
+            }
+
+            // Loop thru RHS functions seeing if anything can be multiplied
+            std::vector<FunctionImpl<T,NDIM>*> vresult;
+            std::vector<const FunctionImpl<R,NDIM>*> vright;
+            std::vector< Tensor<R> > vrc;
+            vresult.reserve(vrightin.size());
+            vright.reserve(vrightin.size());
+            vrc.reserve(vrightin.size());
+
+            for (unsigned int i=0; i<vrightin.size(); ++i) {
+                FunctionImpl<T,NDIM>* result = vresultin[i];
+                const FunctionImpl<R,NDIM>* right = vrightin[i];
+                Tensor<R> rc = vrcin[i];
+                double rnorm;
+                double rdnorm;
+                if (rc.size() == 0) {
+                    riterT it = right->coeffs.find(key).get();
+                    r_is_leaf = !it->second.has_children();
+                    //print(key, "leaf?", r_is_leaf);
+                    //if (it == right->coeffs.end()) print("ASSERT",key);
+                    MADNESS_ASSERT(it != right->coeffs.end());
+                    rnorm = it->second.get_norm_tree();
+                    rdnorm = it->second.get_dnorm_tree();
+                    //r_is_leaf = !it->second.has_children();
+                    //print("rdnorm ", rdnorm, key);
+                }
+                else {
+                    rnorm = rc.normf();
+                    rdnorm = 0.0; // new leaf node, dnorm=0
+                    r_is_leaf = true; // only reached if unfilter in previous step
+                    //print("rdnorm 0 ", rdnorm, key);
+                }
+
+                //if (rc.size() && lc.size()) { // Yipee!
+                // if error at this level is below threshold, compute here (redundant form)
+                if (rnorm*ldnorm + lnorm*rdnorm + ldnorm*rdnorm < truncate_tol(tol, key)) {
+                    //print(key, "norms",ldnorm,rdnorm,rnorm,lnorm);
+                    //print(key, "sum",rnorm*ldnorm + lnorm*rdnorm + ldnorm*rdnorm);
+                    //print(key, "rc size in", rc.size());
+                    //print(key, "lc size in", lc.size());
+                    if (lc.size() == 0) {
+                        literT lit = left->coeffs.find(key).get();
+                        //print("lcoeff?", lit->second.has_coeff());
+                        if (lit->second.has_coeff()) lc = lit->second.coeff().full_tensor_copy();
+                        //print("lc 0 mul", key);
+                    }
+                    if (rc.size() == 0) {
+                        //print("rc 0 mul", key);
+                        riterT rit = right->coeffs.find(key).get();
+                        //print("rcoeff?", rit->second.has_coeff());
+                        if (rit->second.has_coeff()) rc = rit->second.coeff().full_tensor_copy();
+                    }
+                    print("mul", key);
+                    //print(key, "rc size", rc.size());
+                    //print(key, "lc size", lc.size());
+                    result->task(world.rank(), &implT:: template do_mul<L,R>, key, lc, std::make_pair(key,rc));
+                }
+                else {  // Interior node
+                    result->coeffs.replace(key, nodeT(coeffT(),true));
+                    vresult.push_back(result);
+                    vright.push_back(right);
+                    vrc.push_back(rc);
+                    print("recur down", key);
+                }
+            }
+
+            if (vresult.size()) {
+                Tensor<L> lss;
+                if (lc.size()) {
+                    Tensor<L> ld(cdata.v2k);
+                    ld(cdata.s0) = lc(___);
+                    lss = left->unfilter(ld);
+                    //print("unfilter lc not 0", key);
+                } else if (l_is_leaf) {
+                    literT it = left->coeffs.find(key).get();
+                    if (it->second.has_coeff())
+                        lc = it->second.coeff().full_tensor_copy();
+                    Tensor<L> ld(cdata.v2k);
+                    ld(cdata.s0) = lc(___);
+                    lss = left->unfilter(ld);
+                    //print("unfilter l leaf 0", key);
+                }
+
+                std::vector< Tensor<R> > vrss(vresult.size());
+                for (unsigned int i=0; i<vresult.size(); ++i) {
+                    if (vrc[i].size()) {
+                        Tensor<R> rd(cdata.v2k);
+                        rd(cdata.s0) = vrc[i](___);
+                        vrss[i] = vright[i]->unfilter(rd);
+                        //print("unfilter rc not 0", key);
+                    } else {
+                        const FunctionImpl<R,NDIM>* right = vright[i];
+                        riterT it = right->coeffs.find(key).get();
+                        r_is_leaf = !it->second.has_children();
+                        if (r_is_leaf) {
+                            if (it->second.has_coeff())
+                                vrc[i] = it->second.coeff().full_tensor_copy();
+                        Tensor<R> rd(cdata.v2k);
+                        rd(cdata.s0) = vrc[i](___);
+                        vrss[i] = vright[i]->unfilter(rd);
+                        //print("unfilter l leaf 0", key);
+                        }
+                    }
+                }
+
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    const keyT& child = kit.key();
+                    //print(key, "childpatch", child);
+                    Tensor<L> ll;
+
+                    std::vector<Slice> cp = child_patch(child);
+
+                    if (lc.size() || l_is_leaf)
+                        ll = copy(lss(cp));
+
+                    std::vector< Tensor<R> > vv(vresult.size());
+                    for (unsigned int i=0; i<vresult.size(); ++i) {
+                        if (vrc[i].size()) {
+                            vv[i] = copy(vrss[i](cp));
+                        } else {
+                            const FunctionImpl<R,NDIM>* right = vright[i];
+                            riterT it = right->coeffs.find(key).get();
+                            r_is_leaf = !it->second.has_children();
+                            if (r_is_leaf) {
+                                vv[i] = copy(vrss[i](cp));
+                            }
+                        }
+                    }
+
+                    print(key, "recursion", child);
+                    woT::task(coeffs.owner(child), &implT:: template mulXXveca2<L,R>, child, left, ll, vright, vv, vresult, tol);
+                }
+            }
         }
 
         // Multiplication assuming same distribution and recursive descent
@@ -4668,7 +4867,7 @@ template<size_t NDIM>
         void compress(const TreeState newstate, bool fence);
 
         /// Invoked on node where key is local
-        Future<std::pair<coeffT,double> > compress_spawn(const keyT& key, bool nonstandard, bool keepleaves,
+        Future<std::pair<coeffT,std::pair<double,double> > > compress_spawn(const keyT& key, bool nonstandard, bool keepleaves,
         		bool redundant1);
 
         private:
@@ -4699,24 +4898,42 @@ template<size_t NDIM>
         /// @return     new sum coefficients (empty if internal, not empty, if new leaf); might delete its children
         coeffT truncate_reconstructed_op(const keyT& key, const std::vector< Future<coeffT > >& v, const double tol);
 
+//        /// calculate the wavelet coefficients using the sum coefficients of all child nodes
+//
+//        /// also compute the norm tree for all nodes
+//        /// @param[in] key 	this's key
+//        /// @param[in] v 	sum coefficients of the child nodes
+//        /// @param[in] nonstandard  keep the sum coefficients with the wavelet coefficients
+//        /// @param[in] redundant    keep only the sum coefficients, discard the wavelet coefficients
+//        /// @return 		the sum coefficients
+//        std::pair<coeffT,double> compress_op(const keyT& key, const std::vector< Future<std::pair<coeffT,double>> >& v, bool nonstandard);
+
         /// calculate the wavelet coefficients using the sum coefficients of all child nodes
-
-        /// also compute the norm tree for all nodes
-        /// @param[in] key 	this's key
-        /// @param[in] v 	sum coefficients of the child nodes
+        ///
+        /// also propagates snorm_tree and dnorm_tree upward
+        ///
+        /// @param[in] key          this's key
+        /// @param[in] v            futures holding (s coeffs, (snorm_tree, dnorm_tree)) from children
         /// @param[in] nonstandard  keep the sum coefficients with the wavelet coefficients
-        /// @param[in] redundant    keep only the sum coefficients, discard the wavelet coefficients
-        /// @return 		the sum coefficients
-        std::pair<coeffT,double> compress_op(const keyT& key, const std::vector< Future<std::pair<coeffT,double>> >& v, bool nonstandard);
+        /// @return                 (s coeffs, (snorm_tree, dnorm_tree))
+        std::pair< coeffT,std::pair<double,double> > compress_op(const keyT& key, const std::vector< Future<std::pair<coeffT, std::pair<double,double>>> >& v, bool nonstandard);
 
 
-        /// similar to compress_op, but insert only the sum coefficients in the tree
+//        /// similar to compress_op, but insert only the sum coefficients in the tree
+//
+//        /// also compute the norm tree for all nodes
+//        /// @param[in] key  this's key
+//        /// @param[in] v    sum coefficients of the child nodes
+//        /// @return         the sum coefficients
+//        std::pair<coeffT,double> make_redundant_op(const keyT& key,const std::vector< Future<std::pair<coeffT,double> > >& v);
 
-        /// also compute the norm tree for all nodes
-        /// @param[in] key  this's key
-        /// @param[in] v    sum coefficients of the child nodes
-        /// @return         the sum coefficients
-        std::pair<coeffT,double> make_redundant_op(const keyT& key,const std::vector< Future<std::pair<coeffT,double> > >& v);
+        /// Similar to compress_op, but inserts only sum (s) coefficients in the tree.
+
+        /// @param[in] key  this node's key
+        /// @param[in] v    futures holding (s coeffs, (snorm_tree, dnorm_tree)) from children
+        /// @return         (s coeffs, (snorm_tree, dnorm_tree))
+        std::pair< coeffT,std::pair<double,double> >
+        make_redundant_op(const keyT& key,const std::vector< Future<std::pair<coeffT, std::pair<double,double> > > >& v);
 
         /// Changes non-standard compressed form to standard compressed form
         void standard(bool fence);

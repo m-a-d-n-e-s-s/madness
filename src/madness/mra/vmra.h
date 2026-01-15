@@ -1137,6 +1137,30 @@ namespace madness {
         return vmulXX(a, v, tol, fence);
     }
 
+    template <typename T, typename R, std::size_t NDIM>
+    std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
+    mul_sparse2(World& world,
+               const Function<T,NDIM>& a,
+               const std::vector< Function<R,NDIM> >& v,
+               double tol,
+               bool fence=true,
+               bool do_compress=true,
+               bool do_make_redundant=true) {
+        PROFILE_BLOCK(Vmulsp);
+        if (do_compress) {
+            a.compress(false);
+            compress(world, v, false);
+            world.gop.fence();
+        }
+        //if (do_make_redundant) {
+        //    for (unsigned int i=0; i<v.size(); ++i) {
+        //        v[i].make_redundant(false);
+        //    }
+        //    a.make_redundant();
+        //}
+        return vmulXX2(a, v, tol, fence);
+    }
+
 
     /// Outer product of a vector of functions with a vector of functions using sparsity
 
