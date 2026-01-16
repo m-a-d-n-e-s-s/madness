@@ -100,7 +100,7 @@ int main(int argc, char**argv) {
 	rhoN.truncate();
 	
 	BoundaryConditions<3> bc_periodic(BC_PERIODIC);
-	SeparatedConvolution<double, 3> pop = CoulombOperator(world, 1e-4, eps, bc_periodic.is_periodic());
+	SeparatedConvolution<double, 3> pop = CoulombOperator(world, 1e-4, eps, bc_periodic.lattice_range());
 	printf("applying periodic operator ...\n\n");
 	V_periodic = apply(pop, rho);
 	V_periodic.truncate();

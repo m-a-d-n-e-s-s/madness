@@ -206,6 +206,17 @@ public:
     return std::vector<KernelRange>(result_array.begin(), result_array.end());
   }
 
+  std::array<LatticeRange, NDIM> lattice_range() const {
+    std::array<LatticeRange, NDIM> result;
+    const auto periodic = is_periodic();
+    for (size_t i = 0; i < NDIM; i++) {
+      if (periodic[i]) {
+        result[i].set_infinite();
+      }
+    }
+    return result;
+  }
+
 };
 
 template <std::size_t NDIM>
@@ -228,8 +239,21 @@ array_of_bools<NDIM> no_lattice_sum() {
 }
 
 template <std::size_t NDIM>
+std::array<LatticeRange, NDIM> no_lattice_sum_range() {
+  std::array<LatticeRange, NDIM> result;
+  return result;
+}
+
+template <std::size_t NDIM>
 array_of_bools<NDIM> lattice_sum() {
   return array_of_bools<NDIM>{true};
+}
+
+template <std::size_t NDIM>
+std::array<LatticeRange, NDIM> lattice_sum_range() {
+  std::array<LatticeRange, NDIM> result;
+  for (auto& range: result) range.set_infinite();
+  return result;
 }
 
 }  // namespace madness
