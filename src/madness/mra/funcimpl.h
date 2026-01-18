@@ -5877,7 +5877,7 @@ template<size_t NDIM>
         typedef ConcurrentHashMap< keyT, mapvecT > mapT;
 
         /// Adds keys to union of local keys with specified index
-        void add_keys_to_map(mapT* map, int index) const {
+        void add_keys_to_map(mapT* map, int index, std::atomic<std::uint64_t>* ntasks_completed) const {
             typename dcT::const_iterator end = coeffs.end();
             for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
                 typename mapT::accessor acc;
@@ -5885,9 +5885,10 @@ template<size_t NDIM>
                 const FunctionNode<T,NDIM>& node = it->second;
                 if (node.has_coeff()) {
                     [[maybe_unused]] auto inserted = map->insert(acc,key);
-                    acc->second.push_back(std::make_pair(index,&(node.coeff())));
+                    acc->second.emplace_back(index,&(node.coeff()));
                 }
             }
+            ++(*ntasks_completed);
         }
 
         /// Returns map of union of local keys to vector of indexes of functions containing that key
@@ -5898,11 +5899,17 @@ template<size_t NDIM>
         make_key_vec_map(const std::vector<const FunctionImpl<T,NDIM>*>& v) {
             mapT map(100000);
             // This loop must be parallelized
+            std::atomic<std::uint64_t> ntasks_completed = 0;
+            std::uint64_t ntasks_pending = 0;
             for (unsigned int i=0; i<v.size(); i++) {
-                //v[i]->add_keys_to_map(&map,i);
-                v[i]->world.taskq.add(*(v[i]), &FunctionImpl<T,NDIM>::add_keys_to_map, &map, int(i));
+                v[i]->world.taskq.add(*(v[i]), &FunctionImpl<T,NDIM>::add_keys_to_map, &map, int(i), &ntasks_completed);
+                ++ntasks_pending;
             }
-            if (v.size()) v[0]->world.taskq.fence();
+            if (v.size()) {
+                v[0]->world.await([&ntasks_completed, ntasks_pending]() {
+                    return ntasks_completed == ntasks_pending;
+                });
+            }
             return map;
         }
 
@@ -5951,7 +5958,8 @@ template<size_t NDIM>
                                    typename FunctionImpl<R,NDIM>::mapT* rmap_ptr,
                                    const bool sym,
                                    Tensor< TENSOR_RESULT_TYPE(T,R) >* result_ptr,
-                                   Mutex* mutex) {
+                                   Mutex* mutex,
+                                   std::atomic<std::uint64_t>* ntasks_completed) {
            Tensor< TENSOR_RESULT_TYPE(T,R) >& result = *result_ptr;
            //Tensor< TENSOR_RESULT_TYPE(T,R) > r(result.dim(0),result.dim(1));
            for (typename mapT::iterator lit=lstart; lit!=lend; ++lit) {
@@ -5983,6 +5991,7 @@ template<size_t NDIM>
                    mutex->unlock();
                }
            }
+           ++(*ntasks_completed);
        }
 #endif
 
@@ -6032,7 +6041,8 @@ template<size_t NDIM>
                                  typename FunctionImpl<R, NDIM>::mapT* rmap_ptr,
                                  const bool sym,
                                  Tensor<TENSOR_RESULT_TYPE(T, R)>* result_ptr,
-                                 Mutex* mutex) {
+                                 Mutex* mutex,
+                                 std::atomic<std::uint64_t>* ntasks_completed) {
            Tensor<TENSOR_RESULT_TYPE(T, R)>& result = *result_ptr;
            // Tensor<TENSOR_RESULT_TYPE(T, R)> r(result.dim(0), result.dim(1));
            for (typename mapT::iterator lit = lstart; lit != lend; ++lit) {
@@ -6063,6 +6073,7 @@ template<size_t NDIM>
                    mutex->unlock();
                }
            }
+           ++(*ntasks_completed);
        }
 #endif
 
@@ -6106,15 +6117,20 @@ template<size_t NDIM>
 
             Tensor< TENSOR_RESULT_TYPE(T,R) > r(left.size(), right.size());
             Mutex mutex;
+            std::atomic<std::uint64_t> ntasks_completed = 0;
+            std::uint64_t ntasks_pending = 0;
 
             typename mapT::iterator lstart=lmap.begin();
             while (lstart != lmap.end()) {
                 typename mapT::iterator lend = lstart;
                 advance(lend,chunk);
-                left[0]->world.taskq.add(&FunctionImpl<T,NDIM>::do_inner_localX<R>, lstart, lend, rmap_ptr, sym, &r, &mutex);
+                left[0]->world.taskq.add(&FunctionImpl<T,NDIM>::do_inner_localX<R>, lstart, lend, rmap_ptr, sym, &r, &mutex, &ntasks_completed);
+                ++ntasks_pending;
                 lstart = lend;
             }
-            left[0]->world.taskq.fence();
+            left[0]->world.await([&ntasks_completed, ntasks_pending]() {
+                return ntasks_completed == ntasks_pending;
+            });
 
             if (sym) {
                 for (long i=0; i<r.dim(0); i++) {
@@ -6158,15 +6174,20 @@ template<size_t NDIM>
 
             Tensor<TENSOR_RESULT_TYPE(T, R)> r(left.size(), right.size());
             Mutex mutex;
+            std::atomic<std::uint64_t> ntasks_completed = 0;
+            std::uint64_t ntasks_pending = 0;
 
             typename mapT::iterator lstart=lmap.begin();
             while (lstart != lmap.end()) {
                 typename mapT::iterator lend = lstart;
                 advance(lend, chunk);
-                left[0]->world.taskq.add(&FunctionImpl<T, NDIM>::do_dot_localX<R>, lstart, lend, rmap_ptr, sym, &r, &mutex);
+                left[0]->world.taskq.add(&FunctionImpl<T, NDIM>::do_dot_localX<R>, lstart, lend, rmap_ptr, sym, &r, &mutex, &ntasks_completed);
+                ++ntasks_pending;
                 lstart = lend;
             }
-            left[0]->world.taskq.fence();
+            left[0]->world.await([&ntasks_completed, ntasks_pending]() {
+                return ntasks_completed == ntasks_pending;
+            });
 
             // sym is for hermiticity
             if (sym) {
