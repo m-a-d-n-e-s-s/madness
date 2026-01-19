@@ -6066,11 +6066,13 @@ template<size_t NDIM>
        }
 #endif
 
-        static double conj(float x) {
+        template <typename Real>
+        static std::enable_if_t<std::is_floating_point_v<Real>, Real> conj(const Real x) {
             return x;
         }
 
-        static std::complex<double> conj(const std::complex<double> x) {
+        template <typename Real>
+        static std::complex<Real> conj(const std::complex<Real>& x) {
             return std::conj(x);
         }
 
