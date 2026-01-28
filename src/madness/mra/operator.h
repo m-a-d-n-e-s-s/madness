@@ -1862,7 +1862,7 @@ namespace madness {
     template<std::size_t NDIM=3>
     static inline SeparatedConvolution<double,NDIM> SlaterOperator(World& world,
     		double mu, double lo, double eps,
-    		const std::array<LatticeRange, 3>& lattice_ranges = FunctionDefaults<NDIM>::get_bc().lattice_range(),
+    		const std::array<LatticeRange, NDIM>& lattice_ranges = FunctionDefaults<NDIM>::get_bc().lattice_range(),
     		int k=FunctionDefaults<NDIM>::get_k()) {
         return SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_SLATER),lattice_ranges,k);
     }
@@ -1873,9 +1873,9 @@ namespace madness {
     template<std::size_t NDIM>
     static inline SeparatedConvolution<double,NDIM> GaussOperator(World& world,
                                                                 double mu, double lo=0.0, double eps=0.0,
-                                                                const array_of_bools<NDIM>& lattice_sum = FunctionDefaults<NDIM>::get_bc().is_periodic(),
+                                                                const std::array<LatticeRange, NDIM>& lattice_ranges = FunctionDefaults<NDIM>::get_bc().lattice_range(),
                                                                 int k=FunctionDefaults<NDIM>::get_k()) {
-        return SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_GAUSS),lattice_sum,k);
+        return SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_GAUSS),lattice_ranges,k);
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r*r) in 3D
@@ -1884,9 +1884,9 @@ namespace madness {
     template<std::size_t NDIM>
     static inline SeparatedConvolution<double, NDIM>* GaussOperatorPtr(World& world,
                                                                      double mu, double lo=0.0, double eps=0.0,
-                                                                     const array_of_bools<NDIM>& lattice_sum = FunctionDefaults<NDIM>::get_bc().is_periodic(),
+                                                                     const std::array<LatticeRange, NDIM>& lattice_ranges = FunctionDefaults<NDIM>::get_bc().lattice_range(),
                                                                      int k = FunctionDefaults<NDIM>::get_k()) {
-        return new SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_GAUSS),lattice_sum,k);
+        return new SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_GAUSS),lattice_ranges,k);
     }
 
 
@@ -1895,9 +1895,9 @@ namespace madness {
     template<std::size_t NDIM>
     static inline SeparatedConvolution<double, NDIM>* SlaterOperatorPtr_ND(World& world,
                                                                      double mu, double lo, double eps,
-                                                                     const array_of_bools<NDIM>& lattice_sum = FunctionDefaults<NDIM>::get_bc().is_periodic(),
+                                                                     const std::array<LatticeRange, NDIM>& lattice_ranges = FunctionDefaults<NDIM>::get_bc().lattice_range(),
                                                                      int k = FunctionDefaults<NDIM>::get_k()) {
-        return new SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_SLATER),lattice_sum,k);
+        return new SeparatedConvolution<double,NDIM>(world,OperatorInfo(mu,lo,eps,OT_SLATER),lattice_ranges,k);
     }
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r) in 3D
