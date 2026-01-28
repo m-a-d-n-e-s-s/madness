@@ -515,7 +515,7 @@ double CC2::solve_mp2_coupled(Pairs<CCPair>& doubles, Info& info) {
             for (const auto& r : solver.get_rlist()) sz.add(r);
             for (const auto& uu : solver.get_ulist()) sz.add(uu);
             sz.print(world,"sizes before KAIN");
-            task1.taskq_ptr->cloud.print_size(world);
+            task1.get_taskq()->cloud.print_size(world);
         }
         // update the pair functions
         std::string use_kain;
@@ -719,7 +719,7 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
     auto cp = task(pair_vec, cc2_s.get_vecfunction(), lrcc2_s.get_vecfunction(), info) ;
     print_size(world,cp,"constant part in iter");
 
-    for (int i=0; i<pair_vec.size(); ++i) {
+    for (size_t i=0; i<pair_vec.size(); ++i) {
         pair_vec[i].constant_part=cp[i];
         save(pair_vec[i].constant_part, pair_vec[i].name() + "_const");
     }
@@ -767,7 +767,7 @@ CC2::iterate_lrcc2_pairs(World& world, const CC_vecfunction& cc2_s,
 
     // update the pair functions
     reconstruct(world,unew);        // saves a lot of memory!
-    for (int i=0; i<pair_vec.size(); ++i) pair_vec[i].update_u(unew[i]);
+    for (size_t i=0; i<pair_vec.size(); ++i) pair_vec[i].update_u(unew[i]);
     lrcc2_d=Pairs<CCPair>::vector2pairs(pair_vec,triangular_map);
 
     // save latest iteration
@@ -856,7 +856,7 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) cons
         MacroTask task(world, t);
         std::vector<real_function_6d> constant_part_vec = task(pair_vec, singles.get_vecfunction(),
             ex_singles_dummy.get_vecfunction(), info) ;
-        for (int i=0; i<pair_vec.size(); ++i) pair_vec[i].constant_part=constant_part_vec[i];
+        for (size_t i=0; i<pair_vec.size(); ++i) pair_vec[i].constant_part=constant_part_vec[i];
 
         if (parameters.debug()) {
             for (auto& pair: pair_vec) pair.constant_part.print_size("size of constant part macrotask "+pair.name());
@@ -890,7 +890,7 @@ CC2::solve_cc2(CC_vecfunction& singles, Pairs<CCPair>& doubles, Info& info) cons
         auto residual=u_old-unew;
         timer1.tag("computing pair function update via macrotasks");
 
-        for (int i=0; i<pair_vec.size(); ++i) pair_vec[i].update_u(unew[i]);
+        for (size_t i=0; i<pair_vec.size(); ++i) pair_vec[i].update_u(unew[i]);
         doubles=Pairs<CCPair>::vector2pairs(pair_vec,triangular_map);
 
         // save latest iteration
@@ -1277,7 +1277,7 @@ bool CC2::iterate_singles(World& world, CC_vecfunction& singles, const CC_vecfun
                                                singles.get_vecfunction());
         const Tensor<double> R2GVinnerGV = inner(world, info.R_square*GV, GV);
         const Tensor<double> R2rinnerr = inner(world, info.R_square*residual, residual);
-        const double R2vector_error = sqrt(R2rinnerr.sum());
+        //const double R2vector_error = sqrt(R2rinnerr.sum());
         auto [rmsresidual, maxresidual]=CCPotentials::residual_stats(residual);
 
         // print information

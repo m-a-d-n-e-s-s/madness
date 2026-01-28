@@ -25,10 +25,10 @@ class ResponseManager {
   [[nodiscard]] CalculationParameters params() const { return calc_params; }
 
  private:
+  CalculationParameters calc_params;
   double vtol;
   poperatorT coulop;
   std::vector<std::shared_ptr<real_derivative_3d>> gradop;
-  CalculationParameters calc_params;
 };
 
 #endif  // RESPONSEMANAGER_HPP

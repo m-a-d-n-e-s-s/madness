@@ -16,23 +16,25 @@ using namespace madness;
 
 class GroundStateData {
 
-private:
-  std::string archive_File;
-  int original_k;
-  bool spinrestricted;
-  unsigned int num_orbitals{};
-  Tensor<double> energies;
-  Tensor<double> occ;
-  double L;
-  int k;
-
 public:
   Molecule molecule;
-  std::vector<real_function_3d> orbitals;
-  QProjector<double, 3> Qhat;
+
+private:
+  bool spinrestricted;
+  unsigned int num_orbitals{};
+  double L;
+  int k;
   std::string xc;
   std::string localize_method;
   double converged_for_thresh;
+  int original_k;
+  std::string archive_File;
+  Tensor<double> energies;
+  Tensor<double> occ;
+
+public:
+  std::vector<real_function_3d> orbitals;
+  QProjector<double, 3> Qhat;
   bool fock_loaded_from_file = false;
   [[nodiscard]] bool isFockLoadedFromFile() const {
     return fock_loaded_from_file;

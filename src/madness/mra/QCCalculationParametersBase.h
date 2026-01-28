@@ -8,6 +8,7 @@
 #ifndef SRC_APPS_CHEM_QCCALCULATIONPARAMETERSBASE_H_
 #define SRC_APPS_CHEM_QCCALCULATIONPARAMETERSBASE_H_
 
+#include <madness/madness_config.h>
 #include <string>
 #include <algorithm>
 #include <iomanip>
@@ -327,7 +328,7 @@ namespace madness {
         typedef std::map<std::string, QCParameter> ParameterContainerT;
         ParameterContainerT parameters;
 
-        virtual void read_input_and_commandline_options(World& world,
+        void read_input_and_commandline_options(World& world,
                                                         const commandlineparser& parser,
                                                         const std::string tag) {
             try {
@@ -602,11 +603,14 @@ namespace madness {
         template <typename T>
         static typename std::enable_if<std::is_floating_point<T>::value, void>::type
         overwrite_if_inf(std::string& str, const T& arg) {
+            MADNESS_PRAGMA_CLANG(diagnostic push)
+            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wtautological-constant-compare")
             if (std::isinf(arg)) {
                 std::stringstream ss;
                 ss << std::numeric_limits<T>::infinity();
                 str = ss.str();
             }
+            MADNESS_PRAGMA_CLANG(diagnostic pop)
         }
 
         template <typename T>

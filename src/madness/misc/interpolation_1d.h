@@ -141,8 +141,8 @@ protected:
   CubicInterpolationTable(
       World* world_ptr, double lo, double hi, int npt, const functionT &f,
       const int min_npts_per_task = std::numeric_limits<double>::max())
-      : lo(lo), hi(hi), h((hi - lo) / (npt - 1)), rh(1.0 / h), npt(npt),
-        a(npt * 5) {
+      : lo(lo), hi(hi), npt(npt), a(npt * 5), h((hi - lo) / (npt - 1)), rh(1.0 / h)
+         {
 
     // Evaluate the function to be interpolated
     std::vector<T> p(npt);

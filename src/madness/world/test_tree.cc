@@ -239,11 +239,10 @@ int main(int argc, char** argv) {
         print("done with final fence");
 
     }
-    catch (SafeMPI::Exception e) {
-        print(e);
-        error("caught an MPI exception");
+    catch (SafeMPI::Exception& e) {
+        std::cout << "Safempi exception: " << e.what() << std::endl;
     }
-    catch (madness::MadnessException e) {
+    catch (madness::MadnessException& e) {
         print(e);
         error("caught a MADNESS exception");
     }

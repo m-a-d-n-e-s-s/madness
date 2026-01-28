@@ -13,6 +13,47 @@
 
 namespace madness {
 
+/// Denotes lattice summation over range [-N, N]; N=0 is equivalent to including the simulation cell only
+class LatticeRange {
+  /// lattice sum over [-N, N]; total # of cells = 2N + 1
+  int N = 0;
+public:
+  /// constructs [0,0]
+  LatticeRange() = default;
+  /// constructs [-n,n]
+  explicit LatticeRange(int n) {
+    set_range(n);
+  }
+  /// @param lattice_sum if true, constructs [-∞,∞], else constructs [0,0]
+  explicit LatticeRange(bool lattice_sum) {
+    if (lattice_sum) set_infinite();
+  }
+
+  /// @param n the lattice summation range in each direction
+  /// @return reference to this
+  LatticeRange& set_range(int n) {
+    MADNESS_ASSERT(n >= 0);
+    this->N = n;
+    return *this;
+  }
+
+  /// @return the lattice summation range in each direction
+  [[nodiscard]] int get_range() const { return N; }
+
+  /// sets this to [-∞,∞]
+  /// @return reference to this
+  LatticeRange& set_infinite() {
+    N = std::numeric_limits<int>::max();
+    return *this;
+  }
+
+  /// @return true if this is [-∞,∞]
+  [[nodiscard]] bool infinite() const {return N == std::numeric_limits<int>::max();}
+
+  /// @return true if N > 0
+  explicit operator bool() const { return static_cast<bool>(N); }
+};
+
 /// To limit the range of kernel K(x-y) it is multiplied (in user coordinates) by a restrictor function
 /// \f$ r(N/2 - |x-y|) \f$, where \f$ r(x) \f$ is identity for unrestricted kernel or one of the choices
 /// encoded by KernelRange::Type
@@ -30,16 +71,16 @@ public:
 
   /// restrictor function
   struct Restrictor {
-    Restrictor() = default;
-    Restrictor(Type type) : type_(type) { MADNESS_ASSERT(type == Hard); }
-    Restrictor(Type type, double sigma) : type_(type) {
+    //Restrictor() = default;
+    //Restrictor(Type type) : type_(type) { MADNESS_ASSERT(type == Hard); }
+      Restrictor(Type type = Hard, double sigma=1.0) : type_(type) { // Avoid uninitialized warning on sigma if type is Hard 
       MADNESS_ASSERT(sigma >= 0);
-      if (sigma == 0)
-        MADNESS_ASSERT(type == Hard);
-      else {
-        MADNESS_ASSERT(type != Hard);
+      // if (sigma == 0)
+      //   MADNESS_ASSERT(type == Hard);
+      // else {
+      //   MADNESS_ASSERT(type != Hard);
         this->sigma_w_inverse_ = {sigma, 1./sigma};
-      }
+      // }
     }
 
     Type type() const { return type_; }

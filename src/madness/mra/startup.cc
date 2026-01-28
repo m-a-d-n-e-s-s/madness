@@ -151,6 +151,7 @@ namespace madness {
             print("");
             print("   number of processors ...", world.size());
             print("    processor frequency ...", cpu_frequency());
+            print("     hostname of rank 0 ...", get_hostname());
             print("            host system ...", HOST_SYSTEM);
             print("          configured by ...", MADNESS_CONFIGURATION_USER);
             print("          configured on ...", MADNESS_CONFIGURATION_HOST);

@@ -138,7 +138,7 @@ class OptimizeDriver : public Driver {
  */
 class Workflow {
  public:
-  Workflow() = default;
+  explicit Workflow(World& world) : world_(world) {}
 
   /**
    * @brief Add a driver to the workflow.
@@ -160,7 +160,8 @@ class Workflow {
    */
   void run(const std::string prefix) {
     std::filesystem::path topDir=prefix;
-    std::filesystem::create_directories(topDir);
+    if (world_.rank() == 0) std::filesystem::create_directories(topDir);
+    world_.gop.fence();
     nlohmann::json all;
     all["tasks"] = nlohmann::json::array();
 
@@ -169,12 +170,15 @@ class Workflow {
       drivers_[i]->execute(taskDir);
       auto current_output= drivers_[i]->summary();
 
-      // write out the current output to a file
-      {
+      // write out the current output to a file (only rank 0)
+      if (world_.rank() == 0) {
         std::ofstream ofs(taskDir / "output.json");
         ofs << std::setw(4) << current_output;
         ofs.close();
       }
+      // Ensure all ranks are synchronized after task output write
+      world_.gop.fence();
+
       /// append current output to all
       if (current_output.is_array()) {
         for (const auto& item : current_output) {
@@ -184,18 +188,21 @@ class Workflow {
         all["tasks"].push_back(current_output);
       }
 
-      // Write out aggregate results
-      {
+      // Write out aggregate results (only rank 0)
+      if (world_.rank() == 0) {
         std::string outputfile = prefix + ".calc_info.json";
         std::ofstream ofs( outputfile);
         ofs << std::setw(4) << all;
         ofs.close();
       }
+      // Ensure all ranks are synchronized after aggregate JSON write
+      world_.gop.fence();
     }
 
   }
 
  private:
+  World& world_;
   std::vector<std::unique_ptr<Driver>> drivers_;
 };
 

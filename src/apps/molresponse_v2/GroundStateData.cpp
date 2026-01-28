@@ -243,7 +243,7 @@ GroundStateData::computeHFExchangeEnergy(World &world) const {
   Exchange<double, 3> k{world, lo};
 
   auto phi = copy(world, orbitals, true);
-  k.set_algorithm(Exchange<double, 3>::Algorithm::multiworld_efficient_row);
+  k.set_algorithm(Exchange<double, 3>::ExchangeAlgorithm::multiworld_efficient_row);
   k.set_bra_and_ket(phi, phi);
   // k.set_symmetric(true).set_printlevel(r_params.print_level());
   auto kphi = k(phi);

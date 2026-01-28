@@ -118,11 +118,14 @@ namespace madness {
 //        stray WorldObjects are allowed as long as they outlive madness::finalize() :(
 //        MADNESS_ASSERT_NOEXCEPT(map_ptr_to_id.size() == 0);
 //        MADNESS_ASSERT_NOEXCEPT(map_id_to_ptr.size() == 0);
-        if (this->_id != 0) worlds.remove(this);
-        delete &taskq;
+        // if destroying an unfenced world there may be world objects waiting to be deleted
+        // delete them first before deregistering from worlds so that WorldObject dtor can verify that
+        // I still exist
         delete &gop;
+        delete &taskq;
         delete &am;
         delete &mpi;
+        if (this->_id != 0) worlds.remove(this);
     }
 
     void World::initialize_world_id_range(int global_rank) {

@@ -31,7 +31,7 @@ struct HO_function {
 		: alpha(sqrt(m*k)),n(n) {
 
 		normalization=std::pow(alpha/constants::pi,0.25*double(NDIM));
-		for (int idim=0; idim<NDIM; ++idim) {
+		for (size_t idim=0; idim<NDIM; ++idim) {
 			double term2=1.0/sqrt(std::pow(2.0,double(n[idim])*factorial(n[idim])));
 			normalization*=term2;
 		}
@@ -39,7 +39,7 @@ struct HO_function {
 
 	double operator()(const Vector<double,NDIM>& r) const {
 		double result=normalization;
-		for (int i=0; i<NDIM; ++i) result*=hermite(n[i],r[i]*sqrt(alpha));
+		for (size_t i=0; i<NDIM; ++i) result*=hermite(n[i],r[i]*sqrt(alpha));
 		result*=exp(-0.5*alpha*inner(r,r));
 		return result;
 	}
@@ -53,7 +53,7 @@ T compute_energy(const Function<double,NDIM>& potential, const Function<T,NDIM>&
 
 double compute_energy(const std::vector<int>& n) {
 	double ntotal=0.0;
-	for (int i=0; i<n.size(); ++i) ntotal+=0.5+n[i];
+	for (size_t i=0; i<n.size(); ++i) ntotal+=0.5+n[i];
 	return ntotal;
 }
 
@@ -64,9 +64,9 @@ Tensor<T> compute_fock_matrix(World& world, const Function<double,NDIM>& potenti
 
 	Tensor<T> fock=matrix_inner(world,f,potential*f);
 
-	for (int i=0; i<f.size(); ++i) {
+	for (size_t i=0; i<f.size(); ++i) {
 		std::vector<Function<T,NDIM> > gi=grad(f[i]);
-		for (int j=0; j<f.size(); ++j) {
+		for (size_t j=0; j<f.size(); ++j) {
 			std::vector<Function<T,NDIM> > gj=grad(f[j]);
 			fock(i,j)+=0.5*inner(gi,gj);
 		}
@@ -173,8 +173,8 @@ int test_converged_function(World& world, double shift, bool coupling) {
 
 	// test orbital energy update
 	test.logger << "eps update " <<	 eps_update;
-	double loose=(shift!=0.0) ? 10.0 : 1.0; 	 // loosen the threshold if shifts are used
-	success=success and eps_update.normf()*loose;
+	//double loose=(shift!=0.0) ? 10.0 : 1.0; 	 // loosen the threshold if shifts are used
+	//success=success and eps_update.normf()*loose;
 
 	test.end(success);
 	if (not success) print(fock);

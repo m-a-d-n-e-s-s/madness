@@ -83,7 +83,7 @@ constexpr dim_t cell_extent() {
   }
 }
 
-constexpr double cell_volume() {
+double cell_volume() {
   const auto size = cell_extent();
   return std::accumulate(
       size.begin(), size.end(), 1.,
@@ -91,7 +91,7 @@ constexpr double cell_volume() {
 }
 
 // normalized identity function = 1/volume
-constexpr double unit(const coord_t& r) {
+double unit(const coord_t& r) {
   const double fac = 1/cell_volume();
   return fac;
 }
@@ -271,7 +271,7 @@ int test_gconv(World& world) {
     // convolve with a normalized Gaussian kernel
     std::vector< std::shared_ptr< Convolution1D<double> > > ops(1);
     ops[0].reset(new GaussianConvolution1D<double>(k, width/sqrt(constants::pi),
-            width*width, 0, false));
+            width*width, 0, LatticeRange(false)));
     real_convolution_t op(world, ops);
 
     real_function_t opf = op(f);
@@ -334,7 +334,7 @@ int test_gconv(World& world) {
       // note the scaling of the coeffs because the derivative operator brings
       // down the scaling factor of the exponent
       ops[0].reset(new GaussianConvolution1D<double>(
-          k, 1.0 / sqrt(constants::pi), width * width, 1, false));
+          k, 1.0 / sqrt(constants::pi), width * width, 1, LatticeRange(false)));
 
       real_convolution_1d oph(world, ops);
 
@@ -457,7 +457,7 @@ int test_gconv(World& world) {
           ops[0].reset(new GaussianConvolution1D<double>(
               k, sqrt(kernel_exponent / constants::pi), kernel_exponent,
               /* deriv */ 0,
-              /* lattice summed? */ false,
+              /* lattice summed? */ LatticeRange(false),
               /* bloch_k */ 0.)); // range unrestricted
           real_convolution_t opnp(world, ops);
 
@@ -465,7 +465,7 @@ int test_gconv(World& world) {
           ops[0].reset(new GaussianConvolution1D<double>(
               k, sqrt(kernel_exponent / constants::pi), kernel_exponent,
               /* deriv */ 0,
-              /* lattice summed? */ false, /* bloch_k */ 0.,
+              /* lattice summed? */ LatticeRange(false), /* bloch_k */ 0.,
               range)); // range restricted
           real_convolution_t oprnp(world, ops);
           oprnp.set_domain_periodicity(array_of_bools<NDIM>{false});
@@ -477,7 +477,7 @@ int test_gconv(World& world) {
           ops[0].reset(new GaussianConvolution1D<double>(
               k, sqrt(kernel_exponent / constants::pi), kernel_exponent,
               /* deriv */ 0,
-              /* lattice summed? */ true, /* bloch_k */ 0.,
+              /* lattice summed? */ LatticeRange(true), /* bloch_k */ 0.,
               range)); // range restricted
           real_convolution_t oprp(world, ops);
           FunctionDefaults<NDIM>::set_bc(BC_PERIODIC);
@@ -494,7 +494,7 @@ int test_gconv(World& world) {
           //      }
           //      std::cout << std::endl;
 
-          for (int ig = 0; ig != gaussians_01.size(); ++ig) {
+          for (size_t ig = 0; ig != gaussians_01.size(); ++ig) {
             const auto &[g, g1] = gaussians_01[ig];
             const auto gaussian_exponent = gaussian_exponents[ig];
 
@@ -502,7 +502,7 @@ int test_gconv(World& world) {
                              const std::size_t R) {
               const auto rr = op.range_restricted();
               const auto lattice_summed = op.lattice_summed().any();
-              const auto periodic = lattice_summed || op.domain_is_periodic().any();
+              const auto periodic = lattice_summed || op.func_domain_is_periodic().any();
               if (!rr)
                 MADNESS_ASSERT(!periodic);
               const std::string opstr = !rr ? "NP" : (periodic ? (lattice_summed ? "RP" : "RP2") : "RNP");
@@ -614,13 +614,13 @@ int test_gconv(World& world) {
             std::vector<std::reference_wrapper<const real_convolution_1d>> ops{
                 opnp, oprnp, oprp, oprp2};
             const std::vector<std::string> op_labels = {"NP", "RNP", "RP", "RP2"};
-            for(int iop=0; iop!=ops.size(); ++iop) {
+            for(size_t iop=0; iop!=ops.size(); ++iop) {
               const auto &op = ops[iop].get();
               const auto &opstr = op_labels[iop];
               // evaluate op(f1+ f2 + ...) - op(f1) - op(f2) - ...
               real_function_1d error_0, fsum_0;
               real_function_1d error_1, fsum_1;
-              for (int i = 0; i != gaussians_01.size(); ++i) {
+              for (size_t i = 0; i != gaussians_01.size(); ++i) {
                 const auto &[g, g1] = gaussians_01[i];
                 if (i == 0) {
                   fsum_0 = copy(g);

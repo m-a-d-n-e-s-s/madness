@@ -339,6 +339,8 @@ namespace madness {
     /// Base class for WorldObject, useful for introspection
     struct WorldObjectBase {
       virtual ~WorldObjectBase() = default;
+    public:
+        virtual World& get_world() const = 0;
     };
 
     /// Implements most parts of a globally addressable object (via unique ID).
@@ -1384,7 +1386,9 @@ namespace madness {
 
         virtual ~WorldObject() {
             if(initialized()) {
-              MADNESS_ASSERT_NOEXCEPT(World::exists(&world) && world.ptr_from_id<Derived>(id()) && *world.ptr_from_id<Derived>(id()) == this);
+              MADNESS_ASSERT_NOEXCEPT(World::exists(&world));
+              MADNESS_ASSERT_NOEXCEPT(world.ptr_from_id<Derived>(id()));
+              MADNESS_ASSERT_NOEXCEPT(*world.ptr_from_id<Derived>(id()) == this);
               world.unregister_ptr(this->id());
             }
         }

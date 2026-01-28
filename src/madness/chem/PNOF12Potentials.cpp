@@ -43,6 +43,7 @@ GradSlaterOperator(World& world,
 	int rank = coeff.dim(0);
 
 	std::vector<real_convolution_3d_ptr> gradG(3);
+  const auto lattice_ranges = bc.lattice_range();
 
 	for (int dir=0; dir<3; dir++) {
 		std::vector< ConvolutionND<double,3> > ops(rank);
@@ -54,9 +55,9 @@ GradSlaterOperator(World& world,
 
 			for (int d=0; d<3; d++) {
 				if (d != dir)
-					ops[mu].setop(d,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum));
+					ops[mu].setop(d,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[d]*width[d], 0, lattice_ranges[dir]));
 			}
-			ops[mu].setop(dir,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[dir]*width[dir], 1, isperiodicsum));
+			ops[mu].setop(dir,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[dir]*width[dir], 1, lattice_ranges[dir]));
 		}
 		gradG[dir] = real_convolution_3d_ptr(new SeparatedConvolution<double,3>(world, ops));
 	}

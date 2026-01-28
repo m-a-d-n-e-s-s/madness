@@ -129,8 +129,8 @@ CCPair CCPotentials::make_pair_lrcc2(World& world, const CalcType& ctype, const 
     MADNESS_ASSERT(gs_singles.type == PARTICLE || gs_singles.type == HOLE);
     MADNESS_ASSERT(ex_singles.type == RESPONSE);
     MADNESS_ASSERT(ctype == CT_CISPD || ctype == CT_LRCC2 || ctype == CT_ADC2);
-    MADNESS_ASSERT(!(i < info.parameters.freeze()));
-    MADNESS_ASSERT(!(j < info.parameters.freeze()));
+    MADNESS_ASSERT(!(i < size_t(info.parameters.freeze())));
+    MADNESS_ASSERT(!(j < size_t(info.parameters.freeze())));
 
     typedef CCPairFunction<double,6> cpT;
     auto functions=std::vector<cpT>(1,cpT(u));
@@ -237,8 +237,8 @@ CCPotentials::make_pair_ex(const real_function_6d& u, const CC_vecfunction& tau,
     MADNESS_ASSERT(tau.type == PARTICLE || tau.type == HOLE);
     MADNESS_ASSERT(x.type == RESPONSE);
     MADNESS_ASSERT(ctype == CT_CISPD || ctype == CT_LRCC2 || ctype == CT_ADC2);
-    MADNESS_ASSERT(!(i < parameters.freeze()));
-    MADNESS_ASSERT(!(j < parameters.freeze()));
+    MADNESS_ASSERT(!(i < size_t(parameters.freeze())));
+    MADNESS_ASSERT(!(j < size_t(parameters.freeze())));
     // for  CIS(D): tau is empty or Hole states, the function will give back mo_ket_
     // for freeze!=0 the function will give back (mo0,mo1,...,t_freeze,t_freeze+1,...)
     const CC_vecfunction t = copy(make_t_intermediate(tau,parameters));
@@ -1001,7 +1001,7 @@ CCPair CCPotentials::iterate_pair_macrotask(World& world,
     if (result.ctype == CT_MP2) omega_partial = CCPotentials::compute_pair_correlation_energy(world, result, gs_singles, info);
     else if (result.type == EXCITED_STATE) omega_partial = CCPotentials::compute_excited_pair_energy(world, result, ex_singles, info);
 
-    for (size_t iter = 0; iter < maxiter; iter++) {
+    for (size_t iter = 0; iter < size_t(maxiter); iter++) {
         if (world.rank()==0) print_header3(assign_name(result.ctype) + "-Microiteration");
         CCTimer timer_mp2(world, "MP2-Microiteration of pair " + result.name());
 
@@ -2317,13 +2317,13 @@ CCPotentials::get_CC2_singles_potential_gs(World& world, const CC_vecfunction& s
     taskgs.partitioner->min_batch_size=2;
     taskgs.partitioner->max_batch_size=2;
     int printlevel=(info.parameters.debug()) ? 3 : 0;
-    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),MacroTaskInfo::get_default(),printlevel));
+    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(world).set_printlevel(printlevel)));
     MacroTask<MacroTaskSinglesPotentialGs> mtaskgs(world,taskgs,taskq);
 
     // compute applied potentials and intermediates
     // partition macrotasks over active orbitals
     std::vector<int> result_index(singles.size());
-    for (int i=0; i<result_index.size(); ++i) result_index[i]=i+info.parameters.freeze();
+    for (size_t i=0; i<result_index.size(); ++i) result_index[i]=i+info.parameters.freeze();
     // print_header1("not clearing intermediate potentials");
     // info.intermediate_potentials.clear_all();
 
@@ -2386,10 +2386,10 @@ CCPotentials::get_CCS_potential_ex(World& world, const CC_vecfunction& x, const 
     // set up taskq
     MacroTaskSinglesPotentialEx task;
     int printlevel=(info.parameters.debug()) ? 3 : 0;
-    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),MacroTaskInfo::get_default(),printlevel));
+    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(world).set_printlevel(printlevel)));
     MacroTask<MacroTaskSinglesPotentialEx> mtask(world,task,taskq);
     std::vector<int> result_index(x.size());
-    for (int i=0; i<result_index.size(); ++i) result_index[i]=i+info.parameters.freeze();
+    for (size_t i=0; i<result_index.size(); ++i) result_index[i]=i+info.parameters.freeze();
 
     // run tasks
     auto [fock_residue, dummy1]=mtask(result_index,empty_singles,empty_doubles,x,empty_doubles,int(POT_F3D_),info);
@@ -2426,7 +2426,7 @@ CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& g
 
     // set up taskq
     int printlevel=(info.parameters.debug()) ? 3 : 0;
-    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),MacroTaskInfo::get_default(),printlevel));
+    auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(world).set_printlevel(printlevel)));
     MacroTaskSinglesPotentialGs taskgs;
     MacroTask<MacroTaskSinglesPotentialGs> mtaskgs(world,taskgs,taskq);
     MacroTaskSinglesPotentialEx taskex;
@@ -2439,7 +2439,7 @@ CCPotentials::get_CC2_singles_potential_ex(World& world, const CC_vecfunction& g
     ex_singles.reconstruct();
 
     std::vector<int> result_index(ex_singles.size());
-    for (int i=0; i<result_index.size(); ++i) result_index[i]=i+info.parameters.freeze();
+    for (size_t i=0; i<result_index.size(); ++i) result_index[i]=i+info.parameters.freeze();
     auto [fock_residue, dum1] = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_F3D_), info);
     auto [Vccs, dum2] = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_ccs_), info);
     auto [Vs2b, imed_s2b] = mtaskex(result_index, gs_singles, gs_doubles_vec, ex_singles, ex_doubles_vec, int(POT_s2b_), info);
@@ -3770,7 +3770,7 @@ void CCPotentials::test_singles_potential(Info& info) const {
         std::vector<CCPair> ex_doubles;
 
         // set up taskq
-        auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world,world.size(),MacroTaskInfo::get_default(),3));
+        auto taskq=std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(world)));
         MacroTaskSinglesPotentialEx taskex;
         MacroTask<MacroTaskSinglesPotentialEx> mtaskex(world,taskex,taskq);
 

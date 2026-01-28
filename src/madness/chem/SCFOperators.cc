@@ -705,16 +705,14 @@ Exchange<T,NDIM>::Exchange(World& world, const Nemo *nemo, const int ispin) : im
 template<typename T, std::size_t NDIM>
 std::vector<Function<T,NDIM>> Exchange<T,NDIM>::operator()(const std::vector<Function<T,NDIM>>& vket) const {
     impl->set_taskq(this->taskq);
-    return impl->operator()(vket);
+    auto result=impl->operator()(vket);
+    this->statistics=impl->get_statistics();
+    return result;
 };
 
 template<typename T, std::size_t NDIM>
 Exchange<T,NDIM>& Exchange<T,NDIM>::set_bra_and_ket(const vecfuncT& bra, const vecfuncT& ket) {
     MADNESS_CHECK(impl);
-//    if (not impl) {
-//        World& world=bra.front().world();
-//        impl.reset(new Exchange<T,NDIM>::ExchangeImpl(world,lo1,FunctionDefaults<NDIM>::get_thresh()));
-//    }
     impl->set_bra_and_ket(bra, ket);
     return *this;
 }
@@ -731,8 +729,14 @@ Exchange<T,NDIM>& Exchange<T,NDIM>::set_symmetric(const bool flag) {
 }
 
 template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_algorithm(const Algorithm& alg) {
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_algorithm(const ExchangeAlgorithm& alg) {
     impl->set_algorithm(alg);
+    return *this;
+}
+
+template<typename T, std::size_t NDIM>
+Exchange<T,NDIM>& Exchange<T,NDIM>::set_macro_task_info(const MacroTaskInfo& info) {
+    impl->set_macro_task_info(info);
     return *this;
 }
 

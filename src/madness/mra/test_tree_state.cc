@@ -24,7 +24,7 @@ int test_conversion(World& world) {
     f.print_size("f");
     f.reconstruct();
     double fnorm=f.norm2();
-    double f1norm=f1.norm2();
+    // double f1norm=f1.norm2();
     std::vector<real_function_2d> vf={f1,f2,f1};
     std::vector<double> vfnorm=norm2s(world,vf);
     real_function_2d ref;
@@ -102,7 +102,7 @@ int test_conversion(World& world) {
     };
 
     auto vector_check_tree_state = [&](const std::vector<real_function_2d>& arg, const TreeState state) {
-        for (int i=0; i<arg.size(); ++i) {
+        for (size_t i=0; i<arg.size(); ++i) {
             ref=vf[i];
             norm=vfnorm[i];
             auto a=arg[i];

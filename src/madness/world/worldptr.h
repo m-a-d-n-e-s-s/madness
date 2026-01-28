@@ -465,13 +465,13 @@ namespace madness {
         /// \tparam Archive The archive type.
         /// \tparam T The world pointer type.
         template <typename Archive, typename T>
-        struct ArchiveLoadImpl<Archive, detail::WorldPtr<T> > {
+        struct ArchiveLoadImpl<Archive, madness::detail::WorldPtr<T> > {
 
             /// Load a world pointer from the archive.
 
             /// \param[in] ar The archive.
             /// \param[out] p The world pointer.
-            static inline void load(const Archive& ar, detail::WorldPtr<T>& p) {
+            static inline void load(const Archive& ar, madness::detail::WorldPtr<T>& p) {
                 p.load_internal_(ar);
             }
         };
@@ -481,13 +481,13 @@ namespace madness {
         /// \tparam Archive The archive type.
         /// \tparam T The world pointer type.
         template <typename Archive, typename T>
-        struct ArchiveStoreImpl<Archive, detail::WorldPtr<T> > {
+        struct ArchiveStoreImpl<Archive, madness::detail::WorldPtr<T> > {
 
             /// Store a world pointer from the archive.
 
             /// \param[in] ar The archive.
             /// \param[in] p The world pointer.
-            static inline void store(const Archive& ar, const detail::WorldPtr<T>& p) {
+            static inline void store(const Archive& ar, const madness::detail::WorldPtr<T>& p) {
                 p.store_internal_(ar);
             }
         };

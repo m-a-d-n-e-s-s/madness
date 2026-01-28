@@ -3,6 +3,11 @@
 
 #include <madness/madness_config.h>
 
+MADNESS_PRAGMA_GCC(diagnostic push)
+MADNESS_PRAGMA_GCC(diagnostic ignored "-Wcomment")
+MADNESS_PRAGMA_CLANG(diagnostic push)
+MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wcomment")
+
 /// \file moldft/xcfunctional.h
 /// \brief Defines interface for DFT XC functionals
 /// \ingroup chemistry
@@ -425,4 +430,8 @@ struct xc_kernel_apply {
 };
 
 }
+
+MADNESS_PRAGMA_CLANG(diagnostic pop)
+MADNESS_PRAGMA_GCC(diagnostic pop)
+
 #endif

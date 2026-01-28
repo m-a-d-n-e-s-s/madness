@@ -797,7 +797,7 @@ int main(int argc, char **argv) {
     madness::World& world = madness::initialize(argc, argv);
     startup(world, argc, argv);
     commandlineparser parser(argc, argv);
-    bool long_test = parser.key_exists("long_test");
+    // bool long_test = parser.key_exists("long_test");
     int k = parser.key_exists("k") ? std::atoi(parser.value("k").c_str()) : 6;
     double thresh  = parser.key_exists("thresh") ? std::stod(parser.value("thresh")) : 3.e-5;
     FunctionDefaults<6>::set_tensor_type(TT_2D);

@@ -173,9 +173,9 @@ GradBSHOperator_Joel(World& world,
 
             for (int d=0; d<3; d++) {
                 if (d != dir)
-                    ops[mu].setop(d,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum));
+                    ops[mu].setop(d,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[d]*width[d], 0, LatticeRange(isperiodicsum)));
             }
-            ops[mu].setop(dir,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[dir]*width[dir], 1, isperiodicsum));
+            ops[mu].setop(dir,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[dir]*width[dir], 1, LatticeRange(isperiodicsum)));
         }
         gradG[dir] = real_convolution_3d_ptr(new SeparatedConvolution<double,3>(world, ops));
     }
@@ -459,12 +459,12 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
           }
 
           //Loop through orbitals phi_i, computing K(phi_i), and while we're at it, use symmetry to start calculating contributions to later orbitals
-          for(unsigned int i = 0; i < num_contrib; i++){
+          for(int i = 0; i < num_contrib; i++){
 
                //temp will hold the contributions (results of the coulomb operator application) that we need to finish calculation of K(phi_i)
                //For the first iteration, we need all n "contributions," so temp has length n, but this will decrease by 1 each iteration
                std::vector<complex_function_3d> temp(num_contrib-i);
-               for(unsigned int j = 0; j < num_contrib-i; j++){
+               for(int j = 0; j < num_contrib-i; j++){
                     temp[j] = complex_factory_3d(world);    
                }
                compress(world, temp);
@@ -474,7 +474,7 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
                std::vector<complex_function_3d> temp1(num_contrib-i);
                std::vector<complex_function_3d> temp2(num_contrib-i);
                std::vector<complex_function_3d> temp3(num_contrib-i);
-               for(unsigned int j = i; j < num_contrib; j++){
+               for(int j = i; j < num_contrib; j++){
                     //the next four lines accomplish the rearrangement needed to get the time reversal rather than the orbital itself, but skip the complex conjugation, which will come later
                     temp0[j-i] = -1.0*occupieds[j][1];
                     temp1[j-i] = occupieds[j][0];
@@ -511,7 +511,7 @@ void DF::exchange(World& world, real_convolution_3d& op, std::vector<Fcwf>& Kpsi
                temp3 = -1.0*conj(occupieds[i][2])*temp;
 
                //accumulate
-               for(unsigned int j = i+1; j < num_contrib; j++){
+               for(int j = i+1; j < num_contrib; j++){
                     Kpsis[j][0] += temp0[j-i];
                     Kpsis[j][1] += temp1[j-i];
                     Kpsis[j][2] += temp2[j-i];
@@ -836,7 +836,7 @@ void DF::diagonalize(World& world, real_function_3d& myV, real_convolution_3d& o
      }
 
      //truncate
-     for(int kk = 0; kk < n; kk++){
+     for(unsigned int kk = 0; kk < n; kk++){
            Kpsis[kk].truncate();
            occupieds[kk].truncate();
      }
@@ -1076,9 +1076,9 @@ void DF::make_gaussian_potential(World& world, real_function_3d& potential, doub
 
      nuclear_repulsion_energy = 0.0;
      double rr;
-     for(int m = 0; m < molecule.natom(); m++){
+     for(size_t m = 0; m < molecule.natom(); m++){
           auto& atom_m = molecule.get_atom(m);
-          for(int n = m+1; n < molecule.natom(); n++){
+          for(size_t n = m+1; n < molecule.natom(); n++){
                auto& atom_n = molecule.get_atom(n);
                coord_3d dist = atom_m.get_coords() - atom_n.get_coords();
                rr = std::sqrt(dist[0]*dist[0]+dist[1]*dist[1]+dist[2]*dist[2]);
@@ -1796,7 +1796,7 @@ void DF::print_sizes(World& world, bool individual=false){
      if(world.rank()==0) print("\nPrinting orbital sizes:\n");
      int n = Init_params.num_occupied;
      double a,b1,b2,b3,b4;
-     for(unsigned int j=0; j < n; j++){
+     for(int j=0; j < n; j++){
           b1 = occupieds[j][0].size();
           b2 = occupieds[j][1].size();
           b3 = occupieds[j][2].size();

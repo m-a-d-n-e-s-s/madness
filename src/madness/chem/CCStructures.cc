@@ -132,7 +132,7 @@ CCIntermediatePotentials::operator()(const CCFunction<double,3>& f, const Potent
     const bool throw_if_empty) const {
     vector_real_function_3d result=get_potential(type,f.type,throw_if_empty);
     long iact=f.i-parameters.freeze();  // active index
-    MADNESS_CHECK_THROW(iact<result.size(),"potential not found for active occupied index iact");
+    MADNESS_CHECK_THROW(size_t(iact)<result.size(),"potential not found for active occupied index iact");
     return result[iact];
 }
 
@@ -504,8 +504,8 @@ assign_name(const FuncType& inp) {
 
 /// make a CCPair without the 6d function and some bookkeeping information
 CCPair CCPairBuilder::make_bare_pair(const int i, const int j) const {
-    MADNESS_ASSERT(i>=info.parameters.freeze() && i < info.mo_bra.size());
-    MADNESS_ASSERT(j>=info.parameters.freeze() && j < info.mo_ket.size());
+    MADNESS_ASSERT(i>=info.parameters.freeze() && size_t(i) < info.mo_bra.size());
+    MADNESS_ASSERT(j>=info.parameters.freeze() && size_t(j) < info.mo_ket.size());
 
     CCPair pair(i, j, cc_state(ctype), ctype);
     pair.bsh_eps=CCPotentials::get_epsilon(i,j,info);
@@ -556,10 +556,10 @@ CCPair CCPairBuilder::complete_pair_with_low_rank_parts(const CCPair& pair) cons
     if (result.ctype==CT_MP2) {
         // nothing to do
     } else if (result.ctype==CT_CC2) {
-        MADNESS_CHECK_THROW(gs_singles.size()==nact,"missing gs_singles for completing the CC2 pair function");
+        MADNESS_CHECK_THROW(gs_singles.size()==size_t(nact),"missing gs_singles for completing the CC2 pair function");
     } else if (result.ctype==CT_LRCC2) {
-        MADNESS_CHECK_THROW(gs_singles.size()==nact,"missing gs_singles for completing the LRCC2 pair function");
-        MADNESS_CHECK_THROW(ex_singles.size()==nact,"missing ex_singles for completing the LRCC2 pair function");
+        MADNESS_CHECK_THROW(gs_singles.size()==size_t(nact),"missing gs_singles for completing the LRCC2 pair function");
+        MADNESS_CHECK_THROW(ex_singles.size()==size_t(nact),"missing ex_singles for completing the LRCC2 pair function");
     } else {
         print("unknown ctype in complete_pair_with_low_rank_parts",assign_name(result.ctype));
         MADNESS_EXCEPTION("unknown ctype",1);
@@ -718,7 +718,7 @@ MacroTaskComputeCorrelationEnergy::operator()(const std::vector<CCPair>& pairs,
      World &world = pairs[0].function().world();
      auto result=scalar_result_vector<double>(world,pairs.size());
      CalcType ctype=pairs[0].ctype;
-     for (int i=0; i<pairs.size(); ++i) {
+     for (size_t i=0; i<pairs.size(); ++i) {
          if (ctype==CT_MP2) {
              // when serialized the Qf12 |ij> part is not stored in the cloud, so recompute it here
              auto pair=CCPotentials::make_pair_mp2(world,pairs[i].function(),pairs[i].i,pairs[i].j,info, true);

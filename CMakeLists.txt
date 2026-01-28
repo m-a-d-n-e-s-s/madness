@@ -46,6 +46,7 @@ include(CMakeDependentOption)
 include(AddMADLibrary)
 include(AddMADExecutable)
 include(AddUnittests)
+include(AddMPITests)
 include(AddScriptedTests)
 include(CMakePackageConfigHelpers)
 include(CopyTargetProperties)
@@ -788,6 +789,11 @@ add_custom_target(install-madness-config
      COMMAND ${CMAKE_COMMAND} -DCOMPONENT=madness-config -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
      COMMENT "Installing MADNESS config components"
      USES_TERMINAL)
+
+# Add feature info for MPI tests
+if(MADNESS_HAS_MPI_TESTS)
+  add_feature_info("MPI tests" MADNESS_HAS_MPI_TESTS "MPI tests with multiple processes are configured (use MADNESS_MPI_NODE_OPTIONS at runtime to control execution)")
+endif()
 
 feature_summary(WHAT ALL
                 DESCRIPTION "=== MADNESS Package/Feature Info ===")

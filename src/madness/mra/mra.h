@@ -197,6 +197,11 @@ namespace madness {
         /// Destruction of any underlying implementation is deferred to next global fence.
         ~Function() {}
 
+        /// implements swap algorithm
+        template <typename R, std::size_t MDIM>
+        friend void swap(Function<R,MDIM>& f1, Function<R,MDIM>& f2);
+
+
         /// Evaluates the function at a point in user coordinates.  Possible non-blocking comm.
 
         /// Only the invoking process will receive the result via the future
@@ -338,7 +343,7 @@ namespace madness {
 
         /// Evaluates a cube/slice of points (probably for plotting) ... collective but no fence necessary
 
-        /// All processes recieve the entire result (which is a rather severe limit
+        /// All processes receive the entire result (which is a rather severe limit
         /// on the size of the cube that is possible).
 
         /// Set eval_refine=true to return the refinment levels of
@@ -699,11 +704,36 @@ namespace madness {
             return impl->get_pmap();
         }
 
+        /// replicate this function according to type
+        ///
+        /// ** note that global operations will return unexpected results **
+        /// Be sure you know what you are doing!
+        void replicate(const DistributionType type, bool fence=true) const {
+            verify();
+            if (type==DistributionType::RankReplicated) impl->replicate(fence);
+            else if (type==DistributionType::NodeReplicated) impl->replicate_on_hosts(fence);
+            else MADNESS_EXCEPTION("Function::replicate: unknown DistributionType",type);
+        }
+
         /// replicate this function, generating a unique pmap
+
+        /// ** note that global operations will return unexpected results **
+        /// Be sure you know what you are doing!
         void replicate(bool fence=true) const {
             verify();
             impl->replicate(fence);
         }
+
+        /// replicate this function, one copy per host
+
+        /// map will refer the to first rank on each host to avoid inter-node communication
+        /// ** note that global operations will return unexpected results **
+        /// Be sure you know what you are doing!
+        void replicate_on_hosts(bool fence=true) const {
+            verify();
+            impl->replicate_on_hosts(fence);
+        }
+
 
         /// distribute this function according to newmap
         void distribute(std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > newmap) const {
@@ -2090,7 +2120,7 @@ namespace madness {
     Function<T,NDIM> copy(World& world, const Function<T,NDIM>& f, bool fence = true) {
         PROFILE_FUNC;
         typedef FunctionImpl<T,NDIM> implT;
-        auto pmap=FunctionDefaults<NDIM>::get_pmap();
+        auto pmap = FunctionDefaults<NDIM>::get_pmap(world);
 
         // create a new function with pmap distribution, same parameters as f, but no coeffs
         Function<T,NDIM> result;
@@ -2386,7 +2416,7 @@ namespace madness {
       std::vector<long> map(NDIM);
       constexpr std::size_t LDIM=NDIM/2;
       static_assert(LDIM*2==NDIM);
-      for (auto d=0; d<LDIM; ++d) {
+      for (std::size_t d=0; d<LDIM; ++d) {
           map[d]=d+LDIM;
           map[d+LDIM]=d;
       }
@@ -2519,10 +2549,10 @@ namespace madness {
         static_assert(KDIM + LDIM - 2 * CDIM == NDIM, "faulty dimensions in inner (partial version)");
 
         // contraction indices must be contiguous and either in the beginning or at the end
-        for (int i=0; i<CDIM-1; ++i) MADNESS_CHECK((v1[i]+1)==v1[i+1]);
+        for (size_t i=0; i<CDIM-1; ++i) MADNESS_CHECK((v1[i]+1)==v1[i+1]);
         MADNESS_CHECK((v1[0]==0) or (v1[CDIM-1]==LDIM-1));
 
-        for (int i=0; i<CDIM-1; ++i) MADNESS_CHECK((v2[i]+1)==v2[i+1]);
+        for (size_t i=0; i<CDIM-1; ++i) MADNESS_CHECK((v2[i]+1)==v2[i+1]);
         MADNESS_CHECK((v2[0]==0) or (v2[CDIM-1]==KDIM-1));
 
         MADNESS_CHECK(f.is_initialized());
@@ -2546,7 +2576,7 @@ namespace madness {
         std::vector<Function<resultT,NDIM>> result(vg.size());
         if (work) {
             world.gop.set_forbid_fence(true);
-            for (int i=0; i<vg.size(); ++i)  {
+            for (size_t i=0; i<vg.size(); ++i)  {
                 result[i]=FunctionFactory<resultT,NDIM>(world)
                         .k(f.k()).thresh(f.thresh()).empty().nofence();
                 result[i].get_impl()->partial_inner(*f.get_impl(),*(vg[i]).get_impl(),v1,v2);
@@ -2826,6 +2856,10 @@ namespace madness {
         return f.change_tree_state(finalstate,fence);
     }
 
+    template <typename R, std::size_t MDIM>
+    void swap(Function<R,MDIM>& f1, Function<R,MDIM>& f2) {
+        f1.impl.swap(f2.impl);
+    }
 
 }
 
@@ -2869,14 +2903,6 @@ namespace madness {
 
     template<typename T, std::size_t NDIM>
     struct is_madness_function<madness::Function<T, NDIM>> : std::true_type {};
-
-    template<typename>
-    struct is_madness_function_vector : std::false_type {
-    };
-
-    template<typename T, std::size_t NDIM>
-    struct is_madness_function_vector<std::vector<typename madness::Function<T, NDIM>>> : std::true_type {
-};
 
 }
 

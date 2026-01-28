@@ -46,6 +46,7 @@
 #include <type_traits>
 #include <iosfwd>
 #include <madness/world/meta.h>
+#include <vector>
 
 namespace madness {
 
@@ -689,6 +690,74 @@ namespace madness {
     /// \tparam Archive an archive type
     template <typename Archive>
     constexpr const bool is_text_archive_v = is_text_archive<Archive>::value;
+
+    /*
+     * Some traits for Functions and alike
+     */
+
+    /// next two structs loop over type and dimension
+    /// loop over N=1..6 and apply Functor<T,N> to functor_args..., then call the resulting functor with call_args...
+    /// returns array of results
+    /// Functor must be a template with two parameters: type and integer
+    /// functor_args is a tuple of arguments to be forwarded to Functor<T,N>
+    /// call_args are arguments to be forwarded to the resulting functor
+    /// Example:
+    /// \code
+    ///   template<typename T, std::size_t N>
+    ///   struct MyFunctor {
+    ///       MyFunctor(int a, double b) : a_(a), b_(b) {}
+    ///       T operator()(const std::string& s) { return T(a_ * N, b_ * N, s); }
+    ///       int a_;
+    ///       double b_;
+    ///   };
+    ///   ...
+    ///   loop_types<MyFunctor, double, float, double_complex, float_complex>(std::tuple<int,double>(1,2.0),std::string("hello"));
+    ///   results is std::array
+    /// \endcode
+    template<template<typename, std::size_t> class Functor, typename T, std::size_t... Is, typename... FunctorArgs, typename... CallArgs>
+    auto loop_N(std::index_sequence<Is...>, std::tuple<FunctorArgs...>&& functor_args, CallArgs&&... call_args)
+        -> std::array<decltype(Functor<T, 1>(std::forward<FunctorArgs>(std::get<FunctorArgs>(functor_args))...)(std::forward<CallArgs>(call_args)...)), sizeof...(Is)>
+    {
+        return { Functor<T, Is + 1>(std::forward<FunctorArgs>(std::get<FunctorArgs>(functor_args))...)(std::forward<CallArgs>(call_args)...)... };
+    }
+
+    template<template<typename, std::size_t> class Functor, typename... Ts, typename... FunctorArgs, typename... CallArgs>
+    auto loop_types(std::tuple<FunctorArgs...>&& functor_args, CallArgs&&... call_args)
+    {
+        return std::make_tuple(loop_N<Functor, Ts>(std::make_index_sequence<6>{}, std::move(functor_args), std::forward<CallArgs>(call_args)...)...);
+    }
+
+    /// loop over a tuple and apply unary operator op to each element
+    template<typename tupleT, typename opT, std::size_t I=0>
+    static void unary_tuple_loop(tupleT& tuple, opT& op) {
+        if constexpr(I < std::tuple_size_v<tupleT>) {
+            auto& element1=std::get<I>(tuple);
+            op(element1);
+            unary_tuple_loop<tupleT,opT, I+1>(tuple,op);
+        }
+    }
+
+    /// loop over the tuple elements of both tuples and execute the operation op on each element pair
+    template<typename tupleT, typename tupleR, typename opT, std::size_t I=0>
+    static void binary_tuple_loop(tupleT& tuple1, tupleR& tuple2, opT& op) {
+        if constexpr(I < std::tuple_size_v<tupleT>) {
+            auto& element1=std::get<I>(tuple1);
+            auto& element2=std::get<I>(tuple2);
+            op(element1,element2);
+            binary_tuple_loop<tupleT, tupleR, opT, I+1>(tuple1,tuple2,op);
+        }
+    }
+
+    /// check if objT is a std::vector of Function<T,NDIM>
+    /// forward declaration of Function
+    /// usage: is_madness_function_vector<objT>::value
+    template<typename T, std::size_t NDIM> class Function;
+    template<typename>
+    struct is_madness_function_vector : std::false_type { };
+    template<typename T, std::size_t NDIM>
+    struct is_madness_function_vector<std::vector<Function<T, NDIM>>> : std::true_type { };
+
+
 
     /* Macros to make some of this stuff more readable */
 

@@ -29,7 +29,7 @@ public:
     const auto &coeffs = f.get_impl()->get_coeffs();
     size_t count = 0;
     for (auto it = coeffs.begin(); it != coeffs.end(); ++it) {
-      const auto &key = it->first;
+      // const auto &key = it->first;
       const auto &node = it->second;
       if (node.has_coeff()) {
         count++;
@@ -53,13 +53,13 @@ public:
         for (int i = 0; i < key.level(); ++i)
           out << "  ";
         out << key.level() << " ";
-        for (int i = 0; i < NDIM; ++i)
+        for (size_t i = 0; i < NDIM; ++i)
           out << key.translation()[i] << " ";
         out << std::endl;
 #if HAVE_GENTENSOR
         MADNESS_EXCEPTION("FunctionIO not implemented for GenTensor", 0);
 #else
-        for (size_t i = 0; i < values.size(); i++)
+        for (size_t i = 0; i < (size_t)values.size(); i++)
           out << values.ptr()[i] << " ";
 #endif
 
@@ -84,7 +84,7 @@ public:
     if (f.get_impl()->world.rank() == 0) {
       out << NDIM << std::endl;
       const auto &cell = FunctionDefaults<NDIM>::get_cell();
-      for (int d = 0; d < NDIM; ++d) {
+      for (size_t d = 0; d < NDIM; ++d) {
         for (int i = 0; i < 2; ++i)
           out << cell(d, i) << " ";
         out << std::endl;
@@ -112,14 +112,14 @@ public:
       if (in.eof())
         break;
 
-      for (int i = 0; i < NDIM; ++i) {
+      for (size_t i = 0; i < NDIM; ++i) {
         in >> l[i];
         dims[i] = f.k();
       }
       Key<NDIM> key(n, l);
 
       Tensor<T> values(NDIM, dims);
-      for (size_t i = 0; i < values.size(); i++)
+      for (size_t i = 0; i < (size_t)values.size(); i++)
         in >> values.ptr()[i];
       auto t = f.get_impl()->values2coeffs(key, values);
 
@@ -134,7 +134,7 @@ public:
     MADNESS_CHECK(ndim == NDIM);
 
     Tensor<double> cell(NDIM, 2);
-    for (int d = 0; d < NDIM; ++d) {
+    for (size_t d = 0; d < NDIM; ++d) {
       for (int i = 0; i < 2; ++i)
         in >> cell(d, i);
     }
@@ -177,7 +177,7 @@ template <typename T, std::size_t NDIM> struct FunctionIOData {
       ndim = NDIM;
       k = f.k();
       const auto &cell_world = FunctionDefaults<NDIM>::get_cell();
-      for (int d = 0; d < NDIM; ++d) {
+      for (size_t d = 0; d < NDIM; ++d) {
         cell[d].first = cell_world(d, 0);
         cell[d].second = cell_world(d, 1);
       }
@@ -201,7 +201,7 @@ template <typename T, std::size_t NDIM> struct FunctionIOData {
         auto node_values = f.get_impl()->coeffs2values(key, node.coeff());
         std::array<long, NDIM + 1> key_i;
         key_i[0] = key.level();
-        for (int i = 0; i < NDIM; ++i)
+        for (size_t i = 0; i < NDIM; ++i)
           key_i[i + 1] = key.translation()[i];
         nl.push_back(key_i);
         std::vector<double> values_i(npts_per_box);
@@ -227,12 +227,12 @@ template <typename T, std::size_t NDIM> struct FunctionIOData {
       Vector<Translation, NDIM> l;
       long dims[NDIM];
 
-      for (int i = 0; i < NDIM; ++i) {
+      for (size_t i = 0; i < NDIM; ++i) {
         dims[i] = f.k();
       }
 
       auto n = nl[i][0];
-      for (int j = 0; j < NDIM; ++j) {
+      for (size_t j = 0; j < NDIM; ++j) {
         l[j] = nl[i][j + 1];
       }
       Key<NDIM> key(n, l);
@@ -251,7 +251,7 @@ template <typename T, std::size_t NDIM> struct FunctionIOData {
     size_t ndim = this->ndim;
     MADNESS_CHECK(ndim == NDIM);
     Tensor<double> cell_t(NDIM, 2);
-    for (int d = 0; d < NDIM; ++d) {
+    for (size_t d = 0; d < NDIM; ++d) {
       cell_t(d, 0) = cell[d].first;
       cell_t(d, 1) = cell[d].second;
     }

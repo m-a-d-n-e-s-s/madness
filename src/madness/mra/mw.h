@@ -64,7 +64,7 @@ struct ScalingFunctionFunctor<1> : public FunctionFunctorInterface<double, 1> {
   ScalingFunctionFunctor() = default;
 
   ScalingFunctionFunctor(double L, Level n, Translation l, int k)
-      : L(L), n(n), l(l), k(k), twon(1 << n), one_over_twon(1. / twon),
+      : L(L), n(n), l(l), twon(1 << n), k(k), one_over_twon(1. / twon),
         sqrt_twon(sqrt(twon)), one_over_twoL(0.5/L), one_over_sqrttwoL(sqrt(one_over_twoL)) {
     MADNESS_ASSERT(L>0);
     MADNESS_ASSERT(n>=0);
@@ -77,7 +77,7 @@ struct ScalingFunctionFunctor<1> : public FunctionFunctorInterface<double, 1> {
     if (x < l * one_over_twon || x > (l + 1) * one_over_twon)
       return 0.;
     else {
-      MADNESS_ASSERT(k < sizeof(values) / sizeof(double));
+      MADNESS_ASSERT(static_cast<size_t>(k) < sizeof(values) / sizeof(double));
       legendre_scaling_functions(twon * x - l, k+1, values);
     }
     return values[k] * sqrt_twon * one_over_sqrttwoL;
@@ -106,7 +106,7 @@ struct ScalingFunctionFunctor<NDIM, std::enable_if_t<std::greater{}(NDIM,1)>> : 
   }
   double operator()(const Vector<double, NDIM> &r) const final {
     double result = 1.0;
-    int d = 0;
+    size_t d = 0;
     while (result != 0. && d < NDIM) {
       result *= sf1[d]({r[d]});
       ++d;

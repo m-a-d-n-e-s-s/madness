@@ -351,7 +351,6 @@ public:
         if (key.level() < this->f->get_initial_level()) return false;
         sanity();
         const double cnorm = coeff.normf();
-        BoundaryConditions<NDIM> bc = FunctionDefaults<NDIM>::get_bc();
         // const auto bperiodic = bc.is_periodic();
 
         typedef Key<opT::opdim> opkeyT;

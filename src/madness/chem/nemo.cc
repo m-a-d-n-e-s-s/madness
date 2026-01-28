@@ -559,13 +559,11 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
         timer t(world,get_calc_param().print_level()>2);
         real_function_3d vcoul;
         int ispin = 0;
-        auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(world, world.size(),MacroTaskInfo::get_default()));
+        auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(world)));
         taskq->set_printlevel(get_calc_param().print_level());
         // taskq->cloud.set_debug(true);
-        if (world.rank()==0 and get_calc_param().print_level()>4) {
-            print("taskq storing policy", taskq->get_storage_policy());
-            print("cloud storing policy", taskq->cloud.get_storing_policy());
-        }
+        if (world.rank()==0 and get_calc_param().print_level()>4) print(taskq->get_policy());
+
 
 
         Coulomb<double, 3> J = Coulomb<double, 3>(world, this).set_taskq(taskq);
@@ -579,7 +577,7 @@ void Nemo::compute_nemo_potentials(const vecfuncT& nemo,
             Knemo = zero_functions_compressed<double, 3>(world, nemo.size());
             // construction must happen outside the if-block to avoid pointers to arguments going out of scope in the macrotaskq
             Exchange<double, 3> K = Exchange<double, 3>(world, this, ispin).set_symmetric(true).set_taskq(taskq);
-	        K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient_row);
+	        K.set_algorithm(Exchange<double,3>::ExchangeAlgorithm::multiworld_efficient_row);
             if (calc->xc.hf_exchange_coefficient() > 0.0) Knemo = K(nemo);
 
             t.tag("initialize K operator");

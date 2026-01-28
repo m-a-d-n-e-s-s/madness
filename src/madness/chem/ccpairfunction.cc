@@ -336,7 +336,7 @@ CCPairFunction<T,NDIM> CCPairFunction<T,NDIM>::partial_inner(const CCPairFunctio
                                                const std::array<int, CCPairFunction<T,NDIM>::LDIM>& v2) const {
     auto a012=std::array<int,LDIM>();
     auto a345=std::array<int,LDIM>();
-    for (int i=0; i<LDIM; ++i) {
+    for (size_t i=0; i<LDIM; ++i) {
         a012[i]=i;
         a345[i]=i+LDIM;
     }
@@ -380,7 +380,7 @@ CCPairFunction<T,NDIM> CCPairFunction<T,NDIM>::partial_inner(const CCPairFunctio
             auto H=madness::apply(world(),op,tmp);
             Function<T,NDIM> result=FunctionFactory<T,NDIM>(world());
 //            const vector_real_function_6d result=partial_mul(H,d,integration_index(v1)+1);
-            for (int i=0; i<H.size(); ++i) {
+            for (size_t i=0; i<H.size(); ++i) {
                 result+=multiply(H[i],d[i],integration_index(v1)+1);
             }
             return CCPairFunction<T,NDIM>(result);
@@ -415,7 +415,7 @@ CCPairFunction<T,NDIM> CCPairFunction<T,NDIM>::partial_inner(const CCPairFunctio
             const auto& d=other.get_vector(remaining_index(v2));
             const auto& op=*(other.get_operator().get_op());
             std::decay_t<decltype(a)> h(a.size());        // /same type as a, without reference&
-            for (int i=0; i<a.size(); ++i) {
+            for (size_t i=0; i<a.size(); ++i) {
                 const auto ac=a[i]*c;
                 const auto g=madness::apply(world(),op,ac);
                 h[i]=dot(world(),d,g);
@@ -461,7 +461,7 @@ Function<T,CCPairFunction<T,NDIM>::LDIM> CCPairFunction<T,NDIM>::partial_inner(
 //    auto a345=std::array<int,LDIM>{3,4,5};
     auto a012=std::array<int,LDIM>();
     auto a345=std::array<int,LDIM>();
-    for (int i=0; i<LDIM; ++i) {
+    for (size_t i=0; i<LDIM; ++i) {
         a012[i]=i;
         a345[i]=i+LDIM;
     }
@@ -578,13 +578,13 @@ double CCPairFunction<T,NDIM>::inner_internal(const CCPairFunction<T,NDIM>& othe
         auto op=combine(f1.get_operator_ptr(),f2.get_operator_ptr());
         if (op) {
             double bla=0.0;
-            for (int i=0; i<a.size(); ++i) {
+            for (size_t i=0; i<a.size(); ++i) {
                 Function<T,NDIM> tmp = CompositeFactory<T,NDIM,LDIM>(world()).g12(op->get_kernel()).particle1(a[i]).particle2(b[i]);
                 bla += inner(bra, tmp);
             }
             result+=bla;
         } else { // no operators
-            for (int i=0; i<a.size(); ++i) {
+            for (size_t i=0; i<a.size(); ++i) {
                 Function<T,NDIM> tmp = CompositeFactory<T,NDIM,LDIM>(world()).particle1(a[i]).particle2(b[i]);
                 result+=inner(bra,tmp);
             }

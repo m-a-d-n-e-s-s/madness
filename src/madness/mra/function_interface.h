@@ -91,6 +91,11 @@ namespace madness {
 	    /// Does the interface support a vectorized operator()?
 	    virtual bool supports_vectorized() const {return false;}
 
+MADNESS_PRAGMA_GCC(diagnostic push)
+MADNESS_PRAGMA_GCC(diagnostic ignored "-Woverloaded-virtual")
+MADNESS_PRAGMA_CLANG(diagnostic push)
+MADNESS_PRAGMA_CLANG(diagnostic ignored "-Woverloaded-virtual")
+
 	    virtual void operator()(const Vector<double*,1>& xvals, T* fvals, int npts) const {
 	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
 	    }
@@ -114,6 +119,8 @@ namespace madness {
 	    virtual void operator()(const Vector<double*,6>& xvals, T* fvals, int npts) const {
 	        MADNESS_EXCEPTION("FunctionFunctorInterface: This function should not be called!", 0);
 	    }
+MADNESS_PRAGMA_CLANG(diagnostic pop)
+MADNESS_PRAGMA_GCC(diagnostic pop)
 
 	    /// You should implement this to return \c f(x)
 	    virtual T operator()(const Vector<double, NDIM>& x) const = 0;
@@ -464,7 +471,7 @@ namespace madness {
 
 				// only 3 dimensions here!
 				for (std::size_t d=0; d<LDIM; ++d) {
-					ops[mu].setop(d,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[d]*width[d], 0, false));
+					ops[mu].setop(d,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[d]*width[d], 0, LatticeRange(false)));
 				}
 			}
 		}

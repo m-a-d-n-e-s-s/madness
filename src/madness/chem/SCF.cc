@@ -152,7 +152,6 @@ void SCF::output_scf_info_schema(const std::map<std::string, double> &vals,
         j[key] = val;
     }
     j["scf_dipole_moment"] = tensor_to_json(dipole_T);
-    int num = 0;
     update_schema(param.prefix()+".scf_info", j);
 }
 
@@ -232,7 +231,7 @@ void scf_data::add_gradient(const Tensor<double> &grad) {
 }
 
 SCF::SCF(World& world, const CalculationParameters& param1, const Molecule& molecule)
-    : param(param1), molecule(molecule) {
+    : molecule(molecule), param(param1) {
     PROFILE_MEMBER_FUNC(SCF);
 
     if (world.rank() == 0) {
@@ -325,7 +324,7 @@ void SCF::load_mos(World& world) {
 
     bool needs_redo=false; // if we need to redo the orbitals, e.g. because of a change in k or thresh
 
-    const double thresh = FunctionDefaults<3>::get_thresh();
+    // const double thresh = FunctionDefaults<3>::get_thresh();
     bool spinrest = false;
 
     amo.clear();
@@ -467,7 +466,7 @@ void SCF::get_initial_orbitals(World& world) {
                 }
                 return false;
             }
-            MADNESS_CHECK_THROW(amo.size()==param.nalpha(),"inconsistent restart data");
+            MADNESS_CHECK_THROW(amo.size()==size_t(param.nalpha()),"inconsistent restart data");
 
         } else if (fromwhere=="restartao") {
             reset_aobasis("sto-3g");
@@ -778,7 +777,7 @@ void SCF::initial_guess_from_nwchem(World& world) {
         print("\nAligning atoms by moving MADNESS atoms to match NWChem atoms.");
 
     // Verify at least same number of atoms first
-    MADNESS_ASSERT(int(nwchem.atoms.size()) == molecule.natom());
+    MADNESS_ASSERT(nwchem.atoms.size() == size_t(molecule.natom()));
 
     // Get center of charge for nwchem
     std::vector<double> nw_coc(3, 0);
@@ -1352,26 +1351,12 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
     print_meminfo(world.rank(), "V*psi");
     if (xc.hf_exchange_coefficient()) {
         START_TIMER(world);
-        //            vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
         Exchange<double, 3> K(world, this, ispin);
-	if (param.hfexalg()=="multiworld") {
-	  //if (world.rank() == 0) print("selecting exchange multi world");
-	  K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient);
-	}
-	else if (param.hfexalg()=="multiworld_row") {
-	  //if (world.rank() == 0) print("selecting exchange multi world row");
-	  K.set_algorithm(Exchange<double,3>::Algorithm::multiworld_efficient_row);
-	}
-	else if (param.hfexalg()=="largemem") {
-	  //if (world.rank() == 0) print("selecting exchange large memory");
-	  K.set_algorithm(Exchange<double,3>::Algorithm::large_memory);
-	}
-	else if (param.hfexalg()=="smallmem") {
-	  //if (world.rank() == 0) print("selecting exchange small memory");
-	  K.set_algorithm(Exchange<double,3>::Algorithm::small_memory);
-	}
-	
+
+        K.set_algorithm(Exchange<double,3>::string2algorithm(param.hfexalg()));
         K.set_symmetric(true).set_printlevel(param.print_level());
+        K.set_macro_task_info(MacroTaskInfo::preset("default"));
+
         vecfuncT Kamo = K(amo);
         tensorT excv = inner(world, Kamo, amo);
         double exchf = 0.0;
@@ -2147,29 +2132,6 @@ void SCF::orthonormalize(World& world, vecfuncT& amo_new) const {
     } while (maxq > 0.01);
     normalize(world, amo_new);
     END_TIMER(world, "Orthonormalize");
-}
-
-
-complex_functionT APPLY(const complex_operatorT *q1d,
-                        const complex_functionT& psi) {
-    complex_functionT r = psi; // Shallow copy violates constness !!!!!!!!!!!!!!!!!
-    coordT lo, hi;
-    lo[2] = -10;
-    hi[2] = +10;
-
-    r.reconstruct();
-    r.broaden();
-    r.broaden();
-    r.broaden();
-    r.broaden();
-    r = apply_1d_realspace_push(*q1d, r, 2);
-    r.sum_down();
-    r = apply_1d_realspace_push(*q1d, r, 1);
-    r.sum_down();
-    r = apply_1d_realspace_push(*q1d, r, 0);
-    r.sum_down();
-
-    return r;
 }
 
 

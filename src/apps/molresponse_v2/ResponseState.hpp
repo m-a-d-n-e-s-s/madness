@@ -48,11 +48,11 @@ struct LinearResponseDescriptor : public AbstractResponseDescriptor {
                            bool spin_restricted)
       : type(ptype),
         perturbation(pert),
+        spin_restricted(spin_restricted),
         frequencies(freq),
         thresholds(thresh),
         current_frequency_index(0),
         current_thresh_index(0),
-        spin_restricted(spin_restricted),
         is_converged(false) {
     for (size_t i = 0; i < frequencies.size(); ++i) {
       frequency_map[frequencies[i]] = i;

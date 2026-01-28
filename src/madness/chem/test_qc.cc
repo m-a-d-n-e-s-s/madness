@@ -46,8 +46,7 @@ public:
 	CalculationParameters copy_and_replace_key_in_parameters(const CalculationParameters& ref_parameters, const std::string& key, int index) const {
 
 		std::size_t size=parameter_variations.find(key)->second.size();
-		if (index>size) throw std::runtime_error("asdf");
-
+		                if ((size_t)index>size) throw std::runtime_error("asdf");
 		const QCParameter p=parameter_variations.find(key)->second[index];
 		CalculationParameters cp(ref_parameters);
 		cp.get_parameter(key)=p;

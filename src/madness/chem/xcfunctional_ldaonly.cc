@@ -83,6 +83,10 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
     const double* arho = t[0].ptr();
     madness::Tensor<double> result(3L, t[0].dims(), false);
     double* f = result.ptr();
+    MADNESS_PRAGMA_CLANG(diagnostic push)
+    MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wtautological-constant-compare")
+    auto isnan = [](double v) { return std::isnan(v); };
+    MADNESS_PRAGMA_CLANG(diagnostic pop)
     if (spin_polarized) {
         const double* brho = t[1].ptr();
         for (unsigned int i=0; i<result.size(); i++) {
@@ -94,7 +98,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
             c_uks_vwn5__(&ra, &rb, &cf, cdfdr, cdfdr+1);
 
             f[i] = xf + cf;
-            if (std::isnan(f[i])) {
+            if (isnan(f[i])) {
                 print("bad 1?", ra, rb);
                 throw "numerical error in lda functional";
             }
@@ -107,7 +111,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
             x_rks_s__(&r, &q1, &dq);
             c_rks_vwn5__(&r, &q2, &dq);
             f[i] = q1 + q2;
-            if (std::isnan(f[i])) {
+            if (isnan(f[i])) {
                 print("bad? 2", r);
                 throw "numerical error in lda functional";
             }
@@ -124,6 +128,10 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(const std::vector< madne
     std::vector<madness::Tensor<double> > result(1);
     result[0]=madness::Tensor<double>(3L, t[0].dims(), false);
     double* f = result[0].ptr();
+    MADNESS_PRAGMA_CLANG(diagnostic push)
+    MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wtautological-constant-compare")
+    auto isnan = [](double v) { return std::isnan(v); };
+    MADNESS_PRAGMA_CLANG(diagnostic pop)
 
     if (spin_polarized) {
         const double* brho = t[1].ptr();
@@ -137,7 +145,7 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(const std::vector< madne
 
 //            f[i] = xdfdr[what] + cdfdr[what];
             f[i] = xdfdr[ispin] + cdfdr[ispin];
-            if (std::isnan(f[i])) {
+            if (isnan(f[i])) {
                 print("bad? 3", ra, rb);
                 throw "numerical error in lda functional";
             }
@@ -151,7 +159,7 @@ std::vector<madness::Tensor<double> > XCfunctional::vxc(const std::vector< madne
             x_rks_s__(&r, &q, &dq1);
             c_rks_vwn5__(&r, &q, &dq2);
             f[i] = dq1 + dq2;
-            if (std::isnan(f[i])) {
+            if (isnan(f[i])) {
                 print("bad? 4", r);
                 throw "numerical error in lda functional";
             }

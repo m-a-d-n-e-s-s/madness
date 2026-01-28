@@ -36,6 +36,7 @@
 #error "mraimpl.h should ONLY be included in one of the mraX.cc files (x=1..6)"
 #endif
 
+#include <madness/madness_config.h>
 #include <memory>
 #include <math.h>
 #include <cmath>
@@ -50,7 +51,10 @@
 namespace std {
     template <typename T>
     bool isnan(const std::complex<T>& v) {
+        MADNESS_PRAGMA_CLANG(diagnostic push)
+        MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wtautological-constant-compare")
         return ::std::isnan(v.real()) || ::std::isnan(v.imag());
+        MADNESS_PRAGMA_CLANG(diagnostic pop)
     }
 }
 
@@ -154,8 +158,8 @@ namespace madness {
                     }
                 }
             }
-            world.gop.fence();
         }
+        world.gop.fence();
         return true;
     }
 
@@ -795,7 +799,7 @@ namespace madness {
                 if (acc[i]->second.has_coeff()) {
                     tensorT s(cdata.v2k);
                     //                        s(cdata.s0) = acc[i]->second.coeff()(___);
-                    s(cdata.s0) = acc[i]->second.coeff().full_tensor_copy();
+                    s(cdata.s0) = acc[i]->second.coeff().full_tensor();
                     acc[i]->second.clear_coeff();
                     d[i] = unfilter(s);
                     acc[i]->second.set_has_children(true);
@@ -860,7 +864,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     bool FunctionImpl<T,NDIM>::autorefine_square_test(const keyT& key, const nodeT& t) const {
         double lo, hi;
-        tnorm(t.coeff().full_tensor_copy(), &lo, &hi);
+        tnorm(t.coeff().full_tensor(), &lo, &hi);
         double test = 2*lo*hi + hi*hi;
         //print("autoreftest",key,thresh,truncate_tol(thresh, key),lo,hi,test);
         return test> truncate_tol(thresh, key);
@@ -1031,7 +1035,7 @@ namespace madness {
         // values for eri: this must be done in full rank...
         if (veri.has_data()) {
             tensorT val_ket2=val_ket.full_tensor_copy().emul(veri);
-            if (val_result.has_data()) val_ket2+=val_result.full_tensor_copy();
+            if (val_result.has_data()) val_ket2+=val_result.full_tensor();
             // values2coeffs expensive (30%), coeffT() (relatively) cheap (8%)
             coeff_result=coeffT(values2coeffs(key,val_ket2),this->get_tensor_args());
 
@@ -1210,7 +1214,7 @@ namespace madness {
             for (size_t ii=0; ii<NDIM; ++ii) matrices[ii]=h[kit.key().translation()[ii]%2];
 
             // transform and accumulate on the result
-            result+=general_transform(v[i].get(),matrices).full_tensor_copy();
+            result+=general_transform(v[i].get(),matrices).full_tensor();
 
         }
         return result;
@@ -1629,7 +1633,7 @@ namespace madness {
         tensorT d(cdata.v2k);
         for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
             //                d(child_patch(kit.key())) += v[i].get();
-            d(child_patch(kit.key())) += v[i].get().full_tensor_copy();
+            d(child_patch(kit.key())) += v[i].get().full_tensor();
         }
 
         d = filter(d);
@@ -1673,7 +1677,7 @@ namespace madness {
         double norm_tree2=0.0;
         for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
             //                d(child_patch(kit.key())) += v[i].get();
-            d(child_patch(kit.key())) += v[i].get().first.full_tensor_copy();
+            d(child_patch(kit.key())) += v[i].get().first.full_tensor();
             norm_tree2+=v[i].get().second*v[i].get().second;
         }
 
@@ -1727,7 +1731,7 @@ namespace madness {
         int i=0;
         double norm_tree2=0.0;
         for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
-            d(child_patch(kit.key())) += v[i].get().first.full_tensor_copy();
+            d(child_patch(kit.key())) += v[i].get().first.full_tensor();
             norm_tree2+=v[i].get().second*v[i].get().second;
         }
         d = filter(d);
@@ -2335,11 +2339,15 @@ namespace madness {
             }
         }
         else {
+            MADNESS_PRAGMA_CLANG(diagnostic push)
+            MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wtautological-constant-compare")
+            auto isnan = [](T v) { return std::isnan(v); };
+            MADNESS_PRAGMA_CLANG(diagnostic pop)
             if (NDIM == 1) {
                 for (int i=0; i<npt; ++i) {
                     c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
                     fval(i) = f(c);
-                    MADNESS_ASSERT(!std::isnan(fval(i)));
+                    MADNESS_ASSERT(!isnan(fval(i)));
                 }
             }
             else if (NDIM == 2) {
@@ -2348,7 +2356,7 @@ namespace madness {
                     for (int j=0; j<npt; ++j) {
                         c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
                         fval(i,j) = f(c);
-                        MADNESS_ASSERT(!std::isnan(fval(i,j)));
+                        MADNESS_ASSERT(!isnan(fval(i,j)));
                     }
                 }
             }
@@ -2360,7 +2368,7 @@ namespace madness {
                         for (int k=0; k<npt; ++k) {
                             c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
                             fval(i,j,k) = f(c);
-                            MADNESS_ASSERT(!std::isnan(fval(i,j,k)));
+                            MADNESS_ASSERT(!isnan(fval(i,j,k)));
                         }
                     }
                 }
@@ -2375,7 +2383,7 @@ namespace madness {
                             for (int m=0; m<npt; ++m) {
                                 c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
                                 fval(i,j,k,m) = f(c);
-                                MADNESS_ASSERT(!std::isnan(fval(i,j,k,m)));
+                                MADNESS_ASSERT(!isnan(fval(i,j,k,m)));
                             }
                         }
                     }
@@ -2393,7 +2401,7 @@ namespace madness {
                                 for (int n=0; n<npt; ++n) {
                                     c[4] = cell(4,0) + h*cell_width[4]*(l[4] + qx(n)); // yy
                                     fval(i,j,k,m,n) = f(c);
-                                    MADNESS_ASSERT(!std::isnan(fval(i,j,k,m,n)));
+                                    MADNESS_ASSERT(!isnan(fval(i,j,k,m,n)));
                                 }
                             }
                         }
@@ -2414,7 +2422,7 @@ namespace madness {
                                     for (int p=0; p<npt; ++p) {
                                         c[5] = cell(5,0) + h*cell_width[5]*(l[5] + qx(p)); // zz
                                         fval(i,j,k,m,n,p) = f(c);
-                                        MADNESS_ASSERT(!std::isnan(fval(i,j,k,m,n,p)));
+                                        MADNESS_ASSERT(!isnan(fval(i,j,k,m,n,p)));
                                     }
                                 }
                             }
@@ -2883,7 +2891,7 @@ namespace madness {
                 typename dcT::iterator it = fut.get();
                 nodeT& node = it->second;
                 if (node.has_coeff()) {
-                    Future<T>(ref).set(eval_cube(key.level(), x, node.coeff().full_tensor_copy()));
+                    Future<T>(ref).set(eval_cube(key.level(), x, node.coeff().full_tensor()));
                     return;
                 }
                 else {
@@ -2916,7 +2924,7 @@ namespace madness {
                 if (it != coeffs.end()) {
                     nodeT& node = it->second;
                     if (node.has_coeff()) {
-                        return std::pair<bool,T>(true,eval_cube(key.level(), x, node.coeff().full_tensor_copy()));
+                        return std::pair<bool,T>(true,eval_cube(key.level(), x, node.coeff().full_tensor()));
                     }
                 }
             }
@@ -3167,7 +3175,7 @@ template <typename T, std::size_t NDIM>
                 typename dcT::const_iterator it = coeffs.find(cdata.key0).get();
                 if (it != coeffs.end()) {
                     const nodeT& node = it->second;
-                    if (node.has_coeff()) sum = node.coeff().full_tensor_copy()(v0);
+                    if (node.has_coeff()) sum = node.coeff().full_tensor()(v0);
                 }
             }
         }
@@ -3175,13 +3183,16 @@ template <typename T, std::size_t NDIM>
             for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
-                if (node.has_coeff()) sum += node.coeff().full_tensor_copy()(v0)*pow(0.5,NDIM*key.level()*0.5);
+                if (node.has_coeff()) sum += node.coeff().full_tensor()(v0)*pow(0.5,NDIM*key.level()*0.5);
             }
         }
         return sum*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
     }
 
 
+    // Return whether l is in the interval [0, 2n).
+    // If is_periodic, then this is checked modulo 2n. The function always
+    // returns true, but l is *modified* to be in the interval.
     static inline bool enforce_bc(bool is_periodic, Level n, Translation& l) {
       const Translation two2n = 1ul << n;
       if (l < 0) {
@@ -3207,6 +3218,9 @@ template <typename T, std::size_t NDIM>
       return l >= 0 && l < two2n;
     }
 
+    // Return the key corresponding to `key` + `disp`.
+    // If is_periodic, then translations in the key are taken modulo the box
+    // dimensions. Otherwise, displacements outside the box are invalid.
     template <typename T, std::size_t NDIM>
     Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, const Key<NDIM>& disp, const array_of_bools<NDIM>& is_periodic) const {
         Vector<Translation,NDIM> l = key.translation();
@@ -3335,8 +3349,7 @@ template <typename T, std::size_t NDIM>
         const Level n = key.level();
         const Vector<Translation,NDIM>& l = key.translation();
         const double twon = pow(2.0,double(n));
-        const tensorT& coeff = coeffs.find(key).get()->second.coeff().full_tensor_copy(); // Ugh!
-        //        const tensorT coeff = coeffs.find(key).get()->second.full_tensor_copy(); // Ugh!
+        const tensorT& coeff = coeffs.find(key).get()->second.coeff().full_tensor(); // Ugh!
         long ind[NDIM];
         coordT x;
 
@@ -3545,10 +3558,16 @@ template <typename T, std::size_t NDIM>
     }
 
     template <std::size_t NDIM>
+    std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::make_default_pmap(World& world) {
+        // return std::make_shared<WorldDCDefaultPmap< Key<NDIM> >>(world);
+        return std::make_shared<LevelPmap< Key<NDIM> >>(world);
+        // return std::make_shared<SimplePmap< Key<NDIM> >>(world);
+    }
+
+    template <std::size_t NDIM>
     void FunctionDefaults<NDIM>::set_default_pmap(World& world) {
-        //pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new WorldDCDefaultPmap< Key<NDIM> >(world));
-        pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new madness::LevelPmap< Key<NDIM> >(world));
-        //pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new SimplePmap< Key<NDIM> >(world));
+        pmap = make_default_pmap(world);
+        pmap_nproc = world.nproc();
     }
 
 
@@ -3597,6 +3616,7 @@ template <typename T, std::size_t NDIM>
     template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_volume = 1.;
     template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_min_width = 1.;
     template <std::size_t NDIM> std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::pmap;
+    template <std::size_t NDIM> int FunctionDefaults<NDIM>::pmap_nproc{-1};
 
     template <std::size_t NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp;
     template <std::size_t NDIM> array_of_bools<NDIM> Displacements<NDIM>::periodic_axes{false};

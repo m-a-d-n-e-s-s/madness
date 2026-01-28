@@ -49,7 +49,7 @@ namespace madness {
         {
             if (log_errors && err >= err_tolerance) cout << "Testing accuracy of rnlp against results from Maple" << endl;
             double a = 1e-4;
-            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,false);
+            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,LatticeRange(false));
             n = 0;
             l=-2;
             r = g.rnlp(n,l);
@@ -368,7 +368,7 @@ namespace madness {
         }
         {
             double a = 1e-2;
-            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,false);
+            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,LatticeRange(false));
             n = 0;
             l=-2;
             r = g.rnlp(n,l);
@@ -762,7 +762,7 @@ namespace madness {
         }
         {
             double a = 1e0;
-            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,false);
+            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,LatticeRange(false));
             n = 0;
             l=-2;
             r = g.rnlp(n,l);
@@ -1256,7 +1256,7 @@ namespace madness {
         }
         {
             double a = 1e2;
-            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,false);
+            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,LatticeRange(false));
             n = 0;
             l=-1;
             r = g.rnlp(n,l);
@@ -1751,7 +1751,7 @@ namespace madness {
         }
         {
             double a = 1e4;
-            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,false);
+            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,LatticeRange(false));
             n = 0;
             l=-1;
             r = g.rnlp(n,l);
@@ -2338,7 +2338,7 @@ namespace madness {
         }
         {
             double a = 1e6;
-            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,false);
+            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,LatticeRange(false));
             n = 0;
             l=-1;
             r = g.rnlp(n,l);
@@ -2838,7 +2838,7 @@ namespace madness {
         }
         {
             double a = 1e8;
-            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,false);
+            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,LatticeRange(false));
             n = 0;
             l=-1;
             r = g.rnlp(n,l);
@@ -3319,7 +3319,7 @@ namespace madness {
         }
         {
             double a = 1e10;
-            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,false);
+            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,LatticeRange(false));
             n = 0;
             l=-1;
             r = g.rnlp(n,l);
@@ -3819,8 +3819,8 @@ namespace madness {
         auto ia = 0;
         for (auto alog10 : alog10s) {
           const auto a = pow(10., alog10);
-          GaussianConvolution1D<double> tg(8, sqrt(a / pi), a, 0, false, 0., 1);
-          GaussianConvolution1D<double> g(8, sqrt(a / pi), a, 0, false, 0.);
+          GaussianConvolution1D<double> tg(8, sqrt(a / pi), a, 0, LatticeRange(false), 0., 1);
+          GaussianConvolution1D<double> g(8, sqrt(a / pi), a, 0, LatticeRange(false), 0.);
 
           auto in = 0;
           for (auto n : ns) {
@@ -3855,7 +3855,7 @@ namespace madness {
         const auto D = 1;
         constexpr auto k = 12;
         GaussianConvolution1D<double> tg(
-            k, sqrt(a / pi), a, /* deriv = */ 0, /* lattice summed? */ false,
+            k, sqrt(a / pi), a, /* deriv = */ 0, /* lattice summed? */ LatticeRange(false),
             /* bloch_k = */ 0., /* range limit */ D);
         /// these DO include 2^{n/2} factor baked into the GaussianConvolution1D
         const double tr_n3_lm2_ref_values[] = {
@@ -4080,9 +4080,9 @@ namespace madness {
           auto iσ = 0;
           for (auto σlog10 : σlog10s) {
             const auto σ = pow(10., σlog10);
-            GaussianConvolution1D<double> tg(8, sqrt(a / pi), a, 0, false, 0.,
+            GaussianConvolution1D<double> tg(8, sqrt(a / pi), a, 0, LatticeRange(false), 0.,
                                              KernelRange(1, σ));
-            GaussianConvolution1D<double> g(8, sqrt(a / pi), a, 0, false, 0.);
+            GaussianConvolution1D<double> g(8, sqrt(a / pi), a, 0, LatticeRange(false), 0.);
 
             auto in = 0;
             for (auto n : ns) {
@@ -4118,6 +4118,10 @@ namespace madness {
       return (maxerr < err_tolerance);
     }
 
+MADNESS_PRAGMA_GCC(diagnostic push)
+MADNESS_PRAGMA_GCC(diagnostic ignored "-Wmaybe-uninitialized")
+MADNESS_PRAGMA_CLANG(diagnostic push)
+MADNESS_PRAGMA_CLANG(diagnostic ignored "-Wmaybe-uninitialized")
     bool test_rnlij_rangelimited(const bool log_errors) {
       double maxerr = 0.0;
       const double pi = 3.14159265358979323846264338328;
@@ -4321,7 +4325,7 @@ namespace madness {
         auto ia = 0;
         for (auto alog10 : alog10s) {
           const auto a = pow(10., alog10);
-          GaussianConvolution1D<double> tg(8, sqrt(a / pi), a, 0, false, 0., D);
+          GaussianConvolution1D<double> tg(8, sqrt(a / pi), a, 0, LatticeRange(false), 0., D);
 
           auto in = 0;
           for (auto n : ns) {
@@ -4357,7 +4361,7 @@ namespace madness {
         const auto D = 1;
         constexpr auto k = 7;
         GaussianConvolution1D<double> tg(
-            k, sqrt(a / pi), a, /* deriv = */ 0, /* lattice summed? */ false,
+            k, sqrt(a / pi), a, /* deriv = */ 0, /* lattice summed? */ LatticeRange(false),
             /* bloch_k = */ 0., /* range limit */ D);
         const double tr_n13_l_ref_values[][k] = {{1.720694374332704e-6,9.9344341073827e-7,3.913492949110081e-14,
                                                    -8.065857269152156e-19,-4.655117952410868e-26,5.699943000644617e-31,
@@ -4402,6 +4406,9 @@ namespace madness {
       }
 
       return (maxerr < err_tolerance);
-    }
+  }
+
+MADNESS_PRAGMA_CLANG(diagnostic pop)
+MADNESS_PRAGMA_GCC(diagnostic pop)
 
 }  // namespace madness

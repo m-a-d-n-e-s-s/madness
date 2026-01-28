@@ -810,10 +810,10 @@ template<size_t NDIM>
     public:
 
     	/// default ctor
-    	CoeffTracker() : impl(), key_(), is_leaf_(unknown), coeff_() {}
+    	CoeffTracker() : impl(), key_(0), is_leaf_(unknown), coeff_() {} // Initialize key to avoid warnings of possible unititialied use
 
     	/// the initial ctor making the root key
-    	CoeffTracker(const implT* impl) : impl(impl), key_(), is_leaf_(no) {
+    	CoeffTracker(const implT* impl) : impl(impl), key_(0), is_leaf_(no), coeff_() {
             if (impl) key_=impl->get_cdata().key0;
     	}
 
@@ -1122,6 +1122,18 @@ template<size_t NDIM>
         	coeffs.replicate(fence);
         }
 
+        void replicate_on_hosts(bool fence=true) {
+            coeffs.replicate_on_hosts(fence);
+        }
+
+        // remove all coeffs that are not local according to pmap
+        void undo_replicate(bool fence=true) {
+            std::list<keyT> keys;
+            for (const auto& [key, node] : coeffs) if (not coeffs.is_local(key)) keys.push_back(key);
+            for (const auto& key : keys) coeffs.erase(key);
+            if (fence) world.gop.fence();
+        }
+
         void distribute(std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > newmap) const {
         	auto currentmap=coeffs.get_pmap();
         	currentmap->redistribute(world,newmap);
@@ -1135,27 +1147,37 @@ template<size_t NDIM>
             if (world.id()==other.world.id())
                 copy_coeffs_same_world(other,false);
             else
-                copy_coeffs_different_world(other,false);
+                copy_coeffs_different_world(other);
             if (fence) world.gop.fence();
         }
 
         /// Copy coefficients from other funcimpl with possibly different world and on a different node
         template<typename Q>
-        void copy_coeffs_different_world(const FunctionImpl<Q,NDIM>& other, bool fence) {
-            for (ProcessID pid=0; pid<other.world.size(); ++pid) {
-                copy_remote_coeffs_from_pid<Q>(pid, other, false);
+        void copy_coeffs_different_world(const FunctionImpl<Q,NDIM>& other) {
+
+            // copy coeffs from (a subset of) other's world
+
+            // if other's data is distributed, we need to fetch from all ranks
+            if (other.get_coeffs().is_distributed()) {
+                for (ProcessID pid=0; pid<other.world.size(); ++pid) {
+                    copy_remote_coeffs_from_pid<Q>(pid, other);
+                }
+
+            // if other's data is replicated, all coeffs are on the rank that owns key0
+            } else if (other.get_coeffs().is_replicated() or other.get_coeffs().is_host_replicated()) {
+                auto key0=other.cdata.key0;
+                copy_remote_coeffs_from_pid<Q>(other.get_pmap()->owner(key0), other);
             }
         }
 
         /// Copy coefficients from other funcimpl with possibly different world and on a different node
         /// to this
         template <typename Q>
-        void copy_remote_coeffs_from_pid(const ProcessID pid, const FunctionImpl<Q,NDIM>& other, bool fence) {
+        void copy_remote_coeffs_from_pid(const ProcessID pid, const FunctionImpl<Q,NDIM>& other) {
             typedef FunctionImpl<Q,NDIM> implQ; ///< Type of this class (implementation)
-            auto v=other.task(pid, &implQ::serialize_remote_coeffs).get();
-            archive::VectorInputArchive ar(v);
-            ar & get_coeffs();
-            if (fence) world.gop.fence();
+            // std::vector<unsigned char> v=other.task(pid, &implQ::serialize_remote_coeffs).get();
+            auto v=other.task(pid, &implQ::serialize_remote_coeffs);
+            world.taskq.add(*this, &implT::insert_serialized_coeffs,v);
         }
 
         /// invoked by copy_remote_coeffs_from_pid to serialize *local* coeffs
@@ -1164,6 +1186,12 @@ template<size_t NDIM>
             archive::VectorOutputArchive ar(v);
             ar & get_coeffs();
             return v;
+        }
+
+        /// insert coeffs from vector archive into this
+        void insert_serialized_coeffs(std::vector<unsigned char>& v) {
+            archive::VectorInputArchive ar(v);
+            ar & get_coeffs();
         }
 
         /// Copy coeffs from other into self
@@ -3967,7 +3995,7 @@ template<size_t NDIM>
 					implT::tnorm(coeff_rhs,&rlo,&rhi);
 					error = hi*rlo + rhi*lo + rhi*hi;
 					tensorT val_rhs=fcf.coeffs2values(key, coeff_rhs);
-					val_rhs.emul(val_lhs.full_tensor_copy());
+					val_rhs.emul(val_lhs.full_tensor());
 					return fcf.values2coeffs(key,val_rhs);
         		} else {	// use quadrature of order k+1
 
@@ -3982,7 +4010,7 @@ template<size_t NDIM>
 
 		            // coeffs2values for lhs: k -> npt=k+1
 		            tensorT coeff_lhs_k1(cdata_npt.vk);
-		            coeff_lhs_k1(cdata.s0)=coeff_lhs.full_tensor_copy();
+		            coeff_lhs_k1(cdata.s0)=std::as_const(coeff_lhs).full_tensor();
 		            tensorT val_lhs_k1=fcf_hi_npt.coeffs2values(key,coeff_lhs_k1);
 
 		            // multiply
@@ -4892,12 +4920,12 @@ template<size_t NDIM>
           // - if operator is lattice-summed then treat this as nonperiodic (i.e. tell neighbor() to stay in simulation cell)
           // - if operator is NOT lattice-summed then obey BC (i.e. tell neighbor() to go outside the simulation cell along periodic dimensions)
           // - BUT user can force operator to treat its arguments as non-periodic (`op.set_domain_periodicity({true,true,true})`) so ... which dimensions of this function are treated as periodic by op?
-          const array_of_bools<NDIM> this_is_treated_by_op_as_periodic =
+          const array_of_bools<NDIM> func_is_treated_by_op_as_periodic =
               (op->particle() == 1)
                   ? array_of_bools<NDIM>{false}.or_front(
-                        op->domain_is_periodic())
+                        op->func_domain_is_periodic())
                   : array_of_bools<NDIM>{false}.or_back(
-                        op->domain_is_periodic());
+                        op->func_domain_is_periodic());
 
           const auto default_distance_squared = [&](const auto &displacement)
               -> std::uint64_t {
@@ -4927,8 +4955,8 @@ template<size_t NDIM>
             int nused = 1;  // Counts #used at each distance
             std::optional<std::uint64_t> distsq;
 
-            // displacements to the kernel range boundary are typically same magnitude (modulo variation estimate the norm of the resulting contributions and skip all if one is too small
-            // this
+            // displacements to the kernel range boundary are typically same magnitude (modulo variation)
+            // estimate the norm of the resulting contributions and skip all if one is too small
             if constexpr (std::is_same_v<std::decay_t<decltype(displacements)>,BoxSurfaceDisplacementRange<opdim>>) {
               const auto &probing_displacement =
                   displacements.probing_displacement();
@@ -4969,7 +4997,7 @@ template<size_t NDIM>
                 distsq = dsq;
               }
 
-              keyT dest = neighbor(key, d, this_is_treated_by_op_as_periodic);
+              keyT dest = neighbor(key, d, func_is_treated_by_op_as_periodic);
               if (dest.is_valid()) {
                 nvalid++;
                 const double opnorm = op->norm(key.level(), displacement, source);
@@ -5015,19 +5043,19 @@ template<size_t NDIM>
               }
             }
 
-            typename BoxSurfaceDisplacementRange<opdim>::Filter filter;
+            typename BoxSurfaceDisplacementRange<opdim>::Validator validator;
             // skip surface displacements that take us outside of the domain and/or were included in regular displacements
             // N.B. for lattice-summed axes the "filter" also maps the displacement back into the simulation cell
             if (max_distsq_reached)
-              filter = BoxSurfaceDisplacementFilter<opdim>(/* domain_is_infinite= */ op->domain_is_periodic(), /* domain_is_periodic= */ op->lattice_summed(), range, default_distance_squared, *max_distsq_reached);
+              validator = BoxSurfaceDisplacementValidator<opdim>(/* is_infinite_domain= */ op->func_domain_is_periodic(), /* is_lattice_summed= */ op->lattice_summed(), range, default_distance_squared, *max_distsq_reached);
 
             // this range iterates over the entire surface layer(s), and provides a probing displacement that can be used to screen out the entire box
             auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_front<opdim>();
             BoxSurfaceDisplacementRange<opdim>
                 range_boundary_face_displacements(opkey, box_radius,
                                                   surface_thickness,
-                                                  op->lattice_summed(),  // along lattice-summed axes treat the box as periodic, make displacements to one side of the box
-                                                  filter);
+                                                  op->lattice_summed(),
+                                                  validator);
             for_each(
                 range_boundary_face_displacements,
                 // surface displacements are not screened, all are included
@@ -5495,7 +5523,7 @@ template<size_t NDIM>
             // Subtract to get the error ... the original coeffs are in the order k
             // basis but we just computed the coeffs in the order npt(=k+1) basis
             // so we can either use slices or an iterator macro.
-            const tensorT coeff = node.coeff().full_tensor_copy();
+            const tensorT coeff = node.coeff().full_tensor();
             ITERATOR(coeff,fval(IND)-=coeff(IND););
             // flo note: we do want to keep a full tensor here!
 
@@ -6038,11 +6066,13 @@ template<size_t NDIM>
        }
 #endif
 
-        static double conj(float x) {
+        template <typename Real>
+        static std::enable_if_t<std::is_floating_point_v<Real>, Real> conj(const Real x) {
             return x;
         }
 
-        static std::complex<double> conj(const std::complex<double> x) {
+        template <typename Real>
+        static std::complex<Real> conj(const std::complex<Real>& x) {
             return std::conj(x);
         }
 
@@ -6285,7 +6315,7 @@ template<size_t NDIM>
             for (auto it=get_coeffs().begin(); it!=get_coeffs().end(); ++it) {
                 const Key<NDIM>& key=it->first;
                 const FunctionNode<T,NDIM>& node=it->second;
-                if ((key.level()==n) and (has_d_coeffs(node.coeff()))) {
+                if ((key.level()==int(n)) and (has_d_coeffs(node.coeff()))) {
                     ij_list.insert(key);
                     Vector<Translation,CDIM> j_trans;
                     for (std::size_t i=0; i<CDIM; ++i) j_trans[i]=key.translation()[v[i]];

@@ -592,7 +592,7 @@ namespace madness {
             return const_iterator(this,false);
         }
 
-        hashfunT& get_hash() const { return hashfun; }
+        const hashfunT& get_hash() const { return hashfun; }
 
         void print_stats() const {
             for (unsigned int i=0; i<nbins; ++i) {

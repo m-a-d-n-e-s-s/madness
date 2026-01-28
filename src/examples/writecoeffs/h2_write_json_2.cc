@@ -119,7 +119,7 @@ int main(int argc, char **argv) {
     iterate(world, potential, psi, eps);
   }
 
-  using fio = FunctionIO<double, 3>;
+  //using fio = FunctionIO<double, 3>;
   {
     double norm = psi.norm2();
     if (world.rank() == 0)
