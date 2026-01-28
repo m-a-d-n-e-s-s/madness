@@ -4010,7 +4010,7 @@ template<size_t NDIM>
 
 		            // coeffs2values for lhs: k -> npt=k+1
 		            tensorT coeff_lhs_k1(cdata_npt.vk);
-		            coeff_lhs_k1(cdata.s0)=coeff_lhs.full_tensor();
+		            coeff_lhs_k1(cdata.s0)=std::as_const(coeff_lhs).full_tensor();
 		            tensorT val_lhs_k1=fcf_hi_npt.coeffs2values(key,coeff_lhs_k1);
 
 		            // multiply
