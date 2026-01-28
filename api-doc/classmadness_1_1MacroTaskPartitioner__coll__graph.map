@@ -1,0 +1,5 @@
+<map id="madness::MacroTaskPartitioner" name="madness::MacroTaskPartitioner">
+<area shape="rect" id="Node000001" title="partition one (two) vectors into 1D (2D) batches." alt="" coords="5,93,231,119"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="89,5,147,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="121,45,121,93,115,93,115,45"/>
+</map>

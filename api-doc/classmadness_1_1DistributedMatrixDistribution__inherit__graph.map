@@ -1,0 +1,7 @@
+<map id="madness::DistributedMatrixDistribution" name="madness::DistributedMatrixDistribution">
+<area shape="rect" id="Node000001" title=" " alt="" coords="128,5,331,45"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1DistributedMatrix.html" title=" " alt="" coords="5,93,208,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="193,55,135,95,132,91,190,51"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1DistributedMatrix.html" title="Manages data associated with a row/column/block distributed array." alt="" coords="233,101,474,126"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="270,51,338,98,335,103,267,56"/>
+</map>

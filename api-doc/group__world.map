@@ -1,0 +1,14 @@
+<map id="Distributed computing environment (World and its relations)" name="Distributed computing environment (World and its relations)">
+<area shape="rect" id="Node000005" href="$group__atomics.html" title=" " alt="" coords="521,5,662,31"/>
+<area shape="rect" id="Node000003" href="$group__function.html" title=" " alt="" coords="553,55,630,80"/>
+<area shape="rect" id="Node000006" href="$group__futures.html" title=" " alt="" coords="556,104,627,129"/>
+<area shape="rect" id="Node000010" href="$group__hashing.html" title=" " alt="" coords="554,153,629,179"/>
+<area shape="rect" id="Node000011" href="$group__mpi.html" title=" " alt="" coords="510,203,673,243"/>
+<area shape="rect" id="Node000012" href="$group__mutexes.html" title=" " alt="" coords="553,268,630,293"/>
+<area shape="rect" id="Node000002" href="$group__parallel__runtime.html" title=" " alt="" coords="5,233,168,273"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="217,225,400,280"/>
+<area shape="rect" id="Node000008" href="$group__taskq.html" title=" " alt="" coords="544,317,639,343"/>
+<area shape="rect" id="Node000004" href="$group__tensor.html" title=" " alt="" coords="559,367,623,392"/>
+<area shape="rect" id="Node000007" href="$group__world__object.html" title=" " alt="" coords="508,417,675,457"/>
+<area shape="rect" id="Node000009" href="$group__worlddc.html" title=" " alt="" coords="554,481,629,507"/>
+</map>

@@ -1,0 +1,15 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$structmadness_1_1OptimizerInterface.html" title="The interface to be provided by optimizers." alt="" coords="5,129,216,155"/>
+<area shape="rect" id="Node000001" href="$classMySteepestDescent.html" title=" " alt="" coords="297,5,449,31"/>
+<area shape="poly" id="edge357_Node000000_Node000001" title=" " alt="" coords="137,118,193,78,263,40,297,28,298,33,265,44,195,83,140,123"/>
+<area shape="rect" id="Node000002" href="$classQuasiNewton.html" title="Optimization via quasi&#45;Newton (BFGS or SR1 update)" alt="" coords="318,55,427,80"/>
+<area shape="poly" id="edge358_Node000000_Node000002" title=" " alt="" coords="159,122,263,89,317,76,318,81,265,94,160,127"/>
+<area shape="rect" id="Node000003" href="$classSteepestDescent.html" title="Optimization via steepest descent." alt="" coords="307,104,439,129"/>
+<area shape="poly" id="edge359_Node000000_Node000003" title=" " alt="" coords="229,128,306,120,307,126,230,133"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1MolecularOptimizer.html" title="Molecular optimizer derived from the QuasiNewton optimizer." alt="" coords="264,153,481,179"/>
+<area shape="poly" id="edge360_Node000000_Node000004" title=" " alt="" coords="230,150,264,153,264,159,229,156"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1QuasiNewton.html" title="Optimization via quasi&#45;Newton (BFGS or SR1 update)" alt="" coords="285,203,461,228"/>
+<area shape="poly" id="edge361_Node000000_Node000005" title=" " alt="" coords="164,157,265,187,314,200,313,205,263,193,162,162"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1SteepestDescent.html" title="Unconstrained minimization via steepest descent." alt="" coords="273,252,472,277"/>
+<area shape="poly" id="edge362_Node000000_Node000006" title=" " alt="" coords="140,161,196,200,265,237,303,249,301,254,263,242,193,204,137,165"/>
+</map>

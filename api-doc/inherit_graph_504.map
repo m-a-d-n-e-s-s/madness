@@ -1,0 +1,7 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1Operator.html" title=" " alt="" coords="5,16,172,71"/>
+<area shape="rect" id="Node000001" href="$classComplexVecIdentOp.html" title="the identity operator for complex vectors" alt="" coords="223,5,378,31"/>
+<area shape="poly" id="edge335_Node000000_Node000001" title=" " alt="" coords="185,29,223,25,224,30,186,34"/>
+<area shape="rect" id="Node000002" href="$classComplexVecLinearOp.html" title="an arbitrary operator for complex vectors" alt="" coords="220,55,381,80"/>
+<area shape="poly" id="edge336_Node000000_Node000002" title=" " alt="" coords="186,52,220,56,220,61,185,57"/>
+</map>

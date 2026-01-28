@@ -1,0 +1,9 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1gridbase.html" title=" " alt="" coords="5,63,151,88"/>
+<area shape="rect" id="Node000001" href="$classmadness_1_1dftgrid.html" title=" " alt="" coords="199,5,396,31"/>
+<area shape="poly" id="edge273_Node000000_Node000001" title=" " alt="" coords="139,56,198,41,246,28,248,33,199,46,140,62"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1molecular__grid.html" title="given a molecule, return a suitable grid" alt="" coords="220,55,375,95"/>
+<area shape="poly" id="edge274_Node000000_Node000002" title=" " alt="" coords="165,73,220,73,220,78,165,78"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1randomgrid.html" title="grid with random points around the origin, with a Gaussian distribution" alt="" coords="215,119,379,159"/>
+<area shape="poly" id="edge275_Node000000_Node000003" title=" " alt="" coords="136,89,229,117,227,122,135,95"/>
+</map>

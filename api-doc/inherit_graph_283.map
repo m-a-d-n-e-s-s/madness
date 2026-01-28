@@ -1,0 +1,21 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$structmadness_1_1detail_1_1memfunc__enabler__base.html" title=" " alt="" coords="5,277,204,332"/>
+<area shape="rect" id="Node000001" href="$structmadness_1_1detail_1_1memfunc__enabler.html" title=" " alt="" coords="252,285,451,325"/>
+<area shape="poly" id="edge242_Node000000_Node000001" title=" " alt="" coords="218,302,252,302,252,307,218,307"/>
+<area shape="rect" id="Node000002" href="$structmadness_1_1detail_1_1memfunc__enabler_3_01const_01objT_01_5_00_01memfnT_01_4.html" title=" " alt="" coords="506,5,702,60"/>
+<area shape="poly" id="edge243_Node000001_Node000002" title=" " alt="" coords="363,270,383,226,412,172,450,117,497,69,514,58,517,62,500,73,454,120,417,175,388,228,368,273"/>
+<area shape="rect" id="Node000003" href="$structmadness_1_1detail_1_1memfunc__enabler_3_01const_01objT_01_5const_00_01memfnT_01_4.html" title=" " alt="" coords="499,84,709,139"/>
+<area shape="poly" id="edge244_Node000001_Node000003" title=" " alt="" coords="373,272,426,210,460,177,497,148,517,137,519,141,500,152,463,181,429,213,377,275"/>
+<area shape="rect" id="Node000004" href="$structmadness_1_1detail_1_1memfunc__enabler_3_01const_01std_1_1shared__ptr_3_01objT_01_4_01_6_00_01memfnT_01_4.html" title=" " alt="" coords="502,163,706,217"/>
+<area shape="poly" id="edge245_Node000001_Node000004" title=" " alt="" coords="399,276,498,226,525,215,527,220,500,231,401,281"/>
+<area shape="rect" id="Node000005" href="$structmadness_1_1detail_1_1memfunc__enabler_3_01const_01std_1_1shared__ptr_3_01objT_01_4_00_01memfnT_01_4.html" title=" " alt="" coords="502,241,706,296"/>
+<area shape="poly" id="edge246_Node000001_Node000005" title=" " alt="" coords="464,286,502,281,502,286,465,291"/>
+<area shape="rect" id="Node000006" href="$structmadness_1_1detail_1_1memfunc__enabler_3_01objT_01_5_00_01memfnT_01_4.html" title=" " alt="" coords="499,321,709,361"/>
+<area shape="poly" id="edge247_Node000001_Node000006" title=" " alt="" coords="464,318,499,323,498,328,464,323"/>
+<area shape="rect" id="Node000007" href="$structmadness_1_1detail_1_1memfunc__enabler_3_01objT_01_5const_00_01memfnT_01_4.html" title=" " alt="" coords="506,385,702,440"/>
+<area shape="poly" id="edge248_Node000001_Node000007" title=" " alt="" coords="407,328,500,370,531,383,529,388,498,375,405,333"/>
+<area shape="rect" id="Node000008" href="$structmadness_1_1detail_1_1memfunc__enabler_3_01std_1_1shared__ptr_3_01objT_01_4_01_6_00_01memfnT_01_4.html" title=" " alt="" coords="506,464,702,519"/>
+<area shape="poly" id="edge249_Node000001_Node000008" title=" " alt="" coords="379,334,431,392,464,422,500,449,522,461,520,466,497,454,461,426,427,396,375,337"/>
+<area shape="rect" id="Node000009" href="$structmadness_1_1detail_1_1memfunc__enabler_3_01std_1_1shared__ptr_3_01objT_01_4_00_01memfnT_01_4.html" title=" " alt="" coords="506,543,702,597"/>
+<area shape="poly" id="edge250_Node000001_Node000009" title=" " alt="" coords="368,337,389,380,418,431,455,483,500,528,519,540,516,545,497,532,451,486,414,434,384,382,364,339"/>
+</map>

@@ -1,0 +1,25 @@
+<map id="MiniDFT" name="MiniDFT">
+<area shape="rect" id="Node000001" title=" " alt="" coords="1200,124,1275,149"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Molecule.html" title=" " alt="" coords="927,99,1075,124"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="1089,118,1200,130,1199,135,1089,123"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1CorePotentialManager.html" title=" " alt="" coords="443,47,677,72"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="691,68,892,90,931,96,931,101,892,95,691,73"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="119,55,178,80"/>
+<area shape="poly" id="edge6_Node000002_Node000004" title=" " alt="" coords="192,70,305,83,443,95,710,106,927,109,927,114,710,111,442,101,304,89,191,75"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="192,65,419,63,442,63,443,68,419,69,192,70"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1AtomicBasisSet.html" title="Contracted Gaussian basis." alt="" coords="701,5,892,31"/>
+<area shape="poly" id="edge10_Node000009_Node000004" title=" " alt="" coords="191,55,316,34,522,19,701,15,701,20,522,25,316,39,192,61"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1Tensor.html" title=" " alt="" coords="457,224,663,249"/>
+<area shape="poly" id="edge4_Node000002_Node000005" title=" " alt="" coords="676,245,731,243,787,234,841,217,890,189,900,177,902,163,904,148,914,133,932,122,935,126,918,137,909,150,907,164,904,179,894,193,843,222,788,240,731,248,677,250"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1BaseTensor.html" title="The base class for tensors defines generic capabilities." alt="" coords="67,224,230,249"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="244,234,457,234,457,239,244,239"/>
+<area shape="rect" id="Node000007" href="$structmadness_1_1Molecule_1_1GeometryParameters.html" title=" " alt="" coords="479,159,641,199"/>
+<area shape="poly" id="edge7_Node000002_Node000007" title=" " alt="" coords="654,174,768,164,891,142,915,133,952,121,953,127,917,138,893,147,769,169,655,179"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1QCCalculationParametersBase.html" title="class for holding the parameters for calculation" alt="" coords="5,167,292,192"/>
+<area shape="poly" id="edge8_Node000007_Node000008" title=" " alt="" coords="306,177,479,177,479,182,306,182"/>
+<area shape="poly" id="edge9_Node000001_Node000009" title=" " alt="" coords="901,30,1034,58,1107,77,1177,101,1217,121,1215,126,1175,106,1105,82,1033,63,900,36"/>
+<area shape="rect" id="Node000010" href="$structBoysLocalization.html" title=" " alt="" coords="935,148,1067,173"/>
+<area shape="poly" id="edge11_Node000001_Node000010" title=" " alt="" coords="1081,161,1128,160,1176,154,1203,147,1204,152,1176,159,1128,165,1081,166"/>
+<area shape="rect" id="Node000011" href="$classmadness_1_1XCfunctional.html" title="Simplified interface to XC functionals." alt="" coords="916,197,1087,223"/>
+<area shape="poly" id="edge12_Node000001_Node000011" title=" " alt="" coords="1100,201,1138,193,1175,181,1201,165,1222,148,1225,152,1204,170,1177,186,1140,198,1101,206"/>
+</map>

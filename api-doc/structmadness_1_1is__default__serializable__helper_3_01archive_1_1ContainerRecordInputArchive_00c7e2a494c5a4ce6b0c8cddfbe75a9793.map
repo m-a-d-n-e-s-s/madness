@@ -1,0 +1,5 @@
+<map id="madness::is_default_serializable_helper&lt; archive::ContainerRecordInputArchive, T, std::enable_if_t&lt; is_trivially_serializable&lt; T &gt;::value &gt; &gt;" name="madness::is_default_serializable_helper&lt; archive::ContainerRecordInputArchive, T, std::enable_if_t&lt; is_trivially_serializable&lt; T &gt;::value &gt; &gt;">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,79,240,177"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="67,5,179,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="125,44,125,78,120,78,120,44"/>
+</map>

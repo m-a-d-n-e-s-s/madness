@@ -1,0 +1,1723 @@
+\documentclass{article}
+\usepackage{ifthen}
+\usepackage{epsfig}
+\usepackage[utf8]{inputenc}
+\usepackage{xcolor}
+\usepackage{newunicodechar}
+  \makeatletter
+    \def\doxynewunicodechar#1#2{%
+    \@tempswafalse
+    \edef\nuc@tempa{\detokenize{#1}}%
+    \if\relax\nuc@tempa\relax
+      \nuc@emptyargerr
+    \else
+      \edef\@tempb{\expandafter\@car\nuc@tempa\@nil}%
+      \nuc@check
+      \if@tempswa
+        \@namedef{u8:\nuc@tempa}{#2}%
+      \fi
+    \fi
+  }
+  \makeatother
+  \doxynewunicodechar{⁻}{${}^{-}$}% Superscript minus
+  \doxynewunicodechar{²}{${}^{2}$}% Superscript two
+  \doxynewunicodechar{³}{${}^{3}$}% Superscript three
+
+\pagestyle{empty}
+\begin{document}
+$[0,1]^{2}$
+\pagebreak
+
+$(0,0,0,1)$
+\pagebreak
+
+$(0,1,0,2)$
+\pagebreak
+
+\[
+\int_{0}^{10} \sin (x) \mathit{dx} = 1 - \cos(10) \doteq 1.8390715
+\]
+\pagebreak
+
+$ f(x) $
+\pagebreak
+
+$\{\phi _{li}^{n}(x)\}$
+\pagebreak
+
+\[
+s_{li}^{n} = \int \phi _{li}^{n}(x) f(x) \mathit{dx}
+\]
+\pagebreak
+
+$\sin(x)$
+\pagebreak
+
+$x$
+\pagebreak
+
+$(x, y, z)$
+\pagebreak
+
+$(r, \theta, \phi)$
+\pagebreak
+
+$x\in [0,10]$
+\pagebreak
+
+\[
+\nabla^{2} u = -4\pi\rho \to u=G \ast \rho,
+\]
+\pagebreak
+
+$G(r-r')=\frac{1}{|r-r'|}$
+\pagebreak
+
+$V$
+\pagebreak
+
+\[
+- \frac{1}{2} \nabla^{2} \psi + V\psi = E \psi \to \psi = -2G \ast V\psi,
+\]
+\pagebreak
+
+$G(r-r')=\frac{e^{-\sqrt{-2E|r-r'|}}}{4\pi |r-r'|} $
+\pagebreak
+
+$\hat{L}$
+\pagebreak
+
+$N$
+\pagebreak
+
+\[
+\hat{L}u + N(u,t) = \dot{u} \to u(t) = e^{\hat{L} t} u(0) + \int _{0}^{t} e^{\hat{L} (t-t')} N(u,t') \mathit{d}t'.
+\]
+\pagebreak
+
+\[
+\frac{d^{2}}{\mathit{dx}^{2}}e^{i\omega x}=-\omega ^{2}e^{i\omega x}.
+\]
+\pagebreak
+
+$\omega$
+\pagebreak
+
+$k$
+\pagebreak
+
+$1/r$
+\pagebreak
+
+\[
+\exp(-r) \to \exp (-\sqrt{r^{2}+\sigma ^{2}}),
+\]
+\pagebreak
+
+\[
+\theta(x) \to \theta(x, \lambda) = \frac{1}{2} (1 + \tanh\frac{x}{\lambda}),
+\]
+\pagebreak
+
+\[
+\frac{1}{r} \to u(r,c) = \frac{1}{r} \mathrm{erf} \frac{r}{c} + \frac{1}{c\sqrt{\pi}} e^{-\left( \frac{r}{c} \right)^{2}}
+\]
+\pagebreak
+
+\[
+\int_{0}^{\infty} \left(u(r, c) - r^{-1}\right) r^{2} d\mathit{r} = 0.
+\]
+\pagebreak
+
+$c$
+\pagebreak
+
+$10^{12}$
+\pagebreak
+
+$g(f(x))$
+\pagebreak
+
+$f(x)$
+\pagebreak
+
+$g(s)$
+\pagebreak
+
+\[
+V(\rho(x)) = \frac{C}{\rho^{1/3}(x)},
+\]
+\pagebreak
+
+$\rho (x)>0$
+\pagebreak
+
+\begin{eqnarray*}
+V(\rho) & \to & V(S(\rho)) \\
+S(s) & = & \left\{ \begin{array}{ll} s_{0}, & s\le 0 \\ q(s, s_{0}, s_{1}), & 0 < s \le s_{1} \\ s, & s > s_{1} \end{array} \right. \\
+q(s, s_{0}, s_{1}) & = & s_{0} - (-2s_{1} + 3s_{0}) \left( \frac{s}{s_{1}} \right)^{2} + (2s_{0} - s_{1}) \left(\frac{s}{s_{1}}\right)^{3}.
+\end{eqnarray*}
+\pagebreak
+
+$S(s)$
+\pagebreak
+
+$s>s_{1}$
+\pagebreak
+
+$s_{0}$
+\pagebreak
+
+$ \exp(i\omega r)$
+\pagebreak
+
+$L$
+\pagebreak
+
+$\mathcal{O}\left(\left(Lk\omega \right)^{3}\right)$
+\pagebreak
+
+$L=1000$
+\pagebreak
+
+$k=12$
+\pagebreak
+
+$\omega=3$
+\pagebreak
+
+$k=10$
+\pagebreak
+
+$k=30$
+\pagebreak
+
+$k=6$
+\pagebreak
+
+$10^{-n}$
+\pagebreak
+
+$k=n+2$
+\pagebreak
+
+$ \sigma$
+\pagebreak
+
+\[
+\rho = exp(\zeta) \\
+\nabla \rho = \rho \nabla \zeta \\
+\sigma = |\nabla\rho|^2 = |\nabla \zeta|^2 \rho^2 = \chi \rho^2
+\]
+\pagebreak
+
+$ \zeta$
+\pagebreak
+
+$ \chi $
+\pagebreak
+
+$\zeta$
+\pagebreak
+
+$ \sigma/\rho^2 =\chi$
+\pagebreak
+
+\[
+\sigma_\mathrm{pt}=\nabla\rho\cdot\nabla\rho_\mathrm{pt} = \rho\left(\nabla\zeta\cdot\nabla\rho_\mathrm{pt}\right)
+\]
+\pagebreak
+
+\[ \nabla^2 u - p(\varepsilon) S (u-g) = \varphi f, \]
+\pagebreak
+
+$u$
+\pagebreak
+
+$\varepsilon$
+\pagebreak
+
+$p(\varepsilon)$
+\pagebreak
+
+$2/\varepsilon$
+\pagebreak
+
+$S$
+\pagebreak
+
+$g$
+\pagebreak
+
+$\varphi$
+\pagebreak
+
+$f$
+\pagebreak
+
+$R$
+\pagebreak
+
+$g = Y_0^0$
+\pagebreak
+
+$g = Y_1^0$
+\pagebreak
+
+$g = Y_2^0$
+\pagebreak
+
+$ f = 1 $
+\pagebreak
+
+$-G$
+\pagebreak
+
+\[
+z = frac{x}{1 - y^2}
+\]
+\pagebreak
+
+$[0,10]$
+\pagebreak
+
+$y$
+\pagebreak
+
+$z$
+\pagebreak
+
+\[
+f(x) = 2g(x) + 3h(x) - 7g(x)h(x) + 99
+\]
+\pagebreak
+
+$2k$
+\pagebreak
+
+\[
+\left( f \left| g \right. \right) = \int f(x)^\textrm{*} g(x) dx,
+\]
+\pagebreak
+
+$\textrm{*}$
+\pagebreak
+
+\[
+\nabla^{2} u = -4\pi \rho 
+\]
+\pagebreak
+
+$1/\left| r \right|$
+\pagebreak
+
+$n$
+\pagebreak
+
+$f_{i}(x),\; i=0, \ldots, n-1$
+\pagebreak
+
+$\hat{H}$
+\pagebreak
+
+$\mathbf{H}$
+\pagebreak
+
+$\mathbf{S}$
+\pagebreak
+
+\begin{eqnarray*}
+\mathbf{H}_{ij} & = & \left< f_i \left| \hat{H} \right| f_j \right> \\
+\mathbf{S}_{ij} & = & \left< f_i \left|         \right. f_j \right>,
+\end{eqnarray*}
+\pagebreak
+
+\[
+\mathbf{HC}=\mathbf{SC}E
+\]
+\pagebreak
+
+$u_{i}(x)$
+\pagebreak
+
+\[
+\mathbf{u}=\mathbf{fC} \qquad \mathrm{or} \qquad u_{i}(x) = \sum _{j} f_{j}(x) \mathbf{c}_{ji}
+\]
+\pagebreak
+
+\[
+c^2 = a^2 + b^2
+\]
+\pagebreak
+
+\[
+\left( -\frac{1}{2} \nabla^2 + V(r) \right) \psi(r) = E \psi(r)
+\]
+\pagebreak
+
+\[
+V(r) = \frac{1}{2} |r|^2
+\]
+\pagebreak
+
+\[
+\psi(r) = \left( -\frac{1}{2} \nabla^2 - E \right)^{-1} V(r) \psi(r)
+\]
+\pagebreak
+
+\[
+\left(-\nabla^2 + \mu^2 \right) G(r,r'; \mu) = \delta(r-r')
+\]
+\pagebreak
+
+\[
+G(r,r'; \mu) = \frac{e^{-\mu |r-r'|}}{4 \pi |r-r|}
+\]
+\pagebreak
+
+$\mu$
+\pagebreak
+
+$\mu = \sqrt{-2 E}$
+\pagebreak
+
+$\Delta$
+\pagebreak
+
+\[
+\psi(r) = \left( -\frac{1}{2} \nabla^2 - E + \Delta \right)^{-1} \left( V(r) -\Delta\right)  \psi(r)
+\]
+\pagebreak
+
+$\psi(r)=\pi^{-1/4}\exp(-r^2 / 2)$
+\pagebreak
+
+$r=5.3$
+\pagebreak
+
+$\Delta=7$
+\pagebreak
+
+\[
+U(r) = \frac{\Delta^2 (r)}{\rho^{2/3} (r)}
+\]
+\pagebreak
+
+$ \Delta $
+\pagebreak
+
+$ \rho $
+\pagebreak
+
+$ r $
+\pagebreak
+
+$ Delta $
+\pagebreak
+
+$ \rho() $
+\pagebreak
+
+$ rho^{-2/3} $
+\pagebreak
+
+$ rho $
+\pagebreak
+
+\[
+\Delta(r) = exp(- | r | )
+\]
+\pagebreak
+
+\[
+\rho(r) = exp(- 2 | r | ) = \Delta^2(r)
+\]
+\pagebreak
+
+\[
+U(r) = \frac{\Delta^2 (r)}{\rho^{2/3} (r)} = exp( - 2 | r | / 3)
+\]
+\pagebreak
+
+$
+U(r) $
+\pagebreak
+
+\[
+\nabla . \left( \epsilon(r) \nabla v(r)  \right) = 0
+\]
+\pagebreak
+
+\[
+   \nabla^2 v(r) = - \frac{1}{\epsilon} \nabla \epsilon(r) .  \nabla v(r)
+\]
+\pagebreak
+
+$\nabla \epsilon . \nabla u / \epsilon$
+\pagebreak
+
+$-1 / |r-s|$
+\pagebreak
+
+$v(\infty)=0$
+\pagebreak
+
+$- \partial v / \partial z(\infty) = E$
+\pagebreak
+
+$v = - E z$
+\pagebreak
+
+\[
+v(r) = - E z + u(r)
+\]
+\pagebreak
+
+\[
+   \nabla^2 u(r) = \frac{1}{\epsilon} \nabla \epsilon(r) .  \left(E - \nabla u(r) \right)
+\]
+\pagebreak
+
+$-1 / 4 \pi |r-s|$
+\pagebreak
+
+$G(r,s) = 1/|r-s|$
+\pagebreak
+
+$-1/4\pi$
+\pagebreak
+
+$\sigma<0.2$
+\pagebreak
+
+$k=8, \mbox{thresh}=1e-5$
+\pagebreak
+
+\[
+\nabla . \left( \epsilon(r) \nabla u(r)  \right) = - 4 \pi \rho(r)
+\]
+\pagebreak
+
+\[
+   \nabla^2 u(r) = - \frac{1}{\epsilon(r)} \left( 4 \pi \rho(r) + \nabla \epsilon(r) .  \nabla u(r) \right)
+\]
+\pagebreak
+
+$\rho / \epsilon$
+\pagebreak
+
+\[
+   u = G * \left(\rho_{\mbox{vol}} + \rho_{\mbox{surf}} \right)
+\]
+\pagebreak
+
+\[
+   \rho_{\mbox{vol}} = \frac{\rho}{\epsilon}
+\]
+\pagebreak
+
+\[
+   \rho_{\mbox{surf}} = \frac{\nabla \epsilon .  \nabla u}{4 \pi \epsilon}
+\]
+\pagebreak
+
+$R=2$
+\pagebreak
+
+$\epsilon_1 = 1$
+\pagebreak
+
+$\epsilon_2 = 10$
+\pagebreak
+
+\[
+   u(r) =
+          \left \lbrace
+             \begin{array}{cc}
+                  \frac{1}{\epsilon_2 |r|} & |r| > R \\
+                  \frac{1}{\epsilon_1 |r|} + \left( \frac{1}{\epsilon_2} - \frac{1}{\epsilon_1} \right) \frac{1}{R}  & |r| < R
+             \end{array}
+          \right .
+\]
+\pagebreak
+
+\[
+   q_{\mbox{surface}} = -\frac{\epsilon_2 - \epsilon_1}{\epsilon_2} = -0.9
+\]
+\pagebreak
+
+$C(r)$
+\pagebreak
+
+\[
+  C(r) = H(R-|r|)
+\]
+\pagebreak
+
+$H(x)$
+\pagebreak
+
+\[
+   \epsilon(r) = \epsilon_1 C(r) + \epsilon_2 \left( 1 - C(r) \right)
+\]
+\pagebreak
+
+\[
+   H(x,\sigma) = \frac{1}{2} \left( 1 + \mathop{\mathrm{erf}} \frac{x}{\sigma} \right)
+\]
+\pagebreak
+
+$\sigma$
+\pagebreak
+
+$\xi=100$
+\pagebreak
+
+\[
+   \rho(r) = \left(\pi \xi \right)^{-3/2} e^{-\xi |r|^2}
+\]
+\pagebreak
+
+$u(r)$
+\pagebreak
+
+$m$
+\pagebreak
+
+\[
+   u^{(m+1)} = \alpha u^{(m)} + (1-\alpha) G * \left(\rho^{(m)}_{\mbox{vol}} + \rho^{(m)}_{\mbox{surf}} \right)
+\]
+\pagebreak
+
+$ \alpha \in [0,1]$
+\pagebreak
+
+$\alpha$
+\pagebreak
+
+$f(r)$
+\pagebreak
+
+$d=3$
+\pagebreak
+
+$F(x)$
+\pagebreak
+
+\[
+    g(r) = F(f(r))
+\]
+\pagebreak
+
+\[ g(\vec{x}) = e^{-|\vec{x}|^2}, \]
+\pagebreak
+
+\[
+   \int \mathrm{d}^3 \vec{x} \; g(\vec{x}) = \pi^{3/2} \doteq 5.5683279,
+\]
+\pagebreak
+
+\[
+   \left( \int \mathrm{d}^3 \vec{x} \; g(\vec{x})^2 \right)^{1/2} = (\pi/2)^{3/4} \doteq 1.403104,
+\]
+\pagebreak
+
+\[
+   \int \mathrm{d}^3 \vec{x} \; g(\vec{x}) \int \mathrm{d}^3 \vec{y} \; |\vec{x}-\vec{y}|^{-1} g(\vec{y}) = \pi^{5/2} 2^{1/2} \doteq 24.739429.
+\]
+\pagebreak
+
+\[
+    E = \frac{\langle \psi \mid - \frac{1}{2}  \nabla^2  - \frac{1}{r} \mid \psi \rangle}{\langle \psi \mid \psi \rangle}
+\]
+\pagebreak
+
+\[
+   \psi(r) = e^{-r}
+\]
+\pagebreak
+
+$ \psi(\infty)=0 $
+\pagebreak
+
+\[
+     \langle \psi \mid \nabla^2 \mid \psi \rangle = - \langle \nabla \psi \mid \nabla \psi \rangle
+\]
+\pagebreak
+
+$-\frac{1}{2}$
+\pagebreak
+
+\[
+\frac{\partial u}{\partial t} = c \nabla^2 u(r,t)
+\]
+\pagebreak
+
+\[
+\frac{1}{\sqrt{4 \pi c t}}  \exp \frac{-x^2}{4 c t}
+\]
+\pagebreak
+
+\[
+  \frac{\partial u(x,t)}{\partial t} = c \nabla^2 u(x,t) + V_p(x,t) u(x,t)
+\]
+\pagebreak
+
+$ V_p = 0 $
+\pagebreak
+
+\[
+  G_0(x,t) = \frac{1}{\sqrt{4 \pi c t}} \exp \frac{-x^2}{4 c t}
+\]
+\pagebreak
+
+$ V_p $
+\pagebreak
+
+\[
+  G(x,t) = G_0(x,t/2) * \exp(V_p t) * G_0(x,t/2) + O(t^3)
+\]
+\pagebreak
+
+$ V_p(x,t)=\mbox{constant} $
+\pagebreak
+
+\begin{eqnarray*}
+   \hat{F} \phi(r) &=& \epsilon \phi(r) \\
+   \hat{F} &=& -\frac{1}{2} \nabla^2 - \frac{2}{r} + u(r) \\
+   u(r) &=& \int \frac{\rho(s)}{| r - s |} d^3s \\
+   \rho(r) &=& \phi(r)^2
+\end{eqnarray*}
+\pagebreak
+
+$ u(r) $
+\pagebreak
+
+$ \rho(r) $
+\pagebreak
+
+\[
+    \phi = - 2 G_{\mu} * ( V \phi)
+\]
+\pagebreak
+
+$ \mu = \sqrt{-2E} $
+\pagebreak
+
+$G_{\mu}$
+\pagebreak
+
+\[
+    \left( - \nabla^2 + \mu^2  \right) G(r,r^{\prime}) = \delta(r,r^{\prime})
+\]
+\pagebreak
+
+$ \exp(-2r) $
+\pagebreak
+
+$T~=~-\frac{1}{2}
+\nabla^2 $
+\pagebreak
+
+$ \phi $
+\pagebreak
+
+$ <T \phi, \phi >
+$
+\pagebreak
+
+$ < \nabla \phi, \nabla \phi >
+$
+\pagebreak
+
+\[
+-\nabla^2 \psi(x) + V(x) \psi(x) = E \psi(x)
+\]
+\pagebreak
+
+\[
+V(x) = -a \exp(-b x^2) + \frac{c}{(n(x)+\eta)^{1/3}} - d n(x)^{5/3} + V_{\mbox{shift}}
+\]
+\pagebreak
+
+$ a $
+\pagebreak
+
+$ b $
+\pagebreak
+
+$ c $
+\pagebreak
+
+$ d $
+\pagebreak
+
+$ V_{\mbox{shift}} $
+\pagebreak
+
+\[
+n(x) = \psi(x)^2
+\]
+\pagebreak
+
+\[
+   \psi = - 2 G_{\mu} * \left ( V \psi \right)
+\]
+\pagebreak
+
+$ G_{\mu}$
+\pagebreak
+
+\[
+   \left( - \frac{d^2}{dx^2} + \mu^2 \right) G(x,x^{\prime}) = \delta(x-x^{\prime})
+\]
+\pagebreak
+
+$ \eta $
+\pagebreak
+
+\[
+   \int_0^{10} sin(x) dx
+\]
+\pagebreak
+
+$ sin(x) $
+\pagebreak
+
+\[
+ V_(r,\sigma) = \exp \left( \log V_{int} C(r,\sigma) + \log V_{ext} (1 - C(r,\sigma)  \right)
+ = V_{ext} \exp \left( \log \frac{V_{int}}{V_{ext}} C(r,\sigma) \right)
+ = V_{int} \exp \left( \log \frac{V_{ext}}{V_{int}} \overline{C}(r,\sigma) \right)
+\]
+\pagebreak
+
+$ C(r,\sigma) $
+\pagebreak
+
+$ \overline{C} $
+\pagebreak
+
+\[ 
+\nabla \log V = \frac{\nabla V}{V} = \log \frac{V_{int}}{V_{ext}} \nabla C
+\]
+\pagebreak
+
+$ \nabla C $
+\pagebreak
+
+$ \| V_{ext} - V_{int} \| $
+\pagebreak
+
+$ C $
+\pagebreak
+
+$
+\sigma $
+\pagebreak
+
+$ \sigma $
+\pagebreak
+
+$ \nabla \log \epsilon
+$
+\pagebreak
+
+\[ \nabla \cdot{} \left[ \epsilon(\vec{r}) \nabla u(\vec{r}) \right] = - 4 \pi \rho(\vec{r}). \]
+\pagebreak
+
+$ \epsilon(\vec{r}) = \epsilon_\mathrm{int}$
+\pagebreak
+
+$ |\vec{r}| < R$
+\pagebreak
+
+$ \epsilon(\vec{r}) = \epsilon_\mathrm{ext}$
+\pagebreak
+
+$ |\vec{r}| > R.$
+\pagebreak
+
+$\epsilon$
+\pagebreak
+
+$\mathcal{O}(\sigma)$
+\pagebreak
+
+$s=sdf/\sigma$
+\pagebreak
+
+$ u(0) $
+\pagebreak
+
+\[
+   \frac{du}{dt} = \hat{L} u + N(u)
+\]
+\pagebreak
+
+$ t $
+\pagebreak
+
+$ u(t) $
+\pagebreak
+
+$ \hat{L} $
+\pagebreak
+
+$ N $
+\pagebreak
+
+\[
+   u(t) = \exp(t \hat{L} ) u(0) + \int_0^t \exp((t-\tau)\hat{L}) N(u(\tau)) d\tau
+\]
+\pagebreak
+
+$ n $
+\pagebreak
+
+$ O\left(t^{2n+1}\right) $
+\pagebreak
+
+$ 1+(n_{it}+1)n +n_{it}n^2 $
+\pagebreak
+
+$ n_{it} $
+\pagebreak
+
+\begin{eqnarray*}
+u_t - u \cdot \nabla u + \nabla p & = &\mu \Delta u + f \\
+\nabla \cdot u & = & 0
+\end{eqnarray*}
+\pagebreak
+
+$ f $
+\pagebreak
+
+$ \mu $
+\pagebreak
+
+$ n+1 $
+\pagebreak
+
+\[
+  \Delta p = \nabla \cdot (f - u_{n} \cdot \nabla u_{n} )
+  \]
+\pagebreak
+
+$p$
+\pagebreak
+
+\[
+  (\frac{1}{ \delta t \mu } - \Delta) u_{n+1} = \frac {f - \nabla p - u_n \cdot \nabla u_n }{ \mu } + \frac {u_n}{ \delta t \mu }
+  \]
+\pagebreak
+
+$u_{n+1}$
+\pagebreak
+
+$ t+\Delta $
+\pagebreak
+
+$ \exp{\tau \hat{L}} u $
+\pagebreak
+
+$ \tau \in (0,\Delta) $
+\pagebreak
+
+$ T \in (t,t+\Delta) $
+\pagebreak
+
+$ u $
+\pagebreak
+
+$ T $
+\pagebreak
+
+\[
+ -\nabla^2 \psi(x,t) + V(x,t) \psi(x,t) = i\psi_t(x,t)
+ \]
+\pagebreak
+
+\[
+ V(x,t) = -8 \exp((x - v \cdot t)^2)
+ \]
+\pagebreak
+
+$ v $
+\pagebreak
+
+\[
+    \psi(x,t) = \psi(x,0) * G(x,t) - \int_0^t V(x,s) \cdot \psi(x,s) * G(x,t-s) ds
+ \]
+\pagebreak
+
+$ G $
+\pagebreak
+
+\[
+    \left( - \frac{d^2}{dx^2} - i \frac{d}{dt} \right) G(x) = \delta(x)).
+ \]
+\pagebreak
+
+$ \psi(x,t) $
+\pagebreak
+
+$ [0,t] $
+\pagebreak
+
+$ \psi $
+\pagebreak
+
+\[
+    \psi^{m+1}(x,t) - \psi^{m}(x,t) = - \int_0^t V(x,s) \cdot ( \psi^{m}(x,s) - \psi^{m-1}(x,s)) * G(x,t-s) ds
+\]
+\pagebreak
+
+\[
+    \delta^{m+1}(x,t) = - \int_0^t V(x,s) \cdot  \delta^{m}(x,s) * G(x,t-s) ds
+\]
+\pagebreak
+
+$ \delta^m $
+\pagebreak
+
+$ m_{th} $
+\pagebreak
+
+$t$
+\pagebreak
+
+$  U(r) = \sum_k A_k r^(n_k-2) exp(-alpha_k r^2) \sum_m |Y_lm \rangle \langle Y_lm| $
+\pagebreak
+
+$\sum_m |Y_lm \rangle \langle Y_lm|$
+\pagebreak
+
+$ r_s \equiv r/c $
+\pagebreak
+
+$ \frac{\exp(-r_s^2) \left(\frac{5}{2}- r_s^2 \right)}{\pi^{3/2}} $
+\pagebreak
+
+$R^{-1} \vec\nabla R$
+\pagebreak
+
+\[
+f(x,y,z) = p(x,y,z) \exp[(x-x_0)^T \Sigma (x-x_0)],
+\]
+\pagebreak
+
+$x_0$
+\pagebreak
+
+$\Sigma$
+\pagebreak
+
+\[
+\sum_j c_j x^{l_j} y^{m_j} z^{n_j} \exp[f_j(\vec{x})],
+\]
+\pagebreak
+
+$f_j(\vec{x})$
+\pagebreak
+
+$\nu$
+\pagebreak
+
+$p=1$
+\pagebreak
+
+$f(\vec{x})=0$
+\pagebreak
+
+\[
+    \frac{\partial S(\rho)}{\partial \rho} \frac{1}{S(\rho)}
+\]
+\pagebreak
+
+\[
+   \rho = |\vec r - \vec R_A |
+\]
+\pagebreak
+
+\[
+    \frac{\partial^2 S(\rho)}{\partial \rho^2} \frac{1}{S(\rho)}
+\]
+\pagebreak
+
+\[
+    \frac{\partial^3 S(\rho)}{\partial \rho^3} \frac{1}{S(\rho)}
+\]
+\pagebreak
+
+\[
+  \rho = \left| \vec r- \vec R_A \right|
+\]
+\pagebreak
+
+\[
+\frac{\partial U_2}{\partial X_A} = \frac{\partial \rho}{\partial X}
+          \left(-\frac{1}{2}\frac{S''' S - S'' S'}{S^2} + \frac{1}{\rho^2}\frac{S'}{S}
+          - \frac{1}{\rho} \frac{S''S - S'^2}{S^2} + \frac{Z_A}{\rho^2}\right)
+\]
+\pagebreak
+
+\[
+    \vec n  = \frac{\partial \rho}{\partial x} = -\frac{\partial \rho}{\partial X}
+\]
+\pagebreak
+
+\[
+\vec n = \left\{\frac{x \mathrm{erf}\left(\frac{r}{s}\right)}{r},
+         \frac{y \mathrm{erf}\left(\frac{r}{s}\right)}{r},
+         \frac{z \mathrm{erf}\left(\frac{r}{s}\right)}{r}\right\}
+\]
+\pagebreak
+
+\[
+    \frac{\partial \vec n}{\partial x}  = -\frac{\partial \vec n}{\partial X}
+\]
+\pagebreak
+
+\[
+\frac{\partial\vec n}{\partial x} =
+\left\{\frac{\left(r^2-x^2\right) \mathrm{erf}\left(\frac{r}{s}\right)}{r^3}
+   +\frac{2 x^2 e^{-\frac{r^2}{s^2}}}{\sqrt{\pi } r^2 s},
+ x y \left(\frac{2 e^{-\frac{r^2}{s^2}}}{\sqrt{\pi } r^2 s}
+   -\frac{\mathrm{erf}\left(\frac{r}{s}\right)}{r^3}\right),
+ x z \left(\frac{2 e^{-\frac{r^2}{s^2}}}{\sqrt{\pi } r^2 s}
+   -\frac{\mathrm{erf}\left(\frac{r}{s}\right)}{r^3}\right)\right\}
+\]
+\pagebreak
+
+\[
+ -\frac{\partial \rho}{\partial X_A}\frac{\partial S}{\partial \rho}\frac{1}{S}
+\]
+\pagebreak
+
+\[
+ U1\dot U1 = \frac{\left(S^r_A S^r_B\right)}{S_A S_B} n_A \cdot n_B
+\]
+\pagebreak
+
+\[
+U_3^{X_A} = -\sum_{B\neq A}\left(\frac{\vec S_A'}{S_A}\right)^X\cdot\left(\frac{\vec S_B'}{S_B}\right)
+\]
+\pagebreak
+
+\[
+\left(\frac{\vec S_A'}{S_A}\right)^X =
+    \frac{\partial \rho}{\partial X}\left(\frac{S''_A}{S_A}
+         -\left(\frac{S'_A}{S_A}\right)^2\right)\vec n_{1A}
+    + \left(\frac{S'_A}{S_A}\right)\frac{\partial \vec n_{1A}}{\partial X}
+\]
+\pagebreak
+
+$ V_{reg} = [ U_e - [K,f12] + f12(F12-eij) + [F,Qt] ]|titj> $
+\pagebreak
+
+\[
+    Sr_div_S = \frac{1}{S(r)}\frac{\partial S(r)}{\partial r}
+\]
+\pagebreak
+
+\[
+    result = \frac{1}{S(r)}\frac{\partial^2 S(r)}{\partial r^2}
+\]
+\pagebreak
+
+\[
+   result = \frac{1}{S(r)}\frac{\partial^3 S(r)}{\partial r^3}
+\]
+\pagebreak
+
+\[ \chi_{k{*} i}(1) = \int dr_2 \frac{k(2) i(2)}{|r_1-r_2|} \]
+\pagebreak
+
+\[ \chi_{ki{*}}(1) = \int dr_2 \frac{k(2) i(2)}{|r_1-r_2|} \]
+\pagebreak
+
+\[ \xi_{k{*}i,j}(1) = \chi_{ki}(1) j(1) \]
+\pagebreak
+
+\[ \xi_{ki{*},j{*}}(1) = \chi_{k{*}i}(1) j(1) \]
+\pagebreak
+
+\[
+V(R,r_{el}) -V(r) =\frac{Z}{|R-r_{el}|} \approx Z u(r) \]
+\pagebreak
+
+\[
+\frac{\partial^2 V}{\partial X_i\partial X_j}
+  =  Z \left(\frac{\partial^2 u(r)}{\partial r^2} \frac{\partial r}{\partial X_i}
+     \frac{\partial r}{\partial X_j} + \frac{\partial u}{\partial r}
+     \frac{\partial^2 r}{\partial X_i \partial X_j}\right)
+\]
+\pagebreak
+
+\[
+ \langle i^{Y_B}|H^{X_A}|i\rangle \neq \langle i|H^{X_A}|i^{Y_B}\rangle
+\]
+\pagebreak
+
+\[
+    F^X = F^\perp + F^\parallel
+\]
+\pagebreak
+
+\[
+  i^X   = R^X F + R F^X
+\]
+\pagebreak
+
+\[
+ F_i^\parallel = -\frac{1}{2}\sum_k|F_k ><F_k | (R^2)^X | F_i>
+\]
+\pagebreak
+
+$ \nabla\rho = 2R^X R \rho_R + R^2\nabla \rho_R $
+\pagebreak
+
+\[
+  \Delta \rho = \Delta (R^2 \rho_R)
+         = \Delta (R^2) \rho_R + 2\nabla R \nabla \rho_R + R^2 \Delta \rho_R
+         = 2 R^2 U1^2 \rho_R -4 R^2 ( U-V ) \rho_R + R^2 \Delta\rho_R
+\]
+\pagebreak
+
+\[
+  U=V + R^{-1}[T,R]
+  -2 R (U-V) = \Delta R + 2\nabla R\dot \nabla
+\]
+\pagebreak
+
+$ result = <bra|Ue-[f,K]|ket1,ket2> $
+\pagebreak
+
+$ <bra|Ue|ket1,ket2> $
+\pagebreak
+
+$ <bra|[f,K]|ket1,ket2> = <bra[f,K1]|ket1,ket2> + <bra[f,K2]|ket1,ket2> $
+\pagebreak
+
+$ <bra|[f,K1]|ket1,ket2> = <bra|f|K(ket1)>*|ket2> - <K(bra)|f|ket1>*|ket2>
+$
+\pagebreak
+
+$ <bra|Ue|ket1,ket2>_1 =  <bra|Ulocal|ket1,ket2> + <bra|Unlocal|ket1,ket2> $
+\pagebreak
+
+$ \int dr2 (1-e^{-gamma*r12})/r12 + gamma/2* e^{-\gamma*r12} *function(r2)  $
+\pagebreak
+
+$ V_{slater} = \exp{(-\gamma*r_{12})}  $
+\pagebreak
+
+$ \int dx2 f12*g12*f(2)  $
+\pagebreak
+
+\[
+\frac{\bar \epsilon}{\rho} = \frac{1}{\rho}\sum_{ij}\phi_i(F_ij+\delta_ij s)\phi_j
+       = \frac{1}{\rho} ( \sum_{ij}\phi_i F_ij \phi_j + s\sum_i\phi_i\phi_i )
+       = s + \frac{1}{\rho} \sum_{ij}\phi_i F_ij \phi_j
+\]
+\pagebreak
+
+$ -1.0/2.0*<bra(1)|e^{-gamma*r_{12}}/r_{12}* \vec{r_{12}}\cdot (\nabla_1 - \nabla_2)[axis]|ket1,ket2>_1  $
+\pagebreak
+
+$ -1.0/2.0*<bra|e^{-gamma*r12}/r12* \vec{r12}\cdot (\nabla_1 - \nabla_2)[axis]|ket>
+ =    1.0/(2.0*\gamma)*<bra|Grad(e^{-\gamma*r_{12}})\cdot (\nabla_1 - \nabla_2)[axis]|ket1,ket2>_{particle}   $
+\pagebreak
+
+$ f*U = 1/(2\gamma)*(U - e^{-\gamma*r_{12}} $
+\pagebreak
+
+$ f*U^{\mbox{loc}} =  1/(2\gamma)*(U^{\mbox{loc}} - 4\pi*G(\gamma) + 4\pi*G(2\gamma) - \gamma/2 (e^{-2\gamma*r_{12}} )
+nonlocal part:
+$
+\pagebreak
+
+\[
+  \sigma = \nabla\rho_1 \nabla\rho_2
+         = (\nabla R^2 \rho_{R,1} + R^2 \nabla \rho_{R,1}) \cdot
+             (\nabla R^2 \rho_{R,2} + R^2 \nabla \rho_{R,2})
+         = 4R^4 U_1^2 \rho_{R,1}\rho_{R,2}
+            + 2R^4 \vec U_1 \left(\rho_{R,1}\nabla \rho_{R,2} + \nabla\rho_{R,1} \rho_{R,2}\right)
+            + R^4 \nabla \rho_{R,1}\cdot \nabla\rho_{R,2}
+\]
+\pagebreak
+
+\[
+  |result> = |f> - \sum_p |p><p|f>
+\]
+\pagebreak
+
+\[
+    | result > =  \sum_p | p > <p|f>
+\]
+\pagebreak
+
+\[
+|result> = \sum_p |p(particle)> <p(particle)|f(1,2)>_{particle}
+\]
+\pagebreak
+
+\[ \sum_{i,j,k} c_{i,j,k} x^i y^j z^k, \]
+\pagebreak
+
+$0\le i+j+k\le N$
+\pagebreak
+
+$i$
+\pagebreak
+
+$j$
+\pagebreak
+
+$(ij|kl)$
+\pagebreak
+
+$i>=j$
+\pagebreak
+
+$k>=l$
+\pagebreak
+
+$(ij|kl)=(kl|ij)$
+\pagebreak
+
+$(n+1)(n+2)/2$
+\pagebreak
+
+$(n+1)*(n+2)*(n+3)/6$
+\pagebreak
+
+\[ (coeffs[0] + coeffs[1]*x + coeffs[2]*y + coeffs[3]*z)^j \]
+\pagebreak
+
+$x^p y^q z^r$
+\pagebreak
+
+\[
+\sum_i \mathrm{occ}_i \langle \psi_i | \left( \sum_c B_c \frac{d}{dx} | \mathrm{core} \rangle \langle \mathrm{core} | \right) | \psi_i \rangle
+\]
+\pagebreak
+
+$ \psi_i $
+\pagebreak
+
+$ \mathrm{occ}_i $
+\pagebreak
+
+\[
+   E_\mathrm{xc} = \int\epsilon_\mathrm{xc}[\rho]\rho(r) d^3r
+\]
+\pagebreak
+
+\[
+   v_\mathrm{xc} = \epsilon_\mathrm{xc} + \rho\frac{\partial \epsilon}{\partial \rho}
+                 = 4/3\epsilon_\mathrm{xc}
+\]
+\pagebreak
+
+\[
+   k_\mathrm{xc} = \frac{\partial^2\epsilon}{\partial \rho^2} = 4/3*1/3 * \epsilon_\mathrm{xc}
+\]
+\pagebreak
+
+\[
+f = 2/3 * \omega |<x | \vec \mu | i >| ^2 * 2
+\]
+\pagebreak
+
+$ x $
+\pagebreak
+
+$ i $
+\pagebreak
+
+\[
+f = 2/(3 * \omega) |<x | \vec p | i >| ^2 * 2
+\]
+\pagebreak
+
+\[
+  \frac{\partial^2E_{xc}}{\partial \rho_\alpha^2}\circ\tilde\rho
+     = second_{local} + second_{semilocal} + first_{semilocal}
+\]
+\pagebreak
+
+\[
+       second_{local} = \frac{\partial^2 f_{xc}}{\partial \rho_\alpha^2}\tilde \rho
+       + 2\frac{\partial^2 f_{xc}}{\partial \rho_\alpha\sigma_{\alpha\alpha}}
+           \left(\vec\nabla \rho_a\cdot \vec \nabla\tilde\rho\right)
+\]
+\pagebreak
+
+\[
+     second_{semilocal} = -\vec\nabla\cdot\left((\vec\nabla\rho)
+            \left[2\frac{\partial^2 f_{xc}}{\partial\rho_\alpha\partial\sigma_{\alpha\alpha}}\tilde\rho
+            + 4\frac{\partial^2 f_{xc}}{\partial\sigma_{\alpha\alpha}^2}
+               \left(\vec\nabla\rho_\alpha\cdot\vec\nabla\tilde\rho\right)\right]\right)
+\]
+\pagebreak
+
+\[
+     first_{semilocal} =
+       -\vec\nabla\cdot\left(2\frac{\partial f_{xc}}{\partial\sigma_{\alpha\alpha}}\vec\nabla\tilde\rho\right)
+\]
+\pagebreak
+
+$ \zeta $
+\pagebreak
+
+\[
+\rho = \exp(\zeta)
+\]
+\pagebreak
+
+\[
+\nabla_x\rho = \exp(\zeta)\nabla_x\zeta = \rho \nabla_x\zeta
+\]
+\pagebreak
+
+\[
+  \sigma = |\nabla\rho|^2 = |\rho|^2 |\nabla\zeta|^2 = |\rho|^2 \chi
+\]
+\pagebreak
+
+\[
+f(x,x_{\mathrm{min}},x_{\mathrm{max}}) = \left\{
+  \begin{array}{ll}
+    x_{\mathrm{min}}                       & x < x_{\mathrm{min}} \\
+    p(x,x_{\mathrm{min}},x_{\mathrm{max}}) & x_{\mathrm{min}} \leq x_{\mathrm{max}} \\
+    x                                      & x_{\mathrm{max}} < x
+  \end{array}
+\right.
+\]
+\pagebreak
+
+$p(x)$
+\pagebreak
+
+$p(x_{min})=x_{min}$
+\pagebreak
+
+$p(x_{max})=x_{max}$
+\pagebreak
+
+$dp(x_{max})/dx=1$
+\pagebreak
+
+$dp(x_{min})/dx=d^2p(x_{min})/dx^2=d^2p(x_{max})/dx^2=0$
+\pagebreak
+
+$ E[\rho] = \int \epsilon[\rho(x)] dx$
+\pagebreak
+
+$ \sigma_{\mu \nu} = \nabla \rho_{\mu} . \nabla \rho_{\nu} $
+\pagebreak
+
+$ \mu, \nu = \alpha$
+\pagebreak
+
+$ \beta $
+\pagebreak
+
+\[
+  < \phi | \hat V | \psi > = \int \left( \frac{\partial \epsilon}{\partial \rho} \phi \psi
+                 +  \left( 2 \frac{\partial \epsilon}{\partial \sigma} \right)
+                 \nabla \rho \cdot \nabla \left( \phi \psi \right) \right) dx
+\]
+\pagebreak
+
+\[
+  < \phi_{\alpha} | \hat V | \psi_{\alpha} > = \int \left( \frac{\partial \epsilon}{\partial \rho_{\alpha}} \phi \psi
+           +  \left( 2 \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \nabla \rho_{\alpha}
+           + \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \nabla \rho_{\beta}  \right) . \nabla \left( \phi \psi \right) \right) dx
+\]
+\pagebreak
+
+\[
+   V_{\alpha} =  \frac{\partial \epsilon}{\partial \rho_{\alpha}}
+                 - \left(\nabla . \left(2 \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \nabla \rho_{\alpha}
+                 + \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \nabla \rho_{\beta}  \right)  \right)
+\]
+\pagebreak
+
+\begin{eqnarray*}
+    \mbox{result[0]}    &:& \qquad \frac{\partial \epsilon}{\partial \rho} \\
+    \mbox{result[1-3]}  &:& \qquad 2 \rho \frac{\partial \epsilon}{\partial \sigma} \nabla\rho
+\end{eqnarray*}
+\pagebreak
+
+\begin{eqnarray*}
+    \mbox{result[0]}    &:& \qquad \frac{\partial \epsilon}{\partial \rho_{\alpha}} \\
+    \mbox{result[1-3]}  &:& \qquad \rho_\alpha \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \nabla\rho_\alpha\\
+    \mbox{result[4-6]}  &:& \qquad \rho_\alpha \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \nabla\rho_\beta
+\end{eqnarray*}
+\pagebreak
+
+\begin{eqnarray*}
+    \mbox{result[0]}    &:& \qquad \frac{\partial^2 \epsilon}{\partial \rho^2} \rho_\mathrm{pt}
+                            + 2.0 * \frac{\partial^2 \epsilon}{\partial \rho\partial\sigma}\sigma_\mathrm{pt}\\
+    \mbox{result[1-3]}  &:& \qquad 2.0 * \frac{\partial\epsilon}{\partial\sigma}\nabla\rho_\mathrm{pt}
+                            + 2.0 * \frac{\partial^2\epsilon}{\partial\rho\partial\sigma} \rho_\mathrm{pt}\nabla\rho
+                            + 4.0 * \frac{\partial^2\epsilon}{\partial^2\sigma} \sigma_\mathrm{pt}\nabla\rho
+\end{eqnarray*}
+\pagebreak
+
+$ \rho_\alpha $
+\pagebreak
+
+$ \rho_\beta $
+\pagebreak
+
+$ \rho_{pt} $
+\pagebreak
+
+$ \sigma_{aa} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} $
+\pagebreak
+
+$ \sigma_{ab} = \nabla \rho_{\alpha}.\nabla \rho_{\beta} $
+\pagebreak
+
+$ \sigma_{bb} = \nabla \rho_{\beta}.\nabla \rho_{\beta} $
+\pagebreak
+
+$ \sigma = \nabla \rho.\nabla \rho $
+\pagebreak
+
+$ \zeta_{\alpha}.\nabla\rho_{pt} $
+\pagebreak
+
+$ \zeta_{\beta}.\nabla\rho_{pt} $
+\pagebreak
+
+$ \zeta_{a,x}=\partial/{\partial x} \ln(\rho_a)  $
+\pagebreak
+
+$ \zeta_{a,y}=\partial/{\partial y} \ln(\rho_a)  $
+\pagebreak
+
+$ \zeta_{a,z}=\partial/{\partial z} \ln(\rho_a)  $
+\pagebreak
+
+$ \zeta_{b,x} = \partial/{\partial x} \ln(\rho_b)  $
+\pagebreak
+
+$ \zeta_{b,y} = \partial/{\partial y} \ln(\rho_b)  $
+\pagebreak
+
+$ \zeta_{b,z} = \partial/{\partial z} \ln(\rho_b)  $
+\pagebreak
+
+$ \chi_{aa} = \nabla \zeta_{\alpha}.\nabla \zeta_{\alpha} $
+\pagebreak
+
+$ \chi_{ab} = \nabla \zeta_{\alpha}.\nabla \zeta_{\beta} $
+\pagebreak
+
+$ \chi_{bb} = \nabla \zeta_{\beta}.\nabla \zeta_{\beta} $
+\pagebreak
+
+$ \nabla\rho_{pt}$
+\pagebreak
+
+$\pi$
+\pagebreak
+
+$\sqrt{\pi}$
+\pagebreak
+
+$\pi^{-1/2}$
+\pagebreak
+
+$ 2e^2/h $
+\pagebreak
+
+$ g $
+\pagebreak
+
+$\epsilon_0$
+\pagebreak
+
+$ \nabla $
+\pagebreak
+
+$ r(N/2 - |x-y|) $
+\pagebreak
+
+$ r(x) $
+\pagebreak
+
+$ r(x) \equiv \theta(x)$
+\pagebreak
+
+$ r(x) \equiv \theta_\sigma(x) \equiv (1 + \erf(x/\sigma))/2 $
+\pagebreak
+
+$r(u) = 0$
+\pagebreak
+
+$0 <=  \mbox{mask(sdf)} <= 1$
+\pagebreak
+
+\[ \varphi(d) = \frac{1}{2}\left( 1 - \tanh\left(
+                 \frac{3d}{\varepsilon} \right) \right) \]
+\pagebreak
+
+$d$
+\pagebreak
+
+\[ B(\varphi) = \frac{36}{\varepsilon} \varphi^2 (1-\varphi)^2. \]
+\pagebreak
+
+$36/\varepsilon$
+\pagebreak
+
+\[ \int_{-\infty}^\infty B(s) \, ds = 1 \]
+\pagebreak
+
+$ |8 \epsilon| $
+\pagebreak
+
+$ \epsilon $
+\pagebreak
+
+\[ \int_{-\epsilon/2}^{\epsilon/2} B(s) \, ds \doteq 0.987 \]
+\pagebreak
+
+\[ \int_{-\epsilon}^{\epsilon} B(s) \, ds \doteq 0.999963 \]
+\pagebreak
+
+\[ \sqrt{x^2 + y^2} - c * z = 0 \]
+\pagebreak
+
+$ z $
+\pagebreak
+
+\[ x^2 + y^2 - c * z == 0 \]
+\pagebreak
+
+\[
+ \mathbf{C} \leftarrow \alpha \mathbf{A}^{\mathrm{OpA}} \mathbf{B}^{\mathrm{OpB}} + \beta \mathbf{C}
+ \]
+\pagebreak
+
+$ \mathbf{A} $
+\pagebreak
+
+$ \mathbf{B} $
+\pagebreak
+
+$ \mathbf{C} $
+\pagebreak
+
+\[
+ \mathbf{y} \leftarrow  \alpha \mathbf{A}^{\mathrm{OpA}} \mathbf{x} + \beta \mathbf{y}
+ \]
+\pagebreak
+
+$ \mathbf{x} $
+\pagebreak
+
+$ \mathbf{y} $
+\pagebreak
+
+\[
+ \mathbf{A} \leftarrow  \alpha \mathbf{x} \mathbf{y}^{\mathrm{T}} + \mathbf{A}
+ \]
+\pagebreak
+
+$ \mathbf{x} \mathbf{y}^{\mathrm{T}} $
+\pagebreak
+
+\[
+ u \leftarrow  \alpha \mathbf{x} \cdot \mathbf{y}
+ \]
+\pagebreak
+
+\[
+ \mathbf{x} \leftarrow \alpha \mathbf{x}
+ \]
+\pagebreak
+
+\[
+ \mathbf{y} \leftarrow \alpha \mathbf{x} + \mathbf{y}
+ \]
+\pagebreak
+
+$ \mathbf{A} \vec{x} = \vec{b} $
+\pagebreak
+
+$\mathbf{A}$
+\pagebreak
+
+$\vec{b}$
+\pagebreak
+
+$\vec{x}$
+\pagebreak
+
+$||\mathbf{A} \vec{x} - \vec{b}||$
+\pagebreak
+
+$|| \vec{x}_{iter} -
+                 \vec{x}_{iter-1}||$
+\pagebreak
+
+\[ \vec{x} \leftarrow c \vec{x} \]
+\pagebreak
+
+\[ \vec{x} \leftarrow a \vec{x} + b \vec{y} \]
+\pagebreak
+
+$ f(x)=0 $
+\pagebreak
+
+$
+j $
+\pagebreak
+
+$ m $
+\pagebreak
+
+\begin{eqnarray*}
+Q_{i j} & = & \langle x_i \mid f_j \rangle \\
+A_{i j} & = & \langle x_i - x_m \mid f_j - f_m \rangle = Q_{i j} - Q_{m j} - Q_{i m} + Q{m m} \\
+b_i & =& -\langle x_i - x_m \mid f_m \rangle = -Q_{i m} + Q_{m m}
+\end{eqnarray*}
+\pagebreak
+
+\[
+A c = b
+\]
+\pagebreak
+
+\[
+c_m = 1 - \sum_{i<m} c_i
+\]
+\pagebreak
+
+\[
+x_{m+1} = \sum_{i \le m}{c_i ( x_i - f_i)}
+\]
+\pagebreak
+
+$ Q $
+\pagebreak
+
+$ x_i $
+\pagebreak
+
+$ f_j $
+\pagebreak
+
+$ R(*,*,\ldots) \rightarrow I(*,*,\ldots) $
+\pagebreak
+
+$ R(*) \rightarrow I(i,*) $
+\pagebreak
+
+\end{document}

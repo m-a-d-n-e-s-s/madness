@@ -1,0 +1,7 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1Operator.html" title=" " alt="" coords="5,23,177,63"/>
+<area shape="rect" id="Node000001" href="$classRealVecIdentOp.html" title="the identity operator for real vectors" alt="" coords="229,5,354,31"/>
+<area shape="poly" id="edge333_Node000000_Node000001" title=" " alt="" coords="190,28,228,23,229,29,191,33"/>
+<area shape="rect" id="Node000002" href="$classRealVecLinearOp.html" title="an arbitrary operator for real vectors" alt="" coords="225,55,357,80"/>
+<area shape="poly" id="edge334_Node000000_Node000002" title=" " alt="" coords="191,53,225,57,225,62,191,58"/>
+</map>

@@ -1,0 +1,37 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1SCFOperatorBase.html" title=" " alt="" coords="5,461,208,501"/>
+<area shape="rect" id="Node000001" href="$classmadness_1_1Coulomb.html" title=" " alt="" coords="257,5,494,31"/>
+<area shape="poly" id="edge401_Node000000_Node000001" title=" " alt="" coords="106,447,114,364,122,311,135,254,154,196,180,139,213,87,254,41,273,29,276,33,258,45,217,90,184,142,159,198,141,256,127,312,119,365,111,447"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1Exchange.html" title=" " alt="" coords="294,55,457,95"/>
+<area shape="poly" id="edge402_Node000000_Node000002" title=" " alt="" coords="109,446,121,375,146,283,165,235,189,188,218,144,254,105,273,93,293,84,295,89,275,97,258,109,223,147,193,190,170,237,151,285,126,377,114,447"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Fock.html" title=" " alt="" coords="271,120,480,145"/>
+<area shape="poly" id="edge403_Node000000_Node000003" title=" " alt="" coords="110,447,125,384,151,304,170,263,193,223,221,186,254,155,273,143,276,148,258,159,225,190,198,226,175,265,156,306,130,385,116,448"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Kinetic.html" title=" " alt="" coords="263,169,487,195"/>
+<area shape="poly" id="edge404_Node000000_Node000004" title=" " alt="" coords="113,447,130,393,159,326,199,260,225,230,254,204,274,192,277,197,258,208,229,233,204,263,163,329,135,394,119,448"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1Nuclear.html" title=" " alt="" coords="261,219,490,244"/>
+<area shape="poly" id="edge405_Node000000_Node000005" title=" " alt="" coords="118,447,138,402,167,350,206,298,229,275,255,254,279,242,282,247,257,259,233,279,210,301,172,353,143,405,123,449"/>
+<area shape="rect" id="Node000006" href="$classMyDerivativeOperator.html" title=" " alt="" coords="292,269,459,309"/>
+<area shape="poly" id="edge406_Node000000_Node000006" title=" " alt="" coords="127,448,180,382,215,348,255,318,290,302,293,307,257,323,218,352,183,386,131,451"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1Coulomb.html" title=" " alt="" coords="288,333,463,373"/>
+<area shape="poly" id="edge407_Node000000_Node000007" title=" " alt="" coords="143,450,195,415,255,382,287,370,289,375,257,387,197,420,146,454"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1DNuclear.html" title="derivative of the (regularized) nuclear potential wrt nuclear displacements" alt="" coords="295,397,455,437"/>
+<area shape="poly" id="edge408_Node000000_Node000008" title=" " alt="" coords="204,455,294,433,296,438,205,460"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1DerivativeOperator.html" title=" " alt="" coords="268,461,483,501"/>
+<area shape="poly" id="edge409_Node000000_Node000009" title=" " alt="" coords="222,478,268,478,268,483,222,483"/>
+<area shape="rect" id="Node000010" href="$classmadness_1_1Exchange.html" title=" " alt="" coords="294,525,457,565"/>
+<area shape="poly" id="edge410_Node000000_Node000010" title=" " alt="" coords="205,501,294,523,293,528,204,507"/>
+<area shape="rect" id="Node000011" href="$classmadness_1_1Fock.html" title="Computes matrix representation of the Fock operator." alt="" coords="275,589,476,615"/>
+<area shape="poly" id="edge411_Node000000_Node000011" title=" " alt="" coords="145,507,196,542,257,574,296,587,295,592,255,579,194,547,142,511"/>
+<area shape="rect" id="Node000012" href="$classmadness_1_1Kinetic.html" title=" " alt="" coords="295,639,456,679"/>
+<area shape="poly" id="edge412_Node000000_Node000012" title=" " alt="" coords="133,510,186,568,220,598,257,624,295,640,293,645,255,628,217,602,183,572,130,513"/>
+<area shape="rect" id="Node000013" href="$classmadness_1_1Laplacian.html" title="the Laplacian operator: \sum_i \nabla^2_i" alt="" coords="300,703,451,743"/>
+<area shape="poly" id="edge413_Node000000_Node000013" title=" " alt="" coords="125,512,145,553,175,601,212,649,258,689,278,701,301,709,299,714,276,706,254,694,209,653,171,604,141,556,120,515"/>
+<area shape="rect" id="Node000014" href="$classmadness_1_1LocalPotentialOperator.html" title=" " alt="" coords="256,767,495,807"/>
+<area shape="poly" id="edge414_Node000000_Node000014" title=" " alt="" coords="119,513,137,566,165,631,205,697,230,727,258,753,276,765,274,770,254,757,226,731,200,700,160,634,132,568,114,515"/>
+<area shape="rect" id="Node000015" href="$classmadness_1_1Lz.html" title="the z component of the angular momentum" alt="" coords="283,832,468,857"/>
+<area shape="poly" id="edge415_Node000000_Node000015" title=" " alt="" coords="115,514,128,579,154,662,173,705,196,746,224,784,258,817,284,832,281,837,254,821,220,788,192,749,168,707,149,663,123,580,110,515"/>
+<area shape="rect" id="Node000016" href="$classmadness_1_1Nuclear.html" title=" " alt="" coords="292,882,459,922"/>
+<area shape="poly" id="edge416_Node000000_Node000016" title=" " alt="" coords="114,514,125,587,149,683,168,733,192,782,222,827,258,867,274,878,293,887,290,892,271,883,254,871,217,830,187,784,163,735,144,684,120,589,108,515"/>
+<area shape="rect" id="Node000017" href="$classmadness_1_1XCOperator.html" title="operator class for the handling of DFT exchange&#45;correlation functionals" alt="" coords="294,946,457,986"/>
+<area shape="poly" id="edge417_Node000000_Node000017" title=" " alt="" coords="111,514,119,599,127,653,140,711,159,771,184,830,217,884,258,932,275,944,295,953,292,958,272,949,254,936,212,888,179,832,154,773,135,713,122,654,113,599,106,515"/>
+</map>

@@ -1,0 +1,11 @@
+<map id="madness::TaskInterface::Submit" name="madness::TaskInterface::Submit">
+<area shape="rect" id="Node000001" title=" " alt="" coords="40,196,216,236"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1CallbackInterface.html" title="The class used for callbacks (e.g., dependency tracking)." alt="" coords="5,108,208,133"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="115,146,126,195,121,196,110,147"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1PoolTaskInterface.html" title="Lowest level task interface." alt="" coords="233,108,437,133"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="298,141,171,198,169,194,296,136"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1TaskAttributes.html" title="Contains attributes of a task." alt="" coords="150,13,333,38"/>
+<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="264,46,325,106,321,110,260,49"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1profiling_1_1TaskEvent.html" title="Task event class." alt="" coords="357,5,499,45"/>
+<area shape="poly" id="edge4_Node000003_Node000005" title=" " alt="" coords="401,57,348,110,345,106,397,53"/>
+</map>

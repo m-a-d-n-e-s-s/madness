@@ -1,0 +1,13 @@
+<map id="EmbeddedDirichlet" name="EmbeddedDirichlet">
+<area shape="rect" id="Node000001" title="Abstract base class for embedded Dirichlet problems." alt="" coords="220,93,367,119"/>
+<area shape="rect" id="Node000003" href="$classConstantSphere.html" title="The constant on a sphere problem." alt="" coords="5,167,131,192"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="245,125,105,169,104,164,243,120"/>
+<area shape="rect" id="Node000004" href="$classCosineSphere.html" title="The cos(theta) on a sphere problem." alt="" coords="155,167,266,192"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="271,130,226,168,222,164,268,126"/>
+<area shape="rect" id="Node000005" href="$classInhomoConstantSphere.html" title="The constant on a sphere problem, with inhomogeneity." alt="" coords="290,167,465,192"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="319,126,365,164,362,168,316,130"/>
+<area shape="rect" id="Node000006" href="$classY20Sphere.html" title="The Y_2^0 on a sphere problem." alt="" coords="489,167,580,192"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="346,120,496,164,495,169,345,125"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="197,5,389,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="296,59,296,93,291,93,291,59"/>
+</map>

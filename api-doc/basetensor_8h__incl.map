@@ -1,0 +1,20 @@
+<map id="basetensor.h" name="basetensor.h">
+<area shape="rect" id="Node000001" title="Declares BaseTensor." alt="" coords="425,5,531,31"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,86,84,111"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="425,27,277,46,187,62,97,81,87,84,86,79,96,76,186,56,276,41,425,22"/>
+<area shape="rect" id="Node000003" href="$tensor__macros_8h.html" title="Macros for easy and efficient iteration over tensors." alt="" coords="109,79,279,119"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="437,33,276,78,275,72,436,28"/>
+<area shape="rect" id="Node000004" href="$type__data_8h.html" title="Defines and implements TensorTypeData, a type traits class." alt="" coords="304,79,463,119"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="466,33,419,72,415,68,462,29"/>
+<area shape="rect" id="Node000005" href="$slice_8h.html" title="Declares and implements Slice." alt="" coords="487,86,659,111"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="494,29,550,75,546,79,490,33"/>
+<area shape="rect" id="Node000006" href="$vector__factory_8h.html" title="Declares and implements factories for short vectors." alt="" coords="530,167,701,207"/>
+<area shape="poly" id="edge7_Node000001_Node000006" title=" " alt="" coords="531,17,568,21,607,31,644,49,674,77,681,98,677,120,665,140,649,159,645,155,660,137,672,118,676,98,669,80,641,54,605,36,567,27,530,22"/>
+<area shape="rect" id="Node000008" href="$madness__config_8h.html" title="Macros and tools pertaining to the configuration of MADNESS." alt="" coords="734,86,937,111"/>
+<area shape="poly" id="edge8_Node000001_Node000008" title=" " alt="" coords="531,28,771,80,769,86,529,33"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="581,110,602,153,597,155,576,113"/>
+<area shape="rect" id="Node000007" title=" " alt="" coords="584,255,647,280"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="618,207,618,241,613,241,613,207"/>
+<area shape="rect" id="Node000009" title=" " alt="" coords="767,174,903,199"/>
+<area shape="poly" id="edge9_Node000008_Node000009" title=" " alt="" coords="838,112,838,160,833,160,833,112"/>
+</map>

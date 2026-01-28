@@ -1,0 +1,4 @@
+<map id="madness::SpectralPropagator" name="madness::SpectralPropagator">
+<area shape="rect" id="Node000001" title="Spectral propagtor in time. Refer to documentation of file spectralprop.h for math detail." alt="" coords="5,5,219,31"/>
+<area shape="poly" id="edge1_Node000001_Node000001" title=" " alt="" coords="234,13,245,18,220,25,219,19,240,18,232,18"/>
+</map>

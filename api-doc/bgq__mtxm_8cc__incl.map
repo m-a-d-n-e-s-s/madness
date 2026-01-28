@@ -1,0 +1,13 @@
+<map id="bgq_mtxm.cc" name="bgq_mtxm.cc">
+<area shape="rect" id="Node000001" title=" " alt="" coords="249,5,359,31"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,79,149,119"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="272,33,146,77,144,72,270,28"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="174,86,245,111"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="292,33,236,79,232,75,288,29"/>
+<area shape="rect" id="Node000004" title=" " alt="" coords="269,86,339,111"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="307,31,307,72,301,72,301,31"/>
+<area shape="rect" id="Node000005" title=" " alt="" coords="363,86,442,111"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="320,29,379,75,376,79,317,33"/>
+<area shape="rect" id="Node000006" title=" " alt="" coords="466,86,558,111"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="335,28,470,79,468,84,333,33"/>
+</map>

@@ -1,0 +1,35 @@
+<map id="madness::DependencyInterface" name="madness::DependencyInterface">
+<area shape="rect" id="Node000001" title="Provides an interface for tracking dependencies." alt="" coords="256,222,484,247"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1Future_3_01std_1_1vector_3_01Future_3_01T_01_4_01_4_01_4.html" title="Specialization of Future for a vector of Futures." alt="" coords="532,185,727,225"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="496,218,531,214,532,219,496,223"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1TaskInterface.html" title="All world tasks must be derived from this public interface." alt="" coords="541,250,717,275"/>
+<area shape="poly" id="edge4_Node000001_Node000005" title=" " alt="" coords="498,246,542,251,541,256,497,251"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1CallbackInterface.html" title="The class used for callbacks (e.g., dependency tracking)." alt="" coords="5,197,208,222"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="222,218,256,221,256,226,221,223"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1Spinlock.html" title="Spinlock using pthread spinlock operations." alt="" coords="35,246,179,271"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="192,248,255,242,256,248,193,254"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1SystolicMatrixAlgorithm.html" title=" " alt="" coords="793,37,1040,77"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="719,241,725,235,739,218,746,200,748,163,750,125,758,106,773,87,791,74,795,78,776,91,762,108,755,126,753,163,751,201,743,221,729,239,722,245"/>
+<area shape="rect" id="Node000009" href="$classTask.html" title=" " alt="" coords="891,102,942,127"/>
+<area shape="poly" id="edge8_Node000005_Node000009" title=" " alt="" coords="716,241,725,235,736,224,742,212,748,187,754,162,761,150,773,138,802,122,834,114,891,110,891,115,835,119,804,127,776,142,765,153,759,164,753,189,747,214,740,227,728,239,719,246"/>
+<area shape="rect" id="Node000010" href="$classTestBarrier.html" title=" " alt="" coords="871,151,963,177"/>
+<area shape="poly" id="edge9_Node000005_Node000010" title=" " alt="" coords="709,243,725,235,740,224,748,211,758,199,773,187,822,170,870,163,871,168,824,175,776,192,761,202,753,215,743,227,728,240,711,248"/>
+<area shape="rect" id="Node000011" href="$classTestTask.html" title=" " alt="" coords="878,201,955,226"/>
+<area shape="poly" id="edge10_Node000005_Node000011" title=" " alt="" coords="717,245,878,217,878,222,718,250"/>
+<area shape="rect" id="Node000012" href="$classTimeBarrier.html" title=" " alt="" coords="867,250,966,275"/>
+<area shape="poly" id="edge11_Node000005_Node000012" title=" " alt="" coords="731,260,867,260,867,265,731,265"/>
+<area shape="rect" id="Node000013" href="$structmadness_1_1MatrixInnerTask.html" title=" " alt="" coords="820,300,1013,340"/>
+<area shape="poly" id="edge12_Node000005_Node000013" title=" " alt="" coords="708,275,820,298,819,303,707,281"/>
+<area shape="rect" id="Node000014" href="$classmadness_1_1SystolicMatrixAlgorithm.html" title="Base class for parallel algorithms that employ a systolic loop to generate all row pairs in parallel." alt="" coords="775,365,1059,390"/>
+<area shape="poly" id="edge13_Node000005_Node000014" title=" " alt="" coords="659,282,711,317,776,350,818,362,817,367,774,354,709,322,656,286"/>
+<area shape="rect" id="Node000016" href="$structmadness_1_1TaskFn.html" title="Wrap a callable object and its arguments into a task function." alt="" coords="829,415,1004,484"/>
+<area shape="poly" id="edge15_Node000005_Node000016" title=" " alt="" coords="651,284,703,342,738,373,776,400,830,425,828,430,773,405,735,377,700,346,647,288"/>
+<area shape="rect" id="Node000017" href="$classmadness_1_1detail_1_1ForEachRootTask.html" title="Apply an operation to a range of iterators." alt="" coords="823,508,1011,548"/>
+<area shape="poly" id="edge16_Node000005_Node000017" title=" " alt="" coords="641,287,659,333,688,389,726,446,750,472,776,494,799,506,823,515,821,520,796,511,773,498,746,476,722,450,683,392,654,335,636,289"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1SystolicFixOrbitalOrders.html" title=" " alt="" coords="1127,5,1329,45"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="1054,41,1126,33,1126,38,1054,46"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1SystolicPMOrbitalLocalize.html" title=" " alt="" coords="1126,69,1330,109"/>
+<area shape="poly" id="edge7_Node000006_Node000008" title=" " alt="" coords="1054,69,1126,76,1125,82,1054,74"/>
+<area shape="rect" id="Node000015" href="$classTestSystolicMatrixAlgorithm.html" title=" " alt="" coords="1107,365,1349,390"/>
+<area shape="poly" id="edge14_Node000014_Node000015" title=" " alt="" coords="1072,375,1106,375,1106,380,1072,380"/>
+</map>

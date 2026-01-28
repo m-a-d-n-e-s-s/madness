@@ -1,0 +1,19 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1SignedDFInterface.html" title=" " alt="" coords="5,153,252,179"/>
+<area shape="rect" id="Node000001" href="$classmadness_1_1SDFBox.html" title="A box (3 dimensions)" alt="" coords="321,5,461,31"/>
+<area shape="poly" id="edge420_Node000000_Node000001" title=" " alt="" coords="152,142,216,91,256,63,299,40,329,28,331,33,301,44,259,68,219,95,156,146"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1SDFCone.html" title="A cone (3 dimensions)" alt="" coords="317,55,465,80"/>
+<area shape="poly" id="edge422_Node000000_Node000003" title=" " alt="" coords="167,145,228,117,299,89,336,78,338,83,301,94,230,122,169,150"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1SDFCylinder.html" title="A cylinder (3 dimensions)" alt="" coords="307,104,476,129"/>
+<area shape="poly" id="edge423_Node000000_Node000004" title=" " alt="" coords="210,148,322,127,323,132,211,153"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1SDFEllipsoid.html" title="An ellipsoid (3 dimensions)" alt="" coords="306,153,477,179"/>
+<area shape="poly" id="edge424_Node000000_Node000005" title=" " alt="" coords="266,163,306,163,306,169,266,169"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1SDFParaboloid.html" title="A paraboloid (3 dimensions)" alt="" coords="300,203,483,228"/>
+<area shape="poly" id="edge425_Node000000_Node000006" title=" " alt="" coords="211,179,323,200,322,205,210,184"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1SDFPlane.html" title="A plane surface (3 dimensions)" alt="" coords="316,252,467,277"/>
+<area shape="poly" id="edge426_Node000000_Node000007" title=" " alt="" coords="170,182,231,209,301,237,341,249,339,254,299,242,229,214,168,187"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1SDFSphere.html" title="A spherical surface (3 dimensions)" alt="" coords="312,301,471,327"/>
+<area shape="poly" id="edge427_Node000000_Node000008" title=" " alt="" coords="156,186,219,236,259,263,301,286,334,299,332,304,299,291,256,267,216,240,153,190"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1SDFCube.html" title="A cube (3 dimensions)" alt="" coords="531,5,679,31"/>
+<area shape="poly" id="edge421_Node000001_Node000002" title=" " alt="" coords="475,15,531,15,531,21,475,21"/>
+</map>

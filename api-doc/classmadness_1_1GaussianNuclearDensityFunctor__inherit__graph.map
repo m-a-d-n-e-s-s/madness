@@ -1,0 +1,5 @@
+<map id="madness::GaussianNuclearDensityFunctor" name="madness::GaussianNuclearDensityFunctor">
+<area shape="rect" id="Node000001" title="Functor for evaluating the Coulomb potential of all nuclei of a molecule; nuclei are represented by p..." alt="" coords="5,93,204,133"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="9,5,201,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="107,59,107,93,102,93,102,59"/>
+</map>
