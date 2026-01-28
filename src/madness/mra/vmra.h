@@ -473,42 +473,64 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > orthonormalize_symmetric(
     		const std::vector<Function<T,NDIM> >& v,
-			  const Tensor<T>& ovlp) {
+			const Tensor<T>& ovlp,
+			double lindep = 1e-12) {
+
     	if(v.empty()) return v;
+        const size_t n = v.size();
 
     	Tensor<T> U;
     	Tensor< typename Tensor<T>::scalar_type > s;
-    	syev(ovlp,U,s);
+    	syev(ovlp, U, s);
+        lindep *= s(s.size() - 1);  // eigenvalues are in ascending order
 
-    	// transform s to s^{-1}
-    	for(size_t i=0;i<v.size();++i) s(i)=1.0/(sqrt(s(i)));
+    	// transform s to s^{-1/2} in-place
+        // stores number of linearly independent (rank) and dependent (lo) vectors
+        int rank = 0, lo = 0;
+    	for(size_t i = 0; i < n; ++i) {
+            const auto s_i = s(i);
+            if (s_i > lindep) {
+                s(i) = 1.0 / sqrt(s_i);
+                rank++;
+    		} else {
+    			lo++;
+    		}
+        }
+        MADNESS_ASSERT(size_t(lo + rank) == n);
 
-    	// save Ut before U gets modified with s^{-1}
-    	const Tensor<T> Ut=transpose(U);
-    	for(size_t i=0;i<v.size();++i){
-    		for(size_t j=0;j<v.size();++j){
-    			U(i,j)=U(i,j)*s(j);
+        // remove linearly dependent vectors and values
+        if (lo > 0) {
+            std::cout << "Linear dependencies detected: removed " 
+                      << lo << " functions, rank = " << rank << std::endl;
+            U = U(_, Slice(lo, -1));
+            s = s(Slice(lo, -1));
+        }
+
+    	// save Ut before U gets modified with s^{-1/2}
+    	const Tensor<T> Ut = conj_transpose(U);
+
+    	for(size_t i = 0; i < n; ++i){
+    		for(size_t j = 0; j < rank; ++j){
+    			U(i, j) = U(i, j) * s(j);
     		}
     	}
 
-    	Tensor<T> X=inner(U,Ut,1,0);
+    	Tensor<T> X = inner(U, Ut, 1, 0);
 
-    	World& world=v.front().world();
-    	return transform(world,v,X);
-
+    	return transform(v.front().world(), v, X);
     }
+
     /// convenience routine for symmetric orthonormalization (see e.g. Szabo/Ostlund)
     /// overlap matrix is calculated
     /// @param[in] the vector to orthonormalize
     template <typename T, std::size_t NDIM>
-    std::vector<Function<T,NDIM> > orthonormalize_symmetric(const std::vector<Function<T,NDIM> >& v){
+    std::vector<Function<T,NDIM> > orthonormalize_symmetric(const std::vector<Function<T,NDIM> >& v,
+    		double lindep = 1e-12){
     	if(v.empty()) return v;
 
+    	Tensor<T> ovlp = matrix_inner(v.front().world(), v, v, /* sym= */ true);
 
-    	World& world=v.front().world();
-    	Tensor<T> ovlp = matrix_inner(world, v, v, /* sym= */ true);
-
-    	return orthonormalize_symmetric(v,ovlp);
+    	return orthonormalize_symmetric(v, ovlp, lindep);
     }
 
     /// canonical orthonormalization (see e.g. Szabo/Ostlund)
