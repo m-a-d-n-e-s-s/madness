@@ -607,7 +607,7 @@ namespace madness {
     /// @param[in] tolerance for numerical rank reduction
     /// @param[out] pivoting vector, no allocation on input needed
     /// @param[out] rank
-    /// @return orthonrormalized vector (may or may not be truncated)
+    /// @return orthonormalized vector (may or may not be truncated)
     template <typename T, std::size_t NDIM>
     std::vector<Function<T,NDIM> > orthonormalize_rrcd(
     		const std::vector<Function<T,NDIM> >& v,
@@ -637,7 +637,7 @@ namespace madness {
     	return transform(world, pv, U);
     }
 
-    /// convenience routine for orthonromalize_cholesky: orthonromalize_cholesky without information on pivoting and rank
+    /// convenience routine for orthonormalize_cholesky: orthonormalize_cholesky without information on pivoting and rank
     /// @param[in] the vector to orthonormalize
     /// @param[in] overlap matrix
     /// @param[in] tolerance for numerical rank reduction
@@ -648,7 +648,7 @@ namespace madness {
     	return orthonormalize_rrcd(v,ovlp,tol,piv,rank);
     }
 
-    /// convenience routine for orthonromalize_cholesky: computes the overlap matrix and then calls orthonromalize_cholesky
+    /// convenience routine for orthonormalize_cholesky: computes the overlap matrix and then calls orthonormalize_cholesky
     /// @param[in] the vector to orthonormalize
     /// @param[in] tolerance for numerical rank reduction
     template <typename T, std::size_t NDIM>
