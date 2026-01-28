@@ -850,10 +850,6 @@ class MacroTask {
 	template <typename T, typename argtupleT>
 	using has_member_compute_priority = madness::meta::is_detected<member_compute_priority_t, T, argtupleT>;
 
-    typedef typename taskT::resultT resultT;
-    typedef typename taskT::argtupleT argtupleT;
-    typedef Cloud::recordlistT recordlistT;
-
     taskT task;
     bool debug=false;
 	bool immediate_execution=false;
@@ -930,7 +926,7 @@ public:
 
         // store input and output: output being a pointer to a universe function (vector)
     	if (debug and world.rank()==0) {
-    		print("MacroTask storage policy: ",taskq_ptr->get_storage_policy());
+    		print("MacroTask storage policy: ",taskq_ptr->get_policy().storage_policy);
     		print("Cloud storage policy:     ",taskq_ptr->cloud.get_storing_policy());
     	}
 

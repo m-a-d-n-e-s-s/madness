@@ -485,7 +485,7 @@ int test_task1(World& universe, const std::vector<real_function_3d>& v3) {
 
 int test_priority(World& universe, const std::vector<real_function_3d>& v3) {
     if (universe.rank()==0) print("\nstarting MicroTaskPriority\n");
-    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(universe, universe.size(), MacroTaskInfo::default_storage_policy));
+    auto taskq = std::shared_ptr<MacroTaskQ>(new MacroTaskQ(MacroTaskQFactory(universe)));
     taskq->set_printlevel(3);
     MicroTaskPriority t1;
     real_function_3d ref_t1 = t1(v3[0], 2.0, v3);
