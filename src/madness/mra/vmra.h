@@ -506,7 +506,7 @@ namespace madness {
 
 
     	World& world=v.front().world();
-    	Tensor<T> ovlp = matrix_inner(world, v, v);
+    	Tensor<T> ovlp = matrix_inner(world, v, v, /* sym= */ true);
 
     	return orthonormalize_symmetric(v,ovlp);
     }
@@ -563,7 +563,7 @@ namespace madness {
     	if(v.empty()) return v;
 
     	World& world=v.front().world();
-    	Tensor<T> ovlp = matrix_inner(world, v, v);
+    	Tensor<T> ovlp = matrix_inner(world, v, v, /* sym= */ true);
 
     	return orthonormalize_canonical(v,ovlp,lindep);
     }
@@ -597,7 +597,7 @@ namespace madness {
     	if(v.empty()) return v;
 
     	World& world=v.front().world();
-    	Tensor<T> ovlp = matrix_inner(world, v, v);
+    	Tensor<T> ovlp = matrix_inner(world, v, v, /* sym= */ true);
 
     	return orthonormalize_cd(v,ovlp);
     }
@@ -658,7 +658,7 @@ namespace madness {
     	}
     	// compute overlap
     	World& world=v.front().world();
-    	Tensor<T> ovlp = matrix_inner(world, v, v);
+    	Tensor<T> ovlp = matrix_inner(world, v, v, /* sym= */ true);
     	return orthonormalize_rrcd(v,ovlp,tol);
     }
 
