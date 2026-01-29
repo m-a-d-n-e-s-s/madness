@@ -529,7 +529,7 @@ void test_orthonormalize_symmetric(World& world) {
     END_TIMER("compress");
     
     START_TIMER;
-    std::vector< Function<T,NDIM> > vfunc_new = orthonormalize_symmetric(vfunc);
+    std::vector< Function<T,NDIM> > vfunc_new = orthonormalize_symmetric(vfunc, 1e-6);
     END_TIMER("orthonormalize_symmetric");
 
     START_TIMER;
