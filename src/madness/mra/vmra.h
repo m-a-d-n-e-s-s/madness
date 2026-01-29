@@ -475,6 +475,7 @@ namespace madness {
     		const std::vector<Function<T,NDIM> >& v,
 			const Tensor<T>& ovlp,
 			double lindep = 1e-12) {
+        World& world = v.front().world();
 
     	if(v.empty()) return v;
         const size_t n = v.size();
@@ -494,10 +495,11 @@ namespace madness {
         }
         MADNESS_ASSERT(size_t(lo + rank) == n);
 
-        // remove linearly dependent vectors and values
+        // warn of linearly dependent vectors and values
         if (lo > 0) {
-            std::cout << "WARNING: linear dependencies detected in " 
-                      << lo << " functions, rank = " << rank << std::endl;
+            if (world.rank() == 0)
+                print("WARNING: linear dependencies detected in ", lo,
+                      " functions, rank = ", rank);
         }
 
     	// save Ut before U gets modified with s^{-1/2}
@@ -511,7 +513,7 @@ namespace madness {
 
     	Tensor<T> X = inner(U, Ut, 1, 0);
 
-    	return transform(v.front().world(), v, X);
+    	return transform(world, v, X);
     }
 
     /// convenience routine for symmetric orthonormalization (see e.g. Szabo/Ostlund)
@@ -536,6 +538,7 @@ namespace madness {
     		const std::vector<Function<T,NDIM> >& v,
 			const Tensor<T>& ovlp,
 			double lindep = 1e-12) {
+        World& world = v.front().world();
 
     	if(v.empty()) return v;
         const size_t n = v.size();
@@ -561,8 +564,9 @@ namespace madness {
 
         // remove linearly dependent vectors and values
         if (lo > 0) {
-            std::cout << "Linear dependencies detected: removed " 
-                      << lo << " functions, rank = " << rank << std::endl;
+            if (world.rank() == 0)
+                print("Linear dependencies detected: removed ", lo,
+                      " functions, rank = ", rank);
             U = U(_, Slice(lo, -1));
             s = s(Slice(lo, -1));
         }
@@ -574,7 +578,7 @@ namespace madness {
     		}
     	}
 
-    	return transform(v.front().world(), v, U);
+    	return transform(world, v, U);
     }
 
     /// convenience routine for canonical routine for symmetric orthonormalization (see e.g. Szabo/Ostlund)
