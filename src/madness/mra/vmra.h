@@ -475,9 +475,9 @@ namespace madness {
     		const std::vector<Function<T,NDIM> >& v,
 			const Tensor<T>& ovlp,
 			double lindep = 1e-12) {
-        World& world = v.front().world();
-
     	if(v.empty()) return v;
+
+        World& world = v.front().world();
         const size_t n = v.size();
 
     	Tensor<T> U;
@@ -537,9 +537,9 @@ namespace madness {
     		const std::vector<Function<T,NDIM> >& v,
 			const Tensor<T>& ovlp,
 			double lindep = 1e-12) {
-        World& world = v.front().world();
-
     	if(v.empty()) return v;
+
+        World& world = v.front().world();
         const size_t n = v.size();
 
     	Tensor<T> U;
