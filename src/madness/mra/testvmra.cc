@@ -592,7 +592,7 @@ void test_orthonormalize_canonical(World& world) {
 
     START_TIMER;
     Tensor<T> identity(rank, rank);
-    for (int i=0; i<n; ++i) identity(i,i)=1.0;
+    for (int i=0; i<rank; ++i) identity(i,i)=1.0;
     END_TIMER("form identity matrix");
 
     if (world.rank() == 0) 
