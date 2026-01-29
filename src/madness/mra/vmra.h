@@ -486,19 +486,18 @@ namespace madness {
         lindep *= s(s.size() - 1);  // eigenvalues are in ascending order
 
     	// transform s to s^{-1/2} in-place
-        // stores number of linearly independent (rank) and dependent (lo) vectors
-        int rank = 0, lo = 0;
+        int rank = 0, nlindep = 0;
     	for(size_t i = 0; i < n; ++i) {
             const auto s_i = s(i);
-            s(i) = 1.0 / sqrt(s(i));
-            (s_i > lindep) ? rank++ : lo++;
+            s(i) = 1.0 / sqrt(s_i);
+            (s_i > lindep) ? rank++ : nlindep++;
         }
-        MADNESS_ASSERT(size_t(lo + rank) == n);
+        MADNESS_ASSERT(size_t(nlindep + rank) == n);
 
         // warn of linearly dependent vectors and values
-        if (lo > 0) {
+        if (nlindep > 0) {
             if (world.rank() == 0)
-                print("WARNING: linear dependencies detected in ", lo,
+                print("WARNING: linear dependencies detected in ", nlindep,
                       " functions, rank = ", rank);
         }
 
@@ -549,26 +548,25 @@ namespace madness {
     	lindep *= s(s.size() - 1);  // eigenvalues are in ascending order
 
     	// transform s to s^{-1/2} in-place
-        // stores number of linearly independent (rank) and dependent (lo) vectors
-    	int rank = 0,lo = 0;
+    	int rank = 0, nlindep = 0;
     	for(size_t i = 0; i < n; ++i) {
             const auto s_i = s(i);
     		if (s_i > lindep) {
     			s(i) = 1.0 / sqrt(s_i);
         		rank++;
     		} else {
-    			lo++;
+    			nlindep++;
     		}
     	}
-    	MADNESS_ASSERT(size_t(lo + rank) == n);
+    	MADNESS_ASSERT(size_t(nlindep + rank) == n);
 
         // remove linearly dependent vectors and values
-        if (lo > 0) {
+        if (nlindep > 0) {
             if (world.rank() == 0)
-                print("Linear dependencies detected: removed ", lo,
+                print("Linear dependencies detected: removed ", nlindep,
                       " functions, rank = ", rank);
-            U = U(_, Slice(lo, -1));
-            s = s(Slice(lo, -1));
+            U = U(_, Slice(nlindep, -1));
+            s = s(Slice(nlindep, -1));
         }
 
         // modify U in-place, U is now transformation matrix (U * s^{-1/2})
