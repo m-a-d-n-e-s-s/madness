@@ -489,28 +489,22 @@ namespace madness {
         int rank = 0, lo = 0;
     	for(size_t i = 0; i < n; ++i) {
             const auto s_i = s(i);
-            if (s_i > lindep) {
-                s(i) = 1.0 / sqrt(s_i);
-                rank++;
-    		} else {
-    			lo++;
-    		}
+            s(i) = 1.0 / sqrt(s(i));
+            (s_i > lindep) ? rank++ : lo++;
         }
         MADNESS_ASSERT(size_t(lo + rank) == n);
 
         // remove linearly dependent vectors and values
         if (lo > 0) {
-            std::cout << "Linear dependencies detected: removed " 
+            std::cout << "WARNING: linear dependencies detected in " 
                       << lo << " functions, rank = " << rank << std::endl;
-            U = U(_, Slice(lo, -1));
-            s = s(Slice(lo, -1));
         }
 
     	// save Ut before U gets modified with s^{-1/2}
     	const Tensor<T> Ut = conj_transpose(U);
 
     	for(size_t i = 0; i < n; ++i){
-    		for(size_t j = 0; j < rank; ++j){
+    		for(size_t j = 0; j < n; ++j){
     			U(i, j) = U(i, j) * s(j);
     		}
     	}
