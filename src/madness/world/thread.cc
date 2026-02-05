@@ -73,7 +73,7 @@ namespace madness {
     pthread_key_t ThreadBase::thread_key;
 
     ThreadPool* ThreadPool::instance_ptr = 0;
-    double ThreadPool::await_timeout = 900.0;
+    double ThreadPool::await_timeout = 3000.0;
 #if HAVE_INTEL_TBB
     std::unique_ptr<tbb::global_control> ThreadPool::tbb_control    = nullptr;
     std::unique_ptr<tbb::task_arena> ThreadPool::tbb_arena          = nullptr;

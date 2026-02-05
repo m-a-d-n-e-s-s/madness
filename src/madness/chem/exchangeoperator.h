@@ -411,7 +411,6 @@ private:
             World& world = vket.front().world();
             // mul_tol = 0.0;
             print("mul_tol = ", mul_tol);
-            if (mul_tol>1e-8) mul_tol = 1e-8;
 
             resultT Kf = zero_functions_compressed<T, NDIM>(world, 1);
             vecfuncT psif = zero_functions_compressed<T,NDIM>(world, mo_bra.size());
@@ -423,56 +422,76 @@ private:
             MADNESS_CHECK_THROW(vket.size()==1,"out-of-bounds error in Exchange::MacroTaskExchangeRow::operator()");
             size_t min_tile = 10;
             size_t ntile = std::min(mo_bra.size(), min_tile);
-            functionT vket_redundant = copy(vket[i]);
+
+            //functionT vket_redundant = copy(vket[i]);
+            //vket[i].make_redundant();
+            //for (unsigned int i=0; i<mo_bra.size(); ++i){
+            //    mo_bra[i].make_redundant(true);
+            //    mo_ket[i].make_redundant(true);
+            //}
 
             for (size_t ilo=0; ilo<mo_bra.size(); ilo+=ntile){
                 size_t iend = std::min(ilo+ntile,mo_bra.size());
                 vecfuncT tmp_mo_bra(mo_bra.begin()+ilo,mo_bra.begin()+iend);
-                vecfuncT tmp_mo_bra_redundant = copy(tmp_mo_bra);
+                //vecfuncT tmp_mo_bra_redundant = copy(tmp_mo_bra);
 
+                // mul_sparse legacy for reference
+                //
                 //cpu0 = cpu_time();
                 //auto tmp_psif = mul_sparse(world, vket[i], tmp_mo_bra, mul_tol*0.1, true, false, false);
                 //cpu1 = cpu_time();
                 //for (unsigned int i=0; i<tmp_psif.size(); ++i){
                 //    print(ilo+i, "mul_sparse output ", tmp_psif[i].tree_size());
                 //}
-
                 //mul1_timer += long((cpu1 - cpu0) * 1000l);
                 //truncate(world, tmp_psif);
                 //for (unsigned int i=0; i<tmp_psif.size(); ++i){
                 //    print(ilo+i, "mul_sparse truncated ", tmp_psif[i].tree_size());
                 //}
 
+                // vector size 1 function call (debug)
+                //
                 //vket_redundant.compress(true);
                 //vket_redundant.make_redundant(true);
+                //vecfuncT tmp_psif2;
                 //for (unsigned int i=0; i<tmp_mo_bra.size(); ++i){
-                    //auto v = zero_functions_compressed<T, NDIM>(world, 1);
-                    //v[0] += tmp_mo_bra_redundant[i];
-                    //v[0].compress();
-                    //v[0].make_redundant();
-                    //auto res = mul_sparse2(world, vket_redundant, v, mul_tol*0.1, true, false, false);
-                    //print(i, "mw_mul output size ", res[0].tree_size());
-                    //truncate(res);
-                    //print(i, "mw_mul truncated size ", res[0].tree_size());
+                //    auto v = zero_functions_compressed<T, NDIM>(world, 1);
+                //    v[0] += tmp_mo_bra_redundant[i];
+                //    v[0].compress();
+                //    v[0].make_redundant();
+                //    auto res = mul_sparse2(world, vket_redundant, v, mul_tol*0.1, true, false, false);
+                //    print(ilo+i, "mw_mul output size ", res[0].tree_size());
+                //    truncate(res);
+                //    print(ilo+i, "mw_mul truncated size ", res[0].tree_size());
+                //    tmp_psif2.push_back(res[0]);
                 //}
                 
-                vket_redundant.compress(true);
-                vket_redundant.make_redundant(true);
-                compress(tmp_mo_bra_redundant);
+                // mul_sparse2 (new) for mw screening
+                //
+                cpu0 = cpu_time();
+                //vket_redundant.compress(true);
+                //vket_redundant.make_redundant(true);
+                //compress(tmp_mo_bra_redundant);
                 //make_redundant(tmp_mo_bra, true);
-                for (unsigned int i=0; i<tmp_mo_bra_redundant.size(); ++i){
-                    tmp_mo_bra_redundant[i].make_redundant(true);
+                vecfuncT tmp_psif2;
+                for (unsigned int i=0; i<tmp_mo_bra.size(); ++i){
+                    //tmp_mo_bra_redundant[i].compress(true);
+                    //tmp_mo_bra[i].make_redundant(true);
+                    auto res = mul_sparse_debug(vket[0], tmp_mo_bra[i], mul_tol*0.1, true, false, false, true);
+                    tmp_psif2.push_back(res);
                 }
-
-                auto tmp_psif2 = mul_sparse2(world, vket_redundant, tmp_mo_bra_redundant, mul_tol*0.1, true, false, false);
+                cpu1 = cpu_time();
+                mul1_timer += long((cpu1 - cpu0) * 1000l);
+                //auto tmp_psif2 = mul_sparse2(world, vket_redundant, tmp_mo_bra_redundant, mul_tol*0.1, true, false, false);
                 for (unsigned int i=0; i<tmp_psif2.size(); ++i){
                     print(ilo+i, "mw_mul output ", tmp_psif2[i].tree_size());
                 }
-
                 truncate(world, tmp_psif2);
                 for (unsigned int i=0; i<tmp_psif2.size(); ++i){
                     print(ilo+i, "mw_mul truncated ", tmp_psif2[i].tree_size());
                 }
+
+                //reconstruct(tmp_mo_bra);
 
                 cpu0 = cpu_time();
                 //tmp_psif = apply(world, *poisson.get(), tmp_psif);
@@ -484,13 +503,19 @@ private:
                 truncate(world, tmp_psif2);
                 print("finished truncate");
 
+                //reconstruct(tmp_mo_bra);
                 cpu0 = cpu_time();
                 vecfuncT tmp_mo_ket(mo_ket.begin()+ilo,mo_ket.begin()+iend);
+                //vecfuncT tmp_mo_ket_redundant = copy(tmp_mo_ket);
                 //norm_tree(world, tmp_psif, true);
-                norm_tree(world, tmp_psif2, true);
+                //norm_tree(world, tmp_psif2, true);
                 //norm_tree(world, tmp_mo_ket, true);
                 //auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif, true, false, false, mul_tol*0.01);
-                auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif2, true, false, false, mul_tol*0.01);
+                for (unsigned int i=0; i<tmp_mo_ket.size(); ++i){
+                    //tmp_mo_ket[i].make_redundant(true);
+                    tmp_psif2[i].make_redundant(true);
+                }
+                auto tmp_Kf = dot(world, tmp_mo_ket, tmp_psif2, true, false, false, mul_tol*0.1, true);
                 print("finished dot");
                 cpu1 = cpu_time();
                 mul2_timer += long((cpu1 - cpu0) * 1000l);
