@@ -52,15 +52,19 @@ template<typename T, std::size_t NDIM>
 std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::operator()(
         const std::vector<Function<T, NDIM> >& vket) const {
 
-    reconstruct(world, mo_bra, false);
-    reconstruct(world, mo_ket, false);
+    //reconstruct(world, mo_bra, false);
+    //reconstruct(world, mo_ket, false);
+    //TODO: this only works for multiworld_row algrotihm
+    make_redundant(world, mo_bra, false);
+    make_redundant(world, mo_ket, false);
     world.gop.fence();
-    norm_tree(world, mo_bra, false);
-    norm_tree(world, mo_ket, false);
-    world.gop.fence();
+    //norm_tree(world, mo_bra, false);
+    //norm_tree(world, mo_ket, false);
+    //world.gop.fence();
 
-    reconstruct(world, vket);
-    norm_tree(world, vket);
+    //reconstruct(world, vket);
+    //norm_tree(world, vket);
+    make_redundant(world, vket);
 
     // pick your algorithm.
     // Note that the macrotask algorithm partitions the exchange matrix into tiles. The final truncation
