@@ -475,7 +475,10 @@ private:
         //        vket_redundant.print_tree();
         //        print("end vket");
 
+                cpu0 = cpu_time();
                 auto tmp_psif2 = mul_sparse2(world, vket[0], tmp_mo_bra, mul_tol*0.1, true, false, false);
+                cpu1 = cpu_time();
+                mul1_timer += long((cpu1 - cpu0) * 1000l);
                 
                 // mul_sparse2 (new) for mw screening
                 //
