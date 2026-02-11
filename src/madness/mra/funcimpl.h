@@ -2970,6 +2970,8 @@ template<size_t NDIM>
                 world.gop.fence();
         }
 
+        //vector version of sparse multiplication with mw screening
+        //
         template <typename L, typename R>
         void mulXXveca2(const keyT& key,
                        const FunctionImpl<L,NDIM>* left, const Tensor<L>& lcin,
@@ -2982,14 +2984,13 @@ template<size_t NDIM>
 
             double lnorm = 1e99;
             double ldnorm = 1e99;
-            //bool r_is_leaf = false;
             bool l_is_leaf = false;
             Tensor<L> lc = lcin;
-
             literT lit = left->coeffs.find(key).get();
-
+            
+            // get norms of left function
             if (lc.size() == 0) {
-                MADNESS_ASSERT(lit != left->coeffs.end());
+                //MADNESS_ASSERT(lit != left->coeffs.end());
                 lnorm = lit->second.get_norm_tree();
                 ldnorm = lit->second.get_dnorm_tree();
                 l_is_leaf = !lit->second.has_children();
@@ -3000,7 +3001,6 @@ template<size_t NDIM>
                 l_is_leaf = true; // only reached if unfilter in previous step
             }
 
-            // Loop thru RHS functions seeing if anything can be multiplied
             std::vector<FunctionImpl<T,NDIM>*> vresult;
             std::vector<const FunctionImpl<R,NDIM>*> vright;
             std::vector< Tensor<R> > vrc;
@@ -3008,149 +3008,94 @@ template<size_t NDIM>
             vright.reserve(vrightin.size());
             vrc.reserve(vrightin.size());
 
+            // Loop thru RHS functions seeing if anything can be multiplied
             for (unsigned int i=0; i<vrightin.size(); ++i) {
+                Tensor<R> rc_data;
+                Tensor<L> lc_data;
                 FunctionImpl<T,NDIM>* result = vresultin[i];
                 const FunctionImpl<R,NDIM>* right = vrightin[i];
                 Tensor<R> rc = vrcin[i];
                 double rnorm,rdnorm;
+
+                // get norms of right function
                 if (rc.size() == 0) {
                     riterT it = right->coeffs.find(key).get();
-                    //r_is_leaf = !it->second.has_children();
-                    MADNESS_ASSERT(it != right->coeffs.end());
+                    //MADNESS_ASSERT(it != right->coeffs.end());
                     rnorm = it->second.get_norm_tree();
                     rdnorm = it->second.get_dnorm_tree();
                 }
                 else {
                     rnorm = rc.normf();
                     rdnorm = 0.0; // new leaf node, dnorm=0
-                    //r_is_leaf = true; // only reached if unfilter in previous step
                 }
 
-                // if error at this level is below threshold, compute here (redundant form)
+                // if error at this level is below threshold, compute here (assumes redundant form)
                 //print(key, "norms",ldnorm,rdnorm,rnorm,lnorm);
                 if (rnorm*ldnorm + lnorm*rdnorm + ldnorm*rdnorm <= truncate_tol(tol, key)) {
-                    //bool np1 = (lc.size() != 0 || rc.size() != 0);
-                    bool np1 = true;
-                    if (lc.size() == 0) {
-                        if (lit->second.has_coeff()) lc = lit->second.coeff().full_tensor_copy();
-                    }
+                    // don't change size of lc/rc which is needed for recursion logic... 
+                    //print("mul ", key);
+                    //print(rc.size(),lc.size());
                     if (rc.size() == 0) {
                         riterT rit = right->coeffs.find(key).get();
-                        if (rit->second.has_coeff()) rc = rit->second.coeff().full_tensor_copy();
+                        rc_data = rit->second.coeff().full_tensor_copy();
+                    } else {
+                        rc_data = rc;
                     }
-                    //print("mul", key, "leaf? ",r_is_leaf, l_is_leaf);
-                    result->task(world.rank(), &implT:: template do_mul<L,R>, key, lc, std::make_pair(key,rc));
+                    if (lc.size() == 0) {
+                        lc_data = lit->second.coeff().full_tensor_copy();
+                    } else {
+                        lc_data = lc;
+                    }
 
-                    ////do_mul<L,R>(key, lc, std::make_pair(key,rc));
-                    //Tensor<R> rcube_p = fcube_for_mul(key, key, rc);
-                    //Tensor<L> lcube_p = fcube_for_mul(key, key, lc);
-                    //Tensor<T> tcube_p(cdata.vk,false);
-                    //TERNARY_OPTIMIZED_ITERATOR(T, tcube_p, L, lcube_p, R, rcube_p, *_p0 = *_p1 * *_p2;);
-                    //double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
-                    //tcube_p = transform(tcube_p,cdata.quad_phiw).scale(scale);
-                    //coeffs.replace(key, nodeT(coeffT(tcube_p,targs),false));
-                    //print("finished mul",key);
-
-                    //if (np1) return;
-                    //riterT rit = right->coeffs.find(key).get();
-                    //print("children?", key, lit->second.has_children(), rit->second.has_children());
-                    //if (lit->second.has_children() && rit->second.has_children()) {
- //                   if(!np1) {
- //                       Tensor<L> lss;
- //                       Tensor<L> ld(cdata.v2k);
- //                       ld(cdata.s0) = lc(___);
- //                       lss = left->unfilter(ld);
-
- //                       Tensor<R> rss;
- //                       Tensor<R> rd(cdata.v2k);
- //                       rd(cdata.s0) = rc(___);
- //                       rss = right->unfilter(rd);
-
- //                       Tensor<T> scoeffs(cdata.v2k);
- //                       for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
- //                           const keyT& child = kit.key();
- //                           //print(key,"child", child);
- //                           std::vector<Slice> cp = child_patch(child);
- //                           //print("cp", cp);
- //                           //literT lit_child = left->coeffs.find(child).get();
- //                           //riterT rit_child = right->coeffs.find(child).get();
- //                           //print("has coeffs?",lit_child->second.has_coeff(), rit_child->second.has_coeff());
-
- //                           Tensor<L> lc_child;
- //                           Tensor<R> rc_child;
- //                           lc_child = copy(lss(cp));
- //                           rc_child = copy(rss(cp));
-
- //                           //print("copying tensors");
- //                           //lc_child = lit_child->second.coeff().full_tensor_copy();
- //                           //rc_child = rit_child->second.coeff().full_tensor_copy();
- //                           //do_mul<L,R>(child, lc_child, std::make_pair(child,rc_child));
- //                           //const keyT& rkey = child;T
- //                           //const Tensor<R>& rcoeff = rc_child;
- //                           
- //                           //print("cube");
- //                           Tensor<R> rcube = fcube_for_mul(child, child, rc_child);
- //                           Tensor<L> lcube = fcube_for_mul(child, child, lc_child);
- //                           Tensor<T> tcube(cdata.vk,false);
- //                           TERNARY_OPTIMIZED_ITERATOR(T, tcube, L, lcube, R, rcube, *_p0 = *_p1 * *_p2;);
- //                           //print("pow");
- //                           double scale = pow(0.5,0.5*NDIM*child.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
- //                           //print("transform");
- //                           tcube = transform(tcube,cdata.quad_phiw).scale(scale);
-
- //                           //print("copy");
- //                           scoeffs(cp) = copy(tcube);
- //                       }
- //                       Tensor<T> sf = left->filter(scoeffs);
- //                       Tensor<T> sdiff = tcube_p - sf(cdata.s0);
- //                       print("sdiff ", key, sdiff.normf());
-
- //                   } //else {print(key, "l or r child does not exist/have coeffs..");}
+                    result->task(world.rank(), &implT:: template do_mul<L,R>, key, lc_data, std::make_pair(key,rc_data));
                 }
-                else {  // Interior node
-                    result->coeffs.replace(key, nodeT(coeffT(),true));
+                // ..if not continue going down the tree
+                else {  
+                    result->coeffs.replace(key, nodeT(coeffT(),true));// Interior node
                     vresult.push_back(result);
                     vright.push_back(right);
                     vrc.push_back(rc);
-                    print(key, "recur down");
+                    //print("recur down ", key);
                 }
             }
 
             if (vresult.size()) {
+                // unfilter left function
                 Tensor<L> lss;
                 if (lc.size()) {
                     Tensor<L> ld(cdata.v2k);
                     ld(cdata.s0) = lc(___);
                     lss = left->unfilter(ld);
                 } else if (l_is_leaf) {
-                    if (lit->second.has_coeff()) lc = lit->second.coeff().full_tensor_copy();
+                    // still need lc to be empty to keep logic consistent..
+                    Tensor<L> lc_data2 = lit->second.coeff().full_tensor_copy();
                     Tensor<L> ld(cdata.v2k);
-                    ld(cdata.s0) = lc(___);
+                    ld(cdata.s0) = lc_data2(___);
                     lss = left->unfilter(ld);
                 }
 
+                // unfilter right functions
                 std::vector< Tensor<R> > vrss(vresult.size());
                 for (unsigned int i=0; i<vresult.size(); ++i) {
+                    const FunctionImpl<R,NDIM>* right = vright[i];
+                    riterT it = right->coeffs.find(key).get();
                     if (vrc[i].size()) {
                         Tensor<R> rd(cdata.v2k);
                         rd(cdata.s0) = vrc[i](___);
                         vrss[i] = vright[i]->unfilter(rd);
-                    } else {
-                        const FunctionImpl<R,NDIM>* right = vright[i];
-                        riterT it = right->coeffs.find(key).get();
-                        //bool r_is_leaf = !it->second.has_children();
-                        if (!it->second.has_children()) {
-                            if (it->second.has_coeff()) vrc[i] = it->second.coeff().full_tensor_copy();
-                            Tensor<R> rd(cdata.v2k);
-                            rd(cdata.s0) = vrc[i](___);
-                            vrss[i] = vright[i]->unfilter(rd);
-                        }
+                    } else if (!it->second.has_children()) {
+                        Tensor<R> rc_data2 = it->second.coeff().full_tensor_copy();
+                        Tensor<R> rd(cdata.v2k);
+                        rd(cdata.s0) = rc_data2(___);
+                        vrss[i] = vright[i]->unfilter(rd);
                     }
                 }
 
+                // spawn task for all children
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
                     Tensor<L> ll;
+
                     std::vector<Slice> cp = child_patch(child);
 
                     if (lc.size() || l_is_leaf)
@@ -3158,13 +3103,10 @@ template<size_t NDIM>
 
                     std::vector< Tensor<R> > vv(vresult.size());
                     for (unsigned int i=0; i<vresult.size(); ++i) {
-                        if (vrc[i].size()) {
+                        const FunctionImpl<R,NDIM>* right = vright[i];
+                        riterT it = right->coeffs.find(key).get();
+                        if (vrc[i].size() || !it->second.has_children()) {
                             vv[i] = copy(vrss[i](cp));
-                        } else {
-                            const FunctionImpl<R,NDIM>* right = vright[i];
-                            riterT it = right->coeffs.find(key).get();
-                            //bool r_is_leaf = !it->second.has_children();
-                            if (!it->second.has_children()) vv[i] = copy(vrss[i](cp));
                         }
                     }
 
@@ -3188,6 +3130,7 @@ template<size_t NDIM>
             double lnorm=1e99, rnorm=1e99, ldnorm=1e99, rdnorm=1e99;
             bool r_is_leaf=false, l_is_leaf=false;
 
+            // get norms of left function
             Tensor<L> lc = lcin;
             if (lc.size() == 0) {
                 literT it = left->coeffs.find(key).get();
@@ -3201,6 +3144,7 @@ template<size_t NDIM>
                 l_is_leaf = true;
             }
 
+            // get norms of right function
             Tensor<R> rc = rcin;
             if (rc.size() == 0) {
                 riterT it = right->coeffs.find(key).get();
@@ -3214,6 +3158,7 @@ template<size_t NDIM>
                 r_is_leaf = true;
             }
 
+            // multiply if error in representation of product in this box is below thresh
             if (rnorm*ldnorm + lnorm*rdnorm + ldnorm*rdnorm <= truncate_tol(tol, key)) {
                 if (lc.size() == 0) {
                     literT it = left->coeffs.find(key).get();
@@ -3230,6 +3175,7 @@ template<size_t NDIM>
             // Recur down
             coeffs.replace(key, nodeT(coeffT(),true)); // Interior node
 
+            // unfilter left
             Tensor<L> lss;
             if (lc.size()) {
                 Tensor<L> ld(cdata.v2k);
@@ -3243,6 +3189,7 @@ template<size_t NDIM>
                 lss = left->unfilter(ld);
             }
 
+            // unfilter right
             Tensor<R> rss;
             if (rc.size()) {
                 Tensor<R> rd(cdata.v2k);
@@ -3256,6 +3203,7 @@ template<size_t NDIM>
                 rss = right->unfilter(rd);
             }
 
+            // spawn tasks for children
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                 const keyT& child = kit.key();
                 Tensor<L> ll;
