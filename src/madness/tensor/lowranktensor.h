@@ -440,11 +440,17 @@ public:
         return Tensor<T>();
     }
 
-    const Tensor<T>& full_tensor() const {
-		return get_tensor();
+	/// return a view (shallow copy) of the full tensor, if possible,
+	/// otherwise reconstruct to full tensor and return a deep copy
+    Tensor<T> full_tensor() const {
+		if (is_full_tensor()) return get_tensor();
+		return full_tensor_copy();
     }
 
-    Tensor<T>& full_tensor() {
+	/// return a reference of the full tensor, presumably for in-place modification
+	/// WARNING: works only if this is indeed a full tensor
+	Tensor<T>& full_tensor() {
+		MADNESS_ASSERT(is_full_tensor());
 		return get_tensor();
     }
 

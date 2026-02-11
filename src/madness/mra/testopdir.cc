@@ -198,7 +198,7 @@ int test_opdir(World& world) {
                     double c = sqrt(expnts[d]/constants::pi)*width[d];   // Coeff of user-coords normalized gaussian scaled to sim coords
                     c *= pow(width[d],-m[d]);
                     ops[0].setop(d, std::shared_ptr< Convolution1D<double> >(
-                              new GaussianConvolution1D<double>(k, c, e, m[d], false, 0.0)));
+                              new GaussianConvolution1D<double>(k, c, e, m[d], LatticeRange(false), 0.0)));
                 }
 
                 real_convolution_3d op(world, ops);

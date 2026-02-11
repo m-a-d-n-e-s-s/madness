@@ -255,9 +255,9 @@ int main(int argc, char**argv) {
 
     // Create operators and apply
     SeparatedConvolution<double, 3> op =
-        CoulombOperator(world, 1e-10, eps, bc_open.is_periodic());
+        CoulombOperator(world, 1e-10, eps, bc_open.lattice_range());
     SeparatedConvolution<double, 3> pop =
-        CoulombOperator(world, 1e-10, eps, bc.is_periodic());
+        CoulombOperator(world, 1e-10, eps, bc.lattice_range());
 
     auto range = bc.make_range<3>(1, .5/L);
 
@@ -269,7 +269,7 @@ int main(int argc, char**argv) {
                               /* range restriction? */
                               range
                               ),
-        madness::no_lattice_sum<3>());
+        madness::no_lattice_sum_range<3>());
     // N.B. Coulomb with range restriction to [-L/2,L/2]
     SeparatedConvolution<double, 3> pop_rr(
         world,
@@ -278,7 +278,7 @@ int main(int argc, char**argv) {
                               /* range restriction? */
                               range
                               ),
-        bc.is_periodic());
+        bc.lattice_range());
     // N.B. Coulomb with range restriction to [-L/2,L/2]
     SeparatedConvolution<double, 3> pop2_rr(
         world,
@@ -287,7 +287,7 @@ int main(int argc, char**argv) {
                               /* range restriction? */
                               range
                               ),
-        madness::no_lattice_sum<3>());
+        madness::no_lattice_sum_range<3>());
     pop2_rr.set_domain_periodicity(bc.is_periodic());
 
     // check operator norms

@@ -123,7 +123,7 @@ int test_periodic(World& world) {
         double expnt_sim = expnt*width*width;
         double coeff = sqrt(expnt/constants::pi);
         double coeff_sim = coeff*width;
-        ops[0].reset(new GaussianConvolution1D<double>(k, coeff_sim, expnt_sim, 0, true));
+        ops[0].reset(new GaussianConvolution1D<double>(k, coeff_sim, expnt_sim, 0, LatticeRange(true)));
 
         SeparatedConvolution<double,3> op(world, ops);
 
@@ -183,7 +183,7 @@ int test_periodic1(World& world) {
         double expnt_sim = expnt*width*width;
         double coeff = sqrt(expnt/constants::pi);
         double coeff_sim = coeff*width;
-        ops[0].reset(new GaussianConvolution1D<double>(k, coeff_sim, expnt_sim, 0, true));
+        ops[0].reset(new GaussianConvolution1D<double>(k, coeff_sim, expnt_sim, 0, LatticeRange(true)));
 
         SeparatedConvolution<double,1> op(world, ops);
 

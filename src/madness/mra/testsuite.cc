@@ -70,38 +70,6 @@ template <> float_complex complexify<float_complex>(float_complex c) {
     return c*float_complex(0.5,-sqrt(3.0)*0.5);
 }
 
-template <typename T, std::size_t NDIM>
-class Slater : public FunctionFunctorInterface<T,NDIM> {
-public:
-    typedef Vector<double,NDIM> coordT;
-    const coordT center;
-    const double exponent;
-    const T coefficient;
-
-    Slater(const coordT& center, double exponent, T coefficient)
-            : center(center), exponent(exponent), coefficient(complexify(coefficient)) {};
-
-    T operator()(const coordT& x) const {
-        double sum = 0.0;
-        for (std::size_t i=0; i<NDIM; ++i) {
-            double xx = center[i]-x[i];
-            sum += xx*xx;
-        };
-        return coefficient*exp(-exponent*sqrt(sum));
-    };
-};
-
-struct slater2 {
-    double a=1.0;
-
-    slater2(double aa) : a(aa) {}
-
-    template<std::size_t NDIM>
-    double operator()(const Vector<double,NDIM> &r) const {
-        double x = inner(r,r);
-        return exp(-a *sqrt(x));
-    }
-};
 
 template <typename T, std::size_t NDIM>
 class Gaussian : public FunctionFunctorInterface<T,NDIM> {
@@ -855,93 +823,6 @@ public:
     }
 };
 
-void test_mul(World& world) {
-    typedef Vector<double,3> coordT;
-    typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
-
-    const coordT origin1 = {0.3, 0.3, 0.2};
-    //const double expnt1 = 10.0;
-    //const double coeff1 = pow(1.0/PI*expnt1,0.5*3);
-    //functorT functor1(new Gaussian<double,3>(origin1, expnt1, coeff1));
-    const double expnt1 = 2.0;
-    const double coeff1 = 1.0;
-    functorT functor1(new Slater<double,3>(origin1, expnt1, coeff1));
-
-    const coordT origin2 = {-0.3, -0.3, 0.2};
-    //const double expnt2 = 10.0;
-    //const double coeff2 = pow(1.0/PI*expnt2,0.5*3);
-    //functorT functor2(new Gaussian<double,3>(origin2, expnt2, coeff2));
-    const double expnt2 = 2.0;
-    const double coeff2 = 1.0;
-    functorT functor2(new Slater<double,3>(origin2, expnt2, coeff2));
-
-    int k = 10;
-    double thresh = 1e-8;
-
-    FunctionDefaults<3>::set_k(k);
-    FunctionDefaults<3>::set_thresh(thresh);
-    FunctionDefaults<3>::set_refine(true);
-    FunctionDefaults<3>::set_initial_level(2);
-    FunctionDefaults<3>::set_truncate_mode(0);
-    FunctionDefaults<3>::set_cubic_cell(-5,5);
-
-    START_TIMER;
-    Function<double,3> f1 = FunctionFactory<double,3>(world).functor(functor1).thresh(thresh).initial_level(4);
-    END_TIMER("project");
-
-    f1.reconstruct(true);
-    double norm1 = f1.norm2(), err1 = f1.err(*functor1);
-    if (world.rank() == 0) {
-        print("         f1 norm is", norm1);
-        print("     f1 total error", err1);
-    }
-    f1.compress(true);
-    f1.make_redundant(true);
-
-    //print("F1 TREE");
-    //f1.print_tree();
-
-    START_TIMER;
-    Function<double,3> f2 = FunctionFactory<double,3>(world).functor(functor2).thresh(thresh).initial_level(4);
-    END_TIMER("project");
-
-    f2.reconstruct(true);
-    double norm2 = f2.norm2(), err2 = f2.err(*functor2);
-    if (world.rank() == 0) {
-        print("         f2 norm is", norm2);
-        print("     f2 total error", err2);
-    }
-    f2.compress(true);
-    f2.make_redundant(true);
-
-    //print("F2 TREE");
-    //f2.print_tree();
-    
-    auto v = zero_functions_compressed<double, 3>(world, 1);
-    v[0] += f1;
-    v[0].compress(true);
-    v[0].make_redundant(true);
-
-    print("tree size f1 ", f1.tree_size());
-    print("tree size f2 ", f2.tree_size());
-
-    auto res = mul_sparse2(world, f2, v, thresh*0.1, true, false, false);
-    print("tree size f1*f2 ", res[0].tree_size());
-    truncate(res);
-    print("tree size after truncate ", res[0].tree_size());
-
-
-    auto ref = mul_sparse(world, f2, v, thresh*0.1);
-    print("tree size ref ", ref[0].tree_size());
-    truncate(ref);
-    print("tree size after truncate ", ref[0].tree_size());
-
-    // f1.truncate();
-    // f1.compress();
-    // f1.make_redundant();
-    // f1.print_tree();
-}
-
 int test_coulomb(World& world) {
     typedef Vector<double,3> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
@@ -1404,7 +1285,7 @@ int test_apply_push_1d(World& world) {
     coordT lo(-L), hi(L);
     plot_line("fplot.dat", 201, lo, hi, f);
 
-    GaussianConvolution1D<double> op(6, coeff*2.0*L, expnt*L*L*4.0, 0, false);
+    GaussianConvolution1D<double> op(6, coeff*2.0*L, expnt*L*L*4.0, 0, LatticeRange(false));
     Function<T,NDIM> opf = apply_1d_realspace_push(op, f, 0);
 
     opf.sum_down();
@@ -1473,58 +1354,56 @@ int main(int argc, char**argv) {
         std::cout.precision(8);
 
 
-    //    nfail+=test_basic<double,1>(world);
-    //    nfail+=test_conv<double,1>(world);
-    //    nfail+=test_math<double,1>(world);
-    //    nfail+=test_diff<double,1>(world);
-    //    nfail+=test_op<double,1>(world);
-    //    nfail+=test_plot<double,1>(world);
-    //    nfail+=test_apply_push_1d<double,1>(world);
-    //    nfail+=test_io<double,1>(world);
+        nfail+=test_basic<double,1>(world);
+        nfail+=test_conv<double,1>(world);
+        nfail+=test_math<double,1>(world);
+        nfail+=test_diff<double,1>(world);
+        nfail+=test_op<double,1>(world);
+        nfail+=test_plot<double,1>(world);
+        nfail+=test_apply_push_1d<double,1>(world);
+        nfail+=test_io<double,1>(world);
 
-    //    // stupid location for this test
-    //    GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0),0);
-    //    GaussianConvolution1D<double> gau(10, 100.0, 100.0, 0, false);
-    //    Tensor<double> gg = gen.rnlp(4,0);
-    //    Tensor<double> hh = gau.rnlp(4,0);
-    //    MADNESS_CHECK((gg-hh).normf() < 1e-13);
-    //    if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
+        // stupid location for this test
+        GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0),0);
+        GaussianConvolution1D<double> gau(10, 100.0, 100.0, 0, LatticeRange(false));
+        Tensor<double> gg = gen.rnlp(4,0);
+        Tensor<double> hh = gau.rnlp(4,0);
+        MADNESS_CHECK((gg-hh).normf() < 1e-13);
+        if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
 
-    //    // disabling to allow tests pass
-    //    // TODO fix this test, sometimes error will increase by several orders of magnitude during propagation
-    //    //nfail+=test_qm(world);
+        // disabling to allow tests pass
+        // TODO fix this test, sometimes error will increase by several orders of magnitude during propagation
+        //nfail+=test_qm(world);
 
-    //    nfail+=test_basic<double_complex,1>(world);
-    //    nfail+=test_conv<double_complex,1>(world);
-    //    nfail+=test_math<double_complex,1>(world);
-    //    nfail+=test_diff<double_complex,1>(world);
-    //    nfail+=test_op<double_complex,1>(world);
-    //    nfail+=test_plot<double_complex,1>(world);
-    //    nfail+=test_io<double_complex,1>(world);
+        nfail+=test_basic<double_complex,1>(world);
+        nfail+=test_conv<double_complex,1>(world);
+        nfail+=test_math<double_complex,1>(world);
+        nfail+=test_diff<double_complex,1>(world);
+        nfail+=test_op<double_complex,1>(world);
+        nfail+=test_plot<double_complex,1>(world);
+        nfail+=test_io<double_complex,1>(world);
 
-    //    //TaskInterface::debug = true;
-    //    nfail+=test_basic<double,2>(world);
-    //    nfail+=test_conv<double,2>(world);
-    //    nfail+=test_math<double,2>(world);
-    //    nfail+=test_diff<double,2>(world);
-    //    nfail+=test_op<double,2>(world);
-    //    nfail+=test_plot<double,2>(world);
-    //    nfail+=test_io<double,2>(world);
+        //TaskInterface::debug = true;
+        nfail+=test_basic<double,2>(world);
+        nfail+=test_conv<double,2>(world);
+        nfail+=test_math<double,2>(world);
+        nfail+=test_diff<double,2>(world);
+        nfail+=test_op<double,2>(world);
+        nfail+=test_plot<double,2>(world);
+        nfail+=test_io<double,2>(world);
 
-    //    if (!smalltest) {
-    //        nfail+=test_basic<double,3>(world);
-    //        nfail+=test_conv<double,3>(world);
-    //        nfail+=test_math<double,3>(world);
-    //        nfail+=test_diff<double,3>(world);
-    //        nfail+=test_op<double,3>(world);
-    //        nfail+=test_coulomb(world);
-    //        nfail+=test_plot<double,3>(world);
-    //        nfail+=test_io<double,3>(world);
-    //        
-    //        test_plot<double,4>(world); // slow unless reduce npt in test_plot // comment out to speed up travis
-    //    }
-
-        test_mul(world);
+        if (!smalltest) {
+            nfail+=test_basic<double,3>(world);
+            nfail+=test_conv<double,3>(world);
+            nfail+=test_math<double,3>(world);
+            nfail+=test_diff<double,3>(world);
+            nfail+=test_op<double,3>(world);
+            nfail+=test_coulomb(world);
+            nfail+=test_plot<double,3>(world);
+            nfail+=test_io<double,3>(world);
+            
+            test_plot<double,4>(world); // slow unless reduce npt in test_plot // comment out to speed up travis
+        }
 
         if (world.rank() == 0) print("entering final fence");
         world.gop.fence();

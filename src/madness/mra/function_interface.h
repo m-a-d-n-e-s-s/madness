@@ -471,7 +471,7 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
 
 				// only 3 dimensions here!
 				for (std::size_t d=0; d<LDIM; ++d) {
-					ops[mu].setop(d,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[d]*width[d], 0, false));
+					ops[mu].setop(d,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[d]*width[d], 0, LatticeRange(false)));
 				}
 			}
 		}
