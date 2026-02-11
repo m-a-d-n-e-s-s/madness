@@ -1411,10 +1411,12 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         if (tile_Vpsi){
             //functionT vloc_redundant = copy(vloc);
             //vloc_redundant.make_redundant();
+            vloc.reconstruct();
             vloc.make_redundant();
-            for (unsigned int i=0; i<amo.size(); ++i){
-                amo[i].make_redundant();
-            }
+            //for (unsigned int i=0; i<amo.size(); ++i){
+            //    amo[i].make_redundant();
+            //}
+            make_redundant(world, amo);
 
             for (size_t ilo=0; ilo<amo.size(); ilo+=ntile) {
                 size_t iend = std::min(ilo+ntile,amo.size());
@@ -1436,11 +1438,13 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
                 //}
 
                 //vecfuncT amo_redundant = copy(tmpamo);
-                vecfuncT tmpVpsi2;
-                for (unsigned int i=0; i<tmpamo.size(); ++i){
-                    auto res = mul_sparse_debug(vloc, tmpamo[i], vtol*0.1, true, false, false, true);
-                    tmpVpsi2.push_back(res);
-                }
+                //vecfuncT tmpVpsi2;
+                //for (unsigned int i=0; i<tmpamo.size(); ++i){
+                //    auto res = mul_sparse_debug(vloc, tmpamo[i], vtol*0.1, true, false, false, true);
+                //    tmpVpsi2.push_back(res);
+                //}
+                auto tmpVpsi2 = mul_sparse2(world, vloc, tmpamo, vtol*0.1, true, false, false);
+
                 for (unsigned int i=0; i<tmpVpsi2.size(); ++i){
                     print(ilo+i, "V*psi mw_mul output ", tmpVpsi2[i].tree_size()); 
                 }
