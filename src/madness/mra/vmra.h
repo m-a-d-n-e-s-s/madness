@@ -1147,17 +1147,16 @@ namespace madness {
                bool do_compress=true,
                bool do_make_redundant=true) {
         PROFILE_BLOCK(Vmulsp);
-        if (do_compress) {
-            a.compress(false);
-            compress(world, v, false);
+        //if (do_compress) {
+        //    a.compress(false);
+        //    compress(world, v, false);
+        //    world.gop.fence();
+        //}
+        if (do_make_redundant) {
+            make_redundant(world, v, false);
+            a.make_redundant(false);
             world.gop.fence();
         }
-        //if (do_make_redundant) {
-        //    for (unsigned int i=0; i<v.size(); ++i) {
-        //        v[i].make_redundant(false);
-        //    }
-        //    a.make_redundant();
-        //}
         return vmulXX2(a, v, tol, fence);
     }
 
