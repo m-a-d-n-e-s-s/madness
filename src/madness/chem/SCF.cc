@@ -1356,6 +1356,7 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
         K.set_algorithm(Exchange<double,3>::string2algorithm(param.hfexalg()));
         K.set_symmetric(true).set_printlevel(param.print_level());
         K.set_macro_task_info(MacroTaskInfo::preset("default"));
+        K.set_macro_task_info(param.memory());
 
         vecfuncT Kamo = K(amo);
         tensorT excv = inner(world, Kamo, amo);

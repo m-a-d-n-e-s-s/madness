@@ -351,21 +351,29 @@ public:
         std::size_t max_memsize=memsize;
         std::size_t min_memsize=memsize;
         double rss=madness::get_rss_usage_in_GB();
+        double rss_av=rss;
         universe.gop.sum(global_memsize);
         universe.gop.max(max_memsize);
         universe.gop.max(max_record_size);
         universe.gop.min(min_memsize);
         universe.gop.max(rss);
+        universe.gop.sum(rss_av);
+        double byte2gbyte=1.0/(1024*1024*1024);
+
+        // convert type(container item).second to GB, i.e. number of bytes in the container to GB
+        double uchar2gbyte=byte2gbyte*sizeof(unsigned char);
+
 
         auto local_size=container.size();
         auto global_size=local_size;
         universe.gop.sum(global_size);
         nlohmann::json j;
         j["container_size_global"] = global_size;
-        j["memory_global"] = global_memsize;
-        j["memory_min"] = min_memsize;
-        j["memory_max"] = max_memsize;
+        j["memory_global_GB"] = global_memsize*uchar2gbyte;
+        j["memory_min_GB"] = min_memsize*uchar2gbyte;
+        j["memory_max_GB"] = max_memsize*uchar2gbyte;
         j["memory_rss_GB_max"] = rss;
+        j["memory_rss_GB_av"] = rss_av/universe.size();
         j["max_record_size"] = max_record_size;
         return j;
     }
