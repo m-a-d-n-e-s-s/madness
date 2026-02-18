@@ -346,13 +346,14 @@ int test_deferred(World& universe, const std::vector<real_function_3d>& v3,
         taskq->print_taskq();
         // auto [global_size,global_memsize,min_memsize,max_memsize,max_record_size]=taskq->cloud.get_size(universe);
         nlohmann::json stats=taskq->cloud.gather_memory_statistics(universe);
-        double global_memsize=stats["memory_global"].template get<double>();
+        double global_memsize=stats["memory_global_GB"].template get<double>();
+        double byte2gbyte=1.0/(1024*1024*1024);
 
 
         if (policy.storage_policy==MacroTaskInfo::StoreFunction) {
-            t1.checkpoint(global_memsize>1.e3,"cloud global memory size > 1 kB");
+            t1.checkpoint(global_memsize>1.e3*byte2gbyte,"cloud global memory size > 1 kB");
         } else if (policy.storage_policy==MacroTaskInfo::StoreFunctionViaPointer) {
-            t1.checkpoint(global_memsize<1.e3,"cloud global memory size < 1 kB");
+            t1.checkpoint(global_memsize<1.e3*byte2gbyte,"cloud global memory size < 1 kB");
         }
         taskq->run_all();
         taskq->cloud.print_timings(taskq->cloud.gather_timings(universe));
