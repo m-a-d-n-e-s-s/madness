@@ -962,17 +962,18 @@ public:
     // all ctors are private, only accessible by GenTensor
 
     /// default ctor
-    SliceLowRankTensor<T> () {}
+    SliceLowRankTensor() {}
 
     /// ctor with a GenTensor; shallow
-	SliceLowRankTensor<T> (const GenTensor<T>& gt, const std::vector<Slice>& s)
+	SliceLowRankTensor(const GenTensor<T>& gt, const std::vector<Slice>& s)
     				: GenTensor<T>(const_cast<GenTensor<T>& > (gt)) {
 		//        : Tensor<T>(const_cast<Tensor<T>&>(t)) //!!!!!!!!!!!
+		thisslice.fill(_);
 		for (int i=0; i<s.size(); ++i) thisslice[i]=s[i];
 	}
 
 	/// ctor with a GenTensor; shallow
-	SliceLowRankTensor<T> (const GenTensor<T>& gt, const std::array<Slice,TENSOR_MAXDIM>& s)
+	SliceLowRankTensor(const GenTensor<T>& gt, const std::array<Slice,TENSOR_MAXDIM>& s)
     				: GenTensor<T>(&gt), thisslice(s) {}
 
 public:
