@@ -494,7 +494,112 @@ void test_matrix_mul_sparse(World &world) {
     if (world.rank()==0) print("leaving test_mul_sparse");
 }
 
+template <typename T, int NDIM>
+void test_orthonormalize_symmetric(World& world) {
+    typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > ffunctorT;
 
+    const double thresh=1.e-7;
+    Tensor<double> cell(NDIM,2);
+    for (std::size_t i=0; i<NDIM; ++i) {
+        cell(i,0) = -11.0-2*i;  // Deliberately asymmetric bounding box
+        cell(i,1) =  10.0+i;
+    }
+    FunctionDefaults<NDIM>::set_cell(cell);
+    FunctionDefaults<NDIM>::set_k(8);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(3);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
+
+    const int n=10;
+
+    if (world.rank() == 0) 
+        print("testing orthonormalize_symmetric<",archive::get_type_name<T>(),">");
+
+    START_TIMER;
+    std::vector< Function<T,NDIM> > vfunc(n);
+    for (int i=0; i<n; ++i) {
+        ffunctorT f(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),0.5));
+        vfunc[i] = FunctionFactory<T,NDIM>(world).functor(f);
+    }
+    END_TIMER("project");
+
+    START_TIMER;
+    compress(world,vfunc);
+    END_TIMER("compress");
+    
+    START_TIMER;
+    std::vector< Function<T,NDIM> > vfunc_new = orthonormalize_symmetric(vfunc, 1e-6);
+    END_TIMER("orthonormalize_symmetric");
+
+    START_TIMER;
+    Tensor<T> test = matrix_inner(world, vfunc_new, vfunc_new, /* sym */ true);
+    END_TIMER("ovlp of vfunc_new");
+
+    START_TIMER;
+    Tensor<T> identity(n, n);
+    for (int i=0; i<n; ++i) identity(i,i)=1.0;
+    END_TIMER("form identity matrix");
+
+    if (world.rank() == 0) 
+        print("error norm",(identity-test).normf(),"\n");
+
+    MADNESS_CHECK((identity-test).normf() < thresh);
+}
+
+template <typename T, int NDIM>
+void test_orthonormalize_canonical(World& world) {
+    typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > ffunctorT;
+
+    const double thresh=1.e-7;
+    Tensor<double> cell(NDIM,2);
+    for (std::size_t i=0; i<NDIM; ++i) {
+        cell(i,0) = -11.0-2*i;  // Deliberately asymmetric bounding box
+        cell(i,1) =  10.0+i;
+    }
+    FunctionDefaults<NDIM>::set_cell(cell);
+    FunctionDefaults<NDIM>::set_k(8);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_initial_level(3);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
+
+    const int n=10;
+
+    if (world.rank() == 0) 
+        print("testing orthonormalize_canonical<",archive::get_type_name<T>(),">");
+
+    START_TIMER;
+    std::vector< Function<T,NDIM> > vfunc(n);
+    for (int i=0; i<n; ++i) {
+        ffunctorT f(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),0.5));
+        vfunc[i] = FunctionFactory<T,NDIM>(world).functor(f);
+    }
+    END_TIMER("project");
+
+    START_TIMER;
+    compress(world,vfunc);
+    END_TIMER("compress");
+    
+    START_TIMER;
+    std::vector< Function<T,NDIM> > vfunc_new = orthonormalize_canonical(vfunc, 1e-6);
+    const int rank = vfunc_new.size();
+    END_TIMER("orthonormalize_canonical");
+
+    START_TIMER;
+    Tensor<T> test = matrix_inner(world, vfunc_new, vfunc_new, /* sym */ true);
+    END_TIMER("ovlp of vfunc_new");
+
+    START_TIMER;
+    Tensor<T> identity(rank, rank);
+    for (int i=0; i<rank; ++i) identity(i,i)=1.0;
+    END_TIMER("form identity matrix");
+
+    if (world.rank() == 0) 
+        print("error norm",(identity-test).normf(),"\n");
+
+    MADNESS_CHECK((identity-test).normf() < thresh);
+}
 
 
 template <std::size_t NDIM>
@@ -562,8 +667,6 @@ int main(int argc, char**argv) {
         test_inner<double,double,1,true>(world);
         test_dot<double, double, 1, false>(world);
         test_dot<double, double, 1, true>(world);
-        test_multi_to_multi_op<1>(world);
-        test_multi_to_multi_op<2>(world);
 
         test_cross<double,double,2>(world);
         test_cross<std::complex<double>,double,2>(world);
@@ -580,6 +683,15 @@ int main(int argc, char**argv) {
         test_matrix_mul_sparse<double,2>(world);
         test_matrix_mul_sparse<double,3>(world);
 
+        test_orthonormalize_symmetric<double,1>(world);
+        test_orthonormalize_canonical<double,1>(world);
+        if (!smalltest) {
+            test_orthonormalize_symmetric<double,3>(world);
+            test_orthonormalize_canonical<double,3>(world);
+        }
+
+        test_multi_to_multi_op<1>(world);
+        test_multi_to_multi_op<2>(world);
         if (!smalltest) test_multi_to_multi_op<3>(world);
 #if !HAVE_GENTENSOR
         test_inner<double,std::complex<double>,1,false>(world);
@@ -593,6 +705,12 @@ int main(int argc, char**argv) {
             test_dot<std::complex<double>, double, 1, false>(world);
             test_dot<std::complex<double>, std::complex<double>, 1, false>(world);
             test_dot<std::complex<double>, std::complex<double>, 1, true>(world);
+        }
+        test_orthonormalize_symmetric<std::complex<double>,1>(world);
+        test_orthonormalize_canonical<std::complex<double>,1>(world);
+        if (!smalltest) {
+            test_orthonormalize_symmetric<std::complex<double>,3>(world);
+            test_orthonormalize_canonical<std::complex<double>,3>(world);
         }
 #endif
     }
