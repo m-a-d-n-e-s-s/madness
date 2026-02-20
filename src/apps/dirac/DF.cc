@@ -1062,7 +1062,7 @@ void DF::saveDF(World& world){
 //Creates the (Gaussian) nuclear potential from the molecule object
 void DF::make_gaussian_potential(World& world, real_function_3d& potential){
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
-     GaussianNuclearDensityFunctor Vfunctor(Init_params.molecule);
+     GaussianNuclearDensityPotentialFunctor Vfunctor(Init_params.molecule);
      potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
 }
 
@@ -1071,7 +1071,7 @@ void DF::make_gaussian_potential(World& world, real_function_3d& potential, doub
      if(world.rank()==0) print("\n***Making a Gaussian Potential***");
      auto molecule = Init_params.molecule;
 
-     GaussianNuclearDensityFunctor Vfunctor(molecule);
+     GaussianNuclearDensityPotentialFunctor Vfunctor(molecule);
      potential = real_factory_3d(world).functor(Vfunctor).truncate_mode(0).truncate_on_project();
 
      nuclear_repulsion_energy = 0.0;
