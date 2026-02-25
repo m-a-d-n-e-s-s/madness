@@ -849,8 +849,6 @@ namespace madness {
               // compare Displacements::make_disp vs Displacements::make_disp_periodic
               auto disp_d_eff_abs = std::abs(disp_d);
               if (domain_policies_[d] == ExtraDomainPolicy::Translate) {
-                MADNESS_ASSERT(range_[d].N() <= 2);  // displacements that exceed 1 whole cell need bit more complex logic
-
                 // for "periodic" displacements the effective disp_d is the shortest of {..., disp_d-twon, disp_d, disp_d+twon, ...} ... see make_disp_periodic
                 const std::int64_t disp_d_eff = map_to_range_twon(disp_d);
                 disp_d_eff_abs = std::min(disp_d_eff,std::abs(disp_d_eff-twon));
