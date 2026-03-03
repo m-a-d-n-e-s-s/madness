@@ -6416,16 +6416,18 @@ template<size_t NDIM>
                     bool need_s_coeffs= childnode_exists ? (acc->second.get_snorm()<=0.0) : true;
 
                     coeffT child_s_coeffs;
-                    if (need_s_coeffs and compute_child_s_coeffs) {
-                        if (d.dim(0)==cdata.vk[0]) {        // s coeffs only in this node
-                            coeffT d1(cdata.v2k,get_tensor_args());
-                            d1(cdata.s0)+=d;
-                            d=d1;
+                    if (need_s_coeffs) {
+                        if (compute_child_s_coeffs) {
+                            if (d.dim(0)==cdata.vk[0]) {        // s coeffs only in this node
+                                coeffT d1(cdata.v2k,get_tensor_args());
+                                d1(cdata.s0)+=d;
+                                d=d1;
+                            }
+                            d = unfilter(d);
+                            compute_child_s_coeffs=false;
                         }
-                        d = unfilter(d);
                         child_s_coeffs=copy(d(child_patch(child)));
                         child_s_coeffs.reduce_rank(thresh);
-                        compute_child_s_coeffs=false;
                     }
 
                     if (not childnode_exists) {
