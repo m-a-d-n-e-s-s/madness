@@ -11,7 +11,6 @@
 #include<madness/world/timing_utilities.h>
 #include <random>
 
-
 using namespace madness;
 
 
@@ -59,7 +58,9 @@ int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
     {
         double n1 = phi1.norm2();
         double n2 = phi2.norm2();
-        bool first_one = (fabs(phi1({1, 1, 1}) - 1.0) < 1.e-6);
+        Vector<double,LDIM> point;
+        point.fill(1.0);
+        bool first_one = (fabs(phi1(point) - 1.0) < 1.e-6);
         if (world.rank() == 0) {
             if (first_one) print("1(1) phi(2)");
             else print("phi(1) 1(2)");
@@ -231,7 +232,7 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
         print(msg,"rank ", lrf.rank());
         j[msg]=result_right-reference;
         j[msg+"_rank"]=lrf.rank();
-        j[msg+"_compute_time"]=t.tag(msg+"_compute_time");
+        j[msg+"_error_compute_time"]=t.tag(msg+"_error_compute_time");
         json2file(j,jsonfilename);
     };
 
@@ -251,52 +252,62 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
 
         j["left_project_time"]=t.tag("left_project_time");
         json2file(j,jsonfilename);
-        compute_error("left_project",fi_one);
+        compute_error("exchange error",fi_one);
+        t1.checkpoint(l2error,"l2error");
 
-        fi_one.optimize(lrfunctor);
-        l2error=fi_one.l2error(lrfunctor);
-        print("left_optimize_l2error",l2error);
-        j["left_optimize_time"]=t.tag("left_optimize_time");
-        json2file(j,jsonfilename);
-        compute_error("left_optimize",fi_one);
 
-//        fi_one.reorthonormalize();
-//        j["left_reorthonormalize"]=t.tag("left_reorthonormalize");
-//        json2file(j,jsonfilename);
-//        compute_error("left_reorthonormalize",fi_one);
+        // compute the exchange term twice, first time with no optimizatio of the low-rank function, second time with
+        // optimization. The optimization should reduce the error significantly.
+        for (int i=0; i<2; ++i) {
+            if (i==1) {
+                fi_one.optimize(lrfunctor);
+                l2error=fi_one.l2error(lrfunctor);
+                print("left_optimize_l2error",l2error);
+                j["left_optimize_time"]=t.tag("left_optimize_time");
+                json2file(j,jsonfilename);
+                compute_error("left_optimize",fi_one);
+            }
 
-        LowRankFunction<double,6> phi0(world);
-        phi0.g={phi};
-        phi0.h={phi};
+            //        fi_one.reorthonormalize();
+            //        j["left_reorthonormalize"]=t.tag("left_reorthonormalize");
+            //        json2file(j,jsonfilename);
+            //        compute_error("left_reorthonormalize",fi_one);
 
-        timer t2(world);
-        // this is f12|ij>
-        auto f12ij=copy(fi_one);
-        f12ij.h=f12ij.h*phi;
-        double result1=inner(phi0,f12ij);
-        print("<ij | f12 | ij>",result1);
-        t2.tag("multiply 1(1)* phi(1))");
+            LowRankFunction<double,6> phi0(world);
+            phi0.g={phi};
+            phi0.h={phi};
 
-        // this is f12|(ki) j>
-        auto f12kij=copy(f12ij);
-        f12kij.g=f12kij.g*phi;
-        double result3=inner(phi0,f12kij);
-        print("<ij | f12 | (ki) j>",result3);
-        t2.tag("multiply 1");
+            timer t2(world);
+            // this is f12|ij>
+            auto f12ij=copy(fi_one);
+            f12ij.h=f12ij.h*phi;
+            double result1=inner(phi0,f12ij);
+            print("<ij | f12 | ij>",result1);
+            t2.tag("multiply 1(1)* phi(1))");
 
-        // this is g(f12|(ki) j>);
-        auto gf12kij=copy(f12kij);
-        gf12kij.g=g12(f12kij.g);
-        double result2=inner(phi0,gf12kij);
-        print("<ij | g(f12 | (ki) j>)",result2);
-        t2.tag("apply g ");
+            // this is f12|(ki) j>
+            auto f12kij=copy(f12ij);
+            f12kij.g=f12kij.g*phi;
+            double result3=inner(phi0,f12kij);
+            print("<ij | f12 | (ki) j>",result3);
+            t2.tag("multiply 1");
 
-        // this is kg(f12|(ki) j>);
-        auto kgf12kij=copy(gf12kij);
-        kgf12kij.g=gf12kij.g * phi;
-        double result4=inner(phi0,kgf12kij);
-        print("<ij | k g(f12 | (ki) j>)",result4);
-        t2.tag("apply g ");
+            // this is g(f12|(ki) j>);
+            auto gf12kij=copy(f12kij);
+            gf12kij.g=g12(f12kij.g);
+            double result2=inner(phi0,gf12kij);
+            print("<ij | g(f12 | (ki) j>)",result2);
+            t2.tag("apply g ");
+
+            // this is kg(f12|(ki) j>);
+            auto kgf12kij=copy(gf12kij);
+            kgf12kij.g=gf12kij.g * phi;
+            double result4=inner(phi0,kgf12kij);
+            print("<ij | k g(f12 | (ki) j>)",result4);
+            t2.tag("multiply 2 ");
+            std::string msg=(i==0) ? "LRF exchange commutator no optimization" : "LRF exchange commutator optimization";
+            t1.checkpoint(result4,reference,1.e-4,msg);
+        }
     }
 
 
@@ -349,8 +360,7 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
 
         auto result=madness::inner(phi0,exf12ij);
         print("<ij | K1 f12 | ij>", result);
-        print("error",result-reference);
-
+        t1.checkpoint(result,reference,1.e-4,"6D-function: exchange commutator");
 
     }
 
@@ -367,13 +377,15 @@ int test_full_rank_functor(World& world, LowRankFunctionParameters parameters) {
     constexpr int NDIM=2*LDIM;
 //    FunctionDefaults<LDIM>::set_thresh(1.e-6);
 //    FunctionDefaults<NDIM>::set_thresh(1.e-6);
-    double tol=6.e-3;
-    double gaussexponent=2.0;
+    double gaussexponent=1.e-10;
+    parameters.set_derived_value("lmax",3);
+    parameters.set_derived_value("tol",1.e-6);
+    parameters.set_derived_value("radius",3.0);
 
     // const particle<LDIM> p1=particle<LDIM>::particle1();
     // const particle<LDIM> p2=particle<LDIM>::particle2();
 
-    LRFunctorPure<double,NDIM> functorpure;
+    std::vector<std::shared_ptr<LRFunctorBase<double,NDIM>>> functors;
     Function<double,NDIM> gauss=FunctionFactory<double,NDIM>(world)
             .functor([&gaussexponent](const Vector<double,NDIM>& r){
                 Vector<double,LDIM> a,b;
@@ -381,53 +393,107 @@ int test_full_rank_functor(World& world, LowRankFunctionParameters parameters) {
                     a[i]=r[i];
                     b[i]=r[i+LDIM];
                 }
-                return exp(-gaussexponent*inner(a-b,a-b));
+                return exp(-gaussexponent*inner(a-b,a-b))*exp(-2.0*inner(a,a)) * exp(-2.0*inner(b,b));
             });
-    functorpure.f=gauss;
+    double gnorm=gauss.norm2();
+    print("gauss.norm2()",gnorm);
+    functors.push_back(std::shared_ptr<LRFunctorBase<double,NDIM>>(new LRFunctorPure<double,NDIM>(gauss)));
     t1.checkpoint(true,"prep");
 
     auto gaussop=std::shared_ptr<SeparatedConvolution<double,LDIM>>(GaussOperatorPtr<LDIM>(world,gaussexponent));
-    LRFunctorF12<double,NDIM> functorf12(gaussop,std::vector<Function<double,LDIM>>({}),{});
-//    functorf12.f12.reset(GaussOperatorPtr<LDIM>(world,gaussexponent));
+    Function<double,LDIM> phi=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r)
+        {return exp(-2.0*inner(r,r));});
+    functors.push_back(std::shared_ptr<LRFunctorBase<double,NDIM>>(
+        new LRFunctorF12<double,NDIM>(gaussop,std::vector<Function<double,LDIM>>({copy(phi)}),{copy(phi)})));
 
-    auto builder= LowRankFunctionFactory<double,NDIM>(parameters).set_radius(8)
-            .set_volume_element(0.1).set_rank_revealing_tol(1.e-10).set_orthomethod("canonical");
-
-    auto lrfunction1=builder.project(functorf12);
-    t1.checkpoint(true,"construction f12 functor");
-    auto lrfunction2=builder.project(functorpure);
-    t1.checkpoint(true,"construction full rank functor");
-    lrfunction1.optimize(functorf12);
-    t1.checkpoint(true,"optimization f12 functor");
-    lrfunction2.optimize(functorpure);
-    t1.checkpoint(true,"optimization full rank functor");
+    plot_plane<NDIM,LRFunctorBase<double,NDIM>>(world,*functors[0],"pure",PlotParameters(world).set_plane({"x1","x2"}));
+    plot_plane<NDIM,LRFunctorBase<double,NDIM>>(world,*functors[1],"f12",PlotParameters(world).set_plane({"x1","x2"}));
 
 
-    try {
-        double error1=lrfunction1.l2error(functorf12);
-        t1.checkpoint(error1,tol,"f12 functor, f12 l2 error: ");
-    } catch (...) {
-        print("l2 error negative 1");
+    // for (auto canonicalize : {true,false}) {
+    for (auto canonicalize : {false}) {
+        // for (auto rhsfunctiontype : {"exponential","harmonics"}) {
+        for (auto rhsfunctiontype : {"harmonics"}) {
+            for (auto ortho : {"cholesky"}) {
+                for (auto& functor : functors) {
+                    parameters.set_derived_value("rhsfunctiontype",std::string(rhsfunctiontype));
+                    parameters.set_derived_value("orthomethod",std::string(ortho));
+                    parameters.set_derived_value("canonicalize",canonicalize);
+                    parameters.print("grid");
+
+                    print("working with functor,",functor->type());
+
+                    auto builder= LowRankFunctionFactory<double,NDIM>(parameters);
+                    auto lrfunction1=builder.project(*functor);
+
+                    // check the accuracy of the lrf projection and the l2error. The lrf projection is notoriously
+                    // inaccurate, cf R12 error convergence, so we use a very loose tolerance here.
+                    double tol_lrf=1.e-2;
+
+                    t1.checkpoint(true,"construction f12 functor");
+                    { // check function evaluation
+                        Vector<double,NDIM> a;
+                        a.fill(0.25);
+                        double val=lrfunction1(a);
+                        double ref1=(*functor)(a);
+                        // double ref2=functorpure(a);
+                        print("lr function evaluation, val, reference",val,ref1);
+                        t1.checkpoint(val,ref1,tol_lrf,"f12 functor, function evaluation");
+
+                    }
+                    {
+                        double error1=lrfunction1.l2error(*functor);
+                        print("error, tol", error1,tol_lrf);
+                        t1.checkpoint(error1,tol_lrf,"f12 functor, f12 l2 error: ");
+                    }
+                }
+            }
+        }
     }
-    try {
-        double error2=lrfunction2.l2error(functorpure);
-        t1.checkpoint(error2,tol,"full rank functor, full rank l2 error");
-    } catch (...) {
-        print("l2 error negative 2");
-    }
-    try {
-        double error3=lrfunction2.l2error(functorf12);
-        t1.checkpoint(error3,tol,"full rank functor, f12 l2 error:");
-    } catch (...) {
-        print("l2 error negative 3");
-    }
-    try {
-        double error4=lrfunction1.l2error(functorpure);
-        t1.checkpoint(error4,tol,"f12 functor, full rank l2 error: ");
-    } catch (...) {
-        print("l2 error negative 4");
-    }
-//    print("errors",error2,error4);
+
+    return 0;
+//    auto lrfunction2=builder.project//(functorpure);
+//    t1.checkpoint(true,"construction full rank fu//nctor");
+//    lrfunction1.optimize(functorf12);
+//    {
+//        double error1=lrfunction1.l2error(functorf12);
+//        print("error, tol", error1,tol);
+//        t1.checkpoint(true,"optimization f12 functor");
+//    }
+//    lrfunction2.optimize(functorpure);
+//    t1.checkpoint(true,"optimization full rank fu//nctor");
+//
+//
+//    try {
+//        double error1=lrfunction1.l2error(functorf12);
+//        print("error, tol", error1,tol);
+//        t1.checkpoint(error1,tol,"f12 functor, f12 l2 error: "//);
+//        lrfunction1.canonicalize();
+//        double error2=lrfunction1.l2error(functorf12);
+//        print("error, tol", error2,tol);
+//        t1.checkpoint(error2,tol,"f12 functor, canonicalized, f//12 l2 error: ");
+//    } catch (...) {
+//        print("l2 error negative 1");
+//    }
+//    try {
+//        double error2=lrfunction2.l2error(functorpure);
+//        t1.checkpoint(error2,tol,"full rank functor, full rank l//2 error");
+//    } catch (...) {
+//        print("l2 error negative 2");
+//    }
+//    try {
+//        double error3=lrfunction2.l2error(functorf12);
+//        t1.checkpoint(error3,tol,"full rank functor, f12 l2 e//rror:");
+//    } catch (...) {
+//        print("l2 error negative 3");
+//    }
+//    try {
+//        double error4=lrfunction1.l2error(functorpure);
+//        t1.checkpoint(error4,tol,"f12 functor, full rank l2 e//rror: ");
+//    } catch (...) {
+//        print("l2 error negative 4");
+//    }
+////    print("errors",error2,error4);
 
     print_header2("leaving test_full_rank_functor");
     return t1.end();
@@ -792,6 +858,82 @@ int test_molecular_grid(World& world, LowRankFunctionParameters parameters) {
     return t1.end();
 }
 
+
+/// make an RI basis for an atom, namely Gaussian functions
+template<std::size_t LDIM>
+int make_ri_basis(World& world, LowRankFunctionParameters parameters) {
+
+    constexpr std::size_t NDIM=2*LDIM;
+
+    // set up possible loops
+    auto v_rhs = std::vector<std::string>({"exponential"});
+    auto v_tol = std::vector<double>({1.e-4,1.e-6,1.e-8});
+    auto v_lmax=std::vector<int>({2});
+    auto v_canonicalize=std::vector<bool>({true,false});
+
+
+    for (auto canonicalize : v_canonicalize) {
+        for (auto rhsfunctiontype : v_rhs) {
+            for (auto tol : v_tol) {
+            // for (auto lmax : v_lmax) {
+                timer t_total(world);
+                print("canonicalize",canonicalize);
+                print("rhsfunctiontype",rhsfunctiontype);
+                parameters.set_derived_value("canonicalize",bool(canonicalize));
+                parameters.set_derived_value("tol",tol);
+                parameters.set_derived_value("rhsfunctiontype",rhsfunctiontype);
+                parameters.set_derived_value("radius",1.8);
+                // parameters.set_derived_value("lmax",lmax);
+                print("parameters.lmax",parameters.lmax());
+
+                parameters.print("in make_ri_basis");
+                auto builder= LowRankFunctionFactory<double,NDIM>(parameters);
+
+                std::shared_ptr<SeparatedConvolution<double,LDIM>> f12;
+                std::string f12type=parameters.f12type();
+                if (f12type=="slaterf12") {
+                    f12.reset(SlaterF12OperatorPtr_ND<LDIM>(world,parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
+                } else if (f12type=="slater") {
+                    f12.reset(SlaterOperatorPtr_ND<LDIM>(world,parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
+                } else {
+                    MADNESS_EXCEPTION(std::string("unknown f12type"+f12type).c_str(),1);
+                }
+                // a trial function
+                Function<double,3> phi=FunctionFactory<double,3>(world)
+                                .functor([](const Vector<double,3>& r){return exp(-1.2*inner(r,r));});
+                LRFunctorF12<double,NDIM> functorf12(f12,std::vector<Function<double,LDIM>>({phi}),{phi});
+
+                auto lrfunction1=builder.project(functorf12);
+                double error=lrfunction1.l2error(functorf12);
+                print("l2error(lrfunction1)", error);
+
+
+                world.gop.fence();
+                timer t1(world);
+                auto trial=(*f12)(phi*phi);
+                double trialnorm=inner(phi,trial);
+                print("norm( f12(phi))",trialnorm);
+
+                auto p1=particle<LDIM>::particle1();
+                auto p2=particle<LDIM>::particle2();
+                auto result1=inner(lrfunction1,phi,p2,p1).trace();
+                t1.tag("inner(f12,phi,1,1)");
+                print("norm(result)",result1);
+                print("relative error",(trialnorm-result1)/trialnorm);
+
+                world.gop.fence();
+                auto zeta=parameters.tempered();
+                double elapsed = t_total.end("end loop");
+                printf("result: tol, vol, radius, canonicalize lmax, zeta, elapsed, l2error, rel. error: "
+                       "%.1e, %.1e, %.1e, %d, %d %.1e, %.1e, %.1e, %e, %e, %e\n",
+                       parameters.tol(),parameters.volume_element(),parameters.radius(), bool(canonicalize),
+                       parameters.lmax(),zeta[0],zeta[1],zeta[2],elapsed, error,fabs(trialnorm-result1)/trialnorm);
+            }
+        }
+    }
+    return 0;
+}
+
 int main(int argc, char **argv) {
 
     madness::World& world = madness::initialize(argc, argv);
@@ -827,16 +969,19 @@ int main(int argc, char **argv) {
     FunctionDefaults<4>::set_cubic_cell(-10.,10.);
     FunctionDefaults<5>::set_cubic_cell(-10.,10.);
     FunctionDefaults<6>::set_cubic_cell(-10.,10.);
+    print("cell[1]",FunctionDefaults<1>::get_cell());
 
     FunctionDefaults<2>::set_tensor_type(TT_FULL);
     print("numerical parameters: k, eps(3D), eps(6D)", FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(),
           FunctionDefaults<6>::get_thresh());
     LowRankFunctionParameters parameters;
-    parameters.set_derived_value("f12type",std::string("slaterf12"));
+    parameters.set_derived_value("f12type",std::string("slater"));
     parameters.read_and_set_derived_values(world,parser,"grid");
-    parameters.set_user_defined_value("radius",2.5);
-    parameters.set_user_defined_value("volume_element",1.e-1);
-//    parameters.set_user_defined_value("tol",1.0e-10);
+    parameters.set_derived_value("radius",2.5);
+    parameters.set_derived_value("volume_element",1.e-1);
+    parameters.set_derived_value("tol",1.0e-6);
+    parameters.set_derived_value("rhsfunctiontype",std::string("harmonics"));
+    parameters.set_derived_value("tempered",std::vector<double>({1.e-3,1.e2,4.0}));
     parameters.print("grid");
     int isuccess=0;
 #ifdef USE_GENTENSOR
@@ -850,25 +995,26 @@ int main(int argc, char **argv) {
 
     try {
 
+        // make_ri_basis<3>(world, parameters);
         isuccess+=test_full_rank_functor<1>(world, parameters);
-        parameters.set_user_defined_value("orthomethod",std::string("canonical"));
-        isuccess+=test_construction_optimization<1>(world,parameters);
-        parameters.set_user_defined_value("orthomethod",std::string("cholesky"));
-        isuccess+=test_construction_optimization<1>(world,parameters);
-        isuccess+=test_arithmetic<1>(world,parameters);
-        isuccess+=test_inner<1>(world,parameters);
-
-        if (0) {
-        // if (long_test) {
-            isuccess+=test_construction_optimization<2>(world,parameters);
-            isuccess+=test_arithmetic<2>(world,parameters);
-            isuccess+=test_inner<2>(world,parameters);
-            isuccess+=test_molecular_grid<2>(world,parameters);
-        }
-
-        parameters.set_user_defined_value("volume_element",1.e-1);
-        isuccess+=test_lowrank_function(world,parameters);
-        isuccess+=test_Kcommutator(world,parameters);
+//        parameters.set_user_defined_value("orthomethod",std::string("canonical"));
+        // isuccess+=test_construction_optimization<1>(world,parameters);
+//        parameters.set_user_defined_value("orthomethod",std::string("cholesky"));
+        // isuccess+=test_construction_optimization<1>(world,parameters);
+        // isuccess+=test_arithmetic<1>(world,parameters);
+        // isuccess+=test_inner<1>(world,parameters);
+//
+//        if (0) {
+//        // if (long_test) {
+//            isuccess+=test_construction_optimization<2>(world,parameters);
+//            isuccess+=test_arithmetic<2>(world,parameters);
+//            isuccess+=test_inner<2>(world,parameters);
+//            isuccess+=test_molecular_grid<2>(world,parameters);
+//        }
+//
+//        parameters.set_user_defined_value("volume_element",1.e-1);
+//        isuccess+=test_lowrank_function(world,parameters);
+        // isuccess+=test_Kcommutator(world,parameters);
     } catch (std::exception& e) {
         madness::print("an error occured");
         madness::print(e.what());

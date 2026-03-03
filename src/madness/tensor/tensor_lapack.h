@@ -167,6 +167,13 @@ namespace madness {
     template <typename T>
     Tensor<T> inverse(const Tensor<T>& A);
 
+	/// convenience function for the condition number of a matrix
+	/// \ingroup linalg
+	/// returns the condition number, the largest and smallest singular values
+	template <typename T>
+	std::vector<double> condition_number(const Tensor<T>& A);
+
+
     /// QR decomposition
     template<typename T>
     void qr(Tensor<T>& A, Tensor<T>& R);

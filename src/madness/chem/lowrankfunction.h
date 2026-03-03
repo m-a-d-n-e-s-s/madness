@@ -30,8 +30,11 @@ namespace madness {
             initialize<std::string>("orthomethod","cholesky","orthonormalization",{"cholesky","canonical","symmetric"});
             initialize<std::string>("transpose","slater2","transpose of the matrix",{"slater1","slater2"});
             initialize<std::string>("gridtype","random","the grid type",{"random","cartesian","dftgrid"});
-            initialize<std::string>("rhsfunctiontype","exponential","the type of function",{"exponential"});
+            initialize<std::string>("rhsfunctiontype","exponential","the type of function",{"exponential","planewave","harmonics"});
             initialize<int>("optimize",1,"number of optimization iterations");
+            initialize<int>("lmax",2,"max angular momentum for the RI harmonics");
+            initialize<bool>("canonicalize",false,"canonicalize the rep, i.e. metric is the identity");
+            initialize<std::vector<double>>("tempered",{0.05,2.0,3.0},"zeta_min,zeta_max,factor");
         }
         std::string get_tag() const override {
             return std::string("lrf");
@@ -47,10 +50,13 @@ namespace madness {
         double volume_element() const {return get<double>("volume_element");}
         double tol() const {return get<double>("tol");}
         int optimize() const {return get<int>("optimize");}
+        int lmax() const {return get<int>("lmax");}
+        bool canonicalize() const {return get<bool>("canonicalize");}
         std::string gridtype() const {return get<std::string>("gridtype");}
         std::string orthomethod() const {return get<std::string>("orthomethod");}
         std::string rhsfunctiontype() const {return get<std::string>("rhsfunctiontype");}
         std::string f12type() const {return get<std::string>("f12type");}
+        std::vector<double> tempered() const {return get<std::vector<double>>("tempered");}
     };
 
 
@@ -299,7 +305,8 @@ namespace madness {
         }
 
         /// ctor takes molecule and grid builder
-        molecular_grid(const Molecule& molecule, std::shared_ptr<gridbase> grid) : molecular_grid(molecule.get_all_coords_vec(),grid) {}
+        molecular_grid(const Molecule& molecule, std::shared_ptr<gridbase> grid)
+        : molecular_grid(molecule.get_all_coords_vec(),grid) {}
 
         std::vector<Vector<double,NDIM>> get_grid() const {
             MADNESS_CHECK_THROW(grid_builder,"no grid builder given in molecular_grid");
@@ -411,7 +418,7 @@ std::ostream& operator<<(std::ostream& os, const particle<PDIM>& p) {
 /// must implement in inner product
 /// may implement an operator()(const coord_nd&)
 template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
-struct LRFunctorBase {
+struct LRFunctorBase : public FunctionFunctorInterface<T,NDIM> {
 
     virtual ~LRFunctorBase() {};
     virtual std::vector<Function<T,LDIM>> inner(const std::vector<Function<T,LDIM>>& rhs,
@@ -421,10 +428,15 @@ struct LRFunctorBase {
         return inner(std::vector<Function<T,LDIM>>({rhs}),p1,p2)[0];
     }
 
+    /// evaluate the functor at a given point, e.g. for plotting
     virtual T operator()(const Vector<T,NDIM>& r) const =0;
+
     virtual typename Tensor<T>::scalar_type norm2() const {
         MADNESS_EXCEPTION("L2 norm not implemented",1);
     }
+
+    /// introspection
+    virtual std::string type() const = 0;
 
     virtual World& world() const =0;
     friend std::vector<Function<T,LDIM>> inner(const LRFunctorBase& functor, const std::vector<Function<T,LDIM>>& rhs,
@@ -459,6 +471,7 @@ struct LRFunctorF12 : public LRFunctorBase<T,NDIM> {
                  : LRFunctorF12(f12,std::vector<Function<T,LDIM>>({a}), std::vector<Function<T,LDIM>>({b})) {}
 
 
+    std::string type() const override {return "LRFunctorF12";}
 private:
     std::shared_ptr<SeparatedConvolution<T,LDIM>> f12;  ///< a two-particle function
     std::vector<Function<T,LDIM>> a,b;   ///< the lo-dim functions
@@ -549,7 +562,7 @@ public:
         for (std::size_t ia=0; ia<a.size(); ++ia) {
             double result1=1.0;
             if (a[ia].is_initialized()) result1*=a[ia](first);
-            if (b[ia].is_initialized()) result1*=b[ia](first);
+            if (b[ia].is_initialized()) result1*=b[ia](second);
             if (f12->info.type==OT_SLATER) result1*=exp(-gamma*(first-second).normf());
             else if (f12->info.type==OT_GAUSS) result1*=exp(-gamma* madness::inner(first-second,first-second));
             else {
@@ -573,11 +586,11 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     std::vector<Function<T,LDIM>> inner(const std::vector<Function<T,LDIM>>& rhs,
                                         const particle<LDIM> p1, const particle<LDIM> p2) const {
         return madness::innerXX<LDIM>(f,rhs,p1.get_array(),p2.get_array());
-//        std::vector<Function<T,LDIM>> result;
-//        for (const auto& r : rhs) result.push_back(madness::inner(f,r,p1.get_tuple(),p2.get_tuple()));
-//        return result;
     }
 
+    std::string type() const override {return "LRFunctorPure";}
+
+    /// evaluate the functor at a given point, e.g. for plotting
     T operator()(const Vector<double,NDIM>& r) const {
         return f(r);
     }
@@ -590,9 +603,12 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
     /// LowRankFunction represents a hi-dimensional (NDIM) function as a sum of products of low-dimensional (LDIM) functions
 
-    /// f(1,2) = \sum_i g_i(1) h_i(2)
     /// a LowRankFunction can be created from a hi-dim function directly, or from a composite like f(1,2) phi(1) psi(2),
     /// where f(1,2) is a two-particle function (e.g. a Slater function)
+    /// there are two possible representation
+    ///  canonical:     f(1,2) = \sum_i g_i(1) h_i(2)
+    ///  general:       f(1,2) = \sum_{ij} g_i(1) M_{ij} h_j(2)
+    /// for the time being we don't require g or h to be orthogonal or normalized
     template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
     class LowRankFunction {
     public:
@@ -602,26 +618,27 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         std::string orthomethod="canonical";
         bool do_print=false;
         std::vector<Function<T,LDIM>> g,h;
+        Tensor<T> metric;   ///< the coupling matrix in the general representation, empty in the canonical representation
         const particle<LDIM> p1=particle<LDIM>::particle1();
         const particle<LDIM> p2=particle<LDIM>::particle2();
 
         LowRankFunction(World& world) : world(world) {}
 
         LowRankFunction(std::vector<Function<T,LDIM>> g, std::vector<Function<T,LDIM>> h,
-                        double tol, std::string orthomethod) : world(g.front().world()),
-                        rank_revealing_tol(tol), orthomethod(orthomethod), g(g), h(h) {
-
+                        double tol, std::string orthomethod, const Tensor<T> metric=Tensor<T>()) : world(g.front().world()),
+                        rank_revealing_tol(tol), orthomethod(orthomethod), g(g), h(h), metric(metric) {
         }
 
         /// shallow copy ctor
         LowRankFunction(const LowRankFunction& other) : world(other.world),
             rank_revealing_tol(other.rank_revealing_tol), orthomethod(other.orthomethod),
-            g(other.g), h(other.h) {
+            g(other.g), h(other.h), metric(other.metric) {
         }
 
         /// deep copy
         friend LowRankFunction copy(const LowRankFunction& other) {
-            return LowRankFunction<T,NDIM>(madness::copy(other.g),madness::copy(other.h),other.rank_revealing_tol,other.orthomethod);
+            return LowRankFunction<T,NDIM>(madness::copy(other.g),madness::copy(other.h),
+                other.rank_revealing_tol,other.orthomethod, other.metric);
         }
 
         LowRankFunction& operator=(const LowRankFunction& f) { // Assignment required for storage in vector
@@ -639,8 +656,19 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 second[i]=r[i+LDIM];
             }
             double result=0.0;
-            for (int i=0; i<rank(); ++i) result+=g[i](first)*h[i](second);
+            Tensor<T> gvec(g.size()), hvec(h.size());
+            for (int i=0; i<g.size(); ++i) gvec(i)=g[i](first);
+            for (int i=0; i<h.size(); ++i) hvec(i)=h[i](second);
+            if (is_canonical()) result=gvec.trace(hvec);
+            else result=gvec.trace(inner(metric,hvec,1,0));
+            print("metric.norm",metric.normf());
             return result;
+        }
+
+        /// the canonical representation is a special case of the general representation where the coupling matrix
+        /// is the identity, so we can check for that
+        bool is_canonical() const {
+            return metric.size()==0;
         }
 
         /*
@@ -662,6 +690,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
         /// in-place addition
         LowRankFunction& operator+=(const LowRankFunction& b) {
+            MADNESS_CHECK_THROW(is_canonical(),"currently only addition of canonical LRFs supported");
 
             g=append(g,copy(b.g));
             h=append(h,copy(b.h));
@@ -670,6 +699,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
         /// in-place subtraction
         LowRankFunction& operator-=(const LowRankFunction& b) {
+            MADNESS_CHECK_THROW(is_canonical(),"currently only subtraction of canonical LRFs supported");
             g=append(g,-1.0*b.g);   // operator* implies deep copy of b.g
             h=append(h,copy(b.h));
             return *this;
@@ -701,7 +731,13 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         typename TensorTypeData<T>::scalar_type norm2() const {
             auto tmp1=matrix_inner(world,h,h);
             auto tmp2=matrix_inner(world,g,g);
-            return sqrt(tmp1.trace(tmp2));
+            if (is_canonical()) return sqrt(tmp1.trace(tmp2));
+
+            /// in the general case we have to contract with the coupling matrix metric
+            auto SM1 = inner(metric, tmp1);
+            auto SM2 = inner(metric, tmp2);
+            return SM1.trace(SM2);
+
         }
 
         std::vector<Function<T,LDIM>> get_functions(const particle<LDIM>& p) const {
@@ -713,7 +749,10 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         std::vector<Function<T,LDIM>> get_g() const {return g;}
         std::vector<Function<T,LDIM>> get_h() const {return h;}
 
-        long rank() const {return g.size();}
+        long rank() const {
+            MADNESS_CHECK_THROW(is_canonical(),"rank is only well-defined for the canonical representation");
+            return g.size();
+        }
 
         /// return the size in GByte
         double size() const {
@@ -722,15 +761,20 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             return sz;
         }
 
+        /// f(1,2) = \sum_{pq} g_p(1) M_{pq} h_q(2)
         Function<T,NDIM> reconstruct() const {
-            auto fapprox=hartree_product(g[0],h[0]);
-            for (int i=1; i<g.size(); ++i) fapprox+=hartree_product(g[i],h[i]);
+            std::vector<Function<T,LDIM>> gtilde=g;
+            if (not is_canonical()) gtilde=transform(world,g,metric);        // gtilde_p(1) = \sum_q g_q(1) M_{qp}
+            auto fapprox=hartree_product(gtilde[0],h[0]);
+            for (int i=1; i<g.size(); ++i) fapprox+=hartree_product(gtilde[i],h[i]);
             return fapprox;
         }
 
+    private:
         /// orthonormalize the argument vector
         std::vector<Function<T,LDIM>> orthonormalize(const std::vector<Function<T,LDIM>>& g) const {
 
+            MADNESS_CHECK_THROW(is_canonical(),"no orthonormalization unless canonicalized");
             double tol=rank_revealing_tol;
             std::vector<Function<T,LDIM>> g2;
             auto ovlp=matrix_inner(world,g,g);
@@ -749,12 +793,14 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             return truncate(g2,tight_thresh);
         }
 
+    public:
 
         /// optimize the lrf using the lrfunctor
 
         /// @param[in]  nopt       number of iterations (wrt to Alg. 4.3 in Halko)
         void optimize(const LRFunctorBase<T,NDIM>& lrfunctor1, const long nopt=1) {
             timer t(world);
+            MADNESS_CHECK_THROW(is_canonical(),"currently only optimization of canonical LRFs supported");
             t.do_print=do_print;
             for (int i=0; i<nopt; ++i) {
                 // orthonormalize h
@@ -1014,6 +1060,12 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             return ovlp.absmax();
         }
 
+        void canonicalize() {
+            if (is_canonical()) return;
+            g=transform(world,g,metric);
+            metric=Tensor<T>();
+        }
+
         /// compute the l2 error |functor - \sum_i g_ih_i|_2
 
         /// \int (f(1,2) - gh(1,2))^2 = \int f(1,2)^2 - 2\int f(1,2) gh(1,2) + \int gh(1,2)^2
@@ -1028,22 +1080,41 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             term1=term1*term1;
             t.tag("computing term1");
 
-            // \int f(1,2) pre(1) post(2) \sum_i g(1) h(2) d1d2
-//            double term2=madness::inner(pre*g,f12(post*h));
-            double term2=madness::inner(g,inner(lrfunctor1,h,p2,p1));
+            // \int f(1,2) \sum_{ij} g_i(1) m_{ij} h_j(2) d1d2
+            // = \sum_{ij} m_{ij} \int (\int f(1,2) g_i(1) d1) h_j(2) d2
+            double term2=0.0;
+            if (is_canonical()) {
+                term2=madness::inner(g,inner(lrfunctor1,h,p2,p1));
+            } else {
+                std::vector<Function<T,LDIM>> fh=inner(lrfunctor1,h,p2,p1);
+                Tensor<T> fgh=matrix_inner(world,g,fh);
+                term2=fgh.trace(metric);
+            }
             t.tag("computing term2");
 
-            // g functions are orthonormal
-            // \int gh(1,2)^2 d1d2 = \int \sum_{ij} g_i(1) g_j(1) h_i(2) h_j(2) d1d2
-            //   = \sum_{ij} \int g_i(1) g_j(1) d1 \int h_i(2) h_j(2) d2
-            //   = \sum_{ij} delta_{ij} \int h_i(2) h_j(2) d2
-            //   = \sum_{i} \int h_i(2) h_i(2) d2
-            double zero=check_orthonormality(g);
-            if (zero>1.e-10) print("g is not orthonormal",zero);
-            // double term3a=madness::inner(h,h);
-            auto tmp1=matrix_inner(world,h,h);
-            auto tmp2=matrix_inner(world,g,g);
-            double term3=tmp1.trace(tmp2);
+            double term3=0.0;
+            if (is_canonical()) {
+                // g functions are orthonormal
+                // \int gh(1,2)^2 d1d2 = \int \sum_{ij} g_i(1) g_j(1) h_i(2) h_j(2) d1d2
+                //   = \sum_{ij} \int g_i(1) g_j(1) d1 \int h_i(2) h_j(2) d2
+                //   = \sum_{ij} delta_{ij} \int h_i(2) h_j(2) d2
+                //   = \sum_{i} \int h_i(2) h_i(2) d2
+                double zero=check_orthonormality(g);
+                if (zero>1.e-10) print("g is not orthonormal",zero);
+                // double term3a=madness::inner(h,h);
+                auto tmp1=matrix_inner(world,h,h);
+                auto tmp2=matrix_inner(world,g,g);
+                term3=tmp1.trace(tmp2);
+            } else {
+                // general case: no orthogonality, so we have to contract with the coupling matrix metric
+                // \int gh(1,2)^2 d1d2 = \int \sum_{ijkl} g_i(1) m_{ij} g_k(1) m_{kl} h_j(2) h_l(2) d1d2
+                //   = \sum_{ijkl} m_{ij} m_{kl} <g_i | g_k> <h_j | h_l>
+                auto gmat=matrix_inner(world,g,g);
+                auto hmat=matrix_inner(world,h,h);
+                auto SM1 = inner(gmat,metric);          // gmat_ik m_kl = SM1_il
+                auto SM2 = inner(metric, hmat);         // m_ij hmat_jl = SM2_il
+                term3=SM1.trace(SM2);
+            }
 //            print("term3/a/diff",term3a,term3,term3-term3a);
             t.tag("computing term3");
 
@@ -1067,6 +1138,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     template<typename T, std::size_t NDIM>
     double inner(const LowRankFunction<T,NDIM>& a, const LowRankFunction<T,NDIM>& b) {
         World& world=a.world;
+        MADNESS_CHECK_THROW(a.is_canonical(),"need canonical representation for inner product of two low-rank functions");
         return (matrix_inner(world,a.g,b.g).emul(matrix_inner(world,a.h,b.h))).sum();
     }
 
@@ -1121,6 +1193,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     LowRankFunction<T,NDIM> inner(const LowRankFunction<T,NDIM>& f1, const Function<T,NDIM>& f2,
                                   const particle<PDIM> p1, const particle<PDIM> p2) {
         static_assert(TensorTypeData<T>::iscomplex==false, "complex inner in LowRankFunction not implemented");
+        MADNESS_CHECK_THROW(f1.is_canonical(),"need canonical representation for inner product of two low-rank functions");
         World& world=f1.world;
         static_assert(2*PDIM==NDIM);
         // int f(1,2) k(2,3) d2 = \sum \int g_i(1) h_i(2) k(2,3) d2
@@ -1149,6 +1222,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                                   const particle<PDIM> p1, const particle<PDIM> p2) {
         World& world=f1.world;
         static_assert(2*PDIM==NDIM);
+        MADNESS_CHECK_THROW(f1.is_canonical(),"need canonical representation for inner product of two low-rank functions");
 
         // inner(lrf(1,2) ,lrf(2,3) ) = \sum_ij g1_i(1) <h1_i(2) g2_j(2)> h2_j(3)
         auto matrix=matrix_inner(world,f2.get_functions(p2),f1.get_functions(p1));
@@ -1170,8 +1244,9 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         static_assert(2*PDIM==NDIM);
         MADNESS_CHECK(p2.is_first());
 
-        // inner(lrf(1,2), f_k(2) ) = \sum_i g1_i(1) <h1_i(2) f_k(2)>
-        auto matrix=matrix_inner(world,f1.get_functions(p1),vf);
+        // inner(lrf(1,2), f_k(2) ) = \sum_i g1_i(1) M_{ij} <h1_j(2) f_k(2)>
+        auto matrix_jk=matrix_inner(world,f1.get_functions(p1),vf);
+        auto matrix = inner(f1.metric,matrix_jk,1,0);
         return transform(world,f1.get_functions(p1.complement()),matrix);
     }
 
@@ -1182,11 +1257,13 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     /// @param[in] p1 the integration variable of the first function
     /// @param[in] p2 the integration variable of the second function, dummy variable for consistent notation
     template<typename T, std::size_t NDIM, std::size_t PDIM>
-    Function<T,NDIM> inner(const LowRankFunction<T,NDIM>& f1, const Function<T,PDIM>& f2,
+    Function<T,NDIM-PDIM> inner(const LowRankFunction<T,NDIM>& f1, const Function<T,PDIM>& f2,
                                         const particle<PDIM> p1, const particle<PDIM> p2=particle<PDIM>::particle1()) {
         return inner(f1,std::vector<Function<T,PDIM>>({f2}),p1,p2)[0];
     }
 
+    /// Factory class to compute a low-rank approximation of a given hi-dimensional function using randomized
+    /// projection and rank-revealing QR decomposition (RRCD)
     template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
     class LowRankFunctionFactory {
     public:
@@ -1210,6 +1287,10 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             parameters.set_user_defined_value("radius",radius);
             return *this;
         }
+        LowRankFunctionFactory& set_rhsfunctiontype(const std::string type) {
+            parameters.set_user_defined_value("rhsfunctiontype",type);
+            return *this;
+        }
         LowRankFunctionFactory& set_volume_element(const double volume_element) {
             parameters.set_user_defined_value("volume_element",volume_element);
             return *this;
@@ -1220,6 +1301,18 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         }
         LowRankFunctionFactory& set_orthomethod(const std::string orthomethod) {
             parameters.set_user_defined_value("orthomethod",orthomethod);
+            return *this;
+        }
+        LowRankFunctionFactory& set_canonicalize(const bool canonicalize) {
+            parameters.set_user_defined_value("canonicalize",canonicalize);
+            return *this;
+        }
+        LowRankFunctionFactory& set_tempered(const std::vector<double> zeta_range) {
+            parameters.set_user_defined_value("tempered",zeta_range);
+            return *this;
+        }
+        LowRankFunctionFactory& set_lmax(const int lmax) {
+            parameters.set_user_defined_value("lmax",lmax);
             return *this;
         }
 
@@ -1236,35 +1329,118 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             auto grid=mgrid.get_grid();
             if (world.rank()==0) print("grid size",grid.size());
 
-            auto Y=Yformer(lrfunctor,grid,parameters.rhsfunctiontype());
+            auto Y=Yformer(lrfunctor,grid,parameters);
             t1.tag("Yforming");
+            double tol=rank_revealing_tol;
+            print("tol for rank revealing",tol);
+            Tensor<T> X;
 
             auto ovlp=matrix_inner(world,Y,Y);  // error in symmetric matrix_inner, use non-symmetric form here!
-            t1.tag("compute ovlp");
-            auto g=truncate(orthonormalize_rrcd(Y,ovlp,rank_revealing_tol));
-            t1.tag("rrcd/truncate/thresh");
-            auto sz=get_size(world,g);
-            if (world.rank()==0 and do_print) print("gsize",sz);
-//            check_orthonormality(g);
+            auto [pY, t]=rr_cholesky_matrix_and_reorder(Y,ovlp,tol);
+            t1.tag("remove linear dependence with rr_cholesky");
+            // pY is now a set of linearly independent basis functions
+
+            auto M_cholesky=inner(t,t,1,1);
+            print("M_cholesky condition",condition_number(M_cholesky));
+            if (parameters.orthomethod()=="cholesky")  X=t;
+
+            ovlp=matrix_inner(world,pY,pY);
+            t=canonical_orthonormalization_matrix<T,NDIM>(world,ovlp,0.0); // lindep is not possible anymore,
+            // since we have already removed the lindep functions with the rr_cholesky, so tol=0.0
+            if (parameters.orthomethod()=="canonical")  X=t;
+            auto M_canon=inner(t,t,1,1);
+            print("M_canon condition",condition_number(M_canon));
+            t=orthonormalize_symmetric_matrix(ovlp);
+            if (parameters.orthomethod()=="symmetric")  X=t;
+            auto M_symmetric=inner(t,t,1,1);
+            print("M_symmetric condition",condition_number(M_symmetric));
+
+            auto g=pY;
+
+            bool canonicalize=parameters.canonicalize();
+            if (canonicalize) {
+                // h=transform(world,h,t);
+                g=truncate(transform(world,g,t));
+                t1.tag("rrcd/truncate/thresh");
+            }
+            double thresh=FunctionDefaults<NDIM>::get_thresh();
+            FunctionDefaults<LDIM>::set_thresh(thresh*1.e-4);
+            FunctionDefaults<NDIM>::set_thresh(thresh*1.e-4);
+            // g.erase(g.begin()+2,g.end()); // truncate to 2 functions for testing
+            // g.erase(g.begin());
+            // for (auto gg : g) gg.get_impl()->print_tree(std::cout, 3);
+            auto h=truncate(inner(lrfunctor,g,p1,p1));
+            FunctionDefaults<LDIM>::set_thresh(thresh);
+            FunctionDefaults<NDIM>::set_thresh(thresh);
+            auto gnorms=norm2s(world,g);
+            std::vector<double> gerade;
+            for (auto gg : g) gerade.push_back(gg.trace());
+            print("gnorms",gnorms);
+            print("gerade(g)",gerade);
+            plot_line(world,std::vector<Function<double,LDIM>>({g[1],h[1]}),"gerade"+std::to_string(floor(cpu_time()*10.0)),
+                PlotParameters().set_zoom(1.0),0);
+            auto hnorms=norm2s(world,h);
+            print("hnorms",hnorms);
+            t1.tag("Y backprojection with truncation");
+
+            Tensor<T> metric;
+            if (canonicalize) {
+                metric=Tensor<T>(g.size(),g.size());
+                for (int i=0; i<g.size(); ++i) metric(i,i)=1.0;
+            } else {
+                metric= inner(X,X,1,1); // metric = t t^T
+            }
 
             if (world.rank()==0 and do_print) {
                 print("Y.size()",Y.size());
-                print("g.size()",g.size());
+                print("g,h size",g.size(),h.size());
+                print("metric.dims()",metric.dim(0),metric.dim(1));
+                print("X dims",X.dim(0),X.dim(1));
             }
+            print("metric.norm",metric.normf());
+            return LowRankFunction<T,NDIM>(g,h,parameters.tol(),parameters.orthomethod(),metric);
+        }
 
-            auto h=truncate(inner(lrfunctor,g,p1,p1));
-            t1.tag("Y backprojection with truncation");
-            return LowRankFunction<T,NDIM>(g,h,parameters.tol(),parameters.orthomethod());
+        std::pair<std::vector<Function<T,LDIM>>, Tensor<T>>
+        rr_cholesky_matrix_and_reorder(const std::vector<Function<T,LDIM>>& v, Tensor<T> ovlp, const double tol) const {
+            int rank;
+            Tensor<int> piv;
 
+            rr_cholesky(ovlp,tol,piv,rank); // destroys ovlp and gives back Upper ∆ Matrix from CCD
+
+            // rearrange and truncate the functions according to the pivoting of the rr_cholesky
+            std::vector<Function<T,LDIM> > pv(rank);
+            for(integer i=0;i<rank;++i){
+                pv[i]=v[piv[i]];
+            }
+            // no need to invert all of ovlp, only the upper left rank x rank block
+            // ex. with a (3,3) matrix ovlp with rank=2
+            //  | i >  L_{ir}
+            // (1 2 3) (a b // 0 c // 0 0) = ( a + 2b )
+            ovlp=ovlp(Slice(0,rank-1),Slice(0,rank-1));
+
+            // result = |i~> = sum_r |i> U_{ir}^(-1)
+            // with <i~|j~> = sum_{r} U_{ir}^(-1) <i|j> U_{jp}^(-1)
+            //              = sum_{r} U_{ir}^(-1) (U^T U)_{ij} U_{jr}^(-1)
+            //              = sum_{r} U_{ir}^(-1) U_{ip} U_{jp} U_{jp}^(-1)
+            //              = delta_{ij}        // has matrix dimension (r,r)
+            Tensor<T> L = transpose(ovlp);      // fbischoff thinks the transpose is not necessary here
+            Tensor<T> Linv = inverse(L);
+            Tensor<T> U = transpose(Linv);      // fbischoff thinks the transpose is not necessary here
+
+            return std::make_pair(pv,U);
         }
 
         /// apply a rhs (delta or exponential) on grid points to the hi-dim function and form Y = A_ij w_j (in Halko's language)
-        std::vector<Function<T,LDIM>> Yformer(const LRFunctorBase<T,NDIM>& lrfunctor1, const std::vector<Vector<double,LDIM>>& grid,
-                                              const std::string rhsfunctiontype, const double exponent=30.0) const {
+        std::vector<Function<T,LDIM>> Yformer(const LRFunctorBase<T,NDIM>& lrfunctor1,
+            const std::vector<Vector<double,LDIM>>& grid,
+            // const std::string rhsfunctiontype,
+            const LowRankFunctionParameters& parameters,
+            const double exponent=30.0) const {
 
             World& world=lrfunctor1.world();
             std::vector<Function<double,LDIM>> Y;
-            if (rhsfunctiontype=="exponential") {
+            if (parameters.rhsfunctiontype()=="exponential") {
                 std::vector<Function<double,LDIM>> omega;
                 double coeff=std::pow(2.0*exponent/constants::pi,0.25*LDIM);
                 for (const auto& point : grid) {
@@ -1275,6 +1451,124 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                                                          return coeff*exp(-exponent*madness::inner(r_rel,r_rel));
                                                      }));
                 }
+                // fbischoff debug
+                Tensor<T> ovlp=matrix_inner(world,omega,omega);
+                auto [yp, t]=rr_cholesky_matrix_and_reorder(omega,ovlp,parameters.tol());
+                print("condition number of ovlp of omega",condition_number(ovlp));
+                print("condition number of t of omega",condition_number(t));
+                // end fbischoff debug
+                Y=inner(lrfunctor1,omega,p2,p1);
+            } else if (parameters.rhsfunctiontype()=="harmonics") {
+                // not rhs actually..
+
+                struct GaussianFunction : public FunctionFunctorInterface<double,LDIM> {
+                    std::vector<long> ijk; // angular momentum
+                    Vector<double,LDIM> center;
+                    double zeta = 1.0;
+                    GaussianFunction() = default;
+                    GaussianFunction(const std::vector<long>& ijk, const Vector<double,LDIM>& center, const double zeta)
+                            : ijk(ijk), center(center), zeta(zeta) {}
+                    double operator()(const Vector<double,LDIM>& r) const override {
+                        auto r_rel=r-center;
+                        double val=exp(-zeta*madness::inner(r_rel,r_rel));
+                        for (int d=0; d<LDIM; ++d) val*=std::pow(r_rel[d],ijk[d]);
+                        return val;
+                    }
+                };
+
+                // compute the monomial exponents for the Cartesian Gaussian functions up to a certain angular momentum,
+                // e.g. lmax=2 gives s, p, d functions
+                std::vector<std::vector<long>> types;
+                int lmax=parameters.lmax();
+                for (int l=0; l<=lmax; ++l) {
+                    std::vector<long> ijk(LDIM,0);
+                    std::function<void(int,int)> generate_ijk=[&](int pos, int remaining_l) {
+                        if (pos==LDIM-1) {
+                            ijk[pos]=remaining_l;
+                            types.push_back(ijk);
+                            return;
+                        }
+                        for (int i=0; i<=remaining_l; ++i) {
+                            ijk[pos]=i;
+                            generate_ijk(pos+1, remaining_l-i);
+                        }
+                    };
+                    generate_ijk(0,l);
+                }
+                print("types",types);
+
+                {
+                    // even-tempered basis
+                    std::vector<double> zetas;
+                    double z=parameters.tempered()[0];
+                    while (z<parameters.tempered()[1]) {
+                        zetas.push_back(z);
+                        z*=parameters.tempered()[2];
+                        if (zetas.size()>100) {
+                            print("too many zetas in even-tempered basis, check your parameters.tempered",parameters.tempered());
+                            break;
+                        }
+                    }
+                    print("zetas",zetas);
+                    auto center=Vector<double,LDIM>(0.0);
+
+                    for (auto type : types) {
+                        for (auto zeta : zetas) {
+                            GaussianFunction gf(type, center, zeta);
+                            Function<double,LDIM> f=FunctionFactory<double,LDIM>(world).functor(gf);
+                            Y.push_back(f);
+                        }
+                    }
+                }
+            } else if (parameters.rhsfunctiontype()=="planewave") {
+                std::vector<Function<double,LDIM>> omega;
+                // construct Gaussian envelope such that at the radius the value drop to 1.e-1,
+                // i.e. exp(-radius^2*exponent)=1.e-10 => exponent=log(1.e1)/radius^2
+                double radius=parameters.radius();
+                double exponent=std::log(1.e1)/(radius*radius);
+                auto envelope=[&](const Vector<double,LDIM>& r) {
+                    return exp(-exponent*madness::inner(r,r));
+                };
+
+                // plane wave length starts at 2*radius and ends with the volume element:
+                // k_min = 2*pi/lambda, lambda = 2*radius => k=pi/radius
+                // k_max = 2*pi/lambda, lambda = volume_element => k=2*pi/volume_element
+                double k_min=constants::pi/parameters.radius();
+                double k_max=2.0*constants::pi/parameters.volume_element();
+                int nstep=floor(k_max/k_min);
+                print("kmin, kmax, nstep",k_min,k_max,nstep, "lambda min, lambda max",2.0*constants::pi/k_max, 2.0*constants::pi/k_min);
+                print("number of basis functions",std::pow(nstep,LDIM));
+
+                // plane wave is a_i cos(k*(r-center)) + b_i sin(k*(r-center))
+                // make k vector
+                std::vector<Vector<int,LDIM>> quantum_numbers;
+                for (int i=0; i<std::pow(nstep,LDIM); ++i) {
+                    Vector<int,LDIM> qn;
+                    int tmp=i;
+                    for (int d=0; d<LDIM; ++d) {
+                        qn[d]=tmp%nstep;
+                        tmp/=nstep;
+                    }
+                    quantum_numbers.push_back(qn);
+                }
+                // k_n = k_min*qn
+                std::vector<Vector<double,LDIM>> kvecs;
+                for (auto& k: quantum_numbers) {
+                    Vector<double,LDIM> kvec;
+                    for (int d=0; d<LDIM; ++d) kvec[d]=k_min*k[d];
+                    kvecs.push_back(kvec);
+                }
+
+                // set up plane waves
+                auto pw = [&](const Vector<double,LDIM>& kvec) {
+                    return FunctionFactory<double,LDIM>(world)
+                            .functor([&kvec,&envelope](const Vector<double,LDIM>& r)
+                                     {
+                                         return envelope(r)*(cos(inner(kvec,r))+sin(inner(kvec,r)));
+                                     });
+                };
+                for (const auto& kvec: kvecs) omega.push_back(pw(kvec));
+
                 Y=inner(lrfunctor1,omega,p2,p1);
             } else {
                 MADNESS_EXCEPTION("confused rhsfunctiontype",1);

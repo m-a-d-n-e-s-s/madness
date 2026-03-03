@@ -6208,15 +6208,17 @@ template<size_t NDIM>
             std::size_t nmax=FunctionDefaults<CDIM>::get_max_refine_level();
             const double thresh=FunctionDefaults<NDIM>::get_thresh();
 
-            // auto print_map = [](const auto& map) {
-                // for (const auto& kv : map) print(kv.first,"--",kv.second);
-            // };
+            auto print_map = [](const auto& map) {
+                for (const auto& kv : map) print(kv.first,"--",kv.second);
+            };
             // logical constness, not bitwise constness
             FunctionImpl<Q,LDIM>& g_nc=const_cast<FunctionImpl<Q,LDIM>&>(g);
             FunctionImpl<R,KDIM>& h_nc=const_cast<FunctionImpl<R,KDIM>&>(h);
 
             std::list<contractionmapT> all_contraction_maps;
             for (std::size_t n=0; n<nmax; ++n) {
+                // print("------------");
+                // print("working on scale n=", n);
 
                 // list of nodes with d coefficients (and their parents)
 	      //double wall0 = wall_time();
@@ -6228,8 +6230,12 @@ template<size_t NDIM>
                 //wall0 = wall1;
 //                print("g_jlist");
 //                for (const auto& kv : g_jlist) print(kv.first,kv.second);
+//                print("g_ijlist");
+//                for (const auto& kv : g_ijlist) print(kv);
 //                print("h_jlist");
 //                for (const auto& kv : h_jlist) print(kv.first,kv.second);
+//                print("h_ijlist");
+//                for (const auto& kv : h_ijlist) print(kv);
 
                 // next lines will insert s nodes into g and h -> possible race condition!
                 bool this_first = true;  // are the remaining indices of g before those of g: f(x,z) = g(x,y) h(y,z)
@@ -6247,6 +6253,8 @@ template<size_t NDIM>
 
                 // will contain duplicate entries
                 contraction_map.merge(contraction_map1);
+                // print("raw contraction");
+                // print_map(contraction_map);
                 // turn multimap into a map of list
                 auto it = contraction_map.begin();
                 while (it != contraction_map.end()) {
@@ -6270,8 +6278,8 @@ template<size_t NDIM>
                 //wall1 = wall_time();
                 //wall_recur += (wall1 - wall0);
 //                if (n==2) {
-//                    print("contraction map for n=", n);
-//                    print_map(contraction_map);
+                    // print("contraction map for n=", n);
+                    // print_map(contraction_map);
 //                }
                 all_contraction_maps.push_back(contraction_map);
 
@@ -6297,7 +6305,7 @@ template<size_t NDIM>
         /// keys holding only the y dimension, also the maximum norm of all d for the j dimension
         /// @param[in]  n   the scale
         /// @param[in]  v   array holding the indices of the integration variable
-        /// @return     ijlist: list of all nodes with d coeffs; jlist: j-part of ij list only
+        /// @return     ijlist: list of all nodes with d coeffs; jlist: j-part of ij list only, with max d norm
         template<std::size_t CDIM>
         std::tuple<std::set<Key<NDIM>>, std::map<Key<CDIM>,double>>
         get_contraction_node_lists(const std::size_t n, const std::array<int, CDIM>& v) const {
@@ -6322,6 +6330,8 @@ template<size_t NDIM>
                     Key<CDIM> jkey(n,j_trans);
                     const double max_d_norm=j_list[jkey];
                     j_list.insert_or_assign(jkey,std::max(max_d_norm,node.get_dnorm()));
+
+                    // insert all parent keys with default dnorm 1.0
                     Key<CDIM> parent_jkey=jkey.parent();
                     while (j_list.count(parent_jkey)==0) {
                         j_list.insert({parent_jkey,1.0});
@@ -6370,10 +6380,10 @@ template<size_t NDIM>
             // extract relevant node translations from this node
             const auto j_this_key=key.extract_key(v_this);
 
-//            print("\nkey, j_this_key", key, j_this_key);
+            // print("\nkey, j_this_key", key, j_this_key);
             const double max_d_norm=j_other_list.find(j_this_key)->second;
             const bool sd_norm_product_large = node.get_snorm() * max_d_norm > truncate_tol(thresh,key);
-//            print("sd_product_norm",node.get_snorm() * max_d_norm, thresh);
+            // print("sd_product_norm",node.get_snorm() * max_d_norm, node.get_snorm(), max_d_norm, thresh);
 
             // end recursion if we have reached the final scale n
             // with which nodes from other will this node be contracted?
@@ -6384,10 +6394,10 @@ template<size_t NDIM>
                     if (j_this_key != j_other_key) continue;
                     auto i_key=key.extract_complement_key(v_this);
                     auto k_key=other_key.extract_complement_key(v_other);
-//                    print("key, ij_other_key",key,other_key);
-//                    print("i, k, j key",i_key, k_key, j_this_key);
+                    // print("key, ij_other_key",key,other_key);
+                    // print("i, k, j key",i_key, k_key, j_this_key);
                     Key<FDIM> ik_key=(this_first) ? i_key.merge_with(k_key) : k_key.merge_with(i_key);
-//                    print("ik_key",ik_key);
+                    // print("ik_key",ik_key);
 //                    MADNESS_CHECK(contraction_map.count(ik_key)==0);
                     contraction_map.insert(std::make_pair(ik_key,std::list<Key<CDIM>>{j_this_key}));
                 }
@@ -6405,7 +6415,7 @@ template<size_t NDIM>
                 // in case we need to compute children's coefficients: unfilter only once
                 bool compute_child_s_coeffs=true;
                 coeffT d = node.coeff();
-//                print("continuing recursion from key",key);
+                // print("continuing recursion from key",key);
 
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     keyT child=kit.key();
@@ -6416,21 +6426,24 @@ template<size_t NDIM>
                     bool need_s_coeffs= childnode_exists ? (acc->second.get_snorm()<=0.0) : true;
 
                     coeffT child_s_coeffs;
-                    if (need_s_coeffs and compute_child_s_coeffs) {
-                        if (d.dim(0)==cdata.vk[0]) {        // s coeffs only in this node
-                            coeffT d1(cdata.v2k,get_tensor_args());
-                            d1(cdata.s0)+=d;
-                            d=d1;
+                    if (need_s_coeffs) {
+                        if (compute_child_s_coeffs) {
+                            if (d.dim(0)==cdata.vk[0]) {        // s coeffs only in this node
+                                coeffT d1(cdata.v2k,get_tensor_args());
+                                d1(cdata.s0)+=d;
+                                d=d1;
+                            }
+                            d = unfilter(d);
+                            compute_child_s_coeffs=false;
                         }
-                        d = unfilter(d);
                         child_s_coeffs=copy(d(child_patch(child)));
                         child_s_coeffs.reduce_rank(thresh);
-                        compute_child_s_coeffs=false;
                     }
 
                     if (not childnode_exists) {
                         get_coeffs().replace(child,nodeT(child_s_coeffs,false));
                         get_coeffs().find(acc,child);
+                        // print("inserting child node ", child, "with snorm", child_s_coeffs.normf() );
                     } else if (childnode_exists and need_s_coeffs) {
                         acc->second.coeff()=child_s_coeffs;
                     }
@@ -6438,7 +6451,7 @@ template<size_t NDIM>
                     MADNESS_CHECK(exists);
                     nodeT& childnode = acc->second;
                     if (need_s_coeffs) childnode.recompute_snorm_and_dnorm(get_cdata());
-//                    print("recurring down to",child);
+                    // print("recurring down to",child);
                     contraction_map.merge(recur_down_for_contraction_map(child,childnode, v_this, v_other,
                                                                          ij_other_list, j_other_list, this_first, thresh));
 //                    print("contraction_map.size()",contraction_map.size());

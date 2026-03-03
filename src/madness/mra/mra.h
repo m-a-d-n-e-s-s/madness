@@ -2571,6 +2571,10 @@ namespace madness {
             for (auto& g : vg) g.get_impl()->compute_snorm_and_dnorm(false);
             world.gop.fence();
         }
+        // print("f tree");
+        // f.get_impl()->print_tree(std::cout,3);
+        // print("g tree");
+        // for (const auto& gg: vg) gg.get_impl()->print_tree(std::cout,3);
 
         typedef TENSOR_RESULT_TYPE(T, R) resultT;
         std::vector<Function<resultT,NDIM>> result(vg.size());
