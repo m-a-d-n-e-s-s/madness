@@ -477,9 +477,9 @@ private:
     std::vector<Function<T,LDIM>> a,b;   ///< the lo-dim functions
 public:
 
-    World& world() const {return f12->get_world();}
+    World& world() const override {return f12->get_world();}
     std::vector<Function<T,LDIM>> inner(const std::vector<Function<T,LDIM>>& rhs,
-                                        const particle<LDIM> p1, const particle<LDIM> p2) const {
+                                        const particle<LDIM> p1, const particle<LDIM> p2) const override {
 
         std::vector<Function<T,LDIM>> result;
         // functor is now \sum_i a_i(1) b_i(2) f12
@@ -513,7 +513,7 @@ public:
         return result;
     }
 
-    typename Tensor<T>::scalar_type norm2() const {
+    typename Tensor<T>::scalar_type norm2() const override {
         const Function<T, LDIM> one = FunctionFactory<T, LDIM>(world()).f(
                 [](const Vector<double, LDIM>& r) { return 1.0; });
         std::vector<Function<T, LDIM>> pre, post;
@@ -542,7 +542,7 @@ public:
 
     }
 
-    T operator()(const Vector<double,NDIM>& r) const {
+    T operator()(const Vector<double,NDIM>& r) const override {
 
         if (a.size()==0) return 0.0;
         auto split = [](const Vector<double,NDIM>& r) {
@@ -579,23 +579,23 @@ template<typename T, std::size_t NDIM, std::size_t LDIM=NDIM/2>
 struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
     LRFunctorPure() = default;
     LRFunctorPure(const Function<T,NDIM>& f) : f(f) {}
-    World& world() const {return f.world();}
+    World& world() const override {return f.world();}
 
     Function<T, NDIM> f;    ///< a hi-dim function
 
     std::vector<Function<T,LDIM>> inner(const std::vector<Function<T,LDIM>>& rhs,
-                                        const particle<LDIM> p1, const particle<LDIM> p2) const {
+                                        const particle<LDIM> p1, const particle<LDIM> p2) const override {
         return madness::innerXX<LDIM>(f,rhs,p1.get_array(),p2.get_array());
     }
 
     std::string type() const override {return "LRFunctorPure";}
 
     /// evaluate the functor at a given point, e.g. for plotting
-    T operator()(const Vector<double,NDIM>& r) const {
+    T operator()(const Vector<double,NDIM>& r) const override {
         return f(r);
     }
 
-    typename Tensor<T>::scalar_type norm2() const {
+    typename Tensor<T>::scalar_type norm2() const override {
         return f.norm2();
     }
 };
@@ -1363,24 +1363,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 g=truncate(transform(world,g,t));
                 t1.tag("rrcd/truncate/thresh");
             }
-            double thresh=FunctionDefaults<NDIM>::get_thresh();
-            FunctionDefaults<LDIM>::set_thresh(thresh*1.e-4);
-            FunctionDefaults<NDIM>::set_thresh(thresh*1.e-4);
-            // g.erase(g.begin()+2,g.end()); // truncate to 2 functions for testing
-            // g.erase(g.begin());
-            // for (auto gg : g) gg.get_impl()->print_tree(std::cout, 3);
             auto h=truncate(inner(lrfunctor,g,p1,p1));
-            FunctionDefaults<LDIM>::set_thresh(thresh);
-            FunctionDefaults<NDIM>::set_thresh(thresh);
-            auto gnorms=norm2s(world,g);
-            std::vector<double> gerade;
-            for (auto gg : g) gerade.push_back(gg.trace());
-            print("gnorms",gnorms);
-            print("gerade(g)",gerade);
-            plot_line(world,std::vector<Function<double,LDIM>>({g[1],h[1]}),"gerade"+std::to_string(floor(cpu_time()*10.0)),
-                PlotParameters().set_zoom(1.0),0);
-            auto hnorms=norm2s(world,h);
-            print("hnorms",hnorms);
             t1.tag("Y backprojection with truncation");
 
             Tensor<T> metric;

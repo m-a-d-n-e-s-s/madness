@@ -369,51 +369,48 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
 }
 
 template<std::size_t LDIM>
-int test_full_rank_functor(World& world, LowRankFunctionParameters parameters) {
+int test_construction(World& world, LowRankFunctionParameters parameters) {
 
-    test_output t1("test_full_rank_functor");
+    test_output t1("test_construction");
     t1.set_cout_to_terminal();
-    print_header2("entering test_full_rank_functor");
     constexpr int NDIM=2*LDIM;
-//    FunctionDefaults<LDIM>::set_thresh(1.e-6);
-//    FunctionDefaults<NDIM>::set_thresh(1.e-6);
-    double gaussexponent=1.e-10;
+    double gaussexponent=2.0;
+    double gauss1=2.0;
+    double gauss2=3.0;
     parameters.set_derived_value("lmax",3);
-    parameters.set_derived_value("tol",1.e-6);
+    parameters.set_derived_value("tol",1.e-4);
     parameters.set_derived_value("radius",3.0);
 
-    // const particle<LDIM> p1=particle<LDIM>::particle1();
-    // const particle<LDIM> p2=particle<LDIM>::particle2();
-
+    // make a functor that is not separable, but has a simple low-rank representation
     std::vector<std::shared_ptr<LRFunctorBase<double,NDIM>>> functors;
     Function<double,NDIM> gauss=FunctionFactory<double,NDIM>(world)
-            .functor([&gaussexponent](const Vector<double,NDIM>& r){
+            .functor([&gaussexponent,&gauss1,&gauss2](const Vector<double,NDIM>& r){
                 Vector<double,LDIM> a,b;
                 for (int i=0; i<LDIM; ++i) {
                     a[i]=r[i];
                     b[i]=r[i+LDIM];
                 }
-                return exp(-gaussexponent*inner(a-b,a-b))*exp(-2.0*inner(a,a)) * exp(-2.0*inner(b,b));
+                return exp(-gaussexponent*inner(a-b,a-b))
+                        *exp(-gauss1*inner(a,a)) * exp(-gauss2*inner(b,b));
             });
-    double gnorm=gauss.norm2();
-    print("gauss.norm2()",gnorm);
     functors.push_back(std::shared_ptr<LRFunctorBase<double,NDIM>>(new LRFunctorPure<double,NDIM>(gauss)));
     t1.checkpoint(true,"prep");
 
+    // same functor, different implementation
     auto gaussop=std::shared_ptr<SeparatedConvolution<double,LDIM>>(GaussOperatorPtr<LDIM>(world,gaussexponent));
-    Function<double,LDIM> phi=FunctionFactory<double,LDIM>(world).functor([](const Vector<double,LDIM>& r)
-        {return exp(-2.0*inner(r,r));});
+    Function<double,LDIM> phi1=FunctionFactory<double,LDIM>(world)
+            .functor([&gauss1](const Vector<double,LDIM>& r) {return exp(-gauss1*inner(r,r));});
+    Function<double,LDIM> phi2=FunctionFactory<double,LDIM>(world)
+            .functor([&gauss2](const Vector<double,LDIM>& r) {return exp(-gauss2*inner(r,r));});
     functors.push_back(std::shared_ptr<LRFunctorBase<double,NDIM>>(
-        new LRFunctorF12<double,NDIM>(gaussop,std::vector<Function<double,LDIM>>({copy(phi)}),{copy(phi)})));
+        new LRFunctorF12<double,NDIM>(gaussop,phi1,phi2)));
 
     plot_plane<NDIM,LRFunctorBase<double,NDIM>>(world,*functors[0],"pure",PlotParameters(world).set_plane({"x1","x2"}));
     plot_plane<NDIM,LRFunctorBase<double,NDIM>>(world,*functors[1],"f12",PlotParameters(world).set_plane({"x1","x2"}));
 
 
-    // for (auto canonicalize : {true,false}) {
-    for (auto canonicalize : {false}) {
-        // for (auto rhsfunctiontype : {"exponential","harmonics"}) {
-        for (auto rhsfunctiontype : {"harmonics"}) {
+    for (auto canonicalize : {true,false}) {
+        for (auto rhsfunctiontype : {"exponential","harmonics"}) {
             for (auto ortho : {"cholesky"}) {
                 for (auto& functor : functors) {
                     parameters.set_derived_value("rhsfunctiontype",std::string(rhsfunctiontype));
@@ -429,7 +426,17 @@ int test_full_rank_functor(World& world, LowRankFunctionParameters parameters) {
                     // check the accuracy of the lrf projection and the l2error. The lrf projection is notoriously
                     // inaccurate, cf R12 error convergence, so we use a very loose tolerance here.
                     double tol_lrf=1.e-2;
+                    double tol_lrf_l2=5.e-2;
 
+                    // turn tol into a string with scientic notation and 2 digits, for better readability of the output
+                    char buf[20];
+                    snprintf(buf,20,"%.2e",parameters.tol());
+                    std::string stol=std::string(buf);
+
+                    std::string description=std::string(rhsfunctiontype)+
+                                        ", canon="+std::to_string(canonicalize)+
+                                        ", "+functor->type()+
+                                        ", tol="+stol;
                     t1.checkpoint(true,"construction f12 functor");
                     { // check function evaluation
                         Vector<double,NDIM> a;
@@ -438,13 +445,12 @@ int test_full_rank_functor(World& world, LowRankFunctionParameters parameters) {
                         double ref1=(*functor)(a);
                         // double ref2=functorpure(a);
                         print("lr function evaluation, val, reference",val,ref1);
-                        t1.checkpoint(val,ref1,tol_lrf,"f12 functor, function evaluation");
-
+                        t1.checkpoint(val,ref1,tol_lrf,"lrf eval, "+description);
                     }
                     {
                         double error1=lrfunction1.l2error(*functor);
                         print("error, tol", error1,tol_lrf);
-                        t1.checkpoint(error1,tol_lrf,"f12 functor, f12 l2 error: ");
+                        t1.checkpoint(error1,tol_lrf_l2,"lrf l2 err, "+description);
                     }
                 }
             }
@@ -495,7 +501,7 @@ int test_full_rank_functor(World& world, LowRankFunctionParameters parameters) {
 //    }
 ////    print("errors",error2,error4);
 
-    print_header2("leaving test_full_rank_functor");
+    print_header2("leaving test_construction");
     return t1.end();
 }
 
@@ -996,7 +1002,7 @@ int main(int argc, char **argv) {
     try {
 
         // make_ri_basis<3>(world, parameters);
-        isuccess+=test_full_rank_functor<1>(world, parameters);
+        isuccess+=test_construction<1>(world, parameters);
 //        parameters.set_user_defined_value("orthomethod",std::string("canonical"));
         // isuccess+=test_construction_optimization<1>(world,parameters);
 //        parameters.set_user_defined_value("orthomethod",std::string("cholesky"));

@@ -6208,9 +6208,9 @@ template<size_t NDIM>
             std::size_t nmax=FunctionDefaults<CDIM>::get_max_refine_level();
             const double thresh=FunctionDefaults<NDIM>::get_thresh();
 
-            auto print_map = [](const auto& map) {
-                for (const auto& kv : map) print(kv.first,"--",kv.second);
-            };
+            // auto print_map = [](const auto& map) {
+                // for (const auto& kv : map) print(kv.first,"--",kv.second);
+            // };
             // logical constness, not bitwise constness
             FunctionImpl<Q,LDIM>& g_nc=const_cast<FunctionImpl<Q,LDIM>&>(g);
             FunctionImpl<R,KDIM>& h_nc=const_cast<FunctionImpl<R,KDIM>&>(h);
