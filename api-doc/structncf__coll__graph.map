@@ -1,0 +1,9 @@
+<map id="ncf" name="ncf">
+<area shape="rect" id="Node000001" title=" " alt="" coords="260,108,303,133"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="5,5,197,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="151,49,261,106,258,111,149,54"/>
+<area shape="rect" id="Node000003" href="$structncf__singularity.html" title=" " alt="" coords="222,13,341,38"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="284,52,284,108,279,108,279,52"/>
+<area shape="rect" id="Node000004" href="$structncf__cusp.html" title=" " alt="" coords="365,13,443,38"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="380,48,298,110,295,106,377,44"/>
+</map>

@@ -1,0 +1,7 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1DistributedMatrixDistribution.html" title=" " alt="" coords="5,35,208,75"/>
+<area shape="rect" id="Node000001" href="$classmadness_1_1DistributedMatrix.html" title=" " alt="" coords="275,5,478,45"/>
+<area shape="poly" id="edge254_Node000000_Node000001" title=" " alt="" coords="221,40,275,34,275,39,222,45"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1DistributedMatrix.html" title="Manages data associated with a row/column/block distributed array." alt="" coords="256,70,497,95"/>
+<area shape="poly" id="edge255_Node000000_Node000002" title=" " alt="" coords="222,64,256,68,256,73,222,69"/>
+</map>

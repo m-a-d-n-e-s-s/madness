@@ -1,0 +1,7 @@
+<map id="GaussianGuess&lt; NDIM &gt;" name="GaussianGuess&lt; NDIM &gt;">
+<area shape="rect" id="Node000001" title="an N&#45;dimensional real&#45;valued Gaussian function" alt="" coords="252,45,440,70"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1FunctionFunctorInterface.html" title=" " alt="" coords="5,5,204,45"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="218,38,252,42,252,48,217,43"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1FunctionFunctorInterface.html" title="Abstract base class interface required for functors used as input to Functions." alt="" coords="9,69,201,109"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="214,72,251,67,252,72,215,77"/>
+</map>

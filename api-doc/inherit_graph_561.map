@@ -1,0 +1,21 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classmadness_1_1ResultsBase.html" title=" " alt="" coords="5,129,175,155"/>
+<area shape="rect" id="Node000001" href="$classmadness_1_1CISResults.html" title=" " alt="" coords="255,5,413,31"/>
+<area shape="poly" id="edge392_Node000000_Node000001" title=" " alt="" coords="112,118,160,77,190,57,222,40,253,28,255,33,224,44,193,61,163,82,116,122"/>
+<area shape="rect" id="Node000003" href="$classmadness_1_1ConvergenceResults.html" title="holds convergence results of the calculation" alt="" coords="223,55,445,80"/>
+<area shape="poly" id="edge394_Node000000_Node000003" title=" " alt="" coords="132,121,222,89,266,77,267,83,223,94,134,126"/>
+<area shape="rect" id="Node000004" href="$classmadness_1_1MetaDataResults.html" title="holds metadata of the calculation" alt="" coords="233,104,435,129"/>
+<area shape="poly" id="edge395_Node000000_Node000004" title=" " alt="" coords="188,129,233,124,233,130,188,134"/>
+<area shape="rect" id="Node000005" href="$classmadness_1_1PropertyResults.html" title=" " alt="" coords="238,153,430,179"/>
+<area shape="poly" id="edge396_Node000000_Node000005" title=" " alt="" coords="189,149,238,154,237,159,188,154"/>
+<area shape="rect" id="Node000006" href="$classmadness_1_1ResponseResults.html" title=" " alt="" coords="234,203,434,228"/>
+<area shape="poly" id="edge397_Node000000_Node000006" title=" " alt="" coords="136,157,223,187,272,200,271,205,222,193,134,162"/>
+<area shape="rect" id="Node000007" href="$classmadness_1_1SCFResults.html" title=" " alt="" coords="253,252,415,277"/>
+<area shape="poly" id="edge398_Node000000_Node000007" title=" " alt="" coords="116,162,164,201,224,237,259,249,258,255,222,242,161,205,113,166"/>
+<area shape="rect" id="Node000002" href="$classmadness_1_1CC2Results.html" title=" " alt="" coords="503,5,666,31"/>
+<area shape="poly" id="edge393_Node000001_Node000002" title=" " alt="" coords="427,15,503,15,503,21,427,21"/>
+<area shape="rect" id="Node000008" href="$classmadness_1_1OEPResults.html" title=" " alt="" coords="503,227,666,252"/>
+<area shape="poly" id="edge399_Node000007_Node000008" title=" " alt="" coords="429,252,503,245,503,250,429,258"/>
+<area shape="rect" id="Node000009" href="$classmadness_1_1ZnemoResults.html" title=" " alt="" coords="493,276,676,301"/>
+<area shape="poly" id="edge400_Node000007_Node000009" title=" " alt="" coords="429,271,493,277,493,283,429,276"/>
+</map>
