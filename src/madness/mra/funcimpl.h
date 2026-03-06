@@ -5070,11 +5070,7 @@ template<size_t NDIM>
         void apply(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             MADNESS_ASSERT(!op.modified());
-            typename dcT::const_iterator end = f.coeffs.end();
-            for (typename dcT::const_iterator it=f.coeffs.begin(); it!=end; ++it) {
-                // looping through all the coefficients in the source
-                const keyT& key = it->first;
-                const FunctionNode<R,NDIM>& node = it->second;
+            for (const auto& [key, node]: f.coeffs) {
                 if (node.has_coeff()) {
                     if (node.coeff().dim(0) != k /* i.e. not a leaf */ || op.doleaves) {
                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
