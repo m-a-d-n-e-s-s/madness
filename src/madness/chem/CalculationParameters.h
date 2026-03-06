@@ -64,11 +64,11 @@ struct CalculationParameters : public QCCalculationParametersBase {
 
 	/// ctor reading out the input file
 	CalculationParameters() {
-
-        initialize<std::string>("prefix","mad","prefixes your output/restart/json/plot/etc files");
+		initialize<std::string>("prefix","mad","prefixes your output/restart/json/plot/etc files");
 		initialize<double>("charge",0.0,"total molecular charge");
 		initialize<std::string> ("xc","hf","XC input line");
 		initialize<std::string> ("hfexalg","multiworld_row","hf exchange algorithm",{"multiworld","multiworld_row","fetch_compute","smallmem","largemem"});
+		initialize<std::vector<std::string>>("memory",{"storefunction","nodereplicated","distributed"},"memory algorithm for storing functions (storing,cloud,target)");
 		initialize<double>("smear",0.0,"smearing parameter");
 		initialize<double>("econv",1.e-5,"energy convergence");
 		initialize<double>("dconv",1.e-4,"density convergence");
@@ -204,6 +204,8 @@ struct CalculationParameters : public QCCalculationParametersBase {
 	std::string ac_data() const {return get<std::string>("ac_data");}
 	std::string xc() const {return get<std::string>("xc");}
     std::string hfexalg() const {return get<std::string>("hfexalg");}
+
+	std::vector<std::string> memory() const {return get<std::vector<std::string>>("memory");}
 
 	std::string aobasis() const {return get<std::string>("aobasis");}
 
