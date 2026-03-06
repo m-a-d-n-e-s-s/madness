@@ -457,6 +457,16 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
             return *this;
         }
 
+        /// convenience for testing if tensor is empty (i.e., has no data)
+        explicit operator bool() const noexcept {
+            return this->size() > 0;
+        }
+
+        /// convenience for testing if tensor is empty (i.e., has no data)
+        bool operator!() const noexcept {
+            return !static_cast<bool>(*this);
+        }
+
 
         /// Type conversion makes a deep copy
         template <class Q> operator Tensor<Q>() const { // type conv => deep copy
@@ -464,7 +474,6 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
             BINARY_OPTIMIZED_ITERATOR(Q, result, const T, (*this), *_p0 = (Q)(*_p1));
             return result;
         }
-
 
         /// Create and zero new 1-d tensor
 
@@ -2553,6 +2562,17 @@ MADNESS_PRAGMA_GCC(diagnostic pop)
         BINARY_OPTIMIZED_ITERATOR(T,result,const T,t,*_p0 = conditional_conj(*_p1));
         return result;
     }
+
+    /// Returns the identity matrix of the specified size
+
+    /// \ingroup tensor
+    template <class T>
+    Tensor<T> identity_matrix(long n) {
+        Tensor<T> result(n,n);
+        for (long i=0; i<n; ++i) result(i,i) = T(1);
+        return result;
+    }
+
 }
 
 #undef TENSOR_SHARED_PTR
