@@ -162,8 +162,6 @@ public:
         return alg;
     }
 
-    MacroTaskInfo macro_task_info = MacroTaskInfo::preset("default");
-
     Exchange(World& world, const double lo, const double thresh=FunctionDefaults<NDIM>::get_thresh());
 
     /// ctor with a conventional calculation
@@ -182,6 +180,11 @@ public:
 
     /// how the cloud will handle the data
     Exchange& set_macro_task_info(const MacroTaskInfo& info);
+    Exchange& set_macro_task_info(const std::vector<std::string>& info) {
+        impl->set_macro_task_info(info);
+        return *this;
+    }
+
 
     Exchange& set_printlevel(const long& level);
 

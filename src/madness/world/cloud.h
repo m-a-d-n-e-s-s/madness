@@ -300,10 +300,10 @@ public:
     void print_size(World& universe) {
         nlohmann::json stats=gather_memory_statistics(universe);
         double byte2gbyte=1.0/(1024*1024*1024);
-        double global_memsize=stats["memory_global"].template get<double>();
+        double global_memsize=stats["memory_global_GB"].template get<double>();
         double max_record_size=stats["max_record_size"].template get<double>();
-        double min_memsize=stats["memory_min"].template get<double>();
-        double max_memsize=stats["memory_max"].template get<double>();
+        double min_memsize=stats["memory_min_GB"].template get<double>();
+        double max_memsize=stats["memory_max_GB"].template get<double>();
         double global_size=stats["container_size_global"].template get<double>();
 
         if (universe.rank()==0) {
@@ -311,12 +311,12 @@ public:
             print("  replicated:",is_replicated);
             print("size of cloud (total)");
             print("  number of records:        ",global_size);
-            print("  memory in GBytes:         ",global_memsize*byte2gbyte);
+            print("  memory in GBytes:         ",global_memsize);
             print("size of cloud (average per node)");
             print("  number of records:        ",double(global_size)/universe.size());
-            print("  memory in GBytes:         ",global_memsize*byte2gbyte/universe.size());
+            print("  memory in GBytes:         ",global_memsize/universe.size());
             print("min/max of node");
-            print("  memory in GBytes:         ",min_memsize*byte2gbyte,max_memsize*byte2gbyte);
+            print("  memory in GBytes:         ",min_memsize,max_memsize);
             print("  max record size in GBytes:",max_record_size*byte2gbyte);
 
         }
@@ -351,21 +351,29 @@ public:
         std::size_t max_memsize=memsize;
         std::size_t min_memsize=memsize;
         double rss=madness::get_rss_usage_in_GB();
+        double rss_av=rss;
         universe.gop.sum(global_memsize);
         universe.gop.max(max_memsize);
         universe.gop.max(max_record_size);
         universe.gop.min(min_memsize);
         universe.gop.max(rss);
+        universe.gop.sum(rss_av);
+        double byte2gbyte=1.0/(1024*1024*1024);
+
+        // convert type(container item).second to GB, i.e. number of bytes in the container to GB
+        double uchar2gbyte=byte2gbyte*sizeof(unsigned char);
+
 
         auto local_size=container.size();
         auto global_size=local_size;
         universe.gop.sum(global_size);
         nlohmann::json j;
         j["container_size_global"] = global_size;
-        j["memory_global"] = global_memsize;
-        j["memory_min"] = min_memsize;
-        j["memory_max"] = max_memsize;
+        j["memory_global_GB"] = global_memsize*uchar2gbyte;
+        j["memory_min_GB"] = min_memsize*uchar2gbyte;
+        j["memory_max_GB"] = max_memsize*uchar2gbyte;
         j["memory_rss_GB_max"] = rss;
+        j["memory_rss_GB_av"] = rss_av/universe.size();
         j["max_record_size"] = max_record_size;
         return j;
     }
@@ -441,21 +449,21 @@ public:
 
     static void print_memory_statistics(const nlohmann::json stats) {
         double byte2gbyte=1.0/(1024*1024*1024);
-        double global_memsize=stats["memory_global"].template get<double>();
+        double global_memsize=stats["memory_global_GB"].template get<double>();
         double max_record_size=stats["max_record_size"].template get<double>();
-        double min_memsize=stats["memory_min"].template get<double>();
-        double max_memsize=stats["memory_max"].template get<double>();
+        double min_memsize=stats["memory_min_GB"].template get<double>();
+        double max_memsize=stats["memory_max_GB"].template get<double>();
         double global_size=stats["container_size_global"].template get<double>();
 
         print("Cloud memory:");
         print("  size of cloud (total)");
         print("    number of records:        ",global_size);
-        print("    memory in GBytes:         ",global_memsize*byte2gbyte);
+        print("    memory in GBytes:         ",global_memsize);
         // print("  size of cloud (average per node)");
         // print("    number of records:        ",double(global_size)/madness::world().size());
         // print("    memory in GBytes:         ",global_memsize*byte2gbyte/madness::world().size());
         print("  min/max of node");
-        print("    memory in GBytes:         ",min_memsize*byte2gbyte,max_memsize*byte2gbyte);
+        print("    memory in GBytes:         ",min_memsize,max_memsize);
         print("    max record size in GBytes:",max_record_size*byte2gbyte);
     }
 

@@ -16,16 +16,20 @@ namespace madness {
     /// data is kept as key-value pairs in a map: key=world_id,rank,hostname,NDIM, value=#functions,memory_GB
     class MemoryMeasurer {
     public:
+        /// forward declaration
+        struct MemKey;
+        struct MemInfo;
 
         /// measure the memory usage of all objects of all worlds
-        static void measure_and_print(World& world) {
+        static std::map<MemKey,MemInfo> measure_and_print(World& world) {
             MemoryMeasurer mm;
             world.gop.fence();
             mm.search_all_worlds();
             world.gop.fence();
-            mm.print_memory_map(world);
+            mm.print_memory_map(world); // will reduce memory_map to rank0 of universe
             world.gop.fence();
-            mm.clear_map();
+            // mm.clear_map();
+            return mm.world_memory_map;     // on rank0 only!
         }
 
     private:
@@ -36,18 +40,19 @@ namespace madness {
             return std::string(buffer);
         }
 
+    public:
         struct MemKey {
             unsigned long world_id=1;
             unsigned long rank=0;
             std::string hostname="localhost";
             std::size_t DIM=0;
             MemKey() = default;
-            MemKey(World& world) : world_id(world.id()), rank(world.rank()) {
+            explicit MemKey(World& world) : world_id(world.id()), rank(world.rank()) {
                 hostname=MemoryMeasurer::get_hostname();
             }
 
             template<typename T, std::size_t NDIM>
-            MemKey(const FunctionImpl<T,NDIM>& fimpl) : MemKey(fimpl.world) {
+            explicit MemKey(const FunctionImpl<T,NDIM>& fimpl) : MemKey(fimpl.world) {
                 DIM=NDIM;
             }
             MemKey(const MemKey& other) = default;
@@ -77,6 +82,8 @@ namespace madness {
 
         typedef std::map<MemKey,MemInfo> MemInfoMapT;
 
+
+    private:
         template<typename T, std::size_t NDIM>
         const FunctionImpl<T,NDIM>* cast_to_funcimpl_ptr(const uniqueidT obj_id) {
             World& world=*World::world_from_id(obj_id.get_world_id());
@@ -200,12 +207,30 @@ namespace madness {
         }
 
         /// return the total memory usage over all hosts
-        double total_memory(World& world) const {
+        static double total_memory(const MemInfoMapT& memmap) {
             double total_memory=0.0;
-            for (const auto& [memkey,memval] : world_memory_map) {
+            for (const auto& [memkey,memval] : memmap) {
                 total_memory+=memval.memory_GB;
             }
             return total_memory;
+        }
+
+        /// return the maximum memory usage over all hosts
+        static double max_memory(const MemInfoMapT& memmap) {
+            double max_memory=0.0;
+            for (const auto& [memkey,memval] : memmap) {
+                if (memval.memory_GB>max_memory) max_memory=memval.memory_GB;
+            }
+            return max_memory;
+        }
+
+        /// return the minimum memory usage over all hosts
+        static double min_memory(const MemInfoMapT& memmap) {
+            double min_memory=std::numeric_limits<double>::max();
+            for (const auto& [memkey,memval] : memmap) {
+                if (memval.memory_GB<min_memory) min_memory=memval.memory_GB;
+            }
+            return min_memory;
         }
 
         /// @param[in] msg a message to print before the memory map
@@ -229,7 +254,9 @@ namespace madness {
                 snprintf(line, bufsize, "%20s %12lu %5lu %5lu %5lu    %e", memkey.hostname.c_str(), memkey.world_id, memkey.rank, memkey.DIM, memval.num_functions, memval.memory_GB);
                 print(std::string(line));
             }
+            snprintf(line, bufsize, "%20s                                   %e", "all hosts", total_memory(world_memory_map));
             world.gop.fence();
+            
 
             // print memory on each host
             auto mem_per_host_and_rank=memory_per_host_and_rank(world);
@@ -247,7 +274,7 @@ namespace madness {
             }
             if (world.rank()==0) {
                 auto info=memory_per_host_all_ranks(mem_per_host_and_rank);
-                double total_mem=total_memory(world);
+                double total_mem=total_memory(world_memory_map);
                 double total_rss=0.0;
                 for (auto& [hostname,memory] : info) {
                     total_rss+=host_to_nrank_and_rss[hostname].second;

@@ -230,14 +230,15 @@ int test_copy_function_from_other_world_through_cloud(World& universe) {
         print0(universe, "the cloud size should be at 10e-8, as it is only a pointer to the function impl");
         auto stats=cloud.gather_memory_statistics(universe);
         auto nrecords=stats["container_size_global"].template get<std::size_t>();
-        auto global_memsize=stats["memory_global"].template get<std::size_t>();
+        auto global_memsize=stats["memory_global_GB"].template get<double>();
+        double byte2gbyte=1.0/(1024*1024*1024);
 
-        print("nrecord, bytes in cloud", nrecords, global_memsize);
+        print("nrecord, Gbytes in cloud", nrecords, global_memsize);
         t1.checkpoint(nrecords == 1, "cloud: nrecord==1");
         if (policy == Cloud::StoreFunctionPointer)
-            t1.checkpoint(global_memsize < 1.e2, "cloud size is small, only a pointer to the function impl");
+            t1.checkpoint(global_memsize < 1.e2*byte2gbyte, "cloud size is small, only a pointer to the function impl");
         else
-            t1.checkpoint(global_memsize > 1.e4, "cloud size is large, full function impl stored");
+            t1.checkpoint(global_memsize > 1.e4*byte2gbyte, "cloud size is large, full function impl stored");
 
 
         // test loading from the cloud into subworlds
@@ -343,16 +344,17 @@ int test_replication_policy(World& universe) {
                 // auto [nrecords,global_memsize,min_memsize,max_memsize,max_record_size] = cloud.get_size(universe);
                 auto stats=cloud.gather_memory_statistics(universe);
                 auto nrecords=stats["container_size_global"].template get<std::size_t>();
-                auto global_memsize=stats["memory_global"].template get<std::size_t>();
+                auto global_memsize=stats["memory_global_GB"].template get<double>();
                 int fac=1;
                 if (cloud_replication_policy==DistributionType::NodeReplicated) fac=nhost;
                 if (cloud_replication_policy==DistributionType::RankReplicated) fac=universe.size();
-                print("nrecord, bytes in cloud", nrecords, global_memsize);
+                print("nrecord, Gbytes in cloud", nrecords, global_memsize);
+                double byte2gbyte=1.0/(1024*1024*1024);
                 t1.checkpoint(nrecords == static_cast<size_t>(fac), "cloud: nrecord==n_replica");
                 if (storing_policy == MacroTaskInfo::StorePointerToFunction)
-                    t1.checkpoint(global_memsize < 1.e2, "cloud size is small");
+                    t1.checkpoint(global_memsize < 1.e2*byte2gbyte, "cloud size is small");
                 else
-                    t1.checkpoint(global_memsize > 1.e4, "cloud size is large");
+                    t1.checkpoint(global_memsize > 1.e4*byte2gbyte, "cloud size is large");
 
                 {
                     // create subworlds

@@ -25,15 +25,34 @@ static std::shared_ptr<World> create_worlds(World& universe, const std::size_t n
 template<std::size_t NDIM>
 int test_size(World& world) {
 
-    test_output t1("test_size");
-    t1.set_cout_to_terminal();
+    test_output t1("test_size",world.rank()==0);
+    // t1.set_cout_to_terminal();
     // create a slater function, slightly offset to create an uneven distribution
     auto slater=[](const Vector<double,2*NDIM>& r){return exp(-(r-0.1).normf());};
     Function<double,2*NDIM> f2=FunctionFactory<double,2*NDIM>(world).functor(slater);
 
     if (world.rank()==0) print_header2("1 function in the universe");
-    MemoryMeasurer::measure_and_print(world);
+    // mmap exists only on rank 0 of the universe
+    auto mmap=MemoryMeasurer::measure_and_print(world);
 
+    // check that we have one entry per rank
+    if (world.rank()==0) t1.checkpoint(mmap.size()==world.size(),"memory map has one entry per rank");
+
+    // check total memory size
+    double total_mem_size=MemoryMeasurer::total_memory(mmap);
+    const double d=sizeof(double);
+    const double fac=1024*1024*1024;
+    double f2size=f2.size()/fac*d;
+    if (world.rank()==0) t1.checkpoint(f2size,total_mem_size,1.e-6,
+        "total memory size == size(f2)");
+
+    if (world.rank()==0) {
+        print("universe");
+        for (const auto& [key,val] : mmap) {
+            print(" world_id",key.world_id," rank",key.rank," hostname",key.hostname,
+                " DIM",key.DIM," #funcs",val.num_functions," memory_GB",val.memory_GB);
+        }
+    }
 
     // create functions in all worlds
     {
@@ -44,8 +63,14 @@ int test_size(World& world) {
             // Function<double,2*NDIM> g2_universe=FunctionFactory<double,2*NDIM>(world).functor(slater);
             FunctionDefaults<2*NDIM>::set_default_pmap(*subworld);
             Function<double,2*NDIM> g2=FunctionFactory<double,2*NDIM>(*subworld).functor(slater);
-            MemoryMeasurer::measure_and_print(world);
+            auto mmap=MemoryMeasurer::measure_and_print(world);
             FunctionDefaults<2*NDIM>::set_default_pmap(world);
+
+            // mem size should be twice as large now
+            double total_mem_size=MemoryMeasurer::total_memory(mmap);
+            if (world.rank()==0) t1.checkpoint(total_mem_size,
+                f2size*(world.size()+1),1.e-6,
+                "total memory size = (nworld+1) size(f2)");
         }
         subworld->gop.fence();
     }
@@ -91,14 +116,11 @@ int test_host_rank_map(World& world) {
 /// check that all keys are on the expected rank
 /// check that the norm of a specific key is the same as in the distributed function
 int test_node_replicated_function(World& world) {
-    test_output t1("testing node-replicated function");
-    t1.set_cout_to_terminal();
+    test_output t1("testing node-replicated function",world.rank()==0);
+    t1.set_cout_to_terminal(world.rank()==0);
 
     // some information for the user
-    if (world.rank()==0) {
-        print("world.size()",world.size());
-        print("ranks and hosts");
-    }
+    if (world.rank()==0) print("world.size()",world.size());
 
     // which ranks are on which host
     auto rank_host_map=rank_to_host_and_rss_map(world);
@@ -113,7 +135,7 @@ int test_node_replicated_function(World& world) {
 
     // print out the tree size of the distributed function, global sum over all ranks
     std::size_t sz_distributed=f.tree_size();
-    print("tree size of the distributed function",sz_distributed);
+    if (world.rank()==0) print("tree size of the distributed function",sz_distributed);
 
     // compute the norm of a specific key
     Key<2> key(4, {8,9});
@@ -136,9 +158,16 @@ int test_node_replicated_function(World& world) {
         auto f1=copy(f);
         f1.replicate();
         std::size_t sz_replicated=f1.tree_size();
-        t1.checkpoint(sz_replicated==sz_distributed*world.size(),"rank "+std::to_string(world.rank())+
-            ": tree size replicated = size distributed * nproc = "+std::to_string(sz_replicated));
 
+        // ordered printing
+        for (int r=0; r<world.size(); r++, world.gop.fence()) {
+            if (world.rank()==r) {
+                t1.checkpoint(sz_replicated==sz_distributed*world.size(),"rank "+std::to_string(world.rank())+
+                ": tree size rank replicated = size distributed * nproc = "+std::to_string(sz_replicated));
+            }
+        }
+
+        world.gop.fence();
         // check that all keys are on the expected rank, ie. the local rank
         for (int r=0; r<world.size(); r++, world.gop.fence()) {
             if (world.rank()==r) {
@@ -150,18 +179,28 @@ int test_node_replicated_function(World& world) {
         }
     }
 
+    auto ranks_per_host1=ranks_per_host(world);
+    auto primary_ranks=primary_ranks_per_host(world,ranks_per_host1);
+
     // replicate f on all hosts, i.e. the lowest rank on each host only
     {
         auto f1=copy(f);
         f1.replicate_on_hosts();
         // f1.replicate_on_nodes();
         std::size_t sz_replicated=f1.tree_size();
-        auto ranks_per_host1=ranks_per_host(world);
-        auto primary_ranks=primary_ranks_per_host(world,ranks_per_host1);
 
-        print("unique ranks per host (the lowest rank on each host):");
-        for (const auto& r : primary_ranks) print("rank",r);
-        print("tree size",sz_replicated);
+        int nhost=ranks_per_host1.size();
+        if (world.rank()==0) {
+            t1.checkpoint(int(sz_replicated),int(sz_distributed) * nhost,
+                "tree size host replicated = size distributed * nhost = "
+                        +std::to_string(sz_replicated));
+        }
+
+        if (world.rank()==0) {
+            print("unique ranks per host (the lowest rank on each host):");
+            for (const auto& r : primary_ranks) print("rank",r);
+            print("tree size",sz_replicated);
+        }
         world.gop.fence();
 
         t1.set_do_print(true);  // print on all ranks for debugging
@@ -185,6 +224,7 @@ int test_node_replicated_function(World& world) {
 
     }
 
+    world.gop.fence();
     t1.set_do_print(world.rank()==0);
     return t1.end();
 }
@@ -291,7 +331,7 @@ int main(int argc, char** argv) {
     result+=test_node_replicated_function(world);
 
 
-    print("result",result);
+    if (world.rank()==0) print("result",result);
     madness::finalize();
     return result;
 

@@ -369,6 +369,54 @@ struct MacroTaskInfo {
 		return good;
 	}
 
+	/// set policy from a vector of strings, assuming the order is storage policy, cloud distribution policy, ptr target distribution policy
+	void from_vector_of_strings(const std::vector<std::string>& vec) {
+		if (vec.size()!=3) {
+			std::string msg="expected 3 policies, got "+std::to_string(vec.size());
+			MADNESS_EXCEPTION(msg.c_str(),0);
+		}
+		auto remove_quotes = [](const std::string& s) {
+			std::string result=s;
+			if (s.size()>=2 and s.front()=='"' and s.back()=='"') {
+				result=s.substr(1,s.size()-2);
+			}
+			return result;
+		};
+
+		std::string sstorage=remove_quotes(vec[0]);
+		if (sstorage=="storefunction") storage_policy=MacroTaskInfo::StoreFunction;
+		else if (sstorage=="storepointertofunction") storage_policy=MacroTaskInfo::StorePointerToFunction;
+		else if (sstorage=="storefunctionviapointer") storage_policy=MacroTaskInfo::StoreFunctionViaPointer;
+		else {
+			std::string msg="unknown storage policy: "+sstorage;
+			print("msg",msg);
+			MADNESS_CHECK_THROW(0, "Oh no1");
+		}
+
+		std::string scloud=remove_quotes(vec[1]);
+		if (scloud=="rankreplicated") cloud_distribution_policy=DistributionType::RankReplicated;
+		else if (scloud=="nodereplicated") cloud_distribution_policy=DistributionType::NodeReplicated;
+		else if (scloud=="distributed") cloud_distribution_policy=DistributionType::Distributed;
+		else {
+			std::string msg="unknown cloud distribution policy: "+scloud;
+			print("msg",msg);
+			MADNESS_CHECK_THROW(0, "Oh no2");
+		}
+
+		std::string sptrtarget=remove_quotes(vec[2]);
+		if (sptrtarget=="rankreplicated") ptr_target_distribution_policy=DistributionType::RankReplicated;
+		else if (sptrtarget=="nodereplicated") ptr_target_distribution_policy=DistributionType::NodeReplicated;
+		else if (sptrtarget=="distributed") ptr_target_distribution_policy=DistributionType::Distributed;
+		else {
+			std::string msg="unknown ptr target distribution policy: "+sptrtarget;
+			print("msg",msg);
+			MADNESS_CHECK_THROW(0, "Oh no3");
+		}
+		print("set macrotaskinfo to");
+		print(*this);
+
+	}
+
 	StoragePolicy storage_policy=StoreFunctionViaPointer;
 	DistributionType cloud_distribution_policy=DistributionType::RankReplicated;
 	DistributionType ptr_target_distribution_policy=DistributionType::NodeReplicated;

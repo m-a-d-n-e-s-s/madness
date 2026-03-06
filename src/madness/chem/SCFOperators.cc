@@ -740,8 +740,8 @@ Exchange<T,NDIM>& Exchange<T,NDIM>::set_macro_task_info(const MacroTaskInfo& inf
     return *this;
 }
 
-template<typename T, std::size_t NDIM>
-Exchange<T,NDIM>& Exchange<T,NDIM>::set_printlevel(const long& level) {
+ template<typename T, std::size_t NDIM>
+ Exchange<T,NDIM>& Exchange<T,NDIM>::set_printlevel(const long& level) {
     impl->set_printlevel(level);
     return *this;
 }

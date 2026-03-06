@@ -109,6 +109,11 @@ public:
         return *this;
     }
 
+    ExchangeImpl& set_macro_task_info(const std::vector<std::string>& info) {
+        macro_task_info.from_vector_of_strings(info);
+        return *this;
+    }
+
     ExchangeImpl& set_algorithm(const Algorithm& alg) {
         algorithm_ = alg;
         return *this;
