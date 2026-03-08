@@ -74,6 +74,8 @@ Tensor<T> RandomizedMatrixDecomposition<T>::do_compute_range(const Y_former& Yfo
 		qr(Q0,R);
 		Q=Q0;
 
+		// looks a lot like full rank..
+		if (Q.dim(1)>Yformer.maxrank()) break;
 		if (Q.dim(1)>maxrank) break;
 		if (Q.dim(1)>Yformer.maxrank()) MADNESS_EXCEPTION("faulty QR step in randomized range finder",1);;
 

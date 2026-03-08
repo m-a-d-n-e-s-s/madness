@@ -651,8 +651,7 @@ namespace madness {
             // check for large sizes
             for (int i=0; i<ndim()-2; ++i) {
                 long size=cranks[i]*cranks[i+1]*dim(i);
-                if (size>10000000)
-                    MADNESS_EXCEPTION("emul in TensorTrain too large -- use full rank tenspr",1);
+            	MADNESS_CHECK_THROW(size<10000000,"emul in TensorTrain too large -- use full rank tensor");
             }
             TensorTrain result(ndim(),dims());
             result.core.resize(ndim());
