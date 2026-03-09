@@ -42,9 +42,9 @@
 #include <madness/world/binary_fstream_archive.h>
 #include <madness/world/worldhash.h>
 
+#include <algorithm>
 #include <climits>  // CHAR_BIT
 #include <cstdint>
-#include <vector>
 
 namespace madness {
 
@@ -191,9 +191,11 @@ namespace madness {
 
         // The distance of a displacement in real space.
         double real_distsq(const madness::Tensor<double>& widths) const {
-          uint64_t dist = 0;
+          double dist = 0;
           for (std::size_t d = 0; d < NDIM; ++d) {
-              const auto real_width = widths(d) * l[d];
+              // Subtract 1 to account for the least distance between points in the boxes.
+              const auto least_displacement_distance = std::max(l[d] - 1, static_cast<Translation>(0));
+              const auto real_width = widths(d) * least_displacement_distance;
               dist += real_width * real_width;
             }
           return dist;
@@ -226,7 +228,7 @@ namespace madness {
         double real_distsq_bc(const array_of_bools<NDIM>& is_periodic, const Tensor<double>& widths) const {
           const Translation twonm1 = (Translation(1) << level()) >> 1;
 
-          uint64_t dsq = 0;
+          double dsq = 0;
           for (std::size_t d = 0; d < NDIM; ++d) {
               Translation la = translation()[d];
               if (is_periodic[d]) {
@@ -239,7 +241,9 @@ namespace madness {
                       MADNESS_ASSERT(la >= -twonm1);
                     }
                 }
-              const auto real_width = widths(d) * la;
+              // Subtract 1 to account for the least distance between points in the boxes.
+              const auto least_displacement_distance = std::max(la - 1, static_cast<Translation>(0));
+              const auto real_width = widths(d) * least_displacement_distance;
               dsq += real_width * real_width;
             }
 

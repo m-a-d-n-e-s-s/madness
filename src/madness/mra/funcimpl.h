@@ -4928,8 +4928,8 @@ template<size_t NDIM>
                         op->func_domain_is_periodic());
 
           const auto default_distance_squared = [&](const auto &displacement)
-              -> std::uint64_t {
-            return displacement.distsq_bc(op->lattice_summed());
+              -> double {
+            return displacement.real_distsq_bc(op->lattice_summed(), FunctionDefaults<NDIM>::get_cell_width());
           };
           const auto default_skip_predicate = [&](const auto &displacement)
               -> bool {
@@ -4953,7 +4953,7 @@ template<size_t NDIM>
             // where fac takes into account
             int nvalid = 1; // Counts #valid at each distance
             int nused = 1;  // Counts #used at each distance
-            std::optional<std::uint64_t> distsq;
+            std::optional<double> distsq;
 
             // displacements to the kernel range boundary are typically same magnitude (modulo variation)
             // estimate the norm of the resulting contributions and skip all if one is too small
@@ -4967,10 +4967,7 @@ template<size_t NDIM>
               }
             }
 
-            const auto disp_end = displacements.end();
-            for (auto disp_it = displacements.begin(); disp_it != disp_end;
-                 ++disp_it) {
-              const auto &displacement = *disp_it;
+            for (const auto& displacement: displacements) {
               if (skip_predicate(displacement)) continue;
 
               keyT d;
@@ -4982,7 +4979,7 @@ template<size_t NDIM>
                 d = nullkey.merge_with(displacement);
 
               // shell-wise screening, assumes displacements are grouped into shells sorted so that operator decays with shell index N.B. lattice-summed decaying kernel is periodic (i.e. does decay w.r.t. r), so loop over shells of displacements sorted by distances modulated by periodicity (Key::distsq_bc)
-              const uint64_t dsq = distance_squared(displacement);
+              const auto dsq = distance_squared(displacement);
               if (!distsq ||
                   dsq != *distsq) { // Moved to next shell of neighbors
                 if (nvalid > 0 && nused == 0 && dsq > 1) {
