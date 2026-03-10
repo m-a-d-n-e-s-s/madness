@@ -842,6 +842,150 @@ int test_molecular_grid(World& world, LowRankFunctionParameters parameters) {
     return t1.end();
 }
 
+/// test norm2 with an asymmetric (non-symmetric) coupling matrix
+///
+/// Build a LowRankFunction in canonical form, compute its norm as reference,
+/// then transform into a general representation with an asymmetric metric
+/// and verify that norm2() still returns the correct value.
+template<std::size_t LDIM>
+int test_norm2_asymmetric_metric(World& world, LowRankFunctionParameters parameters) {
+    constexpr std::size_t NDIM = 2 * LDIM;
+    test_output t1("LowRankFunction::norm2 with asymmetric metric in dimension " + std::to_string(NDIM));
+    t1.set_cout_to_terminal();
+    double thresh = FunctionDefaults<LDIM>::get_thresh();
+
+    // build a few basis functions for g and h
+    const int nfunc = 3;
+    std::vector<Function<double,LDIM>> gfuncs(nfunc), hfuncs(nfunc);
+    for (int i = 0; i < nfunc; ++i) {
+        double alpha_g = 1.0 + 0.5 * i;
+        double alpha_h = 2.0 + 0.3 * i;
+        gfuncs[i] = FunctionFactory<double,LDIM>(world)
+                .functor([alpha_g](const Vector<double,LDIM>& r) { return exp(-alpha_g * inner(r,r)); });
+        hfuncs[i] = FunctionFactory<double,LDIM>(world)
+                .functor([alpha_h](const Vector<double,LDIM>& r) { return exp(-alpha_h * inner(r,r)); });
+    }
+
+    // 1) canonical LRF: f(1,2) = sum_i g_i(1) h_i(2)
+    LowRankFunction<double,NDIM> lrf_canon(gfuncs, hfuncs, 1.e-8, "canonical");
+    double norm_canon = lrf_canon.norm2();
+    double norm_reconstruct = lrf_canon.reconstruct().norm2();
+    print("canonical norm2, reconstruct norm2", norm_canon, norm_reconstruct);
+    t1.checkpoint(fabs(norm_canon - norm_reconstruct) < 10.0 * thresh,
+                  "canonical norm2 matches reconstruct");
+
+    // 2) general LRF with symmetric metric: M = S (overlap of g)
+    //    f(1,2) = sum_{ij} g_i(1) S^{-1}_{ij} S_{jk} h_k(2)  [just identity transform, same function]
+    //    Instead, define: new_g = g, new_h = h, metric = I (trivially symmetric) -- boring.
+    //    Better: transform g -> g' = g * A, metric = A^{-1}
+    //    with A being an arbitrary invertible matrix (asymmetric).
+    {
+        // build an asymmetric, invertible matrix A
+        Tensor<double> A(nfunc, nfunc);
+        A(0,0) = 1.0; A(0,1) = 0.3; A(0,2) = 0.0;
+        A(1,0) = 0.0; A(1,1) = 1.0; A(1,2) = 0.2;
+        A(2,0) = 0.1; A(2,1) = 0.0; A(2,2) = 1.0;
+        // A is not symmetric: A(0,1)=0.3 != A(1,0)=0.0
+
+        // compute A^{-1} by solving A * Ainv = I
+        Tensor<double> Ainv;
+        {
+            Tensor<double> I = Tensor<double>(nfunc, nfunc);
+            for (int i = 0; i < nfunc; ++i) I(i,i) = 1.0;
+            gesv(A, I, Ainv);
+        }
+
+        // transform: g' = g * A  (i.e. g'_j = sum_i g_i A_{ij})
+        auto gprime = transform(world, gfuncs, A);
+
+        // the function is the same: f = g' A^{-1} h = g * A * A^{-1} * h = g * h
+        // so metric = A^{-1}, which is asymmetric
+        LowRankFunction<double,NDIM> lrf_asym(gprime, hfuncs, 1.e-8, "canonical", Ainv);
+        MADNESS_CHECK(!lrf_asym.is_canonical()); // metric is set
+
+        double norm_asym = lrf_asym.norm2();
+        double norm_asym_reconstruct = lrf_asym.reconstruct().norm2();
+        print("asymmetric metric norm2, reconstruct norm2", norm_asym, norm_asym_reconstruct);
+        print("asymmetric metric norm2 vs canonical norm2", norm_asym, norm_canon);
+
+        // the function hasn't changed, so norm must match the canonical reference
+        t1.checkpoint(fabs(norm_asym - norm_canon), 10.0 * thresh,
+                      "asymmetric metric: norm2 matches canonical norm2");
+        t1.checkpoint(fabs(norm_asym - norm_asym_reconstruct), 10.0 * thresh,
+                      "asymmetric metric: norm2 matches reconstruct norm2");
+
+        // 2b) function evaluation with asymmetric metric
+        {
+            Vector<double,NDIM> r;
+            r.fill(0.2);
+            double val_canon = lrf_canon(r);
+            double val_asym = lrf_asym(r);
+            print("eval canonical, asymmetric", val_canon, val_asym);
+            t1.checkpoint(fabs(val_canon - val_asym), 10.0 * thresh,
+                          "asymmetric metric: operator() matches canonical");
+        }
+
+        // 2c) inner product: inner(canonical, general_asymmetric) should equal inner(canonical, canonical)
+        {
+            double ip_cc = inner(lrf_canon, lrf_canon);
+            double ip_ca = inner(lrf_canon, lrf_asym);
+            double ip_ac = inner(lrf_asym, lrf_canon);
+            double ip_aa = inner(lrf_asym, lrf_asym);
+            print("inner cc, ca, ac, aa", ip_cc, ip_ca, ip_ac, ip_aa);
+            t1.checkpoint(fabs(ip_cc - ip_ca), 10.0 * thresh,
+                          "asymmetric metric: inner(canon,asym) matches inner(canon,canon)");
+            t1.checkpoint(fabs(ip_cc - ip_ac), 10.0 * thresh,
+                          "asymmetric metric: inner(asym,canon) matches inner(canon,canon)");
+            t1.checkpoint(fabs(ip_cc - ip_aa), 10.0 * thresh,
+                          "asymmetric metric: inner(asym,asym) matches inner(canon,canon)");
+        }
+
+        // 2d) canonicalize from asymmetric metric
+        {
+            auto lrf_recanonicalized = copy(lrf_asym);
+            lrf_recanonicalized.canonicalize();
+            t1.checkpoint(lrf_recanonicalized.is_canonical(),
+                          "asymmetric metric: canonicalize sets is_canonical()");
+            double norm_recanon = lrf_recanonicalized.norm2();
+            t1.checkpoint(fabs(norm_recanon - norm_canon), 10.0 * thresh,
+                          "asymmetric metric: norm2 after canonicalize matches");
+            Vector<double,NDIM> r;
+            r.fill(0.2);
+            double val_canon = lrf_canon(r);
+            double val_recanon = lrf_recanonicalized(r);
+            t1.checkpoint(fabs(val_canon - val_recanon), 10.0 * thresh,
+                          "asymmetric metric: eval after canonicalize matches");
+        }
+    }
+
+    // 3) another asymmetric metric obtained via remove_linear_dependencies
+    //    after lrf += lrf, the metric becomes block-diagonal, and remove_linear_dependencies
+    //    can produce an asymmetric metric
+    {
+        auto lrf_dup = copy(lrf_canon);
+        lrf_dup += lrf_canon;
+        lrf_dup *= 0.5;
+        // at this point lrf_dup has a block-diagonal metric (from +=) but represents the same function
+        double norm_dup = lrf_dup.norm2();
+        print("duplicated norm2", norm_dup);
+        t1.checkpoint(fabs(norm_dup - norm_canon), 10.0 * thresh,
+                      "duplicated: norm2 matches canonical");
+
+        lrf_dup.remove_linear_dependencies();
+        // after remove_linear_dependencies the metric is generally asymmetric
+        double norm_lindep = lrf_dup.norm2();
+        double norm_lindep_reconstruct = lrf_dup.reconstruct().norm2();
+        print("after remove_lindep: norm2, reconstruct norm2, is_canonical",
+              norm_lindep, norm_lindep_reconstruct, lrf_dup.is_canonical());
+        t1.checkpoint(fabs(norm_lindep - norm_canon), 10.0 * thresh,
+                      "remove_lindep: norm2 matches canonical");
+        t1.checkpoint(fabs(norm_lindep - norm_lindep_reconstruct), 10.0 * thresh,
+                      "remove_lindep: norm2 matches reconstruct");
+    }
+
+    return t1.end();
+}
+
 /// make an RI basis for an atom, namely Gaussian functions
 template<std::size_t LDIM>
 int make_ri_basis(World& world, LowRankFunctionParameters parameters) {
@@ -969,7 +1113,7 @@ int main(int argc, char **argv) {
 
     bool long_test=false;
     int isuccess=0;
-// #ifdef USE_GENTENSOR
+    // isuccess+=test_Kcommutator(world,parameters);
 
     // parameters.set_user_defined_value("volume_element",3.e-1);
     parameters.set_derived_value("gridtype",std::string("random"));
@@ -981,6 +1125,7 @@ int main(int argc, char **argv) {
 
         // make_ri_basis<3>(world, parameters);
         isuccess+=test_construction<1>(world, parameters);
+        isuccess+=test_norm2_asymmetric_metric<1>(world, parameters);
         isuccess+=test_remove_lindep<1>(world,parameters);
         isuccess+=test_arithmetic<1>(world,parameters);
         isuccess+=test_inner<1>(world,parameters);
@@ -992,17 +1137,11 @@ int main(int argc, char **argv) {
             isuccess+=test_molecular_grid<2>(world,parameters);
         }
 
-//        parameters.set_user_defined_value("volume_element",1.e-1);
-//        isuccess+=test_lowrank_function(world,parameters);
-        // isuccess+=test_Kcommutator(world,parameters);
     } catch (std::exception& e) {
         madness::print("an error occured");
         madness::print(e.what());
         isuccess+=1;
     }
-// #else
-//    print("could not run test_ccpairfunction: U need to compile with ENABLE_GENTENSOR=1");
-// #endif
     finalize();
 
     return isuccess;

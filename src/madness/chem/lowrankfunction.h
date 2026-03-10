@@ -185,8 +185,12 @@ namespace madness {
         double volume() const {
             MADNESS_CHECK(NDIM>0 and NDIM<4);
             if (NDIM==1) return 2.0*radius;
-            if (NDIM==2) return constants::pi*radius*radius;
-            if (NDIM==3) return 4.0 / 3.0 * constants::pi * std::pow(radius, 3.0);
+            else if (NDIM==2) return constants::pi*radius*radius;
+            else if (NDIM==3) return 4.0 / 3.0 * constants::pi * std::pow(radius, 3.0);
+            else {
+                MADNESS_EXCEPTION("invalid NDIM",1);
+                return 0.0;
+            }
         }
 
         static Vector<double,NDIM> gaussian_random_distribution(const Vector<double,NDIM> origin, double variance) {
@@ -880,44 +884,9 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             //              = delta_{ij}        // has matrix dimension (r,r)
 
             // permute X_inv, so that the following identity holds:
+            // also the same: v_p(x) = pv_i(x) X_ij X_inv_jq P_qp
             Tensor<T> tmp=copy(Xinv);
             for (int i=0; i<tmp.dim(1); ++i) Xinv(_,piv(i))=tmp(_,i);
-            // also the same: v_p(x) = pv_i(x) X_ij X_inv_jq P_qp
-
-            // sanity checks:
-            // evaluate f(x) = \sum_p v_p(x) = \sum_{jp} w_j(x) X_inv_{jp}
-            if (0) {
-                print("pivot indices",piv);
-                World& world=v.front().world();
-                auto v_ortho=transform(world,pv,X);
-
-                Vector<double,LDIM> pt(0.5);
-                Tensor<double> coeff(v.size());
-                coeff.fillindex();
-                double v_val=0.0, w_val=0.0;
-                for (int i=0; i<v.size(); ++i) v_val+=v[i](pt)*coeff(i);
-                Tensor<T> w_vec(v_ortho.size());
-                for (int i=0; i<v_ortho.size(); ++i) w_vec(i)=v_ortho[i](pt);
-                for (int j=0; j<v_ortho.size(); ++j) {
-                    double w_j=w_vec(j);
-                    for (int i=0; i<Xinv.dim(1); ++i) w_val+=w_j*Xinv(j,i);
-                }
-
-                // also the same: v_p(x) = pv_i(x) X_ij X_inv_jp  is numerically the same
-                double v_val2=0.0;
-                auto id=inner(X,Xinv);  // has dimensions (rank,original_size)
-
-                Tensor<T> v_vec=Tensor<T>(v.size());
-                for (int i=0; i<pv.size(); ++i) v_vec(i)=pv[i](pt);
-                for (int i=0; i<pv.size(); ++i) {
-                    double v_i=v_vec(i);
-                    for (int p=0; p<id.dim(1); ++p) v_val2+=v_i*id(i,p)*coeff(p);
-                }
-                print("v_val, w_val, err, tol ",v_val,w_val,std::abs(v_val-w_val),tol);
-                print("v_val, v_val2, err, tol",v_val,v_val2,std::abs(v_val-v_val2),tol);
-            }
-
-
 
             return std::make_tuple(pv,X,Xinv);
         }
@@ -1068,7 +1037,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         // MADNESS_CHECK_THROW(f2.is_canonical(),"need canonical representation for inner product of two low-rank functions");
         auto result=inner(f2,f1,p2,p1);
         std::swap(result.g,result.h);
-        result.metric=transpose(result.metric);
+        if (result.metric) result.metric=transpose(result.metric);
         return result;
     }
 
@@ -1239,8 +1208,6 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             t1.tag("remove linear dependence");
             // pY is now a set of linearly independent basis functions
 
-            auto M_cholesky=inner(t,t,1,1);
-            // print("M_cholesky condition",condition_number(M_cholesky));
             if (parameters.orthomethod()=="cholesky") {
                 X=t;
             } else if (parameters.orthomethod()=="symmetric") {
@@ -1250,12 +1217,17 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 ovlp=matrix_inner(world,pY,pY);
                 // since we have already removed the lindep functions with the rr_cholesky, set tol=0.0
                 X=canonical_orthonormalization_matrix<T,NDIM>(world,ovlp,0.0);
+            } else {
+                print("unknown orthogonalization method",parameters.orthomethod());
+                MADNESS_EXCEPTION("no such orthomethod",1);
             }
 
             // some diagnosis on the numerics of the metric
             Tensor<T> metric=inner(X,X,1,1); // metric = t t^T
             auto condition=condition_number(metric);
             if (condition.front()>1.e5) {
+                auto conditionX = condition_number(X);
+                print("warning: ill-conditioned half-metric X in low-rank function projection",conditionX);
                 print("warning: ill-conditioned metric in low-rank function projection",condition);
             }
 
