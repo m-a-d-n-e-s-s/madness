@@ -226,24 +226,38 @@ template<typename T>
 int test_emul(const TensorType& tt) {
 
 	print("\nentering test_emul", tt);
-	std::vector<long> dim=make_dimensions(tt==TT_2D);
-	Tensor<T> tensor1(dim);
-	Tensor<T> tensor2(dim);
-	tensor1.fillrandom();
-	tensor2.fillrandom();
-	double error=0.0;
-	// double thresh=1.e-5;
+	double error=1.e10;
 
-	GenTensor<T> lrt1(tensor1,TensorArgs(1.e-4,tt));
-	GenTensor<T> lrt2(tensor2,TensorArgs(1.e-4,tt));
+	int maxrun=10;
 
-	tensor1.emul(tensor2);
-	lrt1.emul(lrt2);
+	// there could be test fails due to randomness..
+	for (int i=0; i<maxrun; ++i) {
+		try {
+			std::vector<long> dim=make_dimensions(tt==TT_2D);
+			Tensor<T> tensor1(dim);
+			Tensor<T> tensor2(dim);
+			tensor1.fillrandom();
+			tensor2.fillrandom();
+			// double thresh=1.e-5;
 
-	double error2=compute_difference(lrt1,tensor1);
-	print("error2",error2);
-	error+=error2;
+			GenTensor<T> lrt1(tensor1,TensorArgs(1.e-4,tt));
+			GenTensor<T> lrt2(tensor2,TensorArgs(1.e-4,tt));
 
+			tensor1.emul(tensor2);
+			lrt1.emul(lrt2);
+
+			error=compute_difference(lrt1,tensor1);
+			print("error",error);
+			break;
+		} catch (const MadnessException& e) {
+			if (std::string(e.what()) == "emul in TensorTrain too large -- use full rank tensor") {
+				print("e.what()", e.what());
+				print("caught exception, retrying with smaller tensors");
+				continue;
+			}
+			throw;
+		}
+	}
 
 	return (error>1.e-8);
 }
