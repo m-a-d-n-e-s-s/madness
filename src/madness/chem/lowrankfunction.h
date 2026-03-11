@@ -30,7 +30,7 @@ namespace madness {
             initialize<std::string>("f12type","Slater","correlation factor",{"Slater","SlaterF12"});
             initialize<std::string>("orthomethod","cholesky","orthonormalization",{"cholesky","canonical","symmetric"});
             initialize<std::string>("transpose","slater2","transpose of the matrix",{"slater1","slater2"});
-            initialize<std::string>("gridtype","random","the grid type",{"random","cartesian","dftgrid","adaptive"});
+            initialize<std::string>("gridtype","random","the grid type",{"random","cartesian","dftgrid","adaptive","twostage"});
             initialize<std::string>("rhsfunctiontype","exponential","the type of function",{"exponential","planewave","harmonics"});
             initialize<int>("optimize",1,"number of optimization iterations");
             initialize<int>("lmax",2,"max angular momentum for the RI harmonics");
@@ -1283,10 +1283,6 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 auto coarse_grid = make_uniform_random_grid_in_cell(coarse_ve);
                 auto coarse = Yformer(lrfunctor, coarse_grid, parameters, 30.0, 0.0);
                 auto centers = pick_significant_indices(coarse.norms);
-                // print("coarse_grid", coarse_grid.size());
-                // for (auto cg : coarse.norms) print(cg);
-                // print("significant centers", centers.size());
-                // for (auto icenter : centers) print("center norm", coarse.norms[icenter], "  point", coarse_grid[icenter]);
 
 
                 // Baseline global coverage comes from the coarse probe itself.
@@ -1299,10 +1295,36 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                     auto local = rg.get_grid();
                     grid.insert(grid.end(), local.begin(), local.end());
                 }
-                // print("final grid", grid.size());
-                // for (auto cg : grid) print(cg);
 
                 // Robust fallback if coarse probing produced no points (degenerate cell/VE settings).
+                if (grid.empty()) {
+                    grid = make_uniform_random_grid_in_cell(parameters.volume_element());
+                }
+            } else if (parameters.gridtype()=="twostage") {
+                // go through all centers and place a probe grid point in each octand around the center, at distance 0.2
+                // if at least on of the probe points has a significant response, keep the center and continue
+                // with the random grid around the center, otherwise discard the center
+                const double probe_distance = 0.2;
+                const double probe_ve = parameters.volume_element() * std::max(1.0, parameters.adaptive_coarse_factor());
+                std::vector<Vector<double,LDIM>> probe_points;
+                for (const auto& origin : origins) {
+                    for (int octant = 0; octant < (1 << LDIM); ++octant) {
+                        Vector<double,LDIM> probe_point = origin;
+                        for (size_t d = 0; d < LDIM; ++d) {
+                            probe_point[d] += ((octant & (1 << d)) ? 1 : -1) * probe_distance;
+                        }
+                        probe_points.push_back(probe_point);
+                    }
+                    auto probe = Yformer(lrfunctor, probe_points, parameters, 30.0, 0.0);
+                    if (std::any_of(probe.norms.begin(), probe.norms.end(), [&](double norm) {
+                        return norm >= parameters.tol();
+                    })) {
+                        randomgrid<LDIM> rg(parameters.volume_element(), parameters.radius(), origin);
+                        auto local = rg.get_grid();
+                        grid.insert(grid.end(), local.begin(), local.end());
+                    }
+                }
+                auto probe = Yformer(lrfunctor, probe_points, parameters, 30.0, 0.0);
                 if (grid.empty()) {
                     grid = make_uniform_random_grid_in_cell(parameters.volume_element());
                 }
@@ -1310,6 +1332,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 molecular_grid<LDIM> mgrid(origins,parameters);
                 grid=mgrid.get_grid();
             }
+            print("initial grid size",grid.size());
 
             auto yformed = Yformer(lrfunctor,grid,parameters);
             auto Y = yformed.Y;

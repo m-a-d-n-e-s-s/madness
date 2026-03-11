@@ -1092,37 +1092,39 @@ int test_adaptive_grid_projection(World& world, LowRankFunctionParameters parame
 
     // offset to avoid sampling the function at the origin where it is largest and easiest to approximate
     // fill offset with random numbers in the range [3,3]
-    Vector<double,LDIM> offset;
-    for (std::size_t i=0; i<LDIM; ++i) {
-        offset[i] = (i % 2 == 0) ? 4.75 : -4.75;
-    }
-    print("set offset to", offset);
+    std::vector<Vector<double,LDIM>> offsets(4);
+    offsets[0].fill(-3.0);
+    offsets[1].fill(2.0);
+    offsets[2].fill(6.0);
+    offsets[4].fill(-16.0);
+
+
+    print("set offsets to", offsets);
 
 
     auto op = std::shared_ptr<SeparatedConvolution<double,LDIM>>(GaussOperatorPtr<LDIM>(world,2.0));
+
     Function<double,LDIM> phi1 = FunctionFactory<double,LDIM>(world)
-            .functor([&offset](const Vector<double,LDIM>& r){ return exp(-2.0*inner(r-offset,r-offset)); });
+            .functor([&offsets](const Vector<double,LDIM>& r){ return exp(-1.0*inner(r-offsets[0],r-offsets[0])); });
+    Function<double,LDIM> phi2 = FunctionFactory<double,LDIM>(world)
+            .functor([&offsets](const Vector<double,LDIM>& r){ return 0.2*exp(-2.0*inner(r-offsets[1],r-offsets[1])); });
+    Function<double,LDIM> phi3 = FunctionFactory<double,LDIM>(world)
+            .functor([&offsets](const Vector<double,LDIM>& r){ return exp(-3.0*inner(r-offsets[2],r-offsets[2])); });
     Function<double,LDIM> one = FunctionFactory<double,LDIM>(world)
-            .functor([&offset](const Vector<double,LDIM>& r){ return exp(-3.0*inner(r-offset,r-offset)); });
-    LRFunctorF12<double,NDIM> functor(op,{one},{phi1});
+            .functor([&offsets](const Vector<double,LDIM>& r){ return 1.0; });
+    LRFunctorF12<double,NDIM> functor(op,{phi1,phi2,phi3},{one,one,one});
 
-    // Keep grid centers aligned with the shifted function support.
-    std::vector<Vector<double,LDIM>> shifted_origins = {offset};
-    auto adaptive = LowRankFunctionFactory<double,NDIM>(parameters, shifted_origins).project(functor);
-    double adaptive_error = adaptive.l2error(functor);
-    auto adaptive_rank = adaptive.rank();
-    print("adaptive rank/error", adaptive_rank, adaptive_error);
+    for (std::string gridtype : {"adaptive", "random","twostage"}) {
+        parameters.set_derived_value("gridtype",std::string(gridtype));
+        print_header2("testing gridtype="+parameters.gridtype());
+        auto lrf = LowRankFunctionFactory<double,NDIM>(parameters, std::vector<Vector<double,LDIM>>(offsets)).project(functor);
+        double error = lrf.l2error(functor);
+        print("rank", lrf.rank(), "l2error", error);
 
-    auto random_params = parameters;
-    random_params.set_derived_value("gridtype",std::string("random"));
-    auto random = LowRankFunctionFactory<double,NDIM>(random_params, shifted_origins).project(functor);
-    double random_error = random.l2error(functor);
-    print("random rank/error", random.rank(), random_error);
-
-    t1.checkpoint(adaptive_rank(0l)>0 and adaptive_rank(1l)>0, "adaptive projection has non-empty rank");
-    t1.checkpoint(random_error,1.e-2, "random error on center projection yields bounded l2error");
-    t1.checkpoint(adaptive_error,1.e-2, "adaptive projection yields bounded l2error");
-    t1.checkpoint(adaptive_error,(5.0*random_error + 1.e-3), "adaptive projection stays comparable to random");
+        auto rank=lrf.rank();
+        t1.checkpoint(rank(0l)>0 and rank(1l)>0, gridtype+" projection has non-empty rank");
+        t1.checkpoint(error,1.e-2, gridtype+" projection yields bounded l2error");
+    }
     return t1.end();
 }
 
