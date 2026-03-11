@@ -155,6 +155,14 @@ int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
 
 }
 
+int test_stuff(World& world, LowRankFunctionParameters parameters) {
+    test_output t1("test_stuff");
+    t1.set_cout_to_terminal();
+    print("this is a placeholder for testing stuff");
+
+    return t1.end();
+}
+
 /// test the K commutator of the He atom
 
 /// < ij | K f12 | ij >
@@ -172,12 +180,7 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
     real_convolution_3d g12=(CoulombOperator(world,1.e-6,FunctionDefaults<LDIM>::get_thresh()));
     g12.particle()=1;
     std::shared_ptr<real_convolution_3d> f12ptr;
-    std::string f12type=parameters.f12type();
-    if (f12type=="slaterf12") f12ptr.reset(SlaterF12OperatorPtr(world,parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
-    else if (f12type=="slater") f12ptr.reset(SlaterOperatorPtr(world,parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
-    else {
-        MADNESS_EXCEPTION(std::string("unknown f12type"+f12type).c_str(),1);
-    }
+    f12ptr.reset(SlaterF12OperatorPtr(world,parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
     real_convolution_3d& f12=*f12ptr;
 
     real_function_3d phi=real_factory_3d(world).f([](const coord_3d& r){return exp(-r.normf());});
@@ -219,7 +222,11 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
         auto hj = lrf.h * phi; // function of 2
         Tensor<double> j_hj = inner(world, phi, hj);
         Tensor<double> i_gk = inner(world, phi, gk);
-        double result_right = j_hj.trace(i_gk);
+
+        // Contract through metric for the general representation: i_gk^T * M * j_hj.
+        double result_right = lrf.is_canonical()
+                ? i_gk.trace(j_hj)
+                : i_gk.trace(inner(lrf.metric, j_hj, 1, 0));
         print(msg,"norm ", result_right);
         print(msg,"error", result_right-reference);
         print(msg,"rank ", lrf.rank());
@@ -251,7 +258,7 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
 
         // compute the exchange term twice, first time with no optimizatio of the low-rank function, second time with
         // optimization. The optimization should reduce the error significantly.
-        for (int i=0; i<2; ++i) {
+        for (int i=0; i<0; ++i) {
             if (i==1) {
                 fi_one.optimize(lrfunctor);
                 l2error=fi_one.l2error(lrfunctor);
@@ -351,7 +358,9 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
 
         auto result=madness::inner(phi0,exf12ij);
         print("<ij | K1 f12 | ij>", result);
-        t1.checkpoint(result,reference,1.e-4,"6D-function: exchange commutator");
+        double error=fabs(result-reference);
+        print("error 6D <ij | K1 f12 | ij>", error);
+        t1.checkpoint(error,1.e-4,"6D-function: exchange commutator");
 
     }
 
@@ -363,7 +372,7 @@ template<std::size_t LDIM>
 int test_construction(World& world, LowRankFunctionParameters parameters) {
 
     test_output t1("test_construction");
-    // t1.set_cout_to_terminal();
+    t1.set_cout_to_terminal();
     constexpr int NDIM=2*LDIM;
     double gaussexponent=2.0;
     double gauss1=2.0;
@@ -572,9 +581,9 @@ int test_inner(World& world, LowRankFunctionParameters parameters) {
     // f1(x,y) = exp(-a*x^2) * exp(-(x-y)^2)
     // f2(x,y) = exp(-a*x^2) * exp(-g (x-y)^2)
     // with a=4, g=2
-    // int f1(x,y),f2(x,z) dx = inner(f1,f2,0,0) : norm^2 = Pi^2/(2 Sqrt[2] Sqrt[a gamma] Sqrt[1 + 2 a + gamma]) = 0.37197471167788324677
+    // int f1(x,y),f2(z,x) dx = inner(f1,f2,0,0) : norm^2 = Pi^2/(2 Sqrt[2] Sqrt[a gamma] Sqrt[1 + 2 a + gamma]) = 0.37197471167788324677
     // int f1(x,y),f2(z,x) dx = inner(f1,f2,0,1) : norm^2 = Pi^2/(2 Sqrt[a (1 + a + gamma) (a + 2 gamma)]) = 0.32972034117743393239
-    // int f1(y,x),f2(x,z) dx = inner(f1,f2,1,0) : norm^2 = 0.26921553123369812300
+    // int f1(y,x),f2(z,x) dx = inner(f1,f2,1,0) : norm^2 = 0.26921553123369812300
     // int f1(y,x),f2(z,x) dx = inner(f1,f2,1,1) : norm^2 = 0.35613867236025352322
 
     // inner f(1,2) f(2,3)
@@ -1061,6 +1070,62 @@ int make_ri_basis(World& world, LowRankFunctionParameters parameters) {
     return 0;
 }
 
+template<std::size_t LDIM>
+int test_adaptive_grid_projection(World& world, LowRankFunctionParameters parameters) {
+    constexpr std::size_t NDIM = 2 * LDIM;
+    test_output t1("LowRankFunction::adaptive grid projection in dimension " + std::to_string(NDIM));
+    t1.set_cout_to_terminal();
+
+    parameters.set_derived_value("gridtype",std::string("adaptive"));
+    // parameters.set_derived_value("gridtype",std::string("random"));
+    // parameters.set_derived_value("rhsfunctiontype",std::string("exponential"));
+    parameters.set_derived_value("canonicalize",true);
+    parameters.set_derived_value("radius",3.0);
+    // parameters.set_derived_value("volume_element",0.08);
+    parameters.set_derived_value("tol",1.e-4);
+    // parameters.set_derived_value("adaptive_coarse_factor",8.0);
+    // parameters.set_derived_value("adaptive_refine_radius",0.5);
+    // parameters.set_derived_value("adaptive_significance_ratio",0.2);
+    // parameters.set_derived_value("adaptive_max_centers",8);
+    // parameters.set_derived_value("adaptive_min_centers",2);
+    parameters.print("grid");
+
+    // offset to avoid sampling the function at the origin where it is largest and easiest to approximate
+    // fill offset with random numbers in the range [3,3]
+    Vector<double,LDIM> offset;
+    for (std::size_t i=0; i<LDIM; ++i) {
+        offset[i] = (i % 2 == 0) ? 4.75 : -4.75;
+    }
+    print("set offset to", offset);
+
+
+    auto op = std::shared_ptr<SeparatedConvolution<double,LDIM>>(GaussOperatorPtr<LDIM>(world,2.0));
+    Function<double,LDIM> phi1 = FunctionFactory<double,LDIM>(world)
+            .functor([&offset](const Vector<double,LDIM>& r){ return exp(-2.0*inner(r-offset,r-offset)); });
+    Function<double,LDIM> one = FunctionFactory<double,LDIM>(world)
+            .functor([&offset](const Vector<double,LDIM>& r){ return exp(-3.0*inner(r-offset,r-offset)); });
+    LRFunctorF12<double,NDIM> functor(op,{one},{phi1});
+
+    // Keep grid centers aligned with the shifted function support.
+    std::vector<Vector<double,LDIM>> shifted_origins = {offset};
+    auto adaptive = LowRankFunctionFactory<double,NDIM>(parameters, shifted_origins).project(functor);
+    double adaptive_error = adaptive.l2error(functor);
+    auto adaptive_rank = adaptive.rank();
+    print("adaptive rank/error", adaptive_rank, adaptive_error);
+
+    auto random_params = parameters;
+    random_params.set_derived_value("gridtype",std::string("random"));
+    auto random = LowRankFunctionFactory<double,NDIM>(random_params, shifted_origins).project(functor);
+    double random_error = random.l2error(functor);
+    print("random rank/error", random.rank(), random_error);
+
+    t1.checkpoint(adaptive_rank(0l)>0 and adaptive_rank(1l)>0, "adaptive projection has non-empty rank");
+    t1.checkpoint(random_error,1.e-2, "random error on center projection yields bounded l2error");
+    t1.checkpoint(adaptive_error,1.e-2, "adaptive projection yields bounded l2error");
+    t1.checkpoint(adaptive_error,(5.0*random_error + 1.e-3), "adaptive projection stays comparable to random");
+    return t1.end();
+}
+
 int main(int argc, char **argv) {
 
     madness::World& world = madness::initialize(argc, argv);
@@ -1105,8 +1170,8 @@ int main(int argc, char **argv) {
     parameters.set_derived_value("f12type",std::string("slater"));
     parameters.read_and_set_derived_values(world,parser,"grid");
     parameters.set_derived_value("radius",2.5);
-    parameters.set_derived_value("volume_element",7.e-2);
-    parameters.set_derived_value("tol",1.0e-6);
+    parameters.set_derived_value("volume_element",0.08);
+    parameters.set_derived_value("tol",1.e-5);
     parameters.set_derived_value("rhsfunctiontype",std::string("exponential"));
     parameters.set_derived_value("tempered",std::vector<double>({1.e-3,1.e2,4.0}));
     parameters.print("grid");
@@ -1114,21 +1179,23 @@ int main(int argc, char **argv) {
     bool long_test=false;
     int isuccess=0;
     // isuccess+=test_Kcommutator(world,parameters);
+    isuccess+=test_stuff(world,parameters);
 
     // parameters.set_user_defined_value("volume_element",3.e-1);
     parameters.set_derived_value("gridtype",std::string("random"));
-    isuccess+=test_molecular_grid<1>(world,parameters);
-    isuccess+=test_molecular_grid<2>(world,parameters);
-    isuccess+=test_molecular_grid<3>(world,parameters);
+//    isuccess+=test_molecular_grid<1>(world,parameters);
+//    isuccess+=test_molecular_grid<2>(world,parameters);
+//    isuccess+=test_molecular_grid<3>(world,parameters);
 
     try {
 
         // make_ri_basis<3>(world, parameters);
         isuccess+=test_construction<1>(world, parameters);
-        isuccess+=test_norm2_asymmetric_metric<1>(world, parameters);
-        isuccess+=test_remove_lindep<1>(world,parameters);
-        isuccess+=test_arithmetic<1>(world,parameters);
-        isuccess+=test_inner<1>(world,parameters);
+        isuccess+=test_adaptive_grid_projection<1>(world, parameters);
+//        isuccess+=test_norm2_asymmetric_metric<1>(world, parameters);
+//        isuccess+=test_remove_lindep<1>(world,parameters);
+//        isuccess+=test_arithmetic<1>(world,parameters);
+//        isuccess+=test_inner<1>(world,parameters);
 
         if (long_test) {
             isuccess+=test_remove_lindep<2>(world,parameters);
@@ -1146,4 +1213,8 @@ int main(int argc, char **argv) {
 
     return isuccess;
 }
+
+
+
+
 

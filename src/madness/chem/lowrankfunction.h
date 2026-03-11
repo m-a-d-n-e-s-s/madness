@@ -12,6 +12,7 @@
 #include<madness/chem/electronic_correlation_factor.h>
 #include<madness/chem/IntegratorXX.h>
 #include <random>
+#include <algorithm>
 
 
 
@@ -29,12 +30,17 @@ namespace madness {
             initialize<std::string>("f12type","Slater","correlation factor",{"Slater","SlaterF12"});
             initialize<std::string>("orthomethod","cholesky","orthonormalization",{"cholesky","canonical","symmetric"});
             initialize<std::string>("transpose","slater2","transpose of the matrix",{"slater1","slater2"});
-            initialize<std::string>("gridtype","random","the grid type",{"random","cartesian","dftgrid"});
+            initialize<std::string>("gridtype","random","the grid type",{"random","cartesian","dftgrid","adaptive"});
             initialize<std::string>("rhsfunctiontype","exponential","the type of function",{"exponential","planewave","harmonics"});
             initialize<int>("optimize",1,"number of optimization iterations");
             initialize<int>("lmax",2,"max angular momentum for the RI harmonics");
             initialize<bool>("canonicalize",false,"canonicalize the rep, i.e. metric is the identity");
             initialize<std::vector<double>>("tempered",{0.05,2.0,3.0},"zeta_min,zeta_max,factor");
+            initialize<double>("adaptive_coarse_factor",8.0,"coarse grid uses volume_element*factor");
+            initialize<double>("adaptive_refine_radius",0.5,"local refinement radius as fraction of radius");
+            initialize<double>("adaptive_significance_ratio",0.2,"relative threshold for significant coarse Y norms");
+            initialize<int>("adaptive_max_centers",16,"max number of significant coarse centers to refine");
+            initialize<int>("adaptive_min_centers",2,"minimum number of coarse centers to keep");
         }
         [[nodiscard]] std::string get_tag() const override {
             return {"lrf"};
@@ -57,6 +63,11 @@ namespace madness {
         [[nodiscard]] std::string rhsfunctiontype() const {return get<std::string>("rhsfunctiontype");}
         [[nodiscard]] std::string f12type() const {return get<std::string>("f12type");}
         [[nodiscard]] std::vector<double> tempered() const {return get<std::vector<double>>("tempered");}
+        [[nodiscard]] double adaptive_coarse_factor() const {return get<double>("adaptive_coarse_factor");}
+        [[nodiscard]] double adaptive_refine_radius() const {return get<double>("adaptive_refine_radius");}
+        [[nodiscard]] double adaptive_significance_ratio() const {return get<double>("adaptive_significance_ratio");}
+        [[nodiscard]] int adaptive_max_centers() const {return get<int>("adaptive_max_centers");}
+        [[nodiscard]] int adaptive_min_centers() const {return get<int>("adaptive_min_centers");}
     };
 
 
@@ -288,7 +299,7 @@ namespace madness {
             : centers(origins)
         {
             if (centers.size()==0) centers.push_back(Vector<double,NDIM>(0) );
-            if (params.gridtype()=="random") grid_builder=std::make_shared<randomgrid<NDIM>>(params.volume_element(),params.radius());
+            if (params.gridtype()=="random" or params.gridtype()=="adaptive") grid_builder=std::make_shared<randomgrid<NDIM>>(params.volume_element(),params.radius());
             // else if (params.gridtype()=="cartesian") grid_builder=std::make_shared<cartesian_grid<NDIM>>(params.volume_element(),params.radius());
             else if (params.gridtype()=="dftgrid") {
                 if constexpr (NDIM==3) {
@@ -1179,15 +1190,86 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             parameters.set_user_defined_value("canonicalize",canonicalize);
             return *this;
         }
-        LowRankFunctionFactory& set_tempered(const std::vector<double> zeta_range) {
-            parameters.set_user_defined_value("tempered",zeta_range);
+        LowRankFunctionFactory& set_gridtype(const std::string& gridtype) {
+            parameters.set_user_defined_value("gridtype",gridtype);
             return *this;
         }
-        LowRankFunctionFactory& set_lmax(const int lmax) {
-            parameters.set_user_defined_value("lmax",lmax);
+        LowRankFunctionFactory& set_adaptive_coarse_factor(const double factor) {
+            parameters.set_user_defined_value("adaptive_coarse_factor",factor);
+            return *this;
+        }
+        LowRankFunctionFactory& set_adaptive_refine_radius(const double ratio) {
+            parameters.set_user_defined_value("adaptive_refine_radius",ratio);
+            return *this;
+        }
+        LowRankFunctionFactory& set_adaptive_significance_ratio(const double ratio) {
+            parameters.set_user_defined_value("adaptive_significance_ratio",ratio);
+            return *this;
+        }
+        LowRankFunctionFactory& set_adaptive_max_centers(const int max_centers) {
+            parameters.set_user_defined_value("adaptive_max_centers",max_centers);
+            return *this;
+        }
+        LowRankFunctionFactory& set_adaptive_min_centers(const int min_centers) {
+            parameters.set_user_defined_value("adaptive_min_centers",min_centers);
             return *this;
         }
 
+        struct YFormationResult {
+            std::vector<Function<T,LDIM>> Y;
+            std::vector<double> norms;
+            std::vector<std::size_t> significant_indices;
+        };
+
+    private:
+        std::vector<Vector<double,LDIM>> make_uniform_random_grid_in_cell(const double volume_element) const {
+            auto cell = FunctionDefaults<LDIM>::get_cell();
+            double volume = 1.0;
+            for (size_t d = 0; d < LDIM; ++d) volume *= (cell(d,1) - cell(d,0));
+            long npoint = std::max(1l, long(volume / volume_element));
+
+            std::random_device rd{};
+            std::mt19937 gen{rd()};
+            std::vector<std::uniform_real_distribution<double>> dist;
+            for (size_t d = 0; d < LDIM; ++d) dist.emplace_back(cell(d,0), cell(d,1));
+
+            std::vector<Vector<double,LDIM>> grid;
+            grid.reserve(npoint);
+            for (long i = 0; i < npoint; ++i) {
+                Vector<double,LDIM> r;
+                for (size_t d = 0; d < LDIM; ++d) r[d] = dist[d](gen);
+                grid.push_back(r);
+            }
+            return grid;
+        }
+
+        std::vector<std::size_t> pick_significant_indices(const std::vector<double>& norms) const {
+            if (norms.empty()) return {};
+            std::vector<std::size_t> idx(norms.size());
+            for (std::size_t i = 0; i < idx.size(); ++i) idx[i] = i;
+            std::sort(idx.begin(), idx.end(), [&](const std::size_t a, const std::size_t b) {
+                return norms[a] > norms[b];
+            });
+
+            const double maxnorm = norms[idx.front()];
+            const double cutoff = std::max(parameters.tol(), maxnorm * parameters.adaptive_significance_ratio());
+            const std::size_t max_keep = std::max(1, parameters.adaptive_max_centers());
+            const std::size_t min_keep = std::max(1, parameters.adaptive_min_centers());
+
+            std::vector<std::size_t> keep;
+            for (auto i : idx) {
+                if (norms[i] >= cutoff) keep.push_back(i);
+                if (keep.size() >= max_keep) break;
+            }
+            if (keep.size() < min_keep) {
+                keep.clear();
+                const std::size_t n = std::min<std::size_t>(max_keep, idx.size());
+                for (std::size_t i = 0; i < n; ++i) keep.push_back(idx[i]);
+            }
+            return keep;
+        }
+
+    public:
         LowRankFunction<T,NDIM> project(const LRFunctorBase<T,NDIM>& lrfunctor) const {
             World& world=lrfunctor.world();
             bool do_print=true;
@@ -1195,11 +1277,50 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             t1.do_print=do_print;
 
             // get sampling grid
-            molecular_grid<LDIM> mgrid(origins,parameters);
-            auto grid=mgrid.get_grid();
+            std::vector<Vector<double,LDIM>> grid;
+            if (parameters.gridtype()=="adaptive" and parameters.rhsfunctiontype()=="exponential") {
+                const double coarse_ve = parameters.volume_element() * std::max(1.0, parameters.adaptive_coarse_factor());
+                auto coarse_grid = make_uniform_random_grid_in_cell(coarse_ve);
+                auto coarse = Yformer(lrfunctor, coarse_grid, parameters, 30.0, 0.0);
+                auto centers = pick_significant_indices(coarse.norms);
+                // print("coarse_grid", coarse_grid.size());
+                // for (auto cg : coarse.norms) print(cg);
+                // print("significant centers", centers.size());
+                // for (auto icenter : centers) print("center norm", coarse.norms[icenter], "  point", coarse_grid[icenter]);
 
-            auto Y=Yformer(lrfunctor,grid,parameters);
+
+                // Baseline global coverage comes from the coarse probe itself.
+                grid = coarse_grid;
+
+                const double local_radius = std::max(parameters.volume_element(),
+                                                     parameters.radius() * parameters.adaptive_refine_radius());
+                for (auto icenter : centers) {
+                    randomgrid<LDIM> rg(parameters.volume_element(), local_radius, coarse_grid[icenter]);
+                    auto local = rg.get_grid();
+                    grid.insert(grid.end(), local.begin(), local.end());
+                }
+                // print("final grid", grid.size());
+                // for (auto cg : grid) print(cg);
+
+                // Robust fallback if coarse probing produced no points (degenerate cell/VE settings).
+                if (grid.empty()) {
+                    grid = make_uniform_random_grid_in_cell(parameters.volume_element());
+                }
+            } else {
+                molecular_grid<LDIM> mgrid(origins,parameters);
+                grid=mgrid.get_grid();
+            }
+
+            auto yformed = Yformer(lrfunctor,grid,parameters);
+            auto Y = yformed.Y;
+            if (Y.empty()) {
+                auto retry = Yformer(lrfunctor,grid,parameters,30.0,0.0);
+                Y = retry.Y;
+            }
+            MADNESS_CHECK_THROW(!Y.empty(),"Yformer generated no basis functions for projection");
             t1.tag("Yforming");
+            print("y.size()",Y.size());
+
             double tol=parameters.tol();
             Tensor<T> X;
 
@@ -1254,11 +1375,12 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
 
         /// apply a rhs (delta or exponential) on grid points to the hi-dim function and form Y = A_ij w_j (in Halko's language)
-        std::vector<Function<T,LDIM>> Yformer(const LRFunctorBase<T,NDIM>& lrfunctor1,
+        YFormationResult Yformer(const LRFunctorBase<T,NDIM>& lrfunctor1,
             const std::vector<Vector<double,LDIM>>& grid,
             // const std::string rhsfunctiontype,
             const LowRankFunctionParameters& parameters,
-            const double exponent=30.0) const {
+            const double exponent=30.0,
+            const double significance_tol=-1.0) const {
 
             World& world=lrfunctor1.world();
             std::vector<Function<double,LDIM>> Y;
@@ -1391,10 +1513,17 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             }
             auto norms=norm2s(world,Y);
             std::vector<Function<double,LDIM>> Ynormalized;
+            std::vector<std::size_t> significant_indices;
+            const double ytol = (significance_tol<0.0) ? parameters.tol() : significance_tol;
 
-            for (size_t i=0; i<Y.size(); ++i) if (norms[i]>parameters.tol()) Ynormalized.push_back(Y[i]);
-            normalize(world,Ynormalized);
-            return Ynormalized;
+            for (size_t i=0; i<Y.size(); ++i) {
+                if (norms[i]>ytol) {
+                    Ynormalized.push_back(Y[i]);
+                    significant_indices.push_back(i);
+                }
+            }
+            if (not Ynormalized.empty()) normalize(world,Ynormalized);
+            return {Ynormalized,norms,significant_indices};
         }
 
     };
