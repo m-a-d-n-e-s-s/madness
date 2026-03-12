@@ -194,7 +194,7 @@ namespace madness {
           double dist = 0;
           for (std::size_t d = 0; d < NDIM; ++d) {
               // Subtract 1 to account for the least distance between points in the boxes.
-              const auto least_displacement_distance = std::max(l[d] - 1, static_cast<Translation>(0));
+              const auto least_displacement_distance = std::max(std::abs(l[d]) - 1, static_cast<Translation>(0));
               const auto real_width = widths(d) * least_displacement_distance;
               dist += real_width * real_width;
             }
@@ -242,7 +242,7 @@ namespace madness {
                     }
                 }
               // Subtract 1 to account for the least distance between points in the boxes.
-              const auto least_displacement_distance = std::max(la - 1, static_cast<Translation>(0));
+              const auto least_displacement_distance = std::max(std::abs(la) - 1, static_cast<Translation>(0));
               const auto real_width = widths(d) * least_displacement_distance;
               dsq += real_width * real_width;
             }

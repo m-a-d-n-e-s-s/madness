@@ -787,7 +787,7 @@ namespace madness {
       using PointPattern = Vector<std::optional<Translation>, NDIM>;
       using Displacement = Key<NDIM>;
       using Periodicity = array_of_bools<NDIM>;
-      using DistanceSquaredFunc = std::function<Translation(const Displacement&)>;
+      using DistanceSquaredFunc = std::function<double(const Displacement&)>;
 
       /// \param is_infinite_domain whether the domain along each axis is finite (simulation cell) or infinite (the entire axis); if true for a given axis then any destination coordinate is valid, else only values in [0,2^n) are valid
       /// \param is_lattice_summed if true for a given axis, displacement to x and x+2^n are equivalent, hence will be canonicalized to end up in the simulation cell. Periodic axes imply infinite domain, whatever was passed to `is_infinite_domain`.
@@ -799,7 +799,7 @@ namespace madness {
           const array_of_bools<NDIM>& is_lattice_summed,
           const std::array<KernelRange, NDIM>& range,
           DistanceSquaredFunc default_distance_squared,
-          Translation max_distsq_reached
+          double max_distsq_reached
           ) :
               range_(range),
               default_distance_squared_(default_distance_squared),
@@ -922,7 +922,7 @@ namespace madness {
       std::array<ExtraDomainPolicy, NDIM> domain_policies_;
       std::array<KernelRange, NDIM> range_;
       DistanceSquaredFunc default_distance_squared_;
-      Translation max_distsq_reached_;
+      double max_distsq_reached_;
     };
 
 }  // namespace madness
