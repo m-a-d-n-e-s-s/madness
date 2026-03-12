@@ -4942,7 +4942,7 @@ template<size_t NDIM>
           const auto for_each = [&](const auto &displacements,
                                     const auto &real_distance_squared,
                                     const auto &lattice_distance_squared,
-                                    const auto &skip_predicate) -> std::optional<std::uint64_t> {
+                                    const auto &skip_predicate) -> std::optional<double> {
 
             // used to screen estimated and actual contributions
             //const double tol = truncate_tol(thresh, key);
@@ -4984,14 +4984,14 @@ template<size_t NDIM>
               else
                 d = nullkey.merge_with(displacement);
 
-              // Screen out shells. We assume shells are grouped into shells so so operator decays with shell index.
+              // Screen out shells. We assume shells are grouped into shells so that the operator decays with shell index.
               // Shells are indexed by least distance from box to the central box.
               // Cells touching so much as a corner of the central box are further grouped by their lattice distance.
               // N.B. lattice-summed decaying kernel is periodic (i.e. does decay w.r.t. r), so loop over shells of displacements sorted by distances modulated by periodicity (Key::distsq_bc)
               const auto real_distsq = real_distance_squared(displacement);
               const std::uint64_t lattice_distsq = real_distsq ? 0 : lattice_distance_squared(displacement);
               if (!real_last_distsq.has_value() ||
-                  real_distsq != *real_last_distsq || (!real_last_distsq && lattice_distsq != *lattice_last_distsq)) { // Moved to next shell of neighbors
+                  real_distsq != *real_last_distsq || (*real_last_distsq == 0 && lattice_distsq != *lattice_last_distsq)) { // Moved to next shell of neighbors
                   if (nvalid > 0 && nused == 0 && (real_distsq > 0 || lattice_distsq > 1)) {
                   // Have at least done the input box and all first
                   // nearest neighbors, and none of the last set
