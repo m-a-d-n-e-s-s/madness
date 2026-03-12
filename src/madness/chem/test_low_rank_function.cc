@@ -42,7 +42,6 @@ int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
     j["transpose"]=transpose;
     j["orthomethod"]=parameters.orthomethod();
     j["gridtype"]=parameters.gridtype();
-    j["rhsfunctiontype"]=parameters.rhsfunctiontype();
     j["optimize"]=parameters.optimize();
     std::ofstream of(jsonfilename,std::ios::out);
     of<<j;
@@ -88,7 +87,7 @@ int test_lowrank_function(World& world, LowRankFunctionParameters parameters) {
 
     auto output=[&parameters] (const double projection_error, const Tensor<long> projection_rank, const double projection_time,
                                const double optimized_error, const Tensor<long> optimized_rank, const double optimized_time) {
-        print("error",parameters.radius(),parameters.gridtype(),parameters.rhsfunctiontype(),parameters.volume_element(),
+        print("error",parameters.radius(),parameters.gridtype(),parameters.volume_element(),
               parameters.tol(),
               projection_error,projection_rank,projection_time,
               optimized_error,optimized_rank,optimized_time);
@@ -205,7 +204,6 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
     j["tol"]=parameters.tol();
     j["orthomethod"]=parameters.orthomethod();
     j["gridtype"]=parameters.gridtype();
-    j["rhsfunctiontype"]=parameters.rhsfunctiontype();
     j["optimize"]=parameters.optimize();
     j["reference"]=reference;
 
@@ -258,7 +256,7 @@ int test_Kcommutator(World& world, LowRankFunctionParameters& parameters) {
 
         // compute the exchange term twice, first time with no optimizatio of the low-rank function, second time with
         // optimization. The optimization should reduce the error significantly.
-        for (int i=0; i<0; ++i) {
+        for (int i=0; i<1; ++i) {
             if (i==1) {
                 fi_one.optimize(lrfunctor);
                 l2error=fi_one.l2error(lrfunctor);
@@ -410,10 +408,10 @@ int test_construction(World& world, LowRankFunctionParameters parameters) {
 
 
     for (auto canonicalize : {true,false}) {
-        for (auto rhsfunctiontype : {"exponential","harmonics"}) {
+        for (auto gridtype : {"random","harmonics","adaptive"}) {
             for (auto ortho : {"cholesky","canonical"}) {
                 for (auto& functor : functors) {
-                    parameters.set_derived_value("rhsfunctiontype",std::string(rhsfunctiontype));
+                    parameters.set_derived_value("gridtype",std::string(gridtype));
                     parameters.set_derived_value("orthomethod",std::string(ortho));
                     parameters.set_derived_value("canonicalize",canonicalize);
                     parameters.print("grid");
@@ -433,7 +431,7 @@ int test_construction(World& world, LowRankFunctionParameters parameters) {
                     snprintf(buf,20,"%.2e",parameters.tol());
                     std::string stol=std::string(buf);
 
-                    std::string description=std::string(rhsfunctiontype)+
+                    std::string description=std::string(parameters.gridtype())+
                                         ", canon="+std::to_string(canonicalize)+
                                         ", "+functor->type()+
                                         ", tol="+stol;
@@ -476,9 +474,9 @@ int test_arithmetic(World& world, LowRankFunctionParameters parameters) {
     auto gauss2=std::shared_ptr<SeparatedConvolution<double,LDIM>>(GaussOperatorPtr<LDIM>(world,2.0));
     LRFunctorF12<double,NDIM> functor2(gauss2,{phi},{});
 
-    for (auto rhsfunctiontype : {"exponential","harmonics"}) {
+    for (auto gridtype : {"random","harmonics"}) {
         for (auto canonicalize : {true,false}) {
-            parameters.set_derived_value("rhsfunctiontype",std::string(rhsfunctiontype));
+            parameters.set_derived_value("gridtype",std::string(gridtype));
             parameters.set_derived_value("canonicalize",canonicalize);
             parameters.print("grid");
 
@@ -716,13 +714,12 @@ int test_remove_lindep(World& world, LowRankFunctionParameters parameters) {
     // for (auto& lrfunctor : {lrfunctor1,lrfunctor2}) {
     for (auto& lrfunctor : {lrfunctor2}) {
         for (auto& canonicalize : {true,false}) {
-            for (auto rhsfunctiontype : {"exponential","harmonics"}) {
-                parameters.set_derived_value("rhsfunctiontype",std::string(rhsfunctiontype));
+            for (auto gridtype : {"random","harmonics"}) {
+                parameters.set_derived_value("gridtype",std::string(gridtype));
                 print_header2("in functor loop");
                 parameters.set_derived_value("canonicalize",canonicalize);
                 MADNESS_CHECK_THROW(parameters.canonicalize() == canonicalize,"incorrect setting of canonicalize"); // make sure it isn't overridden
-                std::string description=std::string(rhsfunctiontype)+
-                                    ", canon="+std::to_string(canonicalize);
+                std::string description=std::string(parameters.gridtype())+", canon="+std::to_string(canonicalize);
 
                 LowRankFunctionFactory<double, NDIM> builder(parameters);
                 auto lrf = builder.project(lrfunctor);
@@ -1009,61 +1006,61 @@ int make_ri_basis(World& world, LowRankFunctionParameters parameters) {
 
 
     for (auto canonicalize : v_canonicalize) {
-        for (auto rhsfunctiontype : v_rhs) {
+        for (auto gridtype : v_rhs) {
             for (auto tol : v_tol) {
             // for (auto lmax : v_lmax) {
-                timer t_total(world);
-                print("canonicalize",canonicalize);
-                print("rhsfunctiontype",rhsfunctiontype);
-                parameters.set_derived_value("canonicalize",bool(canonicalize));
-                parameters.set_derived_value("tol",tol);
-                parameters.set_derived_value("rhsfunctiontype",rhsfunctiontype);
-                parameters.set_derived_value("radius",1.8);
-                // parameters.set_derived_value("lmax",lmax);
-                print("parameters.lmax",parameters.lmax());
+                 timer t_total(world);
+                 print("canonicalize",canonicalize);
+                 print("gridtype",gridtype);
+                 parameters.set_derived_value("gridtype",std::string(gridtype));
+                 parameters.set_derived_value("canonicalize",bool(canonicalize));
+                 parameters.set_derived_value("tol",tol);
+                 parameters.set_derived_value("radius",1.8);
+                 // parameters.set_derived_value("lmax",lmax);
+                 print("parameters.lmax",parameters.lmax());
 
-                parameters.print("in make_ri_basis");
-                auto builder= LowRankFunctionFactory<double,NDIM>(parameters);
+                 parameters.print("in make_ri_basis");
+                 auto builder= LowRankFunctionFactory<double,NDIM>(parameters);
 
-                std::shared_ptr<SeparatedConvolution<double,LDIM>> f12;
-                std::string f12type=parameters.f12type();
-                if (f12type=="slaterf12") {
-                    f12.reset(SlaterF12OperatorPtr_ND<LDIM>(world,parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
-                } else if (f12type=="slater") {
-                    f12.reset(SlaterOperatorPtr_ND<LDIM>(world,parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
-                } else {
-                    MADNESS_EXCEPTION(std::string("unknown f12type"+f12type).c_str(),1);
-                }
-                // a trial function
-                Function<double,3> phi=FunctionFactory<double,3>(world)
-                                .functor([](const Vector<double,3>& r){return exp(-1.2*inner(r,r));});
-                LRFunctorF12<double,NDIM> functorf12(f12,std::vector<Function<double,LDIM>>({phi}),{phi});
+                 std::shared_ptr<SeparatedConvolution<double,LDIM>> f12;
+                 std::string f12type=parameters.f12type();
+                 if (f12type=="slaterf12") {
+                     f12.reset(SlaterF12OperatorPtr_ND<LDIM>(world,parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
+                 } else if (f12type=="slater") {
+                     f12.reset(SlaterOperatorPtr_ND<LDIM>(world,parameters.gamma(),1.e-6,FunctionDefaults<LDIM>::get_thresh()));
+                 } else {
+                     MADNESS_EXCEPTION(std::string("unknown f12type"+f12type).c_str(),1);
+                 }
+                 // a trial function
+                 Function<double,3> phi=FunctionFactory<double,3>(world)
+                                 .functor([](const Vector<double,3>& r){return exp(-1.2*inner(r,r));});
+                 LRFunctorF12<double,NDIM> functorf12(f12,std::vector<Function<double,LDIM>>({phi}),{phi});
 
-                auto lrfunction1=builder.project(functorf12);
-                double error=lrfunction1.l2error(functorf12);
-                print("l2error(lrfunction1)", error);
+                 auto lrfunction1=builder.project(functorf12);
+                 double error=lrfunction1.l2error(functorf12);
+                 print("l2error(lrfunction1)", error);
 
 
-                world.gop.fence();
-                timer t1(world);
-                auto trial=(*f12)(phi*phi);
-                double trialnorm=inner(phi,trial);
-                print("norm( f12(phi))",trialnorm);
+                 world.gop.fence();
+                 timer t1(world);
+                 auto trial=(*f12)(phi*phi);
+                 double trialnorm=inner(phi,trial);
+                 print("norm( f12(phi))",trialnorm);
 
-                auto p1=particle<LDIM>::particle1();
-                auto p2=particle<LDIM>::particle2();
-                auto result1=inner(lrfunction1,phi,p2,p1).trace();
-                t1.tag("inner(f12,phi,1,1)");
-                print("norm(result)",result1);
-                print("relative error",(trialnorm-result1)/trialnorm);
+                 auto p1=particle<LDIM>::particle1();
+                 auto p2=particle<LDIM>::particle2();
+                 auto result1=inner(lrfunction1,phi,p2,p1).trace();
+                 t1.tag("inner(f12,phi,1,1)");
+                 print("norm(result)",result1);
+                 print("relative error",(trialnorm-result1)/trialnorm);
 
-                world.gop.fence();
-                auto zeta=parameters.tempered();
-                double elapsed = t_total.end("end loop");
-                printf("result: tol, vol, radius, canonicalize lmax, zeta, elapsed, l2error, rel. error: "
-                       "%.1e, %.1e, %.1e, %d, %d %.1e, %.1e, %.1e, %e, %e, %e\n",
-                       parameters.tol(),parameters.volume_element(),parameters.radius(), bool(canonicalize),
-                       parameters.lmax(),zeta[0],zeta[1],zeta[2],elapsed, error,fabs(trialnorm-result1)/trialnorm);
+                 world.gop.fence();
+                 auto zeta=parameters.tempered();
+                 double elapsed = t_total.end("end loop");
+                 printf("result: tol, vol, radius, canonicalize lmax, zeta, elapsed, l2error, rel. error: "
+                        "%.1e, %.1e, %.1e, %d, %d %.1e, %.1e, %.1e, %e, %e, %e\n",
+                        parameters.tol(),parameters.volume_element(),parameters.radius(), bool(canonicalize),
+                        parameters.lmax(),zeta[0],zeta[1],zeta[2],elapsed, error,fabs(trialnorm-result1)/trialnorm);
             }
         }
     }
@@ -1077,8 +1074,6 @@ int test_adaptive_grid_projection(World& world, LowRankFunctionParameters parame
     t1.set_cout_to_terminal();
 
     parameters.set_derived_value("gridtype",std::string("adaptive"));
-    // parameters.set_derived_value("gridtype",std::string("random"));
-    // parameters.set_derived_value("rhsfunctiontype",std::string("exponential"));
     parameters.set_derived_value("canonicalize",true);
     parameters.set_derived_value("radius",3.0);
     // parameters.set_derived_value("volume_element",0.08);
@@ -1174,7 +1169,6 @@ int main(int argc, char **argv) {
     parameters.set_derived_value("radius",2.5);
     parameters.set_derived_value("volume_element",0.08);
     parameters.set_derived_value("tol",1.e-5);
-    parameters.set_derived_value("rhsfunctiontype",std::string("exponential"));
     parameters.set_derived_value("tempered",std::vector<double>({1.e-3,1.e2,4.0}));
     parameters.print("grid");
 
@@ -1215,6 +1209,18 @@ int main(int argc, char **argv) {
 
     return isuccess;
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

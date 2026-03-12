@@ -30,8 +30,7 @@ namespace madness {
             initialize<std::string>("f12type","Slater","correlation factor",{"Slater","SlaterF12"});
             initialize<std::string>("orthomethod","cholesky","orthonormalization",{"cholesky","canonical","symmetric"});
             initialize<std::string>("transpose","slater2","transpose of the matrix",{"slater1","slater2"});
-            initialize<std::string>("gridtype","random","the grid type",{"random","cartesian","dftgrid","adaptive","twostage"});
-            initialize<std::string>("rhsfunctiontype","exponential","the type of function",{"exponential","planewave","harmonics"});
+            initialize<std::string>("gridtype","random","the grid type",{"random","adaptive","twostage","harmonics"});
             initialize<int>("optimize",1,"number of optimization iterations");
             initialize<int>("lmax",2,"max angular momentum for the RI harmonics");
             initialize<bool>("canonicalize",false,"canonicalize the rep, i.e. metric is the identity");
@@ -60,7 +59,6 @@ namespace madness {
         [[nodiscard]] bool canonicalize() const {return get<bool>("canonicalize");}
         [[nodiscard]] std::string gridtype() const {return get<std::string>("gridtype");}
         [[nodiscard]] std::string orthomethod() const {return get<std::string>("orthomethod");}
-        [[nodiscard]] std::string rhsfunctiontype() const {return get<std::string>("rhsfunctiontype");}
         [[nodiscard]] std::string f12type() const {return get<std::string>("f12type");}
         [[nodiscard]] std::vector<double> tempered() const {return get<std::vector<double>>("tempered");}
         [[nodiscard]] double adaptive_coarse_factor() const {return get<double>("adaptive_coarse_factor");}
@@ -299,7 +297,8 @@ namespace madness {
             : centers(origins)
         {
             if (centers.size()==0) centers.push_back(Vector<double,NDIM>(0) );
-            if (params.gridtype()=="random" or params.gridtype()=="adaptive") grid_builder=std::make_shared<randomgrid<NDIM>>(params.volume_element(),params.radius());
+            // treat harmonics and twostage like random sampling for constructing the molecular grid
+            if (params.gridtype()=="random" or params.gridtype()=="adaptive" or params.gridtype()=="harmonics" or params.gridtype()=="twostage") grid_builder=std::make_shared<randomgrid<NDIM>>(params.volume_element(),params.radius());
             // else if (params.gridtype()=="cartesian") grid_builder=std::make_shared<cartesian_grid<NDIM>>(params.volume_element(),params.radius());
             else if (params.gridtype()=="dftgrid") {
                 if constexpr (NDIM==3) {
@@ -1170,10 +1169,6 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
             parameters.set_user_defined_value("radius",radius);
             return *this;
         }
-        LowRankFunctionFactory& set_rhsfunctiontype(const std::string type) {
-            parameters.set_user_defined_value("rhsfunctiontype",type);
-            return *this;
-        }
         LowRankFunctionFactory& set_volume_element(const double volume_element) {
             parameters.set_user_defined_value("volume_element",volume_element);
             return *this;
@@ -1278,7 +1273,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
             // get sampling grid
             std::vector<Vector<double,LDIM>> grid;
-            if (parameters.gridtype()=="adaptive" and parameters.rhsfunctiontype()=="exponential") {
+            if (parameters.gridtype()=="adaptive") {
                 const double coarse_ve = parameters.volume_element() * std::max(1.0, parameters.adaptive_coarse_factor());
                 auto coarse_grid = make_uniform_random_grid_in_cell(coarse_ve);
                 auto coarse = Yformer(lrfunctor, coarse_grid, parameters, 30.0, 0.0);
@@ -1397,31 +1392,21 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
         }
 
 
-        /// apply a rhs (delta or exponential) on grid points to the hi-dim function and form Y = A_ij w_j (in Halko's language)
+        /// apply a rhs on grid points to the hi-dim function and form Y = A_ij w_j (in Halko's language).
+        /// The RHS selection (localized Gaussian/exponential vs harmonics) is controlled by
+        /// the single `gridtype` parameter: values "random"/"adaptive"/"twostage" use
+        /// localized Gaussian RHS (the previous "exponential" behavior), whereas
+        /// "harmonics" uses the RI harmonics-based RHS.
         YFormationResult Yformer(const LRFunctorBase<T,NDIM>& lrfunctor1,
             const std::vector<Vector<double,LDIM>>& grid,
-            // const std::string rhsfunctiontype,
             const LowRankFunctionParameters& parameters,
             const double exponent=30.0,
             const double significance_tol=-1.0) const {
 
             World& world=lrfunctor1.world();
             std::vector<Function<double,LDIM>> Y;
-            if (parameters.rhsfunctiontype()=="exponential") {
-                std::vector<Function<double,LDIM>> omega;
-                double coeff=std::pow(2.0*exponent/constants::pi,0.25*LDIM);
-                for (const auto& point : grid) {
-                    omega.push_back(FunctionFactory<double,LDIM>(world)
-                                            .functor([&point,&exponent,&coeff](const Vector<double,LDIM>& r)
-                                                     {
-                                                         auto r_rel=r-point;
-                                                         return coeff*exp(-exponent*madness::inner(r_rel,r_rel));
-                                                     }));
-                }
-                Y=inner(lrfunctor1,omega,p2,p1);
-            } else if (parameters.rhsfunctiontype()=="harmonics") {
-                // not rhs actually..
-
+            if (parameters.gridtype()=="harmonics") {
+                // harmonics-based Y
                 struct GaussianFunction : public FunctionFunctorInterface<double,LDIM> {
                     std::vector<long> ijk; // angular momentum
                     Vector<double,LDIM> center;
@@ -1437,8 +1422,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                     }
                 };
 
-                // compute the monomial exponents for the Cartesian Gaussian functions up to a certain angular momentum,
-                // e.g. lmax=2 gives s, p, d functions
+                // compute the monomial exponents for the Cartesian Gaussian functions up to a certain angular momentum
                 std::vector<std::vector<long>> types;
                 int lmax=parameters.lmax();
                 for (int l=0; l<=lmax; ++l) {
@@ -1456,10 +1440,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                     };
                     generate_ijk(0,l);
                 }
-                // print("types",types);
 
                 {
-                    // even-tempered basis
                     std::vector<double> zetas;
                     double z=parameters.tempered()[0];
                     while (z<parameters.tempered()[1]) {
@@ -1470,7 +1452,6 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                             break;
                         }
                     }
-                    // print("zetas",zetas);
                     auto center=Vector<double,LDIM>(0.0);
 
                     for (auto type : types) {
@@ -1481,58 +1462,19 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                         }
                     }
                 }
-            } else if (parameters.rhsfunctiontype()=="planewave") {
-                std::vector<Function<double,LDIM>> omega;
-                // construct Gaussian envelope such that at the radius the value drop to 1.e-1,
-                // i.e. exp(-radius^2*exponent)=1.e-10 => exponent=log(1.e1)/radius^2
-                double radius=parameters.radius();
-                double exponent=std::log(1.e1)/(radius*radius);
-                auto envelope=[&](const Vector<double,LDIM>& r) {
-                    return exp(-exponent*madness::inner(r,r));
-                };
-
-                // plane wave length starts at 2*radius and ends with the volume element:
-                // k_min = 2*pi/lambda, lambda = 2*radius => k=pi/radius
-                // k_max = 2*pi/lambda, lambda = volume_element => k=2*pi/volume_element
-                double k_min=constants::pi/parameters.radius();
-                double k_max=2.0*constants::pi/parameters.volume_element();
-                int nstep=floor(k_max/k_min);
-                print("kmin, kmax, nstep",k_min,k_max,nstep, "lambda min, lambda max",2.0*constants::pi/k_max, 2.0*constants::pi/k_min);
-                print("number of basis functions",std::pow(nstep,LDIM));
-
-                // plane wave is a_i cos(k*(r-center)) + b_i sin(k*(r-center))
-                // make k vector
-                std::vector<Vector<int,LDIM>> quantum_numbers;
-                for (int i=0; i<std::pow(nstep,LDIM); ++i) {
-                    Vector<int,LDIM> qn;
-                    int tmp=i;
-                    for (int d=0; d<LDIM; ++d) {
-                        qn[d]=tmp%nstep;
-                        tmp/=nstep;
-                    }
-                    quantum_numbers.push_back(qn);
-                }
-                // k_n = k_min*qn
-                std::vector<Vector<double,LDIM>> kvecs;
-                for (auto& k: quantum_numbers) {
-                    Vector<double,LDIM> kvec;
-                    for (int d=0; d<LDIM; ++d) kvec[d]=k_min*k[d];
-                    kvecs.push_back(kvec);
-                }
-
-                // set up plane waves
-                auto pw = [&](const Vector<double,LDIM>& kvec) {
-                    return FunctionFactory<double,LDIM>(world)
-                            .functor([&kvec,&envelope](const Vector<double,LDIM>& r)
-                                     {
-                                         return envelope(r)*(cos(inner(kvec,r))+sin(inner(kvec,r)));
-                                     });
-                };
-                for (const auto& kvec: kvecs) omega.push_back(pw(kvec));
-
-                Y=inner(lrfunctor1,omega,p2,p1);
             } else {
-                MADNESS_EXCEPTION("confused rhsfunctiontype",1);
+                // default: use localized Gaussian RHS (for gridtype values other than "harmonics")
+                std::vector<Function<double,LDIM>> omega;
+                double coeff=std::pow(2.0*exponent/constants::pi,0.25*LDIM);
+                for (const auto& point : grid) {
+                    omega.push_back(FunctionFactory<double,LDIM>(world)
+                                            .functor([&point,&exponent,&coeff](const Vector<double,LDIM>& r)
+                                                     {
+                                                         auto r_rel=r-point;
+                                                         return coeff*exp(-exponent*madness::inner(r_rel,r_rel));
+                                                     }));
+                }
+                Y=inner(lrfunctor1,omega,p2,p1);
             }
             auto norms=norm2s(world,Y);
             std::vector<Function<double,LDIM>> Ynormalized;
