@@ -4927,16 +4927,21 @@ template<size_t NDIM>
                   : array_of_bools<NDIM>{false}.or_back(
                         op->func_domain_is_periodic());
 
-          const auto default_distance_squared = [&](const auto &displacement)
+          const auto default_real_distance_squared = [&](const auto &displacement)
               -> double {
             return displacement.real_distsq_bc(op->lattice_summed(), FunctionDefaults<NDIM>::get_cell_width());
+          };
+          const auto default_lattice_distance_squared = [&](const auto &displacement)
+              -> std::uint64_t {
+            return displacement.distsq_bc(op->lattice_summed());
           };
           const auto default_skip_predicate = [&](const auto &displacement)
               -> bool {
             return false;
           };
           const auto for_each = [&](const auto &displacements,
-                                    const auto &distance_squared,
+                                    const auto &real_distance_squared,
+				    const auto &lattice_distance_squared,
                                     const auto &skip_predicate) -> std::optional<std::uint64_t> {
 
             // used to screen estimated and actual contributions
@@ -4953,7 +4958,8 @@ template<size_t NDIM>
             // where fac takes into account
             int nvalid = 1; // Counts #valid at each distance
             int nused = 1;  // Counts #used at each distance
-            std::optional<double> distsq;
+            std::optional<double> real_last_distsq;
+	    std::optional<std::uint64_t> lattice_last_distsq;
 
             // displacements to the kernel range boundary are typically same magnitude (modulo variation)
             // estimate the norm of the resulting contributions and skip all if one is too small
@@ -4978,11 +4984,16 @@ template<size_t NDIM>
               else
                 d = nullkey.merge_with(displacement);
 
-              // shell-wise screening, assumes displacements are grouped into shells sorted so that operator decays with shell index N.B. lattice-summed decaying kernel is periodic (i.e. does decay w.r.t. r), so loop over shells of displacements sorted by distances modulated by periodicity (Key::distsq_bc)
-              const auto dsq = distance_squared(displacement);
-              if (!distsq ||
-                  dsq != *distsq) { // Moved to next shell of neighbors
-                if (nvalid > 0 && nused == 0 && dsq > 1) {
+	      // Screen out shells. We assume shells are grouped into shells so so operator decays with shell index.
+	      // Shells are indexed by least distance from box to the central box.
+	      // Cells touching so much as a corner of the central box are further grouped by their lattice distance.
+              // N.B. lattice-summed decaying kernel is periodic (i.e. does decay w.r.t. r), so loop over shells of displacements sorted by distances modulated by periodicity (Key::distsq_bc)
+              const auto real_distsq = real_distance_squared(displacement);
+	      const std::uint64_t lattice_distsq = real_distsq ? 0 : lattice_distance_squared(displacement);
+              if (!real_last_distsq.has_value() ||
+                  //real_distsq != *real_last_distsq || (!real_distsq && lattice_distsq != *lattice_last_distsq)) { // Moved to next shell of neighbors
+                  real_distsq != *real_last_distsq) { // Moved to next shell of neighbors
+                if (nvalid > 0 && nused == 0 && (real_distsq > 0 || lattice_distsq > 1)) {
                   // Have at least done the input box and all first
                   // nearest neighbors, and none of the last set
                   // of neighbors made significant contributions.  Thus,
@@ -4991,7 +5002,9 @@ template<size_t NDIM>
                 }
                 nused = 0;
                 nvalid = 0;
-                distsq = dsq;
+                real_last_distsq = real_distsq;
+		// After real_last_distsq > 0, we stop caring about keeping lattice_last_distsq up-to-date.
+		lattice_last_distsq = real_distsq ? std::optional<std::uint64_t>{} : lattice_distsq; 
               }
 
               keyT dest = neighbor(key, d, func_is_treated_by_op_as_periodic);
@@ -5015,7 +5028,7 @@ template<size_t NDIM>
               }
             }
 
-            return distsq;
+            return real_last_distsq;
           };
 
           // process "standard" displacements, screening assumes monotonic decay of the kernel
@@ -5023,7 +5036,7 @@ template<size_t NDIM>
           // N.B. if op is lattice-summed use periodic displacements, else use
           // non-periodic even if op treats any modes of this as periodic
           const std::vector<opkeyT> &disp = op->get_disp(key.level());
-          const auto max_distsq_reached = for_each(disp, default_distance_squared, default_skip_predicate);
+          const auto max_distsq_reached = for_each(disp, default_real_distance_squared, default_lattice_distance_squared, default_skip_predicate);
 
           // for range-restricted kernels displacements to the boundary of the kernel range also need to be included
           // N.B. hard range restriction will result in slow decay of operator matrix elements for the displacements
@@ -5044,7 +5057,7 @@ template<size_t NDIM>
             // skip surface displacements that take us outside of the domain and/or were included in regular displacements
             // N.B. for lattice-summed axes the "filter" also maps the displacement back into the simulation cell
             if (max_distsq_reached)
-              validator = BoxSurfaceDisplacementValidator<opdim>(/* is_infinite_domain= */ op->func_domain_is_periodic(), /* is_lattice_summed= */ op->lattice_summed(), range, default_distance_squared, *max_distsq_reached);
+              validator = BoxSurfaceDisplacementValidator<opdim>(/* is_infinite_domain= */ op->func_domain_is_periodic(), /* is_lattice_summed= */ op->lattice_summed(), range, default_real_distance_squared, *max_distsq_reached);
 
             // this range iterates over the entire surface layer(s), and provides a probing displacement that can be used to screen out the entire box
             auto opkey = op->particle() == 1 ? key.template extract_front<opdim>() : key.template extract_front<opdim>();
@@ -5056,6 +5069,7 @@ template<size_t NDIM>
             for_each(
                 range_boundary_face_displacements,
                 // surface displacements are not screened, all are included
+                [](const auto &displacement) -> double { return 0; },
                 [](const auto &displacement) -> std::uint64_t { return 0; },
                 default_skip_predicate);
           }
@@ -5139,16 +5153,14 @@ template<size_t NDIM>
             // non-periodic even if op treats any modes of this as periodic
             const std::vector<opkeyT>& disp = Displacements<opdim>().get_disp(key.level(), op->lattice_summed());
 
-            for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
-                const opkeyT& d = *it;
-
+            for (const auto& d: disp) {
                 const int shell=d.distsq_bc(op->lattice_summed());
                 if (do_kernel and (shell>0)) break;
                 if ((not do_kernel) and (shell==0)) continue;
 
                 keyT disp1;
-                if (op->particle()==1) disp1=it->merge_with(nullkey);
-                else if (op->particle()==2) disp1=nullkey.merge_with(*it);
+                if (op->particle()==1) disp1=d.merge_with(nullkey);
+                else if (op->particle()==2) disp1=nullkey.merge_with(d);
                 else {
                     MADNESS_EXCEPTION("confused particle in operator??",1);
                 }

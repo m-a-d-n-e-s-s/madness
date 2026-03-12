@@ -86,11 +86,17 @@ namespace madness {
 
     private:
         static bool cmp_keys(const Key<NDIM>& a, const Key<NDIM>& b) {
-            return a.real_distsq(widths) < b.real_distsq(widths);
+	    const auto a_width = a.real_distsq(widths);
+	    const auto b_width = b.real_distsq(widths);
+	    if (a_width == 0 and a_width == b_width) return a.distsq() < b.distsq();
+            else return a_width < b_width;
         }
 
         static bool cmp_keys_periodic(const Key<NDIM>& a, const Key<NDIM>& b) {
-          return a.real_distsq_bc(periodic_axes, widths) < b.real_distsq_bc(periodic_axes, widths);
+	    const auto a_width = a.real_distsq_bc(periodic_axes, widths);
+	    const auto b_width = b.real_distsq_bc(periodic_axes, widths);
+	    if (a_width == 0 and a_width == b_width) return a.distsq_bc(periodic_axes) < b.distsq_bc(periodic_axes);
+            else return a_width < b_width;
         }
 
         static void make_disp(int bmax) {
