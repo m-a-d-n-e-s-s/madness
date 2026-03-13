@@ -797,7 +797,7 @@ namespace madness {
     template <typename L, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> >
     transform(World& world,  const std::vector< Function<L,NDIM> >& v,
-            const Tensor<R>& c, double tol, bool fence) {
+            const Tensor<R>& c, double tol, bool fence=true) {
         PROFILE_BLOCK(Vtransform);
         MADNESS_ASSERT(v.size() == (unsigned int)(c.dim(0)));
 
