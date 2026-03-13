@@ -1,0 +1,5 @@
+<map id="slymer::PrimitiveGaussian" name="slymer::PrimitiveGaussian">
+<area shape="rect" id="Node000001" title="A primitive Gaussian function." alt="" coords="5,108,200,133"/>
+<area shape="rect" id="Node000002" href="$classslymer_1_1PolynomialCoeffs.html" title="Array for storing coefficients of a polynomial of three variables with specified degree." alt="" coords="8,5,197,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="105,45,105,108,100,108,100,45"/>
+</map>

@@ -1,0 +1,5 @@
+<map id="Graphical Class Hierarchy" name="Graphical Class Hierarchy">
+<area shape="rect" id="Node000000" href="$classslymer_1_1BasisFunction.html" title="Abstract base class for generic basis functions." alt="" coords="5,5,171,31"/>
+<area shape="rect" id="Node000001" href="$classslymer_1_1GaussianFunction.html" title="A Gaussian basis function used by chemistry electronic structure codes." alt="" coords="219,5,409,31"/>
+<area shape="poly" id="edge453_Node000000_Node000001" title=" " alt="" coords="185,15,218,15,218,21,185,21"/>
+</map>
