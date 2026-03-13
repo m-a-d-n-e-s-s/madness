@@ -26,6 +26,8 @@ nlohmann::json CC2::solve() {
         std::cout << std::fixed << std::setprecision(1) << "\nstarting calculation at time " << wall_time() << std::endl;
     }
     const CalcType ctype = parameters.calc_type();
+    FunctionDefaults<3>::set_thresh(parameters.thresh_3D());
+    FunctionDefaults<6>::set_thresh(parameters.thresh_6D());
 
     // fill in results here
     std::map<std::string,CC2Results> results;

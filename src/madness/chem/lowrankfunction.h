@@ -578,6 +578,7 @@ public:
             if (a[ia].is_initialized()) result1*=a[ia](first);
             if (b[ia].is_initialized()) result1*=b[ia](second);
             if (f12->info.type==OT_SLATER) result1*=exp(-gamma*(first-second).normf());
+            else if (f12->info.type==OT_F12) result1*=(1.0-exp(-gamma* madness::inner(first-second,first-second)));
             else if (f12->info.type==OT_GAUSS) result1*=exp(-gamma* madness::inner(first-second,first-second));
             else {
                 MADNESS_EXCEPTION("no such operator_type",1);
@@ -1165,6 +1166,10 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
 
         LowRankFunctionFactory(const LowRankFunctionFactory& other) = default;
 
+        LowRankFunctionFactory& set_centers(const std::vector<Vector<double,LDIM>> centers) {
+            origins=centers;
+            return *this;
+        }
         LowRankFunctionFactory& set_radius(const double radius) {
             parameters.set_user_defined_value("radius",radius);
             return *this;
@@ -1319,10 +1324,7 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                         grid.insert(grid.end(), local.begin(), local.end());
                     }
                 }
-                auto probe = Yformer(lrfunctor, probe_points, parameters, 30.0, 0.0);
-                if (grid.empty()) {
-                    grid = make_uniform_random_grid_in_cell(parameters.volume_element());
-                }
+                MADNESS_CHECK_THROW(not grid.empty(),"grid is empty");
             } else {
                 molecular_grid<LDIM> mgrid(origins,parameters);
                 grid=mgrid.get_grid();
@@ -1468,6 +1470,8 @@ struct LRFunctorPure : public LRFunctorBase<T,NDIM> {
                 double coeff=std::pow(2.0*exponent/constants::pi,0.25*LDIM);
                 for (const auto& point : grid) {
                     omega.push_back(FunctionFactory<double,LDIM>(world)
+                        // .thresh(1.e-6)      // make sure this is not undersampled
+                        .special_points({point})
                                             .functor([&point,&exponent,&coeff](const Vector<double,LDIM>& r)
                                                      {
                                                          auto r_rel=r-point;

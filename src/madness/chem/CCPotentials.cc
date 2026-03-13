@@ -1336,8 +1336,8 @@ std::vector<CCPairFunction<double,6>>
     // calculate the regularized potential
     real_function_6d V=real_factory_6d(world);
     std::vector<CCPairFunction<double,6>> V_lowrank;
-    if (exists("Ue")) V += apply_Ue(world,ti,tj,info,&Gscreen);
     if (exists("KffK")) V -= apply_KffK(world,ti,tj,info,&Gscreen);
+    if (exists("Ue")) V += apply_Ue(world,ti,tj,info,&Gscreen);
     if (exists("reduced_Fock")) V += apply_reduced_F(world,ti,tj,info,&Gscreen);
     if (exists("comm_F_Qt_f12")) {
         V_lowrank += apply_commutator_F_Qt_f12(world,ti,tj,gs_singles,ex_singles,info,&Gscreen);
@@ -1800,6 +1800,72 @@ CCPotentials::apply_commutator_F_dQt_f12(World& world, const CCFunction<double,3
     return result[0];
 }
 
+madness::real_function_6d
+CCPotentials::apply_KffK_low_rank(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
+                                                      const Info& info, const real_convolution_6d *Gscreen) {
+
+    // the exchange commutator looks like K f12 |phi_i phi_j> - f12 K |phi_i phi_j>
+
+    // make a low-rank approximation to f12 phi_k(1)
+    real_convolution_3d g12=(CoulombOperator(world,1.e-6,FunctionDefaults<3>::get_thresh()));
+    g12.particle()=1;
+
+    auto f12_op=CCConvolutionOperatorPtr<double,3>(world,OT_F12,info.parameters);
+    auto f12ptr=f12_op->get_op();
+
+    real_function_3d one=real_factory_3d(world).f([](const coord_3d& r){return 1.0;});
+    real_function_6d result=real_factory_6d(world);
+    const auto kket=info.mo_ket;
+    const auto kbra=info.mo_bra;
+
+    auto builder=LowRankFunctionFactory<double,6>(LowRankFunctionParameters())
+                .set_gridtype("twostage").set_centers(info.molecular_coordinates);
+    builder.parameters.print("lrf parameters in apply_KffK_lowrank");
+    double tight_thresh=FunctionDefaults<3>::get_thresh();
+
+    // first: K_1 f12 |i j> = \sum_k k(1) \int g(1,1') f(1',2) k(1') i(1') j(2) d1'
+    //  and   K_2 f12 |i j> = \sum_k k(2) \int g(2,2') f(1,2') k(2') i(1) j(2') d2'
+
+    for (auto particle : {1,2}) {       // loop over K_1 and K_2
+        g12.particle()=particle;
+
+        LowRankFunction<double,6> f12_k(world);
+        // decompose f(1',2) i(1') = \sum_pq g_ip(1') M_pq h_iq(2)
+        auto lrfunctor= (particle==1) ? LRFunctorF12<double,6>(f12ptr,phi_i.function,one)
+                                      : LRFunctorF12<double,6>(f12ptr,one, phi_j.function);
+
+        double val=lrfunctor({0,0,0,0.2,0.2,0.2});
+        print("lrfunctor at origin",val);
+        f12_k=builder.project(lrfunctor);
+        // functions of f12 k(x) that have the same electron variable as k(1')
+        auto same_index=(particle==1) ? f12_k.get_g()  : f12_k.get_h();
+        std::vector<Function<double,3>> c_ip(same_index.size());
+
+        for (int i=0; i<kket.size(); ++i) {
+
+            // multiply  g_ip(1') k(1')
+            auto a_ikp1 = truncate(same_index * kbra[i],tight_thresh);
+
+            // apply Coulomb operator: a_ikp(1) = G(1,1') g_ip(1') k(1')
+            auto a_ikp = g12(a_ikp1);
+            // accumulate into intermediate
+            c_ip+=a_ikp*kket[i];
+        }
+        if (particle==1) f12_k.h=c_ip;
+        if (particle==2) f12_k.g=c_ip;
+        result -= f12_k.reconstruct();
+    }
+
+    // next: f(1,2) (K_1 + K_2) |i j>
+    Exchange<double,3> K(world,info.parameters.lo());
+    K.set_bra_and_ket(kbra,kket);
+    auto tmp_i = K(phi_i.function);
+    auto tmp_j = K(phi_j.function);
+    CCPairFunction<double,6> result1(f12_op,{phi_i.function,tmp_i},{tmp_j,phi_j.function});
+    result+=result1.to_pure().get_function();
+    return result;
+
+}
 
 madness::real_function_6d
 CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const CCFunction<double,3>& phi_j,
@@ -1821,6 +1887,7 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
 
     bool symmetric_kf = false;
     if ((phi_i.type == phi_j.type) && (phi_i.i == phi_j.i)) symmetric_kf = true;
+    real_function_6d result;
 
     // First make the 6D function f12|x,y>
 //    print("old KffK algorithm");
@@ -1829,40 +1896,45 @@ CCPotentials::apply_KffK(World& world, const CCFunction<double,3>& phi_i, const 
 //    f12xy.truncate().reduce_rank();
 //    // Apply the Exchange Operator
 //    real_function_6d Kfxy = K_macrotask(world, info.mo_ket, info.mo_bra, f12xy, symmetric_kf, parameters);
-    print("new KffK algorithm");
-    real_function_6d Kfxy=apply_Kfxy(world,phi_i,phi_j,info,parameters);
-    save(Kfxy, "Kf_" + x_name + y_name);
+    bool new_algo=false;
+    if (new_algo) {
+        print("new KffK algorithm");
+        real_function_6d Kfxy=apply_Kfxy(world,phi_i,phi_j,info,parameters);
+        save(Kfxy, "Kf_" + x_name + y_name);
 
-    if (parameters.debug()) part1_time.info();
+        if (parameters.debug()) part1_time.info();
 
-    //apply fk
-    CCTimer part2_time(world, "fK" + x_name + y_name + ">");
+        //apply fk
+        CCTimer part2_time(world, "fK" + x_name + y_name + ">");
 
-    const bool symmetric_fk = (phi_i==phi_j);
-    const real_function_3d Kx = K_macrotask(world, info.mo_ket, info.mo_bra, x_ket, parameters);
-    const FuncType Kx_type = UNDEFINED;
-    const real_function_6d fKphi0b = make_f_xy_macrotask(world, Kx, y_ket, x_bra, y_bra, phi_i.i, phi_j.i,
-        parameters, Kx_type, phi_j.type, Gscreen);
-    real_function_6d fKphi0a;
-    if (symmetric_fk) fKphi0a = madness::swap_particles(fKphi0b);
-    else {
-        real_function_3d Ky = K_macrotask(world, info.mo_ket, info.mo_bra, y_ket, parameters);
-        const FuncType Ky_type = UNDEFINED;
-        fKphi0a = make_f_xy_macrotask(world, x_ket, Ky, x_bra, y_bra, phi_i.i, phi_j.i,
-            parameters, phi_i.type, Ky_type, Gscreen);
+        const bool symmetric_fk = (phi_i==phi_j);
+        const real_function_3d Kx = K_macrotask(world, info.mo_ket, info.mo_bra, x_ket, parameters);
+        const FuncType Kx_type = UNDEFINED;
+        const real_function_6d fKphi0b = make_f_xy_macrotask(world, Kx, y_ket, x_bra, y_bra, phi_i.i, phi_j.i,
+            parameters, Kx_type, phi_j.type, Gscreen);
+        real_function_6d fKphi0a;
+        if (symmetric_fk) fKphi0a = madness::swap_particles(fKphi0b);
+        else {
+            real_function_3d Ky = K_macrotask(world, info.mo_ket, info.mo_bra, y_ket, parameters);
+            const FuncType Ky_type = UNDEFINED;
+            fKphi0a = make_f_xy_macrotask(world, x_ket, Ky, x_bra, y_bra, phi_i.i, phi_j.i,
+                parameters, phi_i.type, Ky_type, Gscreen);
+        }
+        const real_function_6d fKxy = (fKphi0a + fKphi0b);
+        save(fKxy, "fK_" + x_name + y_name);
+
+        if (parameters.debug()) part2_time.info();
+
+        //final result
+        Kfxy.print_size("Kf" + x_name + y_name);
+        Kfxy.set_thresh(parameters.thresh_6D());
+        Kfxy.truncate().reduce_rank();
+        Kfxy.print_size("Kf after truncation" + x_name + y_name);
+        fKxy.print_size("fK" + x_name + y_name);
+        result = (Kfxy - fKxy);
+    } else {
+        result=apply_KffK_low_rank(world,phi_i,phi_j,info,Gscreen);
     }
-    const real_function_6d fKxy = (fKphi0a + fKphi0b);
-    save(fKxy, "fK_" + x_name + y_name);
-
-    if (parameters.debug()) part2_time.info();
-
-    //final result
-    Kfxy.print_size("Kf" + x_name + y_name);
-    Kfxy.set_thresh(parameters.thresh_6D());
-    Kfxy.truncate().reduce_rank();
-    Kfxy.print_size("Kf after truncation" + x_name + y_name);
-    fKxy.print_size("fK" + x_name + y_name);
-    real_function_6d result = (Kfxy - fKxy);
     result.set_thresh(parameters.thresh_6D());
     result.print_size("[K,f]" + x_name + y_name);
     result.truncate().reduce_rank();
