@@ -203,12 +203,12 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::K_small_memory(
     auto poisson = set_poisson(world, lo);
 
     for (int i = 0; i < nocc; ++i) {
-        vecfuncT psif = mul_sparse2(world, mo_bra[i], vket, mul_tol*0.1, true, false, false); /// was vtol
+        vecfuncT psif = mul_sparse(world, mo_bra[i], vket, mul_tol*0.1, true, false); /// was vtol
         truncate(world, psif);
         psif = apply(world, *poisson.get(), psif);
         truncate(world, psif);
         make_redundant(world, psif, true);
-        psif = mul_sparse2(world, mo_ket[i], psif, mul_tol*0.1, true, false, false); /// was vtol
+        psif = mul_sparse(world, mo_ket[i], psif, mul_tol*0.1, true, false); /// was vtol
         gaxpy(world, 1.0, Kf, 1.0, psif);
     }
     truncate(world, Kf);
@@ -230,7 +230,7 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::K_small_memory_
 
     for (int i = 0; i < nocc; ++i) {
         vecfuncT vket_subset(vket.begin(), vket.begin() + i + 1);
-        vecfuncT psif = mul_sparse2(world, mo_bra[i], vket_subset, mul_tol*0.1, true, false, false);
+        vecfuncT psif = mul_sparse(world, mo_bra[i], vket_subset, mul_tol*0.1, true, false);
 
         truncate(world, psif);
         psif = apply(world, *poisson.get(), psif);
@@ -242,7 +242,7 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::K_small_memory_
         compress(world, update_i);
 
         // Row contribution: update_i[j] += ket[i] * N_ij for j <= i
-        vecfuncT row_contrib = mul_sparse2(world, mo_ket[i], psif, mul_tol*0.1, true, false, false);
+        vecfuncT row_contrib = mul_sparse(world, mo_ket[i], psif, mul_tol*0.1, true, false);
         compress(world, row_contrib);
         for (int j = 0; j <= i; ++j) {
             update_i[j] += row_contrib[j];
@@ -251,7 +251,7 @@ std::vector<Function<T, NDIM> > Exchange<T, NDIM>::ExchangeImpl::K_small_memory_
         // Mirrored contribution: update_i[i] += ket[j] * N_ij for j < i
         for (int j = 0; j < i; ++j) {
             vecfuncT psif_single(1, psif[j]);
-            vecfuncT mirrored = mul_sparse2(world, mo_ket[j], psif_single, mul_tol*0.1, true, false, false);
+            vecfuncT mirrored = mul_sparse(world, mo_ket[j], psif_single, mul_tol*0.1, true, false);
             compress(world, mirrored);
             update_i[i] += mirrored[0];
         }

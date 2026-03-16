@@ -656,7 +656,7 @@ private:
             for (long i = 0; i < n; ++i) {
                 // Build N_ij for the upper-triangle of this diagonal tile row.
                 vecfuncT vf_subset(vf_batch.begin(), vf_batch.begin() + i + 1);
-                vecfuncT psif = mul_sparse2(subworld, bra_batch[i], vf_subset, mul_tol*0.1, true, false, false);
+                vecfuncT psif = mul_sparse(subworld, bra_batch[i], vf_subset, mul_tol*0.1, true, false);
                 if (subworld.rank() == 0) {
                     print("smallmem_sym_mt diagonal i=", i, " psif.size()=", psif.size());
                 }
@@ -669,7 +669,7 @@ private:
                 vecfuncT update_i = zero_functions_compressed<T, NDIM>(subworld, n);
                 compress(subworld, update_i);
 
-                vecfuncT row_contrib = mul_sparse2(subworld, ket_batch[i], psif, mul_tol*0.1, true, false, false);
+                vecfuncT row_contrib = mul_sparse(subworld, ket_batch[i], psif, mul_tol*0.1, true, false);
                 if (subworld.rank() == 0) {
                     print("smallmem_sym_mt diagonal i=", i, " vpsi.size()=", row_contrib.size());
                 }
@@ -680,8 +680,7 @@ private:
 
                 for (long j = 0; j < i; ++j) {
                     vecfuncT psif_single(1, psif[j]);
-                    vecfuncT mirrored = mul_sparse2(subworld, ket_batch[j], psif_single, mul_tol*0.1, true, false,
-                                                    false);
+                    vecfuncT mirrored = mul_sparse(subworld, ket_batch[j], psif_single, mul_tol*0.1, true, false);
                     compress(subworld, mirrored);
                     update_i[i] += mirrored[0];
                 }
@@ -763,7 +762,7 @@ private:
 
             for (long irow = 0; irow < nrow; ++irow) {
                 // Build N_ij for this offdiagonal tile row, all tile columns.
-                vecfuncT psif = mul_sparse2(subworld, bra_batch[irow], vf_batch, mul_tol*0.1, true, false, false);
+                vecfuncT psif = mul_sparse(subworld, bra_batch[irow], vf_batch, mul_tol*0.1, true, false);
                 if (subworld.rank() == 0) {
                     print("smallmem_sym_mt offdiag irow=", irow, " psif.size()=", psif.size());
                 }
@@ -773,7 +772,7 @@ private:
                 make_redundant(subworld, psif, true);
 
                 // Row accumulation for vf-range: resultrow[j] += ket_row[irow] * N_ij.
-                vecfuncT row_update = mul_sparse2(subworld, ket_rows[irow], psif, mul_tol*0.1, true, false, false);
+                vecfuncT row_update = mul_sparse(subworld, ket_rows[irow], psif, mul_tol*0.1, true, false);
                 if (subworld.rank() == 0) {
                     print("smallmem_sym_mt offdiag irow=", irow, " vpsi.size()=", row_update.size());
                 }
@@ -877,7 +876,7 @@ private:
                 // mul_sparse legacy for reference
                 //
                 //cpu0 = process_cpu_time();
-                //auto tmp_psif = mul_sparse(world, vket[i], tmp_mo_bra, mul_tol*0.1, true, false, false);
+                //auto tmp_psif = mul_sparse(world, vket[i], tmp_mo_bra, mul_tol*0.1, true, false);
                 //cpu1 = process_cpu_time();
                 //for (unsigned int i=0; i<tmp_psif.size(); ++i){
                 //    print(ilo+i, "mul_sparse output ", tmp_psif[i].tree_size());
@@ -894,7 +893,7 @@ private:
                 //for (unsigned int i=0; i<tmp_mo_bra.size(); ++i){
                 //    //vecfuncT v;
                 //    //v.push_back(copy(tmp_mo_bra[i]));
-                //    //auto res = mul_sparse2(world, vket[0], v, mul_tol*0.1, true, false, false);
+                //    //auto res = mul_sparse(world, vket[0], v, mul_tol*0.1, true, false);
                 //    auto res = mul_sparse_debug(vket[0], tmp_mo_bra[i], mul_tol*0.1, true, false, false, true);
                 //    print(ilo+i, "mw_mul output size ", res.tree_size());
                 //    res.truncate();
@@ -912,11 +911,11 @@ private:
         //        print("end vket");
 
                 cpu0 = process_cpu_time();
-                auto tmp_psif2 = mul_sparse2(world, vket[0], tmp_mo_bra, mul_tol*0.1, true, false, false);
+                auto tmp_psif2 = mul_sparse(world, vket[0], tmp_mo_bra, mul_tol*0.1, true, false);
                 cpu1 = process_cpu_time();
                 mul1_timer += long((cpu1 - cpu0) * 1000l);
                 
-                // mul_sparse2 (new) for mw screening
+                // mul_sparse (new) for mw screening
                 //
               //  cpu0 = process_cpu_time();
               //  //vket_redundant.compress(true);

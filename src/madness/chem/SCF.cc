@@ -1555,7 +1555,7 @@ vecfuncT SCF::apply_potential(World& world, const tensorT& occ,
                 //    auto res = mul_sparse_debug(vloc, tmpamo[i], vtol*0.1, true, false, false, true);
                 //    tmpVpsi2.push_back(res);
                 //}
-                auto tmpVpsi2 = mul_sparse2(world, vloc, tmpamo, vtol*0.1, true, false, true);
+                auto tmpVpsi2 = mul_sparse(world, vloc, tmpamo, vtol*0.1, true, true);
 
               //  for (unsigned int i=0; i<tmpVpsi2.size(); ++i){
               //      print(ilo+i, "V*psi mw_mul output ", tmpVpsi2[i].tree_size()); 

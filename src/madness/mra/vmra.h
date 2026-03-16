@@ -1137,6 +1137,10 @@ namespace madness {
     }
 
     /// Multiplies a function against a vector of functions using sparsity of a and v[i] --- q[i] = a * v[i]
+    ///
+    /// This now uses the redundant-tree mw-screening kernel (vmulXX2). By default it
+    /// will make both inputs redundant before multiplication. Set
+    /// do_make_redundant=false to skip the automatic preparation.
     template <typename T, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     mul_sparse(World& world,
@@ -1144,46 +1148,20 @@ namespace madness {
                const std::vector< Function<R,NDIM> >& v,
                double tol,
                bool fence=true,
-               bool do_reconstruct=true,
-               bool do_norm_tree=true) {
-        PROFILE_BLOCK(Vmulsp);
-        if (do_reconstruct) {
-            a.reconstruct(false);
-            reconstruct(world, v, false);
-            world.gop.fence();
-        }
-        if (do_norm_tree) {
-            for (unsigned int i=0; i<v.size(); ++i) {
-                v[i].norm_tree(false);
-            }
-            a.norm_tree();
-        }
-        return vmulXX(a, v, tol, fence);
-    }
-
-    template <typename T, typename R, std::size_t NDIM>
-    std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
-    mul_sparse2(World& world,
-               const Function<T,NDIM>& a,
-               const std::vector< Function<R,NDIM> >& v,
-               double tol,
-               bool fence=true,
-               bool do_compress=true,
                bool do_make_redundant=true) {
         PROFILE_BLOCK(Vmulsp);
-        //if (do_compress) {
-        //    a.compress(false);
-        //    compress(world, v, false);
-        //    world.gop.fence();
-        //}
         if (do_make_redundant) {
             make_redundant(world, v, false);
             a.make_redundant(false);
             world.gop.fence();
+        } else if (!v.empty()) {
+            MADNESS_CHECK_THROW(a.get_impl()->get_tree_state() == TreeState::redundant,
+                                "mul_sparse skip-prep requires left input in redundant state");
+            MADNESS_CHECK_THROW(get_tree_state(v) == TreeState::redundant,
+                                "mul_sparse skip-prep requires right input in redundant state");
         }
         return vmulXX2(a, v, tol, fence);
     }
-
 
     /// Outer product of a vector of functions with a vector of functions using sparsity
 

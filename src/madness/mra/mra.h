@@ -1848,18 +1848,19 @@ namespace madness {
         return mul(alpha, f, true);
     }
 
-    /// Sparse multiplication --- left and right must be reconstructed and if tol!=0 have tree of norms already created
+    /// Sparse multiplication.
+    ///
+    /// The scalar interface redirects to the vector implementation in vmra.h.
     template <typename L, typename R,std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>
     mul_sparse(const Function<L,NDIM>& left,
                const Function<R,NDIM>& right,
                double tol, bool fence=true,
-               bool do_reconstruct=true,
-               bool do_norm_tree=true) {
+               bool do_make_redundant=true) {
         std::vector< Function<R,NDIM> > vright;
         vright.push_back(right);
         std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> > result = 
-            mul_sparse(left.get_impl()->world, left, vright, tol, fence, do_reconstruct, do_norm_tree); 
+            mul_sparse(left.get_impl()->world, left, vright, tol, fence, do_make_redundant); 
         return result[0];
     }
 
@@ -1890,7 +1891,7 @@ namespace madness {
         if (mw_screening)
             return mul_sparse_debug(left,right,tol,fence,do_reconstruct,do_norm_tree,mw_screening);
         else 
-            return mul_sparse(left,right,tol,fence,do_reconstruct,do_norm_tree);
+            return mul_sparse(left,right,tol,fence,do_reconstruct || do_norm_tree);
     }
 
     /// Generate new function = op(left,right) where op acts on the function values
